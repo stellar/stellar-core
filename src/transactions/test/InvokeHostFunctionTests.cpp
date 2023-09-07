@@ -317,11 +317,242 @@ deployContractWithSourceAccount(Application& app, RustBuf const& contractWasm,
         app, contractWasm, uploadResources, createResources, salt);
 }
 
+// Fee constants from rs-soroban-env/soroban-env-host/src/fees.rs
+constexpr int64_t INSTRUCTION_INCREMENT = 10000;
+constexpr int64_t DATA_SIZE_1KB_INCREMENT = 1024;
+constexpr int64_t TX_BASE_RESULT_SIZE = 300;
+
+TEST_CASE("non-refundable resource metering", "[tx][soroban]")
+{
+    VirtualClock clock;
+    auto app = createTestApplication(clock, getTestConfig());
+    overrideSorobanNetworkConfigForTest(*app);
+
+    uniform_int_distribution<uint64_t> feeDist(1, 100'000);
+    modifySorobanNetworkConfig(*app, [&feeDist](SorobanNetworkConfig& cfg) {
+        cfg.mFeeRatePerInstructionsIncrement = feeDist(Catch::rng());
+        cfg.mFeeReadLedgerEntry = feeDist(Catch::rng());
+        cfg.mFeeWriteLedgerEntry = feeDist(Catch::rng());
+        cfg.mFeeRead1KB = feeDist(Catch::rng());
+        cfg.mFeeWrite1KB = feeDist(Catch::rng());
+        cfg.mFeeHistorical1KB = feeDist(Catch::rng());
+        cfg.mFeeTransactionSize1KB = feeDist(Catch::rng());
+    });
+
+    SorobanNetworkConfig const& cfg = [&] {
+        LedgerTxn ltx(app->getLedgerTxnRoot());
+        return app->getLedgerManager().getSorobanNetworkConfig(ltx);
+    }();
+
+    Operation op;
+    op.body.type(INVOKE_HOST_FUNCTION);
+    auto& ihf = op.body.invokeHostFunctionOp().hostFunction;
+    ihf.type(HOST_FUNCTION_TYPE_INVOKE_CONTRACT);
+
+    SorobanResources resources;
+    resources.instructions = 0;
+    resources.readBytes = 0;
+    resources.writeBytes = 0;
+
+    auto root = TestAccount::createRoot(*app);
+
+    // The following computations are copies of compute_transaction_resource_fee
+    // in rs-soroban-env/soroban-env-host/src/fees.rs. This is reimplemented
+    // here so that we can check if the Cxx bridge introduced any fee related
+    // bugs.
+    auto computeFeePerIncrement = [&](int64_t resourceVal, int64_t feeRate,
+                                      int64_t increment) {
+        // ceiling division for (resourceVal * feeRate) / increment
+        int64_t num = (resourceVal * feeRate);
+        return (num + increment - 1) / increment;
+    };
+
+    // Fees that depend on TX size, historicalFee and bandwidthFee
+    auto txSizeFees = [&](TransactionFrameBasePtr tx) {
+        int64_t txSize = static_cast<uint32>(xdr::xdr_size(tx->getEnvelope()));
+        int64_t historicalFee = computeFeePerIncrement(
+            txSize + TX_BASE_RESULT_SIZE, cfg.mFeeHistorical1KB,
+            DATA_SIZE_1KB_INCREMENT);
+
+        int64_t bandwidthFee = computeFeePerIncrement(
+            txSize, cfg.feeTransactionSize1KB(), DATA_SIZE_1KB_INCREMENT);
+
+        return historicalFee + bandwidthFee;
+    };
+
+    auto computeFee = [&] {
+        return computeFeePerIncrement(resources.instructions,
+                                      cfg.feeRatePerInstructionsIncrement(),
+                                      INSTRUCTION_INCREMENT);
+    };
+
+    auto entryReadFee = [&] {
+        return (resources.footprint.readOnly.size() +
+                resources.footprint.readWrite.size()) *
+               cfg.feeReadLedgerEntry();
+    };
+
+    auto entryWriteFee = [&] {
+        return resources.footprint.readWrite.size() * cfg.feeWriteLedgerEntry();
+    };
+
+    auto readBytesFee = [&] {
+        return computeFeePerIncrement(resources.readBytes, cfg.feeRead1KB(),
+                                      DATA_SIZE_1KB_INCREMENT);
+    };
+
+    auto writeBytesFee = [&] {
+        return computeFeePerIncrement(resources.writeBytes, cfg.feeWrite1KB(),
+                                      DATA_SIZE_1KB_INCREMENT);
+    };
+
+    auto checkFees = [&](int64_t expectedNonRefundableFee,
+                         std::shared_ptr<TransactionFrameBase> rootTX) {
+        LedgerTxn ltx(app->getLedgerTxnRoot());
+
+        // This will compute soroban fees
+        REQUIRE(rootTX->checkValid(*app, ltx, 0, 0, 0));
+
+        auto actualFeePair = std::dynamic_pointer_cast<TransactionFrame>(rootTX)
+                                 ->getSorobanResourceFee();
+        REQUIRE(actualFeePair);
+        REQUIRE(expectedNonRefundableFee == actualFeePair->non_refundable_fee);
+
+        auto inclusionFee = getMinInclusionFee(*rootTX, ltx.getHeader());
+
+        // Check that minimum fee succeeds
+        auto minimalTX = sorobanTransactionFrameFromOps(
+            app->getNetworkID(), root, {op}, {}, resources,
+            expectedNonRefundableFee + inclusionFee, 0);
+        REQUIRE(minimalTX->checkValid(*app, ltx, 1, 0, 0));
+
+        // Check that just below minimum fee fails
+        auto badTX = sorobanTransactionFrameFromOps(
+            app->getNetworkID(), root, {op}, {}, resources,
+            expectedNonRefundableFee + inclusionFee - 1, 0);
+        REQUIRE(!badTX->checkValid(*app, ltx, 2, 0, 0));
+    };
+
+    // In the following tests, we isolate a single fee to test by zeroing out
+    // every other resource, as much as is possible
+    SECTION("tx size fees")
+    {
+        auto tx = sorobanTransactionFrameFromOps(
+            app->getNetworkID(), root, {op}, {}, resources, UINT32_MAX, 0);
+
+        // Resources are all null, only include TX size based fees
+        auto expectedFee = txSizeFees(tx);
+        checkFees(expectedFee, tx);
+    }
+
+    SECTION("compute fee")
+    {
+        resources.instructions = feeDist(Catch::rng());
+
+        auto tx = sorobanTransactionFrameFromOps(
+            app->getNetworkID(), root, {op}, {}, resources, UINT32_MAX, 0);
+
+        // Should only have instruction and TX size fees
+        auto expectedFee = txSizeFees(tx) + computeFee();
+        checkFees(expectedFee, tx);
+    }
+
+    uniform_int_distribution<> numKeysDist(1, 10);
+    SECTION("entry read/write fee")
+    {
+        SECTION("RO Only")
+        {
+            auto size = numKeysDist(Catch::rng());
+            for (auto const& e :
+                 LedgerTestUtils::generateValidUniqueLedgerEntriesWithTypes(
+                     {CONTRACT_DATA, CONTRACT_CODE}, size))
+            {
+                resources.footprint.readOnly.emplace_back(LedgerEntryKey(e));
+            }
+
+            auto tx = sorobanTransactionFrameFromOps(
+                app->getNetworkID(), root, {op}, {}, resources, UINT32_MAX, 0);
+
+            // Only read entry fees and TX size fees
+            auto expectedFee = txSizeFees(tx) + entryReadFee();
+            checkFees(expectedFee, tx);
+        }
+
+        SECTION("RW Only")
+        {
+            auto size = numKeysDist(Catch::rng());
+            for (auto const& e :
+                 LedgerTestUtils::generateValidUniqueLedgerEntriesWithTypes(
+                     {CONTRACT_DATA, CONTRACT_CODE}, size))
+            {
+                resources.footprint.readWrite.emplace_back(LedgerEntryKey(e));
+            }
+
+            auto tx = sorobanTransactionFrameFromOps(
+                app->getNetworkID(), root, {op}, {}, resources, UINT32_MAX, 0);
+
+            // Only read entry, write entry, and TX size fees
+            auto expectedFee =
+                txSizeFees(tx) + entryReadFee() + entryWriteFee();
+            checkFees(expectedFee, tx);
+        }
+
+        SECTION("RW and RO")
+        {
+            auto size = numKeysDist(Catch::rng());
+            for (auto const& e :
+                 LedgerTestUtils::generateValidUniqueLedgerEntriesWithTypes(
+                     {CONTRACT_DATA, CONTRACT_CODE}, size))
+            {
+                resources.footprint.readOnly.emplace_back(LedgerEntryKey(e));
+            }
+
+            size = numKeysDist(Catch::rng());
+            for (auto const& e :
+                 LedgerTestUtils::generateValidUniqueLedgerEntriesWithTypes(
+                     {CONTRACT_DATA, CONTRACT_CODE}, size))
+            {
+                resources.footprint.readWrite.emplace_back(LedgerEntryKey(e));
+            }
+
+            auto tx = sorobanTransactionFrameFromOps(
+                app->getNetworkID(), root, {op}, {}, resources, UINT32_MAX, 0);
+
+            // Only read entry, write entry, and TX size fees
+            auto expectedFee =
+                txSizeFees(tx) + entryReadFee() + entryWriteFee();
+            checkFees(expectedFee, tx);
+        }
+    }
+
+    uniform_int_distribution<uint32_t> bytesDist(1, 100'000);
+    SECTION("readBytes fee")
+    {
+        resources.readBytes = bytesDist(Catch::rng());
+        auto tx = sorobanTransactionFrameFromOps(
+            app->getNetworkID(), root, {op}, {}, resources, UINT32_MAX, 0);
+
+        // Only readBytes and TX size fees
+        auto expectedFee = txSizeFees(tx) + readBytesFee();
+        checkFees(expectedFee, tx);
+    }
+
+    SECTION("writeBytes fee")
+    {
+        resources.writeBytes = bytesDist(Catch::rng());
+        auto tx = sorobanTransactionFrameFromOps(
+            app->getNetworkID(), root, {op}, {}, resources, UINT32_MAX, 0);
+
+        // Only writeBytes and TX size fees
+        auto expectedFee = txSizeFees(tx) + writeBytesFee();
+        checkFees(expectedFee, tx);
+    }
+}
+
 TEST_CASE("basic contract invocation", "[tx][soroban]")
 {
     VirtualClock clock;
     auto cfg = getTestConfig();
-    cfg.EXPERIMENTAL_BUCKETLIST_DB = false;
     auto app = createTestApplication(clock, cfg);
     overrideSorobanNetworkConfigForTest(*app);
 
