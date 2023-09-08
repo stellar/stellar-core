@@ -11,7 +11,7 @@ use crate::{
     },
 };
 use log::debug;
-use soroban_env_host_curr::{xdr::{LedgerEntryExt, ExpirationEntry},};
+use soroban_env_host_curr::xdr::{ExpirationEntry, LedgerEntryExt};
 use std::{fmt::Display, io::Cursor, panic, time::Instant};
 
 // This module (contract) is bound to _two separate locations_ in the module
@@ -28,8 +28,8 @@ use super::soroban_env_host::{
         LedgerEntryRentChange, RentFeeConfiguration, TransactionResources, WriteFeeConfiguration,
     },
     xdr::{
-        self, ContractCostParams, DiagnosticEvent, LedgerEntry, LedgerEntryData, ReadXdr, ScErrorCode, ScErrorType, WriteXdr,
-        XDR_FILES_SHA256,
+        self, ContractCostParams, DiagnosticEvent, LedgerEntry, LedgerEntryData, ReadXdr,
+        ScErrorCode, ScErrorType, WriteXdr, XDR_FILES_SHA256,
     },
     HostError, LedgerInfo,
 };
@@ -45,7 +45,7 @@ impl From<CxxLedgerInfo> for LedgerInfo {
             base_reserve: c.base_reserve,
             min_temp_entry_expiration: c.min_temp_entry_expiration,
             min_persistent_entry_expiration: c.min_persistent_entry_expiration,
-            max_entry_expiration: c.max_entry_expiration
+            max_entry_expiration: c.max_entry_expiration,
         }
     }
 }
@@ -223,23 +223,22 @@ fn extract_ledger_effects(
 
         // Check for ExpirationEntry changes
         if let Some(expiration_change) = change.expiration_change {
-            if expiration_change.new_expiration_ledger > expiration_change.old_expiration_ledger
-            {
+            if expiration_change.new_expiration_ledger > expiration_change.old_expiration_ledger {
                 // entry_changes only encode LedgerEntry changes for ContractCode and ContractData
                 // entries. Changes to ExpirationEntry are recorded in expiration_change, but does
                 // not contain an encoded ExpirationEntry. We must build that here.
-                let hash_bytes: [u8; 32] = expiration_change.key_hash
+                let hash_bytes: [u8; 32] = expiration_change
+                    .key_hash
                     .try_into()
-                    .map_err(|_| {
-                        (ScErrorType::Value, ScErrorCode::InternalError)
-                    })?;
+                    .map_err(|_| (ScErrorType::Value, ScErrorCode::InternalError))?;
 
                 let le = LedgerEntry {
                     last_modified_ledger_seq: 0,
                     data: LedgerEntryData::Expiration(ExpirationEntry {
                         key_hash: hash_bytes.into(),
-                        expiration_ledger_seq: expiration_change.new_expiration_ledger}),
-                    ext: LedgerEntryExt::V0
+                        expiration_ledger_seq: expiration_change.new_expiration_ledger,
+                    }),
+                    ext: LedgerEntryExt::V0,
                 };
 
                 let encoded = non_metered_xdr_to_rust_buf(&le)
@@ -367,8 +366,7 @@ fn invoke_host_function_or_maybe_panic(
                     &rent_fee_configuration.into(),
                     ledger_seq_num,
                 );
-                let modified_ledger_entries =
-                    extract_ledger_effects(res.ledger_changes)?;
+                let modified_ledger_entries = extract_ledger_effects(res.ledger_changes)?;
                 return Ok(InvokeHostFunctionOutput {
                     success: true,
                     diagnostic_events: encode_diagnostic_events(&diagnostic_events),
