@@ -1250,18 +1250,23 @@ TEST_CASE("contract storage", "[tx][soroban]")
         bumpLowHigh(key, type, bumpAmount, bumpAmount);
     };
 
-    auto increaseStorageSizeWithFootprint =
-        [&](std::string const& key, xdr::xvector<LedgerKey> const& readOnly,
+    auto increaseEntrySizeAndBump =
+        [&](std::string const& key, uint32_t numKiloBytes, uint32_t lowLifetime,
+            uint32_t highLifetime, xdr::xvector<LedgerKey> const& readOnly,
             xdr::xvector<LedgerKey> const& readWrite, bool expectSuccess,
             uint32_t refundableFee) {
             auto keySymbol = makeSymbolSCVal(key);
+            auto numKiloBytesU32 = makeU32(numKiloBytes);
+            auto lowLifetimeU32 = makeU32(lowLifetime);
+            auto highLifetimeU32 = makeU32(highLifetime);
 
-            std::string funcStr = "increase_entry_size";
+            std::string funcStr = "replace_with_bytes_and_bump";
 
             // TODO: Better bytes to write value
-            auto [tx, ltx, txm] =
-                createTx(readOnly, readWrite, 1000, contractID,
-                         makeSymbol(funcStr), {keySymbol}, refundableFee);
+            auto [tx, ltx, txm] = createTx(
+                readOnly, readWrite, 2000, contractID, makeSymbol(funcStr),
+                {keySymbol, numKiloBytesU32, lowLifetimeU32, highLifetimeU32},
+                refundableFee);
 
             if (expectSuccess)
             {
@@ -1871,8 +1876,8 @@ TEST_CASE("contract storage", "[tx][soroban]")
         }
 
         // First, resize a key with max fee to guarantee success
-        increaseStorageSizeWithFootprint("key1", contractKeys, {key1lk}, true,
-                                         40'000);
+        increaseEntrySizeAndBump("key1", 1, 0, 0, contractKeys, {key1lk}, true,
+                                 40'000);
 
         auto sizeDelta = 0;
         {
@@ -1887,27 +1892,22 @@ TEST_CASE("contract storage", "[tx][soroban]")
 
         auto expectedRentFee = getRentFeeForBytes(
             sizeDelta, lifetime, sorobanConfig, /*isPersistent=*/true);
-        expectedRentFee += getExpirationEntryWriteFee(sorobanConfig);
 
-        CLOG_FATAL(Bucket, "rent related fee: {}",
-                   getRentFeeForBytes(sizeDelta, lifetime, sorobanConfig,
-                                      /*isPersistent=*/true));
-        CLOG_FATAL(Bucket, "ExpirationEntry write fee {}",
-                   getExpirationEntryWriteFee(sorobanConfig));
-
-        // TODO: Fix bug and get rid of this
-        expectedRentFee = 2;
-
-        increaseStorageSizeWithFootprint(
-            "key2", contractKeys,
+        // refundableFee = rent+fee + (event size + return val)_fee. So in order
+        // to success refundableFee needs to be expectedRentFee + 1 to account
+        // for the return val size.
+        auto refundableFee = expectedRentFee;
+        increaseEntrySizeAndBump(
+            "key2", 1, 0, 0, contractKeys,
             {contractDataKey(contractID, makeSymbolSCVal("key2"), PERSISTENT)},
-            false, expectedRentFee - 1);
+            false, refundableFee);
 
         // Size change should succeed with enough refundable fee
-        increaseStorageSizeWithFootprint(
-            "key2", contractKeys,
+        refundableFee += 1;
+        increaseEntrySizeAndBump(
+            "key2", 1, 0, 0, contractKeys,
             {contractDataKey(contractID, makeSymbolSCVal("key2"), PERSISTENT)},
-            true, expectedRentFee);
+            true, refundableFee);
     }
 
     SECTION("max expiration")
