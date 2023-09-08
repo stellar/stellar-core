@@ -21,11 +21,6 @@ LedgerCloseMetaFrame::LedgerCloseMetaFrame(uint32_t protocolVersion)
     {
         mVersion = 2;
     }
-    else if (protocolVersionStartsFrom(protocolVersion,
-                                       GENERALIZED_TX_SET_PROTOCOL_VERSION))
-    {
-        mVersion = 1;
-    }
     mLedgerCloseMeta.v(mVersion);
 }
 

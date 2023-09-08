@@ -702,19 +702,16 @@ size_t
 TxSetFrame::size(LedgerHeader const& lh, std::optional<Phase> phase) const
 {
     size_t sz = 0;
-    if (protocolVersionStartsFrom(lh.ledgerVersion, SOROBAN_PROTOCOL_VERSION))
+    if (!phase)
     {
-        if (!phase)
-        {
-            if (numPhases() > static_cast<size_t>(Phase::SOROBAN))
-            {
-                sz += sizeOp(Phase::SOROBAN);
-            }
-        }
-        else if (phase.value() == Phase::SOROBAN)
+        if (numPhases() > static_cast<size_t>(Phase::SOROBAN))
         {
             sz += sizeOp(Phase::SOROBAN);
         }
+    }
+    else if (phase.value() == Phase::SOROBAN)
+    {
+        sz += sizeOp(Phase::SOROBAN);
     }
     if (!phase || phase.value() == Phase::CLASSIC)
     {

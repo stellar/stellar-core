@@ -786,15 +786,10 @@ HerderImpl::externalizeValue(TxSetFrameConstPtr txSet, uint32_t ledgerSeq,
 bool
 HerderImpl::sourceAccountPending(AccountID const& accountID) const
 {
-    auto pending =
-        mApp.getHerder().getTransactionQueue().sourceAccountPending(accountID);
-
-    pending =
-        pending ||
-        mApp.getHerder().getSorobanTransactionQueue().sourceAccountPending(
-            accountID);
-
-    return pending;
+    return mApp.getHerder().getTransactionQueue().sourceAccountPending(
+               accountID) ||
+           mApp.getHerder().getSorobanTransactionQueue().sourceAccountPending(
+               accountID);
 }
 
 #endif
