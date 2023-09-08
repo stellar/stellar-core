@@ -14,14 +14,6 @@ else # !BUILD_TESTS
 stellar_core_SOURCES = main/StellarCoreVersion.cpp main/XDRFilesSha256.cpp $(SRC_CXX_FILES)
 endif # !BUILD_TESTS
 
-if ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
-main/XDRFilesSha256.cpp: $(SRC_X_FILES) Makefile $(top_srcdir)/hash-xdrs.sh
-	$(top_srcdir)/hash-xdrs.sh protocol-next >$@
-else
-main/XDRFilesSha256.cpp: $(SRC_X_FILES) Makefile $(top_srcdir)/hash-xdrs.sh
-	$(top_srcdir)/hash-xdrs.sh protocol-curr >$@
-endif
-
 if ENABLE_PROTOCOL_UPGRADE_VIA_SOROBAN_ENV_HOST_PREV
 CARGO_FEATURES = --features soroban-env-host-prev
 else
@@ -29,6 +21,15 @@ CARGO_FEATURES =
 endif
 if USE_TRACY
 CARGO_FEATURES += --features tracy
+endif
+
+if ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
+CARGO_FEATURES += --features core-vnext
+main/XDRFilesSha256.cpp: $(SRC_X_FILES) Makefile $(top_srcdir)/hash-xdrs.sh
+	$(top_srcdir)/hash-xdrs.sh protocol-next >$@
+else
+main/XDRFilesSha256.cpp: $(SRC_X_FILES) Makefile $(top_srcdir)/hash-xdrs.sh
+	$(top_srcdir)/hash-xdrs.sh protocol-curr >$@
 endif
 
 stellar_core_LDADD = $(soci_LIBS) $(libmedida_LIBS)		\

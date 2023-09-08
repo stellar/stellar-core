@@ -389,12 +389,37 @@ fn check_lockfile_has_expected_dep_tree(
     let soroban_host_proto_version = get_ledger_protocol_version(soroban_host_interface_version);
     let soroban_host_pre_release_version = get_pre_release_version(soroban_host_interface_version);
 
-    // < instead of != because the vnext build would fail this check otherwise.
-    if stellar_core_proto_version < soroban_host_proto_version {
-        panic!(
-            "stellar-core \"{}\" protocol is {}, does not match soroban host \"{}\" protocol {}",
-            curr_or_prev, stellar_core_proto_version, curr_or_prev, soroban_host_proto_version
-        );
+    if cfg!(feature = "core-vnext") {
+        // In a stellar-core "vnext" build, core's protocol is set to 1 more
+        // than the network's current max-supported version, to prototype new
+        // work that we don't want to get released to the network by accident,
+        // during a point release.
+        //
+        // Soroban has no corresponding concept of a "vnext build" so we just
+        // use a weak version check here, and let core's protocol get ahead of
+        // soroban's in this type of build.
+        if stellar_core_proto_version < soroban_host_proto_version {
+            panic!(
+                "stellar-core \"{}\" protocol is {}, does not match soroban host \"{}\" protocol {}",
+                curr_or_prev, stellar_core_proto_version, curr_or_prev, soroban_host_proto_version
+            );
+        }
+    } else {
+        // In non-vnext core builds, we're more strict about the versions
+        // matching.
+        //
+        // FIXME: this is fairly harmless, but old versions of soroban didn't
+        // encode a protocol version in their interface version at all, so will
+        // report zero here. For now we ignore this, but should tighten the test
+        // up before final.
+        if soroban_host_proto_version != 0
+            && stellar_core_proto_version != soroban_host_proto_version
+        {
+            panic!(
+                "stellar-core \"{}\" protocol is {}, does not match soroban host \"{}\" protocol {}",
+                curr_or_prev, stellar_core_proto_version, curr_or_prev, soroban_host_proto_version
+            );
+        }
     }
 
     let pkg = lockfile
