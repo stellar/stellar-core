@@ -858,12 +858,18 @@ BucketList::scanForEviction(Application& app, AbstractLedgerTxn& ltx,
             evictionIter.bucketListLevel = firstScanLevel;
         }
 
-        // Check if bucket has changed since iterator was set
+        // Whenever a Bucket changes (spills or receives an incoming spill), the
+        // iterator offset in that bucket is invalidated. After scanning, we
+        // must write the iterator to the BucketList then close the ledger.
+        // Bucket spills occur on ledger close after we've already written the
+        // iterator, so the iterator may be invalidated. Because of this, we
+        // must check if the Bucket the iterator currently points to changed on
+        // the previous ledger, indicating the current iterator is invalid.
         if (evictionIter.isCurrBucket)
         {
             // Check if bucket received an incoming spill
             releaseAssert(evictionIter.bucketListLevel != 0);
-            if (BucketList::levelShouldSpill(ledgerSeq,
+            if (BucketList::levelShouldSpill(ledgerSeq - 1,
                                              evictionIter.bucketListLevel - 1))
             {
                 // If Bucket changed, reset to start of bucket
@@ -872,7 +878,7 @@ BucketList::scanForEviction(Application& app, AbstractLedgerTxn& ltx,
         }
         else
         {
-            if (BucketList::levelShouldSpill(ledgerSeq,
+            if (BucketList::levelShouldSpill(ledgerSeq - 1,
                                              evictionIter.bucketListLevel))
             {
                 // If Bucket changed, reset to start of bucket

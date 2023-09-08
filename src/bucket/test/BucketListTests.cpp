@@ -1075,8 +1075,10 @@ TEST_CASE_VERSIONS("eviction scan", "[bucketlist]")
                     closeLedger(*app);
                 }
 
+                // Scan meta entry + one other entry in initial scan
+                stateExpirationSettings.evictionScanSize = metadataSize + 1;
+
                 // Reset eviction iter start of bucket being tested
-                stateExpirationSettings.evictionScanSize = 1;
                 stateExpirationSettings.startingEvictionScanLevel = levelToTest;
                 evictionIter.bucketFileOffset = 0;
                 evictionIter.isCurrBucket = isCurr;
@@ -1109,9 +1111,18 @@ TEST_CASE_VERSIONS("eviction scan", "[bucketlist]")
                 // Check that bucket actually changed
                 REQUIRE(bucket()->getHash() != startingHash);
 
+                // The iterator retroactively checks if the Bucket has changed,
+                // so close one additional ledger to check if the iterator has
+                // reset
+                closeLedger(*app);
+                ++ledgerSeq;
+
+                BucketInputIterator in(bucket());
+
                 // Check that iterator has reset to beginning of bucket and read
-                // one entry
-                REQUIRE(evictionIter.bucketFileOffset == metadataSize);
+                // meta entry + one additional entry
+                REQUIRE(evictionIter.bucketFileOffset ==
+                        metadataSize + xdr::xdr_size(*in) + xdrOverheadBytes);
                 REQUIRE(evictionIter.bucketListLevel == levelToTest);
                 REQUIRE(evictionIter.isCurrBucket == isCurr);
             };
