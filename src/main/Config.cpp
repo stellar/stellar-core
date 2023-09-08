@@ -4,6 +4,7 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "main/Config.h"
+#include "bucket/BucketList.h"
 #include "crypto/Hex.h"
 #include "crypto/KeyUtils.h"
 #include "herder/Herder.h"
@@ -264,6 +265,13 @@ Config::Config() : NODE_SEED(SecretKey::random())
     ENABLE_SOROBAN_DIAGNOSTIC_EVENTS = false;
     TESTING_MINIMUM_PERSISTENT_ENTRY_LIFETIME = 0;
     TESTING_SOROBAN_HIGH_LIMIT_OVERRIDE = false;
+    OVERRIDE_EVICTION_PARAMS_FOR_TESTING = false;
+    TESTING_EVICTION_SCAN_SIZE =
+        InitialSorobanNetworkConfig::EVICTION_SCAN_SIZE;
+    TESTING_MAX_ENTRIES_TO_EXPIRE =
+        InitialSorobanNetworkConfig::MAX_ENTRIES_TO_EXPIRE;
+    TESTING_STARTING_EVICTION_SCAN_LEVEL =
+        InitialSorobanNetworkConfig::STARTING_EVICTION_SCAN_LEVEL;
 
 #ifdef BUILD_TESTS
     TEST_CASES_ENABLED = false;
@@ -1468,6 +1476,23 @@ Config::processConfig(std::shared_ptr<cpptoml::table> t)
                     DEFAULT_LOG,
                     "Overriding MINIMUM_PERSISTENT_ENTRY_LIFETIME to {}",
                     TESTING_MINIMUM_PERSISTENT_ENTRY_LIFETIME);
+            }
+            else if (item.first == "OVERRIDE_EVICTION_PARAMS_FOR_TESTING")
+            {
+                OVERRIDE_EVICTION_PARAMS_FOR_TESTING = readBool(item);
+            }
+            else if (item.first == "TESTING_EVICTION_SCAN_SIZE")
+            {
+                TESTING_EVICTION_SCAN_SIZE = readInt<uint32_t>(item);
+            }
+            else if (item.first == "TESTING_STARTING_EVICTION_SCAN_LEVEL")
+            {
+                TESTING_STARTING_EVICTION_SCAN_LEVEL =
+                    readInt<uint32_t>(item, 1, BucketList::kNumLevels - 1);
+            }
+            else if (item.first == "TESTING_MAX_ENTRIES_TO_EXPIRE")
+            {
+                TESTING_MAX_ENTRIES_TO_EXPIRE = readInt<uint32_t>(item);
             }
             else if (item.first == "TESTING_SOROBAN_HIGH_LIMIT_OVERRIDE")
             {

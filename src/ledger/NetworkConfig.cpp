@@ -357,12 +357,25 @@ initialStateExpirationSettings(Config const& cfg)
 
     entry.stateExpirationSettings().bucketListSizeWindowSampleSize =
         InitialSorobanNetworkConfig::BUCKET_LIST_SIZE_WINDOW_SAMPLE_SIZE;
-    entry.stateExpirationSettings().evictionScanSize =
-        InitialSorobanNetworkConfig::EVICTION_SCAN_SIZE;
-    entry.stateExpirationSettings().maxEntriesToExpire =
-        InitialSorobanNetworkConfig::MAX_ENTRIES_TO_EXPIRE;
-    entry.stateExpirationSettings().startingEvictionScanLevel =
-        InitialSorobanNetworkConfig::STARTING_EVICTION_SCAN_LEVEL;
+
+    if (cfg.OVERRIDE_EVICTION_PARAMS_FOR_TESTING)
+    {
+        entry.stateExpirationSettings().evictionScanSize =
+            cfg.TESTING_EVICTION_SCAN_SIZE;
+        entry.stateExpirationSettings().maxEntriesToExpire =
+            cfg.TESTING_MAX_ENTRIES_TO_EXPIRE;
+        entry.stateExpirationSettings().startingEvictionScanLevel =
+            cfg.TESTING_STARTING_EVICTION_SCAN_LEVEL;
+    }
+    else
+    {
+        entry.stateExpirationSettings().evictionScanSize =
+            InitialSorobanNetworkConfig::EVICTION_SCAN_SIZE;
+        entry.stateExpirationSettings().maxEntriesToExpire =
+            InitialSorobanNetworkConfig::MAX_ENTRIES_TO_EXPIRE;
+        entry.stateExpirationSettings().startingEvictionScanLevel =
+            InitialSorobanNetworkConfig::STARTING_EVICTION_SCAN_LEVEL;
+    }
 
     entry.stateExpirationSettings().persistentRentRateDenominator =
         InitialSorobanNetworkConfig::PERSISTENT_RENT_RATE_DENOMINATOR;

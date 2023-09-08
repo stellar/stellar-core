@@ -577,6 +577,14 @@ class Config : public std::enable_shared_from_this<Config>
     // Increase all initial max limits to higher values for testing
     bool TESTING_SOROBAN_HIGH_LIMIT_OVERRIDE;
 
+    // Override eviction parameters for testing. If
+    // OVERRIDE_EVICTION_PARAMS_FOR_TESTING is true, all the eviction TESTING_*
+    // parameters will be used instead of the default values.
+    bool OVERRIDE_EVICTION_PARAMS_FOR_TESTING;
+    uint32_t TESTING_EVICTION_SCAN_SIZE;
+    uint32_t TESTING_STARTING_EVICTION_SCAN_LEVEL;
+    uint32_t TESTING_MAX_ENTRIES_TO_EXPIRE;
+
 #ifdef BUILD_TESTS
     // If set to true, the application will be aware this run is for a test
     // case.  This is used right now in the signal handler to exit() instead of
