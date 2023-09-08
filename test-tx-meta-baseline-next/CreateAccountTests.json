@@ -1,6 +1,6 @@
 
 {
-	"!cfg protocol version" : 20,
+	"!cfg protocol version" : 21,
 	"!rng seed" : 12345,
 	"!test all versions" : true,
 	"!versions to test" : 
@@ -25,7 +25,8 @@
 		17,
 		18,
 		19,
-		20
+		20,
+		21
 	],
 	"create account|protocol version 10|Amount too small to create account" : [ "X2yKCWehH5U=" ],
 	"create account|protocol version 10|Not enough funds (source)" : [ "x6hOin79MFA=", "6VHOcmD0yD4=" ],
@@ -167,6 +168,19 @@
 	"create account|protocol version 20|Success|Account already exists" : [ "7Ax9M1QcI6o=" ],
 	"create account|protocol version 20|with native buying liabilities" : [ "zjmel/rK4YM=", "1FtphEP0msw=", "1CXoN32FzVo=" ],
 	"create account|protocol version 20|with native selling liabilities" : 
+	[
+		"zjmel/rK4YM=",
+		"jX6GjwEyd9s=",
+		"u82ny7wez8c=",
+		"veHenoVa4Bw=",
+		"LtuyUmmmleE="
+	],
+	"create account|protocol version 21|Amount too small to create account" : [ "3fTPho50aNk=" ],
+	"create account|protocol version 21|Not enough funds (source)" : [ "p+Hr1iECiCM=", "gi3bhFMEnrI=" ],
+	"create account|protocol version 21|Success" : [ "ZcrR+my9Bg0=" ],
+	"create account|protocol version 21|Success|Account already exists" : [ "7Ax9M1QcI6o=" ],
+	"create account|protocol version 21|with native buying liabilities" : [ "zjmel/rK4YM=", "1FtphEP0msw=", "1CXoN32FzVo=" ],
+	"create account|protocol version 21|with native selling liabilities" : 
 	[
 		"zjmel/rK4YM=",
 		"jX6GjwEyd9s=",

@@ -1,6 +1,6 @@
 
 {
-	"!cfg protocol version" : 20,
+	"!cfg protocol version" : 21,
 	"!rng seed" : 12345,
 	"!test all versions" : true,
 	"!versions to test" : 
@@ -25,7 +25,8 @@
 		17,
 		18,
 		19,
-		20
+		20,
+		21
 	],
 	"Stellar asset contract transfer|trustline" : 
 	[

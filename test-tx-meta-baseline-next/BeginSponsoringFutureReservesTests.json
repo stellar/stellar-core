@@ -1,6 +1,6 @@
 
 {
-	"!cfg protocol version" : 20,
+	"!cfg protocol version" : 21,
 	"!rng seed" : 12345,
 	"!test all versions" : true,
 	"!versions to test" : 
@@ -25,7 +25,8 @@
 		17,
 		18,
 		19,
-		20
+		20,
+		21
 	],
 	"sponsor future reserves|protocol version 0|sponsorships with precondition that uses v3 extension" : [ "L/KhvR2g/gc=" ],
 	"sponsor future reserves|protocol version 10|sponsorships with precondition that uses v3 extension" : [ "rwI1SSa7khg=" ],
@@ -83,6 +84,13 @@
 	"sponsor future reserves|protocol version 20|sponsoring account is sponsored" : [ "59lT/ZDcCCQ=", "mWSOGevIx1E=" ],
 	"sponsor future reserves|protocol version 20|sponsorships with precondition that uses v3 extension" : [ "rbQAgwm7T9c=", "/UyYWkzs9XM=" ],
 	"sponsor future reserves|protocol version 20|success" : [ "59lT/ZDcCCQ=" ],
+	"sponsor future reserves|protocol version 21|add sponsored entry before adding first sponsored signer" : [ "59lT/ZDcCCQ=" ],
+	"sponsor future reserves|protocol version 21|already sponsored" : [ "59lT/ZDcCCQ=" ],
+	"sponsor future reserves|protocol version 21|bad sponsorship" : [ "59lT/ZDcCCQ=" ],
+	"sponsor future reserves|protocol version 21|sponsored account is sponsoring" : [ "59lT/ZDcCCQ=", "mWSOGevIx1E=" ],
+	"sponsor future reserves|protocol version 21|sponsoring account is sponsored" : [ "59lT/ZDcCCQ=", "mWSOGevIx1E=" ],
+	"sponsor future reserves|protocol version 21|sponsorships with precondition that uses v3 extension" : [ "rbQAgwm7T9c=", "/UyYWkzs9XM=" ],
+	"sponsor future reserves|protocol version 21|success" : [ "59lT/ZDcCCQ=" ],
 	"sponsor future reserves|protocol version 2|sponsorships with precondition that uses v3 extension" : [ "L/KhvR2g/gc=" ],
 	"sponsor future reserves|protocol version 3|sponsorships with precondition that uses v3 extension" : [ "L/KhvR2g/gc=" ],
 	"sponsor future reserves|protocol version 4|sponsorships with precondition that uses v3 extension" : [ "L/KhvR2g/gc=" ],
