@@ -389,10 +389,8 @@ fn check_lockfile_has_expected_dep_tree(
     let soroban_host_proto_version = get_ledger_protocol_version(soroban_host_interface_version);
     let soroban_host_pre_release_version = get_pre_release_version(soroban_host_interface_version);
 
-    // FIXME: this is fairly harmless, but old versions of soroban didn't encode a
-    // protocol version in their interface version at all, so will report zero here.
-    // For now we ignore this, but should tighten the test up before final.
-    if soroban_host_proto_version != 0 && stellar_core_proto_version != soroban_host_proto_version {
+    // < instead of != because the vnext build would fail this check otherwise.
+    if stellar_core_proto_version < soroban_host_proto_version {
         panic!(
             "stellar-core \"{}\" protocol is {}, does not match soroban host \"{}\" protocol {}",
             curr_or_prev, stellar_core_proto_version, curr_or_prev, soroban_host_proto_version
