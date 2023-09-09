@@ -22,28 +22,18 @@ signerCompare(Signer const& s1, Signer const& s2)
     return s1.key < s2.key;
 }
 
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
 LedgerEntryIsValid::LedgerEntryIsValid(
     LumenContractInfo const& lumenContractInfo)
     : Invariant(false), mLumenContractInfo(lumenContractInfo)
 {
 }
-#else
-LedgerEntryIsValid::LedgerEntryIsValid() : Invariant(false)
-{
-}
-#endif
 
 std::shared_ptr<Invariant>
 LedgerEntryIsValid::registerInvariant(Application& app)
 {
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
     auto lumenInfo = getLumenContractInfo(app.getConfig().NETWORK_PASSPHRASE);
     return app.getInvariantManager().registerInvariant<LedgerEntryIsValid>(
         lumenInfo);
-#else
-    return app.getInvariantManager().registerInvariant<LedgerEntryIsValid>();
-#endif
 }
 
 std::string
@@ -138,7 +128,6 @@ LedgerEntryIsValid::checkIsValid(LedgerEntry const& le,
             return "LiquidityPool is sponsored";
         }
         return checkIsValid(le.data.liquidityPool(), previous, version);
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
     case CONTRACT_DATA:
         return checkIsValid(le.data.contractData(), previous, version);
     case CONTRACT_CODE:
@@ -147,7 +136,6 @@ LedgerEntryIsValid::checkIsValid(LedgerEntry const& le,
         return checkIsValid(le.data.configSetting(), previous, version);
     case EXPIRATION:
         return checkIsValid(le.data.expiration(), previous, version);
-#endif
     default:
         return "LedgerEntry has invalid type";
     }
@@ -507,7 +495,6 @@ LedgerEntryIsValid::checkIsValid(LiquidityPoolEntry const& lp,
     return {};
 }
 
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
 std::string
 LedgerEntryIsValid::checkIsValid(ContractDataEntry const& cde,
                                  LedgerEntry const* previous,
@@ -624,5 +611,4 @@ LedgerEntryIsValid::checkIsValid(ExpirationEntry const& ee,
 
     return {};
 }
-#endif
 }

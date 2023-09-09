@@ -214,7 +214,6 @@ makeTxCountUpgrade(int txCount)
     return result;
 }
 
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
 LedgerUpgrade
 makeMaxSorobanTxSizeUpgrade(int txSize)
 {
@@ -222,7 +221,6 @@ makeMaxSorobanTxSizeUpgrade(int txSize)
     result.newMaxSorobanTxSetSize() = txSize;
     return result;
 }
-#endif
 
 LedgerUpgrade
 makeFlagsUpgrade(int flags)
@@ -232,7 +230,6 @@ makeFlagsUpgrade(int flags)
     return result;
 }
 
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
 ConfigUpgradeSetFrameConstPtr
 makeMaxContractSizeBytesTestUpgrade(AbstractLedgerTxn& ltx,
                                     uint32_t maxContractSizeBytes)
@@ -262,8 +259,6 @@ getBucketListSizeWindowKey()
         CONFIG_SETTING_BUCKETLIST_SIZE_WINDOW;
     return windowKey;
 }
-
-#endif
 
 void
 testListUpgrades(VirtualClock::system_time_point preferredUpgradeDatetime,
@@ -607,7 +602,6 @@ TEST_CASE("Ledger Manager applies upgrades properly", "[upgrades]")
     }
 }
 
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
 TEST_CASE("config upgrade validation", "[upgrades]")
 {
     VirtualClock clock;
@@ -935,7 +929,6 @@ TEST_CASE("Soroban max tx set size upgrade applied to ledger",
     REQUIRE(sorobanConfig.ledgerMaxTxCount() == 321);
 }
 
-#endif
 TEST_CASE("upgrade to version 10", "[upgrades]")
 {
     VirtualClock clock;
@@ -2051,7 +2044,6 @@ TEST_CASE("upgrade to version 13", "[upgrades]")
     }
 }
 
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
 TEST_CASE("configuration initialized in version upgrade", "[upgrades]")
 {
     VirtualClock clock;
@@ -2105,7 +2097,6 @@ TEST_CASE("configuration initialized in version upgrade", "[upgrades]")
         REQUIRE(e == blSize);
     }
 }
-#endif
 
 TEST_CASE_VERSIONS("upgrade base reserve", "[upgrades]")
 {
@@ -2695,13 +2686,7 @@ TEST_CASE_VERSIONS("upgrade invalid during ledger close", "[upgrades]")
         for_versions_from(18, *app, [&] {
             auto allFlags = DISABLE_LIQUIDITY_POOL_TRADING_FLAG |
                             DISABLE_LIQUIDITY_POOL_DEPOSIT_FLAG |
-                            DISABLE_LIQUIDITY_POOL_WITHDRAWAL_FLAG
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
-                            | DISABLE_CONTRACT_CREATE |
-                            DISABLE_CONTRACT_UPDATE | DISABLE_CONTRACT_REMOVE |
-                            DISABLE_CONTRACT_INVOKE
-#endif
-                ;
+                            DISABLE_LIQUIDITY_POOL_WITHDRAWAL_FLAG;
             REQUIRE(allFlags == MASK_LEDGER_HEADER_FLAGS);
 
             executeUpgrade(*app, makeFlagsUpgrade(MASK_LEDGER_HEADER_FLAGS + 1),
@@ -2809,7 +2794,6 @@ TEST_CASE("upgrade from cpp14 serialized data", "[upgrades]")
     REQUIRE(!up.mBaseReserve.has_value());
 }
 
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
 TEST_CASE("upgrades serialization roundtrip", "[upgrades]")
 {
     auto cfg = getTestConfig();
@@ -2889,8 +2873,6 @@ TEST_CASE("upgrades serialization roundtrip", "[upgrades]")
 )");
     }
 }
-
-#endif
 
 TEST_CASE_VERSIONS("upgrade flags", "[upgrades][liquiditypool]")
 {

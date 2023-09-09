@@ -9,6 +9,7 @@
 #include "invariant/InvariantManagerImpl.h"
 #include "ledger/LedgerManagerImpl.h"
 #include "main/ApplicationImpl.h"
+#include "util/ProtocolVersion.h"
 #include <type_traits>
 
 namespace stellar
@@ -93,7 +94,6 @@ std::tm getTestDateTime(int day, int month, int year, int hour, int minute,
 
 VirtualClock::system_time_point genesis(int minute, int second);
 
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
 // Override Soroban network config defaults with generous settings suitable
 // for most of the unit tests (unless the test is meant to exercise the
 // configuration limits).
@@ -102,8 +102,10 @@ void
 modifySorobanNetworkConfig(Application& app,
                            std::function<void(SorobanNetworkConfig&)> modifyFn);
 
+bool appProtocolVersionStartsFrom(Application& app,
+                                  ProtocolVersion fromVersion);
+
 // This is a rough guess at the refundable fee to include. 20k for a ledger
 // write plus 1000 for a little additional slop.
 constexpr uint32_t DEFAULT_TEST_REFUNDABLE_FEE = 21'000;
-#endif
 }

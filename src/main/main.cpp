@@ -9,14 +9,12 @@
 #include "main/CommandLine.h"
 #include "main/Config.h"
 #include "main/StellarCoreVersion.h"
-#include <regex>
-#include <stdexcept>
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
 #include "rust/RustBridge.h"
-#endif
 #include "util/Backtrace.h"
 #include "util/FileSystemException.h"
 #include "util/Logging.h"
+#include <regex>
+#include <stdexcept>
 
 #include "crypto/ShortHash.h"
 #include "util/RandHasher.h"
@@ -154,7 +152,6 @@ outOfMemory()
 }
 }
 
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
 // We would like this to be a static check but it seems like cxx.rs isn't going
 // to let us export static constants so we do it first thing during startup.
 //
@@ -239,7 +236,6 @@ checkStellarCoreMajorVersionProtocolIdentity()
                   << STELLAR_CORE_VERSION << " of stellar-core" << std::endl;
     }
 }
-#endif
 
 int
 main(int argc, char* const* argv)
@@ -253,13 +249,9 @@ main(int argc, char* const* argv)
     // that would call std::terminate
     std::set_terminate(printBacktraceAndAbort);
 #ifdef USE_TRACY
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
     // The rust tracy client library is fussy about trying
     // to own the tracy startup path.
     rust_bridge::start_tracy();
-#else
-    ___tracy_startup_profiler();
-#endif
 #endif
     Logging::init();
     if (sodium_init() != 0)
@@ -270,13 +262,18 @@ main(int argc, char* const* argv)
     shortHash::initialize();
     randHash::initialize();
     xdr::marshaling_stack_limit = 1000;
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
+
     // TODO: This should only be enabled after we tag a v20 version
     // checkStellarCoreMajorVersionProtocolIdentity();
     rust_bridge::check_lockfile_has_expected_dep_trees(
         Config::CURRENT_LEDGER_PROTOCOL_VERSION);
+
+    // FIXME: This check is done against the XDR version enabled in the host
+    // (curr vs next). At the moment, the host is using curr, but core can be
+    // built with vnext, causing a curr diff against next. This works now
+    // because the xdr is indentical, but the moment that changes this checkk
+    // will fail and will need to be fixed.
     checkXDRFileIdentity();
-#endif
 
     int res = handleCommandLine(argc, argv);
 #ifdef USE_TRACY

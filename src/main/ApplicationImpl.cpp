@@ -201,7 +201,6 @@ maybeRebuildLedger(Application& app, bool applyBuckets)
                     LOG_INFO(DEFAULT_LOG, "Dropping liquiditypools");
                     app.getLedgerTxnRoot().dropLiquidityPools(shouldRebuild);
                     break;
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
                 case CONTRACT_DATA:
                     LOG_INFO(DEFAULT_LOG, "Dropping contractdata");
                     app.getLedgerTxnRoot().dropContractData(shouldRebuild);
@@ -218,7 +217,6 @@ maybeRebuildLedger(Application& app, bool applyBuckets)
                     LOG_INFO(DEFAULT_LOG, "Dropping expiration");
                     app.getLedgerTxnRoot().dropExpiration(shouldRebuild);
                     break;
-#endif
                 default:
                     abort();
                 }

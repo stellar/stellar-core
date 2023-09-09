@@ -511,7 +511,6 @@ throwIf(LiquidityPoolWithdrawResult const& result)
     }
 }
 
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
 void
 throwIf(InvokeHostFunctionResult const& result)
 {
@@ -561,7 +560,6 @@ throwIf(RestoreFootprintResult const& result)
         throw ex_UNKNOWN{};
     }
 }
-#endif
 
 void
 throwIf(TransactionResult const& result)
@@ -677,7 +675,6 @@ throwIf(TransactionResult const& result)
     case LIQUIDITY_POOL_WITHDRAW:
         throwIf(opResult.tr().liquidityPoolWithdrawResult());
         break;
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
     case INVOKE_HOST_FUNCTION:
         throwIf(opResult.tr().invokeHostFunctionResult());
         break;
@@ -687,7 +684,6 @@ throwIf(TransactionResult const& result)
     case RESTORE_FOOTPRINT:
         throwIf(opResult.tr().restoreFootprintResult());
         break;
-#endif
     }
 }
 }

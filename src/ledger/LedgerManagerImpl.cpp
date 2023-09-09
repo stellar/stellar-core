@@ -1156,7 +1156,6 @@ LedgerManagerImpl::advanceLedgerPointers(LedgerHeader const& header,
 void
 LedgerManagerImpl::updateNetworkConfig(AbstractLedgerTxn& rootLtx)
 {
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
     uint32_t ledgerVersion{};
     {
         LedgerTxn ltx(rootLtx, false,
@@ -1179,7 +1178,6 @@ LedgerManagerImpl::updateNetworkConfig(AbstractLedgerTxn& rootLtx)
         throw std::runtime_error("Protocol version is before 20: "
                                  "cannot load Soroban network config");
     }
-#endif
 }
 
 static bool
@@ -1475,7 +1473,6 @@ LedgerManagerImpl::transferLedgerEntriesToBucketList(
 
     // Since snapshots are stored in a LedgerEntry, need to snapshot before
     // sealing the ledger with ltx.getAllEntries
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
     if (blEnabled &&
         protocolVersionStartsFrom(ledgerVers, SOROBAN_PROTOCOL_VERSION))
     {
@@ -1493,7 +1490,6 @@ LedgerManagerImpl::transferLedgerEntriesToBucketList(
         getSorobanNetworkConfigInternal(ltx).maybeSnapshotBucketListSize(
             ledgerSeq, ltx, mApp);
     }
-#endif
 
     ltx.getAllEntries(initEntries, liveEntries, deadEntries);
     if (blEnabled)
@@ -1518,14 +1514,12 @@ LedgerManagerImpl::ledgerClosed(
     transferLedgerEntriesToBucketList(ltx, ledgerCloseMeta, ledgerSeq,
                                       ledgerVers);
 
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
     if (ledgerCloseMeta &&
         protocolVersionStartsFrom(ledgerVers, ProtocolVersion::V_20))
     {
         auto blSize = getSorobanNetworkConfig(ltx).getAverageBucketListSize();
         ledgerCloseMeta->setTotalByteSizeOfBucketList(blSize);
     }
-#endif
 
     ltx.unsealHeader([this](LedgerHeader& lh) {
         mApp.getBucketManager().snapshotLedger(lh);

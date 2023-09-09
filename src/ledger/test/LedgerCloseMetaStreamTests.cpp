@@ -211,12 +211,10 @@ TEST_CASE("LedgerCloseMetaStream file descriptor - LIVE_NODE",
     {
         REQUIRE(lcms.back().v1().ledgerHeader.hash == expectedLastUnsafeHash);
     }
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
     else if (lcms.back().v() == 2)
     {
         REQUIRE(lcms.back().v2().ledgerHeader.hash == expectedLastUnsafeHash);
     }
-#endif
     else
     {
         REQUIRE(false);
@@ -235,12 +233,10 @@ TEST_CASE("LedgerCloseMetaStream file descriptor - LIVE_NODE",
     {
         REQUIRE(lcmsSafe.back().v1().ledgerHeader.hash == expectedLastSafeHash);
     }
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
     else if (lcmsSafe.back().v() == 2)
     {
         REQUIRE(lcmsSafe.back().v2().ledgerHeader.hash == expectedLastSafeHash);
     }
-#endif
     REQUIRE(lcmsSafe ==
             std::vector<LedgerCloseMeta>(lcms.begin(), lcms.end() - 1));
 }
@@ -344,12 +340,10 @@ TEST_CASE("LedgerCloseMetaStream file descriptor - REPLAY_IN_MEMORY",
     {
         REQUIRE(lcm.v1().ledgerHeader.hash == hash);
     }
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
     else if (lcm.v() == 2)
     {
         REQUIRE(lcm.v2().ledgerHeader.hash == hash);
     }
-#endif
     else
     {
         REQUIRE(false);
@@ -477,19 +471,13 @@ TEST_CASE_VERSIONS("meta stream contains reasonable meta", "[ledgerclosemeta]")
         auto txFee = lm.getLastTxFee();
         auto bal = app->getLedgerManager().getLastMinBalance(2);
 
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
+        if (appProtocolVersionStartsFrom(*app, SOROBAN_PROTOCOL_VERSION))
         {
             LedgerTxn ltx(app->getLedgerTxnRoot());
-            if (protocolVersionStartsFrom(
-                    ltx.loadHeader().current().ledgerVersion,
-                    SOROBAN_PROTOCOL_VERSION))
-            {
-                app->getLedgerManager()
-                    .getMutableSorobanNetworkConfig(ltx)
-                    .setBucketListSnapshotPeriodForTesting(1);
-            }
+            app->getLedgerManager()
+                .getMutableSorobanNetworkConfig(ltx)
+                .setBucketListSnapshotPeriodForTesting(1);
         }
-#endif
 
         auto root = TestAccount::createRoot(*app);
 
@@ -553,8 +541,6 @@ TEST_CASE_VERSIONS("meta stream contains reasonable meta", "[ledgerclosemeta]")
                     cfg.TESTING_UPGRADE_LEDGER_PROTOCOL_VERSION);
             ledgerSeq = lcm.v1().ledgerHeader.header.ledgerSeq;
         }
-
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
         else
         {
             // LCM v2
@@ -563,7 +549,6 @@ TEST_CASE_VERSIONS("meta stream contains reasonable meta", "[ledgerclosemeta]")
                     cfg.TESTING_UPGRADE_LEDGER_PROTOCOL_VERSION);
             ledgerSeq = lcm.v2().ledgerHeader.header.ledgerSeq;
         }
-#endif
 
         if (ledgerSeq == targetSeq)
         {

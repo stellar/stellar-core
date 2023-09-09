@@ -20,7 +20,6 @@ namespace
 {
 using namespace txtest;
 
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
 TEST_CASE("generalized tx set XDR validation", "[txset]")
 {
     Config cfg(getTestConfig());
@@ -939,7 +938,6 @@ TEST_CASE("generalized tx set fees", "[txset]")
         }
     }
 }
-#endif
 
 } // namespace
 } // namespace stellar

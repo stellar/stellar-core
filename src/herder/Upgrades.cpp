@@ -16,9 +16,7 @@
 #include "ledger/NetworkConfig.h"
 #include "ledger/TrustLineWrapper.h"
 #include "main/Config.h"
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
 #include "rust/RustBridge.h"
-#endif
 #include "transactions/OfferExchange.h"
 #include "transactions/SponsorshipUtils.h"
 #include "transactions/TransactionUtils.h"
@@ -54,7 +52,6 @@ save(Archive& ar, stellar::Upgrades::UpgradeParameters const& p)
     ar(make_nvp("reserve", p.mBaseReserve));
     ar(make_nvp("flags", p.mFlags));
 
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
     std::optional<std::string> configUpgradeKeyStr;
     if (p.mConfigUpgradeSetKey)
     {
@@ -62,7 +59,6 @@ save(Archive& ar, stellar::Upgrades::UpgradeParameters const& p)
             xdr::xdr_to_opaque(*p.mConfigUpgradeSetKey));
     }
     ar(make_nvp("configupgradesetkey", configUpgradeKeyStr));
-#endif
 }
 
 template <class Archive>
@@ -84,7 +80,6 @@ load(Archive& ar, stellar::Upgrades::UpgradeParameters& o,
     {
         ar(make_nvp("flags", o.mFlags));
 
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
         std::optional<std::string> configUpgradeKeyStr;
         ar(make_nvp("configupgradesetkey", configUpgradeKeyStr));
 
@@ -101,7 +96,6 @@ load(Archive& ar, stellar::Upgrades::UpgradeParameters& o,
         {
             o.mConfigUpgradeSetKey.reset();
         }
-#endif
     }
     catch (cereal::Exception&)
     {
@@ -118,7 +112,6 @@ namespace stellar
 {
 namespace
 {
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
 uint32_t
 readMaxSorobanTxSetSize(AbstractLedgerTxn& ltx)
 {
@@ -142,7 +135,6 @@ upgradeMaxSorobanTxSetSize(AbstractLedgerTxn& ltx, uint32_t maxTxSetSize)
     le.data.configSetting().contractExecutionLanes().ledgerMaxTxCount =
         maxTxSetSize;
 }
-#endif
 } // namespace
 std::chrono::hours const Upgrades::UPDGRADE_EXPIRATION_HOURS(12);
 
@@ -164,7 +156,6 @@ Upgrades::UpgradeParameters::toDebugJson(stellar::AbstractLedgerTxn& ltx) const
     Json::Reader reader;
     reader.parse(toJson(), upgradesJson);
 
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
     if (mConfigUpgradeSetKey)
     {
         // combine the key and actual config upgrade set under a single Json
@@ -184,7 +175,7 @@ Upgrades::UpgradeParameters::toDebugJson(stellar::AbstractLedgerTxn& ltx) const
                 configUpgradeSetJson;
         }
     }
-#endif
+
     Json::StyledWriter writer;
     return writer.write(upgradesJson);
 }
@@ -305,7 +296,6 @@ Upgrades::createUpgradesFor(LedgerHeader const& lclHeader,
             result.back().newFlags() = *mParams.mFlags;
         }
     }
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
     if (mParams.mMaxSorobanTxSetSize)
     {
         if (readMaxSorobanTxSetSize(ltx) != *mParams.mMaxSorobanTxSetSize)
@@ -327,7 +317,6 @@ Upgrades::createUpgradesFor(LedgerHeader const& lclHeader,
             result.back().newConfig() = cfgUpgrade->getKey();
         }
     }
-#endif
     return result;
 }
 
@@ -352,7 +341,6 @@ Upgrades::applyTo(LedgerUpgrade const& upgrade, Application& app,
     case LEDGER_UPGRADE_FLAGS:
         setLedgerHeaderFlag(ltx.loadHeader().current(), upgrade.newFlags());
         break;
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
     case LEDGER_UPGRADE_CONFIG:
     {
         auto cfgUpgrade =
@@ -372,7 +360,6 @@ Upgrades::applyTo(LedgerUpgrade const& upgrade, Application& app,
     case LEDGER_UPGRADE_MAX_SOROBAN_TX_SET_SIZE:
         upgradeMaxSorobanTxSetSize(ltx, upgrade.newMaxSorobanTxSetSize());
         break;
-#endif
     default:
     {
         auto s =
@@ -400,7 +387,6 @@ Upgrades::toString(LedgerUpgrade const& upgrade)
                            upgrade.newBaseReserve());
     case LEDGER_UPGRADE_FLAGS:
         return fmt::format(FMT_STRING("flags={:d}"), upgrade.newFlags());
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
     case LEDGER_UPGRADE_CONFIG:
         return fmt::format(
             FMT_STRING("{}"),
@@ -408,7 +394,6 @@ Upgrades::toString(LedgerUpgrade const& upgrade)
     case LEDGER_UPGRADE_MAX_SOROBAN_TX_SET_SIZE:
         return fmt::format(FMT_STRING("maxsorobantxsetsize={:d}"),
                            upgrade.newMaxSorobanTxSetSize());
-#endif
     default:
         return "<unsupported>";
     }
@@ -443,7 +428,6 @@ Upgrades::toString() const
     appendInfo("basereserve", mParams.mBaseReserve);
     appendInfo("maxtxsetsize", mParams.mMaxTxSetSize);
     appendInfo("flags", mParams.mFlags);
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
     if (mParams.mConfigUpgradeSetKey)
     {
         maybePrintUpgradeTime();
@@ -451,7 +435,6 @@ Upgrades::toString() const
                          xdr::xdr_to_string(*mParams.mConfigUpgradeSetKey,
                                             "configupgradesetkey"));
     }
-#endif
     return r.str();
 }
 
@@ -482,13 +465,11 @@ Upgrades::removeUpgrades(std::vector<UpgradeType>::const_iterator beginUpdates,
         resetParamIfSet(res.mMaxTxSetSize);
         resetParamIfSet(res.mBaseReserve);
         resetParamIfSet(res.mFlags);
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
         if (res.mConfigUpgradeSetKey)
         {
             res.mConfigUpgradeSetKey.reset();
             updated = true;
         }
-#endif
 
         return res;
     }
@@ -530,7 +511,6 @@ Upgrades::removeUpgrades(std::vector<UpgradeType>::const_iterator beginUpdates,
         case LEDGER_UPGRADE_FLAGS:
             resetParam(res.mFlags, lu.newFlags());
             break;
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
         case LEDGER_UPGRADE_CONFIG:
         {
             if (res.mConfigUpgradeSetKey &&
@@ -544,7 +524,6 @@ Upgrades::removeUpgrades(std::vector<UpgradeType>::const_iterator beginUpdates,
         case LEDGER_UPGRADE_MAX_SOROBAN_TX_SET_SIZE:
             resetParam(res.mMaxSorobanTxSetSize, lu.newMaxSorobanTxSetSize());
             break;
-#endif
         default:
             // skip unknown
             break;
@@ -577,7 +556,7 @@ Upgrades::isValidForApply(UpgradeType const& opaqueUpgrade,
         res = res && (newVersion <= app.getConfig().LEDGER_PROTOCOL_VERSION);
         // and enforce versions to be strictly monotonic
         res = res && (newVersion > header.ledgerVersion);
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
+
         // and enforce that any soroban-era protocol upgrade has two copies of
         // soroban compiled-in to this binary -- both `prev` and `curr` -- so
         // the upgrade can do a prev-to-curr transition
@@ -586,7 +565,6 @@ Upgrades::isValidForApply(UpgradeType const& opaqueUpgrade,
         {
             res = res && rust_bridge::compiled_with_soroban_prev();
         }
-#endif
     }
     break;
     case LEDGER_UPGRADE_BASE_FEE:
@@ -604,7 +582,6 @@ Upgrades::isValidForApply(UpgradeType const& opaqueUpgrade,
                                         ProtocolVersion::V_18) &&
               (upgrade.newFlags() & ~MASK_LEDGER_HEADER_FLAGS) == 0;
         break;
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
     case LEDGER_UPGRADE_CONFIG:
     {
         if (protocolVersionIsBefore(header.ledgerVersion,
@@ -634,7 +611,6 @@ Upgrades::isValidForApply(UpgradeType const& opaqueUpgrade,
         }
         // Any size is valid.
         break;
-#endif
     default:
         res = false;
     }
@@ -667,7 +643,6 @@ Upgrades::isValidForNomination(LedgerUpgrade const& upgrade, Application& app,
                (upgrade.newBaseReserve() == *mParams.mBaseReserve);
     case LEDGER_UPGRADE_FLAGS:
         return mParams.mFlags && (upgrade.newFlags() == *mParams.mFlags);
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
     case LEDGER_UPGRADE_CONFIG:
     {
         if (!mParams.mConfigUpgradeSetKey)
@@ -685,7 +660,6 @@ Upgrades::isValidForNomination(LedgerUpgrade const& upgrade, Application& app,
         return mParams.mMaxSorobanTxSetSize &&
                (upgrade.newMaxSorobanTxSetSize() ==
                 *mParams.mMaxSorobanTxSetSize);
-#endif
     default:
         return false;
     }
@@ -1272,12 +1246,10 @@ Upgrades::applyVersionUpgrade(Application& app, AbstractLedgerTxn& ltx,
     {
         upgradeFromProtocol15To16(ltx);
     }
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
     if (needUpgradeToVersion(SOROBAN_PROTOCOL_VERSION, prevVersion, newVersion))
     {
         SorobanNetworkConfig::createLedgerEntriesForV20(ltx, app);
     }
-#endif
 }
 
 void
@@ -1295,7 +1267,6 @@ Upgrades::applyReserveUpgrade(AbstractLedgerTxn& ltx, uint32_t newReserve)
     }
 }
 
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
 ConfigUpgradeSetFrameConstPtr
 ConfigUpgradeSetFrame::makeFromKey(AbstractLedgerTxn& ltx,
                                    ConfigUpgradeSetKey const& key)
@@ -1498,5 +1469,4 @@ ConfigUpgradeSetFrame::toJson() const
     cereal::save(ar, mConfigUpgradeSet);
     return out.str();
 }
-#endif
 }

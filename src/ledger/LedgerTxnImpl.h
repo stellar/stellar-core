@@ -71,7 +71,6 @@ class BulkLedgerEntryChangeAccumulator
     std::vector<EntryIterator> mTrustLinesToDelete;
     std::vector<EntryIterator> mLiquidityPoolToUpsert;
     std::vector<EntryIterator> mLiquidityPoolToDelete;
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
     std::vector<EntryIterator> mContractDataToUpsert;
     std::vector<EntryIterator> mContractDataToDelete;
     std::vector<EntryIterator> mContractCodeToUpsert;
@@ -79,7 +78,6 @@ class BulkLedgerEntryChangeAccumulator
     std::vector<EntryIterator> mConfigSettingsToUpsert;
     std::vector<EntryIterator> mExpirationToUpsert;
     std::vector<EntryIterator> mExpirationToDelete;
-#endif
 
   public:
     std::vector<EntryIterator>&
@@ -154,7 +152,6 @@ class BulkLedgerEntryChangeAccumulator
         return mLiquidityPoolToDelete;
     }
 
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
     std::vector<EntryIterator>&
     getConfigSettingsToUpsert()
     {
@@ -196,7 +193,6 @@ class BulkLedgerEntryChangeAccumulator
     {
         return mExpirationToDelete;
     }
-#endif
 
     bool accumulate(EntryIterator const& iter, bool bucketListDBEnabled);
 };
@@ -780,7 +776,6 @@ class LedgerTxnRoot::Impl
     loadClaimableBalance(LedgerKey const& key) const;
     std::shared_ptr<LedgerEntry const>
     loadLiquidityPool(LedgerKey const& key) const;
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
     std::shared_ptr<LedgerEntry const>
     loadContractData(LedgerKey const& key) const;
     std::shared_ptr<LedgerEntry const>
@@ -789,7 +784,6 @@ class LedgerTxnRoot::Impl
     loadConfigSetting(LedgerKey const& key) const;
     std::shared_ptr<LedgerEntry const>
     loadExpiration(LedgerKey const& key) const;
-#endif
 
     void bulkApply(BulkLedgerEntryChangeAccumulator& bleca,
                    size_t bufferThreshold, LedgerTxnConsistency cons);
@@ -811,7 +805,6 @@ class LedgerTxnRoot::Impl
     void bulkUpsertLiquidityPool(std::vector<EntryIterator> const& entries);
     void bulkDeleteLiquidityPool(std::vector<EntryIterator> const& entries,
                                  LedgerTxnConsistency cons);
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
     void bulkUpsertContractData(std::vector<EntryIterator> const& entries);
     void bulkDeleteContractData(std::vector<EntryIterator> const& entries,
                                 LedgerTxnConsistency cons);
@@ -822,7 +815,6 @@ class LedgerTxnRoot::Impl
     void bulkUpsertExpiration(std::vector<EntryIterator> const& entries);
     void bulkDeleteExpiration(std::vector<EntryIterator> const& entries,
                               LedgerTxnConsistency cons);
-#endif
 
     static std::string tableFromLedgerEntryType(LedgerEntryType let);
 
@@ -860,7 +852,6 @@ class LedgerTxnRoot::Impl
     bulkLoadClaimableBalance(UnorderedSet<LedgerKey> const& keys) const;
     UnorderedMap<LedgerKey, std::shared_ptr<LedgerEntry const>>
     bulkLoadLiquidityPool(UnorderedSet<LedgerKey> const& keys) const;
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
     UnorderedMap<LedgerKey, std::shared_ptr<LedgerEntry const>>
     bulkLoadContractData(UnorderedSet<LedgerKey> const& keys) const;
     UnorderedMap<LedgerKey, std::shared_ptr<LedgerEntry const>>
@@ -869,7 +860,6 @@ class LedgerTxnRoot::Impl
     bulkLoadConfigSettings(UnorderedSet<LedgerKey> const& keys) const;
     UnorderedMap<LedgerKey, std::shared_ptr<LedgerEntry const>>
     bulkLoadExpiration(UnorderedSet<LedgerKey> const& keys) const;
-#endif
 
     std::deque<LedgerEntry>::const_iterator
     loadNextBestOffersIntoCache(BestOffersEntryPtr cached, Asset const& buying,
@@ -912,12 +902,10 @@ class LedgerTxnRoot::Impl
     void dropTrustLines(bool rebuild);
     void dropClaimableBalances(bool rebuild);
     void dropLiquidityPools(bool rebuild);
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
     void dropContractData(bool rebuild);
     void dropContractCode(bool rebuild);
     void dropConfigSettings(bool rebuild);
     void dropExpiration(bool rebuild);
-#endif
 
 #ifdef BUILD_TESTS
     void resetForFuzzer();

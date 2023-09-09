@@ -144,12 +144,7 @@ TEST_CASE_VERSIONS("bucket list", "[bucket][bucketlist]")
                     *app, i, getAppLedgerVersion(app), {},
                     LedgerTestUtils::generateValidUniqueLedgerEntries(8),
                     LedgerTestUtils::generateValidLedgerEntryKeysWithExclusions(
-                        {
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
-                            CONFIG_SETTING
-#endif
-                        },
-                        5));
+                        {CONFIG_SETTING}, 5));
                 if (i % 10 == 0)
                     CLOG_DEBUG(Bucket, "Added batch {}, hash={}", i,
                                binToHex(bl.getHash()));
@@ -273,12 +268,7 @@ TEST_CASE_VERSIONS("bucket list shadowing pre/post proto 12",
             bl.addBatch(
                 *app, i, getAppLedgerVersion(app), {}, liveBatch,
                 LedgerTestUtils::generateValidLedgerEntryKeysWithExclusions(
-                    {
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
-                        CONFIG_SETTING
-#endif
-                    },
-                    5));
+                    {CONFIG_SETTING}, 5));
             if (i % 100 == 0)
             {
                 CLOG_DEBUG(Bucket, "Added batch {}, hash={}", i,
@@ -354,24 +344,14 @@ TEST_CASE_VERSIONS("bucket tombstones expire at bottom level",
                 bm, getAppLedgerVersion(app), {},
                 LedgerTestUtils::generateValidUniqueLedgerEntries(8),
                 LedgerTestUtils::generateValidLedgerEntryKeysWithExclusions(
-                    {
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
-                        CONFIG_SETTING
-#endif
-                    },
-                    5),
+                    {CONFIG_SETTING}, 5),
                 /*countMergeEvents=*/true, clock.getIOContext(),
                 /*doFsync=*/true));
             level.setSnap(Bucket::fresh(
                 bm, getAppLedgerVersion(app), {},
                 LedgerTestUtils::generateValidUniqueLedgerEntries(8),
                 LedgerTestUtils::generateValidLedgerEntryKeysWithExclusions(
-                    {
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
-                        CONFIG_SETTING
-#endif
-                    },
-                    5),
+                    {CONFIG_SETTING}, 5),
                 /*countMergeEvents=*/true, clock.getIOContext(),
                 /*doFsync=*/true));
         }
@@ -387,12 +367,7 @@ TEST_CASE_VERSIONS("bucket tombstones expire at bottom level",
                     *app, j, getAppLedgerVersion(app), {},
                     LedgerTestUtils::generateValidUniqueLedgerEntries(8),
                     LedgerTestUtils::generateValidLedgerEntryKeysWithExclusions(
-                        {
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
-                            CONFIG_SETTING
-#endif
-                        },
-                        5));
+                        {CONFIG_SETTING}, 5));
                 app->getClock().crank(false);
                 for (uint32_t k = 0u; k < BucketList::kNumLevels; ++k)
                 {
@@ -436,12 +411,7 @@ TEST_CASE_VERSIONS("bucket tombstones mutually-annihilate init entries",
         {
             std::vector<LedgerEntry> initEntries =
                 LedgerTestUtils::generateValidLedgerEntriesWithExclusions(
-                    {
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
-                        CONFIG_SETTING
-#endif
-                    },
-                    8);
+                    {CONFIG_SETTING}, 8);
             std::vector<LedgerEntry> liveEntries;
             std::vector<LedgerKey> deadEntries;
             for (auto const& e : initEntries)
@@ -693,7 +663,6 @@ TEST_CASE("BucketList check bucket sizes", "[bucket][bucketlist][count]")
     }
 }
 
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
 TEST_CASE_VERSIONS("network config snapshots BucketList size", "[bucketlist]")
 {
     VirtualClock clock;
@@ -862,10 +831,10 @@ TEST_CASE_VERSIONS("eviction scan", "[bucketlist]")
         std::vector<LedgerEntry> entries;
         for (auto& e :
              LedgerTestUtils::generateValidUniqueLedgerEntriesWithTypes(
-                 {CONTRACT_DATA}, 5))
+                 {CONTRACT_DATA}, 50))
         {
             // Set half of the entries to be persistent, half temporary
-            if (rand_flip())
+            if (tempEntries.empty() || rand_flip())
             {
                 e.data.contractData().durability = TEMPORARY;
                 tempEntries.emplace(LedgerEntryKey(e));
@@ -916,10 +885,12 @@ TEST_CASE_VERSIONS("eviction scan", "[bucketlist]")
             auto& entriesEvictedMeter = bm.getEntriesEvictedMeter();
             REQUIRE(entriesEvictedMeter.count() == tempEntries.size());
 
-            // Close ledgers until evicted DEADENTRY merges with original
-            // LIVEENTRY. This checks that BucketList invariants are respected
-            // and that entries are not evicted multiple times.
-            for (auto initialSize = bl.getSize(); bl.getSize() >= initialSize;
+            // Close ledgers until evicted DEADENTRYs merge with original
+            // INITENTRYs. This checks that BucketList invariants are respected
+            for (auto initialDeadMerges =
+                     bm.readMergeCounters().mOldInitEntriesMergedWithNewDead;
+                 bm.readMergeCounters().mOldInitEntriesMergedWithNewDead <
+                 initialDeadMerges + tempEntries.size();
                  ++ledgerSeq)
             {
                 closeLedger(*app);
@@ -1003,6 +974,7 @@ TEST_CASE_VERSIONS("eviction scan", "[bucketlist]")
             REQUIRE(evictionIter.bucketListLevel == levelToScan);
             REQUIRE(evictionIter.isCurrBucket == true);
 
+            size_t prevOff = evictionIter.bucketFileOffset;
             // Check that each scan only reads one entry
             for (BucketInputIterator in(bl.getLevel(levelToScan).getCurr()); in;
                  ++in)
@@ -1011,6 +983,13 @@ TEST_CASE_VERSIONS("eviction scan", "[bucketlist]")
                 closeLedger(*app);
                 ++ledgerSeq;
 
+                // If the BL receives an incoming merge, the scan will reset;
+                // break at that point.
+                if (evictionIter.bucketFileOffset < prevOff)
+                {
+                    break;
+                }
+                prevOff = evictionIter.bucketFileOffset;
                 REQUIRE(evictionIter.bucketFileOffset ==
                         xdr::xdr_size(*in) + startingOffset + xdrOverheadBytes);
                 REQUIRE(evictionIter.bucketListLevel == levelToScan);
@@ -1139,8 +1118,6 @@ TEST_CASE_VERSIONS("eviction scan", "[bucketlist]")
         }
     });
 }
-
-#endif
 
 static std::string
 formatX32(uint32_t v)

@@ -65,12 +65,11 @@ LedgerKey claimableBalanceKey(ClaimableBalanceID const& balanceID);
 LedgerKey liquidityPoolKey(PoolID const& poolID);
 LedgerKey poolShareTrustLineKey(AccountID const& accountID,
                                 PoolID const& poolID);
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
 LedgerKey configSettingKey(ConfigSettingID const& configSettingID);
 LedgerKey contractDataKey(SCAddress const& contract, SCVal const& dataKey,
                           ContractDataDurability type);
 LedgerKey contractCodeKey(Hash const& hash);
-#endif
+
 InternalLedgerKey sponsorshipKey(AccountID const& sponsoredID);
 InternalLedgerKey sponsorshipCounterKey(AccountID const& sponsoringID);
 InternalLedgerKey maxSeqNumToApplyKey(AccountID const& sourceAccount);
@@ -143,13 +142,11 @@ LedgerTxnEntry loadPoolShareTrustLine(AbstractLedgerTxn& ltx,
 
 LedgerTxnEntry loadLiquidityPool(AbstractLedgerTxn& ltx, PoolID const& poolID);
 
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
 ConstLedgerTxnEntry loadContractData(AbstractLedgerTxn& ltx,
                                      SCAddress const& contract,
                                      SCVal const& dataKey,
                                      ContractDataDurability type);
 ConstLedgerTxnEntry loadContractCode(AbstractLedgerTxn& ltx, Hash const& hash);
-#endif
 
 void acquireLiabilities(AbstractLedgerTxn& ltx, LedgerTxnHeader const& header,
                         LedgerTxnEntry const& offer);
@@ -305,7 +302,6 @@ int64_t getMinInclusionFee(TransactionFrameBase const& tx,
                            LedgerHeader const& header,
                            std::optional<int64_t> baseFee = std::nullopt);
 
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
 struct LumenContractInfo
 {
     Hash mLumenContractID;
@@ -318,6 +314,4 @@ SCVal makeSymbolSCVal(std::string&& str);
 SCVal makeSymbolSCVal(std::string const& str);
 SCVal makeStringSCVal(std::string&& str);
 SCVal makeU64SCVal(uint64_t u);
-
-#endif
 }

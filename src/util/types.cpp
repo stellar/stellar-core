@@ -50,8 +50,6 @@ LedgerEntryKey(LedgerEntry const& e)
     case LIQUIDITY_POOL:
         k.liquidityPool().liquidityPoolID = d.liquidityPool().liquidityPoolID;
         break;
-
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
     case CONTRACT_DATA:
         k.contractData().contract = d.contractData().contract;
         k.contractData().key = d.contractData().key;
@@ -66,7 +64,6 @@ LedgerEntryKey(LedgerEntry const& e)
     case EXPIRATION:
         k.expiration().keyHash = d.expiration().keyHash;
         break;
-#endif
 
     default:
         abort();

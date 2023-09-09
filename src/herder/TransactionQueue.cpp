@@ -231,7 +231,6 @@ TransactionQueue::canAdd(TransactionFrameBasePtr tx,
                   /* shouldUpdateLastModified */ true,
                   TransactionMode::READ_ONLY_WITHOUT_SQL_TXN);
 
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
     if (protocolVersionStartsFrom(ltx.loadHeader().current().ledgerVersion,
                                   SOROBAN_PROTOCOL_VERSION))
     {
@@ -243,7 +242,7 @@ TransactionQueue::canAdd(TransactionFrameBasePtr tx,
             mApp.getLedgerManager().getSorobanNetworkConfig(ltx),
             mApp.getConfig());
     }
-#endif
+
     int64_t newInclusionFee = tx->getInclusionFee();
     int64_t seqNum = 0;
     TransactionFrameBasePtr oldTx;
@@ -1215,7 +1214,6 @@ class TxQueueTracker : public TxStack
     TransactionQueue::AccountState* mAccountState;
 };
 
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
 SorobanTransactionQueue::SorobanTransactionQueue(Application& app,
                                                  uint32 pendingDepth,
                                                  uint32 banDepth,
@@ -1341,8 +1339,6 @@ SorobanTransactionQueue::getMaxQueueSizeOps() const
         return 0;
     }
 }
-
-#endif
 
 bool
 ClassicTransactionQueue::broadcastSome()

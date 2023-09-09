@@ -22,11 +22,7 @@ struct LedgerTxnDelta;
 class ConservationOfLumens : public Invariant
 {
   public:
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
     ConservationOfLumens(LumenContractInfo const& lumenContractInfo);
-#else
-    ConservationOfLumens();
-#endif
 
     static std::shared_ptr<Invariant> registerInvariant(Application& app);
 
@@ -38,8 +34,6 @@ class ConservationOfLumens : public Invariant
                           LedgerTxnDelta const& ltxDelta) override;
 
   private:
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
     LumenContractInfo const mLumenContractInfo;
-#endif
 };
 }

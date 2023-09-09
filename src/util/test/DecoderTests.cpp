@@ -154,7 +154,6 @@ TEST_CASE("base64 roundtrip", "[decoder]")
     }
 }
 
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
 TEST_CASE("base64 rust identity", "[decoder]")
 {
     autocheck::generator<std::vector<uint8_t>> input;
@@ -190,4 +189,3 @@ TEST_CASE("base64 rust identity", "[decoder]")
         REQUIRE(cpp_decoded == rust_decoded);
     }
 }
-#endif

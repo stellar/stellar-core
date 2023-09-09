@@ -15,9 +15,7 @@
 #include "util/ProtocolVersion.h"
 #include "util/XDROperators.h"
 #include "util/types.h"
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
 #include "xdr/Stellar-contract.h"
-#endif
 #include "xdr/Stellar-ledger-entries.h"
 #include <Tracy.hpp>
 
@@ -275,7 +273,6 @@ poolShareTrustLineKey(AccountID const& accountID, PoolID const& poolID)
     return key;
 }
 
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
 LedgerKey
 configSettingKey(ConfigSettingID const& configSettingID)
 {
@@ -302,7 +299,6 @@ contractCodeKey(Hash const& hash)
     key.contractCode().hash = hash;
     return key;
 }
-#endif
 
 InternalLedgerKey
 sponsorshipKey(AccountID const& sponsoredID)
@@ -432,7 +428,6 @@ loadLiquidityPool(AbstractLedgerTxn& ltx, PoolID const& poolID)
     return ltx.load(liquidityPoolKey(poolID));
 }
 
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
 ConstLedgerTxnEntry
 loadContractData(AbstractLedgerTxn& ltx, SCAddress const& contract,
                  SCVal const& dataKey, ContractDataDurability type)
@@ -447,7 +442,6 @@ loadContractCode(AbstractLedgerTxn& ltx, Hash const& hash)
     ZoneScoped;
     return ltx.loadWithoutRecord(contractCodeKey(hash));
 }
-#endif
 
 static void
 acquireOrReleaseLiabilities(AbstractLedgerTxn& ltx,
@@ -1833,7 +1827,6 @@ getMinInclusionFee(TransactionFrameBase const& tx, LedgerHeader const& header,
     return effectiveBaseFee * std::max<int64_t>(1, tx.getNumOperations());
 }
 
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
 LumenContractInfo
 getLumenContractInfo(std::string networkPassphrase)
 {
@@ -1892,8 +1885,6 @@ makeU64SCVal(uint64_t u)
     val.u64() = u;
     return val;
 }
-
-#endif
 
 namespace detail
 {

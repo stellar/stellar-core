@@ -832,7 +832,6 @@ mergeCasesWithEqualKeys(MergeCounters& mc, BucketInputIterator& oi,
     ++ni;
 }
 
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
 bool
 Bucket::scanForEviction(AbstractLedgerTxn& ltx, EvictionIterator& iter,
                         uint64_t& bytesToScan, uint32_t& maxEntriesToEvict,
@@ -916,7 +915,6 @@ Bucket::scanForEviction(AbstractLedgerTxn& ltx, EvictionIterator& iter,
     // Hit eof
     return false;
 }
-#endif
 
 std::shared_ptr<Bucket>
 Bucket::merge(BucketManager& bucketManager, uint32_t maxProtocolVersion,

@@ -111,9 +111,6 @@ FlowControl::maybeReleaseCapacityAndTriggerSend(StellarMessage const& msg)
 
     if (msg.type() == SEND_MORE || msg.type() == SEND_MORE_EXTENDED)
     {
-#ifndef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
-        releaseAssert(getNumMessages(msg) > 0);
-#endif
         mNoOutboundCapacity.reset();
 
         mFlowControlCapacity->releaseOutboundCapacity(msg);
@@ -247,7 +244,6 @@ FlowControl::maybeSendMessage(std::shared_ptr<StellarMessage const> msg)
     return false;
 }
 
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
 void
 FlowControl::handleTxSizeIncrease(uint32_t increase, std::shared_ptr<Peer> peer)
 {
@@ -262,7 +258,6 @@ FlowControl::handleTxSizeIncrease(uint32_t increase, std::shared_ptr<Peer> peer)
         sendSendMore(0, increase, peer);
     }
 }
-#endif
 
 bool
 FlowControl::beginMessageProcessing(StellarMessage const& msg)
@@ -347,18 +342,12 @@ FlowControl::isSendMoreValid(StellarMessage const& msg,
         return false;
     }
 
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
     // If flow control in bytes isn't enabled, SEND_MORE must have non-zero
     // messages. If flow control in bytes is enabled, SEND_MORE_EXTENDED must
     // have non-zero bytes, but _can_ have 0 messages to support upgrades
     if ((!mFlowControlBytesCapacity && getNumMessages(msg) == 0) ||
         (mFlowControlBytesCapacity &&
          msg.sendMoreExtendedMessage().numBytes == 0))
-#else
-    if ((getNumMessages(msg) == 0) ||
-        (mFlowControlBytesCapacity &&
-         msg.sendMoreExtendedMessage().numBytes == 0))
-#endif
     {
         errorMsg =
             fmt::format("invalid message {}",

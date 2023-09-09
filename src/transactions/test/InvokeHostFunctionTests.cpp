@@ -7,7 +7,6 @@
 #include <iterator>
 #include <stdexcept>
 #include <xdrpp/printer.h>
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
 
 #include "crypto/Random.h"
 #include "crypto/SecretKey.h"
@@ -2916,4 +2915,3 @@ TEST_CASE("settings upgrade", "[tx][soroban][upgrades]")
         runTest();
     }
 }
-#endif

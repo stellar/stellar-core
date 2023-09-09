@@ -20,12 +20,10 @@ TransactionMetaFrame::TransactionMetaFrame(uint32_t protocolVersion)
     // have no obligation to consume it under any circumstance -- so this
     // class just switches between cases 2 and 3.
     mVersion = 2;
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
     if (protocolVersionStartsFrom(protocolVersion, SOROBAN_PROTOCOL_VERSION))
     {
         mVersion = 3;
     }
-#endif
     mTransactionMeta.v(mVersion);
 }
 
@@ -43,10 +41,8 @@ TransactionMetaFrame::getNumChangesBefore() const
     {
     case 2:
         return mTransactionMeta.v2().txChangesBefore.size();
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
     case 3:
         return mTransactionMeta.v3().txChangesBefore.size();
-#endif
     default:
         releaseAssert(false);
     }
@@ -59,10 +55,8 @@ TransactionMetaFrame::getChangesBefore() const
     {
     case 2:
         return mTransactionMeta.v2().txChangesBefore;
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
     case 3:
         return mTransactionMeta.v3().txChangesBefore;
-#endif
     default:
         releaseAssert(false);
     }
@@ -75,10 +69,8 @@ TransactionMetaFrame::getChangesAfter() const
     {
     case 2:
         return mTransactionMeta.v2().txChangesAfter;
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
     case 3:
         return mTransactionMeta.v3().txChangesAfter;
-#endif
     default:
         releaseAssert(false);
     }
@@ -92,11 +84,9 @@ TransactionMetaFrame::pushTxChangesBefore(LedgerEntryChanges&& changes)
     case 2:
         vecAppend(mTransactionMeta.v2().txChangesBefore, std::move(changes));
         break;
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
     case 3:
         vecAppend(mTransactionMeta.v3().txChangesBefore, std::move(changes));
         break;
-#endif
     default:
         releaseAssert(false);
     }
@@ -110,11 +100,9 @@ TransactionMetaFrame::clearOperationMetas()
     case 2:
         mTransactionMeta.v2().operations.clear();
         break;
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
     case 3:
         mTransactionMeta.v3().operations.clear();
         break;
-#endif
     default:
         releaseAssert(false);
     }
@@ -128,11 +116,9 @@ TransactionMetaFrame::pushOperationMetas(xdr::xvector<OperationMeta>&& opMetas)
     case 2:
         vecAppend(mTransactionMeta.v2().operations, std::move(opMetas));
         break;
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
     case 3:
         vecAppend(mTransactionMeta.v3().operations, std::move(opMetas));
         break;
-#endif
     default:
         releaseAssert(false);
     }
@@ -145,10 +131,8 @@ TransactionMetaFrame::getNumOperations() const
     {
     case 2:
         return mTransactionMeta.v2().operations.size();
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
     case 3:
         return mTransactionMeta.v3().operations.size();
-#endif
     default:
         releaseAssert(false);
     }
@@ -162,11 +146,9 @@ TransactionMetaFrame::pushTxChangesAfter(LedgerEntryChanges&& changes)
     case 2:
         vecAppend(mTransactionMeta.v2().txChangesAfter, std::move(changes));
         break;
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
     case 3:
         vecAppend(mTransactionMeta.v3().txChangesAfter, std::move(changes));
         break;
-#endif
     default:
         releaseAssert(false);
     }
@@ -180,17 +162,14 @@ TransactionMetaFrame::clearTxChangesAfter()
     case 2:
         mTransactionMeta.v2().txChangesAfter.clear();
         break;
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
     case 3:
         mTransactionMeta.v3().txChangesAfter.clear();
         break;
-#endif
     default:
         releaseAssert(false);
     }
 }
 
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
 void
 TransactionMetaFrame::pushContractEvents(xdr::xvector<ContractEvent>&& events)
 {
@@ -241,8 +220,6 @@ TransactionMetaFrame::setReturnValue(SCVal&& returnValue)
         releaseAssert(false);
     }
 }
-
-#endif
 
 TransactionMeta const&
 TransactionMetaFrame::getXDR() const

@@ -31,9 +31,7 @@
 #include "util/ProtocolVersion.h"
 #include "util/XDROperators.h"
 #include "util/XDRStream.h"
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
 #include "xdr/Stellar-contract.h"
-#endif
 #include "xdr/Stellar-ledger.h"
 #include "xdrpp/marshal.h"
 #include "xdrpp/printer.h"
@@ -72,10 +70,9 @@ TransactionFrame::TransactionFrame(Hash const& networkID,
         mOperations.push_back(
             makeOperation(ops[i], getResult().result.results()[i], i));
     }
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
+
     // Initialize the fee to 0, callers will compute the fee appropriately
     mSorobanResourceFee = std::make_optional<FeePair>();
-#endif
 }
 
 Hash const&
@@ -124,7 +121,6 @@ TransactionFrame::clearCached()
     mFullHash = zero;
 }
 
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
 void
 TransactionFrame::pushContractEvents(xdr::xvector<ContractEvent>&& evts)
 {
@@ -182,7 +178,6 @@ TransactionFrame::setReturnValue(SCVal&& returnValue)
 {
     mReturnValue = returnValue;
 }
-#endif
 
 TransactionEnvelope const&
 TransactionFrame::getEnvelope() const
@@ -232,7 +227,6 @@ TransactionFrame::getNumOperations() const
 Resource
 TransactionFrame::getResources() const
 {
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
     if (isSoroban())
     {
         auto r = sorobanResources();
@@ -250,7 +244,6 @@ TransactionFrame::getResources() const
                                               r.footprint.readWrite.size()),
                          static_cast<int64_t>(r.footprint.readWrite.size())});
     }
-#endif
 
     return Resource(getNumOperations());
 }
@@ -274,7 +267,6 @@ int64_t
 TransactionFrame::getInclusionFee() const
 {
     int64_t feeBid = getFullFee();
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
     if (!isSoroban())
     {
         return feeBid;
@@ -293,9 +285,6 @@ TransactionFrame::getInclusionFee() const
         return 0;
     }
     return feeBid - declaredRefundableFee;
-#else
-    return feeBid;
-#endif
 }
 
 int64_t
@@ -473,14 +462,12 @@ TransactionFrame::isSoroban() const
     return !mOperations.empty() && mOperations[0]->isSoroban();
 }
 
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
 SorobanResources const&
 TransactionFrame::sorobanResources() const
 {
     releaseAssertOrThrow(isSoroban());
     return mEnvelope.v1().tx.ext.sorobanData().resources;
 }
-#endif
 
 std::shared_ptr<OperationFrame>
 TransactionFrame::makeOperation(Operation const& op, OperationResult& res,
@@ -612,7 +599,6 @@ TransactionFrame::extraSignersExist() const
            !mEnvelope.v1().tx.cond.v2().extraSigners.empty();
 }
 
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
 bool
 TransactionFrame::validateSorobanOpsConsistency() const
 {
@@ -881,8 +867,6 @@ TransactionFrame::consumeRefundableSorobanResources(
     return true;
 }
 
-#endif
-
 bool
 TransactionFrame::isTooEarly(LedgerTxnHeader const& header,
                              uint64_t lowerBoundCloseTimeOffset) const
@@ -1037,7 +1021,6 @@ TransactionFrame::commonValidPreSeqNum(Application& app, AbstractLedgerTxn& ltx,
         return false;
     }
 
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
     if (!validateSorobanOpsConsistency())
     {
         getResult().result.code(txMALFORMED);
@@ -1095,7 +1078,7 @@ TransactionFrame::commonValidPreSeqNum(Application& app, AbstractLedgerTxn& ltx,
             return false;
         }
     }
-#endif
+
     auto header = ltx.loadHeader();
     if (isTooEarly(header, lowerBoundCloseTimeOffset))
     {
@@ -1427,7 +1410,7 @@ TransactionFrame::checkValidWithOptionallyChargedFee(
     {
         minBaseFee = 0;
     }
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
+
     if (protocolVersionStartsFrom(ltx.loadHeader().current().ledgerVersion,
                                   SOROBAN_PROTOCOL_VERSION))
     {
@@ -1437,7 +1420,6 @@ TransactionFrame::checkValidWithOptionallyChargedFee(
             app.getConfig());
     }
 
-#endif
     resetResults(ltx.loadHeader().current(), minBaseFee, false);
 
     SignatureChecker signatureChecker{ltx.loadHeader().current().ledgerVersion,
@@ -1622,26 +1604,31 @@ TransactionFrame::applyOperations(SignatureChecker& signatureChecker,
             // commit -> propagate the meta to the outer scope
             outerMeta.pushOperationMetas(std::move(operationMetas));
             outerMeta.pushTxChangesAfter(std::move(changesAfter));
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
-            if (!isSoroban() && !mEvents.empty())
-            {
-                throw std::runtime_error("unexpected events size");
-            }
 
-            outerMeta.pushContractEvents(std::move(mEvents));
-            outerMeta.pushDiagnosticEvents(std::move(mDiagnosticEvents));
-            outerMeta.setReturnValue(std::move(mReturnValue));
-#endif
+            if (protocolVersionStartsFrom(ledgerVersion,
+                                          SOROBAN_PROTOCOL_VERSION))
+            {
+                if (!isSoroban() && !mEvents.empty())
+                {
+                    throw std::runtime_error("unexpected events size");
+                }
+
+                outerMeta.pushContractEvents(std::move(mEvents));
+                outerMeta.pushDiagnosticEvents(std::move(mDiagnosticEvents));
+                outerMeta.setReturnValue(std::move(mReturnValue));
+            }
         }
         else
         {
             markResultFailed();
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
-            // If transaction fails, we don't charge for any
-            // refundable resources.
-            mFeeRefund = sorobanRefundableFee();
-            outerMeta.pushDiagnosticEvents(std::move(mDiagnosticEvents));
-#endif
+            if (protocolVersionStartsFrom(ledgerVersion,
+                                          SOROBAN_PROTOCOL_VERSION))
+            {
+                // If transaction fails, we don't charge for any
+                // refundable resources.
+                mFeeRefund = sorobanRefundableFee();
+                outerMeta.pushDiagnosticEvents(std::move(mDiagnosticEvents));
+            }
         }
         return success;
     }
@@ -1790,7 +1777,6 @@ TransactionFrame::processPostApply(Application& app,
                                    AbstractLedgerTxn& ltxOuter,
                                    TransactionMetaFrame& meta)
 {
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
     if (!isSoroban())
     {
         return;
@@ -1801,7 +1787,6 @@ TransactionFrame::processPostApply(Application& app,
     refundSorobanFee(ltx);
     meta.pushTxChangesAfter(ltx.getChanges());
     ltx.commit();
-#endif
 }
 
 StellarMessage
@@ -1812,11 +1797,9 @@ TransactionFrame::toStellarMessage() const
     return msg;
 }
 
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
 xdr::xvector<DiagnosticEvent> const&
 TransactionFrame::getDiagnosticEvents() const
 {
     return mDiagnosticEvents;
 }
-#endif
 }

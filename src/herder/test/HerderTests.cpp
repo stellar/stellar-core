@@ -650,12 +650,10 @@ TEST_CASE("txset", "[herder][txset]")
     {
         testTxSet(13);
     }
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
     SECTION("generalized tx set protocol")
     {
         testTxSet(static_cast<uint32>(GENERALIZED_TX_SET_PROTOCOL_VERSION));
     }
-#endif
     SECTION("protocol current")
     {
         testTxSet(Config::CURRENT_LEDGER_PROTOCOL_VERSION);
@@ -1237,7 +1235,6 @@ TEST_CASE("txset base fee", "[herder][txset]")
                                 maxTxSetSize - 100 + 1, 1000, 2000);
                 }
             }
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
             SECTION("generalized tx set protocol")
             {
                 SECTION("fitting exactly into capacity does not cause surge")
@@ -1254,7 +1251,6 @@ TEST_CASE("txset base fee", "[herder][txset]")
                                 2000, 1);
                 }
             }
-#endif
             SECTION("protocol current")
             {
                 if (protocolVersionStartsFrom(
@@ -1315,7 +1311,6 @@ TEST_CASE("txset base fee", "[herder][txset]")
                         1,
                     0, v11NewCount, maxTxSetSize, 20001, 20002);
             }
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
             SECTION("generalized tx set protocol")
             {
                 SECTION("fitting exactly into capacity does not cause surge")
@@ -1332,7 +1327,6 @@ TEST_CASE("txset base fee", "[herder][txset]")
                                 1);
                 }
             }
-#endif
             SECTION("protocol current")
             {
                 if (protocolVersionStartsFrom(
@@ -1584,7 +1578,6 @@ TEST_CASE("surge pricing", "[herder][txset]")
         }
         SECTION("soroban")
         {
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
             uint32_t const baseFee = 10'000'000;
             modifySorobanNetworkConfig(*app, [](SorobanNetworkConfig& cfg) {
                 cfg.mLedgerMaxTxCount = 0;
@@ -1602,12 +1595,10 @@ TEST_CASE("surge pricing", "[herder][txset]")
             REQUIRE(std::all_of(invalidTxs.begin(), invalidTxs.end(),
                                 [](auto const& txs) { return txs.empty(); }));
             REQUIRE(txSet->sizeTxTotal() == 0);
-#endif
         }
     }
     SECTION("soroban txs")
     {
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
         Config cfg(getTestConfig());
         cfg.TESTING_UPGRADE_LEDGER_PROTOCOL_VERSION =
             static_cast<uint32_t>(GENERALIZED_TX_SET_PROTOCOL_VERSION);
@@ -1852,7 +1843,6 @@ TEST_CASE("surge pricing", "[herder][txset]")
 
             REQUIRE(!txSet->checkValid(*app, 0, 0));
         }
-#endif
     }
 }
 
@@ -2176,7 +2166,6 @@ TEST_CASE("surge pricing with DEX separation holds invariants",
     }
 }
 
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
 TEST_CASE("generalized tx set applied to ledger", "[herder][txset]")
 {
     Config cfg(getTestConfig());
@@ -2269,7 +2258,6 @@ TEST_CASE("generalized tx set applied to ledger", "[herder][txset]")
         checkFees(txSet, {3000, 2000, 500, 2500, 8000, 35000, 10000});
     }
 }
-#endif
 
 static void
 testSCPDriver(uint32 protocolVersion, uint32_t maxTxSetSize, size_t expectedOps)
@@ -2852,13 +2840,11 @@ TEST_CASE("SCP Driver", "[herder][acceptance]")
                           1,
                       1000, 15);
     }
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
     SECTION("generalized tx set protocol")
     {
         testSCPDriver(static_cast<uint32>(GENERALIZED_TX_SET_PROTOCOL_VERSION),
                       1000, 15);
     }
-#endif
     SECTION("protocol current")
     {
         testSCPDriver(Config::CURRENT_LEDGER_PROTOCOL_VERSION, 1000, 15);
@@ -3417,7 +3403,6 @@ TEST_CASE("tx queue source account limit", "[herder][transactionqueue]")
     }
 }
 
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
 TEST_CASE("soroban txs each parameter surge priced")
 {
     auto networkID = sha256(getTestConfig().NETWORK_PASSPHRASE);
@@ -3676,7 +3661,6 @@ TEST_CASE("soroban txs accepted by the network",
         REQUIRE(secondLoadGenFailed.count() == 0);
     }
 }
-#endif
 
 static void
 checkSynced(Application& app)
@@ -4361,7 +4345,6 @@ externalize(SecretKey const& sk, LedgerManager& lm, HerderImpl& herder,
 
     auto classicTxs = txs;
 
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
     TxSetFrame::Transactions sorobanTxs;
     for (auto it = classicTxs.begin(); it != classicTxs.end();)
     {
@@ -4375,13 +4358,10 @@ externalize(SecretKey const& sk, LedgerManager& lm, HerderImpl& herder,
             ++it;
         }
     }
-#endif
 
     TxSetFrame::TxPhases txsPhases{classicTxs};
 
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
     txsPhases.emplace_back(sorobanTxs);
-#endif
 
     auto txSet = TxSetFrame::makeFromTransactions(txsPhases, app, 0, 0);
     herder.getPendingEnvelopes().putTxSet(txSet->getContentsHash(), ledgerSeq,
@@ -4440,7 +4420,6 @@ TEST_CASE("do not flood invalid transactions", "[herder]")
     REQUIRE(txSet->checkValid(*app, 0, 0));
 }
 
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
 TEST_CASE("do not flood too many soroban transactions",
           "[soroban][herder][transactionqueue]")
 {
@@ -4619,7 +4598,6 @@ TEST_CASE("do not flood too many soroban transactions",
         REQUIRE(numBroadcast >= 1);
     }
 }
-#endif
 
 TEST_CASE("do not flood too many transactions", "[herder][transactionqueue]")
 {

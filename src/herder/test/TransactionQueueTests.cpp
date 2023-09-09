@@ -1036,7 +1036,6 @@ TEST_CASE("TxQueueLimiter with limited source accounts",
     }
 }
 
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
 class SorobanLimitingLaneConfigForTesting : public SurgePricingLaneConfig
 {
   public:
@@ -1355,7 +1354,6 @@ TEST_CASE("Soroban TransactionQueue limits",
         }
     }
 }
-#endif
 
 TEST_CASE("TransactionQueue limits", "[herder][transactionqueue]")
 {

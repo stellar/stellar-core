@@ -136,7 +136,6 @@ class Bucket : public std::enable_shared_from_this<Bucket>,
     static std::string randomBucketName(std::string const& tmpDir);
     static std::string randomBucketIndexName(std::string const& tmpDir);
 
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
     // Returns false if eof reached, true otherwise. Modifies iter as the bucket
     // is scanned. Also modifies bytesToScan and maxEntriesToEvict such that
     // after this function returns:
@@ -146,7 +145,6 @@ class Bucket : public std::enable_shared_from_this<Bucket>,
                          uint64_t& bytesToScan, uint32_t& maxEntriesToEvict,
                          uint32_t ledgerSeq, medida::Meter& entriesEvictedMeter,
                          medida::Counter& bytesScannedForEvictionCounter);
-#endif
 
 #ifdef BUILD_TESTS
     // "Applies" the bucket to the database. For each entry in the bucket,

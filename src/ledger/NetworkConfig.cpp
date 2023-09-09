@@ -12,7 +12,6 @@ namespace stellar
 {
 namespace
 {
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
 void
 createConfigSettingEntry(ConfigSettingEntry const& configSetting,
                          AbstractLedgerTxn& ltxRoot)
@@ -511,10 +510,8 @@ initialEvictionIterator()
     return entry;
 }
 
-#endif
 }
 
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
 bool
 SorobanNetworkConfig::isValidConfigSettingEntry(ConfigSettingEntry const& cfg)
 {
@@ -645,13 +642,10 @@ SorobanNetworkConfig::isNonUpgradeableConfigSettingEntry(
                ConfigSettingID::CONFIG_SETTING_EVICTION_ITERATOR;
 }
 
-#endif
-
 void
 SorobanNetworkConfig::createLedgerEntriesForV20(AbstractLedgerTxn& ltx,
                                                 Application& app)
 {
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
     auto const& cfg = app.getConfig();
     createConfigSettingEntry(initialMaxContractSizeEntry(cfg), ltx);
     createConfigSettingEntry(initialMaxContractDataKeySizeEntry(cfg), ltx);
@@ -669,7 +663,6 @@ SorobanNetworkConfig::createLedgerEntriesForV20(AbstractLedgerTxn& ltx,
     createConfigSettingEntry(initialStateExpirationSettings(cfg), ltx);
     createConfigSettingEntry(initialBucketListSizeWindow(app), ltx);
     createConfigSettingEntry(initialEvictionIterator(), ltx);
-#endif
 }
 
 void
@@ -712,45 +705,38 @@ SorobanNetworkConfig::loadFromLedger(AbstractLedgerTxn& ltxRoot,
 void
 SorobanNetworkConfig::loadMaxContractSize(AbstractLedgerTxn& ltx)
 {
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
     LedgerKey key(CONFIG_SETTING);
     key.configSetting().configSettingID =
         ConfigSettingID::CONFIG_SETTING_CONTRACT_MAX_SIZE_BYTES;
     auto le = ltx.loadWithoutRecord(key).current();
     mMaxContractSizeBytes = le.data.configSetting().contractMaxSizeBytes();
-#endif
 }
 
 void
 SorobanNetworkConfig::loadMaxContractDataKeySize(AbstractLedgerTxn& ltx)
 {
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
     LedgerKey key(CONFIG_SETTING);
     key.configSetting().configSettingID =
         ConfigSettingID::CONFIG_SETTING_CONTRACT_DATA_KEY_SIZE_BYTES;
     auto le = ltx.loadWithoutRecord(key).current();
     mMaxContractDataKeySizeBytes =
         le.data.configSetting().contractDataKeySizeBytes();
-#endif
 }
 
 void
 SorobanNetworkConfig::loadMaxContractDataEntrySize(AbstractLedgerTxn& ltx)
 {
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
     LedgerKey key(CONFIG_SETTING);
     key.configSetting().configSettingID =
         ConfigSettingID::CONFIG_SETTING_CONTRACT_DATA_ENTRY_SIZE_BYTES;
     auto le = ltx.loadWithoutRecord(key).current();
     mMaxContractDataEntrySizeBytes =
         le.data.configSetting().contractDataEntrySizeBytes();
-#endif
 }
 
 void
 SorobanNetworkConfig::loadComputeSettings(AbstractLedgerTxn& ltx)
 {
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
     LedgerKey key(CONFIG_SETTING);
     key.configSetting().configSettingID =
         ConfigSettingID::CONFIG_SETTING_CONTRACT_COMPUTE_V0;
@@ -761,13 +747,11 @@ SorobanNetworkConfig::loadComputeSettings(AbstractLedgerTxn& ltx)
     mFeeRatePerInstructionsIncrement =
         configSetting.feeRatePerInstructionsIncrement;
     mTxMemoryLimit = configSetting.txMemoryLimit;
-#endif
 }
 
 void
 SorobanNetworkConfig::loadLedgerAccessSettings(AbstractLedgerTxn& ltx)
 {
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
     LedgerKey key(CONFIG_SETTING);
     key.configSetting().configSettingID =
         ConfigSettingID::CONFIG_SETTING_CONTRACT_LEDGER_COST_V0;
@@ -789,13 +773,11 @@ SorobanNetworkConfig::loadLedgerAccessSettings(AbstractLedgerTxn& ltx)
     mWriteFee1KBBucketListHigh = configSetting.writeFee1KBBucketListHigh;
     mBucketListWriteFeeGrowthFactor =
         configSetting.bucketListWriteFeeGrowthFactor;
-#endif
 }
 
 void
 SorobanNetworkConfig::loadHistoricalSettings(AbstractLedgerTxn& ltx)
 {
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
     LedgerKey key(CONFIG_SETTING);
     key.configSetting().configSettingID =
         ConfigSettingID::CONFIG_SETTING_CONTRACT_HISTORICAL_DATA_V0;
@@ -803,13 +785,11 @@ SorobanNetworkConfig::loadHistoricalSettings(AbstractLedgerTxn& ltx)
     auto const& configSetting =
         le.data.configSetting().contractHistoricalData();
     mFeeHistorical1KB = configSetting.feeHistorical1KB;
-#endif
 }
 
 void
 SorobanNetworkConfig::loadContractEventsSettings(AbstractLedgerTxn& ltx)
 {
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
     LedgerKey key(CONFIG_SETTING);
     key.configSetting().configSettingID =
         ConfigSettingID::CONFIG_SETTING_CONTRACT_EVENTS_V0;
@@ -817,13 +797,11 @@ SorobanNetworkConfig::loadContractEventsSettings(AbstractLedgerTxn& ltx)
     auto const& configSetting = le.data.configSetting().contractEvents();
     mFeeContractEvents1KB = configSetting.feeContractEvents1KB;
     mTxMaxContractEventsSizeBytes = configSetting.txMaxContractEventsSizeBytes;
-#endif
 }
 
 void
 SorobanNetworkConfig::loadBandwidthSettings(AbstractLedgerTxn& ltx)
 {
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
     LedgerKey key(CONFIG_SETTING);
     key.configSetting().configSettingID =
         ConfigSettingID::CONFIG_SETTING_CONTRACT_BANDWIDTH_V0;
@@ -832,37 +810,31 @@ SorobanNetworkConfig::loadBandwidthSettings(AbstractLedgerTxn& ltx)
     mLedgerMaxTransactionsSizeBytes = configSetting.ledgerMaxTxsSizeBytes;
     mTxMaxSizeBytes = configSetting.txMaxSizeBytes;
     mFeeTransactionSize1KB = configSetting.feeTxSize1KB;
-#endif
 }
 
 void
 SorobanNetworkConfig::loadCpuCostParams(AbstractLedgerTxn& ltx)
 {
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
     LedgerKey key(CONFIG_SETTING);
     key.configSetting().configSettingID =
         ConfigSettingID::CONFIG_SETTING_CONTRACT_COST_PARAMS_CPU_INSTRUCTIONS;
     auto le = ltx.loadWithoutRecord(key).current();
     mCpuCostParams = le.data.configSetting().contractCostParamsCpuInsns();
-#endif
 }
 
 void
 SorobanNetworkConfig::loadMemCostParams(AbstractLedgerTxn& ltx)
 {
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
     LedgerKey key(CONFIG_SETTING);
     key.configSetting().configSettingID =
         ConfigSettingID::CONFIG_SETTING_CONTRACT_COST_PARAMS_MEMORY_BYTES;
     auto le = ltx.loadWithoutRecord(key).current();
     mMemCostParams = le.data.configSetting().contractCostParamsMemBytes();
-#endif
 }
 
 void
 SorobanNetworkConfig::loadExecutionLanesSettings(AbstractLedgerTxn& ltx)
 {
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
     LedgerKey key(CONFIG_SETTING);
     key.configSetting().configSettingID =
         ConfigSettingID::CONFIG_SETTING_CONTRACT_EXECUTION_LANES;
@@ -870,13 +842,11 @@ SorobanNetworkConfig::loadExecutionLanesSettings(AbstractLedgerTxn& ltx)
     auto const& configSetting =
         le.data.configSetting().contractExecutionLanes();
     mLedgerMaxTxCount = configSetting.ledgerMaxTxCount;
-#endif
 }
 
 void
 SorobanNetworkConfig::loadBucketListSizeWindow(AbstractLedgerTxn& ltx)
 {
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
     LedgerKey key(CONFIG_SETTING);
     key.configSetting().configSettingID =
         ConfigSettingID::CONFIG_SETTING_BUCKETLIST_SIZE_WINDOW;
@@ -891,23 +861,19 @@ SorobanNetworkConfig::loadBucketListSizeWindow(AbstractLedgerTxn& ltx)
     }
 
     updateBucketListSizeAverage();
-#endif
 }
 
 void
 SorobanNetworkConfig::loadEvictionIterator(AbstractLedgerTxn& ltx)
 {
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
     LedgerKey key(CONFIG_SETTING);
     key.configSetting().configSettingID =
         ConfigSettingID::CONFIG_SETTING_EVICTION_ITERATOR;
     auto txle = ltx.loadWithoutRecord(key);
     releaseAssert(txle);
     mEvictionIterator = txle.current().data.configSetting().evictionIterator();
-#endif
 }
 
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
 void
 SorobanNetworkConfig::writeBucketListSizeWindow(
     AbstractLedgerTxn& ltxRoot) const
@@ -947,7 +913,6 @@ SorobanNetworkConfig::updateBucketListSizeAverage()
 
     mAverageBucketListSize = sizeSum / mBucketListSizeSnapshots.size();
 }
-#endif
 
 uint32_t
 SorobanNetworkConfig::maxContractSizeBytes() const
@@ -970,14 +935,12 @@ SorobanNetworkConfig::maxContractDataEntrySizeBytes() const
 void
 SorobanNetworkConfig::loadStateExpirationSettings(AbstractLedgerTxn& ltx)
 {
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
     LedgerKey key(CONFIG_SETTING);
     key.configSetting().configSettingID =
         ConfigSettingID::CONFIG_SETTING_STATE_EXPIRATION;
     auto le = ltx.loadWithoutRecord(key).current();
     mStateExpirationSettings =
         le.data.configSetting().stateExpirationSettings();
-#endif
 }
 
 // Compute settings for contracts (instructions and memory).
@@ -1140,7 +1103,6 @@ SorobanNetworkConfig::getBucketListSizeSnapshotPeriod() const
 void
 SorobanNetworkConfig::maybeUpdateBucketListWindowSize(AbstractLedgerTxn& ltx)
 {
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
     // // Check if BucketList size window should exist
     if (protocolVersionIsBefore(ltx.loadHeader().current().ledgerVersion,
                                 ProtocolVersion::V_20))
@@ -1175,7 +1137,6 @@ SorobanNetworkConfig::maybeUpdateBucketListWindowSize(AbstractLedgerTxn& ltx)
 
     updateBucketListSizeAverage();
     writeBucketListSizeWindow(ltx);
-#endif
 }
 
 void
@@ -1184,7 +1145,6 @@ SorobanNetworkConfig::maybeSnapshotBucketListSize(uint32_t currLedger,
                                                   Application& app)
 {
     auto ledgerVersion = ltx.loadHeader().current().ledgerVersion;
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
     // // Check if BucketList size window should exist
     if (protocolVersionIsBefore(ledgerVersion, ProtocolVersion::V_20))
     {
@@ -1203,7 +1163,6 @@ SorobanNetworkConfig::maybeSnapshotBucketListSize(uint32_t currLedger,
         computeWriteFee(app.getConfig().CURRENT_LEDGER_PROTOCOL_VERSION,
                         ledgerVersion);
     }
-#endif
 }
 
 uint64_t
@@ -1219,7 +1178,6 @@ SorobanNetworkConfig::setBucketListSnapshotPeriodForTesting(uint32_t period)
     mBucketListSnapshotPeriodForTesting = period;
 }
 
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
 void
 writeConfigSettingEntry(ConfigSettingEntry const& configSetting,
                         AbstractLedgerTxn& ltxRoot)
@@ -1234,12 +1192,10 @@ writeConfigSettingEntry(ConfigSettingEntry const& configSetting,
     ltxe.current() = e;
     ltx.commit();
 }
-#endif
 
 void
 SorobanNetworkConfig::writeAllSettings(AbstractLedgerTxn& ltx) const
 {
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
     ConfigSettingEntry maxContractSizeEntry(
         CONFIG_SETTING_CONTRACT_MAX_SIZE_BYTES);
     maxContractSizeEntry.contractMaxSizeBytes() = mMaxContractSizeBytes;
@@ -1334,11 +1290,8 @@ SorobanNetworkConfig::writeAllSettings(AbstractLedgerTxn& ltx) const
 
     writeBucketListSizeWindow(ltx);
     updateEvictionIterator(ltx, mEvictionIterator);
-#endif
 }
 #endif
-
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
 
 ContractCostParams const&
 SorobanNetworkConfig::cpuCostParams() const
@@ -1448,13 +1401,11 @@ SorobanNetworkConfig::rustBridgeRentFeeConfiguration() const
     res.temporary_rent_rate_denominator = cfg.tempRentRateDenominator;
     return res;
 }
-#endif
 
 void
 SorobanNetworkConfig::computeWriteFee(uint32_t configMaxProtocol,
                                       uint32_t protocolVersion)
 {
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
     CxxWriteFeeConfiguration feeConfig{};
     feeConfig.bucket_list_target_size_bytes = mBucketListTargetSizeBytes;
     feeConfig.bucket_list_write_fee_growth_factor =
@@ -1464,6 +1415,5 @@ SorobanNetworkConfig::computeWriteFee(uint32_t configMaxProtocol,
     // This may throw, but only if core is mis-configured.
     mFeeWrite1KB = rust_bridge::compute_write_fee_per_1kb(
         configMaxProtocol, protocolVersion, mAverageBucketListSize, feeConfig);
-#endif
 }
 } // namespace stellar

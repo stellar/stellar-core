@@ -160,7 +160,6 @@ getShortKey(LedgerKey const& key)
         return getShortKey(key.claimableBalance().balanceID);
     case LIQUIDITY_POOL:
         return getShortKey(key.liquidityPool().liquidityPoolID);
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
     case CONFIG_SETTING:
         return static_cast<uint8_t>(key.configSetting().configSettingID);
     case CONTRACT_DATA:
@@ -175,7 +174,6 @@ getShortKey(LedgerKey const& key)
         return key.contractCode().hash.at(0);
     case EXPIRATION:
         return getShortKey(key.expiration().keyHash);
-#endif
     }
     throw std::runtime_error("Unknown key type");
 }

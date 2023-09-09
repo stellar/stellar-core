@@ -61,10 +61,8 @@ class Upgrades
         void fromJson(std::string const& s, stellar::AbstractLedgerTxn& ltx);
         std::string toDebugJson(stellar::AbstractLedgerTxn& ltx) const;
 
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
         std::optional<uint32_t> mMaxSorobanTxSetSize;
         std::optional<ConfigUpgradeSetKey> mConfigUpgradeSetKey;
-#endif
     };
 
     Upgrades()
@@ -149,7 +147,6 @@ class Upgrades
                                     uint32_t newReserve);
 };
 
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
 // ConfigUpgradeSetFrame contains a ConfigUpgradeSet that
 // was retrieved from the ledger given a ConfigUpgradeSetKey. The
 // ConfigUpgradeSetKey will be converted to a ContractData LedgerKey, and the
@@ -194,5 +191,4 @@ class ConfigUpgradeSetFrame
     ConfigUpgradeSetKey mKey;
     bool mValidXDR;
 };
-#endif
 }

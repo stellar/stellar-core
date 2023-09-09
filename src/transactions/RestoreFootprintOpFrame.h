@@ -4,7 +4,6 @@
 // under the Apache License, Version 2.0. See the COPYING file at the root
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
 #include "transactions/OperationFrame.h"
 #include "xdr/Stellar-transaction.h"
 
@@ -48,4 +47,3 @@ class RestoreFootprintOpFrame : public OperationFrame
     virtual bool isSoroban() const override;
 };
 }
-#endif // ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
