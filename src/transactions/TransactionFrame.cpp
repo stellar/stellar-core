@@ -233,6 +233,11 @@ TransactionFrame::getResources() const
         int64_t txSize = xdr::xdr_size(mEnvelope.v1().tx);
         int64_t const opCount = 1;
 
+        // When doing fee calculation, the rust host will include readWrite
+        // entries in the read related fees. However, this resource calculation
+        // is used for constructing TX sets before invoking the host, so we need
+        // to sum readOnly size and readWrite size for correct resource limits
+        // here.
         return Resource({opCount, r.instructions, txSize, r.readBytes,
                          r.writeBytes,
                          static_cast<int64_t>(r.footprint.readOnly.size() +
@@ -775,8 +780,7 @@ TransactionFrame::computeSorobanResourceFee(
     cxxResources.instructions = txResources.instructions;
 
     cxxResources.read_entries =
-        static_cast<uint32>(txResources.footprint.readOnly.size() +
-                            txResources.footprint.readWrite.size());
+        static_cast<uint32>(txResources.footprint.readOnly.size());
     cxxResources.write_entries =
         static_cast<uint32>(txResources.footprint.readWrite.size());
 

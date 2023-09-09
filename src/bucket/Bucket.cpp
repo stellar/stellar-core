@@ -872,14 +872,15 @@ Bucket::scanForEviction(AbstractLedgerTxn& ltx, EvictionIterator& iter,
                 auto expirationKey = getExpirationKey(le);
                 auto shouldEvict = [&] {
                     auto entryLtxe = ltx.loadWithoutRecord(LedgerEntryKey(le));
+                    auto expirationLtxe = ltx.loadWithoutRecord(expirationKey);
                     if (!entryLtxe)
                     {
                         // Entry was already deleted either manually or by an
                         // earlier eviction scan, do nothing
+                        releaseAssert(!expirationLtxe);
                         return false;
                     }
 
-                    auto expirationLtxe = ltx.loadWithoutRecord(expirationKey);
                     releaseAssert(expirationLtxe);
 
                     return !isLive(expirationLtxe.current(), ledgerSeq);
@@ -904,6 +905,7 @@ Bucket::scanForEviction(AbstractLedgerTxn& ltx, EvictionIterator& iter,
         if (bytesRead >= bytesToScan)
         {
             // Reached end of scan region
+            bytesToScan = 0;
             return true;
         }
 
