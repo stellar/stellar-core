@@ -831,10 +831,10 @@ TEST_CASE_VERSIONS("eviction scan", "[bucketlist]")
         std::vector<LedgerEntry> entries;
         for (auto& e :
              LedgerTestUtils::generateValidUniqueLedgerEntriesWithTypes(
-                 {CONTRACT_DATA}, 5))
+                 {CONTRACT_DATA}, 50))
         {
             // Set half of the entries to be persistent, half temporary
-            if (rand_flip())
+            if (tempEntries.empty() || rand_flip())
             {
                 e.data.contractData().durability = TEMPORARY;
                 tempEntries.emplace(LedgerEntryKey(e));
@@ -885,10 +885,12 @@ TEST_CASE_VERSIONS("eviction scan", "[bucketlist]")
             auto& entriesEvictedMeter = bm.getEntriesEvictedMeter();
             REQUIRE(entriesEvictedMeter.count() == tempEntries.size());
 
-            // Close ledgers until evicted DEADENTRY merges with original
-            // LIVEENTRY. This checks that BucketList invariants are respected
-            // and that entries are not evicted multiple times.
-            for (auto initialSize = bl.getSize(); bl.getSize() >= initialSize;
+            // Close ledgers until evicted DEADENTRYs merge with original
+            // INITENTRYs. This checks that BucketList invariants are respected
+            for (auto initialDeadMerges =
+                     bm.readMergeCounters().mOldInitEntriesMergedWithNewDead;
+                 bm.readMergeCounters().mOldInitEntriesMergedWithNewDead <
+                 initialDeadMerges + tempEntries.size();
                  ++ledgerSeq)
             {
                 closeLedger(*app);
@@ -972,6 +974,7 @@ TEST_CASE_VERSIONS("eviction scan", "[bucketlist]")
             REQUIRE(evictionIter.bucketListLevel == levelToScan);
             REQUIRE(evictionIter.isCurrBucket == true);
 
+            size_t prevOff = evictionIter.bucketFileOffset;
             // Check that each scan only reads one entry
             for (BucketInputIterator in(bl.getLevel(levelToScan).getCurr()); in;
                  ++in)
@@ -980,6 +983,13 @@ TEST_CASE_VERSIONS("eviction scan", "[bucketlist]")
                 closeLedger(*app);
                 ++ledgerSeq;
 
+                // If the BL receives an incoming merge, the scan will reset;
+                // break at that point.
+                if (evictionIter.bucketFileOffset < prevOff)
+                {
+                    break;
+                }
+                prevOff = evictionIter.bucketFileOffset;
                 REQUIRE(evictionIter.bucketFileOffset ==
                         xdr::xdr_size(*in) + startingOffset + xdrOverheadBytes);
                 REQUIRE(evictionIter.bucketListLevel == levelToScan);
