@@ -104,7 +104,7 @@ void
 LedgerManagerForBucketTests::transferLedgerEntriesToBucketList(
     AbstractLedgerTxn& ltx,
     std::unique_ptr<LedgerCloseMetaFrame> const& ledgerCloseMeta,
-    uint32_t ledgerSeq, uint32_t ledgerVers)
+    uint32_t ledgerSeq, uint32_t currLedgerVers, uint32_t initialLedgerVers)
 {
     if (mUseTestEntries)
     {
@@ -112,7 +112,10 @@ LedgerManagerForBucketTests::transferLedgerEntriesToBucketList(
         std::vector<LedgerEntry> init, live;
         std::vector<LedgerKey> dead;
 
-        if (protocolVersionStartsFrom(ledgerVers, SOROBAN_PROTOCOL_VERSION))
+        // Any V20 features must be behind initialLedgerVers check, see comment
+        // in LedgerManagerImpl::ledgerClosed
+        if (protocolVersionStartsFrom(initialLedgerVers,
+                                      SOROBAN_PROTOCOL_VERSION))
         {
             {
                 LedgerTxn ltxEvictions(ltx);
@@ -132,7 +135,7 @@ LedgerManagerForBucketTests::transferLedgerEntriesToBucketList(
 
         ltx.getAllEntries(init, live, dead);
         // Use the testing values.
-        mApp.getBucketManager().addBatch(mApp, ledgerSeq, ledgerVers,
+        mApp.getBucketManager().addBatch(mApp, ledgerSeq, currLedgerVers,
                                          mTestInitEntries, mTestLiveEntries,
                                          mTestDeadEntries);
         mUseTestEntries = false;
@@ -140,7 +143,7 @@ LedgerManagerForBucketTests::transferLedgerEntriesToBucketList(
     else
     {
         LedgerManagerImpl::transferLedgerEntriesToBucketList(
-            ltx, ledgerCloseMeta, ledgerSeq, ledgerVers);
+            ltx, ledgerCloseMeta, ledgerSeq, currLedgerVers, initialLedgerVers);
     }
 }
 
