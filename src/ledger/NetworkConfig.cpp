@@ -513,12 +513,14 @@ initialBucketListSizeWindow(Application& app)
 }
 
 ConfigSettingEntry
-initialEvictionIterator()
+initialEvictionIterator(Config const& cfg)
 {
     ConfigSettingEntry entry(CONFIG_SETTING_EVICTION_ITERATOR);
     entry.evictionIterator().bucketFileOffset = 0;
     entry.evictionIterator().bucketListLevel =
-        InitialSorobanNetworkConfig::STARTING_EVICTION_SCAN_LEVEL;
+        cfg.OVERRIDE_EVICTION_PARAMS_FOR_TESTING
+            ? cfg.TESTING_STARTING_EVICTION_SCAN_LEVEL
+            : InitialSorobanNetworkConfig::STARTING_EVICTION_SCAN_LEVEL;
     entry.evictionIterator().isCurrBucket = true;
     return entry;
 }
@@ -675,7 +677,7 @@ SorobanNetworkConfig::createLedgerEntriesForV20(AbstractLedgerTxn& ltx,
     createConfigSettingEntry(initialMemCostParamsEntry(), ltx);
     createConfigSettingEntry(initialStateExpirationSettings(cfg), ltx);
     createConfigSettingEntry(initialBucketListSizeWindow(app), ltx);
-    createConfigSettingEntry(initialEvictionIterator(), ltx);
+    createConfigSettingEntry(initialEvictionIterator(cfg), ltx);
 }
 
 void

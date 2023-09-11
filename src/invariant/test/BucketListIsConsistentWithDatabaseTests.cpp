@@ -34,15 +34,18 @@ namespace BucketListIsConsistentWithDatabaseTests
 struct BucketListGenerator
 {
     VirtualClock mClock;
-    Application::pointer mAppGenerate;
     uint32_t mLedgerSeq;
+    Application::pointer mAppGenerate;
     UnorderedSet<LedgerKey> mLiveKeys;
 
   public:
-    BucketListGenerator()
-        : mAppGenerate(createTestApplication(mClock, getTestConfig(0)))
-        , mLedgerSeq(1)
+    BucketListGenerator() : mLedgerSeq(1)
     {
+        auto cfg = getTestConfig(0);
+        cfg.OVERRIDE_EVICTION_PARAMS_FOR_TESTING = true;
+        cfg.TESTING_STARTING_EVICTION_SCAN_LEVEL = 1;
+        mAppGenerate = createTestApplication(mClock, cfg);
+
         auto skey = SecretKey::fromSeed(mAppGenerate->getNetworkID());
         LedgerKey key(ACCOUNT);
         key.account().accountID = skey.getPublicKey();
@@ -913,6 +916,10 @@ TEST_CASE("BucketListIsConsistentWithDatabase merged LIVEENTRY and DEADENTRY",
         return (bool)ltx.load(LedgerEntryKey(le));
     };
 
+    auto cfg = getTestConfig(1);
+    cfg.OVERRIDE_EVICTION_PARAMS_FOR_TESTING = true;
+    cfg.TESTING_STARTING_EVICTION_SCAN_LEVEL = 1;
+
     testutil::BucketListDepthModifier bldm(3);
     for (auto t : xdr::xdr_traits<LedgerEntryType>::enum_values())
     {
@@ -945,7 +952,7 @@ TEST_CASE("BucketListIsConsistentWithDatabase merged LIVEENTRY and DEADENTRY",
             {
                 VirtualClock clock;
                 Application::pointer appApply =
-                    createTestApplication(clock, getTestConfig(1));
+                    createTestApplication(clock, cfg);
                 REQUIRE_NOTHROW(blg.applyBuckets(appApply));
                 REQUIRE(exists(*blg.mAppGenerate, *blg.mSelected));
                 REQUIRE(exists(*appApply, *blg.mSelected));
@@ -965,7 +972,7 @@ TEST_CASE("BucketListIsConsistentWithDatabase merged LIVEENTRY and DEADENTRY",
             {
                 VirtualClock clock;
                 Application::pointer appApply =
-                    createTestApplication(clock, getTestConfig(1));
+                    createTestApplication(clock, cfg);
                 REQUIRE_NOTHROW(blg.applyBuckets(appApply));
                 auto& blApply = appApply->getBucketManager().getBucketList();
                 REQUIRE(!doesBucketListContain(blApply, dead));
