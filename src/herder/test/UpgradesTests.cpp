@@ -7,6 +7,7 @@
 #include "bucket/BucketManager.h"
 #include "bucket/BucketManagerImpl.h"
 #include "bucket/test/BucketTestUtils.h"
+#include "crypto/Random.h"
 #include "herder/Herder.h"
 #include "herder/HerderImpl.h"
 #include "herder/LedgerCloseData.h"
@@ -2042,6 +2043,57 @@ TEST_CASE("upgrade to version 13", "[upgrades]")
     {
         REQUIRE(tx->getEnvelope().type() == ENVELOPE_TYPE_TX);
     }
+}
+
+// There is a subtle inconsistency where for a ledger that upgrades from
+// protocol vN to vN+1 that also changed LedgerCloseMeta version, the ledger
+// header will be protocol vN+1, but the meta emitted for that ledger will be
+// the LedgerCloseMeta version for vN. This test checks that the meta versions
+// are correct the protocol 20 upgrade that updates LedgerCloseMeta to V2 and
+// that no asserts are thrown.
+TEST_CASE("upgrade to version 20 - LedgerCloseMetaV2")
+{
+    TmpDirManager tdm(std::string("version-20-upgrade-meta-") +
+                      binToHex(randomBytes(8)));
+    TmpDir td = tdm.tmpDir("version-20-upgrade-meta-ok");
+    std::string metaPath = td.getName() + "/stream.xdr";
+
+    VirtualClock clock;
+    Config cfg = getTestConfig();
+    cfg.METADATA_OUTPUT_STREAM = metaPath;
+    cfg.USE_CONFIG_FOR_GENESIS = false;
+    auto app = createTestApplication(clock, cfg);
+
+    executeUpgrade(*app, makeProtocolVersionUpgrade(
+                             static_cast<uint32_t>(SOROBAN_PROTOCOL_VERSION)));
+
+    uint32 currLedger = app->getLedgerManager().getLastClosedLedgerNum();
+    closeLedgerOn(*app, currLedger + 1, 2, 1, 2016);
+
+    XDRInputFileStream in;
+    in.open(metaPath);
+    LedgerCloseMeta lcm;
+    auto metaFrameCount = 0;
+    for (; in.readOne(lcm); ++metaFrameCount)
+    {
+        // First meta frame from upgrade should still be version V0
+        if (metaFrameCount == 0)
+        {
+            REQUIRE(lcm.v() == 0);
+        }
+        // Meta frame after upgrade should be V2
+        else if (metaFrameCount == 1)
+        {
+            REQUIRE(lcm.v() == 2);
+        }
+        // Should only be 2 meta frames
+        else
+        {
+            REQUIRE(false);
+        }
+    }
+
+    REQUIRE(metaFrameCount == 2);
 }
 
 TEST_CASE("configuration initialized in version upgrade", "[upgrades]")

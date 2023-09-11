@@ -243,7 +243,7 @@ LedgerManagerImpl::startNewLedger(LedgerHeader const& genesisLedger)
     CLOG_INFO(Ledger, "Established genesis ledger, closing");
     CLOG_INFO(Ledger, "Root account: {}", skey.getStrKeyPublic());
     CLOG_INFO(Ledger, "Root account seed: {}", skey.getStrKeySeed().value);
-    ledgerClosed(ltx, /*ledgerCloseMeta*/ nullptr);
+    ledgerClosed(ltx, /*ledgerCloseMeta*/ nullptr, /*initialLedgerVers*/ 0);
     ltx.commit();
 }
 
@@ -707,6 +707,7 @@ LedgerManagerImpl::closeLedger(LedgerCloseData const& ledgerData)
 
     LedgerTxn ltx(mApp.getLedgerTxnRoot());
     auto header = ltx.loadHeader();
+    auto initialLedgerVers = header.current().ledgerVersion;
     ++header.current().ledgerSeq;
     header.current().previousLedgerHash = mLastClosedLedger.hash;
     CLOG_DEBUG(Ledger, "starting closeLedger() on ledgerSeq={}",
@@ -876,7 +877,7 @@ LedgerManagerImpl::closeLedger(LedgerCloseData const& ledgerData)
         updateNetworkConfig(ltx);
     }
 
-    ledgerClosed(ltx, ledgerCloseMeta);
+    ledgerClosed(ltx, ledgerCloseMeta, initialLedgerVers);
 
     if (ledgerData.getExpectedHash() &&
         *ledgerData.getExpectedHash() != mLastClosedLedger.hash)
@@ -1464,7 +1465,7 @@ void
 LedgerManagerImpl::transferLedgerEntriesToBucketList(
     AbstractLedgerTxn& ltx,
     std::unique_ptr<LedgerCloseMetaFrame> const& ledgerCloseMeta,
-    uint32_t ledgerSeq, uint32_t ledgerVers)
+    uint32_t ledgerSeq, uint32_t currLedgerVers, uint32_t initialLedgerVers)
 {
     ZoneScoped;
     std::vector<LedgerEntry> initEntries, liveEntries;
@@ -1473,8 +1474,11 @@ LedgerManagerImpl::transferLedgerEntriesToBucketList(
 
     // Since snapshots are stored in a LedgerEntry, need to snapshot before
     // sealing the ledger with ltx.getAllEntries
+    //
+    // Any V20 features must be behind initialLedgerVers check, see comment
+    // in LedgerManagerImpl::ledgerClosed
     if (blEnabled &&
-        protocolVersionStartsFrom(ledgerVers, SOROBAN_PROTOCOL_VERSION))
+        protocolVersionStartsFrom(initialLedgerVers, SOROBAN_PROTOCOL_VERSION))
     {
         {
             LedgerTxn ltxEvictions(ltx);
@@ -1494,7 +1498,7 @@ LedgerManagerImpl::transferLedgerEntriesToBucketList(
     ltx.getAllEntries(initEntries, liveEntries, deadEntries);
     if (blEnabled)
     {
-        mApp.getBucketManager().addBatch(mApp, ledgerSeq, ledgerVers,
+        mApp.getBucketManager().addBatch(mApp, ledgerSeq, currLedgerVers,
                                          initEntries, liveEntries, deadEntries);
     }
 }
@@ -1502,20 +1506,39 @@ LedgerManagerImpl::transferLedgerEntriesToBucketList(
 void
 LedgerManagerImpl::ledgerClosed(
     AbstractLedgerTxn& ltx,
-    std::unique_ptr<LedgerCloseMetaFrame> const& ledgerCloseMeta)
+    std::unique_ptr<LedgerCloseMetaFrame> const& ledgerCloseMeta,
+    uint32_t initialLedgerVers)
 {
     ZoneScoped;
     auto ledgerSeq = ltx.loadHeader().current().ledgerSeq;
-    auto ledgerVers = ltx.loadHeader().current().ledgerVersion;
+    auto currLedgerVers = ltx.loadHeader().current().ledgerVersion;
     CLOG_TRACE(Ledger,
                "sealing ledger {} with version {}, sending to bucket list",
-               ledgerSeq, ledgerVers);
+               ledgerSeq, currLedgerVers);
 
+    // There is a subtle bug in the upgrade path that wasn't noticed until
+    // protocol 20. For a ledger that upgrades from protocol vN to vN+1, there
+    // are two different assumptions in different parts of the ledger-close
+    // path:
+    //   - In closeLedger we mostly treat the ledger as being on vN, eg. during
+    //     tx apply and LCM construction.
+    //   - In the final stage, when we call ledgerClosed, we pass vN+1 because
+    //     the upgrade completed and modified the ltx header, and we fish the
+    //     protocol out of the ltx header
+    // Before LedgerCloseMetaV2, this inconsistency was mostly harmless since
+    // LedgerCloseMeta was not modified after the LTX header was modified.
+    // However, starting with protocol 20, LedgerCloseMeta is modified after
+    // updating the ltx header when populating BucketList related meta. This
+    // means that this function will attempt to call LedgerCloseMetaV2
+    // functions, but ledgerCloseMeta is actually a LedgerCloseMetaV0 because it
+    // was constructed with the previous protocol version prior to the upgrade.
+    // Due to this, we must check the initial protocol version of ledger instead
+    // of the ledger version of the current ltx header, which may have been
+    // modified via an upgrade.
     transferLedgerEntriesToBucketList(ltx, ledgerCloseMeta, ledgerSeq,
-                                      ledgerVers);
-
+                                      currLedgerVers, initialLedgerVers);
     if (ledgerCloseMeta &&
-        protocolVersionStartsFrom(ledgerVers, ProtocolVersion::V_20))
+        protocolVersionStartsFrom(initialLedgerVers, ProtocolVersion::V_20))
     {
         auto blSize = getSorobanNetworkConfig(ltx).getAverageBucketListSize();
         ledgerCloseMeta->setTotalByteSizeOfBucketList(blSize);
