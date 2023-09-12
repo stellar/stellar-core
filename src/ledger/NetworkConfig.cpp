@@ -500,8 +500,11 @@ initialBucketListSizeWindow(Application& app)
     ConfigSettingEntry entry(CONFIG_SETTING_BUCKETLIST_SIZE_WINDOW);
 
     // Populate 30 day sliding window of BucketList size snapshots with 30
-    // copies of the current BL size
-    auto blSize = app.getBucketManager().getBucketList().getSize();
+    // copies of the current BL size. If the bucketlist is disabled for testing,
+    // just fill with ones to avoid triggering asserts.
+    auto blSize = app.getConfig().MODE_ENABLES_BUCKETLIST
+                      ? app.getBucketManager().getBucketList().getSize()
+                      : 1;
     for (auto i = 0;
          i < InitialSorobanNetworkConfig::BUCKET_LIST_SIZE_WINDOW_SAMPLE_SIZE;
          ++i)
@@ -1161,7 +1164,8 @@ SorobanNetworkConfig::maybeSnapshotBucketListSize(uint32_t currLedger,
 {
     auto ledgerVersion = ltx.loadHeader().current().ledgerVersion;
     // // Check if BucketList size window should exist
-    if (protocolVersionIsBefore(ledgerVersion, ProtocolVersion::V_20))
+    if (protocolVersionIsBefore(ledgerVersion, ProtocolVersion::V_20) ||
+        !app.getConfig().MODE_ENABLES_BUCKETLIST)
     {
         return;
     }
