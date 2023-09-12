@@ -511,8 +511,13 @@ class ApplyBucketsWorkModifyEntry : public ApplyBucketsWork
     {
         ContractCodeEntry const& cc = mEntry.data.contractCode();
         entry.lastModifiedLedgerSeq = mEntry.lastModifiedLedgerSeq;
-        entry.data.contractCode() =
-            LedgerTestUtils::generateValidContractCodeEntry(5);
+
+        while (entry.data.contractCode().code ==
+               mEntry.data.contractCode().code)
+        {
+            entry.data.contractCode() =
+                LedgerTestUtils::generateValidContractCodeEntry(5);
+        }
 
         entry.data.contractCode().hash = cc.hash;
     }
