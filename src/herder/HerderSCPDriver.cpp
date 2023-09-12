@@ -437,7 +437,7 @@ HerderSCPDriver::extractValidValue(uint64_t slotIndex, Value const& value)
     return res;
 }
 
-// value marshaling
+// value marshalling
 
 std::string
 HerderSCPDriver::toShortString(NodeID const& pk) const

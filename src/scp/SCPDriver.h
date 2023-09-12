@@ -70,6 +70,11 @@ class SCPDriver
     {
     }
 
+    // Users of the SCP library should inherit from SCPDriver and implement the
+    // virtual methods which are called by the SCP implementation to
+    // abstract the transport layer used from the implementation of the SCP
+    // protocol.
+
     // Envelope signature
     virtual void signEnvelope(SCPEnvelope& envelope) = 0;
 
@@ -90,11 +95,6 @@ class SCPDriver
     // `nullptr` is a valid return value which cause the statement to be
     // considered invalid.
     virtual SCPQuorumSetPtr getQSet(Hash const& qSetHash) = 0;
-
-    // Users of the SCP library should inherit from SCPDriver and implement the
-    // virtual methods which are called by the SCP implementation to
-    // abstract the transport layer used from the implementation of the SCP
-    // protocol.
 
     // Delegates the emission of an SCPEnvelope to the user of SCP. Envelopes
     // should be flooded to the network.
@@ -178,6 +178,10 @@ class SCPDriver
     // `computeTimeout` computes a timeout given a round number
     // it should be sufficiently large such that nodes in a
     // quorum can exchange 4 messages
+
+    // TODO: does 'can exchange 4 messages' consider sending getTxSet messages?
+    // Should we clarify this?
+
     virtual std::chrono::milliseconds computeTimeout(uint32 roundNumber);
 
     // Inform about events happening within the consensus algorithm.
