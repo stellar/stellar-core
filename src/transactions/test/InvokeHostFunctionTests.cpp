@@ -213,7 +213,7 @@ deployContractWithSourceAccountWithResources(Application& app,
     uploadResources.footprint.readWrite = {contractCodeLedgerKey};
     submitTxToUploadWasm(app, uploadOp, uploadResources,
                          contractCodeLedgerKey.contractCode().hash,
-                         uploadHF.wasm(), 100'000, DEFAULT_TEST_REFUNDABLE_FEE);
+                         uploadHF.wasm(), 200'000, DEFAULT_TEST_REFUNDABLE_FEE);
 
     // Check expirations for contract code
     {
@@ -304,7 +304,7 @@ deployContractWithSourceAccount(Application& app, RustBuf const& contractWasm,
                                 uint256 salt = sha256("salt"))
 {
     SorobanResources uploadResources{};
-    uploadResources.instructions = 200'000;
+    uploadResources.instructions = 4'000'000;
     uploadResources.readBytes = 1000;
     uploadResources.writeBytes = 5000;
 
@@ -2758,7 +2758,7 @@ TEST_CASE("settings upgrade", "[tx][soroban][upgrades]")
         auto const writeByteWasm = rust_bridge::get_write_bytes();
 
         SorobanResources uploadResources{};
-        uploadResources.instructions = 200'000;
+        uploadResources.instructions = 4'000'000;
         uploadResources.readBytes = 1000;
         uploadResources.writeBytes = 1000;
 

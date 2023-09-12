@@ -21,7 +21,7 @@ jobs:
       fail-fast: false
       matrix:
         toolchain: [ "gcc", "clang"]
-        protocol: ["current", "next"]
+        protocol: ["current"]
         scenario: ["", "--check-test-tx-meta"]
     steps:
       - name: Compute cache key
