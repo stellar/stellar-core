@@ -428,12 +428,12 @@ fn check_lockfile_has_expected_dep_tree(
         .find(|p| p.name.as_str() == "soroban-env-host" && package_matches_hash(p, package_hash))
         .expect("locating host package in Cargo.lock");
 
-    if soroban_host_pre_release_version != 0 && pkg.version.major != 0 {
-        panic!("soroban interface version indicates pre-release {} but package version is {}, with nonzero major version",
+    if soroban_host_pre_release_version != 0 && pkg.version.pre.is_empty() {
+        panic!("soroban interface version indicates pre-release {} but package version is {}, with empty prerelease component",
                 soroban_host_pre_release_version, pkg.version)
     }
 
-    if pkg.version.major == 0 {
+    if pkg.version.major == 0 || !pkg.version.pre.is_empty() {
         eprintln!(
             "Warning: soroban-env-host-{} is running a pre-release version {}",
             curr_or_prev, pkg.version

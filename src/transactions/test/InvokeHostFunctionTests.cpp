@@ -213,7 +213,8 @@ deployContractWithSourceAccountWithResources(Application& app,
     uploadResources.footprint.readWrite = {contractCodeLedgerKey};
     submitTxToUploadWasm(app, uploadOp, uploadResources,
                          contractCodeLedgerKey.contractCode().hash,
-                         uploadHF.wasm(), 200'000, DEFAULT_TEST_REFUNDABLE_FEE);
+                         uploadHF.wasm(), 1'000'000,
+                         DEFAULT_TEST_REFUNDABLE_FEE);
 
     // Check expirations for contract code
     {
@@ -304,7 +305,7 @@ deployContractWithSourceAccount(Application& app, RustBuf const& contractWasm,
                                 uint256 salt = sha256("salt"))
 {
     SorobanResources uploadResources{};
-    uploadResources.instructions = 4'000'000;
+    uploadResources.instructions = 200'000 + (contractWasm.data.size() * 6000);
     uploadResources.readBytes = 1000;
     uploadResources.writeBytes = 5000;
 
@@ -2758,14 +2759,20 @@ TEST_CASE("settings upgrade", "[tx][soroban][upgrades]")
         auto const writeByteWasm = rust_bridge::get_write_bytes();
 
         SorobanResources uploadResources{};
-        uploadResources.instructions = 4'000'000;
-        uploadResources.readBytes = 1000;
-        uploadResources.writeBytes = 1000;
+        uploadResources.instructions =
+            MinimumSorobanNetworkConfig::TX_MAX_INSTRUCTIONS;
+        uploadResources.readBytes =
+            MinimumSorobanNetworkConfig::TX_MAX_READ_BYTES;
+        uploadResources.writeBytes =
+            MinimumSorobanNetworkConfig::TX_MAX_WRITE_BYTES;
 
         SorobanResources createResources{};
-        createResources.instructions = 200'000;
-        createResources.readBytes = 1000;
-        createResources.writeBytes = 300;
+        createResources.instructions =
+            MinimumSorobanNetworkConfig::TX_MAX_INSTRUCTIONS;
+        createResources.readBytes =
+            MinimumSorobanNetworkConfig::TX_MAX_READ_BYTES;
+        createResources.writeBytes =
+            MinimumSorobanNetworkConfig::TX_MAX_WRITE_BYTES;
         auto contractKeys = deployContractWithSourceAccountWithResources(
             *app, writeByteWasm, uploadResources, createResources);
         auto const& contractID = contractKeys[0].contractData().contract;
