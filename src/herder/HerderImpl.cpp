@@ -377,6 +377,12 @@ HerderImpl::writeDebugTxSet(LedgerCloseData const& lcd)
 }
 
 void
+HerderImpl::purgePendingGetTxnSetRequests()
+{
+    mApp.getOverlayManager().purgePendingGetTxSetRequests();
+}
+
+void
 HerderImpl::valueExternalized(uint64 slotIndex, StellarValue const& value,
                               bool isLatestSlot)
 {
@@ -405,6 +411,8 @@ HerderImpl::valueExternalized(uint64 slotIndex, StellarValue const& value,
         // we do not want it to trigger while downloading the current set
         // and there is no point in taking a position after the round is over
         mTriggerTimer.cancel();
+
+        purgePendingGetTxnSetRequests();
 
         // This call may cause LedgerManager to close ledger and trigger next
         // ledger
@@ -1386,6 +1394,8 @@ HerderImpl::triggerNextLedger(uint32_t ledgerSeqToTrigger,
         }
     }
 
+    // TODO: should we move this after the if statement, since we are not
+    // starting nomination if we are not a validator?
     getHerderSCPDriver().recordSCPEvent(slotIndex, true);
 
     // If we are not a validating node we stop here and don't start nomination
