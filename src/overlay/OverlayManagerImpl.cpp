@@ -1298,13 +1298,14 @@ OverlayManagerImpl::getMaxAdvertSize() const
 void
 OverlayManagerImpl::purgePendingGetTxSetRequestsBelow(uint32 ledgerSeq)
 {
-    for (auto& mapPair : mPendingTxSetRequests)
+    auto itr = mPendingTxSetRequests.begin();
+
+    while (itr != mPendingTxSetRequests.end())
     {
-        auto slotIndex = mapPair.first;
+        auto slotIndex = itr->first;
         if (slotIndex < ledgerSeq)
         {
-            auto& pendingGetTxSetRequestsForSlot = mapPair.second;
-            pendingGetTxSetRequestsForSlot.clear();
+            itr = mPendingTxSetRequests.erase(itr);
         }
         else
         {
