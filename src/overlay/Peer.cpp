@@ -1214,7 +1214,7 @@ Peer::recvGetTxSet(StellarMessage const& msg, bool wait)
     else
     {
         auto& pendingTxSetRequests =
-            mApp.getOverlayManager().getPendingTxSetRequests();
+            mApp.getOverlayManager().getPendingGetTxSetRequests();
 
         if (pendingTxSetRequests.size() >=
             getMaxNumPendingGetTxSetRequestsToKeep())
@@ -1286,7 +1286,7 @@ Peer::recvTxSet(StellarMessage const& msg)
     auto frame = TxSetFrame::makeFromWire(mApp, msg.txSet());
     mApp.getHerder().recvTxSet(frame->getContentsHash(), frame);
     auto& pendingTxSetRequests =
-        mApp.getOverlayManager().getPendingTxSetRequests();
+        mApp.getOverlayManager().getPendingGetTxSetRequests();
 
     for (auto& weakPeer : pendingTxSetRequests[frame->getContentsHash()])
     {

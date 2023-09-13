@@ -206,7 +206,7 @@ class OverlayManager
 
     virtual void purgePendingGetTxSetRequests() = 0;
     virtual UnorderedMap<Hash, std::vector<std::weak_ptr<Peer>>>&
-    getPendingTxSetRequests() = 0;
+    getPendingGetTxSetRequests() = 0;
 
     virtual ~OverlayManager()
     {

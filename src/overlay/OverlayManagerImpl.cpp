@@ -1302,7 +1302,7 @@ OverlayManagerImpl::purgePendingGetTxSetRequests()
 }
 
 UnorderedMap<Hash, std::vector<std::weak_ptr<Peer>>>&
-OverlayManagerImpl::getPendingTxSetRequests()
+OverlayManagerImpl::getPendingGetTxSetRequests()
 {
     return mPendingTxSetRequests;
 }

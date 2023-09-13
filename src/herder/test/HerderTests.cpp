@@ -5399,7 +5399,7 @@ TEST_CASE("delay sending DONT_HAVE simulation", "[herder]")
               conn->getInitiator()
                   ->getApp()
                   .getOverlayManager()
-                  .getPendingTxSetRequests()
+                  .getPendingGetTxSetRequests()
                   .size());
 
     // simulation->crankForAtLeast(std::chrono::seconds{1}, false);
@@ -5408,7 +5408,7 @@ TEST_CASE("delay sending DONT_HAVE simulation", "[herder]")
             return conn->getInitiator()
                        ->getApp()
                        .getOverlayManager()
-                       .getPendingTxSetRequests()
+                       .getPendingGetTxSetRequests()
                        .size() >= 0;
         },
         std::chrono::seconds{2}, false);
@@ -5417,7 +5417,7 @@ TEST_CASE("delay sending DONT_HAVE simulation", "[herder]")
               conn->getInitiator()
                   ->getApp()
                   .getOverlayManager()
-                  .getPendingTxSetRequests()
+                  .getPendingGetTxSetRequests()
                   .size());
 
     conn->getInitiator()->getApp().getHerder().recvTxSet(
@@ -5527,11 +5527,11 @@ TEST_CASE("delay sending DONT_HAVE", "[herder]")
     REQUIRE(!apps[0]->getHerder().getTxSet(txnSetFrame->getContentsHash()));
     REQUIRE(!apps[1]->getHerder().getTxSet(txnSetFrame->getContentsHash()));
     // No pending requests yet.
-    REQUIRE(apps[0]->getOverlayManager().getPendingTxSetRequests().size() == 0);
+    REQUIRE(apps[0]->getOverlayManager().getPendingGetTxSetRequests().size() == 0);
     // Should not add to pending getTxSet requests while we wait before
     // retrying.
     testutil::crankFor(clock, epsilon);
-    REQUIRE(apps[0]->getOverlayManager().getPendingTxSetRequests().size() == 0);
+    REQUIRE(apps[0]->getOverlayManager().getPendingGetTxSetRequests().size() == 0);
 
     auto closedTime = apps[0]
                           ->getLedgerManager()
@@ -5552,7 +5552,7 @@ TEST_CASE("delay sending DONT_HAVE", "[herder]")
     {
         // Added to pending getTxSet requests after timeout.
         testutil::crankFor(clock, std::chrono::milliseconds{300});
-        REQUIRE(apps[0]->getOverlayManager().getPendingTxSetRequests().size() ==
+        REQUIRE(apps[0]->getOverlayManager().getPendingGetTxSetRequests().size() ==
                 1);
         // Receives tx set.
         auto txSetMsg = createTxSetMessage(txnSetFrame);
@@ -5562,7 +5562,7 @@ TEST_CASE("delay sending DONT_HAVE", "[herder]")
         // Check peer has the txn set hash.
         REQUIRE(apps[0]->getHerder().getTxSet(txnSetFrame->getContentsHash()));
         // Pending getTxSet requests are cleared.
-        REQUIRE(apps[0]->getOverlayManager().getPendingTxSetRequests().size() ==
+        REQUIRE(apps[0]->getOverlayManager().getPendingGetTxSetRequests().size() ==
                 0);
         REQUIRE(apps[1]->getHerder().getTxSet(txnSetFrame->getContentsHash()));
     }
@@ -5576,14 +5576,14 @@ TEST_CASE("delay sending DONT_HAVE", "[herder]")
         // Pending getTxSet requests are empty since node already has the tx
         // set.
         testutil::crankFor(clock, std::chrono::milliseconds{300});
-        REQUIRE(apps[0]->getOverlayManager().getPendingTxSetRequests().size() ==
+        REQUIRE(apps[0]->getOverlayManager().getPendingGetTxSetRequests().size() ==
                 0);
 
         testutil::crankFor(clock, std::chrono::seconds{1});
         // Check peer has the txn set hash.
         REQUIRE(apps[0]->getHerder().getTxSet(txnSetFrame->getContentsHash()));
         // Pending getTxSet requests are cleared.
-        REQUIRE(apps[0]->getOverlayManager().getPendingTxSetRequests().size() ==
+        REQUIRE(apps[0]->getOverlayManager().getPendingGetTxSetRequests().size() ==
                 0);
         REQUIRE(apps[1]->getHerder().getTxSet(txnSetFrame->getContentsHash()));
     }

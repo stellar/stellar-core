@@ -196,7 +196,7 @@ class OverlayManagerImpl : public OverlayManager
 
     void purgePendingGetTxSetRequests();
     UnorderedMap<Hash, std::vector<std::weak_ptr<Peer>>>&
-    getPendingTxSetRequests() override;
+    getPendingGetTxSetRequests() override;
 
   private:
     struct ResolvedPeers
