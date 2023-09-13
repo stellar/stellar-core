@@ -5392,7 +5392,9 @@ TEST_CASE("delay sending DONT_HAVE simulation", "[herder]")
     auto txnSetFrame = TxSetFrame::makeFromTransactions(
         txs, conn->getInitiator()->getApp(), 0, 0);
     auto getTxSet = createGetTxSet(xdrSha256(txnSetFrame->getContentsHash()));
-    auto slotIndex = getTxSet->envelope().statement.slotIndex;
+    auto slotIndex = simulation->getNode(v0NodeID)
+                         ->getHerder()
+                         .trackingConsensusLedgerIndex();
 
     conn->getAcceptor()->sendMessage(getTxSet, true);
 
@@ -5524,7 +5526,7 @@ TEST_CASE("delay sending DONT_HAVE", "[herder]")
     // Sending get tx set message.
     auto getTxSet = createGetTxSetMessage(txnSetFrame->getContentsHash());
     connection->getAcceptor()->sendMessage(getTxSet, false);
-    auto slotIndex = getTxSet->envelope().statement.slotIndex;
+    auto slotIndex = apps[0]->getHerder().trackingConsensusLedgerIndex();
 
     REQUIRE(!apps[0]->getHerder().getTxSet(txnSetFrame->getContentsHash()));
     REQUIRE(!apps[1]->getHerder().getTxSet(txnSetFrame->getContentsHash()));
@@ -5533,6 +5535,7 @@ TEST_CASE("delay sending DONT_HAVE", "[herder]")
                 ->getOverlayManager()
                 .getPendingGetTxSetRequests()[slotIndex]
                 .size() == 0);
+
     // Should not add to pending getTxSet requests while we wait before
     // retrying.
     testutil::crankFor(clock, epsilon);

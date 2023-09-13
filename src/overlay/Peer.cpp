@@ -1213,7 +1213,7 @@ Peer::recvGetTxSet(StellarMessage const& msg, bool wait)
     }
     else
     {
-        auto slotIndex = msg.envelope().statement.slotIndex;
+        auto slotIndex = mApp.getHerder().trackingConsensusLedgerIndex();
         auto& pendingTxSetRequestsForSlot =
             mApp.getOverlayManager().getPendingGetTxSetRequests()[slotIndex];
 
