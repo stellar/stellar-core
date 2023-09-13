@@ -52,11 +52,6 @@ using namespace soci;
 static constexpr VirtualClock::time_point PING_NOT_SENT =
     VirtualClock::time_point::min();
 
-#ifdef BUILD_TESTS
-uint32_t Peer::mMaxNumPendingGetTxSetRequestsToKeepForTesting =
-    Peer::MAX_NUM_PENDING_GET_TX_SET_REQUESTS_TO_KEEP;
-#endif
-
 Peer::Peer(Application& app, PeerRole role)
     : mApp(app)
     , mRole(role)
@@ -80,15 +75,6 @@ Peer::Peer(Application& app, PeerRole role)
     mLastPing = std::chrono::hours(24); // some default very high value
     auto bytes = randomBytes(mSendNonce.size());
     std::copy(bytes.begin(), bytes.end(), mSendNonce.begin());
-}
-
-const uint32_t
-Peer::getMaxNumPendingGetTxSetRequestsToKeep()
-{
-#ifdef BUILD_TESTS
-    return mMaxNumPendingGetTxSetRequestsToKeepForTesting;
-#endif
-    return MAX_NUM_PENDING_GET_TX_SET_REQUESTS_TO_KEEP;
 }
 
 bool
@@ -1280,7 +1266,7 @@ Peer::recvTxSet(StellarMessage const& msg)
     for (auto& reqPair : pendingTxSetRequests)
     {
         auto& pendingTxSetRequestsForSlot = reqPair.second;
-        for (auto& weakPeer :
+        for (auto weakPeer :
              pendingTxSetRequestsForSlot[frame->getContentsHash()])
         {
             auto peer = weakPeer.lock();
