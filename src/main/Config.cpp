@@ -183,7 +183,9 @@ Config::Config() : NODE_SEED(SecretKey::random())
                                Herder::EXP_LEDGER_TIMESPAN_SECONDS.count(),
                            CLOSETIME_DRIFT_LIMIT);
     METADATA_OUTPUT_STREAM = "";
-    METADATA_DEBUG_LEDGERS = 0;
+
+    // Store at least 1 checkpoint plus a buffer worth of debug meta
+    METADATA_DEBUG_LEDGERS = 100;
 
     LOG_FILE_PATH = "stellar-core-{datetime:%Y-%m-%d_%H-%M-%S}.log";
     BUCKET_DIR_PATH = "buckets";

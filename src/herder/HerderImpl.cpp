@@ -26,6 +26,8 @@
 #include "scp/LocalNode.h"
 #include "scp/Slot.h"
 #include "transactions/TransactionUtils.h"
+#include "util/DebugMetaUtils.h"
+#include "util/LogSlowExecution.h"
 #include "util/Logging.h"
 #include "util/StatusManager.h"
 #include "util/Timer.h"
@@ -272,7 +274,8 @@ HerderImpl::shutdown()
 }
 
 void
-HerderImpl::processExternalized(uint64 slotIndex, StellarValue const& value)
+HerderImpl::processExternalized(uint64 slotIndex, StellarValue const& value,
+                                bool isLatestSlot)
 {
     ZoneScoped;
     bool validated = getSCP().isSlotFullyValidated(slotIndex);
@@ -317,10 +320,60 @@ HerderImpl::processExternalized(uint64 slotIndex, StellarValue const& value)
     // state: apply, trigger catchup, etc
     LedgerCloseData ledgerData(static_cast<uint32_t>(slotIndex),
                                externalizedSet, value);
+
+    // Only dump the most recent externalized tx set. Ledger sequence on a
+    // written tx set shall only strictly move forward; it may have gaps with
+    // the emitted debug meta, if the network is ahead of the local node
+    // (assumption is that if the network is ahead of the local node, state can
+    // be replayed from the archives)
+    if (isLatestSlot && mApp.getConfig().METADATA_DEBUG_LEDGERS != 0)
+    {
+        writeDebugTxSet(ledgerData);
+    }
+
     mLedgerManager.valueExternalized(ledgerData);
 
     // Ensure potential upgrades are handled in overlay
     maybeHandleUpgrade();
+}
+
+void
+HerderImpl::writeDebugTxSet(LedgerCloseData const& lcd)
+{
+    ZoneScoped;
+
+    // Dump latest externalized tx set. Do as much of error-handling as possible
+    // to avoid crashing core, since this is used purely for debugging.
+    auto path =
+        metautils::getLatestTxSetFilePath(mApp.getConfig().BUCKET_DIR_PATH);
+    try
+    {
+        if (fs::mkpath(path.parent_path().string()))
+        {
+            auto timer = LogSlowExecution(
+                "write debug tx set", LogSlowExecution::Mode::AUTOMATIC_RAII,
+                "took", std::chrono::milliseconds(100));
+            // If we got here, then whatever previous tx set is saved has
+            // already been applied, and debug meta has been emitted. Therefore,
+            // it's safe to just remove it.
+            std::remove(path.c_str());
+            XDROutputFileStream stream(mApp.getClock().getIOContext(),
+                                       /*fsyncOnClose=*/true);
+            stream.open(path);
+            stream.writeOne(lcd.toXDR());
+        }
+        else
+        {
+            CLOG_WARNING(Ledger,
+                         "Failed to make directory '{}' for debug tx set",
+                         path.parent_path().string());
+        }
+    }
+    catch (std::runtime_error& e)
+    {
+        CLOG_WARNING(Ledger, "Failed to dump debug tx set '{}': {}",
+                     path.string(), e.what());
+    }
 }
 
 void
@@ -355,7 +408,7 @@ HerderImpl::valueExternalized(uint64 slotIndex, StellarValue const& value,
 
         // This call may cause LedgerManager to close ledger and trigger next
         // ledger
-        processExternalized(slotIndex, value);
+        processExternalized(slotIndex, value, isLatestSlot);
 
         // Perform cleanups, and maybe process SCP queue
         newSlotExternalized(false, value);
@@ -371,7 +424,7 @@ HerderImpl::valueExternalized(uint64 slotIndex, StellarValue const& value,
     {
         // This call may trigger application of buffered ledgers and in some
         // cases a ledger trigger
-        processExternalized(slotIndex, value);
+        processExternalized(slotIndex, value, isLatestSlot);
     }
 }
 

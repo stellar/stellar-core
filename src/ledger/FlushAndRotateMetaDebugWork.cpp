@@ -4,8 +4,7 @@
 
 #include "ledger/FlushAndRotateMetaDebugWork.h"
 #include "bucket/BucketManager.h"
-#include "crypto/Hex.h"
-#include "crypto/Random.h"
+#include "util/DebugMetaUtils.h"
 #include "util/Fs.h"
 #include "util/GlobalChecks.h"
 #include <filesystem>
@@ -14,23 +13,10 @@
 #include <stdexcept>
 #include <system_error>
 
-namespace
-{
-const std::string META_DEBUG_DIRNAME{"meta-debug"};
-const std::string META_DEBUG_FILE_FMT_STR{"meta-debug-{:08x}-{}.xdr"};
-const std::regex META_DEBUG_FILE_REGEX{
-    "meta-debug-[[:xdigit:]]+-[[:xdigit:]]+\\.xdr(\\.gz)?"};
-
-// This number can be changed in the future without any coordination,
-// it just controls the granularity of new meta-debug XDR segments.
-//
-// 256 ledgers == ~21 minutes. At time of writing, ~5mb meta / minute
-// gives ~105mb meta / segment, which should compress to ~20mb.
-const uint32_t META_DEBUG_LEDGER_SEGMENT_SIZE = 256;
-}
-
 namespace stellar
 {
+
+using namespace metautils;
 
 FlushAndRotateMetaDebugWork::FlushAndRotateMetaDebugWork(
     Application& app, std::filesystem::path const& metaDebugPath,
@@ -40,51 +26,6 @@ FlushAndRotateMetaDebugWork::FlushAndRotateMetaDebugWork(
     , mMetaDebugFile(std::move(metaDebugFile))
     , mLedgersToKeep(ledgersToKeep)
 {
-}
-
-std::filesystem::path
-FlushAndRotateMetaDebugWork::getMetaDebugDirPath(
-    std::filesystem::path const& bucketDir)
-{
-    return bucketDir / META_DEBUG_DIRNAME;
-}
-
-std::filesystem::path
-FlushAndRotateMetaDebugWork::getMetaDebugFilePath(
-    std::filesystem::path const& bucketDir, uint32_t seqNum)
-{
-    auto file =
-        fmt::format(META_DEBUG_FILE_FMT_STR, seqNum, binToHex(randomBytes(8)));
-    return getMetaDebugDirPath(bucketDir) / file;
-}
-
-std::vector<std::filesystem::path>
-FlushAndRotateMetaDebugWork::listMetaDebugFiles(
-    std::filesystem::path const& bucketDir)
-{
-    auto dir = getMetaDebugDirPath(bucketDir);
-    auto files = fs::findfiles(dir.string(), [](std::string const& file) {
-        return std::regex_match(file, META_DEBUG_FILE_REGEX);
-    });
-    std::sort(files.begin(), files.end());
-    return std::vector<std::filesystem::path>(files.begin(), files.end());
-}
-
-bool
-FlushAndRotateMetaDebugWork::isDebugSegmentBoundary(uint32_t ledgerSeq)
-{
-    if (META_DEBUG_LEDGER_SEGMENT_SIZE == 1)
-    {
-        return true;
-    }
-    return ledgerSeq % (META_DEBUG_LEDGER_SEGMENT_SIZE - 1) == 0;
-}
-
-size_t
-FlushAndRotateMetaDebugWork::getNumberOfDebugFilesToKeep(uint32_t numLedgers)
-{
-    size_t segLen = META_DEBUG_LEDGER_SEGMENT_SIZE;
-    return (numLedgers + segLen - 1) / segLen;
 }
 
 BasicWork::State
