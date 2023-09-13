@@ -104,8 +104,6 @@ class HerderImpl : public Herder
                                    const SCPQuorumSet& qset,
                                    TxSetFrameConstPtr txset) override;
 
-    void purgePendingGetTxnSetRequests();
-
     void externalizeValue(TxSetFrameConstPtr txSet, uint32_t ledgerSeq,
                           uint64_t closeTime,
                           xdr::xvector<UpgradeType, 6> const& upgrades,

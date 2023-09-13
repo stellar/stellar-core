@@ -1213,21 +1213,9 @@ Peer::recvGetTxSet(StellarMessage const& msg, bool wait)
     }
     else
     {
-        auto& pendingTxSetRequests =
-            mApp.getOverlayManager().getPendingGetTxSetRequests();
-
-        if (pendingTxSetRequests.size() >=
-            getMaxNumPendingGetTxSetRequestsToKeep())
-        {
-            CLOG_TRACE(Overlay,
-                       "Peer::recvGetTxSet {} rejects get txn set request "
-                       "because maximum number of pending get txn set requests "
-                       "({}) is reached",
-                       toString(), getMaxNumPendingGetTxSetRequestsToKeep());
-            // TODO: should we make a metric to keep track of dropped get txn
-            // set requests?
-            return;
-        }
+        auto slotIndex = msg.envelope().statement.slotIndex;
+        auto& pendingTxSetRequestsForSlot =
+            mApp.getOverlayManager().getPendingGetTxSetRequests()[slotIndex];
 
         if (wait)
         {
@@ -1247,7 +1235,8 @@ Peer::recvGetTxSet(StellarMessage const& msg, bool wait)
         // We do not have the tx set, so make a pending tx set request and
         // respond back to the node once we have it.
         std::weak_ptr<Peer> peer = shared_from_this();
-        pendingTxSetRequests[msg.txSetHash()].emplace_back(peer);
+        auto& waitingPeers = pendingTxSetRequestsForSlot[msg.txSetHash()];
+        waitingPeers.insert(peer);
 
         CLOG_INFO(Overlay, "Peer::recvGetTxSet {} sending DONT_HAVE for {}",
                   toString(), hexAbbrev(msg.txSetHash()));
@@ -1288,15 +1277,20 @@ Peer::recvTxSet(StellarMessage const& msg)
     auto& pendingTxSetRequests =
         mApp.getOverlayManager().getPendingGetTxSetRequests();
 
-    for (auto& weakPeer : pendingTxSetRequests[frame->getContentsHash()])
+    for (auto& reqPair : pendingTxSetRequests)
     {
-        auto peer = weakPeer.lock();
-        if (peer)
+        auto& pendingTxSetRequestsForSlot = reqPair.second;
+        for (auto& weakPeer :
+             pendingTxSetRequestsForSlot[frame->getContentsHash()])
         {
-            peer->sendTxSet(frame);
+            auto peer = weakPeer.lock();
+            if (peer)
+            {
+                peer->sendTxSet(frame);
+            }
         }
+        pendingTxSetRequestsForSlot.erase(frame->getContentsHash());
     }
-    pendingTxSetRequests.erase(frame->getContentsHash());
 }
 
 void

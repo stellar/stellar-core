@@ -1296,12 +1296,24 @@ OverlayManagerImpl::getMaxAdvertSize() const
 }
 
 void
-OverlayManagerImpl::purgePendingGetTxSetRequests()
+OverlayManagerImpl::purgePendingGetTxSetRequestsBelow(uint32 ledgerSeq)
 {
-    mPendingTxSetRequests.clear();
+    for (auto& mapPair : mPendingTxSetRequests)
+    {
+        auto slotIndex = mapPair.first;
+        if (slotIndex < ledgerSeq)
+        {
+            auto& pendingGetTxSetRequestsForSlot = mapPair.second;
+            pendingGetTxSetRequestsForSlot.clear();
+        }
+        else
+        {
+            break;
+        }
+    }
 }
 
-UnorderedMap<Hash, std::vector<std::weak_ptr<Peer>>>&
+std::map<uint32, OverlayManagerImpl::MapPendingGetTxSetRequestsPerSlot>&
 OverlayManagerImpl::getPendingGetTxSetRequests()
 {
     return mPendingTxSetRequests;

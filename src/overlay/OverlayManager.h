@@ -60,6 +60,10 @@ class OverlayManager
         uint32_t mBatchSize;
     };
 
+    using MapPendingGetTxSetRequestsPerSlot =
+        UnorderedMap<Hash, std::set<std::weak_ptr<Peer>,
+                                    std::owner_less<std::weak_ptr<Peer>>>>;
+
     static int constexpr MIN_INBOUND_FACTOR = 3;
 
     static std::unique_ptr<OverlayManager> create(Application& app);
@@ -204,8 +208,8 @@ class OverlayManager
 
     virtual size_t getMaxAdvertSize() const = 0;
 
-    virtual void purgePendingGetTxSetRequests() = 0;
-    virtual UnorderedMap<Hash, std::vector<std::weak_ptr<Peer>>>&
+    virtual void purgePendingGetTxSetRequestsBelow(uint32 ledgerSeq) = 0;
+    virtual std::map<uint32, MapPendingGetTxSetRequestsPerSlot>&
     getPendingGetTxSetRequests() = 0;
 
     virtual ~OverlayManager()
