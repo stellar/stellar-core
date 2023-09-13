@@ -357,24 +357,10 @@ HerderImpl::writeDebugTxSet(LedgerCloseData const& lcd)
             // already been applied, and debug meta has been emitted. Therefore,
             // it's safe to just remove it.
             std::remove(path.c_str());
-
-            auto tmpPath = path.string() + ".tmp";
-            {
-                XDROutputFileStream stream(mApp.getClock().getIOContext(),
-                                           /*fsyncOnClose=*/false);
-                stream.open(tmpPath);
-                stream.writeOne(lcd.toXDR());
-                stream.flush();
-            }
-
-            // Rename without fsync, as the debug tx set is important for
-            // debugging core crashes rather than OS crashes.
-            if (rename(tmpPath.c_str(), path.c_str()) != 0)
-            {
-                CLOG_WARNING(Ledger, "Failed to rename '{}' to '{}'", tmpPath,
-                             path.string());
-                std::remove(tmpPath.c_str());
-            }
+            XDROutputFileStream stream(mApp.getClock().getIOContext(),
+                                       /*fsyncOnClose=*/true);
+            stream.open(path);
+            stream.writeOne(lcd.toXDR());
         }
         else
         {
