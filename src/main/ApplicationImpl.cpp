@@ -670,6 +670,13 @@ ApplicationImpl::validateAndLogConfig()
     auto const isNetworkedValidator =
         mConfig.NODE_IS_VALIDATOR && !mConfig.RUN_STANDALONE;
 
+    if (mConfig.ENABLE_SOROBAN_DIAGNOSTIC_EVENTS && isNetworkedValidator)
+    {
+        throw std::invalid_argument("ENABLE_SOROBAN_DIAGNOSTIC_EVENTS is set, "
+                                    "NODE_IS_VALIDATOR is set, and "
+                                    "RUN_STANDALONE is not set");
+    }
+
     if (mConfig.METADATA_OUTPUT_STREAM != "" && isNetworkedValidator)
     {
         throw std::invalid_argument(
