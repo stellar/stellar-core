@@ -25,6 +25,7 @@
 #include "transactions/InvokeHostFunctionOpFrame.h"
 #include "transactions/SignatureUtils.h"
 #include "transactions/TransactionUtils.h"
+#include "transactions/test/SponsorshipTestUtils.h"
 #include "util/Decoder.h"
 #include "util/TmpDir.h"
 #include "util/XDRCereal.h"
@@ -1534,7 +1535,7 @@ TEST_CASE("contract storage", "[tx][soroban]")
         {
             // Restore Instance and WASM
             restoreOp(contractKeys,
-                      161 /* rent bump */ + 40000 /* two LE-writes */);
+                      162 /* rent bump */ + 40000 /* two LE-writes */);
 
             // Instance should now be useable
             putWithFootprint(
@@ -1570,7 +1571,7 @@ TEST_CASE("contract storage", "[tx][soroban]")
         {
             // Only restore WASM
             restoreOp({contractKeys[1]},
-                      112 /* rent bump */ + 20000 /* one LE write */);
+                      113 /* rent bump */ + 20000 /* one LE write */);
 
             // invocation should fail
             putWithFootprint(
@@ -1588,7 +1589,7 @@ TEST_CASE("contract storage", "[tx][soroban]")
         {
             // Restore Instance and WASM
             restoreOp(contractKeys,
-                      161 /* rent bump */ + 40000 /* two LE writes */);
+                      162 /* rent bump */ + 40000 /* two LE writes */);
 
             auto instanceBumpAmount = 10'000;
             auto wasmBumpAmount = 15'000;
@@ -2429,9 +2430,34 @@ TEST_CASE("Stellar asset contract transfer",
         auto contractID = idAndExec.first;
         auto contractExecutableKey = idAndExec.second;
 
-        // transfer 10 XLM from root to contractID
+        auto key = SecretKey::pseudoRandomForTesting();
+        TestAccount a1(*app, key);
+        auto tx = transactionFrameFromOps(
+            app->getNetworkID(), root,
+            {root.op(beginSponsoringFutureReserves(a1)),
+             root.op(createAccount(
+                 a1, app->getLedgerManager().getLastMinBalance(10))),
+             a1.op(endSponsoringFutureReserves())},
+            {key});
+
+        {
+            LedgerTxn ltx(app->getLedgerTxnRoot());
+            TransactionMetaFrame txm(ltx.loadHeader().current().ledgerVersion);
+            REQUIRE(tx->checkValid(*app, ltx, 0, 0, 0));
+            REQUIRE(tx->apply(*app, ltx, txm));
+            ltx.commit();
+        }
+
+        {
+            LedgerTxn ltx(app->getLedgerTxnRoot());
+            checkSponsorship(ltx, a1.getPublicKey(), 1, &root.getPublicKey(), 0,
+                             2, 0, 2);
+            checkSponsorship(ltx, root.getPublicKey(), 0, nullptr, 0, 2, 2, 0);
+        }
+
+        // transfer 10 XLM from a1 to contractID
         SCAddress fromAccount(SC_ADDRESS_TYPE_ACCOUNT);
-        fromAccount.accountId() = root.getPublicKey();
+        fromAccount.accountId() = a1.getPublicKey();
         SCVal from(SCV_ADDRESS);
         from.address() = fromAccount;
 
@@ -2463,7 +2489,7 @@ TEST_CASE("Stellar asset contract transfer",
         resources.writeBytes = 1072;
 
         LedgerKey accountLedgerKey(ACCOUNT);
-        accountLedgerKey.account().accountID = root.getPublicKey();
+        accountLedgerKey.account().accountID = a1.getPublicKey();
 
         LedgerKey balanceLedgerKey(CONTRACT_DATA);
         balanceLedgerKey.contractData().contract = contractID;
@@ -2477,12 +2503,12 @@ TEST_CASE("Stellar asset contract transfer",
         resources.footprint.readOnly = {contractExecutableKey};
         resources.footprint.readWrite = {accountLedgerKey, balanceLedgerKey};
 
-        auto preTransferRootBalance = root.getBalance();
+        auto preTransferA1Balance = a1.getBalance();
 
         {
             // submit operation
             auto tx = sorobanTransactionFrameFromOps(
-                app->getNetworkID(), root, {transfer}, {}, resources, 250'000,
+                app->getNetworkID(), a1, {transfer}, {}, resources, 250'000,
                 DEFAULT_TEST_REFUNDABLE_FEE);
 
             LedgerTxn ltx(app->getLedgerTxnRoot());
@@ -2491,7 +2517,15 @@ TEST_CASE("Stellar asset contract transfer",
             REQUIRE(tx->apply(*app, ltx, txm));
             ltx.commit();
         }
-        REQUIRE(preTransferRootBalance - 10 == root.getBalance());
+        REQUIRE(preTransferA1Balance - 10 == a1.getBalance());
+
+        // Make sure sponsorship info hasn't changed
+        {
+            LedgerTxn ltx(app->getLedgerTxnRoot());
+            checkSponsorship(ltx, a1.getPublicKey(), 1, &root.getPublicKey(), 0,
+                             2, 0, 2);
+            checkSponsorship(ltx, root.getPublicKey(), 0, nullptr, 0, 2, 2, 0);
+        }
     }
 
     SECTION("trustline")
@@ -2499,9 +2533,35 @@ TEST_CASE("Stellar asset contract transfer",
         auto const minBalance = app->getLedgerManager().getLastMinBalance(2);
         auto issuer = root.create("issuer", minBalance);
         auto acc = root.create("acc", minBalance);
+        auto sponsor = root.create("sponsor", minBalance * 2);
+
         Asset idr = makeAsset(issuer, "IDR");
         root.changeTrust(idr, 100);
-        acc.changeTrust(idr, 100);
+        {
+            auto tx = transactionFrameFromOps(
+                app->getNetworkID(), sponsor,
+                {sponsor.op(beginSponsoringFutureReserves(acc)),
+                 acc.op(changeTrust(idr, 100)),
+                 acc.op(endSponsoringFutureReserves())},
+                {acc});
+
+            LedgerTxn ltx(app->getLedgerTxnRoot());
+            TransactionMetaFrame txm(ltx.loadHeader().current().ledgerVersion);
+            REQUIRE(tx->checkValid(*app, ltx, 0, 0, 0));
+            REQUIRE(tx->apply(*app, ltx, txm));
+            REQUIRE(tx->getResultCode() == txSUCCESS);
+            ltx.commit();
+        }
+
+        {
+            LedgerTxn ltx(app->getLedgerTxnRoot());
+            auto tlAsset = assetToTrustLineAsset(idr);
+            checkSponsorship(ltx, trustlineKey(acc, tlAsset), 1,
+                             &sponsor.getPublicKey());
+            checkSponsorship(ltx, acc, 0, nullptr, 1, 2, 0, 1);
+            checkSponsorship(ltx, sponsor, 0, nullptr, 0, 2, 1, 0);
+        }
+
         issuer.pay(root, idr, 100);
 
         auto idAndExec = createAssetContract(idr);
@@ -2577,6 +2637,16 @@ TEST_CASE("Stellar asset contract transfer",
 
         REQUIRE(root.getTrustlineBalance(idr) == 90);
         REQUIRE(acc.getTrustlineBalance(idr) == 10);
+
+        // Make sure sponsorship info hasn't changed
+        {
+            LedgerTxn ltx(app->getLedgerTxnRoot());
+            auto tlAsset = assetToTrustLineAsset(idr);
+            checkSponsorship(ltx, trustlineKey(acc, tlAsset), 1,
+                             &sponsor.getPublicKey());
+            checkSponsorship(ltx, acc, 0, nullptr, 1, 2, 0, 1);
+            checkSponsorship(ltx, sponsor, 0, nullptr, 0, 2, 1, 0);
+        }
     }
 }
 
