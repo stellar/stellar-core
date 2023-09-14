@@ -230,7 +230,7 @@ TransactionFrame::getResources() const
     if (isSoroban())
     {
         auto r = sorobanResources();
-        int64_t txSize = xdr::xdr_size(mEnvelope.v1().tx);
+        int64_t txSize = xdr::xdr_size(mEnvelope);
         int64_t const opCount = 1;
 
         // When doing fee calculation, the rust host will include readWrite
@@ -735,7 +735,7 @@ TransactionFrame::validateSorobanResources(SorobanNetworkConfig const& config,
             return false;
         }
     }
-    auto txSize = xdr::xdr_size(mEnvelope.v1().tx);
+    auto txSize = xdr::xdr_size(mEnvelope);
     if (txSize > config.txMaxSizeBytes())
     {
         pushSimpleDiagnosticError(

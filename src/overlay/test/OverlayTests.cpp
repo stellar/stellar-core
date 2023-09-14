@@ -143,7 +143,7 @@ TEST_CASE("flow control byte capacity", "[overlay][flowcontrol]")
     // Make tx1 larger than the minimum we can set TX_MAX_SIZE_BYTES to.
     tx1.transaction().v0().tx.operations.emplace_back(
         getOperationGreaterThanMinMaxSizeBytes());
-    uint32 txSize = static_cast<uint32>(xdr::xdr_argpack_size(tx1));
+    uint32 txSize = FlowControlCapacity::msgBodySize(tx1);
     REQUIRE(txSize > MinimumSorobanNetworkConfig::TX_MAX_SIZE_BYTES);
 
     VirtualClock clock;
@@ -276,7 +276,7 @@ TEST_CASE("flow control byte capacity", "[overlay][flowcontrol]")
         tx2.transaction().v0().signatures.emplace_back(
             SignatureUtils::sign(SecretKey::random(), HashUtils::random()));
 
-        uint32 txSize2 = static_cast<uint32>(xdr::xdr_argpack_size(tx2));
+        uint32 txSize2 = FlowControlCapacity::msgBodySize(tx2);
         REQUIRE(txSize2 > MinimumSorobanNetworkConfig::TX_MAX_SIZE_BYTES);
         REQUIRE(txSize2 > txSize + 1);
 
@@ -910,7 +910,9 @@ TEST_CASE("outbound queue filtering", "[overlay][connections]")
         uint32_t limit = node->getLedgerManager().getLastMaxTxSetSizeOps();
         StellarMessage msg;
         msg.type(TRANSACTION);
-        auto byteSize = xdr::xdr_argpack_size(msg);
+        auto byteSize =
+            peer->getFlowControl()->getCapacityBytes()->getMsgResourceCount(
+                msg);
         SECTION("trim based on message count")
         {
             for (uint32_t i = 0; i < limit + 10; ++i)
