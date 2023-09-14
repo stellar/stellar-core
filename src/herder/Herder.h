@@ -172,6 +172,11 @@ class Herder
     // sender in the pending or recent tx sets.
     virtual SequenceNumber getMaxSeqInPendingTxs(AccountID const&) = 0;
 
+    // If the node has asked about a tx set with the given hash, return the
+    // highest slot asked about for that tx set, otherwise return 0. Used for
+    // deciding what get tx set requests to accept.
+    virtual uint64 getLastSeenSlotIndexForTxSet(Hash const& hash) = 0;
+
     // Returns sequence number for most recent completed checkpoint that the
     // node knows about, as derived from
     // trackingConsensusLedgerIndex

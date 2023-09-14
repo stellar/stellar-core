@@ -285,7 +285,7 @@ OverlayManagerImpl::OverlayManagerImpl(Application& app)
     , mDemandTimer(app)
     , mResolvingPeersWithBackoff(true)
     , mResolvingPeersRetryCount(0)
-    , mPendingTxSetRequests{}
+    , mPendingGetTxSetRequests{}
 {
     mPeerSources[PeerType::INBOUND] = std::make_unique<RandomPeerSource>(
         mPeerManager, RandomPeerSource::nextAttemptCutoff(PeerType::INBOUND));
@@ -1296,16 +1296,16 @@ OverlayManagerImpl::getMaxAdvertSize() const
 }
 
 void
-OverlayManagerImpl::purgePendingGetTxSetRequestsBelow(uint32 ledgerSeq)
+OverlayManagerImpl::purgePendingGetTxSetRequestsBelow(uint64 ledgerSeq)
 {
-    auto itr = mPendingTxSetRequests.begin();
+    auto itr = mPendingGetTxSetRequests.begin();
 
-    while (itr != mPendingTxSetRequests.end())
+    while (itr != mPendingGetTxSetRequests.end())
     {
         auto slotIndex = itr->first;
         if (slotIndex < ledgerSeq)
         {
-            itr = mPendingTxSetRequests.erase(itr);
+            itr = mPendingGetTxSetRequests.erase(itr);
         }
         else
         {
@@ -1314,10 +1314,10 @@ OverlayManagerImpl::purgePendingGetTxSetRequestsBelow(uint32 ledgerSeq)
     }
 }
 
-std::map<uint32, OverlayManagerImpl::MapPendingGetTxSetRequestsPerSlot>&
+std::map<uint64, OverlayManagerImpl::MapPendingGetTxSetRequestsPerSlot>&
 OverlayManagerImpl::getPendingGetTxSetRequests()
 {
-    return mPendingTxSetRequests;
+    return mPendingGetTxSetRequests;
 }
 
 size_t

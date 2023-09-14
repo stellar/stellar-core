@@ -164,6 +164,8 @@ class PendingEnvelopes
     TxSetFrameConstPtr putTxSet(Hash const& hash, uint64 slot,
                                 TxSetFrameConstPtr txset);
 
+    uint64 getLastSeenSlotIndexForTxSet(Hash const& hash);
+
     /**
      * Check if @p txset identified by @p hash was requested before from peers.
      * If not, ignores that @p txset. If it was requested, calls

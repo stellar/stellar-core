@@ -1199,9 +1199,17 @@ Peer::recvGetTxSet(StellarMessage const& msg, bool wait)
     }
     else
     {
-        auto slotIndex = mApp.getHerder().trackingConsensusLedgerIndex();
-        auto& pendingTxSetRequestsForSlot =
-            mApp.getOverlayManager().getPendingGetTxSetRequests()[slotIndex];
+        auto slotIndex =
+            mApp.getHerder().getLastSeenSlotIndexForTxSet(msg.txSetHash());
+
+        if (slotIndex == 0)
+        {
+            CLOG_INFO(Overlay,
+                      "Peer::recvGetTxSet {} rejects getTxSet request for {} "
+                      "because the node has not asked for the given tx set.",
+                      toString(), hexAbbrev(msg.txSetHash()));
+            return;
+        }
 
         if (wait)
         {
@@ -1217,6 +1225,9 @@ Peer::recvGetTxSet(StellarMessage const& msg, bool wait)
                 &VirtualTimer::onFailureNoop);
             return;
         }
+
+        auto& pendingTxSetRequestsForSlot =
+            mApp.getOverlayManager().getPendingGetTxSetRequests()[slotIndex];
 
         // We do not have the tx set, so make a pending tx set request and
         // respond back to the node once we have it.

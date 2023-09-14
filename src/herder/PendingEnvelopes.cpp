@@ -234,13 +234,21 @@ PendingEnvelopes::addTxSet(Hash const& hash, uint64 lastSeenSlotIndex,
     mTxSetFetcher.recv(hash, mFetchTxSetTimer);
 }
 
+uint64
+
+PendingEnvelopes::getLastSeenSlotIndexForTxSet(Hash const& hash)
+{
+    auto lastSeenSlotIndex = mTxSetFetcher.getLastSeenSlotIndex(hash);
+    return lastSeenSlotIndex;
+}
+
 bool
 PendingEnvelopes::recvTxSet(Hash const& hash, TxSetFrameConstPtr txset)
 {
     ZoneScoped;
     CLOG_TRACE(Herder, "Got TxSet {}", hexAbbrev(hash));
 
-    auto lastSeenSlotIndex = mTxSetFetcher.getLastSeenSlotIndex(hash);
+    auto lastSeenSlotIndex = getLastSeenSlotIndexForTxSet(hash);
     if (lastSeenSlotIndex == 0)
     {
         return false;

@@ -194,8 +194,8 @@ class OverlayManagerImpl : public OverlayManager
                              std::shared_ptr<Peer> peer) override;
     size_t getMaxAdvertSize() const override;
 
-    void purgePendingGetTxSetRequestsBelow(uint32 ledgerSeq) override;
-    std::map<uint32, MapPendingGetTxSetRequestsPerSlot>&
+    void purgePendingGetTxSetRequestsBelow(uint64 ledgerSeq) override;
+    std::map<uint64, MapPendingGetTxSetRequestsPerSlot>&
     getPendingGetTxSetRequests() override;
 
   private:
@@ -210,7 +210,8 @@ class OverlayManagerImpl : public OverlayManager
     std::future<ResolvedPeers> mResolvedPeers;
     bool mResolvingPeersWithBackoff;
     int mResolvingPeersRetryCount;
-    std::map<uint32, MapPendingGetTxSetRequestsPerSlot> mPendingTxSetRequests;
+    std::map<uint64, MapPendingGetTxSetRequestsPerSlot>
+        mPendingGetTxSetRequests;
 
     void triggerPeerResolution();
     std::pair<std::vector<PeerBareAddress>, bool>

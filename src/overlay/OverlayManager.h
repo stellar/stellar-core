@@ -208,8 +208,8 @@ class OverlayManager
 
     virtual size_t getMaxAdvertSize() const = 0;
 
-    virtual void purgePendingGetTxSetRequestsBelow(uint32 ledgerSeq) = 0;
-    virtual std::map<uint32, MapPendingGetTxSetRequestsPerSlot>&
+    virtual void purgePendingGetTxSetRequestsBelow(uint64 ledgerSeq) = 0;
+    virtual std::map<uint64, MapPendingGetTxSetRequestsPerSlot>&
     getPendingGetTxSetRequests() = 0;
 
     virtual ~OverlayManager()

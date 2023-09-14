@@ -1154,7 +1154,6 @@ HerderImpl::eraseBelow(uint32 ledgerSeq)
     auto lastCheckpointSeq = getMostRecentCheckpointSeq();
     getHerderSCPDriver().purgeSlots(ledgerSeq, lastCheckpointSeq);
     mPendingEnvelopes.eraseBelow(ledgerSeq, lastCheckpointSeq);
-    mApp.getOverlayManager().purgePendingGetTxSetRequestsBelow(ledgerSeq);
     auto lastIndex = trackingConsensusLedgerIndex();
     mApp.getOverlayManager().clearLedgersBelow(ledgerSeq, lastIndex);
 }
@@ -1230,6 +1229,12 @@ HerderImpl::getMaxSeqInPendingTxs(AccountID const& acc)
             .mMaxSeq;
     }
     return mTransactionQueue.getAccountTransactionQueueInfo(acc).mMaxSeq;
+}
+
+uint64
+HerderImpl::getLastSeenSlotIndexForTxSet(Hash const& hash)
+{
+    return mPendingEnvelopes.getLastSeenSlotIndexForTxSet(hash);
 }
 
 uint32_t
@@ -1387,8 +1392,6 @@ HerderImpl::triggerNextLedger(uint32_t ledgerSeqToTrigger,
         }
     }
 
-    // TODO: should we move this after the if statement, since we are not
-    // starting nomination if we are not a validator?
     getHerderSCPDriver().recordSCPEvent(slotIndex, true);
 
     // If we are not a validating node we stop here and don't start nomination
