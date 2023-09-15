@@ -62,7 +62,7 @@ def get_upgrade_set():
                                                  fee_read1_kb=Int64(1000),
                                                  bucket_list_target_size_bytes=Int64(2 * 1024 * 1024 * 1024), # 2 GB
                                                  write_fee1_kb_bucket_list_low=Int64(1000),
-                                                 write_fee1_kb_bucket_list_high=Int64(10_000),
+                                                 write_fee1_kb_bucket_list_high=Int64(4_000_000), # 0.4 XLM = 0.4 * 10 ^ stroops
                                                  bucket_list_write_fee_growth_factor=Uint32(1000))
 
     contract_ledger_cost_entry = ConfigSettingEntry(
