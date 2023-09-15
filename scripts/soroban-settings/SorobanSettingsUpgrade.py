@@ -3,7 +3,7 @@ from stellar_sdk import Network, Keypair, TransactionBuilder, StrKey, utils, scv
 from stellar_sdk.exceptions import PrepareTransactionException
 from stellar_sdk.soroban_server import SorobanServer
 from stellar_sdk.soroban_rpc import GetTransactionStatus
-from stellar_sdk.xdr import TransactionMeta, LedgerEntryType, LedgerKey, ConfigUpgradeSet, ConfigSettingContractExecutionLanesV0, ConfigUpgradeSetKey, ConfigSettingEntry, StateExpirationSettings, Uint32, Uint64, Int64, Hash, LedgerKeyConfigSetting, ConfigSettingID
+from stellar_sdk.xdr import TransactionMeta, LedgerEntryType, LedgerKey, ConfigSettingContractComputeV0, ConfigUpgradeSet, ConfigSettingContractLedgerCostV0, ConfigSettingContractHistoricalDataV0, ConfigSettingContractMetaDataV0, ConfigSettingContractBandwidthV0, ConfigUpgradeSetKey, ConfigSettingEntry, StateExpirationSettings, Uint32, Uint64, Int64, Hash, LedgerKeyConfigSetting, ConfigSettingID
 import stellar_sdk
 from enum import IntEnum
 import urllib.parse
@@ -31,26 +31,85 @@ soroban_server = SorobanServer(rpc_server_url)
 
 # hardcode the upgrade you want to do here.
 def get_upgrade_set():
-    state_exp_settings = StateExpirationSettings(max_entry_expiration=Uint32(6312000),
-                                                 min_temp_entry_expiration=Uint32(
-                                                     16),
-                                                 min_persistent_entry_expiration=Uint32(
-                                                     86400),
-                                                 auto_bump_ledgers=Uint32(0),
-                                                 persistent_rent_rate_denominator=Int64(
-                                                     0),
-                                                 temp_rent_rate_denominator=Int64(
-                                                     0),
-                                                 max_entries_to_expire=Uint32(
-                                                     0),
-                                                 bucket_list_size_window_sample_size=Uint32(
-                                                     0),
-                                                 eviction_scan_size=Uint64(0))
 
-    entry = ConfigSettingEntry(
+    max_contract_size = Uint32(65536) # 64 kb
+
+    contract_size_upgrade_entry = ConfigSettingEntry(
+        ConfigSettingID.CONFIG_SETTING_CONTRACT_MAX_SIZE_BYTES,
+        contract_max_size_bytes = max_contract_size)   
+        
+    compute_settings = ConfigSettingContractComputeV0(ledger_max_instructions=Int64(1000000000),
+                                                 tx_max_instructions=Int64(100000000),
+                                                 fee_rate_per_instructions_increment=Int64(100),
+                                                 tx_memory_limit=Uint32(41943040)) # 40 mb
+
+    compute_upgrade_entry = ConfigSettingEntry(
+        ConfigSettingID.CONFIG_SETTING_CONTRACT_COMPUTE_V0,
+        contract_compute = compute_settings)    
+    
+    contract_ledger_cost_settings = ConfigSettingContractLedgerCostV0(ledger_max_read_ledger_entries=Uint32(400),
+                                                 ledger_max_read_bytes=Uint32(2048000),
+                                                 ledger_max_write_ledger_entries=Uint32(200),
+                                                 ledger_max_write_bytes=Uint32(1024000),
+                                                 tx_max_read_ledger_entries=Uint32(30),
+                                                 tx_max_read_bytes=Uint32(133120), # 130 kb
+                                                 tx_max_write_ledger_entries=Uint32(20),
+                                                 tx_max_write_bytes=Uint32(66560), # 65 kb 
+                                                 fee_read_ledger_entry=Int64(20000),
+                                                 fee_write_ledger_entry=Int64(30000),
+                                                 fee_read1_kb=Int64(1000),
+                                                 fee_write1_kb=Int64(1000),
+                                                 bucket_list_size_bytes=Int64(32212254720), # 30 * 1024 * 1024 * 1024 for 30 GB
+                                                 bucket_list_fee_rate_low=Int64(1000),
+                                                 bucket_list_fee_rate_high=Int64(10000),
+                                                 bucket_list_growth_factor=Uint32(1))
+
+    contract_ledger_cost_entry = ConfigSettingEntry(
+        ConfigSettingID.CONFIG_SETTING_CONTRACT_LEDGER_COST_V0,
+        contract_ledger_cost = contract_ledger_cost_settings)        
+
+    contract_historical_data_settings = ConfigSettingContractHistoricalDataV0(fee_historical1_kb=Int64(5000))
+
+    contract_historical_data_entry = ConfigSettingEntry(
+        ConfigSettingID.CONFIG_SETTING_CONTRACT_HISTORICAL_DATA_V0,
+        contract_historical_data = contract_historical_data_settings)    
+
+    contract_meta_data_settings = ConfigSettingContractMetaDataV0(tx_max_extended_meta_data_size_bytes=Uint32(2048), # 2 kb
+                                                                        fee_extended_meta_data1_kb=Int64(300))  
+
+    contract_meta_data_entry = ConfigSettingEntry(
+        ConfigSettingID.CONFIG_SETTING_CONTRACT_META_DATA_V0,
+        contract_meta_data = contract_meta_data_settings)    
+
+    contract_bandwidth_settings = ConfigSettingContractBandwidthV0(ledger_max_propagate_size_bytes=Uint32(1024000), # 100 kb
+                                                                        tx_max_size_bytes=Uint32(71620), # 70 kb
+                                                                        fee_propagate_data1_kb=Int64(2000))   
+
+    contract_bandwidth_entry = ConfigSettingEntry(
+        ConfigSettingID.CONFIG_SETTING_CONTRACT_BANDWIDTH_V0,
+        contract_bandwidth = contract_bandwidth_settings)    
+    
+    contract_data_entry_size = Uint32(65536) # 64 kb
+
+    contract_data_entry_entry = ConfigSettingEntry(
+        ConfigSettingID.CONFIG_SETTING_CONTRACT_DATA_ENTRY_SIZE_BYTES,
+        contract_data_entry_size_bytes = contract_data_entry_size)   
+
+    state_exp_settings = StateExpirationSettings(max_entry_expiration=Uint32(535680), # 31 days
+                                                 min_temp_entry_expiration=Uint32(16),
+                                                 min_persistent_entry_expiration=Uint32(120960), # 7 days
+                                                 auto_bump_ledgers=Uint32(0),
+                                                 persistent_rent_rate_denominator=Int64(252480), #InitialSorobanNetworkConfig
+                                                 temp_rent_rate_denominator=Int64(2524800), #InitialSorobanNetworkConfig
+                                                 max_entries_to_expire=Uint32(100), #InitialSorobanNetworkConfig
+                                                 bucket_list_size_window_sample_size=Uint32(30), #InitialSorobanNetworkConfig
+                                                 eviction_scan_size=Uint64(100000)) #InitialSorobanNetworkConfig
+
+    state_exp_upgrade_entry = ConfigSettingEntry(
         ConfigSettingID.CONFIG_SETTING_STATE_EXPIRATION,
         state_expiration_settings = state_exp_settings)
-    return ConfigUpgradeSet([entry])
+    
+    return ConfigUpgradeSet([contract_size_upgrade_entry, compute_upgrade_entry, contract_ledger_cost_entry, contract_historical_data_entry, contract_meta_data_entry, contract_bandwidth_entry, contract_data_entry_entry, state_exp_upgrade_entry])
 #############
 
 # TODO: Update tx submissions to go directly to tx endpoint instead of rpc
