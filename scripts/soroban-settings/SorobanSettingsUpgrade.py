@@ -48,15 +48,18 @@ def get_upgrade_set():
     compute_upgrade_entry = ConfigSettingEntry(
         ConfigSettingID.CONFIG_SETTING_CONTRACT_COMPUTE_V0,
         contract_compute = compute_settings)    
-    
+
+    max_read_bytes_per_tx = 130 * 1024
+    max_write_bytes_per_tx = 65 * 1024
+    max_txn_per_ledger = 1
     contract_ledger_cost_settings = ConfigSettingContractLedgerCostV0(ledger_max_read_ledger_entries=Uint32(400),
-                                                 ledger_max_read_bytes=Uint32(1.3 * 1024 * 1024), # 1.3 MB for phase 1
+                                                 ledger_max_read_bytes=Uint32(max_txn_per_ledger * max_read_bytes_per_tx), # 130 kb
                                                  ledger_max_write_ledger_entries=Uint32(200),
-                                                 ledger_max_write_bytes=Uint32(30 * 65 * 1024), # For  phase 1, 30 txn per ledger
+                                                 ledger_max_write_bytes=Uint32(max_txn_per_ledger * max_write_bytes_per_tx), # 65 kb 
                                                  tx_max_read_ledger_entries=Uint32(30),
-                                                 tx_max_read_bytes=Uint32(130 * 1024), # 130 kb
+                                                 tx_max_read_bytes=Uint32(max_read_bytes_per_tx), # 130 kb
                                                  tx_max_write_ledger_entries=Uint32(20),
-                                                 tx_max_write_bytes=Uint32(65 * 1024), # 65 kb 
+                                                 tx_max_write_bytes=Uint32(max_write_bytes_per_tx), # 65 kb 
                                                  fee_read_ledger_entry=Int64(1000),
                                                  fee_write_ledger_entry=Int64(3000),
                                                  fee_read1_kb=Int64(1000),
