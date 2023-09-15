@@ -3,7 +3,7 @@ from stellar_sdk import Network, Keypair, TransactionBuilder, StrKey, utils, scv
 from stellar_sdk.exceptions import PrepareTransactionException
 from stellar_sdk.soroban_server import SorobanServer
 from stellar_sdk.soroban_rpc import GetTransactionStatus
-from stellar_sdk.xdr import TransactionMeta, LedgerEntryType, LedgerKey, ConfigSettingContractComputeV0, ConfigUpgradeSet, ConfigSettingContractLedgerCostV0, ConfigSettingContractHistoricalDataV0, ConfigSettingContractMetaDataV0, ConfigSettingContractBandwidthV0, ConfigUpgradeSetKey, ConfigSettingEntry, StateExpirationSettings, Uint32, Uint64, Int64, Hash, LedgerKeyConfigSetting, ConfigSettingID
+from stellar_sdk.xdr import TransactionMeta, LedgerEntryType, LedgerKey, ConfigSettingContractComputeV0, ConfigUpgradeSet, ConfigSettingContractLedgerCostV0, ConfigSettingContractHistoricalDataV0, ConfigSettingContractMetaDataV0, ConfigSettingContractBandwidthV0, ConfigUpgradeSetKey, ConfigSettingEntry, StateExpirationSettings, ConfigSettingContractExecutionLanesV0, Uint32, Uint64, Int64, Hash, LedgerKeyConfigSetting, ConfigSettingID
 import stellar_sdk
 from enum import IntEnum
 import urllib.parse
@@ -108,8 +108,14 @@ def get_upgrade_set():
     state_exp_upgrade_entry = ConfigSettingEntry(
         ConfigSettingID.CONFIG_SETTING_STATE_EXPIRATION,
         state_expiration_settings = state_exp_settings)
+
+    execution_lanes_setting = ConfigSettingContractExecutionLanesV0(ledger_max_tx_count=Uint32(30))   
+
+    execution_lanes_entry = ConfigSettingEntry(
+        ConfigSettingID.CONFIG_SETTING_CONTRACT_EXECUTION_LANES,
+        contract_execution_lanes = execution_lanes_setting)        
     
-    return ConfigUpgradeSet([contract_size_upgrade_entry, compute_upgrade_entry, contract_ledger_cost_entry, contract_historical_data_entry, contract_meta_data_entry, contract_bandwidth_entry, contract_data_entry_entry, state_exp_upgrade_entry])
+    return ConfigUpgradeSet([contract_size_upgrade_entry, compute_upgrade_entry, contract_ledger_cost_entry, contract_historical_data_entry, contract_meta_data_entry, contract_bandwidth_entry, contract_data_entry_entry, state_exp_upgrade_entry, execution_lanes_entry])
 #############
 
 # TODO: Update tx submissions to go directly to tx endpoint instead of rpc
