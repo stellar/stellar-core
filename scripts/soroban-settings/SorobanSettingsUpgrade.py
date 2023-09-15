@@ -1,9 +1,9 @@
 from stellar_sdk.xdr import *
-from stellar_sdk import Network, Keypair, TransactionBuilder, StrKey, utils
-from stellar_sdk.soroban import SorobanServer
-from stellar_sdk.soroban.types import Address, Int128, Bytes
-from stellar_sdk.soroban.soroban_rpc import GetTransactionStatus
-from stellar_sdk.xdr import TransactionMeta, LedgerKey, ConfigUpgradeSet, ConfigSettingContractExecutionLanesV0, ConfigUpgradeSetKey, ConfigSettingEntry, StateExpirationSettings, Uint32, Uint64, Int64, Hash, LedgerKeyConfigSetting, ConfigSettingID
+from stellar_sdk import Network, Keypair, TransactionBuilder, StrKey, utils, scval
+from stellar_sdk.exceptions import PrepareTransactionException
+from stellar_sdk.soroban_server import SorobanServer
+from stellar_sdk.soroban_rpc import GetTransactionStatus
+from stellar_sdk.xdr import TransactionMeta, LedgerEntryType, LedgerKey, ConfigUpgradeSet, ConfigSettingContractExecutionLanesV0, ConfigUpgradeSetKey, ConfigSettingEntry, StateExpirationSettings, Uint32, Uint64, Int64, Hash, LedgerKeyConfigSetting, ConfigSettingID
 import stellar_sdk
 from enum import IntEnum
 import urllib.parse
@@ -47,8 +47,9 @@ def get_upgrade_set():
                                                      0),
                                                  eviction_scan_size=Uint64(0))
 
-    entry = ConfigSettingEntry.from_config_setting_state_expiration(
-        state_exp_settings)
+    entry = ConfigSettingEntry(
+        ConfigSettingID.CONFIG_SETTING_STATE_EXPIRATION,
+        state_expiration_settings = state_exp_settings)
     return ConfigUpgradeSet([entry])
 #############
 
@@ -68,8 +69,13 @@ def deploy_contract():
         .build()
     )
 
-    tx = soroban_server.prepare_transaction(tx)
-    tx.sign(kp)
+    try:
+        tx = soroban_server.prepare_transaction(tx)
+    except PrepareTransactionException as e:
+        print(f"Got exception: {e.simulate_transaction_response}")
+        raise e
+
+    tx.sign(kp)  
     send_transaction_data = soroban_server.send_transaction(tx)
     print(f"sent transaction: {send_transaction_data}")
 
@@ -106,12 +112,18 @@ def deploy_contract():
         .set_timeout(300)
         .append_create_contract_op(
             wasm_id=wasm_id,
+            address=kp.public_key,
         )
         .build()
     )
 
-    tx = soroban_server.prepare_transaction(tx)
-    tx.sign(kp)
+    try:
+        tx = soroban_server.prepare_transaction(tx)
+    except PrepareTransactionException as e:
+        print(f"Got exception: {e.simulate_transaction_response}")
+        raise e
+
+    tx.sign(kp) 
 
     send_transaction_data = soroban_server.send_transaction(tx)
     print(f"sent transaction: {send_transaction_data}")
@@ -143,13 +155,18 @@ def upload_upgrade_bytes(contract_id, upgrade):
         .append_invoke_contract_function_op(
             contract_id=contract_id,
             function_name="write",
-            parameters=[Bytes(upgrade.to_xdr_bytes())],
+            parameters=[scval.to_bytes(upgrade.to_xdr_bytes())],
         )
         .build()
     )
 
-    tx = soroban_server.prepare_transaction(tx)
-    tx.sign(kp)
+    try:
+        tx = soroban_server.prepare_transaction(tx)
+    except PrepareTransactionException as e:
+        print(f"Got exception: {e.simulate_transaction_response}")
+        raise e
+
+    tx.sign(kp)  
     send_transaction_data = soroban_server.send_transaction(tx)
     print(f"sent transaction: {send_transaction_data}")
 
@@ -204,9 +221,11 @@ def setup_upgrade(args):
 
 
 def get_settings(args):
-    setting_key = LedgerKeyConfigSetting(
+    config_setting = LedgerKeyConfigSetting(
         config_setting_id=ConfigSettingID(int(args.configSettingID)))
-    ledger_key = LedgerKey.from_config_setting(setting_key)
+    ledger_key = LedgerKey(
+        LedgerEntryType.CONFIG_SETTING, 
+        config_setting = config_setting)
 
     resp = soroban_server.get_ledger_entries([ledger_key])
     if resp.entries is None:
@@ -218,13 +237,6 @@ def get_settings(args):
     data = LedgerEntryData.from_xdr(resp.entries[0].xdr)
     assert data.config_setting is not None
     print(data)
-
-
-def get_ledger_key() -> str:
-    setting_key = LedgerKeyConfigSetting(
-        config_setting_id=ConfigSettingID.CONFIG_SETTING_STATE_EXPIRATION)
-    ledger_key = LedgerKey.from_config_setting(setting_key)
-    return ledger_key
 
 
 def main():
