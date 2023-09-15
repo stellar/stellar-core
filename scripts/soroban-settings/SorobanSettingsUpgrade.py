@@ -50,9 +50,9 @@ def get_upgrade_set():
         contract_compute = compute_settings)    
     
     contract_ledger_cost_settings = ConfigSettingContractLedgerCostV0(ledger_max_read_ledger_entries=Uint32(400),
-                                                 ledger_max_read_bytes=Uint32(130 * 1024), # Per ledger limits is same as per txn for phase 1
+                                                 ledger_max_read_bytes=Uint32(1.3 * 1024 * 1024), # 1.3 MB for phase 1
                                                  ledger_max_write_ledger_entries=Uint32(200),
-                                                 ledger_max_write_bytes=Uint32(65 * 1024), # Per ledger limits is same as per txn for phase 1
+                                                 ledger_max_write_bytes=Uint32(30 * 65 * 1024), # For  phase 1, 30 txn per ledger
                                                  tx_max_read_ledger_entries=Uint32(30),
                                                  tx_max_read_bytes=Uint32(130 * 1024), # 130 kb
                                                  tx_max_write_ledger_entries=Uint32(20),
@@ -60,10 +60,10 @@ def get_upgrade_set():
                                                  fee_read_ledger_entry=Int64(1000),
                                                  fee_write_ledger_entry=Int64(3000),
                                                  fee_read1_kb=Int64(1000),
-                                                 bucket_list_target_size_bytes=Int64(30 * 1024 * 1024 * 1024), # 30 GB
+                                                 bucket_list_target_size_bytes=Int64(2 * 1024 * 1024 * 1024), # 2 GB
                                                  write_fee1_kb_bucket_list_low=Int64(1000),
                                                  write_fee1_kb_bucket_list_high=Int64(10_000),
-                                                 bucket_list_write_fee_growth_factor=Uint32(1))
+                                                 bucket_list_write_fee_growth_factor=Uint32(1000))
 
     contract_ledger_cost_entry = ConfigSettingEntry(
         ConfigSettingID.CONFIG_SETTING_CONTRACT_LEDGER_COST_V0,
@@ -75,16 +75,16 @@ def get_upgrade_set():
         ConfigSettingID.CONFIG_SETTING_CONTRACT_HISTORICAL_DATA_V0,
         contract_historical_data = contract_historical_data_settings)    
 
-    contract_meta_data_settings = ConfigSettingContractEventsV0(tx_max_contract_events_size_bytes=Uint32(2 * 1024), # 2 kb
+    contract_events_settings = ConfigSettingContractEventsV0(tx_max_contract_events_size_bytes=Uint32(2 * 1024), # 2 kb
                                                                         fee_contract_events1_kb=Int64(300))  
 
-    contract_meta_data_entry = ConfigSettingEntry(
+    contract_events_entry = ConfigSettingEntry(
         ConfigSettingID.CONFIG_SETTING_CONTRACT_EVENTS_V0,
-        contract_events = contract_meta_data_settings)    
+        contract_events = contract_events_settings)    
 
     contract_bandwidth_settings = ConfigSettingContractBandwidthV0(ledger_max_txs_size_bytes=Uint32(100 * 1024), # 100 kb
                                                                         tx_max_size_bytes=Uint32(70 * 1024), # 70 kb
-                                                                        fee_tx_size1_kb=Int64(2000))   
+                                                                        fee_tx_size1_kb=Int64(500))   
 
     contract_bandwidth_entry = ConfigSettingEntry(
         ConfigSettingID.CONFIG_SETTING_CONTRACT_BANDWIDTH_V0,
@@ -96,11 +96,12 @@ def get_upgrade_set():
         ConfigSettingID.CONFIG_SETTING_CONTRACT_DATA_ENTRY_SIZE_BYTES,
         contract_data_entry_size_bytes = contract_data_entry_size)   
 
+    ledgers_per_day = 12 * 60 * 24
     state_exp_settings = StateExpirationSettings(max_entry_expiration=Uint32(12 * 60 * 24 * 31 ), # 31 days, 12 ledger close per minute
                                                  min_temp_entry_expiration=Uint32(16),
                                                  min_persistent_entry_expiration=Uint32(12 * 60 * 24 * 7), # 7 days
-                                                 persistent_rent_rate_denominator=Int64(252_480), #InitialSorobanNetworkConfig
-                                                 temp_rent_rate_denominator=Int64(2_524_800), #InitialSorobanNetworkConfig
+                                                 persistent_rent_rate_denominator=Int64(ledgers_per_day * 31), #InitialSorobanNetworkConfig
+                                                 temp_rent_rate_denominator=Int64(ledgers_per_day * 31 * 10), #InitialSorobanNetworkConfig
                                                  max_entries_to_expire=Uint32(100), #InitialSorobanNetworkConfig
                                                  bucket_list_size_window_sample_size=Uint32(30), #InitialSorobanNetworkConfig
                                                  eviction_scan_size=Uint64(100_000), #InitialSorobanNetworkConfig
@@ -116,7 +117,7 @@ def get_upgrade_set():
         ConfigSettingID.CONFIG_SETTING_CONTRACT_EXECUTION_LANES,
         contract_execution_lanes = execution_lanes_setting)        
     
-    return ConfigUpgradeSet([contract_size_upgrade_entry, compute_upgrade_entry, contract_ledger_cost_entry, contract_historical_data_entry, contract_meta_data_entry, contract_bandwidth_entry, contract_data_entry_entry, state_exp_upgrade_entry, execution_lanes_entry])
+    return ConfigUpgradeSet([contract_size_upgrade_entry, compute_upgrade_entry, contract_ledger_cost_entry, contract_historical_data_entry, contract_events_entry, contract_bandwidth_entry, contract_data_entry_entry, state_exp_upgrade_entry, execution_lanes_entry])
 #############
 
 # TODO: Update tx submissions to go directly to tx endpoint instead of rpc
