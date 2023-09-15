@@ -33,6 +33,12 @@ soroban_server = SorobanServer(rpc_server_url)
 def get_upgrade_set():
 
     max_data_entry_size = 64 * 1024
+    max_txn_per_ledger = 1
+    max_read_bytes_per_tx = 130 * 1024
+    max_write_bytes_per_tx = 65 * 1024
+    max_instructions_per_tx = 100_000_000 
+    max_read_entries_tx = 30
+    max_write_entries_per_tx = 20
 
     max_contract_size = Uint32(max_data_entry_size) 
 
@@ -40,8 +46,8 @@ def get_upgrade_set():
         ConfigSettingID.CONFIG_SETTING_CONTRACT_MAX_SIZE_BYTES,
         contract_max_size_bytes = max_contract_size)   
         
-    compute_settings = ConfigSettingContractComputeV0(ledger_max_instructions=Int64(1_000_000_000),
-                                                 tx_max_instructions=Int64(100_000_000),
+    compute_settings = ConfigSettingContractComputeV0(ledger_max_instructions=Int64(max_txn_per_ledger * max_instructions_per_tx),
+                                                 tx_max_instructions=Int64(max_instructions_per_tx),
                                                  fee_rate_per_instructions_increment=Int64(100),
                                                  tx_memory_limit=Uint32(40 * 1024 * 1024)) # 40 mb
 
@@ -49,16 +55,13 @@ def get_upgrade_set():
         ConfigSettingID.CONFIG_SETTING_CONTRACT_COMPUTE_V0,
         contract_compute = compute_settings)    
 
-    max_read_bytes_per_tx = 130 * 1024
-    max_write_bytes_per_tx = 65 * 1024
-    max_txn_per_ledger = 1
-    contract_ledger_cost_settings = ConfigSettingContractLedgerCostV0(ledger_max_read_ledger_entries=Uint32(400),
+    contract_ledger_cost_settings = ConfigSettingContractLedgerCostV0(ledger_max_read_ledger_entries=Uint32(max_txn_per_ledger * max_read_entries_tx),
                                                  ledger_max_read_bytes=Uint32(max_txn_per_ledger * max_read_bytes_per_tx), # 130 kb
-                                                 ledger_max_write_ledger_entries=Uint32(200),
+                                                 ledger_max_write_ledger_entries=Uint32(max_txn_per_ledger * max_write_entries_per_tx),
                                                  ledger_max_write_bytes=Uint32(max_txn_per_ledger * max_write_bytes_per_tx), # 65 kb 
-                                                 tx_max_read_ledger_entries=Uint32(30),
+                                                 tx_max_read_ledger_entries=Uint32(max_read_entries_tx),
                                                  tx_max_read_bytes=Uint32(max_read_bytes_per_tx), # 130 kb
-                                                 tx_max_write_ledger_entries=Uint32(20),
+                                                 tx_max_write_ledger_entries=Uint32(max_write_entries_per_tx),
                                                  tx_max_write_bytes=Uint32(max_write_bytes_per_tx), # 65 kb 
                                                  fee_read_ledger_entry=Int64(1000),
                                                  fee_write_ledger_entry=Int64(3000),
@@ -100,12 +103,12 @@ def get_upgrade_set():
         contract_data_entry_size_bytes = contract_data_entry_size)   
 
     ledgers_per_day = 12 * 60 * 24
-    state_exp_settings = StateExpirationSettings(max_entry_expiration=Uint32(12 * 60 * 24 * 31 ), # 31 days, 12 ledger close per minute
+    state_exp_settings = StateExpirationSettings(max_entry_expiration=Uint32(ledgers_per_day * 31 ), # 31 days, 12 ledger close per minute
                                                  min_temp_entry_expiration=Uint32(16),
-                                                 min_persistent_entry_expiration=Uint32(12 * 60 * 24 * 7), # 7 days
-                                                 persistent_rent_rate_denominator=Int64(ledgers_per_day * 31), #InitialSorobanNetworkConfig
-                                                 temp_rent_rate_denominator=Int64(ledgers_per_day * 31 * 10), #InitialSorobanNetworkConfig
-                                                 max_entries_to_expire=Uint32(100), #InitialSorobanNetworkConfig
+                                                 min_persistent_entry_expiration=Uint32(ledgers_per_day * 7), # 7 days
+                                                 persistent_rent_rate_denominator=Int64(ledgers_per_day * 31),
+                                                 temp_rent_rate_denominator=Int64(ledgers_per_day * 31 * 10), 
+                                                 max_entries_to_expire=Uint32(100), 
                                                  bucket_list_size_window_sample_size=Uint32(30), #InitialSorobanNetworkConfig
                                                  eviction_scan_size=Uint64(100_000), #InitialSorobanNetworkConfig
                                                  starting_eviction_scan_level=Uint32(1))
