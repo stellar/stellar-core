@@ -32,6 +32,7 @@ soroban_server = SorobanServer(rpc_server_url)
 # hardcode the upgrade you want to do here.
 def get_upgrade_set():
 
+    execution_lane_tx_count_per_ledger = 30
     max_data_entry_size = 64 * 1024
     max_txn_per_ledger = 1
     max_read_bytes_per_tx = 130 * 1024
@@ -88,7 +89,7 @@ def get_upgrade_set():
         ConfigSettingID.CONFIG_SETTING_CONTRACT_EVENTS_V0,
         contract_events = contract_events_settings)    
 
-    contract_bandwidth_settings = ConfigSettingContractBandwidthV0(ledger_max_txs_size_bytes=Uint32(100 * 1024), # 100 kb
+    contract_bandwidth_settings = ConfigSettingContractBandwidthV0(ledger_max_txs_size_bytes=Uint32(max_data_entry_size), # 100 kb
                                                                         tx_max_size_bytes=Uint32(70 * 1024), # 70 kb
                                                                         fee_tx_size1_kb=Int64(500))   
 
@@ -117,7 +118,7 @@ def get_upgrade_set():
         ConfigSettingID.CONFIG_SETTING_STATE_EXPIRATION,
         state_expiration_settings = state_exp_settings)
 
-    execution_lanes_setting = ConfigSettingContractExecutionLanesV0(ledger_max_tx_count=Uint32(30))   
+    execution_lanes_setting = ConfigSettingContractExecutionLanesV0(ledger_max_tx_count=Uint32(execution_lane_tx_count_per_ledger))   
 
     execution_lanes_entry = ConfigSettingEntry(
         ConfigSettingID.CONFIG_SETTING_CONTRACT_EXECUTION_LANES,
