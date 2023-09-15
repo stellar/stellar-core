@@ -52,7 +52,7 @@ LoopbackPeer::initiate(Application& app, Application& otherApp)
         PeerBareAddress{peer->getIP(), peer->getApp().getConfig().PEER_PORT};
 
     app.getOverlayManager().addOutboundConnection(peer);
-    otherApp.getOverlayManager().addInboundConnection(otherPeer);
+    otherApp.getOverlayManager().maybeAddInboundConnection(otherPeer);
     // if connection was dropped during addPendingPeer, we don't want do call
     // connectHandler
     if (peer->mState != Peer::CONNECTED || otherPeer->mState != Peer::CONNECTED)

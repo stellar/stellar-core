@@ -596,13 +596,13 @@ Peer::sendMessage(std::shared_ptr<StellarMessage const> msg, bool log)
     CLOG_TRACE(Overlay, "send: {} to : {}", msgSummary(*msg),
                mApp.getConfig().toShortString(mPeerID));
 
-    // There are really _two_ layers of queues, one in Scheduler for actions and
-    // one in Peer (and its subclasses) for outgoing writes. We enforce a
-    // similar load-shedding discipline here as in Scheduler: if there is more
-    // than the scheduler latency-window worth of material in the write queue,
-    // and we're being asked to add messages that are being generated _from_ a
-    // droppable action, we drop the message rather than enqueue it. This avoids
-    // growing our queues indefinitely.
+    // There are really _two_ layers of queues, one in Scheduler for actions
+    // and one in Peer (and its subclasses) for outgoing writes. We enforce
+    // a similar load-shedding discipline here as in Scheduler: if there is
+    // more than the scheduler latency-window worth of material in the write
+    // queue, and we're being asked to add messages that are being generated
+    // _from_ a droppable action, we drop the message rather than enqueue
+    // it. This avoids growing our queues indefinitely.
     if (mApp.getClock().currentSchedulerActionType() ==
             Scheduler::ActionType::DROPPABLE_ACTION &&
         sendQueueIsOverloaded())
@@ -854,8 +854,8 @@ Peer::recvMessage(StellarMessage const& stellarMsg)
 
     if (!mApp.getLedgerManager().isSynced() && ignoreIfOutOfSync)
     {
-        // For transactions, exit early during the state rebuild, as we can't
-        // properly verify them
+        // For transactions, exit early during the state rebuild, as we
+        // can't properly verify them
         return;
     }
 
@@ -1090,9 +1090,9 @@ Peer::recvGetTxSet(StellarMessage const& msg)
             if (mRemoteOverlayVersion <
                 Peer::FIRST_VERSION_SUPPORTING_GENERALIZED_TX_SET)
             {
-                // The peer wouldn't be able to accept the generalized tx set,
-                // but it wouldn't be correct to say we don't have it. So we
-                // just let the request to timeout.
+                // The peer wouldn't be able to accept the generalized tx
+                // set, but it wouldn't be correct to say we don't have it.
+                // So we just let the request to timeout.
                 return;
             }
             newMsg.type(GENERALIZED_TX_SET);
@@ -1122,8 +1122,9 @@ Peer::recvGetTxSet(StellarMessage const& msg)
                 : GENERALIZED_TX_SET;
         // If peer is not aware of generalized tx sets and we don't have the
         // requested hash, then it probably requests an old-style tx set we
-        // don't have. Another option is that the peer is in incorrect state,
-        // but it's also ok to say we don't have the requested old-style tx set.
+        // don't have. Another option is that the peer is in incorrect
+        // state, but it's also ok to say we don't have the requested
+        // old-style tx set.
         if (messageType == GENERALIZED_TX_SET &&
             mRemoteOverlayVersion <
                 Peer::FIRST_VERSION_SUPPORTING_GENERALIZED_TX_SET)
@@ -1594,8 +1595,8 @@ Peer::recvAuth(StellarMessage const& msg)
         return;
     }
 
-    // Subtle: after successful auth, must send sendMore message first to tell
-    // the other peer about the local node's reading capacity.
+    // Subtle: after successful auth, must send sendMore message first to
+    // tell the other peer about the local node's reading capacity.
     auto weakSelf = std::weak_ptr<Peer>(self);
     auto sendCb = [weakSelf](StellarMessage const& msg) {
         auto self = weakSelf.lock();
