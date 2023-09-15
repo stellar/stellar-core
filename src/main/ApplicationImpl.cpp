@@ -2,6 +2,7 @@
 // under the Apache License, Version 2.0. See the COPYING file at the root
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
+#include "util/Fs.h"
 #include "work/ConditionalWork.h"
 #include "work/WorkWithCallback.h"
 #include "xdr/Stellar-ledger-entries.h"
@@ -1211,6 +1212,15 @@ ApplicationImpl::syncOwnMetrics()
     TracyPlot("process.action.queue", qsize);
     mMetrics->NewCounter({"process", "action", "overloaded"})
         .set_count(static_cast<int64_t>(getClock().actionQueueIsOverloaded()));
+
+    // Update overlay inbound-connections and file-handle metrics.
+    if (mOverlayManager)
+    {
+        mMetrics->NewCounter({"overlay", "inbound", "live"})
+            .set_count(*mOverlayManager->getLiveInboundPeersCounter());
+    }
+    mMetrics->NewCounter({"process", "file", "handles"})
+        .set_count(fs::getOpenHandleCount());
 }
 
 void

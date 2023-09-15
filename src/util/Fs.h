@@ -109,6 +109,11 @@ void checkGzipSuffix(std::string const& filename);
 void checkNoGzipSuffix(std::string const& filename);
 
 // returns the maximum number of connections that can be done at the same time
-int getMaxConnections();
+int64_t getMaxHandles();
+
+// On linux, count the number of fds in /proc/self/fd. On windows, get the
+// process handle count. On other unixes return 0.
+int64_t getOpenHandleCount();
+
 }
 }

@@ -118,7 +118,7 @@ class OverlayManager
     virtual Peer::pointer getConnectedPeer(PeerBareAddress const& address) = 0;
 
     // Add new pending inbound connection.
-    virtual void addInboundConnection(Peer::pointer peer) = 0;
+    virtual void maybeAddInboundConnection(Peer::pointer peer) = 0;
 
     // Add new pending outbound connection. Return true if connection was added.
     virtual bool addOutboundConnection(Peer::pointer peer) = 0;
@@ -136,6 +136,8 @@ class OverlayManager
     virtual bool acceptAuthenticatedPeer(Peer::pointer peer) = 0;
 
     virtual bool isPreferred(Peer* peer) const = 0;
+    virtual bool isPossiblyPreferred(std::string const& ip) const = 0;
+    virtual bool haveSpaceForConnection(std::string const& ip) const = 0;
 
     virtual bool isFloodMessage(StellarMessage const& msg) = 0;
 
@@ -149,6 +151,9 @@ class OverlayManager
 
     // Return the current in-memory set of pending peers.
     virtual std::vector<Peer::pointer> getPendingPeers() const = 0;
+
+    // return the counter of live inbound peers (shared with TCPPeer)
+    virtual std::shared_ptr<int> getLiveInboundPeersCounter() const = 0;
 
     // Return number of pending peers
     virtual int getPendingPeersCount() const = 0;

@@ -1634,7 +1634,7 @@ Config::adjust()
     auto const originalMaxPendingConnections = MAX_PENDING_CONNECTIONS;
 
     int maxFsConnections = std::min<int>(
-        std::numeric_limits<unsigned short>::max(), fs::getMaxConnections());
+        std::numeric_limits<unsigned short>::max(), fs::getMaxHandles());
 
     auto totalAuthenticatedConnections =
         TARGET_PEER_CONNECTIONS + MAX_ADDITIONAL_PEER_CONNECTIONS;
