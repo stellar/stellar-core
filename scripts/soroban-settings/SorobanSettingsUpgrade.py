@@ -40,6 +40,7 @@ def get_upgrade_set():
     max_instructions_per_tx = 100_000_000 
     max_read_entries_tx = 30
     max_write_entries_per_tx = 20
+    max_size_bytes_per_tx = 70 * 1024 # tx envelope
 
     max_contract_size = Uint32(max_data_entry_size) 
 
@@ -89,8 +90,8 @@ def get_upgrade_set():
         ConfigSettingID.CONFIG_SETTING_CONTRACT_EVENTS_V0,
         contract_events = contract_events_settings)    
 
-    contract_bandwidth_settings = ConfigSettingContractBandwidthV0(ledger_max_txs_size_bytes=Uint32(max_data_entry_size), # 100 kb
-                                                                        tx_max_size_bytes=Uint32(70 * 1024), # 70 kb
+    contract_bandwidth_settings = ConfigSettingContractBandwidthV0(ledger_max_txs_size_bytes=Uint32(max_size_bytes_per_tx), # 100 kb
+                                                                        tx_max_size_bytes=Uint32(max_size_bytes_per_tx), # 70 kb
                                                                         fee_tx_size1_kb=Int64(500))   
 
     contract_bandwidth_entry = ConfigSettingEntry(
