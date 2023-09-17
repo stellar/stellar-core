@@ -5527,22 +5527,36 @@ TEST_CASE("delay sending DONT_HAVE", "[herder]")
     auto getTxSet = createGetTxSetMessage(txnSetFrame->getContentsHash());
     connection->getAcceptor()->sendMessage(getTxSet, false);
     auto slotIndex = apps[0]->getHerder().trackingConsensusLedgerIndex();
+    auto txSetHash = txnSetFrame->getContentsHash();
 
-    REQUIRE(!apps[0]->getHerder().getTxSet(txnSetFrame->getContentsHash()));
-    REQUIRE(!apps[1]->getHerder().getTxSet(txnSetFrame->getContentsHash()));
+    REQUIRE(!apps[0]->getHerder().getTxSet(txSetHash));
+    REQUIRE(!apps[1]->getHerder().getTxSet(txSetHash));
+
+    // Helper function for checking the number of pending requests for specific
+    // tx set has.
+    auto numPendingRequests = [&](Hash hash) {
+        size_t num = 0;
+        auto pendingRequests =
+            apps[0]->getOverlayManager().getPendingGetTxSetRequests();
+        for (auto pair : pendingRequests)
+        {
+            auto& requestsPerSlot = pair.second;
+            auto it = requestsPerSlot.find(hash);
+            if (it != requestsPerSlot.end())
+            {
+                num += it->second.size();
+            }
+        }
+        return num;
+    };
+
     // No pending requests yet.
-    REQUIRE(apps[0]
-                ->getOverlayManager()
-                .getPendingGetTxSetRequests()[slotIndex]
-                .size() == 0);
+    REQUIRE(numPendingRequests(txSetHash) == 0);
 
     // Should not add to pending getTxSet requests while we wait before
     // retrying.
     testutil::crankFor(clock, epsilon);
-    REQUIRE(apps[0]
-                ->getOverlayManager()
-                .getPendingGetTxSetRequests()[slotIndex]
-                .size() == 0);
+    REQUIRE(numPendingRequests(txSetHash) == 0);
 
     auto closedTime = apps[0]
                           ->getLedgerManager()
@@ -5563,23 +5577,17 @@ TEST_CASE("delay sending DONT_HAVE", "[herder]")
     {
         // Added to pending getTxSet requests after timeout.
         testutil::crankFor(clock, std::chrono::milliseconds{300});
-        REQUIRE(apps[0]
-                    ->getOverlayManager()
-                    .getPendingGetTxSetRequests()[slotIndex]
-                    .size() == 1);
+        REQUIRE(numPendingRequests(txSetHash) == 1);
         // Receives tx set.
         auto txSetMsg = createTxSetMessage(txnSetFrame);
         connection->getInitiator()->recvMessage(*txSetMsg);
 
         testutil::crankFor(clock, std::chrono::seconds{1});
         // Check peer has the txn set hash.
-        REQUIRE(apps[0]->getHerder().getTxSet(txnSetFrame->getContentsHash()));
+        REQUIRE(apps[0]->getHerder().getTxSet(txSetHash));
         // Pending getTxSet requests are cleared.
-        REQUIRE(apps[0]
-                    ->getOverlayManager()
-                    .getPendingGetTxSetRequests()[slotIndex]
-                    .size() == 0);
-        REQUIRE(apps[1]->getHerder().getTxSet(txnSetFrame->getContentsHash()));
+        REQUIRE(numPendingRequests(txSetHash) == 0);
+        REQUIRE(apps[1]->getHerder().getTxSet(txSetHash));
     }
 
     SECTION("Tx set received before timeout.")
@@ -5591,19 +5599,13 @@ TEST_CASE("delay sending DONT_HAVE", "[herder]")
         // Pending getTxSet requests are empty since node already has the tx
         // set.
         testutil::crankFor(clock, std::chrono::milliseconds{300});
-        REQUIRE(apps[0]
-                    ->getOverlayManager()
-                    .getPendingGetTxSetRequests()[slotIndex]
-                    .size() == 0);
+        REQUIRE(numPendingRequests(txSetHash) == 0);
 
         testutil::crankFor(clock, std::chrono::seconds{1});
         // Check peer has the txn set hash.
-        REQUIRE(apps[0]->getHerder().getTxSet(txnSetFrame->getContentsHash()));
+        REQUIRE(apps[0]->getHerder().getTxSet(txSetHash));
         // Pending getTxSet requests are cleared.
-        REQUIRE(apps[0]
-                    ->getOverlayManager()
-                    .getPendingGetTxSetRequests()[slotIndex]
-                    .size() == 0);
-        REQUIRE(apps[1]->getHerder().getTxSet(txnSetFrame->getContentsHash()));
+        REQUIRE(numPendingRequests(txSetHash) == 0);
+        REQUIRE(apps[1]->getHerder().getTxSet(txSetHash));
     }
 }
