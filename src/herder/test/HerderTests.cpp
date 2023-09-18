@@ -5430,187 +5430,183 @@ TEST_CASE("exclude transactions by operation type", "[herder]")
 //     simulation->crankForAtLeast(std::chrono::seconds{1}, false);
 // }
 
-// TEST_CASE("delay sending DONT_HAVE", "[herder]")
-// {
-//     VirtualClock clock;
-//     auto const numNodes = 2;
-//     std::vector<std::shared_ptr<Application>> apps;
-//     std::chrono::milliseconds const epsilon{1};
-//     auto s = SecretKey::pseudoRandomForTesting();
+TEST_CASE("delay sending DONT_HAVE", "[herder]")
+{
+    VirtualClock clock;
+    auto const numNodes = 2;
+    std::vector<std::shared_ptr<Application>> apps;
+    std::chrono::milliseconds const epsilon{1};
+    auto s = SecretKey::pseudoRandomForTesting();
 
-//     for (auto i = 0; i < numNodes; i++)
-//     {
-//         Config cfg = getTestConfig(i);
-//         cfg.FLOOD_DEMAND_BACKOFF_DELAY_MS = std::chrono::milliseconds(200);
-//         cfg.FLOOD_DEMAND_PERIOD_MS = std::chrono::milliseconds(200);
-//         // Using a small tq set size such as 50 may lead to an unexpectedly
-//         // small advert/demand size limit.
-//         cfg.MANUAL_CLOSE = false;
-//         cfg.TESTING_UPGRADE_MAX_TX_SET_SIZE = 1000;
-//         cfg.SEND_DONT_HAVE_DELAY = std::chrono::milliseconds{300};
-//         // Setting validators
-//         cfg.QUORUM_SET.validators.emplace_back(s.getPublicKey());
-//         apps.push_back(createTestApplication(clock, cfg));
-//     }
+    for (auto i = 0; i < numNodes; i++)
+    {
+        Config cfg = getTestConfig(i);
+        cfg.FLOOD_DEMAND_BACKOFF_DELAY_MS = std::chrono::milliseconds(200);
+        cfg.FLOOD_DEMAND_PERIOD_MS = std::chrono::milliseconds(200);
+        // Using a small tq set size such as 50 may lead to an unexpectedly
+        // small advert/demand size limit.
+        cfg.MANUAL_CLOSE = false;
+        cfg.TESTING_UPGRADE_MAX_TX_SET_SIZE = 1000;
+        cfg.SEND_DONT_HAVE_DELAY = std::chrono::milliseconds{300};
+        // Setting validators
+        cfg.QUORUM_SET.validators.emplace_back(s.getPublicKey());
+        apps.push_back(createTestApplication(clock, cfg));
+    }
 
-//     auto connection =
-//         std::make_shared<LoopbackPeerConnection>(*apps[0], *apps[1]);
-//     testutil::crankFor(clock, std::chrono::seconds(5));
-//     REQUIRE(connection->getInitiator()->isAuthenticated());
-//     REQUIRE(connection->getAcceptor()->isAuthenticated());
+    auto connection =
+        std::make_shared<LoopbackPeerConnection>(*apps[0], *apps[1]);
+    testutil::crankFor(clock, std::chrono::seconds(5));
+    REQUIRE(connection->getInitiator()->isAuthenticated());
+    REQUIRE(connection->getAcceptor()->isAuthenticated());
 
-//     // TODO: maybe replace these lambdas with static definitions?
-//     auto createTxn = [](auto n) {
-//         StellarMessage txn;
-//         txn.type(TRANSACTION);
-//         Memo memo(MEMO_TEXT);
-//         memo.text() = "tx" + std::to_string(n);
-//         txn.transaction().v0().tx.memo = memo;
+    // TODO: maybe replace these lambdas with static definitions?
+    auto createTxn = [](auto n) {
+        StellarMessage txn;
+        txn.type(TRANSACTION);
+        Memo memo(MEMO_TEXT);
+        memo.text() = "tx" + std::to_string(n);
+        txn.transaction().v0().tx.memo = memo;
 
-//         return std::make_shared<StellarMessage>(txn);
-//     };
+        return std::make_shared<StellarMessage>(txn);
+    };
 
-//     auto createGetTxSetMessage = [](uint256 const& setID) {
-//         StellarMessage getTxSet;
-//         getTxSet.type(GET_TX_SET);
-//         getTxSet.txSetHash() = setID;
+    auto createGetTxSetMessage = [](uint256 const& setID) {
+        StellarMessage getTxSet;
+        getTxSet.type(GET_TX_SET);
+        getTxSet.txSetHash() = setID;
 
-//         return std::make_shared<StellarMessage>(getTxSet);
-//     };
+        return std::make_shared<StellarMessage>(getTxSet);
+    };
 
-//     auto createTxSetMessage = [](TxSetFrameConstPtr txSet) {
-//         StellarMessage msg;
-//         msg.type(TX_SET);
-//         txSet->toXDR(msg.txSet());
-//         return std::make_shared<StellarMessage const>(msg);
-//     };
+    auto createTxSetMessage = [](TxSetFrameConstPtr txSet) {
+        StellarMessage msg;
+        msg.type(TX_SET);
+        txSet->toXDR(msg.txSet());
+        return std::make_shared<StellarMessage const>(msg);
+    };
 
-//     using TxPair = std::pair<Value, TxSetFrameConstPtr>;
-//     using SVUpgrades = decltype(StellarValue::upgrades);
-//     auto root = TestAccount::createRoot(*apps[0]);
+    using TxPair = std::pair<Value, TxSetFrameConstPtr>;
+    using SVUpgrades = decltype(StellarValue::upgrades);
+    auto root = TestAccount::createRoot(*apps[0]);
 
-//     auto makeTxUpgradePair = [&](TxSetFrameConstPtr txSet, uint64_t
-//     closeTime,
-//                                  SVUpgrades const& upgrades) {
-//         StellarValue sv = apps[0]->getHerder().makeStellarValue(
-//             txSet->getContentsHash(), closeTime, upgrades,
-//             root.getSecretKey());
-//         auto v = xdr::xdr_to_opaque(sv);
-//         return TxPair{v, txSet};
-//     };
+    auto makeTxUpgradePair = [&](TxSetFrameConstPtr txSet, uint64_t closeTime,
+                                 SVUpgrades const& upgrades) {
+        StellarValue sv = apps[0]->getHerder().makeStellarValue(
+            txSet->getContentsHash(), closeTime, upgrades, root.getSecretKey());
+        auto v = xdr::xdr_to_opaque(sv);
+        return TxPair{v, txSet};
+    };
 
-//     auto makeTxPair = [&](TxSetFrameConstPtr txSet, uint64_t closeTime) {
-//         return makeTxUpgradePair(txSet, closeTime, emptyUpgradeSteps);
-//     };
+    auto makeTxPair = [&](TxSetFrameConstPtr txSet, uint64_t closeTime) {
+        return makeTxUpgradePair(txSet, closeTime, emptyUpgradeSteps);
+    };
 
-//     auto makeNominationEnvelope = [&s, &apps](TxPair const& p, Hash qSetHash,
-//                                               uint64_t slotIndex) {
-//         // herder must want the TxSet before receiving it, so we are sending
-//         it
-//         // fake envelope
-//         auto envelope = SCPEnvelope{};
-//         envelope.statement.slotIndex = slotIndex;
-//         envelope.statement.pledges.type(SCP_ST_NOMINATE);
-//         envelope.statement.pledges.nominate().votes.push_back(p.first);
-//         envelope.statement.pledges.nominate().quorumSetHash = qSetHash;
-//         envelope.statement.nodeID = s.getPublicKey();
-//         static_cast<HerderImpl&>(apps[0]->getHerder())
-//             .signEnvelope(s, envelope);
-//         return envelope;
-//     };
+    auto makeNominationEnvelope = [&s, &apps](TxPair const& p, Hash qSetHash,
+                                              uint64_t slotIndex) {
+        // herder must want the TxSet before receiving it, so we are sending it
+        // a fake envelope
+        auto envelope = SCPEnvelope{};
+        envelope.statement.slotIndex = slotIndex;
+        envelope.statement.pledges.type(SCP_ST_NOMINATE);
+        envelope.statement.pledges.nominate().votes.push_back(p.first);
+        envelope.statement.pledges.nominate().quorumSetHash = qSetHash;
+        envelope.statement.nodeID = s.getPublicKey();
+        static_cast<HerderImpl&>(apps[0]->getHerder())
+            .signEnvelope(s, envelope);
+        return envelope;
+    };
 
-//     // Create txn set.
-//     auto tx = createTxn(1);
-//     std::vector<TransactionFrameBasePtr> txs = {
-//         TransactionFrameBase::makeTransactionFromWire(apps[0]->getNetworkID(),
-//                                                       tx->transaction()),
-//     };
-//     auto txnSetFrame = TxSetFrame::makeFromTransactions(txs, *apps[0], 0, 0);
+    // Create txn set.
+    auto tx = createTxn(1);
+    std::vector<TransactionFrameBasePtr> txs = {
+        TransactionFrameBase::makeTransactionFromWire(apps[0]->getNetworkID(),
+                                                      tx->transaction()),
+    };
+    auto txnSetFrame = TxSetFrame::makeFromTransactions(txs, *apps[0], 0, 0);
 
-//     // Sending get tx set message.
-//     auto getTxSet = createGetTxSetMessage(txnSetFrame->getContentsHash());
-//     connection->getAcceptor()->sendMessage(getTxSet, false);
-//     auto slotIndex = apps[0]->getHerder().trackingConsensusLedgerIndex();
-//     auto txSetHash = txnSetFrame->getContentsHash();
+    // Sending get tx set message.
+    auto getTxSet = createGetTxSetMessage(txnSetFrame->getContentsHash());
+    connection->getAcceptor()->sendMessage(getTxSet, false);
+    auto slotIndex = apps[0]->getHerder().trackingConsensusLedgerIndex();
+    auto txSetHash = txnSetFrame->getContentsHash();
 
-//     REQUIRE(!apps[0]->getHerder().getTxSet(txSetHash));
-//     REQUIRE(!apps[1]->getHerder().getTxSet(txSetHash));
+    REQUIRE(!apps[0]->getHerder().getTxSet(txSetHash));
+    REQUIRE(!apps[1]->getHerder().getTxSet(txSetHash));
 
-//     // Helper function for checking the number of pending requests for
-//     specific
-//     // tx set has.
-//     auto numPendingRequests = [&](Hash hash) {
-//         size_t num = 0;
-//         auto pendingRequests =
-//             apps[0]->getOverlayManager().getPendingGetTxSetRequests();
-//         for (auto pair : pendingRequests)
-//         {
-//             auto& requestsPerSlot = pair.second;
-//             auto it = requestsPerSlot.find(hash);
-//             if (it != requestsPerSlot.end())
-//             {
-//                 num += it->second.size();
-//             }
-//         }
-//         return num;
-//     };
+    // Helper function for checking the number of pending requests for a
+    // specific tx set hash.
+    auto numPendingRequests = [&](Hash hash) {
+        size_t num = 0;
+        auto pendingRequests =
+            apps[0]->getOverlayManager().getPendingGetTxSetRequests();
+        for (auto pair : pendingRequests)
+        {
+            auto& requestsPerSlot = pair.second;
+            auto it = requestsPerSlot.find(hash);
+            if (it != requestsPerSlot.end())
+            {
+                num += it->second.size();
+            }
+        }
+        return num;
+    };
 
-//     // No pending requests yet.
-//     REQUIRE(numPendingRequests(txSetHash) == 0);
+    // No pending requests yet.
+    REQUIRE(numPendingRequests(txSetHash) == 0);
 
-//     // Should not add to pending getTxSet requests while we wait before
-//     // retrying.
-//     testutil::crankFor(clock, epsilon);
-//     REQUIRE(numPendingRequests(txSetHash) == 0);
+    // Should not add to pending getTxSet requests while we wait before
+    // retrying.
+    testutil::crankFor(clock, epsilon);
+    REQUIRE(numPendingRequests(txSetHash) == 0);
 
-//     auto closedTime = apps[0]
-//                           ->getLedgerManager()
-//                           .getLastClosedLedgerHeader()
-//                           .header.scpValue.closeTime +
-//                       1;
+    auto closedTime = apps[0]
+                          ->getLedgerManager()
+                          .getLastClosedLedgerHeader()
+                          .header.scpValue.closeTime +
+                      1;
 
-//     auto p = makeTxPair(txnSetFrame, closedTime);
-//     auto envelope = makeNominationEnvelope(
-//         p, {}, apps[0]->getHerder().trackingConsensusLedgerIndex() + 1);
+    auto p = makeTxPair(txnSetFrame, closedTime);
+    auto envelope = makeNominationEnvelope(
+        p, {}, apps[0]->getHerder().trackingConsensusLedgerIndex() + 1);
 
-//     REQUIRE(apps[0]->getHerder().recvSCPEnvelope(envelope) ==
-//             Herder::ENVELOPE_STATUS_FETCHING);
-//     REQUIRE(apps[1]->getHerder().recvSCPEnvelope(envelope) ==
-//             Herder::ENVELOPE_STATUS_FETCHING);
+    REQUIRE(apps[0]->getHerder().recvSCPEnvelope(envelope) ==
+            Herder::ENVELOPE_STATUS_FETCHING);
+    REQUIRE(apps[1]->getHerder().recvSCPEnvelope(envelope) ==
+            Herder::ENVELOPE_STATUS_FETCHING);
 
-//     SECTION("Tx set not received before timeout.")
-//     {
-//         // Added to pending getTxSet requests after timeout.
-//         testutil::crankFor(clock, std::chrono::milliseconds{300});
-//         REQUIRE(numPendingRequests(txSetHash) == 1);
-//         // Receives tx set.
-//         auto txSetMsg = createTxSetMessage(txnSetFrame);
-//         connection->getInitiator()->recvMessage(*txSetMsg);
+    SECTION("Tx set not received before timeout.")
+    {
+        // Added to pending getTxSet requests after timeout.
+        testutil::crankFor(clock, std::chrono::milliseconds{300});
+        REQUIRE(numPendingRequests(txSetHash) == 1);
+        // Receives tx set.
+        auto txSetMsg = createTxSetMessage(txnSetFrame);
+        connection->getInitiator()->recvMessage(*txSetMsg);
 
-//         testutil::crankFor(clock, std::chrono::seconds{1});
-//         // Check peer has the txn set hash.
-//         REQUIRE(apps[0]->getHerder().getTxSet(txSetHash));
-//         // Pending getTxSet requests are cleared.
-//         REQUIRE(numPendingRequests(txSetHash) == 0);
-//         REQUIRE(apps[1]->getHerder().getTxSet(txSetHash));
-//     }
+        testutil::crankFor(clock, std::chrono::seconds{1});
+        // Check peer has the txn set hash.
+        REQUIRE(apps[0]->getHerder().getTxSet(txSetHash));
+        // Pending getTxSet requests are cleared.
+        REQUIRE(numPendingRequests(txSetHash) == 0);
+        REQUIRE(apps[1]->getHerder().getTxSet(txSetHash));
+    }
 
-//     SECTION("Tx set received before timeout.")
-//     {
-//         // Receives tx set.
-//         auto txSetMsg = createTxSetMessage(txnSetFrame);
-//         connection->getInitiator()->recvMessage(*txSetMsg);
+    SECTION("Tx set received before timeout.")
+    {
+        // Receives tx set.
+        auto txSetMsg = createTxSetMessage(txnSetFrame);
+        connection->getInitiator()->recvMessage(*txSetMsg);
 
-//         // Pending getTxSet requests are empty since node already has the tx
-//         // set.
-//         testutil::crankFor(clock, std::chrono::milliseconds{300});
-//         REQUIRE(numPendingRequests(txSetHash) == 0);
+        // Pending getTxSet requests are empty since node already has the tx
+        // set.
+        testutil::crankFor(clock, std::chrono::milliseconds{300});
+        REQUIRE(numPendingRequests(txSetHash) == 0);
 
-//         testutil::crankFor(clock, std::chrono::seconds{1});
-//         // Check peer has the txn set hash.
-//         REQUIRE(apps[0]->getHerder().getTxSet(txSetHash));
-//         // Pending getTxSet requests are cleared.
-//         REQUIRE(numPendingRequests(txSetHash) == 0);
-//         REQUIRE(apps[1]->getHerder().getTxSet(txSetHash));
-//     }
-// }
+        testutil::crankFor(clock, std::chrono::seconds{1});
+        // Check peer has the txn set hash.
+        REQUIRE(apps[0]->getHerder().getTxSet(txSetHash));
+        // Pending getTxSet requests are cleared.
+        REQUIRE(numPendingRequests(txSetHash) == 0);
+        REQUIRE(apps[1]->getHerder().getTxSet(txSetHash));
+    }
+}
