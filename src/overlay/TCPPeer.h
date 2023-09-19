@@ -65,6 +65,29 @@ class TCPPeer : public Peer
                          std::size_t expected_length);
     void shutdown();
 
+    // This tracks the count of TCPPeers that are live and and originate in
+    // inbound connections.
+    //
+    // This is subtle: TCPPeers can be kept alive by shared references stored
+    // in ASIO completion events, because TCPPeers own buffers that ASIO
+    // operations write into. If we stored weak references in ASIO completion
+    // events, it would be possible for a TCPPeer to be destructed and
+    // write-buffers freed during the ASIO write into those buffers, which
+    // would cause memory corruption.
+    //
+    // As a retult, the lifetime of a TCPPeer is _not_ the same as the time it
+    // is known to the OverlayManager. We can drop a TCPPeer from the
+    // OverlayManager's registration a while before it's actually destroyed.
+    // To properly manage load, therefore, we have to separately track the
+    // number of actually-live TCPPeers. Since we're really only concerned
+    // with load-shedding inbound connections (we make our own outbound ones),
+    // we only track the inbound-live number.
+    //
+    // Furthermore the counter _itself_ has to be accessed as a shared pointer
+    // because any other central place we might track the live count (overlay
+    // manager or metrics) may be dead before the TCPPeer destructor runs.
+    std::shared_ptr<int> mLiveInboundPeersCounter;
+
   public:
     typedef std::shared_ptr<TCPPeer> pointer;
 
@@ -76,6 +99,7 @@ class TCPPeer : public Peer
 
     static pointer initiate(Application& app, PeerBareAddress const& address);
     static pointer accept(Application& app, std::shared_ptr<SocketType> socket);
+    static std::string getIP(std::shared_ptr<SocketType> socket);
 
     virtual ~TCPPeer();
 

@@ -13,6 +13,7 @@
 
 namespace stellar
 {
+constexpr uint32 const LISTEN_QUEUE_LIMIT = 100;
 
 using asio::ip::tcp;
 using namespace std;
@@ -33,7 +34,7 @@ PeerDoor::start()
         mAcceptor.open(endpoint.protocol());
         mAcceptor.set_option(asio::ip::tcp::acceptor::reuse_address(true));
         mAcceptor.bind(endpoint);
-        mAcceptor.listen();
+        mAcceptor.listen(LISTEN_QUEUE_LIMIT);
         acceptNextPeer();
     }
 }
@@ -74,9 +75,19 @@ PeerDoor::handleKnock(shared_ptr<TCPPeer::SocketType> socket)
 {
     CLOG_DEBUG(Overlay, "PeerDoor handleKnock()");
     Peer::pointer peer = TCPPeer::accept(mApp, socket);
-    if (peer)
+
+    // Still call addInboundConnection to update metrics
+    mApp.getOverlayManager().maybeAddInboundConnection(peer);
+
+    if (!peer)
     {
-        mApp.getOverlayManager().addInboundConnection(peer);
+        asio::error_code ec;
+        socket->close(ec);
+        if (ec)
+        {
+            CLOG_WARNING(Overlay, "TCPPeer: close socket failed: {}",
+                         ec.message());
+        }
     }
     acceptNextPeer();
 }
