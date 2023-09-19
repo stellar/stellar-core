@@ -47,8 +47,5 @@ bool protocolVersionStartsFrom(uint32_t protocolVersion,
 bool protocolVersionEquals(uint32_t protocolVersion,
                            ProtocolVersion equalsVersion);
 
-constexpr ProtocolVersion GENERALIZED_TX_SET_PROTOCOL_VERSION =
-    ProtocolVersion::V_20;
-
 constexpr ProtocolVersion SOROBAN_PROTOCOL_VERSION = ProtocolVersion::V_20;
 }

@@ -563,7 +563,7 @@ TEST_CASE_VERSIONS("meta stream contains reasonable meta", "[ledgerclosemeta]")
         uint32_t ledgerSeq{0};
 
         if (protocolVersionIsBefore(cfg.TESTING_UPGRADE_LEDGER_PROTOCOL_VERSION,
-                                    GENERALIZED_TX_SET_PROTOCOL_VERSION))
+                                    SOROBAN_PROTOCOL_VERSION))
         {
             // LCM v0
             REQUIRE(lcm.v() == 0);
@@ -573,7 +573,7 @@ TEST_CASE_VERSIONS("meta stream contains reasonable meta", "[ledgerclosemeta]")
         }
         else if (protocolVersionIsBefore(
                      cfg.TESTING_UPGRADE_LEDGER_PROTOCOL_VERSION,
-                     ProtocolVersion::V_20))
+                     SOROBAN_PROTOCOL_VERSION))
         {
             // LCM v1
             REQUIRE(lcm.v() == 1);

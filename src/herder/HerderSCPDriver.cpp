@@ -579,7 +579,7 @@ compareTxSets(TxSetFrameConstPtr l, TxSetFrameConstPtr r, Hash const& lh,
         return lSize < rSize;
     }
     if (protocolVersionStartsFrom(header.ledgerVersion,
-                                  GENERALIZED_TX_SET_PROTOCOL_VERSION))
+                                  SOROBAN_PROTOCOL_VERSION))
     {
         auto lBids = l->getTotalInclusionFees();
         auto rBids = r->getTotalInclusionFees();
@@ -598,7 +598,7 @@ compareTxSets(TxSetFrameConstPtr l, TxSetFrameConstPtr r, Hash const& lh,
         }
     }
     if (protocolVersionStartsFrom(header.ledgerVersion,
-                                  GENERALIZED_TX_SET_PROTOCOL_VERSION))
+                                  SOROBAN_PROTOCOL_VERSION))
     {
         auto lEncodedSize = l->encodedSize();
         auto rEncodedSize = r->encodedSize();

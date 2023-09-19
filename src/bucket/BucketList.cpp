@@ -839,7 +839,7 @@ BucketList::scanForEviction(Application& app, AbstractLedgerTxn& ltx,
     };
 
     if (protocolVersionStartsFrom(ltx.getHeader().ledgerVersion,
-                                  ProtocolVersion::V_20))
+                                  SOROBAN_PROTOCOL_VERSION))
     {
         auto const& networkConfig =
             app.getLedgerManager().getSorobanNetworkConfig(ltx);

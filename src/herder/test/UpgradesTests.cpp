@@ -3030,7 +3030,7 @@ TEST_CASE("upgrade to generalized tx set changes TxSetFrame format",
           "[upgrades]")
 {
     if (protocolVersionIsBefore(Config::CURRENT_LEDGER_PROTOCOL_VERSION,
-                                GENERALIZED_TX_SET_PROTOCOL_VERSION))
+                                SOROBAN_PROTOCOL_VERSION))
     {
         return;
     }
@@ -3040,17 +3040,16 @@ TEST_CASE("upgrade to generalized tx set changes TxSetFrame format",
 
     auto app = createTestApplication(clock, cfg);
 
-    executeUpgrade(
-        *app, makeProtocolVersionUpgrade(
-                  static_cast<int>(GENERALIZED_TX_SET_PROTOCOL_VERSION) - 1));
+    executeUpgrade(*app, makeProtocolVersionUpgrade(
+                             static_cast<int>(SOROBAN_PROTOCOL_VERSION) - 1));
 
     auto root = TestAccount::createRoot(*app);
     TxSetFrame::Transactions txs = {root.tx({payment(root, 1)})};
     auto txSet = TxSetFrame::makeFromTransactions(txs, *app, 0, 0);
     REQUIRE(!txSet->isGeneralizedTxSet());
 
-    executeUpgrade(*app, makeProtocolVersionUpgrade(static_cast<int>(
-                             GENERALIZED_TX_SET_PROTOCOL_VERSION)));
+    executeUpgrade(*app, makeProtocolVersionUpgrade(
+                             static_cast<int>(SOROBAN_PROTOCOL_VERSION)));
 
     txSet = TxSetFrame::makeFromTransactions(txs, *app, 0, 0);
     REQUIRE(txSet->isGeneralizedTxSet());
@@ -3059,7 +3058,7 @@ TEST_CASE("upgrade to generalized tx set changes TxSetFrame format",
 TEST_CASE("upgrade to generalized tx set in network", "[upgrades][overlay]")
 {
     if (protocolVersionIsBefore(Config::CURRENT_LEDGER_PROTOCOL_VERSION,
-                                GENERALIZED_TX_SET_PROTOCOL_VERSION))
+                                SOROBAN_PROTOCOL_VERSION))
     {
         return;
     }
@@ -3069,7 +3068,7 @@ TEST_CASE("upgrade to generalized tx set in network", "[upgrades][overlay]")
             auto cfg = getTestConfig(i, Config::TESTDB_ON_DISK_SQLITE);
             cfg.MAX_SLOTS_TO_REMEMBER = 12;
             cfg.TESTING_UPGRADE_LEDGER_PROTOCOL_VERSION =
-                static_cast<uint32_t>(GENERALIZED_TX_SET_PROTOCOL_VERSION) - 1;
+                static_cast<uint32_t>(SOROBAN_PROTOCOL_VERSION) - 1;
             // Set max tx size to accommodate loadgen
             cfg.TESTING_UPGRADE_MAX_TX_SET_SIZE = 1000;
             return cfg;
@@ -3092,7 +3091,7 @@ TEST_CASE("upgrade to generalized tx set in network", "[upgrades][overlay]")
     {
         Upgrades::UpgradeParameters upgrades;
         upgrades.mProtocolVersion = std::make_optional<uint32>(
-            static_cast<uint32>(GENERALIZED_TX_SET_PROTOCOL_VERSION));
+            static_cast<uint32>(SOROBAN_PROTOCOL_VERSION));
         // Upgrade to generalized tx set in 3 ledgers (4 ledgers before update
         // is applied).
         upgrades.mUpgradeTime =
@@ -3114,7 +3113,7 @@ TEST_CASE("upgrade to generalized tx set in network", "[upgrades][overlay]")
                 nodes[0]->getLedgerManager()
                         .getLastClosedLedgerHeader()
                         .header.ledgerVersion ==
-                    static_cast<uint32_t>(GENERALIZED_TX_SET_PROTOCOL_VERSION))
+                    static_cast<uint32_t>(SOROBAN_PROTOCOL_VERSION))
             {
                 upgradeLedger =
                     nodes[0]->getLedgerManager().getLastClosedLedgerNum();

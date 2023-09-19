@@ -898,7 +898,7 @@ BucketManagerImpl::scanForEviction(AbstractLedgerTxn& ltx, uint32_t ledgerSeq)
 {
     ZoneScoped;
     if (protocolVersionStartsFrom(ltx.getHeader().ledgerVersion,
-                                  ProtocolVersion::V_20))
+                                  SOROBAN_PROTOCOL_VERSION))
     {
         mBucketList->scanForEviction(mApp, ltx, ledgerSeq, mEntriesEvicted,
                                      mBytesScannedForEviction,

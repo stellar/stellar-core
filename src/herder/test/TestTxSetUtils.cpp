@@ -85,8 +85,7 @@ makeNonValidatedTxSetBasedOnLedgerVersion(
     uint32_t ledgerVersion, std::vector<TransactionFrameBasePtr> const& txs,
     Application& app, Hash const& previousLedgerHash)
 {
-    if (protocolVersionStartsFrom(ledgerVersion,
-                                  GENERALIZED_TX_SET_PROTOCOL_VERSION))
+    if (protocolVersionStartsFrom(ledgerVersion, SOROBAN_PROTOCOL_VERSION))
     {
         return makeNonValidatedGeneralizedTxSet(
             {{std::make_pair(100LL, txs)}, {}}, app, previousLedgerHash);
