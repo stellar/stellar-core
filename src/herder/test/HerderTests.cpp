@@ -5566,16 +5566,28 @@ TEST_CASE("delay sending DONT_HAVE", "[herder]")
                       1;
 
     auto p = makeTxPair(txnSetFrame, closedTime);
-    auto envelope = makeNominationEnvelope(
-        p, {}, apps[0]->getHerder().trackingConsensusLedgerIndex() + 1);
 
-    REQUIRE(apps[0]->getHerder().recvSCPEnvelope(envelope) ==
-            Herder::ENVELOPE_STATUS_FETCHING);
-    REQUIRE(apps[1]->getHerder().recvSCPEnvelope(envelope) ==
-            Herder::ENVELOPE_STATUS_FETCHING);
+    auto recvTxPairEnvelope = [&apps, makeNominationEnvelope](TxPair p) {
+        auto envelope = makeNominationEnvelope(
+            p, {}, apps[0]->getHerder().trackingConsensusLedgerIndex() + 1);
 
-    SECTION("Tx set not received before timeout.")
+        REQUIRE(apps[0]->getHerder().recvSCPEnvelope(envelope) ==
+                Herder::ENVELOPE_STATUS_FETCHING);
+        REQUIRE(apps[1]->getHerder().recvSCPEnvelope(envelope) ==
+                Herder::ENVELOPE_STATUS_FETCHING);
+    };
+
+    SECTION("rejects unknown tx set.")
     {
+        // Node should reject the getTxSet request for tx set hashes it has not
+        // asked about.
+        testutil::crankFor(clock, std::chrono::milliseconds{300});
+        REQUIRE(numPendingRequests(txSetHash) == 0);
+    }
+
+    SECTION("tx set not received before timeout.")
+    {
+        recvTxPairEnvelope(p);
         // Added to pending getTxSet requests after timeout.
         testutil::crankFor(clock, std::chrono::milliseconds{300});
         REQUIRE(numPendingRequests(txSetHash) == 1);
@@ -5591,8 +5603,9 @@ TEST_CASE("delay sending DONT_HAVE", "[herder]")
         REQUIRE(apps[1]->getHerder().getTxSet(txSetHash));
     }
 
-    SECTION("Tx set received before timeout.")
+    SECTION("tx set received before timeout.")
     {
+        recvTxPairEnvelope(p);
         // Receives tx set.
         auto txSetMsg = createTxSetMessage(txnSetFrame);
         connection->getInitiator()->recvMessage(*txSetMsg);
