@@ -673,6 +673,24 @@ HerderSCPDriver::combineCandidates(uint64_t slotIndex,
                     clUpgrade.newBaseReserve() = std::max(
                         clUpgrade.newBaseReserve(), lupgrade.newBaseReserve());
                     break;
+                case LEDGER_UPGRADE_FLAGS:
+                    clUpgrade.newFlags() =
+                        std::max(clUpgrade.newFlags(), lupgrade.newFlags());
+                    break;
+                case LEDGER_UPGRADE_CONFIG:
+                    if (clUpgrade.newConfig().contractID <
+                        lupgrade.newConfig().contractID)
+                    {
+                        clUpgrade.newConfig() = lupgrade.newConfig();
+                    }
+                    else if (clUpgrade.newConfig().contractID ==
+                                 lupgrade.newConfig().contractID &&
+                             clUpgrade.newConfig().contentHash <
+                                 lupgrade.newConfig().contentHash)
+                    {
+                        clUpgrade.newConfig() = lupgrade.newConfig();
+                    }
+                    break;
                 case LEDGER_UPGRADE_MAX_SOROBAN_TX_SET_SIZE:
                     clUpgrade.newMaxSorobanTxSetSize() =
                         std::max(clUpgrade.newMaxSorobanTxSetSize(),
