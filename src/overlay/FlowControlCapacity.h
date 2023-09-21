@@ -57,6 +57,8 @@ class FlowControlCapacity
 
     virtual bool canRead() const = 0;
 
+    static uint64_t msgBodySize(StellarMessage const& msg);
+
 #ifdef BUILD_TESTS
     void
     setOutboundCapacity(uint64_t newCapacity)
