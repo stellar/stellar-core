@@ -760,7 +760,8 @@ TransactionFrame::refundSorobanFee(AbstractLedgerTxn& ltxOuter)
     auto sourceAccount = loadSourceAccount(ltx, header);
     if (!sourceAccount)
     {
-        throw std::runtime_error("Unexpected database state");
+        // Account was merged (shouldn't be possible)
+        return;
     }
 
     auto& acc = sourceAccount.current().data.account();

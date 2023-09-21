@@ -1005,6 +1005,60 @@ TEST_CASE("basic contract invocation", "[tx][soroban]")
     }
 }
 
+TEST_CASE("refund account merged", "[tx][soroban][merge]")
+{
+    VirtualClock clock;
+    auto cfg = getTestConfig();
+    auto app = createTestApplication(clock, cfg);
+    overrideSorobanNetworkConfigForTest(*app);
+
+    auto root = TestAccount::createRoot(*app);
+    int64_t initBalance = root.getBalance();
+
+    const int64_t startingBalance =
+        app->getLedgerManager().getLastMinBalance(50);
+
+    auto a1 = root.create("A", startingBalance);
+    auto b1 = root.create("B", startingBalance);
+    auto c1 = root.create("C", startingBalance);
+
+    auto const addI32Wasm = rust_bridge::get_test_wasm_add_i32();
+
+    SorobanResources uploadResources{};
+    uploadResources.instructions = 200'000 + (addI32Wasm.data.size() * 6000);
+    uploadResources.readBytes = 1000;
+    uploadResources.writeBytes = 5000;
+
+    // Upload contract code
+    Operation uploadOp;
+    uploadOp.body.type(INVOKE_HOST_FUNCTION);
+    auto& uploadHF = uploadOp.body.invokeHostFunctionOp().hostFunction;
+    uploadHF.type(HOST_FUNCTION_TYPE_UPLOAD_CONTRACT_WASM);
+    uploadHF.wasm().assign(addI32Wasm.data.begin(), addI32Wasm.data.end());
+
+    LedgerKey contractCodeLedgerKey;
+    contractCodeLedgerKey.type(CONTRACT_CODE);
+    contractCodeLedgerKey.contractCode().hash = sha256(uploadHF.wasm());
+    uploadResources.footprint.readWrite = {contractCodeLedgerKey};
+
+    // submit operation
+    auto tx = sorobanTransactionFrameFromOps(
+        app->getNetworkID(), a1, {uploadOp}, {}, uploadResources, 200'000,
+        DEFAULT_TEST_REFUNDABLE_FEE);
+
+    auto mergeOp = accountMerge(b1);
+    mergeOp.sourceAccount.activate() = toMuxedAccount(a1);
+
+    auto classicMergeTx = c1.tx({mergeOp});
+    classicMergeTx->addSignature(a1.getSecretKey());
+
+    auto r = closeLedger(*app, {classicMergeTx, tx});
+    checkTx(0, r, txSUCCESS);
+
+    // The source account of the soroban tx was merged during the classic phase
+    checkTx(1, r, txNO_ACCOUNT);
+}
+
 TEST_CASE("contract storage", "[tx][soroban]")
 {
     VirtualClock clock;

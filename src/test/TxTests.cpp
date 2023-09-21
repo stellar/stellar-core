@@ -503,16 +503,27 @@ closeLedgerOn(Application& app, uint32 ledgerSeq, TimePoint closeTime,
     }
     else
     {
-        if (!txs.empty() && txs.at(0)->isSoroban())
+        if (std::none_of(txs.begin(), txs.end(),
+                         [&](auto const& tx) { return tx->isSoroban(); }))
         {
-            TxSetFrame::TxPhases phases;
-            phases.resize(1);
-            phases.emplace_back(txs);
-            txSet = TxSetFrame::makeFromTransactions(phases, app, 0, 0);
+            txSet = TxSetFrame::makeFromTransactions(txs, app, 0, 0);
         }
         else
         {
-            txSet = TxSetFrame::makeFromTransactions(txs, app, 0, 0);
+            TxSetFrame::Transactions classic;
+            TxSetFrame::Transactions soroban;
+            for (auto const& tx : txs)
+            {
+                tx->isSoroban() ? soroban.emplace_back(tx)
+                                : classic.emplace_back(tx);
+            }
+
+            TxSetFrame::TxPhases phases = {classic};
+            if (!soroban.empty())
+            {
+                phases.emplace_back(soroban);
+            }
+            txSet = TxSetFrame::makeFromTransactions(phases, app, 0, 0);
         }
     }
     if (!strictOrder)
