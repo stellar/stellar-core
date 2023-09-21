@@ -101,5 +101,6 @@
 		"3l7t9opHMbU=",
 		"3l7t9opHMbU="
 	],
-	"contract storage|footprint tests|unused readWrite key" : [ "PJ5bN6hAeFA=" ]
+	"contract storage|footprint tests|unused readWrite key" : [ "PJ5bN6hAeFA=" ],
+	"refund account merged" : [ "In1c4SdjNWI=", "2+RlWbLqNuA=", "rNZHldKg7fk=" ]
 }
