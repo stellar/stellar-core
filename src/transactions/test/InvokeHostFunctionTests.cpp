@@ -1059,6 +1059,69 @@ TEST_CASE("refund account merged", "[tx][soroban][merge]")
     checkTx(1, r, txNO_ACCOUNT);
 }
 
+TEST_CASE("buying liabilities plus refund is greater than INT64_MAX",
+          "[tx][soroban][offer]")
+{
+    VirtualClock clock;
+    auto cfg = getTestConfig();
+    auto app = createTestApplication(clock, cfg);
+    overrideSorobanNetworkConfigForTest(*app);
+
+    auto root = TestAccount::createRoot(*app);
+    int64_t initBalance = root.getBalance();
+
+    const int64_t startingBalance =
+        app->getLedgerManager().getLastMinBalance(50);
+
+    auto a1 = root.create("A", startingBalance);
+    auto b1 = root.create("B", startingBalance);
+
+    auto native = txtest::makeNativeAsset();
+    auto cur1 = txtest::makeAsset(root, "CUR1");
+    a1.changeTrust(cur1, INT64_MAX);
+    root.pay(a1, cur1, INT64_MAX);
+
+    auto const addI32Wasm = rust_bridge::get_test_wasm_add_i32();
+
+    SorobanResources uploadResources{};
+    uploadResources.instructions = 200'000 + (addI32Wasm.data.size() * 6000);
+    uploadResources.readBytes = 1000;
+    uploadResources.writeBytes = 5000;
+
+    // Upload contract code
+    Operation uploadOp;
+    uploadOp.body.type(INVOKE_HOST_FUNCTION);
+    auto& uploadHF = uploadOp.body.invokeHostFunctionOp().hostFunction;
+    uploadHF.type(HOST_FUNCTION_TYPE_UPLOAD_CONTRACT_WASM);
+    uploadHF.wasm().assign(addI32Wasm.data.begin(), addI32Wasm.data.end());
+
+    LedgerKey contractCodeLedgerKey;
+    contractCodeLedgerKey.type(CONTRACT_CODE);
+    contractCodeLedgerKey.contractCode().hash = sha256(uploadHF.wasm());
+    uploadResources.footprint.readWrite = {contractCodeLedgerKey};
+
+    auto a1PreBalance = a1.getBalance();
+    // submit operation
+    auto tx =
+        sorobanTransactionFrameFromOps(app->getNetworkID(), a1, {uploadOp}, {},
+                                       uploadResources, 200'000, 100'000);
+
+    auto offer =
+        manageOffer(0, cur1, native, Price{1, 1}, INT64_MAX - a1.getBalance());
+    offer.sourceAccount.activate() = toMuxedAccount(a1);
+
+    auto offerTx = b1.tx({offer, payment(a1, 117'000)});
+    offerTx->addSignature(a1.getSecretKey());
+
+    auto r = closeLedger(*app, {offerTx, tx});
+    checkTx(0, r, txSUCCESS);
+    checkTx(1, r, txSUCCESS);
+
+    REQUIRE(a1PreBalance + 41 - 79927 /*what would have been the refund if
+                                         liabilities hadn't gotten in the way*/
+            == a1.getBalance());
+}
+
 TEST_CASE("contract storage", "[tx][soroban]")
 {
     VirtualClock clock;

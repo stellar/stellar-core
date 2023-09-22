@@ -764,9 +764,12 @@ TransactionFrame::refundSorobanFee(AbstractLedgerTxn& ltxOuter)
         return;
     }
 
-    auto& acc = sourceAccount.current().data.account();
+    if (!addBalance(header, sourceAccount, mFeeRefund))
+    {
+        // Liabilities in the way of the refund, just skip.
+        return;
+    }
 
-    stellar::addBalance(acc.balance, mFeeRefund);
     header.current().feePool -= mFeeRefund;
     ltx.commit();
 }
