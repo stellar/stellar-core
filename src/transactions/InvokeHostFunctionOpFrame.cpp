@@ -603,6 +603,10 @@ InvokeHostFunctionOpFrame::doApply(Application& app, AbstractLedgerTxn& ltx,
             releaseAssertOrThrow(createdKeys.find(expirationKey) !=
                                  createdKeys.end());
         }
+        else
+        {
+            releaseAssertOrThrow(key.type() == EXPIRATION);
+        }
     }
 
     // Erase every entry not returned.
@@ -616,16 +620,14 @@ InvokeHostFunctionOpFrame::doApply(Application& app, AbstractLedgerTxn& ltx,
             auto ltxe = ltx.load(lk);
             if (ltxe)
             {
+                releaseAssertOrThrow(isSorobanEntry(lk));
                 ltx.erase(lk);
 
                 // Also delete associated ExpirationEntry
-                if (isSorobanEntry(lk))
-                {
-                    auto expirationLK = getExpirationKey(lk);
-                    auto expirationLtxe = ltx.load(expirationLK);
-                    releaseAssertOrThrow(expirationLtxe);
-                    ltx.erase(expirationLK);
-                }
+                auto expirationLK = getExpirationKey(lk);
+                auto expirationLtxe = ltx.load(expirationLK);
+                releaseAssertOrThrow(expirationLtxe);
+                ltx.erase(expirationLK);
             }
         }
     }

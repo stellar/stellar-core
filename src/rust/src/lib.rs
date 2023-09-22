@@ -97,7 +97,6 @@ mod rust_bridge {
         pub min_temp_entry_expiration: u32,
         pub min_persistent_entry_expiration: u32,
         pub max_entry_expiration: u32,
-        pub autobump_ledgers: u32,
         pub cpu_cost_params: CxxBuf,
         pub mem_cost_params: CxxBuf,
     }

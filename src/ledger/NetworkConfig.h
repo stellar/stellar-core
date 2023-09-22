@@ -43,7 +43,6 @@ struct MinimumSorobanNetworkConfig
     static constexpr uint32_t BUCKETLIST_SIZE_WINDOW_SAMPLE_SIZE = 1;
     static constexpr uint32_t EVICTION_SCAN_SIZE = 0;
     static constexpr uint32_t STARTING_EVICTION_LEVEL = 1;
-    static constexpr uint32_t AUTOBUMP_LEDGERS = 0;
 
     static constexpr uint32_t TX_MAX_CONTRACT_EVENTS_SIZE_BYTES = 200;
 };
