@@ -101,6 +101,7 @@
 		"3l7t9opHMbU=",
 		"3l7t9opHMbU="
 	],
+	"buying liabilities plus refund is greater than INT64_MAX" : [ "In1c4SdjNWI=", "2+RlWbLqNuA=", "4PFoNk2Q2xA=", "9ZuZsVhaOp0=" ],
 	"contract storage|footprint tests|unused readWrite key" : [ "PJ5bN6hAeFA=" ],
 	"refund account merged" : [ "In1c4SdjNWI=", "2+RlWbLqNuA=", "rNZHldKg7fk=" ]
 }
