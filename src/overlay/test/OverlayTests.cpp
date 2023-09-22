@@ -2462,7 +2462,7 @@ TEST_CASE("generalized tx sets are not sent to non-upgraded peers",
           "[txset][overlay]")
 {
     if (protocolVersionIsBefore(Config::CURRENT_LEDGER_PROTOCOL_VERSION,
-                                GENERALIZED_TX_SET_PROTOCOL_VERSION))
+                                SOROBAN_PROTOCOL_VERSION))
     {
         return;
     }
@@ -2474,7 +2474,7 @@ TEST_CASE("generalized tx sets are not sent to non-upgraded peers",
                 auto cfg = getTestConfig(i, Config::TESTDB_ON_DISK_SQLITE);
                 cfg.MAX_SLOTS_TO_REMEMBER = 10;
                 cfg.TESTING_UPGRADE_LEDGER_PROTOCOL_VERSION =
-                    static_cast<uint32_t>(GENERALIZED_TX_SET_PROTOCOL_VERSION);
+                    static_cast<uint32_t>(SOROBAN_PROTOCOL_VERSION);
                 if (hasNonUpgraded && i == nonUpgradedNodeIndex)
                 {
                     cfg.OVERLAY_PROTOCOL_VERSION =

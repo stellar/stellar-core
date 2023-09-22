@@ -687,7 +687,8 @@ void
 SorobanNetworkConfig::initializeGenesisLedgerForTesting(
     uint32_t genesisLedgerProtocol, AbstractLedgerTxn& ltx, Application& app)
 {
-    if (protocolVersionStartsFrom(genesisLedgerProtocol, ProtocolVersion::V_20))
+    if (protocolVersionStartsFrom(genesisLedgerProtocol,
+                                  SOROBAN_PROTOCOL_VERSION))
     {
         SorobanNetworkConfig::createLedgerEntriesForV20(ltx, app);
     }
@@ -1123,7 +1124,7 @@ SorobanNetworkConfig::maybeUpdateBucketListWindowSize(AbstractLedgerTxn& ltx)
 {
     // // Check if BucketList size window should exist
     if (protocolVersionIsBefore(ltx.loadHeader().current().ledgerVersion,
-                                ProtocolVersion::V_20))
+                                SOROBAN_PROTOCOL_VERSION))
     {
         return;
     }
@@ -1164,7 +1165,7 @@ SorobanNetworkConfig::maybeSnapshotBucketListSize(uint32_t currLedger,
 {
     auto ledgerVersion = ltx.loadHeader().current().ledgerVersion;
     // // Check if BucketList size window should exist
-    if (protocolVersionIsBefore(ledgerVersion, ProtocolVersion::V_20) ||
+    if (protocolVersionIsBefore(ledgerVersion, SOROBAN_PROTOCOL_VERSION) ||
         !app.getConfig().MODE_ENABLES_BUCKETLIST)
     {
         return;

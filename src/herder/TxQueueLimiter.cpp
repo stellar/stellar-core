@@ -253,7 +253,7 @@ TxQueueLimiter::reset(AbstractLedgerTxn& ltxOuter)
     {
         if (protocolVersionStartsFrom(
                 ltxOuter.loadHeader().current().ledgerVersion,
-                ProtocolVersion::V_20))
+                SOROBAN_PROTOCOL_VERSION))
         {
             mSurgePricingLaneConfig =
                 std::make_shared<SorobanGenericLaneConfig>(

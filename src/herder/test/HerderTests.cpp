@@ -298,8 +298,7 @@ testTxSet(uint32 protocolVersion)
     VirtualClock clock;
     Application::pointer app = createTestApplication(clock, cfg);
     bool uniqueAccounts =
-        protocolVersion >=
-        static_cast<uint32_t>(GENERALIZED_TX_SET_PROTOCOL_VERSION);
+        protocolVersion >= static_cast<uint32_t>(SOROBAN_PROTOCOL_VERSION);
 
     // set up world
     auto root = TestAccount::createRoot(*app);
@@ -652,7 +651,7 @@ TEST_CASE("txset", "[herder][txset]")
     }
     SECTION("generalized tx set protocol")
     {
-        testTxSet(static_cast<uint32>(GENERALIZED_TX_SET_PROTOCOL_VERSION));
+        testTxSet(static_cast<uint32>(SOROBAN_PROTOCOL_VERSION));
     }
     SECTION("protocol current")
     {
@@ -732,7 +731,7 @@ TEST_CASE_VERSIONS("txset with PreconditionsV2", "[herder][txset]")
             {
                 LedgerTxn ltx(app->getLedgerTxnRoot());
                 if (ltx.loadHeader().current().ledgerVersion >=
-                    static_cast<uint32_t>(GENERALIZED_TX_SET_PROTOCOL_VERSION))
+                    static_cast<uint32_t>(SOROBAN_PROTOCOL_VERSION))
                 {
                     return;
                 }
@@ -767,7 +766,7 @@ TEST_CASE_VERSIONS("txset with PreconditionsV2", "[herder][txset]")
             {
                 LedgerTxn ltx(app->getLedgerTxnRoot());
                 if (ltx.loadHeader().current().ledgerVersion >=
-                    static_cast<uint32_t>(GENERALIZED_TX_SET_PROTOCOL_VERSION))
+                    static_cast<uint32_t>(SOROBAN_PROTOCOL_VERSION))
                 {
                     return;
                 }
@@ -1220,33 +1219,28 @@ TEST_CASE("txset base fee", "[herder][txset]")
                 // high = 2*base (surge)
                 SECTION("maxed out surged")
                 {
-                    testBaseFee(static_cast<uint32_t>(
-                                    GENERALIZED_TX_SET_PROTOCOL_VERSION) -
-                                    1,
-                                baseCount, v11ExtraTx, maxTxSetSize, 1000,
-                                2000);
+                    testBaseFee(
+                        static_cast<uint32_t>(SOROBAN_PROTOCOL_VERSION) - 1,
+                        baseCount, v11ExtraTx, maxTxSetSize, 1000, 2000);
                 }
                 SECTION("smallest surged")
                 {
-                    testBaseFee(static_cast<uint32_t>(
-                                    GENERALIZED_TX_SET_PROTOCOL_VERSION) -
-                                    1,
-                                baseCount + 1, v11ExtraTx - 50,
-                                maxTxSetSize - 100 + 1, 1000, 2000);
+                    testBaseFee(
+                        static_cast<uint32_t>(SOROBAN_PROTOCOL_VERSION) - 1,
+                        baseCount + 1, v11ExtraTx - 50, maxTxSetSize - 100 + 1,
+                        1000, 2000);
                 }
             }
             SECTION("generalized tx set protocol")
             {
                 SECTION("fitting exactly into capacity does not cause surge")
                 {
-                    testBaseFee(static_cast<uint32_t>(
-                                    GENERALIZED_TX_SET_PROTOCOL_VERSION),
+                    testBaseFee(static_cast<uint32_t>(SOROBAN_PROTOCOL_VERSION),
                                 baseCount, v11ExtraTx, maxTxSetSize, 100, 200);
                 }
                 SECTION("evicting one tx causes surge")
                 {
-                    testBaseFee(static_cast<uint32_t>(
-                                    GENERALIZED_TX_SET_PROTOCOL_VERSION),
+                    testBaseFee(static_cast<uint32_t>(SOROBAN_PROTOCOL_VERSION),
                                 baseCount + 1, v11ExtraTx, maxTxSetSize, 1000,
                                 2000, 1);
                 }
@@ -1255,41 +1249,37 @@ TEST_CASE("txset base fee", "[herder][txset]")
             {
                 if (protocolVersionStartsFrom(
                         Config::CURRENT_LEDGER_PROTOCOL_VERSION,
-                        GENERALIZED_TX_SET_PROTOCOL_VERSION))
+                        SOROBAN_PROTOCOL_VERSION))
                 {
                     SECTION(
                         "fitting exactly into capacity does not cause surge")
                     {
-                        testBaseFee(static_cast<uint32_t>(
-                                        GENERALIZED_TX_SET_PROTOCOL_VERSION),
-                                    baseCount, v11ExtraTx, maxTxSetSize, 100,
-                                    200);
+                        testBaseFee(
+                            static_cast<uint32_t>(SOROBAN_PROTOCOL_VERSION),
+                            baseCount, v11ExtraTx, maxTxSetSize, 100, 200);
                     }
                     SECTION("evicting one tx causes surge")
                     {
-                        testBaseFee(static_cast<uint32_t>(
-                                        GENERALIZED_TX_SET_PROTOCOL_VERSION),
-                                    baseCount + 1, v11ExtraTx, maxTxSetSize,
-                                    1000, 2000, 1);
+                        testBaseFee(
+                            static_cast<uint32_t>(SOROBAN_PROTOCOL_VERSION),
+                            baseCount + 1, v11ExtraTx, maxTxSetSize, 1000, 2000,
+                            1);
                     }
                 }
                 else
                 {
                     SECTION("maxed out surged")
                     {
-                        testBaseFee(static_cast<uint32_t>(
-                                        GENERALIZED_TX_SET_PROTOCOL_VERSION) -
-                                        1,
-                                    baseCount, v11ExtraTx, maxTxSetSize, 1000,
-                                    2000);
+                        testBaseFee(
+                            static_cast<uint32_t>(SOROBAN_PROTOCOL_VERSION) - 1,
+                            baseCount, v11ExtraTx, maxTxSetSize, 1000, 2000);
                     }
                     SECTION("smallest surged")
                     {
-                        testBaseFee(static_cast<uint32_t>(
-                                        GENERALIZED_TX_SET_PROTOCOL_VERSION) -
-                                        1,
-                                    baseCount + 1, v11ExtraTx - 50,
-                                    maxTxSetSize - 100 + 1, 1000, 2000);
+                        testBaseFee(
+                            static_cast<uint32_t>(SOROBAN_PROTOCOL_VERSION) - 1,
+                            baseCount + 1, v11ExtraTx - 50,
+                            maxTxSetSize - 100 + 1, 1000, 2000);
                     }
                 }
             }
@@ -1306,23 +1296,19 @@ TEST_CASE("txset base fee", "[herder][txset]")
             {
                 // low = 20000+1 -> baseFee = 20001/2+ = 10001
                 // high = 10001*2
-                testBaseFee(
-                    static_cast<uint32_t>(GENERALIZED_TX_SET_PROTOCOL_VERSION) -
-                        1,
-                    0, v11NewCount, maxTxSetSize, 20001, 20002);
+                testBaseFee(static_cast<uint32_t>(SOROBAN_PROTOCOL_VERSION) - 1,
+                            0, v11NewCount, maxTxSetSize, 20001, 20002);
             }
             SECTION("generalized tx set protocol")
             {
                 SECTION("fitting exactly into capacity does not cause surge")
                 {
-                    testBaseFee(static_cast<uint32_t>(
-                                    GENERALIZED_TX_SET_PROTOCOL_VERSION),
+                    testBaseFee(static_cast<uint32_t>(SOROBAN_PROTOCOL_VERSION),
                                 0, v11NewCount, maxTxSetSize, 200, 200);
                 }
                 SECTION("evicting one tx causes surge")
                 {
-                    testBaseFee(static_cast<uint32_t>(
-                                    GENERALIZED_TX_SET_PROTOCOL_VERSION),
+                    testBaseFee(static_cast<uint32_t>(SOROBAN_PROTOCOL_VERSION),
                                 0, v11NewCount + 1, maxTxSetSize, 20002, 20002,
                                 1);
                 }
@@ -1331,7 +1317,7 @@ TEST_CASE("txset base fee", "[herder][txset]")
             {
                 if (protocolVersionStartsFrom(
                         Config::CURRENT_LEDGER_PROTOCOL_VERSION,
-                        GENERALIZED_TX_SET_PROTOCOL_VERSION))
+                        SOROBAN_PROTOCOL_VERSION))
                 {
                     SECTION(
                         "fitting exactly into capacity does not cause surge")
@@ -1348,10 +1334,9 @@ TEST_CASE("txset base fee", "[herder][txset]")
                 }
                 else
                 {
-                    testBaseFee(static_cast<uint32_t>(
-                                    GENERALIZED_TX_SET_PROTOCOL_VERSION) -
-                                    1,
-                                0, v11NewCount, maxTxSetSize, 20001, 20002);
+                    testBaseFee(
+                        static_cast<uint32_t>(SOROBAN_PROTOCOL_VERSION) - 1, 0,
+                        v11NewCount, maxTxSetSize, 20001, 20002);
                 }
             }
         }
@@ -1403,8 +1388,7 @@ static void
 surgeTest(uint32 protocolVersion, uint32_t nbTxs, uint32_t maxTxSetSize,
           uint32_t expectedReduced)
 {
-    if (protocolVersion >=
-        static_cast<uint32_t>(GENERALIZED_TX_SET_PROTOCOL_VERSION))
+    if (protocolVersion >= static_cast<uint32_t>(SOROBAN_PROTOCOL_VERSION))
     {
         throw std::runtime_error("Surge test does not apply post protocol 19");
     }
@@ -1601,7 +1585,7 @@ TEST_CASE("surge pricing", "[herder][txset]")
     {
         Config cfg(getTestConfig());
         cfg.TESTING_UPGRADE_LEDGER_PROTOCOL_VERSION =
-            static_cast<uint32_t>(GENERALIZED_TX_SET_PROTOCOL_VERSION);
+            static_cast<uint32_t>(SOROBAN_PROTOCOL_VERSION);
         // Max 1 classic op
         cfg.TESTING_UPGRADE_MAX_TX_SET_SIZE = 1;
 
@@ -1849,7 +1833,7 @@ TEST_CASE("surge pricing", "[herder][txset]")
 TEST_CASE("surge pricing with DEX separation", "[herder][txset]")
 {
     if (protocolVersionIsBefore(Config::CURRENT_LEDGER_PROTOCOL_VERSION,
-                                GENERALIZED_TX_SET_PROTOCOL_VERSION))
+                                SOROBAN_PROTOCOL_VERSION))
     {
         return;
     }
@@ -2037,7 +2021,7 @@ TEST_CASE("surge pricing with DEX separation holds invariants",
           "[herder][txset]")
 {
     if (protocolVersionIsBefore(Config::CURRENT_LEDGER_PROTOCOL_VERSION,
-                                GENERALIZED_TX_SET_PROTOCOL_VERSION))
+                                SOROBAN_PROTOCOL_VERSION))
     {
         return;
     }
@@ -2170,9 +2154,9 @@ TEST_CASE("generalized tx set applied to ledger", "[herder][txset]")
 {
     Config cfg(getTestConfig());
     cfg.TESTING_UPGRADE_LEDGER_PROTOCOL_VERSION =
-        static_cast<uint32_t>(GENERALIZED_TX_SET_PROTOCOL_VERSION);
+        static_cast<uint32_t>(SOROBAN_PROTOCOL_VERSION);
     cfg.LEDGER_PROTOCOL_VERSION =
-        static_cast<uint32_t>(GENERALIZED_TX_SET_PROTOCOL_VERSION);
+        static_cast<uint32_t>(SOROBAN_PROTOCOL_VERSION);
     VirtualClock clock;
     Application::pointer app = createTestApplication(clock, cfg);
     auto root = TestAccount::createRoot(*app);
@@ -2836,14 +2820,12 @@ TEST_CASE("SCP Driver", "[herder][acceptance]")
 {
     SECTION("before generalized tx set protocol")
     {
-        testSCPDriver(static_cast<uint32>(GENERALIZED_TX_SET_PROTOCOL_VERSION) -
-                          1,
-                      1000, 15);
+        testSCPDriver(static_cast<uint32>(SOROBAN_PROTOCOL_VERSION) - 1, 1000,
+                      15);
     }
     SECTION("generalized tx set protocol")
     {
-        testSCPDriver(static_cast<uint32>(GENERALIZED_TX_SET_PROTOCOL_VERSION),
-                      1000, 15);
+        testSCPDriver(static_cast<uint32>(SOROBAN_PROTOCOL_VERSION), 1000, 15);
     }
     SECTION("protocol current")
     {

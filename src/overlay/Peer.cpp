@@ -1117,7 +1117,7 @@ Peer::recvGetTxSet(StellarMessage const& msg)
             protocolVersionIsBefore(mApp.getLedgerManager()
                                         .getLastClosedLedgerHeader()
                                         .header.ledgerVersion,
-                                    GENERALIZED_TX_SET_PROTOCOL_VERSION)
+                                    SOROBAN_PROTOCOL_VERSION)
                 ? TX_SET
                 : GENERALIZED_TX_SET;
         // If peer is not aware of generalized tx sets and we don't have the

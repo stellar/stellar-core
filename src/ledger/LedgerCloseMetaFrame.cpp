@@ -17,7 +17,7 @@ LedgerCloseMetaFrame::LedgerCloseMetaFrame(uint32_t protocolVersion)
     // and runtime conditions.
     mVersion = 0;
 
-    if (protocolVersionStartsFrom(protocolVersion, ProtocolVersion::V_20))
+    if (protocolVersionStartsFrom(protocolVersion, SOROBAN_PROTOCOL_VERSION))
     {
         mVersion = 2;
     }

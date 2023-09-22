@@ -1322,7 +1322,7 @@ HerderImpl::triggerNextLedger(uint32_t ledgerSeqToTrigger,
         invalidTxPhases);
 
     if (protocolVersionStartsFrom(lcl.header.ledgerVersion,
-                                  ProtocolVersion::V_20))
+                                  SOROBAN_PROTOCOL_VERSION))
     {
         mSorobanTransactionQueue.ban(
             invalidTxPhases[static_cast<size_t>(TxSetFrame::Phase::SOROBAN)]);
@@ -2000,7 +2000,7 @@ HerderImpl::maybeHandleUpgrade()
                       /* shouldUpdateLastModified */ true,
                       TransactionMode::READ_ONLY_WITHOUT_SQL_TXN);
         if (protocolVersionIsBefore(ltx.loadHeader().current().ledgerVersion,
-                                    ProtocolVersion::V_20))
+                                    SOROBAN_PROTOCOL_VERSION))
         {
             // no-op on any earlier protocol
             return;

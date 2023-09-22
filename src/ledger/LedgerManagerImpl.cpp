@@ -877,7 +877,7 @@ LedgerManagerImpl::closeLedger(LedgerCloseData const& ledgerData)
     // it's simpler/safer to just refresh it for any upgrade (sometimes as a
     // no-op).
     if (protocolVersionStartsFrom(ltx.loadHeader().current().ledgerVersion,
-                                  ProtocolVersion::V_20))
+                                  SOROBAN_PROTOCOL_VERSION))
     {
         updateNetworkConfig(ltx);
     }
@@ -1558,7 +1558,7 @@ LedgerManagerImpl::ledgerClosed(
     transferLedgerEntriesToBucketList(ltx, ledgerCloseMeta, ledgerSeq,
                                       currLedgerVers, initialLedgerVers);
     if (ledgerCloseMeta &&
-        protocolVersionStartsFrom(initialLedgerVers, ProtocolVersion::V_20))
+        protocolVersionStartsFrom(initialLedgerVers, SOROBAN_PROTOCOL_VERSION))
     {
         auto blSize = getSorobanNetworkConfig(ltx).getAverageBucketListSize();
         ledgerCloseMeta->setTotalByteSizeOfBucketList(blSize);

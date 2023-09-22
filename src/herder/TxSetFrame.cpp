@@ -203,10 +203,10 @@ computeNonGenericTxSetContentsHash(TransactionSet const& xdrTxSet)
 int64_t
 computePerOpFee(TransactionFrameBase const& tx, uint32_t ledgerVersion)
 {
-    auto rounding = protocolVersionStartsFrom(
-                        ledgerVersion, GENERALIZED_TX_SET_PROTOCOL_VERSION)
-                        ? Rounding::ROUND_DOWN
-                        : Rounding::ROUND_UP;
+    auto rounding =
+        protocolVersionStartsFrom(ledgerVersion, SOROBAN_PROTOCOL_VERSION)
+            ? Rounding::ROUND_DOWN
+            : Rounding::ROUND_UP;
     auto txOps = tx.getNumOperations();
     return bigDivideOrThrow(tx.getInclusionFee(), 1,
                             static_cast<int64_t>(txOps), rounding);
@@ -250,7 +250,7 @@ TxSetFrame::makeFromTransactions(Transactions txs, Application& app,
     phases.emplace_back(txs);
     auto lclHeader = app.getLedgerManager().getLastClosedLedgerHeader();
     if (protocolVersionStartsFrom(lclHeader.header.ledgerVersion,
-                                  GENERALIZED_TX_SET_PROTOCOL_VERSION))
+                                  SOROBAN_PROTOCOL_VERSION))
     {
         // Empty soroban phase
         phases.emplace_back();
@@ -268,7 +268,7 @@ TxSetFrame::makeFromTransactions(Transactions txs, Application& app,
 TxSetFrame::TxSetFrame(LedgerHeaderHistoryEntry const& lclHeader,
                        TxPhases const& txs)
     : TxSetFrame(protocolVersionStartsFrom(lclHeader.header.ledgerVersion,
-                                           GENERALIZED_TX_SET_PROTOCOL_VERSION),
+                                           SOROBAN_PROTOCOL_VERSION),
                  lclHeader.hash, txs)
 {
 }
@@ -375,7 +375,7 @@ TxSetFrame::makeEmpty(LedgerHeaderHistoryEntry const& lclHeader)
     // simple and exception-safe.
     TxPhases phases;
     phases.resize(protocolVersionStartsFrom(lclHeader.header.ledgerVersion,
-                                            GENERALIZED_TX_SET_PROTOCOL_VERSION)
+                                            SOROBAN_PROTOCOL_VERSION)
                       ? static_cast<size_t>(Phase::PHASE_COUNT)
                       : 1);
     std::shared_ptr<TxSetFrame> txSet(new TxSetFrame(lclHeader, phases));
@@ -578,7 +578,7 @@ TxSetFrame::checkValid(Application& app, uint64_t lowerBoundCloseTimeOffset,
     }
 
     bool needGeneralizedTxSet = protocolVersionStartsFrom(
-        lcl.header.ledgerVersion, GENERALIZED_TX_SET_PROTOCOL_VERSION);
+        lcl.header.ledgerVersion, SOROBAN_PROTOCOL_VERSION);
     if (needGeneralizedTxSet != isGeneralizedTxSet())
     {
         CLOG_DEBUG(Herder,
