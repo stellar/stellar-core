@@ -328,6 +328,9 @@ initialCpuCostParamsEntry()
         case Int256Shift:
             params[val] = ContractCostParamEntry{ExtensionPoint{0}, 412, 0};
             break;
+        case ChaCha20DrawBytes:
+            params[val] = ContractCostParamEntry{ExtensionPoint{0}, 4907, 2461};
+            break;
         }
     }
 
@@ -487,6 +490,9 @@ initialMemCostParamsEntry()
             break;
         case Int256Shift:
             params[val] = ContractCostParamEntry{ExtensionPoint{0}, 119, 0};
+            break;
+        case ChaCha20DrawBytes:
+            params[val] = ContractCostParamEntry{ExtensionPoint{0}, 0, 0};
             break;
         }
     }
