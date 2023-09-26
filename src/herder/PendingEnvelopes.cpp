@@ -383,9 +383,12 @@ PendingEnvelopes::recvSCPEnvelope(SCPEnvelope const& envelope)
                     envelopeReady(envelope);
                 }
             }
-            // else just keep waiting for it to come in
-            // and refresh fetchers as needed
-            startFetch(envelope);
+            else
+            {
+                // else just keep waiting for it to come in
+                // and refresh fetchers as needed
+                startFetch(envelope);
+            }
         }
 
         return Herder::ENVELOPE_STATUS_FETCHING;
