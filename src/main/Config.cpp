@@ -169,7 +169,6 @@ Config::Config() : NODE_SEED(SecretKey::random())
     USE_CONFIG_FOR_GENESIS = false;
     FAILURE_SAFETY = -1;
     UNSAFE_QUORUM = false;
-    LIMIT_TX_QUEUE_SOURCE_ACCOUNT = true;
     DISABLE_BUCKET_GC = false;
     DISABLE_XDR_FSYNC = false;
     MAX_SLOTS_TO_REMEMBER = 12;
@@ -1022,15 +1021,6 @@ Config::processConfig(std::shared_ptr<cpptoml::table> t)
             else if (item.first == "UNSAFE_QUORUM")
             {
                 UNSAFE_QUORUM = readBool(item);
-            }
-            else if (item.first == "LIMIT_TX_QUEUE_SOURCE_ACCOUNT")
-            {
-                LOG_WARNING(
-                    DEFAULT_LOG,
-                    "LIMIT_TX_QUEUE_SOURCE_ACCOUNT is deprecated: the limit is "
-                    "now always enforced and setting it to false will have no "
-                    "effect. Please remove this setting from the config file.");
-                LIMIT_TX_QUEUE_SOURCE_ACCOUNT = true;
             }
             else if (item.first == "DISABLE_XDR_FSYNC")
             {
