@@ -79,6 +79,57 @@ namespace stellar
 {
 
 void
+normalizeMeta(LedgerCloseMeta& m)
+{
+    switch (m.v())
+    {
+    case 0:
+        for (auto& trm : m.v0().txProcessing)
+        {
+            normalizeMeta(trm);
+        }
+        for (auto& up : m.v0().upgradesProcessing)
+        {
+            sortChanges(up.changes);
+        }
+        break;
+    case 1:
+        for (auto& trm : m.v1().txProcessing)
+        {
+            normalizeMeta(trm);
+        }
+        for (auto& up : m.v1().upgradesProcessing)
+        {
+            sortChanges(up.changes);
+        }
+        break;
+    case 2:
+        for (auto& trm : m.v2().txProcessing)
+        {
+            normalizeMeta(trm);
+        }
+        for (auto& up : m.v2().upgradesProcessing)
+        {
+            sortChanges(up.changes);
+        }
+        std::sort(m.v2().evictedPersistentLedgerEntries.begin(),
+                  m.v2().evictedPersistentLedgerEntries.end());
+        std::sort(m.v2().evictedTemporaryLedgerKeys.begin(),
+                  m.v2().evictedTemporaryLedgerKeys.end());
+        break;
+    default:
+        releaseAssert(false);
+    }
+}
+
+void
+normalizeMeta(TransactionResultMeta& m)
+{
+    sortChanges(m.feeProcessing);
+    normalizeMeta(m.txApplyProcessing);
+}
+
+void
 normalizeMeta(TransactionMeta& m)
 {
     switch (m.v())

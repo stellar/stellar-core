@@ -4,8 +4,10 @@
 
 #include "ledger/LedgerCloseMetaFrame.h"
 #include "crypto/SHA.h"
+#include "ledger/InMemoryLedgerTxn.h"
 #include "transactions/TransactionMetaFrame.h"
 #include "util/GlobalChecks.h"
+#include "util/MetaUtils.h"
 #include "util/ProtocolVersion.h"
 
 namespace stellar
@@ -38,6 +40,12 @@ LedgerCloseMetaFrame::ledgerHeader()
     default:
         releaseAssert(false);
     }
+}
+
+void
+LedgerCloseMetaFrame::normalize()
+{
+    stellar::normalizeMeta(mLedgerCloseMeta);
 }
 
 void

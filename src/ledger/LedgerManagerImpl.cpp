@@ -899,6 +899,7 @@ LedgerManagerImpl::closeLedger(LedgerCloseData const& ledgerData)
         // member variable: if we throw while committing below, we will at worst
         // emit duplicate meta, when retrying.
         mNextMetaToEmit = std::move(ledgerCloseMeta);
+        mNextMetaToEmit->normalize();
 
         // If the LedgerCloseData provided an expected hash, then we validated
         // it above.

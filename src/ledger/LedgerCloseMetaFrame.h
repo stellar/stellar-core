@@ -18,6 +18,7 @@ class LedgerCloseMetaFrame
     LedgerCloseMetaFrame(uint32_t protocolVersion);
 
     LedgerHeaderHistoryEntry& ledgerHeader();
+    void normalize();
     void reserveTxProcessing(size_t n);
     void pushTxProcessingEntry();
     void
