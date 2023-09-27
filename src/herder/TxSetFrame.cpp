@@ -275,6 +275,11 @@ TxSetFrame::TxSetFrame(LedgerHeaderHistoryEntry const& lclHeader,
                                                SOROBAN_PROTOCOL_VERSION),
                  lclHeader.hash, txs)
 {
+// For now, forceIsNotGeneralized is only used for testing. It's quite hacky so
+// we should probably do some refactoring.
+#ifndef BUILD_TESTS
+    releaseAssert(!forceIsNotGeneralized)
+#endif 
 }
 
 TxSetFrameConstPtr
