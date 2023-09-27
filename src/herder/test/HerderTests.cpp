@@ -4346,6 +4346,7 @@ externalize(SecretKey const& sk, LedgerManager& lm, HerderImpl& herder,
     txsPhases.emplace_back(sorobanTxs);
 
     auto txSet = TxSetFrame::makeFromTransactions(txsPhases, app, 0, 0);
+
     herder.getPendingEnvelopes().putTxSet(txSet->getContentsHash(), ledgerSeq,
                                           txSet);
 
@@ -5360,6 +5361,7 @@ TEST_CASE("delay sending DONT_HAVE", "[herder]")
         cfg.SEND_DONT_HAVE_DELAY = std::chrono::milliseconds{300};
         // Setting validators
         cfg.QUORUM_SET.validators.emplace_back(s.getPublicKey());
+        // cfg.LEDGER_PROTOCOL_VERSION
         apps.push_back(createTestApplication(clock, cfg));
     }
 
@@ -5432,13 +5434,14 @@ TEST_CASE("delay sending DONT_HAVE", "[herder]")
         TransactionFrameBase::makeTransactionFromWire(apps[0]->getNetworkID(),
                                                       tx->transaction()),
     };
-    auto txnSetFrame = TxSetFrame::makeFromTransactions(txs, *apps[0], 0, 0);
+    auto txnSetFrame =
+        TxSetFrame::makeFromTransactions(txs, *apps[0], 0, 0, true);
 
     // Sending get tx set message.
-    auto getTxSet = createGetTxSetMessage(txnSetFrame->getContentsHash());
-    connection->getAcceptor()->sendMessage(getTxSet, false);
     auto slotIndex = apps[0]->getHerder().trackingConsensusLedgerIndex();
     auto txSetHash = txnSetFrame->getContentsHash();
+    auto getTxSet = createGetTxSetMessage(txSetHash);
+    connection->getAcceptor()->sendMessage(getTxSet, false);
 
     REQUIRE(!apps[0]->getHerder().getTxSet(txSetHash));
     REQUIRE(!apps[1]->getHerder().getTxSet(txSetHash));
@@ -5522,7 +5525,7 @@ TEST_CASE("delay sending DONT_HAVE", "[herder]")
 
         // Pending getTxSet requests are empty since node already has the tx
         // set.
-        testutil::crankFor(clock, std::chrono::milliseconds{300});
+        testutil::crankFor(clock, std::chrono::milliseconds{1});
         REQUIRE(numPendingRequests(txSetHash) == 0);
 
         testutil::crankFor(clock, std::chrono::seconds{1});

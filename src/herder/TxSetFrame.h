@@ -49,12 +49,12 @@ class TxSetFrame : public NonMovableOrCopyable
     static TxSetFrameConstPtr
     makeFromTransactions(TxPhases const& txPhases, Application& app,
                          uint64_t lowerBoundCloseTimeOffset,
-                         uint64_t upperBoundCloseTimeOffset);
-    static TxSetFrameConstPtr
-    makeFromTransactions(TxPhases const& txPhases, Application& app,
-                         uint64_t lowerBoundCloseTimeOffset,
                          uint64_t upperBoundCloseTimeOffset,
-                         TxPhases& invalidTxsPerPhase);
+                         bool forceIsNotGeneralized = false);
+    static TxSetFrameConstPtr makeFromTransactions(
+        TxPhases const& txPhases, Application& app,
+        uint64_t lowerBoundCloseTimeOffset, uint64_t upperBoundCloseTimeOffset,
+        TxPhases& invalidTxsPerPhase, bool forceIsNotGeneralized = false);
 
     // Creates a legacy (non-generalized) TxSetFrame from the transactions that
     // are trusted to be valid. Validation and filtering are not performed.
@@ -159,17 +159,19 @@ class TxSetFrame : public NonMovableOrCopyable
     // Test helper that only checks the XDR structure validitiy without
     // validating internal transactions.
     virtual bool checkValidStructure() const;
-    static TxSetFrameConstPtr
-    makeFromTransactions(Transactions txs, Application& app,
-                         uint64_t lowerBoundCloseTimeOffset,
-                         uint64_t upperBoundCloseTimeOffset);
+    void computeContentsHashForTesting();
     static TxSetFrameConstPtr makeFromTransactions(
         Transactions txs, Application& app, uint64_t lowerBoundCloseTimeOffset,
-        uint64_t upperBoundCloseTimeOffset, Transactions& invalidTxs);
+        uint64_t upperBoundCloseTimeOffset, bool forceIsNotGeneralized = false);
+    static TxSetFrameConstPtr makeFromTransactions(
+        Transactions txs, Application& app, uint64_t lowerBoundCloseTimeOffset,
+        uint64_t upperBoundCloseTimeOffset, Transactions& invalidTxs,
+        bool forceIsNotGeneralized = false);
 #endif
 
   protected:
-    TxSetFrame(LedgerHeaderHistoryEntry const& lclHeader, TxPhases const& txs);
+    TxSetFrame(LedgerHeaderHistoryEntry const& lclHeader, TxPhases const& txs,
+               bool forceIsNotGeneralized = false);
     TxSetFrame(bool isGeneralized, Hash const& previousLedgerHash,
                TxPhases const& txs);
 
