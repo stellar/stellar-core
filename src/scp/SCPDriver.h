@@ -178,10 +178,6 @@ class SCPDriver
     // `computeTimeout` computes a timeout given a round number
     // it should be sufficiently large such that nodes in a
     // quorum can exchange 4 messages
-
-    // TODO: does 'can exchange 4 messages' consider sending getTxSet messages?
-    // Should we clarify this?
-
     virtual std::chrono::milliseconds computeTimeout(uint32 roundNumber);
 
     // Inform about events happening within the consensus algorithm.

@@ -60,9 +60,9 @@ class OverlayManager
         uint32_t mBatchSize;
     };
 
-    using MapPendingGetTxSetRequestsPerSlot =
-        UnorderedMap<Hash, std::set<std::weak_ptr<Peer>,
-                                    std::owner_less<std::weak_ptr<Peer>>>>;
+    using MapPendingGetTxSetRequestsPerSlot = std::unordered_map<
+        Hash, std::unordered_set<std::weak_ptr<Peer>,
+                                 std::owner_less<std::weak_ptr<Peer>>>>;
 
     static int constexpr MIN_INBOUND_FACTOR = 3;
 

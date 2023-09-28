@@ -1091,11 +1091,6 @@ Peer::sendTxSet(TxSetFrameConstPtr txSet)
             // The peer wouldn't be able to accept the generalized tx set,
             // but it wouldn't be correct to say we don't have it. So we
             // just let the request to timeout.
-            CLOG_INFO(
-                Overlay,
-                "Peer {} has remote overlay version < first version "
-                "supporting generalized tx set ({}). Return from sendTxSet.",
-                toString(), Peer::FIRST_VERSION_SUPPORTING_GENERALIZED_TX_SET);
             return;
         }
         newMsg.type(GENERALIZED_TX_SET);
@@ -1108,9 +1103,6 @@ Peer::sendTxSet(TxSetFrameConstPtr txSet)
     }
 
     auto newMsgPtr = std::make_shared<StellarMessage const>(newMsg);
-    CLOG_INFO(Overlay,
-              "Peer::recvGetTxSet {} found the tx set for {}, sending it",
-              toString(), hexAbbrev(txSet->getContentsHash()));
     sendMessage(newMsgPtr);
 }
 
@@ -1280,11 +1272,15 @@ Peer::recvTxSet(StellarMessage const& msg)
         for (auto weakPeer :
              pendingTxSetRequestsForSlot[frame->getContentsHash()])
         {
-            auto peer = weakPeer.lock();
-            if (peer)
-            {
-                peer->sendTxSet(frame);
-            }
+            mApp.postOnBackgroundThread(
+                [weakPeer, frame]() {
+                    auto peer = weakPeer.lock();
+                    if (peer)
+                    {
+                        peer->sendTxSet(frame);
+                    }
+                },
+                "Sending tx set to peer");
         }
         pendingTxSetRequestsForSlot.erase(frame->getContentsHash());
     }

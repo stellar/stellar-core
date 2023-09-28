@@ -315,7 +315,8 @@ HerderSCPDriver::validateValueHelper(uint64_t slotIndex, StellarValue const& b,
     {
         CLOG_TRACE(Herder, "validateValue i:{} unknown txSet {}", slotIndex,
                    hexAbbrev(txSetHash));
-        res = SCPDriver::kVoteToNominate;
+        res =
+            nomination ? SCPDriver::kVoteToNominate : SCPDriver::kInvalidValue;
     }
     else if (!checkAndCacheTxSetValid(txSet, closeTimeOffset))
     {
