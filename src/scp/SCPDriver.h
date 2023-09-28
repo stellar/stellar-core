@@ -115,10 +115,10 @@ class SCPDriver
     // NB: validation levels are ordered
     enum ValidationLevel
     {
-        kInvalidValue = 0,       // value is invalid for sure
-        kVoteToNominate = 1,     // value is valid enough to vote to nominate
-        kMaybeValidValue = 2,    // value may be valid
-        kFullyValidatedValue = 3 // value is valid for sure
+        kInvalidValue = 0,        // value is invalid for sure
+        kMaybeValidValue = 1,     // value may be valid
+        kFullyValidatedValue = 2, // value is valid for sure
+        kVoteToNominate = 3       // value is valid enough to vote to nominate
     };
     virtual ValidationLevel
     validateValue(uint64 slotIndex, Value const& value, bool nomination)
@@ -178,6 +178,10 @@ class SCPDriver
     // `computeTimeout` computes a timeout given a round number
     // it should be sufficiently large such that nodes in a
     // quorum can exchange 4 messages
+
+    // TODO: does 'can exchange 4 messages' consider sending getTxSet messages?
+    // Should we clarify this?
+
     virtual std::chrono::milliseconds computeTimeout(uint32 roundNumber);
 
     // Inform about events happening within the consensus algorithm.
