@@ -3567,15 +3567,14 @@ TEST_CASE("soroban txs accepted by the network",
     simulation->startAllNodes();
     auto nodes = simulation->getNodes();
     uint32_t desiredTxRate = 1;
+    uint32_t ledgerWideLimit =
+        desiredTxRate * Herder::EXP_LEDGER_TIMESPAN_SECONDS.count() * 2;
     uint32_t numAccounts = 100;
     for (auto& node : nodes)
     {
         overrideSorobanNetworkConfigForTest(*node);
-        modifySorobanNetworkConfig(*node, [desiredTxRate](
-                                              SorobanNetworkConfig& cfg) {
-            cfg.mLedgerMaxTxCount =
-                2 * desiredTxRate * Herder::EXP_LEDGER_TIMESPAN_SECONDS.count();
-            ;
+        modifySorobanNetworkConfig(*node, [&](SorobanNetworkConfig& cfg) {
+            cfg.mLedgerMaxTxCount = ledgerWideLimit;
         });
     }
     auto& loadGen = nodes[0]->getLoadGenerator();
@@ -3604,6 +3603,61 @@ TEST_CASE("soroban txs accepted by the network",
         auto& loadGenFailed = nodes[0]->getMetrics().NewMeter(
             {"loadgen", "run", "failed"}, "run");
         REQUIRE(loadGenFailed.count() == 0);
+
+        SECTION("upgrade max soroban tx set size")
+        {
+            // Ensure more transactions get in the ledger post upgrade
+            ConfigUpgradeSetFrameConstPtr res;
+            Upgrades::UpgradeParameters scheduledUpgrades;
+            auto lclCloseTime =
+                VirtualClock::from_time_t(nodes[0]
+                                              ->getLedgerManager()
+                                              .getLastClosedLedgerHeader()
+                                              .header.scpValue.closeTime);
+            scheduledUpgrades.mUpgradeTime = lclCloseTime;
+            scheduledUpgrades.mMaxSorobanTxSetSize = ledgerWideLimit * 10;
+            for (auto const& app : nodes)
+            {
+                app->getHerder().setUpgrades(scheduledUpgrades);
+            }
+
+            // Ensure upgrades went through
+            simulation->crankForAtLeast(std::chrono::seconds(20), false);
+            {
+                LedgerTxn ltx(nodes[0]->getLedgerTxnRoot());
+                REQUIRE(nodes[0]
+                            ->getLedgerManager()
+                            .getSorobanNetworkConfig(ltx)
+                            .ledgerMaxTxCount() == ledgerWideLimit * 10);
+            }
+
+            currLoadGenCount = loadGenDone.count();
+            // Now generate soroban txs.
+            auto loadCfg = GeneratedLoadConfig::txLoad(
+                LoadGenMode::SOROBAN, numAccounts,
+                /* nTxs */ 100, desiredTxRate * 5, /*offset*/ 0);
+            loadCfg.skipLowFeeTxs = true;
+            loadGen.generateLoad(loadCfg);
+
+            bool upgradeApplied = false;
+            simulation->crankUntil(
+                [&]() {
+                    auto txSetSize =
+                        nodes[0]
+                            ->getHerder()
+                            .getTxSet(nodes[0]
+                                          ->getLedgerManager()
+                                          .getLastClosedLedgerHeader()
+                                          .header.scpValue.txSetHash)
+                            ->sizeOpTotal();
+                    upgradeApplied =
+                        upgradeApplied || txSetSize > ledgerWideLimit;
+                    return loadGenDone.count() > currLoadGenCount;
+                },
+                10 * Herder::EXP_LEDGER_TIMESPAN_SECONDS, false);
+            REQUIRE(loadGenFailed.count() == 0);
+            REQUIRE(upgradeApplied);
+        }
     }
     SECTION("soroban and classic")
     {

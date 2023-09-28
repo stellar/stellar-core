@@ -427,6 +427,7 @@ Upgrades::toString() const
     appendInfo("basefee", mParams.mBaseFee);
     appendInfo("basereserve", mParams.mBaseReserve);
     appendInfo("maxtxsetsize", mParams.mMaxTxSetSize);
+    appendInfo("maxsorobantxsetsize", mParams.mMaxSorobanTxSetSize);
     appendInfo("flags", mParams.mFlags);
     if (mParams.mConfigUpgradeSetKey)
     {

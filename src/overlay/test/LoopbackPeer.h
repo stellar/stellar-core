@@ -57,6 +57,7 @@ class LoopbackPeer : public Peer
     AuthCert getAuthCert() override;
 
     void processInQueue();
+    void recvMessage(xdr::msg_ptr const& xdrBytes);
 
     std::string mDropReason;
 

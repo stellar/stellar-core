@@ -230,7 +230,6 @@ class Peer : public std::enable_shared_from_this<Peer>,
     void recvRawMessage(StellarMessage const& msg);
     void recvMessage(StellarMessage const& msg);
     void recvMessage(AuthenticatedMessage const& msg);
-    void recvMessage(xdr::msg_ptr const& xdrBytes);
 
     virtual void recvError(StellarMessage const& msg);
     void updatePeerRecordAfterEcho();

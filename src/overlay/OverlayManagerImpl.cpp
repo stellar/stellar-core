@@ -1444,6 +1444,9 @@ OverlayManagerImpl::demand()
     UnorderedMap<Peer::pointer, std::pair<TxDemandVector, std::list<Hash>>>
         demandMap;
     bool anyNewDemand = false;
+    // Pre-compute max demand size, as this function can get fairly expensive in
+    // called hundreds of times in the loop below
+    auto maxDemandSize = getMaxDemandSize();
     do
     {
         anyNewDemand = false;
@@ -1453,7 +1456,7 @@ OverlayManagerImpl::demand()
             auto& demand = demPair.first;
             auto& retry = demPair.second;
             bool addedNewDemand = false;
-            while (demand.size() < getMaxDemandSize() &&
+            while (demand.size() < maxDemandSize &&
                    peer->getTxAdvertQueue().size() > 0 && !addedNewDemand)
             {
                 auto hashPair = peer->getTxAdvertQueue().pop();
