@@ -985,6 +985,20 @@ OverlayManagerImpl::getAuthenticatedPeers() const
     return result;
 }
 
+Peer::pointer
+OverlayManagerImpl::getAuthenticatedPeer(NodeID id) const
+{
+    auto const& peers = getAuthenticatedPeers();
+    if (auto it = peers.find(id); it != peers.end())
+    {
+        return it->second;
+    }
+    else
+    {
+        return nullptr;
+    }
+}
+
 std::shared_ptr<int>
 OverlayManagerImpl::getLiveInboundPeersCounter() const
 {

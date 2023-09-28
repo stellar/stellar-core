@@ -164,6 +164,7 @@ class OverlayManagerImpl : public OverlayManager
     std::map<NodeID, Peer::pointer> const&
     getOutboundAuthenticatedPeers() const override;
     std::map<NodeID, Peer::pointer> getAuthenticatedPeers() const override;
+    virtual Peer::pointer getAuthenticatedPeer(NodeID id) const override;
     int getAuthenticatedPeersCount() const override;
 
     // returns nullptr if the passed peer isn't found

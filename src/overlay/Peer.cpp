@@ -1165,12 +1165,6 @@ Peer::recvGetTxSet(StellarMessage const& msg, bool wait)
                 // The peer wouldn't be able to accept the generalized tx set,
                 // but it wouldn't be correct to say we don't have it. So we
                 // just let the request to timeout.
-                CLOG_INFO(Overlay,
-                          "Peer {} remote overlay version < first version "
-                          "supporting generalized transaction set {}. Return "
-                          "from recvGetTxSet",
-                          toString(),
-                          Peer::FIRST_VERSION_SUPPORTING_GENERALIZED_TX_SET);
                 return;
             }
             newMsg.type(GENERALIZED_TX_SET);
@@ -1223,9 +1217,8 @@ Peer::recvGetTxSet(StellarMessage const& msg, bool wait)
 
         // We do not have the tx set, so make a pending tx set request and
         // respond back to the node once we have it.
-        std::weak_ptr<Peer> peer = shared_from_this();
         auto& waitingPeers = pendingTxSetRequestsForSlot[msg.txSetHash()];
-        waitingPeers.insert(peer);
+        waitingPeers.insert(mPeerID);
 
         CLOG_INFO(Overlay, "Peer::recvGetTxSet {} sending DONT_HAVE for {}",
                   toString(), hexAbbrev(msg.txSetHash()));
@@ -1269,12 +1262,13 @@ Peer::recvTxSet(StellarMessage const& msg)
     for (auto& reqPair : pendingTxSetRequests)
     {
         auto& pendingTxSetRequestsForSlot = reqPair.second;
-        for (auto weakPeer :
+        for (auto nodeID :
              pendingTxSetRequestsForSlot[frame->getContentsHash()])
         {
-            mApp.postOnBackgroundThread(
-                [weakPeer, frame]() {
-                    auto peer = weakPeer.lock();
+            mApp.postOnMainThread(
+                [nodeID, frame, this]() {
+                    auto peer =
+                        mApp.getOverlayManager().getAuthenticatedPeer(nodeID);
                     if (peer)
                     {
                         peer->sendTxSet(frame);
