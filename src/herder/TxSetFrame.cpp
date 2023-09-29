@@ -233,21 +233,18 @@ TxSetFrame::checkValidStructure() const
 TxSetFrameConstPtr
 TxSetFrame::makeFromTransactions(TxSetFrame::Transactions txs, Application& app,
                                  uint64_t lowerBoundCloseTimeOffset,
-                                 uint64_t upperBoundCloseTimeOffset,
-                                 bool forceIsNotGeneralized)
+                                 uint64_t upperBoundCloseTimeOffset)
 {
     Transactions invalid;
     return TxSetFrame::makeFromTransactions(txs, app, lowerBoundCloseTimeOffset,
-                                            upperBoundCloseTimeOffset, invalid,
-                                            forceIsNotGeneralized);
+                                            upperBoundCloseTimeOffset, invalid);
 }
 
 TxSetFrameConstPtr
 TxSetFrame::makeFromTransactions(Transactions txs, Application& app,
                                  uint64_t lowerBoundCloseTimeOffset,
                                  uint64_t upperBoundCloseTimeOffset,
-                                 Transactions& invalidTxs,
-                                 bool forceIsNotGeneralized)
+                                 Transactions& invalidTxs)
 {
     TxSetFrame::TxPhases phases;
     phases.emplace_back(txs);
@@ -260,47 +257,38 @@ TxSetFrame::makeFromTransactions(Transactions txs, Application& app,
     }
     TxSetFrame::TxPhases invalid;
     invalid.resize(phases.size());
-    auto res = TxSetFrame::makeFromTransactions(
-        phases, app, lowerBoundCloseTimeOffset, upperBoundCloseTimeOffset,
-        invalid, forceIsNotGeneralized);
+    auto res =
+        TxSetFrame::makeFromTransactions(phases, app, lowerBoundCloseTimeOffset,
+                                         upperBoundCloseTimeOffset, invalid);
     invalidTxs = invalid[0];
     return res;
 }
 #endif
 
 TxSetFrame::TxSetFrame(LedgerHeaderHistoryEntry const& lclHeader,
-                       TxPhases const& txs, bool forceIsNotGeneralized)
-    : TxSetFrame(!forceIsNotGeneralized &&
-                     protocolVersionStartsFrom(lclHeader.header.ledgerVersion,
-                                               SOROBAN_PROTOCOL_VERSION),
+                       TxPhases const& txs)
+    : TxSetFrame(protocolVersionStartsFrom(lclHeader.header.ledgerVersion,
+                                           SOROBAN_PROTOCOL_VERSION),
                  lclHeader.hash, txs)
 {
-// For now, forceIsNotGeneralized is only used for testing. It's quite hacky so
-// we should probably do some refactoring.
-#ifndef BUILD_TESTS
-    releaseAssert(!forceIsNotGeneralized)
-#endif 
 }
 
 TxSetFrameConstPtr
 TxSetFrame::makeFromTransactions(TxPhases const& txPhases, Application& app,
                                  uint64_t lowerBoundCloseTimeOffset,
-                                 uint64_t upperBoundCloseTimeOffset,
-                                 bool forceIsNotGeneralized)
+                                 uint64_t upperBoundCloseTimeOffset)
 {
     TxPhases invalidTxs;
     invalidTxs.resize(txPhases.size());
     return makeFromTransactions(txPhases, app, lowerBoundCloseTimeOffset,
-                                upperBoundCloseTimeOffset, invalidTxs,
-                                forceIsNotGeneralized);
+                                upperBoundCloseTimeOffset, invalidTxs);
 }
 
 TxSetFrameConstPtr
 TxSetFrame::makeFromTransactions(TxPhases const& txPhases, Application& app,
                                  uint64_t lowerBoundCloseTimeOffset,
                                  uint64_t upperBoundCloseTimeOffset,
-                                 TxPhases& invalidTxs,
-                                 bool forceIsNotGeneralized)
+                                 TxPhases& invalidTxs)
 {
     releaseAssert(txPhases.size() == invalidTxs.size());
     releaseAssert(txPhases.size() <=
@@ -330,7 +318,7 @@ TxSetFrame::makeFromTransactions(TxPhases const& txPhases, Application& app,
     // This may cause leaks in case of exceptions, so keep the constructors
     // simple and exception-safe.
     std::shared_ptr<TxSetFrame> txSet(
-        new TxSetFrame(lclHeader, validatedPhases, forceIsNotGeneralized));
+        new TxSetFrame(lclHeader, validatedPhases));
     txSet->applySurgePricing(app);
 
     // Do the roundtrip through XDR to ensure we never build an incorrect tx set
@@ -361,7 +349,7 @@ TxSetFrame::makeFromTransactions(TxPhases const& txPhases, Application& app,
     }
     valid = valid && outputTxSet->checkValid(app, lowerBoundCloseTimeOffset,
                                              upperBoundCloseTimeOffset);
-    if (!valid && !forceIsNotGeneralized)
+    if (!valid)
     {
         throw std::runtime_error("Created invalid tx set frame");
     }
@@ -1048,9 +1036,7 @@ TxSetFrame::toXDR(TransactionSet& txSet) const
 {
     ZoneScoped;
     releaseAssert(!isGeneralizedTxSet());
-#ifndef BUILD_TESTS
     releaseAssert(mTxPhases.size() == 1);
-#endif
     auto& txs = mTxPhases[0];
     txSet.txs.resize(xdr::size32(txs.size()));
     auto sortedTxs = TxSetUtils::sortTxsInHashOrder(txs);

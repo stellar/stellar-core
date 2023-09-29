@@ -28,6 +28,7 @@ static const uint32_t MAX_CLASSIC_TX_SIZE_BYTES = 100 * 1024;
 
 class Application;
 class TxSetFrame;
+using TxSetFrameConstPtr = std::shared_ptr<TxSetFrame const>;
 class LoopbackPeer;
 struct OverlayMetrics;
 class FlowControl;
@@ -251,6 +252,8 @@ class Peer : public std::enable_shared_from_this<Peer>,
     void recvGetTxSet(StellarMessage const& msg, bool wait = true);
     void recvTxSet(StellarMessage const& msg);
     void recvGeneralizedTxSet(StellarMessage const& msg);
+    void recvTxSetHelper(StellarMessage const& msg,
+                         TxSetFrameConstPtr txSetFrame);
     void recvTransaction(StellarMessage const& msg);
     void recvGetSCPQuorumSet(StellarMessage const& msg);
     void recvSCPQuorumSet(StellarMessage const& msg);

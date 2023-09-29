@@ -1252,10 +1252,24 @@ Peer::recvGetTxSet(StellarMessage const& msg, bool wait)
 void
 Peer::recvTxSet(StellarMessage const& msg)
 {
-    ZoneScoped;
-
     auto frame = TxSetFrame::makeFromWire(mApp, msg.txSet());
-    mApp.getHerder().recvTxSet(frame->getContentsHash(), frame);
+    recvTxSetHelper(msg, frame);
+}
+
+void
+Peer::recvGeneralizedTxSet(StellarMessage const& msg)
+{
+    auto frame = TxSetFrame::makeFromWire(mApp, msg.generalizedTxSet());
+    recvTxSetHelper(msg, frame);
+}
+
+// Helper method for receive a frame that contains either a tx set (legacy) or a
+// generalized tx set.
+void
+Peer::recvTxSetHelper(StellarMessage const& msg, TxSetFrameConstPtr txSetFrame)
+{
+    ZoneScoped;
+    mApp.getHerder().recvTxSet(txSetFrame->getContentsHash(), txSetFrame);
     auto& pendingTxSetRequests =
         mApp.getOverlayManager().getPendingGetTxSetRequests();
 
@@ -1263,29 +1277,21 @@ Peer::recvTxSet(StellarMessage const& msg)
     {
         auto& pendingTxSetRequestsForSlot = reqPair.second;
         for (auto nodeID :
-             pendingTxSetRequestsForSlot[frame->getContentsHash()])
+             pendingTxSetRequestsForSlot[txSetFrame->getContentsHash()])
         {
             mApp.postOnMainThread(
-                [nodeID, frame, this]() {
+                [nodeID, txSetFrame, this]() {
                     auto peer =
                         mApp.getOverlayManager().getAuthenticatedPeer(nodeID);
                     if (peer)
                     {
-                        peer->sendTxSet(frame);
+                        peer->sendTxSet(txSetFrame);
                     }
                 },
                 "Sending tx set to peer");
         }
-        pendingTxSetRequestsForSlot.erase(frame->getContentsHash());
+        pendingTxSetRequestsForSlot.erase(txSetFrame->getContentsHash());
     }
-}
-
-void
-Peer::recvGeneralizedTxSet(StellarMessage const& msg)
-{
-    ZoneScoped;
-    auto frame = TxSetFrame::makeFromWire(mApp, msg.generalizedTxSet());
-    mApp.getHerder().recvTxSet(frame->getContentsHash(), frame);
 }
 
 void
