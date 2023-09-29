@@ -2995,19 +2995,48 @@ TEST_CASE("overlay tx set fetching test", "[overlay][acceptance]")
     REQUIRE(node2->getLedgerManager().isSynced());
     REQUIRE(node3->getLedgerManager().isSynced());
 
-    auto& loadGen = node1->getLoadGenerator();
-    auto const numAccounts = 1;
-    loadGen.generateLoad(
+    auto& loadGen1 = node1->getLoadGenerator();
+    auto const numAccounts = 100;
+    loadGen1.generateLoad(
         GeneratedLoadConfig::createAccountsLoad(/* nAccounts */ numAccounts,
                                                 /* txRate */ 1));
-
-    auto& loadGenDone =
+    auto& loadGenDone1 =
         node1->getMetrics().NewMeter({"loadgen", "run", "complete"}, "run");
-    auto currLoadGenCount = loadGenDone.count();
+    auto currLoadGenCount1 = loadGenDone1.count();
 
     simulation->crankUntil(
-        [&]() { return loadGenDone.count() > currLoadGenCount; },
+        [&]() { return loadGenDone1.count() > currLoadGenCount1; },
         10 * Herder::EXP_LEDGER_TIMESPAN_SECONDS, false);
+
+    // Generating load
+    loadGen1.generateLoad(GeneratedLoadConfig::txLoad(
+        LoadGenMode::PAY, /* nAccounts */ numAccounts,
+        /* nTxs */ 50, /* txRate */ 1, /* offset */ 0));
+    auto& loadGen2 = node2->getLoadGenerator();
+    auto& loadGen3 = node3->getLoadGenerator();
+    loadGen2.generateLoad(GeneratedLoadConfig::txLoad(
+        LoadGenMode::PAY, /* nAccounts */ numAccounts,
+        /* nTxs */ 50, /* txRate */ 1, /* offset */ 1 * numAccounts));
+    loadGen3.generateLoad(GeneratedLoadConfig::txLoad(
+        LoadGenMode::PAY, /* nAccounts */ numAccounts,
+        /* nTxs */ 50, /* txRate */ 1, /* offset */ 2 * numAccounts));
+
+    auto& loadGenDone2 =
+        node2->getMetrics().NewMeter({"loadgen", "run", "complete"}, "run");
+    auto& loadGenDone3 =
+        node3->getMetrics().NewMeter({"loadgen", "run", "complete"}, "run");
+
+    currLoadGenCount1 = loadGenDone1.count();
+    auto currLoadGenCount2 = loadGenDone2.count();
+    auto currLoadGenCount3 = loadGenDone3.count();
+
+    simulation->crankUntil(
+        [&]() {
+            return loadGenDone1.count() > currLoadGenCount1 &&
+                   loadGenDone2.count() > currLoadGenCount2 &&
+                   loadGenDone3.count() > currLoadGenCount3;
+        },
+        500 * Herder::EXP_LEDGER_TIMESPAN_SECONDS, false);
 
     // Node 1 is its own quorum. So when Node 1 generates the load,
     // it immediately closes a ledger with it.
