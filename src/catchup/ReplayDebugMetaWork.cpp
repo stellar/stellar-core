@@ -234,7 +234,7 @@ ReplayDebugMetaWork::doWork()
     auto removeUnzipped = [isZipped, unzipped](Application& app) {
         if (isZipped)
         {
-            std::remove(unzipped.c_str());
+            std::filesystem::remove(unzipped);
         }
         return true;
     };
