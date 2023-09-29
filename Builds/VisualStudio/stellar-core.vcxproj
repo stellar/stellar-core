@@ -461,6 +461,7 @@ exit /b 0
     <ClCompile Include="..\..\src\catchup\CatchupWork.cpp" />
     <ClCompile Include="..\..\src\catchup\DownloadApplyTxsWork.cpp" />
     <ClCompile Include="..\..\src\catchup\IndexBucketsWork.cpp" />
+    <ClCompile Include="..\..\src\catchup\ReplayDebugMetaWork.cpp" />
     <ClCompile Include="..\..\src\catchup\simulation\HistoryArchiveStream.cpp" />
     <ClCompile Include="..\..\src\catchup\simulation\TxSimApplyTransactionsWork.cpp" />
     <ClCompile Include="..\..\src\catchup\test\CatchupWorkTests.cpp" />
@@ -711,6 +712,7 @@ exit /b 0
     <ClCompile Include="..\..\src\transactions\TransactionUtils.cpp" />
     <ClCompile Include="..\..\src\transactions\TrustFlagsOpFrameBase.cpp" />
     <ClCompile Include="..\..\src\util\Backtrace.cpp" />
+    <ClCompile Include="..\..\src\util\DebugMetaUtils.cpp" />
     <ClCompile Include="..\..\src\util\FileSystemException.cpp" />
     <ClCompile Include="..\..\src\util\ProtocolVersion.cpp" />
     <ClCompile Include="..\..\src\util\LogSlowExecution.cpp" />
@@ -911,6 +913,7 @@ exit /b 0
     <ClInclude Include="..\..\src\catchup\CatchupWork.h" />
     <ClInclude Include="..\..\src\catchup\DownloadApplyTxsWork.h" />
     <ClInclude Include="..\..\src\catchup\IndexBucketsWork.h" />
+    <ClInclude Include="..\..\src\catchup\ReplayDebugMetaWork.h" />
     <ClInclude Include="..\..\src\catchup\simulation\HistoryArchiveStream.h" />
     <ClInclude Include="..\..\src\catchup\simulation\TxSimApplyTransactionsWork.h" />
     <ClInclude Include="..\..\src\catchup\test\CatchupWorkTests.h" />
@@ -1096,6 +1099,7 @@ exit /b 0
     <ClInclude Include="..\..\src\transactions\TransactionUtils.h" />
     <ClInclude Include="..\..\src\transactions\TrustFlagsOpFrameBase.h" />
     <ClInclude Include="..\..\src\util\Backtrace.h" />
+    <ClInclude Include="..\..\src\util\DebugMetaUtils.h" />
     <ClInclude Include="..\..\src\util\Decoder.h" />
     <ClInclude Include="..\..\src\util\ProtocolVersion.h" />
     <ClInclude Include="..\..\src\util\numeric128.h" />

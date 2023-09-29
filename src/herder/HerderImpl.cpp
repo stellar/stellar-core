@@ -356,10 +356,10 @@ HerderImpl::writeDebugTxSet(LedgerCloseData const& lcd)
             // If we got here, then whatever previous tx set is saved has
             // already been applied, and debug meta has been emitted. Therefore,
             // it's safe to just remove it.
-            std::remove(path.c_str());
+            std::filesystem::remove(path);
             XDROutputFileStream stream(mApp.getClock().getIOContext(),
                                        /*fsyncOnClose=*/true);
-            stream.open(path);
+            stream.open(path.string());
             stream.writeOne(lcd.toXDR());
         }
         else

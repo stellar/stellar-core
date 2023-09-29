@@ -469,7 +469,7 @@ TEST_CASE("METADATA_DEBUG_LEDGERS works", "[metadebug]")
         StoredDebugTransactionSet sts;
         {
             XDRInputFileStream in;
-            in.open(txSetPath);
+            in.open(txSetPath.string());
             in.readOne(sts);
         }
         REQUIRE(sts.ledgerSeq == lm.getLastClosedLedgerNum());
