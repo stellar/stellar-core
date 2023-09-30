@@ -1106,28 +1106,29 @@ Peer::sendTxSet(TxSetFrameConstPtr txSet)
     sendMessage(newMsgPtr);
 }
 
-//                                        Retry
-//                          ┌─────────────after ─────────┐
-//                          │            timeout.        │
-//                          │                            │
-//                          │                   ┌────────────────┐
-//                          ▼                   │  Add peer to   │
-//                 ┏━━━━━━━━━━━━━━━━━┓          │pending getTxSet│
-//                 ┃                 ┃          │requests for tx │
-//                 ┃                 ┃          │   set hash.    │
-//      ┌──────────┃Txn set fetching ┃          └────────────────┘
-//      │          ┃                 ┃                   ▲
-//      │          ┃                 ┃                   │
-//      │          ┗━━━━━━━━━━━━━━━━━┛                   │
-//      │                   │                           Y│
-//    Peer              Peer recvs                       │
-//  receives            GetTxnSet                        │
-//  new txn              request.                        │
+//                 ┏━━━━━━━━━━━━━━━━━┓
+//                 ┃                 ┃     Retry
+//                 ┃                 ┃    ┌after ────────┐
+//      ┌──────────┃Txn set fetching ┃    timeout.       │
+//      │          ┃                 ┃    │              │
+//      │          ┃                 ┃    │     ┌────────────────┐
+//      │          ┗━━━━━━━━━━━━━━━━━┛    │     │Add remote peer │
+//      │                   │             │     │   to pending   │
+//      │                   │             │     │    getTxSet    │
+//      │                   │             │     │requests for tx │
+//      │                   │             │     └────────────────┘
+//      │          ┌────────┴───────┐     │              ▲
+// Local node      │Local node recvs│     │              │
+//  receives       │   GetTxnSet    │◀────┘              │
+//  new txn        │    request.    │                   Y│
+//      │          └────────┬───────┘                    │
 //      │                   │                            │
-//      │          Peer has Λ                   First    Λ
+//      │                   │                            │
+//      │                   │                            │
+//      │          Node has Λ                   First    Λ
 //      │          txn set?▕ ▏───────────N──────time?──▶▕ ▏
-//      │                   V                            V
-//      │                  Y│                            │
+//      │                  YV                            V
+//      │                   │                            │
 //      │                   ▼                           N│
 //      │        ┌────────────────────┐                  │
 //      │        │Send txn set back to│                  │
