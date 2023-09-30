@@ -5444,6 +5444,8 @@ TEST_CASE("delay sending DONT_HAVE", "[herder]")
     REQUIRE(!apps[0]->getHerder().getTxSet(txSetHash));
     REQUIRE(!apps[1]->getHerder().getTxSet(txSetHash));
 
+    // Should not add to pending getTxSet requests while we wait before
+    // retrying.
     testutil::crankFor(clock, epsilon);
 
     auto closedTime = apps[0]
@@ -5451,6 +5453,7 @@ TEST_CASE("delay sending DONT_HAVE", "[herder]")
                           .getLastClosedLedgerHeader()
                           .header.scpValue.closeTime +
                       1;
+
     auto p = makeTxPair(txnSetFrame, closedTime);
 
     auto recvTxPairEnvelope = [&apps, makeNominationEnvelope](TxPair p) {
@@ -5472,7 +5475,7 @@ TEST_CASE("delay sending DONT_HAVE", "[herder]")
         auto txSetMsg = createTxSetMessage(txnSetFrame);
         connection->getInitiator()->recvMessage(*txSetMsg);
 
-        testutil::crankFor(clock, std::chrono::milliseconds{300});
+        testutil::crankFor(clock, std::chrono::seconds{1});
         // Check peer does not have the txn set hash.
         REQUIRE(apps[0]->getHerder().getTxSet(txSetHash));
         REQUIRE(!apps[1]->getHerder().getTxSet(txSetHash));
@@ -5487,7 +5490,7 @@ TEST_CASE("delay sending DONT_HAVE", "[herder]")
 
         // Pending getTxSet requests are empty since node already has the tx
         // set.
-        testutil::crankFor(clock, std::chrono::milliseconds{300});
+        testutil::crankFor(clock, std::chrono::seconds{1});
         // Check peer has the txn set hash.
         REQUIRE(apps[0]->getHerder().getTxSet(txSetHash));
         REQUIRE(apps[1]->getHerder().getTxSet(txSetHash));
