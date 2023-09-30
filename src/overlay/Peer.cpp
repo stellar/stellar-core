@@ -1148,6 +1148,8 @@ Peer::sendTxSet(TxSetFrameConstPtr txSet)
 // each request, we store the node IDs of peers waiting for the tx set. Entries
 // for stale slot indices are garbage collected as the Herder externalizes
 // ledgers.
+// If the tx set in the message is not tracked, i.e. last seen slot index for tx
+// set is 0, we reject the message and return immediately.
 // If wait is set to true, we wait for duration SEND_DONT_HAVE_DELAY before
 // checking again if we have the tx set if we do not already have it. If wait is
 // false, it means we have already checked that we did not have the tx set
@@ -1156,7 +1158,6 @@ void
 Peer::recvGetTxSet(StellarMessage const& msg, bool wait)
 {
     ZoneScoped;
-    CLOG_INFO(Overlay, "recvGetTxSet. Wait: {} ", wait ? "true" : "false");
 
     auto self = shared_from_this();
     auto slotIndex =
@@ -1251,6 +1252,10 @@ Peer::recvGetTxSet(StellarMessage const& msg, bool wait)
             auto& peers = peersMapItr->second;
             peers.erase(mPeerID);
         }
+    }
+    else
+    {
+        return;
     }
 
     // Send DONT_HAVE
