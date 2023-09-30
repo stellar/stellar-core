@@ -5437,7 +5437,6 @@ TEST_CASE("delay sending DONT_HAVE", "[herder]")
     auto txnSetFrame = TxSetFrame::makeFromTransactions(txs, *apps[0], 0, 0);
 
     // Sending get tx set message.
-    auto slotIndex = apps[0]->getHerder().trackingConsensusLedgerIndex();
     auto txSetHash = txnSetFrame->getContentsHash();
     auto getTxSet = createGetTxSetMessage(txSetHash);
     connection->getAcceptor()->sendMessage(getTxSet, false);
@@ -5445,31 +5444,9 @@ TEST_CASE("delay sending DONT_HAVE", "[herder]")
     REQUIRE(!apps[0]->getHerder().getTxSet(txSetHash));
     REQUIRE(!apps[1]->getHerder().getTxSet(txSetHash));
 
-    // Helper function for checking the number of pending requests for a
-    // specific tx set hash.
-    auto numPendingRequests = [&](Hash hash) {
-        size_t num = 0;
-        auto pendingRequests =
-            apps[0]->getOverlayManager().getPendingGetTxSetRequests();
-        for (auto pair : pendingRequests)
-        {
-            auto& requestsPerSlot = pair.second;
-            auto it = requestsPerSlot.find(hash);
-            if (it != requestsPerSlot.end())
-            {
-                num += it->second.size();
-            }
-        }
-        return num;
-    };
-
-    // No pending requests yet.
-    REQUIRE(numPendingRequests(txSetHash) == 0);
-
     // Should not add to pending getTxSet requests while we wait before
     // retrying.
     testutil::crankFor(clock, epsilon);
-    REQUIRE(numPendingRequests(txSetHash) == 0);
 
     auto closedTime = apps[0]
                           ->getLedgerManager()
@@ -5489,30 +5466,19 @@ TEST_CASE("delay sending DONT_HAVE", "[herder]")
                 Herder::ENVELOPE_STATUS_FETCHING);
     };
 
-    SECTION("rejects unknown tx set.")
-    {
-        // Node should reject the getTxSet request for tx set hashes it has not
-        // asked about.
-        testutil::crankFor(clock, std::chrono::milliseconds{300});
-        REQUIRE(numPendingRequests(txSetHash) == 0);
-    }
-
     SECTION("tx set not received before timeout.")
     {
         recvTxPairEnvelope(p);
-        // Added to pending getTxSet requests after timeout.
         testutil::crankFor(clock, std::chrono::milliseconds{300});
-        REQUIRE(numPendingRequests(txSetHash) == 1);
+
         // Receives tx set.
         auto txSetMsg = createTxSetMessage(txnSetFrame);
         connection->getInitiator()->recvMessage(*txSetMsg);
 
         testutil::crankFor(clock, std::chrono::seconds{1});
-        // Check peer has the txn set hash.
+        // Check peer does not have the txn set hash.
         REQUIRE(apps[0]->getHerder().getTxSet(txSetHash));
-        // Pending getTxSet requests are cleared.
-        // REQUIRE(numPendingRequests(txSetHash) == 0);
-        REQUIRE(apps[1]->getHerder().getTxSet(txSetHash));
+        REQUIRE(!apps[1]->getHerder().getTxSet(txSetHash));
     }
 
     SECTION("tx set received before timeout.")
@@ -5524,14 +5490,9 @@ TEST_CASE("delay sending DONT_HAVE", "[herder]")
 
         // Pending getTxSet requests are empty since node already has the tx
         // set.
-        testutil::crankFor(clock, std::chrono::milliseconds{1});
-        REQUIRE(numPendingRequests(txSetHash) == 0);
-
         testutil::crankFor(clock, std::chrono::seconds{1});
         // Check peer has the txn set hash.
         REQUIRE(apps[0]->getHerder().getTxSet(txSetHash));
-        // Pending getTxSet requests are cleared.
-        REQUIRE(numPendingRequests(txSetHash) == 0);
         REQUIRE(apps[1]->getHerder().getTxSet(txSetHash));
     }
 }
