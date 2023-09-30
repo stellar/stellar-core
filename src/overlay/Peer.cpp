@@ -1106,47 +1106,48 @@ Peer::sendTxSet(TxSetFrameConstPtr txSet)
     sendMessage(newMsgPtr);
 }
 
-//                        ┌─────────────Retry.─────────┐
-//                        │                            │
-//                        │                            │
-//                        │                      ┌──────────┐
-//                        ▼                      │  Delay   │
-//               ┏━━━━━━━━━━━━━━━━━┓             └──────────┘
-//               ┃                 ┃                   ▲
-//               ┃                 ┃                   │
-//      ┌────┬───┃Txn set fetching ┃                   │
-//      │    │   ┃                 ┃                   │
-//      │    │   ┃                 ┃                   │
-//      │    │   ┗━━━━━━━━━━━━━━━━━┛                  Y│
-//      │    │            │                            │
-//      Peer times    Peer recvs                       │
-//      │  out.       GetTxnSet                        │
-//      │    │         request.                        │
-//      │    │            │                            │
-//    Peer   │   Peer has Λ                   First    Λ
-//  receives │   txn set?▕ ▏───────────N──────time?──▶▕ ▏
-//  new txn  │            V                            V
-//      │    │           Y│                            │
-//      │    │            ▼                           N│
-//      │    │ ┌────────────────────┐                  │
-//      │    │ │Send txn set back to│                  │
-//      │    │ │       peer.        │                  │
-//      │    │ └────────────────────┘                  │
-//      │    │                                         │
-//      │    │  ┌────────────────────┐                 ▼
-//      │    │  │     Time out.      │       ┌───────────────────┐
-//      │    │  │   Clear pending    │       │Add txn set hash to│
-//      │    └─▶│ GetTxnSet requests │       │ pending GetTxnSet │
-//      │       │   and nominate.    │       │     requests.     │
-//      │       └────────────────────┘       └───────────────────┘
-//      │  ┌────────────────────────────┐
-//      │  │  Adds txn set to herder.   │
-//      │  │ Address pending GetTxnSet  │
-//      └─▶│ requests (if any) for the  │
-//         │    given txn set hash.     │
-//         │                            │
-//         └────────────────────────────┘
-
+//                                        Retry
+//                          ┌─────────────after ─────────┐
+//                          │            timeout.        │
+//                          │                            │
+//                          │                   ┌────────────────┐
+//                          ▼                   │  Add peer to   │
+//                 ┏━━━━━━━━━━━━━━━━━┓          │pending getTxSet│
+//                 ┃                 ┃          │requests for tx │
+//                 ┃                 ┃          │   set hash.    │
+//      ┌──────────┃Txn set fetching ┃          └────────────────┘
+//      │          ┃                 ┃                   ▲
+//      │          ┃                 ┃                   │
+//      │          ┗━━━━━━━━━━━━━━━━━┛                   │
+//      │                   │                           Y│
+//    Peer              Peer recvs                       │
+//  receives            GetTxnSet                        │
+//  new txn              request.                        │
+//      │                   │                            │
+//      │          Peer has Λ                   First    Λ
+//      │          txn set?▕ ▏───────────N──────time?──▶▕ ▏
+//      │                   V                            V
+//      │                  Y│                            │
+//      │                   ▼                           N│
+//      │        ┌────────────────────┐                  │
+//      │        │Send txn set back to│                  │
+//      │        │       peer.        │                  │
+//      │        └────────────────────┘                  │
+//      │                                                │
+//      │                                                ▼
+//      │  ┌────────────────────────────┐  ┌───────────────────────────┐
+//      │  │ Adds txn set to ledger. If │  │Send DONT_HAVE. Clear peer │
+//      │  │ there are pending getTxSet │  │   from pending pending    │
+//      │  │requests for this hash, send│  │ getTxSet requests, so do  │
+//      └─▶│tx set to the waiting peers.│  │not send tx set to peer if │
+//         │   Clear pending getTxSet   │  │   we get tx set in the    │
+//         │   requests for the hash.   │  │          future.          │
+//         └────────────────────────────┘  └───────────────────────────┘
+//
+// Pending getTxSet requests are stored by their tx set hash and slotIndex. For
+// each request, we store the node IDs of peers waiting for the tx set. Entries
+// for stale slot indices are garbage collected as the Herder externalizes
+// ledgers.
 void
 Peer::recvGetTxSet(StellarMessage const& msg, bool wait)
 {
