@@ -1204,6 +1204,15 @@ Peer::recvGetTxSet(StellarMessage const& msg, bool wait)
                       "triggering mTxSetRequestTimer.",
                       toString(), hexAbbrev(msg.txSetHash()));
 
+            // Register this peer for pending getTxSet requests for this tx set
+            // hash. We wait for a duration of SEND_DONT_HAVE_DELAY. If we
+            // receive the tx set, send it back to the peer; if not, we send
+            // DONT_HAVE back.
+            auto& pendingGetTxSetRequestsForSlot =
+                mApp.getOverlayManager()
+                    .getPendingGetTxSetRequests()[slotIndex];
+            pendingGetTxSetRequestsForSlot[msg.txSetHash()].insert(mPeerID);
+
             mTxSetRequestTimer.expires_from_now(
                 mApp.getConfig().SEND_DONT_HAVE_DELAY);
             mTxSetRequestTimer.async_wait(
@@ -1212,13 +1221,25 @@ Peer::recvGetTxSet(StellarMessage const& msg, bool wait)
             return;
         }
 
-        auto& pendingTxSetRequestsForSlot =
-            mApp.getOverlayManager().getPendingGetTxSetRequests()[slotIndex];
+        auto& pendingGetTxSetRequestsForSlot =
+            mApp.getOverlayManager().getPendingGetTxSetRequests();
 
-        // We do not have the tx set, so make a pending tx set request and
-        // respond back to the node once we have it.
-        auto& waitingPeers = pendingTxSetRequestsForSlot[msg.txSetHash()];
-        waitingPeers.insert(mPeerID);
+        auto it = pendingGetTxSetRequestsForSlot.find(slotIndex);
+        if (it == pendingGetTxSetRequestsForSlot.end())
+        {
+            return;
+        }
+        auto& peersWaitingForTx = it->second;
+        auto peersMapItr = peersWaitingForTx.find(msg.txSetHash());
+        if (peersMapItr == peersWaitingForTx.end())
+        {
+            return;
+        }
+
+        // We will not send the same tx set back to peer if we receive this tx
+        // set in the future and will send DONT_HAVE.
+        auto& peers = peersMapItr->second;
+        peers.erase(mPeerID);
 
         CLOG_INFO(Overlay, "Peer::recvGetTxSet {} sending DONT_HAVE for {}",
                   toString(), hexAbbrev(msg.txSetHash()));
