@@ -1163,99 +1163,90 @@ Peer::recvGetTxSet(StellarMessage const& msg, bool wait)
     auto slotIndex =
         mApp.getHerder().getLastSeenSlotIndexForTxSet(msg.txSetHash());
 
-    if (slotIndex != 0)
+    if (wait)
     {
-        if (wait)
+
+        if (auto txSet = mApp.getHerder().getTxSet(msg.txSetHash()))
         {
-
-            if (auto txSet = mApp.getHerder().getTxSet(msg.txSetHash()))
+            StellarMessage newMsg;
+            if (txSet->isGeneralizedTxSet())
             {
-                StellarMessage newMsg;
-                if (txSet->isGeneralizedTxSet())
+                if (mRemoteOverlayVersion <
+                    Peer::FIRST_VERSION_SUPPORTING_GENERALIZED_TX_SET)
                 {
-                    if (mRemoteOverlayVersion <
-                        Peer::FIRST_VERSION_SUPPORTING_GENERALIZED_TX_SET)
-                    {
-                        // The peer wouldn't be able to accept the generalized
-                        // tx set, but it wouldn't be correct to say we don't
-                        // have it. So we just let the request to timeout.
-                        return;
-                    }
-                    newMsg.type(GENERALIZED_TX_SET);
-                    txSet->toXDR(newMsg.generalizedTxSet());
+                    // The peer wouldn't be able to accept the generalized
+                    // tx set, but it wouldn't be correct to say we don't
+                    // have it. So we just let the request to timeout.
+                    return;
                 }
-                else
-                {
-                    newMsg.type(TX_SET);
-                    txSet->toXDR(newMsg.txSet());
-                }
-
-                auto newMsgPtr = std::make_shared<StellarMessage const>(newMsg);
-                CLOG_INFO(
-                    Overlay,
-                    "Peer::recvGetTxSet {} found the tx set for {}, sending "
-                    "it back",
-                    toString(), hexAbbrev(msg.txSetHash()));
-                self->sendMessage(newMsgPtr);
+                newMsg.type(GENERALIZED_TX_SET);
+                txSet->toXDR(newMsg.generalizedTxSet());
             }
             else
             {
-                CLOG_DEBUG(
-                    Overlay,
-                    "Peer::recvGetTxSet {} did not find the tx set for {}, "
-                    "triggering mTxSetRequestTimer.",
-                    toString(), hexAbbrev(msg.txSetHash()));
-
-                // Register this peer for pending getTxSet requests for this
-                // tx set hash. We wait for a duration of SEND_DONT_HAVE_DELAY
-                // before checking if we receive the tx set after waiting.
-                auto& pendingGetTxSetRequestsForSlot =
-                    mApp.getOverlayManager()
-                        .getPendingGetTxSetRequests()[slotIndex];
-                pendingGetTxSetRequestsForSlot[msg.txSetHash()].insert(mPeerID);
-
-                mTxSetRequestTimer.expires_from_now(
-                    mApp.getConfig().SEND_DONT_HAVE_DELAY);
-                mTxSetRequestTimer.async_wait(
-                    [this, msg] { recvGetTxSet(msg, false); },
-                    &VirtualTimer::onFailureNoop);
-                return;
+                newMsg.type(TX_SET);
+                txSet->toXDR(newMsg.txSet());
             }
+
+            auto newMsgPtr = std::make_shared<StellarMessage const>(newMsg);
+            CLOG_INFO(Overlay,
+                      "Peer::recvGetTxSet {} found the tx set for {}, sending "
+                      "it back",
+                      toString(), hexAbbrev(msg.txSetHash()));
+            self->sendMessage(newMsgPtr);
         }
         else
         {
-            // We have already waited for a duration of SEND_DONT_HAVE_DELAY,
-            // because we didn't have the tx set to send back to the peer.
+            CLOG_DEBUG(Overlay,
+                       "Peer::recvGetTxSet {} did not find the tx set for {}, "
+                       "triggering mTxSetRequestTimer.",
+                       toString(), hexAbbrev(msg.txSetHash()));
 
-            // Check if we have already sent the peer the tx set.
-            // If we have sent the tx set, there should not be any pending
-            // getTxSet requests for the tx set hash), so return.
-
-            // If we have not sent the tx set, remove the local node from the
-            // pending getTxSet requests and send DONT_HAVE to peer. We will not
-            // send the same tx set back to peer if we receive this tx set in
-            // the future.
+            // Register this peer for pending getTxSet requests for this
+            // tx set hash. We wait for a duration of SEND_DONT_HAVE_DELAY
+            // before checking if we receive the tx set after waiting.
             auto& pendingGetTxSetRequestsForSlot =
-                mApp.getOverlayManager().getPendingGetTxSetRequests();
+                mApp.getOverlayManager()
+                    .getPendingGetTxSetRequests()[slotIndex];
+            pendingGetTxSetRequestsForSlot[msg.txSetHash()].insert(mPeerID);
 
-            auto it = pendingGetTxSetRequestsForSlot.find(slotIndex);
-            if (it == pendingGetTxSetRequestsForSlot.end())
-            {
-                return;
-            }
-            auto& peersWaitingForTx = it->second;
-            auto peersMapItr = peersWaitingForTx.find(msg.txSetHash());
-            if (peersMapItr == peersWaitingForTx.end())
-            {
-                return;
-            }
-            auto& peers = peersMapItr->second;
-            peers.erase(mPeerID);
+            mTxSetRequestTimer.expires_from_now(
+                mApp.getConfig().SEND_DONT_HAVE_DELAY);
+            mTxSetRequestTimer.async_wait(
+                [this, msg] { recvGetTxSet(msg, false); },
+                &VirtualTimer::onFailureNoop);
+            return;
         }
     }
     else
     {
-        return;
+        // We have already waited for a duration of SEND_DONT_HAVE_DELAY,
+        // because we didn't have the tx set to send back to the peer.
+
+        // Check if we have already sent the peer the tx set.
+        // If we have sent the tx set, there should not be any pending
+        // getTxSet requests for the tx set hash), so return.
+
+        // If we have not sent the tx set, remove the local node from the
+        // pending getTxSet requests and send DONT_HAVE to peer. We will not
+        // send the same tx set back to peer if we receive this tx set in
+        // the future.
+        auto& pendingGetTxSetRequestsForSlot =
+            mApp.getOverlayManager().getPendingGetTxSetRequests();
+
+        auto it = pendingGetTxSetRequestsForSlot.find(slotIndex);
+        if (it == pendingGetTxSetRequestsForSlot.end())
+        {
+            return;
+        }
+        auto& peersWaitingForTx = it->second;
+        auto peersMapItr = peersWaitingForTx.find(msg.txSetHash());
+        if (peersMapItr == peersWaitingForTx.end())
+        {
+            return;
+        }
+        auto& peers = peersMapItr->second;
+        peers.erase(mPeerID);
     }
 
     // Send DONT_HAVE
