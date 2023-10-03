@@ -413,6 +413,64 @@ Peer::sendDontHave(MessageType type, uint256 const& itemID)
 }
 
 void
+Peer::maybeSendDontHave(StellarMessage const& msg)
+{
+
+    auto slotIndex =
+        mApp.getHerder().getLastSeenSlotIndexForTxSet(msg.txSetHash());
+
+    if (slotIndex != 0)
+    {
+        // Remove the local node from the pending getTxSet requests. We will
+        // not send the same tx set back to peer if we receive this tx set
+        // in the future and will send DONT_HAVE.
+        auto& pendingGetTxSetRequestsForSlot =
+            mApp.getOverlayManager().getPendingGetTxSetRequests();
+
+        auto it = pendingGetTxSetRequestsForSlot.find(slotIndex);
+        if (it == pendingGetTxSetRequestsForSlot.end())
+        {
+            return;
+        }
+        auto& peersWaitingForTx = it->second;
+        auto peersMapItr = peersWaitingForTx.find(msg.txSetHash());
+        if (peersMapItr == peersWaitingForTx.end())
+        {
+            return;
+        }
+        auto& peers = peersMapItr->second;
+        peers.erase(mPeerID);
+    }
+
+    // Sending DONT_HAVE
+    CLOG_INFO(Overlay, "Peer::recvGetTxSet {} sending DONT_HAVE for {}",
+              toString(), hexAbbrev(msg.txSetHash()));
+    // Technically we don't exactly know what is the kind of the tx set
+    // missing, however both TX_SET and GENERALIZED_TX_SET get the same
+    // treatment when missing, so it should be ok to maybe send the
+    // incorrect version during the upgrade.
+    auto messageType = protocolVersionIsBefore(mApp.getLedgerManager()
+                                                   .getLastClosedLedgerHeader()
+                                                   .header.ledgerVersion,
+                                               SOROBAN_PROTOCOL_VERSION)
+                           ? TX_SET
+                           : GENERALIZED_TX_SET;
+    // If peer is not aware of generalized tx sets and we don't have the
+    // requested hash, then it probably requests an old-style tx set we
+    // don't have. Another option is that the peer is in incorrect
+    // state, but it's also ok to say we don't have the requested
+    // old-style tx set.
+    if (messageType == GENERALIZED_TX_SET &&
+        mRemoteOverlayVersion <
+            Peer::FIRST_VERSION_SUPPORTING_GENERALIZED_TX_SET)
+    {
+        sendDontHave(TX_SET, msg.txSetHash());
+        return;
+    }
+    sendDontHave(messageType, msg.txSetHash());
+}
+
+void
 Peer::sendSCPQuorumSet(SCPQuorumSetPtr qSet)
 {
     ZoneScoped;
@@ -1106,54 +1164,61 @@ Peer::sendTxSet(TxSetFrameConstPtr txSet)
     sendMessage(newMsgPtr);
 }
 
-//                 ┏━━━━━━━━━━━━━━━━━┓
-//                 ┃                 ┃     Retry
-//                 ┃                 ┃    ┌after ────────┐
-//      ┌──────────┃Txn set fetching ┃    timeout.       │
-//      │          ┃                 ┃    │              │
-//      │          ┃                 ┃    │     ┌────────────────┐
-//      │          ┗━━━━━━━━━━━━━━━━━┛    │     │Add remote peer │
-//      │                   │             │     │   to pending   │
-//      │                   │             │     │    getTxSet    │
-//      │                   │             │     │requests for tx │
-//      │                   │             │     └────────────────┘
-//      │          ┌────────┴───────┐     │              ▲
-// Local node      │Local node recvs│     │              │
-//  receives       │   GetTxnSet    │◀────┘              │
-//  new txn        │    request.    │                   Y│
-//      │          └────────┬───────┘                    │
-//      │                   │                            │
-//      │                   │                            │
-//      │                   │                            │
-//      │          Node has Λ                   First    Λ
-//      │          txn set?▕ ▏───────────N──────time?──▶▕ ▏
-//      │                  YV                            V
-//      │                   │                            │
-//      │                   ▼                           N│
-//      │        ┌────────────────────┐                  │
-//      │        │Send txn set back to│                  │
-//      │        │       peer.        │                  │
-//      │        └────────────────────┘                  │
-//      │                                                │
-//      │                                                ▼
-//      │  ┌────────────────────────────┐  ┌───────────────────────────┐
-//      │  │ Adds txn set to ledger. If │  │Send DONT_HAVE. Clear peer │
-//      │  │ there are pending getTxSet │  │   from pending pending    │
-//      │  │requests for this hash, send│  │ getTxSet requests, so do  │
-//      └─▶│tx set to the waiting peers.│  │not send tx set to peer if │
-//         │   Clear pending getTxSet   │  │   we get tx set in the    │
-//         │   requests for the hash.   │  │          future.          │
-//         └────────────────────────────┘  └───────────────────────────┘
-//
+//                                      ┌────────────────────────┐
+//                                      │                        │
+//                                      │Adds txn set to ledger. │
+//      ┏━━━━━━━━━━━━━━━━━┓             │  If there are pending  │
+//      ┃                 ┃             │ getTxSet requests for  │
+//      ┃                 ┃Local node   │ this hash, send tx set │
+//      ┃Txn set fetching ┃─receives ──▶│ to the waiting peers.  │
+//      ┃                 ┃ new txn     │ Clear pending getTxSet │
+//      ┃                 ┃             │ requests for the hash. │
+//      ┗━━━━━━━━━━━━━━━━━┛             │                        │
+//               │                      │                        │
+//               ▼                      └────────────────────────┘
+//      ┌────────────────┐
+//      │Local node recvs│
+//      │   GetTxnSet    │
+//      │    request.    │
+//      └────────────────┘
+//               │
+//               ▼                          ┌────────────────────┐
+//               Λ              Y           │Send txn set back to│
+//     Node has ▕ ▏────────────────────────▶│       peer.        │
+//     txn set?  V                          │                    │
+//               │                          └────────────────────┘
+//              N│                                     ▲
+//               │                                     │
+//               ▼                                     │
+//      ┌────────────────┐                             │
+//      │Add remote peer │                             │
+//      │   to pending   │                             │
+//      │    getTxSet    │                             │
+//      │requests for tx │                             │
+//      └────────────────┘                             │
+//               │                                     │
+//               │                                     │
+//   Node has    ▼                         ┌──────────────────────┐
+//   received    Λ                         │Clear pending request │
+//    tx set    ▕ ▏──────Y────────────────▶│      for peer.       │
+//  when timer   V                         │                      │
+//  fires up.    │                         └──────────────────────┘
+//              N│
+//               ▼
+// ┌───────────────────────────┐
+// │                           │
+// │   Send DONT_HAVE. Clear   │
+// │ pending request for peer. │
+// │                           │
+// └───────────────────────────┘
 // Pending getTxSet requests are stored by their tx set hash and slotIndex. For
 // each request, we store the node IDs of peers waiting for the tx set. Entries
 // for stale slot indices are garbage collected as the Herder externalizes
 // ledgers.
 void
-Peer::recvGetTxSet(StellarMessage const& msg, bool wait)
+Peer::recvGetTxSet(StellarMessage const& msg)
 {
     ZoneScoped;
-    CLOG_INFO(Overlay, "recvGetTxSet. Wait: {} ", wait ? "true" : "false");
 
     auto self = shared_from_this();
     if (auto txSet = mApp.getHerder().getTxSet(msg.txSetHash()))
@@ -1187,84 +1252,12 @@ Peer::recvGetTxSet(StellarMessage const& msg, bool wait)
     }
     else
     {
-        auto slotIndex =
-            mApp.getHerder().getLastSeenSlotIndexForTxSet(msg.txSetHash());
-
-        if (slotIndex != 0)
-        {
-            if (wait)
-            {
-                CLOG_INFO(
-                    Overlay,
-                    "Peer::recvGetTxSet {} did not find the tx set for {}, "
-                    "triggering mTxSetRequestTimer.",
-                    toString(), hexAbbrev(msg.txSetHash()));
-
-                // Register this peer for pending getTxSet requests for this tx
-                // set hash. We wait for a duration of SEND_DONT_HAVE_DELAY. If
-                // we receive the tx set, send it back to the peer; if not, we
-                // send DONT_HAVE back.
-                auto& pendingGetTxSetRequestsForSlot =
-                    mApp.getOverlayManager()
-                        .getPendingGetTxSetRequests()[slotIndex];
-                pendingGetTxSetRequestsForSlot[msg.txSetHash()].insert(mPeerID);
-
-                mTxSetRequestTimer.expires_from_now(
-                    mApp.getConfig().SEND_DONT_HAVE_DELAY);
-                mTxSetRequestTimer.async_wait(
-                    [this, msg] { recvGetTxSet(msg, false); },
-                    &VirtualTimer::onFailureNoop);
-                return;
-            }
-
-            // Remove the local node from the pending getTxSet requests. We will
-            // not send the same tx set back to peer if we receive this tx set
-            // in the future and will send DONT_HAVE.
-            auto& pendingGetTxSetRequestsForSlot =
-                mApp.getOverlayManager().getPendingGetTxSetRequests();
-
-            auto it = pendingGetTxSetRequestsForSlot.find(slotIndex);
-            if (it == pendingGetTxSetRequestsForSlot.end())
-            {
-                return;
-            }
-            auto& peersWaitingForTx = it->second;
-            auto peersMapItr = peersWaitingForTx.find(msg.txSetHash());
-            if (peersMapItr == peersWaitingForTx.end())
-            {
-                return;
-            }
-            auto& peers = peersMapItr->second;
-            peers.erase(mPeerID);
-        }
-
-        // Sending DONT_HAVE
-        CLOG_INFO(Overlay, "Peer::recvGetTxSet {} sending DONT_HAVE for {}",
-                  toString(), hexAbbrev(msg.txSetHash()));
-        // Technically we don't exactly know what is the kind of the tx set
-        // missing, however both TX_SET and GENERALIZED_TX_SET get the same
-        // treatment when missing, so it should be ok to maybe send the
-        // incorrect version during the upgrade.
-        auto messageType =
-            protocolVersionIsBefore(mApp.getLedgerManager()
-                                        .getLastClosedLedgerHeader()
-                                        .header.ledgerVersion,
-                                    SOROBAN_PROTOCOL_VERSION)
-                ? TX_SET
-                : GENERALIZED_TX_SET;
-        // If peer is not aware of generalized tx sets and we don't have the
-        // requested hash, then it probably requests an old-style tx set we
-        // don't have. Another option is that the peer is in incorrect
-        // state, but it's also ok to say we don't have the requested
-        // old-style tx set.
-        if (messageType == GENERALIZED_TX_SET &&
-            mRemoteOverlayVersion <
-                Peer::FIRST_VERSION_SUPPORTING_GENERALIZED_TX_SET)
-        {
-            sendDontHave(TX_SET, msg.txSetHash());
-            return;
-        }
-        sendDontHave(messageType, msg.txSetHash());
+        mTxSetRequestTimer.expires_from_now(
+            mApp.getConfig().SEND_DONT_HAVE_DELAY);
+        mTxSetRequestTimer.async_wait(
+            [this, msg] { this->maybeSendDontHave(msg); },
+            &VirtualTimer::onFailureNoop);
+        return;
     }
 }
 

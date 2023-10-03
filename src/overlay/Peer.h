@@ -249,7 +249,7 @@ class Peer : public std::enable_shared_from_this<Peer>,
 
     void sendTxSet(std::shared_ptr<TxSetFrame const> txSet);
 
-    void recvGetTxSet(StellarMessage const& msg, bool wait = true);
+    void recvGetTxSet(StellarMessage const& msg);
     void recvTxSet(StellarMessage const& msg);
     void recvGeneralizedTxSet(StellarMessage const& msg);
     void recvTxSetHelper(StellarMessage const& msg,
@@ -266,6 +266,7 @@ class Peer : public std::enable_shared_from_this<Peer>,
     void sendAuth();
     void sendSCPQuorumSet(SCPQuorumSetPtr qSet);
     void sendDontHave(MessageType type, uint256 const& itemID);
+    void maybeSendDontHave(StellarMessage const& msg);
     void sendPeers();
     void sendError(ErrorCode error, std::string const& message);
 
