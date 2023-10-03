@@ -413,36 +413,8 @@ Peer::sendDontHave(MessageType type, uint256 const& itemID)
 }
 
 void
-Peer::maybeSendDontHave(StellarMessage const& msg)
+Peer::sendDontHave(StellarMessage const& msg)
 {
-
-    auto slotIndex =
-        mApp.getHerder().getLastSeenSlotIndexForTxSet(msg.txSetHash());
-
-    if (slotIndex != 0)
-    {
-        // Remove the local node from the pending getTxSet requests. We will
-        // not send the same tx set back to peer if we receive this tx set
-        // in the future and will send DONT_HAVE.
-        auto& pendingGetTxSetRequestsForSlot =
-            mApp.getOverlayManager().getPendingGetTxSetRequests();
-
-        auto it = pendingGetTxSetRequestsForSlot.find(slotIndex);
-        if (it == pendingGetTxSetRequestsForSlot.end())
-        {
-            return;
-        }
-        auto& peersWaitingForTx = it->second;
-        auto peersMapItr = peersWaitingForTx.find(msg.txSetHash());
-        if (peersMapItr == peersWaitingForTx.end())
-        {
-            return;
-        }
-        auto& peers = peersMapItr->second;
-        peers.erase(mPeerID);
-    }
-
-    // Sending DONT_HAVE
     CLOG_INFO(Overlay, "Peer::recvGetTxSet {} sending DONT_HAVE for {}",
               toString(), hexAbbrev(msg.txSetHash()));
     // Technically we don't exactly know what is the kind of the tx set
@@ -468,6 +440,43 @@ Peer::maybeSendDontHave(StellarMessage const& msg)
         return;
     }
     sendDontHave(messageType, msg.txSetHash());
+}
+
+void
+Peer::maybeSendDontHaveAfterDelay(StellarMessage const& msg)
+{
+    if (auto txSet = mApp.getHerder().getTxSet(msg.txSetHash()))
+    {
+        sendTxSet(txSet);
+        return;
+    }
+
+    auto slotIndex =
+        mApp.getHerder().getLastSeenSlotIndexForTxSet(msg.txSetHash());
+    if (slotIndex != 0)
+    {
+        // Remove the local node from the pending getTxSet requests. We will
+        // not send the same tx set back to peer if we receive this tx set
+        // in the future and will send DONT_HAVE.
+        auto& pendingGetTxSetRequestsForSlot =
+            mApp.getOverlayManager().getPendingGetTxSetRequests();
+
+        auto it = pendingGetTxSetRequestsForSlot.find(slotIndex);
+        if (it == pendingGetTxSetRequestsForSlot.end())
+        {
+            return;
+        }
+        auto& peersWaitingForTx = it->second;
+        auto peersMapItr = peersWaitingForTx.find(msg.txSetHash());
+        if (peersMapItr == peersWaitingForTx.end())
+        {
+            return;
+        }
+        auto& peers = peersMapItr->second;
+        peers.erase(mPeerID);
+    }
+
+    sendDontHave(msg);
 }
 
 void
@@ -1223,41 +1232,29 @@ Peer::recvGetTxSet(StellarMessage const& msg)
     auto self = shared_from_this();
     if (auto txSet = mApp.getHerder().getTxSet(msg.txSetHash()))
     {
-        StellarMessage newMsg;
-        if (txSet->isGeneralizedTxSet())
-        {
-            if (mRemoteOverlayVersion <
-                Peer::FIRST_VERSION_SUPPORTING_GENERALIZED_TX_SET)
-            {
-                // The peer wouldn't be able to accept the generalized tx set,
-                // but it wouldn't be correct to say we don't have it. So we
-                // just let the request to timeout.
-                return;
-            }
-            newMsg.type(GENERALIZED_TX_SET);
-            txSet->toXDR(newMsg.generalizedTxSet());
-        }
-        else
-        {
-            newMsg.type(TX_SET);
-            txSet->toXDR(newMsg.txSet());
-        }
-
-        auto newMsgPtr = std::make_shared<StellarMessage const>(newMsg);
-        CLOG_INFO(
-            Overlay,
-            "Peer::recvGetTxSet {} found the tx set for {}, sending it back",
-            toString(), hexAbbrev(msg.txSetHash()));
-        self->sendMessage(newMsgPtr);
+        sendTxSet(txSet);
     }
     else
     {
-        mTxSetRequestTimer.expires_from_now(
-            mApp.getConfig().SEND_DONT_HAVE_DELAY);
-        mTxSetRequestTimer.async_wait(
-            [this, msg] { this->maybeSendDontHave(msg); },
-            &VirtualTimer::onFailureNoop);
-        return;
+        // Register pending getTxSet request.
+        auto slotIndex =
+            mApp.getHerder().getLastSeenSlotIndexForTxSet(msg.txSetHash());
+        if (slotIndex != 0)
+        {
+            // If we currently do not have the tx set but are tracking it.
+            auto& pendingGetTxSetRequestsForSlot =
+                mApp.getOverlayManager()
+                    .getPendingGetTxSetRequests()[slotIndex];
+            pendingGetTxSetRequestsForSlot[msg.txSetHash()].insert(mPeerID);
+
+            mTxSetRequestTimer.expires_from_now(
+                mApp.getConfig().SEND_DONT_HAVE_DELAY);
+            mTxSetRequestTimer.async_wait(
+                [this, msg] { this->maybeSendDontHaveAfterDelay(msg); },
+                &VirtualTimer::onFailureNoop);
+            return;
+        }
+        sendDontHave(msg);
     }
 }
 

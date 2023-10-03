@@ -266,7 +266,8 @@ class Peer : public std::enable_shared_from_this<Peer>,
     void sendAuth();
     void sendSCPQuorumSet(SCPQuorumSetPtr qSet);
     void sendDontHave(MessageType type, uint256 const& itemID);
-    void maybeSendDontHave(StellarMessage const& msg);
+    void sendDontHave(StellarMessage const& msg);
+    void maybeSendDontHaveAfterDelay(StellarMessage const& msg);
     void sendPeers();
     void sendError(ErrorCode error, std::string const& message);
 
