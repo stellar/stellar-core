@@ -32,19 +32,36 @@ using namespace stellar::txtest;
 
 namespace
 {
+TransactionFrameBasePtr transaction(Application& app, TestAccount& account,
+                                    int64_t sequenceDelta, int64_t amount,
+                                    uint32_t fee, bool isSoroban,
+                                    int nbOps = 1) = delete;
 
 TransactionFrameBasePtr
 transaction(Application& app, TestAccount& account, int64_t sequenceDelta,
-            int64_t amount, uint32_t fee, int nbOps = 1)
+            int64_t amount, uint32_t fee, int nbOps = 1, bool isSoroban = false)
 {
-    std::vector<Operation> ops;
-    for (int i = 0; i < nbOps; ++i)
+    if (!isSoroban)
     {
-        ops.emplace_back(payment(account.getPublicKey(), amount));
+        std::vector<Operation> ops;
+        for (int i = 0; i < nbOps; ++i)
+        {
+            ops.emplace_back(payment(account.getPublicKey(), amount));
+        }
+        return transactionFromOperations(
+            app, account, account.getLastSequenceNumber() + sequenceDelta, ops,
+            fee);
     }
-    return transactionFromOperations(
-        app, account, account.getLastSequenceNumber() + sequenceDelta, ops,
-        fee);
+    else
+    {
+        REQUIRE(nbOps == 1);
+        SorobanResources resources;
+        resources.instructions = 1;
+        return createUploadWasmTx(app, account, fee, DEFAULT_TEST_RESOURCE_FEE,
+                                  resources, std::nullopt, 0, std::nullopt,
+                                  account.getLastSequenceNumber() +
+                                      sequenceDelta);
+    }
 }
 
 TransactionFramePtr
@@ -77,16 +94,22 @@ class TransactionQueueTest
         BannedState mBannedState;
     };
 
-    explicit TransactionQueueTest(Application& app)
-        : mTransactionQueue{app, 4, 2, 2}
+    explicit TransactionQueueTest(TransactionQueue& queue)
+        : mTransactionQueue(queue)
     {
     }
 
     void
-    add(TransactionFrameBasePtr const& tx,
-        TransactionQueue::AddResult AddResult)
+    add(TransactionFrameBasePtr const& tx, TransactionQueue::AddResult expected)
     {
-        REQUIRE(mTransactionQueue.tryAdd(tx, false) == AddResult);
+        auto res = mTransactionQueue.tryAdd(tx, false);
+        REQUIRE(res == expected);
+    }
+
+    TransactionQueue&
+    getTransactionQueue()
+    {
+        return mTransactionQueue;
     }
 
     void
@@ -142,9 +165,9 @@ class TransactionQueueTest
             for (auto const& tx : accountState.mAccountTransactions)
             {
                 auto& fee = expectedFees[tx->getFeeSourceID()];
-                if (INT64_MAX - fee > tx->getInclusionFee())
+                if (INT64_MAX - fee > tx->getFullFee())
                 {
-                    fee += tx->getInclusionFee();
+                    fee += tx->getFullFee();
                 }
                 else
                 {
@@ -158,9 +181,9 @@ class TransactionQueueTest
         for (auto const& tx : queueTxs)
         {
             auto& fee = fees[tx->getFeeSourceID()];
-            if (INT64_MAX - fee > tx->getInclusionFee())
+            if (INT64_MAX - fee > tx->getFullFee())
             {
-                fee += tx->getInclusionFee();
+                fee += tx->getFullFee();
             }
             else
             {
@@ -210,7 +233,7 @@ class TransactionQueueTest
     }
 
   private:
-    ClassicTransactionQueue mTransactionQueue;
+    TransactionQueue& mTransactionQueue;
 };
 }
 
@@ -221,6 +244,7 @@ TEST_CASE("TransactionQueue complex scenarios", "[herder][transactionqueue]")
     cfg.TESTING_UPGRADE_MAX_TX_SET_SIZE = 4;
     cfg.FLOOD_TX_PERIOD_MS = 100;
     auto app = createTestApplication(clock, cfg);
+    auto queue = ClassicTransactionQueue{*app, 4, 2, 2};
     auto const minBalance2 = app->getLedgerManager().getLastMinBalance(2);
 
     auto root = TestAccount::createRoot(*app);
@@ -241,7 +265,7 @@ TEST_CASE("TransactionQueue complex scenarios", "[herder][transactionqueue]")
 
     SECTION("multiple good sequence numbers, with four shifts")
     {
-        TransactionQueueTest test{*app};
+        TransactionQueueTest test{queue};
         test.add(txSeqA1T1, TransactionQueue::AddResult::ADD_STATUS_PENDING);
         test.check({{{account1, 0, {txSeqA1T1}}, {account2}}});
         test.add(txSeqA1T2,
@@ -264,7 +288,7 @@ TEST_CASE("TransactionQueue complex scenarios", "[herder][transactionqueue]")
 
     SECTION("multiple good sequence numbers, with replace")
     {
-        TransactionQueueTest test{*app};
+        TransactionQueueTest test{queue};
         test.add(txSeqA1T1, TransactionQueue::AddResult::ADD_STATUS_PENDING);
         test.check({{{account1, 0, {txSeqA1T1}}, {account2}}});
         test.shift();
@@ -299,7 +323,7 @@ TEST_CASE("TransactionQueue complex scenarios", "[herder][transactionqueue]")
 
     SECTION("multiple good sequence numbers, with shifts between")
     {
-        TransactionQueueTest test{*app};
+        TransactionQueueTest test{queue};
         test.add(txSeqA1T1, TransactionQueue::AddResult::ADD_STATUS_PENDING);
         test.check({{{account1, 0, {txSeqA1T1}}, {account2}}});
         test.shift();
@@ -328,7 +352,7 @@ TEST_CASE("TransactionQueue complex scenarios", "[herder][transactionqueue]")
     SECTION(
         "multiple good sequence numbers, different accounts, with four shifts")
     {
-        TransactionQueueTest test{*app};
+        TransactionQueueTest test{queue};
         test.add(txSeqA1T1, TransactionQueue::AddResult::ADD_STATUS_PENDING);
         test.check({{{account1, 0, {txSeqA1T1}}, {account2}}});
         test.add(txSeqA2T1, TransactionQueue::AddResult::ADD_STATUS_PENDING);
@@ -353,7 +377,7 @@ TEST_CASE("TransactionQueue complex scenarios", "[herder][transactionqueue]")
     SECTION("multiple good sequence numbers, different accounts, with shifts "
             "between")
     {
-        TransactionQueueTest test{*app};
+        TransactionQueueTest test{queue};
         test.add(txSeqA1T1, TransactionQueue::AddResult::ADD_STATUS_PENDING);
         test.check({{{account1, 0, {txSeqA1T1}}, {account2}}});
         test.shift();
@@ -382,7 +406,7 @@ TEST_CASE("TransactionQueue complex scenarios", "[herder][transactionqueue]")
 
     SECTION("multiple good sequence numbers, different accounts, with remove")
     {
-        TransactionQueueTest test{*app};
+        TransactionQueueTest test{queue};
         SECTION("with shift and remove")
         {
             test.add(txSeqA1T1,
@@ -431,7 +455,7 @@ TEST_CASE("TransactionQueue complex scenarios", "[herder][transactionqueue]")
 
     SECTION("multiple good sequence numbers, different accounts, with ban")
     {
-        TransactionQueueTest test{*app};
+        TransactionQueueTest test{queue};
         test.add(txSeqA1T1, TransactionQueue::AddResult::ADD_STATUS_PENDING);
         test.add(txSeqA2T1, TransactionQueue::AddResult::ADD_STATUS_PENDING);
         test.add(txSeqA1T2,
@@ -473,6 +497,7 @@ testTransactionQueueBasicScenarios()
     cfg.TESTING_UPGRADE_MAX_TX_SET_SIZE = 4;
     cfg.FLOOD_TX_PERIOD_MS = 100;
     auto app = createTestApplication(clock, cfg);
+    auto queue = ClassicTransactionQueue{*app, 4, 2, 2};
     auto const minBalance2 = app->getLedgerManager().getLastMinBalance(2);
 
     auto root = TestAccount::createRoot(*app);
@@ -493,7 +518,7 @@ testTransactionQueueBasicScenarios()
 
     SECTION("simple sequence")
     {
-        TransactionQueueTest test{*app};
+        TransactionQueueTest test{queue};
 
         CLOG_INFO(Tx, "Adding first transaction");
         // adding first tx
@@ -539,7 +564,7 @@ testTransactionQueueBasicScenarios()
 
     SECTION("good sequence number, same twice with shift")
     {
-        TransactionQueueTest test{*app};
+        TransactionQueueTest test{queue};
         test.add(txSeqA1T1, TransactionQueue::AddResult::ADD_STATUS_PENDING);
         test.check({{{account1, 0, {txSeqA1T1}}, {account2}}, {}});
         test.shift();
@@ -550,7 +575,7 @@ testTransactionQueueBasicScenarios()
 
     SECTION("good then big sequence number, with shift")
     {
-        TransactionQueueTest test{*app};
+        TransactionQueueTest test{queue};
         test.add(txSeqA1T1, TransactionQueue::AddResult::ADD_STATUS_PENDING);
         test.check({{{account1, 0, {txSeqA1T1}}, {account2}}, {}});
         test.shift();
@@ -563,7 +588,7 @@ testTransactionQueueBasicScenarios()
 
     SECTION("good then good sequence number, with shift")
     {
-        TransactionQueueTest test{*app};
+        TransactionQueueTest test{queue};
         test.add(txSeqA1T1, TransactionQueue::AddResult::ADD_STATUS_PENDING);
         TransactionQueueTest::TransactionQueueState state = {
             {{account1, 0, {txSeqA1T1}}, {account2}}, {}};
@@ -578,7 +603,7 @@ testTransactionQueueBasicScenarios()
 
     SECTION("good sequence number, same twice with double shift")
     {
-        TransactionQueueTest test{*app};
+        TransactionQueueTest test{queue};
         test.add(txSeqA1T1, TransactionQueue::AddResult::ADD_STATUS_PENDING);
         test.check({{{account1, 0, {txSeqA1T1}}, {account2}}, {}});
         test.shift();
@@ -591,7 +616,7 @@ testTransactionQueueBasicScenarios()
 
     SECTION("good then big sequence number, with double shift")
     {
-        TransactionQueueTest test{*app};
+        TransactionQueueTest test{queue};
         test.add(txSeqA1T1, TransactionQueue::AddResult::ADD_STATUS_PENDING);
         test.check({{{account1, 0, {txSeqA1T1}}, {account2}}});
         test.shift();
@@ -605,7 +630,7 @@ testTransactionQueueBasicScenarios()
 
     SECTION("good then good sequence number, with double shift")
     {
-        TransactionQueueTest test{*app};
+        TransactionQueueTest test{queue};
         test.add(txSeqA1T1, TransactionQueue::AddResult::ADD_STATUS_PENDING);
         test.check({{{account1, 0, {txSeqA1T1}}, {account2}}});
         test.shift();
@@ -619,7 +644,7 @@ testTransactionQueueBasicScenarios()
 
     SECTION("good sequence number, same twice with four shifts, then two more")
     {
-        TransactionQueueTest test{*app};
+        TransactionQueueTest test{queue};
         test.add(txSeqA1T1, TransactionQueue::AddResult::ADD_STATUS_PENDING);
         test.check({{{account1, 0, {txSeqA1T1}}, {account2}}});
         test.shift();
@@ -643,7 +668,7 @@ testTransactionQueueBasicScenarios()
 
     SECTION("good then big sequence number, with four shifts")
     {
-        TransactionQueueTest test{*app};
+        TransactionQueueTest test{queue};
         test.add(txSeqA1T1, TransactionQueue::AddResult::ADD_STATUS_PENDING);
         test.check({{{account1, 0, {txSeqA1T1}}, {account2}}});
         test.shift();
@@ -660,7 +685,7 @@ testTransactionQueueBasicScenarios()
 
     SECTION("good then small sequence number, with four shifts")
     {
-        TransactionQueueTest test{*app};
+        TransactionQueueTest test{queue};
         test.add(txSeqA1T1, TransactionQueue::AddResult::ADD_STATUS_PENDING);
         test.check({{{account1, 0, {txSeqA1T1}}, {account2}}});
         test.shift();
@@ -677,7 +702,7 @@ testTransactionQueueBasicScenarios()
 
     SECTION("invalid transaction")
     {
-        TransactionQueueTest test{*app};
+        TransactionQueueTest test{queue};
         test.add(invalidTransaction(*app, account1, 1),
                  TransactionQueue::AddResult::ADD_STATUS_ERROR);
         test.check({{{account1}, {account2}}});
@@ -697,6 +722,7 @@ TEST_CASE("TransactionQueue hitting the rate limit",
     cfg.TESTING_UPGRADE_MAX_TX_SET_SIZE = 4;
     cfg.FLOOD_TX_PERIOD_MS = 100;
     auto app = createTestApplication(clock, cfg);
+    auto queue = ClassicTransactionQueue{*app, 4, 2, 2};
     auto const minBalance2 = app->getLedgerManager().getLastMinBalance(2);
 
     auto root = TestAccount::createRoot(*app);
@@ -707,7 +733,7 @@ TEST_CASE("TransactionQueue hitting the rate limit",
     auto account5 = root.create("a5", minBalance2);
     auto account6 = root.create("a6", minBalance2);
 
-    TransactionQueueTest testQueue{*app};
+    TransactionQueueTest testQueue{queue};
     std::vector<TransactionFrameBasePtr> txs;
     auto addTx = [&](TransactionFrameBasePtr tx) {
         txs.push_back(tx);
@@ -770,6 +796,7 @@ TEST_CASE_VERSIONS("TransactionQueue with PreconditionsV2",
     cfg.TESTING_UPGRADE_MAX_TX_SET_SIZE = 4;
     cfg.FLOOD_TX_PERIOD_MS = 100;
     auto app = createTestApplication(clock, cfg);
+    auto queue = ClassicTransactionQueue{*app, 4, 2, 2};
     auto const minBalance2 = app->getLedgerManager().getLastMinBalance(2);
 
     for_versions_from(19, *app, [&] {
@@ -813,7 +840,7 @@ TEST_CASE_VERSIONS("TransactionQueue with PreconditionsV2",
             auto tx =
                 transactionWithV2Precondition(*app, account1, 5, 200, cond);
 
-            TransactionQueueTest test{*app};
+            TransactionQueueTest test{queue};
             test.add(tx, TransactionQueue::AddResult::ADD_STATUS_ERROR);
         }
         SECTION("fee bump only existing tx")
@@ -823,7 +850,7 @@ TEST_CASE_VERSIONS("TransactionQueue with PreconditionsV2",
             auto tx =
                 transactionWithV2Precondition(*app, account1, 5, 200, cond);
 
-            TransactionQueueTest test{*app};
+            TransactionQueueTest test{queue};
             test.add(tx, TransactionQueue::AddResult::ADD_STATUS_PENDING);
 
             auto fb = feeBump(*app, account1, tx, 4000);
@@ -833,7 +860,7 @@ TEST_CASE_VERSIONS("TransactionQueue with PreconditionsV2",
         }
         SECTION("fee bump existing tx and add minSeqNum")
         {
-            TransactionQueueTest test{*app};
+            TransactionQueueTest test{queue};
             test.add(txSeqA1S1,
                      TransactionQueue::AddResult::ADD_STATUS_PENDING);
 
@@ -849,7 +876,7 @@ TEST_CASE_VERSIONS("TransactionQueue with PreconditionsV2",
         }
         SECTION("fee bump existing tx and remove minSeqNum")
         {
-            TransactionQueueTest test{*app};
+            TransactionQueueTest test{queue};
 
             PreconditionsV2 cond;
             cond.minSeqNum.activate() = 2;
@@ -865,7 +892,7 @@ TEST_CASE_VERSIONS("TransactionQueue with PreconditionsV2",
         }
         SECTION("extra signer")
         {
-            TransactionQueueTest test{*app};
+            TransactionQueueTest test{queue};
 
             SignerKey a2;
             a2.type(SIGNER_KEY_TYPE_ED25519);
@@ -944,7 +971,7 @@ TEST_CASE_VERSIONS("TransactionQueue with PreconditionsV2",
         }
         SECTION("gap valid due to minSeqNum")
         {
-            TransactionQueueTest test{*app};
+            TransactionQueueTest test{queue};
             // Ledger state is at seqnum 1
             closeLedger(*app, {txSeqA1S1});
 
@@ -1163,22 +1190,76 @@ TEST_CASE("Soroban TransactionQueue limits",
         REQUIRE(app->getHerder().recvTransaction(fb, false) ==
                 TransactionQueue::AddResult::ADD_STATUS_ERROR);
     }
-    SECTION("classic is rejected when soroban is pending")
+    SECTION("source account limit, soroban and classic tx queue")
     {
-        // Can't submit classic tx due to source account limit
-        REQUIRE(app->getHerder().recvTransaction(
-                    transaction(*app, root, 1, 100, 100), false) ==
-                TransactionQueue::AddResult::ADD_STATUS_TRY_AGAIN_LATER);
+        auto classic = transaction(*app, account1, 1, 100, 100);
+        auto soroban = createUploadWasmTx(*app, account1, initialInclusionFee,
+                                          resourceFee, resAdjusted);
 
-        // ban existing soroban tx
-        app->getHerder().getSorobanTransactionQueue().ban({tx});
-        REQUIRE(app->getHerder().getTx(tx->getFullHash()) == nullptr);
-        REQUIRE(app->getHerder().isBannedTx(tx->getFullHash()));
+        auto checkLimitEnforced = [&](auto const& pendingTx,
+                                      auto const& rejectedTx,
+                                      TransactionQueue& txQueue) {
+            REQUIRE(app->getHerder().recvTransaction(pendingTx, false) ==
+                    TransactionQueue::AddResult::ADD_STATUS_PENDING);
 
-        // Now can submit classic txs
-        REQUIRE(app->getHerder().recvTransaction(
-                    transaction(*app, root, 0, 100, 100), false) ==
-                TransactionQueue::AddResult::ADD_STATUS_PENDING);
+            // Can't submit tx due to source account limit
+            REQUIRE(app->getHerder().recvTransaction(rejectedTx, false) ==
+                    TransactionQueue::AddResult::ADD_STATUS_TRY_AGAIN_LATER);
+
+            // ban existing tx
+            txQueue.ban({pendingTx});
+            REQUIRE(app->getHerder().getTx(pendingTx->getFullHash()) ==
+                    nullptr);
+            REQUIRE(app->getHerder().isBannedTx(pendingTx->getFullHash()));
+
+            // Now can submit classic txs
+            REQUIRE(app->getHerder().recvTransaction(rejectedTx, false) ==
+                    TransactionQueue::AddResult::ADD_STATUS_PENDING);
+        };
+        SECTION("classic is rejected when soroban is pending")
+        {
+            auto& queue = app->getHerder().getSorobanTransactionQueue();
+            SECTION("no fee bump")
+            {
+                checkLimitEnforced(soroban, classic, queue);
+            }
+            SECTION("fee bump")
+            {
+                SECTION("fee bump soroban")
+                {
+                    auto fb = feeBump(*app, account1, soroban,
+                                      initialInclusionFee * 10);
+                    checkLimitEnforced(fb, classic, queue);
+                }
+                SECTION("classic fee bump")
+                {
+                    auto fb = feeBump(*app, account1, classic, 100 * 10);
+                    checkLimitEnforced(soroban, fb, queue);
+                }
+            }
+        }
+        SECTION("soroban is rejected when classic is pending")
+        {
+            auto& queue = app->getHerder().getTransactionQueue();
+            SECTION("no fee bump")
+            {
+                checkLimitEnforced(classic, soroban, queue);
+            }
+            SECTION("fee bump")
+            {
+                SECTION("fee bump soroban")
+                {
+                    auto fb = feeBump(*app, account1, soroban,
+                                      initialInclusionFee * 10);
+                    checkLimitEnforced(classic, fb, queue);
+                }
+                SECTION("classic fee bump")
+                {
+                    auto fb = feeBump(*app, account1, classic, 100 * 10);
+                    checkLimitEnforced(fb, soroban, queue);
+                }
+            }
+        }
     }
     SECTION("tx does not fit")
     {
@@ -1594,8 +1675,8 @@ TEST_CASE("TransactionQueue limiter with DEX separation",
 
     TransactionFrameBasePtr noTx;
 
-    auto checkAndAddTx = [&](TestAccount& account, bool isDex, uint32 ops,
-                             int fee, bool expected, int64 expFeeOnFailed,
+    auto checkAndAddTx = [&](TestAccount& account, bool isDex, int ops,
+                             uint32 fee, bool expected, int64 expFeeOnFailed,
                              int expEvictedOpsOnSuccess) {
         TransactionFrameBasePtr tx;
         if (isDex)
@@ -1852,229 +1933,304 @@ TEST_CASE("transaction queue starting sequence boundary",
     }
 }
 
-void
-testTxQueueFeeBump()
+TEST_CASE("transaction queue with fee-bump", "[herder][transactionqueue]")
 {
     VirtualClock clock;
     auto cfg = getTestConfig();
     cfg.FLOOD_TX_PERIOD_MS = 100;
+    // With this setting, max tx queue size will be 14
+    cfg.TESTING_UPGRADE_MAX_TX_SET_SIZE = 7;
     auto app = createTestApplication(clock, cfg);
     auto const minBalance0 = app->getLedgerManager().getLastMinBalance(0);
-    auto const minBalance2 = app->getLedgerManager().getLastMinBalance(2);
+    auto const minBalance2 = app->getLedgerManager().getLastMinBalance(2) +
+                             DEFAULT_TEST_RESOURCE_FEE;
 
     auto root = TestAccount::createRoot(*app);
     auto account1 = root.create("a1", minBalance2);
     auto account2 = root.create("a2", minBalance2);
     auto account3 = root.create("a3", minBalance2);
 
-    SECTION("1 fee bump, fee source same as source")
-    {
-        TransactionQueueTest test{*app};
-        auto tx = transaction(*app, account1, 1, 1, 100);
-        auto fb = feeBump(*app, account1, tx, 200);
-        test.add(fb, TransactionQueue::AddResult::ADD_STATUS_PENDING);
+    overrideSorobanNetworkConfigForTest(*app);
 
-        for (uint32 i = 0; i <= 3; ++i)
+    auto testFeeBump = [&](TransactionQueue& queue, bool isSoroban) {
+        SECTION("1 fee bump, fee source same as source")
         {
-            test.check({{{account1, i, {fb}}, {account2}, {account3}}, {}});
-            test.shift();
+            TransactionQueueTest test{queue};
+            auto tx = transaction(*app, account1, 1, 1, 100, 1, isSoroban);
+            auto fb = feeBump(*app, account1, tx, 200);
+            test.add(fb, TransactionQueue::AddResult::ADD_STATUS_PENDING);
+
+            for (uint32 i = 0; i <= 3; ++i)
+            {
+                test.check({{{account1, i, {fb}}, {account2}, {account3}}, {}});
+                test.shift();
+            }
+            test.check({{{account1}, {account2}, {account3}}, {{fb}}});
         }
-        test.check({{{account1}, {account2}, {account3}}, {{fb}}});
-    }
 
-    SECTION("1 fee bump, fee source distinct from source")
-    {
-        TransactionQueueTest test{*app};
-        auto tx = transaction(*app, account1, 1, 1, 100);
-        auto fb = feeBump(*app, account2, tx, 200);
-        test.add(fb, TransactionQueue::AddResult::ADD_STATUS_PENDING);
-        test.check({{{account1, 0, {fb}}, {account2, 0}}, {}});
-
-        for (uint32 i = 1; i <= 3; ++i)
+        SECTION("1 fee bump, fee source distinct from source")
         {
+            TransactionQueueTest test{queue};
+            auto tx = transaction(*app, account1, 1, 1, 100, 1, isSoroban);
+            auto fb = feeBump(*app, account2, tx, 200);
+            test.add(fb, TransactionQueue::AddResult::ADD_STATUS_PENDING);
+            test.check({{{account1, 0, {fb}}, {account2, 0}}, {}});
+
+            for (uint32 i = 1; i <= 3; ++i)
+            {
+                test.shift();
+                test.check(
+                    {{{account1, i, {fb}}, {account2, 0}, {account3}}, {}});
+            }
             test.shift();
-            test.check({{{account1, i, {fb}}, {account2, 0}, {account3}}, {}});
+            test.check({{{account1}, {account2}, {account3}}, {{fb}}});
         }
-        test.shift();
-        test.check({{{account1}, {account2}, {account3}}, {{fb}}});
-    }
-
-    SECTION("2 fee bumps with same fee source but different source, "
-            "fee source distinct from source")
-    {
-        TransactionQueueTest test{*app};
-        auto tx1 = transaction(*app, account1, 1, 1, 100);
-        auto fb1 = feeBump(*app, account3, tx1, 200);
-        test.add(fb1, TransactionQueue::AddResult::ADD_STATUS_PENDING);
-        test.check({{{account1, 0, {fb1}}, {account2}, {account3, 0}}, {}});
-
-        test.shift();
-        test.check({{{account1, 1, {fb1}}, {account2}, {account3, 0}}, {}});
-
-        auto tx2 = transaction(*app, account2, 1, 1, 100);
-        auto fb2 = feeBump(*app, account3, tx2, 200);
-        test.add(fb2, TransactionQueue::AddResult::ADD_STATUS_PENDING);
-
-        for (uint32 i = 1; i <= 3; ++i)
+        SECTION("different ops")
         {
-            test.check({{{account1, i, {fb1}},
-                         {account2, i - 1, {fb2}},
-                         {account3, 0}},
-                        {}});
+            if (!isSoroban)
+            {
+                TransactionQueueTest test{queue};
+                auto tx = transaction(*app, account1, 1, 1, 100, /* nbOps */ 1,
+                                      isSoroban);
+                auto txMultiOps = transaction(*app, account1, 1, 1, 10 * 100,
+                                              /* nbOps */ 10, isSoroban);
+                TransactionFrameBasePtr fb;
+
+                SECTION("more ops")
+                {
+                    // Set fee=150*10*10, such that feePerOp is higher than tx's
+                    // fee (150 > 100)
+                    fb = feeBump(*app, account1, txMultiOps, 15000);
+                    test.add(tx,
+                             TransactionQueue::AddResult::ADD_STATUS_PENDING);
+                    test.add(fb,
+                             TransactionQueue::AddResult::ADD_STATUS_PENDING);
+                }
+                SECTION("less ops")
+                {
+                    fb = feeBump(*app, account1, tx, 2000);
+                    test.add(txMultiOps,
+                             TransactionQueue::AddResult::ADD_STATUS_PENDING);
+                    test.add(fb,
+                             TransactionQueue::AddResult::ADD_STATUS_PENDING);
+                }
+                test.check({{{account1, 0, {fb}}, {account2}, {account3}}, {}});
+            }
+        }
+        SECTION("fee bump at limit")
+        {
+            if (!isSoroban)
+            {
+                TransactionQueueTest test{queue};
+                REQUIRE(queue.getMaxQueueSizeOps() == 14);
+                // Tx1 will put tx queue at limit
+                auto tx1 = transaction(*app, account1, 1, 1, 14 * 100,
+                                       /* nbOps */ 14, isSoroban);
+                auto tx2 = transaction(*app, account1, 1, 1, 10 * 100,
+                                       /* nbOps */ 10, isSoroban);
+                auto fb = feeBump(*app, account1, tx2, 14 * 100 * 10);
+                test.add(tx1, TransactionQueue::AddResult::ADD_STATUS_PENDING);
+                // Allow tx discount to kick in, and fee bump replace the
+                // original tx
+                test.add(fb, TransactionQueue::AddResult::ADD_STATUS_PENDING);
+                test.check({{{account1, 0, {fb}}, {account2}, {account3}}, {}});
+            }
+        }
+        SECTION("2 fee bumps with same fee source but different source, "
+                "fee source distinct from source")
+        {
+            TransactionQueueTest test{queue};
+            auto tx1 = transaction(*app, account1, 1, 1, 100, 1, isSoroban);
+            auto fb1 = feeBump(*app, account3, tx1, 200);
+            test.add(fb1, TransactionQueue::AddResult::ADD_STATUS_PENDING);
+            test.check({{{account1, 0, {fb1}}, {account2}, {account3, 0}}, {}});
+
             test.shift();
-        }
-        test.check(
-            {{{account1}, {account2, 3, {fb2}}, {account3, 0}}, {{fb1}}});
-        test.shift();
-        test.check({{{account1}, {account2}, {account3}}, {{fb2}, {fb1}}});
-    }
+            test.check({{{account1, 1, {fb1}}, {account2}, {account3, 0}}, {}});
 
-    SECTION("1 fee bump and 1 transaction with same fee source, "
-            "fee source distinct from source, fee bump first")
-    {
-        TransactionQueueTest test{*app};
-        auto tx1 = transaction(*app, account1, 1, 1, 100);
-        auto fb1 = feeBump(*app, account3, tx1, 200);
-        test.add(fb1, TransactionQueue::AddResult::ADD_STATUS_PENDING);
-        test.check({{{account1, 0, {fb1}}, {account2}, {account3, 0}}, {}});
+            auto tx2 = transaction(*app, account2, 1, 1, 100, 1, isSoroban);
+            auto fb2 = feeBump(*app, account3, tx2, 200);
+            test.add(fb2, TransactionQueue::AddResult::ADD_STATUS_PENDING);
 
-        test.shift();
-        test.check({{{account1, 1, {fb1}}, {account2}, {account3, 0}}, {}});
-
-        auto tx2 = transaction(*app, account3, 1, 1, 100);
-        test.add(tx2, TransactionQueue::AddResult::ADD_STATUS_PENDING);
-
-        for (uint32 i = 1; i <= 3; ++i)
-        {
+            for (uint32 i = 1; i <= 3; ++i)
+            {
+                test.check({{{account1, i, {fb1}},
+                             {account2, i - 1, {fb2}},
+                             {account3, 0}},
+                            {}});
+                test.shift();
+            }
             test.check(
-                {{{account1, i, {fb1}}, {account2}, {account3, i - 1, {tx2}}},
-                 {}});
+                {{{account1}, {account2, 3, {fb2}}, {account3, 0}}, {{fb1}}});
             test.shift();
+            test.check({{{account1}, {account2}, {account3}}, {{fb2}, {fb1}}});
         }
-        test.check({{{account1}, {account2}, {account3, 3, {tx2}}}, {{fb1}}});
-        test.shift();
-        test.check({{{account1}, {account2}, {account3}}, {{tx2}, {fb1}}});
-    }
 
-    SECTION("1 fee bump and 1 transaction with same fee source, "
-            "fee source distinct from source, fee bump second")
-    {
-        TransactionQueueTest test{*app};
-        auto tx1 = transaction(*app, account3, 1, 1, 100);
-        test.add(tx1, TransactionQueue::AddResult::ADD_STATUS_PENDING);
-        test.check({{{account1}, {account2}, {account3, 0, {tx1}}}, {}});
-
-        test.shift();
-        test.check({{{account1}, {account2}, {account3, 1, {tx1}}}, {}});
-
-        auto tx2 = transaction(*app, account1, 1, 1, 100);
-        auto fb2 = feeBump(*app, account3, tx2, 200);
-        test.add(fb2, TransactionQueue::AddResult::ADD_STATUS_PENDING);
-
-        for (uint32 i = 1; i <= 3; ++i)
+        SECTION("1 fee bump and 1 transaction with same fee source, "
+                "fee source distinct from source, fee bump first")
         {
-            test.check(
-                {{{account1, i - 1, {fb2}}, {account2}, {account3, i, {tx1}}},
-                 {}});
+            TransactionQueueTest test{queue};
+            auto tx1 = transaction(*app, account1, 1, 1, 100, 1, isSoroban);
+            auto fb1 = feeBump(*app, account3, tx1, 200);
+            test.add(fb1, TransactionQueue::AddResult::ADD_STATUS_PENDING);
+            test.check({{{account1, 0, {fb1}}, {account2}, {account3, 0}}, {}});
+
             test.shift();
+            test.check({{{account1, 1, {fb1}}, {account2}, {account3, 0}}, {}});
+
+            auto tx2 = transaction(*app, account3, 1, 1, 100, 1, isSoroban);
+            test.add(tx2, TransactionQueue::AddResult::ADD_STATUS_PENDING);
+
+            for (uint32 i = 1; i <= 3; ++i)
+            {
+                test.check({{{account1, i, {fb1}},
+                             {account2},
+                             {account3, i - 1, {tx2}}},
+                            {}});
+                test.shift();
+            }
+            test.check(
+                {{{account1}, {account2}, {account3, 3, {tx2}}}, {{fb1}}});
+            test.shift();
+            test.check({{{account1}, {account2}, {account3}}, {{tx2}, {fb1}}});
         }
-        test.check(
-            {{{account1, 3, {fb2}}, {account2}, {account3, 0}}, {{tx1}}});
-        test.shift();
-        test.check({{{account1}, {account2}, {account3}}, {{fb2}, {tx1}}});
-    }
 
-    SECTION("ban or remove, two fee bumps with same fee source and source, "
-            "fee source same as source")
-    {
-        TransactionQueueTest test{*app};
-        auto tx1 = transaction(*app, account1, 1, 1, 100);
-        auto fb1 = feeBump(*app, account1, tx1, 200);
-        test.add(fb1, TransactionQueue::AddResult::ADD_STATUS_PENDING);
-        test.check({{{account1, 0, {fb1}}, {account2}, {account3}}, {}});
+        SECTION("1 fee bump and 1 transaction with same fee source, "
+                "fee source distinct from source, fee bump second")
+        {
+            TransactionQueueTest test{queue};
+            auto tx1 = transaction(*app, account3, 1, 1, 100, 1, isSoroban);
+            test.add(tx1, TransactionQueue::AddResult::ADD_STATUS_PENDING);
+            test.check({{{account1}, {account2}, {account3, 0, {tx1}}}, {}});
 
-        auto tx2 = transaction(*app, account1, 2, 1, 100);
-        auto fb2 = feeBump(*app, account1, tx2, 200);
+            test.shift();
+            test.check({{{account1}, {account2}, {account3, 1, {tx1}}}, {}});
 
-        // New fee-bump transaction can't replace the old one
-        test.add(fb2, TransactionQueue::AddResult::ADD_STATUS_TRY_AGAIN_LATER);
-        test.check({{{account1, 0, {fb1}}, {account2}, {account3}}, {}});
-    }
+            auto tx2 = transaction(*app, account1, 1, 1, 100, 1, isSoroban);
+            auto fb2 = feeBump(*app, account3, tx2, 200);
+            test.add(fb2, TransactionQueue::AddResult::ADD_STATUS_PENDING);
 
-    SECTION("ban first of two fee bumps with same fee source and source, "
-            "fee source distinct from source")
-    {
-        TransactionQueueTest test{*app};
-        auto tx1 = transaction(*app, account1, 1, 1, 100);
-        auto fb1 = feeBump(*app, account3, tx1, 200);
-        test.add(fb1, TransactionQueue::AddResult::ADD_STATUS_PENDING);
-        test.check({{{account1, 0, {fb1}}, {account2}, {account3, 0}}, {}});
+            for (uint32 i = 1; i <= 3; ++i)
+            {
+                test.check({{{account1, i - 1, {fb2}},
+                             {account2},
+                             {account3, i, {tx1}}},
+                            {}});
+                test.shift();
+            }
+            test.check(
+                {{{account1, 3, {fb2}}, {account2}, {account3, 0}}, {{tx1}}});
+            test.shift();
+            test.check({{{account1}, {account2}, {account3}}, {{fb2}, {tx1}}});
+        }
 
-        auto tx2 = transaction(*app, account1, 2, 1, 100);
-        auto fb2 = feeBump(*app, account3, tx2, 200);
+        SECTION("two fee bumps with same fee source and source, fee source "
+                "same as source")
+        {
+            TransactionQueueTest test{queue};
+            auto tx1 = transaction(*app, account1, 1, 1, 100, 1, isSoroban);
+            auto fb1 = feeBump(*app, account1, tx1, 200);
+            test.add(fb1, TransactionQueue::AddResult::ADD_STATUS_PENDING);
+            test.check({{{account1, 0, {fb1}}, {account2}, {account3}}, {}});
 
-        // New fee-bump transaction can't replace the old one
-        test.add(fb2, TransactionQueue::AddResult::ADD_STATUS_TRY_AGAIN_LATER);
-        test.check({{{account1, 0, {fb1}}, {account2}, {account3}}, {}});
-    }
+            auto tx2 = transaction(*app, account1, 2, 1, 100, 1, isSoroban);
+            auto fb2 = feeBump(*app, account1, tx2, 200);
 
-    SECTION("add transaction, fee source has insufficient balance due to fee "
+            // New fee-bump transaction can't replace the old one
+            test.add(fb2,
+                     TransactionQueue::AddResult::ADD_STATUS_TRY_AGAIN_LATER);
+            test.check({{{account1, 0, {fb1}}, {account2}, {account3}}, {}});
+        }
+
+        SECTION("ban first of two fee bumps with same fee source and source, "
+                "fee source distinct from source")
+        {
+            TransactionQueueTest test{queue};
+            auto tx1 = transaction(*app, account1, 1, 1, 100, 1, isSoroban);
+            auto fb1 = feeBump(*app, account3, tx1, 200);
+            test.add(fb1, TransactionQueue::AddResult::ADD_STATUS_PENDING);
+            test.check({{{account1, 0, {fb1}}, {account2}, {account3, 0}}, {}});
+
+            auto tx2 = transaction(*app, account1, 2, 1, 100, 1, isSoroban);
+            auto fb2 = feeBump(*app, account3, tx2, 200);
+
+            // New fee-bump transaction can't replace the old one
+            test.add(fb2,
+                     TransactionQueue::AddResult::ADD_STATUS_TRY_AGAIN_LATER);
+            test.check({{{account1, 0, {fb1}}, {account2}, {account3}}, {}});
+        }
+
+        SECTION(
+            "add transaction, fee source has insufficient balance due to fee "
             "bumps")
+        {
+            TransactionQueueTest test{queue};
+            auto tx1 = transaction(*app, account1, 1, 1, 100, 1, isSoroban);
+            uint32_t discount = tx1->getFullFee() - tx1->getInclusionFee();
+            auto fb1 = feeBump(*app, account3, tx1,
+                               minBalance2 - minBalance0 - 1 - discount);
+            test.add(fb1, TransactionQueue::AddResult::ADD_STATUS_PENDING);
+            test.check({{{account1, 0, {fb1}}, {account2}, {account3, 0}}, {}});
+
+            SECTION("transaction")
+            {
+                auto tx2 = transaction(*app, account3, 1, 1, 100, 1, isSoroban);
+                test.add(tx2, TransactionQueue::AddResult::ADD_STATUS_ERROR);
+                REQUIRE(tx2->getResultCode() == txINSUFFICIENT_BALANCE);
+                test.check(
+                    {{{account1, 0, {fb1}}, {account2}, {account3, 0}}, {}});
+            }
+
+            SECTION("fee bump with fee source same as source")
+            {
+                auto tx2 = transaction(*app, account3, 1, 1, 100, 1, isSoroban);
+                auto fb2 = feeBump(*app, account3, tx2, 200);
+                test.add(fb2, TransactionQueue::AddResult::ADD_STATUS_ERROR);
+                REQUIRE(fb2->getResultCode() == txINSUFFICIENT_BALANCE);
+                test.check(
+                    {{{account1, 0, {fb1}}, {account2}, {account3, 0}}, {}});
+            }
+
+            SECTION("fee bump with fee source distinct from source")
+            {
+                auto tx2 = transaction(*app, account2, 1, 1, 100, 1, isSoroban);
+                auto fb2 = feeBump(*app, account3, tx2, 200);
+                test.add(fb2, TransactionQueue::AddResult::ADD_STATUS_ERROR);
+                REQUIRE(fb2->getResultCode() == txINSUFFICIENT_BALANCE);
+                test.check(
+                    {{{account1, 0, {fb1}}, {account2}, {account3, 0}}, {}});
+            }
+        }
+
+        SECTION("transaction or fee bump duplicates fee bump")
+        {
+            TransactionQueueTest test{queue};
+            auto tx1 = transaction(*app, account1, 1, 1, 100, 1, isSoroban);
+            uint32_t discount = tx1->getFullFee() - tx1->getInclusionFee();
+            auto fb1 = feeBump(*app, account3, tx1,
+                               minBalance2 - minBalance0 - 1 - discount);
+            test.add(fb1, TransactionQueue::AddResult::ADD_STATUS_PENDING);
+            test.check({{{account1, 0, {fb1}}, {account2}, {account3, 0}}, {}});
+            test.add(fb1, TransactionQueue::AddResult::ADD_STATUS_DUPLICATE);
+            test.check({{{account1, 0, {fb1}}, {account2}, {account3, 0}}, {}});
+            test.add(tx1, TransactionQueue::AddResult::ADD_STATUS_DUPLICATE);
+            test.check({{{account1, 0, {fb1}}, {account2}, {account3, 0}}, {}});
+        }
+    };
+
+    SECTION("classic")
     {
-        TransactionQueueTest test{*app};
-        auto tx1 = transaction(*app, account1, 1, 1, 100);
-        auto fb1 = feeBump(*app, account3, tx1, minBalance2 - minBalance0 - 1);
-        test.add(fb1, TransactionQueue::AddResult::ADD_STATUS_PENDING);
-        test.check({{{account1, 0, {fb1}}, {account2}, {account3, 0}}, {}});
-
-        SECTION("transaction")
-        {
-            auto tx2 = transaction(*app, account3, 1, 1, 100);
-            test.add(tx2, TransactionQueue::AddResult::ADD_STATUS_ERROR);
-            REQUIRE(tx2->getResultCode() == txINSUFFICIENT_BALANCE);
-            test.check({{{account1, 0, {fb1}}, {account2}, {account3, 0}}, {}});
-        }
-
-        SECTION("fee bump with fee source same as source")
-        {
-            auto tx2 = transaction(*app, account3, 1, 1, 100);
-            auto fb2 = feeBump(*app, account3, tx2, 200);
-            test.add(fb2, TransactionQueue::AddResult::ADD_STATUS_ERROR);
-            REQUIRE(fb2->getResultCode() == txINSUFFICIENT_BALANCE);
-            test.check({{{account1, 0, {fb1}}, {account2}, {account3, 0}}, {}});
-        }
-
-        SECTION("fee bump with fee source distinct from source")
-        {
-            auto tx2 = transaction(*app, account2, 1, 1, 100);
-            auto fb2 = feeBump(*app, account3, tx2, 200);
-            test.add(fb2, TransactionQueue::AddResult::ADD_STATUS_ERROR);
-            REQUIRE(fb2->getResultCode() == txINSUFFICIENT_BALANCE);
-            test.check({{{account1, 0, {fb1}}, {account2}, {account3, 0}}, {}});
-        }
+        auto queue = ClassicTransactionQueue{*app, 4, 2, 2};
+        testFeeBump(queue, /* isSoroban */ false);
     }
-
-    SECTION("transaction or fee bump duplicates fee bump")
+    SECTION("soroban")
     {
-        TransactionQueueTest test{*app};
-        auto tx1 = transaction(*app, account1, 1, 1, 100);
-        auto fb1 = feeBump(*app, account3, tx1, minBalance2 - minBalance0 - 1);
-        test.add(fb1, TransactionQueue::AddResult::ADD_STATUS_PENDING);
-        test.check({{{account1, 0, {fb1}}, {account2}, {account3, 0}}, {}});
-        test.add(fb1, TransactionQueue::AddResult::ADD_STATUS_DUPLICATE);
-        test.check({{{account1, 0, {fb1}}, {account2}, {account3, 0}}, {}});
-        test.add(tx1, TransactionQueue::AddResult::ADD_STATUS_DUPLICATE);
-        test.check({{{account1, 0, {fb1}}, {account2}, {account3, 0}}, {}});
+        auto queue = SorobanTransactionQueue{*app, 4, 2, 2};
+        testFeeBump(queue, /* isSoroban */ true);
     }
 }
 
-TEST_CASE("transaction queue with fee-bump", "[herder][transactionqueue]")
-{
-    testTxQueueFeeBump();
-}
-
-void
-testReplaceByFee()
+TEST_CASE("replace by fee", "[herder][transactionqueue]")
 {
     VirtualClock clock;
     auto cfg = getTestConfig();
@@ -2086,86 +2242,64 @@ testReplaceByFee()
     auto account1 = root.create("a1", minBalance2);
     auto account2 = root.create("a2", minBalance2);
 
-    uint32_t numTransactions = 1;
-    auto setupTransactions = [&](TransactionQueueTest& test) {
+    auto setupTransactions = [&](TransactionQueueTest& test, bool isSoroban) {
         std::vector<TransactionFrameBasePtr> txs;
-        for (uint32_t i = 1; i <= numTransactions; ++i)
-        {
-            txs.emplace_back(transaction(*app, account1, i, 1, 200));
-            test.add(txs.back(),
-                     TransactionQueue::AddResult::ADD_STATUS_PENDING);
-        }
+        txs.emplace_back(transaction(*app, account1, 1, 1, 200, 1, isSoroban));
+        test.add(txs.back(), TransactionQueue::AddResult::ADD_STATUS_PENDING);
         return txs;
     };
 
-    auto setupFeeBumps = [&](TransactionQueueTest& test,
-                             TestAccount& feeSource) {
+    auto setupFeeBumps = [&](TransactionQueueTest& test, TestAccount& feeSource,
+                             bool isSoroban) {
         std::vector<TransactionFrameBasePtr> txs;
-        for (uint32_t i = 1; i <= numTransactions; ++i)
-        {
-            auto tx = transaction(*app, account1, i, 1, 100);
-            auto fb = feeBump(*app, feeSource, tx, 400);
-            txs.emplace_back(fb);
-            test.add(txs.back(),
-                     TransactionQueue::AddResult::ADD_STATUS_PENDING);
-        }
+        auto tx = transaction(*app, account1, 1, 1, 100, 1, isSoroban);
+        auto fb = feeBump(*app, feeSource, tx, 400);
+        txs.emplace_back(fb);
+        test.add(txs.back(), TransactionQueue::AddResult::ADD_STATUS_PENDING);
         return txs;
     };
 
     auto submitTransactions = [&](TransactionQueueTest& test,
-                                  std::vector<TransactionFrameBasePtr> txs) {
-        // When limit is enforced, transactions are rejected due to the limit,
-        // not insufficient fee
-        auto status = TransactionQueue::AddResult::ADD_STATUS_TRY_AGAIN_LATER;
+                                  std::vector<TransactionFrameBasePtr> txs,
+                                  bool isSoroban) {
         SECTION("lower fee")
         {
-            for (uint32_t i = 1; i <= numTransactions; ++i)
-            {
-                test.add(transaction(*app, account1, i, 1, 199), status);
-                test.check({{{account1, 0, txs}, {account2}}, {}});
-            }
+            test.add(transaction(*app, account1, 1, 1, 199, 1, isSoroban),
+                     TransactionQueue::AddResult::ADD_STATUS_TRY_AGAIN_LATER);
+            test.check({{{account1, 0, txs}, {account2}}, {}});
         }
 
         SECTION("higher fee below threshold")
         {
-            for (uint32_t i = 1; i <= numTransactions; ++i)
-            {
-                test.add(transaction(*app, account1, i, 1, 1999), status);
-                test.check({{{account1, 0, txs}, {account2}}, {}});
-            }
+            test.add(transaction(*app, account1, 1, 1, 1999, 1, isSoroban),
+                     TransactionQueue::AddResult::ADD_STATUS_TRY_AGAIN_LATER);
+            test.check({{{account1, 0, txs}, {account2}}, {}});
         }
 
         SECTION("higher fee at threshold")
         {
-            std::vector<std::string> position{"first", "middle", "last"};
-            for (uint32_t i = 1; i <= numTransactions; ++i)
-            {
-                SECTION(position[i - 1] + " transaction")
-                {
-                    test.add(transaction(*app, account1, i, 1, 2000), status);
-                    test.check({{{account1, 0, txs}, {account2}}, {}});
-                }
-            }
+            test.add(transaction(*app, account1, 1, 1, 2000, 1, isSoroban),
+                     TransactionQueue::AddResult::ADD_STATUS_TRY_AGAIN_LATER);
+            test.check({{{account1, 0, txs}, {account2}}, {}});
         }
     };
 
     auto submitFeeBumps = [&](TransactionQueueTest& test,
-                              std::vector<TransactionFrameBasePtr> txs) {
+                              std::vector<TransactionFrameBasePtr> txs,
+                              bool isSoroban) {
         SECTION("lower fee")
         {
             std::vector<TestAccount> accounts{account1, account2};
             for (auto& feeSource : accounts)
             {
-                for (uint32_t i = 1; i <= numTransactions; ++i)
-                {
-                    auto tx = transaction(*app, account1, i, 1, 100);
-                    auto fb = feeBump(*app, feeSource, tx, 399);
-                    test.add(fb, TransactionQueue::AddResult::ADD_STATUS_ERROR);
-                    auto const& res = fb->getResult();
-                    REQUIRE(res.result.code() == txINSUFFICIENT_FEE);
-                    REQUIRE(res.feeCharged == 4000);
-                    test.check({{{account1, 0, txs}, {account2}}, {}});
-                }
+                auto tx = transaction(*app, account1, 1, 1, 100, 1, isSoroban);
+                auto fb = feeBump(*app, feeSource, tx, 399);
+                test.add(fb, TransactionQueue::AddResult::ADD_STATUS_ERROR);
+                auto const& res = fb->getResult();
+                REQUIRE(res.result.code() == txINSUFFICIENT_FEE);
+                REQUIRE(res.feeCharged ==
+                        4000 + (tx->getFullFee() - tx->getInclusionFee()));
+                test.check({{{account1, 0, txs}, {account2}}, {}});
             }
         }
 
@@ -2174,95 +2308,95 @@ testReplaceByFee()
             std::vector<TestAccount> accounts{account1, account2};
             for (auto& feeSource : accounts)
             {
-                for (uint32_t i = 1; i <= numTransactions; ++i)
-                {
-                    auto tx = transaction(*app, account1, i, 1, 100);
-                    auto fb = feeBump(*app, feeSource, tx, 3999);
-                    test.add(fb, TransactionQueue::AddResult::ADD_STATUS_ERROR);
-                    auto const& res = fb->getResult();
-                    REQUIRE(res.result.code() == txINSUFFICIENT_FEE);
-                    REQUIRE(res.feeCharged == 4000);
-                    test.check({{{account1, 0, txs}, {account2}}, {}});
-                }
+                auto tx = transaction(*app, account1, 1, 1, 100, 1, isSoroban);
+                auto fb = feeBump(*app, feeSource, tx, 3999);
+                test.add(fb, TransactionQueue::AddResult::ADD_STATUS_ERROR);
+                auto const& res = fb->getResult();
+                REQUIRE(res.result.code() == txINSUFFICIENT_FEE);
+                REQUIRE(res.feeCharged ==
+                        4000 + (tx->getFullFee() - tx->getInclusionFee()));
+                test.check({{{account1, 0, txs}, {account2}}, {}});
             }
         }
 
         SECTION("higher fee at threshold")
         {
-            std::vector<std::string> position{"first", "middle", "last"};
-            for (uint32_t i = 1; i <= numTransactions; ++i)
+            auto checkPos = [&](TestAccount& source) {
+                auto tx = transaction(*app, account1, 1, 1, 100, 1, isSoroban);
+                auto fb = feeBump(*app, source, tx, 4000);
+                txs[0] = fb;
+                test.add(fb, TransactionQueue::AddResult::ADD_STATUS_PENDING);
+                test.check({{{account1, 0, txs}, {account2}}, {}});
+            };
+            SECTION("transaction from same source account")
             {
-                auto checkPos = [&](TestAccount& source) {
-                    auto tx = transaction(*app, account1, i, 1, 100);
-                    auto fb = feeBump(*app, source, tx, 4000);
-                    txs[i - 1] = fb;
-                    test.add(fb,
-                             TransactionQueue::AddResult::ADD_STATUS_PENDING);
-                    test.check({{{account1, 0, txs}, {account2}}, {}});
-                };
-                SECTION(position[i - 1] +
-                        " transaction from same source account")
-                {
-                    checkPos(account1);
-                }
-                SECTION(position[i - 1] +
-                        " transaction from different source account")
-                {
-                    checkPos(account2);
-                }
+                checkPos(account1);
+            }
+            SECTION("transaction from different source account")
+            {
+                checkPos(account2);
             }
         }
     };
 
-    SECTION("replace transaction with transaction")
-    {
-        TransactionQueueTest test{*app};
-        auto txs = setupTransactions(test);
-        submitTransactions(test, txs);
-    }
+    auto testReplaceByFee = [&](TransactionQueue& queue, bool isSoroban) {
+        SECTION("replace transaction with transaction")
+        {
+            TransactionQueueTest test{queue};
+            auto txs = setupTransactions(test, isSoroban);
+            submitTransactions(test, txs, isSoroban);
+        }
 
-    SECTION("replace transaction with fee-bump")
-    {
-        TransactionQueueTest test{*app};
-        auto txs = setupTransactions(test);
-        submitFeeBumps(test, txs);
-    }
+        SECTION("replace transaction with fee-bump")
+        {
+            TransactionQueueTest test{queue};
+            auto txs = setupTransactions(test, isSoroban);
+            submitFeeBumps(test, txs, isSoroban);
+        }
 
-    SECTION("replace fee-bump having same source and fee-source with "
-            "transaction")
-    {
-        TransactionQueueTest test{*app};
-        auto txs = setupFeeBumps(test, account1);
-        submitTransactions(test, txs);
-    }
+        SECTION("replace fee-bump having same source and fee-source with "
+                "transaction")
+        {
+            TransactionQueueTest test{queue};
+            auto txs = setupFeeBumps(test, account1, isSoroban);
+            submitTransactions(test, txs, isSoroban);
+        }
 
-    SECTION("replace fee-bump having different source and fee-source with "
-            "transaction")
-    {
-        TransactionQueueTest test{*app};
-        auto txs = setupFeeBumps(test, account2);
-        submitTransactions(test, txs);
-    }
+        SECTION("replace fee-bump having different source and fee-source with "
+                "transaction")
+        {
+            TransactionQueueTest test{queue};
+            auto txs = setupFeeBumps(test, account2, isSoroban);
+            submitTransactions(test, txs, isSoroban);
+        }
 
-    SECTION("replace fee-bump having same source and fee-source with fee-bump")
-    {
-        TransactionQueueTest test{*app};
-        auto txs = setupFeeBumps(test, account1);
-        submitFeeBumps(test, txs);
-    }
+        SECTION(
+            "replace fee-bump having same source and fee-source with fee-bump")
+        {
+            TransactionQueueTest test{queue};
+            auto txs = setupFeeBumps(test, account1, isSoroban);
+            submitFeeBumps(test, txs, isSoroban);
+        }
 
-    SECTION("replace fee-bump having different source and fee-source with "
-            "fee-bump")
-    {
-        TransactionQueueTest test{*app};
-        auto txs = setupFeeBumps(test, account2);
-        submitFeeBumps(test, txs);
-    }
-}
+        SECTION("replace fee-bump having different source and fee-source with "
+                "fee-bump")
+        {
+            TransactionQueueTest test{queue};
+            auto txs = setupFeeBumps(test, account2, isSoroban);
+            submitFeeBumps(test, txs, isSoroban);
+        }
+    };
 
-TEST_CASE("replace by fee", "[herder][transactionqueue]")
-{
-    testReplaceByFee();
+    SECTION("classic")
+    {
+        auto queue = ClassicTransactionQueue{*app, 4, 2, 2};
+        testReplaceByFee(queue, /* isSoroban */ false);
+    }
+    SECTION("soroban")
+    {
+        auto queue = SorobanTransactionQueue{*app, 4, 2, 2};
+        testReplaceByFee(queue, /* isSoroban */ true);
+    }
 }
 
 TEST_CASE("remove applied", "[herder][transactionqueue]")

@@ -159,6 +159,7 @@ class TransactionQueue
 
     void shutdown();
     bool sourceAccountPending(AccountID const& accountID) const;
+    virtual size_t getMaxQueueSizeOps() const = 0;
 
   protected:
     /**
@@ -201,7 +202,6 @@ class TransactionQueue
     getMaxResourcesToFloodThisPeriod() const = 0;
     virtual bool broadcastSome() = 0;
     virtual int getFloodPeriod() const = 0;
-    virtual size_t getMaxQueueSizeOps() const = 0;
 
     void broadcast(bool fromCallback);
     // broadcasts a single transaction

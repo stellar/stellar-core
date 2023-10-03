@@ -715,7 +715,7 @@ feeBump(Application& app, TestAccount& feeSource, TransactionFrameBasePtr tx,
     REQUIRE(tx->getEnvelope().type() == ENVELOPE_TYPE_TX);
     TransactionEnvelope fb(ENVELOPE_TYPE_TX_FEE_BUMP);
     fb.feeBump().tx.feeSource = toMuxedAccount(feeSource);
-    fb.feeBump().tx.fee = fee;
+    fb.feeBump().tx.fee = tx->getFullFee() - tx->getInclusionFee() + fee;
     fb.feeBump().tx.innerTx.type(ENVELOPE_TYPE_TX);
     fb.feeBump().tx.innerTx.v1() = tx->getEnvelope().v1();
 
@@ -844,7 +844,8 @@ TransactionFramePtr
 createUploadWasmTx(Application& app, TestAccount& account,
                    uint32_t inclusionFee, uint32_t resourceFee,
                    SorobanResources resources, std::optional<std::string> memo,
-                   int addInvalidOps, std::optional<uint32_t> wasmSize)
+                   int addInvalidOps, std::optional<uint32_t> wasmSize,
+                   std::optional<SequenceNumber> seq)
 {
     uint32_t const DEFAULT_WASM_SIZE = 1000;
 
@@ -874,7 +875,7 @@ createUploadWasmTx(Application& app, TestAccount& account,
 
     auto tx = sorobanTransactionFrameFromOps(app.getNetworkID(), account, ops,
                                              {}, resources, inclusionFee,
-                                             resourceFee, memo);
+                                             resourceFee, memo, seq);
     return std::dynamic_pointer_cast<TransactionFrame>(tx);
 }
 
@@ -1643,12 +1644,13 @@ sorobanEnvelopeFromOps(Hash const& networkID, TestAccount& source,
                        std::vector<Operation> const& ops,
                        std::vector<SecretKey> const& opKeys,
                        SorobanResources const& resources, uint32_t totalFee,
-                       uint32_t resourceFee, std::optional<std::string> memo)
+                       uint32_t resourceFee, std::optional<std::string> memo,
+                       std::optional<SequenceNumber> seq)
 {
     TransactionEnvelope tx(ENVELOPE_TYPE_TX);
     tx.v1().tx.sourceAccount = toMuxedAccount(source);
     tx.v1().tx.fee = totalFee;
-    tx.v1().tx.seqNum = source.nextSequenceNumber();
+    tx.v1().tx.seqNum = seq ? *seq : source.nextSequenceNumber();
     tx.v1().tx.ext.v(1);
     tx.v1().tx.ext.sorobanData().resources = resources;
     tx.v1().tx.ext.sorobanData().resourceFee = resourceFee;
@@ -1685,12 +1687,13 @@ sorobanTransactionFrameFromOps(Hash const& networkID, TestAccount& source,
                                std::vector<SecretKey> const& opKeys,
                                SorobanResources const& resources,
                                uint32_t inclusionFee, uint32_t resourceFee,
-                               std::optional<std::string> memo)
+                               std::optional<std::string> memo,
+                               std::optional<SequenceNumber> seq)
 {
     return TransactionFrameBase::makeTransactionFromWire(
-        networkID,
-        sorobanEnvelopeFromOps(networkID, source, ops, opKeys, resources,
-                               inclusionFee + resourceFee, resourceFee, memo));
+        networkID, sorobanEnvelopeFromOps(networkID, source, ops, opKeys,
+                                          resources, inclusionFee + resourceFee,
+                                          resourceFee, memo, seq));
 }
 
 TransactionFrameBasePtr
@@ -1703,7 +1706,7 @@ sorobanTransactionFrameFromOpsWithTotalFee(
     return TransactionFrameBase::makeTransactionFromWire(
         networkID,
         sorobanEnvelopeFromOps(networkID, source, ops, opKeys, resources,
-                               totalFee, resourceFee, memo));
+                               totalFee, resourceFee, memo, std::nullopt));
 }
 
 LedgerUpgrade
