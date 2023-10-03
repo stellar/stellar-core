@@ -415,8 +415,8 @@ Peer::sendDontHave(MessageType type, uint256 const& itemID)
 void
 Peer::sendDontHave(StellarMessage const& msg)
 {
-    CLOG_INFO(Overlay, "Peer::recvGetTxSet {} sending DONT_HAVE for {}",
-              toString(), hexAbbrev(msg.txSetHash()));
+    CLOG_TRACE(Overlay, "Peer::recvGetTxSet {} sending DONT_HAVE for {}",
+               toString(), hexAbbrev(msg.txSetHash()));
     // Technically we don't exactly know what is the kind of the tx set
     // missing, however both TX_SET and GENERALIZED_TX_SET get the same
     // treatment when missing, so it should be ok to maybe send the
