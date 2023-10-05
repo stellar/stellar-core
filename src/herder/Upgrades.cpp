@@ -59,12 +59,12 @@ save(Archive& ar, stellar::Upgrades::UpgradeParameters const& p)
             xdr::xdr_to_opaque(*p.mConfigUpgradeSetKey));
     }
     ar(make_nvp("configupgradesetkey", configUpgradeKeyStr));
+    ar(make_nvp("maxsorobantxsetsize", p.mMaxSorobanTxSetSize));
 }
 
 template <class Archive>
 void
-load(Archive& ar, stellar::Upgrades::UpgradeParameters& o,
-     stellar::AbstractLedgerTxn& ltx)
+load(Archive& ar, stellar::Upgrades::UpgradeParameters& o)
 {
     time_t t;
     ar(make_nvp("time", t));
@@ -79,6 +79,7 @@ load(Archive& ar, stellar::Upgrades::UpgradeParameters& o,
     try
     {
         ar(make_nvp("flags", o.mFlags));
+        ar(make_nvp("maxsorobantxsetsize", o.mMaxSorobanTxSetSize));
 
         std::optional<std::string> configUpgradeKeyStr;
         ar(make_nvp("configupgradesetkey", configUpgradeKeyStr));
@@ -220,14 +221,13 @@ rewriteOptionalFieldKeys(std::string s)
 }
 
 void
-Upgrades::UpgradeParameters::fromJson(std::string const& s,
-                                      stellar::AbstractLedgerTxn& ltx)
+Upgrades::UpgradeParameters::fromJson(std::string const& s)
 {
     std::string s1 = rewriteOptionalFieldKeys(s);
     std::istringstream in(s1);
     {
         cereal::JSONInputArchive ar(in);
-        cereal::load(ar, *this, ltx);
+        cereal::load(ar, *this);
     }
 }
 
@@ -354,7 +354,7 @@ Upgrades::applyTo(LedgerUpgrade const& upgrade, Application& app,
         {
             throw std::runtime_error("config upgrade set is no longer valid");
         }
-        cfgUpgrade->applyTo(ltx, app);
+        cfgUpgrade->applyTo(ltx);
         break;
     }
     case LEDGER_UPGRADE_MAX_SOROBAN_TX_SET_SIZE:
@@ -427,6 +427,7 @@ Upgrades::toString() const
     appendInfo("basefee", mParams.mBaseFee);
     appendInfo("basereserve", mParams.mBaseReserve);
     appendInfo("maxtxsetsize", mParams.mMaxTxSetSize);
+    appendInfo("maxsorobantxsetsize", mParams.mMaxSorobanTxSetSize);
     appendInfo("flags", mParams.mFlags);
     if (mParams.mConfigUpgradeSetKey)
     {
@@ -463,6 +464,7 @@ Upgrades::removeUpgrades(std::vector<UpgradeType>::const_iterator beginUpdates,
         resetParamIfSet(res.mProtocolVersion);
         resetParamIfSet(res.mBaseFee);
         resetParamIfSet(res.mMaxTxSetSize);
+        resetParamIfSet(res.mMaxSorobanTxSetSize);
         resetParamIfSet(res.mBaseReserve);
         resetParamIfSet(res.mFlags);
         if (res.mConfigUpgradeSetKey)
@@ -619,7 +621,7 @@ Upgrades::isValidForApply(UpgradeType const& opaqueUpgrade,
 }
 
 bool
-Upgrades::isValidForNomination(LedgerUpgrade const& upgrade, Application& app,
+Upgrades::isValidForNomination(LedgerUpgrade const& upgrade,
                                AbstractLedgerTxn& ltx,
                                LedgerHeader const& header) const
 {
@@ -677,7 +679,7 @@ Upgrades::isValid(UpgradeType const& upgrade, LedgerUpgradeType& upgradeType,
 
     if (nomination)
     {
-        res = res && isValidForNomination(lupgrade, app, ltx, header);
+        res = res && isValidForNomination(lupgrade, ltx, header);
     }
 
     if (res)
@@ -1414,7 +1416,7 @@ ConfigUpgradeSetFrame::upgradeNeeded(AbstractLedgerTxn& ltx,
 }
 
 void
-ConfigUpgradeSetFrame::applyTo(AbstractLedgerTxn& ltx, Application& app) const
+ConfigUpgradeSetFrame::applyTo(AbstractLedgerTxn& ltx) const
 {
     for (auto const& updatedEntry : mConfigUpgradeSet.updatedEntry)
     {

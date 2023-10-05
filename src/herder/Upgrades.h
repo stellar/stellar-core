@@ -56,13 +56,12 @@ class Upgrades
         std::optional<uint32> mMaxTxSetSize;
         std::optional<uint32> mBaseReserve;
         std::optional<uint32> mFlags;
+        std::optional<uint32> mMaxSorobanTxSetSize;
+        std::optional<ConfigUpgradeSetKey> mConfigUpgradeSetKey;
 
         std::string toJson() const;
-        void fromJson(std::string const& s, stellar::AbstractLedgerTxn& ltx);
+        void fromJson(std::string const& s);
         std::string toDebugJson(stellar::AbstractLedgerTxn& ltx) const;
-
-        std::optional<uint32_t> mMaxSorobanTxSetSize;
-        std::optional<ConfigUpgradeSetKey> mConfigUpgradeSetKey;
     };
 
     Upgrades()
@@ -136,7 +135,7 @@ class Upgrades
 
     // returns true if upgrade is a valid upgrade step
     // in which case it also sets lupgrade
-    bool isValidForNomination(LedgerUpgrade const& upgrade, Application& app,
+    bool isValidForNomination(LedgerUpgrade const& upgrade,
                               AbstractLedgerTxn& ltx,
                               LedgerHeader const& header) const;
 
@@ -167,7 +166,7 @@ class ConfigUpgradeSetFrame
     bool upgradeNeeded(AbstractLedgerTxn& ltx,
                        LedgerHeader const& lclHeader) const;
 
-    void applyTo(AbstractLedgerTxn& ltx, Application& app) const;
+    void applyTo(AbstractLedgerTxn& ltx) const;
 
     bool isConsistentWith(
         ConfigUpgradeSetFrameConstPtr const& scheduledUpgrade) const;

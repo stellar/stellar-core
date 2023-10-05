@@ -138,7 +138,7 @@ class BucketManager : NonMovableOrCopyable
     // worker threads. Very carefully.
     virtual std::shared_ptr<Bucket>
     adoptFileAsBucket(std::string const& filename, uint256 const& hash,
-                      size_t nObjects, size_t nBytes, MergeKey* mergeKey,
+                      MergeKey* mergeKey,
                       std::unique_ptr<BucketIndex const> index) = 0;
 
     // Companion method to `adoptFileAsBucket` also called from the

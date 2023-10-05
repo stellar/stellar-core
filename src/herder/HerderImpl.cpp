@@ -1975,8 +1975,7 @@ HerderImpl::restoreUpgrades()
     {
         Upgrades::UpgradeParameters p;
 
-        LedgerTxn ltx(mApp.getLedgerTxnRoot());
-        p.fromJson(s, ltx);
+        p.fromJson(s);
         try
         {
             // use common code to set status
