@@ -110,34 +110,6 @@ makeBytes(SCBytes bytes)
     return val;
 }
 
-static uint32_t
-getLedgerSeq(Application& app)
-{
-    LedgerTxn ltx(app.getLedgerTxnRoot());
-    return ltx.loadHeader().current().ledgerSeq;
-}
-
-static void
-checkTTL(LedgerTxn& ltx, LedgerKey const& key, uint32_t expectedLiveUntilLedger)
-{
-    auto ttlKey = getTTLKey(key);
-    auto ttlLtxe = ltx.loadWithoutRecord(ttlKey);
-    REQUIRE(ttlLtxe);
-    REQUIRE(ttlLtxe.current().data.ttl().liveUntilLedgerSeq ==
-            expectedLiveUntilLedger);
-}
-
-static LedgerEntry
-loadStorageEntry(Application& app, SCAddress const& contractID,
-                 std::string const& key, ContractDataDurability type)
-{
-    auto keySymbol = makeSymbolSCVal(key);
-    LedgerTxn ltx(app.getLedgerTxnRoot());
-    auto ltxe = loadContractData(ltx, contractID, keySymbol, type);
-    REQUIRE(ltxe);
-    return ltxe.current();
-}
-
 static void
 submitTxToUploadWasm(Application& app, Operation const& op,
                      SorobanResources const& resources,
@@ -191,2351 +163,6 @@ submitTxToCreateContract(Application& app, Operation const& op,
     auto const& cd = ltxe.current().data.contractData();
     REQUIRE(cd.durability == CONTRACT_INSTANCE_CONTRACT_DURABILITY);
     REQUIRE(cd.val == makeWasmRefScContractCode(expectedWasmHash));
-}
-
-static xdr::xvector<LedgerKey>
-deployContractWithSourceAccountWithResources(Application& app,
-                                             RustBuf const& contractWasm,
-                                             SorobanResources uploadResources,
-                                             SorobanResources createResources,
-                                             uint256 salt = sha256("salt"))
-{
-    auto root = TestAccount::createRoot(app);
-
-    // Upload contract code
-    Operation uploadOp;
-    uploadOp.body.type(INVOKE_HOST_FUNCTION);
-    auto& uploadHF = uploadOp.body.invokeHostFunctionOp().hostFunction;
-    uploadHF.type(HOST_FUNCTION_TYPE_UPLOAD_CONTRACT_WASM);
-    uploadHF.wasm().assign(contractWasm.data.begin(), contractWasm.data.end());
-
-    LedgerKey contractCodeLedgerKey;
-    contractCodeLedgerKey.type(CONTRACT_CODE);
-    contractCodeLedgerKey.contractCode().hash = sha256(uploadHF.wasm());
-    uploadResources.footprint.readWrite = {contractCodeLedgerKey};
-    submitTxToUploadWasm(
-        app, uploadOp, uploadResources,
-        contractCodeLedgerKey.contractCode().hash, uploadHF.wasm(), 1000,
-        sorobanResourceFee(app, uploadResources,
-                           1000 + contractWasm.data.size(), 40) +
-            40'000);
-
-    // Check ttls for contract code
-    {
-        LedgerTxn ltx(app.getLedgerTxnRoot());
-        auto networkConfig =
-            app.getLedgerManager().getSorobanNetworkConfig(ltx);
-        auto ledgerSeq = ltx.loadHeader().current().ledgerSeq;
-        auto expectedLiveUntilLedger =
-            networkConfig.stateArchivalSettings().minPersistentTTL + ledgerSeq -
-            1;
-
-        auto codeLtxe = ltx.load(contractCodeLedgerKey);
-        REQUIRE(codeLtxe);
-        checkTTL(ltx, contractCodeLedgerKey, expectedLiveUntilLedger);
-    }
-
-    // Deploy the contract instance
-    ContractIDPreimage idPreimage(CONTRACT_ID_PREIMAGE_FROM_ADDRESS);
-    idPreimage.fromAddress().address.type(SC_ADDRESS_TYPE_ACCOUNT);
-    idPreimage.fromAddress().address.accountId().ed25519() =
-        root.getPublicKey().ed25519();
-    idPreimage.fromAddress().salt = salt;
-    HashIDPreimage fullPreImage;
-    fullPreImage.type(ENVELOPE_TYPE_CONTRACT_ID);
-    fullPreImage.contractID().contractIDPreimage = idPreimage;
-    fullPreImage.contractID().networkID = app.getNetworkID();
-    auto contractID = xdrSha256(fullPreImage);
-
-    Operation createOp;
-    createOp.body.type(INVOKE_HOST_FUNCTION);
-    auto& createHF = createOp.body.invokeHostFunctionOp().hostFunction;
-    createHF.type(HOST_FUNCTION_TYPE_CREATE_CONTRACT);
-    auto& createContractArgs = createHF.createContract();
-    createContractArgs.contractIDPreimage = idPreimage;
-    createContractArgs.executable.type(CONTRACT_EXECUTABLE_WASM);
-    createContractArgs.executable.wasm_hash() =
-        contractCodeLedgerKey.contractCode().hash;
-
-    SorobanAuthorizationEntry auth;
-    auth.credentials.type(SOROBAN_CREDENTIALS_SOURCE_ACCOUNT);
-    auth.rootInvocation.function.type(
-        SOROBAN_AUTHORIZED_FUNCTION_TYPE_CREATE_CONTRACT_HOST_FN);
-    auth.rootInvocation.function.createContractHostFn().contractIDPreimage =
-        idPreimage;
-    auth.rootInvocation.function.createContractHostFn().executable.type(
-        CONTRACT_EXECUTABLE_WASM);
-    auth.rootInvocation.function.createContractHostFn().executable.wasm_hash() =
-        contractCodeLedgerKey.contractCode().hash;
-    createOp.body.invokeHostFunctionOp().auth = {auth};
-
-    SCVal scContractSourceRefKey(SCValType::SCV_LEDGER_KEY_CONTRACT_INSTANCE);
-
-    LedgerKey contractSourceRefLedgerKey;
-    contractSourceRefLedgerKey.type(CONTRACT_DATA);
-    contractSourceRefLedgerKey.contractData().contract.type(
-        SC_ADDRESS_TYPE_CONTRACT);
-    contractSourceRefLedgerKey.contractData().contract.contractId() =
-        contractID;
-    contractSourceRefLedgerKey.contractData().key = scContractSourceRefKey;
-    contractSourceRefLedgerKey.contractData().durability =
-        CONTRACT_INSTANCE_CONTRACT_DURABILITY;
-
-    createResources.footprint.readOnly = {contractCodeLedgerKey};
-    createResources.footprint.readWrite = {contractSourceRefLedgerKey};
-
-    submitTxToCreateContract(
-        app, createOp, createResources, contractID, scContractSourceRefKey,
-        contractCodeLedgerKey.contractCode().hash, 1000,
-        sorobanResourceFee(app, createResources, 1000, 40) + 40'000);
-
-    // Check ttls for contract instance
-    LedgerTxn ltx(app.getLedgerTxnRoot());
-    auto networkConfig = app.getLedgerManager().getSorobanNetworkConfig(ltx);
-    auto ledgerSeq = ltx.loadHeader().current().ledgerSeq;
-    auto expectedLiveUntilLedger =
-        networkConfig.stateArchivalSettings().minPersistentTTL + ledgerSeq - 1;
-
-    auto instanceLtxe = ltx.load(contractSourceRefLedgerKey);
-    REQUIRE(instanceLtxe);
-    checkTTL(ltx, contractSourceRefLedgerKey, expectedLiveUntilLedger);
-
-    return {contractSourceRefLedgerKey, contractCodeLedgerKey};
-}
-
-static xdr::xvector<LedgerKey>
-deployContractWithSourceAccount(Application& app, RustBuf const& contractWasm,
-                                uint256 salt = sha256("salt"))
-{
-    SorobanResources uploadResources{};
-    uploadResources.instructions = 200'000 + (contractWasm.data.size() * 6000);
-    uploadResources.readBytes = 1000;
-    uploadResources.writeBytes = 5000;
-
-    SorobanResources createResources{};
-    createResources.instructions = 200'000;
-    createResources.readBytes = 5000;
-    createResources.writeBytes = 5000;
-    return deployContractWithSourceAccountWithResources(
-        app, contractWasm, uploadResources, createResources, salt);
-}
-
-// Fee constants from rs-soroban-env/soroban-env-host/src/fees.rs
-constexpr int64_t INSTRUCTION_INCREMENT = 10000;
-constexpr int64_t DATA_SIZE_1KB_INCREMENT = 1024;
-constexpr int64_t TX_BASE_RESULT_SIZE = 300;
-
-static int64_t
-computeFeePerIncrement(int64_t resourceVal, int64_t feeRate, int64_t increment)
-{
-    // ceiling division for (resourceVal * feeRate) / increment
-    int64_t num = (resourceVal * feeRate);
-    return (num + increment - 1) / increment;
-};
-
-static int64_t
-getRentFeeForBytes(int64_t entrySize, uint32_t numLedgersToExtend,
-                   SorobanNetworkConfig const& cfg, bool isPersistent)
-{
-    auto num = entrySize * cfg.feeWrite1KB() * numLedgersToExtend;
-    auto storageCoef =
-        isPersistent ? cfg.stateArchivalSettings().persistentRentRateDenominator
-                     : cfg.stateArchivalSettings().tempRentRateDenominator;
-
-    auto denom = DATA_SIZE_1KB_INCREMENT * storageCoef;
-
-    // Ceiling division
-    return (num + denom - 1) / denom;
-}
-
-static int64_t
-getTTLEntryWriteFee(SorobanNetworkConfig const& cfg)
-{
-    LedgerEntry le;
-    le.data.type(TTL);
-
-    auto writeSize = xdr::xdr_size(le);
-    auto writeFee = computeFeePerIncrement(writeSize, cfg.feeWrite1KB(),
-                                           DATA_SIZE_1KB_INCREMENT);
-    writeFee += cfg.feeWriteLedgerEntry();
-    return writeFee;
-}
-
-static int64_t
-getRentFeeForExtend(Application& app, LedgerKey const& key,
-                    uint32_t newLifetime, SorobanNetworkConfig const& cfg)
-{
-    LedgerTxn ltx(app.getLedgerTxnRoot());
-    auto ledgerSeq = ltx.getHeader().ledgerSeq;
-    auto ttlKey = getTTLKey(key);
-    auto ttlLtxe = ltx.loadWithoutRecord(ttlKey);
-    releaseAssert(ttlLtxe);
-
-    TTLEntry const& ttlEntry = ttlLtxe.current().data.ttl();
-
-    uint32_t numLedgersToExtend = 0;
-    if (isLive(ttlLtxe.current(), ledgerSeq))
-    {
-        auto ledgerToExtendTo = ledgerSeq + newLifetime;
-        if (ttlEntry.liveUntilLedgerSeq >= ledgerToExtendTo)
-        {
-            return 0;
-        }
-
-        numLedgersToExtend = ledgerToExtendTo - ttlEntry.liveUntilLedgerSeq;
-    }
-    else
-    {
-        // Expired entries are skipped, pay no rent fee
-        return 0;
-    }
-
-    auto txle = ltx.loadWithoutRecord(key);
-    releaseAssert(txle);
-
-    auto entrySize = xdr::xdr_size(txle.current());
-    auto rentFee = getRentFeeForBytes(entrySize, numLedgersToExtend, cfg,
-                                      isPersistentEntry(key));
-
-    return rentFee + getTTLEntryWriteFee(cfg);
-}
-
-TEST_CASE("non-refundable resource metering", "[tx][soroban]")
-{
-    VirtualClock clock;
-    auto app = createTestApplication(clock, getTestConfig());
-    overrideSorobanNetworkConfigForTest(*app);
-
-    uniform_int_distribution<uint64_t> feeDist(1, 100'000);
-    modifySorobanNetworkConfig(*app, [&feeDist](SorobanNetworkConfig& cfg) {
-        cfg.mFeeRatePerInstructionsIncrement = feeDist(Catch::rng());
-        cfg.mFeeReadLedgerEntry = feeDist(Catch::rng());
-        cfg.mFeeWriteLedgerEntry = feeDist(Catch::rng());
-        cfg.mFeeRead1KB = feeDist(Catch::rng());
-        cfg.mFeeWrite1KB = feeDist(Catch::rng());
-        cfg.mFeeHistorical1KB = feeDist(Catch::rng());
-        cfg.mFeeTransactionSize1KB = feeDist(Catch::rng());
-    });
-
-    SorobanNetworkConfig const& cfg = [&] {
-        LedgerTxn ltx(app->getLedgerTxnRoot());
-        return app->getLedgerManager().getSorobanNetworkConfig(ltx);
-    }();
-
-    Operation op;
-    op.body.type(INVOKE_HOST_FUNCTION);
-    auto& ihf = op.body.invokeHostFunctionOp().hostFunction;
-    ihf.type(HOST_FUNCTION_TYPE_INVOKE_CONTRACT);
-
-    SorobanResources resources;
-    resources.instructions = 0;
-    resources.readBytes = 0;
-    resources.writeBytes = 0;
-
-    auto root = TestAccount::createRoot(*app);
-
-    // The following computations are copies of compute_transaction_resource_fee
-    // in rs-soroban-env/soroban-env-host/src/fees.rs. This is reimplemented
-    // here so that we can check if the Cxx bridge introduced any fee related
-    // bugs.
-
-    // Fees that depend on TX size, historicalFee and bandwidthFee
-    auto txSizeFees = [&](TransactionFrameBasePtr tx) {
-        int64_t txSize = static_cast<uint32>(xdr::xdr_size(tx->getEnvelope()));
-        int64_t historicalFee = computeFeePerIncrement(
-            txSize + TX_BASE_RESULT_SIZE, cfg.mFeeHistorical1KB,
-            DATA_SIZE_1KB_INCREMENT);
-
-        int64_t bandwidthFee = computeFeePerIncrement(
-            txSize, cfg.feeTransactionSize1KB(), DATA_SIZE_1KB_INCREMENT);
-
-        return historicalFee + bandwidthFee;
-    };
-
-    auto computeFee = [&] {
-        return computeFeePerIncrement(resources.instructions,
-                                      cfg.feeRatePerInstructionsIncrement(),
-                                      INSTRUCTION_INCREMENT);
-    };
-
-    auto entryReadFee = [&] {
-        return (resources.footprint.readOnly.size() +
-                resources.footprint.readWrite.size()) *
-               cfg.feeReadLedgerEntry();
-    };
-
-    auto entryWriteFee = [&] {
-        return resources.footprint.readWrite.size() * cfg.feeWriteLedgerEntry();
-    };
-
-    auto readBytesFee = [&] {
-        return computeFeePerIncrement(resources.readBytes, cfg.feeRead1KB(),
-                                      DATA_SIZE_1KB_INCREMENT);
-    };
-
-    auto writeBytesFee = [&] {
-        return computeFeePerIncrement(resources.writeBytes, cfg.feeWrite1KB(),
-                                      DATA_SIZE_1KB_INCREMENT);
-    };
-
-    auto checkFees = [&](int64_t expectedNonRefundableFee,
-                         std::shared_ptr<TransactionFrameBase> rootTX) {
-        LedgerTxn ltx(app->getLedgerTxnRoot());
-
-        // This will compute soroban fees
-        REQUIRE(rootTX->checkValid(*app, ltx, 0, 0, 0));
-
-        auto actualFeePair = std::dynamic_pointer_cast<TransactionFrame>(rootTX)
-                                 ->getSorobanResourceFee();
-        REQUIRE(actualFeePair);
-        REQUIRE(expectedNonRefundableFee == actualFeePair->non_refundable_fee);
-
-        auto inclusionFee = getMinInclusionFee(*rootTX, ltx.getHeader());
-
-        // Check that minimum fee succeeds
-        auto minimalTX = sorobanTransactionFrameFromOps(
-            app->getNetworkID(), root, {op}, {}, resources, inclusionFee,
-            expectedNonRefundableFee);
-        REQUIRE(minimalTX->checkValid(*app, ltx, 1, 0, 0));
-
-        // Check that just below minimum resource fee fails
-        auto badTX = sorobanTransactionFrameFromOps(
-            app->getNetworkID(), root, {op}, {}, resources, inclusionFee,
-            expectedNonRefundableFee - 1);
-        REQUIRE(!badTX->checkValid(*app, ltx, 2, 0, 0));
-
-        // Check that just below minimum inclusion fee fails
-        auto badTX2 = sorobanTransactionFrameFromOps(
-            app->getNetworkID(), root, {op}, {}, resources, inclusionFee - 1,
-            // It doesn't matter how high the resource fee is.
-            expectedNonRefundableFee + 1'000'000);
-        REQUIRE(!badTX2->checkValid(*app, ltx, 2, 0, 0));
-    };
-
-    // In the following tests, we isolate a single fee to test by zeroing out
-    // every other resource, as much as is possible
-    SECTION("tx size fees")
-    {
-        auto tx = sorobanTransactionFrameFromOps(
-            app->getNetworkID(), root, {op}, {}, resources, 100,
-            std::numeric_limits<uint32_t>::max() - 100);
-
-        // Resources are all null, only include TX size based fees
-        auto expectedFee = txSizeFees(tx);
-        checkFees(expectedFee, tx);
-    }
-
-    SECTION("compute fee")
-    {
-        resources.instructions = feeDist(Catch::rng());
-
-        auto tx = sorobanTransactionFrameFromOps(
-            app->getNetworkID(), root, {op}, {}, resources, 100,
-            std::numeric_limits<uint32_t>::max() - 100);
-
-        // Should only have instruction and TX size fees
-        auto expectedFee = txSizeFees(tx) + computeFee();
-        checkFees(expectedFee, tx);
-    }
-
-    uniform_int_distribution<> numKeysDist(1, 10);
-    SECTION("entry read/write fee")
-    {
-        SECTION("RO Only")
-        {
-            auto size = numKeysDist(Catch::rng());
-            for (auto const& e :
-                 LedgerTestUtils::generateValidUniqueLedgerEntriesWithTypes(
-                     {CONTRACT_DATA, CONTRACT_CODE}, size))
-            {
-                resources.footprint.readOnly.emplace_back(LedgerEntryKey(e));
-            }
-
-            auto tx = sorobanTransactionFrameFromOps(
-                app->getNetworkID(), root, {op}, {}, resources, 100,
-                std::numeric_limits<uint32_t>::max() - 100);
-
-            // Only read entry fees and TX size fees
-            auto expectedFee = txSizeFees(tx) + entryReadFee();
-            checkFees(expectedFee, tx);
-        }
-
-        SECTION("RW Only")
-        {
-            auto size = numKeysDist(Catch::rng());
-            for (auto const& e :
-                 LedgerTestUtils::generateValidUniqueLedgerEntriesWithTypes(
-                     {CONTRACT_DATA, CONTRACT_CODE}, size))
-            {
-                resources.footprint.readWrite.emplace_back(LedgerEntryKey(e));
-            }
-
-            auto tx = sorobanTransactionFrameFromOps(
-                app->getNetworkID(), root, {op}, {}, resources, 100,
-                std::numeric_limits<uint32_t>::max() - 100);
-
-            // Only read entry, write entry, and TX size fees
-            auto expectedFee =
-                txSizeFees(tx) + entryReadFee() + entryWriteFee();
-            checkFees(expectedFee, tx);
-        }
-
-        SECTION("RW and RO")
-        {
-            auto size = numKeysDist(Catch::rng());
-            for (auto const& e :
-                 LedgerTestUtils::generateValidUniqueLedgerEntriesWithTypes(
-                     {CONTRACT_DATA, CONTRACT_CODE}, size))
-            {
-                resources.footprint.readOnly.emplace_back(LedgerEntryKey(e));
-            }
-
-            size = numKeysDist(Catch::rng());
-            for (auto const& e :
-                 LedgerTestUtils::generateValidUniqueLedgerEntriesWithTypes(
-                     {CONTRACT_DATA, CONTRACT_CODE}, size))
-            {
-                resources.footprint.readWrite.emplace_back(LedgerEntryKey(e));
-            }
-
-            auto tx = sorobanTransactionFrameFromOps(
-                app->getNetworkID(), root, {op}, {}, resources, 100,
-                std::numeric_limits<uint32_t>::max() - 100);
-
-            // Only read entry, write entry, and TX size fees
-            auto expectedFee =
-                txSizeFees(tx) + entryReadFee() + entryWriteFee();
-            checkFees(expectedFee, tx);
-        }
-    }
-
-    uniform_int_distribution<uint32_t> bytesDist(1, 100'000);
-    SECTION("readBytes fee")
-    {
-        resources.readBytes = bytesDist(Catch::rng());
-        auto tx = sorobanTransactionFrameFromOps(
-            app->getNetworkID(), root, {op}, {}, resources, 100,
-            std::numeric_limits<uint32_t>::max() - 100);
-
-        // Only readBytes and TX size fees
-        auto expectedFee = txSizeFees(tx) + readBytesFee();
-        checkFees(expectedFee, tx);
-    }
-
-    SECTION("writeBytes fee")
-    {
-        resources.writeBytes = bytesDist(Catch::rng());
-        auto tx = sorobanTransactionFrameFromOps(
-            app->getNetworkID(), root, {op}, {}, resources, 100,
-            std::numeric_limits<uint32_t>::max() - 100);
-
-        // Only writeBytes and TX size fees
-        auto expectedFee = txSizeFees(tx) + writeBytesFee();
-        checkFees(expectedFee, tx);
-    }
-}
-
-TEST_CASE("basic contract invocation", "[tx][soroban]")
-{
-    VirtualClock clock;
-    auto cfg = getTestConfig();
-    auto app = createTestApplication(clock, cfg);
-    overrideSorobanNetworkConfigForTest(*app);
-
-    auto root = TestAccount::createRoot(*app);
-    int64_t initBalance = root.getBalance();
-
-    auto const addI32Wasm = rust_bridge::get_test_wasm_add_i32();
-
-    auto contractKeys = deployContractWithSourceAccount(*app, addI32Wasm);
-    auto const& contractID = contractKeys[0].contractData().contract;
-    auto isValid = [&](SorobanResources const& resources,
-                       SCAddress const& address, SCSymbol const& functionName,
-                       std::vector<SCVal> const& args) -> bool {
-        Operation op;
-        op.body.type(INVOKE_HOST_FUNCTION);
-        auto& ihf = op.body.invokeHostFunctionOp().hostFunction;
-        ihf.type(HOST_FUNCTION_TYPE_INVOKE_CONTRACT);
-        ihf.invokeContract().contractAddress = address;
-        ihf.invokeContract().functionName = functionName;
-        ihf.invokeContract().args.assign(args.begin(), args.end());
-
-        auto tx = sorobanTransactionFrameFromOps(app->getNetworkID(), root,
-                                                 {op}, {}, resources, 100,
-                                                 DEFAULT_TEST_RESOURCE_FEE);
-
-        LedgerTxn ltx(app->getLedgerTxnRoot());
-        return tx->checkValid(*app, ltx, 0, 0, 0);
-    };
-
-    auto isExtendOpValid = [&](SorobanResources const& resources) -> bool {
-        Operation op;
-        op.body.type(EXTEND_FOOTPRINT_TTL);
-        op.body.extendFootprintTTLOp().extendTo = 10;
-
-        auto tx = sorobanTransactionFrameFromOps(app->getNetworkID(), root,
-                                                 {op}, {}, resources, 100,
-                                                 DEFAULT_TEST_RESOURCE_FEE);
-
-        LedgerTxn ltx(app->getLedgerTxnRoot());
-        return tx->checkValid(*app, ltx, 0, 0, 0);
-    };
-
-    auto isRestorationOpValid = [&](SorobanResources const& resources) -> bool {
-        Operation op;
-        op.body.type(RESTORE_FOOTPRINT);
-
-        auto tx = sorobanTransactionFrameFromOps(app->getNetworkID(), root,
-                                                 {op}, {}, resources, 100,
-                                                 DEFAULT_TEST_RESOURCE_FEE);
-
-        LedgerTxn ltx(app->getLedgerTxnRoot());
-        return tx->checkValid(*app, ltx, 0, 0, 0);
-    };
-
-    auto call = [&](SorobanResources const& resources, uint32_t resourceFee,
-                    SCAddress const& address, SCSymbol const& functionName,
-                    std::vector<SCVal> const& args, bool success) {
-        Operation op;
-        op.body.type(INVOKE_HOST_FUNCTION);
-        auto& ihf = op.body.invokeHostFunctionOp().hostFunction;
-        ihf.type(HOST_FUNCTION_TYPE_INVOKE_CONTRACT);
-        ihf.invokeContract().contractAddress = address;
-        ihf.invokeContract().functionName = functionName;
-        ihf.invokeContract().args.assign(args.begin(), args.end());
-
-        auto tx =
-            sorobanTransactionFrameFromOps(app->getNetworkID(), root, {op}, {},
-                                           resources, 12'345, resourceFee);
-        {
-            LedgerTxn ltx(app->getLedgerTxnRoot());
-            REQUIRE(tx->checkValid(*app, ltx, 0, 0, 0));
-            ltx.commit();
-        }
-        TransactionMetaFrame txm(app->getLedgerManager()
-                                     .getLastClosedLedgerHeader()
-                                     .header.ledgerVersion);
-        auto nonRefundableResourceFee = sorobanResourceFee(
-            *app, resources, xdr::xdr_size(tx->getEnvelope()), 0);
-        if (success)
-        {
-            REQUIRE(tx->getFullFee() == resourceFee + 12'345);
-            REQUIRE(tx->getInclusionFee() == 12'345);
-            // Initially we store in result the charge for resources plus
-            // minimum inclusion  fee bid (currently equivalent to the network
-            // `baseFee` of 100).
-            int64_t baseCharged =
-                (tx->getFullFee() - tx->getInclusionFee()) + 100;
-            REQUIRE(tx->getResult().feeCharged == baseCharged);
-            {
-                LedgerTxn ltx(app->getLedgerTxnRoot());
-                // Imitate surge pricing by charging at a higher rate than base
-                // fee.
-                tx->processFeeSeqNum(ltx, 300);
-                ltx.commit();
-            }
-            // The resource and the base fee are charged, with additional
-            // surge pricing fee.
-            int64_t balanceAfterFeeCharged = root.getBalance();
-            REQUIRE(initBalance - balanceAfterFeeCharged ==
-                    baseCharged + /* surge pricing additional fee */ 200);
-            auto const expectedRefund = 267'298;
-            {
-                LedgerTxn ltx(app->getLedgerTxnRoot());
-                REQUIRE(tx->apply(*app, ltx, txm));
-                tx->processPostApply(*app, ltx, txm);
-                ltx.commit();
-                auto changesAfter = txm.getChangesAfter();
-                REQUIRE(changesAfter.size() == 2);
-                REQUIRE(changesAfter[1].updated().data.account().balance -
-                            changesAfter[0].state().data.account().balance ==
-                        expectedRefund);
-            }
-            // The account should receive a refund for unspent refundable fee.
-            REQUIRE(root.getBalance() - balanceAfterFeeCharged ==
-                    expectedRefund);
-            // Sanity-check the expected refund value. The exact computation is
-            // tricky because of the rent bump fee.
-            // NB: We don't use the computed value here in order
-            // to check possible changes in fee computation algorithm (so that
-            // the conditions above would fail, while this still succeeds).
-            REQUIRE(sorobanResourceFee(
-                        *app, resources, xdr::xdr_size(tx->getEnvelope()),
-                        100 /* size of event emitted by the test contract */) ==
-                    resourceFee - expectedRefund);
-        }
-        else
-        {
-            {
-                LedgerTxn ltx(app->getLedgerTxnRoot());
-                // Imitate surge pricing by charging at a higher rate than base
-                // fee.
-                tx->processFeeSeqNum(ltx, 300);
-                ltx.commit();
-            }
-            int64_t balanceAfterFeeCharged = root.getBalance();
-
-            {
-                LedgerTxn ltx(app->getLedgerTxnRoot());
-                // Unsuccessfully apply the tx and process refunds.
-                REQUIRE(!tx->apply(*app, ltx, txm));
-                tx->processPostApply(*app, ltx, txm);
-                ltx.commit();
-                if (resourceFee > 0)
-                {
-                    auto changesAfter = txm.getChangesAfter();
-                    REQUIRE(changesAfter.size() == 2);
-                    REQUIRE(
-                        changesAfter[1].updated().data.account().balance -
-                            changesAfter[0].state().data.account().balance ==
-                        resourceFee - nonRefundableResourceFee);
-                }
-                // The account should receive a full refund for metadata
-                // in case of tx failure.
-                REQUIRE(root.getBalance() - balanceAfterFeeCharged ==
-                        resourceFee - nonRefundableResourceFee);
-            }
-        }
-        SCVal resultVal;
-        if (tx->getResult().result.code() == txSUCCESS &&
-            !tx->getResult().result.results().empty())
-        {
-            auto const& ores = tx->getResult().result.results().at(0);
-            if (ores.tr().type() == INVOKE_HOST_FUNCTION &&
-                ores.tr().invokeHostFunctionResult().code() ==
-                    INVOKE_HOST_FUNCTION_SUCCESS)
-            {
-                resultVal = txm.getXDR().v3().sorobanMeta->returnValue;
-
-                InvokeHostFunctionSuccessPreImage success2;
-                success2.returnValue = resultVal;
-                success2.events = txm.getXDR().v3().sorobanMeta->events;
-
-                REQUIRE(ores.tr().invokeHostFunctionResult().success() ==
-                        xdrSha256(success2));
-            }
-        }
-        return resultVal;
-    };
-
-    auto scFunc = makeSymbol("add");
-    auto sc7 = makeI32(7);
-    auto sc16 = makeI32(16);
-    SorobanResources resources;
-    resources.footprint.readOnly = contractKeys;
-    resources.instructions = 2'000'000;
-    resources.readBytes = 2000;
-    resources.writeBytes = 0;
-
-    SECTION("correct invocation")
-    {
-        call(resources, 300'000, contractID, scFunc, {sc7, sc16}, true);
-        REQUIRE(app->getMetrics()
-                    .NewTimer({"soroban", "host-fn-op", "exec"})
-                    .count() != 0);
-        REQUIRE(app->getMetrics()
-                    .NewMeter({"soroban", "host-fn-op", "success"}, "call")
-                    .count() != 0);
-    }
-
-    SECTION("incorrect invocation parameters")
-    {
-        SECTION("non-existent contract id")
-        {
-            SCAddress address(SC_ADDRESS_TYPE_CONTRACT);
-            address.contractId()[0] = 1;
-            call(resources, DEFAULT_TEST_RESOURCE_FEE, address, scFunc,
-                 {sc7, sc16}, false);
-        }
-        SECTION("account address")
-        {
-            SCAddress address(SC_ADDRESS_TYPE_ACCOUNT);
-            address.accountId() = root.getPublicKey();
-            call(resources, DEFAULT_TEST_RESOURCE_FEE, address, scFunc,
-                 {sc7, sc16}, false);
-        }
-        SECTION("too few parameters")
-        {
-            call(resources, DEFAULT_TEST_RESOURCE_FEE, contractID, scFunc,
-                 {sc7}, false);
-        }
-        SECTION("too many parameters")
-        {
-            // Too many parameters
-            call(resources, DEFAULT_TEST_RESOURCE_FEE, contractID, scFunc,
-                 {sc7, sc16, makeI32(0)}, false);
-        }
-    }
-
-    SECTION("insufficient instructions")
-    {
-        resources.instructions = 10000;
-        call(resources, DEFAULT_TEST_RESOURCE_FEE, contractID, scFunc,
-             {sc7, sc16}, false);
-    }
-    SECTION("insufficient read bytes")
-    {
-        resources.readBytes = 100;
-        call(resources, DEFAULT_TEST_RESOURCE_FEE, contractID, scFunc,
-             {sc7, sc16}, false);
-    }
-    SECTION("insufficient refundable fee")
-    {
-        call(resources, 32'701, contractID, scFunc, {sc7, sc16}, false);
-    }
-    SECTION("invalid footprint keys")
-    {
-
-        auto persistentKey =
-            contractDataKey(contractID, makeSymbolSCVal("key1"),
-                            ContractDataDurability::PERSISTENT);
-        auto ttlKey = getTTLKey(persistentKey);
-        auto invalidFootprint = [&](xdr::xvector<stellar::LedgerKey>&
-                                        footprint) {
-            auto acc = root.create(
-                "acc", app->getLedgerManager().getLastMinBalance(1));
-            SECTION("valid")
-            {
-                // add a valid trustline to the footprint to make sure the
-                // initial tx is valid.
-                footprint.emplace_back(
-                    trustlineKey(root.getPublicKey(), makeAsset(acc, "USD")));
-                REQUIRE(isValid(resources, contractID, scFunc, {sc7, sc16}));
-            }
-            SECTION("native asset trustline")
-            {
-                footprint.emplace_back(
-                    trustlineKey(root.getPublicKey(), makeNativeAsset()));
-                REQUIRE(!isValid(resources, contractID, scFunc, {sc7, sc16}));
-            }
-            SECTION("issuer trustline")
-            {
-                footprint.emplace_back(
-                    trustlineKey(root.getPublicKey(), makeAsset(root, "USD")));
-                REQUIRE(!isValid(resources, contractID, scFunc, {sc7, sc16}));
-            }
-            auto invalidAssets = testutil::getInvalidAssets(root);
-            for (size_t i = 0; i < invalidAssets.size(); ++i)
-            {
-                auto key = trustlineKey(acc.getPublicKey(), invalidAssets[i]);
-                SECTION("invalid asset " + std::to_string(i))
-                {
-                    footprint.emplace_back(key);
-                    REQUIRE(
-                        !isValid(resources, contractID, scFunc, {sc7, sc16}));
-                }
-            }
-            SECTION("offer")
-            {
-                footprint.emplace_back(offerKey(root, 1));
-                REQUIRE(!isValid(resources, contractID, scFunc, {sc7, sc16}));
-            }
-            SECTION("data")
-            {
-                footprint.emplace_back(dataKey(root, "name"));
-                REQUIRE(!isValid(resources, contractID, scFunc, {sc7, sc16}));
-            }
-            SECTION("claimable balance")
-            {
-                footprint.emplace_back(
-                    claimableBalanceKey(ClaimableBalanceID{}));
-                REQUIRE(!isValid(resources, contractID, scFunc, {sc7, sc16}));
-            }
-            SECTION("liquidity pool")
-            {
-                footprint.emplace_back(liquidityPoolKey(PoolID{}));
-                REQUIRE(!isValid(resources, contractID, scFunc, {sc7, sc16}));
-            }
-            SECTION("config setting")
-            {
-                footprint.emplace_back(configSettingKey(ConfigSettingID{}));
-                REQUIRE(!isValid(resources, contractID, scFunc, {sc7, sc16}));
-            }
-            SECTION("ttl entry")
-            {
-                footprint.emplace_back(ttlKey);
-                REQUIRE(!isValid(resources, contractID, scFunc, {sc7, sc16}));
-            }
-        };
-
-        SECTION("readOnly")
-        {
-            invalidFootprint(resources.footprint.readOnly);
-        }
-        SECTION("readWrite")
-        {
-            invalidFootprint(resources.footprint.readWrite);
-        }
-        SECTION("extendOp")
-        {
-            SECTION("valid")
-            {
-                REQUIRE(isExtendOpValid(resources));
-            }
-            SECTION("non empty RW set")
-            {
-                resources.footprint.readWrite.emplace_back(persistentKey);
-                REQUIRE(!isExtendOpValid(resources));
-            }
-            SECTION("ttl entry")
-            {
-                resources.footprint.readOnly.emplace_back(ttlKey);
-                REQUIRE(!isExtendOpValid(resources));
-            }
-            SECTION("non soroban entry")
-            {
-                auto entries =
-                    LedgerTestUtils::generateValidLedgerEntryKeysWithExclusions(
-                        {CONTRACT_CODE, CONTRACT_DATA}, 10);
-                for (auto const& entry : entries)
-                {
-                    resources.footprint.readOnly.emplace_back(entry);
-                    REQUIRE(!isExtendOpValid(resources));
-                    resources.footprint.readOnly.pop_back();
-                }
-            }
-        }
-        SECTION("restoreOp")
-        {
-            resources.footprint.readWrite = resources.footprint.readOnly;
-            resources.footprint.readOnly.clear();
-            SECTION("valid")
-            {
-                REQUIRE(isRestorationOpValid(resources));
-            }
-            SECTION("non empty RO set")
-            {
-                resources.footprint.readOnly.emplace_back(persistentKey);
-                REQUIRE(!isRestorationOpValid(resources));
-            }
-            SECTION("ttl entry")
-            {
-                resources.footprint.readWrite.emplace_back(ttlKey);
-                REQUIRE(!isRestorationOpValid(resources));
-            }
-            SECTION("non soroban entry")
-            {
-                auto entries =
-                    LedgerTestUtils::generateValidLedgerEntryKeysWithExclusions(
-                        {CONTRACT_CODE, CONTRACT_DATA}, 10);
-                for (auto const& entry : entries)
-                {
-                    resources.footprint.readWrite.emplace_back(entry);
-                    REQUIRE(!isRestorationOpValid(resources));
-                    resources.footprint.readWrite.pop_back();
-                }
-            }
-        }
-    }
-}
-
-TEST_CASE("refund account merged", "[tx][soroban][merge]")
-{
-    VirtualClock clock;
-    auto cfg = getTestConfig();
-    auto app = createTestApplication(clock, cfg);
-    overrideSorobanNetworkConfigForTest(*app);
-
-    auto root = TestAccount::createRoot(*app);
-    int64_t initBalance = root.getBalance();
-
-    const int64_t startingBalance =
-        app->getLedgerManager().getLastMinBalance(50);
-
-    auto a1 = root.create("A", startingBalance);
-    auto b1 = root.create("B", startingBalance);
-    auto c1 = root.create("C", startingBalance);
-
-    auto const addI32Wasm = rust_bridge::get_test_wasm_add_i32();
-
-    SorobanResources uploadResources{};
-    uploadResources.instructions = 200'000 + (addI32Wasm.data.size() * 6000);
-    uploadResources.readBytes = 1000;
-    uploadResources.writeBytes = 5000;
-
-    // Upload contract code
-    Operation uploadOp;
-    uploadOp.body.type(INVOKE_HOST_FUNCTION);
-    auto& uploadHF = uploadOp.body.invokeHostFunctionOp().hostFunction;
-    uploadHF.type(HOST_FUNCTION_TYPE_UPLOAD_CONTRACT_WASM);
-    uploadHF.wasm().assign(addI32Wasm.data.begin(), addI32Wasm.data.end());
-
-    LedgerKey contractCodeLedgerKey;
-    contractCodeLedgerKey.type(CONTRACT_CODE);
-    contractCodeLedgerKey.contractCode().hash = sha256(uploadHF.wasm());
-    uploadResources.footprint.readWrite = {contractCodeLedgerKey};
-
-    // submit operation
-    auto tx = sorobanTransactionFrameFromOps(app->getNetworkID(), a1,
-                                             {uploadOp}, {}, uploadResources,
-                                             100, DEFAULT_TEST_RESOURCE_FEE);
-
-    auto mergeOp = accountMerge(b1);
-    mergeOp.sourceAccount.activate() = toMuxedAccount(a1);
-
-    auto classicMergeTx = c1.tx({mergeOp});
-    classicMergeTx->addSignature(a1.getSecretKey());
-
-    auto r = closeLedger(*app, {classicMergeTx, tx});
-    checkTx(0, r, txSUCCESS);
-
-    // The source account of the soroban tx was merged during the classic phase
-    checkTx(1, r, txNO_ACCOUNT);
-}
-
-TEST_CASE("buying liabilities plus refund is greater than INT64_MAX",
-          "[tx][soroban][offer]")
-{
-    VirtualClock clock;
-    auto cfg = getTestConfig();
-    auto app = createTestApplication(clock, cfg);
-    overrideSorobanNetworkConfigForTest(*app);
-
-    auto root = TestAccount::createRoot(*app);
-    int64_t initBalance = root.getBalance();
-
-    const int64_t startingBalance =
-        app->getLedgerManager().getLastMinBalance(50);
-
-    auto a1 = root.create("A", startingBalance);
-    auto b1 = root.create("B", startingBalance);
-
-    auto native = txtest::makeNativeAsset();
-    auto cur1 = txtest::makeAsset(root, "CUR1");
-    a1.changeTrust(cur1, INT64_MAX);
-    root.pay(a1, cur1, INT64_MAX);
-
-    auto const addI32Wasm = rust_bridge::get_test_wasm_add_i32();
-
-    SorobanResources uploadResources{};
-    uploadResources.instructions = 200'000 + (addI32Wasm.data.size() * 6000);
-    uploadResources.readBytes = 1000;
-    uploadResources.writeBytes = 5000;
-
-    // Upload contract code
-    Operation uploadOp;
-    uploadOp.body.type(INVOKE_HOST_FUNCTION);
-    auto& uploadHF = uploadOp.body.invokeHostFunctionOp().hostFunction;
-    uploadHF.type(HOST_FUNCTION_TYPE_UPLOAD_CONTRACT_WASM);
-    uploadHF.wasm().assign(addI32Wasm.data.begin(), addI32Wasm.data.end());
-
-    LedgerKey contractCodeLedgerKey;
-    contractCodeLedgerKey.type(CONTRACT_CODE);
-    contractCodeLedgerKey.contractCode().hash = sha256(uploadHF.wasm());
-    uploadResources.footprint.readWrite = {contractCodeLedgerKey};
-
-    auto a1PreBalance = a1.getBalance();
-    // submit operation
-    auto tx =
-        sorobanTransactionFrameFromOps(app->getNetworkID(), a1, {uploadOp}, {},
-                                       uploadResources, 10'000, 300'000);
-    // There is no surge pricing, so only 100 stroops are charged from the
-    // inclusion fee.
-    auto feeChargedBeforeRefund =
-        tx->getFullFee() - tx->getInclusionFee() + 100;
-    // Create a maxmal possible offer that wouldn't overflow int64. The offer
-    // is created *after* charging the transaction fee, so the amount is higher
-    // than what it would be before fees are charged.
-    auto offer =
-        manageOffer(0, cur1, native, Price{1, 1},
-                    INT64_MAX - (a1PreBalance - feeChargedBeforeRefund));
-    offer.sourceAccount.activate() = toMuxedAccount(a1);
-
-    // Create an offer on behalf of `a1`, but paid for from `b1`, so that
-    // the offer fee doesn't need to be accounted for in fee computations.
-    auto offerTx = b1.tx({offer});
-    offerTx->addSignature(a1.getSecretKey());
-
-    auto r = closeLedger(*app, {offerTx, tx});
-    checkTx(0, r, txSUCCESS);
-    checkTx(1, r, txSUCCESS);
-
-    // After an offer is created, the sum of `a1` balance and buying liability
-    // is `INT64_MAX`, thus any fee refund would cause an overflow, so no
-    // refunds happen.
-    REQUIRE(a1PreBalance - feeChargedBeforeRefund == a1.getBalance());
-}
-
-TEST_CASE("contract storage", "[tx][soroban]")
-{
-    VirtualClock clock;
-    auto app = createTestApplication(clock, getTestConfig());
-    overrideSorobanNetworkConfigForTest(*app);
-    auto root = TestAccount::createRoot(*app);
-    auto acc = root.create("acc", app->getLedgerManager().getLastMinBalance(1));
-    auto dummyAcc =
-        root.create("dummyAcc", app->getLedgerManager().getLastMinBalance(1));
-    root.setSequenceNumber(root.getLastSequenceNumber() - 2);
-    auto const contractDataWasm = rust_bridge::get_test_wasm_contract_data();
-    auto contractKeys = deployContractWithSourceAccount(*app, contractDataWasm);
-    auto const& contractID = contractKeys[0].contractData().contract;
-    LedgerTxn ltxCfg(app->getLedgerTxnRoot());
-    SorobanNetworkConfig const& sorobanConfig =
-        app->getLedgerManager().getSorobanNetworkConfig(ltxCfg);
-    auto const& stateArchivalSettings = sorobanConfig.stateArchivalSettings();
-    ltxCfg.commit();
-    auto checkContractData = [&](SCVal const& key, ContractDataDurability type,
-                                 SCVal const* val) {
-        LedgerTxn ltx(app->getLedgerTxnRoot());
-        auto ltxe = loadContractData(ltx, contractID, key, type);
-        if (val)
-        {
-            REQUIRE(ltxe);
-
-            REQUIRE(ltxe.current().data.contractData().val == *val);
-        }
-        else
-        {
-            REQUIRE(!ltxe);
-        }
-    };
-
-    auto createTx =
-        [&](xdr::xvector<LedgerKey> const& readOnly,
-            xdr::xvector<LedgerKey> const& readWrite, uint32_t writeBytes,
-            SCAddress const& contractAddress, SCSymbol const& functionName,
-            std::vector<SCVal> const& args,
-            std::optional<uint32_t> refundableFeeOverride = std::nullopt)
-        -> std::tuple<TransactionFrameBasePtr, std::shared_ptr<LedgerTxn>,
-                      std::shared_ptr<TransactionMetaFrame>> {
-        Operation op;
-        op.body.type(INVOKE_HOST_FUNCTION);
-        auto& ihf = op.body.invokeHostFunctionOp().hostFunction;
-        ihf.type(HOST_FUNCTION_TYPE_INVOKE_CONTRACT);
-        ihf.invokeContract().contractAddress = contractAddress;
-        ihf.invokeContract().functionName = functionName;
-        ihf.invokeContract().args.assign(args.begin(), args.end());
-        SorobanResources resources;
-        resources.footprint.readOnly = readOnly;
-        resources.footprint.readWrite = readWrite;
-        resources.instructions = 4'000'000;
-        resources.readBytes = 10'000;
-        resources.writeBytes = writeBytes;
-
-        // Compute tx frame size before finalizing the resource fee.
-        // That's a bit hacky, but we need the exact tx size here in order to
-        // enable tests that rely on the exact refundable fee value.
-        auto dummyTx = sorobanTransactionFrameFromOps(
-            app->getNetworkID(), dummyAcc, {op}, {}, resources, 1000, 123);
-        auto txSize = xdr::xdr_size(dummyTx->getEnvelope());
-        uint32_t resourceFee = sorobanResourceFee(*app, resources, txSize, 0);
-        if (refundableFeeOverride)
-        {
-            resourceFee += *refundableFeeOverride;
-        }
-        else
-        {
-            resourceFee += 40'000;
-        }
-
-        auto tx = sorobanTransactionFrameFromOps(
-            app->getNetworkID(), root, {op}, {}, resources, 1000, resourceFee);
-        auto ltx = std::make_shared<LedgerTxn>(app->getLedgerTxnRoot());
-        auto txm = std::make_shared<TransactionMetaFrame>(
-            ltx->loadHeader().current().ledgerVersion);
-        REQUIRE(tx->checkValid(*app, *ltx, 0, 0, 0));
-        return {tx, ltx, txm};
-    };
-
-    auto putWithFootprint = [&](std::string const& key, uint64_t val,
-                                xdr::xvector<LedgerKey> const& readOnly,
-                                xdr::xvector<LedgerKey> const& readWrite,
-                                uint32_t writeBytes, bool expectSuccess,
-                                ContractDataDurability type) {
-        auto keySymbol = makeSymbolSCVal(key);
-        auto valU64 = makeU64SCVal(val);
-
-        std::string funcStr;
-        switch (type)
-        {
-        case ContractDataDurability::TEMPORARY:
-            funcStr = "put_temporary";
-            break;
-        case ContractDataDurability::PERSISTENT:
-            funcStr = "put_persistent";
-            break;
-        }
-
-        auto [tx, ltx, txm] =
-            createTx(readOnly, readWrite, writeBytes, contractID,
-                     makeSymbol(funcStr), {keySymbol, valU64});
-
-        if (expectSuccess)
-        {
-            REQUIRE(tx->apply(*app, *ltx, *txm));
-            ltx->commit();
-            checkContractData(keySymbol, type, &valU64);
-        }
-        else
-        {
-            REQUIRE(!tx->apply(*app, *ltx, *txm));
-            ltx->commit();
-        }
-    };
-
-    auto put = [&](std::string const& key, uint64_t val,
-                   ContractDataDurability type) {
-        putWithFootprint(
-            key, val, contractKeys,
-            {contractDataKey(contractID, makeSymbolSCVal(key), type)}, 1000,
-            true, type);
-    };
-
-    auto hasWithFootprint = [&](std::string const& key,
-                                xdr::xvector<LedgerKey> const& readOnly,
-                                uint32_t writeBytes, bool expectSuccess,
-                                ContractDataDurability type) -> bool {
-        auto keySymbol = makeSymbolSCVal(key);
-
-        std::string funcStr;
-        switch (type)
-        {
-        case ContractDataDurability::TEMPORARY:
-            funcStr = "has_temporary";
-            break;
-        case ContractDataDurability::PERSISTENT:
-            funcStr = "has_persistent";
-            break;
-        }
-
-        auto [tx, ltx, txm] = createTx(readOnly, {}, writeBytes, contractID,
-                                       makeSymbol(funcStr), {keySymbol});
-
-        if (expectSuccess)
-        {
-            REQUIRE(tx->apply(*app, *ltx, *txm));
-            ltx->commit();
-            return txm->getXDR().v3().sorobanMeta->returnValue.b();
-        }
-        else
-        {
-            REQUIRE(!tx->apply(*app, *ltx, *txm));
-            ltx->commit();
-        }
-        return false;
-    };
-
-    auto has = [&](std::string const& key,
-                   ContractDataDurability type) -> bool {
-        auto readOnly = contractKeys;
-        readOnly.emplace_back(
-            contractDataKey(contractID, makeSymbolSCVal(key), type));
-        return hasWithFootprint(key, readOnly, 0, true, type);
-    };
-
-    auto getWithFootprint =
-        [&](std::string const& key, xdr::xvector<LedgerKey> const& readOnly,
-            xdr::xvector<LedgerKey> const& readWrite, uint32_t writeBytes,
-            bool expectSuccess, ContractDataDurability type) {
-            auto keySymbol = makeSymbolSCVal(key);
-
-            std::string funcStr;
-            switch (type)
-            {
-            case ContractDataDurability::TEMPORARY:
-                funcStr = "get_temporary";
-                break;
-            case ContractDataDurability::PERSISTENT:
-                funcStr = "get_persistent";
-                break;
-            }
-
-            auto [tx, ltx, txm] =
-                createTx(readOnly, readWrite, writeBytes, contractID,
-                         makeSymbol(funcStr), {keySymbol});
-
-            if (expectSuccess)
-            {
-                REQUIRE(tx->apply(*app, *ltx, *txm));
-                ltx->commit();
-            }
-            else
-            {
-                REQUIRE(!tx->apply(*app, *ltx, *txm));
-                ltx->commit();
-            }
-        };
-
-    auto get = [&](std::string const& key, ContractDataDurability type,
-                   bool expectSuccess) {
-        getWithFootprint(
-            key, contractKeys,
-            {contractDataKey(contractID, makeSymbolSCVal(key), type)}, 1000,
-            expectSuccess, type);
-    };
-
-    auto extendWithFootprint = [&](std::string const& key, uint32_t lowLifetime,
-                                   uint32_t highLifetime,
-                                   xdr::xvector<LedgerKey> const& readOnly,
-                                   xdr::xvector<LedgerKey> const& readWrite,
-                                   bool expectSuccess,
-                                   ContractDataDurability type) {
-        auto keySymbol = makeSymbolSCVal(key);
-        auto lowLifetimeU32 = makeU32(lowLifetime);
-        auto highLifetimeU32 = makeU32(highLifetime);
-
-        std::string funcStr;
-        switch (type)
-        {
-        case ContractDataDurability::TEMPORARY:
-            funcStr = "extend_temporary";
-            break;
-        case ContractDataDurability::PERSISTENT:
-            funcStr = "extend_persistent";
-            break;
-        }
-
-        // TODO: Better bytes to write value
-        auto [tx, ltx, txm] =
-            createTx(readOnly, readWrite, 1000, contractID, makeSymbol(funcStr),
-                     {keySymbol, lowLifetimeU32, highLifetimeU32});
-
-        if (expectSuccess)
-        {
-            REQUIRE(tx->apply(*app, *ltx, *txm));
-        }
-        else
-        {
-            REQUIRE(!tx->apply(*app, *ltx, *txm));
-        }
-
-        ltx->commit();
-    };
-
-    auto extendLowHigh = [&](std::string const& key,
-                             ContractDataDurability type, uint32_t lowLifetime,
-                             uint32_t highLifetime) {
-        extendWithFootprint(
-            key, lowLifetime, highLifetime, contractKeys,
-            {contractDataKey(contractID, makeSymbolSCVal(key), type)}, true,
-            type);
-    };
-
-    auto extendExact = [&](std::string const& key, ContractDataDurability type,
-                           uint32_t extendAmount) {
-        extendLowHigh(key, type, extendAmount, extendAmount);
-    };
-
-    auto increaseEntrySizeAndExtend =
-        [&](std::string const& key, uint32_t numKiloBytes, uint32_t lowLifetime,
-            uint32_t highLifetime, xdr::xvector<LedgerKey> const& readOnly,
-            xdr::xvector<LedgerKey> const& readWrite, bool expectSuccess,
-            uint32_t refundableFee) {
-            auto keySymbol = makeSymbolSCVal(key);
-            auto numKiloBytesU32 = makeU32(numKiloBytes);
-            auto lowLifetimeU32 = makeU32(lowLifetime);
-            auto highLifetimeU32 = makeU32(highLifetime);
-
-            std::string funcStr = "replace_with_bytes_and_extend";
-
-            // TODO: Better bytes to write value
-            auto [tx, ltx, txm] = createTx(
-                readOnly, readWrite, 2000, contractID, makeSymbol(funcStr),
-                {keySymbol, numKiloBytesU32, lowLifetimeU32, highLifetimeU32},
-                refundableFee);
-
-            if (expectSuccess)
-            {
-                REQUIRE(tx->apply(*app, *ltx, *txm));
-            }
-            else
-            {
-                REQUIRE(!tx->apply(*app, *ltx, *txm));
-            }
-
-            ltx->commit();
-        };
-
-    auto runStateArchivalOp = [&](TestAccount& root, TransactionFrameBasePtr tx,
-                                  int64_t expectedRefundableFeeCharged) {
-        int64_t initBalance = root.getBalance();
-        // Apply the transaction and process the refund.
-        {
-            LedgerTxn ltx(app->getLedgerTxnRoot());
-            REQUIRE(tx->checkValid(*app, ltx, 0, 0, 0));
-        }
-        // Initially we store in result the charge for resources plus
-        // minimum inclusion  fee bid (currently equivalent to the network
-        // `baseFee` of 100).
-        int64_t baseCharged = (tx->getFullFee() - tx->getInclusionFee()) + 100;
-        REQUIRE(tx->getResult().feeCharged == baseCharged);
-        // Charge the fee.
-        {
-            LedgerTxn ltx(app->getLedgerTxnRoot());
-            // Imitate surge pricing by charging at a higher rate than base
-            // fee.
-            tx->processFeeSeqNum(ltx, 300);
-            ltx.commit();
-        }
-        // The resource and the base fee are charged, with additional
-        // surge pricing fee.
-        int64_t balanceAfterFeeCharged = root.getBalance();
-        auto actuallyCharged =
-            baseCharged + /* surge pricing additional fee */ 200;
-        REQUIRE(initBalance - balanceAfterFeeCharged == actuallyCharged);
-        auto nonRefundableResourceFee = sorobanResourceFee(
-            *app, tx->sorobanResources(), xdr::xdr_size(tx->getEnvelope()), 0);
-        auto expectedChargedAfterRefund =
-            nonRefundableResourceFee + expectedRefundableFeeCharged + 300;
-        {
-            LedgerTxn ltx(app->getLedgerTxnRoot());
-            TransactionMetaFrame txm(ltx.loadHeader().current().ledgerVersion);
-            REQUIRE(tx->apply(*app, ltx, txm));
-            tx->processPostApply(*app, ltx, txm);
-            ltx.commit();
-
-            auto changesAfter = txm.getChangesAfter();
-            REQUIRE(changesAfter.size() == 2);
-            REQUIRE(changesAfter[1].updated().data.account().balance -
-                        changesAfter[0].state().data.account().balance ==
-                    actuallyCharged - expectedChargedAfterRefund);
-        }
-
-        // The account should receive a refund for unspent refundable fee.
-        REQUIRE(root.getBalance() - balanceAfterFeeCharged ==
-                actuallyCharged - expectedChargedAfterRefund);
-    };
-
-    auto extendOp = [&](uint32_t extendAmount,
-                        xdr::xvector<LedgerKey> const& readOnly) {
-        int64_t expectedRefundableFeeCharged = 0;
-        for (auto const& key : readOnly)
-        {
-            expectedRefundableFeeCharged +=
-                getRentFeeForExtend(*app, key, extendAmount, sorobanConfig);
-        }
-
-        Operation extendOp;
-        extendOp.body.type(EXTEND_FOOTPRINT_TTL);
-        extendOp.body.extendFootprintTTLOp().extendTo = extendAmount;
-
-        SorobanResources extendResources;
-        extendResources.footprint.readOnly = readOnly;
-        extendResources.instructions = 0;
-        extendResources.readBytes = 10'000;
-        extendResources.writeBytes = 0;
-
-        auto tx = sorobanTransactionFrameFromOps(
-            app->getNetworkID(), root, {extendOp}, {}, extendResources, 1000,
-            DEFAULT_TEST_RESOURCE_FEE);
-
-        runStateArchivalOp(root, tx, expectedRefundableFeeCharged);
-    };
-
-    auto restoreOp = [&](xdr::xvector<LedgerKey> const& readWrite,
-                         int64_t expectedRefundableFeeCharged) {
-        Operation restoreOp;
-        restoreOp.body.type(RESTORE_FOOTPRINT);
-
-        SorobanResources resources;
-        resources.footprint.readWrite = readWrite;
-        resources.instructions = 0;
-        resources.readBytes = 10'000;
-        resources.writeBytes = 10'000;
-
-        // submit operation
-        auto tx = sorobanTransactionFrameFromOps(
-            app->getNetworkID(), root, {restoreOp}, {}, resources, 1000,
-            300'000 + 40'000 * readWrite.size());
-        runStateArchivalOp(root, tx, expectedRefundableFeeCharged);
-    };
-
-    auto delWithFootprint = [&](std::string const& key,
-                                xdr::xvector<LedgerKey> const& readOnly,
-                                xdr::xvector<LedgerKey> const& readWrite,
-                                bool expectSuccess,
-                                ContractDataDurability type) {
-        auto keySymbol = makeSymbolSCVal(key);
-
-        std::string funcStr;
-        switch (type)
-        {
-        case ContractDataDurability::TEMPORARY:
-            funcStr = "del_temporary";
-            break;
-        case ContractDataDurability::PERSISTENT:
-            funcStr = "del_persistent";
-            break;
-        }
-
-        // TODO: Better bytes to write value
-        auto [tx, ltx, txm] = createTx(readOnly, readWrite, 1000, contractID,
-                                       makeSymbol(funcStr), {keySymbol});
-
-        if (expectSuccess)
-        {
-            REQUIRE(tx->apply(*app, *ltx, *txm));
-            ltx->commit();
-            checkContractData(keySymbol, type, nullptr);
-        }
-        else
-        {
-            REQUIRE(!tx->apply(*app, *ltx, *txm));
-            ltx->commit();
-        }
-    };
-
-    auto del = [&](std::string const& key, ContractDataDurability type) {
-        delWithFootprint(
-            key, contractKeys,
-            {contractDataKey(contractID, makeSymbolSCVal(key), type)}, true,
-            type);
-    };
-
-    auto checkContractDataArchivalState =
-        [&](std::string const& key, ContractDataDurability type,
-            uint32_t ledgerSeq, bool expectedIsLive) {
-            auto le = loadStorageEntry(*app, contractID, key, type);
-            auto ttlKey = getTTLKey(le);
-
-            {
-                LedgerTxn ltx(app->getLedgerTxnRoot());
-                auto ttlLtxe = ltx.loadWithoutRecord(ttlKey);
-                REQUIRE(ttlLtxe);
-                REQUIRE(isLive(ttlLtxe.current(), ledgerSeq) == expectedIsLive);
-            }
-
-            // Make sure entry is accessible/inaccessible
-            get(key, type, expectedIsLive);
-        };
-
-    // Check entries existence and ttl
-    auto checkEntry = [&](LedgerKey const& key,
-                          uint32_t expectedLiveUntilLedgerLedger) {
-        LedgerTxn ltx(app->getLedgerTxnRoot());
-        auto ltxe = ltx.loadWithoutRecord(key);
-        REQUIRE(ltxe);
-        checkTTL(ltx, key, expectedLiveUntilLedgerLedger);
-    };
-
-    auto checkContractDataLiveUntilLedger =
-        [&](std::string const& key, ContractDataDurability type,
-            uint32_t expectedLiveUntilLedgerLedger) {
-            auto le = loadStorageEntry(*app, contractID, key, type);
-            checkEntry(LedgerEntryKey(le), expectedLiveUntilLedgerLedger);
-        };
-
-    auto ledgerSeq = getLedgerSeq(*app);
-
-    SECTION("default limits")
-    {
-        put("key1", 0, ContractDataDurability::PERSISTENT);
-        put("key2", 21, ContractDataDurability::PERSISTENT);
-
-        // Failure: insufficient write bytes
-        putWithFootprint("key2", 88888, contractKeys,
-                         {contractDataKey(contractID, makeSymbolSCVal("key2"),
-                                          ContractDataDurability::PERSISTENT)},
-                         1, false, ContractDataDurability::PERSISTENT);
-
-        put("key1", 9, ContractDataDurability::PERSISTENT);
-        put("key2", UINT64_MAX, ContractDataDurability::PERSISTENT);
-
-        del("key1", ContractDataDurability::PERSISTENT);
-        del("key2", ContractDataDurability::PERSISTENT);
-    }
-
-    SECTION("failure: entry exceeds max size")
-    {
-        modifySorobanNetworkConfig(*app, [](SorobanNetworkConfig& cfg) {
-            cfg.mMaxContractDataEntrySizeBytes = 1;
-        });
-        // this fails due to the contract code itself exceeding the entry limit
-        putWithFootprint("key2", 2, contractKeys,
-                         {contractDataKey(contractID, makeSymbolSCVal("key2"),
-                                          ContractDataDurability::PERSISTENT)},
-                         1000, false, ContractDataDurability::PERSISTENT);
-    }
-
-    SECTION("Same ScVal key, different types")
-    {
-        // Check that each type is in their own keyspace
-        uint64_t uniqueVal = 0;
-        uint64_t temporaryVal = 2;
-
-        put("key", uniqueVal, ContractDataDurability::PERSISTENT);
-        put("key", temporaryVal, TEMPORARY);
-
-        auto uniqueScVal = makeU64SCVal(uniqueVal);
-        auto temporaryScVal = makeU64SCVal(temporaryVal);
-        auto keySymbol = makeSymbolSCVal("key");
-
-        checkContractData(keySymbol, ContractDataDurability::PERSISTENT,
-                          &uniqueScVal);
-        checkContractData(keySymbol, TEMPORARY, &temporaryScVal);
-
-        put("key2", 3, ContractDataDurability::PERSISTENT);
-        auto key2Symbol = makeSymbolSCVal("key2");
-        auto uniqueScVal2 = makeU64SCVal(3);
-
-        checkContractData(key2Symbol, ContractDataDurability::PERSISTENT,
-                          &uniqueScVal2);
-        checkContractData(key2Symbol, TEMPORARY, nullptr);
-    }
-
-    SECTION("contract instance and wasm ttl")
-    {
-        uint32_t originalexpectedLiveUntilLedger =
-            stateArchivalSettings.minPersistentTTL + ledgerSeq - 1;
-
-        for (uint32_t i = app->getLedgerManager().getLastClosedLedgerNum();
-             i <= originalexpectedLiveUntilLedger + 1; ++i)
-        {
-            closeLedgerOn(*app, i, 2, 1, 2016);
-        }
-
-        // Contract instance and code are expired, an TX should fail
-        putWithFootprint(
-            "temp", 0, contractKeys,
-            {contractDataKey(contractID, makeSymbolSCVal("temp"), TEMPORARY)},
-            1000, /*expectSuccess*/ false, ContractDataDurability::TEMPORARY);
-
-        ledgerSeq = getLedgerSeq(*app);
-        auto newexpectedLiveUntilLedger =
-            stateArchivalSettings.minPersistentTTL + ledgerSeq - 1;
-
-        SECTION("restore contract instance and wasm")
-        {
-            // Restore Instance and WASM
-            restoreOp(contractKeys,
-                      96 /* rent bump */ + 40000 /* two LE-writes */);
-
-            // Instance should now be useable
-            putWithFootprint(
-                "temp", 0, contractKeys,
-                {contractDataKey(contractID, makeSymbolSCVal("temp"),
-                                 TEMPORARY)},
-                1000, /*expectSuccess*/ true,
-                ContractDataDurability::TEMPORARY);
-
-            checkEntry(contractKeys[0], newexpectedLiveUntilLedger);
-            checkEntry(contractKeys[1], newexpectedLiveUntilLedger);
-        }
-
-        SECTION("restore contract instance, not wasm")
-        {
-            // Only restore contract instance
-            restoreOp({contractKeys[0]},
-                      48 /* rent bump */ + 20000 /* one LE write */);
-
-            // invocation should fail
-            putWithFootprint(
-                "temp", 0, contractKeys,
-                {contractDataKey(contractID, makeSymbolSCVal("temp"),
-                                 TEMPORARY)},
-                1000, /*expectSuccess*/ false,
-                ContractDataDurability::TEMPORARY);
-
-            checkEntry(contractKeys[0], newexpectedLiveUntilLedger);
-            checkEntry(contractKeys[1], originalexpectedLiveUntilLedger);
-        }
-
-        SECTION("restore contract wasm, not instance")
-        {
-            // Only restore WASM
-            restoreOp({contractKeys[1]},
-                      48 /* rent bump */ + 20000 /* one LE write */);
-
-            // invocation should fail
-            putWithFootprint(
-                "temp", 0, contractKeys,
-                {contractDataKey(contractID, makeSymbolSCVal("temp"),
-                                 TEMPORARY)},
-                1000, /*expectSuccess*/ false,
-                ContractDataDurability::TEMPORARY);
-
-            checkEntry(contractKeys[0], originalexpectedLiveUntilLedger);
-            checkEntry(contractKeys[1], newexpectedLiveUntilLedger);
-        }
-
-        SECTION("lifetime extensions")
-        {
-            // Restore Instance and WASM
-            restoreOp(contractKeys,
-                      96 /* rent bump */ + 40000 /* two LE writes */);
-
-            auto instanceExtendAmount = 10'000;
-            auto wasmExtendAmount = 15'000;
-
-            // extend instance
-            extendOp(instanceExtendAmount, {contractKeys[0]});
-
-            // extend WASM
-            extendOp(wasmExtendAmount, {contractKeys[1]});
-
-            checkEntry(contractKeys[0], ledgerSeq + instanceExtendAmount);
-            checkEntry(contractKeys[1], ledgerSeq + wasmExtendAmount);
-        }
-    }
-
-    SECTION("contract storage ttl")
-    {
-        put("unique", 0, ContractDataDurability::PERSISTENT);
-        put("temp", 0, TEMPORARY);
-
-        auto expectedTempLiveUntilLedger =
-            stateArchivalSettings.minTemporaryTTL + ledgerSeq - 1;
-        auto expectedPersistentLiveUntilLedger =
-            stateArchivalSettings.minPersistentTTL + ledgerSeq - 1;
-
-        // Check for expected minimum lifetime values
-        checkContractDataLiveUntilLedger("unique",
-                                         ContractDataDurability::PERSISTENT,
-                                         expectedPersistentLiveUntilLedger);
-        checkContractDataLiveUntilLedger("temp", TEMPORARY,
-                                         expectedTempLiveUntilLedger);
-
-        // Close ledgers until temp entry expires
-        uint32 currLedger = app->getLedgerManager().getLastClosedLedgerNum();
-        for (; currLedger <= expectedTempLiveUntilLedger + 1; ++currLedger)
-        {
-            closeLedgerOn(*app, currLedger, 2, 1, 2016);
-        }
-        REQUIRE(app->getLedgerManager().getLastClosedLedgerNum() ==
-                expectedTempLiveUntilLedger + 1);
-
-        // Check that temp entry has expired
-        checkContractDataArchivalState(
-            "temp", TEMPORARY, app->getLedgerManager().getLastClosedLedgerNum(),
-            false);
-
-        checkContractDataArchivalState(
-            "unique", ContractDataDurability::PERSISTENT,
-            app->getLedgerManager().getLastClosedLedgerNum(), true);
-
-        // Check that we can recreate an expired TEMPORARY entry
-        putWithFootprint(
-            "temp", 0, contractKeys,
-            {contractDataKey(contractID, makeSymbolSCVal("temp"), TEMPORARY)},
-            1000, /*expectSuccess*/ true, ContractDataDurability::TEMPORARY);
-
-        // Recreated entry should be live
-        ledgerSeq = getLedgerSeq(*app);
-        checkContractDataArchivalState(
-            "temp", TEMPORARY, app->getLedgerManager().getLastClosedLedgerNum(),
-            true);
-        checkContractDataLiveUntilLedger("temp", TEMPORARY,
-                                         stateArchivalSettings.minTemporaryTTL +
-                                             ledgerSeq - 1);
-
-        // Close ledgers until PERSISTENT entry expires
-        for (; currLedger <= expectedPersistentLiveUntilLedger + 1;
-             ++currLedger)
-        {
-            closeLedgerOn(*app, currLedger, 2, 1, 2016);
-        }
-
-        REQUIRE(app->getLedgerManager().getLastClosedLedgerNum() ==
-                expectedPersistentLiveUntilLedger + 1);
-        checkContractDataArchivalState(
-            "unique", ContractDataDurability::PERSISTENT,
-            app->getLedgerManager().getLastClosedLedgerNum(), false);
-
-        // Check that we can't recreate expired PERSISTENT
-        putWithFootprint("unique", 0, contractKeys,
-                         {contractDataKey(contractID, makeSymbolSCVal("unique"),
-                                          ContractDataDurability::PERSISTENT)},
-                         1000, /*expectSuccess*/ false,
-                         ContractDataDurability::PERSISTENT);
-    }
-
-    SECTION("manual extend")
-    {
-        // Large extend, followed by smaller extend
-        put("key", 0, ContractDataDurability::PERSISTENT);
-        extendExact("key", ContractDataDurability::PERSISTENT, 10'000);
-        checkContractDataLiveUntilLedger(
-            "key", ContractDataDurability::PERSISTENT, ledgerSeq + 10'000);
-
-        // TTL already above 5'000, should be a no-op
-        extendExact("key", ContractDataDurability::PERSISTENT, 5'000);
-        checkContractDataLiveUntilLedger(
-            "key", ContractDataDurability::PERSISTENT, ledgerSeq + 10'000);
-
-        // Small extend followed by larger extend
-        put("key2", 0, ContractDataDurability::PERSISTENT);
-        extendExact("key2", ContractDataDurability::PERSISTENT, 5'000);
-        checkContractDataLiveUntilLedger(
-            "key2", ContractDataDurability::PERSISTENT, ledgerSeq + 5'000);
-
-        put("key3", 0, ContractDataDurability::PERSISTENT);
-        extendExact("key3", ContractDataDurability::PERSISTENT, 50'000);
-        checkContractDataLiveUntilLedger(
-            "key3", ContractDataDurability::PERSISTENT, ledgerSeq + 50'000);
-
-        // Extend multiple keys to live 10100 ledger from now
-        extendOp(
-            10100,
-            {contractDataKey(contractID, makeSymbolSCVal("key"),
-                             ContractDataDurability::PERSISTENT),
-             contractDataKey(contractID, makeSymbolSCVal("key2"),
-                             ContractDataDurability::PERSISTENT),
-             contractDataKey(
-                 contractID, makeSymbolSCVal("key3"),
-                 ContractDataDurability::PERSISTENT)}); // only 2 ledger writes
-                                                        // because key3 won't be
-                                                        // extended
-
-        checkContractDataLiveUntilLedger(
-            "key", ContractDataDurability::PERSISTENT, ledgerSeq + 10'100);
-        checkContractDataLiveUntilLedger(
-            "key2", ContractDataDurability::PERSISTENT, ledgerSeq + 10'100);
-
-        // No change for key3 since ttl is already past 10100 ledgers
-        checkContractDataLiveUntilLedger(
-            "key3", ContractDataDurability::PERSISTENT, ledgerSeq + 50'000);
-
-        SECTION("low/high watermark")
-        {
-            uint32_t initialLiveUntilLedger =
-                stateArchivalSettings.minPersistentTTL + ledgerSeq - 1;
-
-            put("key4", 0, ContractDataDurability::PERSISTENT);
-
-            // After the put op, key4's lifetime will be minimumLifetime - 1.
-            // Set low lifetime to minimumLifetime - 2 so extend does not occur
-            extendLowHigh("key4", ContractDataDurability::PERSISTENT,
-                          stateArchivalSettings.minPersistentTTL - 2, 50'000);
-            checkContractDataLiveUntilLedger("key4",
-                                             ContractDataDurability::PERSISTENT,
-                                             initialLiveUntilLedger);
-
-            // Close one ledger
-            ledgerSeq = app->getLedgerManager().getLastClosedLedgerNum();
-            closeLedgerOn(*app, ledgerSeq + 1, 2, 1, 2016);
-            ++ledgerSeq;
-
-            // Lifetime is now at low threshold, should be extended
-            extendLowHigh("key4", ContractDataDurability::PERSISTENT,
-                          stateArchivalSettings.minPersistentTTL - 2, 50'000);
-            checkContractDataLiveUntilLedger(
-                "key4", ContractDataDurability::PERSISTENT, 50'000 + ledgerSeq);
-
-            // Check that low watermark > high watermark fails
-            extendWithFootprint(
-                "key4", 60'000, 50'000, contractKeys,
-                {contractDataKey(contractID, makeSymbolSCVal("key4"),
-                                 ContractDataDurability::PERSISTENT)},
-                false, ContractDataDurability::PERSISTENT);
-        }
-    }
-
-    SECTION("restore expired entry")
-    {
-        uint32_t initLiveUntilLedger =
-            stateArchivalSettings.minPersistentTTL + ledgerSeq - 1;
-
-        // Extend instance and WASM so that they don't expire during the test
-        extendOp(10'000, contractKeys);
-
-        put("key", 0, ContractDataDurability::PERSISTENT);
-        checkContractDataLiveUntilLedger(
-            "key", ContractDataDurability::PERSISTENT, initLiveUntilLedger);
-
-        // Crank until entry expires
-        for (uint32 i = app->getLedgerManager().getLastClosedLedgerNum();
-             i <= initLiveUntilLedger + 1; ++i)
-        {
-            closeLedgerOn(*app, i, 2, 1, 2016);
-        }
-
-        REQUIRE(app->getLedgerManager().getLastClosedLedgerNum() ==
-                initLiveUntilLedger + 1);
-
-        checkContractDataArchivalState(
-            "key", ContractDataDurability::PERSISTENT,
-            app->getLedgerManager().getLastClosedLedgerNum(), false);
-
-        auto lk = contractDataKey(contractID, makeSymbolSCVal("key"),
-                                  ContractDataDurability::PERSISTENT);
-        auto roKeys = contractKeys;
-        roKeys.emplace_back(lk);
-
-        // Trying to read this expired entry should fail.
-        getWithFootprint("key", roKeys, {}, 1000, /*expectSuccess*/ false,
-                         ContractDataDurability::PERSISTENT);
-
-        // Recreation of persistent entries should fail.
-        putWithFootprint("key", 0, contractKeys, {lk}, 1000,
-                         /*expectSuccess*/ false,
-                         ContractDataDurability::PERSISTENT);
-
-        // Extend operation should skip expired entries
-        extendOp(1'000, {lk});
-
-        // Make sure liveUntilLedger is unchanged by extendOp
-        checkContractDataLiveUntilLedger(
-            "key", ContractDataDurability::PERSISTENT, initLiveUntilLedger);
-
-        // Restore the entry
-        restoreOp({lk}, 20048);
-
-        ledgerSeq = getLedgerSeq(*app);
-        checkContractDataArchivalState(
-            "key", ContractDataDurability::PERSISTENT, ledgerSeq, true);
-
-        // Entry is considered to be restored on lclNum (as we didn't close an
-        // additional ledger).
-        checkContractDataLiveUntilLedger(
-            "key", ContractDataDurability::PERSISTENT,
-            ledgerSeq + stateArchivalSettings.minPersistentTTL - 1);
-
-        // Write to entry to check that is is live
-        put("key", 1, ContractDataDurability::PERSISTENT);
-    }
-
-    SECTION("re-create expired temporary entry")
-    {
-        auto minExtend =
-            InitialSorobanNetworkConfig::MINIMUM_TEMP_ENTRY_LIFETIME;
-        put("key", 0, ContractDataDurability::TEMPORARY);
-        REQUIRE(has("key", ContractDataDurability::TEMPORARY));
-
-        uint32_t initLiveUntilLedger = ledgerSeq + minExtend - 1;
-        checkContractDataLiveUntilLedger(
-            "key", ContractDataDurability::TEMPORARY, initLiveUntilLedger);
-
-        for (size_t i = app->getLedgerManager().getLastClosedLedgerNum();
-             i <= initLiveUntilLedger + 1; ++i)
-        {
-            closeLedgerOn(*app, i, 2, 1, 2016);
-        }
-        REQUIRE(app->getLedgerManager().getLastClosedLedgerNum() ==
-                initLiveUntilLedger + 1);
-        checkContractDataArchivalState(
-            "key", ContractDataDurability::TEMPORARY,
-            app->getLedgerManager().getLastClosedLedgerNum(), false);
-
-        // Entry has expired
-        REQUIRE(!has("key", ContractDataDurability::TEMPORARY));
-
-        // We can recreate an expired temp entry
-        put("key", 0, ContractDataDurability::TEMPORARY);
-        REQUIRE(has("key", ContractDataDurability::TEMPORARY));
-
-        uint32_t newLiveUntilLedger =
-            app->getLedgerManager().getLastClosedLedgerNum() + minExtend - 1;
-        checkContractDataLiveUntilLedger(
-            "key", ContractDataDurability::TEMPORARY, newLiveUntilLedger);
-    }
-
-    SECTION("charge rent fees for storage resize")
-    {
-        auto resizeKilobytes = 1;
-        put("key1", 0, ContractDataDurability::PERSISTENT);
-        auto key1lk =
-            contractDataKey(contractID, makeSymbolSCVal("key1"), PERSISTENT);
-
-        auto startingSizeBytes = 0;
-        {
-            LedgerTxn ltx(app->getLedgerTxnRoot());
-            auto txle = ltx.loadWithoutRecord(key1lk);
-            REQUIRE(txle);
-            startingSizeBytes = xdr::xdr_size(txle.current());
-        }
-
-        // First, resize a key with large fee to guarantee success
-        increaseEntrySizeAndExtend("key1", resizeKilobytes, 0, 0, contractKeys,
-                                   {key1lk}, true, 40'000);
-
-        auto sizeDeltaBytes = 0;
-        {
-            LedgerTxn ltx(app->getLedgerTxnRoot());
-            auto txle = ltx.loadWithoutRecord(key1lk);
-            REQUIRE(txle);
-            sizeDeltaBytes = xdr::xdr_size(txle.current()) - startingSizeBytes;
-        }
-
-        // Now that we know the size delta, we can calculate the expected rent
-        // and check that another entry resize charges fee correctly
-        put("key2", 0, ContractDataDurability::PERSISTENT);
-
-        auto initialLifetime = stateArchivalSettings.minPersistentTTL;
-
-        SECTION("resize with no extend")
-        {
-            auto expectedRentFee = getRentFeeForBytes(
-                sizeDeltaBytes, initialLifetime, sorobanConfig,
-                /*isPersistent=*/true);
-
-            // resourceFee = rent fee + (event size + return val) fee. So
-            // in order to succeed resourceFee needs to be expectedRentFee
-            // + 1 to account for the return val size. We are not changing the
-            // liveUntilLedgerSeq, so there is no TTLEntry write charge
-            auto refundableFee = expectedRentFee + 1;
-            increaseEntrySizeAndExtend(
-                "key2", resizeKilobytes, 0, 0, contractKeys,
-                {contractDataKey(contractID, makeSymbolSCVal("key2"),
-                                 PERSISTENT)},
-                false, refundableFee - 1);
-
-            // Size change should succeed with enough refundable fee
-            increaseEntrySizeAndExtend(
-                "key2", resizeKilobytes, 0, 0, contractKeys,
-                {contractDataKey(contractID, makeSymbolSCVal("key2"),
-                                 PERSISTENT)},
-                true, refundableFee);
-        }
-
-        SECTION("resize and extend")
-        {
-            auto newLifetime = initialLifetime + 1000;
-
-            // New bytes are charged rent for previous lifetime and new lifetime
-            auto resizeRentFee =
-                getRentFeeForBytes(sizeDeltaBytes, newLifetime, sorobanConfig,
-                                   /*isPersistent=*/true);
-
-            // Initial bytes just charged for new lifetime
-            auto extendFee = getRentFeeForBytes(
-                startingSizeBytes, newLifetime - initialLifetime, sorobanConfig,
-                /*isPersistent=*/true);
-
-            // resourceFee = rent fee + (event size + return val) fee. So in
-            // order to success resourceFee needs to be expectedRentFee
-            // + 1 to account for the return val size.
-            auto refundableFee = resizeRentFee + extendFee +
-                                 getTTLEntryWriteFee(sorobanConfig) + 1;
-            increaseEntrySizeAndExtend(
-                "key2", resizeKilobytes, newLifetime, newLifetime, contractKeys,
-                {contractDataKey(contractID, makeSymbolSCVal("key2"),
-                                 PERSISTENT)},
-                false, refundableFee - 1);
-
-            // Size change should succeed with enough refundable fee
-            increaseEntrySizeAndExtend(
-                "key2", resizeKilobytes, newLifetime, newLifetime, contractKeys,
-                {contractDataKey(contractID, makeSymbolSCVal("key2"),
-                                 PERSISTENT)},
-                true, refundableFee);
-        }
-    }
-
-    SECTION("max ttl")
-    {
-        // Check that attempting to extend past max ledger results in error
-        put("key", 0, ContractDataDurability::PERSISTENT);
-        extendWithFootprint(
-            "key", UINT32_MAX, UINT32_MAX, contractKeys,
-            {contractDataKey(contractID, makeSymbolSCVal("key"),
-                             ContractDataDurability::PERSISTENT)},
-            false, ContractDataDurability::PERSISTENT);
-
-        // Make sure maximum extend succeeds
-        extendExact("key", ContractDataDurability::PERSISTENT,
-                    stateArchivalSettings.maxEntryTTL - 1);
-
-        auto maxLiveUntilLedger =
-            ledgerSeq + stateArchivalSettings.maxEntryTTL - 1;
-        checkContractDataLiveUntilLedger(
-            "key", ContractDataDurability::PERSISTENT, maxLiveUntilLedger);
-    }
-    SECTION("footprint tests")
-    {
-        put("key1", 0, ContractDataDurability::PERSISTENT);
-        put("key2", 21, ContractDataDurability::PERSISTENT);
-        SECTION("unused readWrite key")
-        {
-            putWithFootprint(
-                "key1", 0, contractKeys,
-                {contractDataKey(contractID, makeSymbolSCVal("key1"),
-                                 ContractDataDurability::PERSISTENT),
-                 accountKey(acc)},
-                1000, true, ContractDataDurability::PERSISTENT);
-            // make sure account still exists and hasn't change
-            REQUIRE(doesAccountExist(*app, acc));
-        }
-        SECTION("incorrect footprint")
-        {
-            // Failure: contract data isn't in footprint
-            putWithFootprint("key1", 88, contractKeys, {}, 1000, false,
-                             ContractDataDurability::PERSISTENT);
-            delWithFootprint("key1", contractKeys, {}, false,
-                             ContractDataDurability::PERSISTENT);
-
-            // Failure: contract data is read only
-            auto readOnlyFootprint = contractKeys;
-            readOnlyFootprint.push_back(
-                contractDataKey(contractID, makeSymbolSCVal("key2"),
-                                ContractDataDurability::PERSISTENT));
-            putWithFootprint("key2", 888888, readOnlyFootprint, {}, 1000, false,
-                             ContractDataDurability::PERSISTENT);
-            delWithFootprint("key2", readOnlyFootprint, {}, false,
-                             ContractDataDurability::PERSISTENT);
-        }
-    }
-}
-
-TEST_CASE("temp entry eviction", "[tx][soroban]")
-{
-    VirtualClock clock;
-
-    Config cfg = getTestConfig();
-    TmpDirManager tdm(std::string("soroban-storage-meta-") +
-                      binToHex(randomBytes(8)));
-    TmpDir td = tdm.tmpDir("soroban-meta-ok");
-    std::string metaPath = td.getName() + "/stream.xdr";
-
-    cfg.METADATA_OUTPUT_STREAM = metaPath;
-
-    auto app = createTestApplication(clock, cfg);
-    overrideSorobanNetworkConfigForTest(*app);
-
-    auto root = TestAccount::createRoot(*app);
-    auto const contractDataWasm = rust_bridge::get_test_wasm_contract_data();
-    auto contractKeys = deployContractWithSourceAccount(*app, contractDataWasm);
-    auto const& contractID = contractKeys[0].contractData().contract;
-
-    // TODO:de-duplicate code?
-    auto createTx =
-        [&](xdr::xvector<LedgerKey> const& readOnly,
-            xdr::xvector<LedgerKey> const& readWrite, uint32_t writeBytes,
-            SCAddress const& contractAddress, SCSymbol const& functionName,
-            std::vector<SCVal> const& args) -> TransactionFrameBasePtr {
-        Operation op;
-        op.body.type(INVOKE_HOST_FUNCTION);
-        auto& ihf = op.body.invokeHostFunctionOp().hostFunction;
-        ihf.type(HOST_FUNCTION_TYPE_INVOKE_CONTRACT);
-        ihf.invokeContract().contractAddress = contractAddress;
-        ihf.invokeContract().functionName = functionName;
-        ihf.invokeContract().args.assign(args.begin(), args.end());
-        SorobanResources resources;
-        resources.footprint.readOnly = readOnly;
-        resources.footprint.readWrite = readWrite;
-        resources.instructions = 4'000'000;
-        resources.readBytes = 10'000;
-        resources.writeBytes = writeBytes;
-
-        auto tx = sorobanTransactionFrameFromOps(
-            app->getNetworkID(), root, {op}, {}, resources, 1000, 340'000);
-        LedgerTxn ltx(app->getLedgerTxnRoot());
-        REQUIRE(tx->checkValid(*app, ltx, 0, 0, 0));
-        return tx;
-    };
-
-    auto putWithFootprint = [&](std::string const& key, uint64_t val,
-                                xdr::xvector<LedgerKey> const& readOnly,
-                                xdr::xvector<LedgerKey> const& readWrite,
-                                uint32_t writeBytes, bool expectSuccess,
-                                ContractDataDurability type) {
-        auto keySymbol = makeSymbolSCVal(key);
-        auto valU64 = makeU64SCVal(val);
-
-        std::string funcStr;
-        switch (type)
-        {
-        case ContractDataDurability::TEMPORARY:
-            funcStr = "put_temporary";
-            break;
-        case ContractDataDurability::PERSISTENT:
-            funcStr = "put_persistent";
-            break;
-        }
-
-        auto tx = createTx(readOnly, readWrite, writeBytes, contractID,
-                           makeSymbol(funcStr), {keySymbol, valU64});
-
-        closeLedger(*app, {tx});
-    };
-
-    auto checkContractDataArchivalState =
-        [&](std::string const& key, ContractDataDurability type,
-            uint32_t ledgerSeq, bool expectedIsLive) {
-            auto le = loadStorageEntry(*app, contractID, key, type);
-            auto ttlKey = getTTLKey(le);
-            LedgerTxn ltx(app->getLedgerTxnRoot());
-            auto ttlLtxe = ltx.loadWithoutRecord(ttlKey);
-            REQUIRE(ttlLtxe);
-            REQUIRE(isLive(ttlLtxe.current(), ledgerSeq) == expectedIsLive);
-        };
-
-    auto lk = contractDataKey(contractID, makeSymbolSCVal("temp"), TEMPORARY);
-    putWithFootprint("temp", 0, contractKeys, {lk}, 1000, true, TEMPORARY);
-    // Check that entry exists and is live.
-    checkContractDataArchivalState(
-        "temp", TEMPORARY, app->getLedgerManager().getLastClosedLedgerNum(),
-        true);
-    // Close ledgers until temp entry is evicted
-    uint32 currLedger = app->getLedgerManager().getLastClosedLedgerNum();
-    for (; currLedger <= 4096; ++currLedger)
-    {
-        closeLedgerOn(*app, currLedger, 2, 1, 2016);
-    }
-
-    // Check that temp entry has expired
-    checkContractDataArchivalState(
-        "temp", TEMPORARY, app->getLedgerManager().getLastClosedLedgerNum(),
-        false);
-
-    // close one more ledger to trigger the eviction
-    closeLedgerOn(*app, 4097, 2, 1, 2016);
-
-    XDRInputFileStream in;
-    in.open(metaPath);
-    LedgerCloseMeta lcm;
-    bool evicted = false;
-    while (in.readOne(lcm))
-    {
-        REQUIRE(lcm.v() == 1);
-        if (lcm.v1().ledgerHeader.header.ledgerSeq == 4097)
-        {
-            REQUIRE(lcm.v1().evictedTemporaryLedgerKeys.size() == 2);
-            auto sortedKeys = lcm.v1().evictedTemporaryLedgerKeys;
-            std::sort(sortedKeys.begin(), sortedKeys.end());
-            REQUIRE(sortedKeys[0] == lk);
-            REQUIRE(sortedKeys[1] == getTTLKey(lk));
-            evicted = true;
-        }
-        else
-        {
-            REQUIRE(lcm.v1().evictedTemporaryLedgerKeys.empty());
-        }
-    }
-
-    REQUIRE(evicted);
-}
-
-TEST_CASE("failed invocation with diagnostics", "[tx][soroban]")
-{
-    // This test calls the add_i32 contract with two numbers that cause an
-    // overflow. Because we have diagnostics on, we will see two events - The
-    // diagnostic "fn_call" event, and the event that the add_i32 contract
-    // emits.
-
-    VirtualClock clock;
-    auto cfg = getTestConfig();
-    cfg.ENABLE_SOROBAN_DIAGNOSTIC_EVENTS = true;
-    auto app = createTestApplication(clock, cfg);
-    overrideSorobanNetworkConfigForTest(*app);
-    auto root = TestAccount::createRoot(*app);
-
-    auto const addI32Wasm = rust_bridge::get_test_wasm_add_i32();
-    auto contractKeys = deployContractWithSourceAccount(*app, addI32Wasm);
-    auto const& contractID = contractKeys[0].contractData().contract;
-
-    auto sc1 = makeI32(7);
-    auto scMax = makeI32(INT32_MAX);
-
-    Operation op;
-    op.body.type(INVOKE_HOST_FUNCTION);
-    auto& ihf = op.body.invokeHostFunctionOp().hostFunction;
-    ihf.type(HOST_FUNCTION_TYPE_INVOKE_CONTRACT);
-    ihf.invokeContract().contractAddress = contractID;
-    ihf.invokeContract().functionName = makeSymbol("add");
-    ihf.invokeContract().args = {sc1, scMax};
-    SorobanResources resources;
-    resources.footprint.readOnly = contractKeys;
-    resources.instructions = 2'000'000;
-    resources.readBytes = 2000;
-    resources.writeBytes = 1000;
-
-    auto tx = sorobanTransactionFrameFromOps(app->getNetworkID(), root, {op},
-                                             {}, resources, 100,
-                                             DEFAULT_TEST_RESOURCE_FEE);
-    LedgerTxn ltx(app->getLedgerTxnRoot());
-    TransactionMetaFrame txm(ltx.loadHeader().current().ledgerVersion);
-    REQUIRE(tx->checkValid(*app, ltx, 0, 0, 0));
-    REQUIRE(!tx->apply(*app, ltx, txm));
-    ltx.commit();
-
-    auto const& opEvents = txm.getXDR().v3().sorobanMeta->diagnosticEvents;
-    REQUIRE(opEvents.size() == 23);
-
-    auto const& callEv = opEvents.at(0);
-    REQUIRE(!callEv.inSuccessfulContractCall);
-    REQUIRE(callEv.event.type == ContractEventType::DIAGNOSTIC);
-    REQUIRE(callEv.event.body.v0().data.type() == SCV_VEC);
-
-    auto const& contract_ev = opEvents.at(1);
-    REQUIRE(!contract_ev.inSuccessfulContractCall);
-    REQUIRE(contract_ev.event.type == ContractEventType::CONTRACT);
-    REQUIRE(contract_ev.event.body.v0().data.type() == SCV_VEC);
-
-    auto const& hostFnErrorEv = opEvents.at(3);
-    REQUIRE(!hostFnErrorEv.inSuccessfulContractCall);
-    REQUIRE(hostFnErrorEv.event.type == ContractEventType::DIAGNOSTIC);
-    auto const& hostFnErrorBody = hostFnErrorEv.event.body.v0();
-    SCError expectedError(SCE_WASM_VM);
-    expectedError.code() = SCEC_INVALID_ACTION;
-    REQUIRE(hostFnErrorBody.topics.size() == 2);
-    REQUIRE(hostFnErrorBody.topics.at(0).sym() == "host_fn_failed");
-    REQUIRE(hostFnErrorBody.topics.at(1).error() == expectedError);
-
-    auto const& readEntryEv = opEvents.at(4);
-    REQUIRE(!readEntryEv.inSuccessfulContractCall);
-    REQUIRE(readEntryEv.event.type == ContractEventType::DIAGNOSTIC);
-    auto const& readEntryEvBody = readEntryEv.event.body.v0();
-    REQUIRE(readEntryEvBody.topics.size() == 2);
-    REQUIRE(readEntryEvBody.topics.at(0).sym() == "core_metrics");
-    REQUIRE(readEntryEvBody.topics.at(1).sym() == "read_entry");
-    REQUIRE(readEntryEvBody.data.type() == SCV_U64);
-    REQUIRE(readEntryEvBody.data.u64() == 2);
-
-    auto const& cpuInsnEv = opEvents.at(16);
-    REQUIRE(!cpuInsnEv.inSuccessfulContractCall);
-    REQUIRE(cpuInsnEv.event.type == ContractEventType::DIAGNOSTIC);
-    auto const& cpuInsnEvBody = cpuInsnEv.event.body.v0();
-    REQUIRE(cpuInsnEvBody.topics.size() == 2);
-    REQUIRE(cpuInsnEvBody.topics.at(0).sym() == "core_metrics");
-    REQUIRE(cpuInsnEvBody.topics.at(1).sym() == "cpu_insn");
-    REQUIRE(cpuInsnEvBody.data.type() == SCV_U64);
-    REQUIRE(cpuInsnEvBody.data.u64() >= 1000);
-}
-
-TEST_CASE("invalid tx with diagnostics", "[tx][soroban]")
-{
-    // This test produces a diagnostic event _during validation_, i.e. before
-    // it ever makes it to the soroban host.
-
-    VirtualClock clock;
-    auto cfg = getTestConfig();
-    cfg.ENABLE_SOROBAN_DIAGNOSTIC_EVENTS = true;
-    auto app = createTestApplication(clock, cfg);
-    overrideSorobanNetworkConfigForTest(*app);
-    auto root = TestAccount::createRoot(*app);
-
-    auto const addI32Wasm = rust_bridge::get_test_wasm_add_i32();
-    auto contractKeys = deployContractWithSourceAccount(*app, addI32Wasm);
-    auto const& contractID = contractKeys[0].contractData().contract;
-
-    auto sc1 = makeI32(7);
-    auto scMax = makeI32(INT32_MAX);
-
-    Operation op;
-    op.body.type(INVOKE_HOST_FUNCTION);
-    auto& ihf = op.body.invokeHostFunctionOp().hostFunction;
-    ihf.type(HOST_FUNCTION_TYPE_INVOKE_CONTRACT);
-    ihf.invokeContract().contractAddress = contractID;
-    ihf.invokeContract().functionName = makeSymbol("add");
-    ihf.invokeContract().args = {sc1, scMax};
-    SorobanResources resources;
-    resources.footprint.readOnly = contractKeys;
-    resources.instructions = 2'000'000'000;
-    resources.readBytes = 2000;
-    resources.writeBytes = 1000;
-
-    auto tx = sorobanTransactionFrameFromOps(app->getNetworkID(), root, {op},
-                                             {}, resources, 100,
-                                             DEFAULT_TEST_RESOURCE_FEE);
-    LedgerTxn ltx(app->getLedgerTxnRoot());
-    TransactionMetaFrame txm(ltx.loadHeader().current().ledgerVersion);
-    REQUIRE(!tx->checkValid(*app, ltx, 0, 0, 0));
-
-    auto const& diagEvents = tx->getDiagnosticEvents();
-    REQUIRE(diagEvents.size() == 1);
-
-    DiagnosticEvent const& diag_ev = diagEvents.at(0);
-    LOG_INFO(DEFAULT_LOG, "event 0: {}", xdr::xdr_to_string(diag_ev));
-    REQUIRE(!diag_ev.inSuccessfulContractCall);
-    REQUIRE(diag_ev.event.type == ContractEventType::DIAGNOSTIC);
-    REQUIRE(diag_ev.event.body.v0().topics.at(0).sym() == "error");
-    REQUIRE(diag_ev.event.body.v0().data.vec()->at(0).str().find(
-                "instructions") != std::string::npos);
-}
-
-TEST_CASE("complex contract", "[tx][soroban]")
-{
-    auto complexTest = [&](bool enableDiagnostics) {
-        VirtualClock clock;
-        auto cfg = getTestConfig();
-        cfg.ENABLE_SOROBAN_DIAGNOSTIC_EVENTS = enableDiagnostics;
-        auto app = createTestApplication(clock, cfg);
-        overrideSorobanNetworkConfigForTest(*app);
-        auto root = TestAccount::createRoot(*app);
-
-        auto const complexWasm = rust_bridge::get_test_wasm_complex();
-
-        auto contractKeys = deployContractWithSourceAccount(*app, complexWasm);
-        auto const& contractID = contractKeys[0].contractData().contract;
-
-        Operation op;
-        op.body.type(INVOKE_HOST_FUNCTION);
-        auto& ihf = op.body.invokeHostFunctionOp().hostFunction;
-        ihf.type(HOST_FUNCTION_TYPE_INVOKE_CONTRACT);
-        ihf.invokeContract().contractAddress = contractID;
-        ihf.invokeContract().functionName = makeSymbol("go");
-
-        // Contract writes a single `data` CONTRACT_DATA entry.
-        LedgerKey dataKey(LedgerEntryType::CONTRACT_DATA);
-        dataKey.contractData().contract = contractID;
-        dataKey.contractData().key = makeSymbolSCVal("data");
-
-        SorobanResources resources;
-        resources.footprint.readOnly = contractKeys;
-        resources.footprint.readWrite = {dataKey};
-        resources.instructions = 4'000'000;
-        resources.readBytes = 3000;
-        resources.writeBytes = 1000;
-
-        auto verifyDiagnosticEvents =
-            [&](xdr::xvector<DiagnosticEvent> events) {
-                REQUIRE(events.size() == 22);
-
-                auto call_ev = events.at(0);
-                REQUIRE(call_ev.event.type == ContractEventType::DIAGNOSTIC);
-                REQUIRE(call_ev.event.body.v0().data.type() == SCV_VOID);
-
-                auto contract_ev = events.at(1);
-                REQUIRE(contract_ev.event.type == ContractEventType::CONTRACT);
-                REQUIRE(contract_ev.event.body.v0().data.type() == SCV_BYTES);
-
-                auto return_ev = events.at(2);
-                REQUIRE(return_ev.event.type == ContractEventType::DIAGNOSTIC);
-                REQUIRE(return_ev.event.body.v0().data.type() == SCV_VOID);
-
-                auto const& metrics_ev = events.back();
-                REQUIRE(metrics_ev.event.type == ContractEventType::DIAGNOSTIC);
-                auto const& v0 = metrics_ev.event.body.v0();
-                REQUIRE(v0.topics.size() == 2);
-                REQUIRE(v0.topics.at(0).sym() == "core_metrics");
-                REQUIRE(v0.topics.at(1).sym() == "max_emit_event_byte");
-                REQUIRE(v0.data.type() == SCV_U64);
-            };
-
-        SECTION("single op")
-        {
-            auto tx = sorobanTransactionFrameFromOps(app->getNetworkID(), root,
-                                                     {op}, {}, resources, 100,
-                                                     DEFAULT_TEST_RESOURCE_FEE);
-            LedgerTxn ltx(app->getLedgerTxnRoot());
-            TransactionMetaFrame txm(ltx.loadHeader().current().ledgerVersion);
-            REQUIRE(tx->checkValid(*app, ltx, 0, 0, 0));
-            REQUIRE(tx->apply(*app, ltx, txm));
-            ltx.commit();
-
-            // Contract should have emitted a single event carrying a `Bytes`
-            // value.
-            REQUIRE(txm.getXDR().v3().sorobanMeta->events.size() == 1);
-            REQUIRE(txm.getXDR().v3().sorobanMeta->events.at(0).type ==
-                    ContractEventType::CONTRACT);
-            REQUIRE(txm.getXDR()
-                        .v3()
-                        .sorobanMeta->events.at(0)
-                        .body.v0()
-                        .data.type() == SCV_BYTES);
-
-            if (enableDiagnostics)
-            {
-                verifyDiagnosticEvents(
-                    txm.getXDR().v3().sorobanMeta->diagnosticEvents);
-            }
-            else
-            {
-                REQUIRE(
-                    txm.getXDR().v3().sorobanMeta->diagnosticEvents.size() ==
-                    0);
-            }
-        }
-    };
-
-    SECTION("diagnostics enabled")
-    {
-        complexTest(true);
-    }
-    SECTION("diagnostics disabled")
-    {
-        complexTest(false);
-    }
 }
 
 TEST_CASE("Stellar asset contract transfer",
@@ -2829,56 +456,6 @@ TEST_CASE("Stellar asset contract transfer",
     }
 }
 
-TEST_CASE("errors roll back", "[tx][soroban]")
-{
-    // This tests that various sorts of error created inside a contract
-    // cause the invocation to fail and that in turn aborts the tx.
-
-    auto call_fn_check_failure = [&](std::string const& name) {
-        VirtualClock clock;
-        auto app = createTestApplication(clock, getTestConfig());
-        overrideSorobanNetworkConfigForTest(*app);
-        auto root = TestAccount::createRoot(*app);
-
-        auto const errWasm = rust_bridge::get_test_wasm_err();
-        auto contractKeys = deployContractWithSourceAccount(*app, errWasm);
-        auto const& contractID = contractKeys[0].contractData().contract;
-
-        Operation op;
-        op.body.type(INVOKE_HOST_FUNCTION);
-        auto& ihf = op.body.invokeHostFunctionOp().hostFunction;
-        ihf.type(HOST_FUNCTION_TYPE_INVOKE_CONTRACT);
-        ihf.invokeContract().contractAddress = contractID;
-        ihf.invokeContract().functionName = makeSymbol(name);
-
-        SorobanResources resources;
-        resources.footprint.readOnly = contractKeys;
-        resources.instructions = 2'000'000;
-        resources.readBytes = 3000;
-
-        auto tx = sorobanTransactionFrameFromOps(app->getNetworkID(), root,
-                                                 {op}, {}, resources, 100,
-                                                 DEFAULT_TEST_RESOURCE_FEE);
-        LedgerTxn ltx(app->getLedgerTxnRoot());
-        TransactionMetaFrame txm(ltx.loadHeader().current().ledgerVersion);
-        REQUIRE(tx->checkValid(*app, ltx, 0, 0, 0));
-        REQUIRE(!tx->apply(*app, ltx, txm));
-        REQUIRE(tx->getResult()
-                    .result.results()
-                    .at(0)
-                    .tr()
-                    .invokeHostFunctionResult()
-                    .code() == INVOKE_HOST_FUNCTION_TRAPPED);
-        REQUIRE(tx->getResultCode() == txFAILED);
-    };
-
-    for (auto name :
-         {"err_eek", "err_err", "ok_err", "ok_val_err", "err", "val"})
-    {
-        call_fn_check_failure(name);
-    }
-}
-
 static void
 overrideNetworkSettingsToMin(Application& app)
 {
@@ -2981,31 +558,1383 @@ overrideNetworkSettingsToMin(Application& app)
     executeUpgrade(app, upgrade);
 }
 
-TEST_CASE("settings upgrade", "[tx][soroban][upgrades]")
+class ContractInvocationTest
 {
-    VirtualClock clock;
+    // Fee constants from rs-soroban-env/soroban-env-host/src/fees.rs
+    static constexpr int64_t INSTRUCTION_INCREMENT = 10000;
+    static constexpr int64_t DATA_SIZE_1KB_INCREMENT = 1024;
+    static constexpr int64_t TX_BASE_RESULT_SIZE = 300;
+
+    static int64_t
+    computeFeePerIncrement(int64_t resourceVal, int64_t feeRate,
+                           int64_t increment)
+    {
+        // ceiling division for (resourceVal * feeRate) / increment
+        int64_t num = (resourceVal * feeRate);
+        return (num + increment - 1) / increment;
+    };
+
+    void
+    invokeArchivalOp(TransactionFrameBasePtr tx,
+                     int64_t expectedRefundableFeeCharged, bool expectSuccess)
+    {
+        if (!expectSuccess)
+        {
+            REQUIRE(!isTxValid(tx));
+            return;
+        }
+
+        int64_t initBalance = getRoot().getBalance();
+        txCheckValid(tx);
+
+        // Initially we store in result the charge for resources plus
+        // minimum inclusion  fee bid (currently equivalent to the network
+        // `baseFee` of 100).
+        int64_t baseCharged = (tx->getFullFee() - tx->getInclusionFee()) + 100;
+        REQUIRE(tx->getResult().feeCharged == baseCharged);
+        // Charge the fee.
+        {
+            LedgerTxn ltx(mApp->getLedgerTxnRoot());
+            // Imitate surge pricing by charging at a higher rate than base
+            // fee.
+            tx->processFeeSeqNum(ltx, 300);
+            ltx.commit();
+        }
+        // The resource and the base fee are charged, with additional
+        // surge pricing fee.
+        int64_t balanceAfterFeeCharged = getRoot().getBalance();
+        auto actuallyCharged =
+            baseCharged + /* surge pricing additional fee */ 200;
+        REQUIRE(initBalance - balanceAfterFeeCharged == actuallyCharged);
+        auto nonRefundableResourceFee = sorobanResourceFee(
+            *mApp, tx->sorobanResources(), xdr::xdr_size(tx->getEnvelope()), 0);
+        auto expectedChargedAfterRefund =
+            nonRefundableResourceFee + expectedRefundableFeeCharged + 300;
+
+        auto txm = invokeTx(tx, /*expectSuccess=*/true);
+        auto changesAfter = txm->getChangesAfter();
+        REQUIRE(changesAfter.size() == 2);
+        REQUIRE(changesAfter[1].updated().data.account().balance -
+                    changesAfter[0].state().data.account().balance ==
+                actuallyCharged - expectedChargedAfterRefund);
+
+        // The account should receive a refund for unspent refundable fee.
+        REQUIRE(getRoot().getBalance() - balanceAfterFeeCharged ==
+                actuallyCharged - expectedChargedAfterRefund);
+    }
+
+    void
+    deployContractWithSourceAccountWithResources(
+        SorobanResources uploadResources, SorobanResources createResources)
+    {
+        // Upload contract code
+        Operation uploadOp;
+        uploadOp.body.type(INVOKE_HOST_FUNCTION);
+        auto& uploadHF = uploadOp.body.invokeHostFunctionOp().hostFunction;
+        uploadHF.type(HOST_FUNCTION_TYPE_UPLOAD_CONTRACT_WASM);
+        uploadHF.wasm().assign(mWasm.data.begin(), mWasm.data.end());
+
+        LedgerKey contractCodeLedgerKey;
+        contractCodeLedgerKey.type(CONTRACT_CODE);
+        contractCodeLedgerKey.contractCode().hash = sha256(uploadHF.wasm());
+        uploadResources.footprint.readWrite = {contractCodeLedgerKey};
+        auto uploadResourceFee =
+            sorobanResourceFee(*mApp, uploadResources, 1000 + mWasm.data.size(),
+                               40) +
+            40'000;
+        submitTxToUploadWasm(*mApp, uploadOp, uploadResources,
+                             contractCodeLedgerKey.contractCode().hash,
+                             uploadHF.wasm(), 1'000, uploadResourceFee);
+
+        // Check TTLs for contract code
+        auto const& ses = getNetworkCfg().stateArchivalSettings();
+        auto expectedLiveUntilLedger =
+            ses.minPersistentTTL + getLedgerSeq() - 1;
+        checkTTL(contractCodeLedgerKey, expectedLiveUntilLedger);
+
+        // Deploy the contract instance
+        ContractIDPreimage idPreimage(CONTRACT_ID_PREIMAGE_FROM_ADDRESS);
+        idPreimage.fromAddress().address.type(SC_ADDRESS_TYPE_ACCOUNT);
+        idPreimage.fromAddress().address.accountId().ed25519() =
+            mRoot.getPublicKey().ed25519();
+        idPreimage.fromAddress().salt = sha256("salt");
+        HashIDPreimage fullPreImage;
+        fullPreImage.type(ENVELOPE_TYPE_CONTRACT_ID);
+        fullPreImage.contractID().contractIDPreimage = idPreimage;
+        fullPreImage.contractID().networkID = mApp->getNetworkID();
+        auto contractID = xdrSha256(fullPreImage);
+
+        Operation createOp;
+        createOp.body.type(INVOKE_HOST_FUNCTION);
+        auto& createHF = createOp.body.invokeHostFunctionOp().hostFunction;
+        createHF.type(HOST_FUNCTION_TYPE_CREATE_CONTRACT);
+        auto& createContractArgs = createHF.createContract();
+        createContractArgs.contractIDPreimage = idPreimage;
+        createContractArgs.executable.type(CONTRACT_EXECUTABLE_WASM);
+        createContractArgs.executable.wasm_hash() =
+            contractCodeLedgerKey.contractCode().hash;
+
+        SorobanAuthorizationEntry auth;
+        auth.credentials.type(SOROBAN_CREDENTIALS_SOURCE_ACCOUNT);
+        auth.rootInvocation.function.type(
+            SOROBAN_AUTHORIZED_FUNCTION_TYPE_CREATE_CONTRACT_HOST_FN);
+        auth.rootInvocation.function.createContractHostFn().contractIDPreimage =
+            idPreimage;
+        auth.rootInvocation.function.createContractHostFn().executable.type(
+            CONTRACT_EXECUTABLE_WASM);
+        auth.rootInvocation.function.createContractHostFn()
+            .executable.wasm_hash() = contractCodeLedgerKey.contractCode().hash;
+        createOp.body.invokeHostFunctionOp().auth = {auth};
+
+        SCVal scContractSourceRefKey(
+            SCValType::SCV_LEDGER_KEY_CONTRACT_INSTANCE);
+
+        LedgerKey contractSourceRefLedgerKey;
+        contractSourceRefLedgerKey.type(CONTRACT_DATA);
+        contractSourceRefLedgerKey.contractData().contract.type(
+            SC_ADDRESS_TYPE_CONTRACT);
+        contractSourceRefLedgerKey.contractData().contract.contractId() =
+            contractID;
+        contractSourceRefLedgerKey.contractData().key = scContractSourceRefKey;
+        contractSourceRefLedgerKey.contractData().durability =
+            CONTRACT_INSTANCE_CONTRACT_DURABILITY;
+
+        createResources.footprint.readOnly = {contractCodeLedgerKey};
+        createResources.footprint.readWrite = {contractSourceRefLedgerKey};
+
+        auto createResourceFee =
+            sorobanResourceFee(*mApp, createResources, 1000, 40) + 40'000;
+        submitTxToCreateContract(*mApp, createOp, createResources, contractID,
+                                 scContractSourceRefKey,
+                                 contractCodeLedgerKey.contractCode().hash,
+                                 1000, createResourceFee);
+
+        // Check TTLs for contract instance
+        checkTTL(contractCodeLedgerKey, expectedLiveUntilLedger);
+
+        mContractKeys.emplace_back(contractSourceRefLedgerKey);
+        mContractKeys.emplace_back(contractCodeLedgerKey);
+        mContractID = mContractKeys[0].contractData().contract;
+    }
+
+  protected:
+    VirtualClock mClock;
+    Application::pointer mApp;
+    TestAccount mRoot;
+    TestAccount mDummyAccount;
+    RustBuf const mWasm;
+
+    xdr::xvector<LedgerKey> mContractKeys{};
+    SCAddress mContractID{};
+
+  public:
+    ContractInvocationTest(
+        RustBuf const& wasm, bool deployContract = true,
+        Config cfg = getTestConfig(), bool useTestLimits = true,
+        std::function<void(SorobanNetworkConfig&)> cfgModifyFn =
+            [](SorobanNetworkConfig&) {})
+        : mApp(createTestApplication(mClock, cfg))
+        , mRoot(TestAccount::createRoot(*mApp))
+        , mDummyAccount(mRoot.create(
+              "dummyAcc", mApp->getLedgerManager().getLastMinBalance(1)))
+        , mWasm(wasm)
+    {
+        if (useTestLimits)
+        {
+            overrideSorobanNetworkConfigForTest(*mApp);
+        }
+
+        modifySorobanNetworkConfig(*mApp, cfgModifyFn);
+
+        if (deployContract)
+        {
+            // Deploy with default resources
+            SorobanResources uploadResources{};
+            uploadResources.instructions = 200'000 + (mWasm.data.size() * 6000);
+            uploadResources.readBytes = 1000;
+            uploadResources.writeBytes = 5000;
+
+            SorobanResources createResources{};
+            createResources.instructions = 200'000;
+            createResources.readBytes = 5000;
+            createResources.writeBytes = 5000;
+
+            deployWithResources(uploadResources, createResources);
+        }
+    }
+
+    Application::pointer
+    getApp()
+    {
+        return mApp;
+    }
+
+    TestAccount&
+    getRoot()
+    {
+        // TestAccount caches the next seqno in-memory, assuming all invoked TXs
+        // succeed. This is not true for these tests, so we load the seqno from
+        // disk to circumvent the cache.
+        mRoot.loadSequenceNumber();
+        return mRoot;
+    }
+
+    xdr::xvector<LedgerKey>&
+    getContractKeys()
+    {
+        return mContractKeys;
+    }
+
+    SCAddress&
+    getContractID()
+    {
+        return mContractID;
+    }
+
+    SorobanNetworkConfig const&
+    getNetworkCfg()
+    {
+        LedgerTxn ltx(mApp->getLedgerTxnRoot());
+        return mApp->getLedgerManager().getSorobanNetworkConfig(ltx);
+    }
+
+    uint32_t
+    getLedgerSeq()
+    {
+        LedgerTxn ltx(mApp->getLedgerTxnRoot());
+        return ltx.loadHeader().current().ledgerSeq;
+    }
+
+    void
+    deployWithResources(SorobanResources const& uploadResources,
+                        SorobanResources const& createResources)
+    {
+        if (!mContractKeys.empty())
+        {
+            throw "WASM already uploaded";
+        }
+
+        deployContractWithSourceAccountWithResources(uploadResources,
+                                                     createResources);
+    }
+
+    // The following computations are copies of compute_transaction_resource_fee
+    // in rs-soroban-env/soroban-env-host/src/fees.rs. This is reimplemented
+    // here so that we can check if the Cxx bridge introduced any fee related
+    // bugs.
+    int64_t
+    getRentFeeForBytes(int64_t entrySize, uint32_t extendTo, bool isPersistent)
+    {
+        auto const& cfg = getNetworkCfg();
+        auto num = entrySize * cfg.feeWrite1KB() * extendTo;
+        auto storageCoef =
+            isPersistent
+                ? cfg.stateArchivalSettings().persistentRentRateDenominator
+                : cfg.stateArchivalSettings().tempRentRateDenominator;
+
+        auto denom = DATA_SIZE_1KB_INCREMENT * storageCoef;
+
+        // Ceiling division
+        return (num + denom - 1) / denom;
+    }
+
+    int64_t
+    getTTLEntryWriteFee()
+    {
+        auto const& cfg = getNetworkCfg();
+        LedgerEntry le;
+        le.data.type(TTL);
+
+        auto writeSize = xdr::xdr_size(le);
+        auto writeFee = computeFeePerIncrement(writeSize, cfg.feeWrite1KB(),
+                                               DATA_SIZE_1KB_INCREMENT);
+        writeFee += cfg.feeWriteLedgerEntry();
+        return writeFee;
+    }
+
+    int64_t
+    getRentFeeForExtension(LedgerKey const& key, uint32_t newLifetime)
+    {
+        size_t entrySize = 0;
+        uint32_t extendTo = 0;
+        {
+            LedgerTxn ltx(mApp->getLedgerTxnRoot());
+            auto ledgerSeq = ltx.getHeader().ledgerSeq;
+            auto ttlKey = getTTLKey(key);
+            auto ttlLtxe = ltx.loadWithoutRecord(ttlKey);
+            releaseAssert(ttlLtxe);
+
+            TTLEntry const& ttlEntry = ttlLtxe.current().data.ttl();
+
+            if (isLive(ttlLtxe.current(), ledgerSeq))
+            {
+                auto newLiveUntilLedger = ledgerSeq + newLifetime;
+                if (ttlEntry.liveUntilLedgerSeq >= newLiveUntilLedger)
+                {
+                    return 0;
+                }
+
+                extendTo = newLiveUntilLedger - ttlEntry.liveUntilLedgerSeq;
+            }
+            else
+            {
+                // Non-live entries are skipped, pay no rent fee
+                return 0;
+            }
+
+            auto txle = ltx.loadWithoutRecord(key);
+            releaseAssert(txle);
+
+            entrySize = xdr::xdr_size(txle.current());
+        }
+
+        auto rentFee =
+            getRentFeeForBytes(entrySize, extendTo, isPersistentEntry(key));
+
+        return rentFee + getTTLEntryWriteFee();
+    }
+
+    // Fees that depend on TX size, historicalFee and bandwidthFee
+    int64_t
+    getTxSizeFees(TransactionFrameBasePtr tx)
+    {
+        auto const& cfg = getNetworkCfg();
+        int64_t txSize = static_cast<uint32>(xdr::xdr_size(tx->getEnvelope()));
+        int64_t historicalFee = computeFeePerIncrement(
+            txSize + TX_BASE_RESULT_SIZE, cfg.mFeeHistorical1KB,
+            DATA_SIZE_1KB_INCREMENT);
+
+        int64_t bandwidthFee = computeFeePerIncrement(
+            txSize, cfg.feeTransactionSize1KB(), DATA_SIZE_1KB_INCREMENT);
+
+        return historicalFee + bandwidthFee;
+    }
+
+    int64_t
+    getComputeFee(SorobanResources const& resources)
+    {
+        auto const& cfg = getNetworkCfg();
+        return computeFeePerIncrement(resources.instructions,
+                                      cfg.feeRatePerInstructionsIncrement(),
+                                      INSTRUCTION_INCREMENT);
+    }
+
+    int64_t
+    getEntryReadFee(SorobanResources const& resources)
+    {
+        auto const& cfg = getNetworkCfg();
+        return (resources.footprint.readOnly.size() +
+                resources.footprint.readWrite.size()) *
+               cfg.feeReadLedgerEntry();
+    }
+
+    int64_t
+    getEntryWriteFee(SorobanResources const& resources)
+    {
+        auto const& cfg = getNetworkCfg();
+        return resources.footprint.readWrite.size() * cfg.feeWriteLedgerEntry();
+    }
+
+    int64_t
+    getReadBytesFee(SorobanResources const& resources)
+    {
+        auto const& cfg = getNetworkCfg();
+        return computeFeePerIncrement(resources.readBytes, cfg.feeRead1KB(),
+                                      DATA_SIZE_1KB_INCREMENT);
+    }
+
+    int64_t
+    getWriteBytesFee(SorobanResources const& resources)
+    {
+        auto const& cfg = getNetworkCfg();
+        return computeFeePerIncrement(resources.writeBytes, cfg.feeWrite1KB(),
+                                      DATA_SIZE_1KB_INCREMENT);
+    }
+
+    // Compute tx frame size before finalizing the resource fee via a dummy TX.
+    // This is a bit hacky, but we need the exact tx size in order to
+    // enable tests that rely on the exact refundable fee value.
+    uint32_t
+    computeResourceFee(SorobanResources const& resources,
+                       SCSymbol const& functionName,
+                       std::vector<SCVal> const& args)
+    {
+        Operation op;
+        op.body.type(INVOKE_HOST_FUNCTION);
+        auto& ihf = op.body.invokeHostFunctionOp().hostFunction;
+        ihf.type(HOST_FUNCTION_TYPE_INVOKE_CONTRACT);
+        ihf.invokeContract().contractAddress = mContractID;
+        ihf.invokeContract().functionName = functionName;
+        ihf.invokeContract().args.assign(args.begin(), args.end());
+
+        auto dummyTx =
+            sorobanTransactionFrameFromOps(mApp->getNetworkID(), mDummyAccount,
+                                           {op}, {}, resources, 1000, 123);
+        auto txSize = xdr::xdr_size(dummyTx->getEnvelope());
+        return sorobanResourceFee(*mApp, resources, txSize, 0);
+    }
+
+    TransactionFrameBasePtr
+    createUploadWasmTx(TestAccount& source, uint32_t resourceFee)
+    {
+        if (!mContractKeys.empty())
+        {
+            throw "WASM already uploaded";
+        }
+
+        SorobanResources uploadResources{};
+        uploadResources.instructions = 200'000 + (mWasm.data.size() * 6000);
+        uploadResources.readBytes = 1000;
+        uploadResources.writeBytes = 5000;
+
+        // Upload contract code
+        Operation uploadOp;
+        uploadOp.body.type(INVOKE_HOST_FUNCTION);
+        auto& uploadHF = uploadOp.body.invokeHostFunctionOp().hostFunction;
+        uploadHF.type(HOST_FUNCTION_TYPE_UPLOAD_CONTRACT_WASM);
+        uploadHF.wasm().assign(mWasm.data.begin(), mWasm.data.end());
+
+        LedgerKey contractCodeLedgerKey;
+        contractCodeLedgerKey.type(CONTRACT_CODE);
+        contractCodeLedgerKey.contractCode().hash = sha256(uploadHF.wasm());
+        uploadResources.footprint.readWrite = {contractCodeLedgerKey};
+
+        return sorobanTransactionFrameFromOps(mApp->getNetworkID(), source,
+                                              {uploadOp}, {}, uploadResources,
+                                              100, resourceFee);
+    }
+
+    TransactionFrameBasePtr
+    createInvokeTx(SorobanResources const& resources,
+                   SCSymbol const& functionName, std::vector<SCVal> const& args,
+                   uint32_t inclusionFee, uint32_t resourceFee)
+    {
+        Operation op;
+        op.body.type(INVOKE_HOST_FUNCTION);
+        auto& ihf = op.body.invokeHostFunctionOp().hostFunction;
+        ihf.type(HOST_FUNCTION_TYPE_INVOKE_CONTRACT);
+        ihf.invokeContract().contractAddress = mContractID;
+        ihf.invokeContract().functionName = functionName;
+        ihf.invokeContract().args.assign(args.begin(), args.end());
+
+        return sorobanTransactionFrameFromOps(mApp->getNetworkID(), getRoot(),
+                                              {op}, {}, resources, inclusionFee,
+                                              resourceFee);
+    }
+
+    TransactionFrameBasePtr
+    createExtendOpTx(SorobanResources const& resources, uint32_t extendTo,
+                     uint32_t fee, uint32_t refundableFee)
+    {
+        Operation op;
+        op.body.type(EXTEND_FOOTPRINT_TTL);
+        op.body.extendFootprintTTLOp().extendTo = extendTo;
+
+        return sorobanTransactionFrameFromOps(mApp->getNetworkID(), getRoot(),
+                                              {op}, {}, resources, fee,
+                                              refundableFee);
+    }
+
+    TransactionFrameBasePtr
+    createRestoreTx(SorobanResources const& resources, uint32_t fee,
+                    uint32_t refundableFee)
+    {
+        Operation op;
+        op.body.type(RESTORE_FOOTPRINT);
+
+        return sorobanTransactionFrameFromOps(mApp->getNetworkID(), getRoot(),
+                                              {op}, {}, resources, fee,
+                                              refundableFee);
+    }
+
+    void
+    txCheckValid(TransactionFrameBasePtr tx)
+    {
+        LedgerTxn ltx(mApp->getLedgerTxnRoot());
+        REQUIRE(tx->checkValid(*mApp, ltx, 0, 0, 0));
+        ltx.commit();
+    }
+
+    bool
+    isTxValid(TransactionFrameBasePtr tx)
+    {
+        LedgerTxn ltx(mApp->getLedgerTxnRoot());
+        auto ret = tx->checkValid(*mApp, ltx, 0, 0, 0);
+        return ret;
+    }
+
+    std::shared_ptr<TransactionMetaFrame>
+    invokeTx(TransactionFrameBasePtr tx, bool expectSuccess,
+             bool processPostApply = true)
+    {
+        LedgerTxn ltx(mApp->getLedgerTxnRoot());
+        auto txm = std::make_shared<TransactionMetaFrame>(
+            ltx.loadHeader().current().ledgerVersion);
+        if (expectSuccess)
+        {
+            REQUIRE(tx->apply(*mApp, ltx, *txm));
+        }
+        else
+        {
+            REQUIRE(!tx->apply(*mApp, ltx, *txm));
+        }
+
+        if (processPostApply)
+        {
+            tx->processPostApply(*mApp, ltx, *txm);
+        }
+
+        ltx.commit();
+        return txm;
+    }
+
+    void
+    checkTTL(LedgerKey const& k, uint32_t expectedLiveUntilLedger)
+    {
+        LedgerTxn ltx(mApp->getLedgerTxnRoot());
+        auto ltxe = ltx.loadWithoutRecord(k);
+        REQUIRE(ltxe);
+
+        auto ttlKey = getTTLKey(k);
+        auto ttlLtxe = ltx.loadWithoutRecord(ttlKey);
+        REQUIRE(ttlLtxe);
+        REQUIRE(ttlLtxe.current().data.ttl().liveUntilLedgerSeq ==
+                expectedLiveUntilLedger);
+    }
+
+    bool
+    isEntryLive(LedgerKey const& k, uint32_t ledgerSeq)
+    {
+        auto ttlKey = getTTLKey(k);
+        LedgerTxn ltx(mApp->getLedgerTxnRoot());
+        auto ttlLtxe = ltx.loadWithoutRecord(ttlKey);
+        REQUIRE(ttlLtxe);
+        return isLive(ttlLtxe.current(), ledgerSeq);
+    }
+
+    void
+    restoreOp(xdr::xvector<LedgerKey> const& readWrite,
+              int64_t expectedRefundableFeeCharged, bool expectSuccess = true)
+    {
+        SorobanResources resources;
+        resources.footprint.readWrite = readWrite;
+        resources.instructions = 0;
+        resources.readBytes = 10'000;
+        resources.writeBytes = 10'000;
+
+        auto resourceFee = 300'000 + 40'000 * readWrite.size();
+        auto tx = createRestoreTx(resources, 1'000, resourceFee);
+        invokeArchivalOp(tx, expectedRefundableFeeCharged, expectSuccess);
+    }
+
+    void
+    extendOp(
+        xdr::xvector<LedgerKey> const& readOnly, uint32_t extendTo,
+        bool expectSuccess = true,
+        std::optional<uint32_t> expectedRefundableChargeOverride = std::nullopt)
+    {
+        int64_t expectedRefundableFeeCharged = 0;
+        if (expectedRefundableChargeOverride)
+        {
+            expectedRefundableFeeCharged = *expectedRefundableChargeOverride;
+        }
+        else
+        {
+            for (auto const& key : readOnly)
+            {
+                expectedRefundableFeeCharged +=
+                    getRentFeeForExtension(key, extendTo);
+            }
+        }
+
+        SorobanResources extendResources;
+        extendResources.footprint.readOnly = readOnly;
+        extendResources.instructions = 0;
+        extendResources.readBytes = 10'000;
+        extendResources.writeBytes = 0;
+
+        auto resourceFee = DEFAULT_TEST_RESOURCE_FEE * readOnly.size();
+        auto tx =
+            createExtendOpTx(extendResources, extendTo, 1'000, resourceFee);
+        invokeArchivalOp(tx, expectedRefundableFeeCharged, expectSuccess);
+    }
+};
+
+TEST_CASE("basic contract invocation", "[tx][soroban]")
+{
+    ContractInvocationTest test(rust_bridge::get_test_wasm_add_i32());
+
+    int64_t const INCLUSION_FEE = 12'345;
+
+    auto checkRefund = [&test](auto const& txm, int64_t balanceAfterFeeCharged,
+                               int64_t expectedRefund) {
+        auto changesAfter = txm->getChangesAfter();
+        REQUIRE(changesAfter.size() == 2);
+        REQUIRE(changesAfter[1].updated().data.account().balance -
+                    changesAfter[0].state().data.account().balance ==
+                expectedRefund);
+
+        // Make sure account receives expected refund
+        REQUIRE(test.getRoot().getBalance() - balanceAfterFeeCharged ==
+                expectedRefund);
+    };
+
+    auto const expectedRefund = 267'298;
+    auto successfulInvoke = [&](TransactionFrameBasePtr tx,
+                                uint32_t resourceFee,
+                                SorobanResources const& resources) {
+        int64_t initBalance = test.getRoot().getBalance();
+        test.txCheckValid(tx);
+
+        REQUIRE(tx->getFullFee() == INCLUSION_FEE + resourceFee);
+        REQUIRE(tx->getInclusionFee() == INCLUSION_FEE);
+
+        // Initially we store in result the charge for resources plus
+        // minimum inclusion  fee bid (currently equivalent to the
+        // network `baseFee` of 100).
+        int64_t baseCharged = (tx->getFullFee() - tx->getInclusionFee()) + 100;
+        REQUIRE(tx->getResult().feeCharged == baseCharged);
+        {
+            LedgerTxn ltx(test.getApp()->getLedgerTxnRoot());
+            // Imitate surge pricing by charging at a higher rate than
+            // base fee.
+            tx->processFeeSeqNum(ltx, 300);
+            ltx.commit();
+        }
+        // The resource and the base fee are charged, with additional
+        // surge pricing fee.
+        int64_t balanceAfterFeeCharged = test.getRoot().getBalance();
+        REQUIRE(initBalance - balanceAfterFeeCharged ==
+                baseCharged + /* surge pricing additional fee */ 200);
+
+        auto txm = test.invokeTx(tx, /*expectSuccess=*/true);
+
+        auto changesAfter = txm->getChangesAfter();
+        checkRefund(txm, balanceAfterFeeCharged, expectedRefund);
+
+        // Sanity-check the expected refund value. The exact computation is
+        // tricky because of the rent fee.
+        // NB: We don't use the computed value here in order
+        // to check possible changes in fee computation algorithm (so that
+        // the conditions above would fail, while this still succeeds).
+        REQUIRE(sorobanResourceFee(
+                    *test.getApp(), resources, xdr::xdr_size(tx->getEnvelope()),
+                    100 /* size of event emitted by the test contract */) ==
+                resourceFee - expectedRefund);
+
+        REQUIRE(tx->getResult().result.code() == txSUCCESS);
+        REQUIRE(!tx->getResult().result.results().empty());
+
+        auto const& ores = tx->getResult().result.results().at(0);
+        REQUIRE(ores.tr().type() == INVOKE_HOST_FUNCTION);
+        REQUIRE(ores.tr().invokeHostFunctionResult().code() ==
+                INVOKE_HOST_FUNCTION_SUCCESS);
+
+        SCVal resultVal = txm->getXDR().v3().sorobanMeta->returnValue;
+
+        InvokeHostFunctionSuccessPreImage success2;
+        success2.returnValue = resultVal;
+        success2.events = txm->getXDR().v3().sorobanMeta->events;
+
+        REQUIRE(ores.tr().invokeHostFunctionResult().success() ==
+                xdrSha256(success2));
+    };
+
+    auto failedInvoke = [&](TransactionFrameBasePtr tx, int64_t resourceFee,
+                            SorobanResources const& resources) {
+        test.txCheckValid(tx);
+        auto nonRefundableResourceFee = sorobanResourceFee(
+            *test.getApp(), resources, xdr::xdr_size(tx->getEnvelope()), 0);
+
+        // Imitate surge pricing by charging at a higher rate than base fee.
+        {
+            LedgerTxn ltx(test.getApp()->getLedgerTxnRoot());
+            tx->processFeeSeqNum(ltx, 300);
+            ltx.commit();
+        }
+
+        int64_t balanceAfterFeeCharged = test.getRoot().getBalance();
+        auto txm = test.invokeTx(tx, /*expectSuccess=*/false);
+
+        // The account should receive a full refund for metadata
+        // in case of tx failure.
+        if (resourceFee > 0)
+        {
+            checkRefund(txm, balanceAfterFeeCharged,
+                        /*expectedRefund=*/resourceFee -
+                            nonRefundableResourceFee);
+        }
+        REQUIRE(tx->getResult().result.code() != txSUCCESS);
+    };
+
+    auto scFunc = makeSymbol("add");
+    auto sc7 = makeI32(7);
+    auto sc16 = makeI32(16);
+    SorobanResources resources;
+    resources.footprint.readOnly = test.getContractKeys();
+    resources.instructions = 2'000'000;
+    resources.readBytes = 2000;
+    resources.writeBytes = 0;
+
+    SECTION("correct invocation")
+    {
+        auto tx = test.createInvokeTx(resources, scFunc, {sc7, sc16},
+                                      INCLUSION_FEE, 300'000);
+        successfulInvoke(tx, 300'000, resources);
+
+        REQUIRE(test.getApp()
+                    ->getMetrics()
+                    .NewTimer({"soroban", "host-fn-op", "exec"})
+                    .count() != 0);
+        REQUIRE(test.getApp()
+                    ->getMetrics()
+                    .NewMeter({"soroban", "host-fn-op", "success"}, "call")
+                    .count() != 0);
+    }
+
+    SECTION("incorrect invocation parameters")
+    {
+        SECTION("non-existent contract id")
+        {
+            test.getContractID().contractId()[0] = 1;
+            auto tx =
+                test.createInvokeTx(resources, scFunc, {sc7, sc16},
+                                    INCLUSION_FEE, DEFAULT_TEST_RESOURCE_FEE);
+            failedInvoke(tx, DEFAULT_TEST_RESOURCE_FEE, resources);
+        }
+        SECTION("account address")
+        {
+            SCAddress address(SC_ADDRESS_TYPE_ACCOUNT);
+            address.accountId() = test.getRoot().getPublicKey();
+            test.getContractID() = address;
+            auto tx =
+                test.createInvokeTx(resources, scFunc, {sc7, sc16},
+                                    INCLUSION_FEE, DEFAULT_TEST_RESOURCE_FEE);
+            failedInvoke(tx, DEFAULT_TEST_RESOURCE_FEE, resources);
+        }
+        SECTION("too few parameters")
+        {
+            auto tx =
+                test.createInvokeTx(resources, scFunc, {sc7}, INCLUSION_FEE,
+                                    DEFAULT_TEST_RESOURCE_FEE);
+            failedInvoke(tx, DEFAULT_TEST_RESOURCE_FEE, resources);
+        }
+        SECTION("too many parameters")
+        {
+            auto tx =
+                test.createInvokeTx(resources, scFunc, {sc7, sc16, makeI32(0)},
+                                    INCLUSION_FEE, DEFAULT_TEST_RESOURCE_FEE);
+            failedInvoke(tx, DEFAULT_TEST_RESOURCE_FEE, resources);
+        }
+    }
+
+    SECTION("insufficient instructions")
+    {
+        resources.instructions = 10000;
+        auto tx = test.createInvokeTx(resources, scFunc, {sc7, sc16},
+                                      INCLUSION_FEE, DEFAULT_TEST_RESOURCE_FEE);
+        failedInvoke(tx, DEFAULT_TEST_RESOURCE_FEE, resources);
+    }
+    SECTION("insufficient read bytes")
+    {
+        resources.readBytes = 100;
+        auto tx = test.createInvokeTx(resources, scFunc, {sc7, sc16},
+                                      INCLUSION_FEE, DEFAULT_TEST_RESOURCE_FEE);
+        failedInvoke(tx, DEFAULT_TEST_RESOURCE_FEE, resources);
+    }
+    SECTION("insufficient resource fee")
+    {
+        auto tx = test.createInvokeTx(resources, scFunc, {sc7, sc16},
+                                      INCLUSION_FEE, 32'701);
+        failedInvoke(tx, 32'701, resources);
+    }
+}
+
+TEST_CASE("invalid footprint keys", "[tx][soroban]")
+{
+    ContractInvocationTest test(rust_bridge::get_test_wasm_add_i32());
+
+    SorobanResources resources;
+    resources.footprint.readOnly = test.getContractKeys();
+    resources.instructions = 2'000'000;
+    resources.readBytes = 2000;
+    resources.writeBytes = 0;
+
+    // Tests for each Soroban op
+    auto testValidInvoke = [&](bool shouldBeValid) {
+        auto scFunc = makeSymbol("add");
+        auto sc7 = makeI32(7);
+        auto sc16 = makeI32(16);
+
+        auto tx = test.createInvokeTx(resources, scFunc, {sc7, sc16}, 100,
+                                      DEFAULT_TEST_RESOURCE_FEE);
+        REQUIRE(test.isTxValid(tx) == shouldBeValid);
+    };
+
+    auto testValidExtendOp = [&](bool shouldBeValid) {
+        auto tx = test.createExtendOpTx(resources, 10, 100,
+                                        DEFAULT_TEST_RESOURCE_FEE);
+        REQUIRE(test.isTxValid(tx) == shouldBeValid);
+    };
+
+    auto testValidRestoreOp = [&](bool shouldBeValid) {
+        auto tx =
+            test.createRestoreTx(resources, 100, DEFAULT_TEST_RESOURCE_FEE);
+        REQUIRE(test.isTxValid(tx) == shouldBeValid);
+    };
+
+    // Keys to test
+    auto acc = test.getRoot().create(
+        "acc", test.getApp()->getLedgerManager().getLastMinBalance(1));
+    auto persistentKey =
+        contractDataKey(test.getContractID(), makeSymbolSCVal("key1"),
+                        ContractDataDurability::PERSISTENT);
+    auto ttlKey = getTTLKey(persistentKey);
+
+    // This function adds every invalid type to footprint and then runs f,
+    // where f is either testValidInvoke, testValidExtendOp, or
+    // testValidRestoreOp
+    auto invalidateFootprint = [&](xdr::xvector<stellar::LedgerKey>& footprint,
+                                   auto f) {
+        SECTION("native asset trustline")
+        {
+            footprint.emplace_back(
+                trustlineKey(test.getRoot().getPublicKey(), makeNativeAsset()));
+            f(false);
+        }
+        SECTION("issuer trustline")
+        {
+            footprint.emplace_back(
+                trustlineKey(test.getRoot().getPublicKey(),
+                             makeAsset(test.getRoot(), "USD")));
+            f(false);
+        }
+        auto invalidAssets = testutil::getInvalidAssets(test.getRoot());
+        for (size_t i = 0; i < invalidAssets.size(); ++i)
+        {
+            auto key = trustlineKey(acc.getPublicKey(), invalidAssets[i]);
+            SECTION("invalid asset " + std::to_string(i))
+            {
+                footprint.emplace_back(key);
+                f(false);
+            }
+        }
+        SECTION("offer")
+        {
+            footprint.emplace_back(offerKey(test.getRoot(), 1));
+            f(false);
+        }
+        SECTION("data")
+        {
+            footprint.emplace_back(dataKey(test.getRoot(), "name"));
+            f(false);
+        }
+        SECTION("claimable balance")
+        {
+            footprint.emplace_back(claimableBalanceKey(ClaimableBalanceID{}));
+            f(false);
+        }
+        SECTION("liquidity pool")
+        {
+            footprint.emplace_back(liquidityPoolKey(PoolID{}));
+            f(false);
+        }
+        SECTION("config setting")
+        {
+            footprint.emplace_back(configSettingKey(ConfigSettingID{}));
+            f(false);
+        }
+        SECTION("TTL entry")
+        {
+            footprint.emplace_back(ttlKey);
+            f(false);
+        }
+    };
+
+    SECTION("invokeHostFunction")
+    {
+        auto validateFootprint =
+            [&](xdr::xvector<stellar::LedgerKey>& footprint) {
+                SECTION("valid")
+                {
+                    // add a valid trustline to the footprint to make sure the
+                    // initial tx is valid.
+                    footprint.emplace_back(trustlineKey(
+                        test.getRoot().getPublicKey(), makeAsset(acc, "USD")));
+                    testValidInvoke(true);
+                }
+            };
+
+        SECTION("readOnly")
+        {
+            validateFootprint(resources.footprint.readOnly);
+            invalidateFootprint(resources.footprint.readOnly, testValidInvoke);
+        }
+        SECTION("readWrite")
+        {
+            validateFootprint(resources.footprint.readWrite);
+            invalidateFootprint(resources.footprint.readWrite, testValidInvoke);
+        }
+    }
+
+    SECTION("extendOp")
+    {
+        SECTION("valid")
+        {
+            testValidExtendOp(true);
+        }
+        SECTION("readWrite set with Soroban key")
+        {
+            resources.footprint.readWrite.emplace_back(persistentKey);
+            testValidExtendOp(false);
+        }
+        SECTION("invalid readOnly keys")
+        {
+            invalidateFootprint(resources.footprint.readOnly,
+                                testValidExtendOp);
+        }
+        SECTION("invalid readWrite keys")
+        {
+            invalidateFootprint(resources.footprint.readWrite,
+                                testValidExtendOp);
+        }
+    }
+
+    SECTION("restoreOp")
+    {
+        resources.footprint.readWrite = resources.footprint.readOnly;
+        resources.footprint.readOnly.clear();
+        SECTION("valid")
+        {
+            testValidRestoreOp(true);
+        }
+        SECTION("readOnly set with Soroban key")
+        {
+            resources.footprint.readOnly.emplace_back(persistentKey);
+            testValidRestoreOp(false);
+        }
+        SECTION("invalid readOnly keys")
+        {
+            invalidateFootprint(resources.footprint.readOnly,
+                                testValidRestoreOp);
+        }
+        SECTION("invalid readWrite keys")
+        {
+            invalidateFootprint(resources.footprint.readWrite,
+                                testValidRestoreOp);
+        }
+    }
+}
+
+TEST_CASE("non-refundable resource metering", "[tx][soroban]")
+{
+    uniform_int_distribution<uint64_t> feeDist(1, 100'000);
+    auto cfgModifyFn = [&feeDist](SorobanNetworkConfig& cfg) {
+        cfg.mFeeRatePerInstructionsIncrement = feeDist(Catch::rng());
+        cfg.mFeeReadLedgerEntry = feeDist(Catch::rng());
+        cfg.mFeeWriteLedgerEntry = feeDist(Catch::rng());
+        cfg.mFeeRead1KB = feeDist(Catch::rng());
+        cfg.mFeeWrite1KB = feeDist(Catch::rng());
+        cfg.mFeeHistorical1KB = feeDist(Catch::rng());
+        cfg.mFeeTransactionSize1KB = feeDist(Catch::rng());
+    };
+
+    ContractInvocationTest test(rust_bridge::get_test_wasm_add_i32(),
+                                /*deployContract=*/false, getTestConfig(),
+                                /*useTestLimits=*/true, cfgModifyFn);
+
+    auto scFunc = makeSymbol("add");
+    auto scArgs = {makeI32(7), makeI32(16)};
+
+    SorobanResources resources;
+    resources.instructions = 0;
+    resources.readBytes = 0;
+    resources.writeBytes = 0;
+
+    auto checkFees = [&](int64_t expectedNonRefundableFee,
+                         std::shared_ptr<TransactionFrameBase> rootTX) {
+        // This will compute soroban fees
+        test.txCheckValid(rootTX);
+
+        auto actualFeePair = std::dynamic_pointer_cast<TransactionFrame>(rootTX)
+                                 ->getSorobanResourceFee();
+        REQUIRE(actualFeePair);
+        REQUIRE(expectedNonRefundableFee == actualFeePair->non_refundable_fee);
+
+        auto inclusionFee = [&] {
+            LedgerTxn ltx(test.getApp()->getLedgerTxnRoot());
+            return getMinInclusionFee(*rootTX, ltx.getHeader());
+        }();
+
+        // Check that minimum fee succeeds
+        auto minimalTX = test.createInvokeTx(
+            resources, scFunc, scArgs, inclusionFee, expectedNonRefundableFee);
+        REQUIRE(test.isTxValid(minimalTX));
+
+        // Check that just below minimum resource fee fails
+        auto badTX =
+            test.createInvokeTx(resources, scFunc, scArgs, inclusionFee,
+                                expectedNonRefundableFee - 1);
+        REQUIRE(!test.isTxValid(badTX));
+
+        // check that just below minimum inclusion fee fails
+        auto badTX2 = test.createInvokeTx(
+            resources, scFunc, scArgs, inclusionFee - 1,
+            // It doesn't matter how high the resource fee is.
+            expectedNonRefundableFee + 1'000'000);
+        REQUIRE(!test.isTxValid(badTX2));
+    };
+
+    // In the following tests, we isolate a single fee to test by zeroing out
+    // every other resource, as much as is possible
+    SECTION("tx size fees")
+    {
+        auto tx =
+            test.createInvokeTx(resources, scFunc, scArgs, 100,
+                                std::numeric_limits<uint32_t>::max() - 100);
+
+        // Resources are all null, only include TX size based fees
+        auto expectedFee = test.getTxSizeFees(tx);
+        checkFees(expectedFee, tx);
+    }
+
+    SECTION("compute fee")
+    {
+        resources.instructions = feeDist(Catch::rng());
+        auto tx =
+            test.createInvokeTx(resources, scFunc, scArgs, 100,
+                                std::numeric_limits<uint32_t>::max() - 100);
+
+        // Should only have instruction and TX size fees
+        auto expectedFee =
+            test.getTxSizeFees(tx) + test.getComputeFee(resources);
+        checkFees(expectedFee, tx);
+    }
+
+    uniform_int_distribution<> numKeysDist(1, 10);
+    SECTION("entry read/write fee")
+    {
+        SECTION("RO Only")
+        {
+            auto size = numKeysDist(Catch::rng());
+            for (auto const& e :
+                 LedgerTestUtils::generateValidUniqueLedgerEntriesWithTypes(
+                     {CONTRACT_DATA, CONTRACT_CODE}, size))
+            {
+                resources.footprint.readOnly.emplace_back(LedgerEntryKey(e));
+            }
+
+            auto tx =
+                test.createInvokeTx(resources, scFunc, scArgs, 100,
+                                    std::numeric_limits<uint32_t>::max() - 100);
+
+            // Only read entry fees and TX size fees
+            auto expectedFee =
+                test.getTxSizeFees(tx) + test.getEntryReadFee(resources);
+            checkFees(expectedFee, tx);
+        }
+
+        SECTION("RW Only")
+        {
+            auto size = numKeysDist(Catch::rng());
+            for (auto const& e :
+                 LedgerTestUtils::generateValidUniqueLedgerEntriesWithTypes(
+                     {CONTRACT_DATA, CONTRACT_CODE}, size))
+            {
+                resources.footprint.readWrite.emplace_back(LedgerEntryKey(e));
+            }
+
+            auto tx =
+                test.createInvokeTx(resources, scFunc, scArgs, 100,
+                                    std::numeric_limits<uint32_t>::max() - 100);
+
+            // Only read entry, write entry, and TX size fees
+            auto expectedFee = test.getTxSizeFees(tx) +
+                               test.getEntryReadFee(resources) +
+                               test.getEntryWriteFee(resources);
+            checkFees(expectedFee, tx);
+        }
+
+        SECTION("RW and RO")
+        {
+            auto size = numKeysDist(Catch::rng());
+            for (auto const& e :
+                 LedgerTestUtils::generateValidUniqueLedgerEntriesWithTypes(
+                     {CONTRACT_DATA, CONTRACT_CODE}, size))
+            {
+                resources.footprint.readOnly.emplace_back(LedgerEntryKey(e));
+            }
+
+            size = numKeysDist(Catch::rng());
+            for (auto const& e :
+                 LedgerTestUtils::generateValidUniqueLedgerEntriesWithTypes(
+                     {CONTRACT_DATA, CONTRACT_CODE}, size))
+            {
+                resources.footprint.readWrite.emplace_back(LedgerEntryKey(e));
+            }
+
+            auto tx =
+                test.createInvokeTx(resources, scFunc, scArgs, 100,
+                                    std::numeric_limits<uint32_t>::max() - 100);
+
+            // Only read entry, write entry, and TX size fees
+            auto expectedFee = test.getTxSizeFees(tx) +
+                               test.getEntryReadFee(resources) +
+                               test.getEntryWriteFee(resources);
+            checkFees(expectedFee, tx);
+        }
+    }
+
+    uniform_int_distribution<uint32_t> bytesDist(1, 100'000);
+    SECTION("readBytes fee")
+    {
+        resources.readBytes = bytesDist(Catch::rng());
+
+        auto tx =
+            test.createInvokeTx(resources, scFunc, scArgs, 100,
+                                std::numeric_limits<uint32_t>::max() - 100);
+
+        // Only readBytes and TX size fees
+        auto expectedFee =
+            test.getTxSizeFees(tx) + test.getReadBytesFee(resources);
+        checkFees(expectedFee, tx);
+    }
+
+    SECTION("writeBytes fee")
+    {
+        resources.writeBytes = bytesDist(Catch::rng());
+        auto tx =
+            test.createInvokeTx(resources, scFunc, scArgs, 100,
+                                std::numeric_limits<uint32_t>::max() - 100);
+
+        // Only writeBytes and TX size fees
+        auto expectedFee =
+            test.getTxSizeFees(tx) + test.getWriteBytesFee(resources);
+        checkFees(expectedFee, tx);
+    }
+}
+
+TEST_CASE("refund account merged", "[tx][soroban][merge]")
+{
+    ContractInvocationTest test(rust_bridge::get_test_wasm_add_i32(),
+                                /*deployContact=*/false);
+
+    const int64_t startingBalance =
+        test.getApp()->getLedgerManager().getLastMinBalance(50);
+
+    auto a1 = test.getRoot().create("A", startingBalance);
+    auto b1 = test.getRoot().create("B", startingBalance);
+    auto c1 = test.getRoot().create("C", startingBalance);
+
+    auto tx = test.createUploadWasmTx(a1, DEFAULT_TEST_RESOURCE_FEE);
+
+    auto mergeOp = accountMerge(b1);
+    mergeOp.sourceAccount.activate() = toMuxedAccount(a1);
+
+    auto classicMergeTx = c1.tx({mergeOp});
+    classicMergeTx->addSignature(a1.getSecretKey());
+
+    auto r = closeLedger(*test.getApp(), {classicMergeTx, tx});
+    checkTx(0, r, txSUCCESS);
+
+    // The source account of the soroban tx was merged during the classic phase
+    checkTx(1, r, txNO_ACCOUNT);
+}
+
+TEST_CASE("buying liabilities plus refund is greater than INT64_MAX",
+          "[tx][soroban][offer]")
+{
+    ContractInvocationTest test(rust_bridge::get_test_wasm_add_i32(),
+                                /*deployContact=*/false);
+
+    const int64_t startingBalance =
+        test.getApp()->getLedgerManager().getLastMinBalance(50);
+
+    auto a1 = test.getRoot().create("A", startingBalance);
+    auto b1 = test.getRoot().create("B", startingBalance);
+
+    auto native = txtest::makeNativeAsset();
+    auto cur1 = txtest::makeAsset(test.getRoot(), "CUR1");
+    a1.changeTrust(cur1, INT64_MAX);
+    test.getRoot().pay(a1, cur1, INT64_MAX);
+
+    auto a1PreBalance = a1.getBalance();
+
+    auto tx = test.createUploadWasmTx(a1, 300'000);
+    // There is no surge pricing, so only 100 stroops are charged from the
+    // inclusion fee.
+    auto feeChargedBeforeRefund =
+        tx->getFullFee() - tx->getInclusionFee() + 100;
+    // Create a maximal possible offer that wouldn't overflow int64. The offer
+    // is created *after* charging the transaction fee, so the amount is higher
+    // than what it would be before fees are charged.
+
+    auto offer =
+        manageOffer(0, cur1, native, Price{1, 1},
+                    INT64_MAX - (a1PreBalance - feeChargedBeforeRefund));
+    offer.sourceAccount.activate() = toMuxedAccount(a1);
+
+    // Create an offer on behalf of `a1`, but paid for from `b1`, so that
+    // the offer fee doesn't need to be accounted for in fee computations.
+    auto offerTx = b1.tx({offer});
+    offerTx->addSignature(a1.getSecretKey());
+
+    auto r = closeLedger(*test.getApp(), {offerTx, tx});
+    checkTx(0, r, txSUCCESS);
+    checkTx(1, r, txSUCCESS);
+
+    // After an offer is created, the sum of `a1` balance and buying liability
+    // is `INT64_MAX`, thus any fee refund would cause an overflow, so no
+    // refunds happen.
+    REQUIRE(a1PreBalance - feeChargedBeforeRefund == a1.getBalance());
+}
+
+TEST_CASE("failure diagnostics", "[tx][soroban]")
+{
     auto cfg = getTestConfig();
     cfg.ENABLE_SOROBAN_DIAGNOSTIC_EVENTS = true;
-    cfg.EXPERIMENTAL_BUCKETLIST_DB = false;
-    auto app = createTestApplication(clock, cfg);
-    auto root = TestAccount::createRoot(*app);
-    auto& lm = app->getLedgerManager();
+    ContractInvocationTest test(rust_bridge::get_test_wasm_add_i32(),
+                                /*deployContact=*/true, cfg);
+
+    auto scFunc = makeSymbol("add");
+    auto sc1 = makeI32(7);
+    auto scMax = makeI32(INT32_MAX);
+    SorobanResources resources;
+    resources.footprint.readOnly = test.getContractKeys();
+    resources.instructions = 2'000'000;
+    resources.readBytes = 2000;
+    resources.writeBytes = 1000;
+
+    // This test calls the add_i32 contract with two numbers that cause an
+    // overflow. Because we have diagnostics on, we will see two events - The
+    // diagnostic "fn_call" event, and the event that the add_i32 contract
+    // emits.
+    SECTION("failed invocation")
+    {
+        auto tx = test.createInvokeTx(resources, scFunc, {sc1, scMax}, 1000,
+                                      DEFAULT_TEST_RESOURCE_FEE);
+        test.txCheckValid(tx);
+        auto txm = test.invokeTx(tx, /*expectSuccess=*/false);
+
+        auto const& opEvents = txm->getXDR().v3().sorobanMeta->diagnosticEvents;
+        REQUIRE(opEvents.size() == 23);
+
+        auto const& callEv = opEvents.at(0);
+        REQUIRE(!callEv.inSuccessfulContractCall);
+        REQUIRE(callEv.event.type == ContractEventType::DIAGNOSTIC);
+        REQUIRE(callEv.event.body.v0().data.type() == SCV_VEC);
+
+        auto const& contract_ev = opEvents.at(1);
+        REQUIRE(!contract_ev.inSuccessfulContractCall);
+        REQUIRE(contract_ev.event.type == ContractEventType::CONTRACT);
+        REQUIRE(contract_ev.event.body.v0().data.type() == SCV_VEC);
+
+        auto const& hostFnErrorEv = opEvents.at(3);
+        REQUIRE(!hostFnErrorEv.inSuccessfulContractCall);
+        REQUIRE(hostFnErrorEv.event.type == ContractEventType::DIAGNOSTIC);
+        auto const& hostFnErrorBody = hostFnErrorEv.event.body.v0();
+        SCError expectedError(SCE_WASM_VM);
+        expectedError.code() = SCEC_INVALID_ACTION;
+        REQUIRE(hostFnErrorBody.topics.size() == 2);
+        REQUIRE(hostFnErrorBody.topics.at(0).sym() == "host_fn_failed");
+        REQUIRE(hostFnErrorBody.topics.at(1).error() == expectedError);
+
+        auto const& readEntryEv = opEvents.at(4);
+        REQUIRE(!readEntryEv.inSuccessfulContractCall);
+        REQUIRE(readEntryEv.event.type == ContractEventType::DIAGNOSTIC);
+        auto const& readEntryEvBody = readEntryEv.event.body.v0();
+        REQUIRE(readEntryEvBody.topics.size() == 2);
+        REQUIRE(readEntryEvBody.topics.at(0).sym() == "core_metrics");
+        REQUIRE(readEntryEvBody.topics.at(1).sym() == "read_entry");
+        REQUIRE(readEntryEvBody.data.type() == SCV_U64);
+        REQUIRE(readEntryEvBody.data.u64() == 2);
+
+        auto const& cpuInsnEv = opEvents.at(16);
+        REQUIRE(!cpuInsnEv.inSuccessfulContractCall);
+        REQUIRE(cpuInsnEv.event.type == ContractEventType::DIAGNOSTIC);
+        auto const& cpuInsnEvBody = cpuInsnEv.event.body.v0();
+        REQUIRE(cpuInsnEvBody.topics.size() == 2);
+        REQUIRE(cpuInsnEvBody.topics.at(0).sym() == "core_metrics");
+        REQUIRE(cpuInsnEvBody.topics.at(1).sym() == "cpu_insn");
+        REQUIRE(cpuInsnEvBody.data.type() == SCV_U64);
+        REQUIRE(cpuInsnEvBody.data.u64() >= 1000);
+    }
+
+    // This test produces a diagnostic event _during validation_, i.e. before
+    // it ever makes it to the soroban host.
+    SECTION("invalid tx")
+    {
+        // Instructions beyond max
+        resources.instructions = 2'000'000'000;
+
+        auto tx = test.createInvokeTx(resources, scFunc, {sc1, scMax}, 1000,
+                                      DEFAULT_TEST_RESOURCE_FEE);
+        REQUIRE(!test.isTxValid(tx));
+
+        auto const& diagEvents = tx->getDiagnosticEvents();
+        REQUIRE(diagEvents.size() == 1);
+
+        DiagnosticEvent const& diag_ev = diagEvents.at(0);
+        LOG_INFO(DEFAULT_LOG, "event 0: {}", xdr::xdr_to_string(diag_ev));
+        REQUIRE(!diag_ev.inSuccessfulContractCall);
+        REQUIRE(diag_ev.event.type == ContractEventType::DIAGNOSTIC);
+        REQUIRE(diag_ev.event.body.v0().topics.at(0).sym() == "error");
+        REQUIRE(diag_ev.event.body.v0().data.vec()->at(0).str().find(
+                    "instructions") != std::string::npos);
+    }
+}
+
+TEST_CASE("errors roll back", "[tx][soroban]")
+{
+    // This tests that various sorts of error created inside a contract
+    // cause the invocation to fail and that in turn aborts the tx.
+    auto call_fn_check_failure = [](std::string const& name) {
+        ContractInvocationTest test(rust_bridge::get_test_wasm_err());
+
+        SorobanResources resources;
+        resources.footprint.readOnly = test.getContractKeys();
+        resources.instructions = 2'000'000;
+        resources.readBytes = 3000;
+
+        auto tx = test.createInvokeTx(resources, makeSymbol(name), {}, 100,
+                                      DEFAULT_TEST_RESOURCE_FEE);
+        test.txCheckValid(tx);
+        test.invokeTx(tx, /*expectSuccess=*/false);
+
+        REQUIRE(tx->getResult()
+                    .result.results()
+                    .at(0)
+                    .tr()
+                    .invokeHostFunctionResult()
+                    .code() == INVOKE_HOST_FUNCTION_TRAPPED);
+        REQUIRE(tx->getResultCode() == txFAILED);
+    };
+
+    for (auto const& name :
+         {"err_eek", "err_err", "ok_err", "ok_val_err", "err", "val"})
+    {
+        call_fn_check_failure(name);
+    }
+}
+
+TEST_CASE("settings upgrade", "[tx][soroban][upgrades]")
+{
+    auto cfg = getTestConfig();
+    cfg.ENABLE_SOROBAN_DIAGNOSTIC_EVENTS = true;
+    ContractInvocationTest test(rust_bridge::get_write_bytes(),
+                                /*deployContract=*/false, cfg,
+                                /*useTestLimits=*/false);
 
     auto runTest = [&]() {
         {
-            LedgerTxn ltx(app->getLedgerTxnRoot());
-
             // make sure LedgerManager picked up cached values by looking at
             // a couple settings
-            auto const& networkConfig = lm.getSorobanNetworkConfig(ltx);
-
+            auto const& networkConfig = test.getNetworkCfg();
             REQUIRE(networkConfig.txMaxReadBytes() ==
                     MinimumSorobanNetworkConfig::TX_MAX_READ_BYTES);
             REQUIRE(networkConfig.ledgerMaxReadBytes() ==
                     networkConfig.txMaxReadBytes());
         }
-
-        auto const writeByteWasm = rust_bridge::get_write_bytes();
 
         SorobanResources uploadResources{};
         uploadResources.instructions =
@@ -3022,9 +1951,8 @@ TEST_CASE("settings upgrade", "[tx][soroban][upgrades]")
             MinimumSorobanNetworkConfig::TX_MAX_READ_BYTES;
         createResources.writeBytes =
             MinimumSorobanNetworkConfig::TX_MAX_WRITE_BYTES;
-        auto contractKeys = deployContractWithSourceAccountWithResources(
-            *app, writeByteWasm, uploadResources, createResources);
-        auto const& contractID = contractKeys[0].contractData().contract;
+
+        test.deployWithResources(uploadResources, createResources);
 
         // build upgrade
 
@@ -3036,7 +1964,7 @@ TEST_CASE("settings upgrade", "[tx][soroban][upgrades]")
              i < static_cast<uint32_t>(CONFIG_SETTING_BUCKETLIST_SIZE_WINDOW);
              ++i)
         {
-            LedgerTxn ltx(app->getLedgerTxnRoot());
+            LedgerTxn ltx(test.getApp()->getLedgerTxnRoot());
             auto costEntry =
                 ltx.load(configSettingKey(static_cast<ConfigSettingID>(i)));
             updatedEntries.emplace_back(
@@ -3069,55 +1997,38 @@ TEST_CASE("settings upgrade", "[tx][soroban][upgrades]")
         auto xdr = xdr::xdr_to_opaque(upgradeSet);
         auto upgrade_hash = sha256(xdr);
 
-        // write upgrade
-        Operation op;
-        op.body.type(INVOKE_HOST_FUNCTION);
-        auto& ihf = op.body.invokeHostFunctionOp().hostFunction;
-        ihf.type(HOST_FUNCTION_TYPE_INVOKE_CONTRACT);
-        ihf.invokeContract().contractAddress = contractID;
-        ihf.invokeContract().functionName = makeSymbol("write");
-        ihf.invokeContract().args.emplace_back(makeBytes(xdr));
-
         LedgerKey upgrade(CONTRACT_DATA);
         upgrade.contractData().durability = TEMPORARY;
-        upgrade.contractData().contract = contractID;
+        upgrade.contractData().contract = test.getContractID();
         upgrade.contractData().key =
             makeBytes(xdr::xdr_to_opaque(upgrade_hash));
 
         SorobanResources resources{};
-        resources.footprint.readOnly = contractKeys;
+        resources.footprint.readOnly = test.getContractKeys();
         resources.footprint.readWrite = {upgrade};
         resources.instructions = 2'000'000;
         resources.readBytes = 3000;
         resources.writeBytes = 2000;
 
-        auto tx = sorobanTransactionFrameFromOps(
-            app->getNetworkID(), root, {op}, {}, resources, 1000, 20'000'000);
+        auto tx = test.createInvokeTx(resources, makeSymbol("write"),
+                                      {makeBytes(xdr)}, 1000, 20'000'000);
 
-        {
-            LedgerTxn ltx(app->getLedgerTxnRoot());
-            REQUIRE(tx->checkValid(*app, ltx, 0, 0, 0));
-            TransactionMetaFrame txm(ltx.loadHeader().current().ledgerVersion);
-            REQUIRE(tx->apply(*app, ltx, txm));
-            ltx.commit();
-        }
+        test.txCheckValid(tx);
+        test.invokeTx(tx, /*expectSuccess=*/true, /*processPostApply=*/false);
 
         {
             // verify that the contract code, contract instance, and upgrade
             // entry were all extended by
             // 1036800 ledgers (60 days) -
             // https://github.com/stellar/rs-soroban-env/blob/main/soroban-test-wasms/wasm-workspace/write_upgrade_bytes/src/lib.rs#L3-L5
-            LedgerTxn ltx(app->getLedgerTxnRoot());
-            auto ledgerSeq = ltx.loadHeader().current().ledgerSeq;
-            auto extendedKeys = contractKeys;
+            auto ledgerSeq = test.getLedgerSeq();
+            auto extendedKeys = test.getContractKeys();
             extendedKeys.emplace_back(upgrade);
 
             REQUIRE(extendedKeys.size() == 3);
             for (auto const& key : extendedKeys)
             {
-                auto ltxe = ltx.load(key);
-                REQUIRE(ltxe);
-                checkTTL(ltx, key, ledgerSeq + 1036800);
+                test.checkTTL(key, ledgerSeq + 1036800);
             }
         }
 
@@ -3126,9 +2037,9 @@ TEST_CASE("settings upgrade", "[tx][soroban][upgrades]")
         // this will test the submission and deserialization code.
         ConfigUpgradeSetKey key;
         key.contentHash = upgrade_hash;
-        key.contractID = contractID.contractId();
+        key.contractID = test.getContractID().contractId();
 
-        auto& commandHandler = app->getCommandHandler();
+        auto& commandHandler = test.getApp()->getCommandHandler();
 
         std::string command = "mode=set&configupgradesetkey=";
         command += decoder::encode_b64(xdr::xdr_to_opaque(key));
@@ -3142,10 +2053,12 @@ TEST_CASE("settings upgrade", "[tx][soroban][upgrades]")
         auto ledgerUpgrade = LedgerUpgrade{LEDGER_UPGRADE_CONFIG};
         ledgerUpgrade.newConfig() = key;
 
-        auto const& lcl = lm.getLastClosedLedgerHeader();
+        auto const& lcl =
+            test.getApp()->getLedgerManager().getLastClosedLedgerHeader();
         auto txSet = TxSetFrame::makeEmpty(lcl);
         auto lastCloseTime = lcl.header.scpValue.closeTime;
-        app->getHerder().externalizeValue(
+
+        test.getApp()->getHerder().externalizeValue(
             txSet, lcl.header.ledgerSeq + 1, lastCloseTime,
             {LedgerTestUtils::toUpgradeType(ledgerUpgrade)});
 
@@ -3153,7 +2066,7 @@ TEST_CASE("settings upgrade", "[tx][soroban][upgrades]")
         {
             auto costKey = configSettingKey(
                 ConfigSettingID::CONFIG_SETTING_CONTRACT_LEDGER_COST_V0);
-            LedgerTxn ltx(app->getLedgerTxnRoot());
+            LedgerTxn ltx(test.getApp()->getLedgerTxnRoot());
             auto costEntry = ltx.load(costKey);
             REQUIRE(costEntry.current()
                         .data.configSetting()
@@ -3167,7 +2080,1022 @@ TEST_CASE("settings upgrade", "[tx][soroban][upgrades]")
     }
     SECTION("from min settings")
     {
-        overrideNetworkSettingsToMin(*app);
+        overrideNetworkSettingsToMin(*test.getApp());
         runTest();
     }
+}
+
+TEST_CASE("complex contract", "[tx][soroban]")
+{
+    auto complexTest = [&](bool enableDiagnostics) {
+        auto cfg = getTestConfig();
+        cfg.ENABLE_SOROBAN_DIAGNOSTIC_EVENTS = enableDiagnostics;
+        ContractInvocationTest test(rust_bridge::get_test_wasm_complex(),
+                                    /*deployContact=*/true, cfg);
+
+        // Contract writes a single `data` CONTRACT_DATA entry.
+        LedgerKey dataKey(LedgerEntryType::CONTRACT_DATA);
+        dataKey.contractData().contract = test.getContractID();
+        dataKey.contractData().key = makeSymbolSCVal("data");
+
+        SorobanResources resources;
+        resources.footprint.readOnly = test.getContractKeys();
+        resources.footprint.readWrite = {dataKey};
+        resources.instructions = 4'000'000;
+        resources.readBytes = 3000;
+        resources.writeBytes = 1000;
+
+        auto verifyDiagnosticEvents =
+            [&](xdr::xvector<DiagnosticEvent> events) {
+                REQUIRE(events.size() == 22);
+
+                auto call_ev = events.at(0);
+                REQUIRE(call_ev.event.type == ContractEventType::DIAGNOSTIC);
+                REQUIRE(call_ev.event.body.v0().data.type() == SCV_VOID);
+
+                auto contract_ev = events.at(1);
+                REQUIRE(contract_ev.event.type == ContractEventType::CONTRACT);
+                REQUIRE(contract_ev.event.body.v0().data.type() == SCV_BYTES);
+
+                auto return_ev = events.at(2);
+                REQUIRE(return_ev.event.type == ContractEventType::DIAGNOSTIC);
+                REQUIRE(return_ev.event.body.v0().data.type() == SCV_VOID);
+
+                auto const& metrics_ev = events.back();
+                REQUIRE(metrics_ev.event.type == ContractEventType::DIAGNOSTIC);
+                auto const& v0 = metrics_ev.event.body.v0();
+                REQUIRE(v0.topics.size() == 2);
+                REQUIRE(v0.topics.at(0).sym() == "core_metrics");
+                REQUIRE(v0.topics.at(1).sym() == "max_emit_event_byte");
+                REQUIRE(v0.data.type() == SCV_U64);
+            };
+
+        auto tx = test.createInvokeTx(resources, makeSymbol("go"), {}, 100,
+                                      DEFAULT_TEST_RESOURCE_FEE);
+        test.txCheckValid(tx);
+        auto txm = test.invokeTx(tx, /*expectSuccess=*/true);
+
+        // Contract should have emitted a single event carrying a `Bytes`
+        // value.
+        REQUIRE(txm->getXDR().v3().sorobanMeta->events.size() == 1);
+        REQUIRE(txm->getXDR().v3().sorobanMeta->events.at(0).type ==
+                ContractEventType::CONTRACT);
+        REQUIRE(txm->getXDR()
+                    .v3()
+                    .sorobanMeta->events.at(0)
+                    .body.v0()
+                    .data.type() == SCV_BYTES);
+
+        if (enableDiagnostics)
+        {
+            verifyDiagnosticEvents(
+                txm->getXDR().v3().sorobanMeta->diagnosticEvents);
+        }
+        else
+        {
+            REQUIRE(txm->getXDR().v3().sorobanMeta->diagnosticEvents.size() ==
+                    0);
+        }
+    };
+
+    SECTION("diagnostics enabled")
+    {
+        complexTest(true);
+    }
+
+    SECTION("diagnostics disabled")
+    {
+        complexTest(false);
+    }
+}
+
+class ContractStorageInvocationTest : public ContractInvocationTest
+{
+  public:
+    ContractStorageInvocationTest(Config cfg = getTestConfig())
+        : ContractInvocationTest(rust_bridge::get_test_wasm_contract_data(),
+                                 /*deployContract=*/true, cfg)
+    {
+    }
+
+    void
+    put(std::string const& key, ContractDataDurability type, uint64_t val,
+        bool expectSuccess = true)
+    {
+        auto keySymbol = makeSymbolSCVal(key);
+        auto storageLK = contractDataKey(mContractID, keySymbol, type);
+        putWithFootprint(key, type, val, mContractKeys, {storageLK},
+                         expectSuccess);
+    }
+
+    void
+    putWithFootprint(std::string const& key, ContractDataDurability type,
+                     uint64_t val, xdr::xvector<LedgerKey> const& readOnly,
+                     xdr::xvector<LedgerKey> const& readWrite,
+                     bool expectSuccess, uint32_t writeBytes = 1000,
+                     uint32_t refundableFee = 40'000)
+    {
+        std::string funcStr = type == ContractDataDurability::TEMPORARY
+                                  ? "put_temporary"
+                                  : "put_persistent";
+
+        auto keySymbol = makeSymbolSCVal(key);
+        auto valU64 = makeU64SCVal(val);
+        auto storageLK = contractDataKey(mContractID, keySymbol, type);
+
+        SorobanResources resources;
+        resources.footprint.readOnly = readOnly;
+        resources.footprint.readWrite = readWrite;
+        resources.instructions = 4'000'000;
+        resources.readBytes = 10'000;
+        resources.writeBytes = writeBytes;
+
+        auto resourceFee = computeResourceFee(resources, makeSymbol(funcStr),
+                                              {keySymbol, valU64});
+        resourceFee += refundableFee;
+        auto tx = createInvokeTx(resources, makeSymbol(funcStr),
+                                 {keySymbol, valU64}, 1'000, resourceFee);
+        txCheckValid(tx);
+        invokeTx(tx, /*expectSuccess=*/expectSuccess, false);
+    }
+
+    uint64_t
+    get(std::string const& key, ContractDataDurability type,
+        bool expectSuccess = true)
+    {
+        auto lk = contractDataKey(mContractID, makeSymbolSCVal(key), type);
+        auto readOnly = mContractKeys;
+        readOnly.emplace_back(lk);
+        return getWithFootprint(key, type, readOnly, {}, expectSuccess);
+    }
+
+    uint64_t
+    getWithFootprint(std::string const& key, ContractDataDurability type,
+                     xdr::xvector<LedgerKey> const& readOnly,
+                     xdr::xvector<LedgerKey> const& readWrite,
+                     bool expectSuccess, uint32_t readBytes = 10'000)
+    {
+        std::string funcStr = type == ContractDataDurability::TEMPORARY
+                                  ? "get_temporary"
+                                  : "get_persistent";
+
+        auto keySymbol = makeSymbolSCVal(key);
+        auto storageLK = contractDataKey(mContractID, keySymbol, type);
+
+        SorobanResources resources;
+        resources.footprint.readOnly = readOnly;
+        resources.footprint.readWrite = readWrite;
+        resources.instructions = 4'000'000;
+        resources.readBytes = readBytes;
+        resources.writeBytes = 0;
+
+        auto resourceFee =
+            computeResourceFee(resources, makeSymbol(funcStr), {keySymbol});
+        // Default refundable fee
+        resourceFee += 40'000;
+        auto tx = createInvokeTx(resources, makeSymbol(funcStr), {keySymbol},
+                                 1'000, resourceFee);
+        txCheckValid(tx);
+        auto txm = invokeTx(tx, expectSuccess, false);
+        if (expectSuccess)
+        {
+            return txm->getXDR().v3().sorobanMeta->returnValue.u64();
+        }
+
+        return 0;
+    }
+
+    bool
+    has(std::string const& key, ContractDataDurability type,
+        bool expectSuccess = true)
+    {
+        auto lk = contractDataKey(mContractID, makeSymbolSCVal(key), type);
+        auto readOnly = mContractKeys;
+        readOnly.emplace_back(lk);
+        return hasWithFootprint(key, type, readOnly, {}, expectSuccess);
+    }
+
+    bool
+    hasWithFootprint(std::string const& key, ContractDataDurability type,
+                     xdr::xvector<LedgerKey> const& readOnly,
+                     xdr::xvector<LedgerKey> const& readWrite,
+                     bool expectSuccess)
+    {
+        std::string funcStr = type == ContractDataDurability::TEMPORARY
+                                  ? "has_temporary"
+                                  : "has_persistent";
+
+        auto keySymbol = makeSymbolSCVal(key);
+        auto storageLK = contractDataKey(mContractID, keySymbol, type);
+
+        SorobanResources resources;
+        resources.footprint.readOnly = readOnly;
+        resources.footprint.readWrite = readWrite;
+        resources.instructions = 4'000'000;
+        resources.readBytes = 10'000;
+        resources.writeBytes = 0;
+
+        auto resourceFee =
+            computeResourceFee(resources, makeSymbol(funcStr), {keySymbol});
+        // Default refundable fee
+        resourceFee += 40'000;
+
+        auto tx = createInvokeTx(resources, makeSymbol(funcStr), {keySymbol},
+                                 1'000, resourceFee);
+        txCheckValid(tx);
+        auto txm = invokeTx(tx, /*expectSuccess=*/expectSuccess, false);
+        if (expectSuccess)
+        {
+            return txm->getXDR().v3().sorobanMeta->returnValue.b();
+        }
+
+        return false;
+    }
+
+    void
+    del(std::string const& key, ContractDataDurability type)
+    {
+        auto lk = contractDataKey(mContractID, makeSymbolSCVal(key), type);
+        delWithFootprint(key, type, mContractKeys, {lk}, true);
+    }
+
+    void
+    delWithFootprint(std::string const& key, ContractDataDurability type,
+                     xdr::xvector<LedgerKey> const& readOnly,
+                     xdr::xvector<LedgerKey> const& readWrite,
+                     bool expectSuccess)
+    {
+        std::string funcStr = type == ContractDataDurability::TEMPORARY
+                                  ? "del_temporary"
+                                  : "del_persistent";
+
+        auto keySymbol = makeSymbolSCVal(key);
+        auto storageLK = contractDataKey(mContractID, keySymbol, type);
+
+        SorobanResources resources;
+        resources.footprint.readOnly = readOnly;
+        resources.footprint.readWrite = readWrite;
+        resources.instructions = 4'000'000;
+        resources.readBytes = 10'000;
+        resources.writeBytes = 0;
+
+        auto resourceFee =
+            computeResourceFee(resources, makeSymbol(funcStr), {keySymbol});
+        // Default refundable fee
+        resourceFee += 40'000;
+        auto tx = createInvokeTx(resources, makeSymbol(funcStr), {keySymbol},
+                                 1'000, resourceFee);
+        txCheckValid(tx);
+        invokeTx(tx, expectSuccess, false);
+    }
+
+    using ContractInvocationTest::checkTTL;
+    void
+    checkTTL(std::string const& key, ContractDataDurability type,
+             uint32_t expectedLiveUntilLedger)
+    {
+        auto keySymbol = makeSymbolSCVal(key);
+        auto lk = contractDataKey(mContractID, keySymbol, type);
+        checkTTL(lk, expectedLiveUntilLedger);
+    }
+
+    using ContractInvocationTest::isEntryLive;
+    bool
+    isEntryLive(std::string const& key, ContractDataDurability type,
+                uint32_t ledgerSeq)
+    {
+        auto keySymbol = makeSymbolSCVal(key);
+        auto lk = contractDataKey(mContractID, keySymbol, type);
+        return isEntryLive(lk, ledgerSeq);
+    }
+
+    void
+    extendHostFunction(std::string const& key, ContractDataDurability type,
+                       uint32_t threshold, uint32_t extendTo,
+                       bool expectSuccess = true)
+    {
+        auto keySymbol = makeSymbolSCVal(key);
+        auto thresholdU32 = makeU32(threshold);
+        auto extendToU32 = makeU32(extendTo);
+
+        std::string funcStr = type == ContractDataDurability::TEMPORARY
+                                  ? "extend_temporary"
+                                  : "extend_persistent";
+
+        SorobanResources resources;
+        resources.footprint.readOnly = mContractKeys;
+        resources.footprint.readOnly.emplace_back(
+            contractDataKey(mContractID, keySymbol, type));
+        resources.instructions = 4'000'000;
+        resources.readBytes = 10'000;
+        resources.writeBytes = 1000;
+
+        auto resourceFee =
+            computeResourceFee(resources, makeSymbol(funcStr),
+                               {keySymbol, thresholdU32, extendToU32});
+        // Default refundable fee
+        resourceFee += 40'000;
+
+        auto tx = createInvokeTx(resources, makeSymbol(funcStr),
+                                 {keySymbol, thresholdU32, extendToU32}, 1'000,
+                                 resourceFee);
+        txCheckValid(tx);
+        invokeTx(tx, expectSuccess, /*processPostApply=*/false);
+    }
+
+    void
+    resizeStorageAndExtend(std::string const& key, uint32_t numKiloBytes,
+                           uint32_t thresh, uint32_t extendTo,
+                           uint32_t writeBytes, uint32_t refundableFee,
+                           bool expectSuccess)
+    {
+        auto keySymbol = makeSymbolSCVal(key);
+        auto storageLK = contractDataKey(mContractID, keySymbol,
+                                         ContractDataDurability::PERSISTENT);
+
+        auto numKiloBytesU32 = makeU32(numKiloBytes);
+        auto threshU32 = makeU32(thresh);
+        auto extendToU32 = makeU32(extendTo);
+
+        std::string funcStr = "replace_with_bytes_and_extend";
+
+        SorobanResources resources;
+        resources.footprint.readOnly = mContractKeys;
+        resources.footprint.readWrite = {storageLK};
+        resources.instructions = 4'000'000;
+        resources.readBytes = 10'000;
+        resources.writeBytes = writeBytes;
+
+        auto resourceFee = computeResourceFee(
+            resources, makeSymbol(funcStr),
+            {keySymbol, numKiloBytesU32, threshU32, extendToU32});
+        resourceFee += refundableFee;
+
+        auto tx =
+            createInvokeTx(resources, makeSymbol(funcStr),
+                           {keySymbol, numKiloBytesU32, threshU32, extendToU32},
+                           1'000, resourceFee);
+        txCheckValid(tx);
+        invokeTx(tx, /*expectSuccess=*/expectSuccess, false);
+    }
+};
+
+TEST_CASE("contract storage", "[tx][soroban]")
+{
+    ContractStorageInvocationTest test{};
+    auto const& stateArchivalSettings =
+        test.getNetworkCfg().stateArchivalSettings();
+    auto ledgerSeq = test.getLedgerSeq();
+
+    SECTION("default limits")
+    {
+        // Test writing an entry
+        test.put("key1", ContractDataDurability::PERSISTENT, 0);
+        REQUIRE(test.get("key1", ContractDataDurability::PERSISTENT) == 0);
+        test.put("key2", ContractDataDurability::PERSISTENT, 21);
+        REQUIRE(test.get("key2", ContractDataDurability::PERSISTENT) == 21);
+
+        // Test overwriting an entry
+        test.put("key1", ContractDataDurability::PERSISTENT, 9);
+        REQUIRE(test.get("key1", ContractDataDurability::PERSISTENT) == 9);
+        test.put("key2", ContractDataDurability::PERSISTENT, UINT64_MAX);
+        REQUIRE(test.get("key2", ContractDataDurability::PERSISTENT) ==
+                UINT64_MAX);
+
+        // Test deleting an entry
+        test.del("key1", ContractDataDurability::PERSISTENT);
+        REQUIRE(!test.has("key1", ContractDataDurability::PERSISTENT));
+        test.del("key2", ContractDataDurability::PERSISTENT);
+        REQUIRE(!test.has("key2", ContractDataDurability::PERSISTENT));
+    }
+
+    SECTION("failure: entry size exceeds write bytes")
+    {
+        // 5kb write should fail because it exceeds the write bytes
+        test.resizeStorageAndExtend("key", 5, 1, 1, 5'000, 40'000,
+                                    /*expectSuccess=*/false);
+
+        // 5kb write should succeed with high write bytes value
+        test.resizeStorageAndExtend("key", 5, 1, 1, 10'000, 40'000,
+                                    /*expectSuccess=*/true);
+    }
+
+    SECTION("Same ScVal key, different types")
+    {
+        // Check that each type is in their own keyspace
+        test.put("key", ContractDataDurability::PERSISTENT, 1);
+        test.put("key", ContractDataDurability::TEMPORARY, 2);
+        REQUIRE(test.get("key", ContractDataDurability::PERSISTENT) == 1);
+        REQUIRE(test.get("key", ContractDataDurability::TEMPORARY) == 2);
+    }
+
+    SECTION("contract instance and wasm archival")
+    {
+        uint32_t originalExpectedLiveUntilLedger =
+            stateArchivalSettings.minPersistentTTL + ledgerSeq - 1;
+
+        for (uint32_t i =
+                 test.getApp()->getLedgerManager().getLastClosedLedgerNum();
+             i <= originalExpectedLiveUntilLedger + 1; ++i)
+        {
+            closeLedgerOn(*test.getApp(), i, 2, 1, 2016);
+        }
+
+        // Contract instance and code should be expired
+        ledgerSeq = test.getLedgerSeq();
+        auto const& contractKeys = test.getContractKeys();
+        REQUIRE(!test.isEntryLive(contractKeys[0], ledgerSeq));
+        REQUIRE(!test.isEntryLive(contractKeys[1], ledgerSeq));
+
+        // Contract instance and code are expired, any TX should fail
+        test.put("temp", ContractDataDurability::TEMPORARY, 0,
+                 /*expectSuccess=*/false);
+
+        auto newExpectedLiveUntilLedger =
+            stateArchivalSettings.minPersistentTTL + ledgerSeq - 1;
+
+        SECTION("restore contract instance and wasm")
+        {
+            // Restore Instance and WASM
+            test.restoreOp(contractKeys,
+                           96 /* rent bump */ + 40000 /* two LE-writes */);
+
+            // Instance should now be useable
+            test.put("temp", ContractDataDurability::TEMPORARY, 0);
+            test.checkTTL(contractKeys[0], newExpectedLiveUntilLedger);
+            test.checkTTL(contractKeys[1], newExpectedLiveUntilLedger);
+        }
+
+        SECTION("restore contract instance, not wasm")
+        {
+            // Only restore contract instance
+            test.restoreOp({contractKeys[0]},
+                           48 /* rent bump */ + 20000 /* one LE write */);
+
+            // invocation should fail
+            test.put("temp", ContractDataDurability::TEMPORARY, 0,
+                     /*expectSuccess=*/false);
+            test.checkTTL(contractKeys[0], newExpectedLiveUntilLedger);
+            test.checkTTL(contractKeys[1], originalExpectedLiveUntilLedger);
+        }
+
+        SECTION("restore contract wasm, not instance")
+        {
+            // Only restore WASM
+            test.restoreOp({contractKeys[1]},
+                           48 /* rent bump */ + 20000 /* one LE write */);
+
+            // invocation should fail
+            test.put("temp", ContractDataDurability::TEMPORARY, 0,
+                     /*expectSuccess=*/false);
+            test.checkTTL(contractKeys[0], originalExpectedLiveUntilLedger);
+            test.checkTTL(contractKeys[1], newExpectedLiveUntilLedger);
+        }
+
+        SECTION("lifetime extensions")
+        {
+            // Restore Instance and WASM
+            test.restoreOp(contractKeys,
+                           96 /* rent bump */ + 40000 /* two LE writes */);
+
+            auto instanceExtendTo = 10'000;
+            auto wasmExtendTo = 15'000;
+
+            // extend instance
+            test.extendOp({contractKeys[0]}, instanceExtendTo);
+
+            // extend WASM
+            test.extendOp({contractKeys[1]}, wasmExtendTo);
+
+            test.checkTTL(contractKeys[0], ledgerSeq + instanceExtendTo);
+            test.checkTTL(contractKeys[1], ledgerSeq + wasmExtendTo);
+        }
+    }
+
+    SECTION("contract storage archival")
+    {
+        // WASM and instance should not expire during test
+        test.extendOp(test.getContractKeys(), 10'000);
+
+        test.put("persistent", ContractDataDurability::PERSISTENT, 10);
+        test.put("temp", ContractDataDurability::TEMPORARY, 0);
+
+        auto expectedTempLiveUntilLedger =
+            stateArchivalSettings.minTemporaryTTL + ledgerSeq - 1;
+        auto expectedPersistentLiveUntilLedger =
+            stateArchivalSettings.minPersistentTTL + ledgerSeq - 1;
+
+        // Check for expected minimum lifetime values
+        test.checkTTL("persistent", ContractDataDurability::PERSISTENT,
+                      expectedPersistentLiveUntilLedger);
+
+        test.checkTTL("temp", ContractDataDurability::TEMPORARY,
+                      expectedTempLiveUntilLedger);
+
+        // Close ledgers until temp entry expires
+        uint32 nextLedgerSeq =
+            test.getApp()->getLedgerManager().getLastClosedLedgerNum();
+        for (; nextLedgerSeq <= expectedTempLiveUntilLedger; ++nextLedgerSeq)
+        {
+            closeLedgerOn(*test.getApp(), nextLedgerSeq, 2, 1, 2016);
+        }
+
+        ledgerSeq = test.getLedgerSeq();
+        REQUIRE(ledgerSeq == expectedTempLiveUntilLedger);
+
+        SECTION("entry accessible when currentLedger == liveUntilLedger")
+        {
+            // Entry should still be accessible when currentLedger ==
+            // liveUntilLedgerSeq
+            REQUIRE(test.has("temp", ContractDataDurability::TEMPORARY));
+        }
+
+        SECTION("write does not increase TTL")
+        {
+            test.put("temp", ContractDataDurability::TEMPORARY, 42);
+            // TTL should not be network minimum since entry already exists
+            test.checkTTL("temp", ContractDataDurability::TEMPORARY,
+                          expectedTempLiveUntilLedger);
+        }
+
+        SECTION("extendOp when currentLedger == liveUntilLedger")
+        {
+            auto tempKey =
+                contractDataKey(test.getContractID(), makeSymbolSCVal("temp"),
+                                ContractDataDurability::TEMPORARY);
+            test.extendOp({tempKey}, 10'000);
+            test.checkTTL("temp", ContractDataDurability::TEMPORARY,
+                          ledgerSeq + 10'000);
+        }
+
+        SECTION("TTL enforcement")
+        {
+            // Close one more ledger so entry is expired
+            closeLedgerOn(*test.getApp(), nextLedgerSeq++, 2, 1, 2016);
+            ledgerSeq = test.getLedgerSeq();
+            REQUIRE(ledgerSeq == expectedTempLiveUntilLedger + 1);
+
+            // Check that temp entry has expired
+            REQUIRE(!test.isEntryLive("temp", ContractDataDurability::TEMPORARY,
+                                      ledgerSeq));
+
+            // Get should fail since entry no longer exists
+            test.get("temp", ContractDataDurability::TEMPORARY,
+                     /*expectSuccess=*/false);
+
+            // Has should succeed since the entry is TEMPORARY, but should
+            // return false
+            REQUIRE(!test.has("temp", ContractDataDurability::TEMPORARY));
+
+            // PERSISTENT entry is still live, has higher minimum TTL
+            REQUIRE(test.isEntryLive(
+                "persistent", ContractDataDurability::PERSISTENT, ledgerSeq));
+            REQUIRE(test.has("persistent", ContractDataDurability::PERSISTENT));
+
+            // Check that we can recreate an expired TEMPORARY entry
+            test.put("temp", ContractDataDurability::TEMPORARY, 42);
+
+            // Recreated entry should be live
+            REQUIRE(test.get("temp", ContractDataDurability::TEMPORARY) == 42);
+            test.checkTTL("temp", ContractDataDurability::TEMPORARY,
+                          stateArchivalSettings.minTemporaryTTL + ledgerSeq -
+                              1);
+
+            // Close ledgers until PERSISTENT entry liveUntilLedger
+            for (; nextLedgerSeq <= expectedPersistentLiveUntilLedger;
+                 ++nextLedgerSeq)
+            {
+                closeLedgerOn(*test.getApp(), nextLedgerSeq, 2, 1, 2016);
+            }
+
+            // Entry should still be accessible when currentLedger ==
+            // liveUntilLedgerSeq
+            REQUIRE(test.has("persistent", ContractDataDurability::PERSISTENT));
+
+            auto lk = contractDataKey(test.getContractID(),
+                                      makeSymbolSCVal("persistent"),
+                                      ContractDataDurability::PERSISTENT);
+            SECTION("restoreOp skips when currentLedger == liveUntilLedger")
+            {
+                // Restore should skip entry, refund all of refundableFee
+                test.restoreOp({lk}, 0);
+
+                // TTL should be unchanged
+                test.checkTTL("persistent", ContractDataDurability::PERSISTENT,
+                              expectedPersistentLiveUntilLedger);
+            }
+
+            // Close one more ledger so entry is expired
+            closeLedgerOn(*test.getApp(), nextLedgerSeq++, 2, 1, 2016);
+            REQUIRE(
+                test.getApp()->getLedgerManager().getLastClosedLedgerNum() ==
+                expectedPersistentLiveUntilLedger + 1);
+            ledgerSeq = test.getLedgerSeq();
+
+            // Check that persistent entry has expired
+            REQUIRE(!test.isEntryLive(
+                "persistent", ContractDataDurability::PERSISTENT, ledgerSeq));
+
+            // Check that we can't recreate expired PERSISTENT
+            test.put("persistent", ContractDataDurability::PERSISTENT, 42,
+                     /*expectSuccess=*/false);
+
+            // Since entry is PERSISTENT, has should fail
+            test.has("persistent", ContractDataDurability::PERSISTENT,
+                     /*expectSuccess=*/false);
+
+            test.put("persistent2", ContractDataDurability::PERSISTENT, 0);
+            auto lk2 = contractDataKey(test.getContractID(),
+                                       makeSymbolSCVal("persistent2"),
+                                       ContractDataDurability::PERSISTENT);
+            test.checkTTL("persistent2", ContractDataDurability::PERSISTENT,
+                          stateArchivalSettings.minPersistentTTL + ledgerSeq -
+                              1);
+
+            // Restore ARCHIVED key and LIVE key, should only be charged for one
+            test.restoreOp({lk, lk2}, /*charge for one entry*/ 20048);
+
+            // Live entry TTL should be unchanged
+            test.checkTTL("persistent2", ContractDataDurability::PERSISTENT,
+                          stateArchivalSettings.minPersistentTTL + ledgerSeq -
+                              1);
+
+            // Check value and TTL of restored entry
+            test.checkTTL("persistent", ContractDataDurability::PERSISTENT,
+                          stateArchivalSettings.minPersistentTTL + ledgerSeq -
+                              1);
+            REQUIRE(test.get("persistent",
+                             ContractDataDurability::PERSISTENT) == 10);
+        }
+    }
+
+    SECTION("conditional TTL extension")
+    {
+        // Large bump, followed by smaller bump
+        test.put("key", ContractDataDurability::PERSISTENT, 0);
+        test.extendHostFunction("key", ContractDataDurability::PERSISTENT,
+                                10'000, 10'000);
+        test.checkTTL("key", ContractDataDurability::PERSISTENT,
+                      ledgerSeq + 10'000);
+
+        // Expiration already above 5'000, should be a no-op
+        test.extendHostFunction("key", ContractDataDurability::PERSISTENT,
+                                5'000, 5'000);
+        test.checkTTL("key", ContractDataDurability::PERSISTENT,
+                      ledgerSeq + 10'000);
+
+        // Small bump followed by larger bump
+        test.put("key2", ContractDataDurability::PERSISTENT, 0);
+        test.extendHostFunction("key2", ContractDataDurability::PERSISTENT,
+                                10'000, 10'000);
+        test.checkTTL("key2", ContractDataDurability::PERSISTENT,
+                      ledgerSeq + 10'000);
+
+        test.put("key3", ContractDataDurability::PERSISTENT, 0);
+        test.extendHostFunction("key3", ContractDataDurability::PERSISTENT,
+                                50'000, 50'000);
+        test.checkTTL("key3", ContractDataDurability::PERSISTENT,
+                      ledgerSeq + 50'000);
+
+        // Bump multiple keys to live 10100 ledger from now
+        xdr::xvector<LedgerKey> keysToExtend = {
+            contractDataKey(test.getContractID(), makeSymbolSCVal("key"),
+                            ContractDataDurability::PERSISTENT),
+            contractDataKey(test.getContractID(), makeSymbolSCVal("key2"),
+                            ContractDataDurability::PERSISTENT),
+            contractDataKey(test.getContractID(), makeSymbolSCVal("key3"),
+                            ContractDataDurability::PERSISTENT)};
+
+        SECTION("calculate refund")
+        {
+            test.extendOp(keysToExtend, 10'100);
+            test.checkTTL("key", ContractDataDurability::PERSISTENT,
+                          ledgerSeq + 10'100);
+            test.checkTTL("key2", ContractDataDurability::PERSISTENT,
+                          ledgerSeq + 10'100);
+
+            // No change for key3 since expiration is already past 10100 ledgers
+            // from now
+            test.checkTTL("key3", ContractDataDurability::PERSISTENT,
+                          ledgerSeq + 50'000);
+        }
+
+        // Check same extendOp with hardcoded expected refund to detect if
+        // refund logic changes unexpectedly
+        SECTION("absolute refund")
+        {
+            test.extendOp(keysToExtend, 10'100, /*expectSuccess=*/true, 40096);
+            test.checkTTL("key", ContractDataDurability::PERSISTENT,
+                          ledgerSeq + 10'100);
+            test.checkTTL("key2", ContractDataDurability::PERSISTENT,
+                          ledgerSeq + 10'100);
+
+            // No change for key3 since expiration is already past 10100 ledgers
+            // from now
+            test.checkTTL("key3", ContractDataDurability::PERSISTENT,
+                          ledgerSeq + 50'000);
+        }
+    }
+
+    uint32_t initialLiveUntilLedger =
+        stateArchivalSettings.minPersistentTTL + ledgerSeq - 1;
+
+    SECTION("TTL threshold")
+    {
+        test.put("key", ContractDataDurability::PERSISTENT, 0);
+        test.checkTTL("key", ContractDataDurability::PERSISTENT,
+                      initialLiveUntilLedger);
+
+        // After the put op, key4's lifetime will be minimumLifetime - 1.
+        // Set low lifetime to minimumLifetime - 2 so bump does not occur
+        test.extendHostFunction("key", ContractDataDurability::PERSISTENT,
+                                stateArchivalSettings.minPersistentTTL - 2,
+                                50'000);
+        test.checkTTL("key", ContractDataDurability::PERSISTENT,
+                      initialLiveUntilLedger);
+
+        closeLedgerOn(*test.getApp(), ++ledgerSeq, 2, 1, 2016);
+
+        // Lifetime is now at low threshold, should be bumped
+        test.extendHostFunction("key", ContractDataDurability::PERSISTENT,
+                                stateArchivalSettings.minPersistentTTL - 2,
+                                50'000);
+        test.checkTTL("key", ContractDataDurability::PERSISTENT,
+                      50'000 + ledgerSeq);
+
+        // Check that threshold > extendTo fails
+        test.extendHostFunction("key", ContractDataDurability::PERSISTENT,
+                                60'001, 60'000,
+                                /*expectSuccess=*/false);
+    }
+
+    SECTION("max TTL extension")
+    {
+        test.put("key", ContractDataDurability::PERSISTENT, 0);
+        auto lk = contractDataKey(test.getContractID(), makeSymbolSCVal("key"),
+                                  ContractDataDurability::PERSISTENT);
+
+        SECTION("extension op")
+        {
+            test.extendOp({lk}, stateArchivalSettings.maxEntryTTL,
+                          /*expectSuccess=*/false);
+            test.checkTTL(lk, initialLiveUntilLedger);
+
+            // Max TTL includes current ledger, so subtract 1
+            test.extendOp({lk}, stateArchivalSettings.maxEntryTTL - 1);
+            test.checkTTL(lk,
+                          stateArchivalSettings.maxEntryTTL - 1 + ledgerSeq);
+        }
+
+        SECTION("extend host function")
+        {
+            test.extendHostFunction("key", ContractDataDurability::PERSISTENT,
+                                    stateArchivalSettings.maxEntryTTL,
+                                    stateArchivalSettings.maxEntryTTL,
+                                    /*expectSuccess=*/false);
+            test.checkTTL(lk, initialLiveUntilLedger);
+
+            // Max TTL includes current ledger, so subtract 1
+            test.extendHostFunction("key", ContractDataDurability::PERSISTENT,
+                                    stateArchivalSettings.maxEntryTTL - 1,
+                                    stateArchivalSettings.maxEntryTTL - 1,
+                                    /*expectSuccess=*/true);
+            test.checkTTL(lk,
+                          stateArchivalSettings.maxEntryTTL - 1 + ledgerSeq);
+        }
+    }
+
+    SECTION("charge rent fees for storage resize")
+    {
+        auto resizeKilobytes = 1;
+        test.put("key1", ContractDataDurability::PERSISTENT, 0);
+        auto key1lk = contractDataKey(test.getContractID(),
+                                      makeSymbolSCVal("key1"), PERSISTENT);
+
+        auto startingSizeBytes = 0;
+        {
+            LedgerTxn ltx(test.getApp()->getLedgerTxnRoot());
+            auto txle = ltx.loadWithoutRecord(key1lk);
+            REQUIRE(txle);
+            startingSizeBytes = xdr::xdr_size(txle.current());
+        }
+
+        // First, resize a key with large fee to guarantee success
+        test.resizeStorageAndExtend("key1", resizeKilobytes, 0, 0, 10'000,
+                                    40'000,
+                                    /*expectSuccess=*/true);
+
+        auto sizeDeltaBytes = 0;
+        {
+            LedgerTxn ltx(test.getApp()->getLedgerTxnRoot());
+            auto txle = ltx.loadWithoutRecord(key1lk);
+            REQUIRE(txle);
+            sizeDeltaBytes = xdr::xdr_size(txle.current()) - startingSizeBytes;
+        }
+
+        // Now that we know the size delta, we can calculate the expected rent
+        // and check that another entry resize charges fee correctly
+        test.put("key2", ContractDataDurability::PERSISTENT, 0);
+
+        auto initialLifetime = stateArchivalSettings.minPersistentTTL;
+
+        SECTION("resize with no extend")
+        {
+            auto expectedRentFee =
+                test.getRentFeeForBytes(sizeDeltaBytes, initialLifetime,
+                                        /*isPersistent=*/true);
+
+            // resourceFee = rent fee + (event size + return val) fee. So in
+            // order to success resourceFee needs to be expectedRentFee
+            // + 1 to account for the return val size. We are not changing
+            // the liveUntilLedgerSeq, so there is no TTL Entry write
+            // charge
+            auto resourceFee = expectedRentFee + 1;
+            test.resizeStorageAndExtend("key2", resizeKilobytes, 0, 0, 3'000,
+                                        resourceFee - 1,
+                                        /*expectSuccess=*/false);
+
+            // Size change should succeed with enough refundable fee
+            test.resizeStorageAndExtend("key2", resizeKilobytes, 0, 0, 3'000,
+                                        resourceFee, /*expectSuccess=*/true);
+        }
+
+        SECTION("resize and extend")
+        {
+            auto newLifetime = initialLifetime + 1000;
+
+            // New bytes are charged rent for previous lifetime and new lifetime
+            auto resizeRentFee =
+                test.getRentFeeForBytes(sizeDeltaBytes, newLifetime,
+                                        /*isPersistent=*/true);
+
+            // Initial bytes just charged for new lifetime
+            auto rentFee = test.getRentFeeForBytes(
+                startingSizeBytes, newLifetime - initialLifetime,
+                /*isPersistent=*/true);
+
+            // refundableFee = rent fee + (event size + return val) fee. So in
+            // order to success refundableFee needs to be expectedRentFee +
+            // 1 to  account for the return val size.
+            auto refundableFee =
+                resizeRentFee + rentFee + test.getTTLEntryWriteFee() + 1;
+
+            test.resizeStorageAndExtend("key2", resizeKilobytes, newLifetime,
+                                        newLifetime, 3'000, refundableFee - 1,
+                                        /*expectSuccess=*/false);
+
+            // Size change should succeed with enough refundable fee
+            test.resizeStorageAndExtend("key2", resizeKilobytes, newLifetime,
+                                        newLifetime, 3'000, refundableFee,
+                                        /*expectSuccess=*/true);
+        }
+    }
+
+    SECTION("footprint tests")
+    {
+        test.put("key", ContractDataDurability::PERSISTENT, 0);
+        auto lk = contractDataKey(test.getContractID(), makeSymbolSCVal("key"),
+                                  ContractDataDurability::PERSISTENT);
+
+        SECTION("unused readWrite key")
+        {
+            auto acc = test.getRoot().create(
+                "acc", test.getApp()->getLedgerManager().getLastMinBalance(1));
+
+            REQUIRE(doesAccountExist(*test.getApp(), acc));
+            test.putWithFootprint("key", ContractDataDurability::PERSISTENT, 0,
+                                  test.getContractKeys(), {lk, accountKey(acc)},
+                                  /*expectSuccess*/ true);
+
+            // make sure account still exists and hasn't change
+            REQUIRE(doesAccountExist(*test.getApp(), acc));
+        }
+
+        SECTION("incorrect footprint")
+        {
+            // Failure: contract data isn't in footprint
+            test.putWithFootprint("key", ContractDataDurability::PERSISTENT, 88,
+                                  test.getContractKeys(), {}, false);
+            test.getWithFootprint("key", ContractDataDurability::PERSISTENT,
+                                  test.getContractKeys(), {}, false);
+            test.hasWithFootprint("key", ContractDataDurability::PERSISTENT,
+                                  test.getContractKeys(), {}, false);
+            test.delWithFootprint("key", ContractDataDurability::PERSISTENT,
+                                  test.getContractKeys(), {}, false);
+
+            // Failure: contract data is read only
+            auto readOnlyFootprint = test.getContractKeys();
+            readOnlyFootprint.push_back(lk);
+            test.putWithFootprint("key", ContractDataDurability::PERSISTENT, 88,
+                                  readOnlyFootprint, {}, false);
+            test.delWithFootprint("key", ContractDataDurability::PERSISTENT,
+                                  readOnlyFootprint, {}, false);
+
+            // Failure: Contract WASM/instance not included
+            test.putWithFootprint("key", ContractDataDurability::PERSISTENT, 88,
+                                  {}, {lk}, false);
+            test.putWithFootprint("key", ContractDataDurability::PERSISTENT, 88,
+                                  {test.getContractKeys()[0]}, {lk}, false);
+            test.putWithFootprint("key", ContractDataDurability::PERSISTENT, 88,
+                                  {test.getContractKeys()[1]}, {lk}, false);
+        }
+
+        SECTION("resource limits")
+        {
+            // Too few write bytes, should fail
+            test.putWithFootprint(
+                "key2", ContractDataDurability::PERSISTENT, 42,
+                {test.getContractKeys()},
+                {contractDataKey(test.getContractID(), makeSymbolSCVal("key2"),
+                                 ContractDataDurability::PERSISTENT)},
+                /*expectSuccess=*/false, /*writeBytes=*/1);
+            REQUIRE(!test.has("key2", ContractDataDurability::PERSISTENT));
+
+            // Resize with too few writeBytes
+            test.resizeStorageAndExtend("key", /*numKiloBytes=*/5, 0, 0, 4'000,
+                                        300'000,
+                                        /*expectSuccess=*/false);
+
+            // Resize with enough writeBytes
+            test.resizeStorageAndExtend("key", /*numKiloBytes=*/5, 0, 0, 6'000,
+                                        300'000,
+                                        /*expectSuccess=*/true);
+
+            // Reading the entry should fail with insufficient readBytes
+            test.getWithFootprint("key", ContractDataDurability::PERSISTENT,
+                                  {test.getContractKeys()}, {lk},
+                                  /*expectSuccess=*/false,
+                                  /*readBytes=*/5'000);
+        }
+    }
+}
+
+TEST_CASE("temp entry eviction", "[tx][soroban]")
+{
+    Config cfg = getTestConfig();
+    TmpDirManager tdm(std::string("soroban-storage-meta-") +
+                      binToHex(randomBytes(8)));
+    TmpDir td = tdm.tmpDir("soroban-meta-ok");
+    std::string metaPath = td.getName() + "/stream.xdr";
+
+    cfg.METADATA_OUTPUT_STREAM = metaPath;
+
+    ContractStorageInvocationTest test{cfg};
+
+    auto keySym = makeSymbolSCVal("temp");
+    auto funcSym = makeSymbol("put_temporary");
+    auto valU64 = makeU64SCVal(0);
+
+    auto lk = contractDataKey(test.getContractID(), keySym, TEMPORARY);
+
+    SorobanResources resources;
+    resources.footprint.readOnly = test.getContractKeys();
+    resources.footprint.readWrite = {lk};
+    resources.instructions = 4'000'000;
+    resources.readBytes = 10'000;
+    resources.writeBytes = 1000;
+
+    auto tx = test.createInvokeTx(resources, funcSym, {keySym, valU64}, 1000,
+                                  340'000);
+    closeLedger(*test.getApp(), {tx});
+
+    // Close ledgers until temp entry is evicted
+    for (uint32_t i =
+             test.getApp()->getLedgerManager().getLastClosedLedgerNum();
+         i <= 4096; ++i)
+    {
+        closeLedgerOn(*test.getApp(), i, 2, 1, 2016);
+    }
+
+    // Check that temp entry has expired
+    auto ledgerSeq = test.getLedgerSeq();
+    REQUIRE(!test.isEntryLive("temp", ContractDataDurability::TEMPORARY,
+                              ledgerSeq));
+
+    // close one more ledger to trigger the eviction
+    closeLedgerOn(*test.getApp(), 4097, 2, 1, 2016);
+
+    XDRInputFileStream in;
+    in.open(metaPath);
+    LedgerCloseMeta lcm;
+    bool evicted = false;
+    while (in.readOne(lcm))
+    {
+        REQUIRE(lcm.v() == 1);
+        if (lcm.v1().ledgerHeader.header.ledgerSeq == 4097)
+        {
+            REQUIRE(lcm.v1().evictedTemporaryLedgerKeys.size() == 2);
+            auto sortedKeys = lcm.v1().evictedTemporaryLedgerKeys;
+            std::sort(sortedKeys.begin(), sortedKeys.end());
+            REQUIRE(sortedKeys[0] == lk);
+            REQUIRE(sortedKeys[1] == getTTLKey(lk));
+            evicted = true;
+        }
+        else
+        {
+            REQUIRE(lcm.v1().evictedTemporaryLedgerKeys.empty());
+        }
+    }
+
+    REQUIRE(evicted);
 }
