@@ -111,8 +111,6 @@ Tracker::tryNextPeer()
 {
     ZoneScoped;
 
-    CLOG_INFO(Overlay, "try next peer");
-
     // will be called by some timer or when we get a
     // response saying they don't have it
     CLOG_TRACE(Overlay, "tryNextPeer {} last: {}", hexAbbrev(mItemHash),
@@ -210,7 +208,6 @@ Tracker::tryNextPeer()
         // we have asked all our peers, reset the list and try again after a
         // pause
         mNumListRebuild++;
-        CLOG_INFO(Overlay, "increment mNumListRebuild to {}", mNumListRebuild);
         mPeersAsked.clear();
 
         CLOG_TRACE(Overlay, "tryNextPeer {} restarting fetch #{}",
@@ -218,7 +215,6 @@ Tracker::tryNextPeer()
 
         nextTry = MS_TO_WAIT_FOR_FETCH_REPLY *
                   std::min(MAX_REBUILD_FETCH_LIST, mNumListRebuild);
-        CLOG_INFO(Overlay, "nextTry: {}", nextTry.count());
     }
     else
     {
