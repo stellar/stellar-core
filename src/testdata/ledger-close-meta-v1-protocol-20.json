@@ -1,7 +1,7 @@
 {
     "LedgerCloseMeta": {
-        "v": 2,
-        "v2": {
+        "v": 1,
+        "v1": {
             "ext": {
                 "v": 0
             },

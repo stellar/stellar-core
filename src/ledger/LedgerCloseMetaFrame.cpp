@@ -12,14 +12,14 @@ namespace stellar
 {
 LedgerCloseMetaFrame::LedgerCloseMetaFrame(uint32_t protocolVersion)
 {
-    // The LedgerCloseMeta v() switch can be in 3 positions, 0, 1, and 2. We
+    // The LedgerCloseMeta v() switch can be in 2 positions, 0 and 1. We
     // currently support all of these cases, depending on both compile time
     // and runtime conditions.
     mVersion = 0;
 
     if (protocolVersionStartsFrom(protocolVersion, SOROBAN_PROTOCOL_VERSION))
     {
-        mVersion = 2;
+        mVersion = 1;
     }
     mLedgerCloseMeta.v(mVersion);
 }
@@ -33,8 +33,6 @@ LedgerCloseMetaFrame::ledgerHeader()
         return mLedgerCloseMeta.v0().ledgerHeader;
     case 1:
         return mLedgerCloseMeta.v1().ledgerHeader;
-    case 2:
-        return mLedgerCloseMeta.v2().ledgerHeader;
     default:
         releaseAssert(false);
     }
@@ -50,9 +48,6 @@ LedgerCloseMetaFrame::reserveTxProcessing(size_t n)
         break;
     case 1:
         mLedgerCloseMeta.v1().txProcessing.reserve(n);
-        break;
-    case 2:
-        mLedgerCloseMeta.v2().txProcessing.reserve(n);
         break;
     default:
         releaseAssert(false);
@@ -70,9 +65,6 @@ LedgerCloseMetaFrame::pushTxProcessingEntry()
     case 1:
         mLedgerCloseMeta.v1().txProcessing.emplace_back();
         break;
-    case 2:
-        mLedgerCloseMeta.v2().txProcessing.emplace_back();
-        break;
     default:
         releaseAssert(false);
     }
@@ -89,9 +81,6 @@ LedgerCloseMetaFrame::setLastTxProcessingFeeProcessingChanges(
         break;
     case 1:
         mLedgerCloseMeta.v1().txProcessing.back().feeProcessing = changes;
-        break;
-    case 2:
-        mLedgerCloseMeta.v2().txProcessing.back().feeProcessing = changes;
         break;
     default:
         releaseAssert(false);
@@ -118,13 +107,6 @@ LedgerCloseMetaFrame::setTxProcessingMetaAndResultPair(
         txp.result = std::move(rp);
     }
     break;
-    case 2:
-    {
-        auto& txp = mLedgerCloseMeta.v2().txProcessing.at(index);
-        txp.txApplyProcessing = tm;
-        txp.result = std::move(rp);
-    }
-    break;
     default:
         releaseAssert(false);
     }
@@ -139,8 +121,6 @@ LedgerCloseMetaFrame::upgradesProcessing()
         return mLedgerCloseMeta.v0().upgradesProcessing;
     case 1:
         return mLedgerCloseMeta.v1().upgradesProcessing;
-    case 2:
-        return mLedgerCloseMeta.v2().upgradesProcessing;
     default:
         releaseAssert(false);
     }
@@ -157,9 +137,6 @@ LedgerCloseMetaFrame::populateTxSet(TxSetFrame const& txSet)
     case 1:
         txSet.toXDR(mLedgerCloseMeta.v1().txSet);
         break;
-    case 2:
-        txSet.toXDR(mLedgerCloseMeta.v2().txSet);
-        break;
     default:
         releaseAssert(false);
     }
@@ -168,21 +145,15 @@ LedgerCloseMetaFrame::populateTxSet(TxSetFrame const& txSet)
 void
 LedgerCloseMetaFrame::setTotalByteSizeOfBucketList(uint64_t size)
 {
-    switch (mVersion)
-    {
-    case 2:
-        mLedgerCloseMeta.v2().totalByteSizeOfBucketList = size;
-        break;
-    default:
-        releaseAssert(false);
-    }
+    releaseAssert(mVersion == 1);
+    mLedgerCloseMeta.v1().totalByteSizeOfBucketList = size;
 }
 
 void
 LedgerCloseMetaFrame::populateEvictedEntries(
     LedgerEntryChanges const& evictionChanges)
 {
-    releaseAssert(mVersion == 2);
+    releaseAssert(mVersion == 1);
     for (auto const& change : evictionChanges)
     {
         switch (change.type())
@@ -199,7 +170,7 @@ LedgerCloseMetaFrame::populateEvictedEntries(
         case LEDGER_ENTRY_REMOVED:
             auto const& key = change.removed();
             releaseAssert(isTemporaryEntry(key) || key.type() == EXPIRATION);
-            mLedgerCloseMeta.v2().evictedTemporaryLedgerKeys.push_back(key);
+            mLedgerCloseMeta.v1().evictedTemporaryLedgerKeys.push_back(key);
             break;
         }
     }

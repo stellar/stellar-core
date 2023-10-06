@@ -2237,18 +2237,18 @@ TEST_CASE("temp entry eviction", "[tx][soroban]")
     bool evicted = false;
     while (in.readOne(lcm))
     {
-        REQUIRE(lcm.v() == 2);
-        if (lcm.v2().ledgerHeader.header.ledgerSeq == 4097)
+        REQUIRE(lcm.v() == 1);
+        if (lcm.v1().ledgerHeader.header.ledgerSeq == 4097)
         {
-            REQUIRE(lcm.v2().evictedTemporaryLedgerKeys.size() == 2);
-            REQUIRE(lcm.v2().evictedTemporaryLedgerKeys[0] == lk);
-            REQUIRE(lcm.v2().evictedTemporaryLedgerKeys[1] ==
+            REQUIRE(lcm.v1().evictedTemporaryLedgerKeys.size() == 2);
+            REQUIRE(lcm.v1().evictedTemporaryLedgerKeys[0] == lk);
+            REQUIRE(lcm.v1().evictedTemporaryLedgerKeys[1] ==
                     getExpirationKey(lk));
             evicted = true;
         }
         else
         {
-            REQUIRE(lcm.v2().evictedTemporaryLedgerKeys.empty());
+            REQUIRE(lcm.v1().evictedTemporaryLedgerKeys.empty());
         }
     }
 
