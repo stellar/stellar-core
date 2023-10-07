@@ -144,7 +144,6 @@ InMemoryLedgerTxnRoot::dropLiquidityPools(bool)
 {
 }
 
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
 void
 InMemoryLedgerTxnRoot::dropContractData(bool)
 {
@@ -159,7 +158,11 @@ void
 InMemoryLedgerTxnRoot::dropConfigSettings(bool)
 {
 }
-#endif
+
+void
+InMemoryLedgerTxnRoot::dropExpiration(bool)
+{
+}
 
 double
 InMemoryLedgerTxnRoot::getPrefetchHitRate() const

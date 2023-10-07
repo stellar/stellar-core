@@ -150,9 +150,8 @@ class Herder
     virtual void setMaxClassicTxSize(uint32 bytes) = 0;
 
     virtual ClassicTransactionQueue& getTransactionQueue() = 0;
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
     virtual SorobanTransactionQueue& getSorobanTransactionQueue() = 0;
-#endif
+
     virtual bool sourceAccountPending(AccountID const& accountID) const = 0;
 #endif
     // a peer needs our SCP state
@@ -212,10 +211,9 @@ class Herder
     getCurrentlyTrackedQuorum() const = 0;
 
     virtual size_t getMaxQueueSizeOps() const = 0;
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
     virtual size_t getMaxQueueSizeSorobanOps() const = 0;
     virtual void maybeHandleUpgrade() = 0;
-#endif
+
     virtual bool isBannedTx(Hash const& hash) const = 0;
     virtual TransactionFrameBaseConstPtr getTx(Hash const& hash) const = 0;
 };

@@ -117,14 +117,12 @@ OperationFrame::makeHelper(Operation const& op, OperationResult& res,
         return std::make_shared<LiquidityPoolDepositOpFrame>(op, res, tx);
     case LIQUIDITY_POOL_WITHDRAW:
         return std::make_shared<LiquidityPoolWithdrawOpFrame>(op, res, tx);
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
     case INVOKE_HOST_FUNCTION:
         return std::make_shared<InvokeHostFunctionOpFrame>(op, res, tx);
     case BUMP_FOOTPRINT_EXPIRATION:
         return std::make_shared<BumpFootprintExpirationOpFrame>(op, res, tx);
     case RESTORE_FOOTPRINT:
         return std::make_shared<RestoreFootprintOpFrame>(op, res, tx);
-#endif
     default:
         ostringstream err;
         err << "Unknown Tx type: " << op.body.type();
@@ -266,14 +264,17 @@ OperationFrame::checkValid(Application& app, SignatureChecker& signatureChecker,
 
     resetResultSuccess();
 
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
-    auto const& sorobanConfig =
-        app.getLedgerManager().getSorobanNetworkConfig(ltx);
+    if (protocolVersionStartsFrom(ledgerVersion, SOROBAN_PROTOCOL_VERSION))
+    {
+        auto const& sorobanConfig =
+            app.getLedgerManager().getSorobanNetworkConfig(ltx);
 
-    return doCheckValid(sorobanConfig, ledgerVersion);
-#else
-    return doCheckValid(ledgerVersion);
-#endif
+        return doCheckValid(sorobanConfig, ledgerVersion);
+    }
+    else
+    {
+        return doCheckValid(ledgerVersion);
+    }
 }
 
 bool

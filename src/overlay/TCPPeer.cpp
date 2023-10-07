@@ -34,8 +34,15 @@ using namespace std;
 
 TCPPeer::TCPPeer(Application& app, Peer::PeerRole role,
                  std::shared_ptr<TCPPeer::SocketType> socket)
-    : Peer(app, role), mSocket(socket)
+    : Peer(app, role)
+    , mSocket(socket)
+    , mLiveInboundPeersCounter(
+          app.getOverlayManager().getLiveInboundPeersCounter())
 {
+    if (mRole == REMOTE_CALLED_US)
+    {
+        (*mLiveInboundPeersCounter)++;
+    }
 }
 
 TCPPeer::pointer
@@ -54,17 +61,21 @@ TCPPeer::initiate(Application& app, PeerBareAddress const& address)
     socket->next_layer().async_connect(
         endpoint, [result](asio::error_code const& error) {
             asio::error_code ec;
+            asio::error_code lingerEc;
             if (!error)
             {
                 asio::ip::tcp::no_delay nodelay(true);
+                asio::ip::tcp::socket::linger linger(false, 0);
                 result->mSocket->next_layer().set_option(nodelay, ec);
+                result->mSocket->next_layer().set_option(linger, lingerEc);
             }
             else
             {
                 ec = error;
             }
 
-            result->connectHandler(ec);
+            auto finalEc = ec ? ec : lingerEc;
+            result->connectHandler(finalEc);
         });
     return result;
 }
@@ -73,22 +84,36 @@ TCPPeer::pointer
 TCPPeer::accept(Application& app, shared_ptr<TCPPeer::SocketType> socket)
 {
     assertThreadIsMain();
+
+    // First check if there's enough space to accept peer
+    // If not, do not even create a peer instance as to not trigger any
+    // additional reads and memory allocations
+    if (!app.getOverlayManager().haveSpaceForConnection(TCPPeer::getIP(socket)))
+    {
+        return nullptr;
+    }
+
     shared_ptr<TCPPeer> result;
     asio::error_code ec;
+    asio::error_code lingerEc;
 
     asio::ip::tcp::no_delay nodelay(true);
+    asio::ip::tcp::socket::linger linger(false, 0);
     socket->next_layer().set_option(nodelay, ec);
+    socket->next_layer().set_option(linger, lingerEc);
 
-    if (!ec)
+    if (!ec && !lingerEc)
     {
         CLOG_DEBUG(Overlay, "TCPPeer:accept");
         result = make_shared<TCPPeer>(app, REMOTE_CALLED_US, socket);
+        result->mAddress = PeerBareAddress{result->getIP(), 0};
         result->startRecurrentTimer();
         result->startRead();
     }
     else
     {
-        CLOG_DEBUG(Overlay, "TCPPeer:accept error {}", ec.message());
+        CLOG_DEBUG(Overlay, "TCPPeer:accept error {}",
+                   ec ? ec.message() : lingerEc.message());
     }
 
     return result;
@@ -98,6 +123,10 @@ TCPPeer::~TCPPeer()
 {
     assertThreadIsMain();
     Peer::shutdown();
+    if (mRole == REMOTE_CALLED_US)
+    {
+        (*mLiveInboundPeersCounter)--;
+    }
     if (mSocket)
     {
         // Ignore: this indicates an attempt to cancel events
@@ -116,10 +145,16 @@ TCPPeer::~TCPPeer()
 std::string
 TCPPeer::getIP() const
 {
+    return getIP(mSocket);
+}
+
+std::string
+TCPPeer::getIP(std::shared_ptr<SocketType> socket)
+{
     std::string result;
 
     asio::error_code ec;
-    auto ep = mSocket->next_layer().remote_endpoint(ec);
+    auto ep = socket->next_layer().remote_endpoint(ec);
     if (ec)
     {
         CLOG_ERROR(Overlay, "Could not determine remote endpoint: {}",
@@ -680,13 +715,14 @@ TCPPeer::recvMessage()
     }
     catch (xdr::xdr_runtime_error& e)
     {
-        CLOG_ERROR(Overlay, "recvMessage got a corrupt xdr: {}", e.what());
+        CLOG_ERROR(Overlay, "{} - recvMessage got a corrupt xdr: {}",
+                   toString(), e.what());
         sendErrorAndDrop(ERR_DATA, "received corrupt XDR",
                          Peer::DropMode::IGNORE_WRITE_QUEUE);
     }
     catch (CryptoError const& e)
     {
-        CLOG_ERROR(Overlay, "Crypto error: {}", e.what());
+        CLOG_ERROR(Overlay, "{} - Crypto error: {}", toString(), e.what());
         sendErrorAndDrop(ERR_DATA, "crypto error",
                          Peer::DropMode::IGNORE_WRITE_QUEUE);
     }

@@ -15,6 +15,7 @@
 #include "util/ProtocolVersion.h"
 #include "util/XDROperators.h"
 #include "util/types.h"
+#include "xdr/Stellar-contract.h"
 #include "xdr/Stellar-ledger-entries.h"
 #include <Tracy.hpp>
 
@@ -272,7 +273,6 @@ poolShareTrustLineKey(AccountID const& accountID, PoolID const& poolID)
     return key;
 }
 
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
 LedgerKey
 configSettingKey(ConfigSettingID const& configSettingID)
 {
@@ -283,26 +283,22 @@ configSettingKey(ConfigSettingID const& configSettingID)
 
 LedgerKey
 contractDataKey(SCAddress const& contract, SCVal const& dataKey,
-                ContractDataDurability durability,
-                ContractEntryBodyType bodyType)
+                ContractDataDurability durability)
 {
     LedgerKey key(CONTRACT_DATA);
     key.contractData().contract = contract;
     key.contractData().key = dataKey;
     key.contractData().durability = durability;
-    key.contractData().bodyType = bodyType;
     return key;
 }
 
 LedgerKey
-contractCodeKey(Hash const& hash, ContractEntryBodyType bodyType)
+contractCodeKey(Hash const& hash)
 {
     LedgerKey key(CONTRACT_CODE);
     key.contractCode().hash = hash;
-    key.contractCode().bodyType = bodyType;
     return key;
 }
-#endif
 
 InternalLedgerKey
 sponsorshipKey(AccountID const& sponsoredID)
@@ -432,23 +428,20 @@ loadLiquidityPool(AbstractLedgerTxn& ltx, PoolID const& poolID)
     return ltx.load(liquidityPoolKey(poolID));
 }
 
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
 ConstLedgerTxnEntry
 loadContractData(AbstractLedgerTxn& ltx, SCAddress const& contract,
                  SCVal const& dataKey, ContractDataDurability type)
 {
     ZoneScoped;
-    return ltx.loadWithoutRecord(
-        contractDataKey(contract, dataKey, type, DATA_ENTRY));
+    return ltx.loadWithoutRecord(contractDataKey(contract, dataKey, type));
 }
 
 ConstLedgerTxnEntry
 loadContractCode(AbstractLedgerTxn& ltx, Hash const& hash)
 {
     ZoneScoped;
-    return ltx.loadWithoutRecord(contractCodeKey(hash, DATA_ENTRY));
+    return ltx.loadWithoutRecord(contractCodeKey(hash));
 }
-#endif
 
 static void
 acquireOrReleaseLiabilities(AbstractLedgerTxn& ltx,
@@ -1834,7 +1827,6 @@ getMinInclusionFee(TransactionFrameBase const& tx, LedgerHeader const& header,
     return effectiveBaseFee * std::max<int64_t>(1, tx.getNumOperations());
 }
 
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
 LumenContractInfo
 getLumenContractInfo(std::string networkPassphrase)
 {
@@ -1861,7 +1853,38 @@ getLumenContractInfo(std::string networkPassphrase)
 
     return {lumenContractID, balanceSymbol, amountSymbol};
 }
-#endif
+
+SCVal
+makeSymbolSCVal(std::string&& str)
+{
+    SCVal val(SCV_SYMBOL);
+    val.sym().assign(std::move(str));
+    return val;
+}
+
+SCVal
+makeSymbolSCVal(std::string const& str)
+{
+    SCVal val(SCV_SYMBOL);
+    val.sym().assign(str);
+    return val;
+}
+
+SCVal
+makeStringSCVal(std::string&& str)
+{
+    SCVal val(SCV_STRING);
+    val.str().assign(std::move(str));
+    return val;
+}
+
+SCVal
+makeU64SCVal(uint64_t u)
+{
+    SCVal val(SCV_U64);
+    val.u64() = u;
+    return val;
+}
 
 namespace detail
 {

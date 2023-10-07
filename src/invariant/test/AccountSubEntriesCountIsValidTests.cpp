@@ -59,12 +59,10 @@ generateRandomSubEntry(LedgerEntry const& acc)
     {
         le = LedgerTestUtils::generateValidLedgerEntry(5);
     } while (le.data.type() == ACCOUNT || le.data.type() == CLAIMABLE_BALANCE ||
-             le.data.type() == LIQUIDITY_POOL
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
-             || le.data.type() == CONFIG_SETTING ||
-             le.data.type() == CONTRACT_DATA || le.data.type() == CONTRACT_CODE
-#endif
-    );
+             le.data.type() == LIQUIDITY_POOL ||
+             le.data.type() == CONFIG_SETTING ||
+             le.data.type() == CONTRACT_DATA ||
+             le.data.type() == CONTRACT_CODE || le.data.type() == EXPIRATION);
     le.lastModifiedLedgerSeq = acc.lastModifiedLedgerSeq;
 
     switch (le.data.type())
@@ -95,11 +93,10 @@ generateRandomSubEntry(LedgerEntry const& acc)
     case CLAIMABLE_BALANCE:
     case ACCOUNT:
     case LIQUIDITY_POOL:
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
     case CONFIG_SETTING:
     case CONTRACT_DATA:
     case CONTRACT_CODE:
-#endif
+    case EXPIRATION:
     default:
         abort();
     }
@@ -120,11 +117,10 @@ generateRandomModifiedSubEntry(LedgerEntry const& acc, LedgerEntry const& se)
     case ACCOUNT:
     case CLAIMABLE_BALANCE:
     case LIQUIDITY_POOL:
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
     case CONFIG_SETTING:
     case CONTRACT_DATA:
     case CONTRACT_CODE:
-#endif
+    case EXPIRATION:
         break;
     case OFFER:
         res.data.offer().offerID = se.data.offer().offerID;

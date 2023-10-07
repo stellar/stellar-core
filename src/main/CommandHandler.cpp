@@ -7,9 +7,11 @@
 #include "crypto/KeyUtils.h"
 #include "herder/Herder.h"
 #include "history/HistoryArchiveManager.h"
+#include "ledger/InternalLedgerEntry.h"
 #include "ledger/LedgerManager.h"
 #include "ledger/LedgerTxn.h"
 #include "ledger/LedgerTxnEntry.h"
+#include "ledger/LedgerTxnImpl.h"
 #include "lib/http/server.hpp"
 #include "lib/json/json.h"
 #include "main/Application.h"
@@ -18,11 +20,7 @@
 #include "overlay/BanManager.h"
 #include "overlay/OverlayManager.h"
 #include "overlay/SurveyManager.h"
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
-#include "ledger/InternalLedgerEntry.h"
-#include "ledger/LedgerTxnImpl.h"
 #include "transactions/InvokeHostFunctionOpFrame.h"
-#endif
 #include "transactions/TransactionBridge.h"
 #include "transactions/TransactionUtils.h"
 #include "util/Logging.h"
@@ -115,9 +113,7 @@ CommandHandler::CommandHandler(Application& app) : mApp(app)
     addRoute("manualclose", &CommandHandler::manualClose);
     addRoute("metrics", &CommandHandler::metrics);
     addRoute("tx", &CommandHandler::tx);
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
     addRoute("getledgerentry", &CommandHandler::getLedgerEntry);
-#endif
     addRoute("upgrades", &CommandHandler::upgrades);
     addRoute("self-check", &CommandHandler::selfCheck);
 
@@ -567,10 +563,17 @@ CommandHandler::upgrades(std::string const& params, std::string& retStr)
             parseOptionalParam<uint32>(retMap, "protocolversion");
         p.mFlags = parseOptionalParam<uint32>(retMap, "flags");
 
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
         auto configXdrIter = retMap.find("configupgradesetkey");
         if (configXdrIter != retMap.end())
         {
+            auto lhhe = mApp.getLedgerManager().getLastClosedLedgerHeader();
+            if (protocolVersionIsBefore(lhhe.header.ledgerVersion,
+                                        SOROBAN_PROTOCOL_VERSION))
+            {
+                retStr = "configupgradesetkey specified before v20";
+                return;
+            }
+
             std::vector<uint8_t> buffer;
             decoder::decode_b64(configXdrIter->second, buffer);
             ConfigUpgradeSetKey key;
@@ -590,7 +593,6 @@ CommandHandler::upgrades(std::string const& params, std::string& retStr)
         }
         p.mMaxSorobanTxSetSize =
             parseOptionalParam<uint32>(retMap, "maxsorobantxsetsize");
-#endif
         mApp.getHerder().setUpgrades(p);
     }
     else if (s == "clear")
@@ -703,7 +705,6 @@ CommandHandler::ll(std::string const& params, std::string& retStr)
     retStr = root.toStyledString();
 }
 
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
 void
 CommandHandler::getLedgerEntry(std::string const& params, std::string& retStr)
 {
@@ -739,8 +740,6 @@ CommandHandler::getLedgerEntry(std::string const& params, std::string& retStr)
     }
     retStr = Json::FastWriter().write(root);
 }
-
-#endif
 
 void
 CommandHandler::tx(std::string const& params, std::string& retStr)
@@ -785,6 +784,14 @@ CommandHandler::tx(std::string const& params, std::string& retStr)
                                      1);
                 resultBase64 = decoder::encode_b64(resultBin);
                 root["error"] = resultBase64;
+                if (transaction->getResultCode() == txSOROBAN_INVALID &&
+                    mApp.getConfig().ENABLE_SOROBAN_DIAGNOSTIC_EVENTS)
+                {
+                    auto diagsBin =
+                        xdr::xdr_to_opaque(transaction->getDiagnosticEvents());
+                    auto diagsBase64 = decoder::encode_b64(diagsBin);
+                    root["diagnostic_events"] = diagsBase64;
+                }
             }
         }
     }

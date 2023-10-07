@@ -32,6 +32,7 @@
 #include "transactions/TransactionMetaFrame.h"
 #include "transactions/TransactionSQL.h"
 #include "transactions/TransactionUtils.h"
+#include "util/DebugMetaUtils.h"
 #include "util/Fs.h"
 #include "util/GlobalChecks.h"
 #include "util/LogSlowExecution.h"
@@ -244,7 +245,7 @@ LedgerManagerImpl::startNewLedger(LedgerHeader const& genesisLedger)
     CLOG_INFO(Ledger, "Established genesis ledger, closing");
     CLOG_INFO(Ledger, "Root account: {}", skey.getStrKeyPublic());
     CLOG_INFO(Ledger, "Root account seed: {}", skey.getStrKeySeed().value);
-    ledgerClosed(ltx);
+    ledgerClosed(ltx, /*ledgerCloseMeta*/ nullptr, /*initialLedgerVers*/ 0);
     ltx.commit();
 }
 
@@ -526,9 +527,10 @@ LedgerManagerImpl::getLastClosedLedgerNum() const
 SorobanNetworkConfig&
 LedgerManagerImpl::getSorobanNetworkConfigInternal(AbstractLedgerTxn& ltx)
 {
+    // updateNetworkConfig will throw if protocol version is invalid
     if (!mSorobanNetworkConfig)
     {
-        maybeUpdateNetworkConfig(false, ltx);
+        updateNetworkConfig(ltx);
     }
 
     return *mSorobanNetworkConfig;
@@ -541,12 +543,6 @@ LedgerManagerImpl::getSorobanNetworkConfig(AbstractLedgerTxn& ltx)
 }
 
 #ifdef BUILD_TESTS
-void
-LedgerManagerImpl::setSorobanNetworkConfig(SorobanNetworkConfig const& config)
-{
-    mSorobanNetworkConfig = config;
-}
-
 SorobanNetworkConfig&
 LedgerManagerImpl::getMutableSorobanNetworkConfig(AbstractLedgerTxn& ltx)
 {
@@ -692,6 +688,10 @@ LedgerManagerImpl::emitNextMeta()
     if (mMetaDebugStream)
     {
         mMetaDebugStream->writeOne(mNextMetaToEmit->getXDR());
+        // Flush debug meta in case there's a crash later in commit (in which
+        // case we'd lose the data in internal buffers). This way we preserve
+        // the meta for problematic ledgers that is vital for diagnostics.
+        mMetaDebugStream->flush();
     }
     mNextMetaToEmit.reset();
 }
@@ -712,14 +712,8 @@ LedgerManagerImpl::closeLedger(LedgerCloseData const& ledgerData)
                                      std::chrono::milliseconds::max()};
 
     LedgerTxn ltx(mApp.getLedgerTxnRoot());
-
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
-    uint64_t blSize = mApp.getLedgerManager()
-                          .getSorobanNetworkConfig(ltx)
-                          .getAverageBucketListSize();
-#endif
-
     auto header = ltx.loadHeader();
+    auto initialLedgerVers = header.current().ledgerVersion;
     ++header.current().ledgerSeq;
     header.current().previousLedgerHash = mLastClosedLedger.hash;
     CLOG_DEBUG(Ledger, "starting closeLedger() on ledgerSeq={}",
@@ -798,13 +792,6 @@ LedgerManagerImpl::closeLedger(LedgerCloseData const& ledgerData)
             header.current().ledgerVersion);
         ledgerCloseMeta->reserveTxProcessing(txSet->sizeTxTotal());
         ledgerCloseMeta->populateTxSet(*txSet);
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
-        if (protocolVersionStartsFrom(header.current().ledgerVersion,
-                                      ProtocolVersion::V_20))
-        {
-            ledgerCloseMeta->setTotalByteSizeOfBucketList(blSize);
-        }
-#endif
     }
 
     // the transaction set that was agreed upon by consensus
@@ -827,7 +814,6 @@ LedgerManagerImpl::closeLedger(LedgerCloseData const& ledgerData)
     }
 
     ltx.loadHeader().current().txSetResultHash = xdrSha256(txResultSet);
-    bool upgradeHappened = false;
 
     // apply any upgrades that were decided during consensus
     // this must be done after applying transactions as the txset
@@ -878,7 +864,6 @@ LedgerManagerImpl::closeLedger(LedgerCloseData const& ledgerData)
                                               static_cast<int>(i + 1));
             }
             ltxUpgrade.commit();
-            upgradeHappened = true;
         }
         catch (std::runtime_error& e)
         {
@@ -892,10 +877,13 @@ LedgerManagerImpl::closeLedger(LedgerCloseData const& ledgerData)
     // Technically only a subset of upgrades affects network configuration, but
     // it's simpler/safer to just refresh it for any upgrade (sometimes as a
     // no-op).
+    if (protocolVersionStartsFrom(ltx.loadHeader().current().ledgerVersion,
+                                  SOROBAN_PROTOCOL_VERSION))
+    {
+        updateNetworkConfig(ltx);
+    }
 
-    maybeUpdateNetworkConfig(upgradeHappened, ltx);
-
-    ledgerClosed(ltx);
+    ledgerClosed(ltx, ledgerCloseMeta, initialLedgerVers);
 
     if (ledgerData.getExpectedHash() &&
         *ledgerData.getExpectedHash() != mLastClosedLedger.hash)
@@ -1082,7 +1070,7 @@ LedgerManagerImpl::maybeResetLedgerCloseMetaDebugStream(uint32_t ledgerSeq)
     {
         if (mMetaDebugStream)
         {
-            if (!FlushAndRotateMetaDebugWork::isDebugSegmentBoundary(ledgerSeq))
+            if (!metautils::isDebugSegmentBoundary(ledgerSeq))
             {
                 // If we've got a stream open and aren't at a reset boundary,
                 // just return -- keep streaming into it.
@@ -1125,32 +1113,47 @@ LedgerManagerImpl::maybeResetLedgerCloseMetaDebugStream(uint32_t ledgerSeq)
             mApp.getClock().getIOContext(),
             /*fsyncOnClose=*/true);
 
-        mMetaDebugPath = FlushAndRotateMetaDebugWork::getMetaDebugFilePath(
+        auto metaDebugPath = metautils::getMetaDebugFilePath(
             mApp.getBucketManager().getBucketDir(), ledgerSeq);
-        releaseAssert(mMetaDebugPath.has_parent_path());
+        releaseAssert(metaDebugPath.has_parent_path());
         try
         {
-            if (fs::mkpath(mMetaDebugPath.parent_path().string()))
+            if (fs::mkpath(metaDebugPath.parent_path().string()))
             {
-                CLOG_DEBUG(Ledger, "Streaming debug metadata to '{}'",
-                           mMetaDebugPath.string());
-                tmpStream->open(mMetaDebugPath.string());
+                // Skip any files for the same ledger. This is useful in case of
+                // a crash-and-restart, where core emits duplicate meta (which
+                // isn't garbage-collected until core gets unstuck, risking a
+                // disk bloat).
+                auto const regexForLedger =
+                    metautils::getDebugMetaRegexForLedger(ledgerSeq);
+                auto files = fs::findfiles(metaDebugPath.parent_path().string(),
+                                           [&](std::string const& file) {
+                                               return std::regex_match(
+                                                   file, regexForLedger);
+                                           });
+                if (files.empty())
+                {
+                    CLOG_DEBUG(Ledger, "Streaming debug metadata to '{}'",
+                               metaDebugPath.string());
+                    tmpStream->open(metaDebugPath.string());
 
-                // If we get to this line, the stream is open.
-                mMetaDebugStream = std::move(tmpStream);
+                    // If we get to this line, the stream is open.
+                    mMetaDebugStream = std::move(tmpStream);
+                    mMetaDebugPath = metaDebugPath;
+                }
             }
             else
             {
                 CLOG_WARNING(Ledger,
                              "Failed to make directory '{}' for debug metadata",
-                             mMetaDebugPath.parent_path().string());
+                             metaDebugPath.parent_path().string());
             }
         }
         catch (std::runtime_error& e)
         {
             CLOG_WARNING(Ledger,
                          "Failed to open debug metadata stream '{}': {}",
-                         mMetaDebugPath.string(), e.what());
+                         metaDebugPath.string(), e.what());
         }
     }
 }
@@ -1173,18 +1176,8 @@ LedgerManagerImpl::advanceLedgerPointers(LedgerHeader const& header,
 }
 
 void
-LedgerManagerImpl::maybeUpdateNetworkConfig(bool upgradeHappened,
-                                            AbstractLedgerTxn& rootLtx)
+LedgerManagerImpl::updateNetworkConfig(AbstractLedgerTxn& rootLtx)
 {
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
-    if (!upgradeHappened && mSorobanNetworkConfig)
-    {
-        return;
-    }
-    if (!mSorobanNetworkConfig)
-    {
-        mSorobanNetworkConfig = std::make_optional<SorobanNetworkConfig>();
-    }
     uint32_t ledgerVersion{};
     {
         LedgerTxn ltx(rootLtx, false,
@@ -1194,11 +1187,19 @@ LedgerManagerImpl::maybeUpdateNetworkConfig(bool upgradeHappened,
 
     if (protocolVersionStartsFrom(ledgerVersion, SOROBAN_PROTOCOL_VERSION))
     {
+        if (!mSorobanNetworkConfig)
+        {
+            mSorobanNetworkConfig = std::make_optional<SorobanNetworkConfig>();
+        }
         mSorobanNetworkConfig->loadFromLedger(
             rootLtx, mApp.getConfig().CURRENT_LEDGER_PROTOCOL_VERSION,
             ledgerVersion);
     }
-#endif
+    else
+    {
+        throw std::runtime_error("Protocol version is before 20: "
+                                 "cannot load Soroban network config");
+    }
 }
 
 static bool
@@ -1482,9 +1483,10 @@ LedgerManagerImpl::storeCurrentLedger(LedgerHeader const& header,
 
 // NB: This is a separate method so a testing subclass can override it.
 void
-LedgerManagerImpl::transferLedgerEntriesToBucketList(AbstractLedgerTxn& ltx,
-                                                     uint32_t ledgerSeq,
-                                                     uint32_t ledgerVers)
+LedgerManagerImpl::transferLedgerEntriesToBucketList(
+    AbstractLedgerTxn& ltx,
+    std::unique_ptr<LedgerCloseMetaFrame> const& ledgerCloseMeta,
+    uint32_t ledgerSeq, uint32_t currLedgerVers, uint32_t initialLedgerVers)
 {
     ZoneScoped;
     std::vector<LedgerEntry> initEntries, liveEntries;
@@ -1493,33 +1495,75 @@ LedgerManagerImpl::transferLedgerEntriesToBucketList(AbstractLedgerTxn& ltx,
 
     // Since snapshots are stored in a LedgerEntry, need to snapshot before
     // sealing the ledger with ltx.getAllEntries
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
-    if (blEnabled)
+    //
+    // Any V20 features must be behind initialLedgerVers check, see comment
+    // in LedgerManagerImpl::ledgerClosed
+    if (blEnabled &&
+        protocolVersionStartsFrom(initialLedgerVers, SOROBAN_PROTOCOL_VERSION))
     {
+        {
+            LedgerTxn ltxEvictions(ltx);
+            mApp.getBucketManager().scanForEviction(ltxEvictions, ledgerSeq);
+            if (ledgerCloseMeta)
+            {
+                ledgerCloseMeta->populateEvictedEntries(
+                    ltxEvictions.getChanges());
+            }
+            ltxEvictions.commit();
+        }
+
         getSorobanNetworkConfigInternal(ltx).maybeSnapshotBucketListSize(
             ledgerSeq, ltx, mApp);
     }
-#endif
 
     ltx.getAllEntries(initEntries, liveEntries, deadEntries);
     if (blEnabled)
     {
-        mApp.getBucketManager().addBatch(mApp, ledgerSeq, ledgerVers,
+        mApp.getBucketManager().addBatch(mApp, ledgerSeq, currLedgerVers,
                                          initEntries, liveEntries, deadEntries);
     }
 }
 
 void
-LedgerManagerImpl::ledgerClosed(AbstractLedgerTxn& ltx)
+LedgerManagerImpl::ledgerClosed(
+    AbstractLedgerTxn& ltx,
+    std::unique_ptr<LedgerCloseMetaFrame> const& ledgerCloseMeta,
+    uint32_t initialLedgerVers)
 {
     ZoneScoped;
     auto ledgerSeq = ltx.loadHeader().current().ledgerSeq;
-    auto ledgerVers = ltx.loadHeader().current().ledgerVersion;
+    auto currLedgerVers = ltx.loadHeader().current().ledgerVersion;
     CLOG_TRACE(Ledger,
                "sealing ledger {} with version {}, sending to bucket list",
-               ledgerSeq, ledgerVers);
+               ledgerSeq, currLedgerVers);
 
-    transferLedgerEntriesToBucketList(ltx, ledgerSeq, ledgerVers);
+    // There is a subtle bug in the upgrade path that wasn't noticed until
+    // protocol 20. For a ledger that upgrades from protocol vN to vN+1, there
+    // are two different assumptions in different parts of the ledger-close
+    // path:
+    //   - In closeLedger we mostly treat the ledger as being on vN, eg. during
+    //     tx apply and LCM construction.
+    //   - In the final stage, when we call ledgerClosed, we pass vN+1 because
+    //     the upgrade completed and modified the ltx header, and we fish the
+    //     protocol out of the ltx header
+    // Before LedgerCloseMetaV2, this inconsistency was mostly harmless since
+    // LedgerCloseMeta was not modified after the LTX header was modified.
+    // However, starting with protocol 20, LedgerCloseMeta is modified after
+    // updating the ltx header when populating BucketList related meta. This
+    // means that this function will attempt to call LedgerCloseMetaV2
+    // functions, but ledgerCloseMeta is actually a LedgerCloseMetaV0 because it
+    // was constructed with the previous protocol version prior to the upgrade.
+    // Due to this, we must check the initial protocol version of ledger instead
+    // of the ledger version of the current ltx header, which may have been
+    // modified via an upgrade.
+    transferLedgerEntriesToBucketList(ltx, ledgerCloseMeta, ledgerSeq,
+                                      currLedgerVers, initialLedgerVers);
+    if (ledgerCloseMeta &&
+        protocolVersionStartsFrom(initialLedgerVers, SOROBAN_PROTOCOL_VERSION))
+    {
+        auto blSize = getSorobanNetworkConfig(ltx).getAverageBucketListSize();
+        ledgerCloseMeta->setTotalByteSizeOfBucketList(blSize);
+    }
 
     ltx.unsealHeader([this](LedgerHeader& lh) {
         mApp.getBucketManager().snapshotLedger(lh);

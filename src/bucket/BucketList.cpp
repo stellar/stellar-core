@@ -11,6 +11,7 @@
 #include "crypto/Random.h"
 #include "crypto/SHA.h"
 #include "ledger/LedgerHashUtils.h"
+#include "ledger/LedgerManager.h"
 #include "ledger/LedgerTxn.h"
 #include "ledger/LedgerTypeUtils.h"
 #include "main/Application.h"
@@ -20,8 +21,10 @@
 #include "util/UnorderedSet.h"
 #include "util/XDRStream.h"
 #include "util/types.h"
+
+#include "medida/counter.h"
+
 #include <Tracy.hpp>
-#include <algorithm>
 #include <fmt/format.h>
 
 namespace stellar
@@ -401,47 +404,23 @@ BucketList::getLedgerEntry(LedgerKey const& k) const
     ZoneScoped;
     std::shared_ptr<LedgerEntry> result{};
 
-    if (!isSorobanDataEntry(k))
-    {
-        auto f = [&](std::shared_ptr<Bucket> b) {
-            auto be = b->getBucketEntry(k);
-            if (be.has_value())
-            {
-                result =
-                    be.value().type() == DEADENTRY
-                        ? nullptr
-                        : std::make_shared<LedgerEntry>(be.value().liveEntry());
-                return true;
-            }
-            else
-            {
-                return false;
-            }
-        };
-
-        loopAllBuckets(f);
-    }
-    else
-    {
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
-        // Never directly return EXPIRATION_EXTENSION entries
-        if (isSorobanExtEntry(k))
+    auto f = [&](std::shared_ptr<Bucket> b) {
+        auto be = b->getBucketEntry(k);
+        if (be.has_value())
         {
-            return nullptr;
+            result =
+                be.value().type() == DEADENTRY
+                    ? nullptr
+                    : std::make_shared<LedgerEntry>(be.value().liveEntry());
+            return true;
         }
-
-        // If entry can have a expiration extension, we need to use loadKeys
-        // which will search for both the DATA_ENTRY and EXPIRATION_EXTENSION
-        // entries.
-        auto resultV = loadKeys({k});
-        if (!resultV.empty())
+        else
         {
-            releaseAssert(resultV.size() == 1);
-            result = std::make_shared<LedgerEntry>(resultV.back());
+            return false;
         }
-#endif
-    }
+    };
 
+    loopAllBuckets(f);
     return result;
 }
 
@@ -450,51 +429,15 @@ BucketList::loadKeys(std::set<LedgerKey, LedgerEntryIdCmp> const& inKeys) const
 {
     ZoneScoped;
     std::vector<LedgerEntry> entries;
-    std::map<LedgerKey, uint32_t, LedgerEntryIdCmp> expirationExtensions;
 
-    // We will build a slightly modified key-set for the query (at least
-    // when looking up soroban keys that might have EXPIRATION_EXTENSIONS).
-    std::set<LedgerKey, LedgerEntryIdCmp> keys;
-
-    for (auto const& k : inKeys)
-    {
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
-        if (isSorobanExtEntry(k))
-        {
-            // Drop any _requested_ EXPIRATION_EXTENSION entries, they
-            // are not valid as inputs.
-            continue;
-        }
-        if (isSorobanDataEntry(k))
-        {
-            // Duplicate any DATA_ENTRY key as an EXPIRATION_EXTENSION
-            // ourselves, so the query below will look for exactly 2 keys
-            // per input DATA_ENTRY key.
-            LedgerKey e = k;
-            setLeType(e, ContractEntryBodyType::EXPIRATION_EXTENSION);
-            keys.emplace(e);
-        }
-#endif
-        keys.emplace(k);
-    }
-
+    // Make a copy of the key set, this loop is destructive
+    auto keys = inKeys;
     auto f = [&](std::shared_ptr<Bucket> b) {
-        b->loadKeys(keys, entries, expirationExtensions);
+        b->loadKeys(keys, entries);
         return keys.empty();
     };
 
     loopAllBuckets(f);
-
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
-    // Remove any EXPIRATION_EXTENSION entries returned from the query, they
-    // should never be returned to callers.
-    entries.erase(std::remove_if(entries.begin(), entries.end(),
-                                 [](LedgerEntry const& e) {
-                                     return isSorobanExtEntry(e.data);
-                                 }),
-                  entries.end());
-#endif
-
     return entries;
 }
 
@@ -655,6 +598,29 @@ BucketList::levelShouldSpill(uint32_t ledger, uint32_t level)
 
     return (ledger == roundDown(ledger, levelHalf(level)) ||
             ledger == roundDown(ledger, levelSize(level)));
+}
+
+// Update period for curr buckets is the incoming spill frequency of the level
+// which the bucket is in. For snap buckets, the update period is the incoming
+// spill frequency of the level below.
+// incoming_spill_frequency(i) = 2^(2i - 1) for i > 0
+// incoming_spill_frequency(0) = 1
+uint32_t
+BucketList::bucketUpdatePeriod(uint32_t level, bool isCurr)
+{
+    if (!isCurr)
+    {
+        // Snap bucket changeRate is the same as the change rate of the curr
+        // bucket in the level below
+        return bucketUpdatePeriod(level + 1, true);
+    }
+
+    if (level == 0)
+    {
+        return 1;
+    }
+
+    return 1u << (2 * level - 1);
 }
 
 bool
@@ -857,6 +823,125 @@ BucketList::addBatch(Application& app, uint32_t currLedger,
     if (!app.getConfig().ARTIFICIALLY_PESSIMIZE_MERGES_FOR_TESTING)
     {
         resolveAnyReadyFutures();
+    }
+}
+
+void
+BucketList::scanForEviction(Application& app, AbstractLedgerTxn& ltx,
+                            uint32_t ledgerSeq,
+                            medida::Meter& entriesEvictedMeter,
+                            medida::Counter& bytesScannedForEvictionCounter,
+                            medida::Counter& incompleteBucketScanCounter)
+{
+    auto getBucketFromIter = [&levels = mLevels](EvictionIterator const& iter) {
+        auto& level = levels.at(iter.bucketListLevel);
+        return iter.isCurrBucket ? level.getCurr() : level.getSnap();
+    };
+
+    if (protocolVersionStartsFrom(ltx.getHeader().ledgerVersion,
+                                  SOROBAN_PROTOCOL_VERSION))
+    {
+        auto const& networkConfig =
+            app.getLedgerManager().getSorobanNetworkConfig(ltx);
+        auto const firstScanLevel =
+            networkConfig.stateExpirationSettings().startingEvictionScanLevel;
+        auto evictionIter = networkConfig.evictionIterator();
+
+        // Check if an upgrade has changed the starting scan level to below the
+        // current iterator level
+        if (evictionIter.bucketListLevel < firstScanLevel)
+        {
+            // Reset iterator to the new minimum level
+            evictionIter.bucketFileOffset = 0;
+            evictionIter.isCurrBucket = true;
+            evictionIter.bucketListLevel = firstScanLevel;
+        }
+
+        // Whenever a Bucket changes (spills or receives an incoming spill), the
+        // iterator offset in that bucket is invalidated. After scanning, we
+        // must write the iterator to the BucketList then close the ledger.
+        // Bucket spills occur on ledger close after we've already written the
+        // iterator, so the iterator may be invalidated. Because of this, we
+        // must check if the Bucket the iterator currently points to changed on
+        // the previous ledger, indicating the current iterator is invalid.
+        if (evictionIter.isCurrBucket)
+        {
+            // Check if bucket received an incoming spill
+            releaseAssert(evictionIter.bucketListLevel != 0);
+            if (BucketList::levelShouldSpill(ledgerSeq - 1,
+                                             evictionIter.bucketListLevel - 1))
+            {
+                // If Bucket changed, reset to start of bucket
+                evictionIter.bucketFileOffset = 0;
+            }
+        }
+        else
+        {
+            if (BucketList::levelShouldSpill(ledgerSeq - 1,
+                                             evictionIter.bucketListLevel))
+            {
+                // If Bucket changed, reset to start of bucket
+                evictionIter.bucketFileOffset = 0;
+            }
+        }
+
+        auto scanSize =
+            networkConfig.stateExpirationSettings().evictionScanSize;
+        auto maxEntriesToEvict =
+            networkConfig.stateExpirationSettings().maxEntriesToExpire;
+
+        auto initialLevel = evictionIter.bucketListLevel;
+        auto initialIsCurr = evictionIter.isCurrBucket;
+        auto b = getBucketFromIter(evictionIter);
+        while (!b->scanForEviction(
+            ltx, evictionIter, scanSize, maxEntriesToEvict, ledgerSeq,
+            entriesEvictedMeter, bytesScannedForEvictionCounter))
+        {
+            // If we reached eof in curr bucket, start scanning snap.
+            // Last level has no snap so cycle back to the initial level.
+            if (evictionIter.isCurrBucket &&
+                evictionIter.bucketListLevel != kNumLevels - 1)
+            {
+                evictionIter.isCurrBucket = false;
+                evictionIter.bucketFileOffset = 0;
+            }
+            else
+            {
+                // If we reached eof in snap, move to next level
+                evictionIter.bucketListLevel++;
+                evictionIter.isCurrBucket = true;
+                evictionIter.bucketFileOffset = 0;
+
+                // If we have scanned the last level, cycle back to initial
+                // level
+                if (evictionIter.bucketListLevel == kNumLevels)
+                {
+                    evictionIter.bucketListLevel = firstScanLevel;
+                }
+            }
+
+            // If we are back to the bucket we started at, break
+            if (evictionIter.bucketListLevel == initialLevel &&
+                evictionIter.isCurrBucket == initialIsCurr)
+            {
+                break;
+            }
+
+            b = getBucketFromIter(evictionIter);
+
+            // Check to see if we can finish scanning the new bucket before it
+            // receives an update
+            auto period = bucketUpdatePeriod(evictionIter.bucketListLevel,
+                                             evictionIter.isCurrBucket);
+            if (period * scanSize < b->getSize())
+            {
+                CLOG_WARNING(
+                    Bucket, "Bucket too large for current eviction scan size.");
+                incompleteBucketScanCounter.inc();
+            }
+        }
+
+        networkConfig.updateEvictionIterator(ltx, evictionIter);
     }
 }
 

@@ -102,29 +102,48 @@ EntryCounts::EntryCounts(std::shared_ptr<Bucket> bucket)
 
 void
 LedgerManagerForBucketTests::transferLedgerEntriesToBucketList(
-    AbstractLedgerTxn& ltx, uint32_t ledgerSeq, uint32_t ledgerVers)
+    AbstractLedgerTxn& ltx,
+    std::unique_ptr<LedgerCloseMetaFrame> const& ledgerCloseMeta,
+    uint32_t ledgerSeq, uint32_t currLedgerVers, uint32_t initialLedgerVers)
 {
     if (mUseTestEntries)
     {
         // Seal the ltx but throw its entries away.
         std::vector<LedgerEntry> init, live;
         std::vector<LedgerKey> dead;
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
-        mApp.getLedgerManager()
-            .getMutableSorobanNetworkConfig(ltx)
-            .maybeSnapshotBucketListSize(ledgerSeq, ltx, mApp);
-#endif
+
+        // Any V20 features must be behind initialLedgerVers check, see comment
+        // in LedgerManagerImpl::ledgerClosed
+        if (protocolVersionStartsFrom(initialLedgerVers,
+                                      SOROBAN_PROTOCOL_VERSION))
+        {
+            {
+                LedgerTxn ltxEvictions(ltx);
+                mApp.getBucketManager().scanForEviction(ltxEvictions,
+                                                        ledgerSeq);
+                if (ledgerCloseMeta)
+                {
+                    ledgerCloseMeta->populateEvictedEntries(
+                        ltxEvictions.getChanges());
+                }
+                ltxEvictions.commit();
+            }
+            mApp.getLedgerManager()
+                .getMutableSorobanNetworkConfig(ltx)
+                .maybeSnapshotBucketListSize(ledgerSeq, ltx, mApp);
+        }
+
         ltx.getAllEntries(init, live, dead);
         // Use the testing values.
-        mApp.getBucketManager().addBatch(mApp, ledgerSeq, ledgerVers,
+        mApp.getBucketManager().addBatch(mApp, ledgerSeq, currLedgerVers,
                                          mTestInitEntries, mTestLiveEntries,
                                          mTestDeadEntries);
         mUseTestEntries = false;
     }
     else
     {
-        LedgerManagerImpl::transferLedgerEntriesToBucketList(ltx, ledgerSeq,
-                                                             ledgerVers);
+        LedgerManagerImpl::transferLedgerEntriesToBucketList(
+            ltx, ledgerCloseMeta, ledgerSeq, currLedgerVers, initialLedgerVers);
     }
 }
 

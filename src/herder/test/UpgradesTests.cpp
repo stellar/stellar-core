@@ -7,6 +7,7 @@
 #include "bucket/BucketManager.h"
 #include "bucket/BucketManagerImpl.h"
 #include "bucket/test/BucketTestUtils.h"
+#include "crypto/Random.h"
 #include "herder/Herder.h"
 #include "herder/HerderImpl.h"
 #include "herder/LedgerCloseData.h"
@@ -214,7 +215,6 @@ makeTxCountUpgrade(int txCount)
     return result;
 }
 
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
 LedgerUpgrade
 makeMaxSorobanTxSizeUpgrade(int txSize)
 {
@@ -222,7 +222,6 @@ makeMaxSorobanTxSizeUpgrade(int txSize)
     result.newMaxSorobanTxSetSize() = txSize;
     return result;
 }
-#endif
 
 LedgerUpgrade
 makeFlagsUpgrade(int flags)
@@ -232,7 +231,6 @@ makeFlagsUpgrade(int flags)
     return result;
 }
 
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
 ConfigUpgradeSetFrameConstPtr
 makeMaxContractSizeBytesTestUpgrade(AbstractLedgerTxn& ltx,
                                     uint32_t maxContractSizeBytes)
@@ -262,8 +260,6 @@ getBucketListSizeWindowKey()
         CONFIG_SETTING_BUCKETLIST_SIZE_WINDOW;
     return windowKey;
 }
-
-#endif
 
 void
 testListUpgrades(VirtualClock::system_time_point preferredUpgradeDatetime,
@@ -607,7 +603,6 @@ TEST_CASE("Ledger Manager applies upgrades properly", "[upgrades]")
     }
 }
 
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
 TEST_CASE("config upgrade validation", "[upgrades]")
 {
     VirtualClock clock;
@@ -702,16 +697,22 @@ TEST_CASE("config upgrade validation", "[upgrades]")
 
                     LedgerEntry le;
                     le.data.type(CONTRACT_DATA);
-                    le.data.contractData().body.bodyType(DATA_ENTRY);
                     le.data.contractData().contract.type(
                         SC_ADDRESS_TYPE_CONTRACT);
                     le.data.contractData().contract.contractId() = contractID;
                     le.data.contractData().durability = PERSISTENT;
-                    le.data.contractData().expirationLedgerSeq = UINT32_MAX;
                     le.data.contractData().key = key;
-                    le.data.contractData().body.data().val = val;
+                    le.data.contractData().val = val;
+
+                    LedgerEntry expiration;
+                    expiration.data.type(EXPIRATION);
+                    expiration.data.expiration().expirationLedgerSeq =
+                        UINT32_MAX;
+                    expiration.data.expiration().keyHash =
+                        getExpirationKey(le).expiration().keyHash;
 
                     ltx.create(InternalLedgerEntry(le));
+                    ltx.create(InternalLedgerEntry(expiration));
 
                     auto upgradeKey =
                         ConfigUpgradeSetKey{contractID, hashOfUpgradeSet};
@@ -841,12 +842,12 @@ TEST_CASE("config upgrades applied to ledger", "[soroban][upgrades]")
             auto& configEntry = configUpgradeSetXdr.updatedEntry.emplace_back();
             configEntry.configSettingID(CONFIG_SETTING_CONTRACT_COMPUTE_V0);
             configEntry.contractCompute().feeRatePerInstructionsIncrement = 111;
-            configEntry.contractCompute().ledgerMaxInstructions =
-                MinimumSorobanNetworkConfig::LEDGER_MAX_INSTRUCTIONS;
             configEntry.contractCompute().txMemoryLimit =
                 MinimumSorobanNetworkConfig::MEMORY_LIMIT;
             configEntry.contractCompute().txMaxInstructions =
                 MinimumSorobanNetworkConfig::TX_MAX_INSTRUCTIONS;
+            configEntry.contractCompute().ledgerMaxInstructions =
+                configEntry.contractCompute().txMaxInstructions;
             auto& configEntry2 =
                 configUpgradeSetXdr.updatedEntry.emplace_back();
             configEntry2.configSettingID(
@@ -859,7 +860,7 @@ TEST_CASE("config upgrades applied to ledger", "[soroban][upgrades]")
         executeUpgrade(*app, makeConfigUpgrade(*configUpgradeSet));
         REQUIRE(sorobanConfig.feeRatePerInstructionsIncrement() == 111);
         REQUIRE(sorobanConfig.ledgerMaxInstructions() ==
-                MinimumSorobanNetworkConfig::LEDGER_MAX_INSTRUCTIONS);
+                MinimumSorobanNetworkConfig::TX_MAX_INSTRUCTIONS);
         REQUIRE(sorobanConfig.txMemoryLimit() ==
                 MinimumSorobanNetworkConfig::MEMORY_LIMIT);
         REQUIRE(sorobanConfig.txMaxInstructions() ==
@@ -929,7 +930,6 @@ TEST_CASE("Soroban max tx set size upgrade applied to ledger",
     REQUIRE(sorobanConfig.ledgerMaxTxCount() == 321);
 }
 
-#endif
 TEST_CASE("upgrade to version 10", "[upgrades]")
 {
     VirtualClock clock;
@@ -2045,7 +2045,57 @@ TEST_CASE("upgrade to version 13", "[upgrades]")
     }
 }
 
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
+// There is a subtle inconsistency where for a ledger that upgrades from
+// protocol vN to vN+1 that also changed LedgerCloseMeta version, the ledger
+// header will be protocol vN+1, but the meta emitted for that ledger will be
+// the LedgerCloseMeta version for vN. This test checks that the meta versions
+// are correct the protocol 20 upgrade that updates LedgerCloseMeta to V2 and
+// that no asserts are thrown.
+TEST_CASE("upgrade to version 20 - LedgerCloseMetaV2")
+{
+    TmpDirManager tdm(std::string("version-20-upgrade-meta-") +
+                      binToHex(randomBytes(8)));
+    TmpDir td = tdm.tmpDir("version-20-upgrade-meta-ok");
+    std::string metaPath = td.getName() + "/stream.xdr";
+
+    VirtualClock clock;
+    Config cfg = getTestConfig();
+    cfg.METADATA_OUTPUT_STREAM = metaPath;
+    cfg.USE_CONFIG_FOR_GENESIS = false;
+    auto app = createTestApplication(clock, cfg);
+
+    executeUpgrade(*app, makeProtocolVersionUpgrade(
+                             static_cast<uint32_t>(SOROBAN_PROTOCOL_VERSION)));
+
+    uint32 currLedger = app->getLedgerManager().getLastClosedLedgerNum();
+    closeLedgerOn(*app, currLedger + 1, 2, 1, 2016);
+
+    XDRInputFileStream in;
+    in.open(metaPath);
+    LedgerCloseMeta lcm;
+    auto metaFrameCount = 0;
+    for (; in.readOne(lcm); ++metaFrameCount)
+    {
+        // First meta frame from upgrade should still be version V0
+        if (metaFrameCount == 0)
+        {
+            REQUIRE(lcm.v() == 0);
+        }
+        // Meta frame after upgrade should be V2
+        else if (metaFrameCount == 1)
+        {
+            REQUIRE(lcm.v() == 2);
+        }
+        // Should only be 2 meta frames
+        else
+        {
+            REQUIRE(false);
+        }
+    }
+
+    REQUIRE(metaFrameCount == 2);
+}
+
 TEST_CASE("configuration initialized in version upgrade", "[upgrades]")
 {
     VirtualClock clock;
@@ -2079,8 +2129,7 @@ TEST_CASE("configuration initialized in version upgrade", "[upgrades]")
     REQUIRE(networkConfig.getAverageBucketListSize() == blSize);
 
     // Check in memory window
-    auto const& inMemoryWindow =
-        networkConfig.getBucketListSizeWindowForTesting();
+    auto const& inMemoryWindow = networkConfig.mBucketListSizeSnapshots;
     REQUIRE(inMemoryWindow.size() ==
             InitialSorobanNetworkConfig::BUCKET_LIST_SIZE_WINDOW_SAMPLE_SIZE);
     for (auto const& e : inMemoryWindow)
@@ -2100,7 +2149,6 @@ TEST_CASE("configuration initialized in version upgrade", "[upgrades]")
         REQUIRE(e == blSize);
     }
 }
-#endif
 
 TEST_CASE_VERSIONS("upgrade base reserve", "[upgrades]")
 {
@@ -2690,13 +2738,7 @@ TEST_CASE_VERSIONS("upgrade invalid during ledger close", "[upgrades]")
         for_versions_from(18, *app, [&] {
             auto allFlags = DISABLE_LIQUIDITY_POOL_TRADING_FLAG |
                             DISABLE_LIQUIDITY_POOL_DEPOSIT_FLAG |
-                            DISABLE_LIQUIDITY_POOL_WITHDRAWAL_FLAG
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
-                            | DISABLE_CONTRACT_CREATE |
-                            DISABLE_CONTRACT_UPDATE | DISABLE_CONTRACT_REMOVE |
-                            DISABLE_CONTRACT_INVOKE
-#endif
-                ;
+                            DISABLE_LIQUIDITY_POOL_WITHDRAWAL_FLAG;
             REQUIRE(allFlags == MASK_LEDGER_HEADER_FLAGS);
 
             executeUpgrade(*app, makeFlagsUpgrade(MASK_LEDGER_HEADER_FLAGS + 1),
@@ -2804,7 +2846,6 @@ TEST_CASE("upgrade from cpp14 serialized data", "[upgrades]")
     REQUIRE(!up.mBaseReserve.has_value());
 }
 
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
 TEST_CASE("upgrades serialization roundtrip", "[upgrades]")
 {
     auto cfg = getTestConfig();
@@ -2884,8 +2925,6 @@ TEST_CASE("upgrades serialization roundtrip", "[upgrades]")
 )");
     }
 }
-
-#endif
 
 TEST_CASE_VERSIONS("upgrade flags", "[upgrades][liquiditypool]")
 {
@@ -2991,7 +3030,7 @@ TEST_CASE("upgrade to generalized tx set changes TxSetFrame format",
           "[upgrades]")
 {
     if (protocolVersionIsBefore(Config::CURRENT_LEDGER_PROTOCOL_VERSION,
-                                GENERALIZED_TX_SET_PROTOCOL_VERSION))
+                                SOROBAN_PROTOCOL_VERSION))
     {
         return;
     }
@@ -3001,17 +3040,16 @@ TEST_CASE("upgrade to generalized tx set changes TxSetFrame format",
 
     auto app = createTestApplication(clock, cfg);
 
-    executeUpgrade(
-        *app, makeProtocolVersionUpgrade(
-                  static_cast<int>(GENERALIZED_TX_SET_PROTOCOL_VERSION) - 1));
+    executeUpgrade(*app, makeProtocolVersionUpgrade(
+                             static_cast<int>(SOROBAN_PROTOCOL_VERSION) - 1));
 
     auto root = TestAccount::createRoot(*app);
     TxSetFrame::Transactions txs = {root.tx({payment(root, 1)})};
     auto txSet = TxSetFrame::makeFromTransactions(txs, *app, 0, 0);
     REQUIRE(!txSet->isGeneralizedTxSet());
 
-    executeUpgrade(*app, makeProtocolVersionUpgrade(static_cast<int>(
-                             GENERALIZED_TX_SET_PROTOCOL_VERSION)));
+    executeUpgrade(*app, makeProtocolVersionUpgrade(
+                             static_cast<int>(SOROBAN_PROTOCOL_VERSION)));
 
     txSet = TxSetFrame::makeFromTransactions(txs, *app, 0, 0);
     REQUIRE(txSet->isGeneralizedTxSet());
@@ -3020,7 +3058,7 @@ TEST_CASE("upgrade to generalized tx set changes TxSetFrame format",
 TEST_CASE("upgrade to generalized tx set in network", "[upgrades][overlay]")
 {
     if (protocolVersionIsBefore(Config::CURRENT_LEDGER_PROTOCOL_VERSION,
-                                GENERALIZED_TX_SET_PROTOCOL_VERSION))
+                                SOROBAN_PROTOCOL_VERSION))
     {
         return;
     }
@@ -3030,7 +3068,7 @@ TEST_CASE("upgrade to generalized tx set in network", "[upgrades][overlay]")
             auto cfg = getTestConfig(i, Config::TESTDB_ON_DISK_SQLITE);
             cfg.MAX_SLOTS_TO_REMEMBER = 12;
             cfg.TESTING_UPGRADE_LEDGER_PROTOCOL_VERSION =
-                static_cast<uint32_t>(GENERALIZED_TX_SET_PROTOCOL_VERSION) - 1;
+                static_cast<uint32_t>(SOROBAN_PROTOCOL_VERSION) - 1;
             // Set max tx size to accommodate loadgen
             cfg.TESTING_UPGRADE_MAX_TX_SET_SIZE = 1000;
             return cfg;
@@ -3053,7 +3091,7 @@ TEST_CASE("upgrade to generalized tx set in network", "[upgrades][overlay]")
     {
         Upgrades::UpgradeParameters upgrades;
         upgrades.mProtocolVersion = std::make_optional<uint32>(
-            static_cast<uint32>(GENERALIZED_TX_SET_PROTOCOL_VERSION));
+            static_cast<uint32>(SOROBAN_PROTOCOL_VERSION));
         // Upgrade to generalized tx set in 3 ledgers (4 ledgers before update
         // is applied).
         upgrades.mUpgradeTime =
@@ -3075,7 +3113,7 @@ TEST_CASE("upgrade to generalized tx set in network", "[upgrades][overlay]")
                 nodes[0]->getLedgerManager()
                         .getLastClosedLedgerHeader()
                         .header.ledgerVersion ==
-                    static_cast<uint32_t>(GENERALIZED_TX_SET_PROTOCOL_VERSION))
+                    static_cast<uint32_t>(SOROBAN_PROTOCOL_VERSION))
             {
                 upgradeLedger =
                     nodes[0]->getLedgerManager().getLastClosedLedgerNum();

@@ -78,7 +78,13 @@ class LedgerManagerImpl : public LedgerManager
         TransactionResultSet& txResultSet,
         std::unique_ptr<LedgerCloseMetaFrame> const& ledgerCloseMeta);
 
-    void ledgerClosed(AbstractLedgerTxn& ltx);
+    // initialLedgerVers must be the ledger version at the start of the ledger.
+    // On the ledger in which a protocol upgrade from vN to vN + 1 occurs,
+    // initialLedgerVers must be vN.
+    void
+    ledgerClosed(AbstractLedgerTxn& ltx,
+                 std::unique_ptr<LedgerCloseMetaFrame> const& ledgerCloseMeta,
+                 uint32_t initialLedgerVers);
 
     void storeCurrentLedger(LedgerHeader const& header, bool storeHeader);
     void
@@ -95,9 +101,16 @@ class LedgerManagerImpl : public LedgerManager
     getSorobanNetworkConfigInternal(AbstractLedgerTxn& ltx);
 
   protected:
-    virtual void transferLedgerEntriesToBucketList(AbstractLedgerTxn& ltx,
-                                                   uint32_t ledgerSeq,
-                                                   uint32_t ledgerVers);
+    // initialLedgerVers must be the ledger version at the start of the ledger
+    // and currLedgerVers is the ledger version in the current ltx header. These
+    // values are the same except on the ledger in which a protocol upgrade from
+    // vN to vN + 1 occurs. initialLedgerVers must be vN and currLedgerVers must
+    // be vN + 1.
+    virtual void transferLedgerEntriesToBucketList(
+        AbstractLedgerTxn& ltx,
+        std::unique_ptr<LedgerCloseMetaFrame> const& ledgerCloseMeta,
+        uint32_t ledgerSeq, uint32_t currLedgerVers,
+        uint32_t initialLedgerVers);
 
     void advanceLedgerPointers(LedgerHeader const& header,
                                bool debugLog = true);
@@ -105,7 +118,7 @@ class LedgerManagerImpl : public LedgerManager
     // This needs to be called after the protocol upgrades or once
     // during the catchups/test setup etc.
     // This call is read-only and hence `ltx` can be read-only.
-    void maybeUpdateNetworkConfig(bool upgradeHappened, AbstractLedgerTxn& ltx);
+    void updateNetworkConfig(AbstractLedgerTxn& ltx);
     void logTxApplyMetrics(AbstractLedgerTxn& ltx, size_t numTxs,
                            size_t numOps);
 
@@ -132,7 +145,6 @@ class LedgerManagerImpl : public LedgerManager
     getSorobanNetworkConfig(AbstractLedgerTxn& ltx) override;
 
 #ifdef BUILD_TESTS
-    void setSorobanNetworkConfig(SorobanNetworkConfig const& config) override;
     SorobanNetworkConfig&
     getMutableSorobanNetworkConfig(AbstractLedgerTxn& ltx) override;
 #endif

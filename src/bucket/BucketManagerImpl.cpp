@@ -122,6 +122,12 @@ BucketManagerImpl::BucketManagerImpl(Application& app)
           {"bucketlistDB", "bloom", "misses"}, "bloom"))
     , mBucketListDBBloomLookups(app.getMetrics().NewMeter(
           {"bucketlistDB", "bloom", "lookups"}, "bloom"))
+    , mEntriesEvicted(app.getMetrics().NewMeter(
+          {"state-expiration", "eviction", "entries-evicted"}, "eviction"))
+    , mBytesScannedForEviction(app.getMetrics().NewCounter(
+          {"state-expiration", "eviction", "bytes-scanned"}))
+    , mIncompleteBucketScans(app.getMetrics().NewCounter(
+          {"state-expiration", "eviction", "incomplete-scan"}))
     // Minimal DB is stored in the buckets dir, so delete it only when
     // mode does not use minimal DB
     , mDeleteEntireBucketDirInDtor(
@@ -845,6 +851,12 @@ BucketManagerImpl::getBucketHashesInBucketDirForTesting() const
     }
     return hashes;
 }
+
+medida::Meter&
+BucketManagerImpl::getEntriesEvictedMeter() const
+{
+    return mEntriesEvicted;
+}
 #endif
 
 // updates the given LedgerHeader to reflect the current state of the bucket
@@ -878,6 +890,19 @@ BucketManagerImpl::maybeSetIndex(std::shared_ptr<Bucket> b,
     if (!isShutdown() && index && !b->isIndexed())
     {
         b->setIndex(std::move(index));
+    }
+}
+
+void
+BucketManagerImpl::scanForEviction(AbstractLedgerTxn& ltx, uint32_t ledgerSeq)
+{
+    ZoneScoped;
+    if (protocolVersionStartsFrom(ltx.getHeader().ledgerVersion,
+                                  SOROBAN_PROTOCOL_VERSION))
+    {
+        mBucketList->scanForEviction(mApp, ltx, ledgerSeq, mEntriesEvicted,
+                                     mBytesScannedForEviction,
+                                     mIncompleteBucketScans);
     }
 }
 

@@ -14,14 +14,6 @@ else # !BUILD_TESTS
 stellar_core_SOURCES = main/StellarCoreVersion.cpp main/XDRFilesSha256.cpp $(SRC_CXX_FILES)
 endif # !BUILD_TESTS
 
-if ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
-main/XDRFilesSha256.cpp: $(SRC_X_FILES) Makefile $(top_srcdir)/hash-xdrs.sh
-	$(top_srcdir)/hash-xdrs.sh protocol-next >$@
-else
-main/XDRFilesSha256.cpp: $(SRC_X_FILES) Makefile $(top_srcdir)/hash-xdrs.sh
-	$(top_srcdir)/hash-xdrs.sh protocol-curr >$@
-endif
-
 if ENABLE_PROTOCOL_UPGRADE_VIA_SOROBAN_ENV_HOST_PREV
 CARGO_FEATURES = --features soroban-env-host-prev
 else
@@ -29,6 +21,15 @@ CARGO_FEATURES =
 endif
 if USE_TRACY
 CARGO_FEATURES += --features tracy
+endif
+
+if ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
+CARGO_FEATURES += --features core-vnext
+main/XDRFilesSha256.cpp: $(SRC_X_FILES) Makefile $(top_srcdir)/hash-xdrs.sh
+	$(top_srcdir)/hash-xdrs.sh protocol-next >$@
+else
+main/XDRFilesSha256.cpp: $(SRC_X_FILES) Makefile $(top_srcdir)/hash-xdrs.sh
+	$(top_srcdir)/hash-xdrs.sh protocol-curr >$@
 endif
 
 stellar_core_LDADD = $(soci_LIBS) $(libmedida_LIBS)		\
@@ -74,7 +75,6 @@ stellar_core_SOURCES += util/xdrquery/XDRQueryScanner.cpp util/xdrquery/XDRQuery
 BUILT_SOURCES += rust/RustBridge.h rust/RustBridge.cpp
 stellar_core_SOURCES += rust/RustBridge.h rust/RustBridge.cpp
 
-if ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
 RUST_BUILD_DIR=$(top_builddir)/src/rust
 RUST_BIN_DIR=$(RUST_BUILD_DIR)/bin
 RUST_TARGET_DIR=$(RUST_BUILD_DIR)/target
@@ -86,7 +86,7 @@ stellar_core_LDADD += $(LIBRUST_STELLAR_CORE) -ldl
 
 $(RUST_CXXBRIDGE):
 	mkdir -p $(RUST_BIN_DIR)
-	$(CARGO) install --root $(RUST_BUILD_DIR) cxxbridge-cmd --version 1.0.68
+	CARGO_HTTP_MULTIPLEXING=false $(CARGO) install --root $(RUST_BUILD_DIR) cxxbridge-cmd --version 1.0.68
 
 rust/RustBridge.h: rust/src/lib.rs $(SRC_RUST_FILES) Makefile $(RUST_CXXBRIDGE)
 	$(RUST_CXXBRIDGE) $< --header --output $@.tmp
@@ -99,16 +99,6 @@ rust/RustBridge.cpp: rust/src/lib.rs $(SRC_RUST_FILES) Makefile $(RUST_CXXBRIDGE
 $(LIBRUST_STELLAR_CORE): $(RUST_HOST_DEPFILES) $(SRC_RUST_FILES) Makefile
 	cd $(RUST_BUILD_DIR) && cargo build --$(RUST_PROFILE) --target-dir $(abspath $(RUST_TARGET_DIR)) $(CARGO_FEATURES)
 	ranlib $@
-else
-
-rust/RustBridge.cpp:
-	touch $@
-
-rust/RustBridge.h:
-	touch $@
-
-endif # ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
-
 
 $(srcdir)/src.mk: $(top_srcdir)/make-mks
 	cd $(top_srcdir) && ./make-mks

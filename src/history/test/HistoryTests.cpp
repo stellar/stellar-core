@@ -953,9 +953,9 @@ TEST_CASE("Catchup with protocol upgrade", "[catchup][history]")
     {
 
         if (protocolVersionStartsFrom(Config::CURRENT_LEDGER_PROTOCOL_VERSION,
-                                      GENERALIZED_TX_SET_PROTOCOL_VERSION))
+                                      SOROBAN_PROTOCOL_VERSION))
         {
-            testUpgrade(GENERALIZED_TX_SET_PROTOCOL_VERSION);
+            testUpgrade(SOROBAN_PROTOCOL_VERSION);
         }
     }
 }

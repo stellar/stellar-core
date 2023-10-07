@@ -266,11 +266,8 @@ TEST_CASE_VERSIONS("bucketmanager ownership", "[bucket][bucketmanager]")
             CHECK(b1.use_count() == 3);
 
             // But if we mutate the curr bucket of the bucketlist, it should.
-            live[0] = LedgerTestUtils::generateValidLedgerEntryWithExclusions({
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
-                CONFIG_SETTING
-#endif
-            });
+            live[0] = LedgerTestUtils::generateValidLedgerEntryWithExclusions(
+                {CONFIG_SETTING});
             bl.addBatch(*app, 1, getAppLedgerVersion(app), {}, live, dead);
             clearFutures(app, bl);
             CHECK(b1.use_count() == 2);
@@ -494,12 +491,7 @@ TEST_CASE("bucketmanager do not leak empty-merge futures",
     {
         auto entries =
             LedgerTestUtils::generateValidLedgerEntriesWithExclusions(
-                {
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
-                    CONFIG_SETTING
-#endif
-                },
-                8);
+                {CONFIG_SETTING}, 8);
         REQUIRE(entries.size() == 8);
         for (auto const& e : entries)
         {
@@ -1128,7 +1120,8 @@ class StopAndRestartBucketMergesTest
             auto nInits =
                 nEntriesInBatch - (liveEntries.size() + deadEntries.size());
             auto newRandom =
-                LedgerTestUtils::generateValidLedgerEntries(nInits);
+                LedgerTestUtils::generateValidLedgerEntriesWithExclusions(
+                    {CONFIG_SETTING}, nInits);
             for (auto const& e : newRandom)
             {
                 auto k = LedgerEntryKey(e);

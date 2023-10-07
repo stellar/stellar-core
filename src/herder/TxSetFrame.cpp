@@ -203,10 +203,10 @@ computeNonGenericTxSetContentsHash(TransactionSet const& xdrTxSet)
 int64_t
 computePerOpFee(TransactionFrameBase const& tx, uint32_t ledgerVersion)
 {
-    auto rounding = protocolVersionStartsFrom(
-                        ledgerVersion, GENERALIZED_TX_SET_PROTOCOL_VERSION)
-                        ? Rounding::ROUND_DOWN
-                        : Rounding::ROUND_UP;
+    auto rounding =
+        protocolVersionStartsFrom(ledgerVersion, SOROBAN_PROTOCOL_VERSION)
+            ? Rounding::ROUND_DOWN
+            : Rounding::ROUND_UP;
     auto txOps = tx.getNumOperations();
     return bigDivideOrThrow(tx.getInclusionFee(), 1,
                             static_cast<int64_t>(txOps), rounding);
@@ -250,7 +250,7 @@ TxSetFrame::makeFromTransactions(Transactions txs, Application& app,
     phases.emplace_back(txs);
     auto lclHeader = app.getLedgerManager().getLastClosedLedgerHeader();
     if (protocolVersionStartsFrom(lclHeader.header.ledgerVersion,
-                                  GENERALIZED_TX_SET_PROTOCOL_VERSION))
+                                  SOROBAN_PROTOCOL_VERSION))
     {
         // Empty soroban phase
         phases.emplace_back();
@@ -268,7 +268,7 @@ TxSetFrame::makeFromTransactions(Transactions txs, Application& app,
 TxSetFrame::TxSetFrame(LedgerHeaderHistoryEntry const& lclHeader,
                        TxPhases const& txs)
     : TxSetFrame(protocolVersionStartsFrom(lclHeader.header.ledgerVersion,
-                                           GENERALIZED_TX_SET_PROTOCOL_VERSION),
+                                           SOROBAN_PROTOCOL_VERSION),
                  lclHeader.hash, txs)
 {
 }
@@ -298,7 +298,6 @@ TxSetFrame::makeFromTransactions(TxPhases const& txPhases, Application& app,
     for (int i = 0; i < txPhases.size(); ++i)
     {
         auto& txs = txPhases[i];
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
         bool expectSoroban = static_cast<Phase>(i) == Phase::SOROBAN;
         if (!std::all_of(txs.begin(), txs.end(), [&](auto const& tx) {
                 return tx->isSoroban() == expectSoroban;
@@ -307,7 +306,7 @@ TxSetFrame::makeFromTransactions(TxPhases const& txPhases, Application& app,
             throw std::runtime_error("TxSetFrame::makeFromTransactions: phases "
                                      "contain txs of wrong type");
         }
-#endif
+
         auto& invalid = invalidTxs[i];
         validatedPhases.emplace_back(
             TxSetUtils::trimInvalid(txs, app, lowerBoundCloseTimeOffset,
@@ -376,7 +375,7 @@ TxSetFrame::makeEmpty(LedgerHeaderHistoryEntry const& lclHeader)
     // simple and exception-safe.
     TxPhases phases;
     phases.resize(protocolVersionStartsFrom(lclHeader.header.ledgerVersion,
-                                            GENERALIZED_TX_SET_PROTOCOL_VERSION)
+                                            SOROBAN_PROTOCOL_VERSION)
                       ? static_cast<size_t>(Phase::PHASE_COUNT)
                       : 1);
     std::shared_ptr<TxSetFrame> txSet(new TxSetFrame(lclHeader, phases));
@@ -579,7 +578,7 @@ TxSetFrame::checkValid(Application& app, uint64_t lowerBoundCloseTimeOffset,
     }
 
     bool needGeneralizedTxSet = protocolVersionStartsFrom(
-        lcl.header.ledgerVersion, GENERALIZED_TX_SET_PROTOCOL_VERSION);
+        lcl.header.ledgerVersion, SOROBAN_PROTOCOL_VERSION);
     if (needGeneralizedTxSet != isGeneralizedTxSet())
     {
         CLOG_DEBUG(Herder,
@@ -628,12 +627,10 @@ TxSetFrame::checkValid(Application& app, uint64_t lowerBoundCloseTimeOffset,
         {
             return false;
         }
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
         if (!checkFeeMap(getInclusionFeeMap(Phase::SOROBAN)))
         {
             return false;
         }
-#endif
     }
 
     if (this->size(lcl.header, Phase::CLASSIC) > lcl.header.maxTxSetSize)
@@ -643,25 +640,22 @@ TxSetFrame::checkValid(Application& app, uint64_t lowerBoundCloseTimeOffset,
                    lcl.header.maxTxSetSize);
         return false;
     }
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
+
     if (needGeneralizedTxSet)
     {
         // First, ensure the tx set does not contain multiple txs per source
         // account
-        if (app.getConfig().LIMIT_TX_QUEUE_SOURCE_ACCOUNT)
+        std::unordered_set<AccountID> seenAccounts;
+        for (auto const& phase : mTxPhases)
         {
-            std::unordered_set<AccountID> seenAccounts;
-            for (auto const& phase : mTxPhases)
+            for (auto const& tx : phase)
             {
-                for (auto const& tx : phase)
+                if (!seenAccounts.insert(tx->getSourceID()).second)
                 {
-                    if (!seenAccounts.insert(tx->getSourceID()).second)
-                    {
-                        CLOG_DEBUG(
-                            Herder,
-                            "Got bad txSet: multiple txs per source account");
-                        return false;
-                    }
+                    CLOG_DEBUG(
+                        Herder,
+                        "Got bad txSet: multiple txs per source account");
+                    return false;
                 }
             }
         }
@@ -689,7 +683,6 @@ TxSetFrame::checkValid(Application& app, uint64_t lowerBoundCloseTimeOffset,
             }
         }
     }
-#endif
 
     bool allValid = true;
     for (auto const& txs : mTxPhases)
@@ -709,7 +702,6 @@ size_t
 TxSetFrame::size(LedgerHeader const& lh, std::optional<Phase> phase) const
 {
     size_t sz = 0;
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
     if (!phase)
     {
         if (numPhases() > static_cast<size_t>(Phase::SOROBAN))
@@ -721,7 +713,6 @@ TxSetFrame::size(LedgerHeader const& lh, std::optional<Phase> phase) const
     {
         sz += sizeOp(Phase::SOROBAN);
     }
-#endif
     if (!phase || phase.value() == Phase::CLASSIC)
     {
         sz += protocolVersionStartsFrom(lh.ledgerVersion, ProtocolVersion::V_11)
@@ -911,10 +902,8 @@ TxSetFrame::getTxBaseFee(TransactionFrameBaseConstPtr const& tx,
     auto it = mTxBaseFeeClassic.find(tx);
     if (it == mTxBaseFeeClassic.end())
     {
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
         it = mTxBaseFeeSoroban.find(tx);
         if (it == mTxBaseFeeSoroban.end())
-#endif
         {
             throw std::runtime_error("Transaction not found in tx set");
         }
@@ -922,7 +911,6 @@ TxSetFrame::getTxBaseFee(TransactionFrameBaseConstPtr const& tx,
     return it->second;
 }
 
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
 std::optional<Resource>
 TxSetFrame::getTxSetSorobanResource() const
 {
@@ -941,7 +929,6 @@ TxSetFrame::getTxSetSorobanResource() const
     }
     return std::make_optional<Resource>(total);
 }
-#endif
 
 int64_t
 TxSetFrame::getTotalFees(LedgerHeader const& lh) const
@@ -1125,28 +1112,30 @@ TxSetFrame::addTxsFromXdr(Application& app,
     auto& phaseTxs = mTxPhases.at(static_cast<int>(phase));
     size_t oldSize = phaseTxs.size();
     phaseTxs.reserve(oldSize + txs.size());
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
+
     LedgerTxn ltx(app.getLedgerTxnRoot(), false,
                   TransactionMode::READ_ONLY_WITHOUT_SQL_TXN);
     auto ledgerVersion = ltx.loadHeader().current().ledgerVersion;
-    auto const& sorobanConfig =
-        app.getLedgerManager().getSorobanNetworkConfig(ltx);
-    auto const& appConfig = app.getConfig();
-#endif
+
     for (auto const& env : txs)
     {
         auto tx = TransactionFrameBase::makeTransactionFromWire(
             app.getNetworkID(), env);
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
-        tx->maybeComputeSorobanResourceFee(ledgerVersion, sorobanConfig,
-                                           appConfig);
+
+        if (protocolVersionStartsFrom(ledgerVersion, SOROBAN_PROTOCOL_VERSION))
+        {
+            tx->maybeComputeSorobanResourceFee(
+                ledgerVersion,
+                app.getLedgerManager().getSorobanNetworkConfig(ltx),
+                app.getConfig());
+        }
         // Phase should be consistent with the tx we're trying to add
         if ((tx->isSoroban() && phase != Phase::SOROBAN) ||
             (!tx->isSoroban() && phase != Phase::CLASSIC))
         {
             return false;
         }
-#endif
+
         phaseTxs.push_back(tx);
         if (useBaseFee)
         {
@@ -1232,7 +1221,6 @@ TxSetFrame::applySurgePricing(Application& app)
         }
         else
         {
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
             releaseAssert(isGeneralizedTxSet());
             releaseAssert(phaseType == TxSetFrame::Phase::SOROBAN);
 
@@ -1265,11 +1253,6 @@ TxSetFrame::applySurgePricing(Application& app)
             phase = includedTxs;
             computeTxFees(phaseType, lclHeader, *surgePricingLaneConfig,
                           lowestLaneFee, hadTxNotFittingLane);
-#else
-            // Prior to protocol 20, there must be a single classic phase, so we
-            // shouldn't ever get here
-            releaseAssert(false);
-#endif
         }
 
         releaseAssert(mFeesComputed[i]);
@@ -1298,12 +1281,10 @@ TxSetFrame::computeContentsHash()
 std::unordered_map<TransactionFrameBaseConstPtr, std::optional<int64_t>>&
 TxSetFrame::getInclusionFeeMap(Phase phase) const
 {
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
     if (phase == Phase::SOROBAN)
     {
         return mTxBaseFeeSoroban;
     }
-#endif
     releaseAssert(phase == Phase::CLASSIC);
     return mTxBaseFeeClassic;
 }
@@ -1315,10 +1296,8 @@ TxSetFrame::getPhaseName(Phase phase)
     {
     case Phase::CLASSIC:
         return "classic";
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
     case Phase::SOROBAN:
         return "soroban";
-#endif
     default:
         throw std::runtime_error("Unknown phase");
     }

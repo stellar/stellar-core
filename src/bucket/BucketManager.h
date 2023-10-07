@@ -23,6 +23,7 @@ class Meter;
 namespace stellar
 {
 
+class AbstractLedgerTxn;
 class Application;
 class BasicWork;
 class BucketList;
@@ -205,6 +206,12 @@ class BucketManager : NonMovableOrCopyable
     virtual void maybeSetIndex(std::shared_ptr<Bucket> b,
                                std::unique_ptr<BucketIndex const>&& index) = 0;
 
+    // Scans BucketList for expired entries to evict starting at the entry
+    // pointed to by EvictionIterator. Scans until `maxEntriesToEvict` entries
+    // have been evicted or maxEvictionScanSize bytes have been scanned.
+    virtual void scanForEviction(AbstractLedgerTxn& ltx,
+                                 uint32_t ledgerSeq) = 0;
+
     // Look up a ledger entry from the BucketList. Returns nullopt if the LE is
     // dead / nonexistent.
     virtual std::shared_ptr<LedgerEntry>
@@ -235,6 +242,8 @@ class BucketManager : NonMovableOrCopyable
     // This interface exists only for checking that the BucketDir isn't
     // leaking buckets, in tests.
     virtual std::set<Hash> getBucketHashesInBucketDirForTesting() const = 0;
+
+    virtual medida::Meter& getEntriesEvictedMeter() const = 0;
 #endif
 
     // Return the set of buckets referenced by the BucketList

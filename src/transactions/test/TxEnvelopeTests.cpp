@@ -2471,7 +2471,6 @@ TEST_CASE_VERSIONS("txenvelope", "[tx][envelope]")
     }
 }
 
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
 TEST_CASE("soroban txs not allowed before protocol upgrade",
           "[tx][envelope][soroban]")
 {
@@ -2511,8 +2510,7 @@ TEST_CASE("soroban transaction validation", "[tx][envelope][soroban]")
         REQUIRE(tx->checkValid(*app, ltx, 0, 0, 0) == valid);
         if (!valid)
         {
-            REQUIRE(tx->getResult().result.code() ==
-                    txSOROBAN_RESOURCE_LIMIT_EXCEEDED);
+            REQUIRE(tx->getResult().result.code() == txSOROBAN_INVALID);
         }
     };
 
@@ -2531,8 +2529,6 @@ TEST_CASE("soroban transaction validation", "[tx][envelope][soroban]")
     resources.instructions = InitialSorobanNetworkConfig::TX_MAX_INSTRUCTIONS;
     resources.readBytes = InitialSorobanNetworkConfig::TX_MAX_READ_BYTES;
     resources.writeBytes = InitialSorobanNetworkConfig::TX_MAX_WRITE_BYTES;
-    resources.contractEventsSizeBytes =
-        InitialSorobanNetworkConfig::TX_MAX_CONTRACT_EVENTS_SIZE_BYTES;
 
     auto keys = LedgerTestUtils::generateUniqueValidSorobanLedgerEntryKeys(
         InitialSorobanNetworkConfig::TX_MAX_READ_LEDGER_ENTRIES);
@@ -2557,11 +2553,6 @@ TEST_CASE("soroban transaction validation", "[tx][envelope][soroban]")
     SECTION("write bytes exceeded")
     {
         resources.writeBytes += 1;
-        validateResources(resources, false);
-    }
-    SECTION("metadata size exceeded")
-    {
-        resources.contractEventsSizeBytes += 1;
         validateResources(resources, false);
     }
     SECTION("max read entries exceeded")
@@ -2607,17 +2598,16 @@ TEST_CASE("soroban transaction validation", "[tx][envelope][soroban]")
                                                      1'000'000, 100'000);
             LedgerTxn ltx(app->getLedgerTxnRoot());
             REQUIRE(!tx->checkValid(*app, ltx, 0, 0, 0));
-            REQUIRE(tx->getResult().result.code() ==
-                    txSOROBAN_RESOURCE_LIMIT_EXCEEDED);
+            REQUIRE(tx->getResult().result.code() == txSOROBAN_INVALID);
         }
     }
     SECTION("fees")
     {
         SECTION("resource fee exceeds tx fee")
         {
-            auto tx = sorobanTransactionFrameFromOps(app->getNetworkID(), root,
-                                                     {op0}, {}, resources,
-                                                     1'000'000, 100'000);
+            auto tx =
+                sorobanTransactionFrameFromOps(app->getNetworkID(), root, {op0},
+                                               {}, resources, 1'000, 100'000);
             LedgerTxn ltx(app->getLedgerTxnRoot());
             REQUIRE(!tx->checkValid(*app, ltx, 0, 0, 0));
             REQUIRE(tx->getResult().result.code() == txINSUFFICIENT_FEE);
@@ -2626,16 +2616,7 @@ TEST_CASE("soroban transaction validation", "[tx][envelope][soroban]")
         {
             auto tx = sorobanTransactionFrameFromOps(app->getNetworkID(), root,
                                                      {op0}, {}, resources,
-                                                     4'000'000, 4'000'001);
-            LedgerTxn ltx(app->getLedgerTxnRoot());
-            REQUIRE(!tx->checkValid(*app, ltx, 0, 0, 0));
-            REQUIRE(tx->getResult().result.code() == txINSUFFICIENT_FEE);
-        }
-        SECTION("refundable fee exceeds tx refundable fee")
-        {
-            auto tx =
-                sorobanTransactionFrameFromOps(app->getNetworkID(), root, {op0},
-                                               {}, resources, 4'000'000, 100);
+                                                     1'000'000, 1'000'001);
             LedgerTxn ltx(app->getLedgerTxnRoot());
             REQUIRE(!tx->checkValid(*app, ltx, 0, 0, 0));
             REQUIRE(tx->getResult().result.code() == txINSUFFICIENT_FEE);
@@ -2690,16 +2671,11 @@ TEST_CASE("soroban transaction validation", "[tx][envelope][soroban]")
         op.body.type(INVOKE_HOST_FUNCTION);
         auto& ihf = op.body.invokeHostFunctionOp().hostFunction;
         ihf.type(HOST_FUNCTION_TYPE_INVOKE_CONTRACT);
-        SorobanNetworkConfig refConfig;
-        {
-            LedgerTxn ltx(app->getLedgerTxnRoot());
-            refConfig = app->getLedgerManager().getSorobanNetworkConfig(ltx);
-        }
         SECTION("success with default limits")
         {
             resources.footprint.readOnly.back() = contractDataKey(
                 SCAddress{}, makeSymbol("abcdefghijklmnopqrstuvwxyz012345"),
-                ContractDataDurability::PERSISTENT, DATA_ENTRY);
+                ContractDataDurability::PERSISTENT);
             auto tx = sorobanTransactionFrameFromOps(app->getNetworkID(), root,
                                                      {op}, {}, resources,
                                                      3'500'000, 100'000);
@@ -2711,9 +2687,10 @@ TEST_CASE("soroban transaction validation", "[tx][envelope][soroban]")
             resources.footprint.readOnly.resize(1);
             resources.footprint.readOnly.back() = contractDataKey(
                 SCAddress{}, makeSymbol("abcdefghijklmnopqrstuvwxyz012345"),
-                ContractDataDurability::PERSISTENT, DATA_ENTRY);
-            refConfig.maxContractDataKeySizeBytes() = 64;
-            app->getLedgerManager().setSorobanNetworkConfig(refConfig);
+                ContractDataDurability::PERSISTENT);
+            modifySorobanNetworkConfig(*app, [](SorobanNetworkConfig& cfg) {
+                cfg.mMaxContractDataKeySizeBytes = 64;
+            });
             auto tx = sorobanTransactionFrameFromOps(app->getNetworkID(), root,
                                                      {op}, {}, resources,
                                                      3'500'000, 100'000);
@@ -2725,9 +2702,10 @@ TEST_CASE("soroban transaction validation", "[tx][envelope][soroban]")
             resources.footprint.readWrite.resize(1);
             resources.footprint.readWrite.back() = contractDataKey(
                 SCAddress{}, makeSymbol("abcdefghijklmnopqrstuvwxyz012345"),
-                ContractDataDurability::PERSISTENT, DATA_ENTRY);
-            refConfig.maxContractDataKeySizeBytes() = 64;
-            app->getLedgerManager().setSorobanNetworkConfig(refConfig);
+                ContractDataDurability::PERSISTENT);
+            modifySorobanNetworkConfig(*app, [](SorobanNetworkConfig& cfg) {
+                cfg.mMaxContractDataKeySizeBytes = 64;
+            });
             auto tx = sorobanTransactionFrameFromOps(app->getNetworkID(), root,
                                                      {op}, {}, resources,
                                                      3'500'000, 100'000);
@@ -2736,4 +2714,3 @@ TEST_CASE("soroban transaction validation", "[tx][envelope][soroban]")
         }
     }
 }
-#endif

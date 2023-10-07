@@ -503,7 +503,28 @@ closeLedgerOn(Application& app, uint32 ledgerSeq, TimePoint closeTime,
     }
     else
     {
-        txSet = TxSetFrame::makeFromTransactions(txs, app, 0, 0);
+        if (std::none_of(txs.begin(), txs.end(),
+                         [&](auto const& tx) { return tx->isSoroban(); }))
+        {
+            txSet = TxSetFrame::makeFromTransactions(txs, app, 0, 0);
+        }
+        else
+        {
+            TxSetFrame::Transactions classic;
+            TxSetFrame::Transactions soroban;
+            for (auto const& tx : txs)
+            {
+                tx->isSoroban() ? soroban.emplace_back(tx)
+                                : classic.emplace_back(tx);
+            }
+
+            TxSetFrame::TxPhases phases = {classic};
+            if (!soroban.empty())
+            {
+                phases.emplace_back(soroban);
+            }
+            txSet = TxSetFrame::makeFromTransactions(phases, app, 0, 0);
+        }
     }
     if (!strictOrder)
     {
@@ -512,10 +533,8 @@ closeLedgerOn(Application& app, uint32 ledgerSeq, TimePoint closeTime,
         // themselves maybe intentionally invalid for testing purpose.
         REQUIRE(txSet->checkValid(app, 0, 0));
     }
-
     app.getHerder().externalizeValue(txSet, ledgerSeq, closeTime,
                                      emptyUpgradeSteps);
-
     auto z1 = getTransactionHistoryResults(app.getDatabase(), ledgerSeq);
     auto z2 = getTransactionFeeMeta(app.getDatabase(), ledgerSeq);
 
@@ -823,7 +842,6 @@ createSimpleDexTx(Application& app, TestAccount& account, uint32 nbOps,
                                      ops, fee);
 }
 
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
 TransactionFramePtr
 createUploadWasmTx(Application& app, TestAccount& account, uint32_t fee,
                    uint32_t refundableFee, SorobanResources resources,
@@ -875,7 +893,6 @@ setValidTotalFee(TransactionFramePtr tx, uint32_t inclusionFee,
     txbridge::getSignatures(tx).clear();
     tx->addSignature(source.getSecretKey());
 }
-#endif
 
 Asset
 makeNativeAsset()
@@ -1624,7 +1641,6 @@ envelopeFromOps(Hash const& networkID, TestAccount& source,
     return tx;
 }
 
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
 static TransactionEnvelope
 sorobanEnvelopeFromOps(Hash const& networkID, TestAccount& source,
                        std::vector<Operation> const& ops,
@@ -1655,7 +1671,6 @@ sorobanEnvelopeFromOps(Hash const& networkID, TestAccount& source,
     }
     return tx;
 }
-#endif
 
 TransactionFrameBasePtr
 transactionFrameFromOps(Hash const& networkID, TestAccount& source,
@@ -1667,7 +1682,6 @@ transactionFrameFromOps(Hash const& networkID, TestAccount& source,
         networkID, envelopeFromOps(networkID, source, ops, opKeys, cond));
 }
 
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
 TransactionFrameBasePtr
 sorobanTransactionFrameFromOps(Hash const& networkID, TestAccount& source,
                                std::vector<Operation> const& ops,
@@ -1680,7 +1694,6 @@ sorobanTransactionFrameFromOps(Hash const& networkID, TestAccount& source,
         networkID, sorobanEnvelopeFromOps(networkID, source, ops, opKeys,
                                           resources, fee, refundableFee, memo));
 }
-#endif
 
 LedgerUpgrade
 makeBaseReserveUpgrade(int baseReserve)
@@ -1726,7 +1739,6 @@ executeUpgrade(Application& app, LedgerUpgrade const& lupgrade,
                            upgradeIgnored);
 };
 
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
 ConfigUpgradeSetFrameConstPtr
 makeConfigUpgradeSet(AbstractLedgerTxn& ltx, ConfigUpgradeSet configUpgradeSet)
 {
@@ -1747,15 +1759,20 @@ makeConfigUpgradeSet(AbstractLedgerTxn& ltx, ConfigUpgradeSet configUpgradeSet)
 
     LedgerEntry le;
     le.data.type(CONTRACT_DATA);
-    le.data.contractData().body.bodyType(DATA_ENTRY);
     le.data.contractData().contract.type(SC_ADDRESS_TYPE_CONTRACT);
     le.data.contractData().contract.contractId() = contractID;
     le.data.contractData().durability = TEMPORARY;
-    le.data.contractData().expirationLedgerSeq = UINT32_MAX;
     le.data.contractData().key = key;
-    le.data.contractData().body.data().val = val;
+    le.data.contractData().val = val;
+
+    LedgerEntry expiration;
+    expiration.data.type(EXPIRATION);
+    expiration.data.expiration().keyHash =
+        getExpirationKey(le).expiration().keyHash;
+    expiration.data.expiration().expirationLedgerSeq = UINT32_MAX;
 
     ltx.create(InternalLedgerEntry(le));
+    ltx.create(InternalLedgerEntry(expiration));
 
     auto upgradeKey = ConfigUpgradeSetKey{contractID, hashOfUpgradeSet};
     return ConfigUpgradeSetFrame::makeFromKey(ltx, upgradeKey);
@@ -1768,7 +1785,6 @@ makeConfigUpgrade(ConfigUpgradeSetFrame const& configUpgradeSet)
     result.newConfig() = configUpgradeSet.getKey();
     return result;
 }
-#endif
 
 // trades is a vector of pairs, where the bool indicates if assetA or assetB is
 // sent in the payment, and the int64_t is the amount

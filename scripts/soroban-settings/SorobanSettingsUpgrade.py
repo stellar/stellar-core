@@ -1,9 +1,9 @@
 from stellar_sdk.xdr import *
-from stellar_sdk import Network, Keypair, TransactionBuilder, StrKey, utils
-from stellar_sdk.soroban import SorobanServer
-from stellar_sdk.soroban.types import Address, Int128, Bytes
-from stellar_sdk.soroban.soroban_rpc import GetTransactionStatus
-from stellar_sdk.xdr import TransactionMeta, LedgerKey, ConfigUpgradeSet, ConfigSettingContractExecutionLanesV0, ConfigUpgradeSetKey, ConfigSettingEntry, StateExpirationSettings, Uint32, Uint64, Int64, Hash, LedgerKeyConfigSetting, ConfigSettingID
+from stellar_sdk import Network, Keypair, TransactionBuilder, StrKey, utils, scval
+from stellar_sdk.exceptions import PrepareTransactionException
+from stellar_sdk.soroban_server import SorobanServer
+from stellar_sdk.soroban_rpc import GetTransactionStatus
+from stellar_sdk.xdr import TransactionMeta, LedgerEntryType, LedgerKey, ConfigSettingContractComputeV0, ConfigUpgradeSet, ConfigSettingContractLedgerCostV0, ConfigSettingContractHistoricalDataV0, ConfigSettingContractEventsV0, ConfigSettingContractBandwidthV0, ConfigUpgradeSetKey, ConfigSettingEntry, StateExpirationSettings, ConfigSettingContractExecutionLanesV0, Uint32, Uint64, Int64, Hash, LedgerKeyConfigSetting, ConfigSettingID
 import stellar_sdk
 from enum import IntEnum
 import urllib.parse
@@ -31,25 +31,101 @@ soroban_server = SorobanServer(rpc_server_url)
 
 # hardcode the upgrade you want to do here.
 def get_upgrade_set():
-    state_exp_settings = StateExpirationSettings(max_entry_expiration=Uint32(6312000),
-                                                 min_temp_entry_expiration=Uint32(
-                                                     16),
-                                                 min_persistent_entry_expiration=Uint32(
-                                                     86400),
-                                                 auto_bump_ledgers=Uint32(0),
-                                                 persistent_rent_rate_denominator=Int64(
-                                                     0),
-                                                 temp_rent_rate_denominator=Int64(
-                                                     0),
-                                                 max_entries_to_expire=Uint32(
-                                                     0),
-                                                 bucket_list_size_window_sample_size=Uint32(
-                                                     0),
-                                                 eviction_scan_size=Uint64(0))
 
-    entry = ConfigSettingEntry.from_config_setting_state_expiration(
-        state_exp_settings)
-    return ConfigUpgradeSet([entry])
+    execution_lane_tx_count_per_ledger = 30
+    max_data_entry_size = 64 * 1024
+    max_txn_per_ledger = 1
+    max_read_bytes_per_tx = 130 * 1024
+    max_write_bytes_per_tx = 65 * 1024
+    max_instructions_per_tx = 100_000_000 
+    max_read_entries_tx = 30
+    max_write_entries_per_tx = 20
+    max_size_bytes_per_tx = 70 * 1024 # tx envelope
+
+    max_contract_size = Uint32(max_data_entry_size) 
+
+    contract_size_upgrade_entry = ConfigSettingEntry(
+        ConfigSettingID.CONFIG_SETTING_CONTRACT_MAX_SIZE_BYTES,
+        contract_max_size_bytes = max_contract_size)   
+        
+    compute_settings = ConfigSettingContractComputeV0(ledger_max_instructions=Int64(max_txn_per_ledger * max_instructions_per_tx),
+                                                 tx_max_instructions=Int64(max_instructions_per_tx),
+                                                 fee_rate_per_instructions_increment=Int64(100),
+                                                 tx_memory_limit=Uint32(40 * 1024 * 1024)) # 40 mb
+
+    compute_upgrade_entry = ConfigSettingEntry(
+        ConfigSettingID.CONFIG_SETTING_CONTRACT_COMPUTE_V0,
+        contract_compute = compute_settings)    
+
+    contract_ledger_cost_settings = ConfigSettingContractLedgerCostV0(ledger_max_read_ledger_entries=Uint32(max_txn_per_ledger * max_read_entries_tx),
+                                                 ledger_max_read_bytes=Uint32(max_txn_per_ledger * max_read_bytes_per_tx), # 130 kb
+                                                 ledger_max_write_ledger_entries=Uint32(max_txn_per_ledger * max_write_entries_per_tx),
+                                                 ledger_max_write_bytes=Uint32(max_txn_per_ledger * max_write_bytes_per_tx), # 65 kb 
+                                                 tx_max_read_ledger_entries=Uint32(max_read_entries_tx),
+                                                 tx_max_read_bytes=Uint32(max_read_bytes_per_tx), # 130 kb
+                                                 tx_max_write_ledger_entries=Uint32(max_write_entries_per_tx),
+                                                 tx_max_write_bytes=Uint32(max_write_bytes_per_tx), # 65 kb 
+                                                 fee_read_ledger_entry=Int64(1000),
+                                                 fee_write_ledger_entry=Int64(3000),
+                                                 fee_read1_kb=Int64(1000),
+                                                 bucket_list_target_size_bytes=Int64(2 * 1024 * 1024 * 1024), # 2 GB
+                                                 write_fee1_kb_bucket_list_low=Int64(1000),
+                                                 write_fee1_kb_bucket_list_high=Int64(4_000_000), # 0.4 XLM = 0.4 * 10 ^ stroops
+                                                 bucket_list_write_fee_growth_factor=Uint32(1000))
+
+    contract_ledger_cost_entry = ConfigSettingEntry(
+        ConfigSettingID.CONFIG_SETTING_CONTRACT_LEDGER_COST_V0,
+        contract_ledger_cost = contract_ledger_cost_settings)        
+
+    contract_historical_data_settings = ConfigSettingContractHistoricalDataV0(fee_historical1_kb=Int64(5000))
+
+    contract_historical_data_entry = ConfigSettingEntry(
+        ConfigSettingID.CONFIG_SETTING_CONTRACT_HISTORICAL_DATA_V0,
+        contract_historical_data = contract_historical_data_settings)    
+
+    contract_events_settings = ConfigSettingContractEventsV0(tx_max_contract_events_size_bytes=Uint32(2 * 1024), # 2 kb
+                                                                        fee_contract_events1_kb=Int64(300))  
+
+    contract_events_entry = ConfigSettingEntry(
+        ConfigSettingID.CONFIG_SETTING_CONTRACT_EVENTS_V0,
+        contract_events = contract_events_settings)    
+
+    contract_bandwidth_settings = ConfigSettingContractBandwidthV0(ledger_max_txs_size_bytes=Uint32(max_size_bytes_per_tx), # 100 kb
+                                                                        tx_max_size_bytes=Uint32(max_size_bytes_per_tx), # 70 kb
+                                                                        fee_tx_size1_kb=Int64(500))   
+
+    contract_bandwidth_entry = ConfigSettingEntry(
+        ConfigSettingID.CONFIG_SETTING_CONTRACT_BANDWIDTH_V0,
+        contract_bandwidth = contract_bandwidth_settings)    
+    
+    contract_data_entry_size = Uint32(max_data_entry_size) 
+
+    contract_data_entry_entry = ConfigSettingEntry(
+        ConfigSettingID.CONFIG_SETTING_CONTRACT_DATA_ENTRY_SIZE_BYTES,
+        contract_data_entry_size_bytes = contract_data_entry_size)   
+
+    ledgers_per_day = 12 * 60 * 24
+    state_exp_settings = StateExpirationSettings(max_entry_expiration=Uint32(ledgers_per_day * 31 ), # 31 days, 12 ledger close per minute
+                                                 min_temp_entry_expiration=Uint32(16),
+                                                 min_persistent_entry_expiration=Uint32(ledgers_per_day * 7), # 7 days
+                                                 persistent_rent_rate_denominator=Int64(ledgers_per_day * 31),
+                                                 temp_rent_rate_denominator=Int64(ledgers_per_day * 31 * 10), 
+                                                 max_entries_to_expire=Uint32(100), 
+                                                 bucket_list_size_window_sample_size=Uint32(30), #InitialSorobanNetworkConfig
+                                                 eviction_scan_size=Uint64(100_000), #InitialSorobanNetworkConfig
+                                                 starting_eviction_scan_level=Uint32(1))
+
+    state_exp_upgrade_entry = ConfigSettingEntry(
+        ConfigSettingID.CONFIG_SETTING_STATE_EXPIRATION,
+        state_expiration_settings = state_exp_settings)
+
+    execution_lanes_setting = ConfigSettingContractExecutionLanesV0(ledger_max_tx_count=Uint32(execution_lane_tx_count_per_ledger))   
+
+    execution_lanes_entry = ConfigSettingEntry(
+        ConfigSettingID.CONFIG_SETTING_CONTRACT_EXECUTION_LANES,
+        contract_execution_lanes = execution_lanes_setting)        
+    
+    return ConfigUpgradeSet([contract_size_upgrade_entry, compute_upgrade_entry, contract_ledger_cost_entry, contract_historical_data_entry, contract_events_entry, contract_bandwidth_entry, contract_data_entry_entry, state_exp_upgrade_entry, execution_lanes_entry])
 #############
 
 # TODO: Update tx submissions to go directly to tx endpoint instead of rpc
@@ -68,8 +144,13 @@ def deploy_contract():
         .build()
     )
 
-    tx = soroban_server.prepare_transaction(tx)
-    tx.sign(kp)
+    try:
+        tx = soroban_server.prepare_transaction(tx)
+    except PrepareTransactionException as e:
+        print(f"Got exception: {e.simulate_transaction_response}")
+        raise e
+
+    tx.sign(kp)  
     send_transaction_data = soroban_server.send_transaction(tx)
     print(f"sent transaction: {send_transaction_data}")
 
@@ -106,12 +187,18 @@ def deploy_contract():
         .set_timeout(300)
         .append_create_contract_op(
             wasm_id=wasm_id,
+            address=kp.public_key,
         )
         .build()
     )
 
-    tx = soroban_server.prepare_transaction(tx)
-    tx.sign(kp)
+    try:
+        tx = soroban_server.prepare_transaction(tx)
+    except PrepareTransactionException as e:
+        print(f"Got exception: {e.simulate_transaction_response}")
+        raise e
+
+    tx.sign(kp) 
 
     send_transaction_data = soroban_server.send_transaction(tx)
     print(f"sent transaction: {send_transaction_data}")
@@ -143,13 +230,18 @@ def upload_upgrade_bytes(contract_id, upgrade):
         .append_invoke_contract_function_op(
             contract_id=contract_id,
             function_name="write",
-            parameters=[Bytes(upgrade.to_xdr_bytes())],
+            parameters=[scval.to_bytes(upgrade.to_xdr_bytes())],
         )
         .build()
     )
 
-    tx = soroban_server.prepare_transaction(tx)
-    tx.sign(kp)
+    try:
+        tx = soroban_server.prepare_transaction(tx)
+    except PrepareTransactionException as e:
+        print(f"Got exception: {e.simulate_transaction_response}")
+        raise e
+
+    tx.sign(kp)  
     send_transaction_data = soroban_server.send_transaction(tx)
     print(f"sent transaction: {send_transaction_data}")
 
@@ -204,9 +296,11 @@ def setup_upgrade(args):
 
 
 def get_settings(args):
-    setting_key = LedgerKeyConfigSetting(
+    config_setting = LedgerKeyConfigSetting(
         config_setting_id=ConfigSettingID(int(args.configSettingID)))
-    ledger_key = LedgerKey.from_config_setting(setting_key)
+    ledger_key = LedgerKey(
+        LedgerEntryType.CONFIG_SETTING, 
+        config_setting = config_setting)
 
     resp = soroban_server.get_ledger_entries([ledger_key])
     if resp.entries is None:
@@ -218,13 +312,6 @@ def get_settings(args):
     data = LedgerEntryData.from_xdr(resp.entries[0].xdr)
     assert data.config_setting is not None
     print(data)
-
-
-def get_ledger_key() -> str:
-    setting_key = LedgerKeyConfigSetting(
-        config_setting_id=ConfigSettingID.CONFIG_SETTING_STATE_EXPIRATION)
-    ledger_key = LedgerKey.from_config_setting(setting_key)
-    return ledger_key
 
 
 def main():

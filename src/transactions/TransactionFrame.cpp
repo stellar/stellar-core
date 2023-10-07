@@ -31,10 +31,12 @@
 #include "util/ProtocolVersion.h"
 #include "util/XDROperators.h"
 #include "util/XDRStream.h"
+#include "xdr/Stellar-contract.h"
 #include "xdr/Stellar-ledger.h"
 #include "xdrpp/marshal.h"
 #include "xdrpp/printer.h"
 #include <Tracy.hpp>
+#include <iterator>
 #include <string>
 
 #include "medida/meter.h"
@@ -68,10 +70,9 @@ TransactionFrame::TransactionFrame(Hash const& networkID,
         mOperations.push_back(
             makeOperation(ops[i], getResult().result.results()[i], i));
     }
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
+
     // Initialize the fee to 0, callers will compute the fee appropriately
     mSorobanResourceFee = std::make_optional<FeePair>();
-#endif
 }
 
 Hash const&
@@ -120,7 +121,6 @@ TransactionFrame::clearCached()
     mFullHash = zero;
 }
 
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
 void
 TransactionFrame::pushContractEvents(xdr::xvector<ContractEvent>&& evts)
 {
@@ -130,7 +130,47 @@ TransactionFrame::pushContractEvents(xdr::xvector<ContractEvent>&& evts)
 void
 TransactionFrame::pushDiagnosticEvents(xdr::xvector<DiagnosticEvent>&& evts)
 {
-    mDiagnosticEvents = evts;
+    mDiagnosticEvents.insert(mDiagnosticEvents.end(), evts.begin(), evts.end());
+}
+
+void
+TransactionFrame::pushDiagnosticEvent(DiagnosticEvent&& evt)
+{
+    mDiagnosticEvents.emplace_back(evt);
+}
+
+void
+TransactionFrame::pushSimpleDiagnosticError(SCErrorType ty, SCErrorCode code,
+                                            std::string&& message,
+                                            xdr::xvector<SCVal>&& args)
+{
+    ContractEvent ce;
+    ce.type = DIAGNOSTIC;
+    ce.body.v(0);
+
+    SCVal sym = makeSymbolSCVal("error"), err;
+    err.type(SCV_ERROR);
+    err.error().type(ty);
+    err.error().code() = code;
+    ce.body.v0().topics.assign({std::move(sym), std::move(err)});
+
+    if (args.empty())
+    {
+        ce.body.v0().data.type(SCV_STRING);
+        ce.body.v0().data.str().assign(std::move(message));
+    }
+    else
+    {
+        ce.body.v0().data.type(SCV_VEC);
+        ce.body.v0().data.vec().activate();
+        ce.body.v0().data.vec()->reserve(args.size() + 1);
+        ce.body.v0().data.vec()->emplace_back(
+            makeStringSCVal(std::move(message)));
+        std::move(std::begin(args), std::end(args),
+                  std::back_inserter(*ce.body.v0().data.vec()));
+    }
+    DiagnosticEvent evt(false, std::move(ce));
+    pushDiagnosticEvent(std::move(evt));
 }
 
 void
@@ -138,7 +178,6 @@ TransactionFrame::setReturnValue(SCVal&& returnValue)
 {
     mReturnValue = returnValue;
 }
-#endif
 
 TransactionEnvelope const&
 TransactionFrame::getEnvelope() const
@@ -188,19 +227,23 @@ TransactionFrame::getNumOperations() const
 Resource
 TransactionFrame::getResources() const
 {
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
     if (isSoroban())
     {
         auto r = sorobanResources();
-        int64_t txSize = xdr::xdr_size(mEnvelope.v1().tx);
+        int64_t txSize = xdr::xdr_size(mEnvelope);
         int64_t const opCount = 1;
 
+        // When doing fee calculation, the rust host will include readWrite
+        // entries in the read related fees. However, this resource calculation
+        // is used for constructing TX sets before invoking the host, so we need
+        // to sum readOnly size and readWrite size for correct resource limits
+        // here.
         return Resource({opCount, r.instructions, txSize, r.readBytes,
                          r.writeBytes,
-                         static_cast<int64_t>(r.footprint.readOnly.size()),
+                         static_cast<int64_t>(r.footprint.readOnly.size() +
+                                              r.footprint.readWrite.size()),
                          static_cast<int64_t>(r.footprint.readWrite.size())});
     }
-#endif
 
     return Resource(getNumOperations());
 }
@@ -224,7 +267,6 @@ int64_t
 TransactionFrame::getInclusionFee() const
 {
     int64_t feeBid = getFullFee();
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
     if (!isSoroban())
     {
         return feeBid;
@@ -243,9 +285,6 @@ TransactionFrame::getInclusionFee() const
         return 0;
     }
     return feeBid - declaredRefundableFee;
-#else
-    return feeBid;
-#endif
 }
 
 int64_t
@@ -423,14 +462,12 @@ TransactionFrame::isSoroban() const
     return !mOperations.empty() && mOperations[0]->isSoroban();
 }
 
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
 SorobanResources const&
 TransactionFrame::sorobanResources() const
 {
     releaseAssertOrThrow(isSoroban());
     return mEnvelope.v1().tx.ext.sorobanData().resources;
 }
-#endif
 
 std::shared_ptr<OperationFrame>
 TransactionFrame::makeOperation(Operation const& op, OperationResult& res,
@@ -562,7 +599,6 @@ TransactionFrame::extraSignersExist() const
            !mEnvelope.v1().tx.cond.v2().extraSigners.empty();
 }
 
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
 bool
 TransactionFrame::validateSorobanOpsConsistency() const
 {
@@ -586,40 +622,58 @@ TransactionFrame::validateSorobanOpsConsistency() const
 
 bool
 TransactionFrame::validateSorobanResources(SorobanNetworkConfig const& config,
-                                           uint32_t protocolVersion) const
+                                           uint32_t protocolVersion)
 {
     auto const& resources = sorobanResources();
     auto const& readEntries = resources.footprint.readOnly;
     auto const& writeEntries = resources.footprint.readWrite;
     if (resources.instructions > config.txMaxInstructions())
     {
+        pushSimpleDiagnosticError(
+            SCE_BUDGET, SCEC_EXCEEDED_LIMIT,
+            "transaction instructions resources exceed network config limit",
+            {makeU64SCVal(resources.instructions),
+             makeU64SCVal(config.txMaxInstructions())});
         return false;
     }
     if (resources.readBytes > config.txMaxReadBytes())
     {
+        pushSimpleDiagnosticError(
+            SCE_STORAGE, SCEC_EXCEEDED_LIMIT,
+            "transaction byte-read resources exceed network config limit",
+            {makeU64SCVal(resources.readBytes),
+             makeU64SCVal(config.txMaxReadBytes())});
         return false;
     }
     if (resources.writeBytes > config.txMaxWriteBytes())
     {
-        return false;
-    }
-    if (resources.contractEventsSizeBytes >
-        config.txMaxContractEventsSizeBytes())
-    {
+        pushSimpleDiagnosticError(
+            SCE_STORAGE, SCEC_EXCEEDED_LIMIT,
+            "transaction byte-write resources exceed network config limit",
+            {makeU64SCVal(resources.writeBytes),
+             makeU64SCVal(config.txMaxWriteBytes())});
         return false;
     }
     if (readEntries.size() + writeEntries.size() >
-            config.txMaxReadLedgerEntries() ||
-        writeEntries.size() > config.txMaxWriteLedgerEntries())
+        config.txMaxReadLedgerEntries())
     {
+        pushSimpleDiagnosticError(
+            SCE_STORAGE, SCEC_EXCEEDED_LIMIT,
+            "transaction entry-read resources exceed network config limit",
+            {makeU64SCVal(readEntries.size() + writeEntries.size()),
+             makeU64SCVal(config.txMaxReadLedgerEntries())});
+        return false;
+    }
+    if (writeEntries.size() > config.txMaxWriteLedgerEntries())
+    {
+        pushSimpleDiagnosticError(
+            SCE_STORAGE, SCEC_EXCEEDED_LIMIT,
+            "transaction entry-write resources exceed network config limit",
+            {makeU64SCVal(writeEntries.size()),
+             makeU64SCVal(config.txMaxWriteLedgerEntries())});
         return false;
     }
     auto footprintKeyIsValid = [&](LedgerKey const& key) -> bool {
-        if (isSorobanExtEntry(key))
-        {
-            return false;
-        }
-
         switch (key.type())
         {
         case ACCOUNT:
@@ -633,6 +687,9 @@ TransactionFrame::validateSorobanResources(SorobanNetworkConfig const& config,
                 (tl.asset.type() == ASSET_TYPE_NATIVE) ||
                 isIssuer(tl.accountID, tl.asset))
             {
+                this->pushSimpleDiagnosticError(
+                    SCE_STORAGE, SCEC_INVALID_INPUT,
+                    "transaction footprint contains invalid trustline asset");
                 return false;
             }
             break;
@@ -642,6 +699,11 @@ TransactionFrame::validateSorobanResources(SorobanNetworkConfig const& config,
         case CLAIMABLE_BALANCE:
         case LIQUIDITY_POOL:
         case CONFIG_SETTING:
+        case EXPIRATION:
+            this->pushSimpleDiagnosticError(
+                SCE_STORAGE, SCEC_UNEXPECTED_TYPE,
+                "transaction footprint contains unsupported ledger key type",
+                {makeU64SCVal(key.type())});
             return false;
         default:
             throw std::runtime_error("unknown ledger key type");
@@ -649,6 +711,11 @@ TransactionFrame::validateSorobanResources(SorobanNetworkConfig const& config,
 
         if (xdr::xdr_size(key) > config.maxContractDataKeySizeBytes())
         {
+            this->pushSimpleDiagnosticError(
+                SCE_STORAGE, SCEC_EXCEEDED_LIMIT,
+                "transaction footprint key exceeds network config limit",
+                {makeU64SCVal(xdr::xdr_size(key)),
+                 makeU64SCVal(config.maxContractDataKeySizeBytes())});
             return false;
         }
 
@@ -668,9 +735,13 @@ TransactionFrame::validateSorobanResources(SorobanNetworkConfig const& config,
             return false;
         }
     }
-    auto txSize = xdr::xdr_size(mEnvelope.v1().tx);
+    auto txSize = xdr::xdr_size(mEnvelope);
     if (txSize > config.txMaxSizeBytes())
     {
+        pushSimpleDiagnosticError(
+            SCE_BUDGET, SCEC_EXCEEDED_LIMIT,
+            "total transaction size exceeds network config limit",
+            {makeU64SCVal(txSize), makeU64SCVal(config.txMaxSizeBytes())});
         return false;
     }
     return true;
@@ -689,12 +760,16 @@ TransactionFrame::refundSorobanFee(AbstractLedgerTxn& ltxOuter)
     auto sourceAccount = loadSourceAccount(ltx, header);
     if (!sourceAccount)
     {
-        throw std::runtime_error("Unexpected database state");
+        // Account was merged (shouldn't be possible)
+        return;
     }
 
-    auto& acc = sourceAccount.current().data.account();
+    if (!addBalance(header, sourceAccount, mFeeRefund))
+    {
+        // Liabilities in the way of the refund, just skip.
+        return;
+    }
 
-    stellar::addBalance(acc.balance, mFeeRefund);
     header.current().feePool -= mFeeRefund;
     ltx.commit();
 }
@@ -704,13 +779,12 @@ TransactionFrame::computeSorobanResourceFee(
     uint32_t protocolVersion, SorobanNetworkConfig const& sorobanConfig,
     Config const& cfg, bool useConsumedRefundableResources) const
 {
-    CxxTransactionResources cxxResources;
+    CxxTransactionResources cxxResources{};
     auto const& txResources = sorobanResources();
     cxxResources.instructions = txResources.instructions;
 
     cxxResources.read_entries =
-        static_cast<uint32>(txResources.footprint.readOnly.size() +
-                            txResources.footprint.readWrite.size());
+        static_cast<uint32>(txResources.footprint.readOnly.size());
     cxxResources.write_entries =
         static_cast<uint32>(txResources.footprint.readWrite.size());
 
@@ -720,20 +794,10 @@ TransactionFrame::computeSorobanResourceFee(
     cxxResources.transaction_size_bytes =
         static_cast<uint32>(xdr::xdr_size(mEnvelope));
 
-    cxxResources.contract_events_size_bytes =
-        txResources.contractEventsSizeBytes;
-
     if (useConsumedRefundableResources)
     {
-        // It is possible that consumed events size is higher than the
-        // declared size (in such a case the transaction will fail). We
-        // still don't want to overcharge the fees though.
-        if (cxxResources.contract_events_size_bytes >
-            mConsumedContractEventsSizeBytes)
-        {
-            cxxResources.contract_events_size_bytes =
-                mConsumedContractEventsSizeBytes;
-        }
+        cxxResources.contract_events_size_bytes =
+            mConsumedContractEventsSizeBytes;
     }
 
     // This may throw, but only in case of the Core version misconfiguration.
@@ -806,8 +870,6 @@ TransactionFrame::consumeRefundableSorobanResources(
     mFeeRefund -= consumedFee.refundable_fee;
     return true;
 }
-
-#endif
 
 bool
 TransactionFrame::isTooEarly(LedgerTxnHeader const& header,
@@ -963,7 +1025,6 @@ TransactionFrame::commonValidPreSeqNum(Application& app, AbstractLedgerTxn& ltx,
         return false;
     }
 
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
     if (!validateSorobanOpsConsistency())
     {
         getResult().result.code(txMALFORMED);
@@ -986,7 +1047,7 @@ TransactionFrame::commonValidPreSeqNum(Application& app, AbstractLedgerTxn& ltx,
             app.getLedgerManager().getSorobanNetworkConfig(ltx);
         if (!validateSorobanResources(sorobanConfig, ledgerVersion))
         {
-            getResult().result.code(txSOROBAN_RESOURCE_LIMIT_EXCEEDED);
+            getResult().result.code(txSOROBAN_INVALID);
             return false;
         }
 
@@ -1021,7 +1082,7 @@ TransactionFrame::commonValidPreSeqNum(Application& app, AbstractLedgerTxn& ltx,
             return false;
         }
     }
-#endif
+
     auto header = ltx.loadHeader();
     if (isTooEarly(header, lowerBoundCloseTimeOffset))
     {
@@ -1353,12 +1414,16 @@ TransactionFrame::checkValidWithOptionallyChargedFee(
     {
         minBaseFee = 0;
     }
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
-    maybeComputeSorobanResourceFee(
-        ltx.loadHeader().current().ledgerVersion,
-        app.getLedgerManager().getSorobanNetworkConfig(ltx), app.getConfig());
 
-#endif
+    if (protocolVersionStartsFrom(ltx.loadHeader().current().ledgerVersion,
+                                  SOROBAN_PROTOCOL_VERSION))
+    {
+        maybeComputeSorobanResourceFee(
+            ltx.loadHeader().current().ledgerVersion,
+            app.getLedgerManager().getSorobanNetworkConfig(ltx),
+            app.getConfig());
+    }
+
     resetResults(ltx.loadHeader().current(), minBaseFee, false);
 
     SignatureChecker signatureChecker{ltx.loadHeader().current().ledgerVersion,
@@ -1543,26 +1608,31 @@ TransactionFrame::applyOperations(SignatureChecker& signatureChecker,
             // commit -> propagate the meta to the outer scope
             outerMeta.pushOperationMetas(std::move(operationMetas));
             outerMeta.pushTxChangesAfter(std::move(changesAfter));
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
-            if (!isSoroban() && !mEvents.empty())
-            {
-                throw std::runtime_error("unexpected events size");
-            }
 
-            outerMeta.pushContractEvents(std::move(mEvents));
-            outerMeta.pushDiagnosticEvents(std::move(mDiagnosticEvents));
-            outerMeta.setReturnValue(std::move(mReturnValue));
-#endif
+            if (protocolVersionStartsFrom(ledgerVersion,
+                                          SOROBAN_PROTOCOL_VERSION))
+            {
+                if (!isSoroban() && !mEvents.empty())
+                {
+                    throw std::runtime_error("unexpected events size");
+                }
+
+                outerMeta.pushContractEvents(std::move(mEvents));
+                outerMeta.pushDiagnosticEvents(std::move(mDiagnosticEvents));
+                outerMeta.setReturnValue(std::move(mReturnValue));
+            }
         }
         else
         {
             markResultFailed();
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
-            // If transaction fails, we don't charge for any
-            // refundable resources.
-            mFeeRefund = sorobanRefundableFee();
-            outerMeta.pushDiagnosticEvents(std::move(mDiagnosticEvents));
-#endif
+            if (protocolVersionStartsFrom(ledgerVersion,
+                                          SOROBAN_PROTOCOL_VERSION))
+            {
+                // If transaction fails, we don't charge for any
+                // refundable resources.
+                mFeeRefund = sorobanRefundableFee();
+                outerMeta.pushDiagnosticEvents(std::move(mDiagnosticEvents));
+            }
         }
         return success;
     }
@@ -1711,7 +1781,6 @@ TransactionFrame::processPostApply(Application& app,
                                    AbstractLedgerTxn& ltxOuter,
                                    TransactionMetaFrame& meta)
 {
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
     if (!isSoroban())
     {
         return;
@@ -1722,7 +1791,6 @@ TransactionFrame::processPostApply(Application& app,
     refundSorobanFee(ltx);
     meta.pushTxChangesAfter(ltx.getChanges());
     ltx.commit();
-#endif
 }
 
 StellarMessage
@@ -1731,5 +1799,11 @@ TransactionFrame::toStellarMessage() const
     StellarMessage msg(TRANSACTION);
     msg.transaction() = mEnvelope;
     return msg;
+}
+
+xdr::xvector<DiagnosticEvent> const&
+TransactionFrame::getDiagnosticEvents() const
+{
+    return mDiagnosticEvents;
 }
 }

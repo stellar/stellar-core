@@ -93,12 +93,10 @@ LoadGenerator::getMode(std::string const& mode)
     {
         return LoadGenMode::MIXED_TXS;
     }
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
     else if (mode == "soroban")
     {
         return LoadGenMode::SOROBAN;
     }
-#endif
     else
     {
         // unknown mode
@@ -244,6 +242,15 @@ LoadGenerator::scheduleLoadGeneration(GeneratedLoadConfig cfg)
             "sure there are at least {}x "
             "unique accounts than desired number of transactions per ledger.",
             MIN_UNIQUE_ACCOUNT_MULTIPLIER);
+    }
+
+    if (cfg.mode == LoadGenMode::SOROBAN &&
+        protocolVersionIsBefore(mApp.getLedgerManager()
+                                    .getLastClosedLedgerHeader()
+                                    .header.ledgerVersion,
+                                SOROBAN_PROTOCOL_VERSION))
+    {
+        errorMsg = "Soroban mode requires protocol version 20 or higher";
     }
 
     if (errorMsg)
@@ -459,7 +466,6 @@ LoadGenerator::generateLoad(GeneratedLoadConfig cfg)
                 };
             }
             break;
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
             case LoadGenMode::SOROBAN:
             {
                 generateTx = [&]() {
@@ -494,7 +500,6 @@ LoadGenerator::generateLoad(GeneratedLoadConfig cfg)
                         {
                             resources.footprint.readWrite.emplace_back(key);
                         }
-                        resources.contractEventsSizeBytes = 0;
                     }
 
                     return sorobanTransaction(
@@ -505,7 +510,6 @@ LoadGenerator::generateLoad(GeneratedLoadConfig cfg)
                 };
             }
             break;
-#endif
             }
 
             if (submitTx(cfg, generateTx))
@@ -843,7 +847,6 @@ LoadGenerator::manageOfferTransaction(
                                            maxGeneratedFeeRate));
 }
 
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
 std::pair<LoadGenerator::TestAccountPtr, TransactionFramePtr>
 LoadGenerator::sorobanTransaction(uint32_t numAccounts, uint32_t offset,
                                   uint32_t ledgerNum, uint64_t accountId,
@@ -868,7 +871,6 @@ LoadGenerator::sorobanTransaction(uint32_t numAccounts, uint32_t offset,
     setValidTotalFee(tx, inclusionFee, refundableFee, mApp, *account);
     return std::make_pair(account, tx);
 }
-#endif
 
 std::pair<LoadGenerator::TestAccountPtr, TransactionFramePtr>
 LoadGenerator::pretendTransaction(uint32_t numAccounts, uint32_t offset,
@@ -913,15 +915,12 @@ LoadGenerator::maybeHandleFailedTx(TransactionFramePtr tx,
         code == txBAD_SEQ)
     {
         auto txQueueSeqNum =
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
             tx->isSoroban()
                 ? mApp.getHerder()
                       .getSorobanTransactionQueue()
                       .getInQueueSeqNum(sourceAccount->getPublicKey())
-                :
-#endif
-                mApp.getHerder().getTransactionQueue().getInQueueSeqNum(
-                    sourceAccount->getPublicKey());
+                : mApp.getHerder().getTransactionQueue().getInQueueSeqNum(
+                      sourceAccount->getPublicKey());
         if (txQueueSeqNum)
         {
             sourceAccount->setSequenceNumber(*txQueueSeqNum);

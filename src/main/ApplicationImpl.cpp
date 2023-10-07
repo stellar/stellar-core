@@ -2,6 +2,7 @@
 // under the Apache License, Version 2.0. See the COPYING file at the root
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
+#include "util/Fs.h"
 #include "work/ConditionalWork.h"
 #include "work/WorkWithCallback.h"
 #include "xdr/Stellar-ledger-entries.h"
@@ -201,7 +202,6 @@ maybeRebuildLedger(Application& app, bool applyBuckets)
                     LOG_INFO(DEFAULT_LOG, "Dropping liquiditypools");
                     app.getLedgerTxnRoot().dropLiquidityPools(shouldRebuild);
                     break;
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
                 case CONTRACT_DATA:
                     LOG_INFO(DEFAULT_LOG, "Dropping contractdata");
                     app.getLedgerTxnRoot().dropContractData(shouldRebuild);
@@ -214,7 +214,10 @@ maybeRebuildLedger(Application& app, bool applyBuckets)
                     LOG_INFO(DEFAULT_LOG, "Dropping configsettings");
                     app.getLedgerTxnRoot().dropConfigSettings(shouldRebuild);
                     break;
-#endif
+                case EXPIRATION:
+                    LOG_INFO(DEFAULT_LOG, "Dropping expiration");
+                    app.getLedgerTxnRoot().dropExpiration(shouldRebuild);
+                    break;
                 default:
                     abort();
                 }
@@ -667,6 +670,13 @@ ApplicationImpl::validateAndLogConfig()
 
     auto const isNetworkedValidator =
         mConfig.NODE_IS_VALIDATOR && !mConfig.RUN_STANDALONE;
+
+    if (mConfig.ENABLE_SOROBAN_DIAGNOSTIC_EVENTS && isNetworkedValidator)
+    {
+        throw std::invalid_argument("ENABLE_SOROBAN_DIAGNOSTIC_EVENTS is set, "
+                                    "NODE_IS_VALIDATOR is set, and "
+                                    "RUN_STANDALONE is not set");
+    }
 
     if (mConfig.METADATA_OUTPUT_STREAM != "" && isNetworkedValidator)
     {
@@ -1211,6 +1221,15 @@ ApplicationImpl::syncOwnMetrics()
     TracyPlot("process.action.queue", qsize);
     mMetrics->NewCounter({"process", "action", "overloaded"})
         .set_count(static_cast<int64_t>(getClock().actionQueueIsOverloaded()));
+
+    // Update overlay inbound-connections and file-handle metrics.
+    if (mOverlayManager)
+    {
+        mMetrics->NewCounter({"overlay", "inbound", "live"})
+            .set_count(*mOverlayManager->getLiveInboundPeersCounter());
+    }
+    mMetrics->NewCounter({"process", "file", "handles"})
+        .set_count(fs::getOpenHandleCount());
 }
 
 void

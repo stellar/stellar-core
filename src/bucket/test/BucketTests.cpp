@@ -65,12 +65,7 @@ TEST_CASE_VERSIONS("file backed buckets", "[bucket][bucketbench]")
         CLOG_DEBUG(Bucket, "Generating 10000 random ledger entries");
         auto live = LedgerTestUtils::generateValidUniqueLedgerEntries(9000);
         auto dead = LedgerTestUtils::generateValidLedgerEntryKeysWithExclusions(
-            {
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
-                CONFIG_SETTING
-#endif
-            },
-            1000);
+            {CONFIG_SETTING}, 1000);
         CLOG_DEBUG(Bucket, "Hashing entries");
         std::shared_ptr<Bucket> b1 = Bucket::fresh(
             app->getBucketManager(), getAppLedgerVersion(app), {}, live, dead,
@@ -83,12 +78,7 @@ TEST_CASE_VERSIONS("file backed buckets", "[bucket][bucketbench]")
                        (i * 10000));
             live = LedgerTestUtils::generateValidUniqueLedgerEntries(9000);
             dead = LedgerTestUtils::generateValidLedgerEntryKeysWithExclusions(
-                {
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
-                    CONFIG_SETTING
-#endif
-                },
-                1000);
+                {CONFIG_SETTING}, 1000);
             {
                 b1 = Bucket::merge(
                     app->getBucketManager(),
@@ -151,7 +141,6 @@ TEST_CASE_VERSIONS("merging bucket entries", "[bucket]")
                     liveEntry.data.liquidityPool() =
                         LedgerTestUtils::generateValidLiquidityPoolEntry(10);
                     break;
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
                 case CONFIG_SETTING:
                     liveEntry.data.configSetting() =
                         LedgerTestUtils::generateValidConfigSettingEntry(10);
@@ -164,7 +153,10 @@ TEST_CASE_VERSIONS("merging bucket entries", "[bucket]")
                     liveEntry.data.contractCode() =
                         LedgerTestUtils::generateValidContractCodeEntry(10);
                     break;
-#endif
+                case EXPIRATION:
+                    liveEntry.data.expiration() =
+                        LedgerTestUtils::generateValidExpirationEntry(10);
+                    break;
                 default:
                     abort();
                 }
@@ -192,11 +184,9 @@ TEST_CASE_VERSIONS("merging bucket entries", "[bucket]")
         checkDeadAnnihilatesLive(DATA);
         checkDeadAnnihilatesLive(CLAIMABLE_BALANCE);
         checkDeadAnnihilatesLive(LIQUIDITY_POOL);
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
         checkDeadAnnihilatesLive(CONFIG_SETTING);
         checkDeadAnnihilatesLive(CONTRACT_DATA);
         checkDeadAnnihilatesLive(CONTRACT_CODE);
-#endif
 
         SECTION("random dead entries annihilates live entries")
         {
@@ -205,11 +195,7 @@ TEST_CASE_VERSIONS("merging bucket entries", "[bucket]")
             std::vector<LedgerKey> dead;
             for (auto& e : live)
             {
-                if (rand_flip()
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
-                    && e.data.type() != CONFIG_SETTING
-#endif
-                )
+                if (rand_flip() && e.data.type() != CONFIG_SETTING)
                 {
                     dead.push_back(LedgerEntryKey(e));
                 }
@@ -267,11 +253,7 @@ TEST_CASE_VERSIONS("merging bucket entries", "[bucket]")
                 if (rand_flip())
                 {
                     e = LedgerTestUtils::generateValidLedgerEntryWithExclusions(
-                        {
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
-                            CONFIG_SETTING
-#endif
-                        });
+                        {CONFIG_SETTING});
                     ++liveCount;
                 }
             }
@@ -287,222 +269,6 @@ TEST_CASE_VERSIONS("merging bucket entries", "[bucket]")
                               /*doFsync=*/true);
             CHECK(countEntries(b3) == liveCount);
         }
-
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
-        SECTION("EXPIRATION_EXTENSION merges with DATA_ENTRY")
-        {
-            std::vector<LedgerEntry> entries =
-                LedgerTestUtils::generateValidUniqueLedgerEntriesWithTypes(
-                    {CONTRACT_CODE, CONTRACT_DATA}, 100);
-
-            std::vector<LedgerEntry> newExpirationEntries;
-            std::set<LedgerKey> newExpirationKeys;
-
-            uint32_t originalExpiration = 10;
-            uint32_t newExpiration = 20;
-
-            for (auto& entry : entries)
-            {
-                if (entry.data.type() == CONTRACT_CODE)
-                {
-                    entry.data.contractCode().body.bodyType(DATA_ENTRY);
-                    entry.data.contractCode().expirationLedgerSeq =
-                        originalExpiration;
-                }
-                else
-                {
-                    entry.data.contractData().body.bodyType(DATA_ENTRY);
-                    entry.data.contractData().expirationLedgerSeq =
-                        originalExpiration;
-                }
-
-                if (rand_flip())
-                {
-                    newExpirationKeys.emplace(LedgerEntryKey(entry));
-                    newExpirationEntries.push_back(entry);
-
-                    auto& newEntry = newExpirationEntries.back();
-                    if (newEntry.data.type() == CONTRACT_CODE)
-                    {
-                        newEntry.data.contractCode().body.bodyType(
-                            EXPIRATION_EXTENSION);
-                        newEntry.data.contractCode().expirationLedgerSeq =
-                            newExpiration;
-                    }
-                    else
-                    {
-                        newEntry.data.contractData().body.bodyType(
-                            EXPIRATION_EXTENSION);
-                        newEntry.data.contractData().expirationLedgerSeq =
-                            newExpiration;
-                    }
-                }
-            }
-
-            auto checkMerge = [&](auto mergeResult) {
-                CHECK(countEntries(mergeResult) == entries.size());
-                for (BucketInputIterator in(mergeResult); in; ++in)
-                {
-                    auto const& e = (*in).liveEntry();
-                    auto expectedExpiration =
-                        newExpirationKeys.find(LedgerEntryKey(e)) ==
-                                newExpirationKeys.end()
-                            ? originalExpiration
-                            : newExpiration;
-                    if (e.data.type() == CONTRACT_CODE)
-                    {
-                        REQUIRE(e.data.contractCode().body.bodyType() ==
-                                DATA_ENTRY);
-                        REQUIRE(e.data.contractCode().expirationLedgerSeq ==
-                                expectedExpiration);
-                    }
-                    else
-                    {
-                        REQUIRE(e.data.contractData().body.bodyType() ==
-                                DATA_ENTRY);
-                        REQUIRE(e.data.contractData().expirationLedgerSeq ==
-                                expectedExpiration);
-                    }
-                }
-            };
-
-            auto bOriginal =
-                Bucket::fresh(bm, vers, {}, entries, {},
-                              /*countMergeEvents=*/true, clock.getIOContext(),
-                              /*doFsync=*/true);
-
-            auto bNew =
-                Bucket::fresh(bm, vers, {}, newExpirationEntries, {},
-                              /*countMergeEvents=*/true, clock.getIOContext(),
-                              /*doFsync=*/true);
-
-            auto bMerge =
-                Bucket::merge(bm, vers, bOriginal, bNew, /*shadows=*/{},
-                              /*keepDeadEntries=*/true,
-                              /*countMergeEvents=*/true, clock.getIOContext(),
-                              /*doFsync=*/true);
-
-            checkMerge(bMerge);
-
-            // Check that new DATA_ENTRY overwrites old EXPIRATION_EXTENSION
-            for (auto& entry : entries)
-            {
-                if (entry.data.type() == CONTRACT_CODE)
-                {
-                    entry.data.contractCode().body.bodyType(
-                        EXPIRATION_EXTENSION);
-                    entry.data.contractCode().expirationLedgerSeq = 0;
-                }
-                else
-                {
-                    entry.data.contractData().body.bodyType(
-                        EXPIRATION_EXTENSION);
-                    entry.data.contractData().expirationLedgerSeq = 0;
-                }
-            }
-
-            auto bOld =
-                Bucket::fresh(bm, vers, {}, entries, {},
-                              /*countMergeEvents=*/true, clock.getIOContext(),
-                              /*doFsync=*/true);
-
-            auto bMerge2 =
-                Bucket::merge(bm, vers, bOld, bMerge, /*shadows=*/{},
-                              /*keepDeadEntries=*/true,
-                              /*countMergeEvents=*/true, clock.getIOContext(),
-                              /*doFsync=*/true);
-
-            checkMerge(bMerge2);
-        }
-
-        SECTION(
-            "new EXPIRATION_EXTENSION overwrites older EXPIRATION_EXTENSION")
-        {
-            std::vector<LedgerEntry> entries =
-                LedgerTestUtils::generateValidUniqueLedgerEntriesWithTypes(
-                    {CONTRACT_CODE, CONTRACT_DATA}, 100);
-
-            std::vector<LedgerEntry> newExpirationEntries;
-            std::set<LedgerKey> newExpirationKeys;
-
-            uint32_t originalExpiration = 10;
-            uint32_t newExpiration = 20;
-
-            for (auto& entry : entries)
-            {
-                if (entry.data.type() == CONTRACT_CODE)
-                {
-                    entry.data.contractCode().body.bodyType(
-                        EXPIRATION_EXTENSION);
-                    entry.data.contractCode().expirationLedgerSeq =
-                        originalExpiration;
-                }
-                else
-                {
-                    entry.data.contractData().body.bodyType(
-                        EXPIRATION_EXTENSION);
-                    entry.data.contractData().expirationLedgerSeq =
-                        originalExpiration;
-                }
-
-                if (rand_flip())
-                {
-                    newExpirationKeys.emplace(LedgerEntryKey(entry));
-                    newExpirationEntries.push_back(entry);
-
-                    if (entry.data.type() == CONTRACT_CODE)
-                    {
-                        newExpirationEntries.back()
-                            .data.contractCode()
-                            .expirationLedgerSeq = newExpiration;
-                    }
-                    else
-                    {
-                        newExpirationEntries.back()
-                            .data.contractData()
-                            .expirationLedgerSeq = newExpiration;
-                    }
-                }
-            }
-
-            auto bOriginal =
-                Bucket::fresh(bm, vers, {}, entries, {},
-                              /*countMergeEvents=*/true, clock.getIOContext(),
-                              /*doFsync=*/true);
-
-            auto bNew =
-                Bucket::fresh(bm, vers, {}, newExpirationEntries, {},
-                              /*countMergeEvents=*/true, clock.getIOContext(),
-                              /*doFsync=*/true);
-
-            auto bMerge =
-                Bucket::merge(bm, vers, bOriginal, bNew, /*shadows=*/{},
-                              /*keepDeadEntries=*/true,
-                              /*countMergeEvents=*/true, clock.getIOContext(),
-                              /*doFsync=*/true);
-
-            CHECK(countEntries(bMerge) == entries.size());
-            for (BucketInputIterator in(bMerge); in; ++in)
-            {
-                auto const& e = (*in).liveEntry();
-                auto expectedExpiration =
-                    newExpirationKeys.find(LedgerEntryKey(e)) ==
-                            newExpirationKeys.end()
-                        ? originalExpiration
-                        : newExpiration;
-                if (e.data.type() == CONTRACT_CODE)
-                {
-                    REQUIRE(e.data.contractCode().expirationLedgerSeq ==
-                            expectedExpiration);
-                }
-                else
-                {
-                    REQUIRE(e.data.contractData().expirationLedgerSeq ==
-                            expectedExpiration);
-                }
-            }
-        }
-#endif
     });
 }
 

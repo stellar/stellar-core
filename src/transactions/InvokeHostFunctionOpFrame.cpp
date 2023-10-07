@@ -4,15 +4,15 @@
 
 // clang-format off
 // This needs to be included first
+#include "TransactionUtils.h"
 #include "util/GlobalChecks.h"
 #include "xdr/Stellar-ledger-entries.h"
 #include <cstdint>
 #include <json/json.h>
 #include <medida/metrics_registry.h>
 #include <xdrpp/types.h>
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
+#include "xdr/Stellar-contract.h"
 #include "rust/RustVecXdrMarshal.h"
-#endif
 // clang-format on
 
 #include "ledger/LedgerTxnImpl.h"
@@ -21,7 +21,6 @@
 #include <stdexcept>
 #include <xdrpp/xdrpp/printer.h>
 
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
 #include "ledger/LedgerTxn.h"
 #include "ledger/LedgerTxnEntry.h"
 #include "rust/RustBridge.h"
@@ -78,8 +77,6 @@ getLedgerInfo(AbstractLedgerTxn& ltx, Config const& cfg,
         sorobanConfig.stateExpirationSettings().minTempEntryExpiration;
     info.max_entry_expiration =
         sorobanConfig.stateExpirationSettings().maxEntryExpiration;
-    info.autobump_ledgers =
-        sorobanConfig.stateExpirationSettings().autoBumpLedgers;
     info.cpu_cost_params = toCxxBuf(sorobanConfig.cpuCostParams());
     info.mem_cost_params = toCxxBuf(sorobanConfig.memCostParams());
     // TODO: move network id to config to not recompute hash
@@ -91,57 +88,18 @@ getLedgerInfo(AbstractLedgerTxn& ltx, Config const& cfg,
     return info;
 }
 
-bool
-validateContractLedgerEntry(LedgerEntry const& le, size_t entrySize,
-                            SorobanNetworkConfig const& config)
-{
-    releaseAssertOrThrow(!isSorobanEntry(le.data) ||
-                         getLeType(le.data) == DATA_ENTRY);
-
-    // check contract code size limit
-    if (le.data.type() == CONTRACT_CODE &&
-        config.maxContractSizeBytes() <
-            le.data.contractCode().body.code().size())
-    {
-        return false;
-    }
-    // check contract data entry size limit
-    if (le.data.type() == CONTRACT_DATA &&
-        config.maxContractDataEntrySizeBytes() < entrySize)
-    {
-        return false;
-    }
-    return true;
-}
-
-SCVal
-makeSymbol(std::string const& str)
-{
-    SCVal val(SCV_SYMBOL);
-    val.sym().assign(str.begin(), str.end());
-    return val;
-}
-
-SCVal
-makeU64(uint64_t u)
-{
-    SCVal val(SCV_U64);
-    val.u64() = u;
-    return val;
-}
-
 DiagnosticEvent
-metricsEvent(bool success, std::string const& topic, uint32 value)
+metricsEvent(bool success, std::string&& topic, uint32 value)
 {
     DiagnosticEvent de;
     de.inSuccessfulContractCall = success;
     de.event.type = ContractEventType::DIAGNOSTIC;
     SCVec topics = {
-        makeSymbol("core_metrics"),
-        makeSymbol(topic),
+        makeSymbolSCVal("core_metrics"),
+        makeSymbolSCVal(std::move(topic)),
     };
     de.event.body.v0().topics = topics;
-    de.event.body.v0().data = makeU64(value);
+    de.event.body.v0().data = makeU64SCVal(value);
     return de;
 }
 
@@ -192,15 +150,15 @@ struct HostFunctionMetrics
         mReadEntry++;
         mReadKeyByte += keySize;
         mMaxReadWriteKeyByte = std::max(mMaxReadWriteKeyByte, keySize);
-        mLedgerReadByte += keySize + entrySize;
+        mLedgerReadByte += entrySize;
         if (isCodeEntry)
         {
-            mReadCodeByte += keySize + entrySize;
+            mReadCodeByte += entrySize;
             mMaxReadWriteCodeByte = std::max(mMaxReadWriteCodeByte, entrySize);
         }
         else
         {
-            mReadDataByte += keySize + entrySize;
+            mReadDataByte += entrySize;
             mMaxReadWriteDataByte = std::max(mMaxReadWriteDataByte, entrySize);
         }
     }
@@ -209,17 +167,16 @@ struct HostFunctionMetrics
     noteWriteEntry(bool isCodeEntry, uint32 keySize, uint32 entrySize)
     {
         mWriteEntry++;
-        mWriteKeyByte += keySize;
         mMaxReadWriteKeyByte = std::max(mMaxReadWriteKeyByte, keySize);
-        mLedgerWriteByte += keySize + entrySize;
+        mLedgerWriteByte += entrySize;
         if (isCodeEntry)
         {
-            mWriteCodeByte += keySize + entrySize;
+            mWriteCodeByte += entrySize;
             mMaxReadWriteCodeByte = std::max(mMaxReadWriteCodeByte, entrySize);
         }
         else
         {
-            mWriteDataByte += keySize + entrySize;
+            mWriteDataByte += entrySize;
             mMaxReadWriteDataByte = std::max(mMaxReadWriteDataByte, entrySize);
         }
     }
@@ -376,6 +333,35 @@ InvokeHostFunctionOpFrame::maybePopulateDiagnosticEvents(
 }
 
 bool
+InvokeHostFunctionOpFrame::validateContractLedgerEntry(
+    LedgerEntry const& le, size_t entrySize, SorobanNetworkConfig const& config)
+{
+    // check contract code size limit
+    if (le.data.type() == CONTRACT_CODE &&
+        config.maxContractSizeBytes() < le.data.contractCode().code.size())
+    {
+        mParentTx.pushSimpleDiagnosticError(
+            SCE_BUDGET, SCEC_EXCEEDED_LIMIT,
+            "WASM size exceeds network config maximum contract size",
+            {makeU64SCVal(le.data.contractCode().code.size()),
+             makeU64SCVal(config.maxContractSizeBytes())});
+        return false;
+    }
+    // check contract data entry size limit
+    if (le.data.type() == CONTRACT_DATA &&
+        config.maxContractDataEntrySizeBytes() < entrySize)
+    {
+        mParentTx.pushSimpleDiagnosticError(
+            SCE_BUDGET, SCEC_EXCEEDED_LIMIT,
+            "ContractData size exceeds network config maximum size",
+            {makeU64SCVal(entrySize),
+             makeU64SCVal(config.maxContractDataEntrySizeBytes())});
+        return false;
+    }
+    return true;
+}
+
+bool
 InvokeHostFunctionOpFrame::doApply(Application& app, AbstractLedgerTxn& ltx,
                                    Hash const& sorobanBasePrngSeed)
 {
@@ -386,18 +372,17 @@ InvokeHostFunctionOpFrame::doApply(Application& app, AbstractLedgerTxn& ltx,
 
     // Get the entries for the footprint
     rust::Vec<CxxBuf> ledgerEntryCxxBufs;
+    rust::Vec<CxxBuf> expirationEntryCxxBufs;
 
     auto const& resources = mParentTx.sorobanResources();
     auto const& footprint = resources.footprint;
     auto footprintLength =
         footprint.readOnly.size() + footprint.readWrite.size();
 
-    uint32_t ledgerSeq = ltx.loadHeader().current().ledgerSeq;
-
     ledgerEntryCxxBufs.reserve(footprintLength);
 
-    auto addReads = [&ledgerEntryCxxBufs, &ltx, &metrics, &resources,
-                     this](auto const& keys, bool readOnly) -> bool {
+    auto addReads = [&ledgerEntryCxxBufs, &expirationEntryCxxBufs, &ltx,
+                     &metrics, &resources, this](auto const& keys) -> bool {
         for (auto const& lk : keys)
         {
             uint32 keySize = static_cast<uint32>(xdr::xdr_size(lk));
@@ -406,36 +391,73 @@ InvokeHostFunctionOpFrame::doApply(Application& app, AbstractLedgerTxn& ltx,
             auto ltxe = ltx.loadWithoutRecord(lk);
             if (ltxe)
             {
-                auto const& le = ltxe.current();
                 bool shouldAddEntry = true;
-                if (!isLive(le, ltx.getHeader().ledgerSeq))
+                auto const& le = ltxe.current();
+                std::optional<ExpirationEntry> expirationEntry = std::nullopt;
+
+                // For soroban entries, check if the entry is expired
+                if (isSorobanEntry(le.data))
                 {
-                    if (isTemporaryEntry(lk))
+                    auto expirationKey = getExpirationKey(lk);
+                    auto expirationLtxe = ltx.loadWithoutRecord(expirationKey);
+                    releaseAssertOrThrow(expirationLtxe);
+                    if (!isLive(expirationLtxe.current(),
+                                ltx.getHeader().ledgerSeq))
                     {
-                        // For temporary entries, treat the expired entry as if
-                        // the key did not exist
-                        shouldAddEntry = false;
+                        if (isTemporaryEntry(lk))
+                        {
+                            // For temporary entries, treat the expired entry as
+                            // if the key did not exist
+                            shouldAddEntry = false;
+                        }
+                        else
+                        {
+                            // Cannot access an expired entry
+                            this->innerResult().code(
+                                INVOKE_HOST_FUNCTION_ENTRY_EXPIRED);
+                            return false;
+                        }
                     }
-                    else
-                    {
-                        // Cannot access an expired entry
-                        this->innerResult().code(
-                            INVOKE_HOST_FUNCTION_ENTRY_EXPIRED);
-                        return false;
-                    }
+
+                    expirationEntry =
+                        expirationLtxe.current().data.expiration();
                 }
 
                 if (shouldAddEntry)
                 {
-                    auto buf = toCxxBuf(le);
-                    entrySize = static_cast<uint32>(buf.data->size());
-                    ledgerEntryCxxBufs.emplace_back(std::move(buf));
+                    auto leBuf = toCxxBuf(le);
+
+                    // For entry types that don't have an ExpirationEntry (i.e.
+                    // Accounts), the rust host expects an "empty" CxxBuf such
+                    // that the buffer has a non-null pointer that points to an
+                    // empty byte vector
+                    auto expirationBuf =
+                        expirationEntry
+                            ? toCxxBuf(*expirationEntry)
+                            : CxxBuf{std::make_unique<std::vector<uint8_t>>()};
+
+                    entrySize = static_cast<uint32>(leBuf.data->size());
+                    if (expirationEntry)
+                    {
+                        entrySize +=
+                            static_cast<uint32_t>(expirationBuf.data->size());
+                    }
+
+                    ledgerEntryCxxBufs.emplace_back(std::move(leBuf));
+                    expirationEntryCxxBufs.emplace_back(
+                        std::move(expirationBuf));
                 }
             }
             metrics.noteReadEntry(isCodeKey(lk), keySize, entrySize);
 
             if (resources.readBytes < metrics.mLedgerReadByte)
             {
+                mParentTx.pushSimpleDiagnosticError(
+                    SCE_BUDGET, SCEC_EXCEEDED_LIMIT,
+                    "operation byte-read resources exceeds amount specified",
+                    {makeU64SCVal(metrics.mLedgerReadByte),
+                     makeU64SCVal(resources.readBytes)});
+
                 this->innerResult().code(
                     INVOKE_HOST_FUNCTION_RESOURCE_LIMIT_EXCEEDED);
                 return false;
@@ -444,13 +466,13 @@ InvokeHostFunctionOpFrame::doApply(Application& app, AbstractLedgerTxn& ltx,
         return true;
     };
 
-    if (!addReads(footprint.readOnly, true))
+    if (!addReads(footprint.readOnly))
     {
         // Error code set in addReads
         return false;
     }
 
-    if (!addReads(footprint.readWrite, false))
+    if (!addReads(footprint.readWrite))
     {
         // Error code set in addReads
         return false;
@@ -479,7 +501,8 @@ InvokeHostFunctionOpFrame::doApply(Application& app, AbstractLedgerTxn& ltx,
             toCxxBuf(mInvokeHostFunction.hostFunction), toCxxBuf(resources),
             toCxxBuf(getSourceID()), authEntryCxxBufs,
             getLedgerInfo(ltx, cfg, sorobanConfig), ledgerEntryCxxBufs,
-            basePrngSeedBuf, sorobanConfig.rustBridgeRentFeeConfiguration());
+            expirationEntryCxxBufs, basePrngSeedBuf,
+            sorobanConfig.rustBridgeRentFeeConfiguration());
 
         if (!out.success)
         {
@@ -496,9 +519,22 @@ InvokeHostFunctionOpFrame::doApply(Application& app, AbstractLedgerTxn& ltx,
     metrics.mInvokeTimeNsecs = static_cast<uint32>(out.time_nsecs);
     if (!out.success)
     {
-        if (resources.instructions < out.cpu_insns ||
-            sorobanConfig.txMemoryLimit() < out.mem_bytes)
+        if (resources.instructions < out.cpu_insns)
         {
+            mParentTx.pushSimpleDiagnosticError(
+                SCE_BUDGET, SCEC_EXCEEDED_LIMIT,
+                "operation instructions exceeds amount specified",
+                {makeU64SCVal(out.cpu_insns),
+                 makeU64SCVal(resources.instructions)});
+            innerResult().code(INVOKE_HOST_FUNCTION_RESOURCE_LIMIT_EXCEEDED);
+        }
+        else if (sorobanConfig.txMemoryLimit() < out.mem_bytes)
+        {
+            mParentTx.pushSimpleDiagnosticError(
+                SCE_BUDGET, SCEC_EXCEEDED_LIMIT,
+                "operation memory usage exceeds network config limit",
+                {makeU64SCVal(out.mem_bytes),
+                 makeU64SCVal(sorobanConfig.txMemoryLimit())});
             innerResult().code(INVOKE_HOST_FUNCTION_RESOURCE_LIMIT_EXCEEDED);
         }
         else
@@ -509,7 +545,8 @@ InvokeHostFunctionOpFrame::doApply(Application& app, AbstractLedgerTxn& ltx,
     }
 
     // Create or update every entry returned.
-    UnorderedSet<LedgerKey> remainingRWKeys;
+    UnorderedSet<LedgerKey> createdAndModifiedKeys;
+    UnorderedSet<LedgerKey> createdKeys;
     for (auto const& buf : out.modified_ledger_entries)
     {
         LedgerEntry le;
@@ -521,15 +558,27 @@ InvokeHostFunctionOpFrame::doApply(Application& app, AbstractLedgerTxn& ltx,
         }
 
         auto lk = LedgerEntryKey(le);
-        remainingRWKeys.insert(lk);
+        createdAndModifiedKeys.insert(lk);
 
         uint32 keySize = static_cast<uint32>(xdr::xdr_size(lk));
         uint32 entrySize = static_cast<uint32>(buf.data.size());
-        metrics.noteWriteEntry(isCodeKey(lk), keySize, entrySize);
-        if (resources.writeBytes < metrics.mLedgerWriteByte)
+
+        // ExpirationEntry write fees come out of refundableFee, already
+        // accounted for by the host
+        if (lk.type() != EXPIRATION)
         {
-            innerResult().code(INVOKE_HOST_FUNCTION_RESOURCE_LIMIT_EXCEEDED);
-            return false;
+            metrics.noteWriteEntry(isCodeKey(lk), keySize, entrySize);
+            if (resources.writeBytes < metrics.mLedgerWriteByte)
+            {
+                mParentTx.pushSimpleDiagnosticError(
+                    SCE_BUDGET, SCEC_EXCEEDED_LIMIT,
+                    "operation byte-write resources exceeds amount specified",
+                    {makeU64SCVal(metrics.mLedgerWriteByte),
+                     makeU64SCVal(resources.writeBytes)});
+                innerResult().code(
+                    INVOKE_HOST_FUNCTION_RESOURCE_LIMIT_EXCEEDED);
+                return false;
+            }
         }
 
         auto ltxe = ltx.load(lk);
@@ -540,6 +589,23 @@ InvokeHostFunctionOpFrame::doApply(Application& app, AbstractLedgerTxn& ltx,
         else
         {
             ltx.create(le);
+            createdKeys.insert(lk);
+        }
+    }
+
+    // Check that each newly created ContractCode or ContractData entry also
+    // creates an ExpirationEntry
+    for (auto const& key : createdKeys)
+    {
+        if (isSorobanEntry(key))
+        {
+            auto expirationKey = getExpirationKey(key);
+            releaseAssertOrThrow(createdKeys.find(expirationKey) !=
+                                 createdKeys.end());
+        }
+        else
+        {
+            releaseAssertOrThrow(key.type() == EXPIRATION);
         }
     }
 
@@ -549,27 +615,21 @@ InvokeHostFunctionOpFrame::doApply(Application& app, AbstractLedgerTxn& ltx,
     // that hasn't been removed by host explicitly.
     for (auto const& lk : footprint.readWrite)
     {
-        if (remainingRWKeys.find(lk) == remainingRWKeys.end())
+        if (createdAndModifiedKeys.find(lk) == createdAndModifiedKeys.end())
         {
             auto ltxe = ltx.load(lk);
             if (ltxe)
             {
+                releaseAssertOrThrow(isSorobanEntry(lk));
                 ltx.erase(lk);
+
+                // Also delete associated ExpirationEntry
+                auto expirationLK = getExpirationKey(lk);
+                auto expirationLtxe = ltx.load(expirationLK);
+                releaseAssertOrThrow(expirationLtxe);
+                ltx.erase(expirationLK);
             }
         }
-    }
-
-    // Apply expiration bumps for read-only entries (expiration for RW
-    // entries is updated within the modified entry.
-    for (auto const& bump : out.read_only_bumps)
-    {
-        LedgerKey lk;
-        xdr::xdr_from_opaque(bump.ledger_key.data, lk);
-        releaseAssertOrThrow(isSorobanDataEntry(lk));
-        auto ltxe = ltx.load(lk);
-        releaseAssertOrThrow(ltxe);
-        // TODO: this should use expiration extension for RO entries.
-        setExpirationLedger(ltxe.current(), bump.min_expiration);
     }
 
     // Append events to the enclosing TransactionFrame, where
@@ -582,8 +642,14 @@ InvokeHostFunctionOpFrame::doApply(Application& app, AbstractLedgerTxn& ltx,
         metrics.mEmitEventByte += eventSize;
         metrics.mMaxEmitEventByte =
             std::max(metrics.mMaxEmitEventByte, eventSize);
-        if (resources.contractEventsSizeBytes < metrics.mEmitEventByte)
+        if (sorobanConfig.txMaxContractEventsSizeBytes() <
+            metrics.mEmitEventByte)
         {
+            mParentTx.pushSimpleDiagnosticError(
+                SCE_BUDGET, SCEC_EXCEEDED_LIMIT,
+                "total events size exceeds network config maximum",
+                {makeU64SCVal(metrics.mEmitEventByte),
+                 makeU64SCVal(sorobanConfig.txMaxContractEventsSizeBytes())});
             innerResult().code(INVOKE_HOST_FUNCTION_RESOURCE_LIMIT_EXCEEDED);
             return false;
         }
@@ -594,13 +660,23 @@ InvokeHostFunctionOpFrame::doApply(Application& app, AbstractLedgerTxn& ltx,
 
     maybePopulateDiagnosticEvents(cfg, out, metrics);
 
+    metrics.mEmitEventByte += out.result_value.data.size();
+    if (sorobanConfig.txMaxContractEventsSizeBytes() < metrics.mEmitEventByte)
+    {
+        mParentTx.pushSimpleDiagnosticError(
+            SCE_BUDGET, SCEC_EXCEEDED_LIMIT,
+            "return value pushes events size above network config maximum",
+            {makeU64SCVal(metrics.mEmitEventByte),
+             makeU64SCVal(sorobanConfig.txMaxContractEventsSizeBytes())});
+        innerResult().code(INVOKE_HOST_FUNCTION_RESOURCE_LIMIT_EXCEEDED);
+        return false;
+    }
+
     if (!mParentTx.consumeRefundableSorobanResources(
             metrics.mEmitEventByte, out.rent_fee,
             ltx.loadHeader().current().ledgerVersion, sorobanConfig, cfg))
     {
-        // TODO: This probably should have a more precise error code as here
-        // the refundable fee limit is exceeded (and not some resource).
-        innerResult().code(INVOKE_HOST_FUNCTION_RESOURCE_LIMIT_EXCEEDED);
+        innerResult().code(INVOKE_HOST_FUNCTION_INSUFFICIENT_REFUNDABLE_FEE);
         return false;
     }
 
@@ -623,6 +699,11 @@ InvokeHostFunctionOpFrame::doCheckValid(SorobanNetworkConfig const& config,
     if (hostFn.type() == HOST_FUNCTION_TYPE_UPLOAD_CONTRACT_WASM &&
         hostFn.wasm().size() > config.maxContractSizeBytes())
     {
+        mParentTx.pushSimpleDiagnosticError(
+            SCE_BUDGET, SCEC_EXCEEDED_LIMIT,
+            "uploaded WASM size exceeds network config maximum contract size",
+            {makeU64SCVal(hostFn.wasm().size()),
+             makeU64SCVal(config.maxContractSizeBytes())});
         return false;
     }
     if (hostFn.type() == HOST_FUNCTION_TYPE_CREATE_CONTRACT)
@@ -631,6 +712,9 @@ InvokeHostFunctionOpFrame::doCheckValid(SorobanNetworkConfig const& config,
         if (preimage.type() == CONTRACT_ID_PREIMAGE_FROM_ASSET &&
             !isAssetValid(preimage.fromAsset(), ledgerVersion))
         {
+            mParentTx.pushSimpleDiagnosticError(
+                SCE_VALUE, SCEC_INVALID_INPUT,
+                "invalid asset to create contract from");
             return false;
         }
     }
@@ -656,4 +740,3 @@ InvokeHostFunctionOpFrame::isSoroban() const
     return true;
 }
 }
-#endif // ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION

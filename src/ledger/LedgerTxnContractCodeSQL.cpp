@@ -2,7 +2,6 @@
 // under the Apache License, Version 2.0. See the COPYING file at the root
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
 #include "ledger/LedgerTxnImpl.h"
 #include "ledger/NonSociRelatedException.h"
 #include "main/Application.h"
@@ -24,14 +23,6 @@ throwIfNotContractCode(LedgerEntryType type)
 std::shared_ptr<LedgerEntry const>
 LedgerTxnRoot::Impl::loadContractCode(LedgerKey const& k) const
 {
-    // SQL should never return a EXPIRATION_EXTENSION entry. LIFETIME entries
-    // are a BucketList specific construct, SQL just stores a single entry for
-    // ContractCode and updates the expiration ledger accordingly whenever the
-    // BucketList writes a EXPIRATION_EXTENSION entry
-    if (getLeType(k) == EXPIRATION_EXTENSION)
-    {
-        return nullptr;
-    }
     auto hash = toOpaqueBase64(k.contractCode().hash);
     std::string contractCodeEntryStr;
 
@@ -100,11 +91,6 @@ class BulkLoadContractCodeOperation
         for (auto const& k : keys)
         {
             throwIfNotContractCode(k.type());
-            if (getLeType(k) == EXPIRATION_EXTENSION)
-            {
-                continue;
-            }
-
             mHashes.emplace_back(toOpaqueBase64(k.contractCode().hash));
         }
     }
@@ -191,11 +177,6 @@ class BulkDeleteContractCodeOperation
         {
             releaseAssert(!e.entryExists());
             throwIfNotContractCode(e.key().ledgerKey().type());
-            if (getLeType(e.key().ledgerKey()) == EXPIRATION_EXTENSION)
-            {
-                continue;
-            }
-
             mHashes.emplace_back(
                 toOpaqueBase64(e.key().ledgerKey().contractCode().hash));
         }
@@ -398,4 +379,3 @@ LedgerTxnRoot::Impl::dropContractCode(bool rebuild)
 }
 
 }
-#endif

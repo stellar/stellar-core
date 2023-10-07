@@ -5,6 +5,7 @@
 #include "bucket/BucketManager.h"
 #include "bucket/BucketManagerImpl.h"
 #include "bucket/test/BucketTestUtils.h"
+#include "catchup/ReplayDebugMetaWork.h"
 #include "crypto/Hex.h"
 #include "crypto/Random.h"
 #include "crypto/SecretKey.h"
@@ -20,6 +21,7 @@
 #include "test/TestUtils.h"
 #include "test/TxTests.h"
 #include "test/test.h"
+#include "util/DebugMetaUtils.h"
 #include "util/Logging.h"
 #include "util/ProtocolVersion.h"
 #include "util/XDRCereal.h"
@@ -211,12 +213,10 @@ TEST_CASE("LedgerCloseMetaStream file descriptor - LIVE_NODE",
     {
         REQUIRE(lcms.back().v1().ledgerHeader.hash == expectedLastUnsafeHash);
     }
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
     else if (lcms.back().v() == 2)
     {
         REQUIRE(lcms.back().v2().ledgerHeader.hash == expectedLastUnsafeHash);
     }
-#endif
     else
     {
         REQUIRE(false);
@@ -235,12 +235,10 @@ TEST_CASE("LedgerCloseMetaStream file descriptor - LIVE_NODE",
     {
         REQUIRE(lcmsSafe.back().v1().ledgerHeader.hash == expectedLastSafeHash);
     }
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
     else if (lcmsSafe.back().v() == 2)
     {
         REQUIRE(lcmsSafe.back().v2().ledgerHeader.hash == expectedLastSafeHash);
     }
-#endif
     REQUIRE(lcmsSafe ==
             std::vector<LedgerCloseMeta>(lcms.begin(), lcms.end() - 1));
 }
@@ -344,12 +342,10 @@ TEST_CASE("LedgerCloseMetaStream file descriptor - REPLAY_IN_MEMORY",
     {
         REQUIRE(lcm.v1().ledgerHeader.hash == hash);
     }
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
     else if (lcm.v() == 2)
     {
         REQUIRE(lcm.v2().ledgerHeader.hash == hash);
     }
-#endif
     else
     {
         REQUIRE(false);
@@ -421,38 +417,76 @@ TEST_CASE("METADATA_DEBUG_LEDGERS works", "[metadebug]")
     auto app = createTestApplication(clock, cfg);
     app->start();
     auto bucketDir = app->getBucketManager().getBucketDir();
-    auto n = FlushAndRotateMetaDebugWork::getNumberOfDebugFilesToKeep(
-        cfg.METADATA_DEBUG_LEDGERS);
+    auto n = metautils::getNumberOfDebugFilesToKeep(cfg.METADATA_DEBUG_LEDGERS);
     bool gotToExpectedSize = false;
     auto& lm = app->getLedgerManager();
     bool debugFilesGenerated = false;
-    auto const& debugFilePath =
-        FlushAndRotateMetaDebugWork::getMetaDebugDirPath(bucketDir);
-    while (lm.getLastClosedLedgerNum() < (2 * cfg.METADATA_DEBUG_LEDGERS))
-    {
-        clock.crank(false);
-        // Don't check for debug files until the directory has been generated
-        if (!debugFilesGenerated)
-        {
-            debugFilesGenerated = fs::exists(debugFilePath.string());
-        }
+    auto const& debugFilePath = metautils::getMetaDebugDirPath(bucketDir);
 
-        if (app->getWorkScheduler().allChildrenDone() && debugFilesGenerated)
+    auto closeLedgers = [&](uint32_t numLedgers) {
+        while (lm.getLastClosedLedgerNum() < numLedgers)
         {
-            auto files =
-                FlushAndRotateMetaDebugWork::listMetaDebugFiles(bucketDir);
-            REQUIRE(files.size() <= n);
-            if (files.size() == n)
+            clock.crank(false);
+            // Don't check for debug files until the directory has been
+            // generated
+            if (!debugFilesGenerated)
             {
-                gotToExpectedSize = true;
+                debugFilesGenerated = fs::exists(debugFilePath.string());
+            }
+
+            if (app->getWorkScheduler().allChildrenDone() &&
+                debugFilesGenerated)
+            {
+                auto files = metautils::listMetaDebugFiles(bucketDir);
+                REQUIRE(files.size() <= n);
+                if (files.size() + 1 >= n)
+                {
+                    gotToExpectedSize = true;
+                }
             }
         }
-    }
-    while (!app->getWorkScheduler().allChildrenDone())
+        while (!app->getWorkScheduler().allChildrenDone())
+        {
+            clock.crank(false);
+        }
+        REQUIRE(gotToExpectedSize);
+    };
+
+    SECTION("meta zipped and garbage collected")
     {
-        clock.crank(false);
+        closeLedgers(2 * cfg.METADATA_DEBUG_LEDGERS);
     }
-    REQUIRE(gotToExpectedSize);
+    SECTION("meta replayed")
+    {
+        // Generate just enough meta to not triggers garbage collection
+        closeLedgers(cfg.METADATA_DEBUG_LEDGERS);
+        app->gracefulStop();
+
+        // Verify presence of the latest debug tx set
+        auto txSetPath = metautils::getLatestTxSetFilePath(bucketDir);
+        REQUIRE(fs::exists(txSetPath.string()));
+
+        StoredDebugTransactionSet sts;
+        {
+            XDRInputFileStream in;
+            in.open(txSetPath.string());
+            in.readOne(sts);
+        }
+        REQUIRE(sts.ledgerSeq == lm.getLastClosedLedgerNum());
+
+        // Now test replay from meta
+        VirtualClock clock2;
+        Config cfg2 = getTestConfig(1);
+        auto replayApp = createTestApplication(clock2, cfg2);
+        replayApp->start();
+
+        auto replayWork =
+            replayApp->getWorkScheduler().executeWork<ReplayDebugMetaWork>(
+                lm.getLastClosedLedgerNum(), bucketDir);
+        REQUIRE(replayWork->getState() == BasicWork::State::WORK_SUCCESS);
+        REQUIRE(replayApp->getLedgerManager().getLastClosedLedgerNum() ==
+                lm.getLastClosedLedgerNum());
+    }
 }
 
 TEST_CASE_VERSIONS("meta stream contains reasonable meta", "[ledgerclosemeta]")
@@ -468,15 +502,6 @@ TEST_CASE_VERSIONS("meta stream contains reasonable meta", "[ledgerclosemeta]")
 
     VirtualClock clock;
     cfg.METADATA_OUTPUT_STREAM = metaPath;
-    // TODO: later when network configs per ledger are settled, regenerate
-    // meta and remove the 7 lines below
-    cfg.TESTING_LEDGER_MAX_SOROBAN_TX_COUNT = 1;
-    cfg.TESTING_LEDGER_MAX_TRANSACTIONS_SIZE_BYTES = 1;
-    cfg.TESTING_LEDGER_MAX_INSTRUCTIONS = 1;
-    cfg.TESTING_LEDGER_MAX_READ_LEDGER_ENTRIES = 1;
-    cfg.TESTING_LEDGER_MAX_READ_BYTES = 1;
-    cfg.TESTING_LEDGER_MAX_WRITE_LEDGER_ENTRIES = 1;
-    cfg.TESTING_LEDGER_MAX_WRITE_BYTES = 1;
     cfg.USE_CONFIG_FOR_GENESIS = true;
     {
         // Do some stuff
@@ -486,14 +511,13 @@ TEST_CASE_VERSIONS("meta stream contains reasonable meta", "[ledgerclosemeta]")
         auto txFee = lm.getLastTxFee();
         auto bal = app->getLedgerManager().getLastMinBalance(2);
 
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
+        if (appProtocolVersionStartsFrom(*app, SOROBAN_PROTOCOL_VERSION))
         {
             LedgerTxn ltx(app->getLedgerTxnRoot());
             app->getLedgerManager()
                 .getMutableSorobanNetworkConfig(ltx)
                 .setBucketListSnapshotPeriodForTesting(1);
         }
-#endif
 
         auto root = TestAccount::createRoot(*app);
 
@@ -539,7 +563,7 @@ TEST_CASE_VERSIONS("meta stream contains reasonable meta", "[ledgerclosemeta]")
         uint32_t ledgerSeq{0};
 
         if (protocolVersionIsBefore(cfg.TESTING_UPGRADE_LEDGER_PROTOCOL_VERSION,
-                                    GENERALIZED_TX_SET_PROTOCOL_VERSION))
+                                    SOROBAN_PROTOCOL_VERSION))
         {
             // LCM v0
             REQUIRE(lcm.v() == 0);
@@ -549,7 +573,7 @@ TEST_CASE_VERSIONS("meta stream contains reasonable meta", "[ledgerclosemeta]")
         }
         else if (protocolVersionIsBefore(
                      cfg.TESTING_UPGRADE_LEDGER_PROTOCOL_VERSION,
-                     ProtocolVersion::V_20))
+                     SOROBAN_PROTOCOL_VERSION))
         {
             // LCM v1
             REQUIRE(lcm.v() == 1);
@@ -557,8 +581,6 @@ TEST_CASE_VERSIONS("meta stream contains reasonable meta", "[ledgerclosemeta]")
                     cfg.TESTING_UPGRADE_LEDGER_PROTOCOL_VERSION);
             ledgerSeq = lcm.v1().ledgerHeader.header.ledgerSeq;
         }
-
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
         else
         {
             // LCM v2
@@ -567,7 +589,6 @@ TEST_CASE_VERSIONS("meta stream contains reasonable meta", "[ledgerclosemeta]")
                     cfg.TESTING_UPGRADE_LEDGER_PROTOCOL_VERSION);
             ledgerSeq = lcm.v2().ledgerHeader.header.ledgerSeq;
         }
-#endif
 
         if (ledgerSeq == targetSeq)
         {

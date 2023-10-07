@@ -17,17 +17,9 @@ LedgerCloseMetaFrame::LedgerCloseMetaFrame(uint32_t protocolVersion)
     // and runtime conditions.
     mVersion = 0;
 
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
-    if (protocolVersionStartsFrom(protocolVersion, ProtocolVersion::V_20))
+    if (protocolVersionStartsFrom(protocolVersion, SOROBAN_PROTOCOL_VERSION))
     {
         mVersion = 2;
-    }
-    else
-#endif
-        if (protocolVersionStartsFrom(protocolVersion,
-                                      GENERALIZED_TX_SET_PROTOCOL_VERSION))
-    {
-        mVersion = 1;
     }
     mLedgerCloseMeta.v(mVersion);
 }
@@ -41,10 +33,8 @@ LedgerCloseMetaFrame::ledgerHeader()
         return mLedgerCloseMeta.v0().ledgerHeader;
     case 1:
         return mLedgerCloseMeta.v1().ledgerHeader;
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
     case 2:
         return mLedgerCloseMeta.v2().ledgerHeader;
-#endif
     default:
         releaseAssert(false);
     }
@@ -61,11 +51,9 @@ LedgerCloseMetaFrame::reserveTxProcessing(size_t n)
     case 1:
         mLedgerCloseMeta.v1().txProcessing.reserve(n);
         break;
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
     case 2:
         mLedgerCloseMeta.v2().txProcessing.reserve(n);
         break;
-#endif
     default:
         releaseAssert(false);
     }
@@ -82,11 +70,9 @@ LedgerCloseMetaFrame::pushTxProcessingEntry()
     case 1:
         mLedgerCloseMeta.v1().txProcessing.emplace_back();
         break;
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
     case 2:
         mLedgerCloseMeta.v2().txProcessing.emplace_back();
         break;
-#endif
     default:
         releaseAssert(false);
     }
@@ -104,11 +90,9 @@ LedgerCloseMetaFrame::setLastTxProcessingFeeProcessingChanges(
     case 1:
         mLedgerCloseMeta.v1().txProcessing.back().feeProcessing = changes;
         break;
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
     case 2:
         mLedgerCloseMeta.v2().txProcessing.back().feeProcessing = changes;
         break;
-#endif
     default:
         releaseAssert(false);
     }
@@ -134,7 +118,6 @@ LedgerCloseMetaFrame::setTxProcessingMetaAndResultPair(
         txp.result = std::move(rp);
     }
     break;
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
     case 2:
     {
         auto& txp = mLedgerCloseMeta.v2().txProcessing.at(index);
@@ -142,7 +125,6 @@ LedgerCloseMetaFrame::setTxProcessingMetaAndResultPair(
         txp.result = std::move(rp);
     }
     break;
-#endif
     default:
         releaseAssert(false);
     }
@@ -157,10 +139,8 @@ LedgerCloseMetaFrame::upgradesProcessing()
         return mLedgerCloseMeta.v0().upgradesProcessing;
     case 1:
         return mLedgerCloseMeta.v1().upgradesProcessing;
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
     case 2:
         return mLedgerCloseMeta.v2().upgradesProcessing;
-#endif
     default:
         releaseAssert(false);
     }
@@ -177,17 +157,14 @@ LedgerCloseMetaFrame::populateTxSet(TxSetFrame const& txSet)
     case 1:
         txSet.toXDR(mLedgerCloseMeta.v1().txSet);
         break;
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
     case 2:
         txSet.toXDR(mLedgerCloseMeta.v2().txSet);
         break;
-#endif
     default:
         releaseAssert(false);
     }
 }
 
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
 void
 LedgerCloseMetaFrame::setTotalByteSizeOfBucketList(uint64_t size)
 {
@@ -200,7 +177,33 @@ LedgerCloseMetaFrame::setTotalByteSizeOfBucketList(uint64_t size)
         releaseAssert(false);
     }
 }
-#endif
+
+void
+LedgerCloseMetaFrame::populateEvictedEntries(
+    LedgerEntryChanges const& evictionChanges)
+{
+    releaseAssert(mVersion == 2);
+    for (auto const& change : evictionChanges)
+    {
+        switch (change.type())
+        {
+        case LEDGER_ENTRY_CREATED:
+            throw std::runtime_error("unexpected create in eviction meta");
+        case LEDGER_ENTRY_STATE:
+            continue;
+        case LEDGER_ENTRY_UPDATED:
+            // The scan also updates the eviction iterator, but should only
+            // update the eviction iterator
+            releaseAssert(change.updated().data.type() == CONFIG_SETTING);
+            continue;
+        case LEDGER_ENTRY_REMOVED:
+            auto const& key = change.removed();
+            releaseAssert(isTemporaryEntry(key) || key.type() == EXPIRATION);
+            mLedgerCloseMeta.v2().evictedTemporaryLedgerKeys.push_back(key);
+            break;
+        }
+    }
+}
 
 LedgerCloseMeta const&
 LedgerCloseMetaFrame::getXDR() const

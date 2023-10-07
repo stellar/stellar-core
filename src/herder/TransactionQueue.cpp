@@ -231,14 +231,18 @@ TransactionQueue::canAdd(TransactionFrameBasePtr tx,
                   /* shouldUpdateLastModified */ true,
                   TransactionMode::READ_ONLY_WITHOUT_SQL_TXN);
 
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
-    // Transaction queue performs read-only transactions to the database and
-    // there are no concurrent writers, so it is safe to not enclose all the
-    // SQL statements into one transaction here.
-    tx->maybeComputeSorobanResourceFee(
-        ltx.loadHeader().current().ledgerVersion,
-        mApp.getLedgerManager().getSorobanNetworkConfig(ltx), mApp.getConfig());
-#endif
+    if (protocolVersionStartsFrom(ltx.loadHeader().current().ledgerVersion,
+                                  SOROBAN_PROTOCOL_VERSION))
+    {
+        // Transaction queue performs read-only transactions to the database and
+        // there are no concurrent writers, so it is safe to not enclose all the
+        // SQL statements into one transaction here.
+        tx->maybeComputeSorobanResourceFee(
+            ltx.loadHeader().current().ledgerVersion,
+            mApp.getLedgerManager().getSorobanNetworkConfig(ltx),
+            mApp.getConfig());
+    }
+
     int64_t newInclusionFee = tx->getInclusionFee();
     int64_t seqNum = 0;
     TransactionFrameBasePtr oldTx;
@@ -249,9 +253,8 @@ TransactionQueue::canAdd(TransactionFrameBasePtr tx,
         auto& transactions = stateIter->second.mTransactions;
 
         // Invariant: there must be one transaction per source account at all
-        // times if LIMIT_TX_QUEUE_SOURCE_ACCOUNT is on
-        if (mApp.getConfig().LIMIT_TX_QUEUE_SOURCE_ACCOUNT &&
-            transactions.size() > 1)
+        // times
+        if (transactions.size() > 1)
         {
             throw std::runtime_error(
                 "TransactionQueue::canAdd invalid state: more than one "
@@ -271,24 +274,9 @@ TransactionQueue::canAdd(TransactionFrameBasePtr tx,
                     return TransactionQueue::AddResult::ADD_STATUS_DUPLICATE;
                 }
 
-                if (mApp.getConfig().LIMIT_TX_QUEUE_SOURCE_ACCOUNT)
-                {
-                    // If there's already a transaction in the queue, we reject
-                    // any new transaction
-                    return TransactionQueue::AddResult::
-                        ADD_STATUS_TRY_AGAIN_LATER;
-                }
-
-                // By this point, there's already a tx in the queue for this
-                // account, and only the tx with the lowest seqnum for an
-                // account can have non-zero values for these fields.
-                if (tx->getMinSeqAge() != 0 || tx->getMinSeqLedgerGap() != 0)
-                {
-                    return TransactionQueue::AddResult::
-                        ADD_STATUS_TRY_AGAIN_LATER;
-                }
-
-                seqNum = transactions.back().mTx->getSeqNum();
+                // If there's already a transaction in the queue, we reject
+                // any new transaction
+                return TransactionQueue::AddResult::ADD_STATUS_TRY_AGAIN_LATER;
             }
             else
             {
@@ -338,8 +326,7 @@ TransactionQueue::canAdd(TransactionFrameBasePtr tx,
                 // loaded from the account)
                 if (txToReplaceIter == transactions.end())
                 {
-                    if (!transactions.empty() &&
-                        mApp.getConfig().LIMIT_TX_QUEUE_SOURCE_ACCOUNT)
+                    if (!transactions.empty())
                     {
                         // This is a new fee-bump transaction. We didn't find
                         // any existing transaction to replace, so it should be
@@ -590,8 +577,7 @@ TransactionQueue::tryAdd(TransactionFrameBasePtr tx, bool submittedFromSelf)
     }
 
     // Maybe replaced-by-fee, make sure we maintain the invariant
-    if (mApp.getConfig().LIMIT_TX_QUEUE_SOURCE_ACCOUNT &&
-        stateIter->second.mTransactions.size() > 1)
+    if (stateIter->second.mTransactions.size() > 1)
     {
         throw std::runtime_error(
             "Invalid state: tx queue source account limit violated");
@@ -1228,7 +1214,6 @@ class TxQueueTracker : public TxStack
     TransactionQueue::AccountState* mAccountState;
 };
 
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
 SorobanTransactionQueue::SorobanTransactionQueue(Application& app,
                                                  uint32 pendingDepth,
                                                  uint32 banDepth,
@@ -1246,6 +1231,14 @@ SorobanTransactionQueue::getMaxResourcesToFloodThisPeriod() const
 
     LedgerTxn ltx(mApp.getLedgerTxnRoot(), /* shouldUpdateLastModified */ true,
                   TransactionMode::READ_ONLY_WITHOUT_SQL_TXN);
+
+    // If we're not on the right protocol yet, there's nothing to broadcast
+    if (protocolVersionIsBefore(ltx.loadHeader().current().ledgerVersion,
+                                SOROBAN_PROTOCOL_VERSION))
+    {
+        return std::make_pair(Resource::makeEmpty(true), std::nullopt);
+    }
+
     auto sorRes = mApp.getLedgerManager().maxLedgerResources(true, ltx);
 
     auto totalFloodPerLedger = multiplyByDouble(sorRes, ratePerLedger);
@@ -1314,12 +1307,16 @@ SorobanTransactionQueue::broadcastSome()
 
     LedgerTxn ltx(mApp.getLedgerTxnRoot(), true,
                   TransactionMode::READ_ONLY_WITHOUT_SQL_TXN);
-    Resource maxPerTx = mApp.getLedgerManager().maxTransactionResources(
-        /* isSoroban */ true, ltx);
-    for (auto& resLeft : mBroadcastOpCarryover)
+    if (protocolVersionStartsFrom(ltx.loadHeader().current().ledgerVersion,
+                                  SOROBAN_PROTOCOL_VERSION))
     {
-        // Limit carry-over to 1 maximum resource transaction
-        resLeft = limitTo(resLeft, maxPerTx);
+        Resource maxPerTx = mApp.getLedgerManager().maxTransactionResources(
+            /* isSoroban */ true, ltx);
+        for (auto& resLeft : mBroadcastOpCarryover)
+        {
+            // Limit carry-over to 1 maximum resource transaction
+            resLeft = limitTo(resLeft, maxPerTx);
+        }
     }
     return !totalResToFlood.isZero();
 }
@@ -1330,12 +1327,18 @@ SorobanTransactionQueue::getMaxQueueSizeOps() const
     LedgerTxn ltx(mApp.getLedgerTxnRoot(),
                   /* shouldUpdateLastModified */ true,
                   TransactionMode::READ_ONLY_WITHOUT_SQL_TXN);
-    auto res = mTxQueueLimiter->maxScaledLedgerResources(true, ltx);
-    releaseAssert(res.size() == NUM_SOROBAN_TX_RESOURCES);
-    return res.getVal(Resource::Type::OPERATIONS);
+    if (protocolVersionStartsFrom(ltx.loadHeader().current().ledgerVersion,
+                                  SOROBAN_PROTOCOL_VERSION))
+    {
+        auto res = mTxQueueLimiter->maxScaledLedgerResources(true, ltx);
+        releaseAssert(res.size() == NUM_SOROBAN_TX_RESOURCES);
+        return res.getVal(Resource::Type::OPERATIONS);
+    }
+    else
+    {
+        return 0;
+    }
 }
-
-#endif
 
 bool
 ClassicTransactionQueue::broadcastSome()

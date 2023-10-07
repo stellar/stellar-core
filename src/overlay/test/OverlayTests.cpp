@@ -35,6 +35,43 @@ using namespace stellar::overlaytestutils;
 namespace
 {
 
+ClaimPredicate
+recursivePredicate(uint32_t counter)
+{
+    if (counter == 10)
+    {
+        ClaimPredicate u;
+        u.type(CLAIM_PREDICATE_UNCONDITIONAL);
+        return u;
+    }
+
+    ClaimPredicate andPred;
+    andPred.type(CLAIM_PREDICATE_AND);
+    andPred.andPredicates().emplace_back(recursivePredicate(counter + 1));
+    andPred.andPredicates().emplace_back(recursivePredicate(counter + 1));
+
+    return andPred;
+}
+
+Operation
+getOperationGreaterThanMinMaxSizeBytes()
+{
+    Claimant c;
+    c.v0().destination = txtest::getAccount("acc").getPublicKey();
+    c.v0().predicate = recursivePredicate(0);
+    CreateClaimableBalanceOp cbOp;
+    cbOp.claimants.emplace_back(c);
+
+    Operation op;
+    op.body.type(CREATE_CLAIMABLE_BALANCE);
+    op.body.createClaimableBalanceOp() = cbOp;
+
+    uint32 opSize = static_cast<uint32>(xdr::xdr_argpack_size(op));
+    REQUIRE(opSize > MinimumSorobanNetworkConfig::TX_MAX_SIZE_BYTES);
+
+    return op;
+}
+
 TEST_CASE("loopback peer hello", "[overlay][connections]")
 {
     VirtualClock clock;
@@ -98,62 +135,42 @@ TEST_CASE("loopback peer send auth before hello", "[overlay][connections]")
     testutil::shutdownWorkScheduler(*app1);
 }
 
-ClaimPredicate
-recursivePredicate(uint32_t counter)
-{
-    if (counter == 10)
-    {
-        ClaimPredicate u;
-        u.type(CLAIM_PREDICATE_UNCONDITIONAL);
-        return u;
-    }
-
-    ClaimPredicate andPred;
-    andPred.type(CLAIM_PREDICATE_AND);
-    andPred.andPredicates().emplace_back(recursivePredicate(counter + 1));
-    andPred.andPredicates().emplace_back(recursivePredicate(counter + 1));
-
-    return andPred;
-}
-
 TEST_CASE("flow control byte capacity", "[overlay][flowcontrol]")
 {
     StellarMessage tx1;
     tx1.type(TRANSACTION);
 
     // Make tx1 larger than the minimum we can set TX_MAX_SIZE_BYTES to.
-    {
-        Claimant c;
-        c.v0().destination = txtest::getAccount("acc").getPublicKey();
-        c.v0().predicate = recursivePredicate(0);
-        CreateClaimableBalanceOp cbOp;
-        cbOp.claimants.emplace_back(c);
-
-        Operation op;
-        op.body.type(CREATE_CLAIMABLE_BALANCE);
-        op.body.createClaimableBalanceOp() = cbOp;
-
-        tx1.transaction().v0().tx.operations.emplace_back(op);
-    }
-    uint32 txSize = static_cast<uint32>(xdr::xdr_argpack_size(tx1));
+    tx1.transaction().v0().tx.operations.emplace_back(
+        getOperationGreaterThanMinMaxSizeBytes());
+    uint32 txSize = FlowControlCapacity::msgBodySize(tx1);
     REQUIRE(txSize > MinimumSorobanNetworkConfig::TX_MAX_SIZE_BYTES);
 
     VirtualClock clock;
     auto cfg1 = getTestConfig(0);
     auto cfg2 = getTestConfig(1);
-    cfg1.TESTING_TX_MAX_SIZE_BYTES = txSize;
-    cfg2.TESTING_TX_MAX_SIZE_BYTES = txSize;
-
     REQUIRE(cfg1.PEER_FLOOD_READING_CAPACITY !=
             cfg1.PEER_FLOOD_READING_CAPACITY_BYTES);
 
     auto test = [&](bool shouldRequestMore) {
         auto app1 = createTestApplication(clock, cfg1, true, false);
         auto app2 = createTestApplication(clock, cfg2, true, false);
-        app1->getHerder().setMaxClassicTxSize(txSize);
-        app2->getHerder().setMaxClassicTxSize(txSize);
-        app1->start();
-        app2->start();
+        auto setupApp = [txSize](Application& app) {
+            app.getHerder().setMaxClassicTxSize(txSize);
+
+            if (appProtocolVersionStartsFrom(app, SOROBAN_PROTOCOL_VERSION))
+            {
+                overrideSorobanNetworkConfigForTest(app);
+                modifySorobanNetworkConfig(app,
+                                           [txSize](SorobanNetworkConfig& cfg) {
+                                               cfg.mTxMaxSizeBytes = txSize;
+                                           });
+            }
+
+            app.start();
+        };
+        setupApp(*app1);
+        setupApp(*app2);
 
         LoopbackPeerConnection conn(*app1, *app2);
         testutil::crankSome(clock);
@@ -255,12 +272,11 @@ TEST_CASE("flow control byte capacity", "[overlay][flowcontrol]")
     }
     SECTION("transaction size upgrades")
     {
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
         auto tx2 = tx1;
         tx2.transaction().v0().signatures.emplace_back(
             SignatureUtils::sign(SecretKey::random(), HashUtils::random()));
 
-        uint32 txSize2 = static_cast<uint32>(xdr::xdr_argpack_size(tx2));
+        uint32 txSize2 = FlowControlCapacity::msgBodySize(tx2);
         REQUIRE(txSize2 > MinimumSorobanNetworkConfig::TX_MAX_SIZE_BYTES);
         REQUIRE(txSize2 > txSize + 1);
 
@@ -300,13 +316,14 @@ TEST_CASE("flow control byte capacity", "[overlay][flowcontrol]")
                     InitialSorobanNetworkConfig::FEE_TRANSACTION_SIZE_1KB;
                 configEntry.contractBandwidth().txMaxSizeBytes = maxTxSize;
                 configEntry.contractBandwidth().ledgerMaxTxsSizeBytes =
-                    InitialSorobanNetworkConfig::
-                        LEDGER_MAX_TRANSACTION_SIZES_BYTES;
+                    maxTxSize * 10;
                 res = txtest::makeConfigUpgradeSet(ltx, configUpgradeSet);
                 ltx.commit();
             }
             txtest::executeUpgrade(*app, txtest::makeConfigUpgrade(*res));
         };
+        upgradeApp(app1, txSize);
+        upgradeApp(app2, txSize);
 
         auto& txsRecv =
             app2->getMetrics().NewTimer({"overlay", "recv", "transaction"});
@@ -422,7 +439,6 @@ TEST_CASE("flow control byte capacity", "[overlay][flowcontrol]")
                 }
             }
         }
-#endif
     }
 }
 
@@ -574,6 +590,8 @@ TEST_CASE("drop peers that dont respect capacity", "[overlay][flowcontrol]")
     // tx is invalid, but it doesn't matter
     StellarMessage msg;
     msg.type(TRANSACTION);
+    msg.transaction().v0().tx.operations.emplace_back(
+        getOperationGreaterThanMinMaxSizeBytes());
     uint32 txSize = static_cast<uint32>(xdr::xdr_argpack_size(msg));
 
     auto test = [&](bool fcBytes) {
@@ -581,7 +599,6 @@ TEST_CASE("drop peers that dont respect capacity", "[overlay][flowcontrol]")
         {
             cfg1.PEER_FLOOD_READING_CAPACITY_BYTES = txSize + 1;
             cfg1.FLOW_CONTROL_SEND_MORE_BATCH_SIZE_BYTES = 1;
-            cfg1.TESTING_TX_MAX_SIZE_BYTES = txSize;
         }
         else
         {
@@ -594,6 +611,15 @@ TEST_CASE("drop peers that dont respect capacity", "[overlay][flowcontrol]")
             cfg1.PEER_READING_CAPACITY = 2;
         }
         auto app1 = createTestApplication(clock, cfg1, true, false);
+        if (fcBytes &&
+            appProtocolVersionStartsFrom(*app1, SOROBAN_PROTOCOL_VERSION))
+        {
+            modifySorobanNetworkConfig(*app1,
+                                       [txSize](SorobanNetworkConfig& cfg) {
+                                           cfg.mTxMaxSizeBytes = txSize;
+                                       });
+        }
+
         auto app2 = createTestApplication(clock, cfg2, true, false);
         app1->getHerder().setMaxClassicTxSize(txSize);
         app2->getHerder().setMaxClassicTxSize(txSize);
@@ -884,7 +910,9 @@ TEST_CASE("outbound queue filtering", "[overlay][connections]")
         uint32_t limit = node->getLedgerManager().getLastMaxTxSetSizeOps();
         StellarMessage msg;
         msg.type(TRANSACTION);
-        auto byteSize = xdr::xdr_argpack_size(msg);
+        auto byteSize =
+            peer->getFlowControl()->getCapacityBytes()->getMsgResourceCount(
+                msg);
         SECTION("trim based on message count")
         {
             for (uint32_t i = 0; i < limit + 10; ++i)
@@ -2120,10 +2148,10 @@ TEST_CASE("overlay flow control", "[overlay][flowcontrol]")
         cfg.PEER_FLOOD_READING_CAPACITY = 1;
         cfg.PEER_READING_CAPACITY = 1;
         cfg.FLOW_CONTROL_SEND_MORE_BATCH_SIZE = 1;
-        cfg.PEER_FLOOD_READING_CAPACITY_BYTES = 6000;
+        cfg.PEER_FLOOD_READING_CAPACITY_BYTES =
+            MinimumSorobanNetworkConfig::TX_MAX_SIZE_BYTES + 100;
         cfg.FLOW_CONTROL_SEND_MORE_BATCH_SIZE_BYTES = 100;
         cfg.TESTING_UPGRADE_MAX_TX_SET_SIZE = 1000;
-        cfg.TESTING_TX_MAX_SIZE_BYTES = 5900;
         configs.push_back(cfg);
     }
 
@@ -2139,6 +2167,18 @@ TEST_CASE("overlay flow control", "[overlay][flowcontrol]")
         simulation->addPendingConnection(vNode1NodeID, vNode2NodeID);
         simulation->addPendingConnection(vNode2NodeID, vNode3NodeID);
         simulation->addPendingConnection(vNode3NodeID, vNode1NodeID);
+
+        for (auto& node : simulation->getNodes())
+        {
+            if (appProtocolVersionStartsFrom(*node, SOROBAN_PROTOCOL_VERSION))
+            {
+                modifySorobanNetworkConfig(
+                    *node, [](SorobanNetworkConfig& cfg) {
+                        cfg.mTxMaxSizeBytes =
+                            MinimumSorobanNetworkConfig::TX_MAX_SIZE_BYTES;
+                    });
+            }
+        }
         simulation->startAllNodes();
     };
 
@@ -2422,7 +2462,7 @@ TEST_CASE("generalized tx sets are not sent to non-upgraded peers",
           "[txset][overlay]")
 {
     if (protocolVersionIsBefore(Config::CURRENT_LEDGER_PROTOCOL_VERSION,
-                                GENERALIZED_TX_SET_PROTOCOL_VERSION))
+                                SOROBAN_PROTOCOL_VERSION))
     {
         return;
     }
@@ -2434,7 +2474,7 @@ TEST_CASE("generalized tx sets are not sent to non-upgraded peers",
                 auto cfg = getTestConfig(i, Config::TESTDB_ON_DISK_SQLITE);
                 cfg.MAX_SLOTS_TO_REMEMBER = 10;
                 cfg.TESTING_UPGRADE_LEDGER_PROTOCOL_VERSION =
-                    static_cast<uint32_t>(GENERALIZED_TX_SET_PROTOCOL_VERSION);
+                    static_cast<uint32_t>(SOROBAN_PROTOCOL_VERSION);
                 if (hasNonUpgraded && i == nonUpgradedNodeIndex)
                 {
                     cfg.OVERLAY_PROTOCOL_VERSION =

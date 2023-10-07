@@ -16,9 +16,7 @@
 #include <spdlog/spdlog.h>
 #endif
 
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
 #include "rust/RustBridge.h"
-#endif
 
 namespace stellar
 {
@@ -195,9 +193,7 @@ Logging::init(bool truncate)
         }
         spdlog::flush_every(std::chrono::seconds(1));
         spdlog::flush_on(spdlog::level::err);
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
         rust_bridge::init_logging(maxLevel);
-#endif
         mInitialized = true;
     }
 #endif

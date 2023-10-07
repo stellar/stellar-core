@@ -474,7 +474,7 @@ class AbstractLedgerTxnParent
     // Delete all liquidity pool ledger entries. Will throw when called on
     // anything other than a (real or stub) root LedgerTxn.
     virtual void dropLiquidityPools(bool rebuild) = 0;
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
+
     // Delete all contract data ledger entries. Will throw when called on
     // anything other than a (real or stub) root LedgerTxn.
     virtual void dropContractData(bool rebuild) = 0;
@@ -486,7 +486,11 @@ class AbstractLedgerTxnParent
     // Delete all config setting ledger entries. Will throw when called on
     // anything other than a (real or stub) root LedgerTxn.
     virtual void dropConfigSettings(bool rebuild) = 0;
-#endif
+
+    // Delete all expiration ledger entries. Will throw when called on
+    // anything other than a (real or stub) root LedgerTxn.
+    virtual void dropExpiration(bool rebuild) = 0;
+
     // Return the current cache hit rate for prefetched ledger entries, as a
     // fraction from 0.0 to 1.0. Will throw when called on anything other than a
     // (real or stub) root LedgerTxn.
@@ -596,8 +600,8 @@ class AbstractLedgerTxn : public AbstractLedgerTxnParent
     // to enter the sealed state, simultaneously updating last modified if
     // necessary.
     // - getChanges
-    //     Extract all changes from this AbstractLedgerTxn in XDR format. To
-    //     be stored as meta.
+    //     Extract all changes of the given type from this AbstractLedgerTxn in
+    //     XDR format. To be stored as meta.
     // - getDelta
     //     Extract all changes from this AbstractLedgerTxn (including changes
     //     to the LedgerHeader) in a format convenient for answering queries
@@ -784,11 +788,11 @@ class LedgerTxn : public AbstractLedgerTxn
     void dropTrustLines(bool rebuild) override;
     void dropClaimableBalances(bool rebuild) override;
     void dropLiquidityPools(bool rebuild) override;
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
     void dropContractData(bool rebuild) override;
     void dropContractCode(bool rebuild) override;
     void dropConfigSettings(bool rebuild) override;
-#endif
+    void dropExpiration(bool rebuild) override;
+
     double getPrefetchHitRate() const override;
     uint32_t prefetch(UnorderedSet<LedgerKey> const& keys) override;
     void prepareNewObjects(size_t s) override;
@@ -847,11 +851,10 @@ class LedgerTxnRoot : public AbstractLedgerTxnParent
     void dropTrustLines(bool rebuild) override;
     void dropClaimableBalances(bool rebuild) override;
     void dropLiquidityPools(bool rebuild) override;
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
     void dropContractData(bool rebuild) override;
     void dropContractCode(bool rebuild) override;
     void dropConfigSettings(bool rebuild) override;
-#endif
+    void dropExpiration(bool rebuild) override;
 
 #ifdef BUILD_TESTS
     void resetForFuzzer() override;

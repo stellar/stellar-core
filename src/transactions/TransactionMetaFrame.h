@@ -28,11 +28,9 @@ class TransactionMetaFrame
 
     TransactionMeta const& getXDR() const;
 
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
     void pushContractEvents(xdr::xvector<ContractEvent>&& events);
     void pushDiagnosticEvents(xdr::xvector<DiagnosticEvent>&& events);
     void setReturnValue(SCVal&& returnValue);
-#endif
 
   private:
     TransactionMeta mTransactionMeta;

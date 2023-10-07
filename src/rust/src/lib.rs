@@ -55,11 +55,6 @@ mod rust_bridge {
         hash: String,
     }
 
-    struct ReadOnlyBump {
-        ledger_key: RustBuf,
-        min_expiration: u32,
-    }
-
     // Result of invoking a host function.
     // When `success` is `false`, the function has failed. The diagnostic events
     // and metering data will be populated, but result value and effects won't
@@ -76,7 +71,6 @@ mod rust_bridge {
         result_value: RustBuf,
         contract_events: Vec<RustBuf>,
         modified_ledger_entries: Vec<RustBuf>,
-        read_only_bumps: Vec<ReadOnlyBump>,
         rent_fee: i64,
     }
 
@@ -103,7 +97,6 @@ mod rust_bridge {
         pub min_temp_entry_expiration: u32,
         pub min_persistent_entry_expiration: u32,
         pub max_entry_expiration: u32,
-        pub autobump_ledgers: u32,
         pub cpu_cost_params: CxxBuf,
         pub mem_cost_params: CxxBuf,
     }
@@ -159,6 +152,7 @@ mod rust_bridge {
 
     struct CxxRentFeeConfiguration {
         fee_per_write_1kb: i64,
+        fee_per_write_entry: i64,
         persistent_rent_rate_denominator: i64,
         temporary_rent_rate_denominator: i64,
     }
@@ -193,6 +187,7 @@ mod rust_bridge {
             auth_entries: &Vec<CxxBuf>,
             ledger_info: CxxLedgerInfo,
             ledger_entries: &Vec<CxxBuf>,
+            expiration_entries: &Vec<CxxBuf>,
             base_prng_seed: &CxxBuf,
             rent_fee_configuration: CxxRentFeeConfiguration,
         ) -> Result<InvokeHostFunctionOutput>;
@@ -393,14 +388,37 @@ fn check_lockfile_has_expected_dep_tree(
     let soroban_host_proto_version = get_ledger_protocol_version(soroban_host_interface_version);
     let soroban_host_pre_release_version = get_pre_release_version(soroban_host_interface_version);
 
-    // FIXME: this is fairly harmless, but old versions of soroban didn't encode a
-    // protocol version in their interface version at all, so will report zero here.
-    // For now we ignore this, but should tighten the test up before final.
-    if soroban_host_proto_version != 0 && stellar_core_proto_version != soroban_host_proto_version {
-        panic!(
-            "stellar-core \"{}\" protocol is {}, does not match soroban host \"{}\" protocol {}",
-            curr_or_prev, stellar_core_proto_version, curr_or_prev, soroban_host_proto_version
-        );
+    if cfg!(feature = "core-vnext") {
+        // In a stellar-core "vnext" build, core's protocol is set to 1 more
+        // than the network's current max-supported version, to prototype new
+        // work that we don't want to get released to the network by accident,
+        // during a point release.
+        //
+        // Soroban has no corresponding concept of a "vnext build" so we just
+        // use a weak version check here, and let core's protocol get ahead of
+        // soroban's in this type of build.
+        if stellar_core_proto_version < soroban_host_proto_version {
+            panic!(
+                "stellar-core \"{}\" protocol is {}, does not match soroban host \"{}\" protocol {}",
+                curr_or_prev, stellar_core_proto_version, curr_or_prev, soroban_host_proto_version
+            );
+        }
+    } else {
+        // In non-vnext core builds, we're more strict about the versions
+        // matching.
+        //
+        // FIXME: this is fairly harmless, but old versions of soroban didn't
+        // encode a protocol version in their interface version at all, so will
+        // report zero here. For now we ignore this, but should tighten the test
+        // up before final.
+        if soroban_host_proto_version != 0
+            && stellar_core_proto_version != soroban_host_proto_version
+        {
+            panic!(
+                "stellar-core \"{}\" protocol is {}, does not match soroban host \"{}\" protocol {}",
+                curr_or_prev, stellar_core_proto_version, curr_or_prev, soroban_host_proto_version
+            );
+        }
     }
 
     let pkg = lockfile
@@ -409,12 +427,12 @@ fn check_lockfile_has_expected_dep_tree(
         .find(|p| p.name.as_str() == "soroban-env-host" && package_matches_hash(p, package_hash))
         .expect("locating host package in Cargo.lock");
 
-    if soroban_host_pre_release_version != 0 && pkg.version.major != 0 {
-        panic!("soroban interface version indicates pre-release {} but package version is {}, with nonzero major version",
+    if soroban_host_pre_release_version != 0 && pkg.version.pre.is_empty() {
+        panic!("soroban interface version indicates pre-release {} but package version is {}, with empty prerelease component",
                 soroban_host_pre_release_version, pkg.version)
     }
 
-    if pkg.version.major == 0 {
+    if pkg.version.major == 0 || !pkg.version.pre.is_empty() {
         eprintln!(
             "Warning: soroban-env-host-{} is running a pre-release version {}",
             curr_or_prev, pkg.version
@@ -629,6 +647,7 @@ pub(crate) fn invoke_host_function(
     auth_entries: &Vec<CxxBuf>,
     ledger_info: CxxLedgerInfo,
     ledger_entries: &Vec<CxxBuf>,
+    expiration_entries: &Vec<CxxBuf>,
     base_prng_seed: &CxxBuf,
     rent_fee_configuration: CxxRentFeeConfiguration,
 ) -> Result<InvokeHostFunctionOutput, Box<dyn std::error::Error>> {
@@ -649,6 +668,7 @@ pub(crate) fn invoke_host_function(
                 auth_entries,
                 ledger_info,
                 ledger_entries,
+                expiration_entries,
                 base_prng_seed,
                 rent_fee_configuration,
             );
@@ -663,6 +683,7 @@ pub(crate) fn invoke_host_function(
         auth_entries,
         ledger_info,
         ledger_entries,
+        expiration_entries,
         base_prng_seed,
         rent_fee_configuration,
     )

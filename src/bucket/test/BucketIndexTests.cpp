@@ -39,11 +39,6 @@ class BucketIndexTest
     stellar::uniform_int_distribution<uint8_t> mDist;
     uint32_t mLevelsToBuild;
 
-    bool const mExpirationEntriesOnly;
-
-    uint32_t const ORIGINAL_EXPIRATION = 5000;
-    uint32_t const NEW_EXPIRATION = 6000;
-
     static void
     validateResults(UnorderedMap<LedgerKey, LedgerEntry> const& validEntries,
                     std::vector<LedgerEntry> const& blEntries)
@@ -72,41 +67,19 @@ class BucketIndexTest
         do
         {
             ++ledger;
-            std::vector<LedgerEntry> entries;
-
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
-            if (mExpirationEntriesOnly)
-            {
-                entries =
-                    LedgerTestUtils::generateValidUniqueLedgerEntriesWithTypes(
-                        {CONTRACT_DATA, CONTRACT_CODE}, 10);
-                for (auto& e : entries)
-                {
-                    setExpirationLedger(e, ORIGINAL_EXPIRATION);
-                }
-            }
-            else
-#endif
-                entries =
-                    LedgerTestUtils::generateValidLedgerEntriesWithExclusions(
-                        {
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
-                            CONFIG_SETTING
-#endif
-                        },
-                        10);
+            std::vector<LedgerEntry> entries =
+                LedgerTestUtils::generateValidLedgerEntriesWithExclusions(
+                    {CONFIG_SETTING}, 10);
             f(entries);
             closeLedger(*mApp);
         } while (!BucketList::levelShouldSpill(ledger, mLevelsToBuild - 1));
     }
 
   public:
-    BucketIndexTest(Config const& cfg, uint32_t levels = 6,
-                    bool expirationEntriesOnly = false)
+    BucketIndexTest(Config const& cfg, uint32_t levels = 6)
         : mClock(std::make_unique<VirtualClock>())
         , mApp(createTestApplication<BucketTestApplication>(*mClock, cfg))
         , mLevelsToBuild(levels)
-        , mExpirationEntriesOnly(expirationEntriesOnly)
     {
     }
 
@@ -192,75 +165,16 @@ class BucketIndexTest
         buildBucketList(f);
     }
 
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
-    void
-    insertExpirationExtnesions()
-    {
-        std::vector<LedgerEntry> toInsert;
-        std::vector<LedgerEntry> shadows;
-
-        for (auto& [k, e] : mTestEntries)
-        {
-            // Select 50% of entries to have new expiration ledger
-            if (isSorobanDataEntry(e.data) && rand_flip())
-            {
-                auto extensionEntry = e;
-
-                // Also shadow 50% of expiration extensions
-                bool shadow = rand_flip();
-
-                setExpirationLedger(e, NEW_EXPIRATION);
-                setLeType(extensionEntry,
-                          ContractEntryBodyType::EXPIRATION_EXTENSION);
-                if (shadow)
-                {
-                    // Insert dummy expiration that will be shadowed later
-                    setExpirationLedger(extensionEntry, 0);
-                    shadows.emplace_back(extensionEntry);
-                }
-                else
-                {
-                    setExpirationLedger(extensionEntry, NEW_EXPIRATION);
-                }
-
-                // Insert in batches of 10
-                toInsert.emplace_back(extensionEntry);
-                if (toInsert.size() == 10)
-                {
-                    insertEntries(toInsert);
-                    toInsert.clear();
-                }
-            }
-        }
-
-        if (!toInsert.empty())
-        {
-            insertEntries(toInsert);
-        }
-
-        // Update shadows with correct expiration ledger and reinsert
-        for (auto& e : shadows)
-        {
-            setExpirationLedger(e, NEW_EXPIRATION);
-        }
-
-        insertEntries(shadows);
-    }
-
     void
     insertSimilarContractDataKeys()
     {
         auto templateEntry =
             LedgerTestUtils::generateValidLedgerEntryWithTypes({CONTRACT_DATA});
-        templateEntry.data.contractData().body.bodyType(DATA_ENTRY);
 
         auto generateEntry = [&](ContractDataDurability t) {
             static uint32_t expiration = 10000;
             auto le = templateEntry;
             le.data.contractData().durability = t;
-
-            // Distinguish entries via expiration ledger
-            le.data.contractData().expirationLedgerSeq = ++expiration;
             return le;
         };
 
@@ -280,7 +194,6 @@ class BucketIndexTest
 
         insertEntries(entries);
     }
-#endif
 
     virtual void
     run()
@@ -330,12 +243,7 @@ class BucketIndexTest
                 // Add keys not in bucket list as well
                 auto addKeys =
                     LedgerTestUtils::generateValidLedgerEntryKeysWithExclusions(
-                        {
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
-                            CONFIG_SETTING
-#endif
-                        },
-                        10);
+                        {CONFIG_SETTING}, 10);
 
                 searchSubset.insert(addKeys.begin(), addKeys.end());
             }
@@ -351,12 +259,7 @@ class BucketIndexTest
         // Load should return empty vector for keys not in bucket list
         auto keysNotInBL =
             LedgerTestUtils::generateValidLedgerEntryKeysWithExclusions(
-                {
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
-                    CONFIG_SETTING
-#endif
-                },
-                10);
+                {CONFIG_SETTING}, 10);
         LedgerKeySet invalidKeys(keysNotInBL.begin(), keysNotInBL.end());
 
         // Test bulk load
@@ -578,25 +481,10 @@ TEST_CASE("loadPoolShareTrustLinesByAccountAndAsset does not load shadows",
     testAllIndexTypes(f);
 }
 
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
-TEST_CASE("load EXPIRATION_EXTENSION entries", "[bucket][bucketindex]")
-{
-    auto f = [&](Config& cfg) {
-        auto test =
-            BucketIndexTest(cfg, /*levels=*/6, /*expirationEntriesOnly=*/true);
-        test.buildGeneralTest();
-        test.insertExpirationExtnesions();
-        test.run();
-    };
-
-    testAllIndexTypes(f);
-}
-
 TEST_CASE("ContractData key with same ScVal", "[bucket][bucketindex]")
 {
     auto f = [&](Config& cfg) {
-        auto test =
-            BucketIndexTest(cfg, /*levels=*/1, /*expirationEntriesOnly=*/true);
+        auto test = BucketIndexTest(cfg, /*levels=*/1);
         test.buildGeneralTest();
         test.insertSimilarContractDataKeys();
         test.run();
@@ -604,7 +492,6 @@ TEST_CASE("ContractData key with same ScVal", "[bucket][bucketindex]")
 
     testAllIndexTypes(f);
 }
-#endif
 
 TEST_CASE("serialize bucket indexes", "[bucket][bucketindex][!hide]")
 {

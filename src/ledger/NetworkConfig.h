@@ -6,16 +6,46 @@
 
 #include "ledger/LedgerTxn.h"
 #include "main/Config.h"
+#include "rust/RustBridge.h"
 #include <cstdint>
 #include <deque>
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
-#include "rust/RustBridge.h"
-#endif
 
 namespace stellar
 {
 
 class Application;
+
+// Defines the minimum values allowed for the network configuration
+// settings during upgrades. An upgrade that does not follow the minimums
+// will be rejected.
+struct MinimumSorobanNetworkConfig
+{
+    static constexpr uint32_t TX_MAX_READ_LEDGER_ENTRIES = 3;
+    static constexpr uint32_t TX_MAX_READ_BYTES = 3'200;
+
+    static constexpr uint32_t TX_MAX_WRITE_LEDGER_ENTRIES = 2;
+    static constexpr uint32_t TX_MAX_WRITE_BYTES = 3'200;
+
+    static constexpr uint32_t TX_MAX_SIZE_BYTES = 10'000;
+
+    static constexpr uint32_t TX_MAX_INSTRUCTIONS = 2'500'000;
+    static constexpr uint32_t MEMORY_LIMIT = 2'000'000;
+
+    static constexpr uint32_t MAX_CONTRACT_DATA_KEY_SIZE_BYTES = 300;
+    static constexpr uint32_t MAX_CONTRACT_DATA_ENTRY_SIZE_BYTES = 2'000;
+    static constexpr uint32_t MAX_CONTRACT_SIZE = 2'000;
+
+    static constexpr uint32_t MINIMUM_TEMP_ENTRY_LIFETIME = 16;
+    static constexpr uint32_t MINIMUM_PERSISTENT_ENTRY_LIFETIME = 10;
+    static constexpr uint32_t MAXIMUM_ENTRY_LIFETIME = 535'680; // 31 days
+    static constexpr int64_t RENT_RATE_DENOMINATOR = INT64_MAX;
+    static constexpr uint32_t MAX_ENTRIES_TO_EXPIRE = 0;
+    static constexpr uint32_t BUCKETLIST_SIZE_WINDOW_SAMPLE_SIZE = 1;
+    static constexpr uint32_t EVICTION_SCAN_SIZE = 0;
+    static constexpr uint32_t STARTING_EVICTION_LEVEL = 1;
+
+    static constexpr uint32_t TX_MAX_CONTRACT_EVENTS_SIZE_BYTES = 200;
+};
 
 // Defines the initial values of the network configuration
 // settings that are applied during the protocol version upgrade.
@@ -25,40 +55,45 @@ class Application;
 struct InitialSorobanNetworkConfig
 {
     // Contract size settings
-    static constexpr uint32_t MAX_CONTRACT_SIZE = 64 * 1024; // 64KB
+    static constexpr uint32_t MAX_CONTRACT_SIZE =
+        MinimumSorobanNetworkConfig::MAX_CONTRACT_SIZE;
 
     // Contract data settings
-    static constexpr uint32_t MAX_CONTRACT_DATA_KEY_SIZE_BYTES = 300;
+    static constexpr uint32_t MAX_CONTRACT_DATA_KEY_SIZE_BYTES =
+        MinimumSorobanNetworkConfig::MAX_CONTRACT_DATA_KEY_SIZE_BYTES;
     static constexpr uint32_t MAX_CONTRACT_DATA_ENTRY_SIZE_BYTES =
-        64 * 1024; // 64KB
+        MinimumSorobanNetworkConfig::MAX_CONTRACT_DATA_ENTRY_SIZE_BYTES;
 
     // Compute settings
-    static constexpr int64_t TX_MAX_INSTRUCTIONS = 100'000'000;
-    static constexpr int64_t LEDGER_MAX_INSTRUCTIONS = 10 * TX_MAX_INSTRUCTIONS;
-    static constexpr int64_t FEE_RATE_PER_INSTRUCTIONS_INCREMENT =
-        100; // 0.2 XLM/max tx
-    static constexpr uint32_t MEMORY_LIMIT = 100 * 1024 * 1024; // 100MB
+    static constexpr int64_t TX_MAX_INSTRUCTIONS =
+        MinimumSorobanNetworkConfig::TX_MAX_INSTRUCTIONS;
+    static constexpr int64_t LEDGER_MAX_INSTRUCTIONS = TX_MAX_INSTRUCTIONS;
+    static constexpr int64_t FEE_RATE_PER_INSTRUCTIONS_INCREMENT = 100;
+    static constexpr uint32_t MEMORY_LIMIT =
+        MinimumSorobanNetworkConfig::MEMORY_LIMIT;
 
     // Ledger access settings
-    static constexpr uint32_t TX_MAX_READ_LEDGER_ENTRIES = 40;
-    static constexpr uint32_t TX_MAX_READ_BYTES = 200 * 1024;
-    static constexpr uint32_t TX_MAX_WRITE_LEDGER_ENTRIES = 20;
-    static constexpr uint32_t TX_MAX_WRITE_BYTES = 100 * 1024;
+    static constexpr uint32_t TX_MAX_READ_LEDGER_ENTRIES =
+        MinimumSorobanNetworkConfig::TX_MAX_READ_LEDGER_ENTRIES;
+    static constexpr uint32_t TX_MAX_READ_BYTES =
+        MinimumSorobanNetworkConfig::TX_MAX_READ_BYTES;
+    static constexpr uint32_t TX_MAX_WRITE_LEDGER_ENTRIES =
+        MinimumSorobanNetworkConfig::TX_MAX_WRITE_LEDGER_ENTRIES;
+    static constexpr uint32_t TX_MAX_WRITE_BYTES =
+        MinimumSorobanNetworkConfig::TX_MAX_WRITE_BYTES;
     static constexpr uint32_t LEDGER_MAX_READ_LEDGER_ENTRIES =
-        10 * TX_MAX_READ_LEDGER_ENTRIES;
-    static constexpr uint32_t LEDGER_MAX_READ_BYTES = 10 * TX_MAX_READ_BYTES;
+        TX_MAX_READ_LEDGER_ENTRIES;
+    static constexpr uint32_t LEDGER_MAX_READ_BYTES = TX_MAX_READ_BYTES;
     static constexpr uint32_t LEDGER_MAX_WRITE_LEDGER_ENTRIES =
-        10 * TX_MAX_WRITE_LEDGER_ENTRIES;
-    static constexpr uint32_t LEDGER_MAX_WRITE_BYTES = 10 * TX_MAX_WRITE_BYTES;
-    static constexpr int64_t FEE_READ_LEDGER_ENTRY = 5'000;   // 0.02 XLM/max tx
-    static constexpr int64_t FEE_WRITE_LEDGER_ENTRY = 20'000; // 0.04 XLM/max tx
-    static constexpr int64_t FEE_READ_1KB = 1'000;            // 0.02 XLM/max tx
+        TX_MAX_WRITE_LEDGER_ENTRIES;
+    static constexpr uint32_t LEDGER_MAX_WRITE_BYTES = TX_MAX_WRITE_BYTES;
+    static constexpr int64_t FEE_READ_LEDGER_ENTRY = 5'000;
+    static constexpr int64_t FEE_WRITE_LEDGER_ENTRY = 20'000;
+    static constexpr int64_t FEE_READ_1KB = 1'000;
     static constexpr int64_t BUCKET_LIST_TARGET_SIZE_BYTES =
         30LL * 1024 * 1024 * 1024; // 30 GB
-    static constexpr int64_t BUCKET_LIST_FEE_1KB_BUCKET_LIST_LOW =
-        1'000; // 0.01 XLM/max tx
-    static constexpr int64_t BUCKET_LIST_FEE_1KB_BUCKET_LIST_HIGH =
-        10'000; // 0.1 XLM/max tx
+    static constexpr int64_t BUCKET_LIST_FEE_1KB_BUCKET_LIST_LOW = 1'000;
+    static constexpr int64_t BUCKET_LIST_FEE_1KB_BUCKET_LIST_HIGH = 10'000;
     // No growth fee initially to make sure fees are accessible
     static constexpr uint32_t BUCKET_LIST_WRITE_FEE_GROWTH_FACTOR = 1;
 
@@ -66,31 +101,35 @@ struct InitialSorobanNetworkConfig
         30; // 30 day average
 
     // Historical data settings
-    static constexpr int64_t FEE_HISTORICAL_1KB = 100; // 0.001 XLM/max tx
+    static constexpr int64_t FEE_HISTORICAL_1KB = 100;
 
     // Bandwidth settings
-    static constexpr uint32_t TX_MAX_SIZE_BYTES = 100 * 1024;
+    static constexpr uint32_t TX_MAX_SIZE_BYTES =
+        MinimumSorobanNetworkConfig::TX_MAX_SIZE_BYTES;
     static constexpr uint32_t LEDGER_MAX_TRANSACTION_SIZES_BYTES =
-        10 * TX_MAX_SIZE_BYTES;
-    static constexpr int64_t FEE_TRANSACTION_SIZE_1KB =
-        2'000; // 0.02 XLM/max tx
+        TX_MAX_SIZE_BYTES;
+    static constexpr int64_t FEE_TRANSACTION_SIZE_1KB = 2'000;
 
     // Contract events settings
-    static constexpr uint32_t TX_MAX_CONTRACT_EVENTS_SIZE_BYTES = 10 * 1024;
+    static constexpr uint32_t TX_MAX_CONTRACT_EVENTS_SIZE_BYTES =
+        MinimumSorobanNetworkConfig::TX_MAX_CONTRACT_EVENTS_SIZE_BYTES;
     static constexpr int64_t FEE_CONTRACT_EVENTS_SIZE_1KB = 200;
 
     // State expiration settings
-    // 1 year in ledgers
-    static constexpr uint32_t MAXIMUM_ENTRY_LIFETIME = 6'312'000;
+    static constexpr uint32_t MAXIMUM_ENTRY_LIFETIME =
+        MinimumSorobanNetworkConfig::MAXIMUM_ENTRY_LIFETIME;
 
-    // Live until level 6
-    static constexpr uint32_t MINIMUM_PERSISTENT_ENTRY_LIFETIME = 4096;
+    // Note that the initial MINIMUM_PERSISTENT_ENTRY_LIFETIME is greater
+    // than the minimum to allow for reductions during testing.
+    static constexpr uint32_t MINIMUM_PERSISTENT_ENTRY_LIFETIME =
+        4'096; // Live until level 6
     static constexpr uint32_t MINIMUM_TEMP_ENTRY_LIFETIME = 16;
 
     static constexpr uint32_t AUTO_BUMP_NUM_LEDGERS = 0;
 
-    static constexpr uint64_t EVICTION_SCAN_SIZE = 1;
-    static constexpr uint32_t MAX_ENTRIES_TO_EXPIRE = 1;
+    static constexpr uint64_t EVICTION_SCAN_SIZE = 100'000; // 100 kb
+    static constexpr uint32_t MAX_ENTRIES_TO_EXPIRE = 100;
+    static constexpr uint32_t STARTING_EVICTION_SCAN_LEVEL = 6;
 
     // Rent payment of a write fee per ~25 days.
     static constexpr int64_t PERSISTENT_RENT_RATE_DENOMINATOR = 252'480;
@@ -98,38 +137,62 @@ struct InitialSorobanNetworkConfig
     static constexpr int64_t TEMP_RENT_RATE_DENOMINATOR = 2'524'800;
 
     // General execution settings
-    static constexpr uint32_t LEDGER_MAX_TX_COUNT = 10;
+    static constexpr uint32_t LEDGER_MAX_TX_COUNT = 1;
 };
 
-// Defines the minimum values allowed for the network configuration
-// settings during upgrades. An upgrade that does not follow the minimums
-// will be rejected.
-struct MinimumSorobanNetworkConfig
+// Defines the subset of the `InitialSorobanNetworkConfig` to be overridden for
+// testing, enabled by `Config::TESTING_SOROBAN_HIGH_LIMIT_OVERRIDE`.
+struct TestOverrideSorobanNetworkConfig
 {
-    static constexpr uint32_t TX_MAX_READ_LEDGER_ENTRIES = 5;
-    static constexpr uint32_t TX_MAX_READ_BYTES = 5000;
+    // Contract size settings
+    static constexpr uint32_t MAX_CONTRACT_SIZE =
+        InitialSorobanNetworkConfig::MAX_CONTRACT_SIZE * 32;
 
-    static constexpr uint32_t TX_MAX_WRITE_LEDGER_ENTRIES = 2;
-    static constexpr uint32_t TX_MAX_WRITE_BYTES = 5000;
+    // Contract data settings
+    static constexpr uint32_t MAX_CONTRACT_DATA_KEY_SIZE_BYTES =
+        InitialSorobanNetworkConfig::MAX_CONTRACT_DATA_KEY_SIZE_BYTES * 10;
+    static constexpr uint32_t MAX_CONTRACT_DATA_ENTRY_SIZE_BYTES =
+        InitialSorobanNetworkConfig::MAX_CONTRACT_DATA_ENTRY_SIZE_BYTES * 10;
 
-    static constexpr uint32_t LEDGER_MAX_READ_LEDGER_ENTRIES = 5;
-    static constexpr uint32_t LEDGER_MAX_READ_BYTES = 5000;
-    static constexpr uint32_t LEDGER_MAX_WRITE_LEDGER_ENTRIES = 2;
-    static constexpr uint32_t LEDGER_MAX_WRITE_BYTES = 5000;
+    // Compute settings
+    static constexpr int64_t TX_MAX_INSTRUCTIONS =
+        InitialSorobanNetworkConfig::TX_MAX_INSTRUCTIONS * 50;
+    static constexpr int64_t LEDGER_MAX_INSTRUCTIONS = TX_MAX_INSTRUCTIONS;
+    static constexpr uint32_t MEMORY_LIMIT =
+        InitialSorobanNetworkConfig::MEMORY_LIMIT * 10;
 
-    static constexpr uint32_t TX_MAX_SIZE_BYTES = 10000;
-    static constexpr uint32_t LEDGER_MAX_TX_SIZE_BYTES = 10000;
+    // Ledger access settings
+    static constexpr uint32_t TX_MAX_READ_LEDGER_ENTRIES =
+        InitialSorobanNetworkConfig::TX_MAX_READ_LEDGER_ENTRIES * 10;
+    static constexpr uint32_t TX_MAX_READ_BYTES =
+        InitialSorobanNetworkConfig::TX_MAX_READ_BYTES * 10;
+    static constexpr uint32_t TX_MAX_WRITE_LEDGER_ENTRIES =
+        InitialSorobanNetworkConfig::TX_MAX_WRITE_LEDGER_ENTRIES * 10;
+    static constexpr uint32_t TX_MAX_WRITE_BYTES =
+        InitialSorobanNetworkConfig::TX_MAX_WRITE_BYTES * 10;
+    static constexpr uint32_t LEDGER_MAX_READ_LEDGER_ENTRIES =
+        TX_MAX_READ_LEDGER_ENTRIES;
+    static constexpr uint32_t LEDGER_MAX_READ_BYTES = TX_MAX_READ_BYTES;
+    static constexpr uint32_t LEDGER_MAX_WRITE_LEDGER_ENTRIES =
+        TX_MAX_WRITE_LEDGER_ENTRIES;
+    static constexpr uint32_t LEDGER_MAX_WRITE_BYTES = TX_MAX_WRITE_BYTES;
 
-    static constexpr uint32_t TX_MAX_INSTRUCTIONS = 5'000'000;
-    static constexpr uint32_t LEDGER_MAX_INSTRUCTIONS = 5'000'000;
-    static constexpr uint32_t MEMORY_LIMIT = 5'000'000;
+    // Bandwidth settings
+    static constexpr uint32_t TX_MAX_SIZE_BYTES =
+        InitialSorobanNetworkConfig::TX_MAX_SIZE_BYTES * 5;
+    static constexpr uint32_t LEDGER_MAX_TRANSACTION_SIZES_BYTES =
+        TX_MAX_SIZE_BYTES;
 
-    static constexpr uint32_t MAX_CONTRACT_DATA_KEY_SIZE_BYTES = 500;
-    static constexpr uint32_t MAX_CONTRACT_DATA_ENTRY_SIZE_BYTES = 5000;
-    static constexpr uint32_t MAX_CONTRACT_SIZE = 5000;
+    // Contract events settings
+    static constexpr uint32_t TX_MAX_CONTRACT_EVENTS_SIZE_BYTES =
+        InitialSorobanNetworkConfig::TX_MAX_CONTRACT_EVENTS_SIZE_BYTES * 20;
 
-    static constexpr uint32_t MINIMUM_PERSISTENT_ENTRY_LIFETIME = 100;
-    static constexpr uint32_t MAXIMUM_ENTRY_LIFETIME = 259200; // 15 days
+    // State expiration settings
+    static constexpr uint32_t MAXIMUM_ENTRY_LIFETIME = 6307200; // 1 year
+
+    // General execution settings
+    static constexpr uint32_t LEDGER_MAX_TX_COUNT =
+        InitialSorobanNetworkConfig::LEDGER_MAX_TX_COUNT * 5;
 };
 
 // Wrapper for the contract-related network configuration.
@@ -215,7 +278,7 @@ class SorobanNetworkConfig
     // General execution ledger settings
     uint32_t ledgerMaxTxCount() const;
 
-    // Number of samples in slidign window
+    // Number of samples in sliding window
     uint32_t getBucketListSizeSnapshotPeriod() const;
 
     // If currLedger is a ledger when we should snapshot, add a new snapshot to
@@ -228,14 +291,14 @@ class SorobanNetworkConfig
     uint64_t getAverageBucketListSize() const;
 
 #ifdef BUILD_TESTS
-    uint32_t& maxContractDataKeySizeBytes();
-    uint32_t& maxContractDataEntrySizeBytes();
-
     void setBucketListSnapshotPeriodForTesting(uint32_t period);
     std::deque<uint64_t> const& getBucketListSizeWindowForTesting() const;
 #endif
 
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
+    static bool isValidConfigSettingEntry(ConfigSettingEntry const& cfg);
+    static bool
+    isNonUpgradeableConfigSettingEntry(ConfigSettingEntry const& cfg);
+
     // Cost model parameters of the Soroban host
     ContractCostParams const& cpuCostParams() const;
     ContractCostParams const& memCostParams() const;
@@ -247,9 +310,13 @@ class SorobanNetworkConfig
 
     // State expiration settings
     StateExpirationSettings const& stateExpirationSettings() const;
+    EvictionIterator const& evictionIterator() const;
+
+    void updateEvictionIterator(AbstractLedgerTxn& ltxRoot,
+                                EvictionIterator const& newIter) const;
 #ifdef BUILD_TESTS
     StateExpirationSettings& stateExpirationSettings();
-#endif
+    EvictionIterator& evictionIterator();
 #endif
 
   private:
@@ -269,6 +336,7 @@ class SorobanNetworkConfig
     void loadStateExpirationSettings(AbstractLedgerTxn& ltx);
     void loadExecutionLanesSettings(AbstractLedgerTxn& ltx);
     void loadBucketListSizeWindow(AbstractLedgerTxn& ltx);
+    void loadEvictionIterator(AbstractLedgerTxn& ltx);
     void computeWriteFee(uint32_t configMaxProtocol, uint32_t protocolVersion);
     // If newSize is different than the current BucketList size sliding window,
     // update the window. If newSize < currSize, pop entries off window. If
@@ -276,9 +344,17 @@ class SorobanNetworkConfig
     // window until it has newSize entries.
     void maybeUpdateBucketListWindowSize(AbstractLedgerTxn& ltx);
 
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
     void writeBucketListSizeWindow(AbstractLedgerTxn& ltxRoot) const;
     void updateBucketListSizeAverage();
+// Expose all the fields for testing overrides in order to avoid using
+// special test-only field setters.
+// Access this via
+// `app.getLedgerManager().getMutableSorobanNetworkConfig(ltx)`.
+// Important: any manual updates to this will be overwritten in case of
+// **any** network upgrade - tests that perform updates should only update
+// settings via upgrades as well.
+#ifdef BUILD_TESTS
+  public:
 #endif
 
     uint32_t mMaxContractSizeBytes{};
@@ -328,17 +404,17 @@ class SorobanNetworkConfig
 
 #ifdef BUILD_TESTS
     std::optional<uint32_t> mBucketListSnapshotPeriodForTesting;
+
+    void writeAllSettings(AbstractLedgerTxn& ltx) const;
 #endif
 
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
     // Host cost params
     ContractCostParams mCpuCostParams{};
     ContractCostParams mMemCostParams{};
 
     // State expiration settings
     StateExpirationSettings mStateExpirationSettings{};
-
-#endif
+    mutable EvictionIterator mEvictionIterator{};
 };
 
 }

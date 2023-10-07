@@ -25,20 +25,6 @@ class FlushAndRotateMetaDebugWork : public Work
         uint32_t ledgersToKeep);
     ~FlushAndRotateMetaDebugWork() = default;
 
-    static std::filesystem::path
-    getMetaDebugFilePath(std::filesystem::path const& bucketDir,
-                         uint32_t seqNum);
-
-    static std::filesystem::path
-    getMetaDebugDirPath(std::filesystem::path const& bucketDir);
-
-    static std::vector<std::filesystem::path>
-    listMetaDebugFiles(std::filesystem::path const& bucketDir);
-
-    static bool isDebugSegmentBoundary(uint32_t ledgerSeq);
-
-    static size_t getNumberOfDebugFilesToKeep(uint32_t ledgersToKeep);
-
   protected:
     BasicWork::State doWork() override;
 };

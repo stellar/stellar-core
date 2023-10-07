@@ -32,9 +32,7 @@ enum class LoadGenMode
     PRETEND,
     // Mix of payments and DEX-related transactions.
     MIXED_TXS,
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
     SOROBAN
-#endif
 };
 
 struct GeneratedLoadConfig
@@ -194,13 +192,11 @@ class LoadGenerator
     manageOfferTransaction(uint32_t ledgerNum, uint64_t accountId,
                            uint32_t opCount,
                            std::optional<uint32_t> maxGeneratedFeeRate);
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
     std::pair<LoadGenerator::TestAccountPtr, TransactionFramePtr>
     sorobanTransaction(uint32_t numAccounts, uint32_t offset,
                        uint32_t ledgerNum, uint64_t accountId,
                        SorobanResources resources, size_t wasmSize,
                        uint32_t inclusionFee);
-#endif
     void maybeHandleFailedTx(TransactionFramePtr tx,
                              TestAccountPtr sourceAccount,
                              TransactionQueue::AddResult status,

@@ -198,12 +198,8 @@ printXdr(std::string const& filename, std::string const& filetype, bool base64,
         {"result", PRINTONEXDR(TransactionResult)},
         {"resultpair", PRINTONEXDR(TransactionResultPair)},
         {"tx", PRINTONEXDR(TransactionEnvelope)},
-        {"txfee", PRINTONEXDR(LedgerEntryChanges)}
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
-        ,
-        {"scval", PRINTONEXDR(SCVal)}
-#endif
-    };
+        {"txfee", PRINTONEXDR(LedgerEntryChanges)},
+        {"scval", PRINTONEXDR(SCVal)}};
 
 #undef PRINTONEXDR
 

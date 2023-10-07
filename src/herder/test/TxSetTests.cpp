@@ -20,14 +20,13 @@ namespace
 {
 using namespace txtest;
 
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
 TEST_CASE("generalized tx set XDR validation", "[txset]")
 {
     Config cfg(getTestConfig());
     cfg.LEDGER_PROTOCOL_VERSION =
-        static_cast<uint32_t>(GENERALIZED_TX_SET_PROTOCOL_VERSION);
+        static_cast<uint32_t>(SOROBAN_PROTOCOL_VERSION);
     cfg.TESTING_UPGRADE_LEDGER_PROTOCOL_VERSION =
-        static_cast<uint32_t>(GENERALIZED_TX_SET_PROTOCOL_VERSION);
+        static_cast<uint32_t>(SOROBAN_PROTOCOL_VERSION);
     VirtualClock clock;
     Application::pointer app = createTestApplication(clock, cfg);
 
@@ -479,11 +478,14 @@ TEST_CASE("generalized tx set XDR conversion", "[txset]")
     VirtualClock clock;
     auto cfg = getTestConfig();
     cfg.LEDGER_PROTOCOL_VERSION =
-        static_cast<uint32_t>(GENERALIZED_TX_SET_PROTOCOL_VERSION);
+        static_cast<uint32_t>(SOROBAN_PROTOCOL_VERSION);
     cfg.TESTING_UPGRADE_LEDGER_PROTOCOL_VERSION =
-        static_cast<uint32_t>(GENERALIZED_TX_SET_PROTOCOL_VERSION);
-    cfg.TESTING_LEDGER_MAX_SOROBAN_TX_COUNT = 5;
+        static_cast<uint32_t>(SOROBAN_PROTOCOL_VERSION);
     Application::pointer app = createTestApplication(clock, cfg);
+    overrideSorobanNetworkConfigForTest(*app);
+    modifySorobanNetworkConfig(*app, [](SorobanNetworkConfig& sorobanCfg) {
+        sorobanCfg.mLedgerMaxTxCount = 5;
+    });
     auto root = TestAccount::createRoot(*app);
     int accountId = 0;
     auto createTxs = [&](int cnt, int fee, bool isSoroban = false) {
@@ -499,10 +501,8 @@ TEST_CASE("generalized tx set XDR conversion", "[txset]")
                 resources.instructions = 800'000;
                 resources.readBytes = 1000;
                 resources.writeBytes = 1000;
-                resources.contractEventsSizeBytes = 0;
-                txs.emplace_back(createUploadWasmTx(*app, source, fee,
-                                                    /* refundableFee */ 1200,
-                                                    resources));
+                txs.emplace_back(createUploadWasmTx(
+                    *app, source, fee, DEFAULT_TEST_REFUNDABLE_FEE, resources));
             }
             else
             {
@@ -709,11 +709,10 @@ TEST_CASE("generalized tx set with multiple txs per source account", "[txset]")
 {
     VirtualClock clock;
     auto cfg = getTestConfig();
-    cfg.LIMIT_TX_QUEUE_SOURCE_ACCOUNT = true;
     cfg.LEDGER_PROTOCOL_VERSION =
-        static_cast<uint32_t>(GENERALIZED_TX_SET_PROTOCOL_VERSION);
+        static_cast<uint32_t>(SOROBAN_PROTOCOL_VERSION);
     cfg.TESTING_UPGRADE_LEDGER_PROTOCOL_VERSION =
-        static_cast<uint32_t>(GENERALIZED_TX_SET_PROTOCOL_VERSION);
+        static_cast<uint32_t>(SOROBAN_PROTOCOL_VERSION);
     Application::pointer app = createTestApplication(clock, cfg);
     auto root = TestAccount::createRoot(*app);
     int accountId = 1;
@@ -773,7 +772,6 @@ TEST_CASE("generalized tx set with multiple txs per source account", "[txset]")
         resources.instructions = 800'000;
         resources.readBytes = 1000;
         resources.writeBytes = 1000;
-        resources.contractEventsSizeBytes = 0;
         uint32_t inclusionFee = 500;
         uint32_t refundableFee = 10'000;
         auto sorobanTx = createUploadWasmTx(*app, root, inclusionFee,
@@ -800,12 +798,15 @@ TEST_CASE("generalized tx set fees", "[txset]")
     VirtualClock clock;
     auto cfg = getTestConfig();
     cfg.LEDGER_PROTOCOL_VERSION =
-        static_cast<uint32_t>(GENERALIZED_TX_SET_PROTOCOL_VERSION);
+        static_cast<uint32_t>(SOROBAN_PROTOCOL_VERSION);
     cfg.TESTING_UPGRADE_LEDGER_PROTOCOL_VERSION =
-        static_cast<uint32_t>(GENERALIZED_TX_SET_PROTOCOL_VERSION);
-    cfg.TESTING_LEDGER_MAX_SOROBAN_TX_COUNT = 10;
+        static_cast<uint32_t>(SOROBAN_PROTOCOL_VERSION);
 
     Application::pointer app = createTestApplication(clock, cfg);
+    overrideSorobanNetworkConfigForTest(*app);
+    modifySorobanNetworkConfig(*app, [](SorobanNetworkConfig& sorobanCfg) {
+        sorobanCfg.mLedgerMaxTxCount = 10;
+    });
     auto root = TestAccount::createRoot(*app);
     int accountId = 1;
     uint32_t refundableFee = 10'000;
@@ -819,7 +820,6 @@ TEST_CASE("generalized tx set fees", "[txset]")
             resources.instructions = 800'000;
             resources.readBytes = 1000;
             resources.writeBytes = 1000;
-            resources.contractEventsSizeBytes = 0;
             auto tx = createUploadWasmTx(*app, source, inclusionFee,
                                          refundableFee, resources);
             setValidTotalFee(tx, inclusionFee, refundableFee, *app, source);
@@ -938,7 +938,6 @@ TEST_CASE("generalized tx set fees", "[txset]")
         }
     }
 }
-#endif
 
 } // namespace
 } // namespace stellar

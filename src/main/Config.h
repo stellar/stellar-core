@@ -210,6 +210,9 @@ class Config : public std::enable_shared_from_this<Config>
     // This config should only be enabled when testing.
     std::chrono::microseconds ARTIFICIALLY_SLEEP_MAIN_THREAD_FOR_TESTING;
 
+    // Timeout before publishing externalized values to archive
+    std::chrono::seconds PUBLISH_TO_ARCHIVE_DELAY;
+
     // Config parameters that force transaction application during ledger
     // close to sleep for a certain amount of time.
     // The probability that it sleeps for
@@ -369,8 +372,9 @@ class Config : public std::enable_shared_from_this<Config>
     //  aren't concerned with byzantine failures.
     bool UNSAFE_QUORUM;
 
-    // If set to true, the node will limit its transaction queue to 1
-    // transaction per source account. This impacts which transactions the
+    // DEPRECATED: this flag is enabled by default, so setting it to false will
+    // have no effect. The node will limit its transaction queue
+    // to 1 transaction per source account. This impacts which transactions the
     // node will nominate and flood to others.
     bool LIMIT_TX_QUEUE_SOURCE_ACCOUNT;
 
@@ -466,14 +470,6 @@ class Config : public std::enable_shared_from_this<Config>
     uint32_t TESTING_UPGRADE_RESERVE;     // in stroops
     uint32_t TESTING_UPGRADE_MAX_TX_SET_SIZE;
     uint32_t TESTING_UPGRADE_FLAGS;
-    uint32_t TESTING_LEDGER_MAX_TRANSACTIONS_SIZE_BYTES;
-    int64_t TESTING_LEDGER_MAX_INSTRUCTIONS;
-    uint32_t TESTING_LEDGER_MAX_READ_LEDGER_ENTRIES;
-    uint32_t TESTING_LEDGER_MAX_READ_BYTES;
-    uint32_t TESTING_LEDGER_MAX_WRITE_LEDGER_ENTRIES;
-    uint32_t TESTING_LEDGER_MAX_WRITE_BYTES;
-    uint32_t TESTING_LEDGER_MAX_SOROBAN_TX_COUNT;
-    uint32_t TESTING_TX_MAX_SIZE_BYTES;
 
     unsigned short HTTP_PORT; // what port to listen for commands
     bool PUBLIC_HTTP_PORT;    // if you accept commands from not localhost
@@ -494,10 +490,8 @@ class Config : public std::enable_shared_from_this<Config>
     int MAX_BATCH_WRITE_BYTES;
     double FLOOD_OP_RATE_PER_LEDGER;
     int FLOOD_TX_PERIOD_MS;
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
     double FLOOD_SOROBAN_RATE_PER_LEDGER;
     int FLOOD_SOROBAN_TX_PERIOD_MS;
-#endif
     int32_t FLOOD_ARB_TX_BASE_ALLOWANCE;
     double FLOOD_ARB_TX_DAMPING_FACTOR;
 
@@ -569,7 +563,6 @@ class Config : public std::enable_shared_from_this<Config>
     // The default value is false.
     bool HALT_ON_INTERNAL_TRANSACTION_ERROR;
 
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
     // If set to true, env will return additional diagnostic Soroban events
     // that are not part of the protocol. These events will be put into a list
     // in the non-hashed portion of the meta, and this list will contain all
@@ -580,7 +573,17 @@ class Config : public std::enable_shared_from_this<Config>
     // Override the initial hardcoded MINIMUM_PERSISTENT_ENTRY_LIFETIME
     // for testing.
     uint32_t TESTING_MINIMUM_PERSISTENT_ENTRY_LIFETIME;
-#endif
+
+    // Increase all initial max limits to higher values for testing
+    bool TESTING_SOROBAN_HIGH_LIMIT_OVERRIDE;
+
+    // Override eviction parameters for testing. If
+    // OVERRIDE_EVICTION_PARAMS_FOR_TESTING is true, all the eviction TESTING_*
+    // parameters will be used instead of the default values.
+    bool OVERRIDE_EVICTION_PARAMS_FOR_TESTING;
+    uint32_t TESTING_EVICTION_SCAN_SIZE;
+    uint32_t TESTING_STARTING_EVICTION_SCAN_LEVEL;
+    uint32_t TESTING_MAX_ENTRIES_TO_EXPIRE;
 
 #ifdef BUILD_TESTS
     // If set to true, the application will be aware this run is for a test

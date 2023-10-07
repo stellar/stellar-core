@@ -75,8 +75,7 @@ FlowControlByteCapacity::getCapacityLimits() const
 uint64_t
 FlowControlByteCapacity::getMsgResourceCount(StellarMessage const& msg) const
 {
-
-    return static_cast<uint64_t>(xdr::xdr_argpack_size(msg));
+    return msgBodySize(msg);
 }
 
 void
@@ -100,14 +99,12 @@ FlowControlByteCapacity::canRead() const
     return true;
 }
 
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
 void
 FlowControlByteCapacity::handleTxSizeIncrease(uint32_t increase)
 {
     mCapacity.mFloodCapacity += increase;
     mCapacityLimits.mFloodCapacity += increase;
 }
-#endif
 
 FlowControlCapacity::FlowControlCapacity(Application& app, NodeID const& nodeID)
     : mApp(app), mNodeID(nodeID)
@@ -206,4 +203,12 @@ FlowControlCapacity::hasOutboundCapacity(StellarMessage const& msg) const
     ZoneScoped;
     return mOutboundCapacity >= getMsgResourceCount(msg);
 }
+
+uint64_t
+FlowControlCapacity::msgBodySize(StellarMessage const& msg)
+{
+    return static_cast<uint64_t>(xdr::xdr_size(msg) -
+                                 xdr::xdr_size(msg.type()));
+}
+
 }

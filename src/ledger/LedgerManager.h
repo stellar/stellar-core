@@ -133,9 +133,6 @@ class LedgerManager
     getSorobanNetworkConfig(AbstractLedgerTxn& ltx) = 0;
 
 #ifdef BUILD_TESTS
-    virtual void
-    setSorobanNetworkConfig(SorobanNetworkConfig const& config) = 0;
-
     virtual SorobanNetworkConfig&
     getMutableSorobanNetworkConfig(AbstractLedgerTxn& ltx) = 0;
 #endif

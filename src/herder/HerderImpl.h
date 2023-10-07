@@ -88,7 +88,8 @@ class HerderImpl : public Herder
         return mState == State::HERDER_TRACKING_NETWORK_STATE;
     }
 
-    void processExternalized(uint64 slotIndex, StellarValue const& value);
+    void processExternalized(uint64 slotIndex, StellarValue const& value,
+                             bool isLatestSlot);
     void valueExternalized(uint64 slotIndex, StellarValue const& value,
                            bool isLatestSlot);
     void emitEnvelope(SCPEnvelope const& envelope);
@@ -185,9 +186,7 @@ class HerderImpl : public Herder
     PendingEnvelopes& getPendingEnvelopes();
 
     ClassicTransactionQueue& getTransactionQueue() override;
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
     SorobanTransactionQueue& getSorobanTransactionQueue() override;
-#endif
     bool sourceAccountPending(AccountID const& accountID) const override;
 #endif
 
@@ -200,10 +199,9 @@ class HerderImpl : public Herder
     bool verifyStellarValueSignature(StellarValue const& sv);
 
     size_t getMaxQueueSizeOps() const override;
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
     size_t getMaxQueueSizeSorobanOps() const override;
     void maybeHandleUpgrade() override;
-#endif
+
     bool isBannedTx(Hash const& hash) const override;
     TransactionFrameBaseConstPtr getTx(Hash const& hash) const override;
 
@@ -229,11 +227,10 @@ class HerderImpl : public Herder
     void safelyProcessSCPQueue(bool synchronous);
     void newSlotExternalized(bool synchronous, StellarValue const& value);
     void purgeOldPersistedTxSets();
+    void writeDebugTxSet(LedgerCloseData const& lcd);
 
     ClassicTransactionQueue mTransactionQueue;
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
     SorobanTransactionQueue mSorobanTransactionQueue;
-#endif
 
     void updateTransactionQueue(TxSetFrameConstPtr txSet);
 

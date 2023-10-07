@@ -1345,6 +1345,15 @@
     <ClCompile Include="..\..\lib\tracy\public\TracyClient.cpp">
       <Filter>lib\tracy</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\src\ledger\LedgerTxnExpirationSQL.cpp">
+      <Filter>ledger</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\util\DebugMetaUtils.cpp">
+      <Filter>util</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\catchup\ReplayDebugMetaWork.cpp">
+      <Filter>catchup</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\..\lib\util\cpptoml.h">
@@ -2346,6 +2355,12 @@
     </ClInclude>
     <ClInclude Include="..\..\src\transactions\RestoreFootprintOpFrame.h">
       <Filter>transactions</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\util\DebugMetaUtils.h">
+      <Filter>util</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\catchup\ReplayDebugMetaWork.h">
+      <Filter>catchup</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>

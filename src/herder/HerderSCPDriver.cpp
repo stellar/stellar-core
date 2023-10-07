@@ -579,7 +579,7 @@ compareTxSets(TxSetFrameConstPtr l, TxSetFrameConstPtr r, Hash const& lh,
         return lSize < rSize;
     }
     if (protocolVersionStartsFrom(header.ledgerVersion,
-                                  GENERALIZED_TX_SET_PROTOCOL_VERSION))
+                                  SOROBAN_PROTOCOL_VERSION))
     {
         auto lBids = l->getTotalInclusionFees();
         auto rBids = r->getTotalInclusionFees();
@@ -598,7 +598,7 @@ compareTxSets(TxSetFrameConstPtr l, TxSetFrameConstPtr r, Hash const& lh,
         }
     }
     if (protocolVersionStartsFrom(header.ledgerVersion,
-                                  GENERALIZED_TX_SET_PROTOCOL_VERSION))
+                                  SOROBAN_PROTOCOL_VERSION))
     {
         auto lEncodedSize = l->encodedSize();
         auto rEncodedSize = r->encodedSize();
@@ -673,13 +673,29 @@ HerderSCPDriver::combineCandidates(uint64_t slotIndex,
                     clUpgrade.newBaseReserve() = std::max(
                         clUpgrade.newBaseReserve(), lupgrade.newBaseReserve());
                     break;
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
+                case LEDGER_UPGRADE_FLAGS:
+                    clUpgrade.newFlags() =
+                        std::max(clUpgrade.newFlags(), lupgrade.newFlags());
+                    break;
+                case LEDGER_UPGRADE_CONFIG:
+                    if (clUpgrade.newConfig().contractID <
+                        lupgrade.newConfig().contractID)
+                    {
+                        clUpgrade.newConfig() = lupgrade.newConfig();
+                    }
+                    else if (clUpgrade.newConfig().contractID ==
+                                 lupgrade.newConfig().contractID &&
+                             clUpgrade.newConfig().contentHash <
+                                 lupgrade.newConfig().contentHash)
+                    {
+                        clUpgrade.newConfig() = lupgrade.newConfig();
+                    }
+                    break;
                 case LEDGER_UPGRADE_MAX_SOROBAN_TX_SET_SIZE:
                     clUpgrade.newMaxSorobanTxSetSize() =
                         std::max(clUpgrade.newMaxSorobanTxSetSize(),
                                  lupgrade.newMaxSorobanTxSetSize());
                     break;
-#endif
                 default:
                     // should never get there with values that are not valid
                     throw std::runtime_error("invalid upgrade step");

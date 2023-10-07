@@ -298,8 +298,7 @@ testTxSet(uint32 protocolVersion)
     VirtualClock clock;
     Application::pointer app = createTestApplication(clock, cfg);
     bool uniqueAccounts =
-        protocolVersion >=
-        static_cast<uint32_t>(GENERALIZED_TX_SET_PROTOCOL_VERSION);
+        protocolVersion >= static_cast<uint32_t>(SOROBAN_PROTOCOL_VERSION);
 
     // set up world
     auto root = TestAccount::createRoot(*app);
@@ -650,12 +649,10 @@ TEST_CASE("txset", "[herder][txset]")
     {
         testTxSet(13);
     }
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
     SECTION("generalized tx set protocol")
     {
-        testTxSet(static_cast<uint32>(GENERALIZED_TX_SET_PROTOCOL_VERSION));
+        testTxSet(static_cast<uint32>(SOROBAN_PROTOCOL_VERSION));
     }
-#endif
     SECTION("protocol current")
     {
         testTxSet(Config::CURRENT_LEDGER_PROTOCOL_VERSION);
@@ -734,7 +731,7 @@ TEST_CASE_VERSIONS("txset with PreconditionsV2", "[herder][txset]")
             {
                 LedgerTxn ltx(app->getLedgerTxnRoot());
                 if (ltx.loadHeader().current().ledgerVersion >=
-                    static_cast<uint32_t>(GENERALIZED_TX_SET_PROTOCOL_VERSION))
+                    static_cast<uint32_t>(SOROBAN_PROTOCOL_VERSION))
                 {
                     return;
                 }
@@ -769,7 +766,7 @@ TEST_CASE_VERSIONS("txset with PreconditionsV2", "[herder][txset]")
             {
                 LedgerTxn ltx(app->getLedgerTxnRoot());
                 if (ltx.loadHeader().current().ledgerVersion >=
-                    static_cast<uint32_t>(GENERALIZED_TX_SET_PROTOCOL_VERSION))
+                    static_cast<uint32_t>(SOROBAN_PROTOCOL_VERSION))
                 {
                     return;
                 }
@@ -1222,78 +1219,67 @@ TEST_CASE("txset base fee", "[herder][txset]")
                 // high = 2*base (surge)
                 SECTION("maxed out surged")
                 {
-                    testBaseFee(static_cast<uint32_t>(
-                                    GENERALIZED_TX_SET_PROTOCOL_VERSION) -
-                                    1,
-                                baseCount, v11ExtraTx, maxTxSetSize, 1000,
-                                2000);
+                    testBaseFee(
+                        static_cast<uint32_t>(SOROBAN_PROTOCOL_VERSION) - 1,
+                        baseCount, v11ExtraTx, maxTxSetSize, 1000, 2000);
                 }
                 SECTION("smallest surged")
                 {
-                    testBaseFee(static_cast<uint32_t>(
-                                    GENERALIZED_TX_SET_PROTOCOL_VERSION) -
-                                    1,
-                                baseCount + 1, v11ExtraTx - 50,
-                                maxTxSetSize - 100 + 1, 1000, 2000);
+                    testBaseFee(
+                        static_cast<uint32_t>(SOROBAN_PROTOCOL_VERSION) - 1,
+                        baseCount + 1, v11ExtraTx - 50, maxTxSetSize - 100 + 1,
+                        1000, 2000);
                 }
             }
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
             SECTION("generalized tx set protocol")
             {
                 SECTION("fitting exactly into capacity does not cause surge")
                 {
-                    testBaseFee(static_cast<uint32_t>(
-                                    GENERALIZED_TX_SET_PROTOCOL_VERSION),
+                    testBaseFee(static_cast<uint32_t>(SOROBAN_PROTOCOL_VERSION),
                                 baseCount, v11ExtraTx, maxTxSetSize, 100, 200);
                 }
                 SECTION("evicting one tx causes surge")
                 {
-                    testBaseFee(static_cast<uint32_t>(
-                                    GENERALIZED_TX_SET_PROTOCOL_VERSION),
+                    testBaseFee(static_cast<uint32_t>(SOROBAN_PROTOCOL_VERSION),
                                 baseCount + 1, v11ExtraTx, maxTxSetSize, 1000,
                                 2000, 1);
                 }
             }
-#endif
             SECTION("protocol current")
             {
                 if (protocolVersionStartsFrom(
                         Config::CURRENT_LEDGER_PROTOCOL_VERSION,
-                        GENERALIZED_TX_SET_PROTOCOL_VERSION))
+                        SOROBAN_PROTOCOL_VERSION))
                 {
                     SECTION(
                         "fitting exactly into capacity does not cause surge")
                     {
-                        testBaseFee(static_cast<uint32_t>(
-                                        GENERALIZED_TX_SET_PROTOCOL_VERSION),
-                                    baseCount, v11ExtraTx, maxTxSetSize, 100,
-                                    200);
+                        testBaseFee(
+                            static_cast<uint32_t>(SOROBAN_PROTOCOL_VERSION),
+                            baseCount, v11ExtraTx, maxTxSetSize, 100, 200);
                     }
                     SECTION("evicting one tx causes surge")
                     {
-                        testBaseFee(static_cast<uint32_t>(
-                                        GENERALIZED_TX_SET_PROTOCOL_VERSION),
-                                    baseCount + 1, v11ExtraTx, maxTxSetSize,
-                                    1000, 2000, 1);
+                        testBaseFee(
+                            static_cast<uint32_t>(SOROBAN_PROTOCOL_VERSION),
+                            baseCount + 1, v11ExtraTx, maxTxSetSize, 1000, 2000,
+                            1);
                     }
                 }
                 else
                 {
                     SECTION("maxed out surged")
                     {
-                        testBaseFee(static_cast<uint32_t>(
-                                        GENERALIZED_TX_SET_PROTOCOL_VERSION) -
-                                        1,
-                                    baseCount, v11ExtraTx, maxTxSetSize, 1000,
-                                    2000);
+                        testBaseFee(
+                            static_cast<uint32_t>(SOROBAN_PROTOCOL_VERSION) - 1,
+                            baseCount, v11ExtraTx, maxTxSetSize, 1000, 2000);
                     }
                     SECTION("smallest surged")
                     {
-                        testBaseFee(static_cast<uint32_t>(
-                                        GENERALIZED_TX_SET_PROTOCOL_VERSION) -
-                                        1,
-                                    baseCount + 1, v11ExtraTx - 50,
-                                    maxTxSetSize - 100 + 1, 1000, 2000);
+                        testBaseFee(
+                            static_cast<uint32_t>(SOROBAN_PROTOCOL_VERSION) - 1,
+                            baseCount + 1, v11ExtraTx - 50,
+                            maxTxSetSize - 100 + 1, 1000, 2000);
                     }
                 }
             }
@@ -1310,34 +1296,28 @@ TEST_CASE("txset base fee", "[herder][txset]")
             {
                 // low = 20000+1 -> baseFee = 20001/2+ = 10001
                 // high = 10001*2
-                testBaseFee(
-                    static_cast<uint32_t>(GENERALIZED_TX_SET_PROTOCOL_VERSION) -
-                        1,
-                    0, v11NewCount, maxTxSetSize, 20001, 20002);
+                testBaseFee(static_cast<uint32_t>(SOROBAN_PROTOCOL_VERSION) - 1,
+                            0, v11NewCount, maxTxSetSize, 20001, 20002);
             }
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
             SECTION("generalized tx set protocol")
             {
                 SECTION("fitting exactly into capacity does not cause surge")
                 {
-                    testBaseFee(static_cast<uint32_t>(
-                                    GENERALIZED_TX_SET_PROTOCOL_VERSION),
+                    testBaseFee(static_cast<uint32_t>(SOROBAN_PROTOCOL_VERSION),
                                 0, v11NewCount, maxTxSetSize, 200, 200);
                 }
                 SECTION("evicting one tx causes surge")
                 {
-                    testBaseFee(static_cast<uint32_t>(
-                                    GENERALIZED_TX_SET_PROTOCOL_VERSION),
+                    testBaseFee(static_cast<uint32_t>(SOROBAN_PROTOCOL_VERSION),
                                 0, v11NewCount + 1, maxTxSetSize, 20002, 20002,
                                 1);
                 }
             }
-#endif
             SECTION("protocol current")
             {
                 if (protocolVersionStartsFrom(
                         Config::CURRENT_LEDGER_PROTOCOL_VERSION,
-                        GENERALIZED_TX_SET_PROTOCOL_VERSION))
+                        SOROBAN_PROTOCOL_VERSION))
                 {
                     SECTION(
                         "fitting exactly into capacity does not cause surge")
@@ -1354,10 +1334,9 @@ TEST_CASE("txset base fee", "[herder][txset]")
                 }
                 else
                 {
-                    testBaseFee(static_cast<uint32_t>(
-                                    GENERALIZED_TX_SET_PROTOCOL_VERSION) -
-                                    1,
-                                0, v11NewCount, maxTxSetSize, 20001, 20002);
+                    testBaseFee(
+                        static_cast<uint32_t>(SOROBAN_PROTOCOL_VERSION) - 1, 0,
+                        v11NewCount, maxTxSetSize, 20001, 20002);
                 }
             }
         }
@@ -1409,8 +1388,7 @@ static void
 surgeTest(uint32 protocolVersion, uint32_t nbTxs, uint32_t maxTxSetSize,
           uint32_t expectedReduced)
 {
-    if (protocolVersion >=
-        static_cast<uint32_t>(GENERALIZED_TX_SET_PROTOCOL_VERSION))
+    if (protocolVersion >= static_cast<uint32_t>(SOROBAN_PROTOCOL_VERSION))
     {
         throw std::runtime_error("Surge test does not apply post protocol 19");
     }
@@ -1563,11 +1541,9 @@ TEST_CASE("surge pricing", "[herder][txset]")
     {
         Config cfg(getTestConfig());
         cfg.TESTING_UPGRADE_MAX_TX_SET_SIZE = 0;
-        cfg.TESTING_LEDGER_MAX_SOROBAN_TX_COUNT = 0;
 
         VirtualClock clock;
         Application::pointer app = createTestApplication(clock, cfg);
-
         auto root = TestAccount::createRoot(*app);
 
         auto destAccount = root.create("destAccount", 500000000);
@@ -1586,12 +1562,13 @@ TEST_CASE("surge pricing", "[herder][txset]")
         }
         SECTION("soroban")
         {
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
             uint32_t const baseFee = 10'000'000;
+            modifySorobanNetworkConfig(*app, [](SorobanNetworkConfig& cfg) {
+                cfg.mLedgerMaxTxCount = 0;
+            });
             SorobanResources resources;
-            auto sorobanTx =
-                createUploadWasmTx(*app, root, baseFee,
-                                   /* refundableFee */ 1200, resources);
+            auto sorobanTx = createUploadWasmTx(
+                *app, root, baseFee, DEFAULT_TEST_REFUNDABLE_FEE, resources);
 
             TxSetFrame::TxPhases invalidTxs;
             invalidTxs.resize(2);
@@ -1602,22 +1579,21 @@ TEST_CASE("surge pricing", "[herder][txset]")
             REQUIRE(std::all_of(invalidTxs.begin(), invalidTxs.end(),
                                 [](auto const& txs) { return txs.empty(); }));
             REQUIRE(txSet->sizeTxTotal() == 0);
-#endif
         }
     }
     SECTION("soroban txs")
     {
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
         Config cfg(getTestConfig());
         cfg.TESTING_UPGRADE_LEDGER_PROTOCOL_VERSION =
-            static_cast<uint32_t>(GENERALIZED_TX_SET_PROTOCOL_VERSION);
+            static_cast<uint32_t>(SOROBAN_PROTOCOL_VERSION);
         // Max 1 classic op
         cfg.TESTING_UPGRADE_MAX_TX_SET_SIZE = 1;
-        // Max 2 soroban ops
-        cfg.TESTING_LEDGER_MAX_SOROBAN_TX_COUNT = 2;
 
         VirtualClock clock;
         Application::pointer app = createTestApplication(clock, cfg);
+        // Max 2 soroban ops
+        modifySorobanNetworkConfig(
+            *app, [](SorobanNetworkConfig& cfg) { cfg.mLedgerMaxTxCount = 2; });
 
         auto root = TestAccount::createRoot(*app);
         auto acc1 = root.create("account1", 500000000);
@@ -1646,10 +1622,8 @@ TEST_CASE("surge pricing", "[herder][txset]")
         resources.instructions = 800'000;
         resources.readBytes = conf.txMaxReadBytes();
         resources.writeBytes = 1000;
-        resources.contractEventsSizeBytes = 0;
-        auto sorobanTx =
-            createUploadWasmTx(*app, acc2, baseFee,
-                               /* refundableFee */ 1200, resources);
+        auto sorobanTx = createUploadWasmTx(
+            *app, acc2, baseFee, DEFAULT_TEST_REFUNDABLE_FEE, resources);
 
         auto generateTxs = [&](std::vector<TestAccount>& accounts,
                                SorobanNetworkConfig conf) {
@@ -1663,8 +1637,6 @@ TEST_CASE("surge pricing", "[herder][txset]")
                     rand_uniform<uint32_t>(1, conf.txMaxReadBytes());
                 res.writeBytes =
                     rand_uniform<uint32_t>(1, conf.txMaxWriteBytes());
-                res.contractEventsSizeBytes = rand_uniform<uint32_t>(
-                    1, conf.txMaxContractEventsSizeBytes());
                 auto read =
                     rand_uniform<uint32_t>(0, conf.txMaxReadLedgerEntries());
                 auto write = rand_uniform<uint32_t>(
@@ -1688,11 +1660,10 @@ TEST_CASE("surge pricing", "[herder][txset]")
                                                     res));
                 CLOG_INFO(Herder,
                           "Generated tx with {} instructions, {} read "
-                          "bytes, {} write bytes, {} extended meta "
-                          "data bytes, {} read ledger entries, {} "
-                          "write ledger entries",
-                          res.instructions, res.readBytes, res.writeBytes,
-                          res.contractEventsSizeBytes, read, write);
+                          "bytes, {} write bytes, data bytes, {} read "
+                          "ledger entries, {} write ledger entries",
+                          res.instructions, res.readBytes, res.writeBytes, read,
+                          write);
             }
             return txs;
         };
@@ -1704,7 +1675,7 @@ TEST_CASE("surge pricing", "[herder][txset]")
             {
                 // Fee too small
                 invalidSoroban = createUploadWasmTx(
-                    *app, acc2, 100, /* refundableFee */ 1200, resources);
+                    *app, acc2, 100, DEFAULT_TEST_REFUNDABLE_FEE, resources);
             }
             SECTION("invalid resource")
             {
@@ -1712,7 +1683,7 @@ TEST_CASE("surge pricing", "[herder][txset]")
                 resources.instructions = UINT32_MAX;
                 invalidSoroban =
                     createUploadWasmTx(*app, acc2, baseFee,
-                                       /* refundableFee */ 1200, resources);
+                                       DEFAULT_TEST_REFUNDABLE_FEE, resources);
             }
             TxSetFrame::TxPhases invalidPhases;
             invalidPhases.resize(2);
@@ -1752,8 +1723,9 @@ TEST_CASE("surge pricing", "[herder][txset]")
         SECTION("soroban surge pricing, classic unaffected")
         {
             // Another soroban tx with higher fee, which will be selected
-            auto sorobanTxHighFee = createUploadWasmTx(
-                *app, acc3, baseFee * 2, /* refundableFee */ 1200, resources);
+            auto sorobanTxHighFee =
+                createUploadWasmTx(*app, acc3, baseFee * 2,
+                                   DEFAULT_TEST_REFUNDABLE_FEE, resources);
             TxSetFrame::TxPhases invalidPhases;
             invalidPhases.resize(2);
             TxSetFrameConstPtr txSet = TxSetFrame::makeFromTransactions(
@@ -1778,18 +1750,19 @@ TEST_CASE("surge pricing", "[herder][txset]")
             // Another soroban tx with high fee and a bit less resources
             // Still half capacity available
             resources.readBytes = conf.txMaxReadBytes() / 2;
-            auto sorobanTxHighFee = createUploadWasmTx(
-                *app, acc3, baseFee * 2, /* refundableFee */ 1200, resources);
+            auto sorobanTxHighFee =
+                createUploadWasmTx(*app, acc3, baseFee * 2,
+                                   DEFAULT_TEST_REFUNDABLE_FEE, resources);
 
             // Create another small soroban tx, with small fee. It should be
             // picked up anyway since we can't fit sorobanTx (gaps are allowed)
             resources.instructions = 1;
             resources.readBytes = 1;
             resources.writeBytes = 1;
-            resources.contractEventsSizeBytes = 1;
 
-            auto smallSorobanLowFee = createUploadWasmTx(
-                *app, acc4, baseFee / 10, /* refundableFee */ 1200, resources);
+            auto smallSorobanLowFee =
+                createUploadWasmTx(*app, acc4, baseFee / 10,
+                                   DEFAULT_TEST_REFUNDABLE_FEE, resources);
 
             TxSetFrame::TxPhases invalidPhases;
             invalidPhases.resize(2);
@@ -1854,14 +1827,13 @@ TEST_CASE("surge pricing", "[herder][txset]")
 
             REQUIRE(!txSet->checkValid(*app, 0, 0));
         }
-#endif
     }
 }
 
 TEST_CASE("surge pricing with DEX separation", "[herder][txset]")
 {
     if (protocolVersionIsBefore(Config::CURRENT_LEDGER_PROTOCOL_VERSION,
-                                GENERALIZED_TX_SET_PROTOCOL_VERSION))
+                                SOROBAN_PROTOCOL_VERSION))
     {
         return;
     }
@@ -2049,7 +2021,7 @@ TEST_CASE("surge pricing with DEX separation holds invariants",
           "[herder][txset]")
 {
     if (protocolVersionIsBefore(Config::CURRENT_LEDGER_PROTOCOL_VERSION,
-                                GENERALIZED_TX_SET_PROTOCOL_VERSION))
+                                SOROBAN_PROTOCOL_VERSION))
     {
         return;
     }
@@ -2178,14 +2150,13 @@ TEST_CASE("surge pricing with DEX separation holds invariants",
     }
 }
 
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
 TEST_CASE("generalized tx set applied to ledger", "[herder][txset]")
 {
     Config cfg(getTestConfig());
     cfg.TESTING_UPGRADE_LEDGER_PROTOCOL_VERSION =
-        static_cast<uint32_t>(GENERALIZED_TX_SET_PROTOCOL_VERSION);
+        static_cast<uint32_t>(SOROBAN_PROTOCOL_VERSION);
     cfg.LEDGER_PROTOCOL_VERSION =
-        static_cast<uint32_t>(GENERALIZED_TX_SET_PROTOCOL_VERSION);
+        static_cast<uint32_t>(SOROBAN_PROTOCOL_VERSION);
     VirtualClock clock;
     Application::pointer app = createTestApplication(clock, cfg);
     auto root = TestAccount::createRoot(*app);
@@ -2271,7 +2242,6 @@ TEST_CASE("generalized tx set applied to ledger", "[herder][txset]")
         checkFees(txSet, {3000, 2000, 500, 2500, 8000, 35000, 10000});
     }
 }
-#endif
 
 static void
 testSCPDriver(uint32 protocolVersion, uint32_t maxTxSetSize, size_t expectedOps)
@@ -2850,17 +2820,13 @@ TEST_CASE("SCP Driver", "[herder][acceptance]")
 {
     SECTION("before generalized tx set protocol")
     {
-        testSCPDriver(static_cast<uint32>(GENERALIZED_TX_SET_PROTOCOL_VERSION) -
-                          1,
-                      1000, 15);
+        testSCPDriver(static_cast<uint32>(SOROBAN_PROTOCOL_VERSION) - 1, 1000,
+                      15);
     }
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
     SECTION("generalized tx set protocol")
     {
-        testSCPDriver(static_cast<uint32>(GENERALIZED_TX_SET_PROTOCOL_VERSION),
-                      1000, 15);
+        testSCPDriver(static_cast<uint32>(SOROBAN_PROTOCOL_VERSION), 1000, 15);
     }
-#endif
     SECTION("protocol current")
     {
         testSCPDriver(Config::CURRENT_LEDGER_PROTOCOL_VERSION, 1000, 15);
@@ -3308,17 +3274,11 @@ TEST_CASE("tx queue source account limit", "[herder][transactionqueue]")
     std::shared_ptr<Simulation> simulation;
     std::shared_ptr<Application> app;
 
-    auto setup = [&](bool mix) {
+    auto setup = [&]() {
         auto networkID = sha256(getTestConfig().NETWORK_PASSPHRASE);
         simulation = std::make_shared<Simulation>(
-            Simulation::OVER_LOOPBACK, networkID, [mix](int i) {
+            Simulation::OVER_LOOPBACK, networkID, [](int i) {
                 auto cfg = getTestConfig(i, Config::TESTDB_ON_DISK_SQLITE);
-                // Mixed setup does not work in protocol 20 and onward (tx set
-                // with multiple source accounts are invalid)
-                cfg.TESTING_UPGRADE_LEDGER_PROTOCOL_VERSION =
-                    mix ? static_cast<uint32_t>(ProtocolVersion::V_19)
-                        : Config::CURRENT_LEDGER_PROTOCOL_VERSION;
-                cfg.LIMIT_TX_QUEUE_SOURCE_ACCOUNT = !mix || (i % 2 == 1);
                 return cfg;
             });
 
@@ -3367,195 +3327,161 @@ TEST_CASE("tx queue source account limit", "[herder][transactionqueue]")
         return std::make_tuple(root, a1, b1, tx1, tx2);
     };
 
-    SECTION("mixed")
+    setup();
+
+    auto [root, a1, b1, tx1, tx2] = makeTxs(app);
+
+    // Submit txs for the same account, should be good
+    REQUIRE(app->getHerder().recvTransaction(tx1, true) ==
+            TransactionQueue::AddResult::ADD_STATUS_PENDING);
+
+    // Second tx is rejected due to limit
+    REQUIRE(app->getHerder().recvTransaction(tx2, true) ==
+            TransactionQueue::AddResult::ADD_STATUS_TRY_AGAIN_LATER);
+
+    uint32_t lcl = app->getLedgerManager().getLastClosedLedgerNum();
+    simulation->crankUntil(
+        [&]() {
+            return app->getLedgerManager().getLastClosedLedgerNum() >= lcl + 2;
+        },
+        3 * Herder::EXP_LEDGER_TIMESPAN_SECONDS, false);
+
+    for (auto const& node : simulation->getNodes())
     {
-        setup(true);
-
-        auto [root, a1, b1, tx1, tx2] = makeTxs(app);
-
-        // Submit txs for the same account, should be good
-        REQUIRE(app->getHerder().recvTransaction(tx1, true) ==
-                TransactionQueue::AddResult::ADD_STATUS_PENDING);
-        REQUIRE(app->getHerder().recvTransaction(tx2, true) ==
-                TransactionQueue::AddResult::ADD_STATUS_PENDING);
-
-        uint32_t lcl = app->getLedgerManager().getLastClosedLedgerNum();
-        simulation->crankUntil(
-            [&]() {
-                return app->getLedgerManager().getLastClosedLedgerNum() >=
-                       lcl + 2;
-            },
-            3 * Herder::EXP_LEDGER_TIMESPAN_SECONDS, false);
-
-        for (auto const& node : simulation->getNodes())
-        {
-            // Applied txs were removed and banned
-            REQUIRE(node->getHerder().getTx(tx1->getFullHash()) == nullptr);
-            REQUIRE(node->getHerder().getTx(tx2->getFullHash()) == nullptr);
-            REQUIRE(node->getHerder().isBannedTx(tx1->getFullHash()));
-            REQUIRE(node->getHerder().isBannedTx(tx2->getFullHash()));
-            // Both accounts are in the ledger
-            LedgerTxn ltx(node->getLedgerTxnRoot());
-            auto acc1 = stellar::loadAccount(ltx, a1.getPublicKey());
-            auto acc2 = stellar::loadAccount(ltx, b1.getPublicKey());
-            REQUIRE(acc1);
-            REQUIRE(acc2);
-            REQUIRE(acc1.current().lastModifiedLedgerSeq ==
-                    acc2.current().lastModifiedLedgerSeq);
-        }
+        // Applied txs were removed and banned
+        REQUIRE(node->getHerder().getTx(tx1->getFullHash()) == nullptr);
+        REQUIRE(node->getHerder().getTx(tx2->getFullHash()) == nullptr);
+        REQUIRE(node->getHerder().isBannedTx(tx1->getFullHash()));
+        // Second tx is not banned because it's never been flooded and
+        // applied
+        REQUIRE(!node->getHerder().isBannedTx(tx2->getFullHash()));
+        // Only first account is in the ledger
+        LedgerTxn ltx(node->getLedgerTxnRoot());
+        REQUIRE(stellar::loadAccount(ltx, a1.getPublicKey()));
+        REQUIRE(!stellar::loadAccount(ltx, b1.getPublicKey()));
     }
-    SECTION("all limited")
+
+    // Now submit the second tx (which was rejected earlier) and make sure
+    // it ends up in the ledger
+    REQUIRE(app->getHerder().recvTransaction(tx2, true) ==
+            TransactionQueue::AddResult::ADD_STATUS_PENDING);
+
+    lcl = app->getLedgerManager().getLastClosedLedgerNum();
+    simulation->crankUntil(
+        [&]() {
+            return app->getLedgerManager().getLastClosedLedgerNum() >= lcl + 2;
+        },
+        3 * Herder::EXP_LEDGER_TIMESPAN_SECONDS, false);
+
+    for (auto const& node : simulation->getNodes())
     {
-        setup(false);
-
-        auto [root, a1, b1, tx1, tx2] = makeTxs(app);
-
-        // Submit txs for the same account, should be good
-        REQUIRE(app->getHerder().recvTransaction(tx1, true) ==
-                TransactionQueue::AddResult::ADD_STATUS_PENDING);
-
-        // Second tx is rejected due to limit
-        REQUIRE(app->getHerder().recvTransaction(tx2, true) ==
-                TransactionQueue::AddResult::ADD_STATUS_TRY_AGAIN_LATER);
-
-        uint32_t lcl = app->getLedgerManager().getLastClosedLedgerNum();
-        simulation->crankUntil(
-            [&]() {
-                return app->getLedgerManager().getLastClosedLedgerNum() >=
-                       lcl + 2;
-            },
-            3 * Herder::EXP_LEDGER_TIMESPAN_SECONDS, false);
-
-        for (auto const& node : simulation->getNodes())
-        {
-            // Applied txs were removed and banned
-            REQUIRE(node->getHerder().getTx(tx1->getFullHash()) == nullptr);
-            REQUIRE(node->getHerder().getTx(tx2->getFullHash()) == nullptr);
-            REQUIRE(node->getHerder().isBannedTx(tx1->getFullHash()));
-            // Second tx is not banned because it's never been flooded and
-            // applied
-            REQUIRE(!node->getHerder().isBannedTx(tx2->getFullHash()));
-            // Only first account is in the ledger
-            LedgerTxn ltx(node->getLedgerTxnRoot());
-            REQUIRE(stellar::loadAccount(ltx, a1.getPublicKey()));
-            REQUIRE(!stellar::loadAccount(ltx, b1.getPublicKey()));
-        }
-
-        // Now submit the second tx (which was rejected earlier) and make sure
-        // it ends up in the ledger
-        REQUIRE(app->getHerder().recvTransaction(tx2, true) ==
-                TransactionQueue::AddResult::ADD_STATUS_PENDING);
-
-        lcl = app->getLedgerManager().getLastClosedLedgerNum();
-        simulation->crankUntil(
-            [&]() {
-                return app->getLedgerManager().getLastClosedLedgerNum() >=
-                       lcl + 2;
-            },
-            3 * Herder::EXP_LEDGER_TIMESPAN_SECONDS, false);
-
-        for (auto const& node : simulation->getNodes())
-        {
-            // Applied tx was removed and banned
-            REQUIRE(node->getHerder().getTx(tx2->getFullHash()) == nullptr);
-            REQUIRE(node->getHerder().isBannedTx(tx2->getFullHash()));
-            // Both accounts are in the ledger
-            LedgerTxn ltx(node->getLedgerTxnRoot());
-            REQUIRE(stellar::loadAccount(ltx, a1.getPublicKey()));
-            REQUIRE(stellar::loadAccount(ltx, b1.getPublicKey()));
-        }
+        // Applied tx was removed and banned
+        REQUIRE(node->getHerder().getTx(tx2->getFullHash()) == nullptr);
+        REQUIRE(node->getHerder().isBannedTx(tx2->getFullHash()));
+        // Both accounts are in the ledger
+        LedgerTxn ltx(node->getLedgerTxnRoot());
+        REQUIRE(stellar::loadAccount(ltx, a1.getPublicKey()));
+        REQUIRE(stellar::loadAccount(ltx, b1.getPublicKey()));
     }
 }
 
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
 TEST_CASE("soroban txs each parameter surge priced")
 {
     auto networkID = sha256(getTestConfig().NETWORK_PASSPHRASE);
     uint32_t baseTxRate = 1;
     uint32_t numAccounts = 100;
-    auto test = [&](std::function<void(Config & cfg)> tweakConfig) {
-        auto simulation = Topologies::core(
-            4, 1, Simulation::OVER_LOOPBACK, networkID, [&](int i) {
-                auto cfg = getTestConfig(i, Config::TESTDB_ON_DISK_SQLITE);
-                cfg.TESTING_UPGRADE_MAX_TX_SET_SIZE = 100;
-                // Set all Soroban resources to maximum initially; each section
-                // will adjust the config as desired
-                cfg.TESTING_LEDGER_MAX_SOROBAN_TX_COUNT = UINT32_MAX;
-                cfg.TESTING_LEDGER_MAX_INSTRUCTIONS = UINT32_MAX;
-                cfg.TESTING_LEDGER_MAX_TRANSACTIONS_SIZE_BYTES = UINT32_MAX;
-                cfg.TESTING_LEDGER_MAX_READ_LEDGER_ENTRIES = UINT32_MAX;
-                cfg.TESTING_LEDGER_MAX_READ_BYTES = UINT32_MAX;
-                cfg.TESTING_LEDGER_MAX_WRITE_LEDGER_ENTRIES = UINT32_MAX;
-                cfg.TESTING_LEDGER_MAX_WRITE_BYTES = UINT32_MAX;
-                tweakConfig(cfg);
-                return cfg;
-            });
-        simulation->startAllNodes();
-        auto nodes = simulation->getNodes();
-        auto& loadGen = nodes[0]->getLoadGenerator();
+    auto test =
+        [&](std::function<void(SorobanNetworkConfig & cfg)> tweakConfig) {
+            auto simulation = Topologies::core(
+                4, 1, Simulation::OVER_LOOPBACK, networkID, [&](int i) {
+                    auto cfg = getTestConfig(i, Config::TESTDB_ON_DISK_SQLITE);
+                    cfg.TESTING_UPGRADE_MAX_TX_SET_SIZE = 100;
+                    return cfg;
+                });
+            simulation->startAllNodes();
+            auto nodes = simulation->getNodes();
+            for (auto& node : nodes)
+            {
+                modifySorobanNetworkConfig(
+                    *node, [&tweakConfig](SorobanNetworkConfig& cfg) {
+                        auto mx = std::numeric_limits<uint32_t>::max();
+                        // Set all Soroban resources to maximum initially; each
+                        // section will adjust the config as desired
+                        cfg.mLedgerMaxTxCount = mx;
+                        cfg.mLedgerMaxInstructions = mx;
+                        cfg.mLedgerMaxTransactionsSizeBytes = mx;
+                        cfg.mLedgerMaxReadLedgerEntries = mx;
+                        cfg.mLedgerMaxReadBytes = mx;
+                        cfg.mLedgerMaxWriteLedgerEntries = mx;
+                        cfg.mLedgerMaxWriteBytes = mx;
+                        tweakConfig(cfg);
+                    });
+            }
+            auto& loadGen = nodes[0]->getLoadGenerator();
 
-        // Generate some accounts
-        auto& loadGenDone = nodes[0]->getMetrics().NewMeter(
-            {"loadgen", "run", "complete"}, "run");
-        auto currLoadGenCount = loadGenDone.count();
-        loadGen.generateLoad(
-            GeneratedLoadConfig::createAccountsLoad(numAccounts, baseTxRate));
-        simulation->crankUntil(
-            [&]() { return loadGenDone.count() > currLoadGenCount; },
-            10 * Herder::EXP_LEDGER_TIMESPAN_SECONDS, false);
+            // Generate some accounts
+            auto& loadGenDone = nodes[0]->getMetrics().NewMeter(
+                {"loadgen", "run", "complete"}, "run");
+            auto currLoadGenCount = loadGenDone.count();
+            loadGen.generateLoad(GeneratedLoadConfig::createAccountsLoad(
+                numAccounts, baseTxRate));
+            simulation->crankUntil(
+                [&]() { return loadGenDone.count() > currLoadGenCount; },
+                10 * Herder::EXP_LEDGER_TIMESPAN_SECONDS, false);
 
-        auto& secondLoadGen = nodes[1]->getLoadGenerator();
-        auto& secondLoadGenDone = nodes[1]->getMetrics().NewMeter(
-            {"loadgen", "run", "complete"}, "run");
-        // Generate load from several nodes, to produce both classic and soroban
-        // traffic
-        currLoadGenCount = loadGenDone.count();
-        auto secondLoadGenCount = secondLoadGenDone.count();
+            auto& secondLoadGen = nodes[1]->getLoadGenerator();
+            auto& secondLoadGenDone = nodes[1]->getMetrics().NewMeter(
+                {"loadgen", "run", "complete"}, "run");
+            // Generate load from several nodes, to produce both classic and
+            // soroban traffic
+            currLoadGenCount = loadGenDone.count();
+            auto secondLoadGenCount = secondLoadGenDone.count();
 
-        uint32_t maxInclusionFee = 100'000;
-        auto sorobanConfig = GeneratedLoadConfig::txLoad(
-            LoadGenMode::SOROBAN, 50,
-            /* nTxs */ 100, baseTxRate * 3, /* offset */ 0, maxInclusionFee);
+            uint32_t maxInclusionFee = 100'000;
+            auto sorobanConfig =
+                GeneratedLoadConfig::txLoad(LoadGenMode::SOROBAN, 50,
+                                            /* nTxs */ 100, baseTxRate * 3,
+                                            /* offset */ 0, maxInclusionFee);
 
-        // Ignore low fees, submit at a tx rate higher than the network allows
-        // to trigger surge pricing
-        sorobanConfig.skipLowFeeTxs = true;
-        loadGen.generateLoad(sorobanConfig);
+            // Ignore low fees, submit at a tx rate higher than the network
+            // allows to trigger surge pricing
+            sorobanConfig.skipLowFeeTxs = true;
+            loadGen.generateLoad(sorobanConfig);
 
-        // Generate Soroban txs from one node
-        secondLoadGen.generateLoad(GeneratedLoadConfig::txLoad(
-            LoadGenMode::PAY, 50,
-            /* nTxs */ 50, baseTxRate, /* offset */ 50, maxInclusionFee));
+            // Generate Soroban txs from one node
+            secondLoadGen.generateLoad(GeneratedLoadConfig::txLoad(
+                LoadGenMode::PAY, 50,
+                /* nTxs */ 50, baseTxRate, /* offset */ 50, maxInclusionFee));
 
-        simulation->crankUntil(
-            [&]() {
-                return loadGenDone.count() > currLoadGenCount &&
-                       secondLoadGenDone.count() > secondLoadGenCount;
-            },
-            200 * Herder::EXP_LEDGER_TIMESPAN_SECONDS, false);
-        auto& loadGenFailed = nodes[0]->getMetrics().NewMeter(
-            {"loadgen", "run", "failed"}, "run");
-        REQUIRE(loadGenFailed.count() == 0);
-        auto& secondLoadGenFailed = nodes[1]->getMetrics().NewMeter(
-            {"loadgen", "run", "failed"}, "run");
-        REQUIRE(secondLoadGenFailed.count() == 0);
-    };
+            simulation->crankUntil(
+                [&]() {
+                    return loadGenDone.count() > currLoadGenCount &&
+                           secondLoadGenDone.count() > secondLoadGenCount;
+                },
+                200 * Herder::EXP_LEDGER_TIMESPAN_SECONDS, false);
+            auto& loadGenFailed = nodes[0]->getMetrics().NewMeter(
+                {"loadgen", "run", "failed"}, "run");
+            REQUIRE(loadGenFailed.count() == 0);
+            auto& secondLoadGenFailed = nodes[1]->getMetrics().NewMeter(
+                {"loadgen", "run", "failed"}, "run");
+            REQUIRE(secondLoadGenFailed.count() == 0);
+        };
 
     // We will be submitting soroban txs at desiredTxRate * 3, but the network
     // can only accept up to desiredTxRate for each resource dimension,
     // triggering surge pricing
     SECTION("operations")
     {
-        auto tweakConfig = [&](Config& cfg) {
-            cfg.TESTING_LEDGER_MAX_SOROBAN_TX_COUNT =
+        auto tweakConfig = [&](SorobanNetworkConfig& cfg) {
+            cfg.mLedgerMaxTxCount =
                 baseTxRate * Herder::EXP_LEDGER_TIMESPAN_SECONDS.count();
         };
         test(tweakConfig);
     }
     SECTION("instructions")
     {
-        auto tweakConfig = [&](Config& cfg) {
-            cfg.TESTING_LEDGER_MAX_INSTRUCTIONS =
+        auto tweakConfig = [&](SorobanNetworkConfig& cfg) {
+            cfg.mLedgerMaxInstructions =
                 baseTxRate * Herder::EXP_LEDGER_TIMESPAN_SECONDS.count() *
                 InitialSorobanNetworkConfig::TX_MAX_INSTRUCTIONS;
         };
@@ -3563,8 +3489,8 @@ TEST_CASE("soroban txs each parameter surge priced")
     }
     SECTION("tx size")
     {
-        auto tweakConfig = [&](Config& cfg) {
-            cfg.TESTING_LEDGER_MAX_TRANSACTIONS_SIZE_BYTES =
+        auto tweakConfig = [&](SorobanNetworkConfig& cfg) {
+            cfg.mLedgerMaxTransactionsSizeBytes =
                 baseTxRate * Herder::EXP_LEDGER_TIMESPAN_SECONDS.count() *
                 InitialSorobanNetworkConfig::TX_MAX_SIZE_BYTES;
         };
@@ -3572,8 +3498,8 @@ TEST_CASE("soroban txs each parameter surge priced")
     }
     SECTION("read entries")
     {
-        auto tweakConfig = [&](Config& cfg) {
-            cfg.TESTING_LEDGER_MAX_READ_LEDGER_ENTRIES =
+        auto tweakConfig = [&](SorobanNetworkConfig& cfg) {
+            cfg.mLedgerMaxReadLedgerEntries =
                 baseTxRate * Herder::EXP_LEDGER_TIMESPAN_SECONDS.count() *
                 InitialSorobanNetworkConfig::TX_MAX_READ_LEDGER_ENTRIES;
         };
@@ -3581,8 +3507,8 @@ TEST_CASE("soroban txs each parameter surge priced")
     }
     SECTION("write entries")
     {
-        auto tweakConfig = [&](Config& cfg) {
-            cfg.TESTING_LEDGER_MAX_WRITE_LEDGER_ENTRIES =
+        auto tweakConfig = [&](SorobanNetworkConfig& cfg) {
+            cfg.mLedgerMaxWriteLedgerEntries =
                 baseTxRate * Herder::EXP_LEDGER_TIMESPAN_SECONDS.count() *
                 InitialSorobanNetworkConfig::TX_MAX_WRITE_LEDGER_ENTRIES;
         };
@@ -3590,8 +3516,8 @@ TEST_CASE("soroban txs each parameter surge priced")
     }
     SECTION("read bytes")
     {
-        auto tweakConfig = [&](Config& cfg) {
-            cfg.TESTING_LEDGER_MAX_READ_BYTES =
+        auto tweakConfig = [&](SorobanNetworkConfig& cfg) {
+            cfg.mLedgerMaxReadBytes =
                 baseTxRate * Herder::EXP_LEDGER_TIMESPAN_SECONDS.count() *
                 InitialSorobanNetworkConfig::TX_MAX_READ_BYTES;
         };
@@ -3599,9 +3525,8 @@ TEST_CASE("soroban txs each parameter surge priced")
     }
     SECTION("write bytes")
     {
-        auto tweakConfig = [&](Config& cfg) {
-            cfg.TESTING_LEDGER_MAX_SOROBAN_TX_COUNT = UINT32_MAX;
-            cfg.TESTING_LEDGER_MAX_WRITE_BYTES =
+        auto tweakConfig = [&](SorobanNetworkConfig& cfg) {
+            cfg.mLedgerMaxWriteBytes =
                 baseTxRate * Herder::EXP_LEDGER_TIMESPAN_SECONDS.count() *
                 InitialSorobanNetworkConfig::TX_MAX_WRITE_BYTES;
         };
@@ -3613,34 +3538,28 @@ TEST_CASE("soroban txs accepted by the network",
           "[herder][soroban][transactionqueue]")
 {
     auto networkID = sha256(getTestConfig().NETWORK_PASSPHRASE);
-    uint32_t desiredTxRate = 1;
-    uint32_t numAccounts = 100;
 
     // Set threshold to 1 so all have to vote
-    auto simulation = Topologies::core(
-        4, 1, Simulation::OVER_LOOPBACK, networkID, [desiredTxRate](int i) {
+    auto simulation =
+        Topologies::core(4, 1, Simulation::OVER_LOOPBACK, networkID, [](int i) {
             auto cfg = getTestConfig(i, Config::TESTDB_ON_DISK_SQLITE);
-            cfg.TESTING_LEDGER_MAX_SOROBAN_TX_COUNT =
-                2 * desiredTxRate * Herder::EXP_LEDGER_TIMESPAN_SECONDS.count();
             cfg.TESTING_UPGRADE_MAX_TX_SET_SIZE = 100;
-            cfg.TESTING_LEDGER_MAX_TRANSACTIONS_SIZE_BYTES =
-                10 * InitialSorobanNetworkConfig::TX_MAX_SIZE_BYTES;
-            cfg.TESTING_LEDGER_MAX_INSTRUCTIONS =
-                10 * InitialSorobanNetworkConfig::TX_MAX_INSTRUCTIONS;
-            cfg.TESTING_LEDGER_MAX_READ_LEDGER_ENTRIES =
-                10 * InitialSorobanNetworkConfig::TX_MAX_READ_LEDGER_ENTRIES;
-            cfg.TESTING_LEDGER_MAX_READ_BYTES =
-                10 * InitialSorobanNetworkConfig::TX_MAX_READ_BYTES;
-            cfg.TESTING_LEDGER_MAX_WRITE_LEDGER_ENTRIES =
-                10 * InitialSorobanNetworkConfig::TX_MAX_WRITE_LEDGER_ENTRIES;
-            cfg.TESTING_LEDGER_MAX_WRITE_BYTES =
-                10 * InitialSorobanNetworkConfig::TX_MAX_WRITE_BYTES;
-            cfg.TESTING_TX_MAX_SIZE_BYTES =
-                10 * InitialSorobanNetworkConfig::TX_MAX_SIZE_BYTES;
             return cfg;
         });
     simulation->startAllNodes();
     auto nodes = simulation->getNodes();
+    uint32_t desiredTxRate = 1;
+    uint32_t numAccounts = 100;
+    for (auto& node : nodes)
+    {
+        overrideSorobanNetworkConfigForTest(*node);
+        modifySorobanNetworkConfig(*node, [desiredTxRate](
+                                              SorobanNetworkConfig& cfg) {
+            cfg.mLedgerMaxTxCount =
+                2 * desiredTxRate * Herder::EXP_LEDGER_TIMESPAN_SECONDS.count();
+            ;
+        });
+    }
     auto& loadGen = nodes[0]->getLoadGenerator();
 
     // Generate some accounts
@@ -3724,7 +3643,6 @@ TEST_CASE("soroban txs accepted by the network",
         REQUIRE(secondLoadGenFailed.count() == 0);
     }
 }
-#endif
 
 static void
 checkSynced(Application& app)
@@ -4409,7 +4327,6 @@ externalize(SecretKey const& sk, LedgerManager& lm, HerderImpl& herder,
 
     auto classicTxs = txs;
 
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
     TxSetFrame::Transactions sorobanTxs;
     for (auto it = classicTxs.begin(); it != classicTxs.end();)
     {
@@ -4423,13 +4340,10 @@ externalize(SecretKey const& sk, LedgerManager& lm, HerderImpl& herder,
             ++it;
         }
     }
-#endif
 
     TxSetFrame::TxPhases txsPhases{classicTxs};
 
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
     txsPhases.emplace_back(sorobanTxs);
-#endif
 
     auto txSet = TxSetFrame::makeFromTransactions(txsPhases, app, 0, 0);
     herder.getPendingEnvelopes().putTxSet(txSet->getContentsHash(), ledgerSeq,
@@ -4488,7 +4402,6 @@ TEST_CASE("do not flood invalid transactions", "[herder]")
     REQUIRE(txSet->checkValid(*app, 0, 0));
 }
 
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
 TEST_CASE("do not flood too many soroban transactions",
           "[soroban][herder][transactionqueue]")
 {
@@ -4497,7 +4410,6 @@ TEST_CASE("do not flood too many soroban transactions",
         Simulation::OVER_LOOPBACK, networkID, [&](int i) {
             auto cfg = getTestConfig(i);
             cfg.TESTING_UPGRADE_MAX_TX_SET_SIZE = 1000;
-            cfg.TESTING_LEDGER_MAX_SOROBAN_TX_COUNT = 100;
             cfg.NODE_IS_VALIDATOR = false;
             cfg.FORCE_SCP = false;
             cfg.FLOOD_TX_PERIOD_MS = 100;
@@ -4517,12 +4429,26 @@ TEST_CASE("do not flood too many soroban transactions",
     simulation->addNode(mainKey, qset);
     simulation->addNode(otherKey, qset);
 
+    auto updateSorobanConfig = [](Application& app) {
+        overrideSorobanNetworkConfigForTest(app);
+        modifySorobanNetworkConfig(app, [](SorobanNetworkConfig& cfg) {
+            // Update read entries to allow flooding at most 1 tx per broadcast
+            // interval.
+            cfg.mLedgerMaxReadLedgerEntries = 40;
+            cfg.mLedgerMaxReadBytes = cfg.mTxMaxReadBytes;
+        });
+    };
+
+    auto app = simulation->getNode(mainKey.getPublicKey());
+
+    updateSorobanConfig(*app);
+    updateSorobanConfig(*simulation->getNode(otherKey.getPublicKey()));
+
     simulation->addPendingConnection(mainKey.getPublicKey(),
                                      otherKey.getPublicKey());
     simulation->startAllNodes();
     simulation->crankForAtLeast(std::chrono::seconds(1), false);
 
-    auto app = simulation->getNode(mainKey.getPublicKey());
     auto const& cfg = app->getConfig();
     auto& lm = app->getLedgerManager();
     auto& herder = static_cast<HerderImpl&>(app->getHerder());
@@ -4550,7 +4476,6 @@ TEST_CASE("do not flood too many soroban transactions",
     resources.instructions = 800'000;
     resources.readBytes = 2000;
     resources.writeBytes = 1000;
-    resources.contractEventsSizeBytes = 0;
 
     auto genTx = [&](TestAccount& source, bool highFee) {
         auto txFee = baseFee;
@@ -4567,8 +4492,7 @@ TEST_CASE("do not flood too many soroban transactions",
         curFeeOffset--;
 
         auto tx = createUploadWasmTx(*app, source, txFee,
-                                     /* refundableFee */ 1200, resources);
-
+                                     DEFAULT_TEST_REFUNDABLE_FEE, resources);
         REQUIRE(herder.recvTransaction(tx, false) ==
                 TransactionQueue::AddResult::ADD_STATUS_PENDING);
         return tx;
@@ -4644,10 +4568,9 @@ TEST_CASE("do not flood too many soroban transactions",
     SECTION("large tx waits to accumulate enough quota")
     {
         REQUIRE(numBroadcast == 0);
-        // For large txs, there might not be enough resources allocated for this
-        // flooding period. In this case, wait a few periods to accumulate
+        // For large txs, there might not be enough resources allocated for
+        // this flooding period. In this case, wait a few periods to accumulate
         // enough quota
-        resources.instructions = 40'000'000;
         resources.readBytes = 200 * 1024;
 
         genTx(root, true);
@@ -4657,7 +4580,6 @@ TEST_CASE("do not flood too many soroban transactions",
         REQUIRE(numBroadcast >= 1);
     }
 }
-#endif
 
 TEST_CASE("do not flood too many transactions", "[herder][transactionqueue]")
 {

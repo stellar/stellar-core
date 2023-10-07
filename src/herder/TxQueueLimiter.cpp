@@ -7,6 +7,7 @@
 #include "herder/TxSetFrame.h"
 #include "util/GlobalChecks.h"
 #include "util/Logging.h"
+#include "util/ProtocolVersion.h"
 
 namespace stellar
 {
@@ -42,11 +43,8 @@ TxQueueLimiter::TxQueueLimiter(uint32 multiplier, Application& app,
             std::make_optional<Resource>(*maxDexOps * multiplier);
     }
 
-    if (app.getConfig().LIMIT_TX_QUEUE_SOURCE_ACCOUNT)
-    {
-        mEnforceSingleAccounts =
-            std::make_optional<std::unordered_set<AccountID>>();
-    }
+    mEnforceSingleAccounts =
+        std::make_optional<std::unordered_set<AccountID>>();
 }
 
 TxQueueLimiter::~TxQueueLimiter()
@@ -253,17 +251,33 @@ TxQueueLimiter::reset(AbstractLedgerTxn& ltxOuter)
 {
     if (mIsSoroban)
     {
-        mSurgePricingLaneConfig = std::make_shared<SorobanGenericLaneConfig>(
-            maxScaledLedgerResources(mIsSoroban, ltxOuter));
+        if (protocolVersionStartsFrom(
+                ltxOuter.loadHeader().current().ledgerVersion,
+                SOROBAN_PROTOCOL_VERSION))
+        {
+            mSurgePricingLaneConfig =
+                std::make_shared<SorobanGenericLaneConfig>(
+                    maxScaledLedgerResources(mIsSoroban, ltxOuter));
+        }
+        else
+        {
+            releaseAssert(!mSurgePricingLaneConfig);
+        }
     }
     else
     {
         mSurgePricingLaneConfig = std::make_shared<DexLimitingLaneConfig>(
             maxScaledLedgerResources(mIsSoroban, ltxOuter), mMaxDexOperations);
     }
-    mTxs = std::make_unique<SurgePricingPriorityQueue>(
-        /* isHighestPriority */ false, mSurgePricingLaneConfig,
-        stellar::rand_uniform<size_t>(0, std::numeric_limits<size_t>::max()));
+
+    if (mSurgePricingLaneConfig)
+    {
+        mTxs = std::make_unique<SurgePricingPriorityQueue>(
+            /* isHighestPriority */ false, mSurgePricingLaneConfig,
+            stellar::rand_uniform<size_t>(0,
+                                          std::numeric_limits<size_t>::max()));
+    }
+
     mStackForTx.clear();
     if (mEnforceSingleAccounts)
     {

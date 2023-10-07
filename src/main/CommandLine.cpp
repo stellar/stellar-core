@@ -6,6 +6,7 @@
 #include "bucket/BucketManager.h"
 #include "catchup/CatchupConfiguration.h"
 #include "catchup/CatchupRange.h"
+#include "catchup/ReplayDebugMetaWork.h"
 #include "herder/Herder.h"
 #include "history/HistoryArchiveManager.h"
 #include "historywork/BatchDownloadWork.h"
@@ -20,9 +21,7 @@
 #include "main/StellarCoreVersion.h"
 #include "main/dumpxdr.h"
 #include "overlay/OverlayManager.h"
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
 #include "rust/RustBridge.h"
-#endif
 #include "scp/QuorumSetUtils.h"
 #include "src/catchup/simulation/TxSimApplyTransactionsWork.h"
 #include "src/transactions/simulation/TxSimScaleBucketlistWork.h"
@@ -198,6 +197,13 @@ clara::Opt
 outputDirParser(std::string& string)
 {
     return clara::Opt{string, "DIR-NAME"}["--output-dir"]("output dir");
+}
+
+clara::Opt
+metaDirParser(std::string& string)
+{
+    return clara::Opt{string, "DIR-NAME"}["--meta-dir"](
+        "external directory that contains debug meta");
 }
 
 clara::Opt
@@ -710,6 +716,47 @@ diagBucketStats(CommandLineArgs const& args)
         [&] {
             diagnostics::bucketStats(bucketFile, aggAccountStats);
             return 0;
+        });
+}
+
+int
+runReplayDebugMeta(CommandLineArgs const& args)
+{
+    // targetLedger=0 means replay all available tx meta
+    uint32_t targetLedger = 0;
+    CommandLine::ConfigOption configOption;
+    std::string metaDir{"."};
+
+    return runWithHelp(
+        args,
+        {configurationParser(configOption), historyLedgerNumber(targetLedger),
+         metaDirParser(metaDir).required()},
+        [&] {
+            VirtualClock clock(VirtualClock::REAL_TIME);
+            auto cfg = configOption.getConfig();
+
+            cfg.setNoListen();
+            cfg.AUTOMATIC_SELF_CHECK_PERIOD = std::chrono::seconds::zero();
+
+            auto app = Application::create(clock, cfg, false);
+            app->start();
+
+            auto& wm = app->getWorkScheduler();
+
+            std::filesystem::path dir(metaDir);
+
+            auto catchupWork =
+                wm.executeWork<ReplayDebugMetaWork>(targetLedger, dir);
+            if (catchupWork->getState() == BasicWork::State::WORK_SUCCESS)
+            {
+                LOG_INFO(DEFAULT_LOG, "Replay finished");
+                return 0;
+            }
+            else
+            {
+                LOG_INFO(DEFAULT_LOG, "Replay finished");
+                return 1;
+            }
         });
 }
 
@@ -1402,7 +1449,6 @@ int
 runVersion(CommandLineArgs const&)
 {
     std::cout << STELLAR_CORE_VERSION << std::endl;
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
     std::cout << "rust version: " << rust_bridge::get_rustc_version().c_str()
               << std::endl;
 
@@ -1476,7 +1522,6 @@ runVersion(CommandLineArgs const&)
                    .prev.c_str()
             << std::endl;
     }
-#endif
     return 0;
 }
 
@@ -1826,6 +1871,8 @@ handleCommandLine(int argc, char* const* argv)
           "execute catchup from history archives without connecting to "
           "network",
           runCatchup},
+         {"replay-debug-meta", "apply ledgers from local debug metadata files",
+          runReplayDebugMeta},
          {"verify-checkpoints", "write verified checkpoint ledger hashes",
           runWriteVerifiedCheckpointHashes},
          {"convert-id", "displays ID in all known forms", runConvertId},

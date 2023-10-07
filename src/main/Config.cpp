@@ -4,6 +4,7 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "main/Config.h"
+#include "bucket/BucketList.h"
 #include "crypto/Hex.h"
 #include "crypto/KeyUtils.h"
 #include "herder/Herder.h"
@@ -32,7 +33,7 @@
 
 namespace stellar
 {
-const uint32 Config::CURRENT_LEDGER_PROTOCOL_VERSION = 19
+const uint32 Config::CURRENT_LEDGER_PROTOCOL_VERSION = 20
 #ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
                                                        + 1
 #endif
@@ -128,7 +129,7 @@ Config::Config() : NODE_SEED(SecretKey::random())
     LEDGER_PROTOCOL_MIN_VERSION_INTERNAL_ERROR_REPORT = 18;
 
     OVERLAY_PROTOCOL_MIN_VERSION = 27;
-    OVERLAY_PROTOCOL_VERSION = 29;
+    OVERLAY_PROTOCOL_VERSION = 30;
 
     VERSION_STR = STELLAR_CORE_VERSION;
 
@@ -142,6 +143,7 @@ Config::Config() : NODE_SEED(SecretKey::random())
     EXPERIMENTAL_BUCKETLIST_DB_INDEX_PAGE_SIZE_EXPONENT = 14; // 2^14 == 16 kb
     EXPERIMENTAL_BUCKETLIST_DB_INDEX_CUTOFF = 20;             // 20 mb
     EXPERIMENTAL_BUCKETLIST_DB_PERSIST_INDEX = true;
+    PUBLISH_TO_ARCHIVE_DELAY = std::chrono::seconds{0};
     // automatic maintenance settings:
     // short and prime with 1 hour which will cause automatic maintenance to
     // rarely conflict with any other scheduled tasks on a machine (that tend to
@@ -181,7 +183,9 @@ Config::Config() : NODE_SEED(SecretKey::random())
                                Herder::EXP_LEDGER_TIMESPAN_SECONDS.count(),
                            CLOSETIME_DRIFT_LIMIT);
     METADATA_OUTPUT_STREAM = "";
-    METADATA_DEBUG_LEDGERS = 0;
+
+    // Store at least 1 checkpoint plus a buffer worth of debug meta
+    METADATA_DEBUG_LEDGERS = 100;
 
     LOG_FILE_PATH = "stellar-core-{datetime:%Y-%m-%d_%H-%M-%S}.log";
     BUCKET_DIR_PATH = "buckets";
@@ -193,20 +197,6 @@ Config::Config() : NODE_SEED(SecretKey::random())
     TESTING_UPGRADE_RESERVE = LedgerManager::GENESIS_LEDGER_BASE_RESERVE;
     TESTING_UPGRADE_MAX_TX_SET_SIZE = 50;
     TESTING_UPGRADE_FLAGS = 0;
-    TESTING_LEDGER_MAX_TRANSACTIONS_SIZE_BYTES =
-        1 * InitialSorobanNetworkConfig::TX_MAX_SIZE_BYTES;
-    TESTING_LEDGER_MAX_INSTRUCTIONS =
-        1 * InitialSorobanNetworkConfig::TX_MAX_INSTRUCTIONS;
-    TESTING_LEDGER_MAX_READ_LEDGER_ENTRIES =
-        1 * InitialSorobanNetworkConfig::TX_MAX_READ_LEDGER_ENTRIES;
-    TESTING_LEDGER_MAX_READ_BYTES =
-        1 * InitialSorobanNetworkConfig::TX_MAX_READ_BYTES;
-    TESTING_LEDGER_MAX_WRITE_LEDGER_ENTRIES =
-        1 * InitialSorobanNetworkConfig::TX_MAX_WRITE_LEDGER_ENTRIES;
-    TESTING_LEDGER_MAX_WRITE_BYTES =
-        1 * InitialSorobanNetworkConfig::TX_MAX_WRITE_BYTES;
-    TESTING_LEDGER_MAX_SOROBAN_TX_COUNT = 1;
-    TESTING_TX_MAX_SIZE_BYTES = InitialSorobanNetworkConfig::TX_MAX_SIZE_BYTES;
 
     HTTP_PORT = DEFAULT_PEER_PORT + 1;
     PUBLIC_HTTP_PORT = false;
@@ -223,10 +213,10 @@ Config::Config() : NODE_SEED(SecretKey::random())
 
     FLOOD_OP_RATE_PER_LEDGER = 1.0;
     FLOOD_TX_PERIOD_MS = 200;
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
+
     FLOOD_SOROBAN_RATE_PER_LEDGER = 1.0;
     FLOOD_SOROBAN_TX_PERIOD_MS = 200;
-#endif
+
     FLOOD_ARB_TX_BASE_ALLOWANCE = 5;
     FLOOD_ARB_TX_DAMPING_FACTOR = 0.8;
 
@@ -274,11 +264,16 @@ Config::Config() : NODE_SEED(SecretKey::random())
 
     MAX_DEX_TX_OPERATIONS_IN_TX_SET = std::nullopt;
 
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
     ENABLE_SOROBAN_DIAGNOSTIC_EVENTS = false;
-    TESTING_MINIMUM_PERSISTENT_ENTRY_LIFETIME =
-        InitialSorobanNetworkConfig::MINIMUM_PERSISTENT_ENTRY_LIFETIME;
-#endif
+    TESTING_MINIMUM_PERSISTENT_ENTRY_LIFETIME = 0;
+    TESTING_SOROBAN_HIGH_LIMIT_OVERRIDE = false;
+    OVERRIDE_EVICTION_PARAMS_FOR_TESTING = false;
+    TESTING_EVICTION_SCAN_SIZE =
+        InitialSorobanNetworkConfig::EVICTION_SCAN_SIZE;
+    TESTING_MAX_ENTRIES_TO_EXPIRE =
+        InitialSorobanNetworkConfig::MAX_ENTRIES_TO_EXPIRE;
+    TESTING_STARTING_EVICTION_SCAN_LEVEL =
+        InitialSorobanNetworkConfig::STARTING_EVICTION_SCAN_LEVEL;
 
 #ifdef BUILD_TESTS
     TEST_CASES_ENABLED = false;
@@ -1030,7 +1025,12 @@ Config::processConfig(std::shared_ptr<cpptoml::table> t)
             }
             else if (item.first == "LIMIT_TX_QUEUE_SOURCE_ACCOUNT")
             {
-                LIMIT_TX_QUEUE_SOURCE_ACCOUNT = readBool(item);
+                LOG_WARNING(
+                    DEFAULT_LOG,
+                    "LIMIT_TX_QUEUE_SOURCE_ACCOUNT is deprecated: the limit is "
+                    "now always enforced and setting it to false will have no "
+                    "effect. Please remove this setting from the config file.");
+                LIMIT_TX_QUEUE_SOURCE_ACCOUNT = true;
             }
             else if (item.first == "DISABLE_XDR_FSYNC")
             {
@@ -1122,6 +1122,11 @@ Config::processConfig(std::shared_ptr<cpptoml::table> t)
             else if (item.first == "ALLOW_LOCALHOST_FOR_TESTING")
             {
                 ALLOW_LOCALHOST_FOR_TESTING = readBool(item);
+            }
+            else if (item.first == "PUBLISH_TO_ARCHIVE_DELAY")
+            {
+                PUBLISH_TO_ARCHIVE_DELAY =
+                    std::chrono::seconds(readInt<uint32_t>(item));
             }
             else if (item.first == "AUTOMATIC_MAINTENANCE_PERIOD")
             {
@@ -1225,7 +1230,6 @@ Config::processConfig(std::shared_ptr<cpptoml::table> t)
             {
                 FLOOD_TX_PERIOD_MS = readInt<int>(item, 1);
             }
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
             else if (item.first == "FLOOD_SOROBAN_RATE_PER_LEDGER")
             {
                 FLOOD_SOROBAN_RATE_PER_LEDGER = readDouble(item);
@@ -1239,7 +1243,6 @@ Config::processConfig(std::shared_ptr<cpptoml::table> t)
             {
                 FLOOD_SOROBAN_TX_PERIOD_MS = readInt<int>(item, 1);
             }
-#endif
             else if (item.first == "FLOOD_DEMAND_PERIOD_MS")
             {
                 FLOOD_DEMAND_PERIOD_MS =
@@ -1446,7 +1449,6 @@ Config::processConfig(std::shared_ptr<cpptoml::table> t)
             {
                 HALT_ON_INTERNAL_TRANSACTION_ERROR = readBool(item);
             }
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
             else if (item.first == "ENABLE_SOROBAN_DIAGNOSTIC_EVENTS")
             {
                 ENABLE_SOROBAN_DIAGNOSTIC_EVENTS = readBool(item);
@@ -1462,12 +1464,49 @@ Config::processConfig(std::shared_ptr<cpptoml::table> t)
                         "positive");
                 }
 
+                if (TESTING_MINIMUM_PERSISTENT_ENTRY_LIFETIME <
+                    MinimumSorobanNetworkConfig::
+                        MINIMUM_PERSISTENT_ENTRY_LIFETIME)
+                {
+                    throw std::invalid_argument(
+                        "TESTING_MINIMUM_PERSISTENT_ENTRY_LIFETIME < "
+                        "MinimumSorobanNetworkConfig::MINIMUM_PERSISTENT_ENTRY_"
+                        "LIFETIME");
+                }
+
                 LOG_WARNING(
                     DEFAULT_LOG,
                     "Overriding MINIMUM_PERSISTENT_ENTRY_LIFETIME to {}",
                     TESTING_MINIMUM_PERSISTENT_ENTRY_LIFETIME);
             }
-#endif
+            else if (item.first == "OVERRIDE_EVICTION_PARAMS_FOR_TESTING")
+            {
+                OVERRIDE_EVICTION_PARAMS_FOR_TESTING = readBool(item);
+            }
+            else if (item.first == "TESTING_EVICTION_SCAN_SIZE")
+            {
+                TESTING_EVICTION_SCAN_SIZE = readInt<uint32_t>(item);
+            }
+            else if (item.first == "TESTING_STARTING_EVICTION_SCAN_LEVEL")
+            {
+                TESTING_STARTING_EVICTION_SCAN_LEVEL =
+                    readInt<uint32_t>(item, 1, BucketList::kNumLevels - 1);
+            }
+            else if (item.first == "TESTING_MAX_ENTRIES_TO_EXPIRE")
+            {
+                TESTING_MAX_ENTRIES_TO_EXPIRE = readInt<uint32_t>(item);
+            }
+            else if (item.first == "TESTING_SOROBAN_HIGH_LIMIT_OVERRIDE")
+            {
+                TESTING_SOROBAN_HIGH_LIMIT_OVERRIDE = readBool(item);
+
+                if (TESTING_SOROBAN_HIGH_LIMIT_OVERRIDE)
+                {
+                    LOG_WARNING(DEFAULT_LOG,
+                                "Overriding Soroban limits with "
+                                "TESTING_SOROBAN_HIGH_LIMIT_OVERRIDE");
+                }
+            }
             else if (item.first == "ARTIFICIALLY_SLEEP_MAIN_THREAD_FOR_TESTING")
             {
                 ARTIFICIALLY_SLEEP_MAIN_THREAD_FOR_TESTING =
@@ -1518,18 +1557,6 @@ Config::processConfig(std::shared_ptr<cpptoml::table> t)
                 "can't be greater than PEER_FLOOD_READING_CAPACITY_BYTES";
             throw std::runtime_error(msg);
         }
-
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
-        if (!LIMIT_TX_QUEUE_SOURCE_ACCOUNT)
-        {
-            std::string msg =
-                "Invalid configuration: disabling "
-                "LIMIT_TX_QUEUE_SOURCE_ACCOUNT is not allowed. Starting core "
-                "with LIMIT_TX_QUEUE_SOURCE_ACCOUNT=true";
-            LOG_WARNING(DEFAULT_LOG, "{}", msg);
-            LIMIT_TX_QUEUE_SOURCE_ACCOUNT = true;
-        }
-#endif
 
         verifyLoadGenOpCountForTestingConfigs();
 
@@ -1652,7 +1679,7 @@ Config::adjust()
     auto const originalMaxPendingConnections = MAX_PENDING_CONNECTIONS;
 
     int maxFsConnections = std::min<int>(
-        std::numeric_limits<unsigned short>::max(), fs::getMaxConnections());
+        std::numeric_limits<unsigned short>::max(), fs::getMaxHandles());
 
     auto totalAuthenticatedConnections =
         TARGET_PEER_CONNECTIONS + MAX_ADDITIONAL_PEER_CONNECTIONS;
