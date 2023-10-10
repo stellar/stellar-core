@@ -172,7 +172,6 @@ class BucketIndexTest
             LedgerTestUtils::generateValidLedgerEntryWithTypes({CONTRACT_DATA});
 
         auto generateEntry = [&](ContractDataDurability t) {
-            static uint32_t expiration = 10000;
             auto le = templateEntry;
             le.data.contractData().durability = t;
             return le;
