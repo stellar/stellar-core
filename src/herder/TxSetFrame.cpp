@@ -831,7 +831,7 @@ TxSetFrame::computeTxFeesForNonGeneralizedSet(LedgerHeader const& lclHeader,
 
     for (auto const& tx : phase)
     {
-        mTxBaseFeeClassic[tx] = baseFee;
+        mTxBaseInclusionFeeClassic[tx] = baseFee;
     }
     mFeesComputed[0] = true;
 }
@@ -899,11 +899,11 @@ TxSetFrame::getTxBaseFee(TransactionFrameBaseConstPtr const& tx,
         releaseAssert(!isGeneralizedTxSet());
         computeTxFeesForNonGeneralizedSet(lclHeader);
     }
-    auto it = mTxBaseFeeClassic.find(tx);
-    if (it == mTxBaseFeeClassic.end())
+    auto it = mTxBaseInclusionFeeClassic.find(tx);
+    if (it == mTxBaseInclusionFeeClassic.end())
     {
-        it = mTxBaseFeeSoroban.find(tx);
-        if (it == mTxBaseFeeSoroban.end())
+        it = mTxBaseInclusionFeeSoroban.find(tx);
+        if (it == mTxBaseInclusionFeeSoroban.end())
         {
             throw std::runtime_error("Transaction not found in tx set");
         }
@@ -1027,7 +1027,7 @@ TxSetFrame::summary() const
     {
         return fmt::format(FMT_STRING("txs:{}, ops:{}, base_fee:{}"),
                            sizeTxTotal(), sizeOpTotal(),
-                           *mTxBaseFeeClassic.begin()->second);
+                           *mTxBaseInclusionFeeClassic.begin()->second);
     }
 }
 
@@ -1283,10 +1283,10 @@ TxSetFrame::getInclusionFeeMap(Phase phase) const
 {
     if (phase == Phase::SOROBAN)
     {
-        return mTxBaseFeeSoroban;
+        return mTxBaseInclusionFeeSoroban;
     }
     releaseAssert(phase == Phase::CLASSIC);
-    return mTxBaseFeeClassic;
+    return mTxBaseInclusionFeeClassic;
 }
 
 std::string
