@@ -2822,6 +2822,10 @@ TEST_CASE("upgrade from cpp14 serialized data", "[upgrades]")
         "has": true,
         "val": 10000
     },
+    "maxsorobantxsetsize": {
+        "has": true,
+        "val": 100
+    },
     "reserve": {
         "has": false
     },
@@ -2833,16 +2837,17 @@ TEST_CASE("upgrade from cpp14 serialized data", "[upgrades]")
     Config cfg = getTestConfig();
     VirtualClock clock;
     auto app = createTestApplication(clock, cfg);
-    LedgerTxn ltx(app->getLedgerTxnRoot());
 
     Upgrades::UpgradeParameters up;
-    up.fromJson(in, ltx);
+    up.fromJson(in);
     REQUIRE(VirtualClock::to_time_t(up.mUpgradeTime) == 1618016242);
     REQUIRE(up.mProtocolVersion.has_value());
     REQUIRE(up.mProtocolVersion.value() == 17);
     REQUIRE(!up.mBaseFee.has_value());
     REQUIRE(up.mMaxTxSetSize.has_value());
     REQUIRE(up.mMaxTxSetSize.value() == 10000);
+    REQUIRE(up.mMaxSorobanTxSetSize.has_value());
+    REQUIRE(up.mMaxSorobanTxSetSize.value() == 100);
     REQUIRE(!up.mBaseReserve.has_value());
 }
 
@@ -2869,14 +2874,14 @@ TEST_CASE("upgrades serialization roundtrip", "[upgrades]")
         std::string upgradesJson, encodedConfigUpgradeSet;
         auto json = initUpgrades.toJson();
 
-        LedgerTxn ltx(app->getLedgerTxnRoot());
         Upgrades::UpgradeParameters restoredUpgrades;
-        restoredUpgrades.fromJson(json, ltx);
+        restoredUpgrades.fromJson(json);
         REQUIRE(restoredUpgrades.mUpgradeTime == initUpgrades.mUpgradeTime);
         REQUIRE(*restoredUpgrades.mBaseFee == 10000);
         REQUIRE(*restoredUpgrades.mProtocolVersion == 20);
         REQUIRE(!restoredUpgrades.mMaxTxSetSize);
         REQUIRE(!restoredUpgrades.mBaseReserve);
+        REQUIRE(!restoredUpgrades.mMaxSorobanTxSetSize);
 
         REQUIRE(!restoredUpgrades.mFlags);
 
@@ -2908,6 +2913,9 @@ TEST_CASE("upgrades serialization roundtrip", "[upgrades]")
       "nullopt" : false
    },
    "flags" : {
+      "nullopt" : true
+   },
+   "maxsorobantxsetsize" : {
       "nullopt" : true
    },
    "maxtxsize" : {

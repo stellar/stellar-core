@@ -112,7 +112,7 @@ class BucketManagerImpl : public BucketManager
                              std::filesystem::path const& dst) override;
     std::shared_ptr<Bucket>
     adoptFileAsBucket(std::string const& filename, uint256 const& hash,
-                      size_t nObjects, size_t nBytes, MergeKey* mergeKey,
+                      MergeKey* mergeKey,
                       std::unique_ptr<BucketIndex const> index) override;
     void noteEmptyMergeOutput(MergeKey const& mergeKey) override;
     std::shared_ptr<Bucket> getBucketIfExists(uint256 const& hash) override;

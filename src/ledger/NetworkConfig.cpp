@@ -505,7 +505,7 @@ initialBucketListSizeWindow(Application& app)
     auto blSize = app.getConfig().MODE_ENABLES_BUCKETLIST
                       ? app.getBucketManager().getBucketList().getSize()
                       : 1;
-    for (auto i = 0;
+    for (uint64_t i = 0;
          i < InitialSorobanNetworkConfig::BUCKET_LIST_SIZE_WINDOW_SAMPLE_SIZE;
          ++i)
     {

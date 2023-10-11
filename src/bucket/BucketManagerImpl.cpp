@@ -384,8 +384,7 @@ BucketManagerImpl::renameBucketDirFile(std::filesystem::path const& src,
 
 std::shared_ptr<Bucket>
 BucketManagerImpl::adoptFileAsBucket(std::string const& filename,
-                                     uint256 const& hash, size_t nObjects,
-                                     size_t nBytes, MergeKey* mergeKey,
+                                     uint256 const& hash, MergeKey* mergeKey,
                                      std::unique_ptr<BucketIndex const> index)
 {
     ZoneScoped;
