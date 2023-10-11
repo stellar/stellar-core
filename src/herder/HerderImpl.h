@@ -73,7 +73,7 @@ class HerderImpl : public Herder
 
     void start() override;
 
-    void lastClosedLedgerIncreased() override;
+    void lastClosedLedgerIncreased(bool latest) override;
 
     SCP& getSCP();
     HerderSCPDriver&
@@ -230,9 +230,10 @@ class HerderImpl : public Herder
     void writeDebugTxSet(LedgerCloseData const& lcd);
 
     ClassicTransactionQueue mTransactionQueue;
-    SorobanTransactionQueue mSorobanTransactionQueue;
+    std::shared_ptr<SorobanTransactionQueue> mSorobanTransactionQueue;
 
     void updateTransactionQueue(TxSetFrameConstPtr txSet);
+    void maybeSetupSorobanQueue(uint32_t protocolVersion);
 
     PendingEnvelopes mPendingEnvelopes;
     Upgrades mUpgrades;

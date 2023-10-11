@@ -582,19 +582,21 @@ LedgerManagerImpl::valueExternalized(LedgerCloseData const& ledgerData)
 
     // We set the state to synced
     // if we have closed the latest ledger we have heard of.
+    bool appliedLatest = false;
     if (cm.getLargestLedgerSeqHeard() == getLastClosedLedgerNum())
     {
         setState(LM_SYNCED_STATE);
-        // New ledger(s) got closed, notify Herder
-        if (getLastClosedLedgerNum() > lcl)
-        {
-            CLOG_DEBUG(Ledger,
-                       "LedgerManager::valueExternalized LCL advanced {} -> {}",
-                       lcl, getLastClosedLedgerNum());
-            mApp.getHerder().lastClosedLedgerIncreased();
-        }
+        appliedLatest = true;
     }
 
+    // New ledger(s) got closed, notify Herder
+    if (getLastClosedLedgerNum() > lcl)
+    {
+        CLOG_DEBUG(Ledger,
+                   "LedgerManager::valueExternalized LCL advanced {} -> {}",
+                   lcl, getLastClosedLedgerNum());
+        mApp.getHerder().lastClosedLedgerIncreased(appliedLatest);
+    }
     FrameMark;
 }
 
