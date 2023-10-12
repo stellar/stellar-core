@@ -53,7 +53,6 @@ class TransactionFrame : public TransactionFrameBase
     xdr::xvector<ContractEvent> mEvents;
     xdr::xvector<DiagnosticEvent> mDiagnosticEvents;
     SCVal mReturnValue;
-    std::optional<FeePair> mSorobanResourceFee;
     // Size of the emitted Soroban events.
     uint32_t mConsumedContractEventsSizeBytes{};
     int64_t mConsumedRentFee{};
@@ -92,7 +91,8 @@ class TransactionFrame : public TransactionFrameBase
     bool commonValidPreSeqNum(Application& app, AbstractLedgerTxn& ltx,
                               bool chargeFee,
                               uint64_t lowerBoundCloseTimeOffset,
-                              uint64_t upperBoundCloseTimeOffset);
+                              uint64_t upperBoundCloseTimeOffset,
+                              std::optional<FeePair> sorobanResourceFee);
 
     virtual bool isBadSeq(LedgerTxnHeader const& header, int64_t seqNum) const;
 
@@ -102,7 +102,8 @@ class TransactionFrame : public TransactionFrameBase
                                SequenceNumber current, bool applying,
                                bool chargeFee,
                                uint64_t lowerBoundCloseTimeOffset,
-                               uint64_t upperBoundCloseTimeOffset);
+                               uint64_t upperBoundCloseTimeOffset,
+                               std::optional<FeePair> sorobanResourceFee);
 
     virtual std::shared_ptr<OperationFrame>
     makeOperation(Operation const& op, OperationResult& res, size_t index);
@@ -133,6 +134,13 @@ class TransactionFrame : public TransactionFrameBase
     bool validateSorobanResources(SorobanNetworkConfig const& config,
                                   uint32_t protocolVersion);
     void refundSorobanFee(AbstractLedgerTxn& ltx);
+#ifdef BUILD_TESTS
+  public:
+#endif
+    FeePair
+    computePreApplySorobanResourceFee(uint32_t protocolVersion,
+                                      SorobanNetworkConfig const& sorobanConfig,
+                                      Config const& cfg);
 
   public:
     TransactionFrame(Hash const& networkID,
@@ -187,14 +195,6 @@ class TransactionFrame : public TransactionFrameBase
                                    std::string&& message,
                                    xdr::xvector<SCVal>&& args = {});
     xdr::xvector<DiagnosticEvent> const& getDiagnosticEvents() const override;
-#ifdef BUILD_TESTS
-    // Used to test the behavior of the transaction fee bump feature.
-    std::optional<FeePair>
-    getSorobanResourceFee() const
-    {
-        return mSorobanResourceFee;
-    }
-#endif
 
     TransactionEnvelope const& getEnvelope() const override;
     TransactionEnvelope& getEnvelope();
@@ -278,10 +278,7 @@ class TransactionFrame : public TransactionFrameBase
 
     bool isSoroban() const override;
     SorobanResources const& sorobanResources() const override;
-    void
-    maybeComputeSorobanResourceFee(uint32_t protocolVersion,
-                                   SorobanNetworkConfig const& sorobanConfig,
-                                   Config const& cfg) override;
+
     bool
     consumeRefundableSorobanResources(uint32_t contractEventSizeBytes,
                                       int64_t rentFee, uint32_t protocolVersion,

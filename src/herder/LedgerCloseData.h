@@ -53,39 +53,26 @@ class LedgerCloseData
     toXDR() const
     {
         StoredDebugTransactionSet sts;
-
-        StoredTransactionSet tempTxSet;
-        if (mTxSet->isGeneralizedTxSet())
-        {
-            tempTxSet.v(1);
-            mTxSet->toXDR(tempTxSet.generalizedTxSet());
-        }
-        else
-        {
-            mTxSet->toXDR(tempTxSet.txSet());
-        }
-
-        sts.txSet = tempTxSet;
+        mTxSet->storeXDR(sts.txSet);
         sts.scpValue = mValue;
         sts.ledgerSeq = mLedgerSeq;
-
         return sts;
     }
 
     static LedgerCloseData
-    toLedgerCloseData(StoredDebugTransactionSet const& sts, Application& app)
+    toLedgerCloseData(StoredDebugTransactionSet const& sts)
     {
         if (sts.txSet.v() == 0)
         {
-            return LedgerCloseData(
-                sts.ledgerSeq, TxSetFrame::makeFromWire(app, sts.txSet.txSet()),
-                sts.scpValue);
+            return LedgerCloseData(sts.ledgerSeq,
+                                   TxSetFrame::makeFromWire(sts.txSet.txSet()),
+                                   sts.scpValue);
         }
         else
         {
             return LedgerCloseData(
                 sts.ledgerSeq,
-                TxSetFrame::makeFromWire(app, sts.txSet.generalizedTxSet()),
+                TxSetFrame::makeFromWire(sts.txSet.generalizedTxSet()),
                 sts.scpValue);
         }
     }

@@ -3,6 +3,8 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "herder/test/TestTxSetUtils.h"
+#include "ledger/LedgerTxn.h"
+#include "main/Application.h"
 #include "util/ProtocolVersion.h"
 
 #include <map>
@@ -62,25 +64,28 @@ makeGeneralizedTxSetXDR(std::vector<ComponentPhases> const& txsPerBaseFeePhases,
     return xdrTxSet;
 }
 
-TxSetFrameConstPtr
+std::pair<TxSetFrameConstPtr, ApplicableTxSetFrameConstPtr>
 makeNonValidatedTxSet(std::vector<TransactionFrameBasePtr> const& txs,
                       Application& app, Hash const& previousLedgerHash)
 {
     auto xdrTxSet = makeTxSetXDR(txs, previousLedgerHash);
-    return TxSetFrame::makeFromWire(app, xdrTxSet);
+    auto txSet = TxSetFrame::makeFromWire(xdrTxSet);
+    auto applicableTxSet = txSet->prepareForApply(app);
+    return std::make_pair(txSet, std::move(applicableTxSet));
 }
 } // namespace
 
-TxSetFrameConstPtr
+std::pair<TxSetFrameConstPtr, ApplicableTxSetFrameConstPtr>
 makeNonValidatedGeneralizedTxSet(
     std::vector<ComponentPhases> const& txsPerBaseFee, Application& app,
     Hash const& previousLedgerHash)
 {
     auto xdrTxSet = makeGeneralizedTxSetXDR(txsPerBaseFee, previousLedgerHash);
-    return TxSetFrame::makeFromWire(app, xdrTxSet);
+    auto txSet = TxSetFrame::makeFromWire(xdrTxSet);
+    return std::make_pair(txSet, txSet->prepareForApply(app));
 }
 
-TxSetFrameConstPtr
+std::pair<TxSetFrameConstPtr, ApplicableTxSetFrameConstPtr>
 makeNonValidatedTxSetBasedOnLedgerVersion(
     uint32_t ledgerVersion, std::vector<TransactionFrameBasePtr> const& txs,
     Application& app, Hash const& previousLedgerHash)

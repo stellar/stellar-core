@@ -126,12 +126,12 @@ ApplyCheckpointWork::getCurrentTxSet()
             CLOG_DEBUG(History, "Loaded txset for ledger {}", seq);
             if (mTxHistoryEntry.ext.v() == 0)
             {
-                return TxSetFrame::makeFromWire(mApp, mTxHistoryEntry.txSet);
+                return TxSetFrame::makeFromWire(mTxHistoryEntry.txSet);
             }
             else
             {
                 return TxSetFrame::makeFromWire(
-                    mApp, mTxHistoryEntry.ext.generalizedTxSet());
+                    mTxHistoryEntry.ext.generalizedTxSet());
             }
         }
     } while (mTxIn && mTxIn.readOne(mTxHistoryEntry));

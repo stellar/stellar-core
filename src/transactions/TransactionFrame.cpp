@@ -70,9 +70,6 @@ TransactionFrame::TransactionFrame(Hash const& networkID,
         mOperations.push_back(
             makeOperation(ops[i], getResult().result.results()[i], i));
     }
-
-    // Initialize the fee to 0, callers will compute the fee appropriately
-    mSorobanResourceFee = std::make_optional<FeePair>();
 }
 
 Hash const&
@@ -779,6 +776,8 @@ TransactionFrame::computeSorobanResourceFee(
     uint32_t txSize, uint32_t eventsSize,
     SorobanNetworkConfig const& sorobanConfig, Config const& cfg)
 {
+    releaseAssertOrThrow(
+        protocolVersionStartsFrom(protocolVersion, SOROBAN_PROTOCOL_VERSION));
     CxxTransactionResources cxxResources{};
     cxxResources.instructions = txResources.instructions;
 
@@ -806,34 +805,18 @@ TransactionFrame::declaredSorobanResourceFee() const
     return mEnvelope.v1().tx.ext.sorobanData().resourceFee;
 }
 
-void
-TransactionFrame::maybeComputeSorobanResourceFee(
+FeePair
+TransactionFrame::computePreApplySorobanResourceFee(
     uint32_t protocolVersion, SorobanNetworkConfig const& sorobanConfig,
     Config const& cfg)
 {
-    // NB: We recompute the resource fee on-demand in case if the fees change
-    // between the ledger where the transaction has been accepted and the ledger
-    // where it is being applied.
-    if (!isSoroban())
-    {
-        return;
-    }
-    // At this point the frame might not have been validated yet, so
-    // the resources might not be present or Soroban might not be supported
-    // at all. Hence just set the resource fees to 0 and rely on validation
-    // checks to not use this.
-    if (protocolVersionIsBefore(protocolVersion, SOROBAN_PROTOCOL_VERSION))
-    {
-        mSorobanResourceFee = std::make_optional<FeePair>();
-        return;
-    }
+    releaseAssertOrThrow(isSoroban());
     // We always use the declared resource value for the resource fee
     // computation. The refunds are performed as a separate operation that
     // doesn't involve modifying any transaction fees.
-    mSorobanResourceFee = std::make_optional<FeePair>(computeSorobanResourceFee(
+    return computeSorobanResourceFee(
         protocolVersion, sorobanResources(),
-        static_cast<uint32_t>(xdr::xdr_size(mEnvelope)), 0, sorobanConfig,
-        cfg));
+        static_cast<uint32_t>(xdr::xdr_size(mEnvelope)), 0, sorobanConfig, cfg);
 }
 
 bool
@@ -844,8 +827,9 @@ TransactionFrame::consumeRefundableSorobanResources(
     releaseAssertOrThrow(isSoroban());
     mConsumedContractEventsSizeBytes += contractEventSizeBytes;
     mConsumedRentFee += rentFee;
-    mFeeRefund =
-        declaredSorobanResourceFee() - mSorobanResourceFee->non_refundable_fee;
+    auto preApplyFee =
+        computePreApplySorobanResourceFee(protocolVersion, sorobanConfig, cfg);
+    mFeeRefund = declaredSorobanResourceFee() - preApplyFee.non_refundable_fee;
     if (mFeeRefund < mConsumedRentFee)
     {
         return false;
@@ -962,10 +946,10 @@ TransactionFrame::isTooEarlyForAccount(LedgerTxnHeader const& header,
 }
 
 bool
-TransactionFrame::commonValidPreSeqNum(Application& app, AbstractLedgerTxn& ltx,
-                                       bool chargeFee,
-                                       uint64_t lowerBoundCloseTimeOffset,
-                                       uint64_t upperBoundCloseTimeOffset)
+TransactionFrame::commonValidPreSeqNum(
+    Application& app, AbstractLedgerTxn& ltx, bool chargeFee,
+    uint64_t lowerBoundCloseTimeOffset, uint64_t upperBoundCloseTimeOffset,
+    std::optional<FeePair> sorobanResourceFee)
 {
     ZoneScoped;
     // this function does validations that are independent of the account state
@@ -1050,17 +1034,18 @@ TransactionFrame::commonValidPreSeqNum(Application& app, AbstractLedgerTxn& ltx,
             getResult().result.code(txSOROBAN_INVALID);
             return false;
         }
+        releaseAssertOrThrow(sorobanResourceFee);
         if (sorobanData.resourceFee <
-            mSorobanResourceFee->refundable_fee +
-                mSorobanResourceFee->non_refundable_fee)
+            sorobanResourceFee->refundable_fee +
+                sorobanResourceFee->non_refundable_fee)
         {
             pushSimpleDiagnosticError(
                 SCE_STORAGE, SCEC_EXCEEDED_LIMIT,
                 "transaction `sorobanData.resourceFee` is lower than the "
                 "actual Soroban resource fee",
                 {makeU64SCVal(sorobanData.resourceFee),
-                 makeU64SCVal(mSorobanResourceFee->refundable_fee +
-                              mSorobanResourceFee->non_refundable_fee)});
+                 makeU64SCVal(sorobanResourceFee->refundable_fee +
+                              sorobanResourceFee->non_refundable_fee)});
             getResult().result.code(txSOROBAN_INVALID);
             return false;
         }
@@ -1229,7 +1214,8 @@ TransactionFrame::commonValid(Application& app,
                               SequenceNumber current, bool applying,
                               bool chargeFee,
                               uint64_t lowerBoundCloseTimeOffset,
-                              uint64_t upperBoundCloseTimeOffset)
+                              uint64_t upperBoundCloseTimeOffset,
+                              std::optional<FeePair> sorobanResourceFee)
 {
     ZoneScoped;
     LedgerTxn ltx(ltxOuter);
@@ -1243,7 +1229,7 @@ TransactionFrame::commonValid(Application& app,
     }
 
     if (!commonValidPreSeqNum(app, ltx, chargeFee, lowerBoundCloseTimeOffset,
-                              upperBoundCloseTimeOffset))
+                              upperBoundCloseTimeOffset, sorobanResourceFee))
     {
         return res;
     }
@@ -1443,24 +1429,25 @@ TransactionFrame::checkValidWithOptionallyChargedFee(
         minBaseFee = 0;
     }
 
-    if (protocolVersionStartsFrom(ltx.loadHeader().current().ledgerVersion,
-                                  SOROBAN_PROTOCOL_VERSION))
-    {
-        maybeComputeSorobanResourceFee(
-            ltx.loadHeader().current().ledgerVersion,
-            app.getLedgerManager().getSorobanNetworkConfig(ltx),
-            app.getConfig());
-    }
-
     resetResults(ltx.loadHeader().current(), minBaseFee, false);
 
     SignatureChecker signatureChecker{ltx.loadHeader().current().ledgerVersion,
                                       getContentsHash(),
                                       getSignatures(mEnvelope)};
+    std::optional<FeePair> sorobanResourceFee;
+    if (protocolVersionStartsFrom(ltx.loadHeader().current().ledgerVersion,
+                                  SOROBAN_PROTOCOL_VERSION) &&
+        isSoroban())
+    {
+        sorobanResourceFee = computePreApplySorobanResourceFee(
+            ltx.loadHeader().current().ledgerVersion,
+            app.getLedgerManager().getSorobanNetworkConfig(ltx),
+            app.getConfig());
+    }
     bool res =
         commonValid(app, signatureChecker, ltx, current, false, chargeFee,
-                    lowerBoundCloseTimeOffset,
-                    upperBoundCloseTimeOffset) == ValidationType::kMaybeValid;
+                    lowerBoundCloseTimeOffset, upperBoundCloseTimeOffset,
+                    sorobanResourceFee) == ValidationType::kMaybeValid;
     if (res)
     {
         for (auto& op : mOperations)
@@ -1659,8 +1646,12 @@ TransactionFrame::applyOperations(SignatureChecker& signatureChecker,
             {
                 // If transaction fails, we don't charge for any
                 // refundable resources.
+                auto preApplyFee = computePreApplySorobanResourceFee(
+                    ledgerVersion,
+                    app.getLedgerManager().getSorobanNetworkConfig(ltxTx),
+                    app.getConfig());
                 mFeeRefund = declaredSorobanResourceFee() -
-                             mSorobanResourceFee->non_refundable_fee;
+                             preApplyFee.non_refundable_fee;
                 outerMeta.pushDiagnosticEvents(std::move(mDiagnosticEvents));
             }
         }
@@ -1750,8 +1741,18 @@ TransactionFrame::apply(Application& app, AbstractLedgerTxn& ltx,
         //  when applying, a failure during tx validation means that
         //  we'll skip trying to apply operations but we'll still
         //  process the sequence number if needed
-        auto cv =
-            commonValid(app, signatureChecker, ltxTx, 0, true, chargeFee, 0, 0);
+        std::optional<FeePair> sorobanResourceFee;
+        if (protocolVersionStartsFrom(ledgerVersion,
+                                      SOROBAN_PROTOCOL_VERSION) &&
+            isSoroban())
+        {
+            sorobanResourceFee = computePreApplySorobanResourceFee(
+                ledgerVersion,
+                app.getLedgerManager().getSorobanNetworkConfig(ltxTx),
+                app.getConfig());
+        }
+        auto cv = commonValid(app, signatureChecker, ltxTx, 0, true, chargeFee,
+                              0, 0, sorobanResourceFee);
         if (cv >= ValidationType::kInvalidUpdateSeqNum)
         {
             processSeqNum(ltxTx);

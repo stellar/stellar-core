@@ -317,9 +317,29 @@ HerderSCPDriver::validateValueHelper(uint64_t slotIndex, StellarValue const& b,
         CLOG_ERROR(Herder, "validateValue i:{} unknown txSet {}", slotIndex,
                    hexAbbrev(txSetHash));
 
+        return SCPDriver::kInvalidValue;
+    }
+    ApplicableTxSetFrameConstPtr applicableTxSet;
+
+    // The invariant here is that we only validate tx sets nominated
+    // to be applied to the current ledger state. However, in case
+    // if we receive a bad SCP value for the current state, we still
+    // might end up with malformed tx set that doesn't refer to the
+    // LCL.
+    if (txSet->previousLedgerHash() ==
+        mApp.getLedgerManager().getLastClosedLedgerHeader().hash)
+    {
+        applicableTxSet = txSet->prepareForApply(mApp);
+    }
+
+    if (applicableTxSet == nullptr)
+    {
+        CLOG_ERROR(Herder,
+                   "validateValue i:{} can't prepare txSet {} for apply",
+                   slotIndex, hexAbbrev(txSetHash));
         res = SCPDriver::kInvalidValue;
     }
-    else if (!checkAndCacheTxSetValid(txSet, closeTimeOffset))
+    else if (!checkAndCacheTxSetValid(*applicableTxSet, closeTimeOffset))
     {
         CLOG_DEBUG(Herder,
                    "HerderSCPDriver::validateValue i: {} invalid txSet {}",
@@ -561,19 +581,12 @@ HerderSCPDriver::stopTimer(uint64 slotIndex, int timerID)
 // returns true if l < r
 // lh, rh are the hashes of l,h
 static bool
-compareTxSets(TxSetFrameConstPtr l, TxSetFrameConstPtr r, Hash const& lh,
-              Hash const& rh, LedgerHeader const& header, Hash const& s)
+compareTxSets(ApplicableTxSetFrame const& l, ApplicableTxSetFrame const& r,
+              Hash const& lh, Hash const& rh, size_t lEncodedSize,
+              size_t rEncodedSize, LedgerHeader const& header, Hash const& s)
 {
-    if (l == nullptr)
-    {
-        return r != nullptr;
-    }
-    if (r == nullptr)
-    {
-        return false;
-    }
-    auto lSize = l->size(header);
-    auto rSize = r->size(header);
+    auto lSize = l.size(header);
+    auto rSize = r.size(header);
     if (lSize != rSize)
     {
         return lSize < rSize;
@@ -581,8 +594,8 @@ compareTxSets(TxSetFrameConstPtr l, TxSetFrameConstPtr r, Hash const& lh,
     if (protocolVersionStartsFrom(header.ledgerVersion,
                                   SOROBAN_PROTOCOL_VERSION))
     {
-        auto lBids = l->getTotalInclusionFees();
-        auto rBids = r->getTotalInclusionFees();
+        auto lBids = l.getTotalInclusionFees();
+        auto rBids = r.getTotalInclusionFees();
         if (lBids != rBids)
         {
             return lBids < rBids;
@@ -590,8 +603,8 @@ compareTxSets(TxSetFrameConstPtr l, TxSetFrameConstPtr r, Hash const& lh,
     }
     if (protocolVersionStartsFrom(header.ledgerVersion, ProtocolVersion::V_11))
     {
-        auto lFee = l->getTotalFees(header);
-        auto rFee = r->getTotalFees(header);
+        auto lFee = l.getTotalFees(header);
+        auto rFee = r.getTotalFees(header);
         if (lFee != rFee)
         {
             return lFee < rFee;
@@ -600,8 +613,6 @@ compareTxSets(TxSetFrameConstPtr l, TxSetFrameConstPtr r, Hash const& lh,
     if (protocolVersionStartsFrom(header.ledgerVersion,
                                   SOROBAN_PROTOCOL_VERSION))
     {
-        auto lEncodedSize = l->encodedSize();
-        auto rEncodedSize = r->encodedSize();
         if (lEncodedSize != rEncodedSize)
         {
             // Look for the smallest encoded size.
@@ -709,20 +720,32 @@ HerderSCPDriver::combineCandidates(uint64_t slotIndex,
     {
         auto highest = candidateValues.cend();
         TxSetFrameConstPtr highestTxSet;
+        ApplicableTxSetFrameConstPtr highestApplicableTxSet;
         for (auto it = candidateValues.cbegin(); it != candidateValues.cend();
              ++it)
         {
             auto const& sv = *it;
-            auto const cTxSet = mPendingEnvelopes.getTxSet(sv.txSetHash);
-            if (cTxSet && cTxSet->previousLedgerHash() == lcl.hash &&
-                (!highestTxSet ||
-                 compareTxSets(highestTxSet, cTxSet, highest->txSetHash,
-                               sv.txSetHash, lcl.header, candidatesHash)))
+            auto cTxSet = mPendingEnvelopes.getTxSet(sv.txSetHash);
+            releaseAssert(cTxSet);
+            // Only valid applicable tx sets should be combined.
+            auto cApplicableTxSet = cTxSet->prepareForApply(mApp);
+            releaseAssert(cApplicableTxSet);
+            if (cTxSet->previousLedgerHash() == lcl.hash)
             {
-                highest = it;
-                highestTxSet = cTxSet;
+
+                if (!highestTxSet ||
+                    compareTxSets(*highestApplicableTxSet, *cApplicableTxSet,
+                                  highest->txSetHash, sv.txSetHash,
+                                  highestTxSet->encodedSize(),
+                                  cTxSet->encodedSize(), lcl.header,
+                                  candidatesHash))
+                {
+                    highest = it;
+                    highestTxSet = cTxSet;
+                    highestApplicableTxSet = std::move(cApplicableTxSet);
+                }
             }
-        };
+        }
         if (highest == candidateValues.cend())
         {
             throw std::runtime_error(
@@ -1210,17 +1233,18 @@ HerderSCPDriver::wrapStellarValue(StellarValue const& sv)
 }
 
 bool
-HerderSCPDriver::checkAndCacheTxSetValid(TxSetFrameConstPtr txSet,
+HerderSCPDriver::checkAndCacheTxSetValid(ApplicableTxSetFrame const& txSet,
                                          uint64_t closeTimeOffset) const
 {
     auto key = TxSetValidityKey{
         mApp.getLedgerManager().getLastClosedLedgerHeader().hash,
-        txSet->getContentsHash(), closeTimeOffset, closeTimeOffset};
+        txSet.getContentsHash(), closeTimeOffset, closeTimeOffset};
 
     bool* pRes = mTxSetValidCache.maybeGet(key);
     if (pRes == nullptr)
     {
-        bool res = txSet->checkValid(mApp, closeTimeOffset, closeTimeOffset);
+        bool res = txSet.checkValid(mApp, closeTimeOffset, closeTimeOffset);
+
         mTxSetValidCache.put(key, res);
         return res;
     }

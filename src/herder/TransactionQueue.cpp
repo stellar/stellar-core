@@ -229,22 +229,6 @@ TransactionQueue::canAdd(TransactionFrameBasePtr tx,
         return TransactionQueue::AddResult::ADD_STATUS_FILTERED;
     }
 
-    LedgerTxn ltx(mApp.getLedgerTxnRoot(),
-                  /* shouldUpdateLastModified */ true,
-                  TransactionMode::READ_ONLY_WITHOUT_SQL_TXN);
-
-    if (protocolVersionStartsFrom(ltx.loadHeader().current().ledgerVersion,
-                                  SOROBAN_PROTOCOL_VERSION))
-    {
-        // Transaction queue performs read-only transactions to the database and
-        // there are no concurrent writers, so it is safe to not enclose all the
-        // SQL statements into one transaction here.
-        tx->maybeComputeSorobanResourceFee(
-            ltx.loadHeader().current().ledgerVersion,
-            mApp.getLedgerManager().getSorobanNetworkConfig(ltx),
-            mApp.getConfig());
-    }
-
     int64_t newFullFee = tx->getFullFee();
     if (newFullFee < 0 || tx->getInclusionFee() < 0)
     {
@@ -355,7 +339,9 @@ TransactionQueue::canAdd(TransactionFrameBasePtr tx,
             }
         }
     }
-
+    LedgerTxn ltx(mApp.getLedgerTxnRoot(),
+                  /* shouldUpdateLastModified */ true,
+                  TransactionMode::READ_ONLY_WITHOUT_SQL_TXN);
     // Subtle: transactions are rejected based on the source account limit prior
     // to this point. This is safe because we can't evict transactions from the
     // same source account, so a newer transaction won't replace an old one.

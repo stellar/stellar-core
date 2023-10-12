@@ -111,10 +111,6 @@ class FeeBumpTransactionFrame : public TransactionFrameBase
     bool isSoroban() const override;
     SorobanResources const& sorobanResources() const override;
     xdr::xvector<DiagnosticEvent> const& getDiagnosticEvents() const override;
-    void
-    maybeComputeSorobanResourceFee(uint32_t protocolVersion,
-                                   SorobanNetworkConfig const& sorobanConfig,
-                                   Config const& cfg) override;
     virtual int64 declaredSorobanResourceFee() const override;
     virtual bool XDRProvidesValidFee() const override;
 };

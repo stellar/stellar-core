@@ -231,13 +231,11 @@ HerderImpl::newSlotExternalized(bool synchronous, StellarValue const& value)
     // start timing next externalize from this point
     mLastExternalize = mApp.getClock().now();
 
-    // perform cleanups
-    auto externalizedSet = mPendingEnvelopes.getTxSet(value.txSetHash);
-    if (externalizedSet)
-    {
-        updateTransactionQueue(externalizedSet);
-    }
+    // In order to update the transaction queue we need to get the
+    // applied transactions.
+    updateTransactionQueue(mPendingEnvelopes.getTxSet(value.txSetHash));
 
+    // perform cleanups
     // Evict slots that are outside of our ledger validity bracket
     auto minSlotToRemember = getMinLedgerSeqToRemember();
     if (minSlotToRemember > LedgerManager::GENESIS_LEDGER_SEQ)
@@ -820,6 +818,17 @@ HerderImpl::recvSCPEnvelope(SCPEnvelope const& envelope,
     return recvSCPEnvelope(envelope);
 }
 
+Herder::EnvelopeStatus
+HerderImpl::recvSCPEnvelope(SCPEnvelope const& envelope,
+                            const SCPQuorumSet& qset,
+                            StellarMessage const& txset)
+{
+    auto txSetFrame = txset.type() == TX_SET
+                          ? TxSetFrame::makeFromWire(txset.txSet())
+                          : TxSetFrame::makeFromWire(txset.generalizedTxSet());
+    return recvSCPEnvelope(envelope, qset, txSetFrame);
+}
+
 void
 HerderImpl::externalizeValue(TxSetFrameConstPtr txSet, uint32_t ledgerSeq,
                              uint64_t closeTime,
@@ -1326,9 +1335,10 @@ HerderImpl::triggerNextLedger(uint32_t ledgerSeqToTrigger,
     TxSetFrame::TxPhases invalidTxPhases;
     invalidTxPhases.resize(txPhases.size());
 
-    auto proposedSet = TxSetFrame::makeFromTransactions(
-        txPhases, mApp, lowerBoundCloseTimeOffset, upperBoundCloseTimeOffset,
-        invalidTxPhases);
+    auto [proposedSet, applicableProposedSet] =
+        TxSetFrame::makeFromTransactions(
+            txPhases, mApp, lowerBoundCloseTimeOffset,
+            upperBoundCloseTimeOffset, invalidTxPhases);
 
     if (protocolVersionStartsFrom(lcl.header.ledgerVersion,
                                   SOROBAN_PROTOCOL_VERSION))
@@ -1870,15 +1880,7 @@ HerderImpl::persistSCPState(uint64 slot)
     for (auto it : txSets)
     {
         StoredTransactionSet tempTxSet;
-        if (it.second->isGeneralizedTxSet())
-        {
-            tempTxSet.v(1);
-            it.second->toXDR(tempTxSet.generalizedTxSet());
-        }
-        else
-        {
-            it.second->toXDR(tempTxSet.txSet());
-        }
+        it.second->storeXDR(tempTxSet);
         txSetsToPersist.emplace(
             it.first, decoder::encode_b64(xdr::xdr_to_opaque(tempTxSet)));
     }
@@ -1910,9 +1912,7 @@ HerderImpl::restoreSCPState()
 
             StoredTransactionSet storedSet;
             xdr::xdr_from_opaque(buffer, storedSet);
-            TxSetFrameConstPtr cur =
-                TxSetFrame::makeFromStoredTxSet(storedSet, mApp);
-
+            TxSetFrameConstPtr cur = TxSetFrame::makeFromStoredTxSet(storedSet);
             Hash h = cur->getContentsHash();
             mPendingEnvelopes.addTxSet(h, 0, cur);
         }
@@ -2192,9 +2192,18 @@ HerderImpl::trackingHeartBeat()
 }
 
 void
-HerderImpl::updateTransactionQueue(TxSetFrameConstPtr txSet)
+HerderImpl::updateTransactionQueue(TxSetFrameConstPtr externalizedTxSet)
 {
     ZoneScoped;
+    if (externalizedTxSet == nullptr)
+    {
+        CLOG_DEBUG(Herder,
+                   "No tx set to update tx queue - expected during bootstrap");
+        return;
+    }
+    auto txsPerPhase =
+        externalizedTxSet->createTransactionFrames(mApp.getNetworkID());
+
     // Generate a transaction set from a random hash and drop invalid
     auto lhhe = mLedgerManager.getLastClosedLedgerHeader();
     lhhe.hash = HashUtils::random();
@@ -2202,7 +2211,6 @@ HerderImpl::updateTransactionQueue(TxSetFrameConstPtr txSet)
     auto updateQueue = [&](auto& queue, auto const& applied) {
         queue.removeApplied(applied);
         queue.shift();
-
         queue.maybeVersionUpgraded();
 
         auto txSet = queue.getTransactions(lhhe.header);
@@ -2215,17 +2223,22 @@ HerderImpl::updateTransactionQueue(TxSetFrameConstPtr txSet)
 
         queue.rebroadcast();
     };
+    if (txsPerPhase.size() > static_cast<size_t>(TxSetFrame::Phase::CLASSIC))
+    {
+        updateQueue(
+            mTransactionQueue,
+            txsPerPhase[static_cast<size_t>(TxSetFrame::Phase::CLASSIC)]);
+    }
 
-    updateQueue(mTransactionQueue,
-                txSet->getTxsForPhase(TxSetFrame::Phase::CLASSIC));
     // Even if we're in protocol 20, still check for number of phases, in case
     // we're dealing with the upgrade ledger that contains old-style transaction
     // set
-    if (txSet->numPhases() > static_cast<size_t>(TxSetFrame::Phase::SOROBAN) &&
-        mSorobanTransactionQueue)
+    if (mSorobanTransactionQueue != nullptr &&
+        txsPerPhase.size() > static_cast<size_t>(TxSetFrame::Phase::SOROBAN))
     {
-        updateQueue(*mSorobanTransactionQueue,
-                    txSet->getTxsForPhase(TxSetFrame::Phase::SOROBAN));
+        updateQueue(
+            *mSorobanTransactionQueue,
+            txsPerPhase[static_cast<size_t>(TxSetFrame::Phase::SOROBAN)]);
     }
 }
 

@@ -433,7 +433,8 @@ TEST_CASE("Flooding", "[flood][overlay][acceptance]")
 
             // create the transaction set containing this transaction
 
-            auto txSet = TxSetFrame::makeFromTransactions({tx1}, *inApp, 0, 0);
+            auto txSet =
+                TxSetFrame::makeFromTransactions({tx1}, *inApp, 0, 0).first;
             auto& herder = static_cast<HerderImpl&>(inApp->getHerder());
 
             // build the quorum set used by this message

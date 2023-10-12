@@ -111,11 +111,11 @@ class ApplyLedgersFromMetaWork : public Work
         TxSetFrameConstPtr txSet;
         if (lcm.v() == 0)
         {
-            txSet = TxSetFrame::makeFromWire(mApp, lcm.v0().txSet);
+            txSet = TxSetFrame::makeFromWire(lcm.v0().txSet);
         }
         else
         {
-            txSet = TxSetFrame::makeFromWire(mApp, lcm.v1().txSet);
+            txSet = TxSetFrame::makeFromWire(lcm.v1().txSet);
         }
 
         LedgerCloseData ledgerCloseData(ledgerSeqToApply, txSet,
@@ -164,7 +164,7 @@ ReplayDebugMetaWork::applyLastLedger()
     if (lcl + 1 == debugTxSet.ledgerSeq)
     {
         mApp.getLedgerManager().closeLedger(
-            LedgerCloseData::toLedgerCloseData(debugTxSet, mApp));
+            LedgerCloseData::toLedgerCloseData(debugTxSet));
     }
     else
     {

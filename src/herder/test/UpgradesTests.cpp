@@ -1956,10 +1956,11 @@ TEST_CASE("upgrade to version 11", "[upgrades]")
         uint64_t minBalance = lm.getLastMinBalance(5);
         uint64_t big = minBalance + ledgerSeq;
         uint64_t closeTime = 60 * 5 * ledgerSeq;
-        TxSetFrameConstPtr txSet = TxSetFrame::makeFromTransactions(
-            TxSetFrame::Transactions{
-                root.tx({txtest::createAccount(stranger, big)})},
-            *app, 0, 0);
+        auto txSet = TxSetFrame::makeFromTransactions(
+                         TxSetFrame::Transactions{
+                             root.tx({txtest::createAccount(stranger, big)})},
+                         *app, 0, 0)
+                         .first;
 
         // On 4th iteration of advance (a.k.a. ledgerSeq 5), perform a
         // ledger-protocol version upgrade to the new protocol, to activate
@@ -2079,10 +2080,12 @@ TEST_CASE("upgrade to version 12", "[upgrades]")
         uint64_t minBalance = lm.getLastMinBalance(5);
         uint64_t big = minBalance + ledgerSeq;
         uint64_t closeTime = 60 * 5 * ledgerSeq;
-        TxSetFrameConstPtr txSet = TxSetFrame::makeFromTransactions(
-            TxSetFrame::Transactions{
-                root.tx({txtest::createAccount(stranger, big)})},
-            *app, 0, 0);
+        TxSetFrameConstPtr txSet =
+            TxSetFrame::makeFromTransactions(
+                TxSetFrame::Transactions{
+                    root.tx({txtest::createAccount(stranger, big)})},
+                *app, 0, 0)
+                .first;
 
         // On 4th iteration of advance (a.k.a. ledgerSeq 5), perform a
         // ledger-protocol version upgrade to the new protocol, to
@@ -2218,7 +2221,7 @@ TEST_CASE("upgrade to version 13", "[upgrades]")
 // the LedgerCloseMeta version for vN. This test checks that the meta versions
 // are correct the protocol 20 upgrade that updates LedgerCloseMeta to V1 and
 // that no asserts are thrown.
-TEST_CASE("upgrade to version 20 - LedgerCloseMetaV1")
+TEST_CASE("upgrade to version 20 - LedgerCloseMetaV1", "[upgrades]")
 {
     TmpDirManager tdm(std::string("version-20-upgrade-meta-") +
                       binToHex(randomBytes(8)));
@@ -3220,14 +3223,18 @@ TEST_CASE("upgrade to generalized tx set changes TxSetFrame format",
 
     auto root = TestAccount::createRoot(*app);
     TxSetFrame::Transactions txs = {root.tx({payment(root, 1)})};
-    auto txSet = TxSetFrame::makeFromTransactions(txs, *app, 0, 0);
+    auto [txSet, applicableTxSet] =
+        TxSetFrame::makeFromTransactions(txs, *app, 0, 0);
     REQUIRE(!txSet->isGeneralizedTxSet());
+    REQUIRE(!applicableTxSet->isGeneralizedTxSet());
 
     executeUpgrade(*app, makeProtocolVersionUpgrade(
                              static_cast<int>(SOROBAN_PROTOCOL_VERSION)));
 
-    txSet = TxSetFrame::makeFromTransactions(txs, *app, 0, 0);
-    REQUIRE(txSet->isGeneralizedTxSet());
+    auto [newTxSet, newApplicableTxSet] =
+        TxSetFrame::makeFromTransactions(txs, *app, 0, 0);
+    REQUIRE(newTxSet->isGeneralizedTxSet());
+    REQUIRE(newApplicableTxSet->isGeneralizedTxSet());
 }
 
 TEST_CASE("upgrade to generalized tx set in network", "[upgrades][overlay]")
@@ -3317,7 +3324,6 @@ TEST_CASE("upgrade to generalized tx set in network", "[upgrades][overlay]")
 
     auto getLedgerTxSet = [](Application& node, uint32_t ledger) {
         auto& herder = *static_cast<HerderImpl*>(&node.getHerder());
-        TxSetFrameConstPtr txSet;
         for (auto const& env : herder.getSCP().getLatestMessagesSend(ledger))
         {
             if (env.statement.pledges.type() == SCP_ST_EXTERNALIZE)
@@ -3329,7 +3335,7 @@ TEST_CASE("upgrade to generalized tx set in network", "[upgrades][overlay]")
                 return pe.getTxSet(sv.txSetHash);
             }
         }
-        return txSet;
+        return TxSetFrameConstPtr{};
     };
 
     // Make sure tx set format switches to generalized after upgrade.
@@ -3337,6 +3343,8 @@ TEST_CASE("upgrade to generalized tx set in network", "[upgrades][overlay]")
     {
         for (auto const& node : simulation->getNodes())
         {
+            LedgerTxn ltx(node->getLedgerTxnRoot(), false,
+                          TransactionMode::READ_ONLY_WITHOUT_SQL_TXN);
             auto txSet = getLedgerTxSet(*node, ledger);
             REQUIRE(txSet);
             REQUIRE(txSet->sizeTxTotal() > 0);
