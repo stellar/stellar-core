@@ -2296,9 +2296,8 @@ TEST_CASE("temp entry eviction", "[tx][soroban]")
             REQUIRE(lcm.v1().evictedTemporaryLedgerKeys.size() == 2);
             auto sortedKeys = lcm.v1().evictedTemporaryLedgerKeys;
             std::sort(sortedKeys.begin(), sortedKeys.end());
-            REQUIRE(lcm.v1().evictedTemporaryLedgerKeys[0] ==
-                    getExpirationKey(lk));
-            REQUIRE(lcm.v1().evictedTemporaryLedgerKeys[1] == lk);
+            REQUIRE(sortedKeys[0] == lk);
+            REQUIRE(sortedKeys[1] == getExpirationKey(lk));
             evicted = true;
         }
         else
