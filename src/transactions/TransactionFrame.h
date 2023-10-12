@@ -133,10 +133,7 @@ class TransactionFrame : public TransactionFrameBase
     bool validateSorobanResources(SorobanNetworkConfig const& config,
                                   uint32_t protocolVersion);
     void refundSorobanFee(AbstractLedgerTxn& ltx);
-    FeePair computeSorobanResourceFee(
-        uint32_t protocolVersion, SorobanNetworkConfig const& sorobanConfig,
-        Config const& cfg, bool useConsumedRefundableResources) const;
-    int64 sorobanRefundableFee() const;
+    int64 declaredSorobanResourceFee() const;
 
   public:
     TransactionFrame(Hash const& networkID,
@@ -293,5 +290,10 @@ class TransactionFrame : public TransactionFrameBase
                                       int64_t rentFee, uint32_t protocolVersion,
                                       SorobanNetworkConfig const& sorobanConfig,
                                       Config const& cfg);
+
+    static FeePair computeSorobanResourceFee(
+        uint32_t protocolVersion, SorobanResources const& txResources,
+        uint32_t txSize, uint32_t eventsSize,
+        SorobanNetworkConfig const& sorobanConfig, Config const& cfg);
 };
 }

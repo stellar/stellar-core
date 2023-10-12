@@ -502,7 +502,7 @@ TEST_CASE("generalized tx set XDR conversion", "[txset]")
                 resources.readBytes = 1000;
                 resources.writeBytes = 1000;
                 txs.emplace_back(createUploadWasmTx(
-                    *app, source, fee, DEFAULT_TEST_REFUNDABLE_FEE, resources));
+                    *app, source, fee, DEFAULT_TEST_RESOURCE_FEE, resources));
             }
             else
             {
@@ -773,10 +773,9 @@ TEST_CASE("generalized tx set with multiple txs per source account", "[txset]")
         resources.readBytes = 1000;
         resources.writeBytes = 1000;
         uint32_t inclusionFee = 500;
-        uint32_t refundableFee = 10'000;
+        int64_t resourceFee = sorobanResourceFee(*app, resources, 5000, 100);
         auto sorobanTx = createUploadWasmTx(*app, root, inclusionFee,
-                                            refundableFee, resources);
-        setValidTotalFee(sorobanTx, inclusionFee, refundableFee, *app, root);
+                                            resourceFee, resources);
         // Make sure fees got computed correctly
         REQUIRE(sorobanTx->getInclusionFee() == inclusionFee);
 
@@ -809,7 +808,6 @@ TEST_CASE("generalized tx set fees", "[txset]")
     });
     auto root = TestAccount::createRoot(*app);
     int accountId = 1;
-    uint32_t refundableFee = 10'000;
 
     auto createTx = [&](int opCnt, int inclusionFee, bool isSoroban = false) {
         auto source = root.create("unique " + std::to_string(accountId++),
@@ -820,9 +818,10 @@ TEST_CASE("generalized tx set fees", "[txset]")
             resources.instructions = 800'000;
             resources.readBytes = 1000;
             resources.writeBytes = 1000;
+            uint32_t resourceFee =
+                sorobanResourceFee(*app, resources, 5000, 100);
             auto tx = createUploadWasmTx(*app, source, inclusionFee,
-                                         refundableFee, resources);
-            setValidTotalFee(tx, inclusionFee, refundableFee, *app, source);
+                                         resourceFee, resources);
             REQUIRE(tx->getInclusionFee() == inclusionFee);
             return tx;
         }

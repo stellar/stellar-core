@@ -862,13 +862,12 @@ LoadGenerator::sorobanTransaction(uint32_t numAccounts, uint32_t offset,
     auto byteDistr = uniform_int_distribution<uint8_t>();
     std::generate(uploadHF.wasm().begin(), uploadHF.wasm().end(),
                   [&byteDistr]() { return byteDistr(gRandomEngine); });
-
-    uint32_t refundableFee = 10'000;
+    int64_t resourceFee =
+        sorobanResourceFee(mApp, resources, 5000 + wasmSize, 100);
     auto tx = std::dynamic_pointer_cast<TransactionFrame>(
         sorobanTransactionFrameFromOps(mApp.getNetworkID(), *account,
                                        {deployOp}, {}, resources, inclusionFee,
-                                       refundableFee));
-    setValidTotalFee(tx, inclusionFee, refundableFee, mApp, *account);
+                                       resourceFee));
     return std::make_pair(account, tx);
 }
 

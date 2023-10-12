@@ -843,9 +843,10 @@ createSimpleDexTx(Application& app, TestAccount& account, uint32 nbOps,
 }
 
 TransactionFramePtr
-createUploadWasmTx(Application& app, TestAccount& account, uint32_t fee,
-                   uint32_t refundableFee, SorobanResources resources,
-                   std::optional<std::string> memo, int addInvalidOps)
+createUploadWasmTx(Application& app, TestAccount& account,
+                   uint32_t inclusionFee, uint32_t resourceFee,
+                   SorobanResources resources, std::optional<std::string> memo,
+                   int addInvalidOps)
 {
     Operation deployOp;
     deployOp.body.type(INVOKE_HOST_FUNCTION);
@@ -871,27 +872,23 @@ createUploadWasmTx(Application& app, TestAccount& account, uint32_t fee,
         ops.emplace_back(deployOp);
     }
 
-    auto tx =
-        sorobanTransactionFrameFromOps(app.getNetworkID(), account, ops, {},
-                                       resources, fee, refundableFee, memo);
+    auto tx = sorobanTransactionFrameFromOps(app.getNetworkID(), account, ops,
+                                             {}, resources, inclusionFee,
+                                             resourceFee, memo);
     return std::dynamic_pointer_cast<TransactionFrame>(tx);
 }
 
-void
-setValidTotalFee(TransactionFramePtr tx, uint32_t inclusionFee,
-                 uint32_t refundableFee, Application& app, TestAccount& source)
+int64_t
+sorobanResourceFee(Application& app, SorobanResources const& resources,
+                   uint32_t txSize, uint32_t eventsSize)
 {
     LedgerTxn ltx(app.getLedgerTxnRoot(),
                   /* shouldUpdateLastModified */ true,
                   TransactionMode::READ_ONLY_WITHOUT_SQL_TXN);
-    tx->maybeComputeSorobanResourceFee(
-        ltx.loadHeader().current().ledgerVersion,
+    auto feePair = TransactionFrame::computeSorobanResourceFee(
+        ltx.loadHeader().current().ledgerVersion, resources, txSize, eventsSize,
         app.getLedgerManager().getSorobanNetworkConfig(ltx), app.getConfig());
-    auto flatFee = tx->getSorobanResourceFee()->non_refundable_fee;
-
-    txbridge::setFee(tx, flatFee + inclusionFee + refundableFee);
-    txbridge::getSignatures(tx).clear();
-    tx->addSignature(source.getSecretKey());
+    return feePair.non_refundable_fee + feePair.refundable_fee;
 }
 
 Asset
@@ -1645,16 +1642,16 @@ static TransactionEnvelope
 sorobanEnvelopeFromOps(Hash const& networkID, TestAccount& source,
                        std::vector<Operation> const& ops,
                        std::vector<SecretKey> const& opKeys,
-                       SorobanResources const& resources, uint32_t fee,
-                       uint32_t refundableFee, std::optional<std::string> memo)
+                       SorobanResources const& resources, uint32_t totalFee,
+                       uint32_t resourceFee, std::optional<std::string> memo)
 {
     TransactionEnvelope tx(ENVELOPE_TYPE_TX);
     tx.v1().tx.sourceAccount = toMuxedAccount(source);
-    tx.v1().tx.fee = fee;
+    tx.v1().tx.fee = totalFee;
     tx.v1().tx.seqNum = source.nextSequenceNumber();
     tx.v1().tx.ext.v(1);
     tx.v1().tx.ext.sorobanData().resources = resources;
-    tx.v1().tx.ext.sorobanData().refundableFee = refundableFee;
+    tx.v1().tx.ext.sorobanData().resourceFee = resourceFee;
     if (memo)
     {
         Memo textMemo(MEMO_TEXT);
@@ -1686,13 +1683,27 @@ TransactionFrameBasePtr
 sorobanTransactionFrameFromOps(Hash const& networkID, TestAccount& source,
                                std::vector<Operation> const& ops,
                                std::vector<SecretKey> const& opKeys,
-                               SorobanResources const& resources, uint32_t fee,
-                               uint32_t refundableFee,
+                               SorobanResources const& resources,
+                               uint32_t inclusionFee, uint32_t resourceFee,
                                std::optional<std::string> memo)
 {
     return TransactionFrameBase::makeTransactionFromWire(
-        networkID, sorobanEnvelopeFromOps(networkID, source, ops, opKeys,
-                                          resources, fee, refundableFee, memo));
+        networkID,
+        sorobanEnvelopeFromOps(networkID, source, ops, opKeys, resources,
+                               inclusionFee + resourceFee, resourceFee, memo));
+}
+
+TransactionFrameBasePtr
+sorobanTransactionFrameFromOpsWithTotalFee(
+    Hash const& networkID, TestAccount& source,
+    std::vector<Operation> const& ops, std::vector<SecretKey> const& opKeys,
+    SorobanResources const& resources, uint32_t totalFee, uint32_t resourceFee,
+    std::optional<std::string> memo)
+{
+    return TransactionFrameBase::makeTransactionFromWire(
+        networkID,
+        sorobanEnvelopeFromOps(networkID, source, ops, opKeys, resources,
+                               totalFee, resourceFee, memo));
 }
 
 LedgerUpgrade

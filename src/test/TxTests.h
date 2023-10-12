@@ -187,14 +187,12 @@ TransactionFramePtr createCreditPaymentTx(Application& app,
 TransactionFramePtr createSimpleDexTx(Application& app, TestAccount& account,
                                       uint32 nbOps, uint32_t fee);
 
-TransactionFramePtr
-createUploadWasmTx(Application& app, TestAccount& account, uint32_t fee,
-                   uint32_t refundableFee, SorobanResources resources,
-                   std::optional<std::string> memo = std::nullopt,
-                   int addInvalidOps = 0);
-void setValidTotalFee(TransactionFramePtr tx, uint32_t inclusionFee,
-                      uint32_t refundableFee, Application& app,
-                      TestAccount& source);
+TransactionFramePtr createUploadWasmTx(
+    Application& app, TestAccount& account, uint32_t inclusionFee,
+    uint32_t resourceFee, SorobanResources resources,
+    std::optional<std::string> memo = std::nullopt, int addInvalidOps = 0);
+int64_t sorobanResourceFee(Application& app, SorobanResources const& resources,
+                           uint32_t txSize, uint32_t eventsSize);
 
 Operation pathPayment(PublicKey const& to, Asset const& sendCur,
                       int64_t sendMax, Asset const& destCur, int64_t destAmount,
@@ -292,8 +290,14 @@ transactionFrameFromOps(Hash const& networkID, TestAccount& source,
 TransactionFrameBasePtr sorobanTransactionFrameFromOps(
     Hash const& networkID, TestAccount& source,
     std::vector<Operation> const& ops, std::vector<SecretKey> const& opKeys,
-    SorobanResources const& resources, uint32_t fee, uint32_t refundableFee,
+    SorobanResources const& resources, uint32_t inclusionFee,
+    uint32_t resourceFee, std::optional<std::string> memo = std::nullopt);
+TransactionFrameBasePtr sorobanTransactionFrameFromOpsWithTotalFee(
+    Hash const& networkID, TestAccount& source,
+    std::vector<Operation> const& ops, std::vector<SecretKey> const& opKeys,
+    SorobanResources const& resources, uint32_t totalFee, uint32_t resourceFee,
     std::optional<std::string> memo = std::nullopt);
+
 ConfigUpgradeSetFrameConstPtr
 makeConfigUpgradeSet(AbstractLedgerTxn& ltx, ConfigUpgradeSet configUpgradeSet);
 LedgerUpgrade makeConfigUpgrade(ConfigUpgradeSetFrame const& configUpgradeSet);
