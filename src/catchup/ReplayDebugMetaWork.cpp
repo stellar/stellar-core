@@ -89,7 +89,7 @@ class ApplyLedgersFromMetaWork : public Work
         }
 
         // v1() is never used
-        auto lh = lcm.v() == 0 ? lcm.v0().ledgerHeader : lcm.v2().ledgerHeader;
+        auto lh = lcm.v() == 0 ? lcm.v0().ledgerHeader : lcm.v1().ledgerHeader;
 
         auto ledgerSeqToApply = lh.header.ledgerSeq;
         auto lcl = mApp.getLedgerManager().getLastClosedLedgerNum();
@@ -114,10 +114,9 @@ class ApplyLedgersFromMetaWork : public Work
         {
             txSet = TxSetFrame::makeFromWire(mApp, lcm.v0().txSet);
         }
-        // v1() is never used
         else
         {
-            txSet = TxSetFrame::makeFromWire(mApp, lcm.v2().txSet);
+            txSet = TxSetFrame::makeFromWire(mApp, lcm.v1().txSet);
         }
 
         LedgerCloseData ledgerCloseData(ledgerSeqToApply, txSet,

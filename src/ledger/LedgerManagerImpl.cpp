@@ -1545,11 +1545,11 @@ LedgerManagerImpl::ledgerClosed(
     //   - In the final stage, when we call ledgerClosed, we pass vN+1 because
     //     the upgrade completed and modified the ltx header, and we fish the
     //     protocol out of the ltx header
-    // Before LedgerCloseMetaV2, this inconsistency was mostly harmless since
+    // Before LedgerCloseMetaV1, this inconsistency was mostly harmless since
     // LedgerCloseMeta was not modified after the LTX header was modified.
     // However, starting with protocol 20, LedgerCloseMeta is modified after
     // updating the ltx header when populating BucketList related meta. This
-    // means that this function will attempt to call LedgerCloseMetaV2
+    // means that this function will attempt to call LedgerCloseMetaV1
     // functions, but ledgerCloseMeta is actually a LedgerCloseMetaV0 because it
     // was constructed with the previous protocol version prior to the upgrade.
     // Due to this, we must check the initial protocol version of ledger instead
