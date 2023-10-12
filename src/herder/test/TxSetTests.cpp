@@ -705,7 +705,8 @@ TEST_CASE("generalized tx set XDR conversion", "[txset]")
     }
 }
 
-TEST_CASE("generalized tx set with multiple txs per source account", "[txset]")
+TEST_CASE("generalized tx set with multiple txs per source account",
+          "[txset][soroban]")
 {
     VirtualClock clock;
     auto cfg = getTestConfig();
@@ -792,7 +793,7 @@ TEST_CASE("generalized tx set with multiple txs per source account", "[txset]")
     }
 }
 
-TEST_CASE("generalized tx set fees", "[txset]")
+TEST_CASE("generalized tx set fees", "[txset][soroban]")
 {
     VirtualClock clock;
     auto cfg = getTestConfig();
@@ -818,11 +819,15 @@ TEST_CASE("generalized tx set fees", "[txset]")
             resources.instructions = 800'000;
             resources.readBytes = 1000;
             resources.writeBytes = 1000;
+            resources.footprint.readWrite.emplace_back();
             uint32_t resourceFee =
-                sorobanResourceFee(*app, resources, 5000, 100);
+                sorobanResourceFee(*app, resources, 5000, 40);
+            resources.footprint.readWrite.pop_back();
             auto tx = createUploadWasmTx(*app, source, inclusionFee,
                                          resourceFee, resources);
             REQUIRE(tx->getInclusionFee() == inclusionFee);
+            LedgerTxn ltx(app->getLedgerTxnRoot());
+            REQUIRE(tx->checkValid(*app, ltx, 0, 0, 0));
             return tx;
         }
         else

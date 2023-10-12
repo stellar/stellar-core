@@ -1530,7 +1530,7 @@ surgeTest(uint32 protocolVersion, uint32_t nbTxs, uint32_t maxTxSetSize,
     }
 }
 
-TEST_CASE("surge pricing", "[herder][txset]")
+TEST_CASE("surge pricing", "[herder][txset][soroban]")
 {
     SECTION("protocol 19")
     {
