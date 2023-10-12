@@ -2592,6 +2592,12 @@
     <CustomBuild Include="..\..\src\protocol-curr\xdr\Stellar-internal.x">
       <Filter>xdr\curr</Filter>
     </CustomBuild>
+    <CustomBuild Include="..\..\src\protocol-curr\xdr\Stellar-contract.x">
+      <Filter>xdr\curr</Filter>
+    </CustomBuild>
+    <CustomBuild Include="..\..\src\protocol-curr\xdr\Stellar-contract-config-setting.x">
+      <Filter>xdr\curr</Filter>
+    </CustomBuild>    
     <CustomBuild Include="..\..\src\util\xdrquery\XDRQueryParser.yy">
       <Filter>util\xdrquery</Filter>
     </CustomBuild>
