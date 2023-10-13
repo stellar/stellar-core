@@ -172,8 +172,8 @@ getShortKey(LedgerKey const& key)
         }
     case CONTRACT_CODE:
         return key.contractCode().hash.at(0);
-    case EXPIRATION:
-        return getShortKey(key.expiration().keyHash);
+    case TTL:
+        return getShortKey(key.ttl().keyHash);
     }
     throw std::runtime_error("Unknown key type");
 }

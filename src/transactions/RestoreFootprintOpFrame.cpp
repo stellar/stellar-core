@@ -63,18 +63,18 @@ RestoreFootprintOpFrame::doApply(Application& app, AbstractLedgerTxn& ltx,
     auto const& footprint = resources.footprint;
     auto ledgerSeq = ltx.loadHeader().current().ledgerSeq;
 
-    auto const& expirationSettings = app.getLedgerManager()
-                                         .getSorobanNetworkConfig(ltx)
-                                         .stateExpirationSettings();
+    auto const& archivalSettings = app.getLedgerManager()
+                                       .getSorobanNetworkConfig(ltx)
+                                       .stateArchivalSettings();
     rust::Vec<CxxLedgerEntryRentChange> rustEntryRentChanges;
-    // Bump the rent on the restored entry to minimum expiration, including
+    // Extend the TTL on the restored entry to minimum TTL, including
     // the current ledger.
-    uint32_t restoredExpirationLedger =
-        ledgerSeq + expirationSettings.minPersistentEntryExpiration - 1;
+    uint32_t restoredLiveUntilLedger =
+        ledgerSeq + archivalSettings.minPersistentTTL - 1;
     for (auto const& lk : footprint.readWrite)
     {
         uint32_t entrySize = UINT32_MAX;
-        uint32_t expirationSize = UINT32_MAX;
+        uint32_t ttlSize = UINT32_MAX;
 
         // We must load the ContractCode/ContractData entry for fee purposes, as
         // restore is considered a write
@@ -84,17 +84,17 @@ RestoreFootprintOpFrame::doApply(Application& app, AbstractLedgerTxn& ltx,
             continue;
         }
 
-        auto expirationKey = getExpirationKey(lk);
+        auto ttlKey = getTTLKey(lk);
         {
-            auto constExpirationLtxe = ltx.loadWithoutRecord(expirationKey);
-            releaseAssertOrThrow(constExpirationLtxe);
+            auto constTTLLtxe = ltx.loadWithoutRecord(ttlKey);
+            releaseAssertOrThrow(constTTLLtxe);
 
             entrySize =
                 static_cast<uint32>(xdr::xdr_size(constEntryLtxe.current()));
-            expirationSize = static_cast<uint32>(
-                xdr::xdr_size(constExpirationLtxe.current()));
+            ttlSize =
+                static_cast<uint32>(xdr::xdr_size(constTTLLtxe.current()));
 
-            metrics.mLedgerReadByte += entrySize + expirationSize;
+            metrics.mLedgerReadByte += entrySize + ttlSize;
             if (resources.readBytes < metrics.mLedgerReadByte)
             {
                 mParentTx.pushSimpleDiagnosticError(
@@ -106,7 +106,7 @@ RestoreFootprintOpFrame::doApply(Application& app, AbstractLedgerTxn& ltx,
                 return false;
             }
 
-            if (isLive(constExpirationLtxe.current(), ledgerSeq))
+            if (isLive(constTTLLtxe.current(), ledgerSeq))
             {
                 // Skip entries that are already live.
                 continue;
@@ -115,9 +115,9 @@ RestoreFootprintOpFrame::doApply(Application& app, AbstractLedgerTxn& ltx,
 
         // Entry exists if we get this this point due to the loadWithoutRecord
         // logic above.
-        auto expirationLtxe = ltx.load(expirationKey);
+        auto ttlLtxe = ltx.load(ttlKey);
 
-        // To maintain consistency with InvokeHostFunction, ExpirationEntry
+        // To maintain consistency with InvokeHostFunction, TTLEntry
         // writes come out of refundable fee, so only add entrySize
         metrics.mLedgerWriteByte += entrySize;
 
@@ -149,11 +149,11 @@ RestoreFootprintOpFrame::doApply(Application& app, AbstractLedgerTxn& ltx,
         // Treat the entry as if it hasn't existed before restoration
         // for the rent fee purposes.
         rustChange.old_size_bytes = 0;
-        rustChange.old_expiration_ledger = 0;
+        rustChange.old_live_until_ledger = 0;
         rustChange.new_size_bytes = entrySize;
-        rustChange.new_expiration_ledger = restoredExpirationLedger;
-        expirationLtxe.current().data.expiration().expirationLedgerSeq =
-            restoredExpirationLedger;
+        rustChange.new_live_until_ledger = restoredLiveUntilLedger;
+        ttlLtxe.current().data.ttl().liveUntilLedgerSeq =
+            restoredLiveUntilLedger;
     }
     uint32_t ledgerVersion = ltx.loadHeader().current().ledgerVersion;
     int64_t rentFee = rust_bridge::compute_rent_fee(

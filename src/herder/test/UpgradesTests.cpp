@@ -704,15 +704,13 @@ TEST_CASE("config upgrade validation", "[upgrades]")
                     le.data.contractData().key = key;
                     le.data.contractData().val = val;
 
-                    LedgerEntry expiration;
-                    expiration.data.type(EXPIRATION);
-                    expiration.data.expiration().expirationLedgerSeq =
-                        UINT32_MAX;
-                    expiration.data.expiration().keyHash =
-                        getExpirationKey(le).expiration().keyHash;
+                    LedgerEntry ttl;
+                    ttl.data.type(TTL);
+                    ttl.data.ttl().liveUntilLedgerSeq = UINT32_MAX;
+                    ttl.data.ttl().keyHash = getTTLKey(le).ttl().keyHash;
 
                     ltx.create(InternalLedgerEntry(le));
-                    ltx.create(InternalLedgerEntry(expiration));
+                    ltx.create(InternalLedgerEntry(ttl));
 
                     auto upgradeKey =
                         ConfigUpgradeSetKey{contractID, hashOfUpgradeSet};
@@ -2049,7 +2047,7 @@ TEST_CASE("upgrade to version 13", "[upgrades]")
 // protocol vN to vN+1 that also changed LedgerCloseMeta version, the ledger
 // header will be protocol vN+1, but the meta emitted for that ledger will be
 // the LedgerCloseMeta version for vN. This test checks that the meta versions
-// are correct the protocol 20 upgrade that updates LedgerCloseMeta to V2 and
+// are correct the protocol 20 upgrade that updates LedgerCloseMeta to V1 and
 // that no asserts are thrown.
 TEST_CASE("upgrade to version 20 - LedgerCloseMetaV1")
 {

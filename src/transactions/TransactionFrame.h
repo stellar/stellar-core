@@ -183,8 +183,6 @@ class TransactionFrame : public TransactionFrameBase
     void pushContractEvents(xdr::xvector<ContractEvent>&& evts);
     void pushDiagnosticEvents(xdr::xvector<DiagnosticEvent>&& evts);
     void setReturnValue(SCVal&& returnValue);
-    void pushInitialExpirations(
-        UnorderedMap<LedgerKey, uint32_t>&& originalExpirations);
     void pushDiagnosticEvent(DiagnosticEvent&& evt);
     void pushSimpleDiagnosticError(SCErrorType ty, SCErrorCode code,
                                    std::string&& message,

@@ -94,13 +94,13 @@ struct EntryCounts
     uint64_t mContractData{0};
     uint64_t mContractCode{0};
     uint64_t mConfigSettings{0};
-    uint64_t mExpiration{0};
+    uint64_t mTTL{0};
 
     uint64_t
     totalEntries() const
     {
         return mAccounts + mTrustLines + mOffers + mData + mClaimableBalance +
-               mLiquidityPool + mContractData + mConfigSettings + mExpiration;
+               mLiquidityPool + mContractData + mConfigSettings + mTTL;
     }
 
     void
@@ -135,8 +135,8 @@ struct EntryCounts
         case CONFIG_SETTING:
             ++mConfigSettings;
             break;
-        case EXPIRATION:
-            ++mExpiration;
+        case TTL:
+            ++mTTL;
             break;
         default:
             throw std::runtime_error(
@@ -175,8 +175,7 @@ struct EntryCounts
             check(LIQUIDITY_POOL, mLiquidityPool) &&
             check(CONTRACT_DATA, mContractData) &&
             check(CONTRACT_CODE, mContractCode) &&
-            check(CONFIG_SETTING, mConfigSettings) &&
-            check(EXPIRATION, mExpiration);
+            check(CONFIG_SETTING, mConfigSettings) && check(TTL, mTTL);
         return msg;
     }
 };

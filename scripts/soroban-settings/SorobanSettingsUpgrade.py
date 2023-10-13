@@ -3,7 +3,7 @@ from stellar_sdk import Network, Keypair, TransactionBuilder, StrKey, utils, scv
 from stellar_sdk.exceptions import PrepareTransactionException
 from stellar_sdk.soroban_server import SorobanServer
 from stellar_sdk.soroban_rpc import GetTransactionStatus
-from stellar_sdk.xdr import TransactionMeta, LedgerEntryType, LedgerKey, ConfigSettingContractComputeV0, ConfigUpgradeSet, ConfigSettingContractLedgerCostV0, ConfigSettingContractHistoricalDataV0, ConfigSettingContractEventsV0, ConfigSettingContractBandwidthV0, ConfigUpgradeSetKey, ConfigSettingEntry, StateExpirationSettings, ConfigSettingContractExecutionLanesV0, Uint32, Uint64, Int64, Hash, LedgerKeyConfigSetting, ConfigSettingID
+from stellar_sdk.xdr import TransactionMeta, LedgerEntryType, LedgerKey, ConfigSettingContractComputeV0, ConfigUpgradeSet, ConfigSettingContractLedgerCostV0, ConfigSettingContractHistoricalDataV0, ConfigSettingContractEventsV0, ConfigSettingContractBandwidthV0, ConfigUpgradeSetKey, ConfigSettingEntry, StateArchivalSettings, ConfigSettingContractExecutionLanesV0, Uint32, Uint64, Int64, Hash, LedgerKeyConfigSetting, ConfigSettingID
 import stellar_sdk
 from enum import IntEnum
 import urllib.parse
@@ -105,27 +105,27 @@ def get_upgrade_set():
         contract_data_entry_size_bytes = contract_data_entry_size)   
 
     ledgers_per_day = 12 * 60 * 24
-    state_exp_settings = StateExpirationSettings(max_entry_expiration=Uint32(ledgers_per_day * 31 ), # 31 days, 12 ledger close per minute
-                                                 min_temp_entry_expiration=Uint32(16),
-                                                 min_persistent_entry_expiration=Uint32(ledgers_per_day * 7), # 7 days
+    state_arch_settings = StateArchivalSettings(max_entry_ttl=Uint32(ledgers_per_day * 31 ), # 31 days, 12 ledger close per minute
+                                                 min_temp_entry_ttl=Uint32(16),
+                                                 min_persistent_entry_ttl=Uint32(ledgers_per_day * 7), # 7 days
                                                  persistent_rent_rate_denominator=Int64(ledgers_per_day * 31),
                                                  temp_rent_rate_denominator=Int64(ledgers_per_day * 31 * 10), 
-                                                 max_entries_to_expire=Uint32(100), 
+                                                 max_entries_to_archive=Uint32(100), 
                                                  bucket_list_size_window_sample_size=Uint32(30), #InitialSorobanNetworkConfig
                                                  eviction_scan_size=Uint64(100_000), #InitialSorobanNetworkConfig
                                                  starting_eviction_scan_level=Uint32(1))
 
-    state_exp_upgrade_entry = ConfigSettingEntry(
-        ConfigSettingID.CONFIG_SETTING_STATE_EXPIRATION,
-        state_expiration_settings = state_exp_settings)
+    state_arch_upgrade_entry = ConfigSettingEntry(
+        ConfigSettingID.CONFIG_SETTING_STATE_ARCHIVAL,
+        state_archival_settings = state_arch_settings)
 
     execution_lanes_setting = ConfigSettingContractExecutionLanesV0(ledger_max_tx_count=Uint32(execution_lane_tx_count_per_ledger))   
 
     execution_lanes_entry = ConfigSettingEntry(
         ConfigSettingID.CONFIG_SETTING_CONTRACT_EXECUTION_LANES,
-        contract_execution_lanes = execution_lanes_setting)        
-    
-    return ConfigUpgradeSet([contract_size_upgrade_entry, compute_upgrade_entry, contract_ledger_cost_entry, contract_historical_data_entry, contract_events_entry, contract_bandwidth_entry, contract_data_entry_entry, state_exp_upgrade_entry, execution_lanes_entry])
+        contract_execution_lanes = execution_lanes_setting)
+
+    return ConfigUpgradeSet([contract_size_upgrade_entry, compute_upgrade_entry, contract_ledger_cost_entry, contract_historical_data_entry, contract_events_entry, contract_bandwidth_entry, contract_data_entry_entry, state_arch_upgrade_entry, execution_lanes_entry])
 #############
 
 # TODO: Update tx submissions to go directly to tx endpoint instead of rpc

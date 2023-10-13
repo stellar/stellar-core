@@ -583,7 +583,7 @@ class Config : public std::enable_shared_from_this<Config>
     bool OVERRIDE_EVICTION_PARAMS_FOR_TESTING;
     uint32_t TESTING_EVICTION_SCAN_SIZE;
     uint32_t TESTING_STARTING_EVICTION_SCAN_LEVEL;
-    uint32_t TESTING_MAX_ENTRIES_TO_EXPIRE;
+    uint32_t TESTING_MAX_ENTRIES_TO_ARCHIVE;
 
 #ifdef BUILD_TESTS
     // If set to true, the application will be aware this run is for a test

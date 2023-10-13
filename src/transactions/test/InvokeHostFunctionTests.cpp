@@ -118,14 +118,13 @@ getLedgerSeq(Application& app)
 }
 
 static void
-checkExpiration(LedgerTxn& ltx, LedgerKey const& key,
-                uint32_t expectedExpiration)
+checkTTL(LedgerTxn& ltx, LedgerKey const& key, uint32_t expectedLiveUntilLedger)
 {
-    auto expirationKey = getExpirationKey(key);
-    auto expirationLtxe = ltx.loadWithoutRecord(expirationKey);
-    REQUIRE(expirationLtxe);
-    REQUIRE(expirationLtxe.current().data.expiration().expirationLedgerSeq ==
-            expectedExpiration);
+    auto ttlKey = getTTLKey(key);
+    auto ttlLtxe = ltx.loadWithoutRecord(ttlKey);
+    REQUIRE(ttlLtxe);
+    REQUIRE(ttlLtxe.current().data.ttl().liveUntilLedgerSeq ==
+            expectedLiveUntilLedger);
 }
 
 static LedgerEntry
@@ -221,19 +220,19 @@ deployContractWithSourceAccountWithResources(Application& app,
                            1000 + contractWasm.data.size(), 40) +
             40'000);
 
-    // Check expirations for contract code
+    // Check ttls for contract code
     {
         LedgerTxn ltx(app.getLedgerTxnRoot());
         auto networkConfig =
             app.getLedgerManager().getSorobanNetworkConfig(ltx);
         auto ledgerSeq = ltx.loadHeader().current().ledgerSeq;
-        auto expectedExpiration = networkConfig.stateExpirationSettings()
-                                      .minPersistentEntryExpiration +
-                                  ledgerSeq - 1;
+        auto expectedLiveUntilLedger =
+            networkConfig.stateArchivalSettings().minPersistentTTL + ledgerSeq -
+            1;
 
         auto codeLtxe = ltx.load(contractCodeLedgerKey);
         REQUIRE(codeLtxe);
-        checkExpiration(ltx, contractCodeLedgerKey, expectedExpiration);
+        checkTTL(ltx, contractCodeLedgerKey, expectedLiveUntilLedger);
     }
 
     // Deploy the contract instance
@@ -290,17 +289,16 @@ deployContractWithSourceAccountWithResources(Application& app,
         contractCodeLedgerKey.contractCode().hash, 1000,
         sorobanResourceFee(app, createResources, 1000, 40) + 40'000);
 
-    // Check expirations for contract instance
+    // Check ttls for contract instance
     LedgerTxn ltx(app.getLedgerTxnRoot());
     auto networkConfig = app.getLedgerManager().getSorobanNetworkConfig(ltx);
     auto ledgerSeq = ltx.loadHeader().current().ledgerSeq;
-    auto expectedExpiration =
-        networkConfig.stateExpirationSettings().minPersistentEntryExpiration +
-        ledgerSeq - 1;
+    auto expectedLiveUntilLedger =
+        networkConfig.stateArchivalSettings().minPersistentTTL + ledgerSeq - 1;
 
     auto instanceLtxe = ltx.load(contractSourceRefLedgerKey);
     REQUIRE(instanceLtxe);
-    checkExpiration(ltx, contractSourceRefLedgerKey, expectedExpiration);
+    checkTTL(ltx, contractSourceRefLedgerKey, expectedLiveUntilLedger);
 
     return {contractSourceRefLedgerKey, contractCodeLedgerKey};
 }
@@ -336,14 +334,13 @@ computeFeePerIncrement(int64_t resourceVal, int64_t feeRate, int64_t increment)
 };
 
 static int64_t
-getRentFeeForBytes(int64_t entrySize, uint32_t numLedgersToBump,
+getRentFeeForBytes(int64_t entrySize, uint32_t numLedgersToExtend,
                    SorobanNetworkConfig const& cfg, bool isPersistent)
 {
-    auto num = entrySize * cfg.feeWrite1KB() * numLedgersToBump;
+    auto num = entrySize * cfg.feeWrite1KB() * numLedgersToExtend;
     auto storageCoef =
-        isPersistent
-            ? cfg.stateExpirationSettings().persistentRentRateDenominator
-            : cfg.stateExpirationSettings().tempRentRateDenominator;
+        isPersistent ? cfg.stateArchivalSettings().persistentRentRateDenominator
+                     : cfg.stateArchivalSettings().tempRentRateDenominator;
 
     auto denom = DATA_SIZE_1KB_INCREMENT * storageCoef;
 
@@ -352,10 +349,10 @@ getRentFeeForBytes(int64_t entrySize, uint32_t numLedgersToBump,
 }
 
 static int64_t
-getExpirationEntryWriteFee(SorobanNetworkConfig const& cfg)
+getTTLEntryWriteFee(SorobanNetworkConfig const& cfg)
 {
     LedgerEntry le;
-    le.data.type(EXPIRATION);
+    le.data.type(TTL);
 
     auto writeSize = xdr::xdr_size(le);
     auto writeFee = computeFeePerIncrement(writeSize, cfg.feeWrite1KB(),
@@ -365,28 +362,27 @@ getExpirationEntryWriteFee(SorobanNetworkConfig const& cfg)
 }
 
 static int64_t
-getRentFeeForBump(Application& app, LedgerKey const& key, uint32_t newLifetime,
-                  SorobanNetworkConfig const& cfg)
+getRentFeeForExtend(Application& app, LedgerKey const& key,
+                    uint32_t newLifetime, SorobanNetworkConfig const& cfg)
 {
     LedgerTxn ltx(app.getLedgerTxnRoot());
     auto ledgerSeq = ltx.getHeader().ledgerSeq;
-    auto expirationKey = getExpirationKey(key);
-    auto expirationLtxe = ltx.loadWithoutRecord(expirationKey);
-    releaseAssert(expirationLtxe);
+    auto ttlKey = getTTLKey(key);
+    auto ttlLtxe = ltx.loadWithoutRecord(ttlKey);
+    releaseAssert(ttlLtxe);
 
-    ExpirationEntry const& expirationEntry =
-        expirationLtxe.current().data.expiration();
+    TTLEntry const& TTLEntry = ttlLtxe.current().data.ttl();
 
-    uint32_t numLedgersToBump = 0;
-    if (isLive(expirationLtxe.current(), ledgerSeq))
+    uint32_t numLedgersToExtend = 0;
+    if (isLive(ttlLtxe.current(), ledgerSeq))
     {
-        auto ledgerToBumpTo = ledgerSeq + newLifetime;
-        if (expirationEntry.expirationLedgerSeq >= ledgerToBumpTo)
+        auto ledgerToExtendTo = ledgerSeq + newLifetime;
+        if (TTLEntry.liveUntilLedgerSeq >= ledgerToExtendTo)
         {
             return 0;
         }
 
-        numLedgersToBump = ledgerToBumpTo - expirationEntry.expirationLedgerSeq;
+        numLedgersToExtend = ledgerToExtendTo - TTLEntry.liveUntilLedgerSeq;
     }
     else
     {
@@ -398,10 +394,10 @@ getRentFeeForBump(Application& app, LedgerKey const& key, uint32_t newLifetime,
     releaseAssert(txle);
 
     auto entrySize = xdr::xdr_size(txle.current());
-    auto rentFee = getRentFeeForBytes(entrySize, numLedgersToBump, cfg,
+    auto rentFee = getRentFeeForBytes(entrySize, numLedgersToExtend, cfg,
                                       isPersistentEntry(key));
 
-    return rentFee + getExpirationEntryWriteFee(cfg);
+    return rentFee + getTTLEntryWriteFee(cfg);
 }
 
 TEST_CASE("non-refundable resource metering", "[tx][soroban]")
@@ -672,10 +668,10 @@ TEST_CASE("basic contract invocation", "[tx][soroban]")
         return tx->checkValid(*app, ltx, 0, 0, 0);
     };
 
-    auto isBumpOpValid = [&](SorobanResources const& resources) -> bool {
+    auto isExtendOpValid = [&](SorobanResources const& resources) -> bool {
         Operation op;
-        op.body.type(BUMP_FOOTPRINT_EXPIRATION);
-        op.body.bumpFootprintExpirationOp().ledgersToExpire = 10;
+        op.body.type(EXTEND_FOOTPRINT_TTL);
+        op.body.extendFootprintTTLOp().extendTo = 10;
 
         auto tx = sorobanTransactionFrameFromOps(app->getNetworkID(), root,
                                                  {op}, {}, resources, 100,
@@ -893,7 +889,7 @@ TEST_CASE("basic contract invocation", "[tx][soroban]")
         auto persistentKey =
             contractDataKey(contractID, makeSymbolSCVal("key1"),
                             ContractDataDurability::PERSISTENT);
-        auto expirationKey = getExpirationKey(persistentKey);
+        auto ttlKey = getTTLKey(persistentKey);
         auto invalidFootprint = [&](xdr::xvector<stellar::LedgerKey>&
                                         footprint) {
             auto acc = root.create(
@@ -955,9 +951,9 @@ TEST_CASE("basic contract invocation", "[tx][soroban]")
                 footprint.emplace_back(configSettingKey(ConfigSettingID{}));
                 REQUIRE(!isValid(resources, contractID, scFunc, {sc7, sc16}));
             }
-            SECTION("expiration entry")
+            SECTION("ttl entry")
             {
-                footprint.emplace_back(expirationKey);
+                footprint.emplace_back(ttlKey);
                 REQUIRE(!isValid(resources, contractID, scFunc, {sc7, sc16}));
             }
         };
@@ -970,21 +966,21 @@ TEST_CASE("basic contract invocation", "[tx][soroban]")
         {
             invalidFootprint(resources.footprint.readWrite);
         }
-        SECTION("bumpOp")
+        SECTION("extendOp")
         {
             SECTION("valid")
             {
-                REQUIRE(isBumpOpValid(resources));
+                REQUIRE(isExtendOpValid(resources));
             }
             SECTION("non empty RW set")
             {
                 resources.footprint.readWrite.emplace_back(persistentKey);
-                REQUIRE(!isBumpOpValid(resources));
+                REQUIRE(!isExtendOpValid(resources));
             }
-            SECTION("expiration entry")
+            SECTION("ttl entry")
             {
-                resources.footprint.readOnly.emplace_back(expirationKey);
-                REQUIRE(!isBumpOpValid(resources));
+                resources.footprint.readOnly.emplace_back(ttlKey);
+                REQUIRE(!isExtendOpValid(resources));
             }
             SECTION("non soroban entry")
             {
@@ -994,7 +990,7 @@ TEST_CASE("basic contract invocation", "[tx][soroban]")
                 for (auto const& entry : entries)
                 {
                     resources.footprint.readOnly.emplace_back(entry);
-                    REQUIRE(!isBumpOpValid(resources));
+                    REQUIRE(!isExtendOpValid(resources));
                     resources.footprint.readOnly.pop_back();
                 }
             }
@@ -1012,9 +1008,9 @@ TEST_CASE("basic contract invocation", "[tx][soroban]")
                 resources.footprint.readOnly.emplace_back(persistentKey);
                 REQUIRE(!isRestorationOpValid(resources));
             }
-            SECTION("expiration entry")
+            SECTION("ttl entry")
             {
-                resources.footprint.readWrite.emplace_back(expirationKey);
+                resources.footprint.readWrite.emplace_back(ttlKey);
                 REQUIRE(!isRestorationOpValid(resources));
             }
             SECTION("non soroban entry")
@@ -1176,8 +1172,7 @@ TEST_CASE("contract storage", "[tx][soroban]")
     LedgerTxn ltxCfg(app->getLedgerTxnRoot());
     SorobanNetworkConfig const& sorobanConfig =
         app->getLedgerManager().getSorobanNetworkConfig(ltxCfg);
-    auto const& stateExpirationSettings =
-        sorobanConfig.stateExpirationSettings();
+    auto const& stateArchivalSettings = sorobanConfig.stateArchivalSettings();
     ltxCfg.commit();
     auto checkContractData = [&](SCVal const& key, ContractDataDurability type,
                                  SCVal const* val) {
@@ -1369,12 +1364,12 @@ TEST_CASE("contract storage", "[tx][soroban]")
             expectSuccess, type);
     };
 
-    auto bumpWithFootprint = [&](std::string const& key, uint32_t lowLifetime,
-                                 uint32_t highLifetime,
-                                 xdr::xvector<LedgerKey> const& readOnly,
-                                 xdr::xvector<LedgerKey> const& readWrite,
-                                 bool expectSuccess,
-                                 ContractDataDurability type) {
+    auto extendWithFootprint = [&](std::string const& key, uint32_t lowLifetime,
+                                   uint32_t highLifetime,
+                                   xdr::xvector<LedgerKey> const& readOnly,
+                                   xdr::xvector<LedgerKey> const& readWrite,
+                                   bool expectSuccess,
+                                   ContractDataDurability type) {
         auto keySymbol = makeSymbolSCVal(key);
         auto lowLifetimeU32 = makeU32(lowLifetime);
         auto highLifetimeU32 = makeU32(highLifetime);
@@ -1383,10 +1378,10 @@ TEST_CASE("contract storage", "[tx][soroban]")
         switch (type)
         {
         case ContractDataDurability::TEMPORARY:
-            funcStr = "bump_temporary";
+            funcStr = "extend_temporary";
             break;
         case ContractDataDurability::PERSISTENT:
-            funcStr = "bump_persistent";
+            funcStr = "extend_persistent";
             break;
         }
 
@@ -1407,20 +1402,21 @@ TEST_CASE("contract storage", "[tx][soroban]")
         ltx->commit();
     };
 
-    auto bumpLowHigh = [&](std::string const& key, ContractDataDurability type,
-                           uint32_t lowLifetime, uint32_t highLifetime) {
-        bumpWithFootprint(
+    auto extendLowHigh = [&](std::string const& key,
+                             ContractDataDurability type, uint32_t lowLifetime,
+                             uint32_t highLifetime) {
+        extendWithFootprint(
             key, lowLifetime, highLifetime, contractKeys,
             {contractDataKey(contractID, makeSymbolSCVal(key), type)}, true,
             type);
     };
 
-    auto bumpExact = [&](std::string const& key, ContractDataDurability type,
-                         uint32_t bumpAmount) {
-        bumpLowHigh(key, type, bumpAmount, bumpAmount);
+    auto extendExact = [&](std::string const& key, ContractDataDurability type,
+                           uint32_t extendAmount) {
+        extendLowHigh(key, type, extendAmount, extendAmount);
     };
 
-    auto increaseEntrySizeAndBump =
+    auto increaseEntrySizeAndExtend =
         [&](std::string const& key, uint32_t numKiloBytes, uint32_t lowLifetime,
             uint32_t highLifetime, xdr::xvector<LedgerKey> const& readOnly,
             xdr::xvector<LedgerKey> const& readWrite, bool expectSuccess,
@@ -1430,7 +1426,7 @@ TEST_CASE("contract storage", "[tx][soroban]")
             auto lowLifetimeU32 = makeU32(lowLifetime);
             auto highLifetimeU32 = makeU32(highLifetime);
 
-            std::string funcStr = "replace_with_bytes_and_bump";
+            std::string funcStr = "replace_with_bytes_and_extend";
 
             // TODO: Better bytes to write value
             auto [tx, ltx, txm] = createTx(
@@ -1450,8 +1446,8 @@ TEST_CASE("contract storage", "[tx][soroban]")
             ltx->commit();
         };
 
-    auto runExpirationOp = [&](TestAccount& root, TransactionFrameBasePtr tx,
-                               int64_t expectedRefundableFeeCharged) {
+    auto runStateArchivalOp = [&](TestAccount& root, TransactionFrameBasePtr tx,
+                                  int64_t expectedRefundableFeeCharged) {
         int64_t initBalance = root.getBalance();
         // Apply the transaction and process the refund.
         {
@@ -1500,30 +1496,30 @@ TEST_CASE("contract storage", "[tx][soroban]")
                 actuallyCharged - expectedChargedAfterRefund);
     };
 
-    auto bumpOp = [&](uint32_t bumpAmount,
-                      xdr::xvector<LedgerKey> const& readOnly) {
+    auto extendOp = [&](uint32_t extendAmount,
+                        xdr::xvector<LedgerKey> const& readOnly) {
         int64_t expectedRefundableFeeCharged = 0;
         for (auto const& key : readOnly)
         {
             expectedRefundableFeeCharged +=
-                getRentFeeForBump(*app, key, bumpAmount, sorobanConfig);
+                getRentFeeForExtend(*app, key, extendAmount, sorobanConfig);
         }
 
-        Operation bumpOp;
-        bumpOp.body.type(BUMP_FOOTPRINT_EXPIRATION);
-        bumpOp.body.bumpFootprintExpirationOp().ledgersToExpire = bumpAmount;
+        Operation extendOp;
+        extendOp.body.type(EXTEND_FOOTPRINT_TTL);
+        extendOp.body.extendFootprintTTLOp().extendTo = extendAmount;
 
-        SorobanResources bumpResources;
-        bumpResources.footprint.readOnly = readOnly;
-        bumpResources.instructions = 0;
-        bumpResources.readBytes = 10'000;
-        bumpResources.writeBytes = 0;
+        SorobanResources extendResources;
+        extendResources.footprint.readOnly = readOnly;
+        extendResources.instructions = 0;
+        extendResources.readBytes = 10'000;
+        extendResources.writeBytes = 0;
 
         auto tx = sorobanTransactionFrameFromOps(
-            app->getNetworkID(), root, {bumpOp}, {}, bumpResources, 1000,
+            app->getNetworkID(), root, {extendOp}, {}, extendResources, 1000,
             DEFAULT_TEST_RESOURCE_FEE);
 
-        runExpirationOp(root, tx, expectedRefundableFeeCharged);
+        runStateArchivalOp(root, tx, expectedRefundableFeeCharged);
     };
 
     auto restoreOp = [&](xdr::xvector<LedgerKey> const& readWrite,
@@ -1531,17 +1527,17 @@ TEST_CASE("contract storage", "[tx][soroban]")
         Operation restoreOp;
         restoreOp.body.type(RESTORE_FOOTPRINT);
 
-        SorobanResources bumpResources;
-        bumpResources.footprint.readWrite = readWrite;
-        bumpResources.instructions = 0;
-        bumpResources.readBytes = 10'000;
-        bumpResources.writeBytes = 10'000;
+        SorobanResources resources;
+        resources.footprint.readWrite = readWrite;
+        resources.instructions = 0;
+        resources.readBytes = 10'000;
+        resources.writeBytes = 10'000;
 
         // submit operation
         auto tx = sorobanTransactionFrameFromOps(
-            app->getNetworkID(), root, {restoreOp}, {}, bumpResources, 1000,
+            app->getNetworkID(), root, {restoreOp}, {}, resources, 1000,
             300'000 + 40'000 * readWrite.size());
-        runExpirationOp(root, tx, expectedRefundableFeeCharged);
+        runStateArchivalOp(root, tx, expectedRefundableFeeCharged);
     };
 
     auto delWithFootprint = [&](std::string const& key,
@@ -1586,38 +1582,37 @@ TEST_CASE("contract storage", "[tx][soroban]")
             type);
     };
 
-    auto checkContractDataExpirationState =
+    auto checkContractDataArchivalState =
         [&](std::string const& key, ContractDataDurability type,
             uint32_t ledgerSeq, bool expectedIsLive) {
             auto le = loadStorageEntry(*app, contractID, key, type);
-            auto expirationKey = getExpirationKey(le);
+            auto ttlKey = getTTLKey(le);
 
             {
                 LedgerTxn ltx(app->getLedgerTxnRoot());
-                auto expirationLtxe = ltx.loadWithoutRecord(expirationKey);
-                REQUIRE(expirationLtxe);
-                REQUIRE(isLive(expirationLtxe.current(), ledgerSeq) ==
-                        expectedIsLive);
+                auto ttlLtxe = ltx.loadWithoutRecord(ttlKey);
+                REQUIRE(ttlLtxe);
+                REQUIRE(isLive(ttlLtxe.current(), ledgerSeq) == expectedIsLive);
             }
 
             // Make sure entry is accessible/inaccessible
             get(key, type, expectedIsLive);
         };
 
-    // Check entries existence and expiration
+    // Check entries existence and ttl
     auto checkEntry = [&](LedgerKey const& key,
-                          uint32_t expectedExpirationLedger) {
+                          uint32_t expectedLiveUntilLedgerLedger) {
         LedgerTxn ltx(app->getLedgerTxnRoot());
         auto ltxe = ltx.loadWithoutRecord(key);
         REQUIRE(ltxe);
-        checkExpiration(ltx, key, expectedExpirationLedger);
+        checkTTL(ltx, key, expectedLiveUntilLedgerLedger);
     };
 
-    auto checkContractDataExpirationLedger =
+    auto checkContractDataLiveUntilLedger =
         [&](std::string const& key, ContractDataDurability type,
-            uint32_t expectedExpirationLedger) {
+            uint32_t expectedLiveUntilLedgerLedger) {
             auto le = loadStorageEntry(*app, contractID, key, type);
-            checkEntry(LedgerEntryKey(le), expectedExpirationLedger);
+            checkEntry(LedgerEntryKey(le), expectedLiveUntilLedgerLedger);
         };
 
     auto ledgerSeq = getLedgerSeq(*app);
@@ -1678,14 +1673,13 @@ TEST_CASE("contract storage", "[tx][soroban]")
         checkContractData(key2Symbol, TEMPORARY, nullptr);
     }
 
-    SECTION("contract instance and wasm expiration")
+    SECTION("contract instance and wasm ttl")
     {
-        uint32_t originalExpectedExpiration =
-            stateExpirationSettings.minPersistentEntryExpiration + ledgerSeq -
-            1;
+        uint32_t originalexpectedLiveUntilLedger =
+            stateArchivalSettings.minPersistentTTL + ledgerSeq - 1;
 
         for (uint32_t i = app->getLedgerManager().getLastClosedLedgerNum();
-             i <= originalExpectedExpiration + 1; ++i)
+             i <= originalexpectedLiveUntilLedger + 1; ++i)
         {
             closeLedgerOn(*app, i, 2, 1, 2016);
         }
@@ -1697,9 +1691,8 @@ TEST_CASE("contract storage", "[tx][soroban]")
             1000, /*expectSuccess*/ false, ContractDataDurability::TEMPORARY);
 
         ledgerSeq = getLedgerSeq(*app);
-        auto newExpectedExpiration =
-            stateExpirationSettings.minPersistentEntryExpiration + ledgerSeq -
-            1;
+        auto newexpectedLiveUntilLedger =
+            stateArchivalSettings.minPersistentTTL + ledgerSeq - 1;
 
         SECTION("restore contract instance and wasm")
         {
@@ -1715,8 +1708,8 @@ TEST_CASE("contract storage", "[tx][soroban]")
                 1000, /*expectSuccess*/ true,
                 ContractDataDurability::TEMPORARY);
 
-            checkEntry(contractKeys[0], newExpectedExpiration);
-            checkEntry(contractKeys[1], newExpectedExpiration);
+            checkEntry(contractKeys[0], newexpectedLiveUntilLedger);
+            checkEntry(contractKeys[1], newexpectedLiveUntilLedger);
         }
 
         SECTION("restore contract instance, not wasm")
@@ -1733,8 +1726,8 @@ TEST_CASE("contract storage", "[tx][soroban]")
                 1000, /*expectSuccess*/ false,
                 ContractDataDurability::TEMPORARY);
 
-            checkEntry(contractKeys[0], newExpectedExpiration);
-            checkEntry(contractKeys[1], originalExpectedExpiration);
+            checkEntry(contractKeys[0], newexpectedLiveUntilLedger);
+            checkEntry(contractKeys[1], originalexpectedLiveUntilLedger);
         }
 
         SECTION("restore contract wasm, not instance")
@@ -1751,8 +1744,8 @@ TEST_CASE("contract storage", "[tx][soroban]")
                 1000, /*expectSuccess*/ false,
                 ContractDataDurability::TEMPORARY);
 
-            checkEntry(contractKeys[0], originalExpectedExpiration);
-            checkEntry(contractKeys[1], newExpectedExpiration);
+            checkEntry(contractKeys[0], originalexpectedLiveUntilLedger);
+            checkEntry(contractKeys[1], newexpectedLiveUntilLedger);
         }
 
         SECTION("lifetime extensions")
@@ -1761,53 +1754,52 @@ TEST_CASE("contract storage", "[tx][soroban]")
             restoreOp(contractKeys,
                       96 /* rent bump */ + 40000 /* two LE writes */);
 
-            auto instanceBumpAmount = 10'000;
-            auto wasmBumpAmount = 15'000;
+            auto instanceExtendAmount = 10'000;
+            auto wasmExtendAmount = 15'000;
 
-            // bump instance
-            bumpOp(instanceBumpAmount, {contractKeys[0]});
+            // extend instance
+            extendOp(instanceExtendAmount, {contractKeys[0]});
 
-            // bump WASM
-            bumpOp(wasmBumpAmount, {contractKeys[1]});
+            // extend WASM
+            extendOp(wasmExtendAmount, {contractKeys[1]});
 
-            checkEntry(contractKeys[0], ledgerSeq + instanceBumpAmount);
-            checkEntry(contractKeys[1], ledgerSeq + wasmBumpAmount);
+            checkEntry(contractKeys[0], ledgerSeq + instanceExtendAmount);
+            checkEntry(contractKeys[1], ledgerSeq + wasmExtendAmount);
         }
     }
 
-    SECTION("contract storage expiration")
+    SECTION("contract storage ttl")
     {
         put("unique", 0, ContractDataDurability::PERSISTENT);
         put("temp", 0, TEMPORARY);
 
-        auto expectedTempExpiration =
-            stateExpirationSettings.minTempEntryExpiration + ledgerSeq - 1;
-        auto expectedPersistentExpiration =
-            stateExpirationSettings.minPersistentEntryExpiration + ledgerSeq -
-            1;
+        auto expectedTempLiveUntilLedger =
+            stateArchivalSettings.minTemporaryTTL + ledgerSeq - 1;
+        auto expectedPersistentLiveUntilLedger =
+            stateArchivalSettings.minPersistentTTL + ledgerSeq - 1;
 
         // Check for expected minimum lifetime values
-        checkContractDataExpirationLedger("unique",
-                                          ContractDataDurability::PERSISTENT,
-                                          expectedPersistentExpiration);
-        checkContractDataExpirationLedger("temp", TEMPORARY,
-                                          expectedTempExpiration);
+        checkContractDataLiveUntilLedger("unique",
+                                         ContractDataDurability::PERSISTENT,
+                                         expectedPersistentLiveUntilLedger);
+        checkContractDataLiveUntilLedger("temp", TEMPORARY,
+                                         expectedTempLiveUntilLedger);
 
         // Close ledgers until temp entry expires
         uint32 currLedger = app->getLedgerManager().getLastClosedLedgerNum();
-        for (; currLedger <= expectedTempExpiration + 1; ++currLedger)
+        for (; currLedger <= expectedTempLiveUntilLedger + 1; ++currLedger)
         {
             closeLedgerOn(*app, currLedger, 2, 1, 2016);
         }
         REQUIRE(app->getLedgerManager().getLastClosedLedgerNum() ==
-                expectedTempExpiration + 1);
+                expectedTempLiveUntilLedger + 1);
 
         // Check that temp entry has expired
-        checkContractDataExpirationState(
+        checkContractDataArchivalState(
             "temp", TEMPORARY, app->getLedgerManager().getLastClosedLedgerNum(),
             false);
 
-        checkContractDataExpirationState(
+        checkContractDataArchivalState(
             "unique", ContractDataDurability::PERSISTENT,
             app->getLedgerManager().getLastClosedLedgerNum(), true);
 
@@ -1819,22 +1811,23 @@ TEST_CASE("contract storage", "[tx][soroban]")
 
         // Recreated entry should be live
         ledgerSeq = getLedgerSeq(*app);
-        checkContractDataExpirationState(
+        checkContractDataArchivalState(
             "temp", TEMPORARY, app->getLedgerManager().getLastClosedLedgerNum(),
             true);
-        checkContractDataExpirationLedger(
-            "temp", TEMPORARY,
-            stateExpirationSettings.minTempEntryExpiration + ledgerSeq - 1);
+        checkContractDataLiveUntilLedger("temp", TEMPORARY,
+                                         stateArchivalSettings.minTemporaryTTL +
+                                             ledgerSeq - 1);
 
         // Close ledgers until PERSISTENT entry expires
-        for (; currLedger <= expectedPersistentExpiration + 1; ++currLedger)
+        for (; currLedger <= expectedPersistentLiveUntilLedger + 1;
+             ++currLedger)
         {
             closeLedgerOn(*app, currLedger, 2, 1, 2016);
         }
 
         REQUIRE(app->getLedgerManager().getLastClosedLedgerNum() ==
-                expectedPersistentExpiration + 1);
-        checkContractDataExpirationState(
+                expectedPersistentLiveUntilLedger + 1);
+        checkContractDataArchivalState(
             "unique", ContractDataDurability::PERSISTENT,
             app->getLedgerManager().getLastClosedLedgerNum(), false);
 
@@ -1846,32 +1839,32 @@ TEST_CASE("contract storage", "[tx][soroban]")
                          ContractDataDurability::PERSISTENT);
     }
 
-    SECTION("manual bump")
+    SECTION("manual extend")
     {
-        // Large bump, followed by smaller bump
+        // Large extend, followed by smaller extend
         put("key", 0, ContractDataDurability::PERSISTENT);
-        bumpExact("key", ContractDataDurability::PERSISTENT, 10'000);
-        checkContractDataExpirationLedger(
+        extendExact("key", ContractDataDurability::PERSISTENT, 10'000);
+        checkContractDataLiveUntilLedger(
             "key", ContractDataDurability::PERSISTENT, ledgerSeq + 10'000);
 
-        // Expiration already above 5'000, should be a no-op
-        bumpExact("key", ContractDataDurability::PERSISTENT, 5'000);
-        checkContractDataExpirationLedger(
+        // TTL already above 5'000, should be a no-op
+        extendExact("key", ContractDataDurability::PERSISTENT, 5'000);
+        checkContractDataLiveUntilLedger(
             "key", ContractDataDurability::PERSISTENT, ledgerSeq + 10'000);
 
-        // Small bump followed by larger bump
+        // Small extend followed by larger extend
         put("key2", 0, ContractDataDurability::PERSISTENT);
-        bumpExact("key2", ContractDataDurability::PERSISTENT, 5'000);
-        checkContractDataExpirationLedger(
+        extendExact("key2", ContractDataDurability::PERSISTENT, 5'000);
+        checkContractDataLiveUntilLedger(
             "key2", ContractDataDurability::PERSISTENT, ledgerSeq + 5'000);
 
         put("key3", 0, ContractDataDurability::PERSISTENT);
-        bumpExact("key3", ContractDataDurability::PERSISTENT, 50'000);
-        checkContractDataExpirationLedger(
+        extendExact("key3", ContractDataDurability::PERSISTENT, 50'000);
+        checkContractDataLiveUntilLedger(
             "key3", ContractDataDurability::PERSISTENT, ledgerSeq + 50'000);
 
-        // Bump multiple keys to live 10100 ledger from now
-        bumpOp(
+        // Extend multiple keys to live 10100 ledger from now
+        extendOp(
             10100,
             {contractDataKey(contractID, makeSymbolSCVal("key"),
                              ContractDataDurability::PERSISTENT),
@@ -1881,50 +1874,45 @@ TEST_CASE("contract storage", "[tx][soroban]")
                  contractID, makeSymbolSCVal("key3"),
                  ContractDataDurability::PERSISTENT)}); // only 2 ledger writes
                                                         // because key3 won't be
-                                                        // bumped
+                                                        // extended
 
-        checkContractDataExpirationLedger(
+        checkContractDataLiveUntilLedger(
             "key", ContractDataDurability::PERSISTENT, ledgerSeq + 10'100);
-        checkContractDataExpirationLedger(
+        checkContractDataLiveUntilLedger(
             "key2", ContractDataDurability::PERSISTENT, ledgerSeq + 10'100);
 
-        // No change for key3 since expiration is already past 10100 ledgers
-        // from now
-        checkContractDataExpirationLedger(
+        // No change for key3 since ttl is already past 10100 ledgers
+        checkContractDataLiveUntilLedger(
             "key3", ContractDataDurability::PERSISTENT, ledgerSeq + 50'000);
 
         SECTION("low/high watermark")
         {
-            uint32_t intialExpiration =
-                stateExpirationSettings.minPersistentEntryExpiration +
-                ledgerSeq - 1;
+            uint32_t initialLiveUntilLedger =
+                stateArchivalSettings.minPersistentTTL + ledgerSeq - 1;
 
             put("key4", 0, ContractDataDurability::PERSISTENT);
 
             // After the put op, key4's lifetime will be minimumLifetime - 1.
-            // Set low lifetime to minimumLifetime - 2 so bump does not occur
-            bumpLowHigh("key4", ContractDataDurability::PERSISTENT,
-                        stateExpirationSettings.minPersistentEntryExpiration -
-                            2,
-                        50'000);
-            checkContractDataExpirationLedger(
-                "key4", ContractDataDurability::PERSISTENT, intialExpiration);
+            // Set low lifetime to minimumLifetime - 2 so extend does not occur
+            extendLowHigh("key4", ContractDataDurability::PERSISTENT,
+                          stateArchivalSettings.minPersistentTTL - 2, 50'000);
+            checkContractDataLiveUntilLedger("key4",
+                                             ContractDataDurability::PERSISTENT,
+                                             initialLiveUntilLedger);
 
             // Close one ledger
             ledgerSeq = app->getLedgerManager().getLastClosedLedgerNum();
             closeLedgerOn(*app, ledgerSeq + 1, 2, 1, 2016);
             ++ledgerSeq;
 
-            // Lifetime is now at low threshold, should be bumped
-            bumpLowHigh("key4", ContractDataDurability::PERSISTENT,
-                        stateExpirationSettings.minPersistentEntryExpiration -
-                            2,
-                        50'000);
-            checkContractDataExpirationLedger(
+            // Lifetime is now at low threshold, should be extended
+            extendLowHigh("key4", ContractDataDurability::PERSISTENT,
+                          stateArchivalSettings.minPersistentTTL - 2, 50'000);
+            checkContractDataLiveUntilLedger(
                 "key4", ContractDataDurability::PERSISTENT, 50'000 + ledgerSeq);
 
             // Check that low watermark > high watermark fails
-            bumpWithFootprint(
+            extendWithFootprint(
                 "key4", 60'000, 50'000, contractKeys,
                 {contractDataKey(contractID, makeSymbolSCVal("key4"),
                                  ContractDataDurability::PERSISTENT)},
@@ -1934,28 +1922,27 @@ TEST_CASE("contract storage", "[tx][soroban]")
 
     SECTION("restore expired entry")
     {
-        uint32_t initExpirationLedger =
-            stateExpirationSettings.minPersistentEntryExpiration + ledgerSeq -
-            1;
+        uint32_t initLiveUntilLedger =
+            stateArchivalSettings.minPersistentTTL + ledgerSeq - 1;
 
-        // Bump instance and WASM so that they don't expire during the test
-        bumpOp(10'000, contractKeys);
+        // Extend instance and WASM so that they don't expire during the test
+        extendOp(10'000, contractKeys);
 
         put("key", 0, ContractDataDurability::PERSISTENT);
-        checkContractDataExpirationLedger(
-            "key", ContractDataDurability::PERSISTENT, initExpirationLedger);
+        checkContractDataLiveUntilLedger(
+            "key", ContractDataDurability::PERSISTENT, initLiveUntilLedger);
 
         // Crank until entry expires
         for (uint32 i = app->getLedgerManager().getLastClosedLedgerNum();
-             i <= initExpirationLedger + 1; ++i)
+             i <= initLiveUntilLedger + 1; ++i)
         {
             closeLedgerOn(*app, i, 2, 1, 2016);
         }
 
         REQUIRE(app->getLedgerManager().getLastClosedLedgerNum() ==
-                initExpirationLedger + 1);
+                initLiveUntilLedger + 1);
 
-        checkContractDataExpirationState(
+        checkContractDataArchivalState(
             "key", ContractDataDurability::PERSISTENT,
             app->getLedgerManager().getLastClosedLedgerNum(), false);
 
@@ -1973,26 +1960,25 @@ TEST_CASE("contract storage", "[tx][soroban]")
                          /*expectSuccess*/ false,
                          ContractDataDurability::PERSISTENT);
 
-        // Bump operation should skip expired entries
-        bumpOp(1'000, {lk});
+        // Extend operation should skip expired entries
+        extendOp(1'000, {lk});
 
-        // Make sure expirationLedger is unchanged by bumpOp
-        checkContractDataExpirationLedger(
-            "key", ContractDataDurability::PERSISTENT, initExpirationLedger);
+        // Make sure liveUntilLedger is unchanged by extendOp
+        checkContractDataLiveUntilLedger(
+            "key", ContractDataDurability::PERSISTENT, initLiveUntilLedger);
 
         // Restore the entry
         restoreOp({lk}, 20048);
 
         ledgerSeq = getLedgerSeq(*app);
-        checkContractDataExpirationState(
+        checkContractDataArchivalState(
             "key", ContractDataDurability::PERSISTENT, ledgerSeq, true);
 
         // Entry is considered to be restored on lclNum (as we didn't close an
         // additional ledger).
-        checkContractDataExpirationLedger(
+        checkContractDataLiveUntilLedger(
             "key", ContractDataDurability::PERSISTENT,
-            ledgerSeq + stateExpirationSettings.minPersistentEntryExpiration -
-                1);
+            ledgerSeq + stateArchivalSettings.minPersistentTTL - 1);
 
         // Write to entry to check that is is live
         put("key", 1, ContractDataDurability::PERSISTENT);
@@ -2000,22 +1986,23 @@ TEST_CASE("contract storage", "[tx][soroban]")
 
     SECTION("re-create expired temporary entry")
     {
-        auto minBump = InitialSorobanNetworkConfig::MINIMUM_TEMP_ENTRY_LIFETIME;
+        auto minExtend =
+            InitialSorobanNetworkConfig::MINIMUM_TEMP_ENTRY_LIFETIME;
         put("key", 0, ContractDataDurability::TEMPORARY);
         REQUIRE(has("key", ContractDataDurability::TEMPORARY));
 
-        uint32_t initExpirationLedger = ledgerSeq + minBump - 1;
-        checkContractDataExpirationLedger(
-            "key", ContractDataDurability::TEMPORARY, initExpirationLedger);
+        uint32_t initLiveUntilLedger = ledgerSeq + minExtend - 1;
+        checkContractDataLiveUntilLedger(
+            "key", ContractDataDurability::TEMPORARY, initLiveUntilLedger);
 
         for (size_t i = app->getLedgerManager().getLastClosedLedgerNum();
-             i <= initExpirationLedger + 1; ++i)
+             i <= initLiveUntilLedger + 1; ++i)
         {
             closeLedgerOn(*app, i, 2, 1, 2016);
         }
         REQUIRE(app->getLedgerManager().getLastClosedLedgerNum() ==
-                initExpirationLedger + 1);
-        checkContractDataExpirationState(
+                initLiveUntilLedger + 1);
+        checkContractDataArchivalState(
             "key", ContractDataDurability::TEMPORARY,
             app->getLedgerManager().getLastClosedLedgerNum(), false);
 
@@ -2026,10 +2013,10 @@ TEST_CASE("contract storage", "[tx][soroban]")
         put("key", 0, ContractDataDurability::TEMPORARY);
         REQUIRE(has("key", ContractDataDurability::TEMPORARY));
 
-        uint32_t newExpirationLedger =
-            app->getLedgerManager().getLastClosedLedgerNum() + minBump - 1;
-        checkContractDataExpirationLedger(
-            "key", ContractDataDurability::TEMPORARY, newExpirationLedger);
+        uint32_t newLiveUntilLedger =
+            app->getLedgerManager().getLastClosedLedgerNum() + minExtend - 1;
+        checkContractDataLiveUntilLedger(
+            "key", ContractDataDurability::TEMPORARY, newLiveUntilLedger);
     }
 
     SECTION("charge rent fees for storage resize")
@@ -2048,8 +2035,8 @@ TEST_CASE("contract storage", "[tx][soroban]")
         }
 
         // First, resize a key with large fee to guarantee success
-        increaseEntrySizeAndBump("key1", resizeKilobytes, 0, 0, contractKeys,
-                                 {key1lk}, true, 40'000);
+        increaseEntrySizeAndExtend("key1", resizeKilobytes, 0, 0, contractKeys,
+                                   {key1lk}, true, 40'000);
 
         auto sizeDeltaBytes = 0;
         {
@@ -2063,10 +2050,9 @@ TEST_CASE("contract storage", "[tx][soroban]")
         // and check that another entry resize charges fee correctly
         put("key2", 0, ContractDataDurability::PERSISTENT);
 
-        auto initialLifetime =
-            stateExpirationSettings.minPersistentEntryExpiration;
+        auto initialLifetime = stateArchivalSettings.minPersistentTTL;
 
-        SECTION("resize with no bump")
+        SECTION("resize with no extend")
         {
             auto expectedRentFee = getRentFeeForBytes(
                 sizeDeltaBytes, initialLifetime, sorobanConfig,
@@ -2075,23 +2061,23 @@ TEST_CASE("contract storage", "[tx][soroban]")
             // resourceFee = rent fee + (event size + return val) fee. So
             // in order to succeed resourceFee needs to be expectedRentFee
             // + 1 to account for the return val size. We are not changing the
-            // expirationLedgerSeq, so there is no ExpirationEntry write charge
+            // liveUntilLedgerSeq, so there is no TTLEntry write charge
             auto refundableFee = expectedRentFee + 1;
-            increaseEntrySizeAndBump(
+            increaseEntrySizeAndExtend(
                 "key2", resizeKilobytes, 0, 0, contractKeys,
                 {contractDataKey(contractID, makeSymbolSCVal("key2"),
                                  PERSISTENT)},
                 false, refundableFee - 1);
 
             // Size change should succeed with enough refundable fee
-            increaseEntrySizeAndBump(
+            increaseEntrySizeAndExtend(
                 "key2", resizeKilobytes, 0, 0, contractKeys,
                 {contractDataKey(contractID, makeSymbolSCVal("key2"),
                                  PERSISTENT)},
                 true, refundableFee);
         }
 
-        SECTION("resize and bump")
+        SECTION("resize and extend")
         {
             auto newLifetime = initialLifetime + 1000;
 
@@ -2101,23 +2087,23 @@ TEST_CASE("contract storage", "[tx][soroban]")
                                    /*isPersistent=*/true);
 
             // Initial bytes just charged for new lifetime
-            auto bumpFee = getRentFeeForBytes(
+            auto extendFee = getRentFeeForBytes(
                 startingSizeBytes, newLifetime - initialLifetime, sorobanConfig,
                 /*isPersistent=*/true);
 
             // resourceFee = rent fee + (event size + return val) fee. So in
             // order to success resourceFee needs to be expectedRentFee
             // + 1 to account for the return val size.
-            auto refundableFee = resizeRentFee + bumpFee +
-                                 getExpirationEntryWriteFee(sorobanConfig) + 1;
-            increaseEntrySizeAndBump(
+            auto refundableFee = resizeRentFee + extendFee +
+                                 getTTLEntryWriteFee(sorobanConfig) + 1;
+            increaseEntrySizeAndExtend(
                 "key2", resizeKilobytes, newLifetime, newLifetime, contractKeys,
                 {contractDataKey(contractID, makeSymbolSCVal("key2"),
                                  PERSISTENT)},
                 false, refundableFee - 1);
 
             // Size change should succeed with enough refundable fee
-            increaseEntrySizeAndBump(
+            increaseEntrySizeAndExtend(
                 "key2", resizeKilobytes, newLifetime, newLifetime, contractKeys,
                 {contractDataKey(contractID, makeSymbolSCVal("key2"),
                                  PERSISTENT)},
@@ -2125,23 +2111,24 @@ TEST_CASE("contract storage", "[tx][soroban]")
         }
     }
 
-    SECTION("max expiration")
+    SECTION("max ttl")
     {
-        // Check that attempting to bump past max ledger results in error
+        // Check that attempting to extend past max ledger results in error
         put("key", 0, ContractDataDurability::PERSISTENT);
-        bumpWithFootprint("key", UINT32_MAX, UINT32_MAX, contractKeys,
-                          {contractDataKey(contractID, makeSymbolSCVal("key"),
-                                           ContractDataDurability::PERSISTENT)},
-                          false, ContractDataDurability::PERSISTENT);
+        extendWithFootprint(
+            "key", UINT32_MAX, UINT32_MAX, contractKeys,
+            {contractDataKey(contractID, makeSymbolSCVal("key"),
+                             ContractDataDurability::PERSISTENT)},
+            false, ContractDataDurability::PERSISTENT);
 
-        // Make sure maximum bump succeeds
-        bumpExact("key", ContractDataDurability::PERSISTENT,
-                  stateExpirationSettings.maxEntryExpiration - 1);
+        // Make sure maximum extend succeeds
+        extendExact("key", ContractDataDurability::PERSISTENT,
+                    stateArchivalSettings.maxEntryTTL - 1);
 
-        auto maxExpiration =
-            ledgerSeq + stateExpirationSettings.maxEntryExpiration - 1;
-        checkContractDataExpirationLedger(
-            "key", ContractDataDurability::PERSISTENT, maxExpiration);
+        auto maxLiveUntilLedger =
+            ledgerSeq + stateArchivalSettings.maxEntryTTL - 1;
+        checkContractDataLiveUntilLedger(
+            "key", ContractDataDurability::PERSISTENT, maxLiveUntilLedger);
     }
     SECTION("footprint tests")
     {
@@ -2251,22 +2238,21 @@ TEST_CASE("temp entry eviction", "[tx][soroban]")
         closeLedger(*app, {tx});
     };
 
-    auto checkContractDataExpirationState = [&](std::string const& key,
-                                                ContractDataDurability type,
-                                                uint32_t ledgerSeq,
-                                                bool expectedIsLive) {
-        auto le = loadStorageEntry(*app, contractID, key, type);
-        auto expirationKey = getExpirationKey(le);
-        LedgerTxn ltx(app->getLedgerTxnRoot());
-        auto expirationLtxe = ltx.loadWithoutRecord(expirationKey);
-        REQUIRE(expirationLtxe);
-        REQUIRE(isLive(expirationLtxe.current(), ledgerSeq) == expectedIsLive);
-    };
+    auto checkContractDataArchivalState =
+        [&](std::string const& key, ContractDataDurability type,
+            uint32_t ledgerSeq, bool expectedIsLive) {
+            auto le = loadStorageEntry(*app, contractID, key, type);
+            auto ttlKey = getTTLKey(le);
+            LedgerTxn ltx(app->getLedgerTxnRoot());
+            auto ttlLtxe = ltx.loadWithoutRecord(ttlKey);
+            REQUIRE(ttlLtxe);
+            REQUIRE(isLive(ttlLtxe.current(), ledgerSeq) == expectedIsLive);
+        };
 
     auto lk = contractDataKey(contractID, makeSymbolSCVal("temp"), TEMPORARY);
     putWithFootprint("temp", 0, contractKeys, {lk}, 1000, true, TEMPORARY);
     // Check that entry exists and is live.
-    checkContractDataExpirationState(
+    checkContractDataArchivalState(
         "temp", TEMPORARY, app->getLedgerManager().getLastClosedLedgerNum(),
         true);
     // Close ledgers until temp entry is evicted
@@ -2277,7 +2263,7 @@ TEST_CASE("temp entry eviction", "[tx][soroban]")
     }
 
     // Check that temp entry has expired
-    checkContractDataExpirationState(
+    checkContractDataArchivalState(
         "temp", TEMPORARY, app->getLedgerManager().getLastClosedLedgerNum(),
         false);
 
@@ -2297,7 +2283,7 @@ TEST_CASE("temp entry eviction", "[tx][soroban]")
             auto sortedKeys = lcm.v1().evictedTemporaryLedgerKeys;
             std::sort(sortedKeys.begin(), sortedKeys.end());
             REQUIRE(sortedKeys[0] == lk);
-            REQUIRE(sortedKeys[1] == getExpirationKey(lk));
+            REQUIRE(sortedKeys[1] == getTTLKey(lk));
             evicted = true;
         }
         else
@@ -2353,25 +2339,47 @@ TEST_CASE("failed invocation with diagnostics", "[tx][soroban]")
     ltx.commit();
 
     auto const& opEvents = txm.getXDR().v3().sorobanMeta->diagnosticEvents;
-    REQUIRE(opEvents.size() == 22);
+    REQUIRE(opEvents.size() == 23);
 
-    auto const& call_ev = opEvents.at(0);
-    REQUIRE(!call_ev.inSuccessfulContractCall);
-    REQUIRE(call_ev.event.type == ContractEventType::DIAGNOSTIC);
-    REQUIRE(call_ev.event.body.v0().data.type() == SCV_VEC);
+    auto const& callEv = opEvents.at(0);
+    REQUIRE(!callEv.inSuccessfulContractCall);
+    REQUIRE(callEv.event.type == ContractEventType::DIAGNOSTIC);
+    REQUIRE(callEv.event.body.v0().data.type() == SCV_VEC);
 
     auto const& contract_ev = opEvents.at(1);
     REQUIRE(!contract_ev.inSuccessfulContractCall);
     REQUIRE(contract_ev.event.type == ContractEventType::CONTRACT);
     REQUIRE(contract_ev.event.body.v0().data.type() == SCV_VEC);
 
-    auto const& read_entry_ev = opEvents.at(3);
-    REQUIRE(!read_entry_ev.inSuccessfulContractCall);
-    REQUIRE(read_entry_ev.event.type == ContractEventType::DIAGNOSTIC);
-    auto const& v0 = read_entry_ev.event.body.v0();
-    REQUIRE((v0.topics.size() == 2 && v0.topics.at(0).sym() == "core_metrics" &&
-             v0.topics.at(1).sym() == "read_entry"));
-    REQUIRE(v0.data.type() == SCV_U64);
+    auto const& hostFnErrorEv = opEvents.at(3);
+    REQUIRE(!hostFnErrorEv.inSuccessfulContractCall);
+    REQUIRE(hostFnErrorEv.event.type == ContractEventType::DIAGNOSTIC);
+    auto const& hostFnErrorBody = hostFnErrorEv.event.body.v0();
+    SCError expectedError(SCE_WASM_VM);
+    expectedError.code() = SCEC_INVALID_ACTION;
+    REQUIRE(hostFnErrorBody.topics.size() == 2);
+    REQUIRE(hostFnErrorBody.topics.at(0).sym() == "host_fn_failed");
+    REQUIRE(hostFnErrorBody.topics.at(1).error() == expectedError);
+
+    auto const& readEntryEv = opEvents.at(4);
+    REQUIRE(!readEntryEv.inSuccessfulContractCall);
+    REQUIRE(readEntryEv.event.type == ContractEventType::DIAGNOSTIC);
+    auto const& readEntryEvBody = readEntryEv.event.body.v0();
+    REQUIRE(readEntryEvBody.topics.size() == 2);
+    REQUIRE(readEntryEvBody.topics.at(0).sym() == "core_metrics");
+    REQUIRE(readEntryEvBody.topics.at(1).sym() == "read_entry");
+    REQUIRE(readEntryEvBody.data.type() == SCV_U64);
+    REQUIRE(readEntryEvBody.data.u64() == 2);
+
+    auto const& cpuInsnEv = opEvents.at(16);
+    REQUIRE(!cpuInsnEv.inSuccessfulContractCall);
+    REQUIRE(cpuInsnEv.event.type == ContractEventType::DIAGNOSTIC);
+    auto const& cpuInsnEvBody = cpuInsnEv.event.body.v0();
+    REQUIRE(cpuInsnEvBody.topics.size() == 2);
+    REQUIRE(cpuInsnEvBody.topics.at(0).sym() == "core_metrics");
+    REQUIRE(cpuInsnEvBody.topics.at(1).sym() == "cpu_insn");
+    REQUIRE(cpuInsnEvBody.data.type() == SCV_U64);
+    REQUIRE(cpuInsnEvBody.data.u64() >= 1000);
 }
 
 TEST_CASE("invalid tx with diagnostics", "[tx][soroban]")
@@ -2936,21 +2944,21 @@ overrideNetworkSettingsToMin(Application& app)
     costEntry.ledgerMaxWriteBytes = costEntry.txMaxWriteBytes;
 
     auto& exp = ltx.load(configSettingKey(
-                             ConfigSettingID::CONFIG_SETTING_STATE_EXPIRATION))
+                             ConfigSettingID::CONFIG_SETTING_STATE_ARCHIVAL))
                     .current()
                     .data.configSetting()
-                    .stateExpirationSettings();
-    exp.maxEntryExpiration =
-        MinimumSorobanNetworkConfig::MAXIMUM_ENTRY_LIFETIME;
-    exp.minPersistentEntryExpiration =
+                    .stateArchivalSettings();
+    exp.maxEntryTTL = MinimumSorobanNetworkConfig::MAXIMUM_ENTRY_LIFETIME;
+    exp.minPersistentTTL =
         MinimumSorobanNetworkConfig::MINIMUM_PERSISTENT_ENTRY_LIFETIME;
-    exp.minTempEntryExpiration =
+    exp.minTemporaryTTL =
         MinimumSorobanNetworkConfig::MINIMUM_TEMP_ENTRY_LIFETIME;
     exp.persistentRentRateDenominator =
         MinimumSorobanNetworkConfig::RENT_RATE_DENOMINATOR;
     exp.tempRentRateDenominator =
         MinimumSorobanNetworkConfig::RENT_RATE_DENOMINATOR;
-    exp.maxEntriesToExpire = MinimumSorobanNetworkConfig::MAX_ENTRIES_TO_EXPIRE;
+    exp.maxEntriesToArchive =
+        MinimumSorobanNetworkConfig::MAX_ENTRIES_TO_ARCHIVE;
     exp.bucketListSizeWindowSampleSize =
         MinimumSorobanNetworkConfig::BUCKETLIST_SIZE_WINDOW_SAMPLE_SIZE;
     exp.evictionScanSize = MinimumSorobanNetworkConfig::EVICTION_SCAN_SIZE;
@@ -3096,20 +3104,20 @@ TEST_CASE("settings upgrade", "[tx][soroban][upgrades]")
 
         {
             // verify that the contract code, contract instance, and upgrade
-            // entry were all bumped by
+            // entry were all extended by
             // 518400 ledgers (30 days) -
             // https://github.com/stellar/rs-soroban-env/blob/main/soroban-test-wasms/wasm-workspace/write_upgrade_bytes/src/lib.rs#L3-L5
             LedgerTxn ltx(app->getLedgerTxnRoot());
             auto ledgerSeq = ltx.loadHeader().current().ledgerSeq;
-            auto bumpedKeys = contractKeys;
-            bumpedKeys.emplace_back(upgrade);
+            auto extendedKeys = contractKeys;
+            extendedKeys.emplace_back(upgrade);
 
-            REQUIRE(bumpedKeys.size() == 3);
-            for (auto const& key : bumpedKeys)
+            REQUIRE(extendedKeys.size() == 3);
+            for (auto const& key : extendedKeys)
             {
                 auto ltxe = ltx.load(key);
                 REQUIRE(ltxe);
-                checkExpiration(ltx, key, ledgerSeq + 518400);
+                checkTTL(ltx, key, ledgerSeq + 518400);
             }
         }
 

@@ -391,7 +391,7 @@ generateScaledLiveEntries(
         case CONFIG_SETTING:
         case CONTRACT_DATA:
         case CONTRACT_CODE:
-        case EXPIRATION:
+        case TTL:
             // Don't do anything for now.
             break;
         default:
@@ -433,7 +433,7 @@ scaleNonPoolLedgerKey(LedgerKey& key, uint32_t partition)
     case CONFIG_SETTING:
     case CONTRACT_CODE:
     case CONTRACT_DATA:
-    case EXPIRATION:
+    case TTL:
     default:
         throw std::runtime_error("invalid ledger key type");
     }

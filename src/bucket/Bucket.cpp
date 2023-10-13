@@ -863,32 +863,32 @@ Bucket::scanForEviction(AbstractLedgerTxn& ltx, EvictionIterator& iter,
             if (isTemporaryEntry(le.data))
             {
                 // All Buckets maintain a single stream object. This means
-                // that if an ExpirationEntry being loaded exists in the
+                // that if an TTLEntry being loaded exists in the
                 // same bucket as the entry being evicted, the stream may be
                 // modified, so we must seek back to the starting position
                 // after any call to load
                 auto initialStreamPos = stream.pos();
 
-                auto expirationKey = getExpirationKey(le);
+                auto ttlKey = getTTLKey(le);
                 auto shouldEvict = [&] {
                     auto entryLtxe = ltx.loadWithoutRecord(LedgerEntryKey(le));
-                    auto expirationLtxe = ltx.loadWithoutRecord(expirationKey);
+                    auto ttlLtxe = ltx.loadWithoutRecord(ttlKey);
                     if (!entryLtxe)
                     {
                         // Entry was already deleted either manually or by an
                         // earlier eviction scan, do nothing
-                        releaseAssert(!expirationLtxe);
+                        releaseAssert(!ttlLtxe);
                         return false;
                     }
 
-                    releaseAssert(expirationLtxe);
+                    releaseAssert(ttlLtxe);
 
-                    return !isLive(expirationLtxe.current(), ledgerSeq);
+                    return !isLive(ttlLtxe.current(), ledgerSeq);
                 };
 
                 if (shouldEvict())
                 {
-                    ltx.erase(expirationKey);
+                    ltx.erase(ttlKey);
                     ltx.erase(LedgerEntryKey(le));
                     entriesEvictedMeter.Mark();
                     --maxEntriesToEvict;

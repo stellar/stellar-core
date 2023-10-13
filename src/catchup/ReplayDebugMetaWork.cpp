@@ -88,7 +88,6 @@ class ApplyLedgersFromMetaWork : public Work
             return BasicWork::State::WORK_SUCCESS;
         }
 
-        // v1() is never used
         auto lh = lcm.v() == 0 ? lcm.v0().ledgerHeader : lcm.v1().ledgerHeader;
 
         auto ledgerSeqToApply = lh.header.ledgerSeq;

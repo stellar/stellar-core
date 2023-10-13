@@ -160,7 +160,7 @@ InMemoryLedgerTxnRoot::dropConfigSettings(bool)
 }
 
 void
-InMemoryLedgerTxnRoot::dropExpiration(bool)
+InMemoryLedgerTxnRoot::dropTTL(bool)
 {
 }
 

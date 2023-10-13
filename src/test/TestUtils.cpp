@@ -121,7 +121,7 @@ computeMultiplier(LedgerEntry const& le)
     case CONFIG_SETTING:
     case CONTRACT_DATA:
     case CONTRACT_CODE:
-    case EXPIRATION:
+    case TTL:
     default:
         throw std::runtime_error("Unexpected LedgerEntry type");
     }
@@ -230,8 +230,8 @@ overrideSorobanNetworkConfigForTest(Application& app)
         cfg.mLedgerMaxWriteLedgerEntries = cfg.mTxMaxWriteLedgerEntries * 10;
         cfg.mLedgerMaxWriteBytes = cfg.mTxMaxWriteBytes * 10;
 
-        cfg.mStateExpirationSettings.minPersistentEntryExpiration = 20;
-        cfg.mStateExpirationSettings.maxEntryExpiration = 6'312'000;
+        cfg.mStateArchivalSettings.minPersistentTTL = 20;
+        cfg.mStateArchivalSettings.maxEntryTTL = 6'312'000;
         cfg.mLedgerMaxTxCount = 100;
     });
 }

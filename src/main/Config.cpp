@@ -270,8 +270,8 @@ Config::Config() : NODE_SEED(SecretKey::random())
     OVERRIDE_EVICTION_PARAMS_FOR_TESTING = false;
     TESTING_EVICTION_SCAN_SIZE =
         InitialSorobanNetworkConfig::EVICTION_SCAN_SIZE;
-    TESTING_MAX_ENTRIES_TO_EXPIRE =
-        InitialSorobanNetworkConfig::MAX_ENTRIES_TO_EXPIRE;
+    TESTING_MAX_ENTRIES_TO_ARCHIVE =
+        InitialSorobanNetworkConfig::MAX_ENTRIES_TO_ARCHIVE;
     TESTING_STARTING_EVICTION_SCAN_LEVEL =
         InitialSorobanNetworkConfig::STARTING_EVICTION_SCAN_LEVEL;
 
@@ -1492,9 +1492,9 @@ Config::processConfig(std::shared_ptr<cpptoml::table> t)
                 TESTING_STARTING_EVICTION_SCAN_LEVEL =
                     readInt<uint32_t>(item, 1, BucketList::kNumLevels - 1);
             }
-            else if (item.first == "TESTING_MAX_ENTRIES_TO_EXPIRE")
+            else if (item.first == "TESTING_MAX_ENTRIES_TO_ARCHIVE")
             {
-                TESTING_MAX_ENTRIES_TO_EXPIRE = readInt<uint32_t>(item);
+                TESTING_MAX_ENTRIES_TO_ARCHIVE = readInt<uint32_t>(item);
             }
             else if (item.first == "TESTING_SOROBAN_HIGH_LIMIT_OVERRIDE")
             {

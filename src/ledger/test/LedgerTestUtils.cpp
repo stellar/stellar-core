@@ -142,9 +142,8 @@ randomlyModifyEntry(LedgerEntry& e)
         makeValid(e.data.contractCode());
         break;
     }
-    case EXPIRATION:
-        e.data.expiration().expirationLedgerSeq =
-            autocheck::generator<uint32_t>{}();
+    case TTL:
+        e.data.ttl().liveUntilLedgerSeq = autocheck::generator<uint32_t>{}();
         break;
     }
 }
@@ -369,7 +368,7 @@ makeValid(ContractCodeEntry& cce)
 }
 
 void
-makeValid(ExpirationEntry& cce)
+makeValid(TTLEntry& cce)
 {
 }
 
@@ -466,8 +465,8 @@ static auto validLedgerEntryGenerator = autocheck::map(
         case CONTRACT_CODE:
             makeValid(led.contractCode());
             break;
-        case EXPIRATION:
-            makeValid(led.expiration());
+        case TTL:
+            makeValid(led.ttl());
             break;
         }
 
@@ -542,12 +541,12 @@ static auto validContractCodeEntryGenerator = autocheck::map(
     },
     autocheck::generator<ContractCodeEntry>());
 
-static auto validExpirationEntryGenerator = autocheck::map(
-    [](ExpirationEntry&& c, size_t s) {
+static auto validTTLEntryGenerator = autocheck::map(
+    [](TTLEntry&& c, size_t s) {
         makeValid(c);
         return std::move(c);
     },
-    autocheck::generator<ExpirationEntry>());
+    autocheck::generator<TTLEntry>());
 
 LedgerEntry
 generateValidLedgerEntry(size_t b)
@@ -638,8 +637,7 @@ std::vector<LedgerKey>
 generateUniqueValidSorobanLedgerEntryKeys(size_t n)
 {
     return LedgerTestUtils::generateValidUniqueLedgerEntryKeysWithExclusions(
-        {OFFER, DATA, CLAIMABLE_BALANCE, LIQUIDITY_POOL, CONFIG_SETTING,
-         EXPIRATION},
+        {OFFER, DATA, CLAIMABLE_BALANCE, LIQUIDITY_POOL, CONFIG_SETTING, TTL},
         n);
 }
 
@@ -834,16 +832,16 @@ generateValidContractCodeEntries(size_t n)
     return vecgen(n);
 }
 
-ExpirationEntry
-generateValidExpirationEntry(size_t b)
+TTLEntry
+generateValidTTLEntry(size_t b)
 {
-    return validExpirationEntryGenerator(b);
+    return validTTLEntryGenerator(b);
 }
 
-std::vector<ExpirationEntry>
-generateValidExpirationEntries(size_t n)
+std::vector<TTLEntry>
+generateValidTTLEntries(size_t n)
 {
-    static auto vecgen = autocheck::list_of(validExpirationEntryGenerator);
+    static auto vecgen = autocheck::list_of(validTTLEntryGenerator);
     return vecgen(n);
 }
 

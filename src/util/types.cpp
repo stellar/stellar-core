@@ -61,8 +61,8 @@ LedgerEntryKey(LedgerEntry const& e)
     case CONFIG_SETTING:
         k.configSetting().configSettingID = d.configSetting().configSettingID();
         break;
-    case EXPIRATION:
-        k.expiration().keyHash = d.expiration().keyHash;
+    case TTL:
+        k.ttl().keyHash = d.ttl().keyHash;
         break;
 
     default:
