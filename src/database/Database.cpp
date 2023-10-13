@@ -238,7 +238,7 @@ Database::applySchemaUpgrade(unsigned long vers)
         mApp.getPersistentState().setRebuildForType(CONTRACT_CODE);
         break;
     case 21:
-        mApp.getPersistentState().setRebuildForType(EXPIRATION);
+        mApp.getPersistentState().setRebuildForType(TTL);
         break;
     default:
         throw std::runtime_error("Unknown DB schema version");

@@ -2,58 +2,57 @@
 // under the Apache License, Version 2.0. See the COPYING file at the root
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
-#include "transactions/BumpFootprintExpirationOpFrame.h"
+#include "transactions/ExtendFootprintTTLOpFrame.h"
 #include "TransactionUtils.h"
 
 namespace stellar
 {
 
-struct BumpFootprintExpirationMetrics
+struct ExtendFootprintTTLMetrics
 {
     medida::MetricsRegistry& mMetrics;
 
     uint32 mLedgerReadByte{0};
 
-    BumpFootprintExpirationMetrics(medida::MetricsRegistry& metrics)
+    ExtendFootprintTTLMetrics(medida::MetricsRegistry& metrics)
         : mMetrics(metrics)
     {
     }
 
-    ~BumpFootprintExpirationMetrics()
+    ~ExtendFootprintTTLMetrics()
     {
         mMetrics
-            .NewMeter({"soroban", "bump-fprint-exp-op", "read-ledger-byte"},
+            .NewMeter({"soroban", "ext-fprint-ttl-op", "read-ledger-byte"},
                       "byte")
             .Mark(mLedgerReadByte);
     }
 };
 
-BumpFootprintExpirationOpFrame::BumpFootprintExpirationOpFrame(
-    Operation const& op, OperationResult& res, TransactionFrame& parentTx)
+ExtendFootprintTTLOpFrame::ExtendFootprintTTLOpFrame(Operation const& op,
+                                                     OperationResult& res,
+                                                     TransactionFrame& parentTx)
     : OperationFrame(op, res, parentTx)
-    , mBumpFootprintExpirationOp(mOperation.body.bumpFootprintExpirationOp())
+    , mExtendFootprintTTLOp(mOperation.body.extendFootprintTTLOp())
 {
 }
 
 bool
-BumpFootprintExpirationOpFrame::isOpSupported(LedgerHeader const& header) const
+ExtendFootprintTTLOpFrame::isOpSupported(LedgerHeader const& header) const
 {
     return header.ledgerVersion >= 20;
 }
 
 bool
-BumpFootprintExpirationOpFrame::doApply(AbstractLedgerTxn& ltx)
+ExtendFootprintTTLOpFrame::doApply(AbstractLedgerTxn& ltx)
 {
-    throw std::runtime_error(
-        "BumpFootprintExpirationOpFrame::doApply needs Config");
+    throw std::runtime_error("ExtendFootprintTTLOpFrame::doApply needs Config");
 }
 
 bool
-BumpFootprintExpirationOpFrame::doApply(Application& app,
-                                        AbstractLedgerTxn& ltx,
-                                        Hash const& sorobanBasePrngSeed)
+ExtendFootprintTTLOpFrame::doApply(Application& app, AbstractLedgerTxn& ltx,
+                                   Hash const& sorobanBasePrngSeed)
 {
-    BumpFootprintExpirationMetrics metrics(app.getMetrics());
+    ExtendFootprintTTLMetrics metrics(app.getMetrics());
 
     auto const& resources = mParentTx.sorobanResources();
     auto const& footprint = resources.footprint;
@@ -61,11 +60,10 @@ BumpFootprintExpirationOpFrame::doApply(Application& app,
     rust::Vec<CxxLedgerEntryRentChange> rustEntryRentChanges;
     rustEntryRentChanges.reserve(footprint.readOnly.size());
     uint32_t ledgerSeq = ltx.loadHeader().current().ledgerSeq;
-    // Bump for `ledgersToExpire` more ledgers since the current
+    // Extend for `extendTo` more ledgers since the current
     // ledger. Current ledger has to be payed for in order for entry
-    // to be bump-able, hence don't include it.
-    uint32_t newExpirationLedgerSeq =
-        ledgerSeq + mBumpFootprintExpirationOp.ledgersToExpire;
+    // to be extendable, hence don't include it.
+    uint32_t newLiveUntilLedgerSeq = ledgerSeq + mExtendFootprintTTLOp.extendTo;
     for (auto const& lk : footprint.readOnly)
     {
         // Load the ContractCode/ContractData entry for fee calculation.
@@ -74,31 +72,31 @@ BumpFootprintExpirationOpFrame::doApply(Application& app,
         {
             // Skip the missing entries. Since this happens at apply
             // time and we refund the unspent fees, it is more beneficial
-            // to bump as many entries as possible.
+            // to extend as many entries as possible.
             continue;
         }
 
-        auto expirationKey = getExpirationKey(lk);
+        auto ttlKey = getTTLKey(lk);
         uint32_t entrySize = UINT32_MAX;
-        uint32_t expirationSize = UINT32_MAX;
-        uint32_t currExpiration = UINT32_MAX;
+        uint32_t ttlSize = UINT32_MAX;
+        uint32_t currLiveUntilLedgerSeq = UINT32_MAX;
 
         {
             // Initially load without record since we may not need to modify
             // entry
-            auto expirationConstLtxe = ltx.loadWithoutRecord(expirationKey);
-            releaseAssertOrThrow(expirationConstLtxe);
-            if (!isLive(expirationConstLtxe.current(), ledgerSeq))
+            auto ttlConstLtxe = ltx.loadWithoutRecord(ttlKey);
+            releaseAssertOrThrow(ttlConstLtxe);
+            if (!isLive(ttlConstLtxe.current(), ledgerSeq))
             {
-                // Also skip expired entries, as those must be restored
+                // Also skip archived entries, as those must be restored
                 continue;
             }
 
             entrySize = static_cast<uint32>(xdr::xdr_size(entryLtxe.current()));
-            expirationSize = static_cast<uint32>(
-                xdr::xdr_size(expirationConstLtxe.current()));
+            ttlSize =
+                static_cast<uint32>(xdr::xdr_size(ttlConstLtxe.current()));
 
-            metrics.mLedgerReadByte += entrySize + expirationSize;
+            metrics.mLedgerReadByte += entrySize + ttlSize;
             if (resources.readBytes < metrics.mLedgerReadByte)
             {
                 mParentTx.pushSimpleDiagnosticError(
@@ -108,31 +106,29 @@ BumpFootprintExpirationOpFrame::doApply(Application& app,
                      makeU64SCVal(resources.readBytes)});
 
                 innerResult().code(
-                    BUMP_FOOTPRINT_EXPIRATION_RESOURCE_LIMIT_EXCEEDED);
+                    EXTEND_FOOTPRINT_TTL_RESOURCE_LIMIT_EXCEEDED);
                 return false;
             }
 
-            currExpiration = expirationConstLtxe.current()
-                                 .data.expiration()
-                                 .expirationLedgerSeq;
-            if (currExpiration >= newExpirationLedgerSeq)
+            currLiveUntilLedgerSeq =
+                ttlConstLtxe.current().data.ttl().liveUntilLedgerSeq;
+            if (currLiveUntilLedgerSeq >= newLiveUntilLedgerSeq)
             {
                 continue;
             }
         }
 
-        // We already checked that the expirationEntry exists in the logic above
-        auto expirationLtxe = ltx.load(expirationKey);
+        // We already checked that the TTLEntry exists in the logic above
+        auto ttlLtxe = ltx.load(ttlKey);
 
         rustEntryRentChanges.emplace_back();
         auto& rustChange = rustEntryRentChanges.back();
         rustChange.is_persistent = !isTemporaryEntry(lk);
         rustChange.old_size_bytes = static_cast<uint32>(entrySize);
         rustChange.new_size_bytes = rustChange.old_size_bytes;
-        rustChange.old_expiration_ledger = currExpiration;
-        rustChange.new_expiration_ledger = newExpirationLedgerSeq;
-        expirationLtxe.current().data.expiration().expirationLedgerSeq =
-            newExpirationLedgerSeq;
+        rustChange.old_live_until_ledger = currLiveUntilLedgerSeq;
+        rustChange.new_live_until_ledger = newLiveUntilLedgerSeq;
+        ttlLtxe.current().data.ttl().liveUntilLedgerSeq = newLiveUntilLedgerSeq;
     }
     uint32_t ledgerVersion = ltx.loadHeader().current().ledgerVersion;
     // This may throw, but only in case of the Core version misconfiguration.
@@ -148,22 +144,21 @@ BumpFootprintExpirationOpFrame::doApply(Application& app,
             app.getLedgerManager().getSorobanNetworkConfig(ltx),
             app.getConfig()))
     {
-        innerResult().code(
-            BUMP_FOOTPRINT_EXPIRATION_INSUFFICIENT_REFUNDABLE_FEE);
+        innerResult().code(EXTEND_FOOTPRINT_TTL_INSUFFICIENT_REFUNDABLE_FEE);
         return false;
     }
-    innerResult().code(BUMP_FOOTPRINT_EXPIRATION_SUCCESS);
+    innerResult().code(EXTEND_FOOTPRINT_TTL_SUCCESS);
     return true;
 }
 
 bool
-BumpFootprintExpirationOpFrame::doCheckValid(SorobanNetworkConfig const& config,
-                                             uint32_t ledgerVersion)
+ExtendFootprintTTLOpFrame::doCheckValid(SorobanNetworkConfig const& config,
+                                        uint32_t ledgerVersion)
 {
     auto const& footprint = mParentTx.sorobanResources().footprint;
     if (!footprint.readWrite.empty())
     {
-        innerResult().code(BUMP_FOOTPRINT_EXPIRATION_MALFORMED);
+        innerResult().code(EXTEND_FOOTPRINT_TTL_MALFORMED);
         return false;
     }
 
@@ -171,15 +166,15 @@ BumpFootprintExpirationOpFrame::doCheckValid(SorobanNetworkConfig const& config,
     {
         if (!isSorobanEntry(lk))
         {
-            innerResult().code(BUMP_FOOTPRINT_EXPIRATION_MALFORMED);
+            innerResult().code(EXTEND_FOOTPRINT_TTL_MALFORMED);
             return false;
         }
     }
 
-    if (mBumpFootprintExpirationOp.ledgersToExpire >
-        config.stateExpirationSettings().maxEntryExpiration - 1)
+    if (mExtendFootprintTTLOp.extendTo >
+        config.stateArchivalSettings().maxEntryTTL - 1)
     {
-        innerResult().code(BUMP_FOOTPRINT_EXPIRATION_MALFORMED);
+        innerResult().code(EXTEND_FOOTPRINT_TTL_MALFORMED);
         return false;
     }
 
@@ -187,20 +182,20 @@ BumpFootprintExpirationOpFrame::doCheckValid(SorobanNetworkConfig const& config,
 }
 
 bool
-BumpFootprintExpirationOpFrame::doCheckValid(uint32_t ledgerVersion)
+ExtendFootprintTTLOpFrame::doCheckValid(uint32_t ledgerVersion)
 {
     throw std::runtime_error(
-        "BumpFootprintExpirationOpFrame::doCheckValid needs Config");
+        "ExtendFootprintTTLOpFrame::doCheckValid needs Config");
 }
 
 void
-BumpFootprintExpirationOpFrame::insertLedgerKeysToPrefetch(
+ExtendFootprintTTLOpFrame::insertLedgerKeysToPrefetch(
     UnorderedSet<LedgerKey>& keys) const
 {
 }
 
 bool
-BumpFootprintExpirationOpFrame::isSoroban() const
+ExtendFootprintTTLOpFrame::isSoroban() const
 {
     return true;
 }

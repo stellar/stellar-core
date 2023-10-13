@@ -576,7 +576,7 @@ exit /b 0
     <ClCompile Include="..\..\src\ledger\LedgerTxnContractDataSQL.cpp" />
     <ClCompile Include="..\..\src\ledger\LedgerTxnDataSQL.cpp" />
     <ClCompile Include="..\..\src\ledger\LedgerTxnEntry.cpp" />
-    <ClCompile Include="..\..\src\ledger\LedgerTxnExpirationSQL.cpp" />
+    <ClCompile Include="..\..\src\ledger\LedgerTxnTTLSQL.cpp" />
     <ClCompile Include="..\..\src\ledger\LedgerTxnHeader.cpp" />
     <ClCompile Include="..\..\src\ledger\LedgerTxnLiquidityPoolSQL.cpp" />
     <ClCompile Include="..\..\src\ledger\LedgerTxnOfferSQL.cpp" />
@@ -631,7 +631,7 @@ exit /b 0
     <ClCompile Include="..\..\src\test\FuzzerImpl.cpp" />
     <ClCompile Include="..\..\src\transactions\AllowTrustOpFrame.cpp" />
     <ClCompile Include="..\..\src\transactions\BeginSponsoringFutureReservesOpFrame.cpp" />
-    <ClCompile Include="..\..\src\transactions\BumpFootprintExpirationOpFrame.cpp" />
+    <ClCompile Include="..\..\src\transactions\ExtendFootprintTTLOpFrame.cpp" />
     <ClCompile Include="..\..\src\transactions\BumpSequenceOpFrame.cpp" />
     <ClCompile Include="..\..\src\transactions\ChangeTrustOpFrame.cpp" />
     <ClCompile Include="..\..\src\transactions\ClaimClaimableBalanceOpFrame.cpp" />
@@ -1044,7 +1044,7 @@ exit /b 0
     <ClInclude Include="..\..\src\test\FuzzerImpl.h" />
     <ClInclude Include="..\..\src\transactions\AllowTrustOpFrame.h" />
     <ClInclude Include="..\..\src\transactions\BeginSponsoringFutureReservesOpFrame.h" />
-    <ClInclude Include="..\..\src\transactions\BumpFootprintExpirationOpFrame.h" />
+    <ClInclude Include="..\..\src\transactions\ExtendFootprintTTLOpFrame.h" />
     <ClInclude Include="..\..\src\transactions\BumpSequenceOpFrame.h" />
     <ClInclude Include="..\..\src\transactions\ChangeTrustOpFrame.h" />
     <ClInclude Include="..\..\src\transactions\ClaimClaimableBalanceOpFrame.h" />

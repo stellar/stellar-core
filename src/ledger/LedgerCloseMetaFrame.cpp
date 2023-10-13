@@ -169,7 +169,7 @@ LedgerCloseMetaFrame::populateEvictedEntries(
             continue;
         case LEDGER_ENTRY_REMOVED:
             auto const& key = change.removed();
-            releaseAssert(isTemporaryEntry(key) || key.type() == EXPIRATION);
+            releaseAssert(isTemporaryEntry(key) || key.type() == TTL);
             mLedgerCloseMeta.v1().evictedTemporaryLedgerKeys.push_back(key);
             break;
         }

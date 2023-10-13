@@ -680,7 +680,7 @@ TransactionFrame::validateSorobanResources(SorobanNetworkConfig const& config,
         case CLAIMABLE_BALANCE:
         case LIQUIDITY_POOL:
         case CONFIG_SETTING:
-        case EXPIRATION:
+        case TTL:
             this->pushSimpleDiagnosticError(
                 SCE_STORAGE, SCEC_UNEXPECTED_TYPE,
                 "transaction footprint contains unsupported ledger key type",

@@ -94,9 +94,9 @@ mod rust_bridge {
         pub network_id: Vec<u8>,
         pub base_reserve: u32,
         pub memory_limit: u32,
-        pub min_temp_entry_expiration: u32,
-        pub min_persistent_entry_expiration: u32,
-        pub max_entry_expiration: u32,
+        pub min_temp_entry_ttl: u32,
+        pub min_persistent_entry_ttl: u32,
+        pub max_entry_ttl: u32,
         pub cpu_cost_params: CxxBuf,
         pub mem_cost_params: CxxBuf,
     }
@@ -146,8 +146,8 @@ mod rust_bridge {
         is_persistent: bool,
         old_size_bytes: u32,
         new_size_bytes: u32,
-        old_expiration_ledger: u32,
-        new_expiration_ledger: u32,
+        old_live_until_ledger: u32,
+        new_live_until_ledger: u32,
     }
 
     struct CxxRentFeeConfiguration {
@@ -187,7 +187,7 @@ mod rust_bridge {
             auth_entries: &Vec<CxxBuf>,
             ledger_info: CxxLedgerInfo,
             ledger_entries: &Vec<CxxBuf>,
-            expiration_entries: &Vec<CxxBuf>,
+            ttl_entries: &Vec<CxxBuf>,
             base_prng_seed: &CxxBuf,
             rent_fee_configuration: CxxRentFeeConfiguration,
         ) -> Result<InvokeHostFunctionOutput>;
@@ -647,7 +647,7 @@ pub(crate) fn invoke_host_function(
     auth_entries: &Vec<CxxBuf>,
     ledger_info: CxxLedgerInfo,
     ledger_entries: &Vec<CxxBuf>,
-    expiration_entries: &Vec<CxxBuf>,
+    ttl_entries: &Vec<CxxBuf>,
     base_prng_seed: &CxxBuf,
     rent_fee_configuration: CxxRentFeeConfiguration,
 ) -> Result<InvokeHostFunctionOutput, Box<dyn std::error::Error>> {
@@ -668,7 +668,7 @@ pub(crate) fn invoke_host_function(
                 auth_entries,
                 ledger_info,
                 ledger_entries,
-                expiration_entries,
+                ttl_entries,
                 base_prng_seed,
                 rent_fee_configuration,
             );
@@ -683,7 +683,7 @@ pub(crate) fn invoke_host_function(
         auth_entries,
         ledger_info,
         ledger_entries,
-        expiration_entries,
+        ttl_entries,
         base_prng_seed,
         rent_fee_configuration,
     )

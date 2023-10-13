@@ -844,7 +844,7 @@ BucketList::scanForEviction(Application& app, AbstractLedgerTxn& ltx,
         auto const& networkConfig =
             app.getLedgerManager().getSorobanNetworkConfig(ltx);
         auto const firstScanLevel =
-            networkConfig.stateExpirationSettings().startingEvictionScanLevel;
+            networkConfig.stateArchivalSettings().startingEvictionScanLevel;
         auto evictionIter = networkConfig.evictionIterator();
 
         // Check if an upgrade has changed the starting scan level to below the
@@ -885,10 +885,9 @@ BucketList::scanForEviction(Application& app, AbstractLedgerTxn& ltx,
             }
         }
 
-        auto scanSize =
-            networkConfig.stateExpirationSettings().evictionScanSize;
+        auto scanSize = networkConfig.stateArchivalSettings().evictionScanSize;
         auto maxEntriesToEvict =
-            networkConfig.stateExpirationSettings().maxEntriesToExpire;
+            networkConfig.stateArchivalSettings().maxEntriesToArchive;
 
         auto initialLevel = evictionIter.bucketListLevel;
         auto initialIsCurr = evictionIter.isCurrBucket;

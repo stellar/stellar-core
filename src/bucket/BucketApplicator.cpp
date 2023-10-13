@@ -206,8 +206,8 @@ BucketApplicator::Counters::reset(VirtualClock::time_point now)
     mContractDataUpsert = 0;
     mContractDataDelete = 0;
     mConfigSettingUpsert = 0;
-    mExpirationUpsert = 0;
-    mExpirationDelete = 0;
+    mTTLUpsert = 0;
+    mTTLDelete = 0;
 }
 
 void
@@ -226,8 +226,8 @@ BucketApplicator::Counters::getRates(
             mTrustLineDelete + mOfferUpsert + mOfferDelete + mDataUpsert +
             mDataDelete + mClaimableBalanceUpsert + mClaimableBalanceDelete +
             mLiquidityPoolUpsert + mLiquidityPoolDelete + mContractDataUpsert +
-            mContractDataDelete + mConfigSettingUpsert + mExpirationUpsert +
-            mExpirationDelete;
+            mContractDataDelete + mConfigSettingUpsert + mTTLUpsert +
+            mTTLDelete;
     au_sec = (mAccountUpsert * 1000000) / usecs;
     ad_sec = (mAccountDelete * 1000000) / usecs;
     tu_sec = (mTrustLineUpsert * 1000000) / usecs;
@@ -245,8 +245,8 @@ BucketApplicator::Counters::getRates(
     ccu_sec = (mContractCodeUpsert * 1000000) / usecs;
     ccd_sec = (mContractCodeDelete * 1000000) / usecs;
     csu_sec = (mConfigSettingUpsert * 1000000) / usecs;
-    eeu_sec = (mExpirationUpsert * 1000000) / usecs;
-    eed_sec = (mExpirationDelete * 1000000) / usecs;
+    eeu_sec = (mTTLUpsert * 1000000) / usecs;
+    eed_sec = (mTTLDelete * 1000000) / usecs;
     T_sec = (total * 1000000) / usecs;
 }
 
@@ -278,7 +278,7 @@ BucketApplicator::Counters::logInfo(std::string const& bucketName,
               mClaimableBalanceDelete, mLiquidityPoolUpsert,
               mLiquidityPoolDelete, mContractDataUpsert, mContractDataDelete,
               mContractCodeUpsert, mContractCodeDelete, mConfigSettingUpsert,
-              mExpirationUpsert, mExpirationDelete);
+              mTTLUpsert, mTTLDelete);
 }
 
 void
@@ -335,8 +335,8 @@ BucketApplicator::Counters::mark(BucketEntry const& e)
         case CONFIG_SETTING:
             ++mConfigSettingUpsert;
             break;
-        case EXPIRATION:
-            ++mExpirationUpsert;
+        case TTL:
+            ++mTTLUpsert;
             break;
         }
     }
@@ -370,8 +370,8 @@ BucketApplicator::Counters::mark(BucketEntry const& e)
             break;
         case CONFIG_SETTING:
             break;
-        case EXPIRATION:
-            ++mExpirationDelete;
+        case TTL:
+            ++mTTLDelete;
             break;
         }
     }

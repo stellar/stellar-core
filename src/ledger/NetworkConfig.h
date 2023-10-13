@@ -39,7 +39,7 @@ struct MinimumSorobanNetworkConfig
     static constexpr uint32_t MINIMUM_PERSISTENT_ENTRY_LIFETIME = 10;
     static constexpr uint32_t MAXIMUM_ENTRY_LIFETIME = 535'680; // 31 days
     static constexpr int64_t RENT_RATE_DENOMINATOR = INT64_MAX;
-    static constexpr uint32_t MAX_ENTRIES_TO_EXPIRE = 0;
+    static constexpr uint32_t MAX_ENTRIES_TO_ARCHIVE = 0;
     static constexpr uint32_t BUCKETLIST_SIZE_WINDOW_SAMPLE_SIZE = 1;
     static constexpr uint32_t EVICTION_SCAN_SIZE = 0;
     static constexpr uint32_t STARTING_EVICTION_LEVEL = 1;
@@ -115,7 +115,7 @@ struct InitialSorobanNetworkConfig
         MinimumSorobanNetworkConfig::TX_MAX_CONTRACT_EVENTS_SIZE_BYTES;
     static constexpr int64_t FEE_CONTRACT_EVENTS_SIZE_1KB = 200;
 
-    // State expiration settings
+    // State archival settings
     static constexpr uint32_t MAXIMUM_ENTRY_LIFETIME =
         MinimumSorobanNetworkConfig::MAXIMUM_ENTRY_LIFETIME;
 
@@ -125,10 +125,8 @@ struct InitialSorobanNetworkConfig
         4'096; // Live until level 6
     static constexpr uint32_t MINIMUM_TEMP_ENTRY_LIFETIME = 16;
 
-    static constexpr uint32_t AUTO_BUMP_NUM_LEDGERS = 0;
-
     static constexpr uint64_t EVICTION_SCAN_SIZE = 100'000; // 100 kb
-    static constexpr uint32_t MAX_ENTRIES_TO_EXPIRE = 100;
+    static constexpr uint32_t MAX_ENTRIES_TO_ARCHIVE = 100;
     static constexpr uint32_t STARTING_EVICTION_SCAN_LEVEL = 6;
 
     // Rent payment of a write fee per ~25 days.
@@ -187,7 +185,7 @@ struct TestOverrideSorobanNetworkConfig
     static constexpr uint32_t TX_MAX_CONTRACT_EVENTS_SIZE_BYTES =
         InitialSorobanNetworkConfig::TX_MAX_CONTRACT_EVENTS_SIZE_BYTES * 20;
 
-    // State expiration settings
+    // State archival settings
     static constexpr uint32_t MAXIMUM_ENTRY_LIFETIME = 6307200; // 1 year
 
     // General execution settings
@@ -308,14 +306,14 @@ class SorobanNetworkConfig
     CxxFeeConfiguration rustBridgeFeeConfiguration() const;
     CxxRentFeeConfiguration rustBridgeRentFeeConfiguration() const;
 
-    // State expiration settings
-    StateExpirationSettings const& stateExpirationSettings() const;
+    // State archival settings
+    StateArchivalSettings const& stateArchivalSettings() const;
     EvictionIterator const& evictionIterator() const;
 
     void updateEvictionIterator(AbstractLedgerTxn& ltxRoot,
                                 EvictionIterator const& newIter) const;
 #ifdef BUILD_TESTS
-    StateExpirationSettings& stateExpirationSettings();
+    StateArchivalSettings& stateArchivalSettings();
     EvictionIterator& evictionIterator();
 #endif
 
@@ -333,7 +331,7 @@ class SorobanNetworkConfig
     void loadBandwidthSettings(AbstractLedgerTxn& ltx);
     void loadCpuCostParams(AbstractLedgerTxn& ltx);
     void loadMemCostParams(AbstractLedgerTxn& ltx);
-    void loadStateExpirationSettings(AbstractLedgerTxn& ltx);
+    void loadStateArchivalSettings(AbstractLedgerTxn& ltx);
     void loadExecutionLanesSettings(AbstractLedgerTxn& ltx);
     void loadBucketListSizeWindow(AbstractLedgerTxn& ltx);
     void loadEvictionIterator(AbstractLedgerTxn& ltx);
@@ -412,8 +410,8 @@ class SorobanNetworkConfig
     ContractCostParams mCpuCostParams{};
     ContractCostParams mMemCostParams{};
 
-    // State expiration settings
-    StateExpirationSettings mStateExpirationSettings{};
+    // State archival settings
+    StateArchivalSettings mStateArchivalSettings{};
     mutable EvictionIterator mEvictionIterator{};
 };
 

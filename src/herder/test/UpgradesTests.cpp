@@ -704,15 +704,13 @@ TEST_CASE("config upgrade validation", "[upgrades]")
                     le.data.contractData().key = key;
                     le.data.contractData().val = val;
 
-                    LedgerEntry expiration;
-                    expiration.data.type(EXPIRATION);
-                    expiration.data.expiration().expirationLedgerSeq =
-                        UINT32_MAX;
-                    expiration.data.expiration().keyHash =
-                        getExpirationKey(le).expiration().keyHash;
+                    LedgerEntry ttl;
+                    ttl.data.type(TTL);
+                    ttl.data.ttl().liveUntilLedgerSeq = UINT32_MAX;
+                    ttl.data.ttl().keyHash = getTTLKey(le).ttl().keyHash;
 
                     ltx.create(InternalLedgerEntry(le));
-                    ltx.create(InternalLedgerEntry(expiration));
+                    ltx.create(InternalLedgerEntry(ttl));
 
                     auto upgradeKey =
                         ConfigUpgradeSetKey{contractID, hashOfUpgradeSet};

@@ -523,14 +523,13 @@ class ApplyBucketsWorkModifyEntry : public ApplyBucketsWork
     }
 
     void
-    modifyExpirationEntry(LedgerEntry& entry)
+    modifyTTLEntry(LedgerEntry& entry)
     {
-        ExpirationEntry const& ee = mEntry.data.expiration();
+        TTLEntry const& ee = mEntry.data.ttl();
         entry.lastModifiedLedgerSeq = mEntry.lastModifiedLedgerSeq;
-        entry.data.expiration() =
-            LedgerTestUtils::generateValidExpirationEntry(5);
+        entry.data.ttl() = LedgerTestUtils::generateValidTTLEntry(5);
 
-        entry.data.expiration().keyHash = ee.keyHash;
+        entry.data.ttl().keyHash = ee.keyHash;
     }
 
   public:
@@ -584,8 +583,8 @@ class ApplyBucketsWorkModifyEntry : public ApplyBucketsWork
                 case CONTRACT_CODE:
                     modifyContractCodeEntry(entry.current());
                     break;
-                case EXPIRATION:
-                    modifyExpirationEntry(entry.current());
+                case TTL:
+                    modifyTTLEntry(entry.current());
                     break;
                 default:
                     REQUIRE(false);

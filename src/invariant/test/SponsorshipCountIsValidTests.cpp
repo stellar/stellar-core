@@ -76,7 +76,7 @@ TEST_CASE("sponsorship invariant", "[invariant][sponsorshipcountisvalid]")
         case CONTRACT_DATA:
         case CONFIG_SETTING:
         case CONTRACT_CODE:
-        case EXPIRATION:
+        case TTL:
         default:
             abort();
         }

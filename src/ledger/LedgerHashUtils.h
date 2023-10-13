@@ -169,9 +169,9 @@ template <> class hash<stellar::LedgerKey>
             stellar::hashMix(
                 res, std::hash<int32_t>()(lk.configSetting().configSettingID));
             break;
-        case stellar::EXPIRATION:
-            stellar::hashMix(
-                res, std::hash<stellar::uint256>()(lk.expiration().keyHash));
+        case stellar::TTL:
+            stellar::hashMix(res,
+                             std::hash<stellar::uint256>()(lk.ttl().keyHash));
             break;
         default:
             abort();

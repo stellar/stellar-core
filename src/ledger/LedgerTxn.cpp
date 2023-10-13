@@ -2013,9 +2013,9 @@ LedgerTxn::dropConfigSettings(bool rebuild)
 }
 
 void
-LedgerTxn::dropExpiration(bool rebuild)
+LedgerTxn::dropTTL(bool rebuild)
 {
-    throw std::runtime_error("called dropExpiration on non-root LedgerTxn");
+    throw std::runtime_error("called dropTTL on non-root LedgerTxn");
 }
 
 double
@@ -2585,8 +2585,8 @@ BulkLedgerEntryChangeAccumulator::accumulate(EntryIterator const& iter,
         accum(iter, mConfigSettingsToUpsert, emptyEntries);
         break;
     }
-    case EXPIRATION:
-        accum(iter, mExpirationToUpsert, mExpirationToDelete);
+    case TTL:
+        accum(iter, mTTLToUpsert, mTTLToDelete);
         break;
     default:
         abort();
@@ -2704,18 +2704,18 @@ LedgerTxnRoot::Impl::bulkApply(BulkLedgerEntryChangeAccumulator& bleca,
         deleteContractCode.clear();
     }
 
-    auto& upsertExpiration = bleca.getExpirationToUpsert();
-    if (upsertExpiration.size() > bufferThreshold)
+    auto& upsertTTL = bleca.getTTLToUpsert();
+    if (upsertTTL.size() > bufferThreshold)
     {
-        bulkUpsertExpiration(upsertExpiration);
-        upsertExpiration.clear();
+        bulkUpsertTTL(upsertTTL);
+        upsertTTL.clear();
     }
 
-    auto& deleteExpiration = bleca.getExpirationToDelete();
-    if (deleteExpiration.size() > bufferThreshold)
+    auto& deleteTTL = bleca.getTTLToDelete();
+    if (deleteTTL.size() > bufferThreshold)
     {
-        bulkDeleteExpiration(deleteExpiration, cons);
-        deleteExpiration.clear();
+        bulkDeleteTTL(deleteTTL, cons);
+        deleteTTL.clear();
     }
 }
 
@@ -2816,8 +2816,8 @@ LedgerTxnRoot::Impl::tableFromLedgerEntryType(LedgerEntryType let)
         return "contractcode";
     case CONFIG_SETTING:
         return "configsettings";
-    case EXPIRATION:
-        return "expiration";
+    case TTL:
+        return "ttl";
     default:
         throw std::runtime_error("Unknown ledger entry type");
     }
@@ -2945,9 +2945,9 @@ LedgerTxnRoot::dropConfigSettings(bool rebuild)
 }
 
 void
-LedgerTxnRoot::dropExpiration(bool rebuild)
+LedgerTxnRoot::dropTTL(bool rebuild)
 {
-    mImpl->dropExpiration(rebuild);
+    mImpl->dropTTL(rebuild);
 }
 
 uint32_t
@@ -3001,7 +3001,7 @@ LedgerTxnRoot::Impl::prefetch(UnorderedSet<LedgerKey> const& keys)
         UnorderedSet<LedgerKey> contractdata;
         UnorderedSet<LedgerKey> configSettings;
         UnorderedSet<LedgerKey> contractCode;
-        UnorderedSet<LedgerKey> expiration;
+        UnorderedSet<LedgerKey> ttl;
 
         for (auto const& key : keys)
         {
@@ -3079,12 +3079,12 @@ LedgerTxnRoot::Impl::prefetch(UnorderedSet<LedgerKey> const& keys)
                     configSettings.clear();
                 }
                 break;
-            case EXPIRATION:
-                insertIfNotLoaded(expiration, key);
-                if (expiration.size() == mBulkLoadBatchSize)
+            case TTL:
+                insertIfNotLoaded(ttl, key);
+                if (ttl.size() == mBulkLoadBatchSize)
                 {
-                    cacheResult(bulkLoadExpiration(expiration));
-                    expiration.clear();
+                    cacheResult(bulkLoadTTL(ttl));
+                    ttl.clear();
                 }
             }
         }
@@ -3099,7 +3099,7 @@ LedgerTxnRoot::Impl::prefetch(UnorderedSet<LedgerKey> const& keys)
         cacheResult(bulkLoadConfigSettings(configSettings));
         cacheResult(bulkLoadContractData(contractdata));
         cacheResult(bulkLoadContractCode(contractCode));
-        cacheResult(bulkLoadExpiration(expiration));
+        cacheResult(bulkLoadTTL(ttl));
     }
 
     return total;
@@ -3657,8 +3657,8 @@ LedgerTxnRoot::Impl::getNewestVersion(InternalLedgerKey const& gkey) const
             case CONFIG_SETTING:
                 entry = loadConfigSetting(key);
                 break;
-            case EXPIRATION:
-                entry = loadExpiration(key);
+            case TTL:
+                entry = loadTTL(key);
                 break;
             default:
                 throw std::runtime_error("Unknown key type");

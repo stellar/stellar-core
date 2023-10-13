@@ -62,7 +62,7 @@ generateRandomSubEntry(LedgerEntry const& acc)
              le.data.type() == LIQUIDITY_POOL ||
              le.data.type() == CONFIG_SETTING ||
              le.data.type() == CONTRACT_DATA ||
-             le.data.type() == CONTRACT_CODE || le.data.type() == EXPIRATION);
+             le.data.type() == CONTRACT_CODE || le.data.type() == TTL);
     le.lastModifiedLedgerSeq = acc.lastModifiedLedgerSeq;
 
     switch (le.data.type())
@@ -96,7 +96,7 @@ generateRandomSubEntry(LedgerEntry const& acc)
     case CONFIG_SETTING:
     case CONTRACT_DATA:
     case CONTRACT_CODE:
-    case EXPIRATION:
+    case TTL:
     default:
         abort();
     }
@@ -120,7 +120,7 @@ generateRandomModifiedSubEntry(LedgerEntry const& acc, LedgerEntry const& se)
     case CONFIG_SETTING:
     case CONTRACT_DATA:
     case CONTRACT_CODE:
-    case EXPIRATION:
+    case TTL:
         break;
     case OFFER:
         res.data.offer().offerID = se.data.offer().offerID;

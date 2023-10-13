@@ -79,7 +79,7 @@ class InMemoryLedgerTxnRoot : public AbstractLedgerTxnParent
     void dropContractData(bool rebuild) override;
     void dropContractCode(bool rebuild) override;
     void dropConfigSettings(bool rebuild) override;
-    void dropExpiration(bool rebuild) override;
+    void dropTTL(bool rebuild) override;
     double getPrefetchHitRate() const override;
     uint32_t prefetch(UnorderedSet<LedgerKey> const& keys) override;
     void prepareNewObjects(size_t s) override;

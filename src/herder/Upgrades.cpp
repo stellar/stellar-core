@@ -1280,9 +1280,9 @@ ConfigUpgradeSetFrame::makeFromKey(AbstractLedgerTxn& ltx,
         return nullptr;
     }
 
-    auto expirationLtxe = ltx.loadWithoutRecord(getExpirationKey(lk));
-    releaseAssert(expirationLtxe);
-    if (!isLive(expirationLtxe.current(), ltx.getHeader().ledgerSeq))
+    auto ttlLtxe = ltx.loadWithoutRecord(getTTLKey(lk));
+    releaseAssert(ttlLtxe);
+    if (!isLive(ttlLtxe.current(), ltx.getHeader().ledgerSeq))
     {
         return nullptr;
     }
