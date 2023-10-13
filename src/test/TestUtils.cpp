@@ -230,6 +230,7 @@ overrideSorobanNetworkConfigForTest(Application& app)
         cfg.mLedgerMaxWriteLedgerEntries = cfg.mTxMaxWriteLedgerEntries * 10;
         cfg.mLedgerMaxWriteBytes = cfg.mTxMaxWriteBytes * 10;
 
+        cfg.mStateExpirationSettings.minPersistentEntryExpiration = 20;
         cfg.mStateExpirationSettings.maxEntryExpiration = 6'312'000;
         cfg.mLedgerMaxTxCount = 100;
     });

@@ -1530,7 +1530,7 @@ surgeTest(uint32 protocolVersion, uint32_t nbTxs, uint32_t maxTxSetSize,
     }
 }
 
-TEST_CASE("surge pricing", "[herder][txset]")
+TEST_CASE("surge pricing", "[herder][txset][soroban]")
 {
     SECTION("protocol 19")
     {
@@ -1568,7 +1568,7 @@ TEST_CASE("surge pricing", "[herder][txset]")
             });
             SorobanResources resources;
             auto sorobanTx = createUploadWasmTx(
-                *app, root, baseFee, DEFAULT_TEST_REFUNDABLE_FEE, resources);
+                *app, root, baseFee, DEFAULT_TEST_RESOURCE_FEE, resources);
 
             TxSetFrame::TxPhases invalidTxs;
             invalidTxs.resize(2);
@@ -1623,7 +1623,7 @@ TEST_CASE("surge pricing", "[herder][txset]")
         resources.readBytes = conf.txMaxReadBytes();
         resources.writeBytes = 1000;
         auto sorobanTx = createUploadWasmTx(
-            *app, acc2, baseFee, DEFAULT_TEST_REFUNDABLE_FEE, resources);
+            *app, acc2, baseFee, DEFAULT_TEST_RESOURCE_FEE, resources);
 
         auto generateTxs = [&](std::vector<TestAccount>& accounts,
                                SorobanNetworkConfig conf) {
@@ -1675,15 +1675,14 @@ TEST_CASE("surge pricing", "[herder][txset]")
             {
                 // Fee too small
                 invalidSoroban = createUploadWasmTx(
-                    *app, acc2, 100, DEFAULT_TEST_REFUNDABLE_FEE, resources);
+                    *app, acc2, 100, DEFAULT_TEST_RESOURCE_FEE, resources);
             }
             SECTION("invalid resource")
             {
                 // Too many instructions
                 resources.instructions = UINT32_MAX;
-                invalidSoroban =
-                    createUploadWasmTx(*app, acc2, baseFee,
-                                       DEFAULT_TEST_REFUNDABLE_FEE, resources);
+                invalidSoroban = createUploadWasmTx(
+                    *app, acc2, baseFee, DEFAULT_TEST_RESOURCE_FEE, resources);
             }
             TxSetFrame::TxPhases invalidPhases;
             invalidPhases.resize(2);
@@ -1723,9 +1722,8 @@ TEST_CASE("surge pricing", "[herder][txset]")
         SECTION("soroban surge pricing, classic unaffected")
         {
             // Another soroban tx with higher fee, which will be selected
-            auto sorobanTxHighFee =
-                createUploadWasmTx(*app, acc3, baseFee * 2,
-                                   DEFAULT_TEST_REFUNDABLE_FEE, resources);
+            auto sorobanTxHighFee = createUploadWasmTx(
+                *app, acc3, baseFee * 2, DEFAULT_TEST_RESOURCE_FEE, resources);
             TxSetFrame::TxPhases invalidPhases;
             invalidPhases.resize(2);
             TxSetFrameConstPtr txSet = TxSetFrame::makeFromTransactions(
@@ -1750,9 +1748,8 @@ TEST_CASE("surge pricing", "[herder][txset]")
             // Another soroban tx with high fee and a bit less resources
             // Still half capacity available
             resources.readBytes = conf.txMaxReadBytes() / 2;
-            auto sorobanTxHighFee =
-                createUploadWasmTx(*app, acc3, baseFee * 2,
-                                   DEFAULT_TEST_REFUNDABLE_FEE, resources);
+            auto sorobanTxHighFee = createUploadWasmTx(
+                *app, acc3, baseFee * 2, DEFAULT_TEST_RESOURCE_FEE, resources);
 
             // Create another small soroban tx, with small fee. It should be
             // picked up anyway since we can't fit sorobanTx (gaps are allowed)
@@ -1760,9 +1757,8 @@ TEST_CASE("surge pricing", "[herder][txset]")
             resources.readBytes = 1;
             resources.writeBytes = 1;
 
-            auto smallSorobanLowFee =
-                createUploadWasmTx(*app, acc4, baseFee / 10,
-                                   DEFAULT_TEST_REFUNDABLE_FEE, resources);
+            auto smallSorobanLowFee = createUploadWasmTx(
+                *app, acc4, baseFee / 10, DEFAULT_TEST_RESOURCE_FEE, resources);
 
             TxSetFrame::TxPhases invalidPhases;
             invalidPhases.resize(2);
@@ -4523,30 +4519,30 @@ TEST_CASE("do not flood too many soroban transactions",
         accs.emplace_back(
             root.create(fmt::format("A{}", i), lm.getLastMinBalance(2)));
     }
-    std::deque<uint32> fees;
+    std::deque<uint32> inclusionFees;
 
-    uint32_t const baseFee = 10'000'000;
+    uint32_t const baseInclusionFee = 100'000;
     SorobanResources resources;
     resources.instructions = 800'000;
     resources.readBytes = 2000;
     resources.writeBytes = 1000;
 
     auto genTx = [&](TestAccount& source, bool highFee) {
-        auto txFee = baseFee;
+        auto inclusionFee = baseInclusionFee;
         if (highFee)
         {
-            txFee += 10'000'000;
-            fees.emplace_front(txFee);
+            inclusionFee += 1'000'000;
+            inclusionFees.emplace_front(inclusionFee);
         }
         else
         {
-            txFee += curFeeOffset;
-            fees.emplace_back(txFee);
+            inclusionFee += curFeeOffset;
+            inclusionFees.emplace_back(inclusionFee);
         }
         curFeeOffset--;
 
-        auto tx = createUploadWasmTx(*app, source, txFee,
-                                     DEFAULT_TEST_REFUNDABLE_FEE, resources);
+        auto tx = createUploadWasmTx(*app, source, inclusionFee, 10'000'000,
+                                     resources);
         REQUIRE(herder.recvTransaction(tx, false) ==
                 TransactionQueue::AddResult::ADD_STATUS_PENDING);
         return tx;
@@ -4573,8 +4569,8 @@ TEST_CASE("do not flood too many soroban transactions",
             REQUIRE(expected == tx->getSeqNum());
         }
         // check if we have the expected fee
-        REQUIRE(tx->getFullFee() == fees.front());
-        fees.pop_front();
+        REQUIRE(tx->getInclusionFee() == inclusionFees.front());
+        inclusionFees.pop_front();
         ++numBroadcast;
     };
 
@@ -4582,8 +4578,8 @@ TEST_CASE("do not flood too many soroban transactions",
 
     // remove the first two transactions that won't be
     // re-broadcasted during externalize
-    fees.pop_front();
-    fees.pop_front();
+    inclusionFees.pop_front();
+    inclusionFees.pop_front();
 
     externalize(cfg.NODE_SEED, lm, herder, {tx1a, tx1r}, *app);
     REQUIRE(tq.getTransactions({}).size() == numTx - 2);

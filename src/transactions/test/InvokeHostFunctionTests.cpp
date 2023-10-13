@@ -143,13 +143,14 @@ static void
 submitTxToUploadWasm(Application& app, Operation const& op,
                      SorobanResources const& resources,
                      Hash const& expectedWasmHash,
-                     xdr::opaque_vec<> const& expectedWasm, uint32_t fee,
-                     uint32_t refundableFee)
+                     xdr::opaque_vec<> const& expectedWasm,
+                     uint32_t inclusionFee, uint32_t resourceFee)
 {
     // submit operation
     auto root = TestAccount::createRoot(app);
-    auto tx = sorobanTransactionFrameFromOps(app.getNetworkID(), root, {op}, {},
-                                             resources, fee, refundableFee);
+    auto tx =
+        sorobanTransactionFrameFromOps(app.getNetworkID(), root, {op}, {},
+                                       resources, inclusionFee, resourceFee);
     LedgerTxn ltx(app.getLedgerTxnRoot());
     TransactionMetaFrame txm(ltx.loadHeader().current().ledgerVersion);
     REQUIRE(tx->checkValid(app, ltx, 0, 0, 0));
@@ -167,13 +168,14 @@ static void
 submitTxToCreateContract(Application& app, Operation const& op,
                          SorobanResources const& resources,
                          Hash const& contractID, SCVal const& executableKey,
-                         Hash const& expectedWasmHash, uint32_t fee,
-                         uint32_t refundableFee)
+                         Hash const& expectedWasmHash, uint32_t inclusionFee,
+                         uint32_t resourceFee)
 {
     // submit operation
     auto root = TestAccount::createRoot(app);
-    auto tx = sorobanTransactionFrameFromOps(app.getNetworkID(), root, {op}, {},
-                                             resources, fee, refundableFee);
+    auto tx =
+        sorobanTransactionFrameFromOps(app.getNetworkID(), root, {op}, {},
+                                       resources, inclusionFee, resourceFee);
     LedgerTxn ltx(app.getLedgerTxnRoot());
     TransactionMetaFrame txm(ltx.loadHeader().current().ledgerVersion);
     REQUIRE(tx->checkValid(app, ltx, 0, 0, 0));
@@ -212,10 +214,12 @@ deployContractWithSourceAccountWithResources(Application& app,
     contractCodeLedgerKey.type(CONTRACT_CODE);
     contractCodeLedgerKey.contractCode().hash = sha256(uploadHF.wasm());
     uploadResources.footprint.readWrite = {contractCodeLedgerKey};
-    submitTxToUploadWasm(app, uploadOp, uploadResources,
-                         contractCodeLedgerKey.contractCode().hash,
-                         uploadHF.wasm(), 1'000'000,
-                         DEFAULT_TEST_REFUNDABLE_FEE);
+    submitTxToUploadWasm(
+        app, uploadOp, uploadResources,
+        contractCodeLedgerKey.contractCode().hash, uploadHF.wasm(), 1000,
+        sorobanResourceFee(app, uploadResources,
+                           1000 + contractWasm.data.size(), 40) +
+            40'000);
 
     // Check expirations for contract code
     {
@@ -281,10 +285,10 @@ deployContractWithSourceAccountWithResources(Application& app,
     createResources.footprint.readOnly = {contractCodeLedgerKey};
     createResources.footprint.readWrite = {contractSourceRefLedgerKey};
 
-    submitTxToCreateContract(app, createOp, createResources, contractID,
-                             scContractSourceRefKey,
-                             contractCodeLedgerKey.contractCode().hash, 100'000,
-                             DEFAULT_TEST_REFUNDABLE_FEE);
+    submitTxToCreateContract(
+        app, createOp, createResources, contractID, scContractSourceRefKey,
+        contractCodeLedgerKey.contractCode().hash, 1000,
+        sorobanResourceFee(app, createResources, 1000, 40) + 40'000);
 
     // Check expirations for contract instance
     LedgerTxn ltx(app.getLedgerTxnRoot());
@@ -494,15 +498,22 @@ TEST_CASE("non-refundable resource metering", "[tx][soroban]")
 
         // Check that minimum fee succeeds
         auto minimalTX = sorobanTransactionFrameFromOps(
-            app->getNetworkID(), root, {op}, {}, resources,
-            expectedNonRefundableFee + inclusionFee, 0);
+            app->getNetworkID(), root, {op}, {}, resources, inclusionFee,
+            expectedNonRefundableFee);
         REQUIRE(minimalTX->checkValid(*app, ltx, 1, 0, 0));
 
-        // Check that just below minimum fee fails
+        // Check that just below minimum resource fee fails
         auto badTX = sorobanTransactionFrameFromOps(
-            app->getNetworkID(), root, {op}, {}, resources,
-            expectedNonRefundableFee + inclusionFee - 1, 0);
+            app->getNetworkID(), root, {op}, {}, resources, inclusionFee,
+            expectedNonRefundableFee - 1);
         REQUIRE(!badTX->checkValid(*app, ltx, 2, 0, 0));
+
+        // Check that just below minimum inclusion fee fails
+        auto badTX2 = sorobanTransactionFrameFromOps(
+            app->getNetworkID(), root, {op}, {}, resources, inclusionFee - 1,
+            // It doesn't matter how high the resource fee is.
+            expectedNonRefundableFee + 1'000'000);
+        REQUIRE(!badTX2->checkValid(*app, ltx, 2, 0, 0));
     };
 
     // In the following tests, we isolate a single fee to test by zeroing out
@@ -510,7 +521,8 @@ TEST_CASE("non-refundable resource metering", "[tx][soroban]")
     SECTION("tx size fees")
     {
         auto tx = sorobanTransactionFrameFromOps(
-            app->getNetworkID(), root, {op}, {}, resources, UINT32_MAX, 0);
+            app->getNetworkID(), root, {op}, {}, resources, 100,
+            std::numeric_limits<uint32_t>::max() - 100);
 
         // Resources are all null, only include TX size based fees
         auto expectedFee = txSizeFees(tx);
@@ -522,7 +534,8 @@ TEST_CASE("non-refundable resource metering", "[tx][soroban]")
         resources.instructions = feeDist(Catch::rng());
 
         auto tx = sorobanTransactionFrameFromOps(
-            app->getNetworkID(), root, {op}, {}, resources, UINT32_MAX, 0);
+            app->getNetworkID(), root, {op}, {}, resources, 100,
+            std::numeric_limits<uint32_t>::max() - 100);
 
         // Should only have instruction and TX size fees
         auto expectedFee = txSizeFees(tx) + computeFee();
@@ -543,7 +556,8 @@ TEST_CASE("non-refundable resource metering", "[tx][soroban]")
             }
 
             auto tx = sorobanTransactionFrameFromOps(
-                app->getNetworkID(), root, {op}, {}, resources, UINT32_MAX, 0);
+                app->getNetworkID(), root, {op}, {}, resources, 100,
+                std::numeric_limits<uint32_t>::max() - 100);
 
             // Only read entry fees and TX size fees
             auto expectedFee = txSizeFees(tx) + entryReadFee();
@@ -561,7 +575,8 @@ TEST_CASE("non-refundable resource metering", "[tx][soroban]")
             }
 
             auto tx = sorobanTransactionFrameFromOps(
-                app->getNetworkID(), root, {op}, {}, resources, UINT32_MAX, 0);
+                app->getNetworkID(), root, {op}, {}, resources, 100,
+                std::numeric_limits<uint32_t>::max() - 100);
 
             // Only read entry, write entry, and TX size fees
             auto expectedFee =
@@ -588,7 +603,8 @@ TEST_CASE("non-refundable resource metering", "[tx][soroban]")
             }
 
             auto tx = sorobanTransactionFrameFromOps(
-                app->getNetworkID(), root, {op}, {}, resources, UINT32_MAX, 0);
+                app->getNetworkID(), root, {op}, {}, resources, 100,
+                std::numeric_limits<uint32_t>::max() - 100);
 
             // Only read entry, write entry, and TX size fees
             auto expectedFee =
@@ -602,7 +618,8 @@ TEST_CASE("non-refundable resource metering", "[tx][soroban]")
     {
         resources.readBytes = bytesDist(Catch::rng());
         auto tx = sorobanTransactionFrameFromOps(
-            app->getNetworkID(), root, {op}, {}, resources, UINT32_MAX, 0);
+            app->getNetworkID(), root, {op}, {}, resources, 100,
+            std::numeric_limits<uint32_t>::max() - 100);
 
         // Only readBytes and TX size fees
         auto expectedFee = txSizeFees(tx) + readBytesFee();
@@ -613,7 +630,8 @@ TEST_CASE("non-refundable resource metering", "[tx][soroban]")
     {
         resources.writeBytes = bytesDist(Catch::rng());
         auto tx = sorobanTransactionFrameFromOps(
-            app->getNetworkID(), root, {op}, {}, resources, UINT32_MAX, 0);
+            app->getNetworkID(), root, {op}, {}, resources, 100,
+            std::numeric_limits<uint32_t>::max() - 100);
 
         // Only writeBytes and TX size fees
         auto expectedFee = txSizeFees(tx) + writeBytesFee();
@@ -647,8 +665,8 @@ TEST_CASE("basic contract invocation", "[tx][soroban]")
         ihf.invokeContract().args.assign(args.begin(), args.end());
 
         auto tx = sorobanTransactionFrameFromOps(app->getNetworkID(), root,
-                                                 {op}, {}, resources, 100'000,
-                                                 DEFAULT_TEST_REFUNDABLE_FEE);
+                                                 {op}, {}, resources, 100,
+                                                 DEFAULT_TEST_RESOURCE_FEE);
 
         LedgerTxn ltx(app->getLedgerTxnRoot());
         return tx->checkValid(*app, ltx, 0, 0, 0);
@@ -660,8 +678,8 @@ TEST_CASE("basic contract invocation", "[tx][soroban]")
         op.body.bumpFootprintExpirationOp().ledgersToExpire = 10;
 
         auto tx = sorobanTransactionFrameFromOps(app->getNetworkID(), root,
-                                                 {op}, {}, resources, 100'000,
-                                                 DEFAULT_TEST_REFUNDABLE_FEE);
+                                                 {op}, {}, resources, 100,
+                                                 DEFAULT_TEST_RESOURCE_FEE);
 
         LedgerTxn ltx(app->getLedgerTxnRoot());
         return tx->checkValid(*app, ltx, 0, 0, 0);
@@ -672,14 +690,14 @@ TEST_CASE("basic contract invocation", "[tx][soroban]")
         op.body.type(RESTORE_FOOTPRINT);
 
         auto tx = sorobanTransactionFrameFromOps(app->getNetworkID(), root,
-                                                 {op}, {}, resources, 200'000,
-                                                 DEFAULT_TEST_REFUNDABLE_FEE);
+                                                 {op}, {}, resources, 100,
+                                                 DEFAULT_TEST_RESOURCE_FEE);
 
         LedgerTxn ltx(app->getLedgerTxnRoot());
         return tx->checkValid(*app, ltx, 0, 0, 0);
     };
 
-    auto call = [&](SorobanResources const& resources, uint32_t refundableFee,
+    auto call = [&](SorobanResources const& resources, uint32_t resourceFee,
                     SCAddress const& address, SCSymbol const& functionName,
                     std::vector<SCVal> const& args, bool success) {
         Operation op;
@@ -692,7 +710,7 @@ TEST_CASE("basic contract invocation", "[tx][soroban]")
 
         auto tx =
             sorobanTransactionFrameFromOps(app->getNetworkID(), root, {op}, {},
-                                           resources, 100'000, refundableFee);
+                                           resources, 12'345, resourceFee);
         {
             LedgerTxn ltx(app->getLedgerTxnRoot());
             REQUIRE(tx->checkValid(*app, ltx, 0, 0, 0));
@@ -701,10 +719,12 @@ TEST_CASE("basic contract invocation", "[tx][soroban]")
         TransactionMetaFrame txm(app->getLedgerManager()
                                      .getLastClosedLedgerHeader()
                                      .header.ledgerVersion);
+        auto nonRefundableResourceFee = sorobanResourceFee(
+            *app, resources, xdr::xdr_size(tx->getEnvelope()), 0);
         if (success)
         {
-            REQUIRE(tx->getFullFee() == 100'000);
-            REQUIRE(tx->getInclusionFee() == 46'318);
+            REQUIRE(tx->getFullFee() == resourceFee + 12'345);
+            REQUIRE(tx->getInclusionFee() == 12'345);
             // Initially we store in result the charge for resources plus
             // minimum inclusion  fee bid (currently equivalent to the network
             // `baseFee` of 100).
@@ -723,7 +743,7 @@ TEST_CASE("basic contract invocation", "[tx][soroban]")
             int64_t balanceAfterFeeCharged = root.getBalance();
             REQUIRE(initBalance - balanceAfterFeeCharged ==
                     baseCharged + /* surge pricing additional fee */ 200);
-
+            auto const expectedRefund = 267'298;
             {
                 LedgerTxn ltx(app->getLedgerTxnRoot());
                 REQUIRE(tx->apply(*app, ltx, txm));
@@ -733,11 +753,20 @@ TEST_CASE("basic contract invocation", "[tx][soroban]")
                 REQUIRE(changesAfter.size() == 2);
                 REQUIRE(changesAfter[1].updated().data.account().balance -
                             changesAfter[0].state().data.account().balance ==
-                        DEFAULT_TEST_REFUNDABLE_FEE - 20);
+                        expectedRefund);
             }
             // The account should receive a refund for unspent refundable fee.
             REQUIRE(root.getBalance() - balanceAfterFeeCharged ==
-                    DEFAULT_TEST_REFUNDABLE_FEE - 20);
+                    expectedRefund);
+            // Sanity-check the expected refund value. The exact computation is
+            // tricky because of the rent bump fee.
+            // NB: We don't use the computed value here in order
+            // to check possible changes in fee computation algorithm (so that
+            // the conditions above would fail, while this still succeeds).
+            REQUIRE(sorobanResourceFee(
+                        *app, resources, xdr::xdr_size(tx->getEnvelope()),
+                        100 /* size of event emitted by the test contract */) ==
+                    resourceFee - expectedRefund);
         }
         else
         {
@@ -756,19 +785,19 @@ TEST_CASE("basic contract invocation", "[tx][soroban]")
                 REQUIRE(!tx->apply(*app, ltx, txm));
                 tx->processPostApply(*app, ltx, txm);
                 ltx.commit();
-                if (refundableFee > 0)
+                if (resourceFee > 0)
                 {
                     auto changesAfter = txm.getChangesAfter();
                     REQUIRE(changesAfter.size() == 2);
                     REQUIRE(
                         changesAfter[1].updated().data.account().balance -
                             changesAfter[0].state().data.account().balance ==
-                        refundableFee);
+                        resourceFee - nonRefundableResourceFee);
                 }
                 // The account should receive a full refund for metadata
                 // in case of tx failure.
                 REQUIRE(root.getBalance() - balanceAfterFeeCharged ==
-                        refundableFee);
+                        resourceFee - nonRefundableResourceFee);
             }
         }
         SCVal resultVal;
@@ -804,8 +833,7 @@ TEST_CASE("basic contract invocation", "[tx][soroban]")
 
     SECTION("correct invocation")
     {
-        call(resources, DEFAULT_TEST_REFUNDABLE_FEE, contractID, scFunc,
-             {sc7, sc16}, true);
+        call(resources, 300'000, contractID, scFunc, {sc7, sc16}, true);
         REQUIRE(app->getMetrics()
                     .NewTimer({"soroban", "host-fn-op", "exec"})
                     .count() != 0);
@@ -820,25 +848,25 @@ TEST_CASE("basic contract invocation", "[tx][soroban]")
         {
             SCAddress address(SC_ADDRESS_TYPE_CONTRACT);
             address.contractId()[0] = 1;
-            call(resources, DEFAULT_TEST_REFUNDABLE_FEE, address, scFunc,
+            call(resources, DEFAULT_TEST_RESOURCE_FEE, address, scFunc,
                  {sc7, sc16}, false);
         }
         SECTION("account address")
         {
             SCAddress address(SC_ADDRESS_TYPE_ACCOUNT);
             address.accountId() = root.getPublicKey();
-            call(resources, DEFAULT_TEST_REFUNDABLE_FEE, address, scFunc,
+            call(resources, DEFAULT_TEST_RESOURCE_FEE, address, scFunc,
                  {sc7, sc16}, false);
         }
         SECTION("too few parameters")
         {
-            call(resources, DEFAULT_TEST_REFUNDABLE_FEE, contractID, scFunc,
+            call(resources, DEFAULT_TEST_RESOURCE_FEE, contractID, scFunc,
                  {sc7}, false);
         }
         SECTION("too many parameters")
         {
             // Too many parameters
-            call(resources, DEFAULT_TEST_REFUNDABLE_FEE, contractID, scFunc,
+            call(resources, DEFAULT_TEST_RESOURCE_FEE, contractID, scFunc,
                  {sc7, sc16, makeI32(0)}, false);
         }
     }
@@ -846,18 +874,18 @@ TEST_CASE("basic contract invocation", "[tx][soroban]")
     SECTION("insufficient instructions")
     {
         resources.instructions = 10000;
-        call(resources, DEFAULT_TEST_REFUNDABLE_FEE, contractID, scFunc,
+        call(resources, DEFAULT_TEST_RESOURCE_FEE, contractID, scFunc,
              {sc7, sc16}, false);
     }
     SECTION("insufficient read bytes")
     {
         resources.readBytes = 100;
-        call(resources, DEFAULT_TEST_REFUNDABLE_FEE, contractID, scFunc,
+        call(resources, DEFAULT_TEST_RESOURCE_FEE, contractID, scFunc,
              {sc7, sc16}, false);
     }
     SECTION("insufficient refundable fee")
     {
-        call(resources, 0, contractID, scFunc, {sc7, sc16}, false);
+        call(resources, 32'701, contractID, scFunc, {sc7, sc16}, false);
     }
     SECTION("invalid footprint keys")
     {
@@ -1042,9 +1070,9 @@ TEST_CASE("refund account merged", "[tx][soroban][merge]")
     uploadResources.footprint.readWrite = {contractCodeLedgerKey};
 
     // submit operation
-    auto tx = sorobanTransactionFrameFromOps(
-        app->getNetworkID(), a1, {uploadOp}, {}, uploadResources, 200'000,
-        DEFAULT_TEST_REFUNDABLE_FEE);
+    auto tx = sorobanTransactionFrameFromOps(app->getNetworkID(), a1,
+                                             {uploadOp}, {}, uploadResources,
+                                             100, DEFAULT_TEST_RESOURCE_FEE);
 
     auto mergeOp = accountMerge(b1);
     mergeOp.sourceAccount.activate() = toMuxedAccount(a1);
@@ -1104,22 +1132,32 @@ TEST_CASE("buying liabilities plus refund is greater than INT64_MAX",
     // submit operation
     auto tx =
         sorobanTransactionFrameFromOps(app->getNetworkID(), a1, {uploadOp}, {},
-                                       uploadResources, 200'000, 100'000);
-
+                                       uploadResources, 10'000, 300'000);
+    // There is no surge pricing, so only 100 stroops are charged from the
+    // inclusion fee.
+    auto feeChargedBeforeRefund =
+        tx->getFullFee() - tx->getInclusionFee() + 100;
+    // Create a maxmal possible offer that wouldn't overflow int64. The offer
+    // is created *after* charging the transaction fee, so the amount is higher
+    // than what it would be before fees are charged.
     auto offer =
-        manageOffer(0, cur1, native, Price{1, 1}, INT64_MAX - a1.getBalance());
+        manageOffer(0, cur1, native, Price{1, 1},
+                    INT64_MAX - (a1PreBalance - feeChargedBeforeRefund));
     offer.sourceAccount.activate() = toMuxedAccount(a1);
 
-    auto offerTx = b1.tx({offer, payment(a1, 117'000)});
+    // Create an offer on behalf of `a1`, but paid for from `b1`, so that
+    // the offer fee doesn't need to be accounted for in fee computations.
+    auto offerTx = b1.tx({offer});
     offerTx->addSignature(a1.getSecretKey());
 
     auto r = closeLedger(*app, {offerTx, tx});
     checkTx(0, r, txSUCCESS);
     checkTx(1, r, txSUCCESS);
 
-    REQUIRE(a1PreBalance + 41 - 79927 /*what would have been the refund if
-                                         liabilities hadn't gotten in the way*/
-            == a1.getBalance());
+    // After an offer is created, the sum of `a1` balance and buying liability
+    // is `INT64_MAX`, thus any fee refund would cause an overflow, so no
+    // refunds happen.
+    REQUIRE(a1PreBalance - feeChargedBeforeRefund == a1.getBalance());
 }
 
 TEST_CASE("contract storage", "[tx][soroban]")
@@ -1128,6 +1166,10 @@ TEST_CASE("contract storage", "[tx][soroban]")
     auto app = createTestApplication(clock, getTestConfig());
     overrideSorobanNetworkConfigForTest(*app);
     auto root = TestAccount::createRoot(*app);
+    auto acc = root.create("acc", app->getLedgerManager().getLastMinBalance(1));
+    auto dummyAcc =
+        root.create("dummyAcc", app->getLedgerManager().getLastMinBalance(1));
+    root.setSequenceNumber(root.getLastSequenceNumber() - 2);
     auto const contractDataWasm = rust_bridge::get_test_wasm_contract_data();
     auto contractKeys = deployContractWithSourceAccount(*app, contractDataWasm);
     auto const& contractID = contractKeys[0].contractData().contract;
@@ -1153,12 +1195,12 @@ TEST_CASE("contract storage", "[tx][soroban]")
         }
     };
 
-    auto createTx = [&](xdr::xvector<LedgerKey> const& readOnly,
-                        xdr::xvector<LedgerKey> const& readWrite,
-                        uint32_t writeBytes, SCAddress const& contractAddress,
-                        SCSymbol const& functionName,
-                        std::vector<SCVal> const& args,
-                        std::optional<uint32_t> refundableFeeOp = {})
+    auto createTx =
+        [&](xdr::xvector<LedgerKey> const& readOnly,
+            xdr::xvector<LedgerKey> const& readWrite, uint32_t writeBytes,
+            SCAddress const& contractAddress, SCSymbol const& functionName,
+            std::vector<SCVal> const& args,
+            std::optional<uint32_t> refundableFeeOverride = std::nullopt)
         -> std::tuple<TransactionFrameBasePtr, std::shared_ptr<LedgerTxn>,
                       std::shared_ptr<TransactionMetaFrame>> {
         Operation op;
@@ -1172,17 +1214,27 @@ TEST_CASE("contract storage", "[tx][soroban]")
         resources.footprint.readOnly = readOnly;
         resources.footprint.readWrite = readWrite;
         resources.instructions = 4'000'000;
-        resources.readBytes = 5000;
+        resources.readBytes = 10'000;
         resources.writeBytes = writeBytes;
 
-        uint32_t refundableFee = 40'000;
-        if (refundableFeeOp)
+        // Compute tx frame size before finalizing the resource fee.
+        // That's a bit hacky, but we need the exact tx size here in order to
+        // enable tests that rely on the exact refundable fee value.
+        auto dummyTx = sorobanTransactionFrameFromOps(
+            app->getNetworkID(), dummyAcc, {op}, {}, resources, 1000, 123);
+        auto txSize = xdr::xdr_size(dummyTx->getEnvelope());
+        uint32_t resourceFee = sorobanResourceFee(*app, resources, txSize, 0);
+        if (refundableFeeOverride)
         {
-            refundableFee = *refundableFeeOp;
+            resourceFee += *refundableFeeOverride;
         }
-        auto tx =
-            sorobanTransactionFrameFromOps(app->getNetworkID(), root, {op}, {},
-                                           resources, 200'000, refundableFee);
+        else
+        {
+            resourceFee += 40'000;
+        }
+
+        auto tx = sorobanTransactionFrameFromOps(
+            app->getNetworkID(), root, {op}, {}, resources, 1000, resourceFee);
         auto ltx = std::make_shared<LedgerTxn>(app->getLedgerTxnRoot());
         auto txm = std::make_shared<TransactionMetaFrame>(
             ltx->loadHeader().current().ledgerVersion);
@@ -1399,7 +1451,6 @@ TEST_CASE("contract storage", "[tx][soroban]")
         };
 
     auto runExpirationOp = [&](TestAccount& root, TransactionFrameBasePtr tx,
-                               int64_t refundableFee,
                                int64_t expectedRefundableFeeCharged) {
         int64_t initBalance = root.getBalance();
         // Apply the transaction and process the refund.
@@ -1423,8 +1474,13 @@ TEST_CASE("contract storage", "[tx][soroban]")
         // The resource and the base fee are charged, with additional
         // surge pricing fee.
         int64_t balanceAfterFeeCharged = root.getBalance();
-        REQUIRE(initBalance - balanceAfterFeeCharged ==
-                baseCharged + /* surge pricing additional fee */ 200);
+        auto actuallyCharged =
+            baseCharged + /* surge pricing additional fee */ 200;
+        REQUIRE(initBalance - balanceAfterFeeCharged == actuallyCharged);
+        auto nonRefundableResourceFee = sorobanResourceFee(
+            *app, tx->sorobanResources(), xdr::xdr_size(tx->getEnvelope()), 0);
+        auto expectedChargedAfterRefund =
+            nonRefundableResourceFee + expectedRefundableFeeCharged + 300;
         {
             LedgerTxn ltx(app->getLedgerTxnRoot());
             TransactionMetaFrame txm(ltx.loadHeader().current().ledgerVersion);
@@ -1436,12 +1492,12 @@ TEST_CASE("contract storage", "[tx][soroban]")
             REQUIRE(changesAfter.size() == 2);
             REQUIRE(changesAfter[1].updated().data.account().balance -
                         changesAfter[0].state().data.account().balance ==
-                    refundableFee - expectedRefundableFeeCharged);
+                    actuallyCharged - expectedChargedAfterRefund);
         }
 
         // The account should receive a refund for unspent refundable fee.
         REQUIRE(root.getBalance() - balanceAfterFeeCharged ==
-                refundableFee - expectedRefundableFeeCharged);
+                actuallyCharged - expectedChargedAfterRefund);
     };
 
     auto bumpOp = [&](uint32_t bumpAmount,
@@ -1460,15 +1516,14 @@ TEST_CASE("contract storage", "[tx][soroban]")
         SorobanResources bumpResources;
         bumpResources.footprint.readOnly = readOnly;
         bumpResources.instructions = 0;
-        bumpResources.readBytes = 5000;
+        bumpResources.readBytes = 10'000;
         bumpResources.writeBytes = 0;
 
         auto tx = sorobanTransactionFrameFromOps(
-            app->getNetworkID(), root, {bumpOp}, {}, bumpResources, 100'000,
-            DEFAULT_TEST_REFUNDABLE_FEE * readOnly.size());
+            app->getNetworkID(), root, {bumpOp}, {}, bumpResources, 1000,
+            DEFAULT_TEST_RESOURCE_FEE);
 
-        runExpirationOp(root, tx, DEFAULT_TEST_REFUNDABLE_FEE * readOnly.size(),
-                        expectedRefundableFeeCharged);
+        runExpirationOp(root, tx, expectedRefundableFeeCharged);
     };
 
     auto restoreOp = [&](xdr::xvector<LedgerKey> const& readWrite,
@@ -1479,16 +1534,14 @@ TEST_CASE("contract storage", "[tx][soroban]")
         SorobanResources bumpResources;
         bumpResources.footprint.readWrite = readWrite;
         bumpResources.instructions = 0;
-        bumpResources.readBytes = 5000;
-        bumpResources.writeBytes = 5000;
+        bumpResources.readBytes = 10'000;
+        bumpResources.writeBytes = 10'000;
 
         // submit operation
         auto tx = sorobanTransactionFrameFromOps(
-            app->getNetworkID(), root, {restoreOp}, {}, bumpResources, 300'000,
-            DEFAULT_TEST_REFUNDABLE_FEE * readWrite.size());
-        runExpirationOp(root, tx,
-                        DEFAULT_TEST_REFUNDABLE_FEE * readWrite.size(),
-                        expectedRefundableFeeCharged);
+            app->getNetworkID(), root, {restoreOp}, {}, bumpResources, 1000,
+            300'000 + 40'000 * readWrite.size());
+        runExpirationOp(root, tx, expectedRefundableFeeCharged);
     };
 
     auto delWithFootprint = [&](std::string const& key,
@@ -1652,7 +1705,7 @@ TEST_CASE("contract storage", "[tx][soroban]")
         {
             // Restore Instance and WASM
             restoreOp(contractKeys,
-                      162 /* rent bump */ + 40000 /* two LE-writes */);
+                      96 /* rent bump */ + 40000 /* two LE-writes */);
 
             // Instance should now be useable
             putWithFootprint(
@@ -1670,7 +1723,7 @@ TEST_CASE("contract storage", "[tx][soroban]")
         {
             // Only restore contract instance
             restoreOp({contractKeys[0]},
-                      49 /* rent bump */ + 20000 /* one LE write */);
+                      48 /* rent bump */ + 20000 /* one LE write */);
 
             // invocation should fail
             putWithFootprint(
@@ -1688,7 +1741,7 @@ TEST_CASE("contract storage", "[tx][soroban]")
         {
             // Only restore WASM
             restoreOp({contractKeys[1]},
-                      113 /* rent bump */ + 20000 /* one LE write */);
+                      48 /* rent bump */ + 20000 /* one LE write */);
 
             // invocation should fail
             putWithFootprint(
@@ -1706,7 +1759,7 @@ TEST_CASE("contract storage", "[tx][soroban]")
         {
             // Restore Instance and WASM
             restoreOp(contractKeys,
-                      162 /* rent bump */ + 40000 /* two LE writes */);
+                      96 /* rent bump */ + 40000 /* two LE writes */);
 
             auto instanceBumpAmount = 10'000;
             auto wasmBumpAmount = 15'000;
@@ -1928,7 +1981,7 @@ TEST_CASE("contract storage", "[tx][soroban]")
             "key", ContractDataDurability::PERSISTENT, initExpirationLedger);
 
         // Restore the entry
-        restoreOp({lk}, 20049);
+        restoreOp({lk}, 20048);
 
         ledgerSeq = getLedgerSeq(*app);
         checkContractDataExpirationState(
@@ -2019,8 +2072,8 @@ TEST_CASE("contract storage", "[tx][soroban]")
                 sizeDeltaBytes, initialLifetime, sorobanConfig,
                 /*isPersistent=*/true);
 
-            // refundableFee = rent fee + (event size + return val) fee. So
-            // in order to succeed refundableFee needs to be expectedRentFee
+            // resourceFee = rent fee + (event size + return val) fee. So
+            // in order to succeed resourceFee needs to be expectedRentFee
             // + 1 to account for the return val size. We are not changing the
             // expirationLedgerSeq, so there is no ExpirationEntry write charge
             auto refundableFee = expectedRentFee + 1;
@@ -2052,8 +2105,8 @@ TEST_CASE("contract storage", "[tx][soroban]")
                 startingSizeBytes, newLifetime - initialLifetime, sorobanConfig,
                 /*isPersistent=*/true);
 
-            // refundableFee = rent fee + (event size + return val) fee. So in
-            // order to success refundableFee needs to be expectedRentFee
+            // resourceFee = rent fee + (event size + return val) fee. So in
+            // order to success resourceFee needs to be expectedRentFee
             // + 1 to account for the return val size.
             auto refundableFee = resizeRentFee + bumpFee +
                                  getExpirationEntryWriteFee(sorobanConfig) + 1;
@@ -2096,11 +2149,6 @@ TEST_CASE("contract storage", "[tx][soroban]")
         put("key2", 21, ContractDataDurability::PERSISTENT);
         SECTION("unused readWrite key")
         {
-            auto acc = root.create(
-                "acc", app->getLedgerManager().getLastMinBalance(1));
-
-            REQUIRE(doesAccountExist(*app, acc));
-
             putWithFootprint(
                 "key1", 0, contractKeys,
                 {contractDataKey(contractID, makeSymbolSCVal("key1"),
@@ -2168,11 +2216,13 @@ TEST_CASE("temp entry eviction", "[tx][soroban]")
         resources.footprint.readOnly = readOnly;
         resources.footprint.readWrite = readWrite;
         resources.instructions = 4'000'000;
-        resources.readBytes = 5000;
+        resources.readBytes = 10'000;
         resources.writeBytes = writeBytes;
 
         auto tx = sorobanTransactionFrameFromOps(
-            app->getNetworkID(), root, {op}, {}, resources, 200'000, 40'000);
+            app->getNetworkID(), root, {op}, {}, resources, 1000, 340'000);
+        LedgerTxn ltx(app->getLedgerTxnRoot());
+        REQUIRE(tx->checkValid(*app, ltx, 0, 0, 0));
         return tx;
     };
 
@@ -2215,7 +2265,10 @@ TEST_CASE("temp entry eviction", "[tx][soroban]")
 
     auto lk = contractDataKey(contractID, makeSymbolSCVal("temp"), TEMPORARY);
     putWithFootprint("temp", 0, contractKeys, {lk}, 1000, true, TEMPORARY);
-
+    // Check that entry exists and is live.
+    checkContractDataExpirationState(
+        "temp", TEMPORARY, app->getLedgerManager().getLastClosedLedgerNum(),
+        true);
     // Close ledgers until temp entry is evicted
     uint32 currLedger = app->getLedgerManager().getLastClosedLedgerNum();
     for (; currLedger <= 4096; ++currLedger)
@@ -2237,18 +2290,19 @@ TEST_CASE("temp entry eviction", "[tx][soroban]")
     bool evicted = false;
     while (in.readOne(lcm))
     {
-        REQUIRE(lcm.v() == 2);
-        if (lcm.v2().ledgerHeader.header.ledgerSeq == 4097)
+        REQUIRE(lcm.v() == 1);
+        if (lcm.v1().ledgerHeader.header.ledgerSeq == 4097)
         {
-            REQUIRE(lcm.v2().evictedTemporaryLedgerKeys.size() == 2);
-            REQUIRE(lcm.v2().evictedTemporaryLedgerKeys[0] == lk);
-            REQUIRE(lcm.v2().evictedTemporaryLedgerKeys[1] ==
-                    getExpirationKey(lk));
+            REQUIRE(lcm.v1().evictedTemporaryLedgerKeys.size() == 2);
+            auto sortedKeys = lcm.v1().evictedTemporaryLedgerKeys;
+            std::sort(sortedKeys.begin(), sortedKeys.end());
+            REQUIRE(sortedKeys[0] == lk);
+            REQUIRE(sortedKeys[1] == getExpirationKey(lk));
             evicted = true;
         }
         else
         {
-            REQUIRE(lcm.v2().evictedTemporaryLedgerKeys.empty());
+            REQUIRE(lcm.v1().evictedTemporaryLedgerKeys.empty());
         }
     }
 
@@ -2290,8 +2344,8 @@ TEST_CASE("failed invocation with diagnostics", "[tx][soroban]")
     resources.writeBytes = 1000;
 
     auto tx = sorobanTransactionFrameFromOps(app->getNetworkID(), root, {op},
-                                             {}, resources, 100'000,
-                                             DEFAULT_TEST_REFUNDABLE_FEE);
+                                             {}, resources, 100,
+                                             DEFAULT_TEST_RESOURCE_FEE);
     LedgerTxn ltx(app->getLedgerTxnRoot());
     TransactionMetaFrame txm(ltx.loadHeader().current().ledgerVersion);
     REQUIRE(tx->checkValid(*app, ltx, 0, 0, 0));
@@ -2299,7 +2353,7 @@ TEST_CASE("failed invocation with diagnostics", "[tx][soroban]")
     ltx.commit();
 
     auto const& opEvents = txm.getXDR().v3().sorobanMeta->diagnosticEvents;
-    REQUIRE(opEvents.size() == 21);
+    REQUIRE(opEvents.size() == 22);
 
     auto const& call_ev = opEvents.at(0);
     REQUIRE(!call_ev.inSuccessfulContractCall);
@@ -2311,7 +2365,7 @@ TEST_CASE("failed invocation with diagnostics", "[tx][soroban]")
     REQUIRE(contract_ev.event.type == ContractEventType::CONTRACT);
     REQUIRE(contract_ev.event.body.v0().data.type() == SCV_VEC);
 
-    auto const& read_entry_ev = opEvents.at(2);
+    auto const& read_entry_ev = opEvents.at(3);
     REQUIRE(!read_entry_ev.inSuccessfulContractCall);
     REQUIRE(read_entry_ev.event.type == ContractEventType::DIAGNOSTIC);
     auto const& v0 = read_entry_ev.event.body.v0();
@@ -2353,8 +2407,8 @@ TEST_CASE("invalid tx with diagnostics", "[tx][soroban]")
     resources.writeBytes = 1000;
 
     auto tx = sorobanTransactionFrameFromOps(app->getNetworkID(), root, {op},
-                                             {}, resources, 100'000,
-                                             DEFAULT_TEST_REFUNDABLE_FEE);
+                                             {}, resources, 100,
+                                             DEFAULT_TEST_RESOURCE_FEE);
     LedgerTxn ltx(app->getLedgerTxnRoot());
     TransactionMetaFrame txm(ltx.loadHeader().current().ledgerVersion);
     REQUIRE(!tx->checkValid(*app, ltx, 0, 0, 0));
@@ -2432,9 +2486,9 @@ TEST_CASE("complex contract", "[tx][soroban]")
 
         SECTION("single op")
         {
-            auto tx = sorobanTransactionFrameFromOps(
-                app->getNetworkID(), root, {op}, {}, resources, 200'000,
-                DEFAULT_TEST_REFUNDABLE_FEE);
+            auto tx = sorobanTransactionFrameFromOps(app->getNetworkID(), root,
+                                                     {op}, {}, resources, 100,
+                                                     DEFAULT_TEST_RESOURCE_FEE);
             LedgerTxn ltx(app->getLedgerTxnRoot());
             TransactionMetaFrame txm(ltx.loadHeader().current().ledgerVersion);
             REQUIRE(tx->checkValid(*app, ltx, 0, 0, 0));
@@ -2504,7 +2558,7 @@ TEST_CASE("Stellar asset contract transfer",
         auto& createContractArgs = createHF.hostFunction.createContract();
 
         ContractExecutable exec;
-        exec.type(CONTRACT_EXECUTABLE_TOKEN);
+        exec.type(CONTRACT_EXECUTABLE_STELLAR_ASSET);
         createContractArgs.contractIDPreimage.type(
             CONTRACT_ID_PREIMAGE_FROM_ASSET);
         createContractArgs.contractIDPreimage.fromAsset() = asset;
@@ -2527,8 +2581,8 @@ TEST_CASE("Stellar asset contract transfer",
         {
             // submit operation
             auto tx = sorobanTransactionFrameFromOps(
-                app->getNetworkID(), root, {createOp}, {}, createResources,
-                200'000, DEFAULT_TEST_REFUNDABLE_FEE);
+                app->getNetworkID(), root, {createOp}, {}, createResources, 100,
+                DEFAULT_TEST_RESOURCE_FEE);
 
             LedgerTxn ltx(app->getLedgerTxnRoot());
             TransactionMetaFrame txm(ltx.loadHeader().current().ledgerVersion);
@@ -2625,8 +2679,8 @@ TEST_CASE("Stellar asset contract transfer",
         {
             // submit operation
             auto tx = sorobanTransactionFrameFromOps(
-                app->getNetworkID(), a1, {transfer}, {}, resources, 250'000,
-                DEFAULT_TEST_REFUNDABLE_FEE);
+                app->getNetworkID(), a1, {transfer}, {}, resources, 100,
+                DEFAULT_TEST_RESOURCE_FEE);
 
             LedgerTxn ltx(app->getLedgerTxnRoot());
             TransactionMetaFrame txm(ltx.loadHeader().current().ledgerVersion);
@@ -2742,8 +2796,8 @@ TEST_CASE("Stellar asset contract transfer",
         {
             // submit operation
             auto tx = sorobanTransactionFrameFromOps(
-                app->getNetworkID(), root, {transfer}, {}, resources, 250'000,
-                DEFAULT_TEST_REFUNDABLE_FEE);
+                app->getNetworkID(), root, {transfer}, {}, resources, 100,
+                DEFAULT_TEST_RESOURCE_FEE);
 
             LedgerTxn ltx(app->getLedgerTxnRoot());
             TransactionMetaFrame txm(ltx.loadHeader().current().ledgerVersion);
@@ -2795,8 +2849,8 @@ TEST_CASE("errors roll back", "[tx][soroban]")
         resources.readBytes = 3000;
 
         auto tx = sorobanTransactionFrameFromOps(app->getNetworkID(), root,
-                                                 {op}, {}, resources, 100'000,
-                                                 DEFAULT_TEST_REFUNDABLE_FEE);
+                                                 {op}, {}, resources, 100,
+                                                 DEFAULT_TEST_RESOURCE_FEE);
         LedgerTxn ltx(app->getLedgerTxnRoot());
         TransactionMetaFrame txm(ltx.loadHeader().current().ledgerVersion);
         REQUIRE(tx->checkValid(*app, ltx, 0, 0, 0));
@@ -3030,7 +3084,7 @@ TEST_CASE("settings upgrade", "[tx][soroban][upgrades]")
         resources.writeBytes = 2000;
 
         auto tx = sorobanTransactionFrameFromOps(
-            app->getNetworkID(), root, {op}, {}, resources, 20'000'000, 30'000);
+            app->getNetworkID(), root, {op}, {}, resources, 1000, 20'000'000);
 
         {
             LedgerTxn ltx(app->getLedgerTxnRoot());

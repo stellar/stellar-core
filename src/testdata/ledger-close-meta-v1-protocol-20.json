@@ -1,29 +1,29 @@
 {
     "LedgerCloseMeta": {
-        "v": 2,
-        "v2": {
+        "v": 1,
+        "v1": {
             "ext": {
                 "v": 0
             },
             "ledgerHeader": {
-                "hash": "59135b4b8f38c8c78e334c28546bc5583c6ec5ca83de7b6110a9c39fcece681f",
+                "hash": "970c159279fc7d1f00129e0d1de5e140a110c3b4c69c952e4c26f2ac108ceb99",
                 "header": {
-                    "ledgerVersion": 21,
-                    "previousLedgerHash": "0695df722594dae97d099ff0613e2aa13e22e9c1ad32f2150d2ef188274f6d7d",
+                    "ledgerVersion": 20,
+                    "previousLedgerHash": "2d961dddd9144c3700c4001ca6b6de60b5c7b88e8b2ffb64922b67370557a2ee",
                     "scpValue": {
-                        "txSetHash": "ee3ee1499b68a35e4da15b69e6de243a7241b1bff05e6f3ccbd9ba7aa80dbde8",
+                        "txSetHash": "f5b4d57662ce37264cccbdb9c8c774c9fed5c4bb7099e7d727fe04447604fe5c",
                         "closeTime": 0,
                         "upgrades": [],
                         "ext": {
                             "v": "STELLAR_VALUE_SIGNED",
                             "lcValueSignature": {
                                 "nodeID": "GDDOUW25MRFLNXQMN3OODP6JQEXSGLMHAFZV4XPQ2D3GA4QFIDMEJG2O",
-                                "signature": "981f38d0a2ee16ceffb1f97c208256af7a8ef99508e872f01df927c909588426e0b2e2507b4a1f2fb0c7ef858cfab22b3ca3565ae8470cce2fb9fd57cc454b0d"
+                                "signature": "cb6c8b9091abe331285a814ea206012bbd2adefd25fa2115b69110f2fbb170ad645ee99250a6ef922537b28f6d1648641c6f78e7ed07e0f13dcc4404fef31f0b"
                             }
                         }
                     },
                     "txSetResultHash": "cd1398cda325d4eada631301e6501421cda30fd0b43da3e5d0ffb26caf073b0a",
-                    "bucketListHash": "5e3ce4102589c1f8694720e2effa73ce9f792c5bcee0813b34df7e14f072e411",
+                    "bucketListHash": "f738db480ef653669f369394912dca78fd9cff59d65b1bfb82b1aa4444237bc9",
                     "ledgerSeq": 6,
                     "totalCoins": 1000000000000000000,
                     "feePool": 800,
@@ -49,7 +49,7 @@
             "txSet": {
                 "v": 1,
                 "v1TxSet": {
-                    "previousLedgerHash": "0695df722594dae97d099ff0613e2aa13e22e9c1ad32f2150d2ef188274f6d7d",
+                    "previousLedgerHash": "2d961dddd9144c3700c4001ca6b6de60b5c7b88e8b2ffb64922b67370557a2ee",
                     "phases": [
                         {
                             "v": 0,
@@ -1001,7 +1001,7 @@
             ],
             "upgradesProcessing": [],
             "scpInfo": [],
-            "totalByteSizeOfBucketList": 406,
+            "totalByteSizeOfBucketList": 413,
             "evictedTemporaryLedgerKeys": [],
             "evictedPersistentLedgerEntries": []
         }

@@ -107,5 +107,5 @@ bool appProtocolVersionStartsFrom(Application& app,
 
 // This is a rough guess at the refundable fee to include. 20k for a ledger
 // write plus 1000 for a little additional slop.
-constexpr uint32_t DEFAULT_TEST_REFUNDABLE_FEE = 21'000;
+constexpr uint32_t DEFAULT_TEST_RESOURCE_FEE = 1'000'000;
 }

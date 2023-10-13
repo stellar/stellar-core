@@ -2051,7 +2051,7 @@ TEST_CASE("upgrade to version 13", "[upgrades]")
 // the LedgerCloseMeta version for vN. This test checks that the meta versions
 // are correct the protocol 20 upgrade that updates LedgerCloseMeta to V2 and
 // that no asserts are thrown.
-TEST_CASE("upgrade to version 20 - LedgerCloseMetaV2")
+TEST_CASE("upgrade to version 20 - LedgerCloseMetaV1")
 {
     TmpDirManager tdm(std::string("version-20-upgrade-meta-") +
                       binToHex(randomBytes(8)));
@@ -2081,10 +2081,10 @@ TEST_CASE("upgrade to version 20 - LedgerCloseMetaV2")
         {
             REQUIRE(lcm.v() == 0);
         }
-        // Meta frame after upgrade should be V2
+        // Meta frame after upgrade should be V1
         else if (metaFrameCount == 1)
         {
-            REQUIRE(lcm.v() == 2);
+            REQUIRE(lcm.v() == 1);
         }
         // Should only be 2 meta frames
         else
