@@ -27,6 +27,8 @@ static auto const MAX_MESSAGE_SIZE = 0x1000000;
 static const uint32_t MAX_CLASSIC_TX_SIZE_BYTES = 100 * 1024;
 
 class Application;
+class TxSetFrame;
+using TxSetFrameConstPtr = std::shared_ptr<TxSetFrame const>;
 class LoopbackPeer;
 struct OverlayMetrics;
 class FlowControl;
@@ -211,6 +213,7 @@ class Peer : public std::enable_shared_from_this<Peer>,
 
     VirtualTimer mRecurringTimer;
     VirtualTimer mDelayedExecutionTimer;
+    VirtualTimer mTxSetRequestTimer;
 
     VirtualClock::time_point mLastRead;
     VirtualClock::time_point mLastWrite;
@@ -243,9 +246,13 @@ class Peer : public std::enable_shared_from_this<Peer>,
     void recvSurveyResponseMessage(StellarMessage const& msg);
     void recvSendMore(StellarMessage const& msg);
 
+    void sendTxSet(std::shared_ptr<TxSetFrame const> txSet);
+
     void recvGetTxSet(StellarMessage const& msg);
     void recvTxSet(StellarMessage const& msg);
     void recvGeneralizedTxSet(StellarMessage const& msg);
+    void recvTxSetHelper(StellarMessage const& msg,
+                         TxSetFrameConstPtr txSetFrame);
     void recvTransaction(StellarMessage const& msg);
     void recvGetSCPQuorumSet(StellarMessage const& msg);
     void recvSCPQuorumSet(StellarMessage const& msg);
@@ -258,6 +265,8 @@ class Peer : public std::enable_shared_from_this<Peer>,
     void sendAuth();
     void sendSCPQuorumSet(SCPQuorumSetPtr qSet);
     void sendDontHave(MessageType type, uint256 const& itemID);
+    void sendDontHave(StellarMessage const& msg);
+    void maybeSendDontHaveAfterDelay(StellarMessage const& msg);
     void sendPeers();
     void sendError(ErrorCode error, std::string const& message);
 

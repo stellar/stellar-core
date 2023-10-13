@@ -6,6 +6,7 @@
 
 #include "overlay/Peer.h"
 #include "overlay/StellarXDR.h"
+#include <unordered_set>
 
 /**
  * OverlayManager maintains a virtual broadcast network, consisting of a set of
@@ -59,6 +60,9 @@ class OverlayManager
         uint32_t mTotal;
         uint32_t mBatchSize;
     };
+
+    using MapPendingGetTxSetRequestsPerSlot =
+        std::unordered_map<Hash, std::unordered_set<NodeID>>;
 
     static int constexpr MIN_INBOUND_FACTOR = 3;
 
@@ -168,6 +172,7 @@ class OverlayManager
 
     // Return the current in-memory set of authenticated peers.
     virtual std::map<NodeID, Peer::pointer> getAuthenticatedPeers() const = 0;
+    virtual Peer::pointer getAuthenticatedPeer(NodeID id) const = 0;
 
     // Return number of authenticated peers
     virtual int getAuthenticatedPeersCount() const = 0;
@@ -203,6 +208,10 @@ class OverlayManager
                                      std::shared_ptr<Peer> peer) = 0;
 
     virtual size_t getMaxAdvertSize() const = 0;
+
+    virtual void purgePendingGetTxSetRequestsBelow(uint64 ledgerSeq) = 0;
+    virtual std::map<uint64, MapPendingGetTxSetRequestsPerSlot>&
+    getPendingGetTxSetRequests() = 0;
 
     virtual ~OverlayManager()
     {

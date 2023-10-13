@@ -164,6 +164,7 @@ class OverlayManagerImpl : public OverlayManager
     std::map<NodeID, Peer::pointer> const&
     getOutboundAuthenticatedPeers() const override;
     std::map<NodeID, Peer::pointer> getAuthenticatedPeers() const override;
+    virtual Peer::pointer getAuthenticatedPeer(NodeID id) const override;
     int getAuthenticatedPeersCount() const override;
 
     // returns nullptr if the passed peer isn't found
@@ -194,6 +195,10 @@ class OverlayManagerImpl : public OverlayManager
                              std::shared_ptr<Peer> peer) override;
     size_t getMaxAdvertSize() const override;
 
+    void purgePendingGetTxSetRequestsBelow(uint64 ledgerSeq) override;
+    std::map<uint64, MapPendingGetTxSetRequestsPerSlot>&
+    getPendingGetTxSetRequests() override;
+
   private:
     struct ResolvedPeers
     {
@@ -206,6 +211,8 @@ class OverlayManagerImpl : public OverlayManager
     std::future<ResolvedPeers> mResolvedPeers;
     bool mResolvingPeersWithBackoff;
     int mResolvingPeersRetryCount;
+    std::map<uint64, MapPendingGetTxSetRequestsPerSlot>
+        mPendingGetTxSetRequests;
 
     void triggerPeerResolution();
     std::pair<std::vector<PeerBareAddress>, bool>

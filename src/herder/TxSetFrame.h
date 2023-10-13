@@ -159,6 +159,7 @@ class TxSetFrame : public NonMovableOrCopyable
     // Test helper that only checks the XDR structure validitiy without
     // validating internal transactions.
     virtual bool checkValidStructure() const;
+    void computeContentsHashForTesting();
     static TxSetFrameConstPtr
     makeFromTransactions(Transactions txs, Application& app,
                          uint64_t lowerBoundCloseTimeOffset,

@@ -156,6 +156,7 @@ Config::Config() : NODE_SEED(SecretKey::random())
     AUTOMATIC_MAINTENANCE_COUNT = 400;
     // automatic self-check happens once every 3 hours
     AUTOMATIC_SELF_CHECK_PERIOD = std::chrono::seconds{3 * 60 * 60};
+    SEND_DONT_HAVE_DELAY = std::chrono::milliseconds{200};
     ARTIFICIALLY_GENERATE_LOAD_FOR_TESTING = false;
     ARTIFICIALLY_ACCELERATE_TIME_FOR_TESTING = false;
     ARTIFICIALLY_SET_CLOSE_TIME_FOR_TESTING = 0;
@@ -223,6 +224,8 @@ Config::Config() : NODE_SEED(SecretKey::random())
     FLOOD_DEMAND_PERIOD_MS = std::chrono::milliseconds(200);
     FLOOD_ADVERT_PERIOD_MS = std::chrono::milliseconds(100);
     FLOOD_DEMAND_BACKOFF_DELAY_MS = std::chrono::milliseconds(500);
+
+    TX_SET_BACKOFF_DELAY_MS = std::chrono::milliseconds(1500);
 
     MAX_BATCH_WRITE_COUNT = 1024;
     MAX_BATCH_WRITE_BYTES = 1 * 1024 * 1024;
@@ -1142,6 +1145,11 @@ Config::processConfig(std::shared_ptr<cpptoml::table> t)
                 AUTOMATIC_SELF_CHECK_PERIOD =
                     std::chrono::seconds{readInt<uint32_t>(item)};
             }
+            else if (item.first == "SEND_DONT_HAVE_DELAY")
+            {
+                SEND_DONT_HAVE_DELAY =
+                    std::chrono::seconds{readInt<uint32_t>(item)};
+            }
             else if (item.first == "MANUAL_CLOSE")
             {
                 MANUAL_CLOSE = readBool(item);
@@ -1271,6 +1279,11 @@ Config::processConfig(std::shared_ptr<cpptoml::table> t)
                     throw std::invalid_argument(
                         "bad value for FLOOD_ARB_TX_DAMPING_FACTOR");
                 }
+            }
+            else if (item.first == "TX_SET_BACKOFF_DELAY_MS")
+            {
+                TX_SET_BACKOFF_DELAY_MS =
+                    std::chrono::milliseconds(readInt<int>(item, 1));
             }
             else if (item.first == "PREFERRED_PEERS")
             {

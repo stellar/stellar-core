@@ -21,7 +21,11 @@
 namespace stellar
 {
 
-std::chrono::milliseconds const Tracker::MS_TO_WAIT_FOR_FETCH_REPLY{1500};
+#ifdef BUILD_TESTS
+std::optional<std::chrono::milliseconds>
+    Tracker::mMillisecondsToWaitForFetchReplayForTesting = std::nullopt;
+#endif
+
 int const Tracker::MAX_REBUILD_FETCH_LIST = 10;
 
 Tracker::Tracker(Application& app, Hash const& hash, AskPeer& askPeer)
@@ -40,6 +44,19 @@ Tracker::Tracker(Application& app, Hash const& hash, AskPeer& askPeer)
 Tracker::~Tracker()
 {
     cancel();
+}
+
+std::chrono::milliseconds const
+Tracker::getMillisecondsToWaitForFetchReplay()
+{
+#ifdef BUILD_TESTS
+    if (mMillisecondsToWaitForFetchReplayForTesting)
+    {
+        return *mMillisecondsToWaitForFetchReplayForTesting;
+    }
+#endif
+
+    return MS_TO_WAIT_FOR_FETCH_REPLY;
 }
 
 SCPEnvelope
@@ -93,6 +110,7 @@ void
 Tracker::tryNextPeer()
 {
     ZoneScoped;
+
     // will be called by some timer or when we get a
     // response saying they don't have it
     CLOG_TRACE(Overlay, "tryNextPeer {} last: {}", hexAbbrev(mItemHash),
@@ -269,4 +287,14 @@ Tracker::getDuration()
 {
     return mFetchTime.checkElapsedTime();
 }
+
+#ifdef BUILD_TESTS
+void
+Tracker::setMillisecondsToWaitForFetchReplayForTesting(
+    std::chrono::milliseconds duration)
+{
+    mMillisecondsToWaitForFetchReplayForTesting = duration;
+}
+#endif
+
 }

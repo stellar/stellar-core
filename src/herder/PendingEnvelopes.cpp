@@ -234,13 +234,21 @@ PendingEnvelopes::addTxSet(Hash const& hash, uint64 lastSeenSlotIndex,
     mTxSetFetcher.recv(hash, mFetchTxSetTimer);
 }
 
+uint64
+
+PendingEnvelopes::getLastSeenSlotIndexForTxSet(Hash const& hash)
+{
+    auto lastSeenSlotIndex = mTxSetFetcher.getLastSeenSlotIndex(hash);
+    return lastSeenSlotIndex;
+}
+
 bool
 PendingEnvelopes::recvTxSet(Hash const& hash, TxSetFrameConstPtr txset)
 {
     ZoneScoped;
     CLOG_TRACE(Herder, "Got TxSet {}", hexAbbrev(hash));
 
-    auto lastSeenSlotIndex = mTxSetFetcher.getLastSeenSlotIndex(hash);
+    auto lastSeenSlotIndex = getLastSeenSlotIndexForTxSet(hash);
     if (lastSeenSlotIndex == 0)
     {
         return false;
@@ -361,9 +369,26 @@ PendingEnvelopes::recvSCPEnvelope(SCPEnvelope const& envelope)
         }
         else
         {
-            // else just keep waiting for it to come in
-            // and refresh fetchers as needed
-            startFetch(envelope);
+            if (envelope.statement.pledges.type() == SCP_ST_NOMINATE)
+            {
+                auto qSetH = Slot::getCompanionQuorumSetHashFromStatement(
+                    envelope.statement);
+                auto mQSet = mApp.getHerder().getQSet(qSetH);
+                if (mQSet != nullptr)
+                {
+                    // The qset has been fetched.
+                    // Not all tx sets have been fetched,
+                    // but we should process this nomination statement
+                    // in case we can vote for some/all of them.
+                    envelopeReady(envelope);
+                }
+            }
+            else
+            {
+                // else just keep waiting for it to come in
+                // and refresh fetchers as needed
+                startFetch(envelope);
+            }
         }
 
         return Herder::ENVELOPE_STATUS_FETCHING;

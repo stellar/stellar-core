@@ -137,10 +137,9 @@ class SCPHerderEnvelopeWrapper : public SCPEnvelopeWrapper
             }
             else
             {
-                throw std::runtime_error(fmt::format(
-                    FMT_STRING("SCPHerderEnvelopeWrapper: Wrapping an unknown "
-                               "tx set {} from envelope"),
-                    hexAbbrev(txSetH)));
+                CLOG_TRACE(Herder,
+                           "unknown tx set {}, we might still able to vote",
+                           hexAbbrev(txSetH));
             }
         }
     }
@@ -314,10 +313,10 @@ HerderSCPDriver::validateValueHelper(uint64_t slotIndex, StellarValue const& b,
 
     if (!txSet)
     {
-        CLOG_ERROR(Herder, "validateValue i:{} unknown txSet {}", slotIndex,
+        CLOG_TRACE(Herder, "validateValue i:{} unknown txSet {}", slotIndex,
                    hexAbbrev(txSetHash));
-
-        res = SCPDriver::kInvalidValue;
+        res =
+            nomination ? SCPDriver::kVoteToNominate : SCPDriver::kInvalidValue;
     }
     else if (!checkAndCacheTxSetValid(txSet, closeTimeOffset))
     {
@@ -439,7 +438,7 @@ HerderSCPDriver::extractValidValue(uint64_t slotIndex, Value const& value)
     return res;
 }
 
-// value marshaling
+// value marshalling
 
 std::string
 HerderSCPDriver::toShortString(NodeID const& pk) const
@@ -1178,10 +1177,8 @@ class SCPHerderValueWrapper : public ValueWrapper
         mTxSet = mHerder.getTxSet(sv.txSetHash);
         if (!mTxSet)
         {
-            throw std::runtime_error(fmt::format(
-                FMT_STRING(
-                    "SCPHerderValueWrapper tried to bind an unknown tx set {}"),
-                hexAbbrev(sv.txSetHash)));
+            CLOG_TRACE(Herder, "unknown tx set {}, we might vote to nominate",
+                       hexAbbrev(sv.txSetHash));
         }
     }
 };

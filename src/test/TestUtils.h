@@ -21,6 +21,7 @@ namespace testutil
 {
 void crankSome(VirtualClock& clock);
 void crankFor(VirtualClock& clock, VirtualClock::duration duration);
+
 void injectSendPeersAndReschedule(VirtualClock::time_point& end,
                                   VirtualClock& clock, VirtualTimer& timer,
                                   LoopbackPeerConnection& connection);

@@ -70,6 +70,11 @@ class SCPDriver
     {
     }
 
+    // Users of the SCP library should inherit from SCPDriver and implement the
+    // virtual methods which are called by the SCP implementation to
+    // abstract the transport layer used from the implementation of the SCP
+    // protocol.
+
     // Envelope signature
     virtual void signEnvelope(SCPEnvelope& envelope) = 0;
 
@@ -91,11 +96,6 @@ class SCPDriver
     // considered invalid.
     virtual SCPQuorumSetPtr getQSet(Hash const& qSetHash) = 0;
 
-    // Users of the SCP library should inherit from SCPDriver and implement the
-    // virtual methods which are called by the SCP implementation to
-    // abstract the transport layer used from the implementation of the SCP
-    // protocol.
-
     // Delegates the emission of an SCPEnvelope to the user of SCP. Envelopes
     // should be flooded to the network.
     virtual void emitEnvelope(SCPEnvelope const& envelope) = 0;
@@ -115,9 +115,10 @@ class SCPDriver
     // NB: validation levels are ordered
     enum ValidationLevel
     {
-        kInvalidValue = 0,       // value is invalid for sure
-        kMaybeValidValue = 1,    // value may be valid
-        kFullyValidatedValue = 2 // value is valid for sure
+        kInvalidValue = 0,        // value is invalid for sure
+        kMaybeValidValue = 1,     // value may be valid
+        kFullyValidatedValue = 2, // value is valid for sure
+        kVoteToNominate = 3       // value is valid enough to vote to nominate
     };
     virtual ValidationLevel
     validateValue(uint64 slotIndex, Value const& value, bool nomination)
@@ -177,6 +178,10 @@ class SCPDriver
     // `computeTimeout` computes a timeout given a round number
     // it should be sufficiently large such that nodes in a
     // quorum can exchange 4 messages
+
+    // TODO: does 'can exchange 4 messages' consider sending getTxSet messages?
+    // Should we clarify this?
+
     virtual std::chrono::milliseconds computeTimeout(uint32 roundNumber);
 
     // Inform about events happening within the consensus algorithm.

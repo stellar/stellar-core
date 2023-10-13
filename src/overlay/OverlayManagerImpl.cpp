@@ -285,6 +285,7 @@ OverlayManagerImpl::OverlayManagerImpl(Application& app)
     , mDemandTimer(app)
     , mResolvingPeersWithBackoff(true)
     , mResolvingPeersRetryCount(0)
+    , mPendingGetTxSetRequests{}
 {
     mPeerSources[PeerType::INBOUND] = std::make_unique<RandomPeerSource>(
         mPeerManager, RandomPeerSource::nextAttemptCutoff(PeerType::INBOUND));
@@ -984,6 +985,20 @@ OverlayManagerImpl::getAuthenticatedPeers() const
     return result;
 }
 
+Peer::pointer
+OverlayManagerImpl::getAuthenticatedPeer(NodeID id) const
+{
+    auto const& peers = getAuthenticatedPeers();
+    if (auto it = peers.find(id); it != peers.end())
+    {
+        return it->second;
+    }
+    else
+    {
+        return nullptr;
+    }
+}
+
 std::shared_ptr<int>
 OverlayManagerImpl::getLiveInboundPeersCounter() const
 {
@@ -1292,6 +1307,31 @@ OverlayManagerImpl::getMaxAdvertSize() const
     res = std::max<size_t>(1, res);
     res = std::min<size_t>(TX_ADVERT_VECTOR_MAX_SIZE, res);
     return res;
+}
+
+void
+OverlayManagerImpl::purgePendingGetTxSetRequestsBelow(uint64 ledgerSeq)
+{
+    auto itr = mPendingGetTxSetRequests.begin();
+
+    while (itr != mPendingGetTxSetRequests.end())
+    {
+        auto slotIndex = itr->first;
+        if (slotIndex < ledgerSeq)
+        {
+            itr = mPendingGetTxSetRequests.erase(itr);
+        }
+        else
+        {
+            break;
+        }
+    }
+}
+
+std::map<uint64, OverlayManagerImpl::MapPendingGetTxSetRequestsPerSlot>&
+OverlayManagerImpl::getPendingGetTxSetRequests()
+{
+    return mPendingGetTxSetRequests;
 }
 
 size_t

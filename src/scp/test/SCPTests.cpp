@@ -56,6 +56,9 @@ class TestSCP : public SCPDriver
   public:
     SCP mSCP;
 
+    SCPDriver::ValidationLevel mValidationLevel{
+        SCPDriver::kFullyValidatedValue};
+
     TestSCP(NodeID const& nodeID, SCPQuorumSet const& qSetLocal,
             bool isValidator = true)
         : mSCP(*this, nodeID, isValidator, qSetLocal)
@@ -87,7 +90,7 @@ class TestSCP : public SCPDriver
     validateValue(uint64 slotIndex, Value const& value,
                   bool nomination) override
     {
-        return SCPDriver::kFullyValidatedValue;
+        return mValidationLevel;
     }
 
     void
@@ -3154,6 +3157,113 @@ TEST_CASE("nomination tests core5", "[scp][nominationprotocol]")
                 REQUIRE(scp.mEnvs.size() == 0);
             }
         }
+    }
+}
+
+TEST_CASE("nomination votes to nominate optimistically",
+          "[scp][nominationprotocol]")
+{
+    setupValues();
+    SIMULATION_CREATE_NODE(0);
+    SIMULATION_CREATE_NODE(1);
+
+    // 2 out of 2.
+    SCPQuorumSet qSet;
+    qSet.threshold = 2;
+    qSet.validators.push_back(v0NodeID);
+    qSet.validators.push_back(v1NodeID);
+
+    uint256 qSetHash = sha256(xdr::xdr_to_opaque(qSet));
+
+    REQUIRE(xValue < yValue);
+    REQUIRE(yValue < zValue);
+
+    auto checkLeaders = [&](TestSCP& scp, std::set<NodeID> expectedLeaders) {
+        auto l = scp.getNominationLeaders(0);
+        REQUIRE(std::equal(l.begin(), l.end(), expectedLeaders.begin(),
+                           expectedLeaders.end()));
+    };
+
+    TestSCP scp(v0SecretKey.getPublicKey(), qSet);
+    uint256 qSetHash0 = scp.mSCP.getLocalNode()->getQuorumSetHash();
+    scp.storeQuorumSet(std::make_shared<SCPQuorumSet>(qSet));
+    scp.mExpectedCandidates.emplace(xValue);
+    scp.mCompositeValue = xValue;
+
+    SECTION("fully validated value")
+    {
+        scp.mValidationLevel = SCPDriver::kFullyValidatedValue;
+
+        // Node 0 (leader) votes to nominate xValue.
+        REQUIRE(scp.nominate(0, xValue, false));
+
+        checkLeaders(scp, {v0SecretKey.getPublicKey()});
+
+        std::vector<Value> votes, accepted;
+        votes.emplace_back(xValue);
+
+        REQUIRE(scp.mEnvs.size() == 1);
+        verifyNominate(scp.mEnvs[0], v0SecretKey, qSetHash0, 0, votes,
+                       accepted);
+
+        // Node 1 has voted and accepted to nominate xValue.
+        accepted.emplace_back(xValue);
+        SCPEnvelope nom1 =
+            makeNominate(v1SecretKey, qSetHash, 0, votes, accepted);
+
+        // This allows node 0 to accept and confirm to nominate xValue,
+        // and also start the ballot protocol.
+        scp.receiveEnvelope(nom1);
+        REQUIRE(scp.mEnvs.size() == 3);
+
+        // We emit the accept(nominate(X)) after the prepare statement.
+        verifyNominate(scp.mEnvs[2], v0SecretKey, qSetHash0, 0, votes,
+                       accepted);
+
+        SCPBallot b(1, xValue);
+        verifyPrepare(scp.mEnvs[1], v0SecretKey, qSetHash0, 0, b);
+    }
+    SECTION("fully validated later")
+    {
+        scp.mValidationLevel = SCPDriver::kVoteToNominate;
+
+        // Node 0 (leader) votes to nominate xValue.
+        REQUIRE(scp.nominate(0, xValue, false));
+
+        checkLeaders(scp, {v0SecretKey.getPublicKey()});
+
+        std::vector<Value> votes, accepted;
+        votes.emplace_back(xValue);
+
+        REQUIRE(scp.mEnvs.size() == 1);
+        verifyNominate(scp.mEnvs[0], v0SecretKey, qSetHash0, 0, votes,
+                       accepted);
+
+        // Node 1 has voted and accepted to nominate xValue.
+        accepted.emplace_back(xValue);
+        SCPEnvelope nom1 =
+            makeNominate(v1SecretKey, qSetHash, 0, votes, accepted);
+
+        // This *almost* allows Node 0 to accept to nominate xValue.
+        // However, Node 0 won't accept to nominate as it hasn't validated
+        // xValue yet.
+        scp.receiveEnvelope(nom1);
+        REQUIRE(scp.mEnvs.size() == 1); // No new envelope emitted
+
+        CLOG_INFO(SCP, "updating the validation level");
+        scp.mValidationLevel = SCPDriver::kFullyValidatedValue;
+
+        // Now this time, Node 0 can accept & confirm to nominate xValue
+        // and also start the ballot protocol.
+        scp.receiveEnvelope(nom1);
+        REQUIRE(scp.mEnvs.size() == 3);
+
+        // We emit the accept(nominate(X)) after the prepare statement.
+        verifyNominate(scp.mEnvs[2], v0SecretKey, qSetHash0, 0, votes,
+                       accepted);
+
+        SCPBallot b(1, xValue);
+        verifyPrepare(scp.mEnvs[1], v0SecretKey, qSetHash0, 0, b);
     }
 }
 }

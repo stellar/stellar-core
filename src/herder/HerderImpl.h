@@ -150,6 +150,7 @@ class HerderImpl : public Herder
                                      SCPStatement const& newSt) override;
 
     SequenceNumber getMaxSeqInPendingTxs(AccountID const&) override;
+    uint64 getLastSeenSlotIndexForTxSet(Hash const& hash) override;
 
     uint32_t getMostRecentCheckpointSeq() override;
 
