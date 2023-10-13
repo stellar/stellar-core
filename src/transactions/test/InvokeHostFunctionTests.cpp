@@ -2353,25 +2353,47 @@ TEST_CASE("failed invocation with diagnostics", "[tx][soroban]")
     ltx.commit();
 
     auto const& opEvents = txm.getXDR().v3().sorobanMeta->diagnosticEvents;
-    REQUIRE(opEvents.size() == 22);
+    REQUIRE(opEvents.size() == 23);
 
-    auto const& call_ev = opEvents.at(0);
-    REQUIRE(!call_ev.inSuccessfulContractCall);
-    REQUIRE(call_ev.event.type == ContractEventType::DIAGNOSTIC);
-    REQUIRE(call_ev.event.body.v0().data.type() == SCV_VEC);
+    auto const& callEv = opEvents.at(0);
+    REQUIRE(!callEv.inSuccessfulContractCall);
+    REQUIRE(callEv.event.type == ContractEventType::DIAGNOSTIC);
+    REQUIRE(callEv.event.body.v0().data.type() == SCV_VEC);
 
     auto const& contract_ev = opEvents.at(1);
     REQUIRE(!contract_ev.inSuccessfulContractCall);
     REQUIRE(contract_ev.event.type == ContractEventType::CONTRACT);
     REQUIRE(contract_ev.event.body.v0().data.type() == SCV_VEC);
 
-    auto const& read_entry_ev = opEvents.at(3);
-    REQUIRE(!read_entry_ev.inSuccessfulContractCall);
-    REQUIRE(read_entry_ev.event.type == ContractEventType::DIAGNOSTIC);
-    auto const& v0 = read_entry_ev.event.body.v0();
-    REQUIRE((v0.topics.size() == 2 && v0.topics.at(0).sym() == "core_metrics" &&
-             v0.topics.at(1).sym() == "read_entry"));
-    REQUIRE(v0.data.type() == SCV_U64);
+    auto const& hostFnErrorEv = opEvents.at(3);
+    REQUIRE(!hostFnErrorEv.inSuccessfulContractCall);
+    REQUIRE(hostFnErrorEv.event.type == ContractEventType::DIAGNOSTIC);
+    auto const& hostFnErrorBody = hostFnErrorEv.event.body.v0();
+    SCError expectedError(SCE_WASM_VM);
+    expectedError.code() = SCEC_INVALID_ACTION;
+    REQUIRE(hostFnErrorBody.topics.size() == 2);
+    REQUIRE(hostFnErrorBody.topics.at(0).sym() == "host_fn_failed");
+    REQUIRE(hostFnErrorBody.topics.at(1).error() == expectedError);
+
+    auto const& readEntryEv = opEvents.at(4);
+    REQUIRE(!readEntryEv.inSuccessfulContractCall);
+    REQUIRE(readEntryEv.event.type == ContractEventType::DIAGNOSTIC);
+    auto const& readEntryEvBody = readEntryEv.event.body.v0();
+    REQUIRE(readEntryEvBody.topics.size() == 2);
+    REQUIRE(readEntryEvBody.topics.at(0).sym() == "core_metrics");
+    REQUIRE(readEntryEvBody.topics.at(1).sym() == "read_entry");
+    REQUIRE(readEntryEvBody.data.type() == SCV_U64);
+    REQUIRE(readEntryEvBody.data.u64() == 2);
+
+    auto const& cpuInsnEv = opEvents.at(16);
+    REQUIRE(!cpuInsnEv.inSuccessfulContractCall);
+    REQUIRE(cpuInsnEv.event.type == ContractEventType::DIAGNOSTIC);
+    auto const& cpuInsnEvBody = cpuInsnEv.event.body.v0();
+    REQUIRE(cpuInsnEvBody.topics.size() == 2);
+    REQUIRE(cpuInsnEvBody.topics.at(0).sym() == "core_metrics");
+    REQUIRE(cpuInsnEvBody.topics.at(1).sym() == "cpu_insn");
+    REQUIRE(cpuInsnEvBody.data.type() == SCV_U64);
+    REQUIRE(cpuInsnEvBody.data.u64() >= 1000);
 }
 
 TEST_CASE("invalid tx with diagnostics", "[tx][soroban]")
