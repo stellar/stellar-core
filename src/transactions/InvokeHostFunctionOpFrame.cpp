@@ -498,7 +498,9 @@ InvokeHostFunctionOpFrame::doApply(Application& app, AbstractLedgerTxn& ltx,
             getLedgerInfo(ltx, cfg, sorobanConfig), ledgerEntryCxxBufs,
             TTLEntryCxxBufs, basePrngSeedBuf,
             sorobanConfig.rustBridgeRentFeeConfiguration());
-
+        metrics.mCpuInsn = static_cast<uint32>(out.cpu_insns);
+        metrics.mMemByte = static_cast<uint32>(out.mem_bytes);
+        metrics.mInvokeTimeNsecs = static_cast<uint32>(out.time_nsecs);
         if (!out.success)
         {
             maybePopulateDiagnosticEvents(cfg, out, metrics);
@@ -509,9 +511,6 @@ InvokeHostFunctionOpFrame::doApply(Application& app, AbstractLedgerTxn& ltx,
         CLOG_DEBUG(Tx, "Exception caught while invoking host fn: {}", e.what());
     }
 
-    metrics.mCpuInsn = static_cast<uint32>(out.cpu_insns);
-    metrics.mMemByte = static_cast<uint32>(out.mem_bytes);
-    metrics.mInvokeTimeNsecs = static_cast<uint32>(out.time_nsecs);
     if (!out.success)
     {
         if (resources.instructions < out.cpu_insns)

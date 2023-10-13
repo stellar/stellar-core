@@ -11,7 +11,6 @@ use crate::{
     },
 };
 use log::debug;
-use soroban_env_host_curr::xdr::{TtlEntry, LedgerEntryExt};
 use std::{fmt::Display, io::Cursor, panic, time::Instant};
 
 // This module (contract) is bound to _two separate locations_ in the module
@@ -28,8 +27,10 @@ use super::soroban_env_host::{
         LedgerEntryRentChange, RentFeeConfiguration, TransactionResources, WriteFeeConfiguration,
     },
     xdr::{
-        self, ContractCostParams, DiagnosticEvent, LedgerEntry, LedgerEntryData, ReadXdr,
-        ScErrorCode, ScErrorType, WriteXdr, XDR_FILES_SHA256,
+        self, ContractCostParams, ContractEvent, ContractEventBody, ContractEventType,
+        ContractEventV0, DiagnosticEvent, TtlEntry, ExtensionPoint, LedgerEntry,
+        LedgerEntryData, LedgerEntryExt, ReadXdr, ScError, ScErrorCode, ScErrorType, ScSymbol,
+        ScVal, WriteXdr, XDR_FILES_SHA256,
     },
     HostError, LedgerInfo,
 };
@@ -388,7 +389,29 @@ fn invoke_host_function_or_maybe_panic(
         },
         Err(e) => e,
     };
-
+    if enable_diagnostics {
+        diagnostic_events.push(DiagnosticEvent {
+            in_successful_contract_call: false,
+            event: ContractEvent {
+                ext: ExtensionPoint::V0,
+                contract_id: None,
+                type_: ContractEventType::Diagnostic,
+                body: ContractEventBody::V0(ContractEventV0 {
+                    topics: vec![
+                        ScVal::Symbol(ScSymbol("host_fn_failed".try_into().unwrap_or_default())),
+                        ScVal::Error(
+                            err.error
+                                .try_into()
+                                .unwrap_or(ScError::Context(ScErrorCode::InternalError)),
+                        ),
+                    ]
+                    .try_into()
+                    .unwrap_or_default(),
+                    data: ScVal::Void,
+                }),
+            },
+        })
+    }
     debug!(target: TX, "invocation failed: {}", err);
     return Ok(InvokeHostFunctionOutput {
         success: false,
