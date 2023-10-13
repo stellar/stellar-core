@@ -12,7 +12,7 @@ namespace stellar
 {
 LedgerCloseMetaFrame::LedgerCloseMetaFrame(uint32_t protocolVersion)
 {
-    // The LedgerCloseMeta v() switch can be in 3 positions, 0, 1, and 2. We
+    // The LedgerCloseMeta v() switch can be in 2 positions, 0 and 1. We
     // currently support all of these cases, depending on both compile time
     // and runtime conditions.
     mVersion = 0;
@@ -145,14 +145,8 @@ LedgerCloseMetaFrame::populateTxSet(TxSetFrame const& txSet)
 void
 LedgerCloseMetaFrame::setTotalByteSizeOfBucketList(uint64_t size)
 {
-    switch (mVersion)
-    {
-    case 1:
-        mLedgerCloseMeta.v1().totalByteSizeOfBucketList = size;
-        break;
-    default:
-        releaseAssert(false);
-    }
+    releaseAssert(mVersion == 1);
+    mLedgerCloseMeta.v1().totalByteSizeOfBucketList = size;
 }
 
 void
