@@ -1056,14 +1056,6 @@ Peer::recvGetTxSet(StellarMessage const& msg)
         StellarMessage newMsg;
         if (txSet->isGeneralizedTxSet())
         {
-            if (mRemoteOverlayVersion <
-                Peer::FIRST_VERSION_SUPPORTING_GENERALIZED_TX_SET)
-            {
-                // The peer wouldn't be able to accept the generalized tx
-                // set, but it wouldn't be correct to say we don't have it.
-                // So we just let the request to timeout.
-                return;
-            }
             newMsg.type(GENERALIZED_TX_SET);
             txSet->toXDR(newMsg.generalizedTxSet());
         }
@@ -1089,18 +1081,6 @@ Peer::recvGetTxSet(StellarMessage const& msg)
                                     SOROBAN_PROTOCOL_VERSION)
                 ? TX_SET
                 : GENERALIZED_TX_SET;
-        // If peer is not aware of generalized tx sets and we don't have the
-        // requested hash, then it probably requests an old-style tx set we
-        // don't have. Another option is that the peer is in incorrect
-        // state, but it's also ok to say we don't have the requested
-        // old-style tx set.
-        if (messageType == GENERALIZED_TX_SET &&
-            mRemoteOverlayVersion <
-                Peer::FIRST_VERSION_SUPPORTING_GENERALIZED_TX_SET)
-        {
-            sendDontHave(TX_SET, msg.txSetHash());
-            return;
-        }
         sendDontHave(messageType, msg.txSetHash());
     }
 }
@@ -1744,7 +1724,7 @@ Peer::queueTxHashToAdvertise(Hash const& txHash)
     // Flush adverts at the earliest of the following two conditions:
     // 1. The number of hashes reaches the threshold.
     // 2. The oldest tx hash hash been in the queue for FLOOD_TX_PERIOD_MS.
-    if (mTxHashesToAdvertise.size() ==
+    if (mTxHashesToAdvertise.size() >=
         mApp.getOverlayManager().getMaxAdvertSize())
     {
         flushAdvert();

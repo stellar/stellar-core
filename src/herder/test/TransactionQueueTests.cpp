@@ -1089,6 +1089,30 @@ class SorobanLimitingLaneConfigForTesting : public SurgePricingLaneConfig
     std::vector<Resource> mLaneOpsLimits;
 };
 
+TEST_CASE("Soroban TransactionQueue pre-protocol-20")
+{
+    VirtualClock clock;
+    auto cfg = getTestConfig();
+    cfg.TESTING_UPGRADE_LEDGER_PROTOCOL_VERSION =
+        static_cast<uint32_t>(SOROBAN_PROTOCOL_VERSION) - 1;
+
+    auto app = createTestApplication(clock, cfg);
+    auto root = TestAccount::createRoot(*app);
+
+    SorobanResources resources;
+    resources.instructions = 2'000'000;
+    resources.readBytes = 2000;
+    resources.writeBytes = 1000;
+
+    auto tx = createUploadWasmTx(*app, root, 10'000'000,
+                                 DEFAULT_TEST_RESOURCE_FEE, resources);
+
+    // Soroban tx is not supported
+    REQUIRE(app->getHerder().recvTransaction(tx, false) ==
+            TransactionQueue::AddResult::ADD_STATUS_ERROR);
+    REQUIRE(app->getHerder().getTx(tx->getFullHash()) == nullptr);
+}
+
 TEST_CASE("Soroban TransactionQueue limits",
           "[herder][transactionqueue][soroban]")
 {

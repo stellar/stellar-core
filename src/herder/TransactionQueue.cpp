@@ -1231,14 +1231,6 @@ SorobanTransactionQueue::getMaxResourcesToFloodThisPeriod() const
 
     LedgerTxn ltx(mApp.getLedgerTxnRoot(), /* shouldUpdateLastModified */ true,
                   TransactionMode::READ_ONLY_WITHOUT_SQL_TXN);
-
-    // If we're not on the right protocol yet, there's nothing to broadcast
-    if (protocolVersionIsBefore(ltx.loadHeader().current().ledgerVersion,
-                                SOROBAN_PROTOCOL_VERSION))
-    {
-        return std::make_pair(Resource::makeEmpty(true), std::nullopt);
-    }
-
     auto sorRes = mApp.getLedgerManager().maxLedgerResources(true, ltx);
 
     auto totalFloodPerLedger = multiplyByDouble(sorRes, ratePerLedger);
@@ -1307,16 +1299,12 @@ SorobanTransactionQueue::broadcastSome()
 
     LedgerTxn ltx(mApp.getLedgerTxnRoot(), true,
                   TransactionMode::READ_ONLY_WITHOUT_SQL_TXN);
-    if (protocolVersionStartsFrom(ltx.loadHeader().current().ledgerVersion,
-                                  SOROBAN_PROTOCOL_VERSION))
+    Resource maxPerTx = mApp.getLedgerManager().maxTransactionResources(
+        /* isSoroban */ true, ltx);
+    for (auto& resLeft : mBroadcastOpCarryover)
     {
-        Resource maxPerTx = mApp.getLedgerManager().maxTransactionResources(
-            /* isSoroban */ true, ltx);
-        for (auto& resLeft : mBroadcastOpCarryover)
-        {
-            // Limit carry-over to 1 maximum resource transaction
-            resLeft = limitTo(resLeft, maxPerTx);
-        }
+        // Limit carry-over to 1 maximum resource transaction
+        resLeft = limitTo(resLeft, maxPerTx);
     }
     return !totalResToFlood.isZero();
 }

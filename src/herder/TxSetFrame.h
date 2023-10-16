@@ -216,10 +216,10 @@ class TxSetFrame : public NonMovableOrCopyable
     mutable std::vector<bool> mFeesComputed;
     mutable std::unordered_map<TransactionFrameBaseConstPtr,
                                std::optional<int64_t>>
-        mTxBaseFeeClassic;
+        mTxBaseInclusionFeeClassic;
     mutable std::unordered_map<TransactionFrameBaseConstPtr,
                                std::optional<int64_t>>
-        mTxBaseFeeSoroban;
+        mTxBaseInclusionFeeSoroban;
     std::optional<Resource> getTxSetSorobanResource() const;
 
     // Get _inclusion_ fee map for a given phase. The map contains lowest base
