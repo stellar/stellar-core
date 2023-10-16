@@ -1105,7 +1105,7 @@ TEST_CASE("Soroban TransactionQueue pre-protocol-20")
     resources.writeBytes = 1000;
 
     auto tx = createUploadWasmTx(*app, root, 10'000'000,
-                                 DEFAULT_TEST_REFUNDABLE_FEE, resources);
+                                 DEFAULT_TEST_RESOURCE_FEE, resources);
 
     // Soroban tx is not supported
     REQUIRE(app->getHerder().recvTransaction(tx, false) ==
