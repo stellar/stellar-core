@@ -1287,6 +1287,7 @@ HerderImpl::triggerNextLedger(uint32_t ledgerSeqToTrigger,
     if (protocolVersionStartsFrom(lcl.header.ledgerVersion,
                                   SOROBAN_PROTOCOL_VERSION))
     {
+        releaseAssert(mSorobanTransactionQueue);
         txPhases.emplace_back(
             mSorobanTransactionQueue->getTransactions(lcl.header));
     }
@@ -1332,6 +1333,7 @@ HerderImpl::triggerNextLedger(uint32_t ledgerSeqToTrigger,
     if (protocolVersionStartsFrom(lcl.header.ledgerVersion,
                                   SOROBAN_PROTOCOL_VERSION))
     {
+        releaseAssert(mSorobanTransactionQueue);
         mSorobanTransactionQueue->ban(
             invalidTxPhases[static_cast<size_t>(TxSetFrame::Phase::SOROBAN)]);
     }
@@ -2038,7 +2040,7 @@ HerderImpl::maybeSetupSorobanQueue(uint32_t protocolVersion)
         if (!mSorobanTransactionQueue)
         {
             mSorobanTransactionQueue =
-                std::make_shared<SorobanTransactionQueue>(
+                std::make_unique<SorobanTransactionQueue>(
                     mApp, TRANSACTION_QUEUE_TIMEOUT_LEDGERS,
                     TRANSACTION_QUEUE_BAN_LEDGERS,
                     SOROBAN_TRANSACTION_QUEUE_SIZE_MULTIPLIER);

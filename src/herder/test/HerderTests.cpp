@@ -3613,6 +3613,18 @@ TEST_CASE("accept soroban txs after network upgrade")
     auto& secondLoadGenFailed =
         nodes[1]->getMetrics().NewMeter({"loadgen", "run", "failed"}, "run");
     REQUIRE(secondLoadGenFailed.count() == 0);
+
+    //  Ensure some Soroban txs got into the ledger
+    auto totalSoroban =
+        nodes[0]
+            ->getMetrics()
+            .NewMeter({"soroban", "host-fn-op", "success"}, "call")
+            .count() +
+        nodes[0]
+            ->getMetrics()
+            .NewMeter({"soroban", "host-fn-op", "failure"}, "call")
+            .count();
+    REQUIRE(totalSoroban > 0);
 }
 
 TEST_CASE("soroban txs accepted by the network",

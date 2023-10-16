@@ -230,7 +230,7 @@ class HerderImpl : public Herder
     void writeDebugTxSet(LedgerCloseData const& lcd);
 
     ClassicTransactionQueue mTransactionQueue;
-    std::shared_ptr<SorobanTransactionQueue> mSorobanTransactionQueue;
+    std::unique_ptr<SorobanTransactionQueue> mSorobanTransactionQueue;
 
     void updateTransactionQueue(TxSetFrameConstPtr txSet);
     void maybeSetupSorobanQueue(uint32_t protocolVersion);
