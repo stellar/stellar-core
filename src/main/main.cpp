@@ -259,8 +259,7 @@ main(int argc, char* const* argv)
         LOG_FATAL(DEFAULT_LOG, "Could not initialize crypto");
         return 1;
     }
-    shortHash::initialize();
-    randHash::initialize();
+    initializeAllGlobalState();
     xdr::marshaling_stack_limit = 1000;
 
     // TODO: This should only be enabled after we tag a v20 version

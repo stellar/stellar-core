@@ -53,6 +53,10 @@ rand_element(std::vector<T>& v)
     return v.at(rand_uniform<size_t>(0, v.size() - 1));
 }
 
+// initializes all global state that depend on prngs
+// using sane default (pseudo) random values
+void initializeAllGlobalState();
+
 #ifdef BUILD_TESTS
 // This function should be called any time you need to reset stellar-core's
 // global state based on a seed value, such as before each fuzz run or each unit
