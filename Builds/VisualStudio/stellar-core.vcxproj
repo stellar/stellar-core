@@ -462,8 +462,6 @@ exit /b 0
     <ClCompile Include="..\..\src\catchup\DownloadApplyTxsWork.cpp" />
     <ClCompile Include="..\..\src\catchup\IndexBucketsWork.cpp" />
     <ClCompile Include="..\..\src\catchup\ReplayDebugMetaWork.cpp" />
-    <ClCompile Include="..\..\src\catchup\simulation\HistoryArchiveStream.cpp" />
-    <ClCompile Include="..\..\src\catchup\simulation\TxSimApplyTransactionsWork.cpp" />
     <ClCompile Include="..\..\src\catchup\test\CatchupWorkTests.cpp" />
     <ClCompile Include="..\..\src\catchup\VerifyLedgerChainWork.cpp" />
     <ClCompile Include="..\..\src\crypto\BLAKE2.cpp" />
@@ -493,7 +491,6 @@ exit /b 0
     <ClCompile Include="..\..\src\herder\PendingEnvelopes.cpp" />
     <ClCompile Include="..\..\src\herder\QuorumIntersectionCheckerImpl.cpp" />
     <ClCompile Include="..\..\src\herder\QuorumTracker.cpp" />
-    <ClCompile Include="..\..\src\herder\simulation\TxSimTxSetFrame.cpp" />
     <ClCompile Include="..\..\src\herder\SurgePricingUtils.cpp" />
     <ClCompile Include="..\..\src\herder\test\HerderTests.cpp" />
     <ClCompile Include="..\..\src\herder\test\PendingEnvelopesTests.cpp" />
@@ -663,16 +660,6 @@ exit /b 0
     <ClCompile Include="..\..\src\transactions\SetTrustLineFlagsOpFrame.cpp" />
     <ClCompile Include="..\..\src\transactions\SignatureChecker.cpp" />
     <ClCompile Include="..\..\src\transactions\SignatureUtils.cpp" />
-    <ClCompile Include="..\..\src\transactions\simulation\TxSimCreateClaimableBalanceOpFrame.cpp" />
-    <ClCompile Include="..\..\src\transactions\simulation\TxSimCreatePassiveSellOfferOpFrame.cpp" />
-    <ClCompile Include="..\..\src\transactions\simulation\TxSimFeeBumpTransactionFrame.cpp" />
-    <ClCompile Include="..\..\src\transactions\simulation\TxSimGenerateBucketsWork.cpp" />
-    <ClCompile Include="..\..\src\transactions\simulation\TxSimManageBuyOfferOpFrame.cpp" />
-    <ClCompile Include="..\..\src\transactions\simulation\TxSimManageSellOfferOpFrame.cpp" />
-    <ClCompile Include="..\..\src\transactions\simulation\TxSimMergeOpFrame.cpp" />
-    <ClCompile Include="..\..\src\transactions\simulation\TxSimScaleBucketlistWork.cpp" />
-    <ClCompile Include="..\..\src\transactions\simulation\TxSimTransactionFrame.cpp" />
-    <ClCompile Include="..\..\src\transactions\simulation\TxSimUtils.cpp" />
     <ClCompile Include="..\..\src\transactions\SponsorshipUtils.cpp" />
     <ClCompile Include="..\..\src\transactions\test\AllowTrustTests.cpp" />
     <ClCompile Include="..\..\src\transactions\test\BeginSponsoringFutureReservesTests.cpp" />
@@ -911,8 +898,6 @@ exit /b 0
     <ClInclude Include="..\..\src\catchup\DownloadApplyTxsWork.h" />
     <ClInclude Include="..\..\src\catchup\IndexBucketsWork.h" />
     <ClInclude Include="..\..\src\catchup\ReplayDebugMetaWork.h" />
-    <ClInclude Include="..\..\src\catchup\simulation\HistoryArchiveStream.h" />
-    <ClInclude Include="..\..\src\catchup\simulation\TxSimApplyTransactionsWork.h" />
     <ClInclude Include="..\..\src\catchup\test\CatchupWorkTests.h" />
     <ClInclude Include="..\..\src\catchup\VerifyLedgerChainWork.h" />
     <ClInclude Include="..\..\src\crypto\BLAKE2.h" />
@@ -943,7 +928,6 @@ exit /b 0
     <ClInclude Include="..\..\src\herder\QuorumIntersectionChecker.h" />
     <ClInclude Include="..\..\src\herder\QuorumIntersectionCheckerImpl.h" />
     <ClInclude Include="..\..\src\herder\QuorumTracker.h" />
-    <ClInclude Include="..\..\src\herder\simulation\TxSimTxSetFrame.h" />
     <ClInclude Include="..\..\src\herder\SurgePricingUtils.h" />
     <ClInclude Include="..\..\src\herder\test\TestTxSetUtils.h" />
     <ClInclude Include="..\..\src\herder\TransactionQueue.h" />
@@ -1076,16 +1060,6 @@ exit /b 0
     <ClInclude Include="..\..\src\transactions\SetTrustLineFlagsOpFrame.h" />
     <ClInclude Include="..\..\src\transactions\SignatureChecker.h" />
     <ClInclude Include="..\..\src\transactions\SignatureUtils.h" />
-    <ClInclude Include="..\..\src\transactions\simulation\TxSimCreateClaimableBalanceOpFrame.h" />
-    <ClInclude Include="..\..\src\transactions\simulation\TxSimCreatePassiveSellOfferOpFrame.h" />
-    <ClInclude Include="..\..\src\transactions\simulation\TxSimFeeBumpTransactionFrame.h" />
-    <ClInclude Include="..\..\src\transactions\simulation\TxSimGenerateBucketsWork.h" />
-    <ClInclude Include="..\..\src\transactions\simulation\TxSimManageBuyOfferOpFrame.h" />
-    <ClInclude Include="..\..\src\transactions\simulation\TxSimManageSellOfferOpFrame.h" />
-    <ClInclude Include="..\..\src\transactions\simulation\TxSimMergeOpFrame.h" />
-    <ClInclude Include="..\..\src\transactions\simulation\TxSimScaleBucketlistWork.h" />
-    <ClInclude Include="..\..\src\transactions\simulation\TxSimTransactionFrame.h" />
-    <ClInclude Include="..\..\src\transactions\simulation\TxSimUtils.h" />
     <ClInclude Include="..\..\src\transactions\SponsorshipUtils.h" />
     <ClInclude Include="..\..\src\transactions\test\SponsorshipTestUtils.h" />
     <ClInclude Include="..\..\src\transactions\TransactionBridge.h" />
@@ -1246,7 +1220,6 @@ exit /b 0
     <None Include="..\..\docs\stellar-core_testnet.cfg" />
     <None Include="..\..\docs\stellar-core_testnet_legacy.cfg" />
     <None Include="..\..\docs\transaction.md" />
-    <None Include="..\..\docs\tx-simulation.md" />
     <None Include="..\..\docs\versioning.md" />
     <CustomBuild Include="..\..\hash-xdrs.sh">
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='DebugNextV|x64'">false</ExcludedFromBuild>
@@ -1546,7 +1519,7 @@ exit /b 0
       <AdditionalInputs>src/$(Configuration)/generated/xdr/Stellar-contract.h</AdditionalInputs>
       <OutputItemType>ClInclude</OutputItemType>
     </CustomBuild>
-   <CustomBuild Include="..\..\src\protocol-curr\xdr\Stellar-contract-config-setting.x">
+    <CustomBuild Include="..\..\src\protocol-curr\xdr\Stellar-contract-config-setting.x">
       <FileType>Document</FileType>
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='DebugCurrV|x64'">false</ExcludedFromBuild>
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='ReleaseCurrV|x64'">false</ExcludedFromBuild>
@@ -1559,7 +1532,7 @@ exit /b 0
       <Outputs>src/$(Configuration)/generated/xdr/Stellar-contract.h</Outputs>
       <AdditionalInputs>src/$(Configuration)/generated/xdr/Stellar-contract.h</AdditionalInputs>
       <OutputItemType>ClInclude</OutputItemType>
-    </CustomBuild>    
+    </CustomBuild>
     <CustomBuild Include="..\..\src\main\StellarCoreVersion.cpp.in">
       <FileType>Document</FileType>
       <Command Condition="'$(Configuration)|$(Platform)'=='DebugNextV|x64'">sed.exe -e "s/%%%%VERSION%%%%/msvc custom/" &lt; %(FullPath) &gt; %(RelativeDir)\StellarCoreVersion.cpp</Command>

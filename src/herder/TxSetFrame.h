@@ -46,15 +46,30 @@ class TxSetFrame : public NonMovableOrCopyable
     //
     // **Note**: the output `TxSetFrame` will *not* contain the input
     // transaction pointers.
-    static TxSetFrameConstPtr
-    makeFromTransactions(TxPhases const& txPhases, Application& app,
-                         uint64_t lowerBoundCloseTimeOffset,
-                         uint64_t upperBoundCloseTimeOffset);
-    static TxSetFrameConstPtr
-    makeFromTransactions(TxPhases const& txPhases, Application& app,
-                         uint64_t lowerBoundCloseTimeOffset,
-                         uint64_t upperBoundCloseTimeOffset,
-                         TxPhases& invalidTxsPerPhase);
+    static TxSetFrameConstPtr makeFromTransactions(
+        TxPhases const& txPhases, Application& app,
+        uint64_t lowerBoundCloseTimeOffset,
+        uint64_t upperBoundCloseTimeOffset
+#ifdef BUILD_TESTS
+        // Skips the tx set validation and preserves the pointers to the
+        // passed-in transactions - use in conjunction with `orderOverride`
+        // argument in test-only overrides.
+        ,
+        bool skipValidation = false
+#endif
+    );
+    static TxSetFrameConstPtr makeFromTransactions(
+        TxPhases const& txPhases, Application& app,
+        uint64_t lowerBoundCloseTimeOffset, uint64_t upperBoundCloseTimeOffset,
+        TxPhases& invalidTxsPerPhase
+#ifdef BUILD_TESTS
+        // Skips the tx set validation and preserves the pointers to the
+        // passed-in transactions - use in conjunction with `orderOverride`
+        // argument in test-only overrides.
+        ,
+        bool skipValidation = false
+#endif
+    );
 
     // Creates a legacy (non-generalized) TxSetFrame from the transactions that
     // are trusted to be valid. Validation and filtering are not performed.
@@ -104,7 +119,7 @@ class TxSetFrame : public NonMovableOrCopyable
     * transactions for an account are sorted by sequence number (ascending)
     * the order between accounts is randomized
     */
-    virtual Transactions getTxsInApplyOrder() const;
+    Transactions getTxsInApplyOrder() const;
 
     virtual bool checkValid(Application& app,
                             uint64_t lowerBoundCloseTimeOffset,
@@ -162,17 +177,22 @@ class TxSetFrame : public NonMovableOrCopyable
     static TxSetFrameConstPtr
     makeFromTransactions(Transactions txs, Application& app,
                          uint64_t lowerBoundCloseTimeOffset,
-                         uint64_t upperBoundCloseTimeOffset);
+                         uint64_t upperBoundCloseTimeOffset,
+                         Transactions const* orderOverride = nullptr);
     static TxSetFrameConstPtr makeFromTransactions(
         Transactions txs, Application& app, uint64_t lowerBoundCloseTimeOffset,
-        uint64_t upperBoundCloseTimeOffset, Transactions& invalidTxs);
+        uint64_t upperBoundCloseTimeOffset, Transactions& invalidTxs,
+        Transactions const* orderOverride = nullptr);
 #endif
-
   protected:
     TxSetFrame(LedgerHeaderHistoryEntry const& lclHeader, TxPhases const& txs);
     TxSetFrame(bool isGeneralized, Hash const& previousLedgerHash,
                TxPhases const& txs);
 
+    std::optional<Hash> mHash;
+    std::optional<size_t> mutable mEncodedSize;
+
+  private:
     // Computes the fees for transactions in this set based on information from
     // the non-generalized tx set.
     // This has to be `const` in combination with `mutable` fee-related fields
@@ -186,10 +206,6 @@ class TxSetFrame : public NonMovableOrCopyable
 
     void computeContentsHash();
 
-    std::optional<Hash> mHash;
-    std::optional<size_t> mutable mEncodedSize;
-
-  private:
     bool addTxsFromXdr(Application& app,
                        xdr::xvector<TransactionEnvelope> const& txs,
                        bool useBaseFee, std::optional<int64_t> baseFee,
@@ -206,6 +222,14 @@ class TxSetFrame : public NonMovableOrCopyable
                        std::vector<int64_t> const& lowestLaneFee,
                        std::vector<bool> const& hadTxNotFittingLane);
 
+    std::optional<Resource> getTxSetSorobanResource() const;
+
+    // Get _inclusion_ fee map for a given phase. The map contains lowest base
+    // fee for each transaction (lowest base fee is identical for all
+    // transactions in the same lane)
+    std::unordered_map<TransactionFrameBaseConstPtr, std::optional<int64_t>>&
+    getInclusionFeeMap(Phase phase) const;
+
     bool const mIsGeneralized;
 
     Hash const mPreviousLedgerHash;
@@ -220,13 +244,10 @@ class TxSetFrame : public NonMovableOrCopyable
     mutable std::unordered_map<TransactionFrameBaseConstPtr,
                                std::optional<int64_t>>
         mTxBaseInclusionFeeSoroban;
-    std::optional<Resource> getTxSetSorobanResource() const;
 
-    // Get _inclusion_ fee map for a given phase. The map contains lowest base
-    // fee for each transaction (lowest base fee is identical for all
-    // transactions in the same lane)
-    std::unordered_map<TransactionFrameBaseConstPtr, std::optional<int64_t>>&
-    getInclusionFeeMap(Phase phase) const;
+#ifdef BUILD_TESTS
+    mutable std::optional<Transactions> mApplyOrderOverride;
+#endif
 };
 
 } // namespace stellar
