@@ -1565,7 +1565,7 @@ Peer::recvAuth(StellarMessage const& msg)
         msg.auth().flags == AUTH_MSG_FLAG_FLOW_CONTROL_BYTES_REQUESTED &&
         mApp.getConfig().ENABLE_FLOW_CONTROL_BYTES;
 
-    mFlowControl->start(weakSelf, sendCb, bothWantBytes);
+    mFlowControl->start(weakSelf, sendCb, bothWantBytes, mRemoteOverlayVersion);
 
     // Ask for SCP data _after_ the flow control message
     auto low = mApp.getHerder().getMinLedgerSeqToAskPeers();
