@@ -255,6 +255,8 @@ mod rust_bridge {
             fee_config: CxxRentFeeConfiguration,
             current_ledger_seq: u32,
         ) -> Result<i64>;
+
+        fn json_to_config_upgrade_set(file_name: &CxxString) -> Result<RustBuf>;
     }
 
     // And the extern "C++" block declares C++ stuff we're going to import to
@@ -273,6 +275,8 @@ mod rust_bridge {
 
 // Then we import various implementations to this module, for export through the bridge.
 mod b64;
+use std::fs;
+use std::io::Cursor;
 use std::str::FromStr;
 
 use b64::{from_base64, to_base64};
@@ -310,6 +314,7 @@ pub(crate) fn get_write_bytes() -> Result<RustBuf, Box<dyn std::error::Error>> {
     })
 }
 
+use cxx::CxxString;
 use rust_bridge::CxxBuf;
 use rust_bridge::CxxFeeConfiguration;
 use rust_bridge::CxxLedgerEntryRentChange;
@@ -323,6 +328,11 @@ use rust_bridge::RustBuf;
 use rust_bridge::VersionNumPair;
 use rust_bridge::VersionStringPair;
 use rust_bridge::XDRHashesPair;
+
+#[cfg(not(feature = "core-vnext"))]
+use soroban_env_common_curr::xdr as xdr;
+#[cfg(feature = "next")]
+use soroban_env_common_prev::xdr as xdr;
 
 mod log;
 use crate::log::init_logging;
@@ -769,6 +779,21 @@ pub(crate) fn compute_write_fee_per_1kb(
         bucket_list_size,
         fee_config,
     ))
+}
+
+pub fn json_to_config_upgrade_set(file_name: &CxxString) -> Result<RustBuf, Box<dyn std::error::Error>>
+{
+    let file = fs::File::open(file_name.to_str()?).expect("file should open read only");
+
+    let upgradeSet: xdr::ConfigUpgradeSet = serde_json::from_reader(file)
+    .expect("file should be proper JSON of a ConfigUpgradeSet XDR struct");
+
+    let mut vec: Vec<u8> = Vec::new();
+    xdr::WriteXdr::write_xdr(&upgradeSet, &mut xdr::DepthLimitedWrite::new(
+        Cursor::new(&mut vec),
+        soroban_curr::contract::MARSHALLING_STACK_LIMIT,
+    )).expect("Error converting XDR to RustBuf");
+    Ok(vec.into())
 }
 
 fn start_tracy() {

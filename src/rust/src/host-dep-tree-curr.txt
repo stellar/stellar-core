@@ -94,16 +94,87 @@ soroban-env-host 20.0.0-rc1 git+https://github.com/stellar/rs-soroban-env?rev=f1
 │       └── either 1.8.1 checksum:7fcaabb2fef8c910e7f4c7ce9f67a1283a1715879a7c230ca9d6d1ae31f16d91
 ├── soroban-env-common 20.0.0-rc1 git+https://github.com/stellar/rs-soroban-env?rev=f19ef13363a1e0cbff7b100c0599a1d63dea88a6#f19ef13363a1e0cbff7b100c0599a1d63dea88a6
 │   ├── stellar-xdr 20.0.0-rc1 git+https://github.com/stellar/rs-stellar-xdr?rev=d5ce0c9e7aa83461773a6e81662067f35d39e4c1#d5ce0c9e7aa83461773a6e81662067f35d39e4c1
-│   │   ├── hex 0.4.3 checksum:7f24254aa9a54b5c858eaee2f5bccdb46aaf0e486a595ed5fd8f86ba55232a70
-│   │   ├── crate-git-revision 0.0.6 checksum:c521bf1f43d31ed2f73441775ed31935d77901cb3451e44b38a1c1612fcbaf98
-│   │   │   ├── serde_json 1.0.97 checksum:bdf3bf93142acad5821c99197022e170842cdbc1c30482b98750c688c640842a
+│   │   ├── serde_with 3.4.0 checksum:64cd236ccc1b7a29e7e2739f27c0b2dd199804abc4290e32f59f3b68d6405c23
+│   │   │   ├── time 0.3.26 checksum:a79d09ac6b08c1ab3906a2f7cc2e81a0e27c7ae89c63812df75e52bef0751e07
+│   │   │   │   ├── time-macros 0.2.12 checksum:75c65469ed6b3a4809d987a41eb1dc918e9bc1d92211cbad7ae82931846f7451
+│   │   │   │   │   └── time-core 0.1.1 checksum:7300fbefb4dadc1af235a9cef3737cea692a9d97e1b9cbcd4ebdae6f8868e6fb
+│   │   │   │   ├── time-core 0.1.1 checksum:7300fbefb4dadc1af235a9cef3737cea692a9d97e1b9cbcd4ebdae6f8868e6fb
 │   │   │   │   ├── serde 1.0.164 checksum:9e8c8cf938e98f769bc164923b06dce91cea1751522f46f8466461af04c9027d
 │   │   │   │   │   └── serde_derive 1.0.164 checksum:d9735b638ccc51c28bf6914d90a2e9725b377144fc612c49a611fddd1b631d68
 │   │   │   │   │       ├── syn 2.0.18 checksum:32d41677bcbe24c20c52e7c70b0d8db04134c5d1066bf98662e2871ad200ea3e
 │   │   │   │   │       ├── quote 1.0.28 checksum:1b9ab9c7eadfd8df19006f1cf1a4aed13540ed5cbc047010ece5826e10825488
 │   │   │   │   │       └── proc-macro2 1.0.60 checksum:dec2b086b7a862cf4de201096214fa870344cf922b2b30c167badb3af3195406
+│   │   │   │   ├── itoa 1.0.6 checksum:453ad9f582a441959e5f0d088b02ce04cfe8d51a8eaf077f12ac6d3e94164ca6
+│   │   │   │   └── deranged 0.3.9 checksum:0f32d04922c60427da6f9fef14d042d9edddef64cb9d4ce0d64d0685fbeb1fd3
+│   │   │   │       └── serde 1.0.164 checksum:9e8c8cf938e98f769bc164923b06dce91cea1751522f46f8466461af04c9027d
+│   │   │   ├── serde_with_macros 3.4.0 checksum:93634eb5f75a2323b16de4748022ac4297f9e76b6dced2be287a099f41b5e788
+│   │   │   │   ├── syn 2.0.18 checksum:32d41677bcbe24c20c52e7c70b0d8db04134c5d1066bf98662e2871ad200ea3e
+│   │   │   │   ├── quote 1.0.28 checksum:1b9ab9c7eadfd8df19006f1cf1a4aed13540ed5cbc047010ece5826e10825488
+│   │   │   │   ├── proc-macro2 1.0.60 checksum:dec2b086b7a862cf4de201096214fa870344cf922b2b30c167badb3af3195406
+│   │   │   │   └── darling 0.20.3 checksum:0209d94da627ab5605dcccf08bb18afa5009cfbef48d8a8b7d7bdbc79be25c5e
+│   │   │   │       ├── darling_macro 0.20.3 checksum:836a9bbc7ad63342d6d6e7b815ccab164bc77a2d95d84bc3117a8c0d5c98e2d5
+│   │   │   │       │   ├── syn 2.0.18 checksum:32d41677bcbe24c20c52e7c70b0d8db04134c5d1066bf98662e2871ad200ea3e
+│   │   │   │       │   ├── quote 1.0.28 checksum:1b9ab9c7eadfd8df19006f1cf1a4aed13540ed5cbc047010ece5826e10825488
+│   │   │   │       │   └── darling_core 0.20.3 checksum:177e3443818124b357d8e76f53be906d60937f0d3a90773a664fa63fa253e621
+│   │   │   │       │       ├── syn 2.0.18 checksum:32d41677bcbe24c20c52e7c70b0d8db04134c5d1066bf98662e2871ad200ea3e
+│   │   │   │       │       ├── strsim 0.10.0 checksum:73473c0e59e6d5812c5dfe2a064a6444949f089e20eec9a2e5506596494e4623
+│   │   │   │       │       ├── quote 1.0.28 checksum:1b9ab9c7eadfd8df19006f1cf1a4aed13540ed5cbc047010ece5826e10825488
+│   │   │   │       │       ├── proc-macro2 1.0.60 checksum:dec2b086b7a862cf4de201096214fa870344cf922b2b30c167badb3af3195406
+│   │   │   │       │       ├── ident_case 1.0.1 checksum:b9e0384b61958566e926dc50660321d12159025e767c18e043daf26b70104c39
+│   │   │   │       │       └── fnv 1.0.7 checksum:3f9eec918d3f24069decb9af1554cad7c880e2da24a9afd88aca000531ab82c1
+│   │   │   │       └── darling_core 0.20.3 checksum:177e3443818124b357d8e76f53be906d60937f0d3a90773a664fa63fa253e621
+│   │   │   ├── serde_json 1.0.97 checksum:bdf3bf93142acad5821c99197022e170842cdbc1c30482b98750c688c640842a
+│   │   │   │   ├── serde 1.0.164 checksum:9e8c8cf938e98f769bc164923b06dce91cea1751522f46f8466461af04c9027d
 │   │   │   │   ├── ryu 1.0.13 checksum:f91339c0467de62360649f8d3e185ca8de4224ff281f66000de5eb2a77a79041
 │   │   │   │   └── itoa 1.0.6 checksum:453ad9f582a441959e5f0d088b02ce04cfe8d51a8eaf077f12ac6d3e94164ca6
+│   │   │   ├── serde 1.0.164 checksum:9e8c8cf938e98f769bc164923b06dce91cea1751522f46f8466461af04c9027d
+│   │   │   ├── indexmap 2.0.2 checksum:8adf3ddd720272c6ea8bf59463c04e0f93d0bbf7c5439b691bca2987e0270897
+│   │   │   │   ├── serde 1.0.164 checksum:9e8c8cf938e98f769bc164923b06dce91cea1751522f46f8466461af04c9027d
+│   │   │   │   ├── hashbrown 0.14.1 checksum:7dfda62a12f55daeae5015f81b0baea145391cb4520f86c248fc615d72640d12
+│   │   │   │   └── equivalent 1.0.1 checksum:5443807d6dff69373d433ab9ef5378ad8df50ca6298caf15de6e52e24aaf54d5
+│   │   │   ├── indexmap 1.9.3 checksum:bd070e393353796e801d209ad339e89596eb4c8d430d18ede6a1cced8fafbd99
+│   │   │   │   ├── serde 1.0.164 checksum:9e8c8cf938e98f769bc164923b06dce91cea1751522f46f8466461af04c9027d
+│   │   │   │   ├── hashbrown 0.12.3 checksum:8a9ee70c43aaf417c914396645a0fa852624801b24ebb7ae78fe8272889ac888
+│   │   │   │   └── autocfg 1.1.0 checksum:d468802bab17cbc0cc575e9b053f41e72aa36bfa6b7f55e3529ffa43161b97fa
+│   │   │   ├── hex 0.4.3 checksum:7f24254aa9a54b5c858eaee2f5bccdb46aaf0e486a595ed5fd8f86ba55232a70
+│   │   │   │   └── serde 1.0.164 checksum:9e8c8cf938e98f769bc164923b06dce91cea1751522f46f8466461af04c9027d
+│   │   │   ├── chrono 0.4.31 checksum:7f2c685bad3eb3d45a01354cedb7d5faa66194d1d58ba6e267a8de788f79db38
+│   │   │   │   ├── windows-targets 0.48.1 checksum:05d4b17490f70499f20b9e791dcf6a299785ce8af4d709018206dc5b4953e95f
+│   │   │   │   ├── serde 1.0.164 checksum:9e8c8cf938e98f769bc164923b06dce91cea1751522f46f8466461af04c9027d
+│   │   │   │   ├── num-traits 0.2.15 checksum:578ede34cf02f8924ab9447f50c28075b4d3e5b269972345e7e0372b38c6cdcd
+│   │   │   │   ├── iana-time-zone 0.1.58 checksum:8326b86b6cff230b97d0d312a6c40a60726df3332e721f72a1b035f451663b20
+│   │   │   │   │   ├── windows-core 0.50.0 checksum:af6041b3f84485c21b57acdc0fee4f4f0c93f426053dc05fa5d6fc262537bbff
+│   │   │   │   │   │   └── windows-targets 0.48.1 checksum:05d4b17490f70499f20b9e791dcf6a299785ce8af4d709018206dc5b4953e95f
+│   │   │   │   │   ├── wasm-bindgen 0.2.87 checksum:7706a72ab36d8cb1f80ffbf0e071533974a60d0a308d01a5d0375bf60499a342
+│   │   │   │   │   │   ├── wasm-bindgen-macro 0.2.87 checksum:dee495e55982a3bd48105a7b947fd2a9b4a8ae3010041b9e0faab3f9cd028f1d
+│   │   │   │   │   │   │   ├── wasm-bindgen-macro-support 0.2.87 checksum:54681b18a46765f095758388f2d0cf16eb8d4169b639ab575a8f5693af210c7b
+│   │   │   │   │   │   │   │   ├── wasm-bindgen-shared 0.2.87 checksum:ca6ad05a4870b2bf5fe995117d3728437bd27d7cd5f06f13c17443ef369775a1
+│   │   │   │   │   │   │   │   ├── wasm-bindgen-backend 0.2.87 checksum:5ef2b6d3c510e9625e5fe6f509ab07d66a760f0885d858736483c32ed7809abd
+│   │   │   │   │   │   │   │   │   ├── wasm-bindgen-shared 0.2.87 checksum:ca6ad05a4870b2bf5fe995117d3728437bd27d7cd5f06f13c17443ef369775a1
+│   │   │   │   │   │   │   │   │   ├── syn 2.0.18 checksum:32d41677bcbe24c20c52e7c70b0d8db04134c5d1066bf98662e2871ad200ea3e
+│   │   │   │   │   │   │   │   │   ├── quote 1.0.28 checksum:1b9ab9c7eadfd8df19006f1cf1a4aed13540ed5cbc047010ece5826e10825488
+│   │   │   │   │   │   │   │   │   ├── proc-macro2 1.0.60 checksum:dec2b086b7a862cf4de201096214fa870344cf922b2b30c167badb3af3195406
+│   │   │   │   │   │   │   │   │   ├── once_cell 1.18.0 checksum:dd8b5dd2ae5ed71462c540258bedcb51965123ad7e7ccf4b9a8cafaa4a63576d
+│   │   │   │   │   │   │   │   │   ├── log 0.4.19 checksum:b06a4cde4c0f271a446782e3eff8de789548ce57dbc8eca9292c27f4a42004b4
+│   │   │   │   │   │   │   │   │   └── bumpalo 3.13.0 checksum:a3e2c3daef883ecc1b5d58c15adae93470a91d425f3532ba1695849656af3fc1
+│   │   │   │   │   │   │   │   ├── syn 2.0.18 checksum:32d41677bcbe24c20c52e7c70b0d8db04134c5d1066bf98662e2871ad200ea3e
+│   │   │   │   │   │   │   │   ├── quote 1.0.28 checksum:1b9ab9c7eadfd8df19006f1cf1a4aed13540ed5cbc047010ece5826e10825488
+│   │   │   │   │   │   │   │   └── proc-macro2 1.0.60 checksum:dec2b086b7a862cf4de201096214fa870344cf922b2b30c167badb3af3195406
+│   │   │   │   │   │   │   └── quote 1.0.28 checksum:1b9ab9c7eadfd8df19006f1cf1a4aed13540ed5cbc047010ece5826e10825488
+│   │   │   │   │   │   └── cfg-if 1.0.0 checksum:baf1de4339761588bc0619e3cbc0120ee582ebb74b53b4efbf79117bd2da40fd
+│   │   │   │   │   ├── js-sys 0.3.64 checksum:c5f195fe497f702db0f318b07fdd68edb16955aed830df8363d837542f8f935a
+│   │   │   │   │   │   └── wasm-bindgen 0.2.87 checksum:7706a72ab36d8cb1f80ffbf0e071533974a60d0a308d01a5d0375bf60499a342
+│   │   │   │   │   ├── iana-time-zone-haiku 0.1.2 checksum:f31827a206f56af32e590ba56d5d2d085f558508192593743f16b2306495269f
+│   │   │   │   │   │   └── cc 1.0.79 checksum:50d30906286121d95be3d479533b458f87493b30a4b5f79a607db8f5d11aa91f
+│   │   │   │   │   ├── core-foundation-sys 0.8.4 checksum:e496a50fda8aacccc86d7529e2c1e0892dbd0f898a6b5645b5561b89c3210efa
+│   │   │   │   │   └── android_system_properties 0.1.5 checksum:819e7219dbd41043ac279b19830f2efc897156490d7fd6ea916720117ee66311
+│   │   │   │   │       └── libc 0.2.146 checksum:f92be4933c13fd498862a9e02a3055f8a8d9c039ce33db97306fd5a6caa7f29b
+│   │   │   │   └── android-tzdata 0.1.1 checksum:e999941b234f3131b00bc13c22d06e8c5ff726d1b6318ac7eb276997bbb4fef0
+│   │   │   └── base64 0.21.4 checksum:9ba43ea6f343b788c8764558649e08df62f86c6ef251fdaeb1ffd010a9ae50a2
+│   │   ├── serde 1.0.164 checksum:9e8c8cf938e98f769bc164923b06dce91cea1751522f46f8466461af04c9027d
+│   │   ├── hex 0.4.3 checksum:7f24254aa9a54b5c858eaee2f5bccdb46aaf0e486a595ed5fd8f86ba55232a70
+│   │   ├── crate-git-revision 0.0.6 checksum:c521bf1f43d31ed2f73441775ed31935d77901cb3451e44b38a1c1612fcbaf98
+│   │   │   ├── serde_json 1.0.97 checksum:bdf3bf93142acad5821c99197022e170842cdbc1c30482b98750c688c640842a
 │   │   │   ├── serde_derive 1.0.164 checksum:d9735b638ccc51c28bf6914d90a2e9725b377144fc612c49a611fddd1b631d68
 │   │   │   └── serde 1.0.164 checksum:9e8c8cf938e98f769bc164923b06dce91cea1751522f46f8466461af04c9027d
 │   │   └── base64 0.13.1 checksum:9e1b586273c5702936fe7b7d6896644d8be71e6314cfe09d3167c95f712589e8
@@ -117,6 +188,7 @@ soroban-env-host 20.0.0-rc1 git+https://github.com/stellar/rs-soroban-env?rev=f1
 │   │   ├── quote 1.0.28 checksum:1b9ab9c7eadfd8df19006f1cf1a4aed13540ed5cbc047010ece5826e10825488
 │   │   ├── proc-macro2 1.0.60 checksum:dec2b086b7a862cf4de201096214fa870344cf922b2b30c167badb3af3195406
 │   │   └── itertools 0.10.5 checksum:b0fd2260e829bddf4cb6ea802289de2f86d6a7a690192fbe91b3f46e0f2c8473
+│   ├── serde 1.0.164 checksum:9e8c8cf938e98f769bc164923b06dce91cea1751522f46f8466461af04c9027d
 │   ├── num-traits 0.2.15 checksum:578ede34cf02f8924ab9447f50c28075b4d3e5b269972345e7e0372b38c6cdcd
 │   ├── num-derive 0.4.0 checksum:9e6a0fd4f737c707bd9086cc16c925f294943eb62eb71499e9fd4cf71f8b9f4e
 │   │   ├── syn 2.0.18 checksum:32d41677bcbe24c20c52e7c70b0d8db04134c5d1066bf98662e2871ad200ea3e
@@ -147,26 +219,9 @@ soroban-env-host 20.0.0-rc1 git+https://github.com/stellar/rs-soroban-env?rev=f1
 │   ├── rand_core 0.6.4 checksum:ec0be4795e2f6a28069bec0b5ff3e2ac9bafc99e6a9a7dc3547996c5c816922c
 │   │   └── getrandom 0.2.10 checksum:be4136b2a15dd319360be1c07d9933517ccf0be8f16bf62a3bee4f0d618df427
 │   │       ├── wasm-bindgen 0.2.87 checksum:7706a72ab36d8cb1f80ffbf0e071533974a60d0a308d01a5d0375bf60499a342
-│   │       │   ├── wasm-bindgen-macro 0.2.87 checksum:dee495e55982a3bd48105a7b947fd2a9b4a8ae3010041b9e0faab3f9cd028f1d
-│   │       │   │   ├── wasm-bindgen-macro-support 0.2.87 checksum:54681b18a46765f095758388f2d0cf16eb8d4169b639ab575a8f5693af210c7b
-│   │       │   │   │   ├── wasm-bindgen-shared 0.2.87 checksum:ca6ad05a4870b2bf5fe995117d3728437bd27d7cd5f06f13c17443ef369775a1
-│   │       │   │   │   ├── wasm-bindgen-backend 0.2.87 checksum:5ef2b6d3c510e9625e5fe6f509ab07d66a760f0885d858736483c32ed7809abd
-│   │       │   │   │   │   ├── wasm-bindgen-shared 0.2.87 checksum:ca6ad05a4870b2bf5fe995117d3728437bd27d7cd5f06f13c17443ef369775a1
-│   │       │   │   │   │   ├── syn 2.0.18 checksum:32d41677bcbe24c20c52e7c70b0d8db04134c5d1066bf98662e2871ad200ea3e
-│   │       │   │   │   │   ├── quote 1.0.28 checksum:1b9ab9c7eadfd8df19006f1cf1a4aed13540ed5cbc047010ece5826e10825488
-│   │       │   │   │   │   ├── proc-macro2 1.0.60 checksum:dec2b086b7a862cf4de201096214fa870344cf922b2b30c167badb3af3195406
-│   │       │   │   │   │   ├── once_cell 1.18.0 checksum:dd8b5dd2ae5ed71462c540258bedcb51965123ad7e7ccf4b9a8cafaa4a63576d
-│   │       │   │   │   │   ├── log 0.4.19 checksum:b06a4cde4c0f271a446782e3eff8de789548ce57dbc8eca9292c27f4a42004b4
-│   │       │   │   │   │   └── bumpalo 3.13.0 checksum:a3e2c3daef883ecc1b5d58c15adae93470a91d425f3532ba1695849656af3fc1
-│   │       │   │   │   ├── syn 2.0.18 checksum:32d41677bcbe24c20c52e7c70b0d8db04134c5d1066bf98662e2871ad200ea3e
-│   │       │   │   │   ├── quote 1.0.28 checksum:1b9ab9c7eadfd8df19006f1cf1a4aed13540ed5cbc047010ece5826e10825488
-│   │       │   │   │   └── proc-macro2 1.0.60 checksum:dec2b086b7a862cf4de201096214fa870344cf922b2b30c167badb3af3195406
-│   │       │   │   └── quote 1.0.28 checksum:1b9ab9c7eadfd8df19006f1cf1a4aed13540ed5cbc047010ece5826e10825488
-│   │       │   └── cfg-if 1.0.0 checksum:baf1de4339761588bc0619e3cbc0120ee582ebb74b53b4efbf79117bd2da40fd
 │   │       ├── wasi 0.11.0+wasi-snapshot-preview1 checksum:9c8d87e72b64a3b4db28d11ce29237c246188f4f51057d65a7eab63b7987e423
 │   │       ├── libc 0.2.146 checksum:f92be4933c13fd498862a9e02a3055f8a8d9c039ce33db97306fd5a6caa7f29b
 │   │       ├── js-sys 0.3.64 checksum:c5f195fe497f702db0f318b07fdd68edb16955aed830df8363d837542f8f935a
-│   │       │   └── wasm-bindgen 0.2.87 checksum:7706a72ab36d8cb1f80ffbf0e071533974a60d0a308d01a5d0375bf60499a342
 │   │       └── cfg-if 1.0.0 checksum:baf1de4339761588bc0619e3cbc0120ee582ebb74b53b4efbf79117bd2da40fd
 │   └── ppv-lite86 0.2.17 checksum:5b40af805b3121feab8a3c29f04d8ad262fa8e0561883e7653e024ae4479e6de
 ├── rand 0.8.5 checksum:34af8d1a0e25924bc5b7c43c079c942339d8f0a8b57c39049bef581b46327404

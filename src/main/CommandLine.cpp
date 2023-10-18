@@ -2,6 +2,11 @@
 // under the Apache License, Version 2.0. See the COPYING file at the root
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
+// clang-format off
+// This needs to be included first
+#include "rust/RustVecXdrMarshal.h"
+// clang-format on
+
 #include "main/CommandLine.h"
 #include "bucket/BucketManager.h"
 #include "catchup/CatchupConfiguration.h"
@@ -24,9 +29,13 @@
 #include "scp/QuorumSetUtils.h"
 #include "src/catchup/simulation/TxSimApplyTransactionsWork.h"
 #include "src/transactions/simulation/TxSimScaleBucketlistWork.h"
+#include "transactions/TransactionUtils.h"
 #include "util/Logging.h"
 #include "util/types.h"
 #include "work/WorkScheduler.h"
+
+#include <cereal/archives/json.hpp>
+#include <cereal/cereal.hpp>
 
 #ifdef BUILD_TESTS
 #include "test/Fuzzer.h"
@@ -1179,6 +1188,283 @@ runUpgradeDB(CommandLineArgs const& args)
 }
 
 int
+getSettingsUpgradeTransactions(CommandLineArgs const& args)
+{
+    std::string netId;
+
+    int64_t seqNum;
+    std::string upgradeFile;
+
+    bool signTxs = false;
+
+    auto signTxnsOption =
+        clara::Opt{signTxs}["--signtxs"]("sign all transactions");
+
+    auto netIdOption = clara::Opt(netId, "NETWORK-PASSPHRASE")["--netid"](
+                           "network ID used for signing")
+                           .required();
+
+    auto netIdParser = ParserWithValidation{
+        netIdOption, required(netId, "NETWORK-PASSPHRASE")};
+
+    std::string id;
+
+    ParserWithValidation seqNumParser{
+        clara::Arg(seqNum, "SequenceNumber").required(), [&] {
+            return seqNum > 0 ? "" : "SequenceNumber must be greater than 0";
+        }};
+
+    return runWithHelp(
+        args,
+        {requiredArgParser(id, "PublicKey"), seqNumParser,
+         requiredArgParser(netId, "NetworkPassphrase"),
+         requiredArgParser(upgradeFile, "CONFIG-UPGRADE-SET-FILE"),
+         signTxnsOption},
+        [&] {
+            RustBuf buf = rust_bridge::json_to_config_upgrade_set(upgradeFile);
+            ConfigUpgradeSet upgradeSet;
+            xdr::xdr_from_opaque(buf.data, upgradeSet);
+
+            PublicKey pk = KeyUtils::fromStrKey<PublicKey>(id);
+
+            Preconditions cond;
+            cond.type(PRECOND_NONE);
+
+            Memo memo;
+            memo.type(MEMO_NONE);
+
+            std::vector<TransactionEnvelope> txsToSign;
+
+            LedgerKey contractCodeLedgerKey;
+            // Upload WASM
+            {
+                TransactionEnvelope txEnv;
+                txEnv.type(ENVELOPE_TYPE_TX);
+
+                auto& tx = txEnv.v1().tx;
+                tx.sourceAccount = toMuxedAccount(pk);
+                tx.fee = 1000000;
+                tx.seqNum = seqNum + 1;
+                tx.cond = cond;
+                tx.memo = memo;
+
+                Operation uploadOp;
+                uploadOp.body.type(INVOKE_HOST_FUNCTION);
+                auto& uploadHF =
+                    uploadOp.body.invokeHostFunctionOp().hostFunction;
+                uploadHF.type(HOST_FUNCTION_TYPE_UPLOAD_CONTRACT_WASM);
+
+                auto const writeByteWasm = rust_bridge::get_write_bytes();
+                uploadHF.wasm().assign(writeByteWasm.data.begin(),
+                                       writeByteWasm.data.end());
+
+                tx.operations.emplace_back(uploadOp);
+
+                contractCodeLedgerKey.type(CONTRACT_CODE);
+                contractCodeLedgerKey.contractCode().hash =
+                    sha256(uploadHF.wasm());
+
+                SorobanResources uploadResources;
+                uploadResources.footprint.readWrite = {contractCodeLedgerKey};
+                uploadResources.instructions = 1833940;
+                uploadResources.readBytes = 50;
+                uploadResources.writeBytes = 2000;
+
+                tx.ext.v(1);
+                tx.ext.sorobanData().resources = uploadResources;
+                tx.ext.sorobanData().refundableFee = 200000;
+
+                txsToSign.emplace_back(txEnv);
+            }
+
+            LedgerKey contractSourceRefLedgerKey;
+            Hash contractID;
+            // Create contract
+            {
+                TransactionEnvelope txEnv;
+                txEnv.type(ENVELOPE_TYPE_TX);
+
+                auto& tx = txEnv.v1().tx;
+                tx.sourceAccount = toMuxedAccount(pk);
+                tx.fee = 200000;
+                tx.seqNum = seqNum + 2;
+
+                Preconditions cond;
+                cond.type(PRECOND_NONE);
+                tx.cond = cond;
+
+                Memo memo;
+                memo.type(MEMO_NONE);
+                tx.memo = memo;
+
+                ContractIDPreimage idPreimage(
+                    CONTRACT_ID_PREIMAGE_FROM_ADDRESS);
+                idPreimage.fromAddress().address.type(SC_ADDRESS_TYPE_ACCOUNT);
+                idPreimage.fromAddress().address.accountId().ed25519() =
+                    pk.ed25519();
+                idPreimage.fromAddress().salt =
+                    sha256("salt"); // TODO: Take user input?
+
+                HashIDPreimage fullPreImage;
+                fullPreImage.type(ENVELOPE_TYPE_CONTRACT_ID);
+                fullPreImage.contractID().contractIDPreimage = idPreimage;
+                fullPreImage.contractID().networkID = sha256(netId);
+                contractID = xdrSha256(fullPreImage);
+
+                Operation createOp;
+                createOp.body.type(INVOKE_HOST_FUNCTION);
+                auto& createHF =
+                    createOp.body.invokeHostFunctionOp().hostFunction;
+                createHF.type(HOST_FUNCTION_TYPE_CREATE_CONTRACT);
+                auto& createContractArgs = createHF.createContract();
+                createContractArgs.contractIDPreimage = idPreimage;
+                createContractArgs.executable.type(CONTRACT_EXECUTABLE_WASM);
+                createContractArgs.executable.wasm_hash() =
+                    contractCodeLedgerKey.contractCode().hash;
+
+                SorobanAuthorizationEntry auth;
+                auth.credentials.type(SOROBAN_CREDENTIALS_SOURCE_ACCOUNT);
+                auth.rootInvocation.function.type(
+                    SOROBAN_AUTHORIZED_FUNCTION_TYPE_CREATE_CONTRACT_HOST_FN);
+                auth.rootInvocation.function.createContractHostFn()
+                    .contractIDPreimage = idPreimage;
+                auth.rootInvocation.function.createContractHostFn()
+                    .executable.type(CONTRACT_EXECUTABLE_WASM);
+                auth.rootInvocation.function.createContractHostFn()
+                    .executable.wasm_hash() =
+                    contractCodeLedgerKey.contractCode().hash;
+                createOp.body.invokeHostFunctionOp().auth = {auth};
+
+                tx.operations.emplace_back(createOp);
+
+                // Build footprint
+                SCVal scContractSourceRefKey(
+                    SCValType::SCV_LEDGER_KEY_CONTRACT_INSTANCE);
+
+                contractSourceRefLedgerKey.type(CONTRACT_DATA);
+                contractSourceRefLedgerKey.contractData().contract.type(
+                    SC_ADDRESS_TYPE_CONTRACT);
+                contractSourceRefLedgerKey.contractData()
+                    .contract.contractId() = contractID;
+                contractSourceRefLedgerKey.contractData().key =
+                    scContractSourceRefKey;
+                contractSourceRefLedgerKey.contractData().durability =
+                    ContractDataDurability::PERSISTENT;
+
+                SorobanResources uploadResources;
+                uploadResources.footprint.readOnly = {contractCodeLedgerKey};
+                uploadResources.footprint.readWrite = {
+                    contractSourceRefLedgerKey};
+                uploadResources.instructions = 120000;
+                uploadResources.readBytes = 2000;
+                uploadResources.writeBytes = 120;
+
+                tx.ext.v(1);
+                tx.ext.sorobanData().resources = uploadResources;
+                tx.ext.sorobanData().refundableFee = 100000;
+
+                txsToSign.emplace_back(txEnv);
+            }
+
+            SCAddress addr(SC_ADDRESS_TYPE_CONTRACT);
+            addr.contractId() = contractID;
+
+            ConfigUpgradeSetKey key;
+
+            // Invoke contract to upload upgrade
+            {
+                TransactionEnvelope txEnv;
+                txEnv.type(ENVELOPE_TYPE_TX);
+
+                auto& tx = txEnv.v1().tx;
+                tx.sourceAccount = toMuxedAccount(pk);
+                tx.fee = 1000000;
+                tx.seqNum = seqNum + 3;
+                tx.cond = cond;
+                tx.memo = memo;
+
+                Operation invokeOp;
+                invokeOp.body.type(INVOKE_HOST_FUNCTION);
+                auto& invokeHF =
+                    invokeOp.body.invokeHostFunctionOp().hostFunction;
+                invokeHF.type(HOST_FUNCTION_TYPE_INVOKE_CONTRACT);
+
+                invokeHF.invokeContract().contractAddress = addr;
+
+                const std::string& functionNameStr = "write";
+                SCSymbol functionName;
+                functionName.assign(functionNameStr.begin(),
+                                    functionNameStr.end());
+                invokeHF.invokeContract().functionName = functionName;
+
+                auto upgradeSetBytes(xdr::xdr_to_opaque(upgradeSet));
+                SCVal b(SCV_BYTES);
+                b.bytes() = upgradeSetBytes;
+                invokeHF.invokeContract().args.emplace_back(b);
+
+                tx.operations.emplace_back(invokeOp);
+
+                LedgerKey upgrade(CONTRACT_DATA);
+                upgrade.contractData().durability = TEMPORARY;
+                upgrade.contractData().contract = addr;
+
+                SCVal upgradeHashBytes(SCV_BYTES);
+                auto upgradeHash = sha256(upgradeSetBytes);
+                upgradeHashBytes.bytes() = xdr::xdr_to_opaque(upgradeHash);
+                upgrade.contractData().key = upgradeHashBytes;
+
+                SorobanResources invokeResources;
+                invokeResources.footprint.readOnly = {
+                    contractSourceRefLedgerKey, contractCodeLedgerKey};
+                invokeResources.footprint.readWrite = {upgrade};
+                invokeResources.instructions = 2'000'000;
+                invokeResources.readBytes = 3000;
+                invokeResources.writeBytes = 2000;
+
+                tx.ext.v(1);
+                tx.ext.sorobanData().resources = invokeResources;
+                tx.ext.sorobanData().refundableFee = 100000;
+
+                txsToSign.emplace_back(txEnv);
+
+                key.contentHash = upgradeHash;
+                key.contractID = contractID;
+            }
+
+            if (signTxs)
+            {
+                signtxns(txsToSign, netId, true, false);
+            }
+            else
+            {
+                auto tx1 =
+                    decoder::encode_b64(xdr::xdr_to_opaque(txsToSign.at(0)));
+                auto tx2 =
+                    decoder::encode_b64(xdr::xdr_to_opaque(txsToSign.at(1)));
+                auto tx3 =
+                    decoder::encode_b64(xdr::xdr_to_opaque(txsToSign.at(2)));
+
+                std::cerr << "TransactionEnvelope to upload upgrade WASM ";
+                std::cout << tx1 << std::endl << std::endl;
+
+                std::cerr << "TransactionEnvelope to create upgrade contract ";
+                std::cout << tx2 << std::endl << std::endl;
+
+                std::cerr << "TransactionEnvelope to invoke contract with "
+                             "upgrade bytes ";
+                std::cout << tx3 << std::endl << std::endl;
+            }
+
+            std::cerr << "ConfigUpgradeSetKey  ";
+            std::cout << decoder::encode_b64(xdr::xdr_to_opaque(key))
+                      << std::endl
+                      << std::endl;
+
+            return 0;
+        });
+}
+
+int
 runNewHist(CommandLineArgs const& args)
 {
     CommandLine::ConfigOption configOption;
@@ -1866,6 +2152,10 @@ handleCommandLine(int argc, char* const* argv)
           runSignTransaction},
          {"upgrade-db", "upgrade database schema to current version",
           runUpgradeDB},
+         {"get-settings-upgrade-txs",
+          "returns all transactions that need to be submitted to do a settings "
+          "upgrade",
+          getSettingsUpgradeTransactions},
 #ifdef BUILD_TESTS
          {"load-xdr", "load an XDR bucket file, for testing", runLoadXDR},
          {"rebuild-ledger-from-buckets",

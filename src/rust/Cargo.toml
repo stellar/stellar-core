@@ -14,6 +14,8 @@ tracy-client = { version = "=0.15.2", features = ["enable"], default-features = 
 cxx = "1.0"
 base64 = "0.13.0"
 rustc-simple-version = "0.1.0"
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
 
 # This copy of the soroban host is always enabled, and should always point to a
 # version that supports stellar-core's Config::CURRENT_LEDGER_PROTOCOL_VERSION.
@@ -29,6 +31,13 @@ version = "20.0.0-rc1"
 git = "https://github.com/stellar/rs-soroban-env"
 package = "soroban-env-host"
 rev = "f19ef13363a1e0cbff7b100c0599a1d63dea88a6"
+
+[dependencies.soroban-env-common-curr]
+version = "20.0.0-rc1"
+git = "https://github.com/stellar/rs-soroban-env"
+package = "soroban-env-common"
+rev = "f19ef13363a1e0cbff7b100c0599a1d63dea88a6"
+features = ["serde"]
 
 # This copy of the soroban host is _optional_ and only enabled during protocol
 # transitions. When transitioning from protocol N to N+1, the `curr` copy
@@ -53,6 +62,14 @@ version = "0.0.17"
 git = "https://github.com/stellar/rs-soroban-env"
 package = "soroban-env-host"
 rev = "66a3c504387da5bb5bb0b1cc4b0beb22c74fb252"
+
+[dependencies.soroban-env-common-prev]
+optional = true
+version = "0.0.17"
+git = "https://github.com/stellar/rs-soroban-env"
+package = "soroban-env-common"
+rev = "66a3c504387da5bb5bb0b1cc4b0beb22c74fb252"
+features = ["serde"]
 
 [dependencies.soroban-test-wasms]
 git = "https://github.com/stellar/rs-soroban-env"
