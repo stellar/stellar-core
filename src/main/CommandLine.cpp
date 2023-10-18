@@ -2,6 +2,11 @@
 // under the Apache License, Version 2.0. See the COPYING file at the root
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
+// clang-format off
+// This needs to be included first
+#include "rust/RustVecXdrMarshal.h"
+// clang-format on
+
 #include "main/CommandLine.h"
 #include "bucket/BucketManager.h"
 #include "catchup/CatchupConfiguration.h"
@@ -18,14 +23,19 @@
 #include "main/Diagnostics.h"
 #include "main/ErrorMessages.h"
 #include "main/PersistentState.h"
+#include "main/SettingsUpgradeUtils.h"
 #include "main/StellarCoreVersion.h"
 #include "main/dumpxdr.h"
 #include "overlay/OverlayManager.h"
 #include "rust/RustBridge.h"
 #include "scp/QuorumSetUtils.h"
+#include "transactions/TransactionUtils.h"
 #include "util/Logging.h"
 #include "util/types.h"
 #include "work/WorkScheduler.h"
+
+#include <cereal/archives/json.hpp>
+#include <cereal/cereal.hpp>
 
 #ifdef BUILD_TESTS
 #include "test/Fuzzer.h"
@@ -1226,6 +1236,131 @@ runUpgradeDB(CommandLineArgs const& args)
 }
 
 int
+getSettingsUpgradeTransactions(CommandLineArgs const& args)
+{
+    std::string netId;
+
+    int64_t seqNum;
+    std::string upgradeFile;
+
+    bool signTxs = false;
+
+    auto signTxnOption =
+        clara::Opt{signTxs}["--signtxs"]("sign all transactions");
+
+    auto netIdOption = clara::Opt(netId, "NETWORK-PASSPHRASE")["--netid"](
+                           "network ID used for signing")
+                           .required();
+
+    auto netIdParser = ParserWithValidation{
+        netIdOption, required(netId, "NETWORK-PASSPHRASE")};
+
+    std::string id;
+
+    std::string base64Xdr;
+    auto base64Option = clara::Opt{base64Xdr, "XDR-BASE64"}["--xdr"](
+                            "ConfigUpgradeSet in base64")
+                            .required();
+
+    auto base64Parser =
+        ParserWithValidation{base64Option, required(base64Xdr, "XDR-BASE64")};
+
+    ParserWithValidation seqNumParser{
+        clara::Arg(seqNum, "SequenceNumber").required(),
+        [&] { return seqNum >= 0 ? "" : "SequenceNumber must be >= 0"; }};
+
+    return runWithHelp(
+        args,
+        {requiredArgParser(id, "PublicKey"), seqNumParser,
+         requiredArgParser(netId, "NetworkPassphrase"), base64Parser,
+         signTxnOption},
+        [&] {
+            ConfigUpgradeSet upgradeSet;
+            std::vector<uint8_t> binBlob;
+            decoder::decode_b64(base64Xdr, binBlob);
+            xdr::xdr_from_opaque(binBlob, upgradeSet);
+
+            PublicKey pk = KeyUtils::fromStrKey<PublicKey>(id);
+
+            std::vector<TransactionEnvelope> txsToSign;
+
+            auto uploadRes = getUploadTx(pk, seqNum + 1);
+            txsToSign.emplace_back(uploadRes.first);
+            auto const& contractCodeLedgerKey = uploadRes.second;
+
+            auto createRes =
+                getCreateTx(pk, contractCodeLedgerKey, netId, seqNum + 2);
+            txsToSign.emplace_back(std::get<0>(createRes));
+            auto const& contractSourceRefLedgerKey = std::get<1>(createRes);
+            auto const& contractID = std::get<2>(createRes);
+
+            auto invokeRes = getInvokeTx(pk, contractCodeLedgerKey,
+                                         contractSourceRefLedgerKey, contractID,
+                                         upgradeSet, seqNum + 3);
+            txsToSign.emplace_back(invokeRes.first);
+            auto const& upgradeSetKey = invokeRes.second;
+
+            if (signTxs)
+            {
+                signtxns(txsToSign, netId, true, false, true);
+            }
+            else
+            {
+                TransactionSignaturePayload payload;
+                payload.networkId = sha256(netId);
+                payload.taggedTransaction.type(ENVELOPE_TYPE_TX);
+
+                auto tx1 =
+                    decoder::encode_b64(xdr::xdr_to_opaque(txsToSign.at(0)));
+                auto payload1 = payload;
+                payload1.taggedTransaction.tx() = txsToSign.at(0).v1().tx;
+
+                auto tx2 =
+                    decoder::encode_b64(xdr::xdr_to_opaque(txsToSign.at(1)));
+                auto payload2 = payload;
+                payload2.taggedTransaction.tx() = txsToSign.at(1).v1().tx;
+
+                auto tx3 =
+                    decoder::encode_b64(xdr::xdr_to_opaque(txsToSign.at(2)));
+                auto payload3 = payload;
+                payload3.taggedTransaction.tx() = txsToSign.at(2).v1().tx;
+
+                std::cerr
+                    << "Unsigned TransactionEnvelope to upload upgrade WASM "
+                    << std::endl;
+                std::cout << tx1 << std::endl;
+                std::cout << binToHex(xdr::xdr_to_opaque(
+                                 sha256(xdr::xdr_to_opaque(payload1))))
+                          << std::endl;
+
+                std::cerr << "Unsigned TransactionEnvelope to create upgrade "
+                             "contract "
+                          << std::endl;
+
+                std::cout << tx2 << std::endl;
+                std::cout << binToHex(xdr::xdr_to_opaque(
+                                 sha256(xdr::xdr_to_opaque(payload2))))
+                          << std::endl;
+
+                std::cerr
+                    << "Unsigned TransactionEnvelope to invoke contract with "
+                       "upgrade bytes "
+                    << std::endl;
+                std::cout << tx3 << std::endl;
+                std::cout << binToHex(xdr::xdr_to_opaque(
+                                 sha256(xdr::xdr_to_opaque(payload3))))
+                          << std::endl;
+            }
+
+            std::cerr << "ConfigUpgradeSetKey  ";
+            std::cout << decoder::encode_b64(xdr::xdr_to_opaque(upgradeSetKey))
+                      << std::endl;
+
+            return 0;
+        });
+}
+
+int
 runNewHist(CommandLineArgs const& args)
 {
     CommandLine::ConfigOption configOption;
@@ -1685,6 +1820,10 @@ handleCommandLine(int argc, char* const* argv)
           runSignTransaction},
          {"upgrade-db", "upgrade database schema to current version",
           runUpgradeDB},
+         {"get-settings-upgrade-txs",
+          "returns all transactions that need to be submitted to do a settings "
+          "upgrade",
+          getSettingsUpgradeTransactions},
 #ifdef BUILD_TESTS
          {"load-xdr", "load an XDR bucket file, for testing", runLoadXDR},
          {"rebuild-ledger-from-buckets",

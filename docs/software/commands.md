@@ -80,6 +80,25 @@ Command options can only by placed after command.
 * **fuzz <FILE-NAME>**: Run a single fuzz input and exit.
 * **gen-fuzz <FILE-NAME>**:  Generate a random fuzzer input file.
 * **gen-seed**: Generate and print a random public/private key and then exit.
+* **get-settings-upgrade-txs <PUBLIC-KEY> <SEQ-NUM> <NETWORK-PASSPHRASE>**: Generates the three transactions needed to propose
+  a Soroban Settings upgrade from scratch, as will as the XDR `ConfigUpgradeSetKey` to submit to the `upgrades` endpoint. The results will be dumped to standard output. <PUBLIC-KEY> is the key that will be used as the source account on the transactions.
+  <SEQ-NUM> is the current sequence number of the Stellar account corresponding to <PUBLIC-KEY>. 
+
+  Option (required) **--xdr** takes a base64 encoded XDR serialized `ConfigUpgradeSet`.
+    Example:
+  `stellar-core get-settings-upgrade-txs GAUQW73V52I2WLIPKCKYXZBHIYFTECS7UPSG4OSVUHNDXEZJJWFXZG56 73014444032  "Standalone Network ; February 2017" --xdr AAAAAQAAAAIAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAE0gAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA= --signtxs`.<br>
+
+  Option **--signtxs** will prompt for a secret key and sign the TransactionEnvelopes.<br>
+
+  Output format by line - 
+  1. Base64 upload tx envelope XDR
+  2. Hex tx ID for the upload tx.
+  3. Base 64 create tx envelope XDR
+  4. Hex tx ID for the create tx.
+  5. Base64 invoke tx envelope XDR
+  6. Hex tx ID for the invoke tx.
+  7. Base64 ConfigUpgradeSetKey XDR.
+
 * **help**: Print the available command line options and then exit..
 * **http-command <COMMAND>** Send an [HTTP command](#http-commands) to an
   already running local instance of stellar-core and then exit. For example: 
@@ -315,6 +334,13 @@ format.
         containing a serialized ConfigUpgradeSet. Each ConfigSettingEntry in the
         ConfigUpgradeSet will be used to update the existing network ConfigSettingEntry
         that exists at the corresponding CONFIG_SETTING LedgerKey.
+
+* **dumpproposedsettings**
+  `dumpproposedsettings?blob=Base64`<br>
+  blob is a base64 encoded XDR serialized `ConfigUpgradeSetKey`.
+  This command outputs the `ConfigUpgradeSet` (if it's valid and it exists) in a readable format
+  that corresponds to the `ConfigUpgradeSetKey` passed in. This can be used by validators
+  to verify Soroban Settings upgrades before voting on them.
 
 * **surveytopology**
   `surveytopology?duration=DURATION&node=NODE_ID`<br>
