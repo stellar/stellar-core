@@ -174,15 +174,13 @@ class TxSetFrame : public NonMovableOrCopyable
     // Test helper that only checks the XDR structure validitiy without
     // validating internal transactions.
     virtual bool checkValidStructure() const;
-    static TxSetFrameConstPtr
-    makeFromTransactions(Transactions txs, Application& app,
-                         uint64_t lowerBoundCloseTimeOffset,
-                         uint64_t upperBoundCloseTimeOffset,
-                         Transactions const* orderOverride = nullptr);
+    static TxSetFrameConstPtr makeFromTransactions(
+        Transactions txs, Application& app, uint64_t lowerBoundCloseTimeOffset,
+        uint64_t upperBoundCloseTimeOffset, bool enforceTxsApplyOrder = false);
     static TxSetFrameConstPtr makeFromTransactions(
         Transactions txs, Application& app, uint64_t lowerBoundCloseTimeOffset,
         uint64_t upperBoundCloseTimeOffset, Transactions& invalidTxs,
-        Transactions const* orderOverride = nullptr);
+        bool enforceTxsApplyOrder = false);
 #endif
   protected:
     TxSetFrame(LedgerHeaderHistoryEntry const& lclHeader, TxPhases const& txs);

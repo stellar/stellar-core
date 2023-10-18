@@ -234,12 +234,12 @@ TxSetFrameConstPtr
 TxSetFrame::makeFromTransactions(TxSetFrame::Transactions txs, Application& app,
                                  uint64_t lowerBoundCloseTimeOffset,
                                  uint64_t upperBoundCloseTimeOffset,
-                                 Transactions const* orderOverride)
+                                 bool enforceTxsApplyOrder)
 {
     Transactions invalid;
     return TxSetFrame::makeFromTransactions(txs, app, lowerBoundCloseTimeOffset,
                                             upperBoundCloseTimeOffset, invalid,
-                                            orderOverride);
+                                            enforceTxsApplyOrder);
 }
 
 TxSetFrameConstPtr
@@ -247,7 +247,7 @@ TxSetFrame::makeFromTransactions(Transactions txs, Application& app,
                                  uint64_t lowerBoundCloseTimeOffset,
                                  uint64_t upperBoundCloseTimeOffset,
                                  Transactions& invalidTxs,
-                                 Transactions const* orderOverride)
+                                 bool enforceTxsApplyOrder)
 {
     TxSetFrame::TxPhases phases;
     phases.emplace_back(txs);
@@ -262,11 +262,11 @@ TxSetFrame::makeFromTransactions(Transactions txs, Application& app,
     invalid.resize(phases.size());
     auto res = TxSetFrame::makeFromTransactions(
         phases, app, lowerBoundCloseTimeOffset, upperBoundCloseTimeOffset,
-        invalid, orderOverride != nullptr);
+        invalid, enforceTxsApplyOrder);
     invalidTxs = invalid[0];
-    if (orderOverride)
+    if (enforceTxsApplyOrder)
     {
-        res->mApplyOrderOverride = std::make_optional(*orderOverride);
+        res->mApplyOrderOverride = std::make_optional(txs);
     }
     return res;
 }
@@ -331,17 +331,17 @@ TxSetFrame::makeFromTransactions(TxPhases const& txPhases, Application& app,
 
         auto& invalid = invalidTxs[i];
 #ifdef BUILD_TESTS
-        if (!skipValidation)
+        if (skipValidation)
+        {
+            validatedPhases.emplace_back(txs);
+        }
+        else
         {
 #endif
             validatedPhases.emplace_back(
                 TxSetUtils::trimInvalid(txs, app, lowerBoundCloseTimeOffset,
                                         upperBoundCloseTimeOffset, invalid));
 #ifdef BUILD_TESTS
-        }
-        else
-        {
-            validatedPhases.emplace_back(txs);
         }
 #endif
     }
@@ -372,6 +372,8 @@ TxSetFrame::makeFromTransactions(TxPhases const& txPhases, Application& app,
 #ifdef BUILD_TESTS
     if (skipValidation)
     {
+        // Return the initially built `txSet` in order to preserve
+        // the original tx frames passed in `phases`.
         txSet->mHash = outputTxSet->mHash;
         txSet->mEncodedSize = outputTxSet->mEncodedSize;
         return txSet;

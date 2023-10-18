@@ -497,7 +497,7 @@ closeLedgerOn(Application& app, uint32 ledgerSeq, TimePoint closeTime,
     TxSetFrameConstPtr txSet;
     if (strictOrder)
     {
-        txSet = TxSetFrame::makeFromTransactions(txs, app, 0, 0, &txs);
+        txSet = TxSetFrame::makeFromTransactions(txs, app, 0, 0, true);
     }
     else
     {
