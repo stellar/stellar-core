@@ -233,18 +233,21 @@ TxSetFrame::checkValidStructure() const
 TxSetFrameConstPtr
 TxSetFrame::makeFromTransactions(TxSetFrame::Transactions txs, Application& app,
                                  uint64_t lowerBoundCloseTimeOffset,
-                                 uint64_t upperBoundCloseTimeOffset)
+                                 uint64_t upperBoundCloseTimeOffset,
+                                 bool enforceTxsApplyOrder)
 {
     Transactions invalid;
     return TxSetFrame::makeFromTransactions(txs, app, lowerBoundCloseTimeOffset,
-                                            upperBoundCloseTimeOffset, invalid);
+                                            upperBoundCloseTimeOffset, invalid,
+                                            enforceTxsApplyOrder);
 }
 
 TxSetFrameConstPtr
 TxSetFrame::makeFromTransactions(Transactions txs, Application& app,
                                  uint64_t lowerBoundCloseTimeOffset,
                                  uint64_t upperBoundCloseTimeOffset,
-                                 Transactions& invalidTxs)
+                                 Transactions& invalidTxs,
+                                 bool enforceTxsApplyOrder)
 {
     TxSetFrame::TxPhases phases;
     phases.emplace_back(txs);
@@ -257,10 +260,14 @@ TxSetFrame::makeFromTransactions(Transactions txs, Application& app,
     }
     TxSetFrame::TxPhases invalid;
     invalid.resize(phases.size());
-    auto res =
-        TxSetFrame::makeFromTransactions(phases, app, lowerBoundCloseTimeOffset,
-                                         upperBoundCloseTimeOffset, invalid);
+    auto res = TxSetFrame::makeFromTransactions(
+        phases, app, lowerBoundCloseTimeOffset, upperBoundCloseTimeOffset,
+        invalid, enforceTxsApplyOrder);
     invalidTxs = invalid[0];
+    if (enforceTxsApplyOrder)
+    {
+        res->mApplyOrderOverride = std::make_optional(txs);
+    }
     return res;
 }
 #endif
@@ -276,19 +283,34 @@ TxSetFrame::TxSetFrame(LedgerHeaderHistoryEntry const& lclHeader,
 TxSetFrameConstPtr
 TxSetFrame::makeFromTransactions(TxPhases const& txPhases, Application& app,
                                  uint64_t lowerBoundCloseTimeOffset,
-                                 uint64_t upperBoundCloseTimeOffset)
+                                 uint64_t upperBoundCloseTimeOffset
+#ifdef BUILD_TESTS
+                                 ,
+                                 bool skipValidation
+#endif
+)
 {
     TxPhases invalidTxs;
     invalidTxs.resize(txPhases.size());
     return makeFromTransactions(txPhases, app, lowerBoundCloseTimeOffset,
-                                upperBoundCloseTimeOffset, invalidTxs);
+                                upperBoundCloseTimeOffset, invalidTxs
+#ifdef BUILD_TESTS
+                                ,
+                                skipValidation
+#endif
+    );
 }
 
 TxSetFrameConstPtr
 TxSetFrame::makeFromTransactions(TxPhases const& txPhases, Application& app,
                                  uint64_t lowerBoundCloseTimeOffset,
                                  uint64_t upperBoundCloseTimeOffset,
-                                 TxPhases& invalidTxs)
+                                 TxPhases& invalidTxs
+#ifdef BUILD_TESTS
+                                 ,
+                                 bool skipValidation
+#endif
+)
 {
     releaseAssert(txPhases.size() == invalidTxs.size());
     releaseAssert(txPhases.size() <=
@@ -308,9 +330,20 @@ TxSetFrame::makeFromTransactions(TxPhases const& txPhases, Application& app,
         }
 
         auto& invalid = invalidTxs[i];
-        validatedPhases.emplace_back(
-            TxSetUtils::trimInvalid(txs, app, lowerBoundCloseTimeOffset,
-                                    upperBoundCloseTimeOffset, invalid));
+#ifdef BUILD_TESTS
+        if (skipValidation)
+        {
+            validatedPhases.emplace_back(txs);
+        }
+        else
+        {
+#endif
+            validatedPhases.emplace_back(
+                TxSetUtils::trimInvalid(txs, app, lowerBoundCloseTimeOffset,
+                                        upperBoundCloseTimeOffset, invalid));
+#ifdef BUILD_TESTS
+        }
+#endif
     }
 
     auto const& lclHeader = app.getLedgerManager().getLastClosedLedgerHeader();
@@ -336,6 +369,16 @@ TxSetFrame::makeFromTransactions(TxPhases const& txPhases, Application& app,
         txSet->toXDR(xdrTxSet);
         outputTxSet = TxSetFrame::makeFromWire(app, xdrTxSet);
     }
+#ifdef BUILD_TESTS
+    if (skipValidation)
+    {
+        // Return the initially built `txSet` in order to preserve
+        // the original tx frames passed in `phases`.
+        txSet->mHash = outputTxSet->mHash;
+        txSet->mEncodedSize = outputTxSet->mEncodedSize;
+        return txSet;
+    }
+#endif
     // Make sure no transactions were lost during the roundtrip and the output
     // tx set is valid.
     bool valid = txSet->numPhases() == outputTxSet->numPhases();
@@ -506,6 +549,12 @@ TxSetFrame::getTxsForPhase(Phase phase) const
 TxSetFrame::Transactions
 TxSetFrame::getTxsInApplyOrder() const
 {
+#ifdef BUILD_TESTS
+    if (mApplyOrderOverride)
+    {
+        return *mApplyOrderOverride;
+    }
+#endif
     ZoneScoped;
 
     // Use a single vector to order transactions from all phases
