@@ -402,6 +402,9 @@
     <ClCompile Include="..\..\src\main\dumpxdr.cpp">
       <Filter>main</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\src\main\SettingsUpgradeUtils.cpp">
+      <Filter>main</Filter>
+    </ClCompile>
     <ClCompile Include="..\..\src\main\ExternalQueue.cpp">
       <Filter>main</Filter>
     </ClCompile>
@@ -1585,6 +1588,9 @@
       <Filter>main</Filter>
     </ClInclude>
     <ClInclude Include="..\..\src\main\dumpxdr.h">
+      <Filter>main</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\main\SettingsUpgradeUtils.h">
       <Filter>main</Filter>
     </ClInclude>
     <ClInclude Include="..\..\src\main\ErrorMessages.h">

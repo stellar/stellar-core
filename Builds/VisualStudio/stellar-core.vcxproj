@@ -806,6 +806,7 @@ exit /b 0
     <ClCompile Include="..\..\src\main\CommandLine.cpp" />
     <ClCompile Include="..\..\src\main\Config.cpp" />
     <ClCompile Include="..\..\src\main\dumpxdr.cpp" />
+    <ClCompile Include="..\..\src\main\SettingsUpgradeUtils.cpp" />
     <ClCompile Include="..\..\src\main\ExternalQueue.cpp" />
     <ClCompile Include="..\..\src\main\main.cpp" />
     <ClCompile Include="..\..\src\main\Maintainer.cpp" />
@@ -1120,6 +1121,7 @@ exit /b 0
     <ClInclude Include="..\..\src\main\CommandLine.h" />
     <ClInclude Include="..\..\src\main\Config.h" />
     <ClInclude Include="..\..\src\main\dumpxdr.h" />
+    <ClInclude Include="..\..\src\main\SettingsUpgradeUtils.h" />
     <ClInclude Include="..\..\src\main\ErrorMessages.h" />
     <ClInclude Include="..\..\src\main\ExternalQueue.h" />
     <ClInclude Include="..\..\src\main\Maintainer.h" />
