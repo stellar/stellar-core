@@ -159,25 +159,44 @@ k_means(std::vector<double> const& points, uint32_t k)
     return centroids;
 }
 
-#ifdef BUILD_TESTS
 static unsigned int lastGlobalSeed{0};
-void
-reinitializeAllGlobalStateWithSeed(unsigned int seed)
+static void
+reinitializeAllGlobalStateWithSeedInternal(unsigned int seed)
 {
     lastGlobalSeed = seed;
     PubKeyUtils::clearVerifySigCache();
     srand(seed);
     gRandomEngine.seed(seed);
-    shortHash::seed(seed);
-    Catch::rng().seed(seed);
-    autocheck::rng().seed(seed);
     randHash::initialize();
 }
+
+void
+initializeAllGlobalState()
+{
+    releaseAssert(lastGlobalSeed == 0);
+    auto const seed = static_cast<unsigned int>(
+        std::chrono::system_clock::now().time_since_epoch().count());
+    reinitializeAllGlobalStateWithSeedInternal(seed);
+    // shortHash needs to be initialized with a strong random seed
+    shortHash::initialize();
+}
+
+#ifdef BUILD_TESTS
+void
+reinitializeAllGlobalStateWithSeed(unsigned int seed)
+{
+    reinitializeAllGlobalStateWithSeedInternal(seed);
+    // shortHash seeded for tests
+    shortHash::seed(seed);
+    // test only prngs
+    Catch::rng().seed(seed);
+    autocheck::rng().seed(seed);
+}
+
 unsigned int
 getLastGlobalStateSeed()
 {
     return lastGlobalSeed;
 }
 #endif
-
 }
