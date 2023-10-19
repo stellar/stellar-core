@@ -57,7 +57,8 @@ class FlowControlCapacity
 
     virtual bool canRead() const = 0;
 
-    static uint64_t msgBodySize(StellarMessage const& msg);
+    static uint64_t msgBodySize(StellarMessage const& msg,
+                                uint32_t remoteVersion, uint32_t localVersion);
 
 #ifdef BUILD_TESTS
     void
@@ -75,9 +76,11 @@ class FlowControlByteCapacity : public FlowControlCapacity
     // FlowControlByteCapacity capacity limits may change due to protocol
     // upgrades
     ReadingCapacity mCapacityLimits;
+    uint32_t const mRemoteOverlayVersion;
 
   public:
-    FlowControlByteCapacity(Application& app, NodeID const& nodeID);
+    FlowControlByteCapacity(Application& app, NodeID const& nodeID,
+                            uint32_t remoteVersion);
     virtual ~FlowControlByteCapacity() = default;
     virtual uint64_t
     getMsgResourceCount(StellarMessage const& msg) const override;

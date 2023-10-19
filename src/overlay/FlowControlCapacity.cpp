@@ -57,11 +57,13 @@ FlowControlMessageCapacity::canRead() const
 }
 
 FlowControlByteCapacity::FlowControlByteCapacity(Application& app,
-                                                 NodeID const& nodeID)
+                                                 NodeID const& nodeID,
+                                                 uint32_t remoteVersion)
     : FlowControlCapacity(app, nodeID)
     , mCapacityLimits(
           {app.getOverlayManager().getFlowControlBytesConfig().mTotal,
            std::nullopt})
+    , mRemoteOverlayVersion(remoteVersion)
 {
     mCapacity = mCapacityLimits;
 }
@@ -75,7 +77,9 @@ FlowControlByteCapacity::getCapacityLimits() const
 uint64_t
 FlowControlByteCapacity::getMsgResourceCount(StellarMessage const& msg) const
 {
-    return msgBodySize(msg);
+    releaseAssert(mRemoteOverlayVersion);
+    return msgBodySize(msg, mRemoteOverlayVersion,
+                       mApp.getConfig().OVERLAY_PROTOCOL_VERSION);
 }
 
 void
@@ -205,10 +209,24 @@ FlowControlCapacity::hasOutboundCapacity(StellarMessage const& msg) const
 }
 
 uint64_t
-FlowControlCapacity::msgBodySize(StellarMessage const& msg)
+FlowControlCapacity::msgBodySize(StellarMessage const& msg,
+                                 uint32_t remoteVersion, uint32_t localVersion)
 {
-    return static_cast<uint64_t>(xdr::xdr_size(msg) -
-                                 xdr::xdr_size(msg.type()));
+    // Starting with FIRST_VERSION_UPDATED_FLOW_CONTROL_ACCOUNTING, message size
+    // calculation changed to accommodate Soroban transactions. We still need to
+    // be able to support clients running older versions (this support can be
+    // dropped once minimum overlay version is
+    // FIRST_VERSION_UPDATED_FLOW_CONTROL_ACCOUNTING or later)
+    if (remoteVersion >= Peer::FIRST_VERSION_UPDATED_FLOW_CONTROL_ACCOUNTING &&
+        localVersion >= Peer::FIRST_VERSION_UPDATED_FLOW_CONTROL_ACCOUNTING)
+    {
+        return static_cast<uint64_t>(xdr::xdr_size(msg) -
+                                     xdr::xdr_size(msg.type()));
+    }
+    else
+    {
+        return static_cast<uint64_t>(xdr::xdr_size(msg));
+    }
 }
 
 }
