@@ -810,6 +810,46 @@ generator_t::operator()(stellar::PublicKey& t) const
         t.ed25519(), static_cast<uint8_t>(stellar::rand_uniform<int>(
                          0, NUMBER_OF_ACCOUNT_IDS_TO_GENERATE - 1)));
 }
+
+static int RECURSION_COUNT = 0;
+static const int RECURSION_LIMIT = 50;
+
+template <>
+void
+generator_t::operator()<stellar::SCVal>(stellar::SCVal& val) const
+{
+    if (++RECURSION_COUNT > RECURSION_LIMIT)
+    {
+        stellar::SCVal v;
+        val = v;
+        return;
+    }
+    const auto& vals = stellar::SCVal::_xdr_case_values();
+    stellar::SCValType v;
+
+    uint32_t n;
+    (*this)(n);
+    v = vals[n % vals.size()];
+
+    val._xdr_discriminant(v, false);
+    val._xdr_with_mem_ptr(field_archiver, v, *this, val, nullptr);
+}
+
+template <>
+void
+generator_t::operator()<stellar::SorobanAuthorizedInvocation>(
+    stellar::SorobanAuthorizedInvocation& auth) const
+{
+    if (++RECURSION_COUNT > RECURSION_LIMIT)
+    {
+        stellar::SorobanAuthorizedInvocation a;
+        auth = a;
+        return;
+    }
+
+    xdr_traits<stellar::SorobanAuthorizedInvocation>::load(*this, auth);
+}
+
 #endif // FUZZING_BUILD_MODE_UNSAFE_FOR_PRODUCTION
 }
 
