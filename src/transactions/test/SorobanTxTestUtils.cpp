@@ -372,8 +372,7 @@ ContractInvocationTest::getRoot()
 SorobanNetworkConfig const&
 ContractInvocationTest::getNetworkCfg()
 {
-    LedgerTxn ltx(mApp->getLedgerTxnRoot());
-    return mApp->getLedgerManager().getSorobanNetworkConfig(ltx);
+    return mApp->getLedgerManager().getSorobanNetworkConfig();
 }
 
 uint32_t

@@ -1158,11 +1158,8 @@ TEST_CASE("Soroban TransactionQueue limits",
     auto account1 = root.create("a1", minBalance2);
     auto account2 = root.create("a2", minBalance2);
 
-    SorobanNetworkConfig conf;
-    {
-        LedgerTxn ltx(app->getLedgerTxnRoot());
-        conf = app->getLedgerManager().getSorobanNetworkConfig(ltx);
-    }
+    SorobanNetworkConfig conf =
+        app->getLedgerManager().getSorobanNetworkConfig();
 
     SorobanResources resources;
     resources.instructions = 2'000'000;
@@ -1407,18 +1404,14 @@ TEST_CASE("Soroban TransactionQueue limits",
     }
     SECTION("limited lane eviction")
     {
-        std::shared_ptr<Resource> limits = nullptr;
-        {
-            LedgerTxn ltx(app->getLedgerTxnRoot());
-            limits = std::make_shared<Resource>(
-                app->getLedgerManager().maxLedgerResources(true, ltx));
-        }
+        Resource limits = app->getLedgerManager().maxLedgerResources(true);
+
         // Setup limits: generic fits 1 ledger worth of resources, while limited
         // lane fits 1/4 ledger
-        auto limitedLane = std::optional<Resource>(
-            bigDivideOrThrow(*limits, 1, 4, Rounding::ROUND_UP));
+        Resource limitedLane(
+            bigDivideOrThrow(limits, 1, 4, Rounding::ROUND_UP));
         auto config = std::make_shared<SorobanLimitingLaneConfigForTesting>(
-            *limits, limitedLane);
+            limits, limitedLane);
         auto queue = std::make_unique<SurgePricingPriorityQueue>(
             /* isHighestPriority */ false, config, 1);
 

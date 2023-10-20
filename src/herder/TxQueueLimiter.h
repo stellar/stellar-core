@@ -88,9 +88,12 @@ class TxQueueLimiter
     void removeTransaction(TransactionFrameBasePtr const& tx);
 #ifdef BUILD_TESTS
     size_t size() const;
+    std::pair<bool, int64>
+    canAddTx(TransactionFrameBasePtr const& tx,
+             TransactionFrameBasePtr const& oldTx,
+             std::vector<std::pair<TxStackPtr, bool>>& txsToEvict);
 #endif
-    Resource maxScaledLedgerResources(bool isSoroban,
-                                      AbstractLedgerTxn& ltxOuter) const;
+    Resource maxScaledLedgerResources(bool isSoroban) const;
 
     // Evict `txsToEvict` from the limiter by calling `evict`.
     // `txsToEvict` should be provided by the `canAddTx` call.
@@ -114,16 +117,12 @@ class TxQueueLimiter
     canAddTx(TransactionFrameBasePtr const& tx,
              TransactionFrameBasePtr const& oldTx,
              std::vector<std::pair<TxStackPtr, bool>>& txsToEvict,
-             AbstractLedgerTxn& ltxOuter);
-    std::pair<bool, int64>
-    canAddTx(TransactionFrameBasePtr const& tx,
-             TransactionFrameBasePtr const& oldTx,
-             std::vector<std::pair<TxStackPtr, bool>>& txsToEvict);
+             uint32_t ledgerVersion);
 
     // Resets the state related to evictions (maximum evicted bid).
     void resetEvictionState();
 
     // Resets the internal transaction container and the eviction state.
-    void reset(AbstractLedgerTxn& ltxOuter);
+    void reset(uint32_t ledgerVersion);
 };
 }

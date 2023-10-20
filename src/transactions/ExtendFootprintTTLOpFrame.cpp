@@ -129,13 +129,12 @@ ExtendFootprintTTLOpFrame::doApply(Application& app, AbstractLedgerTxn& ltx,
         app.getConfig().CURRENT_LEDGER_PROTOCOL_VERSION, ledgerVersion,
         rustEntryRentChanges,
         app.getLedgerManager()
-            .getSorobanNetworkConfig(ltx)
+            .getSorobanNetworkConfig()
             .rustBridgeRentFeeConfiguration(),
         ledgerSeq);
     if (!mParentTx.consumeRefundableSorobanResources(
             0, rentFee, ledgerVersion,
-            app.getLedgerManager().getSorobanNetworkConfig(ltx),
-            app.getConfig()))
+            app.getLedgerManager().getSorobanNetworkConfig(), app.getConfig()))
     {
         innerResult().code(EXTEND_FOOTPRINT_TTL_INSUFFICIENT_REFUNDABLE_FEE);
         return false;

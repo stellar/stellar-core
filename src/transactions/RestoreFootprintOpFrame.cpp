@@ -64,7 +64,7 @@ RestoreFootprintOpFrame::doApply(Application& app, AbstractLedgerTxn& ltx,
     auto ledgerSeq = ltx.loadHeader().current().ledgerSeq;
 
     auto const& archivalSettings = app.getLedgerManager()
-                                       .getSorobanNetworkConfig(ltx)
+                                       .getSorobanNetworkConfig()
                                        .stateArchivalSettings();
     rust::Vec<CxxLedgerEntryRentChange> rustEntryRentChanges;
     // Extend the TTL on the restored entry to minimum TTL, including
@@ -140,13 +140,12 @@ RestoreFootprintOpFrame::doApply(Application& app, AbstractLedgerTxn& ltx,
         app.getConfig().CURRENT_LEDGER_PROTOCOL_VERSION, ledgerVersion,
         rustEntryRentChanges,
         app.getLedgerManager()
-            .getSorobanNetworkConfig(ltx)
+            .getSorobanNetworkConfig()
             .rustBridgeRentFeeConfiguration(),
         ledgerSeq);
     if (!mParentTx.consumeRefundableSorobanResources(
             0, rentFee, ltx.loadHeader().current().ledgerVersion,
-            app.getLedgerManager().getSorobanNetworkConfig(ltx),
-            app.getConfig()))
+            app.getLedgerManager().getSorobanNetworkConfig(), app.getConfig()))
     {
         innerResult().code(RESTORE_FOOTPRINT_INSUFFICIENT_REFUNDABLE_FEE);
         return false;

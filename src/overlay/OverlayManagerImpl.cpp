@@ -1279,7 +1279,7 @@ OverlayManagerImpl::getMaxAdvertSize() const
         if (protocolVersionStartsFrom(ltx.loadHeader().current().ledgerVersion,
                                       SOROBAN_PROTOCOL_VERSION))
         {
-            auto limits = mApp.getLedgerManager().getSorobanNetworkConfig(ltx);
+            auto limits = mApp.getLedgerManager().getSorobanNetworkConfig();
             opsToFloodPerLedger += getOpsFloodLedger(
                 limits.ledgerMaxTxCount(), cfg.FLOOD_SOROBAN_RATE_PER_LEDGER);
         }

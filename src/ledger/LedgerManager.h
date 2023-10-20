@@ -120,21 +120,17 @@ class LedgerManager
     // ledger expressed in number of operations
     virtual uint32_t getLastMaxTxSetSizeOps() const = 0;
 
-    virtual Resource maxLedgerResources(bool isSoroban,
-                                        AbstractLedgerTxn& ltxOuter) = 0;
-    virtual Resource
-    maxSorobanTransactionResources(AbstractLedgerTxn& ltxOuter) = 0;
-
+    virtual Resource maxLedgerResources(bool isSoroban) = 0;
+    virtual Resource maxSorobanTransactionResources() = 0;
+    virtual void updateNetworkConfig(AbstractLedgerTxn& ltx) = 0;
     // Return the network config for Soroban.
     // The config is automatically refreshed on protocol upgrades.
     // Ledger txn here is needed for the sake of lazy load; it won't be
     // used most of the time.
-    virtual SorobanNetworkConfig const&
-    getSorobanNetworkConfig(AbstractLedgerTxn& ltx) = 0;
+    virtual SorobanNetworkConfig const& getSorobanNetworkConfig() = 0;
 
 #ifdef BUILD_TESTS
-    virtual SorobanNetworkConfig&
-    getMutableSorobanNetworkConfig(AbstractLedgerTxn& ltx) = 0;
+    virtual SorobanNetworkConfig& getMutableSorobanNetworkConfig() = 0;
 #endif
 
     // Return the (changing) number of seconds since the LCL closed.

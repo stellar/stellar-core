@@ -916,7 +916,7 @@ sorobanResourceFee(Application& app, SorobanResources const& resources,
                   TransactionMode::READ_ONLY_WITHOUT_SQL_TXN);
     auto feePair = TransactionFrame::computeSorobanResourceFee(
         ltx.loadHeader().current().ledgerVersion, resources, txSize, eventsSize,
-        app.getLedgerManager().getSorobanNetworkConfig(ltx), app.getConfig());
+        app.getLedgerManager().getSorobanNetworkConfig(), app.getConfig());
     return feePair.non_refundable_fee + feePair.refundable_fee;
 }
 

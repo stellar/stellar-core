@@ -252,7 +252,7 @@ makeBucketListSizeWindowSampleSizeTestUpgrade(Application& app,
 {
     // Modify window size
     auto sas = app.getLedgerManager()
-                   .getSorobanNetworkConfig(ltx)
+                   .getSorobanNetworkConfig()
                    .stateArchivalSettings();
     sas.bucketListSizeWindowSampleSize = newWindowSize;
 
@@ -825,10 +825,8 @@ TEST_CASE("config upgrades applied to ledger", "[soroban][upgrades]")
     // entries initialized.
     executeUpgrade(*app, makeProtocolVersionUpgrade(
                              static_cast<uint32_t>(SOROBAN_PROTOCOL_VERSION)));
-    LedgerTxn ltx(app->getLedgerTxnRoot());
     auto const& sorobanConfig =
-        app->getLedgerManager().getSorobanNetworkConfig(ltx);
-    ltx.commit();
+        app->getLedgerManager().getSorobanNetworkConfig();
     SECTION("unknown config upgrade set is ignored")
     {
         auto contractID = autocheck::generator<Hash>()(5);
@@ -870,8 +868,7 @@ TEST_CASE("config upgrades applied to ledger", "[soroban][upgrades]")
             {
                 LedgerTxn ltx2(app->getLedgerTxnRoot());
                 auto& cfg =
-                    app->getLedgerManager().getMutableSorobanNetworkConfig(
-                        ltx2);
+                    app->getLedgerManager().getMutableSorobanNetworkConfig();
 
                 // Populate sliding window with interesting values
                 auto i = 0;
@@ -896,9 +893,7 @@ TEST_CASE("config upgrades applied to ledger", "[soroban][upgrades]")
         {
             auto const newSize = 20;
             populateValuesAndUpgradeSize(newSize);
-            LedgerTxn ltx2(app->getLedgerTxnRoot());
-            auto const& cfg =
-                app->getLedgerManager().getSorobanNetworkConfig(ltx2);
+            auto const& cfg = app->getLedgerManager().getSorobanNetworkConfig();
 
             // Verify that we popped the 10 oldest values
             auto sum = 0;
@@ -919,9 +914,7 @@ TEST_CASE("config upgrades applied to ledger", "[soroban][upgrades]")
         {
             auto const newSize = 40;
             populateValuesAndUpgradeSize(newSize);
-            LedgerTxn ltx2(app->getLedgerTxnRoot());
-            auto const& cfg =
-                app->getLedgerManager().getSorobanNetworkConfig(ltx2);
+            auto const& cfg = app->getLedgerManager().getSorobanNetworkConfig();
 
             // Verify that we backfill 10 copies of the oldest value
             auto sum = 0;
@@ -951,7 +944,7 @@ TEST_CASE("config upgrades applied to ledger", "[soroban][upgrades]")
                 LedgerTxn ltx2(app->getLedgerTxnRoot());
 
                 auto const& cfg =
-                    app->getLedgerManager().getSorobanNetworkConfig(ltx2);
+                    app->getLedgerManager().getSorobanNetworkConfig();
                 initialSize =
                     cfg.mStateArchivalSettings.bucketListSizeWindowSampleSize;
                 initialWindow = cfg.mBucketListSizeSnapshots;
@@ -966,10 +959,7 @@ TEST_CASE("config upgrades applied to ledger", "[soroban][upgrades]")
             REQUIRE(configUpgradeSet);
             executeUpgrade(*app, makeConfigUpgrade(*configUpgradeSet));
 
-            LedgerTxn ltx2(app->getLedgerTxnRoot());
-
-            auto const& cfg =
-                app->getLedgerManager().getSorobanNetworkConfig(ltx2);
+            auto const& cfg = app->getLedgerManager().getSorobanNetworkConfig();
             REQUIRE(cfg.mStateArchivalSettings.bucketListSizeWindowSampleSize ==
                     initialSize);
             REQUIRE(cfg.mBucketListSizeSnapshots == initialWindow);
@@ -1082,10 +1072,8 @@ TEST_CASE("Soroban max tx set size upgrade applied to ledger",
     executeUpgrade(*app, makeProtocolVersionUpgrade(
                              static_cast<uint32_t>(SOROBAN_PROTOCOL_VERSION)));
 
-    LedgerTxn ltx(app->getLedgerTxnRoot());
     auto const& sorobanConfig =
-        app->getLedgerManager().getSorobanNetworkConfig(ltx);
-    ltx.commit();
+        app->getLedgerManager().getSorobanNetworkConfig();
 
     executeUpgrade(*app, makeMaxSorobanTxSizeUpgrade(123));
     REQUIRE(sorobanConfig.ledgerMaxTxCount() == 123);
@@ -2295,7 +2283,7 @@ TEST_CASE("configuration initialized in version upgrade", "[upgrades]")
             InitialSorobanNetworkConfig::MAX_CONTRACT_SIZE);
 
     // Check that BucketList size window initialized with current BL size
-    auto& networkConfig = app->getLedgerManager().getSorobanNetworkConfig(ltx);
+    auto& networkConfig = app->getLedgerManager().getSorobanNetworkConfig();
     REQUIRE(networkConfig.getAverageBucketListSize() == blSize);
 
     // Check in memory window
@@ -3343,8 +3331,6 @@ TEST_CASE("upgrade to generalized tx set in network", "[upgrades][overlay]")
     {
         for (auto const& node : simulation->getNodes())
         {
-            LedgerTxn ltx(node->getLedgerTxnRoot(), false,
-                          TransactionMode::READ_ONLY_WITHOUT_SQL_TXN);
             auto txSet = getLedgerTxSet(*node, ledger);
             REQUIRE(txSet);
             REQUIRE(txSet->sizeTxTotal() > 0);

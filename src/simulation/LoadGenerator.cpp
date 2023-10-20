@@ -472,18 +472,15 @@ LoadGenerator::generateLoad(GeneratedLoadConfig cfg)
                     SorobanResources resources;
                     uint32_t wasmSize{};
                     {
-                        LedgerTxn ltx(
-                            mApp.getLedgerTxnRoot(), true,
-                            TransactionMode::READ_ONLY_WITHOUT_SQL_TXN);
                         Resource maxPerTx =
                             mApp.getLedgerManager()
-                                .maxSorobanTransactionResources(ltx);
+                                .maxSorobanTransactionResources();
 
                         resources.instructions = rand_uniform<uint32_t>(
                             1, maxPerTx.getVal(Resource::Type::INSTRUCTIONS));
                         wasmSize = rand_uniform<uint32_t>(
                             1, mApp.getLedgerManager()
-                                   .getSorobanNetworkConfig(ltx)
+                                   .getSorobanNetworkConfig()
                                    .maxContractSizeBytes());
                         resources.readBytes = rand_uniform<uint32_t>(
                             1, maxPerTx.getVal(Resource::Type::READ_BYTES));

@@ -267,7 +267,7 @@ OperationFrame::checkValid(Application& app, SignatureChecker& signatureChecker,
     if (protocolVersionStartsFrom(ledgerVersion, SOROBAN_PROTOCOL_VERSION))
     {
         auto const& sorobanConfig =
-            app.getLedgerManager().getSorobanNetworkConfig(ltx);
+            app.getLedgerManager().getSorobanNetworkConfig();
 
         return doCheckValid(sorobanConfig, ledgerVersion);
     }

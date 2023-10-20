@@ -1571,15 +1571,9 @@ TEST_CASE("tx set hits overlay byte limit during construction",
         cfg.mLedgerMaxInstructions = max;
     });
 
-    SorobanNetworkConfig conf;
+    auto const& conf = app->getLedgerManager().getSorobanNetworkConfig();
     uint32_t maxContractSize = 0;
-    {
-        LedgerTxn ltx(app->getLedgerTxnRoot());
-        conf = app->getLedgerManager().getSorobanNetworkConfig(ltx);
-        maxContractSize = app->getLedgerManager()
-                              .getSorobanNetworkConfig(ltx)
-                              .maxContractSizeBytes();
-    }
+    maxContractSize = conf.maxContractSizeBytes();
 
     auto makeTx = [&](TestAccount& acc, TxSetFrame::Phase const& phase) {
         if (phase == TxSetFrame::Phase::SOROBAN)
@@ -1739,11 +1733,8 @@ TEST_CASE("surge pricing", "[herder][txset][soroban]")
         // Valid classic
         auto tx = makeMultiPayment(acc1, root, 1, 100, 0, 1);
 
-        SorobanNetworkConfig conf;
-        {
-            LedgerTxn ltx(app->getLedgerTxnRoot());
-            conf = app->getLedgerManager().getSorobanNetworkConfig(ltx);
-        }
+        SorobanNetworkConfig conf =
+            app->getLedgerManager().getSorobanNetworkConfig();
 
         uint32_t const baseFee = 10'000'000;
         SorobanResources resources;
@@ -3937,9 +3928,8 @@ TEST_CASE("soroban txs accepted by the network",
             simulation->crankForAtLeast(std::chrono::seconds(20), false);
             for (auto node : nodes)
             {
-                LedgerTxn ltx(node->getLedgerTxnRoot());
                 REQUIRE(node->getLedgerManager()
-                            .getSorobanNetworkConfig(ltx)
+                            .getSorobanNetworkConfig()
                             .ledgerMaxTxCount() == ledgerWideLimit * 10);
             }
 

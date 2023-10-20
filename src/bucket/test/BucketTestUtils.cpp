@@ -129,7 +129,7 @@ LedgerManagerForBucketTests::transferLedgerEntriesToBucketList(
                 ltxEvictions.commit();
             }
             mApp.getLedgerManager()
-                .getMutableSorobanNetworkConfig(ltx)
+                .getMutableSorobanNetworkConfig()
                 .maybeSnapshotBucketListSize(ledgerSeq, ltx, mApp);
         }
 

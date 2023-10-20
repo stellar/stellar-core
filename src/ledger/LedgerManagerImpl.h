@@ -99,8 +99,7 @@ class LedgerManagerImpl : public LedgerManager
 
     void emitNextMeta();
 
-    SorobanNetworkConfig&
-    getSorobanNetworkConfigInternal(AbstractLedgerTxn& ltx);
+    SorobanNetworkConfig& getSorobanNetworkConfigInternal();
 
   protected:
     // initialLedgerVers must be the ledger version at the start of the ledger
@@ -116,17 +115,16 @@ class LedgerManagerImpl : public LedgerManager
 
     void advanceLedgerPointers(LedgerHeader const& header,
                                bool debugLog = true);
-    // Reloads the network configuration from the ledger.
-    // This needs to be called after the protocol upgrades or once
-    // during the catchups/test setup etc.
-    // This call is read-only and hence `ltx` can be read-only.
-    void updateNetworkConfig(AbstractLedgerTxn& ltx);
     void logTxApplyMetrics(AbstractLedgerTxn& ltx, size_t numTxs,
                            size_t numOps);
 
   public:
     LedgerManagerImpl(Application& app);
 
+    // Reloads the network configuration from the ledger.
+    // This needs to be called every time a ledger is closed.
+    // This call is read-only and hence `ltx` can be read-only.
+    void updateNetworkConfig(AbstractLedgerTxn& ltx) override;
     void moveToSynced() override;
     State getState() const override;
     std::string getStateHuman() const override;
@@ -135,20 +133,16 @@ class LedgerManagerImpl : public LedgerManager
 
     uint32_t getLastMaxTxSetSize() const override;
     uint32_t getLastMaxTxSetSizeOps() const override;
-    Resource maxLedgerResources(bool isSoroban,
-                                AbstractLedgerTxn& ltxOuter) override;
-    Resource
-    maxSorobanTransactionResources(AbstractLedgerTxn& ltxOuter) override;
+    Resource maxLedgerResources(bool isSoroban) override;
+    Resource maxSorobanTransactionResources() override;
     int64_t getLastMinBalance(uint32_t ownerCount) const override;
     uint32_t getLastReserve() const override;
     uint32_t getLastTxFee() const override;
     uint32_t getLastClosedLedgerNum() const override;
-    SorobanNetworkConfig const&
-    getSorobanNetworkConfig(AbstractLedgerTxn& ltx) override;
+    SorobanNetworkConfig const& getSorobanNetworkConfig() override;
 
 #ifdef BUILD_TESTS
-    SorobanNetworkConfig&
-    getMutableSorobanNetworkConfig(AbstractLedgerTxn& ltx) override;
+    SorobanNetworkConfig& getMutableSorobanNetworkConfig() override;
 #endif
 
     uint64_t secondsSinceLastLedgerClose() const override;

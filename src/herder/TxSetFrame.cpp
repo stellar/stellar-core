@@ -928,7 +928,7 @@ ApplicableTxSetFrame::checkValid(Application& app,
         {
             LedgerTxn ltx(app.getLedgerTxnRoot());
             auto limits = app.getLedgerManager().maxLedgerResources(
-                /* isSoroban */ true, ltx);
+                /* isSoroban */ true);
             if (anyGreater(*totalTxSetRes, limits))
             {
                 CLOG_DEBUG(Herder,
@@ -1435,11 +1435,8 @@ ApplicableTxSetFrame::applySurgePricing(Application& app)
             releaseAssert(isGeneralizedTxSet());
             releaseAssert(phaseType == TxSetFrame::Phase::SOROBAN);
 
-            LedgerTxn ltx(app.getLedgerTxnRoot(), false,
-                          TransactionMode::READ_ONLY_WITHOUT_SQL_TXN);
-
             auto limits = app.getLedgerManager().maxLedgerResources(
-                /* isSoroban */ true, ltx);
+                /* isSoroban */ true);
 
             auto byteLimit =
                 std::min(static_cast<int64_t>(MAX_SOROBAN_BYTE_ALLOWANCE),
