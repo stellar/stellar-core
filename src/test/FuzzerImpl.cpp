@@ -827,7 +827,7 @@ generator_t::operator()<stellar::SCVal>(stellar::SCVal& val) const
     const auto& vals = stellar::SCVal::_xdr_case_values();
     stellar::SCValType v;
 
-    uint32_t n;
+    uint32_t n = 0;
     (*this)(n);
     v = vals[n % vals.size()];
 
