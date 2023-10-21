@@ -1,0 +1,722 @@
+stellar-core v0.1.0 (/Users/siddharthsuresh/dev/stellar-core/src/rust)
+├── base64 feature "default"
+│   ├── base64 v0.13.1
+│   └── base64 feature "std"
+│       └── base64 v0.13.1
+├── cargo-lock feature "default"
+│   └── cargo-lock v9.0.0 (https://github.com/rustsec/rustsec?rev=a5c69fc6e4b6068b43d7143f3a2f68c3f3de37d8#a5c69fc6)
+│       ├── petgraph feature "default"
+│       │   ├── petgraph v0.6.3
+│       │   │   ├── fixedbitset v0.4.2
+│       │   │   ├── indexmap feature "default"
+│       │   │   │   └── indexmap v1.9.3
+│       │   │   │       └── hashbrown feature "raw"
+│       │   │   │           └── hashbrown v0.12.3
+│       │   │   │       [build-dependencies]
+│       │   │   │       └── autocfg feature "default"
+│       │   │   │           └── autocfg v1.1.0
+│       │   │   └── indexmap feature "std"
+│       │   │       └── indexmap v1.9.3 (*)
+│       │   ├── petgraph feature "graphmap"
+│       │   │   └── petgraph v0.6.3 (*)
+│       │   ├── petgraph feature "matrix_graph"
+│       │   │   └── petgraph v0.6.3 (*)
+│       │   └── petgraph feature "stable_graph"
+│       │       └── petgraph v0.6.3 (*)
+│       ├── semver feature "default"
+│       │   ├── semver v1.0.17
+│       │   │   └── serde v1.0.164
+│       │   │       └── serde_derive feature "default"
+│       │   │           └── serde_derive v1.0.164 (proc-macro)
+│       │   │               ├── proc-macro2 feature "default"
+│       │   │               │   ├── proc-macro2 v1.0.60
+│       │   │               │   │   └── unicode-ident feature "default"
+│       │   │               │   │       └── unicode-ident v1.0.9
+│       │   │               │   └── proc-macro2 feature "proc-macro"
+│       │   │               │       └── proc-macro2 v1.0.60 (*)
+│       │   │               ├── quote feature "default"
+│       │   │               │   ├── quote v1.0.28
+│       │   │               │   │   └── proc-macro2 v1.0.60 (*)
+│       │   │               │   └── quote feature "proc-macro"
+│       │   │               │       ├── quote v1.0.28 (*)
+│       │   │               │       └── proc-macro2 feature "proc-macro" (*)
+│       │   │               └── syn feature "default"
+│       │   │                   ├── syn v2.0.18
+│       │   │                   │   ├── proc-macro2 v1.0.60 (*)
+│       │   │                   │   ├── quote v1.0.28 (*)
+│       │   │                   │   └── unicode-ident feature "default" (*)
+│       │   │                   ├── syn feature "clone-impls"
+│       │   │                   │   └── syn v2.0.18 (*)
+│       │   │                   ├── syn feature "derive"
+│       │   │                   │   └── syn v2.0.18 (*)
+│       │   │                   ├── syn feature "parsing"
+│       │   │                   │   └── syn v2.0.18 (*)
+│       │   │                   ├── syn feature "printing"
+│       │   │                   │   ├── syn v2.0.18 (*)
+│       │   │                   │   └── syn feature "quote"
+│       │   │                   │       └── syn v2.0.18 (*)
+│       │   │                   └── syn feature "proc-macro"
+│       │   │                       ├── syn v2.0.18 (*)
+│       │   │                       ├── proc-macro2 feature "proc-macro" (*)
+│       │   │                       ├── quote feature "proc-macro" (*)
+│       │   │                       └── syn feature "quote" (*)
+│       │   └── semver feature "std"
+│       │       └── semver v1.0.17 (*)
+│       ├── semver feature "serde"
+│       │   └── semver v1.0.17 (*)
+│       ├── serde feature "default"
+│       │   ├── serde v1.0.164 (*)
+│       │   └── serde feature "std"
+│       │       └── serde v1.0.164 (*)
+│       ├── serde feature "serde_derive"
+│       │   └── serde v1.0.164 (*)
+│       ├── toml feature "default"
+│       │   ├── toml v0.7.4
+│       │   │   ├── serde feature "default" (*)
+│       │   │   ├── serde_spanned feature "default"
+│       │   │   │   └── serde_spanned v0.6.2
+│       │   │   │       └── serde feature "default" (*)
+│       │   │   ├── serde_spanned feature "serde"
+│       │   │   │   └── serde_spanned v0.6.2 (*)
+│       │   │   ├── toml_datetime feature "default"
+│       │   │   │   └── toml_datetime v0.6.2
+│       │   │   │       └── serde feature "default" (*)
+│       │   │   ├── toml_datetime feature "serde"
+│       │   │   │   └── toml_datetime v0.6.2 (*)
+│       │   │   ├── toml_edit feature "default"
+│       │   │   │   └── toml_edit v0.19.10
+│       │   │   │       ├── indexmap feature "default" (*)
+│       │   │   │       ├── indexmap feature "std" (*)
+│       │   │   │       ├── serde feature "default" (*)
+│       │   │   │       ├── serde_spanned feature "default" (*)
+│       │   │   │       ├── serde_spanned feature "serde" (*)
+│       │   │   │       ├── toml_datetime feature "default" (*)
+│       │   │   │       └── winnow feature "default"
+│       │   │   │           ├── winnow v0.4.7
+│       │   │   │           └── winnow feature "std"
+│       │   │   │               ├── winnow v0.4.7
+│       │   │   │               └── winnow feature "alloc"
+│       │   │   │                   └── winnow v0.4.7
+│       │   │   └── toml_edit feature "serde"
+│       │   │       ├── toml_edit v0.19.10 (*)
+│       │   │       └── toml_datetime feature "serde" (*)
+│       │   ├── toml feature "display"
+│       │   │   └── toml v0.7.4 (*)
+│       │   └── toml feature "parse"
+│       │       └── toml v0.7.4 (*)
+│       └── url feature "default"
+│           └── url v2.4.0
+│               ├── form_urlencoded feature "default"
+│               │   ├── form_urlencoded v1.2.0
+│               │   │   └── percent-encoding v2.3.0
+│               │   └── form_urlencoded feature "std"
+│               │       ├── form_urlencoded v1.2.0 (*)
+│               │       ├── form_urlencoded feature "alloc"
+│               │       │   ├── form_urlencoded v1.2.0 (*)
+│               │       │   └── percent-encoding feature "alloc"
+│               │       │       └── percent-encoding v2.3.0
+│               │       └── percent-encoding feature "std"
+│               │           ├── percent-encoding v2.3.0
+│               │           └── percent-encoding feature "alloc" (*)
+│               ├── percent-encoding feature "default"
+│               │   ├── percent-encoding v2.3.0
+│               │   └── percent-encoding feature "std" (*)
+│               └── idna feature "default"
+│                   ├── idna v0.4.0
+│                   │   ├── unicode-normalization v0.1.22
+│                   │   │   ├── tinyvec feature "alloc"
+│                   │   │   │   ├── tinyvec v1.6.0
+│                   │   │   │   │   └── tinyvec_macros feature "default"
+│                   │   │   │   │       └── tinyvec_macros v0.1.1
+│                   │   │   │   └── tinyvec feature "tinyvec_macros"
+│                   │   │   │       └── tinyvec v1.6.0 (*)
+│                   │   │   └── tinyvec feature "default"
+│                   │   │       └── tinyvec v1.6.0 (*)
+│                   │   └── unicode-bidi feature "hardcoded-data"
+│                   │       └── unicode-bidi v0.3.13
+│                   └── idna feature "std"
+│                       ├── idna v0.4.0 (*)
+│                       ├── idna feature "alloc"
+│                       │   └── idna v0.4.0 (*)
+│                       ├── unicode-bidi feature "std"
+│                       │   └── unicode-bidi v0.3.13
+│                       └── unicode-normalization feature "std"
+│                           └── unicode-normalization v0.1.22 (*)
+├── cargo-lock feature "dependency-tree"
+│   ├── cargo-lock v9.0.0 (https://github.com/rustsec/rustsec?rev=a5c69fc6e4b6068b43d7143f3a2f68c3f3de37d8#a5c69fc6) (*)
+│   └── cargo-lock feature "petgraph"
+│       └── cargo-lock v9.0.0 (https://github.com/rustsec/rustsec?rev=a5c69fc6e4b6068b43d7143f3a2f68c3f3de37d8#a5c69fc6) (*)
+├── cxx feature "default"
+│   ├── cxx v1.0.97
+│   │   ├── cxxbridge-macro feature "default"
+│   │   │   └── cxxbridge-macro v1.0.97 (proc-macro)
+│   │   │       ├── proc-macro2 feature "default" (*)
+│   │   │       ├── quote feature "default" (*)
+│   │   │       ├── syn feature "default" (*)
+│   │   │       └── syn feature "full"
+│   │   │           └── syn v2.0.18 (*)
+│   │   └── link-cplusplus feature "default"
+│   │       └── link-cplusplus v1.0.8
+│   │           [build-dependencies]
+│   │           └── cc feature "default"
+│   │               └── cc v1.0.79
+│   │   [build-dependencies]
+│   │   ├── cxxbridge-flags v1.0.97
+│   │   └── cc feature "default" (*)
+│   ├── cxx feature "std"
+│   │   ├── cxx v1.0.97 (*)
+│   │   └── cxx feature "alloc"
+│   │       └── cxx v1.0.97 (*)
+│   └── cxxbridge-flags feature "default"
+│       └── cxxbridge-flags v1.0.97
+├── log feature "default"
+│   └── log v0.4.19
+├── rustc-simple-version feature "default"
+│   └── rustc-simple-version v0.1.0
+├── soroban-env-host feature "default"
+│   └── soroban-env-host v20.0.0-rc2 (/Users/siddharthsuresh/dev/rs-soroban-env/soroban-env-host)
+│       ├── backtrace feature "default"
+│       │   ├── backtrace v0.3.67
+│       │   │   ├── addr2line v0.19.0
+│       │   │   │   └── gimli feature "read"
+│       │   │   │       ├── gimli v0.27.3
+│       │   │   │       └── gimli feature "read-core"
+│       │   │   │           └── gimli v0.27.3
+│       │   │   ├── libc v0.2.146
+│       │   │   ├── miniz_oxide v0.6.2
+│       │   │   │   └── adler v1.0.2
+│       │   │   ├── cfg-if feature "default"
+│       │   │   │   └── cfg-if v1.0.0
+│       │   │   ├── object feature "archive"
+│       │   │   │   └── object v0.30.4
+│       │   │   │       └── memchr v2.5.0
+│       │   │   ├── object feature "elf"
+│       │   │   │   └── object v0.30.4 (*)
+│       │   │   ├── object feature "macho"
+│       │   │   │   └── object v0.30.4 (*)
+│       │   │   ├── object feature "pe"
+│       │   │   │   ├── object v0.30.4 (*)
+│       │   │   │   └── object feature "coff"
+│       │   │   │       └── object v0.30.4 (*)
+│       │   │   ├── object feature "read_core"
+│       │   │   │   └── object v0.30.4 (*)
+│       │   │   ├── object feature "unaligned"
+│       │   │   │   └── object v0.30.4 (*)
+│       │   │   └── rustc-demangle feature "default"
+│       │   │       └── rustc-demangle v0.1.23
+│       │   │   [build-dependencies]
+│       │   │   └── cc feature "default" (*)
+│       │   └── backtrace feature "std"
+│       │       └── backtrace v0.3.67 (*)
+│       ├── curve25519-dalek feature "digest"
+│       │   └── curve25519-dalek v4.0.0
+│       │       ├── digest v0.10.7
+│       │       │   ├── subtle v2.5.0
+│       │       │   ├── block-buffer feature "default"
+│       │       │   │   └── block-buffer v0.10.4
+│       │       │   │       └── generic-array feature "default"
+│       │       │   │           └── generic-array v0.14.7
+│       │       │   │               ├── zeroize v1.6.0
+│       │       │   │               └── typenum feature "default"
+│       │       │   │                   └── typenum v1.16.0
+│       │       │   │               [build-dependencies]
+│       │       │   │               └── version_check feature "default"
+│       │       │   │                   └── version_check v0.9.4
+│       │       │   ├── const-oid feature "default"
+│       │       │   │   └── const-oid v0.9.2
+│       │       │   └── crypto-common feature "default"
+│       │       │       └── crypto-common v0.1.6
+│       │       │           ├── generic-array feature "default" (*)
+│       │       │           ├── generic-array feature "more_lengths"
+│       │       │           │   └── generic-array v0.14.7 (*)
+│       │       │           └── typenum feature "default" (*)
+│       │       ├── subtle v2.5.0
+│       │       ├── zeroize v1.6.0
+│       │       └── cfg-if feature "default" (*)
+│       │       [build-dependencies]
+│       │       ├── platforms feature "default"
+│       │       │   ├── platforms v3.0.2
+│       │       │   └── platforms feature "std"
+│       │       │       └── platforms v3.0.2
+│       │       └── rustc_version feature "default"
+│       │           └── rustc_version v0.4.0
+│       │               └── semver feature "default" (*)
+│       ├── ed25519-dalek feature "default"
+│       │   ├── ed25519-dalek v2.0.0
+│       │   │   ├── ed25519 v2.2.2
+│       │   │   │   └── signature v2.1.0
+│       │   │   │       ├── digest v0.10.7 (*)
+│       │   │   │       └── rand_core v0.6.4
+│       │   │   │           └── getrandom feature "default"
+│       │   │   │               └── getrandom v0.2.10
+│       │   │   │                   ├── libc v0.2.146
+│       │   │   │                   └── cfg-if feature "default" (*)
+│       │   │   ├── rand_core v0.6.4 (*)
+│       │   │   ├── sha2 v0.10.7
+│       │   │   │   ├── cfg-if feature "default" (*)
+│       │   │   │   ├── digest feature "default"
+│       │   │   │   │   ├── digest v0.10.7 (*)
+│       │   │   │   │   └── digest feature "core-api"
+│       │   │   │   │       ├── digest v0.10.7 (*)
+│       │   │   │   │       └── digest feature "block-buffer"
+│       │   │   │   │           └── digest v0.10.7 (*)
+│       │   │   │   └── cpufeatures feature "default"
+│       │   │   │       └── cpufeatures v0.2.8
+│       │   │   │           └── libc feature "default"
+│       │   │   │               ├── libc v0.2.146
+│       │   │   │               └── libc feature "std"
+│       │   │   │                   └── libc v0.2.146
+│       │   │   ├── zeroize v1.6.0
+│       │   │   └── curve25519-dalek feature "digest" (*)
+│       │   ├── ed25519-dalek feature "fast"
+│       │   │   ├── ed25519-dalek v2.0.0 (*)
+│       │   │   └── curve25519-dalek feature "precomputed-tables"
+│       │   │       └── curve25519-dalek v4.0.0 (*)
+│       │   ├── ed25519-dalek feature "std"
+│       │   │   ├── ed25519-dalek v2.0.0 (*)
+│       │   │   ├── ed25519-dalek feature "alloc"
+│       │   │   │   ├── ed25519-dalek v2.0.0 (*)
+│       │   │   │   ├── curve25519-dalek feature "alloc"
+│       │   │   │   │   ├── curve25519-dalek v4.0.0 (*)
+│       │   │   │   │   └── zeroize feature "alloc"
+│       │   │   │   │       └── zeroize v1.6.0
+│       │   │   │   ├── zeroize feature "alloc" (*)
+│       │   │   │   ├── ed25519-dalek feature "zeroize"
+│       │   │   │   │   └── ed25519-dalek v2.0.0 (*)
+│       │   │   │   └── ed25519 feature "alloc"
+│       │   │   │       └── ed25519 v2.2.2 (*)
+│       │   │   ├── ed25519 feature "std"
+│       │   │   │   ├── ed25519 v2.2.2 (*)
+│       │   │   │   └── signature feature "std"
+│       │   │   │       ├── signature v2.1.0 (*)
+│       │   │   │       └── signature feature "alloc"
+│       │   │   │           └── signature v2.1.0 (*)
+│       │   │   └── sha2 feature "std"
+│       │   │       ├── sha2 v0.10.7 (*)
+│       │   │       └── digest feature "std"
+│       │   │           ├── digest v0.10.7 (*)
+│       │   │           ├── digest feature "alloc"
+│       │   │           │   └── digest v0.10.7 (*)
+│       │   │           └── crypto-common feature "std"
+│       │   │               └── crypto-common v0.1.6 (*)
+│       │   └── ed25519-dalek feature "zeroize" (*)
+│       ├── ed25519-dalek feature "rand_core"
+│       │   └── ed25519-dalek v2.0.0 (*)
+│       ├── getrandom feature "default" (*)
+│       ├── getrandom feature "js"
+│       │   ├── getrandom v0.2.10 (*)
+│       │   ├── getrandom feature "js-sys"
+│       │   │   └── getrandom v0.2.10 (*)
+│       │   └── getrandom feature "wasm-bindgen"
+│       │       └── getrandom v0.2.10 (*)
+│       ├── sha2 feature "default"
+│       │   ├── sha2 v0.10.7 (*)
+│       │   └── sha2 feature "std" (*)
+│       ├── k256 feature "arithmetic"
+│       │   ├── k256 v0.13.1
+│       │   │   ├── once_cell v1.18.0
+│       │   │   ├── sha2 v0.10.7 (*)
+│       │   │   ├── cfg-if feature "default" (*)
+│       │   │   ├── signature feature "default"
+│       │   │   │   └── signature v2.1.0 (*)
+│       │   │   ├── ecdsa feature "der"
+│       │   │   │   └── ecdsa v0.16.7
+│       │   │   │       ├── spki v0.7.2
+│       │   │   │       │   ├── der feature "default"
+│       │   │   │       │   │   └── der v0.7.6
+│       │   │   │       │   │       ├── zeroize v1.6.0
+│       │   │   │       │   │       └── const-oid feature "default" (*)
+│       │   │   │       │   └── der feature "oid"
+│       │   │   │       │       └── der v0.7.6 (*)
+│       │   │   │       ├── digest feature "oid"
+│       │   │   │       │   ├── digest v0.10.7 (*)
+│       │   │   │       │   └── digest feature "const-oid"
+│       │   │   │       │       └── digest v0.10.7 (*)
+│       │   │   │       ├── signature feature "rand_core"
+│       │   │   │       │   └── signature v2.1.0 (*)
+│       │   │   │       ├── der feature "default" (*)
+│       │   │   │       ├── elliptic-curve feature "digest"
+│       │   │   │       │   └── elliptic-curve v0.13.5
+│       │   │   │       │       ├── ff v0.13.0
+│       │   │   │       │       │   ├── rand_core v0.6.4 (*)
+│       │   │   │       │       │   └── subtle feature "i128"
+│       │   │   │       │       │       └── subtle v2.5.0
+│       │   │   │       │       ├── group v0.13.0
+│       │   │   │       │       │   ├── ff v0.13.0 (*)
+│       │   │   │       │       │   ├── rand_core v0.6.4 (*)
+│       │   │   │       │       │   └── subtle v2.5.0
+│       │   │   │       │       ├── pkcs8 v0.10.2
+│       │   │   │       │       │   ├── der feature "default" (*)
+│       │   │   │       │       │   ├── der feature "oid" (*)
+│       │   │   │       │       │   └── spki feature "default"
+│       │   │   │       │       │       └── spki v0.7.2 (*)
+│       │   │   │       │       ├── rand_core v0.6.4 (*)
+│       │   │   │       │       ├── subtle v2.5.0
+│       │   │   │       │       ├── zeroize v1.6.0
+│       │   │   │       │       ├── digest feature "default" (*)
+│       │   │   │       │       ├── generic-array feature "zeroize"
+│       │   │   │       │       │   └── generic-array v0.14.7 (*)
+│       │   │   │       │       ├── base16ct feature "default"
+│       │   │   │       │       │   └── base16ct v0.2.0
+│       │   │   │       │       ├── crypto-bigint feature "generic-array"
+│       │   │   │       │       │   └── crypto-bigint v0.5.2
+│       │   │   │       │       │       ├── subtle v2.5.0
+│       │   │   │       │       │       ├── zeroize v1.6.0
+│       │   │   │       │       │       ├── generic-array feature "default" (*)
+│       │   │   │       │       │       └── rand_core feature "default"
+│       │   │   │       │       │           └── rand_core v0.6.4 (*)
+│       │   │   │       │       ├── crypto-bigint feature "rand_core"
+│       │   │   │       │       │   └── crypto-bigint v0.5.2 (*)
+│       │   │   │       │       ├── crypto-bigint feature "zeroize"
+│       │   │   │       │       │   └── crypto-bigint v0.5.2 (*)
+│       │   │   │       │       ├── sec1 feature "default"
+│       │   │   │       │       │   ├── sec1 v0.7.2
+│       │   │   │       │       │   │   ├── base16ct v0.2.0
+│       │   │   │       │       │   │   ├── generic-array v0.14.7 (*)
+│       │   │   │       │       │   │   ├── subtle v2.5.0
+│       │   │   │       │       │   │   ├── zeroize v1.6.0
+│       │   │   │       │       │   │   ├── der feature "default" (*)
+│       │   │   │       │       │   │   └── der feature "oid" (*)
+│       │   │   │       │       │   ├── sec1 feature "der"
+│       │   │   │       │       │   │   ├── sec1 v0.7.2 (*)
+│       │   │   │       │       │   │   └── sec1 feature "zeroize"
+│       │   │   │       │       │   │       ├── sec1 v0.7.2 (*)
+│       │   │   │       │       │   │       └── der feature "zeroize"
+│       │   │   │       │       │   │           └── der v0.7.6 (*)
+│       │   │   │       │       │   └── sec1 feature "point"
+│       │   │   │       │       │       └── sec1 v0.7.2 (*)
+│       │   │   │       │       ├── sec1 feature "subtle"
+│       │   │   │       │       │   └── sec1 v0.7.2 (*)
+│       │   │   │       │       └── sec1 feature "zeroize" (*)
+│       │   │   │       ├── elliptic-curve feature "sec1"
+│       │   │   │       │   └── elliptic-curve v0.13.5 (*)
+│       │   │   │       └── rfc6979 feature "default"
+│       │   │   │           └── rfc6979 v0.4.0
+│       │   │   │               ├── subtle v2.5.0
+│       │   │   │               └── hmac feature "reset"
+│       │   │   │                   └── hmac v0.12.1
+│       │   │   │                       ├── digest feature "default" (*)
+│       │   │   │                       └── digest feature "mac"
+│       │   │   │                           ├── digest v0.10.7 (*)
+│       │   │   │                           └── digest feature "subtle"
+│       │   │   │                               └── digest v0.10.7 (*)
+│       │   │   ├── elliptic-curve feature "hazmat"
+│       │   │   │   └── elliptic-curve v0.13.5 (*)
+│       │   │   └── elliptic-curve feature "sec1" (*)
+│       │   └── elliptic-curve feature "arithmetic"
+│       │       ├── elliptic-curve v0.13.5 (*)
+│       │       └── elliptic-curve feature "group"
+│       │           ├── elliptic-curve v0.13.5 (*)
+│       │           └── elliptic-curve feature "ff"
+│       │               └── elliptic-curve v0.13.5 (*)
+│       ├── k256 feature "default"
+│       │   ├── k256 v0.13.1 (*)
+│       │   ├── k256 feature "arithmetic" (*)
+│       │   ├── k256 feature "ecdsa"
+│       │   │   ├── k256 v0.13.1 (*)
+│       │   │   ├── k256 feature "arithmetic" (*)
+│       │   │   ├── k256 feature "ecdsa-core"
+│       │   │   │   └── k256 v0.13.1 (*)
+│       │   │   ├── k256 feature "sha256"
+│       │   │   │   ├── k256 v0.13.1 (*)
+│       │   │   │   ├── k256 feature "digest"
+│       │   │   │   │   ├── k256 v0.13.1 (*)
+│       │   │   │   │   ├── k256 feature "ecdsa-core" (*)
+│       │   │   │   │   ├── ecdsa feature "digest"
+│       │   │   │   │   │   ├── ecdsa v0.16.7 (*)
+│       │   │   │   │   │   └── signature feature "digest"
+│       │   │   │   │   │       └── signature v2.1.0 (*)
+│       │   │   │   │   └── ecdsa feature "hazmat"
+│       │   │   │   │       └── ecdsa v0.16.7 (*)
+│       │   │   │   └── k256 feature "sha2"
+│       │   │   │       └── k256 v0.13.1 (*)
+│       │   │   ├── ecdsa feature "signing"
+│       │   │   │   ├── ecdsa v0.16.7 (*)
+│       │   │   │   ├── ecdsa feature "arithmetic"
+│       │   │   │   │   ├── ecdsa v0.16.7 (*)
+│       │   │   │   │   └── elliptic-curve feature "arithmetic" (*)
+│       │   │   │   ├── ecdsa feature "digest" (*)
+│       │   │   │   ├── ecdsa feature "hazmat" (*)
+│       │   │   │   └── ecdsa feature "rfc6979"
+│       │   │   │       └── ecdsa v0.16.7 (*)
+│       │   │   └── ecdsa feature "verifying"
+│       │   │       ├── ecdsa v0.16.7 (*)
+│       │   │       ├── ecdsa feature "arithmetic" (*)
+│       │   │       ├── ecdsa feature "digest" (*)
+│       │   │       └── ecdsa feature "hazmat" (*)
+│       │   ├── k256 feature "pkcs8"
+│       │   │   ├── k256 v0.13.1 (*)
+│       │   │   ├── k256 feature "ecdsa-core" (*)
+│       │   │   ├── ecdsa feature "pkcs8"
+│       │   │   │   ├── ecdsa v0.16.7 (*)
+│       │   │   │   ├── ecdsa feature "der" (*)
+│       │   │   │   ├── ecdsa feature "digest" (*)
+│       │   │   │   └── elliptic-curve feature "pkcs8"
+│       │   │   │       ├── elliptic-curve v0.13.5 (*)
+│       │   │   │       └── elliptic-curve feature "sec1" (*)
+│       │   │   └── elliptic-curve feature "pkcs8" (*)
+│       │   ├── k256 feature "precomputed-tables"
+│       │   │   ├── k256 v0.13.1 (*)
+│       │   │   ├── k256 feature "arithmetic" (*)
+│       │   │   └── k256 feature "once_cell"
+│       │   │       └── k256 v0.13.1 (*)
+│       │   ├── k256 feature "schnorr"
+│       │   │   ├── k256 v0.13.1 (*)
+│       │   │   ├── k256 feature "arithmetic" (*)
+│       │   │   ├── k256 feature "sha256" (*)
+│       │   │   └── k256 feature "signature"
+│       │   │       └── k256 v0.13.1 (*)
+│       │   └── k256 feature "std"
+│       │       ├── k256 v0.13.1 (*)
+│       │       ├── k256 feature "alloc"
+│       │       │   ├── k256 v0.13.1 (*)
+│       │       │   ├── ecdsa feature "alloc"
+│       │       │   │   ├── ecdsa v0.16.7 (*)
+│       │       │   │   ├── signature feature "alloc" (*)
+│       │       │   │   ├── ecdsa feature "spki"
+│       │       │   │   │   └── ecdsa v0.16.7 (*)
+│       │       │   │   ├── elliptic-curve feature "alloc"
+│       │       │   │   │   ├── elliptic-curve v0.13.5 (*)
+│       │       │   │   │   ├── zeroize feature "alloc" (*)
+│       │       │   │   │   ├── base16ct feature "alloc"
+│       │       │   │   │   │   └── base16ct v0.2.0
+│       │       │   │   │   ├── ff feature "alloc"
+│       │       │   │   │   │   └── ff v0.13.0 (*)
+│       │       │   │   │   ├── group feature "alloc"
+│       │       │   │   │   │   └── group v0.13.0 (*)
+│       │       │   │   │   ├── pkcs8 feature "alloc"
+│       │       │   │   │   │   ├── pkcs8 v0.10.2 (*)
+│       │       │   │   │   │   ├── der feature "alloc"
+│       │       │   │   │   │   │   ├── der v0.7.6 (*)
+│       │       │   │   │   │   │   └── zeroize feature "alloc" (*)
+│       │       │   │   │   │   ├── der feature "zeroize" (*)
+│       │       │   │   │   │   └── spki feature "alloc"
+│       │       │   │   │   │       ├── spki v0.7.2 (*)
+│       │       │   │   │   │       └── der feature "alloc" (*)
+│       │       │   │   │   └── sec1 feature "alloc"
+│       │       │   │   │       ├── sec1 v0.7.2 (*)
+│       │       │   │   │       ├── zeroize feature "alloc" (*)
+│       │       │   │   │       └── der feature "alloc" (*)
+│       │       │   │   └── spki feature "alloc" (*)
+│       │       │   └── elliptic-curve feature "alloc" (*)
+│       │       ├── ecdsa feature "std"
+│       │       │   ├── ecdsa v0.16.7 (*)
+│       │       │   ├── signature feature "std" (*)
+│       │       │   ├── ecdsa feature "alloc" (*)
+│       │       │   └── elliptic-curve feature "std"
+│       │       │       ├── elliptic-curve v0.13.5 (*)
+│       │       │       ├── rand_core feature "std"
+│       │       │       │   ├── rand_core v0.6.4 (*)
+│       │       │       │   ├── rand_core feature "alloc"
+│       │       │       │   │   └── rand_core v0.6.4 (*)
+│       │       │       │   ├── rand_core feature "getrandom"
+│       │       │       │   │   └── rand_core v0.6.4 (*)
+│       │       │       │   └── getrandom feature "std"
+│       │       │       │       └── getrandom v0.2.10 (*)
+│       │       │       ├── elliptic-curve feature "alloc" (*)
+│       │       │       ├── pkcs8 feature "std"
+│       │       │       │   ├── pkcs8 v0.10.2 (*)
+│       │       │       │   ├── der feature "std"
+│       │       │       │   │   ├── der v0.7.6 (*)
+│       │       │       │   │   └── der feature "alloc" (*)
+│       │       │       │   ├── pkcs8 feature "alloc" (*)
+│       │       │       │   └── spki feature "std"
+│       │       │       │       ├── spki v0.7.2 (*)
+│       │       │       │       ├── der feature "std" (*)
+│       │       │       │       └── spki feature "alloc" (*)
+│       │       │       └── sec1 feature "std"
+│       │       │           ├── sec1 v0.7.2 (*)
+│       │       │           ├── der feature "std" (*)
+│       │       │           └── sec1 feature "alloc" (*)
+│       │       ├── elliptic-curve feature "std" (*)
+│       │       └── once_cell feature "std"
+│       │           ├── once_cell v1.18.0
+│       │           └── once_cell feature "alloc"
+│       │               ├── once_cell v1.18.0
+│       │               └── once_cell feature "race"
+│       │                   └── once_cell v1.18.0
+│       ├── k256 feature "ecdsa" (*)
+│       ├── num-derive feature "default"
+│       │   └── num-derive v0.4.0 (proc-macro)
+│       │       ├── proc-macro2 feature "default" (*)
+│       │       ├── quote feature "default" (*)
+│       │       └── syn feature "default" (*)
+│       ├── num-integer feature "default"
+│       │   ├── num-integer v0.1.45
+│       │   │   └── num-traits v0.2.15
+│       │   │       [build-dependencies]
+│       │   │       └── autocfg feature "default" (*)
+│       │   │   [build-dependencies]
+│       │   │   └── autocfg feature "default" (*)
+│       │   └── num-integer feature "std"
+│       │       ├── num-integer v0.1.45 (*)
+│       │       └── num-traits feature "std"
+│       │           └── num-traits v0.2.15 (*)
+│       ├── num-traits feature "default"
+│       │   ├── num-traits v0.2.15 (*)
+│       │   └── num-traits feature "std" (*)
+│       ├── rand feature "default"
+│       │   ├── rand v0.8.5
+│       │   │   ├── libc v0.2.146
+│       │   │   ├── rand_chacha v0.3.1
+│       │   │   │   ├── rand_core feature "default" (*)
+│       │   │   │   └── ppv-lite86 feature "simd"
+│       │   │   │       └── ppv-lite86 v0.2.17
+│       │   │   └── rand_core feature "default" (*)
+│       │   ├── rand feature "std"
+│       │   │   ├── rand v0.8.5 (*)
+│       │   │   ├── rand_core feature "std" (*)
+│       │   │   ├── rand feature "alloc"
+│       │   │   │   ├── rand v0.8.5 (*)
+│       │   │   │   └── rand_core feature "alloc" (*)
+│       │   │   ├── rand feature "getrandom"
+│       │   │   │   ├── rand v0.8.5 (*)
+│       │   │   │   └── rand_core feature "getrandom" (*)
+│       │   │   ├── rand feature "libc"
+│       │   │   │   └── rand v0.8.5 (*)
+│       │   │   ├── rand feature "rand_chacha"
+│       │   │   │   └── rand v0.8.5 (*)
+│       │   │   └── rand_chacha feature "std"
+│       │   │       ├── rand_chacha v0.3.1 (*)
+│       │   │       └── ppv-lite86 feature "std"
+│       │   │           └── ppv-lite86 v0.2.17
+│       │   └── rand feature "std_rng"
+│       │       ├── rand v0.8.5 (*)
+│       │       └── rand feature "rand_chacha" (*)
+│       ├── rand_chacha feature "default"
+│       │   ├── rand_chacha v0.3.1 (*)
+│       │   └── rand_chacha feature "std" (*)
+│       ├── sha3 feature "default"
+│       │   ├── sha3 v0.10.8
+│       │   │   ├── digest feature "default" (*)
+│       │   │   └── keccak feature "default"
+│       │   │       └── keccak v0.1.4
+│       │   │           └── cpufeatures feature "default" (*)
+│       │   └── sha3 feature "std"
+│       │       ├── sha3 v0.10.8 (*)
+│       │       └── digest feature "std" (*)
+│       ├── soroban-env-common feature "std"
+│       │   ├── soroban-env-common v20.0.0-rc2 (/Users/siddharthsuresh/dev/rs-soroban-env/soroban-env-common)
+│       │   │   ├── num-traits v0.2.15 (*)
+│       │   │   ├── num-derive feature "default" (*)
+│       │   │   ├── ethnum feature "default"
+│       │   │   │   └── ethnum v1.3.2
+│       │   │   ├── soroban-env-macros feature "default"
+│       │   │   │   └── soroban-env-macros v20.0.0-rc2 (proc-macro) (/Users/siddharthsuresh/dev/rs-soroban-env/soroban-env-macros)
+│       │   │   │       ├── serde feature "default" (*)
+│       │   │   │       ├── serde feature "derive"
+│       │   │   │       │   ├── serde v1.0.164 (*)
+│       │   │   │       │   └── serde feature "serde_derive" (*)
+│       │   │   │       ├── proc-macro2 feature "default" (*)
+│       │   │   │       ├── quote feature "default" (*)
+│       │   │   │       ├── syn feature "default" (*)
+│       │   │   │       ├── syn feature "full" (*)
+│       │   │   │       ├── serde_json feature "default"
+│       │   │   │       │   ├── serde_json v1.0.97
+│       │   │   │       │   │   ├── serde v1.0.164 (*)
+│       │   │   │       │   │   ├── itoa feature "default"
+│       │   │   │       │   │   │   └── itoa v1.0.6
+│       │   │   │       │   │   └── ryu feature "default"
+│       │   │   │       │   │       └── ryu v1.0.13
+│       │   │   │       │   └── serde_json feature "std"
+│       │   │   │       │       ├── serde_json v1.0.97 (*)
+│       │   │   │       │       └── serde feature "std" (*)
+│       │   │   │       ├── itertools feature "default"
+│       │   │   │       │   ├── itertools v0.10.5
+│       │   │   │       │   │   └── either v1.8.1
+│       │   │   │       │   └── itertools feature "use_std"
+│       │   │   │       │       ├── itertools v0.10.5 (*)
+│       │   │   │       │       ├── itertools feature "use_alloc"
+│       │   │   │       │       │   └── itertools v0.10.5 (*)
+│       │   │   │       │       └── either feature "use_std"
+│       │   │   │       │           └── either v1.8.1
+│       │   │   │       ├── stellar-xdr feature "curr"
+│       │   │   │       │   └── stellar-xdr v20.0.0-rc1 (https://github.com/stellar/rs-stellar-xdr?rev=9c97e4fa909a0b6455547a4f4a95800696b2a69a#9c97e4fa)
+│       │   │   │       │       ├── base64 feature "default" (*)
+│       │   │   │       │       └── hex feature "default"
+│       │   │   │       │           ├── hex v0.4.3
+│       │   │   │       │           └── hex feature "std"
+│       │   │   │       │               ├── hex v0.4.3
+│       │   │   │       │               └── hex feature "alloc"
+│       │   │   │       │                   └── hex v0.4.3
+│       │   │   │       │       [build-dependencies]
+│       │   │   │       │       └── crate-git-revision feature "default"
+│       │   │   │       │           └── crate-git-revision v0.0.6
+│       │   │   │       │               ├── serde feature "default" (*)
+│       │   │   │       │               ├── serde_derive feature "default" (*)
+│       │   │   │       │               └── serde_json feature "default" (*)
+│       │   │   │       └── stellar-xdr feature "std"
+│       │   │   │           ├── stellar-xdr v20.0.0-rc1 (https://github.com/stellar/rs-stellar-xdr?rev=9c97e4fa909a0b6455547a4f4a95800696b2a69a#9c97e4fa) (*)
+│       │   │   │           └── stellar-xdr feature "alloc"
+│       │   │   │               └── stellar-xdr v20.0.0-rc1 (https://github.com/stellar/rs-stellar-xdr?rev=9c97e4fa909a0b6455547a4f4a95800696b2a69a#9c97e4fa) (*)
+│       │   │   ├── stellar-xdr feature "curr" (*)
+│       │   │   ├── soroban-wasmi feature "default"
+│       │   │   │   ├── soroban-wasmi v0.31.0-soroban1 (https://github.com/stellar/wasmi?rev=7e63b4c9e08c4163f417d118d81f7ea34789d0be#7e63b4c9)
+│       │   │   │   │   ├── wasmi_arena v0.4.0 (https://github.com/stellar/wasmi?rev=7e63b4c9e08c4163f417d118d81f7ea34789d0be#7e63b4c9)
+│       │   │   │   │   ├── wasmi_core v0.13.0 (https://github.com/stellar/wasmi?rev=7e63b4c9e08c4163f417d118d81f7ea34789d0be#7e63b4c9)
+│       │   │   │   │   │   ├── downcast-rs v1.2.0
+│       │   │   │   │   │   ├── num-traits v0.2.15 (*)
+│       │   │   │   │   │   ├── libm feature "default"
+│       │   │   │   │   │   │   └── libm v0.2.7
+│       │   │   │   │   │   └── paste feature "default"
+│       │   │   │   │   │       └── paste v1.0.12 (proc-macro)
+│       │   │   │   │   ├── wasmparser-nostd v0.100.1
+│       │   │   │   │   │   └── indexmap-nostd v0.4.0
+│       │   │   │   │   ├── smallvec feature "default"
+│       │   │   │   │   │   └── smallvec v1.10.0
+│       │   │   │   │   ├── smallvec feature "union"
+│       │   │   │   │   │   └── smallvec v1.10.0
+│       │   │   │   │   ├── spin feature "mutex"
+│       │   │   │   │   │   └── spin v0.9.8
+│       │   │   │   │   ├── spin feature "rwlock"
+│       │   │   │   │   │   └── spin v0.9.8
+│       │   │   │   │   └── spin feature "spin_mutex"
+│       │   │   │   │       ├── spin v0.9.8
+│       │   │   │   │       └── spin feature "mutex" (*)
+│       │   │   │   └── soroban-wasmi feature "std"
+│       │   │   │       ├── soroban-wasmi v0.31.0-soroban1 (https://github.com/stellar/wasmi?rev=7e63b4c9e08c4163f417d118d81f7ea34789d0be#7e63b4c9) (*)
+│       │   │   │       ├── spin feature "std"
+│       │   │   │       │   └── spin v0.9.8
+│       │   │   │       ├── wasmi_arena feature "std"
+│       │   │   │       │   └── wasmi_arena v0.4.0 (https://github.com/stellar/wasmi?rev=7e63b4c9e08c4163f417d118d81f7ea34789d0be#7e63b4c9)
+│       │   │   │       ├── wasmi_core feature "std"
+│       │   │   │       │   ├── wasmi_core v0.13.0 (https://github.com/stellar/wasmi?rev=7e63b4c9e08c4163f417d118d81f7ea34789d0be#7e63b4c9) (*)
+│       │   │   │       │   ├── num-traits feature "std" (*)
+│       │   │   │       │   └── downcast-rs feature "std"
+│       │   │   │       │       └── downcast-rs v1.2.0
+│       │   │   │       └── wasmparser-nostd feature "std"
+│       │   │   │           ├── wasmparser-nostd v0.100.1 (*)
+│       │   │   │           └── indexmap-nostd feature "std"
+│       │   │   │               └── indexmap-nostd v0.4.0
+│       │   │   └── static_assertions feature "default"
+│       │   │       └── static_assertions v1.1.0
+│       │   │   [build-dependencies]
+│       │   │   └── crate-git-revision feature "default" (*)
+│       │   ├── stellar-xdr feature "base64"
+│       │   │   ├── stellar-xdr v20.0.0-rc1 (https://github.com/stellar/rs-stellar-xdr?rev=9c97e4fa909a0b6455547a4f4a95800696b2a69a#9c97e4fa) (*)
+│       │   │   └── stellar-xdr feature "std" (*)
+│       │   └── stellar-xdr feature "std" (*)
+│       ├── soroban-env-common feature "wasmi"
+│       │   └── soroban-env-common v20.0.0-rc2 (/Users/siddharthsuresh/dev/rs-soroban-env/soroban-env-common) (*)
+│       ├── soroban-wasmi feature "default" (*)
+│       ├── static_assertions feature "default" (*)
+│       ├── soroban-native-sdk-macros feature "default"
+│       │   └── soroban-native-sdk-macros v20.0.0-rc2 (proc-macro) (/Users/siddharthsuresh/dev/rs-soroban-env/soroban-native-sdk-macros)
+│       │       ├── proc-macro2 feature "default" (*)
+│       │       ├── quote feature "default" (*)
+│       │       ├── syn feature "default" (*)
+│       │       ├── syn feature "full" (*)
+│       │       └── itertools feature "default" (*)
+│       └── stellar-strkey feature "default"
+│           └── stellar-strkey v0.0.7 (https://github.com/stellar/rs-stellar-strkey?rev=e6ba45c60c16de28c7522586b80ed0150157df73#e6ba45c6)
+│               ├── base32 feature "default"
+│               │   └── base32 v0.4.0
+│               └── thiserror feature "default"
+│                   └── thiserror v1.0.40
+│                       └── thiserror-impl feature "default"
+│                           └── thiserror-impl v1.0.40 (proc-macro)
+│                               ├── proc-macro2 feature "default" (*)
+│                               ├── quote feature "default" (*)
+│                               └── syn feature "default" (*)
+└── soroban-test-wasms feature "default"
+    └── soroban-test-wasms v20.0.0-rc2 (/Users/siddharthsuresh/dev/rs-soroban-env/soroban-test-wasms)
