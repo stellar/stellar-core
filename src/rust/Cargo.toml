@@ -28,7 +28,7 @@ rustc-simple-version = "0.1.0"
 version = "20.0.0-rc1"
 git = "https://github.com/stellar/rs-soroban-env"
 package = "soroban-env-host"
-rev = "91f44778389490ad863d61a8a90ac9875ba6d8fd"
+rev = "03fc6f93839533e358e5593a39161b25e2473263"
 
 # This copy of the soroban host is _optional_ and only enabled during protocol
 # transitions. When transitioning from protocol N to N+1, the `curr` copy
@@ -52,11 +52,11 @@ optional = true
 version = "20.0.0-rc1"
 git = "https://github.com/stellar/rs-soroban-env"
 package = "soroban-env-host"
-rev = "7fabcdd8a81edffdce50be8cf1384c8f5c30a019"
+rev = "91f44778389490ad863d61a8a90ac9875ba6d8fd"
 
 [dependencies.soroban-test-wasms]
 git = "https://github.com/stellar/rs-soroban-env"
-rev = "91f44778389490ad863d61a8a90ac9875ba6d8fd"
+rev = "03fc6f93839533e358e5593a39161b25e2473263"
 
 [dependencies.cargo-lock]
 git = "https://github.com/rustsec/rustsec"
@@ -68,4 +68,4 @@ features = ["dependency-tree"]
 [features]
 soroban-env-host-prev = ["dep:soroban-env-host-prev"]
 tracy = ["dep:tracy-client", "soroban-env-host-curr/tracy"]
-core-vnext = []
+core-vnext = ["soroban-env-host-curr/next", "soroban-test-wasms/next"]
