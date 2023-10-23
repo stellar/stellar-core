@@ -673,7 +673,8 @@ Upgrades::isValid(UpgradeType const& upgrade, LedgerUpgradeType& upgradeType,
                   LedgerHeader const& header) const
 {
     LedgerUpgrade lupgrade;
-    LedgerTxn ltx(app.getLedgerTxnRoot());
+    LedgerTxn ltx(app.getLedgerTxnRoot(), /* shouldUpdateLastModified */ true,
+                  TransactionMode::READ_ONLY_WITHOUT_SQL_TXN);
     bool res = isValidForApply(upgrade, lupgrade, app, ltx, header) ==
                UpgradeValidity::VALID;
 
