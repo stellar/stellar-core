@@ -138,6 +138,10 @@ TransactionFramePtr transactionFromOperations(Application& app,
                                               SequenceNumber seq,
                                               std::vector<Operation> const& ops,
                                               uint32_t fee = 0);
+TransactionFramePtr sorobanTransactionFromOperations(
+    Application& app, TestAccount& source, std::vector<Operation> const& ops,
+    std::vector<SecretKey> const& opKeys, SorobanResources const& resources,
+    uint32_t totalFee, uint32_t resourceFee, std::optional<std::string> memo);
 TransactionFramePtr transactionWithV2Precondition(Application& app,
                                                   TestAccount& account,
                                                   int64_t sequenceDelta,

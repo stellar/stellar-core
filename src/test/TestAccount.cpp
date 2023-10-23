@@ -114,6 +114,18 @@ TestAccount::tx(std::vector<Operation> const& ops, SequenceNumber sn)
     return transactionFromOperations(mApp, getSecretKey(), sn, ops);
 }
 
+TransactionFramePtr
+TestAccount::sorobanTx(std::vector<Operation> const& ops,
+                       std::vector<SecretKey> const& opKeys,
+                       SorobanResources const& resources, uint32_t inclusionFee,
+                       uint32_t resourceFee, std::optional<std::string> memo)
+{
+    loadSequenceNumber();
+    return sorobanTransactionFromOperations(mApp, *this, ops, opKeys, resources,
+                                            inclusionFee + resourceFee,
+                                            resourceFee, memo);
+}
+
 Operation
 TestAccount::op(Operation operation)
 {

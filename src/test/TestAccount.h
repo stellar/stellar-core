@@ -39,6 +39,11 @@ class TestAccount
 
     TransactionFramePtr tx(std::vector<Operation> const& ops,
                            SequenceNumber sn = 0);
+    TransactionFramePtr sorobanTx(std::vector<Operation> const& ops,
+                                  std::vector<SecretKey> const& opKeys,
+                                  SorobanResources const& resources,
+                                  uint32_t inclusionFee, uint32_t resourceFee,
+                                  std::optional<std::string> memo);
     Operation op(Operation operation);
 
     TestAccount create(SecretKey const& secretKey, uint64_t initialBalance);
