@@ -55,6 +55,16 @@ closest_cluster(double p, std::set<double> const& centers)
     return bestCenter;
 }
 
+VirtualClock::duration
+exponentialBackoff(uint64_t n)
+{
+    // Cap to 512 sec or ~8 minutes
+    uint64_t const MAX_EXPONENT = 9;
+    uint64_t upperBound = 1ULL << std::min(MAX_EXPONENT, n);
+    uint64_t lowerBound = upperBound < 2 ? uint64_t(1) : (upperBound / 2 + 1);
+    return std::chrono::seconds(rand_uniform<uint64_t>(lowerBound, upperBound));
+}
+
 std::set<double>
 k_meansPP(std::vector<double> const& points, uint32_t k)
 {

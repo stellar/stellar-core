@@ -5,6 +5,7 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "lib/util/stdrandom.h"
+#include "util/Timer.h"
 #include <cstdlib>
 #include <random>
 #include <set>
@@ -17,6 +18,8 @@ double rand_fraction();
 std::set<double> k_means(std::vector<double> const& points, uint32_t k);
 
 double closest_cluster(double p, std::set<double> const& centers);
+
+VirtualClock::duration exponentialBackoff(uint64_t n);
 
 bool rand_flip();
 

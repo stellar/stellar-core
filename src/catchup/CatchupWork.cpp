@@ -163,19 +163,27 @@ CatchupWork::downloadVerifyLedgerChain(CatchupRange const& catchupRange,
     releaseAssert(verifyRange.mCount != 0);
     auto checkpointRange =
         CheckpointRange{verifyRange, mApp.getHistoryManager()};
+    // Batch download has default retries ("a few") to ensure we rotate through
+    // archives
     auto getLedgers = std::make_shared<BatchDownloadWork>(
         mApp, checkpointRange, HISTORY_FILE_TYPE_LEDGER, *mDownloadDir,
         mArchive);
     mRangeEndPromise = std::promise<LedgerNumHashPair>();
     mRangeEndFuture = mRangeEndPromise.get_future().share();
     mRangeEndPromise.set_value(rangeEnd);
+
+    auto fatalFailurePromise = std::promise<bool>();
+    mFatalFailureFuture = fatalFailurePromise.get_future().share();
+
     mVerifyLedgers = std::make_shared<VerifyLedgerChainWork>(
         mApp, *mDownloadDir, verifyRange, mLastClosedLedgerHashPair,
-        mRangeEndFuture);
+        mRangeEndFuture, std::move(fatalFailurePromise));
 
+    // Never retry the sequence: downloads already have retries, and there's no
+    // point retrying verification
     std::vector<std::shared_ptr<BasicWork>> seq{getLedgers, mVerifyLedgers};
-    mDownloadVerifyLedgersSeq =
-        addWork<WorkSequence>("download-verify-ledgers-seq", seq);
+    mDownloadVerifyLedgersSeq = addWork<WorkSequence>(
+        "download-verify-ledgers-seq", seq, BasicWork::RETRY_NEVER);
     mCurrentWork = mDownloadVerifyLedgersSeq;
 }
 
@@ -625,6 +633,13 @@ CatchupWork::runCatchupStep()
                 addWork<WorkSequence>("catchup-seq", seq, RETRY_NEVER);
             mCurrentWork = mCatchupSeq;
             return State::WORK_RUNNING;
+        }
+        else if (mDownloadVerifyLedgersSeq->getState() == State::WORK_FAILURE)
+        {
+            if (mVerifyLedgers && mVerifyLedgers->isDone())
+            {
+                releaseAssert(futureIsReady(mFatalFailureFuture));
+            }
         }
         return mDownloadVerifyLedgersSeq->getState();
     }

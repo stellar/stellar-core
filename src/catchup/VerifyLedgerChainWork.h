@@ -27,6 +27,13 @@ class VerifyLedgerChainWork : public BasicWork
     uint32_t mCurrCheckpoint;
     LedgerNumHashPair const mLastClosed;
 
+    std::optional<HistoryManager::LedgerVerificationStatus> mLocalFailure;
+    bool mHasTrustedHash{false};
+
+    // Record if archive validity was verified, and core hit an unrecoverable
+    // failure (such as incompatible version)
+    std::promise<bool> mFatalFailurePromise;
+
     // Incoming var to read trusted hash of max ledger from. We use a
     // shared_future here because it allows reading the value multiple
     // times and we might be reset and re-run.
@@ -61,6 +68,7 @@ class VerifyLedgerChainWork : public BasicWork
         Application& app, TmpDir const& downloadDir, LedgerRange const& range,
         LedgerNumHashPair const& lastClosedLedger,
         std::shared_future<LedgerNumHashPair> trustedMaxLedger,
+        std::promise<bool>&& fatalFailure,
         std::shared_ptr<std::ofstream> outputStream = nullptr);
     ~VerifyLedgerChainWork() override = default;
     std::string getStatus() const override;
@@ -82,6 +90,7 @@ class VerifyLedgerChainWork : public BasicWork
 
     BasicWork::State onRun() override;
     void onSuccess() override;
+    void onFailureRaise() override;
     bool
     onAbort() override
     {

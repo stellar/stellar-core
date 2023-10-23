@@ -138,7 +138,8 @@ WriteVerifiedCheckpointHashesWork::yieldMoreWork()
                          : mRangeEndFuture);
 
     auto currWork = std::make_shared<VerifyLedgerChainWork>(
-        mApp, *tmpDir, ledgerRange, lcl, prevTrusted, mOutputFile);
+        mApp, *tmpDir, ledgerRange, lcl, prevTrusted, std::promise<bool>(),
+        mOutputFile);
     auto prevWork = mPrevVerifyWork;
     auto predicate = [prevWork](Application&) {
         if (!prevWork)

@@ -84,10 +84,31 @@ verifyLastLedgerInCheckpoint(LedgerHeaderHistoryEntry const& ledger,
     return HistoryManager::VERIFY_STATUS_OK;
 }
 
+template <typename T>
+void
+trySetFuture(std::promise<T>& promise, T value)
+{
+    try
+    {
+        promise.set_value(value);
+    }
+    catch (std::future_error const& err)
+    {
+        // If promise value has already been set, ignore exception from
+        // attempting to set it twice. This will happen if we're reset
+        // and re-run.
+        if (err.code() != std::future_errc::promise_already_satisfied)
+        {
+            throw;
+        }
+    }
+}
+
 VerifyLedgerChainWork::VerifyLedgerChainWork(
     Application& app, TmpDir const& downloadDir, LedgerRange const& range,
     LedgerNumHashPair const& lastClosedLedger,
     std::shared_future<LedgerNumHashPair> trustedMaxLedger,
+    std::promise<bool>&& fatalFailure,
     std::shared_ptr<std::ofstream> outputStream)
     : BasicWork(app, "verify-ledger-chain", BasicWork::RETRY_NEVER)
     , mDownloadDir(downloadDir)
@@ -97,6 +118,7 @@ VerifyLedgerChainWork::VerifyLedgerChainWork(
                           : mApp.getHistoryManager().checkpointContainingLedger(
                                 mRange.last()))
     , mLastClosed(lastClosedLedger)
+    , mFatalFailurePromise(std::move(fatalFailure))
     , mTrustedMaxLedger(trustedMaxLedger)
     , mVerifiedMinLedgerPrevFuture(mVerifiedMinLedgerPrev.get_future().share())
     , mOutputStream(outputStream)
@@ -130,6 +152,8 @@ VerifyLedgerChainWork::onReset()
                           ? 0
                           : mApp.getHistoryManager().checkpointContainingLedger(
                                 mRange.last());
+    mLocalFailure.reset();
+    mHasTrustedHash = false;
 }
 
 HistoryManager::LedgerVerificationStatus
@@ -178,10 +202,15 @@ VerifyLedgerChainWork::verifyHistoryOfSingleCheckpoint()
         if (curr.header.ledgerVersion >
             mApp.getConfig().LEDGER_PROTOCOL_VERSION)
         {
-            return HistoryManager::VERIFY_STATUS_ERR_BAD_LEDGER_VERSION;
+            // Note that local state does not agree with the archives; depending
+            // on the presence of trusted hash
+            mLocalFailure =
+                HistoryManager::VERIFY_STATUS_ERR_BAD_LEDGER_VERSION;
         }
 
         // Verify ledger with local state by comparing to LCL
+        // When checking against LCL, see it the local node is in the bad state,
+        // or if the archive is in a bad state (in which case, retry)
         if (curr.header.ledgerSeq == mLastClosed.first)
         {
             if (sha256(xdr::xdr_to_opaque(curr.header)) != *mLastClosed.second)
@@ -192,7 +221,7 @@ VerifyLedgerChainWork::verifyHistoryOfSingleCheckpoint()
                            LedgerManager::ledgerAbbrev(curr),
                            LedgerManager::ledgerAbbrev(mLastClosed.first,
                                                        *mLastClosed.second));
-                return HistoryManager::VERIFY_STATUS_ERR_BAD_HASH;
+                mLocalFailure = HistoryManager::VERIFY_STATUS_ERR_BAD_HASH;
             }
         }
         // Verify LCL that is just before the first ledger in range
@@ -207,7 +236,7 @@ VerifyLedgerChainWork::verifyHistoryOfSingleCheckpoint()
                            LedgerManager::ledgerAbbrev(curr),
                            LedgerManager::ledgerAbbrev(mLastClosed.first,
                                                        *mLastClosed.second));
-                return lclResult;
+                mLocalFailure = lclResult;
             }
         }
 
@@ -315,6 +344,8 @@ VerifyLedgerChainWork::verifyHistoryOfSingleCheckpoint()
         releaseAssert(futureIsReady(mTrustedMaxLedger));
 
         incoming = mTrustedMaxLedger.get();
+        mHasTrustedHash = incoming.second.has_value();
+
         releaseAssert(incoming.first == curr.header.ledgerSeq);
         CLOG_INFO(History, "{} ledger {} against SCP hash",
                   (incoming.second ? "Verifying" : "Skipping verification for"),
@@ -355,20 +386,7 @@ VerifyLedgerChainWork::verifyHistoryOfSingleCheckpoint()
         outgoing.second =
             std::make_optional<Hash>(first.header.previousLedgerHash);
 
-        try
-        {
-            mVerifiedMinLedgerPrev.set_value(outgoing);
-        }
-        catch (std::future_error const& err)
-        {
-            // If outgoing link has already been set, ignore exception from
-            // attempting to set it twice. This will happen if we're reset
-            // and re-run.
-            if (err.code() != std::future_errc::promise_already_satisfied)
-            {
-                throw;
-            }
-        }
+        trySetFuture<LedgerNumHashPair>(mVerifiedMinLedgerPrev, outgoing);
 
         // Also write the max ledger in this min-valued checkpoint, as it
         // will be read by catchup as the ledger number for bucket-apply.
@@ -383,6 +401,8 @@ VerifyLedgerChainWork::verifyHistoryOfSingleCheckpoint()
 void
 VerifyLedgerChainWork::onSuccess()
 {
+    trySetFuture<bool>(mFatalFailurePromise, mLocalFailure && mHasTrustedHash);
+
     if (mOutputStream)
     {
         for (auto const& pair : mVerifiedLedgers)
@@ -391,6 +411,12 @@ VerifyLedgerChainWork::onSuccess()
                              << binToHex(*pair.second) << "\"],";
         }
     }
+}
+
+void
+VerifyLedgerChainWork::onFailureRaise()
+{
+    trySetFuture<bool>(mFatalFailurePromise, mLocalFailure && mHasTrustedHash);
 }
 
 BasicWork::State
@@ -425,6 +451,20 @@ VerifyLedgerChainWork::onRun()
         return BasicWork::State::WORK_FAILURE;
     }
 
+    // If we verified ledger chain against trusted SCP hash, but observed a
+    // failure related to local state (bad LCL, bad local ledger version, etc),
+    // then there is no point retrying catchup - core will never be able to
+    // recover
+    if (result == HistoryManager::VERIFY_STATUS_OK &&
+        mCurrCheckpoint ==
+            mApp.getHistoryManager().checkpointContainingLedger(mRange.mFirst))
+    {
+        if (mLocalFailure)
+        {
+            result = *mLocalFailure;
+        }
+    }
+
     switch (result)
     {
     case HistoryManager::VERIFY_STATUS_OK:
@@ -447,7 +487,10 @@ VerifyLedgerChainWork::onRun()
     case HistoryManager::VERIFY_STATUS_ERR_BAD_HASH:
         CLOG_ERROR(History, "Catchup material failed verification - hash "
                             "mismatch, propagating failure");
-        CLOG_ERROR(History, "{}", POSSIBLY_CORRUPTED_HISTORY);
+        CLOG_ERROR(History, "{}",
+                   (mLocalFailure && mHasTrustedHash)
+                       ? POSSIBLY_CORRUPTED_LOCAL_DATA
+                       : POSSIBLY_CORRUPTED_HISTORY);
         mApp.getCatchupManager().ledgerChainsVerificationFailed();
         return BasicWork::State::WORK_FAILURE;
     case HistoryManager::VERIFY_STATUS_ERR_OVERSHOT:
