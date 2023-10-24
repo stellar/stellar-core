@@ -2,6 +2,7 @@
 #include "crypto/SHA.h"
 #include "rust/RustBridge.h"
 #include "transactions/TransactionUtils.h"
+#include <xdrpp/autocheck.h>
 
 namespace stellar
 {
@@ -77,7 +78,7 @@ getCreateTx(PublicKey const& publicKey, LedgerKey const& contractCodeLedgerKey,
     idPreimage.fromAddress().address.type(SC_ADDRESS_TYPE_ACCOUNT);
     idPreimage.fromAddress().address.accountId().ed25519() =
         publicKey.ed25519();
-    idPreimage.fromAddress().salt = sha256("salt"); // TODO: Take user input?
+    idPreimage.fromAddress().salt = autocheck::generator<Hash>()(5);
 
     HashIDPreimage fullPreImage;
     fullPreImage.type(ENVELOPE_TYPE_CONTRACT_ID);

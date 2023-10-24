@@ -1,4 +1,5 @@
 #include "xdr/Stellar-ledger-entries.h"
+#include "xdr/Stellar-ledger.h"
 #include <utility>
 
 namespace stellar
