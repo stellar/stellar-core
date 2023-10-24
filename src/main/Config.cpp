@@ -2079,6 +2079,12 @@ Config::setInMemoryMode()
 }
 
 bool
+Config::modeDoesCatchupWithBucketList() const
+{
+    return MODE_DOES_CATCHUP && MODE_ENABLES_BUCKETLIST;
+}
+
+bool
 Config::isInMemoryMode() const
 {
     return MODE_USES_IN_MEMORY_LEDGER;

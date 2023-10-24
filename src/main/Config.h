@@ -619,6 +619,7 @@ class Config : public std::enable_shared_from_this<Config>
     std::chrono::seconds getExpectedLedgerCloseTime() const;
 
     void setInMemoryMode();
+    bool modeDoesCatchupWithBucketList() const;
     bool isInMemoryMode() const;
     bool isInMemoryModeWithoutMinimalDB() const;
     bool isUsingBucketListDB() const;
