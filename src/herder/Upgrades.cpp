@@ -298,7 +298,9 @@ Upgrades::createUpgradesFor(LedgerHeader const& lclHeader,
     }
     if (mParams.mMaxSorobanTxSetSize)
     {
-        if (readMaxSorobanTxSetSize(ltx) != *mParams.mMaxSorobanTxSetSize)
+        if (protocolVersionStartsFrom(lclHeader.ledgerVersion,
+                                      SOROBAN_PROTOCOL_VERSION) &&
+            readMaxSorobanTxSetSize(ltx) != *mParams.mMaxSorobanTxSetSize)
         {
             result.emplace_back(LEDGER_UPGRADE_MAX_SOROBAN_TX_SET_SIZE);
             result.back().newMaxSorobanTxSetSize() =
