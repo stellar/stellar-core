@@ -1355,7 +1355,7 @@ SorobanNetworkConfig::isValidCostParams(ContractCostParams const& params)
 CxxFeeConfiguration
 SorobanNetworkConfig::rustBridgeFeeConfiguration() const
 {
-    CxxFeeConfiguration res;
+    CxxFeeConfiguration res{};
     res.fee_per_instruction_increment = feeRatePerInstructionsIncrement();
 
     res.fee_per_read_entry = feeReadLedgerEntry();
