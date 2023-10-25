@@ -1211,9 +1211,8 @@ getSettingsUpgradeTransactions(CommandLineArgs const& args)
     std::string id;
 
     ParserWithValidation seqNumParser{
-        clara::Arg(seqNum, "SequenceNumber").required(), [&] {
-            return seqNum > 0 ? "" : "SequenceNumber must be greater than 0";
-        }};
+        clara::Arg(seqNum, "SequenceNumber").required(),
+        [&] { return seqNum >= 0 ? "" : "SequenceNumber must be >= 0"; }};
 
     return runWithHelp(
         args,
