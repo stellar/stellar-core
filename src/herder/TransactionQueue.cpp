@@ -116,10 +116,10 @@ canReplaceByFee(TransactionFrameBasePtr tx, TransactionFrameBasePtr oldTx,
     //
     // FEE_MULTIPLIER * v2 does not overflow uint128_t because fees are bounded
     // by INT64_MAX, while number of operations and FEE_MULTIPLIER are small.
-    uint128_t v1 = bigMultiply(newFee, oldNumOps);
     uint128_t v2 = bigMultiply(oldFee, newNumOps);
     uint128_t minFeeN = v2 * TransactionQueue::FEE_MULTIPLIER;
-    bool res = v1 >= minFeeN;
+
+    bool res = newFee >= 0 && bigMultiply(newFee, oldNumOps) >= minFeeN;
     if (!res)
     {
         if (!bigDivide128(minFee, minFeeN, int64_t(oldNumOps),

@@ -1157,6 +1157,12 @@ TEST_CASE("Soroban TransactionQueue limits",
             TransactionQueue::AddResult::ADD_STATUS_PENDING);
     REQUIRE(app->getHerder().getTx(tx->getFullHash()) != nullptr);
 
+    SECTION("negative inclusion fee")
+    {
+        auto fb = feeBump(*app, root, tx, 200);
+        REQUIRE(app->getHerder().recvTransaction(fb, false) ==
+                TransactionQueue::AddResult::ADD_STATUS_ERROR);
+    }
     SECTION("classic is rejected when soroban is pending")
     {
         // Can't submit classic tx due to source account limit
