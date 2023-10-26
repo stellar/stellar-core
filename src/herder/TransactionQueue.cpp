@@ -89,7 +89,8 @@ ClassicTransactionQueue::ClassicTransactionQueue(Application& app,
                                                  uint32 poolLedgerMultiplier)
     : TransactionQueue(app, pendingDepth, banDepth, poolLedgerMultiplier, false)
 {
-    mBroadcastOpCarryover.resize(1, Resource::makeEmpty(false));
+    mBroadcastOpCarryover.resize(1,
+                                 Resource::makeEmpty(NUM_CLASSIC_TX_RESOURCES));
 }
 
 TransactionQueue::~TransactionQueue()
@@ -1190,7 +1191,9 @@ class TxQueueTracker : public TxStack
     getResources() const override
     {
         // Resource count tracking is not relevant for this TxStack.
-        return Resource::makeEmpty(getTopTx()->isSoroban());
+        return Resource::makeEmpty(getTopTx()->isSoroban()
+                                       ? NUM_SOROBAN_TX_RESOURCES
+                                       : NUM_CLASSIC_TX_RESOURCES);
     }
 
     TransactionQueue::AccountState&
@@ -1220,7 +1223,7 @@ SorobanTransactionQueue::SorobanTransactionQueue(Application& app,
                                                  uint32 poolLedgerMultiplier)
     : TransactionQueue(app, pendingDepth, banDepth, poolLedgerMultiplier, true)
 {
-    mBroadcastOpCarryover.resize(1, Resource::makeEmpty(true));
+    mBroadcastOpCarryover.resize(1, Resource::makeEmptySoroban());
 }
 
 std::pair<Resource, std::optional<Resource>>
@@ -1253,7 +1256,7 @@ SorobanTransactionQueue::broadcastSome()
     // propagation.
     auto resToFlood = getMaxResourcesToFloodThisPeriod().first;
 
-    auto totalResToFlood = Resource::makeEmpty(true);
+    auto totalResToFlood = Resource::makeEmptySoroban();
     std::vector<TxStackPtr> trackersToBroadcast;
     for (auto& [_, accountState] : mAccountStates)
     {
@@ -1264,8 +1267,8 @@ SorobanTransactionQueue::broadcastSome()
         {
             trackersToBroadcast.emplace_back(
                 std::make_shared<TxQueueTracker>(&accountState));
-            totalResToFlood +=
-                accountState.mTransactions[0].mTx->getResources();
+            totalResToFlood += accountState.mTransactions[0].mTx->getResources(
+                /* useByteLimitInClassic */ false);
         }
     }
 
@@ -1281,7 +1284,8 @@ SorobanTransactionQueue::broadcastSome()
         releaseAssert(bStatus != BroadcastStatus::BROADCAST_STATUS_SKIPPED);
         if (bStatus == BroadcastStatus::BROADCAST_STATUS_SUCCESS)
         {
-            totalResToFlood -= tx->getResources();
+            totalResToFlood -=
+                tx->getResources(/* useByteLimitInClassic */ false);
             return SurgePricingPriorityQueue::VisitTxStackResult::TX_PROCESSED;
         }
         else
@@ -1337,13 +1341,13 @@ ClassicTransactionQueue::broadcastSome()
     // This broadcasts from account queues in order as to maximize chances of
     // propagation.
     auto [opsToFlood, dexOpsToFlood] = getMaxResourcesToFloodThisPeriod();
-    releaseAssert(opsToFlood.size() == 1);
+    releaseAssert(opsToFlood.size() == NUM_CLASSIC_TX_RESOURCES);
     if (dexOpsToFlood)
     {
-        releaseAssert(dexOpsToFlood->size() == 1);
+        releaseAssert(dexOpsToFlood->size() == NUM_CLASSIC_TX_RESOURCES);
     }
 
-    Resource totalToFlood(0);
+    auto totalToFlood = Resource::makeEmpty(NUM_CLASSIC_TX_RESOURCES);
     std::vector<TxStackPtr> trackersToBroadcast;
     for (auto& [_, accountState] : mAccountStates)
     {
@@ -1367,7 +1371,7 @@ ClassicTransactionQueue::broadcastSome()
         auto bStatus = broadcastTx(curTracker.getAccountState(), cur);
         if (bStatus == BroadcastStatus::BROADCAST_STATUS_SUCCESS)
         {
-            totalToFlood -= tx->getResources();
+            totalToFlood -= tx->getResources(/* useByteLimitInClassic */ false);
             return SurgePricingPriorityQueue::VisitTxStackResult::TX_PROCESSED;
         }
         else if (bStatus == BroadcastStatus::BROADCAST_STATUS_SKIPPED)
@@ -1397,7 +1401,7 @@ ClassicTransactionQueue::broadcastSome()
     // bump" tx
     for (auto& opsLeft : mBroadcastOpCarryover)
     {
-        releaseAssert(opsLeft.size() == 1);
+        releaseAssert(opsLeft.size() == NUM_CLASSIC_TX_RESOURCES);
         opsLeft = limitTo(opsLeft, Resource(MAX_OPS_PER_TX + 1));
     }
     return !totalToFlood.isZero();

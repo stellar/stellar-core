@@ -475,7 +475,7 @@ LedgerManagerImpl::maxTransactionResources(bool isSoroban,
     }
     else
     {
-        return Resource(1);
+        return Resource(MAX_OPS_PER_TX);
     }
 }
 

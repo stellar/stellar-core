@@ -60,7 +60,7 @@ class TransactionFrameBase
     virtual Hash const& getFullHash() const = 0;
 
     virtual uint32_t getNumOperations() const = 0;
-    virtual Resource getResources() const = 0;
+    virtual Resource getResources(bool useByteLimitInClassic) const = 0;
 
     virtual std::vector<Operation> const& getRawOperations() const = 0;
 

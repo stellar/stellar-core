@@ -104,6 +104,7 @@ class DexLimitingLaneConfig : public SurgePricingLaneConfig
 
   private:
     std::vector<Resource> mLaneLimits;
+    bool const mUseByteLimit;
 };
 
 class SorobanGenericLaneConfig : public SurgePricingLaneConfig
