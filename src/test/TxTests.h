@@ -298,8 +298,10 @@ TransactionFrameBasePtr sorobanTransactionFrameFromOpsWithTotalFee(
     SorobanResources const& resources, uint32_t totalFee, uint32_t resourceFee,
     std::optional<std::string> memo = std::nullopt);
 
-ConfigUpgradeSetFrameConstPtr
-makeConfigUpgradeSet(AbstractLedgerTxn& ltx, ConfigUpgradeSet configUpgradeSet);
+ConfigUpgradeSetFrameConstPtr makeConfigUpgradeSet(
+    AbstractLedgerTxn& ltx, ConfigUpgradeSet configUpgradeSet,
+    bool expireSet = false,
+    ContractDataDurability type = ContractDataDurability::TEMPORARY);
 LedgerUpgrade makeConfigUpgrade(ConfigUpgradeSetFrame const& configUpgradeSet);
 
 LedgerUpgrade makeBaseReserveUpgrade(int baseReserve);

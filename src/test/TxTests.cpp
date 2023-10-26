@@ -1749,7 +1749,8 @@ executeUpgrade(Application& app, LedgerUpgrade const& lupgrade,
 };
 
 ConfigUpgradeSetFrameConstPtr
-makeConfigUpgradeSet(AbstractLedgerTxn& ltx, ConfigUpgradeSet configUpgradeSet)
+makeConfigUpgradeSet(AbstractLedgerTxn& ltx, ConfigUpgradeSet configUpgradeSet,
+                     bool expireSet, ContractDataDurability type)
 {
     // Make entry for the upgrade
     auto opaqueUpgradeSet = xdr::xdr_to_opaque(configUpgradeSet);
@@ -1770,14 +1771,14 @@ makeConfigUpgradeSet(AbstractLedgerTxn& ltx, ConfigUpgradeSet configUpgradeSet)
     le.data.type(CONTRACT_DATA);
     le.data.contractData().contract.type(SC_ADDRESS_TYPE_CONTRACT);
     le.data.contractData().contract.contractId() = contractID;
-    le.data.contractData().durability = TEMPORARY;
+    le.data.contractData().durability = type;
     le.data.contractData().key = key;
     le.data.contractData().val = val;
 
     LedgerEntry ttl;
     ttl.data.type(TTL);
     ttl.data.ttl().keyHash = getTTLKey(le).ttl().keyHash;
-    ttl.data.ttl().liveUntilLedgerSeq = UINT32_MAX;
+    ttl.data.ttl().liveUntilLedgerSeq = expireSet ? 0 : UINT32_MAX;
 
     ltx.create(InternalLedgerEntry(le));
     ltx.create(InternalLedgerEntry(ttl));
