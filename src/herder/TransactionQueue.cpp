@@ -114,10 +114,11 @@ canReplaceByFee(TransactionFrameBasePtr tx, TransactionFrameBasePtr oldTx,
     // is equivalent to
     // newFee * oldNumOps >= FEE_MULTIPLIER * oldFee * newNumOps
     //
-    // FEE_MULTIPLIER * v2 does not overflow uint128_t because fees are bounded
-    // by INT64_MAX, while number of operations and FEE_MULTIPLIER are small.
-    uint128_t v2 = bigMultiply(oldFee, newNumOps);
-    uint128_t minFeeN = v2 * TransactionQueue::FEE_MULTIPLIER;
+    // FEE_MULTIPLIER * oldTotalFee does not overflow uint128_t because fees are
+    // bounded by INT64_MAX, while number of operations and FEE_MULTIPLIER are
+    // small.
+    uint128_t oldTotalFee = bigMultiply(oldFee, newNumOps);
+    uint128_t minFeeN = oldTotalFee * TransactionQueue::FEE_MULTIPLIER;
 
     bool res = newFee >= 0 && bigMultiply(newFee, oldNumOps) >= minFeeN;
     if (!res)
@@ -244,6 +245,11 @@ TransactionQueue::canAdd(TransactionFrameBasePtr tx,
     }
 
     int64_t newInclusionFee = tx->getInclusionFee();
+    if (newInclusionFee < 0)
+    {
+        return TransactionQueue::AddResult::ADD_STATUS_ERROR;
+    }
+
     int64_t seqNum = 0;
     TransactionFrameBasePtr oldTx;
 
