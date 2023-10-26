@@ -144,30 +144,30 @@ struct TestOverrideSorobanNetworkConfig
 {
     // Contract size settings
     static constexpr uint32_t MAX_CONTRACT_SIZE =
-        InitialSorobanNetworkConfig::MAX_CONTRACT_SIZE * 32;
+        InitialSorobanNetworkConfig::MAX_CONTRACT_SIZE * 64;
 
     // Contract data settings
     static constexpr uint32_t MAX_CONTRACT_DATA_KEY_SIZE_BYTES =
-        InitialSorobanNetworkConfig::MAX_CONTRACT_DATA_KEY_SIZE_BYTES * 10;
+        InitialSorobanNetworkConfig::MAX_CONTRACT_DATA_KEY_SIZE_BYTES * 1000;
     static constexpr uint32_t MAX_CONTRACT_DATA_ENTRY_SIZE_BYTES =
-        InitialSorobanNetworkConfig::MAX_CONTRACT_DATA_ENTRY_SIZE_BYTES * 10;
+        InitialSorobanNetworkConfig::MAX_CONTRACT_DATA_ENTRY_SIZE_BYTES * 1000;
 
     // Compute settings
     static constexpr int64_t TX_MAX_INSTRUCTIONS =
-        InitialSorobanNetworkConfig::TX_MAX_INSTRUCTIONS * 50;
+        InitialSorobanNetworkConfig::TX_MAX_INSTRUCTIONS * 100;
     static constexpr int64_t LEDGER_MAX_INSTRUCTIONS = TX_MAX_INSTRUCTIONS;
     static constexpr uint32_t MEMORY_LIMIT =
-        InitialSorobanNetworkConfig::MEMORY_LIMIT * 10;
+        InitialSorobanNetworkConfig::MEMORY_LIMIT * 100;
 
     // Ledger access settings
     static constexpr uint32_t TX_MAX_READ_LEDGER_ENTRIES =
-        InitialSorobanNetworkConfig::TX_MAX_READ_LEDGER_ENTRIES * 10;
+        InitialSorobanNetworkConfig::TX_MAX_READ_LEDGER_ENTRIES * 100;
     static constexpr uint32_t TX_MAX_READ_BYTES =
-        InitialSorobanNetworkConfig::TX_MAX_READ_BYTES * 10;
+        InitialSorobanNetworkConfig::TX_MAX_READ_BYTES * 1000;
     static constexpr uint32_t TX_MAX_WRITE_LEDGER_ENTRIES =
-        InitialSorobanNetworkConfig::TX_MAX_WRITE_LEDGER_ENTRIES * 10;
+        InitialSorobanNetworkConfig::TX_MAX_WRITE_LEDGER_ENTRIES * 100;
     static constexpr uint32_t TX_MAX_WRITE_BYTES =
-        InitialSorobanNetworkConfig::TX_MAX_WRITE_BYTES * 10;
+        InitialSorobanNetworkConfig::TX_MAX_WRITE_BYTES * 1000;
     static constexpr uint32_t LEDGER_MAX_READ_LEDGER_ENTRIES =
         TX_MAX_READ_LEDGER_ENTRIES;
     static constexpr uint32_t LEDGER_MAX_READ_BYTES = TX_MAX_READ_BYTES;
@@ -177,7 +177,7 @@ struct TestOverrideSorobanNetworkConfig
 
     // Bandwidth settings
     static constexpr uint32_t TX_MAX_SIZE_BYTES =
-        InitialSorobanNetworkConfig::TX_MAX_SIZE_BYTES * 5;
+        InitialSorobanNetworkConfig::TX_MAX_SIZE_BYTES * 50;
     static constexpr uint32_t LEDGER_MAX_TRANSACTION_SIZES_BYTES =
         TX_MAX_SIZE_BYTES;
 
@@ -190,7 +190,7 @@ struct TestOverrideSorobanNetworkConfig
 
     // General execution settings
     static constexpr uint32_t LEDGER_MAX_TX_COUNT =
-        InitialSorobanNetworkConfig::LEDGER_MAX_TX_COUNT * 5;
+        InitialSorobanNetworkConfig::LEDGER_MAX_TX_COUNT * 50;
 };
 
 // Wrapper for the contract-related network configuration.
