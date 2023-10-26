@@ -190,7 +190,8 @@ TransactionFramePtr createSimpleDexTx(Application& app, TestAccount& account,
 TransactionFramePtr createUploadWasmTx(
     Application& app, TestAccount& account, uint32_t inclusionFee,
     uint32_t resourceFee, SorobanResources resources,
-    std::optional<std::string> memo = std::nullopt, int addInvalidOps = 0);
+    std::optional<std::string> memo = std::nullopt, int addInvalidOps = 0,
+    std::optional<uint32_t> wasmSize = std::nullopt);
 int64_t sorobanResourceFee(Application& app, SorobanResources const& resources,
                            uint32_t txSize, uint32_t eventsSize);
 
