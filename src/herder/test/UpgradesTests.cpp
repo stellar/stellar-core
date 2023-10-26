@@ -232,15 +232,17 @@ makeFlagsUpgrade(int flags)
 }
 
 ConfigUpgradeSetFrameConstPtr
-makeMaxContractSizeBytesTestUpgrade(AbstractLedgerTxn& ltx,
-                                    uint32_t maxContractSizeBytes)
+makeMaxContractSizeBytesTestUpgrade(
+    AbstractLedgerTxn& ltx, uint32_t maxContractSizeBytes,
+    bool expiredEntry = false,
+    ContractDataDurability type = ContractDataDurability::TEMPORARY)
 {
     // Make entry for the upgrade
     ConfigUpgradeSet configUpgradeSet;
     auto& configEntry = configUpgradeSet.updatedEntry.emplace_back();
     configEntry.configSettingID(CONFIG_SETTING_CONTRACT_MAX_SIZE_BYTES);
     configEntry.contractMaxSizeBytes() = maxContractSizeBytes;
-    return makeConfigUpgradeSet(ltx, configUpgradeSet);
+    return makeConfigUpgradeSet(ltx, configUpgradeSet, expiredEntry, type);
 }
 
 LedgerKey
@@ -613,6 +615,27 @@ TEST_CASE("config upgrade validation", "[upgrades]")
     LedgerHeader header;
     header.ledgerVersion = static_cast<uint32_t>(SOROBAN_PROTOCOL_VERSION);
     header.scpValue.closeTime = headerTime;
+
+    SECTION("expired config upgrade entry")
+    {
+        LedgerTxn ltx(app->getLedgerTxnRoot());
+        // This will attempt to construct an upgrade set from an expired
+        // entry. This is invalid, so the returned upgrade set should be
+        // null.
+        REQUIRE(makeMaxContractSizeBytesTestUpgrade(
+                    ltx, 32768, /*expiredEntry=*/true) == nullptr);
+    }
+
+    SECTION("PERSISTENT config upgrade entry")
+    {
+        LedgerTxn ltx(app->getLedgerTxnRoot());
+        // This will attempt to construct an upgrade set from a PERSISTENT
+        // entry. This is invalid, so the returned upgrade set should be
+        // null.
+        REQUIRE(makeMaxContractSizeBytesTestUpgrade(
+                    ltx, 32768, /*expiredEntry=*/false,
+                    ContractDataDurability::PERSISTENT) == nullptr);
+    }
 
     ConfigUpgradeSetFrameConstPtr configUpgradeSet;
     Upgrades::UpgradeParameters scheduledUpgrades;
