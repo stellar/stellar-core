@@ -97,6 +97,12 @@ class Resource
         return mResources.at(static_cast<size_t>(valType));
     }
 
+    void
+    setVal(Resource::Type valType, int64_t val)
+    {
+        mResources.at(static_cast<size_t>(valType)) = val;
+    }
+
     bool canAdd(Resource const& other) const;
 
     friend Resource multiplyByDouble(Resource const& res, double m);
