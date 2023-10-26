@@ -245,6 +245,25 @@ makeMaxContractSizeBytesTestUpgrade(
     return makeConfigUpgradeSet(ltx, configUpgradeSet, expiredEntry, type);
 }
 
+ConfigUpgradeSetFrameConstPtr
+makeBucketListSizeWindowSampleSizeTestUpgrade(Application& app,
+                                              AbstractLedgerTxn& ltx,
+                                              uint32_t newWindowSize)
+{
+    // Modify window size
+    auto sas = app.getLedgerManager()
+                   .getSorobanNetworkConfig(ltx)
+                   .stateArchivalSettings();
+    sas.bucketListSizeWindowSampleSize = newWindowSize;
+
+    // Make entry for the upgrade
+    ConfigUpgradeSet configUpgradeSet;
+    auto& configEntry = configUpgradeSet.updatedEntry.emplace_back();
+    configEntry.configSettingID(CONFIG_SETTING_STATE_ARCHIVAL);
+    configEntry.stateArchivalSettings() = sas;
+    return makeConfigUpgradeSet(ltx, configUpgradeSet);
+}
+
 LedgerKey
 getMaxContractSizeKey()
 {
@@ -843,6 +862,133 @@ TEST_CASE("config upgrades applied to ledger", "[soroban][upgrades]")
                 CONFIG_SETTING_CONTRACT_MAX_SIZE_BYTES);
         REQUIRE(sorobanConfig.maxContractSizeBytes() == 32768);
     }
+
+    SECTION("modify BucketListSizeWindowSampleSize")
+    {
+        auto populateValuesAndUpgradeSize = [&](uint32_t size) {
+            ConfigUpgradeSetFrameConstPtr configUpgradeSet;
+            {
+                LedgerTxn ltx2(app->getLedgerTxnRoot());
+                auto& cfg =
+                    app->getLedgerManager().getMutableSorobanNetworkConfig(
+                        ltx2);
+
+                // Populate sliding window with interesting values
+                auto i = 0;
+                for (auto& val : cfg.mBucketListSizeSnapshots)
+                {
+                    val = i++;
+                }
+                cfg.writeBucketListSizeWindow(ltx2);
+                cfg.updateBucketListSizeAverage();
+
+                configUpgradeSet =
+                    makeBucketListSizeWindowSampleSizeTestUpgrade(*app, ltx2,
+                                                                  size);
+                ltx2.commit();
+            }
+
+            REQUIRE(configUpgradeSet);
+            executeUpgrade(*app, makeConfigUpgrade(*configUpgradeSet));
+        };
+
+        SECTION("decrease size")
+        {
+            auto const newSize = 20;
+            populateValuesAndUpgradeSize(newSize);
+            LedgerTxn ltx2(app->getLedgerTxnRoot());
+            auto const& cfg =
+                app->getLedgerManager().getSorobanNetworkConfig(ltx2);
+
+            // Verify that we popped the 10 oldest values
+            auto sum = 0;
+            auto expectedValue = 10;
+            REQUIRE(cfg.mBucketListSizeSnapshots.size() == newSize);
+            for (auto const val : cfg.mBucketListSizeSnapshots)
+            {
+                REQUIRE(val == expectedValue);
+                sum += expectedValue;
+                ++expectedValue;
+            }
+
+            // Verify average has been properly updated as well
+            REQUIRE(cfg.getAverageBucketListSize() == (sum / newSize));
+        }
+
+        SECTION("increase size")
+        {
+            auto const newSize = 40;
+            populateValuesAndUpgradeSize(newSize);
+            LedgerTxn ltx2(app->getLedgerTxnRoot());
+            auto const& cfg =
+                app->getLedgerManager().getSorobanNetworkConfig(ltx2);
+
+            // Verify that we backfill 10 copies of the oldest value
+            auto sum = 0;
+            auto expectedValue = 0;
+            REQUIRE(cfg.mBucketListSizeSnapshots.size() == newSize);
+            for (auto i = 0; i < cfg.mBucketListSizeSnapshots.size(); ++i)
+            {
+                // First 11 values should be oldest value (0)
+                if (i > 10)
+                {
+                    ++expectedValue;
+                }
+
+                REQUIRE(cfg.mBucketListSizeSnapshots[i] == expectedValue);
+                sum += expectedValue;
+            }
+
+            // Verify average has been properly updated as well
+            REQUIRE(cfg.getAverageBucketListSize() == (sum / newSize));
+        }
+
+        auto testUpgradeHasNoEffect = [&](uint32_t size) {
+            uint32_t initialSize;
+            std::deque<uint64_t> initialWindow;
+            ConfigUpgradeSetFrameConstPtr configUpgradeSet;
+            {
+                LedgerTxn ltx2(app->getLedgerTxnRoot());
+
+                auto const& cfg =
+                    app->getLedgerManager().getSorobanNetworkConfig(ltx2);
+                initialSize =
+                    cfg.mStateArchivalSettings.bucketListSizeWindowSampleSize;
+                initialWindow = cfg.mBucketListSizeSnapshots;
+                REQUIRE(initialWindow.size() == initialSize);
+
+                configUpgradeSet =
+                    makeBucketListSizeWindowSampleSizeTestUpgrade(*app, ltx2,
+                                                                  size);
+                ltx2.commit();
+            }
+
+            REQUIRE(configUpgradeSet);
+            executeUpgrade(*app, makeConfigUpgrade(*configUpgradeSet));
+
+            LedgerTxn ltx2(app->getLedgerTxnRoot());
+
+            auto const& cfg =
+                app->getLedgerManager().getSorobanNetworkConfig(ltx2);
+            REQUIRE(cfg.mStateArchivalSettings.bucketListSizeWindowSampleSize ==
+                    initialSize);
+            REQUIRE(cfg.mBucketListSizeSnapshots == initialWindow);
+        };
+
+        SECTION("upgrade size to 0")
+        {
+            // Invalid new size, upgrade should have no effect
+            testUpgradeHasNoEffect(0);
+        }
+
+        SECTION("upgrade to same size")
+        {
+            // Upgrade to same size, should have no effect
+            testUpgradeHasNoEffect(InitialSorobanNetworkConfig::
+                                       BUCKET_LIST_SIZE_WINDOW_SAMPLE_SIZE);
+        }
+    }
+
     SECTION("multi-item config upgrade set is applied")
     {
         // Verify values pre-upgrade
