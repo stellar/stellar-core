@@ -14,6 +14,9 @@ tracy-client = { version = "=0.15.2", features = ["enable"], default-features = 
 cxx = "1.0"
 base64 = "0.13.0"
 rustc-simple-version = "0.1.0"
+# NB: this must match the same rand version used by soroban (but the tooling
+# will complain if it does not match)
+rand = "0.8.5"
 
 # This copy of the soroban host is always enabled, and should always point to a
 # version that supports stellar-core's Config::CURRENT_LEDGER_PROTOCOL_VERSION.
@@ -55,6 +58,10 @@ package = "soroban-env-host"
 rev = "91f44778389490ad863d61a8a90ac9875ba6d8fd"
 
 [dependencies.soroban-test-wasms]
+git = "https://github.com/stellar/rs-soroban-env"
+rev = "03fc6f93839533e358e5593a39161b25e2473263"
+
+[dependencies.soroban-synth-wasm]
 git = "https://github.com/stellar/rs-soroban-env"
 rev = "03fc6f93839533e358e5593a39161b25e2473263"
 

@@ -200,6 +200,9 @@ mod rust_bridge {
         fn get_test_wasm_err() -> Result<RustBuf>;
         fn get_write_bytes() -> Result<RustBuf>;
 
+        // Utility functions for generating wasms using soroban-synth-wasm.
+        fn get_random_wasm(size: usize, seed: u64) -> Result<RustBuf>;
+
         // Return the rustc version used to build this binary.
         fn get_rustc_version() -> String;
 
@@ -307,6 +310,56 @@ pub(crate) fn get_write_bytes() -> Result<RustBuf, Box<dyn std::error::Error>> {
     Ok(RustBuf {
         data: soroban_test_wasms::WRITE_BYTES.iter().cloned().collect(),
     })
+}
+
+fn get_random_wasm(size: usize, seed: u64) -> Result<RustBuf, Box<dyn std::error::Error>> {
+    use rand::{rngs::StdRng, RngCore, SeedableRng};
+    use soroban_synth_wasm::*;
+    let mut fe = ModEmitter::new().func(Arity(0), 0);
+
+    // Generate a very exciting wasm that pushes and drops random numbers.
+    //
+    // We want to generate a random i64 number that is exactly 6 bytes when
+    // encoded as LEB128, so that that number plus two 1-byte opcodes gets us to
+    // 8 bytes.
+    //
+    // LEB128 encodes 7 bits at a time into each byte. So a 6 byte output will
+    // encode 6 * 7 = 42 bits of input. Or it would if it was unsigned; signed
+    // LEB128 needs 1 bit from the MSB for sign-indication, so it's actually 41
+    // bits.
+    //
+    // We want to set the 41st bit of that to 1 to guarantee it's always set,
+    // and then the low 40 bits we will assign random data to.
+    let mut prng = StdRng::seed_from_u64(seed);
+    let n_loops = size / 8;
+    for _ in 0..n_loops {
+        let mut i = prng.next_u64();
+        // Cut the random number down to 41 bits.
+        i &= 0x0000_01ff_ffff_ffff;
+        // Ensure the number has its 41st bit set.
+        i |= 0x0000_0100_0000_0000;
+        // Emit a 1-byte opcode + 6 byte LEB128 = 7 bytes.
+        fe.i64_const(i as i64);
+        // Emit 1 more byte of opcode, making 8.
+        fe.drop();
+    }
+    // Push a return value.
+    fe.i64_const(0);
+    fe.ret();
+    Ok(RustBuf {
+        data: fe.finish_and_export("test").finish(),
+    })
+}
+
+#[test]
+fn test_get_random_wasm() {
+    // The header will grow to 96 bytes when the body is larger than 16k bytes
+    // but the first 10 sizes will all have a 94 byte header.
+    const HEADERSZ: usize = 94;
+    for i in 1..10 {
+        let wasm = get_random_wasm(1000 * i, i as u64).unwrap();
+        assert_eq!(wasm.data.len(), 1000 * i + HEADERSZ);
+    }
 }
 
 use rust_bridge::CxxBuf;
