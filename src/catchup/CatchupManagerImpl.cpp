@@ -177,7 +177,7 @@ CatchupManagerImpl::processLedger(LedgerCloseData const& ledgerData)
     std::string message;
     uint32_t firstLedgerInBuffer = mSyncingLedgers.begin()->first;
     uint32_t lastLedgerInBuffer = mSyncingLedgers.crbegin()->first;
-    if (mApp.getConfig().MODE_DOES_CATCHUP &&
+    if (mApp.getConfig().modeDoesCatchupWithBucketList() &&
         hm.isFirstLedgerInCheckpoint(firstLedgerInBuffer) &&
         firstLedgerInBuffer < lastLedgerInBuffer)
     {
