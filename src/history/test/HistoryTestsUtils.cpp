@@ -657,10 +657,9 @@ CatchupSimulation::crankUntil(Application::pointer app,
 }
 
 Application::pointer
-CatchupSimulation::createCatchupApplication(uint32_t count,
-                                            Config::TestDbMode dbMode,
-                                            std::string const& appName,
-                                            bool publish, bool useBucketListDB)
+CatchupSimulation::createCatchupApplication(
+    uint32_t count, Config::TestDbMode dbMode, std::string const& appName,
+    bool publish, bool useBucketListDB, std::optional<uint32_t> ledgerVersion)
 {
     CLOG_INFO(History, "****");
     CLOG_INFO(History, "**** Create app for catchup: '{}'", appName);
@@ -672,6 +671,10 @@ CatchupSimulation::createCatchupApplication(uint32_t count,
         count == std::numeric_limits<uint32_t>::max();
     mCfgs.back().CATCHUP_RECENT = count;
     mCfgs.back().EXPERIMENTAL_BUCKETLIST_DB = useBucketListDB;
+    if (ledgerVersion)
+    {
+        mCfgs.back().TESTING_UPGRADE_LEDGER_PROTOCOL_VERSION = *ledgerVersion;
+    }
     mSpawnedAppsClocks.emplace_front();
     auto newApp = createTestApplication(
         mSpawnedAppsClocks.front(),
