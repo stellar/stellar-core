@@ -27,7 +27,18 @@ class VerifyLedgerChainWork : public BasicWork
     uint32_t mCurrCheckpoint;
     LedgerNumHashPair const mLastClosed;
 
-    std::optional<HistoryManager::LedgerVerificationStatus> mLocalFailure;
+    // Record any instance where the chain we're verifying disagrees with the
+    // local node state. This _might_ mean we can't possibly catch up (eg. we're
+    // on a too-old core or something) or it _might_ mean we're reading from a
+    // corrupt archive. The next flag differentiates cases.
+    std::optional<HistoryManager::LedgerVerificationStatus>
+        mChainDisagreesWithLocalState;
+
+    // Record whether we were instantiated with an initial head-of-chain hash
+    // that we trust to be the network consensus. If this is true, then any
+    // local-node disagreement is our problem, not a possible corrupt archive,
+    // and we should treat it as an unrecoverable error (i.e. set the promise
+    // below, to stop further catchup-retries).
     bool mHasTrustedHash{false};
 
     // Record if archive validity was verified, and core hit an unrecoverable

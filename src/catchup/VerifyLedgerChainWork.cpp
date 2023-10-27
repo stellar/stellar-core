@@ -152,7 +152,7 @@ VerifyLedgerChainWork::onReset()
                           ? 0
                           : mApp.getHistoryManager().checkpointContainingLedger(
                                 mRange.last());
-    mLocalFailure.reset();
+    mChainDisagreesWithLocalState.reset();
     mHasTrustedHash = false;
 }
 
@@ -204,7 +204,7 @@ VerifyLedgerChainWork::verifyHistoryOfSingleCheckpoint()
         {
             // Note that local state does not agree with the archives; depending
             // on the presence of trusted hash
-            mLocalFailure =
+            mChainDisagreesWithLocalState =
                 HistoryManager::VERIFY_STATUS_ERR_BAD_LEDGER_VERSION;
         }
 
@@ -221,7 +221,8 @@ VerifyLedgerChainWork::verifyHistoryOfSingleCheckpoint()
                            LedgerManager::ledgerAbbrev(curr),
                            LedgerManager::ledgerAbbrev(mLastClosed.first,
                                                        *mLastClosed.second));
-                mLocalFailure = HistoryManager::VERIFY_STATUS_ERR_BAD_HASH;
+                mChainDisagreesWithLocalState =
+                    HistoryManager::VERIFY_STATUS_ERR_BAD_HASH;
             }
         }
         // Verify LCL that is just before the first ledger in range
@@ -236,7 +237,7 @@ VerifyLedgerChainWork::verifyHistoryOfSingleCheckpoint()
                            LedgerManager::ledgerAbbrev(curr),
                            LedgerManager::ledgerAbbrev(mLastClosed.first,
                                                        *mLastClosed.second));
-                mLocalFailure = lclResult;
+                mChainDisagreesWithLocalState = lclResult;
             }
         }
 
@@ -401,7 +402,8 @@ VerifyLedgerChainWork::verifyHistoryOfSingleCheckpoint()
 void
 VerifyLedgerChainWork::onSuccess()
 {
-    trySetFuture<bool>(mFatalFailurePromise, mLocalFailure && mHasTrustedHash);
+    trySetFuture<bool>(mFatalFailurePromise,
+                       mChainDisagreesWithLocalState && mHasTrustedHash);
 
     if (mOutputStream)
     {
@@ -416,7 +418,8 @@ VerifyLedgerChainWork::onSuccess()
 void
 VerifyLedgerChainWork::onFailureRaise()
 {
-    trySetFuture<bool>(mFatalFailurePromise, mLocalFailure && mHasTrustedHash);
+    trySetFuture<bool>(mFatalFailurePromise,
+                       mChainDisagreesWithLocalState && mHasTrustedHash);
 }
 
 BasicWork::State
@@ -459,9 +462,9 @@ VerifyLedgerChainWork::onRun()
         mCurrCheckpoint ==
             mApp.getHistoryManager().checkpointContainingLedger(mRange.mFirst))
     {
-        if (mLocalFailure)
+        if (mChainDisagreesWithLocalState)
         {
-            result = *mLocalFailure;
+            result = *mChainDisagreesWithLocalState;
         }
     }
 
@@ -488,7 +491,7 @@ VerifyLedgerChainWork::onRun()
         CLOG_ERROR(History, "Catchup material failed verification - hash "
                             "mismatch, propagating failure");
         CLOG_ERROR(History, "{}",
-                   (mLocalFailure && mHasTrustedHash)
+                   (mChainDisagreesWithLocalState && mHasTrustedHash)
                        ? POSSIBLY_CORRUPTED_LOCAL_DATA
                        : POSSIBLY_CORRUPTED_HISTORY);
         mApp.getCatchupManager().ledgerChainsVerificationFailed();
