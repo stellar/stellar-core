@@ -37,7 +37,7 @@ struct MinimumSorobanNetworkConfig
 
     static constexpr uint32_t MINIMUM_TEMP_ENTRY_LIFETIME = 16;
     static constexpr uint32_t MINIMUM_PERSISTENT_ENTRY_LIFETIME = 10;
-    static constexpr uint32_t MAXIMUM_ENTRY_LIFETIME = 535'680; // 31 days
+    static constexpr uint32_t MAXIMUM_ENTRY_LIFETIME = 1'054'080; // 61 days
     static constexpr int64_t RENT_RATE_DENOMINATOR = INT64_MAX;
     static constexpr uint32_t MAX_ENTRIES_TO_ARCHIVE = 0;
     static constexpr uint32_t BUCKETLIST_SIZE_WINDOW_SAMPLE_SIZE = 1;
