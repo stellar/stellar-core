@@ -329,11 +329,6 @@ use rust_bridge::VersionNumPair;
 use rust_bridge::VersionStringPair;
 use rust_bridge::XDRHashesPair;
 
-#[cfg(not(feature = "core-vnext"))]
-use soroban_env_common_curr::xdr as xdr;
-#[cfg(feature = "next")]
-use soroban_env_common_prev::xdr as xdr;
-
 mod log;
 use crate::log::init_logging;
 
@@ -783,6 +778,8 @@ pub(crate) fn compute_write_fee_per_1kb(
 
 pub fn json_to_config_upgrade_set(file_name: &CxxString) -> Result<RustBuf, Box<dyn std::error::Error>>
 {
+    use soroban_env_common_curr::xdr as xdr;
+    
     let file = fs::File::open(file_name.to_str()?).expect("file should open read only");
 
     let upgradeSet: xdr::ConfigUpgradeSet = serde_json::from_reader(file)

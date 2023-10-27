@@ -13,7 +13,7 @@ void dumpXdrStream(std::string const& filename, bool json);
 void printXdr(std::string const& filename, std::string const& filetype,
               bool base64, bool compact, bool rawMode);
 void signtxns(std::vector<TransactionEnvelope>& txenvs, std::string netId,
-              bool base64, bool txn_stdin);
+              bool base64, bool txn_stdin, bool dump_hex_txid);
 void signtxn(std::string const& filename, std::string netId, bool base64);
 void priv2pub();
 void readFile(const std::string& filename, bool base64,

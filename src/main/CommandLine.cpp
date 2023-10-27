@@ -1247,7 +1247,7 @@ getSettingsUpgradeTransactions(CommandLineArgs const& args)
 
             if (signTxs)
             {
-                signtxns(txsToSign, netId, true, false);
+                signtxns(txsToSign, netId, true, false, true);
             }
             else
             {

@@ -375,7 +375,7 @@ readSecret(const std::string& prompt, bool force_tty)
 
 void
 signtxns(std::vector<TransactionEnvelope>& txEnvs, std::string netId,
-         bool base64, bool txn_stdin)
+         bool base64, bool txn_stdin, bool dump_hex_txid)
 {
     SecretKey sk(SecretKey::fromStrKeySeed(readSecret(
         fmt::format(FMT_STRING("Secret key seed [network id: '{}']: "), netId),
@@ -412,15 +412,22 @@ signtxns(std::vector<TransactionEnvelope>& txEnvs, std::string netId,
             abort();
         }
 
+        auto payloadHash = sha256(xdr::xdr_to_opaque(payload));
+
         signatures.emplace_back(
             SignatureUtils::getHint(sk.getPublicKey().ed25519()),
-            sk.sign(sha256(xdr::xdr_to_opaque(payload))));
+            sk.sign(payloadHash));
 
         auto out = xdr::xdr_to_opaque(txEnv);
         if (base64)
-            std::cout << decoder::encode_b64(out) << std::endl << std::endl;
+            std::cout << decoder::encode_b64(out) << std::endl;
         else
             std::cout.write(reinterpret_cast<char*>(out.data()), out.size());
+
+        if (dump_hex_txid)
+        {
+            std::cout << binToHex(xdr::xdr_to_opaque(payloadHash)) << std::endl;
+        }
     }
 }
 
@@ -449,7 +456,7 @@ signtxn(std::string const& filename, std::string netId, bool base64)
             xdr::xdr_from_opaque(d, txEnv);
 
             std::vector<TransactionEnvelope> txEnvs = {txEnv};
-            signtxns(txEnvs, netId, base64, txn_stdin);
+            signtxns(txEnvs, netId, base64, txn_stdin, false);
         });
     }
     catch (const std::exception& e)
