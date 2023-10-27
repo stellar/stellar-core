@@ -498,6 +498,12 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e2abad23fbc42b3700f2f279844dc832adb2b2eb069b2df918f455c4e18cc646"
 
 [[package]]
+name = "leb128"
+version = "0.2.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "884e2677b40cc8c339eaefcb701c32ef1fd2493d71118dc0ca4b6a736c93bd67"
+
+[[package]]
 name = "libc"
 version = "0.2.146"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1052,6 +1058,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "soroban-synth-wasm"
+version = "20.0.0-rc2"
+source = "git+https://github.com/stellar/rs-soroban-env?rev=03fc6f93839533e358e5593a39161b25e2473263#03fc6f93839533e358e5593a39161b25e2473263"
+dependencies = [
+ "soroban-env-common 20.0.0-rc2 (git+https://github.com/stellar/rs-soroban-env?rev=03fc6f93839533e358e5593a39161b25e2473263)",
+ "wasm-encoder",
+ "wasmparser",
+]
+
+[[package]]
 name = "soroban-test-wasms"
 version = "20.0.0-rc2"
 source = "git+https://github.com/stellar/rs-soroban-env?rev=03fc6f93839533e358e5593a39161b25e2473263#03fc6f93839533e358e5593a39161b25e2473263"
@@ -1098,9 +1114,11 @@ dependencies = [
  "cargo-lock",
  "cxx",
  "log",
+ "rand",
  "rustc-simple-version",
  "soroban-env-host 20.0.0-rc2 (git+https://github.com/stellar/rs-soroban-env?rev=03fc6f93839533e358e5593a39161b25e2473263)",
  "soroban-env-host 20.0.0-rc2 (git+https://github.com/stellar/rs-soroban-env?rev=91f44778389490ad863d61a8a90ac9875ba6d8fd)",
+ "soroban-synth-wasm",
  "soroban-test-wasms",
  "tracy-client",
 ]
@@ -1417,6 +1435,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ca6ad05a4870b2bf5fe995117d3728437bd27d7cd5f06f13c17443ef369775a1"
 
 [[package]]
+name = "wasm-encoder"
+version = "0.18.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c64ac98d5d61192cc45c701b7e4bd0b9aff91e2edfc7a088406cfe2288581e2c"
+dependencies = [
+ "leb128",
+]
+
+[[package]]
 name = "wasmi_arena"
 version = "0.4.0"
 source = "git+https://github.com/stellar/wasmi?rev=7e63b4c9e08c4163f417d118d81f7ea34789d0be#7e63b4c9e08c4163f417d118d81f7ea34789d0be"
@@ -1430,6 +1457,16 @@ dependencies = [
  "libm",
  "num-traits",
  "paste",
+]
+
+[[package]]
+name = "wasmparser"
+version = "0.106.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d014e33793cab91655fa6349b0bc974984de106b2e0f6b0dfe6f6594b260624d"
+dependencies = [
+ "indexmap",
+ "url",
 ]
 
 [[package]]
