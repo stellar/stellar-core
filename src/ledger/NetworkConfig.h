@@ -290,7 +290,6 @@ class SorobanNetworkConfig
 
 #ifdef BUILD_TESTS
     void setBucketListSnapshotPeriodForTesting(uint32_t period);
-    std::deque<uint64_t> const& getBucketListSizeWindowForTesting() const;
 #endif
 
     static bool isValidConfigSettingEntry(ConfigSettingEntry const& cfg);
@@ -342,8 +341,6 @@ class SorobanNetworkConfig
     // window until it has newSize entries.
     void maybeUpdateBucketListWindowSize(AbstractLedgerTxn& ltx);
 
-    void writeBucketListSizeWindow(AbstractLedgerTxn& ltxRoot) const;
-    void updateBucketListSizeAverage();
 // Expose all the fields for testing overrides in order to avoid using
 // special test-only field setters.
 // Access this via
@@ -354,6 +351,9 @@ class SorobanNetworkConfig
 #ifdef BUILD_TESTS
   public:
 #endif
+
+    void writeBucketListSizeWindow(AbstractLedgerTxn& ltxRoot) const;
+    void updateBucketListSizeAverage();
 
     uint32_t mMaxContractSizeBytes{};
     uint32_t mMaxContractDataKeySizeBytes{};
