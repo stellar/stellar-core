@@ -470,7 +470,7 @@ LoadGenerator::generateLoad(GeneratedLoadConfig cfg)
             {
                 generateTx = [&]() {
                     SorobanResources resources;
-                    uint32_t wasmSize{1000};
+                    uint32_t wasmSize{};
                     {
                         LedgerTxn ltx(
                             mApp.getLedgerTxnRoot(), true,
@@ -488,17 +488,35 @@ LoadGenerator::generateLoad(GeneratedLoadConfig cfg)
                         resources.readBytes = rand_uniform<uint32_t>(
                             1, maxPerTx.getVal(Resource::Type::READ_BYTES));
                         resources.writeBytes = rand_uniform<uint32_t>(
-                            1, maxPerTx.getVal(Resource::Type::WRITE_BYTES));
-                        auto keys = LedgerTestUtils::
+                            // Allocate at least enough write bytes to write the
+                            // whole Wasm plus the 40 bytes of the key.
+                            wasmSize + 40,
+                            maxPerTx.getVal(Resource::Type::WRITE_BYTES));
+
+                        auto writeKeys = LedgerTestUtils::
                             generateUniqueValidSorobanLedgerEntryKeys(
                                 rand_uniform<uint32_t>(
-                                    1,
+                                    0,
                                     maxPerTx.getVal(
-                                        Resource::Type::WRITE_LEDGER_ENTRIES)));
+                                        Resource::Type::WRITE_LEDGER_ENTRIES) -
+                                        1));
 
-                        for (auto const& key : keys)
+                        for (auto const& key : writeKeys)
                         {
                             resources.footprint.readWrite.emplace_back(key);
+                        }
+
+                        auto readKeys = LedgerTestUtils::
+                            generateUniqueValidSorobanLedgerEntryKeys(
+                                rand_uniform<uint32_t>(
+                                    0,
+                                    maxPerTx.getVal(
+                                        Resource::Type::READ_LEDGER_ENTRIES) -
+                                        writeKeys.size() - 1));
+
+                        for (auto const& key : readKeys)
+                        {
+                            resources.footprint.readOnly.emplace_back(key);
                         }
                     }
 
@@ -854,19 +872,20 @@ LoadGenerator::sorobanTransaction(uint32_t numAccounts, uint32_t offset,
                                   uint32_t inclusionFee)
 {
     auto account = findAccount(accountId, ledgerNum);
-    Operation deployOp;
-    deployOp.body.type(INVOKE_HOST_FUNCTION);
-    auto& uploadHF = deployOp.body.invokeHostFunctionOp().hostFunction;
-    uploadHF.type(HOST_FUNCTION_TYPE_UPLOAD_CONTRACT_WASM);
-    uploadHF.wasm().resize(wasmSize);
-    auto byteDistr = uniform_int_distribution<uint8_t>();
-    std::generate(uploadHF.wasm().begin(), uploadHF.wasm().end(),
-                  [&byteDistr]() { return byteDistr(gRandomEngine); });
+    Operation uploadOp = createUploadWasmOperation(wasmSize);
+    LedgerKey contractCodeLedgerKey;
+    contractCodeLedgerKey.type(CONTRACT_CODE);
+    contractCodeLedgerKey.contractCode().hash =
+        sha256(uploadOp.body.invokeHostFunctionOp().hostFunction.wasm());
+    resources.footprint.readWrite.push_back(contractCodeLedgerKey);
+
     int64_t resourceFee =
         sorobanResourceFee(mApp, resources, 5000 + wasmSize, 100);
+    // Roughly cover the rent fee.
+    resourceFee += 100000;
     auto tx = std::dynamic_pointer_cast<TransactionFrame>(
         sorobanTransactionFrameFromOps(mApp.getNetworkID(), *account,
-                                       {deployOp}, {}, resources, inclusionFee,
+                                       {uploadOp}, {}, resources, inclusionFee,
                                        resourceFee));
     return std::make_pair(account, tx);
 }

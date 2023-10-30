@@ -187,6 +187,12 @@ TransactionFramePtr createCreditPaymentTx(Application& app,
 TransactionFramePtr createSimpleDexTx(Application& app, TestAccount& account,
                                       uint32 nbOps, uint32_t fee);
 
+// Generates `UPLOAD_CONTRACT_WASM` host function operation with
+// valid Wasm of *roughly* `generatedWasmSize` (within a few bytes).
+// The output size deterministically depends on the input
+// `generatedWasmSize`.
+Operation createUploadWasmOperation(uint32_t generatedWasmSize);
+
 TransactionFramePtr createUploadWasmTx(
     Application& app, TestAccount& account, uint32_t inclusionFee,
     uint32_t resourceFee, SorobanResources resources,
