@@ -1593,7 +1593,8 @@ TEST_CASE("tx set hits overlay byte limit during construction")
         }
 
         TxSetFrame::TxPhases invalidPhases;
-        invalidPhases.resize(2);
+        invalidPhases.resize(
+            static_cast<size_t>(TxSetFrame::Phase::PHASE_COUNT));
 
         TxSetFrame::TxPhases phases;
         if (phase == TxSetFrame::Phase::SOROBAN)
@@ -1675,7 +1676,8 @@ TEST_CASE("surge pricing", "[herder][txset][soroban]")
                 *app, root, baseFee, DEFAULT_TEST_RESOURCE_FEE, resources);
 
             TxSetFrame::TxPhases invalidTxs;
-            invalidTxs.resize(2);
+            invalidTxs.resize(
+                static_cast<size_t>(TxSetFrame::Phase::PHASE_COUNT));
             TxSetFrameConstPtr txSet = TxSetFrame::makeFromTransactions(
                 TxSetFrame::TxPhases{{}, {sorobanTx}}, *app, 0, 0, invalidTxs);
 
@@ -1789,7 +1791,8 @@ TEST_CASE("surge pricing", "[herder][txset][soroban]")
                     *app, acc2, baseFee, DEFAULT_TEST_RESOURCE_FEE, resources);
             }
             TxSetFrame::TxPhases invalidPhases;
-            invalidPhases.resize(2);
+            invalidPhases.resize(
+                static_cast<size_t>(TxSetFrame::Phase::PHASE_COUNT));
             TxSetFrameConstPtr txSet = TxSetFrame::makeFromTransactions(
                 TxSetFrame::TxPhases{{tx}, {invalidSoroban}}, *app, 0, 0,
                 invalidPhases);
@@ -1804,7 +1807,8 @@ TEST_CASE("surge pricing", "[herder][txset][soroban]")
         SECTION("classic and soroban fit")
         {
             TxSetFrame::TxPhases invalidPhases;
-            invalidPhases.resize(2);
+            invalidPhases.resize(
+                static_cast<size_t>(TxSetFrame::Phase::PHASE_COUNT));
             TxSetFrameConstPtr txSet = TxSetFrame::makeFromTransactions(
                 TxSetFrame::TxPhases{{tx}, {sorobanTx}}, *app, 0, 0,
                 invalidPhases);
@@ -1829,7 +1833,8 @@ TEST_CASE("surge pricing", "[herder][txset][soroban]")
             auto sorobanTxHighFee = createUploadWasmTx(
                 *app, acc3, baseFee * 2, DEFAULT_TEST_RESOURCE_FEE, resources);
             TxSetFrame::TxPhases invalidPhases;
-            invalidPhases.resize(2);
+            invalidPhases.resize(
+                static_cast<size_t>(TxSetFrame::Phase::PHASE_COUNT));
             TxSetFrameConstPtr txSet = TxSetFrame::makeFromTransactions(
                 TxSetFrame::TxPhases{{tx}, {sorobanTx, sorobanTxHighFee}}, *app,
                 0, 0, invalidPhases);
@@ -1865,7 +1870,8 @@ TEST_CASE("surge pricing", "[herder][txset][soroban]")
                 *app, acc4, baseFee / 10, DEFAULT_TEST_RESOURCE_FEE, resources);
 
             TxSetFrame::TxPhases invalidPhases;
-            invalidPhases.resize(2);
+            invalidPhases.resize(
+                static_cast<size_t>(TxSetFrame::Phase::PHASE_COUNT));
             TxSetFrameConstPtr txSet = TxSetFrame::makeFromTransactions(
                 TxSetFrame::TxPhases{
                     {tx}, {sorobanTxHighFee, smallSorobanLowFee, sorobanTx}},
@@ -1896,7 +1902,8 @@ TEST_CASE("surge pricing", "[herder][txset][soroban]")
                 SECTION("iteration " + std::to_string(i))
                 {
                     TxSetFrame::TxPhases invalidPhases;
-                    invalidPhases.resize(2);
+                    invalidPhases.resize(
+                        static_cast<size_t>(TxSetFrame::Phase::PHASE_COUNT));
                     TxSetFrameConstPtr txSet = TxSetFrame::makeFromTransactions(
                         TxSetFrame::TxPhases{{tx}, generateTxs(accounts, conf)},
                         *app, 0, 0, invalidPhases);

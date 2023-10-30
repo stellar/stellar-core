@@ -1303,8 +1303,8 @@ SorobanTransactionQueue::broadcastSome()
 
     LedgerTxn ltx(mApp.getLedgerTxnRoot(), true,
                   TransactionMode::READ_ONLY_WITHOUT_SQL_TXN);
-    Resource maxPerTx = mApp.getLedgerManager().maxTransactionResources(
-        /* isSoroban */ true, ltx);
+    Resource maxPerTx =
+        mApp.getLedgerManager().maxSorobanTransactionResources(ltx);
     for (auto& resLeft : mBroadcastOpCarryover)
     {
         // Limit carry-over to 1 maximum resource transaction

@@ -122,8 +122,8 @@ class LedgerManager
 
     virtual Resource maxLedgerResources(bool isSoroban,
                                         AbstractLedgerTxn& ltxOuter) = 0;
-    virtual Resource maxTransactionResources(bool isSoroban,
-                                             AbstractLedgerTxn& ltxOuter) = 0;
+    virtual Resource
+    maxSorobanTransactionResources(AbstractLedgerTxn& ltxOuter) = 0;
 
     // Return the network config for Soroban.
     // The config is automatically refreshed on protocol upgrades.
