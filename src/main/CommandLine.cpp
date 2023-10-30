@@ -1194,7 +1194,6 @@ getSettingsUpgradeTransactions(CommandLineArgs const& args)
     std::string netId;
 
     int64_t seqNum;
-    std::string upgradeFile;
 
     bool signTxs = false;
 
@@ -1210,6 +1209,14 @@ getSettingsUpgradeTransactions(CommandLineArgs const& args)
 
     std::string id;
 
+    std::string jsonFile;
+    auto jsonOption = clara::Opt{jsonFile, "JSON-FILE-NAME"}["--json"](
+        "File with ConfigUpgradeSet in JSON format");
+
+    std::string base64Xdr;
+    auto base64Option = clara::Opt{base64Xdr, "XDR-BASE64"}["--xdr"](
+        "ConfigUpgradeSet in base64");
+
     ParserWithValidation seqNumParser{
         clara::Arg(seqNum, "SequenceNumber").required(),
         [&] { return seqNum >= 0 ? "" : "SequenceNumber must be >= 0"; }};
@@ -1217,13 +1224,27 @@ getSettingsUpgradeTransactions(CommandLineArgs const& args)
     return runWithHelp(
         args,
         {requiredArgParser(id, "PublicKey"), seqNumParser,
-         requiredArgParser(netId, "NetworkPassphrase"),
-         requiredArgParser(upgradeFile, "CONFIG-UPGRADE-SET-FILE"),
-         signTxnOption},
+         requiredArgParser(netId, "NetworkPassphrase"), jsonOption,
+         base64Option, signTxnOption},
         [&] {
-            RustBuf buf = rust_bridge::json_to_config_upgrade_set(upgradeFile);
+            if (jsonFile.empty() == base64Xdr.empty())
+            {
+                throw std::runtime_error(
+                    "Must specify exactly one of --xdr or --json");
+            }
+
             ConfigUpgradeSet upgradeSet;
-            xdr::xdr_from_opaque(buf.data, upgradeSet);
+            if (jsonFile.empty())
+            {
+                std::vector<uint8_t> binBlob;
+                decoder::decode_b64(base64Xdr, binBlob);
+                xdr::xdr_from_opaque(binBlob, upgradeSet);
+            }
+            else
+            {
+                RustBuf buf = rust_bridge::json_to_config_upgrade_set(jsonFile);
+                xdr::xdr_from_opaque(buf.data, upgradeSet);
+            }
 
             PublicKey pk = KeyUtils::fromStrKey<PublicKey>(id);
 
