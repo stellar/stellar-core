@@ -349,12 +349,7 @@ SurgePricingPriorityQueue::canFitWithEviction(
     auto txNewResources = mLaneConfig->getTxResources(tx);
     if (txDiscount)
     {
-        if (anyLessThan(txNewResources, *txDiscount))
-        {
-            throw std::invalid_argument("Discount shouldn't be larger than "
-                                        "transaction operations count");
-        }
-        txNewResources -= *txDiscount;
+        txNewResources = subtractNonNegative(txNewResources, *txDiscount);
     }
 
     if (anyGreater(txNewResources, mLaneLimits[GENERIC_LANE]) ||

@@ -245,8 +245,8 @@ TransactionQueue::canAdd(TransactionFrameBasePtr tx,
             mApp.getConfig());
     }
 
-    int64_t newInclusionFee = tx->getInclusionFee();
-    if (newInclusionFee < 0)
+    int64_t newFullFee = tx->getFullFee();
+    if (tx->getInclusionFee() < 0 || newFullFee < 0)
     {
         return TransactionQueue::AddResult::ADD_STATUS_ERROR;
     }
@@ -312,10 +312,9 @@ TransactionQueue::canAdd(TransactionFrameBasePtr tx,
                     }
 
                     oldTx = txToReplaceIter->mTx;
-                    int64_t oldInclusionFee = oldTx->getInclusionFee();
                     if (oldTx->getFeeSourceID() == tx->getFeeSourceID())
                     {
-                        newInclusionFee -= oldInclusionFee;
+                        newFullFee -= oldTx->getFullFee();
                     }
                 }
 
@@ -397,7 +396,7 @@ TransactionQueue::canAdd(TransactionFrameBasePtr tx,
     int64_t totalFees = feeStateIter == mAccountStates.end()
                             ? 0
                             : feeStateIter->second.mTotalFees;
-    if (getAvailableBalance(ltx.loadHeader(), feeSource) - newInclusionFee <
+    if (getAvailableBalance(ltx.loadHeader(), feeSource) - newFullFee <
         totalFees)
     {
         tx->getResult().result.code(txINSUFFICIENT_BALANCE);
