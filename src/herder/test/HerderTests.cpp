@@ -1530,6 +1530,111 @@ surgeTest(uint32 protocolVersion, uint32_t nbTxs, uint32_t maxTxSetSize,
     }
 }
 
+TEST_CASE("tx set hits overlay byte limit during construction")
+{
+    Config cfg(getTestConfig());
+    cfg.TESTING_UPGRADE_LEDGER_PROTOCOL_VERSION =
+        static_cast<uint32_t>(SOROBAN_PROTOCOL_VERSION);
+    auto max = std::numeric_limits<uint32_t>::max();
+    cfg.TESTING_UPGRADE_MAX_TX_SET_SIZE = max;
+
+    VirtualClock clock;
+    Application::pointer app = createTestApplication(clock, cfg);
+    auto root = TestAccount::createRoot(*app);
+
+    modifySorobanNetworkConfig(*app, [max](SorobanNetworkConfig& cfg) {
+        cfg.mLedgerMaxTxCount = max;
+        cfg.mLedgerMaxReadLedgerEntries = max;
+        cfg.mLedgerMaxReadBytes = max;
+        cfg.mLedgerMaxWriteLedgerEntries = max;
+        cfg.mLedgerMaxWriteBytes = max;
+        cfg.mLedgerMaxTransactionsSizeBytes = max;
+        cfg.mLedgerMaxInstructions = max;
+    });
+
+    SorobanNetworkConfig conf;
+    uint32_t maxContractSize = 0;
+    {
+        LedgerTxn ltx(app->getLedgerTxnRoot());
+        conf = app->getLedgerManager().getSorobanNetworkConfig(ltx);
+        maxContractSize = app->getLedgerManager()
+                              .getSorobanNetworkConfig(ltx)
+                              .maxContractSizeBytes();
+    }
+
+    auto makeTx = [&](TestAccount& acc, TxSetFrame::Phase const& phase) {
+        if (phase == TxSetFrame::Phase::SOROBAN)
+        {
+            SorobanResources res;
+            res.instructions = 1;
+            res.readBytes = 0;
+            res.writeBytes = 0;
+
+            return createUploadWasmTx(*app, acc, 100,
+                                      DEFAULT_TEST_RESOURCE_FEE * 10, res,
+                                      std::nullopt, 0, maxContractSize);
+        }
+        else
+        {
+            return makeMultiPayment(acc, acc, 100, 1, 100, 1);
+        }
+    };
+
+    auto testPhaseWithOverlayLimit = [&](TxSetFrame::Phase const& phase) {
+        TxSetFrame::Transactions txs;
+        size_t totalSize = 0;
+        int txCount = 0;
+
+        while (totalSize < MAX_TX_SET_ALLOWANCE)
+        {
+            auto a = root.create(fmt::format("A{}", txCount++), 500000000);
+            txs.emplace_back(makeTx(a, phase));
+            totalSize += xdr::xdr_size(txs.back()->getEnvelope());
+        }
+
+        TxSetFrame::TxPhases invalidPhases;
+        invalidPhases.resize(
+            static_cast<size_t>(TxSetFrame::Phase::PHASE_COUNT));
+
+        TxSetFrame::TxPhases phases;
+        if (phase == TxSetFrame::Phase::SOROBAN)
+        {
+            phases = TxSetFrame::TxPhases{{}, txs};
+        }
+        else
+        {
+            phases = TxSetFrame::TxPhases{txs, {}};
+        }
+
+        TxSetFrameConstPtr txSet =
+            TxSetFrame::makeFromTransactions(phases, *app, 0, 0, invalidPhases);
+
+        REQUIRE(invalidPhases[static_cast<size_t>(phase)].empty());
+        auto const& phaseTxs = txSet->getTxsForPhase(phase);
+        auto trimmedSize =
+            std::accumulate(phaseTxs.begin(), phaseTxs.end(), size_t(0),
+                            [&](size_t a, TransactionFrameBasePtr const& tx) {
+                                return a += xdr::xdr_size(tx->getEnvelope());
+                            });
+        REQUIRE(txSet->encodedSize() <= MAX_MESSAGE_SIZE);
+
+        auto byteAllowance = phase == TxSetFrame::Phase::SOROBAN
+                                 ? MAX_SOROBAN_BYTE_ALLOWANCE
+                                 : MAX_CLASSIC_BYTE_ALLOWANCE;
+        REQUIRE(trimmedSize > byteAllowance - conf.txMaxSizeBytes());
+        REQUIRE(trimmedSize <= byteAllowance);
+    };
+
+    SECTION("soroban")
+    {
+        testPhaseWithOverlayLimit(TxSetFrame::Phase::SOROBAN);
+    }
+    SECTION("classic")
+    {
+        testPhaseWithOverlayLimit(TxSetFrame::Phase::CLASSIC);
+    }
+}
+
 TEST_CASE("surge pricing", "[herder][txset][soroban]")
 {
     SECTION("protocol 19")
@@ -1571,7 +1676,8 @@ TEST_CASE("surge pricing", "[herder][txset][soroban]")
                 *app, root, baseFee, DEFAULT_TEST_RESOURCE_FEE, resources);
 
             TxSetFrame::TxPhases invalidTxs;
-            invalidTxs.resize(2);
+            invalidTxs.resize(
+                static_cast<size_t>(TxSetFrame::Phase::PHASE_COUNT));
             TxSetFrameConstPtr txSet = TxSetFrame::makeFromTransactions(
                 TxSetFrame::TxPhases{{}, {sorobanTx}}, *app, 0, 0, invalidTxs);
 
@@ -1685,7 +1791,8 @@ TEST_CASE("surge pricing", "[herder][txset][soroban]")
                     *app, acc2, baseFee, DEFAULT_TEST_RESOURCE_FEE, resources);
             }
             TxSetFrame::TxPhases invalidPhases;
-            invalidPhases.resize(2);
+            invalidPhases.resize(
+                static_cast<size_t>(TxSetFrame::Phase::PHASE_COUNT));
             TxSetFrameConstPtr txSet = TxSetFrame::makeFromTransactions(
                 TxSetFrame::TxPhases{{tx}, {invalidSoroban}}, *app, 0, 0,
                 invalidPhases);
@@ -1700,7 +1807,8 @@ TEST_CASE("surge pricing", "[herder][txset][soroban]")
         SECTION("classic and soroban fit")
         {
             TxSetFrame::TxPhases invalidPhases;
-            invalidPhases.resize(2);
+            invalidPhases.resize(
+                static_cast<size_t>(TxSetFrame::Phase::PHASE_COUNT));
             TxSetFrameConstPtr txSet = TxSetFrame::makeFromTransactions(
                 TxSetFrame::TxPhases{{tx}, {sorobanTx}}, *app, 0, 0,
                 invalidPhases);
@@ -1725,7 +1833,8 @@ TEST_CASE("surge pricing", "[herder][txset][soroban]")
             auto sorobanTxHighFee = createUploadWasmTx(
                 *app, acc3, baseFee * 2, DEFAULT_TEST_RESOURCE_FEE, resources);
             TxSetFrame::TxPhases invalidPhases;
-            invalidPhases.resize(2);
+            invalidPhases.resize(
+                static_cast<size_t>(TxSetFrame::Phase::PHASE_COUNT));
             TxSetFrameConstPtr txSet = TxSetFrame::makeFromTransactions(
                 TxSetFrame::TxPhases{{tx}, {sorobanTx, sorobanTxHighFee}}, *app,
                 0, 0, invalidPhases);
@@ -1761,7 +1870,8 @@ TEST_CASE("surge pricing", "[herder][txset][soroban]")
                 *app, acc4, baseFee / 10, DEFAULT_TEST_RESOURCE_FEE, resources);
 
             TxSetFrame::TxPhases invalidPhases;
-            invalidPhases.resize(2);
+            invalidPhases.resize(
+                static_cast<size_t>(TxSetFrame::Phase::PHASE_COUNT));
             TxSetFrameConstPtr txSet = TxSetFrame::makeFromTransactions(
                 TxSetFrame::TxPhases{
                     {tx}, {sorobanTxHighFee, smallSorobanLowFee, sorobanTx}},
@@ -1792,7 +1902,8 @@ TEST_CASE("surge pricing", "[herder][txset][soroban]")
                 SECTION("iteration " + std::to_string(i))
                 {
                     TxSetFrame::TxPhases invalidPhases;
-                    invalidPhases.resize(2);
+                    invalidPhases.resize(
+                        static_cast<size_t>(TxSetFrame::Phase::PHASE_COUNT));
                     TxSetFrameConstPtr txSet = TxSetFrame::makeFromTransactions(
                         TxSetFrame::TxPhases{{tx}, generateTxs(accounts, conf)},
                         *app, 0, 0, invalidPhases);

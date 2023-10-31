@@ -12,8 +12,8 @@
 
 namespace stellar
 {
-
 constexpr size_t NUM_CLASSIC_TX_RESOURCES(1);
+constexpr size_t NUM_CLASSIC_TX_BYTES_RESOURCES(2);
 constexpr size_t NUM_SOROBAN_TX_RESOURCES(7);
 
 // Small helper class to allow arithmetic operations on tuples
@@ -36,7 +36,8 @@ class Resource
     Resource(std::vector<int64_t> args)
     {
         if (args.size() != NUM_CLASSIC_TX_RESOURCES &&
-            args.size() != NUM_SOROBAN_TX_RESOURCES)
+            args.size() != NUM_SOROBAN_TX_RESOURCES &&
+            args.size() != NUM_CLASSIC_TX_BYTES_RESOURCES)
         {
             throw std::runtime_error("Invalid number of resources");
         }
@@ -83,11 +84,15 @@ class Resource
     Resource& operator-=(Resource const& other);
 
     static Resource
-    makeEmpty(bool isSoroban)
+    makeEmptySoroban()
     {
-        std::vector<int64_t> res;
-        res.resize(
-            isSoroban ? NUM_SOROBAN_TX_RESOURCES : NUM_CLASSIC_TX_RESOURCES, 0);
+        return makeEmpty(NUM_SOROBAN_TX_RESOURCES);
+    }
+
+    static Resource
+    makeEmpty(size_t numRes)
+    {
+        std::vector<int64_t> res(numRes, 0);
         return Resource(res);
     }
 
@@ -95,6 +100,12 @@ class Resource
     getVal(Resource::Type valType) const
     {
         return mResources.at(static_cast<size_t>(valType));
+    }
+
+    void
+    setVal(Resource::Type valType, int64_t val)
+    {
+        mResources.at(static_cast<size_t>(valType)) = val;
     }
 
     bool canAdd(Resource const& other) const;

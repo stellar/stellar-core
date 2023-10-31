@@ -225,12 +225,12 @@ TransactionFrame::getNumOperations() const
 }
 
 Resource
-TransactionFrame::getResources() const
+TransactionFrame::getResources(bool useByteLimitInClassic) const
 {
+    int64_t txSize = xdr::xdr_size(mEnvelope);
     if (isSoroban())
     {
         auto r = sorobanResources();
-        int64_t txSize = xdr::xdr_size(mEnvelope);
         int64_t const opCount = 1;
 
         // When doing fee calculation, the rust host will include readWrite
@@ -244,8 +244,14 @@ TransactionFrame::getResources() const
                                               r.footprint.readWrite.size()),
                          static_cast<int64_t>(r.footprint.readWrite.size())});
     }
-
-    return Resource(getNumOperations());
+    else if (useByteLimitInClassic)
+    {
+        return Resource({getNumOperations(), txSize});
+    }
+    else
+    {
+        return Resource(getNumOperations());
+    }
 }
 
 std::vector<Operation> const&

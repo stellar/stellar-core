@@ -476,8 +476,8 @@ LoadGenerator::generateLoad(GeneratedLoadConfig cfg)
                             mApp.getLedgerTxnRoot(), true,
                             TransactionMode::READ_ONLY_WITHOUT_SQL_TXN);
                         Resource maxPerTx =
-                            mApp.getLedgerManager().maxTransactionResources(
-                                /* isSoroban */ true, ltx);
+                            mApp.getLedgerManager()
+                                .maxSorobanTransactionResources(ltx);
 
                         resources.instructions = rand_uniform<uint32_t>(
                             1, maxPerTx.getVal(Resource::Type::INSTRUCTIONS));

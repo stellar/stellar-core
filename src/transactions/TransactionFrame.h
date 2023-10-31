@@ -206,7 +206,7 @@ class TransactionFrame : public TransactionFrameBase
     AccountID getSourceID() const override;
 
     uint32_t getNumOperations() const override;
-    Resource getResources() const override;
+    Resource getResources(bool useByteLimitInClassic) const override;
 
     std::vector<Operation> const& getRawOperations() const override;
 

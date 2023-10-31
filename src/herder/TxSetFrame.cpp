@@ -16,6 +16,7 @@
 #include "ledger/LedgerTxnHeader.h"
 #include "main/Application.h"
 #include "main/Config.h"
+#include "overlay/Peer.h"
 #include "transactions/TransactionUtils.h"
 #include "util/GlobalChecks.h"
 #include "util/Logging.h"
@@ -964,12 +965,12 @@ std::optional<Resource>
 TxSetFrame::getTxSetSorobanResource() const
 {
     releaseAssert(mTxPhases.size() > static_cast<size_t>(Phase::SOROBAN));
-    auto total = Resource::makeEmpty(/* isSoroban */ true);
+    auto total = Resource::makeEmptySoroban();
     for (auto const& tx : mTxPhases[static_cast<size_t>(Phase::SOROBAN)])
     {
-        if (total.canAdd(tx->getResources()))
+        if (total.canAdd(tx->getResources(/* useByteLimitInClassic */ false)))
         {
-            total += tx->getResources();
+            total += tx->getResources(/* useByteLimitInClassic */ false);
         }
         else
         {
@@ -1222,15 +1223,20 @@ TxSetFrame::applySurgePricing(Application& app)
 
         if (phaseType == TxSetFrame::Phase::CLASSIC)
         {
-            uint32_t maxOps = static_cast<uint32_t>(
-                app.getLedgerManager().getLastMaxTxSetSizeOps());
-            std::optional<uint32_t> dexOpsLimit;
-            if (isGeneralizedTxSet())
+            auto maxOps =
+                Resource({static_cast<uint32_t>(
+                              app.getLedgerManager().getLastMaxTxSetSizeOps()),
+                          MAX_CLASSIC_BYTE_ALLOWANCE});
+            std::optional<Resource> dexOpsLimit;
+            if (isGeneralizedTxSet() &&
+                app.getConfig().MAX_DEX_TX_OPERATIONS_IN_TX_SET)
             {
                 // DEX operations limit implies that DEX transactions should
                 // compete with each other in in a separate fee lane, which is
                 // only possible with generalized tx set.
-                dexOpsLimit = app.getConfig().MAX_DEX_TX_OPERATIONS_IN_TX_SET;
+                dexOpsLimit =
+                    Resource({*app.getConfig().MAX_DEX_TX_OPERATIONS_IN_TX_SET,
+                              MAX_CLASSIC_BYTE_ALLOWANCE});
             }
 
             auto surgePricingLaneConfig =
@@ -1278,6 +1284,11 @@ TxSetFrame::applySurgePricing(Application& app)
 
             auto limits = app.getLedgerManager().maxLedgerResources(
                 /* isSoroban */ true, ltx);
+
+            auto byteLimit =
+                std::min(static_cast<int64_t>(MAX_SOROBAN_BYTE_ALLOWANCE),
+                         limits.getVal(Resource::Type::TX_BYTE_SIZE));
+            limits.setVal(Resource::Type::TX_BYTE_SIZE, byteLimit);
 
             auto surgePricingLaneConfig =
                 std::make_shared<SorobanGenericLaneConfig>(limits);

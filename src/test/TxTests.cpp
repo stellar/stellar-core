@@ -844,13 +844,15 @@ TransactionFramePtr
 createUploadWasmTx(Application& app, TestAccount& account,
                    uint32_t inclusionFee, uint32_t resourceFee,
                    SorobanResources resources, std::optional<std::string> memo,
-                   int addInvalidOps)
+                   int addInvalidOps, std::optional<uint32_t> wasmSize)
 {
+    uint32_t const DEFAULT_WASM_SIZE = 1000;
+
     Operation deployOp;
     deployOp.body.type(INVOKE_HOST_FUNCTION);
     auto& uploadHF = deployOp.body.invokeHostFunctionOp().hostFunction;
     uploadHF.type(HOST_FUNCTION_TYPE_UPLOAD_CONTRACT_WASM);
-    uploadHF.wasm().resize(1000);
+    uploadHF.wasm().resize(wasmSize ? *wasmSize : DEFAULT_WASM_SIZE);
     auto byteDistr = uniform_int_distribution<uint8_t>();
     std::generate(uploadHF.wasm().begin(), uploadHF.wasm().end(),
                   [&byteDistr]() { return byteDistr(gRandomEngine); });

@@ -22,7 +22,16 @@ namespace stellar
 
 typedef std::shared_ptr<SCPQuorumSet> SCPQuorumSetPtr;
 
-static auto const MAX_MESSAGE_SIZE = 0x1000000;
+static size_t const MAX_MESSAGE_SIZE = 1024 * 1024 * 16;     // 16 MB
+static size_t const MAX_TX_SET_ALLOWANCE = 1024 * 1024 * 10; // 10 MB
+static size_t const MAX_SOROBAN_BYTE_ALLOWANCE =
+    MAX_TX_SET_ALLOWANCE / 2; // 5 MB
+static size_t const MAX_CLASSIC_BYTE_ALLOWANCE =
+    MAX_TX_SET_ALLOWANCE / 2; // 5 MB
+
+static_assert(MAX_TX_SET_ALLOWANCE >=
+              MAX_SOROBAN_BYTE_ALLOWANCE + MAX_CLASSIC_BYTE_ALLOWANCE);
+
 // max tx size is 100KB
 static const uint32_t MAX_CLASSIC_TX_SIZE_BYTES = 100 * 1024;
 
