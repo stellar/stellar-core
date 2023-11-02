@@ -373,7 +373,7 @@ InvokeHostFunctionOpFrame::doApply(Application& app, AbstractLedgerTxn& ltx,
 
     // Get the entries for the footprint
     rust::Vec<CxxBuf> ledgerEntryCxxBufs;
-    rust::Vec<CxxBuf> TTLEntryCxxBufs;
+    rust::Vec<CxxBuf> ttlEntryCxxBufs;
 
     auto const& resources = mParentTx.sorobanResources();
     auto const& footprint = resources.footprint;
@@ -382,35 +382,27 @@ InvokeHostFunctionOpFrame::doApply(Application& app, AbstractLedgerTxn& ltx,
 
     ledgerEntryCxxBufs.reserve(footprintLength);
 
-    auto addReads = [&ledgerEntryCxxBufs, &TTLEntryCxxBufs, &ltx, &metrics,
+    auto addReads = [&ledgerEntryCxxBufs, &ttlEntryCxxBufs, &ltx, &metrics,
                      &resources, this](auto const& keys) -> bool {
         for (auto const& lk : keys)
         {
             uint32 keySize = static_cast<uint32>(xdr::xdr_size(lk));
             uint32 entrySize = 0u;
-            // Load without record for readOnly to avoid writing them later
-            auto ltxe = ltx.loadWithoutRecord(lk);
-            if (ltxe)
-            {
-                bool shouldAddEntry = true;
-                auto const& le = ltxe.current();
-                std::optional<TTLEntry> TTLEntry = std::nullopt;
+            std::optional<TTLEntry> ttlEntry = std::nullopt;
+            bool sorobanEntryLive = false;
 
-                // For soroban entries, check if the entry is archived
-                if (isSorobanEntry(le.data))
+            // For soroban entries, check if the entry is expired before loading
+            if (isSorobanEntry(lk))
+            {
+                auto ttlKey = getTTLKey(lk);
+                auto ttlLtxe = ltx.loadWithoutRecord(ttlKey);
+                if (ttlLtxe)
                 {
-                    auto ttlKey = getTTLKey(lk);
-                    auto ttlLtxe = ltx.loadWithoutRecord(ttlKey);
-                    releaseAssertOrThrow(ttlLtxe);
                     if (!isLive(ttlLtxe.current(), ltx.getHeader().ledgerSeq))
                     {
-                        if (isTemporaryEntry(lk))
-                        {
-                            // For temporary entries, treat the non-live entry
-                            // as if the key did not exist
-                            shouldAddEntry = false;
-                        }
-                        else
+                        // For temporary entries, treat the expired entry as
+                        // if the key did not exist
+                        if (!isTemporaryEntry(lk))
                         {
                             // Cannot access an archived entry
                             this->innerResult().code(
@@ -418,33 +410,41 @@ InvokeHostFunctionOpFrame::doApply(Application& app, AbstractLedgerTxn& ltx,
                             return false;
                         }
                     }
-
-                    TTLEntry = ttlLtxe.current().data.ttl();
+                    else
+                    {
+                        sorobanEntryLive = true;
+                        ttlEntry = ttlLtxe.current().data.ttl();
+                    }
                 }
+                // If ttlLtxe doesn't exist, this is a new Soroban entry
+            }
 
-                if (shouldAddEntry)
+            if (!isSorobanEntry(lk) || sorobanEntryLive)
+            {
+                auto ltxe = ltx.loadWithoutRecord(lk);
+                if (ltxe)
                 {
-                    auto leBuf = toCxxBuf(le);
+                    auto leBuf = toCxxBuf(ltxe.current());
+                    entrySize = static_cast<uint32>(leBuf.data->size());
 
-                    // For entry types that don't have an TTLEntry (i.e.
+                    // For entry types that don't have an ttlEntry (i.e.
                     // Accounts), the rust host expects an "empty" CxxBuf such
                     // that the buffer has a non-null pointer that points to an
                     // empty byte vector
                     auto ttlBuf =
-                        TTLEntry
-                            ? toCxxBuf(*TTLEntry)
+                        ttlEntry
+                            ? toCxxBuf(*ttlEntry)
                             : CxxBuf{std::make_unique<std::vector<uint8_t>>()};
 
-                    entrySize = static_cast<uint32>(leBuf.data->size());
-                    if (TTLEntry)
-                    {
-                        entrySize += static_cast<uint32_t>(ttlBuf.data->size());
-                    }
-
                     ledgerEntryCxxBufs.emplace_back(std::move(leBuf));
-                    TTLEntryCxxBufs.emplace_back(std::move(ttlBuf));
+                    ttlEntryCxxBufs.emplace_back(std::move(ttlBuf));
+                }
+                else if (isSorobanEntry(lk))
+                {
+                    releaseAssertOrThrow(!ttlEntry);
                 }
             }
+
             metrics.noteReadEntry(isCodeKey(lk), keySize, entrySize);
 
             if (resources.readBytes < metrics.mLedgerReadByte)
@@ -498,7 +498,7 @@ InvokeHostFunctionOpFrame::doApply(Application& app, AbstractLedgerTxn& ltx,
             toCxxBuf(mInvokeHostFunction.hostFunction), toCxxBuf(resources),
             toCxxBuf(getSourceID()), authEntryCxxBufs,
             getLedgerInfo(ltx, cfg, sorobanConfig), ledgerEntryCxxBufs,
-            TTLEntryCxxBufs, basePrngSeedBuf,
+            ttlEntryCxxBufs, basePrngSeedBuf,
             sorobanConfig.rustBridgeRentFeeConfiguration());
         metrics.mCpuInsn = static_cast<uint32>(out.cpu_insns);
         metrics.mMemByte = static_cast<uint32>(out.mem_bytes);
@@ -559,7 +559,7 @@ InvokeHostFunctionOpFrame::doApply(Application& app, AbstractLedgerTxn& ltx,
         uint32 keySize = static_cast<uint32>(xdr::xdr_size(lk));
         uint32 entrySize = static_cast<uint32>(buf.data.size());
 
-        // TTLEntry write fees come out of refundableFee, already
+        // ttlEntry write fees come out of refundableFee, already
         // accounted for by the host
         if (lk.type() != TTL)
         {
@@ -590,7 +590,7 @@ InvokeHostFunctionOpFrame::doApply(Application& app, AbstractLedgerTxn& ltx,
     }
 
     // Check that each newly created ContractCode or ContractData entry also
-    // creates an TTLEntry
+    // creates an ttlEntry
     for (auto const& key : createdKeys)
     {
         if (isSorobanEntry(key))
@@ -618,7 +618,7 @@ InvokeHostFunctionOpFrame::doApply(Application& app, AbstractLedgerTxn& ltx,
                 releaseAssertOrThrow(isSorobanEntry(lk));
                 ltx.erase(lk);
 
-                // Also delete associated TTLEntry
+                // Also delete associated ttlEntry
                 auto ttlLK = getTTLKey(lk);
                 auto ttlLtxe = ltx.load(ttlLK);
                 releaseAssertOrThrow(ttlLtxe);

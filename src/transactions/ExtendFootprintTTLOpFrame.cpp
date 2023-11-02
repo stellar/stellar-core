@@ -66,56 +66,48 @@ ExtendFootprintTTLOpFrame::doApply(Application& app, AbstractLedgerTxn& ltx,
     uint32_t newLiveUntilLedgerSeq = ledgerSeq + mExtendFootprintTTLOp.extendTo;
     for (auto const& lk : footprint.readOnly)
     {
-        // Load the ContractCode/ContractData entry for fee calculation.
-        auto entryLtxe = ltx.loadWithoutRecord(lk);
-        if (!entryLtxe)
-        {
-            // Skip the missing entries. Since this happens at apply
-            // time and we refund the unspent fees, it is more beneficial
-            // to extend as many entries as possible.
-            continue;
-        }
-
         auto ttlKey = getTTLKey(lk);
-        uint32_t entrySize = UINT32_MAX;
-        uint32_t ttlSize = UINT32_MAX;
-        uint32_t currLiveUntilLedgerSeq = UINT32_MAX;
-
         {
             // Initially load without record since we may not need to modify
             // entry
             auto ttlConstLtxe = ltx.loadWithoutRecord(ttlKey);
-            releaseAssertOrThrow(ttlConstLtxe);
-            if (!isLive(ttlConstLtxe.current(), ledgerSeq))
+            if (!ttlConstLtxe || !isLive(ttlConstLtxe.current(), ledgerSeq))
             {
-                // Also skip archived entries, as those must be restored
+                // Skip archived entries, as those must be restored.
+                //
+                // Also skip the missing entries. Since this happens at apply
+                // time and we refund the unspent fees, it is more beneficial
+                // to extend as many entries as possible.
                 continue;
             }
 
-            entrySize = static_cast<uint32>(xdr::xdr_size(entryLtxe.current()));
-            ttlSize =
-                static_cast<uint32>(xdr::xdr_size(ttlConstLtxe.current()));
-
-            metrics.mLedgerReadByte += entrySize + ttlSize;
-            if (resources.readBytes < metrics.mLedgerReadByte)
-            {
-                mParentTx.pushSimpleDiagnosticError(
-                    SCE_BUDGET, SCEC_EXCEEDED_LIMIT,
-                    "operation byte-read resources exceeds amount specified",
-                    {makeU64SCVal(metrics.mLedgerReadByte),
-                     makeU64SCVal(resources.readBytes)});
-
-                innerResult().code(
-                    EXTEND_FOOTPRINT_TTL_RESOURCE_LIMIT_EXCEEDED);
-                return false;
-            }
-
-            currLiveUntilLedgerSeq =
+            auto currLiveUntilLedgerSeq =
                 ttlConstLtxe.current().data.ttl().liveUntilLedgerSeq;
             if (currLiveUntilLedgerSeq >= newLiveUntilLedgerSeq)
             {
                 continue;
             }
+        }
+
+        // Load the ContractCode/ContractData entry for fee calculation.
+        auto entryLtxe = ltx.loadWithoutRecord(lk);
+
+        // We checked for TTLEntry existence above
+        releaseAssertOrThrow(entryLtxe);
+
+        uint32_t entrySize =
+            static_cast<uint32>(xdr::xdr_size(entryLtxe.current()));
+        metrics.mLedgerReadByte += entrySize;
+        if (resources.readBytes < metrics.mLedgerReadByte)
+        {
+            mParentTx.pushSimpleDiagnosticError(
+                SCE_BUDGET, SCEC_EXCEEDED_LIMIT,
+                "operation byte-read resources exceeds amount specified",
+                {makeU64SCVal(metrics.mLedgerReadByte),
+                 makeU64SCVal(resources.readBytes)});
+
+            innerResult().code(EXTEND_FOOTPRINT_TTL_RESOURCE_LIMIT_EXCEEDED);
+            return false;
         }
 
         // We already checked that the TTLEntry exists in the logic above
@@ -126,7 +118,8 @@ ExtendFootprintTTLOpFrame::doApply(Application& app, AbstractLedgerTxn& ltx,
         rustChange.is_persistent = !isTemporaryEntry(lk);
         rustChange.old_size_bytes = static_cast<uint32>(entrySize);
         rustChange.new_size_bytes = rustChange.old_size_bytes;
-        rustChange.old_live_until_ledger = currLiveUntilLedgerSeq;
+        rustChange.old_live_until_ledger =
+            ttlLtxe.current().data.ttl().liveUntilLedgerSeq;
         rustChange.new_live_until_ledger = newLiveUntilLedgerSeq;
         ttlLtxe.current().data.ttl().liveUntilLedgerSeq = newLiveUntilLedgerSeq;
     }
