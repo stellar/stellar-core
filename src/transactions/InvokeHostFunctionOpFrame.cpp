@@ -437,9 +437,9 @@ InvokeHostFunctionOpFrame::doApply(Application& app, AbstractLedgerTxn& ltx,
                     ledgerEntryCxxBufs.emplace_back(std::move(leBuf));
                     ttlEntryCxxBufs.emplace_back(std::move(ttlBuf));
                 }
-                else
+                else if (isSorobanEntry(lk))
                 {
-                    releaseAssertOrThrow(!sorobanEntryLive);
+                    releaseAssertOrThrow(!ttlEntry);
                 }
             }
 
