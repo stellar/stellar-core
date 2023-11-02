@@ -58,6 +58,8 @@ class LedgerManagerImpl : public LedgerManager
     medida::Timer& mLedgerClose;
     medida::Buckets& mLedgerAgeClosed;
     medida::Counter& mLedgerAge;
+    medida::Counter& mTransactionApplySucceeded;
+    medida::Counter& mTransactionApplyFailed;
     medida::Timer& mMetaStreamWriteTime;
     VirtualClock::time_point mLastClose;
     bool mRebuildInMemoryState{false};

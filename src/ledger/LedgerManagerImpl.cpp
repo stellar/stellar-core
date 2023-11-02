@@ -140,6 +140,10 @@ LedgerManagerImpl::LedgerManagerImpl(Application& app)
           {"ledger", "age", "closed"}, {5000.0, 7000.0, 10000.0, 20000.0}))
     , mLedgerAge(
           app.getMetrics().NewCounter({"ledger", "age", "current-seconds"}))
+    , mTransactionApplySucceeded(
+          app.getMetrics().NewCounter({"ledger", "apply", "success"}))
+    , mTransactionApplyFailed(
+          app.getMetrics().NewCounter({"ledger", "apply", "failure"}))
     , mMetaStreamWriteTime(
           app.getMetrics().NewTimer({"ledger", "metastream", "write"}))
     , mLastClose(mApp.getClock().now())
@@ -1368,7 +1372,8 @@ LedgerManagerImpl::applyTransactions(
 
     Hash sorobanBasePrngSeed = txSet.getContentsHash();
     uint64_t txNum{0};
-
+    uint64_t txSucceeded{0};
+    uint64_t txFailed{0};
     for (auto tx : txs)
     {
         ZoneNamedN(txZone, "applyTransaction", true);
@@ -1395,6 +1400,14 @@ LedgerManagerImpl::applyTransactions(
         TransactionResultPair results;
         results.transactionHash = tx->getContentsHash();
         results.result = tx->getResult();
+        if (results.result.result.code() == TransactionResultCode::txSUCCESS)
+        {
+            ++txSucceeded;
+        }
+        else
+        {
+            ++txFailed;
+        }
 
         // First gather the TransactionResultPair into the TxResultSet for
         // hashing into the ledger header.
@@ -1426,6 +1439,8 @@ LedgerManagerImpl::applyTransactions(
         }
     }
 
+    mTransactionApplySucceeded.inc(txSucceeded);
+    mTransactionApplyFailed.inc(txFailed);
     logTxApplyMetrics(ltx, numTxs, numOps);
 }
 

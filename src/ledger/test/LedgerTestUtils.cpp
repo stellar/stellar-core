@@ -360,6 +360,19 @@ makeValid(ContractDataEntry& cde)
         val.bytes().assign(small_bytes.begin(), small_bytes.end());
         cde.key = val;
     }
+    // Fix the error values.
+    // NB: The internal SCErrors in maps/vecs still may be invalid.
+    // We might want to fix that eventually, but in general a significant
+    // (~80-90%) fraction of generated entries will be valid XDR.
+    if (cde.key.type() == SCV_ERROR)
+    {
+        if (cde.key.error().type() != SCErrorType::SCE_CONTRACT)
+        {
+            cde.key.error().code() = static_cast<SCErrorCode>(
+                std::abs(cde.key.error().code()) %
+                xdr::xdr_traits<SCErrorCode>::enum_values().size());
+        }
+    }
 }
 
 void

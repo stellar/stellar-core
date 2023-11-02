@@ -282,6 +282,8 @@ InvokeHostFunctionOpFrame::maybePopulateDiagnosticEvents(
             DiagnosticEvent evt;
             xdr::xdr_from_opaque(e.data, evt);
             diagnosticEvents.emplace_back(evt);
+            CLOG_DEBUG(Tx, "Soroban diagnostic event: {}",
+                       xdr::xdr_to_string(evt));
         }
 
         // add additional diagnostic events for metrics

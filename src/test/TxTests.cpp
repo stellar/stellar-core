@@ -840,6 +840,32 @@ createSimpleDexTx(Application& app, TestAccount& account, uint32 nbOps,
                                      ops, fee);
 }
 
+Operation
+createUploadWasmOperation(uint32_t generatedWasmSize)
+{
+    uint32_t const WASM_HEADER_SIZE = 100;
+
+    Operation uploadOp;
+    uploadOp.body.type(INVOKE_HOST_FUNCTION);
+    auto& uploadHF = uploadOp.body.invokeHostFunctionOp().hostFunction;
+    uploadHF.type(HOST_FUNCTION_TYPE_UPLOAD_CONTRACT_WASM);
+    uniform_int_distribution<uint64_t> seedDistr;
+    uint64_t seed = seedDistr(Catch::rng());
+    // Roughly account for the generated header.
+    if (generatedWasmSize > WASM_HEADER_SIZE)
+    {
+        generatedWasmSize -= WASM_HEADER_SIZE;
+    }
+    else
+    {
+        generatedWasmSize = 0;
+    }
+    auto randomWasm = rust_bridge::get_random_wasm(generatedWasmSize, seed);
+    uploadHF.wasm().insert(uploadHF.wasm().begin(), randomWasm.data.data(),
+                           randomWasm.data.data() + randomWasm.data.size());
+    return uploadOp;
+}
+
 TransactionFramePtr
 createUploadWasmTx(Application& app, TestAccount& account,
                    uint32_t inclusionFee, uint32_t resourceFee,
@@ -849,28 +875,23 @@ createUploadWasmTx(Application& app, TestAccount& account,
 {
     uint32_t const DEFAULT_WASM_SIZE = 1000;
 
-    Operation deployOp;
-    deployOp.body.type(INVOKE_HOST_FUNCTION);
-    auto& uploadHF = deployOp.body.invokeHostFunctionOp().hostFunction;
-    uploadHF.type(HOST_FUNCTION_TYPE_UPLOAD_CONTRACT_WASM);
-    uploadHF.wasm().resize(wasmSize ? *wasmSize : DEFAULT_WASM_SIZE);
-    auto byteDistr = uniform_int_distribution<uint8_t>();
-    std::generate(uploadHF.wasm().begin(), uploadHF.wasm().end(),
-                  [&byteDistr]() { return byteDistr(gRandomEngine); });
+    Operation uploadOp =
+        createUploadWasmOperation(wasmSize ? *wasmSize : DEFAULT_WASM_SIZE);
 
     if (resources.footprint.readWrite.empty() &&
         resources.footprint.readOnly.empty())
     {
         LedgerKey contractCodeLedgerKey;
         contractCodeLedgerKey.type(CONTRACT_CODE);
-        contractCodeLedgerKey.contractCode().hash = xdrSha256(uploadHF.wasm());
+        contractCodeLedgerKey.contractCode().hash =
+            sha256(uploadOp.body.invokeHostFunctionOp().hostFunction.wasm());
         resources.footprint.readWrite = {contractCodeLedgerKey};
     }
 
-    std::vector<Operation> ops{deployOp};
+    std::vector<Operation> ops{uploadOp};
     for (int i = 0; i < addInvalidOps; i++)
     {
-        ops.emplace_back(deployOp);
+        ops.emplace_back(uploadOp);
     }
 
     auto tx = sorobanTransactionFrameFromOps(app.getNetworkID(), account, ops,

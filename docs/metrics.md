@@ -52,6 +52,8 @@ history.publish.success                   | meter     | published completed succ
 history.publish.time                      | timer     | time to successfully publish history
 ledger.age.closed                         | bucket    | time between ledgers
 ledger.age.current-seconds                | counter   | gap between last close ledger time and current time
+ledger.apply.success                      | counter   | count of successfully applied transactions
+ledger.apply.failure                      | counter   | count of failed applied transactions
 ledger.catchup.duration                   | timer     | time between entering LM_CATCHING_UP_STATE and entering LM_SYNCED_STATE
 ledger.invariant.failure                  | counter   | number of times invariants failed
 ledger.ledger.close                       | timer     | time to close a ledger (excluding consensus)
