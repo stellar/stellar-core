@@ -321,11 +321,26 @@ FeeBumpTransactionFrame::getFullFee() const
     return mEnvelope.feeBump().tx.fee;
 }
 
+int64
+FeeBumpTransactionFrame::declaredSorobanResourceFee() const
+{
+    return mInnerTx->declaredSorobanResourceFee();
+}
+
 int64_t
 FeeBumpTransactionFrame::getInclusionFee() const
 {
-    int64_t flatFee = mInnerTx->getFullFee() - mInnerTx->getInclusionFee();
-    return mEnvelope.feeBump().tx.fee - flatFee;
+    if (isSoroban())
+    {
+        return getFullFee() - declaredSorobanResourceFee();
+    }
+    return getFullFee();
+}
+
+bool
+FeeBumpTransactionFrame::isValidStructure() const
+{
+    return mInnerTx->isValidStructure();
 }
 
 int64_t

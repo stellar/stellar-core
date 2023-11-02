@@ -115,5 +115,7 @@ class FeeBumpTransactionFrame : public TransactionFrameBase
     maybeComputeSorobanResourceFee(uint32_t protocolVersion,
                                    SorobanNetworkConfig const& sorobanConfig,
                                    Config const& cfg) override;
+    virtual int64 declaredSorobanResourceFee() const override;
+    virtual bool isValidStructure() const override;
 };
 }
