@@ -16,10 +16,12 @@
 #include "test/TxTests.h"
 #include "test/test.h"
 #include "transactions/SignatureUtils.h"
+#include "transactions/TransactionBridge.h"
 #include "transactions/TransactionUtils.h"
 #include "util/Timer.h"
 #include "util/numeric128.h"
 #include "xdr/Stellar-transaction.h"
+
 #include "xdrpp/autocheck.h"
 
 #include <chrono>
@@ -32,11 +34,6 @@ using namespace stellar::txtest;
 
 namespace
 {
-TransactionFrameBasePtr transaction(Application& app, TestAccount& account,
-                                    int64_t sequenceDelta, int64_t amount,
-                                    uint32_t fee, bool isSoroban,
-                                    int nbOps = 1) = delete;
-
 TransactionFrameBasePtr
 transaction(Application& app, TestAccount& account, int64_t sequenceDelta,
             int64_t amount, uint32_t fee, int nbOps = 1, bool isSoroban = false)
@@ -1184,11 +1181,42 @@ TEST_CASE("Soroban TransactionQueue limits",
             TransactionQueue::AddResult::ADD_STATUS_PENDING);
     REQUIRE(app->getHerder().getTx(tx->getFullHash()) != nullptr);
 
+    SECTION("malformed tx")
+    {
+        Operation op0;
+        op0.body.type(INVOKE_HOST_FUNCTION);
+        auto& ihf0 = op0.body.invokeHostFunctionOp().hostFunction;
+        ihf0.type(HOST_FUNCTION_TYPE_CREATE_CONTRACT);
+
+        auto tx = transactionFrameFromOps(app->getNetworkID(), root, {op0}, {});
+        REQUIRE(app->getHerder().recvTransaction(tx, false) ==
+                TransactionQueue::AddResult::ADD_STATUS_ERROR);
+        REQUIRE(tx->getResult().result.code() == txMALFORMED);
+    }
     SECTION("negative inclusion fee")
     {
-        auto fb = feeBump(*app, root, tx, 200);
+        auto fb = feeBump(*app, root, tx, tx->declaredSorobanResourceFee() - 1,
+                          /* addResourceFee */ false);
+
+        REQUIRE(fb->getFullFee() < fb->declaredSorobanResourceFee());
         REQUIRE(app->getHerder().recvTransaction(fb, false) ==
                 TransactionQueue::AddResult::ADD_STATUS_ERROR);
+        REQUIRE(fb->getResultCode() ==
+                TransactionResultCode::txSOROBAN_INVALID);
+    }
+    SECTION("negative declared resource fee")
+    {
+        auto invalid = createUploadWasmTx(*app, account1, initialInclusionFee,
+                                          -1, resAdjusted);
+        txbridge::setFee(invalid, initialInclusionFee);
+        txbridge::getSignatures(invalid).clear();
+        invalid->addSignature(account1.getSecretKey());
+
+        REQUIRE_THROWS_AS(invalid->getInclusionFee(), std::runtime_error);
+        // Gracefully handle malformed transaction
+        REQUIRE(app->getHerder().recvTransaction(invalid, false) ==
+                TransactionQueue::AddResult::ADD_STATUS_ERROR);
+        REQUIRE(invalid->getResultCode() == TransactionResultCode::txMALFORMED);
     }
     SECTION("source account limit, soroban and classic tx queue")
     {
@@ -1284,6 +1312,19 @@ TEST_CASE("Soroban TransactionQueue limits",
                 REQUIRE(!app->getHerder().isBannedTx(tx->getFullHash()));
                 REQUIRE(tx2->getResultCode() ==
                         TransactionResultCode::txINSUFFICIENT_FEE);
+            }
+            SECTION("insufficient account balance")
+            {
+                // Not enough balance to cover full fee
+                auto tx2 =
+                    createUploadWasmTx(*app, account2, initialInclusionFee,
+                                       minBalance2, resources);
+
+                REQUIRE(app->getHerder().recvTransaction(tx2, false) ==
+                        TransactionQueue::AddResult::ADD_STATUS_ERROR);
+                REQUIRE(!app->getHerder().isBannedTx(tx->getFullHash()));
+                REQUIRE(tx2->getResultCode() ==
+                        TransactionResultCode::txINSUFFICIENT_BALANCE);
             }
             SECTION("invalid resources")
             {
@@ -2167,6 +2208,15 @@ TEST_CASE("transaction queue with fee-bump", "[herder][transactionqueue]")
             TransactionQueueTest test{queue};
             auto tx1 = transaction(*app, account1, 1, 1, 100, 1, isSoroban);
             uint32_t discount = tx1->getFullFee() - tx1->getInclusionFee();
+            auto newInclusionToPay = 200;
+            if (isSoroban)
+            {
+                // In case of Soroban, provide additional discount to test the
+                // case where inclusion fee is less than balance, but total fee
+                // is not.
+                discount += newInclusionToPay;
+            }
+            // Available balance after fb1 is 1
             auto fb1 = feeBump(*app, account3, tx1,
                                minBalance2 - minBalance0 - 1 - discount);
             test.add(fb1, TransactionQueue::AddResult::ADD_STATUS_PENDING);
@@ -2174,7 +2224,10 @@ TEST_CASE("transaction queue with fee-bump", "[herder][transactionqueue]")
 
             SECTION("transaction")
             {
-                auto tx2 = transaction(*app, account3, 1, 1, 100, 1, isSoroban);
+                // NB: source account limit does not apply here; fb1 has
+                // account1 as source account (account3 is just a fee source)
+                auto tx2 = transaction(*app, account3, 1, 1, newInclusionToPay,
+                                       1, isSoroban);
                 test.add(tx2, TransactionQueue::AddResult::ADD_STATUS_ERROR);
                 REQUIRE(tx2->getResultCode() == txINSUFFICIENT_BALANCE);
                 test.check(
@@ -2184,7 +2237,7 @@ TEST_CASE("transaction queue with fee-bump", "[herder][transactionqueue]")
             SECTION("fee bump with fee source same as source")
             {
                 auto tx2 = transaction(*app, account3, 1, 1, 100, 1, isSoroban);
-                auto fb2 = feeBump(*app, account3, tx2, 200);
+                auto fb2 = feeBump(*app, account3, tx2, newInclusionToPay);
                 test.add(fb2, TransactionQueue::AddResult::ADD_STATUS_ERROR);
                 REQUIRE(fb2->getResultCode() == txINSUFFICIENT_BALANCE);
                 test.check(
@@ -2194,14 +2247,47 @@ TEST_CASE("transaction queue with fee-bump", "[herder][transactionqueue]")
             SECTION("fee bump with fee source distinct from source")
             {
                 auto tx2 = transaction(*app, account2, 1, 1, 100, 1, isSoroban);
-                auto fb2 = feeBump(*app, account3, tx2, 200);
+                auto fb2 = feeBump(*app, account3, tx2, newInclusionToPay);
                 test.add(fb2, TransactionQueue::AddResult::ADD_STATUS_ERROR);
                 REQUIRE(fb2->getResultCode() == txINSUFFICIENT_BALANCE);
                 test.check(
                     {{{account1, 0, {fb1}}, {account2}, {account3, 0}}, {}});
             }
-        }
+            SECTION("replace by fee valid, check balance")
+            {
+                SECTION("balance sufficient with oldTx discount")
+                {
+                    // Top off account3 balance to be able to pay for fb2
+                    // (assuming discount from fb1)
+                    root.pay(account3, (9 * fb1->getInclusionFee() - 1));
+                    auto tx2 =
+                        transaction(*app, account1, 1, 1, 100, 1, isSoroban);
+                    auto fb2 = feeBump(*app, account3, tx2,
+                                       fb1->getInclusionFee() * 10);
 
+                    test.add(fb2,
+                             TransactionQueue::AddResult::ADD_STATUS_PENDING);
+                    test.check(
+                        {{{account1, 0, {fb2}}, {account2}, {account3, 0}},
+                         {}});
+                }
+                SECTION("balance insufficient")
+                {
+                    // valid replace-by-fee, but not enough funds to pay for fb2
+                    auto tx2 =
+                        transaction(*app, account1, 1, 1, 100, 1, isSoroban);
+                    auto fb2 = feeBump(*app, account3, tx2,
+                                       fb1->getInclusionFee() * 10);
+
+                    test.add(fb2,
+                             TransactionQueue::AddResult::ADD_STATUS_ERROR);
+                    REQUIRE(fb2->getResultCode() == txINSUFFICIENT_BALANCE);
+                    test.check(
+                        {{{account1, 0, {fb1}}, {account2}, {account3, 0}},
+                         {}});
+                }
+            }
+        }
         SECTION("transaction or fee bump duplicates fee bump")
         {
             TransactionQueueTest test{queue};
