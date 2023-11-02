@@ -949,16 +949,20 @@ TxSetFrame::getTxBaseFee(TransactionFrameBaseConstPtr const& tx,
         releaseAssert(!isGeneralizedTxSet());
         computeTxFeesForNonGeneralizedSet(lclHeader);
     }
-    auto it = mTxBaseInclusionFeeClassic.find(tx);
-    if (it == mTxBaseInclusionFeeClassic.end())
-    {
-        it = mTxBaseInclusionFeeSoroban.find(tx);
-        if (it == mTxBaseInclusionFeeSoroban.end())
+
+    auto getTxBaseFeeHelper = [](auto const& feeMap,
+                                 TransactionFrameBaseConstPtr const& tx) {
+        auto it = feeMap.find(tx);
+        if (it == feeMap.end())
         {
             throw std::runtime_error("Transaction not found in tx set");
         }
-    }
-    return it->second;
+        return it->second;
+    };
+
+    auto const& map = tx->isSoroban() ? mTxBaseInclusionFeeSoroban
+                                      : mTxBaseInclusionFeeClassic;
+    return getTxBaseFeeHelper(map, tx);
 }
 
 std::optional<Resource>
