@@ -371,18 +371,18 @@ getRentFeeForExtend(Application& app, LedgerKey const& key,
     auto ttlLtxe = ltx.loadWithoutRecord(ttlKey);
     releaseAssert(ttlLtxe);
 
-    TTLEntry const& TTLEntry = ttlLtxe.current().data.ttl();
+    TTLEntry const& ttlEntry = ttlLtxe.current().data.ttl();
 
     uint32_t numLedgersToExtend = 0;
     if (isLive(ttlLtxe.current(), ledgerSeq))
     {
         auto ledgerToExtendTo = ledgerSeq + newLifetime;
-        if (TTLEntry.liveUntilLedgerSeq >= ledgerToExtendTo)
+        if (ttlEntry.liveUntilLedgerSeq >= ledgerToExtendTo)
         {
             return 0;
         }
 
-        numLedgersToExtend = ledgerToExtendTo - TTLEntry.liveUntilLedgerSeq;
+        numLedgersToExtend = ledgerToExtendTo - ttlEntry.liveUntilLedgerSeq;
     }
     else
     {
