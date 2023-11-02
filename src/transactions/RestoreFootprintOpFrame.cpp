@@ -73,54 +73,26 @@ RestoreFootprintOpFrame::doApply(Application& app, AbstractLedgerTxn& ltx,
         ledgerSeq + archivalSettings.minPersistentTTL - 1;
     for (auto const& lk : footprint.readWrite)
     {
-        uint32_t entrySize = UINT32_MAX;
-        uint32_t ttlSize = UINT32_MAX;
-
-        // We must load the ContractCode/ContractData entry for fee purposes, as
-        // restore is considered a write
-        auto constEntryLtxe = ltx.loadWithoutRecord(lk);
-        if (!constEntryLtxe)
-        {
-            continue;
-        }
-
         auto ttlKey = getTTLKey(lk);
         {
             auto constTTLLtxe = ltx.loadWithoutRecord(ttlKey);
-            releaseAssertOrThrow(constTTLLtxe);
-
-            entrySize =
-                static_cast<uint32>(xdr::xdr_size(constEntryLtxe.current()));
-            ttlSize =
-                static_cast<uint32>(xdr::xdr_size(constTTLLtxe.current()));
-
-            metrics.mLedgerReadByte += entrySize + ttlSize;
-            if (resources.readBytes < metrics.mLedgerReadByte)
+            // Skip entry if the TTLEntry is missing or if it's already live.
+            if (!constTTLLtxe || isLive(constTTLLtxe.current(), ledgerSeq))
             {
-                mParentTx.pushSimpleDiagnosticError(
-                    SCE_BUDGET, SCEC_EXCEEDED_LIMIT,
-                    "operation byte-read resources exceeds amount specified",
-                    {makeU64SCVal(metrics.mLedgerReadByte),
-                     makeU64SCVal(resources.readBytes)});
-                innerResult().code(RESTORE_FOOTPRINT_RESOURCE_LIMIT_EXCEEDED);
-                return false;
-            }
-
-            if (isLive(constTTLLtxe.current(), ledgerSeq))
-            {
-                // Skip entries that are already live.
                 continue;
             }
         }
 
-        // Entry exists if we get this this point due to the loadWithoutRecord
-        // logic above.
-        auto ttlLtxe = ltx.load(ttlKey);
+        // We must load the ContractCode/ContractData entry for fee purposes, as
+        // restore is considered a write
+        auto constEntryLtxe = ltx.loadWithoutRecord(lk);
 
-        // To maintain consistency with InvokeHostFunction, TTLEntry
-        // writes come out of refundable fee, so only add entrySize
-        metrics.mLedgerWriteByte += entrySize;
+        // We checked for TTLEntry existence above
+        releaseAssertOrThrow(constEntryLtxe);
 
+        uint32_t entrySize =
+            static_cast<uint32>(xdr::xdr_size(constEntryLtxe.current()));
+        metrics.mLedgerReadByte += entrySize;
         if (resources.readBytes < metrics.mLedgerReadByte)
         {
             mParentTx.pushSimpleDiagnosticError(
@@ -131,6 +103,10 @@ RestoreFootprintOpFrame::doApply(Application& app, AbstractLedgerTxn& ltx,
             innerResult().code(RESTORE_FOOTPRINT_RESOURCE_LIMIT_EXCEEDED);
             return false;
         }
+
+        // To maintain consistency with InvokeHostFunction, TTLEntry
+        // writes come out of refundable fee, so only add entrySize
+        metrics.mLedgerWriteByte += entrySize;
 
         if (resources.writeBytes < metrics.mLedgerWriteByte)
         {
@@ -152,6 +128,10 @@ RestoreFootprintOpFrame::doApply(Application& app, AbstractLedgerTxn& ltx,
         rustChange.old_live_until_ledger = 0;
         rustChange.new_size_bytes = entrySize;
         rustChange.new_live_until_ledger = restoredLiveUntilLedger;
+
+        // Entry exists if we get this this point due to the constTTLLtxe
+        // loadWithoutRecord logic above.
+        auto ttlLtxe = ltx.load(ttlKey);
         ttlLtxe.current().data.ttl().liveUntilLedgerSeq =
             restoredLiveUntilLedger;
     }
