@@ -698,30 +698,6 @@ transactionFromOperations(Application& app, SecretKey const& from,
     return transactionFromOperationsV1(app, from, seq, ops, fee);
 }
 
-static void
-sign(Hash const& networkID, SecretKey key, TransactionV1Envelope& env)
-{
-    env.signatures.emplace_back(SignatureUtils::sign(
-        key, sha256(xdr::xdr_to_opaque(networkID, ENVELOPE_TYPE_TX, env.tx))));
-}
-
-TransactionFramePtr
-sorobanTransactionFromOperations(Application& app, TestAccount& source,
-                                 std::vector<Operation> const& ops,
-                                 std::vector<SecretKey> const& opKeys,
-                                 SorobanResources const& resources,
-                                 uint32_t totalFee, uint32_t resourceFee,
-                                 std::optional<std::string> memo)
-{
-    TransactionEnvelope tx = sorobanEnvelopeFromOps(
-        app.getNetworkID(), source, ops, opKeys, resources, totalFee,
-        resourceFee, memo, /*shouldSign*/ false);
-    auto res = std::static_pointer_cast<TransactionFrame>(
-        TransactionFrameBase::makeTransactionFromWire(app.getNetworkID(), tx));
-    res->addSignature(source.getSecretKey());
-    return res;
-}
-
 TransactionFramePtr
 transactionWithV2Precondition(Application& app, TestAccount& account,
                               int64_t sequenceDelta, uint32_t fee,
@@ -1650,6 +1626,13 @@ checkTx(int index, TxSetResultMeta& r, TransactionResultCode expected,
     checkTx(index, r, expected);
     REQUIRE(r[index].first.result.result.results()[0].code() == code);
 };
+
+static void
+sign(Hash const& networkID, SecretKey key, TransactionV1Envelope& env)
+{
+    env.signatures.emplace_back(SignatureUtils::sign(
+        key, sha256(xdr::xdr_to_opaque(networkID, ENVELOPE_TYPE_TX, env.tx))));
+}
 
 static TransactionEnvelope
 envelopeFromOps(Hash const& networkID, TestAccount& source,

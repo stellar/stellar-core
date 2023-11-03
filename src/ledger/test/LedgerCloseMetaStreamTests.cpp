@@ -502,13 +502,23 @@ TEST_CASE_VERSIONS("meta stream contains reasonable meta", "[ledgerclosemeta]")
             // This test will submit several interesting soroban TXs. First, we
             // will deploy a contract and let it become ARCHIVED. We'll then
             // submit the following TXs
-            // 1. Restore contract
+            // 1. Restore archived entry
             // 2. Extend contract
             // 3. Invoke contract that creates new storage
             // 4. Failed invoke contract (bad footprint)
-            // 5. Deploy contract instance
+            // 5. Create contract instance
 
+            // Deploy and extend contract so it won't be archived during test
             ContractStorageInvocationTest test(cfg);
+            test.extendOp(test.getContractKeys(), 10'000);
+
+            // Write key that we will restore later
+            test.put("archived", ContractDataDurability::PERSISTENT, 42);
+            auto archivedKeySymbol = makeSymbolSCVal("archived");
+            auto archivedLk =
+                contractDataKey(test.getContractID(), archivedKeySymbol,
+                                ContractDataDurability::PERSISTENT);
+
             uint32_t liveUntilLedger =
                 test.getLedgerSeq() +
                 test.getNetworkCfg().stateArchivalSettings().minPersistentTTL -
@@ -517,10 +527,14 @@ TEST_CASE_VERSIONS("meta stream contains reasonable meta", "[ledgerclosemeta]")
             // Generate a few accounts so we can send multiple TXs in a single
             // ledger.
             auto bal = test.getApp()->getLedgerManager().getLastMinBalance(2);
-            auto acc1 = test.getRoot().create("acc1", bal);
-            auto acc2 = test.getRoot().create("acc2", bal);
-            auto acc3 = test.getRoot().create("acc3", bal);
-            auto acc4 = test.getRoot().create("acc4", bal);
+            auto acc1 = std::make_shared<TestAccount>(
+                test.getRoot().create("acc1", bal));
+            auto acc2 = std::make_shared<TestAccount>(
+                test.getRoot().create("acc2", bal));
+            auto acc3 = std::make_shared<TestAccount>(
+                test.getRoot().create("acc3", bal));
+            auto acc4 = std::make_shared<TestAccount>(
+                test.getRoot().create("acc4", bal));
             auto acc5 = test.getRoot().create("acc5", bal);
 
             // Close ledgers until out contract expires. These ledgers won't
@@ -531,17 +545,16 @@ TEST_CASE_VERSIONS("meta stream contains reasonable meta", "[ledgerclosemeta]")
             {
                 closeLedgerOn(*test.getApp(), i, 2, 1, 2016);
             }
-            REQUIRE(!test.isEntryLive(test.getContractKeys()[0],
-                                      test.getLedgerSeq()));
+            REQUIRE(!test.isEntryLive(archivedLk, test.getLedgerSeq()));
 
-            // Restore WASM and Instance
+            // Restore archived entry
             SorobanResources restoreResources;
-            restoreResources.footprint.readWrite = test.getContractKeys();
+            restoreResources.footprint.readWrite = {archivedLk};
             restoreResources.instructions = 0;
-            restoreResources.readBytes = 10'000;
-            restoreResources.writeBytes = 10'000;
-            auto tx1 = test.createRestoreTxForMetaTest(
-                acc1, restoreResources, 1'000, DEFAULT_TEST_RESOURCE_FEE);
+            restoreResources.readBytes = 5'000;
+            restoreResources.writeBytes = 1'000;
+            auto tx1 = test.createRestoreTx(restoreResources, 1'000,
+                                            DEFAULT_TEST_RESOURCE_FEE, acc1);
 
             // Extend TTL of WASM and instance
             SorobanResources extendResources;
@@ -549,36 +562,36 @@ TEST_CASE_VERSIONS("meta stream contains reasonable meta", "[ledgerclosemeta]")
             extendResources.instructions = 0;
             extendResources.readBytes = 10'000;
             extendResources.writeBytes = 0;
-            auto tx2 = test.createExtendOpTxForMetaTest(
-                acc2, extendResources, 5'000, 1'000, DEFAULT_TEST_RESOURCE_FEE);
+            auto tx2 =
+                test.createExtendOpTx(extendResources, /*extendTo*/ 10'000,
+                                      1'000, DEFAULT_TEST_RESOURCE_FEE, acc2);
 
             // Write new entry with key PERSISTENT("key")
-            auto keySymbol = makeSymbolSCVal("key");
+            auto liveKeySymbol = makeSymbolSCVal("key");
             auto funcSymbol = makeSymbol("put_persistent");
-            auto args = {keySymbol, makeU64SCVal(42)};
-            auto lk = contractDataKey(test.getContractID(), keySymbol,
-                                      ContractDataDurability::PERSISTENT);
+            auto args = {liveKeySymbol, makeU64SCVal(42)};
+            auto liveLk = contractDataKey(test.getContractID(), liveKeySymbol,
+                                          ContractDataDurability::PERSISTENT);
             SorobanResources putResources;
             putResources.footprint.readOnly = test.getContractKeys();
-            putResources.footprint.readWrite = {lk};
+            putResources.footprint.readWrite = {liveLk};
             putResources.instructions = 4'000'000;
             putResources.readBytes = 10'000;
             putResources.writeBytes = 1'000;
             auto resourceFee =
                 test.computeResourceFee(putResources, funcSymbol, args);
 
-            auto tx3 = test.createInvokeTxForMetaTest(acc3, putResources,
-                                                      funcSymbol, args, 1'000,
-                                                      resourceFee + 40'000);
+            auto tx3 = test.createInvokeTx(putResources, funcSymbol, args,
+                                           1'000, resourceFee + 40'000, acc3);
 
-            // Same put TX from before, but this one should fail
+            // Same put TX from before, but this one should fail due to invalid
+            // footprint
             SorobanResources badPutResources = putResources;
             badPutResources.footprint.readWrite.clear();
-            auto tx4 = test.createInvokeTxForMetaTest(acc4, badPutResources,
-                                                      funcSymbol, args, 1'000,
-                                                      resourceFee + 40'000);
+            auto tx4 = test.createInvokeTx(badPutResources, funcSymbol, args,
+                                           1'000, resourceFee + 40'000, acc4);
 
-            auto tx5 = test.getDeployTxForMetaTest(acc5);
+            auto tx5 = test.getCreateTx(acc5);
 
             closeLedger(*test.getApp(), {tx1, tx2, tx3, tx4, tx5});
             targetSeq = 23;

@@ -97,7 +97,6 @@ class ContractInvocationTest
 
     void deployWithResources(SorobanResources const& uploadResources,
                              SorobanResources const& createResources);
-    TransactionFramePtr getDeployTxForMetaTest(TestAccount& acc);
 
     // The following computations are copies of compute_transaction_resource_fee
     // in rs-soroban-env/soroban-env-host/src/fees.rs. This is reimplemented
@@ -126,28 +125,20 @@ class ContractInvocationTest
 
     TransactionFrameBasePtr createUploadWasmTx(TestAccount& source,
                                                uint32_t resourceFee);
-    TransactionFrameBasePtr createInvokeTx(SorobanResources const& resources,
-                                           SCSymbol const& functionName,
-                                           std::vector<SCVal> const& args,
-                                           uint32_t inclusionFee,
-                                           uint32_t resourceFee);
-    TransactionFramePtr createInvokeTxForMetaTest(
-        TestAccount& source, SorobanResources const& resources,
-        SCSymbol const& functionName, std::vector<SCVal> const& args,
-        uint32_t inclusionFee, uint32_t resourceFee);
-    TransactionFrameBasePtr createExtendOpTx(SorobanResources const& resources,
-                                             uint32_t extendTo, uint32_t fee,
-                                             uint32_t refundableFee);
-    TransactionFramePtr createExtendOpTxForMetaTest(
-        TestAccount& source, SorobanResources const& resources,
-        uint32_t extendTo, uint32_t fee, uint32_t refundableFee);
-    TransactionFrameBasePtr createRestoreTx(SorobanResources const& resources,
-                                            uint32_t fee,
-                                            uint32_t refundableFee);
-    TransactionFramePtr
-    createRestoreTxForMetaTest(TestAccount& source,
-                               SorobanResources const& resources, uint32_t fee,
-                               uint32_t refundableFee);
+    TransactionFrameBasePtr getCreateTx(TestAccount& acc);
+    TransactionFrameBasePtr
+    createInvokeTx(SorobanResources const& resources,
+                   SCSymbol const& functionName, std::vector<SCVal> const& args,
+                   uint32_t inclusionFee, uint32_t resourceFee,
+                   std::shared_ptr<TestAccount> source = nullptr);
+    TransactionFrameBasePtr
+    createExtendOpTx(SorobanResources const& resources, uint32_t extendTo,
+                     uint32_t fee, uint32_t refundableFee,
+                     std::shared_ptr<TestAccount> source = nullptr);
+    TransactionFrameBasePtr
+    createRestoreTx(SorobanResources const& resources, uint32_t fee,
+                    uint32_t refundableFee,
+                    std::shared_ptr<TestAccount> source = nullptr);
 
     void txCheckValid(TransactionFrameBasePtr tx);
     bool isTxValid(TransactionFrameBasePtr tx);
