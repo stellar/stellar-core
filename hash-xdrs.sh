@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/bin/bash
 #
 # This file generates a C++ file which contains (filename, hash) pairs for XDR
 # files included in the build. These are included in the stellar-core build to
@@ -7,6 +7,9 @@
 #
 # The goal is to detect the (unfortunately easy) condition of C++ and Rust code
 # communicating with each other using different XDR definitions.
+
+set -o errexit
+set -o pipefail
 
 if [ ! -d $1/xdr ]; then
     echo "usage: $0 XDR_PROTOCOL_DIR"
