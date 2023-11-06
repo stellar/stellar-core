@@ -225,12 +225,12 @@ TransactionFrame::getNumOperations() const
 }
 
 Resource
-TransactionFrame::getResources() const
+TransactionFrame::getResources(bool useByteLimitInClassic) const
 {
+    int64_t txSize = xdr::xdr_size(mEnvelope);
     if (isSoroban())
     {
         auto r = sorobanResources();
-        int64_t txSize = xdr::xdr_size(mEnvelope);
         int64_t const opCount = 1;
 
         // When doing fee calculation, the rust host will include readWrite
@@ -244,8 +244,14 @@ TransactionFrame::getResources() const
                                               r.footprint.readWrite.size()),
                          static_cast<int64_t>(r.footprint.readWrite.size())});
     }
-
-    return Resource(getNumOperations());
+    else if (useByteLimitInClassic)
+    {
+        return Resource({getNumOperations(), txSize});
+    }
+    else
+    {
+        return Resource(getNumOperations());
+    }
 }
 
 std::vector<Operation> const&
@@ -266,25 +272,7 @@ TransactionFrame::getFullFee() const
 int64_t
 TransactionFrame::getInclusionFee() const
 {
-    int64_t feeBid = getFullFee();
-    if (!isSoroban())
-    {
-        return feeBid;
-    }
-    // We rely here on the Soroban fee being computed at
-    // this point.
-    releaseAssertOrThrow(mSorobanResourceFee);
-    if (feeBid < mSorobanResourceFee->non_refundable_fee)
-    {
-        return 0;
-    }
-    feeBid -= mSorobanResourceFee->non_refundable_fee;
-    int64_t declaredRefundableFee = sorobanRefundableFee();
-    if (feeBid < declaredRefundableFee)
-    {
-        return 0;
-    }
-    return feeBid - declaredRefundableFee;
+    return getFullFee() - declaredSorobanResourceFee();
 }
 
 int64_t
@@ -299,18 +287,17 @@ TransactionFrame::getFee(LedgerHeader const& header,
                                   ProtocolVersion::V_11) ||
         !applying)
     {
-        int64_t feeBid = getInclusionFee();
-        int64_t flatFee = getFullFee() - feeBid;
         int64_t adjustedFee =
             *baseFee * std::max<int64_t>(1, getNumOperations());
 
         if (applying)
         {
-            return flatFee + std::min<int64_t>(getInclusionFee(), adjustedFee);
+            return declaredSorobanResourceFee() +
+                   std::min<int64_t>(getInclusionFee(), adjustedFee);
         }
         else
         {
-            return flatFee + adjustedFee;
+            return declaredSorobanResourceFee() + adjustedFee;
         }
     }
     else
@@ -699,7 +686,7 @@ TransactionFrame::validateSorobanResources(SorobanNetworkConfig const& config,
         case CLAIMABLE_BALANCE:
         case LIQUIDITY_POOL:
         case CONFIG_SETTING:
-        case EXPIRATION:
+        case TTL:
             this->pushSimpleDiagnosticError(
                 SCE_STORAGE, SCEC_UNEXPECTED_TYPE,
                 "transaction footprint contains unsupported ledger key type",
@@ -776,11 +763,11 @@ TransactionFrame::refundSorobanFee(AbstractLedgerTxn& ltxOuter)
 
 FeePair
 TransactionFrame::computeSorobanResourceFee(
-    uint32_t protocolVersion, SorobanNetworkConfig const& sorobanConfig,
-    Config const& cfg, bool useConsumedRefundableResources) const
+    uint32_t protocolVersion, SorobanResources const& txResources,
+    uint32_t txSize, uint32_t eventsSize,
+    SorobanNetworkConfig const& sorobanConfig, Config const& cfg)
 {
     CxxTransactionResources cxxResources{};
-    auto const& txResources = sorobanResources();
     cxxResources.instructions = txResources.instructions;
 
     cxxResources.read_entries =
@@ -791,14 +778,8 @@ TransactionFrame::computeSorobanResourceFee(
     cxxResources.read_bytes = txResources.readBytes;
     cxxResources.write_bytes = txResources.writeBytes;
 
-    cxxResources.transaction_size_bytes =
-        static_cast<uint32>(xdr::xdr_size(mEnvelope));
-
-    if (useConsumedRefundableResources)
-    {
-        cxxResources.contract_events_size_bytes =
-            mConsumedContractEventsSizeBytes;
-    }
+    cxxResources.transaction_size_bytes = txSize;
+    cxxResources.contract_events_size_bytes = eventsSize;
 
     // This may throw, but only in case of the Core version misconfiguration.
     return rust_bridge::compute_transaction_resource_fee(
@@ -807,13 +788,13 @@ TransactionFrame::computeSorobanResourceFee(
 }
 
 int64
-TransactionFrame::sorobanRefundableFee() const
+TransactionFrame::declaredSorobanResourceFee() const
 {
     if (mEnvelope.type() != ENVELOPE_TYPE_TX || mEnvelope.v1().tx.ext.v() != 1)
     {
         return 0;
     }
-    return mEnvelope.v1().tx.ext.sorobanData().refundableFee;
+    return mEnvelope.v1().tx.ext.sorobanData().resourceFee;
 }
 
 void
@@ -841,9 +822,10 @@ TransactionFrame::maybeComputeSorobanResourceFee(
     // We always use the declared resource value for the resource fee
     // computation. The refunds are performed as a separate operation that
     // doesn't involve modifying any transaction fees.
-    mSorobanResourceFee = std::make_optional<FeePair>(
-        computeSorobanResourceFee(protocolVersion, sorobanConfig, cfg,
-                                  /* useConsumedRefundableResources */ false));
+    mSorobanResourceFee = std::make_optional<FeePair>(computeSorobanResourceFee(
+        protocolVersion, sorobanResources(),
+        static_cast<uint32_t>(xdr::xdr_size(mEnvelope)), 0, sorobanConfig,
+        cfg));
 }
 
 bool
@@ -853,16 +835,18 @@ TransactionFrame::consumeRefundableSorobanResources(
 {
     mConsumedContractEventsSizeBytes += contractEventSizeBytes;
     mConsumedRentFee += rentFee;
-    mFeeRefund = sorobanRefundableFee();
+    mFeeRefund =
+        declaredSorobanResourceFee() - mSorobanResourceFee->non_refundable_fee;
     if (mFeeRefund < mConsumedRentFee)
     {
         return false;
     }
     mFeeRefund -= mConsumedRentFee;
 
-    FeePair consumedFee =
-        computeSorobanResourceFee(protocolVersion, sorobanConfig, cfg,
-                                  /* useConsumedRefundableResources */ true);
+    FeePair consumedFee = computeSorobanResourceFee(
+        protocolVersion, sorobanResources(),
+        static_cast<uint32_t>(xdr::xdr_size(mEnvelope)),
+        mConsumedContractEventsSizeBytes, sorobanConfig, cfg);
     if (mFeeRefund < consumedFee.refundable_fee)
     {
         return false;
@@ -1052,12 +1036,29 @@ TransactionFrame::commonValidPreSeqNum(Application& app, AbstractLedgerTxn& ltx,
         }
 
         auto const& sorobanData = mEnvelope.v1().tx.ext.sorobanData();
-        // Refundable fee shouldn't exceed tx-specified refundable fee.
-        // NB: Overall Soroban resource fee is verified as a part of
-        // the fee bid validation.
-        if (sorobanData.refundableFee < mSorobanResourceFee->refundable_fee)
+        if (sorobanData.resourceFee > getFullFee())
         {
-            getResult().result.code(txINSUFFICIENT_FEE);
+            pushSimpleDiagnosticError(
+                SCE_STORAGE, SCEC_EXCEEDED_LIMIT,
+                "transaction `sorobanData.resourceFee` is higher than the "
+                "full transaction fee",
+                {makeU64SCVal(sorobanData.resourceFee),
+                 makeU64SCVal(getFullFee())});
+            getResult().result.code(txSOROBAN_INVALID);
+            return false;
+        }
+        if (sorobanData.resourceFee <
+            mSorobanResourceFee->refundable_fee +
+                mSorobanResourceFee->non_refundable_fee)
+        {
+            pushSimpleDiagnosticError(
+                SCE_STORAGE, SCEC_EXCEEDED_LIMIT,
+                "transaction `sorobanData.resourceFee` is lower than the "
+                "actual Soroban resource fee",
+                {makeU64SCVal(sorobanData.resourceFee),
+                 makeU64SCVal(mSorobanResourceFee->refundable_fee +
+                              mSorobanResourceFee->non_refundable_fee)});
+            getResult().result.code(txSOROBAN_INVALID);
             return false;
         }
 
@@ -1630,7 +1631,8 @@ TransactionFrame::applyOperations(SignatureChecker& signatureChecker,
             {
                 // If transaction fails, we don't charge for any
                 // refundable resources.
-                mFeeRefund = sorobanRefundableFee();
+                mFeeRefund = declaredSorobanResourceFee() -
+                             mSorobanResourceFee->non_refundable_fee;
                 outerMeta.pushDiagnosticEvents(std::move(mDiagnosticEvents));
             }
         }

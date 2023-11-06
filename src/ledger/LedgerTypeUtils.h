@@ -9,10 +9,10 @@
 
 namespace stellar
 {
-bool isLive(LedgerEntry const& e, uint32_t expirationCutoff);
+bool isLive(LedgerEntry const& e, uint32_t cutoffLedger);
 
-LedgerKey getExpirationKey(LedgerEntry const& e);
-LedgerKey getExpirationKey(LedgerKey const& e);
+LedgerKey getTTLKey(LedgerEntry const& e);
+LedgerKey getTTLKey(LedgerKey const& e);
 
 template <typename T>
 bool

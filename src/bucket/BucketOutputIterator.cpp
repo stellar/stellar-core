@@ -136,8 +136,7 @@ BucketOutputIterator::getBucket(BucketManager& bucketManager,
         }
     }
 
-    return bucketManager.adoptFileAsBucket(mFilename.string(), hash,
-                                           mObjectsPut, mBytesPut, mergeKey,
+    return bucketManager.adoptFileAsBucket(mFilename.string(), hash, mergeKey,
                                            std::move(index));
 }
 }

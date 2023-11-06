@@ -141,6 +141,10 @@ LedgerManagerImpl::LedgerManagerImpl(Application& app)
           {"ledger", "age", "closed"}, {5000.0, 7000.0, 10000.0, 20000.0}))
     , mLedgerAge(
           app.getMetrics().NewCounter({"ledger", "age", "current-seconds"}))
+    , mTransactionApplySucceeded(
+          app.getMetrics().NewCounter({"ledger", "apply", "success"}))
+    , mTransactionApplyFailed(
+          app.getMetrics().NewCounter({"ledger", "apply", "failure"}))
     , mMetaStreamWriteTime(
           app.getMetrics().NewTimer({"ledger", "metastream", "write"}))
     , mLastClose(mApp.getClock().now())
@@ -457,27 +461,19 @@ LedgerManagerImpl::maxLedgerResources(bool isSoroban,
 }
 
 Resource
-LedgerManagerImpl::maxTransactionResources(bool isSoroban,
-                                           AbstractLedgerTxn& ltxOuter)
+LedgerManagerImpl::maxSorobanTransactionResources(AbstractLedgerTxn& ltxOuter)
 {
-    if (isSoroban)
-    {
-        auto const& conf =
-            mApp.getLedgerManager().getSorobanNetworkConfig(ltxOuter);
-        int64_t const opCount = 1;
-        std::vector<int64_t> limits = {opCount,
-                                       conf.txMaxInstructions(),
-                                       conf.txMaxSizeBytes(),
-                                       conf.txMaxReadBytes(),
-                                       conf.txMaxWriteBytes(),
-                                       conf.txMaxReadLedgerEntries(),
-                                       conf.txMaxWriteLedgerEntries()};
-        return Resource(limits);
-    }
-    else
-    {
-        return Resource(1);
-    }
+    auto const& conf =
+        mApp.getLedgerManager().getSorobanNetworkConfig(ltxOuter);
+    int64_t const opCount = 1;
+    std::vector<int64_t> limits = {opCount,
+                                   conf.txMaxInstructions(),
+                                   conf.txMaxSizeBytes(),
+                                   conf.txMaxReadBytes(),
+                                   conf.txMaxWriteBytes(),
+                                   conf.txMaxReadLedgerEntries(),
+                                   conf.txMaxWriteLedgerEntries()};
+    return Resource(limits);
 }
 
 int64_t
@@ -583,19 +579,21 @@ LedgerManagerImpl::valueExternalized(LedgerCloseData const& ledgerData)
 
     // We set the state to synced
     // if we have closed the latest ledger we have heard of.
+    bool appliedLatest = false;
     if (cm.getLargestLedgerSeqHeard() == getLastClosedLedgerNum())
     {
         setState(LM_SYNCED_STATE);
-        // New ledger(s) got closed, notify Herder
-        if (getLastClosedLedgerNum() > lcl)
-        {
-            CLOG_DEBUG(Ledger,
-                       "LedgerManager::valueExternalized LCL advanced {} -> {}",
-                       lcl, getLastClosedLedgerNum());
-            mApp.getHerder().lastClosedLedgerIncreased();
-        }
+        appliedLatest = true;
     }
 
+    // New ledger(s) got closed, notify Herder
+    if (getLastClosedLedgerNum() > lcl)
+    {
+        CLOG_DEBUG(Ledger,
+                   "LedgerManager::valueExternalized LCL advanced {} -> {}",
+                   lcl, getLastClosedLedgerNum());
+        mApp.getHerder().lastClosedLedgerIncreased(appliedLatest);
+    }
     FrameMark;
 }
 
@@ -1375,7 +1373,8 @@ LedgerManagerImpl::applyTransactions(
 
     Hash sorobanBasePrngSeed = txSet.getContentsHash();
     uint64_t txNum{0};
-
+    uint64_t txSucceeded{0};
+    uint64_t txFailed{0};
     for (auto tx : txs)
     {
         ZoneNamedN(txZone, "applyTransaction", true);
@@ -1402,6 +1401,14 @@ LedgerManagerImpl::applyTransactions(
         TransactionResultPair results;
         results.transactionHash = tx->getContentsHash();
         results.result = tx->getResult();
+        if (results.result.result.code() == TransactionResultCode::txSUCCESS)
+        {
+            ++txSucceeded;
+        }
+        else
+        {
+            ++txFailed;
+        }
 
         // First gather the TransactionResultPair into the TxResultSet for
         // hashing into the ledger header.
@@ -1433,6 +1440,8 @@ LedgerManagerImpl::applyTransactions(
         }
     }
 
+    mTransactionApplySucceeded.inc(txSucceeded);
+    mTransactionApplyFailed.inc(txFailed);
     logTxApplyMetrics(ltx, numTxs, numOps);
 }
 
@@ -1546,11 +1555,11 @@ LedgerManagerImpl::ledgerClosed(
     //   - In the final stage, when we call ledgerClosed, we pass vN+1 because
     //     the upgrade completed and modified the ltx header, and we fish the
     //     protocol out of the ltx header
-    // Before LedgerCloseMetaV2, this inconsistency was mostly harmless since
+    // Before LedgerCloseMetaV1, this inconsistency was mostly harmless since
     // LedgerCloseMeta was not modified after the LTX header was modified.
     // However, starting with protocol 20, LedgerCloseMeta is modified after
     // updating the ltx header when populating BucketList related meta. This
-    // means that this function will attempt to call LedgerCloseMetaV2
+    // means that this function will attempt to call LedgerCloseMetaV1
     // functions, but ledgerCloseMeta is actually a LedgerCloseMetaV0 because it
     // was constructed with the previous protocol version prior to the upgrade.
     // Due to this, we must check the initial protocol version of ledger instead

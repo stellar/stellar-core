@@ -128,7 +128,7 @@ calculateDeltaBalance(LumenContractInfo const& lumenContractInfo,
         break;
     case CONFIG_SETTING:
         break;
-    case EXPIRATION:
+    case TTL:
         break;
     }
     return 0;

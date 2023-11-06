@@ -63,64 +63,36 @@ RestoreFootprintOpFrame::doApply(Application& app, AbstractLedgerTxn& ltx,
     auto const& footprint = resources.footprint;
     auto ledgerSeq = ltx.loadHeader().current().ledgerSeq;
 
-    auto const& expirationSettings = app.getLedgerManager()
-                                         .getSorobanNetworkConfig(ltx)
-                                         .stateExpirationSettings();
+    auto const& archivalSettings = app.getLedgerManager()
+                                       .getSorobanNetworkConfig(ltx)
+                                       .stateArchivalSettings();
     rust::Vec<CxxLedgerEntryRentChange> rustEntryRentChanges;
-    // Bump the rent on the restored entry to minimum expiration, including
+    // Extend the TTL on the restored entry to minimum TTL, including
     // the current ledger.
-    uint32_t restoredExpirationLedger =
-        ledgerSeq + expirationSettings.minPersistentEntryExpiration - 1;
+    uint32_t restoredLiveUntilLedger =
+        ledgerSeq + archivalSettings.minPersistentTTL - 1;
     for (auto const& lk : footprint.readWrite)
     {
-        uint32_t entrySize = UINT32_MAX;
-        uint32_t expirationSize = UINT32_MAX;
-
-        // We must load the ContractCode/ContractData entry for fee purposes, as
-        // restore is considered a write
-        auto constEntryLtxe = ltx.loadWithoutRecord(lk);
-        if (!constEntryLtxe)
+        auto ttlKey = getTTLKey(lk);
         {
-            continue;
-        }
-
-        auto expirationKey = getExpirationKey(lk);
-        {
-            auto constExpirationLtxe = ltx.loadWithoutRecord(expirationKey);
-            releaseAssertOrThrow(constExpirationLtxe);
-
-            entrySize =
-                static_cast<uint32>(xdr::xdr_size(constEntryLtxe.current()));
-            expirationSize = static_cast<uint32>(
-                xdr::xdr_size(constExpirationLtxe.current()));
-
-            metrics.mLedgerReadByte += entrySize + expirationSize;
-            if (resources.readBytes < metrics.mLedgerReadByte)
+            auto constTTLLtxe = ltx.loadWithoutRecord(ttlKey);
+            // Skip entry if the TTLEntry is missing or if it's already live.
+            if (!constTTLLtxe || isLive(constTTLLtxe.current(), ledgerSeq))
             {
-                mParentTx.pushSimpleDiagnosticError(
-                    SCE_BUDGET, SCEC_EXCEEDED_LIMIT,
-                    "operation byte-read resources exceeds amount specified",
-                    {makeU64SCVal(metrics.mLedgerReadByte),
-                     makeU64SCVal(resources.readBytes)});
-                innerResult().code(RESTORE_FOOTPRINT_RESOURCE_LIMIT_EXCEEDED);
-                return false;
-            }
-
-            if (isLive(constExpirationLtxe.current(), ledgerSeq))
-            {
-                // Skip entries that are already live.
                 continue;
             }
         }
 
-        // Entry exists if we get this this point due to the loadWithoutRecord
-        // logic above.
-        auto expirationLtxe = ltx.load(expirationKey);
+        // We must load the ContractCode/ContractData entry for fee purposes, as
+        // restore is considered a write
+        auto constEntryLtxe = ltx.loadWithoutRecord(lk);
 
-        // To maintain consistency with InvokeHostFunction, ExpirationEntry
-        // writes come out of refundable fee, so only add entrySize
-        metrics.mLedgerWriteByte += entrySize;
+        // We checked for TTLEntry existence above
+        releaseAssertOrThrow(constEntryLtxe);
 
+        uint32_t entrySize =
+            static_cast<uint32>(xdr::xdr_size(constEntryLtxe.current()));
+        metrics.mLedgerReadByte += entrySize;
         if (resources.readBytes < metrics.mLedgerReadByte)
         {
             mParentTx.pushSimpleDiagnosticError(
@@ -131,6 +103,10 @@ RestoreFootprintOpFrame::doApply(Application& app, AbstractLedgerTxn& ltx,
             innerResult().code(RESTORE_FOOTPRINT_RESOURCE_LIMIT_EXCEEDED);
             return false;
         }
+
+        // To maintain consistency with InvokeHostFunction, TTLEntry
+        // writes come out of refundable fee, so only add entrySize
+        metrics.mLedgerWriteByte += entrySize;
 
         if (resources.writeBytes < metrics.mLedgerWriteByte)
         {
@@ -149,11 +125,15 @@ RestoreFootprintOpFrame::doApply(Application& app, AbstractLedgerTxn& ltx,
         // Treat the entry as if it hasn't existed before restoration
         // for the rent fee purposes.
         rustChange.old_size_bytes = 0;
-        rustChange.old_expiration_ledger = 0;
+        rustChange.old_live_until_ledger = 0;
         rustChange.new_size_bytes = entrySize;
-        rustChange.new_expiration_ledger = restoredExpirationLedger;
-        expirationLtxe.current().data.expiration().expirationLedgerSeq =
-            restoredExpirationLedger;
+        rustChange.new_live_until_ledger = restoredLiveUntilLedger;
+
+        // Entry exists if we get this this point due to the constTTLLtxe
+        // loadWithoutRecord logic above.
+        auto ttlLtxe = ltx.load(ttlKey);
+        ttlLtxe.current().data.ttl().liveUntilLedgerSeq =
+            restoredLiveUntilLedger;
     }
     uint32_t ledgerVersion = ltx.loadHeader().current().ledgerVersion;
     int64_t rentFee = rust_bridge::compute_rent_fee(

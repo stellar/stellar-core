@@ -169,7 +169,6 @@ Config::Config() : NODE_SEED(SecretKey::random())
     USE_CONFIG_FOR_GENESIS = false;
     FAILURE_SAFETY = -1;
     UNSAFE_QUORUM = false;
-    LIMIT_TX_QUEUE_SOURCE_ACCOUNT = true;
     DISABLE_BUCKET_GC = false;
     DISABLE_XDR_FSYNC = false;
     MAX_SLOTS_TO_REMEMBER = 12;
@@ -270,8 +269,8 @@ Config::Config() : NODE_SEED(SecretKey::random())
     OVERRIDE_EVICTION_PARAMS_FOR_TESTING = false;
     TESTING_EVICTION_SCAN_SIZE =
         InitialSorobanNetworkConfig::EVICTION_SCAN_SIZE;
-    TESTING_MAX_ENTRIES_TO_EXPIRE =
-        InitialSorobanNetworkConfig::MAX_ENTRIES_TO_EXPIRE;
+    TESTING_MAX_ENTRIES_TO_ARCHIVE =
+        InitialSorobanNetworkConfig::MAX_ENTRIES_TO_ARCHIVE;
     TESTING_STARTING_EVICTION_SCAN_LEVEL =
         InitialSorobanNetworkConfig::STARTING_EVICTION_SCAN_LEVEL;
 
@@ -1023,15 +1022,6 @@ Config::processConfig(std::shared_ptr<cpptoml::table> t)
             {
                 UNSAFE_QUORUM = readBool(item);
             }
-            else if (item.first == "LIMIT_TX_QUEUE_SOURCE_ACCOUNT")
-            {
-                LOG_WARNING(
-                    DEFAULT_LOG,
-                    "LIMIT_TX_QUEUE_SOURCE_ACCOUNT is deprecated: the limit is "
-                    "now always enforced and setting it to false will have no "
-                    "effect. Please remove this setting from the config file.");
-                LIMIT_TX_QUEUE_SOURCE_ACCOUNT = true;
-            }
             else if (item.first == "DISABLE_XDR_FSYNC")
             {
                 DISABLE_XDR_FSYNC = readBool(item);
@@ -1492,9 +1482,9 @@ Config::processConfig(std::shared_ptr<cpptoml::table> t)
                 TESTING_STARTING_EVICTION_SCAN_LEVEL =
                     readInt<uint32_t>(item, 1, BucketList::kNumLevels - 1);
             }
-            else if (item.first == "TESTING_MAX_ENTRIES_TO_EXPIRE")
+            else if (item.first == "TESTING_MAX_ENTRIES_TO_ARCHIVE")
             {
-                TESTING_MAX_ENTRIES_TO_EXPIRE = readInt<uint32_t>(item);
+                TESTING_MAX_ENTRIES_TO_ARCHIVE = readInt<uint32_t>(item);
             }
             else if (item.first == "TESTING_SOROBAN_HIGH_LIMIT_OVERRIDE")
             {
@@ -2076,6 +2066,12 @@ Config::setInMemoryMode()
     MODE_STORES_HISTORY_MISC = false;
     MODE_STORES_HISTORY_LEDGERHEADERS = false;
     MODE_ENABLES_BUCKETLIST = true;
+}
+
+bool
+Config::modeDoesCatchupWithBucketList() const
+{
+    return MODE_DOES_CATCHUP && MODE_ENABLES_BUCKETLIST;
 }
 
 bool

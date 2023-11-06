@@ -120,10 +120,9 @@ generateLedgerEntryWithSameKey(LedgerEntry const& leBase)
                 LedgerTestUtils::generateValidContractCodeEntry();
             le.data.contractCode().hash = leBase.data.contractCode().hash;
             break;
-        case EXPIRATION:
-            le.data.expiration() =
-                LedgerTestUtils::generateValidExpirationEntry();
-            le.data.expiration().keyHash = leBase.data.expiration().keyHash;
+        case TTL:
+            le.data.ttl() = LedgerTestUtils::generateValidTTLEntry();
+            le.data.ttl().keyHash = leBase.data.ttl().keyHash;
             break;
         }
     } while (le == leBase);

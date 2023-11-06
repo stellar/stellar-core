@@ -34,8 +34,8 @@ namespace
 struct LedgerEntryRentState
 {
     bool readOnly{};
-    uint32_t oldExpirationLedger{};
-    uint32_t newExpirationLedger{};
+    uint32_t oldLiveUntilLedger{};
+    uint32_t newLiveUntilLedger{};
     uint32_t oldSize{};
     uint32_t newSize{};
 };
@@ -71,12 +71,11 @@ getLedgerInfo(AbstractLedgerTxn& ltx, Config const& cfg,
     info.sequence_number = hdr.ledgerSeq;
     info.timestamp = hdr.scpValue.closeTime;
     info.memory_limit = sorobanConfig.txMemoryLimit();
-    info.min_persistent_entry_expiration =
-        sorobanConfig.stateExpirationSettings().minPersistentEntryExpiration;
-    info.min_temp_entry_expiration =
-        sorobanConfig.stateExpirationSettings().minTempEntryExpiration;
-    info.max_entry_expiration =
-        sorobanConfig.stateExpirationSettings().maxEntryExpiration;
+    info.min_persistent_entry_ttl =
+        sorobanConfig.stateArchivalSettings().minPersistentTTL;
+    info.min_temp_entry_ttl =
+        sorobanConfig.stateArchivalSettings().minTemporaryTTL;
+    info.max_entry_ttl = sorobanConfig.stateArchivalSettings().maxEntryTTL;
     info.cpu_cost_params = toCxxBuf(sorobanConfig.cpuCostParams());
     info.mem_cost_params = toCxxBuf(sorobanConfig.memCostParams());
     // TODO: move network id to config to not recompute hash
@@ -283,6 +282,8 @@ InvokeHostFunctionOpFrame::maybePopulateDiagnosticEvents(
             DiagnosticEvent evt;
             xdr::xdr_from_opaque(e.data, evt);
             diagnosticEvents.emplace_back(evt);
+            CLOG_DEBUG(Tx, "Soroban diagnostic event: {}",
+                       xdr::xdr_to_string(evt));
         }
 
         // add additional diagnostic events for metrics
@@ -372,7 +373,7 @@ InvokeHostFunctionOpFrame::doApply(Application& app, AbstractLedgerTxn& ltx,
 
     // Get the entries for the footprint
     rust::Vec<CxxBuf> ledgerEntryCxxBufs;
-    rust::Vec<CxxBuf> expirationEntryCxxBufs;
+    rust::Vec<CxxBuf> ttlEntryCxxBufs;
 
     auto const& resources = mParentTx.sorobanResources();
     auto const& footprint = resources.footprint;
@@ -381,73 +382,69 @@ InvokeHostFunctionOpFrame::doApply(Application& app, AbstractLedgerTxn& ltx,
 
     ledgerEntryCxxBufs.reserve(footprintLength);
 
-    auto addReads = [&ledgerEntryCxxBufs, &expirationEntryCxxBufs, &ltx,
-                     &metrics, &resources, this](auto const& keys) -> bool {
+    auto addReads = [&ledgerEntryCxxBufs, &ttlEntryCxxBufs, &ltx, &metrics,
+                     &resources, this](auto const& keys) -> bool {
         for (auto const& lk : keys)
         {
             uint32 keySize = static_cast<uint32>(xdr::xdr_size(lk));
             uint32 entrySize = 0u;
-            // Load without record for readOnly to avoid writing them later
-            auto ltxe = ltx.loadWithoutRecord(lk);
-            if (ltxe)
-            {
-                bool shouldAddEntry = true;
-                auto const& le = ltxe.current();
-                std::optional<ExpirationEntry> expirationEntry = std::nullopt;
+            std::optional<TTLEntry> ttlEntry = std::nullopt;
+            bool sorobanEntryLive = false;
 
-                // For soroban entries, check if the entry is expired
-                if (isSorobanEntry(le.data))
+            // For soroban entries, check if the entry is expired before loading
+            if (isSorobanEntry(lk))
+            {
+                auto ttlKey = getTTLKey(lk);
+                auto ttlLtxe = ltx.loadWithoutRecord(ttlKey);
+                if (ttlLtxe)
                 {
-                    auto expirationKey = getExpirationKey(lk);
-                    auto expirationLtxe = ltx.loadWithoutRecord(expirationKey);
-                    releaseAssertOrThrow(expirationLtxe);
-                    if (!isLive(expirationLtxe.current(),
-                                ltx.getHeader().ledgerSeq))
+                    if (!isLive(ttlLtxe.current(), ltx.getHeader().ledgerSeq))
                     {
-                        if (isTemporaryEntry(lk))
+                        // For temporary entries, treat the expired entry as
+                        // if the key did not exist
+                        if (!isTemporaryEntry(lk))
                         {
-                            // For temporary entries, treat the expired entry as
-                            // if the key did not exist
-                            shouldAddEntry = false;
-                        }
-                        else
-                        {
-                            // Cannot access an expired entry
+                            // Cannot access an archived entry
                             this->innerResult().code(
-                                INVOKE_HOST_FUNCTION_ENTRY_EXPIRED);
+                                INVOKE_HOST_FUNCTION_ENTRY_ARCHIVED);
                             return false;
                         }
                     }
-
-                    expirationEntry =
-                        expirationLtxe.current().data.expiration();
+                    else
+                    {
+                        sorobanEntryLive = true;
+                        ttlEntry = ttlLtxe.current().data.ttl();
+                    }
                 }
+                // If ttlLtxe doesn't exist, this is a new Soroban entry
+            }
 
-                if (shouldAddEntry)
+            if (!isSorobanEntry(lk) || sorobanEntryLive)
+            {
+                auto ltxe = ltx.loadWithoutRecord(lk);
+                if (ltxe)
                 {
-                    auto leBuf = toCxxBuf(le);
+                    auto leBuf = toCxxBuf(ltxe.current());
+                    entrySize = static_cast<uint32>(leBuf.data->size());
 
-                    // For entry types that don't have an ExpirationEntry (i.e.
+                    // For entry types that don't have an ttlEntry (i.e.
                     // Accounts), the rust host expects an "empty" CxxBuf such
                     // that the buffer has a non-null pointer that points to an
                     // empty byte vector
-                    auto expirationBuf =
-                        expirationEntry
-                            ? toCxxBuf(*expirationEntry)
+                    auto ttlBuf =
+                        ttlEntry
+                            ? toCxxBuf(*ttlEntry)
                             : CxxBuf{std::make_unique<std::vector<uint8_t>>()};
 
-                    entrySize = static_cast<uint32>(leBuf.data->size());
-                    if (expirationEntry)
-                    {
-                        entrySize +=
-                            static_cast<uint32_t>(expirationBuf.data->size());
-                    }
-
                     ledgerEntryCxxBufs.emplace_back(std::move(leBuf));
-                    expirationEntryCxxBufs.emplace_back(
-                        std::move(expirationBuf));
+                    ttlEntryCxxBufs.emplace_back(std::move(ttlBuf));
+                }
+                else if (isSorobanEntry(lk))
+                {
+                    releaseAssertOrThrow(!ttlEntry);
                 }
             }
+
             metrics.noteReadEntry(isCodeKey(lk), keySize, entrySize);
 
             if (resources.readBytes < metrics.mLedgerReadByte)
@@ -501,9 +498,11 @@ InvokeHostFunctionOpFrame::doApply(Application& app, AbstractLedgerTxn& ltx,
             toCxxBuf(mInvokeHostFunction.hostFunction), toCxxBuf(resources),
             toCxxBuf(getSourceID()), authEntryCxxBufs,
             getLedgerInfo(ltx, cfg, sorobanConfig), ledgerEntryCxxBufs,
-            expirationEntryCxxBufs, basePrngSeedBuf,
+            ttlEntryCxxBufs, basePrngSeedBuf,
             sorobanConfig.rustBridgeRentFeeConfiguration());
-
+        metrics.mCpuInsn = static_cast<uint32>(out.cpu_insns);
+        metrics.mMemByte = static_cast<uint32>(out.mem_bytes);
+        metrics.mInvokeTimeNsecs = static_cast<uint32>(out.time_nsecs);
         if (!out.success)
         {
             maybePopulateDiagnosticEvents(cfg, out, metrics);
@@ -514,9 +513,6 @@ InvokeHostFunctionOpFrame::doApply(Application& app, AbstractLedgerTxn& ltx,
         CLOG_DEBUG(Tx, "Exception caught while invoking host fn: {}", e.what());
     }
 
-    metrics.mCpuInsn = static_cast<uint32>(out.cpu_insns);
-    metrics.mMemByte = static_cast<uint32>(out.mem_bytes);
-    metrics.mInvokeTimeNsecs = static_cast<uint32>(out.time_nsecs);
     if (!out.success)
     {
         if (resources.instructions < out.cpu_insns)
@@ -563,9 +559,9 @@ InvokeHostFunctionOpFrame::doApply(Application& app, AbstractLedgerTxn& ltx,
         uint32 keySize = static_cast<uint32>(xdr::xdr_size(lk));
         uint32 entrySize = static_cast<uint32>(buf.data.size());
 
-        // ExpirationEntry write fees come out of refundableFee, already
+        // ttlEntry write fees come out of refundableFee, already
         // accounted for by the host
-        if (lk.type() != EXPIRATION)
+        if (lk.type() != TTL)
         {
             metrics.noteWriteEntry(isCodeKey(lk), keySize, entrySize);
             if (resources.writeBytes < metrics.mLedgerWriteByte)
@@ -594,18 +590,17 @@ InvokeHostFunctionOpFrame::doApply(Application& app, AbstractLedgerTxn& ltx,
     }
 
     // Check that each newly created ContractCode or ContractData entry also
-    // creates an ExpirationEntry
+    // creates an ttlEntry
     for (auto const& key : createdKeys)
     {
         if (isSorobanEntry(key))
         {
-            auto expirationKey = getExpirationKey(key);
-            releaseAssertOrThrow(createdKeys.find(expirationKey) !=
-                                 createdKeys.end());
+            auto ttlKey = getTTLKey(key);
+            releaseAssertOrThrow(createdKeys.find(ttlKey) != createdKeys.end());
         }
         else
         {
-            releaseAssertOrThrow(key.type() == EXPIRATION);
+            releaseAssertOrThrow(key.type() == TTL);
         }
     }
 
@@ -623,11 +618,11 @@ InvokeHostFunctionOpFrame::doApply(Application& app, AbstractLedgerTxn& ltx,
                 releaseAssertOrThrow(isSorobanEntry(lk));
                 ltx.erase(lk);
 
-                // Also delete associated ExpirationEntry
-                auto expirationLK = getExpirationKey(lk);
-                auto expirationLtxe = ltx.load(expirationLK);
-                releaseAssertOrThrow(expirationLtxe);
-                ltx.erase(expirationLK);
+                // Also delete associated ttlEntry
+                auto ttlLK = getTTLKey(lk);
+                auto ttlLtxe = ltx.load(ttlLK);
+                releaseAssertOrThrow(ttlLtxe);
+                ltx.erase(ttlLK);
             }
         }
     }

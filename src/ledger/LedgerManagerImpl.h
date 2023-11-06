@@ -58,6 +58,8 @@ class LedgerManagerImpl : public LedgerManager
     medida::Timer& mLedgerClose;
     medida::Buckets& mLedgerAgeClosed;
     medida::Counter& mLedgerAge;
+    medida::Counter& mTransactionApplySucceeded;
+    medida::Counter& mTransactionApplyFailed;
     medida::Timer& mMetaStreamWriteTime;
     VirtualClock::time_point mLastClose;
     bool mRebuildInMemoryState{false};
@@ -135,8 +137,8 @@ class LedgerManagerImpl : public LedgerManager
     uint32_t getLastMaxTxSetSizeOps() const override;
     Resource maxLedgerResources(bool isSoroban,
                                 AbstractLedgerTxn& ltxOuter) override;
-    Resource maxTransactionResources(bool isSoroban,
-                                     AbstractLedgerTxn& ltxOuter) override;
+    Resource
+    maxSorobanTransactionResources(AbstractLedgerTxn& ltxOuter) override;
     int64_t getLastMinBalance(uint32_t ownerCount) const override;
     uint32_t getLastReserve() const override;
     uint32_t getLastTxFee() const override;

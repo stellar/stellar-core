@@ -13,6 +13,7 @@
 #include "util/Logging.h"
 #include "util/Math.h"
 #include "xdrpp/marshal.h"
+#include <Tracy.hpp>
 
 namespace stellar
 {
@@ -247,6 +248,35 @@ LoopbackPeer::processInQueue()
             mApp.postOnMainThread([self]() { self->processInQueue(); },
                                   "LoopbackPeer: processInQueue");
         }
+    }
+}
+
+void
+LoopbackPeer::recvMessage(xdr::msg_ptr const& msg)
+{
+    ZoneScoped;
+    if (shouldAbort())
+    {
+        return;
+    }
+
+    try
+    {
+        ZoneNamedN(hmacZone, "message HMAC", true);
+        AuthenticatedMessage am;
+        {
+            ZoneNamedN(xdrZone, "XDR deserialize", true);
+            xdr::xdr_from_msg(msg, am);
+        }
+        recvMessage(am);
+    }
+    catch (xdr::xdr_runtime_error& e)
+    {
+        CLOG_ERROR(Overlay, "received corrupt xdr::msg_ptr {}", e.what());
+        drop("received corrupted message",
+             Peer::DropDirection::WE_DROPPED_REMOTE,
+             Peer::DropMode::IGNORE_WRITE_QUEUE);
+        return;
     }
 }
 

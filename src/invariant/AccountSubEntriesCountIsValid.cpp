@@ -99,9 +99,9 @@ updateChangedSubEntriesCount(
     case CONTRACT_DATA:
     case CONTRACT_CODE:
     case CONFIG_SETTING:
-    case EXPIRATION:
+    case TTL:
         // Claimable balances, liquidity pools, contract data, configuration
-        // settings, and expiration entries are not subentries
+        // settings, and TTL entries are not subentries
         break;
     default:
         abort();

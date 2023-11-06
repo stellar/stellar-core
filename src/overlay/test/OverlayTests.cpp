@@ -137,24 +137,29 @@ TEST_CASE("loopback peer send auth before hello", "[overlay][connections]")
 
 TEST_CASE("flow control byte capacity", "[overlay][flowcontrol]")
 {
-    StellarMessage tx1;
-    tx1.type(TRANSACTION);
-
-    // Make tx1 larger than the minimum we can set TX_MAX_SIZE_BYTES to.
-    tx1.transaction().v0().tx.operations.emplace_back(
-        getOperationGreaterThanMinMaxSizeBytes());
-    uint32 txSize = FlowControlCapacity::msgBodySize(tx1);
-    REQUIRE(txSize > MinimumSorobanNetworkConfig::TX_MAX_SIZE_BYTES);
-
     VirtualClock clock;
     auto cfg1 = getTestConfig(0);
     auto cfg2 = getTestConfig(1);
     REQUIRE(cfg1.PEER_FLOOD_READING_CAPACITY !=
             cfg1.PEER_FLOOD_READING_CAPACITY_BYTES);
 
+    StellarMessage tx1;
+    tx1.type(TRANSACTION);
+
+    // Make tx1 larger than the minimum we can set TX_MAX_SIZE_BYTES to.
+    tx1.transaction().v0().tx.operations.emplace_back(
+        getOperationGreaterThanMinMaxSizeBytes());
+    auto getTxSize = [&]() {
+        return FlowControlCapacity::msgBodySize(
+            tx1, cfg1.OVERLAY_PROTOCOL_VERSION, cfg2.OVERLAY_PROTOCOL_VERSION);
+    };
+
     auto test = [&](bool shouldRequestMore) {
         auto app1 = createTestApplication(clock, cfg1, true, false);
         auto app2 = createTestApplication(clock, cfg2, true, false);
+        auto txSize = getTxSize();
+        REQUIRE(txSize > MinimumSorobanNetworkConfig::TX_MAX_SIZE_BYTES);
+
         auto setupApp = [txSize](Application& app) {
             app.getHerder().setMaxClassicTxSize(txSize);
 
@@ -251,23 +256,46 @@ TEST_CASE("flow control byte capacity", "[overlay][flowcontrol]")
 
     SECTION("batch size is less than message size")
     {
-        cfg2.PEER_FLOOD_READING_CAPACITY_BYTES = 2 * txSize;
-        cfg2.FLOW_CONTROL_SEND_MORE_BATCH_SIZE_BYTES = txSize / 2;
+        cfg2.PEER_FLOOD_READING_CAPACITY_BYTES = 2 * getTxSize();
+        cfg2.FLOW_CONTROL_SEND_MORE_BATCH_SIZE_BYTES = getTxSize() / 2;
         test(true);
     }
     SECTION("batch size is greater than message size")
     {
-        cfg2.PEER_FLOOD_READING_CAPACITY_BYTES = 2 * txSize;
-        cfg2.FLOW_CONTROL_SEND_MORE_BATCH_SIZE_BYTES = 2 * txSize;
+        cfg2.PEER_FLOOD_READING_CAPACITY_BYTES = 2 * getTxSize();
+        cfg2.FLOW_CONTROL_SEND_MORE_BATCH_SIZE_BYTES = 2 * getTxSize();
         // Invalid config, core will throw on startup
         REQUIRE_THROWS_AS(test(false), std::runtime_error);
     }
     SECTION("message count kicks in first")
     {
-        cfg2.PEER_FLOOD_READING_CAPACITY_BYTES = 3 * txSize;
-        cfg2.FLOW_CONTROL_SEND_MORE_BATCH_SIZE_BYTES = 2 * txSize;
+        cfg2.PEER_FLOOD_READING_CAPACITY_BYTES = 3 * getTxSize();
+        cfg2.FLOW_CONTROL_SEND_MORE_BATCH_SIZE_BYTES = 2 * getTxSize();
         cfg2.PEER_FLOOD_READING_CAPACITY = 1;
         cfg2.FLOW_CONTROL_SEND_MORE_BATCH_SIZE = 1;
+        test(true);
+    }
+    SECTION("mixed versions")
+    {
+        cfg1.OVERLAY_PROTOCOL_VERSION =
+            Peer::FIRST_VERSION_UPDATED_FLOW_CONTROL_ACCOUNTING - 1;
+        cfg1.PEER_FLOOD_READING_CAPACITY_BYTES = 2 * getTxSize();
+        cfg1.FLOW_CONTROL_SEND_MORE_BATCH_SIZE_BYTES = getTxSize();
+
+        cfg2.PEER_FLOOD_READING_CAPACITY_BYTES = 2 * getTxSize();
+        cfg2.FLOW_CONTROL_SEND_MORE_BATCH_SIZE_BYTES = getTxSize();
+        test(true);
+    }
+    SECTION("older versions")
+    {
+        cfg1.OVERLAY_PROTOCOL_VERSION =
+            Peer::FIRST_VERSION_UPDATED_FLOW_CONTROL_ACCOUNTING - 1;
+        cfg2.OVERLAY_PROTOCOL_VERSION =
+            Peer::FIRST_VERSION_UPDATED_FLOW_CONTROL_ACCOUNTING - 1;
+        cfg1.PEER_FLOOD_READING_CAPACITY_BYTES = 2 * getTxSize();
+        cfg1.FLOW_CONTROL_SEND_MORE_BATCH_SIZE_BYTES = getTxSize();
+        cfg2.PEER_FLOOD_READING_CAPACITY_BYTES = 2 * getTxSize();
+        cfg2.FLOW_CONTROL_SEND_MORE_BATCH_SIZE_BYTES = getTxSize();
         test(true);
     }
     SECTION("transaction size upgrades")
@@ -275,8 +303,9 @@ TEST_CASE("flow control byte capacity", "[overlay][flowcontrol]")
         auto tx2 = tx1;
         tx2.transaction().v0().signatures.emplace_back(
             SignatureUtils::sign(SecretKey::random(), HashUtils::random()));
-
-        uint32 txSize2 = FlowControlCapacity::msgBodySize(tx2);
+        auto txSize = getTxSize();
+        uint32 txSize2 = FlowControlCapacity::msgBodySize(
+            tx2, cfg1.OVERLAY_PROTOCOL_VERSION, cfg2.OVERLAY_PROTOCOL_VERSION);
         REQUIRE(txSize2 > MinimumSorobanNetworkConfig::TX_MAX_SIZE_BYTES);
         REQUIRE(txSize2 > txSize + 1);
 
@@ -563,6 +592,12 @@ TEST_CASE("loopback peer flow control activation", "[overlay][flowcontrol]")
             SECTION("basic")
             {
                 // Successfully enabled flow control
+                runTest({cfg1, cfg2}, false);
+            }
+            SECTION("mix versions")
+            {
+                cfg1.OVERLAY_PROTOCOL_VERSION =
+                    Peer::FIRST_VERSION_UPDATED_FLOW_CONTROL_ACCOUNTING - 1;
                 runTest({cfg1, cfg2}, false);
             }
             SECTION("bad peer")
@@ -2455,70 +2490,6 @@ TEST_CASE("disconnected topology recovery")
     SECTION("preferred peers")
     {
         doTest(true);
-    }
-}
-
-TEST_CASE("generalized tx sets are not sent to non-upgraded peers",
-          "[txset][overlay]")
-{
-    if (protocolVersionIsBefore(Config::CURRENT_LEDGER_PROTOCOL_VERSION,
-                                SOROBAN_PROTOCOL_VERSION))
-    {
-        return;
-    }
-    auto runTest = [](bool hasNonUpgraded) {
-        int const nonUpgradedNodeIndex = 1;
-        auto networkID = sha256(getTestConfig().NETWORK_PASSPHRASE);
-        auto simulation = Topologies::core(
-            4, 0.75, Simulation::OVER_LOOPBACK, networkID, [&](int i) {
-                auto cfg = getTestConfig(i, Config::TESTDB_ON_DISK_SQLITE);
-                cfg.MAX_SLOTS_TO_REMEMBER = 10;
-                cfg.TESTING_UPGRADE_LEDGER_PROTOCOL_VERSION =
-                    static_cast<uint32_t>(SOROBAN_PROTOCOL_VERSION);
-                if (hasNonUpgraded && i == nonUpgradedNodeIndex)
-                {
-                    cfg.OVERLAY_PROTOCOL_VERSION =
-                        Peer::FIRST_VERSION_SUPPORTING_GENERALIZED_TX_SET - 1;
-                }
-                return cfg;
-            });
-
-        simulation->startAllNodes();
-        auto nodeIDs = simulation->getNodeIDs();
-        auto node = simulation->getNode(nodeIDs[0]);
-
-        auto root = TestAccount::createRoot(*node);
-
-        int64_t const minBalance =
-            node->getLedgerManager().getLastMinBalance(0);
-        REQUIRE(node->getHerder().recvTransaction(
-                    root.tx({txtest::createAccount(
-                        txtest::getAccount("acc").getPublicKey(), minBalance)}),
-                    false) == TransactionQueue::AddResult::ADD_STATUS_PENDING);
-        simulation->crankForAtLeast(Herder::EXP_LEDGER_TIMESPAN_SECONDS, false);
-
-        for (auto const& nodeID : simulation->getNodeIDs())
-        {
-            auto simNode = simulation->getNode(nodeID);
-            if (hasNonUpgraded && nodeID == nodeIDs[nonUpgradedNodeIndex])
-            {
-                REQUIRE(simNode->getLedgerManager().getLastClosedLedgerNum() ==
-                        1);
-            }
-            else
-            {
-                REQUIRE(simNode->getLedgerManager().getLastClosedLedgerNum() ==
-                        2);
-            }
-        }
-    };
-    SECTION("all nodes upgraded")
-    {
-        runTest(false);
-    }
-    SECTION("non upgraded node does not externalize")
-    {
-        runTest(true);
     }
 }
 

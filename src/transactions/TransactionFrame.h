@@ -133,10 +133,7 @@ class TransactionFrame : public TransactionFrameBase
     bool validateSorobanResources(SorobanNetworkConfig const& config,
                                   uint32_t protocolVersion);
     void refundSorobanFee(AbstractLedgerTxn& ltx);
-    FeePair computeSorobanResourceFee(
-        uint32_t protocolVersion, SorobanNetworkConfig const& sorobanConfig,
-        Config const& cfg, bool useConsumedRefundableResources) const;
-    int64 sorobanRefundableFee() const;
+    int64 declaredSorobanResourceFee() const;
 
   public:
     TransactionFrame(Hash const& networkID,
@@ -186,8 +183,6 @@ class TransactionFrame : public TransactionFrameBase
     void pushContractEvents(xdr::xvector<ContractEvent>&& evts);
     void pushDiagnosticEvents(xdr::xvector<DiagnosticEvent>&& evts);
     void setReturnValue(SCVal&& returnValue);
-    void pushInitialExpirations(
-        UnorderedMap<LedgerKey, uint32_t>&& originalExpirations);
     void pushDiagnosticEvent(DiagnosticEvent&& evt);
     void pushSimpleDiagnosticError(SCErrorType ty, SCErrorCode code,
                                    std::string&& message,
@@ -211,7 +206,7 @@ class TransactionFrame : public TransactionFrameBase
     AccountID getSourceID() const override;
 
     uint32_t getNumOperations() const override;
-    Resource getResources() const override;
+    Resource getResources(bool useByteLimitInClassic) const override;
 
     std::vector<Operation> const& getRawOperations() const override;
 
@@ -293,5 +288,10 @@ class TransactionFrame : public TransactionFrameBase
                                       int64_t rentFee, uint32_t protocolVersion,
                                       SorobanNetworkConfig const& sorobanConfig,
                                       Config const& cfg);
+
+    static FeePair computeSorobanResourceFee(
+        uint32_t protocolVersion, SorobanResources const& txResources,
+        uint32_t txSize, uint32_t eventsSize,
+        SorobanNetworkConfig const& sorobanConfig, Config const& cfg);
 };
 }

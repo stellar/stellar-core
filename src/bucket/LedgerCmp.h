@@ -113,8 +113,8 @@ struct LedgerEntryIdCmp
             };
             return getConfigSettingId(a) < getConfigSettingId(b);
         }
-        case EXPIRATION:
-            return lexCompare(a.expiration().keyHash, b.expiration().keyHash);
+        case TTL:
+            return lexCompare(a.ttl().keyHash, b.ttl().keyHash);
         }
         return false;
     }

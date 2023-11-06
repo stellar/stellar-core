@@ -143,7 +143,7 @@
       <AdditionalDependencies>kernel32.lib;user32.lib;gdi32.lib;winspool.lib;comdlg32.lib;advapi32.lib;shell32.lib;ole32.lib;oleaut32.lib;uuid.lib;odbc32.lib;odbccp32.lib;psapi.lib;Credui.lib;userenv.lib;bcrypt.lib;ntdll.lib;$(OutDir)\rust\target\debug\rust_stellar_core.lib;C:\Program Files\PostgreSQL\15\lib\libpq.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
     <PreBuildEvent>
-      <Command>(set CFLAGS=-MDd) &amp; (set CXXFLAGS=-MDd) &amp; cargo build --target-dir $(OutDir)\rust\target --features tracy</Command>
+      <Command>(set CFLAGS=-MDd) &amp; (set CXXFLAGS=-MDd) &amp; cargo build --target-dir $(OutDir)\rust\target --features tracy --features core-vnext</Command>
     </PreBuildEvent>
     <PreBuildEvent>
       <Message>Rust</Message>
@@ -330,7 +330,7 @@ exit /b 0
       <AdditionalDependencies>kernel32.lib;user32.lib;gdi32.lib;winspool.lib;comdlg32.lib;advapi32.lib;shell32.lib;ole32.lib;oleaut32.lib;uuid.lib;odbc32.lib;odbccp32.lib;psapi.lib;Credui.lib;userenv.lib;bcrypt.lib;ntdll.lib;$(OutDir)\rust\target\release\rust_stellar_core.lib;C:\Program Files\PostgreSQL\15\lib\libpq.lib;%(AdditionalDependencies);</AdditionalDependencies>
     </Link>
     <PreBuildEvent>
-      <Command>cargo build --release --target-dir $(OutDir)\rust\target --features tracy</Command>
+      <Command>cargo build --release --target-dir $(OutDir)\rust\target --features tracy --features core-vnext</Command>
     </PreBuildEvent>
     <PreBuildEvent>
       <Message>Rust</Message>
@@ -462,8 +462,6 @@ exit /b 0
     <ClCompile Include="..\..\src\catchup\DownloadApplyTxsWork.cpp" />
     <ClCompile Include="..\..\src\catchup\IndexBucketsWork.cpp" />
     <ClCompile Include="..\..\src\catchup\ReplayDebugMetaWork.cpp" />
-    <ClCompile Include="..\..\src\catchup\simulation\HistoryArchiveStream.cpp" />
-    <ClCompile Include="..\..\src\catchup\simulation\TxSimApplyTransactionsWork.cpp" />
     <ClCompile Include="..\..\src\catchup\test\CatchupWorkTests.cpp" />
     <ClCompile Include="..\..\src\catchup\VerifyLedgerChainWork.cpp" />
     <ClCompile Include="..\..\src\crypto\BLAKE2.cpp" />
@@ -493,7 +491,6 @@ exit /b 0
     <ClCompile Include="..\..\src\herder\PendingEnvelopes.cpp" />
     <ClCompile Include="..\..\src\herder\QuorumIntersectionCheckerImpl.cpp" />
     <ClCompile Include="..\..\src\herder\QuorumTracker.cpp" />
-    <ClCompile Include="..\..\src\herder\simulation\TxSimTxSetFrame.cpp" />
     <ClCompile Include="..\..\src\herder\SurgePricingUtils.cpp" />
     <ClCompile Include="..\..\src\herder\test\HerderTests.cpp" />
     <ClCompile Include="..\..\src\herder\test\PendingEnvelopesTests.cpp" />
@@ -576,7 +573,7 @@ exit /b 0
     <ClCompile Include="..\..\src\ledger\LedgerTxnContractDataSQL.cpp" />
     <ClCompile Include="..\..\src\ledger\LedgerTxnDataSQL.cpp" />
     <ClCompile Include="..\..\src\ledger\LedgerTxnEntry.cpp" />
-    <ClCompile Include="..\..\src\ledger\LedgerTxnExpirationSQL.cpp" />
+    <ClCompile Include="..\..\src\ledger\LedgerTxnTTLSQL.cpp" />
     <ClCompile Include="..\..\src\ledger\LedgerTxnHeader.cpp" />
     <ClCompile Include="..\..\src\ledger\LedgerTxnLiquidityPoolSQL.cpp" />
     <ClCompile Include="..\..\src\ledger\LedgerTxnOfferSQL.cpp" />
@@ -631,7 +628,7 @@ exit /b 0
     <ClCompile Include="..\..\src\test\FuzzerImpl.cpp" />
     <ClCompile Include="..\..\src\transactions\AllowTrustOpFrame.cpp" />
     <ClCompile Include="..\..\src\transactions\BeginSponsoringFutureReservesOpFrame.cpp" />
-    <ClCompile Include="..\..\src\transactions\BumpFootprintExpirationOpFrame.cpp" />
+    <ClCompile Include="..\..\src\transactions\ExtendFootprintTTLOpFrame.cpp" />
     <ClCompile Include="..\..\src\transactions\BumpSequenceOpFrame.cpp" />
     <ClCompile Include="..\..\src\transactions\ChangeTrustOpFrame.cpp" />
     <ClCompile Include="..\..\src\transactions\ClaimClaimableBalanceOpFrame.cpp" />
@@ -663,16 +660,6 @@ exit /b 0
     <ClCompile Include="..\..\src\transactions\SetTrustLineFlagsOpFrame.cpp" />
     <ClCompile Include="..\..\src\transactions\SignatureChecker.cpp" />
     <ClCompile Include="..\..\src\transactions\SignatureUtils.cpp" />
-    <ClCompile Include="..\..\src\transactions\simulation\TxSimCreateClaimableBalanceOpFrame.cpp" />
-    <ClCompile Include="..\..\src\transactions\simulation\TxSimCreatePassiveSellOfferOpFrame.cpp" />
-    <ClCompile Include="..\..\src\transactions\simulation\TxSimFeeBumpTransactionFrame.cpp" />
-    <ClCompile Include="..\..\src\transactions\simulation\TxSimGenerateBucketsWork.cpp" />
-    <ClCompile Include="..\..\src\transactions\simulation\TxSimManageBuyOfferOpFrame.cpp" />
-    <ClCompile Include="..\..\src\transactions\simulation\TxSimManageSellOfferOpFrame.cpp" />
-    <ClCompile Include="..\..\src\transactions\simulation\TxSimMergeOpFrame.cpp" />
-    <ClCompile Include="..\..\src\transactions\simulation\TxSimScaleBucketlistWork.cpp" />
-    <ClCompile Include="..\..\src\transactions\simulation\TxSimTransactionFrame.cpp" />
-    <ClCompile Include="..\..\src\transactions\simulation\TxSimUtils.cpp" />
     <ClCompile Include="..\..\src\transactions\SponsorshipUtils.cpp" />
     <ClCompile Include="..\..\src\transactions\test\AllowTrustTests.cpp" />
     <ClCompile Include="..\..\src\transactions\test\BeginSponsoringFutureReservesTests.cpp" />
@@ -872,10 +859,7 @@ exit /b 0
     <ClCompile Include="..\..\src\work\WorkScheduler.cpp" />
     <ClCompile Include="..\..\src\work\WorkSequence.cpp" />
     <ClCompile Include="..\..\src\work\WorkWithCallback.cpp" />
-    <ClCompile Include="src\$(Configuration)\generated\rust\RustBridge.cpp">
-      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='DebugCurrV|x64'">true</ExcludedFromBuild>
-      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='ReleaseCurrV|x64'">true</ExcludedFromBuild>
-    </ClCompile>
+    <ClCompile Include="src\$(Configuration)\generated\rust\RustBridge.cpp" />
     <ClCompile Include="src\$(Configuration)\generated\xdr\XDRFilesSha256.cpp" />
   </ItemGroup>
   <ItemGroup>
@@ -914,8 +898,6 @@ exit /b 0
     <ClInclude Include="..\..\src\catchup\DownloadApplyTxsWork.h" />
     <ClInclude Include="..\..\src\catchup\IndexBucketsWork.h" />
     <ClInclude Include="..\..\src\catchup\ReplayDebugMetaWork.h" />
-    <ClInclude Include="..\..\src\catchup\simulation\HistoryArchiveStream.h" />
-    <ClInclude Include="..\..\src\catchup\simulation\TxSimApplyTransactionsWork.h" />
     <ClInclude Include="..\..\src\catchup\test\CatchupWorkTests.h" />
     <ClInclude Include="..\..\src\catchup\VerifyLedgerChainWork.h" />
     <ClInclude Include="..\..\src\crypto\BLAKE2.h" />
@@ -946,7 +928,6 @@ exit /b 0
     <ClInclude Include="..\..\src\herder\QuorumIntersectionChecker.h" />
     <ClInclude Include="..\..\src\herder\QuorumIntersectionCheckerImpl.h" />
     <ClInclude Include="..\..\src\herder\QuorumTracker.h" />
-    <ClInclude Include="..\..\src\herder\simulation\TxSimTxSetFrame.h" />
     <ClInclude Include="..\..\src\herder\SurgePricingUtils.h" />
     <ClInclude Include="..\..\src\herder\test\TestTxSetUtils.h" />
     <ClInclude Include="..\..\src\herder\TransactionQueue.h" />
@@ -1047,7 +1028,7 @@ exit /b 0
     <ClInclude Include="..\..\src\test\FuzzerImpl.h" />
     <ClInclude Include="..\..\src\transactions\AllowTrustOpFrame.h" />
     <ClInclude Include="..\..\src\transactions\BeginSponsoringFutureReservesOpFrame.h" />
-    <ClInclude Include="..\..\src\transactions\BumpFootprintExpirationOpFrame.h" />
+    <ClInclude Include="..\..\src\transactions\ExtendFootprintTTLOpFrame.h" />
     <ClInclude Include="..\..\src\transactions\BumpSequenceOpFrame.h" />
     <ClInclude Include="..\..\src\transactions\ChangeTrustOpFrame.h" />
     <ClInclude Include="..\..\src\transactions\ClaimClaimableBalanceOpFrame.h" />
@@ -1079,16 +1060,6 @@ exit /b 0
     <ClInclude Include="..\..\src\transactions\SetTrustLineFlagsOpFrame.h" />
     <ClInclude Include="..\..\src\transactions\SignatureChecker.h" />
     <ClInclude Include="..\..\src\transactions\SignatureUtils.h" />
-    <ClInclude Include="..\..\src\transactions\simulation\TxSimCreateClaimableBalanceOpFrame.h" />
-    <ClInclude Include="..\..\src\transactions\simulation\TxSimCreatePassiveSellOfferOpFrame.h" />
-    <ClInclude Include="..\..\src\transactions\simulation\TxSimFeeBumpTransactionFrame.h" />
-    <ClInclude Include="..\..\src\transactions\simulation\TxSimGenerateBucketsWork.h" />
-    <ClInclude Include="..\..\src\transactions\simulation\TxSimManageBuyOfferOpFrame.h" />
-    <ClInclude Include="..\..\src\transactions\simulation\TxSimManageSellOfferOpFrame.h" />
-    <ClInclude Include="..\..\src\transactions\simulation\TxSimMergeOpFrame.h" />
-    <ClInclude Include="..\..\src\transactions\simulation\TxSimScaleBucketlistWork.h" />
-    <ClInclude Include="..\..\src\transactions\simulation\TxSimTransactionFrame.h" />
-    <ClInclude Include="..\..\src\transactions\simulation\TxSimUtils.h" />
     <ClInclude Include="..\..\src\transactions\SponsorshipUtils.h" />
     <ClInclude Include="..\..\src\transactions\test\SponsorshipTestUtils.h" />
     <ClInclude Include="..\..\src\transactions\TransactionBridge.h" />
@@ -1249,7 +1220,6 @@ exit /b 0
     <None Include="..\..\docs\stellar-core_testnet.cfg" />
     <None Include="..\..\docs\stellar-core_testnet_legacy.cfg" />
     <None Include="..\..\docs\transaction.md" />
-    <None Include="..\..\docs\tx-simulation.md" />
     <None Include="..\..\docs\versioning.md" />
     <CustomBuild Include="..\..\hash-xdrs.sh">
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='DebugNextV|x64'">false</ExcludedFromBuild>
@@ -1533,6 +1503,34 @@ exit /b 0
       <Message>running xdrc</Message>
       <Outputs>src/$(Configuration)/generated/xdr/Stellar-SCP.h</Outputs>
       <AdditionalInputs>src/$(Configuration)/generated/xdr/Stellar-types.h</AdditionalInputs>
+      <OutputItemType>ClInclude</OutputItemType>
+    </CustomBuild>
+    <CustomBuild Include="..\..\src\protocol-curr\xdr\Stellar-contract.x">
+      <FileType>Document</FileType>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='DebugCurrV|x64'">false</ExcludedFromBuild>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='ReleaseCurrV|x64'">false</ExcludedFromBuild>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='DebugNextV|x64'">true</ExcludedFromBuild>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='DebugNoPostgres|x64'">true</ExcludedFromBuild>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='ReleaseNextV|x64'">true</ExcludedFromBuild>
+      <Command Condition="'$(Configuration)|$(Platform)'=='DebugCurrV|x64'">$(SolutionDir)$(Platform)\Debug\xdrc.exe -hh -pedantic -o src/$(Configuration)/generated/xdr/Stellar-contract.h ../../src/protocol-curr/xdr/Stellar-contract.x</Command>
+      <Command Condition="'$(Configuration)|$(Platform)'=='ReleaseCurrV|x64'">$(SolutionDir)$(Platform)\Release\xdrc.exe -hh -pedantic -o src/$(Configuration)/generated/xdr/Stellar-contract.h ../../src/protocol-curr/xdr/Stellar-contract.x</Command>
+      <Message>running xdrc</Message>
+      <Outputs>src/$(Configuration)/generated/xdr/Stellar-contract.h</Outputs>
+      <AdditionalInputs>src/$(Configuration)/generated/xdr/Stellar-contract.h</AdditionalInputs>
+      <OutputItemType>ClInclude</OutputItemType>
+    </CustomBuild>
+    <CustomBuild Include="..\..\src\protocol-curr\xdr\Stellar-contract-config-setting.x">
+      <FileType>Document</FileType>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='DebugCurrV|x64'">false</ExcludedFromBuild>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='ReleaseCurrV|x64'">false</ExcludedFromBuild>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='DebugNextV|x64'">true</ExcludedFromBuild>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='DebugNoPostgres|x64'">true</ExcludedFromBuild>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='ReleaseNextV|x64'">true</ExcludedFromBuild>
+      <Command Condition="'$(Configuration)|$(Platform)'=='DebugCurrV|x64'">$(SolutionDir)$(Platform)\Debug\xdrc.exe -hh -pedantic -o src/$(Configuration)/generated/xdr/Stellar-contract-config-setting.h ../../src/protocol-curr/xdr/Stellar-contract-config-setting.x</Command>
+      <Command Condition="'$(Configuration)|$(Platform)'=='ReleaseCurrV|x64'">$(SolutionDir)$(Platform)\Release\xdrc.exe -hh -pedantic -o src/$(Configuration)/generated/xdr/Stellar-contract-config-setting.h ../../src/protocol-curr/xdr/Stellar-contract-config-setting.x</Command>
+      <Message>running xdrc</Message>
+      <Outputs>src/$(Configuration)/generated/xdr/Stellar-contract.h</Outputs>
+      <AdditionalInputs>src/$(Configuration)/generated/xdr/Stellar-contract.h</AdditionalInputs>
       <OutputItemType>ClInclude</OutputItemType>
     </CustomBuild>
     <CustomBuild Include="..\..\src\main\StellarCoreVersion.cpp.in">

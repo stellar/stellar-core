@@ -205,7 +205,7 @@ computeMultiplier(LedgerEntry const& le)
     case CONFIG_SETTING:
     case CONTRACT_DATA:
     case CONTRACT_CODE:
-    case EXPIRATION:
+    case TTL:
     case LIQUIDITY_POOL:
         throw std::runtime_error(
             "Invalid LedgerEntry type in SponsorshipUtils");
@@ -229,7 +229,7 @@ isSubentry(LedgerEntry const& le)
     case CONTRACT_DATA:
     case CONFIG_SETTING:
     case CONTRACT_CODE:
-    case EXPIRATION:
+    case TTL:
     case LIQUIDITY_POOL:
         throw std::runtime_error(
             "Invalid LedgerEntry type in SponsorshipUtils");

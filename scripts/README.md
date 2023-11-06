@@ -46,7 +46,7 @@ This folder is for storing any scripts that may be helpful for using stellar-cor
     directory or run `pip install
     git+https://github.com/StellarCN/py-stellar-base.git@soroban`.
 - Usage - Ex. `python3 SorobanSettingsUpgrade.py getSettings -id 10` to print out the
-  current state expiration settings. `SorobanSettingsUpgrade.py setupUpgrade`
+  current state archival settings. `SorobanSettingsUpgrade.py setupUpgrade`
   to setup the upgrade for the settings hardcoded in the script.
   -  `getSettings -id n` - Returns the `ConfigSettingEntry` for the `ConfigSettingID` enum that maps to `n`.
   - `setupUpgrade` - `python3 SorobanSettingsUpgrade.py setupUpgrade` to setup the upgrade for the settings hardcoded in the script.

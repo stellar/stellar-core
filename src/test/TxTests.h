@@ -187,14 +187,20 @@ TransactionFramePtr createCreditPaymentTx(Application& app,
 TransactionFramePtr createSimpleDexTx(Application& app, TestAccount& account,
                                       uint32 nbOps, uint32_t fee);
 
-TransactionFramePtr
-createUploadWasmTx(Application& app, TestAccount& account, uint32_t fee,
-                   uint32_t refundableFee, SorobanResources resources,
-                   std::optional<std::string> memo = std::nullopt,
-                   int addInvalidOps = 0);
-void setValidTotalFee(TransactionFramePtr tx, uint32_t inclusionFee,
-                      uint32_t refundableFee, Application& app,
-                      TestAccount& source);
+// Generates `UPLOAD_CONTRACT_WASM` host function operation with
+// valid Wasm of *roughly* `generatedWasmSize` (within a few bytes).
+// The output size deterministically depends on the input
+// `generatedWasmSize`.
+Operation createUploadWasmOperation(uint32_t generatedWasmSize);
+
+TransactionFramePtr createUploadWasmTx(
+    Application& app, TestAccount& account, uint32_t inclusionFee,
+    uint32_t resourceFee, SorobanResources resources,
+    std::optional<std::string> memo = std::nullopt, int addInvalidOps = 0,
+    std::optional<uint32_t> wasmSize = std::nullopt,
+    std::optional<SequenceNumber> seq = std::nullopt);
+int64_t sorobanResourceFee(Application& app, SorobanResources const& resources,
+                           uint32_t txSize, uint32_t eventsSize);
 
 Operation pathPayment(PublicKey const& to, Asset const& sendCur,
                       int64_t sendMax, Asset const& destCur, int64_t destAmount,
@@ -292,10 +298,19 @@ transactionFrameFromOps(Hash const& networkID, TestAccount& source,
 TransactionFrameBasePtr sorobanTransactionFrameFromOps(
     Hash const& networkID, TestAccount& source,
     std::vector<Operation> const& ops, std::vector<SecretKey> const& opKeys,
-    SorobanResources const& resources, uint32_t fee, uint32_t refundableFee,
+    SorobanResources const& resources, uint32_t inclusionFee,
+    uint32_t resourceFee, std::optional<std::string> memo = std::nullopt,
+    std::optional<SequenceNumber> seq = std::nullopt);
+TransactionFrameBasePtr sorobanTransactionFrameFromOpsWithTotalFee(
+    Hash const& networkID, TestAccount& source,
+    std::vector<Operation> const& ops, std::vector<SecretKey> const& opKeys,
+    SorobanResources const& resources, uint32_t totalFee, uint32_t resourceFee,
     std::optional<std::string> memo = std::nullopt);
-ConfigUpgradeSetFrameConstPtr
-makeConfigUpgradeSet(AbstractLedgerTxn& ltx, ConfigUpgradeSet configUpgradeSet);
+
+ConfigUpgradeSetFrameConstPtr makeConfigUpgradeSet(
+    AbstractLedgerTxn& ltx, ConfigUpgradeSet configUpgradeSet,
+    bool expireSet = false,
+    ContractDataDurability type = ContractDataDurability::TEMPORARY);
 LedgerUpgrade makeConfigUpgrade(ConfigUpgradeSetFrame const& configUpgradeSet);
 
 LedgerUpgrade makeBaseReserveUpgrade(int baseReserve);

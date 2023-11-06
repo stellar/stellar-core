@@ -45,6 +45,7 @@
 #include "xdrpp/marshal.h"
 #include <algorithm>
 #include <fmt/format.h>
+#include <numeric>
 #include <optional>
 
 using namespace stellar;
@@ -1530,7 +1531,112 @@ surgeTest(uint32 protocolVersion, uint32_t nbTxs, uint32_t maxTxSetSize,
     }
 }
 
-TEST_CASE("surge pricing", "[herder][txset]")
+TEST_CASE("tx set hits overlay byte limit during construction")
+{
+    Config cfg(getTestConfig());
+    cfg.TESTING_UPGRADE_LEDGER_PROTOCOL_VERSION =
+        static_cast<uint32_t>(SOROBAN_PROTOCOL_VERSION);
+    auto max = std::numeric_limits<uint32_t>::max();
+    cfg.TESTING_UPGRADE_MAX_TX_SET_SIZE = max;
+
+    VirtualClock clock;
+    Application::pointer app = createTestApplication(clock, cfg);
+    auto root = TestAccount::createRoot(*app);
+
+    modifySorobanNetworkConfig(*app, [max](SorobanNetworkConfig& cfg) {
+        cfg.mLedgerMaxTxCount = max;
+        cfg.mLedgerMaxReadLedgerEntries = max;
+        cfg.mLedgerMaxReadBytes = max;
+        cfg.mLedgerMaxWriteLedgerEntries = max;
+        cfg.mLedgerMaxWriteBytes = max;
+        cfg.mLedgerMaxTransactionsSizeBytes = max;
+        cfg.mLedgerMaxInstructions = max;
+    });
+
+    SorobanNetworkConfig conf;
+    uint32_t maxContractSize = 0;
+    {
+        LedgerTxn ltx(app->getLedgerTxnRoot());
+        conf = app->getLedgerManager().getSorobanNetworkConfig(ltx);
+        maxContractSize = app->getLedgerManager()
+                              .getSorobanNetworkConfig(ltx)
+                              .maxContractSizeBytes();
+    }
+
+    auto makeTx = [&](TestAccount& acc, TxSetFrame::Phase const& phase) {
+        if (phase == TxSetFrame::Phase::SOROBAN)
+        {
+            SorobanResources res;
+            res.instructions = 1;
+            res.readBytes = 0;
+            res.writeBytes = 0;
+
+            return createUploadWasmTx(*app, acc, 100,
+                                      DEFAULT_TEST_RESOURCE_FEE * 10, res,
+                                      std::nullopt, 0, maxContractSize);
+        }
+        else
+        {
+            return makeMultiPayment(acc, acc, 100, 1, 100, 1);
+        }
+    };
+
+    auto testPhaseWithOverlayLimit = [&](TxSetFrame::Phase const& phase) {
+        TxSetFrame::Transactions txs;
+        size_t totalSize = 0;
+        int txCount = 0;
+
+        while (totalSize < MAX_TX_SET_ALLOWANCE)
+        {
+            auto a = root.create(fmt::format("A{}", txCount++), 500000000);
+            txs.emplace_back(makeTx(a, phase));
+            totalSize += xdr::xdr_size(txs.back()->getEnvelope());
+        }
+
+        TxSetFrame::TxPhases invalidPhases;
+        invalidPhases.resize(
+            static_cast<size_t>(TxSetFrame::Phase::PHASE_COUNT));
+
+        TxSetFrame::TxPhases phases;
+        if (phase == TxSetFrame::Phase::SOROBAN)
+        {
+            phases = TxSetFrame::TxPhases{{}, txs};
+        }
+        else
+        {
+            phases = TxSetFrame::TxPhases{txs, {}};
+        }
+
+        TxSetFrameConstPtr txSet =
+            TxSetFrame::makeFromTransactions(phases, *app, 0, 0, invalidPhases);
+
+        REQUIRE(invalidPhases[static_cast<size_t>(phase)].empty());
+        auto const& phaseTxs = txSet->getTxsForPhase(phase);
+        auto trimmedSize =
+            std::accumulate(phaseTxs.begin(), phaseTxs.end(), size_t(0),
+                            [&](size_t a, TransactionFrameBasePtr const& tx) {
+                                return a += xdr::xdr_size(tx->getEnvelope());
+                            });
+        REQUIRE(txSet->encodedSize() <= MAX_MESSAGE_SIZE);
+
+        auto byteAllowance = phase == TxSetFrame::Phase::SOROBAN
+                                 ? MAX_SOROBAN_BYTE_ALLOWANCE
+                                 : MAX_CLASSIC_BYTE_ALLOWANCE;
+        REQUIRE(trimmedSize > byteAllowance - conf.txMaxSizeBytes());
+        REQUIRE(trimmedSize <= byteAllowance);
+    };
+
+    SECTION("soroban")
+    {
+        testPhaseWithOverlayLimit(TxSetFrame::Phase::SOROBAN);
+    }
+    SECTION("classic")
+    {
+        testPhaseWithOverlayLimit(TxSetFrame::Phase::CLASSIC);
+    }
+}
+
+TEST_CASE("surge pricing", "[herder][txset][soroban]")
 {
     SECTION("protocol 19")
     {
@@ -1568,10 +1674,11 @@ TEST_CASE("surge pricing", "[herder][txset]")
             });
             SorobanResources resources;
             auto sorobanTx = createUploadWasmTx(
-                *app, root, baseFee, DEFAULT_TEST_REFUNDABLE_FEE, resources);
+                *app, root, baseFee, DEFAULT_TEST_RESOURCE_FEE, resources);
 
             TxSetFrame::TxPhases invalidTxs;
-            invalidTxs.resize(2);
+            invalidTxs.resize(
+                static_cast<size_t>(TxSetFrame::Phase::PHASE_COUNT));
             TxSetFrameConstPtr txSet = TxSetFrame::makeFromTransactions(
                 TxSetFrame::TxPhases{{}, {sorobanTx}}, *app, 0, 0, invalidTxs);
 
@@ -1623,7 +1730,7 @@ TEST_CASE("surge pricing", "[herder][txset]")
         resources.readBytes = conf.txMaxReadBytes();
         resources.writeBytes = 1000;
         auto sorobanTx = createUploadWasmTx(
-            *app, acc2, baseFee, DEFAULT_TEST_REFUNDABLE_FEE, resources);
+            *app, acc2, baseFee, DEFAULT_TEST_RESOURCE_FEE, resources);
 
         auto generateTxs = [&](std::vector<TestAccount>& accounts,
                                SorobanNetworkConfig conf) {
@@ -1675,18 +1782,18 @@ TEST_CASE("surge pricing", "[herder][txset]")
             {
                 // Fee too small
                 invalidSoroban = createUploadWasmTx(
-                    *app, acc2, 100, DEFAULT_TEST_REFUNDABLE_FEE, resources);
+                    *app, acc2, 100, DEFAULT_TEST_RESOURCE_FEE, resources);
             }
             SECTION("invalid resource")
             {
                 // Too many instructions
                 resources.instructions = UINT32_MAX;
-                invalidSoroban =
-                    createUploadWasmTx(*app, acc2, baseFee,
-                                       DEFAULT_TEST_REFUNDABLE_FEE, resources);
+                invalidSoroban = createUploadWasmTx(
+                    *app, acc2, baseFee, DEFAULT_TEST_RESOURCE_FEE, resources);
             }
             TxSetFrame::TxPhases invalidPhases;
-            invalidPhases.resize(2);
+            invalidPhases.resize(
+                static_cast<size_t>(TxSetFrame::Phase::PHASE_COUNT));
             TxSetFrameConstPtr txSet = TxSetFrame::makeFromTransactions(
                 TxSetFrame::TxPhases{{tx}, {invalidSoroban}}, *app, 0, 0,
                 invalidPhases);
@@ -1701,7 +1808,8 @@ TEST_CASE("surge pricing", "[herder][txset]")
         SECTION("classic and soroban fit")
         {
             TxSetFrame::TxPhases invalidPhases;
-            invalidPhases.resize(2);
+            invalidPhases.resize(
+                static_cast<size_t>(TxSetFrame::Phase::PHASE_COUNT));
             TxSetFrameConstPtr txSet = TxSetFrame::makeFromTransactions(
                 TxSetFrame::TxPhases{{tx}, {sorobanTx}}, *app, 0, 0,
                 invalidPhases);
@@ -1723,11 +1831,11 @@ TEST_CASE("surge pricing", "[herder][txset]")
         SECTION("soroban surge pricing, classic unaffected")
         {
             // Another soroban tx with higher fee, which will be selected
-            auto sorobanTxHighFee =
-                createUploadWasmTx(*app, acc3, baseFee * 2,
-                                   DEFAULT_TEST_REFUNDABLE_FEE, resources);
+            auto sorobanTxHighFee = createUploadWasmTx(
+                *app, acc3, baseFee * 2, DEFAULT_TEST_RESOURCE_FEE, resources);
             TxSetFrame::TxPhases invalidPhases;
-            invalidPhases.resize(2);
+            invalidPhases.resize(
+                static_cast<size_t>(TxSetFrame::Phase::PHASE_COUNT));
             TxSetFrameConstPtr txSet = TxSetFrame::makeFromTransactions(
                 TxSetFrame::TxPhases{{tx}, {sorobanTx, sorobanTxHighFee}}, *app,
                 0, 0, invalidPhases);
@@ -1750,9 +1858,8 @@ TEST_CASE("surge pricing", "[herder][txset]")
             // Another soroban tx with high fee and a bit less resources
             // Still half capacity available
             resources.readBytes = conf.txMaxReadBytes() / 2;
-            auto sorobanTxHighFee =
-                createUploadWasmTx(*app, acc3, baseFee * 2,
-                                   DEFAULT_TEST_REFUNDABLE_FEE, resources);
+            auto sorobanTxHighFee = createUploadWasmTx(
+                *app, acc3, baseFee * 2, DEFAULT_TEST_RESOURCE_FEE, resources);
 
             // Create another small soroban tx, with small fee. It should be
             // picked up anyway since we can't fit sorobanTx (gaps are allowed)
@@ -1760,12 +1867,12 @@ TEST_CASE("surge pricing", "[herder][txset]")
             resources.readBytes = 1;
             resources.writeBytes = 1;
 
-            auto smallSorobanLowFee =
-                createUploadWasmTx(*app, acc4, baseFee / 10,
-                                   DEFAULT_TEST_REFUNDABLE_FEE, resources);
+            auto smallSorobanLowFee = createUploadWasmTx(
+                *app, acc4, baseFee / 10, DEFAULT_TEST_RESOURCE_FEE, resources);
 
             TxSetFrame::TxPhases invalidPhases;
-            invalidPhases.resize(2);
+            invalidPhases.resize(
+                static_cast<size_t>(TxSetFrame::Phase::PHASE_COUNT));
             TxSetFrameConstPtr txSet = TxSetFrame::makeFromTransactions(
                 TxSetFrame::TxPhases{
                     {tx}, {sorobanTxHighFee, smallSorobanLowFee, sorobanTx}},
@@ -1796,7 +1903,8 @@ TEST_CASE("surge pricing", "[herder][txset]")
                 SECTION("iteration " + std::to_string(i))
                 {
                     TxSetFrame::TxPhases invalidPhases;
-                    invalidPhases.resize(2);
+                    invalidPhases.resize(
+                        static_cast<size_t>(TxSetFrame::Phase::PHASE_COUNT));
                     TxSetFrameConstPtr txSet = TxSetFrame::makeFromTransactions(
                         TxSetFrame::TxPhases{{tx}, generateTxs(accounts, conf)},
                         *app, 0, 0, invalidPhases);
@@ -3402,6 +3510,7 @@ TEST_CASE("soroban txs each parameter surge priced")
             auto nodes = simulation->getNodes();
             for (auto& node : nodes)
             {
+                overrideSorobanNetworkConfigForTest(*node);
                 modifySorobanNetworkConfig(
                     *node, [&tweakConfig](SorobanNetworkConfig& cfg) {
                         auto mx = std::numeric_limits<uint32_t>::max();
@@ -3452,19 +3561,36 @@ TEST_CASE("soroban txs each parameter surge priced")
             secondLoadGen.generateLoad(GeneratedLoadConfig::txLoad(
                 LoadGenMode::PAY, 50,
                 /* nTxs */ 50, baseTxRate, /* offset */ 50, maxInclusionFee));
-
+            auto& loadGenFailed = nodes[0]->getMetrics().NewMeter(
+                {"loadgen", "run", "failed"}, "run");
+            auto& secondLoadGenFailed = nodes[1]->getMetrics().NewMeter(
+                {"loadgen", "run", "failed"}, "run");
+            bool hadSorobanSurgePricing = false;
             simulation->crankUntil(
                 [&]() {
+                    auto& lclHeader = nodes[0]
+                                          ->getLedgerManager()
+                                          .getLastClosedLedgerHeader()
+                                          .header;
+                    auto txSet = nodes[0]->getHerder().getTxSet(
+                        lclHeader.scpValue.txSetHash);
+                    auto const& sorobanTxs =
+                        txSet->getTxsForPhase(TxSetFrame::Phase::SOROBAN);
+                    if (!sorobanTxs.empty())
+                    {
+                        hadSorobanSurgePricing =
+                            hadSorobanSurgePricing ||
+                            txSet->getTxBaseFee(sorobanTxs[0], lclHeader) > 100;
+                    }
+
                     return loadGenDone.count() > currLoadGenCount &&
                            secondLoadGenDone.count() > secondLoadGenCount;
                 },
                 200 * Herder::EXP_LEDGER_TIMESPAN_SECONDS, false);
-            auto& loadGenFailed = nodes[0]->getMetrics().NewMeter(
-                {"loadgen", "run", "failed"}, "run");
+
             REQUIRE(loadGenFailed.count() == 0);
-            auto& secondLoadGenFailed = nodes[1]->getMetrics().NewMeter(
-                {"loadgen", "run", "failed"}, "run");
             REQUIRE(secondLoadGenFailed.count() == 0);
+            REQUIRE(hadSorobanSurgePricing);
         };
 
     // We will be submitting soroban txs at desiredTxRate * 3, but the network
@@ -3483,7 +3609,7 @@ TEST_CASE("soroban txs each parameter surge priced")
         auto tweakConfig = [&](SorobanNetworkConfig& cfg) {
             cfg.mLedgerMaxInstructions =
                 baseTxRate * Herder::EXP_LEDGER_TIMESPAN_SECONDS.count() *
-                InitialSorobanNetworkConfig::TX_MAX_INSTRUCTIONS;
+                cfg.mTxMaxInstructions;
         };
         test(tweakConfig);
     }
@@ -3492,7 +3618,7 @@ TEST_CASE("soroban txs each parameter surge priced")
         auto tweakConfig = [&](SorobanNetworkConfig& cfg) {
             cfg.mLedgerMaxTransactionsSizeBytes =
                 baseTxRate * Herder::EXP_LEDGER_TIMESPAN_SECONDS.count() *
-                InitialSorobanNetworkConfig::TX_MAX_SIZE_BYTES;
+                cfg.mTxMaxSizeBytes;
         };
         test(tweakConfig);
     }
@@ -3501,7 +3627,7 @@ TEST_CASE("soroban txs each parameter surge priced")
         auto tweakConfig = [&](SorobanNetworkConfig& cfg) {
             cfg.mLedgerMaxReadLedgerEntries =
                 baseTxRate * Herder::EXP_LEDGER_TIMESPAN_SECONDS.count() *
-                InitialSorobanNetworkConfig::TX_MAX_READ_LEDGER_ENTRIES;
+                cfg.mTxMaxReadLedgerEntries;
         };
         test(tweakConfig);
     }
@@ -3510,7 +3636,7 @@ TEST_CASE("soroban txs each parameter surge priced")
         auto tweakConfig = [&](SorobanNetworkConfig& cfg) {
             cfg.mLedgerMaxWriteLedgerEntries =
                 baseTxRate * Herder::EXP_LEDGER_TIMESPAN_SECONDS.count() *
-                InitialSorobanNetworkConfig::TX_MAX_WRITE_LEDGER_ENTRIES;
+                cfg.mTxMaxWriteLedgerEntries;
         };
         test(tweakConfig);
     }
@@ -3519,7 +3645,7 @@ TEST_CASE("soroban txs each parameter surge priced")
         auto tweakConfig = [&](SorobanNetworkConfig& cfg) {
             cfg.mLedgerMaxReadBytes =
                 baseTxRate * Herder::EXP_LEDGER_TIMESPAN_SECONDS.count() *
-                InitialSorobanNetworkConfig::TX_MAX_READ_BYTES;
+                cfg.mTxMaxReadBytes;
         };
         test(tweakConfig);
     }
@@ -3528,10 +3654,110 @@ TEST_CASE("soroban txs each parameter surge priced")
         auto tweakConfig = [&](SorobanNetworkConfig& cfg) {
             cfg.mLedgerMaxWriteBytes =
                 baseTxRate * Herder::EXP_LEDGER_TIMESPAN_SECONDS.count() *
-                InitialSorobanNetworkConfig::TX_MAX_WRITE_BYTES;
+                cfg.mTxMaxWriteBytes;
         };
         test(tweakConfig);
     }
+}
+
+TEST_CASE("accept soroban txs after network upgrade")
+{
+    auto networkID = sha256(getTestConfig().NETWORK_PASSPHRASE);
+
+    auto simulation =
+        Topologies::core(4, 1, Simulation::OVER_LOOPBACK, networkID, [](int i) {
+            auto cfg = getTestConfig(i, Config::TESTDB_ON_DISK_SQLITE);
+            cfg.TESTING_UPGRADE_MAX_TX_SET_SIZE = 100;
+            cfg.TESTING_UPGRADE_LEDGER_PROTOCOL_VERSION =
+                static_cast<uint32_t>(SOROBAN_PROTOCOL_VERSION) - 1;
+            return cfg;
+        });
+
+    simulation->startAllNodes();
+    auto nodes = simulation->getNodes();
+    uint32_t numAccounts = 100;
+    auto& loadGen = nodes[0]->getLoadGenerator();
+
+    // Generate some accounts
+    auto& loadGenDone =
+        nodes[0]->getMetrics().NewMeter({"loadgen", "run", "complete"}, "run");
+    auto currLoadGenCount = loadGenDone.count();
+    loadGen.generateLoad(
+        GeneratedLoadConfig::createAccountsLoad(numAccounts, 1));
+    simulation->crankUntil(
+        [&]() { return loadGenDone.count() > currLoadGenCount; },
+        10 * Herder::EXP_LEDGER_TIMESPAN_SECONDS, false);
+
+    // Ensure more transactions get in the ledger post upgrade
+    ConfigUpgradeSetFrameConstPtr res;
+    Upgrades::UpgradeParameters scheduledUpgrades;
+    scheduledUpgrades.mUpgradeTime =
+        VirtualClock::from_time_t(nodes[0]
+                                      ->getLedgerManager()
+                                      .getLastClosedLedgerHeader()
+                                      .header.scpValue.closeTime +
+                                  15);
+    scheduledUpgrades.mProtocolVersion =
+        static_cast<uint32_t>(SOROBAN_PROTOCOL_VERSION);
+    for (auto const& app : nodes)
+    {
+        app->getHerder().setUpgrades(scheduledUpgrades);
+    }
+
+    auto& secondLoadGen = nodes[1]->getLoadGenerator();
+    auto& secondLoadGenDone =
+        nodes[1]->getMetrics().NewMeter({"loadgen", "run", "complete"}, "run");
+    currLoadGenCount = loadGenDone.count();
+    auto secondLoadGenCount = secondLoadGenDone.count();
+
+    // Generate classic txs from another node (with offset to prevent
+    // overlapping accounts)
+    secondLoadGen.generateLoad(GeneratedLoadConfig::txLoad(LoadGenMode::PAY, 50,
+                                                           /* nTxs */ 100, 2,
+                                                           /* offset */ 50));
+
+    // Crank a bit and verify that upgrade went through
+    simulation->crankForAtLeast(4 * Herder::EXP_LEDGER_TIMESPAN_SECONDS, false);
+    REQUIRE(nodes[0]
+                ->getLedgerManager()
+                .getLastClosedLedgerHeader()
+                .header.ledgerVersion ==
+            static_cast<uint32_t>(SOROBAN_PROTOCOL_VERSION));
+    for (auto node : nodes)
+    {
+        overrideSorobanNetworkConfigForTest(*node);
+    }
+    // Now generate Soroban txs
+    auto sorobanConfig =
+        GeneratedLoadConfig::txLoad(LoadGenMode::SOROBAN, 50,
+                                    /* nTxs */ 15, 1, /* offset */ 0);
+    sorobanConfig.skipLowFeeTxs = true;
+    loadGen.generateLoad(sorobanConfig);
+    auto& loadGenFailed =
+        nodes[0]->getMetrics().NewMeter({"loadgen", "run", "failed"}, "run");
+    auto& secondLoadGenFailed =
+        nodes[1]->getMetrics().NewMeter({"loadgen", "run", "failed"}, "run");
+
+    simulation->crankUntil(
+        [&]() {
+            return loadGenDone.count() > currLoadGenCount &&
+                   secondLoadGenDone.count() > secondLoadGenCount;
+        },
+        200 * Herder::EXP_LEDGER_TIMESPAN_SECONDS, false);
+    REQUIRE(loadGenFailed.count() == 0);
+    REQUIRE(secondLoadGenFailed.count() == 0);
+
+    //  Ensure some Soroban txs got into the ledger
+    auto totalSoroban =
+        nodes[0]
+            ->getMetrics()
+            .NewMeter({"soroban", "host-fn-op", "success"}, "call")
+            .count() +
+        nodes[0]
+            ->getMetrics()
+            .NewMeter({"soroban", "host-fn-op", "failure"}, "call")
+            .count();
+    REQUIRE(totalSoroban > 0);
 }
 
 TEST_CASE("soroban txs accepted by the network",
@@ -3549,18 +3775,21 @@ TEST_CASE("soroban txs accepted by the network",
     simulation->startAllNodes();
     auto nodes = simulation->getNodes();
     uint32_t desiredTxRate = 1;
+    uint32_t ledgerWideLimit =
+        desiredTxRate * Herder::EXP_LEDGER_TIMESPAN_SECONDS.count() * 2;
     uint32_t numAccounts = 100;
     for (auto& node : nodes)
     {
         overrideSorobanNetworkConfigForTest(*node);
-        modifySorobanNetworkConfig(*node, [desiredTxRate](
-                                              SorobanNetworkConfig& cfg) {
-            cfg.mLedgerMaxTxCount =
-                2 * desiredTxRate * Herder::EXP_LEDGER_TIMESPAN_SECONDS.count();
-            ;
+        modifySorobanNetworkConfig(*node, [&](SorobanNetworkConfig& cfg) {
+            cfg.mLedgerMaxTxCount = ledgerWideLimit;
         });
     }
     auto& loadGen = nodes[0]->getLoadGenerator();
+    auto& txsSucceeded =
+        nodes[0]->getMetrics().NewCounter({"ledger", "apply", "success"});
+    auto& txsFailed =
+        nodes[0]->getMetrics().NewCounter({"ledger", "apply", "failure"});
 
     // Generate some accounts
     auto& loadGenDone =
@@ -3571,6 +3800,10 @@ TEST_CASE("soroban txs accepted by the network",
     simulation->crankUntil(
         [&]() { return loadGenDone.count() > currLoadGenCount; },
         10 * Herder::EXP_LEDGER_TIMESPAN_SECONDS, false);
+
+    uint64_t lastSucceeded = txsSucceeded.count();
+    REQUIRE(lastSucceeded > 0);
+    REQUIRE(txsFailed.count() == 0);
 
     SECTION("soroban only")
     {
@@ -3586,17 +3819,80 @@ TEST_CASE("soroban txs accepted by the network",
         auto& loadGenFailed = nodes[0]->getMetrics().NewMeter(
             {"loadgen", "run", "failed"}, "run");
         REQUIRE(loadGenFailed.count() == 0);
+        // Make sure that a significant fraction of some soroban txs get
+        // applied (some may fail due to exceeding the declared resource
+        // limits or due to XDR parsing errors).
+        REQUIRE(txsSucceeded.count() - lastSucceeded > 50);
+
+        lastSucceeded = txsSucceeded.count();
+
+        SECTION("upgrade max soroban tx set size")
+        {
+            // Ensure more transactions get in the ledger post upgrade
+            ConfigUpgradeSetFrameConstPtr res;
+            Upgrades::UpgradeParameters scheduledUpgrades;
+            auto lclCloseTime =
+                VirtualClock::from_time_t(nodes[0]
+                                              ->getLedgerManager()
+                                              .getLastClosedLedgerHeader()
+                                              .header.scpValue.closeTime);
+            scheduledUpgrades.mUpgradeTime = lclCloseTime;
+            scheduledUpgrades.mMaxSorobanTxSetSize = ledgerWideLimit * 10;
+            for (auto const& app : nodes)
+            {
+                app->getHerder().setUpgrades(scheduledUpgrades);
+            }
+
+            // Ensure upgrades went through
+            simulation->crankForAtLeast(std::chrono::seconds(20), false);
+            for (auto node : nodes)
+            {
+                LedgerTxn ltx(node->getLedgerTxnRoot());
+                REQUIRE(node->getLedgerManager()
+                            .getSorobanNetworkConfig(ltx)
+                            .ledgerMaxTxCount() == ledgerWideLimit * 10);
+            }
+
+            currLoadGenCount = loadGenDone.count();
+            // Now generate soroban txs.
+            auto loadCfg = GeneratedLoadConfig::txLoad(
+                LoadGenMode::SOROBAN, numAccounts,
+                /* nTxs */ 100, desiredTxRate * 5, /*offset*/ 0);
+            loadCfg.skipLowFeeTxs = true;
+            loadGen.generateLoad(loadCfg);
+
+            bool upgradeApplied = false;
+            simulation->crankUntil(
+                [&]() {
+                    auto txSetSize =
+                        nodes[0]
+                            ->getHerder()
+                            .getTxSet(nodes[0]
+                                          ->getLedgerManager()
+                                          .getLastClosedLedgerHeader()
+                                          .header.scpValue.txSetHash)
+                            ->sizeOpTotal();
+                    upgradeApplied =
+                        upgradeApplied || txSetSize > ledgerWideLimit;
+                    return loadGenDone.count() > currLoadGenCount;
+                },
+                10 * Herder::EXP_LEDGER_TIMESPAN_SECONDS, false);
+            REQUIRE(loadGenFailed.count() == 0);
+            // Make sure some soroban txs get applied.
+            REQUIRE(txsSucceeded.count() - lastSucceeded > 50);
+            REQUIRE(upgradeApplied);
+        }
     }
     SECTION("soroban and classic")
     {
         auto& secondLoadGen = nodes[1]->getLoadGenerator();
         auto& secondLoadGenDone = nodes[1]->getMetrics().NewMeter(
             {"loadgen", "run", "complete"}, "run");
-        // Generate load from several nodes, to produce both classic and soroban
-        // traffic
+        // Generate load from several nodes, to produce both classic and
+        // soroban traffic
         currLoadGenCount = loadGenDone.count();
         auto secondLoadGenCount = secondLoadGenDone.count();
-
+        uint32_t const classicTxCount = 500;
         SECTION("basic load")
         {
             // Generate Soroban txs from one node
@@ -3606,8 +3902,8 @@ TEST_CASE("soroban txs accepted by the network",
             // Generate classic txs from another node (with offset to prevent
             // overlapping accounts)
             secondLoadGen.generateLoad(GeneratedLoadConfig::txLoad(
-                LoadGenMode::PAY, 50,
-                /* nTxs */ 500, desiredTxRate, /* offset */ 50));
+                LoadGenMode::PAY, 50, classicTxCount, desiredTxRate,
+                /* offset */ 50));
         }
         SECTION("soroban surge pricing")
         {
@@ -3621,12 +3917,10 @@ TEST_CASE("soroban txs accepted by the network",
             // allows to trigger surge pricing
             sorobanConfig.skipLowFeeTxs = true;
             loadGen.generateLoad(sorobanConfig);
-
-            // Generate Soroban txs from one node
-            secondLoadGen.generateLoad(
-                GeneratedLoadConfig::txLoad(LoadGenMode::PAY, 50,
-                                            /* nTxs */ 500, desiredTxRate,
-                                            /* offset */ 50, maxInclusionFee));
+            // Generate a lot of classic txs from one node
+            secondLoadGen.generateLoad(GeneratedLoadConfig::txLoad(
+                LoadGenMode::PAY, 50, classicTxCount, desiredTxRate,
+                /* offset */ 50, maxInclusionFee));
         }
 
         simulation->crankUntil(
@@ -3641,6 +3935,8 @@ TEST_CASE("soroban txs accepted by the network",
         auto& secondLoadGenFailed = nodes[1]->getMetrics().NewMeter(
             {"loadgen", "run", "failed"}, "run");
         REQUIRE(secondLoadGenFailed.count() == 0);
+        // Make sure some soroban txs get applied.
+        REQUIRE(txsSucceeded.count() - lastSucceeded > classicTxCount + 20);
     }
 }
 
@@ -4469,30 +4765,30 @@ TEST_CASE("do not flood too many soroban transactions",
         accs.emplace_back(
             root.create(fmt::format("A{}", i), lm.getLastMinBalance(2)));
     }
-    std::deque<uint32> fees;
+    std::deque<uint32> inclusionFees;
 
-    uint32_t const baseFee = 10'000'000;
+    uint32_t const baseInclusionFee = 100'000;
     SorobanResources resources;
     resources.instructions = 800'000;
     resources.readBytes = 2000;
     resources.writeBytes = 1000;
 
     auto genTx = [&](TestAccount& source, bool highFee) {
-        auto txFee = baseFee;
+        auto inclusionFee = baseInclusionFee;
         if (highFee)
         {
-            txFee += 10'000'000;
-            fees.emplace_front(txFee);
+            inclusionFee += 1'000'000;
+            inclusionFees.emplace_front(inclusionFee);
         }
         else
         {
-            txFee += curFeeOffset;
-            fees.emplace_back(txFee);
+            inclusionFee += curFeeOffset;
+            inclusionFees.emplace_back(inclusionFee);
         }
         curFeeOffset--;
 
-        auto tx = createUploadWasmTx(*app, source, txFee,
-                                     DEFAULT_TEST_REFUNDABLE_FEE, resources);
+        auto tx = createUploadWasmTx(*app, source, inclusionFee, 10'000'000,
+                                     resources);
         REQUIRE(herder.recvTransaction(tx, false) ==
                 TransactionQueue::AddResult::ADD_STATUS_PENDING);
         return tx;
@@ -4519,8 +4815,8 @@ TEST_CASE("do not flood too many soroban transactions",
             REQUIRE(expected == tx->getSeqNum());
         }
         // check if we have the expected fee
-        REQUIRE(tx->getFullFee() == fees.front());
-        fees.pop_front();
+        REQUIRE(tx->getInclusionFee() == inclusionFees.front());
+        inclusionFees.pop_front();
         ++numBroadcast;
     };
 
@@ -4528,8 +4824,8 @@ TEST_CASE("do not flood too many soroban transactions",
 
     // remove the first two transactions that won't be
     // re-broadcasted during externalize
-    fees.pop_front();
-    fees.pop_front();
+    inclusionFees.pop_front();
+    inclusionFees.pop_front();
 
     externalize(cfg.NODE_SEED, lm, herder, {tx1a, tx1r}, *app);
     REQUIRE(tq.getTransactions({}).size() == numTx - 2);

@@ -435,7 +435,7 @@ RevokeSponsorshipOpFrame::doCheckValid(uint32_t ledgerVersion)
         case CONTRACT_DATA:
         case CONTRACT_CODE:
         case CONFIG_SETTING:
-        case EXPIRATION:
+        case TTL:
             innerResult().code(REVOKE_SPONSORSHIP_MALFORMED);
             return false;
         default:

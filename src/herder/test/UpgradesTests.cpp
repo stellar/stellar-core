@@ -232,14 +232,35 @@ makeFlagsUpgrade(int flags)
 }
 
 ConfigUpgradeSetFrameConstPtr
-makeMaxContractSizeBytesTestUpgrade(AbstractLedgerTxn& ltx,
-                                    uint32_t maxContractSizeBytes)
+makeMaxContractSizeBytesTestUpgrade(
+    AbstractLedgerTxn& ltx, uint32_t maxContractSizeBytes,
+    bool expiredEntry = false,
+    ContractDataDurability type = ContractDataDurability::TEMPORARY)
 {
     // Make entry for the upgrade
     ConfigUpgradeSet configUpgradeSet;
     auto& configEntry = configUpgradeSet.updatedEntry.emplace_back();
     configEntry.configSettingID(CONFIG_SETTING_CONTRACT_MAX_SIZE_BYTES);
     configEntry.contractMaxSizeBytes() = maxContractSizeBytes;
+    return makeConfigUpgradeSet(ltx, configUpgradeSet, expiredEntry, type);
+}
+
+ConfigUpgradeSetFrameConstPtr
+makeBucketListSizeWindowSampleSizeTestUpgrade(Application& app,
+                                              AbstractLedgerTxn& ltx,
+                                              uint32_t newWindowSize)
+{
+    // Modify window size
+    auto sas = app.getLedgerManager()
+                   .getSorobanNetworkConfig(ltx)
+                   .stateArchivalSettings();
+    sas.bucketListSizeWindowSampleSize = newWindowSize;
+
+    // Make entry for the upgrade
+    ConfigUpgradeSet configUpgradeSet;
+    auto& configEntry = configUpgradeSet.updatedEntry.emplace_back();
+    configEntry.configSettingID(CONFIG_SETTING_STATE_ARCHIVAL);
+    configEntry.stateArchivalSettings() = sas;
     return makeConfigUpgradeSet(ltx, configUpgradeSet);
 }
 
@@ -614,6 +635,27 @@ TEST_CASE("config upgrade validation", "[upgrades]")
     header.ledgerVersion = static_cast<uint32_t>(SOROBAN_PROTOCOL_VERSION);
     header.scpValue.closeTime = headerTime;
 
+    SECTION("expired config upgrade entry")
+    {
+        LedgerTxn ltx(app->getLedgerTxnRoot());
+        // This will attempt to construct an upgrade set from an expired
+        // entry. This is invalid, so the returned upgrade set should be
+        // null.
+        REQUIRE(makeMaxContractSizeBytesTestUpgrade(
+                    ltx, 32768, /*expiredEntry=*/true) == nullptr);
+    }
+
+    SECTION("PERSISTENT config upgrade entry")
+    {
+        LedgerTxn ltx(app->getLedgerTxnRoot());
+        // This will attempt to construct an upgrade set from a PERSISTENT
+        // entry. This is invalid, so the returned upgrade set should be
+        // null.
+        REQUIRE(makeMaxContractSizeBytesTestUpgrade(
+                    ltx, 32768, /*expiredEntry=*/false,
+                    ContractDataDurability::PERSISTENT) == nullptr);
+    }
+
     ConfigUpgradeSetFrameConstPtr configUpgradeSet;
     Upgrades::UpgradeParameters scheduledUpgrades;
     {
@@ -704,15 +746,13 @@ TEST_CASE("config upgrade validation", "[upgrades]")
                     le.data.contractData().key = key;
                     le.data.contractData().val = val;
 
-                    LedgerEntry expiration;
-                    expiration.data.type(EXPIRATION);
-                    expiration.data.expiration().expirationLedgerSeq =
-                        UINT32_MAX;
-                    expiration.data.expiration().keyHash =
-                        getExpirationKey(le).expiration().keyHash;
+                    LedgerEntry ttl;
+                    ttl.data.type(TTL);
+                    ttl.data.ttl().liveUntilLedgerSeq = UINT32_MAX;
+                    ttl.data.ttl().keyHash = getTTLKey(le).ttl().keyHash;
 
                     ltx.create(InternalLedgerEntry(le));
-                    ltx.create(InternalLedgerEntry(expiration));
+                    ltx.create(InternalLedgerEntry(ttl));
 
                     auto upgradeKey =
                         ConfigUpgradeSetKey{contractID, hashOfUpgradeSet};
@@ -822,6 +862,133 @@ TEST_CASE("config upgrades applied to ledger", "[soroban][upgrades]")
                 CONFIG_SETTING_CONTRACT_MAX_SIZE_BYTES);
         REQUIRE(sorobanConfig.maxContractSizeBytes() == 32768);
     }
+
+    SECTION("modify BucketListSizeWindowSampleSize")
+    {
+        auto populateValuesAndUpgradeSize = [&](uint32_t size) {
+            ConfigUpgradeSetFrameConstPtr configUpgradeSet;
+            {
+                LedgerTxn ltx2(app->getLedgerTxnRoot());
+                auto& cfg =
+                    app->getLedgerManager().getMutableSorobanNetworkConfig(
+                        ltx2);
+
+                // Populate sliding window with interesting values
+                auto i = 0;
+                for (auto& val : cfg.mBucketListSizeSnapshots)
+                {
+                    val = i++;
+                }
+                cfg.writeBucketListSizeWindow(ltx2);
+                cfg.updateBucketListSizeAverage();
+
+                configUpgradeSet =
+                    makeBucketListSizeWindowSampleSizeTestUpgrade(*app, ltx2,
+                                                                  size);
+                ltx2.commit();
+            }
+
+            REQUIRE(configUpgradeSet);
+            executeUpgrade(*app, makeConfigUpgrade(*configUpgradeSet));
+        };
+
+        SECTION("decrease size")
+        {
+            auto const newSize = 20;
+            populateValuesAndUpgradeSize(newSize);
+            LedgerTxn ltx2(app->getLedgerTxnRoot());
+            auto const& cfg =
+                app->getLedgerManager().getSorobanNetworkConfig(ltx2);
+
+            // Verify that we popped the 10 oldest values
+            auto sum = 0;
+            auto expectedValue = 10;
+            REQUIRE(cfg.mBucketListSizeSnapshots.size() == newSize);
+            for (auto const val : cfg.mBucketListSizeSnapshots)
+            {
+                REQUIRE(val == expectedValue);
+                sum += expectedValue;
+                ++expectedValue;
+            }
+
+            // Verify average has been properly updated as well
+            REQUIRE(cfg.getAverageBucketListSize() == (sum / newSize));
+        }
+
+        SECTION("increase size")
+        {
+            auto const newSize = 40;
+            populateValuesAndUpgradeSize(newSize);
+            LedgerTxn ltx2(app->getLedgerTxnRoot());
+            auto const& cfg =
+                app->getLedgerManager().getSorobanNetworkConfig(ltx2);
+
+            // Verify that we backfill 10 copies of the oldest value
+            auto sum = 0;
+            auto expectedValue = 0;
+            REQUIRE(cfg.mBucketListSizeSnapshots.size() == newSize);
+            for (auto i = 0; i < cfg.mBucketListSizeSnapshots.size(); ++i)
+            {
+                // First 11 values should be oldest value (0)
+                if (i > 10)
+                {
+                    ++expectedValue;
+                }
+
+                REQUIRE(cfg.mBucketListSizeSnapshots[i] == expectedValue);
+                sum += expectedValue;
+            }
+
+            // Verify average has been properly updated as well
+            REQUIRE(cfg.getAverageBucketListSize() == (sum / newSize));
+        }
+
+        auto testUpgradeHasNoEffect = [&](uint32_t size) {
+            uint32_t initialSize;
+            std::deque<uint64_t> initialWindow;
+            ConfigUpgradeSetFrameConstPtr configUpgradeSet;
+            {
+                LedgerTxn ltx2(app->getLedgerTxnRoot());
+
+                auto const& cfg =
+                    app->getLedgerManager().getSorobanNetworkConfig(ltx2);
+                initialSize =
+                    cfg.mStateArchivalSettings.bucketListSizeWindowSampleSize;
+                initialWindow = cfg.mBucketListSizeSnapshots;
+                REQUIRE(initialWindow.size() == initialSize);
+
+                configUpgradeSet =
+                    makeBucketListSizeWindowSampleSizeTestUpgrade(*app, ltx2,
+                                                                  size);
+                ltx2.commit();
+            }
+
+            REQUIRE(configUpgradeSet);
+            executeUpgrade(*app, makeConfigUpgrade(*configUpgradeSet));
+
+            LedgerTxn ltx2(app->getLedgerTxnRoot());
+
+            auto const& cfg =
+                app->getLedgerManager().getSorobanNetworkConfig(ltx2);
+            REQUIRE(cfg.mStateArchivalSettings.bucketListSizeWindowSampleSize ==
+                    initialSize);
+            REQUIRE(cfg.mBucketListSizeSnapshots == initialWindow);
+        };
+
+        SECTION("upgrade size to 0")
+        {
+            // Invalid new size, upgrade should have no effect
+            testUpgradeHasNoEffect(0);
+        }
+
+        SECTION("upgrade to same size")
+        {
+            // Upgrade to same size, should have no effect
+            testUpgradeHasNoEffect(InitialSorobanNetworkConfig::
+                                       BUCKET_LIST_SIZE_WINDOW_SAMPLE_SIZE);
+        }
+    }
+
     SECTION("multi-item config upgrade set is applied")
     {
         // Verify values pre-upgrade
@@ -2049,9 +2216,9 @@ TEST_CASE("upgrade to version 13", "[upgrades]")
 // protocol vN to vN+1 that also changed LedgerCloseMeta version, the ledger
 // header will be protocol vN+1, but the meta emitted for that ledger will be
 // the LedgerCloseMeta version for vN. This test checks that the meta versions
-// are correct the protocol 20 upgrade that updates LedgerCloseMeta to V2 and
+// are correct the protocol 20 upgrade that updates LedgerCloseMeta to V1 and
 // that no asserts are thrown.
-TEST_CASE("upgrade to version 20 - LedgerCloseMetaV2")
+TEST_CASE("upgrade to version 20 - LedgerCloseMetaV1")
 {
     TmpDirManager tdm(std::string("version-20-upgrade-meta-") +
                       binToHex(randomBytes(8)));
@@ -2081,10 +2248,10 @@ TEST_CASE("upgrade to version 20 - LedgerCloseMetaV2")
         {
             REQUIRE(lcm.v() == 0);
         }
-        // Meta frame after upgrade should be V2
+        // Meta frame after upgrade should be V1
         else if (metaFrameCount == 1)
         {
-            REQUIRE(lcm.v() == 2);
+            REQUIRE(lcm.v() == 1);
         }
         // Should only be 2 meta frames
         else
@@ -2822,6 +2989,10 @@ TEST_CASE("upgrade from cpp14 serialized data", "[upgrades]")
         "has": true,
         "val": 10000
     },
+    "maxsorobantxsetsize": {
+        "has": true,
+        "val": 100
+    },
     "reserve": {
         "has": false
     },
@@ -2833,16 +3004,17 @@ TEST_CASE("upgrade from cpp14 serialized data", "[upgrades]")
     Config cfg = getTestConfig();
     VirtualClock clock;
     auto app = createTestApplication(clock, cfg);
-    LedgerTxn ltx(app->getLedgerTxnRoot());
 
     Upgrades::UpgradeParameters up;
-    up.fromJson(in, ltx);
+    up.fromJson(in);
     REQUIRE(VirtualClock::to_time_t(up.mUpgradeTime) == 1618016242);
     REQUIRE(up.mProtocolVersion.has_value());
     REQUIRE(up.mProtocolVersion.value() == 17);
     REQUIRE(!up.mBaseFee.has_value());
     REQUIRE(up.mMaxTxSetSize.has_value());
     REQUIRE(up.mMaxTxSetSize.value() == 10000);
+    REQUIRE(up.mMaxSorobanTxSetSize.has_value());
+    REQUIRE(up.mMaxSorobanTxSetSize.value() == 100);
     REQUIRE(!up.mBaseReserve.has_value());
 }
 
@@ -2869,14 +3041,14 @@ TEST_CASE("upgrades serialization roundtrip", "[upgrades]")
         std::string upgradesJson, encodedConfigUpgradeSet;
         auto json = initUpgrades.toJson();
 
-        LedgerTxn ltx(app->getLedgerTxnRoot());
         Upgrades::UpgradeParameters restoredUpgrades;
-        restoredUpgrades.fromJson(json, ltx);
+        restoredUpgrades.fromJson(json);
         REQUIRE(restoredUpgrades.mUpgradeTime == initUpgrades.mUpgradeTime);
         REQUIRE(*restoredUpgrades.mBaseFee == 10000);
         REQUIRE(*restoredUpgrades.mProtocolVersion == 20);
         REQUIRE(!restoredUpgrades.mMaxTxSetSize);
         REQUIRE(!restoredUpgrades.mBaseReserve);
+        REQUIRE(!restoredUpgrades.mMaxSorobanTxSetSize);
 
         REQUIRE(!restoredUpgrades.mFlags);
 
@@ -2908,6 +3080,9 @@ TEST_CASE("upgrades serialization roundtrip", "[upgrades]")
       "nullopt" : false
    },
    "flags" : {
+      "nullopt" : true
+   },
+   "maxsorobantxsetsize" : {
       "nullopt" : true
    },
    "maxtxsize" : {

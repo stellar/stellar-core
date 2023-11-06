@@ -142,9 +142,6 @@
     <Filter Include="catchup\simulation">
       <UniqueIdentifier>{03aee051-1ba2-40f7-9551-8dbeaf8c4232}</UniqueIdentifier>
     </Filter>
-    <Filter Include="transactions\simulation">
-      <UniqueIdentifier>{b342c551-848c-427d-8d3b-df060afe49aa}</UniqueIdentifier>
-    </Filter>
     <Filter Include="lib\fmt">
       <UniqueIdentifier>{1bf54804-bf4a-430d-9416-16df128fd308}</UniqueIdentifier>
     </Filter>
@@ -607,12 +604,6 @@
     <ClCompile Include="..\..\src\bucket\PublishQueueBuckets.cpp">
       <Filter>bucket</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\src\catchup\simulation\HistoryArchiveStream.cpp">
-      <Filter>catchup\simulation</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\src\catchup\simulation\TxSimApplyTransactionsWork.cpp">
-      <Filter>catchup\simulation</Filter>
-    </ClCompile>
     <ClCompile Include="..\..\src\catchup\test\CatchupWorkTests.cpp">
       <Filter>catchup\tests</Filter>
     </ClCompile>
@@ -666,9 +657,6 @@
     </ClCompile>
     <ClCompile Include="..\..\src\database\DatabaseUtils.cpp">
       <Filter>database</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\src\herder\simulation\TxSimTxSetFrame.cpp">
-      <Filter>herder\simulation</Filter>
     </ClCompile>
     <ClCompile Include="..\..\src\herder\test\HerderTests.cpp">
       <Filter>herder\test</Filter>
@@ -1090,36 +1078,6 @@
     <ClCompile Include="..\..\src\overlay\TxAdvertQueue.cpp">
       <Filter>overlay</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\src\transactions\simulation\TxSimCreateClaimableBalanceOpFrame.cpp">
-      <Filter>transactions\simulation</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\src\transactions\simulation\TxSimCreatePassiveSellOfferOpFrame.cpp">
-      <Filter>transactions\simulation</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\src\transactions\simulation\TxSimFeeBumpTransactionFrame.cpp">
-      <Filter>transactions\simulation</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\src\transactions\simulation\TxSimGenerateBucketsWork.cpp">
-      <Filter>transactions\simulation</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\src\transactions\simulation\TxSimManageBuyOfferOpFrame.cpp">
-      <Filter>transactions\simulation</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\src\transactions\simulation\TxSimManageSellOfferOpFrame.cpp">
-      <Filter>transactions\simulation</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\src\transactions\simulation\TxSimMergeOpFrame.cpp">
-      <Filter>transactions\simulation</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\src\transactions\simulation\TxSimScaleBucketlistWork.cpp">
-      <Filter>transactions\simulation</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\src\transactions\simulation\TxSimTransactionFrame.cpp">
-      <Filter>transactions\simulation</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\src\transactions\simulation\TxSimUtils.cpp">
-      <Filter>transactions\simulation</Filter>
-    </ClCompile>
     <ClCompile Include="..\..\src\transactions\test\AllowTrustTests.cpp">
       <Filter>transactions\tests</Filter>
     </ClCompile>
@@ -1336,7 +1294,7 @@
     <ClCompile Include="..\..\src\util\TxResource.cpp">
       <Filter>util</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\src\transactions\BumpFootprintExpirationOpFrame.cpp">
+    <ClCompile Include="..\..\src\transactions\ExtendFootprintTTLOpFrame.cpp">
       <Filter>transactions</Filter>
     </ClCompile>
     <ClCompile Include="..\..\src\transactions\RestoreFootprintOpFrame.cpp">
@@ -1345,7 +1303,7 @@
     <ClCompile Include="..\..\lib\tracy\public\TracyClient.cpp">
       <Filter>lib\tracy</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\src\ledger\LedgerTxnExpirationSQL.cpp">
+    <ClCompile Include="..\..\src\ledger\LedgerTxnTTLSQL.cpp">
       <Filter>ledger</Filter>
     </ClCompile>
     <ClCompile Include="..\..\src\util\DebugMetaUtils.cpp">
@@ -1813,12 +1771,6 @@
     <ClInclude Include="..\..\src\bucket\PublishQueueBuckets.h">
       <Filter>bucket</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\src\catchup\simulation\HistoryArchiveStream.h">
-      <Filter>catchup\simulation</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\src\catchup\simulation\TxSimApplyTransactionsWork.h">
-      <Filter>catchup\simulation</Filter>
-    </ClInclude>
     <ClInclude Include="..\..\src\catchup\test\CatchupWorkTests.h">
       <Filter>catchup\tests</Filter>
     </ClInclude>
@@ -1872,9 +1824,6 @@
     </ClInclude>
     <ClInclude Include="..\..\src\database\DatabaseUtils.h">
       <Filter>database</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\src\herder\simulation\TxSimTxSetFrame.h">
-      <Filter>herder\simulation</Filter>
     </ClInclude>
     <ClInclude Include="..\..\src\herder\test\TestTxSetUtils.h">
       <Filter>herder\test</Filter>
@@ -2191,36 +2140,6 @@
     <ClInclude Include="..\..\src\overlay\TxAdvertQueue.h">
       <Filter>overlay</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\src\transactions\simulation\TxSimCreateClaimableBalanceOpFrame.h">
-      <Filter>transactions\simulation</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\src\transactions\simulation\TxSimCreatePassiveSellOfferOpFrame.h">
-      <Filter>transactions\simulation</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\src\transactions\simulation\TxSimFeeBumpTransactionFrame.h">
-      <Filter>transactions\simulation</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\src\transactions\simulation\TxSimGenerateBucketsWork.h">
-      <Filter>transactions\simulation</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\src\transactions\simulation\TxSimManageBuyOfferOpFrame.h">
-      <Filter>transactions\simulation</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\src\transactions\simulation\TxSimManageSellOfferOpFrame.h">
-      <Filter>transactions\simulation</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\src\transactions\simulation\TxSimMergeOpFrame.h">
-      <Filter>transactions\simulation</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\src\transactions\simulation\TxSimScaleBucketlistWork.h">
-      <Filter>transactions\simulation</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\src\transactions\simulation\TxSimTransactionFrame.h">
-      <Filter>transactions\simulation</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\src\transactions\simulation\TxSimUtils.h">
-      <Filter>transactions\simulation</Filter>
-    </ClInclude>
     <ClInclude Include="..\..\src\transactions\test\SponsorshipTestUtils.h">
       <Filter>transactions\tests</Filter>
     </ClInclude>
@@ -2350,7 +2269,7 @@
     <ClInclude Include="..\..\src\util\TxResource.h">
       <Filter>util</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\src\transactions\BumpFootprintExpirationOpFrame.h">
+    <ClInclude Include="..\..\src\transactions\ExtendFootprintTTLOpFrame.h">
       <Filter>transactions</Filter>
     </ClInclude>
     <ClInclude Include="..\..\src\transactions\RestoreFootprintOpFrame.h">
@@ -2473,9 +2392,6 @@
     <None Include="..\..\docs\quick-reference.md">
       <Filter>docs</Filter>
     </None>
-    <None Include="..\..\docs\tx-simulation.md">
-      <Filter>docs</Filter>
-    </None>
     <None Include="..\..\src\util\LogPartitions.def">
       <Filter>util</Filter>
     </None>
@@ -2590,6 +2506,12 @@
       <Filter>xdr\curr</Filter>
     </CustomBuild>
     <CustomBuild Include="..\..\src\protocol-curr\xdr\Stellar-internal.x">
+      <Filter>xdr\curr</Filter>
+    </CustomBuild>
+    <CustomBuild Include="..\..\src\protocol-curr\xdr\Stellar-contract.x">
+      <Filter>xdr\curr</Filter>
+    </CustomBuild>
+    <CustomBuild Include="..\..\src\protocol-curr\xdr\Stellar-contract-config-setting.x">
       <Filter>xdr\curr</Filter>
     </CustomBuild>
     <CustomBuild Include="..\..\src\util\xdrquery\XDRQueryParser.yy">

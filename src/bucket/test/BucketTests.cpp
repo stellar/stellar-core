@@ -153,9 +153,9 @@ TEST_CASE_VERSIONS("merging bucket entries", "[bucket]")
                     liveEntry.data.contractCode() =
                         LedgerTestUtils::generateValidContractCodeEntry(10);
                     break;
-                case EXPIRATION:
-                    liveEntry.data.expiration() =
-                        LedgerTestUtils::generateValidExpirationEntry(10);
+                case TTL:
+                    liveEntry.data.ttl() =
+                        LedgerTestUtils::generateValidTTLEntry(10);
                     break;
                 default:
                     abort();

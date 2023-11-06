@@ -134,8 +134,8 @@ LedgerEntryIsValid::checkIsValid(LedgerEntry const& le,
         return checkIsValid(le.data.contractCode(), previous, version);
     case CONFIG_SETTING:
         return checkIsValid(le.data.configSetting(), previous, version);
-    case EXPIRATION:
-        return checkIsValid(le.data.expiration(), previous, version);
+    case TTL:
+        return checkIsValid(le.data.ttl(), previous, version);
     default:
         return "LedgerEntry has invalid type";
     }
@@ -584,7 +584,7 @@ LedgerEntryIsValid::checkIsValid(ConfigSettingEntry const& cfg,
 }
 
 std::string
-LedgerEntryIsValid::checkIsValid(ExpirationEntry const& ee,
+LedgerEntryIsValid::checkIsValid(TTLEntry const& te,
                                  LedgerEntry const* previous,
                                  uint32_t version) const
 {
@@ -593,20 +593,19 @@ LedgerEntryIsValid::checkIsValid(ExpirationEntry const& ee,
         return {};
     }
 
-    if (previous->data.type() != EXPIRATION)
+    if (previous->data.type() != TTL)
     {
-        return "Expiration used to be of different type";
+        return "TTL used to be of different type";
     }
 
-    if (previous->data.expiration().keyHash != ee.keyHash)
+    if (previous->data.ttl().keyHash != te.keyHash)
     {
-        return "Expiration keyHash modified";
+        return "TTL keyHash modified";
     }
 
-    if (previous->data.expiration().expirationLedgerSeq >
-        ee.expirationLedgerSeq)
+    if (previous->data.ttl().liveUntilLedgerSeq > te.liveUntilLedgerSeq)
     {
-        return "Expiration expirationLedgerSeq decreased";
+        return "TTL liveUntilLedgerSeq decreased";
     }
 
     return {};

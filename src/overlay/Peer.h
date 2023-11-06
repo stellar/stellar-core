@@ -22,7 +22,16 @@ namespace stellar
 
 typedef std::shared_ptr<SCPQuorumSet> SCPQuorumSetPtr;
 
-static auto const MAX_MESSAGE_SIZE = 0x1000000;
+static size_t const MAX_MESSAGE_SIZE = 1024 * 1024 * 16;     // 16 MB
+static size_t const MAX_TX_SET_ALLOWANCE = 1024 * 1024 * 10; // 10 MB
+static size_t const MAX_SOROBAN_BYTE_ALLOWANCE =
+    MAX_TX_SET_ALLOWANCE / 2; // 5 MB
+static size_t const MAX_CLASSIC_BYTE_ALLOWANCE =
+    MAX_TX_SET_ALLOWANCE / 2; // 5 MB
+
+static_assert(MAX_TX_SET_ALLOWANCE >=
+              MAX_SOROBAN_BYTE_ALLOWANCE + MAX_CLASSIC_BYTE_ALLOWANCE);
+
 // max tx size is 100KB
 static const uint32_t MAX_CLASSIC_TX_SIZE_BYTES = 100 * 1024;
 
@@ -57,7 +66,6 @@ class Peer : public std::enable_shared_from_this<Peer>,
 {
 
   public:
-    static constexpr uint32_t FIRST_VERSION_SUPPORTING_GENERALIZED_TX_SET = 23;
     static constexpr std::chrono::seconds PEER_SEND_MODE_IDLE_TIMEOUT =
         std::chrono::seconds(60);
     static constexpr std::chrono::nanoseconds PEER_METRICS_DURATION_UNIT =
@@ -66,6 +74,8 @@ class Peer : public std::enable_shared_from_this<Peer>,
         std::chrono::seconds(1);
     static constexpr uint32_t FIRST_VERSION_SUPPORTING_FLOW_CONTROL_IN_BYTES =
         28;
+    static constexpr uint32_t FIRST_VERSION_UPDATED_FLOW_CONTROL_ACCOUNTING =
+        30;
 
     // The reporting will be based on the previous
     // PEER_METRICS_WINDOW_SIZE-second time window.
@@ -230,7 +240,6 @@ class Peer : public std::enable_shared_from_this<Peer>,
     void recvRawMessage(StellarMessage const& msg);
     void recvMessage(StellarMessage const& msg);
     void recvMessage(AuthenticatedMessage const& msg);
-    void recvMessage(xdr::msg_ptr const& xdrBytes);
 
     virtual void recvError(StellarMessage const& msg);
     void updatePeerRecordAfterEcho();

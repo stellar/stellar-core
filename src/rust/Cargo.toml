@@ -14,6 +14,9 @@ tracy-client = { version = "=0.15.2", features = ["enable"], default-features = 
 cxx = "1.0"
 base64 = "0.13.0"
 rustc-simple-version = "0.1.0"
+# NB: this must match the same rand version used by soroban (but the tooling
+# will complain if it does not match)
+rand = "0.8.5"
 
 # This copy of the soroban host is always enabled, and should always point to a
 # version that supports stellar-core's Config::CURRENT_LEDGER_PROTOCOL_VERSION.
@@ -28,7 +31,7 @@ rustc-simple-version = "0.1.0"
 version = "20.0.0-rc1"
 git = "https://github.com/stellar/rs-soroban-env"
 package = "soroban-env-host"
-rev = "ab51a32aca1b19b0fa6da6d60e34e4dac5b93ddc"
+rev = "2674d867d7c6aa4212abab05ff30e5804ff1db90"
 
 # This copy of the soroban host is _optional_ and only enabled during protocol
 # transitions. When transitioning from protocol N to N+1, the `curr` copy
@@ -52,11 +55,15 @@ optional = true
 version = "20.0.0-rc1"
 git = "https://github.com/stellar/rs-soroban-env"
 package = "soroban-env-host"
-rev = "f19ef13363a1e0cbff7b100c0599a1d63dea88a6"
+rev = "03fc6f93839533e358e5593a39161b25e2473263"
 
 [dependencies.soroban-test-wasms]
 git = "https://github.com/stellar/rs-soroban-env"
-rev = "ab51a32aca1b19b0fa6da6d60e34e4dac5b93ddc"
+rev = "2674d867d7c6aa4212abab05ff30e5804ff1db90"
+
+[dependencies.soroban-synth-wasm]
+git = "https://github.com/stellar/rs-soroban-env"
+rev = "2674d867d7c6aa4212abab05ff30e5804ff1db90"
 
 [dependencies.cargo-lock]
 git = "https://github.com/rustsec/rustsec"
@@ -68,4 +75,4 @@ features = ["dependency-tree"]
 [features]
 soroban-env-host-prev = ["dep:soroban-env-host-prev"]
 tracy = ["dep:tracy-client", "soroban-env-host-curr/tracy"]
-core-vnext = []
+core-vnext = ["soroban-env-host-curr/next", "soroban-test-wasms/next"]

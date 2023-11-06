@@ -76,8 +76,8 @@ class BulkLedgerEntryChangeAccumulator
     std::vector<EntryIterator> mContractCodeToUpsert;
     std::vector<EntryIterator> mContractCodeToDelete;
     std::vector<EntryIterator> mConfigSettingsToUpsert;
-    std::vector<EntryIterator> mExpirationToUpsert;
-    std::vector<EntryIterator> mExpirationToDelete;
+    std::vector<EntryIterator> mTTLToUpsert;
+    std::vector<EntryIterator> mTTLToDelete;
 
   public:
     std::vector<EntryIterator>&
@@ -183,15 +183,15 @@ class BulkLedgerEntryChangeAccumulator
     }
 
     std::vector<EntryIterator>&
-    getExpirationToUpsert()
+    getTTLToUpsert()
     {
-        return mExpirationToUpsert;
+        return mTTLToUpsert;
     }
 
     std::vector<EntryIterator>&
-    getExpirationToDelete()
+    getTTLToDelete()
     {
-        return mExpirationToDelete;
+        return mTTLToDelete;
     }
 
     bool accumulate(EntryIterator const& iter, bool bucketListDBEnabled);
@@ -782,8 +782,7 @@ class LedgerTxnRoot::Impl
     loadContractCode(LedgerKey const& key) const;
     std::shared_ptr<LedgerEntry const>
     loadConfigSetting(LedgerKey const& key) const;
-    std::shared_ptr<LedgerEntry const>
-    loadExpiration(LedgerKey const& key) const;
+    std::shared_ptr<LedgerEntry const> loadTTL(LedgerKey const& key) const;
 
     void bulkApply(BulkLedgerEntryChangeAccumulator& bleca,
                    size_t bufferThreshold, LedgerTxnConsistency cons);
@@ -812,9 +811,9 @@ class LedgerTxnRoot::Impl
     void bulkDeleteContractCode(std::vector<EntryIterator> const& entries,
                                 LedgerTxnConsistency cons);
     void bulkUpsertConfigSettings(std::vector<EntryIterator> const& entries);
-    void bulkUpsertExpiration(std::vector<EntryIterator> const& entries);
-    void bulkDeleteExpiration(std::vector<EntryIterator> const& entries,
-                              LedgerTxnConsistency cons);
+    void bulkUpsertTTL(std::vector<EntryIterator> const& entries);
+    void bulkDeleteTTL(std::vector<EntryIterator> const& entries,
+                       LedgerTxnConsistency cons);
 
     static std::string tableFromLedgerEntryType(LedgerEntryType let);
 
@@ -859,7 +858,7 @@ class LedgerTxnRoot::Impl
     UnorderedMap<LedgerKey, std::shared_ptr<LedgerEntry const>>
     bulkLoadConfigSettings(UnorderedSet<LedgerKey> const& keys) const;
     UnorderedMap<LedgerKey, std::shared_ptr<LedgerEntry const>>
-    bulkLoadExpiration(UnorderedSet<LedgerKey> const& keys) const;
+    bulkLoadTTL(UnorderedSet<LedgerKey> const& keys) const;
 
     std::deque<LedgerEntry>::const_iterator
     loadNextBestOffersIntoCache(BestOffersEntryPtr cached, Asset const& buying,
@@ -905,7 +904,7 @@ class LedgerTxnRoot::Impl
     void dropContractData(bool rebuild);
     void dropContractCode(bool rebuild);
     void dropConfigSettings(bool rebuild);
-    void dropExpiration(bool rebuild);
+    void dropTTL(bool rebuild);
 
 #ifdef BUILD_TESTS
     void resetForFuzzer();

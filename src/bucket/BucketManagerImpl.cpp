@@ -123,11 +123,11 @@ BucketManagerImpl::BucketManagerImpl(Application& app)
     , mBucketListDBBloomLookups(app.getMetrics().NewMeter(
           {"bucketlistDB", "bloom", "lookups"}, "bloom"))
     , mEntriesEvicted(app.getMetrics().NewMeter(
-          {"state-expiration", "eviction", "entries-evicted"}, "eviction"))
+          {"state-archival", "eviction", "entries-evicted"}, "eviction"))
     , mBytesScannedForEviction(app.getMetrics().NewCounter(
-          {"state-expiration", "eviction", "bytes-scanned"}))
+          {"state-archival", "eviction", "bytes-scanned"}))
     , mIncompleteBucketScans(app.getMetrics().NewCounter(
-          {"state-expiration", "eviction", "incomplete-scan"}))
+          {"state-archival", "eviction", "incomplete-scan"}))
     // Minimal DB is stored in the buckets dir, so delete it only when
     // mode does not use minimal DB
     , mDeleteEntireBucketDirInDtor(
@@ -384,8 +384,7 @@ BucketManagerImpl::renameBucketDirFile(std::filesystem::path const& src,
 
 std::shared_ptr<Bucket>
 BucketManagerImpl::adoptFileAsBucket(std::string const& filename,
-                                     uint256 const& hash, size_t nObjects,
-                                     size_t nBytes, MergeKey* mergeKey,
+                                     uint256 const& hash, MergeKey* mergeKey,
                                      std::unique_ptr<BucketIndex const> index)
 {
     ZoneScoped;

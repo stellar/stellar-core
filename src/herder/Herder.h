@@ -112,7 +112,7 @@ class Herder
     // restores Herder's state from disk
     virtual void start() = 0;
 
-    virtual void lastClosedLedgerIncreased() = 0;
+    virtual void lastClosedLedgerIncreased(bool latest) = 0;
 
     // Setup Herder's state to fully participate in consensus
     virtual void setTrackingSCPState(uint64_t index, StellarValue const& value,

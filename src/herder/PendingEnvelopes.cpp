@@ -60,6 +60,9 @@ PendingEnvelopes::peerDoesntHave(MessageType type, Hash const& itemID,
 {
     switch (type)
     {
+    // Subtle: it is important to treat both TX_SET and GENERALIZED_TX_SET the
+    // same way here, since the sending node may have the type wrong depending
+    // on the protocol version
     case TX_SET:
     case GENERALIZED_TX_SET:
         mTxSetFetcher.doesntHave(itemID, peer);

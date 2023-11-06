@@ -372,12 +372,6 @@ class Config : public std::enable_shared_from_this<Config>
     //  aren't concerned with byzantine failures.
     bool UNSAFE_QUORUM;
 
-    // DEPRECATED: this flag is enabled by default, so setting it to false will
-    // have no effect. The node will limit its transaction queue
-    // to 1 transaction per source account. This impacts which transactions the
-    // node will nominate and flood to others.
-    bool LIMIT_TX_QUEUE_SOURCE_ACCOUNT;
-
     // If set to true, bucket GC will not be performed. It can lead to massive
     // disk usage, but it is useful for recovering of nodes.
     bool DISABLE_BUCKET_GC;
@@ -583,7 +577,7 @@ class Config : public std::enable_shared_from_this<Config>
     bool OVERRIDE_EVICTION_PARAMS_FOR_TESTING;
     uint32_t TESTING_EVICTION_SCAN_SIZE;
     uint32_t TESTING_STARTING_EVICTION_SCAN_LEVEL;
-    uint32_t TESTING_MAX_ENTRIES_TO_EXPIRE;
+    uint32_t TESTING_MAX_ENTRIES_TO_ARCHIVE;
 
 #ifdef BUILD_TESTS
     // If set to true, the application will be aware this run is for a test
@@ -619,6 +613,7 @@ class Config : public std::enable_shared_from_this<Config>
     std::chrono::seconds getExpectedLedgerCloseTime() const;
 
     void setInMemoryMode();
+    bool modeDoesCatchupWithBucketList() const;
     bool isInMemoryMode() const;
     bool isInMemoryModeWithoutMinimalDB() const;
     bool isUsingBucketListDB() const;

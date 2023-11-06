@@ -5,6 +5,7 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "lib/util/stdrandom.h"
+#include "util/Timer.h"
 #include <cstdlib>
 #include <random>
 #include <set>
@@ -17,6 +18,8 @@ double rand_fraction();
 std::set<double> k_means(std::vector<double> const& points, uint32_t k);
 
 double closest_cluster(double p, std::set<double> const& centers);
+
+VirtualClock::duration exponentialBackoff(uint64_t n);
 
 bool rand_flip();
 
@@ -52,6 +55,10 @@ rand_element(std::vector<T>& v)
     }
     return v.at(rand_uniform<size_t>(0, v.size() - 1));
 }
+
+// initializes all global state that depend on prngs
+// using sane default (pseudo) random values
+void initializeAllGlobalState();
 
 #ifdef BUILD_TESTS
 // This function should be called any time you need to reset stellar-core's

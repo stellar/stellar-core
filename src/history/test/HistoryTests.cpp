@@ -4,6 +4,7 @@
 
 #include "bucket/BucketManager.h"
 #include "bucket/test/BucketTestUtils.h"
+#include "catchup/CatchupManagerImpl.h"
 #include "catchup/test/CatchupWorkTests.h"
 #include "history/FileTransferInfo.h"
 #include "history/HistoryArchiveManager.h"
@@ -224,91 +225,136 @@ TEST_CASE("Ledger chain verification", "[ledgerheaderverification]")
 
     auto checkExpectedBehavior = [&](Work::State expectedState,
                                      LedgerHeaderHistoryEntry lcl,
-                                     LedgerHeaderHistoryEntry last) {
+                                     LedgerHeaderHistoryEntry last,
+                                     bool hasTrustedHash = true) {
         auto lclPair = LedgerNumHashPair(lcl.header.ledgerSeq,
                                          std::make_optional<Hash>(lcl.hash));
         auto ledgerRangeEnd = LedgerNumHashPair(
-            last.header.ledgerSeq, std::make_optional<Hash>(last.hash));
+            last.header.ledgerSeq, hasTrustedHash
+                                       ? std::make_optional<Hash>(last.hash)
+                                       : std::nullopt);
         std::promise<LedgerNumHashPair> ledgerRangeEndPromise;
         std::shared_future<LedgerNumHashPair> ledgerRangeEndFuture =
             ledgerRangeEndPromise.get_future().share();
         ledgerRangeEndPromise.set_value(ledgerRangeEnd);
+
+        auto fataFailurePromise = std::promise<bool>();
+        std::shared_future<bool> fatalFailureFuture =
+            fataFailurePromise.get_future().share();
         auto w = wm.executeWork<VerifyLedgerChainWork>(
-            tmpDir, ledgerRange, lclPair, ledgerRangeEndFuture);
+            tmpDir, ledgerRange, lclPair, ledgerRangeEndFuture,
+            std::move(fataFailurePromise));
         REQUIRE(expectedState == w->getState());
+        REQUIRE(fatalFailureFuture.valid());
+        return fatalFailureFuture.get();
     };
 
     LedgerHeaderHistoryEntry lcl, last;
-    LOG_DEBUG(DEFAULT_LOG, "fully valid");
+    SECTION("fully valid")
     {
         std::tie(lcl, last) = ledgerChainGenerator.makeLedgerChainFiles(
             HistoryManager::VERIFY_STATUS_OK);
-        checkExpectedBehavior(BasicWork::State::WORK_SUCCESS, lcl, last);
+        auto w =
+            checkExpectedBehavior(BasicWork::State::WORK_SUCCESS, lcl, last);
+        REQUIRE(!w);
     }
-    LOG_DEBUG(DEFAULT_LOG, "invalid link due to bad hash");
+    SECTION("invalid link due to bad hash")
     {
         std::tie(lcl, last) = ledgerChainGenerator.makeLedgerChainFiles(
             HistoryManager::VERIFY_STATUS_ERR_BAD_HASH);
-        checkExpectedBehavior(BasicWork::State::WORK_FAILURE, lcl, last);
+        auto w =
+            checkExpectedBehavior(BasicWork::State::WORK_FAILURE, lcl, last);
+        REQUIRE(!w);
     }
-    LOG_DEBUG(DEFAULT_LOG, "invalid ledger version");
+    SECTION("invalid ledger version without trusted hash")
     {
         std::tie(lcl, last) = ledgerChainGenerator.makeLedgerChainFiles(
             HistoryManager::VERIFY_STATUS_ERR_BAD_LEDGER_VERSION);
-        checkExpectedBehavior(BasicWork::State::WORK_FAILURE, lcl, last);
+        auto w = checkExpectedBehavior(BasicWork::State::WORK_FAILURE, lcl,
+                                       last, /* hasTrustedHash */ false);
+        REQUIRE(!w);
     }
-    LOG_DEBUG(DEFAULT_LOG, "overshot");
+    SECTION("invalid ledger version with trusted hash")
+    {
+        std::tie(lcl, last) = ledgerChainGenerator.makeLedgerChainFiles(
+            HistoryManager::VERIFY_STATUS_ERR_BAD_LEDGER_VERSION);
+        auto w =
+            checkExpectedBehavior(BasicWork::State::WORK_FAILURE, lcl, last);
+        REQUIRE(w);
+    }
+    SECTION("overshot")
     {
         std::tie(lcl, last) = ledgerChainGenerator.makeLedgerChainFiles(
             HistoryManager::VERIFY_STATUS_ERR_OVERSHOT);
-        checkExpectedBehavior(BasicWork::State::WORK_FAILURE, lcl, last);
+        auto w =
+            checkExpectedBehavior(BasicWork::State::WORK_FAILURE, lcl, last);
+        REQUIRE(!w);
     }
-    LOG_DEBUG(DEFAULT_LOG, "undershot");
+    SECTION("undershot")
     {
         std::tie(lcl, last) = ledgerChainGenerator.makeLedgerChainFiles(
             HistoryManager::VERIFY_STATUS_ERR_UNDERSHOT);
-        checkExpectedBehavior(BasicWork::State::WORK_FAILURE, lcl, last);
+        auto w =
+            checkExpectedBehavior(BasicWork::State::WORK_FAILURE, lcl, last);
+        REQUIRE(!w);
     }
-    LOG_DEBUG(DEFAULT_LOG, "missing entries");
+    SECTION("missing ledger files")
     {
         std::tie(lcl, last) = ledgerChainGenerator.makeLedgerChainFiles(
             HistoryManager::VERIFY_STATUS_ERR_MISSING_ENTRIES);
-        checkExpectedBehavior(BasicWork::State::WORK_FAILURE, lcl, last);
+        auto w =
+            checkExpectedBehavior(BasicWork::State::WORK_FAILURE, lcl, last);
+        REQUIRE(!w);
     }
-    LOG_DEBUG(DEFAULT_LOG, "chain does not agree with LCL");
+    SECTION("chain does not agree with LCL with trusted hash")
     {
         std::tie(lcl, last) = ledgerChainGenerator.makeLedgerChainFiles(
             HistoryManager::VERIFY_STATUS_OK);
         lcl.hash = HashUtils::random();
-
-        checkExpectedBehavior(BasicWork::State::WORK_FAILURE, lcl, last);
+        auto w =
+            checkExpectedBehavior(BasicWork::State::WORK_FAILURE, lcl, last);
+        REQUIRE(w);
     }
-    LOG_DEBUG(DEFAULT_LOG,
-              "chain does not agree with LCL on checkpoint boundary");
+    SECTION("chain does not agree with LCL without trusted hash")
+    {
+        std::tie(lcl, last) = ledgerChainGenerator.makeLedgerChainFiles(
+            HistoryManager::VERIFY_STATUS_OK);
+        lcl.hash = HashUtils::random();
+        auto w = checkExpectedBehavior(BasicWork::State::WORK_FAILURE, lcl,
+                                       last, false);
+        REQUIRE(!w);
+    }
+    SECTION("chain does not agree with LCL on checkpoint boundary")
     {
         std::tie(lcl, last) = ledgerChainGenerator.makeLedgerChainFiles(
             HistoryManager::VERIFY_STATUS_OK);
         lcl.header.ledgerSeq +=
             app->getHistoryManager().getCheckpointFrequency() - 1;
         lcl.hash = HashUtils::random();
-        checkExpectedBehavior(BasicWork::State::WORK_FAILURE, lcl, last);
+        auto w =
+            checkExpectedBehavior(BasicWork::State::WORK_FAILURE, lcl, last);
+        REQUIRE(w);
     }
-    LOG_DEBUG(DEFAULT_LOG, "chain does not agree with LCL outside of range");
+    SECTION("chain does not agree with LCL outside of range")
     {
         std::tie(lcl, last) = ledgerChainGenerator.makeLedgerChainFiles(
             HistoryManager::VERIFY_STATUS_OK);
         lcl.header.ledgerSeq -= 1;
         lcl.hash = HashUtils::random();
-        checkExpectedBehavior(BasicWork::State::WORK_FAILURE, lcl, last);
+        auto w =
+            checkExpectedBehavior(BasicWork::State::WORK_FAILURE, lcl, last);
+        REQUIRE(w);
     }
-    LOG_DEBUG(DEFAULT_LOG, "chain does not agree with trusted hash");
+    SECTION("chain does not agree with trusted hash")
     {
         std::tie(lcl, last) = ledgerChainGenerator.makeLedgerChainFiles(
             HistoryManager::VERIFY_STATUS_OK);
         last.hash = HashUtils::random();
-        checkExpectedBehavior(BasicWork::State::WORK_FAILURE, lcl, last);
+        auto w =
+            checkExpectedBehavior(BasicWork::State::WORK_FAILURE, lcl, last);
+        REQUIRE(!w);
     }
-    LOG_DEBUG(DEFAULT_LOG, "missing file");
+    SECTION("missing file")
     {
         std::tie(lcl, last) = ledgerChainGenerator.makeLedgerChainFiles(
             HistoryManager::VERIFY_STATUS_OK);
@@ -317,7 +363,9 @@ TEST_CASE("Ledger chain verification", "[ledgerheaderverification]")
         std::remove(ft.localPath_nogz().c_str());
 
         // No crash
-        checkExpectedBehavior(BasicWork::State::WORK_FAILURE, lcl, last);
+        auto w =
+            checkExpectedBehavior(BasicWork::State::WORK_FAILURE, lcl, last);
+        REQUIRE(!w);
     }
 }
 
@@ -958,6 +1006,31 @@ TEST_CASE("Catchup with protocol upgrade", "[catchup][history]")
             testUpgrade(SOROBAN_PROTOCOL_VERSION);
         }
     }
+}
+
+TEST_CASE("Catchup fatal failure", "[catchup][history]")
+{
+    CatchupSimulation catchupSimulation{};
+
+    auto checkpointLedger = catchupSimulation.getLastCheckpointLedger(3);
+    catchupSimulation.ensureOnlineCatchupPossible(checkpointLedger, 5);
+
+    auto a = catchupSimulation.createCatchupApplication(
+        std::numeric_limits<uint32_t>::max(), Config::TESTDB_IN_MEMORY_SQLITE,
+        std::string("Catchup retry"), false, false,
+        catchupSimulation.getApp().getConfig().LEDGER_PROTOCOL_VERSION - 1);
+
+    REQUIRE(!catchupSimulation.catchupOnline(a, 10, 5));
+    auto& cm = static_cast<CatchupManagerImpl&>(a->getCatchupManager());
+    REQUIRE(cm.getCatchupWork());
+    REQUIRE(cm.getCatchupWork()->fatalFailure());
+
+    // Bad ledger version is a fatal failure
+    // Try catching up again, no catchup work should be started as we're in
+    // fatal failure mode
+    REQUIRE(!catchupSimulation.catchupOnline(a, 70, 5));
+    REQUIRE(cm.getCatchupWork() == nullptr);
+    REQUIRE(cm.getCatchupFatalFailure());
 }
 
 TEST_CASE("Catchup non-initentry buckets to initentry-supporting works",

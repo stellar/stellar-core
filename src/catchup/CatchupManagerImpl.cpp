@@ -107,8 +107,14 @@ void
 CatchupManagerImpl::processLedger(LedgerCloseData const& ledgerData)
 {
     ZoneScoped;
-    if (mCatchupWork && mCatchupWork->isDone())
+    if (catchupWorkIsDone())
     {
+        if (mCatchupWork->getState() == BasicWork::State::WORK_FAILURE &&
+            mCatchupWork->fatalFailure())
+        {
+            CLOG_FATAL(History, "Catchup failed and cannot recover");
+            mCatchupFatalFailure = true;
+        }
         mCatchupWork.reset();
         logAndUpdateCatchupStatus(true);
     }
@@ -177,16 +183,25 @@ CatchupManagerImpl::processLedger(LedgerCloseData const& ledgerData)
     std::string message;
     uint32_t firstLedgerInBuffer = mSyncingLedgers.begin()->first;
     uint32_t lastLedgerInBuffer = mSyncingLedgers.crbegin()->first;
-    if (mApp.getConfig().MODE_DOES_CATCHUP &&
+    if (mApp.getConfig().modeDoesCatchupWithBucketList() &&
         hm.isFirstLedgerInCheckpoint(firstLedgerInBuffer) &&
         firstLedgerInBuffer < lastLedgerInBuffer)
     {
-        message =
-            fmt::format(FMT_STRING("Starting catchup after ensuring checkpoint "
-                                   "ledger {:d} was closed on network"),
-                        lastLedgerInBuffer);
-
-        startOnlineCatchup();
+        // No point in processing ledgers as catchup won't ever be able to
+        // succeed
+        if (!mCatchupFatalFailure)
+        {
+            message = fmt::format(
+                FMT_STRING("Starting catchup after ensuring checkpoint "
+                           "ledger {:d} was closed on network"),
+                lastLedgerInBuffer);
+            startOnlineCatchup();
+        }
+        else
+        {
+            CLOG_FATAL(History, "Skipping catchup: incompatible core version "
+                                "or invalid local state");
+        }
     }
     else
     {

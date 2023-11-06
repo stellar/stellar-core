@@ -11,25 +11,25 @@ namespace stellar
 {
 
 bool
-isLive(LedgerEntry const& e, uint32_t expirationCutoff)
+isLive(LedgerEntry const& e, uint32_t cutoffLedger)
 {
-    releaseAssert(e.data.type() == EXPIRATION);
-    return e.data.expiration().expirationLedgerSeq >= expirationCutoff;
+    releaseAssert(e.data.type() == TTL);
+    return e.data.ttl().liveUntilLedgerSeq >= cutoffLedger;
 }
 
 LedgerKey
-getExpirationKey(LedgerEntry const& e)
+getTTLKey(LedgerEntry const& e)
 {
-    return getExpirationKey(LedgerEntryKey(e));
+    return getTTLKey(LedgerEntryKey(e));
 }
 
 LedgerKey
-getExpirationKey(LedgerKey const& e)
+getTTLKey(LedgerKey const& e)
 {
     releaseAssert(e.type() == CONTRACT_CODE || e.type() == CONTRACT_DATA);
     LedgerKey k;
-    k.type(EXPIRATION);
-    k.expiration().keyHash = sha256(xdr::xdr_to_opaque(e));
+    k.type(TTL);
+    k.ttl().keyHash = sha256(xdr::xdr_to_opaque(e));
     return k;
 }
 };

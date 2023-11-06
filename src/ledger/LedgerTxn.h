@@ -487,9 +487,9 @@ class AbstractLedgerTxnParent
     // anything other than a (real or stub) root LedgerTxn.
     virtual void dropConfigSettings(bool rebuild) = 0;
 
-    // Delete all expiration ledger entries. Will throw when called on
+    // Delete all ttl ledger entries. Will throw when called on
     // anything other than a (real or stub) root LedgerTxn.
-    virtual void dropExpiration(bool rebuild) = 0;
+    virtual void dropTTL(bool rebuild) = 0;
 
     // Return the current cache hit rate for prefetched ledger entries, as a
     // fraction from 0.0 to 1.0. Will throw when called on anything other than a
@@ -791,7 +791,7 @@ class LedgerTxn : public AbstractLedgerTxn
     void dropContractData(bool rebuild) override;
     void dropContractCode(bool rebuild) override;
     void dropConfigSettings(bool rebuild) override;
-    void dropExpiration(bool rebuild) override;
+    void dropTTL(bool rebuild) override;
 
     double getPrefetchHitRate() const override;
     uint32_t prefetch(UnorderedSet<LedgerKey> const& keys) override;
@@ -854,7 +854,7 @@ class LedgerTxnRoot : public AbstractLedgerTxnParent
     void dropContractData(bool rebuild) override;
     void dropContractCode(bool rebuild) override;
     void dropConfigSettings(bool rebuild) override;
-    void dropExpiration(bool rebuild) override;
+    void dropTTL(bool rebuild) override;
 
 #ifdef BUILD_TESTS
     void resetForFuzzer() override;

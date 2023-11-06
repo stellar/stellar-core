@@ -52,6 +52,8 @@ history.publish.success                   | meter     | published completed succ
 history.publish.time                      | timer     | time to successfully publish history
 ledger.age.closed                         | bucket    | time between ledgers
 ledger.age.current-seconds                | counter   | gap between last close ledger time and current time
+ledger.apply.success                      | counter   | count of successfully applied transactions
+ledger.apply.failure                      | counter   | count of failed applied transactions
 ledger.catchup.duration                   | timer     | time between entering LM_CATCHING_UP_STATE and entering LM_SYNCED_STATE
 ledger.invariant.failure                  | counter   | number of times invariants failed
 ledger.ledger.close                       | timer     | time to close a ledger (excluding consensus)
@@ -146,6 +148,6 @@ scp.timing.self-to-others-externalize-lag | timer     | delay between local node
 scp.value.invalid                         | meter     | SCP value is invalid
 scp.value.valid                           | meter     | SCP value is valid
 scp.slot.values-referenced                | histogram | number of values referenced per consensus round
-state-expiration.eviction.bytes-scanned   | counter   | number of bytes that eviction scan has read
-state-expiration.eviction.entries-evicted | meter     | number of entries that have been evicted
-state-expiration.eviction.incomplete-scan | counter   | number of buckets that were too large to be fully scanned for eviction
+state-archival.eviction.bytes-scanned   | counter   | number of bytes that eviction scan has read
+state-archival.eviction.entries-evicted | meter     | number of entries that have been evicted
+state-archival.eviction.incomplete-scan | counter   | number of buckets that were too large to be fully scanned for eviction

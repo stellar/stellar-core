@@ -166,8 +166,7 @@ Peer::endMessageProcessing(StellarMessage const& msg)
     }
 
     releaseAssert(mFlowControl);
-    std::weak_ptr<Peer> self = shared_from_this();
-    mFlowControl->endMessageProcessing(msg, self);
+    mFlowControl->endMessageProcessing(msg, shared_from_this());
 
     releaseAssert(canRead());
     if (mIsPeerThrottled)
@@ -701,35 +700,6 @@ Peer::sendAuthenticatedMessage(StellarMessage const& msg)
     this->sendMessage(std::move(xdrBytes));
 }
 
-void
-Peer::recvMessage(xdr::msg_ptr const& msg)
-{
-    ZoneScoped;
-    if (shouldAbort())
-    {
-        return;
-    }
-
-    try
-    {
-        ZoneNamedN(hmacZone, "message HMAC", true);
-        AuthenticatedMessage am;
-        {
-            ZoneNamedN(xdrZone, "XDR deserialize", true);
-            xdr::xdr_from_msg(msg, am);
-        }
-        recvMessage(am);
-    }
-    catch (xdr::xdr_runtime_error& e)
-    {
-        CLOG_ERROR(Overlay, "received corrupt xdr::msg_ptr {}", e.what());
-        drop("received corrupted message",
-             Peer::DropDirection::WE_DROPPED_REMOTE,
-             Peer::DropMode::IGNORE_WRITE_QUEUE);
-        return;
-    }
-}
-
 bool
 Peer::isConnected() const
 {
@@ -848,8 +818,7 @@ Peer::recvMessage(StellarMessage const& stellarMsg)
         cat = "MISC";
     }
 
-    auto self = shared_from_this();
-    std::weak_ptr<Peer> weak(static_pointer_cast<Peer>(self));
+    std::weak_ptr<Peer> weak = shared_from_this();
     auto msgTracker = std::make_shared<MsgCapacityTracker>(weak, stellarMsg);
 
     if (!mApp.getLedgerManager().isSynced() && ignoreIfOutOfSync)
@@ -860,7 +829,7 @@ Peer::recvMessage(StellarMessage const& stellarMsg)
     }
 
     mApp.postOnMainThread(
-        [weak, msgTracker, cat, port = mApp.getConfig().PEER_PORT]() {
+        [msgTracker, cat, port = mApp.getConfig().PEER_PORT]() {
             auto self = msgTracker->getPeer().lock();
             if (!self)
             {
@@ -1087,14 +1056,6 @@ Peer::recvGetTxSet(StellarMessage const& msg)
         StellarMessage newMsg;
         if (txSet->isGeneralizedTxSet())
         {
-            if (mRemoteOverlayVersion <
-                Peer::FIRST_VERSION_SUPPORTING_GENERALIZED_TX_SET)
-            {
-                // The peer wouldn't be able to accept the generalized tx
-                // set, but it wouldn't be correct to say we don't have it.
-                // So we just let the request to timeout.
-                return;
-            }
             newMsg.type(GENERALIZED_TX_SET);
             txSet->toXDR(newMsg.generalizedTxSet());
         }
@@ -1120,18 +1081,6 @@ Peer::recvGetTxSet(StellarMessage const& msg)
                                     SOROBAN_PROTOCOL_VERSION)
                 ? TX_SET
                 : GENERALIZED_TX_SET;
-        // If peer is not aware of generalized tx sets and we don't have the
-        // requested hash, then it probably requests an old-style tx set we
-        // don't have. Another option is that the peer is in incorrect
-        // state, but it's also ok to say we don't have the requested
-        // old-style tx set.
-        if (messageType == GENERALIZED_TX_SET &&
-            mRemoteOverlayVersion <
-                Peer::FIRST_VERSION_SUPPORTING_GENERALIZED_TX_SET)
-        {
-            sendDontHave(TX_SET, msg.txSetHash());
-            return;
-        }
         sendDontHave(messageType, msg.txSetHash());
     }
 }
@@ -1616,7 +1565,7 @@ Peer::recvAuth(StellarMessage const& msg)
         msg.auth().flags == AUTH_MSG_FLAG_FLOW_CONTROL_BYTES_REQUESTED &&
         mApp.getConfig().ENABLE_FLOW_CONTROL_BYTES;
 
-    mFlowControl->start(weakSelf, sendCb, bothWantBytes);
+    mFlowControl->start(weakSelf, sendCb, bothWantBytes, mRemoteOverlayVersion);
 
     // Ask for SCP data _after_ the flow control message
     auto low = mApp.getHerder().getMinLedgerSeqToAskPeers();
@@ -1775,7 +1724,7 @@ Peer::queueTxHashToAdvertise(Hash const& txHash)
     // Flush adverts at the earliest of the following two conditions:
     // 1. The number of hashes reaches the threshold.
     // 2. The oldest tx hash hash been in the queue for FLOOD_TX_PERIOD_MS.
-    if (mTxHashesToAdvertise.size() ==
+    if (mTxHashesToAdvertise.size() >=
         mApp.getOverlayManager().getMaxAdvertSize())
     {
         flushAdvert();
@@ -1806,9 +1755,9 @@ Peer::sendTxDemand(TxDemandVector&& demands)
         auto msg = std::make_shared<StellarMessage>();
         msg->type(FLOOD_DEMAND);
         msg->floodDemand().txHashes = std::move(demands);
-        std::weak_ptr<Peer> weak(static_pointer_cast<Peer>(shared_from_this()));
         getOverlayMetrics().mMessagesDemanded.Mark(
             msg->floodDemand().txHashes.size());
+        std::weak_ptr<Peer> weak = shared_from_this();
         mApp.postOnMainThread(
             [weak, msg = std::move(msg)]() {
                 auto strong = weak.lock();
@@ -1833,7 +1782,7 @@ Peer::flushAdvert()
         adv.floodAdvert().txHashes = std::move(mTxHashesToAdvertise);
         mTxHashesToAdvertise.clear();
         auto msg = std::make_shared<StellarMessage>(adv);
-        std::weak_ptr<Peer> weak(static_pointer_cast<Peer>(shared_from_this()));
+        std::weak_ptr<Peer> weak = shared_from_this();
         mApp.postOnMainThread(
             [weak, msg = std::move(msg)]() {
                 auto strong = weak.lock();

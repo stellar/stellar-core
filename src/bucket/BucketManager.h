@@ -138,7 +138,7 @@ class BucketManager : NonMovableOrCopyable
     // worker threads. Very carefully.
     virtual std::shared_ptr<Bucket>
     adoptFileAsBucket(std::string const& filename, uint256 const& hash,
-                      size_t nObjects, size_t nBytes, MergeKey* mergeKey,
+                      MergeKey* mergeKey,
                       std::unique_ptr<BucketIndex const> index) = 0;
 
     // Companion method to `adoptFileAsBucket` also called from the
@@ -206,7 +206,7 @@ class BucketManager : NonMovableOrCopyable
     virtual void maybeSetIndex(std::shared_ptr<Bucket> b,
                                std::unique_ptr<BucketIndex const>&& index) = 0;
 
-    // Scans BucketList for expired entries to evict starting at the entry
+    // Scans BucketList for non-live entries to evict starting at the entry
     // pointed to by EvictionIterator. Scans until `maxEntriesToEvict` entries
     // have been evicted or maxEvictionScanSize bytes have been scanned.
     virtual void scanForEviction(AbstractLedgerTxn& ltx,

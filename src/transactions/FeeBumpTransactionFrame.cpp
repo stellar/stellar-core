@@ -383,16 +383,11 @@ FeeBumpTransactionFrame::getNumOperations() const
 }
 
 Resource
-FeeBumpTransactionFrame::getResources() const
+FeeBumpTransactionFrame::getResources(bool useByteLimitInClassic) const
 {
-    if (mInnerTx->isSoroban())
-    {
-        return mInnerTx->getResources();
-    }
-    else
-    {
-        return Resource(getNumOperations());
-    }
+    auto res = mInnerTx->getResources(useByteLimitInClassic);
+    res.setVal(Resource::Type::OPERATIONS, getNumOperations());
+    return res;
 }
 
 std::vector<Operation> const&

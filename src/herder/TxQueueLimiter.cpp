@@ -56,7 +56,6 @@ TxQueueLimiter::~TxQueueLimiter()
 size_t
 TxQueueLimiter::size() const
 {
-    releaseAssert(!mIsSoroban);
     return mTxs->totalResources().getVal(Resource::Type::OPERATIONS);
 }
 #endif
@@ -171,24 +170,19 @@ TxQueueLimiter::canAddTx(TransactionFrameBasePtr const& newTx,
                        (newTx->getFullFee() - newTx->getInclusionFee()));
     }
 
-    uint32_t txOpsDiscount = 0;
+    // For eviction purposes, treat old tx resources as a "discount", since it
+    // will be replaced by the new transaction
+    std::optional<Resource> oldTxDiscount = std::nullopt;
     if (oldTx)
     {
-        auto newTxOps = newTx->getNumOperations();
-        auto oldTxOps = oldTx->getNumOperations();
-        // Bump transactions must have at least the old amount of operations.
-        releaseAssert(oldTxOps <= newTxOps);
-        txOpsDiscount = newTxOps - oldTxOps;
+        oldTxDiscount = oldTx->getResources(false);
     }
 
-    auto discount = newTx->isSoroban()
-                        ? std::nullopt
-                        : std::make_optional<Resource>(txOpsDiscount);
     // Update the operation limit in case upgrade happened. This is cheap
     // enough to happen unconditionally without relying on upgrade triggers.
     mSurgePricingLaneConfig->updateGenericLaneLimit(
         Resource(maxScaledLedgerResources(newTx->isSoroban(), ltxOuter)));
-    return mTxs->canFitWithEviction(*newTx, discount, txsToEvict);
+    return mTxs->canFitWithEviction(*newTx, oldTxDiscount, txsToEvict);
 }
 
 void
@@ -197,7 +191,8 @@ TxQueueLimiter::evictTransactions(
     TransactionFrameBase const& txToFit,
     std::function<void(TransactionFrameBasePtr const&)> evict)
 {
-    auto resourcesToFit = txToFit.getResources();
+    auto resourcesToFit =
+        txToFit.getResources(/* useByteLimitInClassic */ false);
 
     auto txToFitLane = mSurgePricingLaneConfig->getLane(txToFit);
 
@@ -268,6 +263,9 @@ TxQueueLimiter::reset(AbstractLedgerTxn& ltxOuter)
     {
         mSurgePricingLaneConfig = std::make_shared<DexLimitingLaneConfig>(
             maxScaledLedgerResources(mIsSoroban, ltxOuter), mMaxDexOperations);
+        // Ensure byte limits aren't counted in tx limiter
+        releaseAssert(mSurgePricingLaneConfig->getLaneLimits()[0].size() ==
+                      NUM_CLASSIC_TX_RESOURCES);
     }
 
     if (mSurgePricingLaneConfig)

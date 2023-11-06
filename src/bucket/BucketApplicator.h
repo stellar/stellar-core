@@ -54,8 +54,8 @@ class BucketApplicator
         uint64_t mContractCodeUpsert;
         uint64_t mContractCodeDelete;
         uint64_t mConfigSettingUpsert;
-        uint64_t mExpirationUpsert;
-        uint64_t mExpirationDelete;
+        uint64_t mTTLUpsert;
+        uint64_t mTTLDelete;
         void getRates(VirtualClock::time_point now, uint64_t& au_sec,
                       uint64_t& ad_sec, uint64_t& tu_sec, uint64_t& td_sec,
                       uint64_t& ou_sec, uint64_t& od_sec, uint64_t& du_sec,

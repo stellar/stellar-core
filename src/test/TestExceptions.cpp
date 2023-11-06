@@ -530,15 +530,15 @@ throwIf(InvokeHostFunctionResult const& result)
 }
 
 void
-throwIf(BumpFootprintExpirationResult const& result)
+throwIf(ExtendFootprintTTLResult const& result)
 {
     switch (result.code())
     {
-    case BUMP_FOOTPRINT_EXPIRATION_MALFORMED:
-        throw ex_BUMP_FOOTPRINT_EXPIRATION_MALFORMED{};
-    case BUMP_FOOTPRINT_EXPIRATION_RESOURCE_LIMIT_EXCEEDED:
-        throw ex_BUMP_FOOTPRINT_EXPIRATION_RESOURCE_LIMIT_EXCEEDED{};
-    case BUMP_FOOTPRINT_EXPIRATION_SUCCESS:
+    case EXTEND_FOOTPRINT_TTL_MALFORMED:
+        throw ex_EXTEND_FOOTPRINT_TTL_MALFORMED{};
+    case EXTEND_FOOTPRINT_TTL_RESOURCE_LIMIT_EXCEEDED:
+        throw ex_EXTEND_FOOTPRINT_TTL_RESOURCE_LIMIT_EXCEEDED{};
+    case EXTEND_FOOTPRINT_TTL_SUCCESS:
         break;
     default:
         throw ex_UNKNOWN{};
@@ -678,8 +678,8 @@ throwIf(TransactionResult const& result)
     case INVOKE_HOST_FUNCTION:
         throwIf(opResult.tr().invokeHostFunctionResult());
         break;
-    case BUMP_FOOTPRINT_EXPIRATION:
-        throwIf(opResult.tr().bumpFootprintExpirationResult());
+    case EXTEND_FOOTPRINT_TTL:
+        throwIf(opResult.tr().extendFootprintTTLResult());
         break;
     case RESTORE_FOOTPRINT:
         throwIf(opResult.tr().restoreFootprintResult());

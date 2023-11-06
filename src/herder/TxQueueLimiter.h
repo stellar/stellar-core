@@ -44,7 +44,7 @@ class SingleTxStack : public TxStack
     getResources() const override
     {
         releaseAssert(mTx);
-        return Resource(mTx->getResources());
+        return Resource(mTx->getResources(/* useByteLimitInClassic */ false));
     }
 
   private:

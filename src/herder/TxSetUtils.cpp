@@ -109,15 +109,10 @@ AccountTransactionQueue::popTopTx()
 Resource
 AccountTransactionQueue::getResources() const
 {
-    if (mIsSoroban)
-    {
-        return empty() ? Resource::makeEmpty(mIsSoroban)
-                       : getTopTx()->getResources();
-    }
-    else
-    {
-        return Resource(mNumOperations);
-    }
+    return empty() ? Resource::makeEmpty(mIsSoroban
+                                             ? NUM_SOROBAN_TX_RESOURCES
+                                             : NUM_CLASSIC_TX_BYTES_RESOURCES)
+                   : getTopTx()->getResources(true);
 }
 
 bool

@@ -32,9 +32,9 @@
 	[
 		"E20P08yXd3g=",
 		"InKWm13ZUuM=",
-		"ciG7hHbwCSU=",
-		"q8B6IhL17rY=",
-		"IOYjlwjZ9lQ="
+		"J+3Qvez8n7E=",
+		"S4LZx4ks59o=",
+		"uGEiNRZJR5Q="
 	],
 	"basic contract invocation|invalid footprint keys|readOnly" : 
 	[
@@ -102,5 +102,41 @@
 		"3l7t9opHMbU=",
 		"3l7t9opHMbU="
 	],
-	"contract storage|footprint tests|unused readWrite key" : [ "PJ5bN6hAeFA=" ]
+	"buying liabilities plus refund is greater than INT64_MAX" : [ "In1c4SdjNWI=", "2+RlWbLqNuA=", "4PFoNk2Q2xA=", "9ZuZsVhaOp0=" ],
+	"contract storage" : 
+	[
+		"po9NYeVLoeg=",
+		"U+4ACKNvQLs=",
+		"po9NYeVLoeg=",
+		"U+4ACKNvQLs=",
+		"po9NYeVLoeg=",
+		"U+4ACKNvQLs=",
+		"po9NYeVLoeg=",
+		"U+4ACKNvQLs=",
+		"po9NYeVLoeg=",
+		"U+4ACKNvQLs=",
+		"po9NYeVLoeg=",
+		"U+4ACKNvQLs=",
+		"po9NYeVLoeg=",
+		"U+4ACKNvQLs=",
+		"po9NYeVLoeg=",
+		"U+4ACKNvQLs=",
+		"po9NYeVLoeg=",
+		"U+4ACKNvQLs=",
+		"po9NYeVLoeg=",
+		"U+4ACKNvQLs=",
+		"po9NYeVLoeg=",
+		"U+4ACKNvQLs=",
+		"po9NYeVLoeg=",
+		"U+4ACKNvQLs=",
+		"po9NYeVLoeg=",
+		"U+4ACKNvQLs=",
+		"po9NYeVLoeg=",
+		"U+4ACKNvQLs=",
+		"po9NYeVLoeg=",
+		"U+4ACKNvQLs=",
+		"po9NYeVLoeg=",
+		"U+4ACKNvQLs="
+	],
+	"refund account merged" : [ "In1c4SdjNWI=", "2+RlWbLqNuA=", "rNZHldKg7fk=" ]
 }

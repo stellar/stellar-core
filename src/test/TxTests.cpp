@@ -7,7 +7,6 @@
 #include "crypto/SignerKey.h"
 #include "database/Database.h"
 #include "herder/Herder.h"
-#include "herder/simulation/TxSimTxSetFrame.h"
 #include "invariant/InvariantManager.h"
 #include "ledger/LedgerTxn.h"
 #include "ledger/LedgerTxnEntry.h"
@@ -498,8 +497,7 @@ closeLedgerOn(Application& app, uint32 ledgerSeq, TimePoint closeTime,
     TxSetFrameConstPtr txSet;
     if (strictOrder)
     {
-        txSet = std::make_shared<txsimulation::SimApplyOrderTxSetFrame const>(
-            app.getLedgerManager().getLastClosedLedgerHeader(), txs);
+        txSet = TxSetFrame::makeFromTransactions(txs, app, 0, 0, true);
     }
     else
     {
@@ -717,7 +715,7 @@ feeBump(Application& app, TestAccount& feeSource, TransactionFrameBasePtr tx,
     REQUIRE(tx->getEnvelope().type() == ENVELOPE_TYPE_TX);
     TransactionEnvelope fb(ENVELOPE_TYPE_TX_FEE_BUMP);
     fb.feeBump().tx.feeSource = toMuxedAccount(feeSource);
-    fb.feeBump().tx.fee = fee;
+    fb.feeBump().tx.fee = tx->getFullFee() - tx->getInclusionFee() + fee;
     fb.feeBump().tx.innerTx.type(ENVELOPE_TYPE_TX);
     fb.feeBump().tx.innerTx.v1() = tx->getEnvelope().v1();
 
@@ -842,56 +840,77 @@ createSimpleDexTx(Application& app, TestAccount& account, uint32 nbOps,
                                      ops, fee);
 }
 
-TransactionFramePtr
-createUploadWasmTx(Application& app, TestAccount& account, uint32_t fee,
-                   uint32_t refundableFee, SorobanResources resources,
-                   std::optional<std::string> memo, int addInvalidOps)
+Operation
+createUploadWasmOperation(uint32_t generatedWasmSize)
 {
-    Operation deployOp;
-    deployOp.body.type(INVOKE_HOST_FUNCTION);
-    auto& uploadHF = deployOp.body.invokeHostFunctionOp().hostFunction;
+    uint32_t const WASM_HEADER_SIZE = 100;
+
+    Operation uploadOp;
+    uploadOp.body.type(INVOKE_HOST_FUNCTION);
+    auto& uploadHF = uploadOp.body.invokeHostFunctionOp().hostFunction;
     uploadHF.type(HOST_FUNCTION_TYPE_UPLOAD_CONTRACT_WASM);
-    uploadHF.wasm().resize(1000);
-    auto byteDistr = uniform_int_distribution<uint8_t>();
-    std::generate(uploadHF.wasm().begin(), uploadHF.wasm().end(),
-                  [&byteDistr]() { return byteDistr(gRandomEngine); });
+    uniform_int_distribution<uint64_t> seedDistr;
+    uint64_t seed = seedDistr(Catch::rng());
+    // Roughly account for the generated header.
+    if (generatedWasmSize > WASM_HEADER_SIZE)
+    {
+        generatedWasmSize -= WASM_HEADER_SIZE;
+    }
+    else
+    {
+        generatedWasmSize = 0;
+    }
+    auto randomWasm = rust_bridge::get_random_wasm(generatedWasmSize, seed);
+    uploadHF.wasm().insert(uploadHF.wasm().begin(), randomWasm.data.data(),
+                           randomWasm.data.data() + randomWasm.data.size());
+    return uploadOp;
+}
+
+TransactionFramePtr
+createUploadWasmTx(Application& app, TestAccount& account,
+                   uint32_t inclusionFee, uint32_t resourceFee,
+                   SorobanResources resources, std::optional<std::string> memo,
+                   int addInvalidOps, std::optional<uint32_t> wasmSize,
+                   std::optional<SequenceNumber> seq)
+{
+    uint32_t const DEFAULT_WASM_SIZE = 1000;
+
+    Operation uploadOp =
+        createUploadWasmOperation(wasmSize ? *wasmSize : DEFAULT_WASM_SIZE);
 
     if (resources.footprint.readWrite.empty() &&
         resources.footprint.readOnly.empty())
     {
         LedgerKey contractCodeLedgerKey;
         contractCodeLedgerKey.type(CONTRACT_CODE);
-        contractCodeLedgerKey.contractCode().hash = xdrSha256(uploadHF.wasm());
+        contractCodeLedgerKey.contractCode().hash =
+            sha256(uploadOp.body.invokeHostFunctionOp().hostFunction.wasm());
         resources.footprint.readWrite = {contractCodeLedgerKey};
     }
 
-    std::vector<Operation> ops{deployOp};
+    std::vector<Operation> ops{uploadOp};
     for (int i = 0; i < addInvalidOps; i++)
     {
-        ops.emplace_back(deployOp);
+        ops.emplace_back(uploadOp);
     }
 
-    auto tx =
-        sorobanTransactionFrameFromOps(app.getNetworkID(), account, ops, {},
-                                       resources, fee, refundableFee, memo);
+    auto tx = sorobanTransactionFrameFromOps(app.getNetworkID(), account, ops,
+                                             {}, resources, inclusionFee,
+                                             resourceFee, memo, seq);
     return std::dynamic_pointer_cast<TransactionFrame>(tx);
 }
 
-void
-setValidTotalFee(TransactionFramePtr tx, uint32_t inclusionFee,
-                 uint32_t refundableFee, Application& app, TestAccount& source)
+int64_t
+sorobanResourceFee(Application& app, SorobanResources const& resources,
+                   uint32_t txSize, uint32_t eventsSize)
 {
     LedgerTxn ltx(app.getLedgerTxnRoot(),
                   /* shouldUpdateLastModified */ true,
                   TransactionMode::READ_ONLY_WITHOUT_SQL_TXN);
-    tx->maybeComputeSorobanResourceFee(
-        ltx.loadHeader().current().ledgerVersion,
+    auto feePair = TransactionFrame::computeSorobanResourceFee(
+        ltx.loadHeader().current().ledgerVersion, resources, txSize, eventsSize,
         app.getLedgerManager().getSorobanNetworkConfig(ltx), app.getConfig());
-    auto flatFee = tx->getSorobanResourceFee()->non_refundable_fee;
-
-    txbridge::setFee(tx, flatFee + inclusionFee + refundableFee);
-    txbridge::getSignatures(tx).clear();
-    tx->addSignature(source.getSecretKey());
+    return feePair.non_refundable_fee + feePair.refundable_fee;
 }
 
 Asset
@@ -1645,16 +1664,17 @@ static TransactionEnvelope
 sorobanEnvelopeFromOps(Hash const& networkID, TestAccount& source,
                        std::vector<Operation> const& ops,
                        std::vector<SecretKey> const& opKeys,
-                       SorobanResources const& resources, uint32_t fee,
-                       uint32_t refundableFee, std::optional<std::string> memo)
+                       SorobanResources const& resources, uint32_t totalFee,
+                       uint32_t resourceFee, std::optional<std::string> memo,
+                       std::optional<SequenceNumber> seq)
 {
     TransactionEnvelope tx(ENVELOPE_TYPE_TX);
     tx.v1().tx.sourceAccount = toMuxedAccount(source);
-    tx.v1().tx.fee = fee;
-    tx.v1().tx.seqNum = source.nextSequenceNumber();
+    tx.v1().tx.fee = totalFee;
+    tx.v1().tx.seqNum = seq ? *seq : source.nextSequenceNumber();
     tx.v1().tx.ext.v(1);
     tx.v1().tx.ext.sorobanData().resources = resources;
-    tx.v1().tx.ext.sorobanData().refundableFee = refundableFee;
+    tx.v1().tx.ext.sorobanData().resourceFee = resourceFee;
     if (memo)
     {
         Memo textMemo(MEMO_TEXT);
@@ -1686,13 +1706,28 @@ TransactionFrameBasePtr
 sorobanTransactionFrameFromOps(Hash const& networkID, TestAccount& source,
                                std::vector<Operation> const& ops,
                                std::vector<SecretKey> const& opKeys,
-                               SorobanResources const& resources, uint32_t fee,
-                               uint32_t refundableFee,
-                               std::optional<std::string> memo)
+                               SorobanResources const& resources,
+                               uint32_t inclusionFee, uint32_t resourceFee,
+                               std::optional<std::string> memo,
+                               std::optional<SequenceNumber> seq)
 {
     return TransactionFrameBase::makeTransactionFromWire(
         networkID, sorobanEnvelopeFromOps(networkID, source, ops, opKeys,
-                                          resources, fee, refundableFee, memo));
+                                          resources, inclusionFee + resourceFee,
+                                          resourceFee, memo, seq));
+}
+
+TransactionFrameBasePtr
+sorobanTransactionFrameFromOpsWithTotalFee(
+    Hash const& networkID, TestAccount& source,
+    std::vector<Operation> const& ops, std::vector<SecretKey> const& opKeys,
+    SorobanResources const& resources, uint32_t totalFee, uint32_t resourceFee,
+    std::optional<std::string> memo)
+{
+    return TransactionFrameBase::makeTransactionFromWire(
+        networkID,
+        sorobanEnvelopeFromOps(networkID, source, ops, opKeys, resources,
+                               totalFee, resourceFee, memo, std::nullopt));
 }
 
 LedgerUpgrade
@@ -1740,7 +1775,8 @@ executeUpgrade(Application& app, LedgerUpgrade const& lupgrade,
 };
 
 ConfigUpgradeSetFrameConstPtr
-makeConfigUpgradeSet(AbstractLedgerTxn& ltx, ConfigUpgradeSet configUpgradeSet)
+makeConfigUpgradeSet(AbstractLedgerTxn& ltx, ConfigUpgradeSet configUpgradeSet,
+                     bool expireSet, ContractDataDurability type)
 {
     // Make entry for the upgrade
     auto opaqueUpgradeSet = xdr::xdr_to_opaque(configUpgradeSet);
@@ -1761,18 +1797,17 @@ makeConfigUpgradeSet(AbstractLedgerTxn& ltx, ConfigUpgradeSet configUpgradeSet)
     le.data.type(CONTRACT_DATA);
     le.data.contractData().contract.type(SC_ADDRESS_TYPE_CONTRACT);
     le.data.contractData().contract.contractId() = contractID;
-    le.data.contractData().durability = TEMPORARY;
+    le.data.contractData().durability = type;
     le.data.contractData().key = key;
     le.data.contractData().val = val;
 
-    LedgerEntry expiration;
-    expiration.data.type(EXPIRATION);
-    expiration.data.expiration().keyHash =
-        getExpirationKey(le).expiration().keyHash;
-    expiration.data.expiration().expirationLedgerSeq = UINT32_MAX;
+    LedgerEntry ttl;
+    ttl.data.type(TTL);
+    ttl.data.ttl().keyHash = getTTLKey(le).ttl().keyHash;
+    ttl.data.ttl().liveUntilLedgerSeq = expireSet ? 0 : UINT32_MAX;
 
     ltx.create(InternalLedgerEntry(le));
-    ltx.create(InternalLedgerEntry(expiration));
+    ltx.create(InternalLedgerEntry(ttl));
 
     auto upgradeKey = ConfigUpgradeSetKey{contractID, hashOfUpgradeSet};
     return ConfigUpgradeSetFrame::makeFromKey(ltx, upgradeKey);

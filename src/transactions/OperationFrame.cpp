@@ -5,7 +5,6 @@
 #include "transactions/OperationFrame.h"
 #include "transactions/AllowTrustOpFrame.h"
 #include "transactions/BeginSponsoringFutureReservesOpFrame.h"
-#include "transactions/BumpFootprintExpirationOpFrame.h"
 #include "transactions/BumpSequenceOpFrame.h"
 #include "transactions/ChangeTrustOpFrame.h"
 #include "transactions/ClaimClaimableBalanceOpFrame.h"
@@ -15,6 +14,7 @@
 #include "transactions/CreateClaimableBalanceOpFrame.h"
 #include "transactions/CreatePassiveSellOfferOpFrame.h"
 #include "transactions/EndSponsoringFutureReservesOpFrame.h"
+#include "transactions/ExtendFootprintTTLOpFrame.h"
 #include "transactions/InflationOpFrame.h"
 #include "transactions/InvokeHostFunctionOpFrame.h"
 #include "transactions/LiquidityPoolDepositOpFrame.h"
@@ -119,8 +119,8 @@ OperationFrame::makeHelper(Operation const& op, OperationResult& res,
         return std::make_shared<LiquidityPoolWithdrawOpFrame>(op, res, tx);
     case INVOKE_HOST_FUNCTION:
         return std::make_shared<InvokeHostFunctionOpFrame>(op, res, tx);
-    case BUMP_FOOTPRINT_EXPIRATION:
-        return std::make_shared<BumpFootprintExpirationOpFrame>(op, res, tx);
+    case EXTEND_FOOTPRINT_TTL:
+        return std::make_shared<ExtendFootprintTTLOpFrame>(op, res, tx);
     case RESTORE_FOOTPRINT:
         return std::make_shared<RestoreFootprintOpFrame>(op, res, tx);
     default:

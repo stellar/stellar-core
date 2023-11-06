@@ -278,8 +278,7 @@ checkEncodedGeneralizedTxSetIsEmpty(std::vector<uint8_t> const& encodedTxSet)
 }
 
 void
-writeGeneralizedTxSetToStream(Database& db, soci::session& sess,
-                              uint32 ledgerSeq,
+writeGeneralizedTxSetToStream(uint32 ledgerSeq,
                               std::vector<uint8_t> const& encodedTxSet,
                               std::vector<TransactionFrameBasePtr> const& txs,
                               TransactionHistoryResultEntry& results,
@@ -338,9 +337,8 @@ writeTxSetToStream(
             throw std::runtime_error(
                 "Could not find tx set corresponding to the ledger.");
         }
-        writeGeneralizedTxSetToStream(db, sess, ledgerSeq,
-                                      encodedTxSetIt->second, txs, results,
-                                      txOut, txResultOut);
+        writeGeneralizedTxSetToStream(ledgerSeq, encodedTxSetIt->second, txs,
+                                      results, txOut, txResultOut);
         ++encodedTxSetIt;
     }
 }

@@ -349,12 +349,7 @@ SurgePricingPriorityQueue::canFitWithEviction(
     auto txNewResources = mLaneConfig->getTxResources(tx);
     if (txDiscount)
     {
-        if (anyLessThan(txNewResources, *txDiscount))
-        {
-            throw std::invalid_argument("Discount shouldn't be larger than "
-                                        "transaction operations count");
-        }
-        txNewResources -= *txDiscount;
+        txNewResources = subtractNonNegative(txNewResources, *txDiscount);
     }
 
     if (anyGreater(txNewResources, mLaneLimits[GENERIC_LANE]) ||
@@ -595,6 +590,7 @@ SurgePricingPriorityQueue::Iterator::dropLane()
 
 DexLimitingLaneConfig::DexLimitingLaneConfig(Resource Limit,
                                              std::optional<Resource> dexLimit)
+    : mUseByteLimit(Limit.size() == NUM_CLASSIC_TX_BYTES_RESOURCES)
 {
     mLaneLimits.push_back(Limit);
     if (dexLimit)
@@ -619,7 +615,7 @@ Resource
 DexLimitingLaneConfig::getTxResources(TransactionFrameBase const& tx)
 {
     releaseAssert(!tx.isSoroban());
-    return tx.getResources();
+    return tx.getResources(mUseByteLimit);
 }
 
 size_t
@@ -668,6 +664,6 @@ Resource
 SorobanGenericLaneConfig::getTxResources(TransactionFrameBase const& tx)
 {
     releaseAssert(tx.isSoroban());
-    return tx.getResources();
+    return tx.getResources(/* useByteLimitInClassic */ false);
 }
 } // namespace stellar

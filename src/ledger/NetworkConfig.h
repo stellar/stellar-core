@@ -37,9 +37,9 @@ struct MinimumSorobanNetworkConfig
 
     static constexpr uint32_t MINIMUM_TEMP_ENTRY_LIFETIME = 16;
     static constexpr uint32_t MINIMUM_PERSISTENT_ENTRY_LIFETIME = 10;
-    static constexpr uint32_t MAXIMUM_ENTRY_LIFETIME = 535'680; // 31 days
+    static constexpr uint32_t MAXIMUM_ENTRY_LIFETIME = 1'054'080; // 61 days
     static constexpr int64_t RENT_RATE_DENOMINATOR = INT64_MAX;
-    static constexpr uint32_t MAX_ENTRIES_TO_EXPIRE = 0;
+    static constexpr uint32_t MAX_ENTRIES_TO_ARCHIVE = 0;
     static constexpr uint32_t BUCKETLIST_SIZE_WINDOW_SAMPLE_SIZE = 1;
     static constexpr uint32_t EVICTION_SCAN_SIZE = 0;
     static constexpr uint32_t STARTING_EVICTION_LEVEL = 1;
@@ -115,7 +115,7 @@ struct InitialSorobanNetworkConfig
         MinimumSorobanNetworkConfig::TX_MAX_CONTRACT_EVENTS_SIZE_BYTES;
     static constexpr int64_t FEE_CONTRACT_EVENTS_SIZE_1KB = 200;
 
-    // State expiration settings
+    // State archival settings
     static constexpr uint32_t MAXIMUM_ENTRY_LIFETIME =
         MinimumSorobanNetworkConfig::MAXIMUM_ENTRY_LIFETIME;
 
@@ -125,10 +125,8 @@ struct InitialSorobanNetworkConfig
         4'096; // Live until level 6
     static constexpr uint32_t MINIMUM_TEMP_ENTRY_LIFETIME = 16;
 
-    static constexpr uint32_t AUTO_BUMP_NUM_LEDGERS = 0;
-
     static constexpr uint64_t EVICTION_SCAN_SIZE = 100'000; // 100 kb
-    static constexpr uint32_t MAX_ENTRIES_TO_EXPIRE = 100;
+    static constexpr uint32_t MAX_ENTRIES_TO_ARCHIVE = 100;
     static constexpr uint32_t STARTING_EVICTION_SCAN_LEVEL = 6;
 
     // Rent payment of a write fee per ~25 days.
@@ -146,30 +144,30 @@ struct TestOverrideSorobanNetworkConfig
 {
     // Contract size settings
     static constexpr uint32_t MAX_CONTRACT_SIZE =
-        InitialSorobanNetworkConfig::MAX_CONTRACT_SIZE * 32;
+        InitialSorobanNetworkConfig::MAX_CONTRACT_SIZE * 64;
 
     // Contract data settings
     static constexpr uint32_t MAX_CONTRACT_DATA_KEY_SIZE_BYTES =
-        InitialSorobanNetworkConfig::MAX_CONTRACT_DATA_KEY_SIZE_BYTES * 10;
+        InitialSorobanNetworkConfig::MAX_CONTRACT_DATA_KEY_SIZE_BYTES * 1000;
     static constexpr uint32_t MAX_CONTRACT_DATA_ENTRY_SIZE_BYTES =
-        InitialSorobanNetworkConfig::MAX_CONTRACT_DATA_ENTRY_SIZE_BYTES * 10;
+        InitialSorobanNetworkConfig::MAX_CONTRACT_DATA_ENTRY_SIZE_BYTES * 1000;
 
     // Compute settings
     static constexpr int64_t TX_MAX_INSTRUCTIONS =
-        InitialSorobanNetworkConfig::TX_MAX_INSTRUCTIONS * 50;
+        InitialSorobanNetworkConfig::TX_MAX_INSTRUCTIONS * 100;
     static constexpr int64_t LEDGER_MAX_INSTRUCTIONS = TX_MAX_INSTRUCTIONS;
     static constexpr uint32_t MEMORY_LIMIT =
-        InitialSorobanNetworkConfig::MEMORY_LIMIT * 10;
+        InitialSorobanNetworkConfig::MEMORY_LIMIT * 100;
 
     // Ledger access settings
     static constexpr uint32_t TX_MAX_READ_LEDGER_ENTRIES =
-        InitialSorobanNetworkConfig::TX_MAX_READ_LEDGER_ENTRIES * 10;
+        InitialSorobanNetworkConfig::TX_MAX_READ_LEDGER_ENTRIES * 100;
     static constexpr uint32_t TX_MAX_READ_BYTES =
-        InitialSorobanNetworkConfig::TX_MAX_READ_BYTES * 10;
+        InitialSorobanNetworkConfig::TX_MAX_READ_BYTES * 1000;
     static constexpr uint32_t TX_MAX_WRITE_LEDGER_ENTRIES =
-        InitialSorobanNetworkConfig::TX_MAX_WRITE_LEDGER_ENTRIES * 10;
+        InitialSorobanNetworkConfig::TX_MAX_WRITE_LEDGER_ENTRIES * 100;
     static constexpr uint32_t TX_MAX_WRITE_BYTES =
-        InitialSorobanNetworkConfig::TX_MAX_WRITE_BYTES * 10;
+        InitialSorobanNetworkConfig::TX_MAX_WRITE_BYTES * 1000;
     static constexpr uint32_t LEDGER_MAX_READ_LEDGER_ENTRIES =
         TX_MAX_READ_LEDGER_ENTRIES;
     static constexpr uint32_t LEDGER_MAX_READ_BYTES = TX_MAX_READ_BYTES;
@@ -179,7 +177,7 @@ struct TestOverrideSorobanNetworkConfig
 
     // Bandwidth settings
     static constexpr uint32_t TX_MAX_SIZE_BYTES =
-        InitialSorobanNetworkConfig::TX_MAX_SIZE_BYTES * 5;
+        InitialSorobanNetworkConfig::TX_MAX_SIZE_BYTES * 50;
     static constexpr uint32_t LEDGER_MAX_TRANSACTION_SIZES_BYTES =
         TX_MAX_SIZE_BYTES;
 
@@ -187,12 +185,12 @@ struct TestOverrideSorobanNetworkConfig
     static constexpr uint32_t TX_MAX_CONTRACT_EVENTS_SIZE_BYTES =
         InitialSorobanNetworkConfig::TX_MAX_CONTRACT_EVENTS_SIZE_BYTES * 20;
 
-    // State expiration settings
+    // State archival settings
     static constexpr uint32_t MAXIMUM_ENTRY_LIFETIME = 6307200; // 1 year
 
     // General execution settings
     static constexpr uint32_t LEDGER_MAX_TX_COUNT =
-        InitialSorobanNetworkConfig::LEDGER_MAX_TX_COUNT * 5;
+        InitialSorobanNetworkConfig::LEDGER_MAX_TX_COUNT * 50;
 };
 
 // Wrapper for the contract-related network configuration.
@@ -292,7 +290,6 @@ class SorobanNetworkConfig
 
 #ifdef BUILD_TESTS
     void setBucketListSnapshotPeriodForTesting(uint32_t period);
-    std::deque<uint64_t> const& getBucketListSizeWindowForTesting() const;
 #endif
 
     static bool isValidConfigSettingEntry(ConfigSettingEntry const& cfg);
@@ -308,14 +305,14 @@ class SorobanNetworkConfig
     CxxFeeConfiguration rustBridgeFeeConfiguration() const;
     CxxRentFeeConfiguration rustBridgeRentFeeConfiguration() const;
 
-    // State expiration settings
-    StateExpirationSettings const& stateExpirationSettings() const;
+    // State archival settings
+    StateArchivalSettings const& stateArchivalSettings() const;
     EvictionIterator const& evictionIterator() const;
 
     void updateEvictionIterator(AbstractLedgerTxn& ltxRoot,
                                 EvictionIterator const& newIter) const;
 #ifdef BUILD_TESTS
-    StateExpirationSettings& stateExpirationSettings();
+    StateArchivalSettings& stateArchivalSettings();
     EvictionIterator& evictionIterator();
 #endif
 
@@ -333,7 +330,7 @@ class SorobanNetworkConfig
     void loadBandwidthSettings(AbstractLedgerTxn& ltx);
     void loadCpuCostParams(AbstractLedgerTxn& ltx);
     void loadMemCostParams(AbstractLedgerTxn& ltx);
-    void loadStateExpirationSettings(AbstractLedgerTxn& ltx);
+    void loadStateArchivalSettings(AbstractLedgerTxn& ltx);
     void loadExecutionLanesSettings(AbstractLedgerTxn& ltx);
     void loadBucketListSizeWindow(AbstractLedgerTxn& ltx);
     void loadEvictionIterator(AbstractLedgerTxn& ltx);
@@ -344,8 +341,6 @@ class SorobanNetworkConfig
     // window until it has newSize entries.
     void maybeUpdateBucketListWindowSize(AbstractLedgerTxn& ltx);
 
-    void writeBucketListSizeWindow(AbstractLedgerTxn& ltxRoot) const;
-    void updateBucketListSizeAverage();
 // Expose all the fields for testing overrides in order to avoid using
 // special test-only field setters.
 // Access this via
@@ -356,6 +351,9 @@ class SorobanNetworkConfig
 #ifdef BUILD_TESTS
   public:
 #endif
+
+    void writeBucketListSizeWindow(AbstractLedgerTxn& ltxRoot) const;
+    void updateBucketListSizeAverage();
 
     uint32_t mMaxContractSizeBytes{};
     uint32_t mMaxContractDataKeySizeBytes{};
@@ -412,8 +410,8 @@ class SorobanNetworkConfig
     ContractCostParams mCpuCostParams{};
     ContractCostParams mMemCostParams{};
 
-    // State expiration settings
-    StateExpirationSettings mStateExpirationSettings{};
+    // State archival settings
+    StateArchivalSettings mStateArchivalSettings{};
     mutable EvictionIterator mEvictionIterator{};
 };
 

@@ -8,6 +8,7 @@
 #include "catchup/VerifyLedgerChainWork.h"
 #include "history/HistoryArchive.h"
 #include "historywork/GetHistoryArchiveStateWork.h"
+#include "util/Thread.h"
 #include "work/Work.h"
 #include "work/WorkSequence.h"
 
@@ -75,6 +76,16 @@ class CatchupWork : public Work
         return mCatchupConfiguration;
     }
 
+    bool
+    fatalFailure()
+    {
+        if (futureIsReady(mFatalFailureFuture))
+        {
+            return mFatalFailureFuture.get();
+        }
+        return false;
+    }
+
   private:
     LedgerNumHashPair mLastClosedLedgerHashPair;
     CatchupConfiguration const mCatchupConfiguration;
@@ -98,6 +109,8 @@ class CatchupWork : public Work
     WorkSeqPtr mCatchupSeq;
 
     std::shared_ptr<BasicWork> mCurrentWork;
+
+    std::shared_future<bool> mFatalFailureFuture;
 
     bool alreadyHaveBucketsHistoryArchiveState(uint32_t atCheckpoint) const;
     void assertBucketState();

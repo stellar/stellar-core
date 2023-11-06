@@ -52,6 +52,11 @@ class CatchupManagerImpl : public CatchupManager
     uint32_t mLargestLedgerSeqHeard;
     CatchupMetrics mMetrics;
 
+    // Check if catchup can't be performed due to local version incompatibility
+    // or state corruption. Once this flag is set, core won't attempt catchup as
+    // it will never succeed.
+    bool mCatchupFatalFailure{false};
+
   public:
     CatchupManagerImpl(Application& app);
     ~CatchupManagerImpl() override;
@@ -96,6 +101,18 @@ class CatchupManagerImpl : public CatchupManager
     getBufferedLedgers() const
     {
         return mSyncingLedgers;
+    }
+
+    std::shared_ptr<CatchupWork>
+    getCatchupWork() const
+    {
+        return mCatchupWork;
+    }
+
+    bool
+    getCatchupFatalFailure() const
+    {
+        return mCatchupFatalFailure;
     }
 #endif
 };
