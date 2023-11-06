@@ -35,6 +35,15 @@ enum class LoadGenMode
     SOROBAN
 };
 
+// Soroban load gen occurs in 4 steps:
+enum class SorobanPhase
+{
+    UPLOAD,  // Upload WASM blobs
+    CREATE,  // Create contract instances
+    STORAGE, // Create storage entries
+    INVOKE   // Invoke CPU heavy functions
+};
+
 struct GeneratedLoadConfig
 {
     static GeneratedLoadConfig createAccountsLoad(uint32_t nAccounts,
@@ -45,6 +54,7 @@ struct GeneratedLoadConfig
            uint32_t offset = 0, std::optional<uint32_t> maxFee = std::nullopt);
 
     LoadGenMode mode = LoadGenMode::CREATE;
+    SorobanPhase sorobanPhase = SorobanPhase::UPLOAD;
     uint32_t nAccounts = 0;
     uint32_t offset = 0;
     uint32_t nTxs = 0;
@@ -104,6 +114,10 @@ class LoadGenerator
         void report();
     };
 
+    typedef std::function<
+        std::pair<LoadGenerator::TestAccountPtr, TransactionFramePtr>()>
+        LoadGenFunc;
+
     // There are a few scenarios where tx submission might fail:
     // * ADD_STATUS_DUPLICATE, should be just a no-op and not count toward
     // total tx goal.
@@ -151,6 +165,23 @@ class LoadGenerator
     // collisions.
     std::unordered_map<uint64_t, TestAccountPtr> mCreationSourceAccounts;
 
+    struct ContractInstance
+    {
+        // [wasm, instance, data keys...]
+        xdr::xvector<LedgerKey> readOnlyKeys;
+        SCAddress contractID;
+    };
+
+    std::optional<LedgerKey> mCodeKey;
+
+    // Maps entries that are being created by in flight TXs to the source
+    // account ID originating the TX
+    std::unordered_map<uint64_t, std::vector<LedgerKey>> mPendingEntries;
+
+    // Maps account ID to it's contract instance, where each account has a
+    // unique instance
+    std::unordered_map<uint64_t, ContractInstance> mContractInstances;
+
     medida::Meter& mLoadgenComplete;
     medida::Meter& mLoadgenFail;
 
@@ -164,6 +195,7 @@ class LoadGenerator
     void createRootAccount();
     int64_t getTxPerStep(uint32_t txRate, std::chrono::seconds spikeInterval,
                          uint32_t spikeSize);
+    void checkPendingTxs();
 
     // Schedule a callback to generateLoad() STEP_MSECS milliseconds from now.
     void scheduleLoadGeneration(GeneratedLoadConfig cfg);
@@ -178,6 +210,12 @@ class LoadGenerator
     pickAccountPair(uint32_t numAccounts, uint32_t offset, uint32_t ledgerNum,
                     uint64_t sourceAccountId);
     TestAccountPtr findAccount(uint64_t accountId, uint32_t ledgerNum);
+
+    // Sets generateTx to correct soroban loadgen function. Returns false if TX
+    // could not be created due to pending TXs, true otherwise.
+    bool sorobanLoadGenStep(GeneratedLoadConfig& cfg, uint32_t ledgerNum,
+                            LoadGenFunc& generateTx);
+
     std::pair<TestAccountPtr, TransactionFramePtr>
     paymentTransaction(uint32_t numAccounts, uint32_t offset,
                        uint32_t ledgerNum, uint64_t sourceAccount,
@@ -193,8 +231,16 @@ class LoadGenerator
                            uint32_t opCount,
                            std::optional<uint32_t> maxGeneratedFeeRate);
     std::pair<LoadGenerator::TestAccountPtr, TransactionFramePtr>
-    sorobanTransaction(uint32_t numAccounts, uint32_t offset,
-                       uint32_t ledgerNum, uint64_t accountId,
+    uploadWasmTransaction(uint32_t ledgerNum, uint64_t accountId,
+                          std::optional<uint32_t> maxGeneratedFeeRate);
+    std::pair<LoadGenerator::TestAccountPtr, TransactionFramePtr>
+    createContractTransaction(uint32_t ledgerNum, uint64_t accountId,
+                              std::optional<uint32_t> maxGeneratedFeeRate);
+    std::pair<LoadGenerator::TestAccountPtr, TransactionFramePtr>
+    invokeTransaction(uint32_t ledgerNum, uint64_t accountId,
+                      std::optional<uint32_t> maxGeneratedFeeRate);
+    std::pair<LoadGenerator::TestAccountPtr, TransactionFramePtr>
+    sorobanTransaction(uint32_t ledgerNum, uint64_t accountId,
                        SorobanResources resources, size_t wasmSize,
                        uint32_t inclusionFee);
     void maybeHandleFailedTx(TransactionFramePtr tx,

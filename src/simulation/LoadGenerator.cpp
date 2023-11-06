@@ -13,6 +13,7 @@
 #include "test/TxTests.h"
 #include "transactions/TransactionBridge.h"
 #include "transactions/TransactionUtils.h"
+#include "transactions/test/SorobanTxTestUtils.h"
 #include "util/Logging.h"
 #include "util/Math.h"
 #include "util/Timer.h"
@@ -201,12 +202,85 @@ LoadGenerator::getTxPerStep(uint32_t txRate, std::chrono::seconds spikeInterval,
 }
 
 void
+LoadGenerator::checkPendingTxs()
+{
+    for (auto iter = mPendingEntries.begin(); iter != mPendingEntries.end();)
+    {
+        auto const& id = iter->first;
+        auto const& lkVec = iter->second;
+
+        // Vec can contain one WASM key, one instance key, or many data keys, so
+        // we only need to check the first element
+        auto const& firstLk = lkVec.front();
+        LedgerTxn ltx(mApp.getLedgerTxnRoot());
+        auto ltxe = ltx.loadWithoutRecord(firstLk);
+        if (ltxe)
+        {
+            if (firstLk.type() == CONTRACT_CODE)
+            {
+                releaseAssert(lkVec.size() == 1);
+                // TODO: Uncomment this when we have unique WASM
+                // releaseAssert(mContractInstances.find(lk) ==
+                //               mContractInstances.end());
+                // ContractInstance instance;
+                // instance.contractKeys.emplace_back(lk);
+                // mContractInstances.emplace(id, instance);
+                releaseAssert(mCodeKey == std::nullopt);
+                mCodeKey = firstLk;
+            }
+            else
+            {
+                releaseAssert(firstLk.type() == CONTRACT_DATA);
+
+                // TODO: Consolidate logic when we have unique WASM
+                if (firstLk.contractData().contract.type() ==
+                    SC_ADDRESS_TYPE_CONTRACT)
+                {
+                    releaseAssert(mContractInstances.find(id) ==
+                                  mContractInstances.end());
+                    releaseAssert(lkVec.size() == 1);
+                    ContractInstance instance;
+                    instance.readOnlyKeys.emplace_back(*mCodeKey);
+                    instance.readOnlyKeys.emplace_back(firstLk);
+                    instance.contractID = firstLk.contractData().contract;
+                    mContractInstances.emplace(id, instance);
+                }
+                else
+                {
+                    auto& instance = mContractInstances.at(id);
+                    // Instance should already be populated with WASM and
+                    // instance keys
+                    releaseAssert(instance.readOnlyKeys.size() > 1);
+                    instance.readOnlyKeys.emplace_back(firstLk);
+
+                    // If one data key exists, they all should
+                    for (auto lkIter = lkVec.begin() + 1; lkIter != lkVec.end();
+                         ++lkIter)
+                    {
+                        releaseAssert(ltx.loadWithoutRecord(*lkIter));
+                        instance.readOnlyKeys.emplace_back(*lkIter);
+                    }
+                }
+            }
+
+            iter = mPendingEntries.erase(iter);
+        }
+        else
+        {
+            ++iter;
+        }
+    }
+}
+
+void
 LoadGenerator::reset()
 {
     mAccounts.clear();
     mAccountsInUse.clear();
     mAccountsAvailable.clear();
     mCreationSourceAccounts.clear();
+    mCodeKey.reset();
+    mContractInstances.clear();
     mLoadTimer.reset();
     mRoot.reset();
     mStartTime.reset();
@@ -324,6 +398,9 @@ LoadGenerator::cleanupAccounts()
         if (!mApp.getHerder().sourceAccountPending(
                 accIt->second->getPublicKey()))
         {
+            // If account ID is still in pending entry queue, the TX failed,
+            // remove it so we can retry the TX later
+            mPendingEntries.erase(*it);
             mAccountsAvailable.insert(*it);
             it = mAccountsInUse.erase(it);
         }
@@ -394,12 +471,15 @@ LoadGenerator::generateLoad(GeneratedLoadConfig cfg)
     // cleanup function too often
     if (now != mLastSecond)
     {
+        checkPendingTxs();
         cleanupAccounts();
     }
 
     uint32_t ledgerNum = mApp.getLedgerManager().getLastClosedLedgerNum() + 1;
 
-    for (int64_t i = 0; i < txPerStep; ++i)
+    bool txGenerated = true;
+    int64_t numTxSubmitted = 0;
+    for (; numTxSubmitted < txPerStep; ++numTxSubmitted)
     {
         if (cfg.mode == LoadGenMode::CREATE)
         {
@@ -418,11 +498,7 @@ LoadGenerator::generateLoad(GeneratedLoadConfig cfg)
                 return;
             }
 
-            uint64_t sourceAccountId = getNextAvailableAccount();
-
-            std::function<
-                std::pair<LoadGenerator::TestAccountPtr, TransactionFramePtr>()>
-                generateTx;
+            LoadGenFunc generateTx;
 
             switch (cfg.mode)
             {
@@ -430,14 +506,18 @@ LoadGenerator::generateLoad(GeneratedLoadConfig cfg)
                 releaseAssert(false);
                 break;
             case LoadGenMode::PAY:
+            {
+                uint64_t sourceAccountId = getNextAvailableAccount();
                 generateTx = [&]() {
                     return paymentTransaction(cfg.nAccounts, cfg.offset,
                                               ledgerNum, sourceAccountId, 1,
                                               cfg.maxGeneratedFeeRate);
                 };
-                break;
+            }
+            break;
             case LoadGenMode::PRETEND:
             {
+                uint64_t sourceAccountId = getNextAvailableAccount();
                 auto opCount = chooseOpCount(mApp.getConfig());
                 generateTx = [&, opCount]() {
                     return pretendTransaction(cfg.nAccounts, cfg.offset,
@@ -448,6 +528,7 @@ LoadGenerator::generateLoad(GeneratedLoadConfig cfg)
             break;
             case LoadGenMode::MIXED_TXS:
             {
+                uint64_t sourceAccountId = getNextAvailableAccount();
                 auto opCount = chooseOpCount(mApp.getConfig());
                 bool isDex = rand_uniform<uint32_t>(1, 100) <= cfg.dexTxPercent;
                 generateTx = [&, opCount, isDex]() {
@@ -466,7 +547,7 @@ LoadGenerator::generateLoad(GeneratedLoadConfig cfg)
                 };
             }
             break;
-            case LoadGenMode::SOROBAN:
+            case LoadGenMode::SOROBAN_WASM:
             {
                 generateTx = [&]() {
                     SorobanResources resources;
@@ -527,8 +608,16 @@ LoadGenerator::generateLoad(GeneratedLoadConfig cfg)
                         generateFee(cfg.maxGeneratedFeeRate, mApp,
                                     /* opsCnt */ 1));
                 };
+                break;
             }
-            break;
+            case SOROBAN_INVOKE:
+                txGenerated = sorobanLoadGenStep(cfg, ledgerNum, generateTx);
+                break;
+            }
+
+            if (!txGenerated)
+            {
+                break;
             }
 
             if (submitTx(cfg, generateTx))
@@ -558,7 +647,7 @@ LoadGenerator::generateLoad(GeneratedLoadConfig cfg)
     }
 
     mLastSecond = now;
-    mTotalSubmitted += txPerStep;
+    mTotalSubmitted += numTxSubmitted;
     scheduleLoadGeneration(cfg);
 }
 
@@ -822,6 +911,94 @@ LoadGenerator::findAccount(uint64_t accountId, uint32_t ledgerNum)
     return newAccountPtr;
 }
 
+bool
+LoadGenerator::sorobanLoadGenStep(GeneratedLoadConfig& cfg, uint32_t ledgerNum,
+                                  LoadGenFunc& generateTx)
+{
+    switch (cfg.sorobanPhase)
+    {
+    case SorobanPhase::UPLOAD:
+        if (!mCodeKey.has_value())
+        {
+            // Only create a TX if we don't already have one in-flight
+            if (mPendingEntries.size() == 0)
+            {
+                uint64_t sourceAccountId = getNextAvailableAccount();
+                generateTx = [&]() {
+                    return uploadWasmTransaction(ledgerNum, sourceAccountId,
+                                                 cfg.maxGeneratedFeeRate);
+                };
+
+                return true;
+            }
+
+            return false;
+        }
+
+        // WASM have been applied to ledger, move to next phase
+        mContractInstances.reserve(mAccounts.size());
+        cfg.sorobanPhase = SorobanPhase::CREATE;
+        // fallthrough
+    case SorobanPhase::CREATE:
+        if (mContractInstances.size() < mAccounts.size())
+        {
+            // Don't create any more transactions if all required instance TXs
+            // are in flight
+            if (mPendingEntries.size() + mContractInstances.size() <
+                mAccounts.size())
+            {
+                uint64_t accountId = getNextAvailableAccount();
+                // Create a contract instance for each account. If given ID
+                // already has an instance, move on to next ID.
+                // getNextAvailableAccount randomly selects an accountID, so
+                // it's possible that this could loop forever if an account that
+                // doesn't have a contract instance yet is currently
+                // unavailable. Due to this, we only try to get a new account a
+                // few times before giving up and trying again in the next
+                // loadgen step.
+                // TODO: Make this deterministic
+                for (size_t i = 0; mContractInstances.find(accountId) !=
+                                       mContractInstances.end() &&
+                                   i < mAccounts.size();
+                     ++i)
+                {
+                    accountId = getNextAvailableAccount();
+                }
+
+                if (mContractInstances.find(accountId) !=
+                    mContractInstances.end())
+                {
+                    return false;
+                }
+
+                generateTx = [&]() {
+                    return createContractTransaction(ledgerNum, accountId,
+                                                     cfg.maxGeneratedFeeRate);
+                };
+
+                return true;
+            }
+
+            return false;
+        }
+
+        // Instances have all been applied, move to next phase
+        cfg.sorobanPhase = SorobanPhase::STORAGE;
+        // Fall through to next phase
+    case SorobanPhase::STORAGE:
+    case SorobanPhase::INVOKE:
+
+        releaseAssert(false);
+        // uint64_t sourceAccountId = getNextAvailableAccount();
+        // generateTx = [&]() {
+        //     return invokeTransaction(ledgerNum, sourceAccountId,
+        //                              cfg.maxGeneratedFeeRate);
+        // };
+    }
+
+    return false;
+}
+
 std::pair<LoadGenerator::TestAccountPtr, TransactionFramePtr>
 LoadGenerator::paymentTransaction(uint32_t numAccounts, uint32_t offset,
                                   uint32_t ledgerNum, uint64_t sourceAccount,
@@ -867,8 +1044,87 @@ LoadGenerator::manageOfferTransaction(
 }
 
 std::pair<LoadGenerator::TestAccountPtr, TransactionFramePtr>
-LoadGenerator::sorobanTransaction(uint32_t numAccounts, uint32_t offset,
-                                  uint32_t ledgerNum, uint64_t accountId,
+LoadGenerator::uploadWasmTransaction(
+    uint32_t ledgerNum, uint64_t accountId,
+    std::optional<uint32_t> maxGeneratedFeeRate)
+{
+    // TODO: Generate Unique WASMs
+    auto wasm = rust_bridge::get_test_wasm_contract_data();
+    auto account = findAccount(accountId, ledgerNum);
+
+    SorobanResources uploadResources{};
+    uploadResources.instructions = 200'000 + (wasm.data.size() * 6000);
+    uploadResources.readBytes = 5000;
+    uploadResources.writeBytes = 5000;
+
+    Operation uploadOp;
+    uploadOp.body.type(INVOKE_HOST_FUNCTION);
+    auto& uploadHF = uploadOp.body.invokeHostFunctionOp().hostFunction;
+    uploadHF.type(HOST_FUNCTION_TYPE_UPLOAD_CONTRACT_WASM);
+    uploadHF.wasm().assign(wasm.data.begin(), wasm.data.end());
+
+    LedgerKey contractCodeLedgerKey;
+    contractCodeLedgerKey.type(CONTRACT_CODE);
+    contractCodeLedgerKey.contractCode().hash = sha256(uploadHF.wasm());
+    uploadResources.footprint.readWrite = {contractCodeLedgerKey};
+
+    int64_t resourceFee =
+        sorobanResourceFee(mApp, uploadResources, 5000 + wasm.data.size(), 100);
+    resourceFee += 40'000;
+    auto tx = std::dynamic_pointer_cast<TransactionFrame>(
+        sorobanTransactionFrameFromOps(mApp.getNetworkID(), *account,
+                                       {uploadOp}, {}, uploadResources, 1'000,
+                                       resourceFee));
+    mPendingEntries.emplace(accountId,
+                            std::vector<LedgerKey>{contractCodeLedgerKey});
+    return std::make_pair(account, tx);
+}
+
+std::pair<LoadGenerator::TestAccountPtr, TransactionFramePtr>
+LoadGenerator::createContractTransaction(
+    uint32_t ledgerNum, uint64_t accountId,
+    std::optional<uint32_t> maxGeneratedFeeRate)
+{
+    releaseAssert(mCodeKey);
+    releaseAssert(mContractInstances.find(accountId) ==
+                  mContractInstances.end());
+
+    auto account = findAccount(accountId, ledgerNum);
+    SorobanResources createResources{};
+    createResources.instructions = 200'000;
+    createResources.readBytes = 5000;
+    createResources.writeBytes = 5000;
+
+    SCVal scContractSourceRefKey(SCValType::SCV_LEDGER_KEY_CONTRACT_INSTANCE);
+    auto salt = sha256(std::to_string(accountId));
+    auto [createOp, contractID] =
+        getSorobanCreateOp(mApp, createResources, *mCodeKey, *account,
+                           scContractSourceRefKey, salt);
+
+    mPendingEntries.emplace(
+        accountId,
+        std::vector<LedgerKey>{createResources.footprint.readWrite.back()});
+
+    auto resourceFee = sorobanResourceFee(mApp, createResources, 1000, 40);
+    resourceFee += 40'000;
+    auto tx = std::dynamic_pointer_cast<TransactionFrame>(
+        sorobanTransactionFrameFromOps(mApp.getNetworkID(), *account,
+                                       {createOp}, {}, createResources, 1'000,
+                                       resourceFee));
+
+    return std::make_pair(account, tx);
+}
+
+std::pair<LoadGenerator::TestAccountPtr, TransactionFramePtr>
+LoadGenerator::invokeTransaction(uint32_t ledgerNum, uint64_t accountId,
+                                 std::optional<uint32_t> maxGeneratedFeeRate)
+{
+    // TODO: Actually invoke
+    return uploadWasmTransaction(ledgerNum, accountId, maxGeneratedFeeRate);
+}
+
+std::pair<LoadGenerator::TestAccountPtr, TransactionFramePtr>
+LoadGenerator::sorobanTransaction(uint32_t ledgerNum, uint64_t accountId,
                                   SorobanResources resources, size_t wasmSize,
                                   uint32_t inclusionFee)
 {

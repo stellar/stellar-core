@@ -90,6 +90,89 @@ TEST_CASE("generate load with unique accounts", "[loadgen]")
     }
 }
 
+TEST_CASE("generate soroban load", "[loadgen]")
+{
+    Hash networkID = sha256(getTestConfig().NETWORK_PASSPHRASE);
+    Simulation::pointer simulation =
+        Topologies::pair(Simulation::OVER_LOOPBACK, networkID, [](int i) {
+            auto cfg = getTestConfig(i);
+            cfg.TESTING_UPGRADE_MAX_TX_SET_SIZE = 5000;
+            return cfg;
+        });
+
+    simulation->startAllNodes();
+    simulation->crankUntil(
+        [&]() { return simulation->haveAllExternalized(3, 1); },
+        2 * Herder::EXP_LEDGER_TIMESPAN_SECONDS, false);
+
+    auto nodes = simulation->getNodes();
+    for (auto node : nodes)
+    {
+        overrideSorobanNetworkConfigForTest(*node);
+        modifySorobanNetworkConfig(*node, [&](SorobanNetworkConfig& cfg) {
+            // Allow every TX to have the maximum TX resources
+            cfg.mLedgerMaxInstructions =
+                cfg.mTxMaxInstructions * cfg.mLedgerMaxTxCount;
+            cfg.mLedgerMaxReadLedgerEntries =
+                cfg.mTxMaxReadLedgerEntries * cfg.mLedgerMaxTxCount;
+            cfg.mLedgerMaxReadBytes =
+                cfg.mTxMaxReadBytes * cfg.mLedgerMaxTxCount;
+            cfg.mLedgerMaxWriteLedgerEntries =
+                cfg.mTxMaxWriteLedgerEntries * cfg.mLedgerMaxTxCount;
+            cfg.mLedgerMaxWriteBytes =
+                cfg.mTxMaxWriteBytes * cfg.mLedgerMaxTxCount;
+            cfg.mLedgerMaxTransactionsSizeBytes =
+                cfg.mTxMaxSizeBytes * cfg.mLedgerMaxTxCount;
+        });
+    }
+
+    auto& app = *nodes[0]; // pick a node to generate load
+
+    auto& loadGen = app.getLoadGenerator();
+
+    loadGen.generateLoad(GeneratedLoadConfig::createAccountsLoad(
+        /* nAccounts */ 100,
+        /* txRate */ 1));
+    simulation->crankUntil(
+        [&]() {
+            return app.getMetrics()
+                       .NewMeter({"loadgen", "run", "complete"}, "run")
+                       .count() == 1;
+        },
+        100 * Herder::EXP_LEDGER_TIMESPAN_SECONDS, false);
+
+    auto numTxsBefore = 0;
+    {
+        auto& txsSucceeded =
+            nodes[0]->getMetrics().NewCounter({"ledger", "apply", "success"});
+        numTxsBefore = txsSucceeded.count();
+    }
+
+    auto const numSorobanTxs = 101;
+    loadGen.generateLoad(GeneratedLoadConfig::txLoad(LoadGenMode::SOROBAN,
+                                                     /* nAccounts */ 100,
+                                                     numSorobanTxs,
+                                                     /* txRate */ 1));
+    simulation->crankUntil(
+        [&]() {
+            return app.getMetrics()
+                       .NewMeter({"loadgen", "run", "complete"}, "run")
+                       .count() == 2;
+        },
+        300 * Herder::EXP_LEDGER_TIMESPAN_SECONDS, false);
+
+    // Check that Soroban TXs were successfully applied
+    for (auto node : nodes)
+    {
+        auto& txsSucceeded =
+            node->getMetrics().NewCounter({"ledger", "apply", "success"});
+        auto& txsFailed =
+            node->getMetrics().NewCounter({"ledger", "apply", "failure"});
+        REQUIRE(txsSucceeded.count() == numTxsBefore + numSorobanTxs);
+        REQUIRE(txsFailed.count() == 0);
+    }
+}
+
 TEST_CASE("Multi-op pretend transactions are valid", "[loadgen]")
 {
     Hash networkID = sha256(getTestConfig().NETWORK_PASSPHRASE);
