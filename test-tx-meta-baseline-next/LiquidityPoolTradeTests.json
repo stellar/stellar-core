@@ -4250,8 +4250,8 @@
 		"i8qqzyBmOiI="
 	],
 	"liquidity pool trade|protocol version 20|CUR1, CUR2|cross the same pair twice in opposite directions|liquidity pool both times" : [ "jOdD9UmIo3M=", "jOdD9UmIo3M=" ],
-	"liquidity pool trade|protocol version 20|CUR1, CUR2|cross the same pair twice in opposite directions|liquidity pool both times|strict receive" : [ "S+X023+YASE=", "VtXK9iQdB6g=" ],
-	"liquidity pool trade|protocol version 20|CUR1, CUR2|cross the same pair twice in opposite directions|liquidity pool both times|strict send" : [ "S+X023+YASE=", "VtXK9iQdB6g=" ],
+	"liquidity pool trade|protocol version 20|CUR1, CUR2|cross the same pair twice in opposite directions|liquidity pool both times|strict receive" : [ "dhpPS9P+Aks=", "VtXK9iQdB6g=" ],
+	"liquidity pool trade|protocol version 20|CUR1, CUR2|cross the same pair twice in opposite directions|liquidity pool both times|strict send" : [ "dhpPS9P+Aks=", "VtXK9iQdB6g=" ],
 	"liquidity pool trade|protocol version 20|CUR1, CUR2|cross the same pair twice in the same direction" : 
 	[
 		"xPl/kiS3f9w=",
@@ -4532,29 +4532,29 @@
 		"BvHCSmS4qqA="
 	],
 	"liquidity pool trade|protocol version 20|CUR1, CUR2|cross the same pair twice in the same direction|liquidity pool both times" : [ "YVIn7CWq9vw=", "z4HX07JvoWM=", "YVIn7CWq9vw=", "z4HX07JvoWM=" ],
-	"liquidity pool trade|protocol version 20|CUR1, CUR2|cross the same pair twice in the same direction|liquidity pool both times, fails on the second hop|strict receive" : [ "kW6Wc7wMMls=", "aZNygjWUiac=", "+5E2+b9qlXA=", "50yrmiH0wfw=" ],
+	"liquidity pool trade|protocol version 20|CUR1, CUR2|cross the same pair twice in the same direction|liquidity pool both times, fails on the second hop|strict receive" : [ "kW6Wc7wMMls=", "aZNygjWUiac=", "KBYDfkuP11g=", "50yrmiH0wfw=" ],
 	"liquidity pool trade|protocol version 20|CUR1, CUR2|cross the same pair twice in the same direction|liquidity pool both times, fails on the second hop|strict send" : 
 	[
 		"5ZMiPvcEt10=",
 		"crUxuRU0pVw=",
 		"iP09uYTN+fQ=",
-		"iHaq5Q6XAds=",
+		"6TLYv67JO7o=",
 		"+rChfkWbas0="
 	],
-	"liquidity pool trade|protocol version 20|CUR1, CUR2|cross the same pair twice in the same direction|liquidity pool both times|strict receive" : [ "+5E2+b9qlXA=", "+sZaDh/RegE=" ],
-	"liquidity pool trade|protocol version 20|CUR1, CUR2|cross the same pair twice in the same direction|liquidity pool both times|strict send" : [ "+5E2+b9qlXA=", "G6lWbwDGoiM=" ],
+	"liquidity pool trade|protocol version 20|CUR1, CUR2|cross the same pair twice in the same direction|liquidity pool both times|strict receive" : [ "KBYDfkuP11g=", "+sZaDh/RegE=" ],
+	"liquidity pool trade|protocol version 20|CUR1, CUR2|cross the same pair twice in the same direction|liquidity pool both times|strict send" : [ "KBYDfkuP11g=", "G6lWbwDGoiM=" ],
 	"liquidity pool trade|protocol version 20|CUR1, CUR2|cross the same pair twice in the same direction|liquidity pool once, order book once, strict send indifferent on first hop" : [ "GjzSK1OfNsw=", "IvNywDAIcUk=", "GjzSK1OfNsw=", "IvNywDAIcUk=" ],
-	"liquidity pool trade|protocol version 20|CUR1, CUR2|cross the same pair twice in the same direction|liquidity pool once, order book once, strict send indifferent on first hop|strict receive" : [ "+5E2+b9qlXA=", "M9dD3Iq5TbY=" ],
-	"liquidity pool trade|protocol version 20|CUR1, CUR2|cross the same pair twice in the same direction|liquidity pool once, order book once, strict send indifferent on first hop|strict send" : [ "+5E2+b9qlXA=", "M9dD3Iq5TbY=" ],
+	"liquidity pool trade|protocol version 20|CUR1, CUR2|cross the same pair twice in the same direction|liquidity pool once, order book once, strict send indifferent on first hop|strict receive" : [ "KBYDfkuP11g=", "M9dD3Iq5TbY=" ],
+	"liquidity pool trade|protocol version 20|CUR1, CUR2|cross the same pair twice in the same direction|liquidity pool once, order book once, strict send indifferent on first hop|strict send" : [ "KBYDfkuP11g=", "M9dD3Iq5TbY=" ],
 	"liquidity pool trade|protocol version 20|CUR1, CUR2|cross the same pair twice in the same direction|liquidity pool once, order book once, strict send prefers liquidity pool on first hop" : [ "opTYWJNz3hs=", "iEfKUMaQsGA=", "opTYWJNz3hs=", "iEfKUMaQsGA=" ],
-	"liquidity pool trade|protocol version 20|CUR1, CUR2|cross the same pair twice in the same direction|liquidity pool once, order book once, strict send prefers liquidity pool on first hop|strict receive" : [ "+5E2+b9qlXA=", "4F1iuPehmws=" ],
-	"liquidity pool trade|protocol version 20|CUR1, CUR2|cross the same pair twice in the same direction|liquidity pool once, order book once, strict send prefers liquidity pool on first hop|strict send" : [ "+5E2+b9qlXA=", "4F1iuPehmws=" ],
+	"liquidity pool trade|protocol version 20|CUR1, CUR2|cross the same pair twice in the same direction|liquidity pool once, order book once, strict send prefers liquidity pool on first hop|strict receive" : [ "KBYDfkuP11g=", "4F1iuPehmws=" ],
+	"liquidity pool trade|protocol version 20|CUR1, CUR2|cross the same pair twice in the same direction|liquidity pool once, order book once, strict send prefers liquidity pool on first hop|strict send" : [ "KBYDfkuP11g=", "4F1iuPehmws=" ],
 	"liquidity pool trade|protocol version 20|CUR1, CUR2|cross the same pair twice in the same direction|liquidity pool once, order book once, strict send prefers order book on first hop" : [ "qVTFI0xt1+I=", "aN7yJcyjk5k=", "qVTFI0xt1+I=", "aN7yJcyjk5k=" ],
-	"liquidity pool trade|protocol version 20|CUR1, CUR2|cross the same pair twice in the same direction|liquidity pool once, order book once, strict send prefers order book on first hop|strict receive" : [ "+5E2+b9qlXA=", "Y20UsZfh/go=" ],
-	"liquidity pool trade|protocol version 20|CUR1, CUR2|cross the same pair twice in the same direction|liquidity pool once, order book once, strict send prefers order book on first hop|strict send" : [ "+5E2+b9qlXA=", "y2X1k4Oxt4Q=" ],
+	"liquidity pool trade|protocol version 20|CUR1, CUR2|cross the same pair twice in the same direction|liquidity pool once, order book once, strict send prefers order book on first hop|strict receive" : [ "KBYDfkuP11g=", "Y20UsZfh/go=" ],
+	"liquidity pool trade|protocol version 20|CUR1, CUR2|cross the same pair twice in the same direction|liquidity pool once, order book once, strict send prefers order book on first hop|strict send" : [ "KBYDfkuP11g=", "y2X1k4Oxt4Q=" ],
 	"liquidity pool trade|protocol version 20|CUR1, CUR2|cross the same pair twice in the same direction|order book both times" : [ "hY5T7W+hVDc=", "ftpv5j5O5Gk=", "hY5T7W+hVDc=", "ftpv5j5O5Gk=" ],
-	"liquidity pool trade|protocol version 20|CUR1, CUR2|cross the same pair twice in the same direction|order book both times|strict receive" : [ "+5E2+b9qlXA=", "46I/8FumcNc=" ],
-	"liquidity pool trade|protocol version 20|CUR1, CUR2|cross the same pair twice in the same direction|order book both times|strict send" : [ "+5E2+b9qlXA=", "46I/8FumcNc=" ],
+	"liquidity pool trade|protocol version 20|CUR1, CUR2|cross the same pair twice in the same direction|order book both times|strict receive" : [ "KBYDfkuP11g=", "46I/8FumcNc=" ],
+	"liquidity pool trade|protocol version 20|CUR1, CUR2|cross the same pair twice in the same direction|order book both times|strict send" : [ "KBYDfkuP11g=", "46I/8FumcNc=" ],
 	"liquidity pool trade|protocol version 20|CUR1, CUR2|liquidity pool charges the correct fee" : 
 	[
 		"xPl/kiS3f9w=",
@@ -4582,8 +4582,8 @@
 		"i8qqzyBmOiI=",
 		"jOdD9UmIo3M="
 	],
-	"liquidity pool trade|protocol version 20|CUR1, CUR2|liquidity pool charges the correct fee|strict receive" : [ "S+X023+YASE=", "MzEHX3RkUxQ=" ],
-	"liquidity pool trade|protocol version 20|CUR1, CUR2|liquidity pool charges the correct fee|strict send" : [ "S+X023+YASE=", "MzEHX3RkUxQ=" ],
+	"liquidity pool trade|protocol version 20|CUR1, CUR2|liquidity pool charges the correct fee|strict receive" : [ "dhpPS9P+Aks=", "MzEHX3RkUxQ=" ],
+	"liquidity pool trade|protocol version 20|CUR1, CUR2|liquidity pool charges the correct fee|strict send" : [ "dhpPS9P+Aks=", "MzEHX3RkUxQ=" ],
 	"liquidity pool trade|protocol version 20|CUR1, CUR2|max offers to cross" : 
 	[
 		"G865/7F2Qf8=",
@@ -4718,15 +4718,15 @@
 	"liquidity pool trade|protocol version 20|CUR1, CUR2|max offers to cross|liquidity pool fails when crossing one above limit" : 
 	[
 		"SrbC1LOlZ2c=",
-		"s9MN3Ht8n4w=",
+		"MkxTgS8fneA=",
 		"PCp9QIEm+dg=",
-		"LO+mB7fN9Y8=",
+		"11/g1Jdx6sg=",
 		"yQFKIJuZqy4=",
 		"hUAL0iYfFb0=",
-		"zGPGEwqFHVs="
+		"mldTTqGKRQ8="
 	],
 	"liquidity pool trade|protocol version 20|CUR1, CUR2|max offers to cross|liquidity pool succeeds when crossing limit" : [ "SrbC1LOlZ2c=", "g+yThrRNDpY=" ],
-	"liquidity pool trade|protocol version 20|CUR1, CUR2|max offers to cross|order book fails when crossing one above limit" : [ "eyH5EvUz0Kg=", "s9MN3Ht8n4w=" ],
+	"liquidity pool trade|protocol version 20|CUR1, CUR2|max offers to cross|order book fails when crossing one above limit" : [ "eyH5EvUz0Kg=", "MkxTgS8fneA=" ],
 	"liquidity pool trade|protocol version 20|CUR1, CUR2|max offers to cross|order book succeeds when crossing limit" : [ "eyH5EvUz0Kg=", "e9TbJiEJH7g=" ],
 	"liquidity pool trade|protocol version 20|CUR1, CUR2|order book is better, but there is a self-trade" : 
 	[
@@ -4810,7 +4810,7 @@
 		"JbimE9SGRT0=",
 		"MJM4dv97EuU="
 	],
-	"liquidity pool trade|protocol version 20|CUR1, CUR2|payment into pool would be larger than INT64_MAX|strict receive" : [ "S+X023+YASE=" ],
+	"liquidity pool trade|protocol version 20|CUR1, CUR2|payment into pool would be larger than INT64_MAX|strict receive" : [ "dhpPS9P+Aks=" ],
 	"liquidity pool trade|protocol version 20|CUR1, CUR2|payment through a pool that a market maker participates in" : 
 	[
 		"xPl/kiS3f9w=",
@@ -4929,8 +4929,8 @@
 		"njybSuvgiYE=",
 		"diKEqOGKk4o="
 	],
-	"liquidity pool trade|protocol version 20|CUR1, CUR2|payment through empty liquidity pools|strict receive" : [ "8po600xpcG4=", "NBgAHDGnXO4=" ],
-	"liquidity pool trade|protocol version 20|CUR1, CUR2|payment through empty liquidity pools|strict send" : [ "8po600xpcG4=", "NBgAHDGnXO4=" ],
+	"liquidity pool trade|protocol version 20|CUR1, CUR2|payment through empty liquidity pools|strict receive" : [ "xL1cObiWGPM=", "jbigWZpiuy0=" ],
+	"liquidity pool trade|protocol version 20|CUR1, CUR2|payment through empty liquidity pools|strict send" : [ "xL1cObiWGPM=", "jbigWZpiuy0=" ],
 	"liquidity pool trade|protocol version 20|CUR1, CUR2|payment through pool after offer that yields nothing" : 
 	[
 		"xPl/kiS3f9w=",
@@ -4953,7 +4953,7 @@
 		"diKEqOGKk4o=",
 		"WLvuXEq9CY0="
 	],
-	"liquidity pool trade|protocol version 20|CUR1, CUR2|payment through pool after offer that yields nothing|strict send" : [ "ZX5rRJ64Ztc=", "wSFzfN3S7qE=" ],
+	"liquidity pool trade|protocol version 20|CUR1, CUR2|payment through pool after offer that yields nothing|strict send" : [ "s3tEc+ecluA=", "KXIK06IUmEI=" ],
 	"liquidity pool trade|protocol version 20|CUR1, CUR2|payment through pool that yields nothing" : 
 	[
 		"xPl/kiS3f9w=",
@@ -4969,7 +4969,7 @@
 		"94RObN5Nmgw=",
 		"WVnNNV8dnO4="
 	],
-	"liquidity pool trade|protocol version 20|CUR1, CUR2|payment through pool that yields nothing|strict send" : [ "S+X023+YASE=" ],
+	"liquidity pool trade|protocol version 20|CUR1, CUR2|payment through pool that yields nothing|strict send" : [ "dhpPS9P+Aks=" ],
 	"liquidity pool trade|protocol version 20|CUR1, CUR2|payment would receive more than the reserve" : 
 	[
 		"xPl/kiS3f9w=",
@@ -4985,7 +4985,7 @@
 		"i8qqzyBmOiI=",
 		"CVITy/9CU6k="
 	],
-	"liquidity pool trade|protocol version 20|CUR1, CUR2|payment would receive more than the reserve|strict receive" : [ "S+X023+YASE=", "01/TK5Ed+VM=", "bQdjeD210jY=" ],
+	"liquidity pool trade|protocol version 20|CUR1, CUR2|payment would receive more than the reserve|strict receive" : [ "dhpPS9P+Aks=", "hUxDq4AUPfU=", "bQdjeD210jY=" ],
 	"liquidity pool trade|protocol version 20|CUR1, CUR2|trade fails due to excess reserves" : 
 	[
 		"xPl/kiS3f9w=",
@@ -5013,8 +5013,8 @@
 		"94RObN5Nmgw=",
 		"CNWSaYyj6Pk="
 	],
-	"liquidity pool trade|protocol version 20|CUR1, CUR2|trade fails due to excess reserves|strict receive" : [ "S+X023+YASE=", "v85osEkqbNc=" ],
-	"liquidity pool trade|protocol version 20|CUR1, CUR2|trade fails due to excess reserves|strict send" : [ "S+X023+YASE=", "v85osEkqbNc=" ],
+	"liquidity pool trade|protocol version 20|CUR1, CUR2|trade fails due to excess reserves|strict receive" : [ "dhpPS9P+Aks=", "v85osEkqbNc=" ],
+	"liquidity pool trade|protocol version 20|CUR1, CUR2|trade fails due to excess reserves|strict send" : [ "dhpPS9P+Aks=", "v85osEkqbNc=" ],
 	"liquidity pool trade|protocol version 20|CUR2, CUR1|chooses best price" : 
 	[
 		"xPl/kiS3f9w=",
@@ -5083,8 +5083,8 @@
 		"7Il2Rhez4no="
 	],
 	"liquidity pool trade|protocol version 20|CUR2, CUR1|cross the same pair twice in opposite directions|liquidity pool both times" : [ "I6HhmDO4bX0=", "I6HhmDO4bX0=" ],
-	"liquidity pool trade|protocol version 20|CUR2, CUR1|cross the same pair twice in opposite directions|liquidity pool both times|strict receive" : [ "S+X023+YASE=", "zoaiJaaquBQ=" ],
-	"liquidity pool trade|protocol version 20|CUR2, CUR1|cross the same pair twice in opposite directions|liquidity pool both times|strict send" : [ "S+X023+YASE=", "zoaiJaaquBQ=" ],
+	"liquidity pool trade|protocol version 20|CUR2, CUR1|cross the same pair twice in opposite directions|liquidity pool both times|strict receive" : [ "dhpPS9P+Aks=", "zoaiJaaquBQ=" ],
+	"liquidity pool trade|protocol version 20|CUR2, CUR1|cross the same pair twice in opposite directions|liquidity pool both times|strict send" : [ "dhpPS9P+Aks=", "zoaiJaaquBQ=" ],
 	"liquidity pool trade|protocol version 20|CUR2, CUR1|cross the same pair twice in the same direction" : 
 	[
 		"xPl/kiS3f9w=",
@@ -5365,29 +5365,29 @@
 		"8yuvvNQziOE="
 	],
 	"liquidity pool trade|protocol version 20|CUR2, CUR1|cross the same pair twice in the same direction|liquidity pool both times" : [ "KpaSmjOiqRs=", "PwPMtCVHB3s=", "KpaSmjOiqRs=", "PwPMtCVHB3s=" ],
-	"liquidity pool trade|protocol version 20|CUR2, CUR1|cross the same pair twice in the same direction|liquidity pool both times, fails on the second hop|strict receive" : [ "55aLwmGo3OY=", "OMqP89i7I94=", "+5E2+b9qlXA=", "aojzkZOxfrQ=" ],
+	"liquidity pool trade|protocol version 20|CUR2, CUR1|cross the same pair twice in the same direction|liquidity pool both times, fails on the second hop|strict receive" : [ "55aLwmGo3OY=", "OMqP89i7I94=", "KBYDfkuP11g=", "aojzkZOxfrQ=" ],
 	"liquidity pool trade|protocol version 20|CUR2, CUR1|cross the same pair twice in the same direction|liquidity pool both times, fails on the second hop|strict send" : 
 	[
 		"MYSD6ME2WCQ=",
 		"nzdC6vFr2Q8=",
 		"Gz4NrbX8TAc=",
-		"iHaq5Q6XAds=",
+		"6TLYv67JO7o=",
 		"+AIBdtEfMwU="
 	],
-	"liquidity pool trade|protocol version 20|CUR2, CUR1|cross the same pair twice in the same direction|liquidity pool both times|strict receive" : [ "+5E2+b9qlXA=", "5l6tEqyoi8Y=" ],
-	"liquidity pool trade|protocol version 20|CUR2, CUR1|cross the same pair twice in the same direction|liquidity pool both times|strict send" : [ "+5E2+b9qlXA=", "7h9bFSszdow=" ],
+	"liquidity pool trade|protocol version 20|CUR2, CUR1|cross the same pair twice in the same direction|liquidity pool both times|strict receive" : [ "KBYDfkuP11g=", "5l6tEqyoi8Y=" ],
+	"liquidity pool trade|protocol version 20|CUR2, CUR1|cross the same pair twice in the same direction|liquidity pool both times|strict send" : [ "KBYDfkuP11g=", "7h9bFSszdow=" ],
 	"liquidity pool trade|protocol version 20|CUR2, CUR1|cross the same pair twice in the same direction|liquidity pool once, order book once, strict send indifferent on first hop" : [ "XoZVDIWthdk=", "W8WIDj7T7QA=", "XoZVDIWthdk=", "W8WIDj7T7QA=" ],
-	"liquidity pool trade|protocol version 20|CUR2, CUR1|cross the same pair twice in the same direction|liquidity pool once, order book once, strict send indifferent on first hop|strict receive" : [ "+5E2+b9qlXA=", "NFekAyUaTdI=" ],
-	"liquidity pool trade|protocol version 20|CUR2, CUR1|cross the same pair twice in the same direction|liquidity pool once, order book once, strict send indifferent on first hop|strict send" : [ "+5E2+b9qlXA=", "NFekAyUaTdI=" ],
+	"liquidity pool trade|protocol version 20|CUR2, CUR1|cross the same pair twice in the same direction|liquidity pool once, order book once, strict send indifferent on first hop|strict receive" : [ "KBYDfkuP11g=", "NFekAyUaTdI=" ],
+	"liquidity pool trade|protocol version 20|CUR2, CUR1|cross the same pair twice in the same direction|liquidity pool once, order book once, strict send indifferent on first hop|strict send" : [ "KBYDfkuP11g=", "NFekAyUaTdI=" ],
 	"liquidity pool trade|protocol version 20|CUR2, CUR1|cross the same pair twice in the same direction|liquidity pool once, order book once, strict send prefers liquidity pool on first hop" : [ "gfMKkVegkdo=", "34azsGb8VTY=", "gfMKkVegkdo=", "34azsGb8VTY=" ],
-	"liquidity pool trade|protocol version 20|CUR2, CUR1|cross the same pair twice in the same direction|liquidity pool once, order book once, strict send prefers liquidity pool on first hop|strict receive" : [ "+5E2+b9qlXA=", "bUejXc2ymL0=" ],
-	"liquidity pool trade|protocol version 20|CUR2, CUR1|cross the same pair twice in the same direction|liquidity pool once, order book once, strict send prefers liquidity pool on first hop|strict send" : [ "+5E2+b9qlXA=", "bUejXc2ymL0=" ],
+	"liquidity pool trade|protocol version 20|CUR2, CUR1|cross the same pair twice in the same direction|liquidity pool once, order book once, strict send prefers liquidity pool on first hop|strict receive" : [ "KBYDfkuP11g=", "bUejXc2ymL0=" ],
+	"liquidity pool trade|protocol version 20|CUR2, CUR1|cross the same pair twice in the same direction|liquidity pool once, order book once, strict send prefers liquidity pool on first hop|strict send" : [ "KBYDfkuP11g=", "bUejXc2ymL0=" ],
 	"liquidity pool trade|protocol version 20|CUR2, CUR1|cross the same pair twice in the same direction|liquidity pool once, order book once, strict send prefers order book on first hop" : [ "Wuc7MH7LKsk=", "lO9Ei0ax+8U=", "Wuc7MH7LKsk=", "lO9Ei0ax+8U=" ],
-	"liquidity pool trade|protocol version 20|CUR2, CUR1|cross the same pair twice in the same direction|liquidity pool once, order book once, strict send prefers order book on first hop|strict receive" : [ "+5E2+b9qlXA=", "ggjwHd1CgnE=" ],
-	"liquidity pool trade|protocol version 20|CUR2, CUR1|cross the same pair twice in the same direction|liquidity pool once, order book once, strict send prefers order book on first hop|strict send" : [ "+5E2+b9qlXA=", "gAtPkUcbD8w=" ],
+	"liquidity pool trade|protocol version 20|CUR2, CUR1|cross the same pair twice in the same direction|liquidity pool once, order book once, strict send prefers order book on first hop|strict receive" : [ "KBYDfkuP11g=", "ggjwHd1CgnE=" ],
+	"liquidity pool trade|protocol version 20|CUR2, CUR1|cross the same pair twice in the same direction|liquidity pool once, order book once, strict send prefers order book on first hop|strict send" : [ "KBYDfkuP11g=", "gAtPkUcbD8w=" ],
 	"liquidity pool trade|protocol version 20|CUR2, CUR1|cross the same pair twice in the same direction|order book both times" : [ "Cy+LygCAnd4=", "ImD2R/MuPeA=", "Cy+LygCAnd4=", "ImD2R/MuPeA=" ],
-	"liquidity pool trade|protocol version 20|CUR2, CUR1|cross the same pair twice in the same direction|order book both times|strict receive" : [ "+5E2+b9qlXA=", "PVD/Pq4oGDo=" ],
-	"liquidity pool trade|protocol version 20|CUR2, CUR1|cross the same pair twice in the same direction|order book both times|strict send" : [ "+5E2+b9qlXA=", "PVD/Pq4oGDo=" ],
+	"liquidity pool trade|protocol version 20|CUR2, CUR1|cross the same pair twice in the same direction|order book both times|strict receive" : [ "KBYDfkuP11g=", "PVD/Pq4oGDo=" ],
+	"liquidity pool trade|protocol version 20|CUR2, CUR1|cross the same pair twice in the same direction|order book both times|strict send" : [ "KBYDfkuP11g=", "PVD/Pq4oGDo=" ],
 	"liquidity pool trade|protocol version 20|CUR2, CUR1|liquidity pool charges the correct fee" : 
 	[
 		"xPl/kiS3f9w=",
@@ -5415,8 +5415,8 @@
 		"7Il2Rhez4no=",
 		"I6HhmDO4bX0="
 	],
-	"liquidity pool trade|protocol version 20|CUR2, CUR1|liquidity pool charges the correct fee|strict receive" : [ "S+X023+YASE=", "HiwcNjF3Gm0=" ],
-	"liquidity pool trade|protocol version 20|CUR2, CUR1|liquidity pool charges the correct fee|strict send" : [ "S+X023+YASE=", "HiwcNjF3Gm0=" ],
+	"liquidity pool trade|protocol version 20|CUR2, CUR1|liquidity pool charges the correct fee|strict receive" : [ "dhpPS9P+Aks=", "HiwcNjF3Gm0=" ],
+	"liquidity pool trade|protocol version 20|CUR2, CUR1|liquidity pool charges the correct fee|strict send" : [ "dhpPS9P+Aks=", "HiwcNjF3Gm0=" ],
 	"liquidity pool trade|protocol version 20|CUR2, CUR1|max offers to cross" : 
 	[
 		"G865/7F2Qf8=",
@@ -5551,15 +5551,15 @@
 	"liquidity pool trade|protocol version 20|CUR2, CUR1|max offers to cross|liquidity pool fails when crossing one above limit" : 
 	[
 		"hlorNQq0VA8=",
-		"s9MN3Ht8n4w=",
+		"MkxTgS8fneA=",
 		"kPn0L8kIuO4=",
-		"LO+mB7fN9Y8=",
+		"11/g1Jdx6sg=",
 		"SGRlLdfM2bE=",
 		"lZt3JMDVd0A=",
-		"zGPGEwqFHVs="
+		"mldTTqGKRQ8="
 	],
 	"liquidity pool trade|protocol version 20|CUR2, CUR1|max offers to cross|liquidity pool succeeds when crossing limit" : [ "hlorNQq0VA8=", "3FXXPEjCIP0=" ],
-	"liquidity pool trade|protocol version 20|CUR2, CUR1|max offers to cross|order book fails when crossing one above limit" : [ "EMel6914sFU=", "s9MN3Ht8n4w=" ],
+	"liquidity pool trade|protocol version 20|CUR2, CUR1|max offers to cross|order book fails when crossing one above limit" : [ "EMel6914sFU=", "MkxTgS8fneA=" ],
 	"liquidity pool trade|protocol version 20|CUR2, CUR1|max offers to cross|order book succeeds when crossing limit" : [ "EMel6914sFU=", "7jT0LL2O/rw=" ],
 	"liquidity pool trade|protocol version 20|CUR2, CUR1|order book is better, but there is a self-trade" : 
 	[
@@ -5643,7 +5643,7 @@
 		"XUOc+UXt1UU=",
 		"jidVMVdCzgI="
 	],
-	"liquidity pool trade|protocol version 20|CUR2, CUR1|payment into pool would be larger than INT64_MAX|strict receive" : [ "S+X023+YASE=" ],
+	"liquidity pool trade|protocol version 20|CUR2, CUR1|payment into pool would be larger than INT64_MAX|strict receive" : [ "dhpPS9P+Aks=" ],
 	"liquidity pool trade|protocol version 20|CUR2, CUR1|payment through a pool that a market maker participates in" : 
 	[
 		"xPl/kiS3f9w=",
@@ -5762,8 +5762,8 @@
 		"cPf0x6A4H7Y=",
 		"diKEqOGKk4o="
 	],
-	"liquidity pool trade|protocol version 20|CUR2, CUR1|payment through empty liquidity pools|strict receive" : [ "8po600xpcG4=", "NBgAHDGnXO4=" ],
-	"liquidity pool trade|protocol version 20|CUR2, CUR1|payment through empty liquidity pools|strict send" : [ "8po600xpcG4=", "NBgAHDGnXO4=" ],
+	"liquidity pool trade|protocol version 20|CUR2, CUR1|payment through empty liquidity pools|strict receive" : [ "xL1cObiWGPM=", "jbigWZpiuy0=" ],
+	"liquidity pool trade|protocol version 20|CUR2, CUR1|payment through empty liquidity pools|strict send" : [ "xL1cObiWGPM=", "jbigWZpiuy0=" ],
 	"liquidity pool trade|protocol version 20|CUR2, CUR1|payment through pool after offer that yields nothing" : 
 	[
 		"xPl/kiS3f9w=",
@@ -5786,7 +5786,7 @@
 		"diKEqOGKk4o=",
 		"tGwB8puOK84="
 	],
-	"liquidity pool trade|protocol version 20|CUR2, CUR1|payment through pool after offer that yields nothing|strict send" : [ "ZX5rRJ64Ztc=", "wSFzfN3S7qE=" ],
+	"liquidity pool trade|protocol version 20|CUR2, CUR1|payment through pool after offer that yields nothing|strict send" : [ "s3tEc+ecluA=", "KXIK06IUmEI=" ],
 	"liquidity pool trade|protocol version 20|CUR2, CUR1|payment through pool that yields nothing" : 
 	[
 		"xPl/kiS3f9w=",
@@ -5802,7 +5802,7 @@
 		"0TbRE8YermI=",
 		"fiVZJNYiSGI="
 	],
-	"liquidity pool trade|protocol version 20|CUR2, CUR1|payment through pool that yields nothing|strict send" : [ "S+X023+YASE=" ],
+	"liquidity pool trade|protocol version 20|CUR2, CUR1|payment through pool that yields nothing|strict send" : [ "dhpPS9P+Aks=" ],
 	"liquidity pool trade|protocol version 20|CUR2, CUR1|payment would receive more than the reserve" : 
 	[
 		"xPl/kiS3f9w=",
@@ -5818,7 +5818,7 @@
 		"7Il2Rhez4no=",
 		"R969ucxI/mg="
 	],
-	"liquidity pool trade|protocol version 20|CUR2, CUR1|payment would receive more than the reserve|strict receive" : [ "S+X023+YASE=", "01/TK5Ed+VM=", "X4e2xjOSSUk=" ],
+	"liquidity pool trade|protocol version 20|CUR2, CUR1|payment would receive more than the reserve|strict receive" : [ "dhpPS9P+Aks=", "hUxDq4AUPfU=", "X4e2xjOSSUk=" ],
 	"liquidity pool trade|protocol version 20|CUR2, CUR1|trade fails due to excess reserves" : 
 	[
 		"xPl/kiS3f9w=",
@@ -5846,8 +5846,8 @@
 		"0TbRE8YermI=",
 		"tzhmhkEuR/4="
 	],
-	"liquidity pool trade|protocol version 20|CUR2, CUR1|trade fails due to excess reserves|strict receive" : [ "S+X023+YASE=", "otKF/O/utxY=" ],
-	"liquidity pool trade|protocol version 20|CUR2, CUR1|trade fails due to excess reserves|strict send" : [ "S+X023+YASE=", "otKF/O/utxY=" ],
+	"liquidity pool trade|protocol version 20|CUR2, CUR1|trade fails due to excess reserves|strict receive" : [ "dhpPS9P+Aks=", "otKF/O/utxY=" ],
+	"liquidity pool trade|protocol version 20|CUR2, CUR1|trade fails due to excess reserves|strict send" : [ "dhpPS9P+Aks=", "otKF/O/utxY=" ],
 	"liquidity pool trade|protocol version 20|without offers" : 
 	[
 		"xPl/kiS3f9w=",
@@ -6236,28 +6236,28 @@
 		"OXePC5HHJoQ="
 	],
 	"liquidity pool trade|protocol version 20|without offers|both non-native, strict receive|pool sells cur1|at limit" : [ "AOlKcccl3C8=" ],
-	"liquidity pool trade|protocol version 20|without offers|both non-native, strict receive|pool sells cur1|fails due to limit" : [ "Sq8UbqcQ+Ow=" ],
+	"liquidity pool trade|protocol version 20|without offers|both non-native, strict receive|pool sells cur1|fails due to limit" : [ "vYP5lSg2P+0=" ],
 	"liquidity pool trade|protocol version 20|without offers|both non-native, strict receive|pool sells cur1|satisfies limit" : [ "AOlKcccl3C8=" ],
 	"liquidity pool trade|protocol version 20|without offers|both non-native, strict receive|pool sells cur2|at limit" : [ "2lYCPqWWfcU=" ],
-	"liquidity pool trade|protocol version 20|without offers|both non-native, strict receive|pool sells cur2|fails due to limit" : [ "Sq8UbqcQ+Ow=" ],
+	"liquidity pool trade|protocol version 20|without offers|both non-native, strict receive|pool sells cur2|fails due to limit" : [ "vYP5lSg2P+0=" ],
 	"liquidity pool trade|protocol version 20|without offers|both non-native, strict receive|pool sells cur2|satisfies limit" : [ "2lYCPqWWfcU=" ],
 	"liquidity pool trade|protocol version 20|without offers|both non-native, strict send|pool sells cur1|at limit" : [ "AOlKcccl3C8=" ],
-	"liquidity pool trade|protocol version 20|without offers|both non-native, strict send|pool sells cur1|fails due to limit" : [ "Sq8UbqcQ+Ow=" ],
+	"liquidity pool trade|protocol version 20|without offers|both non-native, strict send|pool sells cur1|fails due to limit" : [ "vYP5lSg2P+0=" ],
 	"liquidity pool trade|protocol version 20|without offers|both non-native, strict send|pool sells cur1|satisfies limit" : [ "AOlKcccl3C8=" ],
 	"liquidity pool trade|protocol version 20|without offers|both non-native, strict send|pool sells cur2|at limit" : [ "2lYCPqWWfcU=" ],
-	"liquidity pool trade|protocol version 20|without offers|both non-native, strict send|pool sells cur2|fails due to limit" : [ "Sq8UbqcQ+Ow=" ],
+	"liquidity pool trade|protocol version 20|without offers|both non-native, strict send|pool sells cur2|fails due to limit" : [ "vYP5lSg2P+0=" ],
 	"liquidity pool trade|protocol version 20|without offers|both non-native, strict send|pool sells cur2|satisfies limit" : [ "2lYCPqWWfcU=" ],
 	"liquidity pool trade|protocol version 20|without offers|one native, strict receive|pool sells cur1|at limit" : [ "lPBHvmM99SM=" ],
-	"liquidity pool trade|protocol version 20|without offers|one native, strict receive|pool sells cur1|fails due to limit" : [ "Sq8UbqcQ+Ow=" ],
+	"liquidity pool trade|protocol version 20|without offers|one native, strict receive|pool sells cur1|fails due to limit" : [ "vYP5lSg2P+0=" ],
 	"liquidity pool trade|protocol version 20|without offers|one native, strict receive|pool sells cur1|satisfies limit" : [ "lPBHvmM99SM=" ],
 	"liquidity pool trade|protocol version 20|without offers|one native, strict receive|pool sells native|at limit" : [ "PM87IZKHG0E=" ],
-	"liquidity pool trade|protocol version 20|without offers|one native, strict receive|pool sells native|fails due to limit" : [ "Sq8UbqcQ+Ow=" ],
+	"liquidity pool trade|protocol version 20|without offers|one native, strict receive|pool sells native|fails due to limit" : [ "vYP5lSg2P+0=" ],
 	"liquidity pool trade|protocol version 20|without offers|one native, strict receive|pool sells native|satisfies limit" : [ "PM87IZKHG0E=" ],
 	"liquidity pool trade|protocol version 20|without offers|one native, strict send|pool sells cur1|at limit" : [ "lPBHvmM99SM=" ],
-	"liquidity pool trade|protocol version 20|without offers|one native, strict send|pool sells cur1|fails due to limit" : [ "Sq8UbqcQ+Ow=" ],
+	"liquidity pool trade|protocol version 20|without offers|one native, strict send|pool sells cur1|fails due to limit" : [ "vYP5lSg2P+0=" ],
 	"liquidity pool trade|protocol version 20|without offers|one native, strict send|pool sells cur1|satisfies limit" : [ "lPBHvmM99SM=" ],
 	"liquidity pool trade|protocol version 20|without offers|one native, strict send|pool sells native|at limit" : [ "PM87IZKHG0E=" ],
-	"liquidity pool trade|protocol version 20|without offers|one native, strict send|pool sells native|fails due to limit" : [ "Sq8UbqcQ+Ow=" ],
+	"liquidity pool trade|protocol version 20|without offers|one native, strict send|pool sells native|fails due to limit" : [ "vYP5lSg2P+0=" ],
 	"liquidity pool trade|protocol version 20|without offers|one native, strict send|pool sells native|satisfies limit" : [ "PM87IZKHG0E=" ],
 	"liquidity pool trade|protocol version 21|CUR1, CUR2|chooses best price" : 
 	[
@@ -6327,8 +6327,8 @@
 		"i8qqzyBmOiI="
 	],
 	"liquidity pool trade|protocol version 21|CUR1, CUR2|cross the same pair twice in opposite directions|liquidity pool both times" : [ "jOdD9UmIo3M=", "jOdD9UmIo3M=" ],
-	"liquidity pool trade|protocol version 21|CUR1, CUR2|cross the same pair twice in opposite directions|liquidity pool both times|strict receive" : [ "S+X023+YASE=", "VtXK9iQdB6g=" ],
-	"liquidity pool trade|protocol version 21|CUR1, CUR2|cross the same pair twice in opposite directions|liquidity pool both times|strict send" : [ "S+X023+YASE=", "VtXK9iQdB6g=" ],
+	"liquidity pool trade|protocol version 21|CUR1, CUR2|cross the same pair twice in opposite directions|liquidity pool both times|strict receive" : [ "dhpPS9P+Aks=", "VtXK9iQdB6g=" ],
+	"liquidity pool trade|protocol version 21|CUR1, CUR2|cross the same pair twice in opposite directions|liquidity pool both times|strict send" : [ "dhpPS9P+Aks=", "VtXK9iQdB6g=" ],
 	"liquidity pool trade|protocol version 21|CUR1, CUR2|cross the same pair twice in the same direction" : 
 	[
 		"xPl/kiS3f9w=",
@@ -6609,29 +6609,29 @@
 		"BvHCSmS4qqA="
 	],
 	"liquidity pool trade|protocol version 21|CUR1, CUR2|cross the same pair twice in the same direction|liquidity pool both times" : [ "YVIn7CWq9vw=", "z4HX07JvoWM=", "YVIn7CWq9vw=", "z4HX07JvoWM=" ],
-	"liquidity pool trade|protocol version 21|CUR1, CUR2|cross the same pair twice in the same direction|liquidity pool both times, fails on the second hop|strict receive" : [ "kW6Wc7wMMls=", "aZNygjWUiac=", "+5E2+b9qlXA=", "50yrmiH0wfw=" ],
+	"liquidity pool trade|protocol version 21|CUR1, CUR2|cross the same pair twice in the same direction|liquidity pool both times, fails on the second hop|strict receive" : [ "kW6Wc7wMMls=", "aZNygjWUiac=", "KBYDfkuP11g=", "50yrmiH0wfw=" ],
 	"liquidity pool trade|protocol version 21|CUR1, CUR2|cross the same pair twice in the same direction|liquidity pool both times, fails on the second hop|strict send" : 
 	[
 		"5ZMiPvcEt10=",
 		"crUxuRU0pVw=",
 		"iP09uYTN+fQ=",
-		"iHaq5Q6XAds=",
+		"6TLYv67JO7o=",
 		"+rChfkWbas0="
 	],
-	"liquidity pool trade|protocol version 21|CUR1, CUR2|cross the same pair twice in the same direction|liquidity pool both times|strict receive" : [ "+5E2+b9qlXA=", "+sZaDh/RegE=" ],
-	"liquidity pool trade|protocol version 21|CUR1, CUR2|cross the same pair twice in the same direction|liquidity pool both times|strict send" : [ "+5E2+b9qlXA=", "G6lWbwDGoiM=" ],
+	"liquidity pool trade|protocol version 21|CUR1, CUR2|cross the same pair twice in the same direction|liquidity pool both times|strict receive" : [ "KBYDfkuP11g=", "+sZaDh/RegE=" ],
+	"liquidity pool trade|protocol version 21|CUR1, CUR2|cross the same pair twice in the same direction|liquidity pool both times|strict send" : [ "KBYDfkuP11g=", "G6lWbwDGoiM=" ],
 	"liquidity pool trade|protocol version 21|CUR1, CUR2|cross the same pair twice in the same direction|liquidity pool once, order book once, strict send indifferent on first hop" : [ "GjzSK1OfNsw=", "IvNywDAIcUk=", "GjzSK1OfNsw=", "IvNywDAIcUk=" ],
-	"liquidity pool trade|protocol version 21|CUR1, CUR2|cross the same pair twice in the same direction|liquidity pool once, order book once, strict send indifferent on first hop|strict receive" : [ "+5E2+b9qlXA=", "M9dD3Iq5TbY=" ],
-	"liquidity pool trade|protocol version 21|CUR1, CUR2|cross the same pair twice in the same direction|liquidity pool once, order book once, strict send indifferent on first hop|strict send" : [ "+5E2+b9qlXA=", "M9dD3Iq5TbY=" ],
+	"liquidity pool trade|protocol version 21|CUR1, CUR2|cross the same pair twice in the same direction|liquidity pool once, order book once, strict send indifferent on first hop|strict receive" : [ "KBYDfkuP11g=", "M9dD3Iq5TbY=" ],
+	"liquidity pool trade|protocol version 21|CUR1, CUR2|cross the same pair twice in the same direction|liquidity pool once, order book once, strict send indifferent on first hop|strict send" : [ "KBYDfkuP11g=", "M9dD3Iq5TbY=" ],
 	"liquidity pool trade|protocol version 21|CUR1, CUR2|cross the same pair twice in the same direction|liquidity pool once, order book once, strict send prefers liquidity pool on first hop" : [ "opTYWJNz3hs=", "iEfKUMaQsGA=", "opTYWJNz3hs=", "iEfKUMaQsGA=" ],
-	"liquidity pool trade|protocol version 21|CUR1, CUR2|cross the same pair twice in the same direction|liquidity pool once, order book once, strict send prefers liquidity pool on first hop|strict receive" : [ "+5E2+b9qlXA=", "4F1iuPehmws=" ],
-	"liquidity pool trade|protocol version 21|CUR1, CUR2|cross the same pair twice in the same direction|liquidity pool once, order book once, strict send prefers liquidity pool on first hop|strict send" : [ "+5E2+b9qlXA=", "4F1iuPehmws=" ],
+	"liquidity pool trade|protocol version 21|CUR1, CUR2|cross the same pair twice in the same direction|liquidity pool once, order book once, strict send prefers liquidity pool on first hop|strict receive" : [ "KBYDfkuP11g=", "4F1iuPehmws=" ],
+	"liquidity pool trade|protocol version 21|CUR1, CUR2|cross the same pair twice in the same direction|liquidity pool once, order book once, strict send prefers liquidity pool on first hop|strict send" : [ "KBYDfkuP11g=", "4F1iuPehmws=" ],
 	"liquidity pool trade|protocol version 21|CUR1, CUR2|cross the same pair twice in the same direction|liquidity pool once, order book once, strict send prefers order book on first hop" : [ "qVTFI0xt1+I=", "aN7yJcyjk5k=", "qVTFI0xt1+I=", "aN7yJcyjk5k=" ],
-	"liquidity pool trade|protocol version 21|CUR1, CUR2|cross the same pair twice in the same direction|liquidity pool once, order book once, strict send prefers order book on first hop|strict receive" : [ "+5E2+b9qlXA=", "Y20UsZfh/go=" ],
-	"liquidity pool trade|protocol version 21|CUR1, CUR2|cross the same pair twice in the same direction|liquidity pool once, order book once, strict send prefers order book on first hop|strict send" : [ "+5E2+b9qlXA=", "y2X1k4Oxt4Q=" ],
+	"liquidity pool trade|protocol version 21|CUR1, CUR2|cross the same pair twice in the same direction|liquidity pool once, order book once, strict send prefers order book on first hop|strict receive" : [ "KBYDfkuP11g=", "Y20UsZfh/go=" ],
+	"liquidity pool trade|protocol version 21|CUR1, CUR2|cross the same pair twice in the same direction|liquidity pool once, order book once, strict send prefers order book on first hop|strict send" : [ "KBYDfkuP11g=", "y2X1k4Oxt4Q=" ],
 	"liquidity pool trade|protocol version 21|CUR1, CUR2|cross the same pair twice in the same direction|order book both times" : [ "hY5T7W+hVDc=", "ftpv5j5O5Gk=", "hY5T7W+hVDc=", "ftpv5j5O5Gk=" ],
-	"liquidity pool trade|protocol version 21|CUR1, CUR2|cross the same pair twice in the same direction|order book both times|strict receive" : [ "+5E2+b9qlXA=", "46I/8FumcNc=" ],
-	"liquidity pool trade|protocol version 21|CUR1, CUR2|cross the same pair twice in the same direction|order book both times|strict send" : [ "+5E2+b9qlXA=", "46I/8FumcNc=" ],
+	"liquidity pool trade|protocol version 21|CUR1, CUR2|cross the same pair twice in the same direction|order book both times|strict receive" : [ "KBYDfkuP11g=", "46I/8FumcNc=" ],
+	"liquidity pool trade|protocol version 21|CUR1, CUR2|cross the same pair twice in the same direction|order book both times|strict send" : [ "KBYDfkuP11g=", "46I/8FumcNc=" ],
 	"liquidity pool trade|protocol version 21|CUR1, CUR2|liquidity pool charges the correct fee" : 
 	[
 		"xPl/kiS3f9w=",
@@ -6659,8 +6659,8 @@
 		"i8qqzyBmOiI=",
 		"jOdD9UmIo3M="
 	],
-	"liquidity pool trade|protocol version 21|CUR1, CUR2|liquidity pool charges the correct fee|strict receive" : [ "S+X023+YASE=", "MzEHX3RkUxQ=" ],
-	"liquidity pool trade|protocol version 21|CUR1, CUR2|liquidity pool charges the correct fee|strict send" : [ "S+X023+YASE=", "MzEHX3RkUxQ=" ],
+	"liquidity pool trade|protocol version 21|CUR1, CUR2|liquidity pool charges the correct fee|strict receive" : [ "dhpPS9P+Aks=", "MzEHX3RkUxQ=" ],
+	"liquidity pool trade|protocol version 21|CUR1, CUR2|liquidity pool charges the correct fee|strict send" : [ "dhpPS9P+Aks=", "MzEHX3RkUxQ=" ],
 	"liquidity pool trade|protocol version 21|CUR1, CUR2|max offers to cross" : 
 	[
 		"G865/7F2Qf8=",
@@ -6795,15 +6795,15 @@
 	"liquidity pool trade|protocol version 21|CUR1, CUR2|max offers to cross|liquidity pool fails when crossing one above limit" : 
 	[
 		"SrbC1LOlZ2c=",
-		"s9MN3Ht8n4w=",
+		"MkxTgS8fneA=",
 		"PCp9QIEm+dg=",
-		"LO+mB7fN9Y8=",
+		"11/g1Jdx6sg=",
 		"yQFKIJuZqy4=",
 		"hUAL0iYfFb0=",
-		"zGPGEwqFHVs="
+		"mldTTqGKRQ8="
 	],
 	"liquidity pool trade|protocol version 21|CUR1, CUR2|max offers to cross|liquidity pool succeeds when crossing limit" : [ "SrbC1LOlZ2c=", "g+yThrRNDpY=" ],
-	"liquidity pool trade|protocol version 21|CUR1, CUR2|max offers to cross|order book fails when crossing one above limit" : [ "eyH5EvUz0Kg=", "s9MN3Ht8n4w=" ],
+	"liquidity pool trade|protocol version 21|CUR1, CUR2|max offers to cross|order book fails when crossing one above limit" : [ "eyH5EvUz0Kg=", "MkxTgS8fneA=" ],
 	"liquidity pool trade|protocol version 21|CUR1, CUR2|max offers to cross|order book succeeds when crossing limit" : [ "eyH5EvUz0Kg=", "e9TbJiEJH7g=" ],
 	"liquidity pool trade|protocol version 21|CUR1, CUR2|order book is better, but there is a self-trade" : 
 	[
@@ -6887,7 +6887,7 @@
 		"JbimE9SGRT0=",
 		"MJM4dv97EuU="
 	],
-	"liquidity pool trade|protocol version 21|CUR1, CUR2|payment into pool would be larger than INT64_MAX|strict receive" : [ "S+X023+YASE=" ],
+	"liquidity pool trade|protocol version 21|CUR1, CUR2|payment into pool would be larger than INT64_MAX|strict receive" : [ "dhpPS9P+Aks=" ],
 	"liquidity pool trade|protocol version 21|CUR1, CUR2|payment through a pool that a market maker participates in" : 
 	[
 		"xPl/kiS3f9w=",
@@ -7006,8 +7006,8 @@
 		"njybSuvgiYE=",
 		"diKEqOGKk4o="
 	],
-	"liquidity pool trade|protocol version 21|CUR1, CUR2|payment through empty liquidity pools|strict receive" : [ "8po600xpcG4=", "NBgAHDGnXO4=" ],
-	"liquidity pool trade|protocol version 21|CUR1, CUR2|payment through empty liquidity pools|strict send" : [ "8po600xpcG4=", "NBgAHDGnXO4=" ],
+	"liquidity pool trade|protocol version 21|CUR1, CUR2|payment through empty liquidity pools|strict receive" : [ "xL1cObiWGPM=", "jbigWZpiuy0=" ],
+	"liquidity pool trade|protocol version 21|CUR1, CUR2|payment through empty liquidity pools|strict send" : [ "xL1cObiWGPM=", "jbigWZpiuy0=" ],
 	"liquidity pool trade|protocol version 21|CUR1, CUR2|payment through pool after offer that yields nothing" : 
 	[
 		"xPl/kiS3f9w=",
@@ -7030,7 +7030,7 @@
 		"diKEqOGKk4o=",
 		"WLvuXEq9CY0="
 	],
-	"liquidity pool trade|protocol version 21|CUR1, CUR2|payment through pool after offer that yields nothing|strict send" : [ "ZX5rRJ64Ztc=", "wSFzfN3S7qE=" ],
+	"liquidity pool trade|protocol version 21|CUR1, CUR2|payment through pool after offer that yields nothing|strict send" : [ "s3tEc+ecluA=", "KXIK06IUmEI=" ],
 	"liquidity pool trade|protocol version 21|CUR1, CUR2|payment through pool that yields nothing" : 
 	[
 		"xPl/kiS3f9w=",
@@ -7046,7 +7046,7 @@
 		"94RObN5Nmgw=",
 		"WVnNNV8dnO4="
 	],
-	"liquidity pool trade|protocol version 21|CUR1, CUR2|payment through pool that yields nothing|strict send" : [ "S+X023+YASE=" ],
+	"liquidity pool trade|protocol version 21|CUR1, CUR2|payment through pool that yields nothing|strict send" : [ "dhpPS9P+Aks=" ],
 	"liquidity pool trade|protocol version 21|CUR1, CUR2|payment would receive more than the reserve" : 
 	[
 		"xPl/kiS3f9w=",
@@ -7062,7 +7062,7 @@
 		"i8qqzyBmOiI=",
 		"CVITy/9CU6k="
 	],
-	"liquidity pool trade|protocol version 21|CUR1, CUR2|payment would receive more than the reserve|strict receive" : [ "S+X023+YASE=", "01/TK5Ed+VM=", "bQdjeD210jY=" ],
+	"liquidity pool trade|protocol version 21|CUR1, CUR2|payment would receive more than the reserve|strict receive" : [ "dhpPS9P+Aks=", "hUxDq4AUPfU=", "bQdjeD210jY=" ],
 	"liquidity pool trade|protocol version 21|CUR1, CUR2|trade fails due to excess reserves" : 
 	[
 		"xPl/kiS3f9w=",
@@ -7090,8 +7090,8 @@
 		"94RObN5Nmgw=",
 		"CNWSaYyj6Pk="
 	],
-	"liquidity pool trade|protocol version 21|CUR1, CUR2|trade fails due to excess reserves|strict receive" : [ "S+X023+YASE=", "v85osEkqbNc=" ],
-	"liquidity pool trade|protocol version 21|CUR1, CUR2|trade fails due to excess reserves|strict send" : [ "S+X023+YASE=", "v85osEkqbNc=" ],
+	"liquidity pool trade|protocol version 21|CUR1, CUR2|trade fails due to excess reserves|strict receive" : [ "dhpPS9P+Aks=", "v85osEkqbNc=" ],
+	"liquidity pool trade|protocol version 21|CUR1, CUR2|trade fails due to excess reserves|strict send" : [ "dhpPS9P+Aks=", "v85osEkqbNc=" ],
 	"liquidity pool trade|protocol version 21|CUR2, CUR1|chooses best price" : 
 	[
 		"xPl/kiS3f9w=",
@@ -7160,8 +7160,8 @@
 		"7Il2Rhez4no="
 	],
 	"liquidity pool trade|protocol version 21|CUR2, CUR1|cross the same pair twice in opposite directions|liquidity pool both times" : [ "I6HhmDO4bX0=", "I6HhmDO4bX0=" ],
-	"liquidity pool trade|protocol version 21|CUR2, CUR1|cross the same pair twice in opposite directions|liquidity pool both times|strict receive" : [ "S+X023+YASE=", "zoaiJaaquBQ=" ],
-	"liquidity pool trade|protocol version 21|CUR2, CUR1|cross the same pair twice in opposite directions|liquidity pool both times|strict send" : [ "S+X023+YASE=", "zoaiJaaquBQ=" ],
+	"liquidity pool trade|protocol version 21|CUR2, CUR1|cross the same pair twice in opposite directions|liquidity pool both times|strict receive" : [ "dhpPS9P+Aks=", "zoaiJaaquBQ=" ],
+	"liquidity pool trade|protocol version 21|CUR2, CUR1|cross the same pair twice in opposite directions|liquidity pool both times|strict send" : [ "dhpPS9P+Aks=", "zoaiJaaquBQ=" ],
 	"liquidity pool trade|protocol version 21|CUR2, CUR1|cross the same pair twice in the same direction" : 
 	[
 		"xPl/kiS3f9w=",
@@ -7442,29 +7442,29 @@
 		"8yuvvNQziOE="
 	],
 	"liquidity pool trade|protocol version 21|CUR2, CUR1|cross the same pair twice in the same direction|liquidity pool both times" : [ "KpaSmjOiqRs=", "PwPMtCVHB3s=", "KpaSmjOiqRs=", "PwPMtCVHB3s=" ],
-	"liquidity pool trade|protocol version 21|CUR2, CUR1|cross the same pair twice in the same direction|liquidity pool both times, fails on the second hop|strict receive" : [ "55aLwmGo3OY=", "OMqP89i7I94=", "+5E2+b9qlXA=", "aojzkZOxfrQ=" ],
+	"liquidity pool trade|protocol version 21|CUR2, CUR1|cross the same pair twice in the same direction|liquidity pool both times, fails on the second hop|strict receive" : [ "55aLwmGo3OY=", "OMqP89i7I94=", "KBYDfkuP11g=", "aojzkZOxfrQ=" ],
 	"liquidity pool trade|protocol version 21|CUR2, CUR1|cross the same pair twice in the same direction|liquidity pool both times, fails on the second hop|strict send" : 
 	[
 		"MYSD6ME2WCQ=",
 		"nzdC6vFr2Q8=",
 		"Gz4NrbX8TAc=",
-		"iHaq5Q6XAds=",
+		"6TLYv67JO7o=",
 		"+AIBdtEfMwU="
 	],
-	"liquidity pool trade|protocol version 21|CUR2, CUR1|cross the same pair twice in the same direction|liquidity pool both times|strict receive" : [ "+5E2+b9qlXA=", "5l6tEqyoi8Y=" ],
-	"liquidity pool trade|protocol version 21|CUR2, CUR1|cross the same pair twice in the same direction|liquidity pool both times|strict send" : [ "+5E2+b9qlXA=", "7h9bFSszdow=" ],
+	"liquidity pool trade|protocol version 21|CUR2, CUR1|cross the same pair twice in the same direction|liquidity pool both times|strict receive" : [ "KBYDfkuP11g=", "5l6tEqyoi8Y=" ],
+	"liquidity pool trade|protocol version 21|CUR2, CUR1|cross the same pair twice in the same direction|liquidity pool both times|strict send" : [ "KBYDfkuP11g=", "7h9bFSszdow=" ],
 	"liquidity pool trade|protocol version 21|CUR2, CUR1|cross the same pair twice in the same direction|liquidity pool once, order book once, strict send indifferent on first hop" : [ "XoZVDIWthdk=", "W8WIDj7T7QA=", "XoZVDIWthdk=", "W8WIDj7T7QA=" ],
-	"liquidity pool trade|protocol version 21|CUR2, CUR1|cross the same pair twice in the same direction|liquidity pool once, order book once, strict send indifferent on first hop|strict receive" : [ "+5E2+b9qlXA=", "NFekAyUaTdI=" ],
-	"liquidity pool trade|protocol version 21|CUR2, CUR1|cross the same pair twice in the same direction|liquidity pool once, order book once, strict send indifferent on first hop|strict send" : [ "+5E2+b9qlXA=", "NFekAyUaTdI=" ],
+	"liquidity pool trade|protocol version 21|CUR2, CUR1|cross the same pair twice in the same direction|liquidity pool once, order book once, strict send indifferent on first hop|strict receive" : [ "KBYDfkuP11g=", "NFekAyUaTdI=" ],
+	"liquidity pool trade|protocol version 21|CUR2, CUR1|cross the same pair twice in the same direction|liquidity pool once, order book once, strict send indifferent on first hop|strict send" : [ "KBYDfkuP11g=", "NFekAyUaTdI=" ],
 	"liquidity pool trade|protocol version 21|CUR2, CUR1|cross the same pair twice in the same direction|liquidity pool once, order book once, strict send prefers liquidity pool on first hop" : [ "gfMKkVegkdo=", "34azsGb8VTY=", "gfMKkVegkdo=", "34azsGb8VTY=" ],
-	"liquidity pool trade|protocol version 21|CUR2, CUR1|cross the same pair twice in the same direction|liquidity pool once, order book once, strict send prefers liquidity pool on first hop|strict receive" : [ "+5E2+b9qlXA=", "bUejXc2ymL0=" ],
-	"liquidity pool trade|protocol version 21|CUR2, CUR1|cross the same pair twice in the same direction|liquidity pool once, order book once, strict send prefers liquidity pool on first hop|strict send" : [ "+5E2+b9qlXA=", "bUejXc2ymL0=" ],
+	"liquidity pool trade|protocol version 21|CUR2, CUR1|cross the same pair twice in the same direction|liquidity pool once, order book once, strict send prefers liquidity pool on first hop|strict receive" : [ "KBYDfkuP11g=", "bUejXc2ymL0=" ],
+	"liquidity pool trade|protocol version 21|CUR2, CUR1|cross the same pair twice in the same direction|liquidity pool once, order book once, strict send prefers liquidity pool on first hop|strict send" : [ "KBYDfkuP11g=", "bUejXc2ymL0=" ],
 	"liquidity pool trade|protocol version 21|CUR2, CUR1|cross the same pair twice in the same direction|liquidity pool once, order book once, strict send prefers order book on first hop" : [ "Wuc7MH7LKsk=", "lO9Ei0ax+8U=", "Wuc7MH7LKsk=", "lO9Ei0ax+8U=" ],
-	"liquidity pool trade|protocol version 21|CUR2, CUR1|cross the same pair twice in the same direction|liquidity pool once, order book once, strict send prefers order book on first hop|strict receive" : [ "+5E2+b9qlXA=", "ggjwHd1CgnE=" ],
-	"liquidity pool trade|protocol version 21|CUR2, CUR1|cross the same pair twice in the same direction|liquidity pool once, order book once, strict send prefers order book on first hop|strict send" : [ "+5E2+b9qlXA=", "gAtPkUcbD8w=" ],
+	"liquidity pool trade|protocol version 21|CUR2, CUR1|cross the same pair twice in the same direction|liquidity pool once, order book once, strict send prefers order book on first hop|strict receive" : [ "KBYDfkuP11g=", "ggjwHd1CgnE=" ],
+	"liquidity pool trade|protocol version 21|CUR2, CUR1|cross the same pair twice in the same direction|liquidity pool once, order book once, strict send prefers order book on first hop|strict send" : [ "KBYDfkuP11g=", "gAtPkUcbD8w=" ],
 	"liquidity pool trade|protocol version 21|CUR2, CUR1|cross the same pair twice in the same direction|order book both times" : [ "Cy+LygCAnd4=", "ImD2R/MuPeA=", "Cy+LygCAnd4=", "ImD2R/MuPeA=" ],
-	"liquidity pool trade|protocol version 21|CUR2, CUR1|cross the same pair twice in the same direction|order book both times|strict receive" : [ "+5E2+b9qlXA=", "PVD/Pq4oGDo=" ],
-	"liquidity pool trade|protocol version 21|CUR2, CUR1|cross the same pair twice in the same direction|order book both times|strict send" : [ "+5E2+b9qlXA=", "PVD/Pq4oGDo=" ],
+	"liquidity pool trade|protocol version 21|CUR2, CUR1|cross the same pair twice in the same direction|order book both times|strict receive" : [ "KBYDfkuP11g=", "PVD/Pq4oGDo=" ],
+	"liquidity pool trade|protocol version 21|CUR2, CUR1|cross the same pair twice in the same direction|order book both times|strict send" : [ "KBYDfkuP11g=", "PVD/Pq4oGDo=" ],
 	"liquidity pool trade|protocol version 21|CUR2, CUR1|liquidity pool charges the correct fee" : 
 	[
 		"xPl/kiS3f9w=",
@@ -7492,8 +7492,8 @@
 		"7Il2Rhez4no=",
 		"I6HhmDO4bX0="
 	],
-	"liquidity pool trade|protocol version 21|CUR2, CUR1|liquidity pool charges the correct fee|strict receive" : [ "S+X023+YASE=", "HiwcNjF3Gm0=" ],
-	"liquidity pool trade|protocol version 21|CUR2, CUR1|liquidity pool charges the correct fee|strict send" : [ "S+X023+YASE=", "HiwcNjF3Gm0=" ],
+	"liquidity pool trade|protocol version 21|CUR2, CUR1|liquidity pool charges the correct fee|strict receive" : [ "dhpPS9P+Aks=", "HiwcNjF3Gm0=" ],
+	"liquidity pool trade|protocol version 21|CUR2, CUR1|liquidity pool charges the correct fee|strict send" : [ "dhpPS9P+Aks=", "HiwcNjF3Gm0=" ],
 	"liquidity pool trade|protocol version 21|CUR2, CUR1|max offers to cross" : 
 	[
 		"G865/7F2Qf8=",
@@ -7628,15 +7628,15 @@
 	"liquidity pool trade|protocol version 21|CUR2, CUR1|max offers to cross|liquidity pool fails when crossing one above limit" : 
 	[
 		"hlorNQq0VA8=",
-		"s9MN3Ht8n4w=",
+		"MkxTgS8fneA=",
 		"kPn0L8kIuO4=",
-		"LO+mB7fN9Y8=",
+		"11/g1Jdx6sg=",
 		"SGRlLdfM2bE=",
 		"lZt3JMDVd0A=",
-		"zGPGEwqFHVs="
+		"mldTTqGKRQ8="
 	],
 	"liquidity pool trade|protocol version 21|CUR2, CUR1|max offers to cross|liquidity pool succeeds when crossing limit" : [ "hlorNQq0VA8=", "3FXXPEjCIP0=" ],
-	"liquidity pool trade|protocol version 21|CUR2, CUR1|max offers to cross|order book fails when crossing one above limit" : [ "EMel6914sFU=", "s9MN3Ht8n4w=" ],
+	"liquidity pool trade|protocol version 21|CUR2, CUR1|max offers to cross|order book fails when crossing one above limit" : [ "EMel6914sFU=", "MkxTgS8fneA=" ],
 	"liquidity pool trade|protocol version 21|CUR2, CUR1|max offers to cross|order book succeeds when crossing limit" : [ "EMel6914sFU=", "7jT0LL2O/rw=" ],
 	"liquidity pool trade|protocol version 21|CUR2, CUR1|order book is better, but there is a self-trade" : 
 	[
@@ -7720,7 +7720,7 @@
 		"XUOc+UXt1UU=",
 		"jidVMVdCzgI="
 	],
-	"liquidity pool trade|protocol version 21|CUR2, CUR1|payment into pool would be larger than INT64_MAX|strict receive" : [ "S+X023+YASE=" ],
+	"liquidity pool trade|protocol version 21|CUR2, CUR1|payment into pool would be larger than INT64_MAX|strict receive" : [ "dhpPS9P+Aks=" ],
 	"liquidity pool trade|protocol version 21|CUR2, CUR1|payment through a pool that a market maker participates in" : 
 	[
 		"xPl/kiS3f9w=",
@@ -7839,8 +7839,8 @@
 		"cPf0x6A4H7Y=",
 		"diKEqOGKk4o="
 	],
-	"liquidity pool trade|protocol version 21|CUR2, CUR1|payment through empty liquidity pools|strict receive" : [ "8po600xpcG4=", "NBgAHDGnXO4=" ],
-	"liquidity pool trade|protocol version 21|CUR2, CUR1|payment through empty liquidity pools|strict send" : [ "8po600xpcG4=", "NBgAHDGnXO4=" ],
+	"liquidity pool trade|protocol version 21|CUR2, CUR1|payment through empty liquidity pools|strict receive" : [ "xL1cObiWGPM=", "jbigWZpiuy0=" ],
+	"liquidity pool trade|protocol version 21|CUR2, CUR1|payment through empty liquidity pools|strict send" : [ "xL1cObiWGPM=", "jbigWZpiuy0=" ],
 	"liquidity pool trade|protocol version 21|CUR2, CUR1|payment through pool after offer that yields nothing" : 
 	[
 		"xPl/kiS3f9w=",
@@ -7863,7 +7863,7 @@
 		"diKEqOGKk4o=",
 		"tGwB8puOK84="
 	],
-	"liquidity pool trade|protocol version 21|CUR2, CUR1|payment through pool after offer that yields nothing|strict send" : [ "ZX5rRJ64Ztc=", "wSFzfN3S7qE=" ],
+	"liquidity pool trade|protocol version 21|CUR2, CUR1|payment through pool after offer that yields nothing|strict send" : [ "s3tEc+ecluA=", "KXIK06IUmEI=" ],
 	"liquidity pool trade|protocol version 21|CUR2, CUR1|payment through pool that yields nothing" : 
 	[
 		"xPl/kiS3f9w=",
@@ -7879,7 +7879,7 @@
 		"0TbRE8YermI=",
 		"fiVZJNYiSGI="
 	],
-	"liquidity pool trade|protocol version 21|CUR2, CUR1|payment through pool that yields nothing|strict send" : [ "S+X023+YASE=" ],
+	"liquidity pool trade|protocol version 21|CUR2, CUR1|payment through pool that yields nothing|strict send" : [ "dhpPS9P+Aks=" ],
 	"liquidity pool trade|protocol version 21|CUR2, CUR1|payment would receive more than the reserve" : 
 	[
 		"xPl/kiS3f9w=",
@@ -7895,7 +7895,7 @@
 		"7Il2Rhez4no=",
 		"R969ucxI/mg="
 	],
-	"liquidity pool trade|protocol version 21|CUR2, CUR1|payment would receive more than the reserve|strict receive" : [ "S+X023+YASE=", "01/TK5Ed+VM=", "X4e2xjOSSUk=" ],
+	"liquidity pool trade|protocol version 21|CUR2, CUR1|payment would receive more than the reserve|strict receive" : [ "dhpPS9P+Aks=", "hUxDq4AUPfU=", "X4e2xjOSSUk=" ],
 	"liquidity pool trade|protocol version 21|CUR2, CUR1|trade fails due to excess reserves" : 
 	[
 		"xPl/kiS3f9w=",
@@ -7923,8 +7923,8 @@
 		"0TbRE8YermI=",
 		"tzhmhkEuR/4="
 	],
-	"liquidity pool trade|protocol version 21|CUR2, CUR1|trade fails due to excess reserves|strict receive" : [ "S+X023+YASE=", "otKF/O/utxY=" ],
-	"liquidity pool trade|protocol version 21|CUR2, CUR1|trade fails due to excess reserves|strict send" : [ "S+X023+YASE=", "otKF/O/utxY=" ],
+	"liquidity pool trade|protocol version 21|CUR2, CUR1|trade fails due to excess reserves|strict receive" : [ "dhpPS9P+Aks=", "otKF/O/utxY=" ],
+	"liquidity pool trade|protocol version 21|CUR2, CUR1|trade fails due to excess reserves|strict send" : [ "dhpPS9P+Aks=", "otKF/O/utxY=" ],
 	"liquidity pool trade|protocol version 21|without offers" : 
 	[
 		"xPl/kiS3f9w=",
@@ -8313,27 +8313,27 @@
 		"OXePC5HHJoQ="
 	],
 	"liquidity pool trade|protocol version 21|without offers|both non-native, strict receive|pool sells cur1|at limit" : [ "AOlKcccl3C8=" ],
-	"liquidity pool trade|protocol version 21|without offers|both non-native, strict receive|pool sells cur1|fails due to limit" : [ "Sq8UbqcQ+Ow=" ],
+	"liquidity pool trade|protocol version 21|without offers|both non-native, strict receive|pool sells cur1|fails due to limit" : [ "vYP5lSg2P+0=" ],
 	"liquidity pool trade|protocol version 21|without offers|both non-native, strict receive|pool sells cur1|satisfies limit" : [ "AOlKcccl3C8=" ],
 	"liquidity pool trade|protocol version 21|without offers|both non-native, strict receive|pool sells cur2|at limit" : [ "2lYCPqWWfcU=" ],
-	"liquidity pool trade|protocol version 21|without offers|both non-native, strict receive|pool sells cur2|fails due to limit" : [ "Sq8UbqcQ+Ow=" ],
+	"liquidity pool trade|protocol version 21|without offers|both non-native, strict receive|pool sells cur2|fails due to limit" : [ "vYP5lSg2P+0=" ],
 	"liquidity pool trade|protocol version 21|without offers|both non-native, strict receive|pool sells cur2|satisfies limit" : [ "2lYCPqWWfcU=" ],
 	"liquidity pool trade|protocol version 21|without offers|both non-native, strict send|pool sells cur1|at limit" : [ "AOlKcccl3C8=" ],
-	"liquidity pool trade|protocol version 21|without offers|both non-native, strict send|pool sells cur1|fails due to limit" : [ "Sq8UbqcQ+Ow=" ],
+	"liquidity pool trade|protocol version 21|without offers|both non-native, strict send|pool sells cur1|fails due to limit" : [ "vYP5lSg2P+0=" ],
 	"liquidity pool trade|protocol version 21|without offers|both non-native, strict send|pool sells cur1|satisfies limit" : [ "AOlKcccl3C8=" ],
 	"liquidity pool trade|protocol version 21|without offers|both non-native, strict send|pool sells cur2|at limit" : [ "2lYCPqWWfcU=" ],
-	"liquidity pool trade|protocol version 21|without offers|both non-native, strict send|pool sells cur2|fails due to limit" : [ "Sq8UbqcQ+Ow=" ],
+	"liquidity pool trade|protocol version 21|without offers|both non-native, strict send|pool sells cur2|fails due to limit" : [ "vYP5lSg2P+0=" ],
 	"liquidity pool trade|protocol version 21|without offers|both non-native, strict send|pool sells cur2|satisfies limit" : [ "2lYCPqWWfcU=" ],
 	"liquidity pool trade|protocol version 21|without offers|one native, strict receive|pool sells cur1|at limit" : [ "lPBHvmM99SM=" ],
-	"liquidity pool trade|protocol version 21|without offers|one native, strict receive|pool sells cur1|fails due to limit" : [ "Sq8UbqcQ+Ow=" ],
+	"liquidity pool trade|protocol version 21|without offers|one native, strict receive|pool sells cur1|fails due to limit" : [ "vYP5lSg2P+0=" ],
 	"liquidity pool trade|protocol version 21|without offers|one native, strict receive|pool sells cur1|satisfies limit" : [ "lPBHvmM99SM=" ],
 	"liquidity pool trade|protocol version 21|without offers|one native, strict receive|pool sells native|at limit" : [ "PM87IZKHG0E=" ],
-	"liquidity pool trade|protocol version 21|without offers|one native, strict receive|pool sells native|fails due to limit" : [ "Sq8UbqcQ+Ow=" ],
+	"liquidity pool trade|protocol version 21|without offers|one native, strict receive|pool sells native|fails due to limit" : [ "vYP5lSg2P+0=" ],
 	"liquidity pool trade|protocol version 21|without offers|one native, strict receive|pool sells native|satisfies limit" : [ "PM87IZKHG0E=" ],
 	"liquidity pool trade|protocol version 21|without offers|one native, strict send|pool sells cur1|at limit" : [ "lPBHvmM99SM=" ],
-	"liquidity pool trade|protocol version 21|without offers|one native, strict send|pool sells cur1|fails due to limit" : [ "Sq8UbqcQ+Ow=" ],
+	"liquidity pool trade|protocol version 21|without offers|one native, strict send|pool sells cur1|fails due to limit" : [ "vYP5lSg2P+0=" ],
 	"liquidity pool trade|protocol version 21|without offers|one native, strict send|pool sells cur1|satisfies limit" : [ "lPBHvmM99SM=" ],
 	"liquidity pool trade|protocol version 21|without offers|one native, strict send|pool sells native|at limit" : [ "PM87IZKHG0E=" ],
-	"liquidity pool trade|protocol version 21|without offers|one native, strict send|pool sells native|fails due to limit" : [ "Sq8UbqcQ+Ow=" ],
+	"liquidity pool trade|protocol version 21|without offers|one native, strict send|pool sells native|fails due to limit" : [ "vYP5lSg2P+0=" ],
 	"liquidity pool trade|protocol version 21|without offers|one native, strict send|pool sells native|satisfies limit" : [ "PM87IZKHG0E=" ]
 }

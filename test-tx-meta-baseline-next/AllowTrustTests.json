@@ -2210,33 +2210,33 @@
 		"3oyZ/DYCsyg=",
 		"56iY1UsCCjw="
 	],
-	"allow trust|protocol version 20|allow trust|allow trust not required" : [ "VgNI4YGEs1I=", "vxJLrIMq9c8=" ],
+	"allow trust|protocol version 20|allow trust|allow trust not required" : [ "nO6VZurtCMQ=", "ezFHIXc/v7w=" ],
 	"allow trust|protocol version 20|allow trust|allow trust not required with payment" : [ "HKqsf7tvl0M=", "ac9h/WJGX9c=", "a8KsgezReFI=" ],
 	"allow trust|protocol version 20|allow trust|allow trust required" : 
 	[
 		"reAZdppITA4=",
 		"pNb4yqxL2sU=",
-		"cSq5P+IUd+o=",
+		"bfPt5EvwgH8=",
 		"3aWSS6LngO8=",
 		"1zvkAsmu2Po=",
 		"reAZdppITA4=",
 		"pNb4yqxL2sU=",
-		"cSq5P+IUd+o=",
+		"bfPt5EvwgH8=",
 		"3aWSS6LngO8=",
 		"1zvkAsmu2Po=",
 		"reAZdppITA4=",
 		"pNb4yqxL2sU=",
-		"cSq5P+IUd+o=",
+		"bfPt5EvwgH8=",
 		"3aWSS6LngO8=",
 		"1zvkAsmu2Po="
 	],
-	"allow trust|protocol version 20|allow trust|allow trust required|do not set revocable flag" : [ "3bfaQtqUNek=", "cQ+Ym9w7MIo=", "0xwM/GYhVfM=" ],
-	"allow trust|protocol version 20|allow trust|allow trust required|invalid authorization flag" : [ "3bfaQtqUNek=", "BjxBZQE6XeE=" ],
+	"allow trust|protocol version 20|allow trust|allow trust required|do not set revocable flag" : [ "TyWGQnk7ckE=", "cQ+Ym9w7MIo=", "jcMa97k9RH8=" ],
+	"allow trust|protocol version 20|allow trust|allow trust required|invalid authorization flag" : [ "TyWGQnk7ckE=", "ITmApUzbZ+0=" ],
 	"allow trust|protocol version 20|allow trust|allow trust required|set revocable flag" : 
 	[
 		"cB4bYW7NXJg=",
 		"Ub9rOUTCehw=",
-		"UyYoW6Wc/pk=",
+		"eV1N5zLFbJM=",
 		"atPhUiYJunE=",
 		"PotFfyIINTY="
 	],
@@ -2265,8 +2265,8 @@
 		"amkXObaSC9c="
 	],
 	"allow trust|protocol version 20|allow trust|allow trust without trustline" : [ "reAZdppITA4=", "reAZdppITA4=" ],
-	"allow trust|protocol version 20|allow trust|allow trust without trustline|do not set revocable flag" : [ "/oQZhgWI7a8=", "2twOJO+0vwA=" ],
-	"allow trust|protocol version 20|allow trust|allow trust without trustline|set revocable flag" : [ "nt9XqBic/44=", "HWbrW4KZlvQ=", "cJ3psQk/t7w=" ],
+	"allow trust|protocol version 20|allow trust|allow trust without trustline|do not set revocable flag" : [ "Srw7j/iPhWc=", "qWrtigEB1Zw=" ],
+	"allow trust|protocol version 20|allow trust|allow trust without trustline|set revocable flag" : [ "nt9XqBic/44=", "9WMAEU2vd6A=", "QIdz80+r2No=" ],
 	"allow trust|protocol version 20|allow trust|authorize when AUTH_REQUIRED is not set" : 
 	[
 		"reAZdppITA4=",
@@ -2276,10 +2276,10 @@
 		"0af/kz6w0yo="
 	],
 	"allow trust|protocol version 20|allow trust|revoke when AUTH_REQUIRED is not set" : [ "HKqsf7tvl0M=", "7hNDSrpDnAY=", "hdkcmOCZIhw=" ],
-	"allow trust|protocol version 20|allow trust|self allow trust|allow trust with trustline" : [ "VgNI4YGEs1I=", "vxJLrIMq9c8=" ],
+	"allow trust|protocol version 20|allow trust|self allow trust|allow trust with trustline" : [ "nO6VZurtCMQ=", "ezFHIXc/v7w=" ],
 	"allow trust|protocol version 20|allow trust|self allow trust|allow trust without explicit trustline" : [ "reAZdppITA4=", "reAZdppITA4=" ],
-	"allow trust|protocol version 20|allow trust|self allow trust|allow trust without explicit trustline|do not set revocable flag" : [ "/oQZhgWI7a8=", "2twOJO+0vwA=" ],
-	"allow trust|protocol version 20|allow trust|self allow trust|allow trust without explicit trustline|set revocable flag" : [ "nt9XqBic/44=", "HWbrW4KZlvQ=", "cJ3psQk/t7w=" ],
+	"allow trust|protocol version 20|allow trust|self allow trust|allow trust without explicit trustline|do not set revocable flag" : [ "Srw7j/iPhWc=", "qWrtigEB1Zw=" ],
+	"allow trust|protocol version 20|allow trust|self allow trust|allow trust without explicit trustline|set revocable flag" : [ "nt9XqBic/44=", "9WMAEU2vd6A=", "QIdz80+r2No=" ],
 	"allow trust|protocol version 20|allow trust|with clawback" : [ "m9QQXxWXahM=", "Zcatoq32g9U=", "m9QQXxWXahM=", "Zcatoq32g9U=" ],
 	"allow trust|protocol version 20|allow trust|with clawback|remove offers by pulling auth while clawback is enabled" : [ "mV6XNJ2LpNQ=", "snIMvUxiPKQ=" ],
 	"allow trust|protocol version 20|allow trust|with clawback|trustline auth changes while clawback is enabled" : [ "d9rmWIi/kBc=", "90eekNsR6cY=", "U52vvv8buJg=" ],
@@ -2337,33 +2337,33 @@
 		"3oyZ/DYCsyg=",
 		"56iY1UsCCjw="
 	],
-	"allow trust|protocol version 20|set trust line flags|allow trust not required" : [ "VgNI4YGEs1I=", "vxJLrIMq9c8=" ],
+	"allow trust|protocol version 20|set trust line flags|allow trust not required" : [ "nO6VZurtCMQ=", "ezFHIXc/v7w=" ],
 	"allow trust|protocol version 20|set trust line flags|allow trust not required with payment" : [ "HKqsf7tvl0M=", "ac9h/WJGX9c=", "a8KsgezReFI=" ],
 	"allow trust|protocol version 20|set trust line flags|allow trust required" : 
 	[
 		"reAZdppITA4=",
 		"pNb4yqxL2sU=",
-		"cSq5P+IUd+o=",
+		"bfPt5EvwgH8=",
 		"3aWSS6LngO8=",
 		"1zvkAsmu2Po=",
 		"reAZdppITA4=",
 		"pNb4yqxL2sU=",
-		"cSq5P+IUd+o=",
+		"bfPt5EvwgH8=",
 		"3aWSS6LngO8=",
 		"1zvkAsmu2Po=",
 		"reAZdppITA4=",
 		"pNb4yqxL2sU=",
-		"cSq5P+IUd+o=",
+		"bfPt5EvwgH8=",
 		"3aWSS6LngO8=",
 		"1zvkAsmu2Po="
 	],
-	"allow trust|protocol version 20|set trust line flags|allow trust required|do not set revocable flag" : [ "3bfaQtqUNek=", "cQ+Ym9w7MIo=", "0xwM/GYhVfM=" ],
-	"allow trust|protocol version 20|set trust line flags|allow trust required|invalid authorization flag" : [ "3bfaQtqUNek=", "BjxBZQE6XeE=" ],
+	"allow trust|protocol version 20|set trust line flags|allow trust required|do not set revocable flag" : [ "TyWGQnk7ckE=", "cQ+Ym9w7MIo=", "jcMa97k9RH8=" ],
+	"allow trust|protocol version 20|set trust line flags|allow trust required|invalid authorization flag" : [ "TyWGQnk7ckE=", "ITmApUzbZ+0=" ],
 	"allow trust|protocol version 20|set trust line flags|allow trust required|set revocable flag" : 
 	[
 		"cB4bYW7NXJg=",
 		"Ub9rOUTCehw=",
-		"UyYoW6Wc/pk=",
+		"eV1N5zLFbJM=",
 		"atPhUiYJunE=",
 		"PotFfyIINTY="
 	],
@@ -2392,8 +2392,8 @@
 		"amkXObaSC9c="
 	],
 	"allow trust|protocol version 20|set trust line flags|allow trust without trustline" : [ "reAZdppITA4=", "reAZdppITA4=" ],
-	"allow trust|protocol version 20|set trust line flags|allow trust without trustline|do not set revocable flag" : [ "/oQZhgWI7a8=", "2twOJO+0vwA=" ],
-	"allow trust|protocol version 20|set trust line flags|allow trust without trustline|set revocable flag" : [ "nt9XqBic/44=", "HWbrW4KZlvQ=", "cJ3psQk/t7w=" ],
+	"allow trust|protocol version 20|set trust line flags|allow trust without trustline|do not set revocable flag" : [ "Srw7j/iPhWc=", "qWrtigEB1Zw=" ],
+	"allow trust|protocol version 20|set trust line flags|allow trust without trustline|set revocable flag" : [ "nt9XqBic/44=", "9WMAEU2vd6A=", "QIdz80+r2No=" ],
 	"allow trust|protocol version 20|set trust line flags|authorize when AUTH_REQUIRED is not set" : 
 	[
 		"reAZdppITA4=",
@@ -2403,10 +2403,10 @@
 		"0af/kz6w0yo="
 	],
 	"allow trust|protocol version 20|set trust line flags|revoke when AUTH_REQUIRED is not set" : [ "HKqsf7tvl0M=", "7hNDSrpDnAY=", "hdkcmOCZIhw=" ],
-	"allow trust|protocol version 20|set trust line flags|self allow trust|allow trust with trustline" : [ "VgNI4YGEs1I=", "vxJLrIMq9c8=" ],
+	"allow trust|protocol version 20|set trust line flags|self allow trust|allow trust with trustline" : [ "nO6VZurtCMQ=", "ezFHIXc/v7w=" ],
 	"allow trust|protocol version 20|set trust line flags|self allow trust|allow trust without explicit trustline" : [ "reAZdppITA4=", "reAZdppITA4=" ],
-	"allow trust|protocol version 20|set trust line flags|self allow trust|allow trust without explicit trustline|do not set revocable flag" : [ "/oQZhgWI7a8=", "2twOJO+0vwA=" ],
-	"allow trust|protocol version 20|set trust line flags|self allow trust|allow trust without explicit trustline|set revocable flag" : [ "nt9XqBic/44=", "HWbrW4KZlvQ=", "cJ3psQk/t7w=" ],
+	"allow trust|protocol version 20|set trust line flags|self allow trust|allow trust without explicit trustline|do not set revocable flag" : [ "Srw7j/iPhWc=", "qWrtigEB1Zw=" ],
+	"allow trust|protocol version 20|set trust line flags|self allow trust|allow trust without explicit trustline|set revocable flag" : [ "nt9XqBic/44=", "9WMAEU2vd6A=", "QIdz80+r2No=" ],
 	"allow trust|protocol version 20|set trust line flags|with clawback" : [ "m9QQXxWXahM=", "Zcatoq32g9U=", "m9QQXxWXahM=", "Zcatoq32g9U=" ],
 	"allow trust|protocol version 20|set trust line flags|with clawback|remove offers by pulling auth while clawback is enabled" : [ "mV6XNJ2LpNQ=", "snIMvUxiPKQ=" ],
 	"allow trust|protocol version 20|set trust line flags|with clawback|trustline auth changes while clawback is enabled" : [ "d9rmWIi/kBc=", "90eekNsR6cY=", "U52vvv8buJg=" ],
@@ -2464,33 +2464,33 @@
 		"3oyZ/DYCsyg=",
 		"56iY1UsCCjw="
 	],
-	"allow trust|protocol version 21|allow trust|allow trust not required" : [ "VgNI4YGEs1I=", "vxJLrIMq9c8=" ],
+	"allow trust|protocol version 21|allow trust|allow trust not required" : [ "nO6VZurtCMQ=", "ezFHIXc/v7w=" ],
 	"allow trust|protocol version 21|allow trust|allow trust not required with payment" : [ "HKqsf7tvl0M=", "ac9h/WJGX9c=", "a8KsgezReFI=" ],
 	"allow trust|protocol version 21|allow trust|allow trust required" : 
 	[
 		"reAZdppITA4=",
 		"pNb4yqxL2sU=",
-		"cSq5P+IUd+o=",
+		"bfPt5EvwgH8=",
 		"3aWSS6LngO8=",
 		"1zvkAsmu2Po=",
 		"reAZdppITA4=",
 		"pNb4yqxL2sU=",
-		"cSq5P+IUd+o=",
+		"bfPt5EvwgH8=",
 		"3aWSS6LngO8=",
 		"1zvkAsmu2Po=",
 		"reAZdppITA4=",
 		"pNb4yqxL2sU=",
-		"cSq5P+IUd+o=",
+		"bfPt5EvwgH8=",
 		"3aWSS6LngO8=",
 		"1zvkAsmu2Po="
 	],
-	"allow trust|protocol version 21|allow trust|allow trust required|do not set revocable flag" : [ "3bfaQtqUNek=", "cQ+Ym9w7MIo=", "0xwM/GYhVfM=" ],
-	"allow trust|protocol version 21|allow trust|allow trust required|invalid authorization flag" : [ "3bfaQtqUNek=", "BjxBZQE6XeE=" ],
+	"allow trust|protocol version 21|allow trust|allow trust required|do not set revocable flag" : [ "TyWGQnk7ckE=", "cQ+Ym9w7MIo=", "jcMa97k9RH8=" ],
+	"allow trust|protocol version 21|allow trust|allow trust required|invalid authorization flag" : [ "TyWGQnk7ckE=", "ITmApUzbZ+0=" ],
 	"allow trust|protocol version 21|allow trust|allow trust required|set revocable flag" : 
 	[
 		"cB4bYW7NXJg=",
 		"Ub9rOUTCehw=",
-		"UyYoW6Wc/pk=",
+		"eV1N5zLFbJM=",
 		"atPhUiYJunE=",
 		"PotFfyIINTY="
 	],
@@ -2519,8 +2519,8 @@
 		"amkXObaSC9c="
 	],
 	"allow trust|protocol version 21|allow trust|allow trust without trustline" : [ "reAZdppITA4=", "reAZdppITA4=" ],
-	"allow trust|protocol version 21|allow trust|allow trust without trustline|do not set revocable flag" : [ "/oQZhgWI7a8=", "2twOJO+0vwA=" ],
-	"allow trust|protocol version 21|allow trust|allow trust without trustline|set revocable flag" : [ "nt9XqBic/44=", "HWbrW4KZlvQ=", "cJ3psQk/t7w=" ],
+	"allow trust|protocol version 21|allow trust|allow trust without trustline|do not set revocable flag" : [ "Srw7j/iPhWc=", "qWrtigEB1Zw=" ],
+	"allow trust|protocol version 21|allow trust|allow trust without trustline|set revocable flag" : [ "nt9XqBic/44=", "9WMAEU2vd6A=", "QIdz80+r2No=" ],
 	"allow trust|protocol version 21|allow trust|authorize when AUTH_REQUIRED is not set" : 
 	[
 		"reAZdppITA4=",
@@ -2530,10 +2530,10 @@
 		"0af/kz6w0yo="
 	],
 	"allow trust|protocol version 21|allow trust|revoke when AUTH_REQUIRED is not set" : [ "HKqsf7tvl0M=", "7hNDSrpDnAY=", "hdkcmOCZIhw=" ],
-	"allow trust|protocol version 21|allow trust|self allow trust|allow trust with trustline" : [ "VgNI4YGEs1I=", "vxJLrIMq9c8=" ],
+	"allow trust|protocol version 21|allow trust|self allow trust|allow trust with trustline" : [ "nO6VZurtCMQ=", "ezFHIXc/v7w=" ],
 	"allow trust|protocol version 21|allow trust|self allow trust|allow trust without explicit trustline" : [ "reAZdppITA4=", "reAZdppITA4=" ],
-	"allow trust|protocol version 21|allow trust|self allow trust|allow trust without explicit trustline|do not set revocable flag" : [ "/oQZhgWI7a8=", "2twOJO+0vwA=" ],
-	"allow trust|protocol version 21|allow trust|self allow trust|allow trust without explicit trustline|set revocable flag" : [ "nt9XqBic/44=", "HWbrW4KZlvQ=", "cJ3psQk/t7w=" ],
+	"allow trust|protocol version 21|allow trust|self allow trust|allow trust without explicit trustline|do not set revocable flag" : [ "Srw7j/iPhWc=", "qWrtigEB1Zw=" ],
+	"allow trust|protocol version 21|allow trust|self allow trust|allow trust without explicit trustline|set revocable flag" : [ "nt9XqBic/44=", "9WMAEU2vd6A=", "QIdz80+r2No=" ],
 	"allow trust|protocol version 21|allow trust|with clawback" : [ "m9QQXxWXahM=", "Zcatoq32g9U=", "m9QQXxWXahM=", "Zcatoq32g9U=" ],
 	"allow trust|protocol version 21|allow trust|with clawback|remove offers by pulling auth while clawback is enabled" : [ "mV6XNJ2LpNQ=", "snIMvUxiPKQ=" ],
 	"allow trust|protocol version 21|allow trust|with clawback|trustline auth changes while clawback is enabled" : [ "d9rmWIi/kBc=", "90eekNsR6cY=", "U52vvv8buJg=" ],
@@ -2591,33 +2591,33 @@
 		"3oyZ/DYCsyg=",
 		"56iY1UsCCjw="
 	],
-	"allow trust|protocol version 21|set trust line flags|allow trust not required" : [ "VgNI4YGEs1I=", "vxJLrIMq9c8=" ],
+	"allow trust|protocol version 21|set trust line flags|allow trust not required" : [ "nO6VZurtCMQ=", "ezFHIXc/v7w=" ],
 	"allow trust|protocol version 21|set trust line flags|allow trust not required with payment" : [ "HKqsf7tvl0M=", "ac9h/WJGX9c=", "a8KsgezReFI=" ],
 	"allow trust|protocol version 21|set trust line flags|allow trust required" : 
 	[
 		"reAZdppITA4=",
 		"pNb4yqxL2sU=",
-		"cSq5P+IUd+o=",
+		"bfPt5EvwgH8=",
 		"3aWSS6LngO8=",
 		"1zvkAsmu2Po=",
 		"reAZdppITA4=",
 		"pNb4yqxL2sU=",
-		"cSq5P+IUd+o=",
+		"bfPt5EvwgH8=",
 		"3aWSS6LngO8=",
 		"1zvkAsmu2Po=",
 		"reAZdppITA4=",
 		"pNb4yqxL2sU=",
-		"cSq5P+IUd+o=",
+		"bfPt5EvwgH8=",
 		"3aWSS6LngO8=",
 		"1zvkAsmu2Po="
 	],
-	"allow trust|protocol version 21|set trust line flags|allow trust required|do not set revocable flag" : [ "3bfaQtqUNek=", "cQ+Ym9w7MIo=", "0xwM/GYhVfM=" ],
-	"allow trust|protocol version 21|set trust line flags|allow trust required|invalid authorization flag" : [ "3bfaQtqUNek=", "BjxBZQE6XeE=" ],
+	"allow trust|protocol version 21|set trust line flags|allow trust required|do not set revocable flag" : [ "TyWGQnk7ckE=", "cQ+Ym9w7MIo=", "jcMa97k9RH8=" ],
+	"allow trust|protocol version 21|set trust line flags|allow trust required|invalid authorization flag" : [ "TyWGQnk7ckE=", "ITmApUzbZ+0=" ],
 	"allow trust|protocol version 21|set trust line flags|allow trust required|set revocable flag" : 
 	[
 		"cB4bYW7NXJg=",
 		"Ub9rOUTCehw=",
-		"UyYoW6Wc/pk=",
+		"eV1N5zLFbJM=",
 		"atPhUiYJunE=",
 		"PotFfyIINTY="
 	],
@@ -2646,8 +2646,8 @@
 		"amkXObaSC9c="
 	],
 	"allow trust|protocol version 21|set trust line flags|allow trust without trustline" : [ "reAZdppITA4=", "reAZdppITA4=" ],
-	"allow trust|protocol version 21|set trust line flags|allow trust without trustline|do not set revocable flag" : [ "/oQZhgWI7a8=", "2twOJO+0vwA=" ],
-	"allow trust|protocol version 21|set trust line flags|allow trust without trustline|set revocable flag" : [ "nt9XqBic/44=", "HWbrW4KZlvQ=", "cJ3psQk/t7w=" ],
+	"allow trust|protocol version 21|set trust line flags|allow trust without trustline|do not set revocable flag" : [ "Srw7j/iPhWc=", "qWrtigEB1Zw=" ],
+	"allow trust|protocol version 21|set trust line flags|allow trust without trustline|set revocable flag" : [ "nt9XqBic/44=", "9WMAEU2vd6A=", "QIdz80+r2No=" ],
 	"allow trust|protocol version 21|set trust line flags|authorize when AUTH_REQUIRED is not set" : 
 	[
 		"reAZdppITA4=",
@@ -2657,10 +2657,10 @@
 		"0af/kz6w0yo="
 	],
 	"allow trust|protocol version 21|set trust line flags|revoke when AUTH_REQUIRED is not set" : [ "HKqsf7tvl0M=", "7hNDSrpDnAY=", "hdkcmOCZIhw=" ],
-	"allow trust|protocol version 21|set trust line flags|self allow trust|allow trust with trustline" : [ "VgNI4YGEs1I=", "vxJLrIMq9c8=" ],
+	"allow trust|protocol version 21|set trust line flags|self allow trust|allow trust with trustline" : [ "nO6VZurtCMQ=", "ezFHIXc/v7w=" ],
 	"allow trust|protocol version 21|set trust line flags|self allow trust|allow trust without explicit trustline" : [ "reAZdppITA4=", "reAZdppITA4=" ],
-	"allow trust|protocol version 21|set trust line flags|self allow trust|allow trust without explicit trustline|do not set revocable flag" : [ "/oQZhgWI7a8=", "2twOJO+0vwA=" ],
-	"allow trust|protocol version 21|set trust line flags|self allow trust|allow trust without explicit trustline|set revocable flag" : [ "nt9XqBic/44=", "HWbrW4KZlvQ=", "cJ3psQk/t7w=" ],
+	"allow trust|protocol version 21|set trust line flags|self allow trust|allow trust without explicit trustline|do not set revocable flag" : [ "Srw7j/iPhWc=", "qWrtigEB1Zw=" ],
+	"allow trust|protocol version 21|set trust line flags|self allow trust|allow trust without explicit trustline|set revocable flag" : [ "nt9XqBic/44=", "9WMAEU2vd6A=", "QIdz80+r2No=" ],
 	"allow trust|protocol version 21|set trust line flags|with clawback" : [ "m9QQXxWXahM=", "Zcatoq32g9U=", "m9QQXxWXahM=", "Zcatoq32g9U=" ],
 	"allow trust|protocol version 21|set trust line flags|with clawback|remove offers by pulling auth while clawback is enabled" : [ "mV6XNJ2LpNQ=", "snIMvUxiPKQ=" ],
 	"allow trust|protocol version 21|set trust line flags|with clawback|trustline auth changes while clawback is enabled" : [ "d9rmWIi/kBc=", "90eekNsR6cY=", "U52vvv8buJg=" ],
@@ -8110,7 +8110,7 @@
 		"fcd9kxN7XJA=",
 		"IyseEzLVAec="
 	],
-	"authorized to maintain liabilities|protocol version 20|allow trust|AUTHORIZED_FLAG and AUTHORIZED_TO_MAINTAIN_LIABILITIES_FLAG can't be used together" : [ "sqZL8d0PaxM=" ],
+	"authorized to maintain liabilities|protocol version 20|allow trust|AUTHORIZED_FLAG and AUTHORIZED_TO_MAINTAIN_LIABILITIES_FLAG can't be used together" : [ "OFFSK/Q3dHc=" ],
 	"authorized to maintain liabilities|protocol version 20|allow trust|auth transition tests" : 
 	[
 		"JldMbjlYtPo=",
@@ -8122,8 +8122,8 @@
 		"29zWMsimHA0=",
 		"5yXlcZw08Yw="
 	],
-	"authorized to maintain liabilities|protocol version 20|allow trust|auth transition tests|authorized -> authorized to maintain liabilities" : [ "S5+CZKSfsVQ=", "Tm8LqvyleiM=" ],
-	"authorized to maintain liabilities|protocol version 20|allow trust|auth transition tests|authorized to maintain liabilities -> not authorized" : [ "C2bUBUnv+DU=", "Tm8LqvyleiM=" ],
+	"authorized to maintain liabilities|protocol version 20|allow trust|auth transition tests|authorized -> authorized to maintain liabilities" : [ "S5+CZKSfsVQ=", "PiB+OWjIzOc=" ],
+	"authorized to maintain liabilities|protocol version 20|allow trust|auth transition tests|authorized to maintain liabilities -> not authorized" : [ "C2bUBUnv+DU=", "PiB+OWjIzOc=" ],
 	"authorized to maintain liabilities|protocol version 20|allow trust|offer tests|buying asset is only allowed to maintain liabilities" : 
 	[
 		"SXGeD1ZZzI4=",
@@ -8138,12 +8138,12 @@
 		"SXGeD1ZZzI4=",
 		"SXGeD1ZZzI4="
 	],
-	"authorized to maintain liabilities|protocol version 20|allow trust|offer tests|buying asset is only allowed to maintain liabilities|can't add offer" : [ "uC9kWFagFBQ=" ],
+	"authorized to maintain liabilities|protocol version 20|allow trust|offer tests|buying asset is only allowed to maintain liabilities|can't add offer" : [ "iNnvGq6QHu0=" ],
 	"authorized to maintain liabilities|protocol version 20|allow trust|offer tests|buying asset is only allowed to maintain liabilities|can't update offer|change buying asset" : [ "GXuDumU6Zq8=" ],
-	"authorized to maintain liabilities|protocol version 20|allow trust|offer tests|buying asset is only allowed to maintain liabilities|can't update offer|change selling asset" : [ "uC9kWFagFBQ=" ],
-	"authorized to maintain liabilities|protocol version 20|allow trust|offer tests|buying asset is only allowed to maintain liabilities|can't update offer|swap assets" : [ "uC9kWFagFBQ=" ],
-	"authorized to maintain liabilities|protocol version 20|allow trust|offer tests|buying asset is only allowed to maintain liabilities|can't update offer|try updating amount" : [ "uC9kWFagFBQ=", "uC9kWFagFBQ=" ],
-	"authorized to maintain liabilities|protocol version 20|allow trust|offer tests|buying asset is only allowed to maintain liabilities|can't update offer|try updating price" : [ "uC9kWFagFBQ=", "uC9kWFagFBQ=" ],
+	"authorized to maintain liabilities|protocol version 20|allow trust|offer tests|buying asset is only allowed to maintain liabilities|can't update offer|change selling asset" : [ "iNnvGq6QHu0=" ],
+	"authorized to maintain liabilities|protocol version 20|allow trust|offer tests|buying asset is only allowed to maintain liabilities|can't update offer|swap assets" : [ "iNnvGq6QHu0=" ],
+	"authorized to maintain liabilities|protocol version 20|allow trust|offer tests|buying asset is only allowed to maintain liabilities|can't update offer|try updating amount" : [ "iNnvGq6QHu0=", "iNnvGq6QHu0=" ],
+	"authorized to maintain liabilities|protocol version 20|allow trust|offer tests|buying asset is only allowed to maintain liabilities|can't update offer|try updating price" : [ "iNnvGq6QHu0=", "iNnvGq6QHu0=" ],
 	"authorized to maintain liabilities|protocol version 20|allow trust|offer tests|buying asset is only allowed to maintain liabilities|delete offer" : [ "9eNzUGjQ5LA=" ],
 	"authorized to maintain liabilities|protocol version 20|allow trust|offer tests|buying asset is only allowed to maintain liabilities|don't pull orders until denyTrust|denyTrust on buying asset" : [ "Y1fuxLO6+fU=" ],
 	"authorized to maintain liabilities|protocol version 20|allow trust|offer tests|buying asset is only allowed to maintain liabilities|don't pull orders until denyTrust|denyTrust on selling asset" : [ "pf6WgLi9y1M=" ],
@@ -8161,18 +8161,18 @@
 		"9XqjciaIDck=",
 		"9XqjciaIDck="
 	],
-	"authorized to maintain liabilities|protocol version 20|allow trust|offer tests|selling asset is only allowed to maintain liabilities|can't add offer" : [ "uC9kWFagFBQ=" ],
-	"authorized to maintain liabilities|protocol version 20|allow trust|offer tests|selling asset is only allowed to maintain liabilities|can't update offer|change buying asset" : [ "uC9kWFagFBQ=" ],
+	"authorized to maintain liabilities|protocol version 20|allow trust|offer tests|selling asset is only allowed to maintain liabilities|can't add offer" : [ "iNnvGq6QHu0=" ],
+	"authorized to maintain liabilities|protocol version 20|allow trust|offer tests|selling asset is only allowed to maintain liabilities|can't update offer|change buying asset" : [ "iNnvGq6QHu0=" ],
 	"authorized to maintain liabilities|protocol version 20|allow trust|offer tests|selling asset is only allowed to maintain liabilities|can't update offer|change selling asset" : [ "RFXB8Tivg7Q=" ],
-	"authorized to maintain liabilities|protocol version 20|allow trust|offer tests|selling asset is only allowed to maintain liabilities|can't update offer|swap assets" : [ "uC9kWFagFBQ=" ],
-	"authorized to maintain liabilities|protocol version 20|allow trust|offer tests|selling asset is only allowed to maintain liabilities|can't update offer|try updating amount" : [ "uC9kWFagFBQ=", "uC9kWFagFBQ=" ],
-	"authorized to maintain liabilities|protocol version 20|allow trust|offer tests|selling asset is only allowed to maintain liabilities|can't update offer|try updating price" : [ "uC9kWFagFBQ=", "uC9kWFagFBQ=" ],
+	"authorized to maintain liabilities|protocol version 20|allow trust|offer tests|selling asset is only allowed to maintain liabilities|can't update offer|swap assets" : [ "iNnvGq6QHu0=" ],
+	"authorized to maintain liabilities|protocol version 20|allow trust|offer tests|selling asset is only allowed to maintain liabilities|can't update offer|try updating amount" : [ "iNnvGq6QHu0=", "iNnvGq6QHu0=" ],
+	"authorized to maintain liabilities|protocol version 20|allow trust|offer tests|selling asset is only allowed to maintain liabilities|can't update offer|try updating price" : [ "iNnvGq6QHu0=", "iNnvGq6QHu0=" ],
 	"authorized to maintain liabilities|protocol version 20|allow trust|offer tests|selling asset is only allowed to maintain liabilities|delete offer" : [ "UV69tkqkUWw=" ],
 	"authorized to maintain liabilities|protocol version 20|allow trust|offer tests|selling asset is only allowed to maintain liabilities|don't pull orders until denyTrust|denyTrust on buying asset" : [ "ddO4nL22UhE=" ],
 	"authorized to maintain liabilities|protocol version 20|allow trust|offer tests|selling asset is only allowed to maintain liabilities|don't pull orders until denyTrust|denyTrust on selling asset" : [ "ZmTZyD1h67k=" ],
 	"authorized to maintain liabilities|protocol version 20|allow trust|payment tests" : [ "SXGeD1ZZzI4=", "SXGeD1ZZzI4=" ],
-	"authorized to maintain liabilities|protocol version 20|allow trust|payment tests|can't receive payment" : [ "RxuCqCvwdg8=", "JS4yDjgTFrg=", "cNkyGJa8ymE=", "GBSppbrsn2c=" ],
-	"authorized to maintain liabilities|protocol version 20|allow trust|payment tests|can't send payment" : [ "uC9kWFagFBQ=" ],
+	"authorized to maintain liabilities|protocol version 20|allow trust|payment tests|can't receive payment" : [ "RxuCqCvwdg8=", "JS4yDjgTFrg=", "cNkyGJa8ymE=", "969/+oHEQBI=" ],
+	"authorized to maintain liabilities|protocol version 20|allow trust|payment tests|can't send payment" : [ "iNnvGq6QHu0=" ],
 	"authorized to maintain liabilities|protocol version 20|set trust line flags" : 
 	[
 		"6pn+xepWlLU=",
@@ -8484,7 +8484,7 @@
 		"fcd9kxN7XJA=",
 		"IyseEzLVAec="
 	],
-	"authorized to maintain liabilities|protocol version 20|set trust line flags|AUTHORIZED_FLAG and AUTHORIZED_TO_MAINTAIN_LIABILITIES_FLAG can't be used together" : [ "sqZL8d0PaxM=" ],
+	"authorized to maintain liabilities|protocol version 20|set trust line flags|AUTHORIZED_FLAG and AUTHORIZED_TO_MAINTAIN_LIABILITIES_FLAG can't be used together" : [ "OFFSK/Q3dHc=" ],
 	"authorized to maintain liabilities|protocol version 20|set trust line flags|auth transition tests" : 
 	[
 		"JldMbjlYtPo=",
@@ -8496,8 +8496,8 @@
 		"29zWMsimHA0=",
 		"5yXlcZw08Yw="
 	],
-	"authorized to maintain liabilities|protocol version 20|set trust line flags|auth transition tests|authorized -> authorized to maintain liabilities" : [ "S5+CZKSfsVQ=", "Tm8LqvyleiM=" ],
-	"authorized to maintain liabilities|protocol version 20|set trust line flags|auth transition tests|authorized to maintain liabilities -> not authorized" : [ "C2bUBUnv+DU=", "Tm8LqvyleiM=" ],
+	"authorized to maintain liabilities|protocol version 20|set trust line flags|auth transition tests|authorized -> authorized to maintain liabilities" : [ "S5+CZKSfsVQ=", "PiB+OWjIzOc=" ],
+	"authorized to maintain liabilities|protocol version 20|set trust line flags|auth transition tests|authorized to maintain liabilities -> not authorized" : [ "C2bUBUnv+DU=", "PiB+OWjIzOc=" ],
 	"authorized to maintain liabilities|protocol version 20|set trust line flags|offer tests|buying asset is only allowed to maintain liabilities" : 
 	[
 		"SXGeD1ZZzI4=",
@@ -8512,12 +8512,12 @@
 		"SXGeD1ZZzI4=",
 		"SXGeD1ZZzI4="
 	],
-	"authorized to maintain liabilities|protocol version 20|set trust line flags|offer tests|buying asset is only allowed to maintain liabilities|can't add offer" : [ "uC9kWFagFBQ=" ],
+	"authorized to maintain liabilities|protocol version 20|set trust line flags|offer tests|buying asset is only allowed to maintain liabilities|can't add offer" : [ "iNnvGq6QHu0=" ],
 	"authorized to maintain liabilities|protocol version 20|set trust line flags|offer tests|buying asset is only allowed to maintain liabilities|can't update offer|change buying asset" : [ "GXuDumU6Zq8=" ],
-	"authorized to maintain liabilities|protocol version 20|set trust line flags|offer tests|buying asset is only allowed to maintain liabilities|can't update offer|change selling asset" : [ "uC9kWFagFBQ=" ],
-	"authorized to maintain liabilities|protocol version 20|set trust line flags|offer tests|buying asset is only allowed to maintain liabilities|can't update offer|swap assets" : [ "uC9kWFagFBQ=" ],
-	"authorized to maintain liabilities|protocol version 20|set trust line flags|offer tests|buying asset is only allowed to maintain liabilities|can't update offer|try updating amount" : [ "uC9kWFagFBQ=", "uC9kWFagFBQ=" ],
-	"authorized to maintain liabilities|protocol version 20|set trust line flags|offer tests|buying asset is only allowed to maintain liabilities|can't update offer|try updating price" : [ "uC9kWFagFBQ=", "uC9kWFagFBQ=" ],
+	"authorized to maintain liabilities|protocol version 20|set trust line flags|offer tests|buying asset is only allowed to maintain liabilities|can't update offer|change selling asset" : [ "iNnvGq6QHu0=" ],
+	"authorized to maintain liabilities|protocol version 20|set trust line flags|offer tests|buying asset is only allowed to maintain liabilities|can't update offer|swap assets" : [ "iNnvGq6QHu0=" ],
+	"authorized to maintain liabilities|protocol version 20|set trust line flags|offer tests|buying asset is only allowed to maintain liabilities|can't update offer|try updating amount" : [ "iNnvGq6QHu0=", "iNnvGq6QHu0=" ],
+	"authorized to maintain liabilities|protocol version 20|set trust line flags|offer tests|buying asset is only allowed to maintain liabilities|can't update offer|try updating price" : [ "iNnvGq6QHu0=", "iNnvGq6QHu0=" ],
 	"authorized to maintain liabilities|protocol version 20|set trust line flags|offer tests|buying asset is only allowed to maintain liabilities|delete offer" : [ "9eNzUGjQ5LA=" ],
 	"authorized to maintain liabilities|protocol version 20|set trust line flags|offer tests|buying asset is only allowed to maintain liabilities|don't pull orders until denyTrust|denyTrust on buying asset" : [ "Y1fuxLO6+fU=" ],
 	"authorized to maintain liabilities|protocol version 20|set trust line flags|offer tests|buying asset is only allowed to maintain liabilities|don't pull orders until denyTrust|denyTrust on selling asset" : [ "pf6WgLi9y1M=" ],
@@ -8535,18 +8535,18 @@
 		"9XqjciaIDck=",
 		"9XqjciaIDck="
 	],
-	"authorized to maintain liabilities|protocol version 20|set trust line flags|offer tests|selling asset is only allowed to maintain liabilities|can't add offer" : [ "uC9kWFagFBQ=" ],
-	"authorized to maintain liabilities|protocol version 20|set trust line flags|offer tests|selling asset is only allowed to maintain liabilities|can't update offer|change buying asset" : [ "uC9kWFagFBQ=" ],
+	"authorized to maintain liabilities|protocol version 20|set trust line flags|offer tests|selling asset is only allowed to maintain liabilities|can't add offer" : [ "iNnvGq6QHu0=" ],
+	"authorized to maintain liabilities|protocol version 20|set trust line flags|offer tests|selling asset is only allowed to maintain liabilities|can't update offer|change buying asset" : [ "iNnvGq6QHu0=" ],
 	"authorized to maintain liabilities|protocol version 20|set trust line flags|offer tests|selling asset is only allowed to maintain liabilities|can't update offer|change selling asset" : [ "RFXB8Tivg7Q=" ],
-	"authorized to maintain liabilities|protocol version 20|set trust line flags|offer tests|selling asset is only allowed to maintain liabilities|can't update offer|swap assets" : [ "uC9kWFagFBQ=" ],
-	"authorized to maintain liabilities|protocol version 20|set trust line flags|offer tests|selling asset is only allowed to maintain liabilities|can't update offer|try updating amount" : [ "uC9kWFagFBQ=", "uC9kWFagFBQ=" ],
-	"authorized to maintain liabilities|protocol version 20|set trust line flags|offer tests|selling asset is only allowed to maintain liabilities|can't update offer|try updating price" : [ "uC9kWFagFBQ=", "uC9kWFagFBQ=" ],
+	"authorized to maintain liabilities|protocol version 20|set trust line flags|offer tests|selling asset is only allowed to maintain liabilities|can't update offer|swap assets" : [ "iNnvGq6QHu0=" ],
+	"authorized to maintain liabilities|protocol version 20|set trust line flags|offer tests|selling asset is only allowed to maintain liabilities|can't update offer|try updating amount" : [ "iNnvGq6QHu0=", "iNnvGq6QHu0=" ],
+	"authorized to maintain liabilities|protocol version 20|set trust line flags|offer tests|selling asset is only allowed to maintain liabilities|can't update offer|try updating price" : [ "iNnvGq6QHu0=", "iNnvGq6QHu0=" ],
 	"authorized to maintain liabilities|protocol version 20|set trust line flags|offer tests|selling asset is only allowed to maintain liabilities|delete offer" : [ "UV69tkqkUWw=" ],
 	"authorized to maintain liabilities|protocol version 20|set trust line flags|offer tests|selling asset is only allowed to maintain liabilities|don't pull orders until denyTrust|denyTrust on buying asset" : [ "ddO4nL22UhE=" ],
 	"authorized to maintain liabilities|protocol version 20|set trust line flags|offer tests|selling asset is only allowed to maintain liabilities|don't pull orders until denyTrust|denyTrust on selling asset" : [ "ZmTZyD1h67k=" ],
 	"authorized to maintain liabilities|protocol version 20|set trust line flags|payment tests" : [ "SXGeD1ZZzI4=", "SXGeD1ZZzI4=" ],
-	"authorized to maintain liabilities|protocol version 20|set trust line flags|payment tests|can't receive payment" : [ "RxuCqCvwdg8=", "JS4yDjgTFrg=", "cNkyGJa8ymE=", "GBSppbrsn2c=" ],
-	"authorized to maintain liabilities|protocol version 20|set trust line flags|payment tests|can't send payment" : [ "uC9kWFagFBQ=" ],
+	"authorized to maintain liabilities|protocol version 20|set trust line flags|payment tests|can't receive payment" : [ "RxuCqCvwdg8=", "JS4yDjgTFrg=", "cNkyGJa8ymE=", "969/+oHEQBI=" ],
+	"authorized to maintain liabilities|protocol version 20|set trust line flags|payment tests|can't send payment" : [ "iNnvGq6QHu0=" ],
 	"authorized to maintain liabilities|protocol version 21|allow trust" : 
 	[
 		"6pn+xepWlLU=",
@@ -8858,7 +8858,7 @@
 		"fcd9kxN7XJA=",
 		"IyseEzLVAec="
 	],
-	"authorized to maintain liabilities|protocol version 21|allow trust|AUTHORIZED_FLAG and AUTHORIZED_TO_MAINTAIN_LIABILITIES_FLAG can't be used together" : [ "sqZL8d0PaxM=" ],
+	"authorized to maintain liabilities|protocol version 21|allow trust|AUTHORIZED_FLAG and AUTHORIZED_TO_MAINTAIN_LIABILITIES_FLAG can't be used together" : [ "OFFSK/Q3dHc=" ],
 	"authorized to maintain liabilities|protocol version 21|allow trust|auth transition tests" : 
 	[
 		"JldMbjlYtPo=",
@@ -8870,8 +8870,8 @@
 		"29zWMsimHA0=",
 		"5yXlcZw08Yw="
 	],
-	"authorized to maintain liabilities|protocol version 21|allow trust|auth transition tests|authorized -> authorized to maintain liabilities" : [ "S5+CZKSfsVQ=", "Tm8LqvyleiM=" ],
-	"authorized to maintain liabilities|protocol version 21|allow trust|auth transition tests|authorized to maintain liabilities -> not authorized" : [ "C2bUBUnv+DU=", "Tm8LqvyleiM=" ],
+	"authorized to maintain liabilities|protocol version 21|allow trust|auth transition tests|authorized -> authorized to maintain liabilities" : [ "S5+CZKSfsVQ=", "PiB+OWjIzOc=" ],
+	"authorized to maintain liabilities|protocol version 21|allow trust|auth transition tests|authorized to maintain liabilities -> not authorized" : [ "C2bUBUnv+DU=", "PiB+OWjIzOc=" ],
 	"authorized to maintain liabilities|protocol version 21|allow trust|offer tests|buying asset is only allowed to maintain liabilities" : 
 	[
 		"SXGeD1ZZzI4=",
@@ -8886,12 +8886,12 @@
 		"SXGeD1ZZzI4=",
 		"SXGeD1ZZzI4="
 	],
-	"authorized to maintain liabilities|protocol version 21|allow trust|offer tests|buying asset is only allowed to maintain liabilities|can't add offer" : [ "uC9kWFagFBQ=" ],
+	"authorized to maintain liabilities|protocol version 21|allow trust|offer tests|buying asset is only allowed to maintain liabilities|can't add offer" : [ "iNnvGq6QHu0=" ],
 	"authorized to maintain liabilities|protocol version 21|allow trust|offer tests|buying asset is only allowed to maintain liabilities|can't update offer|change buying asset" : [ "GXuDumU6Zq8=" ],
-	"authorized to maintain liabilities|protocol version 21|allow trust|offer tests|buying asset is only allowed to maintain liabilities|can't update offer|change selling asset" : [ "uC9kWFagFBQ=" ],
-	"authorized to maintain liabilities|protocol version 21|allow trust|offer tests|buying asset is only allowed to maintain liabilities|can't update offer|swap assets" : [ "uC9kWFagFBQ=" ],
-	"authorized to maintain liabilities|protocol version 21|allow trust|offer tests|buying asset is only allowed to maintain liabilities|can't update offer|try updating amount" : [ "uC9kWFagFBQ=", "uC9kWFagFBQ=" ],
-	"authorized to maintain liabilities|protocol version 21|allow trust|offer tests|buying asset is only allowed to maintain liabilities|can't update offer|try updating price" : [ "uC9kWFagFBQ=", "uC9kWFagFBQ=" ],
+	"authorized to maintain liabilities|protocol version 21|allow trust|offer tests|buying asset is only allowed to maintain liabilities|can't update offer|change selling asset" : [ "iNnvGq6QHu0=" ],
+	"authorized to maintain liabilities|protocol version 21|allow trust|offer tests|buying asset is only allowed to maintain liabilities|can't update offer|swap assets" : [ "iNnvGq6QHu0=" ],
+	"authorized to maintain liabilities|protocol version 21|allow trust|offer tests|buying asset is only allowed to maintain liabilities|can't update offer|try updating amount" : [ "iNnvGq6QHu0=", "iNnvGq6QHu0=" ],
+	"authorized to maintain liabilities|protocol version 21|allow trust|offer tests|buying asset is only allowed to maintain liabilities|can't update offer|try updating price" : [ "iNnvGq6QHu0=", "iNnvGq6QHu0=" ],
 	"authorized to maintain liabilities|protocol version 21|allow trust|offer tests|buying asset is only allowed to maintain liabilities|delete offer" : [ "9eNzUGjQ5LA=" ],
 	"authorized to maintain liabilities|protocol version 21|allow trust|offer tests|buying asset is only allowed to maintain liabilities|don't pull orders until denyTrust|denyTrust on buying asset" : [ "Y1fuxLO6+fU=" ],
 	"authorized to maintain liabilities|protocol version 21|allow trust|offer tests|buying asset is only allowed to maintain liabilities|don't pull orders until denyTrust|denyTrust on selling asset" : [ "pf6WgLi9y1M=" ],
@@ -8909,18 +8909,18 @@
 		"9XqjciaIDck=",
 		"9XqjciaIDck="
 	],
-	"authorized to maintain liabilities|protocol version 21|allow trust|offer tests|selling asset is only allowed to maintain liabilities|can't add offer" : [ "uC9kWFagFBQ=" ],
-	"authorized to maintain liabilities|protocol version 21|allow trust|offer tests|selling asset is only allowed to maintain liabilities|can't update offer|change buying asset" : [ "uC9kWFagFBQ=" ],
+	"authorized to maintain liabilities|protocol version 21|allow trust|offer tests|selling asset is only allowed to maintain liabilities|can't add offer" : [ "iNnvGq6QHu0=" ],
+	"authorized to maintain liabilities|protocol version 21|allow trust|offer tests|selling asset is only allowed to maintain liabilities|can't update offer|change buying asset" : [ "iNnvGq6QHu0=" ],
 	"authorized to maintain liabilities|protocol version 21|allow trust|offer tests|selling asset is only allowed to maintain liabilities|can't update offer|change selling asset" : [ "RFXB8Tivg7Q=" ],
-	"authorized to maintain liabilities|protocol version 21|allow trust|offer tests|selling asset is only allowed to maintain liabilities|can't update offer|swap assets" : [ "uC9kWFagFBQ=" ],
-	"authorized to maintain liabilities|protocol version 21|allow trust|offer tests|selling asset is only allowed to maintain liabilities|can't update offer|try updating amount" : [ "uC9kWFagFBQ=", "uC9kWFagFBQ=" ],
-	"authorized to maintain liabilities|protocol version 21|allow trust|offer tests|selling asset is only allowed to maintain liabilities|can't update offer|try updating price" : [ "uC9kWFagFBQ=", "uC9kWFagFBQ=" ],
+	"authorized to maintain liabilities|protocol version 21|allow trust|offer tests|selling asset is only allowed to maintain liabilities|can't update offer|swap assets" : [ "iNnvGq6QHu0=" ],
+	"authorized to maintain liabilities|protocol version 21|allow trust|offer tests|selling asset is only allowed to maintain liabilities|can't update offer|try updating amount" : [ "iNnvGq6QHu0=", "iNnvGq6QHu0=" ],
+	"authorized to maintain liabilities|protocol version 21|allow trust|offer tests|selling asset is only allowed to maintain liabilities|can't update offer|try updating price" : [ "iNnvGq6QHu0=", "iNnvGq6QHu0=" ],
 	"authorized to maintain liabilities|protocol version 21|allow trust|offer tests|selling asset is only allowed to maintain liabilities|delete offer" : [ "UV69tkqkUWw=" ],
 	"authorized to maintain liabilities|protocol version 21|allow trust|offer tests|selling asset is only allowed to maintain liabilities|don't pull orders until denyTrust|denyTrust on buying asset" : [ "ddO4nL22UhE=" ],
 	"authorized to maintain liabilities|protocol version 21|allow trust|offer tests|selling asset is only allowed to maintain liabilities|don't pull orders until denyTrust|denyTrust on selling asset" : [ "ZmTZyD1h67k=" ],
 	"authorized to maintain liabilities|protocol version 21|allow trust|payment tests" : [ "SXGeD1ZZzI4=", "SXGeD1ZZzI4=" ],
-	"authorized to maintain liabilities|protocol version 21|allow trust|payment tests|can't receive payment" : [ "RxuCqCvwdg8=", "JS4yDjgTFrg=", "cNkyGJa8ymE=", "GBSppbrsn2c=" ],
-	"authorized to maintain liabilities|protocol version 21|allow trust|payment tests|can't send payment" : [ "uC9kWFagFBQ=" ],
+	"authorized to maintain liabilities|protocol version 21|allow trust|payment tests|can't receive payment" : [ "RxuCqCvwdg8=", "JS4yDjgTFrg=", "cNkyGJa8ymE=", "969/+oHEQBI=" ],
+	"authorized to maintain liabilities|protocol version 21|allow trust|payment tests|can't send payment" : [ "iNnvGq6QHu0=" ],
 	"authorized to maintain liabilities|protocol version 21|set trust line flags" : 
 	[
 		"6pn+xepWlLU=",
@@ -9232,7 +9232,7 @@
 		"fcd9kxN7XJA=",
 		"IyseEzLVAec="
 	],
-	"authorized to maintain liabilities|protocol version 21|set trust line flags|AUTHORIZED_FLAG and AUTHORIZED_TO_MAINTAIN_LIABILITIES_FLAG can't be used together" : [ "sqZL8d0PaxM=" ],
+	"authorized to maintain liabilities|protocol version 21|set trust line flags|AUTHORIZED_FLAG and AUTHORIZED_TO_MAINTAIN_LIABILITIES_FLAG can't be used together" : [ "OFFSK/Q3dHc=" ],
 	"authorized to maintain liabilities|protocol version 21|set trust line flags|auth transition tests" : 
 	[
 		"JldMbjlYtPo=",
@@ -9244,8 +9244,8 @@
 		"29zWMsimHA0=",
 		"5yXlcZw08Yw="
 	],
-	"authorized to maintain liabilities|protocol version 21|set trust line flags|auth transition tests|authorized -> authorized to maintain liabilities" : [ "S5+CZKSfsVQ=", "Tm8LqvyleiM=" ],
-	"authorized to maintain liabilities|protocol version 21|set trust line flags|auth transition tests|authorized to maintain liabilities -> not authorized" : [ "C2bUBUnv+DU=", "Tm8LqvyleiM=" ],
+	"authorized to maintain liabilities|protocol version 21|set trust line flags|auth transition tests|authorized -> authorized to maintain liabilities" : [ "S5+CZKSfsVQ=", "PiB+OWjIzOc=" ],
+	"authorized to maintain liabilities|protocol version 21|set trust line flags|auth transition tests|authorized to maintain liabilities -> not authorized" : [ "C2bUBUnv+DU=", "PiB+OWjIzOc=" ],
 	"authorized to maintain liabilities|protocol version 21|set trust line flags|offer tests|buying asset is only allowed to maintain liabilities" : 
 	[
 		"SXGeD1ZZzI4=",
@@ -9260,12 +9260,12 @@
 		"SXGeD1ZZzI4=",
 		"SXGeD1ZZzI4="
 	],
-	"authorized to maintain liabilities|protocol version 21|set trust line flags|offer tests|buying asset is only allowed to maintain liabilities|can't add offer" : [ "uC9kWFagFBQ=" ],
+	"authorized to maintain liabilities|protocol version 21|set trust line flags|offer tests|buying asset is only allowed to maintain liabilities|can't add offer" : [ "iNnvGq6QHu0=" ],
 	"authorized to maintain liabilities|protocol version 21|set trust line flags|offer tests|buying asset is only allowed to maintain liabilities|can't update offer|change buying asset" : [ "GXuDumU6Zq8=" ],
-	"authorized to maintain liabilities|protocol version 21|set trust line flags|offer tests|buying asset is only allowed to maintain liabilities|can't update offer|change selling asset" : [ "uC9kWFagFBQ=" ],
-	"authorized to maintain liabilities|protocol version 21|set trust line flags|offer tests|buying asset is only allowed to maintain liabilities|can't update offer|swap assets" : [ "uC9kWFagFBQ=" ],
-	"authorized to maintain liabilities|protocol version 21|set trust line flags|offer tests|buying asset is only allowed to maintain liabilities|can't update offer|try updating amount" : [ "uC9kWFagFBQ=", "uC9kWFagFBQ=" ],
-	"authorized to maintain liabilities|protocol version 21|set trust line flags|offer tests|buying asset is only allowed to maintain liabilities|can't update offer|try updating price" : [ "uC9kWFagFBQ=", "uC9kWFagFBQ=" ],
+	"authorized to maintain liabilities|protocol version 21|set trust line flags|offer tests|buying asset is only allowed to maintain liabilities|can't update offer|change selling asset" : [ "iNnvGq6QHu0=" ],
+	"authorized to maintain liabilities|protocol version 21|set trust line flags|offer tests|buying asset is only allowed to maintain liabilities|can't update offer|swap assets" : [ "iNnvGq6QHu0=" ],
+	"authorized to maintain liabilities|protocol version 21|set trust line flags|offer tests|buying asset is only allowed to maintain liabilities|can't update offer|try updating amount" : [ "iNnvGq6QHu0=", "iNnvGq6QHu0=" ],
+	"authorized to maintain liabilities|protocol version 21|set trust line flags|offer tests|buying asset is only allowed to maintain liabilities|can't update offer|try updating price" : [ "iNnvGq6QHu0=", "iNnvGq6QHu0=" ],
 	"authorized to maintain liabilities|protocol version 21|set trust line flags|offer tests|buying asset is only allowed to maintain liabilities|delete offer" : [ "9eNzUGjQ5LA=" ],
 	"authorized to maintain liabilities|protocol version 21|set trust line flags|offer tests|buying asset is only allowed to maintain liabilities|don't pull orders until denyTrust|denyTrust on buying asset" : [ "Y1fuxLO6+fU=" ],
 	"authorized to maintain liabilities|protocol version 21|set trust line flags|offer tests|buying asset is only allowed to maintain liabilities|don't pull orders until denyTrust|denyTrust on selling asset" : [ "pf6WgLi9y1M=" ],
@@ -9283,18 +9283,18 @@
 		"9XqjciaIDck=",
 		"9XqjciaIDck="
 	],
-	"authorized to maintain liabilities|protocol version 21|set trust line flags|offer tests|selling asset is only allowed to maintain liabilities|can't add offer" : [ "uC9kWFagFBQ=" ],
-	"authorized to maintain liabilities|protocol version 21|set trust line flags|offer tests|selling asset is only allowed to maintain liabilities|can't update offer|change buying asset" : [ "uC9kWFagFBQ=" ],
+	"authorized to maintain liabilities|protocol version 21|set trust line flags|offer tests|selling asset is only allowed to maintain liabilities|can't add offer" : [ "iNnvGq6QHu0=" ],
+	"authorized to maintain liabilities|protocol version 21|set trust line flags|offer tests|selling asset is only allowed to maintain liabilities|can't update offer|change buying asset" : [ "iNnvGq6QHu0=" ],
 	"authorized to maintain liabilities|protocol version 21|set trust line flags|offer tests|selling asset is only allowed to maintain liabilities|can't update offer|change selling asset" : [ "RFXB8Tivg7Q=" ],
-	"authorized to maintain liabilities|protocol version 21|set trust line flags|offer tests|selling asset is only allowed to maintain liabilities|can't update offer|swap assets" : [ "uC9kWFagFBQ=" ],
-	"authorized to maintain liabilities|protocol version 21|set trust line flags|offer tests|selling asset is only allowed to maintain liabilities|can't update offer|try updating amount" : [ "uC9kWFagFBQ=", "uC9kWFagFBQ=" ],
-	"authorized to maintain liabilities|protocol version 21|set trust line flags|offer tests|selling asset is only allowed to maintain liabilities|can't update offer|try updating price" : [ "uC9kWFagFBQ=", "uC9kWFagFBQ=" ],
+	"authorized to maintain liabilities|protocol version 21|set trust line flags|offer tests|selling asset is only allowed to maintain liabilities|can't update offer|swap assets" : [ "iNnvGq6QHu0=" ],
+	"authorized to maintain liabilities|protocol version 21|set trust line flags|offer tests|selling asset is only allowed to maintain liabilities|can't update offer|try updating amount" : [ "iNnvGq6QHu0=", "iNnvGq6QHu0=" ],
+	"authorized to maintain liabilities|protocol version 21|set trust line flags|offer tests|selling asset is only allowed to maintain liabilities|can't update offer|try updating price" : [ "iNnvGq6QHu0=", "iNnvGq6QHu0=" ],
 	"authorized to maintain liabilities|protocol version 21|set trust line flags|offer tests|selling asset is only allowed to maintain liabilities|delete offer" : [ "UV69tkqkUWw=" ],
 	"authorized to maintain liabilities|protocol version 21|set trust line flags|offer tests|selling asset is only allowed to maintain liabilities|don't pull orders until denyTrust|denyTrust on buying asset" : [ "ddO4nL22UhE=" ],
 	"authorized to maintain liabilities|protocol version 21|set trust line flags|offer tests|selling asset is only allowed to maintain liabilities|don't pull orders until denyTrust|denyTrust on selling asset" : [ "ZmTZyD1h67k=" ],
 	"authorized to maintain liabilities|protocol version 21|set trust line flags|payment tests" : [ "SXGeD1ZZzI4=", "SXGeD1ZZzI4=" ],
-	"authorized to maintain liabilities|protocol version 21|set trust line flags|payment tests|can't receive payment" : [ "RxuCqCvwdg8=", "JS4yDjgTFrg=", "cNkyGJa8ymE=", "GBSppbrsn2c=" ],
-	"authorized to maintain liabilities|protocol version 21|set trust line flags|payment tests|can't send payment" : [ "uC9kWFagFBQ=" ],
+	"authorized to maintain liabilities|protocol version 21|set trust line flags|payment tests|can't receive payment" : [ "RxuCqCvwdg8=", "JS4yDjgTFrg=", "cNkyGJa8ymE=", "969/+oHEQBI=" ],
+	"authorized to maintain liabilities|protocol version 21|set trust line flags|payment tests|can't send payment" : [ "iNnvGq6QHu0=" ],
 	"authorized to maintain liabilities|protocol version 2|allow trust" : 
 	[
 		"0HxJuvxFaP8=",
