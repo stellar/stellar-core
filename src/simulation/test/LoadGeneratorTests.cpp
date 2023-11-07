@@ -123,6 +123,10 @@ TEST_CASE("generate soroban load", "[loadgen]")
                 cfg.mTxMaxWriteBytes * cfg.mLedgerMaxTxCount;
             cfg.mLedgerMaxTransactionsSizeBytes =
                 cfg.mTxMaxSizeBytes * cfg.mLedgerMaxTxCount;
+
+            // Entries should never expire
+            cfg.mStateArchivalSettings.maxEntryTTL = UINT32_MAX;
+            cfg.mStateArchivalSettings.minPersistentTTL = 5'000'000;
         });
     }
 
@@ -130,8 +134,9 @@ TEST_CASE("generate soroban load", "[loadgen]")
 
     auto& loadGen = app.getLoadGenerator();
 
+    auto nAccounts = 20;
     loadGen.generateLoad(GeneratedLoadConfig::createAccountsLoad(
-        /* nAccounts */ 100,
+        /* nAccounts */ nAccounts,
         /* txRate */ 1));
     simulation->crankUntil(
         [&]() {
@@ -148,11 +153,15 @@ TEST_CASE("generate soroban load", "[loadgen]")
         numTxsBefore = txsSucceeded.count();
     }
 
-    auto const numSorobanTxs = 101;
-    loadGen.generateLoad(GeneratedLoadConfig::txLoad(LoadGenMode::SOROBAN,
-                                                     /* nAccounts */ 100,
-                                                     numSorobanTxs,
-                                                     /* txRate */ 1));
+    auto const numSorobanTxs = 300;
+    auto const numDataEntries = 5;
+    auto cfg = GeneratedLoadConfig::txLoad(LoadGenMode::SOROBAN, nAccounts,
+                                           numSorobanTxs,
+                                           /* txRate */ 1);
+    cfg.nDataEntries = numDataEntries;
+    cfg.sorobanNoResetForTesting = true;
+
+    loadGen.generateLoad(cfg);
     simulation->crankUntil(
         [&]() {
             return app.getMetrics()
@@ -170,6 +179,49 @@ TEST_CASE("generate soroban load", "[loadgen]")
             node->getMetrics().NewCounter({"ledger", "apply", "failure"});
         REQUIRE(txsSucceeded.count() == numTxsBefore + numSorobanTxs);
         REQUIRE(txsFailed.count() == 0);
+    }
+
+    auto instances = loadGen.getContractInstancesForTesting();
+    REQUIRE(instances.size() == static_cast<size_t>(nAccounts));
+
+    // Check that each key is unique and exists in the DB
+    UnorderedSet<LedgerKey> keys;
+    std::optional<LedgerKey> codeKey;
+    for (auto const& [id, instance] : instances)
+    {
+        REQUIRE(instance.readOnlyKeys.size() == numDataEntries + 2);
+        for (size_t i = 0; i < instance.readOnlyKeys.size(); ++i)
+        {
+            auto const& lk = instance.readOnlyKeys[i];
+            if (i == 0)
+            {
+                REQUIRE(lk.type() == CONTRACT_CODE);
+                if (codeKey)
+                {
+                    REQUIRE(lk == *codeKey);
+                }
+                else
+                {
+                    codeKey = lk;
+                }
+            }
+            else
+            {
+                REQUIRE(lk.type() == CONTRACT_DATA);
+                if (i == 1)
+                {
+                    REQUIRE(lk.contractData().key.type() ==
+                            SCV_LEDGER_KEY_CONTRACT_INSTANCE);
+                }
+                else
+                {
+                    REQUIRE(lk.contractData().key.type() == SCV_SYMBOL);
+                }
+
+                REQUIRE(keys.find(lk) == keys.end());
+                keys.insert(lk);
+            }
+        }
     }
 }
 

@@ -77,6 +77,14 @@ struct GeneratedLoadConfig
     bool skipLowFeeTxs = false;
     // Percentage (from 0 to 100) of DEX transactions
     uint32_t dexTxPercent = 0;
+    // Number and size of ContractData entries that will loaded on each
+    // invocation
+    // TODO: Programmatically determine this based on network config
+    uint32_t nDataEntries = 0;
+    uint32_t bytesPerDataEntry = 0;
+
+    // If true, soroban metadata will be preserved on reset for testing purposes
+    bool sorobanNoResetForTesting = false;
 };
 
 class LoadGenerator
@@ -98,6 +106,19 @@ class LoadGenerator
     // return any accounts that are inconsistent.
     std::vector<TestAccountPtr> checkAccountSynced(Application& app,
                                                    bool isCreate);
+
+    struct ContractInstance
+    {
+        // [wasm, instance, data keys...]
+        xdr::xvector<LedgerKey> readOnlyKeys;
+        SCAddress contractID;
+    };
+
+    std::unordered_map<uint64_t, ContractInstance>
+    getContractInstancesForTesting() const
+    {
+        return mCompleteContractInstances;
+    }
 
   private:
     struct TxMetrics
@@ -159,18 +180,13 @@ class LoadGenerator
     std::unordered_set<uint64_t> mAccountsInUse;
     std::unordered_set<uint64_t> mAccountsAvailable;
     uint64_t getNextAvailableAccount();
+    std::optional<uint64_t>
+    getNextAvailableAccountForSoroban(GeneratedLoadConfig const& cfg);
 
     // For account creation only: allocate a few accounts for creation purposes
     // (with sufficient balance to create new accounts) to avoid source account
     // collisions.
     std::unordered_map<uint64_t, TestAccountPtr> mCreationSourceAccounts;
-
-    struct ContractInstance
-    {
-        // [wasm, instance, data keys...]
-        xdr::xvector<LedgerKey> readOnlyKeys;
-        SCAddress contractID;
-    };
 
     std::optional<LedgerKey> mCodeKey;
 
@@ -180,7 +196,9 @@ class LoadGenerator
 
     // Maps account ID to it's contract instance, where each account has a
     // unique instance
-    std::unordered_map<uint64_t, ContractInstance> mContractInstances;
+    std::unordered_map<uint64_t, ContractInstance> mIncompleteContractInstances;
+
+    std::unordered_map<uint64_t, ContractInstance> mCompleteContractInstances;
 
     medida::Meter& mLoadgenComplete;
     medida::Meter& mLoadgenFail;
@@ -191,11 +209,11 @@ class LoadGenerator
 
     uint32_t mWaitTillCompleteForLedgers{0};
 
-    void reset();
+    void reset(bool sorobanNoReset);
     void createRootAccount();
     int64_t getTxPerStep(uint32_t txRate, std::chrono::seconds spikeInterval,
                          uint32_t spikeSize);
-    void checkPendingTxs();
+    void checkPendingTxs(GeneratedLoadConfig const& cfg);
 
     // Schedule a callback to generateLoad() STEP_MSECS milliseconds from now.
     void scheduleLoadGeneration(GeneratedLoadConfig cfg);
@@ -237,8 +255,11 @@ class LoadGenerator
     createContractTransaction(uint32_t ledgerNum, uint64_t accountId,
                               std::optional<uint32_t> maxGeneratedFeeRate);
     std::pair<LoadGenerator::TestAccountPtr, TransactionFramePtr>
-    invokeTransaction(uint32_t ledgerNum, uint64_t accountId,
-                      std::optional<uint32_t> maxGeneratedFeeRate);
+    invokeStorageTransaction(uint32_t ledgerNum, uint64_t accountId,
+                             std::optional<uint32_t> maxGeneratedFeeRate);
+    std::pair<LoadGenerator::TestAccountPtr, TransactionFramePtr>
+    invokeSorobanLoadTransaction(uint32_t ledgerNum, uint64_t accountId,
+                                 std::optional<uint32_t> maxGeneratedFeeRate);
     std::pair<LoadGenerator::TestAccountPtr, TransactionFramePtr>
     sorobanTransaction(uint32_t ledgerNum, uint64_t accountId,
                        SorobanResources resources, size_t wasmSize,
@@ -259,8 +280,8 @@ class LoadGenerator
                   std::function<std::pair<LoadGenerator::TestAccountPtr,
                                           TransactionFramePtr>()>
                       generateTx);
-    void waitTillComplete(bool isCreate);
-    void waitTillCompleteWithoutChecks();
+    void waitTillComplete(bool isCreate, bool sorobanNoReset);
+    void waitTillCompleteWithoutChecks(bool sorobanNoReset);
 
     void updateMinBalance();
 
