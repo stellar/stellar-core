@@ -272,7 +272,17 @@ TransactionFrame::getFullFee() const
 int64_t
 TransactionFrame::getInclusionFee() const
 {
-    return getFullFee() - declaredSorobanResourceFee();
+    if (isSoroban())
+    {
+        if (declaredSorobanResourceFee() < 0)
+        {
+            throw std::runtime_error(
+                "TransactionFrame::getInclusionFee: negative resource fee");
+        }
+        return getFullFee() - declaredSorobanResourceFee();
+    }
+
+    return getFullFee();
 }
 
 int64_t
@@ -289,15 +299,17 @@ TransactionFrame::getFee(LedgerHeader const& header,
     {
         int64_t adjustedFee =
             *baseFee * std::max<int64_t>(1, getNumOperations());
+        int64_t maybeResourceFee =
+            isSoroban() ? declaredSorobanResourceFee() : 0;
 
         if (applying)
         {
-            return declaredSorobanResourceFee() +
+            return maybeResourceFee +
                    std::min<int64_t>(getInclusionFee(), adjustedFee);
         }
         else
         {
-            return declaredSorobanResourceFee() + adjustedFee;
+            return maybeResourceFee + adjustedFee;
         }
     }
     else
@@ -790,10 +802,7 @@ TransactionFrame::computeSorobanResourceFee(
 int64
 TransactionFrame::declaredSorobanResourceFee() const
 {
-    if (mEnvelope.type() != ENVELOPE_TYPE_TX || mEnvelope.v1().tx.ext.v() != 1)
-    {
-        return 0;
-    }
+    releaseAssertOrThrow(isSoroban());
     return mEnvelope.v1().tx.ext.sorobanData().resourceFee;
 }
 
@@ -813,8 +822,7 @@ TransactionFrame::maybeComputeSorobanResourceFee(
     // the resources might not be present or Soroban might not be supported
     // at all. Hence just set the resource fees to 0 and rely on validation
     // checks to not use this.
-    if (protocolVersionIsBefore(protocolVersion, SOROBAN_PROTOCOL_VERSION) ||
-        mEnvelope.type() != ENVELOPE_TYPE_TX || mEnvelope.v1().tx.ext.v() != 1)
+    if (protocolVersionIsBefore(protocolVersion, SOROBAN_PROTOCOL_VERSION))
     {
         mSorobanResourceFee = std::make_optional<FeePair>();
         return;
@@ -833,6 +841,7 @@ TransactionFrame::consumeRefundableSorobanResources(
     uint32_t contractEventSizeBytes, int64_t rentFee, uint32_t protocolVersion,
     SorobanNetworkConfig const& sorobanConfig, Config const& cfg)
 {
+    releaseAssertOrThrow(isSoroban());
     mConsumedContractEventsSizeBytes += contractEventSizeBytes;
     mConsumedRentFee += rentFee;
     mFeeRefund =
@@ -1017,12 +1026,6 @@ TransactionFrame::commonValidPreSeqNum(Application& app, AbstractLedgerTxn& ltx,
     if (isSoroban())
     {
         if (protocolVersionIsBefore(ledgerVersion, SOROBAN_PROTOCOL_VERSION))
-        {
-            getResult().result.code(txMALFORMED);
-            return false;
-        }
-        if (mEnvelope.type() != ENVELOPE_TYPE_TX ||
-            mEnvelope.v1().tx.ext.v() != 1)
         {
             getResult().result.code(txMALFORMED);
             return false;
@@ -1352,6 +1355,24 @@ TransactionFrame::processFeeSeqNum(AbstractLedgerTxn& ltx,
     }
 }
 
+bool
+TransactionFrame::XDRProvidesValidFee() const
+{
+    if (isSoroban())
+    {
+        if (mEnvelope.type() != ENVELOPE_TYPE_TX ||
+            mEnvelope.v1().tx.ext.v() != 1)
+        {
+            return false;
+        }
+        if (declaredSorobanResourceFee() < 0)
+        {
+            return false;
+        }
+    }
+    return true;
+}
+
 void
 TransactionFrame::removeOneTimeSignerFromAllSourceAccounts(
     AbstractLedgerTxn& ltx) const
@@ -1408,6 +1429,12 @@ TransactionFrame::checkValidWithOptionallyChargedFee(
 {
     ZoneScoped;
     mCachedAccount.reset();
+
+    if (!XDRProvidesValidFee())
+    {
+        getResult().result.code(txMALFORMED);
+        return false;
+    }
 
     LedgerTxn ltx(ltxOuter);
     int64_t minBaseFee = ltx.loadHeader().current().baseFee;
@@ -1627,7 +1654,8 @@ TransactionFrame::applyOperations(SignatureChecker& signatureChecker,
         {
             markResultFailed();
             if (protocolVersionStartsFrom(ledgerVersion,
-                                          SOROBAN_PROTOCOL_VERSION))
+                                          SOROBAN_PROTOCOL_VERSION) &&
+                isSoroban())
             {
                 // If transaction fails, we don't charge for any
                 // refundable resources.

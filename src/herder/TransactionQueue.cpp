@@ -246,8 +246,9 @@ TransactionQueue::canAdd(TransactionFrameBasePtr tx,
     }
 
     int64_t newFullFee = tx->getFullFee();
-    if (tx->getInclusionFee() < 0 || newFullFee < 0)
+    if (newFullFee < 0 || tx->getInclusionFee() < 0)
     {
+        tx->getResult().result.code(txMALFORMED);
         return TransactionQueue::AddResult::ADD_STATUS_ERROR;
     }
 
@@ -552,6 +553,14 @@ TransactionQueue::AddResult
 TransactionQueue::tryAdd(TransactionFrameBasePtr tx, bool submittedFromSelf)
 {
     ZoneScoped;
+
+    // Check basic structure validity _before_ any fee-related computation
+    if (!tx->XDRProvidesValidFee())
+    {
+        tx->getResult().result.code(txMALFORMED);
+        return TransactionQueue::AddResult::ADD_STATUS_ERROR;
+    }
+
     AccountStates::iterator stateIter;
     TimestampedTransactions::iterator oldTxIter;
     std::vector<std::pair<TxStackPtr, bool>> txsToEvict;

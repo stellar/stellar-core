@@ -710,12 +710,19 @@ transactionWithV2Precondition(Application& app, TestAccount& account,
 
 TransactionFrameBasePtr
 feeBump(Application& app, TestAccount& feeSource, TransactionFrameBasePtr tx,
-        int64_t fee)
+        int64_t fee, bool addResourceFee)
 {
     REQUIRE(tx->getEnvelope().type() == ENVELOPE_TYPE_TX);
     TransactionEnvelope fb(ENVELOPE_TYPE_TX_FEE_BUMP);
     fb.feeBump().tx.feeSource = toMuxedAccount(feeSource);
-    fb.feeBump().tx.fee = tx->getFullFee() - tx->getInclusionFee() + fee;
+    if (addResourceFee)
+    {
+        fb.feeBump().tx.fee = tx->getFullFee() - tx->getInclusionFee() + fee;
+    }
+    else
+    {
+        fb.feeBump().tx.fee = fee;
+    }
     fb.feeBump().tx.innerTx.type(ENVELOPE_TYPE_TX);
     fb.feeBump().tx.innerTx.v1() = tx->getEnvelope().v1();
 
@@ -868,7 +875,7 @@ createUploadWasmOperation(uint32_t generatedWasmSize)
 
 TransactionFramePtr
 createUploadWasmTx(Application& app, TestAccount& account,
-                   uint32_t inclusionFee, uint32_t resourceFee,
+                   uint32_t inclusionFee, int64_t resourceFee,
                    SorobanResources resources, std::optional<std::string> memo,
                    int addInvalidOps, std::optional<uint32_t> wasmSize,
                    std::optional<SequenceNumber> seq)
@@ -1665,7 +1672,7 @@ sorobanEnvelopeFromOps(Hash const& networkID, TestAccount& source,
                        std::vector<Operation> const& ops,
                        std::vector<SecretKey> const& opKeys,
                        SorobanResources const& resources, uint32_t totalFee,
-                       uint32_t resourceFee, std::optional<std::string> memo,
+                       int64_t resourceFee, std::optional<std::string> memo,
                        std::optional<SequenceNumber> seq)
 {
     TransactionEnvelope tx(ENVELOPE_TYPE_TX);
@@ -1707,7 +1714,7 @@ sorobanTransactionFrameFromOps(Hash const& networkID, TestAccount& source,
                                std::vector<Operation> const& ops,
                                std::vector<SecretKey> const& opKeys,
                                SorobanResources const& resources,
-                               uint32_t inclusionFee, uint32_t resourceFee,
+                               uint32_t inclusionFee, int64_t resourceFee,
                                std::optional<std::string> memo,
                                std::optional<SequenceNumber> seq)
 {
@@ -1721,7 +1728,7 @@ TransactionFrameBasePtr
 sorobanTransactionFrameFromOpsWithTotalFee(
     Hash const& networkID, TestAccount& source,
     std::vector<Operation> const& ops, std::vector<SecretKey> const& opKeys,
-    SorobanResources const& resources, uint32_t totalFee, uint32_t resourceFee,
+    SorobanResources const& resources, uint32_t totalFee, int64_t resourceFee,
     std::optional<std::string> memo)
 {
     return TransactionFrameBase::makeTransactionFromWire(

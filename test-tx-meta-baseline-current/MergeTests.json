@@ -1975,8 +1975,8 @@
 		"8loruFO9pcA=",
 		"ByiZUWfWzuQ="
 	],
-	"merge|protocol version 20|Account has static auth flag set" : [ "0H+CksQeVgw=", "LW2BEC94Ghw=" ],
-	"merge|protocol version 20|With sub entries|account has data" : [ "1rAIBP3wbr0=", "EbzM2m7VJEY=" ],
+	"merge|protocol version 20|Account has static auth flag set" : [ "0H+CksQeVgw=", "aWmgCDPyJMw=" ],
+	"merge|protocol version 20|With sub entries|account has data" : [ "1rAIBP3wbr0=", "xFWS77xNfMg=" ],
 	"merge|protocol version 20|With sub entries|account has signer" : [ "fturUwS1fcg=", "oTryCSjOkW8=" ],
 	"merge|protocol version 20|With sub entries|with trustline" : [ "TMn5J4eGK8w=", "TMn5J4eGK8w=" ],
 	"merge|protocol version 20|With sub entries|with trustline|account has offer" : 
@@ -1986,9 +1986,9 @@
 		"ahA3BB4DjzU=",
 		"V7Gt3Lye88w=",
 		"krW8uHE/Cvc=",
-		"n7FmOcW7Qhw="
+		"G5vg8QJ1fu4="
 	],
-	"merge|protocol version 20|With sub entries|with trustline|account has trust line" : [ "EbzM2m7VJEY=" ],
+	"merge|protocol version 20|With sub entries|with trustline|account has trust line" : [ "xFWS77xNfMg=" ],
 	"merge|protocol version 20|account has only base reserve" : [ "bAKIHGnLwsc=", "Y9cjHud9HRg=" ],
 	"merge|protocol version 20|account has only base reserve + one operation fee" : [ "cQnD/2G9/P0=", "5kDcgDdAfLQ=" ],
 	"merge|protocol version 20|account has only base reserve + one operation fee + one stroop" : [ "SJJMuGrzlLE=", "43Mp7k/V1Nw=" ],
@@ -1996,25 +1996,25 @@
 	"merge|protocol version 20|account has only base reserve + one stroop" : [ "yhO5AJ35Uko=", "qG0teuDjoNQ=" ],
 	"merge|protocol version 20|account has only base reserve + two operation fees" : [ "+U1mvGMUjRI=", "VuW5mxJSI1g=" ],
 	"merge|protocol version 20|account has only base reserve + two operation fees - one stroop" : [ "cec+NdEcU6A=", "yuL8QlrgOBo=" ],
-	"merge|protocol version 20|create, merge, create" : [ "clyH3K0m0cY=" ],
+	"merge|protocol version 20|create, merge, create" : [ "T8topx6IOxs=" ],
 	"merge|protocol version 20|destination with native buying liabilities" : 
 	[
 		"Lftzj8GyeLM=",
 		"8sPDOmLcVz0=",
 		"ZcpStJl5WKU=",
-		"2mWTuBBG3EU=",
+		"H2aKp80LISc=",
 		"CHYN2fiUMF4=",
 		"zNQhq2jG5t8="
 	],
-	"merge|protocol version 20|merge account twice" : [ "faExGUEzBdo=" ],
-	"merge|protocol version 20|merge account twice to non existing account" : [ "faExGUEzBdo=" ],
-	"merge|protocol version 20|merge into non existent account" : [ "1umLdH1TBoc=" ],
-	"merge|protocol version 20|merge into self" : [ "1umLdH1TBoc=" ],
+	"merge|protocol version 20|merge account twice" : [ "+ikIN6AWicA=" ],
+	"merge|protocol version 20|merge account twice to non existing account" : [ "+ikIN6AWicA=" ],
+	"merge|protocol version 20|merge into non existent account" : [ "U0R98w4qonY=" ],
+	"merge|protocol version 20|merge into self" : [ "U0R98w4qonY=" ],
 	"merge|protocol version 20|merge too far|at max = success" : [ "pluxbsYDX9I=", "YUvIU6nRjag=" ],
-	"merge|protocol version 20|merge too far|passed max = failure" : [ "b56tDdG8VRw=", "3c8cAxTxkNY=" ],
-	"merge|protocol version 20|merge, create different, merge into the same" : [ "clyH3K0m0cY=" ],
+	"merge|protocol version 20|merge too far|passed max = failure" : [ "b56tDdG8VRw=", "r5pYmrToBnU=" ],
+	"merge|protocol version 20|merge, create different, merge into the same" : [ "T8topx6IOxs=" ],
 	"merge|protocol version 20|merge, create, merge back" : [ "VopNlrp+czU=" ],
-	"merge|protocol version 20|merge, create, merge into the same" : [ "clyH3K0m0cY=" ],
+	"merge|protocol version 20|merge, create, merge into the same" : [ "T8topx6IOxs=" ],
 	"merge|protocol version 20|sponsorships" : 
 	[
 		"1kRiLypJl1Q=",
@@ -2026,7 +2026,7 @@
 		"1kRiLypJl1Q=",
 		"1kRiLypJl1Q="
 	],
-	"merge|protocol version 20|sponsorships|is sponsor error|is sponsoring reserve" : [ "Cq7C/9fB6d4=" ],
+	"merge|protocol version 20|sponsorships|is sponsor error|is sponsoring reserve" : [ "JSFUp/j5oLk=" ],
 	"merge|protocol version 20|sponsorships|with sponsored account|with sponsored signer" : [ "jEyFmjThqxo=" ],
 	"merge|protocol version 20|sponsorships|with sponsored account|with sponsored signer into sponsoring account" : [ "9GQEsn80VHU=" ],
 	"merge|protocol version 20|sponsorships|with sponsored account|without sponsored signer" : [ "Ados9KftDaU=" ],
@@ -2035,7 +2035,7 @@
 	"merge|protocol version 20|sponsorships|with sponsored signers|into non-sponsoring account" : [ "C72xFwOG2w4=" ],
 	"merge|protocol version 20|sponsorships|with sponsored signers|into sponsoring account" : [ "eXvMlClQq9w=" ],
 	"merge|protocol version 20|success|success - basic" : [ "FiZN2L5yMLU=" ],
-	"merge|protocol version 20|with create" : [ "clyH3K0m0cY=" ],
+	"merge|protocol version 20|with create" : [ "T8topx6IOxs=" ],
 	"merge|protocol version 2|Account has static auth flag set" : [ "2EzD1iRBY5I=", "/lfj8xIFS8I=" ],
 	"merge|protocol version 2|With sub entries|account has data" : [ "oRaxHQV/mPM=", "/lfj8xIFS8I=" ],
 	"merge|protocol version 2|With sub entries|account has signer" : [ "qJjE+gxKjT0=", "7wuo11KbfVs=" ],

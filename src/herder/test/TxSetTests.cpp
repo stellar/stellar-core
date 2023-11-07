@@ -351,7 +351,6 @@ TEST_CASE("generalized tx set XDR validation", "[txset]")
                               .back()
                               .txsMaybeDiscountedFee()
                               .txs.back();
-
             txEnv.v0().tx.operations.emplace_back();
             txEnv.v0().tx.operations.back().body.type(INVOKE_HOST_FUNCTION);
         }
