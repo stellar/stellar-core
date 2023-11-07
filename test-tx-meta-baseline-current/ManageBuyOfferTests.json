@@ -556,8 +556,8 @@
 		"1bx4z/VIFfs=",
 		"khjy/W+zitw="
 	],
-	"manage buy offer failure modes|protocol version 20|check offer valid|buy no trust" : [ "eD5XprWgwh0=", "qlUxC7perMs=" ],
-	"manage buy offer failure modes|protocol version 20|check offer valid|buy not authorized" : [ "4hyCSfKhUEU=", "a5rmsxzWWc0=", "p7WVyKxt+HA=", "pEFR5uCQpPQ=" ],
+	"manage buy offer failure modes|protocol version 20|check offer valid|buy no trust" : [ "eD5XprWgwh0=", "6fhmod2rQbY=" ],
+	"manage buy offer failure modes|protocol version 20|check offer valid|buy not authorized" : [ "4hyCSfKhUEU=", "a5rmsxzWWc0=", "p7WVyKxt+HA=", "W09yiumqHx0=" ],
 	"manage buy offer failure modes|protocol version 20|check offer valid|no issuer" : 
 	[
 		"om8RwBH3w2Q=",
@@ -571,8 +571,8 @@
 	],
 	"manage buy offer failure modes|protocol version 20|check offer valid|no issuer|buy no issuer" : [ "Nol525Y+ChU=" ],
 	"manage buy offer failure modes|protocol version 20|check offer valid|no issuer|sell no issuer" : [ "79imi4J/6pc=" ],
-	"manage buy offer failure modes|protocol version 20|check offer valid|sell no balance" : [ "eD5XprWgwh0=", "yinU2/mIqy0=", "Tsqk+/zw8BY=" ],
-	"manage buy offer failure modes|protocol version 20|check offer valid|sell no trust" : [ "eD5XprWgwh0=", "qlUxC7perMs=" ],
+	"manage buy offer failure modes|protocol version 20|check offer valid|sell no balance" : [ "eD5XprWgwh0=", "yinU2/mIqy0=", "YWi+HK7TYMc=" ],
+	"manage buy offer failure modes|protocol version 20|check offer valid|sell no trust" : [ "eD5XprWgwh0=", "6fhmod2rQbY=" ],
 	"manage buy offer failure modes|protocol version 20|check offer valid|sell not authorized" : 
 	[
 		"T/HHLiEZC9I=",
@@ -581,15 +581,15 @@
 		"3FRoz6MKlCw=",
 		"VKaLX8p0PQk=",
 		"0A8nyEthMuo=",
-		"r9IPPNYfu3c="
+		"6rbHXJ+i/uw="
 	],
-	"manage buy offer failure modes|protocol version 20|check valid|buying and selling same asset" : [ "eD5XprWgwh0=", "qlUxC7perMs=" ],
-	"manage buy offer failure modes|protocol version 20|check valid|buying asset not valid" : [ "eD5XprWgwh0=", "qlUxC7perMs=" ],
-	"manage buy offer failure modes|protocol version 20|check valid|delete and create" : [ "eD5XprWgwh0=", "qlUxC7perMs=" ],
-	"manage buy offer failure modes|protocol version 20|check valid|negative amount" : [ "eD5XprWgwh0=", "qlUxC7perMs=" ],
-	"manage buy offer failure modes|protocol version 20|check valid|non-positive price denominator" : [ "eD5XprWgwh0=", "qlUxC7perMs=", "H3K9p5Gx/5E=" ],
-	"manage buy offer failure modes|protocol version 20|check valid|non-positive price numerator" : [ "eD5XprWgwh0=", "qlUxC7perMs=", "H3K9p5Gx/5E=" ],
-	"manage buy offer failure modes|protocol version 20|check valid|selling asset not valid" : [ "eD5XprWgwh0=", "qlUxC7perMs=" ],
+	"manage buy offer failure modes|protocol version 20|check valid|buying and selling same asset" : [ "eD5XprWgwh0=", "6fhmod2rQbY=" ],
+	"manage buy offer failure modes|protocol version 20|check valid|buying asset not valid" : [ "eD5XprWgwh0=", "6fhmod2rQbY=" ],
+	"manage buy offer failure modes|protocol version 20|check valid|delete and create" : [ "eD5XprWgwh0=", "6fhmod2rQbY=" ],
+	"manage buy offer failure modes|protocol version 20|check valid|negative amount" : [ "eD5XprWgwh0=", "6fhmod2rQbY=" ],
+	"manage buy offer failure modes|protocol version 20|check valid|non-positive price denominator" : [ "eD5XprWgwh0=", "6fhmod2rQbY=", "gaZ6Hv5AMb0=" ],
+	"manage buy offer failure modes|protocol version 20|check valid|non-positive price numerator" : [ "eD5XprWgwh0=", "6fhmod2rQbY=", "gaZ6Hv5AMb0=" ],
+	"manage buy offer failure modes|protocol version 20|check valid|selling asset not valid" : [ "eD5XprWgwh0=", "6fhmod2rQbY=" ],
 	"manage buy offer failure modes|protocol version 20|compute offer exchange parameters|buying liabilities" : 
 	[
 		"Suk4uNBhDms=",
@@ -598,7 +598,7 @@
 		"+EJ09asD0Is=",
 		"cL7h5n4Eplo=",
 		"PYBPEyo2Cwo=",
-		"JHnQO+FfoQA=",
+		"/lqrf/sMCZc=",
 		"BMJqJUBNjyw="
 	],
 	"manage buy offer failure modes|protocol version 20|compute offer exchange parameters|reserve" : 
@@ -608,7 +608,7 @@
 		"313vw+OjkPw=",
 		"MBTwbyfiom0=",
 		"mvrOu6TWoS0=",
-		"ymL3dvwioTo=",
+		"oZTO1iZd+Ag=",
 		"tNV6N4XirrQ=",
 		"TdQ/4BibB68=",
 		"Wo1I2oTgXNE=",
@@ -623,10 +623,10 @@
 		"KAgqyc0XHU0=",
 		"4M/Sx8JsgOw=",
 		"F8DlM2M+2Wo=",
-		"fQlpuclBAtA=",
+		"IW5RzBoTYAE=",
 		"EYC58oOhjFQ="
 	],
-	"manage buy offer failure modes|protocol version 20|negative offerID" : [ "yM3y+yygnH0=" ],
+	"manage buy offer failure modes|protocol version 20|negative offerID" : [ "yPMAWpGp2E0=" ],
 	"manage buy offer failure modes|protocol version 20|offer must exist and be owned by source account to modify or delete" : 
 	[
 		"om8RwBH3w2Q=",
@@ -634,7 +634,7 @@
 		"RHZox4u2A34=",
 		"MBTwbyfiom0=",
 		"mvrOu6TWoS0=",
-		"TMoEgMS0OOE=",
+		"P74AkLt6u00=",
 		"nwfA9suyO2g=",
 		"xP8EKOWEr7Y=",
 		"lNf6oVCVt28=",
@@ -642,7 +642,7 @@
 		"FFw01ZsJkW4=",
 		"TWpqY6s95xQ=",
 		"ndCFrI1/hzE=",
-		"n6dhhV62yAA="
+		"i3oJ+v48Bgo="
 	],
 	"manage buy offer failure modes|protocol version 3" : [ "pSsR7xl1ZzY=", "OaXP621I0jI=", "pSsR7xl1ZzY=", "OaXP621I0jI=" ],
 	"manage buy offer failure modes|protocol version 4" : [ "pSsR7xl1ZzY=", "OaXP621I0jI=", "pSsR7xl1ZzY=", "OaXP621I0jI=" ],
@@ -2232,8 +2232,8 @@
 		"cZNxKb/m2TE=",
 		"+dvkERPHqo0="
 	],
-	"manage buy offer releases liabilities before modify|protocol version 20|change amount" : [ "l33oE774UtA=", "/Nmmv974bC4=", "tLY3PXtjoJ4=" ],
-	"manage buy offer releases liabilities before modify|protocol version 20|change price" : [ "+GLbeM+9dIQ=", "V7dD/JEETdg=", "tLY3PXtjoJ4=" ],
+	"manage buy offer releases liabilities before modify|protocol version 20|change amount" : [ "l33oE774UtA=", "/Nmmv974bC4=", "X0uANRIoe7o=" ],
+	"manage buy offer releases liabilities before modify|protocol version 20|change price" : [ "+GLbeM+9dIQ=", "V7dD/JEETdg=", "X0uANRIoe7o=" ],
 	"manage buy offer releases liabilities before modify|protocol version 3" : 
 	[
 		"0V3jr/3FY6U=",
