@@ -338,9 +338,13 @@ FeeBumpTransactionFrame::getInclusionFee() const
 }
 
 bool
-FeeBumpTransactionFrame::isValidStructure() const
+FeeBumpTransactionFrame::XDRProvidesValidFee() const
 {
-    return mInnerTx->isValidStructure();
+    if (getFullFee() < 0)
+    {
+        return false;
+    }
+    return mInnerTx->XDRProvidesValidFee();
 }
 
 int64_t

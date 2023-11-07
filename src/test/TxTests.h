@@ -194,13 +194,12 @@ TransactionFramePtr createSimpleDexTx(Application& app, TestAccount& account,
 // `generatedWasmSize`.
 Operation createUploadWasmOperation(uint32_t generatedWasmSize);
 
-TransactionFramePtr
-createUploadWasmTx(Application& app, TestAccount& account, int64_t inclusionFee,
-                   int64_t resourceFee, SorobanResources resources,
-                   std::optional<std::string> memo = std::nullopt,
-                   int addInvalidOps = 0,
-                   std::optional<uint32_t> wasmSize = std::nullopt,
-                   std::optional<SequenceNumber> seq = std::nullopt);
+TransactionFramePtr createUploadWasmTx(
+    Application& app, TestAccount& account, uint32_t inclusionFee,
+    int64_t resourceFee, SorobanResources resources,
+    std::optional<std::string> memo = std::nullopt, int addInvalidOps = 0,
+    std::optional<uint32_t> wasmSize = std::nullopt,
+    std::optional<SequenceNumber> seq = std::nullopt);
 int64_t sorobanResourceFee(Application& app, SorobanResources const& resources,
                            uint32_t txSize, uint32_t eventsSize);
 
@@ -300,13 +299,13 @@ transactionFrameFromOps(Hash const& networkID, TestAccount& source,
 TransactionFrameBasePtr sorobanTransactionFrameFromOps(
     Hash const& networkID, TestAccount& source,
     std::vector<Operation> const& ops, std::vector<SecretKey> const& opKeys,
-    SorobanResources const& resources, int64_t inclusionFee,
+    SorobanResources const& resources, uint32_t inclusionFee,
     int64_t resourceFee, std::optional<std::string> memo = std::nullopt,
     std::optional<SequenceNumber> seq = std::nullopt);
 TransactionFrameBasePtr sorobanTransactionFrameFromOpsWithTotalFee(
     Hash const& networkID, TestAccount& source,
     std::vector<Operation> const& ops, std::vector<SecretKey> const& opKeys,
-    SorobanResources const& resources, int64_t totalFee, int64_t resourceFee,
+    SorobanResources const& resources, uint32_t totalFee, int64_t resourceFee,
     std::optional<std::string> memo = std::nullopt);
 
 ConfigUpgradeSetFrameConstPtr makeConfigUpgradeSet(

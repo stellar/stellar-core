@@ -116,6 +116,6 @@ class FeeBumpTransactionFrame : public TransactionFrameBase
                                    SorobanNetworkConfig const& sorobanConfig,
                                    Config const& cfg) override;
     virtual int64 declaredSorobanResourceFee() const override;
-    virtual bool isValidStructure() const override;
+    virtual bool XDRProvidesValidFee() const override;
 };
 }

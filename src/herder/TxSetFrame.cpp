@@ -1176,6 +1176,11 @@ TxSetFrame::addTxsFromXdr(Application& app,
         auto tx = TransactionFrameBase::makeTransactionFromWire(
             app.getNetworkID(), env);
 
+        if (!tx->XDRProvidesValidFee())
+        {
+            return false;
+        }
+
         if (protocolVersionStartsFrom(ledgerVersion, SOROBAN_PROTOCOL_VERSION))
         {
             tx->maybeComputeSorobanResourceFee(

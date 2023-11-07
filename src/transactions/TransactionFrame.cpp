@@ -1356,11 +1356,11 @@ TransactionFrame::processFeeSeqNum(AbstractLedgerTxn& ltx,
 }
 
 bool
-TransactionFrame::isValidStructure() const
+TransactionFrame::XDRProvidesValidFee() const
 {
     if (isSoroban())
     {
-        if (mEnvelope.type() == ENVELOPE_TYPE_TX &&
+        if (mEnvelope.type() != ENVELOPE_TYPE_TX ||
             mEnvelope.v1().tx.ext.v() != 1)
         {
             return false;
@@ -1429,6 +1429,12 @@ TransactionFrame::checkValidWithOptionallyChargedFee(
 {
     ZoneScoped;
     mCachedAccount.reset();
+
+    if (!XDRProvidesValidFee())
+    {
+        getResult().result.code(txMALFORMED);
+        return false;
+    }
 
     LedgerTxn ltx(ltxOuter);
     int64_t minBaseFee = ltx.loadHeader().current().baseFee;
@@ -1648,15 +1654,13 @@ TransactionFrame::applyOperations(SignatureChecker& signatureChecker,
         {
             markResultFailed();
             if (protocolVersionStartsFrom(ledgerVersion,
-                                          SOROBAN_PROTOCOL_VERSION))
+                                          SOROBAN_PROTOCOL_VERSION) &&
+                isSoroban())
             {
-                if (isSoroban())
-                {
-                    // If transaction fails, we don't charge for any
-                    // refundable resources.
-                    mFeeRefund = declaredSorobanResourceFee() -
-                                 mSorobanResourceFee->non_refundable_fee;
-                }
+                // If transaction fails, we don't charge for any
+                // refundable resources.
+                mFeeRefund = declaredSorobanResourceFee() -
+                             mSorobanResourceFee->non_refundable_fee;
                 outerMeta.pushDiagnosticEvents(std::move(mDiagnosticEvents));
             }
         }

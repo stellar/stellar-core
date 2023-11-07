@@ -293,6 +293,6 @@ class TransactionFrame : public TransactionFrameBase
         uint32_t txSize, uint32_t eventsSize,
         SorobanNetworkConfig const& sorobanConfig, Config const& cfg);
     virtual int64 declaredSorobanResourceFee() const override;
-    virtual bool isValidStructure() const override;
+    virtual bool XDRProvidesValidFee() const override;
 };
 }

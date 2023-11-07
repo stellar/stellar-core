@@ -97,6 +97,6 @@ class TransactionFrameBase
                                    SorobanNetworkConfig const& sorobanConfig,
                                    Config const& cfg) = 0;
     virtual int64 declaredSorobanResourceFee() const = 0;
-    virtual bool isValidStructure() const = 0;
+    virtual bool XDRProvidesValidFee() const = 0;
 };
 }

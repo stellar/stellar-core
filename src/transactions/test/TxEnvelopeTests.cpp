@@ -2513,6 +2513,13 @@ TEST_CASE("soroban transaction validation", "[tx][envelope][soroban]")
         }
     };
 
+    SECTION("no soroban extension")
+    {
+        auto tx = transactionFrameFromOps(app->getNetworkID(), root, {op0}, {});
+        LedgerTxn ltx(app->getLedgerTxnRoot());
+        REQUIRE(!tx->checkValid(*app, ltx, 0, 0, 0));
+        REQUIRE(tx->getResult().result.code() == txMALFORMED);
+    }
     SorobanResources resources;
     SECTION("minimal resources are valid")
     {

@@ -351,10 +351,8 @@ TEST_CASE("generalized tx set XDR validation", "[txset]")
                               .back()
                               .txsMaybeDiscountedFee()
                               .txs.back();
-            txEnv.type(ENVELOPE_TYPE_TX);
-            txEnv.v1().tx.ext.v(1);
-            txEnv.v1().tx.operations.emplace_back();
-            txEnv.v1().tx.operations.back().body.type(INVOKE_HOST_FUNCTION);
+            txEnv.v0().tx.operations.emplace_back();
+            txEnv.v0().tx.operations.back().body.type(INVOKE_HOST_FUNCTION);
         }
         auto txSet = TxSetFrame::makeFromWire(*app, xdrTxSet);
         REQUIRE(!txSet->checkValidStructure());
@@ -373,10 +371,8 @@ TEST_CASE("generalized tx set XDR validation", "[txset]")
                                       .back()
                                       .txsMaybeDiscountedFee()
                                       .txs.back();
-                    txEnv.type(ENVELOPE_TYPE_TX);
-                    txEnv.v1().tx.ext.v(1);
-                    txEnv.v1().tx.operations.emplace_back();
-                    txEnv.v1().tx.operations.back().body.type(
+                    txEnv.v0().tx.operations.emplace_back();
+                    txEnv.v0().tx.operations.back().body.type(
                         INVOKE_HOST_FUNCTION); // tx->isSoroban() ==
                                                // true
                 }

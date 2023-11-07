@@ -245,11 +245,10 @@ TransactionQueue::canAdd(TransactionFrameBasePtr tx,
             mApp.getConfig());
     }
 
-    // newFullFee, cast from uint32_t, so it can't be negative
     int64_t newFullFee = tx->getFullFee();
-    if (tx->getInclusionFee() < 0)
+    if (newFullFee < 0 || tx->getInclusionFee() < 0)
     {
-        tx->getResult().result.code(txSOROBAN_INVALID);
+        tx->getResult().result.code(txMALFORMED);
         return TransactionQueue::AddResult::ADD_STATUS_ERROR;
     }
 
@@ -398,8 +397,8 @@ TransactionQueue::canAdd(TransactionFrameBasePtr tx,
     int64_t totalFees = feeStateIter == mAccountStates.end()
                             ? 0
                             : feeStateIter->second.mTotalFees;
-    if (getAvailableBalance(ltx.loadHeader(), feeSource) <
-        totalFees + newFullFee)
+    if (getAvailableBalance(ltx.loadHeader(), feeSource) - newFullFee <
+        totalFees)
     {
         tx->getResult().result.code(txINSUFFICIENT_BALANCE);
         return TransactionQueue::AddResult::ADD_STATUS_ERROR;
@@ -556,7 +555,7 @@ TransactionQueue::tryAdd(TransactionFrameBasePtr tx, bool submittedFromSelf)
     ZoneScoped;
 
     // Check basic structure validity _before_ any fee-related computation
-    if (!tx->isValidStructure())
+    if (!tx->XDRProvidesValidFee())
     {
         tx->getResult().result.code(txMALFORMED);
         return TransactionQueue::AddResult::ADD_STATUS_ERROR;
