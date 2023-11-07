@@ -32,7 +32,10 @@ enum class LoadGenMode
     PRETEND,
     // Mix of payments and DEX-related transactions.
     MIXED_TXS,
-    SOROBAN
+    // Deploy random WASM blobs, for overlay testing
+    SOROBAN_WASM,
+    // Invoke and apply resource intensive TXs
+    SOROBAN_INVOKE
 };
 
 // Soroban load gen occurs in 4 steps:
@@ -79,7 +82,6 @@ struct GeneratedLoadConfig
     uint32_t dexTxPercent = 0;
     // Number and size of ContractData entries that will loaded on each
     // invocation
-    // TODO: Programmatically determine this based on network config
     uint32_t nDataEntries = 0;
     uint32_t bytesPerDataEntry = 0;
 
@@ -231,8 +233,8 @@ class LoadGenerator
 
     // Sets generateTx to correct soroban loadgen function. Returns false if TX
     // could not be created due to pending TXs, true otherwise.
-    bool sorobanLoadGenStep(GeneratedLoadConfig& cfg, uint32_t ledgerNum,
-                            LoadGenFunc& generateTx);
+    bool sorobanInvokeLoadGenStep(GeneratedLoadConfig& cfg, uint32_t ledgerNum,
+                                  LoadGenFunc& generateTx);
 
     std::pair<TestAccountPtr, TransactionFramePtr>
     paymentTransaction(uint32_t numAccounts, uint32_t offset,
@@ -250,20 +252,20 @@ class LoadGenerator
                            std::optional<uint32_t> maxGeneratedFeeRate);
     std::pair<LoadGenerator::TestAccountPtr, TransactionFramePtr>
     uploadWasmTransaction(uint32_t ledgerNum, uint64_t accountId,
-                          std::optional<uint32_t> maxGeneratedFeeRate);
+                          uint32_t inclusionFee);
     std::pair<LoadGenerator::TestAccountPtr, TransactionFramePtr>
     createContractTransaction(uint32_t ledgerNum, uint64_t accountId,
-                              std::optional<uint32_t> maxGeneratedFeeRate);
+                              uint32_t inclusionFee);
     std::pair<LoadGenerator::TestAccountPtr, TransactionFramePtr>
     invokeStorageTransaction(uint32_t ledgerNum, uint64_t accountId,
-                             std::optional<uint32_t> maxGeneratedFeeRate);
+                             uint32_t inclusionFee);
     std::pair<LoadGenerator::TestAccountPtr, TransactionFramePtr>
     invokeSorobanLoadTransaction(uint32_t ledgerNum, uint64_t accountId,
-                                 std::optional<uint32_t> maxGeneratedFeeRate);
+                                 uint32_t inclusionFee);
     std::pair<LoadGenerator::TestAccountPtr, TransactionFramePtr>
-    sorobanTransaction(uint32_t ledgerNum, uint64_t accountId,
-                       SorobanResources resources, size_t wasmSize,
-                       uint32_t inclusionFee);
+    sorobanRandomWasmTransaction(uint32_t ledgerNum, uint64_t accountId,
+                                 SorobanResources resources, size_t wasmSize,
+                                 uint32_t inclusionFee);
     void maybeHandleFailedTx(TransactionFramePtr tx,
                              TestAccountPtr sourceAccount,
                              TransactionQueue::AddResult status,

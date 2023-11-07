@@ -110,6 +110,16 @@ TEST_CASE("generate soroban load", "[loadgen]")
     {
         overrideSorobanNetworkConfigForTest(*node);
         modifySorobanNetworkConfig(*node, [&](SorobanNetworkConfig& cfg) {
+            // Entries should never expire
+            cfg.mStateArchivalSettings.maxEntryTTL = UINT32_MAX;
+            cfg.mStateArchivalSettings.minPersistentTTL = 5'000'000;
+
+            // Set memory and write limits so that we can write all keys in a
+            // single TX during setup
+            cfg.mTxMemoryLimit = UINT32_MAX;
+            cfg.mTxMaxWriteLedgerEntries = cfg.mTxMaxReadLedgerEntries;
+            cfg.mTxMaxWriteBytes = cfg.mTxMaxReadBytes;
+
             // Allow every TX to have the maximum TX resources
             cfg.mLedgerMaxInstructions =
                 cfg.mTxMaxInstructions * cfg.mLedgerMaxTxCount;
@@ -123,10 +133,6 @@ TEST_CASE("generate soroban load", "[loadgen]")
                 cfg.mTxMaxWriteBytes * cfg.mLedgerMaxTxCount;
             cfg.mLedgerMaxTransactionsSizeBytes =
                 cfg.mTxMaxSizeBytes * cfg.mLedgerMaxTxCount;
-
-            // Entries should never expire
-            cfg.mStateArchivalSettings.maxEntryTTL = UINT32_MAX;
-            cfg.mStateArchivalSettings.minPersistentTTL = 5'000'000;
         });
     }
 
@@ -155,8 +161,8 @@ TEST_CASE("generate soroban load", "[loadgen]")
 
     auto const numSorobanTxs = 300;
     auto const numDataEntries = 5;
-    auto cfg = GeneratedLoadConfig::txLoad(LoadGenMode::SOROBAN, nAccounts,
-                                           numSorobanTxs,
+    auto cfg = GeneratedLoadConfig::txLoad(LoadGenMode::SOROBAN_INVOKE,
+                                           nAccounts, numSorobanTxs,
                                            /* txRate */ 1);
     cfg.nDataEntries = numDataEntries;
     cfg.sorobanNoResetForTesting = true;

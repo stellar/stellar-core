@@ -94,9 +94,13 @@ LoadGenerator::getMode(std::string const& mode)
     {
         return LoadGenMode::MIXED_TXS;
     }
-    else if (mode == "soroban")
+    else if (mode == "soroban_wasm")
     {
-        return LoadGenMode::SOROBAN;
+        return LoadGenMode::SOROBAN_WASM;
+    }
+    else if (mode == "soroban_invoke")
+    {
+        return LoadGenMode::SOROBAN_INVOKE;
     }
     else
     {
@@ -336,13 +340,14 @@ LoadGenerator::scheduleLoadGeneration(GeneratedLoadConfig cfg)
             MIN_UNIQUE_ACCOUNT_MULTIPLIER);
     }
 
-    if (cfg.mode == LoadGenMode::SOROBAN &&
+    if ((cfg.mode == LoadGenMode::SOROBAN_INVOKE ||
+         cfg.mode == LoadGenMode::SOROBAN_WASM) &&
         protocolVersionIsBefore(mApp.getLedgerManager()
                                     .getLastClosedLedgerHeader()
                                     .header.ledgerVersion,
                                 SOROBAN_PROTOCOL_VERSION))
     {
-        errorMsg = "Soroban mode requires protocol version 20 or higher";
+        errorMsg = "Soroban modes require protocol version 20 or higher";
     }
 
     if (errorMsg)
@@ -567,6 +572,7 @@ LoadGenerator::generateLoad(GeneratedLoadConfig cfg)
             break;
             case LoadGenMode::SOROBAN_WASM:
             {
+                uint64_t sourceAccountId = getNextAvailableAccount();
                 generateTx = [&]() {
                     SorobanResources resources;
                     uint32_t wasmSize{};
@@ -629,7 +635,8 @@ LoadGenerator::generateLoad(GeneratedLoadConfig cfg)
                 break;
             }
             case SOROBAN_INVOKE:
-                txGenerated = sorobanLoadGenStep(cfg, ledgerNum, generateTx);
+                txGenerated =
+                    sorobanInvokeLoadGenStep(cfg, ledgerNum, generateTx);
                 break;
             }
 
@@ -985,8 +992,9 @@ LoadGenerator::findAccount(uint64_t accountId, uint32_t ledgerNum)
 }
 
 bool
-LoadGenerator::sorobanLoadGenStep(GeneratedLoadConfig& cfg, uint32_t ledgerNum,
-                                  LoadGenFunc& generateTx)
+LoadGenerator::sorobanInvokeLoadGenStep(GeneratedLoadConfig& cfg,
+                                        uint32_t ledgerNum,
+                                        LoadGenFunc& generateTx)
 {
     switch (cfg.sorobanPhase)
     {
@@ -1000,8 +1008,10 @@ LoadGenerator::sorobanLoadGenStep(GeneratedLoadConfig& cfg, uint32_t ledgerNum,
                 if (accOp)
                 {
                     generateTx = [&]() {
-                        return uploadWasmTransaction(ledgerNum, *accOp,
-                                                     cfg.maxGeneratedFeeRate);
+                        return uploadWasmTransaction(
+                            ledgerNum, *accOp,
+                            generateFee(cfg.maxGeneratedFeeRate, mApp,
+                                        /* opsCnt */ 1));
                     };
 
                     return true;
@@ -1029,7 +1039,9 @@ LoadGenerator::sorobanLoadGenStep(GeneratedLoadConfig& cfg, uint32_t ledgerNum,
                 {
                     generateTx = [&]() {
                         return createContractTransaction(
-                            ledgerNum, *accOp, cfg.maxGeneratedFeeRate);
+                            ledgerNum, *accOp,
+                            generateFee(cfg.maxGeneratedFeeRate, mApp,
+                                        /* opsCnt */ 1));
                     };
 
                     return true;
@@ -1056,7 +1068,9 @@ LoadGenerator::sorobanLoadGenStep(GeneratedLoadConfig& cfg, uint32_t ledgerNum,
                 {
                     generateTx = [&]() {
                         return invokeStorageTransaction(
-                            ledgerNum, *accOp, cfg.maxGeneratedFeeRate);
+                            ledgerNum, *accOp,
+                            generateFee(cfg.maxGeneratedFeeRate, mApp,
+                                        /* opsCnt */ 1));
                     };
 
                     return true;
@@ -1077,8 +1091,10 @@ LoadGenerator::sorobanLoadGenStep(GeneratedLoadConfig& cfg, uint32_t ledgerNum,
         // always be available
         releaseAssert(accOp.has_value());
         generateTx = [&]() {
-            return invokeSorobanLoadTransaction(ledgerNum, *accOp,
-                                                cfg.maxGeneratedFeeRate);
+            return invokeSorobanLoadTransaction(
+                ledgerNum, *accOp,
+                generateFee(cfg.maxGeneratedFeeRate, mApp,
+                            /* opsCnt */ 1));
         };
 
         return true;
@@ -1132,10 +1148,38 @@ LoadGenerator::manageOfferTransaction(
                                            maxGeneratedFeeRate));
 }
 
+static void
+increaseOpSize(Operation& op, uint32_t increaseUpToBytes)
+{
+    if (increaseUpToBytes == 0)
+    {
+        return;
+    }
+
+    SorobanAuthorizationEntry auth;
+    auth.credentials.type(SOROBAN_CREDENTIALS_SOURCE_ACCOUNT);
+    auth.rootInvocation.function.type(
+        SOROBAN_AUTHORIZED_FUNCTION_TYPE_CONTRACT_FN);
+    SCVal val(SCV_BYTES);
+
+    auto const overheadBytes = xdr::xdr_size(auth) + xdr::xdr_size(val);
+    if (overheadBytes > increaseUpToBytes)
+    {
+        increaseUpToBytes = 0;
+    }
+    else
+    {
+        increaseUpToBytes -= overheadBytes;
+    }
+
+    val.bytes().resize(increaseUpToBytes);
+    auth.rootInvocation.function.contractFn().args = {val};
+    op.body.invokeHostFunctionOp().auth = {auth};
+}
+
 std::pair<LoadGenerator::TestAccountPtr, TransactionFramePtr>
-LoadGenerator::uploadWasmTransaction(
-    uint32_t ledgerNum, uint64_t accountId,
-    std::optional<uint32_t> maxGeneratedFeeRate)
+LoadGenerator::uploadWasmTransaction(uint32_t ledgerNum, uint64_t accountId,
+                                     uint32_t inclusionFee)
 {
     // TODO: Generate Unique WASMs
     auto wasm = rust_bridge::get_test_wasm_contract_data();
@@ -1162,17 +1206,16 @@ LoadGenerator::uploadWasmTransaction(
     resourceFee += 1'000'000;
     auto tx = std::dynamic_pointer_cast<TransactionFrame>(
         sorobanTransactionFrameFromOps(mApp.getNetworkID(), *account,
-                                       {uploadOp}, {}, uploadResources, 1'000,
-                                       resourceFee));
+                                       {uploadOp}, {}, uploadResources,
+                                       inclusionFee, resourceFee));
     mPendingEntries.emplace(accountId,
                             std::vector<LedgerKey>{contractCodeLedgerKey});
     return std::make_pair(account, tx);
 }
 
 std::pair<LoadGenerator::TestAccountPtr, TransactionFramePtr>
-LoadGenerator::createContractTransaction(
-    uint32_t ledgerNum, uint64_t accountId,
-    std::optional<uint32_t> maxGeneratedFeeRate)
+LoadGenerator::createContractTransaction(uint32_t ledgerNum, uint64_t accountId,
+                                         uint32_t inclusionFee)
 {
     releaseAssert(mCodeKey);
     releaseAssert(mIncompleteContractInstances.find(accountId) ==
@@ -1198,16 +1241,15 @@ LoadGenerator::createContractTransaction(
     resourceFee += 1'000'000;
     auto tx = std::dynamic_pointer_cast<TransactionFrame>(
         sorobanTransactionFrameFromOps(mApp.getNetworkID(), *account,
-                                       {createOp}, {}, createResources, 1'000,
-                                       resourceFee));
+                                       {createOp}, {}, createResources,
+                                       inclusionFee, resourceFee));
 
     return std::make_pair(account, tx);
 }
 
 std::pair<LoadGenerator::TestAccountPtr, TransactionFramePtr>
-LoadGenerator::invokeStorageTransaction(
-    uint32_t ledgerNum, uint64_t accountId,
-    std::optional<uint32_t> maxGeneratedFeeRate)
+LoadGenerator::invokeStorageTransaction(uint32_t ledgerNum, uint64_t accountId,
+                                        uint32_t inclusionFee)
 {
     auto account = findAccount(accountId, ledgerNum);
     auto instanceIter = mIncompleteContractInstances.find(accountId);
@@ -1244,15 +1286,15 @@ LoadGenerator::invokeStorageTransaction(
 
     auto tx = std::dynamic_pointer_cast<TransactionFrame>(
         sorobanTransactionFrameFromOps(mApp.getNetworkID(), *account, {op}, {},
-                                       resources, 1'000, resourceFee));
+                                       resources, inclusionFee, resourceFee));
 
     return std::make_pair(account, tx);
 }
 
 std::pair<LoadGenerator::TestAccountPtr, TransactionFramePtr>
-LoadGenerator::invokeSorobanLoadTransaction(
-    uint32_t ledgerNum, uint64_t accountId,
-    std::optional<uint32_t> maxGeneratedFeeRate)
+LoadGenerator::invokeSorobanLoadTransaction(uint32_t ledgerNum,
+                                            uint64_t accountId,
+                                            uint32_t inclusionFee)
 {
     auto account = findAccount(accountId, ledgerNum);
     auto instanceIter = mCompleteContractInstances.find(accountId);
@@ -1273,6 +1315,21 @@ LoadGenerator::invokeSorobanLoadTransaction(
     ihf.invokeContract().functionName = "has_temporary";
     ihf.invokeContract().args = {keySymbol};
 
+    uint32_t txMaxSizeBytes = 0;
+    {
+        LedgerTxn ltx(mApp.getLedgerTxnRoot());
+        txMaxSizeBytes = mApp.getLedgerManager()
+                             .getSorobanNetworkConfig(ltx)
+                             .txMaxSizeBytes();
+    }
+
+    // Approximate TX size before padding, slightly over estimated so we stay
+    // below limits
+    uint32_t const txOverheadBytes = 700;
+    auto paddingBytes =
+        rand_uniform<uint32_t>(0, txMaxSizeBytes - txOverheadBytes);
+    increaseOpSize(op, paddingBytes);
+
     SorobanResources resources;
     resources.footprint.readOnly = instance.readOnlyKeys;
     resources.footprint.readWrite = {storageLK};
@@ -1280,20 +1337,23 @@ LoadGenerator::invokeSorobanLoadTransaction(
     resources.readBytes = 10'000;
     resources.writeBytes = 0;
 
-    auto resourceFee = sorobanResourceFee(mApp, resources, 1000, 40);
+    auto resourceFee =
+        sorobanResourceFee(mApp, resources, txOverheadBytes + paddingBytes, 40);
     resourceFee += 1'000'000;
 
     auto tx = std::dynamic_pointer_cast<TransactionFrame>(
         sorobanTransactionFrameFromOps(mApp.getNetworkID(), *account, {op}, {},
-                                       resources, 1'000, resourceFee));
+                                       resources, inclusionFee, resourceFee));
 
     return std::make_pair(account, tx);
 }
 
 std::pair<LoadGenerator::TestAccountPtr, TransactionFramePtr>
-LoadGenerator::sorobanTransaction(uint32_t ledgerNum, uint64_t accountId,
-                                  SorobanResources resources, size_t wasmSize,
-                                  uint32_t inclusionFee)
+LoadGenerator::sorobanRandomWasmTransaction(uint32_t ledgerNum,
+                                            uint64_t accountId,
+                                            SorobanResources resources,
+                                            size_t wasmSize,
+                                            uint32_t inclusionFee)
 {
     auto account = findAccount(accountId, ledgerNum);
     Operation uploadOp =
