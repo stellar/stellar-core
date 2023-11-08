@@ -1166,7 +1166,7 @@ TEST_CASE("errors roll back", "[tx][soroban]")
 
         SorobanResources resources;
         resources.footprint.readOnly = test.getContractKeys();
-        resources.instructions = 2'000'000;
+        resources.instructions = 3'000'000;
         resources.readBytes = 3000;
 
         auto tx = test.createInvokeTx(resources, makeSymbol(name), {}, 100,
