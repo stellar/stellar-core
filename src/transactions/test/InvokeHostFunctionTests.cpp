@@ -2069,6 +2069,13 @@ TEST_CASE("temp entry eviction", "[tx][soroban]")
         closeLedgerOn(*test.getApp(), i, 2, 1, 2016);
     }
 
+    // This should be a noop
+    test.extendOp({lk}, 10'000);
+
+    // This should fail because the temp entry is expired
+    test.extendHostFunction("temp", ContractDataDurability::TEMPORARY, 10'000,
+                            10'000, false);
+
     // Check that temp entry has expired
     auto ledgerSeq = test.getLedgerSeq();
     REQUIRE(!test.isEntryLive("temp", ContractDataDurability::TEMPORARY,
