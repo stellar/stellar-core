@@ -953,7 +953,10 @@ TEST_CASE("Catchup with protocol upgrade", "[catchup][history]")
             std::make_shared<RealGenesisTmpDirHistoryConfigurator>();
         CatchupSimulation catchupSimulation{VirtualClock::VIRTUAL_TIME,
                                             configurator};
-
+        REQUIRE(catchupSimulation.getApp()
+                    .getLedgerManager()
+                    .getLastClosedLedgerHeader()
+                    .header.ledgerVersion == 0);
         catchupSimulation.generateRandomLedger(oldVersion);
         std::vector<uint32_t> catchupLedgers = {
             0, std::numeric_limits<uint32_t>::max(), 32, 60};
@@ -969,7 +972,9 @@ TEST_CASE("Catchup with protocol upgrade", "[catchup][history]")
                     count, Config::TESTDB_IN_MEMORY_SQLITE,
                     std::string("full, ") + resumeModeName(count) + ", " +
                         dbModeName(Config::TESTDB_IN_MEMORY_SQLITE));
-
+                REQUIRE(a->getLedgerManager()
+                            .getLastClosedLedgerHeader()
+                            .header.ledgerVersion == 0);
                 REQUIRE(catchupSimulation.catchupOnline(a, checkpointLedger));
             }
         };
@@ -1000,11 +1005,7 @@ TEST_CASE("Catchup with protocol upgrade", "[catchup][history]")
     SECTION("generalized tx set upgrade")
     {
 
-        if (protocolVersionStartsFrom(Config::CURRENT_LEDGER_PROTOCOL_VERSION,
-                                      SOROBAN_PROTOCOL_VERSION))
-        {
-            testUpgrade(SOROBAN_PROTOCOL_VERSION);
-        }
+        testUpgrade(SOROBAN_PROTOCOL_VERSION);
     }
 }
 

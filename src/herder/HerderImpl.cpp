@@ -2204,19 +2204,17 @@ HerderImpl::updateTransactionQueue(TxSetFrameConstPtr externalizedTxSet)
     auto txsPerPhase =
         externalizedTxSet->createTransactionFrames(mApp.getNetworkID());
 
-    // Generate a transaction set from a random hash and drop invalid
     auto lhhe = mLedgerManager.getLastClosedLedgerHeader();
-    lhhe.hash = HashUtils::random();
 
     auto updateQueue = [&](auto& queue, auto const& applied) {
         queue.removeApplied(applied);
         queue.shift();
         queue.maybeVersionUpgraded();
 
-        auto txSet = queue.getTransactions(lhhe.header);
+        auto txs = queue.getTransactions(lhhe.header);
 
         auto invalidTxs = TxSetUtils::getInvalidTxList(
-            txSet, mApp, 0,
+            txs, mApp, 0,
             getUpperBoundCloseTimeOffset(mApp, lhhe.header.scpValue.closeTime),
             false);
         queue.ban(invalidTxs);
