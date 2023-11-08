@@ -142,7 +142,11 @@ class TxSetFrame : public NonMovableOrCopyable
 
     size_t sizeTxTotal() const;
 
-    size_t sizeOpTotal() const;
+    // Gets the size of this transaction set in operations.
+    // Since this isn't guaranteed to even be valid XDR, this should
+    // only be used for the logging (or testing) purpose. In any other
+    // context, `ApplicableTxSetFrame::sizeOpTotal()` should be used.
+    size_t sizeOpTotalForLogging() const;
 
     // Returns the size of this transaction set when encoded to XDR.
     size_t encodedSize() const;
@@ -299,7 +303,7 @@ class ApplicableTxSetFrame
                        LedgerHeader const& ledgerHeader,
                        SurgePricingLaneConfig const& surgePricingConfig,
                        std::vector<int64_t> const& lowestLaneFee,
-                       std::vector<bool> const& hadTxNotFittingLane);
+                       std::vector<bool> const& hadTxNotFittingLane) const;
     std::optional<Resource> getTxSetSorobanResource() const;
 
     // Get _inclusion_ fee map for a given phase. The map contains lowest base

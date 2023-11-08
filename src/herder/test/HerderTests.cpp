@@ -3961,7 +3961,7 @@ TEST_CASE("soroban txs accepted by the network",
                                           ->getLedgerManager()
                                           .getLastClosedLedgerHeader()
                                           .header.scpValue.txSetHash)
-                            ->sizeOpTotal();
+                            ->sizeOpTotalForLogging();
                     upgradeApplied =
                         upgradeApplied || txSetSize > ledgerWideLimit;
                     return loadGenDone.count() > currLoadGenCount;

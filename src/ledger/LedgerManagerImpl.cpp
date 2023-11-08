@@ -559,7 +559,7 @@ LedgerManagerImpl::valueExternalized(LedgerCloseData const& ledgerData)
               ledgerData.getLedgerSeq(),
               hexAbbrev(ledgerData.getTxSet()->previousLedgerHash()),
               ledgerData.getTxSet()->sizeTxTotal(),
-              ledgerData.getTxSet()->sizeOpTotal(),
+              ledgerData.getTxSet()->sizeOpTotalForLogging(),
               stellarValueToString(mApp.getConfig(), ledgerData.getValue()));
 
     auto st = getState();

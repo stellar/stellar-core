@@ -596,7 +596,7 @@ TxSetFrame::sizeTxTotal() const
 }
 
 size_t
-TxSetFrame::sizeOpTotal() const
+TxSetFrame::sizeOpTotalForLogging() const
 {
     auto accumulateTxsFn = [](size_t sz, TransactionEnvelope const& tx) {
         size_t txOps = 0;
@@ -609,7 +609,9 @@ TxSetFrame::sizeOpTotal() const
             txOps = tx.v1().tx.operations.size();
             break;
         case ENVELOPE_TYPE_TX_FEE_BUMP:
-            txOps = tx.feeBump().tx.innerTx.v1().tx.operations.size();
+            txOps = 1 + tx.feeBump().tx.innerTx.v1().tx.operations.size();
+            break;
+        default:
             break;
         }
         return sz + txOps;
@@ -1076,7 +1078,7 @@ ApplicableTxSetFrame::computeTxFees(
     TxSetFrame::Phase phase, LedgerHeader const& ledgerHeader,
     SurgePricingLaneConfig const& surgePricingConfig,
     std::vector<int64_t> const& lowestLaneFee,
-    std::vector<bool> const& hadTxNotFittingLane)
+    std::vector<bool> const& hadTxNotFittingLane) const
 {
     releaseAssert(!mFeesComputed[static_cast<size_t>(phase)]);
     releaseAssert(isGeneralizedTxSet());

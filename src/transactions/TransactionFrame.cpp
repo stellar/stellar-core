@@ -816,7 +816,8 @@ TransactionFrame::computePreApplySorobanResourceFee(
     // doesn't involve modifying any transaction fees.
     return computeSorobanResourceFee(
         protocolVersion, sorobanResources(),
-        static_cast<uint32_t>(xdr::xdr_size(mEnvelope)), 0, sorobanConfig, cfg);
+        getResources(false).getVal(Resource::Type::TX_BYTE_SIZE), 0,
+        sorobanConfig, cfg);
 }
 
 bool
@@ -838,7 +839,7 @@ TransactionFrame::consumeRefundableSorobanResources(
 
     FeePair consumedFee = computeSorobanResourceFee(
         protocolVersion, sorobanResources(),
-        static_cast<uint32_t>(xdr::xdr_size(mEnvelope)),
+        getResources(false).getVal(Resource::Type::TX_BYTE_SIZE),
         mConsumedContractEventsSizeBytes, sorobanConfig, cfg);
     if (mFeeRefund < consumedFee.refundable_fee)
     {

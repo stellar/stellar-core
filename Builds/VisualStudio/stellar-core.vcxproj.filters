@@ -1312,6 +1312,9 @@
     <ClCompile Include="..\..\src\catchup\ReplayDebugMetaWork.cpp">
       <Filter>catchup</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\src\transactions\test\SorobanTxTestUtils.cpp">
+      <Filter>transactions\tests</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\..\lib\util\cpptoml.h">
@@ -2280,6 +2283,9 @@
     </ClInclude>
     <ClInclude Include="..\..\src\catchup\ReplayDebugMetaWork.h">
       <Filter>catchup</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\transactions\test\SorobanTxTestUtils.h">
+      <Filter>transactions\tests</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
