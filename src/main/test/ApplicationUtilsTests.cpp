@@ -143,7 +143,7 @@ checkState(Application& app)
 class SimulationHelper
 {
     Simulation::pointer mSimulation;
-    Application::pointer mValidator;
+    Application::pointer mMainNode;
     Config& mMainCfg;
     Config& mTestCfg;
     PublicKey mMainNodeID;
@@ -177,6 +177,8 @@ class SimulationHelper
         mMainCfg.ARTIFICIALLY_ACCELERATE_TIME_FOR_TESTING = true;
         mMainCfg = mHistCfg.configure(mMainCfg, /* writable */ true);
         mMainCfg.MAX_SLOTS_TO_REMEMBER = 50;
+        mMainCfg.USE_CONFIG_FOR_GENESIS = false;
+        mMainCfg.TESTING_UPGRADE_DATETIME = VirtualClock::from_time_t(0);
 
         mTestCfg.ARTIFICIALLY_ACCELERATE_TIME_FOR_TESTING = true;
         mTestCfg.NODE_IS_VALIDATOR = false;
@@ -184,14 +186,15 @@ class SimulationHelper
         mTestCfg.INVARIANT_CHECKS = {};
         mTestCfg.MODE_AUTO_STARTS_OVERLAY = false;
         mTestCfg.MODE_STORES_HISTORY_LEDGERHEADERS = true;
+        mTestCfg.USE_CONFIG_FOR_GENESIS = false;
+        mTestCfg.TESTING_UPGRADE_DATETIME = VirtualClock::from_time_t(0);
 
         // Test node points to a read-only archive maintained by the
         // main validator
         mTestCfg = mHistCfg.configure(mTestCfg, /* writable */ false);
 
-        mValidator =
-            mSimulation->addNode(mainNodeSecretKey, mQuorum, &mMainCfg);
-        mValidator->getHistoryArchiveManager().initializeHistoryArchive(
+        mMainNode = mSimulation->addNode(mainNodeSecretKey, mQuorum, &mMainCfg);
+        mMainNode->getHistoryArchiveManager().initializeHistoryArchive(
             mHistCfg.getArchiveDirName());
 
         mSimulation->addNode(mTestNodeSecretKey, mQuorum, &mTestCfg);
@@ -206,16 +209,25 @@ class SimulationHelper
     }
 
     void
-    generateLoad()
+    generateLoad(bool soroban)
     {
-        auto& loadGen = mValidator->getLoadGenerator();
-        auto& loadGenDone = mValidator->getMetrics().NewMeter(
+        auto& loadGen = mMainNode->getLoadGenerator();
+        auto& loadGenDone = mMainNode->getMetrics().NewMeter(
             {"loadgen", "run", "complete"}, "run");
 
         // Generate a bit of load, and crank for some time
-        loadGen.generateLoad(GeneratedLoadConfig::txLoad(
-            LoadGenMode::PAY, /* nAccounts */ 50, /* nTxs */ 10,
-            /*txRate*/ 1));
+        if (soroban)
+        {
+            loadGen.generateLoad(GeneratedLoadConfig::txLoad(
+                LoadGenMode::SOROBAN, /* nAccounts */ 50, /* nTxs */ 10,
+                /*txRate*/ 1));
+        }
+        else
+        {
+            loadGen.generateLoad(GeneratedLoadConfig::txLoad(
+                LoadGenMode::PAY, /* nAccounts */ 50, /* nTxs */ 10,
+                /*txRate*/ 1));
+        }
 
         auto currLoadGenCount = loadGenDone.count();
 
@@ -226,7 +238,7 @@ class SimulationHelper
                                        ->getLedgerManager()
                                        .isSynced();
             },
-            50 * Herder::EXP_LEDGER_TIMESPAN_SECONDS, false);
+            10 * Herder::EXP_LEDGER_TIMESPAN_SECONDS, false);
     }
 
     // Publish checkpoints until selected checkpoint reached. Returns seqno and
@@ -237,8 +249,8 @@ class SimulationHelper
         uint32_t selectedLedger = 0;
         std::string selectedHash;
 
-        auto& loadGen = mValidator->getLoadGenerator();
-        auto& loadGenDone = mValidator->getMetrics().NewMeter(
+        auto& loadGen = mMainNode->getLoadGenerator();
+        auto& loadGenDone = mMainNode->getMetrics().NewMeter(
             {"loadgen", "run", "complete"}, "run");
 
         loadGen.generateLoad(
@@ -247,14 +259,14 @@ class SimulationHelper
         auto currLoadGenCount = loadGenDone.count();
 
         auto checkpoint =
-            mValidator->getHistoryManager().getCheckpointFrequency();
+            mMainNode->getHistoryManager().getCheckpointFrequency();
 
         // Make sure validator publishes something
         mSimulation->crankUntil(
             [&]() {
                 bool loadDone = loadGenDone.count() > currLoadGenCount;
                 auto lcl =
-                    mValidator->getLedgerManager().getLastClosedLedgerHeader();
+                    mMainNode->getLedgerManager().getLastClosedLedgerHeader();
                 // Pick some ledger in the selected checkpoint to run
                 // catchup against later
                 if (lcl.header.ledgerSeq < selectedCheckpoint * checkpoint)
@@ -342,7 +354,17 @@ class SimulationHelper
         auto downloaded =
             app->getCatchupManager().getCatchupMetrics().mCheckpointsDownloaded;
 
-        generateLoad();
+        Upgrades::UpgradeParameters scheduledUpgrades;
+        scheduledUpgrades.mUpgradeTime =
+            VirtualClock::from_time_t(mMainNode->getLedgerManager()
+                                          .getLastClosedLedgerHeader()
+                                          .header.scpValue.closeTime);
+        scheduledUpgrades.mProtocolVersion =
+            static_cast<uint32_t>(SOROBAN_PROTOCOL_VERSION);
+        mMainNode->getHerder().setUpgrades(scheduledUpgrades);
+
+        generateLoad(false);
+        generateLoad(true);
 
         // State has been rebuilt and node is properly in sync
         REQUIRE(checkState(*app));
@@ -487,13 +509,8 @@ TEST_CASE("application setup", "[applicationutils]")
         auto app = setupApp(cfg, clock, 0, "");
         REQUIRE(checkState(*app));
     }
-    SECTION("in memory mode")
-    {
-        Config cfg1 = getTestConfig(1);
-        Config cfg2 = getTestConfig(2);
-        cfg2.setInMemoryMode();
-        cfg2.DATABASE = SecretValue{minimalDBForInMemoryMode(cfg2)};
 
+    auto testInMemoryMode = [&](Config& cfg1, Config& cfg2) {
         // Publish a few checkpoints then shut down test node
         auto simulation = SimulationHelper(cfg1, cfg2);
         auto [startFromLedger, startFromHash] =
@@ -606,27 +623,22 @@ TEST_CASE("application setup", "[applicationutils]")
             }
 #endif
         }
-    }
-    SECTION("BucketListDB mode")
+    };
+    SECTION("in memory mode")
     {
         Config cfg1 = getTestConfig(1);
-        Config cfg2 = getTestConfig(2, Config::TESTDB_ON_DISK_SQLITE);
-        cfg2.EXPERIMENTAL_BUCKETLIST_DB = true;
+        Config cfg2 = getTestConfig(2);
+        cfg2.setInMemoryMode();
+        cfg2.DATABASE = SecretValue{minimalDBForInMemoryMode(cfg2)};
 
-        // Publish a few checkpoints then shut down test node
-        auto simulation = SimulationHelper(cfg1, cfg2);
-        simulation.publishCheckpoints(2);
-        auto lcl = simulation.getTestNodeLCL();
-        simulation.shutdownTestNode();
-        SECTION("no catchup")
+        SECTION("BucketListDB")
         {
-            simulation.runStartupTest(false, 0, "", 0);
+            cfg2.EXPERIMENTAL_BUCKETLIST_DB = true;
+            testInMemoryMode(cfg1, cfg2);
         }
-        SECTION("trigger catchup")
+        SECTION("SQL DB")
         {
-            // Publish more checkpoints while test node is shutdown
-            simulation.publishCheckpoints(10);
-            simulation.runStartupTest(true, 0, "", 0);
+            testInMemoryMode(cfg1, cfg2);
         }
     }
 }
