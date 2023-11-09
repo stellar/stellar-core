@@ -142,6 +142,8 @@ struct InitialSorobanNetworkConfig
 // testing, enabled by `Config::TESTING_SOROBAN_HIGH_LIMIT_OVERRIDE`.
 struct TestOverrideSorobanNetworkConfig
 {
+    static uint32_t const LEDGER_LIMIT_MULTIPLIER = 100;
+
     // Contract size settings
     static constexpr uint32_t MAX_CONTRACT_SIZE =
         InitialSorobanNetworkConfig::MAX_CONTRACT_SIZE * 64;
@@ -155,7 +157,8 @@ struct TestOverrideSorobanNetworkConfig
     // Compute settings
     static constexpr int64_t TX_MAX_INSTRUCTIONS =
         InitialSorobanNetworkConfig::TX_MAX_INSTRUCTIONS * 100;
-    static constexpr int64_t LEDGER_MAX_INSTRUCTIONS = TX_MAX_INSTRUCTIONS;
+    static constexpr int64_t LEDGER_MAX_INSTRUCTIONS =
+        TX_MAX_INSTRUCTIONS * LEDGER_LIMIT_MULTIPLIER;
     static constexpr uint32_t MEMORY_LIMIT =
         InitialSorobanNetworkConfig::MEMORY_LIMIT * 100;
 
@@ -169,17 +172,19 @@ struct TestOverrideSorobanNetworkConfig
     static constexpr uint32_t TX_MAX_WRITE_BYTES =
         InitialSorobanNetworkConfig::TX_MAX_WRITE_BYTES * 1000;
     static constexpr uint32_t LEDGER_MAX_READ_LEDGER_ENTRIES =
-        TX_MAX_READ_LEDGER_ENTRIES;
-    static constexpr uint32_t LEDGER_MAX_READ_BYTES = TX_MAX_READ_BYTES;
+        TX_MAX_READ_LEDGER_ENTRIES * LEDGER_LIMIT_MULTIPLIER;
+    static constexpr uint32_t LEDGER_MAX_READ_BYTES =
+        TX_MAX_READ_BYTES * LEDGER_LIMIT_MULTIPLIER;
     static constexpr uint32_t LEDGER_MAX_WRITE_LEDGER_ENTRIES =
-        TX_MAX_WRITE_LEDGER_ENTRIES;
-    static constexpr uint32_t LEDGER_MAX_WRITE_BYTES = TX_MAX_WRITE_BYTES;
+        TX_MAX_WRITE_LEDGER_ENTRIES * LEDGER_LIMIT_MULTIPLIER;
+    static constexpr uint32_t LEDGER_MAX_WRITE_BYTES =
+        TX_MAX_WRITE_BYTES * LEDGER_LIMIT_MULTIPLIER;
 
     // Bandwidth settings
     static constexpr uint32_t TX_MAX_SIZE_BYTES =
         InitialSorobanNetworkConfig::TX_MAX_SIZE_BYTES * 50;
     static constexpr uint32_t LEDGER_MAX_TRANSACTION_SIZES_BYTES =
-        TX_MAX_SIZE_BYTES;
+        TX_MAX_SIZE_BYTES * LEDGER_LIMIT_MULTIPLIER;
 
     // Contract events settings
     static constexpr uint32_t TX_MAX_CONTRACT_EVENTS_SIZE_BYTES =
@@ -190,7 +195,8 @@ struct TestOverrideSorobanNetworkConfig
 
     // General execution settings
     static constexpr uint32_t LEDGER_MAX_TX_COUNT =
-        InitialSorobanNetworkConfig::LEDGER_MAX_TX_COUNT * 50;
+        InitialSorobanNetworkConfig::LEDGER_MAX_TX_COUNT *
+        LEDGER_LIMIT_MULTIPLIER;
 };
 
 // Wrapper for the contract-related network configuration.
