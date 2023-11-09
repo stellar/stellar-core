@@ -2456,6 +2456,11 @@ testSCPDriver(uint32 protocolVersion, uint32_t maxTxSetSize, size_t expectedOps)
 
     auto root = TestAccount::createRoot(*app);
     std::vector<TestAccount> accounts;
+    for (int i = 0; i < 1000; ++i)
+    {
+        std::string accountName = fmt::format("A{}", accounts.size());
+        accounts.push_back(root.create(accountName.c_str(), 500000000));
+    }
 
     using TxPair = std::pair<Value, TxSetFrameConstPtr>;
     auto makeTxUpgradePair = [&](HerderImpl& herder, TxSetFrameConstPtr txSet,
@@ -2494,11 +2499,6 @@ testSCPDriver(uint32 protocolVersion, uint32_t maxTxSetSize, size_t expectedOps)
     };
     auto makeTransactions = [&](int n, int nbOps, uint32 feeMulti) {
         std::vector<TransactionFrameBasePtr> txs(n);
-        while (accounts.size() < n)
-        {
-            std::string accountName = fmt::format("A{}", accounts.size());
-            accounts.push_back(root.create(accountName.c_str(), 500000000));
-        }
         size_t index = 0;
 
         std::generate(std::begin(txs), std::end(txs), [&]() {
