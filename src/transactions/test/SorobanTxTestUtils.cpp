@@ -623,7 +623,6 @@ ContractInvocationTest::txCheckValid(TransactionFrameBasePtr tx)
 {
     LedgerTxn ltx(mApp->getLedgerTxnRoot());
     REQUIRE(tx->checkValid(*mApp, ltx, 0, 0, 0));
-    ltx.commit();
 }
 
 bool

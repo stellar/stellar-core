@@ -470,7 +470,7 @@ CatchupSimulation::generateRandomLedger(uint32_t version)
         }
     }
     TxSetFrameConstPtr txSet =
-        TxSetFrame::makeFromTransactions(txs, mApp, 0, 0);
+        TxSetFrame::makeFromTransactions(txs, mApp, 0, 0).first;
 
     CLOG_DEBUG(History, "Closing synthetic ledger {} with {} txs (txhash:{})",
                ledgerSeq, txSet->sizeTxTotal(),

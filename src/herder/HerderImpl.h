@@ -103,6 +103,9 @@ class HerderImpl : public Herder
     EnvelopeStatus recvSCPEnvelope(SCPEnvelope const& envelope,
                                    const SCPQuorumSet& qset,
                                    TxSetFrameConstPtr txset) override;
+    EnvelopeStatus recvSCPEnvelope(SCPEnvelope const& envelope,
+                                   const SCPQuorumSet& qset,
+                                   StellarMessage const& txset) override;
 
     void externalizeValue(TxSetFrameConstPtr txSet, uint32_t ledgerSeq,
                           uint64_t closeTime,

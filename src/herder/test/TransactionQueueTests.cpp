@@ -1113,7 +1113,8 @@ class SorobanLimitingLaneConfigForTesting : public SurgePricingLaneConfig
     std::vector<Resource> mLaneOpsLimits;
 };
 
-TEST_CASE("Soroban TransactionQueue pre-protocol-20")
+TEST_CASE("Soroban TransactionQueue pre-protocol-20",
+          "[soroban][transactionqueue]")
 {
     VirtualClock clock;
     auto cfg = getTestConfig();
@@ -2552,7 +2553,8 @@ TEST_CASE("remove applied", "[herder][transactionqueue]")
         auto ledgerSeq = lcl.header.ledgerSeq + 1;
 
         root.loadSequenceNumber();
-        auto txSet = TxSetFrame::makeFromTransactions({tx1b, tx2}, *app, 0, 0);
+        auto [txSet, _] =
+            TxSetFrame::makeFromTransactions({tx1b, tx2}, *app, 0, 0);
         herder.getPendingEnvelopes().putTxSet(txSet->getContentsHash(),
                                               ledgerSeq, txSet);
 

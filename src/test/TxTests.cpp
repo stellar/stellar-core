@@ -494,7 +494,7 @@ closeLedgerOn(Application& app, uint32 ledgerSeq, TimePoint closeTime,
         closeTime = lastCloseTime;
     }
 
-    TxSetFrameConstPtr txSet;
+    std::pair<TxSetFrameConstPtr, ApplicableTxSetFrameConstPtr> txSet;
     if (strictOrder)
     {
         txSet = TxSetFrame::makeFromTransactions(txs, app, 0, 0, true);
@@ -529,9 +529,9 @@ closeLedgerOn(Application& app, uint32 ledgerSeq, TimePoint closeTime,
         // `strictOrder` means the txs in the txSet will be applied in the exact
         // same order as they were constructed. It could also imply the txs
         // themselves maybe intentionally invalid for testing purpose.
-        REQUIRE(txSet->checkValid(app, 0, 0));
+        REQUIRE(txSet.second->checkValid(app, 0, 0));
     }
-    app.getHerder().externalizeValue(txSet, ledgerSeq, closeTime,
+    app.getHerder().externalizeValue(txSet.first, ledgerSeq, closeTime,
                                      emptyUpgradeSteps);
     auto z1 = getTransactionHistoryResults(app.getDatabase(), ledgerSeq);
     auto z2 = getTransactionFeeMeta(app.getDatabase(), ledgerSeq);

@@ -58,14 +58,6 @@ FeeBumpTransactionFrame::getDiagnosticEvents() const
 {
     return mInnerTx->getDiagnosticEvents();
 }
-void
-FeeBumpTransactionFrame::maybeComputeSorobanResourceFee(
-    uint32_t protocolVersion, SorobanNetworkConfig const& sorobanConfig,
-    Config const& cfg)
-{
-    mInnerTx->maybeComputeSorobanResourceFee(protocolVersion, sorobanConfig,
-                                             cfg);
-}
 
 FeeBumpTransactionFrame::FeeBumpTransactionFrame(
     Hash const& networkID, TransactionEnvelope const& envelope)
@@ -193,14 +185,6 @@ FeeBumpTransactionFrame::checkValid(Application& app,
 {
     LedgerTxn ltx(ltxOuter);
     int64_t minBaseFee = ltx.loadHeader().current().baseFee;
-    if (protocolVersionStartsFrom(ltx.loadHeader().current().ledgerVersion,
-                                  SOROBAN_PROTOCOL_VERSION))
-    {
-        mInnerTx->maybeComputeSorobanResourceFee(
-            ltx.loadHeader().current().ledgerVersion,
-            app.getLedgerManager().getSorobanNetworkConfig(ltx),
-            app.getConfig());
-    }
     resetResults(ltx.loadHeader().current(), minBaseFee, false);
 
     SignatureChecker signatureChecker{ltx.loadHeader().current().ledgerVersion,

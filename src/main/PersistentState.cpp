@@ -221,7 +221,7 @@ PersistentState::upgradeSCPDataV1Format()
             std::unordered_map<Hash, std::string> txSets;
             for (auto const& txSet : scpState.v0().txSets)
             {
-                auto txSetPtr = TxSetFrame::makeFromStoredTxSet(txSet, mApp);
+                auto txSetPtr = TxSetFrame::makeFromStoredTxSet(txSet);
                 txSets.emplace(txSetPtr->getContentsHash(),
                                decoder::encode_b64(xdr::xdr_to_opaque(txSet)));
             }

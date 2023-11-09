@@ -5,6 +5,7 @@
 #include "util/asio.h"
 #include "crypto/Hex.h"
 #include "crypto/SHA.h"
+#include "herder/Herder.h"
 #include "herder/HerderImpl.h"
 #include "lib/catch.hpp"
 #include "main/ApplicationImpl.h"

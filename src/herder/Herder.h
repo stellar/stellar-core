@@ -139,6 +139,9 @@ class Herder
     virtual EnvelopeStatus recvSCPEnvelope(SCPEnvelope const& envelope,
                                            const SCPQuorumSet& qset,
                                            TxSetFrameConstPtr txset) = 0;
+    virtual EnvelopeStatus recvSCPEnvelope(SCPEnvelope const& envelope,
+                                           const SCPQuorumSet& qset,
+                                           StellarMessage const& txset) = 0;
 
     virtual void
     externalizeValue(TxSetFrameConstPtr txSet, uint32_t ledgerSeq,

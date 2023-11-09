@@ -529,8 +529,7 @@ TEST_CASE("basic contract invocation", "[tx][soroban]")
         int64_t balanceAfterFeeCharged = test.getRoot().getBalance();
         auto txm = test.invokeTx(tx, /*expectSuccess=*/false);
 
-        // The account should receive a full refund for metadata
-        // in case of tx failure.
+        // The account should receive a full refund in case of tx failure.
         if (resourceFee > 0)
         {
             checkRefund(txm, balanceAfterFeeCharged,
@@ -826,13 +825,19 @@ TEST_CASE("non-refundable resource metering", "[tx][soroban]")
 
     auto checkFees = [&](int64_t expectedNonRefundableFee,
                          std::shared_ptr<TransactionFrameBase> rootTX) {
-        // This will compute soroban fees
         test.txCheckValid(rootTX);
-
-        auto actualFeePair = std::dynamic_pointer_cast<TransactionFrame>(rootTX)
-                                 ->getSorobanResourceFee();
-        REQUIRE(actualFeePair);
-        REQUIRE(expectedNonRefundableFee == actualFeePair->non_refundable_fee);
+        {
+            auto& app = *test.getApp();
+            LedgerTxn ltx(app.getLedgerTxnRoot());
+            auto actualFeePair =
+                std::dynamic_pointer_cast<TransactionFrame>(rootTX)
+                    ->computePreApplySorobanResourceFee(
+                        ltx.loadHeader().current().ledgerVersion,
+                        app.getLedgerManager().getSorobanNetworkConfig(ltx),
+                        app.getConfig());
+            REQUIRE(expectedNonRefundableFee ==
+                    actualFeePair.non_refundable_fee);
+        }
 
         auto inclusionFee = [&] {
             LedgerTxn ltx(test.getApp()->getLedgerTxnRoot());
