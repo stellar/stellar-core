@@ -15,7 +15,7 @@ getUploadTx(PublicKey const& publicKey, SequenceNumber seqNum)
 
     auto& tx = txEnv.v1().tx;
     tx.sourceAccount = toMuxedAccount(publicKey);
-    tx.fee = 3'000'000;
+    tx.fee = 10'000'000;
     tx.seqNum = seqNum;
 
     Preconditions cond;
@@ -43,13 +43,13 @@ getUploadTx(PublicKey const& publicKey, SequenceNumber seqNum)
 
     SorobanResources uploadResources;
     uploadResources.footprint.readWrite = {contractCodeLedgerKey};
-    uploadResources.instructions = 1'833'940;
-    uploadResources.readBytes = 50;
+    uploadResources.instructions = 2'000'000;
+    uploadResources.readBytes = 2000;
     uploadResources.writeBytes = 2000;
 
     tx.ext.v(1);
     tx.ext.sorobanData().resources = uploadResources;
-    tx.ext.sorobanData().resourceFee = 2'000'000;
+    tx.ext.sorobanData().resourceFee = 4'000'000;
 
     return {txEnv, contractCodeLedgerKey};
 }
