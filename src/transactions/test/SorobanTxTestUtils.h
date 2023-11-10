@@ -191,6 +191,7 @@ class AssetContractInvocationTest : public ContractInvocationTest
                   bool expectSuccess);
     void mint(TestAccount& admin, SCAddress const& toAddr, int64_t amount,
               bool expectSuccess);
+    void burn(TestAccount& from, int64_t amount, bool expectSuccess);
     void clawback(TestAccount& admin, SCAddress const& fromAddr, int64_t amount,
                   bool expectSuccess);
 };

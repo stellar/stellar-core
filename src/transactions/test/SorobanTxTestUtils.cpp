@@ -93,6 +93,20 @@ makeBytes(SCBytes bytes)
     return val;
 }
 
+SorobanAuthorizationEntry
+getInvocationAuth(InvokeContractArgs const& args)
+{
+    SorobanAuthorizedInvocation ai;
+    ai.function.type(SOROBAN_AUTHORIZED_FUNCTION_TYPE_CONTRACT_FN);
+    ai.function.contractFn() = args;
+
+    SorobanAuthorizationEntry a;
+    a.credentials.type(SOROBAN_CREDENTIALS_SOURCE_ACCOUNT);
+    a.rootInvocation = ai;
+
+    return a;
+}
+
 int64_t
 getContractBalance(Application& app, SCAddress const& contractID,
                    SCVal const& accountVal)
@@ -732,15 +746,8 @@ AssetContractInvocationTest::transfer(TestAccount& fromAcc,
     ihf.invokeContract().functionName = fn;
     ihf.invokeContract().args = {fromVal, toVal, makeI128(amount)};
 
-    // build auth
-    SorobanAuthorizedInvocation ai;
-    ai.function.type(SOROBAN_AUTHORIZED_FUNCTION_TYPE_CONTRACT_FN);
-    ai.function.contractFn() = ihf.invokeContract();
-
-    SorobanAuthorizationEntry a;
-    a.credentials.type(SOROBAN_CREDENTIALS_SOURCE_ACCOUNT);
-    a.rootInvocation = ai;
-    transfer.body.invokeHostFunctionOp().auth = {a};
+    transfer.body.invokeHostFunctionOp().auth = {
+        getInvocationAuth(ihf.invokeContract())};
 
     SorobanResources resources;
     resources.instructions = 2'000'000;
@@ -872,15 +879,8 @@ AssetContractInvocationTest::mint(TestAccount& admin, SCAddress const& toAddr,
     ihf.invokeContract().functionName = fn;
     ihf.invokeContract().args = {toVal, makeI128(amount)};
 
-    // build auth
-    SorobanAuthorizedInvocation ai;
-    ai.function.type(SOROBAN_AUTHORIZED_FUNCTION_TYPE_CONTRACT_FN);
-    ai.function.contractFn() = ihf.invokeContract();
-
-    SorobanAuthorizationEntry a;
-    a.credentials.type(SOROBAN_CREDENTIALS_SOURCE_ACCOUNT);
-    a.rootInvocation = ai;
-    mint.body.invokeHostFunctionOp().auth = {a};
+    mint.body.invokeHostFunctionOp().auth = {
+        getInvocationAuth(ihf.invokeContract())};
 
     SorobanResources resources;
     resources.instructions = 2'000'000;
@@ -923,6 +923,84 @@ AssetContractInvocationTest::mint(TestAccount& admin, SCAddress const& toAddr,
                 : getContractBalance(*mApp, mContractID, toVal);
 
         REQUIRE(postMintBalance - amount == preMintBalance);
+    }
+    else
+    {
+        LedgerTxn ltx(mApp->getLedgerTxnRoot());
+        TransactionMetaFrame txm(ltx.loadHeader().current().ledgerVersion);
+        REQUIRE(tx->checkValid(*mApp, ltx, 0, 0, 0));
+        REQUIRE(!tx->apply(*mApp, ltx, txm));
+        ltx.commit();
+    }
+}
+
+void
+AssetContractInvocationTest::burn(TestAccount& from, int64_t amount,
+                                  bool expectSuccess)
+{
+    auto fromAddr = makeAccountAddress(from.getPublicKey());
+
+    SCVal fromVal(SCV_ADDRESS);
+    fromVal.address() = fromAddr;
+
+    LedgerKey fromBalanceKey;
+    if (mAsset.type() == ASSET_TYPE_NATIVE)
+    {
+        fromBalanceKey.type(ACCOUNT);
+        fromBalanceKey.account().accountID = fromAddr.accountId();
+    }
+    else
+    {
+        fromBalanceKey.type(TRUSTLINE);
+        fromBalanceKey.trustLine().accountID = fromAddr.accountId();
+        fromBalanceKey.trustLine().asset = assetToTrustLineAsset(mAsset);
+    }
+
+    auto fn = makeSymbol("burn");
+    Operation burn;
+    burn.body.type(INVOKE_HOST_FUNCTION);
+    auto& ihf = burn.body.invokeHostFunctionOp().hostFunction;
+    ihf.type(HOST_FUNCTION_TYPE_INVOKE_CONTRACT);
+    ihf.invokeContract().contractAddress = mContractID;
+    ihf.invokeContract().functionName = fn;
+    ihf.invokeContract().args = {fromVal, makeI128(amount)};
+
+    burn.body.invokeHostFunctionOp().auth = {
+        getInvocationAuth(ihf.invokeContract())};
+
+    SorobanResources resources;
+    resources.instructions = 2'000'000;
+    resources.readBytes = 2000;
+    resources.writeBytes = 1072;
+
+    resources.footprint.readOnly = mContractKeys;
+    resources.footprint.readWrite = {fromBalanceKey};
+
+    auto preBurnBalance = fromAddr.type() == SC_ADDRESS_TYPE_ACCOUNT
+                              ? getBalance(*mApp, fromAddr.accountId(), mAsset)
+                              : getContractBalance(*mApp, mContractID, fromVal);
+
+    // submit operation
+    auto tx = sorobanTransactionFrameFromOps(mApp->getNetworkID(), from, {burn},
+                                             {}, resources, 100,
+                                             DEFAULT_TEST_RESOURCE_FEE);
+
+    if (expectSuccess)
+    {
+        {
+            LedgerTxn ltx(mApp->getLedgerTxnRoot());
+            TransactionMetaFrame txm(ltx.loadHeader().current().ledgerVersion);
+            REQUIRE(tx->checkValid(*mApp, ltx, 0, 0, 0));
+            REQUIRE(tx->apply(*mApp, ltx, txm));
+            ltx.commit();
+        }
+
+        auto postBurnBalance =
+            fromAddr.type() == SC_ADDRESS_TYPE_ACCOUNT
+                ? getBalance(*mApp, fromAddr.accountId(), mAsset)
+                : getContractBalance(*mApp, mContractID, fromVal);
+
+        REQUIRE(preBurnBalance - amount == postBurnBalance);
     }
     else
     {
