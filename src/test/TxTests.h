@@ -327,5 +327,8 @@ void
 depositTradeWithdrawTest(Application& app, TestAccount& root, int depositSize,
                          std::vector<std::pair<bool, int64_t>> const& trades);
 
+int64_t getBalance(Application& app, AccountID const& accountID,
+                   Asset const& asset);
+
 } // end txtest namespace
 }

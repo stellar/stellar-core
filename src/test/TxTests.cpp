@@ -11,6 +11,7 @@
 #include "ledger/LedgerTxn.h"
 #include "ledger/LedgerTxnEntry.h"
 #include "ledger/LedgerTxnHeader.h"
+#include "ledger/TrustLineWrapper.h"
 #include "ledger/test/LedgerTestUtils.h"
 #include "main/Application.h"
 #include "test/TestAccount.h"
@@ -1905,6 +1906,22 @@ depositTradeWithdrawTest(Application& app, TestAccount& root, int depositSize,
 
     LedgerTxn ltx(app.getLedgerTxnRoot());
     REQUIRE(!loadLiquidityPool(ltx, pool12));
+}
+
+int64_t
+getBalance(Application& app, AccountID const& accountID, Asset const& asset)
+{
+    LedgerTxn ltx(app.getLedgerTxnRoot());
+    if (asset.type() == ASSET_TYPE_NATIVE)
+    {
+        auto entry = stellar::loadAccount(ltx, accountID);
+        return entry.current().data.account().balance;
+    }
+    else
+    {
+        auto trustLine = stellar::loadTrustLine(ltx, accountID, asset);
+        return trustLine.getBalance();
+    }
 }
 
 }
