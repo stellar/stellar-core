@@ -100,10 +100,19 @@ TEST_CASE("Trustline stellar asset contract",
     test.transfer(root, accAddr, 10, true);
     test.mint(issuer, accAddr, 10, true);
 
+    // Now mint by transfering from issuer
+    test.transfer(issuer, accAddr, 10, true);
+
+    // Now burn by transfering to the issuer
+    test.transfer(acc, makeAccountAddress(issuer.getPublicKey()), 10, true);
+
     // Now transfer and mint to contractAddress
     auto contractAddr = makeContractAddress(sha256("contract"));
     test.transfer(root, contractAddr, 10, true);
     test.mint(issuer, contractAddr, 10, true);
+
+    // Now mint by transfering from issuer
+    test.transfer(issuer, contractAddr, 10, true);
 
     // Now clawback
     test.clawback(issuer, accAddr, 2, true);

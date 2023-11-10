@@ -749,14 +749,37 @@ AssetContractInvocationTest::transfer(TestAccount& fromAcc,
 
     resources.footprint.readOnly = mContractKeys;
 
+    bool fromIsIssuer = false;
+    bool toIsIssuer = false;
     if (mAsset.type() != ASSET_TYPE_NATIVE)
     {
         LedgerKey issuerLedgerKey(ACCOUNT);
         issuerLedgerKey.account().accountID = getIssuer(mAsset);
         resources.footprint.readOnly.emplace_back(issuerLedgerKey);
-    }
 
-    resources.footprint.readWrite = {fromBalanceKey, toBalanceKey};
+        if (!(getIssuer(mAsset) == fromAcc.getPublicKey()))
+        {
+            resources.footprint.readWrite.emplace_back(fromBalanceKey);
+        }
+        else
+        {
+            fromIsIssuer = true;
+        }
+
+        if (toAddr.type() != SC_ADDRESS_TYPE_ACCOUNT ||
+            !(getIssuer(mAsset) == toAddr.accountId()))
+        {
+            resources.footprint.readWrite.emplace_back(toBalanceKey);
+        }
+        else
+        {
+            toIsIssuer = true;
+        }
+    }
+    else
+    {
+        resources.footprint.readWrite = {fromBalanceKey, toBalanceKey};
+    }
 
     auto preTransferFromBalance = mAsset.type() == ASSET_TYPE_NATIVE
                                       ? fromAcc.getBalance()
@@ -790,8 +813,10 @@ AssetContractInvocationTest::transfer(TestAccount& fromAcc,
                 ? getBalance(*mApp, toAddr.accountId(), mAsset)
                 : getContractBalance(*mApp, mContractID, toVal);
 
-        REQUIRE(postTransferFromBalance == preTransferFromBalance - amount);
-        REQUIRE(postTransferToBalance - amount == preTransferToBalance);
+        REQUIRE((fromIsIssuer ||
+                 postTransferFromBalance == preTransferFromBalance - amount));
+        REQUIRE((toIsIssuer ||
+                 postTransferToBalance - amount == preTransferToBalance));
     }
     else
     {
