@@ -2048,6 +2048,11 @@ TEST_CASE("temp entry eviction", "[tx][soroban]")
     cfg.METADATA_OUTPUT_STREAM = metaPath;
 
     ContractStorageInvocationTest test{cfg};
+    auto const& contractKeys = test.getContractKeys();
+
+    // extend WASM and instance
+    test.extendOp({contractKeys[0]}, 10'000);
+    test.extendOp({contractKeys[1]}, 10'000);
 
     auto keySym = makeSymbolSCVal("temp");
     auto funcSym = makeSymbol("put_temporary");
@@ -2094,30 +2099,65 @@ TEST_CASE("temp entry eviction", "[tx][soroban]")
     REQUIRE(!test.isEntryLive("temp", ContractDataDurability::TEMPORARY,
                               ledgerSeq));
 
-    // close one more ledger to trigger the eviction
-    closeLedgerOn(*test.getApp(), 4097, 2, 1, 2016);
-
-    XDRInputFileStream in;
-    in.open(metaPath);
-    LedgerCloseMeta lcm;
-    bool evicted = false;
-    while (in.readOne(lcm))
+    SECTION("eviction")
     {
-        REQUIRE(lcm.v() == 1);
-        if (lcm.v1().ledgerHeader.header.ledgerSeq == 4097)
+        // close one more ledger to trigger the eviction
+        closeLedgerOn(*test.getApp(), 4097, 2, 1, 2016);
+
         {
-            REQUIRE(lcm.v1().evictedTemporaryLedgerKeys.size() == 2);
-            auto sortedKeys = lcm.v1().evictedTemporaryLedgerKeys;
-            std::sort(sortedKeys.begin(), sortedKeys.end());
-            REQUIRE(sortedKeys[0] == lk);
-            REQUIRE(sortedKeys[1] == getTTLKey(lk));
-            evicted = true;
+            LedgerTxn ltx(test.getApp()->getLedgerTxnRoot());
+            REQUIRE(!ltx.load(lk));
         }
-        else
+
+        XDRInputFileStream in;
+        in.open(metaPath);
+        LedgerCloseMeta lcm;
+        bool evicted = false;
+        while (in.readOne(lcm))
+        {
+            REQUIRE(lcm.v() == 1);
+            if (lcm.v1().ledgerHeader.header.ledgerSeq == 4097)
+            {
+                REQUIRE(lcm.v1().evictedTemporaryLedgerKeys.size() == 2);
+                auto sortedKeys = lcm.v1().evictedTemporaryLedgerKeys;
+                std::sort(sortedKeys.begin(), sortedKeys.end());
+                REQUIRE(sortedKeys[0] == lk);
+                REQUIRE(sortedKeys[1] == getTTLKey(lk));
+                evicted = true;
+            }
+            else
+            {
+                REQUIRE(lcm.v1().evictedTemporaryLedgerKeys.empty());
+            }
+        }
+
+        REQUIRE(evicted);
+    }
+
+    SECTION("Create temp entry with same key as an expired entry on eviction "
+            "ledger")
+    {
+        auto tx2 = test.createInvokeTx(resources, funcSym, {keySym, valU64},
+                                       1000, 340'000);
+        closeLedger(*test.getApp(), {tx2});
+
+        {
+            LedgerTxn ltx(test.getApp()->getLedgerTxnRoot());
+            REQUIRE(ltx.load(lk));
+        }
+
+        // Entry is live again
+        auto ledgerSeq = test.getLedgerSeq();
+        REQUIRE(test.isEntryLive("temp", ContractDataDurability::TEMPORARY,
+                                 ledgerSeq));
+
+        // Verify that we didn't emit an eviction
+        XDRInputFileStream in;
+        in.open(metaPath);
+        LedgerCloseMeta lcm;
+        while (in.readOne(lcm))
         {
             REQUIRE(lcm.v1().evictedTemporaryLedgerKeys.empty());
         }
     }
-
-    REQUIRE(evicted);
 }
