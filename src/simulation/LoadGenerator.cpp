@@ -99,8 +99,8 @@ LoadGenerator::getMode(std::string const& mode)
     }
     else
     {
-        // unknown mode
-        abort();
+        throw std::runtime_error(
+            fmt::format(FMT_STRING("Unknown loadgen mode: {}"), mode));
     }
 }
 
