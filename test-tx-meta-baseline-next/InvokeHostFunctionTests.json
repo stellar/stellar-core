@@ -28,13 +28,19 @@
 		20,
 		21
 	],
-	"Stellar asset contract transfer|trustline" : 
+	"Native stellar asset contract" : [ "VQ6pgcLsVuc=", "YvRmVaeBnAA=" ],
+	"Trustline stellar asset contract" : 
 	[
-		"E20P08yXd3g=",
-		"InKWm13ZUuM=",
-		"J+3Qvez8n7E=",
-		"S4LZx4ks59o=",
-		"uGEiNRZJR5Q="
+		"VQ6pgcLsVuc=",
+		"9ctKGDHOSaY=",
+		"NTyVrh08eDs=",
+		"lv7AC5jN3oA=",
+		"UEzMdwpg5lQ=",
+		"aEZjzqF6ziQ=",
+		"0/HF11amixE=",
+		"jk8hPYwOMX8=",
+		"xmlCbNneUi4=",
+		"GSUkwLjj/gU="
 	],
 	"basic contract invocation" : 
 	[
