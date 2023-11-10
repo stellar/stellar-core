@@ -197,6 +197,7 @@ mod rust_bridge {
         fn get_test_wasm_add_i32() -> Result<RustBuf>;
         fn get_test_wasm_contract_data() -> Result<RustBuf>;
         fn get_test_wasm_complex() -> Result<RustBuf>;
+        fn get_test_wasm_loadgen() -> Result<RustBuf>;
         fn get_test_wasm_err() -> Result<RustBuf>;
         fn get_write_bytes() -> Result<RustBuf>;
 
@@ -303,6 +304,12 @@ pub(crate) fn get_test_wasm_complex() -> Result<RustBuf, Box<dyn std::error::Err
 pub(crate) fn get_test_wasm_err() -> Result<RustBuf, Box<dyn std::error::Error>> {
     Ok(RustBuf {
         data: soroban_test_wasms::ERR.iter().cloned().collect(),
+    })
+}
+
+pub(crate) fn get_test_wasm_loadgen() -> Result<RustBuf, Box<dyn std::error::Error>> {
+    Ok(RustBuf {
+        data: soroban_test_wasms::LOADGEN.iter().cloned().collect(),
     })
 }
 

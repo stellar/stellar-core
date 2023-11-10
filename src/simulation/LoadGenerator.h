@@ -32,7 +32,7 @@ enum class LoadGenMode
     PRETEND,
     // Mix of payments and DEX-related transactions.
     MIXED_TXS,
-    // Deploy random WASM blobs, for overlay testing
+    // Deploy random WASM blobs, for overlay/herder testing
     SOROBAN_WASM,
     // Invoke and apply resource intensive TXs
     SOROBAN_INVOKE
@@ -82,8 +82,8 @@ struct GeneratedLoadConfig
     uint32_t dexTxPercent = 0;
     // Number and size of ContractData entries that will loaded on each
     // invocation
-    uint32_t nDataEntries = 0;
-    uint32_t bytesPerDataEntry = 0;
+    uint32_t nDataEntries = 1;
+    uint32_t kiloBytesPerDataEntry = 1;
 
     // If true, soroban metadata will be preserved on reset for testing purposes
     bool sorobanNoResetForTesting = false;
@@ -190,6 +190,47 @@ class LoadGenerator
     // collisions.
     std::unordered_map<uint64_t, TestAccountPtr> mCreationSourceAccounts;
 
+    medida::Meter& mLoadgenComplete;
+    medida::Meter& mLoadgenFail;
+
+    bool mFailed{false};
+    bool mStarted{false};
+    bool mInitialAccountsCreated{false};
+
+    uint32_t mWaitTillCompleteForLedgers{0};
+
+    // The following maps store state information for the SOROBAN_INVOKE mode.
+    // For all other loadgen modes, there are no dependent TXs after creating
+    // source accounts. However, for SOROBAN_INVOKE, we must deploy WASM blobs,
+    // create contract instances, and create storage entries before invoking the
+    // contract, in order. mPendingEntries is used to keep track of pending
+    // LedgerEntries being created by in-flight TXs. Periodically, we check if
+    // entries in mPendingEntries have made it into the DB with checkPendingTxs.
+    // If so, they are added to either mIncompleteContractInstances or
+    // mCompleteContractInstances depending on the current phase (see below).
+    // When generateTx submits a TX, it should add any LedgerEntries that will
+    // be created by the TX to mPendingEntries. checkPendingTxs will then
+    // resolve these entries. Only checkPendingTxs should remove entries from
+    // mPendingEntries and modify mIncompleteContractInstances,
+    // mCompleteContractInstances, and mCodeKey.
+    //
+    // During the UPLOAD phase, mPendingEntries should only ever contain a
+    // single ContractCode key. When this key is added to the database, it is
+    // resolved and stored in mCodeKey.
+    //
+    // During the CREATE phase, mPendingEntries should only contain contract
+    // instance keys. When these keys are added to the database, they are
+    // resolved and stored in mIncompleteContractInstances.
+    //
+    // During the STORAGE phase, mPendingEntries should only contain storage
+    // keys. When these keys are added to the database, they are resolved and
+    // added to the corrsponding contract instance struct. This struct is then
+    // removed from mIncompleteContractInstances and added to
+    // mCompleteContractInstances.
+    //
+    // mCompleteContractInstance have been fully set up and have all the
+    // required state for calls to "do_work".
+
     std::optional<LedgerKey> mCodeKey;
 
     // Maps entries that are being created by in flight TXs to the source
@@ -199,17 +240,7 @@ class LoadGenerator
     // Maps account ID to it's contract instance, where each account has a
     // unique instance
     std::unordered_map<uint64_t, ContractInstance> mIncompleteContractInstances;
-
     std::unordered_map<uint64_t, ContractInstance> mCompleteContractInstances;
-
-    medida::Meter& mLoadgenComplete;
-    medida::Meter& mLoadgenFail;
-
-    bool mFailed{false};
-    bool mStarted{false};
-    bool mInitialAccountsCreated{false};
-
-    uint32_t mWaitTillCompleteForLedgers{0};
 
     void reset(bool sorobanNoReset);
     void createRootAccount();
@@ -258,10 +289,12 @@ class LoadGenerator
                               uint32_t inclusionFee);
     std::pair<LoadGenerator::TestAccountPtr, TransactionFramePtr>
     invokeStorageTransaction(uint32_t ledgerNum, uint64_t accountId,
-                             uint32_t inclusionFee);
+                             uint32_t inclusionFee, uint32_t nDataEntries,
+                             uint32_t kiloBytesPerDataEntry);
     std::pair<LoadGenerator::TestAccountPtr, TransactionFramePtr>
     invokeSorobanLoadTransaction(uint32_t ledgerNum, uint64_t accountId,
-                                 uint32_t inclusionFee);
+                                 uint32_t inclusionFee, uint32_t nDataEntries,
+                                 uint32_t kiloBytesPerDataEntry);
     std::pair<LoadGenerator::TestAccountPtr, TransactionFramePtr>
     sorobanRandomWasmTransaction(uint32_t ledgerNum, uint64_t accountId,
                                  SorobanResources resources, size_t wasmSize,

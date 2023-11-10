@@ -78,6 +78,14 @@ makeSymbol(std::string const& str)
 }
 
 SCVal
+makeU64(uint64_t u64)
+{
+    SCVal val(SCV_U64);
+    val.u64() = u64;
+    return val;
+}
+
+SCVal
 makeU32(uint32_t u32)
 {
     SCVal val(SCV_U32);
