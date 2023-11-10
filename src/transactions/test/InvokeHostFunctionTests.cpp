@@ -2066,6 +2066,10 @@ TEST_CASE("temp entry eviction", "[tx][soroban]")
                                   340'000);
     closeLedger(*test.getApp(), {tx});
 
+    auto expectedLiveUntilLedger =
+        test.getApp()->getLedgerManager().getLastClosedLedgerNum() +
+        InitialSorobanNetworkConfig::MINIMUM_TEMP_ENTRY_LIFETIME - 1;
+
     // Close ledgers until temp entry is evicted
     for (uint32_t i =
              test.getApp()->getLedgerManager().getLastClosedLedgerNum();
@@ -2073,6 +2077,17 @@ TEST_CASE("temp entry eviction", "[tx][soroban]")
     {
         closeLedgerOn(*test.getApp(), i, 2, 1, 2016);
     }
+
+    test.checkTTL(lk, expectedLiveUntilLedger);
+
+    // This should be a noop
+    test.extendOp({lk}, 10'000);
+    test.checkTTL(lk, expectedLiveUntilLedger);
+
+    // This should fail because the temp entry is expired
+    test.extendHostFunction("temp", ContractDataDurability::TEMPORARY, 10'000,
+                            10'000, false);
+    test.checkTTL(lk, expectedLiveUntilLedger);
 
     // Check that temp entry has expired
     auto ledgerSeq = test.getLedgerSeq();
