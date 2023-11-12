@@ -3623,7 +3623,7 @@ TEST_CASE("soroban txs each parameter surge priced", "[soroban][herder]")
 
             uint32_t maxInclusionFee = 100'000;
             auto sorobanConfig =
-                GeneratedLoadConfig::txLoad(LoadGenMode::SOROBAN_WASM, 50,
+                GeneratedLoadConfig::txLoad(LoadGenMode::SOROBAN_UPLOAD, 50,
                                             /* nTxs */ 100, baseTxRate * 3,
                                             /* offset */ 0, maxInclusionFee);
 
@@ -3810,7 +3810,7 @@ TEST_CASE("accept soroban txs after network upgrade", "[soroban][herder]")
     }
     // Now generate Soroban txs
     auto sorobanConfig =
-        GeneratedLoadConfig::txLoad(LoadGenMode::SOROBAN_WASM, 50,
+        GeneratedLoadConfig::txLoad(LoadGenMode::SOROBAN_UPLOAD, 50,
                                     /* nTxs */ 15, 1, /* offset */ 0);
     sorobanConfig.skipLowFeeTxs = true;
     loadGen.generateLoad(sorobanConfig);
@@ -3891,7 +3891,7 @@ TEST_CASE("soroban txs accepted by the network",
         currLoadGenCount = loadGenDone.count();
         // Now generate soroban txs.
         loadGen.generateLoad(GeneratedLoadConfig::txLoad(
-            LoadGenMode::SOROBAN_WASM, numAccounts,
+            LoadGenMode::SOROBAN_UPLOAD, numAccounts,
             /* nTxs */ 100, desiredTxRate, /*offset*/ 0));
 
         simulation->crankUntil(
@@ -3936,7 +3936,7 @@ TEST_CASE("soroban txs accepted by the network",
             currLoadGenCount = loadGenDone.count();
             // Now generate soroban txs.
             auto loadCfg = GeneratedLoadConfig::txLoad(
-                LoadGenMode::SOROBAN_WASM, numAccounts,
+                LoadGenMode::SOROBAN_UPLOAD, numAccounts,
                 /* nTxs */ 100, desiredTxRate * 5, /*offset*/ 0);
             loadCfg.skipLowFeeTxs = true;
             loadGen.generateLoad(loadCfg);
@@ -3977,7 +3977,7 @@ TEST_CASE("soroban txs accepted by the network",
         {
             // Generate Soroban txs from one node
             loadGen.generateLoad(GeneratedLoadConfig::txLoad(
-                LoadGenMode::SOROBAN_WASM, 50,
+                LoadGenMode::SOROBAN_UPLOAD, 50,
                 /* nTxs */ 500, desiredTxRate, /* offset */ 0));
             // Generate classic txs from another node (with offset to prevent
             // overlapping accounts)
@@ -3989,7 +3989,7 @@ TEST_CASE("soroban txs accepted by the network",
         {
             uint32_t maxInclusionFee = 100'000;
             auto sorobanConfig =
-                GeneratedLoadConfig::txLoad(LoadGenMode::SOROBAN_WASM, 50,
+                GeneratedLoadConfig::txLoad(LoadGenMode::SOROBAN_UPLOAD, 50,
                                             /* nTxs */ 500, desiredTxRate * 3,
                                             /* offset */ 0, maxInclusionFee);
 

@@ -90,7 +90,7 @@ TEST_CASE("generate load with unique accounts", "[loadgen]")
     }
 }
 
-TEST_CASE("generate soroban load", "[loadgen]")
+TEST_CASE("generate soroban load", "[loadgen][soroban]")
 {
     Hash networkID = sha256(getTestConfig().NETWORK_PASSPHRASE);
     Simulation::pointer simulation =
@@ -111,12 +111,11 @@ TEST_CASE("generate soroban load", "[loadgen]")
         overrideSorobanNetworkConfigForTest(*node);
         modifySorobanNetworkConfig(*node, [&](SorobanNetworkConfig& cfg) {
             // Entries should never expire
-            cfg.mStateArchivalSettings.maxEntryTTL = UINT32_MAX;
-            cfg.mStateArchivalSettings.minPersistentTTL = 5'000'000;
+            cfg.mStateArchivalSettings.maxEntryTTL = 1'000'000;
+            cfg.mStateArchivalSettings.minPersistentTTL = 1'000'000;
 
-            // Set memory and write limits so that we can write all keys in a
-            // single TX during setup
-            cfg.mTxMemoryLimit = UINT32_MAX;
+            // Set write limits so that we can write all keys in a single TX
+            // during setup
             cfg.mTxMaxWriteLedgerEntries = cfg.mTxMaxReadLedgerEntries;
             cfg.mTxMaxWriteBytes = cfg.mTxMaxReadBytes;
 
@@ -152,12 +151,10 @@ TEST_CASE("generate soroban load", "[loadgen]")
         },
         100 * Herder::EXP_LEDGER_TIMESPAN_SECONDS, false);
 
-    auto numTxsBefore = 0;
-    {
-        auto& txsSucceeded =
-            nodes[0]->getMetrics().NewCounter({"ledger", "apply", "success"});
-        numTxsBefore = txsSucceeded.count();
-    }
+    auto numTxsBefore = nodes[0]
+                            ->getMetrics()
+                            .NewCounter({"ledger", "apply", "success"})
+                            .count();
 
     auto const numSorobanTxs = 300;
     auto const numDataEntries = 5;

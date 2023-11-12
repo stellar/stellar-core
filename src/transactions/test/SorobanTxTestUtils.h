@@ -49,10 +49,10 @@ void submitTxToCreateContract(Application& app, Operation const& op,
                               uint32_t inclusionFee, uint32_t resourceFee);
 
 std::pair<Operation, Hash>
-getSorobanCreateOp(Application& app, SorobanResources& createResources,
-                   LedgerKey const& contractCodeLedgerKey, TestAccount& source,
-                   SCVal& scContractSourceRefKey,
-                   uint256 salt = sha256("salt"));
+createSorobanCreateOp(Application& app, SorobanResources& createResources,
+                      LedgerKey const& contractCodeLedgerKey,
+                      TestAccount& source, SCVal& scContractSourceRefKey,
+                      uint256 salt = sha256("salt"));
 
 class ContractInvocationTest
 {

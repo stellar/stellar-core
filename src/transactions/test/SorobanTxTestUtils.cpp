@@ -267,9 +267,10 @@ ContractInvocationTest::invokeArchivalOp(TransactionFrameBasePtr tx,
 
 // Returns createOp, contractID pair
 std::pair<Operation, Hash>
-getSorobanCreateOp(Application& app, SorobanResources& createResources,
-                   LedgerKey const& contractCodeLedgerKey, TestAccount& source,
-                   SCVal& scContractSourceRefKey, uint256 salt)
+createSorobanCreateOp(Application& app, SorobanResources& createResources,
+                      LedgerKey const& contractCodeLedgerKey,
+                      TestAccount& source, SCVal& scContractSourceRefKey,
+                      uint256 salt)
 {
     // Deploy the contract instance
     ContractIDPreimage idPreimage(CONTRACT_ID_PREIMAGE_FROM_ADDRESS);
@@ -350,8 +351,8 @@ WasmContractInvocationTest::deployContractWithSourceAccountWithResources(
     // Deploy the contract instance
     SCVal scContractSourceRefKey(SCValType::SCV_LEDGER_KEY_CONTRACT_INSTANCE);
     auto [createOp, contractID] =
-        getSorobanCreateOp(*mApp, createResources, contractCodeLedgerKey, mRoot,
-                           scContractSourceRefKey);
+        createSorobanCreateOp(*mApp, createResources, contractCodeLedgerKey,
+                              mRoot, scContractSourceRefKey);
 
     auto createResourceFee =
         sorobanResourceFee(*mApp, createResources, 1000, 40) + 40'000;
@@ -382,7 +383,7 @@ ContractInvocationTest::getCreateTx(TestAccount& acc)
     createResources.writeBytes = 5000;
 
     SCVal scContractSourceRefKey(SCValType::SCV_LEDGER_KEY_CONTRACT_INSTANCE);
-    auto [createOp, contractID] = getSorobanCreateOp(
+    auto [createOp, contractID] = createSorobanCreateOp(
         *mApp, createResources, mContractKeys[1], acc, scContractSourceRefKey);
     auto createResourceFee =
         sorobanResourceFee(*mApp, createResources, 1000, 40) + 40'000;
@@ -429,6 +430,20 @@ ContractInvocationTest::getLedgerSeq()
 {
     LedgerTxn ltx(mApp->getLedgerTxnRoot());
     return ltx.loadHeader().current().ledgerSeq;
+}
+
+void
+ContractInvocationTest::deployWithResources(
+    SorobanResources const& uploadResources,
+    SorobanResources const& createResources)
+{
+    if (!mContractKeys.empty())
+    {
+        throw "Wasm already uploaded";
+    }
+
+    deployContractWithSourceAccountWithResources(uploadResources,
+                                                 createResources);
 }
 
 int64_t

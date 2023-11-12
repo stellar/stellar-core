@@ -33,7 +33,7 @@ enum class LoadGenMode
     // Mix of payments and DEX-related transactions.
     MIXED_TXS,
     // Deploy random WASM blobs, for overlay/herder testing
-    SOROBAN_WASM,
+    SOROBAN_UPLOAD,
     // Invoke and apply resource intensive TXs
     SOROBAN_INVOKE
 };
@@ -80,10 +80,10 @@ struct GeneratedLoadConfig
     bool skipLowFeeTxs = false;
     // Percentage (from 0 to 100) of DEX transactions
     uint32_t dexTxPercent = 0;
-    // Number and size of ContractData entries that will loaded on each
+    // Number and size of ContractData entries that will be loaded on each
     // invocation
-    uint32_t nDataEntries = 1;
-    uint32_t kiloBytesPerDataEntry = 1;
+    uint32_t nDataEntries = 0;
+    uint32_t kiloBytesPerDataEntry = 0;
 
     // If true, soroban metadata will be preserved on reset for testing purposes
     bool sorobanNoResetForTesting = false;
@@ -205,14 +205,14 @@ class LoadGenerator
     // create contract instances, and create storage entries before invoking the
     // contract, in order. mPendingEntries is used to keep track of pending
     // LedgerEntries being created by in-flight TXs. Periodically, we check if
-    // entries in mPendingEntries have made it into the DB with checkPendingTxs.
-    // If so, they are added to either mIncompleteContractInstances or
-    // mCompleteContractInstances depending on the current phase (see below).
-    // When generateTx submits a TX, it should add any LedgerEntries that will
-    // be created by the TX to mPendingEntries. checkPendingTxs will then
-    // resolve these entries. Only checkPendingTxs should remove entries from
-    // mPendingEntries and modify mIncompleteContractInstances,
-    // mCompleteContractInstances, and mCodeKey.
+    // entries in mPendingEntries have made it into the DB with
+    // updateLoadGenState. If so, they are added to either
+    // mIncompleteContractInstances or mCompleteContractInstances depending on
+    // the current phase (see below). When generateTx submits a TX, it should
+    // add any LedgerEntries that will be created by the TX to mPendingEntries.
+    // updateLoadGenState will then resolve these entries. Only
+    // updateLoadGenState should remove entries from mPendingEntries and modify
+    // mIncompleteContractInstances, mCompleteContractInstances, and mCodeKey.
     //
     // During the UPLOAD phase, mPendingEntries should only ever contain a
     // single ContractCode key. When this key is added to the database, it is
@@ -246,7 +246,7 @@ class LoadGenerator
     void createRootAccount();
     int64_t getTxPerStep(uint32_t txRate, std::chrono::seconds spikeInterval,
                          uint32_t spikeSize);
-    void checkPendingTxs(GeneratedLoadConfig const& cfg);
+    void updateLoadGenState(GeneratedLoadConfig const& cfg);
 
     // Schedule a callback to generateLoad() STEP_MSECS milliseconds from now.
     void scheduleLoadGeneration(GeneratedLoadConfig cfg);
@@ -321,7 +321,5 @@ class LoadGenerator
     void updateMinBalance();
 
     unsigned short chooseOpCount(Config const& cfg) const;
-
-    void cleanupAccounts();
 };
 }
