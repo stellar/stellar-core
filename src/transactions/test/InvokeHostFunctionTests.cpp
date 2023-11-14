@@ -1523,7 +1523,7 @@ TEST_CASE("contract storage", "[tx][soroban]")
 
         SECTION("restore contract instance and wasm")
         {
-            // Restore Instance and WASM
+            // Restore Instance and Wasm
             test.restoreOp(contractKeys,
                            96 /* rent bump */ + 40000 /* two LE-writes */);
 
@@ -1548,7 +1548,7 @@ TEST_CASE("contract storage", "[tx][soroban]")
 
         SECTION("restore contract wasm, not instance")
         {
-            // Only restore WASM
+            // Only restore Wasm
             test.restoreOp({contractKeys[1]},
                            48 /* rent bump */ + 20000 /* one LE write */);
 
@@ -1561,7 +1561,7 @@ TEST_CASE("contract storage", "[tx][soroban]")
 
         SECTION("lifetime extensions")
         {
-            // Restore Instance and WASM
+            // Restore Instance and Wasm
             test.restoreOp(contractKeys,
                            96 /* rent bump */ + 40000 /* two LE writes */);
 
@@ -1571,7 +1571,7 @@ TEST_CASE("contract storage", "[tx][soroban]")
             // extend instance
             test.extendOp({contractKeys[0]}, instanceExtendTo);
 
-            // extend WASM
+            // extend Wasm
             test.extendOp({contractKeys[1]}, wasmExtendTo);
 
             test.checkTTL(contractKeys[0], ledgerSeq + instanceExtendTo);
@@ -1581,7 +1581,7 @@ TEST_CASE("contract storage", "[tx][soroban]")
 
     SECTION("contract storage archival")
     {
-        // WASM and instance should not expire during test
+        // Wasm and instance should not expire during test
         test.extendOp(test.getContractKeys(), 10'000);
 
         test.put("persistent", ContractDataDurability::PERSISTENT, 10);
@@ -1998,7 +1998,7 @@ TEST_CASE("contract storage", "[tx][soroban]")
             test.delWithFootprint("key", ContractDataDurability::PERSISTENT,
                                   readOnlyFootprint, {}, false);
 
-            // Failure: Contract WASM/instance not included
+            // Failure: Contract Wasm/instance not included
             test.putWithFootprint("key", ContractDataDurability::PERSISTENT, 88,
                                   {}, {lk}, false);
             test.putWithFootprint("key", ContractDataDurability::PERSISTENT, 88,
@@ -2050,7 +2050,7 @@ TEST_CASE("temp entry eviction", "[tx][soroban]")
     ContractStorageInvocationTest test{cfg};
     auto const& contractKeys = test.getContractKeys();
 
-    // extend WASM and instance
+    // extend Wasm and instance
     test.extendOp({contractKeys[0]}, 10'000);
     test.extendOp({contractKeys[1]}, 10'000);
 
@@ -2075,10 +2075,12 @@ TEST_CASE("temp entry eviction", "[tx][soroban]")
         test.getApp()->getLedgerManager().getLastClosedLedgerNum() +
         InitialSorobanNetworkConfig::MINIMUM_TEMP_ENTRY_LIFETIME - 1;
 
+    auto const evictionLedger = 4097;
+
     // Close ledgers until temp entry is evicted
     for (uint32_t i =
              test.getApp()->getLedgerManager().getLastClosedLedgerNum();
-         i <= 4096; ++i)
+         i < evictionLedger; ++i)
     {
         closeLedgerOn(*test.getApp(), i, 2, 1, 2016);
     }
@@ -2102,7 +2104,7 @@ TEST_CASE("temp entry eviction", "[tx][soroban]")
     SECTION("eviction")
     {
         // close one more ledger to trigger the eviction
-        closeLedgerOn(*test.getApp(), 4097, 2, 1, 2016);
+        closeLedgerOn(*test.getApp(), evictionLedger, 2, 1, 2016);
 
         {
             LedgerTxn ltx(test.getApp()->getLedgerTxnRoot());
@@ -2116,7 +2118,7 @@ TEST_CASE("temp entry eviction", "[tx][soroban]")
         while (in.readOne(lcm))
         {
             REQUIRE(lcm.v() == 1);
-            if (lcm.v1().ledgerHeader.header.ledgerSeq == 4097)
+            if (lcm.v1().ledgerHeader.header.ledgerSeq == evictionLedger)
             {
                 REQUIRE(lcm.v1().evictedTemporaryLedgerKeys.size() == 2);
                 auto sortedKeys = lcm.v1().evictedTemporaryLedgerKeys;
@@ -2146,8 +2148,13 @@ TEST_CASE("temp entry eviction", "[tx][soroban]")
             REQUIRE(ltx.load(lk));
         }
 
-        // Entry is live again
         auto ledgerSeq = test.getLedgerSeq();
+
+        // Verify that we're on the ledger where the entry would get evicted if
+        // it wasn't recreated.
+        REQUIRE(ledgerSeq == evictionLedger);
+
+        // Entry is live again
         REQUIRE(test.isEntryLive("temp", ContractDataDurability::TEMPORARY,
                                  ledgerSeq));
 
