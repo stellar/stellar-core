@@ -4045,6 +4045,40 @@ checkHerder(Application& app, HerderImpl& herder, Herder::State expectedState,
     REQUIRE(herder.trackingConsensusLedgerIndex() == ledger);
 }
 
+// Either setup a v19 -> v20 upgrade, or a fee upgrade in v20
+static void
+setupUpgradeAtNextLedger(Application& app)
+{
+    Upgrades::UpgradeParameters scheduledUpgrades;
+    scheduledUpgrades.mUpgradeTime =
+        VirtualClock::from_time_t(app.getLedgerManager()
+                                      .getLastClosedLedgerHeader()
+                                      .header.scpValue.closeTime +
+                                  5);
+    if (protocolVersionIsBefore(app.getLedgerManager()
+                                    .getLastClosedLedgerHeader()
+                                    .header.ledgerVersion,
+                                SOROBAN_PROTOCOL_VERSION))
+    {
+        scheduledUpgrades.mProtocolVersion =
+            static_cast<uint32_t>(SOROBAN_PROTOCOL_VERSION);
+    }
+    else
+    {
+        LedgerTxn ltx(app.getLedgerTxnRoot());
+        ConfigUpgradeSetFrameConstPtr configUpgradeSet;
+        ConfigUpgradeSet configUpgradeSetXdr;
+        auto& configEntry = configUpgradeSetXdr.updatedEntry.emplace_back();
+        configEntry.configSettingID(CONFIG_SETTING_CONTRACT_HISTORICAL_DATA_V0);
+        configEntry.contractHistoricalData().feeHistorical1KB = 1234;
+        configUpgradeSet = makeConfigUpgradeSet(ltx, configUpgradeSetXdr);
+
+        scheduledUpgrades.mConfigUpgradeSetKey = configUpgradeSet->getKey();
+        ltx.commit();
+    }
+    app.getHerder().setUpgrades(scheduledUpgrades);
+}
+
 // The main purpose of this test is to ensure the externalize path works
 // correctly. This entails properly updating tracking in Herder, forwarding
 // externalize information to LM, and Herder appropriately reacting to ledger
@@ -4053,12 +4087,16 @@ checkHerder(Application& app, HerderImpl& herder, Herder::State expectedState,
 // The nice thing about this test is that because we fully control the messages
 // received by a node, we fully control the state of Herder and LM (and whether
 // each component is in sync or out of sync)
-TEST_CASE("herder externalizes values", "[herder]")
+static void
+herderExternalizesValuesWithProtocol(uint32_t version)
 {
     auto networkID = sha256(getTestConfig().NETWORK_PASSPHRASE);
     auto simulation = std::make_shared<Simulation>(
-        Simulation::OVER_LOOPBACK, networkID,
-        [](int i) { return getTestConfig(i, Config::TESTDB_ON_DISK_SQLITE); });
+        Simulation::OVER_LOOPBACK, networkID, [version](int i) {
+            auto cfg = getTestConfig(i, Config::TESTDB_ON_DISK_SQLITE);
+            cfg.TESTING_UPGRADE_LEDGER_PROTOCOL_VERSION = version;
+            return cfg;
+        });
 
     auto validatorAKey = SecretKey::fromSeed(sha256("validator-A"));
     auto validatorBKey = SecretKey::fromSeed(sha256("validator-B"));
@@ -4073,6 +4111,17 @@ TEST_CASE("herder externalizes values", "[herder]")
     auto A = simulation->addNode(validatorAKey, qset);
     auto B = simulation->addNode(validatorBKey, qset);
     simulation->addNode(validatorCKey, qset);
+
+    if (protocolVersionStartsFrom(version, SOROBAN_PROTOCOL_VERSION))
+    {
+        for (auto const& node : simulation->getNodes())
+        {
+            LedgerTxn ltx(node->getLedgerTxnRoot());
+            node->getLedgerManager()
+                .getMutableSorobanNetworkConfig()
+                .setBucketListSnapshotPeriodForTesting(1);
+        }
+    }
 
     simulation->addPendingConnection(validatorAKey.getPublicKey(),
                                      validatorCKey.getPublicKey());
@@ -4111,6 +4160,14 @@ TEST_CASE("herder externalizes values", "[herder]")
             },
             2 * nLedgers * Herder::EXP_LEDGER_TIMESPAN_SECONDS, false);
         return std::min(currentALedger(), currentCLedger());
+    };
+
+    auto reconnectAndCloseLedgers = [&](uint32_t numLedgers) {
+        simulation->addConnection(validatorAKey.getPublicKey(),
+                                  validatorBKey.getPublicKey());
+        simulation->addConnection(validatorAKey.getPublicKey(),
+                                  validatorCKey.getPublicKey());
+        return waitForLedgers(numLedgers);
     };
 
     HerderImpl& herderA = *static_cast<HerderImpl*>(&A->getHerder());
@@ -4164,24 +4221,8 @@ TEST_CASE("herder externalizes values", "[herder]")
 
     for (auto& node : {A, B, getC()})
     {
-        ConfigUpgradeSetFrameConstPtr configUpgradeSet;
-        LedgerTxn ltx(node->getLedgerTxnRoot());
-        ConfigUpgradeSet configUpgradeSetXdr;
-        auto& configEntry = configUpgradeSetXdr.updatedEntry.emplace_back();
-        configEntry.configSettingID(CONFIG_SETTING_CONTRACT_HISTORICAL_DATA_V0);
-        configEntry.contractHistoricalData().feeHistorical1KB = 1234;
-        configUpgradeSet = makeConfigUpgradeSet(ltx, configUpgradeSetXdr);
-
-        Upgrades::UpgradeParameters scheduledUpgrades;
-        scheduledUpgrades.mUpgradeTime =
-            VirtualClock::from_time_t(node->getLedgerManager()
-                                          .getLastClosedLedgerHeader()
-                                          .header.scpValue.closeTime +
-                                      5);
-        scheduledUpgrades.mConfigUpgradeSetKey = configUpgradeSet->getKey();
         // C won't upgrade until it's on the right LCL
-        node->getHerder().setUpgrades(scheduledUpgrades);
-        ltx.commit();
+        setupUpgradeAtNextLedger(*node);
     }
 
     auto destinationLedger = waitForAB(4, true);
@@ -4197,10 +4238,8 @@ TEST_CASE("herder externalizes values", "[herder]")
                     env.statement.pledges.externalize().commit.value, sv);
                 auto txset = pe.getTxSet(sv.txSetHash);
                 REQUIRE(txset);
-                StellarMessage newMsg;
-                newMsg.type(GENERALIZED_TX_SET);
-                txset->toXDR(newMsg.generalizedTxSet());
-                validatorSCPMessagesA[start] = std::make_pair(env, newMsg);
+                validatorSCPMessagesA[start] =
+                    std::make_pair(env, txset->toStellarMessage());
             }
         }
 
@@ -4214,10 +4253,8 @@ TEST_CASE("herder externalizes values", "[herder]")
                     env.statement.pledges.externalize().commit.value, sv);
                 auto txset = pe.getTxSet(sv.txSetHash);
                 REQUIRE(txset);
-                StellarMessage newMsg;
-                newMsg.type(GENERALIZED_TX_SET);
-                txset->toXDR(newMsg.generalizedTxSet());
-                validatorSCPMessagesB[start] = std::make_pair(env, newMsg);
+                validatorSCPMessagesB[start] =
+                    std::make_pair(env, txset->toStellarMessage());
             }
         }
     }
@@ -4374,6 +4411,9 @@ TEST_CASE("herder externalizes values", "[herder]")
                         currentLedger);
             checkReceivedLedgers();
         }
+
+        // Make sure nodes continue closing ledgers normally
+        reconnectAndCloseLedgers(fewLedgers);
     }
     SECTION("newer ledgers externalize out of order")
     {
@@ -4385,6 +4425,7 @@ TEST_CASE("herder externalizes values", "[herder]")
         {
             testOutOfOrder(/* partial */ true);
         }
+        reconnectAndCloseLedgers(fewLedgers);
     }
 
     SECTION("older ledgers externalize and no-op")
@@ -4392,18 +4433,21 @@ TEST_CASE("herder externalizes values", "[herder]")
         // Reconnect nodes to crank the simulation just enough to purge older
         // slots
         auto configC = getC()->getConfig();
-        simulation->addConnection(validatorAKey.getPublicKey(),
-                                  validatorBKey.getPublicKey());
-        simulation->addConnection(validatorAKey.getPublicKey(),
-                                  validatorCKey.getPublicKey());
         auto currentlyTracking =
-            waitForLedgers(configC.MAX_SLOTS_TO_REMEMBER + 1);
+            reconnectAndCloseLedgers(configC.MAX_SLOTS_TO_REMEMBER + 1);
 
         // Restart C with higher MAX_SLOTS_TO_REMEMBER config, to allow
         // processing of older slots
         simulation->removeNode(validatorCKey.getPublicKey());
         configC.MAX_SLOTS_TO_REMEMBER += 5;
         auto newC = simulation->addNode(validatorCKey, qset, &configC, false);
+        if (protocolVersionStartsFrom(version, SOROBAN_PROTOCOL_VERSION))
+        {
+            LedgerTxn ltx(newC->getLedgerTxnRoot());
+            newC->getLedgerManager()
+                .getMutableSorobanNetworkConfig()
+                .setBucketListSnapshotPeriodForTesting(1);
+        }
         newC->start();
         HerderImpl& newHerderC = *static_cast<HerderImpl*>(&newC->getHerder());
 
@@ -4444,6 +4488,9 @@ TEST_CASE("herder externalizes values", "[herder]")
             // Externalizing an old ledger should not trigger next ledger
             REQUIRE(newHerderC.mTriggerNextLedgerSeq == currentlyTracking + 1);
         }
+
+        // Make sure nodes continue closing ledgers normally despite old data
+        reconnectAndCloseLedgers(fewLedgers);
     }
     SECTION("trigger next ledger")
     {
@@ -4496,6 +4543,19 @@ TEST_CASE("herder externalizes values", "[herder]")
             REQUIRE(expiryTime == newHerderC.getTriggerTimer().expiry_time());
             REQUIRE(newHerderC.getTriggerTimer().seq() > 0);
         }
+    }
+}
+
+TEST_CASE("herder externalizes values", "[herder]")
+{
+    SECTION("v19")
+    {
+        herderExternalizesValuesWithProtocol(19);
+    }
+    SECTION("soroban")
+    {
+        herderExternalizesValuesWithProtocol(
+            static_cast<uint32_t>(SOROBAN_PROTOCOL_VERSION));
     }
 }
 

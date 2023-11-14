@@ -462,6 +462,24 @@ TxSetFrame::makeFromTransactions(Transactions txs, Application& app,
     invalidTxs = invalid[0];
     return res;
 }
+
+StellarMessage
+TxSetFrame::toStellarMessage() const
+{
+    StellarMessage newMsg;
+    if (isGeneralizedTxSet())
+    {
+        newMsg.type(GENERALIZED_TX_SET);
+        toXDR(newMsg.generalizedTxSet());
+    }
+    else
+    {
+        newMsg.type(TX_SET);
+        toXDR(newMsg.txSet());
+    }
+    return newMsg;
+}
+
 #endif
 
 ApplicableTxSetFrameConstPtr
