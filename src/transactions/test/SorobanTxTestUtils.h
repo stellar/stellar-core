@@ -30,6 +30,10 @@ SCVal makeBytes(SCBytes bytes);
 int64_t getContractBalance(Application& app, SCAddress const& contractID,
                            SCVal const& toVal);
 
+void submitTx(Application& app, Operation const& op,
+              SorobanResources const& resources, uint32_t inclusionFee,
+              uint32_t resourceFee);
+
 void submitTxToUploadWasm(Application& app, Operation const& op,
                           SorobanResources const& resources,
                           Hash const& expectedWasmHash,
@@ -178,6 +182,10 @@ class WasmContractInvocationTest : public ContractInvocationTest
 class AssetContractInvocationTest : public ContractInvocationTest
 {
   protected:
+    LedgerKey makeBalanceKey(AccountID const& acc);
+    LedgerKey makeBalanceKey(SCAddress const& addr);
+    int64_t getBalance(SCAddress const& addr);
+
     Asset const mAsset;
 
   public:

@@ -130,17 +130,15 @@ getContractBalance(Application& app, SCAddress const& contractID,
         ltxe.current().data.contractData().val.map()->at(0).val.i128();
 
     // Contract balances can be greater than INT64_MAX, but for these tests
-    // we'll assume balances.
+    // we'll assume balances < INT64_MAX.
     REQUIRE(balance.hi == 0);
     return balance.lo;
 }
 
 void
-submitTxToUploadWasm(Application& app, Operation const& op,
-                     SorobanResources const& resources,
-                     Hash const& expectedWasmHash,
-                     xdr::opaque_vec<> const& expectedWasm,
-                     uint32_t inclusionFee, uint32_t resourceFee)
+submitTx(Application& app, Operation const& op,
+         SorobanResources const& resources, uint32_t inclusionFee,
+         uint32_t resourceFee)
 {
     // submit operation
     auto root = TestAccount::createRoot(app);
@@ -152,6 +150,16 @@ submitTxToUploadWasm(Application& app, Operation const& op,
     REQUIRE(tx->checkValid(app, ltx, 0, 0, 0));
     REQUIRE(tx->apply(app, ltx, txm));
     ltx.commit();
+}
+
+void
+submitTxToUploadWasm(Application& app, Operation const& op,
+                     SorobanResources const& resources,
+                     Hash const& expectedWasmHash,
+                     xdr::opaque_vec<> const& expectedWasm,
+                     uint32_t inclusionFee, uint32_t resourceFee)
+{
+    submitTx(app, op, resources, inclusionFee, resourceFee);
 
     // verify contract code is correct
     LedgerTxn ltx2(app.getLedgerTxnRoot());
@@ -665,22 +673,66 @@ AssetContractInvocationTest::AssetContractInvocationTest(
 
     createResources.footprint.readWrite = {contractExecutableKey};
 
-    {
-        auto root = TestAccount::createRoot(*mApp);
-        // submit operation
-        auto tx = sorobanTransactionFrameFromOps(
-            mApp->getNetworkID(), root, {createOp}, {}, createResources, 100,
-            DEFAULT_TEST_RESOURCE_FEE);
-
-        LedgerTxn ltx(mApp->getLedgerTxnRoot());
-        TransactionMetaFrame txm(ltx.loadHeader().current().ledgerVersion);
-        REQUIRE(tx->checkValid(*mApp, ltx, 0, 0, 0));
-        REQUIRE(tx->apply(*mApp, ltx, txm));
-        ltx.commit();
-    }
+    submitTx(*mApp, createOp, createResources, 100, DEFAULT_TEST_RESOURCE_FEE);
 
     mContractKeys.emplace_back(contractExecutableKey);
     mContractID = contractID;
+}
+
+LedgerKey
+AssetContractInvocationTest::makeBalanceKey(AccountID const& acc)
+{
+    LedgerKey balanceKey;
+    if (mAsset.type() == ASSET_TYPE_NATIVE)
+    {
+        balanceKey.type(ACCOUNT);
+        balanceKey.account().accountID = acc;
+    }
+    else
+    {
+        balanceKey.type(TRUSTLINE);
+        balanceKey.trustLine().accountID = acc;
+        balanceKey.trustLine().asset = assetToTrustLineAsset(mAsset);
+    }
+
+    return balanceKey;
+}
+
+LedgerKey
+AssetContractInvocationTest::makeBalanceKey(SCAddress const& addr)
+{
+    if (addr.type() == SC_ADDRESS_TYPE_ACCOUNT)
+    {
+        return makeBalanceKey(addr.accountId());
+    }
+    else
+    {
+        SCVal val(SCV_ADDRESS);
+        val.address() = addr;
+
+        LedgerKey balanceKey(CONTRACT_DATA);
+        balanceKey.contractData().contract = mContractID;
+
+        SCVec balance = {makeSymbolSCVal("Balance"), val};
+        SCVal balanceVal(SCValType::SCV_VEC);
+        balanceVal.vec().activate() = balance;
+        balanceKey.contractData().key = balanceVal;
+        balanceKey.contractData().durability =
+            ContractDataDurability::PERSISTENT;
+
+        return balanceKey;
+    }
+}
+
+int64_t
+AssetContractInvocationTest::getBalance(SCAddress const& addr)
+{
+    SCVal val(SCV_ADDRESS);
+    val.address() = addr;
+
+    return addr.type() == SC_ADDRESS_TYPE_ACCOUNT
+               ? txtest::getBalance(*mApp, addr.accountId(), mAsset)
+               : getContractBalance(*mApp, mContractID, val);
 }
 
 void
@@ -691,51 +743,11 @@ AssetContractInvocationTest::transfer(TestAccount& fromAcc,
     SCVal toVal(SCV_ADDRESS);
     toVal.address() = toAddr;
 
-    SCAddress fromAddr(SC_ADDRESS_TYPE_ACCOUNT);
-    fromAddr.accountId() = fromAcc.getPublicKey();
     SCVal fromVal(SCV_ADDRESS);
-    fromVal.address() = fromAddr;
+    fromVal.address() = makeAccountAddress(fromAcc.getPublicKey());
 
-    LedgerKey fromBalanceKey;
-    if (mAsset.type() == ASSET_TYPE_NATIVE)
-    {
-        fromBalanceKey.type(ACCOUNT);
-        fromBalanceKey.account().accountID = fromAcc.getPublicKey();
-    }
-    else
-    {
-        fromBalanceKey.type(TRUSTLINE);
-        fromBalanceKey.trustLine().accountID = fromAcc.getPublicKey();
-        fromBalanceKey.trustLine().asset = assetToTrustLineAsset(mAsset);
-    }
-
-    LedgerKey toBalanceKey;
-    if (toAddr.type() == SC_ADDRESS_TYPE_ACCOUNT)
-    {
-        if (mAsset.type() == ASSET_TYPE_NATIVE)
-        {
-            toBalanceKey.type(ACCOUNT);
-            toBalanceKey.account().accountID = toAddr.accountId();
-        }
-        else
-        {
-            toBalanceKey.type(TRUSTLINE);
-            toBalanceKey.trustLine().accountID = toAddr.accountId();
-            toBalanceKey.trustLine().asset = assetToTrustLineAsset(mAsset);
-        }
-    }
-    else
-    {
-        toBalanceKey.type(CONTRACT_DATA);
-        toBalanceKey.contractData().contract = mContractID;
-
-        SCVec balance = {makeSymbolSCVal("Balance"), toVal};
-        SCVal balanceKey(SCValType::SCV_VEC);
-        balanceKey.vec().activate() = balance;
-        toBalanceKey.contractData().key = balanceKey;
-        toBalanceKey.contractData().durability =
-            ContractDataDurability::PERSISTENT;
-    }
+    LedgerKey fromBalanceKey = makeBalanceKey(fromAcc.getPublicKey());
+    LedgerKey toBalanceKey = makeBalanceKey(toAddr);
 
     auto fn = makeSymbol("transfer");
     Operation transfer;
@@ -764,23 +776,23 @@ AssetContractInvocationTest::transfer(TestAccount& fromAcc,
         issuerLedgerKey.account().accountID = getIssuer(mAsset);
         resources.footprint.readOnly.emplace_back(issuerLedgerKey);
 
-        if (!(getIssuer(mAsset) == fromAcc.getPublicKey()))
-        {
-            resources.footprint.readWrite.emplace_back(fromBalanceKey);
-        }
-        else
+        if (getIssuer(mAsset) == fromAcc.getPublicKey())
         {
             fromIsIssuer = true;
         }
-
-        if (toAddr.type() != SC_ADDRESS_TYPE_ACCOUNT ||
-            !(getIssuer(mAsset) == toAddr.accountId()))
+        else
         {
-            resources.footprint.readWrite.emplace_back(toBalanceKey);
+            resources.footprint.readWrite.emplace_back(fromBalanceKey);
+        }
+
+        if (toAddr.type() == SC_ADDRESS_TYPE_ACCOUNT &&
+            getIssuer(mAsset) == toAddr.accountId())
+        {
+            toIsIssuer = true;
         }
         else
         {
-            toIsIssuer = true;
+            resources.footprint.readWrite.emplace_back(toBalanceKey);
         }
     }
     else
@@ -791,47 +803,26 @@ AssetContractInvocationTest::transfer(TestAccount& fromAcc,
     auto preTransferFromBalance = mAsset.type() == ASSET_TYPE_NATIVE
                                       ? fromAcc.getBalance()
                                       : fromAcc.getTrustlineBalance(mAsset);
-    auto preTransferToBalance =
-        toAddr.type() == SC_ADDRESS_TYPE_ACCOUNT
-            ? getBalance(*mApp, toAddr.accountId(), mAsset)
-            : getContractBalance(*mApp, mContractID, toVal);
+    auto preTransferToBalance = getBalance(toAddr);
 
     // submit operation
     auto tx = sorobanTransactionFrameFromOps(mApp->getNetworkID(), fromAcc,
                                              {transfer}, {}, resources, 100,
                                              DEFAULT_TEST_RESOURCE_FEE);
-
+    invokeTx(tx, expectSuccess, false);
     if (expectSuccess)
     {
-        {
-            LedgerTxn ltx(mApp->getLedgerTxnRoot());
-            TransactionMetaFrame txm(ltx.loadHeader().current().ledgerVersion);
-            REQUIRE(tx->checkValid(*mApp, ltx, 0, 0, 0));
-            REQUIRE(tx->apply(*mApp, ltx, txm));
-            ltx.commit();
-        }
-
         auto postTransferFromBalance =
             mAsset.type() == ASSET_TYPE_NATIVE
                 ? fromAcc.getBalance()
                 : fromAcc.getTrustlineBalance(mAsset);
-        auto postTransferToBalance =
-            toAddr.type() == SC_ADDRESS_TYPE_ACCOUNT
-                ? getBalance(*mApp, toAddr.accountId(), mAsset)
-                : getContractBalance(*mApp, mContractID, toVal);
+
+        auto postTransferToBalance = getBalance(toAddr);
 
         REQUIRE((fromIsIssuer ||
                  postTransferFromBalance == preTransferFromBalance - amount));
         REQUIRE((toIsIssuer ||
                  postTransferToBalance - amount == preTransferToBalance));
-    }
-    else
-    {
-        LedgerTxn ltx(mApp->getLedgerTxnRoot());
-        TransactionMetaFrame txm(ltx.loadHeader().current().ledgerVersion);
-        REQUIRE(tx->checkValid(*mApp, ltx, 0, 0, 0));
-        REQUIRE(!tx->apply(*mApp, ltx, txm));
-        ltx.commit();
     }
 }
 
@@ -842,33 +833,7 @@ AssetContractInvocationTest::mint(TestAccount& admin, SCAddress const& toAddr,
     SCVal toVal(SCV_ADDRESS);
     toVal.address() = toAddr;
 
-    LedgerKey toBalanceKey;
-    if (toAddr.type() == SC_ADDRESS_TYPE_ACCOUNT)
-    {
-        if (mAsset.type() == ASSET_TYPE_NATIVE)
-        {
-            toBalanceKey.type(ACCOUNT);
-            toBalanceKey.account().accountID = toAddr.accountId();
-        }
-        else
-        {
-            toBalanceKey.type(TRUSTLINE);
-            toBalanceKey.trustLine().accountID = toAddr.accountId();
-            toBalanceKey.trustLine().asset = assetToTrustLineAsset(mAsset);
-        }
-    }
-    else
-    {
-        toBalanceKey.type(CONTRACT_DATA);
-        toBalanceKey.contractData().contract = mContractID;
-
-        SCVec balance = {makeSymbolSCVal("Balance"), toVal};
-        SCVal balanceKey(SCValType::SCV_VEC);
-        balanceKey.vec().activate() = balance;
-        toBalanceKey.contractData().key = balanceKey;
-        toBalanceKey.contractData().durability =
-            ContractDataDurability::PERSISTENT;
-    }
+    LedgerKey toBalanceKey = makeBalanceKey(toAddr);
 
     auto fn = makeSymbol("mint");
     Operation mint;
@@ -898,39 +863,18 @@ AssetContractInvocationTest::mint(TestAccount& admin, SCAddress const& toAddr,
 
     resources.footprint.readWrite = {toBalanceKey};
 
-    auto preMintBalance = toAddr.type() == SC_ADDRESS_TYPE_ACCOUNT
-                              ? getBalance(*mApp, toAddr.accountId(), mAsset)
-                              : getContractBalance(*mApp, mContractID, toVal);
+    auto preMintBalance = getBalance(toAddr);
 
     // submit operation
     auto tx = sorobanTransactionFrameFromOps(mApp->getNetworkID(), admin,
                                              {mint}, {}, resources, 100,
                                              DEFAULT_TEST_RESOURCE_FEE);
 
+    invokeTx(tx, expectSuccess, false);
     if (expectSuccess)
     {
-        {
-            LedgerTxn ltx(mApp->getLedgerTxnRoot());
-            TransactionMetaFrame txm(ltx.loadHeader().current().ledgerVersion);
-            REQUIRE(tx->checkValid(*mApp, ltx, 0, 0, 0));
-            REQUIRE(tx->apply(*mApp, ltx, txm));
-            ltx.commit();
-        }
-
-        auto postMintBalance =
-            toAddr.type() == SC_ADDRESS_TYPE_ACCOUNT
-                ? getBalance(*mApp, toAddr.accountId(), mAsset)
-                : getContractBalance(*mApp, mContractID, toVal);
-
+        auto postMintBalance = getBalance(toAddr);
         REQUIRE(postMintBalance - amount == preMintBalance);
-    }
-    else
-    {
-        LedgerTxn ltx(mApp->getLedgerTxnRoot());
-        TransactionMetaFrame txm(ltx.loadHeader().current().ledgerVersion);
-        REQUIRE(tx->checkValid(*mApp, ltx, 0, 0, 0));
-        REQUIRE(!tx->apply(*mApp, ltx, txm));
-        ltx.commit();
     }
 }
 
@@ -976,39 +920,19 @@ AssetContractInvocationTest::burn(TestAccount& from, int64_t amount,
     resources.footprint.readOnly = mContractKeys;
     resources.footprint.readWrite = {fromBalanceKey};
 
-    auto preBurnBalance = fromAddr.type() == SC_ADDRESS_TYPE_ACCOUNT
-                              ? getBalance(*mApp, fromAddr.accountId(), mAsset)
-                              : getContractBalance(*mApp, mContractID, fromVal);
+    auto preBurnBalance = getBalance(fromAddr);
 
     // submit operation
     auto tx = sorobanTransactionFrameFromOps(mApp->getNetworkID(), from, {burn},
                                              {}, resources, 100,
                                              DEFAULT_TEST_RESOURCE_FEE);
 
+    invokeTx(tx, expectSuccess, false);
+
     if (expectSuccess)
     {
-        {
-            LedgerTxn ltx(mApp->getLedgerTxnRoot());
-            TransactionMetaFrame txm(ltx.loadHeader().current().ledgerVersion);
-            REQUIRE(tx->checkValid(*mApp, ltx, 0, 0, 0));
-            REQUIRE(tx->apply(*mApp, ltx, txm));
-            ltx.commit();
-        }
-
-        auto postBurnBalance =
-            fromAddr.type() == SC_ADDRESS_TYPE_ACCOUNT
-                ? getBalance(*mApp, fromAddr.accountId(), mAsset)
-                : getContractBalance(*mApp, mContractID, fromVal);
-
+        auto postBurnBalance = getBalance(fromAddr);
         REQUIRE(preBurnBalance - amount == postBurnBalance);
-    }
-    else
-    {
-        LedgerTxn ltx(mApp->getLedgerTxnRoot());
-        TransactionMetaFrame txm(ltx.loadHeader().current().ledgerVersion);
-        REQUIRE(tx->checkValid(*mApp, ltx, 0, 0, 0));
-        REQUIRE(!tx->apply(*mApp, ltx, txm));
-        ltx.commit();
     }
 }
 
@@ -1020,33 +944,7 @@ AssetContractInvocationTest::clawback(TestAccount& admin,
     SCVal fromVal(SCV_ADDRESS);
     fromVal.address() = fromAddr;
 
-    LedgerKey fromBalanceKey;
-    if (fromAddr.type() == SC_ADDRESS_TYPE_ACCOUNT)
-    {
-        if (mAsset.type() == ASSET_TYPE_NATIVE)
-        {
-            fromBalanceKey.type(ACCOUNT);
-            fromBalanceKey.account().accountID = fromAddr.accountId();
-        }
-        else
-        {
-            fromBalanceKey.type(TRUSTLINE);
-            fromBalanceKey.trustLine().accountID = fromAddr.accountId();
-            fromBalanceKey.trustLine().asset = assetToTrustLineAsset(mAsset);
-        }
-    }
-    else
-    {
-        fromBalanceKey.type(CONTRACT_DATA);
-        fromBalanceKey.contractData().contract = mContractID;
-
-        SCVec balance = {makeSymbolSCVal("Balance"), fromVal};
-        SCVal balanceKey(SCValType::SCV_VEC);
-        balanceKey.vec().activate() = balance;
-        fromBalanceKey.contractData().key = balanceKey;
-        fromBalanceKey.contractData().durability =
-            ContractDataDurability::PERSISTENT;
-    }
+    LedgerKey fromBalanceKey = makeBalanceKey(fromAddr);
 
     auto fn = makeSymbol("clawback");
     Operation clawback;
@@ -1057,15 +955,8 @@ AssetContractInvocationTest::clawback(TestAccount& admin,
     ihf.invokeContract().functionName = fn;
     ihf.invokeContract().args = {fromVal, makeI128(amount)};
 
-    // build auth
-    SorobanAuthorizedInvocation ai;
-    ai.function.type(SOROBAN_AUTHORIZED_FUNCTION_TYPE_CONTRACT_FN);
-    ai.function.contractFn() = ihf.invokeContract();
-
-    SorobanAuthorizationEntry a;
-    a.credentials.type(SOROBAN_CREDENTIALS_SOURCE_ACCOUNT);
-    a.rootInvocation = ai;
-    clawback.body.invokeHostFunctionOp().auth = {a};
+    clawback.body.invokeHostFunctionOp().auth = {
+        getInvocationAuth(ihf.invokeContract())};
 
     SorobanResources resources;
     resources.instructions = 2'000'000;
@@ -1082,41 +973,18 @@ AssetContractInvocationTest::clawback(TestAccount& admin,
     }
 
     resources.footprint.readWrite = {fromBalanceKey};
-
-    auto preClawbackBalance =
-        fromAddr.type() == SC_ADDRESS_TYPE_ACCOUNT
-            ? getBalance(*mApp, fromAddr.accountId(), mAsset)
-            : getContractBalance(*mApp, mContractID, fromVal);
+    auto preClawbackBalance = getBalance(fromAddr);
 
     // submit operation
     auto tx = sorobanTransactionFrameFromOps(mApp->getNetworkID(), admin,
                                              {clawback}, {}, resources, 100,
                                              DEFAULT_TEST_RESOURCE_FEE);
 
+    invokeTx(tx, expectSuccess, false);
     if (expectSuccess)
     {
-        {
-            LedgerTxn ltx(mApp->getLedgerTxnRoot());
-            TransactionMetaFrame txm(ltx.loadHeader().current().ledgerVersion);
-            REQUIRE(tx->checkValid(*mApp, ltx, 0, 0, 0));
-            REQUIRE(tx->apply(*mApp, ltx, txm));
-            ltx.commit();
-        }
-
-        auto postClawbackBalance =
-            fromAddr.type() == SC_ADDRESS_TYPE_ACCOUNT
-                ? getBalance(*mApp, fromAddr.accountId(), mAsset)
-                : getContractBalance(*mApp, mContractID, fromVal);
-
+        auto postClawbackBalance = getBalance(fromAddr);
         REQUIRE(preClawbackBalance - amount == postClawbackBalance);
-    }
-    else
-    {
-        LedgerTxn ltx(mApp->getLedgerTxnRoot());
-        TransactionMetaFrame txm(ltx.loadHeader().current().ledgerVersion);
-        REQUIRE(tx->checkValid(*mApp, ltx, 0, 0, 0));
-        REQUIRE(!tx->apply(*mApp, ltx, txm));
-        ltx.commit();
     }
 }
 
