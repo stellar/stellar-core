@@ -144,9 +144,11 @@ TransactionFramePtr transactionWithV2Precondition(Application& app,
                                                   uint32_t fee,
                                                   PreconditionsV2 const& cond);
 
+// If useInclusionAsFullFee is true, `inclusion` will be used as the full fee.
+// Otherwise, `tx` resource fee is added to full fee.
 TransactionFrameBasePtr feeBump(Application& app, TestAccount& feeSource,
                                 TransactionFrameBasePtr tx, int64_t inclusion,
-                                bool addResourceFee = true);
+                                bool useInclusionAsFullFee = false);
 
 Operation changeTrust(Asset const& asset, int64_t limit);
 Operation changeTrust(ChangeTrustAsset const& asset, int64_t limit);
