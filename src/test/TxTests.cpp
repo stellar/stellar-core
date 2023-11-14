@@ -710,18 +710,18 @@ transactionWithV2Precondition(Application& app, TestAccount& account,
 
 TransactionFrameBasePtr
 feeBump(Application& app, TestAccount& feeSource, TransactionFrameBasePtr tx,
-        int64_t fee, bool addResourceFee)
+        int64_t fee, bool useInclusionAsFullFee)
 {
     REQUIRE(tx->getEnvelope().type() == ENVELOPE_TYPE_TX);
     TransactionEnvelope fb(ENVELOPE_TYPE_TX_FEE_BUMP);
     fb.feeBump().tx.feeSource = toMuxedAccount(feeSource);
-    if (addResourceFee)
+    if (useInclusionAsFullFee)
     {
-        fb.feeBump().tx.fee = tx->getFullFee() - tx->getInclusionFee() + fee;
+        fb.feeBump().tx.fee = fee;
     }
     else
     {
-        fb.feeBump().tx.fee = fee;
+        fb.feeBump().tx.fee = tx->getFullFee() - tx->getInclusionFee() + fee;
     }
     fb.feeBump().tx.innerTx.type(ENVELOPE_TYPE_TX);
     fb.feeBump().tx.innerTx.v1() = tx->getEnvelope().v1();

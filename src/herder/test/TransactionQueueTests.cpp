@@ -1199,7 +1199,7 @@ TEST_CASE("Soroban TransactionQueue limits",
         {
             badTx =
                 feeBump(*app, root, tx, tx->declaredSorobanResourceFee() - 1,
-                        /* addResourceFee */ false);
+                        /* useInclusionAsFullFee */ true);
 
             REQUIRE(badTx->getFullFee() < badTx->declaredSorobanResourceFee());
         }
@@ -1215,7 +1215,7 @@ TEST_CASE("Soroban TransactionQueue limits",
                 fee = INT64_MIN;
             }
             badTx = feeBump(*app, root, tx, fee,
-                            /* addResourceFee */ false);
+                            /* useInclusionAsFullFee */ true);
 
             REQUIRE(badTx->getFullFee() < 0);
         }
@@ -2231,7 +2231,7 @@ TEST_CASE("transaction queue with fee-bump", "[herder][transactionqueue]")
         {
             TransactionQueueTest test{queue};
             auto tx1 = transaction(*app, account1, 1, 1, 100, 1, isSoroban);
-            uint32_t discount = tx1->getFullFee() - tx1->getInclusionFee();
+            uint32_t discount = 0;
             auto newInclusionToPay = 200;
             if (isSoroban)
             {
@@ -2242,7 +2242,8 @@ TEST_CASE("transaction queue with fee-bump", "[herder][transactionqueue]")
             }
             // Available balance after fb1 is 1
             auto fb1 = feeBump(*app, account3, tx1,
-                               minBalance2 - minBalance0 - 1 - discount);
+                               minBalance2 - minBalance0 - 1 - discount,
+                               /* useInclusionAsFullFee */ true);
             test.add(fb1, TransactionQueue::AddResult::ADD_STATUS_PENDING);
             test.check({{{account1, 0, {fb1}}, {account2}, {account3, 0}}, {}});
             if (isSoroban)
@@ -2313,7 +2314,8 @@ TEST_CASE("transaction queue with fee-bump", "[herder][transactionqueue]")
                     }
                     SECTION("maximum fee")
                     {
-                        fb2 = feeBump(*app, account3, tx2, INT64_MAX, false);
+                        fb2 = feeBump(*app, account3, tx2, INT64_MAX,
+                                      /* useInclusionAsFullFee */ true);
                     }
 
                     test.add(fb2,
