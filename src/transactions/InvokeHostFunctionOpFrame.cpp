@@ -31,15 +31,6 @@ namespace stellar
 {
 namespace
 {
-struct LedgerEntryRentState
-{
-    bool readOnly{};
-    uint32_t oldLiveUntilLedger{};
-    uint32_t newLiveUntilLedger{};
-    uint32_t oldSize{};
-    uint32_t newSize{};
-};
-
 bool
 isCodeKey(LedgerKey const& lk)
 {
