@@ -2270,3 +2270,112 @@ TEST_CASE("settings upgrade command line utils", "[tx][soroban][upgrades]")
         updateBytes(b);
     }
 }
+
+TEST_CASE("overly large soroban values are handled gracefully", "[soroban]")
+{
+    Config cfg = getTestConfig();
+    cfg.ENABLE_SOROBAN_DIAGNOSTIC_EVENTS = true;
+    WasmContractInvocationTest test(rust_bridge::get_hostile_large_val_wasm(),
+                                    true, cfg);
+    SorobanResources resources;
+    resources.instructions = test.getNetworkCfg().txMaxInstructions();
+    resources.readBytes = test.getNetworkCfg().txMaxReadBytes();
+    resources.writeBytes = test.getNetworkCfg().txMaxWriteBytes();
+    LedgerKey storageKey(CONTRACT_DATA);
+    storageKey.contractData().durability = ContractDataDurability::PERSISTENT;
+    storageKey.contractData().contract = test.getContractID();
+    storageKey.contractData().key = makeSymbolSCVal("val");
+    // Put contract instance to RW footprint in order to be able to
+    // use the instance storage.
+    resources.footprint.readWrite = test.getContractKeys();
+    resources.footprint.readWrite.push_back(storageKey);
+
+    auto invoke =
+        [&](std::string const& fnName, uint32_t width, uint32_t depth,
+            std::optional<InvokeHostFunctionResultCode> expectedError) {
+            auto scFunc = makeSymbol(fnName);
+            auto scDepth = makeU32(depth);
+            auto scWidth = makeU32(width);
+            uint32_t const inclusionFee = 1000;
+            uint32_t const resourceFee = 200'000'000;
+
+            auto tx = test.createInvokeTx(resources, scFunc, {scWidth, scDepth},
+                                          inclusionFee, resourceFee);
+            auto meta =
+                test.invokeTx(tx, !expectedError, /*processPostApply=*/false);
+            if (expectedError)
+            {
+                REQUIRE(tx->getResult()
+                            .result.results()[0]
+                            .tr()
+                            .invokeHostFunctionResult()
+                            .code() == *expectedError);
+            }
+        };
+
+    auto runTest = [&](std::string const& fnName, bool omitSuccess = false) {
+        if (!omitSuccess)
+        {
+            // Successful call (5^2 entries)
+            invoke(fnName, 30, 2, std::nullopt);
+        }
+        // Non-serializable value, but not too deep -
+        // should run out of budget (2^99 entries).
+        invoke(fnName, 2, 99,
+               InvokeHostFunctionResultCode::
+                   INVOKE_HOST_FUNCTION_RESOURCE_LIMIT_EXCEEDED);
+        // A wide and not so deep value should exceed budget as well.
+        invoke(fnName, 10000, 50,
+               InvokeHostFunctionResultCode::
+                   INVOKE_HOST_FUNCTION_RESOURCE_LIMIT_EXCEEDED);
+        // One more depth level, now we've exceeded the host depth
+        // limit of 100 and should fail well before running of budget
+        // due to reaching the depth limit.
+        invoke(fnName, 2, 100,
+               InvokeHostFunctionResultCode::INVOKE_HOST_FUNCTION_TRAPPED);
+        // Sanity-check with even bigger depth.
+        invoke(fnName, 2, 1000,
+               InvokeHostFunctionResultCode::INVOKE_HOST_FUNCTION_TRAPPED);
+    };
+    SECTION("serialize")
+    {
+        runTest("serialize");
+    }
+    SECTION("store value")
+    {
+        runTest("store");
+    }
+    SECTION("store key")
+    {
+        // Omit the success case as we won't be able to build a valid key
+        // for it due to exceeding the key size limit.
+        runTest("store_key", true);
+    }
+    SECTION("store in instance storage")
+    {
+        runTest("store_instance");
+    }
+    SECTION("store in instance storage key")
+    {
+        runTest("store_instance_key");
+    }
+    SECTION("event topic")
+    {
+        runTest("event_topic");
+    }
+    SECTION("event data")
+    {
+        runTest("event_data");
+    }
+    SECTION("return value")
+    {
+        runTest("return_value");
+    }
+    SECTION("diagnostics")
+    {
+        // Excessive serialization for diagnostics call shouldn't
+        // affect the function result.
+        invoke("diagnostics", 2, 50, std::nullopt);
+        invoke("diagnostics", 2, 1000, std::nullopt);
+    }
+}

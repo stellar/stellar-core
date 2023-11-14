@@ -234,6 +234,8 @@ overrideSorobanNetworkConfigForTest(Application& app)
         cfg.mStateArchivalSettings.minPersistentTTL = 20;
         cfg.mStateArchivalSettings.maxEntryTTL = 6'312'000;
         cfg.mLedgerMaxTxCount = 100;
+
+        cfg.mTxMaxContractEventsSizeBytes = 10'000;
     });
 }
 
