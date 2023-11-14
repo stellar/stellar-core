@@ -1053,17 +1053,27 @@ TransactionFrame::commonValidPreSeqNum(
             return false;
         }
         releaseAssertOrThrow(sorobanResourceFee);
-        if (sorobanData.resourceFee <
-            sorobanResourceFee->refundable_fee +
-                sorobanResourceFee->non_refundable_fee)
+        if (sorobanResourceFee->refundable_fee >
+            INT64_MAX - sorobanResourceFee->non_refundable_fee)
+        {
+            pushSimpleDiagnosticError(
+                SCE_STORAGE, SCEC_INVALID_INPUT,
+                "transaction resource fees cannot be added",
+                {makeU64SCVal(sorobanResourceFee->refundable_fee),
+                 makeU64SCVal(sorobanResourceFee->non_refundable_fee)});
+            getResult().result.code(txSOROBAN_INVALID);
+            return false;
+        }
+        auto const resourceFees = sorobanResourceFee->refundable_fee +
+                                  sorobanResourceFee->non_refundable_fee;
+        if (sorobanData.resourceFee < resourceFees)
         {
             pushSimpleDiagnosticError(
                 SCE_STORAGE, SCEC_EXCEEDED_LIMIT,
                 "transaction `sorobanData.resourceFee` is lower than the "
                 "actual Soroban resource fee",
                 {makeU64SCVal(sorobanData.resourceFee),
-                 makeU64SCVal(sorobanResourceFee->refundable_fee +
-                              sorobanResourceFee->non_refundable_fee)});
+                 makeU64SCVal(resourceFees)});
             getResult().result.code(txSOROBAN_INVALID);
             return false;
         }
