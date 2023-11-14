@@ -50,13 +50,18 @@ class TransactionFrame : public TransactionFrameBase
   protected:
     TransactionEnvelope mEnvelope;
     TransactionResult mResult;
-    xdr::xvector<ContractEvent> mEvents;
-    xdr::xvector<DiagnosticEvent> mDiagnosticEvents;
-    SCVal mReturnValue;
-    // Size of the emitted Soroban events.
-    uint32_t mConsumedContractEventsSizeBytes{};
-    int64_t mConsumedRentFee{};
-    int64_t mFeeRefund{};
+
+    struct SorobanData
+    {
+        xdr::xvector<ContractEvent> mEvents;
+        xdr::xvector<DiagnosticEvent> mDiagnosticEvents;
+        SCVal mReturnValue;
+        // Size of the emitted Soroban events.
+        uint32_t mConsumedContractEventsSizeBytes{};
+        int64_t mConsumedRentFee{};
+        int64_t mFeeRefund{};
+    };
+    std::optional<SorobanData> mSorobanExtension;
 
     std::shared_ptr<InternalLedgerEntry const> mCachedAccount;
 
