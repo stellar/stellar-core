@@ -52,7 +52,7 @@ toCxxBuf(T const& t)
 }
 
 CxxLedgerInfo
-getLedgerInfo(AbstractLedgerTxn& ltx, Config const& cfg,
+getLedgerInfo(AbstractLedgerTxn& ltx, Application& app,
               SorobanNetworkConfig const& sorobanConfig)
 {
     CxxLedgerInfo info{};
@@ -70,10 +70,11 @@ getLedgerInfo(AbstractLedgerTxn& ltx, Config const& cfg,
     info.cpu_cost_params = toCxxBuf(sorobanConfig.cpuCostParams());
     info.mem_cost_params = toCxxBuf(sorobanConfig.memCostParams());
     // TODO: move network id to config to not recompute hash
-    auto networkID = sha256(cfg.NETWORK_PASSPHRASE);
+    auto& networkID = app.getNetworkID();
+    info.network_id.reserve(networkID.size());
     for (auto c : networkID)
     {
-        info.network_id.push_back(static_cast<unsigned char>(c));
+        info.network_id.emplace_back(static_cast<unsigned char>(c));
     }
     return info;
 }
@@ -268,6 +269,7 @@ InvokeHostFunctionOpFrame::maybePopulateDiagnosticEvents(
     if (cfg.ENABLE_SOROBAN_DIAGNOSTIC_EVENTS)
     {
         xdr::xvector<DiagnosticEvent> diagnosticEvents;
+        diagnosticEvents.reserve(output.diagnostic_events.size() + 20);
         for (auto const& e : output.diagnostic_events)
         {
             DiagnosticEvent evt;
@@ -372,6 +374,7 @@ InvokeHostFunctionOpFrame::doApply(Application& app, AbstractLedgerTxn& ltx,
         footprint.readOnly.size() + footprint.readWrite.size();
 
     ledgerEntryCxxBufs.reserve(footprintLength);
+    ttlEntryCxxBufs.reserve(footprintLength);
 
     auto addReads = [&ledgerEntryCxxBufs, &ttlEntryCxxBufs, &ltx, &metrics,
                      &resources, this](auto const& keys) -> bool {
@@ -379,7 +382,7 @@ InvokeHostFunctionOpFrame::doApply(Application& app, AbstractLedgerTxn& ltx,
         {
             uint32 keySize = static_cast<uint32>(xdr::xdr_size(lk));
             uint32 entrySize = 0u;
-            std::optional<TTLEntry> ttlEntry = std::nullopt;
+            std::optional<TTLEntry> ttlEntry;
             bool sorobanEntryLive = false;
 
             // For soroban entries, check if the entry is expired before loading
@@ -470,7 +473,7 @@ InvokeHostFunctionOpFrame::doApply(Application& app, AbstractLedgerTxn& ltx,
     authEntryCxxBufs.reserve(mInvokeHostFunction.auth.size());
     for (auto const& authEntry : mInvokeHostFunction.auth)
     {
-        authEntryCxxBufs.push_back(toCxxBuf(authEntry));
+        authEntryCxxBufs.emplace_back(toCxxBuf(authEntry));
     }
 
     InvokeHostFunctionOutput out{};
@@ -488,7 +491,7 @@ InvokeHostFunctionOpFrame::doApply(Application& app, AbstractLedgerTxn& ltx,
             cfg.ENABLE_SOROBAN_DIAGNOSTIC_EVENTS, resources.instructions,
             toCxxBuf(mInvokeHostFunction.hostFunction), toCxxBuf(resources),
             toCxxBuf(getSourceID()), authEntryCxxBufs,
-            getLedgerInfo(ltx, cfg, sorobanConfig), ledgerEntryCxxBufs,
+            getLedgerInfo(ltx, app, sorobanConfig), ledgerEntryCxxBufs,
             ttlEntryCxxBufs, basePrngSeedBuf,
             sorobanConfig.rustBridgeRentFeeConfiguration());
         metrics.mCpuInsn = static_cast<uint32>(out.cpu_insns);
@@ -621,6 +624,7 @@ InvokeHostFunctionOpFrame::doApply(Application& app, AbstractLedgerTxn& ltx,
     // Append events to the enclosing TransactionFrame, where
     // they'll be picked up and transferred to the TxMeta.
     InvokeHostFunctionSuccessPreImage success{};
+    success.events.reserve(out.contract_events.size());
     for (auto const& buf : out.contract_events)
     {
         metrics.mEmitEvent++;
