@@ -1017,22 +1017,6 @@
                                             "created": {
                                                 "lastModifiedLedgerSeq": 23,
                                                 "data": {
-                                                    "type": "TTL",
-                                                    "ttl": {
-                                                        "keyHash": "c92299f9bdb7a8e6c53092d8f64b92f726eaec5a700608adc80c55ad7824f637",
-                                                        "liveUntilLedgerSeq": 42
-                                                    }
-                                                },
-                                                "ext": {
-                                                    "v": 0
-                                                }
-                                            }
-                                        },
-                                        {
-                                            "type": "LEDGER_ENTRY_CREATED",
-                                            "created": {
-                                                "lastModifiedLedgerSeq": 23,
-                                                "data": {
                                                     "type": "CONTRACT_DATA",
                                                     "contractData": {
                                                         "ext": {
@@ -1056,6 +1040,22 @@
                                                                 "storage": null
                                                             }
                                                         }
+                                                    }
+                                                },
+                                                "ext": {
+                                                    "v": 0
+                                                }
+                                            }
+                                        },
+                                        {
+                                            "type": "LEDGER_ENTRY_CREATED",
+                                            "created": {
+                                                "lastModifiedLedgerSeq": 23,
+                                                "data": {
+                                                    "type": "TTL",
+                                                    "ttl": {
+                                                        "keyHash": "c92299f9bdb7a8e6c53092d8f64b92f726eaec5a700608adc80c55ad7824f637",
+                                                        "liveUntilLedgerSeq": 42
                                                     }
                                                 },
                                                 "ext": {
@@ -1356,22 +1356,6 @@
                                             "created": {
                                                 "lastModifiedLedgerSeq": 23,
                                                 "data": {
-                                                    "type": "TTL",
-                                                    "ttl": {
-                                                        "keyHash": "080881c96969f824d14c5da4fe3a028502b42e6fd5c0ab356b837db730e3f619",
-                                                        "liveUntilLedgerSeq": 42
-                                                    }
-                                                },
-                                                "ext": {
-                                                    "v": 0
-                                                }
-                                            }
-                                        },
-                                        {
-                                            "type": "LEDGER_ENTRY_CREATED",
-                                            "created": {
-                                                "lastModifiedLedgerSeq": 23,
-                                                "data": {
                                                     "type": "CONTRACT_DATA",
                                                     "contractData": {
                                                         "ext": {
@@ -1390,6 +1374,22 @@
                                                             "type": "SCV_U64",
                                                             "u64": 42
                                                         }
+                                                    }
+                                                },
+                                                "ext": {
+                                                    "v": 0
+                                                }
+                                            }
+                                        },
+                                        {
+                                            "type": "LEDGER_ENTRY_CREATED",
+                                            "created": {
+                                                "lastModifiedLedgerSeq": 23,
+                                                "data": {
+                                                    "type": "TTL",
+                                                    "ttl": {
+                                                        "keyHash": "080881c96969f824d14c5da4fe3a028502b42e6fd5c0ab356b837db730e3f619",
+                                                        "liveUntilLedgerSeq": 42
                                                     }
                                                 },
                                                 "ext": {
@@ -1687,7 +1687,7 @@
                                                 "data": {
                                                     "type": "TTL",
                                                     "ttl": {
-                                                        "keyHash": "41a1d1f8559c541a9c38abe159e61cc87c2974527bea9c459292022a1b9fa89f",
+                                                        "keyHash": "1d18c12182450a63a05a6782f93b205c2af961cd6bf3a42a5ec35308a4e6df8c",
                                                         "liveUntilLedgerSeq": 10002
                                                     }
                                                 },
@@ -1703,7 +1703,7 @@
                                                 "data": {
                                                     "type": "TTL",
                                                     "ttl": {
-                                                        "keyHash": "41a1d1f8559c541a9c38abe159e61cc87c2974527bea9c459292022a1b9fa89f",
+                                                        "keyHash": "1d18c12182450a63a05a6782f93b205c2af961cd6bf3a42a5ec35308a4e6df8c",
                                                         "liveUntilLedgerSeq": 10023
                                                     }
                                                 },
@@ -1719,7 +1719,7 @@
                                                 "data": {
                                                     "type": "TTL",
                                                     "ttl": {
-                                                        "keyHash": "1d18c12182450a63a05a6782f93b205c2af961cd6bf3a42a5ec35308a4e6df8c",
+                                                        "keyHash": "41a1d1f8559c541a9c38abe159e61cc87c2974527bea9c459292022a1b9fa89f",
                                                         "liveUntilLedgerSeq": 10002
                                                     }
                                                 },
@@ -1735,7 +1735,7 @@
                                                 "data": {
                                                     "type": "TTL",
                                                     "ttl": {
-                                                        "keyHash": "1d18c12182450a63a05a6782f93b205c2af961cd6bf3a42a5ec35308a4e6df8c",
+                                                        "keyHash": "41a1d1f8559c541a9c38abe159e61cc87c2974527bea9c459292022a1b9fa89f",
                                                         "liveUntilLedgerSeq": 10023
                                                     }
                                                 },
