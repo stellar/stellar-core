@@ -106,6 +106,7 @@ TEST_CASE("Trustline stellar asset contract",
     // Now burn by transfering to the issuer and by using burn function
     test.transfer(acc, makeAccountAddress(issuer.getPublicKey()), 10, true);
     test.burn(acc, 10, true);
+    test.burn(issuer, 10, true);
 
     // Now transfer and mint to contractAddress
     auto contractAddr = makeContractAddress(sha256("contract"));

@@ -829,6 +829,13 @@ AssetContractInvocationTest::transfer(TestAccount& fromAcc,
         REQUIRE((toIsIssuer ||
                  postTransferToBalance - amount == preTransferToBalance));
 
+        {
+            // From is an account so it should never have a contract data
+            // balance
+            LedgerTxn ltx(mApp->getLedgerTxnRoot());
+            REQUIRE(!ltx.load(makeContractDataBalanceKey(fromVal.address())));
+        }
+
         if (toIsIssuer)
         {
             // make sure we didn't create an entry for the issuer
@@ -930,7 +937,12 @@ AssetContractInvocationTest::burn(TestAccount& from, int64_t amount,
     resources.writeBytes = 1072;
 
     resources.footprint.readOnly = mContractKeys;
-    resources.footprint.readWrite = {fromBalanceKey};
+
+    bool isIssuer = getIssuer(mAsset) == from.getPublicKey();
+    if (!isIssuer)
+    {
+        resources.footprint.readWrite = {fromBalanceKey};
+    }
 
     auto preBurnBalance = getBalance(fromAddr);
 
@@ -944,7 +956,7 @@ AssetContractInvocationTest::burn(TestAccount& from, int64_t amount,
     if (expectSuccess)
     {
         auto postBurnBalance = getBalance(fromAddr);
-        REQUIRE(preBurnBalance - amount == postBurnBalance);
+        REQUIRE(preBurnBalance - (isIssuer ? 0 : amount) == postBurnBalance);
     }
 }
 
