@@ -108,12 +108,21 @@ setSeqNum(TransactionFramePtr tx, int64_t seq)
 }
 
 void
-setFee(TransactionFramePtr tx, uint32_t fee)
+setFullFee(TransactionFramePtr tx, uint32_t totalFee)
 {
     auto& env = tx->getEnvelope();
     uint32_t& f =
         env.type() == ENVELOPE_TYPE_TX_V0 ? env.v0().tx.fee : env.v1().tx.fee;
-    f = fee;
+    f = totalFee;
+}
+
+void
+setSorobanFees(TransactionFramePtr tx, uint32_t totalFee, int64 resourceFee)
+{
+    setFullFee(tx, totalFee);
+    auto& env = tx->getEnvelope();
+    auto& sorobanData = env.v1().tx.ext.sorobanData();
+    sorobanData.resourceFee = resourceFee;
 }
 
 void

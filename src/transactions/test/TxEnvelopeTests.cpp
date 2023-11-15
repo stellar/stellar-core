@@ -1684,7 +1684,7 @@ TEST_CASE_VERSIONS("txenvelope", "[tx][envelope]")
         {
             for_all_versions(*app, [&] {
                 auto tx = root.tx({});
-                setFee(tx, 1000);
+                setFullFee(tx, 1000);
 
                 {
                     LedgerTxn ltx(app->getLedgerTxnRoot());
@@ -1896,7 +1896,8 @@ TEST_CASE_VERSIONS("txenvelope", "[tx][envelope]")
                     setup();
                     txFrame =
                         root.tx({payment(a1.getPublicKey(), paymentAmount)});
-                    setFee(txFrame, app->getLedgerManager().getLastTxFee() - 1);
+                    setFullFee(txFrame,
+                               app->getLedgerManager().getLastTxFee() - 1);
 
                     applyCheck(txFrame, *app);
 
