@@ -1058,6 +1058,8 @@ ContractInvocationTest::invokeTx(TransactionFrameBasePtr tx, bool expectSuccess,
     LedgerTxn ltx(mApp->getLedgerTxnRoot());
     auto txm = std::make_shared<TransactionMetaFrame>(
         ltx.loadHeader().current().ledgerVersion);
+
+    REQUIRE(tx->checkValid(*mApp, ltx, 0, 0, 0));
     if (expectSuccess)
     {
         REQUIRE(tx->apply(*mApp, ltx, *txm));
@@ -1185,7 +1187,6 @@ ContractStorageInvocationTest::putWithFootprint(
     resourceFee += refundableFee;
     auto tx = createInvokeTx(resources, makeSymbol(funcStr),
                              {keySymbol, valU64}, 1'000, resourceFee);
-    txCheckValid(tx);
     invokeTx(tx, /*expectSuccess=*/expectSuccess, false);
 }
 
@@ -1227,7 +1228,6 @@ ContractStorageInvocationTest::getWithFootprint(
     resourceFee += 40'000;
     auto tx = createInvokeTx(resources, makeSymbol(funcStr), {keySymbol}, 1'000,
                              resourceFee);
-    txCheckValid(tx);
     auto txm = invokeTx(tx, expectSuccess, false);
     if (expectSuccess)
     {
@@ -1275,7 +1275,6 @@ ContractStorageInvocationTest::hasWithFootprint(
 
     auto tx = createInvokeTx(resources, makeSymbol(funcStr), {keySymbol}, 1'000,
                              resourceFee);
-    txCheckValid(tx);
     auto txm = invokeTx(tx, /*expectSuccess=*/expectSuccess, false);
     if (expectSuccess)
     {
@@ -1319,7 +1318,6 @@ ContractStorageInvocationTest::delWithFootprint(
     resourceFee += 40'000;
     auto tx = createInvokeTx(resources, makeSymbol(funcStr), {keySymbol}, 1'000,
                              resourceFee);
-    txCheckValid(tx);
     invokeTx(tx, expectSuccess, false);
 }
 
@@ -1374,7 +1372,6 @@ ContractStorageInvocationTest::extendHostFunction(std::string const& key,
     auto tx = createInvokeTx(resources, makeSymbol(funcStr),
                              {keySymbol, thresholdU32, extendToU32}, 1'000,
                              resourceFee);
-    txCheckValid(tx);
     invokeTx(tx, expectSuccess, /*processPostApply=*/false);
 }
 
@@ -1410,7 +1407,6 @@ ContractStorageInvocationTest::resizeStorageAndExtend(
         createInvokeTx(resources, makeSymbol(funcStr),
                        {keySymbol, numKiloBytesU32, threshU32, extendToU32},
                        1'000, resourceFee);
-    txCheckValid(tx);
     invokeTx(tx, /*expectSuccess=*/expectSuccess, false);
 }
 }
