@@ -577,7 +577,7 @@ WasmContractInvocationTest::deployWithResources(
 {
     if (!mContractKeys.empty())
     {
-        throw "WASM already uploaded";
+        throw "Wasm already uploaded";
     }
 
     deployContractWithSourceAccountWithResources(uploadResources,
@@ -699,6 +699,24 @@ AssetContractInvocationTest::makeBalanceKey(AccountID const& acc)
 }
 
 LedgerKey
+AssetContractInvocationTest::makeContractDataBalanceKey(SCAddress const& addr)
+{
+    SCVal val(SCV_ADDRESS);
+    val.address() = addr;
+
+    LedgerKey balanceKey(CONTRACT_DATA);
+    balanceKey.contractData().contract = mContractID;
+
+    SCVec balance = {makeSymbolSCVal("Balance"), val};
+    SCVal balanceVal(SCValType::SCV_VEC);
+    balanceVal.vec().activate() = balance;
+    balanceKey.contractData().key = balanceVal;
+    balanceKey.contractData().durability = ContractDataDurability::PERSISTENT;
+
+    return balanceKey;
+}
+
+LedgerKey
 AssetContractInvocationTest::makeBalanceKey(SCAddress const& addr)
 {
     if (addr.type() == SC_ADDRESS_TYPE_ACCOUNT)
@@ -707,20 +725,7 @@ AssetContractInvocationTest::makeBalanceKey(SCAddress const& addr)
     }
     else
     {
-        SCVal val(SCV_ADDRESS);
-        val.address() = addr;
-
-        LedgerKey balanceKey(CONTRACT_DATA);
-        balanceKey.contractData().contract = mContractID;
-
-        SCVec balance = {makeSymbolSCVal("Balance"), val};
-        SCVal balanceVal(SCValType::SCV_VEC);
-        balanceVal.vec().activate() = balance;
-        balanceKey.contractData().key = balanceVal;
-        balanceKey.contractData().durability =
-            ContractDataDurability::PERSISTENT;
-
-        return balanceKey;
+        return makeContractDataBalanceKey(addr);
     }
 }
 
@@ -823,6 +828,13 @@ AssetContractInvocationTest::transfer(TestAccount& fromAcc,
                  postTransferFromBalance == preTransferFromBalance - amount));
         REQUIRE((toIsIssuer ||
                  postTransferToBalance - amount == preTransferToBalance));
+
+        if (toIsIssuer)
+        {
+            // make sure we didn't create an entry for the issuer
+            LedgerTxn ltx(mApp->getLedgerTxnRoot());
+            REQUIRE(!ltx.load(makeContractDataBalanceKey(toAddr)));
+        }
     }
 }
 

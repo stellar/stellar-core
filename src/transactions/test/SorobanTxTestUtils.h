@@ -184,6 +184,7 @@ class AssetContractInvocationTest : public ContractInvocationTest
   protected:
     LedgerKey makeBalanceKey(AccountID const& acc);
     LedgerKey makeBalanceKey(SCAddress const& addr);
+    LedgerKey makeContractDataBalanceKey(SCAddress const& addr);
     int64_t getBalance(SCAddress const& addr);
 
     Asset const mAsset;
