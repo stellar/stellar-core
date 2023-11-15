@@ -379,11 +379,6 @@ LedgerManagerImpl::loadLastKnownLedger(function<void()> handler)
                         }
                     }
                     advanceLedgerPointers(header.current());
-                    if (protocolVersionStartsFrom(ledgerVersion,
-                                                  SOROBAN_PROTOCOL_VERSION))
-                    {
-                        updateNetworkConfig(ltx);
-                    }
                 }
                 handler();
             }
@@ -392,8 +387,6 @@ LedgerManagerImpl::loadLastKnownLedger(function<void()> handler)
         {
             LedgerTxn ltx(mApp.getLedgerTxnRoot());
             advanceLedgerPointers(ltx.loadHeader().current());
-            // Ledger is not ready in this flow yet, so we can't update
-            // the network config.
         }
     }
 }
@@ -1025,6 +1018,13 @@ LedgerManagerImpl::setLastClosedLedger(
 
     mRebuildInMemoryState = false;
     advanceLedgerPointers(lastClosed.header);
+    LedgerTxn ltx2(mApp.getLedgerTxnRoot(), false,
+                   TransactionMode::READ_ONLY_WITHOUT_SQL_TXN);
+    if (protocolVersionStartsFrom(ltx2.loadHeader().current().ledgerVersion,
+                                  SOROBAN_PROTOCOL_VERSION))
+    {
+        mApp.getLedgerManager().updateNetworkConfig(ltx2);
+    }
 }
 
 void

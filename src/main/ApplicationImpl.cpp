@@ -796,6 +796,17 @@ ApplicationImpl::start()
 
     bool done = false;
     mLedgerManager->loadLastKnownLedger([this, &done]() {
+        // Make sure to load Soroban network config before
+        // herder starts (tx queue configuration is based on it).
+        {
+            LedgerTxn ltx(getLedgerTxnRoot());
+            if (protocolVersionStartsFrom(
+                    ltx.loadHeader().current().ledgerVersion,
+                    SOROBAN_PROTOCOL_VERSION))
+            {
+                getLedgerManager().updateNetworkConfig(ltx);
+            }
+        }
         // restores Herder's state before starting overlay
         mHerder->start();
         // set known cursors before starting maintenance job

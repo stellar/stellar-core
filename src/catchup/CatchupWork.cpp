@@ -463,14 +463,6 @@ CatchupWork::runCatchupStep()
             return res;
         }
     }
-    {
-        LedgerTxn ltx(mApp.getLedgerTxnRoot());
-        if (protocolVersionStartsFrom(ltx.loadHeader().current().ledgerVersion,
-                                      SOROBAN_PROTOCOL_VERSION))
-        {
-            mApp.getLedgerManager().updateNetworkConfig(ltx);
-        }
-    }
 
     // Step 4: Download, verify and apply ledgers, buckets and transactions
 
