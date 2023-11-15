@@ -19,12 +19,20 @@ namespace txtest
 
 SCVal makeWasmRefScContractCode(Hash const& hash);
 SCAddress makeContractAddress(Hash const& hash);
+SCAddress makeAccountAddress(AccountID const& accountID);
 SCVal makeContractAddressSCVal(SCAddress const& address);
 SCVal makeI32(int32_t i32);
 SCVal makeI128(uint64_t u64);
 SCSymbol makeSymbol(std::string const& str);
 SCVal makeU32(uint32_t u32);
 SCVal makeBytes(SCBytes bytes);
+
+int64_t getContractBalance(Application& app, SCAddress const& contractID,
+                           SCVal const& toVal);
+
+void submitTx(Application& app, Operation const& op,
+              SorobanResources const& resources, uint32_t inclusionFee,
+              uint32_t resourceFee);
 
 void submitTxToUploadWasm(Application& app, Operation const& op,
                           SorobanResources const& resources,
@@ -53,22 +61,17 @@ class ContractInvocationTest
                           int64_t expectedRefundableFeeCharged,
                           bool expectSuccess);
 
-    void deployContractWithSourceAccountWithResources(
-        SorobanResources uploadResources, SorobanResources createResources);
-
   protected:
     VirtualClock mClock;
     Application::pointer mApp;
     TestAccount mRoot;
     TestAccount mDummyAccount;
-    RustBuf const mWasm;
 
     xdr::xvector<LedgerKey> mContractKeys{};
     SCAddress mContractID{};
 
   public:
     ContractInvocationTest(
-        RustBuf const& wasm, bool deployContract = true,
         Config cfg = getTestConfig(), bool useTestLimits = true,
         std::function<void(SorobanNetworkConfig&)> cfgModifyFn =
             [](SorobanNetworkConfig&) {});
@@ -95,9 +98,6 @@ class ContractInvocationTest
     SorobanNetworkConfig const& getNetworkCfg();
     uint32_t getLedgerSeq();
 
-    void deployWithResources(SorobanResources const& uploadResources,
-                             SorobanResources const& createResources);
-
     // The following computations are copies of compute_transaction_resource_fee
     // in rs-soroban-env/soroban-env-host/src/fees.rs. This is reimplemented
     // here so that we can check if the Cxx bridge introduced any fee related
@@ -123,9 +123,6 @@ class ContractInvocationTest
                                 SCSymbol const& functionName,
                                 std::vector<SCVal> const& args);
 
-    TransactionFrameBasePtr createUploadWasmTx(TestAccount& source,
-                                               uint32_t resourceFee);
-    TransactionFrameBasePtr getCreateTx(TestAccount& acc);
     TransactionFrameBasePtr
     createInvokeTx(SorobanResources const& resources,
                    SCSymbol const& functionName, std::vector<SCVal> const& args,
@@ -159,12 +156,61 @@ class ContractInvocationTest
                       std::nullopt);
 };
 
-class ContractStorageInvocationTest : public ContractInvocationTest
+class WasmContractInvocationTest : public ContractInvocationTest
+{
+    void deployContractWithSourceAccountWithResources(
+        SorobanResources uploadResources, SorobanResources createResources);
+
+  protected:
+    RustBuf const mWasm;
+
+  public:
+    WasmContractInvocationTest(
+        RustBuf const& wasm, bool deployContract = true,
+        Config cfg = getTestConfig(), bool useTestLimits = true,
+        std::function<void(SorobanNetworkConfig&)> cfgModifyFn =
+            [](SorobanNetworkConfig&) {});
+
+    void deployWithResources(SorobanResources const& uploadResources,
+                             SorobanResources const& createResources);
+
+    TransactionFrameBasePtr createUploadWasmTx(TestAccount& source,
+                                               uint32_t resourceFee);
+    TransactionFrameBasePtr getCreateTx(TestAccount& acc);
+};
+
+class AssetContractInvocationTest : public ContractInvocationTest
+{
+  protected:
+    LedgerKey makeBalanceKey(AccountID const& acc);
+    LedgerKey makeBalanceKey(SCAddress const& addr);
+    LedgerKey makeContractDataBalanceKey(SCAddress const& addr);
+    int64_t getBalance(SCAddress const& addr);
+
+    Asset const mAsset;
+
+  public:
+    AssetContractInvocationTest(
+        Asset const& asset, Config cfg = getTestConfig(),
+        bool useTestLimits = true,
+        std::function<void(SorobanNetworkConfig&)> cfgModifyFn =
+            [](SorobanNetworkConfig&) {});
+
+    void transfer(TestAccount& from, SCAddress const& toAddr, int64_t amount,
+                  bool expectSuccess);
+    void mint(TestAccount& admin, SCAddress const& toAddr, int64_t amount,
+              bool expectSuccess);
+    void burn(TestAccount& from, int64_t amount, bool expectSuccess);
+    void clawback(TestAccount& admin, SCAddress const& fromAddr, int64_t amount,
+                  bool expectSuccess);
+};
+
+class ContractStorageInvocationTest : public WasmContractInvocationTest
 {
   public:
     ContractStorageInvocationTest(Config cfg = getTestConfig())
-        : ContractInvocationTest(rust_bridge::get_test_wasm_contract_data(),
-                                 /*deployContract=*/true, cfg)
+        : WasmContractInvocationTest(rust_bridge::get_test_wasm_contract_data(),
+                                     /*deployContract=*/true, cfg)
     {
     }
 

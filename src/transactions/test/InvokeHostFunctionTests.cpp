@@ -41,294 +41,170 @@
 using namespace stellar;
 using namespace stellar::txtest;
 
-TEST_CASE("Stellar asset contract transfer",
+TEST_CASE("Trustline stellar asset contract",
           "[tx][soroban][invariant][conservationoflumens]")
 {
-    VirtualClock clock;
+    auto issuerKey = getAccount("issuer");
+    Asset idr = makeAsset(issuerKey, "IDR");
+
     auto cfg = getTestConfig();
-    // Override the initial limits for the trustline to trustline transfer
     cfg.TESTING_SOROBAN_HIGH_LIMIT_OVERRIDE = true;
-    auto app = createTestApplication(clock, cfg);
-    overrideSorobanNetworkConfigForTest(*app);
-    auto root = TestAccount::createRoot(*app);
+    cfg.ENABLE_SOROBAN_DIAGNOSTIC_EVENTS = true;
 
-    auto createAssetContract =
-        [&](Asset const& asset) -> std::pair<SCAddress, LedgerKey> {
-        HashIDPreimage preImage;
-        preImage.type(ENVELOPE_TYPE_CONTRACT_ID);
-        preImage.contractID().contractIDPreimage.type(
-            CONTRACT_ID_PREIMAGE_FROM_ASSET);
-        preImage.contractID().contractIDPreimage.fromAsset() = asset;
-        preImage.contractID().networkID = app->getNetworkID();
-        auto contractID = makeContractAddress(xdrSha256(preImage));
+    AssetContractInvocationTest test(idr, cfg);
+    auto app = test.getApp();
 
-        Operation createOp;
-        createOp.body.type(INVOKE_HOST_FUNCTION);
-        auto& createHF = createOp.body.invokeHostFunctionOp();
-        createHF.hostFunction.type(HOST_FUNCTION_TYPE_CREATE_CONTRACT);
-        auto& createContractArgs = createHF.hostFunction.createContract();
+    auto& root = test.getRoot();
 
-        ContractExecutable exec;
-        exec.type(CONTRACT_EXECUTABLE_STELLAR_ASSET);
-        createContractArgs.contractIDPreimage.type(
-            CONTRACT_ID_PREIMAGE_FROM_ASSET);
-        createContractArgs.contractIDPreimage.fromAsset() = asset;
-        createContractArgs.executable = exec;
+    auto const minBalance = app->getLedgerManager().getLastMinBalance(2);
+    auto issuer = root.create(issuerKey, minBalance);
 
-        SorobanResources createResources;
-        createResources.instructions = 400'000;
-        createResources.readBytes = 1000;
-        createResources.writeBytes = 1000;
+    // Enable clawback
+    issuer.setOptions(
+        setFlags(AUTH_CLAWBACK_ENABLED_FLAG | AUTH_REVOCABLE_FLAG));
 
-        LedgerKey contractExecutableKey(CONTRACT_DATA);
-        contractExecutableKey.contractData().contract = contractID;
-        contractExecutableKey.contractData().key =
-            SCVal(SCValType::SCV_LEDGER_KEY_CONTRACT_INSTANCE);
-        contractExecutableKey.contractData().durability =
-            ContractDataDurability::PERSISTENT;
+    auto acc = root.create("acc", minBalance);
+    auto acc2 = root.create("acc2", minBalance);
+    auto sponsor = root.create("sponsor", minBalance * 2);
 
-        createResources.footprint.readWrite = {contractExecutableKey};
-
-        {
-            // submit operation
-            auto tx = sorobanTransactionFrameFromOps(
-                app->getNetworkID(), root, {createOp}, {}, createResources, 100,
-                DEFAULT_TEST_RESOURCE_FEE);
-
-            LedgerTxn ltx(app->getLedgerTxnRoot());
-            TransactionMetaFrame txm(ltx.loadHeader().current().ledgerVersion);
-            REQUIRE(tx->checkValid(*app, ltx, 0, 0, 0));
-            REQUIRE(tx->apply(*app, ltx, txm));
-            ltx.commit();
-        }
-
-        return std::make_pair(contractID, contractExecutableKey);
-    };
-
-    SECTION("XLM")
+    root.changeTrust(idr, 100);
     {
-        auto idAndExec = createAssetContract(txtest::makeNativeAsset());
-
-        auto contractID = idAndExec.first;
-        auto contractExecutableKey = idAndExec.second;
-
-        auto key = SecretKey::pseudoRandomForTesting();
-        TestAccount a1(*app, key);
         auto tx = transactionFrameFromOps(
-            app->getNetworkID(), root,
-            {root.op(beginSponsoringFutureReserves(a1)),
-             root.op(createAccount(
-                 a1, app->getLedgerManager().getLastMinBalance(10))),
-             a1.op(endSponsoringFutureReserves())},
-            {key});
+            app->getNetworkID(), sponsor,
+            {sponsor.op(beginSponsoringFutureReserves(acc)),
+             acc.op(changeTrust(idr, 100)),
+             acc.op(endSponsoringFutureReserves())},
+            {acc});
 
-        {
-            LedgerTxn ltx(app->getLedgerTxnRoot());
-            TransactionMetaFrame txm(ltx.loadHeader().current().ledgerVersion);
-            REQUIRE(tx->checkValid(*app, ltx, 0, 0, 0));
-            REQUIRE(tx->apply(*app, ltx, txm));
-            ltx.commit();
-        }
-
-        {
-            LedgerTxn ltx(app->getLedgerTxnRoot());
-            checkSponsorship(ltx, a1.getPublicKey(), 1, &root.getPublicKey(), 0,
-                             2, 0, 2);
-            checkSponsorship(ltx, root.getPublicKey(), 0, nullptr, 0, 2, 2, 0);
-        }
-
-        // transfer 10 XLM from a1 to contractID
-        SCAddress fromAccount(SC_ADDRESS_TYPE_ACCOUNT);
-        fromAccount.accountId() = a1.getPublicKey();
-        SCVal from(SCV_ADDRESS);
-        from.address() = fromAccount;
-
-        SCVal to =
-            makeContractAddressSCVal(makeContractAddress(sha256("contract")));
-
-        auto fn = makeSymbol("transfer");
-        Operation transfer;
-        transfer.body.type(INVOKE_HOST_FUNCTION);
-        auto& ihf = transfer.body.invokeHostFunctionOp().hostFunction;
-        ihf.type(HOST_FUNCTION_TYPE_INVOKE_CONTRACT);
-        ihf.invokeContract().contractAddress = contractID;
-        ihf.invokeContract().functionName = fn;
-        ihf.invokeContract().args = {from, to, makeI128(10)};
-
-        // build auth
-        SorobanAuthorizedInvocation ai;
-        ai.function.type(SOROBAN_AUTHORIZED_FUNCTION_TYPE_CONTRACT_FN);
-        ai.function.contractFn() = ihf.invokeContract();
-
-        SorobanAuthorizationEntry a;
-        a.credentials.type(SOROBAN_CREDENTIALS_SOURCE_ACCOUNT);
-        a.rootInvocation = ai;
-        transfer.body.invokeHostFunctionOp().auth = {a};
-
-        SorobanResources resources;
-        resources.instructions = 2'000'000;
-        resources.readBytes = 2000;
-        resources.writeBytes = 1072;
-
-        LedgerKey accountLedgerKey(ACCOUNT);
-        accountLedgerKey.account().accountID = a1.getPublicKey();
-
-        LedgerKey balanceLedgerKey(CONTRACT_DATA);
-        balanceLedgerKey.contractData().contract = contractID;
-        SCVec balance = {makeSymbolSCVal("Balance"), to};
-        SCVal balanceKey(SCValType::SCV_VEC);
-        balanceKey.vec().activate() = balance;
-        balanceLedgerKey.contractData().key = balanceKey;
-        balanceLedgerKey.contractData().durability =
-            ContractDataDurability::PERSISTENT;
-
-        resources.footprint.readOnly = {contractExecutableKey};
-        resources.footprint.readWrite = {accountLedgerKey, balanceLedgerKey};
-
-        auto preTransferA1Balance = a1.getBalance();
-
-        {
-            // submit operation
-            auto tx = sorobanTransactionFrameFromOps(
-                app->getNetworkID(), a1, {transfer}, {}, resources, 100,
-                DEFAULT_TEST_RESOURCE_FEE);
-
-            LedgerTxn ltx(app->getLedgerTxnRoot());
-            TransactionMetaFrame txm(ltx.loadHeader().current().ledgerVersion);
-            REQUIRE(tx->checkValid(*app, ltx, 0, 0, 0));
-            REQUIRE(tx->apply(*app, ltx, txm));
-            ltx.commit();
-        }
-        REQUIRE(preTransferA1Balance - 10 == a1.getBalance());
-
-        // Make sure sponsorship info hasn't changed
-        {
-            LedgerTxn ltx(app->getLedgerTxnRoot());
-            checkSponsorship(ltx, a1.getPublicKey(), 1, &root.getPublicKey(), 0,
-                             2, 0, 2);
-            checkSponsorship(ltx, root.getPublicKey(), 0, nullptr, 0, 2, 2, 0);
-        }
+        LedgerTxn ltx(app->getLedgerTxnRoot());
+        TransactionMetaFrame txm(ltx.loadHeader().current().ledgerVersion);
+        REQUIRE(tx->checkValid(*app, ltx, 0, 0, 0));
+        REQUIRE(tx->apply(*app, ltx, txm));
+        REQUIRE(tx->getResultCode() == txSUCCESS);
+        ltx.commit();
     }
 
-    SECTION("trustline")
     {
-        auto const minBalance = app->getLedgerManager().getLastMinBalance(2);
-        auto issuer = root.create("issuer", minBalance);
-        auto acc = root.create("acc", minBalance);
-        auto sponsor = root.create("sponsor", minBalance * 2);
+        LedgerTxn ltx(app->getLedgerTxnRoot());
+        auto tlAsset = assetToTrustLineAsset(idr);
+        checkSponsorship(ltx, trustlineKey(acc, tlAsset), 1,
+                         &sponsor.getPublicKey());
+        checkSponsorship(ltx, acc, 0, nullptr, 1, 2, 0, 1);
+        checkSponsorship(ltx, sponsor, 0, nullptr, 0, 2, 1, 0);
+    }
 
-        Asset idr = makeAsset(issuer, "IDR");
-        root.changeTrust(idr, 100);
-        {
-            auto tx = transactionFrameFromOps(
-                app->getNetworkID(), sponsor,
-                {sponsor.op(beginSponsoringFutureReserves(acc)),
-                 acc.op(changeTrust(idr, 100)),
-                 acc.op(endSponsoringFutureReserves())},
-                {acc});
+    issuer.pay(root, idr, 100);
 
-            LedgerTxn ltx(app->getLedgerTxnRoot());
-            TransactionMetaFrame txm(ltx.loadHeader().current().ledgerVersion);
-            REQUIRE(tx->checkValid(*app, ltx, 0, 0, 0));
-            REQUIRE(tx->apply(*app, ltx, txm));
-            REQUIRE(tx->getResultCode() == txSUCCESS);
-            ltx.commit();
-        }
+    auto accAddr = makeAccountAddress(acc.getPublicKey());
 
-        {
-            LedgerTxn ltx(app->getLedgerTxnRoot());
-            auto tlAsset = assetToTrustLineAsset(idr);
-            checkSponsorship(ltx, trustlineKey(acc, tlAsset), 1,
-                             &sponsor.getPublicKey());
-            checkSponsorship(ltx, acc, 0, nullptr, 1, 2, 0, 1);
-            checkSponsorship(ltx, sponsor, 0, nullptr, 0, 2, 1, 0);
-        }
+    // Transfer and mint to account
+    test.transfer(root, accAddr, 10, true);
+    test.mint(issuer, accAddr, 10, true);
 
-        issuer.pay(root, idr, 100);
+    // Now mint by transfering from issuer
+    test.transfer(issuer, accAddr, 10, true);
 
-        auto idAndExec = createAssetContract(idr);
+    // Now burn by transfering to the issuer and by using burn function
+    test.transfer(acc, makeAccountAddress(issuer.getPublicKey()), 10, true);
+    test.burn(acc, 10, true);
+    test.burn(issuer, 10, true);
 
-        auto contractID = idAndExec.first;
-        auto contractExecutableKey = idAndExec.second;
+    // Now transfer and mint to contractAddress
+    auto contractAddr = makeContractAddress(sha256("contract"));
+    test.transfer(root, contractAddr, 10, true);
+    test.mint(issuer, contractAddr, 10, true);
 
-        SCAddress fromAccount(SC_ADDRESS_TYPE_ACCOUNT);
-        fromAccount.accountId() = root.getPublicKey();
-        SCVal from(SCV_ADDRESS);
-        from.address() = fromAccount;
+    // Now mint by transfering from issuer
+    test.transfer(issuer, contractAddr, 10, true);
 
-        SCAddress toAccount(SC_ADDRESS_TYPE_ACCOUNT);
-        toAccount.accountId() = acc.getPublicKey();
-        SCVal to(SCV_ADDRESS);
-        to.address() = toAccount;
+    // Now clawback
+    test.clawback(issuer, accAddr, 2, true);
+    test.clawback(issuer, contractAddr, 2, true);
 
-        auto fn = makeSymbol("transfer");
-        Operation transfer;
-        transfer.body.type(INVOKE_HOST_FUNCTION);
-        auto& ihf = transfer.body.invokeHostFunctionOp().hostFunction;
-        ihf.type(HOST_FUNCTION_TYPE_INVOKE_CONTRACT);
-        ihf.invokeContract().contractAddress = contractID;
-        ihf.invokeContract().functionName = fn;
-        ihf.invokeContract().args = {from, to, makeI128(10)};
+    // Try to clawback more than available
+    test.clawback(issuer, accAddr, 100, false);
+    test.clawback(issuer, contractAddr, 100, false);
 
-        // build auth
-        SorobanAuthorizedInvocation ai;
-        ai.function.type(SOROBAN_AUTHORIZED_FUNCTION_TYPE_CONTRACT_FN);
-        ai.function.contractFn() = ihf.invokeContract();
+    // Clear clawback, create new balances, and try to clawback
+    issuer.setOptions(clearFlags(AUTH_CLAWBACK_ENABLED_FLAG));
 
-        SorobanAuthorizationEntry a;
-        a.credentials.type(SOROBAN_CREDENTIALS_SOURCE_ACCOUNT);
-        a.rootInvocation = ai;
-        transfer.body.invokeHostFunctionOp().auth = {a};
+    acc2.changeTrust(idr, 100);
 
-        SorobanResources resources;
-        resources.instructions = 2'000'000;
-        resources.readBytes = 2000;
-        resources.writeBytes = 1072;
+    auto acc2Addr = makeAccountAddress(acc2.getPublicKey());
+    auto contract2Addr = makeContractAddress(sha256("contract2"));
+    test.mint(issuer, acc2Addr, 10, true);
+    test.mint(issuer, contract2Addr, 10, true);
 
-        LedgerKey accountLedgerKey(ACCOUNT);
-        accountLedgerKey.account().accountID = root.getPublicKey();
+    // Clawback not allowed because trustline and contract balance
+    // was created when issuer did not have AUTH_CLAWBACK_ENABLED_FLAG set.
+    test.clawback(issuer, acc2Addr, 1, false);
+    test.clawback(issuer, contract2Addr, 1, false);
 
-        LedgerKey issuerLedgerKey(ACCOUNT);
-        issuerLedgerKey.account().accountID = issuer.getPublicKey();
+    // Make sure sponsorship info hasn't changed
+    {
+        LedgerTxn ltx(app->getLedgerTxnRoot());
+        auto tlAsset = assetToTrustLineAsset(idr);
+        checkSponsorship(ltx, trustlineKey(acc, tlAsset), 1,
+                         &sponsor.getPublicKey());
+        checkSponsorship(ltx, acc, 0, nullptr, 1, 2, 0, 1);
+        checkSponsorship(ltx, sponsor, 0, nullptr, 0, 2, 1, 0);
+    }
+}
 
-        LedgerKey rootTrustlineLedgerKey(TRUSTLINE);
-        rootTrustlineLedgerKey.trustLine().accountID = root.getPublicKey();
-        rootTrustlineLedgerKey.trustLine().asset = assetToTrustLineAsset(idr);
+TEST_CASE("Native stellar asset contract",
+          "[tx][soroban][invariant][conservationoflumens]")
+{
+    auto cfg = getTestConfig();
+    cfg.TESTING_SOROBAN_HIGH_LIMIT_OVERRIDE = true;
 
-        LedgerKey accTrustlineLedgerKey(TRUSTLINE);
-        accTrustlineLedgerKey.trustLine().accountID = acc.getPublicKey();
-        accTrustlineLedgerKey.trustLine().asset = assetToTrustLineAsset(idr);
+    AssetContractInvocationTest test(txtest::makeNativeAsset(), cfg);
+    auto app = test.getApp();
+    auto& root = test.getRoot();
 
-        resources.footprint.readOnly = {contractExecutableKey, issuerLedgerKey};
+    auto const minBalance = app->getLedgerManager().getLastMinBalance(2);
+    auto a2 = root.create("a2", minBalance);
 
-        resources.footprint.readWrite = {rootTrustlineLedgerKey,
-                                         accTrustlineLedgerKey};
+    auto key = SecretKey::pseudoRandomForTesting();
+    TestAccount a1(*app, key);
+    auto tx = transactionFrameFromOps(
+        app->getNetworkID(), root,
+        {root.op(beginSponsoringFutureReserves(a1)),
+         root.op(
+             createAccount(a1, app->getLedgerManager().getLastMinBalance(10))),
+         a1.op(endSponsoringFutureReserves())},
+        {key});
 
-        {
-            // submit operation
-            auto tx = sorobanTransactionFrameFromOps(
-                app->getNetworkID(), root, {transfer}, {}, resources, 100,
-                DEFAULT_TEST_RESOURCE_FEE);
+    {
+        LedgerTxn ltx(app->getLedgerTxnRoot());
+        TransactionMetaFrame txm(ltx.loadHeader().current().ledgerVersion);
+        REQUIRE(tx->checkValid(*app, ltx, 0, 0, 0));
+        REQUIRE(tx->apply(*app, ltx, txm));
+        ltx.commit();
+    }
 
-            LedgerTxn ltx(app->getLedgerTxnRoot());
-            TransactionMetaFrame txm(ltx.loadHeader().current().ledgerVersion);
-            REQUIRE(tx->checkValid(*app, ltx, 0, 0, 0));
-            REQUIRE(tx->apply(*app, ltx, txm));
-            ltx.commit();
-        }
+    {
+        LedgerTxn ltx(app->getLedgerTxnRoot());
+        checkSponsorship(ltx, a1.getPublicKey(), 1, &root.getPublicKey(), 0, 2,
+                         0, 2);
+        checkSponsorship(ltx, root.getPublicKey(), 0, nullptr, 0, 2, 2, 0);
+    }
 
-        REQUIRE(root.getTrustlineBalance(idr) == 90);
-        REQUIRE(acc.getTrustlineBalance(idr) == 10);
+    // transfer 10 XLM from a1 to contractID
+    auto contractAddr = makeContractAddress(sha256("contract"));
+    test.transfer(a1, contractAddr, 10, true);
 
-        // Make sure sponsorship info hasn't changed
-        {
-            LedgerTxn ltx(app->getLedgerTxnRoot());
-            auto tlAsset = assetToTrustLineAsset(idr);
-            checkSponsorship(ltx, trustlineKey(acc, tlAsset), 1,
-                             &sponsor.getPublicKey());
-            checkSponsorship(ltx, acc, 0, nullptr, 1, 2, 0, 1);
-            checkSponsorship(ltx, sponsor, 0, nullptr, 0, 2, 1, 0);
-        }
+    // Now do an account to account transfer
+    test.transfer(a1, makeAccountAddress(a2), 100, true);
+
+    // Now try to mint native
+    test.mint(root, contractAddr, 10, false);
+
+    // Make sure sponsorship info hasn't changed
+    {
+        LedgerTxn ltx(app->getLedgerTxnRoot());
+        checkSponsorship(ltx, a1.getPublicKey(), 1, &root.getPublicKey(), 0, 2,
+                         0, 2);
+        checkSponsorship(ltx, root.getPublicKey(), 0, nullptr, 0, 2, 2, 0);
     }
 }
 
@@ -436,7 +312,7 @@ overrideNetworkSettingsToMin(Application& app)
 
 TEST_CASE("basic contract invocation", "[tx][soroban]")
 {
-    ContractInvocationTest test(rust_bridge::get_test_wasm_add_i32());
+    WasmContractInvocationTest test(rust_bridge::get_test_wasm_add_i32());
 
     int64_t const INCLUSION_FEE = 12'345;
 
@@ -625,7 +501,7 @@ TEST_CASE("basic contract invocation", "[tx][soroban]")
 
 TEST_CASE("invalid footprint keys", "[tx][soroban]")
 {
-    ContractInvocationTest test(rust_bridge::get_test_wasm_add_i32());
+    WasmContractInvocationTest test(rust_bridge::get_test_wasm_add_i32());
 
     SorobanResources resources;
     resources.footprint.readOnly = test.getContractKeys();
@@ -812,9 +688,9 @@ TEST_CASE("non-refundable resource metering", "[tx][soroban]")
         cfg.mFeeTransactionSize1KB = feeDist(Catch::rng());
     };
 
-    ContractInvocationTest test(rust_bridge::get_test_wasm_add_i32(),
-                                /*deployContract=*/false, getTestConfig(),
-                                /*useTestLimits=*/true, cfgModifyFn);
+    WasmContractInvocationTest test(rust_bridge::get_test_wasm_add_i32(),
+                                    /*deployContract=*/false, getTestConfig(),
+                                    /*useTestLimits=*/true, cfgModifyFn);
 
     auto scFunc = makeSymbol("add");
     auto scArgs = {makeI32(7), makeI32(16)};
@@ -995,8 +871,8 @@ TEST_CASE("non-refundable resource metering", "[tx][soroban]")
 
 TEST_CASE("refund account merged", "[tx][soroban][merge]")
 {
-    ContractInvocationTest test(rust_bridge::get_test_wasm_add_i32(),
-                                /*deployContact=*/false);
+    WasmContractInvocationTest test(rust_bridge::get_test_wasm_add_i32(),
+                                    /*deployContact=*/false);
 
     const int64_t startingBalance =
         test.getApp()->getLedgerManager().getLastMinBalance(50);
@@ -1023,8 +899,8 @@ TEST_CASE("refund account merged", "[tx][soroban][merge]")
 TEST_CASE("buying liabilities plus refund is greater than INT64_MAX",
           "[tx][soroban][offer]")
 {
-    ContractInvocationTest test(rust_bridge::get_test_wasm_add_i32(),
-                                /*deployContact=*/false);
+    WasmContractInvocationTest test(rust_bridge::get_test_wasm_add_i32(),
+                                    /*deployContact=*/false);
 
     const int64_t startingBalance =
         test.getApp()->getLedgerManager().getLastMinBalance(50);
@@ -1072,8 +948,8 @@ TEST_CASE("failure diagnostics", "[tx][soroban]")
 {
     auto cfg = getTestConfig();
     cfg.ENABLE_SOROBAN_DIAGNOSTIC_EVENTS = true;
-    ContractInvocationTest test(rust_bridge::get_test_wasm_add_i32(),
-                                /*deployContact=*/true, cfg);
+    WasmContractInvocationTest test(rust_bridge::get_test_wasm_add_i32(),
+                                    /*deployContact=*/true, cfg);
 
     auto scFunc = makeSymbol("add");
     auto sc1 = makeI32(7);
@@ -1168,7 +1044,7 @@ TEST_CASE("errors roll back", "[tx][soroban]")
     // This tests that various sorts of error created inside a contract
     // cause the invocation to fail and that in turn aborts the tx.
     auto call_fn_check_failure = [](std::string const& name) {
-        ContractInvocationTest test(rust_bridge::get_test_wasm_err());
+        WasmContractInvocationTest test(rust_bridge::get_test_wasm_err());
 
         SorobanResources resources;
         resources.footprint.readOnly = test.getContractKeys();
@@ -1200,9 +1076,9 @@ TEST_CASE("settings upgrade", "[tx][soroban][upgrades]")
 {
     auto cfg = getTestConfig();
     cfg.ENABLE_SOROBAN_DIAGNOSTIC_EVENTS = true;
-    ContractInvocationTest test(rust_bridge::get_write_bytes(),
-                                /*deployContract=*/false, cfg,
-                                /*useTestLimits=*/false);
+    WasmContractInvocationTest test(rust_bridge::get_write_bytes(),
+                                    /*deployContract=*/false, cfg,
+                                    /*useTestLimits=*/false);
 
     auto runTest = [&]() {
         {
@@ -1369,8 +1245,8 @@ TEST_CASE("complex contract", "[tx][soroban]")
     auto complexTest = [&](bool enableDiagnostics) {
         auto cfg = getTestConfig();
         cfg.ENABLE_SOROBAN_DIAGNOSTIC_EVENTS = enableDiagnostics;
-        ContractInvocationTest test(rust_bridge::get_test_wasm_complex(),
-                                    /*deployContact=*/true, cfg);
+        WasmContractInvocationTest test(rust_bridge::get_test_wasm_complex(),
+                                        /*deployContact=*/true, cfg);
 
         // Contract writes a single `data` CONTRACT_DATA entry.
         LedgerKey dataKey(LedgerEntryType::CONTRACT_DATA);

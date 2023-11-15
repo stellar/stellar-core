@@ -41,6 +41,14 @@ makeContractAddressSCVal(SCAddress const& address)
     return val;
 }
 
+SCAddress
+makeAccountAddress(AccountID const& accountID)
+{
+    SCAddress addr(SC_ADDRESS_TYPE_ACCOUNT);
+    addr.accountId() = accountID;
+    return addr;
+}
+
 SCVal
 makeI32(int32_t i32)
 {
@@ -85,12 +93,52 @@ makeBytes(SCBytes bytes)
     return val;
 }
 
+SorobanAuthorizationEntry
+getInvocationAuth(InvokeContractArgs const& args)
+{
+    SorobanAuthorizedInvocation ai;
+    ai.function.type(SOROBAN_AUTHORIZED_FUNCTION_TYPE_CONTRACT_FN);
+    ai.function.contractFn() = args;
+
+    SorobanAuthorizationEntry a;
+    a.credentials.type(SOROBAN_CREDENTIALS_SOURCE_ACCOUNT);
+    a.rootInvocation = ai;
+
+    return a;
+}
+
+int64_t
+getContractBalance(Application& app, SCAddress const& contractID,
+                   SCVal const& accountVal)
+{
+    LedgerKey balanceKey(CONTRACT_DATA);
+    balanceKey.contractData().contract = contractID;
+
+    SCVec balanceVec = {makeSymbolSCVal("Balance"), accountVal};
+    SCVal balanceVal(SCValType::SCV_VEC);
+    balanceVal.vec().activate() = balanceVec;
+    balanceKey.contractData().key = balanceVal;
+    balanceKey.contractData().durability = ContractDataDurability::PERSISTENT;
+
+    LedgerTxn ltx(app.getLedgerTxnRoot());
+    auto ltxe = ltx.load(balanceKey);
+    if (!ltxe)
+    {
+        return 0;
+    }
+    auto const& balance =
+        ltxe.current().data.contractData().val.map()->at(0).val.i128();
+
+    // Contract balances can be greater than INT64_MAX, but for these tests
+    // we'll assume balances < INT64_MAX.
+    REQUIRE(balance.hi == 0);
+    return balance.lo;
+}
+
 void
-submitTxToUploadWasm(Application& app, Operation const& op,
-                     SorobanResources const& resources,
-                     Hash const& expectedWasmHash,
-                     xdr::opaque_vec<> const& expectedWasm,
-                     uint32_t inclusionFee, uint32_t resourceFee)
+submitTx(Application& app, Operation const& op,
+         SorobanResources const& resources, uint32_t inclusionFee,
+         uint32_t resourceFee)
 {
     // submit operation
     auto root = TestAccount::createRoot(app);
@@ -102,6 +150,16 @@ submitTxToUploadWasm(Application& app, Operation const& op,
     REQUIRE(tx->checkValid(app, ltx, 0, 0, 0));
     REQUIRE(tx->apply(app, ltx, txm));
     ltx.commit();
+}
+
+void
+submitTxToUploadWasm(Application& app, Operation const& op,
+                     SorobanResources const& resources,
+                     Hash const& expectedWasmHash,
+                     xdr::opaque_vec<> const& expectedWasm,
+                     uint32_t inclusionFee, uint32_t resourceFee)
+{
+    submitTx(app, op, resources, inclusionFee, resourceFee);
 
     // verify contract code is correct
     LedgerTxn ltx2(app.getLedgerTxnRoot());
@@ -255,7 +313,7 @@ createOpCommon(Application& app, SorobanResources& createResources,
 }
 
 void
-ContractInvocationTest::deployContractWithSourceAccountWithResources(
+WasmContractInvocationTest::deployContractWithSourceAccountWithResources(
     SorobanResources uploadResources, SorobanResources createResources)
 {
     // Upload contract code
@@ -302,38 +360,13 @@ ContractInvocationTest::deployContractWithSourceAccountWithResources(
     mContractID = mContractKeys[0].contractData().contract;
 }
 
-TransactionFrameBasePtr
-ContractInvocationTest::getCreateTx(TestAccount& acc)
-{
-    if (mContractKeys.empty())
-    {
-        throw "Must deploy test contract before calling getCreateTx";
-    }
-
-    SorobanResources createResources{};
-    createResources.instructions = 200'000;
-    createResources.readBytes = 5000;
-    createResources.writeBytes = 5000;
-
-    SCVal scContractSourceRefKey(SCValType::SCV_LEDGER_KEY_CONTRACT_INSTANCE);
-    auto [createOp, contractID] = createOpCommon(
-        *mApp, createResources, mContractKeys[1], acc, scContractSourceRefKey);
-    auto createResourceFee =
-        sorobanResourceFee(*mApp, createResources, 1000, 40) + 40'000;
-
-    return sorobanTransactionFrameFromOps(mApp->getNetworkID(), acc, {createOp},
-                                          {}, createResources, 1000,
-                                          createResourceFee);
-}
-
 ContractInvocationTest::ContractInvocationTest(
-    RustBuf const& wasm, bool deployContract, Config cfg, bool useTestLimits,
+    Config cfg, bool useTestLimits,
     std::function<void(SorobanNetworkConfig&)> cfgModifyFn)
     : mApp(createTestApplication(mClock, cfg))
     , mRoot(TestAccount::createRoot(*mApp))
     , mDummyAccount(mRoot.create("dummyAcc",
                                  mApp->getLedgerManager().getLastMinBalance(1)))
-    , mWasm(wasm)
 {
     if (useTestLimits)
     {
@@ -341,22 +374,6 @@ ContractInvocationTest::ContractInvocationTest(
     }
 
     modifySorobanNetworkConfig(*mApp, cfgModifyFn);
-
-    if (deployContract)
-    {
-        // Deploy with default resources
-        SorobanResources uploadResources{};
-        uploadResources.instructions = 200'000 + (mWasm.data.size() * 6000);
-        uploadResources.readBytes = 1000;
-        uploadResources.writeBytes = 5000;
-
-        SorobanResources createResources{};
-        createResources.instructions = 200'000;
-        createResources.readBytes = 5000;
-        createResources.writeBytes = 5000;
-
-        deployWithResources(uploadResources, createResources);
-    }
 }
 
 TestAccount&
@@ -381,20 +398,6 @@ ContractInvocationTest::getLedgerSeq()
 {
     LedgerTxn ltx(mApp->getLedgerTxnRoot());
     return ltx.loadHeader().current().ledgerSeq;
-}
-
-void
-ContractInvocationTest::deployWithResources(
-    SorobanResources const& uploadResources,
-    SorobanResources const& createResources)
-{
-    if (!mContractKeys.empty())
-    {
-        throw "WASM already uploaded";
-    }
-
-    deployContractWithSourceAccountWithResources(uploadResources,
-                                                 createResources);
 }
 
 int64_t
@@ -545,9 +548,69 @@ ContractInvocationTest::computeResourceFee(SorobanResources const& resources,
     return sorobanResourceFee(*mApp, resources, txSize, 0);
 }
 
+WasmContractInvocationTest::WasmContractInvocationTest(
+    RustBuf const& wasm, bool deployContract, Config cfg, bool useTestLimits,
+    std::function<void(SorobanNetworkConfig&)> cfgModifyFn)
+    : ContractInvocationTest(cfg, useTestLimits, cfgModifyFn), mWasm(wasm)
+{
+    if (deployContract)
+    {
+        // Deploy with default resources
+        SorobanResources uploadResources{};
+        uploadResources.instructions = 200'000 + (mWasm.data.size() * 6000);
+        uploadResources.readBytes = 1000;
+        uploadResources.writeBytes = 5000;
+
+        SorobanResources createResources{};
+        createResources.instructions = 200'000;
+        createResources.readBytes = 5000;
+        createResources.writeBytes = 5000;
+
+        deployWithResources(uploadResources, createResources);
+    }
+}
+
+void
+WasmContractInvocationTest::deployWithResources(
+    SorobanResources const& uploadResources,
+    SorobanResources const& createResources)
+{
+    if (!mContractKeys.empty())
+    {
+        throw "Wasm already uploaded";
+    }
+
+    deployContractWithSourceAccountWithResources(uploadResources,
+                                                 createResources);
+}
+
 TransactionFrameBasePtr
-ContractInvocationTest::createUploadWasmTx(TestAccount& source,
-                                           uint32_t resourceFee)
+WasmContractInvocationTest::getCreateTx(TestAccount& acc)
+{
+    if (mContractKeys.empty())
+    {
+        throw "Must deploy test contract before calling getCreateTx";
+    }
+
+    SorobanResources createResources{};
+    createResources.instructions = 200'000;
+    createResources.readBytes = 5000;
+    createResources.writeBytes = 5000;
+
+    SCVal scContractSourceRefKey(SCValType::SCV_LEDGER_KEY_CONTRACT_INSTANCE);
+    auto [createOp, contractID] = createOpCommon(
+        *mApp, createResources, mContractKeys[1], acc, scContractSourceRefKey);
+    auto createResourceFee =
+        sorobanResourceFee(*mApp, createResources, 1000, 40) + 40'000;
+
+    return sorobanTransactionFrameFromOps(mApp->getNetworkID(), acc, {createOp},
+                                          {}, createResources, 1000,
+                                          createResourceFee);
+}
+
+TransactionFrameBasePtr
+WasmContractInvocationTest::createUploadWasmTx(TestAccount& source,
+                                               uint32_t resourceFee)
 {
     SorobanResources uploadResources{};
     uploadResources.instructions = 200'000 + (mWasm.data.size() * 6000);
@@ -569,6 +632,384 @@ ContractInvocationTest::createUploadWasmTx(TestAccount& source,
     return sorobanTransactionFrameFromOps(mApp->getNetworkID(), source,
                                           {uploadOp}, {}, uploadResources, 100,
                                           resourceFee);
+}
+
+AssetContractInvocationTest::AssetContractInvocationTest(
+    Asset const& asset, Config cfg, bool useTestLimits,
+    std::function<void(SorobanNetworkConfig&)> cfgModifyFn)
+    : ContractInvocationTest(cfg, useTestLimits, cfgModifyFn), mAsset(asset)
+{
+    HashIDPreimage preImage;
+    preImage.type(ENVELOPE_TYPE_CONTRACT_ID);
+    preImage.contractID().contractIDPreimage.type(
+        CONTRACT_ID_PREIMAGE_FROM_ASSET);
+    preImage.contractID().contractIDPreimage.fromAsset() = mAsset;
+    preImage.contractID().networkID = mApp->getNetworkID();
+    auto contractID = makeContractAddress(xdrSha256(preImage));
+
+    Operation createOp;
+    createOp.body.type(INVOKE_HOST_FUNCTION);
+    auto& createHF = createOp.body.invokeHostFunctionOp();
+    createHF.hostFunction.type(HOST_FUNCTION_TYPE_CREATE_CONTRACT);
+    auto& createContractArgs = createHF.hostFunction.createContract();
+
+    ContractExecutable exec;
+    exec.type(CONTRACT_EXECUTABLE_STELLAR_ASSET);
+    createContractArgs.contractIDPreimage.type(CONTRACT_ID_PREIMAGE_FROM_ASSET);
+    createContractArgs.contractIDPreimage.fromAsset() = mAsset;
+    createContractArgs.executable = exec;
+
+    SorobanResources createResources;
+    createResources.instructions = 400'000;
+    createResources.readBytes = 1000;
+    createResources.writeBytes = 1000;
+
+    LedgerKey contractExecutableKey(CONTRACT_DATA);
+    contractExecutableKey.contractData().contract = contractID;
+    contractExecutableKey.contractData().key =
+        SCVal(SCValType::SCV_LEDGER_KEY_CONTRACT_INSTANCE);
+    contractExecutableKey.contractData().durability =
+        ContractDataDurability::PERSISTENT;
+
+    createResources.footprint.readWrite = {contractExecutableKey};
+
+    submitTx(*mApp, createOp, createResources, 100, DEFAULT_TEST_RESOURCE_FEE);
+
+    mContractKeys.emplace_back(contractExecutableKey);
+    mContractID = contractID;
+}
+
+LedgerKey
+AssetContractInvocationTest::makeBalanceKey(AccountID const& acc)
+{
+    LedgerKey balanceKey;
+    if (mAsset.type() == ASSET_TYPE_NATIVE)
+    {
+        balanceKey.type(ACCOUNT);
+        balanceKey.account().accountID = acc;
+    }
+    else
+    {
+        balanceKey.type(TRUSTLINE);
+        balanceKey.trustLine().accountID = acc;
+        balanceKey.trustLine().asset = assetToTrustLineAsset(mAsset);
+    }
+
+    return balanceKey;
+}
+
+LedgerKey
+AssetContractInvocationTest::makeContractDataBalanceKey(SCAddress const& addr)
+{
+    SCVal val(SCV_ADDRESS);
+    val.address() = addr;
+
+    LedgerKey balanceKey(CONTRACT_DATA);
+    balanceKey.contractData().contract = mContractID;
+
+    SCVec balance = {makeSymbolSCVal("Balance"), val};
+    SCVal balanceVal(SCValType::SCV_VEC);
+    balanceVal.vec().activate() = balance;
+    balanceKey.contractData().key = balanceVal;
+    balanceKey.contractData().durability = ContractDataDurability::PERSISTENT;
+
+    return balanceKey;
+}
+
+LedgerKey
+AssetContractInvocationTest::makeBalanceKey(SCAddress const& addr)
+{
+    if (addr.type() == SC_ADDRESS_TYPE_ACCOUNT)
+    {
+        return makeBalanceKey(addr.accountId());
+    }
+    else
+    {
+        return makeContractDataBalanceKey(addr);
+    }
+}
+
+int64_t
+AssetContractInvocationTest::getBalance(SCAddress const& addr)
+{
+    SCVal val(SCV_ADDRESS);
+    val.address() = addr;
+
+    return addr.type() == SC_ADDRESS_TYPE_ACCOUNT
+               ? txtest::getBalance(*mApp, addr.accountId(), mAsset)
+               : getContractBalance(*mApp, mContractID, val);
+}
+
+void
+AssetContractInvocationTest::transfer(TestAccount& fromAcc,
+                                      SCAddress const& toAddr, int64_t amount,
+                                      bool expectSuccess)
+{
+    SCVal toVal(SCV_ADDRESS);
+    toVal.address() = toAddr;
+
+    SCVal fromVal(SCV_ADDRESS);
+    fromVal.address() = makeAccountAddress(fromAcc.getPublicKey());
+
+    LedgerKey fromBalanceKey = makeBalanceKey(fromAcc.getPublicKey());
+    LedgerKey toBalanceKey = makeBalanceKey(toAddr);
+
+    auto fn = makeSymbol("transfer");
+    Operation transfer;
+    transfer.body.type(INVOKE_HOST_FUNCTION);
+    auto& ihf = transfer.body.invokeHostFunctionOp().hostFunction;
+    ihf.type(HOST_FUNCTION_TYPE_INVOKE_CONTRACT);
+    ihf.invokeContract().contractAddress = mContractID;
+    ihf.invokeContract().functionName = fn;
+    ihf.invokeContract().args = {fromVal, toVal, makeI128(amount)};
+
+    transfer.body.invokeHostFunctionOp().auth = {
+        getInvocationAuth(ihf.invokeContract())};
+
+    SorobanResources resources;
+    resources.instructions = 2'000'000;
+    resources.readBytes = 2000;
+    resources.writeBytes = 1072;
+
+    resources.footprint.readOnly = mContractKeys;
+
+    bool fromIsIssuer = false;
+    bool toIsIssuer = false;
+    if (mAsset.type() != ASSET_TYPE_NATIVE)
+    {
+        LedgerKey issuerLedgerKey(ACCOUNT);
+        issuerLedgerKey.account().accountID = getIssuer(mAsset);
+        resources.footprint.readOnly.emplace_back(issuerLedgerKey);
+
+        if (getIssuer(mAsset) == fromAcc.getPublicKey())
+        {
+            fromIsIssuer = true;
+        }
+        else
+        {
+            resources.footprint.readWrite.emplace_back(fromBalanceKey);
+        }
+
+        if (toAddr.type() == SC_ADDRESS_TYPE_ACCOUNT &&
+            getIssuer(mAsset) == toAddr.accountId())
+        {
+            toIsIssuer = true;
+        }
+        else
+        {
+            resources.footprint.readWrite.emplace_back(toBalanceKey);
+        }
+    }
+    else
+    {
+        resources.footprint.readWrite = {fromBalanceKey, toBalanceKey};
+    }
+
+    auto preTransferFromBalance = mAsset.type() == ASSET_TYPE_NATIVE
+                                      ? fromAcc.getBalance()
+                                      : fromAcc.getTrustlineBalance(mAsset);
+    auto preTransferToBalance = getBalance(toAddr);
+
+    // submit operation
+    auto tx = sorobanTransactionFrameFromOps(mApp->getNetworkID(), fromAcc,
+                                             {transfer}, {}, resources, 100,
+                                             DEFAULT_TEST_RESOURCE_FEE);
+    invokeTx(tx, expectSuccess, false);
+    if (expectSuccess)
+    {
+        auto postTransferFromBalance =
+            mAsset.type() == ASSET_TYPE_NATIVE
+                ? fromAcc.getBalance()
+                : fromAcc.getTrustlineBalance(mAsset);
+
+        auto postTransferToBalance = getBalance(toAddr);
+
+        REQUIRE((fromIsIssuer ||
+                 postTransferFromBalance == preTransferFromBalance - amount));
+        REQUIRE((toIsIssuer ||
+                 postTransferToBalance - amount == preTransferToBalance));
+
+        {
+            // From is an account so it should never have a contract data
+            // balance
+            LedgerTxn ltx(mApp->getLedgerTxnRoot());
+            REQUIRE(!ltx.load(makeContractDataBalanceKey(fromVal.address())));
+        }
+
+        if (toIsIssuer)
+        {
+            // make sure we didn't create an entry for the issuer
+            LedgerTxn ltx(mApp->getLedgerTxnRoot());
+            REQUIRE(!ltx.load(makeContractDataBalanceKey(toAddr)));
+        }
+    }
+}
+
+void
+AssetContractInvocationTest::mint(TestAccount& admin, SCAddress const& toAddr,
+                                  int64_t amount, bool expectSuccess)
+{
+    SCVal toVal(SCV_ADDRESS);
+    toVal.address() = toAddr;
+
+    LedgerKey toBalanceKey = makeBalanceKey(toAddr);
+
+    auto fn = makeSymbol("mint");
+    Operation mint;
+    mint.body.type(INVOKE_HOST_FUNCTION);
+    auto& ihf = mint.body.invokeHostFunctionOp().hostFunction;
+    ihf.type(HOST_FUNCTION_TYPE_INVOKE_CONTRACT);
+    ihf.invokeContract().contractAddress = mContractID;
+    ihf.invokeContract().functionName = fn;
+    ihf.invokeContract().args = {toVal, makeI128(amount)};
+
+    mint.body.invokeHostFunctionOp().auth = {
+        getInvocationAuth(ihf.invokeContract())};
+
+    SorobanResources resources;
+    resources.instructions = 2'000'000;
+    resources.readBytes = 2000;
+    resources.writeBytes = 1072;
+
+    resources.footprint.readOnly = mContractKeys;
+
+    if (mAsset.type() != ASSET_TYPE_NATIVE)
+    {
+        LedgerKey issuerLedgerKey(ACCOUNT);
+        issuerLedgerKey.account().accountID = getIssuer(mAsset);
+        resources.footprint.readOnly.emplace_back(issuerLedgerKey);
+    }
+
+    resources.footprint.readWrite = {toBalanceKey};
+
+    auto preMintBalance = getBalance(toAddr);
+
+    // submit operation
+    auto tx = sorobanTransactionFrameFromOps(mApp->getNetworkID(), admin,
+                                             {mint}, {}, resources, 100,
+                                             DEFAULT_TEST_RESOURCE_FEE);
+
+    invokeTx(tx, expectSuccess, false);
+    if (expectSuccess)
+    {
+        auto postMintBalance = getBalance(toAddr);
+        REQUIRE(postMintBalance - amount == preMintBalance);
+    }
+}
+
+void
+AssetContractInvocationTest::burn(TestAccount& from, int64_t amount,
+                                  bool expectSuccess)
+{
+    auto fromAddr = makeAccountAddress(from.getPublicKey());
+
+    SCVal fromVal(SCV_ADDRESS);
+    fromVal.address() = fromAddr;
+
+    LedgerKey fromBalanceKey;
+    if (mAsset.type() == ASSET_TYPE_NATIVE)
+    {
+        fromBalanceKey.type(ACCOUNT);
+        fromBalanceKey.account().accountID = fromAddr.accountId();
+    }
+    else
+    {
+        fromBalanceKey.type(TRUSTLINE);
+        fromBalanceKey.trustLine().accountID = fromAddr.accountId();
+        fromBalanceKey.trustLine().asset = assetToTrustLineAsset(mAsset);
+    }
+
+    auto fn = makeSymbol("burn");
+    Operation burn;
+    burn.body.type(INVOKE_HOST_FUNCTION);
+    auto& ihf = burn.body.invokeHostFunctionOp().hostFunction;
+    ihf.type(HOST_FUNCTION_TYPE_INVOKE_CONTRACT);
+    ihf.invokeContract().contractAddress = mContractID;
+    ihf.invokeContract().functionName = fn;
+    ihf.invokeContract().args = {fromVal, makeI128(amount)};
+
+    burn.body.invokeHostFunctionOp().auth = {
+        getInvocationAuth(ihf.invokeContract())};
+
+    SorobanResources resources;
+    resources.instructions = 2'000'000;
+    resources.readBytes = 2000;
+    resources.writeBytes = 1072;
+
+    resources.footprint.readOnly = mContractKeys;
+
+    bool isIssuer = getIssuer(mAsset) == from.getPublicKey();
+    if (!isIssuer)
+    {
+        resources.footprint.readWrite = {fromBalanceKey};
+    }
+
+    auto preBurnBalance = getBalance(fromAddr);
+
+    // submit operation
+    auto tx = sorobanTransactionFrameFromOps(mApp->getNetworkID(), from, {burn},
+                                             {}, resources, 100,
+                                             DEFAULT_TEST_RESOURCE_FEE);
+
+    invokeTx(tx, expectSuccess, false);
+
+    if (expectSuccess)
+    {
+        auto postBurnBalance = getBalance(fromAddr);
+        REQUIRE(preBurnBalance - (isIssuer ? 0 : amount) == postBurnBalance);
+    }
+}
+
+void
+AssetContractInvocationTest::clawback(TestAccount& admin,
+                                      SCAddress const& fromAddr, int64_t amount,
+                                      bool expectSuccess)
+{
+    SCVal fromVal(SCV_ADDRESS);
+    fromVal.address() = fromAddr;
+
+    LedgerKey fromBalanceKey = makeBalanceKey(fromAddr);
+
+    auto fn = makeSymbol("clawback");
+    Operation clawback;
+    clawback.body.type(INVOKE_HOST_FUNCTION);
+    auto& ihf = clawback.body.invokeHostFunctionOp().hostFunction;
+    ihf.type(HOST_FUNCTION_TYPE_INVOKE_CONTRACT);
+    ihf.invokeContract().contractAddress = mContractID;
+    ihf.invokeContract().functionName = fn;
+    ihf.invokeContract().args = {fromVal, makeI128(amount)};
+
+    clawback.body.invokeHostFunctionOp().auth = {
+        getInvocationAuth(ihf.invokeContract())};
+
+    SorobanResources resources;
+    resources.instructions = 2'000'000;
+    resources.readBytes = 2000;
+    resources.writeBytes = 1072;
+
+    resources.footprint.readOnly = mContractKeys;
+
+    if (mAsset.type() != ASSET_TYPE_NATIVE)
+    {
+        LedgerKey issuerLedgerKey(ACCOUNT);
+        issuerLedgerKey.account().accountID = getIssuer(mAsset);
+        resources.footprint.readOnly.emplace_back(issuerLedgerKey);
+    }
+
+    resources.footprint.readWrite = {fromBalanceKey};
+    auto preClawbackBalance = getBalance(fromAddr);
+
+    // submit operation
+    auto tx = sorobanTransactionFrameFromOps(mApp->getNetworkID(), admin,
+                                             {clawback}, {}, resources, 100,
+                                             DEFAULT_TEST_RESOURCE_FEE);
+
+    invokeTx(tx, expectSuccess, false);
+    if (expectSuccess)
+    {
+        auto postClawbackBalance = getBalance(fromAddr);
+        REQUIRE(preClawbackBalance - amount == postClawbackBalance);
+    }
 }
 
 TransactionFrameBasePtr
@@ -640,6 +1081,8 @@ ContractInvocationTest::invokeTx(TransactionFrameBasePtr tx, bool expectSuccess,
     LedgerTxn ltx(mApp->getLedgerTxnRoot());
     auto txm = std::make_shared<TransactionMetaFrame>(
         ltx.loadHeader().current().ledgerVersion);
+
+    REQUIRE(tx->checkValid(*mApp, ltx, 0, 0, 0));
     if (expectSuccess)
     {
         REQUIRE(tx->apply(*mApp, ltx, *txm));
@@ -767,7 +1210,6 @@ ContractStorageInvocationTest::putWithFootprint(
     resourceFee += refundableFee;
     auto tx = createInvokeTx(resources, makeSymbol(funcStr),
                              {keySymbol, valU64}, 1'000, resourceFee);
-    txCheckValid(tx);
     invokeTx(tx, /*expectSuccess=*/expectSuccess, false);
 }
 
@@ -809,7 +1251,6 @@ ContractStorageInvocationTest::getWithFootprint(
     resourceFee += 40'000;
     auto tx = createInvokeTx(resources, makeSymbol(funcStr), {keySymbol}, 1'000,
                              resourceFee);
-    txCheckValid(tx);
     auto txm = invokeTx(tx, expectSuccess, false);
     if (expectSuccess)
     {
@@ -857,7 +1298,6 @@ ContractStorageInvocationTest::hasWithFootprint(
 
     auto tx = createInvokeTx(resources, makeSymbol(funcStr), {keySymbol}, 1'000,
                              resourceFee);
-    txCheckValid(tx);
     auto txm = invokeTx(tx, /*expectSuccess=*/expectSuccess, false);
     if (expectSuccess)
     {
@@ -901,7 +1341,6 @@ ContractStorageInvocationTest::delWithFootprint(
     resourceFee += 40'000;
     auto tx = createInvokeTx(resources, makeSymbol(funcStr), {keySymbol}, 1'000,
                              resourceFee);
-    txCheckValid(tx);
     invokeTx(tx, expectSuccess, false);
 }
 
@@ -956,7 +1395,6 @@ ContractStorageInvocationTest::extendHostFunction(std::string const& key,
     auto tx = createInvokeTx(resources, makeSymbol(funcStr),
                              {keySymbol, thresholdU32, extendToU32}, 1'000,
                              resourceFee);
-    txCheckValid(tx);
     invokeTx(tx, expectSuccess, /*processPostApply=*/false);
 }
 
@@ -992,7 +1430,6 @@ ContractStorageInvocationTest::resizeStorageAndExtend(
         createInvokeTx(resources, makeSymbol(funcStr),
                        {keySymbol, numKiloBytesU32, threshU32, extendToU32},
                        1'000, resourceFee);
-    txCheckValid(tx);
     invokeTx(tx, /*expectSuccess=*/expectSuccess, false);
 }
 }
