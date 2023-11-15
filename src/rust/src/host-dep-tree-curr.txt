@@ -90,13 +90,14 @@ soroban-env-host 20.0.0-rc2 git+https://github.com/stellar/rs-soroban-env?rev=4f
 │   ├── tracy-client 0.15.2 checksum:434ecabbda9f67eeea1eab44d52f4a20538afa3e2c2770f2efc161142b25b608
 │   ├── stellar-xdr 20.0.0-rc1 git+https://github.com/stellar/rs-stellar-xdr?rev=9c97e4fa909a0b6455547a4f4a95800696b2a69a#9c97e4fa909a0b6455547a4f4a95800696b2a69a
 │   │   ├── hex 0.4.3 checksum:7f24254aa9a54b5c858eaee2f5bccdb46aaf0e486a595ed5fd8f86ba55232a70
+│   │   │   └── serde 1.0.164 checksum:9e8c8cf938e98f769bc164923b06dce91cea1751522f46f8466461af04c9027d
+│   │   │       └── serde_derive 1.0.164 checksum:d9735b638ccc51c28bf6914d90a2e9725b377144fc612c49a611fddd1b631d68
+│   │   │           ├── syn 2.0.18 checksum:32d41677bcbe24c20c52e7c70b0d8db04134c5d1066bf98662e2871ad200ea3e
+│   │   │           ├── quote 1.0.28 checksum:1b9ab9c7eadfd8df19006f1cf1a4aed13540ed5cbc047010ece5826e10825488
+│   │   │           └── proc-macro2 1.0.60 checksum:dec2b086b7a862cf4de201096214fa870344cf922b2b30c167badb3af3195406
 │   │   ├── crate-git-revision 0.0.6 checksum:c521bf1f43d31ed2f73441775ed31935d77901cb3451e44b38a1c1612fcbaf98
 │   │   │   ├── serde_json 1.0.97 checksum:bdf3bf93142acad5821c99197022e170842cdbc1c30482b98750c688c640842a
 │   │   │   │   ├── serde 1.0.164 checksum:9e8c8cf938e98f769bc164923b06dce91cea1751522f46f8466461af04c9027d
-│   │   │   │   │   └── serde_derive 1.0.164 checksum:d9735b638ccc51c28bf6914d90a2e9725b377144fc612c49a611fddd1b631d68
-│   │   │   │   │       ├── syn 2.0.18 checksum:32d41677bcbe24c20c52e7c70b0d8db04134c5d1066bf98662e2871ad200ea3e
-│   │   │   │   │       ├── quote 1.0.28 checksum:1b9ab9c7eadfd8df19006f1cf1a4aed13540ed5cbc047010ece5826e10825488
-│   │   │   │   │       └── proc-macro2 1.0.60 checksum:dec2b086b7a862cf4de201096214fa870344cf922b2b30c167badb3af3195406
 │   │   │   │   ├── ryu 1.0.13 checksum:f91339c0467de62360649f8d3e185ca8de4224ff281f66000de5eb2a77a79041
 │   │   │   │   └── itoa 1.0.6 checksum:453ad9f582a441959e5f0d088b02ce04cfe8d51a8eaf077f12ac6d3e94164ca6
 │   │   │   ├── serde_derive 1.0.164 checksum:d9735b638ccc51c28bf6914d90a2e9725b377144fc612c49a611fddd1b631d68

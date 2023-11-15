@@ -17,6 +17,7 @@
 #include "lib/catch.hpp"
 #include "main/Application.h"
 #include "main/CommandHandler.h"
+#include "main/SettingsUpgradeUtils.h"
 #include "rust/RustBridge.h"
 #include "test/TestAccount.h"
 #include "test/TestUtils.h"
@@ -2166,5 +2167,197 @@ TEST_CASE("temp entry eviction", "[tx][soroban]")
         {
             REQUIRE(lcm.v1().evictedTemporaryLedgerKeys.empty());
         }
+    }
+}
+
+/*
+This test uses the same utils (SettingsUpgradeUtils.h) as the
+get-settings-upgrade-txs command to make sure the transactions have the proper
+resources set.
+*/
+TEST_CASE("settings upgrade command line utils", "[tx][soroban][upgrades]")
+{
+    VirtualClock clock;
+    auto cfg = getTestConfig();
+    cfg.ENABLE_SOROBAN_DIAGNOSTIC_EVENTS = true;
+    cfg.EXPERIMENTAL_BUCKETLIST_DB = false;
+    auto app = createTestApplication(clock, cfg);
+    auto root = TestAccount::createRoot(*app);
+    auto& lm = app->getLedgerManager();
+
+    const int64_t startingBalance =
+        app->getLedgerManager().getLastMinBalance(50);
+
+    auto a1 = root.create("A", startingBalance);
+
+    std::vector<TransactionEnvelope> txsToSign;
+
+    auto uploadRes =
+        getUploadTx(a1.getPublicKey(), a1.getLastSequenceNumber() + 1);
+    txsToSign.emplace_back(uploadRes.first);
+    auto const& contractCodeLedgerKey = uploadRes.second;
+
+    auto createRes =
+        getCreateTx(a1.getPublicKey(), contractCodeLedgerKey,
+                    cfg.NETWORK_PASSPHRASE, a1.getLastSequenceNumber() + 2);
+    txsToSign.emplace_back(std::get<0>(createRes));
+    auto const& contractSourceRefLedgerKey = std::get<1>(createRes);
+    auto const& contractID = std::get<2>(createRes);
+
+    xdr::xvector<ConfigSettingEntry> updatedEntries;
+    for (uint32_t i = 0;
+         i < static_cast<uint32_t>(CONFIG_SETTING_BUCKETLIST_SIZE_WINDOW); ++i)
+    {
+        LedgerTxn ltx(app->getLedgerTxnRoot());
+        auto entry =
+            ltx.load(configSettingKey(static_cast<ConfigSettingID>(i)));
+        if (entry.current().data.configSetting().configSettingID() ==
+            CONFIG_SETTING_CONTRACT_LEDGER_COST_V0)
+        {
+            entry.current()
+                .data.configSetting()
+                .contractLedgerCost()
+                .feeRead1KB = 1234;
+        }
+        updatedEntries.emplace_back(entry.current().data.configSetting());
+    }
+
+    ConfigUpgradeSet upgradeSet;
+    upgradeSet.updatedEntry = updatedEntries;
+
+    auto invokeRes = getInvokeTx(a1.getPublicKey(), contractCodeLedgerKey,
+                                 contractSourceRefLedgerKey, contractID,
+                                 upgradeSet, a1.getLastSequenceNumber() + 3);
+    txsToSign.emplace_back(invokeRes.first);
+    auto const& upgradeSetKey = invokeRes.second;
+
+    for (auto& txEnv : txsToSign)
+    {
+        txEnv.v1().signatures.emplace_back(SignatureUtils::sign(
+            a1.getSecretKey(),
+            sha256(xdr::xdr_to_opaque(app->getNetworkID(), ENVELOPE_TYPE_TX,
+                                      txEnv.v1().tx))));
+
+        auto const& tx = TransactionFrameBase::makeTransactionFromWire(
+            app->getNetworkID(), txEnv);
+        LedgerTxn ltx(app->getLedgerTxnRoot());
+        TransactionMetaFrame txm(ltx.loadHeader().current().ledgerVersion);
+        REQUIRE(tx->checkValid(*app, ltx, 0, 0, 0));
+        REQUIRE(tx->apply(*app, ltx, txm));
+        ltx.commit();
+    }
+
+    auto& commandHandler = app->getCommandHandler();
+
+    std::string command = "mode=set&configupgradesetkey=";
+    command += decoder::encode_b64(xdr::xdr_to_opaque(upgradeSetKey));
+    command += "&upgradetime=2000-07-21T22:04:00Z";
+
+    std::string ret;
+    commandHandler.upgrades(command, ret);
+    REQUIRE(ret == "");
+
+    auto checkCost = [&](int64 feeRead) {
+        auto costKey = configSettingKey(
+            ConfigSettingID::CONFIG_SETTING_CONTRACT_LEDGER_COST_V0);
+        LedgerTxn ltx(app->getLedgerTxnRoot());
+        auto costEntry = ltx.load(costKey);
+        REQUIRE(costEntry.current()
+                    .data.configSetting()
+                    .contractLedgerCost()
+                    .feeRead1KB == feeRead);
+    };
+
+    SECTION("success")
+    {
+        // trigger upgrade
+        auto ledgerUpgrade = LedgerUpgrade{LEDGER_UPGRADE_CONFIG};
+        ledgerUpgrade.newConfig() = upgradeSetKey;
+
+        auto const& lcl = lm.getLastClosedLedgerHeader();
+        auto txSet = TxSetFrame::makeEmpty(lcl);
+        auto lastCloseTime = lcl.header.scpValue.closeTime;
+
+        app->getHerder().externalizeValue(
+            txSet, lcl.header.ledgerSeq + 1, lastCloseTime,
+            {LedgerTestUtils::toUpgradeType(ledgerUpgrade)});
+
+        checkCost(1234);
+    }
+
+    auto const& lcl = lm.getLastClosedLedgerHeader();
+
+    // The only readWrite key in the invoke op is the one that writes the
+    // ConfigUpgradeSet xdr
+    auto proposalKey = invokeRes.first.v1()
+                           .tx.ext.sorobanData()
+                           .resources.footprint.readWrite.at(0);
+
+    SECTION("entry expired")
+    {
+        {
+            LedgerTxn ltx(app->getLedgerTxnRoot());
+            auto ttl = ltx.load(getTTLKey(proposalKey));
+            // Expire the entry on the next ledger
+            ttl.current().data.ttl().liveUntilLedgerSeq = lcl.header.ledgerSeq;
+            ltx.commit();
+        }
+
+        // trigger upgrade
+        auto ledgerUpgrade = LedgerUpgrade{LEDGER_UPGRADE_CONFIG};
+        ledgerUpgrade.newConfig() = upgradeSetKey;
+
+        auto txSet = TxSetFrame::makeEmpty(lcl);
+        auto lastCloseTime = lcl.header.scpValue.closeTime;
+
+        app->getHerder().externalizeValue(
+            txSet, lcl.header.ledgerSeq + 1, lastCloseTime,
+            {LedgerTestUtils::toUpgradeType(ledgerUpgrade)});
+
+        // No upgrade due to expired entry
+        checkCost(1000);
+    }
+
+    auto updateBytes = [&](SCVal const& bytes) {
+        {
+            LedgerTxn ltx(app->getLedgerTxnRoot());
+            auto entry = ltx.load(proposalKey);
+            entry.current().data.contractData().val = bytes;
+            ltx.commit();
+        }
+
+        // trigger upgrade
+        auto ledgerUpgrade = LedgerUpgrade{LEDGER_UPGRADE_CONFIG};
+        ledgerUpgrade.newConfig() = upgradeSetKey;
+
+        auto txSet = TxSetFrame::makeEmpty(lcl);
+        auto lastCloseTime = lcl.header.scpValue.closeTime;
+
+        app->getHerder().externalizeValue(
+            txSet, lcl.header.ledgerSeq + 1, lastCloseTime,
+            {LedgerTestUtils::toUpgradeType(ledgerUpgrade)});
+
+        // No upgrade due to tampered entry
+        checkCost(1000);
+    };
+
+    SECTION("Invalid XDR")
+    {
+        SCVal b(SCV_BYTES);
+        updateBytes(b);
+    }
+
+    SECTION("Valid XDR but hash mismatch")
+    {
+        ConfigSettingEntry costSetting(CONFIG_SETTING_CONTRACT_LEDGER_COST_V0);
+        costSetting.contractLedgerCost().feeRead1KB = 1234;
+
+        ConfigUpgradeSet upgradeSet;
+        upgradeSet.updatedEntry.emplace_back(costSetting);
+
+        auto upgradeSetBytes(xdr::xdr_to_opaque(upgradeSet));
+        SCVal b(SCV_BYTES);
+        b.bytes() = upgradeSetBytes;
+        updateBytes(b);
     }
 }

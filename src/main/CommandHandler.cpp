@@ -115,6 +115,7 @@ CommandHandler::CommandHandler(Application& app) : mApp(app)
     addRoute("tx", &CommandHandler::tx);
     addRoute("getledgerentry", &CommandHandler::getLedgerEntry);
     addRoute("upgrades", &CommandHandler::upgrades);
+    addRoute("dumpproposedsettings", &CommandHandler::dumpProposedSettings);
     addRoute("self-check", &CommandHandler::selfCheck);
 
 #ifdef BUILD_TESTS
@@ -603,6 +604,49 @@ CommandHandler::upgrades(std::string const& params, std::string& retStr)
     else
     {
         retStr = fmt::format(FMT_STRING("Unknown mode: {}"), s);
+    }
+}
+
+void
+CommandHandler::dumpProposedSettings(std::string const& params,
+                                     std::string& retStr)
+{
+    ZoneScoped;
+    std::map<std::string, std::string> retMap;
+    http::server::server::parseParams(params, retMap);
+    auto blob = retMap["blob"];
+    if (!blob.empty())
+    {
+        auto lhhe = mApp.getLedgerManager().getLastClosedLedgerHeader();
+        if (protocolVersionIsBefore(lhhe.header.ledgerVersion,
+                                    SOROBAN_PROTOCOL_VERSION))
+        {
+            retStr = "The dumpProposedSettings command is not allowed pre-v20";
+            return;
+        }
+
+        std::vector<uint8_t> buffer;
+        decoder::decode_b64(blob, buffer);
+        ConfigUpgradeSetKey key;
+        xdr::xdr_from_opaque(buffer, key);
+        LedgerTxn ltx(mApp.getLedgerTxnRoot());
+
+        auto ptr = ConfigUpgradeSetFrame::makeFromKey(ltx, key);
+
+        if (!ptr || ptr->isValidForApply() != Upgrades::UpgradeValidity::VALID)
+        {
+            retStr = "configUpgradeSet is missing or invalid";
+            return;
+        }
+
+        retStr = xdr_to_string(ptr->toXDR(), "ConfigUpgradeSet");
+    }
+    else
+    {
+        throw std::invalid_argument(
+            "Must specify a ConfigUpgradeSetKey blob: "
+            "dumpproposedsettings?blob=<ConfigUpgradeSetKey in "
+            "xdr format>");
     }
 }
 

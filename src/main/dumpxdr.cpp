@@ -110,7 +110,7 @@ dumpXdrStream(std::string const& filename, bool compact)
                                  xdr_strerror(errno)); \
     } while (0)
 
-static void
+void
 readFile(const std::string& filename, bool base64,
          std::function<void(xdr::opaque_vec<>)> proc)
 {
@@ -374,6 +374,64 @@ readSecret(const std::string& prompt, bool force_tty)
 }
 
 void
+signtxns(std::vector<TransactionEnvelope>& txEnvs, std::string netId,
+         bool base64, bool txn_stdin, bool dump_hex_txid)
+{
+    SecretKey sk(SecretKey::fromStrKeySeed(readSecret(
+        fmt::format(FMT_STRING("Secret key seed [network id: '{}']: "), netId),
+        txn_stdin)));
+
+    for (auto& txEnv : txEnvs)
+    {
+        auto& signatures = txbridge::getSignatures(txEnv);
+        if (signatures.size() == signatures.max_size())
+            throw std::runtime_error("Envelope already contains "
+                                     "maximum number of signatures");
+
+        TransactionSignaturePayload payload;
+        payload.networkId = sha256(netId);
+        switch (txEnv.type())
+        {
+        case ENVELOPE_TYPE_TX_V0:
+            payload.taggedTransaction.type(ENVELOPE_TYPE_TX);
+            // TransactionV0 and Transaction always have the same
+            // signatures so there is no reason to check versions here,
+            // just always convert to Transaction
+            payload.taggedTransaction.tx() =
+                txbridge::convertForV13(txEnv).v1().tx;
+            break;
+        case ENVELOPE_TYPE_TX:
+            payload.taggedTransaction.type(ENVELOPE_TYPE_TX);
+            payload.taggedTransaction.tx() = txEnv.v1().tx;
+            break;
+        case ENVELOPE_TYPE_TX_FEE_BUMP:
+            payload.taggedTransaction.type(ENVELOPE_TYPE_TX_FEE_BUMP);
+            payload.taggedTransaction.feeBump() = txEnv.feeBump().tx;
+            break;
+        default:
+            abort();
+        }
+
+        auto payloadHash = sha256(xdr::xdr_to_opaque(payload));
+
+        signatures.emplace_back(
+            SignatureUtils::getHint(sk.getPublicKey().ed25519()),
+            sk.sign(payloadHash));
+
+        auto out = xdr::xdr_to_opaque(txEnv);
+        if (base64)
+            std::cout << decoder::encode_b64(out) << std::endl;
+        else
+            std::cout.write(reinterpret_cast<char*>(out.data()), out.size());
+
+        if (dump_hex_txid)
+        {
+            std::cout << binToHex(xdr::xdr_to_opaque(payloadHash)) << std::endl;
+        }
+    }
+}
+
+void
 signtxn(std::string const& filename, std::string netId, bool base64)
 {
     using namespace std;
@@ -394,50 +452,11 @@ signtxn(std::string const& filename, std::string netId, bool base64)
                 "Refusing to write binary transaction to terminal");
 
         readFile(filename, base64, [&](xdr::opaque_vec<> d) {
-            TransactionEnvelope txenv;
-            xdr::xdr_from_opaque(d, txenv);
-            auto& signatures = txbridge::getSignatures(txenv);
-            if (signatures.size() == signatures.max_size())
-                throw std::runtime_error("Envelope already contains "
-                                         "maximum number of signatures");
+            TransactionEnvelope txEnv;
+            xdr::xdr_from_opaque(d, txEnv);
 
-            SecretKey sk(SecretKey::fromStrKeySeed(readSecret(
-                fmt::format(FMT_STRING("Secret key seed [network id: '{}']: "),
-                            netId),
-                txn_stdin)));
-            TransactionSignaturePayload payload;
-            payload.networkId = sha256(netId);
-            switch (txenv.type())
-            {
-            case ENVELOPE_TYPE_TX_V0:
-                payload.taggedTransaction.type(ENVELOPE_TYPE_TX);
-                // TransactionV0 and Transaction always have the same
-                // signatures so there is no reason to check versions here,
-                // just always convert to Transaction
-                payload.taggedTransaction.tx() =
-                    txbridge::convertForV13(txenv).v1().tx;
-                break;
-            case ENVELOPE_TYPE_TX:
-                payload.taggedTransaction.type(ENVELOPE_TYPE_TX);
-                payload.taggedTransaction.tx() = txenv.v1().tx;
-                break;
-            case ENVELOPE_TYPE_TX_FEE_BUMP:
-                payload.taggedTransaction.type(ENVELOPE_TYPE_TX_FEE_BUMP);
-                payload.taggedTransaction.feeBump() = txenv.feeBump().tx;
-                break;
-            default:
-                abort();
-            }
-
-            signatures.emplace_back(
-                SignatureUtils::getHint(sk.getPublicKey().ed25519()),
-                sk.sign(sha256(xdr::xdr_to_opaque(payload))));
-
-            auto out = xdr::xdr_to_opaque(txenv);
-            if (base64)
-                cout << decoder::encode_b64(out) << std::endl;
-            else
-                cout.write(reinterpret_cast<char*>(out.data()), out.size());
+            std::vector<TransactionEnvelope> txEnvs = {txEnv};
+            signtxns(txEnvs, netId, base64, txn_stdin, false);
         });
     }
     catch (const std::exception& e)
