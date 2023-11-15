@@ -60,6 +60,9 @@ class TransactionFrame : public TransactionFrameBase
         uint32_t mConsumedContractEventsSizeBytes{};
         int64_t mConsumedRentFee{};
         int64_t mFeeRefund{};
+        SorobanData()
+        {
+        }
     };
     std::optional<SorobanData> mSorobanExtension;
 
