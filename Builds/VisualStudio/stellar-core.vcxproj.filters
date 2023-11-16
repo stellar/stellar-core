@@ -1320,6 +1320,9 @@
     <ClCompile Include="src\$(Configuration)\generated\xdr\XDRFilesSha256.cpp">
       <Filter>generated</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\src\main\SettingsUpgradeUtils.cpp">
+      <Filter>main</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\..\lib\util\cpptoml.h">
@@ -2290,6 +2293,9 @@
     </ClInclude>
     <ClInclude Include="..\..\src\transactions\test\SorobanTxTestUtils.h">
       <Filter>transactions\tests</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\main\SettingsUpgradeUtils.h">
+      <Filter>main</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
