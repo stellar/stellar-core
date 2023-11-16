@@ -170,7 +170,7 @@ fn non_metered_xdr_to_rust_buf<T: WriteXdr>(t: &T) -> Result<RustBuf, HostError>
     let mut vec: Vec<u8> = Vec::new();
     t.write_xdr(&mut xdr::Limited::new(
         Cursor::new(&mut vec),
-        Limits {depth: MARSHALLING_STACK_LIMIT, len: 0x1000000},
+        Limits {depth: MARSHALLING_STACK_LIMIT, len: 5 * 1024 * 1024 /* 5MB */},
     ))
     .map_err(|_| (ScErrorType::Value, ScErrorCode::InvalidInput))?;
     Ok(vec.into())

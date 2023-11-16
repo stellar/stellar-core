@@ -1993,6 +1993,12 @@ TEST_CASE("temp entry eviction", "[tx][soroban]")
 
     // This should be a noop
     test.extendOp({lk}, 10'000);
+
+    // This will fail because the entry is expired
+    test.extendHostFunction("key", ContractDataDurability::TEMPORARY, 10'000,
+                            10'000,
+                            /*expectSuccess=*/false);
+
     test.checkTTL(lk, expectedLiveUntilLedger);
 
     // This should fail because the temp entry is expired
