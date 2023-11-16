@@ -627,7 +627,7 @@ TxSetFrame::sizeOpTotalForLogging() const
             {
                 totalSize += std::accumulate(
                     component.txsMaybeDiscountedFee().txs.begin(),
-                    component.txsMaybeDiscountedFee().txs.end(), 0,
+                    component.txsMaybeDiscountedFee().txs.end(), 0ull,
                     accumulateTxsFn);
             }
         }

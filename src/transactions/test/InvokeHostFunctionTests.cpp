@@ -719,7 +719,8 @@ TEST_CASE("non-refundable resource metering", "[tx][soroban]")
 
         auto inclusionFee = [&] {
             LedgerTxn ltx(test.getApp()->getLedgerTxnRoot());
-            return getMinInclusionFee(*rootTX, ltx.getHeader());
+            return static_cast<uint32>(
+                getMinInclusionFee(*rootTX, ltx.getHeader()));
         }();
 
         // Check that minimum fee succeeds
@@ -2026,15 +2027,15 @@ TEST_CASE("temp entry eviction", "[tx][soroban]")
             REQUIRE(ltx.load(lk));
         }
 
-        auto ledgerSeq = test.getLedgerSeq();
+        auto ledgerSeq2 = test.getLedgerSeq();
 
         // Verify that we're on the ledger where the entry would get evicted if
         // it wasn't recreated.
-        REQUIRE(ledgerSeq == evictionLedger);
+        REQUIRE(ledgerSeq2 == evictionLedger);
 
         // Entry is live again
         REQUIRE(test.isEntryLive("temp", ContractDataDurability::TEMPORARY,
-                                 ledgerSeq));
+                                 ledgerSeq2));
 
         // Verify that we didn't emit an eviction
         XDRInputFileStream in;
@@ -2229,10 +2230,10 @@ TEST_CASE("settings upgrade command line utils", "[tx][soroban][upgrades]")
         ConfigSettingEntry costSetting(CONFIG_SETTING_CONTRACT_LEDGER_COST_V0);
         costSetting.contractLedgerCost().feeRead1KB = 1234;
 
-        ConfigUpgradeSet upgradeSet;
-        upgradeSet.updatedEntry.emplace_back(costSetting);
+        ConfigUpgradeSet upgradeSet2;
+        upgradeSet2.updatedEntry.emplace_back(costSetting);
 
-        auto upgradeSetBytes(xdr::xdr_to_opaque(upgradeSet));
+        auto upgradeSetBytes(xdr::xdr_to_opaque(upgradeSet2));
         SCVal b(SCV_BYTES);
         b.bytes() = upgradeSetBytes;
         updateBytes(b);

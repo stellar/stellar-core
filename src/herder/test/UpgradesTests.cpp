@@ -893,13 +893,14 @@ TEST_CASE("config upgrades applied to ledger", "[soroban][upgrades]")
         {
             auto const newSize = 20;
             populateValuesAndUpgradeSize(newSize);
-            auto const& cfg = app->getLedgerManager().getSorobanNetworkConfig();
+            auto const& cfg2 =
+                app->getLedgerManager().getSorobanNetworkConfig();
 
             // Verify that we popped the 10 oldest values
             auto sum = 0;
             auto expectedValue = 10;
-            REQUIRE(cfg.mBucketListSizeSnapshots.size() == newSize);
-            for (auto const val : cfg.mBucketListSizeSnapshots)
+            REQUIRE(cfg2.mBucketListSizeSnapshots.size() == newSize);
+            for (auto const val : cfg2.mBucketListSizeSnapshots)
             {
                 REQUIRE(val == expectedValue);
                 sum += expectedValue;
@@ -907,20 +908,21 @@ TEST_CASE("config upgrades applied to ledger", "[soroban][upgrades]")
             }
 
             // Verify average has been properly updated as well
-            REQUIRE(cfg.getAverageBucketListSize() == (sum / newSize));
+            REQUIRE(cfg2.getAverageBucketListSize() == (sum / newSize));
         }
 
         SECTION("increase size")
         {
             auto const newSize = 40;
             populateValuesAndUpgradeSize(newSize);
-            auto const& cfg = app->getLedgerManager().getSorobanNetworkConfig();
+            auto const& cfg2 =
+                app->getLedgerManager().getSorobanNetworkConfig();
 
             // Verify that we backfill 10 copies of the oldest value
             auto sum = 0;
             auto expectedValue = 0;
-            REQUIRE(cfg.mBucketListSizeSnapshots.size() == newSize);
-            for (auto i = 0; i < cfg.mBucketListSizeSnapshots.size(); ++i)
+            REQUIRE(cfg2.mBucketListSizeSnapshots.size() == newSize);
+            for (auto i = 0; i < cfg2.mBucketListSizeSnapshots.size(); ++i)
             {
                 // First 11 values should be oldest value (0)
                 if (i > 10)
@@ -928,12 +930,12 @@ TEST_CASE("config upgrades applied to ledger", "[soroban][upgrades]")
                     ++expectedValue;
                 }
 
-                REQUIRE(cfg.mBucketListSizeSnapshots[i] == expectedValue);
+                REQUIRE(cfg2.mBucketListSizeSnapshots[i] == expectedValue);
                 sum += expectedValue;
             }
 
             // Verify average has been properly updated as well
-            REQUIRE(cfg.getAverageBucketListSize() == (sum / newSize));
+            REQUIRE(cfg2.getAverageBucketListSize() == (sum / newSize));
         }
 
         auto testUpgradeHasNoEffect = [&](uint32_t size) {

@@ -649,7 +649,7 @@ InvokeHostFunctionOpFrame::doApply(Application& app, AbstractLedgerTxn& ltx,
 
     maybePopulateDiagnosticEvents(cfg, out, metrics);
 
-    metrics.mEmitEventByte += out.result_value.data.size();
+    metrics.mEmitEventByte += static_cast<uint32>(out.result_value.data.size());
     if (sorobanConfig.txMaxContractEventsSizeBytes() < metrics.mEmitEventByte)
     {
         mParentTx.pushSimpleDiagnosticError(
