@@ -159,7 +159,7 @@ impl std::error::Error for CoreHostError {}
 fn non_metered_xdr_from_cxx_buf<T: ReadXdr>(buf: &CxxBuf) -> Result<T, HostError> {
     Ok(T::read_xdr(&mut xdr::Limited::new(
         Cursor::new(buf.data.as_slice()),
-        Limits {depth: MARSHALLING_STACK_LIMIT, len: 0x1000000},
+        Limits {depth: MARSHALLING_STACK_LIMIT, len: buf.data.len()},
     ))
     // We only expect this to be called for safe, internal conversions, so this
     // should never happen.
