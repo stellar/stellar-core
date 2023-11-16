@@ -427,6 +427,8 @@ CatchupSimulation::generateRandomLedger(uint32_t version)
 
     std::vector<TransactionFrameBasePtr> txs;
     std::vector<TransactionFrameBasePtr> sorobanTxs;
+    bool check = false;
+
     if (ledgerSeq < 5)
     {
         txs.push_back(
@@ -482,12 +484,17 @@ CatchupSimulation::generateRandomLedger(uint32_t version)
                 SOROBAN_PROTOCOL_VERSION))
         {
             SorobanResources res;
-            res.instructions = InitialSorobanNetworkConfig::TX_MAX_INSTRUCTIONS;
+            res.instructions =
+                mApp.getLedgerManager().maxSorobanTransactionResources().getVal(
+                    Resource::Type::INSTRUCTIONS) /
+                10;
+            res.writeBytes = 100'000;
             uint32_t inclusion = 100;
             sorobanTxs.push_back(createUploadWasmTx(
                 mApp, stroopy, inclusion, DEFAULT_TEST_RESOURCE_FEE, res));
             sorobanTxs.push_back(createUploadWasmTx(
                 mApp, eve, inclusion * 5, DEFAULT_TEST_RESOURCE_FEE, res));
+            check = true;
         }
     }
 
@@ -517,7 +524,19 @@ CatchupSimulation::generateRandomLedger(uint32_t version)
                                           upgrades, mApp.getConfig().NODE_SEED);
 
     mLedgerCloseDatas.emplace_back(ledgerSeq, txSet, sv);
+
+    auto& txsSucceeded =
+        mApp.getMetrics().NewCounter({"ledger", "apply", "success"});
+    auto lastSucceeded = txsSucceeded.count();
+
     lm.closeLedger(mLedgerCloseDatas.back());
+
+    if (check)
+    {
+        // Make sure all classic transactions and at least some Soroban
+        // transactions succeeded
+        REQUIRE(txsSucceeded.count() > lastSucceeded + phases[0].size());
+    }
 
     auto const& lclh = lm.getLastClosedLedgerHeader();
     mLedgerSeqs.push_back(lclh.header.ledgerSeq);
