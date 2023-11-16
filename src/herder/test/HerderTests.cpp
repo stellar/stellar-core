@@ -267,8 +267,8 @@ makeMultiPayment(stellar::TestAccount& destAccount, stellar::TestAccount& src,
         ops.emplace_back(payment(destAccount, i + paymentBase));
     }
     auto tx = src.tx(ops);
-    setFee(tx,
-           static_cast<uint32_t>(tx->getInclusionFee()) * feeMult + extraFee);
+    setFullFee(tx,
+               static_cast<uint32_t>(tx->getFullFee()) * feeMult + extraFee);
     getSignatures(tx).clear();
     tx->addSignature(src);
     return tx;
@@ -283,7 +283,7 @@ makeSelfPayment(stellar::TestAccount& account, int nbOps, uint32_t fee)
         ops.emplace_back(payment(account, i + 1000));
     }
     auto tx = account.tx(ops);
-    setFee(tx, fee);
+    setFullFee(tx, fee);
     getSignatures(tx).clear();
     tx->addSignature(account);
     return tx;
@@ -1453,7 +1453,7 @@ surgeTest(uint32 protocolVersion, uint32_t nbTxs, uint32_t maxTxSetSize,
         for (uint32_t n = 0; n < nbTxs; n++)
         {
             auto tx = multiPaymentTx(accountB, n + 1, 10000 + 1000 * n);
-            setFee(tx, static_cast<uint32_t>(tx->getInclusionFee()) - 1);
+            setFullFee(tx, static_cast<uint32_t>(tx->getFullFee()) - 1);
             getSignatures(tx).clear();
             tx->addSignature(accountB);
             rootTxs.push_back(tx);
@@ -1478,7 +1478,7 @@ surgeTest(uint32 protocolVersion, uint32_t nbTxs, uint32_t maxTxSetSize,
             REQUIRE(rTx->getNumOperations() == n + 1);
             REQUIRE(tx->getNumOperations() == n + 2);
             // use the same fee
-            setFee(tx, static_cast<uint32_t>(rTx->getInclusionFee()));
+            setFullFee(tx, static_cast<uint32_t>(rTx->getFullFee()));
             getSignatures(tx).clear();
             tx->addSignature(accountB);
             rootTxs.push_back(tx);
@@ -1501,11 +1501,11 @@ surgeTest(uint32 protocolVersion, uint32_t nbTxs, uint32_t maxTxSetSize,
             auto tx = multiPaymentTx(accountB, n + 1, 10000 + 1000 * n);
             if (n == 2)
             {
-                setFee(tx, static_cast<uint32_t>(tx->getInclusionFee()) - 1);
+                setFullFee(tx, static_cast<uint32_t>(tx->getFullFee()) - 1);
             }
             else
             {
-                setFee(tx, static_cast<uint32_t>(tx->getInclusionFee()) + 1);
+                setFullFee(tx, static_cast<uint32_t>(tx->getFullFee()) + 1);
             }
             getSignatures(tx).clear();
             tx->addSignature(accountB);
@@ -2309,7 +2309,7 @@ TEST_CASE("generalized tx set applied to ledger", "[herder][txset][soroban]")
     auto dummyUploadTx =
         createUploadWasmTx(*app, dummyAccount, 100, 1000, resources);
     resources.footprint.readWrite.emplace_back();
-    uint32_t resourceFee = sorobanResourceFee(
+    auto resourceFee = sorobanResourceFee(
         *app, resources, xdr::xdr_size(dummyUploadTx->getEnvelope()), 40);
     // This value should not be changed for the test setup, but if it ever
     // is changed,/ then we'd need to compute the rent fee via the rust bridge
@@ -3680,8 +3680,8 @@ TEST_CASE("soroban txs each parameter surge priced", "[soroban][herder]")
     SECTION("operations")
     {
         auto tweakConfig = [&](SorobanNetworkConfig& cfg) {
-            cfg.mLedgerMaxTxCount =
-                baseTxRate * Herder::EXP_LEDGER_TIMESPAN_SECONDS.count();
+            cfg.mLedgerMaxTxCount = static_cast<uint32>(
+                baseTxRate * Herder::EXP_LEDGER_TIMESPAN_SECONDS.count());
         };
         test(tweakConfig);
     }
@@ -3697,45 +3697,45 @@ TEST_CASE("soroban txs each parameter surge priced", "[soroban][herder]")
     SECTION("tx size")
     {
         auto tweakConfig = [&](SorobanNetworkConfig& cfg) {
-            cfg.mLedgerMaxTransactionsSizeBytes =
+            cfg.mLedgerMaxTransactionsSizeBytes = static_cast<uint32>(
                 baseTxRate * Herder::EXP_LEDGER_TIMESPAN_SECONDS.count() *
-                cfg.mTxMaxSizeBytes;
+                cfg.mTxMaxSizeBytes);
         };
         test(tweakConfig);
     }
     SECTION("read entries")
     {
         auto tweakConfig = [&](SorobanNetworkConfig& cfg) {
-            cfg.mLedgerMaxReadLedgerEntries =
+            cfg.mLedgerMaxReadLedgerEntries = static_cast<uint32>(
                 baseTxRate * Herder::EXP_LEDGER_TIMESPAN_SECONDS.count() *
-                cfg.mTxMaxReadLedgerEntries;
+                cfg.mTxMaxReadLedgerEntries);
         };
         test(tweakConfig);
     }
     SECTION("write entries")
     {
         auto tweakConfig = [&](SorobanNetworkConfig& cfg) {
-            cfg.mLedgerMaxWriteLedgerEntries =
+            cfg.mLedgerMaxWriteLedgerEntries = static_cast<uint32>(
                 baseTxRate * Herder::EXP_LEDGER_TIMESPAN_SECONDS.count() *
-                cfg.mTxMaxWriteLedgerEntries;
+                cfg.mTxMaxWriteLedgerEntries);
         };
         test(tweakConfig);
     }
     SECTION("read bytes")
     {
         auto tweakConfig = [&](SorobanNetworkConfig& cfg) {
-            cfg.mLedgerMaxReadBytes =
+            cfg.mLedgerMaxReadBytes = static_cast<uint32>(
                 baseTxRate * Herder::EXP_LEDGER_TIMESPAN_SECONDS.count() *
-                cfg.mTxMaxReadBytes;
+                cfg.mTxMaxReadBytes);
         };
         test(tweakConfig);
     }
     SECTION("write bytes")
     {
         auto tweakConfig = [&](SorobanNetworkConfig& cfg) {
-            cfg.mLedgerMaxWriteBytes =
+            cfg.mLedgerMaxWriteBytes = static_cast<uint32>(
                 baseTxRate * Herder::EXP_LEDGER_TIMESPAN_SECONDS.count() *
-                cfg.mTxMaxWriteBytes;
+                cfg.mTxMaxWriteBytes);
         };
         test(tweakConfig);
     }
@@ -3856,9 +3856,9 @@ TEST_CASE("soroban txs accepted by the network",
     simulation->startAllNodes();
     auto nodes = simulation->getNodes();
     uint32_t desiredTxRate = 1;
-    uint32_t ledgerWideLimit =
-        desiredTxRate * Herder::EXP_LEDGER_TIMESPAN_SECONDS.count() * 2;
-    uint32_t numAccounts = 100;
+    uint32_t ledgerWideLimit = static_cast<uint32>(
+        desiredTxRate * Herder::EXP_LEDGER_TIMESPAN_SECONDS.count() * 2);
+    uint32_t const numAccounts = 100;
     for (auto& node : nodes)
     {
         overrideSorobanNetworkConfigForTest(*node);
@@ -5067,7 +5067,7 @@ TEST_CASE("do not flood too many transactions", "[herder][transactionqueue]")
                 ops.emplace_back(payment(source, i));
             }
             auto tx = source.tx(ops);
-            auto txFee = static_cast<uint32_t>(tx->getInclusionFee());
+            auto txFee = static_cast<uint32_t>(tx->getFullFee());
             if (highFee)
             {
                 txFee += 100000;
@@ -5078,7 +5078,7 @@ TEST_CASE("do not flood too many transactions", "[herder][transactionqueue]")
                 txFee += curFeeOffset;
                 fees.emplace_back(txFee);
             }
-            setFee(tx, txFee);
+            setFullFee(tx, txFee);
             getSignatures(tx).clear();
             tx->addSignature(source.getSecretKey());
             if (++feeGroupSize == feeGroupMaxSize)
@@ -5120,7 +5120,7 @@ TEST_CASE("do not flood too many transactions", "[herder][transactionqueue]")
                 REQUIRE(expected == tx->getSeqNum());
             }
             // check if we have the expected fee
-            REQUIRE(tx->getInclusionFee() == fees.front());
+            REQUIRE(tx->getFullFee() == fees.front());
             fees.pop_front();
             ++numBroadcast;
         };
@@ -5276,7 +5276,7 @@ TEST_CASE("do not flood too many transactions with DEX separation",
                 }
             }
             auto tx = source.tx(ops);
-            auto txFee = tx->getInclusionFee();
+            auto txFee = tx->getFullFee();
             if (highFee)
             {
                 txFee += 100000;
@@ -5288,7 +5288,7 @@ TEST_CASE("do not flood too many transactions with DEX separation",
                 accountFees[accountIndex].emplace_back(txFee, isDex);
             }
             REQUIRE(txFee <= std::numeric_limits<uint32>::max());
-            setFee(tx, static_cast<uint32>(txFee));
+            setFullFee(tx, static_cast<uint32>(txFee));
             getSignatures(tx).clear();
             tx->addSignature(source.getSecretKey());
             if (++feeGroupSize == feeGroupMaxSize)
@@ -5396,7 +5396,7 @@ TEST_CASE("do not flood too many transactions with DEX separation",
                     ->front()
                     .first;
 
-            REQUIRE(tx->getInclusionFee() == expectedFee);
+            REQUIRE(tx->getFullFee() == expectedFee);
             accountFees[accountToIndex[tx->getSourceID()]].pop_front();
             if (tx->hasDexOperations())
             {

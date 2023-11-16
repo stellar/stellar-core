@@ -226,58 +226,6 @@
                                         {
                                             "type": "LEDGER_ENTRY_STATE",
                                             "state": {
-                                                "lastModifiedLedgerSeq": 6,
-                                                "data": {
-                                                    "type": "ACCOUNT",
-                                                    "account": {
-                                                        "accountID": "GC4EFXBN6BEENDAX7PBW5PGIIIVH3INMD3OEPQASXOLGOHVVP7ZEMG7X",
-                                                        "balance": 999999998999989600,
-                                                        "seqNum": 4,
-                                                        "numSubEntries": 0,
-                                                        "inflationDest": null,
-                                                        "flags": 0,
-                                                        "homeDomain": "",
-                                                        "thresholds": "01000000",
-                                                        "signers": [],
-                                                        "ext": {
-                                                            "v": 0
-                                                        }
-                                                    }
-                                                },
-                                                "ext": {
-                                                    "v": 0
-                                                }
-                                            }
-                                        },
-                                        {
-                                            "type": "LEDGER_ENTRY_UPDATED",
-                                            "updated": {
-                                                "lastModifiedLedgerSeq": 6,
-                                                "data": {
-                                                    "type": "ACCOUNT",
-                                                    "account": {
-                                                        "accountID": "GC4EFXBN6BEENDAX7PBW5PGIIIVH3INMD3OEPQASXOLGOHVVP7ZEMG7X",
-                                                        "balance": 999999998999988600,
-                                                        "seqNum": 4,
-                                                        "numSubEntries": 0,
-                                                        "inflationDest": null,
-                                                        "flags": 0,
-                                                        "homeDomain": "",
-                                                        "thresholds": "01000000",
-                                                        "signers": [],
-                                                        "ext": {
-                                                            "v": 0
-                                                        }
-                                                    }
-                                                },
-                                                "ext": {
-                                                    "v": 0
-                                                }
-                                            }
-                                        },
-                                        {
-                                            "type": "LEDGER_ENTRY_STATE",
-                                            "state": {
                                                 "lastModifiedLedgerSeq": 5,
                                                 "data": {
                                                     "type": "ACCOUNT",
@@ -312,6 +260,58 @@
                                                         "balance": 400000900,
                                                         "seqNum": 8589934593,
                                                         "numSubEntries": 1,
+                                                        "inflationDest": null,
+                                                        "flags": 0,
+                                                        "homeDomain": "",
+                                                        "thresholds": "01000000",
+                                                        "signers": [],
+                                                        "ext": {
+                                                            "v": 0
+                                                        }
+                                                    }
+                                                },
+                                                "ext": {
+                                                    "v": 0
+                                                }
+                                            }
+                                        },
+                                        {
+                                            "type": "LEDGER_ENTRY_STATE",
+                                            "state": {
+                                                "lastModifiedLedgerSeq": 6,
+                                                "data": {
+                                                    "type": "ACCOUNT",
+                                                    "account": {
+                                                        "accountID": "GC4EFXBN6BEENDAX7PBW5PGIIIVH3INMD3OEPQASXOLGOHVVP7ZEMG7X",
+                                                        "balance": 999999998999989600,
+                                                        "seqNum": 4,
+                                                        "numSubEntries": 0,
+                                                        "inflationDest": null,
+                                                        "flags": 0,
+                                                        "homeDomain": "",
+                                                        "thresholds": "01000000",
+                                                        "signers": [],
+                                                        "ext": {
+                                                            "v": 0
+                                                        }
+                                                    }
+                                                },
+                                                "ext": {
+                                                    "v": 0
+                                                }
+                                            }
+                                        },
+                                        {
+                                            "type": "LEDGER_ENTRY_UPDATED",
+                                            "updated": {
+                                                "lastModifiedLedgerSeq": 6,
+                                                "data": {
+                                                    "type": "ACCOUNT",
+                                                    "account": {
+                                                        "accountID": "GC4EFXBN6BEENDAX7PBW5PGIIIVH3INMD3OEPQASXOLGOHVVP7ZEMG7X",
+                                                        "balance": 999999998999988600,
+                                                        "seqNum": 4,
+                                                        "numSubEntries": 0,
                                                         "inflationDest": null,
                                                         "flags": 0,
                                                         "homeDomain": "",

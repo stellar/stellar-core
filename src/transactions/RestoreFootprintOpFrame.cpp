@@ -71,6 +71,7 @@ RestoreFootprintOpFrame::doApply(Application& app, AbstractLedgerTxn& ltx,
     // the current ledger.
     uint32_t restoredLiveUntilLedger =
         ledgerSeq + archivalSettings.minPersistentTTL - 1;
+    rustEntryRentChanges.reserve(footprint.readWrite.size());
     for (auto const& lk : footprint.readWrite)
     {
         auto ttlKey = getTTLKey(lk);

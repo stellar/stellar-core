@@ -1218,18 +1218,17 @@ TEST_CASE("Soroban TransactionQueue limits",
         }
         SECTION("negative declared resource fee")
         {
-            int64_t fee = 0;
+            int64_t resFee = 0;
             SECTION("basic")
             {
-                fee = -1;
+                resFee = -1;
             }
             SECTION("int64 limit")
             {
-                fee = INT64_MIN;
+                resFee = INT64_MIN;
             }
-            auto wasmTx = createUploadWasmTx(
-                *app, account1, initialInclusionFee, fee, resAdjusted);
-            txbridge::setFee(wasmTx, initialInclusionFee);
+            auto wasmTx = createUploadWasmTx(*app, account1, 0, 0, resAdjusted);
+            txbridge::setSorobanFees(wasmTx, UINT32_MAX, resFee);
             txbridge::getSignatures(wasmTx).clear();
             wasmTx->addSignature(account1.getSecretKey());
             badTx = wasmTx;

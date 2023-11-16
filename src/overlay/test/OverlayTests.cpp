@@ -150,8 +150,8 @@ TEST_CASE("flow control byte capacity", "[overlay][flowcontrol]")
     tx1.transaction().v0().tx.operations.emplace_back(
         getOperationGreaterThanMinMaxSizeBytes());
     auto getTxSize = [&]() {
-        return FlowControlCapacity::msgBodySize(
-            tx1, cfg1.OVERLAY_PROTOCOL_VERSION, cfg2.OVERLAY_PROTOCOL_VERSION);
+        return static_cast<uint32>(FlowControlCapacity::msgBodySize(
+            tx1, cfg1.OVERLAY_PROTOCOL_VERSION, cfg2.OVERLAY_PROTOCOL_VERSION));
     };
 
     auto test = [&](bool shouldRequestMore) {
@@ -2203,12 +2203,12 @@ TEST_CASE("overlay flow control", "[overlay][flowcontrol]")
         simulation->addPendingConnection(vNode2NodeID, vNode3NodeID);
         simulation->addPendingConnection(vNode3NodeID, vNode1NodeID);
 
-        for (auto& node : simulation->getNodes())
+        for (auto& node2 : simulation->getNodes())
         {
-            if (appProtocolVersionStartsFrom(*node, SOROBAN_PROTOCOL_VERSION))
+            if (appProtocolVersionStartsFrom(*node2, SOROBAN_PROTOCOL_VERSION))
             {
                 modifySorobanNetworkConfig(
-                    *node, [](SorobanNetworkConfig& cfg) {
+                    *node2, [](SorobanNetworkConfig& cfg) {
                         cfg.mTxMaxSizeBytes =
                             MinimumSorobanNetworkConfig::TX_MAX_SIZE_BYTES;
                     });

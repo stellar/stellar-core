@@ -24,6 +24,7 @@
 #include "transactions/test/SorobanTxTestUtils.h"
 #include "util/DebugMetaUtils.h"
 #include "util/Logging.h"
+#include "util/MetaUtils.h"
 #include "util/ProtocolVersion.h"
 #include "util/XDRCereal.h"
 #include "util/XDRStream.h"
@@ -694,7 +695,7 @@ TEST_CASE_VERSIONS("meta stream contains reasonable meta", "[ledgerclosemeta]")
                                    "ledger-close-meta-v{}-protocol-{}.json"),
                         lcm.v(), cfg.TESTING_UPGRADE_LEDGER_PROTOCOL_VERSION);
                 }
-
+                normalizeMeta(lcm);
                 std::string have = xdr_to_string(lcm, "LedgerCloseMeta");
                 if (getenv("GENERATE_TEST_LEDGER_CLOSE_META"))
                 {

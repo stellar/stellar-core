@@ -203,7 +203,7 @@ TransactionFramePtr createUploadWasmTx(
     std::optional<uint32_t> wasmSize = std::nullopt,
     std::optional<SequenceNumber> seq = std::nullopt);
 int64_t sorobanResourceFee(Application& app, SorobanResources const& resources,
-                           uint32_t txSize, uint32_t eventsSize);
+                           size_t txSize, uint32_t eventsSize);
 
 Operation pathPayment(PublicKey const& to, Asset const& sendCur,
                       int64_t sendMax, Asset const& destCur, int64_t destAmount,

@@ -121,19 +121,20 @@ TransactionFrame::clearCached()
 void
 TransactionFrame::pushContractEvents(xdr::xvector<ContractEvent>&& evts)
 {
-    mEvents = evts;
+    mSorobanExtension->mEvents = evts;
 }
 
 void
 TransactionFrame::pushDiagnosticEvents(xdr::xvector<DiagnosticEvent>&& evts)
 {
-    mDiagnosticEvents.insert(mDiagnosticEvents.end(), evts.begin(), evts.end());
+    auto& des = mSorobanExtension->mDiagnosticEvents;
+    des.insert(des.end(), evts.begin(), evts.end());
 }
 
 void
 TransactionFrame::pushDiagnosticEvent(DiagnosticEvent&& evt)
 {
-    mDiagnosticEvents.emplace_back(evt);
+    mSorobanExtension->mDiagnosticEvents.emplace_back(evt);
 }
 
 void
@@ -173,7 +174,7 @@ TransactionFrame::pushSimpleDiagnosticError(SCErrorType ty, SCErrorCode code,
 void
 TransactionFrame::setReturnValue(SCVal&& returnValue)
 {
-    mReturnValue = returnValue;
+    mSorobanExtension->mReturnValue = returnValue;
 }
 
 TransactionEnvelope const&
@@ -497,6 +498,13 @@ TransactionFrame::resetResults(LedgerHeader const& header,
     // feeCharged is updated accordingly to represent the cost of the
     // transaction regardless of the failure modes.
     getResult().feeCharged = getFee(header, baseFee, applying);
+
+    // resets Soroban related fields
+    mSorobanExtension.reset();
+    if (isSoroban())
+    {
+        mSorobanExtension = std::make_optional<SorobanData>();
+    }
 }
 
 std::optional<TimeBounds const> const
@@ -746,7 +754,8 @@ TransactionFrame::validateSorobanResources(SorobanNetworkConfig const& config,
 void
 TransactionFrame::refundSorobanFee(AbstractLedgerTxn& ltxOuter)
 {
-    if (mFeeRefund == 0)
+    auto const feeRefund = mSorobanExtension->mFeeRefund;
+    if (feeRefund == 0)
     {
         return;
     }
@@ -760,13 +769,13 @@ TransactionFrame::refundSorobanFee(AbstractLedgerTxn& ltxOuter)
         return;
     }
 
-    if (!addBalance(header, sourceAccount, mFeeRefund))
+    if (!addBalance(header, sourceAccount, feeRefund))
     {
         // Liabilities in the way of the refund, just skip.
         return;
     }
 
-    header.current().feePool -= mFeeRefund;
+    header.current().feePool -= feeRefund;
     ltx.commit();
 }
 
@@ -816,8 +825,9 @@ TransactionFrame::computePreApplySorobanResourceFee(
     // doesn't involve modifying any transaction fees.
     return computeSorobanResourceFee(
         protocolVersion, sorobanResources(),
-        getResources(false).getVal(Resource::Type::TX_BYTE_SIZE), 0,
-        sorobanConfig, cfg);
+        static_cast<uint32>(
+            getResources(false).getVal(Resource::Type::TX_BYTE_SIZE)),
+        0, sorobanConfig, cfg);
 }
 
 bool
@@ -826,26 +836,33 @@ TransactionFrame::consumeRefundableSorobanResources(
     SorobanNetworkConfig const& sorobanConfig, Config const& cfg)
 {
     releaseAssertOrThrow(isSoroban());
-    mConsumedContractEventsSizeBytes += contractEventSizeBytes;
-    mConsumedRentFee += rentFee;
+    auto& consumedContractEventsSizeBytes =
+        mSorobanExtension->mConsumedContractEventsSizeBytes;
+    consumedContractEventsSizeBytes += contractEventSizeBytes;
+
+    auto& consumedRentFee = mSorobanExtension->mConsumedRentFee;
+    consumedRentFee += rentFee;
+
     auto preApplyFee =
         computePreApplySorobanResourceFee(protocolVersion, sorobanConfig, cfg);
-    mFeeRefund = declaredSorobanResourceFee() - preApplyFee.non_refundable_fee;
-    if (mFeeRefund < mConsumedRentFee)
+    auto& feeRefund = mSorobanExtension->mFeeRefund;
+    feeRefund = declaredSorobanResourceFee() - preApplyFee.non_refundable_fee;
+    if (feeRefund < consumedRentFee)
     {
         return false;
     }
-    mFeeRefund -= mConsumedRentFee;
+    feeRefund -= consumedRentFee;
 
     FeePair consumedFee = computeSorobanResourceFee(
         protocolVersion, sorobanResources(),
-        getResources(false).getVal(Resource::Type::TX_BYTE_SIZE),
-        mConsumedContractEventsSizeBytes, sorobanConfig, cfg);
-    if (mFeeRefund < consumedFee.refundable_fee)
+        static_cast<uint32>(
+            getResources(false).getVal(Resource::Type::TX_BYTE_SIZE)),
+        consumedContractEventsSizeBytes, sorobanConfig, cfg);
+    if (feeRefund < consumedFee.refundable_fee)
     {
         return false;
     }
-    mFeeRefund -= consumedFee.refundable_fee;
+    feeRefund -= consumedFee.refundable_fee;
     return true;
 }
 
@@ -1036,17 +1053,27 @@ TransactionFrame::commonValidPreSeqNum(
             return false;
         }
         releaseAssertOrThrow(sorobanResourceFee);
-        if (sorobanData.resourceFee <
-            sorobanResourceFee->refundable_fee +
-                sorobanResourceFee->non_refundable_fee)
+        if (sorobanResourceFee->refundable_fee >
+            INT64_MAX - sorobanResourceFee->non_refundable_fee)
+        {
+            pushSimpleDiagnosticError(
+                SCE_STORAGE, SCEC_INVALID_INPUT,
+                "transaction resource fees cannot be added",
+                {makeU64SCVal(sorobanResourceFee->refundable_fee),
+                 makeU64SCVal(sorobanResourceFee->non_refundable_fee)});
+            getResult().result.code(txSOROBAN_INVALID);
+            return false;
+        }
+        auto const resourceFees = sorobanResourceFee->refundable_fee +
+                                  sorobanResourceFee->non_refundable_fee;
+        if (sorobanData.resourceFee < resourceFees)
         {
             pushSimpleDiagnosticError(
                 SCE_STORAGE, SCEC_EXCEEDED_LIMIT,
                 "transaction `sorobanData.resourceFee` is lower than the "
                 "actual Soroban resource fee",
                 {makeU64SCVal(sorobanData.resourceFee),
-                 makeU64SCVal(sorobanResourceFee->refundable_fee +
-                              sorobanResourceFee->non_refundable_fee)});
+                 makeU64SCVal(resourceFees)});
             getResult().result.code(txSOROBAN_INVALID);
             return false;
         }
@@ -1625,16 +1652,15 @@ TransactionFrame::applyOperations(SignatureChecker& signatureChecker,
             outerMeta.pushTxChangesAfter(std::move(changesAfter));
 
             if (protocolVersionStartsFrom(ledgerVersion,
-                                          SOROBAN_PROTOCOL_VERSION))
+                                          SOROBAN_PROTOCOL_VERSION) &&
+                isSoroban())
             {
-                if (!isSoroban() && !mEvents.empty())
-                {
-                    throw std::runtime_error("unexpected events size");
-                }
-
-                outerMeta.pushContractEvents(std::move(mEvents));
-                outerMeta.pushDiagnosticEvents(std::move(mDiagnosticEvents));
-                outerMeta.setReturnValue(std::move(mReturnValue));
+                outerMeta.pushContractEvents(
+                    std::move(mSorobanExtension->mEvents));
+                outerMeta.pushDiagnosticEvents(
+                    std::move(mSorobanExtension->mDiagnosticEvents));
+                outerMeta.setReturnValue(
+                    std::move(mSorobanExtension->mReturnValue));
             }
         }
         else
@@ -1650,9 +1676,10 @@ TransactionFrame::applyOperations(SignatureChecker& signatureChecker,
                     ledgerVersion,
                     app.getLedgerManager().getSorobanNetworkConfig(),
                     app.getConfig());
-                mFeeRefund = declaredSorobanResourceFee() -
-                             preApplyFee.non_refundable_fee;
-                outerMeta.pushDiagnosticEvents(std::move(mDiagnosticEvents));
+                mSorobanExtension->mFeeRefund = declaredSorobanResourceFee() -
+                                                preApplyFee.non_refundable_fee;
+                outerMeta.pushDiagnosticEvents(
+                    std::move(mSorobanExtension->mDiagnosticEvents));
             }
         }
         return success;
@@ -1834,6 +1861,6 @@ TransactionFrame::toStellarMessage() const
 xdr::xvector<DiagnosticEvent> const&
 TransactionFrame::getDiagnosticEvents() const
 {
-    return mDiagnosticEvents;
+    return mSorobanExtension->mDiagnosticEvents;
 }
 }

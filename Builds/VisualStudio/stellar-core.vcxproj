@@ -268,7 +268,7 @@ exit /b 0
       </IgnoreSpecificDefaultLibraries>
     </Link>
     <PreBuildEvent>
-      <Command>(set CFLAGS=-MDd) &amp; (set CXXFLAGS=-MDd) &amp; cargo build --target-dir $(OutDir)\rust\target --features tracy</Command>
+      <Command>(set CFLAGS=-MDd) &amp; (set CXXFLAGS=-MDd) &amp; cargo build --target-dir $(OutDir)\rust\target --features tracy --features core-vnext</Command>
     </PreBuildEvent>
     <PreBuildEvent>
       <Message>Rust</Message>
@@ -588,6 +588,7 @@ exit /b 0
     <ClCompile Include="..\..\src\ledger\test\LiabilitiesTests.cpp" />
     <ClCompile Include="..\..\src\ledger\TrustLineWrapper.cpp" />
     <ClCompile Include="..\..\src\main\Diagnostics.cpp" />
+    <ClCompile Include="..\..\src\main\SettingsUpgradeUtils.cpp" />
     <ClCompile Include="..\..\src\main\test\ApplicationUtilsTests.cpp" />
     <ClCompile Include="..\..\src\main\test\CommandHandlerTests.cpp" />
     <ClCompile Include="..\..\src\main\test\ConfigTests.cpp" />
@@ -1001,6 +1002,7 @@ exit /b 0
     <ClInclude Include="..\..\src\ledger\test\LedgerTestUtils.h" />
     <ClInclude Include="..\..\src\ledger\TrustLineWrapper.h" />
     <ClInclude Include="..\..\src\main\Diagnostics.h" />
+    <ClInclude Include="..\..\src\main\SettingsUpgradeUtils.h" />
     <ClInclude Include="..\..\src\overlay\BanManager.h" />
     <ClInclude Include="..\..\src\overlay\BanManagerImpl.h" />
     <ClInclude Include="..\..\src\overlay\Floodgate.h" />
@@ -1121,7 +1123,6 @@ exit /b 0
     <ClInclude Include="..\..\lib\util\cpptoml.h" />
     <ClInclude Include="..\..\lib\util\getopt.h" />
     <ClInclude Include="..\..\lib\util\uint128_t.h" />
-    <ClInclude Include="..\..\src\overlay\test\TxAdvertQueue.h" />
     <ClInclude Include="..\..\src\process\ProcessManager.h" />
     <ClInclude Include="..\..\src\process\ProcessManagerImpl.h" />
     <ClInclude Include="..\..\src\rust\CppShims.h" />

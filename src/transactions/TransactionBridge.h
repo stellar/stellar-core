@@ -28,7 +28,11 @@ xdr::xvector<DecoratedSignature, 20>& getSignatures(TransactionFramePtr tx);
 
 void setSeqNum(TransactionFramePtr tx, int64_t seq);
 
-void setFee(TransactionFramePtr tx, uint32_t fee);
+void setFullFee(TransactionFramePtr tx, uint32_t fee);
+
+// only works on Soroban tx
+void setSorobanFees(TransactionFramePtr tx, uint32_t totalFee,
+                    int64 resourceFee);
 
 void setMemo(TransactionFramePtr tx, Memo memo);
 
