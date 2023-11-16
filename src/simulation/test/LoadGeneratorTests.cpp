@@ -10,6 +10,7 @@
 #include "simulation/LoadGenerator.h"
 #include "simulation/Topologies.h"
 #include "test/test.h"
+#include "transactions/test/SorobanTxTestUtils.h"
 #include "util/Math.h"
 #include <fmt/format.h>
 
@@ -156,6 +157,17 @@ TEST_CASE("generate soroban load", "[loadgen][soroban]")
                             .NewCounter({"ledger", "apply", "success"})
                             .count();
 
+    loadGen.generateLoad(GeneratedLoadConfig::createSorobanInvokeSetupLoad(
+        /* nAccounts */ nAccounts,
+        /* txRate */ 1));
+    simulation->crankUntil(
+        [&]() {
+            return app.getMetrics()
+                       .NewMeter({"loadgen", "run", "complete"}, "run")
+                       .count() == 2;
+        },
+        100 * Herder::EXP_LEDGER_TIMESPAN_SECONDS, false);
+
     auto const numSorobanTxs = 300;
     auto const numDataEntries = 5;
     auto const kilobytesPerDataEntry = 3;
@@ -164,14 +176,13 @@ TEST_CASE("generate soroban load", "[loadgen][soroban]")
                                            /* txRate */ 1);
     cfg.nDataEntries = numDataEntries;
     cfg.kiloBytesPerDataEntry = kilobytesPerDataEntry;
-    cfg.sorobanNoResetForTesting = true;
 
     loadGen.generateLoad(cfg);
     simulation->crankUntil(
         [&]() {
             return app.getMetrics()
                        .NewMeter({"loadgen", "run", "complete"}, "run")
-                       .count() == 2;
+                       .count() == 3;
         },
         300 * Herder::EXP_LEDGER_TIMESPAN_SECONDS, false);
 
@@ -200,49 +211,39 @@ TEST_CASE("generate soroban load", "[loadgen][soroban]")
     std::optional<LedgerKey> codeKey;
     for (auto const& [id, instance] : instances)
     {
-        // Data Keys + instance key + code key
-        REQUIRE(instance.readOnlyKeys.size() == numDataEntries + 2);
-        for (size_t i = 0; i < instance.readOnlyKeys.size(); ++i)
+        // Expected: code key, instance key
+        REQUIRE(instance.readOnlyKeys.size() == 2);
+        if (codeKey)
         {
-            auto const& lk = instance.readOnlyKeys[i];
-            // First key should be contract code
-            if (i == 0)
-            {
-                REQUIRE(lk.type() == CONTRACT_CODE);
-                if (codeKey)
-                {
-                    REQUIRE(lk == *codeKey);
-                }
-                else
-                {
-                    codeKey = lk;
-                }
-            }
-            else
-            {
-                // 2nd key should be instance
-                REQUIRE(lk.type() == CONTRACT_DATA);
-                if (i == 1)
-                {
-                    REQUIRE(lk.contractData().key.type() ==
-                            SCV_LEDGER_KEY_CONTRACT_INSTANCE);
-                }
-                // All other keys should be contract storage entries
-                else
-                {
-                    REQUIRE(lk.contractData().key.type() == SCV_U32);
-                    LedgerTxn ltx(app.getLedgerTxnRoot());
-                    auto entry = ltx.load(lk);
-                    REQUIRE(entry);
-                    auto sizeBytes = xdr::xdr_size(entry.current());
-                    auto expectedSize = kilobytesPerDataEntry * 1024;
-                    REQUIRE((sizeBytes > expectedSize &&
-                             sizeBytes < 100 + expectedSize));
-                }
+            REQUIRE(instance.readOnlyKeys[0] == *codeKey);
+        }
+        else
+        {
+            codeKey = instance.readOnlyKeys[0];
+        }
 
-                REQUIRE(keys.find(lk) == keys.end());
-                keys.insert(lk);
-            }
+        auto instanceLk = instance.readOnlyKeys[1];
+        REQUIRE(instanceLk.type() == CONTRACT_DATA);
+        REQUIRE(instanceLk.contractData().key.type() ==
+                SCV_LEDGER_KEY_CONTRACT_INSTANCE);
+        REQUIRE(keys.find(instanceLk) == keys.end());
+        keys.insert(instanceLk);
+
+        for (auto i = 0; i < numDataEntries; ++i)
+        {
+            auto lk = contractDataKey(instance.contractID, txtest::makeU32(i),
+                                      ContractDataDurability::PERSISTENT);
+
+            LedgerTxn ltx(app.getLedgerTxnRoot());
+            auto entry = ltx.load(lk);
+            REQUIRE(entry);
+            auto sizeBytes = xdr::xdr_size(entry.current());
+            auto expectedSize = kilobytesPerDataEntry * 1024;
+            REQUIRE(
+                (sizeBytes > expectedSize && sizeBytes < 100 + expectedSize));
+
+            REQUIRE(keys.find(lk) == keys.end());
+            keys.insert(lk);
         }
     }
 }

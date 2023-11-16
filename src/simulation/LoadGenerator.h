@@ -34,17 +34,11 @@ enum class LoadGenMode
     MIXED_TXS,
     // Deploy random WASM blobs, for overlay/herder testing
     SOROBAN_UPLOAD,
-    // Invoke and apply resource intensive TXs
-    SOROBAN_INVOKE
-};
-
-// Soroban load gen occurs in 4 steps:
-enum class SorobanPhase
-{
-    UPLOAD,  // Upload WASM blobs
-    CREATE,  // Create contract instances
-    STORAGE, // Create storage entries
-    INVOKE   // Invoke CPU heavy functions
+    // Deploy contracts to be used by SOROBAN_INVOKE
+    SOROBAN_INVOKE_SETUP,
+    // Invoke and apply resource intensive TXs, must run SOROBAN_INVOKE_SETUP
+    // first
+    SOROBAN_INVOKE,
 };
 
 struct GeneratedLoadConfig
@@ -52,12 +46,14 @@ struct GeneratedLoadConfig
     static GeneratedLoadConfig createAccountsLoad(uint32_t nAccounts,
                                                   uint32_t txRate);
 
+    static GeneratedLoadConfig createSorobanInvokeSetupLoad(uint32_t nAccounts,
+                                                            uint32_t txRate);
+
     static GeneratedLoadConfig
     txLoad(LoadGenMode mode, uint32_t nAccounts, uint32_t nTxs, uint32_t txRate,
            uint32_t offset = 0, std::optional<uint32_t> maxFee = std::nullopt);
 
     LoadGenMode mode = LoadGenMode::CREATE;
-    SorobanPhase sorobanPhase = SorobanPhase::UPLOAD;
     uint32_t nAccounts = 0;
     uint32_t offset = 0;
     uint32_t nTxs = 0;
@@ -84,9 +80,6 @@ struct GeneratedLoadConfig
     // invocation
     uint32_t nDataEntries = 0;
     uint32_t kiloBytesPerDataEntry = 0;
-
-    // If true, soroban metadata will be preserved on reset for testing purposes
-    bool sorobanNoResetForTesting = false;
 };
 
 class LoadGenerator
@@ -111,7 +104,7 @@ class LoadGenerator
 
     struct ContractInstance
     {
-        // [wasm, instance, data keys...]
+        // [wasm, instance]
         xdr::xvector<LedgerKey> readOnlyKeys;
         SCAddress contractID;
     };
@@ -119,7 +112,7 @@ class LoadGenerator
     std::unordered_map<uint64_t, ContractInstance>
     getContractInstancesForTesting() const
     {
-        return mCompleteContractInstances;
+        return mContractInstances;
     }
 
   private:
@@ -136,10 +129,6 @@ class LoadGenerator
         TxMetrics(medida::MetricsRegistry& m);
         void report();
     };
-
-    typedef std::function<
-        std::pair<LoadGenerator::TestAccountPtr, TransactionFramePtr>()>
-        LoadGenFunc;
 
     // There are a few scenarios where tx submission might fail:
     // * ADD_STATUS_DUPLICATE, should be just a no-op and not count toward
@@ -182,8 +171,7 @@ class LoadGenerator
     std::unordered_set<uint64_t> mAccountsInUse;
     std::unordered_set<uint64_t> mAccountsAvailable;
     uint64_t getNextAvailableAccount();
-    std::optional<uint64_t>
-    getNextAvailableAccountForSoroban(GeneratedLoadConfig const& cfg);
+    uint64_t getNextAvailableAccountForSorobanSetup();
 
     // For account creation only: allocate a few accounts for creation purposes
     // (with sufficient balance to create new accounts) to avoid source account
@@ -199,54 +187,17 @@ class LoadGenerator
 
     uint32_t mWaitTillCompleteForLedgers{0};
 
-    // The following maps store state information for the SOROBAN_INVOKE mode.
-    // For all other loadgen modes, there are no dependent TXs after creating
-    // source accounts. However, for SOROBAN_INVOKE, we must deploy WASM blobs,
-    // create contract instances, and create storage entries before invoking the
-    // contract, in order. mPendingEntries is used to keep track of pending
-    // LedgerEntries being created by in-flight TXs. Periodically, we check if
-    // entries in mPendingEntries have made it into the DB with
-    // updateLoadGenState. If so, they are added to either
-    // mIncompleteContractInstances or mCompleteContractInstances depending on
-    // the current phase (see below). When generateTx submits a TX, it should
-    // add any LedgerEntries that will be created by the TX to mPendingEntries.
-    // updateLoadGenState will then resolve these entries. Only
-    // updateLoadGenState should remove entries from mPendingEntries and modify
-    // mIncompleteContractInstances, mCompleteContractInstances, and mCodeKey.
-    //
-    // During the UPLOAD phase, mPendingEntries should only ever contain a
-    // single ContractCode key. When this key is added to the database, it is
-    // resolved and stored in mCodeKey.
-    //
-    // During the CREATE phase, mPendingEntries should only contain contract
-    // instance keys. When these keys are added to the database, they are
-    // resolved and stored in mIncompleteContractInstances.
-    //
-    // During the STORAGE phase, mPendingEntries should only contain storage
-    // keys. When these keys are added to the database, they are resolved and
-    // added to the corrsponding contract instance struct. This struct is then
-    // removed from mIncompleteContractInstances and added to
-    // mCompleteContractInstances.
-    //
-    // mCompleteContractInstance have been fully set up and have all the
-    // required state for calls to "do_work".
-
     std::optional<LedgerKey> mCodeKey;
-
-    // Maps entries that are being created by in flight TXs to the source
-    // account ID originating the TX
-    std::unordered_map<uint64_t, std::vector<LedgerKey>> mPendingEntries;
 
     // Maps account ID to it's contract instance, where each account has a
     // unique instance
-    std::unordered_map<uint64_t, ContractInstance> mIncompleteContractInstances;
-    std::unordered_map<uint64_t, ContractInstance> mCompleteContractInstances;
+    std::unordered_map<uint64_t, ContractInstance> mContractInstances;
 
-    void reset(bool sorobanNoReset);
+    void reset();
     void createRootAccount();
     int64_t getTxPerStep(uint32_t txRate, std::chrono::seconds spikeInterval,
                          uint32_t spikeSize);
-    void updateLoadGenState(GeneratedLoadConfig const& cfg);
+    void cleanupAccounts();
 
     // Schedule a callback to generateLoad() STEP_MSECS milliseconds from now.
     void scheduleLoadGeneration(GeneratedLoadConfig cfg);
@@ -261,11 +212,6 @@ class LoadGenerator
     pickAccountPair(uint32_t numAccounts, uint32_t offset, uint32_t ledgerNum,
                     uint64_t sourceAccountId);
     TestAccountPtr findAccount(uint64_t accountId, uint32_t ledgerNum);
-
-    // Sets generateTx to correct soroban loadgen function. Returns false if TX
-    // could not be created due to pending TXs, true otherwise.
-    bool sorobanInvokeLoadGenStep(GeneratedLoadConfig& cfg, uint32_t ledgerNum,
-                                  LoadGenFunc& generateTx);
 
     std::pair<TestAccountPtr, TransactionFramePtr>
     paymentTransaction(uint32_t numAccounts, uint32_t offset,
@@ -288,13 +234,8 @@ class LoadGenerator
     createContractTransaction(uint32_t ledgerNum, uint64_t accountId,
                               uint32_t inclusionFee);
     std::pair<LoadGenerator::TestAccountPtr, TransactionFramePtr>
-    invokeStorageTransaction(uint32_t ledgerNum, uint64_t accountId,
-                             uint32_t inclusionFee, uint32_t nDataEntries,
-                             uint32_t kiloBytesPerDataEntry);
-    std::pair<LoadGenerator::TestAccountPtr, TransactionFramePtr>
     invokeSorobanLoadTransaction(uint32_t ledgerNum, uint64_t accountId,
-                                 uint32_t inclusionFee, uint32_t nDataEntries,
-                                 uint32_t kiloBytesPerDataEntry);
+                                 GeneratedLoadConfig const& cfg);
     std::pair<LoadGenerator::TestAccountPtr, TransactionFramePtr>
     sorobanRandomWasmTransaction(uint32_t ledgerNum, uint64_t accountId,
                                  SorobanResources resources, size_t wasmSize,
@@ -311,12 +252,15 @@ class LoadGenerator
 
     uint32_t submitCreationTx(uint32_t nAccounts, uint32_t offset,
                               uint32_t ledgerNum);
+    uint32_t submitSorobanPrepareInvokeTX(uint32_t nAccounts,
+                                          uint32_t ledgerNum,
+                                          uint32_t inclusionFee);
     bool submitTx(GeneratedLoadConfig const& cfg,
                   std::function<std::pair<LoadGenerator::TestAccountPtr,
                                           TransactionFramePtr>()>
                       generateTx);
-    void waitTillComplete(bool isCreate, bool sorobanNoReset);
-    void waitTillCompleteWithoutChecks(bool sorobanNoReset);
+    void waitTillComplete(bool isCreate);
+    void waitTillCompleteWithoutChecks();
 
     void updateMinBalance();
 
