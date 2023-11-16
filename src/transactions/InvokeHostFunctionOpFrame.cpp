@@ -69,7 +69,6 @@ getLedgerInfo(AbstractLedgerTxn& ltx, Application& app,
     info.max_entry_ttl = sorobanConfig.stateArchivalSettings().maxEntryTTL;
     info.cpu_cost_params = toCxxBuf(sorobanConfig.cpuCostParams());
     info.mem_cost_params = toCxxBuf(sorobanConfig.memCostParams());
-    // TODO: move network id to config to not recompute hash
     auto& networkID = app.getNetworkID();
     info.network_id.reserve(networkID.size());
     for (auto c : networkID)
