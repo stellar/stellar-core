@@ -29,7 +29,7 @@ use super::soroban_env_host::{
     xdr::{
         self, ContractCostParams, ContractEvent, ContractEventBody, ContractEventType,
         ContractEventV0, DiagnosticEvent, ExtensionPoint, LedgerEntry, LedgerEntryData,
-        LedgerEntryExt, ReadXdr, ScError, ScErrorCode, ScErrorType, ScSymbol, ScVal, TtlEntry,
+        LedgerEntryExt, Limits, ReadXdr, ScError, ScErrorCode, ScErrorType, ScSymbol, ScVal, TtlEntry,
         WriteXdr, XDR_FILES_SHA256,
     },
     HostError, LedgerInfo,
@@ -128,7 +128,7 @@ impl AsRef<[u8]> for CxxBuf {
 
 // FIXME: plumb this through from the limit xdrpp uses.
 // Currently they are just two same-valued constants.
-pub(crate) const MARSHALLING_STACK_LIMIT: u32 = 1000;
+const MARSHALLING_STACK_LIMIT: u32 = 1000;
 
 #[derive(Debug)]
 pub(crate) enum CoreHostError {
@@ -157,9 +157,9 @@ impl From<xdr::Error> for CoreHostError {
 impl std::error::Error for CoreHostError {}
 
 fn non_metered_xdr_from_cxx_buf<T: ReadXdr>(buf: &CxxBuf) -> Result<T, HostError> {
-    Ok(T::read_xdr(&mut xdr::DepthLimitedRead::new(
+    Ok(T::read_xdr(&mut xdr::Limited::new(
         Cursor::new(buf.data.as_slice()),
-        MARSHALLING_STACK_LIMIT,
+        Limits {depth: MARSHALLING_STACK_LIMIT, len: buf.data.len()},
     ))
     // We only expect this to be called for safe, internal conversions, so this
     // should never happen.
@@ -168,9 +168,9 @@ fn non_metered_xdr_from_cxx_buf<T: ReadXdr>(buf: &CxxBuf) -> Result<T, HostError
 
 fn non_metered_xdr_to_rust_buf<T: WriteXdr>(t: &T) -> Result<RustBuf, HostError> {
     let mut vec: Vec<u8> = Vec::new();
-    t.write_xdr(&mut xdr::DepthLimitedWrite::new(
+    t.write_xdr(&mut xdr::Limited::new(
         Cursor::new(&mut vec),
-        MARSHALLING_STACK_LIMIT,
+        Limits {depth: MARSHALLING_STACK_LIMIT, len: 5 * 1024 * 1024 /* 5MB */},
     ))
     .map_err(|_| (ScErrorType::Value, ScErrorCode::InvalidInput))?;
     Ok(vec.into())

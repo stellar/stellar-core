@@ -955,7 +955,7 @@ AssetContractInvocationTest::burn(TestAccount& from, int64_t amount,
     if (expectSuccess)
     {
         auto postBurnBalance = getBalance(fromAddr);
-        REQUIRE(preBurnBalance - (isIssuer ? 0 : amount) == postBurnBalance);
+        REQUIRE(preBurnBalance - amount == postBurnBalance);
     }
 }
 
