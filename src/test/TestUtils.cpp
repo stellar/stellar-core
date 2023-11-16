@@ -199,7 +199,8 @@ modifySorobanNetworkConfig(Application& app,
                            std::function<void(SorobanNetworkConfig&)> modifyFn)
 {
     LedgerTxn ltx(app.getLedgerTxnRoot());
-    auto& cfg = app.getLedgerManager().getMutableSorobanNetworkConfig(ltx);
+    app.getLedgerManager().updateNetworkConfig(ltx);
+    auto& cfg = app.getLedgerManager().getMutableSorobanNetworkConfig();
     modifyFn(cfg);
     cfg.writeAllSettings(ltx);
     ltx.commit();

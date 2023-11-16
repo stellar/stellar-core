@@ -446,6 +446,14 @@ selfCheck(Config cfg)
     // We run self-checks from a "loaded but dormant" state where the
     // application is not started, but the LM has loaded the LCL.
     app->getLedgerManager().loadLastKnownLedger(nullptr);
+    {
+        LedgerTxn ltx(app->getLedgerTxnRoot());
+        if (protocolVersionStartsFrom(ltx.loadHeader().current().ledgerVersion,
+                                      SOROBAN_PROTOCOL_VERSION))
+        {
+            app->getLedgerManager().updateNetworkConfig(ltx);
+        }
+    }
 
     // First we schedule the cheap, asynchronous "online" checks that get run by
     // the HTTP "self-check" endpoint, and crank until they're done.
@@ -525,6 +533,14 @@ mergeBucketList(Config cfg, std::string const& outputDir)
     Application::pointer app = Application::create(clock, cfg, false);
     app->getLedgerManager().loadLastKnownLedger(nullptr);
     auto& lm = app->getLedgerManager();
+    {
+        LedgerTxn ltx(app->getLedgerTxnRoot());
+        if (protocolVersionStartsFrom(ltx.loadHeader().current().ledgerVersion,
+                                      SOROBAN_PROTOCOL_VERSION))
+        {
+            lm.updateNetworkConfig(ltx);
+        }
+    }
     auto& bm = app->getBucketManager();
     HistoryArchiveState has = lm.getLastClosedLedgerHAS();
     auto bucket = bm.mergeBuckets(has);
@@ -562,6 +578,14 @@ dumpLedger(Config cfg, std::string const& outputFile,
     Application::pointer app = Application::create(clock, cfg, false);
     app->getLedgerManager().loadLastKnownLedger(nullptr);
     auto& lm = app->getLedgerManager();
+    {
+        LedgerTxn ltx(app->getLedgerTxnRoot());
+        if (protocolVersionStartsFrom(ltx.loadHeader().current().ledgerVersion,
+                                      SOROBAN_PROTOCOL_VERSION))
+        {
+            lm.updateNetworkConfig(ltx);
+        }
+    }
     HistoryArchiveState has = lm.getLastClosedLedgerHAS();
     std::optional<uint32_t> minLedger;
     if (lastModifiedLedgerCount)

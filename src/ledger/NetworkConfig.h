@@ -350,7 +350,7 @@ class SorobanNetworkConfig
 // Expose all the fields for testing overrides in order to avoid using
 // special test-only field setters.
 // Access this via
-// `app.getLedgerManager().getMutableSorobanNetworkConfig(ltx)`.
+// `app.getLedgerManager().getMutableSorobanNetworkConfig()`.
 // Important: any manual updates to this will be overwritten in case of
 // **any** network upgrade - tests that perform updates should only update
 // settings via upgrades as well.

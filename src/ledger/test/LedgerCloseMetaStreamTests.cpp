@@ -609,7 +609,7 @@ TEST_CASE_VERSIONS("meta stream contains reasonable meta", "[ledgerclosemeta]")
             {
                 LedgerTxn ltx(app->getLedgerTxnRoot());
                 app->getLedgerManager()
-                    .getMutableSorobanNetworkConfig(ltx)
+                    .getMutableSorobanNetworkConfig()
                     .setBucketListSnapshotPeriodForTesting(1);
             }
 

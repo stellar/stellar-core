@@ -705,12 +705,13 @@ TEST_CASE("non-refundable resource metering", "[tx][soroban]")
         test.txCheckValid(rootTX);
         {
             auto& app = *test.getApp();
-            LedgerTxn ltx(app.getLedgerTxnRoot());
             auto actualFeePair =
                 std::dynamic_pointer_cast<TransactionFrame>(rootTX)
                     ->computePreApplySorobanResourceFee(
-                        ltx.loadHeader().current().ledgerVersion,
-                        app.getLedgerManager().getSorobanNetworkConfig(ltx),
+                        app.getLedgerManager()
+                            .getLastClosedLedgerHeader()
+                            .header.ledgerVersion,
+                        app.getLedgerManager().getSorobanNetworkConfig(),
                         app.getConfig());
             REQUIRE(expectedNonRefundableFee ==
                     actualFeePair.non_refundable_fee);

@@ -673,10 +673,7 @@ TEST_CASE_VERSIONS("network config snapshots BucketList size", "[bucketlist]")
     for_versions_from(20, *app, [&] {
         LedgerManagerForBucketTests& lm = app->getLedgerManager();
 
-        LedgerTxn ltx(app->getLedgerTxnRoot());
-        auto& networkConfig =
-            app->getLedgerManager().getSorobanNetworkConfig(ltx);
-        ltx.~LedgerTxn();
+        auto& networkConfig = app->getLedgerManager().getSorobanNetworkConfig();
 
         uint32_t windowSize = networkConfig.stateArchivalSettings()
                                   .bucketListSizeWindowSampleSize;
@@ -718,7 +715,7 @@ TEST_CASE_VERSIONS("network config snapshots BucketList size", "[bucketlist]")
 
         // Take snapshots more frequently for faster testing
         app->getLedgerManager()
-            .getMutableSorobanNetworkConfig(ltx)
+            .getMutableSorobanNetworkConfig()
             .setBucketListSnapshotPeriodForTesting(64);
 
         // Generate enough ledgers to fill sliding window
@@ -770,7 +767,7 @@ TEST_CASE_VERSIONS("eviction scan", "[bucketlist]")
 
         auto& networkCfg = [&]() -> SorobanNetworkConfig& {
             LedgerTxn ltx(app->getLedgerTxnRoot());
-            return app->getLedgerManager().getMutableSorobanNetworkConfig(ltx);
+            return app->getLedgerManager().getMutableSorobanNetworkConfig();
         }();
 
         auto& stateArchivalSettings = networkCfg.stateArchivalSettings();

@@ -842,7 +842,7 @@ BucketList::scanForEviction(Application& app, AbstractLedgerTxn& ltx,
                                   SOROBAN_PROTOCOL_VERSION))
     {
         auto const& networkConfig =
-            app.getLedgerManager().getSorobanNetworkConfig(ltx);
+            app.getLedgerManager().getSorobanNetworkConfig();
         auto const firstScanLevel =
             networkConfig.stateArchivalSettings().startingEvictionScanLevel;
         auto evictionIter = networkConfig.evictionIterator();

@@ -545,6 +545,12 @@ void
 ApplicationImpl::reportInfo(bool verbose)
 {
     mLedgerManager->loadLastKnownLedger(nullptr);
+    LedgerTxn ltx(getLedgerTxnRoot());
+    if (protocolVersionStartsFrom(ltx.loadHeader().current().ledgerVersion,
+                                  SOROBAN_PROTOCOL_VERSION))
+    {
+        getLedgerManager().updateNetworkConfig(ltx);
+    }
     LOG_INFO(DEFAULT_LOG, "Reporting application info");
     std::cout << getJsonInfo(verbose).toStyledString() << std::endl;
 }
@@ -796,6 +802,17 @@ ApplicationImpl::start()
 
     bool done = false;
     mLedgerManager->loadLastKnownLedger([this, &done]() {
+        // Make sure to load Soroban network config before
+        // herder starts (tx queue configuration is based on it).
+        {
+            LedgerTxn ltx(getLedgerTxnRoot());
+            if (protocolVersionStartsFrom(
+                    ltx.loadHeader().current().ledgerVersion,
+                    SOROBAN_PROTOCOL_VERSION))
+            {
+                getLedgerManager().updateNetworkConfig(ltx);
+            }
+        }
         // restores Herder's state before starting overlay
         mHerder->start();
         // set known cursors before starting maintenance job

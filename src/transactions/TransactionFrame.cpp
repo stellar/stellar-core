@@ -1016,7 +1016,7 @@ TransactionFrame::commonValidPreSeqNum(
             return false;
         }
         auto const& sorobanConfig =
-            app.getLedgerManager().getSorobanNetworkConfig(ltx);
+            app.getLedgerManager().getSorobanNetworkConfig();
         if (!validateSorobanResources(sorobanConfig, ledgerVersion))
         {
             getResult().result.code(txSOROBAN_INVALID);
@@ -1442,8 +1442,7 @@ TransactionFrame::checkValidWithOptionallyChargedFee(
     {
         sorobanResourceFee = computePreApplySorobanResourceFee(
             ltx.loadHeader().current().ledgerVersion,
-            app.getLedgerManager().getSorobanNetworkConfig(ltx),
-            app.getConfig());
+            app.getLedgerManager().getSorobanNetworkConfig(), app.getConfig());
     }
     bool res =
         commonValid(app, signatureChecker, ltx, current, false, chargeFee,
@@ -1649,7 +1648,7 @@ TransactionFrame::applyOperations(SignatureChecker& signatureChecker,
                 // refundable resources.
                 auto preApplyFee = computePreApplySorobanResourceFee(
                     ledgerVersion,
-                    app.getLedgerManager().getSorobanNetworkConfig(ltxTx),
+                    app.getLedgerManager().getSorobanNetworkConfig(),
                     app.getConfig());
                 mFeeRefund = declaredSorobanResourceFee() -
                              preApplyFee.non_refundable_fee;
@@ -1738,7 +1737,6 @@ TransactionFrame::apply(Application& app, AbstractLedgerTxn& ltx,
         SignatureChecker signatureChecker{ledgerVersion, getContentsHash(),
                                           getSignatures(mEnvelope)};
 
-        LedgerTxn ltxTx(ltx);
         //  when applying, a failure during tx validation means that
         //  we'll skip trying to apply operations but we'll still
         //  process the sequence number if needed
@@ -1748,10 +1746,10 @@ TransactionFrame::apply(Application& app, AbstractLedgerTxn& ltx,
             isSoroban())
         {
             sorobanResourceFee = computePreApplySorobanResourceFee(
-                ledgerVersion,
-                app.getLedgerManager().getSorobanNetworkConfig(ltxTx),
+                ledgerVersion, app.getLedgerManager().getSorobanNetworkConfig(),
                 app.getConfig());
         }
+        LedgerTxn ltxTx(ltx);
         auto cv = commonValid(app, signatureChecker, ltxTx, 0, true, chargeFee,
                               0, 0, sorobanResourceFee);
         if (cv >= ValidationType::kInvalidUpdateSeqNum)

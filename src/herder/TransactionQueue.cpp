@@ -342,10 +342,12 @@ TransactionQueue::canAdd(TransactionFrameBasePtr tx,
     LedgerTxn ltx(mApp.getLedgerTxnRoot(),
                   /* shouldUpdateLastModified */ true,
                   TransactionMode::READ_ONLY_WITHOUT_SQL_TXN);
+    uint32_t ledgerVersion = ltx.loadHeader().current().ledgerVersion;
     // Subtle: transactions are rejected based on the source account limit prior
     // to this point. This is safe because we can't evict transactions from the
     // same source account, so a newer transaction won't replace an old one.
-    auto canAddRes = mTxQueueLimiter->canAddTx(tx, oldTx, txsToEvict, ltx);
+    auto canAddRes =
+        mTxQueueLimiter->canAddTx(tx, oldTx, txsToEvict, ledgerVersion);
     if (!canAddRes.first)
     {
         ban({tx});
@@ -361,9 +363,7 @@ TransactionQueue::canAdd(TransactionFrameBasePtr tx,
     auto closeTime = mApp.getLedgerManager()
                          .getLastClosedLedgerHeader()
                          .header.scpValue.closeTime;
-
-    if (protocolVersionStartsFrom(ltx.loadHeader().current().ledgerVersion,
-                                  ProtocolVersion::V_19))
+    if (protocolVersionStartsFrom(ledgerVersion, ProtocolVersion::V_19))
     {
         // This is done so minSeqLedgerGap is validated against the next
         // ledgerSeq, which is what will be used at apply time
@@ -976,7 +976,7 @@ TransactionQueue::clearAll()
     LedgerTxn ltx(mApp.getLedgerTxnRoot(),
                   /* shouldUpdateLastModified */ true,
                   TransactionMode::READ_ONLY_WITHOUT_SQL_TXN);
-    mTxQueueLimiter->reset(ltx);
+    mTxQueueLimiter->reset(ltx.loadHeader().current().ledgerVersion);
     mKnownTxHashes.clear();
 }
 
@@ -1232,9 +1232,7 @@ SorobanTransactionQueue::getMaxResourcesToFloodThisPeriod() const
     auto const& cfg = mApp.getConfig();
     double ratePerLedger = cfg.FLOOD_SOROBAN_RATE_PER_LEDGER;
 
-    LedgerTxn ltx(mApp.getLedgerTxnRoot(), /* shouldUpdateLastModified */ true,
-                  TransactionMode::READ_ONLY_WITHOUT_SQL_TXN);
-    auto sorRes = mApp.getLedgerManager().maxLedgerResources(true, ltx);
+    auto sorRes = mApp.getLedgerManager().maxLedgerResources(true);
 
     auto totalFloodPerLedger = multiplyByDouble(sorRes, ratePerLedger);
 
@@ -1301,10 +1299,8 @@ SorobanTransactionQueue::broadcastSome()
         std::make_shared<SorobanGenericLaneConfig>(resToFlood), mBroadcastSeed);
     queue.visitTopTxs(trackersToBroadcast, visitor, mBroadcastOpCarryover);
 
-    LedgerTxn ltx(mApp.getLedgerTxnRoot(), true,
-                  TransactionMode::READ_ONLY_WITHOUT_SQL_TXN);
     Resource maxPerTx =
-        mApp.getLedgerManager().maxSorobanTransactionResources(ltx);
+        mApp.getLedgerManager().maxSorobanTransactionResources();
     for (auto& resLeft : mBroadcastOpCarryover)
     {
         // Limit carry-over to 1 maximum resource transaction
@@ -1322,7 +1318,7 @@ SorobanTransactionQueue::getMaxQueueSizeOps() const
     if (protocolVersionStartsFrom(ltx.loadHeader().current().ledgerVersion,
                                   SOROBAN_PROTOCOL_VERSION))
     {
-        auto res = mTxQueueLimiter->maxScaledLedgerResources(true, ltx);
+        auto res = mTxQueueLimiter->maxScaledLedgerResources(true);
         releaseAssert(res.size() == NUM_SOROBAN_TX_RESOURCES);
         return res.getVal(Resource::Type::OPERATIONS);
     }
@@ -1532,7 +1528,7 @@ ClassicTransactionQueue::getMaxQueueSizeOps() const
     LedgerTxn ltx(mApp.getLedgerTxnRoot(),
                   /* shouldUpdateLastModified */ true,
                   TransactionMode::READ_ONLY_WITHOUT_SQL_TXN);
-    auto res = mTxQueueLimiter->maxScaledLedgerResources(false, ltx);
+    auto res = mTxQueueLimiter->maxScaledLedgerResources(false);
     releaseAssert(res.size() == NUM_CLASSIC_TX_RESOURCES);
     return res.getVal(Resource::Type::OPERATIONS);
 }

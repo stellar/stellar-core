@@ -358,12 +358,13 @@ LedgerManagerImpl::loadLastKnownLedger(function<void()> handler)
                 {
                     LedgerTxn ltx(mApp.getLedgerTxnRoot());
                     auto header = ltx.loadHeader();
+                    uint32_t ledgerVersion = header.current().ledgerVersion;
                     if (mApp.getConfig().MODE_ENABLES_BUCKETLIST)
                     {
                         auto assumeStateWork =
                             mApp.getWorkScheduler()
-                                .executeWork<AssumeStateWork>(
-                                    has, header.current().ledgerVersion);
+                                .executeWork<AssumeStateWork>(has,
+                                                              ledgerVersion);
                         if (assumeStateWork->getState() ==
                             BasicWork::State::WORK_SUCCESS)
                         {
@@ -437,12 +438,11 @@ LedgerManagerImpl::getLastMaxTxSetSizeOps() const
 }
 
 Resource
-LedgerManagerImpl::maxLedgerResources(bool isSoroban,
-                                      AbstractLedgerTxn& ltxOuter)
+LedgerManagerImpl::maxLedgerResources(bool isSoroban)
 {
     if (isSoroban)
     {
-        auto conf = getSorobanNetworkConfig(ltxOuter);
+        auto conf = getSorobanNetworkConfig();
         std::vector<int64_t> limits = {conf.ledgerMaxTxCount(),
                                        conf.ledgerMaxInstructions(),
                                        conf.ledgerMaxTransactionSizesBytes(),
@@ -460,10 +460,9 @@ LedgerManagerImpl::maxLedgerResources(bool isSoroban,
 }
 
 Resource
-LedgerManagerImpl::maxSorobanTransactionResources(AbstractLedgerTxn& ltxOuter)
+LedgerManagerImpl::maxSorobanTransactionResources()
 {
-    auto const& conf =
-        mApp.getLedgerManager().getSorobanNetworkConfig(ltxOuter);
+    auto const& conf = mApp.getLedgerManager().getSorobanNetworkConfig();
     int64_t const opCount = 1;
     std::vector<int64_t> limits = {opCount,
                                    conf.txMaxInstructions(),
@@ -520,28 +519,23 @@ LedgerManagerImpl::getLastClosedLedgerNum() const
 }
 
 SorobanNetworkConfig&
-LedgerManagerImpl::getSorobanNetworkConfigInternal(AbstractLedgerTxn& ltx)
+LedgerManagerImpl::getSorobanNetworkConfigInternal()
 {
-    // updateNetworkConfig will throw if protocol version is invalid
-    if (!mSorobanNetworkConfig)
-    {
-        updateNetworkConfig(ltx);
-    }
-
+    releaseAssert(mSorobanNetworkConfig);
     return *mSorobanNetworkConfig;
 }
 
 SorobanNetworkConfig const&
-LedgerManagerImpl::getSorobanNetworkConfig(AbstractLedgerTxn& ltx)
+LedgerManagerImpl::getSorobanNetworkConfig()
 {
-    return getSorobanNetworkConfigInternal(ltx);
+    return getSorobanNetworkConfigInternal();
 }
 
 #ifdef BUILD_TESTS
 SorobanNetworkConfig&
-LedgerManagerImpl::getMutableSorobanNetworkConfig(AbstractLedgerTxn& ltx)
+LedgerManagerImpl::getMutableSorobanNetworkConfig()
 {
-    return getSorobanNetworkConfigInternal(ltx);
+    return getSorobanNetworkConfigInternal();
 }
 #endif
 
@@ -883,9 +877,6 @@ LedgerManagerImpl::closeLedger(LedgerCloseData const& ledgerData)
             CLOG_ERROR(Ledger, "Unknown exception during upgrade");
         }
     }
-    // Technically only a subset of upgrades affects network configuration, but
-    // it's simpler/safer to just refresh it for any upgrade (sometimes as a
-    // no-op).
     if (protocolVersionStartsFrom(ltx.loadHeader().current().ledgerVersion,
                                   SOROBAN_PROTOCOL_VERSION))
     {
@@ -1027,6 +1018,13 @@ LedgerManagerImpl::setLastClosedLedger(
 
     mRebuildInMemoryState = false;
     advanceLedgerPointers(lastClosed.header);
+    LedgerTxn ltx2(mApp.getLedgerTxnRoot(), false,
+                   TransactionMode::READ_ONLY_WITHOUT_SQL_TXN);
+    if (protocolVersionStartsFrom(ltx2.loadHeader().current().ledgerVersion,
+                                  SOROBAN_PROTOCOL_VERSION))
+    {
+        mApp.getLedgerManager().updateNetworkConfig(ltx2);
+    }
 }
 
 void
@@ -1533,7 +1531,7 @@ LedgerManagerImpl::transferLedgerEntriesToBucketList(
             ltxEvictions.commit();
         }
 
-        getSorobanNetworkConfigInternal(ltx).maybeSnapshotBucketListSize(
+        getSorobanNetworkConfigInternal().maybeSnapshotBucketListSize(
             ledgerSeq, ltx, mApp);
     }
 
@@ -1582,7 +1580,7 @@ LedgerManagerImpl::ledgerClosed(
     if (ledgerCloseMeta &&
         protocolVersionStartsFrom(initialLedgerVers, SOROBAN_PROTOCOL_VERSION))
     {
-        auto blSize = getSorobanNetworkConfig(ltx).getAverageBucketListSize();
+        auto blSize = getSorobanNetworkConfig().getAverageBucketListSize();
         ledgerCloseMeta->setTotalByteSizeOfBucketList(blSize);
     }
 

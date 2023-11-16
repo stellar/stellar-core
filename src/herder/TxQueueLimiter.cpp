@@ -61,12 +61,10 @@ TxQueueLimiter::size() const
 #endif
 
 Resource
-TxQueueLimiter::maxScaledLedgerResources(bool isSoroban,
-                                         AbstractLedgerTxn& ltxOuter) const
+TxQueueLimiter::maxScaledLedgerResources(bool isSoroban) const
 {
-    return multiplyByDouble(
-        mLedgerManager.maxLedgerResources(isSoroban, ltxOuter),
-        mPoolLedgerMultiplier);
+    return multiplyByDouble(mLedgerManager.maxLedgerResources(isSoroban),
+                            mPoolLedgerMultiplier);
 }
 
 void
@@ -116,6 +114,7 @@ TxQueueLimiter::removeTransaction(TransactionFrameBasePtr const& tx)
     }
 }
 
+#ifdef BUILD_TESTS
 std::pair<bool, int64>
 TxQueueLimiter::canAddTx(TransactionFrameBasePtr const& newTx,
                          TransactionFrameBasePtr const& oldTx,
@@ -124,14 +123,16 @@ TxQueueLimiter::canAddTx(TransactionFrameBasePtr const& newTx,
 
     LedgerTxn ltx(mApp.getLedgerTxnRoot(), /* shouldUpdateLastModified */ true,
                   TransactionMode::READ_ONLY_WITHOUT_SQL_TXN);
-    return canAddTx(newTx, oldTx, txsToEvict, ltx);
+    return canAddTx(newTx, oldTx, txsToEvict,
+                    ltx.loadHeader().current().ledgerVersion);
 }
+#endif
 
 std::pair<bool, int64>
 TxQueueLimiter::canAddTx(TransactionFrameBasePtr const& newTx,
                          TransactionFrameBasePtr const& oldTx,
                          std::vector<std::pair<TxStackPtr, bool>>& txsToEvict,
-                         AbstractLedgerTxn& ltxOuter)
+                         uint32_t ledgerVersion)
 {
     releaseAssert(newTx);
     releaseAssert(newTx->isSoroban() == mIsSoroban);
@@ -147,7 +148,7 @@ TxQueueLimiter::canAddTx(TransactionFrameBasePtr const& newTx,
     // Resetting both is fine here, as we always reset at the same time
     if (mTxs == nullptr)
     {
-        reset(ltxOuter);
+        reset(ledgerVersion);
     }
 
     // If some transactions were evicted from this or generic lane, make sure
@@ -181,7 +182,7 @@ TxQueueLimiter::canAddTx(TransactionFrameBasePtr const& newTx,
     // Update the operation limit in case upgrade happened. This is cheap
     // enough to happen unconditionally without relying on upgrade triggers.
     mSurgePricingLaneConfig->updateGenericLaneLimit(
-        Resource(maxScaledLedgerResources(newTx->isSoroban(), ltxOuter)));
+        Resource(maxScaledLedgerResources(newTx->isSoroban())));
     return mTxs->canFitWithEviction(*newTx, oldTxDiscount, txsToEvict);
 }
 
@@ -196,10 +197,7 @@ TxQueueLimiter::evictTransactions(
 
     auto txToFitLane = mSurgePricingLaneConfig->getLane(txToFit);
 
-    LedgerTxn ltx(mApp.getLedgerTxnRoot(), /* shouldUpdateLastModified */ true,
-                  TransactionMode::READ_ONLY_WITHOUT_SQL_TXN);
-
-    auto maxLimits = maxScaledLedgerResources(txToFit.isSoroban(), ltx);
+    auto maxLimits = maxScaledLedgerResources(txToFit.isSoroban());
 
     for (auto const& [evictedStack, evictedDueToLaneLimit] : txsToEvict)
     {
@@ -242,17 +240,15 @@ TxQueueLimiter::evictTransactions(
 }
 
 void
-TxQueueLimiter::reset(AbstractLedgerTxn& ltxOuter)
+TxQueueLimiter::reset(uint32_t ledgerVersion)
 {
     if (mIsSoroban)
     {
-        if (protocolVersionStartsFrom(
-                ltxOuter.loadHeader().current().ledgerVersion,
-                SOROBAN_PROTOCOL_VERSION))
+        if (protocolVersionStartsFrom(ledgerVersion, SOROBAN_PROTOCOL_VERSION))
         {
             mSurgePricingLaneConfig =
                 std::make_shared<SorobanGenericLaneConfig>(
-                    maxScaledLedgerResources(mIsSoroban, ltxOuter));
+                    maxScaledLedgerResources(mIsSoroban));
         }
         else
         {
@@ -262,7 +258,7 @@ TxQueueLimiter::reset(AbstractLedgerTxn& ltxOuter)
     else
     {
         mSurgePricingLaneConfig = std::make_shared<DexLimitingLaneConfig>(
-            maxScaledLedgerResources(mIsSoroban, ltxOuter), mMaxDexOperations);
+            maxScaledLedgerResources(mIsSoroban), mMaxDexOperations);
         // Ensure byte limits aren't counted in tx limiter
         releaseAssert(mSurgePricingLaneConfig->getLaneLimits()[0].size() ==
                       NUM_CLASSIC_TX_RESOURCES);
