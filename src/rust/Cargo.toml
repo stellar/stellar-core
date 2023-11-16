@@ -57,14 +57,6 @@ git = "https://github.com/stellar/rs-soroban-env"
 package = "soroban-env-host"
 rev = "2674d867d7c6aa4212abab05ff30e5804ff1db90"
 
-[dependencies.soroban-env-common-prev]
-optional = true
-version = "0.0.17"
-git = "https://github.com/stellar/rs-soroban-env"
-package = "soroban-env-common"
-rev = "66a3c504387da5bb5bb0b1cc4b0beb22c74fb252"
-features = ["serde"]
-
 [dependencies.soroban-test-wasms]
 git = "https://github.com/stellar/rs-soroban-env"
 rev = "4f4a7f3d614ef65bba17ba6f56d4f378c2890a86"

@@ -128,7 +128,7 @@ impl AsRef<[u8]> for CxxBuf {
 
 // FIXME: plumb this through from the limit xdrpp uses.
 // Currently they are just two same-valued constants.
-pub(crate) const MARSHALLING_STACK_LIMIT: u32 = 1000;
+const MARSHALLING_STACK_LIMIT: u32 = 1000;
 
 #[derive(Debug)]
 pub(crate) enum CoreHostError {
