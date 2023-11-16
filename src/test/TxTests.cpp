@@ -910,13 +910,15 @@ createUploadWasmTx(Application& app, TestAccount& account,
 
 int64_t
 sorobanResourceFee(Application& app, SorobanResources const& resources,
-                   uint32_t txSize, uint32_t eventsSize)
+                   size_t txSize, uint32_t eventsSize)
 {
+    releaseAssert(txSize <= INT32_MAX);
     LedgerTxn ltx(app.getLedgerTxnRoot(),
                   /* shouldUpdateLastModified */ true,
                   TransactionMode::READ_ONLY_WITHOUT_SQL_TXN);
     auto feePair = TransactionFrame::computeSorobanResourceFee(
-        ltx.loadHeader().current().ledgerVersion, resources, txSize, eventsSize,
+        ltx.loadHeader().current().ledgerVersion, resources,
+        static_cast<uint32>(txSize), eventsSize,
         app.getLedgerManager().getSorobanNetworkConfig(), app.getConfig());
     return feePair.non_refundable_fee + feePair.refundable_fee;
 }
@@ -1719,10 +1721,13 @@ sorobanTransactionFrameFromOps(Hash const& networkID, TestAccount& source,
                                std::optional<std::string> memo,
                                std::optional<SequenceNumber> seq)
 {
+    uint64 totalFee = inclusionFee;
+    totalFee += resourceFee;
+    releaseAssert(totalFee >= 0 && totalFee <= UINT32_MAX);
     return TransactionFrameBase::makeTransactionFromWire(
-        networkID, sorobanEnvelopeFromOps(networkID, source, ops, opKeys,
-                                          resources, inclusionFee + resourceFee,
-                                          resourceFee, memo, seq));
+        networkID, sorobanEnvelopeFromOps(
+                       networkID, source, ops, opKeys, resources,
+                       static_cast<uint32>(totalFee), resourceFee, memo, seq));
 }
 
 TransactionFrameBasePtr

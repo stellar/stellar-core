@@ -2309,7 +2309,7 @@ TEST_CASE("generalized tx set applied to ledger", "[herder][txset][soroban]")
     auto dummyUploadTx =
         createUploadWasmTx(*app, dummyAccount, 100, 1000, resources);
     resources.footprint.readWrite.emplace_back();
-    uint32_t resourceFee = sorobanResourceFee(
+    auto resourceFee = sorobanResourceFee(
         *app, resources, xdr::xdr_size(dummyUploadTx->getEnvelope()), 40);
     // This value should not be changed for the test setup, but if it ever
     // is changed,/ then we'd need to compute the rent fee via the rust bridge
@@ -3680,8 +3680,8 @@ TEST_CASE("soroban txs each parameter surge priced", "[soroban][herder]")
     SECTION("operations")
     {
         auto tweakConfig = [&](SorobanNetworkConfig& cfg) {
-            cfg.mLedgerMaxTxCount =
-                baseTxRate * Herder::EXP_LEDGER_TIMESPAN_SECONDS.count();
+            cfg.mLedgerMaxTxCount = static_cast<uint32>(
+                baseTxRate * Herder::EXP_LEDGER_TIMESPAN_SECONDS.count());
         };
         test(tweakConfig);
     }
@@ -3697,45 +3697,45 @@ TEST_CASE("soroban txs each parameter surge priced", "[soroban][herder]")
     SECTION("tx size")
     {
         auto tweakConfig = [&](SorobanNetworkConfig& cfg) {
-            cfg.mLedgerMaxTransactionsSizeBytes =
+            cfg.mLedgerMaxTransactionsSizeBytes = static_cast<uint32>(
                 baseTxRate * Herder::EXP_LEDGER_TIMESPAN_SECONDS.count() *
-                cfg.mTxMaxSizeBytes;
+                cfg.mTxMaxSizeBytes);
         };
         test(tweakConfig);
     }
     SECTION("read entries")
     {
         auto tweakConfig = [&](SorobanNetworkConfig& cfg) {
-            cfg.mLedgerMaxReadLedgerEntries =
+            cfg.mLedgerMaxReadLedgerEntries = static_cast<uint32>(
                 baseTxRate * Herder::EXP_LEDGER_TIMESPAN_SECONDS.count() *
-                cfg.mTxMaxReadLedgerEntries;
+                cfg.mTxMaxReadLedgerEntries);
         };
         test(tweakConfig);
     }
     SECTION("write entries")
     {
         auto tweakConfig = [&](SorobanNetworkConfig& cfg) {
-            cfg.mLedgerMaxWriteLedgerEntries =
+            cfg.mLedgerMaxWriteLedgerEntries = static_cast<uint32>(
                 baseTxRate * Herder::EXP_LEDGER_TIMESPAN_SECONDS.count() *
-                cfg.mTxMaxWriteLedgerEntries;
+                cfg.mTxMaxWriteLedgerEntries);
         };
         test(tweakConfig);
     }
     SECTION("read bytes")
     {
         auto tweakConfig = [&](SorobanNetworkConfig& cfg) {
-            cfg.mLedgerMaxReadBytes =
+            cfg.mLedgerMaxReadBytes = static_cast<uint32>(
                 baseTxRate * Herder::EXP_LEDGER_TIMESPAN_SECONDS.count() *
-                cfg.mTxMaxReadBytes;
+                cfg.mTxMaxReadBytes);
         };
         test(tweakConfig);
     }
     SECTION("write bytes")
     {
         auto tweakConfig = [&](SorobanNetworkConfig& cfg) {
-            cfg.mLedgerMaxWriteBytes =
+            cfg.mLedgerMaxWriteBytes = static_cast<uint32>(
                 baseTxRate * Herder::EXP_LEDGER_TIMESPAN_SECONDS.count() *
-                cfg.mTxMaxWriteBytes;
+                cfg.mTxMaxWriteBytes);
         };
         test(tweakConfig);
     }
@@ -3856,9 +3856,9 @@ TEST_CASE("soroban txs accepted by the network",
     simulation->startAllNodes();
     auto nodes = simulation->getNodes();
     uint32_t desiredTxRate = 1;
-    uint32_t ledgerWideLimit =
-        desiredTxRate * Herder::EXP_LEDGER_TIMESPAN_SECONDS.count() * 2;
-    uint32_t numAccounts = 100;
+    uint32_t ledgerWideLimit = static_cast<uint32>(
+        desiredTxRate * Herder::EXP_LEDGER_TIMESPAN_SECONDS.count() * 2);
+    uint32_t const numAccounts = 100;
     for (auto& node : nodes)
     {
         overrideSorobanNetworkConfigForTest(*node);

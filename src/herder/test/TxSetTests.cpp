@@ -839,8 +839,7 @@ TEST_CASE("generalized tx set fees", "[txset][soroban]")
             resources.readBytes = 1000;
             resources.writeBytes = 1000;
             resources.footprint.readWrite.emplace_back();
-            uint32_t resourceFee =
-                sorobanResourceFee(*app, resources, 5000, 40);
+            auto resourceFee = sorobanResourceFee(*app, resources, 5000, 40);
             resources.footprint.readWrite.pop_back();
             auto tx = createUploadWasmTx(*app, source, inclusionFee,
                                          resourceFee, resources);

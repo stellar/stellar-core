@@ -129,7 +129,7 @@ generateFee(std::optional<uint32_t> maxGeneratedFeeRate, Application& app,
     }
     else
     {
-        fee = opsCnt * baseFee;
+        fee = static_cast<int>(opsCnt * baseFee);
     }
 
     return fee;
@@ -477,26 +477,29 @@ LoadGenerator::generateLoad(GeneratedLoadConfig cfg)
                                 .maxSorobanTransactionResources();
 
                         resources.instructions = rand_uniform<uint32_t>(
-                            1, maxPerTx.getVal(Resource::Type::INSTRUCTIONS));
+                            1, static_cast<uint32>(maxPerTx.getVal(
+                                   Resource::Type::INSTRUCTIONS)));
                         wasmSize = rand_uniform<uint32_t>(
                             1, mApp.getLedgerManager()
                                    .getSorobanNetworkConfig()
                                    .maxContractSizeBytes());
                         resources.readBytes = rand_uniform<uint32_t>(
-                            1, maxPerTx.getVal(Resource::Type::READ_BYTES));
+                            1, static_cast<uint32>(maxPerTx.getVal(
+                                   Resource::Type::READ_BYTES)));
                         resources.writeBytes = rand_uniform<uint32_t>(
                             // Allocate at least enough write bytes to write the
                             // whole Wasm plus the 40 bytes of the key.
-                            wasmSize + 40,
-                            maxPerTx.getVal(Resource::Type::WRITE_BYTES));
+                            wasmSize + 40, static_cast<uint32>(maxPerTx.getVal(
+                                               Resource::Type::WRITE_BYTES)));
 
                         auto writeKeys = LedgerTestUtils::
                             generateUniqueValidSorobanLedgerEntryKeys(
                                 rand_uniform<uint32_t>(
-                                    0,
-                                    maxPerTx.getVal(
-                                        Resource::Type::WRITE_LEDGER_ENTRIES) -
-                                        1));
+                                    0, static_cast<uint32>(
+                                           maxPerTx.getVal(
+                                               Resource::Type::
+                                                   WRITE_LEDGER_ENTRIES) -
+                                           1)));
 
                         for (auto const& key : writeKeys)
                         {
@@ -506,10 +509,11 @@ LoadGenerator::generateLoad(GeneratedLoadConfig cfg)
                         auto readKeys = LedgerTestUtils::
                             generateUniqueValidSorobanLedgerEntryKeys(
                                 rand_uniform<uint32_t>(
-                                    0,
-                                    maxPerTx.getVal(
-                                        Resource::Type::READ_LEDGER_ENTRIES) -
-                                        writeKeys.size() - 1));
+                                    0, static_cast<uint32>(
+                                           maxPerTx.getVal(
+                                               Resource::Type::
+                                                   READ_LEDGER_ENTRIES) -
+                                           writeKeys.size() - 1)));
 
                         for (auto const& key : readKeys)
                         {
@@ -869,7 +873,8 @@ LoadGenerator::sorobanTransaction(uint32_t numAccounts, uint32_t offset,
                                   uint32_t inclusionFee)
 {
     auto account = findAccount(accountId, ledgerNum);
-    Operation uploadOp = createUploadWasmOperation(wasmSize);
+    Operation uploadOp =
+        createUploadWasmOperation(static_cast<uint32>(wasmSize));
     LedgerKey contractCodeLedgerKey;
     contractCodeLedgerKey.type(CONTRACT_CODE);
     contractCodeLedgerKey.contractCode().hash =
