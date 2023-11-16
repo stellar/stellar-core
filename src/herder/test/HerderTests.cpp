@@ -4112,17 +4112,6 @@ herderExternalizesValuesWithProtocol(uint32_t version)
     auto B = simulation->addNode(validatorBKey, qset);
     simulation->addNode(validatorCKey, qset);
 
-    if (protocolVersionStartsFrom(version, SOROBAN_PROTOCOL_VERSION))
-    {
-        for (auto const& node : simulation->getNodes())
-        {
-            LedgerTxn ltx(node->getLedgerTxnRoot());
-            node->getLedgerManager()
-                .getMutableSorobanNetworkConfig()
-                .setBucketListSnapshotPeriodForTesting(1);
-        }
-    }
-
     simulation->addPendingConnection(validatorAKey.getPublicKey(),
                                      validatorCKey.getPublicKey());
     simulation->addPendingConnection(validatorAKey.getPublicKey(),
@@ -4136,6 +4125,15 @@ herderExternalizesValuesWithProtocol(uint32_t version)
     REQUIRE(getC()->getHerder().getState() ==
             Herder::State::HERDER_BOOTING_STATE);
 
+    if (protocolVersionStartsFrom(version, SOROBAN_PROTOCOL_VERSION))
+    {
+        for (auto const& node : simulation->getNodes())
+        {
+            modifySorobanNetworkConfig(*node, [&](SorobanNetworkConfig& cfg) {
+                cfg.setBucketListSnapshotPeriodForTesting(1);
+            });
+        }
+    }
     simulation->startAllNodes();
 
     // After SCP is restored, Herder is tracking
@@ -4443,10 +4441,9 @@ herderExternalizesValuesWithProtocol(uint32_t version)
         auto newC = simulation->addNode(validatorCKey, qset, &configC, false);
         if (protocolVersionStartsFrom(version, SOROBAN_PROTOCOL_VERSION))
         {
-            LedgerTxn ltx(newC->getLedgerTxnRoot());
-            newC->getLedgerManager()
-                .getMutableSorobanNetworkConfig()
-                .setBucketListSnapshotPeriodForTesting(1);
+            modifySorobanNetworkConfig(*newC, [&](SorobanNetworkConfig& cfg) {
+                cfg.setBucketListSnapshotPeriodForTesting(1);
+            });
         }
         newC->start();
         HerderImpl& newHerderC = *static_cast<HerderImpl*>(&newC->getHerder());
