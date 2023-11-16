@@ -304,34 +304,29 @@ LoadGenerator::scheduleLoadGeneration(GeneratedLoadConfig cfg)
 
     if (cfg.mode == LoadGenMode::SOROBAN_INVOKE)
     {
-        LedgerTxn ltx(mApp.getLedgerTxnRoot());
-        auto& sorobanCfg = mApp.getLedgerManager().getSorobanNetworkConfig(ltx);
+        auto& sorobanCfg = mApp.getLedgerManager().getSorobanNetworkConfig();
         if (mContractInstances.size() < cfg.nAccounts)
         {
             errorMsg = "must run SOROBAN_INVOKE_SETUP with at least nAccounts";
         }
-        else if (cfg.kiloBytesPerDataEntry == 0 && cfg.nDataEntries != 0)
+        else if (cfg.nDataEntriesHigh > sorobanCfg.mTxMaxWriteLedgerEntries)
         {
-            errorMsg = "kiloBytesPerDataEntry must be greater than 0 when "
-                       "nDataEntries != 0";
-        }
-        else if (cfg.nDataEntries > sorobanCfg.mTxMaxWriteLedgerEntries)
-        {
-            errorMsg = "nDataEntries larger than max write ledger entries";
+            errorMsg = "nDataEntriesHigh larger than max write ledger entries";
         }
         // Wasm + instance + data entry reads
-        else if (cfg.nDataEntries + 2 > sorobanCfg.mTxMaxReadLedgerEntries)
+        else if (cfg.nDataEntriesHigh + 2 > sorobanCfg.mTxMaxReadLedgerEntries)
         {
-            errorMsg = "nDataEntries larger than max read ledger entries";
+            errorMsg = "nDataEntriesHigh larger than max read ledger entries";
         }
-        else if (cfg.nDataEntries * cfg.kiloBytesPerDataEntry * 1024 >
+        else if (cfg.nDataEntriesHigh * cfg.kiloBytesPerDataEntryHigh * 1024 >
                  sorobanCfg.mTxMaxWriteBytes)
         {
             errorMsg = "TxMaxWriteBytes too small for configuration";
         }
-        // Check if we have enough read bytes, using 1'000 as a rough estimate
+        // Check if we have enough read bytes, using 2'000 as a rough estimate
         // of Wasm size
-        else if (cfg.nDataEntries * cfg.kiloBytesPerDataEntry * 1024 + 2'000 >
+        else if (cfg.nDataEntriesHigh * cfg.kiloBytesPerDataEntryHigh * 1024 +
+                     2'000 >
                  sorobanCfg.mTxMaxReadBytes)
         {
             errorMsg = "TxMaxReadBytes too small for configuration";
@@ -581,6 +576,7 @@ LoadGenerator::generateLoad(GeneratedLoadConfig cfg)
                                     /* opsCnt */ 1));
                 };
             }
+            break;
             case LoadGenMode::SOROBAN_INVOKE_SETUP:
                 releaseAssert(false);
                 break;
@@ -631,6 +627,23 @@ LoadGenerator::submitSorobanPrepareInvokeTX(uint32_t nAccounts,
     TestAccountPtr from;
     TransactionFramePtr tx;
     bool isUpload = false;
+
+    // Check if entry has been applied
+    if (mPendingCodeKey.has_value())
+    {
+        LedgerTxn ltx(mApp.getLedgerTxnRoot());
+        if (ltx.loadWithoutRecord(*mPendingCodeKey))
+        {
+            // Entry has been applied,
+            mCodeKey = mPendingCodeKey;
+            mPendingCodeKey.reset();
+        }
+        else
+        {
+            // Still waiting for wasm to be applied, exit early
+            return nAccounts;
+        }
+    }
 
     // First deploy WASM
     if (!mCodeKey.has_value())
@@ -1071,7 +1084,7 @@ LoadGenerator::uploadWasmTransaction(uint32_t ledgerNum, uint64_t accountId,
         sorobanTransactionFrameFromOps(mApp.getNetworkID(), *account,
                                        {uploadOp}, {}, uploadResources,
                                        inclusionFee, resourceFee));
-    mCodeKey = contractCodeLedgerKey;
+    mPendingCodeKey = contractCodeLedgerKey;
     return std::make_pair(account, tx);
 }
 
@@ -1122,33 +1135,64 @@ LoadGenerator::invokeSorobanLoadTransaction(uint32_t ledgerNum,
     releaseAssert(instanceIter != mContractInstances.end());
     auto const& instance = instanceIter->second;
 
-    auto const& networkCfg = [&]() {
-        LedgerTxn ltx(mApp.getLedgerTxnRoot());
-        return mApp.getLedgerManager().getSorobanNetworkConfig(ltx);
-    }();
+    auto const& networkCfg = mApp.getLedgerManager().getSorobanNetworkConfig();
 
-    // Approximate instruction measurements from loadgen contract, slightly
-    // overestimated
-    auto const baseInstructionCount = 1'876'590;
-    auto const instructionsPerGuestCycle = 120;
-    auto const instructionsPerHostCycle = 2355;
+    // Approximate instruction measurements from loadgen contract. While the
+    // guest and host cycle counts are accurate, it very difficult to estimate
+    // the number of instructions that the write loops will consume
+    // without preflight, so some TXs will fail due to exceeding resource
+    // limitations. However these should fail at apply time, so will still
+    // generate siginificant load
+    uint64_t const baseInstructionCount = 3'000'000;
+    uint64_t const instructionsPerGuestCycle = 120;
+    uint64_t const instructionsPerHostCycle = 2355;
 
-    // auto maxInstructions = cfg.mTxMaxInstructions - baseInstructionCount;
-    // auto guestCycles =
-    //     rand_uniform<uint64_t>(0, maxInstructions /
-    //     instructionsPerGuestCycle);
-    // maxInstructions -= guestCycles * instructionsPerGuestCycle;
-    // auto hostCycles =
-    //     rand_uniform<uint64_t>(0, maxInstructions /
-    //     instructionsPerHostCycle);
+    // Pick random number of cycles between bounds, respecting network limits
+    uint64_t maxInstructions =
+        networkCfg.mTxMaxInstructions - baseInstructionCount;
 
-    auto guestCycles = 0;
-    auto hostCycles = 0;
+    uint64_t guestCyclesMax = maxInstructions / instructionsPerGuestCycle;
+    guestCyclesMax = std::min(cfg.guestCyclesHigh, guestCyclesMax);
+    uint64_t guestCyclesMin = std::min(cfg.guestCyclesLow, guestCyclesMax);
+    uint64_t guestCycles =
+        rand_uniform<uint64_t>(guestCyclesMin, guestCyclesMax);
+
+    maxInstructions -= guestCycles * instructionsPerGuestCycle;
+    uint64_t hostCyclesMax = maxInstructions / instructionsPerHostCycle;
+    hostCyclesMax = std::min(cfg.hostCyclesHigh, hostCyclesMax);
+    uint64_t hostCyclesMin = std::min(cfg.hostCyclesLow, hostCyclesMax);
+    uint64_t hostCycles = rand_uniform<uint64_t>(hostCyclesMin, hostCyclesMax);
+
+    SorobanResources resources;
+    resources.footprint.readOnly = instance.readOnlyKeys;
+
+    // Must always read wasm and instance
+    releaseAssert(networkCfg.mTxMaxReadLedgerEntries > 1);
+    auto maxEntries = networkCfg.mTxMaxReadLedgerEntries - 2;
+    maxEntries = std::min(maxEntries, cfg.nDataEntriesHigh);
+    auto minEntries = std::min(maxEntries, cfg.nDataEntriesLow);
+    auto numEntries = rand_uniform<uint32_t>(minEntries, maxEntries);
+    for (uint32_t i = 0; i < numEntries; ++i)
+    {
+        auto lk = contractDataKey(instance.contractID, makeU32(i),
+                                  ContractDataDurability::PERSISTENT);
+        resources.footprint.readWrite.emplace_back(lk);
+    }
+
+    // Use 2'000 as an estimate for Wasm size
+    uint32_t maxKiloBytesPerEntry =
+        (networkCfg.mTxMaxReadBytes - 2'000) / numEntries / 1024;
+    maxKiloBytesPerEntry =
+        std::min(maxKiloBytesPerEntry, cfg.kiloBytesPerDataEntryHigh);
+    uint32_t minKiloBytesPerEntry =
+        std::min(maxKiloBytesPerEntry, cfg.kiloBytesPerDataEntryLow);
+    auto kiloBytesPerEntry =
+        rand_uniform<uint32_t>(minKiloBytesPerEntry, maxKiloBytesPerEntry);
 
     auto guestCyclesU64 = makeU64(guestCycles);
     auto hostCyclesU64 = makeU64(hostCycles);
-    auto numEntriesU32 = makeU32(cfg.nDataEntries);
-    auto kiloBytesPerEntryU32 = makeU32(cfg.kiloBytesPerDataEntry);
+    auto numEntriesU32 = makeU32(numEntries);
+    auto kiloBytesPerEntryU32 = makeU32(kiloBytesPerEntry);
 
     Operation op;
     op.body.type(INVOKE_HOST_FUNCTION);
@@ -1159,15 +1203,6 @@ LoadGenerator::invokeSorobanLoadTransaction(uint32_t ledgerNum,
     ihf.invokeContract().args = {guestCyclesU64, hostCyclesU64, numEntriesU32,
                                  kiloBytesPerEntryU32};
 
-    SorobanResources resources;
-    resources.footprint.readOnly = instance.readOnlyKeys;
-    for (auto i = 0; i < cfg.nDataEntries; ++i)
-    {
-        auto lk = contractDataKey(instance.contractID, makeU32(i),
-                                  ContractDataDurability::PERSISTENT);
-        resources.footprint.readWrite.emplace_back(lk);
-    }
-
     // We don't have a good way of knowing how many bytes we will have to read,
     // so use max. Due to this we will have to change ledger limits, so might as
     // well set all resources to max
@@ -1177,10 +1212,15 @@ LoadGenerator::invokeSorobanLoadTransaction(uint32_t ledgerNum,
 
     // Approximate TX size before padding and footprint, slightly over estimated
     // so we stay below limits, plus footprint size
-    uint32_t const txOverheadBytes = 260 + xdr::xdr_size(resources);
-    releaseAssert(networkCfg.mTxMaxSizeBytes >= txOverheadBytes);
+    int32_t const txOverheadBytes = 260 + xdr::xdr_size(resources);
+    int32_t paddingBytesLow = txOverheadBytes > cfg.txSizeBytesLow
+                                  ? 0
+                                  : cfg.txSizeBytesLow - txOverheadBytes;
+    int32_t paddingBytesHigh = txOverheadBytes > cfg.txSizeBytesHigh
+                                   ? 0
+                                   : cfg.txSizeBytesHigh - txOverheadBytes;
     auto paddingBytes =
-        rand_uniform<uint32_t>(0, networkCfg.mTxMaxSizeBytes - txOverheadBytes);
+        rand_uniform<int32_t>(paddingBytesLow, paddingBytesHigh);
     increaseOpSize(op, paddingBytes);
 
     auto resourceFee =

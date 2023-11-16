@@ -369,30 +369,6 @@ WasmContractInvocationTest::deployContractWithSourceAccountWithResources(
     mContractID = mContractKeys[0].contractData().contract;
 }
 
-TransactionFrameBasePtr
-ContractInvocationTest::getCreateTx(TestAccount& acc)
-{
-    if (mContractKeys.empty())
-    {
-        throw "Must deploy test contract before calling getCreateTx";
-    }
-
-    SorobanResources createResources{};
-    createResources.instructions = 200'000;
-    createResources.readBytes = 5000;
-    createResources.writeBytes = 5000;
-
-    SCVal scContractSourceRefKey(SCValType::SCV_LEDGER_KEY_CONTRACT_INSTANCE);
-    auto [createOp, contractID] = createSorobanCreateOp(
-        *mApp, createResources, mContractKeys[1], acc, scContractSourceRefKey);
-    auto createResourceFee =
-        sorobanResourceFee(*mApp, createResources, 1000, 40) + 40'000;
-
-    return sorobanTransactionFrameFromOps(mApp->getNetworkID(), acc, {createOp},
-                                          {}, createResources, 1000,
-                                          createResourceFee);
-}
-
 ContractInvocationTest::ContractInvocationTest(
     Config cfg, bool useTestLimits,
     std::function<void(SorobanNetworkConfig&)> cfgModifyFn)
@@ -430,20 +406,6 @@ ContractInvocationTest::getLedgerSeq()
 {
     LedgerTxn ltx(mApp->getLedgerTxnRoot());
     return ltx.loadHeader().current().ledgerSeq;
-}
-
-void
-ContractInvocationTest::deployWithResources(
-    SorobanResources const& uploadResources,
-    SorobanResources const& createResources)
-{
-    if (!mContractKeys.empty())
-    {
-        throw "Wasm already uploaded";
-    }
-
-    deployContractWithSourceAccountWithResources(uploadResources,
-                                                 createResources);
 }
 
 int64_t
@@ -644,7 +606,7 @@ WasmContractInvocationTest::getCreateTx(TestAccount& acc)
     createResources.writeBytes = 5000;
 
     SCVal scContractSourceRefKey(SCValType::SCV_LEDGER_KEY_CONTRACT_INSTANCE);
-    auto [createOp, contractID] = createOpCommon(
+    auto [createOp, contractID] = createSorobanCreateOp(
         *mApp, createResources, mContractKeys[1], acc, scContractSourceRefKey);
     auto createResourceFee =
         sorobanResourceFee(*mApp, createResources, 1000, 40) + 40'000;

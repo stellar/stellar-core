@@ -1246,7 +1246,7 @@ TEST_CASE("settings upgrade", "[tx][soroban][upgrades]")
 
 TEST_CASE("loadgen Wasm executes properly", "[soroban][loadgen]")
 {
-    ContractInvocationTest test(rust_bridge::get_test_wasm_loadgen());
+    WasmContractInvocationTest test(rust_bridge::get_test_wasm_loadgen());
 
     auto scFunc = makeSymbol("do_work");
     auto guestCycles = 10;

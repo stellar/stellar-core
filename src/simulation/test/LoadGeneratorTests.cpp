@@ -168,14 +168,22 @@ TEST_CASE("generate soroban load", "[loadgen][soroban]")
         },
         100 * Herder::EXP_LEDGER_TIMESPAN_SECONDS, false);
 
-    auto const numSorobanTxs = 300;
+    auto const numSorobanTxs = 100;
     auto const numDataEntries = 5;
     auto const kilobytesPerDataEntry = 3;
     auto cfg = GeneratedLoadConfig::txLoad(LoadGenMode::SOROBAN_INVOKE,
                                            nAccounts, numSorobanTxs,
                                            /* txRate */ 1);
-    cfg.nDataEntries = numDataEntries;
-    cfg.kiloBytesPerDataEntry = kilobytesPerDataEntry;
+
+    // Use tight bounds to we can verify storage works properly
+    cfg.nDataEntriesLow = numDataEntries;
+    cfg.nDataEntriesHigh = numDataEntries;
+    cfg.kiloBytesPerDataEntryLow = kilobytesPerDataEntry;
+    cfg.kiloBytesPerDataEntryHigh = kilobytesPerDataEntry;
+
+    cfg.txSizeBytesHigh = 100'000;
+    cfg.guestCyclesHigh = 10'000;
+    cfg.hostCyclesHigh = 10'000;
 
     loadGen.generateLoad(cfg);
     simulation->crankUntil(
@@ -237,8 +245,8 @@ TEST_CASE("generate soroban load", "[loadgen][soroban]")
             LedgerTxn ltx(app.getLedgerTxnRoot());
             auto entry = ltx.load(lk);
             REQUIRE(entry);
-            auto sizeBytes = xdr::xdr_size(entry.current());
-            auto expectedSize = kilobytesPerDataEntry * 1024;
+            uint32_t sizeBytes = xdr::xdr_size(entry.current());
+            uint32_t expectedSize = kilobytesPerDataEntry * 1024;
             REQUIRE(
                 (sizeBytes > expectedSize && sizeBytes < 100 + expectedSize));
 

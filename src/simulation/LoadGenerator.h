@@ -76,10 +76,24 @@ struct GeneratedLoadConfig
     bool skipLowFeeTxs = false;
     // Percentage (from 0 to 100) of DEX transactions
     uint32_t dexTxPercent = 0;
-    // Number and size of ContractData entries that will be loaded on each
-    // invocation
-    uint32_t nDataEntries = 0;
-    uint32_t kiloBytesPerDataEntry = 0;
+
+    // The following ranges are only used for SOROBAN_INVOKE txs:
+
+    // Range of kilo bytes and num entries for disk IO
+    uint32_t nDataEntriesLow = 0;
+    uint32_t nDataEntriesHigh = 0;
+    uint32_t kiloBytesPerDataEntryLow = 0;
+    uint32_t kiloBytesPerDataEntryHigh = 0;
+
+    // Size of transactions
+    int32_t txSizeBytesLow = 0;
+    int32_t txSizeBytesHigh = 0;
+
+    // Instruction count
+    uint64_t guestCyclesLow = 0;
+    uint64_t guestCyclesHigh = 0;
+    uint64_t hostCyclesLow = 0;
+    uint64_t hostCyclesHigh = 0;
 };
 
 class LoadGenerator
@@ -187,7 +201,11 @@ class LoadGenerator
 
     uint32_t mWaitTillCompleteForLedgers{0};
 
-    std::optional<LedgerKey> mCodeKey;
+    // Wasm ledger entry is stored in mPendingCodeKey while TX is in flight.
+    // Once TX has been successfully applied, mPendingCodeKey is moved to
+    // mCodeKey.
+    std::optional<LedgerKey> mPendingCodeKey{};
+    std::optional<LedgerKey> mCodeKey{};
 
     // Maps account ID to it's contract instance, where each account has a
     // unique instance
@@ -197,7 +215,6 @@ class LoadGenerator
     void createRootAccount();
     int64_t getTxPerStep(uint32_t txRate, std::chrono::seconds spikeInterval,
                          uint32_t spikeSize);
-    void cleanupAccounts();
 
     // Schedule a callback to generateLoad() STEP_MSECS milliseconds from now.
     void scheduleLoadGeneration(GeneratedLoadConfig cfg);
@@ -265,5 +282,7 @@ class LoadGenerator
     void updateMinBalance();
 
     unsigned short chooseOpCount(Config const& cfg) const;
+
+    void cleanupAccounts();
 };
 }
