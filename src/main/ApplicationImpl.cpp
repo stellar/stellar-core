@@ -545,6 +545,12 @@ void
 ApplicationImpl::reportInfo(bool verbose)
 {
     mLedgerManager->loadLastKnownLedger(nullptr);
+    LedgerTxn ltx(getLedgerTxnRoot());
+    if (protocolVersionStartsFrom(ltx.loadHeader().current().ledgerVersion,
+                                  SOROBAN_PROTOCOL_VERSION))
+    {
+        getLedgerManager().updateNetworkConfig(ltx);
+    }
     LOG_INFO(DEFAULT_LOG, "Reporting application info");
     std::cout << getJsonInfo(verbose).toStyledString() << std::endl;
 }
