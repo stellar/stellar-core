@@ -315,7 +315,7 @@ pub(crate) fn get_write_bytes() -> Result<RustBuf, Box<dyn std::error::Error>> {
 fn get_random_wasm(size: usize, seed: u64) -> Result<RustBuf, Box<dyn std::error::Error>> {
     use rand::{rngs::StdRng, RngCore, SeedableRng};
     use soroban_synth_wasm::*;
-    let mut fe = ModEmitter::new().func(Arity(0), 0);
+    let mut fe = ModEmitter::default().func(Arity(0), 0);
 
     // Generate a very exciting wasm that pushes and drops random numbers.
     //

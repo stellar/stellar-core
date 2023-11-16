@@ -107,7 +107,9 @@ TEST_CASE("Trustline stellar asset contract",
     // Now burn by transfering to the issuer and by using burn function
     test.transfer(acc, makeAccountAddress(issuer.getPublicKey()), 10, true);
     test.burn(acc, 10, true);
-    test.burn(issuer, 10, true);
+
+    // Can't burn an issuers balance because it doesn't exist
+    test.burn(issuer, 10, false);
 
     // Now transfer and mint to contractAddress
     auto contractAddr = makeContractAddress(sha256("contract"));
@@ -1733,20 +1735,43 @@ TEST_CASE("contract storage", "[tx][soroban]")
                           stateArchivalSettings.maxEntryTTL - 1 + ledgerSeq);
         }
 
-        SECTION("extend host function")
+        SECTION("extend host function persistent")
         {
             test.extendHostFunction("key", ContractDataDurability::PERSISTENT,
+                                    100, 100,
+                                    /*expectSuccess=*/true);
+            test.checkTTL(lk, 100 + ledgerSeq);
+
+            test.extendHostFunction("key", ContractDataDurability::PERSISTENT,
+                                    stateArchivalSettings.maxEntryTTL + 10,
+                                    stateArchivalSettings.maxEntryTTL + 10,
+                                    /*expectSuccess=*/true);
+
+            // Capped at max (Max TTL includes current ledger, so subtract 1)
+            test.checkTTL(lk,
+                          stateArchivalSettings.maxEntryTTL - 1 + ledgerSeq);
+        }
+
+        SECTION("extend host function temp")
+        {
+            test.put("key", ContractDataDurability::TEMPORARY, 0);
+            auto lkTemp =
+                contractDataKey(test.getContractID(), makeSymbolSCVal("key"),
+                                ContractDataDurability::TEMPORARY);
+
+            test.extendHostFunction("key", ContractDataDurability::TEMPORARY,
                                     stateArchivalSettings.maxEntryTTL,
                                     stateArchivalSettings.maxEntryTTL,
                                     /*expectSuccess=*/false);
-            test.checkTTL(lk, initialLiveUntilLedger);
+            test.checkTTL(lkTemp, stateArchivalSettings.minTemporaryTTL +
+                                      ledgerSeq - 1);
 
             // Max TTL includes current ledger, so subtract 1
-            test.extendHostFunction("key", ContractDataDurability::PERSISTENT,
+            test.extendHostFunction("key", ContractDataDurability::TEMPORARY,
                                     stateArchivalSettings.maxEntryTTL - 1,
                                     stateArchivalSettings.maxEntryTTL - 1,
                                     /*expectSuccess=*/true);
-            test.checkTTL(lk,
+            test.checkTTL(lkTemp,
                           stateArchivalSettings.maxEntryTTL - 1 + ledgerSeq);
         }
     }
