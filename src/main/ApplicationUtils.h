@@ -31,7 +31,6 @@ int dumpLedger(Config cfg, std::string const& outputFile,
                std::optional<std::string> groupBy,
                std::optional<std::string> aggregate);
 void showOfflineInfo(Config cfg, bool verbose);
-void closeLedgersOffline(Config cfg, bool verbose, size_t nLedgers);
 int reportLastHistoryCheckpoint(Config cfg, std::string const& outputFile);
 #ifdef BUILD_TESTS
 void loadXdr(Config cfg, std::string const& bucketFile);
