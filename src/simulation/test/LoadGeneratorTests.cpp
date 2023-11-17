@@ -168,6 +168,25 @@ TEST_CASE("generate soroban load", "[loadgen][soroban]")
         },
         100 * Herder::EXP_LEDGER_TIMESPAN_SECONDS, false);
 
+    // Check that Soroban TXs were successfully applied
+    for (auto node : nodes)
+    {
+        auto& txsSucceeded =
+            node->getMetrics().NewCounter({"ledger", "apply", "success"});
+        auto& txsFailed =
+            node->getMetrics().NewCounter({"ledger", "apply", "failure"});
+
+        // Should be 1 upload wasm TX followed by one instance deploy TX per
+        // account
+        REQUIRE(txsSucceeded.count() == numTxsBefore + nAccounts + 1);
+        REQUIRE(txsFailed.count() == 0);
+    }
+
+    numTxsBefore = nodes[0]
+                       ->getMetrics()
+                       .NewCounter({"ledger", "apply", "success"})
+                       .count();
+
     auto const numSorobanTxs = 100;
     auto const numDataEntries = 5;
     auto const kilobytesPerDataEntry = 3;
@@ -182,8 +201,7 @@ TEST_CASE("generate soroban load", "[loadgen][soroban]")
     cfg.kiloBytesPerDataEntryHigh = kilobytesPerDataEntry;
 
     cfg.txSizeBytesHigh = 100'000;
-    cfg.guestCyclesHigh = 10'000;
-    cfg.hostCyclesHigh = 10'000;
+    cfg.instructionsHigh = 10'000'000;
 
     loadGen.generateLoad(cfg);
     simulation->crankUntil(

@@ -323,10 +323,10 @@ LoadGenerator::scheduleLoadGeneration(GeneratedLoadConfig cfg)
         {
             errorMsg = "TxMaxWriteBytes too small for configuration";
         }
-        // Check if we have enough read bytes, using 2'000 as a rough estimate
+        // Check if we have enough read bytes, using 1'200 as a rough estimate
         // of Wasm size
         else if (cfg.nDataEntriesHigh * cfg.kiloBytesPerDataEntryHigh * 1024 +
-                     2'000 >
+                     1'200 >
                  sorobanCfg.mTxMaxReadBytes)
         {
             errorMsg = "TxMaxReadBytes too small for configuration";
@@ -632,10 +632,11 @@ LoadGenerator::submitSorobanPrepareInvokeTX(uint32_t nAccounts,
     if (mPendingCodeKey.has_value())
     {
         LedgerTxn ltx(mApp.getLedgerTxnRoot());
-        if (ltx.loadWithoutRecord(*mPendingCodeKey))
+        if (auto ltxe = ltx.loadWithoutRecord(*mPendingCodeKey); ltxe)
         {
             // Entry has been applied,
             mCodeKey = mPendingCodeKey;
+            mCodeSize = xdr::xdr_size(ltxe.current());
             mPendingCodeKey.reset();
         }
         else
@@ -645,7 +646,7 @@ LoadGenerator::submitSorobanPrepareInvokeTX(uint32_t nAccounts,
         }
     }
 
-    // First deploy WASM
+    // First deploy wasm
     if (!mCodeKey.has_value())
     {
         isUpload = true;
@@ -1138,9 +1139,12 @@ LoadGenerator::invokeSorobanLoadTransaction(uint32_t ledgerNum,
     auto const& networkCfg = mApp.getLedgerManager().getSorobanNetworkConfig();
 
     // Approximate instruction measurements from loadgen contract. While the
-    // guest and host cycle counts are accurate, it very difficult to estimate
-    // the number of instructions that the write loops will consume
-    // without preflight, so some TXs will fail due to exceeding resource
+    // guest and host cycle counts are exact, and we can predict the cost of
+    // the guest and host loops correctly, it is difficult to estimate the
+    // CPU cost of storage given that the number and size of keys is variable.
+    // baseInstructionCount is a rough estimate for storage cost, but might be
+    // too small if a given invocation writes many or large entries.
+    // This means some TXs will fail due to exceeding resource
     // limitations. However these should fail at apply time, so will still
     // generate siginificant load
     uint64_t const baseInstructionCount = 3'000'000;
@@ -1150,18 +1154,18 @@ LoadGenerator::invokeSorobanLoadTransaction(uint32_t ledgerNum,
     // Pick random number of cycles between bounds, respecting network limits
     uint64_t maxInstructions =
         networkCfg.mTxMaxInstructions - baseInstructionCount;
+    maxInstructions = std::min(maxInstructions, cfg.instructionsHigh);
+    uint64_t lowInstructions = std::min(maxInstructions, cfg.instructionsLow);
+    uint64_t targetInstructions =
+        rand_uniform<uint64_t>(lowInstructions, maxInstructions);
 
-    uint64_t guestCyclesMax = maxInstructions / instructionsPerGuestCycle;
-    guestCyclesMax = std::min(cfg.guestCyclesHigh, guestCyclesMax);
-    uint64_t guestCyclesMin = std::min(cfg.guestCyclesLow, guestCyclesMax);
-    uint64_t guestCycles =
-        rand_uniform<uint64_t>(guestCyclesMin, guestCyclesMax);
+    // Randomly select a number of guest cycles
+    uint64_t guestCyclesMax = targetInstructions / instructionsPerGuestCycle;
+    uint64_t guestCycles = rand_uniform<uint64_t>(0, guestCyclesMax);
 
-    maxInstructions -= guestCycles * instructionsPerGuestCycle;
-    uint64_t hostCyclesMax = maxInstructions / instructionsPerHostCycle;
-    hostCyclesMax = std::min(cfg.hostCyclesHigh, hostCyclesMax);
-    uint64_t hostCyclesMin = std::min(cfg.hostCyclesLow, hostCyclesMax);
-    uint64_t hostCycles = rand_uniform<uint64_t>(hostCyclesMin, hostCyclesMax);
+    // Rest of instructions consumed by host cycles
+    targetInstructions -= guestCycles * instructionsPerGuestCycle;
+    uint64_t hostCycles = targetInstructions / instructionsPerHostCycle;
 
     SorobanResources resources;
     resources.footprint.readOnly = instance.readOnlyKeys;
@@ -1179,9 +1183,8 @@ LoadGenerator::invokeSorobanLoadTransaction(uint32_t ledgerNum,
         resources.footprint.readWrite.emplace_back(lk);
     }
 
-    // Use 2'000 as an estimate for Wasm size
     uint32_t maxKiloBytesPerEntry =
-        (networkCfg.mTxMaxReadBytes - 2'000) / numEntries / 1024;
+        (networkCfg.mTxMaxReadBytes - mCodeSize) / numEntries / 1024;
     maxKiloBytesPerEntry =
         std::min(maxKiloBytesPerEntry, cfg.kiloBytesPerDataEntryHigh);
     uint32_t minKiloBytesPerEntry =

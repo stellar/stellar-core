@@ -32,7 +32,7 @@ enum class LoadGenMode
     PRETEND,
     // Mix of payments and DEX-related transactions.
     MIXED_TXS,
-    // Deploy random WASM blobs, for overlay/herder testing
+    // Deploy random Wasm blobs, for overlay/herder testing
     SOROBAN_UPLOAD,
     // Deploy contracts to be used by SOROBAN_INVOKE
     SOROBAN_INVOKE_SETUP,
@@ -90,10 +90,8 @@ struct GeneratedLoadConfig
     int32_t txSizeBytesHigh = 0;
 
     // Instruction count
-    uint64_t guestCyclesLow = 0;
-    uint64_t guestCyclesHigh = 0;
-    uint64_t hostCyclesLow = 0;
-    uint64_t hostCyclesHigh = 0;
+    uint64_t instructionsLow = 0;
+    uint64_t instructionsHigh = 0;
 };
 
 class LoadGenerator
@@ -206,6 +204,7 @@ class LoadGenerator
     // mCodeKey.
     std::optional<LedgerKey> mPendingCodeKey{};
     std::optional<LedgerKey> mCodeKey{};
+    uint64_t mCodeSize{};
 
     // Maps account ID to it's contract instance, where each account has a
     // unique instance
