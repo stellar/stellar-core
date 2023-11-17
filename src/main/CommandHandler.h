@@ -5,6 +5,7 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "lib/http/server.hpp"
+#include "util/ProtocolVersion.h"
 #include <string>
 
 /*
@@ -28,6 +29,12 @@ class CommandHandler
     void safeRouter(HandlerRoute route, std::string const& params,
                     std::string& retStr);
 
+    void ensureProtocolVersion(std::map<std::string, std::string> const& args,
+                               std::string const& argName,
+                               ProtocolVersion minVer);
+    void ensureProtocolVersion(std::string const& errString,
+                               ProtocolVersion minVer);
+
   public:
     CommandHandler(Application& app);
 
@@ -36,7 +43,6 @@ class CommandHandler
     void fileNotFound(std::string const& params, std::string& retStr);
 
     void bans(std::string const& params, std::string& retStr);
-    void checkdb(std::string const& params, std::string& retStr);
     void connect(std::string const& params, std::string& retStr);
     void dropcursor(std::string const& params, std::string& retStr);
     void dropPeer(std::string const& params, std::string& retStr);
