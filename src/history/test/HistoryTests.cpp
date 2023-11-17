@@ -998,14 +998,13 @@ TEST_CASE("Catchup with protocol upgrade", "[catchup][history]")
             executeUpgrade(127);
         }
     };
-    SECTION("post-shadow-removal upgrade")
-    {
-        testUpgrade(Bucket::FIRST_PROTOCOL_SHADOWS_REMOVED);
-    }
     SECTION("generalized tx set upgrade")
     {
-
-        testUpgrade(SOROBAN_PROTOCOL_VERSION);
+        if (protocolVersionEquals(Config::CURRENT_LEDGER_PROTOCOL_VERSION,
+                                  SOROBAN_PROTOCOL_VERSION))
+        {
+            testUpgrade(SOROBAN_PROTOCOL_VERSION);
+        }
     }
 }
 
