@@ -371,6 +371,7 @@ BucketApplicator::Counters::mark(BucketEntry const& e)
             ++mContractCodeDelete;
             break;
         case CONFIG_SETTING:
+            releaseAssert(false);
             break;
         case TTL:
             ++mTTLDelete;
