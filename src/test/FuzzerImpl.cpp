@@ -1989,6 +1989,15 @@ TransactionFuzzer::genFuzz(std::string const& filename)
     for (int i = 0; i < numops; ++i)
     {
         Operation op = gen(FUZZER_INITIAL_CORPUS_OPERATION_GEN_UPPERBOUND);
+        if (op.body.type() == INVOKE_HOST_FUNCTION ||
+            op.body.type() == EXTEND_FOOTPRINT_TTL ||
+            op.body.type() == RESTORE_FOOTPRINT)
+        {
+            // Skip soroban txs for now because setting them up to be valid will
+            // take some time.
+            continue;
+        }
+
         // Use account 0 for the base cases as it's more likely to be useful
         // right away.
         if (!op.sourceAccount)
