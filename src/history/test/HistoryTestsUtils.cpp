@@ -431,10 +431,10 @@ CatchupSimulation::generateRandomLedger(uint32_t version)
 
     if (ledgerSeq < 5)
     {
-        txs.push_back(
-            root.tx({createAccount(alice, big), createAccount(bob, big),
-                     createAccount(carol, big), createAccount(stroopy, big),
-                     createAccount(eve, big)}));
+        txs.push_back(root.tx(
+            {createAccount(alice, big), createAccount(bob, big),
+             createAccount(carol, big), createAccount(stroopy, big * 10),
+             createAccount(eve, big * 10)}));
     }
     // Allow an occasional empty ledger (but always have some transactions in
     // the upgrade ledger)
