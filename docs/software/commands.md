@@ -362,7 +362,7 @@ format.
 
 ### The following HTTP commands are exposed on test instances
 * **generateload** `generateload[?mode=
-    (create|pay|pretend|mixed_txs)&accounts=N&offset=K&txs=M&txrate=R&spikesize=S&spikeinterval=I&maxfeerate=F&skiplowfeetxs=(0|1)&dextxpercent=D]`
+    (create|pay|pretend|mixed_txs|soroban_upload|soroban_invoke_setup|soroban_invoke)&accounts=N&offset=K&txs=M&txrate=R&spikesize=S&spikeinterval=I&maxfeerate=F&skiplowfeetxs=(0|1)&dextxpercent=D&dataentrieslow=A&dataentrieshigh=B&kilobyteslow=C&kilobyteshigh=T&txsizelow=U&txsizehigh=V&cpulow=W&cpuhigh=X]`
 
     Artificially generate load for testing; must be used with
     `ARTIFICIALLY_GENERATE_LOAD_FOR_TESTING` set to true.
@@ -381,6 +381,16 @@ format.
     (containing `PaymentOp` and `ManageBuyOfferOp` operations respectively).
     The fraction of DEX transactions generated is defined by the `dextxpercent`
     parameter (accepts integer value from 0 to 100).
+  * `soroban_upload` mode generates soroban TXs that upload random wasm blobs.
+    Many of these TXs are invalid and not applied, so this test is appropriate
+    for herder and overlay tests.
+  * `soroban_invoke_setup` mode create soroban contract instances to be used by
+    `soroban_invoke`. This mode must be run before `soroban_invoke`.
+  * `soroban_invoke` mode generates valid soroban TXs that invoke a resource
+    intensive contract. Each invocation picks a random amount of resources
+    between some bound. Resource bounds can be set with the `dataentrieslow`,
+    `dataentrieshigh`, `kilobyteslow`, `kilobyteshigh`, `txsizelow`, `txsizehigh`,
+    `cpulow`, `cpuhigh`, where CPU bounds correspond to instruction count.
 
   Non-`create` load generation makes use of the additional parameters:
   * when a nonzero `spikeinterval` is given, a spike will occur every

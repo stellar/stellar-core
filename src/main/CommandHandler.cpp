@@ -1173,6 +1173,23 @@ CommandHandler::generateLoad(std::string const& params, std::string& retStr)
         // Only for MIXED_TX mode; fraction of DEX transactions.
         cfg.dexTxPercent =
             parseOptionalParamOrDefault<uint32_t>(map, "dextxpercent", 0);
+        // Only for SOROBAN_INVOKE mode, resource consumption bounds
+        cfg.nDataEntriesLow =
+            parseOptionalParamOrDefault<uint32_t>(map, "dataentrieslow", 0);
+        cfg.nDataEntriesHigh =
+            parseOptionalParamOrDefault<uint32_t>(map, "dataentrieshigh", 0);
+        cfg.kiloBytesPerDataEntryLow =
+            parseOptionalParamOrDefault<uint32_t>(map, "kilobyteslow", 0);
+        cfg.kiloBytesPerDataEntryHigh =
+            parseOptionalParamOrDefault<uint32_t>(map, "kilobyteshigh", 0);
+        cfg.txSizeBytesLow =
+            parseOptionalParamOrDefault<uint32_t>(map, "txsizelow", 0);
+        cfg.txSizeBytesHigh =
+            parseOptionalParamOrDefault<uint32_t>(map, "txsizehigh", 0);
+        cfg.instructionsLow =
+            parseOptionalParamOrDefault<uint64_t>(map, "cpulow", 0);
+        cfg.instructionsHigh =
+            parseOptionalParamOrDefault<uint64_t>(map, "cpuhigh", 0);
 
         if (cfg.maxGeneratedFeeRate)
         {
