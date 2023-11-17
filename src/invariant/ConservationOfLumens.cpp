@@ -164,7 +164,7 @@ ConservationOfLumens::registerInvariant(Application& app)
     // We need to keep track of lumens in the Stellar Asset Contract, so
     // calculate the lumen contractID, the key of the Balance entry, and the
     // amount field within that entry.
-    auto lumenInfo = getLumenContractInfo(app.getConfig().NETWORK_PASSPHRASE);
+    auto lumenInfo = getLumenContractInfo(app.getNetworkID());
 
     return app.getInvariantManager().registerInvariant<ConservationOfLumens>(
         lumenInfo);

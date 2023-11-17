@@ -308,7 +308,7 @@ struct LumenContractInfo
     SCVal mBalanceSymbol;
     SCVal mAmountSymbol;
 };
-LumenContractInfo getLumenContractInfo(std::string networkPassphrase);
+LumenContractInfo getLumenContractInfo(Hash const& networkID);
 
 SCVal makeSymbolSCVal(std::string&& str);
 SCVal makeSymbolSCVal(std::string const& str);
