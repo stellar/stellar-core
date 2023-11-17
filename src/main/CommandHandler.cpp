@@ -579,7 +579,9 @@ CommandHandler::upgrades(std::string const& params, std::string& retStr)
             decoder::decode_b64(configXdrIter->second, buffer);
             ConfigUpgradeSetKey key;
             xdr::xdr_from_opaque(buffer, key);
-            LedgerTxn ltx(mApp.getLedgerTxnRoot());
+            LedgerTxn ltx(mApp.getLedgerTxnRoot(),
+                          /* shouldUpdateLastModified */ false,
+                          TransactionMode::READ_ONLY_WITHOUT_SQL_TXN);
 
             auto ptr = ConfigUpgradeSetFrame::makeFromKey(ltx, key);
 
@@ -629,7 +631,9 @@ CommandHandler::dumpProposedSettings(std::string const& params,
         decoder::decode_b64(blob, buffer);
         ConfigUpgradeSetKey key;
         xdr::xdr_from_opaque(buffer, key);
-        LedgerTxn ltx(mApp.getLedgerTxnRoot());
+        LedgerTxn ltx(mApp.getLedgerTxnRoot(),
+                      /* shouldUpdateLastModified */ false,
+                      TransactionMode::READ_ONLY_WITHOUT_SQL_TXN);
 
         auto ptr = ConfigUpgradeSetFrame::makeFromKey(ltx, key);
 
@@ -760,7 +764,9 @@ CommandHandler::getLedgerEntry(std::string const& params, std::string& retStr)
     std::string key = paramMap["key"];
     if (!key.empty())
     {
-        LedgerTxn ltx(mApp.getLedgerTxnRoot());
+        LedgerTxn ltx(mApp.getLedgerTxnRoot(),
+                      /* shouldUpdateLastModified */ false,
+                      TransactionMode::READ_ONLY_WITHOUT_SQL_TXN);
         root["ledger"] = ltx.loadHeader().current().ledgerSeq;
 
         LedgerKey k;
@@ -1097,7 +1103,10 @@ CommandHandler::testAcc(std::string const& params, std::string& retStr)
             key = getAccount(accName->second.c_str());
         }
 
-        LedgerTxn ltx(mApp.getLedgerTxnRoot());
+        LedgerTxn ltx(mApp.getLedgerTxnRoot(),
+                      /* shouldUpdateLastModified */ false,
+                      TransactionMode::READ_ONLY_WITHOUT_SQL_TXN);
+
         auto acc = stellar::loadAccount(ltx, key.getPublicKey());
         if (acc)
         {
