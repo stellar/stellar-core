@@ -171,6 +171,8 @@ class TxSetFrame : public NonMovableOrCopyable
                          Transactions& invalidTxs,
                          bool enforceTxsApplyOrder = false);
     mutable ApplicableTxSetFrameConstPtr mApplicableTxSetOverride;
+
+    StellarMessage toStellarMessage() const;
 #endif
 
   private:
