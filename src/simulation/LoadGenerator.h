@@ -121,10 +121,16 @@ class LoadGenerator
         SCAddress contractID;
     };
 
-    std::unordered_map<uint64_t, ContractInstance>
-    getContractInstancesForTesting() const
+    UnorderedSet<LedgerKey> const&
+    getContractInstanceKeysForTesting() const
     {
-        return mContractInstances;
+        return mContractInstanceKeys;
+    }
+
+    std::optional<LedgerKey> const&
+    getCodeKeyForTesting() const
+    {
+        return mCodeKey;
     }
 
   private:
@@ -183,7 +189,6 @@ class LoadGenerator
     std::unordered_set<uint64_t> mAccountsInUse;
     std::unordered_set<uint64_t> mAccountsAvailable;
     uint64_t getNextAvailableAccount();
-    uint64_t getNextAvailableAccountForSorobanSetup();
 
     // For account creation only: allocate a few accounts for creation purposes
     // (with sufficient balance to create new accounts) to avoid source account
@@ -199,16 +204,22 @@ class LoadGenerator
 
     uint32_t mWaitTillCompleteForLedgers{0};
 
+    // Internal loadgen state gets reset after each run, but it is impossible to
+    // regenerate contract instance keys for DB lookup. Due to this we maintain
+    // a static list of instances and the wasm entry which we use to rebuild
+    // mContractInstances at the start of each SOROBAN_INVOKE run
+    inline static UnorderedSet<LedgerKey> mContractInstanceKeys = {};
+
     // Wasm ledger entry is stored in mPendingCodeKey while TX is in flight.
     // Once TX has been successfully applied, mPendingCodeKey is moved to
     // mCodeKey.
     std::optional<LedgerKey> mPendingCodeKey{};
-    std::optional<LedgerKey> mCodeKey{};
-    uint64_t mCodeSize{};
+    inline static std::optional<LedgerKey> mCodeKey = std::nullopt;
+    inline static uint64_t mCodeSize = 0;
 
     // Maps account ID to it's contract instance, where each account has a
     // unique instance
-    std::unordered_map<uint64_t, ContractInstance> mContractInstances;
+    UnorderedMap<uint64_t, ContractInstance> mContractInstances;
 
     void reset();
     void createRootAccount();

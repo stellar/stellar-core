@@ -229,35 +229,26 @@ TEST_CASE("generate soroban load", "[loadgen][soroban]")
         REQUIRE(txsFailed.count() < 5);
     }
 
-    auto instances = loadGen.getContractInstancesForTesting();
-    REQUIRE(instances.size() == static_cast<size_t>(nAccounts));
+    auto instanceKeys = loadGen.getContractInstanceKeysForTesting();
+    auto codeKeyOp = loadGen.getCodeKeyForTesting();
+    REQUIRE(codeKeyOp);
+    REQUIRE(codeKeyOp->type() == CONTRACT_CODE);
+    REQUIRE(instanceKeys.size() == static_cast<size_t>(nAccounts));
 
     // Check that each key is unique and exists in the DB
     UnorderedSet<LedgerKey> keys;
-    std::optional<LedgerKey> codeKey;
-    for (auto const& [id, instance] : instances)
+    for (auto const& instanceKey : instanceKeys)
     {
-        // Expected: code key, instance key
-        REQUIRE(instance.readOnlyKeys.size() == 2);
-        if (codeKey)
-        {
-            REQUIRE(instance.readOnlyKeys[0] == *codeKey);
-        }
-        else
-        {
-            codeKey = instance.readOnlyKeys[0];
-        }
-
-        auto instanceLk = instance.readOnlyKeys[1];
-        REQUIRE(instanceLk.type() == CONTRACT_DATA);
-        REQUIRE(instanceLk.contractData().key.type() ==
+        REQUIRE(instanceKey.type() == CONTRACT_DATA);
+        REQUIRE(instanceKey.contractData().key.type() ==
                 SCV_LEDGER_KEY_CONTRACT_INSTANCE);
-        REQUIRE(keys.find(instanceLk) == keys.end());
-        keys.insert(instanceLk);
+        REQUIRE(keys.find(instanceKey) == keys.end());
+        keys.insert(instanceKey);
 
+        auto const& contractID = instanceKey.contractData().contract;
         for (auto i = 0; i < numDataEntries; ++i)
         {
-            auto lk = contractDataKey(instance.contractID, txtest::makeU32(i),
+            auto lk = contractDataKey(contractID, txtest::makeU32(i),
                                       ContractDataDurability::PERSISTENT);
 
             LedgerTxn ltx(app.getLedgerTxnRoot());

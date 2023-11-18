@@ -254,6 +254,8 @@ LoadGenerator::reset()
     mAccountsInUse.clear();
     mAccountsAvailable.clear();
     mCreationSourceAccounts.clear();
+    mPendingCodeKey.reset();
+    mContractInstances.clear();
     mLoadTimer.reset();
     mRoot.reset();
     mStartTime.reset();
@@ -305,7 +307,7 @@ LoadGenerator::scheduleLoadGeneration(GeneratedLoadConfig cfg)
     if (cfg.mode == LoadGenMode::SOROBAN_INVOKE)
     {
         auto& sorobanCfg = mApp.getLedgerManager().getSorobanNetworkConfig();
-        if (mContractInstances.size() < cfg.nAccounts)
+        if (mContractInstanceKeys.size() < cfg.nAccounts)
         {
             errorMsg = "must run SOROBAN_INVOKE_SETUP with at least nAccounts";
         }
@@ -341,15 +343,49 @@ LoadGenerator::scheduleLoadGeneration(GeneratedLoadConfig cfg)
         return;
     }
 
-    // First time calling tx load generation, mark all accounts "available" as
-    // source accounts
-    if (!mStarted && cfg.mode != LoadGenMode::CREATE)
+    // First time calling tx load generation
+    if (!mStarted)
     {
-        for (auto i = 0u; i < cfg.nAccounts; i++)
+        if (cfg.mode != LoadGenMode::CREATE)
         {
-            mAccountsAvailable.insert(i + cfg.offset);
+            // Mark all accounts "available" as source accounts
+            for (auto i = 0u; i < cfg.nAccounts; i++)
+            {
+                mAccountsAvailable.insert(i + cfg.offset);
+            }
+        }
+
+        if (cfg.mode == LoadGenMode::SOROBAN_INVOKE_SETUP)
+        {
+            // Check if we have already deployed some instances in a previous
+            // loadgen run and update nAccounts accordingly
+            cfg.nAccounts = mContractInstanceKeys.size() > cfg.nAccounts
+                                ? 0
+                                : cfg.nAccounts - mContractInstanceKeys.size();
+        }
+        else if (cfg.mode == LoadGenMode::SOROBAN_INVOKE)
+        {
+            releaseAssert(mContractInstances.empty());
+            releaseAssert(mCodeKey);
+            releaseAssert(mAccountsAvailable.size() >= cfg.nAccounts);
+            releaseAssert(mContractInstanceKeys.size() >= cfg.nAccounts);
+
+            // assign a unique contract instance to each accountID
+            auto accountIter = mAccountsAvailable.begin();
+            auto instanceKeyIter = mContractInstanceKeys.begin();
+            for (size_t i = 0; i < cfg.nAccounts; ++i)
+            {
+                ContractInstance instance;
+                instance.readOnlyKeys.emplace_back(*mCodeKey);
+                instance.readOnlyKeys.emplace_back(*instanceKeyIter);
+                instance.contractID = instanceKeyIter->contractData().contract;
+                mContractInstances.emplace(*accountIter, instance);
+                ++accountIter;
+                ++instanceKeyIter;
+            }
         }
     }
+
     if (!mLoadTimer)
     {
         mLoadTimer = std::make_unique<VirtualTimer>(mApp.getClock());
@@ -646,18 +682,18 @@ LoadGenerator::submitSorobanPrepareInvokeTX(uint32_t nAccounts,
         }
     }
 
+    uint64_t sourceAccountId = getNextAvailableAccount();
+
     // First deploy wasm
     if (!mCodeKey.has_value())
     {
         isUpload = true;
-        uint64_t sourceAccountId = getNextAvailableAccount();
         std::tie(from, tx) =
             uploadWasmTransaction(ledgerNum, sourceAccountId, inclusionFee);
     }
     // Next deploy instances
     else
     {
-        auto sourceAccountId = getNextAvailableAccountForSorobanSetup();
         std::tie(from, tx) =
             createContractTransaction(ledgerNum, sourceAccountId, inclusionFee);
     }
@@ -801,29 +837,6 @@ LoadGenerator::getNextAvailableAccount()
     std::advance(it, sourceAccountIdx);
     uint64_t sourceAccountId = *it;
     mAccountsAvailable.erase(it);
-    releaseAssert(mAccountsInUse.insert(sourceAccountId).second);
-    return sourceAccountId;
-}
-
-// Returns account ID for the next available account that has not already set up
-// a contract instance
-uint64_t
-LoadGenerator::getNextAvailableAccountForSorobanSetup()
-{
-    auto iter = mAccountsAvailable.begin();
-    for (; iter != mAccountsAvailable.end(); ++iter)
-    {
-        // break if we find an available account that hasn't set up a contract
-        // instance yet
-        if (mContractInstances.find(*iter) == mContractInstances.end())
-        {
-            break;
-        }
-    }
-
-    releaseAssert(iter != mAccountsAvailable.end());
-    uint64_t sourceAccountId = *iter;
-    mAccountsAvailable.erase(iter);
     releaseAssert(mAccountsInUse.insert(sourceAccountId).second);
     return sourceAccountId;
 }
@@ -1094,8 +1107,6 @@ LoadGenerator::createContractTransaction(uint32_t ledgerNum, uint64_t accountId,
                                          uint32_t inclusionFee)
 {
     releaseAssert(mCodeKey);
-    releaseAssert(mContractInstances.find(accountId) ==
-                  mContractInstances.end());
 
     auto account = findAccount(accountId, ledgerNum);
     SorobanResources createResources{};
@@ -1104,17 +1115,13 @@ LoadGenerator::createContractTransaction(uint32_t ledgerNum, uint64_t accountId,
     createResources.writeBytes = 5000;
 
     SCVal scContractSourceRefKey(SCValType::SCV_LEDGER_KEY_CONTRACT_INSTANCE);
-    auto salt = sha256(std::to_string(accountId));
+    auto salt = sha256(std::to_string(mContractInstanceKeys.size()));
     auto [createOp, contractID] =
         createSorobanCreateOp(mApp, createResources, *mCodeKey, *account,
                               scContractSourceRefKey, salt);
 
     auto const& instanceLk = createResources.footprint.readWrite.back();
-    ContractInstance instance;
-    instance.readOnlyKeys.emplace_back(*mCodeKey);
-    instance.readOnlyKeys.emplace_back(instanceLk);
-    instance.contractID = instanceLk.contractData().contract;
-    mContractInstances.emplace(accountId, instance);
+    mContractInstanceKeys.emplace(instanceLk);
 
     auto resourceFee = sorobanResourceFee(mApp, createResources, 1000, 40);
     resourceFee += 1'000'000;
