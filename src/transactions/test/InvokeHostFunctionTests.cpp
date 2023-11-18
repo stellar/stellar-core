@@ -1395,8 +1395,19 @@ TEST_CASE("complex contract", "[tx][soroban]")
 TEST_CASE("contract storage", "[tx][soroban]")
 {
     ContractStorageInvocationTest test{};
+
+    // Increase write fee so the fee will be greater than 1
+    modifySorobanNetworkConfig(*test.getApp(), [](SorobanNetworkConfig& cfg) {
+        cfg.mWriteFee1KBBucketListLow = 20'000;
+        cfg.mWriteFee1KBBucketListHigh = 1'000'000;
+    });
+
+    // Refresh cached settings
+    closeLedgerOn(*test.getApp(), test.getLedgerSeq() + 1, 2, 1, 2016);
+
     auto const& stateArchivalSettings =
         test.getNetworkCfg().stateArchivalSettings();
+
     auto ledgerSeq = test.getLedgerSeq();
 
     SECTION("default limits")
@@ -1444,7 +1455,9 @@ TEST_CASE("contract storage", "[tx][soroban]")
     SECTION("contract instance and wasm archival")
     {
         uint32_t originalExpectedLiveUntilLedger =
-            stateArchivalSettings.minPersistentTTL + ledgerSeq - 1;
+            stateArchivalSettings.minPersistentTTL + ledgerSeq -
+            2; //-2 because we need to account for the closeLedger at the top
+               // after the contract was created.
 
         for (uint32_t i =
                  test.getApp()->getLedgerManager().getLastClosedLedgerNum();
@@ -1470,7 +1483,7 @@ TEST_CASE("contract storage", "[tx][soroban]")
         {
             // Restore Instance and Wasm
             test.restoreOp(contractKeys,
-                           96 /* rent bump */ + 40000 /* two LE-writes */);
+                           1882 /* rent bump */ + 40000 /* two LE-writes */);
 
             // Instance should now be useable
             test.put("temp", ContractDataDurability::TEMPORARY, 0);
@@ -1482,7 +1495,7 @@ TEST_CASE("contract storage", "[tx][soroban]")
         {
             // Only restore contract instance
             test.restoreOp({contractKeys[0]},
-                           48 /* rent bump */ + 20000 /* one LE write */);
+                           939 /* rent bump */ + 20000 /* one LE write */);
 
             // invocation should fail
             test.put("temp", ContractDataDurability::TEMPORARY, 0,
@@ -1495,7 +1508,7 @@ TEST_CASE("contract storage", "[tx][soroban]")
         {
             // Only restore Wasm
             test.restoreOp({contractKeys[1]},
-                           48 /* rent bump */ + 20000 /* one LE write */);
+                           944 /* rent bump */ + 20000 /* one LE write */);
 
             // invocation should fail
             test.put("temp", ContractDataDurability::TEMPORARY, 0,
@@ -1508,7 +1521,7 @@ TEST_CASE("contract storage", "[tx][soroban]")
         {
             // Restore Instance and Wasm
             test.restoreOp(contractKeys,
-                           96 /* rent bump */ + 40000 /* two LE writes */);
+                           1882 /* rent bump */ + 40000 /* two LE writes */);
 
             auto instanceExtendTo = 10'000;
             auto wasmExtendTo = 15'000;
@@ -1665,7 +1678,7 @@ TEST_CASE("contract storage", "[tx][soroban]")
                               1);
 
             // Restore ARCHIVED key and LIVE key, should only be charged for one
-            test.restoreOp({lk, lk2}, /*charge for one entry*/ 20048);
+            test.restoreOp({lk, lk2}, /*charge for one entry*/ 20939);
 
             // Live entry TTL should be unchanged
             test.checkTTL("persistent2", ContractDataDurability::PERSISTENT,
@@ -1736,7 +1749,7 @@ TEST_CASE("contract storage", "[tx][soroban]")
         // refund logic changes unexpectedly
         SECTION("absolute refund")
         {
-            test.extendOp(keysToExtend, 10'100, true, 40096);
+            test.extendOp(keysToExtend, 10'100, /*expectSuccess=*/true, 41877);
             test.checkTTL("key", ContractDataDurability::PERSISTENT,
                           ledgerSeq + 10'100);
             test.checkTTL("key2", ContractDataDurability::PERSISTENT,
@@ -1879,6 +1892,10 @@ TEST_CASE("contract storage", "[tx][soroban]")
                 test.getRentFeeForBytes(sizeDeltaBytes, initialLifetime,
                                         /*isPersistent=*/true);
 
+            // We increased network settings so the fee would have some
+            // variation.
+            REQUIRE(expectedRentFee > 1);
+
             // resourceFee = rent fee + (event size + return val) fee. So in
             // order to success resourceFee needs to be expectedRentFee
             // + 1 to account for the return val size. We are not changing
@@ -1907,6 +1924,11 @@ TEST_CASE("contract storage", "[tx][soroban]")
             auto rentFee = test.getRentFeeForBytes(
                 startingSizeBytes, newLifetime - initialLifetime,
                 /*isPersistent=*/true);
+
+            // We increased network settings so the fee would have some
+            // variation.
+            REQUIRE(resizeRentFee > 1);
+            REQUIRE(rentFee > 1);
 
             // refundableFee = rent fee + (event size + return val) fee. So in
             // order to success refundableFee needs to be expectedRentFee +

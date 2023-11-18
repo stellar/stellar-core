@@ -105,7 +105,8 @@ class ContractInvocationTest
     int64_t getRentFeeForBytes(int64_t entrySize, uint32_t extendTo,
                                bool isPersistent);
     int64_t getTTLEntryWriteFee();
-    int64_t getRentFeeForExtension(LedgerKey const& key, uint32_t newLifetime);
+    int64_t getRentFeeForExtension(xdr::xvector<LedgerKey> const& keys,
+                                   uint32_t newLifetime);
 
     // Fees that depend on TX size, historicalFee and bandwidthFee
     int64_t getTxSizeFees(TransactionFrameBasePtr tx);

@@ -430,17 +430,24 @@ ContractInvocationTest::getTTLEntryWriteFee()
 }
 
 int64_t
-ContractInvocationTest::getRentFeeForExtension(LedgerKey const& key,
-                                               uint32_t newLifetime)
+ContractInvocationTest::getRentFeeForExtension(
+    xdr::xvector<LedgerKey> const& keys, uint32_t newLifetime)
 {
-    size_t entrySize = 0;
-    uint32_t extendTo = 0;
+    int64_t rentFee = 0;
+    int64_t ttlBytes = 0;
+    size_t numExtensions = 0;
+
+    for (auto const& key : keys)
     {
         LedgerTxn ltx(mApp->getLedgerTxnRoot());
-        auto ledgerSeq = ltx.getHeader().ledgerSeq;
+        auto ledgerSeq =
+            ltx.getHeader().ledgerSeq; // Add one to simulate a bump in the
+                                       // middle of a ledger close
         auto ttlKey = getTTLKey(key);
         auto ttlLtxe = ltx.loadWithoutRecord(ttlKey);
         releaseAssert(ttlLtxe);
+
+        uint32_t extendTo = 0;
 
         TTLEntry const& ttlEntry = ttlLtxe.current().data.ttl();
 
@@ -449,27 +456,38 @@ ContractInvocationTest::getRentFeeForExtension(LedgerKey const& key,
             auto newLiveUntilLedger = ledgerSeq + newLifetime;
             if (ttlEntry.liveUntilLedgerSeq >= newLiveUntilLedger)
             {
-                return 0;
+                continue;
             }
 
             extendTo = newLiveUntilLedger - ttlEntry.liveUntilLedgerSeq;
+
+            LedgerEntry le;
+            le.data.type(TTL);
+            ttlBytes += xdr::xdr_size(le);
+            ++numExtensions;
         }
         else
         {
             // Non-live entries are skipped, pay no rent fee
-            return 0;
+            continue;
         }
 
         auto txle = ltx.loadWithoutRecord(key);
         releaseAssert(txle);
 
-        entrySize = xdr::xdr_size(txle.current());
+        auto entrySize = xdr::xdr_size(txle.current());
+
+        rentFee +=
+            getRentFeeForBytes(entrySize, extendTo, isPersistentEntry(key));
     }
 
-    auto rentFee =
-        getRentFeeForBytes(entrySize, extendTo, isPersistentEntry(key));
+    // Now charge for the TTL writes
+    auto const& cfg = getNetworkCfg();
+    rentFee += (cfg.feeWriteLedgerEntry() * numExtensions);
+    rentFee += computeFeePerIncrement(ttlBytes, cfg.feeWrite1KB(),
+                                      DATA_SIZE_1KB_INCREMENT);
 
-    return rentFee + getTTLEntryWriteFee();
+    return rentFee;
 }
 
 int64_t
@@ -1154,11 +1172,8 @@ ContractInvocationTest::extendOp(
     }
     else
     {
-        for (auto const& key : readOnly)
-        {
-            expectedRefundableFeeCharged +=
-                getRentFeeForExtension(key, extendTo);
-        }
+        expectedRefundableFeeCharged +=
+            getRentFeeForExtension(readOnly, extendTo);
     }
 
     SorobanResources extendResources;
