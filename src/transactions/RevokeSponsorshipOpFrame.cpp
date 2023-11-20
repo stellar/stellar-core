@@ -10,6 +10,7 @@
 #include "transactions/TransactionUtils.h"
 #include "util/ProtocolVersion.h"
 #include "xdr/Stellar-ledger-entries.h"
+#include <Tracy.hpp>
 
 namespace stellar
 {
@@ -379,6 +380,8 @@ RevokeSponsorshipOpFrame::updateSignerSponsorship(AbstractLedgerTxn& ltx)
 bool
 RevokeSponsorshipOpFrame::doApply(AbstractLedgerTxn& ltx)
 {
+    ZoneNamedN(applyZone, "RevokeSponsorshipOpFrame apply", true);
+
     switch (mRevokeSponsorshipOp.type())
     {
     case REVOKE_SPONSORSHIP_LEDGER_ENTRY:

@@ -2003,12 +2003,13 @@ HerderImpl::restoreUpgrades()
 void
 HerderImpl::maybeHandleUpgrade()
 {
+    ZoneScoped;
+
     uint32_t diff = 0;
     {
-        LedgerTxn ltx(mApp.getLedgerTxnRoot(),
-                      /* shouldUpdateLastModified */ true,
-                      TransactionMode::READ_ONLY_WITHOUT_SQL_TXN);
-        if (protocolVersionIsBefore(ltx.loadHeader().current().ledgerVersion,
+        if (protocolVersionIsBefore(mApp.getLedgerManager()
+                                        .getLastClosedLedgerHeader()
+                                        .header.ledgerVersion,
                                     SOROBAN_PROTOCOL_VERSION))
         {
             // no-op on any earlier protocol
@@ -2136,6 +2137,8 @@ HerderImpl::startTxSetGCTimer()
 void
 HerderImpl::purgeOldPersistedTxSets()
 {
+    ZoneScoped;
+
     try
     {
         auto hashesToDelete =

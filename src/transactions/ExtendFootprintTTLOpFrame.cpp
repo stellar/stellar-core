@@ -4,6 +4,7 @@
 
 #include "transactions/ExtendFootprintTTLOpFrame.h"
 #include "TransactionUtils.h"
+#include <Tracy.hpp>
 
 namespace stellar
 {
@@ -52,6 +53,8 @@ bool
 ExtendFootprintTTLOpFrame::doApply(Application& app, AbstractLedgerTxn& ltx,
                                    Hash const& sorobanBasePrngSeed)
 {
+    ZoneNamedN(applyZone, "ExtendFootprintTTLOpFrame apply", true);
+
     ExtendFootprintTTLMetrics metrics(app.getMetrics());
 
     auto const& resources = mParentTx.sorobanResources();

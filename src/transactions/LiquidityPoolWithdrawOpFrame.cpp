@@ -8,6 +8,7 @@
 #include "ledger/TrustLineWrapper.h"
 #include "transactions/TransactionUtils.h"
 #include "util/ProtocolVersion.h"
+#include <Tracy.hpp>
 
 namespace stellar
 {
@@ -30,6 +31,8 @@ LiquidityPoolWithdrawOpFrame::isOpSupported(LedgerHeader const& header) const
 bool
 LiquidityPoolWithdrawOpFrame::doApply(AbstractLedgerTxn& ltx)
 {
+    ZoneNamedN(applyZone, "LiquidityPoolWithdrawOpFrame apply", true);
+
     auto tlPool = loadPoolShareTrustLine(
         ltx, getSourceID(), mLiquidityPoolWithdraw.liquidityPoolID);
     if (!tlPool)

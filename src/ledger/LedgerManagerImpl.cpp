@@ -440,6 +440,8 @@ LedgerManagerImpl::getLastMaxTxSetSizeOps() const
 Resource
 LedgerManagerImpl::maxLedgerResources(bool isSoroban)
 {
+    ZoneScoped;
+
     if (isSoroban)
     {
         auto conf = getSorobanNetworkConfig();
@@ -462,6 +464,8 @@ LedgerManagerImpl::maxLedgerResources(bool isSoroban)
 Resource
 LedgerManagerImpl::maxSorobanTransactionResources()
 {
+    ZoneScoped;
+
     auto const& conf = mApp.getLedgerManager().getSorobanNetworkConfig();
     int64_t const opCount = 1;
     std::vector<int64_t> limits = {opCount,
@@ -505,6 +509,8 @@ LedgerManagerImpl::getLastClosedLedgerHeader() const
 HistoryArchiveState
 LedgerManagerImpl::getLastClosedLedgerHAS()
 {
+    ZoneScoped;
+
     string hasString = mApp.getPersistentState().getState(
         PersistentState::kHistoryArchiveState);
     HistoryArchiveState has;
@@ -665,6 +671,8 @@ LedgerManagerImpl::syncMetrics()
 void
 LedgerManagerImpl::emitNextMeta()
 {
+    ZoneScoped;
+
     releaseAssert(mNextMetaToEmit);
     releaseAssert(mMetaStream || mMetaDebugStream);
     auto timer = LogSlowExecution("MetaStream write",
@@ -1042,6 +1050,8 @@ LedgerManagerImpl::manuallyAdvanceLedgerHeader(LedgerHeader const& header)
 void
 LedgerManagerImpl::setupLedgerCloseMetaStream()
 {
+    ZoneScoped;
+
     if (mMetaStream)
     {
         throw std::runtime_error("LedgerManagerImpl already streaming");
@@ -1073,6 +1083,8 @@ LedgerManagerImpl::setupLedgerCloseMetaStream()
 void
 LedgerManagerImpl::maybeResetLedgerCloseMetaDebugStream(uint32_t ledgerSeq)
 {
+    ZoneScoped;
+
     if (mApp.getConfig().METADATA_DEBUG_LEDGERS != 0)
     {
         if (mMetaDebugStream)
@@ -1185,6 +1197,8 @@ LedgerManagerImpl::advanceLedgerPointers(LedgerHeader const& header,
 void
 LedgerManagerImpl::updateNetworkConfig(AbstractLedgerTxn& rootLtx)
 {
+    ZoneScoped;
+
     uint32_t ledgerVersion{};
     {
         LedgerTxn ltx(rootLtx, false,

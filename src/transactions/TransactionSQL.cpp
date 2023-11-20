@@ -312,6 +312,8 @@ writeTxSetToStream(
     TransactionHistoryResultEntry& results, XDROutputFileStream& txOut,
     XDROutputFileStream& txResultOut)
 {
+    ZoneScoped;
+
     // encodedTxSets may *only* contain generalized tx sets, so if the requested
     // ledger is before the first generalized tx set ledger, then we still need
     // to emit the legacy tx set.

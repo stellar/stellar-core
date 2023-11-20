@@ -886,6 +886,8 @@ void
 BucketManagerImpl::maybeSetIndex(std::shared_ptr<Bucket> b,
                                  std::unique_ptr<BucketIndex const>&& index)
 {
+    ZoneScoped;
+
     if (!isShutdown() && index && !b->isIndexed())
     {
         b->setIndex(std::move(index));
@@ -1095,6 +1097,8 @@ static void
 loadEntriesFromBucket(std::shared_ptr<Bucket> b, std::string const& name,
                       std::map<LedgerKey, LedgerEntry>& map)
 {
+    ZoneScoped;
+
     using namespace std::chrono;
     medida::Timer timer;
     BucketInputIterator in(b);
@@ -1139,6 +1143,8 @@ loadEntriesFromBucket(std::shared_ptr<Bucket> b, std::string const& name,
 std::map<LedgerKey, LedgerEntry>
 BucketManagerImpl::loadCompleteLedgerState(HistoryArchiveState const& has)
 {
+    ZoneScoped;
+
     std::map<LedgerKey, LedgerEntry> ledgerMap;
     std::vector<std::pair<Hash, std::string>> hashes;
     for (uint32_t i = BucketList::kNumLevels; i > 0; --i)
@@ -1169,6 +1175,8 @@ BucketManagerImpl::loadCompleteLedgerState(HistoryArchiveState const& has)
 std::shared_ptr<Bucket>
 BucketManagerImpl::mergeBuckets(HistoryArchiveState const& has)
 {
+    ZoneScoped;
+
     std::map<LedgerKey, LedgerEntry> ledgerMap = loadCompleteLedgerState(has);
     BucketMetadata meta;
     MergeCounters mc;
@@ -1193,6 +1201,8 @@ visitEntriesInBucket(std::shared_ptr<Bucket const> b, std::string const& name,
                      std::function<bool(LedgerEntry const&)> const& acceptEntry,
                      UnorderedSet<LedgerKey>& processedEntries)
 {
+    ZoneScoped;
+
     using namespace std::chrono;
     medida::Timer timer;
 
@@ -1259,6 +1269,8 @@ BucketManagerImpl::visitLedgerEntries(
     std::function<bool(LedgerEntry const&)> const& filterEntry,
     std::function<bool(LedgerEntry const&)> const& acceptEntry)
 {
+    ZoneScoped;
+
     UnorderedSet<LedgerKey> deletedEntries;
     std::vector<std::pair<Hash, std::string>> hashes;
     for (uint32_t i = 0; i < BucketList::kNumLevels; ++i)

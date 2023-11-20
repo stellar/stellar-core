@@ -9,6 +9,7 @@
 #include "transactions/TransactionUtils.h"
 #include "util/ProtocolVersion.h"
 #include "util/numeric128.h"
+#include <Tracy.hpp>
 
 namespace stellar
 {
@@ -189,6 +190,8 @@ updateBalance(LedgerTxnHeader& header, TrustLineWrapper& tl,
 bool
 LiquidityPoolDepositOpFrame::doApply(AbstractLedgerTxn& ltx)
 {
+    ZoneNamedN(applyZone, "LiquidityPoolDepositOpFrame apply", true);
+
     // Don't need TrustLineWrapper here because pool share trust lines cannot be
     // issuer trust lines.
     auto tlPool = loadPoolShareTrustLine(ltx, getSourceID(),

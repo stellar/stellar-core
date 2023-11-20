@@ -11,6 +11,7 @@
 #include "transactions/SponsorshipUtils.h"
 #include "transactions/TransactionUtils.h"
 #include "util/ProtocolVersion.h"
+#include <Tracy.hpp>
 
 namespace stellar
 {
@@ -71,6 +72,8 @@ validatePredicate(ClaimPredicate const& pred, TimePoint closeTime)
 bool
 ClaimClaimableBalanceOpFrame::doApply(AbstractLedgerTxn& ltx)
 {
+    ZoneNamedN(applyZone, "ClaimClaimableBalanceOpFrame apply", true);
+
     auto claimableBalanceLtxEntry =
         stellar::loadClaimableBalance(ltx, mClaimClaimableBalance.balanceID);
     if (!claimableBalanceLtxEntry)

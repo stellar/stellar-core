@@ -25,6 +25,7 @@
 #include "ledger/LedgerTxnEntry.h"
 #include "rust/RustBridge.h"
 #include "transactions/InvokeHostFunctionOpFrame.h"
+#include <Tracy.hpp>
 #include <crypto/SHA.h>
 
 namespace stellar
@@ -358,6 +359,8 @@ bool
 InvokeHostFunctionOpFrame::doApply(Application& app, AbstractLedgerTxn& ltx,
                                    Hash const& sorobanBasePrngSeed)
 {
+    ZoneNamedN(applyZone, "InvokeHostFunctionOpFrame apply", true);
+
     Config const& cfg = app.getConfig();
     HostFunctionMetrics metrics(app.getMetrics());
     auto const& sorobanConfig =

@@ -212,6 +212,8 @@ uint64_t
 FlowControlCapacity::msgBodySize(StellarMessage const& msg,
                                  uint32_t remoteVersion, uint32_t localVersion)
 {
+    ZoneScoped;
+
     // Starting with FIRST_VERSION_UPDATED_FLOW_CONTROL_ACCOUNTING, message size
     // calculation changed to accommodate Soroban transactions. We still need to
     // be able to support clients running older versions (this support can be

@@ -190,6 +190,8 @@ void
 Bucket::loadKeys(std::set<LedgerKey, LedgerEntryIdCmp>& keys,
                  std::vector<LedgerEntry>& result)
 {
+    ZoneScoped;
+
     auto currKeyIt = keys.begin();
     auto const& index = getIndex();
     auto indexIter = index.begin();
@@ -223,6 +225,8 @@ Bucket::loadPoolShareTrustLinessByAccount(
     UnorderedMap<LedgerKey, LedgerEntry>& liquidityPoolKeyToTrustline,
     LedgerKeySet& liquidityPoolKeys)
 {
+    ZoneScoped;
+
     // Takes a LedgerKey or LedgerEntry::_data_t, returns true if entry is a
     // poolshare trusline for the given accountID
     auto trustlineCheck = [&accountID](auto const& entry) {
@@ -862,6 +866,7 @@ Bucket::scanForEviction(AbstractLedgerTxn& ltx, EvictionIterator& iter,
             auto const& le = be.liveEntry();
             if (isTemporaryEntry(le.data))
             {
+                ZoneNamedN(maybeEvict, "maybe evict entry", true);
                 // All Buckets maintain a single stream object. This means
                 // that if an TTLEntry being loaded exists in the
                 // same bucket as the entry being evicted, the stream may be
@@ -888,6 +893,7 @@ Bucket::scanForEviction(AbstractLedgerTxn& ltx, EvictionIterator& iter,
 
                 if (shouldEvict())
                 {
+                    ZoneNamedN(evict, "evict entry", true);
                     ltx.erase(ttlKey);
                     ltx.erase(LedgerEntryKey(le));
                     entriesEvictedMeter.Mark();

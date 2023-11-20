@@ -4,6 +4,7 @@
 
 #include "transactions/RestoreFootprintOpFrame.h"
 #include "TransactionUtils.h"
+#include <Tracy.hpp>
 
 namespace stellar
 {
@@ -57,6 +58,8 @@ bool
 RestoreFootprintOpFrame::doApply(Application& app, AbstractLedgerTxn& ltx,
                                  Hash const& sorobanBasePrngSeed)
 {
+    ZoneNamedN(applyZone, "RestoreFootprintOpFrame apply", true);
+
     RestoreFootprintMetrics metrics(app.getMetrics());
 
     auto const& resources = mParentTx.sorobanResources();

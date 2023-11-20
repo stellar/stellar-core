@@ -12,6 +12,7 @@
 #include "transactions/TransactionUtils.h"
 #include "util/GlobalChecks.h"
 #include "util/ProtocolVersion.h"
+#include <Tracy.hpp>
 
 namespace stellar
 {
@@ -142,6 +143,8 @@ CreateClaimableBalanceOpFrame::isOpSupported(LedgerHeader const& header) const
 bool
 CreateClaimableBalanceOpFrame::doApply(AbstractLedgerTxn& ltx)
 {
+    ZoneNamedN(applyZone, "CreateClaimableBalanceOpFrame apply", true);
+
     auto header = ltx.loadHeader();
     auto sourceAccount = loadSourceAccount(ltx, header);
 
