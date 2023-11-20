@@ -78,6 +78,7 @@ struct GeneratedLoadConfig
     uint32_t dexTxPercent = 0;
 
     // The following ranges are only used for SOROBAN_INVOKE txs:
+    uint32_t nInstances = 0;
 
     // Range of kilo bytes and num entries for disk IO
     uint32_t nDataEntriesLow = 0;
@@ -102,6 +103,13 @@ class LoadGenerator
 
     static LoadGenMode getMode(std::string const& mode);
 
+    // Returns true if loadgen has submitted all required TXs
+    bool isDone(GeneratedLoadConfig const& cfg) const;
+
+    // Returns true if loadgen can continue and does not need to wait for Wasm
+    // application
+    bool checkSorobanWasmSetup(GeneratedLoadConfig const& cfg);
+
     // Generate one "step" worth of load (assuming 1 step per STEP_MSECS) at a
     // given target number of accounts and txs, a given target tx/s rate, and
     // according to the other parameters provided in configuration.
@@ -113,6 +121,8 @@ class LoadGenerator
     // return any accounts that are inconsistent.
     std::vector<TestAccountPtr> checkAccountSynced(Application& app,
                                                    bool isCreate);
+    std::vector<LedgerKey> checkSorobanStateSynced(Application& app,
+                                                   LoadGenMode mode);
 
     struct ContractInstance
     {
@@ -166,7 +176,7 @@ class LoadGenerator
                               LoadGenMode mode,
                               std::optional<uint32_t> maxGeneratedFeeRate);
 
-    static const uint32_t STEP_MSECS;
+    static const std::chrono::milliseconds STEP_MSECS;
     static const uint32_t TX_SUBMIT_MAX_TRIES;
     static const uint32_t TIMEOUT_NUM_LEDGERS;
     static const uint32_t COMPLETION_TIMEOUT_WITHOUT_CHECKS;
@@ -203,6 +213,7 @@ class LoadGenerator
     bool mInitialAccountsCreated{false};
 
     uint32_t mWaitTillCompleteForLedgers{0};
+    uint32_t mSorobanWasmWaitTillLedgers{0};
 
     // Internal loadgen state gets reset after each run, but it is impossible to
     // regenerate contract instance keys for DB lookup. Due to this we maintain
@@ -221,13 +232,14 @@ class LoadGenerator
     // unique instance
     UnorderedMap<uint64_t, ContractInstance> mContractInstances;
 
-    void reset();
+    void reset(bool resetSoroban);
     void createRootAccount();
     int64_t getTxPerStep(uint32_t txRate, std::chrono::seconds spikeInterval,
                          uint32_t spikeSize);
 
-    // Schedule a callback to generateLoad() STEP_MSECS milliseconds from now.
-    void scheduleLoadGeneration(GeneratedLoadConfig cfg);
+    // Schedule a callback to generateLoad() interval milliseconds from now.
+    void scheduleLoadGeneration(GeneratedLoadConfig cfg,
+                                std::chrono::milliseconds interval);
 
     std::vector<Operation> createAccounts(uint64_t i, uint64_t batchSize,
                                           uint32_t ledgerNum,
@@ -279,14 +291,14 @@ class LoadGenerator
 
     uint32_t submitCreationTx(uint32_t nAccounts, uint32_t offset,
                               uint32_t ledgerNum);
-    uint32_t submitSorobanPrepareInvokeTX(uint32_t nAccounts,
+    uint32_t submitSorobanPrepareInvokeTX(uint32_t nInstances,
                                           uint32_t ledgerNum,
                                           uint32_t inclusionFee);
     bool submitTx(GeneratedLoadConfig const& cfg,
                   std::function<std::pair<LoadGenerator::TestAccountPtr,
                                           TransactionFramePtr>()>
                       generateTx);
-    void waitTillComplete(bool isCreate);
+    void waitTillComplete(LoadGenMode mode);
     void waitTillCompleteWithoutChecks();
 
     void updateMinBalance();
