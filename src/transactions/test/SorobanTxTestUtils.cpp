@@ -440,9 +440,8 @@ ContractInvocationTest::getRentFeeForExtension(
     for (auto const& key : keys)
     {
         LedgerTxn ltx(mApp->getLedgerTxnRoot());
-        auto ledgerSeq =
-            ltx.getHeader().ledgerSeq; // Add one to simulate a bump in the
-                                       // middle of a ledger close
+        auto ledgerSeq = ltx.getHeader().ledgerSeq;
+
         auto ttlKey = getTTLKey(key);
         auto ttlLtxe = ltx.loadWithoutRecord(ttlKey);
         releaseAssert(ttlLtxe);
