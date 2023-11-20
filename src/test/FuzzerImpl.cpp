@@ -902,6 +902,15 @@ class FuzzTransactionFrame : public TransactionFrame
     void
     attemptApplication(Application& app, AbstractLedgerTxn& ltx)
     {
+        // Soroban op must be alone in tx
+        if (std::any_of(mOperations.begin(), mOperations.end(),
+                        [](auto const& x) { return x->isSoroban(); }) &&
+            mOperations.size() != 1)
+        {
+            markResultFailed();
+            return;
+        }
+
         // reset results of operations
         resetResults(ltx.getHeader(), 0, true);
 
