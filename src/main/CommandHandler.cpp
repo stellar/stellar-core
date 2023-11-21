@@ -1173,6 +1173,7 @@ CommandHandler::generateLoad(std::string const& params, std::string& retStr)
         // Only for MIXED_TX mode; fraction of DEX transactions.
         cfg.dexTxPercent =
             parseOptionalParamOrDefault<uint32_t>(map, "dextxpercent", 0);
+
         // Only for SOROBAN_INVOKE mode, resource consumption bounds
         cfg.nDataEntriesLow =
             parseOptionalParamOrDefault<uint32_t>(map, "dataentrieslow", 0);
@@ -1190,6 +1191,50 @@ CommandHandler::generateLoad(std::string const& params, std::string& retStr)
             parseOptionalParamOrDefault<uint64_t>(map, "cpulow", 0);
         cfg.instructionsHigh =
             parseOptionalParamOrDefault<uint64_t>(map, "cpuhigh", 0);
+
+        // SOROBAN_CREATE_UPGRADE parameters
+        cfg.maxContractSizeBytes =
+            parseOptionalParamOrDefault<uint32_t>(map, "mxcntrctsz", 0);
+        cfg.maxContractDataKeySizeBytes =
+            parseOptionalParamOrDefault<uint32_t>(map, "mxcntrctkeysz", 0);
+        cfg.maxContractDataEntrySizeBytes =
+            parseOptionalParamOrDefault<uint32_t>(map, "mxcntrctdatasz", 0);
+        cfg.ledgerMaxInstructions =
+            parseOptionalParamOrDefault<uint64_t>(map, "ldgrmxinstrc", 0);
+        cfg.txMaxInstructions =
+            parseOptionalParamOrDefault<uint64_t>(map, "txmxinstrc", 0);
+        cfg.txMemoryLimit =
+            parseOptionalParamOrDefault<uint64_t>(map, "txmemlim", 0);
+        cfg.ledgerMaxReadLedgerEntries =
+            parseOptionalParamOrDefault<uint32_t>(map, "ldgrmxrdntry", 0);
+        cfg.ledgerMaxReadBytes =
+            parseOptionalParamOrDefault<uint32_t>(map, "ldgrmxrdbyt", 0);
+        cfg.ledgerMaxWriteLedgerEntries =
+            parseOptionalParamOrDefault<uint32_t>(map, "ldgrmxwrntry", 0);
+        cfg.ledgerMaxWriteBytes =
+            parseOptionalParamOrDefault<uint32_t>(map, "ldgrmxwrbyt", 0);
+        cfg.ledgerMaxTxCount =
+            parseOptionalParamOrDefault<uint32_t>(map, "ldgrmxtxcnt", 0);
+        cfg.txMaxReadLedgerEntries =
+            parseOptionalParamOrDefault<uint32_t>(map, "txmxrdntry", 0);
+        cfg.txMaxReadBytes =
+            parseOptionalParamOrDefault<uint32_t>(map, "txmxrdbyt", 0);
+        cfg.txMaxWriteLedgerEntries =
+            parseOptionalParamOrDefault<uint32_t>(map, "txmxwrntry", 0);
+        cfg.txMaxWriteBytes =
+            parseOptionalParamOrDefault<uint32_t>(map, "txmxwrbyt", 0);
+        cfg.txMaxContractEventsSizeBytes =
+            parseOptionalParamOrDefault<uint32_t>(map, "txmxevntsz", 0);
+        cfg.ledgerMaxTransactionsSizeBytes =
+            parseOptionalParamOrDefault<uint32_t>(map, "ldgrmxtxsz", 0);
+        cfg.txMaxSizeBytes = parseOptionalParamOrDefault<uint32_t>(
+            map, "txmxsz", cfg.ledgerMaxTransactionsSizeBytes);
+        cfg.bucketListSizeWindowSampleSize =
+            parseOptionalParamOrDefault<uint32_t>(map, "wndowsz", 0);
+        cfg.evictionScanSize = parseOptionalParamOrDefault<uint64_t>(
+            map, "evctsz", cfg.bucketListSizeWindowSampleSize);
+        cfg.startingEvictionScanLevel =
+            parseOptionalParamOrDefault<uint32_t>(map, "evctlvl", 0);
 
         if (cfg.maxGeneratedFeeRate)
         {

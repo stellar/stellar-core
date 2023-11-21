@@ -55,8 +55,6 @@ struct GeneratedLoadConfig
 
     static GeneratedLoadConfig createSorobanUpgradeSetupLoad();
 
-    static GeneratedLoadConfig createSorobanCreateUpgradeLoad();
-
     static GeneratedLoadConfig
     txLoad(LoadGenMode mode, uint32_t nAccounts, uint32_t nTxs, uint32_t txRate,
            uint32_t offset = 0, std::optional<uint32_t> maxFee = std::nullopt);
@@ -101,6 +99,39 @@ struct GeneratedLoadConfig
     // Instruction count
     uint64_t instructionsLow = 0;
     uint64_t instructionsHigh = 0;
+
+    // Network Upgrade Parameters
+    uint32_t maxContractSizeBytes{};
+    uint32_t maxContractDataKeySizeBytes{};
+    uint32_t maxContractDataEntrySizeBytes{};
+
+    // Compute settings for contracts (instructions and memory).
+    int64_t ledgerMaxInstructions{};
+    int64_t txMaxInstructions{};
+    uint32_t txMemoryLimit{};
+
+    // Ledger access settings for contracts.
+    uint32_t ledgerMaxReadLedgerEntries{};
+    uint32_t ledgerMaxReadBytes{};
+    uint32_t ledgerMaxWriteLedgerEntries{};
+    uint32_t ledgerMaxWriteBytes{};
+    uint32_t ledgerMaxTxCount{};
+    uint32_t txMaxReadLedgerEntries{};
+    uint32_t txMaxReadBytes{};
+    uint32_t txMaxWriteLedgerEntries{};
+    uint32_t txMaxWriteBytes{};
+
+    // Contract events settings.
+    uint32_t txMaxContractEventsSizeBytes{};
+
+    // Bandwidth related data settings for contracts
+    uint32_t ledgerMaxTransactionsSizeBytes{};
+    uint32_t txMaxSizeBytes{};
+
+    // State Expiration setting
+    uint32_t bucketListSizeWindowSampleSize{};
+    uint64_t evictionScanSize{};
+    uint32_t startingEvictionScanLevel{};
 };
 
 class LoadGenerator

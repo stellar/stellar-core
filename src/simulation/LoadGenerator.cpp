@@ -1337,19 +1337,154 @@ LoadGenerator::getConfigUpgradeSetFromLoadConfig(
     GeneratedLoadConfig const& cfg) const
 {
     xdr::xvector<ConfigSettingEntry> updatedEntries;
+
+    LedgerTxn ltx(mApp.getLedgerTxnRoot());
     for (uint32_t i = 0;
          i < static_cast<uint32_t>(CONFIG_SETTING_BUCKETLIST_SIZE_WINDOW); ++i)
     {
-        LedgerTxn ltx(mApp.getLedgerTxnRoot());
         auto entry =
             ltx.load(configSettingKey(static_cast<ConfigSettingID>(i)));
-        if (entry.current().data.configSetting().configSettingID() ==
-            CONFIG_SETTING_CONTRACT_LEDGER_COST_V0)
+        auto& setting = entry.current().data.configSetting();
+        switch (static_cast<ConfigSettingID>(i))
         {
-            entry.current()
-                .data.configSetting()
-                .contractLedgerCost()
-                .feeRead1KB = 1234;
+        case CONFIG_SETTING_CONTRACT_MAX_SIZE_BYTES:
+            if (cfg.maxContractSizeBytes > 0)
+            {
+                setting.contractMaxSizeBytes() = cfg.maxContractSizeBytes;
+            }
+            break;
+        case CONFIG_SETTING_CONTRACT_COMPUTE_V0:
+            if (cfg.ledgerMaxInstructions > 0)
+            {
+                setting.contractCompute().ledgerMaxInstructions =
+                    cfg.ledgerMaxInstructions;
+            }
+
+            if (cfg.txMaxInstructions > 0)
+            {
+                setting.contractCompute().txMaxInstructions =
+                    cfg.txMaxInstructions;
+            }
+
+            if (cfg.txMemoryLimit > 0)
+            {
+                setting.contractCompute().txMemoryLimit = cfg.txMemoryLimit;
+            }
+            break;
+        case CONFIG_SETTING_CONTRACT_LEDGER_COST_V0:
+            if (cfg.ledgerMaxReadLedgerEntries > 0)
+            {
+                setting.contractLedgerCost().ledgerMaxReadLedgerEntries =
+                    cfg.ledgerMaxReadLedgerEntries;
+            }
+
+            if (cfg.ledgerMaxReadBytes > 0)
+            {
+                setting.contractLedgerCost().ledgerMaxReadBytes =
+                    cfg.ledgerMaxReadBytes;
+            }
+
+            if (cfg.ledgerMaxWriteLedgerEntries > 0)
+            {
+                setting.contractLedgerCost().ledgerMaxWriteLedgerEntries =
+                    cfg.ledgerMaxWriteLedgerEntries;
+            }
+
+            if (cfg.ledgerMaxWriteBytes > 0)
+            {
+                setting.contractLedgerCost().ledgerMaxWriteBytes =
+                    cfg.ledgerMaxWriteBytes;
+            }
+
+            if (cfg.txMaxReadLedgerEntries > 0)
+            {
+                setting.contractLedgerCost().txMaxReadLedgerEntries =
+                    cfg.txMaxReadLedgerEntries;
+            }
+
+            if (cfg.txMaxReadBytes > 0)
+            {
+                setting.contractLedgerCost().txMaxReadBytes =
+                    cfg.txMaxReadBytes;
+            }
+
+            if (cfg.txMaxWriteLedgerEntries > 0)
+            {
+                setting.contractLedgerCost().txMaxWriteLedgerEntries =
+                    cfg.txMaxWriteLedgerEntries;
+            }
+
+            if (cfg.txMaxWriteBytes > 0)
+            {
+                setting.contractLedgerCost().txMaxWriteBytes =
+                    cfg.txMaxWriteBytes;
+            }
+            break;
+        case CONFIG_SETTING_CONTRACT_HISTORICAL_DATA_V0:
+            break;
+        case CONFIG_SETTING_CONTRACT_EVENTS_V0:
+            if (cfg.txMaxContractEventsSizeBytes > 0)
+            {
+                setting.contractEvents().txMaxContractEventsSizeBytes =
+                    cfg.txMaxContractEventsSizeBytes;
+            }
+            break;
+        case CONFIG_SETTING_CONTRACT_BANDWIDTH_V0:
+            if (cfg.ledgerMaxTransactionsSizeBytes > 0)
+            {
+                setting.contractBandwidth().ledgerMaxTxsSizeBytes =
+                    cfg.ledgerMaxTransactionsSizeBytes;
+            }
+
+            if (cfg.txMaxSizeBytes > 0)
+            {
+                setting.contractBandwidth().txMaxSizeBytes = cfg.txMaxSizeBytes;
+            }
+            break;
+        case CONFIG_SETTING_CONTRACT_COST_PARAMS_CPU_INSTRUCTIONS:
+        case CONFIG_SETTING_CONTRACT_COST_PARAMS_MEMORY_BYTES:
+            break;
+        case CONFIG_SETTING_CONTRACT_DATA_KEY_SIZE_BYTES:
+            if (cfg.maxContractDataKeySizeBytes > 0)
+            {
+                setting.contractDataKeySizeBytes() =
+                    cfg.maxContractDataKeySizeBytes;
+            }
+            break;
+        case CONFIG_SETTING_CONTRACT_DATA_ENTRY_SIZE_BYTES:
+            if (cfg.maxContractDataEntrySizeBytes > 0)
+            {
+                setting.contractDataEntrySizeBytes() =
+                    cfg.maxContractDataEntrySizeBytes;
+            }
+            break;
+        case CONFIG_SETTING_STATE_ARCHIVAL:
+        {
+            auto& ses = setting.stateArchivalSettings();
+            if (cfg.bucketListSizeWindowSampleSize > 0)
+            {
+                ses.bucketListSizeWindowSampleSize =
+                    cfg.bucketListSizeWindowSampleSize;
+            }
+
+            if (cfg.evictionScanSize)
+            {
+                ses.evictionScanSize = cfg.evictionScanSize;
+            }
+
+            if (cfg.startingEvictionScanLevel > 0)
+            {
+                ses.startingEvictionScanLevel = cfg.startingEvictionScanLevel;
+            }
+        }
+        break;
+        case CONFIG_SETTING_CONTRACT_EXECUTION_LANES:
+            if (cfg.ledgerMaxTxCount > 0)
+            {
+                setting.contractExecutionLanes().ledgerMaxTxCount =
+                    cfg.ledgerMaxTxCount;
+            }
+            break;
         }
         updatedEntries.emplace_back(entry.current().data.configSetting());
     }
@@ -1366,6 +1501,7 @@ LoadGenerator::invokeSorobanCreateUpgradeTransaction(
 {
     releaseAssert(mCodeKey);
     releaseAssert(mContractInstanceKeys.size() == 1);
+
     auto account = findAccount(accountId, ledgerNum);
     auto const& instanceLK = *mContractInstanceKeys.begin();
     auto const& contractID = instanceLK.contractData().contract;
@@ -1783,17 +1919,6 @@ GeneratedLoadConfig::createSorobanUpgradeSetupLoad()
     cfg.mode = LoadGenMode::SOROBAN_UPGRADE_SETUP;
     cfg.nAccounts = 1;
     cfg.nInstances = 1;
-    cfg.txRate = 1;
-    return cfg;
-}
-
-GeneratedLoadConfig
-GeneratedLoadConfig::createSorobanCreateUpgradeLoad()
-{
-    GeneratedLoadConfig cfg;
-    cfg.mode = LoadGenMode::SOROBAN_CREATE_UPGRADE;
-    cfg.nAccounts = 1;
-    cfg.nTxs = 1;
     cfg.txRate = 1;
     return cfg;
 }

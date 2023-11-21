@@ -362,7 +362,7 @@ format.
 
 ### The following HTTP commands are exposed on test instances
 * **generateload** `generateload[?mode=
-    (create|pay|pretend|mixed_txs|soroban_upload|soroban_invoke_setup|soroban_invoke)&accounts=N&offset=K&txs=M&txrate=R&spikesize=S&spikeinterval=I&maxfeerate=F&skiplowfeetxs=(0|1)&dextxpercent=D&dataentrieslow=A&dataentrieshigh=B&kilobyteslow=C&kilobyteshigh=T&txsizelow=U&txsizehigh=V&cpulow=W&cpuhigh=X]`
+    (create|pay|pretend|mixed_txs|soroban_upload|soroban_invoke_setup|soroban_invoke|upgrade_setup|create_upgrade)&accounts=N&offset=K&txs=M&txrate=R&spikesize=S&spikeinterval=I&maxfeerate=F&skiplowfeetxs=(0|1)&dextxpercent=D&dataentrieslow=A&dataentrieshigh=B&kilobyteslow=C&kilobyteshigh=T&txsizelow=U&txsizehigh=V&cpulow=W&cpuhigh=X]`
 
     Artificially generate load for testing; must be used with
     `ARTIFICIALLY_GENERATE_LOAD_FOR_TESTING` set to true.
@@ -391,6 +391,13 @@ format.
     between some bound. Resource bounds can be set with the `dataentrieslow`,
     `dataentrieshigh`, `kilobyteslow`, `kilobyteshigh`, `txsizelow`, `txsizehigh`,
     `cpulow`, `cpuhigh`, where CPU bounds correspond to instruction count.
+  * `upgrade_setup` mode create soroban contract instance to be used by
+    `create_upgrade`. This mode must be run before `create_upgrade`.
+  * `create_upgrade` mode write a soroban upgrade set and returns the
+    ConfigUpgradeSetKey. Most network config settings are supports. If a given
+    setting is ommited or set to 0, it is not upgraded and maintains the current
+    value. To not exceed HTTP string limits, the names are very short. See
+    `CommandHandler::generateLoad` for available options.
 
   Non-`create` load generation makes use of the additional parameters:
   * when a nonzero `spikeinterval` is given, a spike will occur every
