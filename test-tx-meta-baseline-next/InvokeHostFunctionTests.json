@@ -89,6 +89,7 @@
 		"bKDF6V5IzTo="
 	],
 	"contract storage|footprint tests|unused readWrite key" : [ "ZKxMUP1fxqo=" ],
+	"error codes" : [ "bKDF6V5IzTo=" ],
 	"errors roll back" : 
 	[
 		"bKDF6V5IzTo=",
