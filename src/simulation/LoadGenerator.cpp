@@ -43,8 +43,7 @@ using namespace std;
 using namespace txtest;
 
 // Units of load are scheduled at 100ms intervals.
-const std::chrono::milliseconds LoadGenerator::STEP_MSECS =
-    std::chrono::milliseconds(100);
+const uint32_t LoadGenerator::STEP_MSECS = 100;
 
 // If submission fails with txBAD_SEQ, attempt refreshing the account or
 // re-submitting a new payment
@@ -263,7 +262,6 @@ LoadGenerator::reset(bool resetSoroban)
     mAccountsInUse.clear();
     mAccountsAvailable.clear();
     mCreationSourceAccounts.clear();
-    mPendingCodeKey.reset();
     mContractInstances.clear();
     mLoadTimer.reset();
     mRoot.reset();
@@ -286,10 +284,9 @@ LoadGenerator::reset(bool resetSoroban)
     mInitialAccountsCreated = false;
 }
 
-// Schedule a callback to generateLoad() interval milliseconds from now.
+// Schedule a callback to generateLoad() STEP_MSECS milliseconds from now.
 void
-LoadGenerator::scheduleLoadGeneration(GeneratedLoadConfig cfg,
-                                      std::chrono::milliseconds interval)
+LoadGenerator::scheduleLoadGeneration(GeneratedLoadConfig cfg)
 {
     std::optional<std::string> errorMsg;
     // If previously scheduled step of load did not succeed, fail this loadgen
@@ -300,6 +297,37 @@ LoadGenerator::scheduleLoadGeneration(GeneratedLoadConfig cfg,
                    "number parameters are set and accounts are "
                    "created, or retry with smaller tx rate.";
     }
+
+    // Setup config for soroban modes
+    if (!mStarted && cfg.isSoroban())
+    {
+        cfg.nWasms = 1;
+
+        if (cfg.mode == LoadGenMode::SOROBAN_UPGRADE_SETUP)
+        {
+            // Only deploy single upgrade contract instance
+            cfg.nInstances = 1;
+        }
+
+        if (cfg.mode == LoadGenMode::SOROBAN_CREATE_UPGRADE)
+        {
+            // Submit a single upgrade TX
+            cfg.nInstances = 1;
+            cfg.nTxs = 1;
+        }
+
+        if (cfg.isSorobanSetup())
+        {
+            // For first round of txs, we need to deploy the wasms.
+            // waitTillFinished will set nTxs for instances once wasms have been
+            // verified
+            cfg.nTxs = cfg.nWasms;
+
+            // Must include all TXs
+            cfg.skipLowFeeTxs = false;
+        }
+    }
+
     // During load submission, we must have enough unique source accounts (with
     // a buffer) to accommodate the desired tx rate.
     if (cfg.mode != LoadGenMode::CREATE && cfg.nTxs > cfg.nAccounts &&
@@ -314,11 +342,7 @@ LoadGenerator::scheduleLoadGeneration(GeneratedLoadConfig cfg,
             MIN_UNIQUE_ACCOUNT_MULTIPLIER);
     }
 
-    if ((cfg.mode == LoadGenMode::SOROBAN_INVOKE ||
-         cfg.mode == LoadGenMode::SOROBAN_UPLOAD ||
-         cfg.mode == LoadGenMode::SOROBAN_INVOKE_SETUP ||
-         cfg.mode == LoadGenMode::SOROBAN_UPGRADE_SETUP ||
-         cfg.mode == LoadGenMode::SOROBAN_CREATE_UPGRADE) &&
+    if (cfg.isSoroban() &&
         protocolVersionIsBefore(mApp.getLedgerManager()
                                     .getLastClosedLedgerHeader()
                                     .header.ledgerVersion,
@@ -330,9 +354,17 @@ LoadGenerator::scheduleLoadGeneration(GeneratedLoadConfig cfg,
     if (cfg.mode == LoadGenMode::SOROBAN_INVOKE)
     {
         auto& sorobanCfg = mApp.getLedgerManager().getSorobanNetworkConfig();
-        if (mContractInstanceKeys.size() < cfg.nAccounts)
+        if (cfg.nInstances == 0)
         {
-            errorMsg = "must run SOROBAN_INVOKE_SETUP with at least nAccounts";
+            errorMsg = "SOROBAN_INVOKE requires nInstances > 0";
+        }
+        else if (mContractInstanceKeys.size() < cfg.nInstances || !mCodeKey)
+        {
+            errorMsg = "must run SOROBAN_INVOKE_SETUP with at least nInstances";
+        }
+        else if (cfg.nAccounts < cfg.nInstances)
+        {
+            errorMsg = "must have more accounts than instances";
         }
         else if (cfg.nDataEntriesHigh > sorobanCfg.mTxMaxWriteLedgerEntries)
         {
@@ -391,20 +423,22 @@ LoadGenerator::scheduleLoadGeneration(GeneratedLoadConfig cfg,
             releaseAssert(mContractInstances.empty());
             releaseAssert(mCodeKey);
             releaseAssert(mAccountsAvailable.size() >= cfg.nAccounts);
-            releaseAssert(mContractInstanceKeys.size() >= cfg.nAccounts);
+            releaseAssert(mContractInstanceKeys.size() >= cfg.nInstances);
+            releaseAssert(cfg.nAccounts >= cfg.nInstances);
 
-            // assign a unique contract instance to each accountID
+            // assign a contract instance to each accountID
             auto accountIter = mAccountsAvailable.begin();
-            auto instanceKeyIter = mContractInstanceKeys.begin();
             for (size_t i = 0; i < cfg.nAccounts; ++i)
             {
+                auto instanceKeyIter = mContractInstanceKeys.begin();
+                std::advance(instanceKeyIter, i % cfg.nInstances);
+
                 ContractInstance instance;
                 instance.readOnlyKeys.emplace_back(*mCodeKey);
                 instance.readOnlyKeys.emplace_back(*instanceKeyIter);
                 instance.contractID = instanceKeyIter->contractData().contract;
                 mContractInstances.emplace(*accountIter, instance);
                 ++accountIter;
-                ++instanceKeyIter;
             }
         }
     }
@@ -418,7 +452,7 @@ LoadGenerator::scheduleLoadGeneration(GeneratedLoadConfig cfg,
 
     if (mApp.getState() == Application::APP_SYNCED_STATE)
     {
-        mLoadTimer->expires_from_now(interval);
+        mLoadTimer->expires_from_now(std::chrono::milliseconds(STEP_MSECS));
         mLoadTimer->async_wait([this, cfg]() { this->generateLoad(cfg); },
                                &VirtualTimer::onFailureNoop);
     }
@@ -430,57 +464,22 @@ LoadGenerator::scheduleLoadGeneration(GeneratedLoadConfig cfg,
             mApp.getStateHuman());
         mLoadTimer->expires_from_now(std::chrono::seconds(10));
         mLoadTimer->async_wait(
-            [this, cfg, interval]() {
-                this->scheduleLoadGeneration(cfg, interval);
-            },
+            [this, cfg]() { this->scheduleLoadGeneration(cfg); },
             &VirtualTimer::onFailureNoop);
     }
 }
 
 bool
-LoadGenerator::isDone(GeneratedLoadConfig const& cfg) const
+GeneratedLoadConfig::isDone() const
 {
-    bool isCreate = cfg.mode == LoadGenMode::CREATE;
-    bool isSorobanSetup = cfg.mode == LoadGenMode::SOROBAN_INVOKE_SETUP ||
-                          cfg.mode == LoadGenMode::SOROBAN_UPGRADE_SETUP;
-    bool isLoad = !isCreate && !isSorobanSetup;
-
-    return (isCreate && cfg.nAccounts == 0) || (isLoad && cfg.nTxs == 0) ||
-           (isSorobanSetup && cfg.nInstances == 0);
+    return (isCreate() && nAccounts == 0) || (isLoad() && nTxs == 0) ||
+           (isSorobanSetup() && nInstances == 0);
 }
 
 bool
-LoadGenerator::checkSorobanWasmSetup(GeneratedLoadConfig const& cfg)
+GeneratedLoadConfig::areTxsRemaining() const
 {
-    // Only SOROBAN_INVOKE_SETUP submits deploy wasm TXs
-    if (cfg.mode != LoadGenMode::SOROBAN_INVOKE_SETUP &&
-        cfg.mode != LoadGenMode::SOROBAN_UPGRADE_SETUP)
-    {
-        return true;
-    }
-
-    if (mPendingCodeKey.has_value())
-    {
-        // Check if entry has been applied
-        LedgerTxn ltx(mApp.getLedgerTxnRoot());
-        if (auto ltxe = ltx.loadWithoutRecord(*mPendingCodeKey); ltxe)
-        {
-            // Entry has been applied,
-            mCodeKey = mPendingCodeKey;
-            mCodeSize = xdr::xdr_size(ltxe.current());
-            mPendingCodeKey.reset();
-            return true;
-        }
-        else
-        {
-            // Still waiting for wasm to be applied
-            return false;
-        }
-    }
-
-    // If there is no pending code key, TX has not been submitted yet so no need
-    // to wait, or TX has already been applied
-    return true;
+    return (isCreate() && nAccounts != 0) || (!isCreate() && nTxs != 0);
 }
 
 // Generate one "step" worth of load (assuming 1 step per STEP_MSECS) at a
@@ -491,7 +490,6 @@ void
 LoadGenerator::generateLoad(GeneratedLoadConfig cfg)
 {
     ZoneScoped;
-    bool isCreate = cfg.mode == LoadGenMode::CREATE;
 
     if (!mStartTime)
     {
@@ -502,36 +500,20 @@ LoadGenerator::generateLoad(GeneratedLoadConfig cfg)
     createRootAccount();
 
     // Finish if no more txs need to be created.
-    if (isDone(cfg))
+    if (!cfg.areTxsRemaining())
     {
         // Done submitting the load, now ensure it propagates to the DB.
-        if (!isCreate && cfg.skipLowFeeTxs)
+        if (!cfg.isCreate() && cfg.skipLowFeeTxs)
         {
-            // skipLowFeeTxs allows triggering tx queue limiter, which makes it
-            // hard to track the final seq nums. Hence just wait
-            // unconditionally.
+            // skipLowFeeTxs allows triggering tx queue limiter, which
+            // makes it hard to track the final seq nums. Hence just
+            // wait unconditionally.
             waitTillCompleteWithoutChecks();
         }
         else
         {
-            waitTillComplete(cfg.mode);
+            waitTillComplete(cfg);
         }
-        return;
-    }
-
-    if (!checkSorobanWasmSetup(cfg))
-    {
-        if (++mSorobanWasmWaitTillLedgers >= TIMEOUT_NUM_LEDGERS)
-        {
-            CLOG_INFO(LoadGen, "Load generation failed.");
-            mLoadgenFail.Mark();
-            reset(/*resetSoroban=*/true);
-            return;
-        }
-
-        auto interval = std::chrono::duration_cast<std::chrono::milliseconds>(
-            mApp.getConfig().getExpectedLedgerCloseTime());
-        scheduleLoadGeneration(cfg, interval);
         return;
     }
 
@@ -571,14 +553,6 @@ LoadGenerator::generateLoad(GeneratedLoadConfig cfg)
         {
             cfg.nAccounts =
                 submitCreationTx(cfg.nAccounts, cfg.offset, ledgerNum);
-        }
-        else if (cfg.mode == LoadGenMode::SOROBAN_INVOKE_SETUP ||
-                 cfg.mode == LoadGenMode::SOROBAN_UPGRADE_SETUP)
-        {
-            cfg.nInstances = submitSorobanSetupTX(
-                cfg.nInstances, ledgerNum,
-                generateFee(cfg.maxGeneratedFeeRate, mApp, /* opsCnt */ 1),
-                cfg.mode);
         }
         else
         {
@@ -704,7 +678,20 @@ LoadGenerator::generateLoad(GeneratedLoadConfig cfg)
             break;
             case LoadGenMode::SOROBAN_INVOKE_SETUP:
             case LoadGenMode::SOROBAN_UPGRADE_SETUP:
-                releaseAssert(false);
+                generateTx = [&] {
+                    if (cfg.nWasms != 0)
+                    {
+                        --cfg.nWasms;
+                        return createUploadWasmTransaction(
+                            ledgerNum, sourceAccountId, cfg);
+                    }
+                    else
+                    {
+                        --cfg.nInstances;
+                        return createContractTransaction(ledgerNum,
+                                                         sourceAccountId, cfg);
+                    }
+                };
                 break;
             case LoadGenMode::SOROBAN_INVOKE:
                 generateTx = [&]() {
@@ -729,7 +716,7 @@ LoadGenerator::generateLoad(GeneratedLoadConfig cfg)
                 break;
             }
         }
-        if (cfg.nAccounts == 0 || isDone(cfg))
+        if (cfg.nAccounts == 0 || !cfg.areTxsRemaining())
         {
             // Nothing to do for the rest of the step
             break;
@@ -748,71 +735,7 @@ LoadGenerator::generateLoad(GeneratedLoadConfig cfg)
 
     mLastSecond = now;
     mTotalSubmitted += txPerStep;
-    scheduleLoadGeneration(cfg, STEP_MSECS);
-}
-
-uint32_t
-LoadGenerator::submitSorobanSetupTX(uint32_t nInstances, uint32_t ledgerNum,
-                                    uint32_t inclusionFee, LoadGenMode mode)
-{
-    releaseAssert(mode == LoadGenMode::SOROBAN_INVOKE_SETUP ||
-                  mode == LoadGenMode::SOROBAN_UPGRADE_SETUP);
-
-    TestAccountPtr from;
-    TransactionFramePtr tx;
-    bool isUpload = false;
-
-    uint64_t sourceAccountId = getNextAvailableAccount();
-
-    // First deploy wasm
-    if (!mCodeKey.has_value())
-    {
-        isUpload = true;
-        std::tie(from, tx) = uploadWasmTransaction(ledgerNum, sourceAccountId,
-                                                   inclusionFee, mode);
-    }
-    // Next deploy instances
-    else
-    {
-        std::tie(from, tx) =
-            createContractTransaction(ledgerNum, sourceAccountId, inclusionFee);
-    }
-
-    TransactionResultCode code;
-    TransactionQueue::AddResult status;
-    bool createDuplicate = false;
-    uint32_t numTries = 0;
-
-    while ((status = execute(tx, LoadGenMode::CREATE, code)) !=
-           TransactionQueue::AddResult::ADD_STATUS_PENDING)
-    {
-        // Ignore duplicate transactions, simply continue generating load
-        if (status == TransactionQueue::AddResult::ADD_STATUS_DUPLICATE)
-        {
-            createDuplicate = true;
-            break;
-        }
-
-        if (++numTries >= TX_SUBMIT_MAX_TRIES ||
-            status != TransactionQueue::AddResult::ADD_STATUS_ERROR)
-        {
-            // Failed to submit the step of load
-            mFailed = true;
-            return 0;
-        }
-
-        // In case of bad seqnum, attempt refreshing it from the DB
-        maybeHandleFailedTx(tx, from, status, code);
-    }
-
-    // We deploy one shared wasm and then nInstance instances, so don't
-    // decrement accounts if we deployed the shared wasm
-    if (!createDuplicate && !isUpload)
-    {
-        --nInstances;
-    }
-
-    return nInstances;
+    scheduleLoadGeneration(cfg);
 }
 
 uint32_t
@@ -1149,12 +1072,13 @@ increaseOpSize(Operation& op, uint32_t increaseUpToBytes)
 }
 
 std::pair<LoadGenerator::TestAccountPtr, TransactionFramePtr>
-LoadGenerator::uploadWasmTransaction(uint32_t ledgerNum, uint64_t accountId,
-                                     uint32_t inclusionFee, LoadGenMode mode)
+LoadGenerator::createUploadWasmTransaction(uint32_t ledgerNum,
+                                           uint64_t accountId,
+                                           GeneratedLoadConfig const& cfg)
 {
-    releaseAssert(mode == LoadGenMode::SOROBAN_INVOKE_SETUP ||
-                  mode == LoadGenMode::SOROBAN_UPGRADE_SETUP);
-    auto wasm = mode == LoadGenMode::SOROBAN_INVOKE_SETUP
+    releaseAssert(cfg.isSorobanSetup());
+    releaseAssert(!mCodeKey);
+    auto wasm = cfg.mode == LoadGenMode::SOROBAN_INVOKE_SETUP
                     ? rust_bridge::get_test_wasm_loadgen()
                     : rust_bridge::get_write_bytes();
     auto account = findAccount(accountId, ledgerNum);
@@ -1179,23 +1103,26 @@ LoadGenerator::uploadWasmTransaction(uint32_t ledgerNum, uint64_t accountId,
         sorobanResourceFee(mApp, uploadResources, 5000 + wasm.data.size(), 100);
     resourceFee += 1'000'000;
     auto tx = std::dynamic_pointer_cast<TransactionFrame>(
-        sorobanTransactionFrameFromOps(mApp.getNetworkID(), *account,
-                                       {uploadOp}, {}, uploadResources,
-                                       inclusionFee, resourceFee));
-    mPendingCodeKey = contractCodeLedgerKey;
+        sorobanTransactionFrameFromOps(
+            mApp.getNetworkID(), *account, {uploadOp}, {}, uploadResources,
+            generateFee(cfg.maxGeneratedFeeRate, mApp,
+                        /* opsCnt */ 1),
+            resourceFee));
+    mCodeKey = contractCodeLedgerKey;
+    mCodeSize = wasm.data.size();
     return std::make_pair(account, tx);
 }
 
 std::pair<LoadGenerator::TestAccountPtr, TransactionFramePtr>
 LoadGenerator::createContractTransaction(uint32_t ledgerNum, uint64_t accountId,
-                                         uint32_t inclusionFee)
+                                         GeneratedLoadConfig const& cfg)
 {
     releaseAssert(mCodeKey);
 
     auto account = findAccount(accountId, ledgerNum);
     SorobanResources createResources{};
     createResources.instructions = 200'000;
-    createResources.readBytes = mCodeSize;
+    createResources.readBytes = mCodeSize + 100;
     createResources.writeBytes = 300;
 
     SCVal scContractSourceRefKey(SCValType::SCV_LEDGER_KEY_CONTRACT_INSTANCE);
@@ -1210,9 +1137,11 @@ LoadGenerator::createContractTransaction(uint32_t ledgerNum, uint64_t accountId,
     auto resourceFee = sorobanResourceFee(mApp, createResources, 1000, 40);
     resourceFee += 1'000'000;
     auto tx = std::dynamic_pointer_cast<TransactionFrame>(
-        sorobanTransactionFrameFromOps(mApp.getNetworkID(), *account,
-                                       {createOp}, {}, createResources,
-                                       inclusionFee, resourceFee));
+        sorobanTransactionFrameFromOps(
+            mApp.getNetworkID(), *account, {createOp}, {}, createResources,
+            generateFee(cfg.maxGeneratedFeeRate, mApp,
+                        /* opsCnt */ 1),
+            resourceFee));
 
     return std::make_pair(account, tx);
 }
@@ -1500,6 +1429,9 @@ LoadGenerator::getConfigUpgradeSetFromLoadConfig(
                     cfg.ledgerMaxTxCount;
             }
             break;
+        default:
+            releaseAssert(false);
+            break;
         }
         updatedEntries.emplace_back(entry.current().data.configSetting());
     }
@@ -1539,9 +1471,9 @@ LoadGenerator::invokeSorobanCreateUpgradeTransaction(
     SorobanResources resources;
     resources.footprint.readOnly = {instanceLK, *mCodeKey};
     resources.footprint.readWrite = {upgradeLK};
-    resources.instructions = 2'000'000;
-    resources.readBytes = 3000;
-    resources.writeBytes = 2000;
+    resources.instructions = 2'400'000;
+    resources.readBytes = 3'100;
+    resources.writeBytes = 3'100;
 
     SCVal b(SCV_BYTES);
     b.bytes() = upgradeBytes;
@@ -1657,12 +1589,10 @@ LoadGenerator::maybeHandleFailedTx(TransactionFramePtr tx,
 }
 
 std::vector<LedgerKey>
-LoadGenerator::checkSorobanStateSynced(Application& app, LoadGenMode mode)
+LoadGenerator::checkSorobanStateSynced(Application& app,
+                                       GeneratedLoadConfig const& cfg)
 {
-    if (mode != LoadGenMode::SOROBAN_INVOKE_SETUP ||
-        mode != LoadGenMode::SOROBAN_INVOKE ||
-        mode != LoadGenMode::SOROBAN_UPGRADE_SETUP ||
-        mode != LoadGenMode::SOROBAN_CREATE_UPGRADE)
+    if (!cfg.isSoroban())
     {
         return {};
     }
@@ -1730,24 +1660,27 @@ LoadGenerator::checkAccountSynced(Application& app, bool isCreate)
 }
 
 void
-LoadGenerator::waitTillComplete(LoadGenMode mode)
+LoadGenerator::waitTillComplete(GeneratedLoadConfig cfg)
 {
     if (!mLoadTimer)
     {
         mLoadTimer = std::make_unique<VirtualTimer>(mApp.getClock());
     }
     vector<TestAccountPtr> inconsistencies;
-    inconsistencies = checkAccountSynced(mApp, mode == LoadGenMode::CREATE);
-    auto sorobanInconsistencies = checkSorobanStateSynced(mApp, mode);
+    inconsistencies = checkAccountSynced(mApp, cfg.isCreate());
+    auto sorobanInconsistencies = checkSorobanStateSynced(mApp, cfg);
 
-    if (inconsistencies.empty() && sorobanInconsistencies.empty())
+    // If there are no inconsistencies and we have generated all load, finish
+    if (inconsistencies.empty() && sorobanInconsistencies.empty() &&
+        cfg.isDone())
     {
         CLOG_INFO(LoadGen, "Load generation complete.");
         mLoadgenComplete.Mark();
         reset(/*resetSoroban=*/false);
         return;
     }
-    else
+    // If we have an inconsistency, reset the timer and wait for another ledger
+    else if (!inconsistencies.empty() || !sorobanInconsistencies.empty())
     {
         if (++mWaitTillCompleteForLedgers >= TIMEOUT_NUM_LEDGERS)
         {
@@ -1759,8 +1692,22 @@ LoadGenerator::waitTillComplete(LoadGenMode mode)
 
         mLoadTimer->expires_from_now(
             mApp.getConfig().getExpectedLedgerCloseTime());
-        mLoadTimer->async_wait([this, mode]() { this->waitTillComplete(mode); },
+        mLoadTimer->async_wait([this, cfg]() { this->waitTillComplete(cfg); },
                                &VirtualTimer::onFailureNoop);
+    }
+    // If there are no inconsistencies but we aren't done yet, we have more load
+    // to generate, so schedule loadgen
+    else
+    {
+        // If there are no inconsistencies but we aren't done, we must be in a
+        // two phase mode (soroban setup).
+        releaseAssert(cfg.isSorobanSetup());
+
+        // All wasms should be deployed
+        releaseAssert(cfg.nWasms == 0);
+
+        cfg.nTxs = cfg.nInstances;
+        scheduleLoadGeneration(cfg);
     }
 }
 
@@ -1916,12 +1863,13 @@ GeneratedLoadConfig::createAccountsLoad(uint32_t nAccounts, uint32_t txRate)
 
 GeneratedLoadConfig
 GeneratedLoadConfig::createSorobanInvokeSetupLoad(uint32_t nAccounts,
+                                                  uint32_t nInstances,
                                                   uint32_t txRate)
 {
     GeneratedLoadConfig cfg;
     cfg.mode = LoadGenMode::SOROBAN_INVOKE_SETUP;
     cfg.nAccounts = nAccounts;
-    cfg.nInstances = nAccounts;
+    cfg.nInstances = nInstances;
     cfg.txRate = txRate;
     return cfg;
 }

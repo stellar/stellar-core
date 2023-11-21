@@ -157,8 +157,10 @@ TEST_CASE("generate soroban load", "[loadgen][soroban]")
                             .NewCounter({"ledger", "apply", "success"})
                             .count();
 
+    auto const numInstances = 20;
+
     loadGen.generateLoad(GeneratedLoadConfig::createSorobanInvokeSetupLoad(
-        /* nAccounts */ nAccounts,
+        /* nAccounts */ nAccounts, numInstances,
         /* txRate */ 1));
     simulation->crankUntil(
         [&]() {
@@ -178,7 +180,7 @@ TEST_CASE("generate soroban load", "[loadgen][soroban]")
 
         // Should be 1 upload wasm TX followed by one instance deploy TX per
         // account
-        REQUIRE(txsSucceeded.count() == numTxsBefore + nAccounts + 1);
+        REQUIRE(txsSucceeded.count() == numTxsBefore + numInstances + 1);
         REQUIRE(txsFailed.count() == 0);
     }
 
@@ -193,6 +195,8 @@ TEST_CASE("generate soroban load", "[loadgen][soroban]")
     auto cfg = GeneratedLoadConfig::txLoad(LoadGenMode::SOROBAN_INVOKE,
                                            nAccounts, numSorobanTxs,
                                            /* txRate */ 1);
+
+    cfg.nInstances = 20;
 
     // Use tight bounds to we can verify storage works properly
     cfg.nDataEntriesLow = numDataEntries;
@@ -233,7 +237,7 @@ TEST_CASE("generate soroban load", "[loadgen][soroban]")
     auto codeKeyOp = loadGen.getCodeKeyForTesting();
     REQUIRE(codeKeyOp);
     REQUIRE(codeKeyOp->type() == CONTRACT_CODE);
-    REQUIRE(instanceKeys.size() == static_cast<size_t>(nAccounts));
+    REQUIRE(instanceKeys.size() == static_cast<size_t>(numInstances));
 
     // Check that each key is unique and exists in the DB
     UnorderedSet<LedgerKey> keys;
@@ -488,6 +492,9 @@ TEST_CASE("soroban loadgen config upgrade", "[loadgen][soroban]")
         case CONFIG_SETTING_CONTRACT_EXECUTION_LANES:
             REQUIRE(setting.contractExecutionLanes().ledgerMaxTxCount ==
                     cfgCopy.ledgerMaxTxCount);
+            break;
+        default:
+            REQUIRE(false);
             break;
         }
     }

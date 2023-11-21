@@ -51,6 +51,7 @@ struct GeneratedLoadConfig
                                                   uint32_t txRate);
 
     static GeneratedLoadConfig createSorobanInvokeSetupLoad(uint32_t nAccounts,
+                                                            uint32_t nInstances,
                                                             uint32_t txRate);
 
     static GeneratedLoadConfig createSorobanUpgradeSetupLoad();
@@ -58,6 +59,41 @@ struct GeneratedLoadConfig
     static GeneratedLoadConfig
     txLoad(LoadGenMode mode, uint32_t nAccounts, uint32_t nTxs, uint32_t txRate,
            uint32_t offset = 0, std::optional<uint32_t> maxFee = std::nullopt);
+
+    bool
+    isCreate() const
+    {
+        return mode == LoadGenMode::CREATE;
+    }
+
+    bool
+    isSoroban() const
+    {
+        return mode == LoadGenMode::SOROBAN_INVOKE ||
+               mode == LoadGenMode::SOROBAN_INVOKE_SETUP ||
+               mode == LoadGenMode::SOROBAN_UPLOAD ||
+               mode == LoadGenMode::SOROBAN_UPGRADE_SETUP ||
+               mode == LoadGenMode::SOROBAN_CREATE_UPGRADE;
+    }
+
+    bool
+    isSorobanSetup() const
+    {
+        return mode == LoadGenMode::SOROBAN_INVOKE_SETUP ||
+               mode == LoadGenMode::SOROBAN_UPGRADE_SETUP;
+    }
+
+    bool
+    isLoad() const
+    {
+        return mode == LoadGenMode::PAY || mode == LoadGenMode::PRETEND ||
+               mode == LoadGenMode::MIXED_TXS ||
+               mode == LoadGenMode::SOROBAN_INVOKE ||
+               mode == LoadGenMode::SOROBAN_CREATE_UPGRADE;
+    }
+
+    bool isDone() const;
+    bool areTxsRemaining() const;
 
     LoadGenMode mode = LoadGenMode::CREATE;
     uint32_t nAccounts = 0;
@@ -85,6 +121,10 @@ struct GeneratedLoadConfig
 
     // The following ranges are only used for SOROBAN_INVOKE txs:
     uint32_t nInstances = 0;
+
+    // For now, this value is automatically set to one. A future update will
+    // enable multiple Wasm entries
+    uint32_t nWasms = 0;
 
     // Range of kilo bytes and num entries for disk IO
     uint32_t nDataEntriesLow = 0;
@@ -163,8 +203,8 @@ class LoadGenerator
     // return any accounts that are inconsistent.
     std::vector<TestAccountPtr> checkAccountSynced(Application& app,
                                                    bool isCreate);
-    std::vector<LedgerKey> checkSorobanStateSynced(Application& app,
-                                                   LoadGenMode mode);
+    std::vector<LedgerKey>
+    checkSorobanStateSynced(Application& app, GeneratedLoadConfig const& cfg);
 
     struct ContractInstance
     {
@@ -218,7 +258,7 @@ class LoadGenerator
                               LoadGenMode mode,
                               std::optional<uint32_t> maxGeneratedFeeRate);
 
-    static const std::chrono::milliseconds STEP_MSECS;
+    static const uint32_t STEP_MSECS;
     static const uint32_t TX_SUBMIT_MAX_TRIES;
     static const uint32_t TIMEOUT_NUM_LEDGERS;
     static const uint32_t COMPLETION_TIMEOUT_WITHOUT_CHECKS;
@@ -262,11 +302,6 @@ class LoadGenerator
     // a static list of instances and the wasm entry which we use to rebuild
     // mContractInstances at the start of each SOROBAN_INVOKE run
     inline static UnorderedSet<LedgerKey> mContractInstanceKeys = {};
-
-    // Wasm ledger entry is stored in mPendingCodeKey while TX is in flight.
-    // Once TX has been successfully applied, mPendingCodeKey is moved to
-    // mCodeKey.
-    std::optional<LedgerKey> mPendingCodeKey{};
     inline static std::optional<LedgerKey> mCodeKey = std::nullopt;
     inline static uint64_t mCodeSize = 0;
 
@@ -279,9 +314,8 @@ class LoadGenerator
     int64_t getTxPerStep(uint32_t txRate, std::chrono::seconds spikeInterval,
                          uint32_t spikeSize);
 
-    // Schedule a callback to generateLoad() interval milliseconds from now.
-    void scheduleLoadGeneration(GeneratedLoadConfig cfg,
-                                std::chrono::milliseconds interval);
+    // Schedule a callback to generateLoad() STEP_MSECS milliseconds from now.
+    void scheduleLoadGeneration(GeneratedLoadConfig cfg);
 
     std::vector<Operation> createAccounts(uint64_t i, uint64_t batchSize,
                                           uint32_t ledgerNum,
@@ -312,11 +346,11 @@ class LoadGenerator
                            uint32_t opCount,
                            std::optional<uint32_t> maxGeneratedFeeRate);
     std::pair<LoadGenerator::TestAccountPtr, TransactionFramePtr>
-    uploadWasmTransaction(uint32_t ledgerNum, uint64_t accountId,
-                          uint32_t inclusionFee, LoadGenMode mode);
+    createUploadWasmTransaction(uint32_t ledgerNum, uint64_t accountId,
+                                GeneratedLoadConfig const& cfg);
     std::pair<LoadGenerator::TestAccountPtr, TransactionFramePtr>
     createContractTransaction(uint32_t ledgerNum, uint64_t accountId,
-                              uint32_t inclusionFee);
+                              GeneratedLoadConfig const& cfg);
     std::pair<LoadGenerator::TestAccountPtr, TransactionFramePtr>
     invokeSorobanLoadTransaction(uint32_t ledgerNum, uint64_t accountId,
                                  GeneratedLoadConfig const& cfg);
@@ -340,13 +374,11 @@ class LoadGenerator
 
     uint32_t submitCreationTx(uint32_t nAccounts, uint32_t offset,
                               uint32_t ledgerNum);
-    uint32_t submitSorobanSetupTX(uint32_t nInstances, uint32_t ledgerNum,
-                                  uint32_t inclusionFee, LoadGenMode mode);
     bool submitTx(GeneratedLoadConfig const& cfg,
                   std::function<std::pair<LoadGenerator::TestAccountPtr,
                                           TransactionFramePtr>()>
                       generateTx);
-    void waitTillComplete(LoadGenMode mode);
+    void waitTillComplete(GeneratedLoadConfig cfg);
     void waitTillCompleteWithoutChecks();
 
     void updateMinBalance();
