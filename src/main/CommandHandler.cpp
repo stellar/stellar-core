@@ -24,7 +24,6 @@
 #include "transactions/TransactionBridge.h"
 #include "transactions/TransactionUtils.h"
 #include "util/Logging.h"
-#include "util/ProtocolVersion.h"
 #include "util/StatusManager.h"
 #include <Tracy.hpp>
 #include <fmt/format.h>
@@ -150,6 +149,33 @@ CommandHandler::safeRouter(CommandHandler::HandlerRoute route,
     catch (...)
     {
         retStr = R"({"exception": "generic"})";
+    }
+}
+
+void
+CommandHandler::ensureProtocolVersion(
+    std::map<std::string, std::string> const& args, std::string const& argName,
+    ProtocolVersion minVer)
+{
+    auto it = args.find(argName);
+    if (it == args.end())
+    {
+        return;
+    }
+    ensureProtocolVersion(argName, minVer);
+}
+
+void
+CommandHandler::ensureProtocolVersion(std::string const& errString,
+                                      ProtocolVersion minVer)
+{
+    auto lhhe = mApp.getLedgerManager().getLastClosedLedgerHeader();
+    if (protocolVersionIsBefore(lhhe.header.ledgerVersion, minVer))
+    {
+        throw std::invalid_argument(
+            fmt::format("{} cannot be used before protocol v{}", errString,
+                        static_cast<uint32>(minVer)));
+        return;
     }
 }
 
@@ -567,19 +593,16 @@ CommandHandler::upgrades(std::string const& params, std::string& retStr)
         auto configXdrIter = retMap.find("configupgradesetkey");
         if (configXdrIter != retMap.end())
         {
-            auto lhhe = mApp.getLedgerManager().getLastClosedLedgerHeader();
-            if (protocolVersionIsBefore(lhhe.header.ledgerVersion,
-                                        SOROBAN_PROTOCOL_VERSION))
-            {
-                retStr = "configupgradesetkey specified before v20";
-                return;
-            }
+            ensureProtocolVersion(retMap, "configupgradesetkey",
+                                  SOROBAN_PROTOCOL_VERSION);
 
             std::vector<uint8_t> buffer;
             decoder::decode_b64(configXdrIter->second, buffer);
             ConfigUpgradeSetKey key;
             xdr::xdr_from_opaque(buffer, key);
-            LedgerTxn ltx(mApp.getLedgerTxnRoot());
+            LedgerTxn ltx(mApp.getLedgerTxnRoot(),
+                          /* shouldUpdateLastModified */ false,
+                          TransactionMode::READ_ONLY_WITHOUT_SQL_TXN);
 
             auto ptr = ConfigUpgradeSetFrame::makeFromKey(ltx, key);
 
@@ -592,6 +615,8 @@ CommandHandler::upgrades(std::string const& params, std::string& retStr)
 
             p.mConfigUpgradeSetKey = key;
         }
+        ensureProtocolVersion(retMap, "maxsorobantxsetsize",
+                              SOROBAN_PROTOCOL_VERSION);
         p.mMaxSorobanTxSetSize =
             parseOptionalParam<uint32>(retMap, "maxsorobantxsetsize");
         mApp.getHerder().setUpgrades(p);
@@ -617,19 +642,15 @@ CommandHandler::dumpProposedSettings(std::string const& params,
     auto blob = retMap["blob"];
     if (!blob.empty())
     {
-        auto lhhe = mApp.getLedgerManager().getLastClosedLedgerHeader();
-        if (protocolVersionIsBefore(lhhe.header.ledgerVersion,
-                                    SOROBAN_PROTOCOL_VERSION))
-        {
-            retStr = "The dumpProposedSettings command is not allowed pre-v20";
-            return;
-        }
+        ensureProtocolVersion("dumpproposedsettings", SOROBAN_PROTOCOL_VERSION);
 
         std::vector<uint8_t> buffer;
         decoder::decode_b64(blob, buffer);
         ConfigUpgradeSetKey key;
         xdr::xdr_from_opaque(buffer, key);
-        LedgerTxn ltx(mApp.getLedgerTxnRoot());
+        LedgerTxn ltx(mApp.getLedgerTxnRoot(),
+                      /* shouldUpdateLastModified */ false,
+                      TransactionMode::READ_ONLY_WITHOUT_SQL_TXN);
 
         auto ptr = ConfigUpgradeSetFrame::makeFromKey(ltx, key);
 
@@ -760,7 +781,9 @@ CommandHandler::getLedgerEntry(std::string const& params, std::string& retStr)
     std::string key = paramMap["key"];
     if (!key.empty())
     {
-        LedgerTxn ltx(mApp.getLedgerTxnRoot());
+        LedgerTxn ltx(mApp.getLedgerTxnRoot(),
+                      /* shouldUpdateLastModified */ false,
+                      TransactionMode::READ_ONLY_WITHOUT_SQL_TXN);
         root["ledger"] = ltx.loadHeader().current().ledgerSeq;
 
         LedgerKey k;
@@ -1097,7 +1120,10 @@ CommandHandler::testAcc(std::string const& params, std::string& retStr)
             key = getAccount(accName->second.c_str());
         }
 
-        LedgerTxn ltx(mApp.getLedgerTxnRoot());
+        LedgerTxn ltx(mApp.getLedgerTxnRoot(),
+                      /* shouldUpdateLastModified */ false,
+                      TransactionMode::READ_ONLY_WITHOUT_SQL_TXN);
+
         auto acc = stellar::loadAccount(ltx, key.getPublicKey());
         if (acc)
         {

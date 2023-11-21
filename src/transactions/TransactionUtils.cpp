@@ -1828,12 +1828,12 @@ getMinInclusionFee(TransactionFrameBase const& tx, LedgerHeader const& header,
 }
 
 LumenContractInfo
-getLumenContractInfo(std::string networkPassphrase)
+getLumenContractInfo(Hash const& networkID)
 {
     // Calculate contractID
     HashIDPreimage preImage;
     preImage.type(ENVELOPE_TYPE_CONTRACT_ID);
-    preImage.contractID().networkID = sha256(networkPassphrase);
+    preImage.contractID().networkID = networkID;
 
     Asset native;
     native.type(ASSET_TYPE_NATIVE);

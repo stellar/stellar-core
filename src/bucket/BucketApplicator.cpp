@@ -205,6 +205,8 @@ BucketApplicator::Counters::reset(VirtualClock::time_point now)
     mLiquidityPoolDelete = 0;
     mContractDataUpsert = 0;
     mContractDataDelete = 0;
+    mContractCodeUpsert = 0;
+    mContractCodeDelete = 0;
     mConfigSettingUpsert = 0;
     mTTLUpsert = 0;
     mTTLDelete = 0;
@@ -226,8 +228,8 @@ BucketApplicator::Counters::getRates(
             mTrustLineDelete + mOfferUpsert + mOfferDelete + mDataUpsert +
             mDataDelete + mClaimableBalanceUpsert + mClaimableBalanceDelete +
             mLiquidityPoolUpsert + mLiquidityPoolDelete + mContractDataUpsert +
-            mContractDataDelete + mConfigSettingUpsert + mTTLUpsert +
-            mTTLDelete;
+            mContractDataDelete + mContractCodeUpsert + mContractCodeDelete +
+            mConfigSettingUpsert + mTTLUpsert + mTTLDelete;
     au_sec = (mAccountUpsert * 1000000) / usecs;
     ad_sec = (mAccountDelete * 1000000) / usecs;
     tu_sec = (mTrustLineUpsert * 1000000) / usecs;
@@ -369,6 +371,7 @@ BucketApplicator::Counters::mark(BucketEntry const& e)
             ++mContractCodeDelete;
             break;
         case CONFIG_SETTING:
+            releaseAssert(false);
             break;
         case TTL:
             ++mTTLDelete;

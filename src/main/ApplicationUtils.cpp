@@ -701,50 +701,6 @@ showOfflineInfo(Config cfg, bool verbose)
     app->reportInfo(verbose);
 }
 
-void
-closeLedgersOffline(Config cfg, bool verbose, size_t nLedgers)
-{
-    VirtualClock clock(VirtualClock::REAL_TIME);
-    cfg.setNoListen();
-    cfg.AUTOMATIC_MAINTENANCE_PERIOD = std::chrono::seconds(0);
-    cfg.AUTOMATIC_SELF_CHECK_PERIOD = std::chrono::seconds(0);
-    Application::pointer app = Application::create(clock, cfg, false);
-    app->start();
-    size_t lclSeq = app->getLedgerManager().getLastClosedLedgerNum();
-    size_t targetSeq = lclSeq + nLedgers;
-    while (!app->isStopping() && lclSeq < targetSeq)
-    {
-        auto lcl = app->getLedgerManager().getLastClosedLedgerHeader();
-        uint32_t nextSeq = lcl.header.ledgerSeq + 1;
-        auto txset = TxSetFrame::makeEmpty(lcl);
-        auto sv = app->getHerder().makeStellarValue(
-            txset->getContentsHash(),
-            VirtualClock::to_time_t(clock.system_now()), {}, cfg.NODE_SEED);
-        LedgerCloseData lcd{nextSeq, txset, sv};
-        LOG_INFO(DEFAULT_LOG, "Closing empty ledger {} offline", nextSeq);
-        ;
-        app->getLedgerManager().closeLedger(lcd);
-        do
-        {
-            lclSeq = app->getLedgerManager().getLastClosedLedgerNum();
-            clock.crank(false);
-        } while (
-            !app->isStopping() &&
-            (lclSeq < nextSeq || !app->getWorkScheduler().allChildrenDone()));
-    }
-    if (nLedgers > 0)
-    {
-        LOG_WARNING(DEFAULT_LOG,
-                    "Closed {} empty ledgers offline and published {} history "
-                    "checkpoints",
-                    nLedgers,
-                    app->getHistoryManager().getPublishSuccessCount());
-        LOG_WARNING(DEFAULT_LOG,
-                    "Database and history archive are no longer in "
-                    "consensus with any other validators");
-    }
-}
-
 #ifdef BUILD_TESTS
 void
 loadXdr(Config cfg, std::string const& bucketFile)

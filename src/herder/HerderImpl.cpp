@@ -356,7 +356,7 @@ HerderImpl::writeDebugTxSet(LedgerCloseData const& lcd)
             // it's safe to just remove it.
             std::filesystem::remove(path);
             XDROutputFileStream stream(mApp.getClock().getIOContext(),
-                                       /*fsyncOnClose=*/true);
+                                       /*fsyncOnClose=*/false);
             stream.open(path.string());
             stream.writeOne(lcd.toXDR());
         }

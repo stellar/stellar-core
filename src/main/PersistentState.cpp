@@ -37,7 +37,7 @@ PersistentState::PersistentState(Application& app) : mApp(app)
 void
 PersistentState::deleteTxSets(std::unordered_set<Hash> hashesToDelete)
 {
-    // No need for soci::transaction here; try to delete as much as we can
+    soci::transaction tx(mApp.getDatabase().getSession());
     for (auto const& hash : hashesToDelete)
     {
         auto name = getStoreStateNameForTxSet(hash);
@@ -49,6 +49,7 @@ PersistentState::deleteTxSets(std::unordered_set<Hash> hashesToDelete)
         st.define_and_bind();
         st.execute(true);
     }
+    tx.commit();
 }
 
 void
