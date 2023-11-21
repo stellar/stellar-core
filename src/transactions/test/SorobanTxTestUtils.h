@@ -214,28 +214,34 @@ class ContractStorageInvocationTest : public WasmContractInvocationTest
     {
     }
 
-    void put(std::string const& key, ContractDataDurability type, uint64_t val,
-             bool expectSuccess = true);
-    void putWithFootprint(std::string const& key, ContractDataDurability type,
-                          uint64_t val, xdr::xvector<LedgerKey> const& readOnly,
-                          xdr::xvector<LedgerKey> const& readWrite,
-                          bool expectSuccess, uint32_t writeBytes = 1000,
-                          uint32_t refundableFee = 40'000);
+    void
+    put(std::string const& key, ContractDataDurability type, uint64_t val,
+        InvokeHostFunctionResultCode result = INVOKE_HOST_FUNCTION_SUCCESS);
+    void putWithFootprint(
+        std::string const& key, ContractDataDurability type, uint64_t val,
+        xdr::xvector<LedgerKey> const& readOnly,
+        xdr::xvector<LedgerKey> const& readWrite,
+        InvokeHostFunctionResultCode result = INVOKE_HOST_FUNCTION_SUCCESS,
+        uint32_t writeBytes = 1000, uint32_t refundableFee = 40'000);
 
-    uint64_t get(std::string const& key, ContractDataDurability type,
-                 bool expectSuccess = true);
+    uint64_t
+    get(std::string const& key, ContractDataDurability type,
+        InvokeHostFunctionResultCode result = INVOKE_HOST_FUNCTION_SUCCESS);
     uint64_t getWithFootprint(std::string const& key,
                               ContractDataDurability type,
                               xdr::xvector<LedgerKey> const& readOnly,
                               xdr::xvector<LedgerKey> const& readWrite,
-                              bool expectSuccess, uint32_t readBytes = 10'000);
+                              InvokeHostFunctionResultCode result,
+                              uint32_t readBytes = 10'000);
 
-    bool has(std::string const& key, ContractDataDurability type,
-             bool expectSuccess = true);
-    bool hasWithFootprint(std::string const& key, ContractDataDurability type,
-                          xdr::xvector<LedgerKey> const& readOnly,
-                          xdr::xvector<LedgerKey> const& readWrite,
-                          bool expectSuccess);
+    bool
+    has(std::string const& key, ContractDataDurability type,
+        InvokeHostFunctionResultCode result = INVOKE_HOST_FUNCTION_SUCCESS);
+    bool hasWithFootprint(
+        std::string const& key, ContractDataDurability type,
+        xdr::xvector<LedgerKey> const& readOnly,
+        xdr::xvector<LedgerKey> const& readWrite,
+        InvokeHostFunctionResultCode result = INVOKE_HOST_FUNCTION_SUCCESS);
 
     void del(std::string const& key, ContractDataDurability type);
     void delWithFootprint(std::string const& key, ContractDataDurability type,
