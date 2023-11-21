@@ -39,6 +39,10 @@ enum class LoadGenMode
     // Invoke and apply resource intensive TXs, must run SOROBAN_INVOKE_SETUP
     // first
     SOROBAN_INVOKE,
+    // Setup contract instance for Soroban Network Config Upgrade
+    SOROBAN_UPGRADE_SETUP,
+    // Create upgrade entry
+    SOROBAN_CREATE_UPGRADE
 };
 
 struct GeneratedLoadConfig
@@ -48,6 +52,8 @@ struct GeneratedLoadConfig
 
     static GeneratedLoadConfig createSorobanInvokeSetupLoad(uint32_t nAccounts,
                                                             uint32_t txRate);
+
+    static GeneratedLoadConfig createSorobanUpgradeSetupLoad();
 
     static GeneratedLoadConfig
     txLoad(LoadGenMode mode, uint32_t nAccounts, uint32_t nTxs, uint32_t txRate,
@@ -268,7 +274,7 @@ class LoadGenerator
                            std::optional<uint32_t> maxGeneratedFeeRate);
     std::pair<LoadGenerator::TestAccountPtr, TransactionFramePtr>
     uploadWasmTransaction(uint32_t ledgerNum, uint64_t accountId,
-                          uint32_t inclusionFee);
+                          uint32_t inclusionFee, LoadGenMode mode);
     std::pair<LoadGenerator::TestAccountPtr, TransactionFramePtr>
     createContractTransaction(uint32_t ledgerNum, uint64_t accountId,
                               uint32_t inclusionFee);
@@ -291,9 +297,8 @@ class LoadGenerator
 
     uint32_t submitCreationTx(uint32_t nAccounts, uint32_t offset,
                               uint32_t ledgerNum);
-    uint32_t submitSorobanPrepareInvokeTX(uint32_t nInstances,
-                                          uint32_t ledgerNum,
-                                          uint32_t inclusionFee);
+    uint32_t submitSorobanSetupTX(uint32_t nInstances, uint32_t ledgerNum,
+                                  uint32_t inclusionFee, LoadGenMode mode);
     bool submitTx(GeneratedLoadConfig const& cfg,
                   std::function<std::pair<LoadGenerator::TestAccountPtr,
                                           TransactionFramePtr>()>
