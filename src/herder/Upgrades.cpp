@@ -356,6 +356,7 @@ Upgrades::applyTo(LedgerUpgrade const& upgrade, Application& app,
         {
             throw std::runtime_error("config upgrade set is no longer valid");
         }
+        CLOG_INFO(Ledger, "Applying config upgrade: {}", cfgUpgrade->toJson());
         cfgUpgrade->applyTo(ltx);
         break;
     }

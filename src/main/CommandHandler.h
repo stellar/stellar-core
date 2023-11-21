@@ -67,6 +67,7 @@ class CommandHandler
     void surveyTopology(std::string const&, std::string& retStr);
     void stopSurvey(std::string const&, std::string& retStr);
     void getSurveyResult(std::string const&, std::string& retStr);
+    void sorobanInfo(std::string const&, std::string& retStr);
 
 #ifdef BUILD_TESTS
     void generateLoad(std::string const& params, std::string& retStr);

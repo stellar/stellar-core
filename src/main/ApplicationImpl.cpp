@@ -471,6 +471,13 @@ ApplicationImpl::getJsonInfo(bool verbose)
     info["ledger"]["baseFee"] = lcl.header.baseFee;
     info["ledger"]["baseReserve"] = lcl.header.baseReserve;
     info["ledger"]["maxTxSetSize"] = lcl.header.maxTxSetSize;
+    if (protocolVersionStartsFrom(lcl.header.ledgerVersion,
+                                  SOROBAN_PROTOCOL_VERSION))
+    {
+        info["ledger"]["maxSorobanTxSetSize"] =
+            static_cast<Json::Int64>(lm.maxLedgerResources(/* isSoroban */ true)
+                                         .getVal(Resource::Type::OPERATIONS));
+    }
 
     auto currentHeaderFlags = LedgerHeaderUtils::getFlags(lcl.header);
     if (currentHeaderFlags != 0)
