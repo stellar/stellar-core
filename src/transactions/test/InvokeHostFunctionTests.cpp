@@ -532,19 +532,70 @@ TEST_CASE("invalid footprint keys", "[tx][soroban]")
 
         auto tx = test.createInvokeTx(resources, scFunc, {sc7, sc16}, 100,
                                       DEFAULT_TEST_RESOURCE_FEE);
+
         REQUIRE(test.isTxValid(tx) == shouldBeValid);
+        if (!shouldBeValid)
+        {
+            auto const& txCode = tx->getResult().result.code();
+            if (txCode == txFAILED)
+            {
+                REQUIRE(tx->getResult()
+                            .result.results()[0]
+                            .tr()
+                            .invokeHostFunctionResult()
+                            .code() == INVOKE_HOST_FUNCTION_MALFORMED);
+            }
+            else
+            {
+                REQUIRE(txCode == txSOROBAN_INVALID);
+            }
+        }
     };
 
     auto testValidExtendOp = [&](bool shouldBeValid) {
         auto tx = test.createExtendOpTx(resources, 10, 100,
                                         DEFAULT_TEST_RESOURCE_FEE);
+
         REQUIRE(test.isTxValid(tx) == shouldBeValid);
+        if (!shouldBeValid)
+        {
+            auto const& txCode = tx->getResult().result.code();
+            if (txCode == txFAILED)
+            {
+                REQUIRE(tx->getResult()
+                            .result.results()[0]
+                            .tr()
+                            .extendFootprintTTLResult()
+                            .code() == EXTEND_FOOTPRINT_TTL_MALFORMED);
+            }
+            else
+            {
+                REQUIRE(txCode == txSOROBAN_INVALID);
+            }
+        }
     };
 
     auto testValidRestoreOp = [&](bool shouldBeValid) {
         auto tx =
             test.createRestoreTx(resources, 100, DEFAULT_TEST_RESOURCE_FEE);
+
         REQUIRE(test.isTxValid(tx) == shouldBeValid);
+        if (!shouldBeValid)
+        {
+            auto const& txCode = tx->getResult().result.code();
+            if (txCode == txFAILED)
+            {
+                REQUIRE(tx->getResult()
+                            .result.results()[0]
+                            .tr()
+                            .restoreFootprintResult()
+                            .code() == RESTORE_FOOTPRINT_MALFORMED);
+            }
+            else
+            {
+                REQUIRE(txCode == txSOROBAN_INVALID);
+            }
+        }
     };
 
     // Keys to test
@@ -1448,9 +1499,7 @@ TEST_CASE("contract storage", "[tx][soroban]")
 
             // invocation should fail
             test.put("temp", ContractDataDurability::TEMPORARY, 0,
-                     INVOKE_HOST_FUNCTION_ENTRY_ARCHIVED
-
-            );
+                     INVOKE_HOST_FUNCTION_ENTRY_ARCHIVED);
             test.checkTTL(contractKeys[0], originalExpectedLiveUntilLedger);
             test.checkTTL(contractKeys[1], newExpectedLiveUntilLedger);
         }

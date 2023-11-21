@@ -1210,7 +1210,18 @@ ContractStorageInvocationTest::putWithFootprint(
     resourceFee += refundableFee;
     auto tx = createInvokeTx(resources, makeSymbol(funcStr),
                              {keySymbol, valU64}, 1'000, resourceFee);
-    invokeTx(tx, result == INVOKE_HOST_FUNCTION_SUCCESS, false);
+
+    bool isSuccess = result == INVOKE_HOST_FUNCTION_SUCCESS;
+    invokeTx(tx, isSuccess, false);
+
+    if (!isSuccess)
+    {
+        REQUIRE(tx->getResult()
+                    .result.results()[0]
+                    .tr()
+                    .invokeHostFunctionResult()
+                    .code() == result);
+    }
 }
 
 uint64_t
