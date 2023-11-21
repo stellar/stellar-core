@@ -268,6 +268,7 @@ LoadGenerator::reset(bool resetSoroban)
     mLoadTimer.reset();
     mRoot.reset();
     mStartTime.reset();
+    // mConfigUpgradeSetKey.reset();
 
     // If we fail during Soroban setup or find a state inconsistency during
     // SOROBAN_INVOKE, reset persistent state
@@ -710,6 +711,12 @@ LoadGenerator::generateLoad(GeneratedLoadConfig cfg)
                 generateTx = [&]() {
                     return invokeSorobanLoadTransaction(ledgerNum,
                                                         sourceAccountId, cfg);
+                };
+                break;
+            case LoadGenMode::SOROBAN_CREATE_UPGRADE:
+                generateTx = [&]() {
+                    return invokeSorobanCreateUpgradeTransaction(
+                        ledgerNum, sourceAccountId, cfg);
                 };
                 break;
             }
@@ -1325,6 +1332,91 @@ LoadGenerator::invokeSorobanLoadTransaction(uint32_t ledgerNum,
     return std::make_pair(account, tx);
 }
 
+SCBytes
+LoadGenerator::getConfigUpgradeSetFromLoadConfig(
+    GeneratedLoadConfig const& cfg) const
+{
+    xdr::xvector<ConfigSettingEntry> updatedEntries;
+    for (uint32_t i = 0;
+         i < static_cast<uint32_t>(CONFIG_SETTING_BUCKETLIST_SIZE_WINDOW); ++i)
+    {
+        LedgerTxn ltx(mApp.getLedgerTxnRoot());
+        auto entry =
+            ltx.load(configSettingKey(static_cast<ConfigSettingID>(i)));
+        if (entry.current().data.configSetting().configSettingID() ==
+            CONFIG_SETTING_CONTRACT_LEDGER_COST_V0)
+        {
+            entry.current()
+                .data.configSetting()
+                .contractLedgerCost()
+                .feeRead1KB = 1234;
+        }
+        updatedEntries.emplace_back(entry.current().data.configSetting());
+    }
+
+    ConfigUpgradeSet upgradeSet;
+    upgradeSet.updatedEntry = updatedEntries;
+
+    return xdr::xdr_to_opaque(upgradeSet);
+}
+
+std::pair<LoadGenerator::TestAccountPtr, TransactionFramePtr>
+LoadGenerator::invokeSorobanCreateUpgradeTransaction(
+    uint32_t ledgerNum, uint64_t accountId, GeneratedLoadConfig const& cfg)
+{
+    releaseAssert(mCodeKey);
+    releaseAssert(mContractInstanceKeys.size() == 1);
+    auto account = findAccount(accountId, ledgerNum);
+    auto const& instanceLK = *mContractInstanceKeys.begin();
+    auto const& contractID = instanceLK.contractData().contract;
+
+    SCBytes upgradeBytes = getConfigUpgradeSetFromLoadConfig(cfg);
+
+    LedgerKey upgradeLK(CONTRACT_DATA);
+    upgradeLK.contractData().durability = TEMPORARY;
+    upgradeLK.contractData().contract = contractID;
+
+    SCVal upgradeHashBytes(SCV_BYTES);
+    auto upgradeHash = sha256(upgradeBytes);
+    upgradeHashBytes.bytes() = xdr::xdr_to_opaque(upgradeHash);
+    upgradeLK.contractData().key = upgradeHashBytes;
+
+    ConfigUpgradeSetKey upgradeSetKey;
+    upgradeSetKey.contentHash = upgradeHash;
+    upgradeSetKey.contractID = contractID.contractId();
+    mConfigUpgradeSetKey = upgradeSetKey;
+
+    SorobanResources resources;
+    resources.footprint.readOnly = {instanceLK, *mCodeKey};
+    resources.footprint.readWrite = {upgradeLK};
+    resources.instructions = 2'000'000;
+    resources.readBytes = 3000;
+    resources.writeBytes = 2000;
+
+    SCVal b(SCV_BYTES);
+    b.bytes() = upgradeBytes;
+
+    Operation op;
+    op.body.type(INVOKE_HOST_FUNCTION);
+    auto& ihf = op.body.invokeHostFunctionOp().hostFunction;
+    ihf.type(HOST_FUNCTION_TYPE_INVOKE_CONTRACT);
+    ihf.invokeContract().contractAddress = contractID;
+    ihf.invokeContract().functionName = "write";
+    ihf.invokeContract().args.emplace_back(b);
+
+    auto resourceFee = sorobanResourceFee(mApp, resources, 1'000, 40);
+    resourceFee += 1'000'000;
+
+    auto tx = std::dynamic_pointer_cast<TransactionFrame>(
+        sorobanTransactionFrameFromOps(
+            mApp.getNetworkID(), *account, {op}, {}, resources,
+            generateFee(cfg.maxGeneratedFeeRate, mApp,
+                        /* opsCnt */ 1),
+            resourceFee));
+
+    return std::make_pair(account, tx);
+}
+
 std::pair<LoadGenerator::TestAccountPtr, TransactionFramePtr>
 LoadGenerator::sorobanRandomWasmTransaction(uint32_t ledgerNum,
                                             uint64_t accountId,
@@ -1691,6 +1783,17 @@ GeneratedLoadConfig::createSorobanUpgradeSetupLoad()
     cfg.mode = LoadGenMode::SOROBAN_UPGRADE_SETUP;
     cfg.nAccounts = 1;
     cfg.nInstances = 1;
+    cfg.txRate = 1;
+    return cfg;
+}
+
+GeneratedLoadConfig
+GeneratedLoadConfig::createSorobanCreateUpgradeLoad()
+{
+    GeneratedLoadConfig cfg;
+    cfg.mode = LoadGenMode::SOROBAN_CREATE_UPGRADE;
+    cfg.nAccounts = 1;
+    cfg.nTxs = 1;
     cfg.txRate = 1;
     return cfg;
 }

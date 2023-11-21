@@ -310,83 +310,65 @@ TEST_CASE("soroban loadgen config upgrade", "[loadgen][soroban]")
         },
         100 * Herder::EXP_LEDGER_TIMESPAN_SECONDS, false);
 
-    // // Check that Soroban TXs were successfully applied
-    // for (auto node : nodes)
-    // {
-    //     auto& txsSucceeded =
-    //         node->getMetrics().NewCounter({"ledger", "apply", "success"});
-    //     auto& txsFailed =
-    //         node->getMetrics().NewCounter({"ledger", "apply", "failure"});
+    // Check that Soroban TXs were successfully applied
+    for (auto node : nodes)
+    {
+        auto& txsSucceeded =
+            node->getMetrics().NewCounter({"ledger", "apply", "success"});
+        auto& txsFailed =
+            node->getMetrics().NewCounter({"ledger", "apply", "failure"});
 
-    //     // Should be 1 upload wasm TX followed by one instance deploy TX per
-    //     // account
-    //     REQUIRE(txsSucceeded.count() == numTxsBefore + nAccounts + 1);
-    //     REQUIRE(txsFailed.count() == 0);
-    // }
+        // Should be 1 upload wasm TX followed by one instance deploy TX
+        REQUIRE(txsSucceeded.count() == numTxsBefore + 2);
+        REQUIRE(txsFailed.count() == 0);
+    }
 
-    // loadGen.generateLoad(cfg);
-    // simulation->crankUntil(
-    //     [&]() {
-    //         return app.getMetrics()
-    //                    .NewMeter({"loadgen", "run", "complete"}, "run")
-    //                    .count() == 3;
-    //     },
-    //     300 * Herder::EXP_LEDGER_TIMESPAN_SECONDS, false);
+    numTxsBefore = nodes[0]
+                       ->getMetrics()
+                       .NewCounter({"ledger", "apply", "success"})
+                       .count();
 
-    // // Check that Soroban TXs were successfully applied
-    // for (auto node : nodes)
-    // {
-    //     auto& txsSucceeded =
-    //         node->getMetrics().NewCounter({"ledger", "apply", "success"});
-    //     auto& txsFailed =
-    //         node->getMetrics().NewCounter({"ledger", "apply", "failure"});
+    auto cfg = GeneratedLoadConfig::createSorobanCreateUpgradeLoad();
 
-    //     // Because we can't preflight TXs, some invocations will fail due to
-    //     too
-    //     // few resources. This is expected, as our instruction counts are
-    //     // approximations. The following checks will make sure all set up
-    //     // phases succeeded, so only the invoke phase may have acceptable
-    //     failed
-    //     // TXs
-    //     REQUIRE(txsSucceeded.count() > numTxsBefore + numSorobanTxs - 5);
-    //     REQUIRE(txsFailed.count() < 5);
-    // }
+    loadGen.generateLoad(cfg);
+    simulation->crankUntil(
+        [&]() {
+            return app.getMetrics()
+                       .NewMeter({"loadgen", "run", "complete"}, "run")
+                       .count() == 3;
+        },
+        300 * Herder::EXP_LEDGER_TIMESPAN_SECONDS, false);
 
-    // auto instanceKeys = loadGen.getContractInstanceKeysForTesting();
-    // auto codeKeyOp = loadGen.getCodeKeyForTesting();
-    // REQUIRE(codeKeyOp);
-    // REQUIRE(codeKeyOp->type() == CONTRACT_CODE);
-    // REQUIRE(instanceKeys.size() == static_cast<size_t>(nAccounts));
+    for (auto node : nodes)
+    {
+        auto& txsSucceeded =
+            node->getMetrics().NewCounter({"ledger", "apply", "success"});
+        auto& txsFailed =
+            node->getMetrics().NewCounter({"ledger", "apply", "failure"});
 
-    // // Check that each key is unique and exists in the DB
-    // UnorderedSet<LedgerKey> keys;
-    // for (auto const& instanceKey : instanceKeys)
-    // {
-    //     REQUIRE(instanceKey.type() == CONTRACT_DATA);
-    //     REQUIRE(instanceKey.contractData().key.type() ==
-    //             SCV_LEDGER_KEY_CONTRACT_INSTANCE);
-    //     REQUIRE(keys.find(instanceKey) == keys.end());
-    //     keys.insert(instanceKey);
+        // Should be a single contract invocation
+        REQUIRE(txsSucceeded.count() == numTxsBefore + 1);
+        REQUIRE(txsFailed.count() == 0);
+    }
 
-    //     auto const& contractID = instanceKey.contractData().contract;
-    //     for (auto i = 0; i < numDataEntries; ++i)
-    //     {
-    //         auto lk = contractDataKey(contractID, txtest::makeU32(i),
-    //                                   ContractDataDurability::PERSISTENT);
+    // Check that the upgrade entry was properly written
+    auto upgradeKeySetOp = loadGen.getConfigUpgradeSetKeyForTesting();
+    REQUIRE(upgradeKeySetOp);
 
-    //         LedgerTxn ltx(app.getLedgerTxnRoot());
-    //         auto entry = ltx.load(lk);
-    //         REQUIRE(entry);
-    //         uint32_t sizeBytes = xdr::xdr_size(entry.current());
-    //         uint32_t expectedSize = kilobytesPerDataEntry * 1024;
-    //         REQUIRE(
-    //             (sizeBytes > expectedSize && sizeBytes < 100 +
-    //             expectedSize));
+    SCVal upgradeHashBytes(SCV_BYTES);
+    upgradeHashBytes.bytes() = xdr::xdr_to_opaque(upgradeKeySetOp->contentHash);
 
-    //         REQUIRE(keys.find(lk) == keys.end());
-    //         keys.insert(lk);
-    //     }
-    // }
+    SCAddress addr(SC_ADDRESS_TYPE_CONTRACT);
+    addr.contractId() = upgradeKeySetOp->contractID;
+
+    LedgerKey upgradeLK(CONTRACT_DATA);
+    upgradeLK.contractData().durability = TEMPORARY;
+    upgradeLK.contractData().contract = addr;
+    upgradeLK.contractData().key = upgradeHashBytes;
+
+    LedgerTxn ltx(app.getLedgerTxnRoot());
+    auto entry = ltx.load(upgradeLK);
+    REQUIRE(entry);
 }
 
 TEST_CASE("Multi-op pretend transactions are valid", "[loadgen]")

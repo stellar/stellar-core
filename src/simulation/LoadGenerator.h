@@ -55,6 +55,8 @@ struct GeneratedLoadConfig
 
     static GeneratedLoadConfig createSorobanUpgradeSetupLoad();
 
+    static GeneratedLoadConfig createSorobanCreateUpgradeLoad();
+
     static GeneratedLoadConfig
     txLoad(LoadGenMode mode, uint32_t nAccounts, uint32_t nTxs, uint32_t txRate,
            uint32_t offset = 0, std::optional<uint32_t> maxFee = std::nullopt);
@@ -149,6 +151,12 @@ class LoadGenerator
         return mCodeKey;
     }
 
+    std::optional<ConfigUpgradeSetKey>
+    getConfigUpgradeSetKeyForTesting() const
+    {
+        return mConfigUpgradeSetKey;
+    }
+
   private:
     struct TxMetrics
     {
@@ -234,6 +242,8 @@ class LoadGenerator
     inline static std::optional<LedgerKey> mCodeKey = std::nullopt;
     inline static uint64_t mCodeSize = 0;
 
+    std::optional<ConfigUpgradeSetKey> mConfigUpgradeSetKey{};
+
     // Maps account ID to it's contract instance, where each account has a
     // unique instance
     UnorderedMap<uint64_t, ContractInstance> mContractInstances;
@@ -252,6 +262,9 @@ class LoadGenerator
                                           bool initialAccounts);
     bool loadAccount(TestAccount& account, Application& app);
     bool loadAccount(TestAccountPtr account, Application& app);
+
+    SCBytes
+    getConfigUpgradeSetFromLoadConfig(GeneratedLoadConfig const& cfg) const;
 
     std::pair<TestAccountPtr, TestAccountPtr>
     pickAccountPair(uint32_t numAccounts, uint32_t offset, uint32_t ledgerNum,
@@ -281,6 +294,10 @@ class LoadGenerator
     std::pair<LoadGenerator::TestAccountPtr, TransactionFramePtr>
     invokeSorobanLoadTransaction(uint32_t ledgerNum, uint64_t accountId,
                                  GeneratedLoadConfig const& cfg);
+    std::pair<LoadGenerator::TestAccountPtr, TransactionFramePtr>
+    invokeSorobanCreateUpgradeTransaction(uint32_t ledgerNum,
+                                          uint64_t accountId,
+                                          GeneratedLoadConfig const& cfg);
     std::pair<LoadGenerator::TestAccountPtr, TransactionFramePtr>
     sorobanRandomWasmTransaction(uint32_t ledgerNum, uint64_t accountId,
                                  SorobanResources resources, size_t wasmSize,
