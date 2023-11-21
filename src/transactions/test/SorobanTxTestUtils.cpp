@@ -1175,19 +1175,20 @@ ContractInvocationTest::extendOp(
 void
 ContractStorageInvocationTest::put(std::string const& key,
                                    ContractDataDurability type, uint64_t val,
-                                   bool expectSuccess)
+                                   InvokeHostFunctionResultCode result)
 {
     auto keySymbol = makeSymbolSCVal(key);
     auto storageLK = contractDataKey(mContractID, keySymbol, type);
-    putWithFootprint(key, type, val, mContractKeys, {storageLK}, expectSuccess);
+    putWithFootprint(key, type, val, mContractKeys, {storageLK}, result);
 }
 
 void
 ContractStorageInvocationTest::putWithFootprint(
     std::string const& key, ContractDataDurability type, uint64_t val,
     xdr::xvector<LedgerKey> const& readOnly,
-    xdr::xvector<LedgerKey> const& readWrite, bool expectSuccess,
-    uint32_t writeBytes, uint32_t refundableFee)
+    xdr::xvector<LedgerKey> const& readWrite,
+    InvokeHostFunctionResultCode result, uint32_t writeBytes,
+    uint32_t refundableFee)
 {
     std::string funcStr = type == ContractDataDurability::TEMPORARY
                               ? "put_temporary"
@@ -1209,26 +1210,37 @@ ContractStorageInvocationTest::putWithFootprint(
     resourceFee += refundableFee;
     auto tx = createInvokeTx(resources, makeSymbol(funcStr),
                              {keySymbol, valU64}, 1'000, resourceFee);
-    invokeTx(tx, /*expectSuccess=*/expectSuccess, false);
+
+    bool isSuccess = result == INVOKE_HOST_FUNCTION_SUCCESS;
+    invokeTx(tx, isSuccess, false);
+
+    if (!isSuccess)
+    {
+        REQUIRE(tx->getResult()
+                    .result.results()[0]
+                    .tr()
+                    .invokeHostFunctionResult()
+                    .code() == result);
+    }
 }
 
 uint64_t
 ContractStorageInvocationTest::get(std::string const& key,
                                    ContractDataDurability type,
-                                   bool expectSuccess)
+                                   InvokeHostFunctionResultCode result)
 {
     auto lk = contractDataKey(mContractID, makeSymbolSCVal(key), type);
     auto readOnly = mContractKeys;
     readOnly.emplace_back(lk);
-    return getWithFootprint(key, type, readOnly, {}, expectSuccess);
+    return getWithFootprint(key, type, readOnly, {}, result);
 }
 
 uint64_t
 ContractStorageInvocationTest::getWithFootprint(
     std::string const& key, ContractDataDurability type,
     xdr::xvector<LedgerKey> const& readOnly,
-    xdr::xvector<LedgerKey> const& readWrite, bool expectSuccess,
-    uint32_t readBytes)
+    xdr::xvector<LedgerKey> const& readWrite,
+    InvokeHostFunctionResultCode result, uint32_t readBytes)
 {
     std::string funcStr = type == ContractDataDurability::TEMPORARY
                               ? "get_temporary"
@@ -1250,10 +1262,19 @@ ContractStorageInvocationTest::getWithFootprint(
     resourceFee += 40'000;
     auto tx = createInvokeTx(resources, makeSymbol(funcStr), {keySymbol}, 1'000,
                              resourceFee);
-    auto txm = invokeTx(tx, expectSuccess, false);
-    if (expectSuccess)
+    bool isSuccess = result == INVOKE_HOST_FUNCTION_SUCCESS;
+    auto txm = invokeTx(tx, isSuccess, false);
+    if (isSuccess)
     {
         return txm->getXDR().v3().sorobanMeta->returnValue.u64();
+    }
+    else
+    {
+        REQUIRE(tx->getResult()
+                    .result.results()[0]
+                    .tr()
+                    .invokeHostFunctionResult()
+                    .code() == result);
     }
 
     return 0;
@@ -1262,19 +1283,20 @@ ContractStorageInvocationTest::getWithFootprint(
 bool
 ContractStorageInvocationTest::has(std::string const& key,
                                    ContractDataDurability type,
-                                   bool expectSuccess)
+                                   InvokeHostFunctionResultCode result)
 {
     auto lk = contractDataKey(mContractID, makeSymbolSCVal(key), type);
     auto readOnly = mContractKeys;
     readOnly.emplace_back(lk);
-    return hasWithFootprint(key, type, readOnly, {}, expectSuccess);
+    return hasWithFootprint(key, type, readOnly, {}, result);
 }
 
 bool
 ContractStorageInvocationTest::hasWithFootprint(
     std::string const& key, ContractDataDurability type,
     xdr::xvector<LedgerKey> const& readOnly,
-    xdr::xvector<LedgerKey> const& readWrite, bool expectSuccess)
+    xdr::xvector<LedgerKey> const& readWrite,
+    InvokeHostFunctionResultCode result)
 {
     std::string funcStr = type == ContractDataDurability::TEMPORARY
                               ? "has_temporary"
@@ -1297,10 +1319,20 @@ ContractStorageInvocationTest::hasWithFootprint(
 
     auto tx = createInvokeTx(resources, makeSymbol(funcStr), {keySymbol}, 1'000,
                              resourceFee);
-    auto txm = invokeTx(tx, /*expectSuccess=*/expectSuccess, false);
-    if (expectSuccess)
+
+    bool isSuccess = result == INVOKE_HOST_FUNCTION_SUCCESS;
+    auto txm = invokeTx(tx, /*expectSuccess=*/isSuccess, false);
+    if (isSuccess)
     {
         return txm->getXDR().v3().sorobanMeta->returnValue.b();
+    }
+    else
+    {
+        REQUIRE(tx->getResult()
+                    .result.results()[0]
+                    .tr()
+                    .invokeHostFunctionResult()
+                    .code() == result);
     }
 
     return false;

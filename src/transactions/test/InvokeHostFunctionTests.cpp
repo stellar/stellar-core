@@ -393,7 +393,8 @@ TEST_CASE("basic contract invocation", "[tx][soroban]")
     };
 
     auto failedInvoke = [&](TransactionFrameBasePtr tx, int64_t resourceFee,
-                            SorobanResources const& resources) {
+                            SorobanResources const& resources,
+                            InvokeHostFunctionResultCode code) {
         test.txCheckValid(tx);
         auto nonRefundableResourceFee = sorobanResourceFee(
             *test.getApp(), resources, xdr::xdr_size(tx->getEnvelope()), 0);
@@ -416,6 +417,11 @@ TEST_CASE("basic contract invocation", "[tx][soroban]")
                             nonRefundableResourceFee);
         }
         REQUIRE(tx->getResult().result.code() != txSUCCESS);
+        REQUIRE(tx->getResult()
+                    .result.results()[0]
+                    .tr()
+                    .invokeHostFunctionResult()
+                    .code() == code);
     };
 
     auto scFunc = makeSymbol("add");
@@ -451,7 +457,8 @@ TEST_CASE("basic contract invocation", "[tx][soroban]")
             auto tx =
                 test.createInvokeTx(resources, scFunc, {sc7, sc16},
                                     INCLUSION_FEE, DEFAULT_TEST_RESOURCE_FEE);
-            failedInvoke(tx, DEFAULT_TEST_RESOURCE_FEE, resources);
+            failedInvoke(tx, DEFAULT_TEST_RESOURCE_FEE, resources,
+                         INVOKE_HOST_FUNCTION_TRAPPED);
         }
         SECTION("account address")
         {
@@ -461,21 +468,24 @@ TEST_CASE("basic contract invocation", "[tx][soroban]")
             auto tx =
                 test.createInvokeTx(resources, scFunc, {sc7, sc16},
                                     INCLUSION_FEE, DEFAULT_TEST_RESOURCE_FEE);
-            failedInvoke(tx, DEFAULT_TEST_RESOURCE_FEE, resources);
+            failedInvoke(tx, DEFAULT_TEST_RESOURCE_FEE, resources,
+                         INVOKE_HOST_FUNCTION_TRAPPED);
         }
         SECTION("too few parameters")
         {
             auto tx =
                 test.createInvokeTx(resources, scFunc, {sc7}, INCLUSION_FEE,
                                     DEFAULT_TEST_RESOURCE_FEE);
-            failedInvoke(tx, DEFAULT_TEST_RESOURCE_FEE, resources);
+            failedInvoke(tx, DEFAULT_TEST_RESOURCE_FEE, resources,
+                         INVOKE_HOST_FUNCTION_TRAPPED);
         }
         SECTION("too many parameters")
         {
             auto tx =
                 test.createInvokeTx(resources, scFunc, {sc7, sc16, makeI32(0)},
                                     INCLUSION_FEE, DEFAULT_TEST_RESOURCE_FEE);
-            failedInvoke(tx, DEFAULT_TEST_RESOURCE_FEE, resources);
+            failedInvoke(tx, DEFAULT_TEST_RESOURCE_FEE, resources,
+                         INVOKE_HOST_FUNCTION_TRAPPED);
         }
     }
 
@@ -484,20 +494,23 @@ TEST_CASE("basic contract invocation", "[tx][soroban]")
         resources.instructions = 10000;
         auto tx = test.createInvokeTx(resources, scFunc, {sc7, sc16},
                                       INCLUSION_FEE, DEFAULT_TEST_RESOURCE_FEE);
-        failedInvoke(tx, DEFAULT_TEST_RESOURCE_FEE, resources);
+        failedInvoke(tx, DEFAULT_TEST_RESOURCE_FEE, resources,
+                     INVOKE_HOST_FUNCTION_RESOURCE_LIMIT_EXCEEDED);
     }
     SECTION("insufficient read bytes")
     {
         resources.readBytes = 100;
         auto tx = test.createInvokeTx(resources, scFunc, {sc7, sc16},
                                       INCLUSION_FEE, DEFAULT_TEST_RESOURCE_FEE);
-        failedInvoke(tx, DEFAULT_TEST_RESOURCE_FEE, resources);
+        failedInvoke(tx, DEFAULT_TEST_RESOURCE_FEE, resources,
+                     INVOKE_HOST_FUNCTION_RESOURCE_LIMIT_EXCEEDED);
     }
     SECTION("insufficient resource fee")
     {
         auto tx = test.createInvokeTx(resources, scFunc, {sc7, sc16},
                                       INCLUSION_FEE, 32'701);
-        failedInvoke(tx, 32'701, resources);
+        failedInvoke(tx, 32'701, resources,
+                     INVOKE_HOST_FUNCTION_INSUFFICIENT_REFUNDABLE_FEE);
     }
 }
 
@@ -519,19 +532,70 @@ TEST_CASE("invalid footprint keys", "[tx][soroban]")
 
         auto tx = test.createInvokeTx(resources, scFunc, {sc7, sc16}, 100,
                                       DEFAULT_TEST_RESOURCE_FEE);
+
         REQUIRE(test.isTxValid(tx) == shouldBeValid);
+        if (!shouldBeValid)
+        {
+            auto const& txCode = tx->getResult().result.code();
+            if (txCode == txFAILED)
+            {
+                REQUIRE(tx->getResult()
+                            .result.results()[0]
+                            .tr()
+                            .invokeHostFunctionResult()
+                            .code() == INVOKE_HOST_FUNCTION_MALFORMED);
+            }
+            else
+            {
+                REQUIRE(txCode == txSOROBAN_INVALID);
+            }
+        }
     };
 
     auto testValidExtendOp = [&](bool shouldBeValid) {
         auto tx = test.createExtendOpTx(resources, 10, 100,
                                         DEFAULT_TEST_RESOURCE_FEE);
+
         REQUIRE(test.isTxValid(tx) == shouldBeValid);
+        if (!shouldBeValid)
+        {
+            auto const& txCode = tx->getResult().result.code();
+            if (txCode == txFAILED)
+            {
+                REQUIRE(tx->getResult()
+                            .result.results()[0]
+                            .tr()
+                            .extendFootprintTTLResult()
+                            .code() == EXTEND_FOOTPRINT_TTL_MALFORMED);
+            }
+            else
+            {
+                REQUIRE(txCode == txSOROBAN_INVALID);
+            }
+        }
     };
 
     auto testValidRestoreOp = [&](bool shouldBeValid) {
         auto tx =
             test.createRestoreTx(resources, 100, DEFAULT_TEST_RESOURCE_FEE);
+
         REQUIRE(test.isTxValid(tx) == shouldBeValid);
+        if (!shouldBeValid)
+        {
+            auto const& txCode = tx->getResult().result.code();
+            if (txCode == txFAILED)
+            {
+                REQUIRE(tx->getResult()
+                            .result.results()[0]
+                            .tr()
+                            .restoreFootprintResult()
+                            .code() == RESTORE_FOOTPRINT_MALFORMED);
+            }
+            else
+            {
+                REQUIRE(txCode == txSOROBAN_INVALID);
+            }
+        }
     };
 
     // Keys to test
@@ -1397,7 +1461,7 @@ TEST_CASE("contract storage", "[tx][soroban]")
 
         // Contract instance and code are expired, any TX should fail
         test.put("temp", ContractDataDurability::TEMPORARY, 0,
-                 /*expectSuccess=*/false);
+                 INVOKE_HOST_FUNCTION_ENTRY_ARCHIVED);
 
         auto newExpectedLiveUntilLedger =
             stateArchivalSettings.minPersistentTTL + ledgerSeq - 1;
@@ -1422,7 +1486,7 @@ TEST_CASE("contract storage", "[tx][soroban]")
 
             // invocation should fail
             test.put("temp", ContractDataDurability::TEMPORARY, 0,
-                     /*expectSuccess=*/false);
+                     INVOKE_HOST_FUNCTION_ENTRY_ARCHIVED);
             test.checkTTL(contractKeys[0], newExpectedLiveUntilLedger);
             test.checkTTL(contractKeys[1], originalExpectedLiveUntilLedger);
         }
@@ -1435,7 +1499,7 @@ TEST_CASE("contract storage", "[tx][soroban]")
 
             // invocation should fail
             test.put("temp", ContractDataDurability::TEMPORARY, 0,
-                     /*expectSuccess=*/false);
+                     INVOKE_HOST_FUNCTION_ENTRY_ARCHIVED);
             test.checkTTL(contractKeys[0], originalExpectedLiveUntilLedger);
             test.checkTTL(contractKeys[1], newExpectedLiveUntilLedger);
         }
@@ -1529,7 +1593,7 @@ TEST_CASE("contract storage", "[tx][soroban]")
 
             // Get should fail since entry no longer exists
             test.get("temp", ContractDataDurability::TEMPORARY,
-                     /*expectSuccess=*/false);
+                     INVOKE_HOST_FUNCTION_TRAPPED);
 
             // Has should succeed since the entry is TEMPORARY, but should
             // return false
@@ -1586,11 +1650,11 @@ TEST_CASE("contract storage", "[tx][soroban]")
 
             // Check that we can't recreate expired PERSISTENT
             test.put("persistent", ContractDataDurability::PERSISTENT, 42,
-                     /*expectSuccess=*/false);
+                     INVOKE_HOST_FUNCTION_ENTRY_ARCHIVED);
 
             // Since entry is PERSISTENT, has should fail
             test.has("persistent", ContractDataDurability::PERSISTENT,
-                     /*expectSuccess=*/false);
+                     INVOKE_HOST_FUNCTION_ENTRY_ARCHIVED);
 
             test.put("persistent2", ContractDataDurability::PERSISTENT, 0);
             auto lk2 = contractDataKey(test.getContractID(),
@@ -1672,7 +1736,7 @@ TEST_CASE("contract storage", "[tx][soroban]")
         // refund logic changes unexpectedly
         SECTION("absolute refund")
         {
-            test.extendOp(keysToExtend, 10'100, /*expectSuccess=*/true, 40096);
+            test.extendOp(keysToExtend, 10'100, true, 40096);
             test.checkTTL("key", ContractDataDurability::PERSISTENT,
                           ledgerSeq + 10'100);
             test.checkTTL("key2", ContractDataDurability::PERSISTENT,
@@ -1725,8 +1789,7 @@ TEST_CASE("contract storage", "[tx][soroban]")
 
         SECTION("extension op")
         {
-            test.extendOp({lk}, stateArchivalSettings.maxEntryTTL,
-                          /*expectSuccess=*/false);
+            test.extendOp({lk}, stateArchivalSettings.maxEntryTTL, false);
             test.checkTTL(lk, initialLiveUntilLedger);
 
             // Max TTL includes current ledger, so subtract 1
@@ -1875,8 +1938,8 @@ TEST_CASE("contract storage", "[tx][soroban]")
 
             REQUIRE(doesAccountExist(*test.getApp(), acc));
             test.putWithFootprint("key", ContractDataDurability::PERSISTENT, 0,
-                                  test.getContractKeys(), {lk, accountKey(acc)},
-                                  /*expectSuccess*/ true);
+                                  test.getContractKeys(),
+                                  {lk, accountKey(acc)});
 
             // make sure account still exists and hasn't change
             REQUIRE(doesAccountExist(*test.getApp(), acc));
@@ -1886,11 +1949,14 @@ TEST_CASE("contract storage", "[tx][soroban]")
         {
             // Failure: contract data isn't in footprint
             test.putWithFootprint("key", ContractDataDurability::PERSISTENT, 88,
-                                  test.getContractKeys(), {}, false);
+                                  test.getContractKeys(), {},
+                                  INVOKE_HOST_FUNCTION_TRAPPED);
             test.getWithFootprint("key", ContractDataDurability::PERSISTENT,
-                                  test.getContractKeys(), {}, false);
+                                  test.getContractKeys(), {},
+                                  INVOKE_HOST_FUNCTION_TRAPPED);
             test.hasWithFootprint("key", ContractDataDurability::PERSISTENT,
-                                  test.getContractKeys(), {}, false);
+                                  test.getContractKeys(), {},
+                                  INVOKE_HOST_FUNCTION_TRAPPED);
             test.delWithFootprint("key", ContractDataDurability::PERSISTENT,
                                   test.getContractKeys(), {}, false);
 
@@ -1898,17 +1964,20 @@ TEST_CASE("contract storage", "[tx][soroban]")
             auto readOnlyFootprint = test.getContractKeys();
             readOnlyFootprint.push_back(lk);
             test.putWithFootprint("key", ContractDataDurability::PERSISTENT, 88,
-                                  readOnlyFootprint, {}, false);
+                                  readOnlyFootprint, {},
+                                  INVOKE_HOST_FUNCTION_TRAPPED);
             test.delWithFootprint("key", ContractDataDurability::PERSISTENT,
                                   readOnlyFootprint, {}, false);
 
             // Failure: Contract Wasm/instance not included
             test.putWithFootprint("key", ContractDataDurability::PERSISTENT, 88,
-                                  {}, {lk}, false);
+                                  {}, {lk}, INVOKE_HOST_FUNCTION_TRAPPED);
             test.putWithFootprint("key", ContractDataDurability::PERSISTENT, 88,
-                                  {test.getContractKeys()[0]}, {lk}, false);
+                                  {test.getContractKeys()[0]}, {lk},
+                                  INVOKE_HOST_FUNCTION_TRAPPED);
             test.putWithFootprint("key", ContractDataDurability::PERSISTENT, 88,
-                                  {test.getContractKeys()[1]}, {lk}, false);
+                                  {test.getContractKeys()[1]}, {lk},
+                                  INVOKE_HOST_FUNCTION_TRAPPED);
         }
 
         SECTION("resource limits")
@@ -1919,7 +1988,7 @@ TEST_CASE("contract storage", "[tx][soroban]")
                 {test.getContractKeys()},
                 {contractDataKey(test.getContractID(), makeSymbolSCVal("key2"),
                                  ContractDataDurability::PERSISTENT)},
-                /*expectSuccess=*/false, /*writeBytes=*/1);
+                INVOKE_HOST_FUNCTION_RESOURCE_LIMIT_EXCEEDED, /*writeBytes=*/1);
             REQUIRE(!test.has("key2", ContractDataDurability::PERSISTENT));
 
             // Resize with too few writeBytes
@@ -1935,7 +2004,7 @@ TEST_CASE("contract storage", "[tx][soroban]")
             // Reading the entry should fail with insufficient readBytes
             test.getWithFootprint("key", ContractDataDurability::PERSISTENT,
                                   {test.getContractKeys()}, {lk},
-                                  /*expectSuccess=*/false,
+                                  INVOKE_HOST_FUNCTION_RESOURCE_LIMIT_EXCEEDED,
                                   /*readBytes=*/5'000);
         }
     }
@@ -2076,6 +2145,120 @@ TEST_CASE("temp entry eviction", "[tx][soroban]")
         {
             REQUIRE(lcm.v1().evictedTemporaryLedgerKeys.empty());
         }
+    }
+}
+
+TEST_CASE("error codes", "[tx][soroban]")
+{
+    ContractStorageInvocationTest test{};
+    auto const& stateArchivalSettings =
+        test.getNetworkCfg().stateArchivalSettings();
+    auto ledgerSeq = test.getLedgerSeq();
+
+    uint32_t originalExpectedLiveUntilLedger =
+        stateArchivalSettings.minPersistentTTL + ledgerSeq - 1;
+
+    for (uint32_t i =
+             test.getApp()->getLedgerManager().getLastClosedLedgerNum();
+         i <= originalExpectedLiveUntilLedger + 1; ++i)
+    {
+        closeLedgerOn(*test.getApp(), i, 2, 1, 2016);
+    }
+
+    auto const& contractKeys = test.getContractKeys();
+
+    SorobanResources restoreResources;
+    restoreResources.footprint.readWrite = contractKeys;
+    restoreResources.instructions = 0;
+    restoreResources.readBytes = 10'000;
+    restoreResources.writeBytes = 10'000;
+
+    auto const resourceFee = 300'000 + 40'000 * contractKeys.size();
+
+    // insufficient refundable fee
+    {
+        auto tx = test.createRestoreTx(restoreResources, 1'000,
+                                       40'000 * contractKeys.size());
+        test.invokeTx(tx, false);
+        REQUIRE(tx->getResult()
+                    .result.results()[0]
+                    .tr()
+                    .restoreFootprintResult()
+                    .code() == RESTORE_FOOTPRINT_INSUFFICIENT_REFUNDABLE_FEE);
+    }
+
+    // exceeded readBytes
+    {
+        auto resourceCopy = restoreResources;
+        resourceCopy.readBytes = 1;
+        auto tx = test.createRestoreTx(resourceCopy, 1'000, resourceFee);
+        test.invokeTx(tx, false);
+        REQUIRE(tx->getResult()
+                    .result.results()[0]
+                    .tr()
+                    .restoreFootprintResult()
+                    .code() == RESTORE_FOOTPRINT_RESOURCE_LIMIT_EXCEEDED);
+    }
+
+    // exceeded writeBytes
+    {
+        auto resourceCopy = restoreResources;
+        resourceCopy.writeBytes = 1;
+        auto tx = test.createRestoreTx(resourceCopy, 1'000, resourceFee);
+        test.invokeTx(tx, false);
+        REQUIRE(tx->getResult()
+                    .result.results()[0]
+                    .tr()
+                    .restoreFootprintResult()
+                    .code() == RESTORE_FOOTPRINT_RESOURCE_LIMIT_EXCEEDED);
+    }
+
+    {
+        // restore entries
+        auto tx = test.createRestoreTx(restoreResources, 1'000, resourceFee);
+        test.invokeTx(tx, true);
+    }
+
+    ledgerSeq = test.getLedgerSeq();
+    REQUIRE(test.isEntryLive(contractKeys[0], ledgerSeq));
+    REQUIRE(test.isEntryLive(contractKeys[1], ledgerSeq));
+
+    SorobanResources extendResources;
+    extendResources.footprint.readOnly = contractKeys;
+    extendResources.instructions = 0;
+    extendResources.readBytes = 10'000;
+    extendResources.writeBytes = 0;
+
+    // exceeded readBytes
+    {
+        auto resourceCopy = extendResources;
+        resourceCopy.readBytes = 10;
+
+        auto resourceFee = DEFAULT_TEST_RESOURCE_FEE * contractKeys.size();
+        auto tx =
+            test.createExtendOpTx(resourceCopy, 10'000, 1'000, resourceFee);
+        test.invokeTx(tx, false);
+        REQUIRE(tx->getResult()
+                    .result.results()[0]
+                    .tr()
+                    .extendFootprintTTLResult()
+                    .code() == EXTEND_FOOTPRINT_TTL_RESOURCE_LIMIT_EXCEEDED);
+    }
+
+    // insufficient refundable fee
+    {
+        auto resourceCopy = extendResources;
+
+        auto resourceFee = DEFAULT_TEST_RESOURCE_FEE * contractKeys.size();
+        auto tx =
+            test.createExtendOpTx(extendResources, 10'000, 30'000, 30'000);
+        test.invokeTx(tx, false);
+        REQUIRE(tx->getResult()
+                    .result.results()[0]
+                    .tr()
+                    .extendFootprintTTLResult()
+                    .code() ==
+                EXTEND_FOOTPRINT_TTL_INSUFFICIENT_REFUNDABLE_FEE);
     }
 }
 
