@@ -156,6 +156,9 @@ class LoadGenerator
     // with the remainder.
     void generateLoad(GeneratedLoadConfig cfg);
 
+    ConfigUpgradeSetKey
+    getConfigUpgradeSetKey(GeneratedLoadConfig const& cfg) const;
+
     // Verify cached accounts are properly reflected in the database
     // return any accounts that are inconsistent.
     std::vector<TestAccountPtr> checkAccountSynced(Application& app,
@@ -180,12 +183,6 @@ class LoadGenerator
     getCodeKeyForTesting() const
     {
         return mCodeKey;
-    }
-
-    std::optional<ConfigUpgradeSetKey>
-    getConfigUpgradeSetKeyForTesting() const
-    {
-        return mConfigUpgradeSetKey;
     }
 
   private:
@@ -272,8 +269,6 @@ class LoadGenerator
     std::optional<LedgerKey> mPendingCodeKey{};
     inline static std::optional<LedgerKey> mCodeKey = std::nullopt;
     inline static uint64_t mCodeSize = 0;
-
-    std::optional<ConfigUpgradeSetKey> mConfigUpgradeSetKey{};
 
     // Maps account ID to it's contract instance, where each account has a
     // unique instance

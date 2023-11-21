@@ -268,7 +268,6 @@ LoadGenerator::reset(bool resetSoroban)
     mLoadTimer.reset();
     mRoot.reset();
     mStartTime.reset();
-    // mConfigUpgradeSetKey.reset();
 
     // If we fail during Soroban setup or find a state inconsistency during
     // SOROBAN_INVOKE, reset persistent state
@@ -1332,6 +1331,22 @@ LoadGenerator::invokeSorobanLoadTransaction(uint32_t ledgerNum,
     return std::make_pair(account, tx);
 }
 
+ConfigUpgradeSetKey
+LoadGenerator::getConfigUpgradeSetKey(GeneratedLoadConfig const& cfg) const
+{
+    releaseAssertOrThrow(mCodeKey.has_value());
+    releaseAssertOrThrow(mContractInstanceKeys.size() == 1);
+    auto const& instanceLK = *mContractInstanceKeys.begin();
+
+    SCBytes upgradeBytes = getConfigUpgradeSetFromLoadConfig(cfg);
+    auto upgradeHash = sha256(upgradeBytes);
+
+    ConfigUpgradeSetKey upgradeSetKey;
+    upgradeSetKey.contentHash = upgradeHash;
+    upgradeSetKey.contractID = instanceLK.contractData().contract.contractId();
+    return upgradeSetKey;
+}
+
 SCBytes
 LoadGenerator::getConfigUpgradeSetFromLoadConfig(
     GeneratedLoadConfig const& cfg) const
@@ -1520,7 +1535,6 @@ LoadGenerator::invokeSorobanCreateUpgradeTransaction(
     ConfigUpgradeSetKey upgradeSetKey;
     upgradeSetKey.contentHash = upgradeHash;
     upgradeSetKey.contractID = contractID.contractId();
-    mConfigUpgradeSetKey = upgradeSetKey;
 
     SorobanResources resources;
     resources.footprint.readOnly = {instanceLK, *mCodeKey};

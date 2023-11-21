@@ -371,6 +371,7 @@ TEST_CASE("soroban loadgen config upgrade", "[loadgen][soroban]")
     cfg.evictionScanSize = rand_uniform<int64_t>(INT64_MAX - 10'000, INT64_MAX);
     cfg.startingEvictionScanLevel = rand_uniform<uint32_t>(4, 8);
 
+    auto upgradeSetKey = loadGen.getConfigUpgradeSetKey(cfg);
     auto cfgCopy = cfg;
 
     loadGen.generateLoad(cfg);
@@ -395,14 +396,11 @@ TEST_CASE("soroban loadgen config upgrade", "[loadgen][soroban]")
     }
 
     // Check that the upgrade entry was properly written
-    auto upgradeKeySetOp = loadGen.getConfigUpgradeSetKeyForTesting();
-    REQUIRE(upgradeKeySetOp);
-
     SCVal upgradeHashBytes(SCV_BYTES);
-    upgradeHashBytes.bytes() = xdr::xdr_to_opaque(upgradeKeySetOp->contentHash);
+    upgradeHashBytes.bytes() = xdr::xdr_to_opaque(upgradeSetKey.contentHash);
 
     SCAddress addr(SC_ADDRESS_TYPE_CONTRACT);
-    addr.contractId() = upgradeKeySetOp->contractID;
+    addr.contractId() = upgradeSetKey.contractID;
 
     LedgerKey upgradeLK(CONTRACT_DATA);
     upgradeLK.contractData().durability = TEMPORARY;

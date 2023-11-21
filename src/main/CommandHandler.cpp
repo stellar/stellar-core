@@ -1249,11 +1249,22 @@ CommandHandler::generateLoad(std::string const& params, std::string& retStr)
 
         uint32_t numItems = isCreate ? cfg.nAccounts : cfg.nTxs;
         std::string itemType = isCreate ? "accounts" : "txs";
-
-        retStr +=
+        Json::Value res;
+        res["status"] =
             fmt::format(FMT_STRING(" Generating load: {:d} {:s}, {:d} tx/s"),
                         numItems, itemType, cfg.txRate);
         mApp.generateLoad(cfg);
+
+        if (cfg.mode == LoadGenMode::SOROBAN_CREATE_UPGRADE)
+        {
+            auto configUpgradeKey =
+                mApp.getLoadGenerator().getConfigUpgradeSetKey(cfg);
+            auto configUpgradeKeyStr = stellar::decoder::encode_b64(
+                xdr::xdr_to_opaque(configUpgradeKey));
+            res["config_upgrade_set_key"] = configUpgradeKeyStr;
+        }
+
+        retStr = res.toStyledString();
     }
     else
     {
