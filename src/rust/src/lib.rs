@@ -475,13 +475,7 @@ fn check_lockfile_has_expected_dep_tree(
     } else {
         // In non-vnext core builds, we're more strict about the versions
         // matching.
-        //
-        // FIXME: this is fairly harmless, but old versions of soroban didn't
-        // encode a protocol version in their interface version at all, so will
-        // report zero here. For now we ignore this, but should tighten the test
-        // up before final.
-        if soroban_host_proto_version != 0
-            && stellar_core_proto_version != soroban_host_proto_version
+        if stellar_core_proto_version != soroban_host_proto_version
         {
             panic!(
                 "stellar-core \"{}\" protocol is {}, does not match soroban host \"{}\" protocol {}",
