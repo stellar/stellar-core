@@ -268,7 +268,7 @@ LoadGenerator::reset(bool resetSoroban)
     mStartTime.reset();
 
     // If we fail during Soroban setup or find a state inconsistency during
-    // SOROBAN_INVOKE, reset persistent state
+    // soroban loadgen, reset persistent state
     if (resetSoroban)
     {
         mContractInstanceKeys.clear();

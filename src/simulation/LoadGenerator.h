@@ -88,6 +88,7 @@ struct GeneratedLoadConfig
     {
         return mode == LoadGenMode::PAY || mode == LoadGenMode::PRETEND ||
                mode == LoadGenMode::MIXED_TXS ||
+               mode == LoadGenMode::SOROBAN_UPLOAD ||
                mode == LoadGenMode::SOROBAN_INVOKE ||
                mode == LoadGenMode::SOROBAN_CREATE_UPGRADE;
     }

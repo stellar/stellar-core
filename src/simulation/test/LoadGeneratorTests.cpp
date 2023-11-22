@@ -157,7 +157,7 @@ TEST_CASE("generate soroban load", "[loadgen][soroban]")
                             .NewCounter({"ledger", "apply", "success"})
                             .count();
 
-    auto const numInstances = 20;
+    auto const numInstances = 10;
 
     loadGen.generateLoad(GeneratedLoadConfig::createSorobanInvokeSetupLoad(
         /* nAccounts */ nAccounts, numInstances,
@@ -196,7 +196,7 @@ TEST_CASE("generate soroban load", "[loadgen][soroban]")
                                            nAccounts, numSorobanTxs,
                                            /* txRate */ 1);
 
-    cfg.nInstances = 20;
+    cfg.nInstances = numInstances;
 
     // Use tight bounds to we can verify storage works properly
     cfg.nDataEntriesLow = numDataEntries;
