@@ -2649,7 +2649,17 @@ TEST_CASE("soroban transaction validation", "[tx][envelope][soroban]")
             REQUIRE(!tx->checkValid(*app, ltx, 0, 0, 0));
             REQUIRE(tx->getResult().result.code() == txSOROBAN_INVALID);
         }
-        SECTION("resource fee exceeds uint32 after adding base fee")
+        SECTION("total fee is exactly uint32 max")
+        {
+            auto tx = sorobanTransactionFrameFromOpsWithTotalFee(
+                app->getNetworkID(), root, {op0}, {}, resources,
+                std::numeric_limits<uint32_t>::max(),
+                static_cast<int64_t>(std::numeric_limits<uint32_t>::max()) -
+                    100);
+            LedgerTxn ltx(app->getLedgerTxnRoot());
+            REQUIRE(tx->checkValid(*app, ltx, 0, 0, 0));
+        }
+        SECTION("total fee exceeds uint32 after adding base fee")
         {
             auto tx = sorobanTransactionFrameFromOpsWithTotalFee(
                 app->getNetworkID(), root, {op0}, {}, resources,
@@ -2669,7 +2679,6 @@ TEST_CASE("soroban transaction validation", "[tx][envelope][soroban]")
             auto innerTx = sorobanTransactionFrameFromOpsWithTotalFee(
                 app->getNetworkID(), root, {op0}, {}, resources,
                 std::numeric_limits<uint32_t>::max(), resourceFee);
-            auto initBalance = root.getBalance();
             auto tx = feeBump(*app, root, innerTx, resourceFee + 200,
                               /* useInclusionAsFullFee */ true);
             LedgerTxn ltx(app->getLedgerTxnRoot());
