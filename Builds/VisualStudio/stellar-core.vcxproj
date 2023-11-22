@@ -140,10 +140,10 @@
     </ClCompile>
     <Link>
       <GenerateDebugInformation>DebugFastLink</GenerateDebugInformation>
-      <AdditionalDependencies>kernel32.lib;user32.lib;gdi32.lib;winspool.lib;comdlg32.lib;advapi32.lib;shell32.lib;ole32.lib;oleaut32.lib;uuid.lib;odbc32.lib;odbccp32.lib;psapi.lib;Credui.lib;userenv.lib;bcrypt.lib;ntdll.lib;$(OutDir)\rust\target\debug\rust_stellar_core.lib;C:\Program Files\PostgreSQL\15\lib\libpq.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>kernel32.lib;user32.lib;gdi32.lib;winspool.lib;comdlg32.lib;advapi32.lib;shell32.lib;ole32.lib;oleaut32.lib;uuid.lib;odbc32.lib;odbccp32.lib;psapi.lib;Credui.lib;userenv.lib;bcrypt.lib;ntdll.lib;$(OutDir)\rust\target\release\rust_stellar_core.lib;C:\Program Files\PostgreSQL\15\lib\libpq.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
     <PreBuildEvent>
-      <Command>(set CFLAGS=-MDd) &amp; (set CXXFLAGS=-MDd) &amp; cargo build --target-dir $(OutDir)\rust\target --features tracy --features core-vnext</Command>
+      <Command>(set CFLAGS=-MDd) &amp; (set CXXFLAGS=-MDd) &amp; cargo build --release --target-dir $(OutDir)\rust\target --features tracy --features core-vnext</Command>
     </PreBuildEvent>
     <PreBuildEvent>
       <Message>Rust</Message>
@@ -201,10 +201,10 @@ exit /b 0
     </ClCompile>
     <Link>
       <GenerateDebugInformation>DebugFastLink</GenerateDebugInformation>
-      <AdditionalDependencies>kernel32.lib;user32.lib;gdi32.lib;winspool.lib;comdlg32.lib;advapi32.lib;shell32.lib;ole32.lib;oleaut32.lib;uuid.lib;odbc32.lib;odbccp32.lib;psapi.lib;Credui.lib;userenv.lib;bcrypt.lib;ntdll.lib;$(OutDir)\rust\target\debug\rust_stellar_core.lib;C:\Program Files\PostgreSQL\15\lib\libpq.lib;%(AdditionalDependencies);</AdditionalDependencies>
+      <AdditionalDependencies>kernel32.lib;user32.lib;gdi32.lib;winspool.lib;comdlg32.lib;advapi32.lib;shell32.lib;ole32.lib;oleaut32.lib;uuid.lib;odbc32.lib;odbccp32.lib;psapi.lib;Credui.lib;userenv.lib;bcrypt.lib;ntdll.lib;$(OutDir)\rust\target\release\rust_stellar_core.lib;C:\Program Files\PostgreSQL\15\lib\libpq.lib;%(AdditionalDependencies);</AdditionalDependencies>
     </Link>
     <PreBuildEvent>
-      <Command>(set CFLAGS=-MDd) &amp; (set CXXFLAGS=-MDd) &amp; cargo build --target-dir $(OutDir)\rust\target --features tracy</Command>
+      <Command>(set CFLAGS=-MDd) &amp; (set CXXFLAGS=-MDd) &amp; cargo build --release --target-dir $(OutDir)\rust\target --features tracy</Command>
     </PreBuildEvent>
     <PreBuildEvent>
       <Message>Rust</Message>
@@ -263,12 +263,12 @@ exit /b 0
     </ClCompile>
     <Link>
       <GenerateDebugInformation>DebugFastLink</GenerateDebugInformation>
-      <AdditionalDependencies>kernel32.lib;user32.lib;gdi32.lib;winspool.lib;comdlg32.lib;advapi32.lib;shell32.lib;ole32.lib;oleaut32.lib;uuid.lib;odbc32.lib;odbccp32.lib;psapi.lib;Credui.lib;userenv.lib;bcrypt.lib;ntdll.lib;$(OutDir)\rust\target\debug\rust_stellar_core.lib</AdditionalDependencies>
+      <AdditionalDependencies>kernel32.lib;user32.lib;gdi32.lib;winspool.lib;comdlg32.lib;advapi32.lib;shell32.lib;ole32.lib;oleaut32.lib;uuid.lib;odbc32.lib;odbccp32.lib;psapi.lib;Credui.lib;userenv.lib;bcrypt.lib;ntdll.lib;$(OutDir)\rust\target\release\rust_stellar_core.lib</AdditionalDependencies>
       <IgnoreSpecificDefaultLibraries>
       </IgnoreSpecificDefaultLibraries>
     </Link>
     <PreBuildEvent>
-      <Command>(set CFLAGS=-MDd) &amp; (set CXXFLAGS=-MDd) &amp; cargo build --target-dir $(OutDir)\rust\target --features tracy --features core-vnext</Command>
+      <Command>(set CFLAGS=-MDd) &amp; (set CXXFLAGS=-MDd) &amp; cargo build --release --target-dir $(OutDir)\rust\target --features tracy --features core-vnext</Command>
     </PreBuildEvent>
     <PreBuildEvent>
       <Message>Rust</Message>
@@ -1575,7 +1575,7 @@ $(OutDir)\bin\cxxbridge.exe ..\..\src\rust\src\lib.rs --output src\$(Configurati
       <Outputs>src\$(Configuration)\generated\rust\RustBridge.h;src\$(Configuration)\generated\rust\RustBridge.cpp</Outputs>
       <OutputItemType>ClInclude</OutputItemType>
       <AdditionalInputs>$(OutDir)\bin\cxxbridge.exe</AdditionalInputs>
-      <AdditionalInputs Condition="'$(Configuration)|$(Platform)'=='DebugNoPostgres|x64'">$(OutDir)\bin\cxxbridge.exe;$(OutDir)\rust\target\debug\rust_stellar_core.lib</AdditionalInputs>
+      <AdditionalInputs Condition="'$(Configuration)|$(Platform)'=='DebugNoPostgres|x64'">$(OutDir)\bin\cxxbridge.exe;$(OutDir)\rust\target\release\rust_stellar_core.lib</AdditionalInputs>
     </CustomBuild>
     <CustomBuild Include="..\..\src\rust\install-cxxbridge-cmd">
       <FileType>Document</FileType>

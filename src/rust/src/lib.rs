@@ -29,7 +29,6 @@ macro_rules! tracy_span {
 // interpreted by cxx.rs.
 #[cxx::bridge]
 mod rust_bridge {
-
     // When we want to pass owned data _from_ C++, we typically want to pass it
     // as a C++-allocated std::vector<uint8_t>, because that's most-compatible
     // with all the C++ functions we're likely to be using to build it.
@@ -203,6 +202,8 @@ mod rust_bridge {
         // Utility functions for generating wasms using soroban-synth-wasm.
         fn get_random_wasm(size: usize, seed: u64) -> Result<RustBuf>;
 
+        fn get_hostile_large_val_wasm() -> Result<RustBuf>;
+
         // Return the rustc version used to build this binary.
         fn get_rustc_version() -> String;
 
@@ -275,6 +276,7 @@ mod rust_bridge {
 
 // Then we import various implementations to this module, for export through the bridge.
 mod b64;
+
 use std::str::FromStr;
 
 use b64::{from_base64, to_base64};
@@ -285,6 +287,7 @@ pub(crate) fn get_test_wasm_add_i32() -> Result<RustBuf, Box<dyn std::error::Err
         data: soroban_test_wasms::ADD_I32.iter().cloned().collect(),
     })
 }
+
 pub(crate) fn get_test_wasm_contract_data() -> Result<RustBuf, Box<dyn std::error::Error>> {
     Ok(RustBuf {
         data: soroban_test_wasms::CONTRACT_STORAGE
@@ -309,6 +312,15 @@ pub(crate) fn get_test_wasm_err() -> Result<RustBuf, Box<dyn std::error::Error>>
 pub(crate) fn get_write_bytes() -> Result<RustBuf, Box<dyn std::error::Error>> {
     Ok(RustBuf {
         data: soroban_test_wasms::WRITE_BYTES.iter().cloned().collect(),
+    })
+}
+
+pub(crate) fn get_hostile_large_val_wasm() -> Result<RustBuf, Box<dyn std::error::Error>> {
+    Ok(RustBuf {
+        data: soroban_test_wasms::HOSTILE_LARGE_VALUE
+            .iter()
+            .cloned()
+            .collect(),
     })
 }
 
@@ -377,6 +389,7 @@ use rust_bridge::VersionStringPair;
 use rust_bridge::XDRHashesPair;
 
 mod log;
+
 use crate::log::init_logging;
 
 // We have at least one, but possibly two, copies of soroban compiled
@@ -388,6 +401,7 @@ use crate::log::init_logging;
 #[path = "."]
 mod soroban_curr {
     pub(crate) use soroban_env_host_curr as soroban_env_host;
+
     pub(crate) mod contract;
 }
 
@@ -395,6 +409,7 @@ mod soroban_curr {
 #[path = "."]
 mod soroban_prev {
     pub(crate) use soroban_env_host_prev as soroban_env_host;
+
     pub(crate) mod contract;
 }
 
@@ -427,6 +442,7 @@ fn package_matches_hash(pkg: &cargo_lock::Package, hash: &str) -> bool {
     }
     false
 }
+
 fn check_lockfile_has_expected_dep_tree(
     stellar_core_proto_version: u32,
     soroban_host_interface_version: u64,
@@ -482,7 +498,7 @@ fn check_lockfile_has_expected_dep_tree(
 
     if soroban_host_pre_release_version != 0 && pkg.version.pre.is_empty() {
         panic!("soroban interface version indicates pre-release {} but package version is {}, with empty prerelease component",
-                soroban_host_pre_release_version, pkg.version)
+               soroban_host_pre_release_version, pkg.version)
     }
 
     if pkg.version.major == 0 || !pkg.version.pre.is_empty() {
@@ -679,6 +695,7 @@ impl std::fmt::Display for rust_bridge::BridgeError {
         write!(f, "{:?}", self)
     }
 }
+
 impl std::error::Error for rust_bridge::BridgeError {}
 
 pub(crate) fn get_xdr_hashes() -> XDRHashesPair {

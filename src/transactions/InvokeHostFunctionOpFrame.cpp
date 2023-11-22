@@ -79,7 +79,7 @@ getLedgerInfo(AbstractLedgerTxn& ltx, Application& app,
 }
 
 DiagnosticEvent
-metricsEvent(bool success, std::string&& topic, uint32 value)
+metricsEvent(bool success, std::string&& topic, uint64_t value)
 {
     DiagnosticEvent de;
     de.inSuccessfulContractCall = success;
@@ -99,34 +99,34 @@ struct HostFunctionMetrics
 {
     medida::MetricsRegistry& mMetrics;
 
-    uint32 mReadEntry{0};
-    uint32 mWriteEntry{0};
+    uint32_t mReadEntry{0};
+    uint32_t mWriteEntry{0};
 
-    uint32 mLedgerReadByte{0};
-    uint32 mLedgerWriteByte{0};
+    uint32_t mLedgerReadByte{0};
+    uint32_t mLedgerWriteByte{0};
 
-    uint32 mReadKeyByte{0};
-    uint32 mWriteKeyByte{0};
+    uint32_t mReadKeyByte{0};
+    uint32_t mWriteKeyByte{0};
 
-    uint32 mReadDataByte{0};
-    uint32 mWriteDataByte{0};
+    uint32_t mReadDataByte{0};
+    uint32_t mWriteDataByte{0};
 
-    uint32 mReadCodeByte{0};
-    uint32 mWriteCodeByte{0};
+    uint32_t mReadCodeByte{0};
+    uint32_t mWriteCodeByte{0};
 
-    uint32 mEmitEvent{0};
-    uint32 mEmitEventByte{0};
+    uint32_t mEmitEvent{0};
+    uint32_t mEmitEventByte{0};
 
     // host runtime metrics
-    uint32 mCpuInsn{0};
-    uint32 mMemByte{0};
-    uint32 mInvokeTimeNsecs{0};
+    uint64_t mCpuInsn{0};
+    uint64_t mMemByte{0};
+    uint64_t mInvokeTimeNsecs{0};
 
     // max single entity size metrics
-    uint32 mMaxReadWriteKeyByte{0};
-    uint32 mMaxReadWriteDataByte{0};
-    uint32 mMaxReadWriteCodeByte{0};
-    uint32 mMaxEmitEventByte{0};
+    uint32_t mMaxReadWriteKeyByte{0};
+    uint32_t mMaxReadWriteDataByte{0};
+    uint32_t mMaxReadWriteCodeByte{0};
+    uint32_t mMaxEmitEventByte{0};
 
     bool mSuccess{false};
 
@@ -135,7 +135,7 @@ struct HostFunctionMetrics
     }
 
     void
-    noteReadEntry(bool isCodeEntry, uint32 keySize, uint32 entrySize)
+    noteReadEntry(bool isCodeEntry, uint32_t keySize, uint32_t entrySize)
     {
         mReadEntry++;
         mReadKeyByte += keySize;
@@ -154,7 +154,7 @@ struct HostFunctionMetrics
     }
 
     void
-    noteWriteEntry(bool isCodeEntry, uint32 keySize, uint32 entrySize)
+    noteWriteEntry(bool isCodeEntry, uint32_t keySize, uint32_t entrySize)
     {
         mWriteEntry++;
         mMaxReadWriteKeyByte = std::max(mMaxReadWriteKeyByte, keySize);
@@ -379,8 +379,8 @@ InvokeHostFunctionOpFrame::doApply(Application& app, AbstractLedgerTxn& ltx,
                      &resources, this](auto const& keys) -> bool {
         for (auto const& lk : keys)
         {
-            uint32 keySize = static_cast<uint32>(xdr::xdr_size(lk));
-            uint32 entrySize = 0u;
+            uint32_t keySize = static_cast<uint32_t>(xdr::xdr_size(lk));
+            uint32_t entrySize = 0u;
             std::optional<TTLEntry> ttlEntry;
             bool sorobanEntryLive = false;
 
@@ -418,7 +418,7 @@ InvokeHostFunctionOpFrame::doApply(Application& app, AbstractLedgerTxn& ltx,
                 if (ltxe)
                 {
                     auto leBuf = toCxxBuf(ltxe.current());
-                    entrySize = static_cast<uint32>(leBuf.data->size());
+                    entrySize = static_cast<uint32_t>(leBuf.data->size());
 
                     // For entry types that don't have an ttlEntry (i.e.
                     // Accounts), the rust host expects an "empty" CxxBuf such
@@ -493,9 +493,9 @@ InvokeHostFunctionOpFrame::doApply(Application& app, AbstractLedgerTxn& ltx,
             getLedgerInfo(ltx, app, sorobanConfig), ledgerEntryCxxBufs,
             ttlEntryCxxBufs, basePrngSeedBuf,
             sorobanConfig.rustBridgeRentFeeConfiguration());
-        metrics.mCpuInsn = static_cast<uint32>(out.cpu_insns);
-        metrics.mMemByte = static_cast<uint32>(out.mem_bytes);
-        metrics.mInvokeTimeNsecs = static_cast<uint32>(out.time_nsecs);
+        metrics.mCpuInsn = out.cpu_insns;
+        metrics.mMemByte = out.mem_bytes;
+        metrics.mInvokeTimeNsecs = out.time_nsecs;
         if (!out.success)
         {
             maybePopulateDiagnosticEvents(cfg, out, metrics);
@@ -549,8 +549,8 @@ InvokeHostFunctionOpFrame::doApply(Application& app, AbstractLedgerTxn& ltx,
         auto lk = LedgerEntryKey(le);
         createdAndModifiedKeys.insert(lk);
 
-        uint32 keySize = static_cast<uint32>(xdr::xdr_size(lk));
-        uint32 entrySize = static_cast<uint32>(buf.data.size());
+        uint32_t keySize = static_cast<uint32_t>(xdr::xdr_size(lk));
+        uint32_t entrySize = static_cast<uint32_t>(buf.data.size());
 
         // ttlEntry write fees come out of refundableFee, already
         // accounted for by the host
@@ -627,7 +627,7 @@ InvokeHostFunctionOpFrame::doApply(Application& app, AbstractLedgerTxn& ltx,
     for (auto const& buf : out.contract_events)
     {
         metrics.mEmitEvent++;
-        uint32 eventSize = static_cast<uint32>(buf.data.size());
+        uint32_t eventSize = static_cast<uint32_t>(buf.data.size());
         metrics.mEmitEventByte += eventSize;
         metrics.mMaxEmitEventByte =
             std::max(metrics.mMaxEmitEventByte, eventSize);

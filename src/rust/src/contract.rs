@@ -29,8 +29,8 @@ use super::soroban_env_host::{
     xdr::{
         self, ContractCostParams, ContractEvent, ContractEventBody, ContractEventType,
         ContractEventV0, DiagnosticEvent, ExtensionPoint, LedgerEntry, LedgerEntryData,
-        LedgerEntryExt, Limits, ReadXdr, ScError, ScErrorCode, ScErrorType, ScSymbol, ScVal, TtlEntry,
-        WriteXdr, XDR_FILES_SHA256,
+        LedgerEntryExt, Limits, ReadXdr, ScError, ScErrorCode, ScErrorType, ScSymbol, ScVal,
+        TtlEntry, WriteXdr, XDR_FILES_SHA256,
     },
     HostError, LedgerInfo,
 };
@@ -159,7 +159,10 @@ impl std::error::Error for CoreHostError {}
 fn non_metered_xdr_from_cxx_buf<T: ReadXdr>(buf: &CxxBuf) -> Result<T, HostError> {
     Ok(T::read_xdr(&mut xdr::Limited::new(
         Cursor::new(buf.data.as_slice()),
-        Limits {depth: MARSHALLING_STACK_LIMIT, len: buf.data.len()},
+        Limits {
+            depth: MARSHALLING_STACK_LIMIT,
+            len: buf.data.len(),
+        },
     ))
     // We only expect this to be called for safe, internal conversions, so this
     // should never happen.
@@ -170,7 +173,10 @@ fn non_metered_xdr_to_rust_buf<T: WriteXdr>(t: &T) -> Result<RustBuf, HostError>
     let mut vec: Vec<u8> = Vec::new();
     t.write_xdr(&mut xdr::Limited::new(
         Cursor::new(&mut vec),
-        Limits {depth: MARSHALLING_STACK_LIMIT, len: 5 * 1024 * 1024 /* 5MB */},
+        Limits {
+            depth: MARSHALLING_STACK_LIMIT,
+            len: 5 * 1024 * 1024, /* 5MB */
+        },
     ))
     .map_err(|_| (ScErrorType::Value, ScErrorCode::InvalidInput))?;
     Ok(vec.into())
