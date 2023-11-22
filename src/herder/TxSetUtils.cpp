@@ -34,9 +34,8 @@ namespace
 {
 // Target use case is to remove a subset of invalid transactions from a TxSet.
 // I.e. txSet.size() >= txsToRemove.size()
-TxSetFrame::Transactions
-removeTxs(TxSetFrame::Transactions const& txs,
-          TxSetFrame::Transactions const& txsToRemove)
+TxSetTransactions
+removeTxs(TxSetTransactions const& txs, TxSetTransactions const& txsToRemove)
 {
     UnorderedSet<Hash> txsToRemoveSet;
     txsToRemoveSet.reserve(txsToRemove.size());
@@ -45,7 +44,7 @@ removeTxs(TxSetFrame::Transactions const& txs,
         std::inserter(txsToRemoveSet, txsToRemoveSet.end()),
         [](TransactionFrameBasePtr const& tx) { return tx->getFullHash(); });
 
-    TxSetFrame::Transactions newTxs;
+    TxSetTransactions newTxs;
     newTxs.reserve(txs.size() - txsToRemove.size());
     for (auto const& tx : txs)
     {
@@ -124,17 +123,17 @@ TxSetUtils::hashTxSorter(TransactionFrameBasePtr const& tx1,
     return tx1->getFullHash() < tx2->getFullHash();
 }
 
-TxSetFrame::Transactions
-TxSetUtils::sortTxsInHashOrder(TxSetFrame::Transactions const& transactions)
+TxSetTransactions
+TxSetUtils::sortTxsInHashOrder(TxSetTransactions const& transactions)
 {
     ZoneScoped;
-    TxSetFrame::Transactions sortedTxs(transactions);
+    TxSetTransactions sortedTxs(transactions);
     std::sort(sortedTxs.begin(), sortedTxs.end(), TxSetUtils::hashTxSorter);
     return sortedTxs;
 }
 
 std::vector<std::shared_ptr<AccountTransactionQueue>>
-TxSetUtils::buildAccountTxQueues(TxSetFrame::Transactions const& txs)
+TxSetUtils::buildAccountTxQueues(TxSetTransactions const& txs)
 {
     ZoneScoped;
     UnorderedMap<AccountID, std::vector<TransactionFrameBasePtr>> actTxMap;
@@ -155,9 +154,8 @@ TxSetUtils::buildAccountTxQueues(TxSetFrame::Transactions const& txs)
     return queues;
 }
 
-TxSetFrame::Transactions
-TxSetUtils::getInvalidTxList(TxSetFrame::Transactions const& txs,
-                             Application& app,
+TxSetTransactions
+TxSetUtils::getInvalidTxList(TxSetTransactions const& txs, Application& app,
                              uint64_t lowerBoundCloseTimeOffset,
                              uint64_t upperBoundCloseTimeOffset,
                              bool returnEarlyOnFirstInvalidTx)
@@ -175,7 +173,7 @@ TxSetUtils::getInvalidTxList(TxSetFrame::Transactions const& txs,
     }
 
     UnorderedMap<AccountID, int64_t> accountFeeMap;
-    TxSetFrame::Transactions invalidTxs;
+    TxSetTransactions invalidTxs;
 
     auto accountTxQueues = buildAccountTxQueues(txs);
     for (auto& accountQueue : accountTxQueues)
@@ -273,11 +271,11 @@ TxSetUtils::getInvalidTxList(TxSetFrame::Transactions const& txs,
     return invalidTxs;
 }
 
-TxSetFrame::Transactions
-TxSetUtils::trimInvalid(TxSetFrame::Transactions const& txs, Application& app,
+TxSetTransactions
+TxSetUtils::trimInvalid(TxSetTransactions const& txs, Application& app,
                         uint64_t lowerBoundCloseTimeOffset,
                         uint64_t upperBoundCloseTimeOffset,
-                        TxSetFrame::Transactions& invalidTxs)
+                        TxSetTransactions& invalidTxs)
 {
     invalidTxs = getInvalidTxList(txs, app, lowerBoundCloseTimeOffset,
                                   upperBoundCloseTimeOffset, false);

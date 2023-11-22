@@ -717,7 +717,7 @@ LedgerManagerImpl::closeLedger(LedgerCloseData const& ledgerData)
     mLastClose = now;
     mLedgerAge.set_count(0);
 
-    TxSetFrameConstPtr txSet = ledgerData.getTxSet();
+    TxSetXDRFrameConstPtr txSet = ledgerData.getTxSet();
 
     // If we do not support ledger version, we can't apply that ledger, fail!
     if (header.current().ledgerVersion >

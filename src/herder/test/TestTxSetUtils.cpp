@@ -64,28 +64,28 @@ makeGeneralizedTxSetXDR(std::vector<ComponentPhases> const& txsPerBaseFeePhases,
     return xdrTxSet;
 }
 
-std::pair<TxSetFrameConstPtr, ApplicableTxSetFrameConstPtr>
+std::pair<TxSetXDRFrameConstPtr, ApplicableTxSetFrameConstPtr>
 makeNonValidatedTxSet(std::vector<TransactionFrameBasePtr> const& txs,
                       Application& app, Hash const& previousLedgerHash)
 {
     auto xdrTxSet = makeTxSetXDR(txs, previousLedgerHash);
-    auto txSet = TxSetFrame::makeFromWire(xdrTxSet);
+    auto txSet = TxSetXDRFrame::makeFromWire(xdrTxSet);
     auto applicableTxSet = txSet->prepareForApply(app);
     return std::make_pair(txSet, std::move(applicableTxSet));
 }
 } // namespace
 
-std::pair<TxSetFrameConstPtr, ApplicableTxSetFrameConstPtr>
+std::pair<TxSetXDRFrameConstPtr, ApplicableTxSetFrameConstPtr>
 makeNonValidatedGeneralizedTxSet(
     std::vector<ComponentPhases> const& txsPerBaseFee, Application& app,
     Hash const& previousLedgerHash)
 {
     auto xdrTxSet = makeGeneralizedTxSetXDR(txsPerBaseFee, previousLedgerHash);
-    auto txSet = TxSetFrame::makeFromWire(xdrTxSet);
+    auto txSet = TxSetXDRFrame::makeFromWire(xdrTxSet);
     return std::make_pair(txSet, txSet->prepareForApply(app));
 }
 
-std::pair<TxSetFrameConstPtr, ApplicableTxSetFrameConstPtr>
+std::pair<TxSetXDRFrameConstPtr, ApplicableTxSetFrameConstPtr>
 makeNonValidatedTxSetBasedOnLedgerVersion(
     uint32_t ledgerVersion, std::vector<TransactionFrameBasePtr> const& txs,
     Application& app, Hash const& previousLedgerHash)

@@ -89,7 +89,7 @@ class HerderSCPDriver : public SCPDriver
     // Submit a value to consider for slotIndex
     // previousValue is the value from slotIndex-1
     void nominate(uint64_t slotIndex, StellarValue const& value,
-                  TxSetFrameConstPtr proposedSet,
+                  TxSetXDRFrameConstPtr proposedSet,
                   StellarValue const& previousValue);
 
     SCPQuorumSetPtr getQSet(Hash const& qSetHash) override;

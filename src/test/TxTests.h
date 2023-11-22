@@ -16,7 +16,7 @@ class AbstractLedgerTxn;
 class ConstLedgerTxnEntry;
 class TransactionFrame;
 class OperationFrame;
-class TxSetFrame;
+class TxSetXDRFrame;
 class TestAccount;
 
 namespace txtest
@@ -101,10 +101,10 @@ closeLedgerOn(Application& app, uint32 ledgerSeq, TimePoint closeTime,
               std::vector<TransactionFrameBasePtr> const& txs = {},
               bool strictOrder = false);
 
-TxSetResultMeta closeLedger(Application& app, TxSetFrameConstPtr txSet);
+TxSetResultMeta closeLedger(Application& app, TxSetXDRFrameConstPtr txSet);
 
 TxSetResultMeta closeLedgerOn(Application& app, uint32 ledgerSeq,
-                              time_t closeTime, TxSetFrameConstPtr txSet);
+                              time_t closeTime, TxSetXDRFrameConstPtr txSet);
 
 TxSetResultMeta
 closeLedgerOn(Application& app, uint32 ledgerSeq, int day, int month, int year,

@@ -289,7 +289,7 @@ HerderImpl::processExternalized(uint64 slotIndex, StellarValue const& value,
                      slotIndex, hexAbbrev(value.txSetHash));
     }
 
-    TxSetFrameConstPtr externalizedSet =
+    TxSetXDRFrameConstPtr externalizedSet =
         mPendingEnvelopes.getTxSet(value.txSetHash);
 
     // save the SCP messages in the database
@@ -809,7 +809,8 @@ HerderImpl::recvSCPEnvelope(SCPEnvelope const& envelope)
 
 Herder::EnvelopeStatus
 HerderImpl::recvSCPEnvelope(SCPEnvelope const& envelope,
-                            const SCPQuorumSet& qset, TxSetFrameConstPtr txset)
+                            const SCPQuorumSet& qset,
+                            TxSetXDRFrameConstPtr txset)
 {
     ZoneScoped;
     mPendingEnvelopes.addTxSet(txset->getContentsHash(),
@@ -823,14 +824,15 @@ HerderImpl::recvSCPEnvelope(SCPEnvelope const& envelope,
                             const SCPQuorumSet& qset,
                             StellarMessage const& txset)
 {
-    auto txSetFrame = txset.type() == TX_SET
-                          ? TxSetFrame::makeFromWire(txset.txSet())
-                          : TxSetFrame::makeFromWire(txset.generalizedTxSet());
+    auto txSetFrame =
+        txset.type() == TX_SET
+            ? TxSetXDRFrame::makeFromWire(txset.txSet())
+            : TxSetXDRFrame::makeFromWire(txset.generalizedTxSet());
     return recvSCPEnvelope(envelope, qset, txSetFrame);
 }
 
 void
-HerderImpl::externalizeValue(TxSetFrameConstPtr txSet, uint32_t ledgerSeq,
+HerderImpl::externalizeValue(TxSetXDRFrameConstPtr txSet, uint32_t ledgerSeq,
                              uint64_t closeTime,
                              xdr::xvector<UpgradeType, 6> const& upgrades,
                              std::optional<SecretKey> skToSignValue)
@@ -1171,7 +1173,7 @@ HerderImpl::recvSCPQuorumSet(Hash const& hash, const SCPQuorumSet& qset)
 }
 
 bool
-HerderImpl::recvTxSet(Hash const& hash, TxSetFrameConstPtr txset)
+HerderImpl::recvTxSet(Hash const& hash, TxSetXDRFrameConstPtr txset)
 {
     ZoneScoped;
     return mPendingEnvelopes.recvTxSet(hash, txset);
@@ -1185,7 +1187,7 @@ HerderImpl::peerDoesntHave(MessageType type, uint256 const& itemID,
     mPendingEnvelopes.peerDoesntHave(type, itemID, peer);
 }
 
-TxSetFrameConstPtr
+TxSetXDRFrameConstPtr
 HerderImpl::getTxSet(Hash const& hash)
 {
     return mPendingEnvelopes.getTxSet(hash);
@@ -1290,7 +1292,7 @@ HerderImpl::triggerNextLedger(uint32_t ledgerSeqToTrigger,
     // our first choice for this round's set is all the tx we have collected
     // during last few ledger closes
     auto const& lcl = mLedgerManager.getLastClosedLedgerHeader();
-    TxSetFrame::TxPhases txPhases;
+    TxSetPhaseTransactions txPhases;
     txPhases.emplace_back(mTransactionQueue.getTransactions(lcl.header));
 
     if (protocolVersionStartsFrom(lcl.header.ledgerVersion,
@@ -1332,24 +1334,23 @@ HerderImpl::triggerNextLedger(uint32_t ledgerSeqToTrigger,
     upperBoundCloseTimeOffset = nextCloseTime - lcl.header.scpValue.closeTime;
     lowerBoundCloseTimeOffset = upperBoundCloseTimeOffset;
 
-    TxSetFrame::TxPhases invalidTxPhases;
+    TxSetPhaseTransactions invalidTxPhases;
     invalidTxPhases.resize(txPhases.size());
 
     auto [proposedSet, applicableProposedSet] =
-        TxSetFrame::makeFromTransactions(
-            txPhases, mApp, lowerBoundCloseTimeOffset,
-            upperBoundCloseTimeOffset, invalidTxPhases);
+        makeTxSetFromTransactions(txPhases, mApp, lowerBoundCloseTimeOffset,
+                                  upperBoundCloseTimeOffset, invalidTxPhases);
 
     if (protocolVersionStartsFrom(lcl.header.ledgerVersion,
                                   SOROBAN_PROTOCOL_VERSION))
     {
         releaseAssert(mSorobanTransactionQueue);
         mSorobanTransactionQueue->ban(
-            invalidTxPhases[static_cast<size_t>(TxSetFrame::Phase::SOROBAN)]);
+            invalidTxPhases[static_cast<size_t>(TxSetPhase::SOROBAN)]);
     }
 
     mTransactionQueue.ban(
-        invalidTxPhases[static_cast<size_t>(TxSetFrame::Phase::CLASSIC)]);
+        invalidTxPhases[static_cast<size_t>(TxSetPhase::CLASSIC)]);
 
     auto txSetHash = proposedSet->getContentsHash();
 
@@ -1844,7 +1845,7 @@ HerderImpl::persistSCPState(uint64 slot)
     scpState.v(1);
 
     auto& latestEnvs = scpState.v1().scpEnvelopes;
-    std::map<Hash, TxSetFrameConstPtr> txSets;
+    std::map<Hash, TxSetXDRFrameConstPtr> txSets;
     std::map<Hash, SCPQuorumSetPtr> quorumSets;
 
     for (auto const& e : getSCP().getLatestMessagesSend(slot))
@@ -1912,7 +1913,8 @@ HerderImpl::restoreSCPState()
 
             StoredTransactionSet storedSet;
             xdr::xdr_from_opaque(buffer, storedSet);
-            TxSetFrameConstPtr cur = TxSetFrame::makeFromStoredTxSet(storedSet);
+            TxSetXDRFrameConstPtr cur =
+                TxSetXDRFrame::makeFromStoredTxSet(storedSet);
             Hash h = cur->getContentsHash();
             mPendingEnvelopes.addTxSet(h, 0, cur);
         }
@@ -2192,7 +2194,7 @@ HerderImpl::trackingHeartBeat()
 }
 
 void
-HerderImpl::updateTransactionQueue(TxSetFrameConstPtr externalizedTxSet)
+HerderImpl::updateTransactionQueue(TxSetXDRFrameConstPtr externalizedTxSet)
 {
     ZoneScoped;
     if (externalizedTxSet == nullptr)
@@ -2221,22 +2223,20 @@ HerderImpl::updateTransactionQueue(TxSetFrameConstPtr externalizedTxSet)
 
         queue.rebroadcast();
     };
-    if (txsPerPhase.size() > static_cast<size_t>(TxSetFrame::Phase::CLASSIC))
+    if (txsPerPhase.size() > static_cast<size_t>(TxSetPhase::CLASSIC))
     {
-        updateQueue(
-            mTransactionQueue,
-            txsPerPhase[static_cast<size_t>(TxSetFrame::Phase::CLASSIC)]);
+        updateQueue(mTransactionQueue,
+                    txsPerPhase[static_cast<size_t>(TxSetPhase::CLASSIC)]);
     }
 
     // Even if we're in protocol 20, still check for number of phases, in case
     // we're dealing with the upgrade ledger that contains old-style transaction
     // set
     if (mSorobanTransactionQueue != nullptr &&
-        txsPerPhase.size() > static_cast<size_t>(TxSetFrame::Phase::SOROBAN))
+        txsPerPhase.size() > static_cast<size_t>(TxSetPhase::SOROBAN))
     {
-        updateQueue(
-            *mSorobanTransactionQueue,
-            txsPerPhase[static_cast<size_t>(TxSetFrame::Phase::SOROBAN)]);
+        updateQueue(*mSorobanTransactionQueue,
+                    txsPerPhase[static_cast<size_t>(TxSetPhase::SOROBAN)]);
     }
 }
 

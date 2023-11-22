@@ -20,103 +20,117 @@
 namespace stellar
 {
 class Application;
-class TxSetFrame;
+class TxSetXDRFrame;
 class ApplicableTxSetFrame;
-using TxSetFrameConstPtr = std::shared_ptr<TxSetFrame const>;
+using TxSetXDRFrameConstPtr = std::shared_ptr<TxSetXDRFrame const>;
 using ApplicableTxSetFrameConstPtr =
     std::unique_ptr<ApplicableTxSetFrame const>;
+
+enum class TxSetPhase
+{
+    CLASSIC,
+    SOROBAN,
+    PHASE_COUNT
+};
+
+using TxSetTransactions = std::vector<TransactionFrameBasePtr>;
+using TxSetPhaseTransactions = std::vector<TxSetTransactions>;
+
+std::string getTxSetPhaseName(TxSetPhase phase);
+
+// Creates a valid ApplicableTxSetFrame and corresponding TxSetXDRFrame
+// from the provided transactions.
+//
+// Not all the transactions will be included in the result: invalid
+// transactions are trimmed and optionally returned via `invalidTxs` and if
+// there are too many remaining transactions surge pricing is applied.
+// The result is guaranteed to pass `checkValid` check with the same
+// arguments as in this method, so additional validation is not needed.
+//
+// **Note**: the output `ApplicableTxSetFrame` will *not* contain the input
+// transaction pointers.
+std::pair<TxSetXDRFrameConstPtr, ApplicableTxSetFrameConstPtr>
+makeTxSetFromTransactions(
+    TxSetPhaseTransactions const& txPhases, Application& app,
+    uint64_t lowerBoundCloseTimeOffset,
+    uint64_t upperBoundCloseTimeOffset
+#ifdef BUILD_TESTS
+    // Skips the tx set validation and preserves the pointers
+    // to the passed-in transactions - use in conjunction with
+    // `orderOverride` argument in test-only overrides.
+    ,
+    bool skipValidation = false
+#endif
+);
+std::pair<TxSetXDRFrameConstPtr, ApplicableTxSetFrameConstPtr>
+makeTxSetFromTransactions(
+    TxSetPhaseTransactions const& txPhases, Application& app,
+    uint64_t lowerBoundCloseTimeOffset, uint64_t upperBoundCloseTimeOffset,
+    TxSetPhaseTransactions& invalidTxsPerPhase
+#ifdef BUILD_TESTS
+    // Skips the tx set validation and preserves the pointers
+    // to the passed-in transactions - use in conjunction with
+    // `orderOverride` argument in test-only overrides.
+    ,
+    bool skipValidation = false
+#endif
+);
+
+#ifdef BUILD_TESTS
+std::pair<TxSetXDRFrameConstPtr, ApplicableTxSetFrameConstPtr>
+makeTxSetFromTransactions(TxSetTransactions txs, Application& app,
+                          uint64_t lowerBoundCloseTimeOffset,
+                          uint64_t upperBoundCloseTimeOffset,
+                          bool enforceTxsApplyOrder = false);
+std::pair<TxSetXDRFrameConstPtr, ApplicableTxSetFrameConstPtr>
+makeTxSetFromTransactions(TxSetTransactions txs, Application& app,
+                          uint64_t lowerBoundCloseTimeOffset,
+                          uint64_t upperBoundCloseTimeOffset,
+                          TxSetTransactions& invalidTxs,
+                          bool enforceTxsApplyOrder = false);
+#endif
 
 // `TxSetFrame` is a wrapper around `TransactionSet` or
 // `GeneralizedTransactionSet` XDR.
 //
-// TxSetFrame doesn't try to interpret the XDR it wraps and might even
+// TxSetXDRFrame doesn't try to interpret the XDR it wraps and might even
 // store structurally invalid XDR. Thus its safe to use at
 // overlay layer to simply exchange the messages, cache them etc.
 //
-// Before even trying to validate and apply a TxSetFrame it has
+// Before even trying to validate and apply a TxSetXDRFrame it has
 // to be interpreted and prepared for apply using the ledger state
-// this TxSetFrame refers to. This is typically performed by
+// this TxSetXDRFrame refers to. This is typically performed by
 // `prepareForApply` method.
-class TxSetFrame : public NonMovableOrCopyable
+class TxSetXDRFrame : public NonMovableOrCopyable
 {
   public:
-    enum class Phase
-    {
-        CLASSIC,
-        SOROBAN,
-        PHASE_COUNT
-    };
-
-    using Transactions = std::vector<TransactionFrameBasePtr>;
-    using TxPhases = std::vector<Transactions>;
-
-    static std::string getPhaseName(Phase phase);
-
-    // Creates a valid ApplicableTxSetFrame and corresponding TxSetFrame
-    // from the provided transactions.
-    //
-    // Not all the transactions will be included in the result: invalid
-    // transactions are trimmed and optionally returned via `invalidTxs` and if
-    // there are too many remaining transactions surge pricing is applied.
-    // The result is guaranteed to pass `checkValid` check with the same
-    // arguments as in this method, so additional validation is not needed.
-    //
-    // **Note**: the output `ApplicableTxSetFrame` will *not* contain the input
-    // transaction pointers.
-    static std::pair<TxSetFrameConstPtr, ApplicableTxSetFrameConstPtr>
-    makeFromTransactions(
-        TxPhases const& txPhases, Application& app,
-        uint64_t lowerBoundCloseTimeOffset,
-        uint64_t upperBoundCloseTimeOffset
-#ifdef BUILD_TESTS
-        // Skips the tx set validation and preserves the pointers to the
-        // passed-in transactions - use in conjunction with `orderOverride`
-        // argument in test-only overrides.
-        ,
-        bool skipValidation = false
-#endif
-    );
-    static std::pair<TxSetFrameConstPtr, ApplicableTxSetFrameConstPtr>
-    makeFromTransactions(
-        TxPhases const& txPhases, Application& app,
-        uint64_t lowerBoundCloseTimeOffset, uint64_t upperBoundCloseTimeOffset,
-        TxPhases& invalidTxsPerPhase
-#ifdef BUILD_TESTS
-        // Skips the tx set validation and preserves the pointers to the
-        // passed-in transactions - use in conjunction with `orderOverride`
-        // argument in test-only overrides.
-        ,
-        bool skipValidation = false
-#endif
-    );
-
-    // Creates a valid empty TxSetFrame pointing at provided `lclHeader`.
-    static TxSetFrameConstPtr
+    // Creates a valid empty TxSetXDRFrame pointing at provided `lclHeader`.
+    static TxSetXDRFrameConstPtr
     makeEmpty(LedgerHeaderHistoryEntry const& lclHeader);
 
-    // `makeFromWire` methods create a TxSetFrame from the XDR messages.
+    // `makeFromWire` methods create a TxSetXDRFrame from the XDR messages.
     // These methods don't perform any validation on the XDR.
-    static TxSetFrameConstPtr makeFromWire(TransactionSet const& xdrTxSet);
-    static TxSetFrameConstPtr
+    static TxSetXDRFrameConstPtr makeFromWire(TransactionSet const& xdrTxSet);
+    static TxSetXDRFrameConstPtr
     makeFromWire(GeneralizedTransactionSet const& xdrTxSet);
 
-    static TxSetFrameConstPtr
+    static TxSetXDRFrameConstPtr
     makeFromStoredTxSet(StoredTransactionSet const& storedSet);
 
-    // Creates a legacy (non-generalized) TxSetFrame from the
+    // Creates a legacy (non-generalized) TxSetXDRFrame from the
     // transactions that are trusted to be valid. Validation and filtering
     // are not performed.
     // This should be *only* used for building the legacy TxSetFrames from
     // historical transactions.
-    static TxSetFrameConstPtr
+    static TxSetXDRFrameConstPtr
     makeFromHistoryTransactions(Hash const& previousLedgerHash,
-                                TxSetFrame::Transactions const& txs);
+                                TxSetTransactions const& txs);
 
     void toXDR(TransactionSet& set) const;
     void toXDR(GeneralizedTransactionSet& generalizedTxSet) const;
     void storeXDR(StoredTransactionSet& txSet) const;
 
-    ~TxSetFrame() = default;
+    ~TxSetXDRFrame() = default;
 
     // Interprets this transaction set using the current ledger state and
     // returns a frame suitable for being applied to the ledger.
@@ -156,28 +170,17 @@ class TxSetFrame : public NonMovableOrCopyable
     // This is only necessary to serve a very specific use case of updating
     // the transaction queue with wired tx sets. Otherwise, use
     // getTransactionsForPhase() in `ApplicableTxSetFrame`.
-    TxPhases createTransactionFrames(Hash const& networkID) const;
+    TxSetPhaseTransactions createTransactionFrames(Hash const& networkID) const;
 
 #ifdef BUILD_TESTS
-    static std::pair<TxSetFrameConstPtr, ApplicableTxSetFrameConstPtr>
-    makeFromTransactions(Transactions txs, Application& app,
-                         uint64_t lowerBoundCloseTimeOffset,
-                         uint64_t upperBoundCloseTimeOffset,
-                         bool enforceTxsApplyOrder = false);
-    static std::pair<TxSetFrameConstPtr, ApplicableTxSetFrameConstPtr>
-    makeFromTransactions(Transactions txs, Application& app,
-                         uint64_t lowerBoundCloseTimeOffset,
-                         uint64_t upperBoundCloseTimeOffset,
-                         Transactions& invalidTxs,
-                         bool enforceTxsApplyOrder = false);
     mutable ApplicableTxSetFrameConstPtr mApplicableTxSetOverride;
 
     StellarMessage toStellarMessage() const;
 #endif
 
   private:
-    TxSetFrame(TransactionSet const& xdrTxSet);
-    TxSetFrame(GeneralizedTransactionSet const& xdrTxSet);
+    TxSetXDRFrame(TransactionSet const& xdrTxSet);
+    TxSetXDRFrame(GeneralizedTransactionSet const& xdrTxSet);
 
     std::variant<TransactionSet, GeneralizedTransactionSet> mXDRTxSet;
     size_t mEncodedSize{};
@@ -202,8 +205,7 @@ class ApplicableTxSetFrame
                                         LedgerHeader const& lclHeader) const;
 
     // Gets all the transactions belonging to this frame in arbitrary order.
-    TxSetFrame::Transactions const&
-    getTxsForPhase(TxSetFrame::Phase phase) const;
+    TxSetTransactions const& getTxsForPhase(TxSetPhase phase) const;
 
     // Build a list of transaction ready to be applied to the last closed
     // ledger, based on the transaction set.
@@ -211,7 +213,7 @@ class ApplicableTxSetFrame
     // The order satisfies:
     // * transactions for an account are sorted by sequence number (ascending)
     // * the order between accounts is randomized
-    TxSetFrame::Transactions getTxsInApplyOrder() const;
+    TxSetTransactions getTxsInApplyOrder() const;
 
     // Checks if this tx set frame is valid in the context of the current LCL.
     // This can be called when LCL does not match `previousLedgerHash`, but
@@ -220,10 +222,10 @@ class ApplicableTxSetFrame
                     uint64_t upperBoundCloseTimeOffset) const;
 
     size_t size(LedgerHeader const& lh,
-                std::optional<TxSetFrame::Phase> phase = std::nullopt) const;
+                std::optional<TxSetPhase> phase = std::nullopt) const;
 
     size_t
-    sizeTx(TxSetFrame::Phase phase) const
+    sizeTx(TxSetPhase phase) const
     {
         return mTxPhases.at(static_cast<size_t>(phase)).size();
     }
@@ -241,7 +243,7 @@ class ApplicableTxSetFrame
         return mTxPhases.size();
     }
 
-    size_t sizeOp(TxSetFrame::Phase phase) const;
+    size_t sizeOp(TxSetPhase phase) const;
     size_t sizeOpTotal() const;
 
     // Returns the sum of all fees that this transaction set would take.
@@ -265,18 +267,37 @@ class ApplicableTxSetFrame
 #ifndef BUILD_TESTS
   private:
 #endif
-    TxSetFrameConstPtr toWireTxSetFrame() const;
+    TxSetXDRFrameConstPtr toWireTxSetFrame() const;
 
   private:
-    friend class TxSetFrame;
+    friend class TxSetXDRFrame;
+    friend std::pair<TxSetXDRFrameConstPtr, ApplicableTxSetFrameConstPtr>
+    makeTxSetFromTransactions(TxSetPhaseTransactions const& txPhases,
+                              Application& app,
+                              uint64_t lowerBoundCloseTimeOffset,
+                              uint64_t upperBoundCloseTimeOffset,
+                              TxSetPhaseTransactions& invalidTxsPerPhase
+#ifdef BUILD_TESTS
+                              ,
+                              bool skipValidation
+#endif
+    );
+#ifdef BUILD_TESTS
+    friend std::pair<TxSetXDRFrameConstPtr, ApplicableTxSetFrameConstPtr>
+    makeTxSetFromTransactions(TxSetTransactions txs, Application& app,
+                              uint64_t lowerBoundCloseTimeOffset,
+                              uint64_t upperBoundCloseTimeOffset,
+                              TxSetTransactions& invalidTxs,
+                              bool enforceTxsApplyOrder);
+#endif
 
     ApplicableTxSetFrame(Application& app,
                          LedgerHeaderHistoryEntry const& lclHeader,
-                         TxSetFrame::TxPhases const& txs,
+                         TxSetPhaseTransactions const& txs,
                          std::optional<Hash> contentsHash);
     ApplicableTxSetFrame(Application& app, bool isGeneralized,
                          Hash const& previousLedgerHash,
-                         TxSetFrame::TxPhases const& txs,
+                         TxSetPhaseTransactions const& txs,
                          std::optional<Hash> contentsHash);
     ApplicableTxSetFrame(ApplicableTxSetFrame const&) = default;
     ApplicableTxSetFrame(ApplicableTxSetFrame&&) = default;
@@ -294,15 +315,14 @@ class ApplicableTxSetFrame
     bool addTxsFromXdr(Hash const& networkID,
                        xdr::xvector<TransactionEnvelope> const& txs,
                        bool useBaseFee, std::optional<int64_t> baseFee,
-                       TxSetFrame::Phase phase);
+                       TxSetPhase phase);
     void applySurgePricing(Application& app);
 
     void computeTxFeesForNonGeneralizedSet(LedgerHeader const& lclHeader,
                                            int64_t lowestBaseFee,
                                            bool enableLogging) const;
 
-    void computeTxFees(TxSetFrame::Phase phase,
-                       LedgerHeader const& ledgerHeader,
+    void computeTxFees(TxSetPhase phase, LedgerHeader const& ledgerHeader,
                        SurgePricingLaneConfig const& surgePricingConfig,
                        std::vector<int64_t> const& lowestLaneFee,
                        std::vector<bool> const& hadTxNotFittingLane) const;
@@ -312,7 +332,7 @@ class ApplicableTxSetFrame
     // fee for each transaction (lowest base fee is identical for all
     // transactions in the same lane)
     std::unordered_map<TransactionFrameBaseConstPtr, std::optional<int64_t>>&
-    getInclusionFeeMap(TxSetFrame::Phase phase) const;
+    getInclusionFeeMap(TxSetPhase phase) const;
 
     void toXDR(TransactionSet& set) const;
     void toXDR(GeneralizedTransactionSet& generalizedTxSet) const;
@@ -321,7 +341,7 @@ class ApplicableTxSetFrame
     Hash const mPreviousLedgerHash;
     // There can only be 1 phase (classic) prior to protocol 20.
     // Starting protocol 20, there will be 2 phases (classic and soroban).
-    std::vector<TxSetFrame::Transactions> mTxPhases;
+    std::vector<TxSetTransactions> mTxPhases;
 
     mutable std::vector<bool> mFeesComputed;
     mutable std::vector<std::unordered_map<TransactionFrameBaseConstPtr,
@@ -330,7 +350,7 @@ class ApplicableTxSetFrame
 
     std::optional<Hash> mContentsHash;
 #ifdef BUILD_TESTS
-    mutable std::optional<TxSetFrame::Transactions> mApplyOrderOverride;
+    mutable std::optional<TxSetTransactions> mApplyOrderOverride;
 #endif
 };
 

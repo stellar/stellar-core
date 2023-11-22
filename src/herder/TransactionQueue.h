@@ -145,7 +145,7 @@ class TransactionQueue
     bool isBanned(Hash const& hash) const;
     TransactionFrameBaseConstPtr getTx(Hash const& hash) const;
 
-    TxSetFrame::Transactions getTransactions(LedgerHeader const& lcl) const;
+    TxSetTransactions getTransactions(LedgerHeader const& lcl) const;
 
     struct ReplacedTransaction
     {

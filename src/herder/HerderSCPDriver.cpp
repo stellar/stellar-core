@@ -111,7 +111,7 @@ class SCPHerderEnvelopeWrapper : public SCPEnvelopeWrapper
     HerderImpl& mHerder;
 
     SCPQuorumSetPtr mQSet;
-    std::vector<TxSetFrameConstPtr> mTxSets;
+    std::vector<TxSetXDRFrameConstPtr> mTxSets;
 
   public:
     explicit SCPHerderEnvelopeWrapper(SCPEnvelope const& e, HerderImpl& herder)
@@ -306,7 +306,7 @@ HerderSCPDriver::validateValueHelper(uint64_t slotIndex, StellarValue const& b,
     }
 
     Hash const& txSetHash = b.txSetHash;
-    TxSetFrameConstPtr txSet = mPendingEnvelopes.getTxSet(txSetHash);
+    TxSetXDRFrameConstPtr txSet = mPendingEnvelopes.getTxSet(txSetHash);
 
     SCPDriver::ValidationLevel res;
 
@@ -719,7 +719,7 @@ HerderSCPDriver::combineCandidates(uint64_t slotIndex,
     // take the txSet with the biggest size, highest xored hash that we have
     {
         auto highest = candidateValues.cend();
-        TxSetFrameConstPtr highestTxSet;
+        TxSetXDRFrameConstPtr highestTxSet;
         ApplicableTxSetFrameConstPtr highestApplicableTxSet;
         for (auto it = candidateValues.cbegin(); it != candidateValues.cend();
              ++it)
@@ -890,7 +890,7 @@ HerderSCPDriver::logQuorumInformationAndUpdateMetrics(uint64_t index)
 
 void
 HerderSCPDriver::nominate(uint64_t slotIndex, StellarValue const& value,
-                          TxSetFrameConstPtr proposedSet,
+                          TxSetXDRFrameConstPtr proposedSet,
                           StellarValue const& previousValue)
 {
     ZoneScoped;
@@ -1191,7 +1191,7 @@ class SCPHerderValueWrapper : public ValueWrapper
 {
     HerderImpl& mHerder;
 
-    TxSetFrameConstPtr mTxSet;
+    TxSetXDRFrameConstPtr mTxSet;
 
   public:
     explicit SCPHerderValueWrapper(StellarValue const& sv, Value const& value,

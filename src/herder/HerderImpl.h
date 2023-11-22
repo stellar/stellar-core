@@ -102,12 +102,12 @@ class HerderImpl : public Herder
 #ifdef BUILD_TESTS
     EnvelopeStatus recvSCPEnvelope(SCPEnvelope const& envelope,
                                    const SCPQuorumSet& qset,
-                                   TxSetFrameConstPtr txset) override;
+                                   TxSetXDRFrameConstPtr txset) override;
     EnvelopeStatus recvSCPEnvelope(SCPEnvelope const& envelope,
                                    const SCPQuorumSet& qset,
                                    StellarMessage const& txset) override;
 
-    void externalizeValue(TxSetFrameConstPtr txSet, uint32_t ledgerSeq,
+    void externalizeValue(TxSetXDRFrameConstPtr txSet, uint32_t ledgerSeq,
                           uint64_t closeTime,
                           xdr::xvector<UpgradeType, 6> const& upgrades,
                           std::optional<SecretKey> skToSignValue) override;
@@ -130,10 +130,10 @@ class HerderImpl : public Herder
     void sendSCPStateToPeer(uint32 ledgerSeq, Peer::pointer peer) override;
 
     bool recvSCPQuorumSet(Hash const& hash, const SCPQuorumSet& qset) override;
-    bool recvTxSet(Hash const& hash, TxSetFrameConstPtr txset) override;
+    bool recvTxSet(Hash const& hash, TxSetXDRFrameConstPtr txset) override;
     void peerDoesntHave(MessageType type, uint256 const& itemID,
                         Peer::pointer peer) override;
-    TxSetFrameConstPtr getTxSet(Hash const& hash) override;
+    TxSetXDRFrameConstPtr getTxSet(Hash const& hash) override;
     SCPQuorumSetPtr getQSet(Hash const& qSetHash) override;
 
     void processSCPQueue();
@@ -235,7 +235,7 @@ class HerderImpl : public Herder
     ClassicTransactionQueue mTransactionQueue;
     std::unique_ptr<SorobanTransactionQueue> mSorobanTransactionQueue;
 
-    void updateTransactionQueue(TxSetFrameConstPtr txSet);
+    void updateTransactionQueue(TxSetXDRFrameConstPtr txSet);
     void maybeSetupSorobanQueue(uint32_t protocolVersion);
 
     PendingEnvelopes mPendingEnvelopes;

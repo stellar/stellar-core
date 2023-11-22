@@ -64,9 +64,9 @@ TEST_CASE("txset - correct apply order", "[tx][envelope]")
     auto tx1 = b1.tx({accountMerge(a1)});
     auto tx2 = a1.tx({a1.op(payment(root, 112)), a1.op(payment(root, 101))});
 
-    auto txSet = TxSetFrame::makeFromTransactions(
-                     TxSetFrame::Transactions{tx1, tx2}, *app, 0, 0)
-                     .second;
+    auto txSet =
+        makeTxSetFromTransactions(TxSetTransactions{tx1, tx2}, *app, 0, 0)
+            .second;
 
     auto txs = txSet->getTxsInApplyOrder();
     REQUIRE(txs.size() == 2);
@@ -1876,8 +1876,7 @@ TEST_CASE_VERSIONS("txenvelope", "[tx][envelope]")
         TransactionFramePtr txFrame;
         auto setup = [&]() {
             txFrame = root.tx({createAccount(a1, paymentAmount)});
-            auto txSet =
-                TxSetFrame::makeFromTransactions({txFrame}, *app, 0, 0).first;
+            auto txSet = makeTxSetFromTransactions({txFrame}, *app, 0, 0).first;
 
             // Close this ledger
             auto lastCloseTime = app->getLedgerManager()

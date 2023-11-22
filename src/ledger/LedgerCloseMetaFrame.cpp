@@ -127,7 +127,7 @@ LedgerCloseMetaFrame::upgradesProcessing()
 }
 
 void
-LedgerCloseMetaFrame::populateTxSet(TxSetFrame const& txSet)
+LedgerCloseMetaFrame::populateTxSet(TxSetXDRFrame const& txSet)
 {
     switch (mVersion)
     {

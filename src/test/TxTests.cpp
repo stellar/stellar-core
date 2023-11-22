@@ -495,34 +495,34 @@ closeLedgerOn(Application& app, uint32 ledgerSeq, TimePoint closeTime,
         closeTime = lastCloseTime;
     }
 
-    std::pair<TxSetFrameConstPtr, ApplicableTxSetFrameConstPtr> txSet;
+    std::pair<TxSetXDRFrameConstPtr, ApplicableTxSetFrameConstPtr> txSet;
     if (strictOrder)
     {
-        txSet = TxSetFrame::makeFromTransactions(txs, app, 0, 0, true);
+        txSet = makeTxSetFromTransactions(txs, app, 0, 0, true);
     }
     else
     {
         if (std::none_of(txs.begin(), txs.end(),
                          [&](auto const& tx) { return tx->isSoroban(); }))
         {
-            txSet = TxSetFrame::makeFromTransactions(txs, app, 0, 0);
+            txSet = makeTxSetFromTransactions(txs, app, 0, 0);
         }
         else
         {
-            TxSetFrame::Transactions classic;
-            TxSetFrame::Transactions soroban;
+            TxSetTransactions classic;
+            TxSetTransactions soroban;
             for (auto const& tx : txs)
             {
                 tx->isSoroban() ? soroban.emplace_back(tx)
                                 : classic.emplace_back(tx);
             }
 
-            TxSetFrame::TxPhases phases = {classic};
+            TxSetPhaseTransactions phases = {classic};
             if (!soroban.empty())
             {
                 phases.emplace_back(soroban);
             }
-            txSet = TxSetFrame::makeFromTransactions(phases, app, 0, 0);
+            txSet = makeTxSetFromTransactions(phases, app, 0, 0);
         }
     }
     if (!strictOrder)
@@ -551,7 +551,7 @@ closeLedgerOn(Application& app, uint32 ledgerSeq, TimePoint closeTime,
 }
 
 TxSetResultMeta
-closeLedger(Application& app, TxSetFrameConstPtr txSet)
+closeLedger(Application& app, TxSetXDRFrameConstPtr txSet)
 {
     auto lastCloseTime = app.getLedgerManager()
                              .getLastClosedLedgerHeader()
@@ -562,7 +562,7 @@ closeLedger(Application& app, TxSetFrameConstPtr txSet)
 
 TxSetResultMeta
 closeLedgerOn(Application& app, uint32 ledgerSeq, time_t closeTime,
-              TxSetFrameConstPtr txSet)
+              TxSetXDRFrameConstPtr txSet)
 {
     app.getHerder().externalizeValue(txSet, ledgerSeq, closeTime,
                                      emptyUpgradeSteps);
@@ -1759,7 +1759,7 @@ executeUpgrades(Application& app, xdr::xvector<UpgradeType, 6> const& upgrades,
     auto currLh = app.getLedgerManager().getLastClosedLedgerHeader().header;
 
     auto const& lcl = lm.getLastClosedLedgerHeader();
-    auto txSet = TxSetFrame::makeEmpty(lcl);
+    auto txSet = TxSetXDRFrame::makeEmpty(lcl);
     auto lastCloseTime = lcl.header.scpValue.closeTime;
     app.getHerder().externalizeValue(txSet, lcl.header.ledgerSeq + 1,
                                      lastCloseTime, upgrades);

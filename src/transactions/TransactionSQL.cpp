@@ -257,7 +257,7 @@ writeNonGeneralizedTxSetToStream(
         throw std::runtime_error("Could not find ledger");
     }
     auto txSet =
-        TxSetFrame::makeFromHistoryTransactions(lh->previousLedgerHash, txs);
+        TxSetXDRFrame::makeFromHistoryTransactions(lh->previousLedgerHash, txs);
     TransactionHistoryEntry hist;
     hist.ledgerSeq = ledgerSeq;
     txSet->toXDR(hist.txSet);
@@ -385,7 +385,7 @@ storeTransaction(Database& db, uint32_t ledgerSeq,
 }
 
 void
-storeTxSet(Database& db, uint32_t ledgerSeq, TxSetFrame const& txSet)
+storeTxSet(Database& db, uint32_t ledgerSeq, TxSetXDRFrame const& txSet)
 {
     ZoneScoped;
     if (!txSet.isGeneralizedTxSet())

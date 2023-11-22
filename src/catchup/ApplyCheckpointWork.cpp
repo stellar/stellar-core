@@ -98,7 +98,7 @@ ApplyCheckpointWork::openInputFiles()
     mFilesOpen = true;
 }
 
-TxSetFrameConstPtr
+TxSetXDRFrameConstPtr
 ApplyCheckpointWork::getCurrentTxSet()
 {
     ZoneScoped;
@@ -126,18 +126,18 @@ ApplyCheckpointWork::getCurrentTxSet()
             CLOG_DEBUG(History, "Loaded txset for ledger {}", seq);
             if (mTxHistoryEntry.ext.v() == 0)
             {
-                return TxSetFrame::makeFromWire(mTxHistoryEntry.txSet);
+                return TxSetXDRFrame::makeFromWire(mTxHistoryEntry.txSet);
             }
             else
             {
-                return TxSetFrame::makeFromWire(
+                return TxSetXDRFrame::makeFromWire(
                     mTxHistoryEntry.ext.generalizedTxSet());
             }
         }
     } while (mTxIn && mTxIn.readOne(mTxHistoryEntry));
 
     CLOG_DEBUG(History, "Using empty txset for ledger {}", seq);
-    return TxSetFrame::makeEmpty(lm.getLastClosedLedgerHeader());
+    return TxSetXDRFrame::makeEmpty(lm.getLastClosedLedgerHeader());
 }
 
 std::shared_ptr<LedgerCloseData>

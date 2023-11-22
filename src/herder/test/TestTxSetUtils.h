@@ -14,12 +14,12 @@ namespace testtxset
 
 using ComponentPhases = std::vector<
     std::pair<std::optional<int64_t>, std::vector<TransactionFrameBasePtr>>>;
-std::pair<TxSetFrameConstPtr, ApplicableTxSetFrameConstPtr>
+std::pair<TxSetXDRFrameConstPtr, ApplicableTxSetFrameConstPtr>
 makeNonValidatedGeneralizedTxSet(
     std::vector<ComponentPhases> const& txsPerBaseFee, Application& app,
     Hash const& previousLedgerHash);
 
-std::pair<TxSetFrameConstPtr, ApplicableTxSetFrameConstPtr>
+std::pair<TxSetXDRFrameConstPtr, ApplicableTxSetFrameConstPtr>
 makeNonValidatedTxSetBasedOnLedgerVersion(
     uint32_t ledgerVersion, std::vector<TransactionFrameBasePtr> const& txs,
     Application& app, Hash const& previousLedgerHash);

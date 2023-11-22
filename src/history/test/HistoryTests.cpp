@@ -1080,8 +1080,8 @@ TEST_CASE("Catchup non-initentry buckets to initentry-supporting works",
             uint64_t big = minBalance + ledgerSeq;
             uint64_t closeTime = 60 * 5 * ledgerSeq;
 
-            auto [txSet, applicableTxSet] = TxSetFrame::makeFromTransactions(
-                TxSetFrame::Transactions{
+            auto [txSet, applicableTxSet] = makeTxSetFromTransactions(
+                TxSetTransactions{
                     root.tx({txtest::createAccount(stranger, big)})},
                 *a, 0, 0);
 

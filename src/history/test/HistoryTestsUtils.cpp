@@ -501,10 +501,10 @@ CatchupSimulation::generateRandomLedger(uint32_t version)
     auto phases = protocolVersionStartsFrom(
                       lm.getLastClosedLedgerHeader().header.ledgerVersion,
                       SOROBAN_PROTOCOL_VERSION)
-                      ? TxSetFrame::TxPhases{txs, sorobanTxs}
-                      : TxSetFrame::TxPhases{txs};
-    TxSetFrameConstPtr txSet =
-        TxSetFrame::makeFromTransactions(phases, mApp, 0, 0).first;
+                      ? TxSetPhaseTransactions{txs, sorobanTxs}
+                      : TxSetPhaseTransactions{txs};
+    TxSetXDRFrameConstPtr txSet =
+        makeTxSetFromTransactions(phases, mApp, 0, 0).first;
 
     CLOG_INFO(History, "Closing synthetic ledger {} with {} txs (txhash:{})",
               ledgerSeq, txSet->sizeTxTotal(),
