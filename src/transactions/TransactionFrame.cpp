@@ -1086,7 +1086,13 @@ TransactionFrame::commonValidPreSeqNum(
             {
                 if (!set.emplace(lk).second)
                 {
-                    getResult().result.code(txMALFORMED);
+                    pushSimpleDiagnosticError(
+                        SCE_STORAGE, SCEC_INVALID_INPUT,
+                        "Found duplicate key in the Soroban footprint; every "
+                        "key across read-only and read-write footprints has to "
+                        "be unique.",
+                        {});
+                    getResult().result.code(txSOROBAN_INVALID);
                     return false;
                 }
             }
