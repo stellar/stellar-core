@@ -304,7 +304,7 @@ class LoadGenerator
     // mContractInstances at the start of each SOROBAN_INVOKE run
     inline static UnorderedSet<LedgerKey> mContractInstanceKeys = {};
     inline static std::optional<LedgerKey> mCodeKey = std::nullopt;
-    inline static uint64_t mCodeSize = 0;
+    inline static uint64_t mContactOverheadBytes = 0;
 
     // Maps account ID to it's contract instance, where each account has a
     // unique instance

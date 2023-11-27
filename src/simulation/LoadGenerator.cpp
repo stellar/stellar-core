@@ -273,7 +273,7 @@ LoadGenerator::reset(bool resetSoroban)
     {
         mContractInstanceKeys.clear();
         mCodeKey.reset();
-        mCodeSize = 0;
+        mContactOverheadBytes = 0;
     }
 
     mTotalSubmitted = 0;
@@ -318,6 +318,11 @@ LoadGenerator::scheduleLoadGeneration(GeneratedLoadConfig cfg)
 
         if (cfg.isSorobanSetup())
         {
+            // Reset soroban state
+            mContractInstanceKeys.clear();
+            mCodeKey.reset();
+            mContactOverheadBytes = 0;
+
             // For first round of txs, we need to deploy the wasms.
             // waitTillFinished will set nTxs for instances once wasms have been
             // verified
@@ -1109,7 +1114,10 @@ LoadGenerator::createUploadWasmTransaction(uint32_t ledgerNum,
                         /* opsCnt */ 1),
             resourceFee));
     mCodeKey = contractCodeLedgerKey;
-    mCodeSize = wasm.data.size();
+
+    // WASM blob + approximate overhead for contract instance and ContractCode
+    // LE overhead
+    mContactOverheadBytes = wasm.data.size() + 160;
     return std::make_pair(account, tx);
 }
 
@@ -1122,7 +1130,7 @@ LoadGenerator::createContractTransaction(uint32_t ledgerNum, uint64_t accountId,
     auto account = findAccount(accountId, ledgerNum);
     SorobanResources createResources{};
     createResources.instructions = 200'000;
-    createResources.readBytes = mCodeSize + 100;
+    createResources.readBytes = mContactOverheadBytes;
     createResources.writeBytes = 300;
 
     SCVal scContractSourceRefKey(SCValType::SCV_LEDGER_KEY_CONTRACT_INSTANCE);
@@ -1204,7 +1212,8 @@ LoadGenerator::invokeSorobanLoadTransaction(uint32_t ledgerNum,
     }
 
     uint32_t maxKiloBytesPerEntry =
-        (networkCfg.mTxMaxReadBytes - mCodeSize) / numEntries / 1024;
+        (networkCfg.mTxMaxReadBytes - mContactOverheadBytes) / numEntries /
+        1024;
     maxKiloBytesPerEntry =
         std::min(maxKiloBytesPerEntry, cfg.kiloBytesPerDataEntryHigh);
     uint32_t minKiloBytesPerEntry =
@@ -1226,12 +1235,20 @@ LoadGenerator::invokeSorobanLoadTransaction(uint32_t ledgerNum,
     ihf.invokeContract().args = {guestCyclesU64, hostCyclesU64, numEntriesU32,
                                  kiloBytesPerEntryU32};
 
-    // We don't have a good way of knowing how many bytes we will have to read,
-    // so use max. Due to this we will have to change ledger limits, so might as
-    // well set all resources to max
+    // We don't have a good way of knowing how many bytes we will need to read
+    // since the previous invocation writes a random number of bytes, so use
+    // upper bound
+    const uint32_t leOverhead = 75;
+    auto readBytesUpperBound =
+        (cfg.kiloBytesPerDataEntryHigh * 1024 + leOverhead) * numEntries +
+        mContactOverheadBytes;
+    auto writeBytes = (kiloBytesPerEntry * 1024 + leOverhead) * numEntries;
+
+    // baseInstructionCount is a very rough estimate and may be a significant
+    // underestimation based on the IO load used, so use max instructions
     resources.instructions = networkCfg.mTxMaxInstructions;
-    resources.readBytes = networkCfg.mTxMaxReadBytes;
-    resources.writeBytes = networkCfg.mTxMaxWriteBytes;
+    resources.readBytes = readBytesUpperBound;
+    resources.writeBytes = writeBytes;
 
     // Approximate TX size before padding and footprint, slightly over estimated
     // so we stay below limits, plus footprint size
