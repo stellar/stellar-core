@@ -221,14 +221,27 @@ FeeBumpTransactionFrame::commonValidPreSeqNum(AbstractLedgerTxn& ltx)
         getResult().result.code(txNOT_SUPPORTED);
         return false;
     }
-
-    if (getInclusionFee() < getMinInclusionFee(*this, header.current()))
+    auto inclusionFee = getInclusionFee();
+    auto minInclusionFee = getMinInclusionFee(*this, header.current());
+    if (inclusionFee < minInclusionFee)
     {
         getResult().result.code(txINSUFFICIENT_FEE);
         return false;
     }
-
+    // While in theory it should be possible to bump a Soroban
+    // transaction with negative inclusion fee (this is unavoidable
+    // when Soroban resource fee exceeds uint32), we still won't
+    // consider the inner transaction valid. So we return early here
+    // in order to have `bigMultiply` below not crash.
+    if (mInnerTx->getInclusionFee() < 0)
+    {
+        getResult().result.code(txFEE_BUMP_INNER_FAILED);
+        return false;
+    }
     auto const& lh = header.current();
+    // Make sure that fee bump is actually happening, i.e. that the
+    // inclusion fee per operation in this envelope is higher than
+    // the one in the inner envelope.
     uint128_t v1 =
         bigMultiply(getInclusionFee(), getMinInclusionFee(*mInnerTx, lh));
     uint128_t v2 =
@@ -340,7 +353,11 @@ FeeBumpTransactionFrame::getFee(LedgerHeader const& header,
     {
         return getFullFee();
     }
-    int64_t flatFee = mInnerTx->getFullFee() - mInnerTx->getInclusionFee();
+    int64_t flatFee = 0;
+    if (mInnerTx->isSoroban())
+    {
+        flatFee = mInnerTx->declaredSorobanResourceFee();
+    }
     int64_t adjustedFee = *baseFee * std::max<int64_t>(1, getNumOperations());
     if (applying)
     {

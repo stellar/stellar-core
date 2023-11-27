@@ -2628,6 +2628,66 @@ TEST_CASE("soroban transaction validation", "[tx][envelope][soroban]")
             REQUIRE(!tx->checkValid(*app, ltx, 0, 0, 0));
             REQUIRE(tx->getResult().result.code() == txSOROBAN_INVALID);
         }
+        SECTION("resource fee is negative")
+        {
+            auto tx = sorobanTransactionFrameFromOpsWithTotalFee(
+                app->getNetworkID(), root, {op0}, {}, resources, 1'000'000,
+                std::numeric_limits<int64_t>::min());
+            LedgerTxn ltx(app->getLedgerTxnRoot());
+            REQUIRE(!tx->checkValid(*app, ltx, 0, 0, 0));
+            // Negative resource fee is handled before we get to
+            // Soroban-specific checks.
+            REQUIRE(tx->getResult().result.code() == txMALFORMED);
+        }
+        SECTION("resource fee exceeds uint32")
+        {
+            auto tx = sorobanTransactionFrameFromOpsWithTotalFee(
+                app->getNetworkID(), root, {op0}, {}, resources,
+                std::numeric_limits<uint32_t>::max(),
+                std::numeric_limits<int64_t>::max());
+            LedgerTxn ltx(app->getLedgerTxnRoot());
+            REQUIRE(!tx->checkValid(*app, ltx, 0, 0, 0));
+            REQUIRE(tx->getResult().result.code() == txSOROBAN_INVALID);
+        }
+        SECTION("total fee is exactly uint32 max")
+        {
+            auto tx = sorobanTransactionFrameFromOpsWithTotalFee(
+                app->getNetworkID(), root, {op0}, {}, resources,
+                std::numeric_limits<uint32_t>::max(),
+                static_cast<int64_t>(std::numeric_limits<uint32_t>::max()) -
+                    100);
+            LedgerTxn ltx(app->getLedgerTxnRoot());
+            REQUIRE(tx->checkValid(*app, ltx, 0, 0, 0));
+        }
+        SECTION("total fee exceeds uint32 after adding base fee")
+        {
+            auto tx = sorobanTransactionFrameFromOpsWithTotalFee(
+                app->getNetworkID(), root, {op0}, {}, resources,
+                std::numeric_limits<uint32_t>::max(),
+                static_cast<int64_t>(std::numeric_limits<uint32_t>::max()) -
+                    100 + 1);
+            LedgerTxn ltx(app->getLedgerTxnRoot());
+            REQUIRE(!tx->checkValid(*app, ltx, 0, 0, 0));
+            // This gets rejected due to insufficient inclusion fee, so
+            // we have the respective error code (even though the fee is
+            // insufficient due to Soroban resource fee).
+            REQUIRE(tx->getResult().result.code() == txINSUFFICIENT_FEE);
+        }
+        SECTION("resource fee exceeds uint32 with fee bump")
+        {
+            int64_t const resourceFee = 10'000'000'000LL;
+            auto innerTx = sorobanTransactionFrameFromOpsWithTotalFee(
+                app->getNetworkID(), root, {op0}, {}, resources,
+                std::numeric_limits<uint32_t>::max(), resourceFee);
+            auto tx = feeBump(*app, root, innerTx, resourceFee + 200,
+                              /* useInclusionAsFullFee */ true);
+            LedgerTxn ltx(app->getLedgerTxnRoot());
+            // This could work in theory (because the fee bump has enough
+            // fee to cover the inner tx), it can't work because we still
+            // consider the inner tx invalid due to negative inclusion fee.
+            REQUIRE(!tx->checkValid(*app, ltx, 0, 0, 0));
+            REQUIRE(tx->getResult().result.code() == txFEE_BUMP_INNER_FAILED);
+        }
     }
 
     SECTION("multiple ops are not allowed")
