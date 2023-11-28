@@ -331,6 +331,16 @@ LoadGenerator::scheduleLoadGeneration(GeneratedLoadConfig cfg)
             // Must include all TXs
             cfg.skipLowFeeTxs = false;
         }
+
+        if (cfg.mode == LoadGenMode::SOROBAN_INVOKE_SETUP ||
+            cfg.mode == LoadGenMode::SOROBAN_INVOKE)
+        {
+            // Default instances to number of accounts
+            if (cfg.nInstances == 0)
+            {
+                cfg.nInstances = cfg.nAccounts;
+            }
+        }
     }
 
     // During load submission, we must have enough unique source accounts (with

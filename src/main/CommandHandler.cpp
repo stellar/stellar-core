@@ -1175,6 +1175,9 @@ CommandHandler::generateLoad(std::string const& params, std::string& retStr)
             parseOptionalParamOrDefault<uint32_t>(map, "dextxpercent", 0);
 
         // Only for SOROBAN_INVOKE mode, resource consumption bounds
+        cfg.nInstances =
+            parseOptionalParamOrDefault<uint32_t>(map, "instances", 0);
+        cfg.nWasms = parseOptionalParamOrDefault<uint32_t>(map, "wasms", 0);
         cfg.nDataEntriesLow =
             parseOptionalParamOrDefault<uint32_t>(map, "dataentrieslow", 0);
         cfg.nDataEntriesHigh =
