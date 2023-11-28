@@ -62,10 +62,10 @@ RestoreFootprintOpFrame::doApply(Application& app, AbstractLedgerTxn& ltx,
     auto const& resources = mParentTx.sorobanResources();
     auto const& footprint = resources.footprint;
     auto ledgerSeq = ltx.loadHeader().current().ledgerSeq;
+    auto const& sorobanConfig =
+        app.getLedgerManager().getSorobanNetworkConfig();
 
-    auto const& archivalSettings = app.getLedgerManager()
-                                       .getSorobanNetworkConfig()
-                                       .stateArchivalSettings();
+    auto const& archivalSettings = sorobanConfig.stateArchivalSettings();
     rust::Vec<CxxLedgerEntryRentChange> rustEntryRentChanges;
     // Extend the TTL on the restored entry to minimum TTL, including
     // the current ledger.
@@ -108,6 +108,12 @@ RestoreFootprintOpFrame::doApply(Application& app, AbstractLedgerTxn& ltx,
         // To maintain consistency with InvokeHostFunction, TTLEntry
         // writes come out of refundable fee, so only add entrySize
         metrics.mLedgerWriteByte += entrySize;
+        if (!validateContractLedgerEntry(lk, entrySize, sorobanConfig,
+                                         mParentTx))
+        {
+            innerResult().code(RESTORE_FOOTPRINT_RESOURCE_LIMIT_EXCEEDED);
+            return false;
+        }
 
         if (resources.writeBytes < metrics.mLedgerWriteByte)
         {

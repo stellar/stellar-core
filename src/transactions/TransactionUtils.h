@@ -24,6 +24,8 @@ class LedgerTxnEntry;
 class LedgerTxnHeader;
 class TrustLineWrapper;
 class InternalLedgerKey;
+class SorobanNetworkConfig;
+class TransactionFrame;
 class TransactionFrameBase;
 struct ClaimAtom;
 struct LedgerHeader;
@@ -301,6 +303,10 @@ void maybeUpdateAccountOnLedgerSeqUpdate(LedgerTxnHeader const& header,
 int64_t getMinInclusionFee(TransactionFrameBase const& tx,
                            LedgerHeader const& header,
                            std::optional<int64_t> baseFee = std::nullopt);
+
+bool validateContractLedgerEntry(LedgerKey const& lk, size_t entrySize,
+                                 SorobanNetworkConfig const& config,
+                                 TransactionFrame& parentTx);
 
 struct LumenContractInfo
 {

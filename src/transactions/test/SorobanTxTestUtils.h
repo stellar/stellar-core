@@ -262,10 +262,10 @@ class ContractStorageInvocationTest : public WasmContractInvocationTest
                             uint32_t threshold, uint32_t extendTo,
                             bool expectSuccess = true);
 
-    void resizeStorageAndExtend(std::string const& key, uint32_t numKiloBytes,
-                                uint32_t thresh, uint32_t extendTo,
-                                uint32_t writeBytes, uint32_t refundableFee,
-                                bool expectSuccess);
+    void resizeStorageAndExtend(
+        std::string const& key, uint32_t numKiloBytes, uint32_t thresh,
+        uint32_t extendTo, uint32_t writeBytes, uint32_t refundableFee,
+        InvokeHostFunctionResultCode result = INVOKE_HOST_FUNCTION_SUCCESS);
 };
 }
 }
