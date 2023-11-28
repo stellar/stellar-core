@@ -19,6 +19,9 @@ rustc-simple-version = "=0.1.0"
 # will complain if it does not match)
 rand = "=0.8.5"
 
+petgraph = "=0.6.4"
+toml = "=0.7.8"
+
 # This copy of the soroban host is always enabled, and should always point to a
 # version that supports stellar-core's Config::CURRENT_LEDGER_PROTOCOL_VERSION.
 # When upgrading from protocol N to N+1, this copy will therefore have its
@@ -59,14 +62,17 @@ package = "soroban-env-host"
 rev = "c6096cb1414cc1bedce59cef697c71a8bdd70ef3"
 
 [dependencies.soroban-test-wasms]
+version = "=20.0.0-rc2"
 git = "https://github.com/stellar/rs-soroban-env"
 rev = "be04cf31e925ba5bacd9b22db7caf7b4f6dd8372"
 
 [dependencies.soroban-synth-wasm]
+version = "=20.0.0-rc2"
 git = "https://github.com/stellar/rs-soroban-env"
 rev = "be04cf31e925ba5bacd9b22db7caf7b4f6dd8372"
 
 [dependencies.cargo-lock]
+version = "=9.0.0"
 git = "https://github.com/rustsec/rustsec"
 rev = "a5c69fc6e4b6068b43d7143f3a2f68c3f3de37d8"
 features = ["dependency-tree"]
