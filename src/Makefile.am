@@ -86,7 +86,7 @@ stellar_core_LDADD += $(LIBRUST_STELLAR_CORE) -ldl
 
 $(RUST_CXXBRIDGE):
 	mkdir -p $(RUST_BIN_DIR)
-	CARGO_HTTP_MULTIPLEXING=false $(CARGO) install --root $(RUST_BUILD_DIR) cxxbridge-cmd --version 1.0.68
+	CARGO_HTTP_MULTIPLEXING=false $(CARGO) install --locked --root $(RUST_BUILD_DIR) cxxbridge-cmd --version 1.0.68
 
 rust/RustBridge.h: rust/src/lib.rs $(SRC_RUST_FILES) Makefile $(RUST_CXXBRIDGE)
 	$(RUST_CXXBRIDGE) $< --header --output $@.tmp
@@ -97,7 +97,7 @@ rust/RustBridge.cpp: rust/src/lib.rs $(SRC_RUST_FILES) Makefile $(RUST_CXXBRIDGE
 	if cmp -s $@.tmp $@; then rm -v $@.tmp; else mv -v $@.tmp $@; fi
 
 $(LIBRUST_STELLAR_CORE): $(RUST_HOST_DEPFILES) $(SRC_RUST_FILES) Makefile
-	cd $(RUST_BUILD_DIR) && cargo build --$(RUST_PROFILE) --target-dir $(abspath $(RUST_TARGET_DIR)) $(CARGO_FEATURES)
+	cd $(RUST_BUILD_DIR) && cargo build --locked --$(RUST_PROFILE) --target-dir $(abspath $(RUST_TARGET_DIR)) $(CARGO_FEATURES)
 	ranlib $@
 
 $(srcdir)/src.mk: $(top_srcdir)/make-mks

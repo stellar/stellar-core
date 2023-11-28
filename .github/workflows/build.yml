@@ -8,6 +8,43 @@ on:
 
 jobs:
 
+  complete:
+    if: always()
+    needs: [fmt, cackle, cargo-deny, check-git-rev-deps, build]
+    runs-on: ubuntu-latest
+    steps:
+    - if: contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled')
+      run: exit 1
+
+  fmt:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v3
+    - run: rustup update
+    - run: cargo fmt --all --check
+
+  cackle:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - uses: cackle-rs/cackle-action@387fe459d8c037a0e7fbcd3d868f1aaba389d057
+      - run: cargo acl -n run
+
+  cargo-deny:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        checks:
+          - advisories
+          - bans licenses sources
+    # Prevent sudden announcement of a new advisory from failing ci:
+    continue-on-error: ${{ matrix.checks == 'advisories' }}
+    steps:
+    - uses: actions/checkout@v3
+    - uses: EmbarkStudios/cargo-deny-action@e0a440755b184aa50374330fa75cca0f84fcb59a
+      with:
+        command: check ${{ matrix.checks }}
+
   rust-check-git-rev-deps:
     runs-on: ubuntu-latest
     steps:
