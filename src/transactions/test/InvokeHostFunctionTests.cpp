@@ -1308,6 +1308,57 @@ TEST_CASE("settings upgrade", "[tx][soroban][upgrades]")
     }
 }
 
+TEST_CASE("loadgen Wasm executes properly", "[soroban][loadgen]")
+{
+    WasmContractInvocationTest test(rust_bridge::get_test_wasm_loadgen());
+
+    auto scFunc = makeSymbol("do_work");
+    auto guestCycles = 10;
+    auto hostCycles = 5;
+    auto numEntries = 2;
+    auto sizeKiloBytes = 3;
+
+    // This function should write numEntries keys, where each key ID is
+    // a U32 that starts at startingIndex and is incremented for each key
+    std::vector<LedgerKey> keys;
+    for (auto i = 0; i < numEntries; ++i)
+    {
+        auto lk = contractDataKey(test.getContractID(), makeU32(i),
+                                  ContractDataDurability::PERSISTENT);
+        keys.emplace_back(lk);
+    }
+
+    SorobanResources resources;
+    resources.footprint.readOnly = test.getContractKeys();
+    resources.instructions = 10'000'000;
+    resources.readBytes = 20'000;
+    resources.writeBytes = 20'000;
+    resources.footprint.readWrite.assign(keys.begin(), keys.end());
+
+    auto tx = test.createInvokeTx(resources, scFunc,
+                                  {makeU64(guestCycles), makeU64(hostCycles),
+                                   makeU32(numEntries), makeU32(sizeKiloBytes)},
+                                  1'000, 10'000'000);
+    test.txCheckValid(tx);
+    auto txm = test.invokeTx(tx, /*expectSuccess*/ true);
+    auto const& ret = txm->getXDR().v3().sorobanMeta->returnValue.u256();
+
+    // Return value is total number of cycles completed
+    REQUIRE(ret.lo_lo == guestCycles + hostCycles);
+
+    for (auto const& key : keys)
+    {
+        LedgerTxn ltx(test.getApp()->getLedgerTxnRoot());
+        auto ltxe = ltx.load(key);
+        REQUIRE(ltxe);
+        auto size = xdr::xdr_size(ltxe.current());
+
+        // Check that size is correct, plus some overhead
+        REQUIRE(
+            (size > sizeKiloBytes * 1024 && size < sizeKiloBytes * 1024 + 100));
+    }
+}
+
 TEST_CASE("complex contract", "[tx][soroban]")
 {
     auto complexTest = [&](bool enableDiagnostics) {

@@ -78,6 +78,14 @@ makeSymbol(std::string const& str)
 }
 
 SCVal
+makeU64(uint64_t u64)
+{
+    SCVal val(SCV_U64);
+    val.u64() = u64;
+    return val;
+}
+
+SCVal
 makeU32(uint32_t u32)
 {
     SCVal val(SCV_U32);
@@ -258,17 +266,18 @@ ContractInvocationTest::invokeArchivalOp(TransactionFrameBasePtr tx,
 }
 
 // Returns createOp, contractID pair
-static std::pair<Operation, Hash>
-createOpCommon(Application& app, SorobanResources& createResources,
-               LedgerKey const& contractCodeLedgerKey, TestAccount& source,
-               SCVal& scContractSourceRefKey)
+std::pair<Operation, Hash>
+createSorobanCreateOp(Application& app, SorobanResources& createResources,
+                      LedgerKey const& contractCodeLedgerKey,
+                      TestAccount& source, SCVal& scContractSourceRefKey,
+                      uint256 salt)
 {
     // Deploy the contract instance
     ContractIDPreimage idPreimage(CONTRACT_ID_PREIMAGE_FROM_ADDRESS);
     idPreimage.fromAddress().address.type(SC_ADDRESS_TYPE_ACCOUNT);
     idPreimage.fromAddress().address.accountId().ed25519() =
         source.getPublicKey().ed25519();
-    idPreimage.fromAddress().salt = sha256("salt");
+    idPreimage.fromAddress().salt = salt;
     HashIDPreimage fullPreImage;
     fullPreImage.type(ENVELOPE_TYPE_CONTRACT_ID);
     fullPreImage.contractID().contractIDPreimage = idPreimage;
@@ -342,8 +351,8 @@ WasmContractInvocationTest::deployContractWithSourceAccountWithResources(
     // Deploy the contract instance
     SCVal scContractSourceRefKey(SCValType::SCV_LEDGER_KEY_CONTRACT_INSTANCE);
     auto [createOp, contractID] =
-        createOpCommon(*mApp, createResources, contractCodeLedgerKey, mRoot,
-                       scContractSourceRefKey);
+        createSorobanCreateOp(*mApp, createResources, contractCodeLedgerKey,
+                              mRoot, scContractSourceRefKey);
 
     auto createResourceFee =
         sorobanResourceFee(*mApp, createResources, 1000, 40) + 40'000;
@@ -614,7 +623,7 @@ WasmContractInvocationTest::getCreateTx(TestAccount& acc)
     createResources.writeBytes = 5000;
 
     SCVal scContractSourceRefKey(SCValType::SCV_LEDGER_KEY_CONTRACT_INSTANCE);
-    auto [createOp, contractID] = createOpCommon(
+    auto [createOp, contractID] = createSorobanCreateOp(
         *mApp, createResources, mContractKeys[1], acc, scContractSourceRefKey);
     auto createResourceFee =
         sorobanResourceFee(*mApp, createResources, 1000, 40) + 40'000;

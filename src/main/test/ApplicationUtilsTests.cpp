@@ -219,7 +219,7 @@ class SimulationHelper
         if (soroban)
         {
             loadGen.generateLoad(GeneratedLoadConfig::txLoad(
-                LoadGenMode::SOROBAN, /* nAccounts */ 50, /* nTxs */ 10,
+                LoadGenMode::SOROBAN_UPLOAD, /* nAccounts */ 50, /* nTxs */ 10,
                 /*txRate*/ 1));
         }
         else

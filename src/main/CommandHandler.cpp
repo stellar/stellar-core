@@ -1174,6 +1174,71 @@ CommandHandler::generateLoad(std::string const& params, std::string& retStr)
         cfg.dexTxPercent =
             parseOptionalParamOrDefault<uint32_t>(map, "dextxpercent", 0);
 
+        // Only for SOROBAN_INVOKE mode, resource consumption bounds
+        cfg.nInstances =
+            parseOptionalParamOrDefault<uint32_t>(map, "instances", 0);
+        cfg.nWasms = parseOptionalParamOrDefault<uint32_t>(map, "wasms", 0);
+        cfg.nDataEntriesLow =
+            parseOptionalParamOrDefault<uint32_t>(map, "dataentrieslow", 0);
+        cfg.nDataEntriesHigh =
+            parseOptionalParamOrDefault<uint32_t>(map, "dataentrieshigh", 0);
+        cfg.kiloBytesPerDataEntryLow =
+            parseOptionalParamOrDefault<uint32_t>(map, "kilobyteslow", 0);
+        cfg.kiloBytesPerDataEntryHigh =
+            parseOptionalParamOrDefault<uint32_t>(map, "kilobyteshigh", 0);
+        cfg.txSizeBytesLow =
+            parseOptionalParamOrDefault<uint32_t>(map, "txsizelow", 0);
+        cfg.txSizeBytesHigh =
+            parseOptionalParamOrDefault<uint32_t>(map, "txsizehigh", 0);
+        cfg.instructionsLow =
+            parseOptionalParamOrDefault<uint64_t>(map, "cpulow", 0);
+        cfg.instructionsHigh =
+            parseOptionalParamOrDefault<uint64_t>(map, "cpuhigh", 0);
+
+        // SOROBAN_CREATE_UPGRADE parameters
+        cfg.maxContractSizeBytes =
+            parseOptionalParamOrDefault<uint32_t>(map, "mxcntrctsz", 0);
+        cfg.maxContractDataKeySizeBytes =
+            parseOptionalParamOrDefault<uint32_t>(map, "mxcntrctkeysz", 0);
+        cfg.maxContractDataEntrySizeBytes =
+            parseOptionalParamOrDefault<uint32_t>(map, "mxcntrctdatasz", 0);
+        cfg.ledgerMaxInstructions =
+            parseOptionalParamOrDefault<uint64_t>(map, "ldgrmxinstrc", 0);
+        cfg.txMaxInstructions =
+            parseOptionalParamOrDefault<uint64_t>(map, "txmxinstrc", 0);
+        cfg.txMemoryLimit =
+            parseOptionalParamOrDefault<uint64_t>(map, "txmemlim", 0);
+        cfg.ledgerMaxReadLedgerEntries =
+            parseOptionalParamOrDefault<uint32_t>(map, "ldgrmxrdntry", 0);
+        cfg.ledgerMaxReadBytes =
+            parseOptionalParamOrDefault<uint32_t>(map, "ldgrmxrdbyt", 0);
+        cfg.ledgerMaxWriteLedgerEntries =
+            parseOptionalParamOrDefault<uint32_t>(map, "ldgrmxwrntry", 0);
+        cfg.ledgerMaxWriteBytes =
+            parseOptionalParamOrDefault<uint32_t>(map, "ldgrmxwrbyt", 0);
+        cfg.ledgerMaxTxCount =
+            parseOptionalParamOrDefault<uint32_t>(map, "ldgrmxtxcnt", 0);
+        cfg.txMaxReadLedgerEntries =
+            parseOptionalParamOrDefault<uint32_t>(map, "txmxrdntry", 0);
+        cfg.txMaxReadBytes =
+            parseOptionalParamOrDefault<uint32_t>(map, "txmxrdbyt", 0);
+        cfg.txMaxWriteLedgerEntries =
+            parseOptionalParamOrDefault<uint32_t>(map, "txmxwrntry", 0);
+        cfg.txMaxWriteBytes =
+            parseOptionalParamOrDefault<uint32_t>(map, "txmxwrbyt", 0);
+        cfg.txMaxContractEventsSizeBytes =
+            parseOptionalParamOrDefault<uint32_t>(map, "txmxevntsz", 0);
+        cfg.ledgerMaxTransactionsSizeBytes =
+            parseOptionalParamOrDefault<uint32_t>(map, "ldgrmxtxsz", 0);
+        cfg.txMaxSizeBytes = parseOptionalParamOrDefault<uint32_t>(
+            map, "txmxsz", cfg.ledgerMaxTransactionsSizeBytes);
+        cfg.bucketListSizeWindowSampleSize =
+            parseOptionalParamOrDefault<uint32_t>(map, "wndowsz", 0);
+        cfg.evictionScanSize = parseOptionalParamOrDefault<uint64_t>(
+            map, "evctsz", cfg.bucketListSizeWindowSampleSize);
+        cfg.startingEvictionScanLevel =
+            parseOptionalParamOrDefault<uint32_t>(map, "evctlvl", 0);
+
         if (cfg.maxGeneratedFeeRate)
         {
             auto baseFee = mApp.getLedgerManager().getLastTxFee();
@@ -1187,11 +1252,22 @@ CommandHandler::generateLoad(std::string const& params, std::string& retStr)
 
         uint32_t numItems = isCreate ? cfg.nAccounts : cfg.nTxs;
         std::string itemType = isCreate ? "accounts" : "txs";
-
-        retStr +=
+        Json::Value res;
+        res["status"] =
             fmt::format(FMT_STRING(" Generating load: {:d} {:s}, {:d} tx/s"),
                         numItems, itemType, cfg.txRate);
         mApp.generateLoad(cfg);
+
+        if (cfg.mode == LoadGenMode::SOROBAN_CREATE_UPGRADE)
+        {
+            auto configUpgradeKey =
+                mApp.getLoadGenerator().getConfigUpgradeSetKey(cfg);
+            auto configUpgradeKeyStr = stellar::decoder::encode_b64(
+                xdr::xdr_to_opaque(configUpgradeKey));
+            res["config_upgrade_set_key"] = configUpgradeKeyStr;
+        }
+
+        retStr = res.toStyledString();
     }
     else
     {

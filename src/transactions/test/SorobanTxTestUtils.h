@@ -24,6 +24,7 @@ SCVal makeContractAddressSCVal(SCAddress const& address);
 SCVal makeI32(int32_t i32);
 SCVal makeI128(uint64_t u64);
 SCSymbol makeSymbol(std::string const& str);
+SCVal makeU64(uint64_t u64);
 SCVal makeU32(uint32_t u32);
 SCVal makeBytes(SCBytes bytes);
 
@@ -46,6 +47,12 @@ void submitTxToCreateContract(Application& app, Operation const& op,
                               SCVal const& executableKey,
                               Hash const& expectedWasmHash,
                               uint32_t inclusionFee, uint32_t resourceFee);
+
+std::pair<Operation, Hash>
+createSorobanCreateOp(Application& app, SorobanResources& createResources,
+                      LedgerKey const& contractCodeLedgerKey,
+                      TestAccount& source, SCVal& scContractSourceRefKey,
+                      uint256 salt = sha256("salt"));
 
 class ContractInvocationTest
 {
