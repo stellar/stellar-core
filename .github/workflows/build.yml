@@ -10,7 +10,7 @@ jobs:
 
   complete:
     if: always()
-    needs: [fmt, cackle, cargo-deny, check-git-rev-deps, build]
+    needs: [fmt, cackle, cargo-deny, rust-check-git-rev-deps, build]
     runs-on: ubuntu-latest
     steps:
     - if: contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled')
