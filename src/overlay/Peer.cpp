@@ -1089,7 +1089,7 @@ void
 Peer::recvTxSet(StellarMessage const& msg)
 {
     ZoneScoped;
-    auto frame = TxSetFrame::makeFromWire(msg.txSet());
+    auto frame = TxSetXDRFrame::makeFromWire(msg.txSet());
     mApp.getHerder().recvTxSet(frame->getContentsHash(), frame);
 }
 
@@ -1097,7 +1097,7 @@ void
 Peer::recvGeneralizedTxSet(StellarMessage const& msg)
 {
     ZoneScoped;
-    auto frame = TxSetFrame::makeFromWire(msg.generalizedTxSet());
+    auto frame = TxSetXDRFrame::makeFromWire(msg.generalizedTxSet());
     mApp.getHerder().recvTxSet(frame->getContentsHash(), frame);
 }
 

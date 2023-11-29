@@ -69,7 +69,7 @@ TEST_CASE("ledgerheader", "[ledger]")
         app->start();
 
         auto const& lcl = app->getLedgerManager().getLastClosedLedgerHeader();
-        auto txSet = TxSetFrame::makeEmpty(lcl);
+        auto txSet = TxSetXDRFrame::makeEmpty(lcl);
 
         // close this ledger
         StellarValue sv = app->getHerder().makeStellarValue(

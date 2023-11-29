@@ -59,7 +59,7 @@ closeLedger(Application& app, std::optional<SecretKey> skToSignValue,
     CLOG_INFO(Bucket, "Artificially closing ledger {} with lcl={}, buckets={}",
               ledgerNum, hexAbbrev(lcl.hash),
               hexAbbrev(app.getBucketManager().getBucketList().getHash()));
-    app.getHerder().externalizeValue(TxSetFrame::makeEmpty(lcl), ledgerNum,
+    app.getHerder().externalizeValue(TxSetXDRFrame::makeEmpty(lcl), ledgerNum,
                                      lcl.header.scpValue.closeTime, upgrades,
                                      skToSignValue);
     return lm.getLastClosedLedgerHeader().hash;

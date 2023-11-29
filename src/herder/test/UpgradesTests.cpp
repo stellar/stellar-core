@@ -1946,8 +1946,8 @@ TEST_CASE("upgrade to version 11", "[upgrades]")
         uint64_t minBalance = lm.getLastMinBalance(5);
         uint64_t big = minBalance + ledgerSeq;
         uint64_t closeTime = 60 * 5 * ledgerSeq;
-        auto txSet = TxSetFrame::makeFromTransactions(
-                         TxSetFrame::Transactions{
+        auto txSet = makeTxSetFromTransactions(
+                         TxSetTransactions{
                              root.tx({txtest::createAccount(stranger, big)})},
                          *app, 0, 0)
                          .first;
@@ -2070,9 +2070,9 @@ TEST_CASE("upgrade to version 12", "[upgrades]")
         uint64_t minBalance = lm.getLastMinBalance(5);
         uint64_t big = minBalance + ledgerSeq;
         uint64_t closeTime = 60 * 5 * ledgerSeq;
-        TxSetFrameConstPtr txSet =
-            TxSetFrame::makeFromTransactions(
-                TxSetFrame::Transactions{
+        TxSetXDRFrameConstPtr txSet =
+            makeTxSetFromTransactions(
+                TxSetTransactions{
                     root.tx({txtest::createAccount(stranger, big)})},
                 *app, 0, 0)
                 .first;
@@ -2185,7 +2185,7 @@ TEST_CASE("upgrade to version 13", "[upgrades]")
         auto const& lcl = lm.getLastClosedLedgerHeader();
         auto ledgerSeq = lcl.header.ledgerSeq + 1;
 
-        auto emptyTxSet = TxSetFrame::makeEmpty(lcl);
+        auto emptyTxSet = TxSetXDRFrame::makeEmpty(lcl);
         herder.getPendingEnvelopes().putTxSet(emptyTxSet->getContentsHash(),
                                               ledgerSeq, emptyTxSet);
 
@@ -3212,9 +3212,8 @@ TEST_CASE("upgrade to generalized tx set changes TxSetFrame format",
                              static_cast<int>(SOROBAN_PROTOCOL_VERSION) - 1));
 
     auto root = TestAccount::createRoot(*app);
-    TxSetFrame::Transactions txs = {root.tx({payment(root, 1)})};
-    auto [txSet, applicableTxSet] =
-        TxSetFrame::makeFromTransactions(txs, *app, 0, 0);
+    TxSetTransactions txs = {root.tx({payment(root, 1)})};
+    auto [txSet, applicableTxSet] = makeTxSetFromTransactions(txs, *app, 0, 0);
     REQUIRE(!txSet->isGeneralizedTxSet());
     REQUIRE(!applicableTxSet->isGeneralizedTxSet());
 
@@ -3222,7 +3221,7 @@ TEST_CASE("upgrade to generalized tx set changes TxSetFrame format",
                              static_cast<int>(SOROBAN_PROTOCOL_VERSION)));
 
     auto [newTxSet, newApplicableTxSet] =
-        TxSetFrame::makeFromTransactions(txs, *app, 0, 0);
+        makeTxSetFromTransactions(txs, *app, 0, 0);
     REQUIRE(newTxSet->isGeneralizedTxSet());
     REQUIRE(newApplicableTxSet->isGeneralizedTxSet());
 }
@@ -3325,7 +3324,7 @@ TEST_CASE("upgrade to generalized tx set in network", "[upgrades][overlay]")
                 return pe.getTxSet(sv.txSetHash);
             }
         }
-        return TxSetFrameConstPtr{};
+        return TxSetXDRFrameConstPtr{};
     };
 
     // Make sure tx set format switches to generalized after upgrade.

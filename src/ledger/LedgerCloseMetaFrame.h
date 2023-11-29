@@ -28,7 +28,7 @@ class LedgerCloseMetaFrame
 
     xdr::xvector<UpgradeEntryMeta>& upgradesProcessing();
 
-    void populateTxSet(TxSetFrame const& txSet);
+    void populateTxSet(TxSetXDRFrame const& txSet);
 
     void setTotalByteSizeOfBucketList(uint64_t size);
     void populateEvictedEntries(LedgerEntryChanges const& evictionChanges);

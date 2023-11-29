@@ -19,7 +19,7 @@ void storeTransaction(Database& db, uint32_t ledgerSeq,
                       TransactionMeta const& tm,
                       TransactionResultSet const& resultSet);
 
-void storeTxSet(Database& db, uint32_t ledgerSeq, TxSetFrame const& txSet);
+void storeTxSet(Database& db, uint32_t ledgerSeq, TxSetXDRFrame const& txSet);
 
 void storeTransactionFee(Database& db, uint32_t ledgerSeq,
                          TransactionFrameBasePtr const& tx,

@@ -120,13 +120,13 @@ class Herder
 
     virtual bool recvSCPQuorumSet(Hash const& hash,
                                   SCPQuorumSet const& qset) = 0;
-    virtual bool recvTxSet(Hash const& hash, TxSetFrameConstPtr txset) = 0;
+    virtual bool recvTxSet(Hash const& hash, TxSetXDRFrameConstPtr txset) = 0;
     // We are learning about a new transaction.
     virtual TransactionQueue::AddResult
     recvTransaction(TransactionFrameBasePtr tx, bool submittedFromSelf) = 0;
     virtual void peerDoesntHave(stellar::MessageType type,
                                 uint256 const& itemID, Peer::pointer peer) = 0;
-    virtual TxSetFrameConstPtr getTxSet(Hash const& hash) = 0;
+    virtual TxSetXDRFrameConstPtr getTxSet(Hash const& hash) = 0;
     virtual SCPQuorumSetPtr getQSet(Hash const& qSetHash) = 0;
 
     // We are learning about a new envelope.
@@ -138,13 +138,13 @@ class Herder
     // We are learning about a new fully-fetched envelope.
     virtual EnvelopeStatus recvSCPEnvelope(SCPEnvelope const& envelope,
                                            const SCPQuorumSet& qset,
-                                           TxSetFrameConstPtr txset) = 0;
+                                           TxSetXDRFrameConstPtr txset) = 0;
     virtual EnvelopeStatus recvSCPEnvelope(SCPEnvelope const& envelope,
                                            const SCPQuorumSet& qset,
                                            StellarMessage const& txset) = 0;
 
     virtual void
-    externalizeValue(TxSetFrameConstPtr txSet, uint32_t ledgerSeq,
+    externalizeValue(TxSetXDRFrameConstPtr txSet, uint32_t ledgerSeq,
                      uint64_t closeTime,
                      xdr::xvector<UpgradeType, 6> const& upgrades,
                      std::optional<SecretKey> skToSignValue = std::nullopt) = 0;

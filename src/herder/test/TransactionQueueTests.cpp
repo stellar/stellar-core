@@ -190,7 +190,7 @@ class TransactionQueueTest
 
         REQUIRE(fees == expectedFees);
 
-        TxSetFrame::Transactions expectedTxs;
+        TxSetTransactions expectedTxs;
         size_t totOps = 0;
         for (auto const& accountState : state.mAccountStates)
         {
@@ -2547,8 +2547,7 @@ TEST_CASE("remove applied", "[herder][transactionqueue]")
         auto ledgerSeq = lcl.header.ledgerSeq + 1;
 
         root.loadSequenceNumber();
-        auto [txSet, _] =
-            TxSetFrame::makeFromTransactions({tx1b, tx2}, *app, 0, 0);
+        auto [txSet, _] = makeTxSetFromTransactions({tx1b, tx2}, *app, 0, 0);
         herder.getPendingEnvelopes().putTxSet(txSet->getContentsHash(),
                                               ledgerSeq, txSet);
 

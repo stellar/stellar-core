@@ -108,14 +108,14 @@ class ApplyLedgersFromMetaWork : public Work
             return BasicWork::State::WORK_FAILURE;
         }
 
-        TxSetFrameConstPtr txSet;
+        TxSetXDRFrameConstPtr txSet;
         if (lcm.v() == 0)
         {
-            txSet = TxSetFrame::makeFromWire(lcm.v0().txSet);
+            txSet = TxSetXDRFrame::makeFromWire(lcm.v0().txSet);
         }
         else
         {
-            txSet = TxSetFrame::makeFromWire(lcm.v1().txSet);
+            txSet = TxSetXDRFrame::makeFromWire(lcm.v1().txSet);
         }
 
         LedgerCloseData ledgerCloseData(ledgerSeqToApply, txSet,

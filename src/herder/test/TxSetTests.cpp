@@ -36,7 +36,7 @@ TEST_CASE("generalized tx set XDR validation", "[txset]")
     LedgerTxn ltx(app->getLedgerTxnRoot());
     SECTION("no phases")
     {
-        auto txSet = TxSetFrame::makeFromWire(xdrTxSet);
+        auto txSet = TxSetXDRFrame::makeFromWire(xdrTxSet);
         REQUIRE(txSet->prepareForApply(*app) == nullptr);
     }
     SECTION("too many phases")
@@ -44,7 +44,7 @@ TEST_CASE("generalized tx set XDR validation", "[txset]")
         xdrTxSet.v1TxSet().phases.emplace_back();
         xdrTxSet.v1TxSet().phases.emplace_back();
         xdrTxSet.v1TxSet().phases.emplace_back();
-        auto txSet = TxSetFrame::makeFromWire(xdrTxSet);
+        auto txSet = TxSetXDRFrame::makeFromWire(xdrTxSet);
         REQUIRE(txSet->prepareForApply(*app) == nullptr);
     }
     SECTION("incorrect base fee order")
@@ -103,7 +103,7 @@ TEST_CASE("generalized tx set XDR validation", "[txset]")
                         .txsMaybeDiscountedFee()
                         .txs.emplace_back();
 
-                    auto txSet = TxSetFrame::makeFromWire(xdrTxSet);
+                    auto txSet = TxSetXDRFrame::makeFromWire(xdrTxSet);
                     REQUIRE(txSet->prepareForApply(*app) == nullptr);
                 }
                 SECTION("non-discounted component out of place")
@@ -142,7 +142,7 @@ TEST_CASE("generalized tx set XDR validation", "[txset]")
                     xdrTxSet.v1TxSet().phases[i].v0Components().emplace_back(
                         TXSET_COMP_TXS_MAYBE_DISCOUNTED_FEE);
 
-                    auto txSet = TxSetFrame::makeFromWire(xdrTxSet);
+                    auto txSet = TxSetXDRFrame::makeFromWire(xdrTxSet);
                     REQUIRE(txSet->prepareForApply(*app) == nullptr);
                 }
                 SECTION(
@@ -187,7 +187,7 @@ TEST_CASE("generalized tx set XDR validation", "[txset]")
                         .txsMaybeDiscountedFee()
                         .txs.emplace_back();
 
-                    auto txSet = TxSetFrame::makeFromWire(xdrTxSet);
+                    auto txSet = TxSetXDRFrame::makeFromWire(xdrTxSet);
                     REQUIRE(txSet->prepareForApply(*app) == nullptr);
                 }
             }
@@ -257,7 +257,7 @@ TEST_CASE("generalized tx set XDR validation", "[txset]")
                         .txsMaybeDiscountedFee()
                         .txs.emplace_back();
 
-                    auto txSet = TxSetFrame::makeFromWire(xdrTxSet);
+                    auto txSet = TxSetXDRFrame::makeFromWire(xdrTxSet);
                     REQUIRE(txSet->prepareForApply(*app) == nullptr);
                 }
                 SECTION("duplicate non-discounted components")
@@ -296,7 +296,7 @@ TEST_CASE("generalized tx set XDR validation", "[txset]")
                         .txsMaybeDiscountedFee()
                         .txs.emplace_back();
 
-                    auto txSet = TxSetFrame::makeFromWire(xdrTxSet);
+                    auto txSet = TxSetXDRFrame::makeFromWire(xdrTxSet);
                     REQUIRE(txSet->prepareForApply(*app) == nullptr);
                 }
             }
@@ -314,7 +314,7 @@ TEST_CASE("generalized tx set XDR validation", "[txset]")
                 xdrTxSet.v1TxSet().phases[i].v0Components().emplace_back(
                     TXSET_COMP_TXS_MAYBE_DISCOUNTED_FEE);
 
-                auto txSet = TxSetFrame::makeFromWire(xdrTxSet);
+                auto txSet = TxSetXDRFrame::makeFromWire(xdrTxSet);
                 REQUIRE(txSet->prepareForApply(*app) == nullptr);
             }
         }
@@ -354,7 +354,7 @@ TEST_CASE("generalized tx set XDR validation", "[txset]")
             txEnv.v0().tx.operations.emplace_back();
             txEnv.v0().tx.operations.back().body.type(INVOKE_HOST_FUNCTION);
         }
-        auto txSet = TxSetFrame::makeFromWire(xdrTxSet);
+        auto txSet = TxSetXDRFrame::makeFromWire(xdrTxSet);
         REQUIRE(txSet->prepareForApply(*app) == nullptr);
     }
     SECTION("valid XDR")
@@ -383,7 +383,7 @@ TEST_CASE("generalized tx set XDR validation", "[txset]")
                 {
                     xdrTxSet.v1TxSet().phases.emplace_back();
                     xdrTxSet.v1TxSet().phases.emplace_back();
-                    auto txSet = TxSetFrame::makeFromWire(xdrTxSet);
+                    auto txSet = TxSetXDRFrame::makeFromWire(xdrTxSet);
                     REQUIRE(txSet->prepareForApply(*app) == nullptr);
                 }
                 SECTION("single component")
@@ -399,7 +399,7 @@ TEST_CASE("generalized tx set XDR validation", "[txset]")
                         .txsMaybeDiscountedFee()
                         .txs.emplace_back();
                     maybeAddSorobanOp(xdrTxSet);
-                    auto txSet = TxSetFrame::makeFromWire(xdrTxSet);
+                    auto txSet = TxSetXDRFrame::makeFromWire(xdrTxSet);
                     REQUIRE(txSet->prepareForApply(*app) == nullptr);
                 }
                 SECTION("multiple components")
@@ -464,7 +464,7 @@ TEST_CASE("generalized tx set XDR validation", "[txset]")
                         .txs.emplace_back();
                     maybeAddSorobanOp(xdrTxSet);
 
-                    auto txSet = TxSetFrame::makeFromWire(xdrTxSet);
+                    auto txSet = TxSetXDRFrame::makeFromWire(xdrTxSet);
                     REQUIRE(txSet->prepareForApply(*app) == nullptr);
                 }
             }
@@ -516,7 +516,7 @@ TEST_CASE("generalized tx set XDR conversion", "[txset]")
     };
 
     auto checkXdrRoundtrip = [&](GeneralizedTransactionSet const& txSetXdr) {
-        auto txSetFrame = TxSetFrame::makeFromWire(txSetXdr);
+        auto txSetFrame = TxSetXDRFrame::makeFromWire(txSetXdr);
         ApplicableTxSetFrameConstPtr applicableFrame;
         {
             LedgerTxn ltx(app->getLedgerTxnRoot(), false,
@@ -621,8 +621,7 @@ TEST_CASE("generalized tx set XDR conversion", "[txset]")
 
         SECTION("classic only")
         {
-            auto txSet =
-                TxSetFrame::makeFromTransactions(txs, *app, 0, 0).first;
+            auto txSet = makeTxSetFromTransactions(txs, *app, 0, 0).first;
             GeneralizedTransactionSet txSetXdr;
             txSet->toXDR(txSetXdr);
             REQUIRE(txSetXdr.v1TxSet().phases.size() == 2);
@@ -645,9 +644,9 @@ TEST_CASE("generalized tx set XDR conversion", "[txset]")
             {
                 SECTION("minimum base fee")
                 {
-                    auto txSet = TxSetFrame::makeFromTransactions(
-                                     {txs, sorobanTxs}, *app, 0, 0)
-                                     .first;
+                    auto txSet =
+                        makeTxSetFromTransactions({txs, sorobanTxs}, *app, 0, 0)
+                            .first;
                     GeneralizedTransactionSet txSetXdr;
                     txSet->toXDR(txSetXdr);
                     REQUIRE(txSetXdr.v1TxSet().phases.size() == 2);
@@ -674,8 +673,8 @@ TEST_CASE("generalized tx set XDR conversion", "[txset]")
                     sorobanTxs.insert(sorobanTxs.begin(),
                                       higherFeeSorobanTxs.begin(),
                                       higherFeeSorobanTxs.end());
-                    auto txSet = TxSetFrame::makeFromTransactions(
-                                     {txs, sorobanTxs}, *app, 0, 100)
+                    auto txSet = makeTxSetFromTransactions({txs, sorobanTxs},
+                                                           *app, 0, 100)
                                      .first;
                     GeneralizedTransactionSet txSetXdr;
                     txSet->toXDR(txSetXdr);
@@ -700,18 +699,18 @@ TEST_CASE("generalized tx set XDR conversion", "[txset]")
             SECTION("invalid, soroban tx in wrong phase")
             {
                 sorobanTxs[4] = txs[0];
-                REQUIRE_THROWS_WITH(TxSetFrame::makeFromTransactions(
-                                        {txs, sorobanTxs}, *app, 0, 0),
-                                    "TxSetFrame::makeFromTransactions: phases "
-                                    "contain txs of wrong type");
+                REQUIRE_THROWS_WITH(
+                    makeTxSetFromTransactions({txs, sorobanTxs}, *app, 0, 0),
+                    "TxSetFrame::makeFromTransactions: phases "
+                    "contain txs of wrong type");
             }
             SECTION("invalid, classic tx in wrong phase")
             {
                 txs[4] = sorobanTxs[0];
-                REQUIRE_THROWS_WITH(TxSetFrame::makeFromTransactions(
-                                        {txs, sorobanTxs}, *app, 0, 0),
-                                    "TxSetFrame::makeFromTransactions: phases "
-                                    "contain txs of wrong type");
+                REQUIRE_THROWS_WITH(
+                    makeTxSetFromTransactions({txs, sorobanTxs}, *app, 0, 0),
+                    "TxSetFrame::makeFromTransactions: phases "
+                    "contain txs of wrong type");
             }
         }
     }
@@ -897,12 +896,11 @@ TEST_CASE("generalized tx set fees", "[txset][soroban]")
                 .second;
 
         REQUIRE(txSet->checkValid(*app, 0, 0));
-        for (auto i = 0;
-             i < static_cast<size_t>(TxSetFrame::Phase::PHASE_COUNT); ++i)
+        for (auto i = 0; i < static_cast<size_t>(TxSetPhase::PHASE_COUNT); ++i)
         {
             std::vector<std::optional<int64_t>> fees;
             for (auto const& tx :
-                 txSet->getTxsForPhase(static_cast<TxSetFrame::Phase>(i)))
+                 txSet->getTxsForPhase(static_cast<TxSetPhase>(i)))
             {
                 fees.push_back(
                     txSet->getTxBaseFee(tx, app->getLedgerManager()
