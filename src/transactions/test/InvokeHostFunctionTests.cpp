@@ -1405,30 +1405,67 @@ TEST_CASE("complex contract", "[tx][soroban]")
 TEST_CASE("ledger entry size limit enforced", "[tx][soroban]")
 {
     ContractStorageInvocationTest test{};
-
-    // Instance and wasm should not expire
-    test.extendOp(test.getContractKeys(), 1'000);
     auto const& cfg = test.getNetworkCfg();
-
-    // Approximately 75 bytes of overhead for the contract data entry
-    auto maxWriteSizeKiloBytes =
-        (cfg.maxContractDataEntrySizeBytes() - 100) / 1024;
-
-    // Check that ledger entry writes above max fail
-    test.resizeStorageAndExtend("key", maxWriteSizeKiloBytes + 1, 0, 0,
-                                cfg.txMaxWriteBytes(), 40'000,
-                                INVOKE_HOST_FUNCTION_RESOURCE_LIMIT_EXCEEDED);
-
-    test.resizeStorageAndExtend("key", maxWriteSizeKiloBytes, 0, 0,
-                                cfg.txMaxWriteBytes(), 40'000);
 
     uint32_t originalExpectedLiveUntilLedger =
         cfg.stateArchivalSettings().minPersistentTTL + test.getLedgerSeq() - 1;
 
-    REQUIRE(test.has("key", ContractDataDurability::PERSISTENT));
+    auto failedRestoreOp = [&](LedgerKey const& lk) {
+        SorobanResources resources;
+        resources.footprint.readWrite = {lk};
+        resources.instructions = 0;
+        resources.readBytes = cfg.txMaxReadBytes();
+        resources.writeBytes = cfg.txMaxWriteBytes();
+        auto resourceFee = 1'000'000;
+
+        auto restoreTX = test.createRestoreTx(resources, 1'000, resourceFee);
+        test.invokeTx(restoreTX, /*shouldSucceed*/ false,
+                      /*processPostApply*/ false);
+        REQUIRE(restoreTX->getResult()
+                    .result.results()[0]
+                    .tr()
+                    .restoreFootprintResult()
+                    .code() == RESTORE_FOOTPRINT_RESOURCE_LIMIT_EXCEEDED);
+    };
+
+    auto failedExtendOp = [&](LedgerKey const& lk) {
+        SorobanResources resources;
+        resources.footprint.readOnly = {lk};
+        resources.instructions = 0;
+        resources.readBytes = cfg.txMaxReadBytes();
+        resources.writeBytes = cfg.txMaxWriteBytes();
+        auto resourceFee = 1'000'000;
+
+        auto extendTx =
+            test.createExtendOpTx(resources, 100, 1'000, resourceFee);
+        test.invokeTx(extendTx, /*shouldSucceed*/ false,
+                      /*processPostApply*/ false);
+        REQUIRE(extendTx->getResult()
+                    .result.results()[0]
+                    .tr()
+                    .extendFootprintTTLResult()
+                    .code() == EXTEND_FOOTPRINT_TTL_RESOURCE_LIMIT_EXCEEDED);
+    };
 
     SECTION("contract data limits")
     {
+        // Instance and wasm should not expire
+        test.extendOp(test.getContractKeys(), 1'000);
+
+        // Approximately 75 bytes of overhead for the contract data entry
+        auto maxWriteSizeKiloBytes =
+            (cfg.maxContractDataEntrySizeBytes() - 100) / 1024;
+
+        // Check that ledger entry writes above max fail
+        test.resizeStorageAndExtend(
+            "key", maxWriteSizeKiloBytes + 1, 0, 0, cfg.txMaxWriteBytes(),
+            40'000, INVOKE_HOST_FUNCTION_RESOURCE_LIMIT_EXCEEDED);
+
+        test.resizeStorageAndExtend("key", maxWriteSizeKiloBytes, 0, 0,
+                                    cfg.txMaxWriteBytes(), 40'000);
+
+        REQUIRE(test.has("key", ContractDataDurability::PERSISTENT));
+
         // Reduce max ledger entry size
         modifySorobanNetworkConfig(
             *test.getApp(), [](SorobanNetworkConfig& cfg) {
@@ -1443,13 +1480,17 @@ TEST_CASE("ledger entry size limit enforced", "[tx][soroban]")
             "key2", maxWriteSizeKiloBytes, 0, 0, cfg.txMaxWriteBytes(), 40'000,
             INVOKE_HOST_FUNCTION_RESOURCE_LIMIT_EXCEEDED);
 
+        auto lk = contractDataKey(test.getContractID(), makeSymbolSCVal("key"),
+                                  PERSISTENT);
+
+        // Extend should fail
+        failedExtendOp(lk);
+
         // Reads should fail
         test.has("key", ContractDataDurability::PERSISTENT,
                  INVOKE_HOST_FUNCTION_RESOURCE_LIMIT_EXCEEDED);
 
         // Archive entry
-        auto lk = contractDataKey(test.getContractID(), makeSymbolSCVal("key"),
-                                  PERSISTENT);
         for (uint32_t i =
                  test.getApp()->getLedgerManager().getLastClosedLedgerNum();
              i <= originalExpectedLiveUntilLedger + 1; ++i)
@@ -1458,21 +1499,8 @@ TEST_CASE("ledger entry size limit enforced", "[tx][soroban]")
         }
         REQUIRE(!test.isEntryLive({lk}, test.getLedgerSeq()));
 
-        // Restoration should fail
-        SorobanResources resources;
-        resources.footprint.readWrite = {lk};
-        resources.instructions = 0;
-        resources.readBytes = cfg.txMaxReadBytes();
-        resources.writeBytes = cfg.txMaxWriteBytes();
-        auto resourceFee = 1'000'000;
-
-        auto restoreTX = test.createRestoreTx(resources, 1'000, resourceFee);
-        test.invokeTx(restoreTX, /*shouldSucceed*/ false);
-        REQUIRE(restoreTX->getResult()
-                    .result.results()[0]
-                    .tr()
-                    .restoreFootprintResult()
-                    .code() == RESTORE_FOOTPRINT_RESOURCE_LIMIT_EXCEEDED);
+        // Restore should fail
+        failedRestoreOp(lk);
     }
 
     SECTION("contract code limits")
@@ -1489,6 +1517,23 @@ TEST_CASE("ledger entry size limit enforced", "[tx][soroban]")
         // Check that contract invocation now fails
         test.has("key", ContractDataDurability::PERSISTENT,
                  INVOKE_HOST_FUNCTION_RESOURCE_LIMIT_EXCEEDED);
+
+        auto const& lk = test.getContractKeys().at(1);
+
+        // Extend should fail
+        failedExtendOp(lk);
+
+        // Archive entry
+        for (uint32_t i =
+                 test.getApp()->getLedgerManager().getLastClosedLedgerNum();
+             i <= originalExpectedLiveUntilLedger + 1; ++i)
+        {
+            closeLedgerOn(*test.getApp(), i, 2, 1, 2016);
+        }
+        REQUIRE(!test.isEntryLive({lk}, test.getLedgerSeq()));
+
+        // Restore should fail
+        failedRestoreOp(lk);
     }
 }
 

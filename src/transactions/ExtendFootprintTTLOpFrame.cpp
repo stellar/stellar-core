@@ -56,6 +56,8 @@ ExtendFootprintTTLOpFrame::doApply(Application& app, AbstractLedgerTxn& ltx,
 
     auto const& resources = mParentTx.sorobanResources();
     auto const& footprint = resources.footprint;
+    auto const& sorobanConfig =
+        app.getLedgerManager().getSorobanNetworkConfig();
 
     rust::Vec<CxxLedgerEntryRentChange> rustEntryRentChanges;
     rustEntryRentChanges.reserve(footprint.readOnly.size());
@@ -98,6 +100,14 @@ ExtendFootprintTTLOpFrame::doApply(Application& app, AbstractLedgerTxn& ltx,
         uint32_t entrySize =
             static_cast<uint32>(xdr::xdr_size(entryLtxe.current()));
         metrics.mLedgerReadByte += entrySize;
+
+        if (!validateContractLedgerEntry(lk, entrySize, sorobanConfig,
+                                         mParentTx))
+        {
+            innerResult().code(EXTEND_FOOTPRINT_TTL_RESOURCE_LIMIT_EXCEEDED);
+            return false;
+        }
+
         if (resources.readBytes < metrics.mLedgerReadByte)
         {
             mParentTx.pushSimpleDiagnosticError(
@@ -127,14 +137,10 @@ ExtendFootprintTTLOpFrame::doApply(Application& app, AbstractLedgerTxn& ltx,
     // This may throw, but only in case of the Core version misconfiguration.
     int64_t rentFee = rust_bridge::compute_rent_fee(
         app.getConfig().CURRENT_LEDGER_PROTOCOL_VERSION, ledgerVersion,
-        rustEntryRentChanges,
-        app.getLedgerManager()
-            .getSorobanNetworkConfig()
-            .rustBridgeRentFeeConfiguration(),
+        rustEntryRentChanges, sorobanConfig.rustBridgeRentFeeConfiguration(),
         ledgerSeq);
     if (!mParentTx.consumeRefundableSorobanResources(
-            0, rentFee, ledgerVersion,
-            app.getLedgerManager().getSorobanNetworkConfig(), app.getConfig()))
+            0, rentFee, ledgerVersion, sorobanConfig, app.getConfig()))
     {
         innerResult().code(EXTEND_FOOTPRINT_TTL_INSUFFICIENT_REFUNDABLE_FEE);
         return false;

@@ -1837,7 +1837,7 @@ validateContractLedgerEntry(LedgerKey const& lk, size_t entrySize,
     {
         parentTx.pushSimpleDiagnosticError(
             SCE_BUDGET, SCEC_EXCEEDED_LIMIT,
-            "WASM size exceeds network config maximum contract size",
+            "Wasm size exceeds network config maximum contract size",
             {makeU64SCVal(entrySize),
              makeU64SCVal(config.maxContractSizeBytes())});
         return false;
