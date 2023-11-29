@@ -1332,7 +1332,7 @@ ContractStorageInvocationTest::hasWithFootprint(
     resources.footprint.readOnly = readOnly;
     resources.footprint.readWrite = readWrite;
     resources.instructions = 4'000'000;
-    resources.readBytes = 10'000;
+    resources.readBytes = getNetworkCfg().txMaxReadBytes();
     resources.writeBytes = 0;
 
     auto resourceFee =
@@ -1456,7 +1456,7 @@ void
 ContractStorageInvocationTest::resizeStorageAndExtend(
     std::string const& key, uint32_t numKiloBytes, uint32_t thresh,
     uint32_t extendTo, uint32_t writeBytes, uint32_t refundableFee,
-    bool expectSuccess)
+    InvokeHostFunctionResultCode result)
 {
     auto keySymbol = makeSymbolSCVal(key);
     auto storageLK = contractDataKey(mContractID, keySymbol,
@@ -1484,7 +1484,18 @@ ContractStorageInvocationTest::resizeStorageAndExtend(
         createInvokeTx(resources, makeSymbol(funcStr),
                        {keySymbol, numKiloBytesU32, threshU32, extendToU32},
                        1'000, resourceFee);
-    invokeTx(tx, /*expectSuccess=*/expectSuccess, false);
+
+    bool expectSuccess = result == INVOKE_HOST_FUNCTION_SUCCESS;
+    invokeTx(tx, expectSuccess, false);
+
+    if (!expectSuccess)
+    {
+        REQUIRE(tx->getResult()
+                    .result.results()[0]
+                    .tr()
+                    .invokeHostFunctionResult()
+                    .code() == result);
+    }
 }
 }
 }

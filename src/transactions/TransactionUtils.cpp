@@ -1831,6 +1831,35 @@ getMinInclusionFee(TransactionFrameBase const& tx, LedgerHeader const& header,
     return effectiveBaseFee * std::max<int64_t>(1, tx.getNumOperations());
 }
 
+bool
+validateContractLedgerEntry(LedgerKey const& lk, size_t entrySize,
+                            SorobanNetworkConfig const& config,
+                            TransactionFrame& parentTx)
+{
+    // check contract code size limit
+    if (lk.type() == CONTRACT_CODE && config.maxContractSizeBytes() < entrySize)
+    {
+        parentTx.pushSimpleDiagnosticError(
+            SCE_BUDGET, SCEC_EXCEEDED_LIMIT,
+            "Wasm size exceeds network config maximum contract size",
+            {makeU64SCVal(entrySize),
+             makeU64SCVal(config.maxContractSizeBytes())});
+        return false;
+    }
+    // check contract data entry size limit
+    if (lk.type() == CONTRACT_DATA &&
+        config.maxContractDataEntrySizeBytes() < entrySize)
+    {
+        parentTx.pushSimpleDiagnosticError(
+            SCE_BUDGET, SCEC_EXCEEDED_LIMIT,
+            "ContractData size exceeds network config maximum size",
+            {makeU64SCVal(entrySize),
+             makeU64SCVal(config.maxContractDataEntrySizeBytes())});
+        return false;
+    }
+    return true;
+}
+
 LumenContractInfo
 getLumenContractInfo(Hash const& networkID)
 {

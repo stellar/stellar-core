@@ -517,6 +517,7 @@ TEST_CASE("basic contract invocation", "[tx][soroban]")
 TEST_CASE("invalid footprint keys", "[tx][soroban]")
 {
     WasmContractInvocationTest test(rust_bridge::get_test_wasm_add_i32());
+    auto const& cfg = test.getNetworkCfg();
 
     SorobanResources resources;
     resources.footprint.readOnly = test.getContractKeys();
@@ -662,6 +663,15 @@ TEST_CASE("invalid footprint keys", "[tx][soroban]")
         SECTION("TTL entry")
         {
             footprint.emplace_back(ttlKey);
+            f(false);
+        }
+        SECTION("contract data key above limit")
+        {
+            SCVal key;
+            key.type(SCV_BYTES);
+            key.bytes().resize(cfg.maxContractDataKeySizeBytes());
+            footprint.emplace_back(contractDataKey(
+                test.getContractID(), key, ContractDataDurability::PERSISTENT));
             f(false);
         }
     };
@@ -1443,6 +1453,141 @@ TEST_CASE("complex contract", "[tx][soroban]")
     }
 }
 
+TEST_CASE("ledger entry size limit enforced", "[tx][soroban]")
+{
+    ContractStorageInvocationTest test{};
+    auto const& cfg = test.getNetworkCfg();
+
+    uint32_t originalExpectedLiveUntilLedger =
+        cfg.stateArchivalSettings().minPersistentTTL + test.getLedgerSeq() - 1;
+
+    auto failedRestoreOp = [&](LedgerKey const& lk) {
+        SorobanResources resources;
+        resources.footprint.readWrite = {lk};
+        resources.instructions = 0;
+        resources.readBytes = cfg.txMaxReadBytes();
+        resources.writeBytes = cfg.txMaxWriteBytes();
+        auto resourceFee = 1'000'000;
+
+        auto restoreTX = test.createRestoreTx(resources, 1'000, resourceFee);
+        test.invokeTx(restoreTX, /*shouldSucceed*/ false,
+                      /*processPostApply*/ false);
+        REQUIRE(restoreTX->getResult()
+                    .result.results()[0]
+                    .tr()
+                    .restoreFootprintResult()
+                    .code() == RESTORE_FOOTPRINT_RESOURCE_LIMIT_EXCEEDED);
+    };
+
+    auto failedExtendOp = [&](LedgerKey const& lk) {
+        SorobanResources resources;
+        resources.footprint.readOnly = {lk};
+        resources.instructions = 0;
+        resources.readBytes = cfg.txMaxReadBytes();
+        resources.writeBytes = cfg.txMaxWriteBytes();
+        auto resourceFee = 1'000'000;
+
+        auto extendTx =
+            test.createExtendOpTx(resources, 100, 1'000, resourceFee);
+        test.invokeTx(extendTx, /*shouldSucceed*/ false,
+                      /*processPostApply*/ false);
+        REQUIRE(extendTx->getResult()
+                    .result.results()[0]
+                    .tr()
+                    .extendFootprintTTLResult()
+                    .code() == EXTEND_FOOTPRINT_TTL_RESOURCE_LIMIT_EXCEEDED);
+    };
+
+    SECTION("contract data limits")
+    {
+        // Instance and wasm should not expire
+        test.extendOp(test.getContractKeys(), 1'000);
+
+        // Approximately 75 bytes of overhead for the contract data entry
+        auto maxWriteSizeKiloBytes =
+            (cfg.maxContractDataEntrySizeBytes() - 100) / 1024;
+
+        // Check that ledger entry writes above max fail
+        test.resizeStorageAndExtend(
+            "key", maxWriteSizeKiloBytes + 1, 0, 0, cfg.txMaxWriteBytes(),
+            40'000, INVOKE_HOST_FUNCTION_RESOURCE_LIMIT_EXCEEDED);
+
+        test.resizeStorageAndExtend("key", maxWriteSizeKiloBytes, 0, 0,
+                                    cfg.txMaxWriteBytes(), 40'000);
+
+        REQUIRE(test.has("key", ContractDataDurability::PERSISTENT));
+
+        // Reduce max ledger entry size
+        modifySorobanNetworkConfig(
+            *test.getApp(), [](SorobanNetworkConfig& cfg) {
+                cfg.mMaxContractDataEntrySizeBytes -= 1024;
+            });
+
+        // Refresh cached settings
+        closeLedgerOn(*test.getApp(), test.getLedgerSeq() + 1, 2, 1, 2016);
+
+        // Check that write now fails
+        test.resizeStorageAndExtend(
+            "key2", maxWriteSizeKiloBytes, 0, 0, cfg.txMaxWriteBytes(), 40'000,
+            INVOKE_HOST_FUNCTION_RESOURCE_LIMIT_EXCEEDED);
+
+        auto lk = contractDataKey(test.getContractID(), makeSymbolSCVal("key"),
+                                  PERSISTENT);
+
+        // Extend should fail
+        failedExtendOp(lk);
+
+        // Reads should fail
+        test.has("key", ContractDataDurability::PERSISTENT,
+                 INVOKE_HOST_FUNCTION_RESOURCE_LIMIT_EXCEEDED);
+
+        // Archive entry
+        for (uint32_t i =
+                 test.getApp()->getLedgerManager().getLastClosedLedgerNum();
+             i <= originalExpectedLiveUntilLedger + 1; ++i)
+        {
+            closeLedgerOn(*test.getApp(), i, 2, 1, 2016);
+        }
+        REQUIRE(!test.isEntryLive({lk}, test.getLedgerSeq()));
+
+        // Restore should fail
+        failedRestoreOp(lk);
+    }
+
+    SECTION("contract code limits")
+    {
+        // Reduce max ledger entry size
+        modifySorobanNetworkConfig(*test.getApp(),
+                                   [](SorobanNetworkConfig& cfg) {
+                                       cfg.mMaxContractSizeBytes = 2000;
+                                   });
+
+        // Refresh cached settings
+        closeLedgerOn(*test.getApp(), test.getLedgerSeq() + 1, 2, 1, 2016);
+
+        // Check that contract invocation now fails
+        test.has("key", ContractDataDurability::PERSISTENT,
+                 INVOKE_HOST_FUNCTION_RESOURCE_LIMIT_EXCEEDED);
+
+        auto const& lk = test.getContractKeys().at(1);
+
+        // Extend should fail
+        failedExtendOp(lk);
+
+        // Archive entry
+        for (uint32_t i =
+                 test.getApp()->getLedgerManager().getLastClosedLedgerNum();
+             i <= originalExpectedLiveUntilLedger + 1; ++i)
+        {
+            closeLedgerOn(*test.getApp(), i, 2, 1, 2016);
+        }
+        REQUIRE(!test.isEntryLive({lk}, test.getLedgerSeq()));
+
+        // Restore should fail
+        failedRestoreOp(lk);
+    }
+}
+
 TEST_CASE("contract storage", "[tx][soroban]")
 {
     ContractStorageInvocationTest test{};
@@ -1486,12 +1631,12 @@ TEST_CASE("contract storage", "[tx][soroban]")
     SECTION("failure: entry size exceeds write bytes")
     {
         // 5kb write should fail because it exceeds the write bytes
-        test.resizeStorageAndExtend("key", 5, 1, 1, 5'000, 40'000,
-                                    /*expectSuccess=*/false);
+        test.resizeStorageAndExtend(
+            "key", 5, 1, 1, 5'000, 40'000,
+            INVOKE_HOST_FUNCTION_RESOURCE_LIMIT_EXCEEDED);
 
         // 5kb write should succeed with high write bytes value
-        test.resizeStorageAndExtend("key", 5, 1, 1, 10'000, 40'000,
-                                    /*expectSuccess=*/true);
+        test.resizeStorageAndExtend("key", 5, 1, 1, 10'000, 40'000);
     }
 
     SECTION("Same ScVal key, different types")
@@ -1920,8 +2065,7 @@ TEST_CASE("contract storage", "[tx][soroban]")
 
         // First, resize a key with large fee to guarantee success
         test.resizeStorageAndExtend("key1", resizeKilobytes, 0, 0, 10'000,
-                                    40'000,
-                                    /*expectSuccess=*/true);
+                                    40'000);
 
         auto sizeDeltaBytes = 0;
         {
@@ -1953,13 +2097,13 @@ TEST_CASE("contract storage", "[tx][soroban]")
             // the liveUntilLedgerSeq, so there is no TTL Entry write
             // charge
             auto resourceFee = expectedRentFee + 1;
-            test.resizeStorageAndExtend("key2", resizeKilobytes, 0, 0, 3'000,
-                                        resourceFee - 1,
-                                        /*expectSuccess=*/false);
+            test.resizeStorageAndExtend(
+                "key2", resizeKilobytes, 0, 0, 3'000, resourceFee - 1,
+                INVOKE_HOST_FUNCTION_INSUFFICIENT_REFUNDABLE_FEE);
 
             // Size change should succeed with enough refundable fee
             test.resizeStorageAndExtend("key2", resizeKilobytes, 0, 0, 3'000,
-                                        resourceFee, /*expectSuccess=*/true);
+                                        resourceFee);
         }
 
         SECTION("resize and extend")
@@ -1987,14 +2131,14 @@ TEST_CASE("contract storage", "[tx][soroban]")
             auto refundableFee =
                 resizeRentFee + rentFee + test.getTTLEntryWriteFee() + 1;
 
-            test.resizeStorageAndExtend("key2", resizeKilobytes, newLifetime,
-                                        newLifetime, 3'000, refundableFee - 1,
-                                        /*expectSuccess=*/false);
+            test.resizeStorageAndExtend(
+                "key2", resizeKilobytes, newLifetime, newLifetime, 3'000,
+                refundableFee - 1,
+                INVOKE_HOST_FUNCTION_INSUFFICIENT_REFUNDABLE_FEE);
 
             // Size change should succeed with enough refundable fee
             test.resizeStorageAndExtend("key2", resizeKilobytes, newLifetime,
-                                        newLifetime, 3'000, refundableFee,
-                                        /*expectSuccess=*/true);
+                                        newLifetime, 3'000, refundableFee);
         }
     }
 
@@ -2065,14 +2209,13 @@ TEST_CASE("contract storage", "[tx][soroban]")
             REQUIRE(!test.has("key2", ContractDataDurability::PERSISTENT));
 
             // Resize with too few writeBytes
-            test.resizeStorageAndExtend("key", /*numKiloBytes=*/5, 0, 0, 4'000,
-                                        300'000,
-                                        /*expectSuccess=*/false);
+            test.resizeStorageAndExtend(
+                "key", /*numKiloBytes=*/5, 0, 0, 4'000, 300'000,
+                INVOKE_HOST_FUNCTION_RESOURCE_LIMIT_EXCEEDED);
 
             // Resize with enough writeBytes
             test.resizeStorageAndExtend("key", /*numKiloBytes=*/5, 0, 0, 6'000,
-                                        300'000,
-                                        /*expectSuccess=*/true);
+                                        300'000);
 
             // Reading the entry should fail with insufficient readBytes
             test.getWithFootprint("key", ContractDataDurability::PERSISTENT,
@@ -2322,7 +2465,6 @@ TEST_CASE("error codes", "[tx][soroban]")
     {
         auto resourceCopy = extendResources;
 
-        auto resourceFee = DEFAULT_TEST_RESOURCE_FEE * contractKeys.size();
         auto tx =
             test.createExtendOpTx(extendResources, 10'000, 30'000, 30'000);
         test.invokeTx(tx, false);

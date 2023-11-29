@@ -327,35 +327,6 @@ InvokeHostFunctionOpFrame::maybePopulateDiagnosticEvents(
 }
 
 bool
-InvokeHostFunctionOpFrame::validateContractLedgerEntry(
-    LedgerEntry const& le, size_t entrySize, SorobanNetworkConfig const& config)
-{
-    // check contract code size limit
-    if (le.data.type() == CONTRACT_CODE &&
-        config.maxContractSizeBytes() < le.data.contractCode().code.size())
-    {
-        mParentTx.pushSimpleDiagnosticError(
-            SCE_BUDGET, SCEC_EXCEEDED_LIMIT,
-            "WASM size exceeds network config maximum contract size",
-            {makeU64SCVal(le.data.contractCode().code.size()),
-             makeU64SCVal(config.maxContractSizeBytes())});
-        return false;
-    }
-    // check contract data entry size limit
-    if (le.data.type() == CONTRACT_DATA &&
-        config.maxContractDataEntrySizeBytes() < entrySize)
-    {
-        mParentTx.pushSimpleDiagnosticError(
-            SCE_BUDGET, SCEC_EXCEEDED_LIMIT,
-            "ContractData size exceeds network config maximum size",
-            {makeU64SCVal(entrySize),
-             makeU64SCVal(config.maxContractDataEntrySizeBytes())});
-        return false;
-    }
-    return true;
-}
-
-bool
 InvokeHostFunctionOpFrame::doApply(Application& app, AbstractLedgerTxn& ltx,
                                    Hash const& sorobanBasePrngSeed)
 {
@@ -379,7 +350,8 @@ InvokeHostFunctionOpFrame::doApply(Application& app, AbstractLedgerTxn& ltx,
     ttlEntryCxxBufs.reserve(footprintLength);
 
     auto addReads = [&ledgerEntryCxxBufs, &ttlEntryCxxBufs, &ltx, &metrics,
-                     &resources, this](auto const& keys) -> bool {
+                     &resources, &sorobanConfig,
+                     this](auto const& keys) -> bool {
         for (auto const& lk : keys)
         {
             uint32_t keySize = static_cast<uint32_t>(xdr::xdr_size(lk));
@@ -442,6 +414,13 @@ InvokeHostFunctionOpFrame::doApply(Application& app, AbstractLedgerTxn& ltx,
             }
 
             metrics.noteReadEntry(isCodeKey(lk), keySize, entrySize);
+            if (!validateContractLedgerEntry(lk, entrySize, sorobanConfig,
+                                             mParentTx))
+            {
+                this->innerResult().code(
+                    INVOKE_HOST_FUNCTION_RESOURCE_LIMIT_EXCEEDED);
+                return false;
+            }
 
             if (resources.readBytes < metrics.mLedgerReadByte)
             {
@@ -543,7 +522,8 @@ InvokeHostFunctionOpFrame::doApply(Application& app, AbstractLedgerTxn& ltx,
     {
         LedgerEntry le;
         xdr::xdr_from_opaque(buf.data, le);
-        if (!validateContractLedgerEntry(le, buf.data.size(), sorobanConfig))
+        if (!validateContractLedgerEntry(LedgerEntryKey(le), buf.data.size(),
+                                         sorobanConfig, mParentTx))
         {
             innerResult().code(INVOKE_HOST_FUNCTION_RESOURCE_LIMIT_EXCEEDED);
             return false;
