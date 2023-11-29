@@ -107,8 +107,8 @@ In order to install the llvm (clang) toolchain, you may have to follow instructi
 
     sudo apt-get install clang-format-12
 
-### OS X
-When building on OSX, here's some dependencies you'll need:
+### MacOS 
+When building on MacOS, here's some dependencies you'll need:
 - Install xcode
 - Install [homebrew](https://brew.sh)
 - `brew install libsodium libtool autoconf automake pkg-config libpq openssl parallel ccache bison gnu-sed perl coreutils`
@@ -119,6 +119,22 @@ export PKG_CONFIG_PATH="$PKG_CONFIG_PATH:$(brew --prefix)/opt/libpq/lib/pkgconfi
 export PKG_CONFIG_PATH="$PKG_CONFIG_PATH:$(brew --prefix)/opt/openssl@3/lib/pkgconfig"
 export PATH="$(brew --prefix bison)/bin:$PATH"
 ```
+- Install `clang-format-12` 
+> Note: `brew` does not contain a cask for `clang-format-12`, and other versions of `clang-format`  have different formatting behavior.
+
+To install `clang-format-12`, run the commands listed below.
+```
+# Download clang+llvm 12.0.0 for x86_64 apple darwin.
+curl -OL https://github.com/llvm/llvm-project/releases/download/llvmorg-12.0.0/clang+llvm-12.0.0-x86_64-apple-darwin.tar.xz 
+# Unarchive the download.
+tar -xf clang+llvm-12.0.0-x86_64-apple-darwin.tar.xz 
+# Copy the contents of bin/clang-format to /usr/local/bin.
+sudo cp -R clang+llvm-12.0.0-x86_64-apple-darwin/bin/clang-format /usr/local/bin
+# Ensure "clang-format version 12.0.0" is printed.
+clang-format --version
+```
+
+> Note: macOS will block the execution for security purposes, open System Preferences > Security & Privacy and allow `clang-format` to run.
 
 ### Windows
 See [INSTALL-Windows.md](INSTALL-Windows.md)
@@ -162,7 +178,7 @@ Configuring with `--enable-tracy` will build and embed the client component of t
 
 The tracing client will activate automatically when stellar-core is running, and will listen for connections from Tracy servers (a command-line capture utility, or a cross-platform GUI).
 
-The Tracy server components can also be compiled by configuring with `--enable-tracy-gui` or `--enable-tracy-capture`.
+You do not need to download the tracy server, and will likely run into versioning issues if you do. Instead, the Tracy server components can also be compiled by configuring with `--enable-tracy-gui` or `--enable-tracy-capture`. Once compiled, the tracy server can be started with `./tracy-gui` or `./tracy`, respectively.
 
 The GUI depends on the `capstone`, `freetype` and `glfw` libraries and their headers, and on linux or BSD the `GTK-2.0` libraries and headers. On Windows and MacOS, native toolkits are used instead.
 

@@ -9,13 +9,11 @@ contributor license agreement.
 
 ## Submitting Changes
 
-Submit a pull request rebased on top of master
-
- * Include a descriptive commit message.
- * Changes contributed via pull request should focus on a single issue at a time.
-
-At this point you're waiting on us. We like to at least comment on pull requests within one week
-(and, typically, three business days). We may suggest some changes or improvements or alternatives.
+Fork the `stellar/stellar-core` repo on github and submit a pull request from a branch in your fork. 
+Key things to keep in mind:
+* Keep your branch up-to-date by rebasing on `stellar/stellar-core` `master`
+* Ensure your branch focuses on a single issue at a time
+* Before merging, squash your commits and ensure you have a descriptive commit message
 
 ## Stellar Core Contribution Specifics
 
