@@ -8,6 +8,7 @@
 #include "ledger/LedgerTxnEntry.h"
 #include "transactions/TransactionUtils.h"
 #include "util/ProtocolVersion.h"
+#include <Tracy.hpp>
 
 namespace stellar
 {
@@ -62,6 +63,7 @@ BeginSponsoringFutureReservesOpFrame::createSponsorshipCounter(
 bool
 BeginSponsoringFutureReservesOpFrame::doApply(AbstractLedgerTxn& ltx)
 {
+    ZoneNamedN(applyZone, "BeginSponsoringFutureReservesOpFrame apply", true);
     if (loadSponsorship(ltx, mBeginSponsoringFutureReservesOp.sponsoredID))
     {
         innerResult().code(BEGIN_SPONSORING_FUTURE_RESERVES_ALREADY_SPONSORED);

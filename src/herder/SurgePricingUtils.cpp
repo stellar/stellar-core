@@ -7,6 +7,7 @@
 #include "util/Logging.h"
 #include "util/numeric128.h"
 #include "util/types.h"
+#include <Tracy.hpp>
 #include <numeric>
 
 namespace stellar
@@ -156,6 +157,8 @@ SurgePricingPriorityQueue::getMostTopTxsWithinLimits(
     std::shared_ptr<SurgePricingLaneConfig> laneConfig,
     std::vector<bool>& hadTxNotFittingLane)
 {
+    ZoneScoped;
+
     SurgePricingPriorityQueue queue(
         /* isHighestPriority */ true, laneConfig,
         stellar::rand_uniform<size_t>(0, std::numeric_limits<size_t>::max()));
@@ -180,6 +183,8 @@ SurgePricingPriorityQueue::visitTopTxs(
     std::function<VisitTxStackResult(TxStack const&)> const& visitor,
     std::vector<Resource>& laneLeftUntilLimit)
 {
+    ZoneScoped;
+
     for (auto txStack : txStacks)
     {
         add(txStack);
@@ -237,6 +242,8 @@ SurgePricingPriorityQueue::popTopTxs(
     std::vector<Resource>& laneLeftUntilLimit,
     std::vector<bool>& hadTxNotFittingLane)
 {
+    ZoneScoped;
+
     laneLeftUntilLimit = mLaneLimits;
     hadTxNotFittingLane.assign(mLaneLimits.size(), false);
     while (true)
@@ -342,6 +349,8 @@ SurgePricingPriorityQueue::canFitWithEviction(
     TransactionFrameBase const& tx, std::optional<Resource> txDiscount,
     std::vector<std::pair<TxStackPtr, bool>>& txStacksToEvict) const
 {
+    ZoneScoped;
+
     // This only makes sense when the lowest fee rate tx is on top.
     releaseAssert(!mComparator.isGreater());
 

@@ -16,6 +16,8 @@ void
 createConfigSettingEntry(ConfigSettingEntry const& configSetting,
                          AbstractLedgerTxn& ltxRoot)
 {
+    ZoneScoped;
+
     if (!SorobanNetworkConfig::isValidConfigSettingEntry(configSetting))
     {
         throw std::runtime_error("Invalid configSettingEntry");
@@ -630,6 +632,8 @@ void
 SorobanNetworkConfig::createLedgerEntriesForV20(AbstractLedgerTxn& ltx,
                                                 Application& app)
 {
+    ZoneScoped;
+
     auto const& cfg = app.getConfig();
     createConfigSettingEntry(initialMaxContractSizeEntry(cfg), ltx);
     createConfigSettingEntry(initialMaxContractDataKeySizeEntry(cfg), ltx);
@@ -665,6 +669,8 @@ SorobanNetworkConfig::loadFromLedger(AbstractLedgerTxn& ltxRoot,
                                      uint32_t configMaxProtocol,
                                      uint32_t protocolVersion)
 {
+    ZoneScoped;
+
     LedgerTxn ltx(ltxRoot, false, TransactionMode::READ_ONLY_WITHOUT_SQL_TXN);
     loadMaxContractSize(ltx);
     loadMaxContractDataKeySize(ltx);
@@ -690,6 +696,8 @@ SorobanNetworkConfig::loadFromLedger(AbstractLedgerTxn& ltxRoot,
 void
 SorobanNetworkConfig::loadMaxContractSize(AbstractLedgerTxn& ltx)
 {
+    ZoneScoped;
+
     LedgerKey key(CONFIG_SETTING);
     key.configSetting().configSettingID =
         ConfigSettingID::CONFIG_SETTING_CONTRACT_MAX_SIZE_BYTES;
@@ -700,6 +708,8 @@ SorobanNetworkConfig::loadMaxContractSize(AbstractLedgerTxn& ltx)
 void
 SorobanNetworkConfig::loadMaxContractDataKeySize(AbstractLedgerTxn& ltx)
 {
+    ZoneScoped;
+
     LedgerKey key(CONFIG_SETTING);
     key.configSetting().configSettingID =
         ConfigSettingID::CONFIG_SETTING_CONTRACT_DATA_KEY_SIZE_BYTES;
@@ -711,6 +721,8 @@ SorobanNetworkConfig::loadMaxContractDataKeySize(AbstractLedgerTxn& ltx)
 void
 SorobanNetworkConfig::loadMaxContractDataEntrySize(AbstractLedgerTxn& ltx)
 {
+    ZoneScoped;
+
     LedgerKey key(CONFIG_SETTING);
     key.configSetting().configSettingID =
         ConfigSettingID::CONFIG_SETTING_CONTRACT_DATA_ENTRY_SIZE_BYTES;
@@ -722,6 +734,8 @@ SorobanNetworkConfig::loadMaxContractDataEntrySize(AbstractLedgerTxn& ltx)
 void
 SorobanNetworkConfig::loadComputeSettings(AbstractLedgerTxn& ltx)
 {
+    ZoneScoped;
+
     LedgerKey key(CONFIG_SETTING);
     key.configSetting().configSettingID =
         ConfigSettingID::CONFIG_SETTING_CONTRACT_COMPUTE_V0;
@@ -737,6 +751,8 @@ SorobanNetworkConfig::loadComputeSettings(AbstractLedgerTxn& ltx)
 void
 SorobanNetworkConfig::loadLedgerAccessSettings(AbstractLedgerTxn& ltx)
 {
+    ZoneScoped;
+
     LedgerKey key(CONFIG_SETTING);
     key.configSetting().configSettingID =
         ConfigSettingID::CONFIG_SETTING_CONTRACT_LEDGER_COST_V0;
@@ -763,6 +779,8 @@ SorobanNetworkConfig::loadLedgerAccessSettings(AbstractLedgerTxn& ltx)
 void
 SorobanNetworkConfig::loadHistoricalSettings(AbstractLedgerTxn& ltx)
 {
+    ZoneScoped;
+
     LedgerKey key(CONFIG_SETTING);
     key.configSetting().configSettingID =
         ConfigSettingID::CONFIG_SETTING_CONTRACT_HISTORICAL_DATA_V0;
@@ -775,6 +793,8 @@ SorobanNetworkConfig::loadHistoricalSettings(AbstractLedgerTxn& ltx)
 void
 SorobanNetworkConfig::loadContractEventsSettings(AbstractLedgerTxn& ltx)
 {
+    ZoneScoped;
+
     LedgerKey key(CONFIG_SETTING);
     key.configSetting().configSettingID =
         ConfigSettingID::CONFIG_SETTING_CONTRACT_EVENTS_V0;
@@ -787,6 +807,8 @@ SorobanNetworkConfig::loadContractEventsSettings(AbstractLedgerTxn& ltx)
 void
 SorobanNetworkConfig::loadBandwidthSettings(AbstractLedgerTxn& ltx)
 {
+    ZoneScoped;
+
     LedgerKey key(CONFIG_SETTING);
     key.configSetting().configSettingID =
         ConfigSettingID::CONFIG_SETTING_CONTRACT_BANDWIDTH_V0;
@@ -800,6 +822,8 @@ SorobanNetworkConfig::loadBandwidthSettings(AbstractLedgerTxn& ltx)
 void
 SorobanNetworkConfig::loadCpuCostParams(AbstractLedgerTxn& ltx)
 {
+    ZoneScoped;
+
     LedgerKey key(CONFIG_SETTING);
     key.configSetting().configSettingID =
         ConfigSettingID::CONFIG_SETTING_CONTRACT_COST_PARAMS_CPU_INSTRUCTIONS;
@@ -810,6 +834,8 @@ SorobanNetworkConfig::loadCpuCostParams(AbstractLedgerTxn& ltx)
 void
 SorobanNetworkConfig::loadMemCostParams(AbstractLedgerTxn& ltx)
 {
+    ZoneScoped;
+
     LedgerKey key(CONFIG_SETTING);
     key.configSetting().configSettingID =
         ConfigSettingID::CONFIG_SETTING_CONTRACT_COST_PARAMS_MEMORY_BYTES;
@@ -820,6 +846,8 @@ SorobanNetworkConfig::loadMemCostParams(AbstractLedgerTxn& ltx)
 void
 SorobanNetworkConfig::loadExecutionLanesSettings(AbstractLedgerTxn& ltx)
 {
+    ZoneScoped;
+
     LedgerKey key(CONFIG_SETTING);
     key.configSetting().configSettingID =
         ConfigSettingID::CONFIG_SETTING_CONTRACT_EXECUTION_LANES;
@@ -832,6 +860,8 @@ SorobanNetworkConfig::loadExecutionLanesSettings(AbstractLedgerTxn& ltx)
 void
 SorobanNetworkConfig::loadBucketListSizeWindow(AbstractLedgerTxn& ltx)
 {
+    ZoneScoped;
+
     LedgerKey key(CONFIG_SETTING);
     key.configSetting().configSettingID =
         ConfigSettingID::CONFIG_SETTING_BUCKETLIST_SIZE_WINDOW;
@@ -851,6 +881,8 @@ SorobanNetworkConfig::loadBucketListSizeWindow(AbstractLedgerTxn& ltx)
 void
 SorobanNetworkConfig::loadEvictionIterator(AbstractLedgerTxn& ltx)
 {
+    ZoneScoped;
+
     LedgerKey key(CONFIG_SETTING);
     key.configSetting().configSettingID =
         ConfigSettingID::CONFIG_SETTING_EVICTION_ITERATOR;
@@ -863,6 +895,8 @@ void
 SorobanNetworkConfig::writeBucketListSizeWindow(
     AbstractLedgerTxn& ltxRoot) const
 {
+    ZoneScoped;
+
     // Check that the window is loaded and the number of snapshots is correct
     releaseAssert(mBucketListSizeSnapshots.size() ==
                   mStateArchivalSettings.bucketListSizeWindowSampleSize);
@@ -889,6 +923,8 @@ SorobanNetworkConfig::writeBucketListSizeWindow(
 void
 SorobanNetworkConfig::updateBucketListSizeAverage()
 {
+    ZoneScoped;
+
     releaseAssert(!mBucketListSizeSnapshots.empty());
     uint64_t sizeSum = 0;
     for (auto const& size : mBucketListSizeSnapshots)
@@ -920,6 +956,8 @@ SorobanNetworkConfig::maxContractDataEntrySizeBytes() const
 void
 SorobanNetworkConfig::loadStateArchivalSettings(AbstractLedgerTxn& ltx)
 {
+    ZoneScoped;
+
     LedgerKey key(CONFIG_SETTING);
     key.configSetting().configSettingID =
         ConfigSettingID::CONFIG_SETTING_STATE_ARCHIVAL;
@@ -1087,6 +1125,8 @@ SorobanNetworkConfig::getBucketListSizeSnapshotPeriod() const
 void
 SorobanNetworkConfig::maybeUpdateBucketListWindowSize(AbstractLedgerTxn& ltx)
 {
+    ZoneScoped;
+
     // // Check if BucketList size window should exist
     if (protocolVersionIsBefore(ltx.loadHeader().current().ledgerVersion,
                                 SOROBAN_PROTOCOL_VERSION))
@@ -1128,6 +1168,8 @@ SorobanNetworkConfig::maybeSnapshotBucketListSize(uint32_t currLedger,
                                                   AbstractLedgerTxn& ltx,
                                                   Application& app)
 {
+    ZoneScoped;
+
     auto ledgerVersion = ltx.loadHeader().current().ledgerVersion;
     // // Check if BucketList size window should exist
     if (protocolVersionIsBefore(ledgerVersion, SOROBAN_PROTOCOL_VERSION) ||
@@ -1167,6 +1209,8 @@ void
 writeConfigSettingEntry(ConfigSettingEntry const& configSetting,
                         AbstractLedgerTxn& ltxRoot)
 {
+    ZoneScoped;
+
     LedgerEntry e;
     e.data.type(CONFIG_SETTING);
     e.data.configSetting() = configSetting;
@@ -1181,6 +1225,8 @@ writeConfigSettingEntry(ConfigSettingEntry const& configSetting,
 void
 SorobanNetworkConfig::writeAllSettings(AbstractLedgerTxn& ltx) const
 {
+    ZoneScoped;
+
     ConfigSettingEntry maxContractSizeEntry(
         CONFIG_SETTING_CONTRACT_MAX_SIZE_BYTES);
     maxContractSizeEntry.contractMaxSizeBytes() = mMaxContractSizeBytes;
@@ -1305,6 +1351,8 @@ void
 SorobanNetworkConfig::updateEvictionIterator(
     AbstractLedgerTxn& ltxRoot, EvictionIterator const& newIter) const
 {
+    ZoneScoped;
+
     mEvictionIterator = newIter;
 
     LedgerTxn ltx(ltxRoot);
@@ -1390,6 +1438,8 @@ void
 SorobanNetworkConfig::computeWriteFee(uint32_t configMaxProtocol,
                                       uint32_t protocolVersion)
 {
+    ZoneScoped;
+
     CxxWriteFeeConfiguration feeConfig{};
     feeConfig.bucket_list_target_size_bytes = mBucketListTargetSizeBytes;
     feeConfig.bucket_list_write_fee_growth_factor =

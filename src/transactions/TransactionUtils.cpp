@@ -351,6 +351,7 @@ LedgerTxnEntry
 loadClaimableBalance(AbstractLedgerTxn& ltx,
                      ClaimableBalanceID const& balanceID)
 {
+    ZoneScoped;
     return ltx.load(claimableBalanceKey(balanceID));
 }
 
@@ -398,18 +399,21 @@ loadTrustLineWithoutRecordIfNotNative(AbstractLedgerTxn& ltx,
 LedgerTxnEntry
 loadSponsorship(AbstractLedgerTxn& ltx, AccountID const& sponsoredID)
 {
+    ZoneScoped;
     return ltx.load(sponsorshipKey(sponsoredID));
 }
 
 LedgerTxnEntry
 loadSponsorshipCounter(AbstractLedgerTxn& ltx, AccountID const& sponsoringID)
 {
+    ZoneScoped;
     return ltx.load(sponsorshipCounterKey(sponsoringID));
 }
 
 LedgerTxnEntry
 loadMaxSeqNumToApply(AbstractLedgerTxn& ltx, AccountID const& sourceAccount)
 {
+    ZoneScoped;
     return ltx.load(maxSeqNumToApplyKey(sourceAccount));
 }
 

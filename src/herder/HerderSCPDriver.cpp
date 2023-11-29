@@ -198,8 +198,8 @@ SCPDriver::ValidationLevel
 HerderSCPDriver::validateValueHelper(uint64_t slotIndex, StellarValue const& b,
                                      bool nomination) const
 {
-    uint64_t lastCloseTime;
     ZoneScoped;
+    uint64_t lastCloseTime;
     if (b.ext.v() != STELLAR_VALUE_SIGNED)
     {
         CLOG_TRACE(Herder,

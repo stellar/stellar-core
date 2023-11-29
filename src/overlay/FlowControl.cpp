@@ -262,6 +262,8 @@ FlowControl::handleTxSizeIncrease(uint32_t increase, std::shared_ptr<Peer> peer)
 bool
 FlowControl::beginMessageProcessing(StellarMessage const& msg)
 {
+    ZoneScoped;
+
     return mFlowControlCapacity->lockLocalCapacity(msg) &&
            (!mFlowControlBytesCapacity ||
             mFlowControlBytesCapacity->lockLocalCapacity(msg));

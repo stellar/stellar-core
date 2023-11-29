@@ -754,6 +754,7 @@ TransactionFrame::validateSorobanResources(SorobanNetworkConfig const& config,
 void
 TransactionFrame::refundSorobanFee(AbstractLedgerTxn& ltxOuter)
 {
+    ZoneScoped;
     auto const feeRefund = mSorobanExtension->mFeeRefund;
     if (feeRefund == 0)
     {
@@ -785,6 +786,7 @@ TransactionFrame::computeSorobanResourceFee(
     uint32_t txSize, uint32_t eventsSize,
     SorobanNetworkConfig const& sorobanConfig, Config const& cfg)
 {
+    ZoneScoped;
     releaseAssertOrThrow(
         protocolVersionStartsFrom(protocolVersion, SOROBAN_PROTOCOL_VERSION));
     CxxTransactionResources cxxResources{};
@@ -819,6 +821,7 @@ TransactionFrame::computePreApplySorobanResourceFee(
     uint32_t protocolVersion, SorobanNetworkConfig const& sorobanConfig,
     Config const& cfg)
 {
+    ZoneScoped;
     releaseAssertOrThrow(isSoroban());
     // We always use the declared resource value for the resource fee
     // computation. The refunds are performed as a separate operation that
@@ -835,6 +838,7 @@ TransactionFrame::consumeRefundableSorobanResources(
     uint32_t contractEventSizeBytes, int64_t rentFee, uint32_t protocolVersion,
     SorobanNetworkConfig const& sorobanConfig, Config const& cfg)
 {
+    ZoneScoped;
     releaseAssertOrThrow(isSoroban());
     auto& consumedContractEventsSizeBytes =
         mSorobanExtension->mConsumedContractEventsSizeBytes;
@@ -1844,6 +1848,8 @@ TransactionFrame::processPostApply(Application& app,
                                    AbstractLedgerTxn& ltxOuter,
                                    TransactionMetaFrame& meta)
 {
+    ZoneScoped;
+
     if (!isSoroban())
     {
         return;
