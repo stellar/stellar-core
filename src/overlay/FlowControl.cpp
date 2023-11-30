@@ -78,7 +78,7 @@ FlowControl::hasOutboundCapacity(StellarMessage const& msg) const
 void
 FlowControl::start(std::weak_ptr<Peer> peer,
                    std::function<void(StellarMessage const&)> sendCb,
-                   bool enableFCBytes, uint32_t remoteVersion)
+                   bool enableFCBytes)
 {
     auto peerPtr = peer.lock();
     if (!peerPtr)
@@ -91,8 +91,8 @@ FlowControl::start(std::weak_ptr<Peer> peer,
 
     if (enableFCBytes)
     {
-        mFlowControlBytesCapacity = std::make_shared<FlowControlByteCapacity>(
-            mApp, mNodeID, remoteVersion);
+        mFlowControlBytesCapacity =
+            std::make_shared<FlowControlByteCapacity>(mApp, mNodeID);
         sendSendMore(
             mApp.getConfig().PEER_FLOOD_READING_CAPACITY,
             mApp.getOverlayManager().getFlowControlBytesConfig().mTotal,

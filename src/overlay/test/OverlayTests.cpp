@@ -145,35 +145,35 @@ TEST_CASE("flow control byte capacity", "[overlay][flowcontrol]")
 
     StellarMessage tx1;
     tx1.type(TRANSACTION);
+    tx1.transaction().type(ENVELOPE_TYPE_TX);
 
     // Make tx1 larger than the minimum we can set TX_MAX_SIZE_BYTES to.
-    tx1.transaction().v0().tx.operations.emplace_back(
+    tx1.transaction().v1().tx.operations.emplace_back(
         getOperationGreaterThanMinMaxSizeBytes());
-    auto getTxSize = [&]() {
-        return static_cast<uint32>(FlowControlCapacity::msgBodySize(
-            tx1, cfg1.OVERLAY_PROTOCOL_VERSION, cfg2.OVERLAY_PROTOCOL_VERSION));
+    auto getTxSize = [&](StellarMessage const& msg) {
+        return FlowControlCapacity::msgBodySize(msg);
+    };
+
+    auto txSize = getTxSize(tx1);
+    auto setupApp = [txSize, tx1](Application& app) {
+        app.getHerder().setMaxClassicTxSize(txSize);
+
+        if (appProtocolVersionStartsFrom(app, SOROBAN_PROTOCOL_VERSION))
+        {
+            overrideSorobanNetworkConfigForTest(app);
+            modifySorobanNetworkConfig(app, [tx1](SorobanNetworkConfig& cfg) {
+                cfg.mTxMaxSizeBytes = xdr::xdr_size(tx1.transaction());
+            });
+        }
+
+        app.start();
     };
 
     auto test = [&](bool shouldRequestMore) {
         auto app1 = createTestApplication(clock, cfg1, true, false);
         auto app2 = createTestApplication(clock, cfg2, true, false);
-        auto txSize = getTxSize();
         REQUIRE(txSize > MinimumSorobanNetworkConfig::TX_MAX_SIZE_BYTES);
 
-        auto setupApp = [txSize](Application& app) {
-            app.getHerder().setMaxClassicTxSize(txSize);
-
-            if (appProtocolVersionStartsFrom(app, SOROBAN_PROTOCOL_VERSION))
-            {
-                overrideSorobanNetworkConfigForTest(app);
-                modifySorobanNetworkConfig(app,
-                                           [txSize](SorobanNetworkConfig& cfg) {
-                                               cfg.mTxMaxSizeBytes = txSize;
-                                           });
-            }
-
-            app.start();
-        };
         setupApp(*app1);
         setupApp(*app2);
 
@@ -256,21 +256,24 @@ TEST_CASE("flow control byte capacity", "[overlay][flowcontrol]")
 
     SECTION("batch size is less than message size")
     {
-        cfg2.PEER_FLOOD_READING_CAPACITY_BYTES = 2 * getTxSize();
-        cfg2.FLOW_CONTROL_SEND_MORE_BATCH_SIZE_BYTES = getTxSize() / 2;
+        cfg2.PEER_FLOOD_READING_CAPACITY_BYTES =
+            2 * getTxSize(tx1) + Herder::FLOW_CONTROL_BYTES_EXTRA_BUFFER;
+        cfg2.FLOW_CONTROL_SEND_MORE_BATCH_SIZE_BYTES = getTxSize(tx1) / 2;
         test(true);
     }
     SECTION("batch size is greater than message size")
     {
-        cfg2.PEER_FLOOD_READING_CAPACITY_BYTES = 2 * getTxSize();
-        cfg2.FLOW_CONTROL_SEND_MORE_BATCH_SIZE_BYTES = 2 * getTxSize();
+        cfg2.PEER_FLOOD_READING_CAPACITY_BYTES =
+            2 * getTxSize(tx1) + Herder::FLOW_CONTROL_BYTES_EXTRA_BUFFER;
+        cfg2.FLOW_CONTROL_SEND_MORE_BATCH_SIZE_BYTES = 2 * getTxSize(tx1);
         // Invalid config, core will throw on startup
         REQUIRE_THROWS_AS(test(false), std::runtime_error);
     }
     SECTION("message count kicks in first")
     {
-        cfg2.PEER_FLOOD_READING_CAPACITY_BYTES = 3 * getTxSize();
-        cfg2.FLOW_CONTROL_SEND_MORE_BATCH_SIZE_BYTES = 2 * getTxSize();
+        cfg2.PEER_FLOOD_READING_CAPACITY_BYTES =
+            3 * getTxSize(tx1) + Herder::FLOW_CONTROL_BYTES_EXTRA_BUFFER;
+        cfg2.FLOW_CONTROL_SEND_MORE_BATCH_SIZE_BYTES = 2 * getTxSize(tx1);
         cfg2.PEER_FLOOD_READING_CAPACITY = 1;
         cfg2.FLOW_CONTROL_SEND_MORE_BATCH_SIZE = 1;
         test(true);
@@ -278,52 +281,60 @@ TEST_CASE("flow control byte capacity", "[overlay][flowcontrol]")
     SECTION("mixed versions")
     {
         cfg1.OVERLAY_PROTOCOL_VERSION =
-            Peer::FIRST_VERSION_UPDATED_FLOW_CONTROL_ACCOUNTING - 1;
-        cfg1.PEER_FLOOD_READING_CAPACITY_BYTES = 2 * getTxSize();
-        cfg1.FLOW_CONTROL_SEND_MORE_BATCH_SIZE_BYTES = getTxSize();
+            Peer::FIRST_VERSION_SUPPORTING_FLOW_CONTROL_IN_BYTES;
+        cfg1.PEER_FLOOD_READING_CAPACITY_BYTES =
+            2 * getTxSize(tx1) + Herder::FLOW_CONTROL_BYTES_EXTRA_BUFFER;
+        cfg1.FLOW_CONTROL_SEND_MORE_BATCH_SIZE_BYTES = getTxSize(tx1);
 
-        cfg2.PEER_FLOOD_READING_CAPACITY_BYTES = 2 * getTxSize();
-        cfg2.FLOW_CONTROL_SEND_MORE_BATCH_SIZE_BYTES = getTxSize();
+        cfg2.PEER_FLOOD_READING_CAPACITY_BYTES =
+            2 * getTxSize(tx1) + Herder::FLOW_CONTROL_BYTES_EXTRA_BUFFER;
+        cfg2.FLOW_CONTROL_SEND_MORE_BATCH_SIZE_BYTES = getTxSize(tx1);
         test(true);
     }
     SECTION("older versions")
     {
         cfg1.OVERLAY_PROTOCOL_VERSION =
-            Peer::FIRST_VERSION_UPDATED_FLOW_CONTROL_ACCOUNTING - 1;
+            Peer::FIRST_VERSION_SUPPORTING_FLOW_CONTROL_IN_BYTES;
         cfg2.OVERLAY_PROTOCOL_VERSION =
-            Peer::FIRST_VERSION_UPDATED_FLOW_CONTROL_ACCOUNTING - 1;
-        cfg1.PEER_FLOOD_READING_CAPACITY_BYTES = 2 * getTxSize();
-        cfg1.FLOW_CONTROL_SEND_MORE_BATCH_SIZE_BYTES = getTxSize();
-        cfg2.PEER_FLOOD_READING_CAPACITY_BYTES = 2 * getTxSize();
-        cfg2.FLOW_CONTROL_SEND_MORE_BATCH_SIZE_BYTES = getTxSize();
+            Peer::FIRST_VERSION_SUPPORTING_FLOW_CONTROL_IN_BYTES;
+        cfg1.PEER_FLOOD_READING_CAPACITY_BYTES =
+            2 * getTxSize(tx1) + Herder::FLOW_CONTROL_BYTES_EXTRA_BUFFER;
+        cfg1.FLOW_CONTROL_SEND_MORE_BATCH_SIZE_BYTES = getTxSize(tx1);
+        cfg2.PEER_FLOOD_READING_CAPACITY_BYTES =
+            2 * getTxSize(tx1) + Herder::FLOW_CONTROL_BYTES_EXTRA_BUFFER;
+        cfg2.FLOW_CONTROL_SEND_MORE_BATCH_SIZE_BYTES = getTxSize(tx1);
         test(true);
     }
     SECTION("transaction size upgrades")
     {
         auto tx2 = tx1;
-        tx2.transaction().v0().signatures.emplace_back(
-            SignatureUtils::sign(SecretKey::random(), HashUtils::random()));
-        auto txSize = getTxSize();
-        uint32 txSize2 = FlowControlCapacity::msgBodySize(
-            tx2, cfg1.OVERLAY_PROTOCOL_VERSION, cfg2.OVERLAY_PROTOCOL_VERSION);
-        REQUIRE(txSize2 > MinimumSorobanNetworkConfig::TX_MAX_SIZE_BYTES);
+        for (int i = 0; i < tx2.transaction().v1().signatures.max_size(); i++)
+        {
+            tx2.transaction().v1().signatures.emplace_back(
+                SignatureUtils::sign(SecretKey::random(), HashUtils::random()));
+        }
+        auto txSize2 = getTxSize(tx2);
+        REQUIRE(xdr::xdr_size(tx2.transaction()) >
+                MinimumSorobanNetworkConfig::TX_MAX_SIZE_BYTES);
         REQUIRE(txSize2 > txSize + 1);
+
+        // Just enough buffer to fit fee-bumps, but not tx2
+        auto bufferSize = 100;
 
         // Configure flow control such that tx2 can't be sent
         cfg1.FLOW_CONTROL_SEND_MORE_BATCH_SIZE_BYTES = txSize + 1;
         cfg1.PEER_FLOOD_READING_CAPACITY_BYTES =
-            cfg2.FLOW_CONTROL_SEND_MORE_BATCH_SIZE_BYTES + txSize;
+            cfg1.FLOW_CONTROL_SEND_MORE_BATCH_SIZE_BYTES + txSize + bufferSize;
         cfg2.FLOW_CONTROL_SEND_MORE_BATCH_SIZE_BYTES = txSize + 1;
         cfg2.PEER_FLOOD_READING_CAPACITY_BYTES =
-            cfg2.FLOW_CONTROL_SEND_MORE_BATCH_SIZE_BYTES + txSize;
+            cfg2.FLOW_CONTROL_SEND_MORE_BATCH_SIZE_BYTES + txSize + bufferSize;
 
         auto app1 = createTestApplication(clock, cfg1, true, false);
         auto app2 = createTestApplication(clock, cfg2, true, false);
-        app1->getHerder().setMaxClassicTxSize(txSize);
-        app2->getHerder().setMaxClassicTxSize(txSize);
-
-        app1->start();
-        app2->start();
+        app1->getHerder().setFlowControlExtraBufferSize(bufferSize);
+        app2->getHerder().setFlowControlExtraBufferSize(bufferSize);
+        setupApp(*app1);
+        setupApp(*app2);
 
         LoopbackPeerConnection conn(*app1, *app2);
         testutil::crankSome(clock);
@@ -351,14 +362,36 @@ TEST_CASE("flow control byte capacity", "[overlay][flowcontrol]")
             }
             txtest::executeUpgrade(*app, txtest::makeConfigUpgrade(*res));
         };
-        upgradeApp(app1, txSize);
-        upgradeApp(app2, txSize);
 
         auto& txsRecv =
             app2->getMetrics().NewTimer({"overlay", "recv", "transaction"});
         auto start = txsRecv.count();
         conn.getInitiator()->sendMessage(std::make_shared<StellarMessage>(tx1));
 
+        auto makeFeeBump = [&](StellarMessage const& tx) {
+            StellarMessage feeBump;
+            feeBump.type(TRANSACTION);
+            feeBump.transaction().type(ENVELOPE_TYPE_TX_FEE_BUMP);
+            feeBump.transaction().feeBump().tx.innerTx.type(ENVELOPE_TYPE_TX);
+            feeBump.transaction().feeBump().tx.innerTx.v1().tx =
+                tx.transaction().v1().tx;
+            return feeBump;
+        };
+
+        SECTION("overlay buffer is big enough")
+        {
+            auto feeBump = makeFeeBump(tx2);
+            for (int i = 0;
+                 i < feeBump.transaction().feeBump().signatures.max_size(); i++)
+            {
+                feeBump.transaction().feeBump().signatures.emplace_back(
+                    SignatureUtils::sign(SecretKey::random(),
+                                         HashUtils::random()));
+            }
+            REQUIRE(xdr::xdr_size(feeBump) <
+                    xdr::xdr_size(tx2.transaction()) +
+                        Herder::FLOW_CONTROL_BYTES_EXTRA_BUFFER);
+        }
         SECTION("no upgrade, drop messages over limit")
         {
             conn.getInitiator()->sendMessage(
@@ -369,13 +402,26 @@ TEST_CASE("flow control byte capacity", "[overlay][flowcontrol]")
             REQUIRE(conn.getInitiator()->getTxQueueByteCount() == 0);
             REQUIRE(txsRecv.count() == start + 1);
         }
+        SECTION("fee bump is within limit")
+        {
+            StellarMessage feeBump = makeFeeBump(tx1);
+            // Can still send the fee-bump message, even though it's technically
+            // greater than Soroban tx size limit
+            conn.getInitiator()->sendMessage(
+                std::make_shared<StellarMessage>(feeBump));
+            testutil::crankSome(clock);
+            // Both tx1 and fee-bump got sent
+            REQUIRE(conn.getInitiator()->getTxQueueByteCount() == 0);
+            REQUIRE(txsRecv.count() == start + 2);
+        }
         SECTION("upgrade increases limit")
         {
+            auto upgradeTo = xdr::xdr_size(tx2.transaction());
             SECTION("both upgrade")
             {
                 // First increase the limit
-                upgradeApp(app1, txSize2);
-                upgradeApp(app2, txSize2);
+                upgradeApp(app1, upgradeTo);
+                upgradeApp(app2, upgradeTo);
 
                 // Allow the upgrade to go through, and SEND_MORE messages to be
                 // sent
@@ -386,6 +432,17 @@ TEST_CASE("flow control byte capacity", "[overlay][flowcontrol]")
                 REQUIRE(conn.getInitiator()->getTxQueueByteCount() == 0);
                 REQUIRE(txsRecv.count() == start + 2);
 
+                SECTION("fee-bump for tx2 is within limit after upgrade")
+                {
+                    StellarMessage feeBump2 = makeFeeBump(tx2);
+                    testutil::crankSome(clock);
+                    conn.getInitiator()->sendMessage(
+                        std::make_shared<StellarMessage>(feeBump2));
+                    testutil::crankSome(clock);
+                    // Fee-bump got sent
+                    REQUIRE(conn.getInitiator()->getTxQueueByteCount() == 0);
+                    REQUIRE(txsRecv.count() == start + 3);
+                }
                 SECTION("upgrade decreases limit")
                 {
                     // Place another large tx in the queue, then immediately
@@ -435,7 +492,7 @@ TEST_CASE("flow control byte capacity", "[overlay][flowcontrol]")
                 // This means the initiator will not drop messages of bigger
                 // size, but they'll be stuck in the queue until the acceptor
                 // upgrades
-                upgradeApp(app1, txSize2);
+                upgradeApp(app1, upgradeTo);
 
                 // Allow the upgrade to go through
                 testutil::crankSome(clock);
@@ -451,7 +508,7 @@ TEST_CASE("flow control byte capacity", "[overlay][flowcontrol]")
                 SECTION("acceptor eventually upgrades")
                 {
                     // Upgrade acceptor, now the message goes through
-                    upgradeApp(app2, txSize2);
+                    upgradeApp(app2, upgradeTo);
                     testutil::crankSome(clock);
                     REQUIRE(conn.getInitiator()->getTxQueueByteCount() == 0);
                     REQUIRE(txsRecv.count() == start + 2);
@@ -597,7 +654,7 @@ TEST_CASE("loopback peer flow control activation", "[overlay][flowcontrol]")
             SECTION("mix versions")
             {
                 cfg1.OVERLAY_PROTOCOL_VERSION =
-                    Peer::FIRST_VERSION_UPDATED_FLOW_CONTROL_ACCOUNTING - 1;
+                    Peer::FIRST_VERSION_SUPPORTING_FLOW_CONTROL_IN_BYTES;
                 runTest({cfg1, cfg2}, false);
             }
             SECTION("bad peer")
@@ -632,7 +689,8 @@ TEST_CASE("drop peers that dont respect capacity", "[overlay][flowcontrol]")
     auto test = [&](bool fcBytes) {
         if (fcBytes)
         {
-            cfg1.PEER_FLOOD_READING_CAPACITY_BYTES = txSize + 1;
+            cfg1.PEER_FLOOD_READING_CAPACITY_BYTES =
+                txSize + 1 + Herder::FLOW_CONTROL_BYTES_EXTRA_BUFFER;
             cfg1.FLOW_CONTROL_SEND_MORE_BATCH_SIZE_BYTES = 1;
         }
         else
@@ -2184,7 +2242,8 @@ TEST_CASE("overlay flow control", "[overlay][flowcontrol]")
         cfg.PEER_READING_CAPACITY = 1;
         cfg.FLOW_CONTROL_SEND_MORE_BATCH_SIZE = 1;
         cfg.PEER_FLOOD_READING_CAPACITY_BYTES =
-            MinimumSorobanNetworkConfig::TX_MAX_SIZE_BYTES + 100;
+            MinimumSorobanNetworkConfig::TX_MAX_SIZE_BYTES + 100 +
+            Herder::FLOW_CONTROL_BYTES_EXTRA_BUFFER;
         cfg.FLOW_CONTROL_SEND_MORE_BATCH_SIZE_BYTES = 100;
         cfg.TESTING_UPGRADE_MAX_TX_SET_SIZE = 1000;
         configs.push_back(cfg);

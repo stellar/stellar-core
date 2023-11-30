@@ -170,7 +170,7 @@ class FlowControl
 
     void start(std::weak_ptr<Peer> peer,
                std::function<void(StellarMessage const&)> sendCb,
-               bool enableFCBytes, uint32_t remoteVersion);
+               bool enableFCBytes);
 };
 
 }
