@@ -130,10 +130,11 @@ TESTS=test/selftest-nopg
 endif # !USE_POSTGRES
 TESTS += test/check-nondet
 
-if USE_CLANG_FORMAT
 format: always
+if USE_CLANG_FORMAT
 	cd $(srcdir) && $(CLANG_FORMAT) -style=file -i $(SRC_CXX_FILES) $(SRC_H_FILES) $(SRC_TEST_CXX_FILES) $(SRC_TEST_H_FILES)
 endif # USE_CLANG_FORMAT
+	cd $(srcdir) && $(CARGO) fmt --all
 
 if USE_AFL_FUZZ
 FUZZER_MODE ?= overlay
