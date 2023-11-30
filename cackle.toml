@@ -93,6 +93,9 @@ allow_unsafe = true
 
 [pkg.rand_chacha]
 allow_unsafe = true
+from.test.allow_apis = [
+    "rand",
+]
 
 [pkg.soroban-env-host]
 allow_unsafe = true
@@ -273,6 +276,9 @@ build.allow_apis = [
     "env",
 ]
 allow_unsafe = true
+from.test.allow_apis = [
+    "hash",
+]
 
 [pkg.getrandom]
 allow_unsafe = true
@@ -321,6 +327,9 @@ allow_unsafe = true
 
 [pkg.wasmparser]
 allow_unsafe = true
+from.test.allow_apis = [
+    "hash",
+]
 
 [pkg.crate-git-revision]
 from.build.allow_apis = [
@@ -387,3 +396,6 @@ allow_unsafe = true
 
 [pkg.stellar-core]
 allow_unsafe = true
+test.allow_apis = [
+    "rand",
+]

@@ -28,7 +28,7 @@ jobs:
     steps:
       - uses: actions/checkout@v3
       - uses: cackle-rs/cackle-action@387fe459d8c037a0e7fbcd3d868f1aaba389d057
-      - run: cargo acl -n run
+      - run: cargo acl -n test
 
   cargo-deny:
     runs-on: ubuntu-latest
