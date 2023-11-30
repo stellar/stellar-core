@@ -5,6 +5,7 @@
 #pragma once
 
 #include "historywork/RunCommandWork.h"
+#include "medida/medida.h"
 
 namespace stellar
 {
@@ -18,6 +19,8 @@ class GetRemoteFileWork : public RunCommandWork
     std::shared_ptr<HistoryArchive> const mArchive;
     std::shared_ptr<HistoryArchive> mCurrentArchive;
     CommandInfo getCommand() override;
+    medida::Meter& mFailuresPerSecond;
+    medida::Meter& mBytesPerSecond;
 
   public:
     // Passing `nullptr` for the archive argument will cause the work to
