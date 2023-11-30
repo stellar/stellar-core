@@ -1221,9 +1221,14 @@ LoadGenerator::invokeSorobanLoadTransaction(uint32_t ledgerNum,
         resources.footprint.readWrite.emplace_back(lk);
     }
 
-    uint32_t maxKiloBytesPerEntry =
-        (networkCfg.mTxMaxReadBytes - mContactOverheadBytes) / numEntries /
-        1024;
+    uint32_t maxKiloBytesPerEntry = 0;
+    if (networkCfg.mTxMaxReadBytes > mContactOverheadBytes && numEntries > 0)
+    {
+        maxKiloBytesPerEntry =
+            (networkCfg.mTxMaxReadBytes - mContactOverheadBytes) / numEntries /
+            1024;
+    }
+
     maxKiloBytesPerEntry =
         std::min(maxKiloBytesPerEntry, cfg.kiloBytesPerDataEntryHigh);
     uint32_t minKiloBytesPerEntry =
