@@ -484,8 +484,7 @@ fn check_lockfile_has_expected_dep_tree(
     } else {
         // In non-vnext core builds, we're more strict about the versions
         // matching.
-        if stellar_core_proto_version != soroban_host_proto_version
-        {
+        if stellar_core_proto_version != soroban_host_proto_version {
             panic!(
                 "stellar-core \"{}\" protocol is {}, does not match soroban host \"{}\" protocol {}",
                 curr_or_prev, stellar_core_proto_version, curr_or_prev, soroban_host_proto_version
