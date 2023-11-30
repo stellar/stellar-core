@@ -20,6 +20,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v3
+    - run: rustup component add rustfmt
     - run: rustup update
     - run: cargo fmt --all --check
 
