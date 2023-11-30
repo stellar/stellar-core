@@ -378,6 +378,20 @@ TEST_CASE("flow control byte capacity", "[overlay][flowcontrol]")
             return feeBump;
         };
 
+        SECTION("overlay buffer is big enough")
+        {
+            auto feeBump = makeFeeBump(tx2);
+            for (int i = 0;
+                 i < feeBump.transaction().feeBump().signatures.max_size(); i++)
+            {
+                feeBump.transaction().feeBump().signatures.emplace_back(
+                    SignatureUtils::sign(SecretKey::random(),
+                                         HashUtils::random()));
+            }
+            REQUIRE(xdr::xdr_size(feeBump) <
+                    xdr::xdr_size(tx2.transaction()) +
+                        Herder::FLOW_CONTROL_BYTES_EXTRA_BUFFER);
+        }
         SECTION("no upgrade, drop messages over limit")
         {
             conn.getInitiator()->sendMessage(
