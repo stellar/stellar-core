@@ -6,27 +6,27 @@
                 "v": 0
             },
             "ledgerHeader": {
-                "hash": "bcd4314b9a2aa28e5a7d9c23fd474a858fea64b71780e51bc461cfc65d53486b",
+                "hash": "445fd32a8cc4316e1658bf1ac0fe4069f6d414a612b8fe0358b70662ae907308",
                 "header": {
                     "ledgerVersion": 20,
-                    "previousLedgerHash": "b40c05541a6a5df49c2ff587f3d552134c036ae9a5bc677953fedf095c8e51c5",
+                    "previousLedgerHash": "0ced7c7ccc1fd3b58c70d634c381deb927d468dd19c3cda967b8e83fe4f2141a",
                     "scpValue": {
-                        "txSetHash": "c1d9b37d66eb05cae9f8d386936bbb42c099828928d49f673b45c31b0ee3d090",
+                        "txSetHash": "4a344ff588f3eeb31d745b1b13c623f8e840d5990dd6fe251a306ba80a3c192f",
                         "closeTime": 1451692800,
                         "upgrades": [],
                         "ext": {
                             "v": "STELLAR_VALUE_SIGNED",
                             "lcValueSignature": {
                                 "nodeID": "GDDOUW25MRFLNXQMN3OODP6JQEXSGLMHAFZV4XPQ2D3GA4QFIDMEJG2O",
-                                "signature": "7b27c95420d96b42924c50a8886855067be8d709064dc403c4dbaccaa2a26eff31d47ea707f4b8f8a1cbc479138a687897d5fecd58b68b8ea68818de6d035b07"
+                                "signature": "67efdd2315306621bf8c8f05770ba8e793e7262594179cc13696fef525e52b0a1e699e69b338363b76af53ff724845250317f3c8d28c47c506ee5de72bc2f902"
                             }
                         }
                     },
-                    "txSetResultHash": "b792652d87108192265bf24da68e3e4845b6d29e497abd68b1aed3d22736d3db",
-                    "bucketListHash": "fa9a189f088d24a08541c5679e53b02d0fa8ac04587bd92f07da9b1efb616229",
+                    "txSetResultHash": "2e04ecbd9347c3b1336bdeb54f8b47839427918c0f9a72577a31990349a3610a",
+                    "bucketListHash": "87a61fa6bb288805f4d390626b127dca432a308c412f7bd73504ae58bbc95106",
                     "ledgerSeq": 23,
                     "totalCoins": 1000000000000000000,
-                    "feePool": 404988,
+                    "feePool": 384917,
                     "inflationSeq": 0,
                     "idPool": 0,
                     "baseFee": 100,
@@ -49,7 +49,7 @@
             "txSet": {
                 "v": 1,
                 "v1TxSet": {
-                    "previousLedgerHash": "b40c05541a6a5df49c2ff587f3d552134c036ae9a5bc677953fedf095c8e51c5",
+                    "previousLedgerHash": "0ced7c7ccc1fd3b58c70d634c381deb927d468dd19c3cda967b8e83fe4f2141a",
                     "phases": [
                         {
                             "v": 0,
@@ -63,6 +63,97 @@
                                     "txsMaybeDiscountedFee": {
                                         "baseFee": 100,
                                         "txs": [
+                                            {
+                                                "type": "ENVELOPE_TYPE_TX",
+                                                "v1": {
+                                                    "tx": {
+                                                        "sourceAccount": "GAM4XNEHJUHN7VE3ZWJI23R2WS3SJS2BTUHZAC6XICXLXO2HPX4QI2IR",
+                                                        "fee": 127626,
+                                                        "seqNum": 25769803777,
+                                                        "cond": {
+                                                            "type": "PRECOND_NONE"
+                                                        },
+                                                        "memo": {
+                                                            "type": "MEMO_NONE"
+                                                        },
+                                                        "operations": [
+                                                            {
+                                                                "sourceAccount": null,
+                                                                "body": {
+                                                                    "type": "INVOKE_HOST_FUNCTION",
+                                                                    "invokeHostFunctionOp": {
+                                                                        "hostFunction": {
+                                                                            "type": "HOST_FUNCTION_TYPE_INVOKE_CONTRACT",
+                                                                            "invokeContract": {
+                                                                                "contractAddress": {
+                                                                                    "type": "SC_ADDRESS_TYPE_CONTRACT",
+                                                                                    "contractId": "df06d62447fd25da07c0135eed7557e5a5497ee7d15b7fe345bd47e191d8f577"
+                                                                                },
+                                                                                "functionName": "put_persistent",
+                                                                                "args": [
+                                                                                    {
+                                                                                        "type": "SCV_SYMBOL",
+                                                                                        "sym": "key"
+                                                                                    },
+                                                                                    {
+                                                                                        "type": "SCV_U64",
+                                                                                        "u64": 42
+                                                                                    }
+                                                                                ]
+                                                                            }
+                                                                        },
+                                                                        "auth": []
+                                                                    }
+                                                                }
+                                                            }
+                                                        ],
+                                                        "ext": {
+                                                            "v": 1,
+                                                            "sorobanData": {
+                                                                "ext": {
+                                                                    "v": 0
+                                                                },
+                                                                "resources": {
+                                                                    "footprint": {
+                                                                        "readOnly": [
+                                                                            {
+                                                                                "type": "CONTRACT_DATA",
+                                                                                "contractData": {
+                                                                                    "contract": {
+                                                                                        "type": "SC_ADDRESS_TYPE_CONTRACT",
+                                                                                        "contractId": "df06d62447fd25da07c0135eed7557e5a5497ee7d15b7fe345bd47e191d8f577"
+                                                                                    },
+                                                                                    "key": {
+                                                                                        "type": "SCV_LEDGER_KEY_CONTRACT_INSTANCE"
+                                                                                    },
+                                                                                    "durability": "PERSISTENT"
+                                                                                }
+                                                                            },
+                                                                            {
+                                                                                "type": "CONTRACT_CODE",
+                                                                                "contractCode": {
+                                                                                    "hash": "fc644715caaead746e6145f4331ff75c427c965c20d2995a9942b01247515962"
+                                                                                }
+                                                                            }
+                                                                        ],
+                                                                        "readWrite": []
+                                                                    },
+                                                                    "instructions": 4000000,
+                                                                    "readBytes": 10000,
+                                                                    "writeBytes": 1000
+                                                                },
+                                                                "resourceFee": 126626
+                                                            }
+                                                        }
+                                                    },
+                                                    "signatures": [
+                                                        {
+                                                            "hint": "477df904",
+                                                            "signature": "5662570c0f5c0f2466bde3020857c19f3470f6ec3e0103876e65a372ccaf84b4affe3d099946582485ece1114081c6093244fc030154504ed9c49c9f3ef88c03"
+                                                        }
+                                                    ]
+                                                }
+                                            },
                                             {
                                                 "type": "ENVELOPE_TYPE_TX",
                                                 "v1": {
@@ -183,7 +274,7 @@
                                                                             {
                                                                                 "type": "CONTRACT_CODE",
                                                                                 "contractCode": {
-                                                                                    "hash": "4e197ebcb9a25bafe2ab5be167c2a20ccde599abc1077b5dbbea1ffade1a11c8"
+                                                                                    "hash": "fc644715caaead746e6145f4331ff75c427c965c20d2995a9942b01247515962"
                                                                                 }
                                                                             }
                                                                         ],
@@ -200,7 +291,7 @@
                                                     "signatures": [
                                                         {
                                                             "hint": "f7f60229",
-                                                            "signature": "c1a23174799b8e1cf6bdc3408b35896f278efd45c6069b0cd6b9d1b5da3294fc1bae8a272920b432fd00b0dd3f63e09612c1304c04c7b4b4a4d21de2cfa33208"
+                                                            "signature": "a1fbcb30c12554ac9cf914720b8d427f43a2f6ffc011e581264675f75a5e8eac786bc54369b9f87e1dd78e090cf87546ff83c46998106e7fa05758a16708720d"
                                                         }
                                                     ]
                                                 }
@@ -274,7 +365,7 @@
                                                                             {
                                                                                 "type": "CONTRACT_CODE",
                                                                                 "contractCode": {
-                                                                                    "hash": "4e197ebcb9a25bafe2ab5be167c2a20ccde599abc1077b5dbbea1ffade1a11c8"
+                                                                                    "hash": "fc644715caaead746e6145f4331ff75c427c965c20d2995a9942b01247515962"
                                                                                 }
                                                                             }
                                                                         ],
@@ -306,98 +397,7 @@
                                                     "signatures": [
                                                         {
                                                             "hint": "e189b409",
-                                                            "signature": "605a31c77ba28c5bdc31c94edd194e49998de27a28d7b50463d313df0f20bc0538211a96185174c1ef3c47ba658e3a5137c6a4ff6e524d4de3136650ce299c0c"
-                                                        }
-                                                    ]
-                                                }
-                                            },
-                                            {
-                                                "type": "ENVELOPE_TYPE_TX",
-                                                "v1": {
-                                                    "tx": {
-                                                        "sourceAccount": "GAM4XNEHJUHN7VE3ZWJI23R2WS3SJS2BTUHZAC6XICXLXO2HPX4QI2IR",
-                                                        "fee": 127626,
-                                                        "seqNum": 25769803777,
-                                                        "cond": {
-                                                            "type": "PRECOND_NONE"
-                                                        },
-                                                        "memo": {
-                                                            "type": "MEMO_NONE"
-                                                        },
-                                                        "operations": [
-                                                            {
-                                                                "sourceAccount": null,
-                                                                "body": {
-                                                                    "type": "INVOKE_HOST_FUNCTION",
-                                                                    "invokeHostFunctionOp": {
-                                                                        "hostFunction": {
-                                                                            "type": "HOST_FUNCTION_TYPE_INVOKE_CONTRACT",
-                                                                            "invokeContract": {
-                                                                                "contractAddress": {
-                                                                                    "type": "SC_ADDRESS_TYPE_CONTRACT",
-                                                                                    "contractId": "df06d62447fd25da07c0135eed7557e5a5497ee7d15b7fe345bd47e191d8f577"
-                                                                                },
-                                                                                "functionName": "put_persistent",
-                                                                                "args": [
-                                                                                    {
-                                                                                        "type": "SCV_SYMBOL",
-                                                                                        "sym": "key"
-                                                                                    },
-                                                                                    {
-                                                                                        "type": "SCV_U64",
-                                                                                        "u64": 42
-                                                                                    }
-                                                                                ]
-                                                                            }
-                                                                        },
-                                                                        "auth": []
-                                                                    }
-                                                                }
-                                                            }
-                                                        ],
-                                                        "ext": {
-                                                            "v": 1,
-                                                            "sorobanData": {
-                                                                "ext": {
-                                                                    "v": 0
-                                                                },
-                                                                "resources": {
-                                                                    "footprint": {
-                                                                        "readOnly": [
-                                                                            {
-                                                                                "type": "CONTRACT_DATA",
-                                                                                "contractData": {
-                                                                                    "contract": {
-                                                                                        "type": "SC_ADDRESS_TYPE_CONTRACT",
-                                                                                        "contractId": "df06d62447fd25da07c0135eed7557e5a5497ee7d15b7fe345bd47e191d8f577"
-                                                                                    },
-                                                                                    "key": {
-                                                                                        "type": "SCV_LEDGER_KEY_CONTRACT_INSTANCE"
-                                                                                    },
-                                                                                    "durability": "PERSISTENT"
-                                                                                }
-                                                                            },
-                                                                            {
-                                                                                "type": "CONTRACT_CODE",
-                                                                                "contractCode": {
-                                                                                    "hash": "4e197ebcb9a25bafe2ab5be167c2a20ccde599abc1077b5dbbea1ffade1a11c8"
-                                                                                }
-                                                                            }
-                                                                        ],
-                                                                        "readWrite": []
-                                                                    },
-                                                                    "instructions": 4000000,
-                                                                    "readBytes": 10000,
-                                                                    "writeBytes": 1000
-                                                                },
-                                                                "resourceFee": 126626
-                                                            }
-                                                        }
-                                                    },
-                                                    "signatures": [
-                                                        {
-                                                            "hint": "477df904",
-                                                            "signature": "585cadf0db2b73e2c7d939f5727fe679689014aa898563e82947c264cfa854bc51a83c00f03b5dece47faed46d75cc51554552c0defbe7714755f2fc524ee10d"
+                                                            "signature": "a956f23f90bca86e49191d30d17aa1d7a70550722fcb70cb8d1d76eb440c1cc4d88093a231b99a6a33d6508ed24b15743045b3c3b05d4d4740df30ccc4a0ec0c"
                                                         }
                                                     ]
                                                 }
@@ -436,7 +436,7 @@
                                                                                 },
                                                                                 "executable": {
                                                                                     "type": "CONTRACT_EXECUTABLE_WASM",
-                                                                                    "wasm_hash": "4e197ebcb9a25bafe2ab5be167c2a20ccde599abc1077b5dbbea1ffade1a11c8"
+                                                                                    "wasm_hash": "fc644715caaead746e6145f4331ff75c427c965c20d2995a9942b01247515962"
                                                                                 }
                                                                             }
                                                                         },
@@ -461,7 +461,7 @@
                                                                                             },
                                                                                             "executable": {
                                                                                                 "type": "CONTRACT_EXECUTABLE_WASM",
-                                                                                                "wasm_hash": "4e197ebcb9a25bafe2ab5be167c2a20ccde599abc1077b5dbbea1ffade1a11c8"
+                                                                                                "wasm_hash": "fc644715caaead746e6145f4331ff75c427c965c20d2995a9942b01247515962"
                                                                                             }
                                                                                         }
                                                                                     },
@@ -485,7 +485,7 @@
                                                                             {
                                                                                 "type": "CONTRACT_CODE",
                                                                                 "contractCode": {
-                                                                                    "hash": "4e197ebcb9a25bafe2ab5be167c2a20ccde599abc1077b5dbbea1ffade1a11c8"
+                                                                                    "hash": "fc644715caaead746e6145f4331ff75c427c965c20d2995a9942b01247515962"
                                                                                 }
                                                                             }
                                                                         ],
@@ -516,7 +516,7 @@
                                                     "signatures": [
                                                         {
                                                             "hint": "4b80097b",
-                                                            "signature": "0db57a950ba9d656329b672eb89e6c5420518588cbeaa39710350e544709362900b473232e49149502ba4f98928635d311a45573c7ef8a37b422ba1f44d9680e"
+                                                            "signature": "c94b4f7dd440b7fe398cb5519c2ac418b3e7ded0d06ce9a25c155c1f940f77c6301d6d200e2251c77b40ae6ce097f16bc7f0d6f421a5e7fa2d090677165cde08"
                                                         }
                                                     ]
                                                 }
@@ -532,19 +532,18 @@
             "txProcessing": [
                 {
                     "result": {
-                        "transactionHash": "a875768b322278d11117b75ad27d3d1bdcfa3e0ac8068bb806a62867572f48a8",
+                        "transactionHash": "763098624f5b2544dbaf78bf116834f23d57e3eae61e84227fa4ea282377d8ef",
                         "result": {
-                            "feeCharged": 83955,
+                            "feeCharged": 1000100,
                             "result": {
                                 "code": "txSUCCESS",
                                 "results": [
                                     {
                                         "code": "opINNER",
                                         "tr": {
-                                            "type": "INVOKE_HOST_FUNCTION",
-                                            "invokeHostFunctionResult": {
-                                                "code": "INVOKE_HOST_FUNCTION_SUCCESS",
-                                                "success": "c941f2e98c008dadb59ca9f1c5da74b9e4492505c195891e97f9251df6fa8f5c"
+                                            "type": "RESTORE_FOOTPRINT",
+                                            "restoreFootprintResult": {
+                                                "code": "RESTORE_FOOTPRINT_SUCCESS"
                                             }
                                         }
                                     }
@@ -559,13 +558,13 @@
                         {
                             "type": "LEDGER_ENTRY_STATE",
                             "state": {
-                                "lastModifiedLedgerSeq": 7,
+                                "lastModifiedLedgerSeq": 3,
                                 "data": {
                                     "type": "ACCOUNT",
                                     "account": {
-                                        "accountID": "GA2NXNEE2MHWGQP5XXACPYG2BDZFPKGYPFNST5V3ZZN75NSLQAEXX7CU",
+                                        "accountID": "GB6MXQ5262ZJGDQNA6BL4TWE5SADVZXIKLPELFXKUE27X4SQTGQS44ZB",
                                         "balance": 400000000,
-                                        "seqNum": 30064771072,
+                                        "seqNum": 12884901888,
                                         "numSubEntries": 0,
                                         "inflationDest": null,
                                         "flags": 0,
@@ -589,9 +588,9 @@
                                 "data": {
                                     "type": "ACCOUNT",
                                     "account": {
-                                        "accountID": "GA2NXNEE2MHWGQP5XXACPYG2BDZFPKGYPFNST5V3ZZN75NSLQAEXX7CU",
-                                        "balance": 399916045,
-                                        "seqNum": 30064771072,
+                                        "accountID": "GB6MXQ5262ZJGDQNA6BL4TWE5SADVZXIKLPELFXKUE27X4SQTGQS44ZB",
+                                        "balance": 398999900,
+                                        "seqNum": 12884901888,
                                         "numSubEntries": 0,
                                         "inflationDest": null,
                                         "flags": 0,
@@ -623,9 +622,9 @@
                                         "data": {
                                             "type": "ACCOUNT",
                                             "account": {
-                                                "accountID": "GA2NXNEE2MHWGQP5XXACPYG2BDZFPKGYPFNST5V3ZZN75NSLQAEXX7CU",
-                                                "balance": 399916045,
-                                                "seqNum": 30064771072,
+                                                "accountID": "GB6MXQ5262ZJGDQNA6BL4TWE5SADVZXIKLPELFXKUE27X4SQTGQS44ZB",
+                                                "balance": 398999900,
+                                                "seqNum": 12884901888,
                                                 "numSubEntries": 0,
                                                 "inflationDest": null,
                                                 "flags": 0,
@@ -649,9 +648,9 @@
                                         "data": {
                                             "type": "ACCOUNT",
                                             "account": {
-                                                "accountID": "GA2NXNEE2MHWGQP5XXACPYG2BDZFPKGYPFNST5V3ZZN75NSLQAEXX7CU",
-                                                "balance": 399916045,
-                                                "seqNum": 30064771073,
+                                                "accountID": "GB6MXQ5262ZJGDQNA6BL4TWE5SADVZXIKLPELFXKUE27X4SQTGQS44ZB",
+                                                "balance": 398999900,
+                                                "seqNum": 12884901889,
                                                 "numSubEntries": 0,
                                                 "inflationDest": null,
                                                 "flags": 0,
@@ -697,33 +696,14 @@
                                 {
                                     "changes": [
                                         {
-                                            "type": "LEDGER_ENTRY_CREATED",
-                                            "created": {
-                                                "lastModifiedLedgerSeq": 23,
+                                            "type": "LEDGER_ENTRY_STATE",
+                                            "state": {
+                                                "lastModifiedLedgerSeq": 2,
                                                 "data": {
-                                                    "type": "CONTRACT_DATA",
-                                                    "contractData": {
-                                                        "ext": {
-                                                            "v": 0
-                                                        },
-                                                        "contract": {
-                                                            "type": "SC_ADDRESS_TYPE_CONTRACT",
-                                                            "contractId": "9ca961f94e83bd738223161350d67b21b0ac92f01478c057d5cbafab87186da5"
-                                                        },
-                                                        "key": {
-                                                            "type": "SCV_LEDGER_KEY_CONTRACT_INSTANCE"
-                                                        },
-                                                        "durability": "PERSISTENT",
-                                                        "val": {
-                                                            "type": "SCV_CONTRACT_INSTANCE",
-                                                            "instance": {
-                                                                "executable": {
-                                                                    "type": "CONTRACT_EXECUTABLE_WASM",
-                                                                    "wasm_hash": "4e197ebcb9a25bafe2ab5be167c2a20ccde599abc1077b5dbbea1ffade1a11c8"
-                                                                },
-                                                                "storage": null
-                                                            }
-                                                        }
+                                                    "type": "TTL",
+                                                    "ttl": {
+                                                        "keyHash": "f72277c05fd248e9073e3ce93fb93a102cc7efd76b0da4a13f0e041dbd2febb9",
+                                                        "liveUntilLedgerSeq": 21
                                                     }
                                                 },
                                                 "ext": {
@@ -732,13 +712,13 @@
                                             }
                                         },
                                         {
-                                            "type": "LEDGER_ENTRY_CREATED",
-                                            "created": {
+                                            "type": "LEDGER_ENTRY_UPDATED",
+                                            "updated": {
                                                 "lastModifiedLedgerSeq": 23,
                                                 "data": {
                                                     "type": "TTL",
                                                     "ttl": {
-                                                        "keyHash": "c92299f9bdb7a8e6c53092d8f64b92f726eaec5a700608adc80c55ad7824f637",
+                                                        "keyHash": "f72277c05fd248e9073e3ce93fb93a102cc7efd76b0da4a13f0e041dbd2febb9",
                                                         "liveUntilLedgerSeq": 42
                                                     }
                                                 },
@@ -758,9 +738,9 @@
                                         "data": {
                                             "type": "ACCOUNT",
                                             "account": {
-                                                "accountID": "GA2NXNEE2MHWGQP5XXACPYG2BDZFPKGYPFNST5V3ZZN75NSLQAEXX7CU",
-                                                "balance": 399916045,
-                                                "seqNum": 30064771073,
+                                                "accountID": "GB6MXQ5262ZJGDQNA6BL4TWE5SADVZXIKLPELFXKUE27X4SQTGQS44ZB",
+                                                "balance": 398999900,
+                                                "seqNum": 12884901889,
                                                 "numSubEntries": 0,
                                                 "inflationDest": null,
                                                 "flags": 0,
@@ -808,9 +788,9 @@
                                         "data": {
                                             "type": "ACCOUNT",
                                             "account": {
-                                                "accountID": "GA2NXNEE2MHWGQP5XXACPYG2BDZFPKGYPFNST5V3ZZN75NSLQAEXX7CU",
-                                                "balance": 399936998,
-                                                "seqNum": 30064771073,
+                                                "accountID": "GB6MXQ5262ZJGDQNA6BL4TWE5SADVZXIKLPELFXKUE27X4SQTGQS44ZB",
+                                                "balance": 399948453,
+                                                "seqNum": 12884901889,
                                                 "numSubEntries": 0,
                                                 "inflationDest": null,
                                                 "flags": 0,
@@ -858,11 +838,8 @@
                                 },
                                 "events": [],
                                 "returnValue": {
-                                    "type": "SCV_ADDRESS",
-                                    "address": {
-                                        "type": "SC_ADDRESS_TYPE_CONTRACT",
-                                        "contractId": "9ca961f94e83bd738223161350d67b21b0ac92f01478c057d5cbafab87186da5"
-                                    }
+                                    "type": "SCV_BOOL",
+                                    "b": "FALSE"
                                 },
                                 "diagnosticEvents": []
                             }
@@ -871,7 +848,286 @@
                 },
                 {
                     "result": {
-                        "transactionHash": "5bd37c7532f4ec6a65389f118b33e207d3c8ee6153d203df3a7c0c0e3b8ce307",
+                        "transactionHash": "03776f7c91e241582f9af847a368be20f6dc882080e78e0ddec7f97b77b93fef",
+                        "result": {
+                            "feeCharged": 126726,
+                            "result": {
+                                "code": "txFAILED",
+                                "results": [
+                                    {
+                                        "code": "opINNER",
+                                        "tr": {
+                                            "type": "INVOKE_HOST_FUNCTION",
+                                            "invokeHostFunctionResult": {
+                                                "code": "INVOKE_HOST_FUNCTION_TRAPPED"
+                                            }
+                                        }
+                                    }
+                                ]
+                            },
+                            "ext": {
+                                "v": 0
+                            }
+                        }
+                    },
+                    "feeProcessing": [
+                        {
+                            "type": "LEDGER_ENTRY_STATE",
+                            "state": {
+                                "lastModifiedLedgerSeq": 6,
+                                "data": {
+                                    "type": "ACCOUNT",
+                                    "account": {
+                                        "accountID": "GAM4XNEHJUHN7VE3ZWJI23R2WS3SJS2BTUHZAC6XICXLXO2HPX4QI2IR",
+                                        "balance": 400000000,
+                                        "seqNum": 25769803776,
+                                        "numSubEntries": 0,
+                                        "inflationDest": null,
+                                        "flags": 0,
+                                        "homeDomain": "",
+                                        "thresholds": "01000000",
+                                        "signers": [],
+                                        "ext": {
+                                            "v": 0
+                                        }
+                                    }
+                                },
+                                "ext": {
+                                    "v": 0
+                                }
+                            }
+                        },
+                        {
+                            "type": "LEDGER_ENTRY_UPDATED",
+                            "updated": {
+                                "lastModifiedLedgerSeq": 23,
+                                "data": {
+                                    "type": "ACCOUNT",
+                                    "account": {
+                                        "accountID": "GAM4XNEHJUHN7VE3ZWJI23R2WS3SJS2BTUHZAC6XICXLXO2HPX4QI2IR",
+                                        "balance": 399873274,
+                                        "seqNum": 25769803776,
+                                        "numSubEntries": 0,
+                                        "inflationDest": null,
+                                        "flags": 0,
+                                        "homeDomain": "",
+                                        "thresholds": "01000000",
+                                        "signers": [],
+                                        "ext": {
+                                            "v": 0
+                                        }
+                                    }
+                                },
+                                "ext": {
+                                    "v": 0
+                                }
+                            }
+                        }
+                    ],
+                    "txApplyProcessing": {
+                        "v": 3,
+                        "v3": {
+                            "ext": {
+                                "v": 0
+                            },
+                            "txChangesBefore": [
+                                {
+                                    "type": "LEDGER_ENTRY_STATE",
+                                    "state": {
+                                        "lastModifiedLedgerSeq": 23,
+                                        "data": {
+                                            "type": "ACCOUNT",
+                                            "account": {
+                                                "accountID": "GAM4XNEHJUHN7VE3ZWJI23R2WS3SJS2BTUHZAC6XICXLXO2HPX4QI2IR",
+                                                "balance": 399873274,
+                                                "seqNum": 25769803776,
+                                                "numSubEntries": 0,
+                                                "inflationDest": null,
+                                                "flags": 0,
+                                                "homeDomain": "",
+                                                "thresholds": "01000000",
+                                                "signers": [],
+                                                "ext": {
+                                                    "v": 0
+                                                }
+                                            }
+                                        },
+                                        "ext": {
+                                            "v": 0
+                                        }
+                                    }
+                                },
+                                {
+                                    "type": "LEDGER_ENTRY_UPDATED",
+                                    "updated": {
+                                        "lastModifiedLedgerSeq": 23,
+                                        "data": {
+                                            "type": "ACCOUNT",
+                                            "account": {
+                                                "accountID": "GAM4XNEHJUHN7VE3ZWJI23R2WS3SJS2BTUHZAC6XICXLXO2HPX4QI2IR",
+                                                "balance": 399873274,
+                                                "seqNum": 25769803777,
+                                                "numSubEntries": 0,
+                                                "inflationDest": null,
+                                                "flags": 0,
+                                                "homeDomain": "",
+                                                "thresholds": "01000000",
+                                                "signers": [],
+                                                "ext": {
+                                                    "v": 1,
+                                                    "v1": {
+                                                        "liabilities": {
+                                                            "buying": 0,
+                                                            "selling": 0
+                                                        },
+                                                        "ext": {
+                                                            "v": 2,
+                                                            "v2": {
+                                                                "numSponsored": 0,
+                                                                "numSponsoring": 0,
+                                                                "signerSponsoringIDs": [],
+                                                                "ext": {
+                                                                    "v": 3,
+                                                                    "v3": {
+                                                                        "ext": {
+                                                                            "v": 0
+                                                                        },
+                                                                        "seqLedger": 23,
+                                                                        "seqTime": 1451692800
+                                                                    }
+                                                                }
+                                                            }
+                                                        }
+                                                    }
+                                                }
+                                            }
+                                        },
+                                        "ext": {
+                                            "v": 0
+                                        }
+                                    }
+                                }
+                            ],
+                            "operations": [],
+                            "txChangesAfter": [
+                                {
+                                    "type": "LEDGER_ENTRY_STATE",
+                                    "state": {
+                                        "lastModifiedLedgerSeq": 23,
+                                        "data": {
+                                            "type": "ACCOUNT",
+                                            "account": {
+                                                "accountID": "GAM4XNEHJUHN7VE3ZWJI23R2WS3SJS2BTUHZAC6XICXLXO2HPX4QI2IR",
+                                                "balance": 399873274,
+                                                "seqNum": 25769803777,
+                                                "numSubEntries": 0,
+                                                "inflationDest": null,
+                                                "flags": 0,
+                                                "homeDomain": "",
+                                                "thresholds": "01000000",
+                                                "signers": [],
+                                                "ext": {
+                                                    "v": 1,
+                                                    "v1": {
+                                                        "liabilities": {
+                                                            "buying": 0,
+                                                            "selling": 0
+                                                        },
+                                                        "ext": {
+                                                            "v": 2,
+                                                            "v2": {
+                                                                "numSponsored": 0,
+                                                                "numSponsoring": 0,
+                                                                "signerSponsoringIDs": [],
+                                                                "ext": {
+                                                                    "v": 3,
+                                                                    "v3": {
+                                                                        "ext": {
+                                                                            "v": 0
+                                                                        },
+                                                                        "seqLedger": 23,
+                                                                        "seqTime": 1451692800
+                                                                    }
+                                                                }
+                                                            }
+                                                        }
+                                                    }
+                                                }
+                                            }
+                                        },
+                                        "ext": {
+                                            "v": 0
+                                        }
+                                    }
+                                },
+                                {
+                                    "type": "LEDGER_ENTRY_UPDATED",
+                                    "updated": {
+                                        "lastModifiedLedgerSeq": 23,
+                                        "data": {
+                                            "type": "ACCOUNT",
+                                            "account": {
+                                                "accountID": "GAM4XNEHJUHN7VE3ZWJI23R2WS3SJS2BTUHZAC6XICXLXO2HPX4QI2IR",
+                                                "balance": 399938388,
+                                                "seqNum": 25769803777,
+                                                "numSubEntries": 0,
+                                                "inflationDest": null,
+                                                "flags": 0,
+                                                "homeDomain": "",
+                                                "thresholds": "01000000",
+                                                "signers": [],
+                                                "ext": {
+                                                    "v": 1,
+                                                    "v1": {
+                                                        "liabilities": {
+                                                            "buying": 0,
+                                                            "selling": 0
+                                                        },
+                                                        "ext": {
+                                                            "v": 2,
+                                                            "v2": {
+                                                                "numSponsored": 0,
+                                                                "numSponsoring": 0,
+                                                                "signerSponsoringIDs": [],
+                                                                "ext": {
+                                                                    "v": 3,
+                                                                    "v3": {
+                                                                        "ext": {
+                                                                            "v": 0
+                                                                        },
+                                                                        "seqLedger": 23,
+                                                                        "seqTime": 1451692800
+                                                                    }
+                                                                }
+                                                            }
+                                                        }
+                                                    }
+                                                }
+                                            }
+                                        },
+                                        "ext": {
+                                            "v": 0
+                                        }
+                                    }
+                                }
+                            ],
+                            "sorobanMeta": {
+                                "ext": {
+                                    "v": 0
+                                },
+                                "events": [],
+                                "returnValue": {
+                                    "type": "SCV_BOOL",
+                                    "b": "FALSE"
+                                },
+                                "diagnosticEvents": []
+                            }
+                        }
+                    }
+                },
+                {
+                    "result": {
+                        "transactionHash": "cc428f2d03a9b97d8d1b83d06a1fd1af50257f765b237ac2a12ed13c7c6d5375",
                         "result": {
                             "feeCharged": 126726,
                             "result": {
@@ -1201,9 +1457,9 @@
                 },
                 {
                     "result": {
-                        "transactionHash": "2b8952ae488c87f5e1189d206b45ee3563d3015771498db54d2acf63bd181c7c",
+                        "transactionHash": "2a2b316a55eddaecc42c0db95eec09d94b992ccf769435e68866ea2011c42c1f",
                         "result": {
-                            "feeCharged": 126726,
+                            "feeCharged": 83955,
                             "result": {
                                 "code": "txFAILED",
                                 "results": [
@@ -1212,7 +1468,7 @@
                                         "tr": {
                                             "type": "INVOKE_HOST_FUNCTION",
                                             "invokeHostFunctionResult": {
-                                                "code": "INVOKE_HOST_FUNCTION_TRAPPED"
+                                                "code": "INVOKE_HOST_FUNCTION_RESOURCE_LIMIT_EXCEEDED"
                                             }
                                         }
                                     }
@@ -1227,13 +1483,13 @@
                         {
                             "type": "LEDGER_ENTRY_STATE",
                             "state": {
-                                "lastModifiedLedgerSeq": 6,
+                                "lastModifiedLedgerSeq": 7,
                                 "data": {
                                     "type": "ACCOUNT",
                                     "account": {
-                                        "accountID": "GAM4XNEHJUHN7VE3ZWJI23R2WS3SJS2BTUHZAC6XICXLXO2HPX4QI2IR",
+                                        "accountID": "GA2NXNEE2MHWGQP5XXACPYG2BDZFPKGYPFNST5V3ZZN75NSLQAEXX7CU",
                                         "balance": 400000000,
-                                        "seqNum": 25769803776,
+                                        "seqNum": 30064771072,
                                         "numSubEntries": 0,
                                         "inflationDest": null,
                                         "flags": 0,
@@ -1257,9 +1513,9 @@
                                 "data": {
                                     "type": "ACCOUNT",
                                     "account": {
-                                        "accountID": "GAM4XNEHJUHN7VE3ZWJI23R2WS3SJS2BTUHZAC6XICXLXO2HPX4QI2IR",
-                                        "balance": 399873274,
-                                        "seqNum": 25769803776,
+                                        "accountID": "GA2NXNEE2MHWGQP5XXACPYG2BDZFPKGYPFNST5V3ZZN75NSLQAEXX7CU",
+                                        "balance": 399916045,
+                                        "seqNum": 30064771072,
                                         "numSubEntries": 0,
                                         "inflationDest": null,
                                         "flags": 0,
@@ -1291,9 +1547,9 @@
                                         "data": {
                                             "type": "ACCOUNT",
                                             "account": {
-                                                "accountID": "GAM4XNEHJUHN7VE3ZWJI23R2WS3SJS2BTUHZAC6XICXLXO2HPX4QI2IR",
-                                                "balance": 399873274,
-                                                "seqNum": 25769803776,
+                                                "accountID": "GA2NXNEE2MHWGQP5XXACPYG2BDZFPKGYPFNST5V3ZZN75NSLQAEXX7CU",
+                                                "balance": 399916045,
+                                                "seqNum": 30064771072,
                                                 "numSubEntries": 0,
                                                 "inflationDest": null,
                                                 "flags": 0,
@@ -1317,9 +1573,9 @@
                                         "data": {
                                             "type": "ACCOUNT",
                                             "account": {
-                                                "accountID": "GAM4XNEHJUHN7VE3ZWJI23R2WS3SJS2BTUHZAC6XICXLXO2HPX4QI2IR",
-                                                "balance": 399873274,
-                                                "seqNum": 25769803777,
+                                                "accountID": "GA2NXNEE2MHWGQP5XXACPYG2BDZFPKGYPFNST5V3ZZN75NSLQAEXX7CU",
+                                                "balance": 399916045,
+                                                "seqNum": 30064771073,
                                                 "numSubEntries": 0,
                                                 "inflationDest": null,
                                                 "flags": 0,
@@ -1370,9 +1626,9 @@
                                         "data": {
                                             "type": "ACCOUNT",
                                             "account": {
-                                                "accountID": "GAM4XNEHJUHN7VE3ZWJI23R2WS3SJS2BTUHZAC6XICXLXO2HPX4QI2IR",
-                                                "balance": 399873274,
-                                                "seqNum": 25769803777,
+                                                "accountID": "GA2NXNEE2MHWGQP5XXACPYG2BDZFPKGYPFNST5V3ZZN75NSLQAEXX7CU",
+                                                "balance": 399916045,
+                                                "seqNum": 30064771073,
                                                 "numSubEntries": 0,
                                                 "inflationDest": null,
                                                 "flags": 0,
@@ -1420,9 +1676,9 @@
                                         "data": {
                                             "type": "ACCOUNT",
                                             "account": {
-                                                "accountID": "GAM4XNEHJUHN7VE3ZWJI23R2WS3SJS2BTUHZAC6XICXLXO2HPX4QI2IR",
-                                                "balance": 399938388,
-                                                "seqNum": 25769803777,
+                                                "accountID": "GA2NXNEE2MHWGQP5XXACPYG2BDZFPKGYPFNST5V3ZZN75NSLQAEXX7CU",
+                                                "balance": 399957054,
+                                                "seqNum": 30064771073,
                                                 "numSubEntries": 0,
                                                 "inflationDest": null,
                                                 "flags": 0,
@@ -1473,330 +1729,60 @@
                                     "type": "SCV_BOOL",
                                     "b": "FALSE"
                                 },
-                                "diagnosticEvents": []
-                            }
-                        }
-                    }
-                },
-                {
-                    "result": {
-                        "transactionHash": "763098624f5b2544dbaf78bf116834f23d57e3eae61e84227fa4ea282377d8ef",
-                        "result": {
-                            "feeCharged": 1000100,
-                            "result": {
-                                "code": "txSUCCESS",
-                                "results": [
+                                "diagnosticEvents": [
                                     {
-                                        "code": "opINNER",
-                                        "tr": {
-                                            "type": "RESTORE_FOOTPRINT",
-                                            "restoreFootprintResult": {
-                                                "code": "RESTORE_FOOTPRINT_SUCCESS"
+                                        "inSuccessfulContractCall": "FALSE",
+                                        "event": {
+                                            "ext": {
+                                                "v": 0
+                                            },
+                                            "contractID": null,
+                                            "type": "DIAGNOSTIC",
+                                            "body": {
+                                                "v": 0,
+                                                "v0": {
+                                                    "topics": [
+                                                        {
+                                                            "type": "SCV_SYMBOL",
+                                                            "sym": "error"
+                                                        },
+                                                        {
+                                                            "type": "SCV_ERROR",
+                                                            "error": {
+                                                                "type": "SCE_BUDGET",
+                                                                "code": "SCEC_EXCEEDED_LIMIT"
+                                                            }
+                                                        }
+                                                    ],
+                                                    "data": {
+                                                        "type": "SCV_VEC",
+                                                        "vec": [
+                                                            {
+                                                                "type": "SCV_STRING",
+                                                                "str": "operation instructions exceeds amount specified"
+                                                            },
+                                                            {
+                                                                "type": "SCV_U64",
+                                                                "u64": 216850
+                                                            },
+                                                            {
+                                                                "type": "SCV_U64",
+                                                                "u64": 200000
+                                                            }
+                                                        ]
+                                                    }
+                                                }
                                             }
                                         }
                                     }
                                 ]
-                            },
-                            "ext": {
-                                "v": 0
-                            }
-                        }
-                    },
-                    "feeProcessing": [
-                        {
-                            "type": "LEDGER_ENTRY_STATE",
-                            "state": {
-                                "lastModifiedLedgerSeq": 3,
-                                "data": {
-                                    "type": "ACCOUNT",
-                                    "account": {
-                                        "accountID": "GB6MXQ5262ZJGDQNA6BL4TWE5SADVZXIKLPELFXKUE27X4SQTGQS44ZB",
-                                        "balance": 400000000,
-                                        "seqNum": 12884901888,
-                                        "numSubEntries": 0,
-                                        "inflationDest": null,
-                                        "flags": 0,
-                                        "homeDomain": "",
-                                        "thresholds": "01000000",
-                                        "signers": [],
-                                        "ext": {
-                                            "v": 0
-                                        }
-                                    }
-                                },
-                                "ext": {
-                                    "v": 0
-                                }
-                            }
-                        },
-                        {
-                            "type": "LEDGER_ENTRY_UPDATED",
-                            "updated": {
-                                "lastModifiedLedgerSeq": 23,
-                                "data": {
-                                    "type": "ACCOUNT",
-                                    "account": {
-                                        "accountID": "GB6MXQ5262ZJGDQNA6BL4TWE5SADVZXIKLPELFXKUE27X4SQTGQS44ZB",
-                                        "balance": 398999900,
-                                        "seqNum": 12884901888,
-                                        "numSubEntries": 0,
-                                        "inflationDest": null,
-                                        "flags": 0,
-                                        "homeDomain": "",
-                                        "thresholds": "01000000",
-                                        "signers": [],
-                                        "ext": {
-                                            "v": 0
-                                        }
-                                    }
-                                },
-                                "ext": {
-                                    "v": 0
-                                }
-                            }
-                        }
-                    ],
-                    "txApplyProcessing": {
-                        "v": 3,
-                        "v3": {
-                            "ext": {
-                                "v": 0
-                            },
-                            "txChangesBefore": [
-                                {
-                                    "type": "LEDGER_ENTRY_STATE",
-                                    "state": {
-                                        "lastModifiedLedgerSeq": 23,
-                                        "data": {
-                                            "type": "ACCOUNT",
-                                            "account": {
-                                                "accountID": "GB6MXQ5262ZJGDQNA6BL4TWE5SADVZXIKLPELFXKUE27X4SQTGQS44ZB",
-                                                "balance": 398999900,
-                                                "seqNum": 12884901888,
-                                                "numSubEntries": 0,
-                                                "inflationDest": null,
-                                                "flags": 0,
-                                                "homeDomain": "",
-                                                "thresholds": "01000000",
-                                                "signers": [],
-                                                "ext": {
-                                                    "v": 0
-                                                }
-                                            }
-                                        },
-                                        "ext": {
-                                            "v": 0
-                                        }
-                                    }
-                                },
-                                {
-                                    "type": "LEDGER_ENTRY_UPDATED",
-                                    "updated": {
-                                        "lastModifiedLedgerSeq": 23,
-                                        "data": {
-                                            "type": "ACCOUNT",
-                                            "account": {
-                                                "accountID": "GB6MXQ5262ZJGDQNA6BL4TWE5SADVZXIKLPELFXKUE27X4SQTGQS44ZB",
-                                                "balance": 398999900,
-                                                "seqNum": 12884901889,
-                                                "numSubEntries": 0,
-                                                "inflationDest": null,
-                                                "flags": 0,
-                                                "homeDomain": "",
-                                                "thresholds": "01000000",
-                                                "signers": [],
-                                                "ext": {
-                                                    "v": 1,
-                                                    "v1": {
-                                                        "liabilities": {
-                                                            "buying": 0,
-                                                            "selling": 0
-                                                        },
-                                                        "ext": {
-                                                            "v": 2,
-                                                            "v2": {
-                                                                "numSponsored": 0,
-                                                                "numSponsoring": 0,
-                                                                "signerSponsoringIDs": [],
-                                                                "ext": {
-                                                                    "v": 3,
-                                                                    "v3": {
-                                                                        "ext": {
-                                                                            "v": 0
-                                                                        },
-                                                                        "seqLedger": 23,
-                                                                        "seqTime": 1451692800
-                                                                    }
-                                                                }
-                                                            }
-                                                        }
-                                                    }
-                                                }
-                                            }
-                                        },
-                                        "ext": {
-                                            "v": 0
-                                        }
-                                    }
-                                }
-                            ],
-                            "operations": [
-                                {
-                                    "changes": [
-                                        {
-                                            "type": "LEDGER_ENTRY_STATE",
-                                            "state": {
-                                                "lastModifiedLedgerSeq": 2,
-                                                "data": {
-                                                    "type": "TTL",
-                                                    "ttl": {
-                                                        "keyHash": "f72277c05fd248e9073e3ce93fb93a102cc7efd76b0da4a13f0e041dbd2febb9",
-                                                        "liveUntilLedgerSeq": 21
-                                                    }
-                                                },
-                                                "ext": {
-                                                    "v": 0
-                                                }
-                                            }
-                                        },
-                                        {
-                                            "type": "LEDGER_ENTRY_UPDATED",
-                                            "updated": {
-                                                "lastModifiedLedgerSeq": 23,
-                                                "data": {
-                                                    "type": "TTL",
-                                                    "ttl": {
-                                                        "keyHash": "f72277c05fd248e9073e3ce93fb93a102cc7efd76b0da4a13f0e041dbd2febb9",
-                                                        "liveUntilLedgerSeq": 42
-                                                    }
-                                                },
-                                                "ext": {
-                                                    "v": 0
-                                                }
-                                            }
-                                        }
-                                    ]
-                                }
-                            ],
-                            "txChangesAfter": [
-                                {
-                                    "type": "LEDGER_ENTRY_STATE",
-                                    "state": {
-                                        "lastModifiedLedgerSeq": 23,
-                                        "data": {
-                                            "type": "ACCOUNT",
-                                            "account": {
-                                                "accountID": "GB6MXQ5262ZJGDQNA6BL4TWE5SADVZXIKLPELFXKUE27X4SQTGQS44ZB",
-                                                "balance": 398999900,
-                                                "seqNum": 12884901889,
-                                                "numSubEntries": 0,
-                                                "inflationDest": null,
-                                                "flags": 0,
-                                                "homeDomain": "",
-                                                "thresholds": "01000000",
-                                                "signers": [],
-                                                "ext": {
-                                                    "v": 1,
-                                                    "v1": {
-                                                        "liabilities": {
-                                                            "buying": 0,
-                                                            "selling": 0
-                                                        },
-                                                        "ext": {
-                                                            "v": 2,
-                                                            "v2": {
-                                                                "numSponsored": 0,
-                                                                "numSponsoring": 0,
-                                                                "signerSponsoringIDs": [],
-                                                                "ext": {
-                                                                    "v": 3,
-                                                                    "v3": {
-                                                                        "ext": {
-                                                                            "v": 0
-                                                                        },
-                                                                        "seqLedger": 23,
-                                                                        "seqTime": 1451692800
-                                                                    }
-                                                                }
-                                                            }
-                                                        }
-                                                    }
-                                                }
-                                            }
-                                        },
-                                        "ext": {
-                                            "v": 0
-                                        }
-                                    }
-                                },
-                                {
-                                    "type": "LEDGER_ENTRY_UPDATED",
-                                    "updated": {
-                                        "lastModifiedLedgerSeq": 23,
-                                        "data": {
-                                            "type": "ACCOUNT",
-                                            "account": {
-                                                "accountID": "GB6MXQ5262ZJGDQNA6BL4TWE5SADVZXIKLPELFXKUE27X4SQTGQS44ZB",
-                                                "balance": 399948453,
-                                                "seqNum": 12884901889,
-                                                "numSubEntries": 0,
-                                                "inflationDest": null,
-                                                "flags": 0,
-                                                "homeDomain": "",
-                                                "thresholds": "01000000",
-                                                "signers": [],
-                                                "ext": {
-                                                    "v": 1,
-                                                    "v1": {
-                                                        "liabilities": {
-                                                            "buying": 0,
-                                                            "selling": 0
-                                                        },
-                                                        "ext": {
-                                                            "v": 2,
-                                                            "v2": {
-                                                                "numSponsored": 0,
-                                                                "numSponsoring": 0,
-                                                                "signerSponsoringIDs": [],
-                                                                "ext": {
-                                                                    "v": 3,
-                                                                    "v3": {
-                                                                        "ext": {
-                                                                            "v": 0
-                                                                        },
-                                                                        "seqLedger": 23,
-                                                                        "seqTime": 1451692800
-                                                                    }
-                                                                }
-                                                            }
-                                                        }
-                                                    }
-                                                }
-                                            }
-                                        },
-                                        "ext": {
-                                            "v": 0
-                                        }
-                                    }
-                                }
-                            ],
-                            "sorobanMeta": {
-                                "ext": {
-                                    "v": 0
-                                },
-                                "events": [],
-                                "returnValue": {
-                                    "type": "SCV_BOOL",
-                                    "b": "FALSE"
-                                },
-                                "diagnosticEvents": []
                             }
                         }
                     }
                 },
                 {
                     "result": {
-                        "transactionHash": "0597c666670bd7bbe8159b0b8834041fed45e93edda9efc79579bbb06d3ad0e3",
+                        "transactionHash": "66dc90645a7de11bf78ab96ce326dc8f9e83ffee718cad550bd0f2dcf551de5e",
                         "result": {
                             "feeCharged": 1000100,
                             "result": {
@@ -1998,7 +1984,7 @@
                                                 "data": {
                                                     "type": "TTL",
                                                     "ttl": {
-                                                        "keyHash": "f32d5eab43c7c8891de9d0ef5c11367ad0272860bf2ceeb73b8363cf619453f3",
+                                                        "keyHash": "60313f9b273db0b14c3e503cf6cc152dd14a0c57e5e81a23e86b4e27a23a2c06",
                                                         "liveUntilLedgerSeq": 10002
                                                     }
                                                 },
@@ -2014,7 +2000,7 @@
                                                 "data": {
                                                     "type": "TTL",
                                                     "ttl": {
-                                                        "keyHash": "f32d5eab43c7c8891de9d0ef5c11367ad0272860bf2ceeb73b8363cf619453f3",
+                                                        "keyHash": "60313f9b273db0b14c3e503cf6cc152dd14a0c57e5e81a23e86b4e27a23a2c06",
                                                         "liveUntilLedgerSeq": 10023
                                                     }
                                                 },
