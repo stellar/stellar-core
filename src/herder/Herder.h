@@ -69,6 +69,8 @@ class Herder
     // this is to help recover potential missing SCP messages for other nodes
     static uint32 const SCP_EXTRA_LOOKBACK_LEDGERS;
 
+    static uint32 const FLOW_CONTROL_BYTES_EXTRA_BUFFER;
+
     static std::chrono::minutes const TX_SET_GC_DELAY;
 
     enum State
@@ -151,6 +153,7 @@ class Herder
 
     virtual VirtualTimer const& getTriggerTimer() const = 0;
     virtual void setMaxClassicTxSize(uint32 bytes) = 0;
+    virtual void setFlowControlExtraBufferSize(uint32 bytes) = 0;
 
     virtual ClassicTransactionQueue& getTransactionQueue() = 0;
     virtual SorobanTransactionQueue& getSorobanTransactionQueue() = 0;
@@ -162,7 +165,10 @@ class Herder
 
     virtual uint32_t trackingConsensusLedgerIndex() const = 0;
     virtual uint32_t getMaxClassicTxSize() const = 0;
+    // Get maximum size of the whole transaction StellarMessage allowed by
+    // overlay
     virtual uint32_t getMaxTxSize() const = 0;
+    virtual uint32_t getFlowControlExtraBuffer() const = 0;
 
     // return the smallest ledger number we need messages for when asking peers
     virtual uint32 getMinLedgerSeqToAskPeers() const = 0;

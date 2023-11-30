@@ -74,8 +74,6 @@ class Peer : public std::enable_shared_from_this<Peer>,
         std::chrono::seconds(1);
     static constexpr uint32_t FIRST_VERSION_SUPPORTING_FLOW_CONTROL_IN_BYTES =
         28;
-    static constexpr uint32_t FIRST_VERSION_UPDATED_FLOW_CONTROL_ACCOUNTING =
-        30;
 
     // The reporting will be based on the previous
     // PEER_METRICS_WINDOW_SIZE-second time window.

@@ -126,6 +126,12 @@ class HerderImpl : public Herder
     {
         mMaxClassicTxSize = std::make_optional<uint32_t>(bytes);
     }
+    std::optional<uint32_t> mFlowControlExtraBuffer;
+    void
+    setFlowControlExtraBufferSize(uint32 bytes) override
+    {
+        mFlowControlExtraBuffer = std::make_optional<uint32_t>(bytes);
+    }
 #endif
     void sendSCPStateToPeer(uint32 ledgerSeq, Peer::pointer peer) override;
 
@@ -139,6 +145,8 @@ class HerderImpl : public Herder
     void processSCPQueue();
 
     uint32_t getMaxClassicTxSize() const override;
+    uint32_t getFlowControlExtraBuffer() const override;
+
     uint32_t
     getMaxTxSize() const override
     {

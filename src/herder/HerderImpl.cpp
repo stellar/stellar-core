@@ -122,6 +122,18 @@ HerderImpl::getMaxClassicTxSize() const
     return MAX_CLASSIC_TX_SIZE_BYTES;
 }
 
+uint32_t
+HerderImpl::getFlowControlExtraBuffer() const
+{
+#ifdef BUILD_TESTS
+    if (mFlowControlExtraBuffer)
+    {
+        return *mFlowControlExtraBuffer;
+    }
+#endif
+    return FLOW_CONTROL_BYTES_EXTRA_BUFFER;
+}
+
 void
 HerderImpl::setTrackingSCPState(uint64_t index, StellarValue const& value,
                                 bool isTrackingNetwork)
@@ -2017,13 +2029,15 @@ HerderImpl::maybeHandleUpgrade()
         }
         auto const& conf = mApp.getLedgerManager().getSorobanNetworkConfig();
 
-        if (conf.txMaxSizeBytes() > mMaxTxSize)
+        auto maybeNewMaxTxSize =
+            conf.txMaxSizeBytes() + getFlowControlExtraBuffer();
+        if (maybeNewMaxTxSize > mMaxTxSize)
         {
-            diff = conf.txMaxSizeBytes() - mMaxTxSize;
+            diff = maybeNewMaxTxSize - mMaxTxSize;
         }
         // mMaxTxSize may decrease post-upgrade, always choose the max between
         // classic tx size (static) and Soroban max tx size
-        mMaxTxSize = std::max(getMaxClassicTxSize(), conf.txMaxSizeBytes());
+        mMaxTxSize = std::max(getMaxClassicTxSize(), maybeNewMaxTxSize);
     }
 
     // Maybe update capacity to reflect the upgrade
@@ -2068,7 +2082,8 @@ HerderImpl::start()
         {
             auto const& conf =
                 mApp.getLedgerManager().getSorobanNetworkConfig();
-            mMaxTxSize = std::max(mMaxTxSize, conf.txMaxSizeBytes());
+            mMaxTxSize = std::max(mMaxTxSize, conf.txMaxSizeBytes() +
+                                                  getFlowControlExtraBuffer());
         }
 
         maybeSetupSorobanQueue(version);
