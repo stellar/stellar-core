@@ -44,6 +44,9 @@ jobs:
     - uses: EmbarkStudios/cargo-deny-action@e0a440755b184aa50374330fa75cca0f84fcb59a
       with:
         command: check ${{ matrix.checks }}
+        # leave arguments empty so we don't test --all-features
+        # which will see conflicting env versions
+        arguments:
 
   rust-check-git-rev-deps:
     runs-on: ubuntu-latest
