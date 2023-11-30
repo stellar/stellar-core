@@ -101,6 +101,8 @@ jobs:
           else
             sudo apt-get -y install clang-12 llvm-12
           fi
+      - name: install rustup components
+        run: rustup component add rustfmt
       - name: install dependencies
         run: sudo apt-get -y install postgresql git build-essential pkg-config autoconf automake libtool bison flex libpq-dev parallel libunwind-dev sed perl
       - name: Build
