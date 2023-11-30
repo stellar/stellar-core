@@ -2,21 +2,25 @@
 name = "stellar-core"
 version = "0.1.0"
 edition = "2021"
-rust-version = "1.71"
+rust-version = "1.74"
+publish = false
 
 [lib]
 name = "rust_stellar_core"
 crate-type = ["staticlib"]
 
 [dependencies]
-log = "0.4.17"
+log = "=0.4.19"
 tracy-client = { version = "=0.15.2", features = ["enable"], default-features = false, optional = true}
-cxx = "1.0"
-base64 = "0.13.0"
-rustc-simple-version = "0.1.0"
+cxx = "=1.0.97"
+base64 = "=0.13.1"
+rustc-simple-version = "=0.1.0"
 # NB: this must match the same rand version used by soroban (but the tooling
 # will complain if it does not match)
-rand = "0.8.5"
+rand = "=0.8.5"
+
+petgraph = "=0.6.4"
+toml = "=0.7.8"
 
 # This copy of the soroban host is always enabled, and should always point to a
 # version that supports stellar-core's Config::CURRENT_LEDGER_PROTOCOL_VERSION.
@@ -28,7 +32,7 @@ rand = "0.8.5"
 # N.
 
 [dependencies.soroban-env-host-curr]
-version = "20.0.0-rc1"
+version = "=20.0.0-rc2"
 git = "https://github.com/stellar/rs-soroban-env"
 package = "soroban-env-host"
 rev = "be04cf31e925ba5bacd9b22db7caf7b4f6dd8372"
@@ -52,20 +56,23 @@ rev = "be04cf31e925ba5bacd9b22db7caf7b4f6dd8372"
 
 [dependencies.soroban-env-host-prev]
 optional = true
-version = "20.0.0-rc1"
+version = "=20.0.0-rc2"
 git = "https://github.com/stellar/rs-soroban-env"
 package = "soroban-env-host"
 rev = "c6096cb1414cc1bedce59cef697c71a8bdd70ef3"
 
 [dependencies.soroban-test-wasms]
+version = "=20.0.0-rc2"
 git = "https://github.com/stellar/rs-soroban-env"
 rev = "be04cf31e925ba5bacd9b22db7caf7b4f6dd8372"
 
 [dependencies.soroban-synth-wasm]
+version = "=20.0.0-rc2"
 git = "https://github.com/stellar/rs-soroban-env"
 rev = "be04cf31e925ba5bacd9b22db7caf7b4f6dd8372"
 
 [dependencies.cargo-lock]
+version = "=9.0.0"
 git = "https://github.com/rustsec/rustsec"
 rev = "a5c69fc6e4b6068b43d7143f3a2f68c3f3de37d8"
 features = ["dependency-tree"]

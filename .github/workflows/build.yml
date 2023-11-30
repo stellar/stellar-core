@@ -8,6 +8,47 @@ on:
 
 jobs:
 
+  complete:
+    if: always()
+    needs: [fmt, cackle, cargo-deny, rust-check-git-rev-deps, build]
+    runs-on: ubuntu-latest
+    steps:
+    - if: contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled')
+      run: exit 1
+
+  fmt:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v3
+    - run: rustup component add rustfmt
+    - run: rustup update
+    - run: cargo fmt --all --check
+
+  cackle:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - uses: cackle-rs/cackle-action@387fe459d8c037a0e7fbcd3d868f1aaba389d057
+      - run: cargo acl -n test
+
+  cargo-deny:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        checks:
+          - advisories
+          - bans licenses sources
+    # Prevent sudden announcement of a new advisory from failing ci:
+    continue-on-error: ${{ matrix.checks == 'advisories' }}
+    steps:
+    - uses: actions/checkout@v3
+    - uses: EmbarkStudios/cargo-deny-action@1e59595bed8fc55c969333d08d7817b36888f0c5
+      with:
+        command: check ${{ matrix.checks }}
+        # leave arguments empty so we don't test --all-features
+        # which will see conflicting env versions
+        arguments:
+
   rust-check-git-rev-deps:
     runs-on: ubuntu-latest
     steps:
@@ -60,6 +101,8 @@ jobs:
           else
             sudo apt-get -y install clang-12 llvm-12
           fi
+      - name: install rustup components
+        run: rustup component add rustfmt
       - name: install dependencies
         run: sudo apt-get -y install postgresql git build-essential pkg-config autoconf automake libtool bison flex libpq-dev parallel libunwind-dev sed perl
       - name: Build
