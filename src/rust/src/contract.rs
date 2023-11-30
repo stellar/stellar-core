@@ -376,6 +376,7 @@ fn invoke_host_function_or_maybe_panic(
                 let modified_ledger_entries = extract_ledger_effects(res.ledger_changes)?;
                 return Ok(InvokeHostFunctionOutput {
                     success: true,
+                    is_internal_error: false,
                     diagnostic_events: encode_diagnostic_events(&diagnostic_events),
                     cpu_insns,
                     mem_bytes,
@@ -421,6 +422,7 @@ fn invoke_host_function_or_maybe_panic(
     debug!(target: TX, "invocation failed: {}", err);
     return Ok(InvokeHostFunctionOutput {
         success: false,
+        is_internal_error: err.error.is_code(ScErrorCode::InternalError),
         diagnostic_events: encode_diagnostic_events(&diagnostic_events),
         cpu_insns,
         mem_bytes,

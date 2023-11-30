@@ -485,11 +485,19 @@ InvokeHostFunctionOpFrame::doApply(Application& app, AbstractLedgerTxn& ltx,
     }
     catch (std::exception& e)
     {
+        // Host invocations should never throw an exception, so encountering
+        // one would be an internal error.
+        out.is_internal_error = true;
         CLOG_DEBUG(Tx, "Exception caught while invoking host fn: {}", e.what());
     }
 
     if (!out.success)
     {
+        if (out.is_internal_error)
+        {
+            throw std::runtime_error(
+                "Got internal error during Soroban host invocation.");
+        }
         if (resources.instructions < out.cpu_insns)
         {
             mParentTx.pushSimpleDiagnosticError(

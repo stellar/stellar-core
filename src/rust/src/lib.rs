@@ -59,8 +59,14 @@ mod rust_bridge {
     // and metering data will be populated, but result value and effects won't
     // be populated.
     struct InvokeHostFunctionOutput {
-        // Diagnostic information concerning the host function execution.
         success: bool,
+        // In case if `success` is `false` indicates whether the host has
+        // failed with an internal error.
+        // We don't otherwise observe the error codes, but internal errors are
+        // something that should never happen, so it's important to be able
+        // to act on them in Core.
+        is_internal_error: bool,
+        // Diagnostic information concerning the host function execution.
         diagnostic_events: Vec<RustBuf>,
         cpu_insns: u64,
         mem_bytes: u64,
