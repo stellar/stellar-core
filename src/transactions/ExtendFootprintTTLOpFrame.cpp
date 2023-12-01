@@ -200,4 +200,11 @@ ExtendFootprintTTLOpFrame::isSoroban() const
 {
     return true;
 }
+
+ThresholdLevel
+ExtendFootprintTTLOpFrame::getThresholdLevel() const
+{
+    return ThresholdLevel::LOW;
+}
+
 }

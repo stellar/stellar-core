@@ -45,5 +45,7 @@ class RestoreFootprintOpFrame : public OperationFrame
     }
 
     virtual bool isSoroban() const override;
+
+    ThresholdLevel getThresholdLevel() const override;
 };
 }
