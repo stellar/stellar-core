@@ -1761,9 +1761,17 @@ TEST_CASE("surge pricing", "[herder][txset][soroban]")
                     res.footprint.readOnly.emplace_back(key);
                 }
 
-                txs.emplace_back(createUploadWasmTx(*app, acc, baseFee * 10,
-                                                    /* refundableFee */ baseFee,
-                                                    res));
+                auto tx = createUploadWasmTx(*app, acc, baseFee * 10,
+                                             /* refundableFee */ baseFee, res);
+                if (rand_flip())
+                {
+                    txs.emplace_back(tx);
+                }
+                else
+                {
+                    // Double the inclusion fee
+                    txs.emplace_back(feeBump(*app, acc, tx, baseFee * 10 * 2));
+                }
                 CLOG_INFO(Herder,
                           "Generated tx with {} instructions, {} read "
                           "bytes, {} write bytes, data bytes, {} read "

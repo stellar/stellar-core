@@ -1323,11 +1323,21 @@ TEST_CASE("Soroban TransactionQueue limits",
 
             SECTION("insufficient fee")
             {
-                // Same fee, no eviction
-                auto tx2 =
+                TransactionFrameBasePtr tx2;
+                auto innerTx =
                     createUploadWasmTx(*app, account2, initialInclusionFee,
                                        resourceFee, resAdjusted);
+                SECTION("regular tx")
+                {
+                    tx2 = innerTx;
+                }
+                SECTION("fee-bump")
+                {
+                    tx2 = feeBump(*app, account2, innerTx,
+                                  initialInclusionFee * 2);
+                }
 
+                // Same per-op fee, no eviction
                 REQUIRE(app->getHerder().recvTransaction(tx2, false) ==
                         TransactionQueue::AddResult::ADD_STATUS_ERROR);
                 REQUIRE(!app->getHerder().isBannedTx(tx->getFullHash()));
@@ -1385,11 +1395,23 @@ TEST_CASE("Soroban TransactionQueue limits",
                 static_cast<uint32>(conf.txMaxInstructions());
 
             auto tx2 =
-                createUploadWasmTx(*app, account1, initialInclusionFee * 2,
+                createUploadWasmTx(*app, account1, initialInclusionFee + 1,
                                    resourceFee, resources);
-            auto tx3 =
-                createUploadWasmTx(*app, account2, initialInclusionFee * 3,
+
+            TransactionFrameBasePtr tx3;
+            auto innerTx =
+                createUploadWasmTx(*app, account2, initialInclusionFee + 1,
                                    resourceFee, resources);
+            SECTION("regular tx")
+            {
+                tx3 = innerTx;
+            }
+            SECTION("fee-bump")
+            {
+                // Fee bump must pay double inclusion fee
+                tx3 = feeBump(*app, account2, innerTx,
+                              2 * (initialInclusionFee + 1));
+            }
 
             auto status = app->getHerder().recvTransaction(tx2, false);
             REQUIRE(status == TransactionQueue::AddResult::ADD_STATUS_PENDING);
@@ -1399,6 +1421,8 @@ TEST_CASE("Soroban TransactionQueue limits",
             // Evicted and banned the first tx
             REQUIRE(app->getHerder().getTx(tx->getFullHash()) == nullptr);
             REQUIRE(app->getHerder().isBannedTx(tx->getFullHash()));
+            // Second tx is still in the queue
+            REQUIRE(app->getHerder().getTx(tx2->getFullHash()) != nullptr);
         }
     }
     SECTION("limited lane eviction")
