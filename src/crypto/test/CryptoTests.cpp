@@ -33,8 +33,8 @@ static std::map<std::vector<uint8_t>, std::string> hexTestVectors = {
 
 TEST_CASE("random", "[crypto]")
 {
-    SecretKey k1 = SecretKey::random();
-    SecretKey k2 = SecretKey::random();
+    SecretKey k1 = SecretKey::pseudoRandomForTesting();
+    SecretKey k2 = SecretKey::pseudoRandomForTesting();
     LOG_DEBUG(DEFAULT_LOG, "k1: {}", k1.getStrKeySeed().value);
     LOG_DEBUG(DEFAULT_LOG, "k2: {}", k2.getStrKeySeed().value);
     CHECK(k1.getStrKeySeed() != k2.getStrKeySeed());
@@ -270,7 +270,7 @@ TEST_CASE("HKDF test vector", "[crypto]")
 
 TEST_CASE("sign tests", "[crypto]")
 {
-    auto sk = SecretKey::random();
+    auto sk = SecretKey::pseudoRandomForTesting();
     auto pk = sk.getPublicKey();
     LOG_DEBUG(DEFAULT_LOG, "generated random secret key seed: {}",
               sk.getStrKeySeed().value);
@@ -456,7 +456,7 @@ TEST_CASE("StrKey tests", "[crypto]")
 TEST_CASE("key string roundtrip", "[crypto]")
 {
     SignerKey signer;
-    auto publicKey = SecretKey::random().getPublicKey();
+    auto publicKey = SecretKey::pseudoRandomForTesting().getPublicKey();
     uint256 rand256 = publicKey.ed25519();
     SECTION("SIGNER_KEY_TYPE_ED25519")
     {

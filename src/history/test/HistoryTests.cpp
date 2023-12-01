@@ -310,7 +310,7 @@ TEST_CASE("Ledger chain verification", "[ledgerheaderverification]")
     {
         std::tie(lcl, last) = ledgerChainGenerator.makeLedgerChainFiles(
             HistoryManager::VERIFY_STATUS_OK);
-        lcl.hash = HashUtils::random();
+        lcl.hash = HashUtils::pseudoRandomForTesting();
         auto w =
             checkExpectedBehavior(BasicWork::State::WORK_FAILURE, lcl, last);
         REQUIRE(w);
@@ -319,7 +319,7 @@ TEST_CASE("Ledger chain verification", "[ledgerheaderverification]")
     {
         std::tie(lcl, last) = ledgerChainGenerator.makeLedgerChainFiles(
             HistoryManager::VERIFY_STATUS_OK);
-        lcl.hash = HashUtils::random();
+        lcl.hash = HashUtils::pseudoRandomForTesting();
         auto w = checkExpectedBehavior(BasicWork::State::WORK_FAILURE, lcl,
                                        last, false);
         REQUIRE(!w);
@@ -330,7 +330,7 @@ TEST_CASE("Ledger chain verification", "[ledgerheaderverification]")
             HistoryManager::VERIFY_STATUS_OK);
         lcl.header.ledgerSeq +=
             app->getHistoryManager().getCheckpointFrequency() - 1;
-        lcl.hash = HashUtils::random();
+        lcl.hash = HashUtils::pseudoRandomForTesting();
         auto w =
             checkExpectedBehavior(BasicWork::State::WORK_FAILURE, lcl, last);
         REQUIRE(w);
@@ -340,7 +340,7 @@ TEST_CASE("Ledger chain verification", "[ledgerheaderverification]")
         std::tie(lcl, last) = ledgerChainGenerator.makeLedgerChainFiles(
             HistoryManager::VERIFY_STATUS_OK);
         lcl.header.ledgerSeq -= 1;
-        lcl.hash = HashUtils::random();
+        lcl.hash = HashUtils::pseudoRandomForTesting();
         auto w =
             checkExpectedBehavior(BasicWork::State::WORK_FAILURE, lcl, last);
         REQUIRE(w);
@@ -349,7 +349,7 @@ TEST_CASE("Ledger chain verification", "[ledgerheaderverification]")
     {
         std::tie(lcl, last) = ledgerChainGenerator.makeLedgerChainFiles(
             HistoryManager::VERIFY_STATUS_OK);
-        last.hash = HashUtils::random();
+        last.hash = HashUtils::pseudoRandomForTesting();
         auto w =
             checkExpectedBehavior(BasicWork::State::WORK_FAILURE, lcl, last);
         REQUIRE(!w);
@@ -412,7 +412,7 @@ TEST_CASE("Tx results verification", "[batching][resultsverification]")
         res.close();
         REQUIRE_FALSE(entries.empty());
         auto& lastEntry = entries.at(entries.size() - 1);
-        lastEntry.header.txSetResultHash = HashUtils::random();
+        lastEntry.header.txSetResultHash = HashUtils::pseudoRandomForTesting();
         std::remove(ft.localPath_nogz().c_str());
 
         XDROutputFileStream out(
