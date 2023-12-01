@@ -167,7 +167,7 @@ TestBucketGenerator::TestBucketGenerator(
 std::string
 TestBucketGenerator::generateBucket(TestBucketState state)
 {
-    uint256 hash = HashUtils::random();
+    uint256 hash = HashUtils::pseudoRandomForTesting();
     if (state == TestBucketState::FILE_NOT_UPLOADED)
     {
         // Skip uploading the file, return any hash
@@ -182,7 +182,7 @@ TestBucketGenerator::generateBucket(TestBucketState state)
 
     if (state == TestBucketState::HASH_MISMATCH)
     {
-        hash = HashUtils::random();
+        hash = HashUtils::pseudoRandomForTesting();
     }
 
     // Upload generated bucket to the archive
@@ -276,7 +276,7 @@ TestLedgerChainGenerator::CheckpointEnds
 TestLedgerChainGenerator::makeLedgerChainFiles(
     HistoryManager::LedgerVerificationStatus state)
 {
-    Hash hash = HashUtils::random();
+    Hash hash = HashUtils::pseudoRandomForTesting();
     LedgerHeaderHistoryEntry beginRange;
 
     LedgerHeaderHistoryEntry first, last;

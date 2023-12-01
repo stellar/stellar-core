@@ -311,7 +311,8 @@ TEST_CASE("flow control byte capacity", "[overlay][flowcontrol]")
         for (int i = 0; i < tx2.transaction().v1().signatures.max_size(); i++)
         {
             tx2.transaction().v1().signatures.emplace_back(
-                SignatureUtils::sign(SecretKey::random(), HashUtils::random()));
+                SignatureUtils::sign(SecretKey::pseudoRandomForTesting(),
+                                     HashUtils::pseudoRandomForTesting()));
         }
         auto txSize2 = getTxSize(tx2);
         REQUIRE(xdr::xdr_size(tx2.transaction()) >
@@ -385,8 +386,8 @@ TEST_CASE("flow control byte capacity", "[overlay][flowcontrol]")
                  i < feeBump.transaction().feeBump().signatures.max_size(); i++)
             {
                 feeBump.transaction().feeBump().signatures.emplace_back(
-                    SignatureUtils::sign(SecretKey::random(),
-                                         HashUtils::random()));
+                    SignatureUtils::sign(SecretKey::pseudoRandomForTesting(),
+                                         HashUtils::pseudoRandomForTesting()));
             }
             REQUIRE(xdr::xdr_size(feeBump) <
                     xdr::xdr_size(tx2.transaction()) +

@@ -101,13 +101,13 @@ TEST_CASE("skip list", "[bucket][bucketmanager]")
         test()
         {
             Hash h0;
-            Hash h1 = HashUtils::random();
-            Hash h2 = HashUtils::random();
-            Hash h3 = HashUtils::random();
-            Hash h4 = HashUtils::random();
-            Hash h5 = HashUtils::random();
-            Hash h6 = HashUtils::random();
-            Hash h7 = HashUtils::random();
+            Hash h1 = HashUtils::pseudoRandomForTesting();
+            Hash h2 = HashUtils::pseudoRandomForTesting();
+            Hash h3 = HashUtils::pseudoRandomForTesting();
+            Hash h4 = HashUtils::pseudoRandomForTesting();
+            Hash h5 = HashUtils::pseudoRandomForTesting();
+            Hash h6 = HashUtils::pseudoRandomForTesting();
+            Hash h7 = HashUtils::pseudoRandomForTesting();
 
             // up first entry
             LedgerHeader header;
