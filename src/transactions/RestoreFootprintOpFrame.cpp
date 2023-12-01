@@ -205,4 +205,10 @@ RestoreFootprintOpFrame::isSoroban() const
 {
     return true;
 }
+
+ThresholdLevel
+RestoreFootprintOpFrame::getThresholdLevel() const
+{
+    return ThresholdLevel::LOW;
+}
 }
