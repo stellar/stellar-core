@@ -1679,7 +1679,7 @@ TEST_CASE("contract storage", "[tx][soroban]")
         {
             // Restore Instance and Wasm
             test.restoreOp(contractKeys,
-                           1882 /* rent bump */ + 40000 /* two LE-writes */);
+                           1881 /* rent bump */ + 40000 /* two LE-writes */);
 
             // Instance should now be useable
             test.put("temp", ContractDataDurability::TEMPORARY, 0);
@@ -1704,7 +1704,7 @@ TEST_CASE("contract storage", "[tx][soroban]")
         {
             // Only restore Wasm
             test.restoreOp({contractKeys[1]},
-                           944 /* rent bump */ + 20000 /* one LE write */);
+                           943 /* rent bump */ + 20000 /* one LE write */);
 
             // invocation should fail
             test.put("temp", ContractDataDurability::TEMPORARY, 0,
@@ -1717,7 +1717,7 @@ TEST_CASE("contract storage", "[tx][soroban]")
         {
             // Restore Instance and Wasm
             test.restoreOp(contractKeys,
-                           1882 /* rent bump */ + 40000 /* two LE writes */);
+                           1881 /* rent bump */ + 40000 /* two LE writes */);
 
             auto instanceExtendTo = 10'000;
             auto wasmExtendTo = 15'000;

@@ -587,7 +587,7 @@ WasmContractInvocationTest::WasmContractInvocationTest(
         uploadResources.writeBytes = 5000;
 
         SorobanResources createResources{};
-        createResources.instructions = 200'000;
+        createResources.instructions = 600'000;
         createResources.readBytes = 5000;
         createResources.writeBytes = 5000;
 
@@ -1331,7 +1331,7 @@ ContractStorageInvocationTest::hasWithFootprint(
     SorobanResources resources;
     resources.footprint.readOnly = readOnly;
     resources.footprint.readWrite = readWrite;
-    resources.instructions = 4'000'000;
+    resources.instructions = 4'500'000;
     resources.readBytes = getNetworkCfg().txMaxReadBytes();
     resources.writeBytes = 0;
 

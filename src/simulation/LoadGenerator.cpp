@@ -1139,7 +1139,7 @@ LoadGenerator::createContractTransaction(uint32_t ledgerNum, uint64_t accountId,
 
     auto account = findAccount(accountId, ledgerNum);
     SorobanResources createResources{};
-    createResources.instructions = 200'000;
+    createResources.instructions = 500'000;
     createResources.readBytes = mContactOverheadBytes;
     createResources.writeBytes = 300;
 
@@ -1186,8 +1186,8 @@ LoadGenerator::invokeSorobanLoadTransaction(uint32_t ledgerNum,
     // limitations. However these should fail at apply time, so will still
     // generate siginificant load
     uint64_t const baseInstructionCount = 3'000'000;
-    uint64_t const instructionsPerGuestCycle = 120;
-    uint64_t const instructionsPerHostCycle = 2355;
+    uint64_t const instructionsPerGuestCycle = 80;
+    uint64_t const instructionsPerHostCycle = 5030;
 
     // Pick random number of cycles between bounds, respecting network limits
     uint64_t maxInstructions =
