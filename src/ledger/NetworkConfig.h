@@ -31,7 +31,7 @@ struct MinimumSorobanNetworkConfig
     static constexpr uint32_t TX_MAX_INSTRUCTIONS = 2'500'000;
     static constexpr uint32_t MEMORY_LIMIT = 2'000'000;
 
-    static constexpr uint32_t MAX_CONTRACT_DATA_KEY_SIZE_BYTES = 300;
+    static constexpr uint32_t MAX_CONTRACT_DATA_KEY_SIZE_BYTES = 200;
     static constexpr uint32_t MAX_CONTRACT_DATA_ENTRY_SIZE_BYTES = 2'000;
     static constexpr uint32_t MAX_CONTRACT_SIZE = 2'000;
 
