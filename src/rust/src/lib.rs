@@ -71,6 +71,8 @@ mod rust_bridge {
         cpu_insns: u64,
         mem_bytes: u64,
         time_nsecs: u64,
+        cpu_insns_excluding_vm_instantiation: u64,
+        time_nsecs_excluding_vm_instantiation: u64,
 
         // Effects of the invocation that are only populated in case of success.
         result_value: RustBuf,

@@ -122,6 +122,8 @@ struct HostFunctionMetrics
     uint64_t mCpuInsn{0};
     uint64_t mMemByte{0};
     uint64_t mInvokeTimeNsecs{0};
+    uint64_t mCpuInsnExclVm{0};
+    uint64_t mInvokeTimeNsecsExclVm{0};
 
     // max single entity size metrics
     uint32_t mMaxReadWriteKeyByte{0};
@@ -211,6 +213,12 @@ struct HostFunctionMetrics
         mMetrics
             .NewMeter({"soroban", "host-fn-op", "invoke-time-nsecs"}, "time")
             .Mark(mInvokeTimeNsecs);
+        mMetrics.NewMeter({"soroban", "host-fn-op", "cpu-insn-excl-vm"}, "insn")
+            .Mark(mCpuInsnExclVm);
+        mMetrics
+            .NewMeter({"soroban", "host-fn-op", "invoke-time-nsecs-excl-vm"},
+                      "time")
+            .Mark(mInvokeTimeNsecsExclVm);
 
         mMetrics.NewMeter({"soroban", "host-fn-op", "max-rw-key-byte"}, "byte")
             .Mark(mMaxReadWriteKeyByte);
@@ -310,6 +318,8 @@ InvokeHostFunctionOpFrame::maybePopulateDiagnosticEvents(
             metricsEvent(metrics.mSuccess, "mem_byte", metrics.mMemByte));
         diagnosticEvents.emplace_back(metricsEvent(
             metrics.mSuccess, "invoke_time_nsecs", metrics.mInvokeTimeNsecs));
+        // skip publishing `cpu_insn_excl_vm` and `invoke_time_nsecs_excl_vm`,
+        // we are mostly interested in those internally
         diagnosticEvents.emplace_back(metricsEvent(
             metrics.mSuccess, "max_rw_key_byte", metrics.mMaxReadWriteKeyByte));
         diagnosticEvents.emplace_back(
@@ -478,6 +488,9 @@ InvokeHostFunctionOpFrame::doApply(Application& app, AbstractLedgerTxn& ltx,
         metrics.mCpuInsn = out.cpu_insns;
         metrics.mMemByte = out.mem_bytes;
         metrics.mInvokeTimeNsecs = out.time_nsecs;
+        metrics.mCpuInsnExclVm = out.cpu_insns_excluding_vm_instantiation;
+        metrics.mInvokeTimeNsecsExclVm =
+            out.time_nsecs_excluding_vm_instantiation;
         if (!out.success)
         {
             maybePopulateDiagnosticEvents(cfg, out, metrics);
