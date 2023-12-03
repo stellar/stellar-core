@@ -2643,7 +2643,11 @@ TEST_CASE("soroban transaction validation", "[tx][envelope][soroban]")
             auto tx = sorobanTransactionFrameFromOpsWithTotalFee(
                 app->getNetworkID(), root, {op0}, {}, resources,
                 std::numeric_limits<uint32_t>::max(),
-                std::numeric_limits<int64_t>::max());
+                // An absurdly large resource fee, way beyond anything that
+                // could occur in practice and way beyond uint32_t::max, but not
+                // so bit that subsequent arithmetic overflows int64_t later on
+                // (and triggers UB).
+                std::numeric_limits<int64_t>::max() >> 1);
             LedgerTxn ltx(app->getLedgerTxnRoot());
             REQUIRE(!tx->checkValid(*app, ltx, 0, 0, 0));
             REQUIRE(tx->getResult().result.code() == txSOROBAN_INVALID);
