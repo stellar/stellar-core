@@ -367,7 +367,6 @@ LoadGenerator::scheduleLoadGeneration(GeneratedLoadConfig cfg)
     if (cfg.mode == LoadGenMode::SOROBAN_INVOKE)
     {
         auto const& sorobanLoadCfg = cfg.getSorobanConfig();
-        auto const& invokeCfg = cfg.getSorobanInvokeConfig();
         releaseAssertOrThrow(sorobanLoadCfg.nInstances != 0);
         if (mContractInstanceKeys.size() < sorobanLoadCfg.nInstances ||
             !mCodeKey)
@@ -531,7 +530,7 @@ GeneratedLoadConfig::getStatus() const
         ret["txs_remaining"] = nTxs;
     }
 
-    ret["tx_rate"] = txRate + " tx/s";
+    ret["tx_rate"] = std::to_string(txRate) + " tx/s";
     if (mode == LoadGenMode::MIXED_TXS)
     {
         ret["dex_tx_percent"] = getDexTxPercent() + "%";
@@ -1316,6 +1315,12 @@ LoadGenerator::invokeSorobanLoadTransaction(uint32_t ledgerNum,
                                                   invokeCfg.ioKiloBytesHigh) *
                            1024;
 
+    if (totalWriteBytes < mContactOverheadBytes)
+    {
+        totalWriteBytes = mContactOverheadBytes;
+        numEntries = 0;
+    }
+
     uint32_t kiloBytesPerEntry = 0;
     if (numEntries > 0)
     {
@@ -2062,5 +2067,94 @@ GeneratedLoadConfig::txLoad(LoadGenMode mode, uint32_t nAccounts, uint32_t nTxs,
     cfg.offset = offset;
     cfg.maxGeneratedFeeRate = maxFee;
     return cfg;
+}
+
+GeneratedLoadConfig::SorobanConfig&
+GeneratedLoadConfig::getMutSorobanConfig()
+{
+    releaseAssert(isSoroban() && mode != LoadGenMode::SOROBAN_UPLOAD);
+    return sorobanConfig;
+}
+
+GeneratedLoadConfig::SorobanConfig const&
+GeneratedLoadConfig::getSorobanConfig() const
+{
+    releaseAssert(isSoroban() && mode != LoadGenMode::SOROBAN_UPLOAD);
+    return sorobanConfig;
+}
+
+GeneratedLoadConfig::SorobanInvokeConfig&
+GeneratedLoadConfig::getMutSorobanInvokeConfig()
+{
+    releaseAssert(mode == LoadGenMode::SOROBAN_INVOKE);
+    return sorobanInvokeConfig;
+}
+
+GeneratedLoadConfig::SorobanInvokeConfig const&
+GeneratedLoadConfig::getSorobanInvokeConfig() const
+{
+    releaseAssert(mode == LoadGenMode::SOROBAN_INVOKE);
+    return sorobanInvokeConfig;
+}
+
+GeneratedLoadConfig::SorobanUpgradeConfig&
+GeneratedLoadConfig::getMutSorobanUpgradeConfig()
+{
+    releaseAssert(mode == LoadGenMode::SOROBAN_CREATE_UPGRADE);
+    return sorobanUpgradeConfig;
+}
+
+GeneratedLoadConfig::SorobanUpgradeConfig const&
+GeneratedLoadConfig::getSorobanUpgradeConfig() const
+{
+    releaseAssert(mode == LoadGenMode::SOROBAN_CREATE_UPGRADE);
+    return sorobanUpgradeConfig;
+}
+
+uint32_t&
+GeneratedLoadConfig::getMutDexTxPercent()
+{
+    releaseAssert(mode == LoadGenMode::MIXED_TXS);
+    return dexTxPercent;
+}
+
+uint32_t const&
+GeneratedLoadConfig::getDexTxPercent() const
+{
+    releaseAssert(mode == LoadGenMode::MIXED_TXS);
+    return dexTxPercent;
+}
+
+bool
+GeneratedLoadConfig::isCreate() const
+{
+    return mode == LoadGenMode::CREATE;
+}
+
+bool
+GeneratedLoadConfig::isSoroban() const
+{
+    return mode == LoadGenMode::SOROBAN_INVOKE ||
+           mode == LoadGenMode::SOROBAN_INVOKE_SETUP ||
+           mode == LoadGenMode::SOROBAN_UPLOAD ||
+           mode == LoadGenMode::SOROBAN_UPGRADE_SETUP ||
+           mode == LoadGenMode::SOROBAN_CREATE_UPGRADE;
+}
+
+bool
+GeneratedLoadConfig::isSorobanSetup() const
+{
+    return mode == LoadGenMode::SOROBAN_INVOKE_SETUP ||
+           mode == LoadGenMode::SOROBAN_UPGRADE_SETUP;
+}
+
+bool
+GeneratedLoadConfig::isLoad() const
+{
+    return mode == LoadGenMode::PAY || mode == LoadGenMode::PRETEND ||
+           mode == LoadGenMode::MIXED_TXS ||
+           mode == LoadGenMode::SOROBAN_UPLOAD ||
+           mode == LoadGenMode::SOROBAN_INVOKE ||
+           mode == LoadGenMode::SOROBAN_CREATE_UPGRADE;
 }
 }

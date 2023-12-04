@@ -127,94 +127,19 @@ struct GeneratedLoadConfig
     txLoad(LoadGenMode mode, uint32_t nAccounts, uint32_t nTxs, uint32_t txRate,
            uint32_t offset = 0, std::optional<uint32_t> maxFee = std::nullopt);
 
-    SorobanConfig&
-    getMutSorobanConfig()
-    {
-        releaseAssert(isSoroban() && mode != LoadGenMode::SOROBAN_UPLOAD);
-        return sorobanConfig;
-    }
+    SorobanConfig& getMutSorobanConfig();
+    SorobanConfig const& getSorobanConfig() const;
+    SorobanInvokeConfig& getMutSorobanInvokeConfig();
+    SorobanInvokeConfig const& getSorobanInvokeConfig() const;
+    SorobanUpgradeConfig& getMutSorobanUpgradeConfig();
+    SorobanUpgradeConfig const& getSorobanUpgradeConfig() const;
+    uint32_t& getMutDexTxPercent();
+    uint32_t const& getDexTxPercent() const;
 
-    SorobanConfig const&
-    getSorobanConfig() const
-    {
-        releaseAssert(isSoroban() && mode != LoadGenMode::SOROBAN_UPLOAD);
-        return sorobanConfig;
-    }
-
-    SorobanInvokeConfig&
-    getMutSorobanInvokeConfig()
-    {
-        releaseAssert(mode == LoadGenMode::SOROBAN_INVOKE);
-        return sorobanInvokeConfig;
-    }
-
-    SorobanInvokeConfig const&
-    getSorobanInvokeConfig() const
-    {
-        releaseAssert(mode == LoadGenMode::SOROBAN_INVOKE);
-        return sorobanInvokeConfig;
-    }
-
-    SorobanUpgradeConfig&
-    getMutSorobanUpgradeConfig()
-    {
-        releaseAssert(mode == LoadGenMode::SOROBAN_CREATE_UPGRADE);
-        return sorobanUpgradeConfig;
-    }
-
-    SorobanUpgradeConfig const&
-    getSorobanUpgradeConfig() const
-    {
-        releaseAssert(mode == LoadGenMode::SOROBAN_CREATE_UPGRADE);
-        return sorobanUpgradeConfig;
-    }
-
-    uint32_t&
-    getMutDexTxPercent()
-    {
-        releaseAssert(mode == LoadGenMode::MIXED_TXS);
-        return dexTxPercent;
-    }
-
-    uint32_t const&
-    getDexTxPercent() const
-    {
-        releaseAssert(mode == LoadGenMode::MIXED_TXS);
-        return dexTxPercent;
-    }
-
-    bool
-    isCreate() const
-    {
-        return mode == LoadGenMode::CREATE;
-    }
-
-    bool
-    isSoroban() const
-    {
-        return mode == LoadGenMode::SOROBAN_INVOKE ||
-               mode == LoadGenMode::SOROBAN_INVOKE_SETUP ||
-               mode == LoadGenMode::SOROBAN_UPLOAD ||
-               mode == LoadGenMode::SOROBAN_UPGRADE_SETUP ||
-               mode == LoadGenMode::SOROBAN_CREATE_UPGRADE;
-    }
-
-    bool
-    isSorobanSetup() const
-    {
-        return mode == LoadGenMode::SOROBAN_INVOKE_SETUP ||
-               mode == LoadGenMode::SOROBAN_UPGRADE_SETUP;
-    }
-
-    bool
-    isLoad() const
-    {
-        return mode == LoadGenMode::PAY || mode == LoadGenMode::PRETEND ||
-               mode == LoadGenMode::MIXED_TXS ||
-               mode == LoadGenMode::SOROBAN_UPLOAD ||
-               mode == LoadGenMode::SOROBAN_INVOKE ||
-               mode == LoadGenMode::SOROBAN_CREATE_UPGRADE;
-    }
+    bool isCreate() const;
+    bool isSoroban() const;
+    bool isSorobanSetup() const;
+    bool isLoad() const;
 
     bool isDone() const;
     bool areTxsRemaining() const;

@@ -1145,7 +1145,6 @@ CommandHandler::generateLoad(std::string const& params, std::string& retStr)
         GeneratedLoadConfig cfg;
         cfg.mode = LoadGenerator::getMode(
             parseOptionalParamOrDefault<std::string>(map, "mode", "create"));
-        bool isCreate = cfg.mode == LoadGenMode::CREATE;
 
         cfg.nAccounts =
             parseOptionalParamOrDefault<uint32_t>(map, "accounts", 1000);
