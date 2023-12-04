@@ -2643,14 +2643,20 @@ TEST_CASE("soroban transaction validation", "[tx][envelope][soroban]")
             auto tx = sorobanTransactionFrameFromOpsWithTotalFee(
                 app->getNetworkID(), root, {op0}, {}, resources,
                 std::numeric_limits<uint32_t>::max(),
-                // An absurdly large resource fee, way beyond anything that
-                // could occur in practice and way beyond uint32_t::max, but not
-                // so bit that subsequent arithmetic overflows int64_t later on
-                // (and triggers UB).
-                std::numeric_limits<int64_t>::max() >> 1);
+                static_cast<int64_t>(std::numeric_limits<uint32_t>::max()) + 1);
             LedgerTxn ltx(app->getLedgerTxnRoot());
             REQUIRE(!tx->checkValid(*app, ltx, 0, 0, 0));
             REQUIRE(tx->getResult().result.code() == txSOROBAN_INVALID);
+        }
+        SECTION("resource fee is max int64")
+        {
+            auto tx = sorobanTransactionFrameFromOpsWithTotalFee(
+                app->getNetworkID(), root, {op0}, {}, resources,
+                std::numeric_limits<uint32_t>::max(),
+                std::numeric_limits<int64_t>::max());
+            LedgerTxn ltx(app->getLedgerTxnRoot());
+            REQUIRE(!tx->checkValid(*app, ltx, 0, 0, 0));
+            REQUIRE(tx->getResult().result.code() == txMALFORMED);
         }
         SECTION("total fee is exactly uint32 max")
         {
@@ -2690,6 +2696,31 @@ TEST_CASE("soroban transaction validation", "[tx][envelope][soroban]")
             // consider the inner tx invalid due to negative inclusion fee.
             REQUIRE(!tx->checkValid(*app, ltx, 0, 0, 0));
             REQUIRE(tx->getResult().result.code() == txFEE_BUMP_INNER_FAILED);
+        }
+        SECTION("resource fee is negative with fee bump")
+        {
+            auto innerTx = sorobanTransactionFrameFromOpsWithTotalFee(
+                app->getNetworkID(), root, {op0}, {}, resources,
+                std::numeric_limits<uint32_t>::max(), -1);
+            auto tx = feeBump(*app, root, innerTx,
+                              std::numeric_limits<int64_t>::max(),
+                              /* useInclusionAsFullFee */ true);
+            LedgerTxn ltx(app->getLedgerTxnRoot());
+            REQUIRE(!tx->checkValid(*app, ltx, 0, 0, 0));
+            REQUIRE(tx->getResult().result.code() == txMALFORMED);
+        }
+        SECTION("resource fee is max int64 with fee bump")
+        {
+            auto innerTx = sorobanTransactionFrameFromOpsWithTotalFee(
+                app->getNetworkID(), root, {op0}, {}, resources,
+                std::numeric_limits<uint32_t>::max(),
+                std::numeric_limits<int64_t>::max());
+            auto tx = feeBump(*app, root, innerTx,
+                              std::numeric_limits<int64_t>::max(),
+                              /* useInclusionAsFullFee */ true);
+            LedgerTxn ltx(app->getLedgerTxnRoot());
+            REQUIRE(!tx->checkValid(*app, ltx, 0, 0, 0));
+            REQUIRE(tx->getResult().result.code() == txMALFORMED);
         }
     }
 

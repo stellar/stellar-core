@@ -183,6 +183,11 @@ FeeBumpTransactionFrame::checkValid(Application& app,
                                     uint64_t lowerBoundCloseTimeOffset,
                                     uint64_t upperBoundCloseTimeOffset)
 {
+    if (!XDRProvidesValidFee())
+    {
+        getResult().result.code(txMALFORMED);
+        return false;
+    }
     LedgerTxn ltx(ltxOuter);
     int64_t minBaseFee = ltx.loadHeader().current().baseFee;
     resetResults(ltx.loadHeader().current(), minBaseFee, false);
