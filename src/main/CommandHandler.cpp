@@ -1193,9 +1193,9 @@ CommandHandler::generateLoad(std::string const& params, std::string& retStr)
                 parseOptionalParamOrDefault<uint32_t>(map, "dataentrieslow", 0);
             invokeCfg.nDataEntriesHigh = parseOptionalParamOrDefault<uint32_t>(
                 map, "dataentrieshigh", 0);
-            invokeCfg.kiloBytesPerDataEntryLow =
+            invokeCfg.ioKiloBytesLow =
                 parseOptionalParamOrDefault<uint32_t>(map, "kilobyteslow", 0);
-            invokeCfg.kiloBytesPerDataEntryHigh =
+            invokeCfg.ioKiloBytesHigh =
                 parseOptionalParamOrDefault<uint32_t>(map, "kilobyteshigh", 0);
             invokeCfg.txSizeBytesLow =
                 parseOptionalParamOrDefault<uint32_t>(map, "txsizelow", 0);

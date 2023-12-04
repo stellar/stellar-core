@@ -366,8 +366,6 @@ LoadGenerator::scheduleLoadGeneration(GeneratedLoadConfig cfg)
 
     if (cfg.mode == LoadGenMode::SOROBAN_INVOKE)
     {
-        auto& sorobanNetworkCfg =
-            mApp.getLedgerManager().getSorobanNetworkConfig();
         auto const& sorobanLoadCfg = cfg.getSorobanConfig();
         auto const& invokeCfg = cfg.getSorobanInvokeConfig();
         releaseAssertOrThrow(sorobanLoadCfg.nInstances != 0);
@@ -379,32 +377,6 @@ LoadGenerator::scheduleLoadGeneration(GeneratedLoadConfig cfg)
         else if (cfg.nAccounts < sorobanLoadCfg.nInstances)
         {
             errorMsg = "must have more accounts than instances";
-        }
-        else if (invokeCfg.nDataEntriesHigh >
-                 sorobanNetworkCfg.mTxMaxWriteLedgerEntries)
-        {
-            errorMsg = "nDataEntriesHigh larger than max write ledger entries";
-        }
-        // Wasm + instance + data entry reads
-        else if (invokeCfg.nDataEntriesHigh + 2 >
-                 sorobanNetworkCfg.mTxMaxReadLedgerEntries)
-        {
-            errorMsg = "nDataEntriesHigh larger than max read ledger entries";
-        }
-        else if (invokeCfg.nDataEntriesHigh *
-                     invokeCfg.kiloBytesPerDataEntryHigh * 1024 >
-                 sorobanNetworkCfg.mTxMaxWriteBytes)
-        {
-            errorMsg = "TxMaxWriteBytes too small for configuration";
-        }
-        // Check if we have enough read bytes, using 1'200 as a rough estimate
-        // of Wasm size
-        else if (invokeCfg.nDataEntriesHigh *
-                         invokeCfg.kiloBytesPerDataEntryHigh * 1024 +
-                     1'200 >
-                 sorobanNetworkCfg.mTxMaxReadBytes)
-        {
-            errorMsg = "TxMaxReadBytes too small for configuration";
         }
     }
 
@@ -570,10 +542,8 @@ GeneratedLoadConfig::getStatus() const
         ret["wasms"] = getSorobanConfig().nWasms;
         ret["data_entries_low"] = getSorobanInvokeConfig().nDataEntriesLow;
         ret["data_entries_high"] = getSorobanInvokeConfig().nDataEntriesHigh;
-        ret["kilo_bytes_per_data_entry_low"] =
-            getSorobanInvokeConfig().kiloBytesPerDataEntryLow;
-        ret["kilo_bytes_per_data_entry_high"] =
-            getSorobanInvokeConfig().kiloBytesPerDataEntryHigh;
+        ret["io_kilo_bytes_low"] = getSorobanInvokeConfig().ioKiloBytesLow;
+        ret["io_kilo_bytes_high"] = getSorobanInvokeConfig().ioKiloBytesHigh;
         ret["tx_size_bytes_low"] = getSorobanInvokeConfig().txSizeBytesLow;
         ret["tx_size_bytes_high"] = getSorobanInvokeConfig().txSizeBytesHigh;
         ret["instructions_low"] =
@@ -1333,12 +1303,8 @@ LoadGenerator::invokeSorobanLoadTransaction(uint32_t ledgerNum,
     SorobanResources resources;
     resources.footprint.readOnly = instance.readOnlyKeys;
 
-    // Must always read wasm and instance
-    releaseAssert(networkCfg.mTxMaxReadLedgerEntries > 1);
-    auto maxEntries = networkCfg.mTxMaxReadLedgerEntries - 2;
-    maxEntries = std::min(maxEntries, invokeCfg.nDataEntriesHigh);
-    auto minEntries = std::min(maxEntries, invokeCfg.nDataEntriesLow);
-    auto numEntries = rand_uniform<uint32_t>(minEntries, maxEntries);
+    auto numEntries = rand_uniform<uint32_t>(invokeCfg.nDataEntriesLow,
+                                             invokeCfg.nDataEntriesHigh);
     for (uint32_t i = 0; i < numEntries; ++i)
     {
         auto lk = contractDataKey(instance.contractID, makeU32(i),
@@ -1346,20 +1312,22 @@ LoadGenerator::invokeSorobanLoadTransaction(uint32_t ledgerNum,
         resources.footprint.readWrite.emplace_back(lk);
     }
 
-    uint32_t maxKiloBytesPerEntry = 0;
-    if (networkCfg.mTxMaxReadBytes > mContactOverheadBytes && numEntries > 0)
-    {
-        maxKiloBytesPerEntry =
-            (networkCfg.mTxMaxReadBytes - mContactOverheadBytes) / numEntries /
-            1024;
-    }
+    auto totalWriteBytes = rand_uniform<uint32_t>(invokeCfg.ioKiloBytesLow,
+                                                  invokeCfg.ioKiloBytesHigh) *
+                           1024;
 
-    maxKiloBytesPerEntry =
-        std::min(maxKiloBytesPerEntry, invokeCfg.kiloBytesPerDataEntryHigh);
-    uint32_t minKiloBytesPerEntry =
-        std::min(maxKiloBytesPerEntry, invokeCfg.kiloBytesPerDataEntryLow);
-    auto kiloBytesPerEntry =
-        rand_uniform<uint32_t>(minKiloBytesPerEntry, maxKiloBytesPerEntry);
+    uint32_t kiloBytesPerEntry = 0;
+    if (numEntries > 0)
+    {
+        kiloBytesPerEntry =
+            (totalWriteBytes - mContactOverheadBytes) / numEntries / 1024;
+
+        // If numEntries > 0, we can't write a 0 byte entry
+        if (kiloBytesPerEntry == 0)
+        {
+            kiloBytesPerEntry = 1;
+        }
+    }
 
     auto guestCyclesU64 = makeU64(guestCycles);
     auto hostCyclesU64 = makeU64(hostCycles);
@@ -1375,20 +1343,15 @@ LoadGenerator::invokeSorobanLoadTransaction(uint32_t ledgerNum,
     ihf.invokeContract().args = {guestCyclesU64, hostCyclesU64, numEntriesU32,
                                  kiloBytesPerEntryU32};
 
-    // We don't have a good way of knowing how many bytes we will need to read
-    // since the previous invocation writes a random number of bytes, so use
-    // upper bound
-    const uint32_t leOverhead = 75;
-    auto readBytesUpperBound =
-        (invokeCfg.kiloBytesPerDataEntryHigh * 1024 + leOverhead) * numEntries +
-        mContactOverheadBytes;
-    auto writeBytes = (kiloBytesPerEntry * 1024 + leOverhead) * numEntries;
-
     // baseInstructionCount is a very rough estimate and may be a significant
     // underestimation based on the IO load used, so use max instructions
     resources.instructions = networkCfg.mTxMaxInstructions;
-    resources.readBytes = readBytesUpperBound;
-    resources.writeBytes = writeBytes;
+
+    // We don't have a good way of knowing how many bytes we will need to read
+    // since the previous invocation writes a random number of bytes, so use
+    // upper bound
+    resources.readBytes = invokeCfg.ioKiloBytesHigh * 1024;
+    resources.writeBytes = totalWriteBytes;
 
     // Approximate TX size before padding and footprint, slightly over estimated
     // so we stay below limits, plus footprint size

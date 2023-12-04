@@ -390,7 +390,8 @@ format.
     intensive contract. Each invocation picks a random amount of resources
     between some bound. Resource bounds can be set with the `dataentrieslow`,
     `dataentrieshigh`, `kilobyteslow`, `kilobyteshigh`, `txsizelow`, `txsizehigh`,
-    `cpulow`, `cpuhigh`, where CPU bounds correspond to instruction count. `instances`
+    `cpulow`, `cpuhigh`, where CPU bounds correspond to instruction count. `kilobytes*`
+    values indicate the total ammount of disk IO generated TXs require. `instances`
     and `wasms` parameters determine how many unique contract instances and wasm entries
     will be used.
   * `upgrade_setup` mode create soroban contract instance to be used by

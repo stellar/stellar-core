@@ -359,7 +359,7 @@ TEST_CASE("generate soroban load", "[loadgen][soroban]")
     auto const numInstances = 10;
     auto const numSorobanTxs = 100;
     auto const numDataEntries = 5;
-    auto const kilobytesPerDataEntry = 3;
+    auto const ioKiloBytes = 15;
 
     numTxsBefore = getSuccessfulTxCount();
     loadGen.generateLoad(GeneratedLoadConfig::createSorobanInvokeSetupLoad(
@@ -399,8 +399,8 @@ TEST_CASE("generate soroban load", "[loadgen][soroban]")
     auto& invokeCfg = invokeLoadCfg.getMutSorobanInvokeConfig();
     invokeCfg.nDataEntriesLow = numDataEntries;
     invokeCfg.nDataEntriesHigh = numDataEntries;
-    invokeCfg.kiloBytesPerDataEntryLow = kilobytesPerDataEntry;
-    invokeCfg.kiloBytesPerDataEntryHigh = kilobytesPerDataEntry;
+    invokeCfg.ioKiloBytesLow = ioKiloBytes;
+    invokeCfg.ioKiloBytesHigh = ioKiloBytes;
 
     invokeCfg.txSizeBytesHigh = 100'000;
     invokeCfg.instructionsHigh = 10'000'000;
@@ -438,6 +438,16 @@ TEST_CASE("generate soroban load", "[loadgen][soroban]")
     REQUIRE(instanceKeys.size() == static_cast<size_t>(numInstances));
 
     // Check that each key is unique and exists in the DB
+    // This ugly math mimics what we do in loadgen, where we calculate the total
+    // number of bytes we can write, then divide the bytes between the number of
+    // data entries we want to write and convert this value back to
+    // kilobytes for the contract invocation. Thus we need to redundantly divide
+    // then multiply by 1024 to mimic rounding behavior.
+    auto expectedDataEntrySize =
+        ((ioKiloBytes * 1024 - loadGen.getContactOverheadBytesForTesting()) /
+         numDataEntries / 1024) *
+        1024;
+
     UnorderedSet<LedgerKey> keys;
     for (auto const& instanceKey : instanceKeys)
     {
@@ -457,9 +467,8 @@ TEST_CASE("generate soroban load", "[loadgen][soroban]")
             auto entry = ltx.load(lk);
             REQUIRE(entry);
             uint32_t sizeBytes = xdr::xdr_size(entry.current());
-            uint32_t expectedSize = kilobytesPerDataEntry * 1024;
-            REQUIRE(
-                (sizeBytes > expectedSize && sizeBytes < 100 + expectedSize));
+            REQUIRE((sizeBytes > expectedDataEntrySize &&
+                     sizeBytes < 100 + expectedDataEntrySize));
 
             REQUIRE(keys.find(lk) == keys.end());
             keys.insert(lk);

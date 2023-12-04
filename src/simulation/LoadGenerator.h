@@ -61,11 +61,12 @@ struct GeneratedLoadConfig
     // Config parameters for SOROBAN_INVOKE
     struct SorobanInvokeConfig
     {
-        // Range of kilo bytes and num entries for disk IO
+        // Range of kilo bytes and num entries for disk IO, where ioKiloBytes is
+        // the total amount of disk IO that the TX requires
         uint32_t nDataEntriesLow = 0;
         uint32_t nDataEntriesHigh = 0;
-        uint32_t kiloBytesPerDataEntryLow = 0;
-        uint32_t kiloBytesPerDataEntryHigh = 0;
+        uint32_t ioKiloBytesLow = 0;
+        uint32_t ioKiloBytesHigh = 0;
 
         // Size of transactions
         int32_t txSizeBytesLow = 0;
@@ -299,6 +300,12 @@ class LoadGenerator
     getCodeKeyForTesting() const
     {
         return mCodeKey;
+    }
+
+    uint64_t
+    getContactOverheadBytesForTesting() const
+    {
+        return mContactOverheadBytes;
     }
 
   private:
