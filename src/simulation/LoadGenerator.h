@@ -384,7 +384,8 @@ class LoadGenerator
     // unique instance
     UnorderedMap<uint64_t, ContractInstance> mContractInstances;
 
-    void reset(bool resetSoroban);
+    void reset();
+    void resetSorobanState();
     void createRootAccount();
     int64_t getTxPerStep(uint32_t txRate, std::chrono::seconds spikeInterval,
                          uint32_t spikeSize);

@@ -255,8 +255,9 @@ LoadGenerator::cleanupAccounts()
     }
 }
 
+// Reset everything except Soroban persistent state
 void
-LoadGenerator::reset(bool resetSoroban)
+LoadGenerator::reset()
 {
     mAccounts.clear();
     mAccountsInUse.clear();
@@ -266,22 +267,21 @@ LoadGenerator::reset(bool resetSoroban)
     mLoadTimer.reset();
     mRoot.reset();
     mStartTime.reset();
-
-    // If we fail during Soroban setup or find a state inconsistency during
-    // soroban loadgen, reset persistent state
-    if (resetSoroban)
-    {
-        mContractInstanceKeys.clear();
-        mCodeKey.reset();
-        mContactOverheadBytes = 0;
-    }
-
     mTotalSubmitted = 0;
     mWaitTillCompleteForLedgers = 0;
     mSorobanWasmWaitTillLedgers = 0;
     mFailed = false;
     mStarted = false;
     mInitialAccountsCreated = false;
+}
+
+// Reset Soroban persistent state
+void
+LoadGenerator::resetSorobanState()
+{
+    mContractInstanceKeys.clear();
+    mCodeKey.reset();
+    mContactOverheadBytes = 0;
 }
 
 // Schedule a callback to generateLoad() STEP_MSECS milliseconds from now.
@@ -319,10 +319,7 @@ LoadGenerator::scheduleLoadGeneration(GeneratedLoadConfig cfg)
 
         if (cfg.isSorobanSetup())
         {
-            // Reset soroban state
-            mContractInstanceKeys.clear();
-            mCodeKey.reset();
-            mContactOverheadBytes = 0;
+            resetSorobanState();
 
             // For first round of txs, we need to deploy the wasms.
             // waitTillFinished will set nTxs for instances once wasms have been
@@ -423,7 +420,12 @@ LoadGenerator::scheduleLoadGeneration(GeneratedLoadConfig cfg)
     {
         CLOG_ERROR(LoadGen, "{}", *errorMsg);
         mLoadgenFail.Mark();
-        reset(/*resetSoroban=*/false);
+        reset();
+        if (cfg.isSorobanSetup())
+        {
+            resetSorobanState();
+        }
+
         return;
     }
 
@@ -585,7 +587,7 @@ LoadGenerator::generateLoad(GeneratedLoadConfig cfg)
                     LoadGen,
                     "Load generation failed: no more accounts available");
                 mLoadgenFail.Mark();
-                reset(/*resetSoroban=*/false);
+                reset();
                 return;
             }
 
@@ -1726,7 +1728,7 @@ LoadGenerator::waitTillComplete(GeneratedLoadConfig cfg)
     {
         CLOG_INFO(LoadGen, "Load generation complete.");
         mLoadgenComplete.Mark();
-        reset(/*resetSoroban=*/false);
+        reset();
         return;
     }
     // If we have an inconsistency, reset the timer and wait for another ledger
@@ -1736,7 +1738,12 @@ LoadGenerator::waitTillComplete(GeneratedLoadConfig cfg)
         {
             CLOG_INFO(LoadGen, "Load generation failed.");
             mLoadgenFail.Mark();
-            reset(/*resetSoroban=*/!sorobanInconsistencies.empty());
+            reset();
+            if (!sorobanInconsistencies.empty())
+            {
+                resetSorobanState();
+            }
+
             return;
         }
 
@@ -1782,7 +1789,7 @@ LoadGenerator::waitTillCompleteWithoutChecks()
                 inconsistencies.size());
         }
         mLoadgenComplete.Mark();
-        reset(/*resetSoroban=*/false);
+        reset();
         return;
     }
     mLoadTimer->expires_from_now(mApp.getConfig().getExpectedLedgerCloseTime());
