@@ -472,7 +472,6 @@ fn check_lockfile_has_expected_dep_tree(
         get_ledger_protocol_version, get_pre_release_version,
     };
     let soroban_host_proto_version = get_ledger_protocol_version(soroban_host_interface_version);
-    let soroban_host_pre_release_version = get_pre_release_version(soroban_host_interface_version);
 
     if cfg!(feature = "core-vnext") {
         // In a stellar-core "vnext" build, core's protocol is set to 1 more
@@ -506,21 +505,25 @@ fn check_lockfile_has_expected_dep_tree(
         .find(|p| p.name.as_str() == "soroban-env-host" && package_matches_hash(p, package_hash))
         .expect("locating host package in Cargo.lock");
 
-    if soroban_host_pre_release_version != 0 && pkg.version.pre.is_empty() {
-        panic!("soroban interface version indicates pre-release {} but package version is {}, with empty prerelease component",
-               soroban_host_pre_release_version, pkg.version)
-    }
+    if !cfg!(feature = "core-vnext") {
+        let soroban_host_pre_release_version =
+            get_pre_release_version(soroban_host_interface_version);
+        if soroban_host_pre_release_version != 0 && pkg.version.pre.is_empty() {
+            panic!("soroban interface version indicates pre-release {} but package version is {}, with empty prerelease component",
+                soroban_host_pre_release_version, pkg.version)
+        }
 
-    if pkg.version.major == 0 || !pkg.version.pre.is_empty() {
-        eprintln!(
-            "Warning: soroban-env-host-{} is running a pre-release version {}",
-            curr_or_prev, pkg.version
-        );
-    } else if pkg.version.major != stellar_core_proto_version as u64 {
-        panic!(
-            "soroban-env-host-{} version {} major version {} does not match expected protocol version {}",
-            curr_or_prev, pkg.version, pkg.version.major, stellar_core_proto_version
-        )
+        if pkg.version.major == 0 || !pkg.version.pre.is_empty() {
+            eprintln!(
+                "Warning: soroban-env-host-{} is running a pre-release version {}",
+                curr_or_prev, pkg.version
+            );
+        } else if pkg.version.major != stellar_core_proto_version as u64 {
+            panic!(
+                "soroban-env-host-{} version {} major version {} does not match expected protocol version {}",
+                curr_or_prev, pkg.version, pkg.version.major, stellar_core_proto_version
+            )
+        }
     }
 
     let tree = lockfile
