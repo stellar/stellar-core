@@ -47,6 +47,12 @@
 
 namespace stellar
 {
+namespace
+{
+// Limit to the maximum resource fee allowed for transaction,
+// roughly 112 million lumens.
+int64_t const MAX_RESOURCE_FEE = 1LL << 50;
+} // namespace
 
 using namespace std;
 using namespace stellar::txbridge;
@@ -1389,7 +1395,8 @@ TransactionFrame::XDRProvidesValidFee() const
         {
             return false;
         }
-        if (declaredSorobanResourceFee() < 0)
+        int64_t resourceFee = declaredSorobanResourceFee();
+        if (resourceFee < 0 || resourceFee > MAX_RESOURCE_FEE)
         {
             return false;
         }
@@ -1875,4 +1882,4 @@ TransactionFrame::getDiagnosticEvents() const
 {
     return mSorobanExtension->mDiagnosticEvents;
 }
-}
+} // namespace stellar
