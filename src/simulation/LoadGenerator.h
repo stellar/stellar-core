@@ -217,6 +217,7 @@ struct GeneratedLoadConfig
 
     bool isDone() const;
     bool areTxsRemaining() const;
+    Json::Value getStatus() const;
 
     LoadGenMode mode = LoadGenMode::CREATE;
     uint32_t nAccounts = 0;
@@ -445,8 +446,8 @@ class LoadGenerator
     std::pair<TestAccountPtr, TransactionFramePtr>
     creationTransaction(uint64_t startAccount, uint64_t numItems,
                         uint32_t ledgerNum);
-    void logProgress(std::chrono::nanoseconds submitTimer, LoadGenMode mode,
-                     uint32_t nAccounts, uint32_t nTxs, uint32_t txRate);
+    void logProgress(std::chrono::nanoseconds submitTimer,
+                     GeneratedLoadConfig const& cfg) const;
 
     uint32_t submitCreationTx(uint32_t nAccounts, uint32_t offset,
                               uint32_t ledgerNum);

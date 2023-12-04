@@ -362,7 +362,7 @@ format.
 
 ### The following HTTP commands are exposed on test instances
 * **generateload** `generateload[?mode=
-    (create|pay|pretend|mixed_txs|soroban_upload|soroban_invoke_setup|soroban_invoke|upgrade_setup|create_upgrade)&accounts=N&offset=K&txs=M&txrate=R&spikesize=S&spikeinterval=I&maxfeerate=F&skiplowfeetxs=(0|1)&dextxpercent=D&dataentrieslow=A&dataentrieshigh=B&kilobyteslow=C&kilobyteshigh=T&txsizelow=U&txsizehigh=V&cpulow=W&cpuhigh=X]`
+    (create|pay|pretend|mixed_txs|soroban_upload|soroban_invoke_setup|soroban_invoke|upgrade_setup|create_upgrade)&accounts=N&offset=K&txs=M&txrate=R&spikesize=S&spikeinterval=I&maxfeerate=F&skiplowfeetxs=(0|1)&dextxpercent=D&dataentrieslow=A&dataentrieshigh=B&kilobyteslow=C&kilobyteshigh=T&txsizelow=U&txsizehigh=V&cpulow=W&cpuhigh=X&instances=Y&wasms=Z]`
 
     Artificially generate load for testing; must be used with
     `ARTIFICIALLY_GENERATE_LOAD_FOR_TESTING` set to true.
@@ -390,11 +390,13 @@ format.
     intensive contract. Each invocation picks a random amount of resources
     between some bound. Resource bounds can be set with the `dataentrieslow`,
     `dataentrieshigh`, `kilobyteslow`, `kilobyteshigh`, `txsizelow`, `txsizehigh`,
-    `cpulow`, `cpuhigh`, where CPU bounds correspond to instruction count.
+    `cpulow`, `cpuhigh`, where CPU bounds correspond to instruction count. `instances`
+    and `wasms` parameters determine how many unique contract instances and wasm entries
+    will be used.
   * `upgrade_setup` mode create soroban contract instance to be used by
     `create_upgrade`. This mode must be run before `create_upgrade`.
   * `create_upgrade` mode write a soroban upgrade set and returns the
-    ConfigUpgradeSetKey. Most network config settings are supports. If a given
+    ConfigUpgradeSetKey. Most network config settings are supported. If a given
     setting is ommited or set to 0, it is not upgraded and maintains the current
     value. To not exceed HTTP string limits, the names are very short. See
     `CommandHandler::generateLoad` for available options.

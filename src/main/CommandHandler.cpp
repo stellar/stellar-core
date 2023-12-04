@@ -1264,12 +1264,8 @@ CommandHandler::generateLoad(std::string const& params, std::string& retStr)
             }
         }
 
-        uint32_t numItems = isCreate ? cfg.nAccounts : cfg.nTxs;
-        std::string itemType = isCreate ? "accounts" : "txs";
         Json::Value res;
-        res["status"] =
-            fmt::format(FMT_STRING(" Generating load: {:d} {:s}, {:d} tx/s"),
-                        numItems, itemType, cfg.txRate);
+        res["status"] = cfg.getStatus();
         mApp.generateLoad(cfg);
 
         if (cfg.mode == LoadGenMode::SOROBAN_CREATE_UPGRADE)

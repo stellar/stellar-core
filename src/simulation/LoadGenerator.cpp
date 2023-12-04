@@ -507,6 +507,84 @@ GeneratedLoadConfig::areTxsRemaining() const
     return (isCreate() && nAccounts != 0) || (!isCreate() && nTxs != 0);
 }
 
+Json::Value
+GeneratedLoadConfig::getStatus() const
+{
+    Json::Value ret;
+    std::string modeStr;
+    switch (mode)
+    {
+    case LoadGenMode::CREATE:
+        modeStr = "create";
+        break;
+    case LoadGenMode::PAY:
+        modeStr = "pay";
+        break;
+    case LoadGenMode::PRETEND:
+        modeStr = "pretend";
+        break;
+    case LoadGenMode::MIXED_TXS:
+        modeStr = "mixed_txs";
+        break;
+    case LoadGenMode::SOROBAN_UPLOAD:
+        modeStr = "soroban_upload";
+        break;
+    case LoadGenMode::SOROBAN_INVOKE_SETUP:
+        modeStr = "soroban_invoke_setup";
+        break;
+    case LoadGenMode::SOROBAN_INVOKE:
+        modeStr = "soroban_invoke";
+        break;
+    case LoadGenMode::SOROBAN_UPGRADE_SETUP:
+        modeStr = "upgrade_setup";
+        break;
+    case LoadGenMode::SOROBAN_CREATE_UPGRADE:
+        modeStr = "create_upgrade";
+        break;
+    }
+
+    ret["mode"] = modeStr;
+
+    if (isCreate())
+    {
+        ret["accounts_remaining"] = nAccounts;
+    }
+    else if (isSorobanSetup())
+    {
+        ret["wasms_remaining"] = getSorobanConfig().nWasms;
+        ret["instances_remaining"] = getSorobanConfig().nInstances;
+    }
+    else
+    {
+        ret["txs_remaining"] = nTxs;
+    }
+
+    ret["tx_rate"] = txRate + " tx/s";
+    if (mode == LoadGenMode::MIXED_TXS)
+    {
+        ret["dex_tx_percent"] = getDexTxPercent() + "%";
+    }
+    else if (mode == LoadGenMode::SOROBAN_INVOKE)
+    {
+        ret["instances"] = getSorobanConfig().nInstances;
+        ret["wasms"] = getSorobanConfig().nWasms;
+        ret["data_entries_low"] = getSorobanInvokeConfig().nDataEntriesLow;
+        ret["data_entries_high"] = getSorobanInvokeConfig().nDataEntriesHigh;
+        ret["kilo_bytes_per_data_entry_low"] =
+            getSorobanInvokeConfig().kiloBytesPerDataEntryLow;
+        ret["kilo_bytes_per_data_entry_high"] =
+            getSorobanInvokeConfig().kiloBytesPerDataEntryHigh;
+        ret["tx_size_bytes_low"] = getSorobanInvokeConfig().txSizeBytesLow;
+        ret["tx_size_bytes_high"] = getSorobanInvokeConfig().txSizeBytesHigh;
+        ret["instructions_low"] =
+            static_cast<Json::UInt64>(getSorobanInvokeConfig().instructionsLow);
+        ret["instructions_high"] = static_cast<Json::UInt64>(
+            getSorobanInvokeConfig().instructionsHigh);
+    }
+
+    return ret;
+}
+
 // Generate one "step" worth of load (assuming 1 step per STEP_MSECS) at a
 // given target number of accounts and txs, and a given target tx/s rate.
 // If work remains after the current step, call scheduleLoadGeneration()
@@ -757,7 +835,7 @@ LoadGenerator::generateLoad(GeneratedLoadConfig cfg)
     // Emit a log message once per second.
     if (now != mLastSecond)
     {
-        logProgress(submit, cfg.mode, cfg.nAccounts, cfg.nTxs, cfg.txRate);
+        logProgress(submit, cfg);
     }
 
     mLastSecond = now;
@@ -873,8 +951,7 @@ LoadGenerator::getNextAvailableAccount()
 
 void
 LoadGenerator::logProgress(std::chrono::nanoseconds submitTimer,
-                           LoadGenMode mode, uint32_t nAccounts, uint32_t nTxs,
-                           uint32_t txRate)
+                           GeneratedLoadConfig const& cfg) const
 {
     using namespace std::chrono;
 
@@ -884,19 +961,53 @@ LoadGenerator::logProgress(std::chrono::nanoseconds submitTimer,
 
     auto submitSteps = duration_cast<milliseconds>(submitTimer).count();
 
-    auto remainingTxCount =
-        (mode == LoadGenMode::CREATE) ? nAccounts / MAX_OPS_PER_TX : nTxs;
+    auto remainingTxCount = 0;
+    if (cfg.mode == LoadGenMode::CREATE)
+    {
+        remainingTxCount = cfg.nAccounts / MAX_OPS_PER_TX;
+    }
+    else if (cfg.isSorobanSetup())
+    {
+        remainingTxCount =
+            cfg.getSorobanConfig().nWasms + cfg.getSorobanConfig().nInstances;
+    }
+    else
+    {
+        remainingTxCount = cfg.nTxs;
+    }
+
     auto etaSecs = (uint32_t)(((double)remainingTxCount) /
                               max<double>(1, applyTx.one_minute_rate()));
 
     auto etaHours = etaSecs / 3600;
     auto etaMins = etaSecs % 60;
 
-    CLOG_INFO(LoadGen,
-              "Tx/s: {} target, {}tx/{}op actual (1m EWMA). Pending: {} "
-              "accounts, {} txs. ETA: {}h{}m",
-              txRate, applyTx.one_minute_rate(), applyOp.one_minute_rate(),
-              nAccounts, nTxs, etaHours, etaMins);
+    if (cfg.isSoroban())
+    {
+        CLOG_INFO(LoadGen,
+                  "Tx/s: {} target, {} tx actual (1m EWMA). Pending: {} txs. "
+                  "ETA: {}h{}m",
+                  cfg.txRate, applyTx.one_minute_rate(), remainingTxCount,
+                  etaHours, etaMins);
+    }
+    else if (cfg.mode == LoadGenMode::CREATE)
+    {
+        CLOG_INFO(LoadGen,
+                  "Tx/s: {} target, {}tx/{}op actual (1m EWMA). Pending: {} "
+                  "accounts, {} txs. ETA: {}h{}m",
+                  cfg.txRate, applyTx.one_minute_rate(),
+                  applyOp.one_minute_rate(), cfg.nAccounts, remainingTxCount,
+                  etaHours, etaMins);
+    }
+    else
+    {
+        CLOG_INFO(LoadGen,
+                  "Tx/s: {} target, {}tx/{}op actual (1m EWMA). Pending: {} "
+                  "txs. ETA: {}h{}m",
+                  cfg.txRate, applyTx.one_minute_rate(),
+                  applyOp.one_minute_rate(), remainingTxCount, etaHours,
+                  etaMins);
+    }
 
     CLOG_DEBUG(LoadGen, "Step timing: {}ms submit.", submitSteps);
 
