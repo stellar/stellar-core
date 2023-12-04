@@ -105,7 +105,6 @@ modifySorobanNetworkConfig(Application& app,
 bool appProtocolVersionStartsFrom(Application& app,
                                   ProtocolVersion fromVersion);
 
-// This is a rough guess at the refundable fee to include. 20k for a ledger
-// write plus 1000 for a little additional slop.
+// Large enough fee to cover most of the Soroban transactions.
 constexpr uint32_t DEFAULT_TEST_RESOURCE_FEE = 1'000'000;
 }
