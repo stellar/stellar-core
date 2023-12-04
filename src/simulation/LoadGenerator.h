@@ -308,6 +308,11 @@ class LoadGenerator
         medida::Meter& mNativePayment;
         medida::Meter& mManageOfferOps;
         medida::Meter& mPretendOps;
+        medida::Meter& mSorobanUploadTxs;
+        medida::Meter& mSorobanSetupInvokeTxs;
+        medida::Meter& mSorobanSetupUpgradeTxs;
+        medida::Meter& mSorobanInvokeTxs;
+        medida::Meter& mSorobanCreateUpgradeTxs;
         medida::Meter& mTxnAttempted;
         medida::Meter& mTxnRejected;
         medida::Meter& mTxnBytes;
