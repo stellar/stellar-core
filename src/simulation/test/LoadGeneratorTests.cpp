@@ -196,16 +196,17 @@ TEST_CASE("generate soroban load", "[loadgen][soroban]")
                                            nAccounts, numSorobanTxs,
                                            /* txRate */ 1);
 
-    cfg.nInstances = numInstances;
+    cfg.getMutSorobanConfig().nInstances = numInstances;
 
     // Use tight bounds to we can verify storage works properly
-    cfg.nDataEntriesLow = numDataEntries;
-    cfg.nDataEntriesHigh = numDataEntries;
-    cfg.kiloBytesPerDataEntryLow = kilobytesPerDataEntry;
-    cfg.kiloBytesPerDataEntryHigh = kilobytesPerDataEntry;
+    auto& invokeCfg = cfg.getMutSorobanInvokeConfig();
+    invokeCfg.nDataEntriesLow = numDataEntries;
+    invokeCfg.nDataEntriesHigh = numDataEntries;
+    invokeCfg.kiloBytesPerDataEntryLow = kilobytesPerDataEntry;
+    invokeCfg.kiloBytesPerDataEntryHigh = kilobytesPerDataEntry;
 
-    cfg.txSizeBytesHigh = 100'000;
-    cfg.instructionsHigh = 10'000'000;
+    invokeCfg.txSizeBytesHigh = 100'000;
+    invokeCfg.instructionsHigh = 10'000'000;
 
     loadGen.generateLoad(cfg);
     simulation->crankUntil(
@@ -334,49 +335,51 @@ TEST_CASE("soroban loadgen config upgrade", "[loadgen][soroban]")
     auto cfg =
         GeneratedLoadConfig::txLoad(LoadGenMode::SOROBAN_CREATE_UPGRADE, 1, 1,
                                     /* txRate */ 1);
+    auto& upgradeCfg = cfg.getMutSorobanUpgradeConfig();
 
-    cfg.maxContractSizeBytes =
+    upgradeCfg.maxContractSizeBytes =
         rand_uniform<uint32_t>(UINT32_MAX - 10'000, UINT32_MAX);
-    cfg.maxContractDataKeySizeBytes =
+    upgradeCfg.maxContractDataKeySizeBytes =
         rand_uniform<uint32_t>(UINT32_MAX - 10'000, UINT32_MAX);
-    cfg.maxContractDataEntrySizeBytes =
+    upgradeCfg.maxContractDataEntrySizeBytes =
         rand_uniform<uint32_t>(UINT32_MAX - 10'000, UINT32_MAX);
-    cfg.ledgerMaxInstructions =
+    upgradeCfg.ledgerMaxInstructions =
         rand_uniform<int64_t>(INT64_MAX - 10'000, INT64_MAX);
-    cfg.txMaxInstructions =
+    upgradeCfg.txMaxInstructions =
         rand_uniform<int64_t>(INT64_MAX - 10'000, INT64_MAX);
-    cfg.txMemoryLimit = rand_uniform<uint32_t>(UINT32_MAX - 10'000, UINT32_MAX);
-    cfg.ledgerMaxReadLedgerEntries =
+    upgradeCfg.txMemoryLimit =
         rand_uniform<uint32_t>(UINT32_MAX - 10'000, UINT32_MAX);
-    cfg.ledgerMaxReadBytes =
+    upgradeCfg.ledgerMaxReadLedgerEntries =
         rand_uniform<uint32_t>(UINT32_MAX - 10'000, UINT32_MAX);
-    cfg.ledgerMaxWriteLedgerEntries =
+    upgradeCfg.ledgerMaxReadBytes =
         rand_uniform<uint32_t>(UINT32_MAX - 10'000, UINT32_MAX);
-    cfg.ledgerMaxWriteBytes =
+    upgradeCfg.ledgerMaxWriteLedgerEntries =
         rand_uniform<uint32_t>(UINT32_MAX - 10'000, UINT32_MAX);
-    cfg.ledgerMaxTxCount =
+    upgradeCfg.ledgerMaxWriteBytes =
         rand_uniform<uint32_t>(UINT32_MAX - 10'000, UINT32_MAX);
-    cfg.txMaxReadLedgerEntries =
+    upgradeCfg.ledgerMaxTxCount =
         rand_uniform<uint32_t>(UINT32_MAX - 10'000, UINT32_MAX);
-    cfg.txMaxReadBytes =
+    upgradeCfg.txMaxReadLedgerEntries =
         rand_uniform<uint32_t>(UINT32_MAX - 10'000, UINT32_MAX);
-    cfg.txMaxWriteLedgerEntries =
+    upgradeCfg.txMaxReadBytes =
         rand_uniform<uint32_t>(UINT32_MAX - 10'000, UINT32_MAX);
-    cfg.txMaxWriteBytes =
+    upgradeCfg.txMaxWriteLedgerEntries =
         rand_uniform<uint32_t>(UINT32_MAX - 10'000, UINT32_MAX);
-    cfg.txMaxContractEventsSizeBytes =
+    upgradeCfg.txMaxWriteBytes =
         rand_uniform<uint32_t>(UINT32_MAX - 10'000, UINT32_MAX);
-    cfg.ledgerMaxTransactionsSizeBytes =
+    upgradeCfg.txMaxContractEventsSizeBytes =
         rand_uniform<uint32_t>(UINT32_MAX - 10'000, UINT32_MAX);
-    cfg.txMaxSizeBytes =
+    upgradeCfg.ledgerMaxTransactionsSizeBytes =
         rand_uniform<uint32_t>(UINT32_MAX - 10'000, UINT32_MAX);
-    cfg.bucketListSizeWindowSampleSize =
+    upgradeCfg.txMaxSizeBytes =
         rand_uniform<uint32_t>(UINT32_MAX - 10'000, UINT32_MAX);
-    cfg.evictionScanSize = rand_uniform<int64_t>(INT64_MAX - 10'000, INT64_MAX);
-    cfg.startingEvictionScanLevel = rand_uniform<uint32_t>(4, 8);
+    upgradeCfg.bucketListSizeWindowSampleSize =
+        rand_uniform<uint32_t>(UINT32_MAX - 10'000, UINT32_MAX);
+    upgradeCfg.evictionScanSize =
+        rand_uniform<int64_t>(INT64_MAX - 10'000, INT64_MAX);
+    upgradeCfg.startingEvictionScanLevel = rand_uniform<uint32_t>(4, 8);
 
     auto upgradeSetKey = loadGen.getConfigUpgradeSetKey(cfg);
-    auto cfgCopy = cfg;
 
     loadGen.generateLoad(cfg);
     simulation->crankUntil(
@@ -428,70 +431,70 @@ TEST_CASE("soroban loadgen config upgrade", "[loadgen][soroban]")
         {
         case CONFIG_SETTING_CONTRACT_MAX_SIZE_BYTES:
             REQUIRE(setting.contractMaxSizeBytes() ==
-                    cfgCopy.maxContractSizeBytes);
+                    upgradeCfg.maxContractSizeBytes);
             break;
         case CONFIG_SETTING_CONTRACT_COMPUTE_V0:
             REQUIRE(setting.contractCompute().ledgerMaxInstructions ==
-                    cfgCopy.ledgerMaxInstructions);
+                    upgradeCfg.ledgerMaxInstructions);
             REQUIRE(setting.contractCompute().txMaxInstructions ==
-                    cfgCopy.txMaxInstructions);
+                    upgradeCfg.txMaxInstructions);
             REQUIRE(setting.contractCompute().txMemoryLimit ==
-                    cfg.txMemoryLimit);
+                    upgradeCfg.txMemoryLimit);
             break;
         case CONFIG_SETTING_CONTRACT_LEDGER_COST_V0:
             REQUIRE(setting.contractLedgerCost().ledgerMaxReadLedgerEntries ==
-                    cfgCopy.ledgerMaxReadLedgerEntries);
+                    upgradeCfg.ledgerMaxReadLedgerEntries);
             REQUIRE(setting.contractLedgerCost().ledgerMaxReadBytes ==
-                    cfgCopy.ledgerMaxReadBytes);
+                    upgradeCfg.ledgerMaxReadBytes);
             REQUIRE(setting.contractLedgerCost().ledgerMaxWriteLedgerEntries ==
-                    cfgCopy.ledgerMaxWriteLedgerEntries);
+                    upgradeCfg.ledgerMaxWriteLedgerEntries);
             REQUIRE(setting.contractLedgerCost().ledgerMaxWriteBytes ==
-                    cfgCopy.ledgerMaxWriteBytes);
+                    upgradeCfg.ledgerMaxWriteBytes);
             REQUIRE(setting.contractLedgerCost().txMaxReadLedgerEntries ==
-                    cfgCopy.txMaxReadLedgerEntries);
+                    upgradeCfg.txMaxReadLedgerEntries);
             REQUIRE(setting.contractLedgerCost().txMaxReadBytes ==
-                    cfgCopy.txMaxReadBytes);
+                    upgradeCfg.txMaxReadBytes);
             REQUIRE(setting.contractLedgerCost().txMaxWriteLedgerEntries ==
-                    cfgCopy.txMaxWriteLedgerEntries);
+                    upgradeCfg.txMaxWriteLedgerEntries);
             REQUIRE(setting.contractLedgerCost().txMaxWriteBytes ==
-                    cfg.txMaxWriteBytes);
+                    upgradeCfg.txMaxWriteBytes);
             break;
         case CONFIG_SETTING_CONTRACT_HISTORICAL_DATA_V0:
             break;
         case CONFIG_SETTING_CONTRACT_EVENTS_V0:
             REQUIRE(setting.contractEvents().txMaxContractEventsSizeBytes ==
-                    cfgCopy.txMaxContractEventsSizeBytes);
+                    upgradeCfg.txMaxContractEventsSizeBytes);
             break;
         case CONFIG_SETTING_CONTRACT_BANDWIDTH_V0:
             REQUIRE(setting.contractBandwidth().ledgerMaxTxsSizeBytes ==
-                    cfgCopy.ledgerMaxTransactionsSizeBytes);
+                    upgradeCfg.ledgerMaxTransactionsSizeBytes);
             REQUIRE(setting.contractBandwidth().txMaxSizeBytes ==
-                    cfgCopy.txMaxSizeBytes);
+                    upgradeCfg.txMaxSizeBytes);
             break;
         case CONFIG_SETTING_CONTRACT_COST_PARAMS_CPU_INSTRUCTIONS:
         case CONFIG_SETTING_CONTRACT_COST_PARAMS_MEMORY_BYTES:
             break;
         case CONFIG_SETTING_CONTRACT_DATA_KEY_SIZE_BYTES:
             REQUIRE(setting.contractDataKeySizeBytes() ==
-                    cfgCopy.maxContractDataKeySizeBytes);
+                    upgradeCfg.maxContractDataKeySizeBytes);
             break;
         case CONFIG_SETTING_CONTRACT_DATA_ENTRY_SIZE_BYTES:
             REQUIRE(setting.contractDataEntrySizeBytes() ==
-                    cfgCopy.maxContractDataEntrySizeBytes);
+                    upgradeCfg.maxContractDataEntrySizeBytes);
             break;
         case CONFIG_SETTING_STATE_ARCHIVAL:
         {
             auto& ses = setting.stateArchivalSettings();
             REQUIRE(ses.bucketListSizeWindowSampleSize ==
-                    cfgCopy.bucketListSizeWindowSampleSize);
-            REQUIRE(ses.evictionScanSize == cfgCopy.evictionScanSize);
+                    upgradeCfg.bucketListSizeWindowSampleSize);
+            REQUIRE(ses.evictionScanSize == upgradeCfg.evictionScanSize);
             REQUIRE(ses.startingEvictionScanLevel ==
-                    cfgCopy.startingEvictionScanLevel);
+                    upgradeCfg.startingEvictionScanLevel);
         }
         break;
         case CONFIG_SETTING_CONTRACT_EXECUTION_LANES:
             REQUIRE(setting.contractExecutionLanes().ledgerMaxTxCount ==
-                    cfgCopy.ledgerMaxTxCount);
+                    upgradeCfg.ledgerMaxTxCount);
             break;
         default:
             REQUIRE(false);
@@ -611,7 +614,7 @@ TEST_CASE("Multi-op mixed transactions are valid", "[loadgen]")
             3 * Herder::EXP_LEDGER_TIMESPAN_SECONDS, false);
         auto config = GeneratedLoadConfig::txLoad(LoadGenMode::MIXED_TXS,
                                                   numAccounts, 100, txRate);
-        config.dexTxPercent = 50;
+        config.getMutDexTxPercent() = 50;
         loadGen.generateLoad(config);
         simulation->crankUntil(
             [&]() {

@@ -47,6 +47,72 @@ enum class LoadGenMode
 
 struct GeneratedLoadConfig
 {
+    // Config parameters for SOROBAN_INVOKE_SETUP, SOROBAN_INVOKE,
+    // SOROBAN_UPGRADE_SETUP, and SOROBAN_CREATE_UPGRADE modes
+    struct SorobanConfig
+    {
+        uint32_t nInstances = 0;
+
+        // For now, this value is automatically set to one. A future update will
+        // enable multiple Wasm entries
+        uint32_t nWasms = 0;
+    };
+
+    // Config parameters for SOROBAN_INVOKE
+    struct SorobanInvokeConfig
+    {
+        // Range of kilo bytes and num entries for disk IO
+        uint32_t nDataEntriesLow = 0;
+        uint32_t nDataEntriesHigh = 0;
+        uint32_t kiloBytesPerDataEntryLow = 0;
+        uint32_t kiloBytesPerDataEntryHigh = 0;
+
+        // Size of transactions
+        int32_t txSizeBytesLow = 0;
+        int32_t txSizeBytesHigh = 0;
+
+        // Instruction count
+        uint64_t instructionsLow = 0;
+        uint64_t instructionsHigh = 0;
+    };
+
+    // Config settings for SOROBAN_CREATE_UPGRADE
+    struct SorobanUpgradeConfig
+    {
+        // Network Upgrade Parameters
+        uint32_t maxContractSizeBytes{};
+        uint32_t maxContractDataKeySizeBytes{};
+        uint32_t maxContractDataEntrySizeBytes{};
+
+        // Compute settings for contracts (instructions and memory).
+        int64_t ledgerMaxInstructions{};
+        int64_t txMaxInstructions{};
+        uint32_t txMemoryLimit{};
+
+        // Ledger access settings for contracts.
+        uint32_t ledgerMaxReadLedgerEntries{};
+        uint32_t ledgerMaxReadBytes{};
+        uint32_t ledgerMaxWriteLedgerEntries{};
+        uint32_t ledgerMaxWriteBytes{};
+        uint32_t ledgerMaxTxCount{};
+        uint32_t txMaxReadLedgerEntries{};
+        uint32_t txMaxReadBytes{};
+        uint32_t txMaxWriteLedgerEntries{};
+        uint32_t txMaxWriteBytes{};
+
+        // Contract events settings.
+        uint32_t txMaxContractEventsSizeBytes{};
+
+        // Bandwidth related data settings for contracts
+        uint32_t ledgerMaxTransactionsSizeBytes{};
+        uint32_t txMaxSizeBytes{};
+
+        // State Expiration setting
+        uint32_t bucketListSizeWindowSampleSize{};
+        uint64_t evictionScanSize{};
+        uint32_t startingEvictionScanLevel{};
+    };
+
     static GeneratedLoadConfig createAccountsLoad(uint32_t nAccounts,
                                                   uint32_t txRate);
 
@@ -59,6 +125,62 @@ struct GeneratedLoadConfig
     static GeneratedLoadConfig
     txLoad(LoadGenMode mode, uint32_t nAccounts, uint32_t nTxs, uint32_t txRate,
            uint32_t offset = 0, std::optional<uint32_t> maxFee = std::nullopt);
+
+    SorobanConfig&
+    getMutSorobanConfig()
+    {
+        releaseAssert(isSoroban() && mode != LoadGenMode::SOROBAN_UPLOAD);
+        return sorobanConfig;
+    }
+
+    SorobanConfig const&
+    getSorobanConfig() const
+    {
+        releaseAssert(isSoroban() && mode != LoadGenMode::SOROBAN_UPLOAD);
+        return sorobanConfig;
+    }
+
+    SorobanInvokeConfig&
+    getMutSorobanInvokeConfig()
+    {
+        releaseAssert(mode == LoadGenMode::SOROBAN_INVOKE);
+        return sorobanInvokeConfig;
+    }
+
+    SorobanInvokeConfig const&
+    getSorobanInvokeConfig() const
+    {
+        releaseAssert(mode == LoadGenMode::SOROBAN_INVOKE);
+        return sorobanInvokeConfig;
+    }
+
+    SorobanUpgradeConfig&
+    getMutSorobanUpgradeConfig()
+    {
+        releaseAssert(mode == LoadGenMode::SOROBAN_CREATE_UPGRADE);
+        return sorobanUpgradeConfig;
+    }
+
+    SorobanUpgradeConfig const&
+    getSorobanUpgradeConfig() const
+    {
+        releaseAssert(mode == LoadGenMode::SOROBAN_CREATE_UPGRADE);
+        return sorobanUpgradeConfig;
+    }
+
+    uint32_t&
+    getMutDexTxPercent()
+    {
+        releaseAssert(mode == LoadGenMode::MIXED_TXS);
+        return dexTxPercent;
+    }
+
+    uint32_t const&
+    getDexTxPercent() const
+    {
+        releaseAssert(mode == LoadGenMode::MIXED_TXS);
+        return dexTxPercent;
+    }
 
     bool
     isCreate() const
@@ -117,62 +239,14 @@ struct GeneratedLoadConfig
     // the load generation will fail after a couple of retries.
     // Does not affect account creation.
     bool skipLowFeeTxs = false;
+
+  private:
+    SorobanConfig sorobanConfig;
+    SorobanInvokeConfig sorobanInvokeConfig;
+    SorobanUpgradeConfig sorobanUpgradeConfig;
+
     // Percentage (from 0 to 100) of DEX transactions
     uint32_t dexTxPercent = 0;
-
-    // The following ranges are only used for SOROBAN_INVOKE txs:
-    uint32_t nInstances = 0;
-
-    // For now, this value is automatically set to one. A future update will
-    // enable multiple Wasm entries
-    uint32_t nWasms = 0;
-
-    // Range of kilo bytes and num entries for disk IO
-    uint32_t nDataEntriesLow = 0;
-    uint32_t nDataEntriesHigh = 0;
-    uint32_t kiloBytesPerDataEntryLow = 0;
-    uint32_t kiloBytesPerDataEntryHigh = 0;
-
-    // Size of transactions
-    int32_t txSizeBytesLow = 0;
-    int32_t txSizeBytesHigh = 0;
-
-    // Instruction count
-    uint64_t instructionsLow = 0;
-    uint64_t instructionsHigh = 0;
-
-    // Network Upgrade Parameters
-    uint32_t maxContractSizeBytes{};
-    uint32_t maxContractDataKeySizeBytes{};
-    uint32_t maxContractDataEntrySizeBytes{};
-
-    // Compute settings for contracts (instructions and memory).
-    int64_t ledgerMaxInstructions{};
-    int64_t txMaxInstructions{};
-    uint32_t txMemoryLimit{};
-
-    // Ledger access settings for contracts.
-    uint32_t ledgerMaxReadLedgerEntries{};
-    uint32_t ledgerMaxReadBytes{};
-    uint32_t ledgerMaxWriteLedgerEntries{};
-    uint32_t ledgerMaxWriteBytes{};
-    uint32_t ledgerMaxTxCount{};
-    uint32_t txMaxReadLedgerEntries{};
-    uint32_t txMaxReadBytes{};
-    uint32_t txMaxWriteLedgerEntries{};
-    uint32_t txMaxWriteBytes{};
-
-    // Contract events settings.
-    uint32_t txMaxContractEventsSizeBytes{};
-
-    // Bandwidth related data settings for contracts
-    uint32_t ledgerMaxTransactionsSizeBytes{};
-    uint32_t txMaxSizeBytes{};
-
-    // State Expiration setting
-    uint32_t bucketListSizeWindowSampleSize{};
-    uint64_t evictionScanSize{};
-    uint32_t startingEvictionScanLevel{};
 };
 
 class LoadGenerator
