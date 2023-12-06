@@ -328,6 +328,10 @@ LoadGenerator::scheduleLoadGeneration(GeneratedLoadConfig cfg)
 
             // Must include all TXs
             cfg.skipLowFeeTxs = false;
+
+            // No spikes during setup
+            cfg.spikeInterval = std::chrono::seconds(0);
+            cfg.spikeSize = 0;
         }
 
         if (cfg.mode == LoadGenMode::SOROBAN_INVOKE_SETUP ||
