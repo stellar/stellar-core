@@ -72,98 +72,98 @@
         },
         {
           "ext": "v0",
-          "const_term": 310,
+          "const_term": 295,
           "linear_term": 0
         },
         {
           "ext": "v0",
-          "const_term": 61,
+          "const_term": 60,
           "linear_term": 0
         },
         {
           "ext": "v0",
-          "const_term": 230,
-          "linear_term": 29
+          "const_term": 221,
+          "linear_term": 26
         },
         {
           "ext": "v0",
-          "const_term": 59052,
-          "linear_term": 4001
+          "const_term": 331,
+          "linear_term": 4369
         },
         {
           "ext": "v0",
-          "const_term": 3738,
-          "linear_term": 7012
+          "const_term": 3636,
+          "linear_term": 7013
         },
         {
           "ext": "v0",
-          "const_term": 40253,
+          "const_term": 40256,
           "linear_term": 0
         },
         {
           "ext": "v0",
-          "const_term": 377524,
-          "linear_term": 4068
+          "const_term": 377551,
+          "linear_term": 4059
         },
         {
           "ext": "v0",
-          "const_term": 451626,
-          "linear_term": 45405
+          "const_term": 417482,
+          "linear_term": 45712
         },
         {
           "ext": "v0",
-          "const_term": 451626,
-          "linear_term": 45405
+          "const_term": 417482,
+          "linear_term": 45712
         },
         {
           "ext": "v0",
-          "const_term": 1948,
+          "const_term": 1945,
           "linear_term": 0
         },
         {
           "ext": "v0",
-          "const_term": 3766,
-          "linear_term": 5969
+          "const_term": 6481,
+          "linear_term": 5943
         },
         {
           "ext": "v0",
-          "const_term": 710,
+          "const_term": 711,
           "linear_term": 0
         },
         {
           "ext": "v0",
-          "const_term": 2315295,
+          "const_term": 2314804,
           "linear_term": 0
         },
         {
           "ext": "v0",
-          "const_term": 4404,
+          "const_term": 4176,
           "linear_term": 0
         },
         {
           "ext": "v0",
-          "const_term": 4947,
+          "const_term": 4716,
           "linear_term": 0
         },
         {
           "ext": "v0",
-          "const_term": 4911,
+          "const_term": 4680,
           "linear_term": 0
         },
         {
           "ext": "v0",
-          "const_term": 4286,
+          "const_term": 4256,
           "linear_term": 0
         },
         {
           "ext": "v0",
-          "const_term": 913,
+          "const_term": 884,
           "linear_term": 0
         },
         {
           "ext": "v0",
-          "const_term": 1058,
-          "linear_term": 501
+          "const_term": 1059,
+          "linear_term": 502
         }
       ]
     },
@@ -226,13 +226,13 @@
         },
         {
           "ext": "v0",
-          "const_term": 130065,
-          "linear_term": 5064
+          "const_term": 132773,
+          "linear_term": 4903
         },
         {
           "ext": "v0",
-          "const_term": 130065,
-          "linear_term": 5064
+          "const_term": 132773,
+          "linear_term": 4903
         },
         {
           "ext": "v0",
