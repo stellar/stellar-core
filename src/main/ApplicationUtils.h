@@ -32,6 +32,12 @@ int dumpLedger(Config cfg, std::string const& outputFile,
                std::optional<std::string> aggregate);
 void showOfflineInfo(Config cfg, bool verbose);
 int reportLastHistoryCheckpoint(Config cfg, std::string const& outputFile);
+
+// Check that the network specified by `jsonPath` enjoys a quorum intersection.
+// This function throws `std::runtime_exception` or `KeyUtils::InvalidStrKey` on
+// malformed JSON input.
+bool checkQuorumIntersectionFromJson(std::string const& jsonPath,
+                                     std::optional<Config> const& cfg);
 #ifdef BUILD_TESTS
 void loadXdr(Config cfg, std::string const& bucketFile);
 int rebuildLedgerFromBuckets(Config cfg);

@@ -29,6 +29,15 @@ Command options can only by placed after command.
   Option **--trusted-checkpoint-hashes <FILE-NAME>** checks the destination
   ledger hash against the provided reference list of trusted hashes. See the
   command verify-checkpoints for details.
+* **check-quorum-intersection <FILE-NAME>** checks that a given network
+  specified as a JSON file enjoys a quorum intersection. The JSON file must
+  match the output format of the `quorum` HTTP endpoint with the `transitive`
+  and `fullkeys` flags set to `true`. Unlike many other commands, omitting
+  `--conf` specifies that a configuration file should not be used (that is,
+  `--conf` does not default to `stellar-core.cfg`). `check-quorum-intersection`
+  uses the config file only to produce human readable node names in its output,
+  so the option can be safely omitted if human readable node names are not
+  necessary.
 * **convert-id <ID>**: Will output the passed ID in all known forms and then
   exit. Useful for determining the public key that corresponds to a given
   private key. For example:

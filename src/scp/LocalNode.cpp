@@ -407,6 +407,45 @@ LocalNode::toJson(SCPQuorumSet const& qSet,
     return ret;
 }
 
+SCPQuorumSet
+LocalNode::fromJson(Json::Value const& qSetJson)
+{
+    if (!qSetJson.isObject())
+    {
+        throw std::runtime_error("JSON field 'qset' must be an object");
+    }
+    SCPQuorumSet ret;
+    Json::Value const& thresholdJson = qSetJson["t"];
+
+    // NOTE: In addition to checking whether the field is a non-negative
+    // integer, `isUInt` will also return false when `thresholdJson` is too
+    // large to fit in an `unsigned int`.
+    if (!thresholdJson.isUInt())
+    {
+        throw std::runtime_error("JSON field 't' must be an unsigned integer");
+    }
+    ret.threshold = thresholdJson.asUInt();
+    Json::Value const& entries = qSetJson["v"];
+    for (Json::Value const& entry : entries)
+    {
+        if (entry.isString())
+        {
+            ret.validators.push_back(
+                KeyUtils::fromStrKey<NodeID>(entry.asString()));
+        }
+        else if (entry.isObject())
+        {
+            ret.innerSets.push_back(fromJson(entry));
+        }
+        else
+        {
+            throw std::runtime_error(
+                "JSON field 'v' must be either a string or an object");
+        }
+    }
+    return ret;
+}
+
 std::string
 LocalNode::to_string(SCPQuorumSet const& qSet) const
 {
