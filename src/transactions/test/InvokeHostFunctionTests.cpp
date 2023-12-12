@@ -2511,6 +2511,7 @@ TEST_CASE("settings upgrade command line utils", "[tx][soroban][upgrades]")
     auto const& contractSourceRefLedgerKey = std::get<1>(createRes);
     auto const& contractID = std::get<2>(createRes);
 
+    xdr::xvector<ConfigSettingEntry> initialEntries;
     xdr::xvector<ConfigSettingEntry> updatedEntries;
     for (uint32_t i = 0;
          i < static_cast<uint32_t>(CONFIG_SETTING_BUCKETLIST_SIZE_WINDOW); ++i)
@@ -2518,13 +2519,223 @@ TEST_CASE("settings upgrade command line utils", "[tx][soroban][upgrades]")
         LedgerTxn ltx(app->getLedgerTxnRoot());
         auto entry =
             ltx.load(configSettingKey(static_cast<ConfigSettingID>(i)));
+
+        // Store the initial entries before we modify the cost types below
+        initialEntries.emplace_back(entry.current().data.configSetting());
+
+        // We're writing the latest cpu and mem settings below to makes sure
+        // they don't brick the settings upgrade process. We would ideally pull
+        // this from phase1.json, but core doesn't know how to parse JSON XDR.
+        auto const& vals = xdr::xdr_traits<ContractCostType>::enum_values();
         if (entry.current().data.configSetting().configSettingID() ==
-            CONFIG_SETTING_CONTRACT_LEDGER_COST_V0)
+            CONFIG_SETTING_CONTRACT_COST_PARAMS_CPU_INSTRUCTIONS)
         {
-            entry.current()
-                .data.configSetting()
-                .contractLedgerCost()
-                .feeRead1KB = 1234;
+            auto& params = entry.current()
+                               .data.configSetting()
+                               .contractCostParamsCpuInsns();
+            for (auto val : vals)
+            {
+                switch (val)
+                {
+                case WasmInsnExec:
+                    params[val] =
+                        ContractCostParamEntry{ExtensionPoint{0}, 4, 0};
+                    break;
+                case MemAlloc:
+                    params[val] =
+                        ContractCostParamEntry{ExtensionPoint{0}, 434, 16};
+                    break;
+                case MemCpy:
+                    params[val] =
+                        ContractCostParamEntry{ExtensionPoint{0}, 42, 16};
+                    break;
+                case MemCmp:
+                    params[val] =
+                        ContractCostParamEntry{ExtensionPoint{0}, 44, 16};
+                    break;
+                case DispatchHostFunction:
+                    params[val] =
+                        ContractCostParamEntry{ExtensionPoint{0}, 295, 0};
+                    break;
+                case VisitObject:
+                    params[val] =
+                        ContractCostParamEntry{ExtensionPoint{0}, 60, 0};
+                    break;
+                case ValSer:
+                    params[val] =
+                        ContractCostParamEntry{ExtensionPoint{0}, 221, 26};
+                    break;
+                case ValDeser:
+                    params[val] =
+                        ContractCostParamEntry{ExtensionPoint{0}, 331, 4369};
+                    break;
+                case ComputeSha256Hash:
+                    params[val] =
+                        ContractCostParamEntry{ExtensionPoint{0}, 3636, 7013};
+                    break;
+                case ComputeEd25519PubKey:
+                    params[val] =
+                        ContractCostParamEntry{ExtensionPoint{0}, 40256, 0};
+                    break;
+                case VerifyEd25519Sig:
+                    params[val] =
+                        ContractCostParamEntry{ExtensionPoint{0}, 377551, 4059};
+                    break;
+                case VmInstantiation:
+                    params[val] = ContractCostParamEntry{ExtensionPoint{0},
+                                                         417482, 45712};
+                    break;
+                case VmCachedInstantiation:
+                    params[val] = ContractCostParamEntry{ExtensionPoint{0},
+                                                         417482, 45712};
+                    break;
+                case InvokeVmFunction:
+                    params[val] =
+                        ContractCostParamEntry{ExtensionPoint{0}, 1945, 0};
+                    break;
+                case ComputeKeccak256Hash:
+                    params[val] =
+                        ContractCostParamEntry{ExtensionPoint{0}, 6481, 5943};
+                    break;
+                case ComputeEcdsaSecp256k1Sig:
+                    params[val] =
+                        ContractCostParamEntry{ExtensionPoint{0}, 711, 0};
+                    break;
+                case RecoverEcdsaSecp256k1Key:
+                    params[val] =
+                        ContractCostParamEntry{ExtensionPoint{0}, 2314804, 0};
+                    break;
+                case Int256AddSub:
+                    params[val] =
+                        ContractCostParamEntry{ExtensionPoint{0}, 4176, 0};
+                    break;
+                case Int256Mul:
+                    params[val] =
+                        ContractCostParamEntry{ExtensionPoint{0}, 4716, 0};
+                    break;
+                case Int256Div:
+                    params[val] =
+                        ContractCostParamEntry{ExtensionPoint{0}, 4680, 0};
+                    break;
+                case Int256Pow:
+                    params[val] =
+                        ContractCostParamEntry{ExtensionPoint{0}, 4256, 0};
+                    break;
+                case Int256Shift:
+                    params[val] =
+                        ContractCostParamEntry{ExtensionPoint{0}, 884, 0};
+                    break;
+                case ChaCha20DrawBytes:
+                    params[val] =
+                        ContractCostParamEntry{ExtensionPoint{0}, 1059, 502};
+                    break;
+                }
+            }
+        }
+        if (entry.current().data.configSetting().configSettingID() ==
+            CONFIG_SETTING_CONTRACT_COST_PARAMS_MEMORY_BYTES)
+        {
+            auto& params = entry.current()
+                               .data.configSetting()
+                               .contractCostParamsMemBytes();
+            for (auto val : vals)
+            {
+                switch (val)
+                {
+                case WasmInsnExec:
+                    params[val] =
+                        ContractCostParamEntry{ExtensionPoint{0}, 0, 0};
+                    break;
+                case MemAlloc:
+                    params[val] =
+                        ContractCostParamEntry{ExtensionPoint{0}, 16, 128};
+                    break;
+                case MemCpy:
+                    params[val] =
+                        ContractCostParamEntry{ExtensionPoint{0}, 0, 0};
+                    break;
+                case MemCmp:
+                    params[val] =
+                        ContractCostParamEntry{ExtensionPoint{0}, 0, 0};
+                    break;
+                case DispatchHostFunction:
+                    params[val] =
+                        ContractCostParamEntry{ExtensionPoint{0}, 0, 0};
+                    break;
+                case VisitObject:
+                    params[val] =
+                        ContractCostParamEntry{ExtensionPoint{0}, 0, 0};
+                    break;
+                case ValSer:
+                    params[val] =
+                        ContractCostParamEntry{ExtensionPoint{0}, 242, 384};
+                    break;
+                case ValDeser:
+                    params[val] =
+                        ContractCostParamEntry{ExtensionPoint{0}, 0, 384};
+                    break;
+                case ComputeSha256Hash:
+                    params[val] =
+                        ContractCostParamEntry{ExtensionPoint{0}, 0, 0};
+                    break;
+                case ComputeEd25519PubKey:
+                    params[val] =
+                        ContractCostParamEntry{ExtensionPoint{0}, 0, 0};
+                    break;
+                case VerifyEd25519Sig:
+                    params[val] =
+                        ContractCostParamEntry{ExtensionPoint{0}, 0, 0};
+                    break;
+                case VmInstantiation:
+                    params[val] =
+                        ContractCostParamEntry{ExtensionPoint{0}, 132773, 4903};
+                    break;
+                case VmCachedInstantiation:
+                    params[val] =
+                        ContractCostParamEntry{ExtensionPoint{0}, 132773, 4903};
+                    break;
+                case InvokeVmFunction:
+                    params[val] =
+                        ContractCostParamEntry{ExtensionPoint{0}, 14, 0};
+                    break;
+                case ComputeKeccak256Hash:
+                    params[val] =
+                        ContractCostParamEntry{ExtensionPoint{0}, 0, 0};
+                    break;
+                case ComputeEcdsaSecp256k1Sig:
+                    params[val] =
+                        ContractCostParamEntry{ExtensionPoint{0}, 0, 0};
+                    break;
+                case RecoverEcdsaSecp256k1Key:
+                    params[val] =
+                        ContractCostParamEntry{ExtensionPoint{0}, 181, 0};
+                    break;
+                case Int256AddSub:
+                    params[val] =
+                        ContractCostParamEntry{ExtensionPoint{0}, 99, 0};
+                    break;
+                case Int256Mul:
+                    params[val] =
+                        ContractCostParamEntry{ExtensionPoint{0}, 99, 0};
+                    break;
+                case Int256Div:
+                    params[val] =
+                        ContractCostParamEntry{ExtensionPoint{0}, 99, 0};
+                    break;
+                case Int256Pow:
+                    params[val] =
+                        ContractCostParamEntry{ExtensionPoint{0}, 99, 0};
+                    break;
+                case Int256Shift:
+                    params[val] =
+                        ContractCostParamEntry{ExtensionPoint{0}, 99, 0};
+                    break;
+                case ChaCha20DrawBytes:
+                    params[val] =
+                        ContractCostParamEntry{ExtensionPoint{0}, 0, 0};
+                    break;
+                }
+            }
         }
         updatedEntries.emplace_back(entry.current().data.configSetting());
     }
@@ -2564,22 +2775,72 @@ TEST_CASE("settings upgrade command line utils", "[tx][soroban][upgrades]")
     commandHandler.upgrades(command, ret);
     REQUIRE(ret == "");
 
-    auto checkCost = [&](int64 feeRead) {
-        auto costKey = configSettingKey(
-            ConfigSettingID::CONFIG_SETTING_CONTRACT_LEDGER_COST_V0);
-        LedgerTxn ltx(app->getLedgerTxnRoot());
-        auto costEntry = ltx.load(costKey);
-        REQUIRE(costEntry.current()
-                    .data.configSetting()
-                    .contractLedgerCost()
-                    .feeRead1KB == feeRead);
+    auto checkSettings = [&](xdr::xvector<ConfigSettingEntry> const& entries) {
+        for (uint32_t i = 0;
+             i < static_cast<uint32_t>(CONFIG_SETTING_BUCKETLIST_SIZE_WINDOW);
+             ++i)
+        {
+            LedgerTxn ltx(app->getLedgerTxnRoot());
+            auto entry =
+                ltx.load(configSettingKey(static_cast<ConfigSettingID>(i)));
+
+            REQUIRE(entry.current().data.configSetting() == entries.at(i));
+        }
     };
 
     SECTION("success")
     {
-        // trigger upgrade
+        {
+            // trigger upgrade
+            auto ledgerUpgrade = LedgerUpgrade{LEDGER_UPGRADE_CONFIG};
+            ledgerUpgrade.newConfig() = upgradeSetKey;
+
+            auto const& lcl = lm.getLastClosedLedgerHeader();
+            auto txSet = TxSetXDRFrame::makeEmpty(lcl);
+            auto lastCloseTime = lcl.header.scpValue.closeTime;
+
+            app->getHerder().externalizeValue(
+                txSet, lcl.header.ledgerSeq + 1, lastCloseTime,
+                {LedgerTestUtils::toUpgradeType(ledgerUpgrade)});
+
+            checkSettings(updatedEntries);
+        }
+
+        // now revert to make sure the new settings didn't lock us in.
+        ConfigUpgradeSet upgradeSet2;
+        upgradeSet2.updatedEntry = initialEntries;
+
+        auto invokeRes2 =
+            getInvokeTx(a1.getPublicKey(), contractCodeLedgerKey,
+                        contractSourceRefLedgerKey, contractID, upgradeSet2,
+                        a1.getLastSequenceNumber() + 4);
+
+        auto const& upgradeSetKey2 = invokeRes2.second;
+
+        invokeRes2.first.v1().signatures.emplace_back(SignatureUtils::sign(
+            a1.getSecretKey(),
+            sha256(xdr::xdr_to_opaque(app->getNetworkID(), ENVELOPE_TYPE_TX,
+                                      invokeRes2.first.v1().tx))));
+
+        auto const& txRevertSettings =
+            TransactionFrameBase::makeTransactionFromWire(app->getNetworkID(),
+                                                          invokeRes2.first);
+        LedgerTxn ltx(app->getLedgerTxnRoot());
+        TransactionMetaFrame txm(ltx.loadHeader().current().ledgerVersion);
+        REQUIRE(txRevertSettings->checkValid(*app, ltx, 0, 0, 0));
+        REQUIRE(txRevertSettings->apply(*app, ltx, txm));
+        ltx.commit();
+
+        std::string command2 = "mode=set&configupgradesetkey=";
+        command2 += decoder::encode_b64(xdr::xdr_to_opaque(upgradeSetKey2));
+        command2 += "&upgradetime=2000-07-21T22:04:00Z";
+
+        std::string ret;
+        commandHandler.upgrades(command2, ret);
+        REQUIRE(ret == "");
+
         auto ledgerUpgrade = LedgerUpgrade{LEDGER_UPGRADE_CONFIG};
-        ledgerUpgrade.newConfig() = upgradeSetKey;
+        ledgerUpgrade.newConfig() = upgradeSetKey2;
 
         auto const& lcl = lm.getLastClosedLedgerHeader();
         auto txSet = TxSetXDRFrame::makeEmpty(lcl);
@@ -2589,7 +2850,7 @@ TEST_CASE("settings upgrade command line utils", "[tx][soroban][upgrades]")
             txSet, lcl.header.ledgerSeq + 1, lastCloseTime,
             {LedgerTestUtils::toUpgradeType(ledgerUpgrade)});
 
-        checkCost(1234);
+        checkSettings(initialEntries);
     }
 
     auto const& lcl = lm.getLastClosedLedgerHeader();
@@ -2622,7 +2883,7 @@ TEST_CASE("settings upgrade command line utils", "[tx][soroban][upgrades]")
             {LedgerTestUtils::toUpgradeType(ledgerUpgrade)});
 
         // No upgrade due to expired entry
-        checkCost(1000);
+        checkSettings(initialEntries);
     }
 
     auto updateBytes = [&](SCVal const& bytes) {
@@ -2645,7 +2906,7 @@ TEST_CASE("settings upgrade command line utils", "[tx][soroban][upgrades]")
             {LedgerTestUtils::toUpgradeType(ledgerUpgrade)});
 
         // No upgrade due to tampered entry
-        checkCost(1000);
+        checkSettings(initialEntries);
     };
 
     SECTION("Invalid XDR")
