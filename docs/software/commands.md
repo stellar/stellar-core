@@ -158,6 +158,12 @@ Command options can only by placed after command.
   2015`".<br>
   Option --base64 alters the behavior to work on base64-encoded XDR rather than
   raw XDR.
+* **soroban-info**: Returns Soroban specific settings. If the **--format** option
+  is not specified, then the command will return JSON by default.
+  Option **--format [basic|detailed]** : The `basic` option will return a subset of
+  the settings (no cost types or non-configurable settings) in a readable JSON format. The `detailed`
+  option will return every stored `ConfigSettingEntry` XDR struct in `cereal` deserialized JSON.
+
 * **test**: Run all the unit tests.
   * Suboptions specific to stellar-core:
       * `--all-versions` : run with all possible protocol versions
@@ -336,7 +342,9 @@ format.
   blob is a base64 encoded XDR serialized `ConfigUpgradeSetKey`.
   This command outputs the `ConfigUpgradeSet` (if it's valid and it exists) in a readable format
   that corresponds to the `ConfigUpgradeSetKey` passed in. This can be used by validators
-  to verify Soroban Settings upgrades before voting on them.
+  to verify Soroban Settings upgrades before voting on them. Use this along with the 
+  `sorobaninfo?format=detailed` command to compare against the existing settings to see exactly
+  what is changing.
 
 * **surveytopology**
   `surveytopology?duration=DURATION&node=NODE_ID`<br>
