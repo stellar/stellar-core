@@ -579,10 +579,11 @@ TEST_CASE_VERSIONS("meta stream contains reasonable meta", "[ledgerclosemeta]")
                                .setReadBytes(10'000)
                                .setWriteBytes(1'000)
                                .setInclusionFee(1'000)
-                               .setNonRefundableResourceFee(40'000)
+                               .setRefundableResourceFee(40'000)
                                .setReadWriteFootprint({liveLk});
 
             auto tx3 = contract.prepareInvocation(fnName, args, putSpec)
+                           .withExactNonRefundableResourceFee()
                            .createTx(&acc3);
 
             // Same put TX from before, but this one should fail due to invalid
@@ -590,6 +591,7 @@ TEST_CASE_VERSIONS("meta stream contains reasonable meta", "[ledgerclosemeta]")
             auto tx4 = contract
                            .prepareInvocation(fnName, args,
                                               putSpec.setReadWriteFootprint({}))
+                           .withExactNonRefundableResourceFee()
                            .createTx(&acc4);
             SorobanResources createResources;
             createResources.instructions = 200'000;

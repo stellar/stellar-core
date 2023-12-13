@@ -2156,7 +2156,8 @@ TEST_CASE("temp entry eviction", "[tx][soroban]")
     auto invocation = client.getContract().prepareInvocation(
         "put_temporary", {makeSymbolSCVal("key"), makeU64SCVal(123)},
         client.writeKeySpec("key", ContractDataDurability::TEMPORARY));
-    closeLedger(test.getApp(), {invocation.createTx()});
+    closeLedger(test.getApp(),
+                {invocation.withExactNonRefundableResourceFee().createTx()});
     auto lk = client.getContract().getDataKey(
         makeSymbolSCVal("key"), ContractDataDurability::TEMPORARY);
 
@@ -2223,7 +2224,9 @@ TEST_CASE("temp entry eviction", "[tx][soroban]")
     SECTION("Create temp entry with same key as an expired entry on eviction "
             "ledger")
     {
-        closeLedger(test.getApp(), {invocation.createTx()});
+        closeLedger(
+            test.getApp(),
+            {invocation.withExactNonRefundableResourceFee().createTx()});
 
         REQUIRE(client.put("key", ContractDataDurability::TEMPORARY, 234) ==
                 INVOKE_HOST_FUNCTION_SUCCESS);
