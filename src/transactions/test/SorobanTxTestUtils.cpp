@@ -242,7 +242,7 @@ makeSorobanCreateContractTx(Application& app, TestAccount& source,
 {
     if (createResources.footprint.readWrite.empty())
     {
-        REQUIRE(createResources.footprint.readOnly.empty());
+        releaseAssert(createResources.footprint.readOnly.empty());
         auto contractID = xdrSha256(
             makeFullContractIdPreimage(app.getNetworkID(), idPreimage));
         if (executable.type() ==
