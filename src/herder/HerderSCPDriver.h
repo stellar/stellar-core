@@ -226,7 +226,7 @@ class HerderSCPDriver : public SCPDriver
                          std::chrono::nanoseconds threshold,
                          uint64_t slotIndex);
 
-    bool checkAndCacheTxSetValid(ApplicableTxSetFrame const& txSet,
+    bool checkAndCacheTxSetValid(TxSetXDRFrame const& txSet,
                                  uint64_t closeTimeOffset) const;
 };
 }
