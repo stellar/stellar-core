@@ -13,7 +13,7 @@ namespace stellar
 {
 class AbstractLedgerTxn;
 
-static constexpr ContractDataDurability CONTRACT_INSTANCE_CONTRACT_DURABILITY =
+static constexpr ContractDataDurability CONTRACT_INSTANCE_ENTRY_DURABILITY =
     ContractDataDurability::PERSISTENT;
 
 class InvokeHostFunctionOpFrame : public OperationFrame

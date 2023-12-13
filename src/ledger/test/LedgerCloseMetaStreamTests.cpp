@@ -510,14 +510,18 @@ TEST_CASE_VERSIONS("meta stream contains reasonable meta", "[ledgerclosemeta]")
             // 5. Create contract instance
 
             // Deploy and extend contract so it won't be archived during test
-            ContractStorageInvocationTest test(cfg);
-            test.extendOp(test.getContractKeys(), 10'000);
+            SorobanTest test(cfg);
+            ContractStorageTestClient client(test);
+            auto& contract = client.getContract();
+
+            test.invokeExtendOp(contract.getKeys(), 10'000);
 
             // Write key that we will restore later
-            test.put("archived", ContractDataDurability::PERSISTENT, 42);
+            REQUIRE(client.put("archived", ContractDataDurability::PERSISTENT,
+                               42) == INVOKE_HOST_FUNCTION_SUCCESS);
             auto archivedKeySymbol = makeSymbolSCVal("archived");
             auto archivedLk =
-                contractDataKey(test.getContractID(), archivedKeySymbol,
+                contractDataKey(contract.getAddress(), archivedKeySymbol,
                                 ContractDataDurability::PERSISTENT);
 
             uint32_t liveUntilLedger =
@@ -527,24 +531,20 @@ TEST_CASE_VERSIONS("meta stream contains reasonable meta", "[ledgerclosemeta]")
 
             // Generate a few accounts so we can send multiple TXs in a single
             // ledger.
-            auto bal = test.getApp()->getLedgerManager().getLastMinBalance(2);
-            auto acc1 = std::make_shared<TestAccount>(
-                test.getRoot().create("acc1", bal));
-            auto acc2 = std::make_shared<TestAccount>(
-                test.getRoot().create("acc2", bal));
-            auto acc3 = std::make_shared<TestAccount>(
-                test.getRoot().create("acc3", bal));
-            auto acc4 = std::make_shared<TestAccount>(
-                test.getRoot().create("acc4", bal));
+            auto bal = test.getApp().getLedgerManager().getLastMinBalance(2);
+            auto acc1 = test.getRoot().create("acc1", bal);
+            auto acc2 = test.getRoot().create("acc2", bal);
+            auto acc3 = test.getRoot().create("acc3", bal);
+            auto acc4 = test.getRoot().create("acc4", bal);
             auto acc5 = test.getRoot().create("acc5", bal);
 
             // Close ledgers until out contract expires. These ledgers won't
             // emit meta
             for (uint32_t i =
-                     test.getApp()->getLedgerManager().getLastClosedLedgerNum();
+                     test.getApp().getLedgerManager().getLastClosedLedgerNum();
                  i <= liveUntilLedger + 1; ++i)
             {
-                closeLedgerOn(*test.getApp(), i, 2, 1, 2016);
+                closeLedgerOn(test.getApp(), i, 2, 1, 2016);
             }
             REQUIRE(!test.isEntryLive(archivedLk, test.getLedgerSeq()));
 
@@ -555,46 +555,56 @@ TEST_CASE_VERSIONS("meta stream contains reasonable meta", "[ledgerclosemeta]")
             restoreResources.readBytes = 5'000;
             restoreResources.writeBytes = 1'000;
             auto tx1 = test.createRestoreTx(restoreResources, 1'000,
-                                            DEFAULT_TEST_RESOURCE_FEE, acc1);
+                                            DEFAULT_TEST_RESOURCE_FEE, &acc1);
 
-            // Extend TTL of WASM and instance
+            // Extend TTL of Wasm and instance
             SorobanResources extendResources;
-            extendResources.footprint.readOnly = test.getContractKeys();
+            extendResources.footprint.readOnly = contract.getKeys();
             extendResources.instructions = 0;
             extendResources.readBytes = 10'000;
             extendResources.writeBytes = 0;
             auto tx2 =
                 test.createExtendOpTx(extendResources, /*extendTo*/ 10'000,
-                                      1'000, DEFAULT_TEST_RESOURCE_FEE, acc2);
+                                      1'000, DEFAULT_TEST_RESOURCE_FEE, &acc2);
 
             // Write new entry with key PERSISTENT("key")
             auto liveKeySymbol = makeSymbolSCVal("key");
-            auto funcSymbol = makeSymbol("put_persistent");
+            auto fnName = "put_persistent";
             auto args = {liveKeySymbol, makeU64SCVal(42)};
-            auto liveLk = contractDataKey(test.getContractID(), liveKeySymbol,
+            auto liveLk = contractDataKey(client.getContract().getAddress(),
+                                          liveKeySymbol,
                                           ContractDataDurability::PERSISTENT);
-            SorobanResources putResources;
-            putResources.footprint.readOnly = test.getContractKeys();
-            putResources.footprint.readWrite = {liveLk};
-            putResources.instructions = 4'000'000;
-            putResources.readBytes = 10'000;
-            putResources.writeBytes = 1'000;
-            auto resourceFee =
-                test.computeResourceFee(putResources, funcSymbol, args);
+            auto putSpec = SorobanInvocationSpec()
+                               .setInstructions(4'000'000)
+                               .setReadBytes(10'000)
+                               .setWriteBytes(1'000)
+                               .setInclusionFee(1'000)
+                               .setRefundableResourceFee(40'000)
+                               .setReadWriteFootprint({liveLk});
 
-            auto tx3 = test.createInvokeTx(putResources, funcSymbol, args,
-                                           1'000, resourceFee + 40'000, acc3);
+            auto tx3 = contract.prepareInvocation(fnName, args, putSpec)
+                           .withExactNonRefundableResourceFee()
+                           .createTx(&acc3);
 
             // Same put TX from before, but this one should fail due to invalid
             // footprint
-            SorobanResources badPutResources = putResources;
-            badPutResources.footprint.readWrite.clear();
-            auto tx4 = test.createInvokeTx(badPutResources, funcSymbol, args,
-                                           1'000, resourceFee + 40'000, acc4);
+            auto tx4 = contract
+                           .prepareInvocation(fnName, args,
+                                              putSpec.setReadWriteFootprint({}))
+                           .withExactNonRefundableResourceFee()
+                           .createTx(&acc4);
+            SorobanResources createResources;
+            createResources.instructions = 200'000;
+            createResources.readBytes = 5000;
+            createResources.writeBytes = 5000;
 
-            auto tx5 = test.getCreateTx(acc5);
+            auto tx5 = makeSorobanCreateContractTx(
+                test.getApp(), acc5,
+                makeContractIDPreimage(acc5, sha256("salt")),
+                makeWasmExecutable(contract.getKeys()[0].contractCode().hash),
+                createResources, 1000);
 
-            closeLedger(*test.getApp(), {tx1, tx2, tx3, tx4, tx5});
+            closeLedger(test.getApp(), {tx1, tx2, tx3, tx4, tx5});
             targetSeq = 23;
         }
         else

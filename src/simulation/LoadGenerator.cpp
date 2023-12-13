@@ -1125,7 +1125,7 @@ LoadGenerator::createUploadWasmTransaction(uint32_t ledgerNum,
             resourceFee));
     mCodeKey = contractCodeLedgerKey;
 
-    // WASM blob + approximate overhead for contract instance and ContractCode
+    // Wasm blob + approximate overhead for contract instance and ContractCode
     // LE overhead
     mContactOverheadBytes = wasm.data.size() + 160;
     return std::make_pair(account, tx);
@@ -1143,23 +1143,18 @@ LoadGenerator::createContractTransaction(uint32_t ledgerNum, uint64_t accountId,
     createResources.readBytes = mContactOverheadBytes;
     createResources.writeBytes = 300;
 
-    SCVal scContractSourceRefKey(SCValType::SCV_LEDGER_KEY_CONTRACT_INSTANCE);
     auto salt = sha256(std::to_string(mContractInstanceKeys.size()));
-    auto [createOp, contractID] =
-        createSorobanCreateOp(mApp, createResources, *mCodeKey, *account,
-                              scContractSourceRefKey, salt);
+    auto contractIDPreimage = makeContractIDPreimage(*account, salt);
+
+    auto tx =
+        std::dynamic_pointer_cast<TransactionFrame>(makeSorobanCreateContractTx(
+            mApp, *account, contractIDPreimage,
+            makeWasmExecutable(mCodeKey->contractCode().hash), createResources,
+            generateFee(cfg.maxGeneratedFeeRate, mApp,
+                        /* opsCnt */ 1)));
 
     auto const& instanceLk = createResources.footprint.readWrite.back();
     mContractInstanceKeys.emplace(instanceLk);
-
-    auto resourceFee = sorobanResourceFee(mApp, createResources, 1000, 40);
-    resourceFee += 1'000'000;
-    auto tx = std::dynamic_pointer_cast<TransactionFrame>(
-        sorobanTransactionFrameFromOps(
-            mApp.getNetworkID(), *account, {createOp}, {}, createResources,
-            generateFee(cfg.maxGeneratedFeeRate, mApp,
-                        /* opsCnt */ 1),
-            resourceFee));
 
     return std::make_pair(account, tx);
 }

@@ -27,80 +27,11 @@
 		19,
 		20
 	],
-	"Native stellar asset contract" : [ "bKDF6V5IzTo=", "WG81K/VZUaU=" ],
-	"Trustline stellar asset contract" : 
+	"Native stellar asset contract" : [ "bKDF6V5IzTo=", "i7kalOBorks=" ],
+	"Soroban footprint validation" : 
 	[
 		"bKDF6V5IzTo=",
-		"pIksSdCXjaM=",
-		"DfaSsPVmc0I=",
-		"7rni3KPd6EQ=",
-		"CV1g3ijy688=",
-		"AsxHuDcTPiA=",
-		"59oy+4KNTrw=",
-		"iNRxbcDGHRA=",
-		"eueWEr2Qk5M=",
-		"ohJUyhoisZs="
-	],
-	"basic contract invocation" : 
-	[
-		"bKDF6V5IzTo=",
-		"bKDF6V5IzTo=",
-		"bKDF6V5IzTo=",
-		"bKDF6V5IzTo=",
-		"bKDF6V5IzTo=",
-		"bKDF6V5IzTo=",
-		"bKDF6V5IzTo=",
-		"bKDF6V5IzTo="
-	],
-	"buying liabilities plus refund is greater than INT64_MAX" : 
-	[
-		"bKDF6V5IzTo=",
-		"y0mODi4DFnM=",
-		"o9mb+GfjtK8=",
-		"H+TcXmSmbqc=",
-		"tNCAjT/JOkE="
-	],
-	"complex contract|diagnostics disabled" : [ "bKDF6V5IzTo=" ],
-	"complex contract|diagnostics enabled" : [ "bKDF6V5IzTo=" ],
-	"contract storage" : 
-	[
-		"bKDF6V5IzTo=",
-		"bKDF6V5IzTo=",
-		"bKDF6V5IzTo=",
-		"bKDF6V5IzTo=",
-		"bKDF6V5IzTo=",
-		"bKDF6V5IzTo=",
-		"bKDF6V5IzTo=",
-		"bKDF6V5IzTo=",
-		"bKDF6V5IzTo=",
-		"bKDF6V5IzTo=",
-		"bKDF6V5IzTo=",
-		"bKDF6V5IzTo=",
-		"bKDF6V5IzTo=",
-		"bKDF6V5IzTo=",
-		"bKDF6V5IzTo=",
-		"bKDF6V5IzTo=",
-		"bKDF6V5IzTo=",
-		"bKDF6V5IzTo=",
-		"bKDF6V5IzTo=",
-		"bKDF6V5IzTo=",
-		"bKDF6V5IzTo=",
-		"bKDF6V5IzTo="
-	],
-	"contract storage|footprint tests|unused readWrite key" : [ "FCzY8suZB0A=" ],
-	"error codes" : [ "bKDF6V5IzTo=" ],
-	"errors roll back" : 
-	[
-		"bKDF6V5IzTo=",
-		"bKDF6V5IzTo=",
-		"bKDF6V5IzTo=",
-		"bKDF6V5IzTo=",
-		"bKDF6V5IzTo=",
-		"bKDF6V5IzTo="
-	],
-	"failure diagnostics" : [ "bKDF6V5IzTo=", "bKDF6V5IzTo=" ],
-	"invalid footprint keys" : 
-	[
+		"Qsf8PDR92oU=",
 		"bKDF6V5IzTo=",
 		"Qsf8PDR92oU=",
 		"bKDF6V5IzTo=",
@@ -474,8 +405,7 @@
 		"bKDF6V5IzTo=",
 		"Qsf8PDR92oU="
 	],
-	"ledger entry size limit enforced" : [ "bKDF6V5IzTo=", "bKDF6V5IzTo=" ],
-	"non-refundable resource metering" : 
+	"Soroban non-refundable resource fees are stable" : 
 	[
 		"bKDF6V5IzTo=",
 		"bKDF6V5IzTo=",
@@ -485,8 +415,95 @@
 		"bKDF6V5IzTo=",
 		"bKDF6V5IzTo="
 	],
+	"Trustline stellar asset contract" : 
+	[
+		"bKDF6V5IzTo=",
+		"NGLSADCnfp4=",
+		"DfaSsPVmc0I=",
+		"/77WrMl+rn0=",
+		"JW+Z8Qc2C4E=",
+		"w0ru88cpqE4=",
+		"AN1LYP0s9qQ=",
+		"iNRxbcDGHRA=",
+		"eueWEr2Qk5M=",
+		"ohJUyhoisZs="
+	],
+	"basic contract invocation" : 
+	[
+		"bKDF6V5IzTo=",
+		"bKDF6V5IzTo=",
+		"bKDF6V5IzTo=",
+		"bKDF6V5IzTo=",
+		"bKDF6V5IzTo=",
+		"bKDF6V5IzTo=",
+		"bKDF6V5IzTo=",
+		"bKDF6V5IzTo=",
+		"bKDF6V5IzTo="
+	],
+	"buying liabilities plus refund is greater than INT64_MAX" : 
+	[
+		"bKDF6V5IzTo=",
+		"y0mODi4DFnM=",
+		"o9mb+GfjtK8=",
+		"H+TcXmSmbqc=",
+		"tNCAjT/JOkE="
+	],
+	"complex contract|diagnostics disabled" : [ "bKDF6V5IzTo=" ],
+	"complex contract|diagnostics enabled" : [ "bKDF6V5IzTo=" ],
+	"contract errors cause transaction to fail" : 
+	[
+		"bKDF6V5IzTo=",
+		"bKDF6V5IzTo=",
+		"bKDF6V5IzTo=",
+		"bKDF6V5IzTo=",
+		"bKDF6V5IzTo=",
+		"bKDF6V5IzTo="
+	],
+	"contract storage" : 
+	[
+		"bKDF6V5IzTo=",
+		"bKDF6V5IzTo=",
+		"bKDF6V5IzTo=",
+		"bKDF6V5IzTo=",
+		"bKDF6V5IzTo=",
+		"bKDF6V5IzTo=",
+		"bKDF6V5IzTo="
+	],
+	"contract storage|footprint|unused readWrite key" : [ "ZKxMUP1fxqo=" ],
+	"failure diagnostics" : [ "bKDF6V5IzTo=", "bKDF6V5IzTo=" ],
+	"ledger entry size limit enforced" : [ "bKDF6V5IzTo=", "bKDF6V5IzTo=" ],
 	"refund account merged" : [ "bKDF6V5IzTo=", "y0mODi4DFnM=", "o9mb+GfjtK8=", "HG7OrQT/Ofg=" ],
 	"settings upgrade" : [ "bKDF6V5IzTo=", "bKDF6V5IzTo=" ],
 	"settings upgrade command line utils" : [ "TByXElZpITE=", "TByXElZpITE=", "TByXElZpITE=", "TByXElZpITE=" ],
+	"state archival" : 
+	[
+		"bKDF6V5IzTo=",
+		"bKDF6V5IzTo=",
+		"bKDF6V5IzTo=",
+		"bKDF6V5IzTo=",
+		"bKDF6V5IzTo=",
+		"bKDF6V5IzTo=",
+		"bKDF6V5IzTo=",
+		"bKDF6V5IzTo=",
+		"bKDF6V5IzTo=",
+		"bKDF6V5IzTo=",
+		"bKDF6V5IzTo=",
+		"bKDF6V5IzTo=",
+		"bKDF6V5IzTo=",
+		"bKDF6V5IzTo=",
+		"bKDF6V5IzTo=",
+		"bKDF6V5IzTo="
+	],
+	"state archival operation errors" : 
+	[
+		"bKDF6V5IzTo=",
+		"bKDF6V5IzTo=",
+		"bKDF6V5IzTo=",
+		"bKDF6V5IzTo=",
+		"bKDF6V5IzTo=",
+		"bKDF6V5IzTo=",
+		"bKDF6V5IzTo=",
+		"bKDF6V5IzTo="
+	],
 	"temp entry eviction" : [ "bKDF6V5IzTo=", "bKDF6V5IzTo=" ]
 }

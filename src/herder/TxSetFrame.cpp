@@ -437,14 +437,22 @@ makeTxSetFromTransactions(TxSetTransactions txs, Application& app,
                           TxSetTransactions& invalidTxs,
                           bool enforceTxsApplyOrder)
 {
-    TxSetPhaseTransactions phases;
-    phases.emplace_back(txs);
     auto lclHeader = app.getLedgerManager().getLastClosedLedgerHeader();
-    if (protocolVersionStartsFrom(lclHeader.header.ledgerVersion,
-                                  SOROBAN_PROTOCOL_VERSION))
+    TxSetPhaseTransactions phases;
+    phases.resize(protocolVersionStartsFrom(lclHeader.header.ledgerVersion,
+                                            SOROBAN_PROTOCOL_VERSION)
+                      ? 2
+                      : 1);
+    for (auto& tx : txs)
     {
-        // Empty soroban phase
-        phases.emplace_back();
+        if (tx->isSoroban())
+        {
+            phases[static_cast<size_t>(TxSetPhase::SOROBAN)].push_back(tx);
+        }
+        else
+        {
+            phases[static_cast<size_t>(TxSetPhase::CLASSIC)].push_back(tx);
+        }
     }
     TxSetPhaseTransactions invalid;
     invalid.resize(phases.size());
