@@ -317,9 +317,9 @@ HerderSCPDriver::validateValueHelper(uint64_t slotIndex, StellarValue const& b,
         CLOG_ERROR(Herder, "validateValue i:{} unknown txSet {}", slotIndex,
                    hexAbbrev(txSetHash));
 
-        return SCPDriver::kInvalidValue;
+        res = SCPDriver::kInvalidValue;
     }
-    if (!checkAndCacheTxSetValid(*txSet, closeTimeOffset))
+    else if (!checkAndCacheTxSetValid(*txSet, closeTimeOffset))
     {
         CLOG_DEBUG(Herder,
                    "HerderSCPDriver::validateValue i: {} invalid txSet {}",
