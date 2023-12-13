@@ -317,29 +317,9 @@ HerderSCPDriver::validateValueHelper(uint64_t slotIndex, StellarValue const& b,
         CLOG_ERROR(Herder, "validateValue i:{} unknown txSet {}", slotIndex,
                    hexAbbrev(txSetHash));
 
-        return SCPDriver::kInvalidValue;
-    }
-    ApplicableTxSetFrameConstPtr applicableTxSet;
-
-    // The invariant here is that we only validate tx sets nominated
-    // to be applied to the current ledger state. However, in case
-    // if we receive a bad SCP value for the current state, we still
-    // might end up with malformed tx set that doesn't refer to the
-    // LCL.
-    if (txSet->previousLedgerHash() ==
-        mApp.getLedgerManager().getLastClosedLedgerHeader().hash)
-    {
-        applicableTxSet = txSet->prepareForApply(mApp);
-    }
-
-    if (applicableTxSet == nullptr)
-    {
-        CLOG_ERROR(Herder,
-                   "validateValue i:{} can't prepare txSet {} for apply",
-                   slotIndex, hexAbbrev(txSetHash));
         res = SCPDriver::kInvalidValue;
     }
-    else if (!checkAndCacheTxSetValid(*applicableTxSet, closeTimeOffset))
+    else if (!checkAndCacheTxSetValid(*txSet, closeTimeOffset))
     {
         CLOG_DEBUG(Herder,
                    "HerderSCPDriver::validateValue i: {} invalid txSet {}",
@@ -1233,7 +1213,7 @@ HerderSCPDriver::wrapStellarValue(StellarValue const& sv)
 }
 
 bool
-HerderSCPDriver::checkAndCacheTxSetValid(ApplicableTxSetFrame const& txSet,
+HerderSCPDriver::checkAndCacheTxSetValid(TxSetXDRFrame const& txSet,
                                          uint64_t closeTimeOffset) const
 {
     auto key = TxSetValidityKey{
@@ -1243,7 +1223,32 @@ HerderSCPDriver::checkAndCacheTxSetValid(ApplicableTxSetFrame const& txSet,
     bool* pRes = mTxSetValidCache.maybeGet(key);
     if (pRes == nullptr)
     {
-        bool res = txSet.checkValid(mApp, closeTimeOffset, closeTimeOffset);
+        // The invariant here is that we only validate tx sets nominated
+        // to be applied to the current ledger state. However, in case
+        // if we receive a bad SCP value for the current state, we still
+        // might end up with malformed tx set that doesn't refer to the
+        // LCL.
+        ApplicableTxSetFrameConstPtr applicableTxSet;
+        if (txSet.previousLedgerHash() ==
+            mApp.getLedgerManager().getLastClosedLedgerHeader().hash)
+        {
+            applicableTxSet = txSet.prepareForApply(mApp);
+        }
+
+        bool res = true;
+        if (applicableTxSet == nullptr)
+        {
+            CLOG_ERROR(Herder,
+                       "validateValue i:{} can't prepare txSet {} for apply",
+                       (mApp.getLedgerManager().getLastClosedLedgerNum() + 1),
+                       hexAbbrev(txSet.getContentsHash()));
+            res = false;
+        }
+        else
+        {
+            res = applicableTxSet->checkValid(mApp, closeTimeOffset,
+                                              closeTimeOffset);
+        }
 
         mTxSetValidCache.put(key, res);
         return res;
