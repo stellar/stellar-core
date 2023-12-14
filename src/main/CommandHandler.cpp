@@ -859,13 +859,11 @@ CommandHandler::sorobanInfo(std::string const& params, std::string& retStr)
                           /* shouldUpdateLastModified */ false,
                           TransactionMode::READ_ONLY_WITHOUT_SQL_TXN);
             xdr::xvector<ConfigSettingEntry> entries;
-            for (uint32_t i = 0;
-                 i <= static_cast<uint32_t>(CONFIG_SETTING_EVICTION_ITERATOR);
-                 ++i)
+            for (auto c : xdr::xdr_traits<ConfigSettingID>::enum_values())
             {
-                auto costEntry =
-                    ltx.load(configSettingKey(static_cast<ConfigSettingID>(i)));
-                entries.emplace_back(costEntry.current().data.configSetting());
+                auto entry =
+                    ltx.load(configSettingKey(static_cast<ConfigSettingID>(c)));
+                entries.emplace_back(entry.current().data.configSetting());
             }
 
             retStr = xdr_to_string(entries, "ConfigSettingsEntries");
