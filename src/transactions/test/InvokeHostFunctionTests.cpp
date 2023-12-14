@@ -242,6 +242,38 @@ TEST_CASE("Trustline stellar asset contract",
     // Now transfer more than balance
     REQUIRE(!client.transfer(acc, acc2Addr, 10));
 
+    // Now transfer from a contract
+    TestContract& transferContract =
+        test.deployWasmContract(rust_bridge::get_test_contract_sac_transfer());
+
+    REQUIRE(client.mint(issuer, transferContract.getAddress(), 10));
+
+    auto invocationSpec = client.defaultSpec();
+
+    invocationSpec =
+        invocationSpec.setReadOnlyFootprint(client.getContract().getKeys());
+
+    LedgerKey issuerLedgerKey(ACCOUNT);
+    issuerLedgerKey.account().accountID = getIssuer(idr);
+
+    LedgerKey fromBalanceKey =
+        client.makeBalanceKey(transferContract.getAddress());
+    LedgerKey toBalanceKey = client.makeBalanceKey(acc2Addr);
+
+    invocationSpec =
+        invocationSpec.extendReadOnlyFootprint({issuerLedgerKey})
+            .extendReadWriteFootprint({fromBalanceKey, toBalanceKey});
+
+    auto invocation = transferContract.prepareInvocation(
+        "transfer_1",
+        {makeContractAddressSCVal(client.getContract().getAddress()),
+         makeContractAddressSCVal(acc2Addr)},
+        invocationSpec);
+    REQUIRE(invocation.invoke());
+
+    REQUIRE(client.getBalance(transferContract.getAddress()) == 9);
+    REQUIRE(client.getBalance(acc2Addr) == 11);
+
     // Make sure sponsorship info hasn't changed
     {
         LedgerTxn ltx(app.getLedgerTxnRoot());
@@ -289,14 +321,59 @@ TEST_CASE("Native stellar asset contract",
     auto contractAddr = makeContractAddress(sha256("contract"));
     REQUIRE(client.transfer(a1, contractAddr, 10));
 
+    auto a2Addr = makeAccountAddress(a2);
     // Now do an account to account transfer
-    REQUIRE(client.transfer(a1, makeAccountAddress(a2), 100));
+    REQUIRE(client.transfer(a1, a2Addr, 100));
 
     // Now try to mint native
     REQUIRE(!client.mint(root, contractAddr, 10));
 
     // Now transfer more than balance
     REQUIRE(!client.transfer(a1, contractAddr, INT64_MAX));
+
+    // Now test xlm transfer from a contract to another contract and then to an
+    // account.
+    TestContract& transferContract =
+        test.deployWasmContract(rust_bridge::get_test_contract_sac_transfer());
+
+    REQUIRE(client.transfer(a1, transferContract.getAddress(), 10));
+
+    auto invocationSpec = client.defaultSpec();
+
+    invocationSpec =
+        invocationSpec.setReadOnlyFootprint(client.getContract().getKeys());
+
+    LedgerKey fromBalanceKey =
+        client.makeBalanceKey(transferContract.getAddress());
+
+    // Contract -> Contract
+    auto contractToContractSpec = invocationSpec.extendReadWriteFootprint(
+        {fromBalanceKey, client.makeBalanceKey(contractAddr)});
+    REQUIRE(transferContract
+                .prepareInvocation("transfer_1",
+                                   {makeContractAddressSCVal(
+                                        client.getContract().getAddress()),
+                                    makeContractAddressSCVal(contractAddr)},
+                                   contractToContractSpec)
+                .invoke());
+
+    REQUIRE(client.getBalance(transferContract.getAddress()) == 9);
+    REQUIRE(client.getBalance(contractAddr) == 11);
+
+    // Contract -> Account
+    auto a2BalanceSnapshot = a2.getBalance();
+    auto contractToAccountSpec = invocationSpec.extendReadWriteFootprint(
+        {fromBalanceKey, client.makeBalanceKey(a2Addr)});
+    REQUIRE(transferContract
+                .prepareInvocation("transfer_1",
+                                   {makeContractAddressSCVal(
+                                        client.getContract().getAddress()),
+                                    makeContractAddressSCVal(a2Addr)},
+                                   contractToAccountSpec)
+                .invoke());
+
+    REQUIRE(client.getBalance(transferContract.getAddress()) == 8);
+    REQUIRE(a2BalanceSnapshot == a2.getBalance() - 1);
 
     // Make sure sponsorship info hasn't changed
     {

@@ -987,6 +987,12 @@ AssetContractTestClient::defaultSpec() const
         .setWriteBytes(2000);
 }
 
+TestContract const&
+AssetContractTestClient::getContract() const
+{
+    return mContract;
+}
+
 bool
 AssetContractTestClient::transfer(TestAccount& fromAcc, SCAddress const& toAddr,
                                   int64_t amount)

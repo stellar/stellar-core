@@ -206,6 +206,7 @@ mod rust_bridge {
         fn get_test_wasm_complex() -> Result<RustBuf>;
         fn get_test_wasm_loadgen() -> Result<RustBuf>;
         fn get_test_wasm_err() -> Result<RustBuf>;
+        fn get_test_contract_sac_transfer() -> Result<RustBuf>;
         fn get_write_bytes() -> Result<RustBuf>;
 
         // Utility functions for generating wasms using soroban-synth-wasm.
@@ -321,6 +322,15 @@ pub(crate) fn get_test_wasm_err() -> Result<RustBuf, Box<dyn std::error::Error>>
 pub(crate) fn get_test_wasm_loadgen() -> Result<RustBuf, Box<dyn std::error::Error>> {
     Ok(RustBuf {
         data: soroban_test_wasms::LOADGEN.iter().cloned().collect(),
+    })
+}
+
+pub(crate) fn get_test_contract_sac_transfer() -> Result<RustBuf, Box<dyn std::error::Error>> {
+    Ok(RustBuf {
+        data: soroban_test_wasms::CONTRACT_SAC_TRANSFER_CONTRACT
+            .iter()
+            .cloned()
+            .collect(),
     })
 }
 
