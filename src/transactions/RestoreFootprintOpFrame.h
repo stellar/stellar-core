@@ -32,7 +32,7 @@ class RestoreFootprintOpFrame : public OperationFrame
                  Hash const& sorobanBasePrngSeed) override;
 
     bool doCheckValid(SorobanNetworkConfig const& config,
-                      uint32_t ledgerVersion) override;
+                      Config const& appConfig, uint32_t ledgerVersion) override;
     bool doCheckValid(uint32_t ledgerVersion) override;
 
     void

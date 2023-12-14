@@ -67,6 +67,7 @@ RestoreFootprintOpFrame::doApply(Application& app, AbstractLedgerTxn& ltx,
     auto ledgerSeq = ltx.loadHeader().current().ledgerSeq;
     auto const& sorobanConfig =
         app.getLedgerManager().getSorobanNetworkConfig();
+    auto const& appConfig = app.getConfig();
 
     auto const& archivalSettings = sorobanConfig.stateArchivalSettings();
     rust::Vec<CxxLedgerEntryRentChange> rustEntryRentChanges;
@@ -100,7 +101,7 @@ RestoreFootprintOpFrame::doApply(Application& app, AbstractLedgerTxn& ltx,
         if (resources.readBytes < metrics.mLedgerReadByte)
         {
             mParentTx.pushSimpleDiagnosticError(
-                SCE_BUDGET, SCEC_EXCEEDED_LIMIT,
+                appConfig, SCE_BUDGET, SCEC_EXCEEDED_LIMIT,
                 "operation byte-read resources exceeds amount specified",
                 {makeU64SCVal(metrics.mLedgerReadByte),
                  makeU64SCVal(resources.readBytes)});
@@ -112,7 +113,7 @@ RestoreFootprintOpFrame::doApply(Application& app, AbstractLedgerTxn& ltx,
         // writes come out of refundable fee, so only add entrySize
         metrics.mLedgerWriteByte += entrySize;
         if (!validateContractLedgerEntry(lk, entrySize, sorobanConfig,
-                                         mParentTx))
+                                         appConfig, mParentTx))
         {
             innerResult().code(RESTORE_FOOTPRINT_RESOURCE_LIMIT_EXCEEDED);
             return false;
@@ -121,7 +122,7 @@ RestoreFootprintOpFrame::doApply(Application& app, AbstractLedgerTxn& ltx,
         if (resources.writeBytes < metrics.mLedgerWriteByte)
         {
             mParentTx.pushSimpleDiagnosticError(
-                SCE_BUDGET, SCEC_EXCEEDED_LIMIT,
+                appConfig, SCE_BUDGET, SCEC_EXCEEDED_LIMIT,
                 "operation byte-write resources exceeds amount specified",
                 {makeU64SCVal(metrics.mLedgerWriteByte),
                  makeU64SCVal(resources.writeBytes)});
@@ -166,12 +167,17 @@ RestoreFootprintOpFrame::doApply(Application& app, AbstractLedgerTxn& ltx,
 
 bool
 RestoreFootprintOpFrame::doCheckValid(SorobanNetworkConfig const& config,
+                                      Config const& appConfig,
                                       uint32_t ledgerVersion)
 {
     auto const& footprint = mParentTx.sorobanResources().footprint;
     if (!footprint.readOnly.empty())
     {
         innerResult().code(RESTORE_FOOTPRINT_MALFORMED);
+        mParentTx.pushSimpleDiagnosticError(
+            appConfig, SCE_STORAGE, SCEC_INVALID_INPUT,
+            "read-only footprint must be empty for RestoreFootprint operation",
+            {});
         return false;
     }
 
@@ -180,6 +186,9 @@ RestoreFootprintOpFrame::doCheckValid(SorobanNetworkConfig const& config,
         if (!isPersistentEntry(lk))
         {
             innerResult().code(RESTORE_FOOTPRINT_MALFORMED);
+            mParentTx.pushSimpleDiagnosticError(
+                appConfig, SCE_STORAGE, SCEC_INVALID_INPUT,
+                "only persistent Soroban entries can be restored", {});
             return false;
         }
     }

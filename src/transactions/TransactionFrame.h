@@ -140,6 +140,7 @@ class TransactionFrame : public TransactionFrameBase
 
     bool validateSorobanOpsConsistency() const;
     bool validateSorobanResources(SorobanNetworkConfig const& config,
+                                  Config const& appConfig,
                                   uint32_t protocolVersion);
     void refundSorobanFee(AbstractLedgerTxn& ltx);
 #ifdef BUILD_TESTS
@@ -199,8 +200,8 @@ class TransactionFrame : public TransactionFrameBase
     void pushDiagnosticEvents(xdr::xvector<DiagnosticEvent>&& evts);
     void setReturnValue(SCVal&& returnValue);
     void pushDiagnosticEvent(DiagnosticEvent&& evt);
-    void pushSimpleDiagnosticError(SCErrorType ty, SCErrorCode code,
-                                   std::string&& message,
+    void pushSimpleDiagnosticError(Config const& cfg, SCErrorType ty,
+                                   SCErrorCode code, std::string&& message,
                                    xdr::xvector<SCVal>&& args = {});
     xdr::xvector<DiagnosticEvent> const& getDiagnosticEvents() const override;
 

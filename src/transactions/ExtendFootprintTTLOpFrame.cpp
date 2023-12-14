@@ -105,7 +105,7 @@ ExtendFootprintTTLOpFrame::doApply(Application& app, AbstractLedgerTxn& ltx,
         metrics.mLedgerReadByte += entrySize;
 
         if (!validateContractLedgerEntry(lk, entrySize, sorobanConfig,
-                                         mParentTx))
+                                         app.getConfig(), mParentTx))
         {
             innerResult().code(EXTEND_FOOTPRINT_TTL_RESOURCE_LIMIT_EXCEEDED);
             return false;
@@ -114,7 +114,7 @@ ExtendFootprintTTLOpFrame::doApply(Application& app, AbstractLedgerTxn& ltx,
         if (resources.readBytes < metrics.mLedgerReadByte)
         {
             mParentTx.pushSimpleDiagnosticError(
-                SCE_BUDGET, SCEC_EXCEEDED_LIMIT,
+                app.getConfig(), SCE_BUDGET, SCEC_EXCEEDED_LIMIT,
                 "operation byte-read resources exceeds amount specified",
                 {makeU64SCVal(metrics.mLedgerReadByte),
                  makeU64SCVal(resources.readBytes)});
@@ -154,12 +154,18 @@ ExtendFootprintTTLOpFrame::doApply(Application& app, AbstractLedgerTxn& ltx,
 
 bool
 ExtendFootprintTTLOpFrame::doCheckValid(SorobanNetworkConfig const& config,
+                                        Config const& appConfig,
                                         uint32_t ledgerVersion)
 {
     auto const& footprint = mParentTx.sorobanResources().footprint;
     if (!footprint.readWrite.empty())
     {
         innerResult().code(EXTEND_FOOTPRINT_TTL_MALFORMED);
+        mParentTx.pushSimpleDiagnosticError(
+            appConfig, SCE_STORAGE, SCEC_INVALID_INPUT,
+            "read-write footprint must be empty for ExtendFootprintTTL "
+            "operation",
+            {});
         return false;
     }
 
@@ -168,6 +174,9 @@ ExtendFootprintTTLOpFrame::doCheckValid(SorobanNetworkConfig const& config,
         if (!isSorobanEntry(lk))
         {
             innerResult().code(EXTEND_FOOTPRINT_TTL_MALFORMED);
+            mParentTx.pushSimpleDiagnosticError(
+                appConfig, SCE_STORAGE, SCEC_INVALID_INPUT,
+                "only entries with TTL can have it extended", {});
             return false;
         }
     }
@@ -176,6 +185,13 @@ ExtendFootprintTTLOpFrame::doCheckValid(SorobanNetworkConfig const& config,
         config.stateArchivalSettings().maxEntryTTL - 1)
     {
         innerResult().code(EXTEND_FOOTPRINT_TTL_MALFORMED);
+        mParentTx.pushSimpleDiagnosticError(
+            appConfig, SCE_STORAGE, SCEC_INVALID_INPUT,
+            "TTL extension is too large: {} > {}",
+            {
+                makeU64SCVal(mExtendFootprintTTLOp.extendTo),
+                makeU64SCVal(config.stateArchivalSettings().maxEntryTTL - 1),
+            });
         return false;
     }
 

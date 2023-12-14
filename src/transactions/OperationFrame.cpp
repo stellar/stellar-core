@@ -269,7 +269,7 @@ OperationFrame::checkValid(Application& app, SignatureChecker& signatureChecker,
         auto const& sorobanConfig =
             app.getLedgerManager().getSorobanNetworkConfig();
 
-        return doCheckValid(sorobanConfig, ledgerVersion);
+        return doCheckValid(sorobanConfig, app.getConfig(), ledgerVersion);
     }
     else
     {
@@ -279,7 +279,7 @@ OperationFrame::checkValid(Application& app, SignatureChecker& signatureChecker,
 
 bool
 OperationFrame::doCheckValid(SorobanNetworkConfig const& config,
-                             uint32_t ledgerVersion)
+                             Config const& appConfig, uint32_t ledgerVersion)
 {
     return doCheckValid(ledgerVersion);
 }

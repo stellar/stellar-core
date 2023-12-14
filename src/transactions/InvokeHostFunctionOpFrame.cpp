@@ -360,7 +360,7 @@ InvokeHostFunctionOpFrame::doApply(Application& app, AbstractLedgerTxn& ltx,
     ttlEntryCxxBufs.reserve(footprintLength);
 
     auto addReads = [&ledgerEntryCxxBufs, &ttlEntryCxxBufs, &ltx, &metrics,
-                     &resources, &sorobanConfig,
+                     &resources, &sorobanConfig, &cfg,
                      this](auto const& keys) -> bool {
         for (auto const& lk : keys)
         {
@@ -424,7 +424,7 @@ InvokeHostFunctionOpFrame::doApply(Application& app, AbstractLedgerTxn& ltx,
             }
 
             metrics.noteReadEntry(isCodeKey(lk), keySize, entrySize);
-            if (!validateContractLedgerEntry(lk, entrySize, sorobanConfig,
+            if (!validateContractLedgerEntry(lk, entrySize, sorobanConfig, cfg,
                                              mParentTx))
             {
                 this->innerResult().code(
@@ -435,7 +435,7 @@ InvokeHostFunctionOpFrame::doApply(Application& app, AbstractLedgerTxn& ltx,
             if (resources.readBytes < metrics.mLedgerReadByte)
             {
                 mParentTx.pushSimpleDiagnosticError(
-                    SCE_BUDGET, SCEC_EXCEEDED_LIMIT,
+                    cfg, SCE_BUDGET, SCEC_EXCEEDED_LIMIT,
                     "operation byte-read resources exceeds amount specified",
                     {makeU64SCVal(metrics.mLedgerReadByte),
                      makeU64SCVal(resources.readBytes)});
@@ -514,7 +514,7 @@ InvokeHostFunctionOpFrame::doApply(Application& app, AbstractLedgerTxn& ltx,
         if (resources.instructions < out.cpu_insns)
         {
             mParentTx.pushSimpleDiagnosticError(
-                SCE_BUDGET, SCEC_EXCEEDED_LIMIT,
+                cfg, SCE_BUDGET, SCEC_EXCEEDED_LIMIT,
                 "operation instructions exceeds amount specified",
                 {makeU64SCVal(out.cpu_insns),
                  makeU64SCVal(resources.instructions)});
@@ -523,7 +523,7 @@ InvokeHostFunctionOpFrame::doApply(Application& app, AbstractLedgerTxn& ltx,
         else if (sorobanConfig.txMemoryLimit() < out.mem_bytes)
         {
             mParentTx.pushSimpleDiagnosticError(
-                SCE_BUDGET, SCEC_EXCEEDED_LIMIT,
+                cfg, SCE_BUDGET, SCEC_EXCEEDED_LIMIT,
                 "operation memory usage exceeds network config limit",
                 {makeU64SCVal(out.mem_bytes),
                  makeU64SCVal(sorobanConfig.txMemoryLimit())});
@@ -544,7 +544,7 @@ InvokeHostFunctionOpFrame::doApply(Application& app, AbstractLedgerTxn& ltx,
         LedgerEntry le;
         xdr::xdr_from_opaque(buf.data, le);
         if (!validateContractLedgerEntry(LedgerEntryKey(le), buf.data.size(),
-                                         sorobanConfig, mParentTx))
+                                         sorobanConfig, cfg, mParentTx))
         {
             innerResult().code(INVOKE_HOST_FUNCTION_RESOURCE_LIMIT_EXCEEDED);
             return false;
@@ -564,7 +564,7 @@ InvokeHostFunctionOpFrame::doApply(Application& app, AbstractLedgerTxn& ltx,
             if (resources.writeBytes < metrics.mLedgerWriteByte)
             {
                 mParentTx.pushSimpleDiagnosticError(
-                    SCE_BUDGET, SCEC_EXCEEDED_LIMIT,
+                    cfg, SCE_BUDGET, SCEC_EXCEEDED_LIMIT,
                     "operation byte-write resources exceeds amount specified",
                     {makeU64SCVal(metrics.mLedgerWriteByte),
                      makeU64SCVal(resources.writeBytes)});
@@ -639,7 +639,7 @@ InvokeHostFunctionOpFrame::doApply(Application& app, AbstractLedgerTxn& ltx,
             metrics.mEmitEventByte)
         {
             mParentTx.pushSimpleDiagnosticError(
-                SCE_BUDGET, SCEC_EXCEEDED_LIMIT,
+                cfg, SCE_BUDGET, SCEC_EXCEEDED_LIMIT,
                 "total events size exceeds network config maximum",
                 {makeU64SCVal(metrics.mEmitEventByte),
                  makeU64SCVal(sorobanConfig.txMaxContractEventsSizeBytes())});
@@ -657,7 +657,7 @@ InvokeHostFunctionOpFrame::doApply(Application& app, AbstractLedgerTxn& ltx,
     if (sorobanConfig.txMaxContractEventsSizeBytes() < metrics.mEmitEventByte)
     {
         mParentTx.pushSimpleDiagnosticError(
-            SCE_BUDGET, SCEC_EXCEEDED_LIMIT,
+            cfg, SCE_BUDGET, SCEC_EXCEEDED_LIMIT,
             "return value pushes events size above network config maximum",
             {makeU64SCVal(metrics.mEmitEventByte),
              makeU64SCVal(sorobanConfig.txMaxContractEventsSizeBytes())});
@@ -685,6 +685,7 @@ InvokeHostFunctionOpFrame::doApply(Application& app, AbstractLedgerTxn& ltx,
 
 bool
 InvokeHostFunctionOpFrame::doCheckValid(SorobanNetworkConfig const& config,
+                                        Config const& appConfig,
                                         uint32_t ledgerVersion)
 {
     // check wasm size if uploading contract
@@ -693,7 +694,7 @@ InvokeHostFunctionOpFrame::doCheckValid(SorobanNetworkConfig const& config,
         hostFn.wasm().size() > config.maxContractSizeBytes())
     {
         mParentTx.pushSimpleDiagnosticError(
-            SCE_BUDGET, SCEC_EXCEEDED_LIMIT,
+            appConfig, SCE_BUDGET, SCEC_EXCEEDED_LIMIT,
             "uploaded WASM size exceeds network config maximum contract size",
             {makeU64SCVal(hostFn.wasm().size()),
              makeU64SCVal(config.maxContractSizeBytes())});
@@ -706,7 +707,7 @@ InvokeHostFunctionOpFrame::doCheckValid(SorobanNetworkConfig const& config,
             !isAssetValid(preimage.fromAsset(), ledgerVersion))
         {
             mParentTx.pushSimpleDiagnosticError(
-                SCE_VALUE, SCEC_INVALID_INPUT,
+                appConfig, SCE_VALUE, SCEC_INVALID_INPUT,
                 "invalid asset to create contract from");
             return false;
         }

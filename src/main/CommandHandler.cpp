@@ -958,8 +958,8 @@ CommandHandler::tx(std::string const& params, std::string& retStr)
                                      1);
                 resultBase64 = decoder::encode_b64(resultBin);
                 root["error"] = resultBase64;
-                if (transaction->getResultCode() == txSOROBAN_INVALID &&
-                    mApp.getConfig().ENABLE_SOROBAN_DIAGNOSTIC_EVENTS)
+                if (mApp.getConfig().ENABLE_SOROBAN_DIAGNOSTIC_EVENTS &&
+                    !transaction->getDiagnosticEvents().empty())
                 {
                     auto diagsBin =
                         xdr::xdr_to_opaque(transaction->getDiagnosticEvents());
