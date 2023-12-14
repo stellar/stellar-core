@@ -110,10 +110,10 @@ class Bucket : public std::enable_shared_from_this<Bucket>,
     // stored with their corresponding liquidity pool key in
     // liquidityPoolKeyToTrustline. All liquidity pool keys corresponding to
     // loaded trustlines are also reduntantly stored in liquidityPoolKeys.
-    // If a trustline key is in deadTrustlines, it is not loaded. Whenever a
-    // dead trustline is found, its key is added to deadTrustlines.
+    // If a trustline key is in seenTrustlines, it is not loaded. Whenever a
+    // dead trustline is found, its key is added to seenTrustlines.
     void loadPoolShareTrustLinessByAccount(
-        AccountID const& accountID, UnorderedSet<LedgerKey>& deadTrustlines,
+        AccountID const& accountID, UnorderedSet<LedgerKey>& seenTrustlines,
         UnorderedMap<LedgerKey, LedgerEntry>& liquidityPoolKeyToTrustline,
         LedgerKeySet& liquidityPoolKeys);
 

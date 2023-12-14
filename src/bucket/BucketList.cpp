@@ -443,17 +443,16 @@ BucketList::loadKeys(std::set<LedgerKey, LedgerEntryIdCmp> const& inKeys) const
 
 std::vector<LedgerEntry>
 BucketList::loadPoolShareTrustLinesByAccountAndAsset(AccountID const& accountID,
-                                                     Asset const& asset,
-                                                     Config const& cfg) const
+                                                     Asset const& asset) const
 {
     ZoneScoped;
     UnorderedMap<LedgerKey, LedgerEntry> liquidityPoolToTrustline;
-    UnorderedSet<LedgerKey> deadTrustlines;
+    UnorderedSet<LedgerKey> seenTrustlines;
     LedgerKeySet liquidityPoolKeysToSearch;
 
     // First get all the poolshare trustlines for the given account
     auto trustLineLoop = [&](std::shared_ptr<Bucket> b) {
-        b->loadPoolShareTrustLinessByAccount(accountID, deadTrustlines,
+        b->loadPoolShareTrustLinessByAccount(accountID, seenTrustlines,
                                              liquidityPoolToTrustline,
                                              liquidityPoolKeysToSearch);
         return false; // continue

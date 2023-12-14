@@ -221,7 +221,7 @@ Bucket::loadKeys(std::set<LedgerKey, LedgerEntryIdCmp>& keys,
 
 void
 Bucket::loadPoolShareTrustLinessByAccount(
-    AccountID const& accountID, UnorderedSet<LedgerKey>& deadTrustlines,
+    AccountID const& accountID, UnorderedSet<LedgerKey>& seenTrustlines,
     UnorderedMap<LedgerKey, LedgerEntry>& liquidityPoolKeyToTrustline,
     LedgerKeySet& liquidityPoolKeys)
 {
@@ -238,7 +238,7 @@ Bucket::loadPoolShareTrustLinessByAccount(
     // Get upper and lower bound for poolshare trustline range associated
     // with this account
     auto searchRange = getIndex().getPoolshareTrustlineRange(accountID);
-    if (searchRange.first == 0)
+    if (searchRange.first == 0 && searchRange.second == 0)
     {
         // No poolshare trustlines, exit
         return;
@@ -265,7 +265,7 @@ Bucket::loadPoolShareTrustLinessByAccount(
             // later
             if (trustlineCheck(key))
             {
-                deadTrustlines.emplace(key);
+                seenTrustlines.emplace(key);
             }
             continue;
         }
@@ -277,8 +277,9 @@ Bucket::loadPoolShareTrustLinessByAccount(
         // If this is a pool share trustline that matches the accountID and
         // is not shadowed, add it to results
         if (trustlineCheck(entry.data) &&
-            deadTrustlines.find(LedgerEntryKey(entry)) == deadTrustlines.end())
+            seenTrustlines.find(LedgerEntryKey(entry)) == seenTrustlines.end())
         {
+            seenTrustlines.emplace(LedgerEntryKey(entry));
             auto const& poolshareID =
                 entry.data.trustLine().asset.liquidityPoolID();
 

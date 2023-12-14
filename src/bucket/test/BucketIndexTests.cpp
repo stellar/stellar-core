@@ -352,6 +352,7 @@ class BucketIndexPoolShareTest : public BucketIndexTest
                 entries.emplace_back(trustlineToSearch);
                 entries.emplace_back(trustline2);
             }
+            // Shadow via delete
             else if (shouldShadow && mDist(gRandomEngine) < 10 &&
                      !mTestEntries.empty())
             {
@@ -359,6 +360,15 @@ class BucketIndexPoolShareTest : public BucketIndexTest
                 auto iter = mTestEntries.begin();
                 toShadow.emplace_back(iter->first);
                 mTestEntries.erase(iter);
+            }
+            // Shadow via modify
+            else if (shouldShadow && mDist(gRandomEngine) < 10 &&
+                     !mTestEntries.empty())
+            {
+                // Arbitrarily shadow first entry of map
+                auto iter = mTestEntries.begin();
+                iter->second.data.trustLine().balance += 10;
+                entries.emplace_back(iter->second);
             }
 
             mApp->getLedgerManager().setNextLedgerEntryBatchForBucketTesting(
