@@ -1036,11 +1036,12 @@ AssetContractTestClient::transfer(TestAccount& fromAcc, SCAddress const& toAddr,
                                       ? fromAcc.getBalance()
                                       : fromAcc.getTrustlineBalance(mAsset);
     auto preTransferToBalance = getBalance(toAddr);
-    bool success = mContract
-                       .prepareInvocation(
-                           "transfer", {fromVal, toVal, makeI128(amount)}, spec)
-                       .withAuthorizedTopCall()
-                       .invoke(&fromAcc);
+    auto invocation =
+        mContract
+            .prepareInvocation("transfer", {fromVal, toVal, makeI128(amount)},
+                               spec)
+            .withAuthorizedTopCall();
+    bool success = invocation.invoke(&fromAcc);
     auto postTransferFromBalance = mAsset.type() == ASSET_TYPE_NATIVE
                                        ? fromAcc.getBalance()
                                        : fromAcc.getTrustlineBalance(mAsset);
@@ -1069,6 +1070,24 @@ AssetContractTestClient::transfer(TestAccount& fromAcc, SCAddress const& toAddr,
     }
     else
     {
+        if (mApp.getConfig().ENABLE_SOROBAN_DIAGNOSTIC_EVENTS)
+        {
+            // Check for a contract error in the second event (the first should
+            // be an `fn_call` event)
+            auto const& opEvents = invocation.getTxMeta()
+                                       .getXDR()
+                                       .v3()
+                                       .sorobanMeta->diagnosticEvents;
+            REQUIRE(opEvents.size() > 1);
+
+            auto const& contract_ev = opEvents.at(1);
+            REQUIRE(!contract_ev.inSuccessfulContractCall);
+            REQUIRE(contract_ev.event.type == ContractEventType::DIAGNOSTIC);
+            auto const& topics = contract_ev.event.body.v0().topics.at(1);
+            REQUIRE(topics.type() == SCV_ERROR);
+            REQUIRE(topics.error().type() == SCE_CONTRACT);
+        }
+
         REQUIRE(postTransferFromBalance == preTransferFromBalance);
         REQUIRE(postTransferToBalance == preTransferToBalance);
     }
