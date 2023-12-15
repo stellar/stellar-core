@@ -166,7 +166,7 @@ RestoreFootprintOpFrame::doApply(Application& app, AbstractLedgerTxn& ltx,
 }
 
 bool
-RestoreFootprintOpFrame::doCheckValid(SorobanNetworkConfig const& config,
+RestoreFootprintOpFrame::doCheckValid(SorobanNetworkConfig const& networkConfig,
                                       Config const& appConfig,
                                       uint32_t ledgerVersion)
 {

@@ -153,9 +153,9 @@ ExtendFootprintTTLOpFrame::doApply(Application& app, AbstractLedgerTxn& ltx,
 }
 
 bool
-ExtendFootprintTTLOpFrame::doCheckValid(SorobanNetworkConfig const& config,
-                                        Config const& appConfig,
-                                        uint32_t ledgerVersion)
+ExtendFootprintTTLOpFrame::doCheckValid(
+    SorobanNetworkConfig const& networkConfig, Config const& appConfig,
+    uint32_t ledgerVersion)
 {
     auto const& footprint = mParentTx.sorobanResources().footprint;
     if (!footprint.readWrite.empty())
@@ -176,13 +176,15 @@ ExtendFootprintTTLOpFrame::doCheckValid(SorobanNetworkConfig const& config,
             innerResult().code(EXTEND_FOOTPRINT_TTL_MALFORMED);
             mParentTx.pushSimpleDiagnosticError(
                 appConfig, SCE_STORAGE, SCEC_INVALID_INPUT,
-                "only entries with TTL can have it extended", {});
+                "only entries with TTL (contract data or code entries) can "
+                "have it extended",
+                {});
             return false;
         }
     }
 
     if (mExtendFootprintTTLOp.extendTo >
-        config.stateArchivalSettings().maxEntryTTL - 1)
+        networkConfig.stateArchivalSettings().maxEntryTTL - 1)
     {
         innerResult().code(EXTEND_FOOTPRINT_TTL_MALFORMED);
         mParentTx.pushSimpleDiagnosticError(
@@ -190,7 +192,8 @@ ExtendFootprintTTLOpFrame::doCheckValid(SorobanNetworkConfig const& config,
             "TTL extension is too large: {} > {}",
             {
                 makeU64SCVal(mExtendFootprintTTLOp.extendTo),
-                makeU64SCVal(config.stateArchivalSettings().maxEntryTTL - 1),
+                makeU64SCVal(networkConfig.stateArchivalSettings().maxEntryTTL -
+                             1),
             });
         return false;
     }
