@@ -302,7 +302,7 @@
           "max_entries_to_archive": 100,
           "bucket_list_size_window_sample_size": 30,
           "eviction_scan_size": 100000,
-          "starting_eviction_scan_level": 1
+          "starting_eviction_scan_level": 6
       }
     },
     {
