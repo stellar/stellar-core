@@ -239,6 +239,9 @@ TEST_CASE("Trustline stellar asset contract",
     REQUIRE(!client.clawback(issuer, acc2Addr, 1));
     REQUIRE(!client.clawback(issuer, contract2Addr, 1));
 
+    // Now transfer more than balance
+    REQUIRE(!client.transfer(acc, acc2Addr, 10));
+
     // Make sure sponsorship info hasn't changed
     {
         LedgerTxn ltx(app.getLedgerTxnRoot());
@@ -291,6 +294,9 @@ TEST_CASE("Native stellar asset contract",
 
     // Now try to mint native
     REQUIRE(!client.mint(root, contractAddr, 10));
+
+    // Now transfer more than balance
+    REQUIRE(!client.transfer(a1, contractAddr, INT64_MAX));
 
     // Make sure sponsorship info hasn't changed
     {
