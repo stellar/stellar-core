@@ -17,6 +17,7 @@ namespace stellar
 {
 
 class Application;
+class Config;
 class ConstLedgerTxnEntry;
 class ConstTrustLineWrapper;
 class AbstractLedgerTxn;
@@ -306,6 +307,7 @@ int64_t getMinInclusionFee(TransactionFrameBase const& tx,
 
 bool validateContractLedgerEntry(LedgerKey const& lk, size_t entrySize,
                                  SorobanNetworkConfig const& config,
+                                 Config const& appConfig,
                                  TransactionFrame& parentTx);
 
 struct LumenContractInfo

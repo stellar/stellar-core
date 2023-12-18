@@ -144,10 +144,15 @@ TransactionFrame::pushDiagnosticEvent(DiagnosticEvent&& evt)
 }
 
 void
-TransactionFrame::pushSimpleDiagnosticError(SCErrorType ty, SCErrorCode code,
+TransactionFrame::pushSimpleDiagnosticError(Config const& cfg, SCErrorType ty,
+                                            SCErrorCode code,
                                             std::string&& message,
                                             xdr::xvector<SCVal>&& args)
 {
+    if (!cfg.ENABLE_SOROBAN_DIAGNOSTIC_EVENTS)
+    {
+        return;
+    }
     ContractEvent ce;
     ce.type = DIAGNOSTIC;
     ce.body.v(0);
@@ -632,6 +637,7 @@ TransactionFrame::validateSorobanOpsConsistency() const
 
 bool
 TransactionFrame::validateSorobanResources(SorobanNetworkConfig const& config,
+                                           Config const& appConfig,
                                            uint32_t protocolVersion)
 {
     auto const& resources = sorobanResources();
@@ -640,7 +646,7 @@ TransactionFrame::validateSorobanResources(SorobanNetworkConfig const& config,
     if (resources.instructions > config.txMaxInstructions())
     {
         pushSimpleDiagnosticError(
-            SCE_BUDGET, SCEC_EXCEEDED_LIMIT,
+            appConfig, SCE_BUDGET, SCEC_EXCEEDED_LIMIT,
             "transaction instructions resources exceed network config limit",
             {makeU64SCVal(resources.instructions),
              makeU64SCVal(config.txMaxInstructions())});
@@ -649,7 +655,7 @@ TransactionFrame::validateSorobanResources(SorobanNetworkConfig const& config,
     if (resources.readBytes > config.txMaxReadBytes())
     {
         pushSimpleDiagnosticError(
-            SCE_STORAGE, SCEC_EXCEEDED_LIMIT,
+            appConfig, SCE_STORAGE, SCEC_EXCEEDED_LIMIT,
             "transaction byte-read resources exceed network config limit",
             {makeU64SCVal(resources.readBytes),
              makeU64SCVal(config.txMaxReadBytes())});
@@ -658,7 +664,7 @@ TransactionFrame::validateSorobanResources(SorobanNetworkConfig const& config,
     if (resources.writeBytes > config.txMaxWriteBytes())
     {
         pushSimpleDiagnosticError(
-            SCE_STORAGE, SCEC_EXCEEDED_LIMIT,
+            appConfig, SCE_STORAGE, SCEC_EXCEEDED_LIMIT,
             "transaction byte-write resources exceed network config limit",
             {makeU64SCVal(resources.writeBytes),
              makeU64SCVal(config.txMaxWriteBytes())});
@@ -668,7 +674,7 @@ TransactionFrame::validateSorobanResources(SorobanNetworkConfig const& config,
         config.txMaxReadLedgerEntries())
     {
         pushSimpleDiagnosticError(
-            SCE_STORAGE, SCEC_EXCEEDED_LIMIT,
+            appConfig, SCE_STORAGE, SCEC_EXCEEDED_LIMIT,
             "transaction entry-read resources exceed network config limit",
             {makeU64SCVal(readEntries.size() + writeEntries.size()),
              makeU64SCVal(config.txMaxReadLedgerEntries())});
@@ -677,7 +683,7 @@ TransactionFrame::validateSorobanResources(SorobanNetworkConfig const& config,
     if (writeEntries.size() > config.txMaxWriteLedgerEntries())
     {
         pushSimpleDiagnosticError(
-            SCE_STORAGE, SCEC_EXCEEDED_LIMIT,
+            appConfig, SCE_STORAGE, SCEC_EXCEEDED_LIMIT,
             "transaction entry-write resources exceed network config limit",
             {makeU64SCVal(writeEntries.size()),
              makeU64SCVal(config.txMaxWriteLedgerEntries())});
@@ -698,7 +704,7 @@ TransactionFrame::validateSorobanResources(SorobanNetworkConfig const& config,
                 isIssuer(tl.accountID, tl.asset))
             {
                 this->pushSimpleDiagnosticError(
-                    SCE_STORAGE, SCEC_INVALID_INPUT,
+                    appConfig, SCE_STORAGE, SCEC_INVALID_INPUT,
                     "transaction footprint contains invalid trustline asset");
                 return false;
             }
@@ -711,7 +717,7 @@ TransactionFrame::validateSorobanResources(SorobanNetworkConfig const& config,
         case CONFIG_SETTING:
         case TTL:
             this->pushSimpleDiagnosticError(
-                SCE_STORAGE, SCEC_UNEXPECTED_TYPE,
+                appConfig, SCE_STORAGE, SCEC_UNEXPECTED_TYPE,
                 "transaction footprint contains unsupported ledger key type",
                 {makeU64SCVal(key.type())});
             return false;
@@ -722,7 +728,7 @@ TransactionFrame::validateSorobanResources(SorobanNetworkConfig const& config,
         if (xdr::xdr_size(key) > config.maxContractDataKeySizeBytes())
         {
             this->pushSimpleDiagnosticError(
-                SCE_STORAGE, SCEC_EXCEEDED_LIMIT,
+                appConfig, SCE_STORAGE, SCEC_EXCEEDED_LIMIT,
                 "transaction footprint key exceeds network config limit",
                 {makeU64SCVal(xdr::xdr_size(key)),
                  makeU64SCVal(config.maxContractDataKeySizeBytes())});
@@ -749,7 +755,7 @@ TransactionFrame::validateSorobanResources(SorobanNetworkConfig const& config,
     if (txSize > config.txMaxSizeBytes())
     {
         pushSimpleDiagnosticError(
-            SCE_BUDGET, SCEC_EXCEEDED_LIMIT,
+            appConfig, SCE_BUDGET, SCEC_EXCEEDED_LIMIT,
             "total transaction size exceeds network config limit",
             {makeU64SCVal(txSize), makeU64SCVal(config.txMaxSizeBytes())});
         return false;
@@ -859,6 +865,11 @@ TransactionFrame::consumeRefundableSorobanResources(
     feeRefund = declaredSorobanResourceFee() - preApplyFee.non_refundable_fee;
     if (feeRefund < consumedRentFee)
     {
+        pushSimpleDiagnosticError(
+            cfg, SCE_BUDGET, SCEC_EXCEEDED_LIMIT,
+            "refundable resource fee was not sufficient to cover the ledger "
+            "storage rent: {} > {}",
+            {makeU64SCVal(consumedRentFee), makeU64SCVal(feeRefund)});
         return false;
     }
     feeRefund -= consumedRentFee;
@@ -870,6 +881,12 @@ TransactionFrame::consumeRefundableSorobanResources(
         consumedContractEventsSizeBytes, sorobanConfig, cfg);
     if (feeRefund < consumedFee.refundable_fee)
     {
+        pushSimpleDiagnosticError(
+            cfg, SCE_BUDGET, SCEC_EXCEEDED_LIMIT,
+            "refundable resource fee was not sufficient to cover the events "
+            "fee after paying for ledger storage rent: {} > {}",
+            {makeU64SCVal(consumedFee.refundable_fee),
+             makeU64SCVal(feeRefund)});
         return false;
     }
     feeRefund -= consumedFee.refundable_fee;
@@ -1044,7 +1061,8 @@ TransactionFrame::commonValidPreSeqNum(
         }
         auto const& sorobanConfig =
             app.getLedgerManager().getSorobanNetworkConfig();
-        if (!validateSorobanResources(sorobanConfig, ledgerVersion))
+        if (!validateSorobanResources(sorobanConfig, app.getConfig(),
+                                      ledgerVersion))
         {
             getResult().result.code(txSOROBAN_INVALID);
             return false;
@@ -1054,7 +1072,7 @@ TransactionFrame::commonValidPreSeqNum(
         if (sorobanData.resourceFee > getFullFee())
         {
             pushSimpleDiagnosticError(
-                SCE_STORAGE, SCEC_EXCEEDED_LIMIT,
+                app.getConfig(), SCE_STORAGE, SCEC_EXCEEDED_LIMIT,
                 "transaction `sorobanData.resourceFee` is higher than the "
                 "full transaction fee",
                 {makeU64SCVal(sorobanData.resourceFee),
@@ -1067,7 +1085,7 @@ TransactionFrame::commonValidPreSeqNum(
             INT64_MAX - sorobanResourceFee->non_refundable_fee)
         {
             pushSimpleDiagnosticError(
-                SCE_STORAGE, SCEC_INVALID_INPUT,
+                app.getConfig(), SCE_STORAGE, SCEC_INVALID_INPUT,
                 "transaction resource fees cannot be added",
                 {makeU64SCVal(sorobanResourceFee->refundable_fee),
                  makeU64SCVal(sorobanResourceFee->non_refundable_fee)});
@@ -1079,7 +1097,7 @@ TransactionFrame::commonValidPreSeqNum(
         if (sorobanData.resourceFee < resourceFees)
         {
             pushSimpleDiagnosticError(
-                SCE_STORAGE, SCEC_EXCEEDED_LIMIT,
+                app.getConfig(), SCE_STORAGE, SCEC_EXCEEDED_LIMIT,
                 "transaction `sorobanData.resourceFee` is lower than the "
                 "actual Soroban resource fee",
                 {makeU64SCVal(sorobanData.resourceFee),
@@ -1097,7 +1115,7 @@ TransactionFrame::commonValidPreSeqNum(
                 if (!set.emplace(lk).second)
                 {
                     pushSimpleDiagnosticError(
-                        SCE_STORAGE, SCEC_INVALID_INPUT,
+                        app.getConfig(), SCE_STORAGE, SCEC_INVALID_INPUT,
                         "Found duplicate key in the Soroban footprint; every "
                         "key across read-only and read-write footprints has to "
                         "be unique.",

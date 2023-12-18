@@ -1798,53 +1798,7 @@
                                     "type": "SCV_BOOL",
                                     "b": "FALSE"
                                 },
-                                "diagnosticEvents": [
-                                    {
-                                        "inSuccessfulContractCall": "FALSE",
-                                        "event": {
-                                            "ext": {
-                                                "v": 0
-                                            },
-                                            "contractID": null,
-                                            "type": "DIAGNOSTIC",
-                                            "body": {
-                                                "v": 0,
-                                                "v0": {
-                                                    "topics": [
-                                                        {
-                                                            "type": "SCV_SYMBOL",
-                                                            "sym": "error"
-                                                        },
-                                                        {
-                                                            "type": "SCV_ERROR",
-                                                            "error": {
-                                                                "type": "SCE_BUDGET",
-                                                                "code": "SCEC_EXCEEDED_LIMIT"
-                                                            }
-                                                        }
-                                                    ],
-                                                    "data": {
-                                                        "type": "SCV_VEC",
-                                                        "vec": [
-                                                            {
-                                                                "type": "SCV_STRING",
-                                                                "str": "operation instructions exceeds amount specified"
-                                                            },
-                                                            {
-                                                                "type": "SCV_U64",
-                                                                "u64": 216850
-                                                            },
-                                                            {
-                                                                "type": "SCV_U64",
-                                                                "u64": 200000
-                                                            }
-                                                        ]
-                                                    }
-                                                }
-                                            }
-                                        }
-                                    }
-                                ]
+                                "diagnosticEvents": []
                             }
                         }
                     }

@@ -42,7 +42,7 @@ class OperationFrame
     OperationResult& mResult;
 
     virtual bool doCheckValid(SorobanNetworkConfig const& config,
-                              uint32_t ledgerVersion);
+                              Config const& appConfig, uint32_t ledgerVersion);
     virtual bool doCheckValid(uint32_t ledgerVersion) = 0;
 
     virtual bool doApply(Application& app, AbstractLedgerTxn& ltx,
