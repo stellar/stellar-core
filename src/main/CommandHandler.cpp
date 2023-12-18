@@ -661,7 +661,8 @@ CommandHandler::dumpProposedSettings(std::string const& params,
             return;
         }
 
-        retStr = xdr_to_string(ptr->toXDR(), "ConfigUpgradeSet");
+        retStr =
+            xdr_to_string(ptr->toXDR().updatedEntry, "ConfigSettingsEntries");
     }
     else
     {
@@ -734,7 +735,7 @@ CommandHandler::scpInfo(std::string const& params, std::string& retStr)
 }
 
 void
-CommandHandler::sorobanInfo(std::string const&, std::string& retStr)
+CommandHandler::sorobanInfo(std::string const& params, std::string& retStr)
 {
     ZoneScoped;
     auto& lm = mApp.getLedgerManager();
@@ -743,95 +744,134 @@ CommandHandler::sorobanInfo(std::string const&, std::string& retStr)
             lm.getLastClosedLedgerHeader().header.ledgerVersion,
             SOROBAN_PROTOCOL_VERSION))
     {
-        Json::Value res;
-        auto const& conf = lm.getSorobanNetworkConfig();
+        std::map<std::string, std::string> retMap;
+        http::server::server::parseParams(params, retMap);
 
-        // Contract size
-        res["max_contract_size"] = conf.maxContractSizeBytes();
+        // Format is the only acceptable param, but it is optional
+        if (retMap.count("format") != retMap.size())
+        {
+            retStr = "Invalid param";
+            return;
+        }
 
-        // Contract data
-        res["max_contract_data_key_size"] = conf.maxContractDataKeySizeBytes();
-        res["max_contract_data_entry_size"] =
-            conf.maxContractDataEntrySizeBytes();
+        auto format =
+            parseOptionalParamOrDefault<std::string>(retMap, "format", "basic");
+        if (format == "basic")
+        {
+            Json::Value res;
+            auto const& conf = lm.getSorobanNetworkConfig();
 
-        // Compute settings
-        res["tx"]["max_instructions"] =
-            static_cast<Json::Int64>(conf.txMaxInstructions());
-        res["ledger"]["max_instructions"] =
-            static_cast<Json::Int64>(conf.ledgerMaxInstructions());
-        res["fee_rate_per_instructions_increment"] =
-            static_cast<Json::Int64>(conf.feeRatePerInstructionsIncrement());
-        res["tx"]["memory_limit"] = conf.txMemoryLimit();
+            // Contract size
+            res["max_contract_size"] = conf.maxContractSizeBytes();
 
-        // Ledger access settings
-        res["ledger"]["max_read_ledger_entries"] =
-            conf.ledgerMaxReadLedgerEntries();
-        res["ledger"]["max_read_bytes"] = conf.ledgerMaxReadBytes();
-        res["ledger"]["max_write_ledger_entries"] =
-            conf.ledgerMaxWriteLedgerEntries();
-        res["ledger"]["max_write_bytes"] = conf.ledgerMaxWriteBytes();
-        res["tx"]["max_read_ledger_entries"] = conf.txMaxReadLedgerEntries();
-        res["tx"]["max_read_bytes"] = conf.txMaxReadBytes();
-        res["tx"]["max_write_ledger_entries"] = conf.txMaxWriteLedgerEntries();
-        res["tx"]["max_write_bytes"] = conf.txMaxWriteBytes();
+            // Contract data
+            res["max_contract_data_key_size"] =
+                conf.maxContractDataKeySizeBytes();
+            res["max_contract_data_entry_size"] =
+                conf.maxContractDataEntrySizeBytes();
 
-        // Fees
-        res["fee_read_ledger_entry"] =
-            static_cast<Json::Int64>(conf.feeReadLedgerEntry());
-        res["fee_write_ledger_entry"] =
-            static_cast<Json::Int64>(conf.feeWriteLedgerEntry());
-        res["fee_read_1kb"] = static_cast<Json::Int64>(conf.feeRead1KB());
-        res["fee_write_1kb"] = static_cast<Json::Int64>(conf.feeWrite1KB());
-        res["fee_historical_1kb"] =
-            static_cast<Json::Int64>(conf.feeHistorical1KB());
+            // Compute settings
+            res["tx"]["max_instructions"] =
+                static_cast<Json::Int64>(conf.txMaxInstructions());
+            res["ledger"]["max_instructions"] =
+                static_cast<Json::Int64>(conf.ledgerMaxInstructions());
+            res["fee_rate_per_instructions_increment"] =
+                static_cast<Json::Int64>(
+                    conf.feeRatePerInstructionsIncrement());
+            res["tx"]["memory_limit"] = conf.txMemoryLimit();
 
-        // Contract events settings
-        res["tx"]["max_contract_events_size_bytes"] =
-            conf.txMaxContractEventsSizeBytes();
-        res["fee_contract_events_size_1kb"] =
-            static_cast<Json::Int64>(conf.feeContractEventsSize1KB());
+            // Ledger access settings
+            res["ledger"]["max_read_ledger_entries"] =
+                conf.ledgerMaxReadLedgerEntries();
+            res["ledger"]["max_read_bytes"] = conf.ledgerMaxReadBytes();
+            res["ledger"]["max_write_ledger_entries"] =
+                conf.ledgerMaxWriteLedgerEntries();
+            res["ledger"]["max_write_bytes"] = conf.ledgerMaxWriteBytes();
+            res["tx"]["max_read_ledger_entries"] =
+                conf.txMaxReadLedgerEntries();
+            res["tx"]["max_read_bytes"] = conf.txMaxReadBytes();
+            res["tx"]["max_write_ledger_entries"] =
+                conf.txMaxWriteLedgerEntries();
+            res["tx"]["max_write_bytes"] = conf.txMaxWriteBytes();
 
-        // Bandwidth related data settings
-        res["ledger"]["max_tx_size_bytes"] =
-            conf.ledgerMaxTransactionSizesBytes();
-        res["tx"]["max_size_bytes"] = conf.txMaxSizeBytes();
-        res["fee_transaction_size_1kb"] =
-            static_cast<Json::Int64>(conf.feeTransactionSize1KB());
+            // Fees
+            res["fee_read_ledger_entry"] =
+                static_cast<Json::Int64>(conf.feeReadLedgerEntry());
+            res["fee_write_ledger_entry"] =
+                static_cast<Json::Int64>(conf.feeWriteLedgerEntry());
+            res["fee_read_1kb"] = static_cast<Json::Int64>(conf.feeRead1KB());
+            res["fee_write_1kb"] = static_cast<Json::Int64>(conf.feeWrite1KB());
+            res["fee_historical_1kb"] =
+                static_cast<Json::Int64>(conf.feeHistorical1KB());
 
-        // General execution ledger settings
-        res["ledger"]["max_tx_count"] = conf.ledgerMaxTxCount();
+            // Contract events settings
+            res["tx"]["max_contract_events_size_bytes"] =
+                conf.txMaxContractEventsSizeBytes();
+            res["fee_contract_events_size_1kb"] =
+                static_cast<Json::Int64>(conf.feeContractEventsSize1KB());
 
-        // State archival settings
-        auto& archivalInfo = res["state_archival"];
-        auto const& stateArchivalSettings = conf.stateArchivalSettings();
-        archivalInfo["max_entry_ttl"] = stateArchivalSettings.maxEntryTTL;
-        archivalInfo["min_temporary_ttl"] =
-            stateArchivalSettings.minTemporaryTTL;
-        archivalInfo["min_persistent_ttl"] =
-            stateArchivalSettings.minPersistentTTL;
+            // Bandwidth related data settings
+            res["ledger"]["max_tx_size_bytes"] =
+                conf.ledgerMaxTransactionSizesBytes();
+            res["tx"]["max_size_bytes"] = conf.txMaxSizeBytes();
+            res["fee_transaction_size_1kb"] =
+                static_cast<Json::Int64>(conf.feeTransactionSize1KB());
 
-        archivalInfo["persistent_rent_rate_denominator"] =
-            static_cast<Json::Int64>(
-                stateArchivalSettings.persistentRentRateDenominator);
-        archivalInfo["temp_rent_rate_denominator"] = static_cast<Json::Int64>(
-            stateArchivalSettings.tempRentRateDenominator);
+            // General execution ledger settings
+            res["ledger"]["max_tx_count"] = conf.ledgerMaxTxCount();
 
-        archivalInfo["max_entries_to_archive"] =
-            stateArchivalSettings.maxEntriesToArchive;
-        archivalInfo["bucketlist_size_window_sample_size"] =
-            stateArchivalSettings.bucketListSizeWindowSampleSize;
+            // State archival settings
+            auto& archivalInfo = res["state_archival"];
+            auto const& stateArchivalSettings = conf.stateArchivalSettings();
+            archivalInfo["max_entry_ttl"] = stateArchivalSettings.maxEntryTTL;
+            archivalInfo["min_temporary_ttl"] =
+                stateArchivalSettings.minTemporaryTTL;
+            archivalInfo["min_persistent_ttl"] =
+                stateArchivalSettings.minPersistentTTL;
 
-        archivalInfo["eviction_scan_size"] =
-            static_cast<Json::UInt64>(stateArchivalSettings.evictionScanSize);
-        archivalInfo["starting_eviction_scan_level"] =
-            stateArchivalSettings.startingEvictionScanLevel;
+            archivalInfo["persistent_rent_rate_denominator"] =
+                static_cast<Json::Int64>(
+                    stateArchivalSettings.persistentRentRateDenominator);
+            archivalInfo["temp_rent_rate_denominator"] =
+                static_cast<Json::Int64>(
+                    stateArchivalSettings.tempRentRateDenominator);
 
-        // non-configurable settings
-        archivalInfo["bucket_list_size_snapshot_period"] =
-            conf.getBucketListSizeSnapshotPeriod();
-        archivalInfo["average_bucket_list_size"] =
-            static_cast<Json::UInt64>(conf.getAverageBucketListSize());
-        retStr = res.toStyledString();
+            archivalInfo["max_entries_to_archive"] =
+                stateArchivalSettings.maxEntriesToArchive;
+            archivalInfo["bucketlist_size_window_sample_size"] =
+                stateArchivalSettings.bucketListSizeWindowSampleSize;
+
+            archivalInfo["eviction_scan_size"] = static_cast<Json::UInt64>(
+                stateArchivalSettings.evictionScanSize);
+            archivalInfo["starting_eviction_scan_level"] =
+                stateArchivalSettings.startingEvictionScanLevel;
+
+            // non-configurable settings
+            archivalInfo["bucket_list_size_snapshot_period"] =
+                conf.getBucketListSizeSnapshotPeriod();
+            archivalInfo["average_bucket_list_size"] =
+                static_cast<Json::UInt64>(conf.getAverageBucketListSize());
+            retStr = res.toStyledString();
+        }
+        else if (format == "detailed")
+        {
+            LedgerTxn ltx(mApp.getLedgerTxnRoot(),
+                          /* shouldUpdateLastModified */ false,
+                          TransactionMode::READ_ONLY_WITHOUT_SQL_TXN);
+            xdr::xvector<ConfigSettingEntry> entries;
+            for (auto c : xdr::xdr_traits<ConfigSettingID>::enum_values())
+            {
+                auto entry =
+                    ltx.load(configSettingKey(static_cast<ConfigSettingID>(c)));
+                entries.emplace_back(entry.current().data.configSetting());
+            }
+
+            retStr = xdr_to_string(entries, "ConfigSettingsEntries");
+        }
+        else
+        {
+            retStr = "Invalid format option";
+        }
     }
     else
     {
