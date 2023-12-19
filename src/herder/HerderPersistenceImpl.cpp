@@ -62,6 +62,11 @@ HerderPersistenceImpl::saveSCPHistory(uint32_t seq,
             st.execute(true);
         }
     }
+
+    // Prepare multi-row insert into scphistory
+    std::vector<std::string> nodeIDs;
+    std::vector<uint32_t> seqs;
+    std::vector<std::string> envelopes;
     for (auto const& e : envs)
     {
         auto const& qHash =
@@ -76,21 +81,28 @@ HerderPersistenceImpl::saveSCPHistory(uint32_t seq,
         std::string envelopeEncoded;
         envelopeEncoded = decoder::encode_b64(envelopeBytes);
 
+        nodeIDs.push_back(nodeIDStrKey);
+        seqs.push_back(seq);
+        envelopes.push_back(envelopeEncoded);
+    }
+
+    if (!envs.empty())
+    {
+        // Perform multi-row insert into scphistory
         auto prepEnv =
             db.getPreparedStatement("INSERT INTO scphistory "
                                     "(nodeid, ledgerseq, envelope) VALUES "
                                     "(:n, :l, :e)");
-
         auto& st = prepEnv.statement();
-        st.exchange(soci::use(nodeIDStrKey));
-        st.exchange(soci::use(seq));
-        st.exchange(soci::use(envelopeEncoded));
+        st.exchange(soci::use(nodeIDs, "n"));
+        st.exchange(soci::use(seqs, "l"));
+        st.exchange(soci::use(envelopes, "e"));
         st.define_and_bind();
         {
             ZoneNamedN(insertSCPHistoryZone, "insert scphistory", true);
             st.execute(true);
         }
-        if (st.get_affected_rows() != 1)
+        if (st.get_affected_rows() != envs.size())
         {
             throw std::runtime_error("Could not update data in SQL");
         }

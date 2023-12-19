@@ -307,6 +307,18 @@ HerderImpl::processExternalized(uint64 slotIndex, StellarValue const& value,
     // save the SCP messages in the database
     if (mApp.getConfig().MODE_STORES_HISTORY_MISC)
     {
+        ZoneNamedN(updateSCPHistoryZone, "update SCP history", true);
+        if (slotIndex != 0)
+        {
+            // Save any new SCP messages received about the previous ledger.
+            // NOTE: This call uses an empty `QuorumTracker::QuorumMap` because
+            // there is no new quorum map for the previous ledger.
+            mApp.getHerderPersistence().saveSCPHistory(
+                static_cast<uint32>(slotIndex - 1),
+                getSCP().getExternalizingState(slotIndex - 1),
+                QuorumTracker::QuorumMap());
+        }
+        // Store SCP messages received about the current ledger being closed.
         mApp.getHerderPersistence().saveSCPHistory(
             static_cast<uint32>(slotIndex),
             getSCP().getExternalizingState(slotIndex),
