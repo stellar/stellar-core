@@ -68,6 +68,11 @@ loadgen.account.created                   | meter     | loadgenerator: account c
 loadgen.payment.native                    | meter     | loadgenerator: native payment submitted
 loadgen.pretend.submitted                 | meter     | loadgenerator: pretend ops submitted
 loadgen.run.complete                      | meter     | loadgenerator: run complete
+loadgen.soroban.create_upgrade            | meter     | loadgenerator: soroban create upgrade TXs submitted
+loadgen.soroban.invoke                    | meter     | loadgenerator: soroban invoke TXs submitted
+loadgen.soroban.setup_invoke              | meter     | loadgenerator: soroban setup invoke TXs submitted
+loadgen.soroban.setup_upgrade             | meter     | loadgenerator: soroban setup upgrades TXs submitted
+loadgen.soroban.upload                    | meter     | loadgenerator: soroban upload TXs submitted
 loadgen.step.count                        | meter     | loadgenerator: generated some transactions
 loadgen.step.submit                       | timer     | loadgenerator: time spent submiting transactions per step
 loadgen.txn.attempted                     | meter     | loadgenerator: transaction submitted

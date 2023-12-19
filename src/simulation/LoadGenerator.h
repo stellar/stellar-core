@@ -47,6 +47,73 @@ enum class LoadGenMode
 
 struct GeneratedLoadConfig
 {
+    // Config parameters for SOROBAN_INVOKE_SETUP, SOROBAN_INVOKE,
+    // SOROBAN_UPGRADE_SETUP, and SOROBAN_CREATE_UPGRADE modes
+    struct SorobanConfig
+    {
+        uint32_t nInstances = 0;
+
+        // For now, this value is automatically set to one. A future update will
+        // enable multiple Wasm entries
+        uint32_t nWasms = 0;
+    };
+
+    // Config parameters for SOROBAN_INVOKE
+    struct SorobanInvokeConfig
+    {
+        // Range of kilo bytes and num entries for disk IO, where ioKiloBytes is
+        // the total amount of disk IO that the TX requires
+        uint32_t nDataEntriesLow = 0;
+        uint32_t nDataEntriesHigh = 0;
+        uint32_t ioKiloBytesLow = 0;
+        uint32_t ioKiloBytesHigh = 0;
+
+        // Size of transactions
+        int32_t txSizeBytesLow = 0;
+        int32_t txSizeBytesHigh = 0;
+
+        // Instruction count
+        uint64_t instructionsLow = 0;
+        uint64_t instructionsHigh = 0;
+    };
+
+    // Config settings for SOROBAN_CREATE_UPGRADE
+    struct SorobanUpgradeConfig
+    {
+        // Network Upgrade Parameters
+        uint32_t maxContractSizeBytes{};
+        uint32_t maxContractDataKeySizeBytes{};
+        uint32_t maxContractDataEntrySizeBytes{};
+
+        // Compute settings for contracts (instructions and memory).
+        int64_t ledgerMaxInstructions{};
+        int64_t txMaxInstructions{};
+        uint32_t txMemoryLimit{};
+
+        // Ledger access settings for contracts.
+        uint32_t ledgerMaxReadLedgerEntries{};
+        uint32_t ledgerMaxReadBytes{};
+        uint32_t ledgerMaxWriteLedgerEntries{};
+        uint32_t ledgerMaxWriteBytes{};
+        uint32_t ledgerMaxTxCount{};
+        uint32_t txMaxReadLedgerEntries{};
+        uint32_t txMaxReadBytes{};
+        uint32_t txMaxWriteLedgerEntries{};
+        uint32_t txMaxWriteBytes{};
+
+        // Contract events settings.
+        uint32_t txMaxContractEventsSizeBytes{};
+
+        // Bandwidth related data settings for contracts
+        uint32_t ledgerMaxTransactionsSizeBytes{};
+        uint32_t txMaxSizeBytes{};
+
+        // State Expiration setting
+        uint32_t bucketListSizeWindowSampleSize{};
+        uint64_t evictionScanSize{};
+        uint32_t startingEvictionScanLevel{};
+    };
+
     static GeneratedLoadConfig createAccountsLoad(uint32_t nAccounts,
                                                   uint32_t txRate);
 
@@ -60,41 +127,23 @@ struct GeneratedLoadConfig
     txLoad(LoadGenMode mode, uint32_t nAccounts, uint32_t nTxs, uint32_t txRate,
            uint32_t offset = 0, std::optional<uint32_t> maxFee = std::nullopt);
 
-    bool
-    isCreate() const
-    {
-        return mode == LoadGenMode::CREATE;
-    }
+    SorobanConfig& getMutSorobanConfig();
+    SorobanConfig const& getSorobanConfig() const;
+    SorobanInvokeConfig& getMutSorobanInvokeConfig();
+    SorobanInvokeConfig const& getSorobanInvokeConfig() const;
+    SorobanUpgradeConfig& getMutSorobanUpgradeConfig();
+    SorobanUpgradeConfig const& getSorobanUpgradeConfig() const;
+    uint32_t& getMutDexTxPercent();
+    uint32_t const& getDexTxPercent() const;
 
-    bool
-    isSoroban() const
-    {
-        return mode == LoadGenMode::SOROBAN_INVOKE ||
-               mode == LoadGenMode::SOROBAN_INVOKE_SETUP ||
-               mode == LoadGenMode::SOROBAN_UPLOAD ||
-               mode == LoadGenMode::SOROBAN_UPGRADE_SETUP ||
-               mode == LoadGenMode::SOROBAN_CREATE_UPGRADE;
-    }
-
-    bool
-    isSorobanSetup() const
-    {
-        return mode == LoadGenMode::SOROBAN_INVOKE_SETUP ||
-               mode == LoadGenMode::SOROBAN_UPGRADE_SETUP;
-    }
-
-    bool
-    isLoad() const
-    {
-        return mode == LoadGenMode::PAY || mode == LoadGenMode::PRETEND ||
-               mode == LoadGenMode::MIXED_TXS ||
-               mode == LoadGenMode::SOROBAN_UPLOAD ||
-               mode == LoadGenMode::SOROBAN_INVOKE ||
-               mode == LoadGenMode::SOROBAN_CREATE_UPGRADE;
-    }
+    bool isCreate() const;
+    bool isSoroban() const;
+    bool isSorobanSetup() const;
+    bool isLoad() const;
 
     bool isDone() const;
     bool areTxsRemaining() const;
+    Json::Value getStatus() const;
 
     LoadGenMode mode = LoadGenMode::CREATE;
     uint32_t nAccounts = 0;
@@ -117,62 +166,14 @@ struct GeneratedLoadConfig
     // the load generation will fail after a couple of retries.
     // Does not affect account creation.
     bool skipLowFeeTxs = false;
+
+  private:
+    SorobanConfig sorobanConfig;
+    SorobanInvokeConfig sorobanInvokeConfig;
+    SorobanUpgradeConfig sorobanUpgradeConfig;
+
     // Percentage (from 0 to 100) of DEX transactions
     uint32_t dexTxPercent = 0;
-
-    // The following ranges are only used for SOROBAN_INVOKE txs:
-    uint32_t nInstances = 0;
-
-    // For now, this value is automatically set to one. A future update will
-    // enable multiple Wasm entries
-    uint32_t nWasms = 0;
-
-    // Range of kilo bytes and num entries for disk IO
-    uint32_t nDataEntriesLow = 0;
-    uint32_t nDataEntriesHigh = 0;
-    uint32_t kiloBytesPerDataEntryLow = 0;
-    uint32_t kiloBytesPerDataEntryHigh = 0;
-
-    // Size of transactions
-    int32_t txSizeBytesLow = 0;
-    int32_t txSizeBytesHigh = 0;
-
-    // Instruction count
-    uint64_t instructionsLow = 0;
-    uint64_t instructionsHigh = 0;
-
-    // Network Upgrade Parameters
-    uint32_t maxContractSizeBytes{};
-    uint32_t maxContractDataKeySizeBytes{};
-    uint32_t maxContractDataEntrySizeBytes{};
-
-    // Compute settings for contracts (instructions and memory).
-    int64_t ledgerMaxInstructions{};
-    int64_t txMaxInstructions{};
-    uint32_t txMemoryLimit{};
-
-    // Ledger access settings for contracts.
-    uint32_t ledgerMaxReadLedgerEntries{};
-    uint32_t ledgerMaxReadBytes{};
-    uint32_t ledgerMaxWriteLedgerEntries{};
-    uint32_t ledgerMaxWriteBytes{};
-    uint32_t ledgerMaxTxCount{};
-    uint32_t txMaxReadLedgerEntries{};
-    uint32_t txMaxReadBytes{};
-    uint32_t txMaxWriteLedgerEntries{};
-    uint32_t txMaxWriteBytes{};
-
-    // Contract events settings.
-    uint32_t txMaxContractEventsSizeBytes{};
-
-    // Bandwidth related data settings for contracts
-    uint32_t ledgerMaxTransactionsSizeBytes{};
-    uint32_t txMaxSizeBytes{};
-
-    // State Expiration setting
-    uint32_t bucketListSizeWindowSampleSize{};
-    uint64_t evictionScanSize{};
-    uint32_t startingEvictionScanLevel{};
 };
 
 class LoadGenerator
@@ -226,6 +227,12 @@ class LoadGenerator
         return mCodeKey;
     }
 
+    uint64_t
+    getContactOverheadBytesForTesting() const
+    {
+        return mContactOverheadBytes;
+    }
+
   private:
     struct TxMetrics
     {
@@ -233,6 +240,11 @@ class LoadGenerator
         medida::Meter& mNativePayment;
         medida::Meter& mManageOfferOps;
         medida::Meter& mPretendOps;
+        medida::Meter& mSorobanUploadTxs;
+        medida::Meter& mSorobanSetupInvokeTxs;
+        medida::Meter& mSorobanSetupUpgradeTxs;
+        medida::Meter& mSorobanInvokeTxs;
+        medida::Meter& mSorobanCreateUpgradeTxs;
         medida::Meter& mTxnAttempted;
         medida::Meter& mTxnRejected;
         medida::Meter& mTxnBytes;
@@ -310,7 +322,8 @@ class LoadGenerator
     // unique instance
     UnorderedMap<uint64_t, ContractInstance> mContractInstances;
 
-    void reset(bool resetSoroban);
+    void reset();
+    void resetSorobanState();
     void createRootAccount();
     int64_t getTxPerStep(uint32_t txRate, std::chrono::seconds spikeInterval,
                          uint32_t spikeSize);
@@ -370,8 +383,8 @@ class LoadGenerator
     std::pair<TestAccountPtr, TransactionFramePtr>
     creationTransaction(uint64_t startAccount, uint64_t numItems,
                         uint32_t ledgerNum);
-    void logProgress(std::chrono::nanoseconds submitTimer, LoadGenMode mode,
-                     uint32_t nAccounts, uint32_t nTxs, uint32_t txRate);
+    void logProgress(std::chrono::nanoseconds submitTimer,
+                     GeneratedLoadConfig const& cfg) const;
 
     uint32_t submitCreationTx(uint32_t nAccounts, uint32_t offset,
                               uint32_t ledgerNum);
