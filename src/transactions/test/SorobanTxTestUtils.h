@@ -246,22 +246,23 @@ class AssetContractTestClient
     Asset mAsset;
     Application& mApp;
 
-    LedgerKey makeBalanceKey(AccountID const& acc);
-    LedgerKey makeBalanceKey(SCAddress const& addr);
     LedgerKey makeIssuerKey(Asset const& mAsset);
     LedgerKey makeContractDataBalanceKey(SCAddress const& addr);
-    int64_t getBalance(SCAddress const& addr);
-
-    SorobanInvocationSpec defaultSpec() const;
 
   public:
     AssetContractTestClient(SorobanTest& test, Asset const& asset);
+
+    LedgerKey makeBalanceKey(AccountID const& acc);
+    LedgerKey makeBalanceKey(SCAddress const& addr);
+    int64_t getBalance(SCAddress const& addr);
+    SorobanInvocationSpec defaultSpec() const;
 
     bool transfer(TestAccount& from, SCAddress const& toAddr, int64_t amount);
     bool mint(TestAccount& admin, SCAddress const& toAddr, int64_t amount);
     bool burn(TestAccount& from, int64_t amount);
     bool clawback(TestAccount& admin, SCAddress const& fromAddr,
                   int64_t amount);
+    TestContract const& getContract() const;
 };
 
 class ContractStorageTestClient

@@ -64,7 +64,7 @@ rev = "bed170cde09a53c85ae2e02f9278ef0dfa4e0900"
 [dependencies.soroban-test-wasms]
 version = "=20.0.0"
 git = "https://github.com/stellar/rs-soroban-env"
-rev = "9c5394083725bacf32a56107d7fa2adf643dc7b5"
+rev = "7569e33c85b8d44708fb8759861a351521ad015b"
 
 [dependencies.soroban-synth-wasm]
 version = "=20.0.0"
