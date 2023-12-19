@@ -128,6 +128,8 @@ BucketManagerImpl::BucketManagerImpl(Application& app)
           {"state-archival", "eviction", "bytes-scanned"}))
     , mIncompleteBucketScans(app.getMetrics().NewCounter(
           {"state-archival", "eviction", "incomplete-scan"}))
+    , mBucketListSizeCounter(
+          app.getMetrics().NewCounter({"bucketlist", "size", "bytes"}))
     // Minimal DB is stored in the buckets dir, so delete it only when
     // mode does not use minimal DB
     , mDeleteEntireBucketDirInDtor(
@@ -828,6 +830,7 @@ BucketManagerImpl::addBatch(Application& app, uint32_t currLedger,
                                   deadEntries.size());
     mBucketList->addBatch(app, currLedger, currLedgerProtocol, initEntries,
                           liveEntries, deadEntries);
+    mBucketListSizeCounter.set_count(mBucketList->getSize());
 }
 
 #ifdef BUILD_TESTS

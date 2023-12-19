@@ -31,6 +31,7 @@ bucket.batch.objectsadded                 | meter     | number of objects added 
 bucket.memory.shared                      | counter   | number of buckets referenced (excluding publish queue)
 bucket.merge-time.level-<X>               | timer     | time to merge two buckets on level <X>
 bucket.snap.merge                         | timer     | time to merge two buckets
+bucketlist.size.bytes                     | counter   | total size of the BucketList in bytes
 bucketlistDB.bloom.lookups                | meter     | number of bloom filter lookups
 bucketlistDB.bloom.misses                 | meter     | number of bloom filter false positives
 bucketlistDB.query.loads                  | meter     | number of BucketListDB load queries
@@ -148,6 +149,6 @@ scp.timing.self-to-others-externalize-lag | timer     | delay between local node
 scp.value.invalid                         | meter     | SCP value is invalid
 scp.value.valid                           | meter     | SCP value is valid
 scp.slot.values-referenced                | histogram | number of values referenced per consensus round
-state-archival.eviction.bytes-scanned   | counter   | number of bytes that eviction scan has read
-state-archival.eviction.entries-evicted | meter     | number of entries that have been evicted
-state-archival.eviction.incomplete-scan | counter   | number of buckets that were too large to be fully scanned for eviction
+state-archival.eviction.bytes-scanned     | counter   | number of bytes that eviction scan has read
+state-archival.eviction.entries-evicted   | meter     | number of entries that have been evicted
+state-archival.eviction.incomplete-scan   | counter   | number of buckets that were too large to be fully scanned for eviction
