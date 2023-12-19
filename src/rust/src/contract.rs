@@ -114,18 +114,6 @@ impl From<CxxWriteFeeConfiguration> for WriteFeeConfiguration {
     }
 }
 
-impl From<Vec<u8>> for RustBuf {
-    fn from(value: Vec<u8>) -> Self {
-        Self { data: value }
-    }
-}
-
-impl AsRef<[u8]> for CxxBuf {
-    fn as_ref(&self) -> &[u8] {
-        self.data.as_slice()
-    }
-}
-
 // FIXME: plumb this through from the limit xdrpp uses.
 // Currently they are just two same-valued constants.
 const MARSHALLING_STACK_LIMIT: u32 = 1000;
