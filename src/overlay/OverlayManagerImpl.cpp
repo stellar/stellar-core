@@ -54,6 +54,30 @@ constexpr uint32_t INITIAL_FLOW_CONTROL_SEND_MORE_BATCH_SIZE_BYTES{100000};
 // longer than 2 seconds between re-issuing demands.
 constexpr std::chrono::seconds MAX_DELAY_DEMAND{2};
 
+bool
+OverlayManagerImpl::canAcceptOutboundPeer(PeerBareAddress const& address) const
+{
+    if (availableOutboundPendingSlots() <= 0)
+    {
+        CLOG_DEBUG(Overlay,
+                   "Peer rejected - all outbound pending connections "
+                   "taken: {}",
+                   address.toString());
+        CLOG_DEBUG(Overlay, "If you wish to allow for more pending "
+                            "outbound connections, please update "
+                            "your MAX_PENDING_CONNECTIONS setting in "
+                            "configuration file.");
+        return false;
+    }
+    if (mShuttingDown)
+    {
+        CLOG_DEBUG(Overlay, "Peer rejected - overlay shutting down: {}",
+                   address.toString());
+        return false;
+    }
+    return true;
+}
+
 OverlayManagerImpl::PeersList::PeersList(
     OverlayManagerImpl& overlayManager,
     medida::MetricsRegistry& metricsRegistry,
@@ -365,12 +389,8 @@ OverlayManagerImpl::connectToImpl(PeerBareAddress const& address,
     if (!currentConnection || (forceoutbound && currentConnection->getRole() ==
                                                     Peer::REMOTE_CALLED_US))
     {
-        if (availableOutboundPendingSlots() <= 0)
+        if (!canAcceptOutboundPeer(address))
         {
-            CLOG_DEBUG(Overlay,
-                       "Peer rejected - all outbound pending connections "
-                       "taken: {}",
-                       address.toString());
             return false;
         }
         getPeerManager().update(address, PeerManager::BackOffUpdate::INCREASE);
@@ -891,19 +911,8 @@ OverlayManagerImpl::addOutboundConnection(Peer::pointer peer)
     releaseAssert(peer->getRole() == Peer::WE_CALLED_REMOTE);
     mOutboundPeers.mConnectionsAttempted.Mark();
 
-    if (mShuttingDown || availableOutboundPendingSlots() <= 0)
+    if (!canAcceptOutboundPeer(peer->getAddress()))
     {
-        if (!mShuttingDown)
-        {
-            CLOG_DEBUG(Overlay,
-                       "Peer rejected - all outbound connections taken: {}",
-                       peer->toString());
-            CLOG_DEBUG(Overlay, "If you wish to allow for more pending "
-                                "outbound connections, please update "
-                                "your MAX_PENDING_CONNECTIONS setting in "
-                                "configuration file.");
-        }
-
         mOutboundPeers.mConnectionsCancelled.Mark();
         peer->drop("all outbound connections taken",
                    Peer::DropDirection::WE_DROPPED_REMOTE,

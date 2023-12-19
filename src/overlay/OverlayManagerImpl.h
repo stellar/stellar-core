@@ -235,5 +235,9 @@ class OverlayManagerImpl : public OverlayManager
                              std::vector<Peer::pointer>& result);
     void shufflePeerList(std::vector<Peer::pointer>& peerList);
     AdjustedFlowControlConfig getFlowControlBytesConfig() const override;
+
+    // Returns `true` iff the overlay can accept the outbound peer at `address`.
+    // Logs whenever a peer cannot be accepted.
+    bool canAcceptOutboundPeer(PeerBareAddress const& address) const;
 };
 }
