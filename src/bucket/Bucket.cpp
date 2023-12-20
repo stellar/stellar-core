@@ -53,6 +53,12 @@ Bucket::isIndexed() const
     return static_cast<bool>(mIndex);
 }
 
+std::optional<std::pair<std::streamoff, std::streamoff>>
+Bucket::getOfferRange() const
+{
+    return getIndex().getOfferRange();
+}
+
 void
 Bucket::setIndex(std::unique_ptr<BucketIndex const>&& index)
 {
