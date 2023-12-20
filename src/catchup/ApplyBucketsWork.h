@@ -5,14 +5,17 @@
 #pragma once
 
 #include "bucket/BucketApplicator.h"
+#include "ledger/LedgerHashUtils.h"
 #include "work/Work.h"
 
 namespace stellar
 {
 
+class AssumeStateWork;
 class BucketLevel;
 class BucketList;
 class Bucket;
+class IndexBucketsWork;
 struct HistoryArchiveState;
 struct LedgerHeaderHistoryEntry;
 
@@ -24,6 +27,8 @@ class ApplyBucketsWork : public Work
 
     bool mApplying{false};
     bool mSpawnedAssumeStateWork{false};
+    std::shared_ptr<AssumeStateWork> mAssumeStateWork{};
+    std::shared_ptr<IndexBucketsWork> mIndexBucketsWork{};
     size_t mTotalBuckets{0};
     size_t mAppliedBuckets{0};
     size_t mAppliedEntries{0};
@@ -34,20 +39,26 @@ class ApplyBucketsWork : public Work
     uint32_t mLevel{0};
     uint32_t mMaxProtocolVersion{0};
     uint32_t mMinProtocolVersionSeen{UINT32_MAX};
-    std::shared_ptr<Bucket const> mSnapBucket;
-    std::shared_ptr<Bucket const> mCurrBucket;
-    std::unique_ptr<BucketApplicator> mSnapApplicator;
-    std::unique_ptr<BucketApplicator> mCurrApplicator;
+    std::shared_ptr<Bucket const> mFirstBucket;
+    std::shared_ptr<Bucket const> mSecondBucket;
+    std::unique_ptr<BucketApplicator> mFirstBucketApplicator;
+    std::unique_ptr<BucketApplicator> mSecondBucketApplicator;
+    std::unordered_set<LedgerKey> mSeenKeys;
+    std::vector<std::shared_ptr<Bucket>> mBucketsToIndex;
 
     BucketApplicator::Counters mCounters;
 
     void advance(std::string const& name, BucketApplicator& applicator);
-    std::shared_ptr<Bucket const> getBucket(std::string const& bucketHash);
+    std::shared_ptr<Bucket> getBucket(std::string const& bucketHash);
     BucketLevel& getBucketLevel(uint32_t level);
     void startLevel();
     bool isLevelComplete();
 
     bool mDelayChecked{false};
+
+    uint32_t startingLevel();
+    uint32_t nextLevel() const;
+    bool appliedAllLevels() const;
 
   public:
     ApplyBucketsWork(

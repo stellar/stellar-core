@@ -66,6 +66,12 @@ template <class IndexT> class BucketIndexImpl : public BucketIndex
     // Saves index to disk, overwriting any preexisting file for this index
     void saveToDisk(BucketManager& bm, Hash const& hash) const;
 
+    // Returns [lowFileOffset, highFileOffset) that contain the key ranges
+    // [lowerBound, upperBound]. If no file offsets exist, returns [0, 0]
+    std::optional<std::pair<std::streamoff, std::streamoff>>
+    getOffsetBounds(LedgerKey const& lowerBound,
+                    LedgerKey const& upperBound) const;
+
     friend BucketIndex;
 
   public:
@@ -80,6 +86,9 @@ template <class IndexT> class BucketIndexImpl : public BucketIndex
 
     virtual std::vector<PoolID> const&
     getPoolIDsByAsset(Asset const& asset) const override;
+
+    virtual std::optional<std::pair<std::streamoff, std::streamoff>>
+    getOfferRange() const override;
 
     virtual std::streamoff
     getPageSize() const override

@@ -6,6 +6,7 @@
 
 #include "bucket/Bucket.h"
 #include "bucket/BucketInputIterator.h"
+#include "ledger/LedgerHashUtils.h"
 #include "util/Timer.h"
 #include "util/XDRStream.h"
 #include <memory>
@@ -28,6 +29,9 @@ class BucketApplicator
     BucketInputIterator mBucketIter;
     size_t mCount{0};
     std::function<bool(LedgerEntryType)> mEntryTypeFilter;
+    std::unordered_set<LedgerKey>& mSeenKeys;
+    std::streamoff mUpperBoundOffset;
+    bool mOffersRemaining{true};
 
   public:
     class Counters
@@ -63,10 +67,16 @@ class BucketApplicator
                       VirtualClock::time_point now);
     };
 
+    // If newOffersOnly is true, only offers are applied. Additionally, the
+    // offer is only applied iff:
+    //    1. They are of type INITENTRY or LIVEENTRY
+    //    2. The LedgerKey is not in seenKeys
+    // When this flag is set, each offer key read is added to seenKeys
     BucketApplicator(Application& app, uint32_t maxProtocolVersion,
                      uint32_t minProtocolVersionSeen, uint32_t level,
                      std::shared_ptr<Bucket const> bucket,
-                     std::function<bool(LedgerEntryType)> filter);
+                     std::function<bool(LedgerEntryType)> filter,
+                     std::unordered_set<LedgerKey>& seenKeys);
     operator bool() const;
     size_t advance(Counters& counters);
 

@@ -82,6 +82,11 @@ class Bucket : public std::enable_shared_from_this<Bucket>,
     // Returns true if bucket is indexed, false otherwise
     bool isIndexed() const;
 
+    // Returns [lowerBound, upperBound) of file offsets for all offers in the
+    // bucket, or std::nullopt if no offers exist
+    std::optional<std::pair<std::streamoff, std::streamoff>>
+    getOfferRange() const;
+
     // Sets index, throws if index is already set
     void setIndex(std::unique_ptr<BucketIndex const>&& index);
 
