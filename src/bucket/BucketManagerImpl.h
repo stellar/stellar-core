@@ -53,6 +53,7 @@ class BucketManagerImpl : public BucketManager
     medida::Meter& mEntriesEvicted;
     medida::Counter& mBytesScannedForEviction;
     medida::Counter& mIncompleteBucketScans;
+    medida::Counter& mBucketListSizeCounter;
     mutable UnorderedMap<LedgerEntryType, medida::Timer&>
         mBucketListDBPointTimers{};
     mutable UnorderedMap<std::string, medida::Timer&> mBucketListDBBulkTimers{};
