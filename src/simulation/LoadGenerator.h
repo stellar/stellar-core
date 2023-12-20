@@ -400,5 +400,7 @@ class LoadGenerator
     unsigned short chooseOpCount(Config const& cfg) const;
 
     void cleanupAccounts();
+
+    void start(GeneratedLoadConfig& cfg);
 };
 }

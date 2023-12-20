@@ -72,7 +72,6 @@ LoadGenerator::LoadGenerator(Application& app)
     , mLoadgenFail(
           mApp.getMetrics().NewMeter({"loadgen", "run", "failed"}, "run"))
 {
-    createRootAccount();
 }
 
 LoadGenMode
@@ -155,14 +154,12 @@ generateFee(std::optional<uint32_t> maxGeneratedFeeRate, Application& app,
 void
 LoadGenerator::createRootAccount()
 {
-    if (!mRoot)
+    releaseAssert(!mRoot);
+    auto rootTestAccount = TestAccount::createRoot(mApp);
+    mRoot = make_shared<TestAccount>(rootTestAccount);
+    if (!loadAccount(mRoot, mApp))
     {
-        auto rootTestAccount = TestAccount::createRoot(mApp);
-        mRoot = make_shared<TestAccount>(rootTestAccount);
-        if (!loadAccount(mRoot, mApp))
-        {
-            CLOG_ERROR(LoadGen, "Could not retrieve root account!");
-        }
+        CLOG_ERROR(LoadGen, "Could not retrieve root account!");
     }
 }
 
@@ -284,22 +281,23 @@ LoadGenerator::resetSorobanState()
     mContactOverheadBytes = 0;
 }
 
-// Schedule a callback to generateLoad() STEP_MSECS milliseconds from now.
 void
-LoadGenerator::scheduleLoadGeneration(GeneratedLoadConfig cfg)
+LoadGenerator::start(GeneratedLoadConfig& cfg)
 {
-    std::optional<std::string> errorMsg;
-    // If previously scheduled step of load did not succeed, fail this loadgen
-    // run.
-    if (mFailed)
+    if (mStarted)
     {
-        errorMsg = "Load generation failed, ensure correct "
-                   "number parameters are set and accounts are "
-                   "created, or retry with smaller tx rate.";
+        return;
+    }
+
+    createRootAccount();
+
+    if (cfg.txRate == 0)
+    {
+        cfg.txRate = 1;
     }
 
     // Setup config for soroban modes
-    if (!mStarted && cfg.isSoroban() && cfg.mode != LoadGenMode::SOROBAN_UPLOAD)
+    if (cfg.isSoroban() && cfg.mode != LoadGenMode::SOROBAN_UPLOAD)
     {
         auto& sorobanLoadCfg = cfg.getMutSorobanConfig();
         sorobanLoadCfg.nWasms = 1;
@@ -343,6 +341,65 @@ LoadGenerator::scheduleLoadGeneration(GeneratedLoadConfig cfg)
                 sorobanLoadCfg.nInstances = 1;
             }
         }
+    }
+
+    if (cfg.mode != LoadGenMode::CREATE)
+    {
+        // Mark all accounts "available" as source accounts
+        for (auto i = 0u; i < cfg.nAccounts; i++)
+        {
+            mAccountsAvailable.insert(i + cfg.offset);
+        }
+
+        if (cfg.mode == LoadGenMode::SOROBAN_INVOKE)
+        {
+            auto const& sorobanLoadCfg = cfg.getSorobanConfig();
+            releaseAssert(mContractInstances.empty());
+            releaseAssert(mCodeKey);
+            releaseAssert(mAccountsAvailable.size() >= cfg.nAccounts);
+            releaseAssert(mContractInstanceKeys.size() >=
+                          sorobanLoadCfg.nInstances);
+            releaseAssert(cfg.nAccounts >= sorobanLoadCfg.nInstances);
+
+            // assign a contract instance to each accountID
+            auto accountIter = mAccountsAvailable.begin();
+            for (size_t i = 0; i < cfg.nAccounts; ++i)
+            {
+                auto instanceKeyIter = mContractInstanceKeys.begin();
+                std::advance(instanceKeyIter, i % sorobanLoadCfg.nInstances);
+
+                ContractInstance instance;
+                instance.readOnlyKeys.emplace_back(*mCodeKey);
+                instance.readOnlyKeys.emplace_back(*instanceKeyIter);
+                instance.contractID = instanceKeyIter->contractData().contract;
+                mContractInstances.emplace(*accountIter, instance);
+                ++accountIter;
+            }
+        }
+    }
+
+    releaseAssert(!mLoadTimer);
+    mLoadTimer = std::make_unique<VirtualTimer>(mApp.getClock());
+
+    releaseAssert(!mStartTime);
+    mStartTime =
+        std::make_unique<VirtualClock::time_point>(mApp.getClock().now());
+
+    mStarted = true;
+}
+
+// Schedule a callback to generateLoad() STEP_MSECS milliseconds from now.
+void
+LoadGenerator::scheduleLoadGeneration(GeneratedLoadConfig cfg)
+{
+    std::optional<std::string> errorMsg;
+    // If previously scheduled step of load did not succeed, fail this loadgen
+    // run.
+    if (mFailed)
+    {
+        errorMsg = "Load generation failed, ensure correct "
+                   "number parameters are set and accounts are "
+                   "created, or retry with smaller tx rate.";
     }
 
     // During load submission, we must have enough unique source accounts (with
@@ -403,52 +460,6 @@ LoadGenerator::scheduleLoadGeneration(GeneratedLoadConfig cfg)
 
         return;
     }
-
-    // First time calling tx load generation
-    if (!mStarted)
-    {
-        if (cfg.mode != LoadGenMode::CREATE)
-        {
-            // Mark all accounts "available" as source accounts
-            for (auto i = 0u; i < cfg.nAccounts; i++)
-            {
-                mAccountsAvailable.insert(i + cfg.offset);
-            }
-        }
-
-        if (cfg.mode == LoadGenMode::SOROBAN_INVOKE)
-        {
-            auto const& sorobanLoadCfg = cfg.getSorobanConfig();
-            releaseAssert(mContractInstances.empty());
-            releaseAssert(mCodeKey);
-            releaseAssert(mAccountsAvailable.size() >= cfg.nAccounts);
-            releaseAssert(mContractInstanceKeys.size() >=
-                          sorobanLoadCfg.nInstances);
-            releaseAssert(cfg.nAccounts >= sorobanLoadCfg.nInstances);
-
-            // assign a contract instance to each accountID
-            auto accountIter = mAccountsAvailable.begin();
-            for (size_t i = 0; i < cfg.nAccounts; ++i)
-            {
-                auto instanceKeyIter = mContractInstanceKeys.begin();
-                std::advance(instanceKeyIter, i % sorobanLoadCfg.nInstances);
-
-                ContractInstance instance;
-                instance.readOnlyKeys.emplace_back(*mCodeKey);
-                instance.readOnlyKeys.emplace_back(*instanceKeyIter);
-                instance.contractID = instanceKeyIter->contractData().contract;
-                mContractInstances.emplace(*accountIter, instance);
-                ++accountIter;
-            }
-        }
-    }
-
-    if (!mLoadTimer)
-    {
-        mLoadTimer = std::make_unique<VirtualTimer>(mApp.getClock());
-    }
-
-    mStarted = true;
 
     if (mApp.getState() == Application::APP_SYNCED_STATE)
     {
@@ -567,13 +578,7 @@ LoadGenerator::generateLoad(GeneratedLoadConfig cfg)
 {
     ZoneScoped;
 
-    if (!mStartTime)
-    {
-        mStartTime =
-            std::make_unique<VirtualClock::time_point>(mApp.getClock().now());
-    }
-
-    createRootAccount();
+    start(cfg);
 
     // Finish if no more txs need to be created.
     if (!cfg.areTxsRemaining())
@@ -594,10 +599,6 @@ LoadGenerator::generateLoad(GeneratedLoadConfig cfg)
     }
 
     updateMinBalance();
-    if (cfg.txRate == 0)
-    {
-        cfg.txRate = 1;
-    }
 
     auto txPerStep = getTxPerStep(cfg.txRate, cfg.spikeInterval, cfg.spikeSize);
     if (cfg.mode == LoadGenMode::CREATE)
