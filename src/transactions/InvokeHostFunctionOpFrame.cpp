@@ -434,7 +434,7 @@ InvokeHostFunctionOpFrame::doApply(Application& app, AbstractLedgerTxn& ltx,
 
             if (resources.readBytes < metrics.mLedgerReadByte)
             {
-                mParentTx.pushSimpleDiagnosticError(
+                mParentTx.pushApplyTimeDiagnosticError(
                     appConfig, SCE_BUDGET, SCEC_EXCEEDED_LIMIT,
                     "operation byte-read resources exceeds amount specified",
                     {makeU64SCVal(metrics.mLedgerReadByte),
@@ -513,7 +513,7 @@ InvokeHostFunctionOpFrame::doApply(Application& app, AbstractLedgerTxn& ltx,
         }
         if (resources.instructions < out.cpu_insns)
         {
-            mParentTx.pushSimpleDiagnosticError(
+            mParentTx.pushApplyTimeDiagnosticError(
                 appConfig, SCE_BUDGET, SCEC_EXCEEDED_LIMIT,
                 "operation instructions exceeds amount specified",
                 {makeU64SCVal(out.cpu_insns),
@@ -522,7 +522,7 @@ InvokeHostFunctionOpFrame::doApply(Application& app, AbstractLedgerTxn& ltx,
         }
         else if (sorobanConfig.txMemoryLimit() < out.mem_bytes)
         {
-            mParentTx.pushSimpleDiagnosticError(
+            mParentTx.pushApplyTimeDiagnosticError(
                 appConfig, SCE_BUDGET, SCEC_EXCEEDED_LIMIT,
                 "operation memory usage exceeds network config limit",
                 {makeU64SCVal(out.mem_bytes),
@@ -563,7 +563,7 @@ InvokeHostFunctionOpFrame::doApply(Application& app, AbstractLedgerTxn& ltx,
             metrics.noteWriteEntry(isCodeKey(lk), keySize, entrySize);
             if (resources.writeBytes < metrics.mLedgerWriteByte)
             {
-                mParentTx.pushSimpleDiagnosticError(
+                mParentTx.pushApplyTimeDiagnosticError(
                     appConfig, SCE_BUDGET, SCEC_EXCEEDED_LIMIT,
                     "operation byte-write resources exceeds amount specified",
                     {makeU64SCVal(metrics.mLedgerWriteByte),
@@ -638,7 +638,7 @@ InvokeHostFunctionOpFrame::doApply(Application& app, AbstractLedgerTxn& ltx,
         if (sorobanConfig.txMaxContractEventsSizeBytes() <
             metrics.mEmitEventByte)
         {
-            mParentTx.pushSimpleDiagnosticError(
+            mParentTx.pushApplyTimeDiagnosticError(
                 appConfig, SCE_BUDGET, SCEC_EXCEEDED_LIMIT,
                 "total events size exceeds network config maximum",
                 {makeU64SCVal(metrics.mEmitEventByte),
@@ -656,7 +656,7 @@ InvokeHostFunctionOpFrame::doApply(Application& app, AbstractLedgerTxn& ltx,
     metrics.mEmitEventByte += static_cast<uint32>(out.result_value.data.size());
     if (sorobanConfig.txMaxContractEventsSizeBytes() < metrics.mEmitEventByte)
     {
-        mParentTx.pushSimpleDiagnosticError(
+        mParentTx.pushApplyTimeDiagnosticError(
             appConfig, SCE_BUDGET, SCEC_EXCEEDED_LIMIT,
             "return value pushes events size above network config maximum",
             {makeU64SCVal(metrics.mEmitEventByte),
@@ -693,9 +693,9 @@ InvokeHostFunctionOpFrame::doCheckValid(
     if (hostFn.type() == HOST_FUNCTION_TYPE_UPLOAD_CONTRACT_WASM &&
         hostFn.wasm().size() > networkConfig.maxContractSizeBytes())
     {
-        mParentTx.pushSimpleDiagnosticError(
+        mParentTx.pushValidationTimeDiagnosticError(
             appConfig, SCE_BUDGET, SCEC_EXCEEDED_LIMIT,
-            "uploaded WASM size exceeds network config maximum contract size",
+            "uploaded Wasm size exceeds network config maximum contract size",
             {makeU64SCVal(hostFn.wasm().size()),
              makeU64SCVal(networkConfig.maxContractSizeBytes())});
         return false;
@@ -706,7 +706,7 @@ InvokeHostFunctionOpFrame::doCheckValid(
         if (preimage.type() == CONTRACT_ID_PREIMAGE_FROM_ASSET &&
             !isAssetValid(preimage.fromAsset(), ledgerVersion))
         {
-            mParentTx.pushSimpleDiagnosticError(
+            mParentTx.pushValidationTimeDiagnosticError(
                 appConfig, SCE_VALUE, SCEC_INVALID_INPUT,
                 "invalid asset to create contract from");
             return false;

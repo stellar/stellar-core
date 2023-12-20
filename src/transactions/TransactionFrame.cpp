@@ -149,10 +149,6 @@ TransactionFrame::pushSimpleDiagnosticError(Config const& cfg, SCErrorType ty,
                                             std::string&& message,
                                             xdr::xvector<SCVal>&& args)
 {
-    if (!cfg.ENABLE_SOROBAN_DIAGNOSTIC_EVENTS)
-    {
-        return;
-    }
     ContractEvent ce;
     ce.type = DIAGNOSTIC;
     ce.body.v(0);
@@ -180,6 +176,35 @@ TransactionFrame::pushSimpleDiagnosticError(Config const& cfg, SCErrorType ty,
     }
     DiagnosticEvent evt(false, std::move(ce));
     pushDiagnosticEvent(std::move(evt));
+}
+
+void
+TransactionFrame::pushApplyTimeDiagnosticError(Config const& cfg,
+                                               SCErrorType ty, SCErrorCode code,
+                                               std::string&& message,
+                                               xdr::xvector<SCVal>&& args)
+{
+    if (!cfg.ENABLE_SOROBAN_DIAGNOSTIC_EVENTS)
+    {
+        return;
+    }
+    pushSimpleDiagnosticError(cfg, ty, code, std::move(message),
+                              std::move(args));
+}
+
+void
+TransactionFrame::pushValidationTimeDiagnosticError(Config const& cfg,
+                                                    SCErrorType ty,
+                                                    SCErrorCode code,
+                                                    std::string&& message,
+                                                    xdr::xvector<SCVal>&& args)
+{
+    if (!cfg.ENABLE_DIAGNOSTICS_FOR_TX_SUBMISSION)
+    {
+        return;
+    }
+    pushSimpleDiagnosticError(cfg, ty, code, std::move(message),
+                              std::move(args));
 }
 
 void
@@ -645,7 +670,7 @@ TransactionFrame::validateSorobanResources(SorobanNetworkConfig const& config,
     auto const& writeEntries = resources.footprint.readWrite;
     if (resources.instructions > config.txMaxInstructions())
     {
-        pushSimpleDiagnosticError(
+        pushValidationTimeDiagnosticError(
             appConfig, SCE_BUDGET, SCEC_EXCEEDED_LIMIT,
             "transaction instructions resources exceed network config limit",
             {makeU64SCVal(resources.instructions),
@@ -654,7 +679,7 @@ TransactionFrame::validateSorobanResources(SorobanNetworkConfig const& config,
     }
     if (resources.readBytes > config.txMaxReadBytes())
     {
-        pushSimpleDiagnosticError(
+        pushValidationTimeDiagnosticError(
             appConfig, SCE_STORAGE, SCEC_EXCEEDED_LIMIT,
             "transaction byte-read resources exceed network config limit",
             {makeU64SCVal(resources.readBytes),
@@ -663,7 +688,7 @@ TransactionFrame::validateSorobanResources(SorobanNetworkConfig const& config,
     }
     if (resources.writeBytes > config.txMaxWriteBytes())
     {
-        pushSimpleDiagnosticError(
+        pushValidationTimeDiagnosticError(
             appConfig, SCE_STORAGE, SCEC_EXCEEDED_LIMIT,
             "transaction byte-write resources exceed network config limit",
             {makeU64SCVal(resources.writeBytes),
@@ -673,7 +698,7 @@ TransactionFrame::validateSorobanResources(SorobanNetworkConfig const& config,
     if (readEntries.size() + writeEntries.size() >
         config.txMaxReadLedgerEntries())
     {
-        pushSimpleDiagnosticError(
+        pushValidationTimeDiagnosticError(
             appConfig, SCE_STORAGE, SCEC_EXCEEDED_LIMIT,
             "transaction entry-read resources exceed network config limit",
             {makeU64SCVal(readEntries.size() + writeEntries.size()),
@@ -682,7 +707,7 @@ TransactionFrame::validateSorobanResources(SorobanNetworkConfig const& config,
     }
     if (writeEntries.size() > config.txMaxWriteLedgerEntries())
     {
-        pushSimpleDiagnosticError(
+        pushValidationTimeDiagnosticError(
             appConfig, SCE_STORAGE, SCEC_EXCEEDED_LIMIT,
             "transaction entry-write resources exceed network config limit",
             {makeU64SCVal(writeEntries.size()),
@@ -703,7 +728,7 @@ TransactionFrame::validateSorobanResources(SorobanNetworkConfig const& config,
                 (tl.asset.type() == ASSET_TYPE_NATIVE) ||
                 isIssuer(tl.accountID, tl.asset))
             {
-                this->pushSimpleDiagnosticError(
+                pushValidationTimeDiagnosticError(
                     appConfig, SCE_STORAGE, SCEC_INVALID_INPUT,
                     "transaction footprint contains invalid trustline asset");
                 return false;
@@ -716,7 +741,7 @@ TransactionFrame::validateSorobanResources(SorobanNetworkConfig const& config,
         case LIQUIDITY_POOL:
         case CONFIG_SETTING:
         case TTL:
-            this->pushSimpleDiagnosticError(
+            pushValidationTimeDiagnosticError(
                 appConfig, SCE_STORAGE, SCEC_UNEXPECTED_TYPE,
                 "transaction footprint contains unsupported ledger key type",
                 {makeU64SCVal(key.type())});
@@ -727,7 +752,7 @@ TransactionFrame::validateSorobanResources(SorobanNetworkConfig const& config,
 
         if (xdr::xdr_size(key) > config.maxContractDataKeySizeBytes())
         {
-            this->pushSimpleDiagnosticError(
+            pushValidationTimeDiagnosticError(
                 appConfig, SCE_STORAGE, SCEC_EXCEEDED_LIMIT,
                 "transaction footprint key exceeds network config limit",
                 {makeU64SCVal(xdr::xdr_size(key)),
@@ -865,7 +890,7 @@ TransactionFrame::consumeRefundableSorobanResources(
     feeRefund = declaredSorobanResourceFee() - preApplyFee.non_refundable_fee;
     if (feeRefund < consumedRentFee)
     {
-        pushSimpleDiagnosticError(
+        pushApplyTimeDiagnosticError(
             cfg, SCE_BUDGET, SCEC_EXCEEDED_LIMIT,
             "refundable resource fee was not sufficient to cover the ledger "
             "storage rent: {} > {}",
@@ -881,7 +906,7 @@ TransactionFrame::consumeRefundableSorobanResources(
         consumedContractEventsSizeBytes, sorobanConfig, cfg);
     if (feeRefund < consumedFee.refundable_fee)
     {
-        pushSimpleDiagnosticError(
+        pushApplyTimeDiagnosticError(
             cfg, SCE_BUDGET, SCEC_EXCEEDED_LIMIT,
             "refundable resource fee was not sufficient to cover the events "
             "fee after paying for ledger storage rent: {} > {}",
@@ -1071,7 +1096,7 @@ TransactionFrame::commonValidPreSeqNum(
         auto const& sorobanData = mEnvelope.v1().tx.ext.sorobanData();
         if (sorobanData.resourceFee > getFullFee())
         {
-            pushSimpleDiagnosticError(
+            pushValidationTimeDiagnosticError(
                 app.getConfig(), SCE_STORAGE, SCEC_EXCEEDED_LIMIT,
                 "transaction `sorobanData.resourceFee` is higher than the "
                 "full transaction fee",
@@ -1084,7 +1109,7 @@ TransactionFrame::commonValidPreSeqNum(
         if (sorobanResourceFee->refundable_fee >
             INT64_MAX - sorobanResourceFee->non_refundable_fee)
         {
-            pushSimpleDiagnosticError(
+            pushValidationTimeDiagnosticError(
                 app.getConfig(), SCE_STORAGE, SCEC_INVALID_INPUT,
                 "transaction resource fees cannot be added",
                 {makeU64SCVal(sorobanResourceFee->refundable_fee),
@@ -1096,7 +1121,7 @@ TransactionFrame::commonValidPreSeqNum(
                                   sorobanResourceFee->non_refundable_fee;
         if (sorobanData.resourceFee < resourceFees)
         {
-            pushSimpleDiagnosticError(
+            pushValidationTimeDiagnosticError(
                 app.getConfig(), SCE_STORAGE, SCEC_EXCEEDED_LIMIT,
                 "transaction `sorobanData.resourceFee` is lower than the "
                 "actual Soroban resource fee",
@@ -1114,7 +1139,7 @@ TransactionFrame::commonValidPreSeqNum(
             {
                 if (!set.emplace(lk).second)
                 {
-                    pushSimpleDiagnosticError(
+                    pushValidationTimeDiagnosticError(
                         app.getConfig(), SCE_STORAGE, SCEC_INVALID_INPUT,
                         "Found duplicate key in the Soroban footprint; every "
                         "key across read-only and read-write footprints has to "

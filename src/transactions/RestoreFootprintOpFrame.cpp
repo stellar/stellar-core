@@ -100,7 +100,7 @@ RestoreFootprintOpFrame::doApply(Application& app, AbstractLedgerTxn& ltx,
         metrics.mLedgerReadByte += entrySize;
         if (resources.readBytes < metrics.mLedgerReadByte)
         {
-            mParentTx.pushSimpleDiagnosticError(
+            mParentTx.pushApplyTimeDiagnosticError(
                 appConfig, SCE_BUDGET, SCEC_EXCEEDED_LIMIT,
                 "operation byte-read resources exceeds amount specified",
                 {makeU64SCVal(metrics.mLedgerReadByte),
@@ -121,7 +121,7 @@ RestoreFootprintOpFrame::doApply(Application& app, AbstractLedgerTxn& ltx,
 
         if (resources.writeBytes < metrics.mLedgerWriteByte)
         {
-            mParentTx.pushSimpleDiagnosticError(
+            mParentTx.pushApplyTimeDiagnosticError(
                 appConfig, SCE_BUDGET, SCEC_EXCEEDED_LIMIT,
                 "operation byte-write resources exceeds amount specified",
                 {makeU64SCVal(metrics.mLedgerWriteByte),
@@ -174,7 +174,7 @@ RestoreFootprintOpFrame::doCheckValid(SorobanNetworkConfig const& networkConfig,
     if (!footprint.readOnly.empty())
     {
         innerResult().code(RESTORE_FOOTPRINT_MALFORMED);
-        mParentTx.pushSimpleDiagnosticError(
+        mParentTx.pushValidationTimeDiagnosticError(
             appConfig, SCE_STORAGE, SCEC_INVALID_INPUT,
             "read-only footprint must be empty for RestoreFootprint operation",
             {});
@@ -186,7 +186,7 @@ RestoreFootprintOpFrame::doCheckValid(SorobanNetworkConfig const& networkConfig,
         if (!isPersistentEntry(lk))
         {
             innerResult().code(RESTORE_FOOTPRINT_MALFORMED);
-            mParentTx.pushSimpleDiagnosticError(
+            mParentTx.pushValidationTimeDiagnosticError(
                 appConfig, SCE_STORAGE, SCEC_INVALID_INPUT,
                 "only persistent Soroban entries can be restored", {});
             return false;

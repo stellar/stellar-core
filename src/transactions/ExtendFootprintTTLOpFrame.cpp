@@ -113,7 +113,7 @@ ExtendFootprintTTLOpFrame::doApply(Application& app, AbstractLedgerTxn& ltx,
 
         if (resources.readBytes < metrics.mLedgerReadByte)
         {
-            mParentTx.pushSimpleDiagnosticError(
+            mParentTx.pushApplyTimeDiagnosticError(
                 app.getConfig(), SCE_BUDGET, SCEC_EXCEEDED_LIMIT,
                 "operation byte-read resources exceeds amount specified",
                 {makeU64SCVal(metrics.mLedgerReadByte),
@@ -161,7 +161,7 @@ ExtendFootprintTTLOpFrame::doCheckValid(
     if (!footprint.readWrite.empty())
     {
         innerResult().code(EXTEND_FOOTPRINT_TTL_MALFORMED);
-        mParentTx.pushSimpleDiagnosticError(
+        mParentTx.pushValidationTimeDiagnosticError(
             appConfig, SCE_STORAGE, SCEC_INVALID_INPUT,
             "read-write footprint must be empty for ExtendFootprintTTL "
             "operation",
@@ -174,7 +174,7 @@ ExtendFootprintTTLOpFrame::doCheckValid(
         if (!isSorobanEntry(lk))
         {
             innerResult().code(EXTEND_FOOTPRINT_TTL_MALFORMED);
-            mParentTx.pushSimpleDiagnosticError(
+            mParentTx.pushValidationTimeDiagnosticError(
                 appConfig, SCE_STORAGE, SCEC_INVALID_INPUT,
                 "only entries with TTL (contract data or code entries) can "
                 "have it extended",
@@ -187,7 +187,7 @@ ExtendFootprintTTLOpFrame::doCheckValid(
         networkConfig.stateArchivalSettings().maxEntryTTL - 1)
     {
         innerResult().code(EXTEND_FOOTPRINT_TTL_MALFORMED);
-        mParentTx.pushSimpleDiagnosticError(
+        mParentTx.pushValidationTimeDiagnosticError(
             appConfig, SCE_STORAGE, SCEC_INVALID_INPUT,
             "TTL extension is too large: {} > {}",
             {
