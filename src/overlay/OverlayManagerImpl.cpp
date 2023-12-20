@@ -1204,7 +1204,9 @@ OverlayManagerImpl::recordMessageMetric(StellarMessage const& stellarMsg,
     {
         flood = true;
     }
-    else if (stellarMsg.type() != TX_SET && stellarMsg.type() != SCP_QUORUMSET)
+    else if (stellarMsg.type() != TX_SET &&
+             stellarMsg.type() != GENERALIZED_TX_SET &&
+             stellarMsg.type() != SCP_QUORUMSET)
     {
         return;
     }
