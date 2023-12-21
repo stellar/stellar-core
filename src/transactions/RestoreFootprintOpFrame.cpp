@@ -23,14 +23,21 @@ struct RestoreFootprintMetrics
 
     ~RestoreFootprintMetrics()
     {
-        mMetrics
-            .NewMeter({"soroban", "restore-fprint-op", "read-ledger-byte"},
-                      "byte")
-            .Mark(mLedgerReadByte);
-        mMetrics
-            .NewMeter({"soroban", "restore-fprint-op", "write-ledger-byte"},
-                      "byte")
-            .Mark(mLedgerWriteByte);
+        try
+        {
+            mMetrics
+                .NewMeter({"soroban", "restore-fprint-op", "read-ledger-byte"},
+                          "byte")
+                .Mark(mLedgerReadByte);
+            mMetrics
+                .NewMeter({"soroban", "restore-fprint-op", "write-ledger-byte"},
+                          "byte")
+                .Mark(mLedgerWriteByte);
+        }
+        catch (const std::exception& e)
+        {
+            CLOG_WARNING(Tx, "Caught RestoreFootprintMetrics exception");
+        }
     }
 };
 
