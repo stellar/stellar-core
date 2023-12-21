@@ -47,6 +47,9 @@ using TransactionFramePtr = std::shared_ptr<TransactionFrame>;
 
 class TransactionFrame : public TransactionFrameBase
 {
+  private:
+    uint32_t getSize() const;
+
   protected:
     TransactionEnvelope mEnvelope;
     TransactionResult mResult;

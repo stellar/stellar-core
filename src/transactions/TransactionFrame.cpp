@@ -236,7 +236,7 @@ TransactionFrame::getNumOperations() const
 Resource
 TransactionFrame::getResources(bool useByteLimitInClassic) const
 {
-    int64_t txSize = xdr::xdr_size(mEnvelope);
+    auto txSize = static_cast<int64_t>(this->getSize());
     if (isSoroban())
     {
         auto r = sorobanResources();
@@ -751,7 +751,7 @@ TransactionFrame::validateSorobanResources(SorobanNetworkConfig const& config,
             return false;
         }
     }
-    auto txSize = xdr::xdr_size(mEnvelope);
+    auto txSize = this->getSize();
     if (txSize > config.txMaxSizeBytes())
     {
         pushSimpleDiagnosticError(
@@ -1899,5 +1899,12 @@ xdr::xvector<DiagnosticEvent> const&
 TransactionFrame::getDiagnosticEvents() const
 {
     return mSorobanExtension->mDiagnosticEvents;
+}
+
+uint32_t
+TransactionFrame::getSize() const
+{
+    ZoneScoped;
+    return static_cast<uint32_t>(xdr::xdr_size(mEnvelope));
 }
 } // namespace stellar
