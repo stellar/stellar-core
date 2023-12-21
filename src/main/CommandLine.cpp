@@ -1352,7 +1352,6 @@ getSettingsUpgradeTransactions(CommandLineArgs const& args)
                           << std::endl;
             }
 
-            std::cerr << "ConfigUpgradeSetKey  ";
             std::cout << decoder::encode_b64(xdr::xdr_to_opaque(upgradeSetKey))
                       << std::endl;
 

@@ -22,10 +22,17 @@ struct ExtendFootprintTTLMetrics
 
     ~ExtendFootprintTTLMetrics()
     {
-        mMetrics
-            .NewMeter({"soroban", "ext-fprint-ttl-op", "read-ledger-byte"},
-                      "byte")
-            .Mark(mLedgerReadByte);
+        try
+        {
+            mMetrics
+                .NewMeter({"soroban", "ext-fprint-ttl-op", "read-ledger-byte"},
+                          "byte")
+                .Mark(mLedgerReadByte);
+        }
+        catch (const std::exception& e)
+        {
+            CLOG_WARNING(Tx, "Caught ExtendFootprintTTLMetrics exception");
+        }
     }
 };
 
