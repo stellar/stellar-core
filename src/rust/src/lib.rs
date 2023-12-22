@@ -284,6 +284,18 @@ mod rust_bridge {
     }
 }
 
+impl From<Vec<u8>> for RustBuf {
+    fn from(value: Vec<u8>) -> Self {
+        Self { data: value }
+    }
+}
+
+impl AsRef<[u8]> for CxxBuf {
+    fn as_ref(&self) -> &[u8] {
+        self.data.as_slice()
+    }
+}
+
 // Then we import various implementations to this module, for export through the bridge.
 mod b64;
 
