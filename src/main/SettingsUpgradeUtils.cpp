@@ -15,7 +15,7 @@ getUploadTx(PublicKey const& publicKey, SequenceNumber seqNum)
 
     auto& tx = txEnv.v1().tx;
     tx.sourceAccount = toMuxedAccount(publicKey);
-    tx.fee = 10'000'000;
+    tx.fee = 50'000'000;
     tx.seqNum = seqNum;
 
     Preconditions cond;
@@ -49,7 +49,7 @@ getUploadTx(PublicKey const& publicKey, SequenceNumber seqNum)
 
     tx.ext.v(1);
     tx.ext.sorobanData().resources = uploadResources;
-    tx.ext.sorobanData().resourceFee = 4'000'000;
+    tx.ext.sorobanData().resourceFee = 35'000'000;
 
     return {txEnv, contractCodeLedgerKey};
 }
@@ -63,7 +63,7 @@ getCreateTx(PublicKey const& publicKey, LedgerKey const& contractCodeLedgerKey,
 
     auto& tx = txEnv.v1().tx;
     tx.sourceAccount = toMuxedAccount(publicKey);
-    tx.fee = 2'000'000;
+    tx.fee = 5'000'000;
     tx.seqNum = seqNum;
 
     Preconditions cond;
@@ -133,7 +133,7 @@ getCreateTx(PublicKey const& publicKey, LedgerKey const& contractCodeLedgerKey,
 
     tx.ext.v(1);
     tx.ext.sorobanData().resources = uploadResources;
-    tx.ext.sorobanData().resourceFee = 1'000'000;
+    tx.ext.sorobanData().resourceFee = 3'000'000;
 
     return {txEnv, contractSourceRefLedgerKey, contractID};
 }
@@ -149,7 +149,7 @@ getInvokeTx(PublicKey const& publicKey, LedgerKey const& contractCodeLedgerKey,
 
     auto& tx = txEnv.v1().tx;
     tx.sourceAccount = toMuxedAccount(publicKey);
-    tx.fee = 1'000'000;
+    tx.fee = 100'000'000;
     tx.seqNum = seqNum;
 
     Preconditions cond;
@@ -200,7 +200,7 @@ getInvokeTx(PublicKey const& publicKey, LedgerKey const& contractCodeLedgerKey,
 
     tx.ext.v(1);
     tx.ext.sorobanData().resources = invokeResources;
-    tx.ext.sorobanData().resourceFee = 500'000;
+    tx.ext.sorobanData().resourceFee = 65'000'000;
 
     ConfigUpgradeSetKey key;
     key.contentHash = upgradeHash;

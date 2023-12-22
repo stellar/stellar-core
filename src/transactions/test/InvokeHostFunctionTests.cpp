@@ -888,7 +888,6 @@ TEST_CASE("Soroban non-refundable resource fees are stable", "[tx][soroban]")
                          int64_t expectedNonRefundableFee) {
         auto validTx =
             makeTx(resources, minInclusionFee, expectedNonRefundableFee);
-        auto txSize = xdr::xdr_size(validTx->getEnvelope());
         auto& app = test.getApp();
         // Sanity check the tx fee computation logic.
         auto actualFeePair =
@@ -1615,7 +1614,6 @@ TEST_CASE("contract storage", "[tx][soroban]")
     auto appCfg = getTestConfig();
     appCfg.ENABLE_SOROBAN_DIAGNOSTIC_EVENTS = true;
     SorobanTest test(appCfg, true, modifyCfg);
-    auto ledgerSeq = test.getLedgerSeq();
 
     auto isSuccess = [](auto resultCode) {
         return resultCode == INVOKE_HOST_FUNCTION_SUCCESS;
@@ -2486,6 +2484,36 @@ TEST_CASE("settings upgrade command line utils", "[tx][soroban][upgrades]")
         app->getLedgerManager().getLastMinBalance(50);
 
     auto a1 = root.create("A", startingBalance);
+
+    // Update the snapshot period and close a ledger to update
+    // mAverageBucketListSize
+    app->getLedgerManager()
+        .getMutableSorobanNetworkConfig()
+        .setBucketListSnapshotPeriodForTesting(1);
+    closeLedger(*app);
+
+    // Update bucketListTargetSizeBytes so bucketListWriteFeeGrowthFactor comes
+    // into play
+    auto const& blSize = app->getLedgerManager()
+                             .getSorobanNetworkConfig()
+                             .getAverageBucketListSize();
+    {
+        LedgerTxn ltx(app->getLedgerTxnRoot());
+        auto costKey = configSettingKey(
+            ConfigSettingID::CONFIG_SETTING_CONTRACT_LEDGER_COST_V0);
+
+        auto costEntry = ltx.load(costKey);
+        costEntry.current()
+            .data.configSetting()
+            .contractLedgerCost()
+            .bucketListTargetSizeBytes = blSize * .95;
+        costEntry.current()
+            .data.configSetting()
+            .contractLedgerCost()
+            .bucketListWriteFeeGrowthFactor = 1000;
+        ltx.commit();
+        closeLedger(*app);
+    }
 
     std::vector<TransactionEnvelope> txsToSign;
 
