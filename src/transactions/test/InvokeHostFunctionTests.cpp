@@ -1094,80 +1094,85 @@ TEST_CASE("failure diagnostics", "[tx][soroban]")
     // overflow. Because we have diagnostics on, we will see two events - The
     // diagnostic "fn_call" event, and the event that the add_i32 client
     // emits.
-    SECTION("failed invocation")
-    {
-        auto invocation =
-            addContract.prepareInvocation(fnName, {sc7, scMax}, invocationSpec);
-        REQUIRE(!invocation.invoke());
 
-        auto const& opEvents =
-            invocation.getTxMeta().getXDR().v3().sorobanMeta->diagnosticEvents;
-        REQUIRE(opEvents.size() == 23);
+    auto invocation =
+        addContract.prepareInvocation(fnName, {sc7, scMax}, invocationSpec);
+    REQUIRE(!invocation.invoke());
 
-        auto const& callEv = opEvents.at(0);
-        REQUIRE(!callEv.inSuccessfulContractCall);
-        REQUIRE(callEv.event.type == ContractEventType::DIAGNOSTIC);
-        REQUIRE(callEv.event.body.v0().data.type() == SCV_VEC);
+    auto const& opEvents =
+        invocation.getTxMeta().getXDR().v3().sorobanMeta->diagnosticEvents;
+    REQUIRE(opEvents.size() == 23);
 
-        auto const& contract_ev = opEvents.at(1);
-        REQUIRE(!contract_ev.inSuccessfulContractCall);
-        REQUIRE(contract_ev.event.type == ContractEventType::CONTRACT);
-        REQUIRE(contract_ev.event.body.v0().data.type() == SCV_VEC);
+    auto const& callEv = opEvents.at(0);
+    REQUIRE(!callEv.inSuccessfulContractCall);
+    REQUIRE(callEv.event.type == ContractEventType::DIAGNOSTIC);
+    REQUIRE(callEv.event.body.v0().data.type() == SCV_VEC);
 
-        auto const& hostFnErrorEv = opEvents.at(3);
-        REQUIRE(!hostFnErrorEv.inSuccessfulContractCall);
-        REQUIRE(hostFnErrorEv.event.type == ContractEventType::DIAGNOSTIC);
-        auto const& hostFnErrorBody = hostFnErrorEv.event.body.v0();
-        SCError expectedError(SCE_WASM_VM);
-        expectedError.code() = SCEC_INVALID_ACTION;
-        REQUIRE(hostFnErrorBody.topics.size() == 2);
-        REQUIRE(hostFnErrorBody.topics.at(0).sym() == "host_fn_failed");
-        REQUIRE(hostFnErrorBody.topics.at(1).error() == expectedError);
+    auto const& contract_ev = opEvents.at(1);
+    REQUIRE(!contract_ev.inSuccessfulContractCall);
+    REQUIRE(contract_ev.event.type == ContractEventType::CONTRACT);
+    REQUIRE(contract_ev.event.body.v0().data.type() == SCV_VEC);
 
-        auto const& readEntryEv = opEvents.at(4);
-        REQUIRE(!readEntryEv.inSuccessfulContractCall);
-        REQUIRE(readEntryEv.event.type == ContractEventType::DIAGNOSTIC);
-        auto const& readEntryEvBody = readEntryEv.event.body.v0();
-        REQUIRE(readEntryEvBody.topics.size() == 2);
-        REQUIRE(readEntryEvBody.topics.at(0).sym() == "core_metrics");
-        REQUIRE(readEntryEvBody.topics.at(1).sym() == "read_entry");
-        REQUIRE(readEntryEvBody.data.type() == SCV_U64);
-        REQUIRE(readEntryEvBody.data.u64() == 2);
+    auto const& hostFnErrorEv = opEvents.at(3);
+    REQUIRE(!hostFnErrorEv.inSuccessfulContractCall);
+    REQUIRE(hostFnErrorEv.event.type == ContractEventType::DIAGNOSTIC);
+    auto const& hostFnErrorBody = hostFnErrorEv.event.body.v0();
+    SCError expectedError(SCE_WASM_VM);
+    expectedError.code() = SCEC_INVALID_ACTION;
+    REQUIRE(hostFnErrorBody.topics.size() == 2);
+    REQUIRE(hostFnErrorBody.topics.at(0).sym() == "host_fn_failed");
+    REQUIRE(hostFnErrorBody.topics.at(1).error() == expectedError);
 
-        auto const& cpuInsnEv = opEvents.at(16);
-        REQUIRE(!cpuInsnEv.inSuccessfulContractCall);
-        REQUIRE(cpuInsnEv.event.type == ContractEventType::DIAGNOSTIC);
-        auto const& cpuInsnEvBody = cpuInsnEv.event.body.v0();
-        REQUIRE(cpuInsnEvBody.topics.size() == 2);
-        REQUIRE(cpuInsnEvBody.topics.at(0).sym() == "core_metrics");
-        REQUIRE(cpuInsnEvBody.topics.at(1).sym() == "cpu_insn");
-        REQUIRE(cpuInsnEvBody.data.type() == SCV_U64);
-        REQUIRE(cpuInsnEvBody.data.u64() >= 1000);
-    }
+    auto const& readEntryEv = opEvents.at(4);
+    REQUIRE(!readEntryEv.inSuccessfulContractCall);
+    REQUIRE(readEntryEv.event.type == ContractEventType::DIAGNOSTIC);
+    auto const& readEntryEvBody = readEntryEv.event.body.v0();
+    REQUIRE(readEntryEvBody.topics.size() == 2);
+    REQUIRE(readEntryEvBody.topics.at(0).sym() == "core_metrics");
+    REQUIRE(readEntryEvBody.topics.at(1).sym() == "read_entry");
+    REQUIRE(readEntryEvBody.data.type() == SCV_U64);
+    REQUIRE(readEntryEvBody.data.u64() == 2);
 
-    // This test produces a diagnostic event _during validation_, i.e. before
-    // it ever makes it to the soroban host.
-    SECTION("invalid tx")
-    {
-        auto tx = std::dynamic_pointer_cast<TransactionFrame>(
-            addContract
-                .prepareInvocation(
-                    fnName, {sc7, scMax},
-                    invocationSpec.setInstructions(2'000'000'000))
-                .createTx());
-        REQUIRE(!test.isTxValid(tx));
+    auto const& cpuInsnEv = opEvents.at(16);
+    REQUIRE(!cpuInsnEv.inSuccessfulContractCall);
+    REQUIRE(cpuInsnEv.event.type == ContractEventType::DIAGNOSTIC);
+    auto const& cpuInsnEvBody = cpuInsnEv.event.body.v0();
+    REQUIRE(cpuInsnEvBody.topics.size() == 2);
+    REQUIRE(cpuInsnEvBody.topics.at(0).sym() == "core_metrics");
+    REQUIRE(cpuInsnEvBody.topics.at(1).sym() == "cpu_insn");
+    REQUIRE(cpuInsnEvBody.data.type() == SCV_U64);
+    REQUIRE(cpuInsnEvBody.data.u64() >= 1000);
+}
 
-        auto const& diagEvents = tx->getDiagnosticEvents();
-        REQUIRE(diagEvents.size() == 1);
+TEST_CASE("transaction validation diagnostics", "[tx][soroban]")
+{
+    auto cfg = getTestConfig();
+    cfg.ENABLE_DIAGNOSTICS_FOR_TX_SUBMISSION = true;
+    SorobanTest test(cfg);
+    auto& addContract =
+        test.deployWasmContract(rust_bridge::get_test_wasm_add_i32());
+    auto fnName = "add";
+    auto sc7 = makeI32(7);
+    auto scMax = makeI32(INT32_MAX);
+    auto invocationSpec =
+        SorobanInvocationSpec().setInstructions(2'000'000).setReadBytes(2000);
+    auto tx = std::dynamic_pointer_cast<TransactionFrame>(
+        addContract
+            .prepareInvocation(fnName, {sc7, scMax},
+                               invocationSpec.setInstructions(2'000'000'000))
+            .createTx());
+    REQUIRE(!test.isTxValid(tx));
 
-        DiagnosticEvent const& diag_ev = diagEvents.at(0);
-        LOG_INFO(DEFAULT_LOG, "event 0: {}", xdr::xdr_to_string(diag_ev));
-        REQUIRE(!diag_ev.inSuccessfulContractCall);
-        REQUIRE(diag_ev.event.type == ContractEventType::DIAGNOSTIC);
-        REQUIRE(diag_ev.event.body.v0().topics.at(0).sym() == "error");
-        REQUIRE(diag_ev.event.body.v0().data.vec()->at(0).str().find(
-                    "instructions") != std::string::npos);
-    }
+    auto const& diagEvents = tx->getDiagnosticEvents();
+    REQUIRE(diagEvents.size() == 1);
+
+    DiagnosticEvent const& diag_ev = diagEvents.at(0);
+    LOG_INFO(DEFAULT_LOG, "event 0: {}", xdr::xdr_to_string(diag_ev));
+    REQUIRE(!diag_ev.inSuccessfulContractCall);
+    REQUIRE(diag_ev.event.type == ContractEventType::DIAGNOSTIC);
+    REQUIRE(diag_ev.event.body.v0().topics.at(0).sym() == "error");
+    REQUIRE(diag_ev.event.body.v0().data.vec()->at(0).str().find(
+                "instructions") != std::string::npos);
 }
 
 TEST_CASE("contract errors cause transaction to fail", "[tx][soroban]")

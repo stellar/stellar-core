@@ -470,8 +470,21 @@
 		"bKDF6V5IzTo="
 	],
 	"contract storage|footprint|unused readWrite key" : [ "ZKxMUP1fxqo=" ],
-	"failure diagnostics" : [ "bKDF6V5IzTo=", "bKDF6V5IzTo=" ],
+	"failure diagnostics" : [ "bKDF6V5IzTo=" ],
 	"ledger entry size limit enforced" : [ "bKDF6V5IzTo=", "bKDF6V5IzTo=" ],
+	"loadgen Wasm executes properly" : [ "bKDF6V5IzTo=" ],
+	"overly large soroban values are handled gracefully" : 
+	[
+		"bKDF6V5IzTo=",
+		"bKDF6V5IzTo=",
+		"bKDF6V5IzTo=",
+		"bKDF6V5IzTo=",
+		"bKDF6V5IzTo=",
+		"bKDF6V5IzTo=",
+		"bKDF6V5IzTo=",
+		"bKDF6V5IzTo=",
+		"bKDF6V5IzTo="
+	],
 	"refund account merged" : [ "bKDF6V5IzTo=", "y0mODi4DFnM=", "o9mb+GfjtK8=", "HG7OrQT/Ofg=" ],
 	"settings upgrade" : [ "bKDF6V5IzTo=", "bKDF6V5IzTo=" ],
 	"settings upgrade command line utils" : [ "TByXElZpITE=", "TByXElZpITE=", "TByXElZpITE=", "TByXElZpITE=" ],
@@ -505,5 +518,6 @@
 		"bKDF6V5IzTo=",
 		"bKDF6V5IzTo="
 	],
-	"temp entry eviction" : [ "bKDF6V5IzTo=", "bKDF6V5IzTo=" ]
+	"temp entry eviction" : [ "bKDF6V5IzTo=", "bKDF6V5IzTo=" ],
+	"transaction validation diagnostics" : [ "bKDF6V5IzTo=" ]
 }

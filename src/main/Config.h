@@ -557,12 +557,20 @@ class Config : public std::enable_shared_from_this<Config>
     // The default value is false.
     bool HALT_ON_INTERNAL_TRANSACTION_ERROR;
 
-    // If set to true, env will return additional diagnostic Soroban events
-    // that are not part of the protocol. These events will be put into a list
-    // in the non-hashed portion of the meta, and this list will contain all
-    // events so ordering can be maintained between all events. The default
-    // value is false, and this should not be enabled on validators.
+    // If set to true, additional diagnostic Soroban events that are not part
+    // of the protocol will be generated while applying Soroban transactions.
+    // These events will be put into a list in the non-hashed portion of the
+    // meta, and this list will contain all events so ordering can be
+    // maintained between all events. The default value is false, and this
+    // should not be enabled on validators.
     bool ENABLE_SOROBAN_DIAGNOSTIC_EVENTS;
+
+    // If set to true, attach a small diagnostics message in the format of
+    // Soroban diagnostic event to some transaction submission errors (mainly,
+    // `txSOROBAN_INVALID` errors). The diagnostics message is guaranteed to be
+    // small and independent of the user input, so this can be safely enabled
+    // on validators that accept transactions.
+    bool ENABLE_DIAGNOSTICS_FOR_TX_SUBMISSION;
 
     // Override the initial hardcoded MINIMUM_PERSISTENT_ENTRY_LIFETIME
     // for testing.

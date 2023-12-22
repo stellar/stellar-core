@@ -998,7 +998,8 @@ CommandHandler::tx(std::string const& params, std::string& retStr)
                                      1);
                 resultBase64 = decoder::encode_b64(resultBin);
                 root["error"] = resultBase64;
-                if (mApp.getConfig().ENABLE_SOROBAN_DIAGNOSTIC_EVENTS &&
+                if (mApp.getConfig().ENABLE_DIAGNOSTICS_FOR_TX_SUBMISSION &&
+                    transaction->isSoroban() &&
                     !transaction->getDiagnosticEvents().empty())
                 {
                     auto diagsBin =

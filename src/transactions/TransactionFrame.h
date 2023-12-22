@@ -154,6 +154,10 @@ class TransactionFrame : public TransactionFrameBase
                                       SorobanNetworkConfig const& sorobanConfig,
                                       Config const& cfg);
 
+    void pushSimpleDiagnosticError(Config const& cfg, SCErrorType ty,
+                                   SCErrorCode code, std::string&& message,
+                                   xdr::xvector<SCVal>&& args);
+
   public:
     TransactionFrame(Hash const& networkID,
                      TransactionEnvelope const& envelope);
@@ -203,9 +207,13 @@ class TransactionFrame : public TransactionFrameBase
     void pushDiagnosticEvents(xdr::xvector<DiagnosticEvent>&& evts);
     void setReturnValue(SCVal&& returnValue);
     void pushDiagnosticEvent(DiagnosticEvent&& evt);
-    void pushSimpleDiagnosticError(Config const& cfg, SCErrorType ty,
-                                   SCErrorCode code, std::string&& message,
-                                   xdr::xvector<SCVal>&& args = {});
+    void pushApplyTimeDiagnosticError(Config const& cfg, SCErrorType ty,
+                                      SCErrorCode code, std::string&& message,
+                                      xdr::xvector<SCVal>&& args = {});
+    void pushValidationTimeDiagnosticError(Config const& cfg, SCErrorType ty,
+                                           SCErrorCode code,
+                                           std::string&& message,
+                                           xdr::xvector<SCVal>&& args = {});
     xdr::xvector<DiagnosticEvent> const& getDiagnosticEvents() const override;
 
     TransactionEnvelope const& getEnvelope() const override;
