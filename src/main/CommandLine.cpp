@@ -1360,6 +1360,66 @@ getSettingsUpgradeTransactions(CommandLineArgs const& args)
 }
 
 int
+runCheckQuorumIntersection(CommandLineArgs const& args)
+{
+    CommandLine::ConfigOption configOption;
+    std::string jsonPath;
+    return runWithHelp(
+        args,
+        {logLevelParser(configOption.mLogLevel), fileNameParser(jsonPath),
+         consoleParser(configOption.mConsoleLog),
+         clara::Opt{configOption.mConfigFile,
+                    "FILE-NAME"}["--conf"](fmt::format(
+             FMT_STRING("specify a config file to enable human readable "
+                        "node names (optional, '{}' for STDIN)"),
+             Config::STDIN_SPECIAL_NAME))},
+        [&] {
+            try
+            {
+                std::optional<Config> cfg = std::nullopt;
+                if (configOption.mConfigFile.empty())
+                {
+                    // Need to set up logging in this case because there is no
+                    // `getConfig` call (which would otherwise set up logging)
+                    Logging::setLoggingToConsole(true);
+                    Logging::setLogLevel(configOption.mLogLevel, nullptr);
+                }
+                else
+                {
+                    cfg.emplace(configOption.getConfig(true));
+                }
+                if (checkQuorumIntersectionFromJson(jsonPath, cfg))
+                {
+                    CLOG_INFO(SCP, "Network enjoys quorum intersection");
+                    return 0;
+                }
+                else
+                {
+                    CLOG_WARNING(SCP,
+                                 "Network does not enjoy quorum intersection");
+                    return 1;
+                }
+            }
+            catch (KeyUtils::InvalidStrKey const& e)
+            {
+                CLOG_FATAL(
+                    SCP,
+                    "check-quorum-intersection encountered an "
+                    "error: Invalid public key in JSON file. JSON file must be "
+                    "generated with the 'fullkeys' parameter set to 'true'.");
+                return 2;
+            }
+            catch (std::exception const& e)
+            {
+                CLOG_FATAL(SCP,
+                           "check-quorum-intersection encountered an error: {}",
+                           e.what());
+                return 2;
+            }
+        });
+}
+
+int
 runNewHist(CommandLineArgs const& args)
 {
     CommandLine::ConfigOption configOption;
@@ -1803,6 +1863,10 @@ handleCommandLine(int argc, char* const* argv)
           "returns all transactions that need to be submitted to do a settings "
           "upgrade",
           getSettingsUpgradeTransactions},
+         {"check-quorum-intersection",
+          "check that a given network specified as a JSON file enjoys a quorum "
+          "intersection",
+          runCheckQuorumIntersection},
 #ifdef BUILD_TESTS
          {"load-xdr", "load an XDR bucket file, for testing", runLoadXDR},
          {"rebuild-ledger-from-buckets",

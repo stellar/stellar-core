@@ -266,8 +266,9 @@ MinQuorumEnumerator::anyMinQuorumHasDisjointQuorum()
 ////////////////////////////////////////////////////////////////////////////////
 
 QuorumIntersectionCheckerImpl::QuorumIntersectionCheckerImpl(
-    QuorumTracker::QuorumMap const& qmap, Config const& cfg,
-    std::atomic<bool>& interruptFlag, bool quiet)
+    QuorumIntersectionChecker::QuorumSetMap const& qmap,
+    std::optional<Config> const& cfg, std::atomic<bool>& interruptFlag,
+    bool quiet)
     : mCfg(cfg)
     , mLogTrace(Logging::logTrace("SCP"))
     , mQuiet(quiet)
@@ -528,6 +529,22 @@ MinQuorumEnumerator::hasDisjointQuorum(BitSet const& nodes) const
     return !disj.empty();
 }
 
+// Render `id` as a short, human readable string. If `cfg` has a value, this
+// function uses `cfg` to render the string. Otherwise, it returns the first 5
+// hex values `id`.
+std::string
+toShortString(std::optional<Config> const& cfg, NodeID const& id)
+{
+    if (cfg)
+    {
+        return cfg->toShortString(id);
+    }
+    else
+    {
+        return KeyUtils::toShortString(id).substr(0, 5);
+    }
+}
+
 QBitSet
 QuorumIntersectionCheckerImpl::convertSCPQuorumSet(SCPQuorumSet const& sqs)
 {
@@ -563,7 +580,7 @@ QuorumIntersectionCheckerImpl::convertSCPQuorumSet(SCPQuorumSet const& sqs)
             // approximation. The tests referring to "null qsets" differentiate
             // these cases.
             CLOG_DEBUG(SCP, "Depending on node with missing QSet: {}",
-                       mCfg.toShortString(v));
+                       toShortString(mCfg, v));
         }
         else
         {
@@ -580,7 +597,8 @@ QuorumIntersectionCheckerImpl::convertSCPQuorumSet(SCPQuorumSet const& sqs)
 }
 
 void
-QuorumIntersectionCheckerImpl::buildGraph(QuorumTracker::QuorumMap const& qmap)
+QuorumIntersectionCheckerImpl::buildGraph(
+    QuorumIntersectionChecker::QuorumSetMap const& qmap)
 {
     mPubKeyBitNums.clear();
     mBitNumPubKeys.clear();
@@ -588,7 +606,7 @@ QuorumIntersectionCheckerImpl::buildGraph(QuorumTracker::QuorumMap const& qmap)
 
     for (auto const& pair : qmap)
     {
-        if (pair.second.mQuorumSet)
+        if (pair.second)
         {
             size_t n = mBitNumPubKeys.size();
             mPubKeyBitNums.insert(std::make_pair(pair.first, n));
@@ -597,19 +615,19 @@ QuorumIntersectionCheckerImpl::buildGraph(QuorumTracker::QuorumMap const& qmap)
         else
         {
             CLOG_DEBUG(SCP, "Node with missing QSet: {}",
-                       mCfg.toShortString(pair.first));
+                       toShortString(mCfg, pair.first));
         }
     }
 
     for (auto const& pair : qmap)
     {
-        if (pair.second.mQuorumSet)
+        if (pair.second)
         {
             auto i = mPubKeyBitNums.find(pair.first);
             releaseAssert(i != mPubKeyBitNums.end());
             auto nodeNum = i->second;
             releaseAssert(nodeNum == mGraph.size());
-            auto qb = convertSCPQuorumSet(*(pair.second.mQuorumSet));
+            auto qb = convertSCPQuorumSet(*(pair.second));
             qb.log();
             mGraph.emplace_back(qb);
         }
@@ -632,7 +650,7 @@ QuorumIntersectionCheckerImpl::buildSCCs()
 std::string
 QuorumIntersectionCheckerImpl::nodeName(size_t node) const
 {
-    return mCfg.toShortString(mBitNumPubKeys.at(node));
+    return toShortString(mCfg, mBitNumPubKeys.at(node));
 }
 
 bool
@@ -764,7 +782,7 @@ findCriticalityCandidates(SCPQuorumSet const& p,
 }
 
 std::string
-groupString(Config const& cfg, std::set<NodeID> const& group)
+groupString(std::optional<Config> const& cfg, std::set<NodeID> const& group)
 {
     std::ostringstream out;
     bool first = true;
@@ -776,10 +794,21 @@ groupString(Config const& cfg, std::set<NodeID> const& group)
             out << ", ";
         }
         first = false;
-        out << cfg.toShortString(k);
+        out << toShortString(cfg, k);
     }
     out << ']';
     return out.str();
+}
+
+QuorumIntersectionChecker::QuorumSetMap
+toQuorumIntersectionMap(QuorumTracker::QuorumMap const& qmap)
+{
+    QuorumIntersectionChecker::QuorumSetMap ret;
+    for (auto const& elem : qmap)
+    {
+        ret[elem.first] = elem.second.mQuorumSet;
+    }
+    return ret;
 }
 }
 
@@ -787,7 +816,15 @@ namespace stellar
 {
 std::shared_ptr<QuorumIntersectionChecker>
 QuorumIntersectionChecker::create(QuorumTracker::QuorumMap const& qmap,
-                                  Config const& cfg,
+                                  std::optional<Config> const& cfg,
+                                  std::atomic<bool>& interruptFlag, bool quiet)
+{
+    return create(toQuorumIntersectionMap(qmap), cfg, interruptFlag, quiet);
+}
+
+std::shared_ptr<QuorumIntersectionChecker>
+QuorumIntersectionChecker::create(QuorumSetMap const& qmap,
+                                  std::optional<Config> const& cfg,
                                   std::atomic<bool>& interruptFlag, bool quiet)
 {
     return std::make_shared<QuorumIntersectionCheckerImpl>(
@@ -796,7 +833,16 @@ QuorumIntersectionChecker::create(QuorumTracker::QuorumMap const& qmap,
 
 std::set<std::set<NodeID>>
 QuorumIntersectionChecker::getIntersectionCriticalGroups(
-    stellar::QuorumTracker::QuorumMap const& qmap, stellar::Config const& cfg,
+    QuorumTracker::QuorumMap const& qmap, std::optional<Config> const& cfg,
+    std::atomic<bool>& interruptFlag)
+{
+    return getIntersectionCriticalGroups(toQuorumIntersectionMap(qmap), cfg,
+                                         interruptFlag);
+}
+
+std::set<std::set<NodeID>>
+QuorumIntersectionChecker::getIntersectionCriticalGroups(
+    QuorumSetMap const& qmap, std::optional<Config> const& cfg,
     std::atomic<bool>& interruptFlag)
 {
     // We're going to search for "intersection-critical" groups, by considering
@@ -826,13 +872,13 @@ QuorumIntersectionChecker::getIntersectionCriticalGroups(
 
     std::set<std::set<NodeID>> candidates;
     std::set<std::set<NodeID>> critical;
-    QuorumTracker::QuorumMap test_qmap(qmap);
+    QuorumSetMap test_qmap(qmap);
 
     for (auto const& k : qmap)
     {
-        if (k.second.mQuorumSet)
+        if (k.second)
         {
-            findCriticalityCandidates(*(k.second.mQuorumSet), candidates, true);
+            findCriticalityCandidates(*(k.second), candidates, true);
         }
     }
 
@@ -859,8 +905,8 @@ QuorumIntersectionChecker::getIntersectionCriticalGroups(
         {
             for (auto const& d : qmap)
             {
-                if (group.find(d.first) == group.end() && d.second.mQuorumSet &&
-                    pointsToCandidate(*(d.second.mQuorumSet), candidate))
+                if (group.find(d.first) == group.end() && d.second &&
+                    pointsToCandidate(*(d.second), candidate))
                 {
                     pointsToGroup.insert(d.first);
                 }
@@ -879,7 +925,7 @@ QuorumIntersectionChecker::getIntersectionCriticalGroups(
         // Install the fickle qset in every member of the group.
         for (auto const& candidate : group)
         {
-            test_qmap[candidate] = QuorumTracker::NodeInfo{fickleQSet, 0};
+            test_qmap[candidate] = fickleQSet;
         }
 
         // Check to see if this modified config is vulnerable to splitting.

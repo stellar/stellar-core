@@ -100,6 +100,12 @@ class LocalNode
                               std::function<std::string(NodeID const&)> r);
 
     Json::Value toJson(SCPQuorumSet const& qSet, bool fullKeys) const;
+
+    // `fromJson` deserializes the output from `toJson` into an `SCPQuorumSet`.
+    // Throws `std::runtime_error` or `KeyUtils::InvalidStrKey` on malformed
+    // JSON input.
+    static SCPQuorumSet fromJson(Json::Value const& qSetJson);
+
     std::string to_string(SCPQuorumSet const& qSet) const;
 
     static uint64 computeWeight(uint64 m, uint64 total, uint64 threshold);

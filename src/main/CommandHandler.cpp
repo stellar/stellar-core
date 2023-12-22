@@ -1142,7 +1142,7 @@ CommandHandler::surveyTopology(std::string const& params, std::string& retStr)
     auto duration =
         std::chrono::seconds(parseRequiredParam<uint32>(map, "duration"));
     auto idString = parseRequiredParam<std::string>(map, "node");
-    NodeID id = KeyUtils::fromStrKey<PublicKey>(idString);
+    NodeID id = KeyUtils::fromStrKey<NodeID>(idString);
 
     auto& surveyManager = mApp.getOverlayManager().getSurveyManager();
 

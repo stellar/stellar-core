@@ -10,6 +10,7 @@
 #include "crypto/Hex.h"
 #include "database/Database.h"
 #include "herder/Herder.h"
+#include "herder/QuorumIntersectionChecker.h"
 #include "history/HistoryArchive.h"
 #include "history/HistoryArchiveManager.h"
 #include "history/HistoryArchiveReportWork.h"
@@ -23,6 +24,7 @@
 #include "main/PersistentState.h"
 #include "main/StellarCoreVersion.h"
 #include "overlay/OverlayManager.h"
+#include "scp/LocalNode.h"
 #include "util/GlobalChecks.h"
 #include "util/Logging.h"
 #include "util/XDRCereal.h"
@@ -699,6 +701,54 @@ showOfflineInfo(Config cfg, bool verbose)
     cfg.setNoListen();
     Application::pointer app = Application::create(clock, cfg, false);
     app->reportInfo(verbose);
+}
+
+bool
+checkQuorumIntersectionFromJson(std::string const& jsonPath,
+                                std::optional<Config> const& cfg)
+{
+    std::ifstream in(jsonPath);
+    if (!in)
+    {
+        throw std::runtime_error("Could not open file '" + jsonPath + "'");
+    }
+    Json::Reader rdr;
+    Json::Value quorumJson;
+    if (!rdr.parse(in, quorumJson) || !quorumJson.isObject())
+    {
+        throw std::runtime_error("Failed to parse '" + jsonPath +
+                                 "' as a JSON object");
+    }
+
+    Json::Value const& nodesJson = quorumJson["nodes"];
+    if (!nodesJson.isArray())
+    {
+        throw std::runtime_error("JSON field 'nodes' must be an array");
+    }
+
+    QuorumIntersectionChecker::QuorumSetMap qmap;
+    for (Json::Value const& nodeJson : nodesJson)
+    {
+        if (!nodeJson["node"].isString())
+        {
+            throw std::runtime_error("JSON field 'node' must be a string");
+        }
+        NodeID id = KeyUtils::fromStrKey<NodeID>(nodeJson["node"].asString());
+        auto elemPair =
+            qmap.try_emplace(id, std::make_shared<SCPQuorumSet>(
+                                     LocalNode::fromJson(nodeJson["qset"])));
+        if (!elemPair.second)
+        {
+            throw std::runtime_error(
+                "JSON contains multiple nodes with the same 'node' value");
+        }
+    }
+
+    std::atomic<bool> interrupt(false);
+    auto qicPtr =
+        QuorumIntersectionChecker::create(qmap, cfg, interrupt, false);
+
+    return qicPtr->networkEnjoysQuorumIntersection();
 }
 
 #ifdef BUILD_TESTS

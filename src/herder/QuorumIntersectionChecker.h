@@ -7,6 +7,7 @@
 #include "herder/QuorumTracker.h"
 #include <atomic>
 #include <memory>
+#include <optional>
 
 namespace stellar
 {
@@ -16,14 +17,26 @@ class Config;
 class QuorumIntersectionChecker
 {
   public:
+    using QuorumSetMap =
+        stellar::UnorderedMap<stellar::NodeID, stellar::SCPQuorumSetPtr>;
+
     static std::shared_ptr<QuorumIntersectionChecker>
-    create(stellar::QuorumTracker::QuorumMap const& qmap,
-           stellar::Config const& cfg, std::atomic<bool>& interruptFlag,
-           bool quiet = false);
+    create(QuorumTracker::QuorumMap const& qmap,
+           std::optional<stellar::Config> const& cfg,
+           std::atomic<bool>& interruptFlag, bool quiet = false);
+
+    static std::shared_ptr<QuorumIntersectionChecker>
+    create(QuorumSetMap const& qmap, std::optional<stellar::Config> const& cfg,
+           std::atomic<bool>& interruptFlag, bool quiet = false);
 
     static std::set<std::set<NodeID>>
-    getIntersectionCriticalGroups(stellar::QuorumTracker::QuorumMap const& qmap,
-                                  stellar::Config const& cfg,
+    getIntersectionCriticalGroups(QuorumTracker::QuorumMap const& qmap,
+                                  std::optional<stellar::Config> const& cfg,
+                                  std::atomic<bool>& interruptFlag);
+
+    static std::set<std::set<NodeID>>
+    getIntersectionCriticalGroups(QuorumSetMap const& qmap,
+                                  std::optional<stellar::Config> const& cfg,
                                   std::atomic<bool>& interruptFlag);
 
     virtual ~QuorumIntersectionChecker(){};

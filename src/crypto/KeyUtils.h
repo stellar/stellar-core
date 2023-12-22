@@ -75,6 +75,12 @@ toShortString(T const& key)
 
 std::size_t getKeyVersionSize(strKey::StrKeyVersionByte keyVersion);
 
+// An exception representing an invalid string key representation
+struct InvalidStrKey : public std::invalid_argument
+{
+    using std::invalid_argument::invalid_argument;
+};
+
 template <typename T>
 T
 fromStrKey(std::string const& s)
@@ -84,7 +90,7 @@ fromStrKey(std::string const& s)
     std::vector<uint8_t> k;
     if (!strKey::fromStrKey(s, verByte, k))
     {
-        throw std::invalid_argument("bad " + KeyFunctions<T>::getKeyTypeName());
+        throw InvalidStrKey("bad " + KeyFunctions<T>::getKeyTypeName());
     }
 
     strKey::StrKeyVersionByte ver =
@@ -96,7 +102,7 @@ fromStrKey(std::string const& s)
     if (fixedSizeKeyValid || !KeyFunctions<T>::getKeyVersionIsSupported(ver) ||
         s.size() != strKey::getStrKeySize(k.size()))
     {
-        throw std::invalid_argument("bad " + KeyFunctions<T>::getKeyTypeName());
+        throw InvalidStrKey("bad " + KeyFunctions<T>::getKeyTypeName());
     }
 
     key.type(KeyFunctions<T>::toKeyType(ver));

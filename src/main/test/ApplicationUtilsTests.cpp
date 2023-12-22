@@ -659,3 +659,41 @@ TEST_CASE("application major version numbers", "[applicationutils]")
     CHECK(getStellarCoreMajorReleaseVersion("v19.9.0-30-g726eabdea-dirty") ==
           std::nullopt);
 }
+
+TEST_CASE("standalone quorum intersection check", "[applicationutils]")
+{
+    Config cfg = getTestConfig();
+    const std::string JSON_ROOT = "testdata/check-quorum-intersection-json/";
+
+    SECTION("enjoys quorum intersection")
+    {
+        REQUIRE(checkQuorumIntersectionFromJson(
+            JSON_ROOT + "enjoys-intersection.json", cfg));
+    }
+
+    SECTION("does not enjoy quorum intersection")
+    {
+        REQUIRE(!checkQuorumIntersectionFromJson(
+            JSON_ROOT + "no-intersection.json", cfg));
+    }
+
+    SECTION("malformed JSON")
+    {
+        // Test various bad JSON inputs
+
+        // Malformed key
+        REQUIRE_THROWS_AS(
+            checkQuorumIntersectionFromJson(JSON_ROOT + "bad-key.json", cfg),
+            KeyUtils::InvalidStrKey);
+
+        // Wrong datatype
+        REQUIRE_THROWS_AS(checkQuorumIntersectionFromJson(
+                              JSON_ROOT + "bad-threshold-type.json", cfg),
+                          std::runtime_error);
+
+        // No such file
+        REQUIRE_THROWS_AS(
+            checkQuorumIntersectionFromJson(JSON_ROOT + "no-file.json", cfg),
+            std::runtime_error);
+    }
+}
