@@ -2485,36 +2485,6 @@ TEST_CASE("settings upgrade command line utils", "[tx][soroban][upgrades]")
 
     auto a1 = root.create("A", startingBalance);
 
-    // Update the snapshot period and close a ledger to update
-    // mAverageBucketListSize
-    app->getLedgerManager()
-        .getMutableSorobanNetworkConfig()
-        .setBucketListSnapshotPeriodForTesting(1);
-    closeLedger(*app);
-
-    // Update bucketListTargetSizeBytes so bucketListWriteFeeGrowthFactor comes
-    // into play
-    auto const& blSize = app->getLedgerManager()
-                             .getSorobanNetworkConfig()
-                             .getAverageBucketListSize();
-    {
-        LedgerTxn ltx(app->getLedgerTxnRoot());
-        auto costKey = configSettingKey(
-            ConfigSettingID::CONFIG_SETTING_CONTRACT_LEDGER_COST_V0);
-
-        auto costEntry = ltx.load(costKey);
-        costEntry.current()
-            .data.configSetting()
-            .contractLedgerCost()
-            .bucketListTargetSizeBytes = blSize * .95;
-        costEntry.current()
-            .data.configSetting()
-            .contractLedgerCost()
-            .bucketListWriteFeeGrowthFactor = 1000;
-        ltx.commit();
-        closeLedger(*app);
-    }
-
     std::vector<TransactionEnvelope> txsToSign;
 
     auto uploadRes =
@@ -2767,6 +2737,36 @@ TEST_CASE("settings upgrade command line utils", "[tx][soroban][upgrades]")
     txsToSign.emplace_back(invokeRes.first);
     auto const& upgradeSetKey = invokeRes.second;
 
+    // Update the snapshot period and close a ledger to update
+    // mAverageBucketListSize
+    app->getLedgerManager()
+        .getMutableSorobanNetworkConfig()
+        .setBucketListSnapshotPeriodForTesting(1);
+    closeLedger(*app);
+
+    // Update bucketListTargetSizeBytes so bucketListWriteFeeGrowthFactor comes
+    // into play
+    auto const& blSize = app->getLedgerManager()
+                             .getSorobanNetworkConfig()
+                             .getAverageBucketListSize();
+    {
+        LedgerTxn ltx(app->getLedgerTxnRoot());
+        auto costKey = configSettingKey(
+            ConfigSettingID::CONFIG_SETTING_CONTRACT_LEDGER_COST_V0);
+
+        auto costEntry = ltx.load(costKey);
+        costEntry.current()
+            .data.configSetting()
+            .contractLedgerCost()
+            .bucketListTargetSizeBytes = blSize * .95;
+        costEntry.current()
+            .data.configSetting()
+            .contractLedgerCost()
+            .bucketListWriteFeeGrowthFactor = 1000;
+        ltx.commit();
+        closeLedger(*app);
+    }
+
     for (auto& txEnv : txsToSign)
     {
         txEnv.v1().signatures.emplace_back(SignatureUtils::sign(
@@ -2871,6 +2871,28 @@ TEST_CASE("settings upgrade command line utils", "[tx][soroban][upgrades]")
         checkSettings(initialEntries);
     }
 
+    // The rest are failure tests, so flip back our cost overrides so we can
+    // check that the initial settings haven't changed.
+    {
+        LedgerTxn ltx(app->getLedgerTxnRoot());
+        auto costKey = configSettingKey(
+            ConfigSettingID::CONFIG_SETTING_CONTRACT_LEDGER_COST_V0);
+
+        auto costEntry = ltx.load(costKey);
+        costEntry.current()
+            .data.configSetting()
+            .contractLedgerCost()
+            .bucketListTargetSizeBytes =
+            InitialSorobanNetworkConfig::BUCKET_LIST_TARGET_SIZE_BYTES;
+        costEntry.current()
+            .data.configSetting()
+            .contractLedgerCost()
+            .bucketListWriteFeeGrowthFactor =
+            InitialSorobanNetworkConfig::BUCKET_LIST_WRITE_FEE_GROWTH_FACTOR;
+        ltx.commit();
+        closeLedger(*app);
+    }
+
     auto const& lcl = lm.getLastClosedLedgerHeader();
 
     // The only readWrite key in the invoke op is the one that writes the
@@ -2945,6 +2967,40 @@ TEST_CASE("settings upgrade command line utils", "[tx][soroban][upgrades]")
         SCVal b(SCV_BYTES);
         b.bytes() = upgradeSetBytes;
         updateBytes(b);
+    }
+
+    SECTION("Invalid ledger cost parameters")
+    {
+        auto costEntryIter =
+            find_if(upgradeSet.updatedEntry.begin(),
+                    upgradeSet.updatedEntry.end(), [](const auto& entry) {
+                        return entry.configSettingID() ==
+                               CONFIG_SETTING_CONTRACT_LEDGER_COST_V0;
+                    });
+
+        SECTION("Invalid bucketListTargetSizeBytes")
+        {
+            // 10GB is too low due to the check in validateConfigUpgradeSet
+            costEntryIter->contractLedgerCost().bucketListTargetSizeBytes =
+                10'000'000'000;
+            REQUIRE_THROWS_AS(
+                getInvokeTx(a1.getPublicKey(), contractCodeLedgerKey,
+                            contractSourceRefLedgerKey, contractID, upgradeSet,
+                            a1.getLastSequenceNumber() + 3),
+                std::runtime_error);
+        }
+
+        SECTION("Invalid bucketListWriteFeeGrowthFactor")
+        {
+            // Value is too high due to the check in validateConfigUpgradeSet
+            costEntryIter->contractLedgerCost().bucketListWriteFeeGrowthFactor =
+                50'001;
+            REQUIRE_THROWS_AS(
+                getInvokeTx(a1.getPublicKey(), contractCodeLedgerKey,
+                            contractSourceRefLedgerKey, contractID, upgradeSet,
+                            a1.getLastSequenceNumber() + 3),
+                std::runtime_error);
+        }
     }
 }
 
