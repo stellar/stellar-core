@@ -138,11 +138,38 @@ getCreateTx(PublicKey const& publicKey, LedgerKey const& contractCodeLedgerKey,
     return {txEnv, contractSourceRefLedgerKey, contractID};
 }
 
+void
+validateConfigUpgradeSet(ConfigUpgradeSet const& upgradeSet)
+{
+    // As of 12/22/2023, this is roughly the size of the buckets. This is used
+    // in a safety check to prevent us from accidentally reducing the target
+    // size to a point where upgrade becomes prohibitively expensive. We also
+    // make sure the growth factor has an upper bound here. This file is just
+    // used by our command line tooling, so we can update this value whenever we
+    // want.
+    static const uint64_t CURRENT_LEDGER_SIZE = 12'500'000'000;
+    for (auto const& entry : upgradeSet.updatedEntry)
+    {
+        if (entry.configSettingID() == CONFIG_SETTING_CONTRACT_LEDGER_COST_V0)
+        {
+            if (entry.contractLedgerCost().bucketListTargetSizeBytes <
+                    CURRENT_LEDGER_SIZE * .95 ||
+                entry.contractLedgerCost().bucketListWriteFeeGrowthFactor >
+                    50'000)
+            {
+                throw std::runtime_error("Invalid contractLedgerCost");
+            }
+        }
+    }
+}
+
 std::pair<TransactionEnvelope, ConfigUpgradeSetKey>
 getInvokeTx(PublicKey const& publicKey, LedgerKey const& contractCodeLedgerKey,
             LedgerKey const& contractSourceRefLedgerKey, Hash const& contractID,
             ConfigUpgradeSet const& upgradeSet, SequenceNumber seqNum)
 {
+
+    validateConfigUpgradeSet(upgradeSet);
 
     TransactionEnvelope txEnv;
     txEnv.type(ENVELOPE_TYPE_TX);
