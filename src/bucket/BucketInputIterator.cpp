@@ -124,4 +124,11 @@ BucketInputIterator::operator++()
     }
     return *this;
 }
+
+void
+BucketInputIterator::seek(std::streamoff offset)
+{
+    mIn.seek(offset);
+    loadEntry();
+}
 }

@@ -31,13 +31,15 @@ class ApplyBucketsWork : public Work
     size_t mAppliedSize{0};
     size_t mLastAppliedSizeMb{0};
     size_t mLastPos{0};
+    bool const mOffersOnly;
     uint32_t mLevel{0};
     uint32_t mMaxProtocolVersion{0};
     uint32_t mMinProtocolVersionSeen{UINT32_MAX};
-    std::shared_ptr<Bucket const> mSnapBucket;
-    std::shared_ptr<Bucket const> mCurrBucket;
-    std::unique_ptr<BucketApplicator> mSnapApplicator;
-    std::unique_ptr<BucketApplicator> mCurrApplicator;
+    std::shared_ptr<Bucket const> mFirstBucket;
+    std::shared_ptr<Bucket const> mSecondBucket;
+    std::unique_ptr<BucketApplicator> mFirstBucketApplicator;
+    std::unique_ptr<BucketApplicator> mSecondBucketApplicator;
+    UnorderedSet<LedgerKey> mSeenKeys;
 
     BucketApplicator::Counters mCounters;
 
@@ -48,6 +50,10 @@ class ApplyBucketsWork : public Work
     bool isLevelComplete();
 
     bool mDelayChecked{false};
+
+    static uint32_t startingLevel(bool offersOnly);
+    uint32_t nextLevel() const;
+    bool appliedAllLevels() const;
 
   public:
     ApplyBucketsWork(

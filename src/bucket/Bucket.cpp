@@ -322,13 +322,15 @@ Bucket::apply(Application& app) const
 {
     ZoneScoped;
 
+    UnorderedSet<LedgerKey> emptySet;
     BucketApplicator applicator(
         app, app.getConfig().LEDGER_PROTOCOL_VERSION,
         0 /*set to 0 so we always load from the parent to check state*/,
         0 /*set to a level that's not the bottom so we don't treat live entries
              as init*/
         ,
-        shared_from_this(), [](LedgerEntryType) { return true; });
+        shared_from_this(), [](LedgerEntryType) { return true; },
+        /*newOffersOnly=*/app.getConfig().isUsingBucketListDB(), emptySet);
     BucketApplicator::Counters counters(app.getClock().now());
     while (applicator)
     {

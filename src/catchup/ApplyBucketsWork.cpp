@@ -50,6 +50,31 @@ class TempLedgerVersionSetter : NonMovableOrCopyable
     }
 };
 
+uint32_t
+ApplyBucketsWork::startingLevel(bool offersOnly)
+{
+    return offersOnly ? 0 : BucketList::kNumLevels - 1;
+}
+
+bool
+ApplyBucketsWork::appliedAllLevels() const
+{
+    if (mOffersOnly)
+    {
+        return mLevel == BucketList::kNumLevels - 1;
+    }
+    else
+    {
+        return mLevel == 0;
+    }
+}
+
+uint32_t
+ApplyBucketsWork::nextLevel() const
+{
+    return mOffersOnly ? mLevel + 1 : mLevel - 1;
+}
+
 ApplyBucketsWork::ApplyBucketsWork(
     Application& app,
     std::map<std::string, std::shared_ptr<Bucket>> const& buckets,
@@ -61,7 +86,8 @@ ApplyBucketsWork::ApplyBucketsWork(
     , mEntryTypeFilter(onlyApply)
     , mApplying(false)
     , mTotalSize(0)
-    , mLevel(BucketList::kNumLevels - 1)
+    , mOffersOnly(app.getConfig().isUsingBucketListDB())
+    , mLevel(startingLevel(mOffersOnly))
     , mMaxProtocolVersion(maxProtocolVersion)
     , mCounters(app.getClock().now())
 {
@@ -107,6 +133,15 @@ ApplyBucketsWork::doReset()
     mLastAppliedSizeMb = 0;
     mLastPos = 0;
     mMinProtocolVersionSeen = UINT32_MAX;
+    mSeenKeys.clear();
+
+    if (mOffersOnly)
+    {
+        // The current size of this set is 1.6 million during BucketApply (as of
+        // 12/20/23). There's not a great way to estimate this, so reserving
+        // with some extra wiggle room
+        mSeenKeys.reserve(2'000'000);
+    }
 
     if (!isAborting())
     {
@@ -153,17 +188,31 @@ ApplyBucketsWork::doReset()
         mApp.getLedgerTxnRoot().prepareNewObjects(totalLECount);
     }
 
-    mLevel = BucketList::kNumLevels - 1;
+    mLevel = startingLevel(mOffersOnly);
     mApplying = false;
     mDelayChecked = false;
     mSpawnedAssumeStateWork = false;
 
-    mSnapBucket.reset();
-    mCurrBucket.reset();
-    mSnapApplicator.reset();
-    mCurrApplicator.reset();
+    mFirstBucket.reset();
+    mSecondBucket.reset();
+    mFirstBucketApplicator.reset();
+    mSecondBucketApplicator.reset();
 }
 
+// We iterate through the BucketList either in-order (level 0 curr, level 0
+// snap, level 1 curr, etc) when only applying offers, or in reverse order
+// (level 9 curr, level 8 snap, level 8 curr, etc) when applying all entry
+// types. When only applying offers, we keep track of the keys we have already
+// seen, and only apply an entry to the DB if it has not been seen before. This
+// allows us to perform a single write to the DB and ensure that only the newest
+// version is written.
+//
+// When applying all entry types, this seen keys set would be too large. Since
+// there can be no seen keys set, if we were to apply every entry in order, we
+// would overwrite the newest version of an entry with an older version as we
+// iterate through the BucketList. Due to this, we iterate in reverse order such
+// that the newest version of a key is written last, overwriting the older
+// versions. This is much slower due to DB churn.
 void
 ApplyBucketsWork::startLevel()
 {
@@ -174,31 +223,54 @@ ApplyBucketsWork::startLevel()
     auto& level = getBucketLevel(mLevel);
     HistoryStateBucket const& i = mApplyState.currentBuckets.at(mLevel);
 
-    bool applySnap = (i.snap != binToHex(level.getSnap()->getHash()));
-    bool applyCurr = (i.curr != binToHex(level.getCurr()->getHash()));
+    bool applyFirst = mOffersOnly
+                          ? (i.curr != binToHex(level.getCurr()->getHash()))
+                          : (i.snap != binToHex(level.getSnap()->getHash()));
+    bool applySecond = mOffersOnly
+                           ? (i.snap != binToHex(level.getSnap()->getHash()))
+                           : (i.curr != binToHex(level.getCurr()->getHash()));
 
-    if (mApplying || applySnap)
+    if (mApplying || applyFirst)
     {
-        mSnapBucket = getBucket(i.snap);
+        mFirstBucket = getBucket(mOffersOnly ? i.curr : i.snap);
         mMinProtocolVersionSeen = std::min(
-            mMinProtocolVersionSeen, Bucket::getBucketVersion(mSnapBucket));
-        mSnapApplicator = std::make_unique<BucketApplicator>(
+            mMinProtocolVersionSeen, Bucket::getBucketVersion(mFirstBucket));
+        mFirstBucketApplicator = std::make_unique<BucketApplicator>(
             mApp, mMaxProtocolVersion, mMinProtocolVersionSeen, mLevel,
-            mSnapBucket, mEntryTypeFilter);
-        CLOG_DEBUG(History, "ApplyBuckets : starting level[{}].snap = {}",
-                   mLevel, i.snap);
+            mFirstBucket, mEntryTypeFilter, mOffersOnly, mSeenKeys);
+
+        if (mOffersOnly)
+        {
+            CLOG_DEBUG(History, "ApplyBuckets : starting level[{}].curr = {}",
+                       mLevel, i.curr);
+        }
+        else
+        {
+            CLOG_DEBUG(History, "ApplyBuckets : starting level[{}].snap = {}",
+                       mLevel, i.snap);
+        }
+
         mApplying = true;
     }
-    if (mApplying || applyCurr)
+    if (mApplying || applySecond)
     {
-        mCurrBucket = getBucket(i.curr);
+        mSecondBucket = getBucket(mOffersOnly ? i.snap : i.curr);
         mMinProtocolVersionSeen = std::min(
-            mMinProtocolVersionSeen, Bucket::getBucketVersion(mCurrBucket));
-        mCurrApplicator = std::make_unique<BucketApplicator>(
+            mMinProtocolVersionSeen, Bucket::getBucketVersion(mSecondBucket));
+        mSecondBucketApplicator = std::make_unique<BucketApplicator>(
             mApp, mMaxProtocolVersion, mMinProtocolVersionSeen, mLevel,
-            mCurrBucket, mEntryTypeFilter);
-        CLOG_DEBUG(History, "ApplyBuckets : starting level[{}].curr = {}",
-                   mLevel, i.curr);
+            mSecondBucket, mEntryTypeFilter, mOffersOnly, mSeenKeys);
+
+        if (mOffersOnly)
+        {
+            CLOG_DEBUG(History, "ApplyBuckets : starting level[{}].snap = {}",
+                       mLevel, i.snap);
+        }
+        else
+        {
+            CLOG_DEBUG(History, "ApplyBuckets : starting level[{}].curr = {}",
+                       mLevel, i.curr);
+        }
         mApplying = true;
     }
 }
@@ -232,45 +304,47 @@ ApplyBucketsWork::doWork()
         }
 
         // The structure of these if statements is motivated by the following:
-        // 1. mCurrApplicator should never be advanced if mSnapApplicator is
-        //    not false. Otherwise it is possible for curr to modify the
-        //    database when the invariants for snap are checked.
-        // 2. There is no reason to advance mSnapApplicator or mCurrApplicator
-        //    if there is nothing to be applied.
-        if (mSnapApplicator)
+        // 1. mSecondBucketApplicator should never be advanced if
+        //    mFirstBucketApplicator is not false. Otherwise it is possible for
+        //    second bucket to modify the database when the invariants for first
+        //    bucket are checked.
+        // 2. There is no reason to advance mFirstBucketApplicator or
+        //    mSecondBucketApplicator  if there is nothing to be applied.
+        if (mFirstBucketApplicator)
         {
             TempLedgerVersionSetter tlvs(mApp, mMaxProtocolVersion);
-            if (*mSnapApplicator)
+            if (*mFirstBucketApplicator)
             {
-                advance("snap", *mSnapApplicator);
+                advance(mOffersOnly ? "curr" : "snap", *mFirstBucketApplicator);
                 return State::WORK_RUNNING;
             }
             mApp.getInvariantManager().checkOnBucketApply(
-                mSnapBucket, mApplyState.currentLedger, mLevel, false,
+                mFirstBucket, mApplyState.currentLedger, mLevel, false,
                 mEntryTypeFilter);
-            mSnapApplicator.reset();
-            mSnapBucket.reset();
+            mFirstBucketApplicator.reset();
+            mFirstBucket.reset();
             mApp.getCatchupManager().bucketsApplied();
         }
-        if (mCurrApplicator)
+        if (mSecondBucketApplicator)
         {
             TempLedgerVersionSetter tlvs(mApp, mMaxProtocolVersion);
-            if (*mCurrApplicator)
+            if (*mSecondBucketApplicator)
             {
-                advance("curr", *mCurrApplicator);
+                advance(mOffersOnly ? "snap" : "curr",
+                        *mSecondBucketApplicator);
                 return State::WORK_RUNNING;
             }
             mApp.getInvariantManager().checkOnBucketApply(
-                mCurrBucket, mApplyState.currentLedger, mLevel, true,
+                mSecondBucket, mApplyState.currentLedger, mLevel, true,
                 mEntryTypeFilter);
-            mCurrApplicator.reset();
-            mCurrBucket.reset();
+            mSecondBucketApplicator.reset();
+            mSecondBucket.reset();
             mApp.getCatchupManager().bucketsApplied();
         }
 
-        if (mLevel != 0)
+        if (!appliedAllLevels())
         {
-            --mLevel;
+            mLevel = nextLevel();
             CLOG_DEBUG(History, "ApplyBuckets : starting next level: {}",
                        mLevel);
             return State::WORK_RUNNING;
@@ -333,7 +407,7 @@ ApplyBucketsWork::advance(std::string const& bucketName,
 bool
 ApplyBucketsWork::isLevelComplete()
 {
-    return !(mApplying) || !(mSnapApplicator || mCurrApplicator);
+    return !(mApplying) || !(mFirstBucketApplicator || mSecondBucketApplicator);
 }
 
 std::string

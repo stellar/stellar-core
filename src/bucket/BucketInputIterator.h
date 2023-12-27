@@ -54,5 +54,6 @@ class BucketInputIterator
 
     size_t pos();
     size_t size() const;
+    void seek(std::streamoff offset);
 };
 }
