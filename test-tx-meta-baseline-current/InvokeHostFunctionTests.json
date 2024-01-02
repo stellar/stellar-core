@@ -487,7 +487,15 @@
 	],
 	"refund account merged" : [ "bKDF6V5IzTo=", "y0mODi4DFnM=", "o9mb+GfjtK8=", "HG7OrQT/Ofg=" ],
 	"settings upgrade" : [ "bKDF6V5IzTo=", "bKDF6V5IzTo=" ],
-	"settings upgrade command line utils" : [ "TByXElZpITE=", "TByXElZpITE=", "TByXElZpITE=", "TByXElZpITE=" ],
+	"settings upgrade command line utils" : 
+	[
+		"TByXElZpITE=",
+		"TByXElZpITE=",
+		"TByXElZpITE=",
+		"TByXElZpITE=",
+		"TByXElZpITE=",
+		"TByXElZpITE="
+	],
 	"state archival" : 
 	[
 		"bKDF6V5IzTo=",

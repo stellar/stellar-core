@@ -15,7 +15,7 @@ getUploadTx(PublicKey const& publicKey, SequenceNumber seqNum)
 
     auto& tx = txEnv.v1().tx;
     tx.sourceAccount = toMuxedAccount(publicKey);
-    tx.fee = 10'000'000;
+    tx.fee = 50'000'000;
     tx.seqNum = seqNum;
 
     Preconditions cond;
@@ -49,7 +49,7 @@ getUploadTx(PublicKey const& publicKey, SequenceNumber seqNum)
 
     tx.ext.v(1);
     tx.ext.sorobanData().resources = uploadResources;
-    tx.ext.sorobanData().resourceFee = 4'000'000;
+    tx.ext.sorobanData().resourceFee = 35'000'000;
 
     return {txEnv, contractCodeLedgerKey};
 }
@@ -63,7 +63,7 @@ getCreateTx(PublicKey const& publicKey, LedgerKey const& contractCodeLedgerKey,
 
     auto& tx = txEnv.v1().tx;
     tx.sourceAccount = toMuxedAccount(publicKey);
-    tx.fee = 2'000'000;
+    tx.fee = 5'000'000;
     tx.seqNum = seqNum;
 
     Preconditions cond;
@@ -133,9 +133,34 @@ getCreateTx(PublicKey const& publicKey, LedgerKey const& contractCodeLedgerKey,
 
     tx.ext.v(1);
     tx.ext.sorobanData().resources = uploadResources;
-    tx.ext.sorobanData().resourceFee = 1'000'000;
+    tx.ext.sorobanData().resourceFee = 3'000'000;
 
     return {txEnv, contractSourceRefLedgerKey, contractID};
+}
+
+void
+validateConfigUpgradeSet(ConfigUpgradeSet const& upgradeSet)
+{
+    // As of 12/22/2023, this is roughly the size of the buckets. This is used
+    // in a safety check to prevent us from accidentally reducing the target
+    // size to a point where upgrade becomes prohibitively expensive. We also
+    // make sure the growth factor has an upper bound here. This file is just
+    // used by our command line tooling, so we can update this value whenever we
+    // want.
+    static const uint64_t CURRENT_LEDGER_SIZE = 12'500'000'000;
+    for (auto const& entry : upgradeSet.updatedEntry)
+    {
+        if (entry.configSettingID() == CONFIG_SETTING_CONTRACT_LEDGER_COST_V0)
+        {
+            if (entry.contractLedgerCost().bucketListTargetSizeBytes <
+                    CURRENT_LEDGER_SIZE * .95 ||
+                entry.contractLedgerCost().bucketListWriteFeeGrowthFactor >
+                    50'000)
+            {
+                throw std::runtime_error("Invalid contractLedgerCost");
+            }
+        }
+    }
 }
 
 std::pair<TransactionEnvelope, ConfigUpgradeSetKey>
@@ -144,12 +169,14 @@ getInvokeTx(PublicKey const& publicKey, LedgerKey const& contractCodeLedgerKey,
             ConfigUpgradeSet const& upgradeSet, SequenceNumber seqNum)
 {
 
+    validateConfigUpgradeSet(upgradeSet);
+
     TransactionEnvelope txEnv;
     txEnv.type(ENVELOPE_TYPE_TX);
 
     auto& tx = txEnv.v1().tx;
     tx.sourceAccount = toMuxedAccount(publicKey);
-    tx.fee = 1'000'000;
+    tx.fee = 100'000'000;
     tx.seqNum = seqNum;
 
     Preconditions cond;
@@ -200,7 +227,7 @@ getInvokeTx(PublicKey const& publicKey, LedgerKey const& contractCodeLedgerKey,
 
     tx.ext.v(1);
     tx.ext.sorobanData().resources = invokeResources;
-    tx.ext.sorobanData().resourceFee = 500'000;
+    tx.ext.sorobanData().resourceFee = 65'000'000;
 
     ConfigUpgradeSetKey key;
     key.contentHash = upgradeHash;
