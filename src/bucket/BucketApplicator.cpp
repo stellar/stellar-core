@@ -23,7 +23,7 @@ BucketApplicator::BucketApplicator(Application& app,
                                    std::shared_ptr<Bucket const> bucket,
                                    std::function<bool(LedgerEntryType)> filter,
                                    bool newOffersOnly,
-                                   UnorderedSet<LedgerKey> seenKeys)
+                                   UnorderedSet<LedgerKey>& seenKeys)
     : mApp(app)
     , mMaxProtocolVersion(maxProtocolVersion)
     , mMinProtocolVersionSeen(minProtocolVersionSeen)
@@ -42,7 +42,7 @@ BucketApplicator::BucketApplicator(Application& app,
             protocolVersion, mMaxProtocolVersion));
     }
 
-    if (newOffersOnly)
+    if (newOffersOnly && !bucket->isEmpty())
     {
         releaseAssertOrThrow(mApp.getConfig().isUsingBucketListDB());
         auto [lowOffset, highOffset] = bucket->getOfferRange();

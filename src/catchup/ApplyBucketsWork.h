@@ -24,6 +24,8 @@ class ApplyBucketsWork : public Work
 
     bool mApplying{false};
     bool mSpawnedAssumeStateWork{false};
+    bool mSpawnedIndexBucketsWork{false};
+    bool mFinishedIndexBucketsWork{false};
     size_t mTotalBuckets{0};
     size_t mAppliedBuckets{0};
     size_t mAppliedEntries{0};
@@ -40,11 +42,12 @@ class ApplyBucketsWork : public Work
     std::unique_ptr<BucketApplicator> mFirstBucketApplicator;
     std::unique_ptr<BucketApplicator> mSecondBucketApplicator;
     UnorderedSet<LedgerKey> mSeenKeys;
+    std::vector<std::shared_ptr<Bucket>> mBucketsToIndex;
 
     BucketApplicator::Counters mCounters;
 
     void advance(std::string const& name, BucketApplicator& applicator);
-    std::shared_ptr<Bucket const> getBucket(std::string const& bucketHash);
+    std::shared_ptr<Bucket> getBucket(std::string const& bucketHash);
     BucketLevel& getBucketLevel(uint32_t level);
     void startLevel();
     bool isLevelComplete();

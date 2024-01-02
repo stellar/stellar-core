@@ -9,6 +9,7 @@
 #include "bucket/BucketManager.h"
 #include "catchup/AssumeStateWork.h"
 #include "catchup/CatchupManager.h"
+#include "catchup/IndexBucketsWork.h"
 #include "crypto/Hex.h"
 #include "crypto/SecretKey.h"
 #include "historywork/Progress.h"
@@ -108,7 +109,7 @@ ApplyBucketsWork::getBucketLevel(uint32_t level)
     return mApp.getBucketManager().getBucketList().getLevel(level);
 }
 
-std::shared_ptr<Bucket const>
+std::shared_ptr<Bucket>
 ApplyBucketsWork::getBucket(std::string const& hash)
 {
     auto i = mBuckets.find(hash);
@@ -134,17 +135,18 @@ ApplyBucketsWork::doReset()
     mLastPos = 0;
     mMinProtocolVersionSeen = UINT32_MAX;
     mSeenKeys.clear();
-
-    if (mOffersOnly)
-    {
-        // The current size of this set is 1.6 million during BucketApply (as of
-        // 12/20/23). There's not a great way to estimate this, so reserving
-        // with some extra wiggle room
-        mSeenKeys.reserve(2'000'000);
-    }
+    mBucketsToIndex.clear();
 
     if (!isAborting())
     {
+        if (mOffersOnly)
+        {
+            // The current size of this set is 1.6 million during BucketApply
+            // (as of 12/20/23). There's not a great way to estimate this, so
+            // reserving with some extra wiggle room
+            mSeenKeys.reserve(2'000'000);
+        }
+
         // When applying buckets with accounts, we have to make sure that the
         // root account has been removed. This comes into play, for example,
         // when applying buckets from genesis the root account already exists.
@@ -164,11 +166,16 @@ ApplyBucketsWork::doReset()
             }
         }
 
-        auto addBucket = [this](std::shared_ptr<Bucket const> const& bucket) {
+        auto addBucket = [this](std::shared_ptr<Bucket> const& bucket) {
             if (bucket->getSize() > 0)
             {
                 mTotalBuckets++;
                 mTotalSize += bucket->getSize();
+            }
+
+            if (mOffersOnly)
+            {
+                mBucketsToIndex.emplace_back(bucket);
             }
         };
 
@@ -280,7 +287,34 @@ ApplyBucketsWork::doWork()
 {
     ZoneScoped;
 
-    // Step 1: apply buckets. Step 2: assume state
+    // Step 1: index buckets. Step 2: apply buckets. Step 3: assume state
+    if (!mSpawnedIndexBucketsWork)
+    {
+        if (mOffersOnly)
+        {
+            addWork<IndexBucketsWork>(mBucketsToIndex);
+        }
+        else
+        {
+            mFinishedIndexBucketsWork = true;
+        }
+
+        mSpawnedIndexBucketsWork = true;
+    }
+
+    if (!mFinishedIndexBucketsWork)
+    {
+        auto status = checkChildrenStatus();
+        if (status == BasicWork::State::WORK_SUCCESS)
+        {
+            mFinishedIndexBucketsWork = true;
+        }
+        else
+        {
+            return status;
+        }
+    }
+
     if (!mSpawnedAssumeStateWork)
     {
         if (mApp.getLedgerManager().rebuildingInMemoryState() && !mDelayChecked)
@@ -319,8 +353,8 @@ ApplyBucketsWork::doWork()
                 return State::WORK_RUNNING;
             }
             mApp.getInvariantManager().checkOnBucketApply(
-                mFirstBucket, mApplyState.currentLedger, mLevel, false,
-                mEntryTypeFilter);
+                mFirstBucket, mApplyState.currentLedger, mLevel,
+                /*isCurr=*/mOffersOnly, mEntryTypeFilter);
             mFirstBucketApplicator.reset();
             mFirstBucket.reset();
             mApp.getCatchupManager().bucketsApplied();
@@ -335,8 +369,8 @@ ApplyBucketsWork::doWork()
                 return State::WORK_RUNNING;
             }
             mApp.getInvariantManager().checkOnBucketApply(
-                mSecondBucket, mApplyState.currentLedger, mLevel, true,
-                mEntryTypeFilter);
+                mSecondBucket, mApplyState.currentLedger, mLevel,
+                /*isCurr=*/!mOffersOnly, mEntryTypeFilter);
             mSecondBucketApplicator.reset();
             mSecondBucket.reset();
             mApp.getCatchupManager().bucketsApplied();
@@ -413,7 +447,9 @@ ApplyBucketsWork::isLevelComplete()
 std::string
 ApplyBucketsWork::getStatus() const
 {
-    if (!mSpawnedAssumeStateWork)
+    // This status string only applies to step 2 when we actually apply the
+    // buckets.
+    if (mFinishedIndexBucketsWork && !mSpawnedAssumeStateWork)
     {
         auto size = mTotalSize == 0 ? 0 : (100 * mAppliedSize / mTotalSize);
         return fmt::format(
