@@ -10,6 +10,7 @@
 #include "test/TxTests.h"
 #include "transactions/InvokeHostFunctionOpFrame.h"
 #include "transactions/TransactionUtils.h"
+#include "xdrpp/printer.h"
 
 namespace stellar
 {
@@ -18,8 +19,30 @@ namespace txtest
 {
 namespace
 {
-// Fee constants from rs-soroban-env/soroban-env-host/src/fees.rs
-constexpr int64_t DATA_SIZE_1KB_INCREMENT_FOR_FEES = 1024;
+SCVal
+signPayloadForClassicAccount(std::vector<TestAccount*> const& signers,
+                             uint256 payload)
+{
+    SCVal signatureStruct(SCV_VEC);
+    auto& signatures = signatureStruct.vec().activate();
+    auto sortedSigners = signers;
+    std::sort(sortedSigners.begin(), sortedSigners.end(),
+              [](TestAccount* a, TestAccount* b) {
+                  return a->getPublicKey() < b->getPublicKey();
+              });
+    for (auto& account : sortedSigners)
+    {
+        SCVal signatureVal(SCV_MAP);
+        signatureVal.map().activate().emplace_back(
+            makeSymbolSCVal("public_key"),
+            makeBytes(account->getPublicKey().ed25519()));
+        auto signature = account->getSecretKey().sign(payload);
+        signatureVal.map().activate().emplace_back(makeSymbolSCVal("signature"),
+                                                   makeBytes(signature));
+        signatures.push_back(signatureVal);
+    }
+    return signatureStruct;
+}
 } // namespace
 
 SCAddress
@@ -31,7 +54,7 @@ makeContractAddress(Hash const& hash)
 }
 
 SCVal
-makeContractAddressSCVal(SCAddress const& address)
+makeAddressSCVal(SCAddress const& address)
 {
     SCVal val(SCValType::SCV_ADDRESS);
     val.address() = address;
@@ -91,25 +114,19 @@ makeU32(uint32_t u32)
 }
 
 SCVal
-makeBytes(SCBytes bytes)
+makeVecSCVal(std::vector<SCVal> elems)
 {
-    SCVal val(SCV_BYTES);
-    val.bytes() = bytes;
+    SCVal val(SCV_VEC);
+    val.vec().activate().assign(elems.begin(), elems.end());
     return val;
 }
 
-SorobanAuthorizationEntry
-getInvocationAuth(InvokeContractArgs const& args)
+SCVal
+makeBool(bool b)
 {
-    SorobanAuthorizedInvocation ai;
-    ai.function.type(SOROBAN_AUTHORIZED_FUNCTION_TYPE_CONTRACT_FN);
-    ai.function.contractFn() = args;
-
-    SorobanAuthorizationEntry a;
-    a.credentials.type(SOROBAN_CREDENTIALS_SOURCE_ACCOUNT);
-    a.rootInvocation = ai;
-
-    return a;
+    SCVal val(SCV_BOOL);
+    val.b() = b;
+    return val;
 }
 
 int64_t
@@ -119,10 +136,8 @@ getContractBalance(Application& app, SCAddress const& contractID,
     LedgerKey balanceKey(CONTRACT_DATA);
     balanceKey.contractData().contract = contractID;
 
-    SCVec balanceVec = {makeSymbolSCVal("Balance"), accountVal};
-    SCVal balanceVal(SCValType::SCV_VEC);
-    balanceVal.vec().activate() = balanceVec;
-    balanceKey.contractData().key = balanceVal;
+    balanceKey.contractData().key =
+        makeVecSCVal({makeSymbolSCVal("Balance"), accountVal});
     balanceKey.contractData().durability = ContractDataDurability::PERSISTENT;
 
     LedgerTxn ltx(app.getLedgerTxnRoot());
@@ -459,6 +474,28 @@ TestContract::prepareInvocation(std::string const& functionName,
     return Invocation(*this, functionName, args, spec, addContractKeys);
 }
 
+void
+TestContract::Invocation::deduplicateFootprint()
+{
+    xdr::xvector<LedgerKey> readOnly;
+    xdr::xvector<LedgerKey> readWrite;
+    UnorderedSet<LedgerKey> keys;
+
+    auto deduplicate = [&](auto const& fp) {
+        for (const auto& key : fp)
+        {
+            if (keys.insert(key).second)
+            {
+                readWrite.push_back(key);
+            }
+        }
+    };
+    deduplicate(mSpec.getResources().footprint.readWrite);
+    deduplicate(mSpec.getResources().footprint.readOnly);
+    mSpec =
+        mSpec.setReadOnlyFootprint(readOnly).setReadWriteFootprint(readWrite);
+}
+
 TestContract::Invocation::Invocation(TestContract const& contract,
                                      std::string const& functionName,
                                      std::vector<SCVal> const& args,
@@ -482,14 +519,84 @@ TestContract::Invocation::Invocation(TestContract const& contract,
 TestContract::Invocation&
 TestContract::Invocation::withAuthorizedTopCall()
 {
-    mOp.body.invokeHostFunctionOp().auth = {getInvocationAuth(
-        mOp.body.invokeHostFunctionOp().hostFunction.invokeContract())};
+    SorobanAuthorizedInvocation ai;
+    ai.function.type(SOROBAN_AUTHORIZED_FUNCTION_TYPE_CONTRACT_FN);
+    ai.function.contractFn() =
+        mOp.body.invokeHostFunctionOp().hostFunction.invokeContract();
+    return withSourceAccountAuthorization(ai);
+}
+
+TestContract::Invocation&
+TestContract::Invocation::withAuthorizedTopCall(SorobanSigner const& signer)
+{
+    SorobanAuthorizedInvocation ai;
+    ai.function.type(SOROBAN_AUTHORIZED_FUNCTION_TYPE_CONTRACT_FN);
+    ai.function.contractFn() =
+        mOp.body.invokeHostFunctionOp().hostFunction.invokeContract();
+    return withAuthorization(ai, signer);
+}
+
+TestContract::Invocation&
+TestContract::Invocation::withAuthorization(
+    SorobanAuthorizedInvocation const& invocation,
+    SorobanCredentials credentials)
+{
+    mOp.body.invokeHostFunctionOp().auth.emplace_back(credentials, invocation);
+    if (credentials.type() ==
+        SorobanCredentialsType::SOROBAN_CREDENTIALS_ADDRESS)
+    {
+        SCVal nonceKey(SCValType::SCV_LEDGER_KEY_NONCE);
+        nonceKey.nonce_key().nonce = credentials.address().nonce;
+        mSpec = mSpec.extendReadWriteFootprint(
+            {contractDataKey(credentials.address().address, nonceKey,
+                             ContractDataDurability::TEMPORARY)});
+    }
     return *this;
+}
+
+TestContract::Invocation&
+TestContract::Invocation::withAuthorization(
+    SorobanAuthorizedInvocation const& invocation, SorobanSigner const& signer)
+{
+    mSpec = mSpec.extendReadOnlyFootprint(signer.getLedgerKeys());
+    return withAuthorization(invocation, signer.sign(invocation));
+}
+
+TestContract::Invocation&
+TestContract::Invocation::withSourceAccountAuthorization(
+    SorobanAuthorizedInvocation const& invocation)
+{
+    SorobanCredentials credentials(SOROBAN_CREDENTIALS_SOURCE_ACCOUNT);
+    return withAuthorization(invocation, credentials);
+}
+
+TestContract::Invocation&
+TestContract::Invocation::withDeduplicatedFootprint()
+{
+    mDeduplicateFootprint = true;
+    return *this;
+}
+
+TestContract::Invocation&
+TestContract::Invocation::withSpec(SorobanInvocationSpec const& spec)
+{
+    mSpec = spec;
+    return *this;
+}
+
+SorobanInvocationSpec
+TestContract::Invocation::getSpec()
+{
+    return mSpec;
 }
 
 TransactionFrameBasePtr
 TestContract::Invocation::createTx(TestAccount* source)
 {
+    if (mDeduplicateFootprint)
+    {
+        deduplicateFootprint();
+    }
     auto& acc = source ? *source : mTest.getRoot();
 
     return sorobanTransactionFrameFromOps(mTest.getApp().getNetworkID(), acc,
@@ -517,13 +624,22 @@ bool
 TestContract::Invocation::invoke(TestAccount* source)
 {
     auto tx = createTx(source);
+    CLOG_INFO(Tx, "invoke tx {}", xdr::xdr_to_string(tx->getEnvelope()));
     mTxMeta.emplace(mTest.getLedgerVersion());
     bool success = mTest.invokeTx(tx, &*mTxMeta);
-    mResultCode = tx->getResult()
-                      .result.results()[0]
-                      .tr()
-                      .invokeHostFunctionResult()
-                      .code();
+    if (tx->getResult().result.code() == txFAILED ||
+        tx->getResult().result.code() == txSUCCESS)
+    {
+        mResultCode = tx->getResult()
+                          .result.results()[0]
+                          .tr()
+                          .invokeHostFunctionResult()
+                          .code();
+    }
+    else
+    {
+        mResultCode = std::nullopt;
+    }
     return success;
 }
 
@@ -541,11 +657,10 @@ TestContract::Invocation::getTxMeta() const
     return *mTxMeta;
 }
 
-InvokeHostFunctionResultCode
+std::optional<InvokeHostFunctionResultCode>
 TestContract::Invocation::getResultCode() const
 {
-    REQUIRE(mResultCode);
-    return *mResultCode;
+    return mResultCode;
 }
 
 SorobanTest::SorobanTest(Config cfg, bool useTestLimits,
@@ -725,7 +840,7 @@ SorobanTest::deployWasmContract(RustBuf const& wasm,
     if (!createResources)
     {
         createResources.emplace();
-        createResources->instructions = 600'000;
+        createResources->instructions = 5'000'000;
         createResources->readBytes = wasm.data.size() + 1000;
         createResources->writeBytes = 1000;
     }
@@ -901,6 +1016,42 @@ SorobanTest::invokeExtendOp(xdr::xvector<LedgerKey> const& readOnly,
     invokeArchivalOp(tx, *expectedRefundableFeeCharged);
 }
 
+SorobanSigner
+SorobanTest::createContractSigner(TestContract const& contract,
+                                  std::function<SCVal(uint256)> signFn)
+{
+    return SorobanSigner(*this, contract.getAddress(), contract.getKeys(),
+                         signFn);
+}
+
+SorobanSigner
+SorobanTest::createClassicAccountSigner(TestAccount const& account,
+                                        std::vector<TestAccount*> signers)
+{
+    xdr::xvector<LedgerKey> accountKeys;
+    // Account key has to be already present in the footprint, but the account
+    // owner doesn't have to be the signer, so add the account key to the
+    // footprint unconditionally.
+    LedgerKey accountKey(LedgerEntryType::ACCOUNT);
+    accountKey.account().accountID = account.getPublicKey();
+    accountKeys.push_back(accountKey);
+    for (const auto& signer : signers)
+    {
+        if (signer->getPublicKey().ed25519() !=
+            account.getPublicKey().ed25519())
+        {
+            LedgerKey signerKey(LedgerEntryType::ACCOUNT);
+            signerKey.account().accountID = signer->getPublicKey();
+            accountKeys.push_back(signerKey);
+        }
+    }
+    return SorobanSigner(*this, makeAccountAddress(account.getPublicKey()),
+                         {accountKey}, [signers](uint256 payload) {
+                             return signPayloadForClassicAccount(signers,
+                                                                 payload);
+                         });
+}
+
 AssetContractTestClient::AssetContractTestClient(SorobanTest& test,
                                                  Asset const& asset)
     : mContract(test.deployAssetContract(asset))
@@ -937,10 +1088,8 @@ AssetContractTestClient::makeContractDataBalanceKey(SCAddress const& addr)
     LedgerKey balanceKey(CONTRACT_DATA);
     balanceKey.contractData().contract = mContract.getAddress();
 
-    SCVec balance = {makeSymbolSCVal("Balance"), val};
-    SCVal balanceVal(SCValType::SCV_VEC);
-    balanceVal.vec().activate() = balance;
-    balanceKey.contractData().key = balanceVal;
+    balanceKey.contractData().key =
+        makeVecSCVal({makeSymbolSCVal("Balance"), val});
     balanceKey.contractData().durability = ContractDataDurability::PERSISTENT;
 
     return balanceKey;
@@ -1289,7 +1438,7 @@ ContractStorageTestClient::put(std::string const& key,
     auto invocation = mContract.prepareInvocation(
         funcStr, {makeSymbolSCVal(key), makeU64SCVal(val)}, *spec);
     invocation.withExactNonRefundableResourceFee().invoke();
-    return invocation.getResultCode();
+    return *invocation.getResultCode();
 }
 
 InvokeHostFunctionResultCode
@@ -1313,7 +1462,7 @@ ContractStorageTestClient::get(std::string const& key,
     {
         REQUIRE(*expectValue == invocation.getReturnValue().u64());
     }
-    return invocation.getResultCode();
+    return *invocation.getResultCode();
 }
 
 InvokeHostFunctionResultCode
@@ -1338,7 +1487,7 @@ ContractStorageTestClient::has(std::string const& key,
     {
         REQUIRE(invocation.getReturnValue().b() == expectHas);
     }
-    return invocation.getResultCode();
+    return *invocation.getResultCode();
 }
 
 InvokeHostFunctionResultCode
@@ -1360,7 +1509,7 @@ ContractStorageTestClient::del(std::string const& key,
     auto invocation =
         mContract.prepareInvocation(funcStr, {makeSymbolSCVal(key)}, *spec);
     invocation.withExactNonRefundableResourceFee().invoke();
-    return invocation.getResultCode();
+    return *invocation.getResultCode();
 }
 
 InvokeHostFunctionResultCode
@@ -1381,7 +1530,7 @@ ContractStorageTestClient::extend(std::string const& key,
         funcStr, {makeSymbolSCVal(key), makeU32(threshold), makeU32(extendTo)},
         *spec);
     invocation.withExactNonRefundableResourceFee().invoke();
-    return invocation.getResultCode();
+    return *invocation.getResultCode();
 }
 
 InvokeHostFunctionResultCode
@@ -1402,7 +1551,103 @@ ContractStorageTestClient::resizeStorageAndExtend(
          makeU32(extendTo)},
         *spec);
     invocation.withExactNonRefundableResourceFee().invoke();
-    return invocation.getResultCode();
+    return *invocation.getResultCode();
+}
+
+SorobanSigner::SorobanSigner(SorobanTest& test, SCAddress const& address,
+                             xdr::xvector<LedgerKey> const& keys,
+                             std::function<SCVal(uint256)> signFn)
+    : mTest(test), mAddress(address), mKeys(keys), mSignFn(signFn)
+{
+}
+
+SorobanCredentials
+SorobanSigner::sign(SorobanAuthorizedInvocation const& invocation) const
+{
+    SorobanCredentials fullCredentials(
+        SorobanCredentialsType::SOROBAN_CREDENTIALS_ADDRESS);
+    auto& credentials = fullCredentials.address();
+    credentials.nonce = uniform_int_distribution<int64_t>()(Catch::rng());
+    credentials.signatureExpirationLedger = mTest.getLedgerSeq() + 10'000;
+    credentials.address = mAddress;
+
+    HashIDPreimage signaturePreimage(
+        EnvelopeType::ENVELOPE_TYPE_SOROBAN_AUTHORIZATION);
+    auto& preimage = signaturePreimage.sorobanAuthorization();
+    preimage.invocation = invocation;
+    preimage.networkID = mTest.getApp().getNetworkID();
+    preimage.nonce = credentials.nonce;
+    preimage.signatureExpirationLedger = credentials.signatureExpirationLedger;
+
+    credentials.signature = mSignFn(xdrSha256(signaturePreimage));
+    return fullCredentials;
+}
+
+SCVal
+SorobanSigner::getAddressVal() const
+{
+    return makeAddressSCVal(mAddress);
+}
+
+xdr::xvector<LedgerKey> const&
+SorobanSigner::getLedgerKeys() const
+{
+    return mKeys;
+}
+
+AuthTestTreeNode::AuthTestTreeNode(SCAddress const& contract)
+    : mContractAddress(contract)
+{
+}
+
+AuthTestTreeNode&
+AuthTestTreeNode::add(std::vector<AuthTestTreeNode> children)
+{
+    mChildren.insert(mChildren.end(), children.begin(), children.end());
+    return *this;
+}
+
+void
+AuthTestTreeNode::setAddress(SCAddress const& address)
+{
+    mContractAddress = address;
+}
+
+SCVal
+AuthTestTreeNode::toSCVal(int addressCount) const
+{
+    std::vector<SCVal> children;
+    for (auto const& child : mChildren)
+    {
+        children.emplace_back(child.toSCVal(addressCount));
+    }
+
+    SCVal node(SCV_MAP);
+    auto& fields = node.map().activate();
+
+    fields.emplace_back(makeSymbolSCVal("children"), makeVecSCVal(children));
+    fields.emplace_back(makeSymbolSCVal("contract"),
+                        makeAddressSCVal(mContractAddress));
+    fields.emplace_back(
+        makeSymbolSCVal("need_auth"),
+        makeVecSCVal(std::vector<SCVal>(addressCount, makeBool(true))));
+    fields.emplace_back(makeSymbolSCVal("try_call"), makeBool(false));
+    return node;
+}
+
+SorobanAuthorizedInvocation
+AuthTestTreeNode::toAuthorizedInvocation() const
+{
+    SorobanAuthorizedInvocation invocation;
+    auto& function = invocation.function.contractFn();
+    function.contractAddress = mContractAddress;
+    function.functionName = makeSymbol("tree_fn");
+
+    for (auto const& child : mChildren)
+    {
+        invocation.subInvocations.emplace_back(child.toAuthorizedInvocation());
+    }
+    return invocation;
 }
 
 } // namespace txtext

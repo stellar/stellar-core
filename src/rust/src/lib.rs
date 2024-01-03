@@ -209,10 +209,14 @@ mod rust_bridge {
         fn get_test_contract_sac_transfer() -> Result<RustBuf>;
         fn get_write_bytes() -> Result<RustBuf>;
 
+        fn get_hostile_large_val_wasm() -> Result<RustBuf>;
+
+        fn get_auth_wasm() -> Result<RustBuf>;
+
+        fn get_custom_account_wasm() -> Result<RustBuf>;
+
         // Utility functions for generating wasms using soroban-synth-wasm.
         fn get_random_wasm(size: usize, seed: u64) -> Result<RustBuf>;
-
-        fn get_hostile_large_val_wasm() -> Result<RustBuf>;
 
         // Return the rustc version used to build this binary.
         fn get_rustc_version() -> String;
@@ -355,6 +359,24 @@ pub(crate) fn get_write_bytes() -> Result<RustBuf, Box<dyn std::error::Error>> {
 pub(crate) fn get_hostile_large_val_wasm() -> Result<RustBuf, Box<dyn std::error::Error>> {
     Ok(RustBuf {
         data: soroban_test_wasms::HOSTILE_LARGE_VALUE
+            .iter()
+            .cloned()
+            .collect(),
+    })
+}
+
+pub(crate) fn get_auth_wasm() -> Result<RustBuf, Box<dyn std::error::Error>> {
+    Ok(RustBuf {
+        data: soroban_test_wasms::AUTH_TEST_CONTRACT
+            .iter()
+            .cloned()
+            .collect(),
+    })
+}
+
+pub(crate) fn get_custom_account_wasm() -> Result<RustBuf, Box<dyn std::error::Error>> {
+    Ok(RustBuf {
+        data: soroban_test_wasms::SIMPLE_ACCOUNT_CONTRACT
             .iter()
             .cloned()
             .collect(),

@@ -266,8 +266,8 @@ TEST_CASE("Trustline stellar asset contract",
 
     auto invocation = transferContract.prepareInvocation(
         "transfer_1",
-        {makeContractAddressSCVal(client.getContract().getAddress()),
-         makeContractAddressSCVal(acc2Addr)},
+        {makeAddressSCVal(client.getContract().getAddress()),
+         makeAddressSCVal(acc2Addr)},
         invocationSpec);
     REQUIRE(invocation.invoke());
 
@@ -350,11 +350,11 @@ TEST_CASE("Native stellar asset contract",
     auto contractToContractSpec = invocationSpec.extendReadWriteFootprint(
         {fromBalanceKey, client.makeBalanceKey(contractAddr)});
     REQUIRE(transferContract
-                .prepareInvocation("transfer_1",
-                                   {makeContractAddressSCVal(
-                                        client.getContract().getAddress()),
-                                    makeContractAddressSCVal(contractAddr)},
-                                   contractToContractSpec)
+                .prepareInvocation(
+                    "transfer_1",
+                    {makeAddressSCVal(client.getContract().getAddress()),
+                     makeAddressSCVal(contractAddr)},
+                    contractToContractSpec)
                 .invoke());
 
     REQUIRE(client.getBalance(transferContract.getAddress()) == 9);
@@ -365,11 +365,11 @@ TEST_CASE("Native stellar asset contract",
     auto contractToAccountSpec = invocationSpec.extendReadWriteFootprint(
         {fromBalanceKey, client.makeBalanceKey(a2Addr)});
     REQUIRE(transferContract
-                .prepareInvocation("transfer_1",
-                                   {makeContractAddressSCVal(
-                                        client.getContract().getAddress()),
-                                    makeContractAddressSCVal(a2Addr)},
-                                   contractToAccountSpec)
+                .prepareInvocation(
+                    "transfer_1",
+                    {makeAddressSCVal(client.getContract().getAddress()),
+                     makeAddressSCVal(a2Addr)},
+                    contractToAccountSpec)
                 .invoke());
 
     REQUIRE(client.getBalance(transferContract.getAddress()) == 8);
@@ -575,6 +575,15 @@ TEST_CASE("basic contract invocation", "[tx][soroban]")
             REQUIRE(failedInvoke(addContract, fnName, {sc7, sc16, makeI32(0)},
                                  invocationSpec) ==
                     INVOKE_HOST_FUNCTION_TRAPPED);
+        }
+        SECTION("malformed parameters")
+        {
+            SCVal badSCVal(SCV_LEDGER_KEY_NONCE);
+            auto invocation = addContract.prepareInvocation(
+                fnName, {sc7, badSCVal}, invocationSpec);
+            REQUIRE(!invocation.invoke());
+            // This is an internal error currently.
+            REQUIRE(invocation.getResultCode() == std::nullopt);
         }
     }
 
@@ -3032,8 +3041,10 @@ TEST_CASE("overly large soroban values are handled gracefully", "[soroban]")
     auto invoke = [&](std::string const& fnName, uint32_t width,
                       uint32_t depth) {
         auto invocation =
-            contract.prepareInvocation(fnName, {makeU32(width), makeU32(depth)},
-                                       spec, /* addContractKeys */ false);
+            contract
+                .prepareInvocation(fnName, {makeU32(width), makeU32(depth)},
+                                   spec)
+                .withDeduplicatedFootprint();
         invocation.invoke();
         return invocation.getResultCode();
     };
@@ -3105,5 +3116,670 @@ TEST_CASE("overly large soroban values are handled gracefully", "[soroban]")
                 InvokeHostFunctionResultCode::INVOKE_HOST_FUNCTION_SUCCESS);
         REQUIRE(invoke("diagnostics", 2, 1000) ==
                 InvokeHostFunctionResultCode::INVOKE_HOST_FUNCTION_SUCCESS);
+    }
+}
+
+TEST_CASE("Soroban classic account authentication", "[soroban]")
+{
+    auto cfg = getTestConfig();
+    cfg.ENABLE_SOROBAN_DIAGNOSTIC_EVENTS = true;
+    SorobanTest test(cfg);
+    auto defaultSpec =
+        SorobanInvocationSpec()
+            .setInstructions(test.getNetworkCfg().txMaxInstructions())
+            .setReadBytes(test.getNetworkCfg().txMaxReadBytes())
+            .setWriteBytes(test.getNetworkCfg().txMaxWriteBytes());
+    TestContract& authContract = test.deployWasmContract(
+        rust_bridge::get_auth_wasm(), defaultSpec.getResources());
+    AuthTestTreeNode singleInvocationTree(authContract.getAddress());
+    auto singleInvocation = [&](SorobanSigner const& signer,
+                                std::optional<SorobanCredentials>
+                                    credentialsOverride = std::nullopt) {
+        auto credentials = credentialsOverride.value_or(
+            signer.sign(singleInvocationTree.toAuthorizedInvocation()));
+
+        auto invocation =
+            authContract
+                .prepareInvocation(
+                    "tree_fn",
+                    {
+                        makeVecSCVal({signer.getAddressVal()}),
+                        singleInvocationTree.toSCVal(1),
+                    },
+                    defaultSpec.extendReadOnlyFootprint(signer.getLedgerKeys()))
+                .withAuthorization(
+                    singleInvocationTree.toAuthorizedInvocation(), credentials);
+        invocation.invoke();
+        return invocation.getResultCode();
+    };
+    auto runAccountTest = [&](TestAccount& account,
+                              std::vector<TestAccount*> signers = {}) {
+        if (signers.empty())
+        {
+            signers = {&account};
+        }
+        auto signer = test.createClassicAccountSigner(account, signers);
+        auto baseCredentials =
+            signer.sign(singleInvocationTree.toAuthorizedInvocation());
+        auto& signatureVec =
+            baseCredentials.address().signature.vec().activate();
+        auto& fieldsMap = signatureVec[0].map().activate();
+        SECTION("success")
+        {
+            REQUIRE(singleInvocation(signer, baseCredentials) ==
+                    InvokeHostFunctionResultCode::INVOKE_HOST_FUNCTION_SUCCESS);
+        }
+        if (signers.size() > 1)
+        {
+            SECTION("wrong signature order")
+            {
+                std::swap(signatureVec[0], signatureVec.back());
+                REQUIRE(
+                    singleInvocation(signer, baseCredentials) ==
+                    InvokeHostFunctionResultCode::INVOKE_HOST_FUNCTION_TRAPPED);
+            }
+        }
+        SECTION("wrong signature type")
+        {
+            baseCredentials.address().signature = SCVal(SCV_VOID);
+            REQUIRE(singleInvocation(signer, baseCredentials) ==
+                    InvokeHostFunctionResultCode::INVOKE_HOST_FUNCTION_TRAPPED);
+        }
+        SECTION("uninitialized vector signature")
+        {
+            baseCredentials.address().signature = SCVal(SCV_VEC);
+            // This fails at tx level due to internal error in env.
+            REQUIRE(singleInvocation(signer, baseCredentials) == std::nullopt);
+        }
+        SECTION("empty vector signature")
+        {
+            SCVal signature(SCV_VEC);
+            signature.vec().activate();
+            baseCredentials.address().signature = signature;
+            REQUIRE(singleInvocation(signer, baseCredentials) ==
+                    InvokeHostFunctionResultCode::INVOKE_HOST_FUNCTION_TRAPPED);
+        }
+        SECTION("uninitialized map")
+        {
+            SCVal signature(SCV_VEC);
+            signature.vec().activate().push_back(SCVal(SCV_MAP));
+            baseCredentials.address().signature = signature;
+            // This fails at tx level due to internal error in env.
+            REQUIRE(singleInvocation(signer, baseCredentials) == std::nullopt);
+        }
+        SECTION("empty map")
+        {
+            SCVal signature(SCV_VEC);
+            SCVal m(SCV_MAP);
+            m.map().activate();
+            signature.vec().activate().push_back(m);
+            baseCredentials.address().signature = signature;
+            REQUIRE(singleInvocation(signer, baseCredentials) ==
+                    InvokeHostFunctionResultCode::INVOKE_HOST_FUNCTION_TRAPPED);
+        }
+        SECTION("missing signature field")
+        {
+            baseCredentials.address()
+                .signature.vec()
+                .activate()[0]
+                .map()
+                .activate()
+                .pop_back();
+            REQUIRE(singleInvocation(signer, baseCredentials) ==
+                    InvokeHostFunctionResultCode::INVOKE_HOST_FUNCTION_TRAPPED);
+        }
+
+        SECTION("missing signature field")
+        {
+            fieldsMap.pop_back();
+            REQUIRE(singleInvocation(signer, baseCredentials) ==
+                    InvokeHostFunctionResultCode::INVOKE_HOST_FUNCTION_TRAPPED);
+        }
+        SECTION("missing key field")
+        {
+            fieldsMap.erase(fieldsMap.begin());
+            REQUIRE(singleInvocation(signer, baseCredentials) ==
+                    InvokeHostFunctionResultCode::INVOKE_HOST_FUNCTION_TRAPPED);
+        }
+        SECTION("wrong key name")
+        {
+            fieldsMap[0].key = makeSymbolSCVal("public_ke");
+            REQUIRE(singleInvocation(signer, baseCredentials) ==
+                    InvokeHostFunctionResultCode::INVOKE_HOST_FUNCTION_TRAPPED);
+        }
+        SECTION("wrong key type")
+        {
+
+            fieldsMap[0].key = makeBytes(std::string("public_key"));
+            REQUIRE(singleInvocation(signer, baseCredentials) ==
+                    InvokeHostFunctionResultCode::INVOKE_HOST_FUNCTION_TRAPPED);
+        }
+        SECTION("wrong signature name")
+        {
+            fieldsMap[1].key = makeSymbolSCVal("ignature");
+            REQUIRE(singleInvocation(signer, baseCredentials) ==
+                    InvokeHostFunctionResultCode::INVOKE_HOST_FUNCTION_TRAPPED);
+        }
+        SECTION("wrong key type")
+        {
+            fieldsMap[1].key = makeBytes(std::string("signature"));
+            REQUIRE(singleInvocation(signer, baseCredentials) ==
+                    InvokeHostFunctionResultCode::INVOKE_HOST_FUNCTION_TRAPPED);
+        }
+        SECTION("incomplete key")
+        {
+            fieldsMap[0].val.bytes().pop_back();
+            REQUIRE(singleInvocation(signer, baseCredentials) ==
+                    InvokeHostFunctionResultCode::INVOKE_HOST_FUNCTION_TRAPPED);
+        }
+        SECTION("incomplete signature")
+        {
+            fieldsMap[1].val.bytes().pop_back();
+            REQUIRE(singleInvocation(signer, baseCredentials) ==
+                    InvokeHostFunctionResultCode::INVOKE_HOST_FUNCTION_TRAPPED);
+        }
+        SECTION("wrong field order")
+        {
+            std::swap(fieldsMap[0], fieldsMap[1]);
+            REQUIRE(singleInvocation(signer, baseCredentials) ==
+                    InvokeHostFunctionResultCode::INVOKE_HOST_FUNCTION_TRAPPED);
+        }
+    };
+
+    auto account = test.getRoot().create(
+        "a1", test.getApp().getLedgerManager().getLastMinBalance(1) * 100);
+    auto signerAccount = test.getRoot().create(
+        "a2", test.getApp().getLedgerManager().getLastMinBalance(1) * 100);
+    auto signerAccount2 = test.getRoot().create(
+        "a3", test.getApp().getLedgerManager().getLastMinBalance(1) * 100);
+    SECTION("default account")
+    {
+        runAccountTest(account);
+    }
+    SECTION("account with weights")
+    {
+        account.setOptions(setMasterWeight(5) | setMedThreshold(5));
+        runAccountTest(account);
+    }
+    SECTION("default account with additional signer")
+    {
+        account.setOptions(
+            setSigner(makeSigner(signerAccount.getSecretKey(), 1)));
+        runAccountTest(account, {&signerAccount});
+        runAccountTest(account, {&account});
+        runAccountTest(account, {&account, &signerAccount});
+    }
+    SECTION("account with weights and additional signer")
+    {
+        account.setOptions(
+            setMedThreshold(10) |
+            setSigner(makeSigner(signerAccount.getSecretKey(), 10)));
+        runAccountTest(account, {&signerAccount});
+        runAccountTest(account, {&account});
+        runAccountTest(account, {&account, &signerAccount});
+    }
+    SECTION("account with required multisig")
+    {
+        account.setOptions(
+            setMedThreshold(30) | setMasterWeight(5) |
+            setSigner(makeSigner(signerAccount.getSecretKey(), 15)));
+        account.setOptions(
+            setSigner(makeSigner(signerAccount2.getSecretKey(), 10)));
+        runAccountTest(account, {&account, &signerAccount, &signerAccount2});
+    }
+
+    SECTION("duplicate signature not allowed with sufficient single signature "
+            "threshold")
+    {
+        REQUIRE(singleInvocation(test.createClassicAccountSigner(
+                    account, {&account, &account})) ==
+                InvokeHostFunctionResultCode::INVOKE_HOST_FUNCTION_TRAPPED);
+    }
+    SECTION("duplicate signature not allowed with insufficient single "
+            "signature threshold")
+    {
+        account.setOptions(setMedThreshold(2));
+        REQUIRE(singleInvocation(test.createClassicAccountSigner(
+                    account, {&account, &account})) ==
+                InvokeHostFunctionResultCode::INVOKE_HOST_FUNCTION_TRAPPED);
+    }
+    SECTION("duplicate signature not allowed with multisig")
+    {
+        account.setOptions(
+            setMedThreshold(4) |
+            setSigner(makeSigner(signerAccount.getSecretKey(), 3)));
+        REQUIRE(singleInvocation(test.createClassicAccountSigner(
+                    account, {&account, &signerAccount, &signerAccount})) ==
+                InvokeHostFunctionResultCode::INVOKE_HOST_FUNCTION_TRAPPED);
+    }
+    SECTION("duplicate signature not allowed with multisig and insufficient "
+            "threshold")
+    {
+        account.setOptions(
+            setMedThreshold(4) |
+            setSigner(makeSigner(signerAccount.getSecretKey(), 2)));
+        REQUIRE(singleInvocation(test.createClassicAccountSigner(
+                    account, {&account, &signerAccount, &signerAccount})) ==
+                InvokeHostFunctionResultCode::INVOKE_HOST_FUNCTION_TRAPPED);
+    }
+    SECTION("account with too high med threshold not authenticated")
+    {
+        account.setOptions(setMedThreshold(2));
+        REQUIRE(singleInvocation(
+                    test.createClassicAccountSigner(account, {&account})) ==
+                InvokeHostFunctionResultCode::INVOKE_HOST_FUNCTION_TRAPPED);
+    }
+    SECTION("account with too low master weight not authenticated")
+    {
+        account.setOptions(setMasterWeight(4) | setMedThreshold(5));
+        REQUIRE(singleInvocation(
+                    test.createClassicAccountSigner(account, {&account})) ==
+                InvokeHostFunctionResultCode::INVOKE_HOST_FUNCTION_TRAPPED);
+    }
+    SECTION("additional signer with insufficient weight not authenticated")
+    {
+        account.setOptions(
+            setMedThreshold(2) |
+            setSigner(makeSigner(signerAccount.getSecretKey(), 1)));
+        REQUIRE(singleInvocation(test.createClassicAccountSigner(
+                    account, {&signerAccount})) ==
+                InvokeHostFunctionResultCode::INVOKE_HOST_FUNCTION_TRAPPED);
+    }
+    SECTION("multiple signers with insufficient weight not authenticated")
+    {
+        account.setOptions(
+            setMedThreshold(5) |
+            setSigner(makeSigner(signerAccount.getSecretKey(), 3)));
+        REQUIRE(singleInvocation(test.createClassicAccountSigner(
+                    account, {&account, &signerAccount})) ==
+                InvokeHostFunctionResultCode::INVOKE_HOST_FUNCTION_TRAPPED);
+    }
+}
+
+TEST_CASE("Soroban custom account authentication", "[soroban]")
+{
+    auto cfg = getTestConfig();
+    cfg.ENABLE_SOROBAN_DIAGNOSTIC_EVENTS = true;
+    SorobanTest test(cfg);
+
+    auto defaultSpec =
+        SorobanInvocationSpec()
+            .setInstructions(test.getNetworkCfg().txMaxInstructions())
+            .setReadBytes(test.getNetworkCfg().txMaxReadBytes())
+            .setWriteBytes(test.getNetworkCfg().txMaxWriteBytes());
+    TestContract& accountContract = test.deployWasmContract(
+        rust_bridge::get_custom_account_wasm(), defaultSpec.getResources());
+    TestContract& authContract = test.deployWasmContract(
+        rust_bridge::get_auth_wasm(), defaultSpec.getResources());
+
+    SCVal ownerKeyVal = makeVecSCVal({makeSymbolSCVal("Owner")});
+    LedgerKey ownerKey = accountContract.getDataKey(
+        ownerKeyVal, ContractDataDurability::PERSISTENT);
+    auto accountInvocationSpec =
+        defaultSpec.extendReadWriteFootprint({ownerKey});
+
+    AuthTestTreeNode singleInvocationTree(authContract.getAddress());
+
+    auto singleInvocation =
+        [&](SorobanSigner const& signer,
+            std::optional<SorobanCredentials> credentialsOverride =
+                std::nullopt) {
+            auto credentials = credentialsOverride.value_or(
+                signer.sign(singleInvocationTree.toAuthorizedInvocation()));
+
+            auto invocation =
+                authContract
+                    .prepareInvocation(
+                        "tree_fn",
+                        {
+                            makeVecSCVal({signer.getAddressVal()}),
+                            singleInvocationTree.toSCVal(1),
+                        },
+                        accountInvocationSpec.extendReadOnlyFootprint(
+                            signer.getLedgerKeys()))
+                    .withAuthorization(
+                        singleInvocationTree.toAuthorizedInvocation(),
+                        credentials);
+            invocation.invoke();
+            return invocation.getResultCode();
+        };
+
+    auto accountSecretKey = SecretKey::pseudoRandomForTesting();
+    REQUIRE(accountContract
+                .prepareInvocation(
+                    "init",
+                    {makeBytes(accountSecretKey.getPublicKey().ed25519())},
+                    accountInvocationSpec)
+                .invoke());
+    auto signWithKey = [&](SecretKey const& key, uint256 payload) {
+        return makeBytes(key.sign(payload));
+    };
+
+    auto signer =
+        test.createContractSigner(accountContract, [&](uint256 payload) {
+            return signWithKey(accountSecretKey, payload);
+        });
+    auto baseCredentials =
+        signer.sign(singleInvocationTree.toAuthorizedInvocation());
+    SECTION("successful authentication")
+    {
+        REQUIRE(singleInvocation(signer, baseCredentials) ==
+                InvokeHostFunctionResultCode::INVOKE_HOST_FUNCTION_SUCCESS);
+    }
+    SECTION("void signature")
+    {
+        baseCredentials.address().signature = SCVal(SCV_VOID);
+        REQUIRE(singleInvocation(signer, baseCredentials) ==
+                InvokeHostFunctionResultCode::INVOKE_HOST_FUNCTION_TRAPPED);
+    }
+    SECTION("wrong signature type")
+    {
+        auto signatureBytes = baseCredentials.address().signature.bytes();
+        baseCredentials.address().signature.type(SCV_STRING);
+        baseCredentials.address().signature.str().assign(signatureBytes.begin(),
+                                                         signatureBytes.end());
+        REQUIRE(singleInvocation(signer, baseCredentials) ==
+                InvokeHostFunctionResultCode::INVOKE_HOST_FUNCTION_TRAPPED);
+    }
+    SECTION("uninitialized vector signature")
+    {
+        baseCredentials.address().signature = SCVal(SCV_VEC);
+        // This fails at tx level due to internal error in env.
+        REQUIRE(singleInvocation(signer, baseCredentials) == std::nullopt);
+    }
+    SECTION("empty bytes signature")
+    {
+        baseCredentials.address().signature.bytes().clear();
+        REQUIRE(singleInvocation(signer, baseCredentials) ==
+                InvokeHostFunctionResultCode::INVOKE_HOST_FUNCTION_TRAPPED);
+    }
+    SECTION("owner change")
+    {
+        auto newAccountSecretKey = SecretKey::pseudoRandomForTesting();
+        auto newSigner =
+            test.createContractSigner(accountContract, [&](uint256 payload) {
+                return signWithKey(newAccountSecretKey, payload);
+            });
+
+        REQUIRE(
+            !accountContract
+                 .prepareInvocation(
+                     "set_owner",
+                     {makeBytes(newAccountSecretKey.getPublicKey().ed25519())},
+                     accountInvocationSpec)
+                 .withAuthorizedTopCall(newSigner)
+                 .withDeduplicatedFootprint()
+                 .invoke());
+        REQUIRE(
+            accountContract
+                .prepareInvocation(
+                    "set_owner",
+                    {makeBytes(newAccountSecretKey.getPublicKey().ed25519())},
+                    accountInvocationSpec)
+                .withAuthorizedTopCall(signer)
+                .withDeduplicatedFootprint()
+                .invoke());
+        REQUIRE(singleInvocation(signer) ==
+                InvokeHostFunctionResultCode::INVOKE_HOST_FUNCTION_TRAPPED);
+        REQUIRE(singleInvocation(newSigner) ==
+                InvokeHostFunctionResultCode::INVOKE_HOST_FUNCTION_SUCCESS);
+    }
+}
+
+TEST_CASE("Soroban authorization", "[soroban]")
+{
+    auto cfg = getTestConfig();
+    cfg.ENABLE_SOROBAN_DIAGNOSTIC_EVENTS = true;
+    SorobanTest test(cfg);
+
+    std::vector<TestContract*> authContracts;
+    auto defaultSpec =
+        SorobanInvocationSpec()
+            .setInstructions(test.getNetworkCfg().txMaxInstructions())
+            .setReadBytes(test.getNetworkCfg().txMaxReadBytes())
+            .setWriteBytes(test.getNetworkCfg().txMaxWriteBytes());
+    auto account = test.getRoot().create(
+        "a1", test.getApp().getLedgerManager().getLastMinBalance(1) * 100);
+
+    auto& accountContract =
+        test.deployWasmContract(rust_bridge::get_custom_account_wasm());
+
+    SCVal ownerKeyVal = makeVecSCVal({makeSymbolSCVal("Owner")});
+    LedgerKey ownerKey = accountContract.getDataKey(
+        ownerKeyVal, ContractDataDurability::PERSISTENT);
+    auto accountInvocationSpec =
+        defaultSpec.extendReadWriteFootprint({ownerKey});
+    auto accountSecretKey = SecretKey::pseudoRandomForTesting();
+    REQUIRE(accountContract
+                .prepareInvocation(
+                    "init",
+                    {makeBytes(accountSecretKey.getPublicKey().ed25519())},
+                    accountInvocationSpec)
+                .invoke());
+
+    auto authContractSpec = accountInvocationSpec;
+    for (int i = 0; i < 4; ++i)
+    {
+        authContracts.emplace_back(&test.deployWasmContract(
+            rust_bridge::get_auth_wasm(), defaultSpec.getResources()));
+        // Only add Wasm once to the footprint.
+        if (i == 0)
+        {
+            authContractSpec = authContractSpec.extendReadOnlyFootprint(
+                {authContracts.back()->getKeys()});
+        }
+        else
+        {
+            authContractSpec = authContractSpec.extendReadOnlyFootprint(
+                {authContracts.back()->getKeys()[1]});
+        }
+    }
+
+    auto authTestsForInvocationTree = [&](std::vector<SorobanSigner> const&
+                                              signers,
+                                          AuthTestTreeNode const& tree) {
+        std::vector<SCVal> signerAddresses;
+        xdr::xvector<LedgerKey> signerKeys;
+        for (auto const& signer : signers)
+        {
+            signerAddresses.emplace_back(signer.getAddressVal());
+        }
+        SCVal addressesArg = makeVecSCVal(signerAddresses);
+
+        auto invocationAuth = tree.toAuthorizedInvocation();
+
+        auto invocation =
+            authContracts[0]
+                ->prepareInvocation("tree_fn",
+                                    {
+                                        addressesArg,
+                                        tree.toSCVal(signers.size()),
+                                    },
+                                    authContractSpec)
+                .withDeduplicatedFootprint();
+        SECTION("no auth")
+        {
+            REQUIRE(!invocation.invoke());
+        }
+        SECTION("incorrect signature payload")
+        {
+            std::vector<SorobanCredentials> credentials;
+            xdr::xvector<LedgerKey> keys;
+
+            auto wrongAuth = invocationAuth;
+            wrongAuth.function.contractFn().functionName = makeSymbol("tree_f");
+            for (size_t i = 0; i < signers.size(); ++i)
+            {
+                auto const& signer = signers[i];
+                credentials.push_back(signer.sign(
+                    i == signers.size() - 1 ? wrongAuth : invocationAuth));
+
+                keys.insert(keys.end(), signer.getLedgerKeys().begin(),
+                            signer.getLedgerKeys().end());
+
+                invocation.withAuthorization(invocationAuth,
+                                             credentials.back());
+            }
+            invocation.withSpec(
+                invocation.getSpec().extendReadOnlyFootprint(keys));
+            REQUIRE(!invocation.invoke());
+        }
+        SECTION("success")
+        {
+            for (auto const& signer : signers)
+            {
+                invocation.withAuthorization(invocationAuth, signer);
+            }
+            REQUIRE(invocation.invoke());
+            // Try to reuse the same nonce and fail
+            REQUIRE(!invocation.invoke());
+        }
+        SECTION("success with duplicate auth entries")
+        {
+            std::vector<SorobanCredentials> credentials;
+            xdr::xvector<LedgerKey> keys;
+            for (int i = 0; i < 2; ++i)
+            {
+                for (auto const& signer : signers)
+                {
+                    credentials.push_back(signer.sign(invocationAuth));
+                    if (i == 0)
+                    {
+                        keys.insert(keys.end(), signer.getLedgerKeys().begin(),
+                                    signer.getLedgerKeys().end());
+                    }
+                    invocation.withAuthorization(invocationAuth,
+                                                 credentials.back());
+                }
+            }
+            invocation.withSpec(
+                invocation.getSpec().extendReadOnlyFootprint(keys));
+            REQUIRE(invocation.invoke());
+            // Even though there is an extra set of valid auth entries,
+            // the invocation will fail on the first entry due to
+            // duplicate nonce.
+            REQUIRE(!invocation.invoke());
+
+            // Setup a new invocation that only uses the unused entries.
+            auto invocation_without_used_entries =
+                authContracts[0]
+                    ->prepareInvocation(
+                        "tree_fn", {addressesArg, tree.toSCVal(signers.size())},
+                        authContractSpec)
+                    .withDeduplicatedFootprint();
+            for (size_t i = credentials.size() / 2; i < credentials.size(); ++i)
+            {
+                invocation_without_used_entries.withAuthorization(
+                    invocationAuth, credentials[i]);
+            }
+            REQUIRE(invocation_without_used_entries
+                        .withSpec(invocation_without_used_entries.getSpec()
+                                      .extendReadOnlyFootprint(keys))
+                        .invoke());
+            REQUIRE(!invocation.invoke());
+        }
+        SECTION("success for tree with extra nodes")
+        {
+            auto authTree = tree;
+            authTree.add({tree});
+            for (auto const& signer : signers)
+            {
+                invocation.withAuthorization(authTree.toAuthorizedInvocation(),
+                                             signer);
+            }
+            REQUIRE(invocation.invoke());
+            // Try to reuse the same nonce and fail
+            REQUIRE(!invocation.invoke());
+        }
+        SECTION("failure for tree with missing node")
+        {
+            auto authTree = tree;
+            authTree.setAddress(authContracts[1]->getAddress());
+
+            for (size_t i = 0; i < signers.size(); ++i)
+            {
+                if (i != signers.size() - 1)
+                {
+                    invocation.withAuthorization(invocationAuth, signers[i]);
+                }
+                else
+                {
+                    invocation.withAuthorization(
+                        authTree.toAuthorizedInvocation(), signers[i]);
+                }
+            }
+            REQUIRE(!invocation.invoke());
+        }
+    };
+
+    auto genericAuthTest = [&](std::vector<SorobanSigner> signers) {
+        SECTION("single call")
+        {
+            AuthTestTreeNode tree(authContracts[0]->getAddress());
+            authTestsForInvocationTree(signers, tree);
+        }
+        SECTION("wide tree")
+        {
+            AuthTestTreeNode tree(authContracts[0]->getAddress());
+            tree.add({AuthTestTreeNode(authContracts[1]->getAddress()),
+                      AuthTestTreeNode(authContracts[2]->getAddress()),
+                      AuthTestTreeNode(authContracts[3]->getAddress())});
+            authTestsForInvocationTree(signers, tree);
+        }
+        SECTION("deep tree")
+        {
+            AuthTestTreeNode tree(authContracts[0]->getAddress());
+            tree.add(
+                {AuthTestTreeNode(authContracts[1]->getAddress())
+                     .add({AuthTestTreeNode(authContracts[2]->getAddress())
+                               .add({AuthTestTreeNode(
+                                   authContracts[3]->getAddress())})}),
+                 AuthTestTreeNode(authContracts[2]->getAddress())
+                     .add({AuthTestTreeNode(authContracts[3]->getAddress())}),
+                 AuthTestTreeNode(authContracts[3]->getAddress())});
+
+            authTestsForInvocationTree(signers, tree);
+        }
+    };
+
+    SECTION("default classic account")
+    {
+        auto signer = test.createClassicAccountSigner(account, {&account});
+        genericAuthTest({signer});
+    }
+    SECTION("classic account with weights")
+    {
+        account.setOptions(setMasterWeight(5) | setLowThreshold(1) |
+                           setMedThreshold(5) | setHighThreshold(10));
+        genericAuthTest({test.createClassicAccountSigner(account, {&account})});
+    }
+    SECTION("multisig classic account")
+    {
+        auto signerAccount = test.getRoot().create(
+            "a2", test.getApp().getLedgerManager().getLastMinBalance(1) * 100);
+        account.setOptions(
+            setMasterWeight(5) | setLowThreshold(1) | setMedThreshold(10) |
+            setHighThreshold(100) |
+            setSigner(makeSigner(signerAccount.getSecretKey(), 5)));
+        genericAuthTest({test.createClassicAccountSigner(
+            account, {&account, &signerAccount})});
+    }
+    SECTION("custom account")
+    {
+        auto signer =
+            test.createContractSigner(accountContract, [&](uint256 payload) {
+                return makeBytes(accountSecretKey.sign(payload));
+            });
+        genericAuthTest({signer});
+    }
+    SECTION("classic and custom accounts")
+    {
+        auto accountSigner =
+            test.createClassicAccountSigner(account, {&account});
+        auto customAccountSigner =
+            test.createContractSigner(accountContract, [&](uint256 payload) {
+                return makeBytes(accountSecretKey.sign(payload));
+            });
+        genericAuthTest({accountSigner, customAccountSigner});
     }
 }

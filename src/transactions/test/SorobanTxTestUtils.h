@@ -19,13 +19,23 @@ namespace txtest
 
 SCAddress makeContractAddress(Hash const& hash);
 SCAddress makeAccountAddress(AccountID const& accountID);
-SCVal makeContractAddressSCVal(SCAddress const& address);
+SCVal makeAddressSCVal(SCAddress const& address);
 SCVal makeI32(int32_t i32);
 SCVal makeI128(uint64_t u64);
 SCSymbol makeSymbol(std::string const& str);
 SCVal makeU64(uint64_t u64);
 SCVal makeU32(uint32_t u32);
-SCVal makeBytes(SCBytes bytes);
+SCVal makeVecSCVal(std::vector<SCVal> elems);
+SCVal makeBool(bool b);
+
+template <typename T>
+SCVal
+makeBytes(T bytes)
+{
+    SCVal val(SCV_BYTES);
+    val.bytes().assign(bytes.begin(), bytes.end());
+    return val;
+}
 
 ContractIDPreimage makeContractIDPreimage(TestAccount& source, uint256 salt);
 ContractIDPreimage makeContractIDPreimage(Asset const& asset);
@@ -112,6 +122,26 @@ TransactionFrameBasePtr sorobanTransactionFrameFromOps(
 
 class SorobanTest;
 
+class SorobanSigner
+{
+  private:
+    SorobanTest& mTest;
+    std::function<SCVal(uint256)> mSignFn;
+    SCAddress mAddress;
+    xdr::xvector<LedgerKey> mKeys;
+
+  public:
+    SorobanSigner(SorobanTest& test, SCAddress const& address,
+                  xdr::xvector<LedgerKey> const& keys,
+                  std::function<SCVal(uint256)> signFn);
+    SorobanCredentials
+    sign(SorobanAuthorizedInvocation const& invocation) const;
+
+    SCVal getAddressVal() const;
+
+    xdr::xvector<LedgerKey> const& getLedgerKeys() const;
+};
+
 // Test wrapper for a deployed contract, owned by the `SorobanTest`.
 // Normally this should be created with `SorobanTest::deployWasmContract` or
 // `SorobanTest::deployAssetContract` methods.
@@ -136,6 +166,9 @@ class TestContract
 
         std::optional<InvokeHostFunctionResultCode> mResultCode;
         std::optional<TransactionMetaFrame> mTxMeta;
+        bool mDeduplicateFootprint = false;
+
+        void deduplicateFootprint();
 
       public:
         Invocation(TestContract const& contract,
@@ -145,14 +178,29 @@ class TestContract
                    bool addContractKeys = true);
 
         Invocation& withAuthorizedTopCall();
+        Invocation& withAuthorizedTopCall(SorobanSigner const& signer);
         Invocation& withExactNonRefundableResourceFee();
+        Invocation&
+        withAuthorization(SorobanAuthorizedInvocation const& invocation,
+                          SorobanCredentials credentials);
+        Invocation&
+        withAuthorization(SorobanAuthorizedInvocation const& invocation,
+                          SorobanSigner const& signer);
+        Invocation& withSourceAccountAuthorization(
+            SorobanAuthorizedInvocation const& invocation);
+
+        Invocation& withDeduplicatedFootprint();
+
+        Invocation& withSpec(SorobanInvocationSpec const& spec);
+
+        SorobanInvocationSpec getSpec();
 
         TransactionFrameBasePtr createTx(TestAccount* source = nullptr);
         bool invoke(TestAccount* source = nullptr);
 
         SCVal getReturnValue() const;
         TransactionMetaFrame const& getTxMeta() const;
-        InvokeHostFunctionResultCode getResultCode() const;
+        std::optional<InvokeHostFunctionResultCode> getResultCode() const;
     };
 
     TestContract(SorobanTest& test, SCAddress const& address,
@@ -237,6 +285,11 @@ class SorobanTest
     void invokeExtendOp(
         xdr::xvector<LedgerKey> const& readOnly, uint32_t extendTo,
         std::optional<int64_t> expectedRefundableFeeCharged = std::nullopt);
+
+    SorobanSigner createContractSigner(TestContract const& contract,
+                                       std::function<SCVal(uint256)> signFn);
+    SorobanSigner createClassicAccountSigner(TestAccount const& account,
+                                             std::vector<TestAccount*> signers);
 };
 
 class AssetContractTestClient
@@ -314,6 +367,22 @@ class ContractStorageTestClient
         std::string const& key, uint32_t numKiloBytes, uint32_t thresh,
         uint32_t extendTo,
         std::optional<SorobanInvocationSpec> spec = std::nullopt);
+};
+
+class AuthTestTreeNode
+{
+  private:
+    SCAddress mContractAddress;
+    std::vector<AuthTestTreeNode> mChildren;
+
+  public:
+    explicit AuthTestTreeNode(SCAddress const& contract);
+
+    AuthTestTreeNode& add(std::vector<AuthTestTreeNode> children);
+    void setAddress(SCAddress const& address);
+
+    SCVal toSCVal(int addressCount) const;
+    SorobanAuthorizedInvocation toAuthorizedInvocation() const;
 };
 }
 }
