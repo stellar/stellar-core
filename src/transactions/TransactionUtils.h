@@ -322,4 +322,13 @@ SCVal makeSymbolSCVal(std::string&& str);
 SCVal makeSymbolSCVal(std::string const& str);
 SCVal makeStringSCVal(std::string&& str);
 SCVal makeU64SCVal(uint64_t u);
+template <typename T>
+SCVal
+makeBytesSCVal(T const& bytes)
+{
+    SCVal val(SCV_BYTES);
+    val.bytes().assign(bytes.begin(), bytes.end());
+    return val;
+}
+SCVal makeAddressSCVal(SCAddress const& address);
 }

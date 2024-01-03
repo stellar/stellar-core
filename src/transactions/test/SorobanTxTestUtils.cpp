@@ -35,10 +35,10 @@ signPayloadForClassicAccount(std::vector<TestAccount*> const& signers,
         SCVal signatureVal(SCV_MAP);
         signatureVal.map().activate().emplace_back(
             makeSymbolSCVal("public_key"),
-            makeBytes(account->getPublicKey().ed25519()));
+            makeBytesSCVal(account->getPublicKey().ed25519()));
         auto signature = account->getSecretKey().sign(payload);
         signatureVal.map().activate().emplace_back(makeSymbolSCVal("signature"),
-                                                   makeBytes(signature));
+                                                   makeBytesSCVal(signature));
         signatures.push_back(signatureVal);
     }
     return signatureStruct;
@@ -51,14 +51,6 @@ makeContractAddress(Hash const& hash)
     SCAddress addr(SC_ADDRESS_TYPE_CONTRACT);
     addr.contractId() = hash;
     return addr;
-}
-
-SCVal
-makeAddressSCVal(SCAddress const& address)
-{
-    SCVal val(SCValType::SCV_ADDRESS);
-    val.address() = address;
-    return val;
 }
 
 SCAddress
