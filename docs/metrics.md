@@ -51,6 +51,8 @@ history.check.success                     | meter     | history archive status c
 history.publish.failure                   | meter     | published failed
 history.publish.success                   | meter     | published completed successfully
 history.publish.time                      | timer     | time to successfully publish history
+history.get.throughput                    | meter     | bytes per second of history archive retrieval
+history.get.failure                       | meter     | history archive downloads failed
 ledger.age.closed                         | bucket    | time between ledgers
 ledger.age.current-seconds                | counter   | gap between last close ledger time and current time
 ledger.apply.success                      | counter   | count of successfully applied transactions
