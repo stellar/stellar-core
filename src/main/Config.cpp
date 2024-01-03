@@ -1444,6 +1444,10 @@ Config::processConfig(std::shared_ptr<cpptoml::table> t)
             {
                 ENABLE_SOROBAN_DIAGNOSTIC_EVENTS = readBool(item);
             }
+            else if (item.first == "ENABLE_DIAGNOSTICS_FOR_TX_SUBMISSION")
+            {
+                ENABLE_DIAGNOSTICS_FOR_TX_SUBMISSION = readBool(item);
+            }
             else if (item.first == "TESTING_MINIMUM_PERSISTENT_ENTRY_LIFETIME")
             {
                 TESTING_MINIMUM_PERSISTENT_ENTRY_LIFETIME =
