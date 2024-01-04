@@ -2347,9 +2347,9 @@ TEST_CASE("transaction queue with fee-bump", "[herder][transactionqueue]")
         {
             TransactionQueueTest test{queue};
             auto tx1 = transaction(*app, account1, 1, 1, 100, 1, isSoroban);
-            uint32_t discount = tx1->getFullFee() - tx1->getInclusionFee();
+            auto discount = tx1->getFullFee() - tx1->getInclusionFee();
             auto fb1 = feeBump(*app, account3, tx1,
-                               minBalance2 - minBalance0 - 1 - discount);
+                               minBalance2 - minBalance0 - 1ll - discount);
             test.add(fb1, TransactionQueue::AddResult::ADD_STATUS_PENDING);
             test.check({{{account1, 0, {fb1}}, {account2}, {account3, 0}}, {}});
             test.add(fb1, TransactionQueue::AddResult::ADD_STATUS_DUPLICATE);

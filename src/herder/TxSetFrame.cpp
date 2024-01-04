@@ -542,9 +542,9 @@ TxSetXDRFrame::prepareForApply(Application& app) const
                             baseFee, static_cast<TxSetPhase>(phaseId)))
                     {
                         CLOG_DEBUG(Herder,
-                                   "Got bad txSet: transactions are not "
-                                   "ordered correctly or contain invalid phase "
-                                   "transactions");
+                                   "Got bad generalized txSet: transactions "
+                                   "are not ordered correctly or contain "
+                                   "invalid phase transactions");
                         return nullptr;
                     }
                     break;
@@ -560,10 +560,9 @@ TxSetXDRFrame::prepareForApply(Application& app) const
         if (!txSet->addTxsFromXdr(app.getNetworkID(), xdrTxSet.txs, false,
                                   std::nullopt, TxSetPhase::CLASSIC))
         {
-            CLOG_DEBUG(
-                Herder,
-                "Got bad txSet: transactions are not "
-                "ordered correctly or contain invalid phase transactions");
+            CLOG_DEBUG(Herder,
+                       "Got bad txSet: transactions are not ordered correctly "
+                       "or contain invalid phase transactions");
             return nullptr;
         }
     }
@@ -658,7 +657,7 @@ TxSetXDRFrame::sizeOpTotalForLogging() const
     else
     {
         auto const& txs = std::get<TransactionSet>(mXDRTxSet).txs;
-        return std::accumulate(txs.begin(), txs.end(), 0, accumulateTxsFn);
+        return std::accumulate(txs.begin(), txs.end(), 0ull, accumulateTxsFn);
     }
 }
 

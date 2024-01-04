@@ -228,9 +228,10 @@ SorobanResources
 defaultUploadWasmResourcesWithoutFootprint(RustBuf const& wasm)
 {
     SorobanResources resources;
-    resources.instructions = 500'000 + (wasm.data.size() * 1000);
+    resources.instructions =
+        static_cast<uint32_t>(500'000 + (wasm.data.size() * 1000));
     resources.readBytes = 1000;
-    resources.writeBytes = wasm.data.size() + 100;
+    resources.writeBytes = static_cast<uint32_t>(wasm.data.size() + 100);
     return resources;
 }
 
@@ -345,7 +346,7 @@ SorobanInvocationSpec
 SorobanInvocationSpec::setInstructions(int64_t instructions) const
 {
     auto newSpec = *this;
-    newSpec.mResources.instructions = instructions;
+    newSpec.mResources.instructions = static_cast<uint32_t>(instructions);
     return newSpec;
 }
 
@@ -607,8 +608,10 @@ TestContract::Invocation::withExactNonRefundableResourceFee()
                                                   mTest.getDummyAccount(),
                                                   {mOp}, {}, mSpec);
     auto txSize = xdr::xdr_size(dummyTx->getEnvelope());
-    mSpec = mSpec.setNonRefundableResourceFee(
-        sorobanResourceFee(mTest.getApp(), mSpec.getResources(), txSize, 0));
+    auto fee =
+        sorobanResourceFee(mTest.getApp(), mSpec.getResources(), txSize, 0);
+    releaseAssert(fee <= UINT32_MAX);
+    mSpec = mSpec.setNonRefundableResourceFee(static_cast<uint32_t>(fee));
     return *this;
 }
 
@@ -833,7 +836,8 @@ SorobanTest::deployWasmContract(RustBuf const& wasm,
     {
         createResources.emplace();
         createResources->instructions = 5'000'000;
-        createResources->readBytes = wasm.data.size() + 1000;
+        createResources->readBytes =
+            static_cast<uint32_t>(wasm.data.size() + 1000);
         createResources->writeBytes = 1000;
     }
     Hash wasmHash = uploadWasm(wasm, *uploadResources);
@@ -906,7 +910,7 @@ SorobanTest::getLedgerSeq() const
 TransactionFrameBasePtr
 SorobanTest::createExtendOpTx(SorobanResources const& resources,
                               uint32_t extendTo, uint32_t fee,
-                              uint32_t refundableFee, TestAccount* source)
+                              int64_t refundableFee, TestAccount* source)
 {
     Operation op;
     op.body.type(EXTEND_FOOTPRINT_TTL);
@@ -918,7 +922,7 @@ SorobanTest::createExtendOpTx(SorobanResources const& resources,
 
 TransactionFrameBasePtr
 SorobanTest::createRestoreTx(SorobanResources const& resources, uint32_t fee,
-                             uint32_t refundableFee, TestAccount* source)
+                             int64_t refundableFee, TestAccount* source)
 {
     Operation op;
     op.body.type(RESTORE_FOOTPRINT);
@@ -1101,10 +1105,10 @@ AssetContractTestClient::makeBalanceKey(SCAddress const& addr)
 }
 
 LedgerKey
-AssetContractTestClient::makeIssuerKey(Asset const& mAsset)
+AssetContractTestClient::makeIssuerKey(Asset const& asset)
 {
     LedgerKey issuerLedgerKey(ACCOUNT);
-    issuerLedgerKey.account().accountID = getIssuer(mAsset);
+    issuerLedgerKey.account().accountID = getIssuer(asset);
     return issuerLedgerKey;
 }
 

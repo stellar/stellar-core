@@ -255,11 +255,10 @@ class SorobanTest
 
     TransactionFrameBasePtr createExtendOpTx(SorobanResources const& resources,
                                              uint32_t extendTo, uint32_t fee,
-                                             uint32_t refundableFee,
+                                             int64_t refundableFee,
                                              TestAccount* source = nullptr);
     TransactionFrameBasePtr createRestoreTx(SorobanResources const& resources,
-                                            uint32_t fee,
-                                            uint32_t refundableFee,
+                                            uint32_t fee, int64_t refundableFee,
                                             TestAccount* source = nullptr);
 
     bool isTxValid(TransactionFrameBasePtr tx);

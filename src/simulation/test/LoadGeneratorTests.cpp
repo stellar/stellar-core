@@ -466,7 +466,8 @@ TEST_CASE("generate soroban load", "[loadgen][soroban]")
             LedgerTxn ltx(app.getLedgerTxnRoot());
             auto entry = ltx.load(lk);
             REQUIRE(entry);
-            uint32_t sizeBytes = xdr::xdr_size(entry.current());
+            uint32_t sizeBytes =
+                static_cast<uint32_t>(xdr::xdr_size(entry.current()));
             REQUIRE((sizeBytes > expectedDataEntrySize &&
                      sizeBytes < 100 + expectedDataEntrySize));
 

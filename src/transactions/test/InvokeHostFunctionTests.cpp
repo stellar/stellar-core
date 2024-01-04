@@ -949,7 +949,7 @@ TEST_CASE("Soroban non-refundable resource fees are stable", "[tx][soroban]")
         {
             SorobanResources resources;
             LedgerKey lk(LedgerEntryType::CONTRACT_CODE);
-            for (int i = 0; i < 6; ++i)
+            for (uint8_t i = 0; i < 6; ++i)
             {
                 lk.contractCode().hash[0] = i;
                 resources.footprint.readOnly.push_back(lk);
@@ -961,7 +961,7 @@ TEST_CASE("Soroban non-refundable resource fees are stable", "[tx][soroban]")
         {
             SorobanResources resources;
             LedgerKey lk(LedgerEntryType::CONTRACT_CODE);
-            for (int i = 0; i < 6; ++i)
+            for (uint8_t i = 0; i < 6; ++i)
             {
                 lk.contractCode().hash[0] = i;
                 resources.footprint.readWrite.push_back(lk);
@@ -975,12 +975,12 @@ TEST_CASE("Soroban non-refundable resource fees are stable", "[tx][soroban]")
         {
             SorobanResources resources;
             LedgerKey lk(LedgerEntryType::CONTRACT_CODE);
-            for (int i = 0; i < 3; ++i)
+            for (uint8_t i = 0; i < 3; ++i)
             {
                 lk.contractCode().hash[0] = i;
                 resources.footprint.readOnly.push_back(lk);
             }
-            for (int i = 3; i < 6; ++i)
+            for (uint8_t i = 3; i < 6; ++i)
             {
                 lk.contractCode().hash[0] = i;
                 resources.footprint.readWrite.push_back(lk);
@@ -1373,7 +1373,7 @@ TEST_CASE("loadgen Wasm executes properly", "[soroban][loadgen]")
     // This function should write numEntries keys, where each key ID is
     // a U32 that starts at startingIndex and is incremented for each key
     xdr::xvector<LedgerKey> keys;
-    for (auto i = 0; i < numEntries; ++i)
+    for (uint32_t i = 0; i < numEntries; ++i)
     {
         auto lk = loadgenContract.getDataKey(
             makeU32(i), ContractDataDurability::PERSISTENT);
@@ -2772,7 +2772,7 @@ TEST_CASE("settings upgrade command line utils", "[tx][soroban][upgrades]")
         costEntry.current()
             .data.configSetting()
             .contractLedgerCost()
-            .bucketListTargetSizeBytes = blSize * .95;
+            .bucketListTargetSizeBytes = static_cast<int64>(blSize * .95);
         costEntry.current()
             .data.configSetting()
             .contractLedgerCost()
@@ -2867,9 +2867,9 @@ TEST_CASE("settings upgrade command line utils", "[tx][soroban][upgrades]")
         command2 += decoder::encode_b64(xdr::xdr_to_opaque(upgradeSetKey2));
         command2 += "&upgradetime=2000-07-21T22:04:00Z";
 
-        std::string ret;
-        commandHandler.upgrades(command2, ret);
-        REQUIRE(ret == "");
+        std::string ret2;
+        commandHandler.upgrades(command2, ret2);
+        REQUIRE(ret2 == "");
 
         auto ledgerUpgrade = LedgerUpgrade{LEDGER_UPGRADE_CONFIG};
         ledgerUpgrade.newConfig() = upgradeSetKey2;
