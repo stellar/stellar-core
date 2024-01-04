@@ -176,92 +176,69 @@ struct HostFunctionMetrics
 
     ~HostFunctionMetrics()
     {
-        try
+        mMetrics.NewMeter({"soroban", "host-fn-op", "read-entry"}, "entry")
+            .Mark(mReadEntry);
+        mMetrics.NewMeter({"soroban", "host-fn-op", "write-entry"}, "entry")
+            .Mark(mWriteEntry);
+
+        mMetrics.NewMeter({"soroban", "host-fn-op", "read-key-byte"}, "byte")
+            .Mark(mReadKeyByte);
+        mMetrics.NewMeter({"soroban", "host-fn-op", "write-key-byte"}, "byte")
+            .Mark(mWriteKeyByte);
+
+        mMetrics.NewMeter({"soroban", "host-fn-op", "read-ledger-byte"}, "byte")
+            .Mark(mLedgerReadByte);
+        mMetrics.NewMeter({"soroban", "host-fn-op", "read-data-byte"}, "byte")
+            .Mark(mReadDataByte);
+        mMetrics.NewMeter({"soroban", "host-fn-op", "read-code-byte"}, "byte")
+            .Mark(mReadCodeByte);
+
+        mMetrics
+            .NewMeter({"soroban", "host-fn-op", "write-ledger-byte"}, "byte")
+            .Mark(mLedgerWriteByte);
+        mMetrics.NewMeter({"soroban", "host-fn-op", "write-data-byte"}, "byte")
+            .Mark(mWriteDataByte);
+        mMetrics.NewMeter({"soroban", "host-fn-op", "write-code-byte"}, "byte")
+            .Mark(mWriteCodeByte);
+
+        mMetrics.NewMeter({"soroban", "host-fn-op", "emit-event"}, "event")
+            .Mark(mEmitEvent);
+        mMetrics.NewMeter({"soroban", "host-fn-op", "emit-event-byte"}, "byte")
+            .Mark(mEmitEventByte);
+
+        mMetrics.NewMeter({"soroban", "host-fn-op", "cpu-insn"}, "insn")
+            .Mark(mCpuInsn);
+        mMetrics.NewMeter({"soroban", "host-fn-op", "mem-byte"}, "byte")
+            .Mark(mMemByte);
+        mMetrics
+            .NewMeter({"soroban", "host-fn-op", "invoke-time-nsecs"}, "time")
+            .Mark(mInvokeTimeNsecs);
+        mMetrics.NewMeter({"soroban", "host-fn-op", "cpu-insn-excl-vm"}, "insn")
+            .Mark(mCpuInsnExclVm);
+        mMetrics
+            .NewMeter({"soroban", "host-fn-op", "invoke-time-nsecs-excl-vm"},
+                      "time")
+            .Mark(mInvokeTimeNsecsExclVm);
+
+        mMetrics.NewMeter({"soroban", "host-fn-op", "max-rw-key-byte"}, "byte")
+            .Mark(mMaxReadWriteKeyByte);
+        mMetrics.NewMeter({"soroban", "host-fn-op", "max-rw-data-byte"}, "byte")
+            .Mark(mMaxReadWriteDataByte);
+        mMetrics.NewMeter({"soroban", "host-fn-op", "max-rw-code-byte"}, "byte")
+            .Mark(mMaxReadWriteCodeByte);
+        mMetrics
+            .NewMeter({"soroban", "host-fn-op", "max-emit-event-byte"}, "byte")
+            .Mark(mMaxEmitEventByte);
+
+        if (mSuccess)
         {
-            mMetrics.NewMeter({"soroban", "host-fn-op", "read-entry"}, "entry")
-                .Mark(mReadEntry);
-            mMetrics.NewMeter({"soroban", "host-fn-op", "write-entry"}, "entry")
-                .Mark(mWriteEntry);
-
-            mMetrics
-                .NewMeter({"soroban", "host-fn-op", "read-key-byte"}, "byte")
-                .Mark(mReadKeyByte);
-            mMetrics
-                .NewMeter({"soroban", "host-fn-op", "write-key-byte"}, "byte")
-                .Mark(mWriteKeyByte);
-
-            mMetrics
-                .NewMeter({"soroban", "host-fn-op", "read-ledger-byte"}, "byte")
-                .Mark(mLedgerReadByte);
-            mMetrics
-                .NewMeter({"soroban", "host-fn-op", "read-data-byte"}, "byte")
-                .Mark(mReadDataByte);
-            mMetrics
-                .NewMeter({"soroban", "host-fn-op", "read-code-byte"}, "byte")
-                .Mark(mReadCodeByte);
-
-            mMetrics
-                .NewMeter({"soroban", "host-fn-op", "write-ledger-byte"},
-                          "byte")
-                .Mark(mLedgerWriteByte);
-            mMetrics
-                .NewMeter({"soroban", "host-fn-op", "write-data-byte"}, "byte")
-                .Mark(mWriteDataByte);
-            mMetrics
-                .NewMeter({"soroban", "host-fn-op", "write-code-byte"}, "byte")
-                .Mark(mWriteCodeByte);
-
-            mMetrics.NewMeter({"soroban", "host-fn-op", "emit-event"}, "event")
-                .Mark(mEmitEvent);
-            mMetrics
-                .NewMeter({"soroban", "host-fn-op", "emit-event-byte"}, "byte")
-                .Mark(mEmitEventByte);
-
-            mMetrics.NewMeter({"soroban", "host-fn-op", "cpu-insn"}, "insn")
-                .Mark(mCpuInsn);
-            mMetrics.NewMeter({"soroban", "host-fn-op", "mem-byte"}, "byte")
-                .Mark(mMemByte);
-            mMetrics
-                .NewMeter({"soroban", "host-fn-op", "invoke-time-nsecs"},
-                          "time")
-                .Mark(mInvokeTimeNsecs);
-            mMetrics
-                .NewMeter({"soroban", "host-fn-op", "cpu-insn-excl-vm"}, "insn")
-                .Mark(mCpuInsnExclVm);
-            mMetrics
-                .NewMeter(
-                    {"soroban", "host-fn-op", "invoke-time-nsecs-excl-vm"},
-                    "time")
-                .Mark(mInvokeTimeNsecsExclVm);
-
-            mMetrics
-                .NewMeter({"soroban", "host-fn-op", "max-rw-key-byte"}, "byte")
-                .Mark(mMaxReadWriteKeyByte);
-            mMetrics
-                .NewMeter({"soroban", "host-fn-op", "max-rw-data-byte"}, "byte")
-                .Mark(mMaxReadWriteDataByte);
-            mMetrics
-                .NewMeter({"soroban", "host-fn-op", "max-rw-code-byte"}, "byte")
-                .Mark(mMaxReadWriteCodeByte);
-            mMetrics
-                .NewMeter({"soroban", "host-fn-op", "max-emit-event-byte"},
-                          "byte")
-                .Mark(mMaxEmitEventByte);
-
-            if (mSuccess)
-            {
-                mMetrics.NewMeter({"soroban", "host-fn-op", "success"}, "call")
-                    .Mark();
-            }
-            else
-            {
-                mMetrics.NewMeter({"soroban", "host-fn-op", "failure"}, "call")
-                    .Mark();
-            }
+            mMetrics.NewMeter({"soroban", "host-fn-op", "success"}, "call")
+                .Mark();
         }
-        catch (const std::exception& e)
+        else
         {
-            CLOG_WARNING(Tx, "Caught HostFunctionMetrics exception");
+            mMetrics.NewMeter({"soroban", "host-fn-op", "failure"}, "call")
+                .Mark();
         }
     }
     medida::TimerContext
