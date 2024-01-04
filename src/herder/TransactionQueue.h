@@ -137,29 +137,21 @@ class TransactionQueue
      * unbans transactions for which age equals banDepth.
      */
     void shift();
+    void rebroadcast();
+    void shutdown();
 
-    AccountTxQueueInfo
-    getAccountTransactionQueueInfo(AccountID const& accountID) const;
-
-    size_t countBanned(int index) const;
     bool isBanned(Hash const& hash) const;
     TransactionFrameBaseConstPtr getTx(Hash const& hash) const;
-
     TxSetTransactions getTransactions(LedgerHeader const& lcl) const;
-
-    struct ReplacedTransaction
-    {
-        TransactionFrameBasePtr mOld;
-        TransactionFrameBasePtr mNew;
-    };
-
-    void maybeVersionUpgraded();
-
-    void rebroadcast();
-
-    void shutdown();
     bool sourceAccountPending(AccountID const& accountID) const;
+
     virtual size_t getMaxQueueSizeOps() const = 0;
+
+#ifdef BUILD_TESTS
+    AccountTxQueueInfo
+    getAccountTransactionQueueInfo(AccountID const& accountID) const;
+    size_t countBanned(int index) const;
+#endif
 
   protected:
     /**
@@ -182,7 +174,6 @@ class TransactionQueue
 
     AccountStates mAccountStates;
     BannedTransactions mBannedTransactions;
-    uint32_t mLedgerVersion;
 
     // counters
     std::vector<medida::Counter*> mSizeByAge;
@@ -234,8 +225,6 @@ class TransactionQueue
     UnorderedMap<Hash, TransactionFrameBasePtr> mKnownTxHashes;
 
     size_t mBroadcastSeed;
-
-    friend class TxQueueTracker;
 
 #ifdef BUILD_TESTS
   public:

@@ -59,9 +59,9 @@ FlowControlMessageCapacity::canRead() const
 FlowControlByteCapacity::FlowControlByteCapacity(Application& app,
                                                  NodeID const& nodeID)
     : FlowControlCapacity(app, nodeID)
-    , mCapacityLimits(
-          {app.getOverlayManager().getFlowControlBytesConfig().mTotal,
-           std::nullopt})
+    , mCapacityLimits{
+          app.getOverlayManager().getFlowControlBytesConfig().mTotal,
+          std::nullopt}
 {
     mCapacity = mCapacityLimits;
 }

@@ -160,8 +160,6 @@ class HerderImpl : public Herder
     bool isNewerNominationOrBallotSt(SCPStatement const& oldSt,
                                      SCPStatement const& newSt) override;
 
-    SequenceNumber getMaxSeqInPendingTxs(AccountID const&) override;
-
     uint32_t getMostRecentCheckpointSeq() override;
 
     void triggerNextLedger(uint32_t ledgerSeqToTrigger,

@@ -1239,18 +1239,6 @@ HerderImpl::getMinLedgerSeqToAskPeers() const
     return low;
 }
 
-SequenceNumber
-HerderImpl::getMaxSeqInPendingTxs(AccountID const& acc)
-{
-    if (mSorobanTransactionQueue &&
-        mSorobanTransactionQueue->sourceAccountPending(acc))
-    {
-        return mSorobanTransactionQueue->getAccountTransactionQueueInfo(acc)
-            .mMaxSeq;
-    }
-    return mTransactionQueue.getAccountTransactionQueueInfo(acc).mMaxSeq;
-}
-
 uint32_t
 HerderImpl::getMostRecentCheckpointSeq()
 {
@@ -2132,14 +2120,6 @@ HerderImpl::start()
     }
 
     restoreUpgrades();
-    // make sure that the transaction queue is setup against
-    // the lcl that we have right now
-    mTransactionQueue.maybeVersionUpgraded();
-    if (mSorobanTransactionQueue)
-    {
-        mSorobanTransactionQueue->maybeVersionUpgraded();
-    }
-
     startTxSetGCTimer();
 }
 
@@ -2229,7 +2209,6 @@ HerderImpl::updateTransactionQueue(TxSetXDRFrameConstPtr externalizedTxSet)
     auto updateQueue = [&](auto& queue, auto const& applied) {
         queue.removeApplied(applied);
         queue.shift();
-        queue.maybeVersionUpgraded();
 
         auto txs = queue.getTransactions(lhhe.header);
 
