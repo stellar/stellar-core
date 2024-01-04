@@ -19,7 +19,6 @@ namespace txtest
 
 SCAddress makeContractAddress(Hash const& hash);
 SCAddress makeAccountAddress(AccountID const& accountID);
-SCVal makeAddressSCVal(SCAddress const& address);
 SCVal makeI32(int32_t i32);
 SCVal makeI128(uint64_t u64);
 SCSymbol makeSymbol(std::string const& str);
@@ -27,15 +26,6 @@ SCVal makeU64(uint64_t u64);
 SCVal makeU32(uint32_t u32);
 SCVal makeVecSCVal(std::vector<SCVal> elems);
 SCVal makeBool(bool b);
-
-template <typename T>
-SCVal
-makeBytes(T bytes)
-{
-    SCVal val(SCV_BYTES);
-    val.bytes().assign(bytes.begin(), bytes.end());
-    return val;
-}
 
 ContractIDPreimage makeContractIDPreimage(TestAccount& source, uint256 salt);
 ContractIDPreimage makeContractIDPreimage(Asset const& asset);

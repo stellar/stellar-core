@@ -1280,10 +1280,10 @@ TEST_CASE("settings upgrade", "[tx][soroban][upgrades]")
         upgrade.contractData().durability = TEMPORARY;
         upgrade.contractData().contract = writeContract.getAddress();
         upgrade.contractData().key =
-            makeBytes(xdr::xdr_to_opaque(upgrade_hash));
+            makeBytesSCVal(xdr::xdr_to_opaque(upgrade_hash));
 
         REQUIRE(writeContract
-                    .prepareInvocation("write", {makeBytes(xdr)},
+                    .prepareInvocation("write", {makeBytesSCVal(xdr)},
                                        SorobanInvocationSpec(maxResources,
                                                              20'000'000,
                                                              20'000'000, 1000)
@@ -3250,7 +3250,7 @@ TEST_CASE("Soroban classic account authentication", "[soroban]")
         SECTION("wrong key type")
         {
 
-            fieldsMap[0].key = makeBytes(std::string("public_key"));
+            fieldsMap[0].key = makeBytesSCVal(std::string("public_key"));
             REQUIRE(singleInvocation(signer, baseCredentials) ==
                     InvokeHostFunctionResultCode::INVOKE_HOST_FUNCTION_TRAPPED);
         }
@@ -3262,7 +3262,7 @@ TEST_CASE("Soroban classic account authentication", "[soroban]")
         }
         SECTION("wrong key type")
         {
-            fieldsMap[1].key = makeBytes(std::string("signature"));
+            fieldsMap[1].key = makeBytesSCVal(std::string("signature"));
             REQUIRE(singleInvocation(signer, baseCredentials) ==
                     InvokeHostFunctionResultCode::INVOKE_HOST_FUNCTION_TRAPPED);
         }
@@ -3448,11 +3448,11 @@ TEST_CASE("Soroban custom account authentication", "[soroban]")
     REQUIRE(accountContract
                 .prepareInvocation(
                     "init",
-                    {makeBytes(accountSecretKey.getPublicKey().ed25519())},
+                    {makeBytesSCVal(accountSecretKey.getPublicKey().ed25519())},
                     accountInvocationSpec)
                 .invoke());
     auto signWithKey = [&](SecretKey const& key, uint256 payload) {
-        return makeBytes(key.sign(payload));
+        return makeBytesSCVal(key.sign(payload));
     };
 
     auto signer =
@@ -3501,24 +3501,24 @@ TEST_CASE("Soroban custom account authentication", "[soroban]")
                 return signWithKey(newAccountSecretKey, payload);
             });
 
-        REQUIRE(
-            !accountContract
-                 .prepareInvocation(
-                     "set_owner",
-                     {makeBytes(newAccountSecretKey.getPublicKey().ed25519())},
-                     accountInvocationSpec)
-                 .withAuthorizedTopCall(newSigner)
-                 .withDeduplicatedFootprint()
-                 .invoke());
-        REQUIRE(
-            accountContract
-                .prepareInvocation(
-                    "set_owner",
-                    {makeBytes(newAccountSecretKey.getPublicKey().ed25519())},
-                    accountInvocationSpec)
-                .withAuthorizedTopCall(signer)
-                .withDeduplicatedFootprint()
-                .invoke());
+        REQUIRE(!accountContract
+                     .prepareInvocation(
+                         "set_owner",
+                         {makeBytesSCVal(
+                             newAccountSecretKey.getPublicKey().ed25519())},
+                         accountInvocationSpec)
+                     .withAuthorizedTopCall(newSigner)
+                     .withDeduplicatedFootprint()
+                     .invoke());
+        REQUIRE(accountContract
+                    .prepareInvocation(
+                        "set_owner",
+                        {makeBytesSCVal(
+                            newAccountSecretKey.getPublicKey().ed25519())},
+                        accountInvocationSpec)
+                    .withAuthorizedTopCall(signer)
+                    .withDeduplicatedFootprint()
+                    .invoke());
         REQUIRE(singleInvocation(signer) ==
                 InvokeHostFunctionResultCode::INVOKE_HOST_FUNCTION_TRAPPED);
         REQUIRE(singleInvocation(newSigner) ==
@@ -3553,7 +3553,7 @@ TEST_CASE("Soroban authorization", "[soroban]")
     REQUIRE(accountContract
                 .prepareInvocation(
                     "init",
-                    {makeBytes(accountSecretKey.getPublicKey().ed25519())},
+                    {makeBytesSCVal(accountSecretKey.getPublicKey().ed25519())},
                     accountInvocationSpec)
                 .invoke());
 
@@ -3768,7 +3768,7 @@ TEST_CASE("Soroban authorization", "[soroban]")
     {
         auto signer =
             test.createContractSigner(accountContract, [&](uint256 payload) {
-                return makeBytes(accountSecretKey.sign(payload));
+                return makeBytesSCVal(accountSecretKey.sign(payload));
             });
         genericAuthTest({signer});
     }
@@ -3778,7 +3778,7 @@ TEST_CASE("Soroban authorization", "[soroban]")
             test.createClassicAccountSigner(account, {&account});
         auto customAccountSigner =
             test.createContractSigner(accountContract, [&](uint256 payload) {
-                return makeBytes(accountSecretKey.sign(payload));
+                return makeBytesSCVal(accountSecretKey.sign(payload));
             });
         genericAuthTest({accountSigner, customAccountSigner});
     }

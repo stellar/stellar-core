@@ -1919,6 +1919,14 @@ makeU64SCVal(uint64_t u)
     return val;
 }
 
+SCVal
+makeAddressSCVal(SCAddress const& address)
+{
+    SCVal val(SCV_ADDRESS);
+    val.address() = address;
+    return val;
+}
+
 namespace detail
 {
 struct MuxChecker

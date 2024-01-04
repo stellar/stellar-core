@@ -382,6 +382,26 @@ InvokeHostFunctionOpFrame::doApply(Application& app, AbstractLedgerTxn& ltx,
                         // if the key did not exist
                         if (!isTemporaryEntry(lk))
                         {
+                            if (lk.type() == CONTRACT_CODE)
+                            {
+                                mParentTx.pushApplyTimeDiagnosticError(
+                                    appConfig, SCE_VALUE, SCEC_INVALID_INPUT,
+                                    "trying to access an archived contract "
+                                    "code "
+                                    "entry",
+                                    {makeBytesSCVal(lk.contractCode().hash)});
+                            }
+                            else if (lk.type() == CONTRACT_DATA)
+                            {
+                                mParentTx.pushApplyTimeDiagnosticError(
+                                    appConfig, SCE_VALUE, SCEC_INVALID_INPUT,
+                                    "trying to access an archived contract "
+                                    "data "
+                                    "entry",
+                                    {makeAddressSCVal(
+                                         lk.contractData().contract),
+                                     lk.contractData().key});
+                            }
                             // Cannot access an archived entry
                             this->innerResult().code(
                                 INVOKE_HOST_FUNCTION_ENTRY_ARCHIVED);
