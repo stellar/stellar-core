@@ -884,10 +884,8 @@ TransactionFrame::consumeRefundableSorobanResources(
     auto& consumedRentFee = mSorobanExtension->mConsumedRentFee;
     consumedRentFee += rentFee;
 
-    auto preApplyFee =
-        computePreApplySorobanResourceFee(protocolVersion, sorobanConfig, cfg);
+    // mFeeRefund was set in apply
     auto& feeRefund = mSorobanExtension->mFeeRefund;
-    feeRefund = declaredSorobanResourceFee() - preApplyFee.non_refundable_fee;
     if (feeRefund < consumedRentFee)
     {
         pushApplyTimeDiagnosticError(
@@ -1835,6 +1833,10 @@ TransactionFrame::apply(Application& app, AbstractLedgerTxn& ltx,
             sorobanResourceFee = computePreApplySorobanResourceFee(
                 ledgerVersion, app.getLedgerManager().getSorobanNetworkConfig(),
                 app.getConfig());
+
+            mSorobanExtension->mFeeRefund =
+                declaredSorobanResourceFee() -
+                sorobanResourceFee->non_refundable_fee;
         }
         LedgerTxn ltxTx(ltx);
         auto cv = commonValid(app, signatureChecker, ltxTx, 0, true, chargeFee,
