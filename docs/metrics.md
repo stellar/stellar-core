@@ -34,7 +34,7 @@ bucket.snap.merge                         | timer     | time to merge two bucket
 bucketlist.size.bytes                     | counter   | total size of the BucketList in bytes
 bucketlistDB.bloom.lookups                | meter     | number of bloom filter lookups
 bucketlistDB.bloom.misses                 | meter     | number of bloom filter false positives
-bucketlistDB.query.loads                  | meter     | number of BucketListDB load queries
+bucketlistDB.bulk.loads                   | meter     | number of entries BucketListDB queried to prefetch
 bucketlistDB.bulk.inflationWinners        | timer     | time to load inflation winners
 bucketlistDB.bulk.poolshareTrustlines     | timer     | time to load poolshare trustlines by accountID and assetID
 bucketlistDB.bulk.prefetch                | timer     | time to prefetch
@@ -157,5 +157,5 @@ scp.value.invalid                         | meter     | SCP value is invalid
 scp.value.valid                           | meter     | SCP value is valid
 scp.slot.values-referenced                | histogram | number of values referenced per consensus round
 state-archival.eviction.bytes-scanned     | counter   | number of bytes that eviction scan has read
-state-archival.eviction.entries-evicted   | meter     | number of entries that have been evicted
+state-archival.eviction.entries-evicted   | counter   | number of entries that have been evicted
 state-archival.eviction.incomplete-scan   | counter   | number of buckets that were too large to be fully scanned for eviction

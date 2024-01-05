@@ -839,7 +839,8 @@ mergeCasesWithEqualKeys(MergeCounters& mc, BucketInputIterator& oi,
 bool
 Bucket::scanForEviction(AbstractLedgerTxn& ltx, EvictionIterator& iter,
                         uint64_t& bytesToScan, uint32_t& maxEntriesToEvict,
-                        uint32_t ledgerSeq, medida::Meter& entriesEvictedMeter,
+                        uint32_t ledgerSeq,
+                        medida::Counter& entriesEvictedCounter,
                         medida::Counter& bytesScannedForEvictionCounter)
 {
     ZoneScoped;
@@ -896,7 +897,7 @@ Bucket::scanForEviction(AbstractLedgerTxn& ltx, EvictionIterator& iter,
                     ZoneNamedN(evict, "evict entry", true);
                     ltx.erase(ttlKey);
                     ltx.erase(LedgerEntryKey(le));
-                    entriesEvictedMeter.Mark();
+                    entriesEvictedCounter.inc();
                     --maxEntriesToEvict;
                 }
 
