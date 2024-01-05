@@ -13,6 +13,7 @@
 #include "database/Database.h"
 #include "herder/Herder.h"
 #include "herder/HerderPersistence.h"
+#include "herder/HerderUtils.h"
 #include "herder/LedgerCloseData.h"
 #include "herder/TxSetFrame.h"
 #include "herder/Upgrades.h"
@@ -885,10 +886,12 @@ LedgerManagerImpl::closeLedger(LedgerCloseData const& ledgerData)
             CLOG_ERROR(Ledger, "Unknown exception during upgrade");
         }
     }
-    if (protocolVersionStartsFrom(ltx.loadHeader().current().ledgerVersion,
-                                  SOROBAN_PROTOCOL_VERSION))
+    auto maybeNewVersion = ltx.loadHeader().current().ledgerVersion;
+    if (protocolVersionStartsFrom(maybeNewVersion, SOROBAN_PROTOCOL_VERSION))
     {
         updateNetworkConfig(ltx);
+        mApp.getOverlayManager().dropPeersIf(
+            shouldDropPeerPredicate, maybeNewVersion, "version too old");
     }
 
     ledgerClosed(ltx, ledgerCloseMeta, initialLedgerVers);

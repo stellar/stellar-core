@@ -74,6 +74,7 @@ class Peer : public std::enable_shared_from_this<Peer>,
         std::chrono::seconds(1);
     static constexpr uint32_t FIRST_VERSION_SUPPORTING_FLOW_CONTROL_IN_BYTES =
         28;
+    static constexpr uint32_t FIRST_VERSION_REQUIRED_FOR_PROTOCOL_20 = 31;
 
     // The reporting will be based on the previous
     // PEER_METRICS_WINDOW_SIZE-second time window.
@@ -212,7 +213,7 @@ class Peer : public std::enable_shared_from_this<Peer>,
 
     std::string mRemoteVersion;
     uint32_t mRemoteOverlayMinVersion;
-    uint32_t mRemoteOverlayVersion;
+    std::optional<uint32_t> mRemoteOverlayVersion;
     PeerBareAddress mAddress;
 
     VirtualClock::time_point mCreationTime;
@@ -375,7 +376,7 @@ class Peer : public std::enable_shared_from_this<Peer>,
         return mRemoteOverlayMinVersion;
     }
 
-    uint32_t
+    std::optional<uint32_t>
     getRemoteOverlayVersion() const
     {
         return mRemoteOverlayVersion;
