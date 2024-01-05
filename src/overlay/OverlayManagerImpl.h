@@ -170,6 +170,8 @@ class OverlayManagerImpl : public OverlayManager
     Peer::pointer getConnectedPeer(PeerBareAddress const& address) override;
 
     std::vector<Peer::pointer> getRandomAuthenticatedPeers() override;
+    std::vector<Peer::pointer> getAuthenticatedPeers(bool randomize) override;
+
     std::vector<Peer::pointer> getRandomInboundAuthenticatedPeers() override;
     std::vector<Peer::pointer> getRandomOutboundAuthenticatedPeers() override;
 
@@ -235,6 +237,9 @@ class OverlayManagerImpl : public OverlayManager
                              std::vector<Peer::pointer>& result);
     void shufflePeerList(std::vector<Peer::pointer>& peerList);
     AdjustedFlowControlConfig getFlowControlBytesConfig() const override;
+
+    void dropPeersIf(std::function<bool(Peer::pointer, uint32_t)> predicate,
+                     uint32_t version, std::string const& reason) override;
 
     // Returns `true` iff the overlay can accept the outbound peer at `address`.
     // Logs whenever a peer cannot be accepted.

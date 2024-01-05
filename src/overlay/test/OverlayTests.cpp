@@ -135,6 +135,56 @@ TEST_CASE("loopback peer send auth before hello", "[overlay][connections]")
     testutil::shutdownWorkScheduler(*app1);
 }
 
+TEST_CASE("overlay version peer drop post-protocol-20")
+{
+    auto cfg1 = getTestConfig(0);
+    auto cfg2 = getTestConfig(1);
+
+    cfg1.OVERLAY_PROTOCOL_VERSION =
+        Peer::FIRST_VERSION_REQUIRED_FOR_PROTOCOL_20 - 1;
+    cfg1.TESTING_UPGRADE_LEDGER_PROTOCOL_VERSION =
+        static_cast<uint32_t>(SOROBAN_PROTOCOL_VERSION) - 1;
+    cfg2.TESTING_UPGRADE_LEDGER_PROTOCOL_VERSION =
+        static_cast<uint32_t>(SOROBAN_PROTOCOL_VERSION) - 1;
+
+    VirtualClock clock;
+    auto app1 = createTestApplication(clock, cfg1);
+    auto app2 = createTestApplication(clock, cfg2);
+
+    auto result = LedgerUpgrade{LEDGER_UPGRADE_VERSION};
+    result.newLedgerVersion() = static_cast<uint32_t>(SOROBAN_PROTOCOL_VERSION);
+    LoopbackPeerConnection conn(*app1, *app2);
+
+    std::string expectedDropReason = "version too old";
+    SECTION("fully authenticated")
+    {
+        testutil::crankSome(clock);
+        REQUIRE(conn.getInitiator()->isAuthenticated());
+        REQUIRE(conn.getAcceptor()->isAuthenticated());
+    }
+    SECTION("pending peers")
+    {
+        REQUIRE(!conn.getInitiator()->isAuthenticated());
+        REQUIRE(!conn.getAcceptor()->isAuthenticated());
+        expectedDropReason = "wrong protocol version";
+    }
+
+    txtest::executeUpgrade(*app1, result);
+    txtest::executeUpgrade(*app2, result);
+
+    testutil::crankSome(clock);
+    REQUIRE(!conn.getInitiator()->isConnected());
+    REQUIRE(!conn.getAcceptor()->isConnected());
+    REQUIRE(conn.getAcceptor()->getDropReason() == expectedDropReason);
+
+    // Post-upgrade, try to re-connect and get rejected due to old protocol
+    LoopbackPeerConnection conn2(*app1, *app2);
+    testutil::crankSome(clock);
+    REQUIRE(!conn2.getInitiator()->isConnected());
+    REQUIRE(!conn2.getAcceptor()->isConnected());
+    REQUIRE(conn2.getAcceptor()->getDropReason() == "wrong protocol version");
+}
+
 TEST_CASE("flow control byte capacity", "[overlay][flowcontrol]")
 {
     VirtualClock clock;
@@ -283,6 +333,14 @@ TEST_CASE("flow control byte capacity", "[overlay][flowcontrol]")
     {
         cfg1.OVERLAY_PROTOCOL_VERSION =
             Peer::FIRST_VERSION_SUPPORTING_FLOW_CONTROL_IN_BYTES;
+        cfg2.OVERLAY_PROTOCOL_VERSION =
+            Peer::FIRST_VERSION_REQUIRED_FOR_PROTOCOL_20 - 1;
+        // Mixed versions do not work in v20, as older clients are banned
+        cfg1.TESTING_UPGRADE_LEDGER_PROTOCOL_VERSION =
+            static_cast<uint32_t>(SOROBAN_PROTOCOL_VERSION) - 1;
+        cfg2.TESTING_UPGRADE_LEDGER_PROTOCOL_VERSION =
+            static_cast<uint32_t>(SOROBAN_PROTOCOL_VERSION) - 1;
+
         cfg1.PEER_FLOOD_READING_CAPACITY_BYTES =
             2 * getTxSize(tx1) + Herder::FLOW_CONTROL_BYTES_EXTRA_BUFFER;
         cfg1.FLOW_CONTROL_SEND_MORE_BATCH_SIZE_BYTES = getTxSize(tx1);
@@ -298,6 +356,11 @@ TEST_CASE("flow control byte capacity", "[overlay][flowcontrol]")
             Peer::FIRST_VERSION_SUPPORTING_FLOW_CONTROL_IN_BYTES;
         cfg2.OVERLAY_PROTOCOL_VERSION =
             Peer::FIRST_VERSION_SUPPORTING_FLOW_CONTROL_IN_BYTES;
+        // Mixed versions do not work in v20, as older clients are banned
+        cfg1.TESTING_UPGRADE_LEDGER_PROTOCOL_VERSION =
+            static_cast<uint32_t>(SOROBAN_PROTOCOL_VERSION) - 1;
+        cfg2.TESTING_UPGRADE_LEDGER_PROTOCOL_VERSION =
+            static_cast<uint32_t>(SOROBAN_PROTOCOL_VERSION) - 1;
         cfg1.PEER_FLOOD_READING_CAPACITY_BYTES =
             2 * getTxSize(tx1) + Herder::FLOW_CONTROL_BYTES_EXTRA_BUFFER;
         cfg1.FLOW_CONTROL_SEND_MORE_BATCH_SIZE_BYTES = getTxSize(tx1);
@@ -659,6 +722,10 @@ TEST_CASE("loopback peer flow control activation", "[overlay][flowcontrol]")
             {
                 cfg1.OVERLAY_PROTOCOL_VERSION =
                     Peer::FIRST_VERSION_SUPPORTING_FLOW_CONTROL_IN_BYTES;
+                cfg1.TESTING_UPGRADE_LEDGER_PROTOCOL_VERSION =
+                    static_cast<uint32_t>(SOROBAN_PROTOCOL_VERSION) - 1;
+                cfg2.TESTING_UPGRADE_LEDGER_PROTOCOL_VERSION =
+                    static_cast<uint32_t>(SOROBAN_PROTOCOL_VERSION) - 1;
                 runTest({cfg1, cfg2}, false);
             }
             SECTION("bad peer")
@@ -2290,6 +2357,12 @@ TEST_CASE("overlay flow control", "[overlay][flowcontrol]")
         {
             configs[2].OVERLAY_PROTOCOL_VERSION =
                 Peer::FIRST_VERSION_SUPPORTING_FLOW_CONTROL_IN_BYTES - 1;
+            for (auto& cfg : configs)
+            {
+                cfg.TESTING_UPGRADE_LEDGER_PROTOCOL_VERSION =
+                    static_cast<uint32_t>(SOROBAN_PROTOCOL_VERSION) - 1;
+            }
+
             setupSimulation();
         }
         SECTION("one peer disables")
