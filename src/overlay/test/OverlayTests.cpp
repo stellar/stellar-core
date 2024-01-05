@@ -151,7 +151,7 @@ TEST_CASE("flow control byte capacity", "[overlay][flowcontrol]")
     tx1.transaction().v1().tx.operations.emplace_back(
         getOperationGreaterThanMinMaxSizeBytes());
     auto getTxSize = [&](StellarMessage const& msg) {
-        return FlowControlCapacity::msgBodySize(msg);
+        return static_cast<uint32_t>(FlowControlCapacity::msgBodySize(msg));
     };
 
     auto txSize = getTxSize(tx1);
@@ -162,7 +162,8 @@ TEST_CASE("flow control byte capacity", "[overlay][flowcontrol]")
         {
             overrideSorobanNetworkConfigForTest(app);
             modifySorobanNetworkConfig(app, [tx1](SorobanNetworkConfig& cfg) {
-                cfg.mTxMaxSizeBytes = xdr::xdr_size(tx1.transaction());
+                cfg.mTxMaxSizeBytes =
+                    static_cast<uint32_t>(xdr::xdr_size(tx1.transaction()));
             });
         }
 
@@ -308,7 +309,8 @@ TEST_CASE("flow control byte capacity", "[overlay][flowcontrol]")
     SECTION("transaction size upgrades")
     {
         auto tx2 = tx1;
-        for (int i = 0; i < tx2.transaction().v1().signatures.max_size(); i++)
+        for (uint32_t i = 0; i < tx2.transaction().v1().signatures.max_size();
+             i++)
         {
             tx2.transaction().v1().signatures.emplace_back(
                 SignatureUtils::sign(SecretKey::pseudoRandomForTesting(),
@@ -382,7 +384,7 @@ TEST_CASE("flow control byte capacity", "[overlay][flowcontrol]")
         SECTION("overlay buffer is big enough")
         {
             auto feeBump = makeFeeBump(tx2);
-            for (int i = 0;
+            for (uint32_t i = 0;
                  i < feeBump.transaction().feeBump().signatures.max_size(); i++)
             {
                 feeBump.transaction().feeBump().signatures.emplace_back(
@@ -417,7 +419,8 @@ TEST_CASE("flow control byte capacity", "[overlay][flowcontrol]")
         }
         SECTION("upgrade increases limit")
         {
-            auto upgradeTo = xdr::xdr_size(tx2.transaction());
+            auto upgradeTo =
+                static_cast<uint32_t>(xdr::xdr_size(tx2.transaction()));
             SECTION("both upgrade")
             {
                 // First increase the limit
