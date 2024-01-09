@@ -579,11 +579,9 @@ TEST_CASE("basic contract invocation", "[tx][soroban]")
         SECTION("malformed parameters")
         {
             SCVal badSCVal(SCV_LEDGER_KEY_NONCE);
-            auto invocation = addContract.prepareInvocation(
-                fnName, {sc7, badSCVal}, invocationSpec);
-            REQUIRE(!invocation.invoke());
-            // This is an internal error currently.
-            REQUIRE(invocation.getResultCode() == std::nullopt);
+            REQUIRE(failedInvoke(addContract, fnName, {sc7, badSCVal},
+                                 invocationSpec) ==
+                    INVOKE_HOST_FUNCTION_TRAPPED);
         }
     }
 
@@ -3188,8 +3186,8 @@ TEST_CASE("Soroban classic account authentication", "[soroban]")
         SECTION("uninitialized vector signature")
         {
             baseCredentials.address().signature = SCVal(SCV_VEC);
-            // This fails at tx level due to internal error in env.
-            REQUIRE(singleInvocation(signer, baseCredentials) == std::nullopt);
+            REQUIRE(singleInvocation(signer, baseCredentials) ==
+                    InvokeHostFunctionResultCode::INVOKE_HOST_FUNCTION_TRAPPED);
         }
         SECTION("empty vector signature")
         {
@@ -3204,8 +3202,8 @@ TEST_CASE("Soroban classic account authentication", "[soroban]")
             SCVal signature(SCV_VEC);
             signature.vec().activate().push_back(SCVal(SCV_MAP));
             baseCredentials.address().signature = signature;
-            // This fails at tx level due to internal error in env.
-            REQUIRE(singleInvocation(signer, baseCredentials) == std::nullopt);
+            REQUIRE(singleInvocation(signer, baseCredentials) ==
+                    InvokeHostFunctionResultCode::INVOKE_HOST_FUNCTION_TRAPPED);
         }
         SECTION("empty map")
         {
@@ -3484,8 +3482,8 @@ TEST_CASE("Soroban custom account authentication", "[soroban]")
     SECTION("uninitialized vector signature")
     {
         baseCredentials.address().signature = SCVal(SCV_VEC);
-        // This fails at tx level due to internal error in env.
-        REQUIRE(singleInvocation(signer, baseCredentials) == std::nullopt);
+        REQUIRE(singleInvocation(signer, baseCredentials) ==
+                InvokeHostFunctionResultCode::INVOKE_HOST_FUNCTION_TRAPPED);
     }
     SECTION("empty bytes signature")
     {
