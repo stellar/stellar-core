@@ -919,8 +919,13 @@ dependencies = [
 
 [[package]]
 name = "soroban-builtin-sdk-macros"
+<<<<<<< HEAD
 version = "20.1.1"
 source = "git+https://github.com/stellar/rs-soroban-env?rev=a843a7502f59bc67a402ac9f3cf576d28cde2614#a843a7502f59bc67a402ac9f3cf576d28cde2614"
+=======
+version = "20.1.0"
+source = "git+https://github.com/stellar/rs-soroban-env?rev=c2fae7dafe630358754eb9f3d235abfd7f8a3b08#c2fae7dafe630358754eb9f3d235abfd7f8a3b08"
+>>>>>>> 56af15154 (Bump env due to cargo deny blocking a different version of soroban-test-wasms)
 dependencies = [
  "itertools",
  "proc-macro2",
@@ -931,6 +936,7 @@ dependencies = [
 [[package]]
 name = "soroban-env-common"
 version = "20.1.0"
+<<<<<<< HEAD
 source = "git+https://github.com/stellar/rs-soroban-env?rev=b6ef8e32d86b008b2ecfdb2d7ca958e751190523#b6ef8e32d86b008b2ecfdb2d7ca958e751190523"
 dependencies = [
  "crate-git-revision",
@@ -962,21 +968,29 @@ dependencies = [
 [[package]]
 name = "soroban-env-common"
 version = "20.1.0"
+=======
+>>>>>>> 56af15154 (Bump env due to cargo deny blocking a different version of soroban-test-wasms)
 source = "git+https://github.com/stellar/rs-soroban-env?rev=c2fae7dafe630358754eb9f3d235abfd7f8a3b08#c2fae7dafe630358754eb9f3d235abfd7f8a3b08"
 dependencies = [
  "crate-git-revision",
  "ethnum",
  "num-derive",
  "num-traits",
- "soroban-env-macros 20.1.0 (git+https://github.com/stellar/rs-soroban-env?rev=c2fae7dafe630358754eb9f3d235abfd7f8a3b08)",
+ "soroban-env-macros 20.1.0",
+ "soroban-wasmi 0.31.1-soroban.20.0.0",
  "static_assertions",
  "stellar-xdr 20.0.2",
+ "tracy-client",
 ]
 
 [[package]]
 name = "soroban-env-host"
 version = "20.1.0"
+<<<<<<< HEAD
 source = "git+https://github.com/stellar/rs-soroban-env?rev=b6ef8e32d86b008b2ecfdb2d7ca958e751190523#b6ef8e32d86b008b2ecfdb2d7ca958e751190523"
+=======
+source = "git+https://github.com/stellar/rs-soroban-env?rev=c2fae7dafe630358754eb9f3d235abfd7f8a3b08#c2fae7dafe630358754eb9f3d235abfd7f8a3b08"
+>>>>>>> 56af15154 (Bump env due to cargo deny blocking a different version of soroban-test-wasms)
 dependencies = [
  "curve25519-dalek",
  "ed25519-dalek",
@@ -992,7 +1006,7 @@ dependencies = [
  "sha2",
  "sha3",
  "soroban-builtin-sdk-macros 20.1.0",
- "soroban-env-common 20.1.0 (git+https://github.com/stellar/rs-soroban-env?rev=c1b238b65bfd13666be4ac14e0e390c31b549caf)",
+ "soroban-env-common 20.1.0",
  "soroban-wasmi 0.31.1-soroban.20.0.0",
  "static_assertions",
  "stellar-strkey",
@@ -1072,8 +1086,13 @@ version = "20.1.1"
 source = "git+https://github.com/stellar/rs-soroban-env?rev=a843a7502f59bc67a402ac9f3cf576d28cde2614#a843a7502f59bc67a402ac9f3cf576d28cde2614"
 dependencies = [
  "arbitrary",
+<<<<<<< HEAD
  "soroban-env-common 20.1.1",
  "soroban-env-macros 20.1.1",
+=======
+ "soroban-env-common 20.1.0",
+ "soroban-env-macros 20.1.0",
+>>>>>>> 56af15154 (Bump env due to cargo deny blocking a different version of soroban-test-wasms)
  "wasm-encoder",
  "wasmparser",
 ]
