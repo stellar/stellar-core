@@ -562,7 +562,44 @@ TEST_CASE("basic contract invocation", "[tx][soroban]")
         auto accountAddress = makeAccountAddress(test.getRoot().getPublicKey());
         badAddressTest(accountAddress);
     }
-
+    SECTION("malformed function names")
+    {
+        REQUIRE(failedInvoke(addContract, "", {sc7, sc16}, invocationSpec) ==
+                INVOKE_HOST_FUNCTION_TRAPPED);
+        REQUIRE(failedInvoke(addContract, "add2", {sc7, sc16},
+                             invocationSpec) == INVOKE_HOST_FUNCTION_TRAPPED);
+        REQUIRE(failedInvoke(addContract, "\0add", {sc7, sc16},
+                             invocationSpec) == INVOKE_HOST_FUNCTION_TRAPPED);
+        REQUIRE(failedInvoke(addContract, "add$", {sc7, sc16},
+                             invocationSpec) == INVOKE_HOST_FUNCTION_TRAPPED);
+        REQUIRE(failedInvoke(addContract,
+                             "\xFF"
+                             "aaaaaa",
+                             {sc7, sc16},
+                             invocationSpec) == INVOKE_HOST_FUNCTION_TRAPPED);
+        REQUIRE(failedInvoke(addContract,
+                             "aaaaaa"
+                             "\xF4",
+                             {sc7, sc16},
+                             invocationSpec) == INVOKE_HOST_FUNCTION_TRAPPED);
+        REQUIRE(failedInvoke(addContract,
+                             "aaaaaaaaaaaaaa"
+                             "\xF4",
+                             {sc7, sc16},
+                             invocationSpec) == INVOKE_HOST_FUNCTION_TRAPPED);
+        REQUIRE(failedInvoke(addContract,
+                             "aaaaaaa"
+                             "\xC5"
+                             "aaaaaaa",
+                             {sc7, sc16},
+                             invocationSpec) == INVOKE_HOST_FUNCTION_TRAPPED);
+        REQUIRE(failedInvoke(addContract,
+                             "aaa"
+                             "\xC5"
+                             "a",
+                             {sc7, sc16},
+                             invocationSpec) == INVOKE_HOST_FUNCTION_TRAPPED);
+    }
     SECTION("incorrect invocation parameters")
     {
         SECTION("too few parameters")
@@ -3631,6 +3668,39 @@ TEST_CASE("Soroban authorization", "[soroban]")
             REQUIRE(invocation.invoke());
             // Try to reuse the same nonce and fail
             REQUIRE(!invocation.invoke());
+        }
+        SECTION("unused auth entries")
+        {
+            auto runUnusedAuthEntriesTest = [&](std::string const& fnName) {
+                auto extraAuth = invocationAuth;
+                extraAuth.function.contractFn().functionName =
+                    makeSymbol(fnName);
+                for (auto const& signer : signers)
+                {
+                    invocation.withAuthorization(invocationAuth, signer);
+                    // Signature doesn't need to be valid for the extra, so
+                    // use the signature for `invocationAuth` instead of
+                    // the `extraAuth`.
+                    invocation.withAuthorization(extraAuth,
+                                                 signer.sign(invocationAuth));
+                }
+                return invocation.invoke();
+            };
+            SECTION("success with arbitrary valid function")
+            {
+                REQUIRE(runUnusedAuthEntriesTest("tree_fn2"));
+            }
+            SECTION("failure with malformed function name")
+            {
+                REQUIRE(!runUnusedAuthEntriesTest("tree_fn"
+                                                  "\xFF"));
+            }
+            SECTION("failure with long malformed function name")
+            {
+                REQUIRE(!runUnusedAuthEntriesTest("tree_fn123456"
+                                                  "\xC2"
+                                                  "789"));
+            }
         }
         SECTION("success with duplicate auth entries")
         {
