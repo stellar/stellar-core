@@ -24,7 +24,7 @@ CARGO_FEATURES += --features tracy
 endif
 
 if ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
-CARGO_FEATURES += --features core-vnext
+CARGO_FEATURES += --features core-vnext --features soroban-env-host-prev
 main/XDRFilesSha256.cpp: $(SRC_X_FILES) Makefile $(top_srcdir)/hash-xdrs.sh
 	$(top_srcdir)/hash-xdrs.sh protocol-next >$@
 else

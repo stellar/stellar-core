@@ -236,8 +236,11 @@ class SorobanTest
   public:
     SorobanTest(
         Config cfg = getTestConfig(), bool useTestLimits = true,
-        std::function<void(SorobanNetworkConfig&)> cfgModifyFn =
-            [](SorobanNetworkConfig&) {});
+        std::function<void(SorobanNetworkConfig&)> cfgModifyFn = nullptr);
+
+    void updateSorobanNetworkConfig(
+        bool useTestLimits = true,
+        std::function<void(SorobanNetworkConfig&)> cfgModifyFn = nullptr);
 
     Application& getApp() const;
 
