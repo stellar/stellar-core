@@ -67,6 +67,17 @@ To install Postgresql, follow instructions from the [Postgresql download page](h
 - `clang-format-12` (for `make format` to work)
 - `sed` and `perl`
 - `libunwind-dev`
+- Rust toolchain (see [Installing Rust](#installing-rust) subsection)
+  - `cargo` >= 1.74
+  - `rust` >= 1.74
+
+### Installing Rust
+
+Building the Rust components requires the `cargo` package manager and build system, as well as the `rustc` compiler, both version 1.74 or later.
+
+We recommend installing Rust using the Rust project's `rustup` installer, which can be found on [rustup.rs](https://rustup.rs).
+
+We also include a script in the repository `install-rust.sh` that downloads and runs a known version of `rustup` on x64-linux hosts, such as those used for CI and packaging.
 
 ### Ubuntu
 
@@ -188,13 +199,3 @@ The GUI depends on the `capstone`, `freetype` and `glfw` libraries and their hea
 
     # On MacOS
     $ brew install capstone freetype2 glfw
-
-## Building with Rust
-
-Configuring with `--enable-next-protocol-version-unsafe-for-production` will build and embed components written in the [Rust](https://rust-lang.org) programming language. These components are currently only enabled when building the "next" protocol, not the "current" one.
-
-Building the Rust components requires the `cargo` package manager and build system, as well as the `rustc` compiler, both version 1.63 or later.
-
-Currently we recommend installing Rust using the Rust project's `rustup` installer, which can be found on [rustup.rs](https://rustup.rs).
-
-We also include a script in the repository `install-rust.sh` that downloads and runs a known version of `rustup` on x64-linux hosts, such as those used for CI and packaging.
