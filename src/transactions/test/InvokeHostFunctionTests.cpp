@@ -1031,6 +1031,39 @@ TEST_CASE("refund account merged", "[tx][soroban][merge]")
     checkTx(1, r, txNO_ACCOUNT);
 }
 
+TEST_CASE("refund still happens on bad auth", "[tx][soroban]")
+{
+    SorobanTest test;
+
+    const int64_t startingBalance =
+        test.getApp().getLedgerManager().getLastMinBalance(50);
+
+    auto a1 = test.getRoot().create("A", startingBalance);
+    auto b1 = test.getRoot().create("B", startingBalance);
+    auto wasm = rust_bridge::get_test_wasm_add_i32();
+    auto resources = defaultUploadWasmResourcesWithoutFootprint(wasm);
+    auto tx = makeSorobanWasmUploadTx(test.getApp(), a1, wasm, resources, 100);
+
+    auto a1PreTxBalance = a1.getBalance();
+    auto setOptions = txtest::setOptions(setMasterWeight(0));
+    setOptions.sourceAccount.activate() = toMuxedAccount(a1);
+
+    auto classicSetOptionsTx = b1.tx({setOptions});
+    classicSetOptionsTx->addSignature(a1.getSecretKey());
+    std::vector<TransactionFrameBasePtr> txs = {classicSetOptionsTx, tx};
+    auto r = closeLedger(test.getApp(), txs);
+
+    checkTx(0, r, txSUCCESS);
+    checkTx(1, r, txBAD_AUTH);
+
+    auto a1PostTxBalance = a1.getBalance();
+
+    // The initial fee charge is based on DEFAULT_TEST_RESOURCE_FEE, which is
+    // 1'000'000, so the difference would be much higher if the refund did not
+    // happen.
+    REQUIRE(a1PreTxBalance - a1PostTxBalance == 39288);
+}
+
 TEST_CASE("buying liabilities plus refund is greater than INT64_MAX",
           "[tx][soroban][offer]")
 {
