@@ -705,18 +705,27 @@ LoadGenerator::generateLoad(GeneratedLoadConfig cfg)
                         resources.instructions = rand_uniform<uint32_t>(
                             1, static_cast<uint32>(maxPerTx.getVal(
                                    Resource::Type::INSTRUCTIONS)));
-                        wasmSize = rand_uniform<uint32_t>(
-                            1, mApp.getLedgerManager()
-                                   .getSorobanNetworkConfig()
-                                   .maxContractSizeBytes());
+
+                        // Respect both contract size limit and TX write byte
+                        // limits including key overhead
+                        uint32_t const keyOverhead = 40;
+                        auto maxWasmSize =
+                            std::min(mApp.getLedgerManager()
+                                         .getSorobanNetworkConfig()
+                                         .maxContractSizeBytes(),
+                                     static_cast<uint32>(maxPerTx.getVal(
+                                         Resource::Type::WRITE_BYTES)) -
+                                         keyOverhead);
+                        wasmSize = rand_uniform<uint32_t>(1, maxWasmSize);
                         resources.readBytes = rand_uniform<uint32_t>(
                             1, static_cast<uint32>(maxPerTx.getVal(
                                    Resource::Type::READ_BYTES)));
                         resources.writeBytes = rand_uniform<uint32_t>(
                             // Allocate at least enough write bytes to write the
                             // whole Wasm plus the 40 bytes of the key.
-                            wasmSize + 40, static_cast<uint32>(maxPerTx.getVal(
-                                               Resource::Type::WRITE_BYTES)));
+                            wasmSize + keyOverhead,
+                            static_cast<uint32>(
+                                maxPerTx.getVal(Resource::Type::WRITE_BYTES)));
 
                         auto writeKeys = LedgerTestUtils::
                             generateUniqueValidSorobanLedgerEntryKeys(
