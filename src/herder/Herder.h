@@ -177,10 +177,6 @@ class Herder
     virtual bool isNewerNominationOrBallotSt(SCPStatement const& oldSt,
                                              SCPStatement const& newSt) = 0;
 
-    // Return the maximum sequence number for any tx (or 0 if none) from a given
-    // sender in the pending or recent tx sets.
-    virtual SequenceNumber getMaxSeqInPendingTxs(AccountID const&) = 0;
-
     // Returns sequence number for most recent completed checkpoint that the
     // node knows about, as derived from
     // trackingConsensusLedgerIndex

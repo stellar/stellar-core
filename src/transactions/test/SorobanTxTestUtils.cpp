@@ -430,7 +430,7 @@ SorobanInvocationSpec::setInclusionFee(uint32_t fee) const
 
 TestContract::TestContract(SorobanTest& test, SCAddress const& address,
                            xdr::xvector<LedgerKey> const& contractKeys)
-    : mTest(test), mAddress(address), mContractKeys(contractKeys)
+    : mTest(test), mContractKeys(contractKeys), mAddress(address)
 {
 }
 
@@ -761,7 +761,6 @@ SorobanTest::createContract(ContractIDPreimage const& idPreimage,
                             ContractExecutable const& executable,
                             SorobanResources& createResources)
 {
-    auto salt = sha256(std::to_string(mContracts.size()));
     auto tx = makeSorobanCreateContractTx(getApp(), mRoot, idPreimage,
                                           executable, createResources, 1000);
     REQUIRE(invokeTx(tx));

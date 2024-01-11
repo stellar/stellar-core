@@ -53,9 +53,6 @@ TransactionQueue::TransactionQueue(Application& app, uint32 pendingDepth,
     : mApp(app)
     , mPendingDepth(pendingDepth)
     , mBannedTransactions(banDepth)
-    , mLedgerVersion(app.getLedgerManager()
-                         .getLastClosedLedgerHeader()
-                         .header.ledgerVersion)
     , mBannedTransactionsCounter(
           app.getMetrics().NewCounter({"herder", "pending-txs", "banned"}))
     , mArbTxSeenCounter(
@@ -821,6 +818,7 @@ TransactionQueue::ban(Transactions const& banTxs)
     }
 }
 
+#ifdef BUILD_TESTS
 TransactionQueue::AccountTxQueueInfo
 TransactionQueue::getAccountTransactionQueueInfo(
     AccountID const& accountID) const
@@ -837,6 +835,13 @@ TransactionQueue::getAccountTransactionQueueInfo(
     return {seqNum, as.mTotalFees, as.mQueueSizeOps, as.mBroadcastQueueOps,
             as.mAge};
 }
+
+size_t
+TransactionQueue::countBanned(int index) const
+{
+    return mBannedTransactions[index].size();
+}
+#endif
 
 void
 TransactionQueue::shift()
@@ -902,12 +907,6 @@ TransactionQueue::shift()
     // pick a new randomizing seed for tie breaking
     mBroadcastSeed =
         rand_uniform<uint64>(0, std::numeric_limits<uint64>::max());
-}
-
-size_t
-TransactionQueue::countBanned(int index) const
-{
-    return mBannedTransactions[index].size();
 }
 
 bool
@@ -978,19 +977,6 @@ TransactionQueue::clearAll()
                   TransactionMode::READ_ONLY_WITHOUT_SQL_TXN);
     mTxQueueLimiter->reset(ltx.loadHeader().current().ledgerVersion);
     mKnownTxHashes.clear();
-}
-
-void
-TransactionQueue::maybeVersionUpgraded()
-{
-    auto const& lcl = mApp.getLedgerManager().getLastClosedLedgerHeader();
-    if (protocolVersionIsBefore(mLedgerVersion, ProtocolVersion::V_13) &&
-        protocolVersionStartsFrom(lcl.header.ledgerVersion,
-                                  ProtocolVersion::V_13))
-    {
-        clearAll();
-    }
-    mLedgerVersion = lcl.header.ledgerVersion;
 }
 
 std::pair<Resource, std::optional<Resource>>
@@ -1525,9 +1511,6 @@ TransactionQueue::getInQueueSeqNum(AccountID const& account) const
 size_t
 ClassicTransactionQueue::getMaxQueueSizeOps() const
 {
-    LedgerTxn ltx(mApp.getLedgerTxnRoot(),
-                  /* shouldUpdateLastModified */ true,
-                  TransactionMode::READ_ONLY_WITHOUT_SQL_TXN);
     auto res = mTxQueueLimiter->maxScaledLedgerResources(false);
     releaseAssert(res.size() == NUM_CLASSIC_TX_RESOURCES);
     return res.getVal(Resource::Type::OPERATIONS);

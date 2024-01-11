@@ -167,12 +167,15 @@ TEST_CASE("Flooding", "[flood][overlay][acceptance]")
         auto ackedTransactions = [&](std::shared_ptr<Application> app) {
             // checks if an app received all transactions or not
             size_t okCount = 0;
+            auto& herder = static_cast<HerderImpl&>(app->getHerder());
+
             for (auto const& s : sources)
             {
-                okCount +=
-                    (app->getHerder().getMaxSeqInPendingTxs(s) == expectedSeq)
-                        ? 1
-                        : 0;
+                okCount += (herder.getTransactionQueue()
+                                .getAccountTransactionQueueInfo(s)
+                                .mMaxSeq == expectedSeq)
+                               ? 1
+                               : 0;
             }
             bool res = okCount == sources.size();
             LOG_DEBUG(DEFAULT_LOG, "{}{}{} / {} authenticated peers: {}",

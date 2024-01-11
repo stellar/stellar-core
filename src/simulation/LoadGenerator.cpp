@@ -548,7 +548,7 @@ GeneratedLoadConfig::getStatus() const
     ret["tx_rate"] = std::to_string(txRate) + " tx/s";
     if (mode == LoadGenMode::MIXED_TXS)
     {
-        ret["dex_tx_percent"] = getDexTxPercent() + "%";
+        ret["dex_tx_percent"] = std::to_string(getDexTxPercent()) + "%";
     }
     else if (mode == LoadGenMode::SOROBAN_INVOKE)
     {
