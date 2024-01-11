@@ -829,7 +829,7 @@ BucketList::addBatch(Application& app, uint32_t currLedger,
 void
 BucketList::scanForEviction(Application& app, AbstractLedgerTxn& ltx,
                             uint32_t ledgerSeq,
-                            medida::Meter& entriesEvictedMeter,
+                            medida::Counter& entriesEvictedCounter,
                             medida::Counter& bytesScannedForEvictionCounter,
                             medida::Counter& incompleteBucketScanCounter)
 {
@@ -894,7 +894,7 @@ BucketList::scanForEviction(Application& app, AbstractLedgerTxn& ltx,
         auto b = getBucketFromIter(evictionIter);
         while (!b->scanForEviction(
             ltx, evictionIter, scanSize, maxEntriesToEvict, ledgerSeq,
-            entriesEvictedMeter, bytesScannedForEvictionCounter))
+            entriesEvictedCounter, bytesScannedForEvictionCounter))
         {
             // If we reached eof in curr bucket, start scanning snap.
             // Last level has no snap so cycle back to the initial level.

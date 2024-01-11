@@ -525,7 +525,8 @@ class BucketList
                   std::vector<LedgerKey> const& deadEntries);
 
     void scanForEviction(Application& app, AbstractLedgerTxn& ltx,
-                         uint32_t ledgerSeq, medida::Meter& entriesEvictedMeter,
+                         uint32_t ledgerSeq,
+                         medida::Counter& entriesEvictedCounter,
                          medida::Counter& bytesScannedForEvictionCounter,
                          medida::Counter& incompleteBucketScanCounter);
 };

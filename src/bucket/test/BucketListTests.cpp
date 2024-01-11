@@ -876,8 +876,8 @@ TEST_CASE_VERSIONS("eviction scan", "[bucketlist]")
             checkIfEntryExists(tempEntries, false);
             checkIfEntryExists(persistentEntries, true);
 
-            auto& entriesEvictedMeter = bm.getEntriesEvictedMeter();
-            REQUIRE(entriesEvictedMeter.count() == tempEntries.size());
+            auto& entriesEvictedCounter = bm.getEntriesEvictedCounter();
+            REQUIRE(entriesEvictedCounter.count() == tempEntries.size());
 
             // Close ledgers until evicted DEADENTRYs merge with original
             // INITENTRYs. This checks that BucketList invariants are respected
@@ -890,7 +890,7 @@ TEST_CASE_VERSIONS("eviction scan", "[bucketlist]")
                 closeLedger(*app);
             }
 
-            REQUIRE(entriesEvictedMeter.count() == tempEntries.size());
+            REQUIRE(entriesEvictedCounter.count() == tempEntries.size());
         }
 
         SECTION("shadowed entries not evicted")
@@ -927,15 +927,15 @@ TEST_CASE_VERSIONS("eviction scan", "[bucketlist]")
             stateArchivalSettings.startingEvictionScanLevel = levelToScan;
             updateNetworkCfg();
 
-            auto& entriesEvictedMeter = bm.getEntriesEvictedMeter();
-            for (auto prevCount = entriesEvictedMeter.count();
+            auto& entriesEvictedCounter = bm.getEntriesEvictedCounter();
+            for (auto prevCount = entriesEvictedCounter.count();
                  prevCount < tempEntries.size();)
             {
                 closeLedger(*app);
 
                 // Check that we only evict at most maxEntriesToArchive per
                 // ledger
-                auto newCount = entriesEvictedMeter.count();
+                auto newCount = entriesEvictedCounter.count();
                 REQUIRE(newCount + 1 >= prevCount);
                 prevCount = newCount;
             }

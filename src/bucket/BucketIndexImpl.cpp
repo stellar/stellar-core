@@ -90,7 +90,18 @@ BucketIndexImpl<IndexT>::BucketIndexImpl(BucketManager& bm,
             ZoneNamedN(bloomInit, "bloomInit", true);
             bloom_parameters params;
             params.projected_element_count = estimatedNumElems;
-            params.false_positive_probability = 0.001; // 1 in 1000
+
+            // Our target false positive rate is 0.1% even though we set the
+            // bloom filter false positive rate to 0.05%. We do this because our
+            // entry count estimation can be an underestimation (we assume every
+            // BucketEntry is an account LiveEntry, but TTL and DEADENTRY are
+            // smaller). If we gave a larger entry count estimate, the size of
+            // our bloom filter would significantly increase. Instead, by
+            // setting the desired false positive rate to 0.05%, the bloom
+            // filter size stays approximately the same and we give ourselves an
+            // additional 10% of wiggle room on the estimation.
+            params.false_positive_probability = 0.0005; // 0.05%
+
             params.random_seed = shortHash::getShortHashInitKey();
             params.compute_optimal_parameters();
             mData.filter = std::make_unique<bloom_filter>(params);
@@ -167,14 +178,6 @@ BucketIndexImpl<IndexT>::BucketIndexImpl(BucketManager& bm,
 
         CLOG_DEBUG(Bucket, "Indexed {} positions in {}",
                    mData.keysToOffset.size(), filename.filename());
-        if (std::is_same<IndexT, RangeIndex>::value &&
-            estimatedNumElems < count)
-        {
-            CLOG_WARNING(Bucket,
-                         "Underestimated bloom filter size. Estimated entry "
-                         "count: {}, Actual: {}",
-                         estimatedNumElems, count);
-        }
         ZoneValue(static_cast<int64_t>(count));
     }
 

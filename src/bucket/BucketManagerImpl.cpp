@@ -116,14 +116,14 @@ BucketManagerImpl::BucketManagerImpl(Application& app)
     , mBucketSnapMerge(app.getMetrics().NewTimer({"bucket", "snap", "merge"}))
     , mSharedBucketsSize(
           app.getMetrics().NewCounter({"bucket", "memory", "shared"}))
-    , mBucketListDBQueryMeter(app.getMetrics().NewMeter(
+    , mBucketListDBBulkLoadMeter(app.getMetrics().NewMeter(
           {"bucketlistDB", "query", "loads"}, "query"))
     , mBucketListDBBloomMisses(app.getMetrics().NewMeter(
           {"bucketlistDB", "bloom", "misses"}, "bloom"))
     , mBucketListDBBloomLookups(app.getMetrics().NewMeter(
           {"bucketlistDB", "bloom", "lookups"}, "bloom"))
-    , mEntriesEvicted(app.getMetrics().NewMeter(
-          {"state-archival", "eviction", "entries-evicted"}, "eviction"))
+    , mEntriesEvicted(app.getMetrics().NewCounter(
+          {"state-archival", "eviction", "entries-evicted"}))
     , mBytesScannedForEviction(app.getMetrics().NewCounter(
           {"state-archival", "eviction", "bytes-scanned"}))
     , mIncompleteBucketScans(app.getMetrics().NewCounter(
@@ -854,8 +854,8 @@ BucketManagerImpl::getBucketHashesInBucketDirForTesting() const
     return hashes;
 }
 
-medida::Meter&
-BucketManagerImpl::getEntriesEvictedMeter() const
+medida::Counter&
+BucketManagerImpl::getEntriesEvictedCounter() const
 {
     return mEntriesEvicted;
 }
@@ -911,9 +911,14 @@ BucketManagerImpl::scanForEviction(AbstractLedgerTxn& ltx, uint32_t ledgerSeq)
 }
 
 medida::Timer&
-BucketManagerImpl::getBulkLoadTimer(std::string const& label) const
+BucketManagerImpl::recordBulkLoadMetrics(std::string const& label,
+                                         size_t numEntries) const
 {
-    mBucketListDBQueryMeter.Mark();
+    if (numEntries != 0)
+    {
+        mBucketListDBBulkLoadMeter.Mark(numEntries);
+    }
+
     auto iter = mBucketListDBBulkTimers.find(label);
     if (iter == mBucketListDBBulkTimers.end())
     {
@@ -928,7 +933,6 @@ BucketManagerImpl::getBulkLoadTimer(std::string const& label) const
 medida::Timer&
 BucketManagerImpl::getPointLoadTimer(LedgerEntryType t) const
 {
-    mBucketListDBQueryMeter.Mark();
     auto iter = mBucketListDBPointTimers.find(t);
     if (iter == mBucketListDBPointTimers.end())
     {
@@ -954,7 +958,7 @@ BucketManagerImpl::loadKeys(
     std::set<LedgerKey, LedgerEntryIdCmp> const& keys) const
 {
     releaseAssertOrThrow(getConfig().isUsingBucketListDB());
-    auto timer = getBulkLoadTimer("prefetch").TimeScope();
+    auto timer = recordBulkLoadMetrics("prefetch", keys.size()).TimeScope();
     return mBucketList->loadKeys(keys);
 }
 
@@ -963,7 +967,9 @@ BucketManagerImpl::loadPoolShareTrustLinesByAccountAndAsset(
     AccountID const& accountID, Asset const& asset) const
 {
     releaseAssertOrThrow(getConfig().isUsingBucketListDB());
-    auto timer = getBulkLoadTimer("poolshareTrustlines").TimeScope();
+    // This query needs to do a linear scan of certain regions of the
+    // BucketList, so the number of entries loaded is meaningless
+    auto timer = recordBulkLoadMetrics("poolshareTrustlines", 0).TimeScope();
     return mBucketList->loadPoolShareTrustLinesByAccountAndAsset(
         accountID, asset, getConfig());
 }
@@ -973,7 +979,9 @@ BucketManagerImpl::loadInflationWinners(size_t maxWinners,
                                         int64_t minBalance) const
 {
     releaseAssertOrThrow(getConfig().isUsingBucketListDB());
-    auto timer = getBulkLoadTimer("inflationWinners").TimeScope();
+    // This query needs to do a linear scan of certain regions of the
+    // BucketList, so the number of entries loaded is meaningless
+    auto timer = recordBulkLoadMetrics("inflationWinners", 0).TimeScope();
     return mBucketList->loadInflationWinners(maxWinners, minBalance);
 }
 

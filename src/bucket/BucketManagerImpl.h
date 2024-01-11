@@ -47,10 +47,10 @@ class BucketManagerImpl : public BucketManager
     medida::Timer& mBucketAddBatch;
     medida::Timer& mBucketSnapMerge;
     medida::Counter& mSharedBucketsSize;
-    medida::Meter& mBucketListDBQueryMeter;
+    medida::Meter& mBucketListDBBulkLoadMeter;
     medida::Meter& mBucketListDBBloomMisses;
     medida::Meter& mBucketListDBBloomLookups;
-    medida::Meter& mEntriesEvicted;
+    medida::Counter& mEntriesEvicted;
     medida::Counter& mBytesScannedForEviction;
     medida::Counter& mIncompleteBucketScans;
     medida::Counter& mBucketListSizeCounter;
@@ -82,7 +82,8 @@ class BucketManagerImpl : public BucketManager
     void deleteTmpDirAndUnlockBucketDir();
     void deleteEntireBucketDir();
 
-    medida::Timer& getBulkLoadTimer(std::string const& label) const;
+    medida::Timer& recordBulkLoadMetrics(std::string const& label,
+                                         size_t numEntries) const;
     medida::Timer& getPointLoadTimer(LedgerEntryType t) const;
 
 #ifdef BUILD_TESTS
@@ -159,7 +160,7 @@ class BucketManagerImpl : public BucketManager
 
     std::set<Hash> getBucketHashesInBucketDirForTesting() const override;
 
-    medida::Meter& getEntriesEvictedMeter() const override;
+    medida::Counter& getEntriesEvictedCounter() const override;
 #endif
 
     std::set<Hash> getBucketListReferencedBuckets() const override;
