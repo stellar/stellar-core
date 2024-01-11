@@ -1390,7 +1390,7 @@ TEST_CASE("settings upgrade", "[tx][soroban][upgrades]")
     }
 }
 
-TEST_CASE("loadgen Wasm executes properly", "[soroban][loadgen]")
+TEST_CASE("loadgen Wasm executes properly", "[tx][soroban][loadgen]")
 {
     SorobanTest test;
     auto& loadgenContract =
@@ -3049,7 +3049,7 @@ TEST_CASE("settings upgrade command line utils", "[tx][soroban][upgrades]")
     }
 }
 
-TEST_CASE("overly large soroban values are handled gracefully", "[soroban]")
+TEST_CASE("overly large soroban values are handled gracefully", "[tx][soroban]")
 {
     Config cfg = getTestConfig();
     cfg.ENABLE_SOROBAN_DIAGNOSTIC_EVENTS = true;
@@ -3150,7 +3150,7 @@ TEST_CASE("overly large soroban values are handled gracefully", "[soroban]")
     }
 }
 
-TEST_CASE("Soroban classic account authentication", "[soroban]")
+TEST_CASE("Soroban classic account authentication", "[tx][soroban]")
 {
     auto cfg = getTestConfig();
     cfg.ENABLE_SOROBAN_DIAGNOSTIC_EVENTS = true;
@@ -3427,7 +3427,7 @@ TEST_CASE("Soroban classic account authentication", "[soroban]")
     }
 }
 
-TEST_CASE("Soroban custom account authentication", "[soroban]")
+TEST_CASE("Soroban custom account authentication", "[tx][soroban]")
 {
     auto cfg = getTestConfig();
     cfg.ENABLE_SOROBAN_DIAGNOSTIC_EVENTS = true;
@@ -3557,7 +3557,7 @@ TEST_CASE("Soroban custom account authentication", "[soroban]")
     }
 }
 
-TEST_CASE("Soroban authorization", "[soroban]")
+TEST_CASE("Soroban authorization", "[tx][soroban]")
 {
     auto cfg = getTestConfig();
     cfg.ENABLE_SOROBAN_DIAGNOSTIC_EVENTS = true;
