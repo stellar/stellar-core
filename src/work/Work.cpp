@@ -52,7 +52,22 @@ Work::onRun()
     if (mAbortChildrenButNotSelf)
     {
         // Stop whatever work was doing, just wait for children to abort
-        return onAbort() ? State::WORK_FAILURE : State::WORK_RUNNING;
+        if (onAbort())
+        {
+            if (mReportSuccessOnAbort)
+            {
+                clearChildren();
+                return State::WORK_SUCCESS;
+            }
+            else
+            {
+                return State::WORK_FAILURE;
+            }
+        }
+        else
+        {
+            return State::WORK_RUNNING;
+        }
     }
 
     auto child = yieldNextRunningChild();
@@ -83,6 +98,14 @@ Work::onRun()
         }
         return state;
     }
+}
+
+void
+Work::abortSuccess()
+{
+    mReportSuccessOnAbort = true;
+    mAbortChildrenButNotSelf = true;
+    shutdownChildren();
 }
 
 bool

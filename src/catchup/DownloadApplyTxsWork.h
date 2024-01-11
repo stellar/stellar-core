@@ -4,6 +4,7 @@
 
 #pragma once
 
+#include "catchup/ApplyCheckpointWork.h"
 #include "ledger/LedgerRange.h"
 #include "util/XDRStream.h"
 #include "work/BatchWork.h"
@@ -29,6 +30,8 @@ class DownloadApplyTxsWork : public BatchWork
     uint32_t mCheckpointToQueue;
     std::shared_ptr<BasicWork> mLastYieldedWork;
     bool const mWaitForPublish;
+    // Download directories for SCP message history
+    std::shared_ptr<TmpDirVec const> mSCPDownloadDirs;
     std::shared_ptr<HistoryArchive> mArchive;
 
   public:
@@ -36,6 +39,7 @@ class DownloadApplyTxsWork : public BatchWork
                          LedgerRange const& range,
                          LedgerHeaderHistoryEntry& lastApplied,
                          bool waitForPublish,
+                         std::shared_ptr<TmpDirVec const> mSCPDownloadDirs,
                          std::shared_ptr<HistoryArchive> archive = nullptr);
 
     std::string getStatus() const override;

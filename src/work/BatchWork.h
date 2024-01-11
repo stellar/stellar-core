@@ -41,5 +41,9 @@ class BatchWork : public Work
     virtual bool hasNext() const = 0;
     virtual std::shared_ptr<BasicWork> yieldMoreWork() = 0;
     virtual void resetIter() = 0;
+
+    // Function to call when child work fails. Returns the state that `doWork`
+    // should return.
+    virtual State onChildFailure();
 };
 }

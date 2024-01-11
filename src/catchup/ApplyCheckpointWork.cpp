@@ -24,10 +24,9 @@
 namespace stellar
 {
 
-ApplyCheckpointWork::ApplyCheckpointWork(Application& app,
-                                         TmpDir const& downloadDir,
-                                         LedgerRange const& range,
-                                         OnFailureCallback cb)
+ApplyCheckpointWork::ApplyCheckpointWork(
+    Application& app, TmpDir const& downloadDir, LedgerRange const& range,
+    OnFailureCallback cb, std::shared_ptr<TmpDirVec const>& scpDownloadDirs)
     : BasicWork(app,
                 "apply-ledgers-" + fmt::format(FMT_STRING("{}-{}"),
                                                range.mFirst, range.limit()),
@@ -36,6 +35,7 @@ ApplyCheckpointWork::ApplyCheckpointWork(Application& app,
     , mLedgerRange(range)
     , mCheckpoint(
           app.getHistoryManager().checkpointContainingLedger(range.mFirst))
+    , mSCPDownloadDirs(scpDownloadDirs)
     , mOnFailure(cb)
 {
     // Ledger range check to enforce application of a single checkpoint
@@ -69,6 +69,11 @@ ApplyCheckpointWork::closeFiles()
 {
     mHdrIn.close();
     mTxIn.close();
+    for (auto& scpInfo : mSCPCheckpointInfo)
+    {
+        scpInfo.scpHistoryIn.close();
+    }
+    mSCPCheckpointInfo.clear();
     mFilesOpen = false;
 }
 
@@ -83,8 +88,7 @@ void
 ApplyCheckpointWork::openInputFiles()
 {
     ZoneScoped;
-    mHdrIn.close();
-    mTxIn.close();
+    closeFiles();
     FileTransferInfo hi(mDownloadDir, HISTORY_FILE_TYPE_LEDGER, mCheckpoint);
     FileTransferInfo ti(mDownloadDir, HISTORY_FILE_TYPE_TRANSACTIONS,
                         mCheckpoint);
@@ -95,6 +99,32 @@ ApplyCheckpointWork::openInputFiles()
     mTxIn.open(ti.localPath_nogz());
     mTxHistoryEntry = TransactionHistoryEntry();
     mHeaderHistoryEntry = LedgerHeaderHistoryEntry();
+
+    if (mSCPDownloadDirs)
+    {
+        // Initialize `SCPCheckpointInfo`s for each SCP history download
+        // directory.
+        for (auto const& scpDir : *mSCPDownloadDirs)
+        {
+            FileTransferInfo si(*scpDir, HISTORY_FILE_TYPE_SCP, mCheckpoint);
+            CLOG_DEBUG(History, "Saving SCP messages from {}",
+                       si.localPath_nogz());
+            mSCPCheckpointInfo.emplace_back();
+            SCPCheckpointInfo& scpInfo = mSCPCheckpointInfo.back();
+            scpInfo.scpHistoryEntry = std::make_shared<SCPHistoryEntry>();
+            try
+            {
+                scpInfo.scpHistoryIn.open(si.localPath_nogz());
+            }
+            catch (FileSystemException const&)
+            {
+                // File doesn't exist for this checkpoint. That's ok. Skip it.
+                mSCPCheckpointInfo.pop_back();
+                continue;
+            }
+        }
+    }
+
     mFilesOpen = true;
 }
 
@@ -251,6 +281,49 @@ ApplyCheckpointWork::getNextLedgerCloseData()
         std::make_optional<Hash>(mHeaderHistoryEntry.hash));
 }
 
+std::unique_ptr<SCPHistoryEntryVec>
+ApplyCheckpointWork::getNextSCPHistoryEntries()
+{
+    ZoneScoped;
+    auto ret = std::make_unique<SCPHistoryEntryVec>();
+    uint32_t ledgerSeq = mApp.getLedgerManager().getLastClosedLedgerNum();
+    for (SCPCheckpointInfo& info : mSCPCheckpointInfo)
+    {
+        XDRInputFileStream& in = info.scpHistoryIn;
+        std::shared_ptr<SCPHistoryEntry>& entry = info.scpHistoryEntry;
+        do
+        {
+            uint32 scpHistSeq = entry->v0().ledgerMessages.ledgerSeq;
+
+            if (scpHistSeq <= ledgerSeq)
+            {
+                // Catching up to `ledgerSeq + 1`
+                CLOG_DEBUG(History, "Skipping SCP messages for ledger {}",
+                           scpHistSeq);
+            }
+            else if (scpHistSeq == ledgerSeq + 1)
+            {
+                // Caught up
+                CLOG_DEBUG(History, "Loaded SCP messages for ledger {}",
+                           ledgerSeq);
+                ret->push_back(entry);
+                break;
+            }
+            else
+            {
+                // Ahead. This archive does not have messages for `ledgerSeq+1`
+                // TODO: Log which archive is missing the messages (also applies
+                // to other logging statements in this function)
+                CLOG_WARNING(History,
+                             "Archive missing SCP messages for ledger {}",
+                             scpHistSeq);
+                break;
+            }
+        } while (in && in.readOne(*entry));
+    }
+    return ret;
+}
+
 BasicWork::State
 ApplyCheckpointWork::onRun()
 {
@@ -308,7 +381,8 @@ ApplyCheckpointWork::onRun()
         return State::WORK_RUNNING;
     }
 
-    auto applyLedger = std::make_shared<ApplyLedgerWork>(mApp, *lcd);
+    auto applyLedger = std::make_shared<ApplyLedgerWork>(
+        mApp, *lcd, getNextSCPHistoryEntries());
 
     auto predicate = [](Application& app) {
         auto& bl = app.getBucketManager().getBucketList();

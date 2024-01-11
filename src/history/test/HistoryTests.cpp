@@ -375,14 +375,16 @@ TEST_CASE("Tx results verification", "[batching][resultsverification]")
     auto checkpointLedger = catchupSimulation.getLastCheckpointLedger(2);
     catchupSimulation.ensureOfflineCatchupPossible(checkpointLedger);
 
-    auto tmpDir =
-        catchupSimulation.getApp().getTmpDirManager().tmpDir("tx-results-test");
+    auto tmpDirPtr = std::make_shared<TmpDir>(
+        catchupSimulation.getApp().getTmpDirManager().tmpDir(
+            "tx-results-test"));
+    auto& tmpDir = *tmpDirPtr;
     auto& wm = catchupSimulation.getApp().getWorkScheduler();
     CheckpointRange range{LedgerRange::inclusive(1, checkpointLedger),
                           catchupSimulation.getApp().getHistoryManager()};
 
     auto verifyHeadersWork = wm.executeWork<BatchDownloadWork>(
-        range, HISTORY_FILE_TYPE_LEDGER, tmpDir);
+        range, HISTORY_FILE_TYPE_LEDGER, tmpDirPtr);
     REQUIRE(verifyHeadersWork->getState() == BasicWork::State::WORK_SUCCESS);
     SECTION("basic")
     {
@@ -431,7 +433,7 @@ TEST_CASE("Tx results verification", "[batching][resultsverification]")
     SECTION("invalid result entries")
     {
         auto getResults = wm.executeWork<BatchDownloadWork>(
-            range, HISTORY_FILE_TYPE_RESULTS, tmpDir);
+            range, HISTORY_FILE_TYPE_RESULTS, tmpDirPtr);
         REQUIRE(getResults->getState() == BasicWork::State::WORK_SUCCESS);
 
         FileTransferInfo ft(tmpDir, HISTORY_FILE_TYPE_RESULTS, range.last());
@@ -1490,6 +1492,9 @@ TEST_CASE("Catchup failure recovery with buffered checkpoint",
 
 TEST_CASE("Change ordering of buffered ledgers", "[history][catchup]")
 {
+    // TODO: Fix `cp` failures this test spits out. SCP history is optional so
+    // there shouldn't be errors when it doesn't exist.
+
     CatchupSimulation catchupSimulation{};
 
     auto app = catchupSimulation.createCatchupApplication(

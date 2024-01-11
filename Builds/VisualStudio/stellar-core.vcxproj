@@ -506,6 +506,7 @@ exit /b 0
     <ClCompile Include="..\..\src\herder\TxSetUtils.cpp" />
     <ClCompile Include="..\..\src\herder\Upgrades.cpp" />
     <ClCompile Include="..\..\src\historywork\BatchDownloadWork.cpp" />
+    <ClCompile Include="..\..\src\historywork\BestEffortBatchDownloadWork.cpp" />
     <ClCompile Include="..\..\src\historywork\CheckSingleLedgerHeaderWork.cpp" />
     <ClCompile Include="..\..\src\historywork\DownloadBucketsWork.cpp" />
     <ClCompile Include="..\..\src\historywork\DownloadVerifyTxResultsWork.cpp" />
@@ -938,6 +939,7 @@ exit /b 0
     <ClInclude Include="..\..\src\herder\TxSetUtils.h" />
     <ClInclude Include="..\..\src\herder\Upgrades.h" />
     <ClInclude Include="..\..\src\historywork\BatchDownloadWork.h" />
+    <ClInclude Include="..\..\src\historywork\BestEffortBatchDownloadWork.h" />
     <ClInclude Include="..\..\src\historywork\CheckSingleLedgerHeaderWork.h" />
     <ClInclude Include="..\..\src\historywork\DownloadBucketsWork.h" />
     <ClInclude Include="..\..\src\historywork\DownloadVerifyTxResultsWork.h" />

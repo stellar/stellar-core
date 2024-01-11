@@ -14,8 +14,10 @@
 #include "catchup/VerifyLedgerChainWork.h"
 #include "herder/Herder.h"
 #include "history/FileTransferInfo.h"
+#include "history/HistoryArchiveManager.h"
 #include "history/HistoryManager.h"
 #include "historywork/BatchDownloadWork.h"
+#include "historywork/BestEffortBatchDownloadWork.h"
 #include "historywork/DownloadBucketsWork.h"
 #include "historywork/DownloadVerifyTxResultsWork.h"
 #include "historywork/GetAndUnzipRemoteFileWork.h"
@@ -81,7 +83,7 @@ CatchupWork::CatchupWork(Application& app,
                          std::shared_ptr<HistoryArchive> archive)
     : Work(app, "catchup", BasicWork::RETRY_NEVER)
     , mLocalState{app.getLedgerManager().getLastClosedLedgerHAS()}
-    , mDownloadDir{std::make_unique<TmpDir>(
+    , mDownloadDir{std::make_shared<TmpDir>(
           mApp.getTmpDirManager().tmpDir(getName()))}
     , mCatchupConfiguration{catchupConfiguration}
     , mArchive{archive}
@@ -150,6 +152,7 @@ CatchupWork::doReset()
     mHAS.reset();
     mBucketHAS.reset();
     mRetainedBuckets.clear();
+    mSCPDownloadDirs->clear();
 }
 
 void
@@ -166,7 +169,7 @@ CatchupWork::downloadVerifyLedgerChain(CatchupRange const& catchupRange,
     // Batch download has default retries ("a few") to ensure we rotate through
     // archives
     auto getLedgers = std::make_shared<BatchDownloadWork>(
-        mApp, checkpointRange, HISTORY_FILE_TYPE_LEDGER, *mDownloadDir,
+        mApp, checkpointRange, HISTORY_FILE_TYPE_LEDGER, mDownloadDir,
         mArchive);
     mRangeEndPromise = std::promise<LedgerNumHashPair>();
     mRangeEndFuture = mRangeEndPromise.get_future().share();
@@ -179,9 +182,32 @@ CatchupWork::downloadVerifyLedgerChain(CatchupRange const& catchupRange,
         mApp, *mDownloadDir, verifyRange, mLastClosedLedgerHashPair,
         mRangeEndFuture, std::move(fatalFailurePromise));
 
+    std::vector<std::shared_ptr<BasicWork>> seq{getLedgers, mVerifyLedgers};
+
+    Config const& cfg = mApp.getConfig();
+    // TODO: Test with this flag set to `false`. An empty `mSCPDownloadDirs`
+    // should prevent any further stages from running.
+    if (cfg.MODE_STORES_HISTORY_MISC)
+    {
+        for (std::string const& scpHistoryArchive : cfg.SCP_HISTORY_ARCHIVES)
+        {
+            CLOG_DEBUG(History, "Downloading SCP history from {}",
+                       scpHistoryArchive);
+            std::shared_ptr<HistoryArchive> scpArchive =
+                mApp.getHistoryArchiveManager().getHistoryArchive(
+                    scpHistoryArchive);
+
+            auto scpDownloadDir =
+                std::make_shared<TmpDir>(mApp.getTmpDirManager().tmpDir(
+                    "scp-history-" + scpHistoryArchive));
+            mSCPDownloadDirs->push_back(scpDownloadDir);
+            seq.emplace_back(std::make_shared<BestEffortBatchDownloadWork>(
+                mApp, checkpointRange, HISTORY_FILE_TYPE_SCP, scpDownloadDir,
+                scpArchive));
+        }
+    }
     // Never retry the sequence: downloads already have retries, and there's no
     // point retrying verification
-    std::vector<std::shared_ptr<BasicWork>> seq{getLedgers, mVerifyLedgers};
     mDownloadVerifyLedgersSeq = addWork<WorkSequence>(
         "download-verify-ledgers-seq", seq, BasicWork::RETRY_NEVER);
     mCurrentWork = mDownloadVerifyLedgersSeq;
@@ -305,7 +331,8 @@ CatchupWork::downloadApplyTransactions(CatchupRange const& catchupRange)
     auto waitForPublish = mCatchupConfiguration.offline();
     auto range = catchupRange.getReplayRange();
     mTransactionsVerifyApplySeq = std::make_shared<DownloadApplyTxsWork>(
-        mApp, *mDownloadDir, range, mLastApplied, waitForPublish, mArchive);
+        mApp, *mDownloadDir, range, mLastApplied, waitForPublish,
+        mSCPDownloadDirs, mArchive);
 }
 
 BasicWork::State

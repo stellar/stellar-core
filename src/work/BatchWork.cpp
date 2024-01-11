@@ -29,7 +29,7 @@ BatchWork::doWork()
     ZoneScoped;
     if (anyChildRaiseFailure())
     {
-        return State::WORK_FAILURE;
+        return onChildFailure();
     }
 
     // Clean up completed children
@@ -82,5 +82,11 @@ BatchWork::addMoreWorkIfNeeded()
         }
         mBatch.insert(std::make_pair(w->getName(), w));
     }
+}
+
+BasicWork::State
+BatchWork::onChildFailure()
+{
+    return State::WORK_FAILURE;
 }
 }

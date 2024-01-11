@@ -532,6 +532,10 @@ class Config : public std::enable_shared_from_this<Config>
     // History config
     std::map<std::string, HistoryArchiveConfiguration> HISTORY;
 
+    // Archives to use for downloading SCP history
+    // TODO: Document in user facing documentation
+    std::vector<std::string> SCP_HISTORY_ARCHIVES;
+
     // Database config
     SecretValue DATABASE;
 

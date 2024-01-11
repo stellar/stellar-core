@@ -4,6 +4,7 @@
 // under the Apache License, Version 2.0. See the COPYING file at the root
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
+#include "catchup/ApplyLedgerWork.h"
 #include "herder/QuorumTracker.h"
 #include "overlay/Peer.h"
 #include "xdr/Stellar-SCP.h"
@@ -40,6 +41,13 @@ class HerderPersistence
                                          uint32_t ledgerSeq,
                                          uint32_t ledgerCount,
                                          XDROutputFileStream& scpHistory);
+
+    // Given a set of SCP history entries from multiple archives, merge the
+    // entries--taking the newest entry for each node--and store the result in
+    // the database.
+    virtual void copySCPHistoryFromEntries(SCPHistoryEntryVec const& hEntries,
+                                           uint32_t ledgerSeq) = 0;
+
     // quorum information lookup
     static std::optional<Hash>
     getNodeQuorumSet(Database& db, soci::session& sess, NodeID const& nodeID);

@@ -7,6 +7,7 @@
 #include "catchup/CatchupRange.h"
 #include "crypto/Hex.h"
 #include "crypto/Random.h"
+#include "herder/HerderPersistence.h"
 #include "herder/TxSetFrame.h"
 #include "history/FileTransferInfo.h"
 #include "history/HistoryArchiveManager.h"
@@ -16,6 +17,7 @@
 #include "ledger/LedgerTxnHeader.h"
 #include "lib/catch.hpp"
 #include "main/ApplicationUtils.h"
+#include "scp/LocalNode.h"
 #include "test/TestAccount.h"
 #include "test/TestUtils.h"
 #include "test/TxTests.h"
@@ -64,6 +66,8 @@ TmpDirHistoryConfigurator::configure(Config& cfg, bool writable) const
     }
 
     cfg.HISTORY[d] = HistoryArchiveConfiguration{d, getCmd, putCmd, mkdirCmd};
+    // TODO: Probably want different variations of this vv
+    cfg.SCP_HISTORY_ARCHIVES = {d};
     cfg.TESTING_SOROBAN_HIGH_LIMIT_OVERRIDE = true;
     return cfg;
 }
@@ -408,6 +412,22 @@ CatchupSimulation::getLastCheckpointLedger(uint32_t checkpointIndex) const
            1;
 }
 
+namespace
+{
+// Make an envelope with enough detail for
+// `HerderPersistenceImpl::saveSCPHistory`
+SCPEnvelope
+makeEnvelope(HerderImpl& herder)
+{
+    SCPEnvelope result;
+    result.statement.nodeID = PubKeyUtils::pseudoRandomForTesting();
+    result.statement.pledges.type(SCP_ST_EXTERNALIZE);
+    result.statement.pledges.externalize().commitQuorumSetHash =
+        herder.getSCP().getLocalNode()->getQuorumSetHash();
+    return result;
+}
+} // namespace
+
 void
 CatchupSimulation::generateRandomLedger(uint32_t version)
 {
@@ -524,6 +544,21 @@ CatchupSimulation::generateRandomLedger(uint32_t version)
                                           upgrades, mApp.getConfig().NODE_SEED);
 
     mLedgerCloseDatas.emplace_back(ledgerSeq, txSet, sv);
+
+    mEnvelopes.emplace_back();
+    auto& envs = mEnvelopes.back();
+    auto& herder = dynamic_cast<HerderImpl&>(mApp.getHerder());
+    for (int i = 0; i < 5; ++i)
+    {
+        // Generate at least one envelope
+        if (i == 0 || rand_flip())
+        {
+            envs.push_back(makeEnvelope(herder));
+        }
+    }
+    // Save SCP history to the database
+    mApp.getHerderPersistence().saveSCPHistory(ledgerSeq, envs,
+                                               QuorumTracker::QuorumMap());
 
     auto& txsSucceeded =
         mApp.getMetrics().NewCounter({"ledger", "apply", "success"});
@@ -903,7 +938,8 @@ void
 CatchupSimulation::externalizeLedger(HerderImpl& herder, uint32_t ledger)
 {
     // Remember the vectors count from 2, not 0.
-    if (ledger - 2 >= mLedgerCloseDatas.size())
+    if (ledger - 2 >= mLedgerCloseDatas.size() ||
+        ledger - 2 >= mEnvelopes.size())
     {
         return;
     }
@@ -1033,6 +1069,22 @@ CatchupSimulation::validateCatchup(Application::pointer app)
     CHECK(haveCarolSeq == wantCarolSeq);
     CHECK(haveEveSeq == wantEveSeq);
     CHECK(haveStrpSeq == wantStrpSeq);
+
+    // Check that `scphistory` has the expected number of entries
+    size_t j;
+    size_t count;
+    auto st = mApp.getDatabase()
+                  .getPreparedStatement(
+                      "SELECT COUNT(*) FROM scphistory WHERE ledgerseq = :seq")
+                  .statement();
+    st.exchange(soci::into(count));
+    st.exchange(soci::use(j));
+    st.define_and_bind();
+    for (j = 2; j < nextLedger - 1; ++j)
+    {
+        st.execute(true);
+        CHECK(count == mEnvelopes.at(j - 2).size());
+    }
 }
 
 CatchupPerformedWork

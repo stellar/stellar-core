@@ -19,6 +19,24 @@
 namespace stellar
 {
 
+namespace
+{
+// Extract the `SCPHistoryEntry`s within a `LedgerCloseMeta`
+std::unique_ptr<SCPHistoryEntryVec>
+scpHistoryEntriesFromLedgerCloseMeta(LedgerCloseMeta const& lcm)
+{
+    xdr::xvector<SCPHistoryEntry> const& hist =
+        lcm.v() == 0 ? lcm.v0().scpInfo : lcm.v1().scpInfo;
+
+    auto ret = std::make_unique<SCPHistoryEntryVec>();
+    for (auto const& e : hist)
+    {
+        ret->emplace_back(std::make_shared<SCPHistoryEntry>(e));
+    }
+    return ret;
+}
+} // namespace
+
 // Helper class to apply ledgers from a single debug meta file
 class ApplyLedgersFromMetaWork : public Work
 {
@@ -122,7 +140,9 @@ class ApplyLedgersFromMetaWork : public Work
                                         lh.header.scpValue);
 
         releaseAssert(!mApplyLedgerWork);
-        mApplyLedgerWork = addWork<ApplyLedgerWork>(ledgerCloseData);
+        // TODO: Test
+        mApplyLedgerWork = addWork<ApplyLedgerWork>(
+            ledgerCloseData, scpHistoryEntriesFromLedgerCloseMeta(lcm));
         return BasicWork::State::WORK_RUNNING;
     }
 

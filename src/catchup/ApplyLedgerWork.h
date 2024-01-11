@@ -6,16 +6,23 @@
 
 #include "herder/LedgerCloseData.h"
 #include "work/Work.h"
+#include <memory>
 
 namespace stellar
 {
 
+using SCPHistoryEntryVec = std::vector<std::shared_ptr<SCPHistoryEntry>>;
+
 class ApplyLedgerWork : public BasicWork
 {
+    Application& mApp;
     LedgerCloseData const mLedgerCloseData;
+    // SCP messages for the ledger to be applied
+    std::unique_ptr<SCPHistoryEntryVec const> mHEntries;
 
   public:
-    ApplyLedgerWork(Application& app, LedgerCloseData const& ledgerCloseData);
+    ApplyLedgerWork(Application& app, LedgerCloseData const& ledgerCloseData,
+                    std::unique_ptr<SCPHistoryEntryVec const> hEntries);
 
     std::string getStatus() const override;
 

@@ -762,6 +762,9 @@
     <ClCompile Include="..\..\src\historywork\BatchDownloadWork.cpp">
       <Filter>historyWork</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\src\historywork\BestEffortBatchDownloadWork.cpp">
+      <Filter>historyWork</Filter>
+    </ClCompile>
     <ClCompile Include="..\..\src\historywork\CheckSingleLedgerHeaderWork.cpp">
       <Filter>historyWork</Filter>
     </ClCompile>
@@ -1914,6 +1917,9 @@
       <Filter>history</Filter>
     </ClInclude>
     <ClInclude Include="..\..\src\historywork\BatchDownloadWork.h">
+      <Filter>historyWork</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\historywork\BestEffortBatchDownloadWork.h">
       <Filter>historyWork</Filter>
     </ClInclude>
     <ClInclude Include="..\..\src\historywork\CheckSingleLedgerHeaderWork.h">

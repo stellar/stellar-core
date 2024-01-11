@@ -16,7 +16,7 @@ namespace stellar
 {
 BatchDownloadWork::BatchDownloadWork(Application& app, CheckpointRange range,
                                      std::string const& type,
-                                     TmpDir const& downloadDir,
+                                     std::shared_ptr<TmpDir const> downloadDir,
                                      std::shared_ptr<HistoryArchive> archive)
     : BatchWork(app,
                 fmt::format(FMT_STRING("batch-download-{:s}-{:08x}-{:08x}"),
@@ -52,7 +52,7 @@ BatchDownloadWork::yieldMoreWork()
         return nullptr;
     }
 
-    FileTransferInfo ft(mDownloadDir, mFileType, mNext);
+    FileTransferInfo ft(*mDownloadDir, mFileType, mNext);
     CLOG_DEBUG(History, "Downloading and unzipping {} for checkpoint {}",
                mFileType, mNext);
     auto getAndUnzip =
