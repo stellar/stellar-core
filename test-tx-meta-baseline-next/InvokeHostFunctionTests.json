@@ -1210,6 +1210,7 @@
 		"bKDF6V5IzTo="
 	],
 	"refund account merged" : [ "bKDF6V5IzTo=", "y0mODi4DFnM=", "o9mb+GfjtK8=", "HG7OrQT/Ofg=" ],
+	"refund still happens on bad auth" : [ "bKDF6V5IzTo=", "y0mODi4DFnM=", "o9mb+GfjtK8=" ],
 	"settings upgrade" : [ "bKDF6V5IzTo=", "bKDF6V5IzTo=" ],
 	"settings upgrade command line utils" : 
 	[
