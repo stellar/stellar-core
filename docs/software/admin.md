@@ -1100,9 +1100,7 @@ with the `SCVal` `Bytes` key that contains the SHA-256 hash of the
 `ConfigUpgradeSet`. This means that someone that wants to propose a setting
 upgrade will need to create a contract that writes the `ConfigUpgradeSet` bytes
 into `ContractData`, invoke it to write the upgrade xdr, and then share the
-serialized `ConfigUpgradeSetKey` to vote on. You can read about the Python
-script that can be used to help set these upgrades up
-[here](../../scripts/README.md#soroban-settings-upgrade).
+serialized `ConfigUpgradeSetKey` to vote on.
 
 ### Example upgrade command
 
