@@ -22,6 +22,9 @@ include = [
     "std::sys::unix::rand::hashmap_random_keys",
     "hashbrown::raw",
 ]
+no_auto_detect = [
+    "soroban-env-common",
+]
 
 [api.rand]
 include = [
