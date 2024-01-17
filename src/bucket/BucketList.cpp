@@ -829,9 +829,7 @@ BucketList::addBatch(Application& app, uint32_t currLedger,
 void
 BucketList::scanForEviction(Application& app, AbstractLedgerTxn& ltx,
                             uint32_t ledgerSeq,
-                            medida::Counter& entriesEvictedCounter,
-                            medida::Counter& bytesScannedForEvictionCounter,
-                            medida::Counter& incompleteBucketScanCounter)
+                            BucketListEvictionCounters& counters)
 {
     auto getBucketFromIter = [&levels = mLevels](EvictionIterator const& iter) {
         auto& level = levels.at(iter.bucketListLevel);
@@ -894,7 +892,8 @@ BucketList::scanForEviction(Application& app, AbstractLedgerTxn& ltx,
         auto b = getBucketFromIter(evictionIter);
         while (!b->scanForEviction(
             ltx, evictionIter, scanSize, maxEntriesToEvict, ledgerSeq,
-            entriesEvictedCounter, bytesScannedForEvictionCounter))
+            counters.entriesEvicted, counters.bytesScannedForEviction,
+            mEvictionMetrics))
         {
             // If we reached eof in curr bucket, start scanning snap.
             // Last level has no snap so cycle back to the initial level.
@@ -916,6 +915,26 @@ BucketList::scanForEviction(Application& app, AbstractLedgerTxn& ltx,
                 if (evictionIter.bucketListLevel == kNumLevels)
                 {
                     evictionIter.bucketListLevel = firstScanLevel;
+
+                    // If eviction metrics are not null, we have accounted for a
+                    // complete cycle and should log the metrics
+                    if (mEvictionMetrics)
+                    {
+                        counters.evictionCyclePeriod.set_count(
+                            ledgerSeq -
+                            mEvictionMetrics->evictionCycleStartLedger);
+
+                        auto averageAge =
+                            mEvictionMetrics->numEntriesEvicted == 0
+                                ? 0
+                                : mEvictionMetrics->evictedEntriesAgeSum /
+                                      mEvictionMetrics->numEntriesEvicted;
+                        counters.averageEvictedEntryAge.set_count(averageAge);
+                    }
+
+                    // Reset metrics at beginning of new eviction cycle
+                    mEvictionMetrics = std::make_optional<EvictionMetrics>();
+                    mEvictionMetrics->evictionCycleStartLedger = ledgerSeq;
                 }
             }
 
@@ -936,7 +955,7 @@ BucketList::scanForEviction(Application& app, AbstractLedgerTxn& ltx,
             {
                 CLOG_WARNING(
                     Bucket, "Bucket too large for current eviction scan size.");
-                incompleteBucketScanCounter.inc();
+                counters.incompleteBucketScan.inc();
             }
         }
 

@@ -38,6 +38,7 @@ namespace stellar
 class AbstractLedgerTxn;
 class Application;
 class BucketManager;
+struct EvictionMetrics;
 
 class Bucket : public std::enable_shared_from_this<Bucket>,
                public NonMovableOrCopyable
@@ -145,7 +146,8 @@ class Bucket : public std::enable_shared_from_this<Bucket>,
                          uint64_t& bytesToScan, uint32_t& maxEntriesToEvict,
                          uint32_t ledgerSeq,
                          medida::Counter& entriesEvictedCounter,
-                         medida::Counter& bytesScannedForEvictionCounter);
+                         medida::Counter& bytesScannedForEvictionCounter,
+                         std::optional<EvictionMetrics>& metrics);
 
 #ifdef BUILD_TESTS
     // "Applies" the bucket to the database. For each entry in the bucket,

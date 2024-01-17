@@ -104,6 +104,20 @@ BucketManagerImpl::getTmpDirManager()
     return *mTmpDirManager;
 }
 
+BucketListEvictionCounters::BucketListEvictionCounters(Application& app)
+    : entriesEvicted(app.getMetrics().NewCounter(
+          {"state-archival", "eviction", "entries-evicted"}))
+    , bytesScannedForEviction(app.getMetrics().NewCounter(
+          {"state-archival", "eviction", "bytes-scanned"}))
+    , incompleteBucketScan(app.getMetrics().NewCounter(
+          {"state-archival", "eviction", "incomplete-scan"}))
+    , evictionCyclePeriod(
+          app.getMetrics().NewCounter({"state-archival", "eviction", "period"}))
+    , averageEvictedEntryAge(
+          app.getMetrics().NewCounter({"state-archival", "eviction", "age"}))
+{
+}
+
 BucketManagerImpl::BucketManagerImpl(Application& app)
     : mApp(app)
     , mBucketList(nullptr)
@@ -122,14 +136,9 @@ BucketManagerImpl::BucketManagerImpl(Application& app)
           {"bucketlistDB", "bloom", "misses"}, "bloom"))
     , mBucketListDBBloomLookups(app.getMetrics().NewMeter(
           {"bucketlistDB", "bloom", "lookups"}, "bloom"))
-    , mEntriesEvicted(app.getMetrics().NewCounter(
-          {"state-archival", "eviction", "entries-evicted"}))
-    , mBytesScannedForEviction(app.getMetrics().NewCounter(
-          {"state-archival", "eviction", "bytes-scanned"}))
-    , mIncompleteBucketScans(app.getMetrics().NewCounter(
-          {"state-archival", "eviction", "incomplete-scan"}))
     , mBucketListSizeCounter(
           app.getMetrics().NewCounter({"bucketlist", "size", "bytes"}))
+    , mBucketListEvictionCounters(app)
     // Minimal DB is stored in the buckets dir, so delete it only when
     // mode does not use minimal DB
     , mDeleteEntireBucketDirInDtor(
@@ -857,7 +866,7 @@ BucketManagerImpl::getBucketHashesInBucketDirForTesting() const
 medida::Counter&
 BucketManagerImpl::getEntriesEvictedCounter() const
 {
-    return mEntriesEvicted;
+    return mBucketListEvictionCounters.entriesEvicted;
 }
 #endif
 
@@ -904,9 +913,8 @@ BucketManagerImpl::scanForEviction(AbstractLedgerTxn& ltx, uint32_t ledgerSeq)
     if (protocolVersionStartsFrom(ltx.getHeader().ledgerVersion,
                                   SOROBAN_PROTOCOL_VERSION))
     {
-        mBucketList->scanForEviction(mApp, ltx, ledgerSeq, mEntriesEvicted,
-                                     mBytesScannedForEviction,
-                                     mIncompleteBucketScans);
+        mBucketList->scanForEviction(mApp, ltx, ledgerSeq,
+                                     mBucketListEvictionCounters);
     }
 }
 

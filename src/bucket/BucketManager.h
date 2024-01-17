@@ -78,6 +78,17 @@ struct MergeCounters
     bool operator==(MergeCounters const& other) const;
 };
 
+struct BucketListEvictionCounters
+{
+    medida::Counter& entriesEvicted;
+    medida::Counter& bytesScannedForEviction;
+    medida::Counter& incompleteBucketScan;
+    medida::Counter& evictionCyclePeriod;
+    medida::Counter& averageEvictedEntryAge;
+
+    BucketListEvictionCounters(Application& app);
+};
+
 /**
  * BucketManager is responsible for maintaining a collection of Buckets of
  * ledger entries (each sorted, de-duplicated and identified by hash) and,
