@@ -84,8 +84,7 @@ Command options can only by placed after command.
    See more examples in [ledger_query_examples.md](ledger_query_examples.md).
 
 * **dump-xdr <FILE-NAME>**:  Dumps the given XDR file and then exits.
-* **encode-asset --code <CODE> --issuer <ISSUER>**: Prints a base-64 encoded asset.
-    Prints the native asset if neither `code` nor `issuer` is given.
+* **encode-asset**: Prints a base-64 encoded asset built from  `--code <CODE>` and `--issuer <ISSUER>`. Prints the native asset if neither `--code` nor `--issuer` is given.
 * **fuzz <FILE-NAME>**: Run a single fuzz input and exit.
 * **gen-fuzz <FILE-NAME>**:  Generate a random fuzzer input file.
 * **gen-seed**: Generate and print a random public/private key and then exit.
