@@ -3,6 +3,7 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 use cxx::let_cxx_string;
+use itertools::Itertools;
 use log::{Level, LevelFilter, Metadata, Record, SetLoggerError};
 use std::sync::atomic::{AtomicBool, Ordering};
 
@@ -53,6 +54,19 @@ pub fn init_logging(maxLevel: LogLevel) -> Result<(), SetLoggerError> {
     }
     log::set_max_level(maxFilter);
     Ok(())
+}
+
+pub(crate) fn is_tx_tracing_enabled() -> bool {
+    let_cxx_string!(partition = partition::TX);
+    shim_isLogLevelAtLeast(&partition, LogLevel::LVL_TRACE)
+}
+
+pub(crate) fn diff_line(last: &String, new: &String) -> String {
+    last.split(',')
+        .zip(new.split(','))
+        .filter(|(a, b)| a != b)
+        .map(|(_, b)| b)
+        .join(",")
 }
 
 fn convertLogLevel(lvl: Level) -> LogLevel {

@@ -21,6 +21,7 @@ rand = "=0.8.5"
 
 petgraph = "=0.6.4"
 toml = "=0.7.8"
+itertools = "=0.11.0"
 
 # This copy of the soroban host is always enabled, and should always point to a
 # version that supports stellar-core's Config::CURRENT_LEDGER_PROTOCOL_VERSION.
@@ -35,7 +36,7 @@ toml = "=0.7.8"
 version = "=20.1.0"
 git = "https://github.com/stellar/rs-soroban-env"
 package = "soroban-env-host"
-rev = "c1b238b65bfd13666be4ac14e0e390c31b549caf"
+rev = "b6ef8e32d86b008b2ecfdb2d7ca958e751190523"
 
 # This copy of the soroban host is _optional_ and only enabled during protocol
 # transitions. When transitioning from protocol N to N+1, the `curr` copy
@@ -64,12 +65,12 @@ rev = "bed170cde09a53c85ae2e02f9278ef0dfa4e0900"
 [dependencies.soroban-test-wasms]
 version = "=20.1.0"
 git = "https://github.com/stellar/rs-soroban-env"
-rev = "c1b238b65bfd13666be4ac14e0e390c31b549caf"
+rev = "b6ef8e32d86b008b2ecfdb2d7ca958e751190523"
 
 [dependencies.soroban-synth-wasm]
 version = "=20.1.0"
 git = "https://github.com/stellar/rs-soroban-env"
-rev = "c1b238b65bfd13666be4ac14e0e390c31b549caf"
+rev = "b6ef8e32d86b008b2ecfdb2d7ca958e751190523"
 
 [dependencies.cargo-lock]
 version = "=9.0.0"

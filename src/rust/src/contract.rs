@@ -10,8 +10,8 @@ use crate::{
         InvokeHostFunctionOutput, RustBuf, XDRFileHash,
     },
 };
-use log::debug;
-use std::{fmt::Display, io::Cursor, panic, time::Instant};
+use log::{debug, trace};
+use std::{fmt::Display, io::Cursor, panic, rc::Rc, time::Instant};
 
 // This module (contract) is bound to _two separate locations_ in the module
 // tree: crate::lo::contract and crate::hi::contract, each of which has a (lo or
@@ -286,6 +286,29 @@ pub(crate) fn invoke_host_function(
     }
 }
 
+fn make_trace_hook_fn<'a>() -> super::soroban_env_host::TraceHook {
+    let prev_state = std::cell::RefCell::new(String::new());
+    Rc::new(move |host, traceevent| {
+        if traceevent.is_begin() || traceevent.is_end() {
+            prev_state.replace(String::new());
+        }
+        match super::soroban_env_host::TraceRecord::new(host, traceevent) {
+            Ok(tr) => {
+                let state_str = format!("{}", tr.state);
+                if prev_state.borrow().is_empty() {
+                    trace!(target: TX, "{}: {}", tr.event, state_str);
+                } else {
+                    let diff = crate::log::diff_line(&prev_state.borrow(), &state_str);
+                    trace!(target: TX, "{}: {}", tr.event, diff);
+                }
+                prev_state.replace(state_str);
+            }
+            Err(e) => trace!(target: TX, "{}", e),
+        }
+        Ok(())
+    })
+}
+
 fn invoke_host_function_or_maybe_panic(
     enable_diagnostics: bool,
     instruction_limit: u32,
@@ -314,10 +337,16 @@ fn invoke_host_function_or_maybe_panic(
     )?;
     let mut diagnostic_events = vec![];
     let ledger_seq_num = ledger_info.sequence_number;
+    let trace_hook: Option<super::soroban_env_host::TraceHook> =
+        if crate::log::is_tx_tracing_enabled() {
+            Some(make_trace_hook_fn())
+        } else {
+            None
+        };
     let (res, time_nsecs) = {
         let _span1 = tracy_span!("e2e_invoke::invoke_function");
         let start_time = Instant::now();
-        let res = e2e_invoke::invoke_host_function(
+        let res = e2e_invoke::invoke_host_function_with_trace_hook(
             &budget,
             enable_diagnostics,
             hf_buf,
@@ -329,6 +358,7 @@ fn invoke_host_function_or_maybe_panic(
             ttl_entries.iter(),
             base_prng_seed,
             &mut diagnostic_events,
+            trace_hook,
         );
         let stop_time = Instant::now();
         let time_nsecs = stop_time.duration_since(start_time).as_nanos() as u64;
