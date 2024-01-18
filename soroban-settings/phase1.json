@@ -301,7 +301,7 @@
           "temp_rent_rate_denominator": 5356800,
           "max_entries_to_archive": 100,
           "bucket_list_size_window_sample_size": 30,
-          "eviction_scan_size": 100000,
+          "eviction_scan_size": 1048576,
           "starting_eviction_scan_level": 6
       }
     },
