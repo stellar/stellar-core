@@ -60,7 +60,7 @@ class Floodgate
 
     // returns true if msg was sent to at least one peer
     // The hash required for transactions
-    bool broadcast(StellarMessage const& msg, bool force,
+    bool broadcast(StellarMessage const& msg,
                    std::optional<Hash> const& hash = std::nullopt);
 
     // returns the list of peers that sent us the item with hash `msgID`

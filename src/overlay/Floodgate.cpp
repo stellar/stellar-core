@@ -85,8 +85,7 @@ Floodgate::addRecord(StellarMessage const& msg, Peer::pointer peer, Hash& index)
 
 // send message to anyone you haven't gotten it from
 bool
-Floodgate::broadcast(StellarMessage const& msg, bool force,
-                     std::optional<Hash> const& hash)
+Floodgate::broadcast(StellarMessage const& msg, std::optional<Hash> const& hash)
 {
     ZoneScoped;
     if (mShuttingDown)
@@ -102,7 +101,7 @@ Floodgate::broadcast(StellarMessage const& msg, bool force,
 
     FloodRecord::pointer fr;
     auto result = mFloodMap.find(index);
-    if (result == mFloodMap.end() || force)
+    if (result == mFloodMap.end())
     { // no one has sent us this message / start from scratch
         fr = std::make_shared<FloodRecord>(
             mApp.getHerder().trackingConsensusLedgerIndex(), Peer::pointer());

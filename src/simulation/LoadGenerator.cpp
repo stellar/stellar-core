@@ -2027,8 +2027,7 @@ LoadGenerator::execute(TransactionFramePtr& txf, LoadGenMode mode,
     }
     else
     {
-        mApp.getOverlayManager().broadcastMessage(msg, false,
-                                                  txf->getFullHash());
+        mApp.getOverlayManager().broadcastMessage(msg, txf->getFullHash());
     }
 
     return status;

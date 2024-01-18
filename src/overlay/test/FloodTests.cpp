@@ -160,7 +160,7 @@ TEST_CASE("Flooding", "[flood][overlay][acceptance]")
             auto msg = tx1->toStellarMessage();
             auto res = inApp->getHerder().recvTransaction(tx1, false);
             REQUIRE(res == TransactionQueue::AddResult::ADD_STATUS_PENDING);
-            inApp->getOverlayManager().broadcastMessage(msg, false,
+            inApp->getOverlayManager().broadcastMessage(msg,
                                                         tx1->getFullHash());
         };
 
@@ -277,7 +277,7 @@ TEST_CASE("Flooding", "[flood][overlay][acceptance]")
                         auto before =
                             overlaytestutils::getAdvertisedHashCount(node);
                         node->getOverlayManager().broadcastMessage(
-                            testTransaction->toStellarMessage(), false,
+                            testTransaction->toStellarMessage(),
                             testTransaction->getFullHash());
                         REQUIRE(before ==
                                 overlaytestutils::getAdvertisedHashCount(node));
@@ -301,7 +301,7 @@ TEST_CASE("Flooding", "[flood][overlay][acceptance]")
                         auto before =
                             overlaytestutils::getAdvertisedHashCount(node);
                         node->getOverlayManager().broadcastMessage(
-                            testTransaction->toStellarMessage(), false,
+                            testTransaction->toStellarMessage(),
                             testTransaction->getFullHash());
 
                         REQUIRE(before + 1 ==

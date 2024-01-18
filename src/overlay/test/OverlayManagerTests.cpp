@@ -295,7 +295,7 @@ class OverlayManagerTests
             }
         }
         auto broadcastTxnMsg = [&](auto msg) {
-            pm.broadcastMessage(msg, false, xdrSha256(msg.transaction()));
+            pm.broadcastMessage(msg, xdrSha256(msg.transaction()));
         };
         broadcastTxnMsg(AtoB);
         crank(10);

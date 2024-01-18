@@ -139,7 +139,7 @@ class OverlayManagerImpl : public OverlayManager
                           Hash& msgID) override;
     void forgetFloodedMsg(Hash const& msgID) override;
     bool
-    broadcastMessage(StellarMessage const& msg, bool force = false,
+    broadcastMessage(StellarMessage const& msg,
                      std::optional<Hash> const hash = std::nullopt) override;
     void connectTo(PeerBareAddress const& address) override;
 
