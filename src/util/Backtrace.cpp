@@ -149,7 +149,23 @@ printCurrentBacktrace()
 }
 
 #else
+
+#ifdef _WIN32
+static size_t
+backtrace(void**, size_t)
+{
+    return 0;
+}
+
+static char**
+backtrace_symbols(void** v, size_t n)
+{
+    return nullptr;
+}
+
+#else
 #include <execinfo.h>
+#endif
 
 namespace stellar
 {
