@@ -145,6 +145,8 @@ LedgerManagerImpl::LedgerManagerImpl(Application& app)
           app.getMetrics().NewCounter({"ledger", "apply", "success"}))
     , mTransactionApplyFailed(
           app.getMetrics().NewCounter({"ledger", "apply", "failure"}))
+    , mMetaStreamBytes(
+          app.getMetrics().NewMeter({"ledger", "metastream", "bytes"}, "byte"))
     , mMetaStreamWriteTime(
           app.getMetrics().NewTimer({"ledger", "metastream", "write"}))
     , mLastClose(mApp.getClock().now())
@@ -682,8 +684,10 @@ LedgerManagerImpl::emitNextMeta()
     auto streamWrite = mMetaStreamWriteTime.TimeScope();
     if (mMetaStream)
     {
-        mMetaStream->writeOne(mNextMetaToEmit->getXDR());
+        size_t written = 0;
+        mMetaStream->writeOne(mNextMetaToEmit->getXDR(), nullptr, &written);
         mMetaStream->flush();
+        mMetaStreamBytes.Mark(written);
     }
     if (mMetaDebugStream)
     {
