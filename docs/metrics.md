@@ -61,6 +61,7 @@ ledger.catchup.duration                   | timer     | time between entering LM
 ledger.invariant.failure                  | counter   | number of times invariants failed
 ledger.ledger.close                       | timer     | time to close a ledger (excluding consensus)
 ledger.memory.queued-ledgers              | counter   | number of ledgers queued in memory for replay
+ledger.metastream.bytes                   | meter     | number of bytes written per ledger into meta-stream
 ledger.metastream.write                   | timer     | time spent writing data into meta-stream
 ledger.operation.apply                    | timer     | time applying an operation
 ledger.operation.count                    | histogram | number of operations per ledger
