@@ -50,11 +50,12 @@ Upgrades are specified with:
 * protocolversion - upgrades value of ledgerVersion in ledger header, uses
   upgrade type LEDGER_UPGRADE_VERSION (when specified it has to match the
   supported version number)
-* configupgradesetkey - this key will be converted to a ContractData LedgerKey, and the
-  ContractData LedgerEntry retrieved with that will have a val of SCV_BYTES
-  containing a serialized ConfigUpgradeSet. Each ConfigSettingEntry in the
-  ConfigUpgradeSet will be used to update the existing network ConfigSettingEntry
-  that exists at the corresponding CONFIG_SETTING LedgerKey.
+* configupgradesetkey - this is a serialized ConfigUpgradeSetKey, which contains
+  a ContractData LedgerKey and a contractID. The ContractData LedgerEntry
+  retrieved with that will have a val of SCV_BYTES containing a serialized
+  ConfigUpgradeSet. Each ConfigSettingEntry in the ConfigUpgradeSet will be used
+  to update the existing network ConfigSettingEntry that exists at the
+  corresponding CONFIG_SETTING LedgerKey.
 
 #### Limitations of the current implementation
 There is an assumption that validator operators are either paying attention to network wide proposals
