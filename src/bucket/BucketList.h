@@ -352,6 +352,7 @@ class AbstractLedgerTxn;
 class Application;
 class Bucket;
 class Config;
+struct BucketListEvictionCounters;
 struct InflationWinner;
 
 namespace testutil
@@ -402,9 +403,23 @@ class BucketListDepth
     friend class testutil::BucketListDepthModifier;
 };
 
+struct EvictionMetrics
+{
+    // Evicted entry "age" is the delta between its liveUntilLedger and the
+    // ledger when the entry is actually evicted
+    uint64_t evictedEntriesAgeSum{};
+    uint64_t numEntriesEvicted{};
+    uint32_t evictionCycleStartLedger{};
+};
+
 class BucketList
 {
     std::vector<BucketLevel> mLevels;
+
+    // To avoid noisy data, only count metrics that encompass a complete
+    // eviction cycle. If a node joins the network mid cycle, metrics will be
+    // nullopt and be initialized at the start of the next cycle.
+    std::optional<EvictionMetrics> mEvictionMetrics;
 
     // Loops through all buckets, starting with curr at level 0, then snap at
     // level 0, etc. Calls f on each bucket. Exits early if function
@@ -526,8 +541,6 @@ class BucketList
 
     void scanForEviction(Application& app, AbstractLedgerTxn& ltx,
                          uint32_t ledgerSeq,
-                         medida::Counter& entriesEvictedCounter,
-                         medida::Counter& bytesScannedForEvictionCounter,
-                         medida::Counter& incompleteBucketScanCounter);
+                         BucketListEvictionCounters& counters);
 };
 }

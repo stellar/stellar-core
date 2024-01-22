@@ -157,6 +157,8 @@ scp.timing.self-to-others-externalize-lag | timer     | delay between local node
 scp.value.invalid                         | meter     | SCP value is invalid
 scp.value.valid                           | meter     | SCP value is valid
 scp.slot.values-referenced                | histogram | number of values referenced per consensus round
+state-archival.eviction.age               | counter   | the average of the delta between an entry's liveUntilLedger and the ledger when it is evicted
 state-archival.eviction.bytes-scanned     | counter   | number of bytes that eviction scan has read
 state-archival.eviction.entries-evicted   | counter   | number of entries that have been evicted
 state-archival.eviction.incomplete-scan   | counter   | number of buckets that were too large to be fully scanned for eviction
+state-archival.eviction.period            | counter   | number of ledgers to complete an eviction scan

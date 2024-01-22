@@ -841,7 +841,8 @@ Bucket::scanForEviction(AbstractLedgerTxn& ltx, EvictionIterator& iter,
                         uint64_t& bytesToScan, uint32_t& maxEntriesToEvict,
                         uint32_t ledgerSeq,
                         medida::Counter& entriesEvictedCounter,
-                        medida::Counter& bytesScannedForEvictionCounter)
+                        medida::Counter& bytesScannedForEvictionCounter,
+                        std::optional<EvictionMetrics>& metrics)
 {
     ZoneScoped;
     if (isEmpty())
@@ -876,6 +877,7 @@ Bucket::scanForEviction(AbstractLedgerTxn& ltx, EvictionIterator& iter,
                 auto initialStreamPos = stream.pos();
 
                 auto ttlKey = getTTLKey(le);
+                uint32_t liveUntilLedger = 0;
                 auto shouldEvict = [&] {
                     auto entryLtxe = ltx.loadWithoutRecord(LedgerEntryKey(le));
                     auto ttlLtxe = ltx.loadWithoutRecord(ttlKey);
@@ -888,13 +890,21 @@ Bucket::scanForEviction(AbstractLedgerTxn& ltx, EvictionIterator& iter,
                     }
 
                     releaseAssert(ttlLtxe);
-
+                    liveUntilLedger =
+                        ttlLtxe.current().data.ttl().liveUntilLedgerSeq;
                     return !isLive(ttlLtxe.current(), ledgerSeq);
                 };
 
                 if (shouldEvict())
                 {
                     ZoneNamedN(evict, "evict entry", true);
+                    if (metrics.has_value())
+                    {
+                        ++metrics->numEntriesEvicted;
+                        metrics->evictedEntriesAgeSum +=
+                            ledgerSeq - liveUntilLedger;
+                    }
+
                     ltx.erase(ttlKey);
                     ltx.erase(LedgerEntryKey(le));
                     entriesEvictedCounter.inc();
