@@ -263,6 +263,9 @@ class HerderImpl : public Herder
     // tracks the last time externalize was called
     VirtualClock::time_point mLastExternalize;
 
+    // tracks last clock health check
+    std::optional<TimePoint> mLastClockCheck;
+
     // saves the SCP messages that the instance sent out last
     void persistSCPState(uint64 slot);
     // restores SCP state based on the last messages saved on disk
@@ -301,6 +304,8 @@ class HerderImpl : public Herder
         medida::Meter& mEnvelopeValidSig;
         medida::Meter& mEnvelopeInvalidSig;
 
+        // Drift of close time used for nomination
+        medida::Meter& mDriftingClockRate;
         SCPMetrics(Application& app);
     };
 

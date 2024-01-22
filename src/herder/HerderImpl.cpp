@@ -55,6 +55,9 @@ constexpr uint32 const TRANSACTION_QUEUE_TIMEOUT_LEDGERS = 4;
 constexpr uint32 const TRANSACTION_QUEUE_BAN_LEDGERS = 10;
 constexpr uint32 const TRANSACTION_QUEUE_SIZE_MULTIPLIER = 2;
 constexpr uint32 const SOROBAN_TRANSACTION_QUEUE_SIZE_MULTIPLIER = 2;
+constexpr std::chrono::seconds const CLOCK_CHECK_PERIOD =
+    std::chrono::seconds(15 * 60);
+constexpr double const BAD_CLOCK_PER_LEDGER_RATE_TRIGGER = 0.5;
 
 std::unique_ptr<Herder>
 Herder::create(Application& app)
@@ -74,6 +77,8 @@ HerderImpl::SCPMetrics::SCPMetrics(Application& app)
           {"scp", "envelope", "validsig"}, "envelope"))
     , mEnvelopeInvalidSig(app.getMetrics().NewMeter(
           {"scp", "envelope", "invalidsig"}, "envelope"))
+    , mDriftingClockRate(
+          app.getMetrics().NewMeter({"scp", "local-time", "lag"}, "ct-lag"))
 {
 }
 
@@ -1311,6 +1316,29 @@ HerderImpl::triggerNextLedger(uint32_t ledgerSeqToTrigger,
     if (nextCloseTime <= lcl.header.scpValue.closeTime)
     {
         nextCloseTime = lcl.header.scpValue.closeTime + 1;
+        // LCL close time is when _previous_ value was nominated (normally
+        // ~EXP_LEDGER_TIMESPAN_SECONDS seconds ago), record rate per ledger
+        mSCPMetrics.mDriftingClockRate.Mark(
+            Herder::EXP_LEDGER_TIMESPAN_SECONDS.count());
+    }
+
+    if (!mLastClockCheck)
+    {
+        mLastClockCheck = nextCloseTime;
+    }
+
+    // If local close time consistently drifts behind other validators, fire a
+    // warning
+    if ((nextCloseTime - *mLastClockCheck) >= CLOCK_CHECK_PERIOD.count())
+    {
+        if (mSCPMetrics.mDriftingClockRate.fifteen_minute_rate() >=
+            BAD_CLOCK_PER_LEDGER_RATE_TRIGGER)
+        {
+            CLOG_WARNING(Herder,
+                         "Local node's clock is behind other validators.");
+            CLOG_WARNING(Herder, POSSIBLY_BAD_LOCAL_CLOCK);
+        }
+        mLastClockCheck = nextCloseTime;
     }
 
     // Ensure we're about to nominate a value with valid close time
