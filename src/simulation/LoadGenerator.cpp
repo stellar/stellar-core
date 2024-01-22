@@ -1736,7 +1736,8 @@ std::vector<LedgerKey>
 LoadGenerator::checkSorobanStateSynced(Application& app,
                                        GeneratedLoadConfig const& cfg)
 {
-    if (!cfg.isSoroban())
+    // We don't care if TXs succeed for SOROBAN_UPLOAD
+    if (!cfg.isSoroban() || cfg.mode == LoadGenMode::SOROBAN_UPLOAD)
     {
         return {};
     }
@@ -2012,7 +2013,7 @@ LoadGenerator::execute(TransactionFramePtr& txf, LoadGenMode mode,
     auto status = mApp.getHerder().recvTransaction(txf, true);
     if (status != TransactionQueue::AddResult::ADD_STATUS_PENDING)
     {
-        CLOG_INFO(LoadGen, "tx rejected '{}': ===> {}",
+        CLOG_INFO(LoadGen, "tx rejected '{}': ===> {}, {}",
                   TX_STATUS_STRING[static_cast<int>(status)],
                   txf->isSoroban() ? "soroban"
                                    : xdr_to_string(txf->getEnvelope(),
