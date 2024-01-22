@@ -1095,7 +1095,7 @@ like the `baseReserve`. The upgrade endpoint in stellar-core will require
 validators to vote on a serialized `ConfigUpgradeSetKey`, which contains a
 contractID and the SHA-256 hash of the `ConfigUpgradeSet` that will be applied
 to the existing settings. The serialized `ConfigUpgradeSet` must exist in the
-ledger as `Persistent` `ContractData` under the contractID specified earlier and
+ledger as `Temporary` `ContractData` under the contractID specified earlier and
 with the `SCVal` `Bytes` key that contains the SHA-256 hash of the
 `ConfigUpgradeSet`. This means that someone that wants to propose a setting
 upgrade will need to create a contract that writes the `ConfigUpgradeSet` bytes
