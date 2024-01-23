@@ -186,3 +186,19 @@ soroban.host-fn-op.max-emit-event-byte       | meter     | bytes of the largest 
 soroban.host-fn-op.success                   | meter     | if `InvokeHostFunctionOp` results in a success
 soroban.host-fn-op.failure                   | meter     | if `InvokeHostFunctionOp` results in a failure
 soroban.host-fn-op.exec                      | timer     | time spent in `InvokeHostFunctionOp`
+soroban.config.contract-max-size-bytes           | meter     | soroban config setting `contract_max_size_bytes`
+soroban.config.ledger-max-instructions           | meter     | soroban config setting `ledger_max_instructions`
+soroban.config.tx-max-instructions               | meter     | soroban config setting `tx_max_instructions`
+soroban.config.tx-memory-limit                   | meter     | soroban config setting `tx_memory_limit`
+soroban.config.ledger-max-read-ledger-entries    | meter     | soroban config setting `ledger_max_read_ledger_entries`
+soroban.config.ledger-max-read-bytes             | meter     | soroban config setting `ledger_max_read_bytes`
+soroban.config.ledger-max-write-ledger-entries   | meter     | soroban config setting `ledger_max_write_ledger_entries`
+soroban.config.ledger-max-write-bytes            | meter     | soroban config setting `ledger_max_write_bytes`
+soroban.config.tx-max-read-ledger-entries        | meter     | soroban config setting `tx_max_read_ledger_entries`
+soroban.config.tx-max-read-bytes                 | meter     | soroban config setting `tx_max_read_bytes`
+soroban.config.tx-max-write-ledger-entries       | meter     | soroban config setting `tx_max_write_ledger_entries`
+soroban.config.tx-max-write-bytes                | meter     | soroban config setting `tx_max_write_bytes`
+soroban.config.bucket-list-target-size-bytes     | meter     | soroban config setting `bucket_list_target_size_bytes`
+soroban.config.tx-max-contract-events-size-bytes | meter     | soroban config setting `tx_max_contract_events_size_bytes`
+soroban.config.contract-data-key-size-bytes      | meter     | soroban config setting `contract_data_key_size_bytes`
+soroban.config.contract-data-entry-size-bytes    | meter     | soroban config setting `contract_data_entry_size_bytes`

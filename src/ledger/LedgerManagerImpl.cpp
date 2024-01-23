@@ -548,6 +548,84 @@ LedgerManagerImpl::getMutableSorobanNetworkConfig()
 }
 #endif
 
+void
+LedgerManagerImpl::publishSorobanNetworkConfigMetrics()
+{
+    releaseAssert(mSorobanNetworkConfig);
+    medida::MetricsRegistry& metrics = mApp.getMetrics();
+
+    auto contractMaxSizeBytes = mSorobanNetworkConfig->maxContractSizeBytes();
+    auto ledgerMaxInstructions = mSorobanNetworkConfig->ledgerMaxInstructions();
+    auto txMaxInstructions = mSorobanNetworkConfig->txMaxInstructions();
+    auto txMemoryLimit = mSorobanNetworkConfig->txMemoryLimit();
+    auto ledgerMaxReadLedgerEntries =
+        mSorobanNetworkConfig->ledgerMaxReadLedgerEntries();
+    auto ledgerMaxReadBytes = mSorobanNetworkConfig->ledgerMaxReadBytes();
+    auto ledgerMaxWriteLedgerEntries =
+        mSorobanNetworkConfig->ledgerMaxWriteLedgerEntries();
+    auto ledgerMaxWriteBytes = mSorobanNetworkConfig->ledgerMaxWriteBytes();
+    auto txMaxReadLedgerEntries =
+        mSorobanNetworkConfig->txMaxReadLedgerEntries();
+    auto txMaxReadBytes = mSorobanNetworkConfig->txMaxReadBytes();
+    auto txMaxWriteLedgerEntries =
+        mSorobanNetworkConfig->txMaxWriteLedgerEntries();
+    auto txMaxWriteBytes = mSorobanNetworkConfig->txMaxWriteBytes();
+    auto bucketListTargetSizeBytes =
+        mSorobanNetworkConfig->bucketListTargetSizeBytes();
+    auto txMaxContractEventsSizeBytes =
+        mSorobanNetworkConfig->txMaxContractEventsSizeBytes();
+    auto contractDataKeySizeBytes =
+        mSorobanNetworkConfig->maxContractDataKeySizeBytes();
+    auto contractDataEntrySizeBytes =
+        mSorobanNetworkConfig->maxContractDataEntrySizeBytes();
+
+    metrics.NewMeter({"soroban", "config", "contract-max-size-bytes"}, "byte")
+        .Mark(contractMaxSizeBytes);
+    metrics.NewMeter({"soroban", "config", "ledger-max-instructions"}, "insn")
+        .Mark(ledgerMaxInstructions);
+    metrics.NewMeter({"soroban", "config", "tx-max-instructions"}, "insn")
+        .Mark(txMaxInstructions);
+    metrics.NewMeter({"soroban", "config", "tx-memory-limit"}, "byte")
+        .Mark(txMemoryLimit);
+    metrics
+        .NewMeter({"soroban", "config", "ledger-max-read-ledger-entries"},
+                  "entry")
+        .Mark(ledgerMaxReadLedgerEntries);
+    metrics.NewMeter({"soroban", "config", "ledger-max-read-bytes"}, "byte")
+        .Mark(ledgerMaxReadBytes);
+    metrics
+        .NewMeter({"soroban", "config", "ledger-max-write-ledger-entries"},
+                  "entry")
+        .Mark(ledgerMaxWriteLedgerEntries);
+    metrics.NewMeter({"soroban", "config", "ledger-max-write-bytes"}, "byte")
+        .Mark(ledgerMaxWriteBytes);
+    metrics
+        .NewMeter({"soroban", "config", "tx-max-read-ledger-entries"}, "entry")
+        .Mark(txMaxReadLedgerEntries);
+    metrics.NewMeter({"soroban", "config", "tx-max-read-bytes"}, "byte")
+        .Mark(txMaxReadBytes);
+    metrics
+        .NewMeter({"soroban", "config", "tx-max-write-ledger-entries"}, "entry")
+        .Mark(txMaxWriteLedgerEntries);
+    metrics.NewMeter({"soroban", "config", "tx-max-write-bytes"}, "byte")
+        .Mark(txMaxWriteBytes);
+    metrics
+        .NewMeter({"soroban", "config", "bucket-list-target-size-bytes"},
+                  "byte")
+        .Mark(bucketListTargetSizeBytes);
+    metrics
+        .NewMeter({"soroban", "config", "tx-max-contract-events-size-bytes"},
+                  "byte")
+        .Mark(txMaxContractEventsSizeBytes);
+    metrics
+        .NewMeter({"soroban", "config", "contract-data-key-size-bytes"}, "byte")
+        .Mark(contractDataKeySizeBytes);
+    metrics
+        .NewMeter({"soroban", "config", "contract-data-entry-size-bytes"},
+                  "byte")
+        .Mark(contractDataEntrySizeBytes);
+}
+
 // called by txherder
 void
 LedgerManagerImpl::valueExternalized(LedgerCloseData const& ledgerData)
@@ -1222,6 +1300,7 @@ LedgerManagerImpl::updateNetworkConfig(AbstractLedgerTxn& rootLtx)
         mSorobanNetworkConfig->loadFromLedger(
             rootLtx, mApp.getConfig().CURRENT_LEDGER_PROTOCOL_VERSION,
             ledgerVersion);
+        publishSorobanNetworkConfigMetrics();
     }
     else
     {
