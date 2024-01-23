@@ -260,6 +260,8 @@ class SorobanNetworkConfig
     int64_t feeRead1KB() const;
     // Fee for writing 1KB
     int64_t feeWrite1KB() const;
+    // Bucket list target size (in bytes)
+    int64_t bucketListTargetSizeBytes() const;
 
     // Historical data (pushed to core archives) settings for contracts.
     // Fee for storing 1KB in archives

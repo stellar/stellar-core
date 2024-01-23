@@ -102,6 +102,11 @@ class LedgerManagerImpl : public LedgerManager
 
     SorobanNetworkConfig& getSorobanNetworkConfigInternal();
 
+    // Publishes selected network configured limits as medida metrics, useful
+    // for contextualizing the other live metrics. This does not include all
+    // settings, just includes ones relevant for display.
+    void publishSorobanNetworkConfigMetrics();
+
   protected:
     // initialLedgerVers must be the ledger version at the start of the ledger
     // and currLedgerVers is the ledger version in the current ltx header. These

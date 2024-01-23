@@ -162,3 +162,43 @@ state-archival.eviction.bytes-scanned     | counter   | number of bytes that evi
 state-archival.eviction.entries-evicted   | counter   | number of entries that have been evicted
 state-archival.eviction.incomplete-scan   | counter   | number of buckets that were too large to be fully scanned for eviction
 state-archival.eviction.period            | counter   | number of ledgers to complete an eviction scan
+soroban.host-fn-op.read-entry                | meter     | number of entries read
+soroban.host-fn-op.write-entry               | meter     | number of entries written
+soroban.host-fn-op.read-key-byte             | meter     | number of key bytes in read entries
+soroban.host-fn-op.write-key-byte            | meter     | number of key bytes in written entries
+soroban.host-fn-op.read-ledger-byte          | meter     | number of data + code bytes in read entries
+soroban.host-fn-op.read-data-byte            | meter     | number of data bytes in read entries
+soroban.host-fn-op.read-code-byte            | meter     | number of code bytes in read entries
+soroban.host-fn-op.write-ledger-byte         | meter     | number of data + code bytes in written entries
+soroban.host-fn-op.write-data-byte           | meter     | number of data bytes in written entries
+soroban.host-fn-op.write-code-byte           | meter     | number of code bytes in written entries
+soroban.host-fn-op.emit-event                | meter     | number of events emitted
+soroban.host-fn-op.emit-event-byte           | meter     | number of event bytes emitted
+soroban.host-fn-op.cpu-insn                  | meter     | metered cpu instructions
+soroban.host-fn-op.mem-byte                  | meter     | metered memory bytes
+soroban.host-fn-op.invoke-time-nsecs         | meter     | time [nsecs] spent in `invoke_host_function`
+soroban.host-fn-op.cpu-insn-excl-vm          | meter     | metered cpu instructions excluding VM instantation
+soroban.host-fn-op.invoke-time-nsecs-excl-vm | meter     | time [nsecs] spent in `invoke_host_function` excluding VM instantation
+soroban.host-fn-op.max-rw-key-byte           | meter     | bytes of the largest key in entries read/written
+soroban.host-fn-op.max-rw-data-byte          | meter     | bytes of the largest data entry read/written
+soroban.host-fn-op.max-rw-code-byte          | meter     | bytes of the largest code entry read/written
+soroban.host-fn-op.max-emit-event-byte       | meter     | bytes of the largest event emitted
+soroban.host-fn-op.success                   | meter     | if `InvokeHostFunctionOp` results in a success
+soroban.host-fn-op.failure                   | meter     | if `InvokeHostFunctionOp` results in a failure
+soroban.host-fn-op.exec                      | timer     | time spent in `InvokeHostFunctionOp`
+soroban.config.contract-max-size-bytes           | meter     | soroban config setting `contract_max_size_bytes`
+soroban.config.ledger-max-instructions           | meter     | soroban config setting `ledger_max_instructions`
+soroban.config.tx-max-instructions               | meter     | soroban config setting `tx_max_instructions`
+soroban.config.tx-memory-limit                   | meter     | soroban config setting `tx_memory_limit`
+soroban.config.ledger-max-read-ledger-entries    | meter     | soroban config setting `ledger_max_read_ledger_entries`
+soroban.config.ledger-max-read-bytes             | meter     | soroban config setting `ledger_max_read_bytes`
+soroban.config.ledger-max-write-ledger-entries   | meter     | soroban config setting `ledger_max_write_ledger_entries`
+soroban.config.ledger-max-write-bytes            | meter     | soroban config setting `ledger_max_write_bytes`
+soroban.config.tx-max-read-ledger-entries        | meter     | soroban config setting `tx_max_read_ledger_entries`
+soroban.config.tx-max-read-bytes                 | meter     | soroban config setting `tx_max_read_bytes`
+soroban.config.tx-max-write-ledger-entries       | meter     | soroban config setting `tx_max_write_ledger_entries`
+soroban.config.tx-max-write-bytes                | meter     | soroban config setting `tx_max_write_bytes`
+soroban.config.bucket-list-target-size-bytes     | meter     | soroban config setting `bucket_list_target_size_bytes`
+soroban.config.tx-max-contract-events-size-bytes | meter     | soroban config setting `tx_max_contract_events_size_bytes`
+soroban.config.contract-data-key-size-bytes      | meter     | soroban config setting `contract_data_key_size_bytes`
+soroban.config.contract-data-entry-size-bytes    | meter     | soroban config setting `contract_data_entry_size_bytes`

@@ -1062,6 +1062,12 @@ SorobanNetworkConfig::feeWrite1KB() const
     return mFeeWrite1KB;
 }
 
+int64_t
+SorobanNetworkConfig::bucketListTargetSizeBytes() const
+{
+    return mBucketListTargetSizeBytes;
+}
+
 // Historical data (pushed to core archives) settings for contracts.
 int64_t
 SorobanNetworkConfig::feeHistorical1KB() const
