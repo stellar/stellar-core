@@ -160,6 +160,15 @@ validateConfigUpgradeSet(ConfigUpgradeSet const& upgradeSet)
                 throw std::runtime_error("Invalid contractLedgerCost");
             }
         }
+        else if (entry.configSettingID() == CONFIG_SETTING_STATE_ARCHIVAL)
+        {
+            // 1048576 is our current phase1 scan size, and we don't expect to
+            // go past this anytime soon.
+            if (entry.stateArchivalSettings().evictionScanSize > 1048576)
+            {
+                throw std::runtime_error("Invalid evictionScanSize");
+            }
+        }
     }
 }
 
