@@ -33,10 +33,10 @@ itertools = "=0.11.0"
 # N.
 
 [dependencies.soroban-env-host-curr]
-version = "=20.1.0"
+version = "=20.1.1"
 git = "https://github.com/stellar/rs-soroban-env"
 package = "soroban-env-host"
-rev = "e6b597c20aeda9963798a74b14ec1dd51c3a72e0"
+rev = "a843a7502f59bc67a402ac9f3cf576d28cde2614"
 
 # This copy of the soroban host is _optional_ and only enabled during protocol
 # transitions. When transitioning from protocol N to N+1, the `curr` copy
@@ -63,14 +63,14 @@ package = "soroban-env-host"
 rev = "b6ef8e32d86b008b2ecfdb2d7ca958e751190523"
 
 [dependencies.soroban-test-wasms]
-version = "=20.1.0"
+version = "=20.1.1"
 git = "https://github.com/stellar/rs-soroban-env"
-rev = "e6b597c20aeda9963798a74b14ec1dd51c3a72e0"
+rev = "a843a7502f59bc67a402ac9f3cf576d28cde2614"
 
 [dependencies.soroban-synth-wasm]
-version = "=20.1.0"
+version = "=20.1.1"
 git = "https://github.com/stellar/rs-soroban-env"
-rev = "e6b597c20aeda9963798a74b14ec1dd51c3a72e0"
+rev = "a843a7502f59bc67a402ac9f3cf576d28cde2614"
 
 [dependencies.cargo-lock]
 version = "=9.0.0"
