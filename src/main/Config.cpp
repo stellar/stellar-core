@@ -2095,8 +2095,7 @@ Config::isUsingBucketListDB() const
 bool
 Config::isPersistingBucketListDBIndexes() const
 {
-    return isUsingBucketListDB() && EXPERIMENTAL_BUCKETLIST_DB_PERSIST_INDEX &&
-           !NODE_IS_VALIDATOR;
+    return isUsingBucketListDB() && EXPERIMENTAL_BUCKETLIST_DB_PERSIST_INDEX;
 }
 
 bool
