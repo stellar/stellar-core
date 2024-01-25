@@ -15,6 +15,7 @@
 #include "lib/catch.hpp"
 #include "test/test.h"
 #include "util/Logging.h"
+#include "xdr/Stellar-types.h"
 #include <autocheck/autocheck.hpp>
 #include <map>
 #include <regex>
@@ -496,5 +497,1576 @@ TEST_CASE("key string roundtrip", "[crypto]")
     {
         REQUIRE(KeyUtils::fromStrKey<PublicKey>(
                     KeyUtils::toStrKey(publicKey)) == publicKey);
+    }
+}
+
+// The following test vectors are taken from
+// https://eprint.iacr.org/2020/1244.pdf and the Zcash project's ZIP215 work as
+// described in https://hdevalence.ca/blog/2020-10-04-its-25519am
+//
+// They are explained in more detail in the soroban-env-host test file
+// ed25519_edge_cases.rs. We run the same vectors here to confirm that libsodium
+// and dalek behave the same way on various edge cases.
+
+struct Iacr20201244TestVector
+{
+    char const* message;
+    char const* pub_key;
+    char const* signature;
+    bool should_fail;
+};
+
+const Iacr20201244TestVector IACR_2020_1244_TEST_VECTORS[12] = {
+    // Case 0: Small-order A and R components (should be rejected) but verifies
+    // under either equality check.
+    Iacr20201244TestVector{
+        .message =
+            "8c93255d71dcab10e8f379c26200f3c7bd5f09d9bc3068d3ef4edeb4853022b6",
+        .pub_key =
+            "c7176a703d4dd84fba3c0b760d10670f2a2053fa2c39ccc64ec7fd7792ac03fa",
+        .signature =
+            "c7176a703d4dd84fba3c0b760d10670f2a2053fa2c39ccc64ec7fd7792ac037a00"
+            "00000000000000000000000000000000000000000000000000000000000000",
+        .should_fail = true,
+    },
+    // Case 1: Small-order A component (should be rejected) but verifies under
+    // either equality check.
+    Iacr20201244TestVector{
+        .message =
+            "9bd9f44f4dcc75bd531b56b2cd280b0bb38fc1cd6d1230e14861d861de092e79",
+        .pub_key =
+            "c7176a703d4dd84fba3c0b760d10670f2a2053fa2c39ccc64ec7fd7792ac03fa",
+        .signature =
+            "f7badec5b8abeaf699583992219b7b223f1df3fbbea919844e3f7c554a43dd43a5"
+            "bb704786be79fc476f91d3f3f89b03984d8068dcf1bb7dfc6637b45450ac04",
+        .should_fail = true,
+    },
+    // Case 2: Small-order R component (should be rejected) but verifies under
+    // either equality check.
+    Iacr20201244TestVector{
+        .message =
+            "aebf3f2601a0c8c5d39cc7d8911642f740b78168218da8471772b35f9d35b9ab",
+        .pub_key =
+            "f7badec5b8abeaf699583992219b7b223f1df3fbbea919844e3f7c554a43dd43",
+        .signature =
+            "c7176a703d4dd84fba3c0b760d10670f2a2053fa2c39ccc64ec7fd7792ac03fa8c"
+            "4bd45aecaca5b24fb97bc10ac27ac8751a7dfe1baff8b953ec9f5833ca260e",
+        .should_fail = true,
+    },
+    // Case 3: Mixed-order A and R, verifies under either equality check, should
+    // be accepted.
+    Iacr20201244TestVector{
+        .message =
+            "9bd9f44f4dcc75bd531b56b2cd280b0bb38fc1cd6d1230e14861d861de092e79",
+        .pub_key =
+            "cdb267ce40c5cd45306fa5d2f29731459387dbf9eb933b7bd5aed9a765b88d4d",
+        .signature =
+            "9046a64750444938de19f227bb80485e92b83fdb4b6506c160484c016cc1852f87"
+            "909e14428a7a1d62e9f22f3d3ad7802db02eb2e688b6c52fcd6648a98bd009",
+        .should_fail = false,
+    },
+    // Case 4: Mixed-order A and R, only verifies under cofactor equality check,
+    // should be rejected.
+    Iacr20201244TestVector{
+        .message =
+            "e47d62c63f830dc7a6851a0b1f33ae4bb2f507fb6cffec4011eaccd55b53f56c",
+        .pub_key =
+            "cdb267ce40c5cd45306fa5d2f29731459387dbf9eb933b7bd5aed9a765b88d4d",
+        .signature =
+            "160a1cb0dc9c0258cd0a7d23e94d8fa878bcb1925f2c64246b2dee1796bed5125e"
+            "c6bc982a269b723e0668e540911a9a6a58921d6925e434ab10aa7940551a09",
+        .should_fail = true,
+    },
+    // Case 5: Mixed-order A, order-L R, only verifies under cofactor equality
+    // check, should be rejected.
+    Iacr20201244TestVector{
+        .message =
+            "e47d62c63f830dc7a6851a0b1f33ae4bb2f507fb6cffec4011eaccd55b53f56c",
+        .pub_key =
+            "cdb267ce40c5cd45306fa5d2f29731459387dbf9eb933b7bd5aed9a765b88d4d",
+        .signature =
+            "21122a84e0b5fca4052f5b1235c80a537878b38f3142356b2c2384ebad4668b7e4"
+            "0bc836dac0f71076f9abe3a53f9c03c1ceeeddb658d0030494ace586687405",
+        .should_fail = true,
+    },
+    // Case 6: Order-L A and R, non-canonical S (> L), should be rejected.
+    Iacr20201244TestVector{
+        .message =
+            "85e241a07d148b41e47d62c63f830dc7a6851a0b1f33ae4bb2f507fb6cffec40",
+        .pub_key =
+            "442aad9f089ad9e14647b1ef9099a1ff4798d78589e66f28eca69c11f582a623",
+        .signature =
+            "e96f66be976d82e60150baecff9906684aebb1ef181f67a7189ac78ea23b6c0e54"
+            "7f7690a0e2ddcd04d87dbc3490dc19b3b3052f7ff0538cb68afb369ba3a514",
+        .should_fail = true,
+    },
+    // Case 7: Order-L A and R, non-canonical S (>> L) in a way that fails
+    // bitwise canonicity tests, should be rejected.
+    //
+    // NB: There's a typo (an extra 'e') in the middle of test vector 7's
+    // signature in the appendix of the paper itself, but this is corrected in
+    // Novi's formal / machine-generated testcases in
+    // https://github.com/novifinancial/ed25519-speccheck/blob/main/cases.txt
+    Iacr20201244TestVector{
+        .message =
+            "85e241a07d148b41e47d62c63f830dc7a6851a0b1f33ae4bb2f507fb6cffec40",
+        .pub_key =
+            "442aad9f089ad9e14647b1ef9099a1ff4798d78589e66f28eca69c11f582a623",
+        .signature =
+            "8ce5b96c8f26d0ab6c47958c9e68b937104cd36e13c33566acd2fe8d38aa19427e"
+            "71f98a473474f2f13f06f97c20d58cc3f54b8bd0d272f42b695dd7e89a8c22",
+        .should_fail = true,
+    },
+    // Case 8: Non-canonical R, should fail.
+    Iacr20201244TestVector{
+        .message =
+            "9bedc267423725d473888631ebf45988bad3db83851ee85c85e241a07d148b41",
+        .pub_key =
+            "f7badec5b8abeaf699583992219b7b223f1df3fbbea919844e3f7c554a43dd43",
+        .signature =
+            "ecffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff03"
+            "be9678ac102edcd92b0210bb34d7428d12ffc5df5f37e359941266a4e35f0f",
+        .should_fail = true},
+    // Case 9: Non-canonical R noticed at a different phase of checking in some
+    // implementations, should also fail.
+    Iacr20201244TestVector{
+        .message =
+            "9bedc267423725d473888631ebf45988bad3db83851ee85c85e241a07d148b41",
+        .pub_key =
+            "f7badec5b8abeaf699583992219b7b223f1df3fbbea919844e3f7c554a43dd43",
+        .signature =
+            "ecffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffca"
+            "8c5b64cd208982aa38d4936621a4775aa233aa0505711d8fdcfdaa943d4908",
+        .should_fail = true},
+    // Case 10: Non-canonical A
+    Iacr20201244TestVector{
+        .message =
+            "e96b7021eb39c1a163b6da4e3093dcd3f21387da4cc4572be588fafae23c155b",
+        .pub_key =
+            "ecffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+        .signature =
+            "a9d55260f765261eb9b84e106f665e00b867287a761990d7135963ee0a7d59dca5"
+            "bb704786be79fc476f91d3f3f89b03984d8068dcf1bb7dfc6637b45450ac04",
+        .should_fail = true},
+    // Case 11: Non-canonical A noticed at a different phase of checking in some
+    // implementations, should also fail.
+    Iacr20201244TestVector{
+        .message =
+            "39a591f5321bbe07fd5a23dc2f39d025d74526615746727ceefd6e82ae65c06f",
+        .pub_key =
+            "ecffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+        .signature =
+            "a9d55260f765261eb9b84e106f665e00b867287a761990d7135963ee0a7d59dca5"
+            "bb704786be79fc476f91d3f3f89b03984d8068dcf1bb7dfc6637b45450ac04",
+        .should_fail = true}};
+
+TEST_CASE("Ed25519 test vectors from IACR 2020/1244", "[crypto]")
+{
+    for (auto const& tv : IACR_2020_1244_TEST_VECTORS)
+    {
+        PublicKey pk;
+        pk.type(PUBLIC_KEY_TYPE_ED25519);
+        pk.ed25519() = hexToBin256(tv.pub_key);
+        auto s = hexToBin(tv.signature);
+        REQUIRE(s.size() == 64);
+        Signature sig;
+        sig.assign(s.begin(), s.end());
+        REQUIRE(PubKeyUtils::verifySig(pk, sig, hexToBin(tv.message)) !=
+                tv.should_fail);
+    }
+}
+
+struct ZcashTestVector
+{
+    char const* public_key;
+    char const* signature;
+};
+
+ZcashTestVector const ZCASH_TEST_VECTORS[196] = {
+    ZcashTestVector{
+        .public_key =
+            "0100000000000000000000000000000000000000000000000000000000000000",
+        .signature =
+            "010000000000000000000000000000000000000000000000000000000000000000"
+            "00000000000000000000000000000000000000000000000000000000000000",
+    },
+    ZcashTestVector{
+        .public_key =
+            "0100000000000000000000000000000000000000000000000000000000000000",
+        .signature =
+            "c7176a703d4dd84fba3c0b760d10670f2a2053fa2c39ccc64ec7fd7792ac037a00"
+            "00000000000000000000000000000000000000000000000000000000000000",
+    },
+    ZcashTestVector{
+        .public_key =
+            "0100000000000000000000000000000000000000000000000000000000000000",
+        .signature =
+            "000000000000000000000000000000000000000000000000000000000000008000"
+            "00000000000000000000000000000000000000000000000000000000000000",
+    },
+    ZcashTestVector{
+        .public_key =
+            "0100000000000000000000000000000000000000000000000000000000000000",
+        .signature =
+            "26e8958fc2b227b045c3f489f2ef98f0d5dfac05d3c63339b13802886d53fc0500"
+            "00000000000000000000000000000000000000000000000000000000000000",
+    },
+    ZcashTestVector{
+        .public_key =
+            "0100000000000000000000000000000000000000000000000000000000000000",
+        .signature =
+            "ecffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff7f00"
+            "00000000000000000000000000000000000000000000000000000000000000",
+    },
+    ZcashTestVector{
+        .public_key =
+            "0100000000000000000000000000000000000000000000000000000000000000",
+        .signature =
+            "26e8958fc2b227b045c3f489f2ef98f0d5dfac05d3c63339b13802886d53fc8500"
+            "00000000000000000000000000000000000000000000000000000000000000",
+    },
+    ZcashTestVector{
+        .public_key =
+            "0100000000000000000000000000000000000000000000000000000000000000",
+        .signature =
+            "000000000000000000000000000000000000000000000000000000000000000000"
+            "00000000000000000000000000000000000000000000000000000000000000",
+    },
+    ZcashTestVector{
+        .public_key =
+            "0100000000000000000000000000000000000000000000000000000000000000",
+        .signature =
+            "c7176a703d4dd84fba3c0b760d10670f2a2053fa2c39ccc64ec7fd7792ac03fa00"
+            "00000000000000000000000000000000000000000000000000000000000000",
+    },
+    ZcashTestVector{
+        .public_key =
+            "0100000000000000000000000000000000000000000000000000000000000000",
+        .signature =
+            "010000000000000000000000000000000000000000000000000000000000008000"
+            "00000000000000000000000000000000000000000000000000000000000000",
+    },
+    ZcashTestVector{
+        .public_key =
+            "0100000000000000000000000000000000000000000000000000000000000000",
+        .signature =
+            "ecffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff00"
+            "00000000000000000000000000000000000000000000000000000000000000",
+    },
+    ZcashTestVector{
+        .public_key =
+            "0100000000000000000000000000000000000000000000000000000000000000",
+        .signature =
+            "edffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff7f00"
+            "00000000000000000000000000000000000000000000000000000000000000",
+    },
+    ZcashTestVector{
+        .public_key =
+            "0100000000000000000000000000000000000000000000000000000000000000",
+        .signature =
+            "edffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff00"
+            "00000000000000000000000000000000000000000000000000000000000000",
+    },
+    ZcashTestVector{
+        .public_key =
+            "0100000000000000000000000000000000000000000000000000000000000000",
+        .signature =
+            "eeffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff7f00"
+            "00000000000000000000000000000000000000000000000000000000000000",
+    },
+    ZcashTestVector{
+        .public_key =
+            "0100000000000000000000000000000000000000000000000000000000000000",
+        .signature =
+            "eeffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff00"
+            "00000000000000000000000000000000000000000000000000000000000000",
+    },
+    ZcashTestVector{
+        .public_key =
+            "c7176a703d4dd84fba3c0b760d10670f2a2053fa2c39ccc64ec7fd7792ac037a",
+        .signature =
+            "010000000000000000000000000000000000000000000000000000000000000000"
+            "00000000000000000000000000000000000000000000000000000000000000",
+    },
+    ZcashTestVector{
+        .public_key =
+            "c7176a703d4dd84fba3c0b760d10670f2a2053fa2c39ccc64ec7fd7792ac037a",
+        .signature =
+            "c7176a703d4dd84fba3c0b760d10670f2a2053fa2c39ccc64ec7fd7792ac037a00"
+            "00000000000000000000000000000000000000000000000000000000000000",
+    },
+    ZcashTestVector{
+        .public_key =
+            "c7176a703d4dd84fba3c0b760d10670f2a2053fa2c39ccc64ec7fd7792ac037a",
+        .signature =
+            "000000000000000000000000000000000000000000000000000000000000008000"
+            "00000000000000000000000000000000000000000000000000000000000000",
+    },
+    ZcashTestVector{
+        .public_key =
+            "c7176a703d4dd84fba3c0b760d10670f2a2053fa2c39ccc64ec7fd7792ac037a",
+        .signature =
+            "26e8958fc2b227b045c3f489f2ef98f0d5dfac05d3c63339b13802886d53fc0500"
+            "00000000000000000000000000000000000000000000000000000000000000",
+    },
+    ZcashTestVector{
+        .public_key =
+            "c7176a703d4dd84fba3c0b760d10670f2a2053fa2c39ccc64ec7fd7792ac037a",
+        .signature =
+            "ecffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff7f00"
+            "00000000000000000000000000000000000000000000000000000000000000",
+    },
+    ZcashTestVector{
+        .public_key =
+            "c7176a703d4dd84fba3c0b760d10670f2a2053fa2c39ccc64ec7fd7792ac037a",
+        .signature =
+            "26e8958fc2b227b045c3f489f2ef98f0d5dfac05d3c63339b13802886d53fc8500"
+            "00000000000000000000000000000000000000000000000000000000000000",
+    },
+    ZcashTestVector{
+        .public_key =
+            "c7176a703d4dd84fba3c0b760d10670f2a2053fa2c39ccc64ec7fd7792ac037a",
+        .signature =
+            "000000000000000000000000000000000000000000000000000000000000000000"
+            "00000000000000000000000000000000000000000000000000000000000000",
+    },
+    ZcashTestVector{
+        .public_key =
+            "c7176a703d4dd84fba3c0b760d10670f2a2053fa2c39ccc64ec7fd7792ac037a",
+        .signature =
+            "c7176a703d4dd84fba3c0b760d10670f2a2053fa2c39ccc64ec7fd7792ac03fa00"
+            "00000000000000000000000000000000000000000000000000000000000000",
+    },
+    ZcashTestVector{
+        .public_key =
+            "c7176a703d4dd84fba3c0b760d10670f2a2053fa2c39ccc64ec7fd7792ac037a",
+        .signature =
+            "010000000000000000000000000000000000000000000000000000000000008000"
+            "00000000000000000000000000000000000000000000000000000000000000",
+    },
+    ZcashTestVector{
+        .public_key =
+            "c7176a703d4dd84fba3c0b760d10670f2a2053fa2c39ccc64ec7fd7792ac037a",
+        .signature =
+            "ecffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff00"
+            "00000000000000000000000000000000000000000000000000000000000000",
+    },
+    ZcashTestVector{
+        .public_key =
+            "c7176a703d4dd84fba3c0b760d10670f2a2053fa2c39ccc64ec7fd7792ac037a",
+        .signature =
+            "edffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff7f00"
+            "00000000000000000000000000000000000000000000000000000000000000",
+    },
+    ZcashTestVector{
+        .public_key =
+            "c7176a703d4dd84fba3c0b760d10670f2a2053fa2c39ccc64ec7fd7792ac037a",
+        .signature =
+            "edffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff00"
+            "00000000000000000000000000000000000000000000000000000000000000",
+    },
+    ZcashTestVector{
+        .public_key =
+            "c7176a703d4dd84fba3c0b760d10670f2a2053fa2c39ccc64ec7fd7792ac037a",
+        .signature =
+            "eeffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff7f00"
+            "00000000000000000000000000000000000000000000000000000000000000",
+    },
+    ZcashTestVector{
+        .public_key =
+            "c7176a703d4dd84fba3c0b760d10670f2a2053fa2c39ccc64ec7fd7792ac037a",
+        .signature =
+            "eeffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff00"
+            "00000000000000000000000000000000000000000000000000000000000000",
+    },
+    ZcashTestVector{
+        .public_key =
+            "0000000000000000000000000000000000000000000000000000000000000080",
+        .signature =
+            "010000000000000000000000000000000000000000000000000000000000000000"
+            "00000000000000000000000000000000000000000000000000000000000000",
+    },
+    ZcashTestVector{
+        .public_key =
+            "0000000000000000000000000000000000000000000000000000000000000080",
+        .signature =
+            "c7176a703d4dd84fba3c0b760d10670f2a2053fa2c39ccc64ec7fd7792ac037a00"
+            "00000000000000000000000000000000000000000000000000000000000000",
+    },
+    ZcashTestVector{
+        .public_key =
+            "0000000000000000000000000000000000000000000000000000000000000080",
+        .signature =
+            "000000000000000000000000000000000000000000000000000000000000008000"
+            "00000000000000000000000000000000000000000000000000000000000000",
+    },
+    ZcashTestVector{
+        .public_key =
+            "0000000000000000000000000000000000000000000000000000000000000080",
+        .signature =
+            "26e8958fc2b227b045c3f489f2ef98f0d5dfac05d3c63339b13802886d53fc0500"
+            "00000000000000000000000000000000000000000000000000000000000000",
+    },
+    ZcashTestVector{
+        .public_key =
+            "0000000000000000000000000000000000000000000000000000000000000080",
+        .signature =
+            "ecffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff7f00"
+            "00000000000000000000000000000000000000000000000000000000000000",
+    },
+    ZcashTestVector{
+        .public_key =
+            "0000000000000000000000000000000000000000000000000000000000000080",
+        .signature =
+            "26e8958fc2b227b045c3f489f2ef98f0d5dfac05d3c63339b13802886d53fc8500"
+            "00000000000000000000000000000000000000000000000000000000000000",
+    },
+    ZcashTestVector{
+        .public_key =
+            "0000000000000000000000000000000000000000000000000000000000000080",
+        .signature =
+            "000000000000000000000000000000000000000000000000000000000000000000"
+            "00000000000000000000000000000000000000000000000000000000000000",
+    },
+    ZcashTestVector{
+        .public_key =
+            "0000000000000000000000000000000000000000000000000000000000000080",
+        .signature =
+            "c7176a703d4dd84fba3c0b760d10670f2a2053fa2c39ccc64ec7fd7792ac03fa00"
+            "00000000000000000000000000000000000000000000000000000000000000",
+    },
+    ZcashTestVector{
+        .public_key =
+            "0000000000000000000000000000000000000000000000000000000000000080",
+        .signature =
+            "010000000000000000000000000000000000000000000000000000000000008000"
+            "00000000000000000000000000000000000000000000000000000000000000",
+    },
+    ZcashTestVector{
+        .public_key =
+            "0000000000000000000000000000000000000000000000000000000000000080",
+        .signature =
+            "ecffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff00"
+            "00000000000000000000000000000000000000000000000000000000000000",
+    },
+    ZcashTestVector{
+        .public_key =
+            "0000000000000000000000000000000000000000000000000000000000000080",
+        .signature =
+            "edffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff7f00"
+            "00000000000000000000000000000000000000000000000000000000000000",
+    },
+    ZcashTestVector{
+        .public_key =
+            "0000000000000000000000000000000000000000000000000000000000000080",
+        .signature =
+            "edffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff00"
+            "00000000000000000000000000000000000000000000000000000000000000",
+    },
+    ZcashTestVector{
+        .public_key =
+            "0000000000000000000000000000000000000000000000000000000000000080",
+        .signature =
+            "eeffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff7f00"
+            "00000000000000000000000000000000000000000000000000000000000000",
+    },
+    ZcashTestVector{
+        .public_key =
+            "0000000000000000000000000000000000000000000000000000000000000080",
+        .signature =
+            "eeffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff00"
+            "00000000000000000000000000000000000000000000000000000000000000",
+    },
+    ZcashTestVector{
+        .public_key =
+            "26e8958fc2b227b045c3f489f2ef98f0d5dfac05d3c63339b13802886d53fc05",
+        .signature =
+            "010000000000000000000000000000000000000000000000000000000000000000"
+            "00000000000000000000000000000000000000000000000000000000000000",
+    },
+    ZcashTestVector{
+        .public_key =
+            "26e8958fc2b227b045c3f489f2ef98f0d5dfac05d3c63339b13802886d53fc05",
+        .signature =
+            "c7176a703d4dd84fba3c0b760d10670f2a2053fa2c39ccc64ec7fd7792ac037a00"
+            "00000000000000000000000000000000000000000000000000000000000000",
+    },
+    ZcashTestVector{
+        .public_key =
+            "26e8958fc2b227b045c3f489f2ef98f0d5dfac05d3c63339b13802886d53fc05",
+        .signature =
+            "000000000000000000000000000000000000000000000000000000000000008000"
+            "00000000000000000000000000000000000000000000000000000000000000",
+    },
+    ZcashTestVector{
+        .public_key =
+            "26e8958fc2b227b045c3f489f2ef98f0d5dfac05d3c63339b13802886d53fc05",
+        .signature =
+            "26e8958fc2b227b045c3f489f2ef98f0d5dfac05d3c63339b13802886d53fc0500"
+            "00000000000000000000000000000000000000000000000000000000000000",
+    },
+    ZcashTestVector{
+        .public_key =
+            "26e8958fc2b227b045c3f489f2ef98f0d5dfac05d3c63339b13802886d53fc05",
+        .signature =
+            "ecffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff7f00"
+            "00000000000000000000000000000000000000000000000000000000000000",
+    },
+    ZcashTestVector{
+        .public_key =
+            "26e8958fc2b227b045c3f489f2ef98f0d5dfac05d3c63339b13802886d53fc05",
+        .signature =
+            "26e8958fc2b227b045c3f489f2ef98f0d5dfac05d3c63339b13802886d53fc8500"
+            "00000000000000000000000000000000000000000000000000000000000000",
+    },
+    ZcashTestVector{
+        .public_key =
+            "26e8958fc2b227b045c3f489f2ef98f0d5dfac05d3c63339b13802886d53fc05",
+        .signature =
+            "000000000000000000000000000000000000000000000000000000000000000000"
+            "00000000000000000000000000000000000000000000000000000000000000",
+    },
+    ZcashTestVector{
+        .public_key =
+            "26e8958fc2b227b045c3f489f2ef98f0d5dfac05d3c63339b13802886d53fc05",
+        .signature =
+            "c7176a703d4dd84fba3c0b760d10670f2a2053fa2c39ccc64ec7fd7792ac03fa00"
+            "00000000000000000000000000000000000000000000000000000000000000",
+    },
+    ZcashTestVector{
+        .public_key =
+            "26e8958fc2b227b045c3f489f2ef98f0d5dfac05d3c63339b13802886d53fc05",
+        .signature =
+            "010000000000000000000000000000000000000000000000000000000000008000"
+            "00000000000000000000000000000000000000000000000000000000000000",
+    },
+    ZcashTestVector{
+        .public_key =
+            "26e8958fc2b227b045c3f489f2ef98f0d5dfac05d3c63339b13802886d53fc05",
+        .signature =
+            "ecffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff00"
+            "00000000000000000000000000000000000000000000000000000000000000",
+    },
+    ZcashTestVector{
+        .public_key =
+            "26e8958fc2b227b045c3f489f2ef98f0d5dfac05d3c63339b13802886d53fc05",
+        .signature =
+            "edffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff7f00"
+            "00000000000000000000000000000000000000000000000000000000000000",
+    },
+    ZcashTestVector{
+        .public_key =
+            "26e8958fc2b227b045c3f489f2ef98f0d5dfac05d3c63339b13802886d53fc05",
+        .signature =
+            "edffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff00"
+            "00000000000000000000000000000000000000000000000000000000000000",
+    },
+    ZcashTestVector{
+        .public_key =
+            "26e8958fc2b227b045c3f489f2ef98f0d5dfac05d3c63339b13802886d53fc05",
+        .signature =
+            "eeffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff7f00"
+            "00000000000000000000000000000000000000000000000000000000000000",
+    },
+    ZcashTestVector{
+        .public_key =
+            "26e8958fc2b227b045c3f489f2ef98f0d5dfac05d3c63339b13802886d53fc05",
+        .signature =
+            "eeffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff00"
+            "00000000000000000000000000000000000000000000000000000000000000",
+    },
+    ZcashTestVector{
+        .public_key =
+            "ecffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff7f",
+        .signature =
+            "010000000000000000000000000000000000000000000000000000000000000000"
+            "00000000000000000000000000000000000000000000000000000000000000",
+    },
+    ZcashTestVector{
+        .public_key =
+            "ecffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff7f",
+        .signature =
+            "c7176a703d4dd84fba3c0b760d10670f2a2053fa2c39ccc64ec7fd7792ac037a00"
+            "00000000000000000000000000000000000000000000000000000000000000",
+    },
+    ZcashTestVector{
+        .public_key =
+            "ecffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff7f",
+        .signature =
+            "000000000000000000000000000000000000000000000000000000000000008000"
+            "00000000000000000000000000000000000000000000000000000000000000",
+    },
+    ZcashTestVector{
+        .public_key =
+            "ecffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff7f",
+        .signature =
+            "26e8958fc2b227b045c3f489f2ef98f0d5dfac05d3c63339b13802886d53fc0500"
+            "00000000000000000000000000000000000000000000000000000000000000",
+    },
+    ZcashTestVector{
+        .public_key =
+            "ecffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff7f",
+        .signature =
+            "ecffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff7f00"
+            "00000000000000000000000000000000000000000000000000000000000000",
+    },
+    ZcashTestVector{
+        .public_key =
+            "ecffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff7f",
+        .signature =
+            "26e8958fc2b227b045c3f489f2ef98f0d5dfac05d3c63339b13802886d53fc8500"
+            "00000000000000000000000000000000000000000000000000000000000000",
+    },
+    ZcashTestVector{
+        .public_key =
+            "ecffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff7f",
+        .signature =
+            "000000000000000000000000000000000000000000000000000000000000000000"
+            "00000000000000000000000000000000000000000000000000000000000000",
+    },
+    ZcashTestVector{
+        .public_key =
+            "ecffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff7f",
+        .signature =
+            "c7176a703d4dd84fba3c0b760d10670f2a2053fa2c39ccc64ec7fd7792ac03fa00"
+            "00000000000000000000000000000000000000000000000000000000000000",
+    },
+    ZcashTestVector{
+        .public_key =
+            "ecffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff7f",
+        .signature =
+            "010000000000000000000000000000000000000000000000000000000000008000"
+            "00000000000000000000000000000000000000000000000000000000000000",
+    },
+    ZcashTestVector{
+        .public_key =
+            "ecffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff7f",
+        .signature =
+            "ecffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff00"
+            "00000000000000000000000000000000000000000000000000000000000000",
+    },
+    ZcashTestVector{
+        .public_key =
+            "ecffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff7f",
+        .signature =
+            "edffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff7f00"
+            "00000000000000000000000000000000000000000000000000000000000000",
+    },
+    ZcashTestVector{
+        .public_key =
+            "ecffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff7f",
+        .signature =
+            "edffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff00"
+            "00000000000000000000000000000000000000000000000000000000000000",
+    },
+    ZcashTestVector{
+        .public_key =
+            "ecffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff7f",
+        .signature =
+            "eeffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff7f00"
+            "00000000000000000000000000000000000000000000000000000000000000",
+    },
+    ZcashTestVector{
+        .public_key =
+            "ecffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff7f",
+        .signature =
+            "eeffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff00"
+            "00000000000000000000000000000000000000000000000000000000000000",
+    },
+    ZcashTestVector{
+        .public_key =
+            "26e8958fc2b227b045c3f489f2ef98f0d5dfac05d3c63339b13802886d53fc85",
+        .signature =
+            "010000000000000000000000000000000000000000000000000000000000000000"
+            "00000000000000000000000000000000000000000000000000000000000000",
+    },
+    ZcashTestVector{
+        .public_key =
+            "26e8958fc2b227b045c3f489f2ef98f0d5dfac05d3c63339b13802886d53fc85",
+        .signature =
+            "c7176a703d4dd84fba3c0b760d10670f2a2053fa2c39ccc64ec7fd7792ac037a00"
+            "00000000000000000000000000000000000000000000000000000000000000",
+    },
+    ZcashTestVector{
+        .public_key =
+            "26e8958fc2b227b045c3f489f2ef98f0d5dfac05d3c63339b13802886d53fc85",
+        .signature =
+            "000000000000000000000000000000000000000000000000000000000000008000"
+            "00000000000000000000000000000000000000000000000000000000000000",
+    },
+    ZcashTestVector{
+        .public_key =
+            "26e8958fc2b227b045c3f489f2ef98f0d5dfac05d3c63339b13802886d53fc85",
+        .signature =
+            "26e8958fc2b227b045c3f489f2ef98f0d5dfac05d3c63339b13802886d53fc0500"
+            "00000000000000000000000000000000000000000000000000000000000000",
+    },
+    ZcashTestVector{
+        .public_key =
+            "26e8958fc2b227b045c3f489f2ef98f0d5dfac05d3c63339b13802886d53fc85",
+        .signature =
+            "ecffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff7f00"
+            "00000000000000000000000000000000000000000000000000000000000000",
+    },
+    ZcashTestVector{
+        .public_key =
+            "26e8958fc2b227b045c3f489f2ef98f0d5dfac05d3c63339b13802886d53fc85",
+        .signature =
+            "26e8958fc2b227b045c3f489f2ef98f0d5dfac05d3c63339b13802886d53fc8500"
+            "00000000000000000000000000000000000000000000000000000000000000",
+    },
+    ZcashTestVector{
+        .public_key =
+            "26e8958fc2b227b045c3f489f2ef98f0d5dfac05d3c63339b13802886d53fc85",
+        .signature =
+            "000000000000000000000000000000000000000000000000000000000000000000"
+            "00000000000000000000000000000000000000000000000000000000000000",
+    },
+    ZcashTestVector{
+        .public_key =
+            "26e8958fc2b227b045c3f489f2ef98f0d5dfac05d3c63339b13802886d53fc85",
+        .signature =
+            "c7176a703d4dd84fba3c0b760d10670f2a2053fa2c39ccc64ec7fd7792ac03fa00"
+            "00000000000000000000000000000000000000000000000000000000000000",
+    },
+    ZcashTestVector{
+        .public_key =
+            "26e8958fc2b227b045c3f489f2ef98f0d5dfac05d3c63339b13802886d53fc85",
+        .signature =
+            "010000000000000000000000000000000000000000000000000000000000008000"
+            "00000000000000000000000000000000000000000000000000000000000000",
+    },
+    ZcashTestVector{
+        .public_key =
+            "26e8958fc2b227b045c3f489f2ef98f0d5dfac05d3c63339b13802886d53fc85",
+        .signature =
+            "ecffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff00"
+            "00000000000000000000000000000000000000000000000000000000000000",
+    },
+    ZcashTestVector{
+        .public_key =
+            "26e8958fc2b227b045c3f489f2ef98f0d5dfac05d3c63339b13802886d53fc85",
+        .signature =
+            "edffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff7f00"
+            "00000000000000000000000000000000000000000000000000000000000000",
+    },
+    ZcashTestVector{
+        .public_key =
+            "26e8958fc2b227b045c3f489f2ef98f0d5dfac05d3c63339b13802886d53fc85",
+        .signature =
+            "edffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff00"
+            "00000000000000000000000000000000000000000000000000000000000000",
+    },
+    ZcashTestVector{
+        .public_key =
+            "26e8958fc2b227b045c3f489f2ef98f0d5dfac05d3c63339b13802886d53fc85",
+        .signature =
+            "eeffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff7f00"
+            "00000000000000000000000000000000000000000000000000000000000000",
+    },
+    ZcashTestVector{
+        .public_key =
+            "26e8958fc2b227b045c3f489f2ef98f0d5dfac05d3c63339b13802886d53fc85",
+        .signature =
+            "eeffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff00"
+            "00000000000000000000000000000000000000000000000000000000000000",
+    },
+    ZcashTestVector{
+        .public_key =
+            "0000000000000000000000000000000000000000000000000000000000000000",
+        .signature =
+            "010000000000000000000000000000000000000000000000000000000000000000"
+            "00000000000000000000000000000000000000000000000000000000000000",
+    },
+    ZcashTestVector{
+        .public_key =
+            "0000000000000000000000000000000000000000000000000000000000000000",
+        .signature =
+            "c7176a703d4dd84fba3c0b760d10670f2a2053fa2c39ccc64ec7fd7792ac037a00"
+            "00000000000000000000000000000000000000000000000000000000000000",
+    },
+    ZcashTestVector{
+        .public_key =
+            "0000000000000000000000000000000000000000000000000000000000000000",
+        .signature =
+            "000000000000000000000000000000000000000000000000000000000000008000"
+            "00000000000000000000000000000000000000000000000000000000000000",
+    },
+    ZcashTestVector{
+        .public_key =
+            "0000000000000000000000000000000000000000000000000000000000000000",
+        .signature =
+            "26e8958fc2b227b045c3f489f2ef98f0d5dfac05d3c63339b13802886d53fc0500"
+            "00000000000000000000000000000000000000000000000000000000000000",
+    },
+    ZcashTestVector{
+        .public_key =
+            "0000000000000000000000000000000000000000000000000000000000000000",
+        .signature =
+            "ecffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff7f00"
+            "00000000000000000000000000000000000000000000000000000000000000",
+    },
+    ZcashTestVector{
+        .public_key =
+            "0000000000000000000000000000000000000000000000000000000000000000",
+        .signature =
+            "26e8958fc2b227b045c3f489f2ef98f0d5dfac05d3c63339b13802886d53fc8500"
+            "00000000000000000000000000000000000000000000000000000000000000",
+    },
+    ZcashTestVector{
+        .public_key =
+            "0000000000000000000000000000000000000000000000000000000000000000",
+        .signature =
+            "000000000000000000000000000000000000000000000000000000000000000000"
+            "00000000000000000000000000000000000000000000000000000000000000",
+    },
+    ZcashTestVector{
+        .public_key =
+            "0000000000000000000000000000000000000000000000000000000000000000",
+        .signature =
+            "c7176a703d4dd84fba3c0b760d10670f2a2053fa2c39ccc64ec7fd7792ac03fa00"
+            "00000000000000000000000000000000000000000000000000000000000000",
+    },
+    ZcashTestVector{
+        .public_key =
+            "0000000000000000000000000000000000000000000000000000000000000000",
+        .signature =
+            "010000000000000000000000000000000000000000000000000000000000008000"
+            "00000000000000000000000000000000000000000000000000000000000000",
+    },
+    ZcashTestVector{
+        .public_key =
+            "0000000000000000000000000000000000000000000000000000000000000000",
+        .signature =
+            "ecffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff00"
+            "00000000000000000000000000000000000000000000000000000000000000",
+    },
+    ZcashTestVector{
+        .public_key =
+            "0000000000000000000000000000000000000000000000000000000000000000",
+        .signature =
+            "edffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff7f00"
+            "00000000000000000000000000000000000000000000000000000000000000",
+    },
+    ZcashTestVector{
+        .public_key =
+            "0000000000000000000000000000000000000000000000000000000000000000",
+        .signature =
+            "edffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff00"
+            "00000000000000000000000000000000000000000000000000000000000000",
+    },
+    ZcashTestVector{
+        .public_key =
+            "0000000000000000000000000000000000000000000000000000000000000000",
+        .signature =
+            "eeffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff7f00"
+            "00000000000000000000000000000000000000000000000000000000000000",
+    },
+    ZcashTestVector{
+        .public_key =
+            "0000000000000000000000000000000000000000000000000000000000000000",
+        .signature =
+            "eeffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff00"
+            "00000000000000000000000000000000000000000000000000000000000000",
+    },
+    ZcashTestVector{
+        .public_key =
+            "c7176a703d4dd84fba3c0b760d10670f2a2053fa2c39ccc64ec7fd7792ac03fa",
+        .signature =
+            "010000000000000000000000000000000000000000000000000000000000000000"
+            "00000000000000000000000000000000000000000000000000000000000000",
+    },
+    ZcashTestVector{
+        .public_key =
+            "c7176a703d4dd84fba3c0b760d10670f2a2053fa2c39ccc64ec7fd7792ac03fa",
+        .signature =
+            "c7176a703d4dd84fba3c0b760d10670f2a2053fa2c39ccc64ec7fd7792ac037a00"
+            "00000000000000000000000000000000000000000000000000000000000000",
+    },
+    ZcashTestVector{
+        .public_key =
+            "c7176a703d4dd84fba3c0b760d10670f2a2053fa2c39ccc64ec7fd7792ac03fa",
+        .signature =
+            "000000000000000000000000000000000000000000000000000000000000008000"
+            "00000000000000000000000000000000000000000000000000000000000000",
+    },
+    ZcashTestVector{
+        .public_key =
+            "c7176a703d4dd84fba3c0b760d10670f2a2053fa2c39ccc64ec7fd7792ac03fa",
+        .signature =
+            "26e8958fc2b227b045c3f489f2ef98f0d5dfac05d3c63339b13802886d53fc0500"
+            "00000000000000000000000000000000000000000000000000000000000000",
+    },
+    ZcashTestVector{
+        .public_key =
+            "c7176a703d4dd84fba3c0b760d10670f2a2053fa2c39ccc64ec7fd7792ac03fa",
+        .signature =
+            "ecffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff7f00"
+            "00000000000000000000000000000000000000000000000000000000000000",
+    },
+    ZcashTestVector{
+        .public_key =
+            "c7176a703d4dd84fba3c0b760d10670f2a2053fa2c39ccc64ec7fd7792ac03fa",
+        .signature =
+            "26e8958fc2b227b045c3f489f2ef98f0d5dfac05d3c63339b13802886d53fc8500"
+            "00000000000000000000000000000000000000000000000000000000000000",
+    },
+    ZcashTestVector{
+        .public_key =
+            "c7176a703d4dd84fba3c0b760d10670f2a2053fa2c39ccc64ec7fd7792ac03fa",
+        .signature =
+            "000000000000000000000000000000000000000000000000000000000000000000"
+            "00000000000000000000000000000000000000000000000000000000000000",
+    },
+    ZcashTestVector{
+        .public_key =
+            "c7176a703d4dd84fba3c0b760d10670f2a2053fa2c39ccc64ec7fd7792ac03fa",
+        .signature =
+            "c7176a703d4dd84fba3c0b760d10670f2a2053fa2c39ccc64ec7fd7792ac03fa00"
+            "00000000000000000000000000000000000000000000000000000000000000",
+    },
+    ZcashTestVector{
+        .public_key =
+            "c7176a703d4dd84fba3c0b760d10670f2a2053fa2c39ccc64ec7fd7792ac03fa",
+        .signature =
+            "010000000000000000000000000000000000000000000000000000000000008000"
+            "00000000000000000000000000000000000000000000000000000000000000",
+    },
+    ZcashTestVector{
+        .public_key =
+            "c7176a703d4dd84fba3c0b760d10670f2a2053fa2c39ccc64ec7fd7792ac03fa",
+        .signature =
+            "ecffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff00"
+            "00000000000000000000000000000000000000000000000000000000000000",
+    },
+    ZcashTestVector{
+        .public_key =
+            "c7176a703d4dd84fba3c0b760d10670f2a2053fa2c39ccc64ec7fd7792ac03fa",
+        .signature =
+            "edffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff7f00"
+            "00000000000000000000000000000000000000000000000000000000000000",
+    },
+    ZcashTestVector{
+        .public_key =
+            "c7176a703d4dd84fba3c0b760d10670f2a2053fa2c39ccc64ec7fd7792ac03fa",
+        .signature =
+            "edffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff00"
+            "00000000000000000000000000000000000000000000000000000000000000",
+    },
+    ZcashTestVector{
+        .public_key =
+            "c7176a703d4dd84fba3c0b760d10670f2a2053fa2c39ccc64ec7fd7792ac03fa",
+        .signature =
+            "eeffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff7f00"
+            "00000000000000000000000000000000000000000000000000000000000000",
+    },
+    ZcashTestVector{
+        .public_key =
+            "c7176a703d4dd84fba3c0b760d10670f2a2053fa2c39ccc64ec7fd7792ac03fa",
+        .signature =
+            "eeffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff00"
+            "00000000000000000000000000000000000000000000000000000000000000",
+    },
+    ZcashTestVector{
+        .public_key =
+            "0100000000000000000000000000000000000000000000000000000000000080",
+        .signature =
+            "010000000000000000000000000000000000000000000000000000000000000000"
+            "00000000000000000000000000000000000000000000000000000000000000",
+    },
+    ZcashTestVector{
+        .public_key =
+            "0100000000000000000000000000000000000000000000000000000000000080",
+        .signature =
+            "c7176a703d4dd84fba3c0b760d10670f2a2053fa2c39ccc64ec7fd7792ac037a00"
+            "00000000000000000000000000000000000000000000000000000000000000",
+    },
+    ZcashTestVector{
+        .public_key =
+            "0100000000000000000000000000000000000000000000000000000000000080",
+        .signature =
+            "000000000000000000000000000000000000000000000000000000000000008000"
+            "00000000000000000000000000000000000000000000000000000000000000",
+    },
+    ZcashTestVector{
+        .public_key =
+            "0100000000000000000000000000000000000000000000000000000000000080",
+        .signature =
+            "26e8958fc2b227b045c3f489f2ef98f0d5dfac05d3c63339b13802886d53fc0500"
+            "00000000000000000000000000000000000000000000000000000000000000",
+    },
+    ZcashTestVector{
+        .public_key =
+            "0100000000000000000000000000000000000000000000000000000000000080",
+        .signature =
+            "ecffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff7f00"
+            "00000000000000000000000000000000000000000000000000000000000000",
+    },
+    ZcashTestVector{
+        .public_key =
+            "0100000000000000000000000000000000000000000000000000000000000080",
+        .signature =
+            "26e8958fc2b227b045c3f489f2ef98f0d5dfac05d3c63339b13802886d53fc8500"
+            "00000000000000000000000000000000000000000000000000000000000000",
+    },
+    ZcashTestVector{
+        .public_key =
+            "0100000000000000000000000000000000000000000000000000000000000080",
+        .signature =
+            "000000000000000000000000000000000000000000000000000000000000000000"
+            "00000000000000000000000000000000000000000000000000000000000000",
+    },
+    ZcashTestVector{
+        .public_key =
+            "0100000000000000000000000000000000000000000000000000000000000080",
+        .signature =
+            "c7176a703d4dd84fba3c0b760d10670f2a2053fa2c39ccc64ec7fd7792ac03fa00"
+            "00000000000000000000000000000000000000000000000000000000000000",
+    },
+    ZcashTestVector{
+        .public_key =
+            "0100000000000000000000000000000000000000000000000000000000000080",
+        .signature =
+            "010000000000000000000000000000000000000000000000000000000000008000"
+            "00000000000000000000000000000000000000000000000000000000000000",
+    },
+    ZcashTestVector{
+        .public_key =
+            "0100000000000000000000000000000000000000000000000000000000000080",
+        .signature =
+            "ecffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff00"
+            "00000000000000000000000000000000000000000000000000000000000000",
+    },
+    ZcashTestVector{
+        .public_key =
+            "0100000000000000000000000000000000000000000000000000000000000080",
+        .signature =
+            "edffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff7f00"
+            "00000000000000000000000000000000000000000000000000000000000000",
+    },
+    ZcashTestVector{
+        .public_key =
+            "0100000000000000000000000000000000000000000000000000000000000080",
+        .signature =
+            "edffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff00"
+            "00000000000000000000000000000000000000000000000000000000000000",
+    },
+    ZcashTestVector{
+        .public_key =
+            "0100000000000000000000000000000000000000000000000000000000000080",
+        .signature =
+            "eeffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff7f00"
+            "00000000000000000000000000000000000000000000000000000000000000",
+    },
+    ZcashTestVector{
+        .public_key =
+            "0100000000000000000000000000000000000000000000000000000000000080",
+        .signature =
+            "eeffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff00"
+            "00000000000000000000000000000000000000000000000000000000000000",
+    },
+    ZcashTestVector{
+        .public_key =
+            "ecffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+        .signature =
+            "010000000000000000000000000000000000000000000000000000000000000000"
+            "00000000000000000000000000000000000000000000000000000000000000",
+    },
+    ZcashTestVector{
+        .public_key =
+            "ecffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+        .signature =
+            "c7176a703d4dd84fba3c0b760d10670f2a2053fa2c39ccc64ec7fd7792ac037a00"
+            "00000000000000000000000000000000000000000000000000000000000000",
+    },
+    ZcashTestVector{
+        .public_key =
+            "ecffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+        .signature =
+            "000000000000000000000000000000000000000000000000000000000000008000"
+            "00000000000000000000000000000000000000000000000000000000000000",
+    },
+    ZcashTestVector{
+        .public_key =
+            "ecffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+        .signature =
+            "26e8958fc2b227b045c3f489f2ef98f0d5dfac05d3c63339b13802886d53fc0500"
+            "00000000000000000000000000000000000000000000000000000000000000",
+    },
+    ZcashTestVector{
+        .public_key =
+            "ecffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+        .signature =
+            "ecffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff7f00"
+            "00000000000000000000000000000000000000000000000000000000000000",
+    },
+    ZcashTestVector{
+        .public_key =
+            "ecffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+        .signature =
+            "26e8958fc2b227b045c3f489f2ef98f0d5dfac05d3c63339b13802886d53fc8500"
+            "00000000000000000000000000000000000000000000000000000000000000",
+    },
+    ZcashTestVector{
+        .public_key =
+            "ecffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+        .signature =
+            "000000000000000000000000000000000000000000000000000000000000000000"
+            "00000000000000000000000000000000000000000000000000000000000000",
+    },
+    ZcashTestVector{
+        .public_key =
+            "ecffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+        .signature =
+            "c7176a703d4dd84fba3c0b760d10670f2a2053fa2c39ccc64ec7fd7792ac03fa00"
+            "00000000000000000000000000000000000000000000000000000000000000",
+    },
+    ZcashTestVector{
+        .public_key =
+            "ecffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+        .signature =
+            "010000000000000000000000000000000000000000000000000000000000008000"
+            "00000000000000000000000000000000000000000000000000000000000000",
+    },
+    ZcashTestVector{
+        .public_key =
+            "ecffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+        .signature =
+            "ecffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff00"
+            "00000000000000000000000000000000000000000000000000000000000000",
+    },
+    ZcashTestVector{
+        .public_key =
+            "ecffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+        .signature =
+            "edffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff7f00"
+            "00000000000000000000000000000000000000000000000000000000000000",
+    },
+    ZcashTestVector{
+        .public_key =
+            "ecffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+        .signature =
+            "edffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff00"
+            "00000000000000000000000000000000000000000000000000000000000000",
+    },
+    ZcashTestVector{
+        .public_key =
+            "ecffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+        .signature =
+            "eeffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff7f00"
+            "00000000000000000000000000000000000000000000000000000000000000",
+    },
+    ZcashTestVector{
+        .public_key =
+            "ecffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+        .signature =
+            "eeffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff00"
+            "00000000000000000000000000000000000000000000000000000000000000",
+    },
+    ZcashTestVector{
+        .public_key =
+            "edffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff7f",
+        .signature =
+            "010000000000000000000000000000000000000000000000000000000000000000"
+            "00000000000000000000000000000000000000000000000000000000000000",
+    },
+    ZcashTestVector{
+        .public_key =
+            "edffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff7f",
+        .signature =
+            "c7176a703d4dd84fba3c0b760d10670f2a2053fa2c39ccc64ec7fd7792ac037a00"
+            "00000000000000000000000000000000000000000000000000000000000000",
+    },
+    ZcashTestVector{
+        .public_key =
+            "edffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff7f",
+        .signature =
+            "000000000000000000000000000000000000000000000000000000000000008000"
+            "00000000000000000000000000000000000000000000000000000000000000",
+    },
+    ZcashTestVector{
+        .public_key =
+            "edffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff7f",
+        .signature =
+            "26e8958fc2b227b045c3f489f2ef98f0d5dfac05d3c63339b13802886d53fc0500"
+            "00000000000000000000000000000000000000000000000000000000000000",
+    },
+    ZcashTestVector{
+        .public_key =
+            "edffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff7f",
+        .signature =
+            "ecffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff7f00"
+            "00000000000000000000000000000000000000000000000000000000000000",
+    },
+    ZcashTestVector{
+        .public_key =
+            "edffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff7f",
+        .signature =
+            "26e8958fc2b227b045c3f489f2ef98f0d5dfac05d3c63339b13802886d53fc8500"
+            "00000000000000000000000000000000000000000000000000000000000000",
+    },
+    ZcashTestVector{
+        .public_key =
+            "edffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff7f",
+        .signature =
+            "000000000000000000000000000000000000000000000000000000000000000000"
+            "00000000000000000000000000000000000000000000000000000000000000",
+    },
+    ZcashTestVector{
+        .public_key =
+            "edffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff7f",
+        .signature =
+            "c7176a703d4dd84fba3c0b760d10670f2a2053fa2c39ccc64ec7fd7792ac03fa00"
+            "00000000000000000000000000000000000000000000000000000000000000",
+    },
+    ZcashTestVector{
+        .public_key =
+            "edffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff7f",
+        .signature =
+            "010000000000000000000000000000000000000000000000000000000000008000"
+            "00000000000000000000000000000000000000000000000000000000000000",
+    },
+    ZcashTestVector{
+        .public_key =
+            "edffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff7f",
+        .signature =
+            "ecffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff00"
+            "00000000000000000000000000000000000000000000000000000000000000",
+    },
+    ZcashTestVector{
+        .public_key =
+            "edffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff7f",
+        .signature =
+            "edffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff7f00"
+            "00000000000000000000000000000000000000000000000000000000000000",
+    },
+    ZcashTestVector{
+        .public_key =
+            "edffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff7f",
+        .signature =
+            "edffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff00"
+            "00000000000000000000000000000000000000000000000000000000000000",
+    },
+    ZcashTestVector{
+        .public_key =
+            "edffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff7f",
+        .signature =
+            "eeffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff7f00"
+            "00000000000000000000000000000000000000000000000000000000000000",
+    },
+    ZcashTestVector{
+        .public_key =
+            "edffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff7f",
+        .signature =
+            "eeffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff00"
+            "00000000000000000000000000000000000000000000000000000000000000",
+    },
+    ZcashTestVector{
+        .public_key =
+            "edffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+        .signature =
+            "010000000000000000000000000000000000000000000000000000000000000000"
+            "00000000000000000000000000000000000000000000000000000000000000",
+    },
+    ZcashTestVector{
+        .public_key =
+            "edffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+        .signature =
+            "c7176a703d4dd84fba3c0b760d10670f2a2053fa2c39ccc64ec7fd7792ac037a00"
+            "00000000000000000000000000000000000000000000000000000000000000",
+    },
+    ZcashTestVector{
+        .public_key =
+            "edffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+        .signature =
+            "000000000000000000000000000000000000000000000000000000000000008000"
+            "00000000000000000000000000000000000000000000000000000000000000",
+    },
+    ZcashTestVector{
+        .public_key =
+            "edffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+        .signature =
+            "26e8958fc2b227b045c3f489f2ef98f0d5dfac05d3c63339b13802886d53fc0500"
+            "00000000000000000000000000000000000000000000000000000000000000",
+    },
+    ZcashTestVector{
+        .public_key =
+            "edffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+        .signature =
+            "ecffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff7f00"
+            "00000000000000000000000000000000000000000000000000000000000000",
+    },
+    ZcashTestVector{
+        .public_key =
+            "edffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+        .signature =
+            "26e8958fc2b227b045c3f489f2ef98f0d5dfac05d3c63339b13802886d53fc8500"
+            "00000000000000000000000000000000000000000000000000000000000000",
+    },
+    ZcashTestVector{
+        .public_key =
+            "edffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+        .signature =
+            "000000000000000000000000000000000000000000000000000000000000000000"
+            "00000000000000000000000000000000000000000000000000000000000000",
+    },
+    ZcashTestVector{
+        .public_key =
+            "edffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+        .signature =
+            "c7176a703d4dd84fba3c0b760d10670f2a2053fa2c39ccc64ec7fd7792ac03fa00"
+            "00000000000000000000000000000000000000000000000000000000000000",
+    },
+    ZcashTestVector{
+        .public_key =
+            "edffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+        .signature =
+            "010000000000000000000000000000000000000000000000000000000000008000"
+            "00000000000000000000000000000000000000000000000000000000000000",
+    },
+    ZcashTestVector{
+        .public_key =
+            "edffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+        .signature =
+            "ecffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff00"
+            "00000000000000000000000000000000000000000000000000000000000000",
+    },
+    ZcashTestVector{
+        .public_key =
+            "edffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+        .signature =
+            "edffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff7f00"
+            "00000000000000000000000000000000000000000000000000000000000000",
+    },
+    ZcashTestVector{
+        .public_key =
+            "edffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+        .signature =
+            "edffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff00"
+            "00000000000000000000000000000000000000000000000000000000000000",
+    },
+    ZcashTestVector{
+        .public_key =
+            "edffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+        .signature =
+            "eeffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff7f00"
+            "00000000000000000000000000000000000000000000000000000000000000",
+    },
+    ZcashTestVector{
+        .public_key =
+            "edffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+        .signature =
+            "eeffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff00"
+            "00000000000000000000000000000000000000000000000000000000000000",
+    },
+    ZcashTestVector{
+        .public_key =
+            "eeffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff7f",
+        .signature =
+            "010000000000000000000000000000000000000000000000000000000000000000"
+            "00000000000000000000000000000000000000000000000000000000000000",
+    },
+    ZcashTestVector{
+        .public_key =
+            "eeffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff7f",
+        .signature =
+            "c7176a703d4dd84fba3c0b760d10670f2a2053fa2c39ccc64ec7fd7792ac037a00"
+            "00000000000000000000000000000000000000000000000000000000000000",
+    },
+    ZcashTestVector{
+        .public_key =
+            "eeffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff7f",
+        .signature =
+            "000000000000000000000000000000000000000000000000000000000000008000"
+            "00000000000000000000000000000000000000000000000000000000000000",
+    },
+    ZcashTestVector{
+        .public_key =
+            "eeffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff7f",
+        .signature =
+            "26e8958fc2b227b045c3f489f2ef98f0d5dfac05d3c63339b13802886d53fc0500"
+            "00000000000000000000000000000000000000000000000000000000000000",
+    },
+    ZcashTestVector{
+        .public_key =
+            "eeffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff7f",
+        .signature =
+            "ecffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff7f00"
+            "00000000000000000000000000000000000000000000000000000000000000",
+    },
+    ZcashTestVector{
+        .public_key =
+            "eeffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff7f",
+        .signature =
+            "26e8958fc2b227b045c3f489f2ef98f0d5dfac05d3c63339b13802886d53fc8500"
+            "00000000000000000000000000000000000000000000000000000000000000",
+    },
+    ZcashTestVector{
+        .public_key =
+            "eeffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff7f",
+        .signature =
+            "000000000000000000000000000000000000000000000000000000000000000000"
+            "00000000000000000000000000000000000000000000000000000000000000",
+    },
+    ZcashTestVector{
+        .public_key =
+            "eeffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff7f",
+        .signature =
+            "c7176a703d4dd84fba3c0b760d10670f2a2053fa2c39ccc64ec7fd7792ac03fa00"
+            "00000000000000000000000000000000000000000000000000000000000000",
+    },
+    ZcashTestVector{
+        .public_key =
+            "eeffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff7f",
+        .signature =
+            "010000000000000000000000000000000000000000000000000000000000008000"
+            "00000000000000000000000000000000000000000000000000000000000000",
+    },
+    ZcashTestVector{
+        .public_key =
+            "eeffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff7f",
+        .signature =
+            "ecffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff00"
+            "00000000000000000000000000000000000000000000000000000000000000",
+    },
+    ZcashTestVector{
+        .public_key =
+            "eeffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff7f",
+        .signature =
+            "edffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff7f00"
+            "00000000000000000000000000000000000000000000000000000000000000",
+    },
+    ZcashTestVector{
+        .public_key =
+            "eeffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff7f",
+        .signature =
+            "edffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff00"
+            "00000000000000000000000000000000000000000000000000000000000000",
+    },
+    ZcashTestVector{
+        .public_key =
+            "eeffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff7f",
+        .signature =
+            "eeffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff7f00"
+            "00000000000000000000000000000000000000000000000000000000000000",
+    },
+    ZcashTestVector{
+        .public_key =
+            "eeffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff7f",
+        .signature =
+            "eeffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff00"
+            "00000000000000000000000000000000000000000000000000000000000000",
+    },
+    ZcashTestVector{
+        .public_key =
+            "eeffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+        .signature =
+            "010000000000000000000000000000000000000000000000000000000000000000"
+            "00000000000000000000000000000000000000000000000000000000000000",
+    },
+    ZcashTestVector{
+        .public_key =
+            "eeffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+        .signature =
+            "c7176a703d4dd84fba3c0b760d10670f2a2053fa2c39ccc64ec7fd7792ac037a00"
+            "00000000000000000000000000000000000000000000000000000000000000",
+    },
+    ZcashTestVector{
+        .public_key =
+            "eeffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+        .signature =
+            "000000000000000000000000000000000000000000000000000000000000008000"
+            "00000000000000000000000000000000000000000000000000000000000000",
+    },
+    ZcashTestVector{
+        .public_key =
+            "eeffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+        .signature =
+            "26e8958fc2b227b045c3f489f2ef98f0d5dfac05d3c63339b13802886d53fc0500"
+            "00000000000000000000000000000000000000000000000000000000000000",
+    },
+    ZcashTestVector{
+        .public_key =
+            "eeffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+        .signature =
+            "ecffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff7f00"
+            "00000000000000000000000000000000000000000000000000000000000000",
+    },
+    ZcashTestVector{
+        .public_key =
+            "eeffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+        .signature =
+            "26e8958fc2b227b045c3f489f2ef98f0d5dfac05d3c63339b13802886d53fc8500"
+            "00000000000000000000000000000000000000000000000000000000000000",
+    },
+    ZcashTestVector{
+        .public_key =
+            "eeffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+        .signature =
+            "000000000000000000000000000000000000000000000000000000000000000000"
+            "00000000000000000000000000000000000000000000000000000000000000",
+    },
+    ZcashTestVector{
+        .public_key =
+            "eeffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+        .signature =
+            "c7176a703d4dd84fba3c0b760d10670f2a2053fa2c39ccc64ec7fd7792ac03fa00"
+            "00000000000000000000000000000000000000000000000000000000000000",
+    },
+    ZcashTestVector{
+        .public_key =
+            "eeffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+        .signature =
+            "010000000000000000000000000000000000000000000000000000000000008000"
+            "00000000000000000000000000000000000000000000000000000000000000",
+    },
+    ZcashTestVector{
+        .public_key =
+            "eeffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+        .signature =
+            "ecffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff00"
+            "00000000000000000000000000000000000000000000000000000000000000",
+    },
+    ZcashTestVector{
+        .public_key =
+            "eeffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+        .signature =
+            "edffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff7f00"
+            "00000000000000000000000000000000000000000000000000000000000000",
+    },
+    ZcashTestVector{
+        .public_key =
+            "eeffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+        .signature =
+            "edffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff00"
+            "00000000000000000000000000000000000000000000000000000000000000",
+    },
+    ZcashTestVector{
+        .public_key =
+            "eeffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+        .signature =
+            "eeffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff7f00"
+            "00000000000000000000000000000000000000000000000000000000000000",
+    },
+    ZcashTestVector{
+        .public_key =
+            "eeffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+        .signature =
+            "eeffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff00"
+            "00000000000000000000000000000000000000000000000000000000000000",
+    }};
+
+TEST_CASE("Ed25519 test vectors from Zcash", "[crypto]")
+{
+    for (auto const& tv : ZCASH_TEST_VECTORS)
+    {
+        PublicKey pk;
+        pk.type(PUBLIC_KEY_TYPE_ED25519);
+        pk.ed25519() = hexToBin256(tv.public_key);
+        auto s = hexToBin(tv.signature);
+        REQUIRE(s.size() == 64);
+        Signature sig;
+        sig.assign(s.begin(), s.end());
+        REQUIRE(!PubKeyUtils::verifySig(pk, sig, std::string("Zcash")));
     }
 }
