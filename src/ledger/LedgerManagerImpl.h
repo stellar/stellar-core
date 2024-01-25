@@ -146,6 +146,7 @@ class LedgerManagerImpl : public LedgerManager
     uint32_t getLastTxFee() const override;
     uint32_t getLastClosedLedgerNum() const override;
     SorobanNetworkConfig const& getSorobanNetworkConfig() override;
+    bool hasSorobanNetworkConfig() const override;
 
 #ifdef BUILD_TESTS
     SorobanNetworkConfig& getMutableSorobanNetworkConfig() override;

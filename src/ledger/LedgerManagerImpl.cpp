@@ -540,6 +540,12 @@ LedgerManagerImpl::getSorobanNetworkConfig()
     return getSorobanNetworkConfigInternal();
 }
 
+bool
+LedgerManagerImpl::hasSorobanNetworkConfig() const
+{
+    return mSorobanNetworkConfig.has_value();
+}
+
 #ifdef BUILD_TESTS
 SorobanNetworkConfig&
 LedgerManagerImpl::getMutableSorobanNetworkConfig()
