@@ -550,13 +550,15 @@ ApplicationImpl::getJsonInfo(bool verbose)
 void
 ApplicationImpl::reportInfo(bool verbose)
 {
-    mLedgerManager->loadLastKnownLedger(nullptr);
-    LedgerTxn ltx(getLedgerTxnRoot());
-    if (protocolVersionStartsFrom(ltx.loadHeader().current().ledgerVersion,
-                                  SOROBAN_PROTOCOL_VERSION))
-    {
-        getLedgerManager().updateNetworkConfig(ltx);
-    }
+    auto loadConfig = [this]() {
+        LedgerTxn ltx(getLedgerTxnRoot());
+        if (protocolVersionStartsFrom(ltx.loadHeader().current().ledgerVersion,
+                                      SOROBAN_PROTOCOL_VERSION))
+        {
+            getLedgerManager().updateNetworkConfig(ltx);
+        }
+    };
+    mLedgerManager->loadLastKnownLedger(loadConfig);
     LOG_INFO(DEFAULT_LOG, "Reporting application info");
     std::cout << getJsonInfo(verbose).toStyledString() << std::endl;
 }
