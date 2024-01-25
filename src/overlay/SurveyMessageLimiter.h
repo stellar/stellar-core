@@ -14,12 +14,15 @@ namespace stellar
 class Application;
 
 /*
-SurveyMessageLimiter filters out -
-1. Messages if the Surveyor-Surveyed key pair was already seen
-2. Messages with an expired ledger number
-3. Requests from any given Surveyor if more than mMaxRequestLimit requests were
-sent
+The SurveyMessageLimiter module manages survey message traffic through specific
+filtering policies:
+ * It validates ledger numbers of survey messages, restricting messages to a
+predefined ledger range to maintain relevance.
+  * It enforces a cap on the number of survey requests a node can handle (via
+`mMaxRequestLimit`)
+  * It implements duplication checks for `Surveyor-Surveyed` pairs
 */
+
 class SurveyMessageLimiter
 {
   public:

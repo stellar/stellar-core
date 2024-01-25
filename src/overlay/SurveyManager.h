@@ -17,6 +17,12 @@ namespace stellar
 {
 class Application;
 
+/*
+SurveyManager orchestrates network surveys by initiating them and
+maintaining a backlog of peers to survey, sending and processing messages,
+throttling requests to prevent overload, aggregating results, and concluding the
+survey upon completion or expiry.
+*/
 class SurveyManager : public std::enable_shared_from_this<SurveyManager>,
                       public NonMovableOrCopyable
 {

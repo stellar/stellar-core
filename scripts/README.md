@@ -19,7 +19,7 @@ This folder is for storing any scripts that may be helpful for using stellar-cor
         - `-sr SURVEYRESULT`, `--surveyResult SURVEYRESULT` - output file for survey results
     - sub command `analyze` - analyze an existing graph
         - `-gmla GRAPHMLANALYZE`, `--graphmlAnalyze GRAPHMLANALYZE` - input graphml file
-    - sub command `augment` - analyze an existing graph
+    - sub command `augment` - augment an existing graph with information from  stellarbeat.io. Currently, only Public Network graphs are supported.
         - `-gmli GRAPHMLINPUT` - input graphml file
         - `-gmlo GRAPHMLOUTPUT` - output graphml file
     - sub command `flatten` - Take a graphml file containing a bidrectional graph (possibly augmented with StellarBeat data) and flatten it into an undirected graph in JSON.
