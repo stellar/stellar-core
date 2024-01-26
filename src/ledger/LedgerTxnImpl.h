@@ -4,6 +4,7 @@
 // under the Apache License, Version 2.0. See the COPYING file at the root
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
+#include "bucket/BucketList.h"
 #include "database/Database.h"
 #include "ledger/LedgerTxn.h"
 #include "util/RandomEvictionCache.h"
@@ -18,6 +19,8 @@
 
 namespace stellar
 {
+
+class SearchableBucketListSnapshot;
 
 // Precondition: The keys associated with entries are unique and constitute a
 // subset of keys
@@ -737,6 +740,8 @@ class LedgerTxnRoot::Impl
     mutable BestOffers mBestOffers;
     mutable uint64_t mPrefetchHits{0};
     mutable uint64_t mPrefetchMisses{0};
+    mutable std::unique_ptr<SearchableBucketListSnapshot const>
+        mSearchableBucketListSnapshot{};
 
     size_t mBulkLoadBatchSize;
     std::unique_ptr<soci::transaction> mTransaction;
@@ -868,6 +873,8 @@ class LedgerTxnRoot::Impl
         std::deque<LedgerEntry>::const_iterator const& end);
 
     bool areEntriesMissingInCacheForOffer(OfferEntry const& oe);
+
+    SearchableBucketListSnapshot const& getSearchableBucketListSnapshot() const;
 
   public:
     // Constructor has the strong exception safety guarantee
