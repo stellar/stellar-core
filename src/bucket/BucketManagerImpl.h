@@ -30,6 +30,7 @@ class AbstractLedgerTxn;
 class Application;
 class Bucket;
 class BucketList;
+class BucketSnapshotManager;
 struct HistoryArchiveState;
 
 class BucketManagerImpl : public BucketManager
@@ -38,23 +39,24 @@ class BucketManagerImpl : public BucketManager
 
     Application& mApp;
     std::unique_ptr<BucketList> mBucketList;
+    std::unique_ptr<BucketSnapshotManager> mSnapshotManager;
     std::unique_ptr<TmpDirManager> mTmpDirManager;
     std::unique_ptr<TmpDir> mWorkDir;
     std::map<Hash, std::shared_ptr<Bucket>> mSharedBuckets;
+
+    // Lock for managing raw Bucket files or the bucket directory. This lock is
+    // only required for file access, but is not required for logical changes to
+    // the BucketList (i.e. addBatch).
     mutable std::recursive_mutex mBucketMutex;
     std::unique_ptr<std::string> mLockedBucketDir;
     medida::Meter& mBucketObjectInsertBatch;
     medida::Timer& mBucketAddBatch;
     medida::Timer& mBucketSnapMerge;
     medida::Counter& mSharedBucketsSize;
-    medida::Meter& mBucketListDBBulkLoadMeter;
     medida::Meter& mBucketListDBBloomMisses;
     medida::Meter& mBucketListDBBloomLookups;
     medida::Counter& mBucketListSizeCounter;
-    BucketListEvictionCounters mBucketListEvictionCounters;
-    mutable UnorderedMap<LedgerEntryType, medida::Timer&>
-        mBucketListDBPointTimers{};
-    mutable UnorderedMap<std::string, medida::Timer&> mBucketListDBBulkTimers{};
+    EvictionCounters mBucketListEvictionCounters;
     MergeCounters mMergeCounters;
 
     bool const mDeleteEntireBucketDirInDtor;
@@ -104,6 +106,7 @@ class BucketManagerImpl : public BucketManager
     std::string const& getTmpDir() override;
     std::string const& getBucketDir() const override;
     BucketList& getBucketList() override;
+    BucketSnapshotManager& getBucketSnapshotManager() const;
     medida::Timer& getMergeTimer() override;
     MergeCounters readMergeCounters() override;
     void incrMergeCounters(MergeCounters const&) override;
@@ -135,17 +138,9 @@ class BucketManagerImpl : public BucketManager
     void snapshotLedger(LedgerHeader& currentHeader) override;
     void maybeSetIndex(std::shared_ptr<Bucket> b,
                        std::unique_ptr<BucketIndex const>&& index) override;
-    void scanForEviction(AbstractLedgerTxn& ltx, uint32_t ledgerSeq) override;
+    void scanForEvictionLegacySQL(AbstractLedgerTxn& ltx,
+                                  uint32_t ledgerSeq) override;
 
-    std::shared_ptr<LedgerEntry>
-    getLedgerEntry(LedgerKey const& k) const override;
-    std::vector<LedgerEntry>
-    loadKeys(std::set<LedgerKey, LedgerEntryIdCmp> const& keys) const override;
-    std::vector<LedgerEntry>
-    loadPoolShareTrustLinesByAccountAndAsset(AccountID const& accountID,
-                                             Asset const& asset) const override;
-    std::vector<InflationWinner>
-    loadInflationWinners(size_t maxWinners, int64_t minBalance) const override;
     medida::Meter& getBloomMissMeter() const override;
     medida::Meter& getBloomLookupMeter() const override;
 
