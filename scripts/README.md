@@ -17,6 +17,9 @@ This folder is for storing any scripts that may be helpful for using stellar-cor
         - `-nl NODELIST`, `--nodeList NODELIST` - list of seed nodes. One node per line. (Optional)
         - `-gmlw GRAPHMLWRITE`, `--graphmlWrite GRAPHMLWRITE` - output file for graphml file
         - `-sr SURVEYRESULT`, `--surveyResult SURVEYRESULT` - output file for survey results
+    - sub command `simulate` - simulate a run of the `survey` subcommand without any network calls. Takes the same arguments as `survey`, plus the following:
+        - `-s SIMGRAPH`, `--simGraph SIMGRAPH` - Network topology to simulate in graphml format.
+        - `r SIMROOT`, `--simRoot SIMROOT` - Node in graph to start simulation from.
     - sub command `analyze` - analyze an existing graph
         - `-gmla GRAPHMLANALYZE`, `--graphmlAnalyze GRAPHMLANALYZE` - input graphml file
     - sub command `augment` - augment an existing graph with information from  stellarbeat.io. Currently, only Public Network graphs are supported.
