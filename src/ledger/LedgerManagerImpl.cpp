@@ -1622,7 +1622,8 @@ LedgerManagerImpl::transferLedgerEntriesToBucketList(
     {
         {
             LedgerTxn ltxEvictions(ltx);
-            mApp.getBucketManager().scanForEviction(ltxEvictions, ledgerSeq);
+            mApp.getBucketManager().scanForEvictionLegacySQL(ltxEvictions,
+                                                             ledgerSeq);
             if (ledgerCloseMeta)
             {
                 ledgerCloseMeta->populateEvictedEntries(

@@ -38,7 +38,7 @@ namespace stellar
 class AbstractLedgerTxn;
 class Application;
 class BucketManager;
-struct EvictionMetrics;
+struct EvictionStatistics;
 
 class Bucket : public std::enable_shared_from_this<Bucket>,
                public NonMovableOrCopyable
@@ -49,21 +49,8 @@ class Bucket : public std::enable_shared_from_this<Bucket>,
 
     std::unique_ptr<BucketIndex const> mIndex{};
 
-    // Lazily-constructed and retained for read path.
-    std::unique_ptr<XDRInputFileStream> mStream;
-
     // Returns index, throws if index not yet initialized
     BucketIndex const& getIndex() const;
-
-    // Returns (lazily-constructed) file stream for bucket file. Note
-    // this might be in some random position left over from a previous read --
-    // must be seek()'ed before use.
-    XDRInputFileStream& getStream();
-
-    // Loads the bucket entry for LedgerKey k. Starts at file offset pos and
-    // reads until key is found or the end of the page.
-    std::optional<BucketEntry>
-    getEntryAtOffset(LedgerKey const& k, std::streamoff pos, size_t pageSize);
 
     static std::string randomFileName(std::string const& tmpDir,
                                       std::string ext);
@@ -98,25 +85,6 @@ class Bucket : public std::enable_shared_from_this<Bucket>,
     // Sets index, throws if index is already set
     void setIndex(std::unique_ptr<BucketIndex const>&& index);
 
-    // Loads bucket entry for LedgerKey k.
-    std::optional<BucketEntry> getBucketEntry(LedgerKey const& k);
-
-    // Loads LedgerEntry's for given keys. When a key is found, the
-    // entry is added to result and the key is removed from keys.
-    void loadKeys(std::set<LedgerKey, LedgerEntryIdCmp>& keys,
-                  std::vector<LedgerEntry>& result);
-
-    // Loads all poolshare trustlines for the given account. Trustlines are
-    // stored with their corresponding liquidity pool key in
-    // liquidityPoolKeyToTrustline. All liquidity pool keys corresponding to
-    // loaded trustlines are also reduntantly stored in liquidityPoolKeys.
-    // If a trustline key is in deadTrustlines, it is not loaded. Whenever a
-    // dead trustline is found, its key is added to deadTrustlines.
-    void loadPoolShareTrustLinessByAccount(
-        AccountID const& accountID, UnorderedSet<LedgerKey>& deadTrustlines,
-        UnorderedMap<LedgerKey, LedgerEntry>& liquidityPoolKeyToTrustline,
-        LedgerKeySet& liquidityPoolKeys);
-
     // At version 11, we added support for INITENTRY and METAENTRY. Before this
     // we were only supporting LIVEENTRY and DEADENTRY.
     static constexpr ProtocolVersion
@@ -137,18 +105,6 @@ class Bucket : public std::enable_shared_from_this<Bucket>,
     static std::string randomBucketName(std::string const& tmpDir);
     static std::string randomBucketIndexName(std::string const& tmpDir);
 
-    // Returns false if eof reached, true otherwise. Modifies iter as the bucket
-    // is scanned. Also modifies bytesToScan and maxEntriesToEvict such that
-    // after this function returns:
-    // bytesToScan -= amount_bytes_scanned
-    // maxEntriesToEvict -= entries_evicted
-    bool scanForEviction(AbstractLedgerTxn& ltx, EvictionIterator& iter,
-                         uint64_t& bytesToScan, uint32_t& maxEntriesToEvict,
-                         uint32_t ledgerSeq,
-                         medida::Counter& entriesEvictedCounter,
-                         medida::Counter& bytesScannedForEvictionCounter,
-                         std::optional<EvictionMetrics>& metrics);
-
 #ifdef BUILD_TESTS
     // "Applies" the bucket to the database. For each entry in the bucket,
     // if the entry is init or live, creates or updates the corresponding
@@ -163,6 +119,19 @@ class Bucket : public std::enable_shared_from_this<Bucket>,
     }
 
 #endif // BUILD_TESTS
+
+    // Returns false if eof reached, true otherwise. Modifies iter as the bucket
+    // is scanned. Also modifies bytesToScan and maxEntriesToEvict such that
+    // after this function returns:
+    // bytesToScan -= amount_bytes_scanned
+    // maxEntriesToEvict -= entries_evicted
+    bool
+    scanForEvictionLegacySQL(AbstractLedgerTxn& ltx, EvictionIterator& iter,
+                             uint64_t& bytesToScan, uint32_t& maxEntriesToEvict,
+                             uint32_t ledgerSeq,
+                             medida::Counter& entriesEvictedCounter,
+                             medida::Counter& bytesScannedForEvictionCounter,
+                             std::optional<EvictionStatistics>& stats) const;
 
     // Create a fresh bucket from given vectors of init (created) and live
     // (updated) LedgerEntries, and dead LedgerEntryKeys. The bucket will
@@ -196,5 +165,7 @@ class Bucket : public std::enable_shared_from_this<Bucket>,
     static uint32_t getBucketVersion(std::shared_ptr<Bucket> const& bucket);
     static uint32_t
     getBucketVersion(std::shared_ptr<Bucket const> const& bucket);
+
+    friend class SearchableBucketSnapshot;
 };
 }

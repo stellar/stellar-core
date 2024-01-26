@@ -4,6 +4,7 @@
 // under the Apache License, Version 2.0. See the COPYING file at the root
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
+#include "bucket/Bucket.h"
 #include "bucket/FutureBucket.h"
 #include "bucket/LedgerCmp.h"
 #include "overlay/StellarXDR.h"
@@ -14,7 +15,6 @@
 
 namespace medida
 {
-class Meter;
 class Counter;
 }
 
@@ -352,7 +352,6 @@ class AbstractLedgerTxn;
 class Application;
 class Bucket;
 class Config;
-struct BucketListEvictionCounters;
 struct InflationWinner;
 
 namespace testutil
@@ -403,13 +402,24 @@ class BucketListDepth
     friend class testutil::BucketListDepthModifier;
 };
 
-struct EvictionMetrics
+struct EvictionStatistics
 {
     // Evicted entry "age" is the delta between its liveUntilLedger and the
     // ledger when the entry is actually evicted
     uint64_t evictedEntriesAgeSum{};
     uint64_t numEntriesEvicted{};
     uint32_t evictionCycleStartLedger{};
+};
+
+struct EvictionCounters
+{
+    medida::Counter& entriesEvicted;
+    medida::Counter& bytesScannedForEviction;
+    medida::Counter& incompleteBucketScan;
+    medida::Counter& evictionCyclePeriod;
+    medida::Counter& averageEvictedEntryAge;
+
+    EvictionCounters(Application& app);
 };
 
 class BucketList
@@ -419,12 +429,7 @@ class BucketList
     // To avoid noisy data, only count metrics that encompass a complete
     // eviction cycle. If a node joins the network mid cycle, metrics will be
     // nullopt and be initialized at the start of the next cycle.
-    std::optional<EvictionMetrics> mEvictionMetrics;
-
-    // Loops through all buckets, starting with curr at level 0, then snap at
-    // level 0, etc. Calls f on each bucket. Exits early if function
-    // returns true
-    void loopAllBuckets(std::function<bool(std::shared_ptr<Bucket>)> f) const;
+    std::optional<EvictionStatistics> mEvictionStatistics;
 
   public:
     // Number of bucket levels in the bucketlist. Every bucketlist in the system
@@ -481,18 +486,9 @@ class BucketList
     // of the concatenation of the hashes of the `curr` and `snap` buckets.
     Hash getHash() const;
 
-    std::shared_ptr<LedgerEntry> getLedgerEntry(LedgerKey const& k) const;
-
-    std::vector<LedgerEntry>
-    loadKeys(std::set<LedgerKey, LedgerEntryIdCmp> const& inKeys) const;
-
-    std::vector<LedgerEntry>
-    loadPoolShareTrustLinesByAccountAndAsset(AccountID const& accountID,
-                                             Asset const& asset,
-                                             Config const& cfg) const;
-
-    std::vector<InflationWinner> loadInflationWinners(size_t maxWinners,
-                                                      int64_t minBalance) const;
+    void scanForEvictionLegacySQL(Application& app, AbstractLedgerTxn& ltx,
+                                  uint32_t ledgerSeq,
+                                  EvictionCounters& counters);
 
     // Restart any merges that might be running on background worker threads,
     // merging buckets between levels. This needs to be called after forcing a
@@ -538,9 +534,5 @@ class BucketList
                   std::vector<LedgerEntry> const& initEntries,
                   std::vector<LedgerEntry> const& liveEntries,
                   std::vector<LedgerKey> const& deadEntries);
-
-    void scanForEviction(Application& app, AbstractLedgerTxn& ltx,
-                         uint32_t ledgerSeq,
-                         BucketListEvictionCounters& counters);
 };
 }

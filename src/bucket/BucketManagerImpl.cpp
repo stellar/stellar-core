@@ -7,6 +7,7 @@
 #include "bucket/BucketInputIterator.h"
 #include "bucket/BucketList.h"
 #include "bucket/BucketOutputIterator.h"
+#include "bucket/SearcahbleBucketListSnapshot.h"
 #include "crypto/Hex.h"
 #include "history/HistoryManager.h"
 #include "historywork/VerifyBucketWork.h"
@@ -104,20 +105,6 @@ BucketManagerImpl::getTmpDirManager()
     return *mTmpDirManager;
 }
 
-BucketListEvictionCounters::BucketListEvictionCounters(Application& app)
-    : entriesEvicted(app.getMetrics().NewCounter(
-          {"state-archival", "eviction", "entries-evicted"}))
-    , bytesScannedForEviction(app.getMetrics().NewCounter(
-          {"state-archival", "eviction", "bytes-scanned"}))
-    , incompleteBucketScan(app.getMetrics().NewCounter(
-          {"state-archival", "eviction", "incomplete-scan"}))
-    , evictionCyclePeriod(
-          app.getMetrics().NewCounter({"state-archival", "eviction", "period"}))
-    , averageEvictedEntryAge(
-          app.getMetrics().NewCounter({"state-archival", "eviction", "age"}))
-{
-}
-
 BucketManagerImpl::BucketManagerImpl(Application& app)
     : mApp(app)
     , mBucketList(nullptr)
@@ -130,8 +117,6 @@ BucketManagerImpl::BucketManagerImpl(Application& app)
     , mBucketSnapMerge(app.getMetrics().NewTimer({"bucket", "snap", "merge"}))
     , mSharedBucketsSize(
           app.getMetrics().NewCounter({"bucket", "memory", "shared"}))
-    , mBucketListDBBulkLoadMeter(app.getMetrics().NewMeter(
-          {"bucketlistDB", "query", "loads"}, "query"))
     , mBucketListDBBloomMisses(app.getMetrics().NewMeter(
           {"bucketlistDB", "bloom", "misses"}, "bloom"))
     , mBucketListDBBloomLookups(app.getMetrics().NewMeter(
@@ -907,90 +892,24 @@ BucketManagerImpl::maybeSetIndex(std::shared_ptr<Bucket> b,
 }
 
 void
-BucketManagerImpl::scanForEviction(AbstractLedgerTxn& ltx, uint32_t ledgerSeq)
+BucketManagerImpl::scanForEvictionLegacySQL(AbstractLedgerTxn& ltx,
+                                            uint32_t ledgerSeq)
 {
     ZoneScoped;
     if (protocolVersionStartsFrom(ltx.getHeader().ledgerVersion,
                                   SOROBAN_PROTOCOL_VERSION))
     {
-        mBucketList->scanForEviction(mApp, ltx, ledgerSeq,
-                                     mBucketListEvictionCounters);
+        mBucketList->scanForEvictionLegacySQL(mApp, ltx, ledgerSeq,
+                                              mBucketListEvictionCounters);
     }
 }
 
-medida::Timer&
-BucketManagerImpl::recordBulkLoadMetrics(std::string const& label,
-                                         size_t numEntries) const
+std::unique_ptr<SearchableBucketListSnapshot const>
+BucketManagerImpl::getSearchableBucketListSnapshot(bool isMainThread) const
 {
-    if (numEntries != 0)
-    {
-        mBucketListDBBulkLoadMeter.Mark(numEntries);
-    }
-
-    auto iter = mBucketListDBBulkTimers.find(label);
-    if (iter == mBucketListDBBulkTimers.end())
-    {
-        auto& metric =
-            mApp.getMetrics().NewTimer({"bucketlistDB", "bulk", label});
-        iter = mBucketListDBBulkTimers.emplace(label, metric).first;
-    }
-
-    return iter->second;
-}
-
-medida::Timer&
-BucketManagerImpl::getPointLoadTimer(LedgerEntryType t) const
-{
-    auto iter = mBucketListDBPointTimers.find(t);
-    if (iter == mBucketListDBPointTimers.end())
-    {
-        auto const& label = xdr::xdr_traits<LedgerEntryType>::enum_name(t);
-        auto& metric =
-            mApp.getMetrics().NewTimer({"bucketlistDB", "point", label});
-        iter = mBucketListDBPointTimers.emplace(t, metric).first;
-    }
-
-    return iter->second;
-}
-
-std::shared_ptr<LedgerEntry>
-BucketManagerImpl::getLedgerEntry(LedgerKey const& k) const
-{
-    releaseAssertOrThrow(getConfig().isUsingBucketListDB());
-    auto timer = getPointLoadTimer(k.type()).TimeScope();
-    return mBucketList->getLedgerEntry(k);
-}
-
-std::vector<LedgerEntry>
-BucketManagerImpl::loadKeys(
-    std::set<LedgerKey, LedgerEntryIdCmp> const& keys) const
-{
-    releaseAssertOrThrow(getConfig().isUsingBucketListDB());
-    auto timer = recordBulkLoadMetrics("prefetch", keys.size()).TimeScope();
-    return mBucketList->loadKeys(keys);
-}
-
-std::vector<LedgerEntry>
-BucketManagerImpl::loadPoolShareTrustLinesByAccountAndAsset(
-    AccountID const& accountID, Asset const& asset) const
-{
-    releaseAssertOrThrow(getConfig().isUsingBucketListDB());
-    // This query needs to do a linear scan of certain regions of the
-    // BucketList, so the number of entries loaded is meaningless
-    auto timer = recordBulkLoadMetrics("poolshareTrustlines", 0).TimeScope();
-    return mBucketList->loadPoolShareTrustLinesByAccountAndAsset(
-        accountID, asset, getConfig());
-}
-
-std::vector<InflationWinner>
-BucketManagerImpl::loadInflationWinners(size_t maxWinners,
-                                        int64_t minBalance) const
-{
-    releaseAssertOrThrow(getConfig().isUsingBucketListDB());
-    // This query needs to do a linear scan of certain regions of the
-    // BucketList, so the number of entries loaded is meaningless
-    auto timer = recordBulkLoadMetrics("inflationWinners", 0).TimeScope();
-    return mBucketList->loadInflationWinners(maxWinners, minBalance);
+    // TODO: Lock this
+    releaseAssertOrThrow(mApp.getConfig().isUsingBucketListDB() && mBucketList);
+    return std::make_unique<SearchableBucketListSnapshot>(mApp, *mBucketList);
 }
 
 medida::Meter&

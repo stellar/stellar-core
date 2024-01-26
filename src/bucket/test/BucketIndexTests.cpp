@@ -8,6 +8,7 @@
 #include "bucket/BucketIndexImpl.h"
 #include "bucket/BucketList.h"
 #include "bucket/BucketManager.h"
+#include "bucket/SearchableBucketListSnapshot.h"
 #include "bucket/test/BucketTestUtils.h"
 #include "ledger/test/LedgerTestUtils.h"
 #include "lib/catch.hpp"
@@ -197,15 +198,17 @@ class BucketIndexTest
     virtual void
     run()
     {
+        auto searchableBL = getBM().getSearchableBucketListSnapshot();
+
         // Test bulk load lookup
-        auto loadResult = getBM().loadKeys(mKeysToSearch);
+        auto loadResult = searchableBL->loadKeys(mKeysToSearch);
         validateResults(mTestEntries, loadResult);
 
         // Test individual entry lookup
         loadResult.clear();
         for (auto const& key : mKeysToSearch)
         {
-            auto entryPtr = getBM().getLedgerEntry(key);
+            auto entryPtr = searchableBL->getLedgerEntry(key);
             if (entryPtr)
             {
                 loadResult.emplace_back(*entryPtr);
@@ -219,6 +222,7 @@ class BucketIndexTest
     virtual void
     runPerf(size_t n)
     {
+        auto searchableBL = getBM().getSearchableBucketListSnapshot();
         for (size_t i = 0; i < n; ++i)
         {
             LedgerKeySet searchSubset;
@@ -247,7 +251,7 @@ class BucketIndexTest
                 searchSubset.insert(addKeys.begin(), addKeys.end());
             }
 
-            auto blLoad = getBM().loadKeys(searchSubset);
+            auto blLoad = searchableBL->loadKeys(searchSubset);
             validateResults(testEntriesSubset, blLoad);
         }
     }
@@ -255,6 +259,8 @@ class BucketIndexTest
     void
     testInvalidKeys()
     {
+        auto searchableBL = getBM().getSearchableBucketListSnapshot();
+
         // Load should return empty vector for keys not in bucket list
         auto keysNotInBL =
             LedgerTestUtils::generateValidLedgerEntryKeysWithExclusions(
@@ -262,12 +268,12 @@ class BucketIndexTest
         LedgerKeySet invalidKeys(keysNotInBL.begin(), keysNotInBL.end());
 
         // Test bulk load
-        REQUIRE(getBM().loadKeys(invalidKeys).size() == 0);
+        REQUIRE(searchableBL->loadKeys(invalidKeys).size() == 0);
 
         // Test individual load
         for (auto const& key : invalidKeys)
         {
-            auto entryPtr = getBM().getLedgerEntry(key);
+            auto entryPtr = searchableBL->getLedgerEntry(key);
             REQUIRE(!entryPtr);
         }
     }
@@ -398,8 +404,10 @@ class BucketIndexPoolShareTest : public BucketIndexTest
     virtual void
     run() override
     {
-        auto loadResult = getBM().loadPoolShareTrustLinesByAccountAndAsset(
-            mAccountToSearch.accountID, mAssetToSearch);
+        auto searchableBL = getBM().getSearchableBucketListSnapshot();
+        auto loadResult =
+            searchableBL->loadPoolShareTrustLinesByAccountAndAsset(
+                mAccountToSearch.accountID, mAssetToSearch);
         validateResults(mTestEntries, loadResult);
     }
 };

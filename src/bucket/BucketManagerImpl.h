@@ -47,14 +47,10 @@ class BucketManagerImpl : public BucketManager
     medida::Timer& mBucketAddBatch;
     medida::Timer& mBucketSnapMerge;
     medida::Counter& mSharedBucketsSize;
-    medida::Meter& mBucketListDBBulkLoadMeter;
     medida::Meter& mBucketListDBBloomMisses;
     medida::Meter& mBucketListDBBloomLookups;
     medida::Counter& mBucketListSizeCounter;
-    BucketListEvictionCounters mBucketListEvictionCounters;
-    mutable UnorderedMap<LedgerEntryType, medida::Timer&>
-        mBucketListDBPointTimers{};
-    mutable UnorderedMap<std::string, medida::Timer&> mBucketListDBBulkTimers{};
+    EvictionCounters mBucketListEvictionCounters;
     MergeCounters mMergeCounters;
 
     bool const mDeleteEntireBucketDirInDtor;
@@ -135,17 +131,12 @@ class BucketManagerImpl : public BucketManager
     void snapshotLedger(LedgerHeader& currentHeader) override;
     void maybeSetIndex(std::shared_ptr<Bucket> b,
                        std::unique_ptr<BucketIndex const>&& index) override;
-    void scanForEviction(AbstractLedgerTxn& ltx, uint32_t ledgerSeq) override;
+    void scanForEvictionLegacySQL(AbstractLedgerTxn& ltx,
+                                  uint32_t ledgerSeq) override;
 
-    std::shared_ptr<LedgerEntry>
-    getLedgerEntry(LedgerKey const& k) const override;
-    std::vector<LedgerEntry>
-    loadKeys(std::set<LedgerKey, LedgerEntryIdCmp> const& keys) const override;
-    std::vector<LedgerEntry>
-    loadPoolShareTrustLinesByAccountAndAsset(AccountID const& accountID,
-                                             Asset const& asset) const override;
-    std::vector<InflationWinner>
-    loadInflationWinners(size_t maxWinners, int64_t minBalance) const override;
+    std::unique_ptr<SearchableBucketListSnapshot const>
+    getSearchableBucketListSnapshot(bool isMainThread) const override;
+
     medida::Meter& getBloomMissMeter() const override;
     medida::Meter& getBloomLookupMeter() const override;
 
