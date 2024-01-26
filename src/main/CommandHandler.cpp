@@ -740,9 +740,7 @@ CommandHandler::sorobanInfo(std::string const& params, std::string& retStr)
     ZoneScoped;
     auto& lm = mApp.getLedgerManager();
 
-    if (protocolVersionStartsFrom(
-            lm.getLastClosedLedgerHeader().header.ledgerVersion,
-            SOROBAN_PROTOCOL_VERSION))
+    if (lm.hasSorobanNetworkConfig())
     {
         std::map<std::string, std::string> retMap;
         http::server::server::parseParams(params, retMap);

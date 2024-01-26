@@ -128,6 +128,7 @@ class LedgerManager
     // Ledger txn here is needed for the sake of lazy load; it won't be
     // used most of the time.
     virtual SorobanNetworkConfig const& getSorobanNetworkConfig() = 0;
+    virtual bool hasSorobanNetworkConfig() const = 0;
 
 #ifdef BUILD_TESTS
     virtual SorobanNetworkConfig& getMutableSorobanNetworkConfig() = 0;
