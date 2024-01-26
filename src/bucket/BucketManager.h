@@ -28,6 +28,7 @@ class Application;
 class BasicWork;
 class BucketList;
 class Config;
+class SearchableBucketListSnapshot;
 class TmpDirManager;
 struct HistoryArchiveState;
 struct InflationWinner;
@@ -76,17 +77,6 @@ struct MergeCounters
     uint64_t mOutputIteratorActualWrites{0};
     MergeCounters& operator+=(MergeCounters const& delta);
     bool operator==(MergeCounters const& other) const;
-};
-
-struct BucketListEvictionCounters
-{
-    medida::Counter& entriesEvicted;
-    medida::Counter& bytesScannedForEviction;
-    medida::Counter& incompleteBucketScan;
-    medida::Counter& evictionCyclePeriod;
-    medida::Counter& averageEvictedEntryAge;
-
-    BucketListEvictionCounters(Application& app);
 };
 
 /**
@@ -217,27 +207,14 @@ class BucketManager : NonMovableOrCopyable
     virtual void maybeSetIndex(std::shared_ptr<Bucket> b,
                                std::unique_ptr<BucketIndex const>&& index) = 0;
 
+    virtual std::unique_ptr<SearchableBucketListSnapshot const>
+    getSearchableBucketListSnapshot(bool isMainThread = false) const = 0;
+
     // Scans BucketList for non-live entries to evict starting at the entry
     // pointed to by EvictionIterator. Scans until `maxEntriesToEvict` entries
     // have been evicted or maxEvictionScanSize bytes have been scanned.
-    virtual void scanForEviction(AbstractLedgerTxn& ltx,
-                                 uint32_t ledgerSeq) = 0;
-
-    // Look up a ledger entry from the BucketList. Returns nullopt if the LE is
-    // dead / nonexistent.
-    virtual std::shared_ptr<LedgerEntry>
-    getLedgerEntry(LedgerKey const& k) const = 0;
-
-    // Loads LedgerEntry for all keys.
-    virtual std::vector<LedgerEntry>
-    loadKeys(std::set<LedgerKey, LedgerEntryIdCmp> const& keys) const = 0;
-
-    virtual std::vector<LedgerEntry>
-    loadPoolShareTrustLinesByAccountAndAsset(AccountID const& accountID,
-                                             Asset const& asset) const = 0;
-
-    virtual std::vector<InflationWinner>
-    loadInflationWinners(size_t maxWinners, int64_t minBalance) const = 0;
+    virtual void scanForEvictionLegacySQL(AbstractLedgerTxn& ltx,
+                                          uint32_t ledgerSeq) = 0;
 
     virtual medida::Meter& getBloomMissMeter() const = 0;
     virtual medida::Meter& getBloomLookupMeter() const = 0;
