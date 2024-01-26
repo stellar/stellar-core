@@ -630,16 +630,7 @@ TEST_CASE("application setup", "[applicationutils]")
         Config cfg2 = getTestConfig(2);
         cfg2.setInMemoryMode();
         cfg2.DATABASE = SecretValue{minimalDBForInMemoryMode(cfg2)};
-
-        SECTION("BucketListDB")
-        {
-            cfg2.EXPERIMENTAL_BUCKETLIST_DB = true;
-            testInMemoryMode(cfg1, cfg2);
-        }
-        SECTION("SQL DB")
-        {
-            testInMemoryMode(cfg1, cfg2);
-        }
+        testInMemoryMode(cfg1, cfg2);
     }
 }
 
