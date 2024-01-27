@@ -166,7 +166,7 @@ class BucketManagerImpl : public BucketManager
     std::vector<std::string>
     checkForMissingBucketsFiles(HistoryArchiveState const& has) override;
     void assumeState(HistoryArchiveState const& has,
-                     uint32_t maxProtocolVersion) override;
+                     uint32_t maxProtocolVersion, bool restartMerges) override;
     void shutdown() override;
 
     bool isShutdown() const override;

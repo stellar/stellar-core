@@ -270,9 +270,10 @@ class BucketManager : NonMovableOrCopyable
     checkForMissingBucketsFiles(HistoryArchiveState const& has) = 0;
 
     // Assume state from `has` in BucketList: find and attach all buckets in
-    // `has`, set current BL. Note: Does not restart merging
+    // `has`, set current BL.
     virtual void assumeState(HistoryArchiveState const& has,
-                             uint32_t maxProtocolVersion) = 0;
+                             uint32_t maxProtocolVersion,
+                             bool restartMerges) = 0;
 
     virtual void shutdown() = 0;
 

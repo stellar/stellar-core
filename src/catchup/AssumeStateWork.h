@@ -17,6 +17,7 @@ class AssumeStateWork : public Work
     HistoryArchiveState const& mHas;
     uint32_t const mMaxProtocolVersion;
     bool mWorkSpawned{false};
+    bool const mRestartMerges;
 
     // Keep strong reference to buckets in HAS so they are not garbage
     // collected during indexing
@@ -24,7 +25,7 @@ class AssumeStateWork : public Work
 
   public:
     AssumeStateWork(Application& app, HistoryArchiveState const& has,
-                    uint32_t maxProtocolVersion);
+                    uint32_t maxProtocolVersion, bool restartMerges);
 
   protected:
     State doWork() override;
