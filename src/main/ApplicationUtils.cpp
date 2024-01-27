@@ -162,7 +162,9 @@ setupMinimalDBForInMemoryMode(Config const& cfg, uint32_t startAtLedger)
 
         if (!rebuildDB)
         {
-            app->getLedgerManager().loadLastKnownLedger(nullptr);
+            // Ledger state is not yet ready during this setup step
+            app->getLedgerManager().loadLastKnownLedger(
+                /* restoreBucketlist */ false, /* isLedgerStateReady */ false);
             auto lcl = app->getLedgerManager().getLastClosedLedgerNum();
             LOG_INFO(DEFAULT_LOG, "Current in-memory state, got LCL: {}", lcl);
             rebuildDB =
@@ -195,7 +197,10 @@ setupApp(Config& cfg, VirtualClock& clock, uint32_t startAtLedger,
         return nullptr;
     }
 
-    app->getLedgerManager().loadLastKnownLedger(nullptr);
+    // With in-memory mode, ledger state is not yet ready during this setup step
+    app->getLedgerManager().loadLastKnownLedger(
+        /* restoreBucketlist */ false,
+        /* isLedgerStateReady */ !cfg.isInMemoryMode());
     auto lcl = app->getLedgerManager().getLastClosedLedgerHeader();
 
     if (cfg.isInMemoryMode() &&
@@ -447,15 +452,8 @@ selfCheck(Config cfg)
 
     // We run self-checks from a "loaded but dormant" state where the
     // application is not started, but the LM has loaded the LCL.
-    app->getLedgerManager().loadLastKnownLedger(nullptr);
-    {
-        LedgerTxn ltx(app->getLedgerTxnRoot());
-        if (protocolVersionStartsFrom(ltx.loadHeader().current().ledgerVersion,
-                                      SOROBAN_PROTOCOL_VERSION))
-        {
-            app->getLedgerManager().updateNetworkConfig(ltx);
-        }
-    }
+    app->getLedgerManager().loadLastKnownLedger(/* restoreBucketlist */ false,
+                                                /* isLedgerStateReady */ true);
 
     // First we schedule the cheap, asynchronous "online" checks that get run by
     // the HTTP "self-check" endpoint, and crank until they're done.
@@ -533,17 +531,11 @@ mergeBucketList(Config cfg, std::string const& outputDir)
     VirtualClock clock;
     cfg.setNoListen();
     Application::pointer app = Application::create(clock, cfg, false);
-    app->getLedgerManager().loadLastKnownLedger(nullptr);
     auto& lm = app->getLedgerManager();
-    {
-        LedgerTxn ltx(app->getLedgerTxnRoot());
-        if (protocolVersionStartsFrom(ltx.loadHeader().current().ledgerVersion,
-                                      SOROBAN_PROTOCOL_VERSION))
-        {
-            lm.updateNetworkConfig(ltx);
-        }
-    }
     auto& bm = app->getBucketManager();
+
+    lm.loadLastKnownLedger(/* restoreBucketlist */ false,
+                           /* isLedgerStateReady */ true);
     HistoryArchiveState has = lm.getLastClosedLedgerHAS();
     auto bucket = bm.mergeBuckets(has);
 
@@ -578,16 +570,10 @@ dumpLedger(Config cfg, std::string const& outputFile,
     VirtualClock clock;
     cfg.setNoListen();
     Application::pointer app = Application::create(clock, cfg, false);
-    app->getLedgerManager().loadLastKnownLedger(nullptr);
     auto& lm = app->getLedgerManager();
-    {
-        LedgerTxn ltx(app->getLedgerTxnRoot());
-        if (protocolVersionStartsFrom(ltx.loadHeader().current().ledgerVersion,
-                                      SOROBAN_PROTOCOL_VERSION))
-        {
-            lm.updateNetworkConfig(ltx);
-        }
-    }
+
+    lm.loadLastKnownLedger(/* restoreBucketlist */ false,
+                           /* isLedgerStateReady */ true);
     HistoryArchiveState has = lm.getLastClosedLedgerHAS();
     std::optional<uint32_t> minLedger;
     if (lastModifiedLedgerCount)

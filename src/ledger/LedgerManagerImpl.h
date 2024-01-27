@@ -157,7 +157,8 @@ class LedgerManagerImpl : public LedgerManager
 
     void startNewLedger(LedgerHeader const& genesisLedger);
     void startNewLedger() override;
-    void loadLastKnownLedger(std::function<void()> handler) override;
+    void loadLastKnownLedger(bool restoreBucketlist,
+                             bool isLedgerStateReady) override;
     virtual bool rebuildingInMemoryState() override;
     virtual void setupInMemoryStateRebuild() override;
 
