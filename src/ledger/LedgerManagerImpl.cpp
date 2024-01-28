@@ -585,51 +585,46 @@ LedgerManagerImpl::publishSorobanNetworkConfigMetrics()
     auto contractDataEntrySizeBytes =
         mSorobanNetworkConfig->maxContractDataEntrySizeBytes();
 
-    metrics.NewMeter({"soroban", "config", "contract-max-size-bytes"}, "byte")
-        .Mark(contractMaxSizeBytes);
-    metrics.NewMeter({"soroban", "config", "ledger-max-instructions"}, "insn")
-        .Mark(ledgerMaxInstructions);
-    metrics.NewMeter({"soroban", "config", "tx-max-instructions"}, "insn")
-        .Mark(txMaxInstructions);
-    metrics.NewMeter({"soroban", "config", "tx-memory-limit"}, "byte")
-        .Mark(txMemoryLimit);
+    metrics.NewCounter({"soroban", "config", "contract-max-size-bytes"})
+        .set_count(contractMaxSizeBytes);
+    metrics.NewCounter({"soroban", "config", "ledger-max-instructions"})
+        .set_count(ledgerMaxInstructions);
+    metrics.NewCounter({"soroban", "config", "tx-max-instructions"})
+        .set_count(txMaxInstructions);
+    metrics.NewCounter({"soroban", "config", "tx-memory-limit"})
+        .set_count(txMemoryLimit);
     metrics
-        .NewMeter({"soroban", "config", "ledger-max-read-ledger-entries"},
-                  "entry")
-        .Mark(ledgerMaxReadLedgerEntries);
-    metrics.NewMeter({"soroban", "config", "ledger-max-read-bytes"}, "byte")
-        .Mark(ledgerMaxReadBytes);
+        .NewCounter({"soroban", "config", "ledger-max-read-ledger-entries"})
+        .set_count(ledgerMaxReadLedgerEntries);
+    metrics.NewCounter({"soroban", "config", "ledger-max-read-bytes"})
+        .set_count(ledgerMaxReadBytes);
     metrics
-        .NewMeter({"soroban", "config", "ledger-max-write-ledger-entries"},
-                  "entry")
-        .Mark(ledgerMaxWriteLedgerEntries);
-    metrics.NewMeter({"soroban", "config", "ledger-max-write-bytes"}, "byte")
-        .Mark(ledgerMaxWriteBytes);
+        .NewCounter({"soroban", "config", "ledger-max-write-ledger-entries"})
+        .set_count(ledgerMaxWriteLedgerEntries);
+    metrics.NewCounter({"soroban", "config", "ledger-max-write-bytes"})
+        .set_count(ledgerMaxWriteBytes);
     metrics
-        .NewMeter({"soroban", "config", "tx-max-read-ledger-entries"}, "entry")
-        .Mark(txMaxReadLedgerEntries);
-    metrics.NewMeter({"soroban", "config", "tx-max-read-bytes"}, "byte")
-        .Mark(txMaxReadBytes);
+        .NewCounter({"soroban", "config", "tx-max-read-ledger-entries"})
+        .set_count(txMaxReadLedgerEntries);
+    metrics.NewCounter({"soroban", "config", "tx-max-read-bytes"})
+        .set_count(txMaxReadBytes);
     metrics
-        .NewMeter({"soroban", "config", "tx-max-write-ledger-entries"}, "entry")
-        .Mark(txMaxWriteLedgerEntries);
-    metrics.NewMeter({"soroban", "config", "tx-max-write-bytes"}, "byte")
-        .Mark(txMaxWriteBytes);
+        .NewCounter({"soroban", "config", "tx-max-write-ledger-entries"})
+        .set_count(txMaxWriteLedgerEntries);
+    metrics.NewCounter({"soroban", "config", "tx-max-write-bytes"})
+        .set_count(txMaxWriteBytes);
     metrics
-        .NewMeter({"soroban", "config", "bucket-list-target-size-bytes"},
-                  "byte")
-        .Mark(bucketListTargetSizeBytes);
+        .NewCounter({"soroban", "config", "bucket-list-target-size-bytes"})
+        .set_count(bucketListTargetSizeBytes);
     metrics
-        .NewMeter({"soroban", "config", "tx-max-contract-events-size-bytes"},
-                  "byte")
-        .Mark(txMaxContractEventsSizeBytes);
+        .NewCounter({"soroban", "config", "tx-max-contract-events-size-bytes"})
+        .set_count(txMaxContractEventsSizeBytes);
     metrics
-        .NewMeter({"soroban", "config", "contract-data-key-size-bytes"}, "byte")
-        .Mark(contractDataKeySizeBytes);
+        .NewCounter({"soroban", "config", "contract-data-key-size-bytes"})
+        .set_count(contractDataKeySizeBytes);
     metrics
-        .NewMeter({"soroban", "config", "contract-data-entry-size-bytes"},
-                  "byte")
-        .Mark(contractDataEntrySizeBytes);
+        .NewCounter({"soroban", "config", "contract-data-entry-size-bytes"})
+        .set_count(contractDataEntrySizeBytes);
 }
 
 // called by txherder
