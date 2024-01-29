@@ -789,7 +789,8 @@ TransactionFrame::validateSorobanResources(SorobanNetworkConfig const& config,
 }
 
 void
-TransactionFrame::refundSorobanFee(AbstractLedgerTxn& ltxOuter)
+TransactionFrame::refundSorobanFee(AbstractLedgerTxn& ltxOuter,
+                                   AccountID const& feeSource)
 {
     ZoneScoped;
     auto const feeRefund = mSorobanExtension->mFeeRefund;
@@ -800,14 +801,16 @@ TransactionFrame::refundSorobanFee(AbstractLedgerTxn& ltxOuter)
 
     LedgerTxn ltx(ltxOuter);
     auto header = ltx.loadHeader();
-    auto sourceAccount = loadSourceAccount(ltx, header);
-    if (!sourceAccount)
+    // The fee source could be from a Fee-bump, so it needs to be forwarded here
+    // instead of using TransactionFrame's getFeeSource() method
+    auto feeSourceAccount = loadAccount(ltx, header, feeSource);
+    if (!feeSourceAccount)
     {
         // Account was merged (shouldn't be possible)
         return;
     }
 
-    if (!addBalance(header, sourceAccount, feeRefund))
+    if (!addBalance(header, feeSourceAccount, feeRefund))
     {
         // Liabilities in the way of the refund, just skip.
         return;
@@ -1900,6 +1903,17 @@ TransactionFrame::processPostApply(Application& app,
                                    AbstractLedgerTxn& ltxOuter,
                                    TransactionMetaFrame& meta)
 {
+    processPostApply(app, ltxOuter, meta, getSourceID());
+}
+
+// This is a TransactionFrame specific function that should only be used by
+// FeeBumpTransactionFrame to forward a different account for the refund.
+void
+TransactionFrame::processPostApply(Application& app,
+                                   AbstractLedgerTxn& ltxOuter,
+                                   TransactionMetaFrame& meta,
+                                   AccountID const& feeSource)
+{
     ZoneScoped;
 
     if (!isSoroban())
@@ -1909,7 +1923,7 @@ TransactionFrame::processPostApply(Application& app,
     // Process Soroban resource fee refund (this is independent of the
     // transaction success).
     LedgerTxn ltx(ltxOuter);
-    refundSorobanFee(ltx);
+    refundSorobanFee(ltx, feeSource);
     meta.pushTxChangesAfter(ltx.getChanges());
     ltx.commit();
 }

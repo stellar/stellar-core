@@ -156,7 +156,9 @@ FeeBumpTransactionFrame::processPostApply(Application& app,
                                           AbstractLedgerTxn& ltx,
                                           TransactionMetaFrame& meta)
 {
-    mInnerTx->processPostApply(app, ltx, meta);
+    // We must forward the Fee-bump source so the refund is applied to the
+    // correct account
+    mInnerTx->processPostApply(app, ltx, meta, getFeeSourceID());
 }
 
 bool

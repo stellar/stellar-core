@@ -145,7 +145,7 @@ class TransactionFrame : public TransactionFrameBase
     bool validateSorobanResources(SorobanNetworkConfig const& config,
                                   Config const& appConfig,
                                   uint32_t protocolVersion);
-    void refundSorobanFee(AbstractLedgerTxn& ltx);
+    void refundSorobanFee(AbstractLedgerTxn& ltx, AccountID const& feeSource);
 #ifdef BUILD_TESTS
   public:
 #endif
@@ -279,6 +279,12 @@ class TransactionFrame : public TransactionFrameBase
     // Currently this only takes care of Soroban fee refunds.
     void processPostApply(Application& app, AbstractLedgerTxn& ltx,
                           TransactionMetaFrame& meta) override;
+
+    // TransactionFrame specific function that allows fee bumps to forward a
+    // different account for the refund.
+    void processPostApply(Application& app, AbstractLedgerTxn& ltx,
+                          TransactionMetaFrame& meta,
+                          AccountID const& feeSource);
 
     // version without meta
     bool apply(Application& app, AbstractLedgerTxn& ltx,
