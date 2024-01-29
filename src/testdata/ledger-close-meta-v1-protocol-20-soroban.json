@@ -6,7 +6,7 @@
                 "v": 0
             },
             "ledgerHeader": {
-                "hash": "587e4d9960d05547496365f7754453124089cdef9dec464aa9d0d54d7c405704",
+                "hash": "2469c763fbffa7a730a7ee87d9e92236b011e50be7237b7c70b8d5e05e107d10",
                 "header": {
                     "ledgerVersion": 20,
                     "previousLedgerHash": "b850b65d9a3a03b243ca7b4ed236492e3508ff389828db6d8452ae2590bf6610",
@@ -22,7 +22,7 @@
                             }
                         }
                     },
-                    "txSetResultHash": "5aea98b7f8dfe11515507fd8cc3fb828247ab76292edcc9845caafec8e036ab9",
+                    "txSetResultHash": "e562164ead64eb364b98462c20f6984ca5e295411f82a619e143de55debd2b38",
                     "bucketListHash": "c444193e9d77d45d2a393ab073bf2cfbf6f3079f9e273466fb7622fcba5708f6",
                     "ledgerSeq": 23,
                     "totalCoins": 1000000000000000000,
@@ -534,7 +534,7 @@
                     "result": {
                         "transactionHash": "f2ff59ab9afd48f7d7d8a8207bec84dbcee87a1338da7896ee8c46e09958e76f",
                         "result": {
-                            "feeCharged": 126726,
+                            "feeCharged": 106775,
                             "result": {
                                 "code": "txSUCCESS",
                                 "results": [
@@ -864,7 +864,7 @@
                     "result": {
                         "transactionHash": "05981a6913d1a3ccaee718b21e837fa36b7dbb6c4382209ee7e4b98cf4a112b1",
                         "result": {
-                            "feeCharged": 1000100,
+                            "feeCharged": 51547,
                             "result": {
                                 "code": "txSUCCESS",
                                 "results": [
@@ -1180,7 +1180,7 @@
                     "result": {
                         "transactionHash": "df60206f668bf546432dd37e734d01d6fb886ac8e17af2abd3a7ac742ce4559f",
                         "result": {
-                            "feeCharged": 1000100,
+                            "feeCharged": 60559,
                             "result": {
                                 "code": "txSUCCESS",
                                 "results": [
@@ -1528,7 +1528,7 @@
                     "result": {
                         "transactionHash": "dc7b999613ade2e947b8ed0e831036976f1529fa7489088e4b70ea0f5ba2e920",
                         "result": {
-                            "feeCharged": 1043955,
+                            "feeCharged": 42946,
                             "result": {
                                 "code": "txFAILED",
                                 "results": [
@@ -1807,7 +1807,7 @@
                     "result": {
                         "transactionHash": "c9cd0abaad9ddeee41c162e4fd0c88a8127611a5ad3184f455bee186e6fcc5dc",
                         "result": {
-                            "feeCharged": 101612,
+                            "feeCharged": 61612,
                             "result": {
                                 "code": "txFAILED",
                                 "results": [
