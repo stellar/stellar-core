@@ -819,6 +819,8 @@ Once the responses are received, the `getsurveyresult` command will return a res
          ],
          "numTotalInboundPeers" : 2,
          "numTotalOutboundPeers" : 0,
+         "maxInboundPeerCount" : 64,
+         "maxOutboundPeerCount" : 8,
          "outboundPeers" : null
       }
    }
@@ -833,7 +835,24 @@ Notable field definitions
 * `badResponseNodes` : List of nodes that sent a malformed response
 * `topology` : Map of nodes to connection information
   * `inboundPeers`/`outboundPeers` : List of connection information by nodes
+    * `bytesRead`: The total number of bytes read from this peer.
+    * `bytesWritten`: The total number of bytes written to this peer.
+    * `duplicateFetchBytesRecv`: The number of bytes received that were duplicate transaction sets and quorum sets.
+    * `duplicateFetchMessageRecv`: The count of duplicate transaction sets and quorum sets received from this peer.
+    * `duplicateFloodBytesRecv`: The number of bytes received that were transactions and SCP votes duplicates.
+    * `duplicateFloodMessageRecv`: The count of duplicate transactions and SCP votes received from this peer.
+    * `messagesRead`: The total number of messages read from this peer.
+    * `messagesWritten`: The total number of messages written to this peer.
+    * `nodeId`: Node's public key.
+    * `secondsConnected`: The total number of seconds this peer has been connected to the surveyed node.
+    * `uniqueFetchBytesRecv`: The number of bytes received that were unique transaction sets and quorum sets.
+    * `uniqueFetchMessageRecv`: The count of unique transaction sets and quorum sets received from this peer.
+    * `uniqueFloodBytesRecv`: The number of bytes received that were unique transactions and SCP votes.
+    * `uniqueFloodMessageRecv`: The count of unique transactions and SCP votes received from this peer.
+    * `version`: stellar-core version.
+
   * `numTotalInboundPeers`/`numTotalOutboundPeers` : The number of total inbound and outbound peers this node is connected to. The response will have a random subset of 25 connected peers per direction (inbound/outbound). These fields tell you if you're missing nodes so you can send another request out to get another random subset of nodes.
+  * `maxInboundPeerCount`/`maxOutboundPeerCount` : The number of total inbound and outbound peers that this node can accept. These fields correspond to stellar-core configurations `MAX_ADDITIONAL_PEER_CONNECTIONS` and `TARGET_PEER_CONNECTIONS`, respectively.
 
 ### Quorum Health
 
