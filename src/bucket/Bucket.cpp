@@ -838,20 +838,22 @@ mergeCasesWithEqualKeys(MergeCounters& mc, BucketInputIterator& oi,
 
 bool
 Bucket::scanForEviction(AbstractLedgerTxn& ltx, EvictionIterator& iter,
-                        uint64_t& bytesToScan, uint32_t& maxEntriesToEvict,
-                        uint32_t ledgerSeq,
+                        uint64_t& bytesToScan,
+                        uint32_t& remainingEntriesToEvict, uint32_t ledgerSeq,
                         medida::Counter& entriesEvictedCounter,
                         medida::Counter& bytesScannedForEvictionCounter,
                         std::optional<EvictionMetrics>& metrics)
 {
     ZoneScoped;
-    if (isEmpty())
+    if (isEmpty() ||
+        protocolVersionIsBefore(getBucketVersion(shared_from_this()),
+                                SOROBAN_PROTOCOL_VERSION))
     {
-        // EOF
+        // EOF, skip to next bucket
         return false;
     }
 
-    if (maxEntriesToEvict == 0 || bytesToScan == 0)
+    if (remainingEntriesToEvict == 0 || bytesToScan == 0)
     {
         // Reached end of scan region
         return true;
@@ -908,7 +910,7 @@ Bucket::scanForEviction(AbstractLedgerTxn& ltx, EvictionIterator& iter,
                     ltx.erase(ttlKey);
                     ltx.erase(LedgerEntryKey(le));
                     entriesEvictedCounter.inc();
-                    --maxEntriesToEvict;
+                    --remainingEntriesToEvict;
                 }
 
                 stream.seek(initialStreamPos);
@@ -925,7 +927,7 @@ Bucket::scanForEviction(AbstractLedgerTxn& ltx, EvictionIterator& iter,
             bytesToScan = 0;
             return true;
         }
-        else if (maxEntriesToEvict == 0)
+        else if (remainingEntriesToEvict == 0)
         {
             return true;
         }
