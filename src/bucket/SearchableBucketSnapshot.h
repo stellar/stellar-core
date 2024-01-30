@@ -36,12 +36,15 @@ class SearchableBucketSnapshot : public NonMovable
                                                 std::streamoff pos,
                                                 size_t pageSize) const;
 
-  public:
+    // Warning: constructor not thread safe
     SearchableBucketSnapshot(std::shared_ptr<Bucket const> const b);
+
+    // Only allow copy constructor, is threadsafe
     SearchableBucketSnapshot(SearchableBucketSnapshot const& b);
     SearchableBucketSnapshot&
     operator=(SearchableBucketSnapshot const& b) = delete;
 
+  public:
     bool isEmpty() const;
     std::shared_ptr<Bucket const> getRawBucket() const;
 
@@ -63,5 +66,7 @@ class SearchableBucketSnapshot : public NonMovable
         AccountID const& accountID, UnorderedSet<LedgerKey>& deadTrustlines,
         UnorderedMap<LedgerKey, LedgerEntry>& liquidityPoolKeyToTrustline,
         LedgerKeySet& liquidityPoolKeys) const;
+
+    friend struct SearchableBucketLevelSnapshot;
 };
 }

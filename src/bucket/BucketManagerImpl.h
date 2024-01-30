@@ -41,7 +41,6 @@ class BucketManagerImpl : public BucketManager
     std::unique_ptr<TmpDirManager> mTmpDirManager;
     std::unique_ptr<TmpDir> mWorkDir;
     std::map<Hash, std::shared_ptr<Bucket>> mSharedBuckets;
-    mutable std::recursive_mutex mBucketMutex;
     std::unique_ptr<std::string> mLockedBucketDir;
     medida::Meter& mBucketObjectInsertBatch;
     medida::Timer& mBucketAddBatch;
@@ -52,6 +51,16 @@ class BucketManagerImpl : public BucketManager
     medida::Counter& mBucketListSizeCounter;
     EvictionCounters mBucketListEvictionCounters;
     MergeCounters mMergeCounters;
+
+    // Lock for managing raw Bucket files or the bucket directory. This lock is
+    // only required for file access, but is not required for logical changes to
+    // the BucketList (i.e. addBatch).
+    mutable std::recursive_mutex mBucketFileMutex;
+
+    // Lock for logical BucketList changes and snapshots (i.e. addBatch,
+    // getSearchableSnapshot). This lock is not required for raw Bucket file
+    // management.
+    mutable std::recursive_mutex mBucketSnapshotMutex;
 
     bool const mDeleteEntireBucketDirInDtor;
 
@@ -135,7 +144,7 @@ class BucketManagerImpl : public BucketManager
                                   uint32_t ledgerSeq) override;
 
     std::unique_ptr<SearchableBucketListSnapshot const>
-    getSearchableBucketListSnapshot(bool isMainThread) const override;
+    getSearchableBucketListSnapshot() const override;
 
     medida::Meter& getBloomMissMeter() const override;
     medida::Meter& getBloomLookupMeter() const override;
