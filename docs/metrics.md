@@ -166,10 +166,10 @@ soroban.host-fn-op.read-entry                | meter     | number of entries rea
 soroban.host-fn-op.write-entry               | meter     | number of entries written
 soroban.host-fn-op.read-key-byte             | meter     | number of key bytes in read entries
 soroban.host-fn-op.write-key-byte            | meter     | number of key bytes in written entries
-soroban.host-fn-op.read-ledger-byte          | meter     | number of data + code bytes in read entries
+soroban.host-fn-op.read-ledger-byte          | meter     | number of entry (data + code) bytes in read entries
 soroban.host-fn-op.read-data-byte            | meter     | number of data bytes in read entries
 soroban.host-fn-op.read-code-byte            | meter     | number of code bytes in read entries
-soroban.host-fn-op.write-ledger-byte         | meter     | number of data + code bytes in written entries
+soroban.host-fn-op.write-ledger-byte         | meter     | number of entry (data + code) bytes in written entries
 soroban.host-fn-op.write-data-byte           | meter     | number of data bytes in written entries
 soroban.host-fn-op.write-code-byte           | meter     | number of code bytes in written entries
 soroban.host-fn-op.emit-event                | meter     | number of events emitted
@@ -186,11 +186,14 @@ soroban.host-fn-op.max-emit-event-byte       | meter     | bytes of the largest 
 soroban.host-fn-op.success                   | meter     | if `InvokeHostFunctionOp` results in a success
 soroban.host-fn-op.failure                   | meter     | if `InvokeHostFunctionOp` results in a failure
 soroban.host-fn-op.exec                      | timer     | time spent in `InvokeHostFunctionOp`
+soroban.restore-fprint-op.read-ledger-byte   | meter     | number of entry bytes in read entries
+soroban.restore-fprint-op.write-ledger-byte  | meter     | number of entry bytes in written entries
+soroban.ext-fprint-ttl-op.read-ledger-byte   | meter     | number of entry bytes in read entries
 soroban.ledger.cpu-insn                      | histogram | metered cpu instructions per ledger
 soroban.ledger.read-entry                    | histogram | number of entries read per ledger
-soroban.ledger.read-byte                     | histogram | number of data + code bytes in read entries per ledger
+soroban.ledger.read-byte                     | histogram | number of entry bytes in read entries per ledger
 soroban.ledger.write-entry                   | histogram | number of entries written per ledger
-soroban.ledger.write-byte                    | histogram | number of data + code bytes in written entries per ledger
+soroban.ledger.write-byte                    | histogram | number of entry bytes in written entries per ledger
 soroban.config.contract-max-size-bytes           | counter     | soroban config setting `contract_max_size_bytes`
 soroban.config.ledger-max-instructions           | counter     | soroban config setting `ledger_max_instructions`
 soroban.config.tx-max-instructions               | counter     | soroban config setting `tx_max_instructions`
