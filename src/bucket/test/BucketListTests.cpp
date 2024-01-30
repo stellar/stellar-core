@@ -936,7 +936,7 @@ TEST_CASE_VERSIONS("eviction scan", "[bucketlist]")
                 // Check that we only evict at most maxEntriesToArchive per
                 // ledger
                 auto newCount = entriesEvictedCounter.count();
-                REQUIRE(newCount + 1 >= prevCount);
+                REQUIRE((newCount == prevCount || newCount == prevCount + 1));
                 prevCount = newCount;
             }
 

@@ -925,6 +925,10 @@ Bucket::scanForEviction(AbstractLedgerTxn& ltx, EvictionIterator& iter,
             bytesToScan = 0;
             return true;
         }
+        else if (maxEntriesToEvict == 0)
+        {
+            return true;
+        }
 
         bytesToScan -= bytesRead;
     }
