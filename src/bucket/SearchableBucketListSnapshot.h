@@ -21,7 +21,7 @@ struct SearchableBucketLevelSnapshot
 
 // A lightweight wrapper around the BucketList for thread safe BucketListDB
 // lookups
-class SearchableBucketListSnapshot : public NonMovable
+class SearchableBucketListSnapshot : public NonMovableOrCopyable
 {
     Application& mApp;
     std::vector<SearchableBucketLevelSnapshot> mLevels;
@@ -53,22 +53,25 @@ class SearchableBucketListSnapshot : public NonMovable
     // allowedLedgerDrift, lcl]
     bool isWithinAllowedLedgerDrift(uint32_t allowedLedgerDrift) const;
 
+    // Checks if snapshot is behind the current LCL and updates as necessary
+    void maybeUpdateSnapshot();
+
     SearchableBucketListSnapshot(Application& app, BucketList const& bl);
 
   public:
     std::vector<LedgerEntry>
-    loadKeys(std::set<LedgerKey, LedgerEntryIdCmp> const& inKeys) const;
+    loadKeys(std::set<LedgerKey, LedgerEntryIdCmp> const& inKeys);
 
     std::vector<LedgerEntry>
     loadPoolShareTrustLinesByAccountAndAsset(AccountID const& accountID,
-                                             Asset const& asset) const;
+                                             Asset const& asset);
 
     std::vector<InflationWinner> loadInflationWinners(size_t maxWinners,
-                                                      int64_t minBalance) const;
+                                                      int64_t minBalance);
 
-    std::shared_ptr<LedgerEntry> getLedgerEntry(LedgerKey const& k) const;
+    std::shared_ptr<LedgerEntry> getLedgerEntry(LedgerKey const& k);
 
-    friend std::unique_ptr<SearchableBucketListSnapshot const>
+    friend std::unique_ptr<SearchableBucketListSnapshot>
     BucketManagerImpl::getSearchableBucketListSnapshot() const;
 };
 }

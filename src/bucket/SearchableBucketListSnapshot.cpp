@@ -62,6 +62,26 @@ SearchableBucketListSnapshot::isWithinAllowedLedgerDrift(
 }
 
 void
+SearchableBucketListSnapshot::maybeUpdateSnapshot()
+{
+    auto currLCL = mApp.getLedgerManager().getLastClosedLedgerNum();
+    if (currLCL != mLCL)
+    {
+        mLCL = currLCL;
+        mLevels.clear();
+
+        std::lock_guard<std::recursive_mutex> lock(
+            mApp.getBucketManager().getBucketSnapshotMutex());
+        auto& bl = mApp.getBucketManager().getBucketList();
+        for (uint32_t i = 0; i < BucketList::kNumLevels; ++i)
+        {
+            auto const& level = bl.getLevel(i);
+            mLevels.emplace_back(SearchableBucketLevelSnapshot(level));
+        }
+    }
+}
+
+void
 SearchableBucketListSnapshot::loopAllBuckets(
     std::function<bool(SearchableBucketSnapshot const&)> f) const
 {
@@ -85,13 +105,11 @@ SearchableBucketListSnapshot::loopAllBuckets(
 }
 
 std::shared_ptr<LedgerEntry>
-SearchableBucketListSnapshot::getLedgerEntry(LedgerKey const& k) const
+SearchableBucketListSnapshot::getLedgerEntry(LedgerKey const& k)
 {
     ZoneScoped;
     auto timer = getPointLoadTimer(k.type()).TimeScope();
-
-    // Snapshots not currently supported, all access must be up to date
-    releaseAssert(isWithinAllowedLedgerDrift(0));
+    maybeUpdateSnapshot();
 
     std::shared_ptr<LedgerEntry> result{};
 
@@ -117,13 +135,11 @@ SearchableBucketListSnapshot::getLedgerEntry(LedgerKey const& k) const
 
 std::vector<LedgerEntry>
 SearchableBucketListSnapshot::loadKeys(
-    std::set<LedgerKey, LedgerEntryIdCmp> const& inKeys) const
+    std::set<LedgerKey, LedgerEntryIdCmp> const& inKeys)
 {
     ZoneScoped;
     auto timer = recordBulkLoadMetrics("prefetch", inKeys.size()).TimeScope();
-
-    // Snapshots not currently supported, all access must be up to date
-    releaseAssert(isWithinAllowedLedgerDrift(0));
+    maybeUpdateSnapshot();
 
     std::vector<LedgerEntry> entries;
 
@@ -140,13 +156,11 @@ SearchableBucketListSnapshot::loadKeys(
 
 std::vector<LedgerEntry>
 SearchableBucketListSnapshot::loadPoolShareTrustLinesByAccountAndAsset(
-    AccountID const& accountID, Asset const& asset) const
+    AccountID const& accountID, Asset const& asset)
 {
     ZoneScoped;
     auto timer = recordBulkLoadMetrics("poolshareTrustlines", 0).TimeScope();
-
-    // Snapshots not currently supported, all access must be up to date
-    releaseAssert(isWithinAllowedLedgerDrift(0));
+    maybeUpdateSnapshot();
 
     UnorderedMap<LedgerKey, LedgerEntry> liquidityPoolToTrustline;
     UnorderedSet<LedgerKey> deadTrustlines;
@@ -189,13 +203,11 @@ SearchableBucketListSnapshot::loadPoolShareTrustLinesByAccountAndAsset(
 
 std::vector<InflationWinner>
 SearchableBucketListSnapshot::loadInflationWinners(size_t maxWinners,
-                                                   int64_t minBalance) const
+                                                   int64_t minBalance)
 {
     ZoneScoped;
     auto timer = recordBulkLoadMetrics("inflationWinners", 0).TimeScope();
-
-    // Snapshots not currently supported, all access must be up to date
-    releaseAssert(isWithinAllowedLedgerDrift(0));
+    maybeUpdateSnapshot();
 
     UnorderedMap<AccountID, int64_t> voteCount;
     UnorderedSet<AccountID> seen;

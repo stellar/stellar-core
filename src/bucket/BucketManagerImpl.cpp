@@ -907,7 +907,7 @@ BucketManagerImpl::scanForEvictionLegacySQL(AbstractLedgerTxn& ltx,
     }
 }
 
-std::unique_ptr<SearchableBucketListSnapshot const>
+std::unique_ptr<SearchableBucketListSnapshot>
 BucketManagerImpl::getSearchableBucketListSnapshot() const
 {
     releaseAssertOrThrow(mApp.getConfig().isUsingBucketListDB() && mBucketList);
@@ -917,6 +917,12 @@ BucketManagerImpl::getSearchableBucketListSnapshot() const
     // Note: cannot use make_unique due to private constructor
     return std::unique_ptr<SearchableBucketListSnapshot>(
         new SearchableBucketListSnapshot(mApp, *mBucketList));
+}
+
+std::recursive_mutex&
+BucketManagerImpl::getBucketSnapshotMutex() const
+{
+    return mBucketSnapshotMutex;
 }
 
 medida::Meter&

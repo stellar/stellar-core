@@ -740,7 +740,7 @@ class LedgerTxnRoot::Impl
     mutable BestOffers mBestOffers;
     mutable uint64_t mPrefetchHits{0};
     mutable uint64_t mPrefetchMisses{0};
-    mutable std::unique_ptr<SearchableBucketListSnapshot const>
+    mutable std::unique_ptr<SearchableBucketListSnapshot>
         mSearchableBucketListSnapshot{};
 
     size_t mBulkLoadBatchSize;
@@ -874,7 +874,7 @@ class LedgerTxnRoot::Impl
 
     bool areEntriesMissingInCacheForOffer(OfferEntry const& oe);
 
-    SearchableBucketListSnapshot const& getSearchableBucketListSnapshot() const;
+    SearchableBucketListSnapshot& getSearchableBucketListSnapshot() const;
 
   public:
     // Constructor has the strong exception safety guarantee

@@ -143,8 +143,9 @@ class BucketManagerImpl : public BucketManager
     void scanForEvictionLegacySQL(AbstractLedgerTxn& ltx,
                                   uint32_t ledgerSeq) override;
 
-    std::unique_ptr<SearchableBucketListSnapshot const>
+    std::unique_ptr<SearchableBucketListSnapshot>
     getSearchableBucketListSnapshot() const override;
+    std::recursive_mutex& getBucketSnapshotMutex() const override;
 
     medida::Meter& getBloomMissMeter() const override;
     medida::Meter& getBloomLookupMeter() const override;
