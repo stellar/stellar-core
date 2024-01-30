@@ -5,6 +5,7 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "bucket/BucketList.h"
+#include "bucket/BucketManagerImpl.h"
 #include "bucket/SearchableBucketSnapshot.h"
 
 namespace stellar
@@ -48,11 +49,13 @@ class SearchableBucketListSnapshot : public NonMovable
 
     medida::Timer& getPointLoadTimer(LedgerEntryType t) const;
 
-  public:
-    // TODO: Private constructor so only BucketManager can create this class
-    // with a mutex check
+    // Return true is this snapshot is from a ledger within [lcl -
+    // allowedLedgerDrift, lcl]
+    bool isWithinAllowedLedgerDrift(uint32_t allowedLedgerDrift) const;
+
     SearchableBucketListSnapshot(Application& app, BucketList const& bl);
 
+  public:
     std::vector<LedgerEntry>
     loadKeys(std::set<LedgerKey, LedgerEntryIdCmp> const& inKeys) const;
 
@@ -64,5 +67,8 @@ class SearchableBucketListSnapshot : public NonMovable
                                                       int64_t minBalance) const;
 
     std::shared_ptr<LedgerEntry> getLedgerEntry(LedgerKey const& k) const;
+
+    friend std::unique_ptr<SearchableBucketListSnapshot const>
+    BucketManagerImpl::getSearchableBucketListSnapshot() const;
 };
 }

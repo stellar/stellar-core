@@ -208,7 +208,7 @@ class BucketManager : NonMovableOrCopyable
                                std::unique_ptr<BucketIndex const>&& index) = 0;
 
     virtual std::unique_ptr<SearchableBucketListSnapshot const>
-    getSearchableBucketListSnapshot(bool isMainThread = false) const = 0;
+    getSearchableBucketListSnapshot() const = 0;
 
     // Scans BucketList for non-live entries to evict starting at the entry
     // pointed to by EvictionIterator. Scans until `maxEntriesToEvict` entries

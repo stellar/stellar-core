@@ -2,8 +2,8 @@
 // under the Apache License, Version 2.0. See the COPYING file at the root
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
-#include "bucket/BucketInputIterator.h"
 #include "bucket/SearchableBucketListSnapshot.h"
+#include "bucket/BucketInputIterator.h"
 #include "ledger/LedgerManager.h"
 #include "main/Application.h"
 
@@ -48,6 +48,19 @@ SearchableBucketListSnapshot::getPointLoadTimer(LedgerEntryType t) const
     return iter->second;
 }
 
+bool
+SearchableBucketListSnapshot::isWithinAllowedLedgerDrift(
+    uint32_t allowedLedgerDrift) const
+{
+    auto currLCL = mApp.getLedgerManager().getLastClosedLedgerNum();
+
+    // Edge case: genesis ledger
+    auto minimumLCL =
+        allowedLedgerDrift > currLCL ? 0 : currLCL - allowedLedgerDrift;
+
+    return mLCL >= minimumLCL;
+}
+
 void
 SearchableBucketListSnapshot::loopAllBuckets(
     std::function<bool(SearchableBucketSnapshot const&)> f) const
@@ -76,6 +89,9 @@ SearchableBucketListSnapshot::getLedgerEntry(LedgerKey const& k) const
 {
     ZoneScoped;
     auto timer = getPointLoadTimer(k.type()).TimeScope();
+
+    // Snapshots not currently supported, all access must be up to date
+    releaseAssert(isWithinAllowedLedgerDrift(0));
 
     std::shared_ptr<LedgerEntry> result{};
 
@@ -106,6 +122,9 @@ SearchableBucketListSnapshot::loadKeys(
     ZoneScoped;
     auto timer = recordBulkLoadMetrics("prefetch", inKeys.size()).TimeScope();
 
+    // Snapshots not currently supported, all access must be up to date
+    releaseAssert(isWithinAllowedLedgerDrift(0));
+
     std::vector<LedgerEntry> entries;
 
     // Make a copy of the key set, this loop is destructive
@@ -125,6 +144,9 @@ SearchableBucketListSnapshot::loadPoolShareTrustLinesByAccountAndAsset(
 {
     ZoneScoped;
     auto timer = recordBulkLoadMetrics("poolshareTrustlines", 0).TimeScope();
+
+    // Snapshots not currently supported, all access must be up to date
+    releaseAssert(isWithinAllowedLedgerDrift(0));
 
     UnorderedMap<LedgerKey, LedgerEntry> liquidityPoolToTrustline;
     UnorderedSet<LedgerKey> deadTrustlines;
@@ -171,6 +193,9 @@ SearchableBucketListSnapshot::loadInflationWinners(size_t maxWinners,
 {
     ZoneScoped;
     auto timer = recordBulkLoadMetrics("inflationWinners", 0).TimeScope();
+
+    // Snapshots not currently supported, all access must be up to date
+    releaseAssert(isWithinAllowedLedgerDrift(0));
 
     UnorderedMap<AccountID, int64_t> voteCount;
     UnorderedSet<AccountID> seen;
@@ -257,6 +282,8 @@ SearchableBucketLevelSnapshot::SearchableBucketLevelSnapshot(
 {
 }
 
+// This is not thread safe, must call while holding
+// BucketManager::mBucketSnapshotMutex.
 SearchableBucketListSnapshot::SearchableBucketListSnapshot(Application& app,
                                                            BucketList const& bl)
     : mApp(app)
