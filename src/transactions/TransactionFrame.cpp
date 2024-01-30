@@ -816,6 +816,8 @@ TransactionFrame::refundSorobanFee(AbstractLedgerTxn& ltxOuter,
         return;
     }
 
+    getResult().feeCharged -= feeRefund;
+
     header.current().feePool -= feeRefund;
     ltx.commit();
 }
