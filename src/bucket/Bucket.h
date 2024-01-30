@@ -137,14 +137,15 @@ class Bucket : public std::enable_shared_from_this<Bucket>,
     static std::string randomBucketName(std::string const& tmpDir);
     static std::string randomBucketIndexName(std::string const& tmpDir);
 
-    // Returns false if eof reached, true otherwise. Modifies iter as the bucket
-    // is scanned. Also modifies bytesToScan and maxEntriesToEvict such that
-    // after this function returns:
+    // Returns false if eof reached or if Bucket protocol version < 20, true
+    // otherwise. Modifies iter as the bucket is scanned. Also modifies
+    // bytesToScan and remainingEntriesToEvict such that after this function
+    // returns:
     // bytesToScan -= amount_bytes_scanned
-    // maxEntriesToEvict -= entries_evicted
+    // remainingEntriesToEvict -= entries_evicted
     bool scanForEviction(AbstractLedgerTxn& ltx, EvictionIterator& iter,
-                         uint64_t& bytesToScan, uint32_t& maxEntriesToEvict,
-                         uint32_t ledgerSeq,
+                         uint64_t& bytesToScan,
+                         uint32_t& remainingEntriesToEvict, uint32_t ledgerSeq,
                          medida::Counter& entriesEvictedCounter,
                          medida::Counter& bytesScannedForEvictionCounter,
                          std::optional<EvictionMetrics>& metrics);
