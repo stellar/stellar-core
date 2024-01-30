@@ -225,15 +225,24 @@ struct HostFunctionMetrics
             .NewMeter({"soroban", "host-fn-op", "mem-byte"}, "byte")
             .Mark(mMemByte);
         mMetrics.registry()
-            .NewMeter({"soroban", "host-fn-op", "invoke-time-nsecs"}, "time")
-            .Mark(mInvokeTimeNsecs);
+            .NewTimer({"soroban", "host-fn-op", "invoke-time-nsecs"})
+            .Update(std::chrono::nanoseconds(mInvokeTimeNsecs));
         mMetrics.registry()
             .NewMeter({"soroban", "host-fn-op", "cpu-insn-excl-vm"}, "insn")
             .Mark(mCpuInsnExclVm);
         mMetrics.registry()
-            .NewMeter({"soroban", "host-fn-op", "invoke-time-nsecs-excl-vm"},
-                      "time")
-            .Mark(mInvokeTimeNsecsExclVm);
+            .NewTimer({"soroban", "host-fn-op", "invoke-time-nsecs-excl-vm"})
+            .Update(std::chrono::nanoseconds(mInvokeTimeNsecsExclVm));
+        mMetrics.registry()
+            .NewHistogram(
+                {"soroban", "host-fn-op", "invoke-time-fsecs-cpu-insn-ratio"})
+            .Update(mInvokeTimeNsecs * 1000000 /
+                    std::max(mCpuInsn, uint64_t(1)));
+        mMetrics.registry()
+            .NewHistogram({"soroban", "host-fn-op",
+                           "invoke-time-fsecs-cpu-insn-ratio-excl-vm"})
+            .Update(mInvokeTimeNsecsExclVm * 1000000 /
+                    std::max(mCpuInsnExclVm, uint64_t(1)));
 
         mMetrics.registry()
             .NewMeter({"soroban", "host-fn-op", "max-rw-key-byte"}, "byte")

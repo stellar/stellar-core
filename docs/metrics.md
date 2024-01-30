@@ -176,9 +176,11 @@ soroban.host-fn-op.emit-event                | meter     | number of events emit
 soroban.host-fn-op.emit-event-byte           | meter     | number of event bytes emitted
 soroban.host-fn-op.cpu-insn                  | meter     | metered cpu instructions
 soroban.host-fn-op.mem-byte                  | meter     | metered memory bytes
-soroban.host-fn-op.invoke-time-nsecs         | meter     | time [nsecs] spent in `invoke_host_function`
+soroban.host-fn-op.invoke-time-nsecs         | timer     | time spent in `invoke_host_function`
 soroban.host-fn-op.cpu-insn-excl-vm          | meter     | metered cpu instructions excluding VM instantation
-soroban.host-fn-op.invoke-time-nsecs-excl-vm | meter     | time [nsecs] spent in `invoke_host_function` excluding VM instantation
+soroban.host-fn-op.invoke-time-nsecs-excl-vm | timer     | time spent in `invoke_host_function` excluding VM instantation
+soroban.host-fn-op.invoke-time-fsecs-cpu-insn-ratio         | histogram | ratio between invoke_time (femto-seconds) and cpu instructions
+soroban.host-fn-op.invoke-time-fsecs-cpu-insn-ratio-excl-vm | histogram | ratio between invoke_time (femto-seconds) and cpu instructions excluding VM instantation
 soroban.host-fn-op.max-rw-key-byte           | meter     | bytes of the largest key in entries read/written
 soroban.host-fn-op.max-rw-data-byte          | meter     | bytes of the largest data entry read/written
 soroban.host-fn-op.max-rw-code-byte          | meter     | bytes of the largest code entry read/written
