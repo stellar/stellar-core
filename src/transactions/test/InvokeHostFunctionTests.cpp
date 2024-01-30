@@ -1101,6 +1101,80 @@ TEST_CASE("refund still happens on bad auth", "[tx][soroban]")
     REQUIRE(a1PreTxBalance - a1PostTxBalance == 39288);
 }
 
+TEST_CASE("refund test with closeLedger", "[tx][soroban][feebump]")
+{
+    SorobanTest test;
+
+    const int64_t startingBalance =
+        test.getApp().getLedgerManager().getLastMinBalance(50);
+
+    auto a1 = test.getRoot().create("A", startingBalance);
+
+    auto a1StartingBalance = a1.getBalance();
+
+    auto wasm = rust_bridge::get_test_wasm_add_i32();
+    auto resources = defaultUploadWasmResourcesWithoutFootprint(wasm);
+    auto tx = makeSorobanWasmUploadTx(test.getApp(), a1, wasm, resources, 100);
+
+    auto r = closeLedger(test.getApp(), {tx});
+    checkTx(0, r, txSUCCESS);
+
+    auto txFeeWithRefund = 59'344;
+    REQUIRE(a1.getBalance() == a1StartingBalance - txFeeWithRefund);
+
+    // DEFAULT_TEST_RESOURCE_FEE is added onto the calculated soroban resource
+    // fee, so the total cost would be greater than DEFAULT_TEST_RESOURCE_FEE
+    // without the refund.
+    REQUIRE(txFeeWithRefund < DEFAULT_TEST_RESOURCE_FEE);
+}
+
+TEST_CASE("refund is sent to fee-bump source", "[tx][soroban][feebump]")
+{
+    SorobanTest test;
+
+    const int64_t startingBalance =
+        test.getApp().getLedgerManager().getLastMinBalance(50);
+
+    auto a1 = test.getRoot().create("A", startingBalance);
+    auto feeBumper = test.getRoot().create("B", startingBalance);
+
+    auto a1StartingBalance = a1.getBalance();
+    auto feeBumperStartingBalance = feeBumper.getBalance();
+
+    auto wasm = rust_bridge::get_test_wasm_add_i32();
+    auto resources = defaultUploadWasmResourcesWithoutFootprint(wasm);
+    auto tx = makeSorobanWasmUploadTx(test.getApp(), a1, wasm, resources, 100);
+
+    TransactionEnvelope fb(ENVELOPE_TYPE_TX_FEE_BUMP);
+    fb.feeBump().tx.feeSource = toMuxedAccount(feeBumper);
+    fb.feeBump().tx.fee = tx->getEnvelope().v1().tx.fee * 5;
+
+    fb.feeBump().tx.innerTx.type(ENVELOPE_TYPE_TX);
+    fb.feeBump().tx.innerTx.v1() = tx->getEnvelope().v1();
+
+    fb.feeBump().signatures.emplace_back(SignatureUtils::sign(
+        feeBumper, sha256(xdr::xdr_to_opaque(test.getApp().getNetworkID(),
+                                             ENVELOPE_TYPE_TX_FEE_BUMP,
+                                             fb.feeBump().tx))));
+    auto feeBumpTxFrame = TransactionFrameBase::makeTransactionFromWire(
+        test.getApp().getNetworkID(), fb);
+
+    auto r = closeLedger(test.getApp(), {feeBumpTxFrame});
+    checkTx(0, r, txFEE_BUMP_INNER_SUCCESS);
+
+    auto txFeeWithRefund = 59'444;
+    REQUIRE(feeBumper.getBalance() ==
+            feeBumperStartingBalance - txFeeWithRefund);
+
+    // DEFAULT_TEST_RESOURCE_FEE is added onto the calculated soroban resource
+    // fee, so the total cost would be greater than DEFAULT_TEST_RESOURCE_FEE
+    // without the refund.
+    REQUIRE(txFeeWithRefund < DEFAULT_TEST_RESOURCE_FEE);
+
+    // There should be no change to a1's balance
+    REQUIRE(a1.getBalance() == a1StartingBalance);
+}
+
 TEST_CASE("buying liabilities plus refund is greater than INT64_MAX",
           "[tx][soroban][offer]")
 {
