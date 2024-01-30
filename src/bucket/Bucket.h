@@ -125,13 +125,12 @@ class Bucket : public std::enable_shared_from_this<Bucket>,
     // after this function returns:
     // bytesToScan -= amount_bytes_scanned
     // maxEntriesToEvict -= entries_evicted
-    bool
-    scanForEvictionLegacySQL(AbstractLedgerTxn& ltx, EvictionIterator& iter,
-                             uint32_t& bytesToScan, uint32_t& maxEntriesToEvict,
-                             uint32_t ledgerSeq,
-                             medida::Counter& entriesEvictedCounter,
-                             medida::Counter& bytesScannedForEvictionCounter,
-                             std::optional<EvictionStatistics>& stats) const;
+    bool scanForEvictionLegacySQL(
+        AbstractLedgerTxn& ltx, EvictionIterator& iter, uint32_t& bytesToScan,
+        uint32_t& remainingEntriesToEvict, uint32_t ledgerSeq,
+        medida::Counter& entriesEvictedCounter,
+        medida::Counter& bytesScannedForEvictionCounter,
+        std::optional<EvictionStatistics>& stats) const;
 
     // Create a fresh bucket from given vectors of init (created) and live
     // (updated) LedgerEntries, and dead LedgerEntryKeys. The bucket will
