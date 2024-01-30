@@ -645,40 +645,38 @@ LedgerManagerImpl::publishSorobanMetrics()
     auto contractDataEntrySizeBytes =
         mSorobanNetworkConfig->maxContractDataEntrySizeBytes();
 
-    registry.NewCounter({"soroban", "config", "contract-max-size-bytes"})
-        .set_count(contractMaxSizeBytes);
-    registry.NewCounter({"soroban", "config", "ledger-max-instructions"})
-        .set_count(ledgerMaxInstructions);
-    registry.NewCounter({"soroban", "config", "tx-max-instructions"})
-        .set_count(txMaxInstructions);
-    registry.NewCounter({"soroban", "config", "tx-memory-limit"})
-        .set_count(txMemoryLimit);
-    registry.NewCounter({"soroban", "config", "ledger-max-read-ledger-entries"})
-        .set_count(ledgerMaxReadLedgerEntries);
-    registry.NewCounter({"soroban", "config", "ledger-max-read-bytes"})
-        .set_count(ledgerMaxReadBytes);
-    registry
-        .NewCounter({"soroban", "config", "ledger-max-write-ledger-entries"})
-        .set_count(ledgerMaxWriteLedgerEntries);
-    registry.NewCounter({"soroban", "config", "ledger-max-write-bytes"})
-        .set_count(ledgerMaxWriteBytes);
-    registry.NewCounter({"soroban", "config", "tx-max-read-ledger-entries"})
-        .set_count(txMaxReadLedgerEntries);
-    registry.NewCounter({"soroban", "config", "tx-max-read-bytes"})
-        .set_count(txMaxReadBytes);
-    registry.NewCounter({"soroban", "config", "tx-max-write-ledger-entries"})
-        .set_count(txMaxWriteLedgerEntries);
-    registry.NewCounter({"soroban", "config", "tx-max-write-bytes"})
-        .set_count(txMaxWriteBytes);
-    registry.NewCounter({"soroban", "config", "bucket-list-target-size-bytes"})
-        .set_count(bucketListTargetSizeBytes);
-    registry
-        .NewCounter({"soroban", "config", "tx-max-contract-events-size-bytes"})
-        .set_count(txMaxContractEventsSizeBytes);
-    registry.NewCounter({"soroban", "config", "contract-data-key-size-bytes"})
+    registry.NewCounter({"soroban", "config", "contract-max-rw-key-byte"})
         .set_count(contractDataKeySizeBytes);
-    registry.NewCounter({"soroban", "config", "contract-data-entry-size-bytes"})
+    registry.NewCounter({"soroban", "config", "contract-max-rw-data-byte"})
         .set_count(contractDataEntrySizeBytes);
+    registry.NewCounter({"soroban", "config", "contract-max-rw-code-byte"})
+        .set_count(contractMaxSizeBytes);
+    registry.NewCounter({"soroban", "config", "tx-max-cpu-insn"})
+        .set_count(txMaxInstructions);
+    registry.NewCounter({"soroban", "config", "tx-max-mem-byte"})
+        .set_count(txMemoryLimit);
+    registry.NewCounter({"soroban", "config", "tx-max-read-entry"})
+        .set_count(txMaxReadLedgerEntries);
+    registry.NewCounter({"soroban", "config", "tx-max-read-ledger-byte"})
+        .set_count(txMaxReadBytes);
+    registry.NewCounter({"soroban", "config", "tx-max-write-entry"})
+        .set_count(txMaxWriteLedgerEntries);
+    registry.NewCounter({"soroban", "config", "tx-max-write-ledger-byte"})
+        .set_count(txMaxWriteBytes);
+    registry.NewCounter({"soroban", "config", "tx-max-emit-event-byte"})
+        .set_count(txMaxContractEventsSizeBytes);
+    registry.NewCounter({"soroban", "config", "ledger-max-cpu-insn"})
+        .set_count(ledgerMaxInstructions);
+    registry.NewCounter({"soroban", "config", "ledger-max-read-entry"})
+        .set_count(ledgerMaxReadLedgerEntries);
+    registry.NewCounter({"soroban", "config", "ledger-max-read-ledger-byte"})
+        .set_count(ledgerMaxReadBytes);
+    registry.NewCounter({"soroban", "config", "ledger-max-write-entry"})
+        .set_count(ledgerMaxWriteLedgerEntries);
+    registry.NewCounter({"soroban", "config", "ledger-max-write-ledger-byte"})
+        .set_count(ledgerMaxWriteBytes);
+    registry.NewCounter({"soroban", "config", "bucket-list-target-size-byte"})
+        .set_count(bucketListTargetSizeBytes);
 
     // then publish the actual ledger usage
     mSorobanLedgerMetrics.publishAndResetMetrics();

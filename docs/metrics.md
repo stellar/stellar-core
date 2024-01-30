@@ -196,19 +196,19 @@ soroban.ledger.read-entry                    | histogram | number of entries rea
 soroban.ledger.read-byte                     | histogram | number of entry bytes in read entries per ledger
 soroban.ledger.write-entry                   | histogram | number of entries written per ledger
 soroban.ledger.write-byte                    | histogram | number of entry bytes in written entries per ledger
-soroban.config.contract-max-size-bytes           | counter     | soroban config setting `contract_max_size_bytes`
-soroban.config.ledger-max-instructions           | counter     | soroban config setting `ledger_max_instructions`
-soroban.config.tx-max-instructions               | counter     | soroban config setting `tx_max_instructions`
-soroban.config.tx-memory-limit                   | counter     | soroban config setting `tx_memory_limit`
-soroban.config.ledger-max-read-ledger-entries    | counter     | soroban config setting `ledger_max_read_ledger_entries`
-soroban.config.ledger-max-read-bytes             | counter     | soroban config setting `ledger_max_read_bytes`
-soroban.config.ledger-max-write-ledger-entries   | counter     | soroban config setting `ledger_max_write_ledger_entries`
-soroban.config.ledger-max-write-bytes            | counter     | soroban config setting `ledger_max_write_bytes`
-soroban.config.tx-max-read-ledger-entries        | counter     | soroban config setting `tx_max_read_ledger_entries`
-soroban.config.tx-max-read-bytes                 | counter     | soroban config setting `tx_max_read_bytes`
-soroban.config.tx-max-write-ledger-entries       | counter     | soroban config setting `tx_max_write_ledger_entries`
-soroban.config.tx-max-write-bytes                | counter     | soroban config setting `tx_max_write_bytes`
-soroban.config.bucket-list-target-size-bytes     | counter     | soroban config setting `bucket_list_target_size_bytes`
-soroban.config.tx-max-contract-events-size-bytes | counter     | soroban config setting `tx_max_contract_events_size_bytes`
-soroban.config.contract-data-key-size-bytes      | counter     | soroban config setting `contract_data_key_size_bytes`
-soroban.config.contract-data-entry-size-bytes    | counter     | soroban config setting `contract_data_entry_size_bytes`
+soroban.config.contract-max-rw-key-byte      | counter   | soroban config setting `contract_data_key_size_bytes`
+soroban.config.contract-max-rw-data-byte     | counter   | soroban config setting `contract_data_entry_size_bytes`
+soroban.config.contract-max-rw-code-byte     | counter   | soroban config setting `contract_max_size_bytes`
+soroban.config.tx-max-cpu-insn               | counter   | soroban config setting `tx_max_instructions`
+soroban.config.tx-max-mem-byte               | counter   | soroban config setting `tx_memory_limit`
+soroban.config.tx-max-read-entry             | counter   | soroban config setting `tx_max_read_ledger_entries`
+soroban.config.tx-max-read-ledger-byte       | counter   | soroban config setting `tx_max_read_bytes`
+soroban.config.tx-max-write-entry            | counter   | soroban config setting `tx_max_write_ledger_entries`
+soroban.config.tx-max-write-ledger-byte      | counter   | soroban config setting `tx_max_write_bytes`
+soroban.config.tx-max-emit-event-byte        | counter   | soroban config setting `tx_max_contract_events_size_bytes`
+soroban.config.ledger-max-cpu-insn           | counter   | soroban config setting `ledger_max_instructions`
+soroban.config.ledger-max-read-entry         | counter   | soroban config setting `ledger_max_read_ledger_entries`
+soroban.config.ledger-max-read-ledger-byte   | counter   | soroban config setting `ledger_max_read_bytes`
+soroban.config.ledger-max-write-entry        | counter   | soroban config setting `ledger_max_write_ledger_entries`
+soroban.config.ledger-max-write-ledger-byte  | counter   | soroban config setting `ledger_max_write_bytes`
+soroban.config.bucket-list-target-size-byte  | counter   | soroban config setting `bucket_list_target_size_bytes`
