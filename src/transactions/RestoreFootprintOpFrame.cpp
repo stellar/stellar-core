@@ -4,6 +4,7 @@
 
 #include "transactions/RestoreFootprintOpFrame.h"
 #include "TransactionUtils.h"
+#include "ledger/LedgerManagerImpl.h"
 #include <Tracy.hpp>
 
 namespace stellar
@@ -11,26 +12,29 @@ namespace stellar
 
 struct RestoreFootprintMetrics
 {
-    medida::MetricsRegistry& mMetrics;
+    SorobanLedgerMetrics& mMetrics;
 
     uint32_t mLedgerReadByte{0};
     uint32_t mLedgerWriteByte{0};
 
-    RestoreFootprintMetrics(medida::MetricsRegistry& metrics)
-        : mMetrics(metrics)
+    RestoreFootprintMetrics(SorobanLedgerMetrics& metrics) : mMetrics(metrics)
     {
     }
 
     ~RestoreFootprintMetrics()
     {
-        mMetrics
+        mMetrics.registry()
             .NewMeter({"soroban", "restore-fprint-op", "read-ledger-byte"},
                       "byte")
             .Mark(mLedgerReadByte);
-        mMetrics
+        mMetrics.registry()
             .NewMeter({"soroban", "restore-fprint-op", "write-ledger-byte"},
                       "byte")
             .Mark(mLedgerWriteByte);
+
+        // populate ledger-wise resource metrics
+        mMetrics.accumulateLedgerReadByte(mLedgerReadByte);
+        mMetrics.accumulateLedgerWriteByte(mLedgerWriteByte);
     }
 };
 
@@ -60,7 +64,7 @@ RestoreFootprintOpFrame::doApply(Application& app, AbstractLedgerTxn& ltx,
 {
     ZoneNamedN(applyZone, "RestoreFootprintOpFrame apply", true);
 
-    RestoreFootprintMetrics metrics(app.getMetrics());
+    RestoreFootprintMetrics metrics(app.getLedgerManager().getSorobanMetrics());
 
     auto const& resources = mParentTx.sorobanResources();
     auto const& footprint = resources.footprint;

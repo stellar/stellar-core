@@ -38,6 +38,31 @@ class Database;
 class LedgerTxnHeader;
 class BasicWork;
 
+class SorobanLedgerMetrics
+{
+  private:
+    medida::MetricsRegistry& mMetrics;
+    uint64_t mLedgerCpuInsn{0};
+    uint64_t mLedgerReadEntry{0};
+    uint64_t mLedgerReadByte{0};
+    uint64_t mLedgerWriteEntry{0};
+    uint64_t mLedgerWriteByte{0};
+
+  public:
+    SorobanLedgerMetrics(medida::MetricsRegistry& metrics) : mMetrics(metrics)
+    {
+    }
+    medida::MetricsRegistry& registry() const;
+
+    void accumulateLedgerCpuInsn(uint64_t cpuInsn);
+    void accumulateLedgerReadEntry(uint64_t readEntry);
+    void accumulateLedgerReadByte(uint64_t readByte);
+    void accumulateLedgerWriteEntry(uint64_t writeEntry);
+    void accumulateLedgerWriteByte(uint64_t writeByte);
+
+    void publishAndResetMetrics();
+};
+
 class LedgerManagerImpl : public LedgerManager
 {
   protected:
@@ -51,6 +76,7 @@ class LedgerManagerImpl : public LedgerManager
     LedgerHeaderHistoryEntry mLastClosedLedger;
     std::optional<SorobanNetworkConfig> mSorobanNetworkConfig;
 
+    SorobanLedgerMetrics mSorobanLedgerMetrics;
     medida::Timer& mTransactionApply;
     medida::Histogram& mTransactionCount;
     medida::Histogram& mOperationCount;
@@ -102,10 +128,9 @@ class LedgerManagerImpl : public LedgerManager
 
     SorobanNetworkConfig& getSorobanNetworkConfigInternal();
 
-    // Publishes selected network configured limits as medida metrics, useful
-    // for contextualizing the other live metrics. This does not include all
-    // settings, just includes ones relevant for display.
-    void publishSorobanNetworkConfigMetrics();
+    // Publishes soroban metrics, including select network config limits as well
+    // as the actual ledger usage.
+    void publishSorobanMetrics();
 
   protected:
     // initialLedgerVers must be the ledger version at the start of the ledger
@@ -185,5 +210,7 @@ class LedgerManagerImpl : public LedgerManager
 
     void setupLedgerCloseMetaStream();
     void maybeResetLedgerCloseMetaDebugStream(uint32_t ledgerSeq);
+
+    SorobanLedgerMetrics& getSorobanMetrics() override;
 };
 }

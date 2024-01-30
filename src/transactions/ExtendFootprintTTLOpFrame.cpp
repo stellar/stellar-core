@@ -4,6 +4,7 @@
 
 #include "transactions/ExtendFootprintTTLOpFrame.h"
 #include "TransactionUtils.h"
+#include "ledger/LedgerManagerImpl.h"
 #include <Tracy.hpp>
 
 namespace stellar
@@ -11,21 +12,23 @@ namespace stellar
 
 struct ExtendFootprintTTLMetrics
 {
-    medida::MetricsRegistry& mMetrics;
+    SorobanLedgerMetrics& mMetrics;
 
     uint32 mLedgerReadByte{0};
 
-    ExtendFootprintTTLMetrics(medida::MetricsRegistry& metrics)
-        : mMetrics(metrics)
+    ExtendFootprintTTLMetrics(SorobanLedgerMetrics& metrics) : mMetrics(metrics)
     {
     }
 
     ~ExtendFootprintTTLMetrics()
     {
-        mMetrics
+        mMetrics.registry()
             .NewMeter({"soroban", "ext-fprint-ttl-op", "read-ledger-byte"},
                       "byte")
             .Mark(mLedgerReadByte);
+
+        // populate ledger-wise resource metrics
+        mMetrics.accumulateLedgerReadByte(mLedgerReadByte);
     }
 };
 
@@ -55,7 +58,8 @@ ExtendFootprintTTLOpFrame::doApply(Application& app, AbstractLedgerTxn& ltx,
 {
     ZoneNamedN(applyZone, "ExtendFootprintTTLOpFrame apply", true);
 
-    ExtendFootprintTTLMetrics metrics(app.getMetrics());
+    ExtendFootprintTTLMetrics metrics(
+        app.getLedgerManager().getSorobanMetrics());
 
     auto const& resources = mParentTx.sorobanResources();
     auto const& footprint = resources.footprint;
