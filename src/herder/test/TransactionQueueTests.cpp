@@ -1327,14 +1327,18 @@ TEST_CASE("Soroban TransactionQueue limits",
                 auto innerTx =
                     createUploadWasmTx(*app, account2, initialInclusionFee,
                                        resourceFee, resAdjusted);
+                auto expectedFeeCharged = 0;
                 SECTION("regular tx")
                 {
                     tx2 = innerTx;
+                    expectedFeeCharged = initialInclusionFee + resourceFee + 1;
                 }
                 SECTION("fee-bump")
                 {
                     tx2 = feeBump(*app, account2, innerTx,
                                   initialInclusionFee * 2);
+                    expectedFeeCharged =
+                        initialInclusionFee * 2 + resourceFee + 1;
                 }
 
                 // Same per-op fee, no eviction
@@ -1343,6 +1347,7 @@ TEST_CASE("Soroban TransactionQueue limits",
                 REQUIRE(!app->getHerder().isBannedTx(tx->getFullHash()));
                 REQUIRE(tx2->getResultCode() ==
                         TransactionResultCode::txINSUFFICIENT_FEE);
+                REQUIRE(tx2->getResult().feeCharged == expectedFeeCharged);
             }
             SECTION("insufficient account balance")
             {
