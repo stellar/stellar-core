@@ -445,12 +445,14 @@ LedgerManagerImpl::getDatabase()
 uint32_t
 LedgerManagerImpl::getLastMaxTxSetSize() const
 {
+    std::lock_guard<std::mutex> lock(mLedgerPointerLock);
     return mLastClosedLedger.header.maxTxSetSize;
 }
 
 uint32_t
 LedgerManagerImpl::getLastMaxTxSetSizeOps() const
 {
+    std::lock_guard<std::mutex> lock(mLedgerPointerLock);
     auto n = mLastClosedLedger.header.maxTxSetSize;
     return protocolVersionStartsFrom(mLastClosedLedger.header.ledgerVersion,
                                      ProtocolVersion::V_11)
@@ -502,6 +504,7 @@ LedgerManagerImpl::maxSorobanTransactionResources()
 int64_t
 LedgerManagerImpl::getLastMinBalance(uint32_t ownerCount) const
 {
+    std::lock_guard<std::mutex> lock(mLedgerPointerLock);
     auto const& lh = mLastClosedLedger.header;
     if (protocolVersionIsBefore(lh.ledgerVersion, ProtocolVersion::V_9))
         return (2 + ownerCount) * lh.baseReserve;
@@ -512,18 +515,21 @@ LedgerManagerImpl::getLastMinBalance(uint32_t ownerCount) const
 uint32_t
 LedgerManagerImpl::getLastReserve() const
 {
+    std::lock_guard<std::mutex> lock(mLedgerPointerLock);
     return mLastClosedLedger.header.baseReserve;
 }
 
 uint32_t
 LedgerManagerImpl::getLastTxFee() const
 {
+    std::lock_guard<std::mutex> lock(mLedgerPointerLock);
     return mLastClosedLedger.header.baseFee;
 }
 
 LedgerHeaderHistoryEntry const&
 LedgerManagerImpl::getLastClosedLedgerHeader() const
 {
+    std::lock_guard<std::mutex> lock(mLedgerPointerLock);
     return mLastClosedLedger;
 }
 
@@ -542,12 +548,14 @@ LedgerManagerImpl::getLastClosedLedgerHAS()
 uint32_t
 LedgerManagerImpl::getLastClosedLedgerNum() const
 {
+    std::lock_guard<std::mutex> lock(mLedgerPointerLock);
     return mLastClosedLedger.header.ledgerSeq;
 }
 
 SorobanNetworkConfig&
 LedgerManagerImpl::getSorobanNetworkConfigInternal()
 {
+    std::lock_guard<std::mutex> lock(mLedgerPointerLock);
     releaseAssert(mSorobanNetworkConfig);
     return *mSorobanNetworkConfig;
 }
@@ -1271,6 +1279,7 @@ LedgerManagerImpl::advanceLedgerPointers(LedgerHeader const& header,
                    ledgerAbbrev(header, ledgerHash));
     }
 
+    std::lock_guard<std::mutex> lock(mLedgerPointerLock);
     mLastClosedLedger.hash = ledgerHash;
     mLastClosedLedger.header = header;
 }
