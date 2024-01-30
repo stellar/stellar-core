@@ -127,11 +127,11 @@ SorobanLedgerMetrics::publishAndResetMetrics()
         .Update(mLedgerCpuInsn);
     mMetrics.NewHistogram({"soroban", "ledger", "read-entry"})
         .Update(mLedgerReadEntry);
-    mMetrics.NewHistogram({"soroban", "ledger", "read-byte"})
+    mMetrics.NewHistogram({"soroban", "ledger", "read-ledger-byte"})
         .Update(mLedgerReadByte);
     mMetrics.NewHistogram({"soroban", "ledger", "write-entry"})
         .Update(mLedgerWriteEntry);
-    mMetrics.NewHistogram({"soroban", "ledger", "write-byte"})
+    mMetrics.NewHistogram({"soroban", "ledger", "write-ledger-byte"})
         .Update(mLedgerWriteByte);
     mLedgerCpuInsn = 0;
     mLedgerReadEntry = 0;
