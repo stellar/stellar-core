@@ -111,6 +111,9 @@ SearchableBucketListSnapshot::getLedgerEntry(LedgerKey const& k)
     auto timer = getPointLoadTimer(k.type()).TimeScope();
     maybeUpdateSnapshot();
 
+    // Snapshots not currently supported, all access must be up to date
+    releaseAssert(isWithinAllowedLedgerDrift(0));
+
     std::shared_ptr<LedgerEntry> result{};
 
     auto f = [&](SearchableBucketSnapshot const& b) {
@@ -141,6 +144,9 @@ SearchableBucketListSnapshot::loadKeys(
     auto timer = recordBulkLoadMetrics("prefetch", inKeys.size()).TimeScope();
     maybeUpdateSnapshot();
 
+    // Snapshots not currently supported, all access must be up to date
+    releaseAssert(isWithinAllowedLedgerDrift(0));
+
     std::vector<LedgerEntry> entries;
 
     // Make a copy of the key set, this loop is destructive
@@ -161,6 +167,9 @@ SearchableBucketListSnapshot::loadPoolShareTrustLinesByAccountAndAsset(
     ZoneScoped;
     auto timer = recordBulkLoadMetrics("poolshareTrustlines", 0).TimeScope();
     maybeUpdateSnapshot();
+
+    // Snapshots not currently supported, all access must be up to date
+    releaseAssert(isWithinAllowedLedgerDrift(0));
 
     UnorderedMap<LedgerKey, LedgerEntry> liquidityPoolToTrustline;
     UnorderedSet<LedgerKey> deadTrustlines;
@@ -208,6 +217,9 @@ SearchableBucketListSnapshot::loadInflationWinners(size_t maxWinners,
     ZoneScoped;
     auto timer = recordBulkLoadMetrics("inflationWinners", 0).TimeScope();
     maybeUpdateSnapshot();
+
+    // Snapshots not currently supported, all access must be up to date
+    releaseAssert(isWithinAllowedLedgerDrift(0));
 
     UnorderedMap<AccountID, int64_t> voteCount;
     UnorderedSet<AccountID> seen;
