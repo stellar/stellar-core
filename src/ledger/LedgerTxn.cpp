@@ -169,45 +169,6 @@ LedgerEntryPtr::isDeleted() const
     return mState == EntryPtrState::DELETED;
 }
 
-template <typename KeySetT>
-UnorderedMap<LedgerKey, std::shared_ptr<LedgerEntry const>>
-populateLoadedEntries(KeySetT const& keys,
-                      std::vector<LedgerEntry> const& entries)
-{
-    UnorderedMap<LedgerKey, std::shared_ptr<LedgerEntry const>> res;
-
-    for (auto const& le : entries)
-    {
-        auto key = LedgerEntryKey(le);
-
-        // Abort if two entries for the same key appear.
-        releaseAssert(res.find(key) == res.end());
-
-        // Only return entries for keys that were actually requested.
-        if (keys.find(key) != keys.end())
-        {
-            res.emplace(key, std::make_shared<LedgerEntry const>(le));
-        }
-    }
-
-    for (auto const& key : keys)
-    {
-        if (res.find(key) == res.end())
-        {
-            res.emplace(key, nullptr);
-        }
-    }
-    return res;
-}
-
-template UnorderedMap<LedgerKey, std::shared_ptr<LedgerEntry const>>
-populateLoadedEntries(LedgerKeySet const& keys,
-                      std::vector<LedgerEntry> const& entries);
-
-template UnorderedMap<LedgerKey, std::shared_ptr<LedgerEntry const>>
-populateLoadedEntries(UnorderedSet<LedgerKey> const& keys,
-                      std::vector<LedgerEntry> const& entries);
-
 bool
 operator==(OfferDescriptor const& lhs, OfferDescriptor const& rhs)
 {
@@ -1429,6 +1390,25 @@ LedgerTxn::Impl::getAllEntries(std::vector<LedgerEntry>& initEntries,
     initEntries.swap(resInit);
     liveEntries.swap(resLive);
     deadEntries.swap(resDead);
+}
+
+LedgerKeySet
+LedgerTxn::getAllKeysWithoutSealing() const
+{
+    return getImpl()->getAllKeysWithoutSealing();
+}
+
+LedgerKeySet
+LedgerTxn::Impl::getAllKeysWithoutSealing() const
+{
+    throwIfNotExactConsistency();
+    LedgerKeySet result;
+    for (auto const& [k, v] : mEntry)
+    {
+        result.emplace(k.ledgerKey());
+    }
+
+    return result;
 }
 
 std::shared_ptr<InternalLedgerEntry const>

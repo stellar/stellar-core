@@ -67,6 +67,48 @@ SearchableBucketListSnapshot::loopAllBuckets(
     }
 }
 
+EvictionResult
+SearchableBucketListSnapshot::scanForEviction(
+    uint32_t ledgerSeq, EvictionCounters& counters,
+    EvictionIterator evictionIter, uint32_t firstScanLevel, uint64_t scanSize,
+    std::optional<EvictionStatistics>& stats)
+{
+    releaseAssert(mSnapshot);
+
+    auto getBucketFromIter = [&levels = mSnapshot->getLevels()](
+                                 EvictionIterator const& iter) {
+        auto& level = levels.at(iter.bucketListLevel);
+        return iter.isCurrBucket ? level.curr.getRawBucket()
+                                 : level.snap.getRawBucket();
+    };
+
+    BucketList::updateStartingEvictionIterator(evictionIter, firstScanLevel,
+                                               ledgerSeq);
+
+    EvictionResult result;
+    auto startIter = evictionIter;
+    auto b = getBucketFromIter(evictionIter);
+
+    while (!b->scanForEviction(evictionIter, scanSize, ledgerSeq,
+                               result.eligibleKeys, *this))
+    {
+        if (BucketList::updateEvictionIterAndRecordStats(
+                evictionIter, startIter, firstScanLevel, ledgerSeq, stats,
+                counters))
+        {
+            break;
+        }
+
+        b = getBucketFromIter(evictionIter);
+        BucketList::checkIfEvictionScanIsStuck(evictionIter, scanSize, b,
+                                               counters);
+    }
+
+    result.endOfRegionIterator = evictionIter;
+    result.ledgerSeq = ledgerSeq;
+    return result;
+}
+
 std::shared_ptr<LedgerEntry>
 SearchableBucketListSnapshot::getLedgerEntry(LedgerKey const& k)
 {

@@ -22,13 +22,6 @@ namespace stellar
 
 class SearchableBucketListSnapshot;
 
-// Precondition: The keys associated with entries are unique and constitute a
-// subset of keys
-template <typename KeySetT>
-UnorderedMap<LedgerKey, std::shared_ptr<LedgerEntry const>>
-populateLoadedEntries(KeySetT const& keys,
-                      std::vector<LedgerEntry> const& entries);
-
 class EntryIterator::AbstractImpl
 {
   public:
@@ -557,6 +550,8 @@ class LedgerTxn::Impl
     void getAllEntries(std::vector<LedgerEntry>& initEntries,
                        std::vector<LedgerEntry>& liveEntries,
                        std::vector<LedgerKey>& deadEntries);
+
+    LedgerKeySet getAllKeysWithoutSealing() const;
 
     // getNewestVersion has the basic exception safety guarantee. If it throws
     // an exception, then

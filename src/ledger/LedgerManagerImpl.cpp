@@ -1639,9 +1639,24 @@ LedgerManagerImpl::transferLedgerEntriesToBucketList(
         protocolVersionStartsFrom(initialLedgerVers, SOROBAN_PROTOCOL_VERSION))
     {
         {
+            auto keys = ltx.getAllKeysWithoutSealing();
             LedgerTxn ltxEvictions(ltx);
-            mApp.getBucketManager().scanForEvictionLegacySQL(ltxEvictions,
-                                                             ledgerSeq);
+
+            if (mApp.getConfig().isUsingBucketListDB()
+#ifdef BUILD_TESTS
+                && !mUseLegacySQLEvictionScanForTesting
+#endif
+            )
+            {
+                mApp.getBucketManager().resolveBackgroundEvictionScan(
+                    ltxEvictions, ledgerSeq, keys);
+            }
+            else
+            {
+                mApp.getBucketManager().scanForEvictionLegacySQL(ltxEvictions,
+                                                                 ledgerSeq);
+            }
+
             if (ledgerCloseMeta)
             {
                 ledgerCloseMeta->populateEvictedEntries(

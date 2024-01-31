@@ -80,6 +80,54 @@ struct MergeCounters
     bool operator==(MergeCounters const& other) const;
 };
 
+// Stores key that is eligible for eviction and the position of the eviction
+// iterator as if that key was the last entry evicted
+struct EvictionResultEntry
+{
+    LedgerKey key;
+    EvictionIterator iter;
+    uint32_t liveUntilLedger;
+
+    EvictionResultEntry(LedgerKey const& key, EvictionIterator const& iter,
+                        uint32_t liveUntilLedger)
+        : key(key), iter(iter), liveUntilLedger(liveUntilLedger)
+    {
+    }
+};
+
+struct EvictionResult
+{
+    // List of keys eligible for eviction in the order in which they occur in
+    // the bucket
+    std::list<EvictionResultEntry> eligibleKeys{};
+
+    // Eviction iterator at the end of the scan region
+    EvictionIterator endOfRegionIterator;
+
+    // LedgerSeq which this scan is based on
+    uint32_t ledgerSeq{};
+};
+
+struct EvictionStatistics
+{
+    // Evicted entry "age" is the delta between its liveUntilLedger and the
+    // ledger when the entry is actually evicted
+    uint64_t evictedEntriesAgeSum{};
+    uint64_t numEntriesEvicted{};
+    uint32_t evictionCycleStartLedger{};
+};
+
+struct EvictionCounters
+{
+    medida::Counter& entriesEvicted;
+    medida::Counter& bytesScannedForEviction;
+    medida::Counter& incompleteBucketScan;
+    medida::Counter& evictionCyclePeriod;
+    medida::Counter& averageEvictedEntryAge;
+
+    EvictionCounters(Application& app);
+};
+
 /**
  * BucketManager is responsible for maintaining a collection of Buckets of
  * ledger entries (each sorted, de-duplicated and identified by hash) and,
@@ -214,6 +262,11 @@ class BucketManager : NonMovableOrCopyable
     // have been evicted or maxEvictionScanSize bytes have been scanned.
     virtual void scanForEvictionLegacySQL(AbstractLedgerTxn& ltx,
                                           uint32_t ledgerSeq) = 0;
+
+    // virtual void startBackgroundEvictionScan(uint32_t ledgerSeq) = 0;
+    virtual void
+    resolveBackgroundEvictionScan(AbstractLedgerTxn& ltx, uint32_t ledgerSeq,
+                                  LedgerKeySet const& modifiedKeys) = 0;
 
     virtual medida::Meter& getBloomMissMeter() const = 0;
     virtual medida::Meter& getBloomLookupMeter() const = 0;

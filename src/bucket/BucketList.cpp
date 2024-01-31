@@ -640,146 +640,170 @@ BucketList::addBatch(Application& app, uint32_t currLedger,
 }
 
 void
+BucketList::updateStartingEvictionIterator(EvictionIterator& iter,
+                                           uint32_t firstScanLevel,
+                                           uint32_t ledgerSeq)
+{
+    // Check if an upgrade has changed the starting scan level to below the
+    // current iterator level
+    if (iter.bucketListLevel < firstScanLevel)
+    {
+        // Reset iterator to the new minimum level
+        iter.bucketFileOffset = 0;
+        iter.isCurrBucket = true;
+        iter.bucketListLevel = firstScanLevel;
+    }
+
+    // Whenever a Bucket changes (spills or receives an incoming spill), the
+    // iterator offset in that bucket is invalidated. After scanning, we
+    // must write the iterator to the BucketList then close the ledger.
+    // Bucket spills occur on ledger close after we've already written the
+    // iterator, so the iterator may be invalidated. Because of this, we
+    // must check if the Bucket the iterator currently points to changed on
+    // the previous ledger, indicating the current iterator is invalid.
+    if (iter.isCurrBucket)
+    {
+        // Check if bucket received an incoming spill
+        releaseAssert(iter.bucketListLevel != 0);
+        if (BucketList::levelShouldSpill(ledgerSeq - 1,
+                                         iter.bucketListLevel - 1))
+        {
+            // If Bucket changed, reset to start of bucket
+            iter.bucketFileOffset = 0;
+        }
+    }
+    else
+    {
+        if (BucketList::levelShouldSpill(ledgerSeq - 1, iter.bucketListLevel))
+        {
+            // If Bucket changed, reset to start of bucket
+            iter.bucketFileOffset = 0;
+        }
+    }
+}
+
+bool
+BucketList::updateEvictionIterAndRecordStats(
+    EvictionIterator& iter, EvictionIterator startIter,
+    uint32_t configFirstScanLevel, uint32_t ledgerSeq,
+    std::optional<EvictionStatistics>& stats, EvictionCounters& counters)
+{
+    // If we reached eof in curr bucket, start scanning snap.
+    // Last level has no snap so cycle back to the initial level.
+    if (iter.isCurrBucket && iter.bucketListLevel != kNumLevels - 1)
+    {
+        iter.isCurrBucket = false;
+        iter.bucketFileOffset = 0;
+    }
+    else
+    {
+        // If we reached eof in snap, move to next level
+        ++iter.bucketListLevel;
+        iter.isCurrBucket = true;
+        iter.bucketFileOffset = 0;
+
+        // If we have scanned the last level, cycle back to initial
+        // level
+        if (iter.bucketListLevel == kNumLevels)
+        {
+            iter.bucketListLevel = configFirstScanLevel;
+
+            // If eviction metrics are not null, we have accounted for a
+            // complete cycle and should log the metrics
+            if (stats)
+            {
+                counters.evictionCyclePeriod.set_count(
+                    ledgerSeq - stats->evictionCycleStartLedger);
+
+                auto averageAge = stats->numEntriesEvicted == 0
+                                      ? 0
+                                      : stats->evictedEntriesAgeSum /
+                                            stats->numEntriesEvicted;
+                counters.averageEvictedEntryAge.set_count(averageAge);
+            }
+
+            // Reset metrics at beginning of new eviction cycle
+            stats = std::make_optional<EvictionStatistics>();
+            stats->evictionCycleStartLedger = ledgerSeq;
+        }
+    }
+
+    // If we are back to the bucket we started at, break
+    if (iter.bucketListLevel == startIter.bucketListLevel &&
+        iter.isCurrBucket == startIter.isCurrBucket)
+    {
+        return true;
+    }
+
+    return false;
+}
+
+void
+BucketList::checkIfEvictionScanIsStuck(EvictionIterator const& evictionIter,
+                                       uint32_t scanSize,
+                                       std::shared_ptr<Bucket const> b,
+                                       EvictionCounters& counters)
+{
+    // Check to see if we can finish scanning the new bucket before it
+    // receives an update
+    auto period = bucketUpdatePeriod(evictionIter.bucketListLevel,
+                                     evictionIter.isCurrBucket);
+    if (period * scanSize < b->getSize())
+    {
+        CLOG_WARNING(Bucket,
+                     "Bucket too large for current eviction scan size.");
+        counters.incompleteBucketScan.inc();
+    }
+}
+
+// To avoid noisy data, only count metrics that encompass a complete
+// eviction cycle. If a node joins the network mid cycle, metrics will be
+// nullopt and be initialized at the start of the next cycle.
+void
 BucketList::scanForEvictionLegacySQL(Application& app, AbstractLedgerTxn& ltx,
                                      uint32_t ledgerSeq,
-                                     EvictionCounters& counters)
+                                     EvictionCounters& counters,
+                                     std::optional<EvictionStatistics>& stats)
 {
     auto getBucketFromIter = [&levels = mLevels](EvictionIterator const& iter) {
         auto& level = levels.at(iter.bucketListLevel);
         return iter.isCurrBucket ? level.getCurr() : level.getSnap();
     };
 
-    if (protocolVersionStartsFrom(ltx.getHeader().ledgerVersion,
-                                  SOROBAN_PROTOCOL_VERSION))
+    auto const& networkConfig =
+        app.getLedgerManager().getSorobanNetworkConfig();
+    auto const firstScanLevel =
+        networkConfig.stateArchivalSettings().startingEvictionScanLevel;
+    auto evictionIter = networkConfig.evictionIterator();
+    auto scanSize = networkConfig.stateArchivalSettings().evictionScanSize;
+    auto maxEntriesToEvict =
+        networkConfig.stateArchivalSettings().maxEntriesToArchive;
+
+    updateStartingEvictionIterator(evictionIter, firstScanLevel, ledgerSeq);
+
+    auto startIter = evictionIter;
+    auto b = getBucketFromIter(evictionIter);
+
+    while (!b->scanForEvictionLegacySQL(
+        ltx, evictionIter, scanSize, maxEntriesToEvict, ledgerSeq,
+        counters.entriesEvicted, counters.bytesScannedForEviction, stats))
     {
-        auto const& networkConfig =
-            app.getLedgerManager().getSorobanNetworkConfig();
-        auto const firstScanLevel =
-            networkConfig.stateArchivalSettings().startingEvictionScanLevel;
-        auto evictionIter = networkConfig.evictionIterator();
 
-        // Check if an upgrade has changed the starting scan level to below the
-        // current iterator level
-        if (evictionIter.bucketListLevel < firstScanLevel)
+        if (updateEvictionIterAndRecordStats(evictionIter, startIter,
+                                             firstScanLevel, ledgerSeq, stats,
+                                             counters))
         {
-            // Reset iterator to the new minimum level
-            evictionIter.bucketFileOffset = 0;
-            evictionIter.isCurrBucket = true;
-            evictionIter.bucketListLevel = firstScanLevel;
+            break;
         }
 
-        // Whenever a Bucket changes (spills or receives an incoming spill), the
-        // iterator offset in that bucket is invalidated. After scanning, we
-        // must write the iterator to the BucketList then close the ledger.
-        // Bucket spills occur on ledger close after we've already written the
-        // iterator, so the iterator may be invalidated. Because of this, we
-        // must check if the Bucket the iterator currently points to changed on
-        // the previous ledger, indicating the current iterator is invalid.
-        if (evictionIter.isCurrBucket)
-        {
-            // Check if bucket received an incoming spill
-            releaseAssert(evictionIter.bucketListLevel != 0);
-            if (BucketList::levelShouldSpill(ledgerSeq - 1,
-                                             evictionIter.bucketListLevel - 1))
-            {
-                // If Bucket changed, reset to start of bucket
-                evictionIter.bucketFileOffset = 0;
-            }
-        }
-        else
-        {
-            if (BucketList::levelShouldSpill(ledgerSeq - 1,
-                                             evictionIter.bucketListLevel))
-            {
-                // If Bucket changed, reset to start of bucket
-                evictionIter.bucketFileOffset = 0;
-            }
-        }
-
-        auto scanSize = networkConfig.stateArchivalSettings().evictionScanSize;
-        auto maxEntriesToEvict =
-            networkConfig.stateArchivalSettings().maxEntriesToArchive;
-
-        auto initialLevel = evictionIter.bucketListLevel;
-        auto initialIsCurr = evictionIter.isCurrBucket;
-        auto b = getBucketFromIter(evictionIter);
-
-        // Check to see if we can finish scanning the bucket before it receives
-        // an update. To prevent noisy warnings, we assume we have the entire
-        // period to scan the bucket.
-        uint64_t period = bucketUpdatePeriod(evictionIter.bucketListLevel,
-                                             evictionIter.isCurrBucket);
-        if (period * scanSize < b->getSize())
-        {
-            CLOG_WARNING(Bucket,
-                         "Bucket too large for current eviction scan size: "
-                         "level {} isCurr {}, bucket {}.",
-                         evictionIter.bucketListLevel,
-                         evictionIter.isCurrBucket, hexAbbrev(b->getHash()));
-            counters.incompleteBucketScan.inc();
-        }
-
-        while (!b->scanForEvictionLegacySQL(
-            ltx, evictionIter, scanSize, maxEntriesToEvict, ledgerSeq,
-            counters.entriesEvicted, counters.bytesScannedForEviction,
-            mEvictionStatistics))
-        {
-            // If we reached eof in curr bucket, start scanning snap.
-            // Last level has no snap so cycle back to the initial level.
-            if (evictionIter.isCurrBucket &&
-                evictionIter.bucketListLevel != kNumLevels - 1)
-            {
-                evictionIter.isCurrBucket = false;
-                evictionIter.bucketFileOffset = 0;
-            }
-            else
-            {
-                // If we reached eof in snap, move to next level
-                evictionIter.bucketListLevel++;
-                evictionIter.isCurrBucket = true;
-                evictionIter.bucketFileOffset = 0;
-
-                // If we have scanned the last level, cycle back to initial
-                // level
-                if (evictionIter.bucketListLevel == kNumLevels)
-                {
-                    evictionIter.bucketListLevel = firstScanLevel;
-
-                    // If eviction metrics are not null, we have accounted for a
-                    // complete cycle and should log the metrics
-                    if (mEvictionStatistics)
-                    {
-                        counters.evictionCyclePeriod.set_count(
-                            ledgerSeq -
-                            mEvictionStatistics->evictionCycleStartLedger);
-
-                        auto averageAge =
-                            mEvictionStatistics->numEntriesEvicted == 0
-                                ? 0
-                                : mEvictionStatistics->evictedEntriesAgeSum /
-                                      mEvictionStatistics->numEntriesEvicted;
-                        counters.averageEvictedEntryAge.set_count(averageAge);
-                    }
-
-                    // Reset metrics at beginning of new eviction cycle
-                    mEvictionStatistics =
-                        std::make_optional<EvictionStatistics>();
-                    mEvictionStatistics->evictionCycleStartLedger = ledgerSeq;
-                }
-            }
-
-            // If we are back to the bucket we started at, break
-            if (evictionIter.bucketListLevel == initialLevel &&
-                evictionIter.isCurrBucket == initialIsCurr)
-            {
-                break;
-            }
-
-            b = getBucketFromIter(evictionIter);
-        }
-
-        networkConfig.updateEvictionIterator(ltx, evictionIter);
+        b = getBucketFromIter(evictionIter);
+        checkIfEvictionScanIsStuck(
+            evictionIter,
+            networkConfig.stateArchivalSettings().evictionScanSize, b,
+            counters);
     }
+
+    networkConfig.updateEvictionIterator(ltx, evictionIter);
 }
 
 void
@@ -852,20 +876,6 @@ BucketList::restartMerges(Application& app, uint32_t maxProtocolVersion,
                 !app.getConfig().ARTIFICIALLY_REDUCE_MERGE_COUNTS_FOR_TESTING);
         }
     }
-}
-
-EvictionCounters::EvictionCounters(Application& app)
-    : entriesEvicted(app.getMetrics().NewCounter(
-          {"state-archival", "eviction", "entries-evicted"}))
-    , bytesScannedForEviction(app.getMetrics().NewCounter(
-          {"state-archival", "eviction", "bytes-scanned"}))
-    , incompleteBucketScan(app.getMetrics().NewCounter(
-          {"state-archival", "eviction", "incomplete-scan"}))
-    , evictionCyclePeriod(
-          app.getMetrics().NewCounter({"state-archival", "eviction", "period"}))
-    , averageEvictedEntryAge(
-          app.getMetrics().NewCounter({"state-archival", "eviction", "age"}))
-{
 }
 
 BucketListDepth BucketList::kNumLevels = 11;

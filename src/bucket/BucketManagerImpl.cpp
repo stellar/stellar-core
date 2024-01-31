@@ -113,6 +113,20 @@ BucketManagerImpl::getTmpDirManager()
     return *mTmpDirManager;
 }
 
+EvictionCounters::EvictionCounters(Application& app)
+    : entriesEvicted(app.getMetrics().NewCounter(
+          {"state-archival", "eviction", "entries-evicted"}))
+    , bytesScannedForEviction(app.getMetrics().NewCounter(
+          {"state-archival", "eviction", "bytes-scanned"}))
+    , incompleteBucketScan(app.getMetrics().NewCounter(
+          {"state-archival", "eviction", "incomplete-scan"}))
+    , evictionCyclePeriod(
+          app.getMetrics().NewCounter({"state-archival", "eviction", "period"}))
+    , averageEvictedEntryAge(
+          app.getMetrics().NewCounter({"state-archival", "eviction", "age"}))
+{
+}
+
 BucketManagerImpl::BucketManagerImpl(Application& app)
     : mApp(app)
     , mBucketList(nullptr)
@@ -919,12 +933,78 @@ BucketManagerImpl::scanForEvictionLegacySQL(AbstractLedgerTxn& ltx,
                                             uint32_t ledgerSeq)
 {
     ZoneScoped;
-    if (protocolVersionStartsFrom(ltx.getHeader().ledgerVersion,
-                                  SOROBAN_PROTOCOL_VERSION))
+    releaseAssert(protocolVersionStartsFrom(ltx.getHeader().ledgerVersion,
+                                            SOROBAN_PROTOCOL_VERSION));
+    mBucketList->scanForEvictionLegacySQL(
+        mApp, ltx, ledgerSeq, mBucketListEvictionCounters, mEvictionStatistics);
+}
+
+void
+BucketManagerImpl::resolveBackgroundEvictionScan(
+    AbstractLedgerTxn& ltx, uint32_t ledgerSeq,
+    LedgerKeySet const& modifiedKeys)
+{
+    ZoneScoped;
+    auto const& cfg = mApp.getLedgerManager().getSorobanNetworkConfig();
+    auto const& sas = cfg.stateArchivalSettings();
+    auto searchableBL = mSnapshotManager->getSearchableBucketListSnapshot();
+
+    auto evictionCandidates = searchableBL->scanForEviction(
+        ledgerSeq, mBucketListEvictionCounters, cfg.evictionIterator(),
+        sas.startingEvictionScanLevel, sas.evictionScanSize,
+        mEvictionStatistics);
+    auto& eligibleKeys = evictionCandidates.eligibleKeys;
+
+    for (auto iter = eligibleKeys.begin(); iter != eligibleKeys.end();)
     {
-        mBucketList->scanForEvictionLegacySQL(mApp, ltx, ledgerSeq,
-                                              mBucketListEvictionCounters);
+        // If the TTL has not been modified this ledger, we can evict the entry
+        if (modifiedKeys.find(getTTLKey(iter->key)) == modifiedKeys.end())
+        {
+            ++iter;
+        }
+        else
+        {
+            iter = eligibleKeys.erase(iter);
+        }
     }
+
+    auto const& networkConfig =
+        mApp.getLedgerManager().getSorobanNetworkConfig();
+    auto remainingEntriesToEvict =
+        networkConfig.stateArchivalSettings().maxEntriesToArchive;
+    auto entryToEvictIter = eligibleKeys.begin();
+    auto newEvictionIterator = evictionCandidates.endOfRegionIterator;
+
+    // Only actually evict up to maxEntriesToArchive of the eligible entries
+    while (remainingEntriesToEvict > 0 &&
+           entryToEvictIter != eligibleKeys.end())
+    {
+        ltx.erase(entryToEvictIter->key);
+        ltx.erase(getTTLKey(entryToEvictIter->key));
+        --remainingEntriesToEvict;
+
+        mBucketListEvictionCounters.entriesEvicted.inc();
+        if (mEvictionStatistics.has_value())
+        {
+            ++mEvictionStatistics->numEntriesEvicted;
+            mEvictionStatistics->evictedEntriesAgeSum +=
+                ledgerSeq - entryToEvictIter->liveUntilLedger;
+        }
+
+        newEvictionIterator = entryToEvictIter->iter;
+        entryToEvictIter = eligibleKeys.erase(entryToEvictIter);
+    }
+
+    // If remainingEntriesToEvict == 0, that means we could not evict the entire
+    // scan region, so the new eviction iterator should be after the last entry
+    // evicted. Otherwise, eviction iterator should be at the end of the scan
+    // region
+    if (remainingEntriesToEvict != 0)
+    {
+        newEvictionIterator = evictionCandidates.endOfRegionIterator;
+    }
+
+    networkConfig.updateEvictionIterator(ltx, newEvictionIterator);
 }
 
 medida::Meter&

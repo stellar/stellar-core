@@ -58,6 +58,7 @@ class BucketManagerImpl : public BucketManager
     medida::Counter& mBucketListSizeCounter;
     EvictionCounters mBucketListEvictionCounters;
     MergeCounters mMergeCounters;
+    std::optional<EvictionStatistics> mEvictionStatistics{};
 
     bool const mDeleteEntireBucketDirInDtor;
 
@@ -140,6 +141,10 @@ class BucketManagerImpl : public BucketManager
                        std::unique_ptr<BucketIndex const>&& index) override;
     void scanForEvictionLegacySQL(AbstractLedgerTxn& ltx,
                                   uint32_t ledgerSeq) override;
+    // void startBackgroundEvictionScan(uint32_t ledgerSeq) override;
+    void
+    resolveBackgroundEvictionScan(AbstractLedgerTxn& ltx, uint32_t ledgerSeq,
+                                  LedgerKeySet const& modifiedKeys) override;
 
     medida::Meter& getBloomMissMeter() const override;
     medida::Meter& getBloomLookupMeter() const override;

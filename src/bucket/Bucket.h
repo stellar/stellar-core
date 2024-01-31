@@ -38,6 +38,8 @@ namespace stellar
 class AbstractLedgerTxn;
 class Application;
 class BucketManager;
+class SearchableBucketListSnapshot;
+struct EvictionResultEntry;
 struct EvictionStatistics;
 
 class Bucket : public std::enable_shared_from_this<Bucket>,
@@ -136,6 +138,11 @@ class Bucket : public std::enable_shared_from_this<Bucket>,
         medida::Counter& entriesEvictedCounter,
         medida::Counter& bytesScannedForEvictionCounter,
         std::optional<EvictionStatistics>& stats) const;
+
+    bool scanForEviction(EvictionIterator& iter, uint64_t& bytesToScan,
+                         uint32_t ledgerSeq,
+                         std::list<EvictionResultEntry>& evictableKeys,
+                         SearchableBucketListSnapshot& bl) const;
 
     // Create a fresh bucket from given vectors of init (created) and live
     // (updated) LedgerEntries, and dead LedgerEntryKeys. The bucket will

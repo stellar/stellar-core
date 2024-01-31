@@ -9,6 +9,7 @@
 #include "bucket/Bucket.h"
 #include "bucket/BucketApplicator.h"
 #include "bucket/BucketList.h"
+#include "bucket/BucketListSnapshot.h"
 #include "bucket/BucketManager.h"
 #include "bucket/BucketOutputIterator.h"
 #include "bucket/LedgerCmp.h"
@@ -773,6 +774,92 @@ Bucket::scanForEvictionLegacySQL(
     }
 
     // Hit eof
+    return false;
+}
+
+bool
+Bucket::scanForEviction(EvictionIterator& iter, uint64_t& bytesToScan,
+                        uint32_t ledgerSeq,
+                        std::list<EvictionResultEntry>& evictableKeys,
+                        SearchableBucketListSnapshot& bl) const
+{
+    ZoneScoped;
+    if (isEmpty() ||
+        protocolVersionIsBefore(getBucketVersion(shared_from_this()),
+                                SOROBAN_PROTOCOL_VERSION))
+    {
+        // EOF, skip to next bucket
+        return false;
+    }
+
+    if (bytesToScan == 0)
+    {
+        // Reached end of scan region
+        return true;
+    }
+
+    XDRInputFileStream stream{};
+    stream.open(mFilename);
+    stream.seek(iter.bucketFileOffset);
+
+    std::list<EvictionResultEntry> maybeEvictQueue;
+    LedgerKeySet keysToSearch;
+
+    auto processQueue = [&]() {
+        auto loadResult =
+            populateLoadedEntries(keysToSearch, bl.loadKeys(keysToSearch));
+        for (auto& e : maybeEvictQueue)
+        {
+            // If temp entry is not deleted
+            if (loadResult.find(e.key)->second != nullptr)
+            {
+                auto ttl = loadResult.find(getTTLKey(e.key))->second;
+                releaseAssert(ttl);
+
+                // If TTL of entry is expired
+                if (!isLive(*ttl, ledgerSeq))
+                {
+                    // If entry is not yet deleted and expired, add it to
+                    // evictable keys
+                    e.liveUntilLedger = ttl->data.ttl().liveUntilLedgerSeq;
+                    evictableKeys.emplace_back(e);
+                }
+            }
+        }
+    };
+
+    BucketEntry be;
+    while (stream.readOne(be))
+    {
+        auto newPos = stream.pos();
+        auto bytesRead = newPos - iter.bucketFileOffset;
+        iter.bucketFileOffset = newPos;
+
+        if (be.type() == INITENTRY || be.type() == LIVEENTRY)
+        {
+            auto const& le = be.liveEntry();
+            if (isTemporaryEntry(le.data))
+            {
+                auto k = LedgerEntryKey(le);
+                keysToSearch.emplace(k);
+                keysToSearch.emplace(getTTLKey(le));
+                maybeEvictQueue.emplace_back(EvictionResultEntry(k, iter, 0));
+            }
+        }
+
+        if (bytesRead >= bytesToScan)
+        {
+            // Reached end of scan region
+            bytesToScan = 0;
+            processQueue();
+            return true;
+        }
+
+        bytesToScan -= bytesRead;
+    }
+
+    // Hit eof
+    processQueue();
     return false;
 }
 
