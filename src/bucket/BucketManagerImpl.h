@@ -51,6 +51,7 @@ class BucketManagerImpl : public BucketManager
     medida::Counter& mBucketListSizeCounter;
     EvictionCounters mBucketListEvictionCounters;
     MergeCounters mMergeCounters;
+    std::optional<EvictionStatistics> mEvictionStatistics{};
 
     // Lock for managing raw Bucket files or the bucket directory. This lock is
     // only required for file access, but is not required for logical changes to
@@ -142,6 +143,10 @@ class BucketManagerImpl : public BucketManager
                        std::unique_ptr<BucketIndex const>&& index) override;
     void scanForEvictionLegacySQL(AbstractLedgerTxn& ltx,
                                   uint32_t ledgerSeq) override;
+    // void startBackgroundEvictionScan(uint32_t ledgerSeq) override;
+    void
+    resolveBackgroundEvictionScan(AbstractLedgerTxn& ltx, uint32_t ledgerSeq,
+                                  LedgerKeySet const& modifiedKeys) override;
 
     std::unique_ptr<SearchableBucketListSnapshot>
     getSearchableBucketListSnapshot() const override;
