@@ -46,7 +46,9 @@ class InvokeHostFunctionOpFrame : public OperationFrame
 
     void
     insertLedgerKeysToPrefetch(UnorderedSet<LedgerKey>& keys) const override;
-
+    void insertLedgerKeysWithMappingsToPrefetch(
+        UnorderedSet<LedgerKey>& keys,
+        UnorderedMap<LedgerKey, UnorderedSet<Hash>>& lkToTx) const;
     static InvokeHostFunctionResultCode
     getInnerCode(OperationResult const& res)
     {

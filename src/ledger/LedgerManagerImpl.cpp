@@ -1442,12 +1442,27 @@ LedgerManagerImpl::prefetchTransactionData(
     ZoneScoped;
     if (mApp.getConfig().PREFETCH_BATCH_SIZE > 0)
     {
+        UnorderedMap<LedgerKey, UnorderedSet<Hash>> lkToTx;
+        UnorderedMap<Hash, uint32_t> txReadBytes;
         UnorderedSet<LedgerKey> keys;
+        UnorderedSet<LedgerKey> notLoaded;
         for (auto const& tx : txs)
         {
-            tx->insertKeysForTxApply(keys);
+            if (tx->isSoroban())
+            {
+                txReadBytes[tx->getContentsHash()] =
+                    tx->getResources(/* useByteLimitInClassic */ false)
+                        .getVal(stellar::Resource::Type::READ_BYTES);
+                tx->insertKeysAndLimitsForTxApply(keys, lkToTx);
+            }
+            else
+            {
+                tx->insertKeysForTxApply(keys);
+            }
         }
-        mApp.getLedgerTxnRoot().prefetch(keys);
+        mApp.getLedgerTxnRoot().prefetchWithLimits(keys, lkToTx, txReadBytes,
+                                                   notLoaded);
+        // TODO maybe use notLoaded?
     }
 }
 

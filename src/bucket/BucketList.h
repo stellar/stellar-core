@@ -7,6 +7,8 @@
 #include "bucket/FutureBucket.h"
 #include "bucket/LedgerCmp.h"
 #include "overlay/StellarXDR.h"
+#include "util/UnorderedMap.h"
+#include "util/UnorderedSet.h"
 #include "xdrpp/message.h"
 #include <future>
 #include <optional>
@@ -484,7 +486,10 @@ class BucketList
     std::shared_ptr<LedgerEntry> getLedgerEntry(LedgerKey const& k) const;
 
     std::vector<LedgerEntry>
-    loadKeys(std::set<LedgerKey, LedgerEntryIdCmp> const& inKeys) const;
+    loadKeysWithLimits(std::set<LedgerKey, LedgerEntryIdCmp> const& inKeys,
+                       UnorderedMap<LedgerKey, UnorderedSet<Hash>>& lkToTx,
+                       UnorderedMap<Hash, uint32_t>& txReadBytes,
+                       UnorderedSet<LedgerKey>& notLoaded) const;
 
     std::vector<LedgerEntry>
     loadPoolShareTrustLinesByAccountAndAsset(AccountID const& accountID,

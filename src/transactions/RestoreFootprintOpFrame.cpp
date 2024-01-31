@@ -207,6 +207,27 @@ void
 RestoreFootprintOpFrame::insertLedgerKeysToPrefetch(
     UnorderedSet<LedgerKey>& keys) const
 {
+    UnorderedMap<LedgerKey, UnorderedSet<Hash>> lkToTx;
+    insertLedgerKeysWithMappingsToPrefetch(keys, lkToTx);
+}
+void
+RestoreFootprintOpFrame::insertLedgerKeysWithMappingsToPrefetch(
+    UnorderedSet<LedgerKey>& keys,
+    UnorderedMap<LedgerKey, UnorderedSet<Hash>>& lkToTx) const
+{
+    auto addKey = [&](LedgerKey const& lk) {
+        keys.emplace(lk);
+        lkToTx[lk].emplace(mParentTx.getFullHash());
+    };
+    auto const& footprint = mParentTx.sorobanResources().footprint;
+    for (auto const& lk : footprint.readWrite)
+    {
+        addKey(lk);
+        if (lk.type() == CONTRACT_CODE || lk.type() == CONTRACT_DATA)
+        {
+            addKey(getTTLKey(lk));
+        }
+    }
 }
 
 bool

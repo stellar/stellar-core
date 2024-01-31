@@ -11,6 +11,7 @@
 #include "xdr/Stellar-ledger-entries.h"
 #include <map>
 #include <set>
+#include <unordered_map>
 #include <vector>
 
 // This is a stub helper class that pretends to implements a "root"
@@ -82,6 +83,12 @@ class InMemoryLedgerTxnRoot : public AbstractLedgerTxnParent
     void dropTTL(bool rebuild) override;
     double getPrefetchHitRate() const override;
     uint32_t prefetch(UnorderedSet<LedgerKey> const& keys) override;
+    uint32_t
+    prefetchWithLimits(UnorderedSet<LedgerKey> const& keys,
+                       UnorderedMap<LedgerKey, UnorderedSet<Hash>>& lkToTx,
+                       UnorderedMap<Hash, uint32_t>& txReadBytes,
+                       UnorderedSet<LedgerKey>& notLoaded) override;
+
     void prepareNewObjects(size_t s) override;
 
 #ifdef BUILD_TESTS

@@ -1625,6 +1625,19 @@ TransactionFrame::insertKeysForTxApply(UnorderedSet<LedgerKey>& keys) const
 }
 
 void
+TransactionFrame::insertKeysAndLimitsForTxApply(
+    UnorderedSet<LedgerKey>& keys,
+    UnorderedMap<LedgerKey, UnorderedSet<Hash>>& lkToTx) const
+{
+    UnorderedSet<LedgerKey> tx_keys;
+    insertKeysForTxApply(tx_keys);
+    for (auto const& lk : tx_keys)
+    {
+        lkToTx[lk].emplace(getContentsHash());
+    }
+    keys.insert(tx_keys.begin(), tx_keys.end());
+}
+void
 TransactionFrame::markResultFailed()
 {
     // Changing "code" normally causes the XDR structure to be destructed,

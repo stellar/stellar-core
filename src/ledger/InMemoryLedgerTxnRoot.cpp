@@ -169,9 +169,17 @@ InMemoryLedgerTxnRoot::getPrefetchHitRate() const
 {
     return 0.0;
 }
-
 uint32_t
 InMemoryLedgerTxnRoot::prefetch(UnorderedSet<LedgerKey> const&)
+{
+    return 0;
+}
+uint32_t
+InMemoryLedgerTxnRoot::prefetchWithLimits(
+    UnorderedSet<LedgerKey> const&,
+    UnorderedMap<LedgerKey, UnorderedSet<Hash>>&, UnorderedMap<Hash, uint32_t>&,
+    UnorderedSet<LedgerKey>&)
+
 {
     return 0;
 }

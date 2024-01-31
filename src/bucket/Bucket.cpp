@@ -204,16 +204,69 @@ Bucket::getBucketEntry(LedgerKey const& k)
 // do not load shadowed entries. If we don't find the entry, we do not remove it
 // from keys so that it will be searched for again at a lower level.
 void
-Bucket::loadKeys(std::set<LedgerKey, LedgerEntryIdCmp>& keys,
-                 std::vector<LedgerEntry>& result)
+Bucket::loadKeysWithLimits(std::set<LedgerKey, LedgerEntryIdCmp>& keys,
+                           std::vector<LedgerEntry>& result,
+                           UnorderedMap<LedgerKey, UnorderedSet<Hash>>& lkToTx,
+                           UnorderedMap<Hash, uint32_t>& txReadBytes,
+                           UnorderedSet<LedgerKey>& notLoaded)
 {
     ZoneScoped;
+    auto maxReadQuotaForKey = [&](auto const& key) {
+        uint32_t maxReadQuota = 0;
+        if (lkToTx.empty() || txReadBytes.empty() ||
+            /* classic */ lkToTx.count(key) == 0)
+        {
+            return std::numeric_limits<std::uint32_t>::max();
+        }
+        for (auto const& txn : lkToTx[key])
+        {
+            maxReadQuota = std::max(maxReadQuota, txReadBytes[txn]);
+        }
+        return maxReadQuota;
+    };
+
+    auto updateReadQuotaForLK = [&](auto const& key, auto const& entry) {
+        // At this point, the key has been loaded so it is not added to
+        // the notLoaded set, even if all remaining transactions now have
+        // zero read quota.
+        if (lkToTx.empty() || txReadBytes.empty() ||
+            /* classic */ lkToTx.count(key) == 0)
+        {
+            return;
+        }
+        // Update read quota for all txns waiting on this key.
+        auto size = xdr::xdr_size(entry) + kBucketEntrySizeEncodingBytes;
+        for (auto const& txn : lkToTx[key])
+        {
+            // Prevent underflow.
+            if (txReadBytes[txn] < size)
+            {
+                txReadBytes[txn] = 0;
+            }
+            else
+            {
+                txReadBytes[txn] -= size;
+            }
+        }
+    };
 
     auto currKeyIt = keys.begin();
     auto const& index = getIndex();
     auto indexIter = index.begin();
     while (currKeyIt != keys.end() && indexIter != index.end())
     {
+        auto maxReadQuota = maxReadQuotaForKey(*currKeyIt);
+        // TODO (this could be maxReadQuota < kBucketEntrySizeEncodingBytes)
+        if (maxReadQuota == 0)
+        {
+            notLoaded.insert(*currKeyIt);
+            // TODO (Consider adding a metric tracking failed loads due to
+            // insufficient quota) It may be useful to know if we see spikes in
+            // failed loads (although it should correlate with footprint
+            // validation failures).
+            currKeyIt = keys.erase(currKeyIt);
+            continue;
+        }
         auto [offOp, newIndexIter] = index.scan(indexIter, *currKeyIt);
         indexIter = newIndexIter;
         if (offOp)
@@ -224,6 +277,9 @@ Bucket::loadKeys(std::set<LedgerKey, LedgerEntryIdCmp>& keys,
             {
                 if (entryOp->type() != DEADENTRY)
                 {
+                    updateReadQuotaForLK(*currKeyIt, entryOp.value());
+                    // Regardless of read quota accounting, we want to add
+                    // entries to the cache once we have loaded them.
                     result.push_back(entryOp->liveEntry());
                 }
 

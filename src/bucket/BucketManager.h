@@ -233,6 +233,12 @@ class BucketManager : NonMovableOrCopyable
     loadKeys(std::set<LedgerKey, LedgerEntryIdCmp> const& keys) const = 0;
 
     virtual std::vector<LedgerEntry>
+    loadKeysWithLimits(std::set<LedgerKey, LedgerEntryIdCmp> const& keys,
+                       UnorderedMap<LedgerKey, UnorderedSet<Hash>>& lkToTx,
+                       UnorderedMap<Hash, uint32_t>& txReadBytes,
+                       UnorderedSet<LedgerKey>& notLoaded) const = 0;
+
+    virtual std::vector<LedgerEntry>
     loadPoolShareTrustLinesByAccountAndAsset(AccountID const& accountID,
                                              Asset const& asset) const = 0;
 

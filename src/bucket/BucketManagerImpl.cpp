@@ -965,9 +965,23 @@ std::vector<LedgerEntry>
 BucketManagerImpl::loadKeys(
     std::set<LedgerKey, LedgerEntryIdCmp> const& keys) const
 {
+    UnorderedMap<LedgerKey, UnorderedSet<Hash>> lkToTx;
+    UnorderedMap<Hash, uint32_t> txReadBytes;
+    UnorderedSet<LedgerKey> notLoaded;
+    return loadKeysWithLimits(keys, lkToTx, txReadBytes, notLoaded);
+}
+
+std::vector<LedgerEntry>
+BucketManagerImpl::loadKeysWithLimits(
+    std::set<LedgerKey, LedgerEntryIdCmp> const& keys,
+    UnorderedMap<LedgerKey, UnorderedSet<Hash>>& lkToTx,
+    UnorderedMap<Hash, uint32_t>& txReadBytes,
+    UnorderedSet<LedgerKey>& notLoaded) const
+{
     releaseAssertOrThrow(getConfig().isUsingBucketListDB());
     auto timer = recordBulkLoadMetrics("prefetch", keys.size()).TimeScope();
-    return mBucketList->loadKeys(keys);
+    return mBucketList->loadKeysWithLimits(keys, lkToTx, txReadBytes,
+                                           notLoaded);
 }
 
 std::vector<LedgerEntry>

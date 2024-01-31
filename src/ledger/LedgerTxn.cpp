@@ -22,6 +22,8 @@
 #include "xdr/Stellar-ledger-entries.h"
 #include "xdrpp/marshal.h"
 #include <Tracy.hpp>
+#include <map>
+#include <set>
 #include <soci.h>
 
 namespace stellar
@@ -2041,13 +2043,30 @@ LedgerTxn::Impl::getPrefetchHitRate() const
 uint32_t
 LedgerTxn::prefetch(UnorderedSet<LedgerKey> const& keys)
 {
-    return getImpl()->prefetch(keys);
+    UnorderedMap<LedgerKey, UnorderedSet<Hash>> lkToTx;
+    UnorderedMap<Hash, uint32_t> txReadBytes;
+    UnorderedSet<LedgerKey> notLoaded;
+    return prefetchWithLimits(keys, lkToTx, txReadBytes, notLoaded);
+    ;
+}
+uint32_t
+LedgerTxn::prefetchWithLimits(
+    UnorderedSet<LedgerKey> const& keys,
+    UnorderedMap<LedgerKey, UnorderedSet<Hash>>& lkToTx,
+    UnorderedMap<Hash, uint32_t>& txReadBytes,
+    UnorderedSet<LedgerKey>& notLoaded)
+{
+    return getImpl()->prefetchWithLimits(keys, lkToTx, txReadBytes, notLoaded);
 }
 
 uint32_t
-LedgerTxn::Impl::prefetch(UnorderedSet<LedgerKey> const& keys)
+LedgerTxn::Impl::prefetchWithLimits(
+    UnorderedSet<LedgerKey> const& keys,
+    UnorderedMap<LedgerKey, UnorderedSet<Hash>>& lkToTx,
+    UnorderedMap<Hash, uint32_t>& txReadBytes,
+    UnorderedSet<LedgerKey>& notLoaded)
 {
-    return mParent.prefetch(keys);
+    return mParent.prefetchWithLimits(keys, lkToTx, txReadBytes, notLoaded);
 }
 
 void
@@ -2953,11 +2972,37 @@ LedgerTxnRoot::dropTTL(bool rebuild)
 uint32_t
 LedgerTxnRoot::prefetch(UnorderedSet<LedgerKey> const& keys)
 {
-    return mImpl->prefetch(keys);
+    UnorderedMap<LedgerKey, UnorderedSet<Hash>> lkToTx;
+    UnorderedMap<Hash, uint32_t> txReadBytes;
+    UnorderedSet<LedgerKey> notLoaded;
+    return prefetchWithLimits(keys, lkToTx, txReadBytes, notLoaded);
+}
+uint32_t
+LedgerTxnRoot::prefetchWithLimits(
+    UnorderedSet<LedgerKey> const& keys,
+    UnorderedMap<LedgerKey, UnorderedSet<Hash>>& lkToTx,
+    UnorderedMap<Hash, uint32_t>& txReadBytes,
+    UnorderedSet<LedgerKey>& notLoaded)
+
+{
+    return mImpl->prefetchWithLimits(keys, lkToTx, txReadBytes, notLoaded);
 }
 
 uint32_t
 LedgerTxnRoot::Impl::prefetch(UnorderedSet<LedgerKey> const& keys)
+{
+    UnorderedMap<LedgerKey, UnorderedSet<Hash>> lkToTx;
+    UnorderedMap<Hash, uint32_t> txReadBytes;
+    UnorderedSet<LedgerKey> notLoaded;
+    return prefetchWithLimits(keys, lkToTx, txReadBytes, notLoaded);
+}
+
+uint32_t
+LedgerTxnRoot::Impl::prefetchWithLimits(
+    UnorderedSet<LedgerKey> const& keys,
+    UnorderedMap<LedgerKey, UnorderedSet<Hash>>& lkToTx,
+    UnorderedMap<Hash, uint32_t>& txReadBytes,
+    UnorderedSet<LedgerKey>& notLoaded)
 {
     ZoneScoped;
     uint32_t total = 0;
@@ -2972,10 +3017,46 @@ LedgerTxnRoot::Impl::prefetch(UnorderedSet<LedgerKey> const& keys)
             }
         };
 
+    auto maybeAccountForReadSizeAndAbort =
+        [&](LedgerKey const& key, std::shared_ptr<LedgerEntry const> entry) {
+            if (lkToTx.empty() || txReadBytes.empty())
+            {
+                return;
+            }
+            auto size = xdr::xdr_size(key);
+            if (entry)
+            {
+                size = xdr::xdr_size(*entry);
+            }
+            bool hasTransactionWithQuota = false;
+            for (auto const& tx : lkToTx[key])
+            {
+                if (size > txReadBytes[tx])
+                {
+                    txReadBytes[tx] = 0;
+                }
+                else
+                {
+                    txReadBytes[tx] -= size;
+                    hasTransactionWithQuota = true;
+                }
+            }
+            if (!hasTransactionWithQuota)
+            {
+                notLoaded.insert(key);
+            }
+        };
     auto insertIfNotLoaded = [&](auto& keys, LedgerKey const& key) {
         if (!mEntryCache.exists(key, false))
         {
             keys.insert(key);
+        }
+        else
+        {
+            // If the key is already in the cache, it still contributes to
+            // the read byte limit.
+            auto le = mEntryCache.get(key);
+            maybeAccountForReadSizeAndAbort(key, le.entry);
         }
     };
 
@@ -2986,8 +3067,13 @@ LedgerTxnRoot::Impl::prefetch(UnorderedSet<LedgerKey> const& keys)
         {
             insertIfNotLoaded(keysToSearch, key);
         }
+        // TODO keysToSearch = keysToSearch - notLoaded
+        std::set_difference(keysToSearch.begin(), keysToSearch.end(),
+                            notLoaded.begin(), notLoaded.end(),
+                            std::inserter(keysToSearch, keysToSearch.end()));
 
-        auto blLoad = mApp.getBucketManager().loadKeys(keysToSearch);
+        auto blLoad = mApp.getBucketManager().loadKeysWithLimits(
+            keysToSearch, lkToTx, txReadBytes, notLoaded);
         cacheResult(populateLoadedEntries(keysToSearch, blLoad));
     }
     else
@@ -3483,7 +3569,6 @@ LedgerTxnRoot::Impl::getOffersByAccountAndAsset(AccountID const& account,
         }
     }
     prefetch(toPrefetch);
-
     return res;
 }
 

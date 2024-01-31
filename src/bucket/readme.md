@@ -90,7 +90,7 @@ lookup speed and memory overhead. The following configuration flags control thes
     Larger values slow down lookup speed but
     decrease memory usage.
 - `EXPERIMENTAL_BUCKETLIST_DB_INDEX_CUTOFF`
-  - Bucket file size, in MB, tyhat determines wether the `IndividualIndex` or
+  - Bucket file size, in MB, that determines wether the `IndividualIndex` or
    `RangeIndex` is used.
     Default value is 20 MB, which indexes the first ~3 levels with the `IndividualIndex`.
     Larger values speed up lookups but increase memory usage.

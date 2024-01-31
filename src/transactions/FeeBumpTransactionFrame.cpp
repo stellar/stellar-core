@@ -512,6 +512,13 @@ FeeBumpTransactionFrame::insertKeysForTxApply(
 }
 
 void
+FeeBumpTransactionFrame::insertKeysAndLimitsForTxApply(
+    UnorderedSet<LedgerKey>& keys,
+    UnorderedMap<LedgerKey, UnorderedSet<Hash>>& lkToTx) const
+{
+}
+
+void
 FeeBumpTransactionFrame::processFeeSeqNum(AbstractLedgerTxn& ltx,
                                           std::optional<int64_t> baseFee)
 {

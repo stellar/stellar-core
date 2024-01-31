@@ -16,6 +16,7 @@
 #include <map>
 #include <memory>
 #include <set>
+#include <unordered_map>
 
 /////////////////////////////////////////////////////////////////////////////
 //  Overview
@@ -501,6 +502,11 @@ class AbstractLedgerTxnParent
     // work, while still being correct. Will throw when called on anything other
     // than a (real or stub) root LedgerTxn.
     virtual uint32_t prefetch(UnorderedSet<LedgerKey> const& keys) = 0;
+    virtual uint32_t
+    prefetchWithLimits(UnorderedSet<LedgerKey> const& keys,
+                       UnorderedMap<LedgerKey, UnorderedSet<Hash>>& lkToTx,
+                       UnorderedMap<Hash, uint32_t>& txReadBytes,
+                       UnorderedSet<LedgerKey>& notLoaded) = 0;
 
     // prepares to increase the capacity of pending changes by up to "s" changes
     virtual void prepareNewObjects(size_t s) = 0;
@@ -795,6 +801,12 @@ class LedgerTxn : public AbstractLedgerTxn
 
     double getPrefetchHitRate() const override;
     uint32_t prefetch(UnorderedSet<LedgerKey> const& keys) override;
+
+    uint32_t
+    prefetchWithLimits(UnorderedSet<LedgerKey> const& keys,
+                       UnorderedMap<LedgerKey, UnorderedSet<Hash>>& lkToTx,
+                       UnorderedMap<Hash, uint32_t>& txReadBytes,
+                       UnorderedSet<LedgerKey>& notLoaded) override;
     void prepareNewObjects(size_t s) override;
 
     bool hasSponsorshipEntry() const override;
@@ -887,8 +899,13 @@ class LedgerTxnRoot : public AbstractLedgerTxnParent
     void rollbackChild() noexcept override;
 
     uint32_t prefetch(UnorderedSet<LedgerKey> const& keys) override;
-    double getPrefetchHitRate() const override;
+    uint32_t
+    prefetchWithLimits(UnorderedSet<LedgerKey> const& keys,
+                       UnorderedMap<LedgerKey, UnorderedSet<Hash>>& lkToTx,
+                       UnorderedMap<Hash, uint32_t>& txReadBytes,
+                       UnorderedSet<LedgerKey>& notLoaded) override;
 
+    double getPrefetchHitRate() const override;
     void prepareNewObjects(size_t s) override;
 
 #ifdef BEST_OFFER_DEBUGGING

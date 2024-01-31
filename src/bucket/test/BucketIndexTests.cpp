@@ -17,7 +17,10 @@
 
 #include "lib/bloom_filter.hpp"
 
+#include "lib/xdrpp/xdrpp/autocheck.h"
 #include "util/XDRCereal.h"
+#include <autocheck/generator.hpp>
+#include <cmath>
 
 using namespace stellar;
 using namespace BucketTestUtils;
@@ -38,6 +41,7 @@ class BucketIndexTest
     LedgerKeySet mKeysToSearch;
     stellar::uniform_int_distribution<uint8_t> mDist;
     uint32_t mLevelsToBuild;
+    UnorderedMap<LedgerKey, std::uint32_t> keyToEntrySize;
 
     static void
     validateResults(UnorderedMap<LedgerKey, LedgerEntry> const& validEntries,
@@ -194,6 +198,87 @@ class BucketIndexTest
         insertEntries(entries);
     }
 
+    LedgerKey
+    insertContractKey(std::vector<int32_t>& readByteQuotaOffsets,
+                      std::vector<Hash>& txs,
+                      UnorderedMap<LedgerKey, UnorderedSet<Hash>>& lkToTx,
+                      UnorderedMap<Hash, uint32_t>& txReadBytes,
+                      UnorderedMap<LedgerKey, std::uint32_t>& keyToEntrySize)
+    {
+        auto e = LedgerTestUtils::generateValidLedgerEntryWithTypes(
+            {TTL, CONTRACT_CODE, CONTRACT_DATA});
+        auto k = LedgerEntryKey(e);
+        mKeysToSearch.emplace(LedgerEntryKey(e));
+        auto const& [_, inserted] = mTestEntries.emplace(k, e);
+        // No key collisions
+        REQUIRE(inserted);
+        insertEntries({e});
+
+        auto key_size = xdr::xdr_size(k);
+        auto entry_size = xdr::xdr_size(e);
+
+        for (size_t i = 0; i < readByteQuotaOffsets.size(); i++)
+        {
+            // Update lkToTx and txReadBytes.
+            lkToTx[k].insert(txs[i]);
+            if (readByteQuotaOffsets[i] >= 0 ||
+                std::abs(readByteQuotaOffsets[i]) < key_size)
+            {
+                keyToEntrySize[k] = std::max(key_size, entry_size) +
+                                    Bucket::kBucketEntrySizeEncodingBytes;
+                txReadBytes[txs[i]] +=
+                    keyToEntrySize[k] + readByteQuotaOffsets[i];
+            }
+        }
+        return k;
+    }
+    LedgerKey
+    insertContractKey(int32_t readByteQuotaOffset, Hash tx,
+                      UnorderedMap<LedgerKey, UnorderedSet<Hash>>& lkToTx,
+                      UnorderedMap<Hash, uint32_t>& txReadBytes,
+                      UnorderedMap<LedgerKey, std::uint32_t>& keyToEntrySize)
+    {
+        std::vector<int32_t> offsets(1, readByteQuotaOffset);
+        std::vector<Hash> txs{};
+        txs.emplace_back(tx);
+        return insertContractKey(offsets, txs, lkToTx, txReadBytes,
+                                 keyToEntrySize);
+    }
+
+    LedgerKey
+    insertContractDataKeyMinSize(
+        size_t minSize, Hash tx,
+        UnorderedMap<LedgerKey, UnorderedSet<Hash>>& lkToTx,
+        UnorderedMap<Hash, uint32_t>& txReadBytes,
+        UnorderedMap<LedgerKey, std::uint32_t>& keyToEntrySize)
+    {
+        auto e =
+            LedgerTestUtils::generateValidLedgerEntryWithTypes({CONTRACT_DATA});
+        SCVal cd_value(SCV_BYTES);
+        xdr::opaque_vec<xdr::XDR_MAX_LEN> data_bytes;
+        size_t data_bytes_size = 0;
+        do
+        {
+            data_bytes = autocheck::generator<decltype(data_bytes)>()(minSize);
+            data_bytes_size = xdr::xdr_size(data_bytes);
+        } while (data_bytes_size < minSize);
+        cd_value.bytes().assign(data_bytes.begin(), data_bytes.end());
+        e.data.contractData().val = cd_value;
+
+        auto k = LedgerEntryKey(e);
+        mKeysToSearch.emplace(LedgerEntryKey(e));
+        auto const& [_, inserted] = mTestEntries.emplace(k, e);
+        // No key collisions
+        REQUIRE(inserted);
+        insertEntries({e});
+        keyToEntrySize[k] = xdr::xdr_size(e);
+        REQUIRE(keyToEntrySize[k] > minSize);
+        txReadBytes[tx] +=
+            keyToEntrySize[k] + Bucket::kBucketEntrySizeEncodingBytes;
+        lkToTx[k].insert(tx);
+        return k;
+    }
+
     virtual void
     run()
     {
@@ -269,6 +354,177 @@ class BucketIndexTest
         {
             auto entryPtr = getBM().getLedgerEntry(key);
             REQUIRE(!entryPtr);
+        }
+    }
+
+    void
+    testLoadContractKeySpanningPages()
+    {
+        size_t page_size = 16384;
+        for (auto const& bucketHash : getBM().getBucketListReferencedBuckets())
+        {
+            if (isZero(bucketHash))
+            {
+                continue;
+            }
+            auto b = getBM().getBucketByHash(bucketHash);
+            REQUIRE(!b->isEmpty());
+            REQUIRE(b->isIndexed());
+            page_size = std::max(
+                page_size,
+                static_cast<size_t>(b->getIndexForTesting().getPageSize()));
+        }
+
+        UnorderedMap<LedgerKey, UnorderedSet<Hash>> lkToTx;
+        UnorderedMap<Hash, uint32_t> txReadBytes;
+        UnorderedSet<LedgerKey> notLoaded;
+        LedgerKeySet expectedSuccessKeys;
+        LedgerKeySet expectedFailedKeys;
+        UnorderedMap<LedgerKey, std::uint32_t> keyToEntrySize;
+        std::vector<Hash> txs(4, Hash());
+        for (uint8_t i = 0; i < txs.size(); i++)
+        {
+            txs[i][0] = i;
+        }
+
+        expectedSuccessKeys.insert(insertContractDataKeyMinSize(
+            page_size, txs[0], lkToTx, txReadBytes, keyToEntrySize));
+        // loadKeys will load an entry if it has a transaction with a non-zero
+        // quota. Even with a quota of 1, we can load an entry with a size
+        // larger than the page size.
+        expectedSuccessKeys.insert(insertContractDataKeyMinSize(
+            page_size, txs[1], lkToTx, txReadBytes, keyToEntrySize));
+        txReadBytes[txs[1]] = 1;
+        // tx[2] has zero quota, so no keys should succeed.
+        expectedFailedKeys.insert(insertContractDataKeyMinSize(
+            page_size, txs[2], lkToTx, txReadBytes, keyToEntrySize));
+        txReadBytes[txs[2]] = 0;
+
+        auto key_a = insertContractDataKeyMinSize(page_size, txs[3], lkToTx,
+                                                  txReadBytes, keyToEntrySize);
+        auto key_b = insertContractDataKeyMinSize(page_size, txs[3], lkToTx,
+                                                  txReadBytes, keyToEntrySize);
+        txReadBytes[txs[3]] -=
+            std::max(keyToEntrySize[key_a], keyToEntrySize[key_b]);
+
+        auto loadResult = getBM().loadKeysWithLimits(mKeysToSearch, lkToTx,
+                                                     txReadBytes, notLoaded);
+        LedgerKeySet loadResultSet{};
+        std::transform(
+            loadResult.begin(), loadResult.end(),
+            std::inserter(loadResultSet, loadResultSet.end()), [](auto& le) {
+                return LedgerEntryKey(const_cast<const LedgerEntry&>(le));
+            });
+        // Either a or b should be loaded, but not both.
+        if (notLoaded.find(key_a) == notLoaded.end())
+        {
+            expectedSuccessKeys.insert(key_a);
+            expectedFailedKeys.insert(key_b);
+        }
+        else
+        {
+            expectedFailedKeys.insert(key_a);
+            expectedSuccessKeys.insert(key_b);
+        }
+        REQUIRE(loadResult.size() == expectedSuccessKeys.size());
+        REQUIRE(notLoaded.size() == expectedFailedKeys.size());
+
+        for (auto key : expectedSuccessKeys)
+        {
+            REQUIRE(notLoaded.find(key) == notLoaded.end());
+            REQUIRE(loadResultSet.find(key) != loadResultSet.end());
+        }
+        for (auto key : expectedFailedKeys)
+        {
+            REQUIRE(notLoaded.find(key) != notLoaded.end());
+            REQUIRE(loadResultSet.find(key) == loadResultSet.end());
+        }
+        for (auto tx : txs)
+        {
+            REQUIRE(txReadBytes[tx] == 0);
+        }
+    }
+
+    void
+    testLoadContractKeysWithInsufficientReadBytes()
+    {
+        UnorderedMap<LedgerKey, UnorderedSet<Hash>> lkToTx;
+        UnorderedMap<Hash, uint32_t> txReadBytes;
+        LedgerKeySet expectedSuccessKeys;
+        LedgerKeySet expectedFailedKeys;
+
+        UnorderedMap<LedgerKey, std::uint32_t> keyToEntrySize;
+        std::vector<Hash> txs(9, Hash());
+        for (uint8_t i = 0; i < txs.size(); i++)
+        {
+            txs[i][0] = i;
+        }
+
+        // TX 0 has one key, with zero read quota.
+        expectedFailedKeys.insert(insertContractKey(
+            -100, txs[0], lkToTx, txReadBytes, keyToEntrySize));
+        txReadBytes[txs[0]] = 0;
+
+        // TX 1 has one key, with read quota of 1.
+        expectedSuccessKeys.insert(
+            insertContractKey(0, txs[1], lkToTx, txReadBytes, keyToEntrySize));
+        txReadBytes[txs[1]] = 1;
+
+        // TX 2 has one key, with read quota one less than the entry size
+        expectedSuccessKeys.insert(
+            insertContractKey(-1, txs[2], lkToTx, txReadBytes, keyToEntrySize));
+
+        // TX 3 has one key, quota equal to the entry size.
+        expectedSuccessKeys.insert(
+            insertContractKey(0, txs[3], lkToTx, txReadBytes, keyToEntrySize));
+        // TX 4 has one key, quota one more than the entry size.
+        expectedSuccessKeys.insert(
+            insertContractKey(1, txs[4], lkToTx, txReadBytes, keyToEntrySize));
+        // TX 5 and 6 share a key. TX 5 has enough quota, TX 6 does not.
+        std::vector<int32_t> offsets_shared({0, -100});
+        std::vector<Hash> txs_shared({txs[5], txs[6]});
+        auto key_shared = insertContractKey(offsets_shared, txs_shared, lkToTx,
+                                            txReadBytes, keyToEntrySize);
+        expectedSuccessKeys.insert(key_shared);
+        // TX 7 has two keys, it has enough quota for one but not the other.
+        // Depending on the iteration order, one or both should succeed.
+        auto key_a =
+            insertContractKey(-1, txs[7], lkToTx, txReadBytes, keyToEntrySize);
+        auto key_b =
+            insertContractKey(0, txs[7], lkToTx, txReadBytes, keyToEntrySize);
+        txReadBytes[txs[7]] -=
+            std::max(keyToEntrySize[key_a], keyToEntrySize[key_b]);
+
+        // TX 8 has three keys, enough for all.
+        expectedSuccessKeys.insert((
+            insertContractKey(0, txs[8], lkToTx, txReadBytes, keyToEntrySize)));
+        expectedSuccessKeys.insert((
+            insertContractKey(0, txs[8], lkToTx, txReadBytes, keyToEntrySize)));
+        expectedSuccessKeys.insert((
+            insertContractKey(0, txs[8], lkToTx, txReadBytes, keyToEntrySize)));
+
+        UnorderedSet<LedgerKey> notLoaded;
+        auto loadResult = getBM().loadKeysWithLimits(mKeysToSearch, lkToTx,
+                                                     txReadBytes, notLoaded);
+        LedgerKeySet loadResultSet{};
+        std::transform(
+            loadResult.begin(), loadResult.end(),
+            std::inserter(loadResultSet, loadResultSet.end()), [](auto& le) {
+                return LedgerEntryKey(const_cast<const LedgerEntry&>(le));
+            });
+
+        // Either one or both of a and b should be loaded.
+        REQUIRE(loadResultSet.count(key_a) + loadResultSet.count(key_b) > 0);
+
+        for (auto key : expectedSuccessKeys)
+        {
+            REQUIRE(notLoaded.find(key) == notLoaded.end());
+            REQUIRE(loadResultSet.find(key) != loadResultSet.end());
+        }
+        for (auto key : expectedFailedKeys)
+        {
+            REQUIRE(notLoaded.find(key) != notLoaded.end());
+            REQUIRE(loadResultSet.find(key) == loadResultSet.end());
         }
     }
 
@@ -522,6 +778,30 @@ TEST_CASE("ContractData key with same ScVal", "[bucket][bucketindex]")
     testAllIndexTypes(f);
 }
 
+TEST_CASE("ContractData key with read bytes accounting",
+          "[bucket][bucketindex]")
+{
+    auto f = [&](Config& cfg) {
+        auto test = BucketIndexTest(cfg, /*levels=*/1);
+        test.buildGeneralTest();
+        test.testLoadContractKeysWithInsufficientReadBytes();
+        test.run();
+    };
+
+    testAllIndexTypes(f);
+}
+TEST_CASE("ContractData entry spanning pages", "[bucket][bucketindex]")
+{
+    auto f = [&](Config& cfg) {
+        auto test = BucketIndexTest(cfg, /*levels=*/1);
+        test.buildGeneralTest();
+        test.testLoadContractKeySpanningPages();
+        test.run();
+    };
+    // This test is intended to the correctness test edge cases of range based
+    // indexes, however we want to maintain semantics across index types.
+    testAllIndexTypes(f);
+}
 TEST_CASE("serialize bucket indexes", "[bucket][bucketindex][!hide]")
 {
     Config cfg(getTestConfig(0, Config::TESTDB_ON_DISK_SQLITE));

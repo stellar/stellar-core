@@ -18,7 +18,6 @@
 #include "util/GlobalChecks.h"
 #include "util/Logging.h"
 #include "util/ProtocolVersion.h"
-#include "util/UnorderedSet.h"
 #include "util/XDRStream.h"
 #include "util/types.h"
 
@@ -425,7 +424,11 @@ BucketList::getLedgerEntry(LedgerKey const& k) const
 }
 
 std::vector<LedgerEntry>
-BucketList::loadKeys(std::set<LedgerKey, LedgerEntryIdCmp> const& inKeys) const
+BucketList::loadKeysWithLimits(
+    std::set<LedgerKey, LedgerEntryIdCmp> const& inKeys,
+    UnorderedMap<LedgerKey, UnorderedSet<Hash>>& lkToTx,
+    UnorderedMap<Hash, uint32_t>& txReadBytes,
+    UnorderedSet<LedgerKey>& notLoaded) const
 {
     ZoneScoped;
     std::vector<LedgerEntry> entries;
@@ -433,7 +436,7 @@ BucketList::loadKeys(std::set<LedgerKey, LedgerEntryIdCmp> const& inKeys) const
     // Make a copy of the key set, this loop is destructive
     auto keys = inKeys;
     auto f = [&](std::shared_ptr<Bucket> b) {
-        b->loadKeys(keys, entries);
+        b->loadKeysWithLimits(keys, entries, lkToTx, txReadBytes, notLoaded);
         return keys.empty();
     };
 
@@ -467,7 +470,11 @@ BucketList::loadPoolShareTrustLinesByAccountAndAsset(AccountID const& accountID,
     };
 
     loopAllBuckets(trustLineLoop);
-    return loadKeys(trustlinesToLoad);
+
+    // Load all the LiquidityPool entries that the account has a trustline for.
+    LedgerKeyMeter lkMeter{};
+    return loadKeysWithLimits(
+        liquidityPoolKeysToSearch, lkMeter);
 }
 
 std::vector<InflationWinner>
