@@ -2636,6 +2636,12 @@ TEST_CASE("settings upgrade command line utils", "[tx][soroban][upgrades]")
     auto root = TestAccount::createRoot(*app);
     auto& lm = app->getLedgerManager();
 
+    // Update the snapshot period and close a ledger to update
+    // mAverageBucketListSize
+    modifySorobanNetworkConfig(*app, [](SorobanNetworkConfig& cfg) {
+        cfg.mStateArchivalSettings.bucketListWindowSamplePeriod = 1;
+    });
+
     const int64_t startingBalance =
         app->getLedgerManager().getLastMinBalance(50);
 
@@ -2893,11 +2899,6 @@ TEST_CASE("settings upgrade command line utils", "[tx][soroban][upgrades]")
     txsToSign.emplace_back(invokeRes.first);
     auto const& upgradeSetKey = invokeRes.second;
 
-    // Update the snapshot period and close a ledger to update
-    // mAverageBucketListSize
-    app->getLedgerManager()
-        .getMutableSorobanNetworkConfig()
-        .setBucketListSnapshotPeriodForTesting(1);
     closeLedger(*app);
 
     // Update bucketListTargetSizeBytes so bucketListWriteFeeGrowthFactor comes

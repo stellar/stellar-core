@@ -41,6 +41,7 @@ struct MinimumSorobanNetworkConfig
     static constexpr int64_t RENT_RATE_DENOMINATOR = INT64_MAX;
     static constexpr uint32_t MAX_ENTRIES_TO_ARCHIVE = 0;
     static constexpr uint32_t BUCKETLIST_SIZE_WINDOW_SAMPLE_SIZE = 1;
+    static constexpr uint32_t BUCKETLIST_WINDOW_SAMPLE_PERIOD = 1;
     static constexpr uint32_t EVICTION_SCAN_SIZE = 0;
     static constexpr uint32_t STARTING_EVICTION_LEVEL = 1;
 
@@ -97,8 +98,9 @@ struct InitialSorobanNetworkConfig
     // No growth fee initially to make sure fees are accessible
     static constexpr uint32_t BUCKET_LIST_WRITE_FEE_GROWTH_FACTOR = 1;
 
-    static constexpr uint64_t BUCKET_LIST_SIZE_WINDOW_SAMPLE_SIZE =
-        30; // 30 day average
+    static constexpr uint64_t BUCKET_LIST_SIZE_WINDOW_SAMPLE_SIZE = 30;
+
+    static constexpr uint32_t BUCKET_LIST_WINDOW_SAMPLE_PERIOD = 64;
 
     // Historical data settings
     static constexpr int64_t FEE_HISTORICAL_1KB = 100;
@@ -284,9 +286,6 @@ class SorobanNetworkConfig
     // General execution ledger settings
     uint32_t ledgerMaxTxCount() const;
 
-    // Number of samples in sliding window
-    uint32_t getBucketListSizeSnapshotPeriod() const;
-
     // If currLedger is a ledger when we should snapshot, add a new snapshot to
     // the sliding window and write it to disk.
     void maybeSnapshotBucketListSize(uint32_t currLedger,
@@ -295,10 +294,6 @@ class SorobanNetworkConfig
     // Returns the average of all BucketList size snapshots in the sliding
     // window.
     uint64_t getAverageBucketListSize() const;
-
-#ifdef BUILD_TESTS
-    void setBucketListSnapshotPeriodForTesting(uint32_t period);
-#endif
 
     static bool isValidConfigSettingEntry(ConfigSettingEntry const& cfg);
     static bool
@@ -325,9 +320,6 @@ class SorobanNetworkConfig
 #endif
 
   private:
-    static constexpr uint32_t BUCKETLIST_SIZE_SNAPSHOT_PERIOD =
-        17280; // 1 day, in ledgers
-
     void loadMaxContractSize(AbstractLedgerTxn& ltx);
     void loadMaxContractDataKeySize(AbstractLedgerTxn& ltx);
     void loadMaxContractDataEntrySize(AbstractLedgerTxn& ltx);
@@ -409,8 +401,6 @@ class SorobanNetworkConfig
     uint64_t mAverageBucketListSize{0};
 
 #ifdef BUILD_TESTS
-    std::optional<uint32_t> mBucketListSnapshotPeriodForTesting;
-
     void writeAllSettings(AbstractLedgerTxn& ltx) const;
 #endif
 

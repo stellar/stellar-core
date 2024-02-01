@@ -714,21 +714,22 @@ TEST_CASE_VERSIONS("network config snapshots BucketList size", "[bucketlist]")
         check();
 
         // Take snapshots more frequently for faster testing
-        app->getLedgerManager()
-            .getMutableSorobanNetworkConfig()
-            .setBucketListSnapshotPeriodForTesting(64);
+        modifySorobanNetworkConfig(*app, [](SorobanNetworkConfig& cfg) {
+            cfg.mStateArchivalSettings.bucketListWindowSamplePeriod = 64;
+        });
 
         // Generate enough ledgers to fill sliding window
         auto ledgersToGenerate =
-            (windowSize + 1) * networkConfig.getBucketListSizeSnapshotPeriod();
+            (windowSize + 1) *
+            networkConfig.stateArchivalSettings().bucketListWindowSamplePeriod;
         for (uint32_t ledger = 1; ledger < ledgersToGenerate; ++ledger)
         {
             // Note: BucketList size in the sliding window is snapshotted before
             // adding new sliding window config entry with the resulting
             // snapshot, so we have to take the snapshot here before closing the
             // ledger to avoid counting the new  snapshot config entry
-            if ((ledger + 1) %
-                    networkConfig.getBucketListSizeSnapshotPeriod() ==
+            if ((ledger + 1) % networkConfig.stateArchivalSettings()
+                                   .bucketListWindowSamplePeriod ==
                 0)
             {
                 correctWindow.pop_front();
@@ -739,8 +740,8 @@ TEST_CASE_VERSIONS("network config snapshots BucketList size", "[bucketlist]")
             lm.setNextLedgerEntryBatchForBucketTesting(
                 {}, LedgerTestUtils::generateValidUniqueLedgerEntries(10), {});
             closeLedger(*app);
-            if ((ledger + 1) %
-                    networkConfig.getBucketListSizeSnapshotPeriod() ==
+            if ((ledger + 1) % networkConfig.stateArchivalSettings()
+                                   .bucketListWindowSamplePeriod ==
                 0)
             {
                 check();

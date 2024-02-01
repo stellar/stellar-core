@@ -843,10 +843,10 @@ CommandHandler::sorobanInfo(std::string const& params, std::string& retStr)
                 stateArchivalSettings.evictionScanSize);
             archivalInfo["starting_eviction_scan_level"] =
                 stateArchivalSettings.startingEvictionScanLevel;
+            archivalInfo["bucket_list_size_snapshot_period"] =
+                stateArchivalSettings.bucketListSizeWindowSampleSize;
 
             // non-configurable settings
-            archivalInfo["bucket_list_size_snapshot_period"] =
-                conf.getBucketListSizeSnapshotPeriod();
             archivalInfo["average_bucket_list_size"] =
                 static_cast<Json::UInt64>(conf.getAverageBucketListSize());
             retStr = res.toStyledString();

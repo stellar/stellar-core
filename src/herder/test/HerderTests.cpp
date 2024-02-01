@@ -4116,7 +4116,7 @@ herderExternalizesValuesWithProtocol(uint32_t version)
         for (auto const& node : simulation->getNodes())
         {
             modifySorobanNetworkConfig(*node, [&](SorobanNetworkConfig& cfg) {
-                cfg.setBucketListSnapshotPeriodForTesting(1);
+                cfg.mStateArchivalSettings.bucketListWindowSamplePeriod = 1;
             });
         }
     }
@@ -4428,7 +4428,7 @@ herderExternalizesValuesWithProtocol(uint32_t version)
         if (protocolVersionStartsFrom(version, SOROBAN_PROTOCOL_VERSION))
         {
             modifySorobanNetworkConfig(*newC, [&](SorobanNetworkConfig& cfg) {
-                cfg.setBucketListSnapshotPeriodForTesting(1);
+                cfg.mStateArchivalSettings.bucketListWindowSamplePeriod = 1;
             });
         }
         newC->start();
