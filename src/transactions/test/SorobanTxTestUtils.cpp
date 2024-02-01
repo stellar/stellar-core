@@ -1552,7 +1552,7 @@ ContractStorageTestClient::resizeStorageAndExtend(
 SorobanSigner::SorobanSigner(SorobanTest& test, SCAddress const& address,
                              xdr::xvector<LedgerKey> const& keys,
                              std::function<SCVal(uint256)> signFn)
-    : mTest(test), mAddress(address), mKeys(keys), mSignFn(signFn)
+    : mTest(test), mSignFn(signFn), mAddress(address), mKeys(keys)
 {
 }
 
