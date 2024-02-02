@@ -1409,6 +1409,10 @@ TEST_CASE("settings upgrade", "[tx][soroban][upgrades]")
                 cost.contractLedgerCost().txMaxWriteBytes);
         cost.contractLedgerCost().feeRead1KB = 1000;
 
+        // additional testing to make sure a negative value is accepted for the
+        // low value.
+        cost.contractLedgerCost().writeFee1KBBucketListLow = -100;
+
         ConfigUpgradeSet upgradeSet;
         upgradeSet.updatedEntry = updatedEntries;
 

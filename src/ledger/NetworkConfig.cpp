@@ -568,7 +568,6 @@ SorobanNetworkConfig::isValidConfigSettingEntry(ConfigSettingEntry const& cfg)
                 cfg.contractLedgerCost().feeWriteLedgerEntry >= 0 &&
                 cfg.contractLedgerCost().feeRead1KB >= 0 &&
                 cfg.contractLedgerCost().bucketListTargetSizeBytes > 0 &&
-                cfg.contractLedgerCost().writeFee1KBBucketListLow >= 0 &&
                 cfg.contractLedgerCost().writeFee1KBBucketListHigh >= 0 &&
                 cfg.contractLedgerCost().bucketListWriteFeeGrowthFactor >= 0;
         break;
