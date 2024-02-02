@@ -341,9 +341,8 @@ initialStateArchivalSettings(Config const& cfg)
         InitialSorobanNetworkConfig::MINIMUM_TEMP_ENTRY_LIFETIME;
     entry.stateArchivalSettings().bucketListSizeWindowSampleSize =
         InitialSorobanNetworkConfig::BUCKET_LIST_SIZE_WINDOW_SAMPLE_SIZE;
-
-    entry.stateArchivalSettings().bucketListSizeWindowSampleSize =
-        InitialSorobanNetworkConfig::BUCKET_LIST_SIZE_WINDOW_SAMPLE_SIZE;
+    entry.stateArchivalSettings().bucketListWindowSamplePeriod =
+        InitialSorobanNetworkConfig::BUCKET_LIST_WINDOW_SAMPLE_PERIOD;
 
     if (cfg.OVERRIDE_EVICTION_PARAMS_FOR_TESTING)
     {
@@ -569,7 +568,6 @@ SorobanNetworkConfig::isValidConfigSettingEntry(ConfigSettingEntry const& cfg)
                 cfg.contractLedgerCost().feeWriteLedgerEntry >= 0 &&
                 cfg.contractLedgerCost().feeRead1KB >= 0 &&
                 cfg.contractLedgerCost().bucketListTargetSizeBytes > 0 &&
-                cfg.contractLedgerCost().writeFee1KBBucketListLow >= 0 &&
                 cfg.contractLedgerCost().writeFee1KBBucketListHigh >= 0 &&
                 cfg.contractLedgerCost().bucketListWriteFeeGrowthFactor >= 0;
         break;
@@ -580,26 +578,29 @@ SorobanNetworkConfig::isValidConfigSettingEntry(ConfigSettingEntry const& cfg)
                 cfg.contractEvents().feeContractEvents1KB >= 0;
         break;
     case ConfigSettingID::CONFIG_SETTING_STATE_ARCHIVAL:
-        valid = cfg.stateArchivalSettings().maxEntryTTL >=
-                    MinimumSorobanNetworkConfig::MAXIMUM_ENTRY_LIFETIME &&
-                cfg.stateArchivalSettings().minTemporaryTTL >=
-                    MinimumSorobanNetworkConfig::MINIMUM_TEMP_ENTRY_LIFETIME &&
-                cfg.stateArchivalSettings().minPersistentTTL >=
-                    MinimumSorobanNetworkConfig::
-                        MINIMUM_PERSISTENT_ENTRY_LIFETIME &&
-                cfg.stateArchivalSettings().persistentRentRateDenominator > 0 &&
-                cfg.stateArchivalSettings().tempRentRateDenominator > 0 &&
-                cfg.stateArchivalSettings().maxEntriesToArchive >=
-                    MinimumSorobanNetworkConfig::MAX_ENTRIES_TO_ARCHIVE &&
-                cfg.stateArchivalSettings().bucketListSizeWindowSampleSize >=
-                    MinimumSorobanNetworkConfig::
-                        BUCKETLIST_SIZE_WINDOW_SAMPLE_SIZE &&
-                cfg.stateArchivalSettings().evictionScanSize >=
-                    MinimumSorobanNetworkConfig::EVICTION_SCAN_SIZE &&
-                cfg.stateArchivalSettings().startingEvictionScanLevel >=
-                    MinimumSorobanNetworkConfig::STARTING_EVICTION_LEVEL &&
-                cfg.stateArchivalSettings().startingEvictionScanLevel <
-                    BucketList::kNumLevels;
+        valid =
+            cfg.stateArchivalSettings().maxEntryTTL >=
+                MinimumSorobanNetworkConfig::MAXIMUM_ENTRY_LIFETIME &&
+            cfg.stateArchivalSettings().minTemporaryTTL >=
+                MinimumSorobanNetworkConfig::MINIMUM_TEMP_ENTRY_LIFETIME &&
+            cfg.stateArchivalSettings().minPersistentTTL >=
+                MinimumSorobanNetworkConfig::
+                    MINIMUM_PERSISTENT_ENTRY_LIFETIME &&
+            cfg.stateArchivalSettings().persistentRentRateDenominator > 0 &&
+            cfg.stateArchivalSettings().tempRentRateDenominator > 0 &&
+            cfg.stateArchivalSettings().maxEntriesToArchive >=
+                MinimumSorobanNetworkConfig::MAX_ENTRIES_TO_ARCHIVE &&
+            cfg.stateArchivalSettings().bucketListSizeWindowSampleSize >=
+                MinimumSorobanNetworkConfig::
+                    BUCKETLIST_SIZE_WINDOW_SAMPLE_SIZE &&
+            cfg.stateArchivalSettings().evictionScanSize >=
+                MinimumSorobanNetworkConfig::EVICTION_SCAN_SIZE &&
+            cfg.stateArchivalSettings().startingEvictionScanLevel >=
+                MinimumSorobanNetworkConfig::STARTING_EVICTION_LEVEL &&
+            cfg.stateArchivalSettings().startingEvictionScanLevel <
+                BucketList::kNumLevels &&
+            cfg.stateArchivalSettings().bucketListWindowSamplePeriod >=
+                MinimumSorobanNetworkConfig::BUCKETLIST_WINDOW_SAMPLE_PERIOD;
 
         valid = valid && cfg.stateArchivalSettings().maxEntryTTL >
                              cfg.stateArchivalSettings().minPersistentTTL;
@@ -1114,19 +1115,6 @@ SorobanNetworkConfig::ledgerMaxTxCount() const
     return mLedgerMaxTxCount;
 }
 
-uint32_t
-SorobanNetworkConfig::getBucketListSizeSnapshotPeriod() const
-{
-#ifdef BUILD_TESTS
-    if (mBucketListSnapshotPeriodForTesting)
-    {
-        return *mBucketListSnapshotPeriodForTesting;
-    }
-#endif
-
-    return BUCKETLIST_SIZE_SNAPSHOT_PERIOD;
-}
-
 void
 SorobanNetworkConfig::maybeUpdateBucketListWindowSize(AbstractLedgerTxn& ltx)
 {
@@ -1183,7 +1171,7 @@ SorobanNetworkConfig::maybeSnapshotBucketListSize(uint32_t currLedger,
         return;
     }
 
-    if (currLedger % getBucketListSizeSnapshotPeriod() == 0)
+    if (currLedger % mStateArchivalSettings.bucketListWindowSamplePeriod == 0)
     {
         // Update in memory snapshots
         mBucketListSizeSnapshots.pop_front();
@@ -1204,12 +1192,6 @@ SorobanNetworkConfig::getAverageBucketListSize() const
 }
 
 #ifdef BUILD_TESTS
-void
-SorobanNetworkConfig::setBucketListSnapshotPeriodForTesting(uint32_t period)
-{
-    mBucketListSnapshotPeriodForTesting = period;
-}
-
 void
 writeConfigSettingEntry(ConfigSettingEntry const& configSetting,
                         AbstractLedgerTxn& ltxRoot)

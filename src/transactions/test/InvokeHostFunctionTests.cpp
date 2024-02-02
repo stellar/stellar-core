@@ -1409,6 +1409,10 @@ TEST_CASE("settings upgrade", "[tx][soroban][upgrades]")
                 cost.contractLedgerCost().txMaxWriteBytes);
         cost.contractLedgerCost().feeRead1KB = 1000;
 
+        // additional testing to make sure a negative value is accepted for the
+        // low value.
+        cost.contractLedgerCost().writeFee1KBBucketListLow = -100;
+
         ConfigUpgradeSet upgradeSet;
         upgradeSet.updatedEntry = updatedEntries;
 
@@ -2636,6 +2640,12 @@ TEST_CASE("settings upgrade command line utils", "[tx][soroban][upgrades]")
     auto root = TestAccount::createRoot(*app);
     auto& lm = app->getLedgerManager();
 
+    // Update the snapshot period and close a ledger to update
+    // mAverageBucketListSize
+    modifySorobanNetworkConfig(*app, [](SorobanNetworkConfig& cfg) {
+        cfg.mStateArchivalSettings.bucketListWindowSamplePeriod = 1;
+    });
+
     const int64_t startingBalance =
         app->getLedgerManager().getLastMinBalance(50);
 
@@ -2893,11 +2903,6 @@ TEST_CASE("settings upgrade command line utils", "[tx][soroban][upgrades]")
     txsToSign.emplace_back(invokeRes.first);
     auto const& upgradeSetKey = invokeRes.second;
 
-    // Update the snapshot period and close a ledger to update
-    // mAverageBucketListSize
-    app->getLedgerManager()
-        .getMutableSorobanNetworkConfig()
-        .setBucketListSnapshotPeriodForTesting(1);
     closeLedger(*app);
 
     // Update bucketListTargetSizeBytes so bucketListWriteFeeGrowthFactor comes

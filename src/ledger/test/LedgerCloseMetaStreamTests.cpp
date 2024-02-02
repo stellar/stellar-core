@@ -618,10 +618,11 @@ TEST_CASE_VERSIONS("meta stream contains reasonable meta", "[ledgerclosemeta]")
 
             if (appProtocolVersionStartsFrom(*app, SOROBAN_PROTOCOL_VERSION))
             {
-                LedgerTxn ltx(app->getLedgerTxnRoot());
-                app->getLedgerManager()
-                    .getMutableSorobanNetworkConfig()
-                    .setBucketListSnapshotPeriodForTesting(1);
+                modifySorobanNetworkConfig(
+                    *app, [&](SorobanNetworkConfig& cfg) {
+                        cfg.mStateArchivalSettings
+                            .bucketListWindowSamplePeriod = 1;
+                    });
             }
 
             auto root = TestAccount::createRoot(*app);

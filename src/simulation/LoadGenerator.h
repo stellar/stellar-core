@@ -108,9 +108,9 @@ struct GeneratedLoadConfig
         uint32_t ledgerMaxTransactionsSizeBytes{};
         uint32_t txMaxSizeBytes{};
 
-        // State Expiration setting
+        // State Archival Settings
         uint32_t bucketListSizeWindowSampleSize{};
-        uint64_t evictionScanSize{};
+        uint32_t evictionScanSize{};
         uint32_t startingEvictionScanLevel{};
     };
 

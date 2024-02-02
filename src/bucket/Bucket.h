@@ -144,7 +144,7 @@ class Bucket : public std::enable_shared_from_this<Bucket>,
     // bytesToScan -= amount_bytes_scanned
     // remainingEntriesToEvict -= entries_evicted
     bool scanForEviction(AbstractLedgerTxn& ltx, EvictionIterator& iter,
-                         uint64_t& bytesToScan,
+                         uint32_t& bytesToScan,
                          uint32_t& remainingEntriesToEvict, uint32_t ledgerSeq,
                          medida::Counter& entriesEvictedCounter,
                          medida::Counter& bytesScannedForEvictionCounter,
