@@ -60,6 +60,17 @@ import requests
 import sys
 import time
 
+import overlay_survey.simulation as sim
+
+# A SurveySimulation, if running in simulation mode, or None otherwise.
+SIMULATION = None
+
+def get_request(url, params=None):
+    """ Make a GET request, or simulate one if running in simulation mode. """
+    if SIMULATION:
+        return SIMULATION.get(url=url, params=params)
+    else:
+        return requests.get(url=url, params=params)
 
 def next_peer(direction_tag, node_info):
     if direction_tag in node_info and node_info[direction_tag]:
@@ -140,7 +151,7 @@ def send_requests(peer_list, params, request_url):
     # Submit `limit` queries roughly every ledger
     for key in peer_list:
         params["node"] = key
-        requests.get(url=request_url, params=params)
+        get_request(url=request_url, params=params)
         print("Send request to %s" % key)
         global request_count
         request_count += 1
@@ -224,8 +235,8 @@ def get_tier1_stats(augmented_directed_graph):
 
 def augment(args):
     graph = nx.read_graphml(args.graphmlInput)
-    data = requests.get("https://api.stellarbeat.io/v1/nodes").json()
-    transitive_quorum = requests.get(
+    data = get_request("https://api.stellarbeat.io/v1/nodes").json()
+    transitive_quorum = get_request(
         "https://api.stellarbeat.io/v1/").json()["transitiveQuorumSet"]
 
     for obj in data:
@@ -273,6 +284,13 @@ def run_survey(args):
         "inboundPeers": {},
         "outboundPeers": {}
     })
+    if args.simulate:
+        global SIMULATION
+        try:
+            SIMULATION = sim.SurveySimulation(args.simGraph, args.simRoot)
+        except sim.SimulationError as e:
+            print(f"Error: {e}")
+            sys.exit(1)
 
     url = args.node
 
@@ -285,7 +303,7 @@ def run_survey(args):
     params = {'duration': duration}
 
     # reset survey
-    requests.get(url=stop_survey)
+    get_request(url=stop_survey)
 
     peer_list = set()
     if args.nodeList:
@@ -296,7 +314,7 @@ def run_survey(args):
 
     peers_params = {'fullkeys': "true"}
 
-    peers = requests.get(url=peers, params=peers_params).json()[
+    peers = get_request(url=peers, params=peers_params).json()[
         "authenticated_peers"]
 
     # seed initial peers off of /peers endpoint
@@ -307,9 +325,10 @@ def run_survey(args):
         for peer in peers["outbound"]:
             peer_list.add(peer["id"])
 
-    self_name = requests.get(url + "/scp?limit=0&fullkeys=true").json()["you"]
+    scp_params = {'fullkeys': "true", 'limit': 0}
+    self_name = get_request(url + "/scp", scp_params).json()["you"]
     graph.add_node(self_name,
-                   version=requests.get(url + "/info").json()["info"]["build"],
+                   version=get_request(url + "/info").json()["info"]["build"],
                    numTotalInboundPeers=len(peers["inbound"] or []),
                    numTotalOutboundPeers=len(peers["outbound"] or []))
 
@@ -328,7 +347,7 @@ def run_survey(args):
         time.sleep(1)
 
         print("Fetching survey result")
-        data = requests.get(url=survey_result).json()
+        data = get_request(url=survey_result).json()
         print("Done")
 
         if "topology" in data:
@@ -366,6 +385,12 @@ def run_survey(args):
         print("New peers: %s  Retrying: %s" %
               (new_peers, len(peer_list)-new_peers))
 
+    # sanity check that simulation produced a graph isomorphic to the input
+    assert (not args.simulate or
+            nx.is_isomorphic(graph, nx.read_graphml(args.simGraph))), \
+           ("Simulation produced a graph that is not isomorphic to the input "
+            "graph")
+
     if nx.is_empty(graph):
         print("Graph is empty!")
         sys.exit(0)
@@ -395,19 +420,8 @@ def flatten(args):
         json.dump(output_graph, output_file)
     sys.exit(0)
 
-
-def main():
-    # construct the argument parse and parse the arguments
-    argument_parser = argparse.ArgumentParser()
-    argument_parser.add_argument("-gs",
-                                 "--graphStats",
-                                 help="output file for graph stats")
-
-    subparsers = argument_parser.add_subparsers()
-
-    parser_survey = subparsers.add_parser('survey',
-                                          help="run survey and "
-                                               "analyze results")
+def init_parser_survey(parser_survey):
+    """Initialize the `survey` subcommand"""
     parser_survey.add_argument("-n",
                                "--node",
                                required=True,
@@ -428,6 +442,35 @@ def main():
                                "--nodeList",
                                help="optional list of seed nodes")
     parser_survey.set_defaults(func=run_survey)
+
+def main():
+    # construct the argument parse and parse the arguments
+    argument_parser = argparse.ArgumentParser()
+    argument_parser.add_argument("-gs",
+                                 "--graphStats",
+                                 help="output file for graph stats")
+
+    subparsers = argument_parser.add_subparsers()
+
+    parser_survey = subparsers.add_parser('survey',
+                                          help="run survey and "
+                                               "analyze results")
+    parser_survey.set_defaults(simulate=False)
+    init_parser_survey(parser_survey)
+    parser_simulate = subparsers.add_parser('simulate',
+                                             help="simulate survey run")
+    # `simulate` supports all arguments that `survey` does, plus some additional
+    # arguments for the simulation itself.
+    init_parser_survey(parser_simulate)
+    parser_simulate.add_argument("-s",
+                                 "--simGraph",
+                                 required=True,
+                                 help="graphml file to simulate network from")
+    parser_simulate.add_argument("-r",
+                                 "--simRoot",
+                                 required=True,
+                                 help="node to start simulation from")
+    parser_simulate.set_defaults(simulate=True)
 
     parser_analyze = subparsers.add_parser('analyze',
                                            help="write stats for "
