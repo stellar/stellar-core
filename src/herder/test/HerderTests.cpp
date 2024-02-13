@@ -5803,3 +5803,155 @@ TEST_CASE("exclude transactions by operation type", "[herder]")
                 TransactionQueue::AddResult::ADD_STATUS_PENDING);
     }
 }
+
+// Test that Herder updates the scphistory table with additional messages from
+// ledger `n-1` when closing ledger `n`
+TEST_CASE("SCP message capture from previous ledger", "[herder]")
+{
+    constexpr uint32_t version =
+        static_cast<uint32_t>(SOROBAN_PROTOCOL_VERSION);
+
+    // Initialize simulation
+    auto networkID = sha256(getTestConfig().NETWORK_PASSPHRASE);
+    auto simulation = std::make_shared<Simulation>(
+        Simulation::OVER_LOOPBACK, networkID, [](int i) {
+            auto cfg = getTestConfig(i, Config::TESTDB_ON_DISK_SQLITE);
+            cfg.TESTING_UPGRADE_LEDGER_PROTOCOL_VERSION = version;
+            return cfg;
+        });
+
+    // Create three validators: A, B, and C
+    auto validatorAKey = SecretKey::fromSeed(sha256("validator-A"));
+    auto validatorBKey = SecretKey::fromSeed(sha256("validator-B"));
+    auto validatorCKey = SecretKey::fromSeed(sha256("validator-C"));
+
+    // Put all validators in a quorum set of threshold 2
+    SCPQuorumSet qset;
+    qset.threshold = 2;
+    qset.validators.push_back(validatorAKey.getPublicKey());
+    qset.validators.push_back(validatorBKey.getPublicKey());
+    qset.validators.push_back(validatorCKey.getPublicKey());
+
+    // Connect validators A and B, but leave C disconnected
+    auto A = simulation->addNode(validatorAKey, qset);
+    auto B = simulation->addNode(validatorBKey, qset);
+    auto C = simulation->addNode(validatorCKey, qset);
+    simulation->addPendingConnection(validatorAKey.getPublicKey(),
+                                     validatorBKey.getPublicKey());
+    simulation->startAllNodes();
+
+    // Crank A and B until they're on ledger 2
+    simulation->crankUntil(
+        [&]() {
+            return A->getLedgerManager().getLastClosedLedgerNum() == 2 &&
+                   B->getLedgerManager().getLastClosedLedgerNum() == 2;
+        },
+        4 * Herder::EXP_LEDGER_TIMESPAN_SECONDS, false);
+
+    // Check that a node's scphistory table for a given ledger has the correct
+    // number of entries of each type in `expectedTypes`
+    auto checkSCPHistoryEntries =
+        [&](Application::pointer node, uint32_t ledgerNum,
+            UnorderedMap<SCPStatementType, size_t> const& expectedTypes) {
+            // Prepare query
+            auto& db = node->getDatabase();
+            auto prep = db.getPreparedStatement(
+                "SELECT envelope FROM scphistory WHERE ledgerseq = :l");
+            auto& st = prep.statement();
+            st.exchange(soci::use(ledgerNum));
+            std::string envStr;
+            st.exchange(soci::into(envStr));
+            st.define_and_bind();
+            st.execute(false);
+
+            // Count the number of entries of each type
+            UnorderedMap<SCPStatementType, size_t> actualTypes;
+            while (st.fetch())
+            {
+                Value v;
+                decoder::decode_b64(envStr, v);
+                SCPEnvelope env;
+                xdr::xdr_from_opaque(v, env);
+                ++actualTypes[env.statement.pledges.type()];
+            }
+
+            return actualTypes == expectedTypes;
+        };
+
+    // Expected counts of scphistory entry types for ledger 2
+    UnorderedMap<SCPStatementType, size_t> expConfExt = {
+        {SCPStatementType::SCP_ST_CONFIRM, 1},
+        {SCPStatementType::SCP_ST_EXTERNALIZE, 1}};
+    UnorderedMap<SCPStatementType, size_t> exp2Ext = {
+        {SCPStatementType::SCP_ST_EXTERNALIZE, 2}};
+
+    // Examine scphistory tables for A and B for ledger 2. Either A has 1
+    // CONFIRM and 1 EXTERNALIZE and B has 2 EXTERNALIZEs, or A has 2
+    // EXTERNALIZEs and B has 1 CONFIRM and 1 EXTERNALIZE.
+    REQUIRE((checkSCPHistoryEntries(A, 2, expConfExt) &&
+             checkSCPHistoryEntries(B, 2, exp2Ext)) ^
+            (checkSCPHistoryEntries(A, 2, exp2Ext) &&
+             checkSCPHistoryEntries(B, 2, expConfExt)));
+
+    // C has no entries in its scphistory table for ledger 2.
+    REQUIRE(checkSCPHistoryEntries(C, 2, {}));
+
+    // Get messages from A and B
+    HerderImpl& herderA = dynamic_cast<HerderImpl&>(A->getHerder());
+    HerderImpl& herderB = dynamic_cast<HerderImpl&>(B->getHerder());
+    std::vector<SCPEnvelope> AEnvs = herderA.getSCP().getLatestMessagesSend(2);
+    std::vector<SCPEnvelope> BEnvs = herderB.getSCP().getLatestMessagesSend(2);
+
+    // Pass A and B's messages to C
+    for (auto const& env : AEnvs)
+    {
+        C->getHerder().recvSCPEnvelope(env);
+    }
+    for (auto const& env : BEnvs)
+    {
+        C->getHerder().recvSCPEnvelope(env);
+    }
+
+    // Crank C until it is on ledger 2
+    simulation->crankUntil(
+        [&]() { return C->getLedgerManager().getLastClosedLedgerNum() == 2; },
+        4 * Herder::EXP_LEDGER_TIMESPAN_SECONDS, false);
+
+    // Get messages from C
+    HerderImpl& herderC = dynamic_cast<HerderImpl&>(C->getHerder());
+    std::vector<SCPEnvelope> CEnvs = herderC.getSCP().getLatestMessagesSend(2);
+
+    // Pass C's messages to A and B
+    for (auto const& env : CEnvs)
+    {
+        A->getHerder().recvSCPEnvelope(env);
+        B->getHerder().recvSCPEnvelope(env);
+    }
+
+    // Crank A and B until they're on ledger 3
+    simulation->crankUntil(
+        [&]() {
+            return A->getLedgerManager().getLastClosedLedgerNum() == 3 &&
+                   B->getLedgerManager().getLastClosedLedgerNum() == 3;
+        },
+        4 * Herder::EXP_LEDGER_TIMESPAN_SECONDS, false);
+
+    // A and B should now each have 3 EXTERNALIZEs in their scphistory table for
+    // ledger 2. A's CONFIRM entry has been replaced with an EXTERNALIZE.
+    UnorderedMap<SCPStatementType, size_t> const expectedTypes = {
+        {SCPStatementType::SCP_ST_EXTERNALIZE, 3}};
+    REQUIRE(checkSCPHistoryEntries(A, 2, expectedTypes));
+    REQUIRE(checkSCPHistoryEntries(B, 2, expectedTypes));
+
+    // Connect C to B and crank C to catch up with A and B
+    simulation->addConnection(validatorCKey.getPublicKey(),
+                              validatorBKey.getPublicKey());
+    simulation->crankUntil(
+        [&]() { return C->getLedgerManager().getLastClosedLedgerNum() == 3; },
+        4 * Herder::EXP_LEDGER_TIMESPAN_SECONDS, false);
+
+    // C should have 3 EXTERNALIZEs in its scphistory table for ledger 2. This
+    // check ensures that C does not double count messages from ledger 2 when
+    // closing ledger 3.
+    REQUIRE(checkSCPHistoryEntries(C, 2, expectedTypes));
+}
