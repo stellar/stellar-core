@@ -3,6 +3,7 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "catchup/ApplyLedgerWork.h"
+#include "herder/HerderPersistence.h"
 #include "ledger/LedgerManager.h"
 #include "main/Application.h"
 #include <Tracy.hpp>
@@ -10,12 +11,15 @@
 
 namespace stellar
 {
-ApplyLedgerWork::ApplyLedgerWork(Application& app,
-                                 LedgerCloseData const& ledgerCloseData)
+ApplyLedgerWork::ApplyLedgerWork(
+    Application& app, LedgerCloseData const& ledgerCloseData,
+    std::unique_ptr<SCPHistoryEntryVec const> hEntries)
     : BasicWork(
           app, "apply-ledger-" + std::to_string(ledgerCloseData.getLedgerSeq()),
           BasicWork::RETRY_NEVER)
+    , mApp(app)
     , mLedgerCloseData(ledgerCloseData)
+    , mHEntries(std::move(hEntries))
 {
 }
 
@@ -24,6 +28,11 @@ ApplyLedgerWork::onRun()
 {
     ZoneScoped;
     mApp.getLedgerManager().closeLedger(mLedgerCloseData);
+    if (mHEntries)
+    {
+        mApp.getHerderPersistence().copySCPHistoryFromEntries(
+            *mHEntries, mLedgerCloseData.getLedgerSeq());
+    }
     return BasicWork::State::WORK_SUCCESS;
 }
 

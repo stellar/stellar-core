@@ -55,7 +55,9 @@ ApplyBufferedLedgersWork::onRun()
         lcd.getTxSet()->sizeTxTotal(), lcd.getTxSet()->sizeOpTotalForLogging(),
         stellarValueToString(mApp.getConfig(), lcd.getValue()));
 
-    auto applyLedger = std::make_shared<ApplyLedgerWork>(mApp, lcd);
+    // Pass `nullptr` for `hEntries` because SCP messages of buffered ledgers
+    // have already been logged.
+    auto applyLedger = std::make_shared<ApplyLedgerWork>(mApp, lcd, nullptr);
 
     auto predicate = [](Application& app) {
         auto& bl = app.getBucketManager().getBucketList();

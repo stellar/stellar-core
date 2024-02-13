@@ -23,6 +23,7 @@ namespace stellar
 DownloadApplyTxsWork::DownloadApplyTxsWork(
     Application& app, TmpDir const& downloadDir, LedgerRange const& range,
     LedgerHeaderHistoryEntry& lastApplied, bool waitForPublish,
+    std::shared_ptr<TmpDirVec const> scpDownloadDirs,
     std::shared_ptr<HistoryArchive> archive)
     : BatchWork(app, "download-apply-ledgers")
     , mRange(range)
@@ -31,6 +32,7 @@ DownloadApplyTxsWork::DownloadApplyTxsWork(
     , mCheckpointToQueue(
           app.getHistoryManager().checkpointContainingLedger(range.mFirst))
     , mWaitForPublish(waitForPublish)
+    , mSCPDownloadDirs(std::move(scpDownloadDirs))
     , mArchive(archive)
 {
 }
@@ -76,7 +78,8 @@ DownloadApplyTxsWork::yieldMoreWork()
     };
 
     auto apply = std::make_shared<ApplyCheckpointWork>(
-        mApp, mDownloadDir, LedgerRange::inclusive(low, high), cb);
+        mApp, mDownloadDir, LedgerRange::inclusive(low, high), cb,
+        mSCPDownloadDirs);
 
     std::vector<std::shared_ptr<BasicWork>> seq{getAndUnzip};
 

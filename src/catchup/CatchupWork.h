@@ -4,6 +4,7 @@
 
 #pragma once
 
+#include "catchup/ApplyCheckpointWork.h"
 #include "catchup/CatchupConfiguration.h"
 #include "catchup/VerifyLedgerChainWork.h"
 #include "history/HistoryArchive.h"
@@ -46,8 +47,10 @@ class CatchupWork : public Work
 {
   protected:
     HistoryArchiveState mLocalState;
-    std::unique_ptr<TmpDir> mDownloadDir;
+    std::shared_ptr<TmpDir> mDownloadDir;
     std::map<std::string, std::shared_ptr<Bucket>> mBuckets;
+    // Download directories for SCP message history
+    std::shared_ptr<TmpDirVec> mSCPDownloadDirs = std::make_shared<TmpDirVec>();
 
     void doReset() override;
     BasicWork::State doWork() override;

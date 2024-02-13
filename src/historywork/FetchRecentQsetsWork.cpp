@@ -28,7 +28,7 @@ FetchRecentQsetsWork::doReset()
     mGetHistoryArchiveStateWork.reset();
     mDownloadSCPMessagesWork.reset();
     mDownloadDir =
-        std::make_unique<TmpDir>(mApp.getTmpDirManager().tmpDir(getName()));
+        std::make_shared<TmpDir>(mApp.getTmpDirManager().tmpDir(getName()));
 }
 
 BasicWork::State
@@ -62,7 +62,7 @@ FetchRecentQsetsWork::doWork()
                   firstSeq, lastSeq);
         auto range = CheckpointRange::inclusive(firstSeq, lastSeq, step);
         mDownloadSCPMessagesWork = addWork<BatchDownloadWork>(
-            range, HISTORY_FILE_TYPE_SCP, *mDownloadDir);
+            range, HISTORY_FILE_TYPE_SCP, mDownloadDir);
         return State::WORK_RUNNING;
     }
     else if (mDownloadSCPMessagesWork->getState() != State::WORK_SUCCESS)

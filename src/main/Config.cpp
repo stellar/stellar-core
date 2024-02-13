@@ -1349,6 +1349,12 @@ Config::processConfig(std::shared_ptr<cpptoml::table> t)
                     throw std::invalid_argument("incomplete HISTORY block");
                 }
             }
+            else if (item.first == "SCP_HISTORY_ARCHIVES")
+            {
+                // TODO: Check for entries that aren't in HISTORY
+                // TODO: Deduplicate. Maybe just make SCP_HISTORY_ARCHIVES a set
+                SCP_HISTORY_ARCHIVES = readArray<std::string>(item);
+            }
             else if (item.first == "DATABASE")
             {
                 DATABASE = SecretValue{readString(item)};

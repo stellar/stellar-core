@@ -20,7 +20,17 @@ class HerderPersistenceImpl : public HerderPersistence
     void saveSCPHistory(uint32_t seq, std::vector<SCPEnvelope> const& envs,
                         QuorumTracker::QuorumMap const& qmap) override;
 
+    void copySCPHistoryFromEntries(SCPHistoryEntryVec const& hEntries,
+                                   uint32_t ledgerSeq) override;
+
   private:
     Application& mApp;
+
+    // Save quorum sets at a given sequence number
+    void saveQuorumSets(uint32_t seq,
+                        UnorderedMap<Hash, SCPQuorumSetPtr> const& qsets);
+
+    // Delete `scphistory` entries at a given sequence number.
+    void clearSCPHistoryAtSeq(uint32_t seq);
 };
 }

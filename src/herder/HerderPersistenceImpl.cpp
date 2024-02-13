@@ -35,6 +35,22 @@ HerderPersistenceImpl::~HerderPersistenceImpl()
 }
 
 void
+HerderPersistenceImpl::clearSCPHistoryAtSeq(uint32_t seq)
+{
+    auto& db = mApp.getDatabase();
+    auto prepClean =
+        db.getPreparedStatement("DELETE FROM scphistory WHERE ledgerseq =:l");
+
+    auto& st = prepClean.statement();
+    st.exchange(soci::use(seq));
+    st.define_and_bind();
+    {
+        ZoneNamedN(deleteSCPHistoryZone, "delete scphistory", true);
+        st.execute(true);
+    }
+}
+
+void
 HerderPersistenceImpl::saveSCPHistory(uint32_t seq,
                                       std::vector<SCPEnvelope> const& envs,
                                       QuorumTracker::QuorumMap const& qmap)
@@ -49,19 +65,7 @@ HerderPersistenceImpl::saveSCPHistory(uint32_t seq,
     auto& db = mApp.getDatabase();
 
     soci::transaction txscope(db.getSession());
-
-    {
-        auto prepClean = db.getPreparedStatement(
-            "DELETE FROM scphistory WHERE ledgerseq =:l");
-
-        auto& st = prepClean.statement();
-        st.exchange(soci::use(seq));
-        st.define_and_bind();
-        {
-            ZoneNamedN(deleteSCPHistoryZone, "delete scphistory", true);
-            st.execute(true);
-        }
-    }
+    clearSCPHistoryAtSeq(seq);
     for (auto const& e : envs)
     {
         auto const& qHash =
@@ -82,9 +86,9 @@ HerderPersistenceImpl::saveSCPHistory(uint32_t seq,
                                     "(:n, :l, :e)");
 
         auto& st = prepEnv.statement();
-        st.exchange(soci::use(nodeIDStrKey));
-        st.exchange(soci::use(seq));
-        st.exchange(soci::use(envelopeEncoded));
+        st.exchange(soci::use(nodeIDStrKey, "n"));
+        st.exchange(soci::use(seq, "l"));
+        st.exchange(soci::use(envelopeEncoded, "e"));
         st.define_and_bind();
         {
             ZoneNamedN(insertSCPHistoryZone, "insert scphistory", true);
@@ -140,7 +144,18 @@ HerderPersistenceImpl::saveSCPHistory(uint32_t seq,
         }
     }
     // save quorum sets
-    for (auto const& p : usedQSets)
+    saveQuorumSets(seq, usedQSets);
+
+    txscope.commit();
+}
+
+void
+HerderPersistenceImpl::saveQuorumSets(
+    uint32_t seq, UnorderedMap<Hash, SCPQuorumSetPtr> const& qsets)
+{
+    ZoneScoped;
+    auto& db = mApp.getDatabase();
+    for (auto const& p : qsets)
     {
         std::string qSetH = binToHex(p.first);
 
@@ -207,8 +222,6 @@ HerderPersistenceImpl::saveSCPHistory(uint32_t seq,
             }
         }
     }
-
-    txscope.commit();
 }
 
 size_t
@@ -294,7 +307,109 @@ HerderPersistence::copySCPHistoryToStream(Database& db, soci::session& sess,
         }
     }
 
+    // TODO: What about quoruminfo table? That doesn't seem to be recorded. Do
+    // we care about it?
+
     return n;
+}
+
+namespace
+{
+// Merge the info in an `hEntry` with the info in `envs` and `qsets` by
+// overwriting older entries (as determined by BallotProtocol::isNewerStatement)
+// with newer ones.
+void
+mergeSCPHistory(SCPHistoryEntry const& hEntry, uint32_t ledgerSeq,
+                UnorderedMap<NodeID, SCPEnvelope>& envs,
+                UnorderedMap<Hash, SCPQuorumSetPtr>& qsets)
+{
+    SCPHistoryEntryV0 const& hEntryV0 = hEntry.v0();
+    releaseAssert(hEntryV0.ledgerMessages.ledgerSeq == ledgerSeq);
+    for (SCPEnvelope const& e : hEntryV0.ledgerMessages.messages)
+    {
+        NodeID const& nodeID = e.statement.nodeID;
+        SCPStatement const& statement = e.statement;
+        auto it = envs.find(nodeID);
+        if (it == envs.end())
+        {
+            envs[nodeID] = e;
+        }
+        else if (BallotProtocol::isNewerStatement(it->second.statement,
+                                                  statement))
+        {
+            it->second = e;
+        }
+    }
+
+    // Merge qset info
+    for (auto const& qset : hEntryV0.quorumSets)
+    {
+        qsets.try_emplace(xdrSha256(qset),
+                          std::make_shared<SCPQuorumSet>(qset));
+    }
+}
+} // namespace
+
+void
+HerderPersistenceImpl::copySCPHistoryFromEntries(
+    SCPHistoryEntryVec const& hEntries, uint32_t ledgerSeq)
+{
+    ZoneScoped;
+
+    if (hEntries.empty())
+    {
+        return;
+    }
+
+    // Merge entries
+    UnorderedMap<NodeID, SCPEnvelope> envs;
+    UnorderedMap<Hash, SCPQuorumSetPtr> qsets;
+    for (auto const& hEntry : hEntries)
+    {
+        mergeSCPHistory(*hEntry, ledgerSeq, envs, qsets);
+    }
+
+    // TODO: Dedup with saveSCPHistory after changes to it merge
+    std::vector<std::string> nodeIDs;
+    std::vector<uint32_t> seqs(envs.size(), ledgerSeq);
+    std::vector<std::string> envelopes;
+    for (auto const& kv : envs)
+    {
+        nodeIDs.emplace_back(KeyUtils::toStrKey(kv.first));
+        envelopes.emplace_back(
+            decoder::encode_b64(xdr::xdr_to_opaque(kv.second)));
+    }
+
+    CLOG_DEBUG(Herder, "Copying {} SCP history entries from ledger {}",
+               envs.size(), ledgerSeq);
+
+    Database& db = mApp.getDatabase();
+    soci::transaction txScope(db.getSession());
+    clearSCPHistoryAtSeq(ledgerSeq);
+    if (!envs.empty())
+    {
+        // Perform multi-row insert into scphistory
+        auto prepEnv =
+            db.getPreparedStatement("INSERT INTO scphistory "
+                                    "(nodeid, ledgerseq, envelope) VALUES "
+                                    "(:n, :l, :e)");
+        auto& st = prepEnv.statement();
+        st.exchange(soci::use(nodeIDs, "n"));
+        st.exchange(soci::use(seqs, "l"));
+        st.exchange(soci::use(envelopes, "e"));
+        st.define_and_bind();
+        {
+            ZoneNamedN(insertSCPHistoryZone, "insert scphistory", true);
+            st.execute(true);
+        }
+        if (st.get_affected_rows() != envs.size())
+        {
+            throw std::runtime_error("Could not update data in SQL");
+        }
+    }
+
+    saveQuorumSets(ledgerSeq, qsets);
+    txScope.commit();
 }
 
 std::optional<Hash>

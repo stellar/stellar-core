@@ -188,6 +188,7 @@ class CatchupSimulation
     BucketList mBucketListAtLastPublish;
 
     std::vector<LedgerCloseData> mLedgerCloseDatas;
+    std::vector<std::vector<SCPEnvelope>> mEnvelopes;
 
     std::vector<uint32_t> mLedgerSeqs;
     std::vector<uint256> mLedgerHashes;

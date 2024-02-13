@@ -123,6 +123,9 @@ class Work : public BasicWork
     // Provide additional cleanup logic for reset
     virtual void doReset();
 
+    // Abort, but report success
+    void abortSuccess();
+
   private:
     std::list<std::shared_ptr<BasicWork>> mChildren;
     std::list<std::shared_ptr<BasicWork>>::const_iterator mNextChild;
@@ -136,6 +139,7 @@ class Work : public BasicWork
     void shutdownChildren();
 
     bool mAbortChildrenButNotSelf{false};
+    bool mReportSuccessOnAbort{false};
 };
 
 namespace WorkUtils
