@@ -295,8 +295,8 @@
     {
       "state_archival": {
           "max_entry_ttl": 3110400,
-          "min_temporary_ttl": 16,
-          "min_persistent_ttl": 120960,
+          "min_temporary_ttl": 17000,
+          "min_persistent_ttl": 2073600,
           "persistent_rent_rate_denominator": 535680,
           "temp_rent_rate_denominator": 5356800,
           "max_entries_to_archive": 100,
