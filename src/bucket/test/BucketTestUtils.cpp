@@ -118,7 +118,7 @@ LedgerManagerForBucketTests::transferLedgerEntriesToBucketList(
                                       SOROBAN_PROTOCOL_VERSION))
         {
             {
-                auto keys = ltx.getAllKeysWithoutSealing();
+                auto keys = ltx.getAllTTLKeysWithoutSealing();
                 LedgerTxn ltxEvictions(ltx);
 
                 if (mApp.getConfig().isUsingBucketListDB()

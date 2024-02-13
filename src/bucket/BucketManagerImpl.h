@@ -63,6 +63,8 @@ class BucketManagerImpl : public BucketManager
     // management.
     mutable std::recursive_mutex mBucketSnapshotMutex;
 
+    std::future<EvictionResult> mEvictionFuture{};
+
     bool const mDeleteEntireBucketDirInDtor;
 
     // Records bucket-merges that are currently _live_ in some FutureBucket, in
@@ -143,7 +145,7 @@ class BucketManagerImpl : public BucketManager
                        std::unique_ptr<BucketIndex const>&& index) override;
     void scanForEvictionLegacySQL(AbstractLedgerTxn& ltx,
                                   uint32_t ledgerSeq) override;
-    // void startBackgroundEvictionScan(uint32_t ledgerSeq) override;
+    void startBackgroundEvictionScan(uint32_t ledgerSeq) override;
     void
     resolveBackgroundEvictionScan(AbstractLedgerTxn& ltx, uint32_t ledgerSeq,
                                   LedgerKeySet const& modifiedKeys) override;

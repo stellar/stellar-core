@@ -79,8 +79,8 @@ class SearchableBucketListSnapshot : public NonMovableOrCopyable
     EvictionResult scanForEviction(uint32_t ledgerSeq,
                                    EvictionCounters& counters,
                                    EvictionIterator evictionIter,
-                                   uint32_t firstScanLevel, uint64_t scanSize,
-                                   std::optional<EvictionStatistics>& stats);
+                                   std::optional<EvictionStatistics>& stats,
+                                   StateArchivalSettings const& sas);
 
     friend std::unique_ptr<SearchableBucketListSnapshot>
     BucketManagerImpl::getSearchableBucketListSnapshot() const;
