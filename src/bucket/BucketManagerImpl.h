@@ -60,6 +60,19 @@ class BucketManagerImpl : public BucketManager
     MergeCounters mMergeCounters;
     std::optional<EvictionStatistics> mEvictionStatistics{};
 
+    std::future<EvictionResult> mEvictionFuture{};
+
+    // Lock for managing raw Bucket files or the bucket directory. This lock is
+    // only required for file access, but is not required for logical changes to
+    // the BucketList (i.e. addBatch).
+    mutable std::recursive_mutex mBucketFileMutex;
+
+    // Lock for logical BucketList changes and snapshots (i.e. addBatch,
+    // getSearchableSnapshot). This lock is not required for raw Bucket file
+    // management.
+    mutable std::recursive_mutex mBucketSnapshotMutex;
+
+
     bool const mDeleteEntireBucketDirInDtor;
 
     // Records bucket-merges that are currently _live_ in some FutureBucket, in
@@ -141,7 +154,7 @@ class BucketManagerImpl : public BucketManager
                        std::unique_ptr<BucketIndex const>&& index) override;
     void scanForEvictionLegacySQL(AbstractLedgerTxn& ltx,
                                   uint32_t ledgerSeq) override;
-    // void startBackgroundEvictionScan(uint32_t ledgerSeq) override;
+    void startBackgroundEvictionScan(uint32_t ledgerSeq) override;
     void
     resolveBackgroundEvictionScan(AbstractLedgerTxn& ltx, uint32_t ledgerSeq,
                                   LedgerKeySet const& modifiedKeys) override;

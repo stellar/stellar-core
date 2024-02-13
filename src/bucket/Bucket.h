@@ -139,7 +139,7 @@ class Bucket : public std::enable_shared_from_this<Bucket>,
         medida::Counter& bytesScannedForEvictionCounter,
         std::optional<EvictionStatistics>& stats) const;
 
-    bool scanForEviction(EvictionIterator& iter, uint64_t& bytesToScan,
+    bool scanForEviction(EvictionIterator& iter, uint32_t& bytesToScan,
                          uint32_t ledgerSeq,
                          std::list<EvictionResultEntry>& evictableKeys,
                          SearchableBucketListSnapshot& bl) const;

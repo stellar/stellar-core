@@ -551,7 +551,7 @@ class LedgerTxn::Impl
                        std::vector<LedgerEntry>& liveEntries,
                        std::vector<LedgerKey>& deadEntries);
 
-    LedgerKeySet getAllKeysWithoutSealing() const;
+    LedgerKeySet getAllTTLKeysWithoutSealing() const;
 
     // getNewestVersion has the basic exception safety guarantee. If it throws
     // an exception, then

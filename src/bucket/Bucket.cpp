@@ -721,13 +721,11 @@ Bucket::scanForEvictionLegacySQL(
                 auto ttlKey = getTTLKey(le);
                 uint32_t liveUntilLedger = 0;
                 auto shouldEvict = [&] {
-                    auto entryLtxe = ltx.loadWithoutRecord(LedgerEntryKey(le));
                     auto ttlLtxe = ltx.loadWithoutRecord(ttlKey);
-                    if (!entryLtxe)
+                    if (!ttlLtxe)
                     {
                         // Entry was already deleted either manually or by an
                         // earlier eviction scan, do nothing
-                        releaseAssert(!ttlLtxe);
                         return false;
                     }
 
@@ -778,7 +776,7 @@ Bucket::scanForEvictionLegacySQL(
 }
 
 bool
-Bucket::scanForEviction(EvictionIterator& iter, uint64_t& bytesToScan,
+Bucket::scanForEviction(EvictionIterator& iter, uint32_t& bytesToScan,
                         uint32_t ledgerSeq,
                         std::list<EvictionResultEntry>& evictableKeys,
                         SearchableBucketListSnapshot& bl) const
@@ -798,10 +796,6 @@ Bucket::scanForEviction(EvictionIterator& iter, uint64_t& bytesToScan,
         return true;
     }
 
-    XDRInputFileStream stream{};
-    stream.open(mFilename);
-    stream.seek(iter.bucketFileOffset);
-
     std::list<EvictionResultEntry> maybeEvictQueue;
     LedgerKeySet keysToSearch;
 
@@ -810,16 +804,14 @@ Bucket::scanForEviction(EvictionIterator& iter, uint64_t& bytesToScan,
             populateLoadedEntries(keysToSearch, bl.loadKeys(keysToSearch));
         for (auto& e : maybeEvictQueue)
         {
-            // If temp entry is not deleted
-            if (loadResult.find(e.key)->second != nullptr)
+            // If TTL entry has not yet been deleted
+            if (auto ttl = loadResult.find(getTTLKey(e.key))->second;
+                ttl != nullptr)
             {
-                auto ttl = loadResult.find(getTTLKey(e.key))->second;
-                releaseAssert(ttl);
-
                 // If TTL of entry is expired
                 if (!isLive(*ttl, ledgerSeq))
                 {
-                    // If entry is not yet deleted and expired, add it to
+                    // If entry is expired but not yet deleted, add it to
                     // evictable keys
                     e.liveUntilLedger = ttl->data.ttl().liveUntilLedgerSeq;
                     evictableKeys.emplace_back(e);
@@ -828,7 +820,16 @@ Bucket::scanForEviction(EvictionIterator& iter, uint64_t& bytesToScan,
         }
     };
 
+    XDRInputFileStream stream{};
+    stream.open(mFilename);
+    stream.seek(iter.bucketFileOffset);
     BucketEntry be;
+
+    // First, scan the bucket region and record all temp entry keys in
+    // maybeEvictQueue. After scanning, we will load all the TTL keys for these
+    // entries in a single bulk load to determine
+    //   1. If the entry is expired
+    //   2. If the entry has already been deleted/evicted
     while (stream.readOne(be))
     {
         auto newPos = stream.pos();
@@ -840,10 +841,12 @@ Bucket::scanForEviction(EvictionIterator& iter, uint64_t& bytesToScan,
             auto const& le = be.liveEntry();
             if (isTemporaryEntry(le.data))
             {
-                auto k = LedgerEntryKey(le);
-                keysToSearch.emplace(k);
                 keysToSearch.emplace(getTTLKey(le));
-                maybeEvictQueue.emplace_back(EvictionResultEntry(k, iter, 0));
+
+                // Set lifetime to 0 as default, will be updated after TTL keys
+                // loaded
+                maybeEvictQueue.emplace_back(
+                    EvictionResultEntry(LedgerEntryKey(le), iter, 0));
             }
         }
 

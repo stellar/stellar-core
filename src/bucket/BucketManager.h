@@ -105,7 +105,24 @@ struct EvictionResult
     EvictionIterator endOfRegionIterator;
 
     // LedgerSeq which this scan is based on
-    uint32_t ledgerSeq{};
+    uint32_t initialLedger{};
+
+    // State archival settings that this scan is based on
+    StateArchivalSettings initialSas;
+
+    EvictionResult(StateArchivalSettings const& sas) : initialSas(sas)
+    {
+    }
+
+    // Returns true if this is a valid archival scan for the current ledger
+    // and archival settings. This is necessary because we start the scan
+    // for ledger N immediately after N - 1 closes. However, ledger N may
+    // contain a network upgrade changing eviction scan settings. Legacy SQL
+    // scans will run based on the changes that occurred during ledger N,
+    // meaning the scan we started at ledger N - 1 is invalid since it was based
+    // off of older settings.
+    bool isValid(uint32_t currLedger,
+                 StateArchivalSettings const& currSas) const;
 };
 
 struct EvictionStatistics
@@ -263,7 +280,7 @@ class BucketManager : NonMovableOrCopyable
     virtual void scanForEvictionLegacySQL(AbstractLedgerTxn& ltx,
                                           uint32_t ledgerSeq) = 0;
 
-    // virtual void startBackgroundEvictionScan(uint32_t ledgerSeq) = 0;
+    virtual void startBackgroundEvictionScan(uint32_t ledgerSeq) = 0;
     virtual void
     resolveBackgroundEvictionScan(AbstractLedgerTxn& ltx, uint32_t ledgerSeq,
                                   LedgerKeySet const& modifiedKeys) = 0;

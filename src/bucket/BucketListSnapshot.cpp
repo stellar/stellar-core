@@ -70,8 +70,8 @@ SearchableBucketListSnapshot::loopAllBuckets(
 EvictionResult
 SearchableBucketListSnapshot::scanForEviction(
     uint32_t ledgerSeq, EvictionCounters& counters,
-    EvictionIterator evictionIter, uint32_t firstScanLevel, uint64_t scanSize,
-    std::optional<EvictionStatistics>& stats)
+    EvictionIterator evictionIter, std::optional<EvictionStatistics>& stats,
+    StateArchivalSettings const& sas)
 {
     releaseAssert(mSnapshot);
 
@@ -82,19 +82,20 @@ SearchableBucketListSnapshot::scanForEviction(
                                  : level.snap.getRawBucket();
     };
 
-    BucketList::updateStartingEvictionIterator(evictionIter, firstScanLevel,
-                                               ledgerSeq);
+    BucketList::updateStartingEvictionIterator(
+        evictionIter, sas.startingEvictionScanLevel, ledgerSeq);
 
-    EvictionResult result;
+    EvictionResult result(sas);
     auto startIter = evictionIter;
     auto b = getBucketFromIter(evictionIter);
+    auto scanSize = sas.evictionScanSize;
 
     while (!b->scanForEviction(evictionIter, scanSize, ledgerSeq,
                                result.eligibleKeys, *this))
     {
         if (BucketList::updateEvictionIterAndRecordStats(
-                evictionIter, startIter, firstScanLevel, ledgerSeq, stats,
-                counters))
+                evictionIter, startIter, sas.startingEvictionScanLevel,
+                ledgerSeq, stats, counters))
         {
             break;
         }
@@ -105,7 +106,7 @@ SearchableBucketListSnapshot::scanForEviction(
     }
 
     result.endOfRegionIterator = evictionIter;
-    result.ledgerSeq = ledgerSeq;
+    result.initialLedger = ledgerSeq;
     return result;
 }
 

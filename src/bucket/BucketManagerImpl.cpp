@@ -304,6 +304,19 @@ BucketManagerImpl::readMergeCounters()
     return mMergeCounters;
 }
 
+// Check that eviction scan is based off of current ledger snapshot and that
+// archival settings have not changed
+bool
+EvictionResult::isValid(uint32_t currLedger,
+                        StateArchivalSettings const& currSas) const
+{
+    return initialLedger == currLedger &&
+           initialSas.maxEntriesToArchive == currSas.maxEntriesToArchive &&
+           initialSas.evictionScanSize == currSas.evictionScanSize &&
+           initialSas.startingEvictionScanLevel ==
+               currSas.startingEvictionScanLevel;
+}
+
 MergeCounters&
 MergeCounters::operator+=(MergeCounters const& delta)
 {
@@ -940,19 +953,57 @@ BucketManagerImpl::scanForEvictionLegacySQL(AbstractLedgerTxn& ltx,
 }
 
 void
+BucketManagerImpl::startBackgroundEvictionScan(uint32_t ledgerSeq)
+{
+    releaseAssert(mApp.getConfig().isUsingBucketListDB());
+    releaseAssert(mSnapshotManager);
+    releaseAssert(!mEvictionFuture.valid());
+
+    auto searchableBL = mSnapshotManager->getSearchableBucketListSnapshot();
+    auto const& cfg = mApp.getLedgerManager().getSorobanNetworkConfig();
+    auto const& sas = cfg.stateArchivalSettings();
+
+    using task_t = std::packaged_task<EvictionResult()>;
+    auto task = std::make_shared<task_t>(
+        [bl = move(searchableBL), iter = cfg.evictionIterator(), ledgerSeq, sas,
+         &counters = mBucketListEvictionCounters,
+         &stats = mEvictionStatistics] {
+            return bl->scanForEviction(ledgerSeq, counters, iter, stats, sas);
+        });
+
+    mEvictionFuture = task->get_future();
+    mApp.postOnBackgroundThread(bind(&task_t::operator(), task),
+                                "SearchableBucketListSnapshot: eviction scan");
+}
+
+void
 BucketManagerImpl::resolveBackgroundEvictionScan(
     AbstractLedgerTxn& ltx, uint32_t ledgerSeq,
     LedgerKeySet const& modifiedKeys)
 {
     ZoneScoped;
-    auto const& cfg = mApp.getLedgerManager().getSorobanNetworkConfig();
-    auto const& sas = cfg.stateArchivalSettings();
-    auto searchableBL = mSnapshotManager->getSearchableBucketListSnapshot();
 
-    auto evictionCandidates = searchableBL->scanForEviction(
-        ledgerSeq, mBucketListEvictionCounters, cfg.evictionIterator(),
-        sas.startingEvictionScanLevel, sas.evictionScanSize,
-        mEvictionStatistics);
+    if (!mEvictionFuture.valid())
+    {
+        startBackgroundEvictionScan(ledgerSeq);
+    }
+
+    mEvictionFuture.wait();
+    auto evictionCandidates = mEvictionFuture.get();
+
+    auto const& networkConfig =
+        mApp.getLedgerManager().getSorobanNetworkConfig();
+
+    // If eviction related settings changed during the ledger, we have to
+    // restart the scan
+    if (!evictionCandidates.isValid(ledgerSeq,
+                                    networkConfig.stateArchivalSettings()))
+    {
+        startBackgroundEvictionScan(ledgerSeq);
+        mEvictionFuture.wait();
+        evictionCandidates = mEvictionFuture.get();
+    }
+
     auto& eligibleKeys = evictionCandidates.eligibleKeys;
 
     for (auto iter = eligibleKeys.begin(); iter != eligibleKeys.end();)
@@ -968,8 +1019,6 @@ BucketManagerImpl::resolveBackgroundEvictionScan(
         }
     }
 
-    auto const& networkConfig =
-        mApp.getLedgerManager().getSorobanNetworkConfig();
     auto remainingEntriesToEvict =
         networkConfig.stateArchivalSettings().maxEntriesToArchive;
     auto entryToEvictIter = eligibleKeys.begin();

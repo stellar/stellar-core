@@ -1393,19 +1393,23 @@ LedgerTxn::Impl::getAllEntries(std::vector<LedgerEntry>& initEntries,
 }
 
 LedgerKeySet
-LedgerTxn::getAllKeysWithoutSealing() const
+LedgerTxn::getAllTTLKeysWithoutSealing() const
 {
-    return getImpl()->getAllKeysWithoutSealing();
+    return getImpl()->getAllTTLKeysWithoutSealing();
 }
 
 LedgerKeySet
-LedgerTxn::Impl::getAllKeysWithoutSealing() const
+LedgerTxn::Impl::getAllTTLKeysWithoutSealing() const
 {
     throwIfNotExactConsistency();
     LedgerKeySet result;
     for (auto const& [k, v] : mEntry)
     {
-        result.emplace(k.ledgerKey());
+        if (k.type() == InternalLedgerEntryType::LEDGER_ENTRY &&
+            k.ledgerKey().type() == TTL)
+        {
+            result.emplace(k.ledgerKey());
+        }
     }
 
     return result;
