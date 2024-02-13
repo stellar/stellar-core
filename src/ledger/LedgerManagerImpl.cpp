@@ -333,11 +333,12 @@ setLedgerTxnHeader(LedgerHeader const& lh, Application& app)
 }
 
 void
-LedgerManagerImpl::loadLastKnownLedger(function<void()> handler)
+LedgerManagerImpl::loadLastKnownLedger(bool restoreBucketlist,
+                                       bool isLedgerStateReady)
 {
     ZoneScoped;
-    auto ledgerTime = mLedgerClose.TimeScope();
 
+    // Step 1. Load LCL state from the DB and extract latest ledger hash
     string lastLedger =
         mApp.getPersistentState().getState(PersistentState::kLastClosedLedger);
 
@@ -346,103 +347,119 @@ LedgerManagerImpl::loadLastKnownLedger(function<void()> handler)
         throw std::runtime_error(
             "No reference in DB to any last closed ledger");
     }
+
+    CLOG_INFO(Ledger, "Last closed ledger (LCL) hash is {}", lastLedger);
+    Hash lastLedgerHash = hexToBin256(lastLedger);
+
+    // Step 2. Restore LedgerHeader from DB based on the ledger hash derived
+    // earlier, or verify we're at genesis if in no-history mode
+    std::optional<LedgerHeader> latestLedgerHeader;
+    if (mApp.getConfig().MODE_STORES_HISTORY_LEDGERHEADERS)
+    {
+        if (mRebuildInMemoryState)
+        {
+            LedgerHeader lh;
+            CLOG_INFO(Ledger,
+                      "Setting empty ledger while core rebuilds state: {}",
+                      ledgerAbbrev(lh));
+            setLedgerTxnHeader(lh, mApp);
+            latestLedgerHeader = lh;
+        }
+        else
+        {
+            auto currentLedger =
+                LedgerHeaderUtils::loadByHash(getDatabase(), lastLedgerHash);
+            if (!currentLedger)
+            {
+                throw std::runtime_error("Could not load ledger from database");
+            }
+            HistoryArchiveState has = getLastClosedLedgerHAS();
+            if (currentLedger->ledgerSeq != has.currentLedger)
+            {
+                throw std::runtime_error("Invalid database state: last known "
+                                         "ledger does not agree with HAS");
+            }
+
+            CLOG_INFO(Ledger, "Loaded LCL header from database: {}",
+                      ledgerAbbrev(*currentLedger));
+            setLedgerTxnHeader(*currentLedger, mApp);
+            latestLedgerHeader = *currentLedger;
+        }
+    }
     else
     {
-        CLOG_INFO(Ledger, "Last closed ledger (LCL) hash is {}", lastLedger);
-        Hash lastLedgerHash = hexToBin256(lastLedger);
+        // In no-history mode, this method should only be called when
+        // the LCL is genesis.
+        releaseAssertOrThrow(mLastClosedLedger.hash == lastLedgerHash);
+        releaseAssertOrThrow(mLastClosedLedger.header.ledgerSeq ==
+                             GENESIS_LEDGER_SEQ);
+        CLOG_INFO(Ledger, "LCL is genesis: {}",
+                  ledgerAbbrev(mLastClosedLedger));
+        latestLedgerHeader = mLastClosedLedger.header;
+    }
 
-        if (mApp.getConfig().MODE_STORES_HISTORY_LEDGERHEADERS)
+    releaseAssert(latestLedgerHeader.has_value());
+
+    // Step 3. Restore BucketList if we're doing a full core startup
+    // (startServices=true), OR when using BucketListDB
+    if (restoreBucketlist || mApp.getConfig().isUsingBucketListDB())
+    {
+        HistoryArchiveState has = getLastClosedLedgerHAS();
+        auto missing = mApp.getBucketManager().checkForMissingBucketsFiles(has);
+        auto pubmissing = mApp.getHistoryManager()
+                              .getMissingBucketsReferencedByPublishQueue();
+        missing.insert(missing.end(), pubmissing.begin(), pubmissing.end());
+        if (!missing.empty())
         {
-            if (mRebuildInMemoryState)
+            CLOG_ERROR(Ledger,
+                       "{} buckets are missing from bucket directory '{}'",
+                       missing.size(), mApp.getBucketManager().getBucketDir());
+            throw std::runtime_error("Bucket directory is corrupt");
+        }
+
+        if (mApp.getConfig().MODE_ENABLES_BUCKETLIST)
+        {
+            // Only restart merges in full startup mode. Many modes in core
+            // (standalone offline commands, in-memory setup) do not need to
+            // spin up expensive merge processes.
+            auto assumeStateWork =
+                mApp.getWorkScheduler().executeWork<AssumeStateWork>(
+                    has, latestLedgerHeader->ledgerVersion, restoreBucketlist);
+            if (assumeStateWork->getState() == BasicWork::State::WORK_SUCCESS)
             {
-                LedgerHeader lh;
-                CLOG_INFO(Ledger,
-                          "Setting empty ledger while core rebuilds state: {}",
-                          ledgerAbbrev(lh));
-                setLedgerTxnHeader(lh, mApp);
+                CLOG_INFO(Ledger, "Assumed bucket-state for LCL: {}",
+                          ledgerAbbrev(*latestLedgerHeader));
             }
             else
             {
-                auto currentLedger = LedgerHeaderUtils::loadByHash(
-                    getDatabase(), lastLedgerHash);
-                if (!currentLedger)
-                {
-                    throw std::runtime_error(
-                        "Could not load ledger from database");
-                }
-                HistoryArchiveState has = getLastClosedLedgerHAS();
-                if (currentLedger->ledgerSeq != has.currentLedger)
-                {
-                    throw std::runtime_error(
-                        "Invalid database state: last known "
-                        "ledger does not agree with HAS");
-                }
+                // Work should only fail during graceful shutdown
+                releaseAssertOrThrow(mApp.isStopping());
+            }
+        }
+    }
 
-                CLOG_INFO(Ledger, "Loaded LCL header from database: {}",
-                          ledgerAbbrev(*currentLedger));
-                setLedgerTxnHeader(*currentLedger, mApp);
-            }
-        }
-        else
-        {
-            // In no-history mode, this method should only be called when
-            // the LCL is genesis.
-            releaseAssertOrThrow(mLastClosedLedger.hash == lastLedgerHash);
-            releaseAssertOrThrow(mLastClosedLedger.header.ledgerSeq ==
-                                 GENESIS_LEDGER_SEQ);
-            CLOG_INFO(Ledger, "LCL is genesis: {}",
-                      ledgerAbbrev(mLastClosedLedger));
-        }
+    // Step 4. Restore LedgerManager's internal state
+    advanceLedgerPointers(*latestLedgerHeader);
 
-        if (handler)
+    if (protocolVersionStartsFrom(latestLedgerHeader->ledgerVersion,
+                                  SOROBAN_PROTOCOL_VERSION))
+    {
+        if (isLedgerStateReady)
         {
-            HistoryArchiveState has = getLastClosedLedgerHAS();
-            auto missing =
-                mApp.getBucketManager().checkForMissingBucketsFiles(has);
-            auto pubmissing = mApp.getHistoryManager()
-                                  .getMissingBucketsReferencedByPublishQueue();
-            missing.insert(missing.end(), pubmissing.begin(), pubmissing.end());
-            if (!missing.empty())
-            {
-                CLOG_ERROR(
-                    Ledger, "{} buckets are missing from bucket directory '{}'",
-                    missing.size(), mApp.getBucketManager().getBucketDir());
-                throw std::runtime_error("Bucket directory is corrupt");
-            }
-            else
-            {
-                {
-                    LedgerTxn ltx(mApp.getLedgerTxnRoot());
-                    auto header = ltx.loadHeader();
-                    uint32_t ledgerVersion = header.current().ledgerVersion;
-                    if (mApp.getConfig().MODE_ENABLES_BUCKETLIST)
-                    {
-                        auto assumeStateWork =
-                            mApp.getWorkScheduler()
-                                .executeWork<AssumeStateWork>(has,
-                                                              ledgerVersion);
-                        if (assumeStateWork->getState() ==
-                            BasicWork::State::WORK_SUCCESS)
-                        {
-                            CLOG_INFO(Ledger,
-                                      "Assumed bucket-state for LCL: {}",
-                                      ledgerAbbrev(header.current()));
-                        }
-                        else
-                        {
-                            // Work should only fail during graceful shutdown
-                            releaseAssert(mApp.isStopping());
-                        }
-                    }
-                    advanceLedgerPointers(header.current());
-                }
-                handler();
-            }
-        }
-        else
-        {
+            // Step 5. If ledger state is ready and core is in v20, load network
+            // configs right away
             LedgerTxn ltx(mApp.getLedgerTxnRoot());
-            advanceLedgerPointers(ltx.loadHeader().current());
+            updateNetworkConfig(ltx);
+        }
+        else
+        {
+            // In some modes, e.g. in-memory, core's state is rebuilt
+            // asynchronously via catchup. In this case, we're not able to load
+            // the network config at this time, and instead must let catchup do
+            // it when ready.
+            CLOG_INFO(Ledger,
+                      "Ledger state is being rebuilt, network config will "
+                      "be loaded once the rebuild is done");
         }
     }
 }

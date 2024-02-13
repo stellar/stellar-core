@@ -1048,7 +1048,7 @@ BucketManagerImpl::checkForMissingBucketsFiles(HistoryArchiveState const& has)
 
 void
 BucketManagerImpl::assumeState(HistoryArchiveState const& has,
-                               uint32_t maxProtocolVersion)
+                               uint32_t maxProtocolVersion, bool restartMerges)
 {
     ZoneScoped;
     releaseAssertOrThrow(mApp.getConfig().MODE_ENABLES_BUCKETLIST);
@@ -1093,7 +1093,10 @@ BucketManagerImpl::assumeState(HistoryArchiveState const& has,
         mBucketList->getLevel(i).setNext(nextFuture);
     }
 
-    mBucketList->restartMerges(mApp, maxProtocolVersion, has.currentLedger);
+    if (restartMerges)
+    {
+        mBucketList->restartMerges(mApp, maxProtocolVersion, has.currentLedger);
+    }
     cleanupStaleFiles();
 }
 

@@ -550,15 +550,8 @@ ApplicationImpl::getJsonInfo(bool verbose)
 void
 ApplicationImpl::reportInfo(bool verbose)
 {
-    auto loadConfig = [this]() {
-        LedgerTxn ltx(getLedgerTxnRoot());
-        if (protocolVersionStartsFrom(ltx.loadHeader().current().ledgerVersion,
-                                      SOROBAN_PROTOCOL_VERSION))
-        {
-            getLedgerManager().updateNetworkConfig(ltx);
-        }
-    };
-    mLedgerManager->loadLastKnownLedger(loadConfig);
+    mLedgerManager->loadLastKnownLedger(/* restoreBucketlist */ false,
+                                        /* isLedgerStateReady */ true);
     LOG_INFO(DEFAULT_LOG, "Reporting application info");
     std::cout << getJsonInfo(verbose).toStyledString() << std::endl;
 }
@@ -793,6 +786,44 @@ ApplicationImpl::validateAndLogConfig()
 }
 
 void
+ApplicationImpl::startServices()
+{
+    // restores Herder's state before starting overlay
+    mHerder->start();
+    // set known cursors before starting maintenance job
+    ExternalQueue ps(*this);
+    ps.setInitialCursors(mConfig.KNOWN_CURSORS);
+    mMaintainer->start();
+    if (mConfig.MODE_AUTO_STARTS_OVERLAY)
+    {
+        mOverlayManager->start();
+    }
+    auto npub = mHistoryManager->publishQueuedHistory();
+    if (npub != 0)
+    {
+        CLOG_INFO(Ledger, "Restarted publishing {} queued snapshots", npub);
+    }
+    if (mConfig.FORCE_SCP)
+    {
+        LOG_INFO(DEFAULT_LOG, "* ");
+        LOG_INFO(DEFAULT_LOG,
+                 "* Force-starting scp from the current db state.");
+        LOG_INFO(DEFAULT_LOG, "* ");
+
+        mHerder->bootstrap();
+    }
+    if (mConfig.AUTOMATIC_SELF_CHECK_PERIOD.count() != 0)
+    {
+        scheduleSelfCheck(true);
+    }
+
+    if (mConfig.TESTING_UPGRADE_DATETIME.time_since_epoch().count() != 0)
+    {
+        mHerder->setUpgrades(mConfig);
+    }
+}
+
+void
 ApplicationImpl::start()
 {
     if (mStarted)
@@ -800,60 +831,13 @@ ApplicationImpl::start()
         CLOG_INFO(Ledger, "Skipping application start up");
         return;
     }
+
     CLOG_INFO(Ledger, "Starting up application");
     mStarted = true;
 
-    if (mConfig.TESTING_UPGRADE_DATETIME.time_since_epoch().count() != 0)
-    {
-        mHerder->setUpgrades(mConfig);
-    }
-
-    bool done = false;
-    mLedgerManager->loadLastKnownLedger([this, &done]() {
-        // Make sure to load Soroban network config before
-        // herder starts (tx queue configuration is based on it).
-        {
-            LedgerTxn ltx(getLedgerTxnRoot());
-            if (protocolVersionStartsFrom(
-                    ltx.loadHeader().current().ledgerVersion,
-                    SOROBAN_PROTOCOL_VERSION))
-            {
-                getLedgerManager().updateNetworkConfig(ltx);
-            }
-        }
-        // restores Herder's state before starting overlay
-        mHerder->start();
-        // set known cursors before starting maintenance job
-        ExternalQueue ps(*this);
-        ps.setInitialCursors(mConfig.KNOWN_CURSORS);
-        mMaintainer->start();
-        if (mConfig.MODE_AUTO_STARTS_OVERLAY)
-        {
-            mOverlayManager->start();
-        }
-        auto npub = mHistoryManager->publishQueuedHistory();
-        if (npub != 0)
-        {
-            CLOG_INFO(Ledger, "Restarted publishing {} queued snapshots", npub);
-        }
-        if (mConfig.FORCE_SCP)
-        {
-            LOG_INFO(DEFAULT_LOG, "* ");
-            LOG_INFO(DEFAULT_LOG,
-                     "* Force-starting scp from the current db state.");
-            LOG_INFO(DEFAULT_LOG, "* ");
-
-            mHerder->bootstrap();
-        }
-        if (mConfig.AUTOMATIC_SELF_CHECK_PERIOD.count() != 0)
-        {
-            scheduleSelfCheck(true);
-        }
-        done = true;
-    });
-
-    while (!done && mVirtualClock.crank(true))
-        ;
+    mLedgerManager->loadLastKnownLedger(/* restoreBucketlist */ true,
+                                        /* isLedgerStateReady */ true);
+    startServices();
 }
 
 void
