@@ -25,8 +25,8 @@
         "fee_write_ledger_entry": 10000,
         "fee_read1_kb": 1786,
         "bucket_list_target_size_bytes": 13958643712,
-        "write_fee1_kb_bucket_list_low": 1000,
-        "write_fee1_kb_bucket_list_high": 4000000,
+        "write_fee1_kb_bucket_list_low": -1234673,
+        "write_fee1_kb_bucket_list_high": 115390,
         "bucket_list_write_fee_growth_factor": 1000
       }
     },
