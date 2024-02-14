@@ -413,7 +413,7 @@ BucketIndexImpl<IndexT>::scan(Iterator start, LedgerKey const& k) const
 }
 
 template <class IndexT>
-std::pair<std::streamoff, std::streamoff>
+std::optional<std::pair<std::streamoff, std::streamoff>>
 BucketIndexImpl<IndexT>::getPoolshareTrustlineRange(
     AccountID const& accountID) const
 {
@@ -430,7 +430,7 @@ BucketIndexImpl<IndexT>::getPoolshareTrustlineRange(
         lower_bound_pred<typename IndexT::value_type>);
     if (startIter == mData.keysToOffset.end())
     {
-        return {};
+        return std::nullopt;
     }
 
     auto endIter =

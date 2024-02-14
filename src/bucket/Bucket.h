@@ -49,21 +49,32 @@ class Bucket : public std::enable_shared_from_this<Bucket>,
 
     std::unique_ptr<BucketIndex const> mIndex{};
 
-    // Lazily-constructed and retained for read path.
-    std::unique_ptr<XDRInputFileStream> mStream;
+    // Lazily-constructed and retained for read path, one for BucketListDB reads
+    // and one for eviction scans
+    std::unique_ptr<XDRInputFileStream> mIndexStream;
+    std::unique_ptr<XDRInputFileStream> mEvictionStream;
 
     // Returns index, throws if index not yet initialized
     BucketIndex const& getIndex() const;
 
-    // Returns (lazily-constructed) file stream for bucket file. Note
+    // Returns (lazily-constructed) file stream for bucketDB search. Note
     // this might be in some random position left over from a previous read --
     // must be seek()'ed before use.
-    XDRInputFileStream& getStream();
+    XDRInputFileStream& getIndexStream();
+
+    // Returns (lazily-constructed) file stream for eviction scans. Unlike the
+    // indexStream, this should retain its position in-between calls. However, a
+    // node performing catchup or joining the network may need to begin evicting
+    // mid-bucket, so this stream should still be seeked to the proper position
+    // before reading.
+    XDRInputFileStream& getEvictionStream();
 
     // Loads the bucket entry for LedgerKey k. Starts at file offset pos and
     // reads until key is found or the end of the page.
     std::optional<BucketEntry>
     getEntryAtOffset(LedgerKey const& k, std::streamoff pos, size_t pageSize);
+
+    std::unique_ptr<XDRInputFileStream> openStream();
 
     static std::string randomFileName(std::string const& tmpDir,
                                       std::string ext);
@@ -110,10 +121,10 @@ class Bucket : public std::enable_shared_from_this<Bucket>,
     // stored with their corresponding liquidity pool key in
     // liquidityPoolKeyToTrustline. All liquidity pool keys corresponding to
     // loaded trustlines are also reduntantly stored in liquidityPoolKeys.
-    // If a trustline key is in deadTrustlines, it is not loaded. Whenever a
-    // dead trustline is found, its key is added to deadTrustlines.
+    // If a trustline key is in seenTrustlines, it is not loaded. Whenever a
+    // dead trustline is found, its key is added to seenTrustlines.
     void loadPoolShareTrustLinessByAccount(
-        AccountID const& accountID, UnorderedSet<LedgerKey>& deadTrustlines,
+        AccountID const& accountID, UnorderedSet<LedgerKey>& seenTrustlines,
         UnorderedMap<LedgerKey, LedgerEntry>& liquidityPoolKeyToTrustline,
         LedgerKeySet& liquidityPoolKeys);
 

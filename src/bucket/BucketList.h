@@ -488,8 +488,7 @@ class BucketList
 
     std::vector<LedgerEntry>
     loadPoolShareTrustLinesByAccountAndAsset(AccountID const& accountID,
-                                             Asset const& asset,
-                                             Config const& cfg) const;
+                                             Asset const& asset) const;
 
     std::vector<InflationWinner> loadInflationWinners(size_t maxWinners,
                                                       int64_t minBalance) const;

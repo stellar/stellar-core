@@ -978,8 +978,8 @@ BucketManagerImpl::loadPoolShareTrustLinesByAccountAndAsset(
     // This query needs to do a linear scan of certain regions of the
     // BucketList, so the number of entries loaded is meaningless
     auto timer = recordBulkLoadMetrics("poolshareTrustlines", 0).TimeScope();
-    return mBucketList->loadPoolShareTrustLinesByAccountAndAsset(
-        accountID, asset, getConfig());
+    return mBucketList->loadPoolShareTrustLinesByAccountAndAsset(accountID,
+                                                                 asset);
 }
 
 std::vector<InflationWinner>

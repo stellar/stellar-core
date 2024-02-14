@@ -443,17 +443,16 @@ BucketList::loadKeys(std::set<LedgerKey, LedgerEntryIdCmp> const& inKeys) const
 
 std::vector<LedgerEntry>
 BucketList::loadPoolShareTrustLinesByAccountAndAsset(AccountID const& accountID,
-                                                     Asset const& asset,
-                                                     Config const& cfg) const
+                                                     Asset const& asset) const
 {
     ZoneScoped;
     UnorderedMap<LedgerKey, LedgerEntry> liquidityPoolToTrustline;
-    UnorderedSet<LedgerKey> deadTrustlines;
+    UnorderedSet<LedgerKey> seenTrustlines;
     LedgerKeySet liquidityPoolKeysToSearch;
 
     // First get all the poolshare trustlines for the given account
     auto trustLineLoop = [&](std::shared_ptr<Bucket> b) {
-        b->loadPoolShareTrustLinessByAccount(accountID, deadTrustlines,
+        b->loadPoolShareTrustLinessByAccount(accountID, seenTrustlines,
                                              liquidityPoolToTrustline,
                                              liquidityPoolKeysToSearch);
         return false; // continue
@@ -890,6 +889,22 @@ BucketList::scanForEviction(Application& app, AbstractLedgerTxn& ltx,
         auto initialLevel = evictionIter.bucketListLevel;
         auto initialIsCurr = evictionIter.isCurrBucket;
         auto b = getBucketFromIter(evictionIter);
+
+        // Check to see if we can finish scanning the bucket before it receives
+        // an update
+        auto period = bucketUpdatePeriod(evictionIter.bucketListLevel,
+                                         evictionIter.isCurrBucket);
+
+        // Ledgers remaining until the current Bucket changes
+        auto ledgersRemainingToScanBucket = period - (ledgerSeq % period);
+        auto bytesRemaining = b->getSize() - evictionIter.bucketFileOffset;
+        if (ledgersRemainingToScanBucket * scanSize < bytesRemaining)
+        {
+            CLOG_WARNING(Bucket,
+                         "Bucket too large for current eviction scan size.");
+            counters.incompleteBucketScan.inc();
+        }
+
         while (!b->scanForEviction(
             ltx, evictionIter, scanSize, maxEntriesToEvict, ledgerSeq,
             counters.entriesEvicted, counters.bytesScannedForEviction,
@@ -946,17 +961,6 @@ BucketList::scanForEviction(Application& app, AbstractLedgerTxn& ltx,
             }
 
             b = getBucketFromIter(evictionIter);
-
-            // Check to see if we can finish scanning the new bucket before it
-            // receives an update
-            auto period = bucketUpdatePeriod(evictionIter.bucketListLevel,
-                                             evictionIter.isCurrBucket);
-            if (period * scanSize < b->getSize())
-            {
-                CLOG_WARNING(
-                    Bucket, "Bucket too large for current eviction scan size.");
-                counters.incompleteBucketScan.inc();
-            }
         }
 
         networkConfig.updateEvictionIterator(ltx, evictionIter);

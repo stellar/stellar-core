@@ -111,7 +111,7 @@ class BucketIndexTest
     }
 
     virtual void
-    buildShadowTest()
+    buildMultiVersionTest()
     {
         std::vector<LedgerKey> toDestroy;
         std::vector<LedgerEntry> toUpdate;
@@ -308,10 +308,10 @@ class BucketIndexPoolShareTest : public BucketIndexTest
     }
 
     void
-    buildTest(bool shouldShadow)
+    buildTest(bool shouldMultiVersion)
     {
         auto f = [&](std::vector<LedgerEntry>& entries) {
-            std::vector<LedgerKey> toShadow;
+            std::vector<LedgerKey> toWriteNewVersion;
             if (mDist(gRandomEngine) < 30)
             {
                 auto pool = LedgerTestUtils::generateValidLiquidityPoolEntry();
@@ -352,17 +352,27 @@ class BucketIndexPoolShareTest : public BucketIndexTest
                 entries.emplace_back(trustlineToSearch);
                 entries.emplace_back(trustline2);
             }
-            else if (shouldShadow && mDist(gRandomEngine) < 10 &&
+            // Write new version via delete
+            else if (shouldMultiVersion && mDist(gRandomEngine) < 10 &&
                      !mTestEntries.empty())
             {
-                // Arbitrarily shadow first entry of map
+                // Arbitrarily pcik first entry of map
                 auto iter = mTestEntries.begin();
-                toShadow.emplace_back(iter->first);
+                toWriteNewVersion.emplace_back(iter->first);
                 mTestEntries.erase(iter);
+            }
+            // Write new version via modify
+            else if (shouldMultiVersion && mDist(gRandomEngine) < 10 &&
+                     !mTestEntries.empty())
+            {
+                // Arbitrarily pick first entry of map
+                auto iter = mTestEntries.begin();
+                iter->second.data.trustLine().balance += 10;
+                entries.emplace_back(iter->second);
             }
 
             mApp->getLedgerManager().setNextLedgerEntryBatchForBucketTesting(
-                {}, entries, toShadow);
+                {}, entries, toWriteNewVersion);
         };
 
         BucketIndexTest::buildBucketList(f);
@@ -390,7 +400,7 @@ class BucketIndexPoolShareTest : public BucketIndexTest
     }
 
     virtual void
-    buildShadowTest() override
+    buildMultiVersionTest() override
     {
         buildTest(true);
     }
@@ -446,11 +456,11 @@ TEST_CASE("key-value lookup", "[bucket][bucketindex]")
     testAllIndexTypes(f);
 }
 
-TEST_CASE("do not load shadowed values", "[bucket][bucketindex]")
+TEST_CASE("do not load outdated values", "[bucket][bucketindex]")
 {
     auto f = [&](Config& cfg) {
         auto test = BucketIndexTest(cfg);
-        test.buildShadowTest();
+        test.buildMultiVersionTest();
         test.run();
     };
 
@@ -468,12 +478,13 @@ TEST_CASE("loadPoolShareTrustLinesByAccountAndAsset", "[bucket][bucketindex]")
     testAllIndexTypes(f);
 }
 
-TEST_CASE("loadPoolShareTrustLinesByAccountAndAsset does not load shadows",
-          "[bucket][bucketindex]")
+TEST_CASE(
+    "loadPoolShareTrustLinesByAccountAndAsset does not load outdated versions",
+    "[bucket][bucketindex]")
 {
     auto f = [&](Config& cfg) {
         auto test = BucketIndexPoolShareTest(cfg);
-        test.buildShadowTest();
+        test.buildMultiVersionTest();
         test.run();
     };
 

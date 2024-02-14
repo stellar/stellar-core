@@ -77,16 +77,33 @@ Bucket::Bucket()
 {
 }
 
-XDRInputFileStream&
-Bucket::getStream()
+std::unique_ptr<XDRInputFileStream>
+Bucket::openStream()
 {
-    if (!mStream)
+    releaseAssertOrThrow(!mFilename.empty());
+    auto streamPtr = std::make_unique<XDRInputFileStream>();
+    streamPtr->open(mFilename.string());
+    return std::move(streamPtr);
+}
+
+XDRInputFileStream&
+Bucket::getIndexStream()
+{
+    if (!mIndexStream)
     {
-        mStream = std::make_unique<XDRInputFileStream>();
-        releaseAssertOrThrow(!mFilename.empty());
-        mStream->open(mFilename.string());
+        mIndexStream = openStream();
     }
-    return *mStream;
+    return *mIndexStream;
+}
+
+XDRInputFileStream&
+Bucket::getEvictionStream()
+{
+    if (!mEvictionStream)
+    {
+        mEvictionStream = openStream();
+    }
+    return *mEvictionStream;
 }
 
 Hash const&
@@ -139,7 +156,7 @@ void
 Bucket::freeIndex()
 {
     mIndex.reset(nullptr);
-    mStream.reset(nullptr);
+    mIndexStream.reset(nullptr);
 }
 
 std::optional<BucketEntry>
@@ -147,7 +164,7 @@ Bucket::getEntryAtOffset(LedgerKey const& k, std::streamoff pos,
                          size_t pageSize)
 {
     ZoneScoped;
-    auto& stream = getStream();
+    auto& stream = getIndexStream();
     stream.seek(pos);
 
     BucketEntry be;
@@ -221,7 +238,7 @@ Bucket::loadKeys(std::set<LedgerKey, LedgerEntryIdCmp>& keys,
 
 void
 Bucket::loadPoolShareTrustLinessByAccount(
-    AccountID const& accountID, UnorderedSet<LedgerKey>& deadTrustlines,
+    AccountID const& accountID, UnorderedSet<LedgerKey>& seenTrustlines,
     UnorderedMap<LedgerKey, LedgerEntry>& liquidityPoolKeyToTrustline,
     LedgerKeySet& liquidityPoolKeys)
 {
@@ -238,16 +255,16 @@ Bucket::loadPoolShareTrustLinessByAccount(
     // Get upper and lower bound for poolshare trustline range associated
     // with this account
     auto searchRange = getIndex().getPoolshareTrustlineRange(accountID);
-    if (searchRange.first == 0)
+    if (!searchRange)
     {
         // No poolshare trustlines, exit
         return;
     }
 
     BucketEntry be;
-    auto& stream = getStream();
-    stream.seek(searchRange.first);
-    while (stream && stream.pos() < searchRange.second && stream.readOne(be))
+    auto& stream = getIndexStream();
+    stream.seek(searchRange->first);
+    while (stream && stream.pos() < searchRange->second && stream.readOne(be))
     {
         LedgerEntry entry;
         switch (be.type())
@@ -265,7 +282,7 @@ Bucket::loadPoolShareTrustLinessByAccount(
             // later
             if (trustlineCheck(key))
             {
-                deadTrustlines.emplace(key);
+                seenTrustlines.emplace(key);
             }
             continue;
         }
@@ -275,10 +292,11 @@ Bucket::loadPoolShareTrustLinessByAccount(
         }
 
         // If this is a pool share trustline that matches the accountID and
-        // is not shadowed, add it to results
+        // is the newest version of the key, add it to results
         if (trustlineCheck(entry.data) &&
-            deadTrustlines.find(LedgerEntryKey(entry)) == deadTrustlines.end())
+            seenTrustlines.find(LedgerEntryKey(entry)) == seenTrustlines.end())
         {
+            seenTrustlines.emplace(LedgerEntryKey(entry));
             auto const& poolshareID =
                 entry.data.trustLine().asset.liquidityPoolID();
 
@@ -859,7 +877,7 @@ Bucket::scanForEviction(AbstractLedgerTxn& ltx, EvictionIterator& iter,
         return true;
     }
 
-    auto& stream = getStream();
+    auto& stream = getEvictionStream();
     stream.seek(iter.bucketFileOffset);
 
     BucketEntry be;
@@ -871,12 +889,6 @@ Bucket::scanForEviction(AbstractLedgerTxn& ltx, EvictionIterator& iter,
             if (isTemporaryEntry(le.data))
             {
                 ZoneNamedN(maybeEvict, "maybe evict entry", true);
-                // All Buckets maintain a single stream object. This means
-                // that if an TTLEntry being loaded exists in the
-                // same bucket as the entry being evicted, the stream may be
-                // modified, so we must seek back to the starting position
-                // after any call to load
-                auto initialStreamPos = stream.pos();
 
                 auto ttlKey = getTTLKey(le);
                 uint32_t liveUntilLedger = 0;
@@ -912,8 +924,6 @@ Bucket::scanForEviction(AbstractLedgerTxn& ltx, EvictionIterator& iter,
                     entriesEvictedCounter.inc();
                     --remainingEntriesToEvict;
                 }
-
-                stream.seek(initialStreamPos);
             }
         }
 
