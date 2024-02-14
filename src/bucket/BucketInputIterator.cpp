@@ -52,7 +52,7 @@ BucketInputIterator::loadEntry()
     }
 }
 
-size_t
+std::streamoff
 BucketInputIterator::pos()
 {
     return mIn.pos();

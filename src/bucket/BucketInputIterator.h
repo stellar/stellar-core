@@ -52,7 +52,7 @@ class BucketInputIterator
 
     BucketInputIterator& operator++();
 
-    size_t pos();
+    std::streamoff pos();
     size_t size() const;
     void seek(std::streamoff offset);
 };
