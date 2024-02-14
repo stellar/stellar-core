@@ -461,7 +461,7 @@ TCPPeer::scheduleRead()
     // this will be throttled to try to balance input rates across peers.
     ZoneScoped;
 
-    if (mIsPeerThrottled)
+    if (mLastThrottle)
     {
         return;
     }
@@ -543,7 +543,7 @@ TCPPeer::startRead()
                     // Break and wait until more capacity frees up
                     CLOG_DEBUG(Overlay, "Throttle reading from peer {}!",
                                mApp.getConfig().toShortString(getPeerID()));
-                    mIsPeerThrottled = true;
+                    mLastThrottle = mApp.getClock().now();
                     return;
                 }
                 if (mApp.getClock().shouldYield())
@@ -689,7 +689,7 @@ TCPPeer::readBodyHandler(asio::error_code const& error,
             CLOG_DEBUG(Overlay,
                        "TCPPeer::readBodyHandler: throttle reading from {}",
                        mApp.getConfig().toShortString(getPeerID()));
-            mIsPeerThrottled = true;
+            mLastThrottle = mApp.getClock().now();
             return;
         }
 

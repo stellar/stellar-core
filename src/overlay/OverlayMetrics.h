@@ -34,6 +34,8 @@ struct OverlayMetrics
     medida::Meter& mTimeoutIdle;
     medida::Meter& mTimeoutStraggler;
     medida::Timer& mConnectionLatencyTimer;
+    medida::Timer& mConnectionReadThrottle;
+    medida::Timer& mConnectionFloodThrottle;
 
     medida::Meter& mItemFetcherNextPeer;
 

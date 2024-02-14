@@ -32,6 +32,10 @@ OverlayMetrics::OverlayMetrics(Application& app)
           {"overlay", "timeout", "straggler"}, "timeout"))
     , mConnectionLatencyTimer(
           app.getMetrics().NewTimer({"overlay", "connection", "latency"}))
+    , mConnectionReadThrottle(
+          app.getMetrics().NewTimer({"overlay", "connection", "read-throttle"}))
+    , mConnectionFloodThrottle(app.getMetrics().NewTimer(
+          {"overlay", "connection", "flood-throttle"}))
 
     , mItemFetcherNextPeer(app.getMetrics().NewMeter(
           {"overlay", "item-fetcher", "next-peer"}, "item-fetcher"))

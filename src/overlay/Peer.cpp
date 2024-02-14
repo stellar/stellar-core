@@ -170,11 +170,13 @@ Peer::endMessageProcessing(StellarMessage const& msg)
     mFlowControl->endMessageProcessing(msg, shared_from_this());
 
     releaseAssert(canRead());
-    if (mIsPeerThrottled)
+    if (mLastThrottle)
     {
         CLOG_DEBUG(Overlay, "Stop throttling reading from peer {}",
                    mApp.getConfig().toShortString(getPeerID()));
-        mIsPeerThrottled = false;
+        getOverlayMetrics().mConnectionReadThrottle.Update(
+            mApp.getClock().now() - *mLastThrottle);
+        mLastThrottle.reset();
         scheduleRead();
     }
 }
