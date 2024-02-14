@@ -24,6 +24,11 @@ void initializeDatabase(Config cfg);
 void httpCommand(std::string const& command, unsigned short port);
 int selfCheck(Config cfg);
 int mergeBucketList(Config cfg, std::string const& outputDir);
+
+// Logs state archival statistics, such as the number of expired entries
+// currently in the BucketList, number of bytes of evicted entries, etc.
+int dumpStateArchivalStatistics(Config cfg);
+
 int dumpLedger(Config cfg, std::string const& outputFile,
                std::optional<std::string> filterQuery,
                std::optional<uint32_t> lastModifiedLedgerCount,

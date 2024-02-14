@@ -1169,6 +1169,15 @@ runMergeBucketList(CommandLineArgs const& args)
 }
 
 int
+runDumpStateArchivalStatistics(CommandLineArgs const& args)
+{
+    CommandLine::ConfigOption configOption;
+    return runWithHelp(args, {configurationParser(configOption)}, [&] {
+        return dumpStateArchivalStatistics(configOption.getConfig());
+    });
+}
+
+int
 runDumpLedger(CommandLineArgs const& args)
 {
     CommandLine::ConfigOption configOption;
@@ -1836,6 +1845,9 @@ handleCommandLine(int argc, char* const* argv)
          {"self-check", "performs diagnostic checks", runSelfCheck},
          {"merge-bucketlist", "writes diagnostic merged bucket list",
           runMergeBucketList},
+         {"dump-archival-stats",
+          "prints statistics about expired/evicted entries in the BucketList",
+          runDumpStateArchivalStatistics},
          {"new-db", "creates or restores the DB to the genesis ledger",
           runNewDB},
          {"new-hist", "initialize history archives", runNewHist},
