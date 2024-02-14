@@ -255,7 +255,7 @@ Bucket::loadPoolShareTrustLinessByAccount(
     // Get upper and lower bound for poolshare trustline range associated
     // with this account
     auto searchRange = getIndex().getPoolshareTrustlineRange(accountID);
-    if (searchRange.first == 0 && searchRange.second == 0)
+    if (!searchRange)
     {
         // No poolshare trustlines, exit
         return;
@@ -263,8 +263,8 @@ Bucket::loadPoolShareTrustLinessByAccount(
 
     BucketEntry be;
     auto& stream = getIndexStream();
-    stream.seek(searchRange.first);
-    while (stream && stream.pos() < searchRange.second && stream.readOne(be))
+    stream.seek(searchRange->first);
+    while (stream && stream.pos() < searchRange->second && stream.readOne(be))
     {
         LedgerEntry entry;
         switch (be.type())
@@ -292,7 +292,7 @@ Bucket::loadPoolShareTrustLinessByAccount(
         }
 
         // If this is a pool share trustline that matches the accountID and
-        // is not shadowed, add it to results
+        // is the newest version of the key, add it to results
         if (trustlineCheck(entry.data) &&
             seenTrustlines.find(LedgerEntryKey(entry)) == seenTrustlines.end())
         {

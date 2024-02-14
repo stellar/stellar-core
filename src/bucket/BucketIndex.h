@@ -109,8 +109,8 @@ class BucketIndex : public NonMovableOrCopyable
 
     // Returns lower bound and upper bound for poolshare trustline entry
     // positions associated with the given accountID. If no trustlines found,
-    // returns std::pair<0, 0>
-    virtual std::pair<std::streamoff, std::streamoff>
+    // returns nullopt
+    virtual std::optional<std::pair<std::streamoff, std::streamoff>>
     getPoolshareTrustlineRange(AccountID const& accountID) const = 0;
 
     // Returns page size for index. InidividualIndex returns 0 for page size

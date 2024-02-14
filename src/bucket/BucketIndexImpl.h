@@ -71,7 +71,7 @@ template <class IndexT> class BucketIndexImpl : public BucketIndex
     virtual std::pair<std::optional<std::streamoff>, Iterator>
     scan(Iterator start, LedgerKey const& k) const override;
 
-    virtual std::pair<std::streamoff, std::streamoff>
+    virtual std::optional<std::pair<std::streamoff, std::streamoff>>
     getPoolshareTrustlineRange(AccountID const& accountID) const override;
 
     virtual std::streamoff
