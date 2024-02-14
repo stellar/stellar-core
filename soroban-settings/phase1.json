@@ -7,7 +7,7 @@
       "contract_compute_v0": {
         "ledger_max_instructions": 100000000,
         "tx_max_instructions": 100000000,
-        "fee_rate_per_instructions_increment": 100,
+        "fee_rate_per_instructions_increment": 25,
         "tx_memory_limit": 41943040
       }
     },
@@ -21,10 +21,10 @@
         "tx_max_read_bytes": 133120,
         "tx_max_write_ledger_entries": 20,
         "tx_max_write_bytes": 66560,
-        "fee_read_ledger_entry": 1000,
-        "fee_write_ledger_entry": 3000,
-        "fee_read1_kb": 1000,
-        "bucket_list_target_size_bytes": 14495514624,
+        "fee_read_ledger_entry": 6250,
+        "fee_write_ledger_entry": 10000,
+        "fee_read1_kb": 1786,
+        "bucket_list_target_size_bytes": 13958643712,
         "write_fee1_kb_bucket_list_low": 1000,
         "write_fee1_kb_bucket_list_high": 4000000,
         "bucket_list_write_fee_growth_factor": 1000
@@ -32,20 +32,20 @@
     },
     {
       "contract_historical_data_v0": {
-        "fee_historical1_kb": 5000
+        "fee_historical1_kb": 16235
       }
     },
     {
       "contract_events_v0": {
         "tx_max_contract_events_size_bytes": 8198,
-        "fee_contract_events1_kb": 300
+        "fee_contract_events1_kb": 10000
       }
     },
     {
       "contract_bandwidth_v0": {
         "ledger_max_txs_size_bytes": 71680,
         "tx_max_size_bytes": 71680,
-        "fee_tx_size1_kb": 500
+        "fee_tx_size1_kb": 1624
       }
     },
     {
