@@ -125,6 +125,14 @@ class TransactionQueueTest
             REQUIRE(size - toRemove.size() >=
                     mTransactionQueue.getTransactions({}).size());
         }
+
+        // Everything that got removed should have age=0
+        for (auto const& tx : toRemove)
+        {
+            auto txInfo = mTransactionQueue.getAccountTransactionQueueInfo(
+                tx->getSourceID());
+            REQUIRE(txInfo.mAge == 0);
+        }
     }
 
     void
@@ -201,11 +209,16 @@ class TransactionQueueTest
                     accountState.mAccountID);
             REQUIRE(accountTransactionQueueInfo.mTotalFees ==
                     expectedFees[accountState.mAccountID]);
-            REQUIRE(accountTransactionQueueInfo.mMaxSeq == seqNum);
+            auto queueSeqNum =
+                accountTransactionQueueInfo.mTransaction
+                    ? accountTransactionQueueInfo.mTransaction->mTx->getSeqNum()
+                    : 0;
+            totOps += accountTransactionQueueInfo.mTransaction
+                          ? accountTransactionQueueInfo.mTransaction->mTx
+                                ->getNumOperations()
+                          : 0;
+            REQUIRE(queueSeqNum == seqNum);
             REQUIRE(accountTransactionQueueInfo.mAge == accountState.mAge);
-            REQUIRE(accountTransactionQueueInfo.mBroadcastQueueOps ==
-                    accountTransactionQueueInfo.mQueueSizeOps);
-            totOps += accountTransactionQueueInfo.mQueueSizeOps;
 
             expectedTxs.insert(expectedTxs.end(),
                                accountState.mAccountTransactions.begin(),
@@ -543,19 +556,21 @@ testTransactionQueueBasicScenarios()
         test.add(txSeqA1T1, TransactionQueue::AddResult::ADD_STATUS_DUPLICATE);
         test.check(state);
 
-        auto status = TransactionQueue::AddResult::ADD_STATUS_TRY_AGAIN_LATER;
-        test.add(txSeqA1T2, status);
+        test.add(txSeqA1T2,
+                 TransactionQueue::AddResult::ADD_STATUS_TRY_AGAIN_LATER);
         test.check(state);
 
-        // Regardless of seqnum validity, tx is rejected due to limit
+        // Tx is rejected due to limit or bad seqnum
         // too low
-        test.add(txSeqA1T0, status);
+        test.add(txSeqA1T0, TransactionQueue::AddResult::ADD_STATUS_ERROR);
         test.check(state);
         // too high
-        test.add(txSeqA1T4, status);
+        test.add(txSeqA1T4,
+                 TransactionQueue::AddResult::ADD_STATUS_TRY_AGAIN_LATER);
         test.check(state);
         // just right
-        test.add(txSeqA1T3, status);
+        test.add(txSeqA1T3,
+                 TransactionQueue::AddResult::ADD_STATUS_TRY_AGAIN_LATER);
         test.check(state);
     }
 
