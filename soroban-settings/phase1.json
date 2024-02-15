@@ -19,7 +19,7 @@
         "ledger_max_write_bytes": 66560,
         "tx_max_read_ledger_entries": 40,
         "tx_max_read_bytes": 133120,
-        "tx_max_write_ledger_entries": 20,
+        "tx_max_write_ledger_entries": 25,
         "tx_max_write_bytes": 66560,
         "fee_read_ledger_entry": 6250,
         "fee_write_ledger_entry": 10000,
