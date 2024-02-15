@@ -23,7 +23,7 @@ enum StrKeyVersionByte : uint8_t
     STRKEY_PRE_AUTH_TX = 19,            // 'T'
     STRKEY_HASH_X = 23,                 // 'X'
     STRKEY_MUXED_ACCOUNT_ED25519 = 12,  // 'M'
-    STRKEY_CONTRACT = 2,                // 'S'
+    STRKEY_CONTRACT = 2,                // 'C'
 };
 
 // Encode a version byte and ByteSlice into StrKey
