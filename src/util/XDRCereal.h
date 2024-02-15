@@ -79,6 +79,9 @@ void cereal_override(cereal::JSONOutputArchive& ar, const stellar::PublicKey& s,
                      const char* field);
 
 void cereal_override(cereal::JSONOutputArchive& ar,
+                     const stellar::SCAddress& addr, const char* field);
+
+void cereal_override(cereal::JSONOutputArchive& ar,
                      const stellar::MuxedAccount& muxedAccount,
                      const char* field);
 
