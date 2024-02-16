@@ -2679,7 +2679,8 @@ TEST_CASE("settings upgrade command line utils", "[tx][soroban][upgrades]")
 
         // We're writing the latest cpu and mem settings below to makes sure
         // they don't brick the settings upgrade process. We would ideally pull
-        // this from phase1.json, but core doesn't know how to parse JSON XDR.
+        // this from pubnet_phase1.json, but core doesn't know how to parse JSON
+        // XDR.
         auto const& vals = xdr::xdr_traits<ContractCostType>::enum_values();
         if (entry.current().data.configSetting().configSettingID() ==
             CONFIG_SETTING_CONTRACT_COST_PARAMS_CPU_INSTRUCTIONS)
