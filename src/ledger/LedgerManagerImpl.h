@@ -176,8 +176,6 @@ class LedgerManagerImpl : public LedgerManager
     bool hasSorobanNetworkConfig() const override;
 
 #ifdef BUILD_TESTS
-    bool mUseLegacySQLEvictionScanForTesting{};
-
     SorobanNetworkConfig& getMutableSorobanNetworkConfig() override;
 #endif
 

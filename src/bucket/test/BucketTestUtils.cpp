@@ -121,11 +121,7 @@ LedgerManagerForBucketTests::transferLedgerEntriesToBucketList(
                 auto keys = ltx.getAllTTLKeysWithoutSealing();
                 LedgerTxn ltxEvictions(ltx);
 
-                if (mApp.getConfig().isUsingBucketListDB()
-#ifdef BUILD_TESTS
-                    && !mUseLegacySQLEvictionScanForTesting
-#endif
-                )
+                if (mApp.getConfig().EXPERIMENTAL_BACKGROUND_EVICTION_SCAN)
                 {
                     mApp.getBucketManager().resolveBackgroundEvictionScan(
                         ltxEvictions, ledgerSeq, keys);

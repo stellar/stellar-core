@@ -769,7 +769,7 @@ Bucket::scanForEvictionLegacySQL(
 }
 
 bool
-Bucket::scanForEviction(EvictionIterator& iter, uint64_t& bytesToScan,
+Bucket::scanForEviction(EvictionIterator& iter, uint32_t& bytesToScan,
                         uint32_t ledgerSeq,
                         std::list<EvictionResultEntry>& evictableKeys,
                         SearchableBucketListSnapshot& bl) const
