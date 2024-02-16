@@ -89,6 +89,8 @@ overlay.async.write                       | meter     | number of async write re
 overlay.connection.authenticated          | counter   | number of authenticated peers
 overlay.connection.latency                | timer     | estimated latency between peers
 overlay.connection.pending                | counter   | number of pending connections
+overlay.connection.read-throttle          | timer     | throttle time for reading incoming traffic from peers
+overlay.connection.flood-throttle         | timer     | throttle time for sending flood traffic to peers
 overlay.delay.async-write                 | timer     | time between each message's async write issue and completion
 overlay.delay.write-queue                 | timer     | time between each message's entry and exit from peer write queue
 overlay.error.read                        | meter     | error while receiving a message
