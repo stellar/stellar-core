@@ -15,7 +15,7 @@ how the settings upgrade mechanism works internally. **If you are just being ask
 to vote for an upgrade, please move on to the [Examine a proposed upgrade](#examine-a-proposed-upgrade) step for details on how to examine a
 proposed upgrade.**
 
-1. Using the stellar-xdr rust tool and a JSON file as input, run `stellar-xdr encode --type ConfigUpgradeSet JSON_FILE`. [phase1.json](../../soroban-settings/phase1.json) can be used as a template to propose upgrades.
+1. Using the stellar-xdr rust tool and a JSON file as input, run `stellar-xdr encode --type ConfigUpgradeSet JSON_FILE`. [pubnet_phase1.json](../../soroban-settings/pubnet_phase1.json) can be used as a template to propose upgrades.
     - Example output - `AAAAAQAAAAsAAAAM` (note that this string can be much larger depending on the settings you're upgrading)
     - stellar-xdr can be installed with brew (`brew install stellar/tap/stellar-xdr`) or cargo (``cargo install --locked stellar-xdr --features cli``). You can also download the binary for your system here https://github.com/stellar/rs-stellar-xdr/releases/latest.
 
