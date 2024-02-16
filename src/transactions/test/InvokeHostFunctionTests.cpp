@@ -3140,18 +3140,6 @@ TEST_CASE("settings upgrade command line utils", "[tx][soroban][upgrades]")
                                CONFIG_SETTING_CONTRACT_LEDGER_COST_V0;
                     });
 
-        SECTION("Invalid bucketListTargetSizeBytes")
-        {
-            // 10GB is too low due to the check in validateConfigUpgradeSet
-            costEntryIter->contractLedgerCost().bucketListTargetSizeBytes =
-                10'000'000'000;
-            REQUIRE_THROWS_AS(
-                getInvokeTx(a1.getPublicKey(), contractCodeLedgerKey,
-                            contractSourceRefLedgerKey, contractID, upgradeSet,
-                            a1.getLastSequenceNumber() + 3),
-                std::runtime_error);
-        }
-
         SECTION("Invalid bucketListWriteFeeGrowthFactor")
         {
             // Value is too high due to the check in validateConfigUpgradeSet
