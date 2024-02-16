@@ -760,6 +760,14 @@ ApplicationImpl::validateAndLogConfig()
             "stellar-core new-db.");
     }
 
+    if (mConfig.EXPERIMENTAL_BACKGROUND_EVICTION_SCAN &&
+        !mConfig.isUsingBucketListDB())
+    {
+        throw std::invalid_argument(
+            "EXPERIMENTAL_BUCKETLIST_DB must be enabled to use "
+            "EXPERIMENTAL_BACKGROUND_EVICTION_SCAN");
+    }
+
     if (isNetworkedValidator && mConfig.isInMemoryMode())
     {
         throw std::invalid_argument(

@@ -163,6 +163,7 @@ Config::Config() : NODE_SEED(SecretKey::random())
     EXPERIMENTAL_BUCKETLIST_DB_INDEX_PAGE_SIZE_EXPONENT = 14; // 2^14 == 16 kb
     EXPERIMENTAL_BUCKETLIST_DB_INDEX_CUTOFF = 20;             // 20 mb
     EXPERIMENTAL_BUCKETLIST_DB_PERSIST_INDEX = true;
+    EXPERIMENTAL_BACKGROUND_EVICTION_SCAN = false;
     PUBLISH_TO_ARCHIVE_DELAY = std::chrono::seconds{0};
     // automatic maintenance settings:
     // short and prime with 1 hour which will cause automatic maintenance to
@@ -1073,6 +1074,10 @@ Config::processConfig(std::shared_ptr<cpptoml::table> t)
             else if (item.first == "EXPERIMENTAL_BUCKETLIST_DB")
             {
                 EXPERIMENTAL_BUCKETLIST_DB = readBool(item);
+            }
+            else if (item.first == "EXPERIMENTAL_BACKGROUND_EVICTION_SCAN")
+            {
+                EXPERIMENTAL_BACKGROUND_EVICTION_SCAN = readBool(item);
             }
             else if (item.first ==
                      "EXPERIMENTAL_BUCKETLIST_DB_INDEX_PAGE_SIZE_EXPONENT")
