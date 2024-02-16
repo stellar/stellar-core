@@ -231,7 +231,7 @@ LoopbackPeer::processInQueue()
 {
     if (!canRead())
     {
-        mIsPeerThrottled = true;
+        mLastThrottle = mApp.getClock().now();
         return;
     }
 

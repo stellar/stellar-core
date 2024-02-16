@@ -201,7 +201,7 @@ class Peer : public std::enable_shared_from_this<Peer>,
     };
 
     // Is this peer currently throttled due to lack of capacity
-    bool mIsPeerThrottled{false};
+    std::optional<VirtualClock::time_point> mLastThrottle;
 
     // Does local node have capacity to read from this peer
     bool canRead() const;

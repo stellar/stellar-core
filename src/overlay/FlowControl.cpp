@@ -111,6 +111,13 @@ FlowControl::maybeReleaseCapacityAndTriggerSend(StellarMessage const& msg)
 
     if (msg.type() == SEND_MORE || msg.type() == SEND_MORE_EXTENDED)
     {
+        if (mNoOutboundCapacity)
+        {
+            mApp.getOverlayManager()
+                .getOverlayMetrics()
+                .mConnectionFloodThrottle.Update(mApp.getClock().now() -
+                                                 *mNoOutboundCapacity);
+        }
         mNoOutboundCapacity.reset();
 
         mFlowControlCapacity->releaseOutboundCapacity(msg);
