@@ -676,7 +676,7 @@ Upgrades::isValid(UpgradeType const& upgrade, LedgerUpgradeType& upgradeType,
         res = res && isValidForNomination(lupgrade, ltx, header);
     }
 
-    if (res && lupgrade.type() != LEDGER_UPGRADE_VERSION)
+    if (res && lupgrade.type() == LEDGER_UPGRADE_VERSION)
     {
         // We enforce here that _voting_ for any soroban-era protocol upgrade
         // only happens from nodes that have two copies of soroban compiled-in
