@@ -142,6 +142,8 @@ TEST_CASE("overlay version peer drop post-protocol-20")
 
     cfg1.OVERLAY_PROTOCOL_VERSION =
         Peer::FIRST_VERSION_REQUIRED_FOR_PROTOCOL_20 - 1;
+    cfg1.OVERLAY_PROTOCOL_MIN_VERSION = cfg1.OVERLAY_PROTOCOL_VERSION - 1;
+    cfg2.OVERLAY_PROTOCOL_MIN_VERSION = cfg1.OVERLAY_PROTOCOL_MIN_VERSION;
     cfg1.TESTING_UPGRADE_LEDGER_PROTOCOL_VERSION =
         static_cast<uint32_t>(SOROBAN_PROTOCOL_VERSION) - 1;
     cfg2.TESTING_UPGRADE_LEDGER_PROTOCOL_VERSION =
@@ -335,6 +337,8 @@ TEST_CASE("flow control byte capacity", "[overlay][flowcontrol]")
             Peer::FIRST_VERSION_SUPPORTING_FLOW_CONTROL_IN_BYTES;
         cfg2.OVERLAY_PROTOCOL_VERSION =
             Peer::FIRST_VERSION_REQUIRED_FOR_PROTOCOL_20 - 1;
+        cfg1.OVERLAY_PROTOCOL_MIN_VERSION = cfg1.OVERLAY_PROTOCOL_VERSION;
+        cfg2.OVERLAY_PROTOCOL_MIN_VERSION = cfg1.OVERLAY_PROTOCOL_VERSION;
         // Mixed versions do not work in v20, as older clients are banned
         cfg1.TESTING_UPGRADE_LEDGER_PROTOCOL_VERSION =
             static_cast<uint32_t>(SOROBAN_PROTOCOL_VERSION) - 1;
@@ -356,6 +360,8 @@ TEST_CASE("flow control byte capacity", "[overlay][flowcontrol]")
             Peer::FIRST_VERSION_SUPPORTING_FLOW_CONTROL_IN_BYTES;
         cfg2.OVERLAY_PROTOCOL_VERSION =
             Peer::FIRST_VERSION_SUPPORTING_FLOW_CONTROL_IN_BYTES;
+        cfg1.OVERLAY_PROTOCOL_MIN_VERSION = cfg1.OVERLAY_PROTOCOL_VERSION;
+        cfg2.OVERLAY_PROTOCOL_MIN_VERSION = cfg2.OVERLAY_PROTOCOL_VERSION;
         // Mixed versions do not work in v20, as older clients are banned
         cfg1.TESTING_UPGRADE_LEDGER_PROTOCOL_VERSION =
             static_cast<uint32_t>(SOROBAN_PROTOCOL_VERSION) - 1;
@@ -722,6 +728,11 @@ TEST_CASE("loopback peer flow control activation", "[overlay][flowcontrol]")
             {
                 cfg1.OVERLAY_PROTOCOL_VERSION =
                     Peer::FIRST_VERSION_SUPPORTING_FLOW_CONTROL_IN_BYTES;
+                cfg1.OVERLAY_PROTOCOL_MIN_VERSION =
+                    cfg1.OVERLAY_PROTOCOL_VERSION;
+                cfg2.OVERLAY_PROTOCOL_MIN_VERSION =
+                    cfg1.OVERLAY_PROTOCOL_VERSION;
+
                 cfg1.TESTING_UPGRADE_LEDGER_PROTOCOL_VERSION =
                     static_cast<uint32_t>(SOROBAN_PROTOCOL_VERSION) - 1;
                 cfg2.TESTING_UPGRADE_LEDGER_PROTOCOL_VERSION =
@@ -2357,8 +2368,11 @@ TEST_CASE("overlay flow control", "[overlay][flowcontrol]")
         {
             configs[2].OVERLAY_PROTOCOL_VERSION =
                 Peer::FIRST_VERSION_SUPPORTING_FLOW_CONTROL_IN_BYTES - 1;
+
             for (auto& cfg : configs)
             {
+                cfg.OVERLAY_PROTOCOL_MIN_VERSION =
+                    configs[2].OVERLAY_PROTOCOL_VERSION - 1;
                 cfg.TESTING_UPGRADE_LEDGER_PROTOCOL_VERSION =
                     static_cast<uint32_t>(SOROBAN_PROTOCOL_VERSION) - 1;
             }
