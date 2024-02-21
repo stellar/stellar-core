@@ -561,15 +561,6 @@ Upgrades::isValidForApply(UpgradeType const& opaqueUpgrade,
         res = res && (newVersion <= app.getConfig().LEDGER_PROTOCOL_VERSION);
         // and enforce versions to be strictly monotonic
         res = res && (newVersion > header.ledgerVersion);
-
-        // and enforce that any soroban-era protocol upgrade has two copies of
-        // soroban compiled-in to this binary -- both `prev` and `curr` -- so
-        // the upgrade can do a prev-to-curr transition
-        if (protocolVersionStartsFrom(header.ledgerVersion,
-                                      SOROBAN_PROTOCOL_VERSION))
-        {
-            res = res && rust_bridge::compiled_with_soroban_prev();
-        }
     }
     break;
     case LEDGER_UPGRADE_BASE_FEE:
@@ -683,6 +674,39 @@ Upgrades::isValid(UpgradeType const& upgrade, LedgerUpgradeType& upgradeType,
     if (nomination)
     {
         res = res && isValidForNomination(lupgrade, ltx, header);
+    }
+
+    if (res && lupgrade.type() == LEDGER_UPGRADE_VERSION)
+    {
+        // We enforce here that _voting_ for any soroban-era protocol upgrade
+        // only happens from nodes that have two copies of soroban compiled-in
+        // to this binary -- both `prev` and `curr` -- so the upgrade can do a
+        // synchronized implementation transition between prev and curr.
+        //
+        // Suppose some node X that does not have both copies compiled-in, and
+        // so chooses not to vote for the upgrade here. X may be a minority, and
+        // may get pulled along for the vote by nodes that vote in favor. There
+        // are two cases to consider:
+        //
+        //   - If X supports the _new protocol at all_ X is implicitly running
+        //     that new-protocol-supporting soroban as `curr`, and most likely
+        //     has the exact same (or an only unobservably-newer) `curr` as the
+        //     majority who had both a `prev` and a `curr`. So X _shouldn't_
+        //     face any higher risk of divergence. X was at risk of divergence
+        //     _before_ the upgrade -- X deployed too-new a build for some
+        //     reason -- but not after the upgrade when the dual-build versions
+        //     of the majority have caught up with X's `curr`.
+        //
+        //   - If X doesn't support the new protocol at all, X is going to
+        //     diverge _anyway_ by rejecting the upgrade on the basis of the
+        //     protocol number, and the fact X doesn't have both copies of
+        //     soroban compiled-in doesn't make X's situation any worse.
+
+        if (protocolVersionStartsFrom(header.ledgerVersion,
+                                      SOROBAN_PROTOCOL_VERSION))
+        {
+            res = res && rust_bridge::compiled_with_soroban_prev();
+        }
     }
 
     if (res)
