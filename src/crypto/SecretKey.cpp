@@ -580,7 +580,8 @@ StrKeyUtils::logKey(std::ostream& s, std::string const& key)
             s << "  type: STRKEY_HASH_X" << std::endl;
             break;
         case strKey::STRKEY_MUXED_ACCOUNT_ED25519:
-            s << "  type: STRKEY_MUXED_ACCOUNT_ED25519" << std::endl;
+            throw std::runtime_error(
+                "unexpected StrKey type STRKEY_MUXED_ACCOUNT_ED25519");
             break;
         case strKey::STRKEY_CONTRACT:
             s << "  type: STRKEY_CONTRACT" << std::endl;
