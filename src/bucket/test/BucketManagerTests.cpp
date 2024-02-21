@@ -1355,7 +1355,9 @@ TEST_CASE_VERSIONS("bucket persistence over app restart",
         cfg1.ARTIFICIALLY_PESSIMIZE_MERGES_FOR_TESTING = true;
 
         auto batch_entries =
-            LedgerTestUtils::generateValidUniqueLedgerEntries(110);
+            LedgerTestUtils::generateValidUniqueLedgerEntries(111);
+        auto alice = batch_entries.back();
+        batch_entries.pop_back();
         std::vector<std::vector<LedgerEntry>> batches;
         for (auto const& batch_entry : batch_entries)
         {
@@ -1367,7 +1369,6 @@ TEST_CASE_VERSIONS("bucket persistence over app restart",
         // pause-merge (#64, where we stop and serialize) sensitive to
         // shadowing, and requires shadows be reconstituted when the merge
         // is restarted.
-        auto alice = LedgerTestUtils::generateValidLedgerEntry(1);
         uint32_t pause = 65;
         batches[2].push_back(alice);
         batches[pause - 2].push_back(alice);
