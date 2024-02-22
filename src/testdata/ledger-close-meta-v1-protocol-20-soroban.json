@@ -85,10 +85,7 @@
                                                                         "hostFunction": {
                                                                             "type": "HOST_FUNCTION_TYPE_INVOKE_CONTRACT",
                                                                             "invokeContract": {
-                                                                                "contractAddress": {
-                                                                                    "type": "SC_ADDRESS_TYPE_CONTRACT",
-                                                                                    "contractId": "01b8290fd49b5bd1330f0ea718bdea6729320620f65ce1a763657c57638c580b"
-                                                                                },
+                                                                                "contractAddress": "CAA3QKIP2SNVXUJTB4HKOGF55JTSSMQGED3FZYNHMNSXYV3DRRMAWA3Y",
                                                                                 "functionName": "put_persistent",
                                                                                 "args": [
                                                                                     {
@@ -125,10 +122,7 @@
                                                                             {
                                                                                 "type": "CONTRACT_DATA",
                                                                                 "contractData": {
-                                                                                    "contract": {
-                                                                                        "type": "SC_ADDRESS_TYPE_CONTRACT",
-                                                                                        "contractId": "01b8290fd49b5bd1330f0ea718bdea6729320620f65ce1a763657c57638c580b"
-                                                                                    },
+                                                                                    "contract": "CAA3QKIP2SNVXUJTB4HKOGF55JTSSMQGED3FZYNHMNSXYV3DRRMAWA3Y",
                                                                                     "key": {
                                                                                         "type": "SCV_LEDGER_KEY_CONTRACT_INSTANCE"
                                                                                     },
@@ -179,10 +173,7 @@
                                                                                 "contractIDPreimage": {
                                                                                     "type": "CONTRACT_ID_PREIMAGE_FROM_ADDRESS",
                                                                                     "fromAddress": {
-                                                                                        "address": {
-                                                                                            "type": "SC_ADDRESS_TYPE_ACCOUNT",
-                                                                                            "accountId": "GA2NXNEE2MHWGQP5XXACPYG2BDZFPKGYPFNST5V3ZZN75NSLQAEXX7CU"
-                                                                                        },
+                                                                                        "address": "GA2NXNEE2MHWGQP5XXACPYG2BDZFPKGYPFNST5V3ZZN75NSLQAEXX7CU",
                                                                                         "salt": "63479ad69a090b258277ec8fba6f99419a2ffb248981510657c944ccd1148e97"
                                                                                     }
                                                                                 },
@@ -204,10 +195,7 @@
                                                                                             "contractIDPreimage": {
                                                                                                 "type": "CONTRACT_ID_PREIMAGE_FROM_ADDRESS",
                                                                                                 "fromAddress": {
-                                                                                                    "address": {
-                                                                                                        "type": "SC_ADDRESS_TYPE_ACCOUNT",
-                                                                                                        "accountId": "GA2NXNEE2MHWGQP5XXACPYG2BDZFPKGYPFNST5V3ZZN75NSLQAEXX7CU"
-                                                                                                    },
+                                                                                                    "address": "GA2NXNEE2MHWGQP5XXACPYG2BDZFPKGYPFNST5V3ZZN75NSLQAEXX7CU",
                                                                                                     "salt": "63479ad69a090b258277ec8fba6f99419a2ffb248981510657c944ccd1148e97"
                                                                                                 }
                                                                                             },
@@ -245,10 +233,7 @@
                                                                             {
                                                                                 "type": "CONTRACT_DATA",
                                                                                 "contractData": {
-                                                                                    "contract": {
-                                                                                        "type": "SC_ADDRESS_TYPE_CONTRACT",
-                                                                                        "contractId": "9ca961f94e83bd738223161350d67b21b0ac92f01478c057d5cbafab87186da5"
-                                                                                    },
+                                                                                    "contract": "CCOKSYPZJ2B3244CEMLBGUGWPMQ3BLES6AKHRQCX2XF27K4HDBW2LKDF",
                                                                                     "key": {
                                                                                         "type": "SCV_LEDGER_KEY_CONTRACT_INSTANCE"
                                                                                     },
@@ -318,10 +303,7 @@
                                                                             {
                                                                                 "type": "CONTRACT_DATA",
                                                                                 "contractData": {
-                                                                                    "contract": {
-                                                                                        "type": "SC_ADDRESS_TYPE_CONTRACT",
-                                                                                        "contractId": "01b8290fd49b5bd1330f0ea718bdea6729320620f65ce1a763657c57638c580b"
-                                                                                    },
+                                                                                    "contract": "CAA3QKIP2SNVXUJTB4HKOGF55JTSSMQGED3FZYNHMNSXYV3DRRMAWA3Y",
                                                                                     "key": {
                                                                                         "type": "SCV_LEDGER_KEY_CONTRACT_INSTANCE"
                                                                                     },
@@ -386,10 +368,7 @@
                                                                             {
                                                                                 "type": "CONTRACT_DATA",
                                                                                 "contractData": {
-                                                                                    "contract": {
-                                                                                        "type": "SC_ADDRESS_TYPE_CONTRACT",
-                                                                                        "contractId": "01b8290fd49b5bd1330f0ea718bdea6729320620f65ce1a763657c57638c580b"
-                                                                                    },
+                                                                                    "contract": "CAA3QKIP2SNVXUJTB4HKOGF55JTSSMQGED3FZYNHMNSXYV3DRRMAWA3Y",
                                                                                     "key": {
                                                                                         "type": "SCV_SYMBOL",
                                                                                         "sym": "archived"
@@ -437,10 +416,7 @@
                                                                         "hostFunction": {
                                                                             "type": "HOST_FUNCTION_TYPE_INVOKE_CONTRACT",
                                                                             "invokeContract": {
-                                                                                "contractAddress": {
-                                                                                    "type": "SC_ADDRESS_TYPE_CONTRACT",
-                                                                                    "contractId": "01b8290fd49b5bd1330f0ea718bdea6729320620f65ce1a763657c57638c580b"
-                                                                                },
+                                                                                "contractAddress": "CAA3QKIP2SNVXUJTB4HKOGF55JTSSMQGED3FZYNHMNSXYV3DRRMAWA3Y",
                                                                                 "functionName": "put_persistent",
                                                                                 "args": [
                                                                                     {
@@ -477,10 +453,7 @@
                                                                             {
                                                                                 "type": "CONTRACT_DATA",
                                                                                 "contractData": {
-                                                                                    "contract": {
-                                                                                        "type": "SC_ADDRESS_TYPE_CONTRACT",
-                                                                                        "contractId": "01b8290fd49b5bd1330f0ea718bdea6729320620f65ce1a763657c57638c580b"
-                                                                                    },
+                                                                                    "contract": "CAA3QKIP2SNVXUJTB4HKOGF55JTSSMQGED3FZYNHMNSXYV3DRRMAWA3Y",
                                                                                     "key": {
                                                                                         "type": "SCV_LEDGER_KEY_CONTRACT_INSTANCE"
                                                                                     },
@@ -492,10 +465,7 @@
                                                                             {
                                                                                 "type": "CONTRACT_DATA",
                                                                                 "contractData": {
-                                                                                    "contract": {
-                                                                                        "type": "SC_ADDRESS_TYPE_CONTRACT",
-                                                                                        "contractId": "01b8290fd49b5bd1330f0ea718bdea6729320620f65ce1a763657c57638c580b"
-                                                                                    },
+                                                                                    "contract": "CAA3QKIP2SNVXUJTB4HKOGF55JTSSMQGED3FZYNHMNSXYV3DRRMAWA3Y",
                                                                                     "key": {
                                                                                         "type": "SCV_SYMBOL",
                                                                                         "sym": "key"
@@ -1580,10 +1550,7 @@
                                                         "ext": {
                                                             "v": 0
                                                         },
-                                                        "contract": {
-                                                            "type": "SC_ADDRESS_TYPE_CONTRACT",
-                                                            "contractId": "01b8290fd49b5bd1330f0ea718bdea6729320620f65ce1a763657c57638c580b"
-                                                        },
+                                                        "contract": "CAA3QKIP2SNVXUJTB4HKOGF55JTSSMQGED3FZYNHMNSXYV3DRRMAWA3Y",
                                                         "key": {
                                                             "type": "SCV_SYMBOL",
                                                             "sym": "key"

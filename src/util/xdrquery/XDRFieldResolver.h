@@ -82,6 +82,30 @@ struct XDRFieldResolver
         }
     }
 
+    // Retrieve SCAddresses in standard string representation.
+    template <typename T>
+    typename std::enable_if_t<std::is_same_v<SCAddress, T>>
+    operator()(T const& k, char const* fieldName)
+    {
+        if (checkLeafField(fieldName))
+        {
+            switch (k.type())
+            {
+            case SC_ADDRESS_TYPE_CONTRACT:
+                mResult = stellar::strKey::toStrKey(
+                              stellar::strKey::STRKEY_CONTRACT, k.contractId())
+                              .value;
+                break;
+            case SC_ADDRESS_TYPE_ACCOUNT:
+                mResult = stellar::KeyUtils::toStrKey(k.accountId());
+                break;
+            default:
+                mResult = "UNKNOWN";
+                break;
+            }
+        }
+    }
+
     template <typename T>
     typename std::enable_if_t<std::is_same_v<Asset, T> ||
                               std::is_same_v<TrustLineAsset, T>>
@@ -204,7 +228,7 @@ struct XDRFieldResolver
     typename std::enable_if_t<
         xdr_traits<T>::is_union && !std::is_same_v<PublicKey, T> &&
         !std::is_same_v<Asset, T> && !std::is_same_v<TrustLineAsset, T> &&
-        !xdr_traits<T>::is_container>
+        !xdr_traits<T>::is_container && !std::is_same_v<SCAddress, T>>
     operator()(T const& t, char const* fieldName)
     {
         if (!matchFieldToPath(fieldName))
@@ -232,7 +256,8 @@ struct XDRFieldResolver
     typename std::enable_if_t<
         xdr_traits<T>::is_class && !std::is_same_v<PublicKey, T> &&
         !std::is_same_v<Asset, T> && !std::is_same_v<TrustLineAsset, T> &&
-        !xdr_traits<T>::is_union && !xdr_traits<T>::is_container>
+        !xdr_traits<T>::is_union && !xdr_traits<T>::is_container &&
+        !std::is_same_v<SCAddress, T>>
     operator()(T const& t, char const* fieldName)
     {
         if (!matchFieldToPath(fieldName))

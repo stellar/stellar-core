@@ -150,7 +150,7 @@ PublicKey pseudoRandomForTesting();
 
 namespace StrKeyUtils
 {
-// logs a key (can be a public or private key) in all
+// logs a key (can be a strkey or raw hex string) in all
 // known formats
 void logKey(std::ostream& s, std::string const& key);
 }
