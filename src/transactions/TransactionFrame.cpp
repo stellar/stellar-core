@@ -44,6 +44,7 @@
 
 #include <algorithm>
 #include <numeric>
+#include <xdrpp/types.h>
 
 namespace stellar
 {
@@ -127,12 +128,14 @@ TransactionFrame::clearCached()
 void
 TransactionFrame::pushContractEvents(xdr::xvector<ContractEvent>&& evts)
 {
+    releaseAssertOrThrow(mSorobanExtension);
     mSorobanExtension->mEvents = evts;
 }
 
 void
 TransactionFrame::pushDiagnosticEvents(xdr::xvector<DiagnosticEvent>&& evts)
 {
+    releaseAssertOrThrow(mSorobanExtension);
     auto& des = mSorobanExtension->mDiagnosticEvents;
     des.insert(des.end(), evts.begin(), evts.end());
 }
@@ -140,6 +143,7 @@ TransactionFrame::pushDiagnosticEvents(xdr::xvector<DiagnosticEvent>&& evts)
 void
 TransactionFrame::pushDiagnosticEvent(DiagnosticEvent&& evt)
 {
+    releaseAssertOrThrow(mSorobanExtension);
     mSorobanExtension->mDiagnosticEvents.emplace_back(evt);
 }
 
@@ -210,6 +214,7 @@ TransactionFrame::pushValidationTimeDiagnosticError(Config const& cfg,
 void
 TransactionFrame::setReturnValue(SCVal&& returnValue)
 {
+    releaseAssertOrThrow(mSorobanExtension);
     mSorobanExtension->mReturnValue = returnValue;
 }
 
@@ -793,6 +798,7 @@ TransactionFrame::refundSorobanFee(AbstractLedgerTxn& ltxOuter,
                                    AccountID const& feeSource)
 {
     ZoneScoped;
+    releaseAssertOrThrow(mSorobanExtension);
     auto const feeRefund = mSorobanExtension->mFeeRefund;
     if (feeRefund == 0)
     {
@@ -882,6 +888,7 @@ TransactionFrame::consumeRefundableSorobanResources(
 {
     ZoneScoped;
     releaseAssertOrThrow(isSoroban());
+    releaseAssertOrThrow(mSorobanExtension);
     auto& consumedContractEventsSizeBytes =
         mSorobanExtension->mConsumedContractEventsSizeBytes;
     consumedContractEventsSizeBytes += contractEventSizeBytes;
@@ -1718,6 +1725,7 @@ TransactionFrame::applyOperations(SignatureChecker& signatureChecker,
                                           SOROBAN_PROTOCOL_VERSION) &&
                 isSoroban())
             {
+                releaseAssertOrThrow(mSorobanExtension);
                 outerMeta.pushContractEvents(
                     std::move(mSorobanExtension->mEvents));
                 outerMeta.pushDiagnosticEvents(
@@ -1735,6 +1743,7 @@ TransactionFrame::applyOperations(SignatureChecker& signatureChecker,
             {
                 // If transaction fails, we don't charge for any
                 // refundable resources.
+                releaseAssertOrThrow(mSorobanExtension);
                 auto preApplyFee = computePreApplySorobanResourceFee(
                     ledgerVersion,
                     app.getLedgerManager().getSorobanNetworkConfig(),
@@ -1835,6 +1844,7 @@ TransactionFrame::apply(Application& app, AbstractLedgerTxn& ltx,
                                       SOROBAN_PROTOCOL_VERSION) &&
             isSoroban())
         {
+            releaseAssertOrThrow(mSorobanExtension);
             sorobanResourceFee = computePreApplySorobanResourceFee(
                 ledgerVersion, app.getLedgerManager().getSorobanNetworkConfig(),
                 app.getConfig());
@@ -1941,7 +1951,15 @@ TransactionFrame::toStellarMessage() const
 xdr::xvector<DiagnosticEvent> const&
 TransactionFrame::getDiagnosticEvents() const
 {
-    return mSorobanExtension->mDiagnosticEvents;
+    static xdr::xvector<DiagnosticEvent> const empty;
+    if (mSorobanExtension)
+    {
+        return mSorobanExtension->mDiagnosticEvents;
+    }
+    else
+    {
+        return empty;
+    }
 }
 
 uint32_t
