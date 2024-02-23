@@ -26,7 +26,44 @@
 
 namespace stellar
 {
-
+namespace
+{
+void
+enforceBucketListPreLoadInvariants(LedgerKey const& key, uint32_t ledgerVersion)
+{
+    if (key.type() == TRUSTLINE)
+    {
+        validateTrustLineKey(ledgerVersion, key);
+    }
+    // Note: There are additional invariants that are enforced when
+    // loading offers by account and asset. This type of query is only
+    // performed on the SQL backend, so we do not enforce those invariants here.
+    // See LedgerTxnOfferSQL.cpp::loadOffersByAccountAndAsset.
+}
+void
+enforceBucketListPostLoadInvariants(
+    LedgerKey const& key, std::shared_ptr<LedgerEntry const> const& entry)
+{
+    if (!entry)
+    {
+        return;
+    }
+    releaseAssert(key.type() == entry->data.type());
+    if (key.type() == ACCOUNT)
+    {
+        // LedgerTxnRoot::loadAccount SQL enforces
+        // invariants post-load.
+        // It decodes the result of the query and ensures
+        // the account signers are sorted in ascending order.
+        releaseAssert(
+            std::adjacent_find(entry->data.account().signers.begin(),
+                               entry->data.account().signers.end(),
+                               [](Signer const& lhs, Signer const& rhs) {
+                                   return !(lhs.key < rhs.key);
+                               }) == entry->data.account().signers.end());
+    }
+};
+}
 LedgerEntryPtr
 LedgerEntryPtr::Init(std::shared_ptr<InternalLedgerEntry> const& lePtr)
 {
@@ -2985,10 +3022,16 @@ LedgerTxnRoot::Impl::prefetch(UnorderedSet<LedgerKey> const& keys)
         for (auto const& key : keys)
         {
             insertIfNotLoaded(keysToSearch, key);
+            enforceBucketListPreLoadInvariants(key, mHeader->ledgerVersion);
         }
 
         auto blLoad = mApp.getBucketManager().loadKeys(keysToSearch);
-        cacheResult(populateLoadedEntries(keysToSearch, blLoad));
+        auto loadedEntries = populateLoadedEntries(keysToSearch, blLoad);
+        for (auto const& entry : loadedEntries)
+        {
+            enforceBucketListPostLoadInvariants(entry.first, entry.second);
+        }
+        cacheResult(loadedEntries);
     }
     else
     {
@@ -3620,11 +3663,14 @@ LedgerTxnRoot::Impl::getNewestVersion(InternalLedgerKey const& gkey) const
     }
 
     std::shared_ptr<LedgerEntry const> entry;
+
     try
     {
         if (mApp.getConfig().isUsingBucketListDB() && key.type() != OFFER)
         {
+            enforceBucketListPreLoadInvariants(key, mHeader->ledgerVersion);
             entry = mApp.getBucketManager().getLedgerEntry(key);
+            enforceBucketListPostLoadInvariants(key, entry);
         }
         else
         {
