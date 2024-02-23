@@ -537,8 +537,15 @@ TransactionQueue::tryAdd(TransactionFrameBasePtr tx, bool submittedFromSelf)
 {
     ZoneScoped;
 
+    auto c1 =
+        tx->getEnvelope().type() == ENVELOPE_TYPE_TX_FEE_BUMP &&
+        tx->getEnvelope().feeBump().tx.innerTx.type() == ENVELOPE_TYPE_TX &&
+        tx->getEnvelope().feeBump().tx.innerTx.v1().tx.ext.v() == 1;
+    auto c2 = tx->getEnvelope().type() == ENVELOPE_TYPE_TX &&
+              tx->getEnvelope().v1().tx.ext.v() == 1;
     // Check basic structure validity _before_ any fee-related computation
-    if (!tx->XDRProvidesValidFee())
+    // fast fail when Soroban tx is malformed
+    if ((tx->isSoroban() != (c1 || c2)) || !tx->XDRProvidesValidFee())
     {
         tx->getResult().result.code(txMALFORMED);
         return TransactionQueue::AddResult::ADD_STATUS_ERROR;
