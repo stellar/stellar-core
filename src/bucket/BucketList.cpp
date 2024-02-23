@@ -891,17 +891,17 @@ BucketList::scanForEviction(Application& app, AbstractLedgerTxn& ltx,
         auto b = getBucketFromIter(evictionIter);
 
         // Check to see if we can finish scanning the bucket before it receives
-        // an update
+        // an update. To prevent noisy warnings, we assume we have the entire
+        // period to scan the bucket.
         auto period = bucketUpdatePeriod(evictionIter.bucketListLevel,
                                          evictionIter.isCurrBucket);
-
-        // Ledgers remaining until the current Bucket changes
-        auto ledgersRemainingToScanBucket = period - (ledgerSeq % period);
-        auto bytesRemaining = b->getSize() - evictionIter.bucketFileOffset;
-        if (ledgersRemainingToScanBucket * scanSize < bytesRemaining)
+        if (period * scanSize < b->getSize())
         {
             CLOG_WARNING(Bucket,
-                         "Bucket too large for current eviction scan size.");
+                         "Bucket too large for current eviction scan size: "
+                         "level {} isCurr {}, bucket {}.",
+                         evictionIter.bucketListLevel,
+                         evictionIter.isCurrBucket, hexAbbrev(b->getHash()));
             counters.incompleteBucketScan.inc();
         }
 
