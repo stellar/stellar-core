@@ -7,6 +7,7 @@
 #include "bucket/BucketInputIterator.h"
 #include "bucket/BucketManager.h"
 #include "bucket/LedgerCmp.h"
+#include "bucket/SearchableBucketSnapshot.h"
 #include "crypto/Hex.h"
 #include "crypto/Random.h"
 #include "crypto/SHA.h"
@@ -23,6 +24,7 @@
 #include "util/types.h"
 
 #include "medida/counter.h"
+#include "medida/metrics_registry.h"
 
 #include <Tracy.hpp>
 #include <fmt/format.h>
@@ -376,197 +378,6 @@ BucketList::getHash() const
     return hsh.finish();
 }
 
-void
-BucketList::loopAllBuckets(std::function<bool(std::shared_ptr<Bucket>)> f) const
-{
-    for (auto const& lev : mLevels)
-    {
-        std::array<std::shared_ptr<Bucket>, 2> buckets = {lev.getCurr(),
-                                                          lev.getSnap()};
-        for (auto& b : buckets)
-        {
-            if (b->isEmpty())
-            {
-                continue;
-            }
-
-            if (f(b))
-            {
-                return;
-            }
-        }
-    }
-}
-
-std::shared_ptr<LedgerEntry>
-BucketList::getLedgerEntry(LedgerKey const& k) const
-{
-    ZoneScoped;
-    std::shared_ptr<LedgerEntry> result{};
-
-    auto f = [&](std::shared_ptr<Bucket> b) {
-        auto be = b->getBucketEntry(k);
-        if (be.has_value())
-        {
-            result =
-                be.value().type() == DEADENTRY
-                    ? nullptr
-                    : std::make_shared<LedgerEntry>(be.value().liveEntry());
-            return true;
-        }
-        else
-        {
-            return false;
-        }
-    };
-
-    loopAllBuckets(f);
-    return result;
-}
-
-std::vector<LedgerEntry>
-BucketList::loadKeys(std::set<LedgerKey, LedgerEntryIdCmp> const& inKeys) const
-{
-    ZoneScoped;
-    std::vector<LedgerEntry> entries;
-
-    // Make a copy of the key set, this loop is destructive
-    auto keys = inKeys;
-    auto f = [&](std::shared_ptr<Bucket> b) {
-        b->loadKeys(keys, entries);
-        return keys.empty();
-    };
-
-    loopAllBuckets(f);
-    return entries;
-}
-
-std::vector<LedgerEntry>
-BucketList::loadPoolShareTrustLinesByAccountAndAsset(AccountID const& accountID,
-                                                     Asset const& asset) const
-{
-    ZoneScoped;
-    UnorderedMap<LedgerKey, LedgerEntry> liquidityPoolToTrustline;
-    UnorderedSet<LedgerKey> seenTrustlines;
-    LedgerKeySet liquidityPoolKeysToSearch;
-
-    // First get all the poolshare trustlines for the given account
-    auto trustLineLoop = [&](std::shared_ptr<Bucket> b) {
-        b->loadPoolShareTrustLinessByAccount(accountID, seenTrustlines,
-                                             liquidityPoolToTrustline,
-                                             liquidityPoolKeysToSearch);
-        return false; // continue
-    };
-    loopAllBuckets(trustLineLoop);
-
-    // Load all the LiquidityPool entries that the account has a trustline for.
-    auto liquidityPoolEntries = loadKeys(liquidityPoolKeysToSearch);
-    // pools always exist when there are trustlines
-    releaseAssertOrThrow(liquidityPoolEntries.size() ==
-                         liquidityPoolKeysToSearch.size());
-    // Filter out liquidity pools that don't match the asset we're looking for
-    std::vector<LedgerEntry> result;
-    result.reserve(liquidityPoolEntries.size());
-    for (const auto& e : liquidityPoolEntries)
-    {
-        releaseAssert(e.data.type() == LIQUIDITY_POOL);
-        auto const& params =
-            e.data.liquidityPool().body.constantProduct().params;
-        if (compareAsset(params.assetA, asset) ||
-            compareAsset(params.assetB, asset))
-        {
-            auto trustlineIter =
-                liquidityPoolToTrustline.find(LedgerEntryKey(e));
-            releaseAssert(trustlineIter != liquidityPoolToTrustline.end());
-            result.emplace_back(trustlineIter->second);
-        }
-    }
-
-    return result;
-}
-
-std::vector<InflationWinner>
-BucketList::loadInflationWinners(size_t maxWinners, int64_t minBalance) const
-{
-    UnorderedMap<AccountID, int64_t> voteCount;
-    UnorderedSet<AccountID> seen;
-
-    auto countVotesInBucket = [&](std::shared_ptr<Bucket> b) {
-        for (BucketInputIterator in(b); in; ++in)
-        {
-            BucketEntry const& be = *in;
-            if (be.type() == DEADENTRY)
-            {
-                if (be.deadEntry().type() == ACCOUNT)
-                {
-                    seen.insert(be.deadEntry().account().accountID);
-                }
-                continue;
-            }
-
-            // Account are ordered first, so once we see a non-account entry, no
-            // other accounts are left in the bucket
-            LedgerEntry const& le = be.liveEntry();
-            if (le.data.type() != ACCOUNT)
-            {
-                break;
-            }
-
-            // Don't double count AccountEntry's seen in earlier levels
-            AccountEntry const& ae = le.data.account();
-            AccountID const& id = ae.accountID;
-            if (!seen.insert(id).second)
-            {
-                continue;
-            }
-
-            if (ae.inflationDest && ae.balance >= 1000000000)
-            {
-                voteCount[*ae.inflationDest] += ae.balance;
-            }
-        }
-
-        return false;
-    };
-
-    loopAllBuckets(countVotesInBucket);
-    std::vector<InflationWinner> winners;
-
-    // Check if we need to sort the voteCount by number of votes
-    if (voteCount.size() > maxWinners)
-    {
-
-        // Sort Inflation winners by vote count in descending order
-        std::map<int64_t, UnorderedMap<AccountID, int64_t>::const_iterator,
-                 std::greater<int64_t>>
-            voteCountSortedByCount;
-        for (auto iter = voteCount.cbegin(); iter != voteCount.cend(); ++iter)
-        {
-            voteCountSortedByCount[iter->second] = iter;
-        }
-
-        // Insert first maxWinners entries that are larger thanminBalance
-        for (auto iter = voteCountSortedByCount.cbegin();
-             winners.size() < maxWinners && iter->first >= minBalance; ++iter)
-        {
-            // push back {AccountID, voteCount}
-            winners.push_back({iter->second->first, iter->first});
-        }
-    }
-    else
-    {
-        for (auto const& [id, count] : voteCount)
-        {
-            if (count >= minBalance)
-            {
-                winners.push_back({id, count});
-            }
-        }
-    }
-
-    return winners;
-}
-
 // levelShouldSpill is the set of boundaries at which each level should
 // spill, it's not-entirely obvious which numbers these are by inspection,
 // so we list the first 3 values it's true on each level here for reference:
@@ -826,145 +637,170 @@ BucketList::addBatch(Application& app, uint32_t currLedger,
 }
 
 void
-BucketList::scanForEviction(Application& app, AbstractLedgerTxn& ltx,
-                            uint32_t ledgerSeq,
-                            BucketListEvictionCounters& counters)
+BucketList::updateStartingEvictionIterator(EvictionIterator& iter,
+                                           uint32_t firstScanLevel,
+                                           uint32_t ledgerSeq)
+{
+    // Check if an upgrade has changed the starting scan level to below the
+    // current iterator level
+    if (iter.bucketListLevel < firstScanLevel)
+    {
+        // Reset iterator to the new minimum level
+        iter.bucketFileOffset = 0;
+        iter.isCurrBucket = true;
+        iter.bucketListLevel = firstScanLevel;
+    }
+
+    // Whenever a Bucket changes (spills or receives an incoming spill), the
+    // iterator offset in that bucket is invalidated. After scanning, we
+    // must write the iterator to the BucketList then close the ledger.
+    // Bucket spills occur on ledger close after we've already written the
+    // iterator, so the iterator may be invalidated. Because of this, we
+    // must check if the Bucket the iterator currently points to changed on
+    // the previous ledger, indicating the current iterator is invalid.
+    if (iter.isCurrBucket)
+    {
+        // Check if bucket received an incoming spill
+        releaseAssert(iter.bucketListLevel != 0);
+        if (BucketList::levelShouldSpill(ledgerSeq - 1,
+                                         iter.bucketListLevel - 1))
+        {
+            // If Bucket changed, reset to start of bucket
+            iter.bucketFileOffset = 0;
+        }
+    }
+    else
+    {
+        if (BucketList::levelShouldSpill(ledgerSeq - 1, iter.bucketListLevel))
+        {
+            // If Bucket changed, reset to start of bucket
+            iter.bucketFileOffset = 0;
+        }
+    }
+}
+
+bool
+BucketList::updateEvictionIterAndRecordStats(
+    EvictionIterator& iter, EvictionIterator startIter,
+    uint32_t configFirstScanLevel, uint32_t ledgerSeq,
+    std::optional<EvictionStatistics>& stats, EvictionCounters& counters)
+{
+    // If we reached eof in curr bucket, start scanning snap.
+    // Last level has no snap so cycle back to the initial level.
+    if (iter.isCurrBucket && iter.bucketListLevel != kNumLevels - 1)
+    {
+        iter.isCurrBucket = false;
+        iter.bucketFileOffset = 0;
+    }
+    else
+    {
+        // If we reached eof in snap, move to next level
+        ++iter.bucketListLevel;
+        iter.isCurrBucket = true;
+        iter.bucketFileOffset = 0;
+
+        // If we have scanned the last level, cycle back to initial
+        // level
+        if (iter.bucketListLevel == kNumLevels)
+        {
+            iter.bucketListLevel = configFirstScanLevel;
+
+            // If eviction metrics are not null, we have accounted for a
+            // complete cycle and should log the metrics
+            if (stats)
+            {
+                counters.evictionCyclePeriod.set_count(
+                    ledgerSeq - stats->evictionCycleStartLedger);
+
+                auto averageAge = stats->numEntriesEvicted == 0
+                                      ? 0
+                                      : stats->evictedEntriesAgeSum /
+                                            stats->numEntriesEvicted;
+                counters.averageEvictedEntryAge.set_count(averageAge);
+            }
+
+            // Reset metrics at beginning of new eviction cycle
+            stats = std::make_optional<EvictionStatistics>();
+            stats->evictionCycleStartLedger = ledgerSeq;
+        }
+    }
+
+    // If we are back to the bucket we started at, break
+    if (iter.bucketListLevel == startIter.bucketListLevel &&
+        iter.isCurrBucket == startIter.isCurrBucket)
+    {
+        return true;
+    }
+
+    return false;
+}
+
+void
+BucketList::checkIfEvictionScanIsStuck(EvictionIterator const& evictionIter,
+                                       uint32_t scanSize,
+                                       std::shared_ptr<Bucket const> b,
+                                       EvictionCounters& counters)
+{
+    // Check to see if we can finish scanning the new bucket before it
+    // receives an update
+    auto period = bucketUpdatePeriod(evictionIter.bucketListLevel,
+                                     evictionIter.isCurrBucket);
+    if (period * scanSize < b->getSize())
+    {
+        CLOG_WARNING(Bucket,
+                     "Bucket too large for current eviction scan size.");
+        counters.incompleteBucketScan.inc();
+    }
+}
+
+// To avoid noisy data, only count metrics that encompass a complete
+// eviction cycle. If a node joins the network mid cycle, metrics will be
+// nullopt and be initialized at the start of the next cycle.
+void
+BucketList::scanForEvictionLegacySQL(Application& app, AbstractLedgerTxn& ltx,
+                                     uint32_t ledgerSeq,
+                                     EvictionCounters& counters,
+                                     std::optional<EvictionStatistics>& stats)
 {
     auto getBucketFromIter = [&levels = mLevels](EvictionIterator const& iter) {
         auto& level = levels.at(iter.bucketListLevel);
         return iter.isCurrBucket ? level.getCurr() : level.getSnap();
     };
 
-    if (protocolVersionStartsFrom(ltx.getHeader().ledgerVersion,
-                                  SOROBAN_PROTOCOL_VERSION))
+    auto const& networkConfig =
+        app.getLedgerManager().getSorobanNetworkConfig();
+    auto const firstScanLevel =
+        networkConfig.stateArchivalSettings().startingEvictionScanLevel;
+    auto evictionIter = networkConfig.evictionIterator();
+    auto scanSize = networkConfig.stateArchivalSettings().evictionScanSize;
+    auto maxEntriesToEvict =
+        networkConfig.stateArchivalSettings().maxEntriesToArchive;
+
+    updateStartingEvictionIterator(evictionIter, firstScanLevel, ledgerSeq);
+
+    auto startIter = evictionIter;
+    auto b = getBucketFromIter(evictionIter);
+
+    while (!b->scanForEvictionLegacySQL(
+        ltx, evictionIter, scanSize, maxEntriesToEvict, ledgerSeq,
+        counters.entriesEvicted, counters.bytesScannedForEviction, stats))
     {
-        auto const& networkConfig =
-            app.getLedgerManager().getSorobanNetworkConfig();
-        auto const firstScanLevel =
-            networkConfig.stateArchivalSettings().startingEvictionScanLevel;
-        auto evictionIter = networkConfig.evictionIterator();
 
-        // Check if an upgrade has changed the starting scan level to below the
-        // current iterator level
-        if (evictionIter.bucketListLevel < firstScanLevel)
+        if (updateEvictionIterAndRecordStats(evictionIter, startIter,
+                                             firstScanLevel, ledgerSeq, stats,
+                                             counters))
         {
-            // Reset iterator to the new minimum level
-            evictionIter.bucketFileOffset = 0;
-            evictionIter.isCurrBucket = true;
-            evictionIter.bucketListLevel = firstScanLevel;
+            break;
         }
 
-        // Whenever a Bucket changes (spills or receives an incoming spill), the
-        // iterator offset in that bucket is invalidated. After scanning, we
-        // must write the iterator to the BucketList then close the ledger.
-        // Bucket spills occur on ledger close after we've already written the
-        // iterator, so the iterator may be invalidated. Because of this, we
-        // must check if the Bucket the iterator currently points to changed on
-        // the previous ledger, indicating the current iterator is invalid.
-        if (evictionIter.isCurrBucket)
-        {
-            // Check if bucket received an incoming spill
-            releaseAssert(evictionIter.bucketListLevel != 0);
-            if (BucketList::levelShouldSpill(ledgerSeq - 1,
-                                             evictionIter.bucketListLevel - 1))
-            {
-                // If Bucket changed, reset to start of bucket
-                evictionIter.bucketFileOffset = 0;
-            }
-        }
-        else
-        {
-            if (BucketList::levelShouldSpill(ledgerSeq - 1,
-                                             evictionIter.bucketListLevel))
-            {
-                // If Bucket changed, reset to start of bucket
-                evictionIter.bucketFileOffset = 0;
-            }
-        }
-
-        auto scanSize = networkConfig.stateArchivalSettings().evictionScanSize;
-        auto maxEntriesToEvict =
-            networkConfig.stateArchivalSettings().maxEntriesToArchive;
-
-        auto initialLevel = evictionIter.bucketListLevel;
-        auto initialIsCurr = evictionIter.isCurrBucket;
-        auto b = getBucketFromIter(evictionIter);
-
-        // Check to see if we can finish scanning the bucket before it receives
-        // an update. To prevent noisy warnings, we assume we have the entire
-        // period to scan the bucket.
-        auto period = bucketUpdatePeriod(evictionIter.bucketListLevel,
-                                         evictionIter.isCurrBucket);
-        if (period * scanSize < b->getSize())
-        {
-            CLOG_WARNING(Bucket,
-                         "Bucket too large for current eviction scan size: "
-                         "level {} isCurr {}, bucket {}.",
-                         evictionIter.bucketListLevel,
-                         evictionIter.isCurrBucket, hexAbbrev(b->getHash()));
-            counters.incompleteBucketScan.inc();
-        }
-
-        while (!b->scanForEviction(
-            ltx, evictionIter, scanSize, maxEntriesToEvict, ledgerSeq,
-            counters.entriesEvicted, counters.bytesScannedForEviction,
-            mEvictionMetrics))
-        {
-            // If we reached eof in curr bucket, start scanning snap.
-            // Last level has no snap so cycle back to the initial level.
-            if (evictionIter.isCurrBucket &&
-                evictionIter.bucketListLevel != kNumLevels - 1)
-            {
-                evictionIter.isCurrBucket = false;
-                evictionIter.bucketFileOffset = 0;
-            }
-            else
-            {
-                // If we reached eof in snap, move to next level
-                evictionIter.bucketListLevel++;
-                evictionIter.isCurrBucket = true;
-                evictionIter.bucketFileOffset = 0;
-
-                // If we have scanned the last level, cycle back to initial
-                // level
-                if (evictionIter.bucketListLevel == kNumLevels)
-                {
-                    evictionIter.bucketListLevel = firstScanLevel;
-
-                    // If eviction metrics are not null, we have accounted for a
-                    // complete cycle and should log the metrics
-                    if (mEvictionMetrics)
-                    {
-                        counters.evictionCyclePeriod.set_count(
-                            ledgerSeq -
-                            mEvictionMetrics->evictionCycleStartLedger);
-
-                        auto averageAge =
-                            mEvictionMetrics->numEntriesEvicted == 0
-                                ? 0
-                                : mEvictionMetrics->evictedEntriesAgeSum /
-                                      mEvictionMetrics->numEntriesEvicted;
-                        counters.averageEvictedEntryAge.set_count(averageAge);
-                    }
-
-                    // Reset metrics at beginning of new eviction cycle
-                    mEvictionMetrics = std::make_optional<EvictionMetrics>();
-                    mEvictionMetrics->evictionCycleStartLedger = ledgerSeq;
-                }
-            }
-
-            // If we are back to the bucket we started at, break
-            if (evictionIter.bucketListLevel == initialLevel &&
-                evictionIter.isCurrBucket == initialIsCurr)
-            {
-                break;
-            }
-
-            b = getBucketFromIter(evictionIter);
-        }
-
-        networkConfig.updateEvictionIterator(ltx, evictionIter);
+        b = getBucketFromIter(evictionIter);
+        checkIfEvictionScanIsStuck(
+            evictionIter,
+            networkConfig.stateArchivalSettings().evictionScanSize, b,
+            counters);
     }
+
+    networkConfig.updateEvictionIterator(ltx, evictionIter);
 }
 
 void

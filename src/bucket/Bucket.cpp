@@ -13,6 +13,7 @@
 #include "bucket/BucketOutputIterator.h"
 #include "bucket/LedgerCmp.h"
 #include "bucket/MergeKey.h"
+#include "bucket/SearchableBucketListSnapshot.h"
 #include "crypto/Hex.h"
 #include "crypto/Random.h"
 #include "crypto/SHA.h"
@@ -77,35 +78,6 @@ Bucket::Bucket()
 {
 }
 
-std::unique_ptr<XDRInputFileStream>
-Bucket::openStream()
-{
-    releaseAssertOrThrow(!mFilename.empty());
-    auto streamPtr = std::make_unique<XDRInputFileStream>();
-    streamPtr->open(mFilename.string());
-    return std::move(streamPtr);
-}
-
-XDRInputFileStream&
-Bucket::getIndexStream()
-{
-    if (!mIndexStream)
-    {
-        mIndexStream = openStream();
-    }
-    return *mIndexStream;
-}
-
-XDRInputFileStream&
-Bucket::getEvictionStream()
-{
-    if (!mEvictionStream)
-    {
-        mEvictionStream = openStream();
-    }
-    return *mEvictionStream;
-}
-
 Hash const&
 Bucket::getHash() const
 {
@@ -156,158 +128,6 @@ void
 Bucket::freeIndex()
 {
     mIndex.reset(nullptr);
-    mIndexStream.reset(nullptr);
-}
-
-std::optional<BucketEntry>
-Bucket::getEntryAtOffset(LedgerKey const& k, std::streamoff pos,
-                         size_t pageSize)
-{
-    ZoneScoped;
-    auto& stream = getIndexStream();
-    stream.seek(pos);
-
-    BucketEntry be;
-    if (pageSize == 0)
-    {
-        if (stream.readOne(be))
-        {
-            return std::make_optional(be);
-        }
-    }
-    else if (stream.readPage(be, k, pageSize))
-    {
-        return std::make_optional(be);
-    }
-
-    // Mark entry miss for metrics
-    getIndex().markBloomMiss();
-    return std::nullopt;
-}
-
-std::optional<BucketEntry>
-Bucket::getBucketEntry(LedgerKey const& k)
-{
-    ZoneScoped;
-    auto pos = getIndex().lookup(k);
-    if (pos.has_value())
-    {
-        return getEntryAtOffset(k, pos.value(), getIndex().getPageSize());
-    }
-
-    return std::nullopt;
-}
-
-// When searching for an entry, BucketList calls this function on every bucket.
-// Since the input is sorted, we do a binary search for the first key in keys.
-// If we find the entry, we remove the found key from keys so that later buckets
-// do not load shadowed entries. If we don't find the entry, we do not remove it
-// from keys so that it will be searched for again at a lower level.
-void
-Bucket::loadKeys(std::set<LedgerKey, LedgerEntryIdCmp>& keys,
-                 std::vector<LedgerEntry>& result)
-{
-    ZoneScoped;
-
-    auto currKeyIt = keys.begin();
-    auto const& index = getIndex();
-    auto indexIter = index.begin();
-    while (currKeyIt != keys.end() && indexIter != index.end())
-    {
-        auto [offOp, newIndexIter] = index.scan(indexIter, *currKeyIt);
-        indexIter = newIndexIter;
-        if (offOp)
-        {
-            auto entryOp =
-                getEntryAtOffset(*currKeyIt, *offOp, getIndex().getPageSize());
-            if (entryOp)
-            {
-                if (entryOp->type() != DEADENTRY)
-                {
-                    result.push_back(entryOp->liveEntry());
-                }
-
-                currKeyIt = keys.erase(currKeyIt);
-                continue;
-            }
-        }
-
-        ++currKeyIt;
-    }
-}
-
-void
-Bucket::loadPoolShareTrustLinessByAccount(
-    AccountID const& accountID, UnorderedSet<LedgerKey>& seenTrustlines,
-    UnorderedMap<LedgerKey, LedgerEntry>& liquidityPoolKeyToTrustline,
-    LedgerKeySet& liquidityPoolKeys)
-{
-    ZoneScoped;
-
-    // Takes a LedgerKey or LedgerEntry::_data_t, returns true if entry is a
-    // poolshare trusline for the given accountID
-    auto trustlineCheck = [&accountID](auto const& entry) {
-        return entry.type() == TRUSTLINE &&
-               entry.trustLine().asset.type() == ASSET_TYPE_POOL_SHARE &&
-               entry.trustLine().accountID == accountID;
-    };
-
-    // Get upper and lower bound for poolshare trustline range associated
-    // with this account
-    auto searchRange = getIndex().getPoolshareTrustlineRange(accountID);
-    if (!searchRange)
-    {
-        // No poolshare trustlines, exit
-        return;
-    }
-
-    BucketEntry be;
-    auto& stream = getIndexStream();
-    stream.seek(searchRange->first);
-    while (stream && stream.pos() < searchRange->second && stream.readOne(be))
-    {
-        LedgerEntry entry;
-        switch (be.type())
-        {
-        case LIVEENTRY:
-        case INITENTRY:
-            entry = be.liveEntry();
-            break;
-        case DEADENTRY:
-        {
-            auto key = be.deadEntry();
-
-            // If we find a valid trustline key and we have not seen the
-            // key yet, mark it as dead so we do not load a shadowed version
-            // later
-            if (trustlineCheck(key))
-            {
-                seenTrustlines.emplace(key);
-            }
-            continue;
-        }
-        case METAENTRY:
-        default:
-            throw std::invalid_argument("Indexed METAENTRY");
-        }
-
-        // If this is a pool share trustline that matches the accountID and
-        // is the newest version of the key, add it to results
-        if (trustlineCheck(entry.data) &&
-            seenTrustlines.find(LedgerEntryKey(entry)) == seenTrustlines.end())
-        {
-            seenTrustlines.emplace(LedgerEntryKey(entry));
-            auto const& poolshareID =
-                entry.data.trustLine().asset.liquidityPoolID();
-
-            LedgerKey key;
-            key.type(LIQUIDITY_POOL);
-            key.liquidityPool().liquidityPoolID = poolshareID;
-
-            liquidityPoolKeyToTrustline.emplace(key, entry);
-            liquidityPoolKeys.emplace(key);
-        }
-    }
 }
 
 #ifdef BUILD_TESTS
@@ -855,12 +675,12 @@ mergeCasesWithEqualKeys(MergeCounters& mc, BucketInputIterator& oi,
 }
 
 bool
-Bucket::scanForEviction(AbstractLedgerTxn& ltx, EvictionIterator& iter,
-                        uint32_t& bytesToScan,
-                        uint32_t& remainingEntriesToEvict, uint32_t ledgerSeq,
-                        medida::Counter& entriesEvictedCounter,
-                        medida::Counter& bytesScannedForEvictionCounter,
-                        std::optional<EvictionMetrics>& metrics)
+Bucket::scanForEvictionLegacySQL(
+    AbstractLedgerTxn& ltx, EvictionIterator& iter, uint32_t& bytesToScan,
+    uint32_t& remainingEntriesToEvict, uint32_t ledgerSeq,
+    medida::Counter& entriesEvictedCounter,
+    medida::Counter& bytesScannedForEvictionCounter,
+    std::optional<EvictionStatistics>& stats) const
 {
     ZoneScoped;
     if (isEmpty() ||
@@ -877,7 +697,8 @@ Bucket::scanForEviction(AbstractLedgerTxn& ltx, EvictionIterator& iter,
         return true;
     }
 
-    auto& stream = getEvictionStream();
+    XDRInputFileStream stream{};
+    stream.open(mFilename);
     stream.seek(iter.bucketFileOffset);
 
     BucketEntry be;
@@ -893,13 +714,11 @@ Bucket::scanForEviction(AbstractLedgerTxn& ltx, EvictionIterator& iter,
                 auto ttlKey = getTTLKey(le);
                 uint32_t liveUntilLedger = 0;
                 auto shouldEvict = [&] {
-                    auto entryLtxe = ltx.loadWithoutRecord(LedgerEntryKey(le));
                     auto ttlLtxe = ltx.loadWithoutRecord(ttlKey);
-                    if (!entryLtxe)
+                    if (!ttlLtxe)
                     {
                         // Entry was already deleted either manually or by an
                         // earlier eviction scan, do nothing
-                        releaseAssert(!ttlLtxe);
                         return false;
                     }
 
@@ -912,10 +731,10 @@ Bucket::scanForEviction(AbstractLedgerTxn& ltx, EvictionIterator& iter,
                 if (shouldEvict())
                 {
                     ZoneNamedN(evict, "evict entry", true);
-                    if (metrics.has_value())
+                    if (stats.has_value())
                     {
-                        ++metrics->numEntriesEvicted;
-                        metrics->evictedEntriesAgeSum +=
+                        ++stats->numEntriesEvicted;
+                        stats->evictedEntriesAgeSum +=
                             ledgerSeq - liveUntilLedger;
                     }
 
@@ -946,6 +765,97 @@ Bucket::scanForEviction(AbstractLedgerTxn& ltx, EvictionIterator& iter,
     }
 
     // Hit eof
+    return false;
+}
+
+bool
+Bucket::scanForEviction(EvictionIterator& iter, uint32_t& bytesToScan,
+                        uint32_t ledgerSeq,
+                        std::list<EvictionResultEntry>& evictableKeys,
+                        SearchableBucketListSnapshot& bl) const
+{
+    ZoneScoped;
+    if (isEmpty() ||
+        protocolVersionIsBefore(getBucketVersion(shared_from_this()),
+                                SOROBAN_PROTOCOL_VERSION))
+    {
+        // EOF, skip to next bucket
+        return false;
+    }
+
+    if (bytesToScan == 0)
+    {
+        // Reached end of scan region
+        return true;
+    }
+
+    std::list<EvictionResultEntry> maybeEvictQueue;
+    LedgerKeySet keysToSearch;
+
+    auto processQueue = [&]() {
+        auto loadResult =
+            populateLoadedEntries(keysToSearch, bl.loadKeys(keysToSearch));
+        for (auto& e : maybeEvictQueue)
+        {
+            // If TTL entry has not yet been deleted
+            if (auto ttl = loadResult.find(getTTLKey(e.key))->second;
+                ttl != nullptr)
+            {
+                // If TTL of entry is expired
+                if (!isLive(*ttl, ledgerSeq))
+                {
+                    // If entry is expired but not yet deleted, add it to
+                    // evictable keys
+                    e.liveUntilLedger = ttl->data.ttl().liveUntilLedgerSeq;
+                    evictableKeys.emplace_back(e);
+                }
+            }
+        }
+    };
+
+    XDRInputFileStream stream{};
+    stream.open(mFilename);
+    stream.seek(iter.bucketFileOffset);
+    BucketEntry be;
+
+    // First, scan the bucket region and record all temp entry keys in
+    // maybeEvictQueue. After scanning, we will load all the TTL keys for these
+    // entries in a single bulk load to determine
+    //   1. If the entry is expired
+    //   2. If the entry has already been deleted/evicted
+    while (stream.readOne(be))
+    {
+        auto newPos = stream.pos();
+        auto bytesRead = newPos - iter.bucketFileOffset;
+        iter.bucketFileOffset = newPos;
+
+        if (be.type() == INITENTRY || be.type() == LIVEENTRY)
+        {
+            auto const& le = be.liveEntry();
+            if (isTemporaryEntry(le.data))
+            {
+                keysToSearch.emplace(getTTLKey(le));
+
+                // Set lifetime to 0 as default, will be updated after TTL keys
+                // loaded
+                maybeEvictQueue.emplace_back(
+                    EvictionResultEntry(LedgerEntryKey(le), iter, 0));
+            }
+        }
+
+        if (bytesRead >= bytesToScan)
+        {
+            // Reached end of scan region
+            bytesToScan = 0;
+            processQueue();
+            return true;
+        }
+
+        bytesToScan -= bytesRead;
+    }
+
+    // Hit eof
+    processQueue();
     return false;
 }
 

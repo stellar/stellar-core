@@ -41,21 +41,29 @@ class BucketManagerImpl : public BucketManager
     std::unique_ptr<TmpDirManager> mTmpDirManager;
     std::unique_ptr<TmpDir> mWorkDir;
     std::map<Hash, std::shared_ptr<Bucket>> mSharedBuckets;
-    mutable std::recursive_mutex mBucketMutex;
     std::unique_ptr<std::string> mLockedBucketDir;
     medida::Meter& mBucketObjectInsertBatch;
     medida::Timer& mBucketAddBatch;
     medida::Timer& mBucketSnapMerge;
     medida::Counter& mSharedBucketsSize;
-    medida::Meter& mBucketListDBBulkLoadMeter;
     medida::Meter& mBucketListDBBloomMisses;
     medida::Meter& mBucketListDBBloomLookups;
     medida::Counter& mBucketListSizeCounter;
-    BucketListEvictionCounters mBucketListEvictionCounters;
-    mutable UnorderedMap<LedgerEntryType, medida::Timer&>
-        mBucketListDBPointTimers{};
-    mutable UnorderedMap<std::string, medida::Timer&> mBucketListDBBulkTimers{};
+    EvictionCounters mBucketListEvictionCounters;
     MergeCounters mMergeCounters;
+    std::optional<EvictionStatistics> mEvictionStatistics{};
+
+    // Lock for managing raw Bucket files or the bucket directory. This lock is
+    // only required for file access, but is not required for logical changes to
+    // the BucketList (i.e. addBatch).
+    mutable std::recursive_mutex mBucketFileMutex;
+
+    // Lock for logical BucketList changes and snapshots (i.e. addBatch,
+    // getSearchableSnapshot). This lock is not required for raw Bucket file
+    // management.
+    mutable std::recursive_mutex mBucketSnapshotMutex;
+
+    std::future<EvictionResult> mEvictionFuture{};
 
     bool const mDeleteEntireBucketDirInDtor;
 
@@ -135,17 +143,17 @@ class BucketManagerImpl : public BucketManager
     void snapshotLedger(LedgerHeader& currentHeader) override;
     void maybeSetIndex(std::shared_ptr<Bucket> b,
                        std::unique_ptr<BucketIndex const>&& index) override;
-    void scanForEviction(AbstractLedgerTxn& ltx, uint32_t ledgerSeq) override;
+    void scanForEvictionLegacySQL(AbstractLedgerTxn& ltx,
+                                  uint32_t ledgerSeq) override;
+    void startBackgroundEvictionScan(uint32_t ledgerSeq) override;
+    void
+    resolveBackgroundEvictionScan(AbstractLedgerTxn& ltx, uint32_t ledgerSeq,
+                                  LedgerKeySet const& modifiedKeys) override;
 
-    std::shared_ptr<LedgerEntry>
-    getLedgerEntry(LedgerKey const& k) const override;
-    std::vector<LedgerEntry>
-    loadKeys(std::set<LedgerKey, LedgerEntryIdCmp> const& keys) const override;
-    std::vector<LedgerEntry>
-    loadPoolShareTrustLinesByAccountAndAsset(AccountID const& accountID,
-                                             Asset const& asset) const override;
-    std::vector<InflationWinner>
-    loadInflationWinners(size_t maxWinners, int64_t minBalance) const override;
+    std::unique_ptr<SearchableBucketListSnapshot>
+    getSearchableBucketListSnapshot() const override;
+    std::recursive_mutex& getBucketSnapshotMutex() const override;
+
     medida::Meter& getBloomMissMeter() const override;
     medida::Meter& getBloomLookupMeter() const override;
 

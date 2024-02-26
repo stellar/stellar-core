@@ -4,6 +4,7 @@
 // under the Apache License, Version 2.0. See the COPYING file at the root
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
+#include "bucket/BucketList.h"
 #include "database/Database.h"
 #include "ledger/LedgerTxn.h"
 #include "util/RandomEvictionCache.h"
@@ -19,12 +20,7 @@
 namespace stellar
 {
 
-// Precondition: The keys associated with entries are unique and constitute a
-// subset of keys
-template <typename KeySetT>
-UnorderedMap<LedgerKey, std::shared_ptr<LedgerEntry const>>
-populateLoadedEntries(KeySetT const& keys,
-                      std::vector<LedgerEntry> const& entries);
+class SearchableBucketListSnapshot;
 
 class EntryIterator::AbstractImpl
 {
@@ -555,6 +551,8 @@ class LedgerTxn::Impl
                        std::vector<LedgerEntry>& liveEntries,
                        std::vector<LedgerKey>& deadEntries);
 
+    LedgerKeySet getAllTTLKeysWithoutSealing() const;
+
     // getNewestVersion has the basic exception safety guarantee. If it throws
     // an exception, then
     // - the prepared statement cache may be, but is not guaranteed to be,
@@ -737,6 +735,8 @@ class LedgerTxnRoot::Impl
     mutable BestOffers mBestOffers;
     mutable uint64_t mPrefetchHits{0};
     mutable uint64_t mPrefetchMisses{0};
+    mutable std::unique_ptr<SearchableBucketListSnapshot>
+        mSearchableBucketListSnapshot{};
 
     size_t mBulkLoadBatchSize;
     std::unique_ptr<soci::transaction> mTransaction;
@@ -868,6 +868,8 @@ class LedgerTxnRoot::Impl
         std::deque<LedgerEntry>::const_iterator const& end);
 
     bool areEntriesMissingInCacheForOffer(OfferEntry const& oe);
+
+    SearchableBucketListSnapshot& getSearchableBucketListSnapshot() const;
 
   public:
     // Constructor has the strong exception safety guarantee

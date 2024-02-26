@@ -5,6 +5,7 @@
 #include "ledger/LedgerTxn.h"
 #include "bucket/BucketList.h"
 #include "bucket/BucketManager.h"
+#include "bucket/SearchableBucketListSnapshot.h"
 #include "crypto/Hex.h"
 #include "crypto/KeyUtils.h"
 #include "crypto/SecretKey.h"
@@ -167,45 +168,6 @@ LedgerEntryPtr::isDeleted() const
 {
     return mState == EntryPtrState::DELETED;
 }
-
-template <typename KeySetT>
-UnorderedMap<LedgerKey, std::shared_ptr<LedgerEntry const>>
-populateLoadedEntries(KeySetT const& keys,
-                      std::vector<LedgerEntry> const& entries)
-{
-    UnorderedMap<LedgerKey, std::shared_ptr<LedgerEntry const>> res;
-
-    for (auto const& le : entries)
-    {
-        auto key = LedgerEntryKey(le);
-
-        // Abort if two entries for the same key appear.
-        releaseAssert(res.find(key) == res.end());
-
-        // Only return entries for keys that were actually requested.
-        if (keys.find(key) != keys.end())
-        {
-            res.emplace(key, std::make_shared<LedgerEntry const>(le));
-        }
-    }
-
-    for (auto const& key : keys)
-    {
-        if (res.find(key) == res.end())
-        {
-            res.emplace(key, nullptr);
-        }
-    }
-    return res;
-}
-
-template UnorderedMap<LedgerKey, std::shared_ptr<LedgerEntry const>>
-populateLoadedEntries(LedgerKeySet const& keys,
-                      std::vector<LedgerEntry> const& entries);
-
-template UnorderedMap<LedgerKey, std::shared_ptr<LedgerEntry const>>
-populateLoadedEntries(UnorderedSet<LedgerKey> const& keys,
-                      std::vector<LedgerEntry> const& entries);
 
 bool
 operator==(OfferDescriptor const& lhs, OfferDescriptor const& rhs)
@@ -1428,6 +1390,29 @@ LedgerTxn::Impl::getAllEntries(std::vector<LedgerEntry>& initEntries,
     initEntries.swap(resInit);
     liveEntries.swap(resLive);
     deadEntries.swap(resDead);
+}
+
+LedgerKeySet
+LedgerTxn::getAllTTLKeysWithoutSealing() const
+{
+    return getImpl()->getAllTTLKeysWithoutSealing();
+}
+
+LedgerKeySet
+LedgerTxn::Impl::getAllTTLKeysWithoutSealing() const
+{
+    throwIfNotExactConsistency();
+    LedgerKeySet result;
+    for (auto const& [k, v] : mEntry)
+    {
+        if (k.type() == InternalLedgerEntryType::LEDGER_ENTRY &&
+            k.ledgerKey().type() == TTL)
+        {
+            result.emplace(k.ledgerKey());
+        }
+    }
+
+    return result;
 }
 
 std::shared_ptr<InternalLedgerEntry const>
@@ -2781,6 +2766,7 @@ LedgerTxnRoot::Impl::commitChild(EntryIterator iter,
     // Clearing the cache does not throw
     mBestOffers.clear();
     mEntryCache.clear();
+    mSearchableBucketListSnapshot.reset();
 
     // std::unique_ptr<...>::reset does not throw
     mTransaction.reset();
@@ -2987,7 +2973,7 @@ LedgerTxnRoot::Impl::prefetch(UnorderedSet<LedgerKey> const& keys)
             insertIfNotLoaded(keysToSearch, key);
         }
 
-        auto blLoad = mApp.getBucketManager().loadKeys(keysToSearch);
+        auto blLoad = getSearchableBucketListSnapshot().loadKeys(keysToSearch);
         cacheResult(populateLoadedEntries(keysToSearch, blLoad));
     }
     else
@@ -3369,6 +3355,19 @@ LedgerTxnRoot::Impl::areEntriesMissingInCacheForOffer(OfferEntry const& oe)
     return false;
 }
 
+SearchableBucketListSnapshot&
+LedgerTxnRoot::Impl::getSearchableBucketListSnapshot() const
+{
+    releaseAssert(mApp.getConfig().isUsingBucketListDB());
+    if (!mSearchableBucketListSnapshot)
+    {
+        mSearchableBucketListSnapshot =
+            mApp.getBucketManager().getSearchableBucketListSnapshot();
+    }
+
+    return *mSearchableBucketListSnapshot;
+}
+
 std::shared_ptr<LedgerEntry const>
 LedgerTxnRoot::Impl::getBestOffer(Asset const& buying, Asset const& selling,
                                   OfferDescriptor const* worseThan)
@@ -3505,7 +3504,7 @@ LedgerTxnRoot::Impl::getPoolShareTrustLinesByAccountAndAsset(
         if (mApp.getConfig().isUsingBucketListDB())
         {
             trustLines =
-                mApp.getBucketManager()
+                getSearchableBucketListSnapshot()
                     .loadPoolShareTrustLinesByAccountAndAsset(account, asset);
         }
         else
@@ -3568,8 +3567,8 @@ LedgerTxnRoot::Impl::getInflationWinners(size_t maxWinners, int64_t minVotes)
     {
         if (mApp.getConfig().isUsingBucketListDB())
         {
-            return mApp.getBucketManager().loadInflationWinners(maxWinners,
-                                                                minVotes);
+            return getSearchableBucketListSnapshot().loadInflationWinners(
+                maxWinners, minVotes);
         }
         else
         {
@@ -3624,7 +3623,7 @@ LedgerTxnRoot::Impl::getNewestVersion(InternalLedgerKey const& gkey) const
     {
         if (mApp.getConfig().isUsingBucketListDB() && key.type() != OFFER)
         {
-            entry = mApp.getBucketManager().getLedgerEntry(key);
+            entry = getSearchableBucketListSnapshot().getLedgerEntry(key);
         }
         else
         {

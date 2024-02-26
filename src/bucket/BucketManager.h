@@ -28,6 +28,7 @@ class Application;
 class BasicWork;
 class BucketList;
 class Config;
+class SearchableBucketListSnapshot;
 class TmpDirManager;
 struct HistoryArchiveState;
 struct InflationWinner;
@@ -78,7 +79,61 @@ struct MergeCounters
     bool operator==(MergeCounters const& other) const;
 };
 
-struct BucketListEvictionCounters
+// Stores key that is eligible for eviction and the position of the eviction
+// iterator as if that key was the last entry evicted
+struct EvictionResultEntry
+{
+    LedgerKey key;
+    EvictionIterator iter;
+    uint32_t liveUntilLedger;
+
+    EvictionResultEntry(LedgerKey const& key, EvictionIterator const& iter,
+                        uint32_t liveUntilLedger)
+        : key(key), iter(iter), liveUntilLedger(liveUntilLedger)
+    {
+    }
+};
+
+struct EvictionResult
+{
+    // List of keys eligible for eviction in the order in which they occur in
+    // the bucket
+    std::list<EvictionResultEntry> eligibleKeys{};
+
+    // Eviction iterator at the end of the scan region
+    EvictionIterator endOfRegionIterator;
+
+    // LedgerSeq which this scan is based on
+    uint32_t initialLedger{};
+
+    // State archival settings that this scan is based on
+    StateArchivalSettings initialSas;
+
+    EvictionResult(StateArchivalSettings const& sas) : initialSas(sas)
+    {
+    }
+
+    // Returns true if this is a valid archival scan for the current ledger
+    // and archival settings. This is necessary because we start the scan
+    // for ledger N immediately after N - 1 closes. However, ledger N may
+    // contain a network upgrade changing eviction scan settings. Legacy SQL
+    // scans will run based on the changes that occurred during ledger N,
+    // meaning the scan we started at ledger N - 1 is invalid since it was based
+    // off of older settings.
+    bool isValid(uint32_t currLedger,
+                 StateArchivalSettings const& currSas) const;
+};
+
+struct EvictionStatistics
+{
+    // Evicted entry "age" is the delta between its liveUntilLedger and the
+    // ledger when the entry is actually evicted
+    uint64_t evictedEntriesAgeSum{};
+    uint64_t numEntriesEvicted{};
+    uint32_t evictionCycleStartLedger{};
+};
+
+struct EvictionCounters
 {
     medida::Counter& entriesEvicted;
     medida::Counter& bytesScannedForEviction;
@@ -86,7 +141,7 @@ struct BucketListEvictionCounters
     medida::Counter& evictionCyclePeriod;
     medida::Counter& averageEvictedEntryAge;
 
-    BucketListEvictionCounters(Application& app);
+    EvictionCounters(Application& app);
 };
 
 /**
@@ -217,27 +272,21 @@ class BucketManager : NonMovableOrCopyable
     virtual void maybeSetIndex(std::shared_ptr<Bucket> b,
                                std::unique_ptr<BucketIndex const>&& index) = 0;
 
+    virtual std::unique_ptr<SearchableBucketListSnapshot>
+    getSearchableBucketListSnapshot() const = 0;
+
+    virtual std::recursive_mutex& getBucketSnapshotMutex() const = 0;
+
     // Scans BucketList for non-live entries to evict starting at the entry
     // pointed to by EvictionIterator. Scans until `maxEntriesToEvict` entries
     // have been evicted or maxEvictionScanSize bytes have been scanned.
-    virtual void scanForEviction(AbstractLedgerTxn& ltx,
-                                 uint32_t ledgerSeq) = 0;
+    virtual void scanForEvictionLegacySQL(AbstractLedgerTxn& ltx,
+                                          uint32_t ledgerSeq) = 0;
 
-    // Look up a ledger entry from the BucketList. Returns nullopt if the LE is
-    // dead / nonexistent.
-    virtual std::shared_ptr<LedgerEntry>
-    getLedgerEntry(LedgerKey const& k) const = 0;
-
-    // Loads LedgerEntry for all keys.
-    virtual std::vector<LedgerEntry>
-    loadKeys(std::set<LedgerKey, LedgerEntryIdCmp> const& keys) const = 0;
-
-    virtual std::vector<LedgerEntry>
-    loadPoolShareTrustLinesByAccountAndAsset(AccountID const& accountID,
-                                             Asset const& asset) const = 0;
-
-    virtual std::vector<InflationWinner>
-    loadInflationWinners(size_t maxWinners, int64_t minBalance) const = 0;
+    virtual void startBackgroundEvictionScan(uint32_t ledgerSeq) = 0;
+    virtual void
+    resolveBackgroundEvictionScan(AbstractLedgerTxn& ltx, uint32_t ledgerSeq,
+                                  LedgerKeySet const& modifiedKeys) = 0;
 
     virtual medida::Meter& getBloomMissMeter() const = 0;
     virtual medida::Meter& getBloomLookupMeter() const = 0;

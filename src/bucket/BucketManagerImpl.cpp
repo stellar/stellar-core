@@ -7,6 +7,7 @@
 #include "bucket/BucketInputIterator.h"
 #include "bucket/BucketList.h"
 #include "bucket/BucketOutputIterator.h"
+#include "bucket/SearchableBucketListSnapshot.h"
 #include "crypto/Hex.h"
 #include "history/HistoryManager.h"
 #include "historywork/VerifyBucketWork.h"
@@ -104,7 +105,7 @@ BucketManagerImpl::getTmpDirManager()
     return *mTmpDirManager;
 }
 
-BucketListEvictionCounters::BucketListEvictionCounters(Application& app)
+EvictionCounters::EvictionCounters(Application& app)
     : entriesEvicted(app.getMetrics().NewCounter(
           {"state-archival", "eviction", "entries-evicted"}))
     , bytesScannedForEviction(app.getMetrics().NewCounter(
@@ -130,8 +131,6 @@ BucketManagerImpl::BucketManagerImpl(Application& app)
     , mBucketSnapMerge(app.getMetrics().NewTimer({"bucket", "snap", "merge"}))
     , mSharedBucketsSize(
           app.getMetrics().NewCounter({"bucket", "memory", "shared"}))
-    , mBucketListDBBulkLoadMeter(app.getMetrics().NewMeter(
-          {"bucketlistDB", "query", "loads"}, "query"))
     , mBucketListDBBloomMisses(app.getMetrics().NewMeter(
           {"bucketlistDB", "bloom", "misses"}, "bloom"))
     , mBucketListDBBloomLookups(app.getMetrics().NewMeter(
@@ -195,7 +194,7 @@ std::string const&
 BucketManagerImpl::getTmpDir()
 {
     ZoneScoped;
-    std::lock_guard<std::recursive_mutex> lock(mBucketMutex);
+    std::lock_guard<std::recursive_mutex> lock(mBucketFileMutex);
     if (!mWorkDir)
     {
         TmpDir t = mTmpDirManager->tmpDir("bucket");
@@ -284,8 +283,21 @@ BucketManagerImpl::getMergeTimer()
 MergeCounters
 BucketManagerImpl::readMergeCounters()
 {
-    std::lock_guard<std::recursive_mutex> lock(mBucketMutex);
+    std::lock_guard<std::recursive_mutex> lock(mBucketFileMutex);
     return mMergeCounters;
+}
+
+// Check that eviction scan is based off of current ledger snapshot and that
+// archival settings have not changed
+bool
+EvictionResult::isValid(uint32_t currLedger,
+                        StateArchivalSettings const& currSas) const
+{
+    return initialLedger == currLedger &&
+           initialSas.maxEntriesToArchive == currSas.maxEntriesToArchive &&
+           initialSas.evictionScanSize == currSas.evictionScanSize &&
+           initialSas.startingEvictionScanLevel ==
+               currSas.startingEvictionScanLevel;
 }
 
 MergeCounters&
@@ -374,7 +386,7 @@ MergeCounters::operator==(MergeCounters const& other) const
 void
 BucketManagerImpl::incrMergeCounters(MergeCounters const& delta)
 {
-    std::lock_guard<std::recursive_mutex> lock(mBucketMutex);
+    std::lock_guard<std::recursive_mutex> lock(mBucketFileMutex);
     mMergeCounters += delta;
 }
 
@@ -400,7 +412,7 @@ BucketManagerImpl::adoptFileAsBucket(std::string const& filename,
 {
     ZoneScoped;
     releaseAssertOrThrow(mApp.getConfig().MODE_ENABLES_BUCKETLIST);
-    std::lock_guard<std::recursive_mutex> lock(mBucketMutex);
+    std::lock_guard<std::recursive_mutex> lock(mBucketFileMutex);
 
     if (mergeKey)
     {
@@ -484,7 +496,7 @@ BucketManagerImpl::noteEmptyMergeOutput(MergeKey const& mergeKey)
     // because it'd over-identify multiple individual inputs with the empty
     // output, potentially retaining far too many inputs, as lots of different
     // mergeKeys result in an empty output.
-    std::lock_guard<std::recursive_mutex> lock(mBucketMutex);
+    std::lock_guard<std::recursive_mutex> lock(mBucketFileMutex);
     CLOG_TRACE(Bucket, "BucketManager::noteEmptyMergeOutput({})", mergeKey);
     mLiveFutures.erase(mergeKey);
 }
@@ -493,7 +505,7 @@ std::shared_ptr<Bucket>
 BucketManagerImpl::getBucketIfExists(uint256 const& hash)
 {
     ZoneScoped;
-    std::lock_guard<std::recursive_mutex> lock(mBucketMutex);
+    std::lock_guard<std::recursive_mutex> lock(mBucketFileMutex);
     auto i = mSharedBuckets.find(hash);
     if (i != mSharedBuckets.end())
     {
@@ -510,7 +522,7 @@ std::shared_ptr<Bucket>
 BucketManagerImpl::getBucketByHash(uint256 const& hash)
 {
     ZoneScoped;
-    std::lock_guard<std::recursive_mutex> lock(mBucketMutex);
+    std::lock_guard<std::recursive_mutex> lock(mBucketFileMutex);
     if (isZero(hash))
     {
         return std::make_shared<Bucket>();
@@ -543,7 +555,7 @@ std::shared_future<std::shared_ptr<Bucket>>
 BucketManagerImpl::getMergeFuture(MergeKey const& key)
 {
     ZoneScoped;
-    std::lock_guard<std::recursive_mutex> lock(mBucketMutex);
+    std::lock_guard<std::recursive_mutex> lock(mBucketFileMutex);
     MergeCounters mc;
     auto i = mLiveFutures.find(key);
     if (i == mLiveFutures.end())
@@ -589,7 +601,7 @@ BucketManagerImpl::putMergeFuture(
 {
     ZoneScoped;
     releaseAssertOrThrow(mApp.getConfig().MODE_ENABLES_BUCKETLIST);
-    std::lock_guard<std::recursive_mutex> lock(mBucketMutex);
+    std::lock_guard<std::recursive_mutex> lock(mBucketFileMutex);
     CLOG_TRACE(
         Bucket,
         "BucketManager::putMergeFuture storing future for running merge {}",
@@ -601,7 +613,7 @@ BucketManagerImpl::putMergeFuture(
 void
 BucketManagerImpl::clearMergeFuturesForTesting()
 {
-    std::lock_guard<std::recursive_mutex> lock(mBucketMutex);
+    std::lock_guard<std::recursive_mutex> lock(mBucketFileMutex);
     mLiveFutures.clear();
 }
 #endif
@@ -700,7 +712,7 @@ BucketManagerImpl::cleanupStaleFiles()
         return;
     }
 
-    std::lock_guard<std::recursive_mutex> lock(mBucketMutex);
+    std::lock_guard<std::recursive_mutex> lock(mBucketFileMutex);
     auto referenced = getAllReferencedBuckets();
     std::transform(std::begin(mSharedBuckets), std::end(mSharedBuckets),
                    std::inserter(referenced, std::end(referenced)),
@@ -730,7 +742,7 @@ void
 BucketManagerImpl::forgetUnreferencedBuckets()
 {
     ZoneScoped;
-    std::lock_guard<std::recursive_mutex> lock(mBucketMutex);
+    std::lock_guard<std::recursive_mutex> lock(mBucketFileMutex);
     auto referenced = getAllReferencedBuckets();
     auto blReferenced = getBucketListReferencedBuckets();
 
@@ -837,8 +849,11 @@ BucketManagerImpl::addBatch(Application& app, uint32_t currLedger,
     auto timer = mBucketAddBatch.TimeScope();
     mBucketObjectInsertBatch.Mark(initEntries.size() + liveEntries.size() +
                                   deadEntries.size());
-    mBucketList->addBatch(app, currLedger, currLedgerProtocol, initEntries,
-                          liveEntries, deadEntries);
+    {
+        std::lock_guard<std::recursive_mutex> lock(mBucketSnapshotMutex);
+        mBucketList->addBatch(app, currLedger, currLedgerProtocol, initEntries,
+                              liveEntries, deadEntries);
+    }
     mBucketListSizeCounter.set_count(mBucketList->getSize());
 }
 
@@ -907,90 +922,135 @@ BucketManagerImpl::maybeSetIndex(std::shared_ptr<Bucket> b,
 }
 
 void
-BucketManagerImpl::scanForEviction(AbstractLedgerTxn& ltx, uint32_t ledgerSeq)
+BucketManagerImpl::scanForEvictionLegacySQL(AbstractLedgerTxn& ltx,
+                                            uint32_t ledgerSeq)
 {
     ZoneScoped;
-    if (protocolVersionStartsFrom(ltx.getHeader().ledgerVersion,
-                                  SOROBAN_PROTOCOL_VERSION))
+    releaseAssert(protocolVersionStartsFrom(ltx.getHeader().ledgerVersion,
+                                            SOROBAN_PROTOCOL_VERSION));
+    mBucketList->scanForEvictionLegacySQL(
+        mApp, ltx, ledgerSeq, mBucketListEvictionCounters, mEvictionStatistics);
+}
+
+void
+BucketManagerImpl::startBackgroundEvictionScan(uint32_t ledgerSeq)
+{
+    releaseAssert(mApp.getConfig().isUsingBucketListDB());
+    releaseAssert(!mEvictionFuture.valid());
+
+    auto searchableBL = getSearchableBucketListSnapshot();
+    auto const& cfg = mApp.getLedgerManager().getSorobanNetworkConfig();
+    auto const& sas = cfg.stateArchivalSettings();
+
+    using task_t = std::packaged_task<EvictionResult()>;
+    auto task = std::make_shared<task_t>(
+        [bl = move(searchableBL), iter = cfg.evictionIterator(), ledgerSeq, sas,
+         &counters = mBucketListEvictionCounters,
+         &stats = mEvictionStatistics] {
+            return bl->scanForEviction(ledgerSeq, counters, iter, stats, sas);
+        });
+
+    mEvictionFuture = task->get_future();
+    mApp.postOnBackgroundThread(bind(&task_t::operator(), task),
+                                "SearchableBucketListSnapshot: eviction scan");
+}
+
+void
+BucketManagerImpl::resolveBackgroundEvictionScan(
+    AbstractLedgerTxn& ltx, uint32_t ledgerSeq,
+    LedgerKeySet const& modifiedKeys)
+{
+    ZoneScoped;
+
+    if (!mEvictionFuture.valid())
     {
-        mBucketList->scanForEviction(mApp, ltx, ledgerSeq,
-                                     mBucketListEvictionCounters);
+        startBackgroundEvictionScan(ledgerSeq);
     }
-}
 
-medida::Timer&
-BucketManagerImpl::recordBulkLoadMetrics(std::string const& label,
-                                         size_t numEntries) const
-{
-    if (numEntries != 0)
+    mEvictionFuture.wait();
+    auto evictionCandidates = mEvictionFuture.get();
+
+    auto const& networkConfig =
+        mApp.getLedgerManager().getSorobanNetworkConfig();
+
+    // If eviction related settings changed during the ledger, we have to
+    // restart the scan
+    if (!evictionCandidates.isValid(ledgerSeq,
+                                    networkConfig.stateArchivalSettings()))
     {
-        mBucketListDBBulkLoadMeter.Mark(numEntries);
+        startBackgroundEvictionScan(ledgerSeq);
+        mEvictionFuture.wait();
+        evictionCandidates = mEvictionFuture.get();
     }
 
-    auto iter = mBucketListDBBulkTimers.find(label);
-    if (iter == mBucketListDBBulkTimers.end())
+    auto& eligibleKeys = evictionCandidates.eligibleKeys;
+
+    for (auto iter = eligibleKeys.begin(); iter != eligibleKeys.end();)
     {
-        auto& metric =
-            mApp.getMetrics().NewTimer({"bucketlistDB", "bulk", label});
-        iter = mBucketListDBBulkTimers.emplace(label, metric).first;
+        // If the TTL has not been modified this ledger, we can evict the entry
+        if (modifiedKeys.find(getTTLKey(iter->key)) == modifiedKeys.end())
+        {
+            ++iter;
+        }
+        else
+        {
+            iter = eligibleKeys.erase(iter);
+        }
     }
 
-    return iter->second;
-}
+    auto remainingEntriesToEvict =
+        networkConfig.stateArchivalSettings().maxEntriesToArchive;
+    auto entryToEvictIter = eligibleKeys.begin();
+    auto newEvictionIterator = evictionCandidates.endOfRegionIterator;
 
-medida::Timer&
-BucketManagerImpl::getPointLoadTimer(LedgerEntryType t) const
-{
-    auto iter = mBucketListDBPointTimers.find(t);
-    if (iter == mBucketListDBPointTimers.end())
+    // Only actually evict up to maxEntriesToArchive of the eligible entries
+    while (remainingEntriesToEvict > 0 &&
+           entryToEvictIter != eligibleKeys.end())
     {
-        auto const& label = xdr::xdr_traits<LedgerEntryType>::enum_name(t);
-        auto& metric =
-            mApp.getMetrics().NewTimer({"bucketlistDB", "point", label});
-        iter = mBucketListDBPointTimers.emplace(t, metric).first;
+        ltx.erase(entryToEvictIter->key);
+        ltx.erase(getTTLKey(entryToEvictIter->key));
+        --remainingEntriesToEvict;
+
+        mBucketListEvictionCounters.entriesEvicted.inc();
+        if (mEvictionStatistics.has_value())
+        {
+            ++mEvictionStatistics->numEntriesEvicted;
+            mEvictionStatistics->evictedEntriesAgeSum +=
+                ledgerSeq - entryToEvictIter->liveUntilLedger;
+        }
+
+        newEvictionIterator = entryToEvictIter->iter;
+        entryToEvictIter = eligibleKeys.erase(entryToEvictIter);
     }
 
-    return iter->second;
+    // If remainingEntriesToEvict == 0, that means we could not evict the entire
+    // scan region, so the new eviction iterator should be after the last entry
+    // evicted. Otherwise, eviction iterator should be at the end of the scan
+    // region
+    if (remainingEntriesToEvict != 0)
+    {
+        newEvictionIterator = evictionCandidates.endOfRegionIterator;
+    }
+
+    networkConfig.updateEvictionIterator(ltx, newEvictionIterator);
 }
 
-std::shared_ptr<LedgerEntry>
-BucketManagerImpl::getLedgerEntry(LedgerKey const& k) const
+std::unique_ptr<SearchableBucketListSnapshot>
+BucketManagerImpl::getSearchableBucketListSnapshot() const
 {
-    releaseAssertOrThrow(getConfig().isUsingBucketListDB());
-    auto timer = getPointLoadTimer(k.type()).TimeScope();
-    return mBucketList->getLedgerEntry(k);
+    releaseAssertOrThrow(mApp.getConfig().isUsingBucketListDB() && mBucketList);
+
+    std::lock_guard<std::recursive_mutex> lock(mBucketSnapshotMutex);
+
+    // Note: cannot use make_unique due to private constructor
+    return std::unique_ptr<SearchableBucketListSnapshot>(
+        new SearchableBucketListSnapshot(mApp, *mBucketList));
 }
 
-std::vector<LedgerEntry>
-BucketManagerImpl::loadKeys(
-    std::set<LedgerKey, LedgerEntryIdCmp> const& keys) const
+std::recursive_mutex&
+BucketManagerImpl::getBucketSnapshotMutex() const
 {
-    releaseAssertOrThrow(getConfig().isUsingBucketListDB());
-    auto timer = recordBulkLoadMetrics("prefetch", keys.size()).TimeScope();
-    return mBucketList->loadKeys(keys);
-}
-
-std::vector<LedgerEntry>
-BucketManagerImpl::loadPoolShareTrustLinesByAccountAndAsset(
-    AccountID const& accountID, Asset const& asset) const
-{
-    releaseAssertOrThrow(getConfig().isUsingBucketListDB());
-    // This query needs to do a linear scan of certain regions of the
-    // BucketList, so the number of entries loaded is meaningless
-    auto timer = recordBulkLoadMetrics("poolshareTrustlines", 0).TimeScope();
-    return mBucketList->loadPoolShareTrustLinesByAccountAndAsset(accountID,
-                                                                 asset);
-}
-
-std::vector<InflationWinner>
-BucketManagerImpl::loadInflationWinners(size_t maxWinners,
-                                        int64_t minBalance) const
-{
-    releaseAssertOrThrow(getConfig().isUsingBucketListDB());
-    // This query needs to do a linear scan of certain regions of the
-    // BucketList, so the number of entries loaded is meaningless
-    auto timer = recordBulkLoadMetrics("inflationWinners", 0).TimeScope();
-    return mBucketList->loadInflationWinners(maxWinners, minBalance);
+    return mBucketSnapshotMutex;
 }
 
 medida::Meter&
@@ -1053,50 +1113,59 @@ BucketManagerImpl::assumeState(HistoryArchiveState const& has,
     ZoneScoped;
     releaseAssertOrThrow(mApp.getConfig().MODE_ENABLES_BUCKETLIST);
 
-    for (uint32_t i = 0; i < BucketList::kNumLevels; ++i)
     {
-        auto curr = getBucketByHash(hexToBin256(has.currentBuckets.at(i).curr));
-        auto snap = getBucketByHash(hexToBin256(has.currentBuckets.at(i).snap));
-        if (!(curr && snap))
+        std::lock_guard<std::recursive_mutex> lock(mBucketSnapshotMutex);
+        for (uint32_t i = 0; i < BucketList::kNumLevels; ++i)
         {
-            throw std::runtime_error(
-                "Missing bucket files while assuming saved BucketList state");
-        }
-
-        auto const& nextFuture = has.currentBuckets.at(i).next;
-        std::shared_ptr<Bucket> nextBucket = nullptr;
-        if (nextFuture.hasOutputHash())
-        {
-            nextBucket =
-                getBucketByHash(hexToBin256(nextFuture.getOutputHash()));
-            if (!nextBucket)
+            auto curr =
+                getBucketByHash(hexToBin256(has.currentBuckets.at(i).curr));
+            auto snap =
+                getBucketByHash(hexToBin256(has.currentBuckets.at(i).snap));
+            if (!(curr && snap))
             {
-                throw std::runtime_error("Missing future bucket files while "
-                                         "assuming saved BucketList state");
+                throw std::runtime_error("Missing bucket files while assuming "
+                                         "saved BucketList state");
             }
-        }
 
-        // Buckets on the BucketList should always be indexed when BucketListDB
-        // enabled
-        if (mApp.getConfig().isUsingBucketListDB())
-        {
-            releaseAssert(curr->isEmpty() || curr->isIndexed());
-            releaseAssert(snap->isEmpty() || snap->isIndexed());
-            if (nextBucket)
+            auto const& nextFuture = has.currentBuckets.at(i).next;
+            std::shared_ptr<Bucket> nextBucket = nullptr;
+            if (nextFuture.hasOutputHash())
             {
-                releaseAssert(nextBucket->isEmpty() || nextBucket->isIndexed());
+                nextBucket =
+                    getBucketByHash(hexToBin256(nextFuture.getOutputHash()));
+                if (!nextBucket)
+                {
+                    throw std::runtime_error(
+                        "Missing future bucket files while "
+                        "assuming saved BucketList state");
+                }
             }
+
+            // Buckets on the BucketList should always be indexed when
+            // BucketListDB enabled
+            if (mApp.getConfig().isUsingBucketListDB())
+            {
+                releaseAssert(curr->isEmpty() || curr->isIndexed());
+                releaseAssert(snap->isEmpty() || snap->isIndexed());
+                if (nextBucket)
+                {
+                    releaseAssert(nextBucket->isEmpty() ||
+                                  nextBucket->isIndexed());
+                }
+            }
+
+            mBucketList->getLevel(i).setCurr(curr);
+            mBucketList->getLevel(i).setSnap(snap);
+            mBucketList->getLevel(i).setNext(nextFuture);
         }
 
-        mBucketList->getLevel(i).setCurr(curr);
-        mBucketList->getLevel(i).setSnap(snap);
-        mBucketList->getLevel(i).setNext(nextFuture);
+        if (restartMerges)
+        {
+            mBucketList->restartMerges(mApp, maxProtocolVersion,
+                                       has.currentLedger);
+        }
     }
 
-    if (restartMerges)
-    {
-        mBucketList->restartMerges(mApp, maxProtocolVersion, has.currentLedger);
-    }
     cleanupStaleFiles();
 }
 

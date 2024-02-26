@@ -497,12 +497,14 @@ LedgerManagerImpl::getDatabase()
 uint32_t
 LedgerManagerImpl::getLastMaxTxSetSize() const
 {
+    std::lock_guard<std::mutex> lock(mLedgerPointerLock);
     return mLastClosedLedger.header.maxTxSetSize;
 }
 
 uint32_t
 LedgerManagerImpl::getLastMaxTxSetSizeOps() const
 {
+    std::lock_guard<std::mutex> lock(mLedgerPointerLock);
     auto n = mLastClosedLedger.header.maxTxSetSize;
     return protocolVersionStartsFrom(mLastClosedLedger.header.ledgerVersion,
                                      ProtocolVersion::V_11)
@@ -554,6 +556,7 @@ LedgerManagerImpl::maxSorobanTransactionResources()
 int64_t
 LedgerManagerImpl::getLastMinBalance(uint32_t ownerCount) const
 {
+    std::lock_guard<std::mutex> lock(mLedgerPointerLock);
     auto const& lh = mLastClosedLedger.header;
     if (protocolVersionIsBefore(lh.ledgerVersion, ProtocolVersion::V_9))
         return (2 + ownerCount) * lh.baseReserve;
@@ -564,18 +567,21 @@ LedgerManagerImpl::getLastMinBalance(uint32_t ownerCount) const
 uint32_t
 LedgerManagerImpl::getLastReserve() const
 {
+    std::lock_guard<std::mutex> lock(mLedgerPointerLock);
     return mLastClosedLedger.header.baseReserve;
 }
 
 uint32_t
 LedgerManagerImpl::getLastTxFee() const
 {
+    std::lock_guard<std::mutex> lock(mLedgerPointerLock);
     return mLastClosedLedger.header.baseFee;
 }
 
 LedgerHeaderHistoryEntry const&
 LedgerManagerImpl::getLastClosedLedgerHeader() const
 {
+    std::lock_guard<std::mutex> lock(mLedgerPointerLock);
     return mLastClosedLedger;
 }
 
@@ -594,12 +600,14 @@ LedgerManagerImpl::getLastClosedLedgerHAS()
 uint32_t
 LedgerManagerImpl::getLastClosedLedgerNum() const
 {
+    std::lock_guard<std::mutex> lock(mLedgerPointerLock);
     return mLastClosedLedger.header.ledgerSeq;
 }
 
 SorobanNetworkConfig&
 LedgerManagerImpl::getSorobanNetworkConfigInternal()
 {
+    std::lock_guard<std::mutex> lock(mLedgerPointerLock);
     releaseAssert(mSorobanNetworkConfig);
     return *mSorobanNetworkConfig;
 }
@@ -1042,6 +1050,7 @@ LedgerManagerImpl::closeLedger(LedgerCloseData const& ledgerData)
         }
     }
     auto maybeNewVersion = ltx.loadHeader().current().ledgerVersion;
+    auto ledgerSeq = ltx.loadHeader().current().ledgerSeq;
     if (protocolVersionStartsFrom(maybeNewVersion, SOROBAN_PROTOCOL_VERSION))
     {
         updateNetworkConfig(ltx);
@@ -1076,7 +1085,7 @@ LedgerManagerImpl::closeLedger(LedgerCloseData const& ledgerData)
         }
     }
 
-    // The next 4 steps happen in a relatively non-obvious, subtle order.
+    // The next 5 steps happen in a relatively non-obvious, subtle order.
     // This is unfortunate and it would be nice if we could make it not
     // be so subtle, but for the time being this is where we are.
     //
@@ -1086,12 +1095,16 @@ LedgerManagerImpl::closeLedger(LedgerCloseData const& ledgerData)
     //
     // 2. Commit the current transaction.
     //
-    // 3. Start any queued checkpoint publishing, _after_ the commit so that
+    // 3. Start background eviction scan for the next ledger, _after_ the commit
+    //    so that it takes its snapshot of network setting from the
+    //    committed state.
+    //
+    // 4. Start any queued checkpoint publishing, _after_ the commit so that
     //    it takes its snapshot of history-rows from the committed state, but
     //    _before_ we GC any buckets (because this is the step where the
     //    bucket refcounts are incremented for the duration of the publish).
     //
-    // 4. GC unreferenced buckets. Only do this once publishes are in progress.
+    // 5. GC unreferenced buckets. Only do this once publishes are in progress.
 
     // step 1
     auto& hm = mApp.getHistoryManager();
@@ -1101,10 +1114,18 @@ LedgerManagerImpl::closeLedger(LedgerCloseData const& ledgerData)
     ltx.commit();
 
     // step 3
+    if (protocolVersionStartsFrom(initialLedgerVers,
+                                  SOROBAN_PROTOCOL_VERSION) &&
+        mApp.getConfig().EXPERIMENTAL_BACKGROUND_EVICTION_SCAN)
+    {
+        mApp.getBucketManager().startBackgroundEvictionScan(ledgerSeq + 1);
+    }
+
+    // step 4
     hm.publishQueuedHistory();
     hm.logAndUpdatePublishStatus();
 
-    // step 4
+    // step 5
     mApp.getBucketManager().forgetUnreferencedBuckets();
 
     if (!mApp.getConfig().OP_APPLY_SLEEP_TIME_WEIGHT_FOR_TESTING.empty())
@@ -1348,6 +1369,7 @@ LedgerManagerImpl::advanceLedgerPointers(LedgerHeader const& header,
                    ledgerAbbrev(header, ledgerHash));
     }
 
+    std::lock_guard<std::mutex> lock(mLedgerPointerLock);
     mLastClosedLedger.hash = ledgerHash;
     mLastClosedLedger.header = header;
 }
@@ -1694,8 +1716,20 @@ LedgerManagerImpl::transferLedgerEntriesToBucketList(
         protocolVersionStartsFrom(initialLedgerVers, SOROBAN_PROTOCOL_VERSION))
     {
         {
+            auto keys = ltx.getAllTTLKeysWithoutSealing();
             LedgerTxn ltxEvictions(ltx);
-            mApp.getBucketManager().scanForEviction(ltxEvictions, ledgerSeq);
+
+            if (mApp.getConfig().EXPERIMENTAL_BACKGROUND_EVICTION_SCAN)
+            {
+                mApp.getBucketManager().resolveBackgroundEvictionScan(
+                    ltxEvictions, ledgerSeq, keys);
+            }
+            else
+            {
+                mApp.getBucketManager().scanForEvictionLegacySQL(ltxEvictions,
+                                                                 ledgerSeq);
+            }
+
             if (ledgerCloseMeta)
             {
                 ledgerCloseMeta->populateEvictedEntries(

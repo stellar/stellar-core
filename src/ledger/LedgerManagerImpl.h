@@ -77,6 +77,8 @@ class LedgerManagerImpl : public LedgerManager
     std::optional<SorobanNetworkConfig> mSorobanNetworkConfig;
 
     SorobanLedgerMetrics mSorobanLedgerMetrics;
+    mutable std::mutex mLedgerPointerLock;
+
     medida::Timer& mTransactionApply;
     medida::Histogram& mTransactionCount;
     medida::Histogram& mOperationCount;
