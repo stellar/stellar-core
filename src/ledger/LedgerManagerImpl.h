@@ -38,7 +38,7 @@ class Database;
 class LedgerTxnHeader;
 class BasicWork;
 
-class SorobanLedgerMetrics
+class SorobanMetrics
 {
   private:
     medida::MetricsRegistry& mMetrics;
@@ -49,9 +49,43 @@ class SorobanLedgerMetrics
     uint64_t mLedgerWriteByte{0};
 
   public:
-    SorobanLedgerMetrics(medida::MetricsRegistry& metrics) : mMetrics(metrics)
-    {
-    }
+    // InvokeHostFunctionOp
+    medida::Meter& mHostFnOpReadEntry;
+    medida::Meter& mHostFnOpWriteEntry;
+    medida::Meter& mHostFnOpReadKeyByte;
+    medida::Meter& mHostFnOpWriteKeyByte;
+    medida::Meter& mHostFnOpReadLedgerByte;
+    medida::Meter& mHostFnOpReadDataByte;
+    medida::Meter& mHostFnOpReadCodeByte;
+    medida::Meter& mHostFnOpWriteLedgerByte;
+    medida::Meter& mHostFnOpWriteDataByte;
+    medida::Meter& mHostFnOpWriteCodeByte;
+    medida::Meter& mHostFnOpEmitEvent;
+    medida::Meter& mHostFnOpEmitEventByte;
+    medida::Meter& mHostFnOpCpuInsn;
+    medida::Meter& mHostFnOpMemByte;
+    medida::Timer& mHostFnOpInvokeTimeNsecs;
+    medida::Meter& mHostFnOpCpuInsnExclVm;
+    medida::Timer& mHostFnOpInvokeTimeNsecsExclVm;
+    medida::Histogram& mHostFnOpInvokeTimeFsecsCpuInsnRatio;
+    medida::Histogram& mHostFnOpInvokeTimeFsecsCpuInsnRatioExclVm;
+    medida::Meter& mHostFnOpMaxRwKeyByte;
+    medida::Meter& mHostFnOpMaxRwDataByte;
+    medida::Meter& mHostFnOpMaxRwCodeByte;
+    medida::Meter& mHostFnOpMaxEmitEventByte;
+    medida::Meter& mHostFnOpSuccess;
+    medida::Meter& mHostFnOpFailure;
+    medida::Timer& mHostFnOpExec;
+
+    // ExtendFootprintTTLOp
+    medida::Meter& mExtFpTtlOpReadLedgerByte;
+
+    // RestoreFootprintOp
+    medida::Meter& mRestoreFpOpReadLedgerByte;
+    medida::Meter& mRestoreFpOpWriteLedgerByte;
+
+    SorobanMetrics(medida::MetricsRegistry& metrics);
+
     medida::MetricsRegistry& registry() const;
 
     void accumulateLedgerCpuInsn(uint64_t cpuInsn);
@@ -76,7 +110,7 @@ class LedgerManagerImpl : public LedgerManager
     LedgerHeaderHistoryEntry mLastClosedLedger;
     std::optional<SorobanNetworkConfig> mSorobanNetworkConfig;
 
-    SorobanLedgerMetrics mSorobanLedgerMetrics;
+    SorobanMetrics mSorobanMetrics;
     medida::Timer& mTransactionApply;
     medida::Histogram& mTransactionCount;
     medida::Histogram& mOperationCount;
@@ -212,6 +246,6 @@ class LedgerManagerImpl : public LedgerManager
     void setupLedgerCloseMetaStream();
     void maybeResetLedgerCloseMetaDebugStream(uint32_t ledgerSeq);
 
-    SorobanLedgerMetrics& getSorobanMetrics() override;
+    SorobanMetrics& getSorobanMetrics() override;
 };
 }

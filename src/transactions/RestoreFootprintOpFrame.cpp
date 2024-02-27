@@ -12,25 +12,19 @@ namespace stellar
 
 struct RestoreFootprintMetrics
 {
-    SorobanLedgerMetrics& mMetrics;
+    SorobanMetrics& mMetrics;
 
     uint32_t mLedgerReadByte{0};
     uint32_t mLedgerWriteByte{0};
 
-    RestoreFootprintMetrics(SorobanLedgerMetrics& metrics) : mMetrics(metrics)
+    RestoreFootprintMetrics(SorobanMetrics& metrics) : mMetrics(metrics)
     {
     }
 
     ~RestoreFootprintMetrics()
     {
-        mMetrics.registry()
-            .NewMeter({"soroban", "restore-fprint-op", "read-ledger-byte"},
-                      "byte")
-            .Mark(mLedgerReadByte);
-        mMetrics.registry()
-            .NewMeter({"soroban", "restore-fprint-op", "write-ledger-byte"},
-                      "byte")
-            .Mark(mLedgerWriteByte);
+        mMetrics.mRestoreFpOpReadLedgerByte.Mark(mLedgerReadByte);
+        mMetrics.mRestoreFpOpWriteLedgerByte.Mark(mLedgerWriteByte);
 
         // populate ledger-wise resource metrics
         mMetrics.accumulateLedgerReadByte(mLedgerReadByte);

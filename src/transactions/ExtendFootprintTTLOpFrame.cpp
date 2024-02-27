@@ -12,20 +12,17 @@ namespace stellar
 
 struct ExtendFootprintTTLMetrics
 {
-    SorobanLedgerMetrics& mMetrics;
+    SorobanMetrics& mMetrics;
 
     uint32 mLedgerReadByte{0};
 
-    ExtendFootprintTTLMetrics(SorobanLedgerMetrics& metrics) : mMetrics(metrics)
+    ExtendFootprintTTLMetrics(SorobanMetrics& metrics) : mMetrics(metrics)
     {
     }
 
     ~ExtendFootprintTTLMetrics()
     {
-        mMetrics.registry()
-            .NewMeter({"soroban", "ext-fprint-ttl-op", "read-ledger-byte"},
-                      "byte")
-            .Mark(mLedgerReadByte);
+        mMetrics.mExtFpTtlOpReadLedgerByte.Mark(mLedgerReadByte);
 
         // populate ledger-wise resource metrics
         mMetrics.accumulateLedgerReadByte(mLedgerReadByte);

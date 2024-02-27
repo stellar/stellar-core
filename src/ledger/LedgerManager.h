@@ -14,7 +14,7 @@ namespace stellar
 
 class LedgerCloseData;
 class Database;
-class SorobanLedgerMetrics;
+class SorobanMetrics;
 
 /**
  * LedgerManager maintains, in memory, a logical pair of ledgers:
@@ -193,7 +193,7 @@ class LedgerManager
 
     virtual void manuallyAdvanceLedgerHeader(LedgerHeader const& header) = 0;
 
-    virtual SorobanLedgerMetrics& getSorobanMetrics() = 0;
+    virtual SorobanMetrics& getSorobanMetrics() = 0;
 
     virtual ~LedgerManager()
     {

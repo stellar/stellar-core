@@ -99,7 +99,7 @@ metricsEvent(bool success, std::string&& topic, uint64_t value)
 
 struct HostFunctionMetrics
 {
-    SorobanLedgerMetrics& mMetrics;
+    SorobanMetrics& mMetrics;
 
     uint32_t mReadEntry{0};
     uint32_t mWriteEntry{0};
@@ -134,7 +134,7 @@ struct HostFunctionMetrics
 
     bool mSuccess{false};
 
-    HostFunctionMetrics(SorobanLedgerMetrics& metrics) : mMetrics(metrics)
+    HostFunctionMetrics(SorobanMetrics& metrics) : mMetrics(metrics)
     {
     }
 
@@ -177,97 +177,48 @@ struct HostFunctionMetrics
 
     ~HostFunctionMetrics()
     {
-        mMetrics.registry()
-            .NewMeter({"soroban", "host-fn-op", "read-entry"}, "entry")
-            .Mark(mReadEntry);
-        mMetrics.registry()
-            .NewMeter({"soroban", "host-fn-op", "write-entry"}, "entry")
-            .Mark(mWriteEntry);
+        mMetrics.mHostFnOpReadEntry.Mark(mReadEntry);
+        mMetrics.mHostFnOpWriteEntry.Mark(mWriteEntry);
 
-        mMetrics.registry()
-            .NewMeter({"soroban", "host-fn-op", "read-key-byte"}, "byte")
-            .Mark(mReadKeyByte);
-        mMetrics.registry()
-            .NewMeter({"soroban", "host-fn-op", "write-key-byte"}, "byte")
-            .Mark(mWriteKeyByte);
+        mMetrics.mHostFnOpReadKeyByte.Mark(mReadKeyByte);
+        mMetrics.mHostFnOpWriteKeyByte.Mark(mWriteKeyByte);
 
-        mMetrics.registry()
-            .NewMeter({"soroban", "host-fn-op", "read-ledger-byte"}, "byte")
-            .Mark(mLedgerReadByte);
-        mMetrics.registry()
-            .NewMeter({"soroban", "host-fn-op", "read-data-byte"}, "byte")
-            .Mark(mReadDataByte);
-        mMetrics.registry()
-            .NewMeter({"soroban", "host-fn-op", "read-code-byte"}, "byte")
-            .Mark(mReadCodeByte);
+        mMetrics.mHostFnOpReadLedgerByte.Mark(mLedgerReadByte);
+        mMetrics.mHostFnOpReadDataByte.Mark(mReadDataByte);
+        mMetrics.mHostFnOpReadCodeByte.Mark(mReadCodeByte);
 
-        mMetrics.registry()
-            .NewMeter({"soroban", "host-fn-op", "write-ledger-byte"}, "byte")
-            .Mark(mLedgerWriteByte);
-        mMetrics.registry()
-            .NewMeter({"soroban", "host-fn-op", "write-data-byte"}, "byte")
-            .Mark(mWriteDataByte);
-        mMetrics.registry()
-            .NewMeter({"soroban", "host-fn-op", "write-code-byte"}, "byte")
-            .Mark(mWriteCodeByte);
+        mMetrics.mHostFnOpWriteLedgerByte.Mark(mLedgerWriteByte);
+        mMetrics.mHostFnOpWriteDataByte.Mark(mWriteDataByte);
+        mMetrics.mHostFnOpWriteCodeByte.Mark(mWriteCodeByte);
 
-        mMetrics.registry()
-            .NewMeter({"soroban", "host-fn-op", "emit-event"}, "event")
-            .Mark(mEmitEvent);
-        mMetrics.registry()
-            .NewMeter({"soroban", "host-fn-op", "emit-event-byte"}, "byte")
-            .Mark(mEmitEventByte);
+        mMetrics.mHostFnOpEmitEvent.Mark(mEmitEvent);
+        mMetrics.mHostFnOpEmitEventByte.Mark(mEmitEventByte);
 
-        mMetrics.registry()
-            .NewMeter({"soroban", "host-fn-op", "cpu-insn"}, "insn")
-            .Mark(mCpuInsn);
-        mMetrics.registry()
-            .NewMeter({"soroban", "host-fn-op", "mem-byte"}, "byte")
-            .Mark(mMemByte);
-        mMetrics.registry()
-            .NewTimer({"soroban", "host-fn-op", "invoke-time-nsecs"})
-            .Update(std::chrono::nanoseconds(mInvokeTimeNsecs));
-        mMetrics.registry()
-            .NewMeter({"soroban", "host-fn-op", "cpu-insn-excl-vm"}, "insn")
-            .Mark(mCpuInsnExclVm);
-        mMetrics.registry()
-            .NewTimer({"soroban", "host-fn-op", "invoke-time-nsecs-excl-vm"})
-            .Update(std::chrono::nanoseconds(mInvokeTimeNsecsExclVm));
-        mMetrics.registry()
-            .NewHistogram(
-                {"soroban", "host-fn-op", "invoke-time-fsecs-cpu-insn-ratio"})
-            .Update(mInvokeTimeNsecs * 1000000 /
-                    std::max(mCpuInsn, uint64_t(1)));
-        mMetrics.registry()
-            .NewHistogram({"soroban", "host-fn-op",
-                           "invoke-time-fsecs-cpu-insn-ratio-excl-vm"})
-            .Update(mInvokeTimeNsecsExclVm * 1000000 /
-                    std::max(mCpuInsnExclVm, uint64_t(1)));
+        mMetrics.mHostFnOpCpuInsn.Mark(mCpuInsn);
+        mMetrics.mHostFnOpMemByte.Mark(mMemByte);
+        mMetrics.mHostFnOpInvokeTimeNsecs.Update(
+            std::chrono::nanoseconds(mInvokeTimeNsecs));
+        mMetrics.mHostFnOpCpuInsnExclVm.Mark(mCpuInsnExclVm);
+        mMetrics.mHostFnOpInvokeTimeNsecsExclVm.Update(
+            std::chrono::nanoseconds(mInvokeTimeNsecsExclVm));
+        mMetrics.mHostFnOpInvokeTimeFsecsCpuInsnRatio.Update(
+            mInvokeTimeNsecs * 1000000 / std::max(mCpuInsn, uint64_t(1)));
+        mMetrics.mHostFnOpInvokeTimeFsecsCpuInsnRatioExclVm.Update(
+            mInvokeTimeNsecsExclVm * 1000000 /
+            std::max(mCpuInsnExclVm, uint64_t(1)));
 
-        mMetrics.registry()
-            .NewMeter({"soroban", "host-fn-op", "max-rw-key-byte"}, "byte")
-            .Mark(mMaxReadWriteKeyByte);
-        mMetrics.registry()
-            .NewMeter({"soroban", "host-fn-op", "max-rw-data-byte"}, "byte")
-            .Mark(mMaxReadWriteDataByte);
-        mMetrics.registry()
-            .NewMeter({"soroban", "host-fn-op", "max-rw-code-byte"}, "byte")
-            .Mark(mMaxReadWriteCodeByte);
-        mMetrics.registry()
-            .NewMeter({"soroban", "host-fn-op", "max-emit-event-byte"}, "byte")
-            .Mark(mMaxEmitEventByte);
+        mMetrics.mHostFnOpMaxRwKeyByte.Mark(mMaxReadWriteKeyByte);
+        mMetrics.mHostFnOpMaxRwDataByte.Mark(mMaxReadWriteDataByte);
+        mMetrics.mHostFnOpMaxRwCodeByte.Mark(mMaxReadWriteCodeByte);
+        mMetrics.mHostFnOpMaxEmitEventByte.Mark(mMaxEmitEventByte);
 
         if (mSuccess)
         {
-            mMetrics.registry()
-                .NewMeter({"soroban", "host-fn-op", "success"}, "call")
-                .Mark();
+            mMetrics.mHostFnOpSuccess.Mark();
         }
         else
         {
-            mMetrics.registry()
-                .NewMeter({"soroban", "host-fn-op", "failure"}, "call")
-                .Mark();
+            mMetrics.mHostFnOpFailure.Mark();
         }
 
         // populate ledger-wise resource metrics
@@ -280,9 +231,7 @@ struct HostFunctionMetrics
     medida::TimerContext
     getExecTimer()
     {
-        return mMetrics.registry()
-            .NewTimer({"soroban", "host-fn-op", "exec"})
-            .TimeScope();
+        return mMetrics.mHostFnOpExec.TimeScope();
     }
 };
 

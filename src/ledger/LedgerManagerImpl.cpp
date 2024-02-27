@@ -94,34 +94,97 @@ const uint32_t LedgerManager::GENESIS_LEDGER_BASE_RESERVE = 100000000;
 const uint32_t LedgerManager::GENESIS_LEDGER_MAX_TX_SIZE = 100;
 const int64_t LedgerManager::GENESIS_LEDGER_TOTAL_COINS = 1000000000000000000;
 
+SorobanMetrics::SorobanMetrics(medida::MetricsRegistry& metrics)
+    : mMetrics(metrics)
+    , mHostFnOpReadEntry(
+          metrics.NewMeter({"soroban", "host-fn-op", "read-entry"}, "entry"))
+    , mHostFnOpWriteEntry(
+          metrics.NewMeter({"soroban", "host-fn-op", "write-entry"}, "entry"))
+    , mHostFnOpReadKeyByte(
+          metrics.NewMeter({"soroban", "host-fn-op", "read-key-byte"}, "byte"))
+    , mHostFnOpWriteKeyByte(
+          metrics.NewMeter({"soroban", "host-fn-op", "write-key-byte"}, "byte"))
+    , mHostFnOpReadLedgerByte(metrics.NewMeter(
+          {"soroban", "host-fn-op", "read-ledger-byte"}, "byte"))
+    , mHostFnOpReadDataByte(
+          metrics.NewMeter({"soroban", "host-fn-op", "read-data-byte"}, "byte"))
+    , mHostFnOpReadCodeByte(
+          metrics.NewMeter({"soroban", "host-fn-op", "read-code-byte"}, "byte"))
+    , mHostFnOpWriteLedgerByte(metrics.NewMeter(
+          {"soroban", "host-fn-op", "write-ledger-byte"}, "byte"))
+    , mHostFnOpWriteDataByte(metrics.NewMeter(
+          {"soroban", "host-fn-op", "write-data-byte"}, "byte"))
+    , mHostFnOpWriteCodeByte(metrics.NewMeter(
+          {"soroban", "host-fn-op", "write-code-byte"}, "byte"))
+    , mHostFnOpEmitEvent(
+          metrics.NewMeter({"soroban", "host-fn-op", "emit-event"}, "event"))
+    , mHostFnOpEmitEventByte(metrics.NewMeter(
+          {"soroban", "host-fn-op", "emit-event-byte"}, "byte"))
+    , mHostFnOpCpuInsn(
+          metrics.NewMeter({"soroban", "host-fn-op", "cpu-insn"}, "insn"))
+    , mHostFnOpMemByte(
+          metrics.NewMeter({"soroban", "host-fn-op", "mem-byte"}, "byte"))
+    , mHostFnOpInvokeTimeNsecs(
+          metrics.NewTimer({"soroban", "host-fn-op", "invoke-time-nsecs"}))
+    , mHostFnOpCpuInsnExclVm(metrics.NewMeter(
+          {"soroban", "host-fn-op", "cpu-insn-excl-vm"}, "insn"))
+    , mHostFnOpInvokeTimeNsecsExclVm(metrics.NewTimer(
+          {"soroban", "host-fn-op", "invoke-time-nsecs-excl-vm"}))
+    , mHostFnOpInvokeTimeFsecsCpuInsnRatio(metrics.NewHistogram(
+          {"soroban", "host-fn-op", "invoke-time-fsecs-cpu-insn-ratio"}))
+    , mHostFnOpInvokeTimeFsecsCpuInsnRatioExclVm(
+          metrics.NewHistogram({"soroban", "host-fn-op",
+                                "invoke-time-fsecs-cpu-insn-ratio-excl-vm"}))
+    , mHostFnOpMaxRwKeyByte(metrics.NewMeter(
+          {"soroban", "host-fn-op", "max-rw-key-byte"}, "byte"))
+    , mHostFnOpMaxRwDataByte(metrics.NewMeter(
+          {"soroban", "host-fn-op", "max-rw-data-byte"}, "byte"))
+    , mHostFnOpMaxRwCodeByte(metrics.NewMeter(
+          {"soroban", "host-fn-op", "max-rw-code-byte"}, "byte"))
+    , mHostFnOpMaxEmitEventByte(metrics.NewMeter(
+          {"soroban", "host-fn-op", "max-emit-event-byte"}, "byte"))
+    , mHostFnOpSuccess(
+          metrics.NewMeter({"soroban", "host-fn-op", "success"}, "call"))
+    , mHostFnOpFailure(
+          metrics.NewMeter({"soroban", "host-fn-op", "failure"}, "call"))
+    , mHostFnOpExec(metrics.NewTimer({"soroban", "host-fn-op", "exec"}))
+    , mExtFpTtlOpReadLedgerByte(metrics.NewMeter(
+          {"soroban", "ext-fprint-ttl-op", "read-ledger-byte"}, "byte"))
+    , mRestoreFpOpReadLedgerByte(metrics.NewMeter(
+          {"soroban", "restore-fprint-op", "read-ledger-byte"}, "byte"))
+    , mRestoreFpOpWriteLedgerByte(metrics.NewMeter(
+          {"soroban", "restore-fprint-op", "write-ledger-byte"}, "byte"))
+{
+}
+
 void
-SorobanLedgerMetrics::accumulateLedgerCpuInsn(uint64_t cpuInsn)
+SorobanMetrics::accumulateLedgerCpuInsn(uint64_t cpuInsn)
 {
     mLedgerCpuInsn += cpuInsn;
 }
 void
-SorobanLedgerMetrics::accumulateLedgerReadEntry(uint64_t readEntry)
+SorobanMetrics::accumulateLedgerReadEntry(uint64_t readEntry)
 {
     mLedgerReadEntry += readEntry;
 }
 void
-SorobanLedgerMetrics::accumulateLedgerReadByte(uint64_t readByte)
+SorobanMetrics::accumulateLedgerReadByte(uint64_t readByte)
 {
     mLedgerReadByte += readByte;
 }
 void
-SorobanLedgerMetrics::accumulateLedgerWriteEntry(uint64_t writeEntry)
+SorobanMetrics::accumulateLedgerWriteEntry(uint64_t writeEntry)
 {
     mLedgerWriteEntry += writeEntry;
 }
 void
-SorobanLedgerMetrics::accumulateLedgerWriteByte(uint64_t writeByte)
+SorobanMetrics::accumulateLedgerWriteByte(uint64_t writeByte)
 {
     mLedgerWriteByte += writeByte;
 }
 
 void
-SorobanLedgerMetrics::publishAndResetMetrics()
+SorobanMetrics::publishAndResetMetrics()
 {
     mMetrics.NewHistogram({"soroban", "ledger", "cpu-insn"})
         .Update(mLedgerCpuInsn);
@@ -141,7 +204,7 @@ SorobanLedgerMetrics::publishAndResetMetrics()
 }
 
 medida::MetricsRegistry&
-SorobanLedgerMetrics::registry() const
+SorobanMetrics::registry() const
 {
     return mMetrics;
 }
@@ -180,7 +243,7 @@ LedgerManager::ledgerAbbrev(LedgerHeaderHistoryEntry const& he)
 
 LedgerManagerImpl::LedgerManagerImpl(Application& app)
     : mApp(app)
-    , mSorobanLedgerMetrics(app.getMetrics())
+    , mSorobanMetrics(app.getMetrics())
     , mTransactionApply(
           app.getMetrics().NewTimer({"ledger", "transaction", "apply"}))
     , mTransactionCount(
@@ -624,17 +687,17 @@ LedgerManagerImpl::getMutableSorobanNetworkConfig()
 }
 #endif
 
-SorobanLedgerMetrics&
+SorobanMetrics&
 LedgerManagerImpl::getSorobanMetrics()
 {
-    return mSorobanLedgerMetrics;
+    return mSorobanMetrics;
 }
 
 void
 LedgerManagerImpl::publishSorobanMetrics()
 {
     releaseAssert(mSorobanNetworkConfig);
-    medida::MetricsRegistry& registry = mSorobanLedgerMetrics.registry();
+    medida::MetricsRegistry& registry = mSorobanMetrics.registry();
 
     // first publish the network config limits
     auto contractMaxSizeBytes = mSorobanNetworkConfig->maxContractSizeBytes();
@@ -696,7 +759,7 @@ LedgerManagerImpl::publishSorobanMetrics()
         .set_count(bucketListTargetSizeBytes);
 
     // then publish the actual ledger usage
-    mSorobanLedgerMetrics.publishAndResetMetrics();
+    mSorobanMetrics.publishAndResetMetrics();
 }
 
 // called by txherder
