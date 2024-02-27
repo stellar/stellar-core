@@ -31,7 +31,7 @@ enum class LoadGenMode
     PAY,
     PRETEND,
     // Mix of payments and DEX-related transactions.
-    MIXED_TXS,
+    MIXED_CLASSIC,
     // Deploy random Wasm blobs, for overlay/herder testing
     SOROBAN_UPLOAD,
     // Deploy contracts to be used by SOROBAN_INVOKE
@@ -42,13 +42,15 @@ enum class LoadGenMode
     // Setup contract instance for Soroban Network Config Upgrade
     SOROBAN_UPGRADE_SETUP,
     // Create upgrade entry
-    SOROBAN_CREATE_UPGRADE
+    SOROBAN_CREATE_UPGRADE,
+    // Blend classic and soroban transactions. Mix of pay, upload, and invoke.
+    MIXED_CLASSIC_SOROBAN
 };
 
 struct GeneratedLoadConfig
 {
     // Config parameters for SOROBAN_INVOKE_SETUP, SOROBAN_INVOKE,
-    // SOROBAN_UPGRADE_SETUP, and SOROBAN_CREATE_UPGRADE modes
+    // SOROBAN_UPGRADE_SETUP, SOROBAN_CREATE_UPGRADE, and MIXED_CLASSIC_SOROBAN
     struct SorobanConfig
     {
         uint32_t nInstances = 0;
@@ -56,25 +58,6 @@ struct GeneratedLoadConfig
         // For now, this value is automatically set to one. A future update will
         // enable multiple Wasm entries
         uint32_t nWasms = 0;
-    };
-
-    // Config parameters for SOROBAN_INVOKE
-    struct SorobanInvokeConfig
-    {
-        // Range of kilo bytes and num entries for disk IO, where ioKiloBytes is
-        // the total amount of disk IO that the TX requires
-        uint32_t nDataEntriesLow = 0;
-        uint32_t nDataEntriesHigh = 0;
-        uint32_t ioKiloBytesLow = 0;
-        uint32_t ioKiloBytesHigh = 0;
-
-        // Size of transactions
-        int32_t txSizeBytesLow = 0;
-        int32_t txSizeBytesHigh = 0;
-
-        // Instruction count
-        uint64_t instructionsLow = 0;
-        uint64_t instructionsHigh = 0;
     };
 
     // Config settings for SOROBAN_CREATE_UPGRADE
@@ -114,6 +97,16 @@ struct GeneratedLoadConfig
         uint32_t startingEvictionScanLevel{};
     };
 
+    // Config settings for MIXED_CLASSIC_SOROBAN
+    struct MixClassicSorobanConfig
+    {
+        // Weights determining the distribution of PAY, SOROBAN_UPLOAD, and
+        // SOROBAN_INVOKE load
+        double payWeight = 0;
+        double sorobanUploadWeight = 0;
+        double sorobanInvokeWeight = 0;
+    };
+
     static GeneratedLoadConfig createAccountsLoad(uint32_t nAccounts,
                                                   uint32_t txRate);
 
@@ -129,17 +122,28 @@ struct GeneratedLoadConfig
 
     SorobanConfig& getMutSorobanConfig();
     SorobanConfig const& getSorobanConfig() const;
-    SorobanInvokeConfig& getMutSorobanInvokeConfig();
-    SorobanInvokeConfig const& getSorobanInvokeConfig() const;
     SorobanUpgradeConfig& getMutSorobanUpgradeConfig();
     SorobanUpgradeConfig const& getSorobanUpgradeConfig() const;
+    MixClassicSorobanConfig& getMutMixClassicSorobanConfig();
+    MixClassicSorobanConfig const& getMixClassicSorobanConfig() const;
     uint32_t& getMutDexTxPercent();
     uint32_t const& getDexTxPercent() const;
+    uint32_t getMinSorobanPercentSuccess() const;
+    void setMinSorobanPercentSuccess(uint32_t minPercentSuccess);
 
     bool isCreate() const;
     bool isSoroban() const;
     bool isSorobanSetup() const;
     bool isLoad() const;
+
+    // True iff mode generates SOROBAN_INVOKE load
+    bool modeInvokes() const;
+
+    // True iff mode generates SOROBAN_INVOKE_SETUP load
+    bool modeSetsUpInvoke() const;
+
+    // True iff mode generates SOROBAN_UPLOAD load
+    bool modeUploads() const;
 
     bool isDone() const;
     bool areTxsRemaining() const;
@@ -169,11 +173,15 @@ struct GeneratedLoadConfig
 
   private:
     SorobanConfig sorobanConfig;
-    SorobanInvokeConfig sorobanInvokeConfig;
     SorobanUpgradeConfig sorobanUpgradeConfig;
+    MixClassicSorobanConfig mixClassicSorobanConfig;
 
     // Percentage (from 0 to 100) of DEX transactions
     uint32_t dexTxPercent = 0;
+
+    // Minimum percentage of successful soroban transactions for run to be
+    // considered successful.
+    uint32_t mMinSorobanPercentSuccess = 0;
 };
 
 class LoadGenerator
@@ -190,6 +198,11 @@ class LoadGenerator
     // Returns true if loadgen can continue and does not need to wait for Wasm
     // application
     bool checkSorobanWasmSetup(GeneratedLoadConfig const& cfg);
+
+    // Returns true if at least `cfg.minPercentSuccess`% of the SOROBAN_INVOKE
+    // load that made it into a block was successful. Always returns true for
+    // modes that do not generate SOROBAN_INVOKE load.
+    bool checkMinimumSorobanSuccess(GeneratedLoadConfig const& cfg);
 
     // Generate one "step" worth of load (assuming 1 step per STEP_MSECS) at a
     // given target number of accounts and txs, a given target tx/s rate, and
@@ -303,6 +316,15 @@ class LoadGenerator
     medida::Meter& mLoadgenComplete;
     medida::Meter& mLoadgenFail;
 
+    // Counts of soroban transactions that succeeded or failed at apply time
+    medida::Counter const& mApplySorobanSuccess;
+    medida::Counter const& mApplySorobanFailure;
+
+    // Counts of successful and failed soroban transactions prior to running
+    // loadgen
+    int64_t mPreLoadgenApplySorobanSuccess = 0;
+    int64_t mPreLoadgenApplySorobanFailure = 0;
+
     bool mFailed{false};
     bool mStarted{false};
     bool mInitialAccountsCreated{false};
@@ -321,6 +343,9 @@ class LoadGenerator
     // Maps account ID to it's contract instance, where each account has a
     // unique instance
     UnorderedMap<uint64_t, ContractInstance> mContractInstances;
+
+    // Mode used for last mixed transaction in MIX_CLASSIC_SOROBAN mode
+    LoadGenMode mLastMixedMode;
 
     void reset();
     void resetSorobanState();
@@ -374,8 +399,17 @@ class LoadGenerator
                                           GeneratedLoadConfig const& cfg);
     std::pair<LoadGenerator::TestAccountPtr, TransactionFramePtr>
     sorobanRandomWasmTransaction(uint32_t ledgerNum, uint64_t accountId,
-                                 SorobanResources resources, size_t wasmSize,
                                  uint32_t inclusionFee);
+
+    // Create a transaction in MIXED_CLASSIC_SOROBAN mode
+    std::pair<LoadGenerator::TestAccountPtr, TransactionFramePtr>
+    createMixedClassicSorobanTransaction(uint32_t ledgerNum,
+                                         uint64_t sourceAccountId,
+                                         GeneratedLoadConfig const& cfg);
+    // Samples a random wasm size from the `LOADGEN_WASM_BYTES_FOR_TESTING`
+    // distribution. Returns a pair containing the appropriate resources for a
+    // wasm of that size as well as the size itself.
+    std::pair<SorobanResources, uint32_t> sorobanRandomUploadResources();
     void maybeHandleFailedTx(TransactionFramePtr tx,
                              TestAccountPtr sourceAccount,
                              TransactionQueue::AddResult status,
@@ -402,5 +436,9 @@ class LoadGenerator
     void cleanupAccounts();
 
     void start(GeneratedLoadConfig& cfg);
+
+    // Indicate load generation run failed. Set `resetSoroban` to `true` to
+    // reset soroban state.
+    void emitFailure(bool resetSoroban);
 };
 }

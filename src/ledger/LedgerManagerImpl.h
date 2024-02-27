@@ -62,6 +62,8 @@ class LedgerManagerImpl : public LedgerManager
     medida::Counter& mLedgerAge;
     medida::Counter& mTransactionApplySucceeded;
     medida::Counter& mTransactionApplyFailed;
+    medida::Counter& mSorobanTransactionApplySucceeded;
+    medida::Counter& mSorobanTransactionApplyFailed;
     medida::Meter& mMetaStreamBytes;
     medida::Timer& mMetaStreamWriteTime;
     VirtualClock::time_point mLastClose;

@@ -105,6 +105,12 @@ class Config : public std::enable_shared_from_this<Config>
 
     std::vector<std::chrono::microseconds> mOpApplySleepTimeForTesting;
 
+    template <typename T>
+    void verifyLoadGenDistribution(std::vector<T> const& values,
+                                   std::vector<uint32_t> const& distribution,
+                                   std::string const& valuesName,
+                                   std::string const& distributionName);
+
   public:
     static const uint32 CURRENT_LEDGER_PROTOCOL_VERSION;
 
@@ -233,6 +239,31 @@ class Config : public std::enable_shared_from_this<Config>
     // i.
     std::vector<unsigned short> LOADGEN_OP_COUNT_FOR_TESTING;
     std::vector<uint32> LOADGEN_OP_COUNT_DISTRIBUTION_FOR_TESTING;
+
+    // Size of wasm blobs for SOROBAN_UPLOAD and MIX_CLASSIC_SOROBAN loadgen
+    // modes
+    std::vector<uint32_t> LOADGEN_WASM_BYTES_FOR_TESTING;
+    std::vector<uint32_t> LOADGEN_WASM_BYTES_DISTRIBUTION_FOR_TESTING;
+
+    // Number of data entries for SOROBAN_INVOKE and MIX_CLASSIC_SOROBAN
+    // loadgen modes
+    std::vector<uint32_t> LOADGEN_NUM_DATA_ENTRIES_FOR_TESTING;
+    std::vector<uint32_t> LOADGEN_NUM_DATA_ENTRIES_DISTRIBUTION_FOR_TESTING;
+
+    // Total kilobytes of reads and writes per transaction for SOROBAN_INVOKE
+    // and MIX_CLASSIC_SOROBAN loadgen modes.
+    std::vector<uint32_t> LOADGEN_IO_KILOBYTES_FOR_TESTING;
+    std::vector<uint32_t> LOADGEN_IO_KILOBYTES_DISTRIBUTION_FOR_TESTING;
+
+    // Transaction size in bytes for SOROBAN_INVOKE and MIX_CLASSIC_SOROBAN
+    // loadgen modes
+    std::vector<uint32_t> LOADGEN_TX_SIZE_BYTES_FOR_TESTING;
+    std::vector<uint32_t> LOADGEN_TX_SIZE_BYTES_DISTRIBUTION_FOR_TESTING;
+
+    // Instructions per transaction for SOROBAN_INVOKE and MIX_CLASSIC_SOROBAN
+    // loadgen modes
+    std::vector<uint64_t> LOADGEN_INSTRUCTIONS_FOR_TESTING;
+    std::vector<uint32_t> LOADGEN_INSTRUCTIONS_DISTRIBUTION_FOR_TESTING;
 
     // Waits for merges to complete before applying transactions during catchup
     bool CATCHUP_WAIT_MERGES_TX_APPLY_FOR_TESTING;

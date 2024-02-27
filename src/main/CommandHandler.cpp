@@ -43,6 +43,7 @@
 #include "test/TestAccount.h"
 #include "test/TxTests.h"
 #endif
+#include <iterator>
 #include <optional>
 #include <regex>
 
@@ -1209,42 +1210,29 @@ CommandHandler::generateLoad(std::string const& params, std::string& retStr)
         cfg.skipLowFeeTxs =
             parseOptionalParamOrDefault<bool>(map, "skiplowfeetxs", false);
 
-        if (cfg.mode == LoadGenMode::MIXED_TXS)
+        if (cfg.mode == LoadGenMode::MIXED_CLASSIC)
         {
             cfg.getMutDexTxPercent() =
                 parseOptionalParamOrDefault<uint32_t>(map, "dextxpercent", 0);
         }
 
-        if (cfg.isSoroban() && cfg.mode != LoadGenMode::SOROBAN_UPLOAD)
+        if (cfg.isSoroban())
         {
-            auto& sorobanCfg = cfg.getMutSorobanConfig();
-            sorobanCfg.nInstances =
-                parseOptionalParamOrDefault<uint32_t>(map, "instances", 0);
-            sorobanCfg.nWasms =
-                parseOptionalParamOrDefault<uint32_t>(map, "wasms", 0);
+            uint32_t minPercentSuccess = parseOptionalParamOrDefault<uint32_t>(
+                map, "minpercentsuccess", 0);
+            cfg.setMinSorobanPercentSuccess(minPercentSuccess);
+            if (cfg.mode != LoadGenMode::SOROBAN_UPLOAD)
+            {
+
+                auto& sorobanCfg = cfg.getMutSorobanConfig();
+                sorobanCfg.nInstances =
+                    parseOptionalParamOrDefault<uint32_t>(map, "instances", 0);
+                sorobanCfg.nWasms =
+                    parseOptionalParamOrDefault<uint32_t>(map, "wasms", 0);
+            }
         }
 
-        if (cfg.mode == LoadGenMode::SOROBAN_INVOKE)
-        {
-            auto& invokeCfg = cfg.getMutSorobanInvokeConfig();
-            invokeCfg.nDataEntriesLow =
-                parseOptionalParamOrDefault<uint32_t>(map, "dataentrieslow", 0);
-            invokeCfg.nDataEntriesHigh = parseOptionalParamOrDefault<uint32_t>(
-                map, "dataentrieshigh", 0);
-            invokeCfg.ioKiloBytesLow =
-                parseOptionalParamOrDefault<uint32_t>(map, "kilobyteslow", 0);
-            invokeCfg.ioKiloBytesHigh =
-                parseOptionalParamOrDefault<uint32_t>(map, "kilobyteshigh", 0);
-            invokeCfg.txSizeBytesLow =
-                parseOptionalParamOrDefault<uint32_t>(map, "txsizelow", 0);
-            invokeCfg.txSizeBytesHigh =
-                parseOptionalParamOrDefault<uint32_t>(map, "txsizehigh", 0);
-            invokeCfg.instructionsLow =
-                parseOptionalParamOrDefault<uint64_t>(map, "cpulow", 0);
-            invokeCfg.instructionsHigh =
-                parseOptionalParamOrDefault<uint64_t>(map, "cpuhigh", 0);
-        }
-        else if (cfg.mode == LoadGenMode::SOROBAN_CREATE_UPGRADE)
+        if (cfg.mode == LoadGenMode::SOROBAN_CREATE_UPGRADE)
         {
             auto& upgradeCfg = cfg.getMutSorobanUpgradeConfig();
             upgradeCfg.maxContractSizeBytes =
@@ -1289,6 +1277,23 @@ CommandHandler::generateLoad(std::string const& params, std::string& retStr)
                 parseOptionalParamOrDefault<uint64_t>(map, "evctsz", 0);
             upgradeCfg.startingEvictionScanLevel =
                 parseOptionalParamOrDefault<uint32_t>(map, "evctlvl", 0);
+        }
+
+        if (cfg.mode == LoadGenMode::MIXED_CLASSIC_SOROBAN)
+        {
+            auto& mixCfg = cfg.getMutMixClassicSorobanConfig();
+            mixCfg.payWeight =
+                parseOptionalParamOrDefault<uint32_t>(map, "payweight", 0);
+            mixCfg.sorobanUploadWeight = parseOptionalParamOrDefault<uint32_t>(
+                map, "sorobanuploadweight", 0);
+            mixCfg.sorobanInvokeWeight = parseOptionalParamOrDefault<uint32_t>(
+                map, "sorobaninvokeweight", 0);
+            if (!(mixCfg.payWeight || mixCfg.sorobanUploadWeight ||
+                  mixCfg.sorobanInvokeWeight))
+            {
+                retStr = "At least one mix weight must be non-zero";
+                return;
+            }
         }
 
         if (cfg.maxGeneratedFeeRate)

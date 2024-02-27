@@ -379,7 +379,7 @@ format.
 
 ### The following HTTP commands are exposed on test instances
 * **generateload** `generateload[?mode=
-    (create|pay|pretend|mixed_txs|soroban_upload|soroban_invoke_setup|soroban_invoke|upgrade_setup|create_upgrade)&accounts=N&offset=K&txs=M&txrate=R&spikesize=S&spikeinterval=I&maxfeerate=F&skiplowfeetxs=(0|1)&dextxpercent=D&dataentrieslow=A&dataentrieshigh=B&kilobyteslow=C&kilobyteshigh=T&txsizelow=U&txsizehigh=V&cpulow=W&cpuhigh=X&instances=Y&wasms=Z]`
+    (create|pay|pretend|mixed_classic|soroban_upload|soroban_invoke_setup|soroban_invoke|upgrade_setup|create_upgrade|mixed_classic_soroban)&accounts=N&offset=K&txs=M&txrate=R&spikesize=S&spikeinterval=I&maxfeerate=F&skiplowfeetxs=(0|1)&dextxpercent=D&minpercentsuccess=S&instances=Y&wasms=Z&payweight=P&sorobanuploadweight=Q&sorobaninvokeweight=R]`
 
     Artificially generate load for testing; must be used with
     `ARTIFICIALLY_GENERATE_LOAD_FOR_TESTING` set to true.
@@ -391,33 +391,55 @@ format.
     have a realistic size to help users "pretend" that they have real traffic.
     You can add optional configs `LOADGEN_OP_COUNT_FOR_TESTING` and
     `LOADGEN_OP_COUNT_DISTRIBUTION_FOR_TESTING` in the config file to specify
-    the # of ops / tx and how often they appear. More specifically, the
-    probability that a transaction contains `COUNT[i]` ops is `DISTRIBUTION
-    [i] / (DISTRIBUTION[0] + DISTRIBUTION[1] + ...)`.
-  * `mixed_txs` mode generates a mix of DEX and non-DEX transactions
+    the # of ops / tx and how often they appear. See the section on [specifying
+    discrete distributions](#specifying-discrete-distributions) for more info
+    on how to set these options.
+  * `mixed_classic` mode generates a mix of DEX and non-DEX transactions
     (containing `PaymentOp` and `ManageBuyOfferOp` operations respectively).
     The fraction of DEX transactions generated is defined by the `dextxpercent`
     parameter (accepts integer value from 0 to 100).
   * `soroban_upload` mode generates soroban TXs that upload random wasm blobs.
     Many of these TXs are invalid and not applied, so this test is appropriate
-    for herder and overlay tests.
+    for herder and overlay tests. This mode allows specification of the
+    distribution it samples wasm sizes from via the
+    `LOADGEN_WASM_BYTES_FOR_TESTING` and
+    `LOADGEN_WASM_BYTES_DISTRIBUTION_FOR_TESTING` config file options.  See the
+    section on [specifying discrete
+    distributions](#specifying-discrete-distributions) for more info on how to
+    set these parameters.
   * `soroban_invoke_setup` mode create soroban contract instances to be used by
-    `soroban_invoke`. This mode must be run before `soroban_invoke`.
+    `soroban_invoke`. This mode must be run before `soroban_invoke` or
+    `mixed_classic_soroban`.
   * `soroban_invoke` mode generates valid soroban TXs that invoke a resource
     intensive contract. Each invocation picks a random amount of resources
-    between some bound. Resource bounds can be set with the `dataentrieslow`,
-    `dataentrieshigh`, `kilobyteslow`, `kilobyteshigh`, `txsizelow`, `txsizehigh`,
-    `cpulow`, `cpuhigh`, where CPU bounds correspond to instruction count. `kilobytes*`
-    values indicate the total ammount of disk IO generated TXs require. `instances`
-    and `wasms` parameters determine how many unique contract instances and wasm entries
-    will be used.
+    between some bound. Resource distributions can be set with the
+    `LOADGEN_NUM_DATA_ENTRIES_FOR_TESTING`,
+    `LOADGEN_NUM_DATA_ENTRIES_DISTRIBUTION_FOR_TESTING`,
+    `LOADGEN_IO_KILOBYTES_FOR_TESTING`,
+    `LOADGEN_IO_KILOBYTES_DISTRIBUTION_FOR_TESTING`,
+    `LOADGEN_TX_SIZE_BYTES_FOR_TESTING`,
+    `LOADGEN_TX_SIZE_BYTES_DISTRIBUTION_FOR_TESTING`,
+    `LOADGEN_INSTRUCTIONS_FOR_TESTING`, and
+    `LOADGEN_INSTRUCTIONS_DISTRIBUTION_FOR_TESTING` config file options.
+    `*KILOBYTES*` values indicate the total amount of disk IO generated TXs
+    require.  See the section on [specifying discrete
+    distributions](#specifying-discrete-distributions) for more info on how to
+    set these parameters.  `instances` and `wasms` parameters determine how
+    many unique contract instances and wasm entries will be used.
   * `upgrade_setup` mode create soroban contract instance to be used by
     `create_upgrade`. This mode must be run before `create_upgrade`.
   * `create_upgrade` mode write a soroban upgrade set and returns the
     ConfigUpgradeSetKey. Most network config settings are supported. If a given
-    setting is ommited or set to 0, it is not upgraded and maintains the current
+    setting is omitted or set to 0, it is not upgraded and maintains the current
     value. To not exceed HTTP string limits, the names are very short. See
     `CommandHandler::generateLoad` for available options.
+  * `mixed_classic_soroban` mode creates a mix of `pay`, `soroban_upload`,
+    and `soroban_invoke` load. It accepts all of the options those modes
+    accept, plus `payweight`, `sorobanuploadweight`, and `sorobaninvokeweight`.
+    These `weight` parameters determine the distribution of `pay`,
+    `soroban_upload`, and `soroban_invoke` load with the likelihood of any
+    generated transaction falling into each mode being determined by the mode's
+    weight divided by the sum of all weights.
 
   Non-`create` load generation makes use of the additional parameters:
   * when a nonzero `spikeinterval` is given, a spike will occur every
@@ -428,6 +450,25 @@ format.
   * when `skiplowfeetxs` is set to `true` the transactions that are not accepted by
     the node due to having too low fee to pass the rate limiting are silently
     skipped. Otherwise (by default), such transactions would cause load generation to fail.
+
+  Soroban load generation also makes use of the `minpercentsuccess` parameter,
+  which determines the minimum percentage of Soroban transactions that must
+  succeed at apply time for load generation to be considered successful. This
+  parameter defaults to `0`. Note that a `0` value does not mean that load
+  generation performs no checks whatsoever; load generation will still check
+  that generated transactions make it into a block by checking sequence
+  numbers, but will not check that those transactions successfully apply. There
+  are two main reasons a generated transaction may not succeed at apply time:
+  1. The provided distributions generate transactions that are over the
+     network transaction or ledger limits.
+  2. Load generation may underestimate the resources needed to apply the
+     transaction. This happens occasionally as load generation does not
+     preflight transactions, but rather uses heuristics to estimate resource
+     requirements.
+
+  When distributions are well within network limits and load is composed
+  primarily of invoke transactions, `minpercentsuccess` should be set fairly
+  high (upwards of 80%). Otherwise, it should be set low (0-50%).
 
 * **manualclose**
   If MANUAL_CLOSE is set to true in the .cfg file, this will cause the current
@@ -447,3 +488,15 @@ format.
   specified) from the account F to the account T, sending N XLM to the account.
   Note that F and T are seed strings but can also be specified as "root" as
   shorthand for the root account for the test instance.
+
+#### Specifying Discrete Distributions
+
+Certain config file options for `generateload` mode support the specification
+of discrete distributions to sample from. For each parameter `X`, there are two
+options `LOADGEN_X_FOR_TESTING` and `LOADGEN_X_DISTRIBUTION_FOR_TESTING` that
+describe the shape of the distribution for `X`. Each of these options takes a
+list of values where `LOADGEN_X_FOR_TESTING` holds the values that may be
+sampled and `LOADGEN_X_DISTRIBUTION_FOR_TESTING` holds the weights of each
+value.  The probability that `LOADGEN_X_FOR_TESTING[i]` is sampled is
+`LOADGEN_X_DISTRIBUTION_FOR_TESTING[i]/sum(LOADGEN_X_DISTRIBUTION_FOR_TESTING)`
+for each `i`.

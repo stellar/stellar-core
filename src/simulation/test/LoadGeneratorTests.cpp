@@ -93,11 +93,25 @@ TEST_CASE("generate load with unique accounts", "[loadgen]")
 
 TEST_CASE("generate soroban load", "[loadgen][soroban]")
 {
+    auto const numDataEntries = 5;
+    auto const ioKiloBytes = 15;
+
     Hash networkID = sha256(getTestConfig().NETWORK_PASSPHRASE);
     Simulation::pointer simulation =
-        Topologies::pair(Simulation::OVER_LOOPBACK, networkID, [](int i) {
+        Topologies::pair(Simulation::OVER_LOOPBACK, networkID, [&](int i) {
             auto cfg = getTestConfig(i);
             cfg.TESTING_UPGRADE_MAX_TX_SET_SIZE = 5000;
+            // Use tight bounds to we can verify storage works properly
+            cfg.LOADGEN_NUM_DATA_ENTRIES_FOR_TESTING = {numDataEntries};
+            cfg.LOADGEN_NUM_DATA_ENTRIES_DISTRIBUTION_FOR_TESTING = {1};
+            cfg.LOADGEN_IO_KILOBYTES_FOR_TESTING = {ioKiloBytes};
+            cfg.LOADGEN_IO_KILOBYTES_DISTRIBUTION_FOR_TESTING = {1};
+
+            cfg.LOADGEN_TX_SIZE_BYTES_FOR_TESTING = {20'000, 50'000, 80'000};
+            cfg.LOADGEN_TX_SIZE_BYTES_DISTRIBUTION_FOR_TESTING = {1, 2, 1};
+            cfg.LOADGEN_INSTRUCTIONS_FOR_TESTING = {1'000'000, 5'000'000,
+                                                    10'000'000};
+            cfg.LOADGEN_INSTRUCTIONS_DISTRIBUTION_FOR_TESTING = {1, 2, 3};
             return cfg;
         });
 
@@ -112,7 +126,7 @@ TEST_CASE("generate soroban load", "[loadgen][soroban]")
     auto getSuccessfulTxCount = [&]() {
         return nodes[0]
             ->getMetrics()
-            .NewCounter({"ledger", "apply", "success"})
+            .NewCounter({"ledger", "apply-soroban", "success"})
             .count();
     };
 
@@ -143,10 +157,10 @@ TEST_CASE("generate soroban load", "[loadgen][soroban]")
     // Check that Soroban TXs were successfully applied
     for (auto node : nodes)
     {
-        auto& txsSucceeded =
-            node->getMetrics().NewCounter({"ledger", "apply", "success"});
-        auto& txsFailed =
-            node->getMetrics().NewCounter({"ledger", "apply", "failure"});
+        auto& txsSucceeded = node->getMetrics().NewCounter(
+            {"ledger", "apply-soroban", "success"});
+        auto& txsFailed = node->getMetrics().NewCounter(
+            {"ledger", "apply-soroban", "failure"});
 
         // Should be 1 upload wasm TX followed by one instance deploy TX
         REQUIRE(txsSucceeded.count() == numTxsBefore + 2);
@@ -215,10 +229,10 @@ TEST_CASE("generate soroban load", "[loadgen][soroban]")
 
     for (auto node : nodes)
     {
-        auto& txsSucceeded =
-            node->getMetrics().NewCounter({"ledger", "apply", "success"});
-        auto& txsFailed =
-            node->getMetrics().NewCounter({"ledger", "apply", "failure"});
+        auto& txsSucceeded = node->getMetrics().NewCounter(
+            {"ledger", "apply-soroban", "success"});
+        auto& txsFailed = node->getMetrics().NewCounter(
+            {"ledger", "apply-soroban", "failure"});
 
         // Should be a single contract invocation
         REQUIRE(txsSucceeded.count() == numTxsBefore + 1);
@@ -357,8 +371,6 @@ TEST_CASE("generate soroban load", "[loadgen][soroban]")
 
     auto const numInstances = 10;
     auto const numSorobanTxs = 100;
-    auto const numDataEntries = 5;
-    auto const ioKiloBytes = 15;
 
     numTxsBefore = getSuccessfulTxCount();
     loadGen.generateLoad(GeneratedLoadConfig::createSorobanInvokeSetupLoad(
@@ -375,10 +387,10 @@ TEST_CASE("generate soroban load", "[loadgen][soroban]")
     // Check that Soroban TXs were successfully applied
     for (auto node : nodes)
     {
-        auto& txsSucceeded =
-            node->getMetrics().NewCounter({"ledger", "apply", "success"});
-        auto& txsFailed =
-            node->getMetrics().NewCounter({"ledger", "apply", "failure"});
+        auto& txsSucceeded = node->getMetrics().NewCounter(
+            {"ledger", "apply-soroban", "success"});
+        auto& txsFailed = node->getMetrics().NewCounter(
+            {"ledger", "apply-soroban", "failure"});
 
         // Should be 1 upload wasm TX followed by one instance deploy TX per
         // account
@@ -393,16 +405,8 @@ TEST_CASE("generate soroban load", "[loadgen][soroban]")
         /* txRate */ 1);
 
     invokeLoadCfg.getMutSorobanConfig().nInstances = numInstances;
-
-    // Use tight bounds to we can verify storage works properly
-    auto& invokeCfg = invokeLoadCfg.getMutSorobanInvokeConfig();
-    invokeCfg.nDataEntriesLow = numDataEntries;
-    invokeCfg.nDataEntriesHigh = numDataEntries;
-    invokeCfg.ioKiloBytesLow = ioKiloBytes;
-    invokeCfg.ioKiloBytesHigh = ioKiloBytes;
-
-    invokeCfg.txSizeBytesHigh = 100'000;
-    invokeCfg.instructionsHigh = 10'000'000;
+    constexpr int maxInvokeFail = 10;
+    invokeLoadCfg.setMinSorobanPercentSuccess(100 - maxInvokeFail);
 
     loadGen.generateLoad(invokeLoadCfg);
     simulation->crankUntil(
@@ -416,18 +420,19 @@ TEST_CASE("generate soroban load", "[loadgen][soroban]")
     // Check that Soroban TXs were successfully applied
     for (auto node : nodes)
     {
-        auto& txsSucceeded =
-            node->getMetrics().NewCounter({"ledger", "apply", "success"});
-        auto& txsFailed =
-            node->getMetrics().NewCounter({"ledger", "apply", "failure"});
+        auto& txsSucceeded = node->getMetrics().NewCounter(
+            {"ledger", "apply-soroban", "success"});
+        auto& txsFailed = node->getMetrics().NewCounter(
+            {"ledger", "apply-soroban", "failure"});
 
         // Because we can't preflight TXs, some invocations will fail due to too
         // few resources. This is expected, as our instruction counts are
         // approximations. The following checks will make sure all set up
         // phases succeeded, so only the invoke phase may have acceptable failed
         // TXs
-        REQUIRE(txsSucceeded.count() > numTxsBefore + numSorobanTxs - 5);
-        REQUIRE(txsFailed.count() < 5);
+        REQUIRE(txsSucceeded.count() >
+                numTxsBefore + numSorobanTxs - maxInvokeFail);
+        REQUIRE(txsFailed.count() < maxInvokeFail);
     }
 
     auto instanceKeys = loadGen.getContractInstanceKeysForTesting();
@@ -473,6 +478,98 @@ TEST_CASE("generate soroban load", "[loadgen][soroban]")
             REQUIRE(keys.find(lk) == keys.end());
             keys.insert(lk);
         }
+    }
+
+    // Test MIXED_CLASSIC_SOROBAN mode
+    SECTION("Mix with classic")
+    {
+        constexpr uint32_t numMixedTxs = 200;
+        auto mixLoadCfg = GeneratedLoadConfig::txLoad(
+            LoadGenMode::MIXED_CLASSIC_SOROBAN, nAccounts, numMixedTxs,
+            /* txRate */ 1);
+
+        auto& mixCfg = mixLoadCfg.getMutMixClassicSorobanConfig();
+        mixCfg.payWeight = 50;
+        mixCfg.sorobanInvokeWeight = 45;
+        constexpr uint32_t uploadWeight = 5;
+        mixCfg.sorobanUploadWeight = uploadWeight;
+
+        // Because we can't preflight TXs, some invocations will fail due to too
+        // few resources. This is expected, as our instruction counts are
+        // approximations. Additionally, many upload transactions will fail as
+        // they are likely to generate invalid wasm. Therefore, we check that
+        // all but `maxInvokeFail + 1.5 * uploadWeight` transactions succeed. In
+        // case the random sampling produces more upload transactions than
+        // expected, we allow for a 50% margin of error on the number of upload
+        // transactions.
+        constexpr int maxSorobanFail = 1.5 * uploadWeight + maxInvokeFail;
+        mixLoadCfg.setMinSorobanPercentSuccess(100 - maxSorobanFail);
+
+        loadGen.generateLoad(mixLoadCfg);
+        auto numSuccessBefore = getSuccessfulTxCount();
+        auto numFailedBefore =
+            app.getMetrics()
+                .NewCounter({"ledger", "apply-soroban", "failure"})
+                .count();
+        simulation->crankUntil(
+            [&]() {
+                return app.getMetrics()
+                           .NewMeter({"loadgen", "run", "complete"}, "run")
+                           .count() == 6;
+            },
+            300 * Herder::EXP_LEDGER_TIMESPAN_SECONDS, false);
+
+        // Check results
+        for (auto node : nodes)
+        {
+            auto& totalSucceeded =
+                node->getMetrics().NewCounter({"ledger", "apply", "success"});
+            auto& totalFailed =
+                node->getMetrics().NewCounter({"ledger", "apply", "failure"});
+            auto& sorobanSucceeded = node->getMetrics().NewCounter(
+                {"ledger", "apply-soroban", "success"});
+            auto& sorobanFailed = node->getMetrics().NewCounter(
+                {"ledger", "apply-soroban", "failure"});
+
+            // Total number of classic transactions
+            int64_t classicTotal =
+                totalSucceeded.count() + totalFailed.count() -
+                sorobanSucceeded.count() - sorobanFailed.count();
+
+            // All classic transaction should succeed
+            REQUIRE(totalSucceeded.count() - sorobanSucceeded.count() ==
+                    classicTotal);
+            // All failures should be soroban failures)
+            REQUIRE(totalFailed.count() == sorobanFailed.count());
+
+            // Check soroban results
+            REQUIRE(sorobanSucceeded.count() > numSuccessBefore + numMixedTxs -
+                                                   classicTotal -
+                                                   maxSorobanFail);
+            REQUIRE(sorobanFailed.count() <= maxSorobanFail + numFailedBefore);
+        }
+    }
+
+    // Test minimum percent success with too many transactions that fail to
+    // apply by requiring a 100% success rate for SOROBAN_UPLOAD mode
+    SECTION("Too many failed transactions")
+    {
+        auto uploadFailCfg = GeneratedLoadConfig::txLoad(
+            LoadGenMode::SOROBAN_UPLOAD, nAccounts, numSorobanTxs,
+            /* txRate */ 1);
+
+        // Set success percentage to 100% and leave other parameters at default.
+        uploadFailCfg.setMinSorobanPercentSuccess(100);
+
+        // LoadGen should fail
+        loadGen.generateLoad(uploadFailCfg);
+        simulation->crankUntil(
+            [&]() {
+                return app.getMetrics()
+                           .NewMeter({"loadgen", "run", "failed"}, "run")
+                           .count() == 1;
+            },
+            300 * Herder::EXP_LEDGER_TIMESPAN_SECONDS, false);
     }
 }
 
@@ -585,7 +682,7 @@ TEST_CASE("Multi-op mixed transactions are valid", "[loadgen]")
                            .count() == 1;
             },
             3 * Herder::EXP_LEDGER_TIMESPAN_SECONDS, false);
-        auto config = GeneratedLoadConfig::txLoad(LoadGenMode::MIXED_TXS,
+        auto config = GeneratedLoadConfig::txLoad(LoadGenMode::MIXED_CLASSIC,
                                                   numAccounts, 100, txRate);
         config.getMutDexTxPercent() = 50;
         loadGen.generateLoad(config);

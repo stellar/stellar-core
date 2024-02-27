@@ -53,6 +53,16 @@ static const std::unordered_set<std::string> TESTING_ONLY_OPTIONS = {
     "OP_APPLY_SLEEP_TIME_WEIGHT_FOR_TESTING",
     "LOADGEN_OP_COUNT_FOR_TESTING",
     "LOADGEN_OP_COUNT_DISTRIBUTION_FOR_TESTING",
+    "LOADGEN_WASM_BYTES_FOR_TESTING",
+    "LOADGEN_WASM_BYTES_DISTRIBUTION_FOR_TESTING"
+    "LOADGEN_NUM_DATA_ENTRIES_FOR_TESTING",
+    "LOADGEN_NUM_DATA_ENTRIES_DISTRIBUTION_FOR_TESTING"
+    "LOADGEN_IO_KILOBYTES_FOR_TESTING",
+    "LOADGEN_IO_KILOBYTES_DISTRIBUTION_FOR_TESTING"
+    "LOADGEN_TX_SIZE_BYTES_FOR_TESTING",
+    "LOADGEN_TX_SIZE_BYTES_DISTRIBUTION_FOR_TESTING"
+    "LOADGEN_INSTRUCTIONS_FOR_TESTING",
+    "LOADGEN_INSTRUCTIONS_DISTRIBUTION_FOR_TESTING"
     "CATCHUP_WAIT_MERGES_TX_APPLY_FOR_TESTING",
     "ARTIFICIALLY_DELAY_BUCKET_APPLICATION_FOR_TESTING",
     "ARTIFICIALLY_SLEEP_MAIN_THREAD_FOR_TESTING",
@@ -120,6 +130,16 @@ Config::Config() : NODE_SEED(SecretKey::random())
     OP_APPLY_SLEEP_TIME_WEIGHT_FOR_TESTING = std::vector<uint32>();
     LOADGEN_OP_COUNT_FOR_TESTING = {};
     LOADGEN_OP_COUNT_DISTRIBUTION_FOR_TESTING = {};
+    LOADGEN_WASM_BYTES_FOR_TESTING = {};
+    LOADGEN_WASM_BYTES_DISTRIBUTION_FOR_TESTING = {};
+    LOADGEN_NUM_DATA_ENTRIES_FOR_TESTING = {};
+    LOADGEN_NUM_DATA_ENTRIES_DISTRIBUTION_FOR_TESTING = {};
+    LOADGEN_IO_KILOBYTES_FOR_TESTING = {};
+    LOADGEN_IO_KILOBYTES_DISTRIBUTION_FOR_TESTING = {};
+    LOADGEN_TX_SIZE_BYTES_FOR_TESTING = {};
+    LOADGEN_TX_SIZE_BYTES_DISTRIBUTION_FOR_TESTING = {};
+    LOADGEN_INSTRUCTIONS_FOR_TESTING = {};
+    LOADGEN_INSTRUCTIONS_DISTRIBUTION_FOR_TESTING = {};
     CATCHUP_WAIT_MERGES_TX_APPLY_FOR_TESTING = false;
     ARTIFICIALLY_SLEEP_MAIN_THREAD_FOR_TESTING =
         std::chrono::microseconds::zero();
@@ -848,39 +868,51 @@ Config::verifyHistoryValidatorsBlocking(
     }
 }
 
+template <typename T>
 void
-Config::verifyLoadGenOpCountForTestingConfigs()
+Config::verifyLoadGenDistribution(std::vector<T> const& values,
+                                  std::vector<uint32_t> const& distribution,
+                                  std::string const& valuesName,
+                                  std::string const& distributionName)
 {
-    if (LOADGEN_OP_COUNT_FOR_TESTING.size() !=
-        LOADGEN_OP_COUNT_DISTRIBUTION_FOR_TESTING.size())
+    if (values.size() != distribution.size())
     {
-        throw std::invalid_argument("LOADGEN_OP_COUNT_FOR_TESTING and "
-                                    "LOADGEN_OP_COUNT_DISTRIBUTION_FOR_TESTING "
-                                    "must be defined together and "
-                                    "must have the exact same size.");
+        throw std::invalid_argument(
+            fmt::format(FMT_STRING("{} and {} must be defined together and "
+                                   "must have the exact same size."),
+                        valuesName, distributionName));
     }
 
-    if (LOADGEN_OP_COUNT_FOR_TESTING.empty())
+    if (values.empty())
     {
         return;
     }
 
     if (!ARTIFICIALLY_GENERATE_LOAD_FOR_TESTING)
     {
-        throw std::invalid_argument(
-            "When LOADGEN_OP_COUNT_FOR_TESTING and "
-            "LOADGEN_OP_COUNT_DISTRIBUTION_FOR_TESTING are defined "
-            "ARTIFICIALLY_GENERATE_LOAD_FOR_TESTING must be set true");
+        throw std::invalid_argument(fmt::format(
+            FMT_STRING(
+                "When {} and {} are defined "
+                "ARTIFICIALLY_GENERATE_LOAD_FOR_TESTING must be set true"),
+            valuesName, distributionName));
     }
 
-    if (std::any_of(LOADGEN_OP_COUNT_DISTRIBUTION_FOR_TESTING.begin(),
-                    LOADGEN_OP_COUNT_DISTRIBUTION_FOR_TESTING.end(),
-                    [](uint32 i) { return i == 0; }))
+    if (std::any_of(distribution.begin(), distribution.end(),
+                    [](uint32_t i) { return i == 0; }))
     {
-        throw std::invalid_argument(
-            "All elements in LOADGEN_OP_COUNT_DISTRIBUTION_FOR_TESTING must be "
-            "positive integers");
+        throw std::invalid_argument(fmt::format(
+            FMT_STRING("All elements in {} must be positive integers"),
+            distributionName));
     }
+}
+
+void
+Config::verifyLoadGenOpCountForTestingConfigs()
+{
+    verifyLoadGenDistribution(LOADGEN_OP_COUNT_FOR_TESTING,
+                              LOADGEN_OP_COUNT_DISTRIBUTION_FOR_TESTING,
+                              "LOADGEN_OP_COUNT_FOR_TESTING",
+                              "LOADGEN_OP_COUNT_DISTRIBUTION_FOR_TESTING");
 
     if (!std::all_of(LOADGEN_OP_COUNT_FOR_TESTING.begin(),
                      LOADGEN_OP_COUNT_FOR_TESTING.end(),
@@ -1423,6 +1455,57 @@ Config::processConfig(std::shared_ptr<cpptoml::table> t)
                 LOADGEN_OP_COUNT_DISTRIBUTION_FOR_TESTING =
                     readIntArray<uint32>(item);
             }
+            else if (item.first == "LOADGEN_WASM_BYTES_FOR_TESTING")
+            {
+                LOADGEN_WASM_BYTES_FOR_TESTING = readIntArray<uint32>(item);
+            }
+            else if (item.first ==
+                     "LOADGEN_WASM_BYTES_DISTRIBUTION_FOR_TESTING")
+            {
+                LOADGEN_WASM_BYTES_DISTRIBUTION_FOR_TESTING =
+                    readIntArray<uint32>(item);
+            }
+            else if (item.first == "LOADGEN_NUM_DATA_ENTRIES_FOR_TESTING")
+            {
+                LOADGEN_NUM_DATA_ENTRIES_FOR_TESTING =
+                    readIntArray<uint32>(item);
+            }
+            else if (item.first ==
+                     "LOADGEN_NUM_DATA_ENTRIES_DISTRIBUTION_FOR_TESTING")
+            {
+                LOADGEN_NUM_DATA_ENTRIES_DISTRIBUTION_FOR_TESTING =
+                    readIntArray<uint32>(item);
+            }
+            else if (item.first == "LOADGEN_IO_KILOBYTES_FOR_TESTING")
+            {
+                LOADGEN_IO_KILOBYTES_FOR_TESTING = readIntArray<uint32>(item);
+            }
+            else if (item.first ==
+                     "LOADGEN_IO_KILOBYTES_DISTRIBUTION_FOR_TESTING")
+            {
+                LOADGEN_IO_KILOBYTES_DISTRIBUTION_FOR_TESTING =
+                    readIntArray<uint32>(item);
+            }
+            else if (item.first == "LOADGEN_TX_SIZE_BYTES_FOR_TESTING")
+            {
+                LOADGEN_TX_SIZE_BYTES_FOR_TESTING = readIntArray<uint32>(item);
+            }
+            else if (item.first ==
+                     "LOADGEN_TX_SIZE_BYTES_DISTRIBUTION_FOR_TESTING")
+            {
+                LOADGEN_TX_SIZE_BYTES_DISTRIBUTION_FOR_TESTING =
+                    readIntArray<uint32>(item);
+            }
+            else if (item.first == "LOADGEN_INSTRUCTIONS_FOR_TESTING")
+            {
+                LOADGEN_INSTRUCTIONS_FOR_TESTING = readIntArray<uint64>(item);
+            }
+            else if (item.first ==
+                     "LOADGEN_INSTRUCTIONS_DISTRIBUTION_FOR_TESTING")
+            {
+                LOADGEN_INSTRUCTIONS_DISTRIBUTION_FOR_TESTING =
+                    readIntArray<uint32>(item);
+            }
             else if (item.first == "CATCHUP_WAIT_MERGES_TX_APPLY_FOR_TESTING")
             {
                 CATCHUP_WAIT_MERGES_TX_APPLY_FOR_TESTING = readBool(item);
@@ -1564,7 +1647,33 @@ Config::processConfig(std::shared_ptr<cpptoml::table> t)
             throw std::runtime_error(msg);
         }
 
+        // Check all loadgen distributions
         verifyLoadGenOpCountForTestingConfigs();
+        verifyLoadGenDistribution(
+            LOADGEN_WASM_BYTES_FOR_TESTING,
+            LOADGEN_WASM_BYTES_DISTRIBUTION_FOR_TESTING,
+            "LOADGEN_WASM_BYTES_FOR_TESTING",
+            "LOADGEN_WASM_BYTES_DISTRIBUTION_FOR_TESTING");
+        verifyLoadGenDistribution(
+            LOADGEN_NUM_DATA_ENTRIES_FOR_TESTING,
+            LOADGEN_NUM_DATA_ENTRIES_DISTRIBUTION_FOR_TESTING,
+            "LOADGEN_NUM_DATA_ENTRIES_FOR_TESTING",
+            "LOADGEN_NUM_DATA_ENTRIES_DISTRIBUTION_FOR_TESTING");
+        verifyLoadGenDistribution(
+            LOADGEN_IO_KILOBYTES_FOR_TESTING,
+            LOADGEN_IO_KILOBYTES_DISTRIBUTION_FOR_TESTING,
+            "LOADGEN_IO_KILOBYTES_FOR_TESTING",
+            "LOADGEN_IO_KILOBYTES_DISTRIBUTION_FOR_TESTING");
+        verifyLoadGenDistribution(
+            LOADGEN_TX_SIZE_BYTES_FOR_TESTING,
+            LOADGEN_TX_SIZE_BYTES_DISTRIBUTION_FOR_TESTING,
+            "LOADGEN_TX_SIZE_BYTES_FOR_TESTING",
+            "LOADGEN_TX_SIZE_BYTES_DISTRIBUTION_FOR_TESTING");
+        verifyLoadGenDistribution(
+            LOADGEN_INSTRUCTIONS_FOR_TESTING,
+            LOADGEN_INSTRUCTIONS_DISTRIBUTION_FOR_TESTING,
+            "LOADGEN_INSTRUCTIONS_FOR_TESTING",
+            "LOADGEN_INSTRUCTIONS_DISTRIBUTION_FOR_TESTING");
 
         gIsProductionNetwork = NETWORK_PASSPHRASE ==
                                "Public Global Stellar Network ; September 2015";
