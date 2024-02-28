@@ -96,6 +96,7 @@ const int64_t LedgerManager::GENESIS_LEDGER_TOTAL_COINS = 1000000000000000000;
 
 SorobanMetrics::SorobanMetrics(medida::MetricsRegistry& metrics)
     : mMetrics(metrics)
+    /* InvokeHostFunctionOp metrics */
     , mHostFnOpReadEntry(
           metrics.NewMeter({"soroban", "host-fn-op", "read-entry"}, "entry"))
     , mHostFnOpWriteEntry(
@@ -148,16 +149,51 @@ SorobanMetrics::SorobanMetrics(medida::MetricsRegistry& metrics)
     , mHostFnOpFailure(
           metrics.NewMeter({"soroban", "host-fn-op", "failure"}, "call"))
     , mHostFnOpExec(metrics.NewTimer({"soroban", "host-fn-op", "exec"}))
+    /* ExtendFootprintTTLOp metrics */
     , mExtFpTtlOpReadLedgerByte(metrics.NewMeter(
           {"soroban", "ext-fprint-ttl-op", "read-ledger-byte"}, "byte"))
     , mExtFpTtlOpExec(
           metrics.NewTimer({"soroban", "ext-fprint-ttl-op", "exec"}))
+    /* RestoreFootprintOp metrics */
     , mRestoreFpOpReadLedgerByte(metrics.NewMeter(
           {"soroban", "restore-fprint-op", "read-ledger-byte"}, "byte"))
     , mRestoreFpOpWriteLedgerByte(metrics.NewMeter(
           {"soroban", "restore-fprint-op", "write-ledger-byte"}, "byte"))
     , mRestoreFpOpExec(
           metrics.NewTimer({"soroban", "restore-fprint-op", "exec"}))
+    /* network config metrics */
+    , mConfigContractMaxRwKeyByte(
+          metrics.NewCounter({"soroban", "config", "contract-max-rw-key-byte"}))
+    , mConfigContractMaxRwDataByte(metrics.NewCounter(
+          {"soroban", "config", "contract-max-rw-data-byte"}))
+    , mConfigContractMaxRwCodeByte(metrics.NewCounter(
+          {"soroban", "config", "contract-max-rw-code-byte"}))
+    , mConfigTxMaxCpuInsn(
+          metrics.NewCounter({"soroban", "config", "tx-max-cpu-insn"}))
+    , mConfigTxMaxMemByte(
+          metrics.NewCounter({"soroban", "config", "tx-max-mem-byte"}))
+    , mConfigTxMaxReadEntry(
+          metrics.NewCounter({"soroban", "config", "tx-max-read-entry"}))
+    , mConfigTxMaxReadLedgerByte(
+          metrics.NewCounter({"soroban", "config", "tx-max-read-ledger-byte"}))
+    , mConfigTxMaxWriteEntry(
+          metrics.NewCounter({"soroban", "config", "tx-max-write-entry"}))
+    , mConfigTxMaxWriteLedgerByte(
+          metrics.NewCounter({"soroban", "config", "tx-max-write-ledger-byte"}))
+    , mConfigTxMaxEmitEventByte(
+          metrics.NewCounter({"soroban", "config", "tx-max-emit-event-byte"}))
+    , mConfigLedgerMaxCpuInsn(
+          metrics.NewCounter({"soroban", "config", "ledger-max-cpu-insn"}))
+    , mConfigLedgerMaxReadEntry(
+          metrics.NewCounter({"soroban", "config", "ledger-max-read-entry"}))
+    , mConfigLedgerMaxReadLedgerByte(metrics.NewCounter(
+          {"soroban", "config", "ledger-max-read-ledger-byte"}))
+    , mConfigLedgerMaxWriteEntry(
+          metrics.NewCounter({"soroban", "config", "ledger-max-write-entry"}))
+    , mConfigLedgerMaxWriteLedgerByte(metrics.NewCounter(
+          {"soroban", "config", "ledger-max-write-ledger-byte"}))
+    , mConfigBucketListTargetSizeByte(metrics.NewCounter(
+          {"soroban", "config", "bucket-list-target-size-byte"}))
 {
 }
 
@@ -701,8 +737,6 @@ void
 LedgerManagerImpl::publishSorobanMetrics()
 {
     releaseAssert(mSorobanNetworkConfig);
-    medida::MetricsRegistry& registry = mSorobanMetrics.registry();
-
     // first publish the network config limits
     auto contractMaxSizeBytes = mSorobanNetworkConfig->maxContractSizeBytes();
     auto ledgerMaxInstructions = mSorobanNetworkConfig->ledgerMaxInstructions();
@@ -729,38 +763,31 @@ LedgerManagerImpl::publishSorobanMetrics()
     auto contractDataEntrySizeBytes =
         mSorobanNetworkConfig->maxContractDataEntrySizeBytes();
 
-    registry.NewCounter({"soroban", "config", "contract-max-rw-key-byte"})
-        .set_count(contractDataKeySizeBytes);
-    registry.NewCounter({"soroban", "config", "contract-max-rw-data-byte"})
-        .set_count(contractDataEntrySizeBytes);
-    registry.NewCounter({"soroban", "config", "contract-max-rw-code-byte"})
-        .set_count(contractMaxSizeBytes);
-    registry.NewCounter({"soroban", "config", "tx-max-cpu-insn"})
-        .set_count(txMaxInstructions);
-    registry.NewCounter({"soroban", "config", "tx-max-mem-byte"})
-        .set_count(txMemoryLimit);
-    registry.NewCounter({"soroban", "config", "tx-max-read-entry"})
-        .set_count(txMaxReadLedgerEntries);
-    registry.NewCounter({"soroban", "config", "tx-max-read-ledger-byte"})
-        .set_count(txMaxReadBytes);
-    registry.NewCounter({"soroban", "config", "tx-max-write-entry"})
-        .set_count(txMaxWriteLedgerEntries);
-    registry.NewCounter({"soroban", "config", "tx-max-write-ledger-byte"})
-        .set_count(txMaxWriteBytes);
-    registry.NewCounter({"soroban", "config", "tx-max-emit-event-byte"})
-        .set_count(txMaxContractEventsSizeBytes);
-    registry.NewCounter({"soroban", "config", "ledger-max-cpu-insn"})
-        .set_count(ledgerMaxInstructions);
-    registry.NewCounter({"soroban", "config", "ledger-max-read-entry"})
-        .set_count(ledgerMaxReadLedgerEntries);
-    registry.NewCounter({"soroban", "config", "ledger-max-read-ledger-byte"})
-        .set_count(ledgerMaxReadBytes);
-    registry.NewCounter({"soroban", "config", "ledger-max-write-entry"})
-        .set_count(ledgerMaxWriteLedgerEntries);
-    registry.NewCounter({"soroban", "config", "ledger-max-write-ledger-byte"})
-        .set_count(ledgerMaxWriteBytes);
-    registry.NewCounter({"soroban", "config", "bucket-list-target-size-byte"})
-        .set_count(bucketListTargetSizeBytes);
+    mSorobanMetrics.mConfigContractMaxRwKeyByte.set_count(
+        contractDataKeySizeBytes);
+    mSorobanMetrics.mConfigContractMaxRwDataByte.set_count(
+        contractDataEntrySizeBytes);
+    mSorobanMetrics.mConfigContractMaxRwCodeByte.set_count(
+        contractMaxSizeBytes);
+    mSorobanMetrics.mConfigTxMaxCpuInsn.set_count(txMaxInstructions);
+    mSorobanMetrics.mConfigTxMaxMemByte.set_count(txMemoryLimit);
+    mSorobanMetrics.mConfigTxMaxReadEntry.set_count(txMaxReadLedgerEntries);
+    mSorobanMetrics.mConfigTxMaxReadLedgerByte.set_count(txMaxReadBytes);
+    mSorobanMetrics.mConfigTxMaxWriteEntry.set_count(txMaxWriteLedgerEntries);
+    mSorobanMetrics.mConfigTxMaxWriteLedgerByte.set_count(txMaxWriteBytes);
+    mSorobanMetrics.mConfigTxMaxEmitEventByte.set_count(
+        txMaxContractEventsSizeBytes);
+    mSorobanMetrics.mConfigLedgerMaxCpuInsn.set_count(ledgerMaxInstructions);
+    mSorobanMetrics.mConfigLedgerMaxReadEntry.set_count(
+        ledgerMaxReadLedgerEntries);
+    mSorobanMetrics.mConfigLedgerMaxReadLedgerByte.set_count(
+        ledgerMaxReadBytes);
+    mSorobanMetrics.mConfigLedgerMaxWriteEntry.set_count(
+        ledgerMaxWriteLedgerEntries);
+    mSorobanMetrics.mConfigLedgerMaxWriteLedgerByte.set_count(
+        ledgerMaxWriteBytes);
+    mSorobanMetrics.mConfigBucketListTargetSizeByte.set_count(
+        bucketListTargetSizeBytes);
 
     // then publish the actual ledger usage
     mSorobanMetrics.publishAndResetMetrics();

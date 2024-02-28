@@ -86,6 +86,24 @@ class SorobanMetrics
     medida::Meter& mRestoreFpOpWriteLedgerByte;
     medida::Timer& mRestoreFpOpExec;
 
+    // network config
+    medida::Counter& mConfigContractMaxRwKeyByte;
+    medida::Counter& mConfigContractMaxRwDataByte;
+    medida::Counter& mConfigContractMaxRwCodeByte;
+    medida::Counter& mConfigTxMaxCpuInsn;
+    medida::Counter& mConfigTxMaxMemByte;
+    medida::Counter& mConfigTxMaxReadEntry;
+    medida::Counter& mConfigTxMaxReadLedgerByte;
+    medida::Counter& mConfigTxMaxWriteEntry;
+    medida::Counter& mConfigTxMaxWriteLedgerByte;
+    medida::Counter& mConfigTxMaxEmitEventByte;
+    medida::Counter& mConfigLedgerMaxCpuInsn;
+    medida::Counter& mConfigLedgerMaxReadEntry;
+    medida::Counter& mConfigLedgerMaxReadLedgerByte;
+    medida::Counter& mConfigLedgerMaxWriteEntry;
+    medida::Counter& mConfigLedgerMaxWriteLedgerByte;
+    medida::Counter& mConfigBucketListTargetSizeByte;
+
     SorobanMetrics(medida::MetricsRegistry& metrics);
 
     medida::MetricsRegistry& registry() const;
