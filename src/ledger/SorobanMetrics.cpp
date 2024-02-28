@@ -7,7 +7,21 @@
 namespace stellar
 {
 SorobanMetrics::SorobanMetrics(medida::MetricsRegistry& metrics)
-    : mMetrics(metrics)
+    : /* ledger-wide metrics */
+    mLedgerTxCount(metrics.NewHistogram({"soroban", "ledger", "tx-count"}))
+    , mLedgerCpuInsn(metrics.NewHistogram({"soroban", "ledger", "cpu-insn"}))
+    , mLedgerTxsSizeByte(
+          metrics.NewHistogram({"soroban", "ledger", "txs-size-byte"}))
+    , mLedgerReadEntry(
+          metrics.NewHistogram({"soroban", "ledger", "read-entry"}))
+    , mLedgerReadLedgerByte(
+          metrics.NewHistogram({"soroban", "ledger", "read-ledger-byte"}))
+    , mLedgerWriteEntry(
+          metrics.NewHistogram({"soroban", "ledger", "write-entry"}))
+    , mLedgerWriteLedgerByte(
+          metrics.NewHistogram({"soroban", "ledger", "write-ledger-byte"}))
+    /* tx-wide metrics */
+    , mTxSizeByte(metrics.NewHistogram({"soroban", "tx", "size-byte"}))
     /* InvokeHostFunctionOp metrics */
     , mHostFnOpReadEntry(
           metrics.NewMeter({"soroban", "host-fn-op", "read-entry"}, "entry"))
@@ -80,6 +94,8 @@ SorobanMetrics::SorobanMetrics(medida::MetricsRegistry& metrics)
           {"soroban", "config", "contract-max-rw-data-byte"}))
     , mConfigContractMaxRwCodeByte(metrics.NewCounter(
           {"soroban", "config", "contract-max-rw-code-byte"}))
+    , mConfigTxMaxSizeByte(
+          metrics.NewCounter({"soroban", "config", "tx-max-size-byte"}))
     , mConfigTxMaxCpuInsn(
           metrics.NewCounter({"soroban", "config", "tx-max-cpu-insn"}))
     , mConfigTxMaxMemByte(
@@ -94,8 +110,12 @@ SorobanMetrics::SorobanMetrics(medida::MetricsRegistry& metrics)
           metrics.NewCounter({"soroban", "config", "tx-max-write-ledger-byte"}))
     , mConfigTxMaxEmitEventByte(
           metrics.NewCounter({"soroban", "config", "tx-max-emit-event-byte"}))
+    , mConfigLedgerMaxTxCount(
+          metrics.NewCounter({"soroban", "config", "ledger-max-tx-count"}))
     , mConfigLedgerMaxCpuInsn(
           metrics.NewCounter({"soroban", "config", "ledger-max-cpu-insn"}))
+    , mConfigLedgerMaxTxsSizeByte(
+          metrics.NewCounter({"soroban", "config", "ledger-max-txs-size-byte"}))
     , mConfigLedgerMaxReadEntry(
           metrics.NewCounter({"soroban", "config", "ledger-max-read-entry"}))
     , mConfigLedgerMaxReadLedgerByte(metrics.NewCounter(
@@ -110,48 +130,58 @@ SorobanMetrics::SorobanMetrics(medida::MetricsRegistry& metrics)
 }
 
 void
+SorobanMetrics::accumulateLedgerTxCount(uint64_t txCount)
+{
+    mCounterLedgerTxCount += txCount;
+}
+void
 SorobanMetrics::accumulateLedgerCpuInsn(uint64_t cpuInsn)
 {
-    mLedgerCpuInsn += cpuInsn;
+    mCounterLedgerCpuInsn += cpuInsn;
+}
+void
+SorobanMetrics::accumulateLedgerTxsSizeByte(uint64_t txsSizeByte)
+{
+    mCounterLedgerTxsSizeByte += txsSizeByte;
 }
 void
 SorobanMetrics::accumulateLedgerReadEntry(uint64_t readEntry)
 {
-    mLedgerReadEntry += readEntry;
+    mCounterLedgerReadEntry += readEntry;
 }
 void
 SorobanMetrics::accumulateLedgerReadByte(uint64_t readByte)
 {
-    mLedgerReadByte += readByte;
+    mCounterLedgerReadByte += readByte;
 }
 void
 SorobanMetrics::accumulateLedgerWriteEntry(uint64_t writeEntry)
 {
-    mLedgerWriteEntry += writeEntry;
+    mCounterLedgerWriteEntry += writeEntry;
 }
 void
 SorobanMetrics::accumulateLedgerWriteByte(uint64_t writeByte)
 {
-    mLedgerWriteByte += writeByte;
+    mCounterLedgerWriteByte += writeByte;
 }
 
 void
 SorobanMetrics::publishAndResetLedgerWideMetrics()
 {
-    mMetrics.NewHistogram({"soroban", "ledger", "cpu-insn"})
-        .Update(mLedgerCpuInsn);
-    mMetrics.NewHistogram({"soroban", "ledger", "read-entry"})
-        .Update(mLedgerReadEntry);
-    mMetrics.NewHistogram({"soroban", "ledger", "read-ledger-byte"})
-        .Update(mLedgerReadByte);
-    mMetrics.NewHistogram({"soroban", "ledger", "write-entry"})
-        .Update(mLedgerWriteEntry);
-    mMetrics.NewHistogram({"soroban", "ledger", "write-ledger-byte"})
-        .Update(mLedgerWriteByte);
-    mLedgerCpuInsn = 0;
-    mLedgerReadEntry = 0;
-    mLedgerReadByte = 0;
-    mLedgerWriteEntry = 0;
-    mLedgerWriteByte = 0;
+    mLedgerTxCount.Update(mCounterLedgerTxCount);
+    mLedgerCpuInsn.Update(mCounterLedgerCpuInsn);
+    mLedgerTxsSizeByte.Update(mCounterLedgerTxsSizeByte);
+    mLedgerReadEntry.Update(mCounterLedgerReadEntry);
+    mLedgerReadLedgerByte.Update(mCounterLedgerReadByte);
+    mLedgerWriteEntry.Update(mCounterLedgerWriteEntry);
+    mLedgerWriteLedgerByte.Update(mCounterLedgerWriteByte);
+
+    mCounterLedgerTxCount = 0;
+    mCounterLedgerCpuInsn = 0;
+    mCounterLedgerTxsSizeByte = 0;
+    mCounterLedgerReadEntry = 0;
+    mCounterLedgerReadByte = 0;
+    mCounterLedgerWriteEntry = 0;
+    mCounterLedgerWriteByte = 0;
 }
 }

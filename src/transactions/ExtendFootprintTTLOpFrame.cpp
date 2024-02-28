@@ -23,9 +23,6 @@ struct ExtendFootprintTTLMetrics
     ~ExtendFootprintTTLMetrics()
     {
         mMetrics.mExtFpTtlOpReadLedgerByte.Mark(mLedgerReadByte);
-
-        // populate ledger-wise resource metrics
-        mMetrics.accumulateLedgerReadByte(mLedgerReadByte);
     }
     medida::TimerContext
     getExecTimer()

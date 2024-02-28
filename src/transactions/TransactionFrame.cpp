@@ -18,6 +18,7 @@
 #include "ledger/LedgerTxn.h"
 #include "ledger/LedgerTxnEntry.h"
 #include "ledger/LedgerTxnHeader.h"
+#include "ledger/SorobanMetrics.h"
 #include "main/Application.h"
 #include "transactions/SignatureChecker.h"
 #include "transactions/SignatureUtils.h"
@@ -1660,6 +1661,24 @@ TransactionFrame::applyOperations(SignatureChecker& signatureChecker,
                 subSeedSha.add(sorobanBasePrngSeed);
                 subSeedSha.add(xdr::xdr_to_opaque(opNum));
                 subSeed = subSeedSha.finish();
+
+                // emit/accumulate soroban metrics, now that the tx has been
+                // validated and the op will get applied
+                SorobanMetrics& metrics =
+                    app.getLedgerManager().getSorobanMetrics();
+                auto txSize = static_cast<int64_t>(this->getSize());
+                auto r = sorobanResources();
+                metrics.mTxSizeByte.Update(txSize);
+                metrics.accumulateLedgerTxCount(1);
+                metrics.accumulateLedgerCpuInsn(r.instructions);
+                metrics.accumulateLedgerTxsSizeByte(txSize);
+                metrics.accumulateLedgerReadEntry(
+                    static_cast<int64_t>(r.footprint.readOnly.size() +
+                                         r.footprint.readWrite.size()));
+                metrics.accumulateLedgerReadByte(r.readBytes);
+                metrics.accumulateLedgerWriteEntry(
+                    static_cast<int64_t>(r.footprint.readWrite.size()));
+                metrics.accumulateLedgerWriteByte(r.writeBytes);
             }
             ++opNum;
 

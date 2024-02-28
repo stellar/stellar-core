@@ -25,10 +25,6 @@ struct RestoreFootprintMetrics
     {
         mMetrics.mRestoreFpOpReadLedgerByte.Mark(mLedgerReadByte);
         mMetrics.mRestoreFpOpWriteLedgerByte.Mark(mLedgerWriteByte);
-
-        // populate ledger-wise resource metrics
-        mMetrics.accumulateLedgerReadByte(mLedgerReadByte);
-        mMetrics.accumulateLedgerWriteByte(mLedgerWriteByte);
     }
     medida::TimerContext
     getExecTimer()

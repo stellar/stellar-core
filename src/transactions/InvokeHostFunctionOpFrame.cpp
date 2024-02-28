@@ -220,13 +220,6 @@ struct HostFunctionMetrics
         {
             mMetrics.mHostFnOpFailure.Mark();
         }
-
-        // populate ledger-wise resource metrics
-        mMetrics.accumulateLedgerCpuInsn(mCpuInsn);
-        mMetrics.accumulateLedgerReadEntry(mReadEntry);
-        mMetrics.accumulateLedgerReadByte(mLedgerReadByte);
-        mMetrics.accumulateLedgerWriteEntry(mWriteEntry);
-        mMetrics.accumulateLedgerWriteByte(mLedgerWriteByte);
     }
     medida::TimerContext
     getExecTimer()

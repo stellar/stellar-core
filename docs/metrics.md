@@ -195,14 +195,18 @@ soroban.restore-fprint-op.write-ledger-byte  | meter     | number of `LedgerEntr
 soroban.restore-fprint-op.exec               | timer     | total time spent during the `RestoreFootprintOp`
 soroban.ext-fprint-ttl-op.read-ledger-byte   | meter     | number of `LedgerEntry` bytes accessed (read or modified) during the `ExtendFootprintTTLOp`
 soroban.ext-fprint-ttl-op.exec               | timer     | total time spent during the `ExtendFootprintTTLOp`
+soroban.ledger.tx-count                      | histogram | number of soroban transactions per ledger
 soroban.ledger.cpu-insn                      | histogram | metered cpu instructions per ledger
+soroban.ledger.txs-size-byte                 | histogram | total size (in bytes) of all soroban transactions per ledger
 soroban.ledger.read-entry                    | histogram | number of entries accessed (read or modified) per ledger
 soroban.ledger.read-ledger-byte              | histogram | number of `LedgerEntry` bytes accessed (read or modified) per ledger
 soroban.ledger.write-entry                   | histogram | number of entries modified per ledger
 soroban.ledger.write-ledger-byte             | histogram | number of `LedgerEntry` bytes modified per ledger
+soroban.tx.size-byte                         | histogram | size (in bytes) of a soroban transaction
 soroban.config.contract-max-rw-key-byte      | counter   | soroban config setting `contract_data_key_size_bytes`
 soroban.config.contract-max-rw-data-byte     | counter   | soroban config setting `contract_data_entry_size_bytes`
 soroban.config.contract-max-rw-code-byte     | counter   | soroban config setting `contract_max_size_bytes`
+soroban.config.tx-max-size-byte              | counter   | soroban config setting `tx_max_size_bytes`
 soroban.config.tx-max-cpu-insn               | counter   | soroban config setting `tx_max_instructions`
 soroban.config.tx-max-mem-byte               | counter   | soroban config setting `tx_memory_limit`
 soroban.config.tx-max-read-entry             | counter   | soroban config setting `tx_max_read_ledger_entries`
@@ -210,7 +214,9 @@ soroban.config.tx-max-read-ledger-byte       | counter   | soroban config settin
 soroban.config.tx-max-write-entry            | counter   | soroban config setting `tx_max_write_ledger_entries`
 soroban.config.tx-max-write-ledger-byte      | counter   | soroban config setting `tx_max_write_bytes`
 soroban.config.tx-max-emit-event-byte        | counter   | soroban config setting `tx_max_contract_events_size_bytes`
+soroban.config.ledger-max-tx-count           | counter   | soroban config setting `ledger_max_tx_count`
 soroban.config.ledger-max-cpu-insn           | counter   | soroban config setting `ledger_max_instructions`
+soroban.config.ledger-max-txs-size-byte      | counter   | soroban config setting `ledger_max_txs_size_bytes`
 soroban.config.ledger-max-read-entry         | counter   | soroban config setting `ledger_max_read_ledger_entries`
 soroban.config.ledger-max-read-ledger-byte   | counter   | soroban config setting `ledger_max_read_bytes`
 soroban.config.ledger-max-write-entry        | counter   | soroban config setting `ledger_max_write_ledger_entries`

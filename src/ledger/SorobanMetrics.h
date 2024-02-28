@@ -24,15 +24,28 @@ namespace stellar
 class SorobanMetrics
 {
   private:
-    medida::MetricsRegistry& mMetrics;
-    uint64_t mLedgerCpuInsn{0};
-    uint64_t mLedgerReadEntry{0};
-    uint64_t mLedgerReadByte{0};
-    uint64_t mLedgerWriteEntry{0};
-    uint64_t mLedgerWriteByte{0};
+    uint64_t mCounterLedgerTxCount{0};
+    uint64_t mCounterLedgerCpuInsn{0};
+    uint64_t mCounterLedgerTxsSizeByte{0};
+    uint64_t mCounterLedgerReadEntry{0};
+    uint64_t mCounterLedgerReadByte{0};
+    uint64_t mCounterLedgerWriteEntry{0};
+    uint64_t mCounterLedgerWriteByte{0};
 
   public:
-    // InvokeHostFunctionOp
+    // ledger-wide metrics
+    medida::Histogram& mLedgerTxCount;
+    medida::Histogram& mLedgerCpuInsn;
+    medida::Histogram& mLedgerTxsSizeByte;
+    medida::Histogram& mLedgerReadEntry;
+    medida::Histogram& mLedgerReadLedgerByte;
+    medida::Histogram& mLedgerWriteEntry;
+    medida::Histogram& mLedgerWriteLedgerByte;
+
+    // tx-wide metrics
+    medida::Histogram& mTxSizeByte;
+
+    // `InvokeHostFunctionOp` metrics
     medida::Meter& mHostFnOpReadEntry;
     medida::Meter& mHostFnOpWriteEntry;
     medida::Meter& mHostFnOpReadKeyByte;
@@ -60,19 +73,20 @@ class SorobanMetrics
     medida::Meter& mHostFnOpFailure;
     medida::Timer& mHostFnOpExec;
 
-    // ExtendFootprintTTLOp
+    // `ExtendFootprintTTLOp` metrics
     medida::Meter& mExtFpTtlOpReadLedgerByte;
     medida::Timer& mExtFpTtlOpExec;
 
-    // RestoreFootprintOp
+    // `RestoreFootprintOp` metrics
     medida::Meter& mRestoreFpOpReadLedgerByte;
     medida::Meter& mRestoreFpOpWriteLedgerByte;
     medida::Timer& mRestoreFpOpExec;
 
-    // network config
+    // `NetworkConfig` metrics
     medida::Counter& mConfigContractMaxRwKeyByte;
     medida::Counter& mConfigContractMaxRwDataByte;
     medida::Counter& mConfigContractMaxRwCodeByte;
+    medida::Counter& mConfigTxMaxSizeByte;
     medida::Counter& mConfigTxMaxCpuInsn;
     medida::Counter& mConfigTxMaxMemByte;
     medida::Counter& mConfigTxMaxReadEntry;
@@ -80,7 +94,9 @@ class SorobanMetrics
     medida::Counter& mConfigTxMaxWriteEntry;
     medida::Counter& mConfigTxMaxWriteLedgerByte;
     medida::Counter& mConfigTxMaxEmitEventByte;
+    medida::Counter& mConfigLedgerMaxTxCount;
     medida::Counter& mConfigLedgerMaxCpuInsn;
+    medida::Counter& mConfigLedgerMaxTxsSizeByte;
     medida::Counter& mConfigLedgerMaxReadEntry;
     medida::Counter& mConfigLedgerMaxReadLedgerByte;
     medida::Counter& mConfigLedgerMaxWriteEntry;
@@ -89,7 +105,9 @@ class SorobanMetrics
 
     SorobanMetrics(medida::MetricsRegistry& metrics);
 
+    void accumulateLedgerTxCount(uint64_t txCount);
     void accumulateLedgerCpuInsn(uint64_t cpuInsn);
+    void accumulateLedgerTxsSizeByte(uint64_t txsSizeByte);
     void accumulateLedgerReadEntry(uint64_t readEntry);
     void accumulateLedgerReadByte(uint64_t readByte);
     void accumulateLedgerWriteEntry(uint64_t writeEntry);
