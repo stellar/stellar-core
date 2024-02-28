@@ -400,7 +400,6 @@ TEST_CASE("basic contract invocation", "[tx][soroban]")
                       std::vector<SCVal> const& args,
                       SorobanInvocationSpec const& spec,
                       std::optional<uint32_t> expectedRefund = std::nullopt,
-                      bool expectHostFnCall = true,
                       bool addContractKeys = true) {
         int64_t initBalance = test.getRoot().getBalance();
         auto invocation = contract.prepareInvocation(functionName, args, spec,
@@ -436,14 +435,7 @@ TEST_CASE("basic contract invocation", "[tx][soroban]")
         TransactionMetaFrame txm(test.getLedgerVersion());
         auto timerBefore = hostFnExecTimer.count();
         bool success = test.invokeTx(tx, &txm);
-        if (expectHostFnCall)
-        {
-            REQUIRE(hostFnExecTimer.count() - timerBefore > 0);
-        }
-        else
-        {
-            REQUIRE(hostFnExecTimer.count() - timerBefore == 0);
-        }
+        REQUIRE(hostFnExecTimer.count() - timerBefore > 0);
 
         {
             LedgerTxn ltx(test.getApp().getLedgerTxnRoot());
@@ -481,12 +473,11 @@ TEST_CASE("basic contract invocation", "[tx][soroban]")
     auto failedInvoke =
         [&](TestContract& contract, std::string const& functionName,
             std::vector<SCVal> const& args, SorobanInvocationSpec const& spec,
-            bool expectHostFnCall = true, bool addContractKeys = true) {
+            bool addContractKeys = true) {
             auto successesBefore = hostFnSuccessMeter.count();
             auto failuresBefore = hostFnFailureMeter.count();
-            auto [tx, txm] =
-                invoke(contract, functionName, args, spec, std::nullopt,
-                       expectHostFnCall, addContractKeys);
+            auto [tx, txm] = invoke(contract, functionName, args, spec,
+                                    std::nullopt, addContractKeys);
             REQUIRE(hostFnSuccessMeter.count() - successesBefore == 0);
             REQUIRE(hostFnFailureMeter.count() - failuresBefore == 1);
             REQUIRE(tx->getResult().result.code() == txFAILED);
@@ -633,8 +624,7 @@ TEST_CASE("basic contract invocation", "[tx][soroban]")
         // We fail while reading the footprint, before the host function
         // is called.
         REQUIRE(failedInvoke(addContract, fnName, {sc7, sc16},
-                             invocationSpec.setReadBytes(100),
-                             /* expectHostFnCall */ false) ==
+                             invocationSpec.setReadBytes(100)) ==
                 INVOKE_HOST_FUNCTION_RESOURCE_LIMIT_EXCEEDED);
     }
     SECTION("incorrect footprint")
@@ -643,13 +633,11 @@ TEST_CASE("basic contract invocation", "[tx][soroban]")
             failedInvoke(
                 addContract, fnName, {sc7, sc16},
                 invocationSpec.setReadOnlyFootprint({addContract.getKeys()[0]}),
-                /* expectHostFnCall */ true,
                 /* addContractKeys */ false) == INVOKE_HOST_FUNCTION_TRAPPED);
         REQUIRE(
             failedInvoke(
                 addContract, fnName, {sc7, sc16},
                 invocationSpec.setReadOnlyFootprint({addContract.getKeys()[1]}),
-                /* expectHostFnCall */ true,
                 /* addContractKeys */ false) == INVOKE_HOST_FUNCTION_TRAPPED);
     }
     SECTION("insufficient refundable resource fee")

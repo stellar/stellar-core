@@ -331,6 +331,7 @@ InvokeHostFunctionOpFrame::doApply(Application& app, AbstractLedgerTxn& ltx,
 
     Config const& appConfig = app.getConfig();
     HostFunctionMetrics metrics(app.getLedgerManager().getSorobanMetrics());
+    auto timeScope = metrics.getExecTimer();
     auto const& sorobanConfig =
         app.getLedgerManager().getSorobanNetworkConfig();
 
@@ -478,7 +479,6 @@ InvokeHostFunctionOpFrame::doApply(Application& app, AbstractLedgerTxn& ltx,
     out.success = false;
     try
     {
-        auto timeScope = metrics.getExecTimer();
         CxxBuf basePrngSeedBuf{};
         basePrngSeedBuf.data = std::make_unique<std::vector<uint8_t>>();
         basePrngSeedBuf.data->assign(sorobanBasePrngSeed.begin(),
