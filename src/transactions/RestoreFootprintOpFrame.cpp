@@ -30,6 +30,11 @@ struct RestoreFootprintMetrics
         mMetrics.accumulateLedgerReadByte(mLedgerReadByte);
         mMetrics.accumulateLedgerWriteByte(mLedgerWriteByte);
     }
+    medida::TimerContext
+    getExecTimer()
+    {
+        return mMetrics.mRestoreFpOpExec.TimeScope();
+    }
 };
 
 RestoreFootprintOpFrame::RestoreFootprintOpFrame(Operation const& op,
@@ -59,6 +64,7 @@ RestoreFootprintOpFrame::doApply(Application& app, AbstractLedgerTxn& ltx,
     ZoneNamedN(applyZone, "RestoreFootprintOpFrame apply", true);
 
     RestoreFootprintMetrics metrics(app.getLedgerManager().getSorobanMetrics());
+    auto timeScope = metrics.getExecTimer();
 
     auto const& resources = mParentTx.sorobanResources();
     auto const& footprint = resources.footprint;

@@ -150,10 +150,14 @@ SorobanMetrics::SorobanMetrics(medida::MetricsRegistry& metrics)
     , mHostFnOpExec(metrics.NewTimer({"soroban", "host-fn-op", "exec"}))
     , mExtFpTtlOpReadLedgerByte(metrics.NewMeter(
           {"soroban", "ext-fprint-ttl-op", "read-ledger-byte"}, "byte"))
+    , mExtFpTtlOpExec(
+          metrics.NewTimer({"soroban", "ext-fprint-ttl-op", "exec"}))
     , mRestoreFpOpReadLedgerByte(metrics.NewMeter(
           {"soroban", "restore-fprint-op", "read-ledger-byte"}, "byte"))
     , mRestoreFpOpWriteLedgerByte(metrics.NewMeter(
           {"soroban", "restore-fprint-op", "write-ledger-byte"}, "byte"))
+    , mRestoreFpOpExec(
+          metrics.NewTimer({"soroban", "restore-fprint-op", "exec"}))
 {
 }
 

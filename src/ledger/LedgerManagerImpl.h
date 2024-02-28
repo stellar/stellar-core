@@ -79,10 +79,12 @@ class SorobanMetrics
 
     // ExtendFootprintTTLOp
     medida::Meter& mExtFpTtlOpReadLedgerByte;
+    medida::Timer& mExtFpTtlOpExec;
 
     // RestoreFootprintOp
     medida::Meter& mRestoreFpOpReadLedgerByte;
     medida::Meter& mRestoreFpOpWriteLedgerByte;
+    medida::Timer& mRestoreFpOpExec;
 
     SorobanMetrics(medida::MetricsRegistry& metrics);
 

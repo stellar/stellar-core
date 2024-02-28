@@ -192,7 +192,9 @@ soroban.host-fn-op.failure                   | meter     | number of failed `Inv
 soroban.host-fn-op.exec                      | timer     | total time spent during the `InvokeHostFunctionOp`
 soroban.restore-fprint-op.read-ledger-byte   | meter     | number of `LedgerEntry` bytes accessed (read or modified) during the `RestoreFootprintOp`
 soroban.restore-fprint-op.write-ledger-byte  | meter     | number of `LedgerEntry` bytes modified during the `RestoreFootprintOp`
+soroban.restore-fprint-op.exec               | timer     | total time spent during the `RestoreFootprintOp`
 soroban.ext-fprint-ttl-op.read-ledger-byte   | meter     | number of `LedgerEntry` bytes accessed (read or modified) during the `ExtendFootprintTTLOp`
+soroban.ext-fprint-ttl-op.exec               | timer     | total time spent during the `ExtendFootprintTTLOp`
 soroban.ledger.cpu-insn                      | histogram | metered cpu instructions per ledger
 soroban.ledger.read-entry                    | histogram | number of entries accessed (read or modified) per ledger
 soroban.ledger.read-ledger-byte              | histogram | number of `LedgerEntry` bytes accessed (read or modified) per ledger

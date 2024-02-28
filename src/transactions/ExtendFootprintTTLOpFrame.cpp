@@ -27,6 +27,11 @@ struct ExtendFootprintTTLMetrics
         // populate ledger-wise resource metrics
         mMetrics.accumulateLedgerReadByte(mLedgerReadByte);
     }
+    medida::TimerContext
+    getExecTimer()
+    {
+        return mMetrics.mExtFpTtlOpExec.TimeScope();
+    }
 };
 
 ExtendFootprintTTLOpFrame::ExtendFootprintTTLOpFrame(Operation const& op,
@@ -57,6 +62,7 @@ ExtendFootprintTTLOpFrame::doApply(Application& app, AbstractLedgerTxn& ltx,
 
     ExtendFootprintTTLMetrics metrics(
         app.getLedgerManager().getSorobanMetrics());
+    auto timeScope = metrics.getExecTimer();
 
     auto const& resources = mParentTx.sorobanResources();
     auto const& footprint = resources.footprint;
