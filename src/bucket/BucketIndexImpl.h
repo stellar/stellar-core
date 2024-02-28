@@ -7,6 +7,9 @@
 #include "bucket/BucketIndex.h"
 #include "medida/meter.h"
 
+#include <cereal/types/map.hpp>
+#include <map>
+
 class bloom_filter;
 
 namespace stellar
@@ -28,13 +31,14 @@ template <class IndexT> class BucketIndexImpl : public BucketIndex
         IndexT keysToOffset{};
         std::streamoff pageSize{};
         std::unique_ptr<bloom_filter> filter{};
+        std::map<Asset, std::vector<PoolID>> assetToPoolID{};
 
         template <class Archive>
         void
         save(Archive& ar) const
         {
             auto version = BUCKET_INDEX_VERSION;
-            ar(version, pageSize, keysToOffset, filter);
+            ar(version, pageSize, assetToPoolID, keysToOffset, filter);
         }
 
         // Note: version and pageSize must be loaded before this function is
@@ -45,7 +49,7 @@ template <class IndexT> class BucketIndexImpl : public BucketIndex
         void
         load(Archive& ar)
         {
-            ar(keysToOffset, filter);
+            ar(assetToPoolID, keysToOffset, filter);
         }
     } mData;
 
@@ -73,6 +77,9 @@ template <class IndexT> class BucketIndexImpl : public BucketIndex
 
     virtual std::optional<std::pair<std::streamoff, std::streamoff>>
     getPoolshareTrustlineRange(AccountID const& accountID) const override;
+
+    virtual std::vector<PoolID> const&
+    getPoolIDsByAsset(Asset const& asset) const override;
 
     virtual std::streamoff
     getPageSize() const override

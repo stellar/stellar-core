@@ -441,48 +441,33 @@ BucketList::loadKeys(std::set<LedgerKey, LedgerEntryIdCmp> const& inKeys) const
     return entries;
 }
 
+// This query has two steps:
+//  1. For each bucket, determine what PoolIDs contain the target asset via the
+//     assetToPoolID index
+//  2. Perform a bulk lookup for all possible trustline keys, that is, all
+//     trustlines with the given accountID and poolID from step 1
 std::vector<LedgerEntry>
 BucketList::loadPoolShareTrustLinesByAccountAndAsset(AccountID const& accountID,
                                                      Asset const& asset) const
 {
     ZoneScoped;
-    UnorderedMap<LedgerKey, LedgerEntry> liquidityPoolToTrustline;
-    UnorderedSet<LedgerKey> seenTrustlines;
-    LedgerKeySet liquidityPoolKeysToSearch;
+    LedgerKeySet trustlinesToLoad;
 
-    // First get all the poolshare trustlines for the given account
     auto trustLineLoop = [&](std::shared_ptr<Bucket> b) {
-        b->loadPoolShareTrustLinessByAccount(accountID, seenTrustlines,
-                                             liquidityPoolToTrustline,
-                                             liquidityPoolKeysToSearch);
+        for (auto const& poolID : b->getPoolIDsByAsset(asset))
+        {
+            LedgerKey trustlineKey(TRUSTLINE);
+            trustlineKey.trustLine().accountID = accountID;
+            trustlineKey.trustLine().asset.type(ASSET_TYPE_POOL_SHARE);
+            trustlineKey.trustLine().asset.liquidityPoolID() = poolID;
+            trustlinesToLoad.emplace(trustlineKey);
+        }
+
         return false; // continue
     };
+
     loopAllBuckets(trustLineLoop);
-
-    // Load all the LiquidityPool entries that the account has a trustline for.
-    auto liquidityPoolEntries = loadKeys(liquidityPoolKeysToSearch);
-    // pools always exist when there are trustlines
-    releaseAssertOrThrow(liquidityPoolEntries.size() ==
-                         liquidityPoolKeysToSearch.size());
-    // Filter out liquidity pools that don't match the asset we're looking for
-    std::vector<LedgerEntry> result;
-    result.reserve(liquidityPoolEntries.size());
-    for (const auto& e : liquidityPoolEntries)
-    {
-        releaseAssert(e.data.type() == LIQUIDITY_POOL);
-        auto const& params =
-            e.data.liquidityPool().body.constantProduct().params;
-        if (compareAsset(params.assetA, asset) ||
-            compareAsset(params.assetB, asset))
-        {
-            auto trustlineIter =
-                liquidityPoolToTrustline.find(LedgerEntryKey(e));
-            releaseAssert(trustlineIter != liquidityPoolToTrustline.end());
-            result.emplace_back(trustlineIter->second);
-        }
-    }
-
-    return result;
+    return loadKeys(trustlinesToLoad);
 }
 
 std::vector<InflationWinner>

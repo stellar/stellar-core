@@ -117,16 +117,9 @@ class Bucket : public std::enable_shared_from_this<Bucket>,
     void loadKeys(std::set<LedgerKey, LedgerEntryIdCmp>& keys,
                   std::vector<LedgerEntry>& result);
 
-    // Loads all poolshare trustlines for the given account. Trustlines are
-    // stored with their corresponding liquidity pool key in
-    // liquidityPoolKeyToTrustline. All liquidity pool keys corresponding to
-    // loaded trustlines are also reduntantly stored in liquidityPoolKeys.
-    // If a trustline key is in seenTrustlines, it is not loaded. Whenever a
-    // dead trustline is found, its key is added to seenTrustlines.
-    void loadPoolShareTrustLinessByAccount(
-        AccountID const& accountID, UnorderedSet<LedgerKey>& seenTrustlines,
-        UnorderedMap<LedgerKey, LedgerEntry>& liquidityPoolKeyToTrustline,
-        LedgerKeySet& liquidityPoolKeys);
+    // Return all PoolIDs that contain the given asset on either side of the
+    // pool
+    std::vector<PoolID> const& getPoolIDsByAsset(Asset const& asset) const;
 
     // At version 11, we added support for INITENTRY and METAENTRY. Before this
     // we were only supporting LIVEENTRY and DEADENTRY.

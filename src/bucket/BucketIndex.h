@@ -74,7 +74,7 @@ class BucketIndex : public NonMovableOrCopyable
                                   IndividualIndex::const_iterator>;
 
     inline static const std::string DB_BACKEND_STATE = "bl";
-    inline static const uint32_t BUCKET_INDEX_VERSION = 1;
+    inline static const uint32_t BUCKET_INDEX_VERSION = 2;
 
     // Returns true if LedgerEntryType not supported by BucketListDB
     static bool typeNotSupported(LedgerEntryType t);
@@ -112,6 +112,11 @@ class BucketIndex : public NonMovableOrCopyable
     // returns nullopt
     virtual std::optional<std::pair<std::streamoff, std::streamoff>>
     getPoolshareTrustlineRange(AccountID const& accountID) const = 0;
+
+    // Return all PoolIDs that contain the given asset on either side of the
+    // pool
+    virtual std::vector<PoolID> const&
+    getPoolIDsByAsset(Asset const& asset) const = 0;
 
     // Returns page size for index. InidividualIndex returns 0 for page size
     virtual std::streamoff getPageSize() const = 0;

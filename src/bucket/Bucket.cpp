@@ -236,78 +236,10 @@ Bucket::loadKeys(std::set<LedgerKey, LedgerEntryIdCmp>& keys,
     }
 }
 
-void
-Bucket::loadPoolShareTrustLinessByAccount(
-    AccountID const& accountID, UnorderedSet<LedgerKey>& seenTrustlines,
-    UnorderedMap<LedgerKey, LedgerEntry>& liquidityPoolKeyToTrustline,
-    LedgerKeySet& liquidityPoolKeys)
+std::vector<PoolID> const&
+Bucket::getPoolIDsByAsset(Asset const& asset) const
 {
-    ZoneScoped;
-
-    // Takes a LedgerKey or LedgerEntry::_data_t, returns true if entry is a
-    // poolshare trusline for the given accountID
-    auto trustlineCheck = [&accountID](auto const& entry) {
-        return entry.type() == TRUSTLINE &&
-               entry.trustLine().asset.type() == ASSET_TYPE_POOL_SHARE &&
-               entry.trustLine().accountID == accountID;
-    };
-
-    // Get upper and lower bound for poolshare trustline range associated
-    // with this account
-    auto searchRange = getIndex().getPoolshareTrustlineRange(accountID);
-    if (!searchRange)
-    {
-        // No poolshare trustlines, exit
-        return;
-    }
-
-    BucketEntry be;
-    auto& stream = getIndexStream();
-    stream.seek(searchRange->first);
-    while (stream && stream.pos() < searchRange->second && stream.readOne(be))
-    {
-        LedgerEntry entry;
-        switch (be.type())
-        {
-        case LIVEENTRY:
-        case INITENTRY:
-            entry = be.liveEntry();
-            break;
-        case DEADENTRY:
-        {
-            auto key = be.deadEntry();
-
-            // If we find a valid trustline key and we have not seen the
-            // key yet, mark it as dead so we do not load a shadowed version
-            // later
-            if (trustlineCheck(key))
-            {
-                seenTrustlines.emplace(key);
-            }
-            continue;
-        }
-        case METAENTRY:
-        default:
-            throw std::invalid_argument("Indexed METAENTRY");
-        }
-
-        // If this is a pool share trustline that matches the accountID and
-        // is the newest version of the key, add it to results
-        if (trustlineCheck(entry.data) &&
-            seenTrustlines.find(LedgerEntryKey(entry)) == seenTrustlines.end())
-        {
-            seenTrustlines.emplace(LedgerEntryKey(entry));
-            auto const& poolshareID =
-                entry.data.trustLine().asset.liquidityPoolID();
-
-            LedgerKey key;
-            key.type(LIQUIDITY_POOL);
-            key.liquidityPool().liquidityPoolID = poolshareID;
-
-            liquidityPoolKeyToTrustline.emplace(key, entry);
-            liquidityPoolKeys.emplace(key);
-        }
-    }
+    return getIndex().getPoolIDsByAsset(asset);
 }
 
 #ifdef BUILD_TESTS
