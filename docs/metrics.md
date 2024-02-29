@@ -196,12 +196,12 @@ soroban.restore-fprint-op.exec               | timer     | total time spent duri
 soroban.ext-fprint-ttl-op.read-ledger-byte   | meter     | number of `LedgerEntry` bytes accessed (read or modified) during the `ExtendFootprintTTLOp`
 soroban.ext-fprint-ttl-op.exec               | timer     | total time spent during the `ExtendFootprintTTLOp`
 soroban.ledger.tx-count                      | histogram | number of soroban transactions per ledger
-soroban.ledger.cpu-insn                      | histogram | metered cpu instructions per ledger
-soroban.ledger.txs-size-byte                 | histogram | total size (in bytes) of all soroban transactions per ledger
-soroban.ledger.read-entry                    | histogram | number of entries accessed (read or modified) per ledger
-soroban.ledger.read-ledger-byte              | histogram | number of `LedgerEntry` bytes accessed (read or modified) per ledger
-soroban.ledger.write-entry                   | histogram | number of entries modified per ledger
-soroban.ledger.write-ledger-byte             | histogram | number of `LedgerEntry` bytes modified per ledger
+soroban.ledger.cpu-insn                      | histogram | total cpu instructions declared by soroban transactions per ledger
+soroban.ledger.txs-size-byte                 | histogram | total size (in bytes) of soroban transactions per ledger
+soroban.ledger.read-entry                    | histogram | number of accessed (read or modified) entries declared by soroban transactions per ledger
+soroban.ledger.read-ledger-byte              | histogram | number of accessed (read or modified) `LedgerEntry` bytes declared by soroban transactions per ledger
+soroban.ledger.write-entry                   | histogram | number of modified entries declared by soroban transactions per ledger
+soroban.ledger.write-ledger-byte             | histogram | number of modified `LedgerEntry` bytes declared by soroban transactions per ledger
 soroban.tx.size-byte                         | histogram | size (in bytes) of a soroban transaction
 soroban.config.contract-max-rw-key-byte      | counter   | soroban config setting `contract_data_key_size_bytes`
 soroban.config.contract-max-rw-data-byte     | counter   | soroban config setting `contract_data_entry_size_bytes`
