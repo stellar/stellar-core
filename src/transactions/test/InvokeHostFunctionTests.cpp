@@ -663,7 +663,9 @@ TEST_CASE("basic contract invocation", "[tx][soroban]")
     }
 }
 
-TEST_CASE("version test", "[tx][soroban]")
+#ifdef ENABLE_PROTOCOL_UPGRADE_VIA_SOROBAN_ENV_HOST_PREV
+void
+versionTest()
 {
     // This test is only valid from SOROBAN_PROTOCOL_VERSION + 1, and
     // CURRENT_LEDGER_PROTOCOL_VERSION will never decrease, so an equality check
@@ -733,6 +735,20 @@ TEST_CASE("version test", "[tx][soroban]")
         REQUIRE(txm2.getXDR().v3().sorobanMeta->returnValue.u32() == 21);
     }
 }
+
+TEST_CASE("version test", "[tx][soroban]")
+{
+    versionTest();
+}
+
+// This test is the same as above but has the acceptance tag so it can run in
+// supercluster as a package with prev enabled. The test above will only run if
+// a user builds with prev locally.
+TEST_CASE("version test acceptance", "[tx][soroban][acceptance]")
+{
+    versionTest();
+}
+#endif
 
 TEST_CASE("Soroban footprint validation", "[tx][soroban]")
 {
