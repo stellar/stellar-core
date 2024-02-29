@@ -12,29 +12,24 @@ namespace stellar
 
 struct RestoreFootprintMetrics
 {
-    SorobanLedgerMetrics& mMetrics;
+    SorobanMetrics& mMetrics;
 
     uint32_t mLedgerReadByte{0};
     uint32_t mLedgerWriteByte{0};
 
-    RestoreFootprintMetrics(SorobanLedgerMetrics& metrics) : mMetrics(metrics)
+    RestoreFootprintMetrics(SorobanMetrics& metrics) : mMetrics(metrics)
     {
     }
 
     ~RestoreFootprintMetrics()
     {
-        mMetrics.registry()
-            .NewMeter({"soroban", "restore-fprint-op", "read-ledger-byte"},
-                      "byte")
-            .Mark(mLedgerReadByte);
-        mMetrics.registry()
-            .NewMeter({"soroban", "restore-fprint-op", "write-ledger-byte"},
-                      "byte")
-            .Mark(mLedgerWriteByte);
-
-        // populate ledger-wise resource metrics
-        mMetrics.accumulateLedgerReadByte(mLedgerReadByte);
-        mMetrics.accumulateLedgerWriteByte(mLedgerWriteByte);
+        mMetrics.mRestoreFpOpReadLedgerByte.Mark(mLedgerReadByte);
+        mMetrics.mRestoreFpOpWriteLedgerByte.Mark(mLedgerWriteByte);
+    }
+    medida::TimerContext
+    getExecTimer()
+    {
+        return mMetrics.mRestoreFpOpExec.TimeScope();
     }
 };
 
@@ -65,6 +60,7 @@ RestoreFootprintOpFrame::doApply(Application& app, AbstractLedgerTxn& ltx,
     ZoneNamedN(applyZone, "RestoreFootprintOpFrame apply", true);
 
     RestoreFootprintMetrics metrics(app.getLedgerManager().getSorobanMetrics());
+    auto timeScope = metrics.getExecTimer();
 
     auto const& resources = mParentTx.sorobanResources();
     auto const& footprint = resources.footprint;

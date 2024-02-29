@@ -586,6 +586,7 @@ exit /b 0
     <ClCompile Include="..\..\src\ledger\test\LedgerTestUtils.cpp" />
     <ClCompile Include="..\..\src\ledger\test\LedgerTxnTests.cpp" />
     <ClCompile Include="..\..\src\ledger\test\LiabilitiesTests.cpp" />
+    <ClCompile Include="..\..\src\ledger\SorobanMetrics.cpp" />
     <ClCompile Include="..\..\src\ledger\TrustLineWrapper.cpp" />
     <ClCompile Include="..\..\src\main\Diagnostics.cpp" />
     <ClCompile Include="..\..\src\main\SettingsUpgradeUtils.cpp" />
@@ -1000,6 +1001,7 @@ exit /b 0
     <ClInclude Include="..\..\src\ledger\NetworkConfig.h" />
     <ClInclude Include="..\..\src\ledger\NonSociRelatedException.h" />
     <ClInclude Include="..\..\src\ledger\test\LedgerTestUtils.h" />
+    <ClInclude Include="..\..\src\ledger\SorobanMetrics.h" />
     <ClInclude Include="..\..\src\ledger\TrustLineWrapper.h" />
     <ClInclude Include="..\..\src\main\Diagnostics.h" />
     <ClInclude Include="..\..\src\main\SettingsUpgradeUtils.h" />

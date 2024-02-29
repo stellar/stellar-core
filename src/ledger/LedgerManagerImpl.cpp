@@ -94,58 +94,6 @@ const uint32_t LedgerManager::GENESIS_LEDGER_BASE_RESERVE = 100000000;
 const uint32_t LedgerManager::GENESIS_LEDGER_MAX_TX_SIZE = 100;
 const int64_t LedgerManager::GENESIS_LEDGER_TOTAL_COINS = 1000000000000000000;
 
-void
-SorobanLedgerMetrics::accumulateLedgerCpuInsn(uint64_t cpuInsn)
-{
-    mLedgerCpuInsn += cpuInsn;
-}
-void
-SorobanLedgerMetrics::accumulateLedgerReadEntry(uint64_t readEntry)
-{
-    mLedgerReadEntry += readEntry;
-}
-void
-SorobanLedgerMetrics::accumulateLedgerReadByte(uint64_t readByte)
-{
-    mLedgerReadByte += readByte;
-}
-void
-SorobanLedgerMetrics::accumulateLedgerWriteEntry(uint64_t writeEntry)
-{
-    mLedgerWriteEntry += writeEntry;
-}
-void
-SorobanLedgerMetrics::accumulateLedgerWriteByte(uint64_t writeByte)
-{
-    mLedgerWriteByte += writeByte;
-}
-
-void
-SorobanLedgerMetrics::publishAndResetMetrics()
-{
-    mMetrics.NewHistogram({"soroban", "ledger", "cpu-insn"})
-        .Update(mLedgerCpuInsn);
-    mMetrics.NewHistogram({"soroban", "ledger", "read-entry"})
-        .Update(mLedgerReadEntry);
-    mMetrics.NewHistogram({"soroban", "ledger", "read-ledger-byte"})
-        .Update(mLedgerReadByte);
-    mMetrics.NewHistogram({"soroban", "ledger", "write-entry"})
-        .Update(mLedgerWriteEntry);
-    mMetrics.NewHistogram({"soroban", "ledger", "write-ledger-byte"})
-        .Update(mLedgerWriteByte);
-    mLedgerCpuInsn = 0;
-    mLedgerReadEntry = 0;
-    mLedgerReadByte = 0;
-    mLedgerWriteEntry = 0;
-    mLedgerWriteByte = 0;
-}
-
-medida::MetricsRegistry&
-SorobanLedgerMetrics::registry() const
-{
-    return mMetrics;
-}
-
 std::unique_ptr<LedgerManager>
 LedgerManager::create(Application& app)
 {
@@ -180,7 +128,7 @@ LedgerManager::ledgerAbbrev(LedgerHeaderHistoryEntry const& he)
 
 LedgerManagerImpl::LedgerManagerImpl(Application& app)
     : mApp(app)
-    , mSorobanLedgerMetrics(app.getMetrics())
+    , mSorobanMetrics(app.getMetrics())
     , mTransactionApply(
           app.getMetrics().NewTimer({"ledger", "transaction", "apply"}))
     , mTransactionCount(
@@ -624,18 +572,16 @@ LedgerManagerImpl::getMutableSorobanNetworkConfig()
 }
 #endif
 
-SorobanLedgerMetrics&
+SorobanMetrics&
 LedgerManagerImpl::getSorobanMetrics()
 {
-    return mSorobanLedgerMetrics;
+    return mSorobanMetrics;
 }
 
 void
 LedgerManagerImpl::publishSorobanMetrics()
 {
     releaseAssert(mSorobanNetworkConfig);
-    medida::MetricsRegistry& registry = mSorobanLedgerMetrics.registry();
-
     // first publish the network config limits
     auto contractMaxSizeBytes = mSorobanNetworkConfig->maxContractSizeBytes();
     auto ledgerMaxInstructions = mSorobanNetworkConfig->ledgerMaxInstructions();
@@ -662,41 +608,34 @@ LedgerManagerImpl::publishSorobanMetrics()
     auto contractDataEntrySizeBytes =
         mSorobanNetworkConfig->maxContractDataEntrySizeBytes();
 
-    registry.NewCounter({"soroban", "config", "contract-max-rw-key-byte"})
-        .set_count(contractDataKeySizeBytes);
-    registry.NewCounter({"soroban", "config", "contract-max-rw-data-byte"})
-        .set_count(contractDataEntrySizeBytes);
-    registry.NewCounter({"soroban", "config", "contract-max-rw-code-byte"})
-        .set_count(contractMaxSizeBytes);
-    registry.NewCounter({"soroban", "config", "tx-max-cpu-insn"})
-        .set_count(txMaxInstructions);
-    registry.NewCounter({"soroban", "config", "tx-max-mem-byte"})
-        .set_count(txMemoryLimit);
-    registry.NewCounter({"soroban", "config", "tx-max-read-entry"})
-        .set_count(txMaxReadLedgerEntries);
-    registry.NewCounter({"soroban", "config", "tx-max-read-ledger-byte"})
-        .set_count(txMaxReadBytes);
-    registry.NewCounter({"soroban", "config", "tx-max-write-entry"})
-        .set_count(txMaxWriteLedgerEntries);
-    registry.NewCounter({"soroban", "config", "tx-max-write-ledger-byte"})
-        .set_count(txMaxWriteBytes);
-    registry.NewCounter({"soroban", "config", "tx-max-emit-event-byte"})
-        .set_count(txMaxContractEventsSizeBytes);
-    registry.NewCounter({"soroban", "config", "ledger-max-cpu-insn"})
-        .set_count(ledgerMaxInstructions);
-    registry.NewCounter({"soroban", "config", "ledger-max-read-entry"})
-        .set_count(ledgerMaxReadLedgerEntries);
-    registry.NewCounter({"soroban", "config", "ledger-max-read-ledger-byte"})
-        .set_count(ledgerMaxReadBytes);
-    registry.NewCounter({"soroban", "config", "ledger-max-write-entry"})
-        .set_count(ledgerMaxWriteLedgerEntries);
-    registry.NewCounter({"soroban", "config", "ledger-max-write-ledger-byte"})
-        .set_count(ledgerMaxWriteBytes);
-    registry.NewCounter({"soroban", "config", "bucket-list-target-size-byte"})
-        .set_count(bucketListTargetSizeBytes);
+    mSorobanMetrics.mConfigContractMaxRwKeyByte.set_count(
+        contractDataKeySizeBytes);
+    mSorobanMetrics.mConfigContractMaxRwDataByte.set_count(
+        contractDataEntrySizeBytes);
+    mSorobanMetrics.mConfigContractMaxRwCodeByte.set_count(
+        contractMaxSizeBytes);
+    mSorobanMetrics.mConfigTxMaxCpuInsn.set_count(txMaxInstructions);
+    mSorobanMetrics.mConfigTxMaxMemByte.set_count(txMemoryLimit);
+    mSorobanMetrics.mConfigTxMaxReadEntry.set_count(txMaxReadLedgerEntries);
+    mSorobanMetrics.mConfigTxMaxReadLedgerByte.set_count(txMaxReadBytes);
+    mSorobanMetrics.mConfigTxMaxWriteEntry.set_count(txMaxWriteLedgerEntries);
+    mSorobanMetrics.mConfigTxMaxWriteLedgerByte.set_count(txMaxWriteBytes);
+    mSorobanMetrics.mConfigTxMaxEmitEventByte.set_count(
+        txMaxContractEventsSizeBytes);
+    mSorobanMetrics.mConfigLedgerMaxCpuInsn.set_count(ledgerMaxInstructions);
+    mSorobanMetrics.mConfigLedgerMaxReadEntry.set_count(
+        ledgerMaxReadLedgerEntries);
+    mSorobanMetrics.mConfigLedgerMaxReadLedgerByte.set_count(
+        ledgerMaxReadBytes);
+    mSorobanMetrics.mConfigLedgerMaxWriteEntry.set_count(
+        ledgerMaxWriteLedgerEntries);
+    mSorobanMetrics.mConfigLedgerMaxWriteLedgerByte.set_count(
+        ledgerMaxWriteBytes);
+    mSorobanMetrics.mConfigBucketListTargetSizeByte.set_count(
+        bucketListTargetSizeBytes);
 
     // then publish the actual ledger usage
-    mSorobanLedgerMetrics.publishAndResetMetrics();
+    mSorobanMetrics.publishAndResetLedgerWideMetrics();
 }
 
 // called by txherder

@@ -18,6 +18,7 @@
 #include "ledger/LedgerTxn.h"
 #include "ledger/LedgerTxnEntry.h"
 #include "ledger/LedgerTxnHeader.h"
+#include "ledger/SorobanMetrics.h"
 #include "main/Application.h"
 #include "transactions/SignatureChecker.h"
 #include "transactions/SignatureUtils.h"
@@ -826,6 +827,28 @@ TransactionFrame::refundSorobanFee(AbstractLedgerTxn& ltxOuter,
 
     header.current().feePool -= feeRefund;
     ltx.commit();
+}
+
+void
+TransactionFrame::updateSorobanMetrics(Application& app)
+{
+    releaseAssertOrThrow(isSoroban());
+    SorobanMetrics& metrics = app.getLedgerManager().getSorobanMetrics();
+    auto txSize = static_cast<int64_t>(this->getSize());
+    auto r = sorobanResources();
+    // update the tx metrics
+    metrics.mTxSizeByte.Update(txSize);
+    // accumulate the ledger-wide metrics, which will get emitted at the ledger
+    // close
+    metrics.accumulateLedgerTxCount(1);
+    metrics.accumulateLedgerCpuInsn(r.instructions);
+    metrics.accumulateLedgerTxsSizeByte(txSize);
+    metrics.accumulateLedgerReadEntry(static_cast<int64_t>(
+        r.footprint.readOnly.size() + r.footprint.readWrite.size()));
+    metrics.accumulateLedgerReadByte(r.readBytes);
+    metrics.accumulateLedgerWriteEntry(
+        static_cast<int64_t>(r.footprint.readWrite.size()));
+    metrics.accumulateLedgerWriteByte(r.writeBytes);
 }
 
 FeePair
@@ -1874,6 +1897,11 @@ TransactionFrame::apply(Application& app, AbstractLedgerTxn& ltx,
             // have the correct TransactionResult so we must crash.
             if (ok)
             {
+                if (isSoroban())
+                {
+                    updateSorobanMetrics(app);
+                }
+
                 ok = applyOperations(signatureChecker, app, ltx, meta,
                                      sorobanBasePrngSeed);
             }

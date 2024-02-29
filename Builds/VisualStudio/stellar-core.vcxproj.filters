@@ -966,6 +966,9 @@
     <ClCompile Include="..\..\src\ledger\NetworkConfig.cpp">
       <Filter>ledger</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\src\ledger\SorobanMetrics.cpp">
+      <Filter>ledger</Filter>
+    </ClCompile>
     <ClCompile Include="..\..\src\ledger\TrustLineWrapper.cpp">
       <Filter>ledger</Filter>
     </ClCompile>
@@ -2073,6 +2076,9 @@
       <Filter>ledger</Filter>
     </ClInclude>
     <ClInclude Include="..\..\src\ledger\NonSociRelatedException.h">
+      <Filter>ledger</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\ledger\SorobanMetrics.h">
       <Filter>ledger</Filter>
     </ClInclude>
     <ClInclude Include="..\..\src\ledger\TrustLineWrapper.h">
