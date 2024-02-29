@@ -829,6 +829,28 @@ TransactionFrame::refundSorobanFee(AbstractLedgerTxn& ltxOuter,
     ltx.commit();
 }
 
+void
+TransactionFrame::updateSorobanMetrics(Application& app)
+{
+    releaseAssertOrThrow(isSoroban());
+    SorobanMetrics& metrics = app.getLedgerManager().getSorobanMetrics();
+    auto txSize = static_cast<int64_t>(this->getSize());
+    auto r = sorobanResources();
+    // update the tx metrics
+    metrics.mTxSizeByte.Update(txSize);
+    // accumulate the ledger-wide metrics, which will get emitted at the ledger
+    // close
+    metrics.accumulateLedgerTxCount(1);
+    metrics.accumulateLedgerCpuInsn(r.instructions);
+    metrics.accumulateLedgerTxsSizeByte(txSize);
+    metrics.accumulateLedgerReadEntry(static_cast<int64_t>(
+        r.footprint.readOnly.size() + r.footprint.readWrite.size()));
+    metrics.accumulateLedgerReadByte(r.readBytes);
+    metrics.accumulateLedgerWriteEntry(
+        static_cast<int64_t>(r.footprint.readWrite.size()));
+    metrics.accumulateLedgerWriteByte(r.writeBytes);
+}
+
 FeePair
 TransactionFrame::computeSorobanResourceFee(
     uint32_t protocolVersion, SorobanResources const& txResources,
@@ -1661,24 +1683,6 @@ TransactionFrame::applyOperations(SignatureChecker& signatureChecker,
                 subSeedSha.add(sorobanBasePrngSeed);
                 subSeedSha.add(xdr::xdr_to_opaque(opNum));
                 subSeed = subSeedSha.finish();
-
-                // emit/accumulate soroban metrics, now that the tx has been
-                // validated and the op will get applied
-                SorobanMetrics& metrics =
-                    app.getLedgerManager().getSorobanMetrics();
-                auto txSize = static_cast<int64_t>(this->getSize());
-                auto r = sorobanResources();
-                metrics.mTxSizeByte.Update(txSize);
-                metrics.accumulateLedgerTxCount(1);
-                metrics.accumulateLedgerCpuInsn(r.instructions);
-                metrics.accumulateLedgerTxsSizeByte(txSize);
-                metrics.accumulateLedgerReadEntry(
-                    static_cast<int64_t>(r.footprint.readOnly.size() +
-                                         r.footprint.readWrite.size()));
-                metrics.accumulateLedgerReadByte(r.readBytes);
-                metrics.accumulateLedgerWriteEntry(
-                    static_cast<int64_t>(r.footprint.readWrite.size()));
-                metrics.accumulateLedgerWriteByte(r.writeBytes);
             }
             ++opNum;
 
@@ -1893,6 +1897,11 @@ TransactionFrame::apply(Application& app, AbstractLedgerTxn& ltx,
             // have the correct TransactionResult so we must crash.
             if (ok)
             {
+                if (isSoroban())
+                {
+                    updateSorobanMetrics(app);
+                }
+
                 ok = applyOperations(signatureChecker, app, ltx, meta,
                                      sorobanBasePrngSeed);
             }

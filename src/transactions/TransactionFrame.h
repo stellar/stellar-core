@@ -146,6 +146,7 @@ class TransactionFrame : public TransactionFrameBase
                                   Config const& appConfig,
                                   uint32_t protocolVersion);
     void refundSorobanFee(AbstractLedgerTxn& ltx, AccountID const& feeSource);
+    void updateSorobanMetrics(Application& app);
 #ifdef BUILD_TESTS
   public:
 #endif
