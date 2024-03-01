@@ -208,6 +208,7 @@ mod rust_bridge {
         fn get_test_wasm_err() -> Result<RustBuf>;
         fn get_test_contract_sac_transfer() -> Result<RustBuf>;
         fn get_write_bytes() -> Result<RustBuf>;
+        fn get_invoke_contract_wasm() -> Result<RustBuf>;
 
         fn get_hostile_large_val_wasm() -> Result<RustBuf>;
 
@@ -377,6 +378,15 @@ pub(crate) fn get_auth_wasm() -> Result<RustBuf, Box<dyn std::error::Error>> {
 pub(crate) fn get_custom_account_wasm() -> Result<RustBuf, Box<dyn std::error::Error>> {
     Ok(RustBuf {
         data: soroban_test_wasms::SIMPLE_ACCOUNT_CONTRACT
+            .iter()
+            .cloned()
+            .collect(),
+    })
+}
+
+pub(crate) fn get_invoke_contract_wasm() -> Result<RustBuf, Box<dyn std::error::Error>> {
+    Ok(RustBuf {
+        data: soroban_test_wasms::INVOKE_CONTRACT
             .iter()
             .cloned()
             .collect(),

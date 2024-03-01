@@ -673,6 +673,17 @@ SorobanTest::SorobanTest(Config cfg, bool useTestLimits,
     modifySorobanNetworkConfig(getApp(), cfgModifyFn);
 }
 
+void
+SorobanTest::updateSorobanNetworkConfig(
+    bool useTestLimits, std::function<void(SorobanNetworkConfig&)> cfgModifyFn)
+{
+    if (useTestLimits)
+    {
+        overrideSorobanNetworkConfigForTest(getApp());
+    }
+    modifySorobanNetworkConfig(getApp(), cfgModifyFn);
+};
+
 int64_t
 SorobanTest::computeFeePerIncrement(int64_t resourceVal, int64_t feeRate,
                                     int64_t increment)

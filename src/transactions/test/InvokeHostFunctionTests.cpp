@@ -651,6 +651,96 @@ TEST_CASE("basic contract invocation", "[tx][soroban]")
     }
 }
 
+#ifdef ENABLE_PROTOCOL_UPGRADE_VIA_SOROBAN_ENV_HOST_PREV
+void
+versionTest()
+{
+    // This test is only valid from SOROBAN_PROTOCOL_VERSION + 1, and
+    // CURRENT_LEDGER_PROTOCOL_VERSION will never decrease, so an equality check
+    // is fine here.
+    if (protocolVersionEquals(Config::CURRENT_LEDGER_PROTOCOL_VERSION,
+                              SOROBAN_PROTOCOL_VERSION))
+    {
+        return;
+    }
+    auto next = Config::CURRENT_LEDGER_PROTOCOL_VERSION;
+    auto curr = next - 1;
+
+    auto cfg = getTestConfig(0);
+    cfg.TESTING_UPGRADE_LEDGER_PROTOCOL_VERSION = curr;
+    cfg.USE_CONFIG_FOR_GENESIS = false;
+    SorobanTest test(cfg, false);
+
+    auto upgrade = LedgerUpgrade{LEDGER_UPGRADE_VERSION};
+    upgrade.newLedgerVersion() = curr;
+
+    executeUpgrade(test.getApp(), upgrade);
+
+    test.updateSorobanNetworkConfig();
+
+    TestContract& contract =
+        test.deployWasmContract(rust_bridge::get_invoke_contract_wasm());
+
+    auto invoke = [&](TestContract& contract, std::string const& functionName,
+                      std::vector<SCVal> const& args,
+                      SorobanInvocationSpec const& spec) {
+        auto invocation =
+            contract.prepareInvocation(functionName, args, spec, true);
+        auto tx =
+            std::dynamic_pointer_cast<TransactionFrame>(invocation.createTx());
+
+        REQUIRE(test.isTxValid(tx));
+
+        TransactionMetaFrame txm(test.getLedgerVersion());
+        REQUIRE(test.invokeTx(tx, &txm));
+
+        return std::make_pair(tx, txm);
+    };
+
+    auto fnName = "get_protocol_version";
+
+    auto invocationSpec = SorobanInvocationSpec()
+                              .setInstructions(3'000'000)
+                              .setReadBytes(5'000)
+                              .setInclusionFee(15'000);
+
+    auto spec = invocationSpec.setNonRefundableResourceFee(50'000)
+                    .setRefundableResourceFee(50'000);
+
+    // Check protocol version in curr
+    {
+        auto [tx, txm] = invoke(contract, fnName, {}, spec);
+
+        REQUIRE(tx->getResult().result.code() == txSUCCESS);
+        REQUIRE(txm.getXDR().v3().sorobanMeta->returnValue.u32() == curr);
+    }
+
+    // Check protocol version in next
+    {
+        upgrade.newLedgerVersion() = next;
+        executeUpgrade(test.getApp(), upgrade);
+
+        auto [tx2, txm2] = invoke(contract, fnName, {}, spec);
+
+        REQUIRE(tx2->getResult().result.code() == txSUCCESS);
+        REQUIRE(txm2.getXDR().v3().sorobanMeta->returnValue.u32() == next);
+    }
+}
+
+TEST_CASE("version test", "[tx][soroban]")
+{
+    versionTest();
+}
+
+// This test is the same as above but has the acceptance tag so it can run in
+// supercluster as a package with prev enabled. The test above will only run if
+// a user builds with prev locally.
+TEST_CASE("version test acceptance", "[tx][soroban][acceptance]")
+{
+    versionTest();
+}
+#endif
+
 TEST_CASE("Soroban footprint validation", "[tx][soroban]")
 {
     SorobanTest test;
