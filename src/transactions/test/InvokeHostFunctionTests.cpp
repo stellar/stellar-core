@@ -675,13 +675,16 @@ versionTest()
     {
         return;
     }
+    auto next = Config::CURRENT_LEDGER_PROTOCOL_VERSION;
+    auto curr = next - 1;
+
     auto cfg = getTestConfig(0);
-    cfg.TESTING_UPGRADE_LEDGER_PROTOCOL_VERSION = 20;
+    cfg.TESTING_UPGRADE_LEDGER_PROTOCOL_VERSION = curr;
     cfg.USE_CONFIG_FOR_GENESIS = false;
     SorobanTest test(cfg, false);
 
     auto upgrade = LedgerUpgrade{LEDGER_UPGRADE_VERSION};
-    upgrade.newLedgerVersion() = 20;
+    upgrade.newLedgerVersion() = curr;
 
     executeUpgrade(test.getApp(), upgrade);
 
@@ -716,23 +719,23 @@ versionTest()
     auto spec = invocationSpec.setNonRefundableResourceFee(50'000)
                     .setRefundableResourceFee(50'000);
 
-    // Check protocol version in v20
+    // Check protocol version in curr
     {
         auto [tx, txm] = invoke(contract, fnName, {}, spec);
 
         REQUIRE(tx->getResult().result.code() == txSUCCESS);
-        REQUIRE(txm.getXDR().v3().sorobanMeta->returnValue.u32() == 20);
+        REQUIRE(txm.getXDR().v3().sorobanMeta->returnValue.u32() == curr);
     }
 
-    // Check protocol version in v21
+    // Check protocol version in next
     {
-        upgrade.newLedgerVersion() = 21;
+        upgrade.newLedgerVersion() = next;
         executeUpgrade(test.getApp(), upgrade);
 
         auto [tx2, txm2] = invoke(contract, fnName, {}, spec);
 
         REQUIRE(tx2->getResult().result.code() == txSUCCESS);
-        REQUIRE(txm2.getXDR().v3().sorobanMeta->returnValue.u32() == 21);
+        REQUIRE(txm2.getXDR().v3().sorobanMeta->returnValue.u32() == next);
     }
 }
 
