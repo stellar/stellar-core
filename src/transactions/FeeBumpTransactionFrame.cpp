@@ -156,9 +156,32 @@ FeeBumpTransactionFrame::processPostApply(Application& app,
                                           AbstractLedgerTxn& ltx,
                                           TransactionMetaFrame& meta)
 {
+    int64_t preRefundFeeCharged = mInnerTx->getResult().feeCharged;
+
     // We must forward the Fee-bump source so the refund is applied to the
     // correct account
     mInnerTx->processPostApply(app, ltx, meta, getFeeSourceID());
+
+#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
+    // The result codes and a feeCharged without the refund are set in
+    // updateResult in FeeBumpTransactionFrame::apply. At this point, feeCharged
+    // is set correctly on the inner transaction, so update the feeBump result.
+    if (protocolVersionStartsFrom(ltx.loadHeader().current().ledgerVersion,
+                                  ProtocolVersion::V_21))
+    {
+        // First update feeCharged of the inner result on the feeBump using
+        // mInnerTx
+        auto& irp = mResult.result.innerResultPair();
+        auto& innerRes = irp.result;
+        innerRes.feeCharged = mInnerTx->getResult().feeCharged;
+
+        // Now set update feeCharged on the fee bump. We don't have access to
+        // the refund value here, but we can calculate it using the pre and post
+        // feeCharged of mInnerTx.
+        int64_t refund = preRefundFeeCharged - mInnerTx->getResult().feeCharged;
+        mResult.feeCharged -= refund;
+    }
+#endif
 }
 
 bool

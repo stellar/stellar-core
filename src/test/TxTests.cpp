@@ -1929,5 +1929,12 @@ getBalance(Application& app, AccountID const& accountID, Asset const& asset)
     }
 }
 
+uint32_t
+getCurrentProtocolVersion(Application& app)
+{
+    LedgerTxn ltx(app.getLedgerTxnRoot());
+    return ltx.loadHeader().current().ledgerVersion;
+}
+
 }
 }
