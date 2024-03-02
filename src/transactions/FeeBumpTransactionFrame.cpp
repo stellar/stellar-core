@@ -136,6 +136,9 @@ FeeBumpTransactionFrame::apply(Application& app, AbstractLedgerTxn& ltx,
         bool res = mInnerTx->apply(app, ltx, meta, false, sorobanBasePrngSeed);
         // If this throws, then we may not have the correct TransactionResult so
         // we must crash.
+        // Note that even after updateResult is called here, feeCharged will not
+        // be accurate for Soroban transactions until
+        // FeeBumpTransactionFrame::processPostApply is called.
         updateResult(getResult(), mInnerTx);
         return res;
     }
@@ -167,7 +170,8 @@ FeeBumpTransactionFrame::processPostApply(Application& app,
     // updateResult in FeeBumpTransactionFrame::apply. At this point, feeCharged
     // is set correctly on the inner transaction, so update the feeBump result.
     if (protocolVersionStartsFrom(ltx.loadHeader().current().ledgerVersion,
-                                  ProtocolVersion::V_21))
+                                  ProtocolVersion::V_21) &&
+        isSoroban())
     {
         // First update feeCharged of the inner result on the feeBump using
         // mInnerTx

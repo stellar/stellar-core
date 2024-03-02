@@ -233,6 +233,9 @@ class SorobanTest
     int64_t getRentFeeForExtension(xdr::xvector<LedgerKey> const& keys,
                                    uint32_t newLifetime);
 
+    void initialize(bool useTestLimits,
+                    std::function<void(SorobanNetworkConfig&)> cfgModifyFn);
+
   public:
     SorobanTest(
         Config cfg = getTestConfig(), bool useTestLimits = true,
@@ -241,6 +244,12 @@ class SorobanTest
     void updateSorobanNetworkConfig(
         bool useTestLimits = true,
         std::function<void(SorobanNetworkConfig&)> cfgModifyFn = nullptr);
+
+    SorobanTest(
+        Application::pointer app, Config cfg = getTestConfig(),
+        bool useTestLimits = true,
+        std::function<void(SorobanNetworkConfig&)> cfgModifyFn =
+            [](SorobanNetworkConfig&) {});
 
     Application& getApp() const;
 

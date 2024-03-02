@@ -1209,9 +1209,13 @@ TEST_CASE("refund test with closeLedger", "[tx][soroban][feebump]")
 TEST_CASE_VERSIONS("refund is sent to fee-bump source",
                    "[tx][soroban][feebump]")
 {
-    SorobanTest test;
+    Config cfg = getTestConfig();
+    VirtualClock clock;
+    auto app = createTestApplication(clock, cfg);
 
-    for_versions_from(20, test.getApp(), [&] {
+    for_versions_from(20, *app, [&] {
+        SorobanTest test(app);
+
         const int64_t startingBalance =
             test.getApp().getLedgerManager().getLastMinBalance(50);
 

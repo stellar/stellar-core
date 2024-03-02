@@ -658,12 +658,9 @@ TestContract::Invocation::getResultCode() const
     return mResultCode;
 }
 
-SorobanTest::SorobanTest(Config cfg, bool useTestLimits,
-                         std::function<void(SorobanNetworkConfig&)> cfgModifyFn)
-    : mApp(createTestApplication(mClock, cfg))
-    , mRoot(TestAccount::createRoot(getApp()))
-    , mDummyAccount(mRoot.create(
-          "dummyAcc", getApp().getLedgerManager().getLastMinBalance(1)))
+void
+SorobanTest::initialize(bool useTestLimits,
+                        std::function<void(SorobanNetworkConfig&)> cfgModifyFn)
 {
     if (useTestLimits)
     {
@@ -683,6 +680,29 @@ SorobanTest::updateSorobanNetworkConfig(
     }
     modifySorobanNetworkConfig(getApp(), cfgModifyFn);
 };
+
+// This constructor duplication exists because mClock cannot be accessed in a
+// delegate constructor, which keeps us from calling createTestApplication
+SorobanTest::SorobanTest(Config cfg, bool useTestLimits,
+                         std::function<void(SorobanNetworkConfig&)> cfgModifyFn)
+    : mApp(createTestApplication(mClock, cfg))
+    , mRoot(TestAccount::createRoot(getApp()))
+    , mDummyAccount(mRoot.create(
+          "dummyAcc", getApp().getLedgerManager().getLastMinBalance(1)))
+{
+    initialize(useTestLimits, cfgModifyFn);
+}
+
+SorobanTest::SorobanTest(Application::pointer app, Config cfg,
+                         bool useTestLimits,
+                         std::function<void(SorobanNetworkConfig&)> cfgModifyFn)
+    : mApp(app)
+    , mRoot(TestAccount::createRoot(getApp()))
+    , mDummyAccount(mRoot.create(
+          "dummyAcc", getApp().getLedgerManager().getLastMinBalance(1)))
+{
+    initialize(useTestLimits, cfgModifyFn);
+}
 
 int64_t
 SorobanTest::computeFeePerIncrement(int64_t resourceVal, int64_t feeRate,
