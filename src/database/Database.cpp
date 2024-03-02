@@ -71,7 +71,7 @@ static unsigned long const SCHEMA_VERSION = 21;
 // more-precise version-mismatch error message than a runtime crash due
 // to using SQLite features that aren't supported on an old version.
 static int const MIN_SQLITE_MAJOR_VERSION = 3;
-static int const MIN_SQLITE_MINOR_VERSION = 26;
+static int const MIN_SQLITE_MINOR_VERSION = 45;
 static int const MIN_SQLITE_VERSION =
     (1000000 * MIN_SQLITE_MAJOR_VERSION) + (1000 * MIN_SQLITE_MINOR_VERSION);
 
