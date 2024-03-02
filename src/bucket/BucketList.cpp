@@ -893,8 +893,8 @@ BucketList::scanForEviction(Application& app, AbstractLedgerTxn& ltx,
         // Check to see if we can finish scanning the bucket before it receives
         // an update. To prevent noisy warnings, we assume we have the entire
         // period to scan the bucket.
-        auto period = bucketUpdatePeriod(evictionIter.bucketListLevel,
-                                         evictionIter.isCurrBucket);
+        uint64_t period = bucketUpdatePeriod(evictionIter.bucketListLevel,
+                                             evictionIter.isCurrBucket);
         if (period * scanSize < b->getSize())
         {
             CLOG_WARNING(Bucket,
