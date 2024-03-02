@@ -472,6 +472,12 @@ FieldList::getFieldNames() const
     return names;
 }
 
+inline std::string
+format_as(const NullField&)
+{
+    return "<notset>";
+}
+
 std::string
 resultToString(ResultValueType const& result)
 {
