@@ -1248,7 +1248,7 @@ TEST_CASE_VERSIONS("refund is sent to fee-bump source",
         checkTx(0, r, txFEE_BUMP_INNER_SUCCESS);
 
         bool refundsInFeeCharged = protocolVersionStartsFrom(
-            getCurrentProtocolVersion(test.getApp()), ProtocolVersion::V_21);
+            getLclProtocolVersion(test.getApp()), ProtocolVersion::V_21);
 
         auto const txFeeWithRefund = 59'444;
         auto const feeCharged =

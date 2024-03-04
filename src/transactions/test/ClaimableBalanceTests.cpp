@@ -1297,7 +1297,7 @@ TEST_CASE_VERSIONS("claimableBalance", "[tx][claimablebalance]")
                 lastModifiedTest(false);
             }
 
-            auto ledgerVersion = getCurrentProtocolVersion(*app);
+            auto ledgerVersion = getLclProtocolVersion(*app);
 
             if (protocolVersionStartsFrom(ledgerVersion, ProtocolVersion::V_17))
             {

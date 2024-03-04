@@ -146,7 +146,7 @@ TEST_CASE_VERSIONS("manage buy offer failure modes", "[tx][offers]")
 
         SECTION("check offer valid")
         {
-            auto ledgerVersion = getCurrentProtocolVersion(*app);
+            auto ledgerVersion = getLclProtocolVersion(*app);
 
             SECTION("no issuer")
             {

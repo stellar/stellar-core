@@ -769,7 +769,7 @@ TEST_CASE_VERSIONS("merge", "[tx][merge]")
             };
 
         for_versions_from(14, *app, [&] {
-            auto ledgerVersion = getCurrentProtocolVersion(*app);
+            auto ledgerVersion = getLclProtocolVersion(*app);
 
             SECTION("with sponsored signers")
             {

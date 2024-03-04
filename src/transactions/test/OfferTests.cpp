@@ -701,7 +701,7 @@ TEST_CASE_VERSIONS("create offer", "[tx][offers]")
                         return;
                     }
 
-                    auto ledgerVersion = getCurrentProtocolVersion(*app);
+                    auto ledgerVersion = getLclProtocolVersion(*app);
 
                     if (protocolVersionIsBefore(ledgerVersion,
                                                 ProtocolVersion::V_13))

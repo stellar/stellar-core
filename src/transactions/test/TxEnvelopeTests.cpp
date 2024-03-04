@@ -789,7 +789,7 @@ TEST_CASE_VERSIONS("txenvelope", "[tx][envelope]")
 
         for (auto const& alternative : alternatives)
         {
-            auto ledgerVersion = getCurrentProtocolVersion(*app);
+            auto ledgerVersion = getLclProtocolVersion(*app);
             if (ledgerVersion < alternative.minLedgerVersion)
             {
                 continue;
@@ -1019,8 +1019,7 @@ TEST_CASE_VERSIONS("txenvelope", "[tx][envelope]")
                                 checkTx(1, r, txFAILED);
                             }
 
-                            auto ledgerVersion =
-                                getCurrentProtocolVersion(*app);
+                            auto ledgerVersion = getLclProtocolVersion(*app);
 
                             // If the operation source account is missing, then
                             // the signatures can be removed if V10 or greater.

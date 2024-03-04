@@ -1930,10 +1930,10 @@ getBalance(Application& app, AccountID const& accountID, Asset const& asset)
 }
 
 uint32_t
-getCurrentProtocolVersion(Application& app)
+getLclProtocolVersion(Application& app)
 {
-    LedgerTxn ltx(app.getLedgerTxnRoot());
-    return ltx.loadHeader().current().ledgerVersion;
+    auto const& lcl = app.getLedgerManager().getLastClosedLedgerHeader();
+    return lcl.header.ledgerVersion;
 }
 
 }

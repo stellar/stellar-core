@@ -1466,12 +1466,8 @@ TEST_CASE_VERSIONS("payment", "[tx][payment]")
                 for_all_versions(*app, [&] {
                     gateway.merge(root);
 
-                    uint32_t ledgerVersion;
-                    {
-                        LedgerTxn ltx(app->getLedgerTxnRoot());
-                        ledgerVersion =
-                            ltx.loadHeader().current().ledgerVersion;
-                    }
+                    auto ledgerVersion = getLclProtocolVersion(*app);
+
                     if (protocolVersionIsBefore(ledgerVersion,
                                                 ProtocolVersion::V_13))
                     {
