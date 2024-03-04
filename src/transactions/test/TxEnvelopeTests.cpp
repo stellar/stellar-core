@@ -789,14 +789,10 @@ TEST_CASE_VERSIONS("txenvelope", "[tx][envelope]")
 
         for (auto const& alternative : alternatives)
         {
-            uint32_t ledgerVersion;
+            auto ledgerVersion = getCurrentProtocolVersion(*app);
+            if (ledgerVersion < alternative.minLedgerVersion)
             {
-                LedgerTxn ltx(app->getLedgerTxnRoot());
-                ledgerVersion = ltx.loadHeader().current().ledgerVersion;
-                if (ledgerVersion < alternative.minLedgerVersion)
-                {
-                    continue;
-                }
+                continue;
             }
 
             SECTION(alternative.name)
@@ -1023,12 +1019,8 @@ TEST_CASE_VERSIONS("txenvelope", "[tx][envelope]")
                                 checkTx(1, r, txFAILED);
                             }
 
-                            uint32_t ledgerVersion;
-                            {
-                                LedgerTxn ltx(app->getLedgerTxnRoot());
-                                ledgerVersion =
-                                    ltx.loadHeader().current().ledgerVersion;
-                            }
+                            auto ledgerVersion =
+                                getCurrentProtocolVersion(*app);
 
                             // If the operation source account is missing, then
                             // the signatures can be removed if V10 or greater.

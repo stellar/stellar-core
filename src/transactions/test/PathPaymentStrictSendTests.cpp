@@ -573,11 +573,7 @@ TEST_CASE_VERSIONS("pathpayment strict send", "[tx][pathpayment]")
         gateway.pay(source, idr, 10);
 
         for_versions_from(12, *app, [&] {
-            uint32_t ledgerVersion;
-            {
-                LedgerTxn ltx(app->getLedgerTxnRoot());
-                ledgerVersion = ltx.loadHeader().current().ledgerVersion;
-            }
+            auto ledgerVersion = getCurrentProtocolVersion(*app);
 
             auto pathPaymentStrictSend = [&](std::vector<Asset> const& path,
                                              Asset& noIssuer) {
@@ -2475,11 +2471,8 @@ TEST_CASE_VERSIONS("pathpayment strict send uses all offers in a loop",
                 return market.addOffer(mm41, {cur1, cur4, Price{2, 1}, 1000});
             });
 
-            uint32_t ledgerVersion;
-            {
-                LedgerTxn ltx(app->getLedgerTxnRoot());
-                ledgerVersion = ltx.loadHeader().current().ledgerVersion;
-            }
+            auto ledgerVersion = getCurrentProtocolVersion(*app);
+
             if (issuerToDelete &&
                 protocolVersionStartsFrom(ledgerVersion, ProtocolVersion::V_13))
             {

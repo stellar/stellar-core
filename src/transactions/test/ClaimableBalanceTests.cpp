@@ -1297,11 +1297,7 @@ TEST_CASE_VERSIONS("claimableBalance", "[tx][claimablebalance]")
                 lastModifiedTest(false);
             }
 
-            uint32_t ledgerVersion;
-            {
-                LedgerTxn ltx(app->getLedgerTxnRoot());
-                ledgerVersion = ltx.loadHeader().current().ledgerVersion;
-            }
+            auto ledgerVersion = getCurrentProtocolVersion(*app);
 
             if (protocolVersionStartsFrom(ledgerVersion, ProtocolVersion::V_17))
             {
