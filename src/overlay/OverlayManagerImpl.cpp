@@ -861,7 +861,7 @@ OverlayManagerImpl::maybeAddInboundConnection(Peer::pointer peer)
     if (peer)
     {
         releaseAssert(peer->getRole() == Peer::REMOTE_CALLED_US);
-        bool haveSpace = haveSpaceForConnection(peer->getIP());
+        bool haveSpace = haveSpaceForConnection(peer->getAddress().getIP());
 
         if (mShuttingDown || !haveSpace)
         {

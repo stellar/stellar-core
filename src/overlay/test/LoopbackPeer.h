@@ -139,7 +139,7 @@ class LoopbackPeer : public Peer
 
     bool checkCapacity(std::shared_ptr<LoopbackPeer> otherPeer) const;
 
-    std::string getIP() const override;
+    std::string getIP() const;
 
     using Peer::recvMessage;
     using Peer::sendAuth;
