@@ -928,9 +928,6 @@ TEST_CASE_VERSIONS("eviction scan", "[bucketlist]")
                 checkIfEntryExists(persistentEntries, true);
             }
 
-            // TODO: Add test for entries shadowed in the same ledger that
-            // they become eligible for eviction
-
             SECTION("maxEntriesToArchive")
             {
                 // Check that we only evict one entry at a time
@@ -968,6 +965,81 @@ TEST_CASE_VERSIONS("eviction scan", "[bucketlist]")
                 // All entries should have been evicted
                 checkIfEntryExists(tempEntries, false);
                 checkIfEntryExists(persistentEntries, true);
+            }
+
+            SECTION(
+                "maxEntriesToArchive with entry modified on eviction ledger")
+            {
+                if (backgroundScan)
+                {
+                    // This test is for an edge case in background eviction.
+                    // We want to test that if entry n should be the last entry
+                    // evicted due to maxEntriesToArchive, but that entry is
+                    // updated on the eviction ledger, background eviction
+                    // should still evict entry n + 1
+                    stateArchivalSettings.maxEntriesToArchive = 1;
+                    stateArchivalSettings.startingEvictionScanLevel =
+                        levelToScan;
+                    updateNetworkCfg();
+
+                    // First temp entry in Bucket will be updated with live TTL
+                    std::optional<LedgerKey> entryToUpdate{};
+
+                    // Second temp entry in bucket should be evicted
+                    LedgerKey entryToEvict;
+                    std::optional<uint64_t> expectedEndIterPosition{};
+
+                    for (BucketInputIterator in(
+                             bl.getLevel(levelToScan).getCurr());
+                         in; ++in)
+                    {
+                        // Temp entries should be sorted before persistent in
+                        // the Bucket
+                        auto be = *in;
+                        if (be.type() == INITENTRY || be.type() == LIVEENTRY)
+                        {
+                            auto le = be.liveEntry();
+                            if (le.data.type() == CONTRACT_DATA &&
+                                le.data.contractData().durability == TEMPORARY)
+                            {
+                                if (!entryToUpdate)
+                                {
+                                    entryToUpdate = LedgerEntryKey(le);
+                                }
+                                else
+                                {
+                                    entryToEvict = LedgerEntryKey(le);
+                                    expectedEndIterPosition = in.pos();
+                                    break;
+                                }
+                            }
+                        }
+                    }
+
+                    REQUIRE(expectedEndIterPosition.has_value());
+
+                    // Update first evictable entry with new TTL
+                    auto ttlKey = getTTLKey(*entryToUpdate);
+                    LedgerEntry ttlLe;
+                    ttlLe.data.type(TTL);
+                    ttlLe.data.ttl().keyHash = ttlKey.ttl().keyHash;
+                    ttlLe.data.ttl().liveUntilLedgerSeq = ledgerSeq + 1;
+
+                    lm.setNextLedgerEntryBatchForBucketTesting({}, {ttlLe}, {});
+                    closeLedger(*app);
+
+                    LedgerTxn ltx(app->getLedgerTxnRoot());
+                    auto firstEntry = ltx.loadWithoutRecord(*entryToUpdate);
+                    REQUIRE(static_cast<bool>(firstEntry));
+
+                    auto evictedEntry = ltx.loadWithoutRecord(entryToEvict);
+                    REQUIRE(!static_cast<bool>(evictedEntry));
+
+                    REQUIRE(evictionIter.bucketFileOffset ==
+                            *expectedEndIterPosition);
+                    REQUIRE(evictionIter.bucketListLevel == levelToScan);
+                    REQUIRE(evictionIter.isCurrBucket == true);
+                }
             }
 
             auto constexpr xdrOverheadBytes = 4;
@@ -1053,8 +1125,6 @@ TEST_CASE_VERSIONS("eviction scan", "[bucketlist]")
                 REQUIRE(evictionIter.bucketListLevel == 2);
                 REQUIRE(evictionIter.isCurrBucket == false);
             }
-
-            // TODO: Iterator resets during background eviction
 
             SECTION("iterator resets when bucket changes")
             {
@@ -1146,11 +1216,11 @@ TEST_CASE_VERSIONS("eviction scan", "[bucketlist]")
         });
     };
 
-    SECTION("legacy sql scan")
+    SECTION("legacy scan")
     {
         test(/*backgroundScan=*/false);
     }
-    SECTION("bucketlist db scan")
+    SECTION("background scan")
     {
         test(/*backgroundScan=*/true);
     }
