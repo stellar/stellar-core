@@ -383,9 +383,18 @@ checkTransaction(TransactionFrame& txFrame, Application& app)
 void
 applyTx(TransactionFramePtr const& tx, Application& app, bool checkSeqNum)
 {
-    applyCheck(tx, app, checkSeqNum);
-    throwIf(tx->getResult());
-    checkTransaction(*tx, app);
+    // We cannot commit directly to the DB if running BucketListDB, so close a
+    // ledger with the TX instead
+    if (app.getConfig().isUsingBucketListDB())
+    {
+        closeLedger(app, {tx});
+    }
+    else
+    {
+        applyCheck(tx, app, checkSeqNum);
+        throwIf(tx->getResult());
+        checkTransaction(*tx, app);
+    }
 
     LedgerTxn ltx(app.getLedgerTxnRoot());
     auto account = stellar::loadAccount(ltx, tx->getSourceID());
