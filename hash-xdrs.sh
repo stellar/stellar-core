@@ -25,7 +25,17 @@ namespace stellar {
 extern const std::vector<std::pair<std::filesystem::path, std::string>> XDR_FILES_SHA256 = {
 EOF
 
-sha256sum -b $1/xdr/*.x | grep -v Stellar-internal | perl -pe 's/([a-f0-9]+)[ \*]+(.*)/{"$2", "$1"},/'
+safe_sha256sum() {
+  if command -v sha256sum >/dev/null 2>&1; then
+    sha256sum $@
+  elif command -v shasum >/dev/null 2>&1; then
+    shasum -a 256 $@
+  else
+    fatal "Unable to find a suitable checksum binary to use"
+  fi
+}
+
+safe_sha256sum -b $1/xdr/*.x | grep -v Stellar-internal | perl -pe 's/([a-f0-9]+)[ \*]+(.*)/{"$2", "$1"},/'
 
 echo '{"", ""}};'
 echo '}'

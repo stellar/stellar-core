@@ -55,6 +55,16 @@ case "$(uname -m)" in
   *) echo "Unrecognized operating system / architecture: $(uname)"; exit 1 ;;
 esac
 
+safe_sha256sum() {
+  if command -v sha256sum >/dev/null 2>&1; then
+    sha256sum $@
+  elif command -v shasum >/dev/null 2>&1; then
+    shasum -a 256 $@
+  else
+    fatal "Unable to find a suitable checksum binary to use"
+  fi
+}
+
 # We download rustup-init from a URL adjacent to the SHA256 file above, and
 # check that it matches the expected SHA256 wired-in to this file, and then run
 # it.
@@ -64,6 +74,6 @@ esac
 # key is embedded in rustup).
 rm -f rustup-init
 curl --fail --output rustup-init "https://static.rust-lang.org/rustup/archive/${RUSTUP_VERSION}/${HOST_TRIPLE}/rustup-init"
-echo "${RUSTUP_SHA256} rustup-init" | sha256sum --check
+echo "${RUSTUP_SHA256} rustup-init" | safe_sha256sum --check
 chmod 0755 rustup-init
 ./rustup-init -y --verbose --profile default --default-host "${HOST_TRIPLE}" --default-toolchain "${RUST_VERSION}"
