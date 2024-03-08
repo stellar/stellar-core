@@ -709,6 +709,8 @@ ApplicationImpl::validateAndLogConfig()
     {
         if (mConfig.isUsingBucketListDB())
         {
+            // Tx meta column no longer supported in BucketListDB
+            mPersistentState->dropTxMetaIfExists(*mDatabase);
             mPersistentState->setState(PersistentState::kDBBackend,
                                        BucketIndex::DB_BACKEND_STATE);
             auto pageSizeExp =

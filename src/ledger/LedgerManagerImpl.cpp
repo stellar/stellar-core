@@ -1558,7 +1558,7 @@ LedgerManagerImpl::applyTransactions(
         {
             auto ledgerSeq = ltx.loadHeader().current().ledgerSeq;
             storeTransaction(mApp.getDatabase(), ledgerSeq, tx, tm.getXDR(),
-                             txResultSet);
+                             txResultSet, mApp.getConfig());
         }
     }
 
