@@ -173,6 +173,8 @@ class Database : NonMovableOrCopyable
     // Check schema version and apply any upgrades if necessary.
     void upgradeToCurrentSchema();
 
+    void dropTxMetaIfExists();
+
     // Access the underlying SOCI session object
     soci::session& getSession();
 
