@@ -6,19 +6,6 @@
 #include "fmt/format.h"
 #include "util/xdrquery/XDRQueryError.h"
 
-namespace fmt
-{
-template <> struct formatter<xdrquery::NullField>
-{
-    template <typename FormatContext>
-    auto
-    format(xdrquery::NullField, FormatContext& ctx)
-    {
-        return format_to(ctx.out(), "NULL");
-    }
-};
-} // fmt
-
 namespace xdrquery
 {
 bool
