@@ -48,6 +48,9 @@ proposed upgrade.**
     1. `curl -G 'http://localhost:11626/upgrades?mode=set&upgradetime=YYYY-MM-DDTHH:MM:SSZ' --data-urlencode 'configupgradesetkey=<LINE_7_OUTPUT>'`
 6. Update https://github.com/stellar-expert/staged-soroban-upgrades so https://stellar.expert/explorer/pubnet/protocol-history will show the proposed upgrade.
 
+### Helper script
+A script to help with crafting the transactions above is available [here](../../scripts/settings-helper.sh) with usage details in [README.md](../../scripts/README.md), but it's important to be aware of how the underlying process works in case the script has some issues.
+
 ### Debugging
 If any of the transactions above fail during transaction submission, you should get a `TransactionResult` as a response with the reason.
 
