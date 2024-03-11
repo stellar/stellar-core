@@ -48,6 +48,17 @@ proposed upgrade.**
     1. `curl -G 'http://localhost:11626/upgrades?mode=set&upgradetime=YYYY-MM-DDTHH:MM:SSZ' --data-urlencode 'configupgradesetkey=<LINE_7_OUTPUT>'`
 6. Update https://github.com/stellar-expert/staged-soroban-upgrades so https://stellar.expert/explorer/pubnet/protocol-history will show the proposed upgrade.
 
+### Debugging
+If any of the transactions above fail during transaction submission, you should get a `TransactionResult` as a response with the reason.
+
+Once the three transactions are run, you should see the proposed upgrade when running the `dumpproposedsettings` command [(step 4)](#propose-a-settings-upgrade). If you don't, then either one or more of the transactions above failed during application, or the upgrade is invalid.
+
+If any of the transactions above fail during transaction application, the failure will most likely be due to one of the following, and you should confirm this by looking at the `TransactionResult` of the failed transaction using the Stellar Laboratory or an explorer - 
+1. Resources are too low. You'll need to increase the hardcoded resources in [SettingsUpgradeUtils.cpp](../../src/main/SettingsUpgradeUtils.cpp).
+2. Fee or refundable fee is too low. You'll need to increase them in [SettingsUpgradeUtils.cpp](../../src/main/SettingsUpgradeUtils.cpp).
+3. Wasm has expired. You'll need to restore the Wasm.
+
+If the transactions succeeded but the `dumpproposedsettings` command still returns an error, then the upgrade is invalid. The error reporting here needs to be improved, but the validity checks happen [here](../../src/herder/Upgrades.cpp).
 
 ## Examine a proposed upgrade
 
