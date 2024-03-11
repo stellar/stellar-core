@@ -46,6 +46,7 @@ proposed upgrade.**
     1. `curl -G 'http://localhost:11626/dumpproposedsettings' --data-urlencode 'blob=<LINE_7_OUTPUT>'`
 5. Now schedule the upgrade on all the required validators using the output from line 7 (the `ConfigUpgradeSetKey`) and an agreed upon time in the future
     1. `curl -G 'http://localhost:11626/upgrades?mode=set&upgradetime=YYYY-MM-DDTHH:MM:SSZ' --data-urlencode 'configupgradesetkey=<LINE_7_OUTPUT>'`
+6. Update https://github.com/stellar-expert/staged-soroban-upgrades so https://stellar.expert/explorer/pubnet/protocol-history will show the proposed upgrade.
 
 
 ## Examine a proposed upgrade
