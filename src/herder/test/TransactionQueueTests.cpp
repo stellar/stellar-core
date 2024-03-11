@@ -1005,14 +1005,12 @@ TEST_CASE_VERSIONS("TransactionQueue with PreconditionsV2",
             test.add(txSeqA1S5MinSeqNum,
                      TransactionQueue::AddResult::ADD_STATUS_DUPLICATE);
 
-            // try fill gap (invalid behavior), but account limit kicks in first
             // try to fill in gap with a tx
-            test.add(txSeqA1S2,
-                     TransactionQueue::AddResult::ADD_STATUS_TRY_AGAIN_LATER);
+            test.add(txSeqA1S2, TransactionQueue::AddResult::ADD_STATUS_ERROR);
 
             // try to fill in gap with a minSeqNum tx
             test.add(txSeqA1S4MinSeqNum,
-                     TransactionQueue::AddResult::ADD_STATUS_TRY_AGAIN_LATER);
+                     TransactionQueue::AddResult::ADD_STATUS_ERROR);
 
             test.check({{{account1, 0, {txSeqA1S5MinSeqNum}}, {account2}}, {}});
 
