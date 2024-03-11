@@ -63,7 +63,7 @@ getCreateTx(PublicKey const& publicKey, LedgerKey const& contractCodeLedgerKey,
 
     auto& tx = txEnv.v1().tx;
     tx.sourceAccount = toMuxedAccount(publicKey);
-    tx.fee = 15'000'000;
+    tx.fee = 25'000'000;
     tx.seqNum = seqNum;
 
     Preconditions cond;
@@ -133,7 +133,7 @@ getCreateTx(PublicKey const& publicKey, LedgerKey const& contractCodeLedgerKey,
 
     tx.ext.v(1);
     tx.ext.sorobanData().resources = uploadResources;
-    tx.ext.sorobanData().resourceFee = 7'000'000;
+    tx.ext.sorobanData().resourceFee = 15'000'000;
 
     return {txEnv, contractSourceRefLedgerKey, contractID};
 }
