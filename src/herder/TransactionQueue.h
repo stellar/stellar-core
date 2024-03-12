@@ -159,12 +159,25 @@ class TransactionQueue
     BannedTransactions mBannedTransactions;
 
     // counters
-    std::vector<medida::Counter*> mSizeByAge;
-    medida::Counter& mBannedTransactionsCounter;
-    medida::Counter& mArbTxSeenCounter;
-    medida::Counter& mArbTxDroppedCounter;
-    medida::Timer& mTransactionsDelay;
-    medida::Timer& mTransactionsSelfDelay;
+    struct QueueMetrics
+    {
+        QueueMetrics(std::vector<medida::Counter*> sizeByAge,
+                     medida::Counter& bannedTransactionsCounter,
+                     medida::Timer& transactionsDelay,
+                     medida::Timer& transactionsSelfDelay)
+            : mSizeByAge(std::move(sizeByAge))
+            , mBannedTransactionsCounter(bannedTransactionsCounter)
+            , mTransactionsDelay(transactionsDelay)
+            , mTransactionsSelfDelay(transactionsSelfDelay)
+        {
+        }
+        std::vector<medida::Counter*> mSizeByAge;
+        medida::Counter& mBannedTransactionsCounter;
+        medida::Timer& mTransactionsDelay;
+        medida::Timer& mTransactionsSelfDelay;
+    };
+
+    std::unique_ptr<QueueMetrics> mQueueMetrics;
 
     UnorderedSet<OperationType> mFilteredTypes;
 
@@ -176,6 +189,7 @@ class TransactionQueue
     getMaxResourcesToFloodThisPeriod() const = 0;
     virtual bool broadcastSome() = 0;
     virtual int getFloodPeriod() const = 0;
+    virtual bool allowTxBroadcast(TimestampedTx const& tx) = 0;
 
     void broadcast(bool fromCallback);
     // broadcasts a single transaction
@@ -232,6 +246,12 @@ class SorobanTransactionQueue : public TransactionQueue
     getMaxResourcesToFloodThisPeriod() const override;
     virtual bool broadcastSome() override;
     std::vector<Resource> mBroadcastOpCarryover;
+    // No special flooding rules for Soroban
+    virtual bool
+    allowTxBroadcast(TimestampedTx const& tx) override
+    {
+        return true;
+    }
 };
 
 class ClassicTransactionQueue : public TransactionQueue
@@ -249,10 +269,14 @@ class ClassicTransactionQueue : public TransactionQueue
     size_t getMaxQueueSizeOps() const override;
 
   private:
+    medida::Counter& mArbTxSeenCounter;
+    medida::Counter& mArbTxDroppedCounter;
+
     virtual std::pair<Resource, std::optional<Resource>>
     getMaxResourcesToFloodThisPeriod() const override;
     virtual bool broadcastSome() override;
     std::vector<Resource> mBroadcastOpCarryover;
+    virtual bool allowTxBroadcast(TimestampedTx const& tx) override;
 };
 
 extern std::array<const char*,

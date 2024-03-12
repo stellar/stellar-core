@@ -53,25 +53,10 @@ TransactionQueue::TransactionQueue(Application& app, uint32 pendingDepth,
     : mApp(app)
     , mPendingDepth(pendingDepth)
     , mBannedTransactions(banDepth)
-    , mBannedTransactionsCounter(
-          app.getMetrics().NewCounter({"herder", "pending-txs", "banned"}))
-    , mArbTxSeenCounter(
-          app.getMetrics().NewCounter({"herder", "arb-tx", "seen"}))
-    , mArbTxDroppedCounter(
-          app.getMetrics().NewCounter({"herder", "arb-tx", "dropped"}))
-    , mTransactionsDelay(
-          app.getMetrics().NewTimer({"herder", "pending-txs", "delay"}))
-    , mTransactionsSelfDelay(
-          app.getMetrics().NewTimer({"herder", "pending-txs", "self-delay"}))
     , mBroadcastTimer(app)
 {
     mTxQueueLimiter =
         std::make_unique<TxQueueLimiter>(poolLedgerMultiplier, app, isSoroban);
-    for (uint32 i = 0; i < pendingDepth; i++)
-    {
-        mSizeByAge.emplace_back(&app.getMetrics().NewCounter(
-            {"herder", "pending-txs", fmt::format(FMT_STRING("age{:d}"), i)}));
-    }
 
     auto const& filteredTypes =
         app.getConfig().EXCLUDE_TRANSACTIONS_CONTAINING_OPERATION_TYPE;
@@ -85,9 +70,95 @@ ClassicTransactionQueue::ClassicTransactionQueue(Application& app,
                                                  uint32 banDepth,
                                                  uint32 poolLedgerMultiplier)
     : TransactionQueue(app, pendingDepth, banDepth, poolLedgerMultiplier, false)
+    // Arb tx damping is only relevant to classic txs
+    , mArbTxSeenCounter(
+          app.getMetrics().NewCounter({"herder", "arb-tx", "seen"}))
+    , mArbTxDroppedCounter(
+          app.getMetrics().NewCounter({"herder", "arb-tx", "dropped"}))
 {
+    std::vector<medida::Counter*> sizeByAge;
+    for (uint32 i = 0; i < mPendingDepth; i++)
+    {
+        sizeByAge.emplace_back(&app.getMetrics().NewCounter(
+            {"herder", "pending-txs", fmt::format(FMT_STRING("age{:d}"), i)}));
+    }
+    mQueueMetrics = std::make_unique<QueueMetrics>(
+        sizeByAge,
+        app.getMetrics().NewCounter({"herder", "pending-txs", "banned"}),
+        app.getMetrics().NewTimer({"herder", "pending-txs", "delay"}),
+        app.getMetrics().NewTimer({"herder", "pending-txs", "self-delay"}));
     mBroadcastOpCarryover.resize(1,
                                  Resource::makeEmpty(NUM_CLASSIC_TX_RESOURCES));
+}
+
+bool
+ClassicTransactionQueue::allowTxBroadcast(TimestampedTx const& tx)
+{
+    bool allowTx{true};
+
+    int32_t const signedAllowance =
+        mApp.getConfig().FLOOD_ARB_TX_BASE_ALLOWANCE;
+    if (signedAllowance >= 0)
+    {
+        uint32_t const allowance = static_cast<uint32_t>(signedAllowance);
+
+        // If arb tx damping is enabled, we only flood the first few arb txs
+        // touching an asset pair in any given ledger, exponentially
+        // reducing the odds of further arb ftx broadcast on a
+        // per-asset-pair basis. This lets _some_ arbitrage occur (and
+        // retains price-based competition among arbitrageurs earlier in the
+        // queue) but avoids filling up ledgers with excessive (mostly
+        // failed) arb attempts.
+        auto arbPairs = findAllAssetPairsInvolvedInPaymentLoops(tx.mTx);
+        if (!arbPairs.empty())
+        {
+            mArbTxSeenCounter.inc();
+            uint32_t maxBroadcast{0};
+            std::vector<
+                UnorderedMap<AssetPair, uint32_t, AssetPairHash>::iterator>
+                hashMapIters;
+
+            // NB: it's essential to reserve() on the hashmap so that we
+            // can store iterators to positions in it _as we emplace them_
+            // in the loop that follows, without rehashing. Do not remove.
+            mArbitrageFloodDamping.reserve(mArbitrageFloodDamping.size() +
+                                           arbPairs.size());
+
+            for (auto const& key : arbPairs)
+            {
+                auto pair = mArbitrageFloodDamping.emplace(key, 0);
+                hashMapIters.emplace_back(pair.first);
+                maxBroadcast = std::max(maxBroadcast, pair.first->second);
+            }
+
+            // Admit while no pair on the path has hit the allowance.
+            allowTx = maxBroadcast < allowance;
+
+            // If any pair is over the allowance, dampen transmission
+            // randomly based on it.
+            if (!allowTx)
+            {
+                std::geometric_distribution<uint32_t> dist(
+                    mApp.getConfig().FLOOD_ARB_TX_DAMPING_FACTOR);
+                uint32_t k = maxBroadcast - allowance;
+                allowTx = dist(gRandomEngine) >= k;
+            }
+
+            // If we've decided to admit a tx, bump all pairs on the path.
+            if (allowTx)
+            {
+                for (auto i : hashMapIters)
+                {
+                    i->second++;
+                }
+            }
+            else
+            {
+                mArbTxDroppedCounter.inc();
+            }
+        }
+    }
+    return allowTx;
 }
 
 TransactionQueue::~TransactionQueue()
@@ -112,9 +183,9 @@ canReplaceByFee(TransactionFrameBasePtr tx, TransactionFrameBasePtr oldTx,
     // is equivalent to
     // newFee * oldNumOps >= FEE_MULTIPLIER * oldFee * newNumOps
     //
-    // FEE_MULTIPLIER * oldTotalFee does not overflow uint128_t because fees are
-    // bounded by INT64_MAX, while number of operations and FEE_MULTIPLIER are
-    // small.
+    // FEE_MULTIPLIER * oldTotalFee does not overflow uint128_t because fees
+    // are bounded by INT64_MAX, while number of operations and
+    // FEE_MULTIPLIER are small.
     uint128_t oldTotalFee = bigMultiply(oldFee, newNumOps);
     uint128_t minFeeN = oldTotalFee * TransactionQueue::FEE_MULTIPLIER;
 
@@ -241,9 +312,10 @@ TransactionQueue::canAdd(TransactionFrameBasePtr tx,
                   /* shouldUpdateLastModified */ true,
                   TransactionMode::READ_ONLY_WITHOUT_SQL_TXN);
     uint32_t ledgerVersion = ltx.loadHeader().current().ledgerVersion;
-    // Subtle: transactions are rejected based on the source account limit prior
-    // to this point. This is safe because we can't evict transactions from the
-    // same source account, so a newer transaction won't replace an old one.
+    // Subtle: transactions are rejected based on the source account limit
+    // prior to this point. This is safe because we can't evict transactions
+    // from the same source account, so a newer transaction won't replace an
+    // old one.
     auto canAddRes =
         mTxQueueLimiter->canAddTx(tx, currentTx, txsToEvict, ledgerVersion);
     if (!canAddRes.first)
@@ -317,25 +389,27 @@ TransactionQueue::prepareDropTransaction(AccountState& as)
     releaseFeeMaybeEraseAccountState(as.mTransaction->mTx);
 }
 
-// Heuristic: an "arbitrage transaction" as identified by this function as any
-// tx that has 1 or more path payments in it that collectively form a payment
-// _loop_. That is: a tx that performs a sequence of order-book conversions of
-// at least some quantity of some asset _back_ to itself via some number of
-// intermediate steps. Typically these are only a single path-payment op, but
-// for thoroughness sake we're also going to cover cases where there's any
-// atomic _sequence_ of path payment ops that cause a conversion-loop.
+// Heuristic: an "arbitrage transaction" as identified by this function as
+// any tx that has 1 or more path payments in it that collectively form a
+// payment _loop_. That is: a tx that performs a sequence of order-book
+// conversions of at least some quantity of some asset _back_ to itself via
+// some number of intermediate steps. Typically these are only a single
+// path-payment op, but for thoroughness sake we're also going to cover
+// cases where there's any atomic _sequence_ of path payment ops that cause
+// a conversion-loop.
 //
 // Such transactions are not going to be outright banned, note: just damped
 // so that they do not overload the network. Currently people are submitting
-// thousands of such txs per second in an attempt to win races for arbitrage,
-// and we just want to make those races a behave more like bidding wars than
-// pure resource-wasting races.
+// thousands of such txs per second in an attempt to win races for
+// arbitrage, and we just want to make those races a behave more like
+// bidding wars than pure resource-wasting races.
 //
-// This function doesn't catch all forms of arbitrage -- there are an unlimited
-// number of types, many of which involve holding assets, interacting with
-// real-world actors, etc. and are indistinguishable from "real" traffic -- but
-// it does cover the case of zero-risk (fee-only) instantaneous-arbitrage
-// attempts, which users are (at the time of writing) flooding the network with.
+// This function doesn't catch all forms of arbitrage -- there are an
+// unlimited number of types, many of which involve holding assets,
+// interacting with real-world actors, etc. and are indistinguishable from
+// "real" traffic -- but it does cover the case of zero-risk (fee-only)
+// instantaneous-arbitrage attempts, which users are (at the time of
+// writing) flooding the network with.
 std::vector<AssetPair>
 TransactionQueue::findAllAssetPairsInvolvedInPaymentLoops(
     TransactionFrameBasePtr tx)
@@ -393,10 +467,10 @@ TransactionQueue::findAllAssetPairsInvolvedInPaymentLoops(
         }
     }
 
-    // We build a TarjanSCCCalculator for the graph of all the edges we've seen,
-    // and return the set of edges that participate in nontrivial SCCs (which
-    // are loops). This is O(|v| + |e|) and just operations on a vector of pairs
-    // of integers.
+    // We build a TarjanSCCCalculator for the graph of all the edges we've
+    // seen, and return the set of edges that participate in nontrivial SCCs
+    // (which are loops). This is O(|v| + |e|) and just operations on a
+    // vector of pairs of integers.
 
     TarjanSCCCalculator tsc;
     tsc.calculateSCCs(graph.size(), [&graph](size_t i) -> BitSet const& {
@@ -465,8 +539,8 @@ TransactionQueue::tryAdd(TransactionFrameBasePtr tx, bool submittedFromSelf)
 
     if (oldTx)
     {
-        // Drop current transaction associated with this account, replace with
-        // `tx`
+        // Drop current transaction associated with this account, replace
+        // with `tx`
         prepareDropTransaction(stateIter->second);
         *oldTx = {tx, false, mApp.getClock().now(), submittedFromSelf};
     }
@@ -475,7 +549,7 @@ TransactionQueue::tryAdd(TransactionFrameBasePtr tx, bool submittedFromSelf)
         // New transaction for this account, insert it and update age
         stateIter->second.mTransaction = {tx, false, mApp.getClock().now(),
                                           submittedFromSelf};
-        mSizeByAge[stateIter->second.mAge]->inc();
+        mQueueMetrics->mSizeByAge[stateIter->second.mAge]->inc();
     }
 
     // Update fee accounting
@@ -501,8 +575,8 @@ TransactionQueue::dropTransaction(AccountStates::iterator stateIter)
     ZoneScoped;
     // Remove fees and update queue size for each transaction to be dropped.
     // Note prepareDropTransaction may erase other iterators from
-    // mAccountStates, but it will not erase stateIter because it has at least
-    // one transaction (otherwise we couldn't reach that line).
+    // mAccountStates, but it will not erase stateIter because it has at
+    // least one transaction (otherwise we couldn't reach that line).
     releaseAssert(stateIter->second.mTransaction);
 
     prepareDropTransaction(stateIter->second);
@@ -510,8 +584,9 @@ TransactionQueue::dropTransaction(AccountStates::iterator stateIter)
     // Actually erase the transaction to be dropped.
     stateIter->second.mTransaction.reset();
 
-    // If the queue for stateIter is now empty, then (1) erase it if it is not
-    // the fee-source for some other transaction or (2) reset the age otherwise.
+    // If the queue for stateIter is now empty, then (1) erase it if it is
+    // not the fee-source for some other transaction or (2) reset the age
+    // otherwise.
     if (stateIter->second.mTotalFees == 0)
     {
         mAccountStates.erase(stateIter);
@@ -548,7 +623,7 @@ TransactionQueue::removeApplied(Transactions const& appliedTxs)
                 if (transaction->mTx->getSeqNum() <= appliedTx->getSeqNum())
                 {
                     auto& age = stateIter->second.mAge;
-                    mSizeByAge[age]->dec();
+                    mQueueMetrics->mSizeByAge[age]->dec();
                     age = 0;
 
                     // update the metric for the time spent for applied
@@ -557,15 +632,17 @@ TransactionQueue::removeApplied(Transactions const& appliedTxs)
                         appliedTx->getFullHash())
                     {
                         auto elapsed = now - transaction->mInsertionTime;
-                        mTransactionsDelay.Update(elapsed);
+                        mQueueMetrics->mTransactionsDelay.Update(elapsed);
                         if (transaction->mSubmittedFromSelf)
                         {
-                            mTransactionsSelfDelay.Update(elapsed);
+                            mQueueMetrics->mTransactionsSelfDelay.Update(
+                                elapsed);
                         }
                     }
 
-                    // WARNING: stateIter and everything that references it may
-                    // be invalid from this point onward and should not be used.
+                    // WARNING: stateIter and everything that references it
+                    // may be invalid from this point onward and should not
+                    // be used.
                     dropTransaction(stateIter);
                 }
             }
@@ -577,8 +654,8 @@ TransactionQueue::removeApplied(Transactions const& appliedTxs)
         CLOG_DEBUG(Tx, "Ban applied transaction {}",
                    hexAbbrev(appliedTx->getFullHash()));
 
-        // do not mark metric for banning as this is the result of normal flow
-        // of operations
+        // do not mark metric for banning as this is the result of normal
+        // flow of operations
     }
 }
 
@@ -599,7 +676,7 @@ TransactionQueue::ban(Transactions const& banTxs)
         CLOG_DEBUG(Tx, "Ban transaction {}", hexAbbrev(tx->getFullHash()));
         if (bannedFront.emplace(tx->getFullHash()).second)
         {
-            mBannedTransactionsCounter.inc();
+            mQueueMetrics->mBannedTransactionsCounter.inc();
         }
     }
 
@@ -617,7 +694,7 @@ TransactionQueue::ban(Transactions const& banTxs)
             if (transaction &&
                 transaction->mTx->getFullHash() == kv.second->getFullHash())
             {
-                mSizeByAge[stateIter->second.mAge]->dec();
+                mQueueMetrics->mSizeByAge[stateIter->second.mAge]->dec();
                 // WARNING: stateIter and everything that references it may
                 // be invalid from this point onward and should not be used.
                 dropTransaction(stateIter);
@@ -662,9 +739,10 @@ TransactionQueue::shift()
     auto it = std::begin(mAccountStates);
     while (it != end)
     {
-        // If mTransactions is empty then mAge is always 0. This can occur if an
-        // account is the fee-source for at least one transaction but not the
-        // sequence-number-source for any transaction in the TransactionQueue.
+        // If mTransactions is empty then mAge is always 0. This can occur
+        // if an account is the fee-source for at least one transaction but
+        // not the sequence-number-source for any transaction in the
+        // TransactionQueue.
         if (it->second.mTransaction)
         {
             ++it->second.mAge;
@@ -682,10 +760,9 @@ TransactionQueue::shift()
                     Tx, "Ban transaction {}",
                     hexAbbrev(it->second.mTransaction->mTx->getFullHash()));
                 bannedFront.insert(it->second.mTransaction->mTx->getFullHash());
-                mBannedTransactionsCounter.inc();
+                mQueueMetrics->mBannedTransactionsCounter.inc();
                 it->second.mTransaction.reset();
             }
-
             if (it->second.mTotalFees == 0)
             {
                 it = mAccountStates.erase(it);
@@ -705,7 +782,7 @@ TransactionQueue::shift()
 
     for (size_t i = 0; i < sizes.size(); i++)
     {
-        mSizeByAge[i]->set_count(sizes[i]);
+        mQueueMetrics->mSizeByAge[i]->set_count(sizes[i]);
     }
     mTxQueueLimiter->resetEvictionState();
     // pick a new randomizing seed for tie breaking
@@ -825,68 +902,8 @@ TransactionQueue::broadcastTx(TimestampedTx& tx)
         return BroadcastStatus::BROADCAST_STATUS_ALREADY;
     }
 
-    bool allowTx{true};
-    int32_t const signedAllowance =
-        mApp.getConfig().FLOOD_ARB_TX_BASE_ALLOWANCE;
-    if (signedAllowance >= 0)
-    {
-        uint32_t const allowance = static_cast<uint32_t>(signedAllowance);
+    bool allowTx = allowTxBroadcast(tx);
 
-        // If arb tx damping is enabled, we only flood the first few arb txs
-        // touching an asset pair in any given ledger, exponentially reducing
-        // the odds of further arb tx broadcast on a per-asset-pair basis. This
-        // lets _some_ arbitrage occur (and retains price-based competition
-        // among arbitrageurs earlier in the queue) but avoids filling up
-        // ledgers with excessive (mostly failed) arb attempts.
-        auto arbPairs = findAllAssetPairsInvolvedInPaymentLoops(tx.mTx);
-        if (!arbPairs.empty())
-        {
-            mArbTxSeenCounter.inc();
-            uint32_t maxBroadcast{0};
-            std::vector<
-                UnorderedMap<AssetPair, uint32_t, AssetPairHash>::iterator>
-                hashMapIters;
-
-            // NB: it's essential to reserve() on the hashmap so that we
-            // can store iterators to positions in it _as we emplace them_
-            // in the loop that follows, without rehashing. Do not remove.
-            mArbitrageFloodDamping.reserve(mArbitrageFloodDamping.size() +
-                                           arbPairs.size());
-
-            for (auto const& key : arbPairs)
-            {
-                auto pair = mArbitrageFloodDamping.emplace(key, 0);
-                hashMapIters.emplace_back(pair.first);
-                maxBroadcast = std::max(maxBroadcast, pair.first->second);
-            }
-
-            // Admit while no pair on the path has hit the allowance.
-            allowTx = maxBroadcast < allowance;
-
-            // If any pair is over the allowance, dampen transmission randomly
-            // based on it.
-            if (!allowTx)
-            {
-                std::geometric_distribution<uint32_t> dist(
-                    mApp.getConfig().FLOOD_ARB_TX_DAMPING_FACTOR);
-                uint32_t k = maxBroadcast - allowance;
-                allowTx = dist(gRandomEngine) >= k;
-            }
-
-            // If we've decided to admit a tx, bump all pairs on the path.
-            if (allowTx)
-            {
-                for (auto i : hashMapIters)
-                {
-                    i->second++;
-                }
-            }
-            else
-            {
-                mArbTxDroppedCounter.inc();
-            }
-        }
-    }
 #ifdef BUILD_TESTS
     if (mTxBroadcastedEvent)
     {
@@ -894,17 +911,18 @@ TransactionQueue::broadcastTx(TimestampedTx& tx)
     }
 #endif
 
-    // Mark the tx as effectively "broadcast" and update the per-account queue
-    // to count it as consumption from that balance, for proper overall queue
-    // accounting (whether or not we will actually broadcast it).
+    // Mark the tx as effectively "broadcast" and update the per-account
+    // queue to count it as consumption from that balance, for proper
+    // overall queue accounting (whether or not we will actually broadcast
+    // it).
     tx.mBroadcasted = true;
 
     if (!allowTx)
     {
         // If we decide not to broadcast for real (due to damping) we return
-        // false to our caller so that they will not count this tx against the
-        // per-timeslice counters -- we want to allow the caller to try useful
-        // work from other sources.
+        // false to our caller so that they will not count this tx against
+        // the per-timeslice counters -- we want to allow the caller to try
+        // useful work from other sources.
         return BroadcastStatus::BROADCAST_STATUS_SKIPPED;
     }
     return mApp.getOverlayManager().broadcastMessage(
@@ -972,6 +990,21 @@ SorobanTransactionQueue::SorobanTransactionQueue(Application& app,
                                                  uint32 poolLedgerMultiplier)
     : TransactionQueue(app, pendingDepth, banDepth, poolLedgerMultiplier, true)
 {
+
+    std::vector<medida::Counter*> sizeByAge;
+    for (uint32 i = 0; i < mPendingDepth; i++)
+    {
+        sizeByAge.emplace_back(&app.getMetrics().NewCounter(
+            {"herder", "pending-soroban-txs",
+             fmt::format(FMT_STRING("age{:d}"), i)}));
+    }
+    mQueueMetrics = std::make_unique<QueueMetrics>(
+        sizeByAge,
+        app.getMetrics().NewCounter(
+            {"herder", "pending-soroban-txs", "banned"}),
+        app.getMetrics().NewTimer({"herder", "pending-soroban-txs", "delay"}),
+        app.getMetrics().NewTimer(
+            {"herder", "pending-soroban-txs", "self-delay"}));
     mBroadcastOpCarryover.resize(1, Resource::makeEmptySoroban());
 }
 
@@ -999,8 +1032,8 @@ SorobanTransactionQueue::broadcastSome()
     // broadcast transactions in surge pricing order:
     // loop over transactions by picking from the account queue with the
     // highest base fee not broadcasted so far.
-    // This broadcasts from account queues in order as to maximize chances of
-    // propagation.
+    // This broadcasts from account queues in order as to maximize chances
+    // of propagation.
     auto resToFlood = getMaxResourcesToFloodThisPeriod().first;
 
     auto totalResToFlood = Resource::makeEmptySoroban();
@@ -1035,8 +1068,8 @@ SorobanTransactionQueue::broadcastSome()
         }
         else
         {
-            // Already broadcasted; don't invalidate the stack but also don't
-            // count transaction as processed.
+            // Already broadcasted; don't invalidate the stack but also
+            // don't count transaction as processed.
             return SurgePricingPriorityQueue::VisitTxStackResult::TX_SKIPPED;
         }
     };
@@ -1081,8 +1114,8 @@ ClassicTransactionQueue::broadcastSome()
     // broadcast transactions in surge pricing order:
     // loop over transactions by picking from the account queue with the
     // highest base fee not broadcasted so far.
-    // This broadcasts from account queues in order as to maximize chances of
-    // propagation.
+    // This broadcasts from account queues in order as to maximize chances
+    // of propagation.
     auto [opsToFlood, dexOpsToFlood] = getMaxResourcesToFloodThisPeriod();
     releaseAssert(opsToFlood.size() == NUM_CLASSIC_TX_RESOURCES);
     if (dexOpsToFlood)
@@ -1120,16 +1153,16 @@ ClassicTransactionQueue::broadcastSome()
         }
         else if (bStatus == BroadcastStatus::BROADCAST_STATUS_SKIPPED)
         {
-            // When skipping, we ban the transaction and skip the remainder of
-            // the stack.
+            // When skipping, we ban the transaction and skip the remainder
+            // of the stack.
             banningTxs.emplace_back(tx);
             return SurgePricingPriorityQueue::VisitTxStackResult::
                 TX_STACK_SKIPPED;
         }
         else
         {
-            // Already broadcasted; don't invalidate the stack but also don't
-            // count transaction as processed.
+            // Already broadcasted; don't invalidate the stack but also
+            // don't count transaction as processed.
             return SurgePricingPriorityQueue::VisitTxStackResult::TX_SKIPPED;
         }
     };
@@ -1270,5 +1303,4 @@ ClassicTransactionQueue::getMaxQueueSizeOps() const
     releaseAssert(res.size() == NUM_CLASSIC_TX_RESOURCES);
     return res.getVal(Resource::Type::OPERATIONS);
 }
-
 }
