@@ -39,13 +39,13 @@ bucketlistDB.bulk.inflationWinners        | timer     | time to load inflation w
 bucketlistDB.bulk.poolshareTrustlines     | timer     | time to load poolshare trustlines by accountID and assetID
 bucketlistDB.bulk.prefetch                | timer     | time to prefetch
 bucketlistDB.point.<X>                    | timer     | time to load single entry of type <X>
-herder.pending-txs.age0                   | counter   | number of gen0 pending transactions
-herder.pending-txs.age1                   | counter   | number of gen1 pending transactions
-herder.pending-txs.age2                   | counter   | number of gen2 pending transactions
-herder.pending-txs.age3                   | counter   | number of gen3 pending transactions
-herder.pending-txs.banned                 | counter   | number of transactions that got banned
-herder.pending-txs.delay                  | timer     | time for transactions to be included in a ledger
-herder.pending-txs.self-delay             | timer     | time for transactions submitted from this node to be included in a ledger
+herder.pending[-soroban]-txs.age0         | counter   | number of gen0 pending transactions
+herder.pending[-soroban]-txs.age1         | counter   | number of gen1 pending transactions
+herder.pending[-soroban]-txs.age2         | counter   | number of gen2 pending transactions
+herder.pending[-soroban]-txs.age3         | counter   | number of gen3 pending transactions
+herder.pending[-soroban]-txs.banned       | counter   | number of transactions that got banned
+herder.pending[-soroban]-txs.delay        | timer     | time for transactions to be included in a ledger
+herder.pending[-soroban]-txs.self-delay   | timer     | time for transactions submitted from this node to be included in a ledger
 history.check.failure                     | meter     | history archive status checks failed
 history.check.success                     | meter     | history archive status checks succeeded
 history.publish.failure                   | meter     | published failed
