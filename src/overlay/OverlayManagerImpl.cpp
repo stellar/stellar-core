@@ -1151,11 +1151,11 @@ OverlayManagerImpl::forgetFloodedMsg(Hash const& msgID)
 }
 
 bool
-OverlayManagerImpl::broadcastMessage(StellarMessage const& msg, bool force,
+OverlayManagerImpl::broadcastMessage(StellarMessage const& msg,
                                      std::optional<Hash> const hash)
 {
     ZoneScoped;
-    auto res = mFloodGate.broadcast(msg, force, hash);
+    auto res = mFloodGate.broadcast(msg, hash);
     if (res)
     {
         mOverlayMetrics.mMessagesBroadcast.Mark();

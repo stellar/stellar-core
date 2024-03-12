@@ -77,7 +77,7 @@ class OverlayManager
     // When passing a transaction message,
     // the hash of TransactionEnvelope must be passed also for pull mode.
     virtual bool
-    broadcastMessage(StellarMessage const& msg, bool force = false,
+    broadcastMessage(StellarMessage const& msg,
                      std::optional<Hash> const hash = std::nullopt) = 0;
 
     // Make a note in the FloodGate that a given peer has provided us with a

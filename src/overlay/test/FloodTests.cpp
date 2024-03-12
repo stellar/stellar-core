@@ -160,7 +160,7 @@ TEST_CASE("Flooding", "[flood][overlay][acceptance]")
             auto msg = tx1->toStellarMessage();
             auto res = inApp->getHerder().recvTransaction(tx1, false);
             REQUIRE(res == TransactionQueue::AddResult::ADD_STATUS_PENDING);
-            inApp->getOverlayManager().broadcastMessage(msg, false,
+            inApp->getOverlayManager().broadcastMessage(msg,
                                                         tx1->getFullHash());
         };
 
@@ -171,11 +171,14 @@ TEST_CASE("Flooding", "[flood][overlay][acceptance]")
 
             for (auto const& s : sources)
             {
-                okCount += (herder.getTransactionQueue()
-                                .getAccountTransactionQueueInfo(s)
-                                .mMaxSeq == expectedSeq)
-                               ? 1
-                               : 0;
+                auto accState =
+                    herder.getTransactionQueue().getAccountTransactionQueueInfo(
+                        s);
+                auto seqNum = accState.mTransaction
+                                  ? accState.mTransaction->mTx->getSeqNum()
+                                  : 0;
+
+                okCount += !!(seqNum == expectedSeq);
             }
             bool res = okCount == sources.size();
             LOG_DEBUG(DEFAULT_LOG, "{}{}{} / {} authenticated peers: {}",
@@ -277,7 +280,7 @@ TEST_CASE("Flooding", "[flood][overlay][acceptance]")
                         auto before =
                             overlaytestutils::getAdvertisedHashCount(node);
                         node->getOverlayManager().broadcastMessage(
-                            testTransaction->toStellarMessage(), false,
+                            testTransaction->toStellarMessage(),
                             testTransaction->getFullHash());
                         REQUIRE(before ==
                                 overlaytestutils::getAdvertisedHashCount(node));
@@ -301,7 +304,7 @@ TEST_CASE("Flooding", "[flood][overlay][acceptance]")
                         auto before =
                             overlaytestutils::getAdvertisedHashCount(node);
                         node->getOverlayManager().broadcastMessage(
-                            testTransaction->toStellarMessage(), false,
+                            testTransaction->toStellarMessage(),
                             testTransaction->getFullHash());
 
                         REQUIRE(before + 1 ==

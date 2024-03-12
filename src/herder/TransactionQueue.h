@@ -72,23 +72,6 @@ class TransactionQueue
         ADD_STATUS_COUNT
     };
 
-    /*
-     * Information about queue of transaction for given account. mAge and
-     * mTotalFees are stored in queue, but mMaxSeq must be computed each
-     * time (its O(1) anyway).
-     */
-    struct AccountTxQueueInfo
-    {
-        SequenceNumber mMaxSeq{0};
-        int64_t mTotalFees{0};
-        size_t mQueueSizeOps{0};
-        size_t mBroadcastQueueOps{0};
-        uint32_t mAge{0};
-
-        friend bool operator==(AccountTxQueueInfo const& x,
-                               AccountTxQueueInfo const& y);
-    };
-
     /**
      * AccountState stores the following information:
      * - mTotalFees: the sum of feeBid() over every transaction for which this
@@ -108,15 +91,12 @@ class TransactionQueue
         VirtualClock::time_point mInsertionTime;
         bool mSubmittedFromSelf;
     };
-    using TimestampedTransactions = std::vector<TimestampedTx>;
     using Transactions = std::vector<TransactionFrameBasePtr>;
     struct AccountState
     {
         int64_t mTotalFees{0};
-        size_t mQueueSizeOps{0};
-        size_t mBroadcastQueueOps{0};
         uint32_t mAge{0};
-        TimestampedTransactions mTransactions;
+        std::optional<TimestampedTx> mTransaction;
     };
 
     explicit TransactionQueue(Application& app, uint32 pendingDepth,
@@ -129,6 +109,9 @@ class TransactionQueue
 
     AddResult tryAdd(TransactionFrameBasePtr tx, bool submittedFromSelf);
     void removeApplied(Transactions const& txs);
+    // Ban transactions that are no longer valid or have insufficient fee;
+    // transaction per account limit applies here, so `txs` should have no
+    // duplicate source accounts
     void ban(Transactions const& txs);
 
     /**
@@ -148,7 +131,7 @@ class TransactionQueue
     virtual size_t getMaxQueueSizeOps() const = 0;
 
 #ifdef BUILD_TESTS
-    AccountTxQueueInfo
+    AccountState
     getAccountTransactionQueueInfo(AccountID const& accountID) const;
     size_t countBanned(int index) const;
 #endif
@@ -202,18 +185,15 @@ class TransactionQueue
         BROADCAST_STATUS_SUCCESS,
         BROADCAST_STATUS_SKIPPED
     };
-    BroadcastStatus broadcastTx(AccountState& state, TimestampedTx& tx);
+    BroadcastStatus broadcastTx(TimestampedTx& tx);
     AddResult canAdd(TransactionFrameBasePtr tx,
                      AccountStates::iterator& stateIter,
-                     TimestampedTransactions::iterator& oldTxIter,
                      std::vector<std::pair<TxStackPtr, bool>>& txsToEvict);
 
     void releaseFeeMaybeEraseAccountState(TransactionFrameBasePtr tx);
 
-    void prepareDropTransaction(AccountState& as, TimestampedTx& tstx);
-    void dropTransactions(AccountStates::iterator stateIter,
-                          TimestampedTransactions::iterator begin,
-                          TimestampedTransactions::iterator end);
+    void prepareDropTransaction(AccountState& as);
+    void dropTransaction(AccountStates::iterator stateIter);
 
     void clearAll();
 
