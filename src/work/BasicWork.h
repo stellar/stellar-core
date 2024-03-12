@@ -91,6 +91,12 @@ class Application;
  * _batches_
  *  - WorkSequence: BasicWork that allows sequential execution of children
  * works.
+ *
+ * BasicWork is _not_ thread-safe, and therefore should not be used by threads.
+ * The only acceptable use case if when we need to spawn an independent work in
+ * the background (read from a file, download a file, etc), and post back to the
+ * main thread at the end, so Work can finish. In this case, only const
+ * functions querying Work's state are thread-safe.
  */
 
 class BasicWork : public std::enable_shared_from_this<BasicWork>,
@@ -243,7 +249,7 @@ class BasicWork : public std::enable_shared_from_this<BasicWork>,
     std::unique_ptr<VirtualTimer> mRetryTimer;
     std::unique_ptr<VirtualTimer> mWaitingTimer;
 
-    InternalState mState{InternalState::PENDING};
+    std::atomic<InternalState> mState{InternalState::PENDING};
     size_t mRetries{0};
     size_t const mMaxRetries{RETRY_A_FEW};
 
