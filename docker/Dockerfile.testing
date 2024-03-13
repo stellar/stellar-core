@@ -19,6 +19,11 @@ ARG CFLAGS='-O3 -g1 -fno-omit-frame-pointer'
 ARG CXXFLAGS='-O3 -g1 -fno-omit-frame-pointer -stdlib=libc++'
 ARG CONFIGURE_FLAGS='--enable-tracy --enable-sdfprefs --enable-next-protocol-version-unsafe-for-production'
 
+# Asan in llvm provided in ubuntu 22.04 is incompatible with
+# high-entropy ASLR in much newer kernels that GitHub runners are
+# using leading to random crashes: https://reviews.llvm.org/D148280
+RUN sysctl vm.mmap_rnd_bits=28
+
 RUN ./autogen.sh
 RUN ./install-rust.sh
 ENV PATH "/root/.cargo/bin:$PATH"

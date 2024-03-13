@@ -65,6 +65,11 @@ jobs:
         protocol: ["current", "next"]
         scenario: ["", "--check-test-tx-meta"]
     steps:
+      - name: Fix kernel mmap rnd bits
+        # Asan in llvm provided in ubuntu 22.04 is incompatible with
+        # high-entropy ASLR in much newer kernels that GitHub runners are
+        # using leading to random crashes: https://reviews.llvm.org/D148280
+        run: sudo sysctl vm.mmap_rnd_bits=28
       - name: Compute cache key
         # this step works around a limitation in actions/cache
         # that does not allow updating a cache
