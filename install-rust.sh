@@ -19,7 +19,7 @@ set -x
 # rust-toolchain.toml. This file will pick it up automatically.
 RUST_VERSION=$(perl -ne 'if (/channel\s+=\s+"(\d+(?:\.\d+)+)"/) { print $1 }' rust-toolchain.toml)
 
-if [[ -z "$RUST_VERSION" ]]; then
+if [ -z "$RUST_VERSION" ]; then
     echo "RUST_VERSION is empty"
     exit 1;
 fi
