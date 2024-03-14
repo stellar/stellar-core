@@ -161,6 +161,9 @@ FeeBumpTransactionFrame::processPostApply(Application& app,
 {
     // We must forward the Fee-bump source so the refund is applied to the
     // correct account
+    // Note that we are not calling TransactionFrame::processPostApply, so if
+    // any logic is added there, we would have to reason through if that logic
+    // should also be reflected here.
     int64_t refund = mInnerTx->processRefund(app, ltx, meta, getFeeSourceID());
 
 #ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
