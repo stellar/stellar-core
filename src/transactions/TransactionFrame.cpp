@@ -794,7 +794,7 @@ TransactionFrame::validateSorobanResources(SorobanNetworkConfig const& config,
     return true;
 }
 
-void
+int64_t
 TransactionFrame::refundSorobanFee(AbstractLedgerTxn& ltxOuter,
                                    AccountID const& feeSource)
 {
@@ -803,7 +803,7 @@ TransactionFrame::refundSorobanFee(AbstractLedgerTxn& ltxOuter,
     auto const feeRefund = mSorobanExtension->mFeeRefund;
     if (feeRefund == 0)
     {
-        return;
+        return 0;
     }
 
     LedgerTxn ltx(ltxOuter);
@@ -814,19 +814,21 @@ TransactionFrame::refundSorobanFee(AbstractLedgerTxn& ltxOuter,
     if (!feeSourceAccount)
     {
         // Account was merged (shouldn't be possible)
-        return;
+        return 0;
     }
 
     if (!addBalance(header, feeSourceAccount, feeRefund))
     {
         // Liabilities in the way of the refund, just skip.
-        return;
+        return 0;
     }
 
     getResult().feeCharged -= feeRefund;
 
     header.current().feePool -= feeRefund;
     ltx.commit();
+
+    return feeRefund;
 }
 
 void
@@ -1943,29 +1945,30 @@ TransactionFrame::processPostApply(Application& app,
                                    AbstractLedgerTxn& ltxOuter,
                                    TransactionMetaFrame& meta)
 {
-    processPostApply(app, ltxOuter, meta, getSourceID());
+    processRefund(app, ltxOuter, meta, getSourceID());
 }
 
 // This is a TransactionFrame specific function that should only be used by
 // FeeBumpTransactionFrame to forward a different account for the refund.
-void
-TransactionFrame::processPostApply(Application& app,
-                                   AbstractLedgerTxn& ltxOuter,
-                                   TransactionMetaFrame& meta,
-                                   AccountID const& feeSource)
+int64_t
+TransactionFrame::processRefund(Application& app, AbstractLedgerTxn& ltxOuter,
+                                TransactionMetaFrame& meta,
+                                AccountID const& feeSource)
 {
     ZoneScoped;
 
     if (!isSoroban())
     {
-        return;
+        return 0;
     }
     // Process Soroban resource fee refund (this is independent of the
     // transaction success).
     LedgerTxn ltx(ltxOuter);
-    refundSorobanFee(ltx, feeSource);
+    int64_t refund = refundSorobanFee(ltx, feeSource);
     meta.pushTxChangesAfter(ltx.getChanges());
     ltx.commit();
+
+    return refund;
 }
 
 StellarMessage
