@@ -1328,7 +1328,8 @@
 		"bKDF6V5IzTo="
 	],
 	"refund account merged" : [ "bKDF6V5IzTo=", "y0mODi4DFnM=", "o9mb+GfjtK8=", "HG7OrQT/Ofg=" ],
-	"refund is sent to fee-bump source" : [ "bKDF6V5IzTo=", "y0mODi4DFnM=", "o9mb+GfjtK8=" ],
+	"refund is sent to fee-bump source|protocol version 20" : [ "bKDF6V5IzTo=", "y0mODi4DFnM=", "o9mb+GfjtK8=" ],
+	"refund is sent to fee-bump source|protocol version 21" : [ "bKDF6V5IzTo=", "y0mODi4DFnM=", "o9mb+GfjtK8=" ],
 	"refund still happens on bad auth" : [ "bKDF6V5IzTo=", "y0mODi4DFnM=", "o9mb+GfjtK8=" ],
 	"refund test with closeLedger" : [ "bKDF6V5IzTo=", "y0mODi4DFnM=" ],
 	"settings upgrade" : [ "bKDF6V5IzTo=", "bKDF6V5IzTo=" ],
@@ -1371,6 +1372,5 @@
 		"bKDF6V5IzTo="
 	],
 	"temp entry eviction" : [ "bKDF6V5IzTo=", "bKDF6V5IzTo=" ],
-	"transaction validation diagnostics" : [ "bKDF6V5IzTo=" ],
-	"version test" : [ "766L+TYsWqA=" ]
+	"transaction validation diagnostics" : [ "bKDF6V5IzTo=" ]
 }
