@@ -2,6 +2,7 @@
 // under the Apache License, Version 2.0. See the COPYING file at the root
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
+#include "bucket/BucketManager.h"
 #include "ledger/LedgerTxn.h"
 #include "ledger/LedgerTxnEntry.h"
 #include "ledger/LedgerTxnHeader.h"
@@ -2613,7 +2614,7 @@ TEST_CASE("LedgerTxnRoot prefetch", "[ledgertxn]")
 
         auto& root = app->getLedgerTxnRoot();
 
-        auto entries = LedgerTestUtils::generateValidLedgerEntries(
+        auto entries = LedgerTestUtils::generateValidUniqueLedgerEntries(
             cfg.ENTRY_CACHE_SIZE + 1);
         std::set<LedgerEntry> entrySet;
         LedgerTxn ltx(root);
@@ -2627,6 +2628,8 @@ TEST_CASE("LedgerTxnRoot prefetch", "[ledgertxn]")
             e.lastModifiedLedgerSeq = 1;
             entrySet.emplace(e);
         }
+        std::vector<LedgerEntry> ledgerVect{entrySet.begin(), entrySet.end()};
+        app->getBucketManager().addBatch(*app, 2, 20, {}, ledgerVect, {});
         ltx.commit();
 
         SECTION("prefetch normally")
@@ -2802,6 +2805,71 @@ TEST_CASE("Erase performance benchmark", "[!hide][erasebench]")
         runTest(Config::TESTDB_POSTGRESQL, false);
     }
 #endif
+}
+
+TEST_CASE("LedgerKeyMeter tests")
+{
+    LedgerKeyMeter lkMeter{};
+    auto entries = LedgerTestUtils::generateValidLedgerEntriesWithExclusions(
+        {OFFER, DATA, CLAIMABLE_BALANCE, LIQUIDITY_POOL, CONFIG_SETTING, TTL},
+        10);
+    for (size_t i = 0; i < entries.size(); ++i)
+    {
+        auto entry = entries[i];
+        auto key = LedgerEntryKey(const_cast<const LedgerEntry&>(entry));
+        // If the key has not been added to the LedgerKeyMeter, it should have a
+        // max read quota.
+        REQUIRE(lkMeter.maxReadQuotaForKey(key) ==
+                std::numeric_limits<uint32_t>::max());
+        UnorderedSet<LedgerKey> ks{};
+        ks.insert(key);
+        auto entrySize = xdr::xdr_size(entry);
+        lkMeter.addTxn(i, entrySize, ks);
+        // After adding a txn containing the key with readQuota equal to the
+        // entry's size, the value returned by maxReadQuota should be equal
+        // entry's size.
+        REQUIRE(lkMeter.maxReadQuotaForKey(key) == entrySize);
+        // Adding another txn with less readQuota should not affect the
+        // maxReadQuota reported.
+        auto tx_2 = i + entries.size();
+        lkMeter.addTxn(tx_2, 0, ks);
+        REQUIRE(lkMeter.maxReadQuotaForKey(key) == entrySize);
+        // Consume size(entry) of the read quota of each transaction which
+        // contains key.
+        lkMeter.updateReadQuotasForKey(key, entry);
+        if (entry.data.type() == TTL)
+        {
+            // TTL entries do not count towards the read quota (i.e. should be
+            // unchanged)
+            REQUIRE(lkMeter.maxReadQuotaForKey(key) == entrySize);
+        }
+        else
+        {
+            // After updating, the read quota for the key should be zero.
+            REQUIRE(lkMeter.maxReadQuotaForKey(key) == 0);
+        }
+        // Re-add the first transaction, with a quota double the entry size.
+        lkMeter.addTxn(i, 2 * entrySize, ks);
+        REQUIRE(lkMeter.maxReadQuotaForKey(key) == 2 * entrySize);
+        lkMeter.updateReadQuotasForKey(key, entry);
+        if (entry.data.type() == TTL)
+        {
+            // TTL entries do not count towards the read quota (i.e. should be
+            // unchanged).
+            REQUIRE(lkMeter.maxReadQuotaForKey(key) == 2 * entrySize);
+        }
+        else
+        {
+            // After updating, the read quota should be equal the entry size (as
+            // the original quota was double)
+            REQUIRE(lkMeter.maxReadQuotaForKey(key) == entrySize);
+        }
+        // Register that a classic transaction is loading these keys.
+        lkMeter.addClassicKeys(ks);
+        // Keys associated with classic txns has max read quota.
+        REQUIRE(lkMeter.maxReadQuotaForKey(key) ==
+                std::numeric_limits<uint32_t>::max());
+    }
 }
 
 TEST_CASE("Bulk load batch size benchmark", "[!hide][bulkbatchsizebench]")

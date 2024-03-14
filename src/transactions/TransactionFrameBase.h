@@ -77,9 +77,6 @@ class TransactionFrameBase
     virtual void
     insertKeysForFeeProcessing(UnorderedSet<LedgerKey>& keys) const = 0;
     virtual void insertKeysForTxApply(UnorderedSet<LedgerKey>& keys) const = 0;
-    virtual void insertKeysAndLimitsForTxApply(
-        UnorderedSet<LedgerKey>& keys,
-        UnorderedMap<LedgerKey, UnorderedSet<Hash>>& lkToTx) const = 0;
 
     virtual void processFeeSeqNum(AbstractLedgerTxn& ltx,
                                   std::optional<int64_t> baseFee) = 0;

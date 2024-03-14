@@ -6,6 +6,7 @@
 
 #include "bucket/BucketIndex.h"
 #include "crypto/Hex.h"
+#include "ledger/LedgerTxn.h"
 #include "overlay/StellarXDR.h"
 #include "util/NonCopyable.h"
 #include "util/ProtocolVersion.h"
@@ -112,15 +113,11 @@ class Bucket : public std::enable_shared_from_this<Bucket>,
     // Loads bucket entry for LedgerKey k.
     std::optional<BucketEntry> getBucketEntry(LedgerKey const& k);
 
-    // Overhead in bytes of encoding the size of a LedgerEntry as a BucketEntry.
-    static const uint32_t kBucketEntrySizeEncodingBytes = 4;
     // Loads LedgerEntry's for given keys. When a key is found, the
     // entry is added to result and the key is removed from keys.
     void loadKeysWithLimits(std::set<LedgerKey, LedgerEntryIdCmp>& keys,
-                            std::vector<LedgerEntry>& result,
-                            UnorderedMap<LedgerKey, UnorderedSet<Hash>>& lkToTx,
-                            UnorderedMap<Hash, uint32_t>& txReadBytes,
-                            UnorderedSet<LedgerKey>& notLoaded);
+                            LedgerKeyMeter& lkMeter,
+                            std::vector<LedgerEntry>& result);
 
     // Return all PoolIDs that contain the given asset on either side of the
     // pool

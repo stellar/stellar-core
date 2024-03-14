@@ -118,7 +118,7 @@ class Config : public std::enable_shared_from_this<Config>
 #ifdef USE_POSTGRES
         TESTDB_POSTGRESQL,
 #endif
-        TESTDB_MODES
+        TESTDB_MODES,
     };
 
     // application config

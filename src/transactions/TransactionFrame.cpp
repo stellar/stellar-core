@@ -1622,21 +1622,16 @@ TransactionFrame::insertKeysForTxApply(UnorderedSet<LedgerKey>& keys) const
         }
         op->insertLedgerKeysToPrefetch(keys);
     }
+    if (isSoroban())
+    {
+        auto const& resources = sorobanResources();
+        keys.insert(resources.footprint.readOnly.begin(),
+                    resources.footprint.readOnly.end());
+        keys.insert(resources.footprint.readWrite.begin(),
+                    resources.footprint.readWrite.end());
+    }
 }
 
-void
-TransactionFrame::insertKeysAndLimitsForTxApply(
-    UnorderedSet<LedgerKey>& keys,
-    UnorderedMap<LedgerKey, UnorderedSet<Hash>>& lkToTx) const
-{
-    UnorderedSet<LedgerKey> tx_keys;
-    insertKeysForTxApply(tx_keys);
-    for (auto const& lk : tx_keys)
-    {
-        lkToTx[lk].emplace(getContentsHash());
-    }
-    keys.insert(tx_keys.begin(), tx_keys.end());
-}
 void
 TransactionFrame::markResultFailed()
 {

@@ -261,9 +261,6 @@ class TransactionFrame : public TransactionFrameBase
     void
     insertKeysForFeeProcessing(UnorderedSet<LedgerKey>& keys) const override;
     void insertKeysForTxApply(UnorderedSet<LedgerKey>& keys) const override;
-    void insertKeysAndLimitsForTxApply(
-        UnorderedSet<LedgerKey>& keys,
-        UnorderedMap<LedgerKey, UnorderedSet<Hash>>& lkToTx) const override;
 
     // collect fee, consume sequence number
     void processFeeSeqNum(AbstractLedgerTxn& ltx,

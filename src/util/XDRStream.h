@@ -180,7 +180,11 @@ class XDRInputFileStream
         size_t xdrStart = 0;
         while (xdrStart + 4 <= mBuf.size())
         {
+            // Only read as much as we need to get the key (contained within the
+            // subsequent page. This it to prevent a DOS vector where a txn
+            // requests a very large key which we load without quota.
             const uint32_t xdrSz = getXDRSize(mBuf.data() + xdrStart);
+
             xdrStart += 4;
             const size_t xdrEnd = xdrStart + xdrSz;
 
@@ -189,8 +193,10 @@ class XDRInputFileStream
             // back to pageSize in the next readPage.
             if (xdrEnd > mBuf.size())
             {
+
                 const size_t extraStart = mBuf.size();
                 const size_t extraSz = xdrEnd - extraStart;
+
                 mBuf.resize(xdrEnd);
                 releaseAssert(extraStart + extraSz == mBuf.size());
                 if (!mIn.read(mBuf.data() + extraStart, extraSz))

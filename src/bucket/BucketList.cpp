@@ -426,9 +426,7 @@ BucketList::getLedgerEntry(LedgerKey const& k) const
 std::vector<LedgerEntry>
 BucketList::loadKeysWithLimits(
     std::set<LedgerKey, LedgerEntryIdCmp> const& inKeys,
-    UnorderedMap<LedgerKey, UnorderedSet<Hash>>& lkToTx,
-    UnorderedMap<Hash, uint32_t>& txReadBytes,
-    UnorderedSet<LedgerKey>& notLoaded) const
+    LedgerKeyMeter& lkMeter) const
 {
     ZoneScoped;
     std::vector<LedgerEntry> entries;
@@ -436,7 +434,7 @@ BucketList::loadKeysWithLimits(
     // Make a copy of the key set, this loop is destructive
     auto keys = inKeys;
     auto f = [&](std::shared_ptr<Bucket> b) {
-        b->loadKeysWithLimits(keys, entries, lkToTx, txReadBytes, notLoaded);
+        b->loadKeysWithLimits(keys, lkMeter, entries);
         return keys.empty();
     };
 
@@ -473,8 +471,35 @@ BucketList::loadPoolShareTrustLinesByAccountAndAsset(AccountID const& accountID,
 
     // Load all the LiquidityPool entries that the account has a trustline for.
     LedgerKeyMeter lkMeter{};
+<<<<<<< HEAD
     return loadKeysWithLimits(
         liquidityPoolKeysToSearch, lkMeter);
+=======
+    auto liquidityPoolEntries =
+        loadKeysWithLimits(liquidityPoolKeysToSearch, lkMeter);
+    // pools always exist when there are trustlines
+    releaseAssertOrThrow(liquidityPoolEntries.size() ==
+                         liquidityPoolKeysToSearch.size());
+    // Filter out liquidity pools that don't match the asset we're looking for
+    std::vector<LedgerEntry> result;
+    result.reserve(liquidityPoolEntries.size());
+    for (const auto& e : liquidityPoolEntries)
+    {
+        releaseAssert(e.data.type() == LIQUIDITY_POOL);
+        auto const& params =
+            e.data.liquidityPool().body.constantProduct().params;
+        if (compareAsset(params.assetA, asset) ||
+            compareAsset(params.assetB, asset))
+        {
+            auto trustlineIter =
+                liquidityPoolToTrustline.find(LedgerEntryKey(e));
+            releaseAssert(trustlineIter != liquidityPoolToTrustline.end());
+            result.emplace_back(trustlineIter->second);
+        }
+    }
+
+    return result;
+>>>>>>> e27e3a5f7 (Created LedgerKeyMeter to track the read quota of associated transactions when prefetching in ltx and bucket)
 }
 
 std::vector<InflationWinner>

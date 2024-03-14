@@ -175,10 +175,8 @@ InMemoryLedgerTxnRoot::prefetch(UnorderedSet<LedgerKey> const&)
     return 0;
 }
 uint32_t
-InMemoryLedgerTxnRoot::prefetchWithLimits(
-    UnorderedSet<LedgerKey> const&,
-    UnorderedMap<LedgerKey, UnorderedSet<Hash>>&, UnorderedMap<Hash, uint32_t>&,
-    UnorderedSet<LedgerKey>&)
+InMemoryLedgerTxnRoot::prefetchWithLimits(UnorderedSet<LedgerKey> const&,
+                                          LedgerKeyMeter&)
 
 {
     return 0;

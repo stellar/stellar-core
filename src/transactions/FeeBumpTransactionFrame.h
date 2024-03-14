@@ -97,9 +97,6 @@ class FeeBumpTransactionFrame : public TransactionFrameBase
     void
     insertKeysForFeeProcessing(UnorderedSet<LedgerKey>& keys) const override;
     void insertKeysForTxApply(UnorderedSet<LedgerKey>& keys) const override;
-    void insertKeysAndLimitsForTxApply(
-        UnorderedSet<LedgerKey>& keys,
-        UnorderedMap<LedgerKey, UnorderedSet<Hash>>& lkToTx) const override;
 
     void processFeeSeqNum(AbstractLedgerTxn& ltx,
                           std::optional<int64_t> baseFee) override;
