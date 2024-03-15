@@ -24,6 +24,8 @@ class ApplyBucketsWork : public Work
 
     bool mApplying{false};
     bool mSpawnedAssumeStateWork{false};
+    bool mSpawnedIndexBucketsWork{false};
+    bool mFinishedIndexBucketsWork{false};
     size_t mTotalBuckets{0};
     size_t mAppliedBuckets{0};
     size_t mAppliedEntries{0};
@@ -31,23 +33,30 @@ class ApplyBucketsWork : public Work
     size_t mAppliedSize{0};
     size_t mLastAppliedSizeMb{0};
     size_t mLastPos{0};
+    bool const mOffersOnly;
     uint32_t mLevel{0};
     uint32_t mMaxProtocolVersion{0};
     uint32_t mMinProtocolVersionSeen{UINT32_MAX};
-    std::shared_ptr<Bucket const> mSnapBucket;
-    std::shared_ptr<Bucket const> mCurrBucket;
-    std::unique_ptr<BucketApplicator> mSnapApplicator;
-    std::unique_ptr<BucketApplicator> mCurrApplicator;
+    std::shared_ptr<Bucket const> mFirstBucket;
+    std::shared_ptr<Bucket const> mSecondBucket;
+    std::unique_ptr<BucketApplicator> mFirstBucketApplicator;
+    std::unique_ptr<BucketApplicator> mSecondBucketApplicator;
+    UnorderedSet<LedgerKey> mSeenKeys;
+    std::vector<std::shared_ptr<Bucket>> mBucketsToIndex;
 
     BucketApplicator::Counters mCounters;
 
     void advance(std::string const& name, BucketApplicator& applicator);
-    std::shared_ptr<Bucket const> getBucket(std::string const& bucketHash);
+    std::shared_ptr<Bucket> getBucket(std::string const& bucketHash);
     BucketLevel& getBucketLevel(uint32_t level);
     void startLevel();
     bool isLevelComplete();
 
     bool mDelayChecked{false};
+
+    static uint32_t startingLevel(bool offersOnly);
+    uint32_t nextLevel() const;
+    bool appliedAllLevels() const;
 
   public:
     ApplyBucketsWork(

@@ -21,13 +21,17 @@ BucketApplicator::BucketApplicator(Application& app,
                                    uint32_t minProtocolVersionSeen,
                                    uint32_t level,
                                    std::shared_ptr<Bucket const> bucket,
-                                   std::function<bool(LedgerEntryType)> filter)
+                                   std::function<bool(LedgerEntryType)> filter,
+                                   bool newOffersOnly,
+                                   UnorderedSet<LedgerKey>& seenKeys)
     : mApp(app)
     , mMaxProtocolVersion(maxProtocolVersion)
     , mMinProtocolVersionSeen(minProtocolVersionSeen)
     , mLevel(level)
     , mBucketIter(bucket)
     , mEntryTypeFilter(filter)
+    , mNewOffersOnly(newOffersOnly)
+    , mSeenKeys(seenKeys)
 {
     auto protocolVersion = mBucketIter.getMetadata().ledgerVersion;
     if (protocolVersion > mMaxProtocolVersion)
@@ -37,11 +41,29 @@ BucketApplicator::BucketApplicator(Application& app,
                 "bucket protocol version {:d} exceeds maxProtocolVersion {:d}"),
             protocolVersion, mMaxProtocolVersion));
     }
+
+    if (newOffersOnly && !bucket->isEmpty())
+    {
+        releaseAssertOrThrow(mApp.getConfig().isUsingBucketListDB());
+        auto offsetOp = bucket->getOfferRange();
+        if (offsetOp)
+        {
+            auto [lowOffset, highOffset] = *offsetOp;
+            mBucketIter.seek(lowOffset);
+            mUpperBoundOffset = highOffset;
+        }
+        else
+        {
+            // No offers in Bucket
+            mOffersRemaining = false;
+        }
+    }
 }
 
 BucketApplicator::operator bool() const
 {
-    return (bool)mBucketIter;
+    return static_cast<bool>(mBucketIter) &&
+           (!mNewOffersOnly || mOffersRemaining);
 }
 
 size_t
@@ -99,11 +121,42 @@ BucketApplicator::advance(BucketApplicator::Counters& counters)
 
     for (; mBucketIter; ++mBucketIter)
     {
+        // Note: mUpperBoundOffset is not inclusive. However, mBucketIter.pos()
+        // returns the file offset at the end of the currently loaded entry.
+        // This means we must read until pos is strictly greater than the upper
+        // bound so that we don't skip the last offer in the range.
+        if (mNewOffersOnly && mBucketIter.pos() > mUpperBoundOffset)
+        {
+            mOffersRemaining = false;
+            break;
+        }
+
         BucketEntry const& e = *mBucketIter;
         Bucket::checkProtocolLegality(e, mMaxProtocolVersion);
 
         if (shouldApplyEntry(mEntryTypeFilter, e))
         {
+            if (mNewOffersOnly)
+            {
+                if (e.type() == LIVEENTRY || e.type() == INITENTRY)
+                {
+                    auto [_, wasInserted] =
+                        mSeenKeys.emplace(LedgerEntryKey(e.liveEntry()));
+
+                    // Skip seen keys
+                    if (!wasInserted)
+                    {
+                        continue;
+                    }
+                }
+                else
+                {
+                    // Only apply INIT and LIVE entries
+                    mSeenKeys.emplace(e.deadEntry());
+                    continue;
+                }
+            }
+
             counters.mark(e);
 
             if (e.type() == LIVEENTRY || e.type() == INITENTRY)
@@ -148,6 +201,7 @@ BucketApplicator::advance(BucketApplicator::Counters& counters)
             }
             else
             {
+                releaseAssertOrThrow(!mNewOffersOnly);
                 if (protocolVersionIsBefore(
                         mMinProtocolVersionSeen,
                         Bucket::

@@ -52,7 +52,7 @@ BucketInputIterator::loadEntry()
     }
 }
 
-size_t
+std::streamoff
 BucketInputIterator::pos()
 {
     return mIn.pos();
@@ -123,5 +123,12 @@ BucketInputIterator::operator++()
         mEntryPtr = nullptr;
     }
     return *this;
+}
+
+void
+BucketInputIterator::seek(std::streamoff offset)
+{
+    mIn.seek(offset);
+    loadEntry();
 }
 }
