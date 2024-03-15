@@ -701,12 +701,7 @@ TEST_CASE_VERSIONS("create offer", "[tx][offers]")
                         return;
                     }
 
-                    uint32_t ledgerVersion;
-                    {
-                        LedgerTxn ltx(app->getLedgerTxnRoot());
-                        ledgerVersion =
-                            ltx.loadHeader().current().ledgerVersion;
-                    }
+                    auto ledgerVersion = getLclProtocolVersion(*app);
 
                     if (protocolVersionIsBefore(ledgerVersion,
                                                 ProtocolVersion::V_13))

@@ -146,11 +146,7 @@ TEST_CASE_VERSIONS("manage buy offer failure modes", "[tx][offers]")
 
         SECTION("check offer valid")
         {
-            uint32_t ledgerVersion;
-            {
-                LedgerTxn ltx(app->getLedgerTxnRoot());
-                ledgerVersion = ltx.loadHeader().current().ledgerVersion;
-            }
+            auto ledgerVersion = getLclProtocolVersion(*app);
 
             SECTION("no issuer")
             {

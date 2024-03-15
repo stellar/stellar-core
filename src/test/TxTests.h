@@ -332,5 +332,7 @@ depositTradeWithdrawTest(Application& app, TestAccount& root, int depositSize,
 int64_t getBalance(Application& app, AccountID const& accountID,
                    Asset const& asset);
 
+uint32_t getLclProtocolVersion(Application& app);
+
 } // end txtest namespace
 }

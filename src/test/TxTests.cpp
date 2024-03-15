@@ -1929,5 +1929,12 @@ getBalance(Application& app, AccountID const& accountID, Asset const& asset)
     }
 }
 
+uint32_t
+getLclProtocolVersion(Application& app)
+{
+    auto const& lcl = app.getLedgerManager().getLastClosedLedgerHeader();
+    return lcl.header.ledgerVersion;
+}
+
 }
 }

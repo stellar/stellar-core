@@ -769,11 +769,8 @@ TEST_CASE_VERSIONS("merge", "[tx][merge]")
             };
 
         for_versions_from(14, *app, [&] {
-            uint32_t ledgerVersion;
-            {
-                LedgerTxn ltx(app->getLedgerTxnRoot());
-                ledgerVersion = ltx.loadHeader().current().ledgerVersion;
-            }
+            auto ledgerVersion = getLclProtocolVersion(*app);
+
             SECTION("with sponsored signers")
             {
                 // add non-sponsored signer
