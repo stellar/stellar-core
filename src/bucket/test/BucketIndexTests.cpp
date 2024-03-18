@@ -311,10 +311,27 @@ class BucketIndexPoolShareTest : public BucketIndexTest
     buildTest(bool shouldMultiVersion)
     {
         auto f = [&](std::vector<LedgerEntry>& entries) {
+            std::vector<LedgerEntry> poolEntries;
             std::vector<LedgerKey> toWriteNewVersion;
             if (mDist(gRandomEngine) < 30)
             {
-                auto pool = LedgerTestUtils::generateValidLiquidityPoolEntry();
+                // Make sure we generate a unique poolID for each entry
+                LiquidityPoolEntry pool;
+                for (;;)
+                {
+                    pool = LedgerTestUtils::generateValidLiquidityPoolEntry();
+                    for (auto e : poolEntries)
+                    {
+                        if (e.data.liquidityPool().liquidityPoolID ==
+                            pool.liquidityPoolID)
+                        {
+                            continue;
+                        }
+                    }
+
+                    break;
+                }
+
                 auto& params = pool.body.constantProduct().params;
 
                 auto trustlineToSearch =
@@ -348,7 +365,7 @@ class BucketIndexPoolShareTest : public BucketIndexTest
                 LedgerEntry poolEntry;
                 poolEntry.data.type(LIQUIDITY_POOL);
                 poolEntry.data.liquidityPool() = pool;
-                entries.emplace_back(poolEntry);
+                poolEntries.emplace_back(poolEntry);
                 entries.emplace_back(trustlineToSearch);
                 entries.emplace_back(trustline2);
             }
@@ -371,8 +388,10 @@ class BucketIndexPoolShareTest : public BucketIndexTest
                 entries.emplace_back(iter->second);
             }
 
+            // We only index liquidity pool INITENTRY, so they must be inserted
+            // as INITENTRY
             mApp->getLedgerManager().setNextLedgerEntryBatchForBucketTesting(
-                {}, entries, toWriteNewVersion);
+                poolEntries, entries, toWriteNewVersion);
         };
 
         BucketIndexTest::buildBucketList(f);
