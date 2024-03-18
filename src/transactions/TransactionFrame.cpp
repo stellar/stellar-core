@@ -83,6 +83,7 @@ TransactionFrame::TransactionFrame(Hash const& networkID,
 Hash const&
 TransactionFrame::getFullHash() const
 {
+    ZoneScoped;
     if (isZero(mFullHash))
     {
         mFullHash = xdrSha256(mEnvelope);
@@ -93,6 +94,7 @@ TransactionFrame::getFullHash() const
 Hash const&
 TransactionFrame::getContentsHash() const
 {
+    ZoneScoped;
 #ifdef _DEBUG
     // force recompute
     Hash oldHash;
