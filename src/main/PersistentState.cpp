@@ -26,7 +26,7 @@ std::string PersistentState::mapping[kLastEntry] = {
 
 std::string PersistentState::kSQLCreateStatement =
     "CREATE TABLE IF NOT EXISTS storestate ("
-    "statename   CHARACTER(32) PRIMARY KEY,"
+    "statename   CHARACTER(70) PRIMARY KEY,"
     "state       TEXT"
     "); ";
 
@@ -50,13 +50,6 @@ PersistentState::deleteTxSets(std::unordered_set<Hash> hashesToDelete)
         st.execute(true);
     }
     tx.commit();
-}
-
-void
-PersistentState::upgradeSizeLimit(Database& db)
-{
-    db.getSession()
-        << "ALTER TABLE storestate ALTER COLUMN statename TYPE CHARACTER(70);";
 }
 
 void
@@ -182,112 +175,6 @@ PersistentState::setRebuildForType(LedgerEntryType let)
     }
 
     updateDb(getStoreStateName(kRebuildLedger, let), "1");
-}
-
-void
-PersistentState::upgradeSCPDataV1Format()
-{
-    // Sqlite does not enforce size limits and does not support altering columns
-    if (!mApp.getDatabase().isSqlite())
-    {
-        PersistentState::upgradeSizeLimit(mApp.getDatabase());
-    }
-
-    for (uint32_t i = 0; i <= mApp.getConfig().MAX_SLOTS_TO_REMEMBER; i++)
-    {
-        std::string oldStateName = getStoreStateName(kLastSCPDataXDR, i);
-        auto val = getFromDb(oldStateName);
-        if (val.empty())
-        {
-            continue;
-        }
-        std::vector<uint8_t> buffer;
-        decoder::decode_b64(val, buffer);
-
-        PersistedSCPState scpState;
-
-        try
-        {
-            xdr::xdr_from_opaque(buffer, scpState);
-            if (scpState.v() != 0)
-            {
-                throw std::runtime_error("Invalid persisted state version");
-            }
-
-            PersistedSCPState newScpState;
-            newScpState.v(1);
-            newScpState.v1().scpEnvelopes = scpState.v0().scpEnvelopes;
-            newScpState.v1().quorumSets = scpState.v0().quorumSets;
-
-            std::unordered_map<Hash, std::string> txSets;
-            for (auto const& txSet : scpState.v0().txSets)
-            {
-                auto txSetPtr = TxSetXDRFrame::makeFromStoredTxSet(txSet);
-                txSets.emplace(txSetPtr->getContentsHash(),
-                               decoder::encode_b64(xdr::xdr_to_opaque(txSet)));
-            }
-            auto encodedScpState =
-                decoder::encode_b64(xdr::xdr_to_opaque(newScpState));
-            setSCPStateV1ForSlot(i, encodedScpState, txSets);
-        }
-        catch (std::exception& e)
-        {
-            CLOG_WARNING(Herder,
-                         "Error while restoring old scp messages, during the "
-                         "SCP data format upgrade: {}",
-                         e.what());
-        }
-    }
-}
-
-void
-PersistentState::upgradeSCPDataFormat()
-{
-    for (uint32_t i = 0; i <= mApp.getConfig().MAX_SLOTS_TO_REMEMBER; i++)
-    {
-        // Read the state in old (opaque) format and convert it to
-        // PersistedSCPState XDR.
-        std::string oldStateName = getStoreStateName(kLastSCPData, i);
-        auto val = getFromDb(oldStateName);
-        if (val.empty())
-        {
-            continue;
-        }
-        std::vector<uint8_t> buffer;
-        decoder::decode_b64(val, buffer);
-
-        PersistedSCPState scpState;
-        try
-        {
-            xdr::xvector<TransactionSet> txSets;
-            xdr::xdr_from_opaque(buffer, scpState.v0().scpEnvelopes, txSets,
-                                 scpState.v0().quorumSets);
-
-            for (auto const& txSet : txSets)
-            {
-                scpState.v0().txSets.emplace_back(0).txSet() = txSet;
-            }
-            auto encodedScpState =
-                decoder::encode_b64(xdr::xdr_to_opaque(scpState));
-            setSCPStateForSlot(i, encodedScpState);
-        }
-        catch (std::exception& e)
-        {
-            CLOG_WARNING(Herder,
-                         "Error while restoring old scp messages, during the "
-                         "database schema upgrade: {}",
-                         e.what());
-        }
-
-        // Remove the old SCP state row.
-        auto prep = mApp.getDatabase().getPreparedStatement(
-            "DELETE FROM storestate WHERE statename = :n;");
-
-        auto& st = prep.statement();
-        st.exchange(soci::use(oldStateName));
-        st.define_and_bind();
-        st.execute(true);
-    }
 }
 
 void
