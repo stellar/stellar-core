@@ -339,13 +339,14 @@ class LedgerKeyMeter
   public:
     LedgerKeyMeter();
     void addTxn(size_t txn, uint32_t readQuota, UnorderedSet<LedgerKey>& keys);
-    // Classic Keys are not metered. By default if a key has not been added to the meter,
-    // it is assumed to belong to a calssic transaction. However,
-    // we must track the keys belonging to classic transactions 
-    // to ensure classic txn associated keys have unlimted quota even
-    // if the same key is preloaded by a soroban txn.
+    // Classic Keys are not metered. By default if a key has not been added to
+    // the meter, it is assumed to belong to a calssic transaction. However, we
+    // must track the keys belonging to classic transactions to ensure classic
+    // txn associated keys have unlimted quota even if the same key is preloaded
+    // by a soroban txn.
     void addClassicKeys(UnorderedSet<LedgerKey> const& keys);
-    // Called when an entry is loaded to update the read quota for the associated txns.
+    // Called when an entry is loaded to update the read quota for the
+    // associated txns.
     void updateReadQuotasForKey(LedgerKey const& key, LedgerEntry const& entry);
     // Returns the maximum read quota across all transactions with this key.
     uint32_t maxReadQuotaForKey(LedgerKey const& key);

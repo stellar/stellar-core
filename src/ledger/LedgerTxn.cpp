@@ -3088,12 +3088,15 @@ LedgerTxnRoot::Impl::prefetchWithLimits(UnorderedSet<LedgerKey> const& keys,
             if (le.entry)
             {
                 lkMeter.updateReadQuotasForKey(key, *le.entry);
-            } else {
+            }
+            else
+            {
                 // TODO set beakpoint here.
                 std::cout << "key but not entry nullptr" << std::endl;
                 auto foo = 1 + 2;
                 std::cout << "not funny";
-                if (!le.entry) {
+                if (!le.entry)
+                {
                     std::cout << "nested?" << std::endl;
                     foo++;
                     foo--;

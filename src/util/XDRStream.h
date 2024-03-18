@@ -188,15 +188,18 @@ class XDRInputFileStream
             xdrStart += 4;
             const size_t xdrEnd = xdrStart + xdrSz;
 
-            auto deserialize = [&](T& out, LedgerKey key, size_t xdrStart,
+            auto maybeReadAndDeserialize = [&](T& out, LedgerKey key, size_t xdrStart,
                                    size_t xdrEnd, size_t extraStart = 0,
-                                   size_t extraSz = 0) {
+                                   size_t extraSize = 0) {
                 ZoneNamedN(__unpack, "xdr_unpack_entry", true);
                 releaseAssert(xdrStart <= xdrEnd);
-                if (extraStart != 0 && extraSz != 0)
+                if (extraStart != 0 && extraSize != 0)
                 {
-                    mBuf.resize(xdrEnd);
-                    if (!mIn.read(mBuf.data() + extraStart, extraSz))
+                    // If entry continues past end of buffer, temporarily expand
+                    // it and load the extra bytes. The buffer will be resized
+                    // back to pageSize in the next readPage.
+                    mBuf.resize(mBuf.size() + extraSize);
+                    if (!mIn.read(mBuf.data() + extraStart, extraSize))
                     {
                         throw xdr::xdr_runtime_error("IO failure in readPage");
                     }
@@ -210,38 +213,32 @@ class XDRInputFileStream
                 }
                 return false;
             };
-            // If entry continues past end of buffer, temporarily expand
-            // it and load the extra bytes. The buffer will be resized
-            // back to pageSize in the next readPage.
+            size_t extraStart = 0;
+            size_t extraSize = 0;
             if (xdrEnd > mBuf.size())
             {
-                const size_t extraStart = mBuf.size();
-                size_t extraSz = std::min(xdrEnd - extraStart, pageSize);
-                if (extraSz == pageSize)
-                {
-                    // Check the key is correct before reading more than one
-                    // extra page.
-                    if (!deserialize(out, key, xdrStart, xdrEnd, extraStart,
-                                     extraSz))
+                extraStart = mBuf.size();
+                extraSize = xdrEnd - extraStart;
+                if (extraSize > pageSize) {
+                    // If the additional bytes are greater than the pageSize, read the first 
+                    // pageSize extra bytes and ensure the key is correct before reading the 
+                    // entire entry
+                    if (!maybeReadAndDeserialize(out, key, xdrStart, xdrEnd, extraStart,
+                                        pageSize))
                     {
+                        // If the key is not correct, we have exceeded the pageSize and can safely return false.
                         return false;
                     }
-                    extraSz = xdrEnd - extraStart;
-                }
-                // Read the entire entry.
-                if (deserialize(out, key, xdrStart, xdrEnd, extraStart,
-                                extraSz))
-                {
-                    return true;
+                    // Read the rest of the entry, skipping the first pageSize extra bytes
+                    // that we already deserialized.
+                    extraStart = extraStart + pageSize;
+                    extraSize = extraSize - pageSize;
                 }
             }
-            else
+            // Read the entire entry.
+            if (maybeReadAndDeserialize(out, key, xdrStart, xdrEnd))
             {
-                auto success = deserialize(out, key, xdrStart, xdrEnd);
-                if (success) // Key is correct.
-                {
-                    return true;
-                }
+                return true;
             }
             xdrStart = xdrEnd;
         }
