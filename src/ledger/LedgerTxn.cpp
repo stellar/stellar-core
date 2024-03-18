@@ -24,8 +24,7 @@
 #include <Tracy.hpp>
 #include <set>
 #include <soci.h>
-// TODO DELETE
-#include <iostream>
+
 namespace stellar
 {
 
@@ -208,15 +207,7 @@ LedgerKeyMeter::updateReadQuotasForKey(LedgerKey const& key,
         return;
     }
     // Update the read quota for every transaction containing this key.
-    size_t size = 0;
-    try
-    {
-        size = xdr::xdr_size(entry);
-    }
-    catch (std::exception& e)
-    {
-        std::cout << "Error: " << e.what() << std::endl;
-    }
+    size_t size = xdr::xdr_size(entry);
     for (auto txn : iter->second)
     {
         if (txReadBytes[txn] < size)

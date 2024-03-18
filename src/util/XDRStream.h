@@ -188,37 +188,63 @@ class XDRInputFileStream
             xdrStart += 4;
             const size_t xdrEnd = xdrStart + xdrSz;
 
+            auto deserialize = [&](T& out, LedgerKey key, size_t xdrStart,
+                                   size_t xdrEnd, size_t extraStart = 0,
+                                   size_t extraSz = 0) {
+                ZoneNamedN(__unpack, "xdr_unpack_entry", true);
+                releaseAssert(xdrStart <= xdrEnd);
+                if (extraStart != 0 && extraSz != 0)
+                {
+                    mBuf.resize(xdrEnd);
+                    if (!mIn.read(mBuf.data() + extraStart, extraSz))
+                    {
+                        throw xdr::xdr_runtime_error("IO failure in readPage");
+                    }
+                }
+                xdr::xdr_get g(mBuf.data() + xdrStart, mBuf.data() + xdrEnd);
+                xdr::xdr_argpack_archive(g, out);
+                // Key belongs to entry?
+                if (getBucketLedgerKey(out) == key)
+                {
+                    return true;
+                }
+                return false;
+            };
             // If entry continues past end of buffer, temporarily expand
             // it and load the extra bytes. The buffer will be resized
             // back to pageSize in the next readPage.
             if (xdrEnd > mBuf.size())
             {
-
                 const size_t extraStart = mBuf.size();
-                const size_t extraSz = xdrEnd - extraStart;
-
-                mBuf.resize(xdrEnd);
-                releaseAssert(extraStart + extraSz == mBuf.size());
-                if (!mIn.read(mBuf.data() + extraStart, extraSz))
+                size_t extraSz = std::min(xdrEnd - extraStart, pageSize);
+                if (extraSz == pageSize)
                 {
-                    throw xdr::xdr_runtime_error(
-                        "malformed XDR file or IO failure in readPage");
+                    // Check the key is correct before reading more than one
+                    // extra page.
+                    if (!deserialize(out, key, xdrStart, xdrEnd, extraStart,
+                                     extraSz))
+                    {
+                        return false;
+                    }
+                    extraSz = xdrEnd - extraStart;
+                }
+                // Read the entire entry.
+                if (deserialize(out, key, xdrStart, xdrEnd, extraStart,
+                                extraSz))
+                {
+                    return true;
                 }
             }
-
-            ZoneNamedN(__unpack, "xdr_unpack_entry", true);
-            releaseAssert(xdrStart <= xdrEnd);
-            releaseAssert(xdrEnd <= mBuf.size());
-            xdr::xdr_get g(mBuf.data() + xdrStart, mBuf.data() + xdrEnd);
-            xdr::xdr_argpack_archive(g, out);
-            if (getBucketLedgerKey(out) == key)
+            else
             {
-                return true;
+                auto success = deserialize(out, key, xdrStart, xdrEnd);
+                if (success) // Key is correct.
+                {
+                    return true;
+                }
             }
-
             xdrStart = xdrEnd;
         }
-
         return false;
     }
 };

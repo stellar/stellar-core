@@ -330,12 +330,12 @@ class BucketIndexTest
         lkMeter.addTxn(1, 1, txs[1]);
         expectedSuccessKeys.insert(txs[1].begin(), txs[1].end());
 
-        // tx[2] has zero quota, so no keys should succeed.
+        // txs[2] has zero quota, so no keys should succeed.
         txs[2].emplace(insertContractKey({CONTRACT_DATA}, pageSize));
         lkMeter.addTxn(2, 0, txs[2]);
         expectedFailedKeys.insert(txs[2].begin(), txs[2].end());
 
-        // Refactor keyA and keyB in the form of the lines above.
+        // txs[3] has two keys, but only enopiugh quota for one of them.
         auto keyA = insertContractKey({CONTRACT_DATA}, pageSize);
         auto keyB = insertContractKey({CONTRACT_DATA}, pageSize);
         txs[3].emplace(keyA);
