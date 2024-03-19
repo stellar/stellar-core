@@ -188,9 +188,10 @@ class XDRInputFileStream
             xdrStart += 4;
             const size_t xdrEnd = xdrStart + xdrSz;
 
-            auto maybeReadAndDeserialize = [&](T& out, LedgerKey key, size_t xdrStart,
-                                   size_t xdrEnd, size_t extraStart = 0,
-                                   size_t extraSize = 0) {
+            auto maybeReadAndDeserialize = [&](T& out, LedgerKey key,
+                                               size_t xdrStart, size_t xdrEnd,
+                                               size_t extraStart = 0,
+                                               size_t extraSize = 0) {
                 ZoneNamedN(__unpack, "xdr_unpack_entry", true);
                 releaseAssert(xdrStart <= xdrEnd);
                 if (extraStart != 0 && extraSize != 0)
@@ -198,13 +199,17 @@ class XDRInputFileStream
                     // If entry continues past end of buffer, temporarily expand
                     // it and load the extra bytes. The buffer will be resized
                     // back to pageSize in the next readPage.
-                    mBuf.resize(mBuf.size() + extraSize);
+                    // We resize the buffer to fit the entire entry to prevent
+                    // xdr_get from complaining about insufficient buffer space,
+                    // even though we are not necessarily going to read the entire
+                    // entry at this time.
+                    mBuf.resize(mBuf.size() + xdrEnd);
                     if (!mIn.read(mBuf.data() + extraStart, extraSize))
                     {
                         throw xdr::xdr_runtime_error("IO failure in readPage");
                     }
                 }
-                xdr::xdr_get g(mBuf.data() + xdrStart, mBuf.data() + xdrEnd);
+                xdr::xdr_get g(mBuf.data() + xdrStart, mBuf.data() + std::min(xdrEnd, mBuf.size()));
                 xdr::xdr_argpack_archive(g, out);
                 // Key belongs to entry?
                 if (getBucketLedgerKey(out) == key)
@@ -219,24 +224,26 @@ class XDRInputFileStream
             {
                 extraStart = mBuf.size();
                 extraSize = xdrEnd - extraStart;
-                if (extraSize > pageSize) {
-                    // If the additional bytes are greater than the pageSize, read the first 
-                    // pageSize extra bytes and ensure the key is correct before reading the 
-                    // entire entry
-                    if (!maybeReadAndDeserialize(out, key, xdrStart, xdrEnd, extraStart,
-                                        pageSize))
+                if (extraSize > pageSize)
+                {
+                    // If the additional bytes are greater than the pageSize,
+                    // read the first pageSize extra bytes and ensure the key is
+                    // correct before reading the entire entry
+                    if (!maybeReadAndDeserialize(out, key, xdrStart, xdrEnd,
+                                                 extraStart, pageSize))
                     {
-                        // If the key is not correct, we have exceeded the pageSize and can safely return false.
+                        // If the key is not correct, we have exceeded the
+                        // pageSize and can safely return false.
                         return false;
                     }
-                    // Read the rest of the entry, skipping the first pageSize extra bytes
-                    // that we already deserialized.
+                    // Read the rest of the entry, skipping the first pageSize
+                    // extra bytes that we already deserialized.
                     extraStart = extraStart + pageSize;
                     extraSize = extraSize - pageSize;
                 }
             }
             // Read the entire entry.
-            if (maybeReadAndDeserialize(out, key, xdrStart, xdrEnd))
+            if (maybeReadAndDeserialize(out, key, xdrStart, xdrEnd, extraStart, extraSize))
             {
                 return true;
             }

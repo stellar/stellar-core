@@ -342,6 +342,11 @@ class BucketIndexTest
         txs[3].emplace(keyB);
         lkMeter.addTxn(3, xdr::xdr_size(mTestEntries[*txs[3].begin()]), txs[3]);
 
+        // txs[4] has one key, large enough to span two pages.
+        txs[4].emplace(insertContractKey({CONTRACT_DATA}, pageSize * 2));
+        lkMeter.addTxn(4, xdr::xdr_size(mTestEntries[*txs[4].begin()]), txs[4]);
+        expectedSuccessKeys.insert(txs[4].begin(), txs[4].end());
+
         auto loadResult = getBM().loadKeysWithLimits(mKeysToSearch, lkMeter);
         LedgerKeySet loadResultSet{};
         std::transform(

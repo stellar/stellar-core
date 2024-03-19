@@ -3083,25 +3083,9 @@ LedgerTxnRoot::Impl::prefetchWithLimits(UnorderedSet<LedgerKey> const& keys,
             // If the key is already in the cache, it still contributes to
             // metering.
             auto le = mEntryCache.get(key);
-            // TODO: In some tests, there are cache entries with a key but no
-            // entry, disable this conditional to trigger.
             if (le.entry)
             {
                 lkMeter.updateReadQuotasForKey(key, *le.entry);
-            }
-            else
-            {
-                // TODO set beakpoint here.
-                std::cout << "key but not entry nullptr" << std::endl;
-                auto foo = 1 + 2;
-                std::cout << "not funny";
-                if (!le.entry)
-                {
-                    std::cout << "nested?" << std::endl;
-                    foo++;
-                    foo--;
-                    foo = foo - foo;
-                }
             }
         }
     };
