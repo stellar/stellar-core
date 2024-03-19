@@ -22,6 +22,10 @@ LedgerCloseMetaFrame::LedgerCloseMetaFrame(uint32_t protocolVersion)
         mVersion = 1;
     }
     mLedgerCloseMeta.v(mVersion);
+    if (mLedgerCloseMeta.v() == 1)
+    {
+        mLedgerCloseMeta.v1().ext.v(1);
+    }
 }
 
 LedgerHeaderHistoryEntry&
@@ -143,13 +147,6 @@ LedgerCloseMetaFrame::populateTxSet(TxSetXDRFrame const& txSet)
 }
 
 void
-LedgerCloseMetaFrame::setTotalByteSizeOfBucketList(uint64_t size)
-{
-    releaseAssert(mVersion == 1);
-    mLedgerCloseMeta.v1().totalByteSizeOfBucketList = size;
-}
-
-void
 LedgerCloseMetaFrame::populateEvictedEntries(
     LedgerEntryChanges const& evictionChanges)
 {
@@ -174,6 +171,17 @@ LedgerCloseMetaFrame::populateEvictedEntries(
             break;
         }
     }
+}
+
+void
+LedgerCloseMetaFrame::setNetworkConfiguration(
+    SorobanNetworkConfig const& networkConfig)
+{
+    releaseAssert(mVersion == 1);
+    mLedgerCloseMeta.v1().totalByteSizeOfBucketList =
+        networkConfig.getAverageBucketListSize();
+    auto& ext = mLedgerCloseMeta.v1().ext.v1();
+    ext.sorobanFeeWrite1KB = networkConfig.feeWrite1KB();
 }
 
 LedgerCloseMeta const&

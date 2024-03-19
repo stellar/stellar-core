@@ -83,25 +83,26 @@ class SorobanMetrics
     medida::Timer& mRestoreFpOpExec;
 
     // `NetworkConfig` metrics
-    medida::Counter& mConfigContractMaxRwKeyByte;
-    medida::Counter& mConfigContractMaxRwDataByte;
-    medida::Counter& mConfigContractMaxRwCodeByte;
+    medida::Counter& mConfigContractDataKeySizeBytes;
+    medida::Counter& mConfigMacContractDataEntrySizeBytes;
+    medida::Counter& mConfigMaxContractSizeBytes;
     medida::Counter& mConfigTxMaxSizeByte;
     medida::Counter& mConfigTxMaxCpuInsn;
-    medida::Counter& mConfigTxMaxMemByte;
-    medida::Counter& mConfigTxMaxReadEntry;
-    medida::Counter& mConfigTxMaxReadLedgerByte;
-    medida::Counter& mConfigTxMaxWriteEntry;
-    medida::Counter& mConfigTxMaxWriteLedgerByte;
-    medida::Counter& mConfigTxMaxEmitEventByte;
+    medida::Counter& mConfigTxMemoryLimitBytes;
+    medida::Counter& mConfigTxMaxReadLedgerEntries;
+    medida::Counter& mConfigTxMaxReadBytes;
+    medida::Counter& mConfigTxMaxWriteLedgerEntries;
+    medida::Counter& mConfigTxMaxWriteBytes;
+    medida::Counter& mConfigMaxContractEventsSizeBytes;
     medida::Counter& mConfigLedgerMaxTxCount;
-    medida::Counter& mConfigLedgerMaxCpuInsn;
+    medida::Counter& mConfigLedgerMaxInstructions;
     medida::Counter& mConfigLedgerMaxTxsSizeByte;
-    medida::Counter& mConfigLedgerMaxReadEntry;
-    medida::Counter& mConfigLedgerMaxReadLedgerByte;
-    medida::Counter& mConfigLedgerMaxWriteEntry;
-    medida::Counter& mConfigLedgerMaxWriteLedgerByte;
+    medida::Counter& mConfigLedgerMaxReadLedgerEntries;
+    medida::Counter& mConfigLedgerMaxReadBytes;
+    medida::Counter& mConfigLedgerMaxWriteEntries;
+    medida::Counter& mConfigLedgerMaxWriteBytes;
     medida::Counter& mConfigBucketListTargetSizeByte;
+    medida::Counter& mConfigFeeWrite1KB;
 
     SorobanMetrics(medida::MetricsRegistry& metrics);
 

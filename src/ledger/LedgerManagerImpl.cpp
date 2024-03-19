@@ -583,56 +583,40 @@ LedgerManagerImpl::publishSorobanMetrics()
 {
     releaseAssert(mSorobanNetworkConfig);
     // first publish the network config limits
-    auto contractMaxSizeBytes = mSorobanNetworkConfig->maxContractSizeBytes();
-    auto ledgerMaxInstructions = mSorobanNetworkConfig->ledgerMaxInstructions();
-    auto txMaxInstructions = mSorobanNetworkConfig->txMaxInstructions();
-    auto txMemoryLimit = mSorobanNetworkConfig->txMemoryLimit();
-    auto ledgerMaxReadLedgerEntries =
-        mSorobanNetworkConfig->ledgerMaxReadLedgerEntries();
-    auto ledgerMaxReadBytes = mSorobanNetworkConfig->ledgerMaxReadBytes();
-    auto ledgerMaxWriteLedgerEntries =
-        mSorobanNetworkConfig->ledgerMaxWriteLedgerEntries();
-    auto ledgerMaxWriteBytes = mSorobanNetworkConfig->ledgerMaxWriteBytes();
-    auto txMaxReadLedgerEntries =
-        mSorobanNetworkConfig->txMaxReadLedgerEntries();
-    auto txMaxReadBytes = mSorobanNetworkConfig->txMaxReadBytes();
-    auto txMaxWriteLedgerEntries =
-        mSorobanNetworkConfig->txMaxWriteLedgerEntries();
-    auto txMaxWriteBytes = mSorobanNetworkConfig->txMaxWriteBytes();
-    auto bucketListTargetSizeBytes =
-        mSorobanNetworkConfig->bucketListTargetSizeBytes();
-    auto txMaxContractEventsSizeBytes =
-        mSorobanNetworkConfig->txMaxContractEventsSizeBytes();
-    auto contractDataKeySizeBytes =
-        mSorobanNetworkConfig->maxContractDataKeySizeBytes();
-    auto contractDataEntrySizeBytes =
-        mSorobanNetworkConfig->maxContractDataEntrySizeBytes();
-
-    mSorobanMetrics.mConfigContractMaxRwKeyByte.set_count(
-        contractDataKeySizeBytes);
-    mSorobanMetrics.mConfigContractMaxRwDataByte.set_count(
-        contractDataEntrySizeBytes);
-    mSorobanMetrics.mConfigContractMaxRwCodeByte.set_count(
-        contractMaxSizeBytes);
-    mSorobanMetrics.mConfigTxMaxCpuInsn.set_count(txMaxInstructions);
-    mSorobanMetrics.mConfigTxMaxMemByte.set_count(txMemoryLimit);
-    mSorobanMetrics.mConfigTxMaxReadEntry.set_count(txMaxReadLedgerEntries);
-    mSorobanMetrics.mConfigTxMaxReadLedgerByte.set_count(txMaxReadBytes);
-    mSorobanMetrics.mConfigTxMaxWriteEntry.set_count(txMaxWriteLedgerEntries);
-    mSorobanMetrics.mConfigTxMaxWriteLedgerByte.set_count(txMaxWriteBytes);
-    mSorobanMetrics.mConfigTxMaxEmitEventByte.set_count(
-        txMaxContractEventsSizeBytes);
-    mSorobanMetrics.mConfigLedgerMaxCpuInsn.set_count(ledgerMaxInstructions);
-    mSorobanMetrics.mConfigLedgerMaxReadEntry.set_count(
-        ledgerMaxReadLedgerEntries);
-    mSorobanMetrics.mConfigLedgerMaxReadLedgerByte.set_count(
-        ledgerMaxReadBytes);
-    mSorobanMetrics.mConfigLedgerMaxWriteEntry.set_count(
-        ledgerMaxWriteLedgerEntries);
-    mSorobanMetrics.mConfigLedgerMaxWriteLedgerByte.set_count(
-        ledgerMaxWriteBytes);
+    mSorobanMetrics.mConfigContractDataKeySizeBytes.set_count(
+        mSorobanNetworkConfig->maxContractDataKeySizeBytes());
+    mSorobanMetrics.mConfigMacContractDataEntrySizeBytes.set_count(
+        mSorobanNetworkConfig->maxContractDataEntrySizeBytes());
+    mSorobanMetrics.mConfigMaxContractSizeBytes.set_count(
+        mSorobanNetworkConfig->maxContractSizeBytes());
+    mSorobanMetrics.mConfigTxMaxCpuInsn.set_count(
+        mSorobanNetworkConfig->txMaxInstructions());
+    mSorobanMetrics.mConfigTxMemoryLimitBytes.set_count(
+        mSorobanNetworkConfig->txMemoryLimit());
+    mSorobanMetrics.mConfigTxMaxReadLedgerEntries.set_count(
+        mSorobanNetworkConfig->txMaxReadLedgerEntries());
+    mSorobanMetrics.mConfigTxMaxReadBytes.set_count(
+        mSorobanNetworkConfig->txMaxReadBytes());
+    mSorobanMetrics.mConfigTxMaxWriteLedgerEntries.set_count(
+        mSorobanNetworkConfig->txMaxWriteLedgerEntries());
+    mSorobanMetrics.mConfigTxMaxWriteBytes.set_count(
+        mSorobanNetworkConfig->txMaxWriteBytes());
+    mSorobanMetrics.mConfigMaxContractEventsSizeBytes.set_count(
+        mSorobanNetworkConfig->txMaxContractEventsSizeBytes());
+    mSorobanMetrics.mConfigLedgerMaxInstructions.set_count(
+        mSorobanNetworkConfig->ledgerMaxInstructions());
+    mSorobanMetrics.mConfigLedgerMaxReadLedgerEntries.set_count(
+        mSorobanNetworkConfig->ledgerMaxReadLedgerEntries());
+    mSorobanMetrics.mConfigLedgerMaxReadBytes.set_count(
+        mSorobanNetworkConfig->ledgerMaxReadBytes());
+    mSorobanMetrics.mConfigLedgerMaxWriteEntries.set_count(
+        mSorobanNetworkConfig->ledgerMaxWriteLedgerEntries());
+    mSorobanMetrics.mConfigLedgerMaxWriteBytes.set_count(
+        mSorobanNetworkConfig->ledgerMaxWriteBytes());
     mSorobanMetrics.mConfigBucketListTargetSizeByte.set_count(
-        bucketListTargetSizeBytes);
+        mSorobanNetworkConfig->bucketListTargetSizeBytes());
+    mSorobanMetrics.mConfigFeeWrite1KB.set_count(
+        mSorobanNetworkConfig->feeWrite1KB());
 
     // then publish the actual ledger usage
     mSorobanMetrics.publishAndResetLedgerWideMetrics();
@@ -1692,8 +1676,7 @@ LedgerManagerImpl::ledgerClosed(
     if (ledgerCloseMeta &&
         protocolVersionStartsFrom(initialLedgerVers, SOROBAN_PROTOCOL_VERSION))
     {
-        auto blSize = getSorobanNetworkConfig().getAverageBucketListSize();
-        ledgerCloseMeta->setTotalByteSizeOfBucketList(blSize);
+        ledgerCloseMeta->setNetworkConfiguration(getSorobanNetworkConfig());
     }
 
     ltx.unsealHeader([this](LedgerHeader& lh) {
