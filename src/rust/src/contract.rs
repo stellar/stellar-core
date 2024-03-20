@@ -481,7 +481,7 @@ pub(crate) fn compute_rent_fee(
     fee_config: CxxRentFeeConfiguration,
     current_ledger_seq: u32,
 ) -> i64 {
-    let changed_entries = changed_entries.iter().map(|e| e.into()).collect();
+    let changed_entries: Vec<_> = changed_entries.iter().map(|e| e.into()).collect();
     host_compute_rent_fee(&changed_entries, &fee_config.into(), current_ledger_seq)
 }
 

@@ -30,8 +30,9 @@ class LedgerCloseMetaFrame
 
     void populateTxSet(TxSetXDRFrame const& txSet);
 
-    void setTotalByteSizeOfBucketList(uint64_t size);
     void populateEvictedEntries(LedgerEntryChanges const& evictionChanges);
+
+    void setNetworkConfiguration(SorobanNetworkConfig const& networkConfig);
 
     LedgerCloseMeta const& getXDR() const;
 

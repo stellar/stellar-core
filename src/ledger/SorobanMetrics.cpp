@@ -88,44 +88,46 @@ SorobanMetrics::SorobanMetrics(medida::MetricsRegistry& metrics)
     , mRestoreFpOpExec(
           metrics.NewTimer({"soroban", "restore-fprint-op", "exec"}))
     /* network config metrics */
-    , mConfigContractMaxRwKeyByte(
+    , mConfigContractDataKeySizeBytes(
           metrics.NewCounter({"soroban", "config", "contract-max-rw-key-byte"}))
-    , mConfigContractMaxRwDataByte(metrics.NewCounter(
+    , mConfigMacContractDataEntrySizeBytes(metrics.NewCounter(
           {"soroban", "config", "contract-max-rw-data-byte"}))
-    , mConfigContractMaxRwCodeByte(metrics.NewCounter(
+    , mConfigMaxContractSizeBytes(metrics.NewCounter(
           {"soroban", "config", "contract-max-rw-code-byte"}))
     , mConfigTxMaxSizeByte(
           metrics.NewCounter({"soroban", "config", "tx-max-size-byte"}))
     , mConfigTxMaxCpuInsn(
           metrics.NewCounter({"soroban", "config", "tx-max-cpu-insn"}))
-    , mConfigTxMaxMemByte(
+    , mConfigTxMemoryLimitBytes(
           metrics.NewCounter({"soroban", "config", "tx-max-mem-byte"}))
-    , mConfigTxMaxReadEntry(
+    , mConfigTxMaxReadLedgerEntries(
           metrics.NewCounter({"soroban", "config", "tx-max-read-entry"}))
-    , mConfigTxMaxReadLedgerByte(
+    , mConfigTxMaxReadBytes(
           metrics.NewCounter({"soroban", "config", "tx-max-read-ledger-byte"}))
-    , mConfigTxMaxWriteEntry(
+    , mConfigTxMaxWriteLedgerEntries(
           metrics.NewCounter({"soroban", "config", "tx-max-write-entry"}))
-    , mConfigTxMaxWriteLedgerByte(
+    , mConfigTxMaxWriteBytes(
           metrics.NewCounter({"soroban", "config", "tx-max-write-ledger-byte"}))
-    , mConfigTxMaxEmitEventByte(
+    , mConfigMaxContractEventsSizeBytes(
           metrics.NewCounter({"soroban", "config", "tx-max-emit-event-byte"}))
     , mConfigLedgerMaxTxCount(
           metrics.NewCounter({"soroban", "config", "ledger-max-tx-count"}))
-    , mConfigLedgerMaxCpuInsn(
+    , mConfigLedgerMaxInstructions(
           metrics.NewCounter({"soroban", "config", "ledger-max-cpu-insn"}))
     , mConfigLedgerMaxTxsSizeByte(
           metrics.NewCounter({"soroban", "config", "ledger-max-txs-size-byte"}))
-    , mConfigLedgerMaxReadEntry(
+    , mConfigLedgerMaxReadLedgerEntries(
           metrics.NewCounter({"soroban", "config", "ledger-max-read-entry"}))
-    , mConfigLedgerMaxReadLedgerByte(metrics.NewCounter(
+    , mConfigLedgerMaxReadBytes(metrics.NewCounter(
           {"soroban", "config", "ledger-max-read-ledger-byte"}))
-    , mConfigLedgerMaxWriteEntry(
+    , mConfigLedgerMaxWriteEntries(
           metrics.NewCounter({"soroban", "config", "ledger-max-write-entry"}))
-    , mConfigLedgerMaxWriteLedgerByte(metrics.NewCounter(
+    , mConfigLedgerMaxWriteBytes(metrics.NewCounter(
           {"soroban", "config", "ledger-max-write-ledger-byte"}))
     , mConfigBucketListTargetSizeByte(metrics.NewCounter(
           {"soroban", "config", "bucket-list-target-size-byte"}))
+    , mConfigFeeWrite1KB(
+          metrics.NewCounter({"soroban", "config", "fee-write-1kb"}))
 {
 }
 
