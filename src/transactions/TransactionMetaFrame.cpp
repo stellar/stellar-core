@@ -221,6 +221,31 @@ TransactionMetaFrame::setReturnValue(SCVal&& returnValue)
     }
 }
 
+void
+TransactionMetaFrame::setSorobanFeeInfo(int64_t nonRefundableFeeSpent,
+                                        int64_t totalRefundableFeeSpent,
+                                        int64_t rentFeeCharged)
+{
+    switch (mTransactionMeta.v())
+    {
+    case 2:
+        // Do nothing, until v3 we don't call into contracts.
+        break;
+    case 3:
+    {
+        auto& sorobanMeta = mTransactionMeta.v3().sorobanMeta.activate();
+        sorobanMeta.ext.v(1);
+        auto& ext = sorobanMeta.ext.v1();
+        ext.totalNonRefundableResourceFeeCharged = nonRefundableFeeSpent;
+        ext.totalRefundableResourceFeeCharged = totalRefundableFeeSpent;
+        ext.rentFeeCharged = rentFeeCharged;
+        break;
+    }
+    default:
+        releaseAssert(false);
+    }
+}
+
 TransactionMeta const&
 TransactionMetaFrame::getXDR() const
 {
