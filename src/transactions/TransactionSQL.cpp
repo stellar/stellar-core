@@ -350,7 +350,7 @@ writeTxSetToStream(
 void
 storeTransaction(Database& db, uint32_t ledgerSeq,
                  TransactionFrameBasePtr const& tx, TransactionMeta const& tm,
-                 TransactionResultSet const& resultSet)
+                 TransactionResultSet const& resultSet, Config const& cfg)
 {
     ZoneScoped;
     std::string txBody =
@@ -362,18 +362,34 @@ storeTransaction(Database& db, uint32_t ledgerSeq,
     std::string txIDString = binToHex(tx->getContentsHash());
     uint32_t txIndex = static_cast<uint32_t>(resultSet.results.size());
 
-    auto prep = db.getPreparedStatement(
-        "INSERT INTO txhistory "
-        "( txid, ledgerseq, txindex,  txbody, txresult, txmeta) VALUES "
-        "(:id,  :seq,      :txindex, :txb,   :txres,   :meta)");
+    std::string sqlStr;
+    if (cfg.isUsingBucketListDB())
+    {
+        sqlStr = "INSERT INTO txhistory "
+                 "( txid, ledgerseq, txindex,  txbody, txresult) VALUES "
+                 "(:id,  :seq,      :txindex, :txb,   :txres)";
+    }
+    else
+    {
+        sqlStr =
+            "INSERT INTO txhistory "
+            "( txid, ledgerseq, txindex,  txbody, txresult, txmeta) VALUES "
+            "(:id,  :seq,      :txindex, :txb,   :txres,   :meta)";
+    }
 
+    auto prep = db.getPreparedStatement(sqlStr);
     auto& st = prep.statement();
     st.exchange(soci::use(txIDString));
     st.exchange(soci::use(ledgerSeq));
     st.exchange(soci::use(txIndex));
     st.exchange(soci::use(txBody));
     st.exchange(soci::use(txResult));
-    st.exchange(soci::use(meta));
+
+    if (!cfg.isUsingBucketListDB())
+    {
+        st.exchange(soci::use(meta));
+    }
+
     st.define_and_bind();
     {
         auto timer = db.getInsertTimer("txhistory");
@@ -615,22 +631,26 @@ createTxSetHistoryTable(Database& db)
 }
 
 void
-dropTransactionHistory(Database& db)
+dropTransactionHistory(Database& db, Config const& cfg)
 {
     ZoneScoped;
     db.getSession() << "DROP TABLE IF EXISTS txhistory";
 
     db.getSession() << "DROP TABLE IF EXISTS txfeehistory";
 
+    // txmeta only supported when BucketListDB is not enabled
+    std::string txMetaColumn =
+        cfg.isUsingBucketListDB() ? "" : "txmeta      TEXT NOT NULL,";
+
     db.getSession() << "CREATE TABLE txhistory ("
                        "txid        CHARACTER(64) NOT NULL,"
                        "ledgerseq   INT NOT NULL CHECK (ledgerseq >= 0),"
                        "txindex     INT NOT NULL,"
                        "txbody      TEXT NOT NULL,"
-                       "txresult    TEXT NOT NULL,"
-                       "txmeta      TEXT NOT NULL,"
-                       "PRIMARY KEY (ledgerseq, txindex)"
-                       ")";
+                       "txresult    TEXT NOT NULL," +
+                           txMetaColumn +
+                           "PRIMARY KEY (ledgerseq, txindex)"
+                           ")";
 
     db.getSession() << "CREATE INDEX histbyseq ON txhistory (ledgerseq);";
 

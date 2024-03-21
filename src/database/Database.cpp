@@ -453,7 +453,7 @@ Database::initialize()
     PersistentState::dropAll(*this);
     ExternalQueue::dropAll(*this);
     LedgerHeaderUtils::dropAll(*this);
-    dropTransactionHistory(*this);
+    dropTransactionHistory(*this, mApp.getConfig());
     HistoryManager::dropAll(*this);
     HerderPersistence::dropAll(*this);
     BanManager::dropAll(*this);

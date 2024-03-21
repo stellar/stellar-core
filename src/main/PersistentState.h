@@ -58,6 +58,7 @@ class PersistentState
 
     bool hasTxSet(Hash const& txSetHash);
     void deleteTxSets(std::unordered_set<Hash> hashesToDelete);
+    void dropTxMetaIfExists(Database& db);
 
   private:
     static std::string kSQLCreateStatement;

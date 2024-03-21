@@ -53,6 +53,40 @@ PersistentState::deleteTxSets(std::unordered_set<Hash> hashesToDelete)
 }
 
 void
+PersistentState::dropTxMetaIfExists(Database& db)
+{
+    int txMetaExists{};
+    std::string selectStr;
+    if (mApp.getDatabase().isSqlite())
+    {
+        selectStr = "SELECT EXISTS ("
+                    "SELECT 1 "
+                    "FROM pragma_table_info('txhistory') "
+                    "WHERE name = 'txmeta');";
+    }
+    else
+    {
+        selectStr = "SELECT EXISTS ("
+                    "SELECT 1 "
+                    "FROM information_schema.columns "
+                    "WHERE "
+                    "table_name = 'txhistory' AND "
+                    "column_name = 'txmeta');";
+    }
+
+    auto& st = mApp.getDatabase().getPreparedStatement(selectStr).statement();
+    st.exchange(soci::into(txMetaExists));
+    st.define_and_bind();
+    st.execute(true);
+
+    if (txMetaExists)
+    {
+        CLOG_INFO(Database, "Dropping txmeta column from txhistory table");
+        db.getSession() << "ALTER TABLE txhistory DROP COLUMN txmeta;";
+    }
+}
+
+void
 PersistentState::upgradeSizeLimit(Database& db)
 {
     db.getSession()
