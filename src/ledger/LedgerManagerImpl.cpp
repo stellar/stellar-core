@@ -1560,6 +1560,16 @@ LedgerManagerImpl::applyTransactions(
             storeTransaction(mApp.getDatabase(), ledgerSeq, tx, tm.getXDR(),
                              txResultSet);
         }
+        else if (mApp.getConfig().MODE_STORES_HISTORY_MINIMAL)
+        {
+            auto ledgerSeq = ltx.loadHeader().current().ledgerSeq;
+            // Clear the meta as we don't want to store it.
+            tm.clearOperationMetas();
+            tm.clearTxChangesAfter();
+            releaseAssert(xdr::xdr_size(tm.getXDR()) == 0);
+            storeTransaction(mApp.getDatabase(), ledgerSeq, tx, tm.getXDR(),
+                             txResultSet);
+        }
     }
 
     mTransactionApplySucceeded.inc(txSucceeded);

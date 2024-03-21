@@ -338,6 +338,10 @@ class Config : public std::enable_shared_from_this<Config>
     // fees, and scp history in the database
     bool MODE_STORES_HISTORY_MISC;
 
+    // A config parameter that stores a minimal amount of historical data in the
+    // database (i.e. no meta)
+    bool MODE_STORES_HISTORY_MINIMAL;
+
     // A config parameter that stores ledger headers in the database
     bool MODE_STORES_HISTORY_LEDGERHEADERS;
 

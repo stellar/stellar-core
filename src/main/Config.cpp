@@ -2107,13 +2107,15 @@ Config::isInMemoryModeWithoutMinimalDB() const
 bool
 Config::modeStoresAllHistory() const
 {
-    return MODE_STORES_HISTORY_LEDGERHEADERS && MODE_STORES_HISTORY_MISC;
+    return MODE_STORES_HISTORY_LEDGERHEADERS &&
+           (MODE_STORES_HISTORY_MISC || MODE_STORES_HISTORY_MINIMAL);
 }
 
 bool
 Config::modeStoresAnyHistory() const
 {
-    return MODE_STORES_HISTORY_LEDGERHEADERS || MODE_STORES_HISTORY_MISC;
+    return MODE_STORES_HISTORY_LEDGERHEADERS || MODE_STORES_HISTORY_MISC ||
+           MODE_STORES_HISTORY_MINIMAL;
 }
 
 void
