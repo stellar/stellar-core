@@ -80,7 +80,7 @@ std::string
 BasicWork::getStatus() const
 {
     // Work is in `WAITING` state when retrying
-    auto state = mRetryTimer ? InternalState::RETRYING : mState;
+    auto state = mRetryTimer ? InternalState::RETRYING : mState.load();
 
     switch (state)
     {
