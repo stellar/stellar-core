@@ -58,7 +58,8 @@ QBitSet::getSuccessors(BitSet const& nodes, QGraph const& inner)
 
 // Slightly tweaked variant of Lachowski's next-node function.
 size_t
-MinQuorumEnumerator::pickSplitNode() const
+MinQuorumEnumerator::pickSplitNode(
+    stellar::stellar_default_random_engine& randEngine) const
 {
     std::vector<size_t>& inDegrees = mQic.mInDegrees;
     inDegrees.assign(mQic.mGraph.size(), 0);
@@ -83,7 +84,7 @@ MinQuorumEnumerator::pickSplitNode() const
                     // currDegree same as existing max: replace it
                     // only probabilistically.
                     maxCount++;
-                    if (rand_uniform<size_t>(0, maxCount) == 0)
+                    if (rand_uniform<size_t>(0, maxCount, randEngine) == 0)
                     {
                         // Not switching max element with max degree.
                         continue;
@@ -236,7 +237,7 @@ MinQuorumEnumerator::anyMinQuorumHasDisjointQuorum()
     }
 
     // Phase two: recurse into subproblems.
-    size_t split = pickSplitNode();
+    size_t split = pickSplitNode(mQic.mRand);
     if (mQic.mLogTrace)
     {
         CLOG_TRACE(SCP, "recursing into subproblems, split={}", split);
@@ -276,6 +277,8 @@ QuorumIntersectionCheckerImpl::QuorumIntersectionCheckerImpl(
     , mInterruptFlag(interruptFlag)
     , mCachedQuorums(MAX_CACHED_QUORUMS_SIZE)
 {
+    assertThreadIsMain();
+    mRand.seed(stellar::gRandomEngine());
     buildGraph(qmap);
     // Awkwardly, the graph size is zero when we initialize mTSC. Update it
     // here.
