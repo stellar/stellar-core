@@ -613,6 +613,7 @@ exit /b 0
     <ClCompile Include="..\..\src\overlay\PeerManager.cpp" />
     <ClCompile Include="..\..\src\overlay\PeerSharedKeyId.cpp" />
     <ClCompile Include="..\..\src\overlay\RandomPeerSource.cpp" />
+    <ClCompile Include="..\..\src\overlay\SurveyDataManager.cpp" />
     <ClCompile Include="..\..\src\overlay\SurveyManager.cpp" />
     <ClCompile Include="..\..\src\overlay\SurveyMessageLimiter.cpp" />
     <ClCompile Include="..\..\src\overlay\TCPPeer.cpp" />
@@ -1031,6 +1032,7 @@ exit /b 0
     <ClInclude Include="..\..\src\overlay\PeerSharedKeyId.h" />
     <ClInclude Include="..\..\src\overlay\RandomPeerSource.h" />
     <ClInclude Include="..\..\src\overlay\StellarXDR.h" />
+    <ClInclude Include="..\..\src\overlay\SurveyDataManager.h" />
     <ClInclude Include="..\..\src\overlay\SurveyManager.h" />
     <ClInclude Include="..\..\src\overlay\SurveyMessageLimiter.h" />
     <ClInclude Include="..\..\src\overlay\TCPPeer.h" />

@@ -68,6 +68,13 @@ class CommandHandler
     void stopSurvey(std::string const&, std::string& retStr);
     void getSurveyResult(std::string const&, std::string& retStr);
     void sorobanInfo(std::string const&, std::string& retStr);
+    void startSurveyCollecting(std::string const& params, std::string& retStr);
+    void stopSurveyCollecting(std::string const& params, std::string& retStr);
+    void surveyTopologyTimeSliced(std::string const& params,
+                                  std::string& retStr);
+
+    // Checks if stellar-core is booted and throws an exception if not.
+    void checkBooted() const;
 
 #ifdef BUILD_TESTS
     void generateLoad(std::string const& params, std::string& retStr);

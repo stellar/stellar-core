@@ -764,12 +764,20 @@ There is a survey mechanism in the overlay that allows a validator to request co
 
 By default, a node will relay or respond to a survey message if the message originated from a node in the receiving nodes transitive quorum. This behavior can be overridden by setting `SURVEYOR_KEYS` in the config file to a more restrictive set of nodes to relay or respond to.
 
+The survey works in two phases: the collecting phase, and the reporting phase. During the collecting phase, nodes record information about themselves and their peers, such as the number of messages sent to a given peer. During the reporting phase, the surveyor requests the results of the collecting phase from nodes on the network.
+
+The surveyor begins the collecting phase by broadcasting a `TimeSlicedSurveyStartCollectingMessage`. The surveyor ends the collecting phase and initiates the reporting phase by broadcasting a `TimeSlicedSurveyStopCollectingMessage`. These start/stop collecting messages ensure that the collecting phase is roughly equal for all nodes present for the duration of the collecting phase.
+
+During the reporting phase, the surveyor sends `TimeSlicedSurveyRequestMessage`s to individual nodes to gather the information the node recorded during the collecting phase.
+
 ##### Example survey command
 
 In this example, we have three nodes `GBBN`, `GDEX`, and `GBUI` (we'll refer to them by the first four letters of their public keys). We will execute the commands below from `GBUI`, and note that `GBBN` has `SURVEYOR_KEYS=["$self"]` in it's config file, so `GBBN` will not relay or respond to any survey messages.
 
-  1. `$ stellar-core http-command 'surveytopology?duration=1000&node=GBBNXPPGDFDUQYH6RT5VGPDSOWLZEXXFD3ACUPG5YXRHLTATTUKY42CL'`
-  2. `$ stellar-core http-command 'surveytopology?duration=1000&node=GDEXJV6XKKLDUWKTSXOOYVOYWZGVNIKKQ7GVNR5FOV7VV5K4MGJT5US4'`
+  1. `$ stellar-core http-command 'startsurveycollecting?nonce=1234'`
+  1. `$ stellar-core http-command 'stopsurveycollecting?nonce=1234'`
+  1. `$ stellar-core http-command 'surveytopologytimesliced?node=GBBNXPPGDFDUQYH6RT5VGPDSOWLZEXXFD3ACUPG5YXRHLTATTUKY42CL&inboundpeerindex=0&outboundpeerindex=0'`
+  2. `$ stellar-core http-command 'surveytopologytimesliced?node=GDEXJV6XKKLDUWKTSXOOYVOYWZGVNIKKQ7GVNR5FOV7VV5K4MGJT5US4&inboundpeerindex=0&outboundpeerindex=0'`
   3. `$ stellar-core http-command 'getsurveyresult'`
 
 Once the responses are received, the `getsurveyresult` command will return a result like this:
@@ -821,6 +829,12 @@ Once the responses are received, the `getsurveyresult` command will return a res
          "numTotalOutboundPeers" : 0,
          "maxInboundPeerCount" : 64,
          "maxOutboundPeerCount" : 8,
+         "addedAuthenticatedPeers" : 0,
+         "droppedAuthenticatedPeers" : 0,
+         "p75SCPFirstToSelfLatencyNs" : 121042,
+         "p75SCPSelfToOtherLatencyNs" : 112452,
+         "lostSyncCount" : 0,
+         "isValidator" : false,
          "outboundPeers" : null
       }
    }
@@ -835,6 +849,7 @@ Notable field definitions
 * `badResponseNodes` : List of nodes that sent a malformed response
 * `topology` : Map of nodes to connection information
   * `inboundPeers`/`outboundPeers` : List of connection information by nodes
+    * `averageLatencyMs` : Average latency with this peer in milliseconds.
     * `bytesRead`: The total number of bytes read from this peer.
     * `bytesWritten`: The total number of bytes written to this peer.
     * `duplicateFetchBytesRecv`: The number of bytes received that were duplicate transaction sets and quorum sets.
@@ -853,6 +868,12 @@ Notable field definitions
 
   * `numTotalInboundPeers`/`numTotalOutboundPeers` : The number of total inbound and outbound peers this node is connected to. The response will have a random subset of 25 connected peers per direction (inbound/outbound). These fields tell you if you're missing nodes so you can send another request out to get another random subset of nodes.
   * `maxInboundPeerCount`/`maxOutboundPeerCount` : The number of total inbound and outbound peers that this node can accept. These fields correspond to stellar-core configurations `MAX_ADDITIONAL_PEER_CONNECTIONS` and `TARGET_PEER_CONNECTIONS`, respectively.
+  * `addedAuthenticatedPeers` : The number of authenticated peers added.
+  * `droppedAuthenticatedPeers` : The number of authenticated peers dropped.
+  * `p75SCPFirstToSelfLatencyNs` : 75th percentile latency to hear about new SCP messages in nanoseconds.
+   * `p75SCPSelfToOtherLatencyNs` : 75th percentile latency for other nodes to hear this node's SCP messages in nanoseconds.
+   * `lostSyncCount` : The number of times this node lost sync.
+   * `isValidator` : Is this node a validator?
 
 ### Quorum Health
 

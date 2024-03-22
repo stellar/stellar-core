@@ -268,6 +268,12 @@ class Config : public std::enable_shared_from_this<Config>
     // Waits for merges to complete before applying transactions during catchup
     bool CATCHUP_WAIT_MERGES_TX_APPLY_FOR_TESTING;
 
+    // Overrides the maximum survey phase duration for both the collecting and
+    // reporting phase to the specified value. Performs no override if set to 0.
+    // Do not use in production. This option is ignored in builds without tests
+    // enabled.
+    std::chrono::minutes ARTIFICIALLY_SET_SURVEY_PHASE_DURATION_FOR_TESTING;
+
     // A config parameter that controls how many messages from a particular peer
     // core can process simultaneously. If core is at capacity, it temporarily
     // stops reading from a peer until it completes processing of at least one

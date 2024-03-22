@@ -48,7 +48,8 @@ class OverlayManagerImpl : public OverlayManager
                            medida::MetricsRegistry& metricsRegistry,
                            std::string const& directionString,
                            std::string const& cancelledName,
-                           int maxAuthenticatedCount);
+                           int maxAuthenticatedCount,
+                           std::shared_ptr<SurveyManager> sm);
 
         medida::Meter& mConnectionsAttempted;
         medida::Meter& mConnectionsEstablished;
@@ -58,6 +59,7 @@ class OverlayManagerImpl : public OverlayManager
         OverlayManagerImpl& mOverlayManager;
         std::string mDirectionString;
         size_t mMaxAuthenticatedCount;
+        std::shared_ptr<SurveyManager> mSurveyManager;
 
         std::vector<Peer::pointer> mPending;
         std::map<NodeID, Peer::pointer> mAuthenticated;
@@ -68,9 +70,6 @@ class OverlayManagerImpl : public OverlayManager
         bool acceptAuthenticatedPeer(Peer::pointer peer);
         void shutdown();
     };
-
-    PeersList mInboundPeers;
-    PeersList mOutboundPeers;
 
     std::shared_ptr<int> mLiveInboundPeersCounter;
 
@@ -99,6 +98,8 @@ class OverlayManagerImpl : public OverlayManager
 
     std::shared_ptr<SurveyManager> mSurveyManager;
 
+    PeersList mInboundPeers;
+    PeersList mOutboundPeers;
     int availableOutboundPendingSlots() const;
 
   public:
@@ -112,9 +113,9 @@ class OverlayManagerImpl : public OverlayManager
                          Peer::pointer peer) override;
     void forgetFloodedMsg(Hash const& msgID) override;
     void recvTxDemand(FloodDemand const& dmd, Peer::pointer peer) override;
-    bool
-    broadcastMessage(std::shared_ptr<StellarMessage const> msg,
-                     std::optional<Hash> const hash = std::nullopt) override;
+    bool broadcastMessage(std::shared_ptr<StellarMessage const> msg,
+                          std::optional<Hash> const hash = std::nullopt,
+                          uint32_t minOverlayVersion = 0) override;
     void connectTo(PeerBareAddress const& address) override;
 
     void maybeAddInboundConnection(Peer::pointer peer) override;

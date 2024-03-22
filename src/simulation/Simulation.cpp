@@ -401,6 +401,13 @@ Simulation::crankNode(NodeID const& id, VirtualClock::time_point timeout)
     {
         count += clock->crank(false);
     }
+
+    // Update network survey phase
+    OverlayManager& om = app->getOverlayManager();
+    om.getSurveyManager().updateSurveyPhase(om.getInboundAuthenticatedPeers(),
+                                            om.getOutboundAuthenticatedPeers(),
+                                            app->getConfig());
+
     return count - quantumClicks;
 }
 

@@ -58,6 +58,7 @@ class PeerStub : public Peer
         mPeerID = SecretKey::pseudoRandomForTesting().getPublicKey();
         mState = GOT_AUTH;
         mAddress = address;
+        mRemoteOverlayVersion = app.getConfig().OVERLAY_PROTOCOL_VERSION;
         mFlowControl = std::make_shared<FlowControlStub>(mAppConnector);
     }
     virtual void

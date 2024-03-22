@@ -18,6 +18,7 @@
 #include "overlay/PeerBareAddress.h"
 #include "overlay/PeerManager.h"
 #include "overlay/RandomPeerSource.h"
+#include "overlay/SurveyDataManager.h"
 #include "overlay/TCPPeer.h"
 #include "overlay/TxDemandsManager.h"
 #include "util/GlobalChecks.h"
@@ -74,7 +75,7 @@ OverlayManagerImpl::PeersList::PeersList(
     OverlayManagerImpl& overlayManager,
     medida::MetricsRegistry& metricsRegistry,
     std::string const& directionString, std::string const& cancelledName,
-    int maxAuthenticatedCount)
+    int maxAuthenticatedCount, std::shared_ptr<SurveyManager> sm)
     : mConnectionsAttempted(metricsRegistry.NewMeter(
           {"overlay", directionString, "attempt"}, "connection"))
     , mConnectionsEstablished(metricsRegistry.NewMeter(
@@ -86,6 +87,7 @@ OverlayManagerImpl::PeersList::PeersList(
     , mOverlayManager(overlayManager)
     , mDirectionString(directionString)
     , mMaxAuthenticatedCount(maxAuthenticatedCount)
+    , mSurveyManager(sm)
 {
 }
 
@@ -141,6 +143,7 @@ OverlayManagerImpl::PeersList::removePeer(Peer* peer)
                    mDirectionString, peer->toString());
         mAuthenticated.erase(authentiatedIt);
         mConnectionsDropped.Mark();
+        mSurveyManager->recordDroppedPeer(*peer);
         return;
     }
 
@@ -183,6 +186,10 @@ OverlayManagerImpl::PeersList::moveToAuthenticated(Peer::pointer peer)
     mAuthenticated[peer->getPeerID()] = peer;
 
     CLOG_INFO(Overlay, "Connected to {}", peer->toString());
+
+    mSurveyManager->modifyNodeData([&](CollectingNodeData& nodeData) {
+        ++nodeData.mAddedAuthenticatedPeers;
+    });
 
     return true;
 }
@@ -283,10 +290,6 @@ OverlayManager::create(Application& app)
 
 OverlayManagerImpl::OverlayManagerImpl(Application& app)
     : mApp(app)
-    , mInboundPeers(*this, mApp.getMetrics(), "inbound", "reject",
-                    mApp.getConfig().MAX_ADDITIONAL_PEER_CONNECTIONS)
-    , mOutboundPeers(*this, mApp.getMetrics(), "outbound", "cancel",
-                     mApp.getConfig().TARGET_PEER_CONNECTIONS)
     , mLiveInboundPeersCounter(make_shared<int>(0))
     , mPeerManager(app)
     , mDoor(mApp)
@@ -299,6 +302,11 @@ OverlayManagerImpl::OverlayManagerImpl(Application& app)
     , mFloodGate(app)
     , mTxDemandsManager(app)
     , mSurveyManager(make_shared<SurveyManager>(app))
+    , mInboundPeers(*this, mApp.getMetrics(), "inbound", "reject",
+                    mApp.getConfig().MAX_ADDITIONAL_PEER_CONNECTIONS,
+                    mSurveyManager)
+    , mOutboundPeers(*this, mApp.getMetrics(), "outbound", "cancel",
+                     mApp.getConfig().TARGET_PEER_CONNECTIONS, mSurveyManager)
     , mResolvingPeersWithBackoff(true)
     , mResolvingPeersRetryCount(0)
 {
@@ -702,6 +710,11 @@ OverlayManagerImpl::tick()
         mPeerIPTimer.async_wait([this]() { this->triggerPeerResolution(); },
                                 VirtualTimer::onFailureNoop);
     }
+
+    // Check and update the overlay survey state
+    mSurveyManager->updateSurveyPhase(getInboundAuthenticatedPeers(),
+                                      getOutboundAuthenticatedPeers(),
+                                      mApp.getConfig());
 
     auto availablePendingSlots = availableOutboundPendingSlots();
     if (availablePendingSlots == 0)
@@ -1202,10 +1215,11 @@ OverlayManagerImpl::recvTxDemand(FloodDemand const& dmd, Peer::pointer peer)
 
 bool
 OverlayManagerImpl::broadcastMessage(std::shared_ptr<StellarMessage const> msg,
-                                     std::optional<Hash> const hash)
+                                     std::optional<Hash> const hash,
+                                     uint32_t minOverlayVersion)
 {
     ZoneScoped;
-    auto res = mFloodGate.broadcast(msg, hash);
+    auto res = mFloodGate.broadcast(msg, hash, minOverlayVersion);
     if (res)
     {
         mOverlayMetrics.mMessagesBroadcast.Mark();
@@ -1292,7 +1306,11 @@ OverlayManagerImpl::recordMessageMetric(StellarMessage const& stellarMsg,
 
     bool flood = false;
     if (isFloodMessage(stellarMsg) || stellarMsg.type() == SURVEY_REQUEST ||
-        stellarMsg.type() == SURVEY_RESPONSE)
+        stellarMsg.type() == SURVEY_RESPONSE ||
+        stellarMsg.type() == TIME_SLICED_SURVEY_START_COLLECTING ||
+        stellarMsg.type() == TIME_SLICED_SURVEY_STOP_COLLECTING ||
+        stellarMsg.type() == TIME_SLICED_SURVEY_REQUEST ||
+        stellarMsg.type() == TIME_SLICED_SURVEY_RESPONSE)
     {
         flood = true;
     }
