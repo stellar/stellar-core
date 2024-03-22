@@ -335,11 +335,12 @@ class Config : public std::enable_shared_from_this<Config>
     bool EXPERIMENTAL_BUCKETLIST_DB_PERSIST_INDEX;
 
     // A config parameter that stores historical data, such as transactions,
-    // fees, and scp history in the database
+    // fees, and scp history in the database.
     bool MODE_STORES_HISTORY_MISC;
 
     // A config parameter that stores a minimal amount of historical data in the
-    // database (i.e. no meta)
+    // database (i.e. just history, no fees or meta). This is useful for
+    // validators that only want to publish to history archives.
     bool MODE_STORES_HISTORY_MINIMAL;
 
     // A config parameter that stores ledger headers in the database
