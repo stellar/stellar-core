@@ -1561,6 +1561,9 @@ Config::processConfig(std::shared_ptr<cpptoml::table> t)
         // Validators default to starting the network from local state
         FORCE_SCP = NODE_IS_VALIDATOR;
         MODE_STORES_HISTORY_MINIMAL = NODE_IS_VALIDATOR;
+        if (NODE_IS_VALIDATOR) {
+            MODE_STORES_HISTORY_MISC = false;
+        }
 
         // process elements that potentially depend on others
         if (t->contains("VALIDATORS"))
