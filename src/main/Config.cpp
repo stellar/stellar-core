@@ -1560,6 +1560,7 @@ Config::processConfig(std::shared_ptr<cpptoml::table> t)
 
         // Validators default to starting the network from local state
         FORCE_SCP = NODE_IS_VALIDATOR;
+        MODE_STORES_HISTORY_MINIMAL = NODE_IS_VALIDATOR;
 
         // process elements that potentially depend on others
         if (t->contains("VALIDATORS"))
@@ -2069,6 +2070,7 @@ Config::setInMemoryMode()
     MODE_USES_IN_MEMORY_LEDGER = true;
     DATABASE = SecretValue{"sqlite3://:memory:"};
     MODE_STORES_HISTORY_MISC = false;
+    MODE_STORES_HISTORY_MINIMAL = false;
     MODE_STORES_HISTORY_LEDGERHEADERS = false;
     MODE_ENABLES_BUCKETLIST = true;
 }
