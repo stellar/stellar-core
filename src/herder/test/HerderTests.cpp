@@ -3003,7 +3003,7 @@ TEST_CASE("SCP Driver", "[herder][acceptance]")
     }
 }
 
-TEST_CASE("SCP State", "[herder][acceptance]")
+TEST_CASE("SCP State", "[herder]")
 {
     SecretKey nodeKeys[3];
     PublicKey nodeIDs[3];

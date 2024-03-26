@@ -62,7 +62,7 @@ using namespace std;
 bool Database::gDriversRegistered = false;
 
 // smallest schema version supported
-static unsigned long const MIN_SCHEMA_VERSION = 13;
+static unsigned long const MIN_SCHEMA_VERSION = 21;
 static unsigned long const SCHEMA_VERSION = 21;
 
 // These should always match our compiled version precisely, since we are
@@ -212,33 +212,11 @@ Database::applySchemaUpgrade(unsigned long vers)
     soci::transaction tx(mSession);
     switch (vers)
     {
-    case 14:
-        mApp.getPersistentState().setRebuildForType(OFFER);
-        break;
-    case 15:
-        mApp.getPersistentState().setRebuildForType(TRUSTLINE);
-        mApp.getPersistentState().setRebuildForType(LIQUIDITY_POOL);
-        break;
-    case 16:
-        mApp.getPersistentState().setRebuildForType(LIQUIDITY_POOL);
-        break;
-    case 17:
-        mApp.getPersistentState().setRebuildForType(OFFER);
-        break;
-    case 18:
-        createTxSetHistoryTable(*this);
-        mApp.getPersistentState().upgradeSCPDataFormat();
-        break;
-    case 19:
-        mApp.getPersistentState().upgradeSCPDataV1Format();
-        break;
-    case 20:
-        mApp.getPersistentState().setRebuildForType(CONFIG_SETTING);
-        mApp.getPersistentState().setRebuildForType(CONTRACT_DATA);
-        mApp.getPersistentState().setRebuildForType(CONTRACT_CODE);
-        break;
-    case 21:
-        mApp.getPersistentState().setRebuildForType(TTL);
+    case 22:
+        // Add schema upgrades for version 21 -> 22 here.
+        // Currently, this is empty as the schema is already at version 21 and
+        // there are no upgrades to apply. However, this case is left here to
+        // allow for future upgrades to be added.
         break;
     default:
         throw std::runtime_error("Unknown DB schema version");
