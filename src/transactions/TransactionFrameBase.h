@@ -43,6 +43,8 @@ class TransactionFrameBase
                             SequenceNumber current,
                             uint64_t lowerBoundCloseTimeOffset,
                             uint64_t upperBoundCloseTimeOffset) = 0;
+    virtual bool checkSorobanResourceAndSetError(Application& app,
+                                                 uint32_t ledgerVersion) = 0;
 
     virtual TransactionEnvelope const& getEnvelope() const = 0;
 

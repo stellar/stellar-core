@@ -278,6 +278,20 @@ TransactionQueue::canAdd(TransactionFrameBasePtr tx,
                 return TransactionQueue::AddResult::ADD_STATUS_ERROR;
             }
 
+            // Before rejecting Soroban transactions due to source account
+            // limit, check validity of its declared resources, and return an
+            // appropriate error message
+            if (tx->isSoroban())
+            {
+                if (!tx->checkSorobanResourceAndSetError(
+                        mApp, mApp.getLedgerManager()
+                                  .getLastClosedLedgerHeader()
+                                  .header.ledgerVersion))
+                {
+                    return TransactionQueue::AddResult::ADD_STATUS_ERROR;
+                }
+            }
+
             if (tx->getEnvelope().type() != ENVELOPE_TYPE_TX_FEE_BUMP)
             {
                 // If there's already a transaction in the queue, we reject
