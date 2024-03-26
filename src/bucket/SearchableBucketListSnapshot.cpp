@@ -42,9 +42,20 @@ SearchableBucketListSnapshot::getLedgerEntry(LedgerKey const& k)
     ZoneScoped;
     mSnapshotManager.maybeUpdateSnapshot(*this);
 
-    // TODO: Metrics only on main thread
-    auto timer = mSnapshotManager.getPointLoadTimer(k.type()).TimeScope();
+    if (threadIsMain())
+    {
+        auto timer = mSnapshotManager.getPointLoadTimer(k.type()).TimeScope();
+        return getLedgerEntryInternal(k);
+    }
+    else
+    {
+        return getLedgerEntryInternal(k);
+    }
+}
 
+std::shared_ptr<LedgerEntry>
+SearchableBucketListSnapshot::getLedgerEntryInternal(LedgerKey const& k)
+{
     std::shared_ptr<LedgerEntry> result{};
 
     auto f = [&](SearchableBucketSnapshot const& b) {
@@ -68,16 +79,9 @@ SearchableBucketListSnapshot::getLedgerEntry(LedgerKey const& k)
 }
 
 std::vector<LedgerEntry>
-SearchableBucketListSnapshot::loadKeys(
+SearchableBucketListSnapshot::loadKeysInternal(
     std::set<LedgerKey, LedgerEntryIdCmp> const& inKeys)
 {
-    ZoneScoped;
-    mSnapshotManager.maybeUpdateSnapshot(*this);
-
-    auto timer =
-        mSnapshotManager.recordBulkLoadMetrics("prefetch", inKeys.size())
-            .TimeScope();
-
     std::vector<LedgerEntry> entries;
 
     // Make a copy of the key set, this loop is destructive
@@ -91,6 +95,26 @@ SearchableBucketListSnapshot::loadKeys(
     return entries;
 }
 
+std::vector<LedgerEntry>
+SearchableBucketListSnapshot::loadKeys(
+    std::set<LedgerKey, LedgerEntryIdCmp> const& inKeys)
+{
+    ZoneScoped;
+    mSnapshotManager.maybeUpdateSnapshot(*this);
+
+    if (threadIsMain())
+    {
+        auto timer =
+            mSnapshotManager.recordBulkLoadMetrics("prefetch", inKeys.size())
+                .TimeScope();
+        return loadKeysInternal(inKeys);
+    }
+    else
+    {
+        return loadKeysInternal(inKeys);
+    }
+}
+
 // This query has two steps:
 //  1. For each bucket, determine what PoolIDs contain the target asset via the
 //     assetToPoolID index
@@ -101,6 +125,9 @@ SearchableBucketListSnapshot::loadPoolShareTrustLinesByAccountAndAsset(
     AccountID const& accountID, Asset const& asset)
 {
     ZoneScoped;
+
+    // This query should only be called during TX apply
+    releaseAssert(threadIsMain());
     mSnapshotManager.maybeUpdateSnapshot(*this);
 
     LedgerKeySet trustlinesToLoad;
@@ -119,7 +146,12 @@ SearchableBucketListSnapshot::loadPoolShareTrustLinesByAccountAndAsset(
     };
 
     loopAllBuckets(trustLineLoop);
-    return loadKeys(trustlinesToLoad);
+
+    auto timer = mSnapshotManager
+                     .recordBulkLoadMetrics("poolshareTrustlines",
+                                            trustlinesToLoad.size())
+                     .TimeScope();
+    return loadKeysInternal(trustlinesToLoad);
 }
 
 std::vector<InflationWinner>
@@ -129,6 +161,9 @@ SearchableBucketListSnapshot::loadInflationWinners(size_t maxWinners,
     ZoneScoped;
     mSnapshotManager.maybeUpdateSnapshot(*this);
 
+    // This is a legacy query, should only be called by main thread during
+    // catchup
+    releaseAssert(threadIsMain());
     auto timer = mSnapshotManager.recordBulkLoadMetrics("inflationWinners", 0)
                      .TimeScope();
 

@@ -44,6 +44,11 @@ class SearchableBucketListSnapshot : public NonMovableOrCopyable
     SearchableBucketListSnapshot(BucketSnapshotManager const& snapshotManager,
                                  BucketList const& bl);
 
+    std::vector<LedgerEntry>
+    loadKeysInternal(std::set<LedgerKey, LedgerEntryIdCmp> const& inKeys);
+
+    std::shared_ptr<LedgerEntry> getLedgerEntryInternal(LedgerKey const& k);
+
   public:
     std::vector<LedgerEntry>
     loadKeys(std::set<LedgerKey, LedgerEntryIdCmp> const& inKeys);
