@@ -1381,10 +1381,20 @@ TEST_CASE("Soroban TransactionQueue limits",
                 resources.instructions =
                     static_cast<uint32>(conf.txMaxInstructions() + 1);
 
-                // Double the fee
-                auto tx2 =
-                    createUploadWasmTx(*app, account2, initialInclusionFee * 2,
-                                       resourceFee, resources);
+                TransactionFrameBasePtr tx2;
+                SECTION("different source account")
+                {
+                    // Double the fee
+                    tx2 = createUploadWasmTx(*app, account2,
+                                             initialInclusionFee * 2,
+                                             resourceFee, resources);
+                }
+                SECTION("invalid resources kick in before source account limit")
+                {
+                    tx2 =
+                        createUploadWasmTx(*app, account1, initialInclusionFee,
+                                           resourceFee, resources);
+                }
 
                 REQUIRE(app->getHerder().recvTransaction(tx2, false) ==
                         TransactionQueue::AddResult::ADD_STATUS_ERROR);
