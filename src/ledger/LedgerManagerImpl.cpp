@@ -589,6 +589,8 @@ LedgerManagerImpl::publishSorobanMetrics()
         mSorobanNetworkConfig->maxContractDataEntrySizeBytes());
     mSorobanMetrics.mConfigMaxContractSizeBytes.set_count(
         mSorobanNetworkConfig->maxContractSizeBytes());
+    mSorobanMetrics.mConfigTxMaxSizeByte.set_count(
+        mSorobanNetworkConfig->txMaxSizeBytes());
     mSorobanMetrics.mConfigTxMaxCpuInsn.set_count(
         mSorobanNetworkConfig->txMaxInstructions());
     mSorobanMetrics.mConfigTxMemoryLimitBytes.set_count(
@@ -603,8 +605,12 @@ LedgerManagerImpl::publishSorobanMetrics()
         mSorobanNetworkConfig->txMaxWriteBytes());
     mSorobanMetrics.mConfigMaxContractEventsSizeBytes.set_count(
         mSorobanNetworkConfig->txMaxContractEventsSizeBytes());
+    mSorobanMetrics.mConfigLedgerMaxTxCount.set_count(
+        mSorobanNetworkConfig->ledgerMaxTxCount());
     mSorobanMetrics.mConfigLedgerMaxInstructions.set_count(
         mSorobanNetworkConfig->ledgerMaxInstructions());
+    mSorobanMetrics.mConfigLedgerMaxTxsSizeByte.set_count(
+        mSorobanNetworkConfig->ledgerMaxTransactionSizesBytes());
     mSorobanMetrics.mConfigLedgerMaxReadLedgerEntries.set_count(
         mSorobanNetworkConfig->ledgerMaxReadLedgerEntries());
     mSorobanMetrics.mConfigLedgerMaxReadBytes.set_count(
