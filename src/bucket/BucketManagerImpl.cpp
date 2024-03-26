@@ -7,6 +7,7 @@
 #include "bucket/BucketInputIterator.h"
 #include "bucket/BucketList.h"
 #include "bucket/BucketOutputIterator.h"
+#include "bucket/BucketSnapshotManager.h"
 #include "bucket/SearchableBucketListSnapshot.h"
 #include "crypto/Hex.h"
 #include "history/HistoryManager.h"
@@ -88,6 +89,8 @@ BucketManagerImpl::initialize()
     if (mApp.getConfig().MODE_ENABLES_BUCKETLIST)
     {
         mBucketList = std::make_unique<BucketList>();
+        mSnapshotManager = std::make_unique<BucketSnapshotManager>(
+            mApp.getMetrics(), *mBucketList, mBucketListMutex);
     }
 }
 
@@ -108,6 +111,7 @@ BucketManagerImpl::getTmpDirManager()
 BucketManagerImpl::BucketManagerImpl(Application& app)
     : mApp(app)
     , mBucketList(nullptr)
+    , mSnapshotManager(nullptr)
     , mTmpDirManager(nullptr)
     , mWorkDir(nullptr)
     , mLockedBucketDir(nullptr)
@@ -258,6 +262,13 @@ BucketManagerImpl::getBucketList()
 {
     releaseAssertOrThrow(mApp.getConfig().MODE_ENABLES_BUCKETLIST);
     return *mBucketList;
+}
+
+BucketSnapshotManager&
+BucketManagerImpl::getBucketSnapshotManager() const
+{
+    releaseAssertOrThrow(mApp.getConfig().MODE_ENABLES_BUCKETLIST);
+    return *mSnapshotManager;
 }
 
 medida::Timer&
@@ -823,7 +834,7 @@ BucketManagerImpl::addBatch(Application& app, uint32_t currLedger,
     mBucketObjectInsertBatch.Mark(initEntries.size() + liveEntries.size() +
                                   deadEntries.size());
     {
-        std::lock_guard<std::recursive_mutex> lock(mBucketSnapshotMutex);
+        std::lock_guard<std::recursive_mutex> lock(mBucketListMutex);
         mBucketList->addBatch(app, currLedger, currLedgerProtocol, initEntries,
                               liveEntries, deadEntries);
     }
@@ -907,22 +918,10 @@ BucketManagerImpl::scanForEvictionLegacySQL(AbstractLedgerTxn& ltx,
     }
 }
 
-std::unique_ptr<SearchableBucketListSnapshot>
-BucketManagerImpl::getSearchableBucketListSnapshot() const
-{
-    releaseAssertOrThrow(mApp.getConfig().isUsingBucketListDB() && mBucketList);
-
-    std::lock_guard<std::recursive_mutex> lock(mBucketSnapshotMutex);
-
-    // Note: cannot use make_unique due to private constructor
-    return std::unique_ptr<SearchableBucketListSnapshot>(
-        new SearchableBucketListSnapshot(mApp, *mBucketList));
-}
-
 std::recursive_mutex&
-BucketManagerImpl::getBucketSnapshotMutex() const
+BucketManagerImpl::getBucketListMutex() const
 {
-    return mBucketSnapshotMutex;
+    return mBucketListMutex;
 }
 
 medida::Meter&
@@ -986,7 +985,7 @@ BucketManagerImpl::assumeState(HistoryArchiveState const& has,
     releaseAssertOrThrow(mApp.getConfig().MODE_ENABLES_BUCKETLIST);
 
     {
-        std::lock_guard<std::recursive_mutex> lock(mBucketSnapshotMutex);
+        std::lock_guard<std::recursive_mutex> lock(mBucketListMutex);
         for (uint32_t i = 0; i < BucketList::kNumLevels; ++i)
         {
             auto curr =

@@ -4,82 +4,14 @@
 
 #include "bucket/SearchableBucketListSnapshot.h"
 #include "bucket/BucketInputIterator.h"
-#include "ledger/LedgerManager.h"
-#include "main/Application.h"
+#include "crypto/SecretKey.h"
+#include "ledger/LedgerTxn.h"
 
 #include "medida/meter.h"
 #include "medida/metrics_registry.h"
 
 namespace stellar
 {
-
-medida::Timer&
-SearchableBucketListSnapshot::recordBulkLoadMetrics(std::string const& label,
-                                                    size_t numEntries) const
-{
-    if (numEntries != 0)
-    {
-        mBulkLoadMeter.Mark(numEntries);
-    }
-
-    auto iter = mBulkTimers.find(label);
-    if (iter == mBulkTimers.end())
-    {
-        auto& metric =
-            mApp.getMetrics().NewTimer({"bucketlistDB", "bulk", label});
-        iter = mBulkTimers.emplace(label, metric).first;
-    }
-
-    return iter->second;
-}
-
-medida::Timer&
-SearchableBucketListSnapshot::getPointLoadTimer(LedgerEntryType t) const
-{
-    auto iter = mPointTimers.find(t);
-    if (iter == mPointTimers.end())
-    {
-        auto const& label = xdr::xdr_traits<LedgerEntryType>::enum_name(t);
-        auto& metric =
-            mApp.getMetrics().NewTimer({"bucketlistDB", "point", label});
-        iter = mPointTimers.emplace(t, metric).first;
-    }
-
-    return iter->second;
-}
-
-bool
-SearchableBucketListSnapshot::isWithinAllowedLedgerDrift(
-    uint32_t allowedLedgerDrift) const
-{
-    auto currLCL = mApp.getLedgerManager().getLastClosedLedgerNum();
-
-    // Edge case: genesis ledger
-    auto minimumLCL =
-        allowedLedgerDrift > currLCL ? 0 : currLCL - allowedLedgerDrift;
-
-    return mLCL >= minimumLCL;
-}
-
-void
-SearchableBucketListSnapshot::maybeUpdateSnapshot()
-{
-    auto currLCL = mApp.getLedgerManager().getLastClosedLedgerNum();
-    if (currLCL != mLCL)
-    {
-        mLCL = currLCL;
-        mLevels.clear();
-
-        std::lock_guard<std::recursive_mutex> lock(
-            mApp.getBucketManager().getBucketSnapshotMutex());
-        auto& bl = mApp.getBucketManager().getBucketList();
-        for (uint32_t i = 0; i < BucketList::kNumLevels; ++i)
-        {
-            auto const& level = bl.getLevel(i);
-            mLevels.emplace_back(SearchableBucketLevelSnapshot(level));
-        }
-    }
-}
 
 void
 SearchableBucketListSnapshot::loopAllBuckets(
@@ -108,8 +40,10 @@ std::shared_ptr<LedgerEntry>
 SearchableBucketListSnapshot::getLedgerEntry(LedgerKey const& k)
 {
     ZoneScoped;
-    auto timer = getPointLoadTimer(k.type()).TimeScope();
-    maybeUpdateSnapshot();
+    mSnapshotManager.maybeUpdateSnapshot(*this);
+
+    // TODO: Metrics only on main thread
+    auto timer = mSnapshotManager.getPointLoadTimer(k.type()).TimeScope();
 
     std::shared_ptr<LedgerEntry> result{};
 
@@ -138,8 +72,11 @@ SearchableBucketListSnapshot::loadKeys(
     std::set<LedgerKey, LedgerEntryIdCmp> const& inKeys)
 {
     ZoneScoped;
-    auto timer = recordBulkLoadMetrics("prefetch", inKeys.size()).TimeScope();
-    maybeUpdateSnapshot();
+    mSnapshotManager.maybeUpdateSnapshot(*this);
+
+    auto timer =
+        mSnapshotManager.recordBulkLoadMetrics("prefetch", inKeys.size())
+            .TimeScope();
 
     std::vector<LedgerEntry> entries;
 
@@ -164,6 +101,8 @@ SearchableBucketListSnapshot::loadPoolShareTrustLinesByAccountAndAsset(
     AccountID const& accountID, Asset const& asset)
 {
     ZoneScoped;
+    mSnapshotManager.maybeUpdateSnapshot(*this);
+
     LedgerKeySet trustlinesToLoad;
 
     auto trustLineLoop = [&](SearchableBucketSnapshot const& b) {
@@ -188,8 +127,10 @@ SearchableBucketListSnapshot::loadInflationWinners(size_t maxWinners,
                                                    int64_t minBalance)
 {
     ZoneScoped;
-    auto timer = recordBulkLoadMetrics("inflationWinners", 0).TimeScope();
-    maybeUpdateSnapshot();
+    mSnapshotManager.maybeUpdateSnapshot(*this);
+
+    auto timer = mSnapshotManager.recordBulkLoadMetrics("inflationWinners", 0)
+                     .TimeScope();
 
     UnorderedMap<AccountID, int64_t> voteCount;
     UnorderedSet<AccountID> seen;
@@ -277,18 +218,10 @@ SearchableBucketLevelSnapshot::SearchableBucketLevelSnapshot(
 }
 
 // This is not thread safe, must call while holding
-// BucketManager::mBucketSnapshotMutex.
-SearchableBucketListSnapshot::SearchableBucketListSnapshot(Application& app,
-                                                           BucketList const& bl)
-    : mApp(app)
-    , mLCL(app.getLedgerManager().getLastClosedLedgerNum())
-    , mBulkLoadMeter(app.getMetrics().NewMeter(
-          {"bucketlistDB", "query", "loads"}, "query"))
-    , mBloomMisses(app.getMetrics().NewMeter(
-          {"bucketlistDB", "bloom", "misses"}, "bloom"))
-    , mBloomLookups(app.getMetrics().NewMeter(
-          {"bucketlistDB", "bloom", "lookups"}, "bloom"))
-    , mEvictionCounters(app)
+// BucketManager::mBucketListMutex.
+SearchableBucketListSnapshot::SearchableBucketListSnapshot(
+    BucketSnapshotManager const& snapshotManager, BucketList const& bl)
+    : mSnapshotManager(snapshotManager)
 {
     for (uint32_t i = 0; i < BucketList::kNumLevels; ++i)
     {

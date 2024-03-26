@@ -3377,8 +3377,9 @@ LedgerTxnRoot::Impl::getSearchableBucketListSnapshot() const
     releaseAssert(mApp.getConfig().isUsingBucketListDB());
     if (!mSearchableBucketListSnapshot)
     {
-        mSearchableBucketListSnapshot =
-            mApp.getBucketManager().getSearchableBucketListSnapshot();
+        mSearchableBucketListSnapshot = mApp.getBucketManager()
+                                            .getBucketSnapshotManager()
+                                            .getSearchableBucketListSnapshot();
     }
 
     return *mSearchableBucketListSnapshot;

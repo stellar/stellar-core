@@ -1130,7 +1130,8 @@ TEST_CASE_VERSIONS("Searchable BucketListDB snapshots", "[bucketlist]")
             LedgerTestUtils::generateValidLedgerEntryOfType(CLAIMABLE_BALANCE);
         entry.data.claimableBalance().amount = 0;
 
-        auto searchableBL = bm.getSearchableBucketListSnapshot();
+        auto searchableBL =
+            bm.getBucketSnapshotManager().getSearchableBucketListSnapshot();
 
         // Update entry every 5 ledgers so we can see bucket merge events
         for (auto ledgerSeq = 1; ledgerSeq < 101; ++ledgerSeq)

@@ -30,6 +30,7 @@ class AbstractLedgerTxn;
 class Application;
 class Bucket;
 class BucketList;
+class BucketSnapshotManager;
 struct HistoryArchiveState;
 
 class BucketManagerImpl : public BucketManager
@@ -38,6 +39,7 @@ class BucketManagerImpl : public BucketManager
 
     Application& mApp;
     std::unique_ptr<BucketList> mBucketList;
+    std::unique_ptr<BucketSnapshotManager> mSnapshotManager;
     std::unique_ptr<TmpDirManager> mTmpDirManager;
     std::unique_ptr<TmpDir> mWorkDir;
     std::map<Hash, std::shared_ptr<Bucket>> mSharedBuckets;
@@ -57,10 +59,9 @@ class BucketManagerImpl : public BucketManager
     // the BucketList (i.e. addBatch).
     mutable std::recursive_mutex mBucketFileMutex;
 
-    // Lock for logical BucketList changes and snapshots (i.e. addBatch,
-    // getSearchableSnapshot). This lock is not required for raw Bucket file
-    // management.
-    mutable std::recursive_mutex mBucketSnapshotMutex;
+    // Lock for logical BucketList changes and snapshots (i.e. addBatch). This
+    // lock is not required for raw Bucket file management.
+    mutable std::recursive_mutex mBucketListMutex;
 
     bool const mDeleteEntireBucketDirInDtor;
 
@@ -109,6 +110,7 @@ class BucketManagerImpl : public BucketManager
     std::string const& getTmpDir() override;
     std::string const& getBucketDir() const override;
     BucketList& getBucketList() override;
+    BucketSnapshotManager& getBucketSnapshotManager() const;
     medida::Timer& getMergeTimer() override;
     MergeCounters readMergeCounters() override;
     void incrMergeCounters(MergeCounters const&) override;
@@ -142,10 +144,7 @@ class BucketManagerImpl : public BucketManager
                        std::unique_ptr<BucketIndex const>&& index) override;
     void scanForEvictionLegacySQL(AbstractLedgerTxn& ltx,
                                   uint32_t ledgerSeq) override;
-
-    std::unique_ptr<SearchableBucketListSnapshot>
-    getSearchableBucketListSnapshot() const override;
-    std::recursive_mutex& getBucketSnapshotMutex() const override;
+    std::recursive_mutex& getBucketListMutex() const override;
 
     medida::Meter& getBloomMissMeter() const override;
     medida::Meter& getBloomLookupMeter() const override;

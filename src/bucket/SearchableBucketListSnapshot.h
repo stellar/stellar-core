@@ -6,6 +6,7 @@
 
 #include "bucket/BucketList.h"
 #include "bucket/BucketManagerImpl.h"
+#include "bucket/BucketSnapshotManager.h"
 #include "bucket/SearchableBucketSnapshot.h"
 
 namespace medida
@@ -28,20 +29,11 @@ struct SearchableBucketLevelSnapshot
 // lookups
 class SearchableBucketListSnapshot : public NonMovableOrCopyable
 {
-    Application& mApp;
     std::vector<SearchableBucketLevelSnapshot> mLevels;
+    BucketSnapshotManager const& mSnapshotManager;
 
-    // Last closed ledger sequence that this BucketList snapshot is based off of
-    uint32_t mLCL;
-
-    mutable UnorderedMap<LedgerEntryType, medida::Timer&> mPointTimers{};
-    mutable UnorderedMap<std::string, medida::Timer&> mBulkTimers{};
-
-    medida::Meter& mBulkLoadMeter;
-    medida::Meter& mBloomMisses;
-    medida::Meter& mBloomLookups;
-
-    EvictionCounters mEvictionCounters;
+    // ledgerSeq that this BucketList snapshot is based off of
+    uint32_t mLedgerSeq;
 
     // Loops through all buckets, starting with curr at level 0, then snap at
     // level 0, etc. Calls f on each bucket. Exits early if function
@@ -49,19 +41,8 @@ class SearchableBucketListSnapshot : public NonMovableOrCopyable
     void loopAllBuckets(
         std::function<bool(SearchableBucketSnapshot const&)> f) const;
 
-    medida::Timer& recordBulkLoadMetrics(std::string const& label,
-                                         size_t numEntries) const;
-
-    medida::Timer& getPointLoadTimer(LedgerEntryType t) const;
-
-    // Return true is this snapshot is from a ledger within [lcl -
-    // allowedLedgerDrift, lcl]
-    bool isWithinAllowedLedgerDrift(uint32_t allowedLedgerDrift) const;
-
-    // Checks if snapshot is behind the current LCL and updates as necessary
-    void maybeUpdateSnapshot();
-
-    SearchableBucketListSnapshot(Application& app, BucketList const& bl);
+    SearchableBucketListSnapshot(BucketSnapshotManager const& snapshotManager,
+                                 BucketList const& bl);
 
   public:
     std::vector<LedgerEntry>
@@ -76,7 +57,6 @@ class SearchableBucketListSnapshot : public NonMovableOrCopyable
 
     std::shared_ptr<LedgerEntry> getLedgerEntry(LedgerKey const& k);
 
-    friend std::unique_ptr<SearchableBucketListSnapshot>
-    BucketManagerImpl::getSearchableBucketListSnapshot() const;
+    friend class BucketSnapshotManager;
 };
 }

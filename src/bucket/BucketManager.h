@@ -27,6 +27,7 @@ class AbstractLedgerTxn;
 class Application;
 class BasicWork;
 class BucketList;
+class BucketSnapshotManager;
 class Config;
 class SearchableBucketListSnapshot;
 class TmpDirManager;
@@ -116,6 +117,7 @@ class BucketManager : NonMovableOrCopyable
     virtual TmpDirManager& getTmpDirManager() = 0;
     virtual std::string const& getBucketDir() const = 0;
     virtual BucketList& getBucketList() = 0;
+    virtual BucketSnapshotManager& getBucketSnapshotManager() const = 0;
     virtual bool renameBucketDirFile(std::filesystem::path const& src,
                                      std::filesystem::path const& dst) = 0;
 
@@ -207,10 +209,7 @@ class BucketManager : NonMovableOrCopyable
     virtual void maybeSetIndex(std::shared_ptr<Bucket> b,
                                std::unique_ptr<BucketIndex const>&& index) = 0;
 
-    virtual std::unique_ptr<SearchableBucketListSnapshot>
-    getSearchableBucketListSnapshot() const = 0;
-
-    virtual std::recursive_mutex& getBucketSnapshotMutex() const = 0;
+    virtual std::recursive_mutex& getBucketListMutex() const = 0;
 
     // Scans BucketList for non-live entries to evict starting at the entry
     // pointed to by EvictionIterator. Scans until `maxEntriesToEvict` entries

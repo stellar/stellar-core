@@ -63,6 +63,7 @@ BucketLevel::getNext()
 void
 BucketLevel::setNext(FutureBucket const& fb)
 {
+    releaseAssert(threadIsMain());
     mNextCurr = fb;
 }
 
@@ -81,6 +82,7 @@ BucketLevel::getSnap() const
 void
 BucketLevel::setCurr(std::shared_ptr<Bucket> b)
 {
+    releaseAssert(threadIsMain());
     mNextCurr.clear();
     mCurr = b;
 }
@@ -115,6 +117,7 @@ BucketList::shouldMergeWithEmptyCurr(uint32_t ledger, uint32_t level)
 void
 BucketLevel::setSnap(std::shared_ptr<Bucket> b)
 {
+    releaseAssert(threadIsMain());
     mSnap = b;
 }
 
@@ -451,6 +454,12 @@ BucketList::getLevel(uint32_t i)
     return mLevels.at(i);
 }
 
+uint32_t
+BucketList::getLedgerSeq() const
+{
+    return mLedgerSeq;
+}
+
 void
 BucketList::resolveAnyReadyFutures()
 {
@@ -523,6 +532,10 @@ BucketList::addBatch(Application& app, uint32_t currLedger,
 {
     ZoneScoped;
     releaseAssert(currLedger > 0);
+    releaseAssert(threadIsMain());
+
+    std::lock_guard<std::recursive_mutex> lock(
+        app.getBucketManager().getBucketListMutex());
 
     std::vector<std::shared_ptr<Bucket>> shadows;
     for (auto& level : mLevels)
@@ -634,6 +647,8 @@ BucketList::addBatch(Application& app, uint32_t currLedger,
     {
         resolveAnyReadyFutures();
     }
+
+    mLedgerSeq = currLedger;
 }
 
 void

@@ -198,7 +198,9 @@ class BucketIndexTest
     virtual void
     run()
     {
-        auto searchableBL = getBM().getSearchableBucketListSnapshot();
+        auto searchableBL = getBM()
+                                .getBucketSnapshotManager()
+                                .getSearchableBucketListSnapshot();
 
         // Test bulk load lookup
         auto loadResult = searchableBL->loadKeys(mKeysToSearch);
@@ -222,7 +224,9 @@ class BucketIndexTest
     virtual void
     runPerf(size_t n)
     {
-        auto searchableBL = getBM().getSearchableBucketListSnapshot();
+        auto searchableBL = getBM()
+                                .getBucketSnapshotManager()
+                                .getSearchableBucketListSnapshot();
         for (size_t i = 0; i < n; ++i)
         {
             LedgerKeySet searchSubset;
@@ -259,7 +263,9 @@ class BucketIndexTest
     void
     testInvalidKeys()
     {
-        auto searchableBL = getBM().getSearchableBucketListSnapshot();
+        auto searchableBL = getBM()
+                                .getBucketSnapshotManager()
+                                .getSearchableBucketListSnapshot();
 
         // Load should return empty vector for keys not in bucket list
         auto keysNotInBL =
@@ -433,7 +439,9 @@ class BucketIndexPoolShareTest : public BucketIndexTest
     virtual void
     run() override
     {
-        auto searchableBL = getBM().getSearchableBucketListSnapshot();
+        auto searchableBL = getBM()
+                                .getBucketSnapshotManager()
+                                .getSearchableBucketListSnapshot();
         auto loadResult =
             searchableBL->loadPoolShareTrustLinesByAccountAndAsset(
                 mAccountToSearch.accountID, mAssetToSearch);
