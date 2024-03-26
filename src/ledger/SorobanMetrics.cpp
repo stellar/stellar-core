@@ -90,7 +90,7 @@ SorobanMetrics::SorobanMetrics(medida::MetricsRegistry& metrics)
     /* network config metrics */
     , mConfigContractDataKeySizeBytes(
           metrics.NewCounter({"soroban", "config", "contract-max-rw-key-byte"}))
-    , mConfigMacContractDataEntrySizeBytes(metrics.NewCounter(
+    , mConfigMaxContractDataEntrySizeBytes(metrics.NewCounter(
           {"soroban", "config", "contract-max-rw-data-byte"}))
     , mConfigMaxContractSizeBytes(metrics.NewCounter(
           {"soroban", "config", "contract-max-rw-code-byte"}))

@@ -585,7 +585,7 @@ LedgerManagerImpl::publishSorobanMetrics()
     // first publish the network config limits
     mSorobanMetrics.mConfigContractDataKeySizeBytes.set_count(
         mSorobanNetworkConfig->maxContractDataKeySizeBytes());
-    mSorobanMetrics.mConfigMacContractDataEntrySizeBytes.set_count(
+    mSorobanMetrics.mConfigMaxContractDataEntrySizeBytes.set_count(
         mSorobanNetworkConfig->maxContractDataEntrySizeBytes());
     mSorobanMetrics.mConfigMaxContractSizeBytes.set_count(
         mSorobanNetworkConfig->maxContractSizeBytes());
