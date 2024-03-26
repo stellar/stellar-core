@@ -168,8 +168,7 @@ LedgerEntryPtr::isDeleted() const
 {
     return mState == EntryPtrState::DELETED;
 }
-LedgerKeyMeter::LedgerKeyMeter()
-    : meteredLedgerKeyToTx{}, txReadBytes{}, classicKeys{}
+LedgerKeyMeter::LedgerKeyMeter() : meteredLedgerKeyToTx{}, txReadBytes{}
 {
 }
 
@@ -183,12 +182,6 @@ LedgerKeyMeter::addTxn(size_t txn, uint32_t readQuota,
     {
         meteredLedgerKeyToTx[key].insert(txn);
     }
-}
-
-void
-LedgerKeyMeter::addClassicKeys(UnorderedSet<LedgerKey> const& keys)
-{
-    classicKeys.insert(keys.begin(), keys.end());
 }
 
 void
@@ -219,30 +212,24 @@ LedgerKeyMeter::updateReadQuotasForKey(LedgerKey const& key,
             txReadBytes[txn] -= size;
         }
     }
-    // TODO maybe add to notLoaded here.
 }
 
 uint32_t
-LedgerKeyMeter::maxReadQuotaForKey(LedgerKey const& key)
+LedgerKeyMeter::maxReadQuotaForKey(LedgerKey const& key) const
 {
-    auto iter = meteredLedgerKeyToTx.find(key);
-    // If no metered transactions contain this key, or if it is in the classic
-    // key set, it is not metered.
-    if (iter == meteredLedgerKeyToTx.end() ||
-        classicKeys.find(key) != classicKeys.end())
+    // If the meter has no entries, this is a classic prefetch.
+    if (meteredLedgerKeyToTx.size() == 0)
     {
-        return std::numeric_limits<std::uint32_t>::max();
+        return std::numeric_limits<uint32_t>::max();
     }
-    auto maxReadQuota =
-        std::reduce(iter->second.begin(), iter->second.end(), 0,
-                    [&](uint32_t maxReadQuota, const size_t txn) {
-                        return std::max(maxReadQuota, txReadBytes[txn]);
-                    });
-    // TODO consider whether this lazy approach is worthwhile
-    // if (maxReadQuota == 0) {
-    // notLoaded.insert(key);
-    //}
-    return maxReadQuota;
+    auto iter = meteredLedgerKeyToTx.find(key);
+    releaseAssert(iter != meteredLedgerKeyToTx.end());
+    return std::reduce(iter->second.begin(), iter->second.end(), 0,
+                       [&](uint32_t maxReadQuota, const size_t txn) {
+                           auto quota = txReadBytes.find(txn);
+                           releaseAssert(quota != txReadBytes.end());
+                           return std::max(maxReadQuota, quota->second);
+                       });
 }
 
 template <typename KeySetT>

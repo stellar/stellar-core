@@ -309,8 +309,28 @@ class BucketIndexTest
     }
 
     void
+    prefetchAndClearClassicKeys()
+    {
+        // Test classic key prefetching.
+        auto loadResult = getBM().loadKeys(mKeysToSearch);
+        REQUIRE(loadResult.size() == mKeysToSearch.size());
+        for (auto const& le : loadResult)
+        {
+            REQUIRE(mKeysToSearch.find(LedgerEntryKey(le)) !=
+                    mKeysToSearch.end());
+        }
+        // Clear any existing keys, as we want to load soroban keys
+        // seperately.
+        mTestEntries.clear();
+        mKeysToSearch.clear();
+        REQUIRE(mTestEntries.size() == 0);
+        REQUIRE(mKeysToSearch.size() == 0);
+    }
+
+    void
     testLoadContractKeySpanningPages()
     {
+        prefetchAndClearClassicKeys();
         size_t pageSize = std::pow(
             2, getTestConfig()
                    .EXPERIMENTAL_BUCKETLIST_DB_INDEX_PAGE_SIZE_EXPONENT);
@@ -377,6 +397,8 @@ class BucketIndexTest
     void
     testLoadContractKeysWithInsufficientReadBytes()
     {
+        prefetchAndClearClassicKeys();
+
         UnorderedMap<LedgerKey, std::vector<uint32_t>> meteredLedgerKeyToTx;
         UnorderedMap<size_t, uint32_t> txReadBytes;
         LedgerKeySet expectedSuccessKeys;
@@ -450,10 +472,6 @@ class BucketIndexTest
         }
         lkMeter.addTxn(8, readBytes, txs[8]);
         expectedSuccessKeys.insert(txs[8].begin(), txs[8].end());
-
-        // TODO --
-        // TX 9 has a key which has max quota, but does not exist.
-        // disinguish between not loaded due to quota vs not existsnat
 
         auto loadResult = getBM().loadKeysWithLimits(mKeysToSearch, lkMeter);
         LedgerKeySet loadResultSet{};

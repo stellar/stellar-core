@@ -338,33 +338,19 @@ class LedgerKeyMeter
 {
   public:
     LedgerKeyMeter();
+    // Adds a transaction with a read quota and the keys it will read.
     void addTxn(size_t txn, uint32_t readQuota, UnorderedSet<LedgerKey>& keys);
-    // Classic Keys are not metered. By default if a key has not been added to
-    // the meter, it is assumed to belong to a calssic transaction. However, we
-    // must track the keys belonging to classic transactions to ensure classic
-    // txn associated keys have unlimted quota even if the same key is preloaded
-    // by a soroban txn.
-    void addClassicKeys(UnorderedSet<LedgerKey> const& keys);
     // Called when an entry is loaded to update the read quota for the
     // associated txns.
     void updateReadQuotasForKey(LedgerKey const& key, LedgerEntry const& entry);
     // Returns the maximum read quota across all transactions with this key.
-    uint32_t maxReadQuotaForKey(LedgerKey const& key);
+    uint32_t maxReadQuotaForKey(LedgerKey const& key) const;
 
   private:
-    // Possible optimization:
-    // store mapping from Lk -> max read quota
-    // when we "update", we can overwrite the previous value
-    // only have to iterate over the txns once per two calls
     UnorderedMap<LedgerKey, std::set<size_t>> meteredLedgerKeyToTx;
     UnorderedMap<size_t, uint32_t> txReadBytes;
-    // Keys associated with unmetered classic transactions.
-    // We must track this here in order to handle the case where
-    // a soroban transaction and a classic transaction both preload the same
-    // key, but the soroban transacation does not have enough quota.
-    // In that case, the key should still be loaded.
-    UnorderedSet<LedgerKey> classicKeys;
 };
+
 // An abstraction for an object that is iterator-like and permits enumerating
 // the LedgerTxnEntry objects managed by an AbstractLedgerTxn. This enables
 // an AbstractLedgerTxnParent to iterate over the entries managed by its child

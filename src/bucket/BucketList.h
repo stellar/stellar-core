@@ -486,7 +486,6 @@ class BucketList
 
     std::shared_ptr<LedgerEntry> getLedgerEntry(LedgerKey const& k) const;
 
-    // TODO make LedgerKeyMeter& const
     std::vector<LedgerEntry>
     loadKeysWithLimits(std::set<LedgerKey, LedgerEntryIdCmp> const& inKeys,
                        LedgerKeyMeter& lkMeter) const;

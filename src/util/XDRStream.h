@@ -180,11 +180,7 @@ class XDRInputFileStream
         size_t xdrStart = 0;
         while (xdrStart + 4 <= mBuf.size())
         {
-            // Only read as much as we need to get the key (contained within the
-            // subsequent page. This it to prevent a DOS vector where a txn
-            // requests a very large key which we load without quota.
             const uint32_t xdrSz = getXDRSize(mBuf.data() + xdrStart);
-
             xdrStart += 4;
             const size_t xdrEnd = xdrStart + xdrSz;
 
@@ -199,24 +195,17 @@ class XDRInputFileStream
                     // If entry continues past end of buffer, temporarily expand
                     // it and load the extra bytes. The buffer will be resized
                     // back to pageSize in the next readPage.
-                    // We resize the buffer to fit the entire entry to prevent
-                    // xdr_get from complaining about insufficient buffer space,
-                    // even though we are not necessarily going to read the entire
-                    // entry at this time.
-                    mBuf.resize(mBuf.size() + xdrEnd);
+                    mBuf.resize(mBuf.size() + extraSize);
                     if (!mIn.read(mBuf.data() + extraStart, extraSize))
                     {
                         throw xdr::xdr_runtime_error("IO failure in readPage");
                     }
                 }
-                xdr::xdr_get g(mBuf.data() + xdrStart, mBuf.data() + std::min(xdrEnd, mBuf.size()));
+                xdr::xdr_get g(mBuf.data() + xdrStart,
+                               mBuf.data() + mBuf.size());
                 xdr::xdr_argpack_archive(g, out);
                 // Key belongs to entry?
-                if (getBucketLedgerKey(out) == key)
-                {
-                    return true;
-                }
-                return false;
+                return getBucketLedgerKey(out) == key;
             };
             size_t extraStart = 0;
             size_t extraSize = 0;
@@ -224,26 +213,10 @@ class XDRInputFileStream
             {
                 extraStart = mBuf.size();
                 extraSize = xdrEnd - extraStart;
-                if (extraSize > pageSize)
-                {
-                    // If the additional bytes are greater than the pageSize,
-                    // read the first pageSize extra bytes and ensure the key is
-                    // correct before reading the entire entry
-                    if (!maybeReadAndDeserialize(out, key, xdrStart, xdrEnd,
-                                                 extraStart, pageSize))
-                    {
-                        // If the key is not correct, we have exceeded the
-                        // pageSize and can safely return false.
-                        return false;
-                    }
-                    // Read the rest of the entry, skipping the first pageSize
-                    // extra bytes that we already deserialized.
-                    extraStart = extraStart + pageSize;
-                    extraSize = extraSize - pageSize;
-                }
             }
             // Read the entire entry.
-            if (maybeReadAndDeserialize(out, key, xdrStart, xdrEnd, extraStart, extraSize))
+            if (maybeReadAndDeserialize(out, key, xdrStart, xdrEnd, extraStart,
+                                        extraSize))
             {
                 return true;
             }

@@ -1442,8 +1442,9 @@ LedgerManagerImpl::prefetchTransactionData(
     ZoneScoped;
     if (mApp.getConfig().PREFETCH_BATCH_SIZE > 0)
     {
-        UnorderedSet<LedgerKey> keys;
+        UnorderedSet<LedgerKey> sorobanKeys;
         LedgerKeyMeter lkMeter{};
+        UnorderedSet<LedgerKey> classicKeys;
         size_t txId = 0;
         for (auto const& tx : txs)
         {
@@ -1451,9 +1452,6 @@ LedgerManagerImpl::prefetchTransactionData(
             tx->insertKeysForTxApply(txKeys);
             if (tx->isSoroban())
             {
-                // TODO -- pass lkmeter to insert keys for tx apply and use
-                // visitor pattern to populate will require API changes -- to
-                // pass lkmeter and txn id
                 lkMeter.addTxn(
                     txId,
                     tx->getResources(/* useByteLimitInClassic */ false)
@@ -1461,15 +1459,17 @@ LedgerManagerImpl::prefetchTransactionData(
                     txKeys);
                 // txId is only used for tracking soroban txns.
                 txId++;
+                sorobanKeys.insert(txKeys.begin(), txKeys.end());
             }
             else
             {
-                lkMeter.addClassicKeys(txKeys);
+                classicKeys.insert(txKeys.begin(), txKeys.end());
             }
-            keys.insert(txKeys.begin(), txKeys.end());
         }
-
-        mApp.getLedgerTxnRoot().prefetchWithLimits(keys, lkMeter);
+        // Prefetch classic and soroban keys separately for greater visibility
+        // into the performance of each mode.
+        mApp.getLedgerTxnRoot().prefetchWithLimits(sorobanKeys, lkMeter);
+        mApp.getLedgerTxnRoot().prefetch(classicKeys);
     }
 }
 

@@ -2813,14 +2813,16 @@ TEST_CASE("LedgerKeyMeter tests")
     auto entries = LedgerTestUtils::generateValidLedgerEntriesWithExclusions(
         {OFFER, DATA, CLAIMABLE_BALANCE, LIQUIDITY_POOL, CONFIG_SETTING, TTL},
         10);
+    // If the key has not been added to the LedgerKeyMeter, it should have a
+    // maximum read quota.
+    REQUIRE(lkMeter.maxReadQuotaForKey(
+                LedgerEntryKey(const_cast<const LedgerEntry&>(entries[0]))) ==
+            std::numeric_limits<uint32_t>::max());
+
     for (size_t i = 0; i < entries.size(); ++i)
     {
         auto entry = entries[i];
         auto key = LedgerEntryKey(const_cast<const LedgerEntry&>(entry));
-        // If the key has not been added to the LedgerKeyMeter, it should have a
-        // max read quota.
-        REQUIRE(lkMeter.maxReadQuotaForKey(key) ==
-                std::numeric_limits<uint32_t>::max());
         UnorderedSet<LedgerKey> ks{};
         ks.insert(key);
         auto entrySize = xdr::xdr_size(entry);
@@ -2864,11 +2866,6 @@ TEST_CASE("LedgerKeyMeter tests")
             // the original quota was double)
             REQUIRE(lkMeter.maxReadQuotaForKey(key) == entrySize);
         }
-        // Register that a classic transaction is loading these keys.
-        lkMeter.addClassicKeys(ks);
-        // Keys associated with classic txns has max read quota.
-        REQUIRE(lkMeter.maxReadQuotaForKey(key) ==
-                std::numeric_limits<uint32_t>::max());
     }
 }
 
