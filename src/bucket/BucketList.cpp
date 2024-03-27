@@ -6,8 +6,8 @@
 #include "bucket/Bucket.h"
 #include "bucket/BucketInputIterator.h"
 #include "bucket/BucketManager.h"
+#include "bucket/BucketSnapshot.h"
 #include "bucket/LedgerCmp.h"
-#include "bucket/SearchableBucketSnapshot.h"
 #include "crypto/Hex.h"
 #include "crypto/Random.h"
 #include "crypto/SHA.h"
@@ -454,12 +454,6 @@ BucketList::getLevel(uint32_t i)
     return mLevels.at(i);
 }
 
-uint32_t
-BucketList::getLedgerSeq() const
-{
-    return mLedgerSeq;
-}
-
 void
 BucketList::resolveAnyReadyFutures()
 {
@@ -532,10 +526,6 @@ BucketList::addBatch(Application& app, uint32_t currLedger,
 {
     ZoneScoped;
     releaseAssert(currLedger > 0);
-    releaseAssert(threadIsMain());
-
-    std::lock_guard<std::recursive_mutex> lock(
-        app.getBucketManager().getBucketListMutex());
 
     std::vector<std::shared_ptr<Bucket>> shadows;
     for (auto& level : mLevels)
@@ -647,8 +637,6 @@ BucketList::addBatch(Application& app, uint32_t currLedger,
     {
         resolveAnyReadyFutures();
     }
-
-    mLedgerSeq = currLedger;
 }
 
 void

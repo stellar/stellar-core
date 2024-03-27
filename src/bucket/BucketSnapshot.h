@@ -18,7 +18,7 @@ class Bucket;
 class XDRInputFileStream;
 
 // A lightweight wrapper around Bucket for thread safe BucketListDB lookups
-class SearchableBucketSnapshot : public NonMovable
+class BucketSnapshot : public NonMovable
 {
     std::shared_ptr<Bucket const> mBucket;
 
@@ -36,13 +36,11 @@ class SearchableBucketSnapshot : public NonMovable
                                                 std::streamoff pos,
                                                 size_t pageSize) const;
 
-    // Warning: constructor not thread safe
-    SearchableBucketSnapshot(std::shared_ptr<Bucket const> const b);
+    BucketSnapshot(std::shared_ptr<Bucket const> const b);
 
     // Only allow copy constructor, is threadsafe
-    SearchableBucketSnapshot(SearchableBucketSnapshot const& b);
-    SearchableBucketSnapshot&
-    operator=(SearchableBucketSnapshot const& b) = delete;
+    BucketSnapshot(BucketSnapshot const& b);
+    BucketSnapshot& operator=(BucketSnapshot const& b) = delete;
 
   public:
     bool isEmpty() const;
@@ -60,6 +58,6 @@ class SearchableBucketSnapshot : public NonMovable
     // pool
     std::vector<PoolID> const& getPoolIDsByAsset(Asset const& asset) const;
 
-    friend struct SearchableBucketLevelSnapshot;
+    friend struct BucketLevelSnapshot;
 };
 }

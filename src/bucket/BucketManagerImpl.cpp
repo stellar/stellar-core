@@ -6,9 +6,9 @@
 #include "bucket/Bucket.h"
 #include "bucket/BucketInputIterator.h"
 #include "bucket/BucketList.h"
+#include "bucket/BucketListSnapshot.h"
 #include "bucket/BucketOutputIterator.h"
 #include "bucket/BucketSnapshotManager.h"
-#include "bucket/SearchableBucketListSnapshot.h"
 #include "crypto/Hex.h"
 #include "history/HistoryManager.h"
 #include "historywork/VerifyBucketWork.h"
@@ -90,7 +90,8 @@ BucketManagerImpl::initialize()
     {
         mBucketList = std::make_unique<BucketList>();
         mSnapshotManager = std::make_unique<BucketSnapshotManager>(
-            mApp.getMetrics(), *mBucketList, mBucketListMutex);
+            mApp.getMetrics(),
+            std::make_unique<BucketListSnapshot>(*mBucketList, 0));
     }
 }
 
@@ -833,12 +834,11 @@ BucketManagerImpl::addBatch(Application& app, uint32_t currLedger,
     auto timer = mBucketAddBatch.TimeScope();
     mBucketObjectInsertBatch.Mark(initEntries.size() + liveEntries.size() +
                                   deadEntries.size());
-    {
-        std::lock_guard<std::recursive_mutex> lock(mBucketListMutex);
-        mBucketList->addBatch(app, currLedger, currLedgerProtocol, initEntries,
-                              liveEntries, deadEntries);
-    }
+    mBucketList->addBatch(app, currLedger, currLedgerProtocol, initEntries,
+                          liveEntries, deadEntries);
     mBucketListSizeCounter.set_count(mBucketList->getSize());
+    mSnapshotManager->updateCurrentSnapshot(
+        std::make_unique<BucketListSnapshot>(*mBucketList, currLedger));
 }
 
 #ifdef BUILD_TESTS
@@ -918,12 +918,6 @@ BucketManagerImpl::scanForEvictionLegacySQL(AbstractLedgerTxn& ltx,
     }
 }
 
-std::recursive_mutex&
-BucketManagerImpl::getBucketListMutex() const
-{
-    return mBucketListMutex;
-}
-
 medida::Meter&
 BucketManagerImpl::getBloomMissMeter() const
 {
@@ -985,7 +979,6 @@ BucketManagerImpl::assumeState(HistoryArchiveState const& has,
     releaseAssertOrThrow(mApp.getConfig().MODE_ENABLES_BUCKETLIST);
 
     {
-        std::lock_guard<std::recursive_mutex> lock(mBucketListMutex);
         for (uint32_t i = 0; i < BucketList::kNumLevels; ++i)
         {
             auto curr =
@@ -1037,6 +1030,8 @@ BucketManagerImpl::assumeState(HistoryArchiveState const& has,
         }
     }
 
+    mSnapshotManager->updateCurrentSnapshot(
+        std::make_unique<BucketListSnapshot>(*mBucketList, has.currentLedger));
     cleanupStaleFiles();
 }
 

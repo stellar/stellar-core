@@ -3,7 +3,7 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "bucket/BucketSnapshotManager.h"
-#include "bucket/SearchableBucketListSnapshot.h"
+#include "bucket/BucketListSnapshot.h"
 #include "main/Application.h"
 
 #include "medida/meter.h"
@@ -13,11 +13,10 @@ namespace stellar
 {
 
 BucketSnapshotManager::BucketSnapshotManager(
-    medida::MetricsRegistry& metrics, BucketList const& bl,
-    std::recursive_mutex& bucketListMutex)
+    medida::MetricsRegistry& metrics,
+    std::unique_ptr<BucketListSnapshot const>&& snapshot)
     : mMetrics(metrics)
-    , mBucketList(bl)
-    , mBucketListMutex(bucketListMutex)
+    , mCurrentSnapshot(std::move(snapshot))
     , mBulkLoadMeter(
           mMetrics.NewMeter({"bucketlistDB", "query", "loads"}, "query"))
     , mBloomMisses(
@@ -25,22 +24,24 @@ BucketSnapshotManager::BucketSnapshotManager(
     , mBloomLookups(
           mMetrics.NewMeter({"bucketlistDB", "bloom", "lookups"}, "bloom"))
 {
+    releaseAssert(threadIsMain());
 }
 
 std::unique_ptr<SearchableBucketListSnapshot>
 BucketSnapshotManager::getSearchableBucketListSnapshot() const
 {
-    std::lock_guard<std::recursive_mutex> lock(mBucketListMutex);
-
-    // Note: cannot use make_unique due to private constructor
     return std::unique_ptr<SearchableBucketListSnapshot>(
-        new SearchableBucketListSnapshot(*this, mBucketList));
+        new SearchableBucketListSnapshot(*this));
 }
 
 medida::Timer&
 BucketSnapshotManager::recordBulkLoadMetrics(std::string const& label,
                                              size_t numEntries) const
 {
+    // For now, only keep metrics for the main thread. We can decide on what
+    // metrics make sense when more background services are added later.
+    releaseAssert(threadIsMain());
+
     if (numEntries != 0)
     {
         mBulkLoadMeter.Mark(numEntries);
@@ -59,6 +60,10 @@ BucketSnapshotManager::recordBulkLoadMetrics(std::string const& label,
 medida::Timer&
 BucketSnapshotManager::getPointLoadTimer(LedgerEntryType t) const
 {
+    // For now, only keep metrics for the main thread. We can decide on what
+    // metrics make sense when more background services are added later.
+    releaseAssert(threadIsMain());
+
     auto iter = mPointTimers.find(t);
     if (iter == mPointTimers.end())
     {
@@ -72,22 +77,22 @@ BucketSnapshotManager::getPointLoadTimer(LedgerEntryType t) const
 
 void
 BucketSnapshotManager::maybeUpdateSnapshot(
-    SearchableBucketListSnapshot& snapshot) const
+    std::unique_ptr<BucketListSnapshot const>& snapshot) const
 {
-    std::lock_guard<std::recursive_mutex> lock(mBucketListMutex);
-    uint32_t currLedgerSeq = mBucketList.getLedgerSeq();
-
-    if (currLedgerSeq != snapshot.mLedgerSeq)
+    std::lock_guard<std::recursive_mutex> lock(mSnapshotMutex);
+    if (!snapshot ||
+        snapshot->getLedgerSeq() != mCurrentSnapshot->getLedgerSeq())
     {
-        snapshot.mLedgerSeq = currLedgerSeq;
-        snapshot.mLevels.clear();
-
-        for (uint32_t i = 0; i < BucketList::kNumLevels; ++i)
-        {
-            auto const& level = mBucketList.getLevel(i);
-            snapshot.mLevels.emplace_back(SearchableBucketLevelSnapshot(level));
-        }
+        snapshot = std::make_unique<BucketListSnapshot>(*mCurrentSnapshot);
     }
 }
 
+void
+BucketSnapshotManager::updateCurrentSnapshot(
+    std::unique_ptr<BucketListSnapshot const>&& newSnapshot)
+{
+    releaseAssert(threadIsMain());
+    std::lock_guard<std::recursive_mutex> lock(mSnapshotMutex);
+    mCurrentSnapshot.swap(newSnapshot);
+}
 }

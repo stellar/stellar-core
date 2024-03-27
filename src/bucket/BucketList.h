@@ -431,9 +431,6 @@ class BucketList
     // nullopt and be initialized at the start of the next cycle.
     std::optional<EvictionStatistics> mEvictionStatistics;
 
-    // Current ledgerSeq for BucketList state
-    uint32_t mLedgerSeq{};
-
   public:
     // Number of bucket levels in the bucketlist. Every bucketlist in the system
     // will have this many levels and it effectively gets wired-in to the
@@ -481,11 +478,7 @@ class BucketList
     // Return level `i` of the BucketList.
     BucketLevel const& getLevel(uint32_t i) const;
 
-    // Return level `i` of the BucketList.
     BucketLevel& getLevel(uint32_t i);
-
-    // Not thread safe, must hold mBucketListMutex
-    uint32_t getLedgerSeq() const;
 
     // Return a cumulative hash of the entire bucketlist; this is the hash of
     // the concatenation of each level's hash, each of which in turn is the hash
@@ -535,7 +528,6 @@ class BucketList
     // should have spilled due to passing through `currLedger`. The `currLedger`
     // and `currProtocolVersion` values should be taken from the ledger at which
     // this batch is being added.
-    // Not thread safe, must hold mBucketListMutex.
     void addBatch(Application& app, uint32_t currLedger,
                   uint32_t currLedgerProtocol,
                   std::vector<LedgerEntry> const& initEntries,

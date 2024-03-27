@@ -2,9 +2,9 @@
 // under the Apache License, Version 2.0. See the COPYING file at the root
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
-#include "bucket/SearchableBucketSnapshot.h"
+#include "bucket/BucketSnapshot.h"
 #include "bucket/Bucket.h"
-#include "bucket/SearchableBucketListSnapshot.h"
+#include "bucket/BucketListSnapshot.h"
 #include "ledger/LedgerTxn.h"
 #include "ledger/LedgerTypeUtils.h"
 
@@ -12,28 +12,25 @@
 
 namespace stellar
 {
-SearchableBucketSnapshot::SearchableBucketSnapshot(
-    std::shared_ptr<Bucket const> const b)
+BucketSnapshot::BucketSnapshot(std::shared_ptr<Bucket const> const b)
     : mBucket(b)
 {
 }
 
-SearchableBucketSnapshot::SearchableBucketSnapshot(
-    SearchableBucketSnapshot const& b)
+BucketSnapshot::BucketSnapshot(BucketSnapshot const& b)
     : mBucket(b.mBucket), mStream(nullptr)
 {
 }
 
 bool
-SearchableBucketSnapshot::isEmpty() const
+BucketSnapshot::isEmpty() const
 {
-    return mBucket && mBucket->isEmpty();
+    return mBucket || mBucket->isEmpty();
 }
 
 std::optional<BucketEntry>
-SearchableBucketSnapshot::getEntryAtOffset(LedgerKey const& k,
-                                           std::streamoff pos,
-                                           size_t pageSize) const
+BucketSnapshot::getEntryAtOffset(LedgerKey const& k, std::streamoff pos,
+                                 size_t pageSize) const
 {
     ZoneScoped;
     if (isEmpty())
@@ -63,7 +60,7 @@ SearchableBucketSnapshot::getEntryAtOffset(LedgerKey const& k,
 }
 
 std::optional<BucketEntry>
-SearchableBucketSnapshot::getBucketEntry(LedgerKey const& k) const
+BucketSnapshot::getBucketEntry(LedgerKey const& k) const
 {
     ZoneScoped;
     if (isEmpty())
@@ -87,8 +84,8 @@ SearchableBucketSnapshot::getBucketEntry(LedgerKey const& k) const
 // do not load shadowed entries. If we don't find the entry, we do not remove it
 // from keys so that it will be searched for again at a lower level.
 void
-SearchableBucketSnapshot::loadKeys(std::set<LedgerKey, LedgerEntryIdCmp>& keys,
-                                   std::vector<LedgerEntry>& result) const
+BucketSnapshot::loadKeys(std::set<LedgerKey, LedgerEntryIdCmp>& keys,
+                         std::vector<LedgerEntry>& result) const
 {
     ZoneScoped;
     if (isEmpty())
@@ -124,7 +121,7 @@ SearchableBucketSnapshot::loadKeys(std::set<LedgerKey, LedgerEntryIdCmp>& keys,
 }
 
 std::vector<PoolID> const&
-SearchableBucketSnapshot::getPoolIDsByAsset(Asset const& asset) const
+BucketSnapshot::getPoolIDsByAsset(Asset const& asset) const
 {
     static std::vector<PoolID> const emptyVec = {};
     if (isEmpty())
@@ -136,7 +133,7 @@ SearchableBucketSnapshot::getPoolIDsByAsset(Asset const& asset) const
 }
 
 XDRInputFileStream&
-SearchableBucketSnapshot::getStream() const
+BucketSnapshot::getStream() const
 {
     if (!mStream)
     {
@@ -148,7 +145,7 @@ SearchableBucketSnapshot::getStream() const
 }
 
 std::shared_ptr<Bucket const>
-SearchableBucketSnapshot::getRawBucket() const
+BucketSnapshot::getRawBucket() const
 {
     return mBucket;
 }

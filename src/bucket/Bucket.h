@@ -165,6 +165,6 @@ class Bucket : public std::enable_shared_from_this<Bucket>,
     static uint32_t
     getBucketVersion(std::shared_ptr<Bucket const> const& bucket);
 
-    friend class SearchableBucketSnapshot;
+    friend class BucketSnapshot;
 };
 }

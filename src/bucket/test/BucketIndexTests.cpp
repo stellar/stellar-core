@@ -7,8 +7,8 @@
 
 #include "bucket/BucketIndexImpl.h"
 #include "bucket/BucketList.h"
+#include "bucket/BucketListSnapshot.h"
 #include "bucket/BucketManager.h"
-#include "bucket/SearchableBucketListSnapshot.h"
 #include "bucket/test/BucketTestUtils.h"
 #include "ledger/test/LedgerTestUtils.h"
 #include "lib/catch.hpp"

@@ -4,8 +4,8 @@
 
 #include "ledger/LedgerTxn.h"
 #include "bucket/BucketList.h"
+#include "bucket/BucketListSnapshot.h"
 #include "bucket/BucketManager.h"
-#include "bucket/SearchableBucketListSnapshot.h"
 #include "crypto/Hex.h"
 #include "crypto/KeyUtils.h"
 #include "crypto/SecretKey.h"

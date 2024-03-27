@@ -4,6 +4,7 @@
 // under the Apache License, Version 2.0. See the COPYING file at the root
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
+#include "bucket/BucketManagerImpl.h"
 #include "util/NonCopyable.h"
 #include "util/UnorderedMap.h"
 #include "util/types.h"
@@ -23,7 +24,7 @@ namespace stellar
 
 class Application;
 class BucketList;
-class SearchableBucketListSnapshot;
+class BucketListSnapshot;
 
 // This class serves as the boundary between non-threadsafe singleton classes
 // (BucketManager, BucketList, Metrics, etc) and threadsafe, parallel BucketList
@@ -32,8 +33,13 @@ class BucketSnapshotManager : NonMovableOrCopyable
 {
   private:
     medida::MetricsRegistry& mMetrics;
-    BucketList const& mBucketList;
-    std::recursive_mutex& mBucketListMutex;
+
+    // Snapshot that is maintained and periodically updated by BucketManager on
+    // the main thread. When background threads need to generate or refresh a
+    // snapshot, they will copy this snapshot.
+    std::unique_ptr<BucketListSnapshot const> mCurrentSnapshot{};
+
+    mutable std::recursive_mutex mSnapshotMutex;
 
     mutable UnorderedMap<LedgerEntryType, medida::Timer&> mPointTimers{};
     mutable UnorderedMap<std::string, medida::Timer&> mBulkTimers{};
@@ -42,17 +48,30 @@ class BucketSnapshotManager : NonMovableOrCopyable
     medida::Meter& mBloomMisses;
     medida::Meter& mBloomLookups;
 
+    void updateCurrentSnapshot(
+        std::unique_ptr<BucketListSnapshot const>&& newSnapshot);
+
+    friend void
+    BucketManagerImpl::addBatch(Application& app, uint32_t currLedger,
+                                uint32_t currLedgerProtocol,
+                                std::vector<LedgerEntry> const& initEntries,
+                                std::vector<LedgerEntry> const& liveEntries,
+                                std::vector<LedgerKey> const& deadEntries);
+    friend void BucketManagerImpl::assumeState(HistoryArchiveState const& has,
+                                               uint32_t maxProtocolVersion,
+                                               bool restartMerges);
+
   public:
     BucketSnapshotManager(medida::MetricsRegistry& metrics,
-                          BucketList const& bl,
-                          std::recursive_mutex& bucketListMutex);
+                          std::unique_ptr<BucketListSnapshot const>&& snapshot);
 
     std::unique_ptr<SearchableBucketListSnapshot>
     getSearchableBucketListSnapshot() const;
 
-    // Checks if snapshot is behind the current ledgerSeq and updates the
-    // snapshot as necessary
-    void maybeUpdateSnapshot(SearchableBucketListSnapshot& snapshot) const;
+    // Checks if snapshot is out of date with mCurrentSnapshot and updates
+    // it accordingly
+    void maybeUpdateSnapshot(
+        std::unique_ptr<BucketListSnapshot const>& snapshot) const;
 
     medida::Timer& recordBulkLoadMetrics(std::string const& label,
                                          size_t numEntries) const;

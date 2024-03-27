@@ -2,7 +2,7 @@
 // under the Apache License, Version 2.0. See the COPYING file at the root
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
-#include "bucket/SearchableBucketListSnapshot.h"
+#include "bucket/BucketListSnapshot.h"
 #include "bucket/BucketInputIterator.h"
 #include "crypto/SecretKey.h"
 #include "ledger/LedgerTxn.h"
@@ -13,14 +13,40 @@
 namespace stellar
 {
 
+BucketListSnapshot::BucketListSnapshot(BucketList const& bl, uint32_t ledgerSeq)
+    : mLedgerSeq(ledgerSeq)
+{
+    releaseAssert(threadIsMain());
+
+    for (uint32_t i = 0; i < BucketList::kNumLevels; ++i)
+    {
+        auto const& level = bl.getLevel(i);
+        mLevels.emplace_back(BucketLevelSnapshot(level));
+    }
+}
+
+std::vector<BucketLevelSnapshot> const&
+BucketListSnapshot::getLevels() const
+{
+    return mLevels;
+}
+
+uint32_t
+BucketListSnapshot::getLedgerSeq() const
+{
+    return mLedgerSeq;
+}
+
 void
 SearchableBucketListSnapshot::loopAllBuckets(
-    std::function<bool(SearchableBucketSnapshot const&)> f) const
+    std::function<bool(BucketSnapshot const&)> f) const
 {
-    for (auto const& lev : mLevels)
+    releaseAssert(mSnapshot);
+
+    for (auto const& lev : mSnapshot->getLevels())
     {
         // Return true if we should exit loop early
-        auto processBucket = [f](SearchableBucketSnapshot const& b) {
+        auto processBucket = [f](BucketSnapshot const& b) {
             if (b.isEmpty())
             {
                 return false;
@@ -40,7 +66,7 @@ std::shared_ptr<LedgerEntry>
 SearchableBucketListSnapshot::getLedgerEntry(LedgerKey const& k)
 {
     ZoneScoped;
-    mSnapshotManager.maybeUpdateSnapshot(*this);
+    mSnapshotManager.maybeUpdateSnapshot(mSnapshot);
 
     if (threadIsMain())
     {
@@ -58,7 +84,7 @@ SearchableBucketListSnapshot::getLedgerEntryInternal(LedgerKey const& k)
 {
     std::shared_ptr<LedgerEntry> result{};
 
-    auto f = [&](SearchableBucketSnapshot const& b) {
+    auto f = [&](BucketSnapshot const& b) {
         auto be = b.getBucketEntry(k);
         if (be.has_value())
         {
@@ -86,7 +112,7 @@ SearchableBucketListSnapshot::loadKeysInternal(
 
     // Make a copy of the key set, this loop is destructive
     auto keys = inKeys;
-    auto f = [&](SearchableBucketSnapshot const& b) {
+    auto f = [&](BucketSnapshot const& b) {
         b.loadKeys(keys, entries);
         return keys.empty();
     };
@@ -100,7 +126,7 @@ SearchableBucketListSnapshot::loadKeys(
     std::set<LedgerKey, LedgerEntryIdCmp> const& inKeys)
 {
     ZoneScoped;
-    mSnapshotManager.maybeUpdateSnapshot(*this);
+    mSnapshotManager.maybeUpdateSnapshot(mSnapshot);
 
     if (threadIsMain())
     {
@@ -128,11 +154,11 @@ SearchableBucketListSnapshot::loadPoolShareTrustLinesByAccountAndAsset(
 
     // This query should only be called during TX apply
     releaseAssert(threadIsMain());
-    mSnapshotManager.maybeUpdateSnapshot(*this);
+    mSnapshotManager.maybeUpdateSnapshot(mSnapshot);
 
     LedgerKeySet trustlinesToLoad;
 
-    auto trustLineLoop = [&](SearchableBucketSnapshot const& b) {
+    auto trustLineLoop = [&](BucketSnapshot const& b) {
         for (auto const& poolID : b.getPoolIDsByAsset(asset))
         {
             LedgerKey trustlineKey(TRUSTLINE);
@@ -159,7 +185,7 @@ SearchableBucketListSnapshot::loadInflationWinners(size_t maxWinners,
                                                    int64_t minBalance)
 {
     ZoneScoped;
-    mSnapshotManager.maybeUpdateSnapshot(*this);
+    mSnapshotManager.maybeUpdateSnapshot(mSnapshot);
 
     // This is a legacy query, should only be called by main thread during
     // catchup
@@ -170,7 +196,7 @@ SearchableBucketListSnapshot::loadInflationWinners(size_t maxWinners,
     UnorderedMap<AccountID, int64_t> voteCount;
     UnorderedSet<AccountID> seen;
 
-    auto countVotesInBucket = [&](SearchableBucketSnapshot const& b) {
+    auto countVotesInBucket = [&](BucketSnapshot const& b) {
         for (BucketInputIterator in(b.getRawBucket()); in; ++in)
         {
             BucketEntry const& be = *in;
@@ -246,22 +272,16 @@ SearchableBucketListSnapshot::loadInflationWinners(size_t maxWinners,
     return winners;
 }
 
-SearchableBucketLevelSnapshot::SearchableBucketLevelSnapshot(
-    BucketLevel const& level)
+BucketLevelSnapshot::BucketLevelSnapshot(BucketLevel const& level)
     : curr(level.getCurr()), snap(level.getSnap())
 {
 }
 
-// This is not thread safe, must call while holding
-// BucketManager::mBucketListMutex.
 SearchableBucketListSnapshot::SearchableBucketListSnapshot(
-    BucketSnapshotManager const& snapshotManager, BucketList const& bl)
+    BucketSnapshotManager const& snapshotManager)
     : mSnapshotManager(snapshotManager)
 {
-    for (uint32_t i = 0; i < BucketList::kNumLevels; ++i)
-    {
-        auto const& level = bl.getLevel(i);
-        mLevels.emplace_back(SearchableBucketLevelSnapshot(level));
-    }
+    // Initialize snapshot from SnapshotManager
+    mSnapshotManager.maybeUpdateSnapshot(mSnapshot);
 }
 }

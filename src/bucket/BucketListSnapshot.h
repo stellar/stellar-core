@@ -6,8 +6,8 @@
 
 #include "bucket/BucketList.h"
 #include "bucket/BucketManagerImpl.h"
+#include "bucket/BucketSnapshot.h"
 #include "bucket/BucketSnapshotManager.h"
-#include "bucket/SearchableBucketSnapshot.h"
 
 namespace medida
 {
@@ -17,37 +17,50 @@ class Timer;
 namespace stellar
 {
 
-struct SearchableBucketLevelSnapshot
+struct BucketLevelSnapshot
 {
-    SearchableBucketSnapshot curr;
-    SearchableBucketSnapshot snap;
+    BucketSnapshot curr;
+    BucketSnapshot snap;
 
-    SearchableBucketLevelSnapshot(BucketLevel const& level);
+    BucketLevelSnapshot(BucketLevel const& level);
+};
+
+class BucketListSnapshot
+{
+  private:
+    std::vector<BucketLevelSnapshot> mLevels;
+
+    // ledgerSeq that this BucketList snapshot is based off of
+    uint32_t mLedgerSeq;
+
+  public:
+    BucketListSnapshot(BucketList const& bl, uint32_t ledgerSeq);
+
+    std::vector<BucketLevelSnapshot> const& getLevels() const;
+    uint32_t getLedgerSeq() const;
 };
 
 // A lightweight wrapper around the BucketList for thread safe BucketListDB
 // lookups
 class SearchableBucketListSnapshot : public NonMovableOrCopyable
 {
-    std::vector<SearchableBucketLevelSnapshot> mLevels;
     BucketSnapshotManager const& mSnapshotManager;
-
-    // ledgerSeq that this BucketList snapshot is based off of
-    uint32_t mLedgerSeq;
+    std::unique_ptr<BucketListSnapshot const> mSnapshot{};
 
     // Loops through all buckets, starting with curr at level 0, then snap at
     // level 0, etc. Calls f on each bucket. Exits early if function
     // returns true
-    void loopAllBuckets(
-        std::function<bool(SearchableBucketSnapshot const&)> f) const;
-
-    SearchableBucketListSnapshot(BucketSnapshotManager const& snapshotManager,
-                                 BucketList const& bl);
+    void loopAllBuckets(std::function<bool(BucketSnapshot const&)> f) const;
 
     std::vector<LedgerEntry>
     loadKeysInternal(std::set<LedgerKey, LedgerEntryIdCmp> const& inKeys);
 
     std::shared_ptr<LedgerEntry> getLedgerEntryInternal(LedgerKey const& k);
+
+    SearchableBucketListSnapshot(BucketSnapshotManager const& snapshotManager);
+
+    friend std::unique_ptr<SearchableBucketListSnapshot>
+    BucketSnapshotManager::getSearchableBucketListSnapshot() const;
 
   public:
     std::vector<LedgerEntry>
@@ -61,7 +74,5 @@ class SearchableBucketListSnapshot : public NonMovableOrCopyable
                                                       int64_t minBalance);
 
     std::shared_ptr<LedgerEntry> getLedgerEntry(LedgerKey const& k);
-
-    friend class BucketSnapshotManager;
 };
 }

@@ -59,10 +59,6 @@ class BucketManagerImpl : public BucketManager
     // the BucketList (i.e. addBatch).
     mutable std::recursive_mutex mBucketFileMutex;
 
-    // Lock for logical BucketList changes and snapshots (i.e. addBatch). This
-    // lock is not required for raw Bucket file management.
-    mutable std::recursive_mutex mBucketListMutex;
-
     bool const mDeleteEntireBucketDirInDtor;
 
     // Records bucket-merges that are currently _live_ in some FutureBucket, in
@@ -144,7 +140,6 @@ class BucketManagerImpl : public BucketManager
                        std::unique_ptr<BucketIndex const>&& index) override;
     void scanForEvictionLegacySQL(AbstractLedgerTxn& ltx,
                                   uint32_t ledgerSeq) override;
-    std::recursive_mutex& getBucketListMutex() const override;
 
     medida::Meter& getBloomMissMeter() const override;
     medida::Meter& getBloomLookupMeter() const override;
