@@ -471,35 +471,7 @@ BucketList::loadPoolShareTrustLinesByAccountAndAsset(AccountID const& accountID,
 
     // Load all the LiquidityPool entries that the account has a trustline for.
     LedgerKeyMeter lkMeter{};
-<<<<<<< HEAD
-    return loadKeysWithLimits(
-        liquidityPoolKeysToSearch, lkMeter);
-=======
-    auto liquidityPoolEntries =
-        loadKeysWithLimits(liquidityPoolKeysToSearch, lkMeter);
-    // pools always exist when there are trustlines
-    releaseAssertOrThrow(liquidityPoolEntries.size() ==
-                         liquidityPoolKeysToSearch.size());
-    // Filter out liquidity pools that don't match the asset we're looking for
-    std::vector<LedgerEntry> result;
-    result.reserve(liquidityPoolEntries.size());
-    for (const auto& e : liquidityPoolEntries)
-    {
-        releaseAssert(e.data.type() == LIQUIDITY_POOL);
-        auto const& params =
-            e.data.liquidityPool().body.constantProduct().params;
-        if (compareAsset(params.assetA, asset) ||
-            compareAsset(params.assetB, asset))
-        {
-            auto trustlineIter =
-                liquidityPoolToTrustline.find(LedgerEntryKey(e));
-            releaseAssert(trustlineIter != liquidityPoolToTrustline.end());
-            result.emplace_back(trustlineIter->second);
-        }
-    }
-
-    return result;
->>>>>>> e27e3a5f7 (Created LedgerKeyMeter to track the read quota of associated transactions when prefetching in ltx and bucket)
+    return loadKeysWithLimits(liquidityPoolKeysToSearch, lkMeter);
 }
 
 std::vector<InflationWinner>
