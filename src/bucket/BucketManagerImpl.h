@@ -43,6 +43,7 @@ class BucketManagerImpl : public BucketManager
     std::unique_ptr<TmpDirManager> mTmpDirManager;
     std::unique_ptr<TmpDir> mWorkDir;
     std::map<Hash, std::shared_ptr<Bucket>> mSharedBuckets;
+    mutable std::recursive_mutex mBucketMutex;
     std::unique_ptr<std::string> mLockedBucketDir;
     medida::Meter& mBucketObjectInsertBatch;
     medida::Timer& mBucketAddBatch;
@@ -53,11 +54,6 @@ class BucketManagerImpl : public BucketManager
     medida::Counter& mBucketListSizeCounter;
     EvictionCounters mBucketListEvictionCounters;
     MergeCounters mMergeCounters;
-
-    // Lock for managing raw Bucket files or the bucket directory. This lock is
-    // only required for file access, but is not required for logical changes to
-    // the BucketList (i.e. addBatch).
-    mutable std::recursive_mutex mBucketFileMutex;
 
     bool const mDeleteEntireBucketDirInDtor;
 

@@ -15,17 +15,20 @@ namespace stellar
 BucketSnapshot::BucketSnapshot(std::shared_ptr<Bucket const> const b)
     : mBucket(b)
 {
+    releaseAssert(mBucket);
 }
 
 BucketSnapshot::BucketSnapshot(BucketSnapshot const& b)
     : mBucket(b.mBucket), mStream(nullptr)
 {
+    releaseAssert(mBucket);
 }
 
 bool
 BucketSnapshot::isEmpty() const
 {
-    return mBucket || mBucket->isEmpty();
+    releaseAssert(mBucket);
+    return mBucket->isEmpty();
 }
 
 std::optional<BucketEntry>
@@ -135,10 +138,10 @@ BucketSnapshot::getPoolIDsByAsset(Asset const& asset) const
 XDRInputFileStream&
 BucketSnapshot::getStream() const
 {
+    releaseAssertOrThrow(!isEmpty());
     if (!mStream)
     {
         mStream = std::make_unique<XDRInputFileStream>();
-        releaseAssertOrThrow(mBucket && !mBucket->isEmpty());
         mStream->open(mBucket->getFilename().string());
     }
     return *mStream;

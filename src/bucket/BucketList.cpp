@@ -63,7 +63,7 @@ BucketLevel::getNext()
 void
 BucketLevel::setNext(FutureBucket const& fb)
 {
-    releaseAssert(threadIsMain());
+    assertThreadIsMain();
     mNextCurr = fb;
 }
 
@@ -82,7 +82,7 @@ BucketLevel::getSnap() const
 void
 BucketLevel::setCurr(std::shared_ptr<Bucket> b)
 {
-    releaseAssert(threadIsMain());
+    assertThreadIsMain();
     mNextCurr.clear();
     mCurr = b;
 }
@@ -117,7 +117,7 @@ BucketList::shouldMergeWithEmptyCurr(uint32_t ledger, uint32_t level)
 void
 BucketLevel::setSnap(std::shared_ptr<Bucket> b)
 {
-    releaseAssert(threadIsMain());
+    assertThreadIsMain();
     mSnap = b;
 }
 

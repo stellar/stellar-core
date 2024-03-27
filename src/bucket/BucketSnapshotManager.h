@@ -39,6 +39,7 @@ class BucketSnapshotManager : NonMovableOrCopyable
     // snapshot, they will copy this snapshot.
     std::unique_ptr<BucketListSnapshot const> mCurrentSnapshot{};
 
+    // Lock must be held when accessing mCurrentSnapshot
     mutable std::recursive_mutex mSnapshotMutex;
 
     mutable UnorderedMap<LedgerEntryType, medida::Timer&> mPointTimers{};
@@ -48,6 +49,8 @@ class BucketSnapshotManager : NonMovableOrCopyable
     medida::Meter& mBloomMisses;
     medida::Meter& mBloomLookups;
 
+    // Called by main thread to update mCurrentSnapshot whenever the BucketList
+    // is updated
     void updateCurrentSnapshot(
         std::unique_ptr<BucketListSnapshot const>&& newSnapshot);
 

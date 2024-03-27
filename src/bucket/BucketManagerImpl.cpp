@@ -89,9 +89,13 @@ BucketManagerImpl::initialize()
     if (mApp.getConfig().MODE_ENABLES_BUCKETLIST)
     {
         mBucketList = std::make_unique<BucketList>();
-        mSnapshotManager = std::make_unique<BucketSnapshotManager>(
-            mApp.getMetrics(),
-            std::make_unique<BucketListSnapshot>(*mBucketList, 0));
+
+        if (mApp.getConfig().isUsingBucketListDB())
+        {
+            mSnapshotManager = std::make_unique<BucketSnapshotManager>(
+                mApp.getMetrics(),
+                std::make_unique<BucketListSnapshot>(*mBucketList, 0));
+        }
     }
 }
 
@@ -185,7 +189,7 @@ std::string const&
 BucketManagerImpl::getTmpDir()
 {
     ZoneScoped;
-    std::lock_guard<std::recursive_mutex> lock(mBucketFileMutex);
+    std::lock_guard<std::recursive_mutex> lock(mBucketMutex);
     if (!mWorkDir)
     {
         TmpDir t = mTmpDirManager->tmpDir("bucket");
@@ -268,7 +272,8 @@ BucketManagerImpl::getBucketList()
 BucketSnapshotManager&
 BucketManagerImpl::getBucketSnapshotManager() const
 {
-    releaseAssertOrThrow(mApp.getConfig().MODE_ENABLES_BUCKETLIST);
+    releaseAssertOrThrow(mApp.getConfig().isUsingBucketListDB());
+    releaseAssert(mSnapshotManager);
     return *mSnapshotManager;
 }
 
@@ -281,7 +286,7 @@ BucketManagerImpl::getMergeTimer()
 MergeCounters
 BucketManagerImpl::readMergeCounters()
 {
-    std::lock_guard<std::recursive_mutex> lock(mBucketFileMutex);
+    std::lock_guard<std::recursive_mutex> lock(mBucketMutex);
     return mMergeCounters;
 }
 
@@ -371,7 +376,7 @@ MergeCounters::operator==(MergeCounters const& other) const
 void
 BucketManagerImpl::incrMergeCounters(MergeCounters const& delta)
 {
-    std::lock_guard<std::recursive_mutex> lock(mBucketFileMutex);
+    std::lock_guard<std::recursive_mutex> lock(mBucketMutex);
     mMergeCounters += delta;
 }
 
@@ -397,7 +402,7 @@ BucketManagerImpl::adoptFileAsBucket(std::string const& filename,
 {
     ZoneScoped;
     releaseAssertOrThrow(mApp.getConfig().MODE_ENABLES_BUCKETLIST);
-    std::lock_guard<std::recursive_mutex> lock(mBucketFileMutex);
+    std::lock_guard<std::recursive_mutex> lock(mBucketMutex);
 
     if (mergeKey)
     {
@@ -481,7 +486,7 @@ BucketManagerImpl::noteEmptyMergeOutput(MergeKey const& mergeKey)
     // because it'd over-identify multiple individual inputs with the empty
     // output, potentially retaining far too many inputs, as lots of different
     // mergeKeys result in an empty output.
-    std::lock_guard<std::recursive_mutex> lock(mBucketFileMutex);
+    std::lock_guard<std::recursive_mutex> lock(mBucketMutex);
     CLOG_TRACE(Bucket, "BucketManager::noteEmptyMergeOutput({})", mergeKey);
     mLiveFutures.erase(mergeKey);
 }
@@ -490,7 +495,7 @@ std::shared_ptr<Bucket>
 BucketManagerImpl::getBucketIfExists(uint256 const& hash)
 {
     ZoneScoped;
-    std::lock_guard<std::recursive_mutex> lock(mBucketFileMutex);
+    std::lock_guard<std::recursive_mutex> lock(mBucketMutex);
     auto i = mSharedBuckets.find(hash);
     if (i != mSharedBuckets.end())
     {
@@ -507,7 +512,7 @@ std::shared_ptr<Bucket>
 BucketManagerImpl::getBucketByHash(uint256 const& hash)
 {
     ZoneScoped;
-    std::lock_guard<std::recursive_mutex> lock(mBucketFileMutex);
+    std::lock_guard<std::recursive_mutex> lock(mBucketMutex);
     if (isZero(hash))
     {
         return std::make_shared<Bucket>();
@@ -540,7 +545,7 @@ std::shared_future<std::shared_ptr<Bucket>>
 BucketManagerImpl::getMergeFuture(MergeKey const& key)
 {
     ZoneScoped;
-    std::lock_guard<std::recursive_mutex> lock(mBucketFileMutex);
+    std::lock_guard<std::recursive_mutex> lock(mBucketMutex);
     MergeCounters mc;
     auto i = mLiveFutures.find(key);
     if (i == mLiveFutures.end())
@@ -586,7 +591,7 @@ BucketManagerImpl::putMergeFuture(
 {
     ZoneScoped;
     releaseAssertOrThrow(mApp.getConfig().MODE_ENABLES_BUCKETLIST);
-    std::lock_guard<std::recursive_mutex> lock(mBucketFileMutex);
+    std::lock_guard<std::recursive_mutex> lock(mBucketMutex);
     CLOG_TRACE(
         Bucket,
         "BucketManager::putMergeFuture storing future for running merge {}",
@@ -598,7 +603,7 @@ BucketManagerImpl::putMergeFuture(
 void
 BucketManagerImpl::clearMergeFuturesForTesting()
 {
-    std::lock_guard<std::recursive_mutex> lock(mBucketFileMutex);
+    std::lock_guard<std::recursive_mutex> lock(mBucketMutex);
     mLiveFutures.clear();
 }
 #endif
@@ -697,7 +702,7 @@ BucketManagerImpl::cleanupStaleFiles()
         return;
     }
 
-    std::lock_guard<std::recursive_mutex> lock(mBucketFileMutex);
+    std::lock_guard<std::recursive_mutex> lock(mBucketMutex);
     auto referenced = getAllReferencedBuckets();
     std::transform(std::begin(mSharedBuckets), std::end(mSharedBuckets),
                    std::inserter(referenced, std::end(referenced)),
@@ -727,7 +732,7 @@ void
 BucketManagerImpl::forgetUnreferencedBuckets()
 {
     ZoneScoped;
-    std::lock_guard<std::recursive_mutex> lock(mBucketFileMutex);
+    std::lock_guard<std::recursive_mutex> lock(mBucketMutex);
     auto referenced = getAllReferencedBuckets();
     auto blReferenced = getBucketListReferencedBuckets();
 
@@ -837,8 +842,12 @@ BucketManagerImpl::addBatch(Application& app, uint32_t currLedger,
     mBucketList->addBatch(app, currLedger, currLedgerProtocol, initEntries,
                           liveEntries, deadEntries);
     mBucketListSizeCounter.set_count(mBucketList->getSize());
-    mSnapshotManager->updateCurrentSnapshot(
-        std::make_unique<BucketListSnapshot>(*mBucketList, currLedger));
+
+    if (app.getConfig().isUsingBucketListDB())
+    {
+        mSnapshotManager->updateCurrentSnapshot(
+            std::make_unique<BucketListSnapshot>(*mBucketList, currLedger));
+    }
 }
 
 #ifdef BUILD_TESTS
@@ -978,60 +987,57 @@ BucketManagerImpl::assumeState(HistoryArchiveState const& has,
     ZoneScoped;
     releaseAssertOrThrow(mApp.getConfig().MODE_ENABLES_BUCKETLIST);
 
+    for (uint32_t i = 0; i < BucketList::kNumLevels; ++i)
     {
-        for (uint32_t i = 0; i < BucketList::kNumLevels; ++i)
+        auto curr = getBucketByHash(hexToBin256(has.currentBuckets.at(i).curr));
+        auto snap = getBucketByHash(hexToBin256(has.currentBuckets.at(i).snap));
+        if (!(curr && snap))
         {
-            auto curr =
-                getBucketByHash(hexToBin256(has.currentBuckets.at(i).curr));
-            auto snap =
-                getBucketByHash(hexToBin256(has.currentBuckets.at(i).snap));
-            if (!(curr && snap))
-            {
-                throw std::runtime_error("Missing bucket files while assuming "
-                                         "saved BucketList state");
-            }
-
-            auto const& nextFuture = has.currentBuckets.at(i).next;
-            std::shared_ptr<Bucket> nextBucket = nullptr;
-            if (nextFuture.hasOutputHash())
-            {
-                nextBucket =
-                    getBucketByHash(hexToBin256(nextFuture.getOutputHash()));
-                if (!nextBucket)
-                {
-                    throw std::runtime_error(
-                        "Missing future bucket files while "
-                        "assuming saved BucketList state");
-                }
-            }
-
-            // Buckets on the BucketList should always be indexed when
-            // BucketListDB enabled
-            if (mApp.getConfig().isUsingBucketListDB())
-            {
-                releaseAssert(curr->isEmpty() || curr->isIndexed());
-                releaseAssert(snap->isEmpty() || snap->isIndexed());
-                if (nextBucket)
-                {
-                    releaseAssert(nextBucket->isEmpty() ||
-                                  nextBucket->isIndexed());
-                }
-            }
-
-            mBucketList->getLevel(i).setCurr(curr);
-            mBucketList->getLevel(i).setSnap(snap);
-            mBucketList->getLevel(i).setNext(nextFuture);
+            throw std::runtime_error("Missing bucket files while assuming "
+                                     "saved BucketList state");
         }
 
-        if (restartMerges)
+        auto const& nextFuture = has.currentBuckets.at(i).next;
+        std::shared_ptr<Bucket> nextBucket = nullptr;
+        if (nextFuture.hasOutputHash())
         {
-            mBucketList->restartMerges(mApp, maxProtocolVersion,
-                                       has.currentLedger);
+            nextBucket =
+                getBucketByHash(hexToBin256(nextFuture.getOutputHash()));
+            if (!nextBucket)
+            {
+                throw std::runtime_error("Missing future bucket files while "
+                                         "assuming saved BucketList state");
+            }
         }
+
+        // Buckets on the BucketList should always be indexed when
+        // BucketListDB enabled
+        if (mApp.getConfig().isUsingBucketListDB())
+        {
+            releaseAssert(curr->isEmpty() || curr->isIndexed());
+            releaseAssert(snap->isEmpty() || snap->isIndexed());
+            if (nextBucket)
+            {
+                releaseAssert(nextBucket->isEmpty() || nextBucket->isIndexed());
+            }
+        }
+
+        mBucketList->getLevel(i).setCurr(curr);
+        mBucketList->getLevel(i).setSnap(snap);
+        mBucketList->getLevel(i).setNext(nextFuture);
     }
 
-    mSnapshotManager->updateCurrentSnapshot(
-        std::make_unique<BucketListSnapshot>(*mBucketList, has.currentLedger));
+    if (restartMerges)
+    {
+        mBucketList->restartMerges(mApp, maxProtocolVersion, has.currentLedger);
+    }
+
+    if (mApp.getConfig().isUsingBucketListDB())
+    {
+        mSnapshotManager->updateCurrentSnapshot(
+            std::make_unique<BucketListSnapshot>(*mBucketList,
+                                                 has.currentLedger));
+    }
     cleanupStaleFiles();
 }
 

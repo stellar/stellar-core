@@ -16,13 +16,18 @@ namespace stellar
 BucketListSnapshot::BucketListSnapshot(BucketList const& bl, uint32_t ledgerSeq)
     : mLedgerSeq(ledgerSeq)
 {
-    releaseAssert(threadIsMain());
+    assertThreadIsMain();
 
     for (uint32_t i = 0; i < BucketList::kNumLevels; ++i)
     {
         auto const& level = bl.getLevel(i);
         mLevels.emplace_back(BucketLevelSnapshot(level));
     }
+}
+
+BucketListSnapshot::BucketListSnapshot(BucketListSnapshot const& snapshot)
+    : mLevels(snapshot.mLevels), mLedgerSeq(snapshot.mLedgerSeq)
+{
 }
 
 std::vector<BucketLevelSnapshot> const&
@@ -153,7 +158,7 @@ SearchableBucketListSnapshot::loadPoolShareTrustLinesByAccountAndAsset(
     ZoneScoped;
 
     // This query should only be called during TX apply
-    releaseAssert(threadIsMain());
+    assertThreadIsMain();
     mSnapshotManager.maybeUpdateSnapshot(mSnapshot);
 
     LedgerKeySet trustlinesToLoad;
@@ -189,7 +194,7 @@ SearchableBucketListSnapshot::loadInflationWinners(size_t maxWinners,
 
     // This is a legacy query, should only be called by main thread during
     // catchup
-    releaseAssert(threadIsMain());
+    assertThreadIsMain();
     auto timer = mSnapshotManager.recordBulkLoadMetrics("inflationWinners", 0)
                      .TimeScope();
 

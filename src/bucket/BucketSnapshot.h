@@ -20,7 +20,7 @@ class XDRInputFileStream;
 // A lightweight wrapper around Bucket for thread safe BucketListDB lookups
 class BucketSnapshot : public NonMovable
 {
-    std::shared_ptr<Bucket const> mBucket;
+    std::shared_ptr<Bucket const> const mBucket;
 
     // Lazily-constructed and retained for read path.
     mutable std::unique_ptr<XDRInputFileStream> mStream{};
@@ -40,7 +40,7 @@ class BucketSnapshot : public NonMovable
 
     // Only allow copy constructor, is threadsafe
     BucketSnapshot(BucketSnapshot const& b);
-    BucketSnapshot& operator=(BucketSnapshot const& b) = delete;
+    BucketSnapshot& operator=(BucketSnapshot const&) = delete;
 
   public:
     bool isEmpty() const;

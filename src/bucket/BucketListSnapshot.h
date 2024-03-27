@@ -25,7 +25,7 @@ struct BucketLevelSnapshot
     BucketLevelSnapshot(BucketLevel const& level);
 };
 
-class BucketListSnapshot
+class BucketListSnapshot : public NonMovable
 {
   private:
     std::vector<BucketLevelSnapshot> mLevels;
@@ -36,15 +36,28 @@ class BucketListSnapshot
   public:
     BucketListSnapshot(BucketList const& bl, uint32_t ledgerSeq);
 
+    // Only allow copies via constructor
+    BucketListSnapshot(BucketListSnapshot const& snapshot);
+    BucketListSnapshot& operator=(BucketListSnapshot const&) = delete;
+
     std::vector<BucketLevelSnapshot> const& getLevels() const;
     uint32_t getLedgerSeq() const;
 };
 
-// A lightweight wrapper around the BucketList for thread safe BucketListDB
-// lookups
+// A lightweight wrapper around BucketListSnapshot for thread safe BucketListDB
+// lookups.
+//
+// Any thread that needs to perform BucketList lookups should retrieve
+// a single SearchableBucketListSnapshot instance from
+// BucketListSnapshotManager. On each lookup, the SearchableBucketListSnapshot
+// instance will check that the current snapshot is up to date via the
+// BucketListSnapshotManager and will be refreshed accordingly. Callers can
+// assume SearchableBucketListSnapshot is always up to date.
 class SearchableBucketListSnapshot : public NonMovableOrCopyable
 {
     BucketSnapshotManager const& mSnapshotManager;
+
+    // Snapshot managed by SnapshotManager
     std::unique_ptr<BucketListSnapshot const> mSnapshot{};
 
     // Loops through all buckets, starting with curr at level 0, then snap at

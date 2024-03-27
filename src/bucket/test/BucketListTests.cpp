@@ -1122,39 +1122,36 @@ TEST_CASE_VERSIONS("Searchable BucketListDB snapshots", "[bucketlist]")
     cfg.EXPERIMENTAL_BUCKETLIST_DB = true;
 
     auto app = createTestApplication<BucketTestApplication>(clock, cfg);
-    for_versions_from(20, *app, [&] {
-        LedgerManagerForBucketTests& lm = app->getLedgerManager();
-        auto& bm = app->getBucketManager();
+    LedgerManagerForBucketTests& lm = app->getLedgerManager();
+    auto& bm = app->getBucketManager();
 
-        auto entry =
-            LedgerTestUtils::generateValidLedgerEntryOfType(CLAIMABLE_BALANCE);
-        entry.data.claimableBalance().amount = 0;
+    auto entry =
+        LedgerTestUtils::generateValidLedgerEntryOfType(CLAIMABLE_BALANCE);
+    entry.data.claimableBalance().amount = 0;
 
-        auto searchableBL =
-            bm.getBucketSnapshotManager().getSearchableBucketListSnapshot();
+    auto searchableBL =
+        bm.getBucketSnapshotManager().getSearchableBucketListSnapshot();
 
-        // Update entry every 5 ledgers so we can see bucket merge events
-        for (auto ledgerSeq = 1; ledgerSeq < 101; ++ledgerSeq)
+    // Update entry every 5 ledgers so we can see bucket merge events
+    for (auto ledgerSeq = 1; ledgerSeq < 101; ++ledgerSeq)
+    {
+        if ((ledgerSeq - 1) % 5 == 0)
         {
-            if ((ledgerSeq - 1) % 5 == 0)
-            {
-                ++entry.data.claimableBalance().amount;
-                entry.lastModifiedLedgerSeq = ledgerSeq;
-                lm.setNextLedgerEntryBatchForBucketTesting({}, {entry}, {});
-            }
-            else
-            {
-                lm.setNextLedgerEntryBatchForBucketTesting({}, {}, {});
-            }
-
-            closeLedger(*app);
-
-            // Snapshot should automatically update with latest version
-            auto loadedEntry =
-                searchableBL->getLedgerEntry(LedgerEntryKey(entry));
-            REQUIRE((loadedEntry && *loadedEntry == entry));
+            ++entry.data.claimableBalance().amount;
+            entry.lastModifiedLedgerSeq = ledgerSeq;
+            lm.setNextLedgerEntryBatchForBucketTesting({}, {entry}, {});
         }
-    });
+        else
+        {
+            lm.setNextLedgerEntryBatchForBucketTesting({}, {}, {});
+        }
+
+        closeLedger(*app);
+
+        // Snapshot should automatically update with latest version
+        auto loadedEntry = searchableBL->getLedgerEntry(LedgerEntryKey(entry));
+        REQUIRE((loadedEntry && *loadedEntry == entry));
+    }
 }
 
 static std::string

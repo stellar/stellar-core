@@ -24,12 +24,13 @@ BucketSnapshotManager::BucketSnapshotManager(
     , mBloomLookups(
           mMetrics.NewMeter({"bucketlistDB", "bloom", "lookups"}, "bloom"))
 {
-    releaseAssert(threadIsMain());
+    assertThreadIsMain();
 }
 
 std::unique_ptr<SearchableBucketListSnapshot>
 BucketSnapshotManager::getSearchableBucketListSnapshot() const
 {
+    // Can't use std::make_unique due to private constructor
     return std::unique_ptr<SearchableBucketListSnapshot>(
         new SearchableBucketListSnapshot(*this));
 }
@@ -40,7 +41,7 @@ BucketSnapshotManager::recordBulkLoadMetrics(std::string const& label,
 {
     // For now, only keep metrics for the main thread. We can decide on what
     // metrics make sense when more background services are added later.
-    releaseAssert(threadIsMain());
+    assertThreadIsMain();
 
     if (numEntries != 0)
     {
@@ -62,7 +63,7 @@ BucketSnapshotManager::getPointLoadTimer(LedgerEntryType t) const
 {
     // For now, only keep metrics for the main thread. We can decide on what
     // metrics make sense when more background services are added later.
-    releaseAssert(threadIsMain());
+    assertThreadIsMain();
 
     auto iter = mPointTimers.find(t);
     if (iter == mPointTimers.end())
@@ -91,8 +92,11 @@ void
 BucketSnapshotManager::updateCurrentSnapshot(
     std::unique_ptr<BucketListSnapshot const>&& newSnapshot)
 {
-    releaseAssert(threadIsMain());
+    releaseAssert(newSnapshot);
+    assertThreadIsMain();
     std::lock_guard<std::recursive_mutex> lock(mSnapshotMutex);
+    releaseAssert(!mCurrentSnapshot || newSnapshot->getLedgerSeq() >=
+                                           mCurrentSnapshot->getLedgerSeq());
     mCurrentSnapshot.swap(newSnapshot);
 }
 }
