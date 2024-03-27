@@ -379,7 +379,7 @@ format.
 
 ### The following HTTP commands are exposed on test instances
 * **generateload** `generateload[?mode=
-    (create|pay|pretend|mixed_classic|soroban_upload|soroban_invoke_setup|soroban_invoke|upgrade_setup|create_upgrade|mixed_classic_soroban)&accounts=N&offset=K&txs=M&txrate=R&spikesize=S&spikeinterval=I&maxfeerate=F&skiplowfeetxs=(0|1)&dextxpercent=D&dataentriesintervals=A&dataentriesweights=B&kilobytesintervals=C&minpercentsuccess=S&kilobytesweights=T&txsizeintervals=U&txsizeweights=V&cpuintervals=W&cpuweights=X&instances=Y&wasms=Z&wasmbytesintervals=G&wasmbytesweights=H&payweight=P&sorobanuploadweight=Q&sorobaninvokeweight=R]`
+    (create|pay|pretend|mixed_classic|soroban_upload|soroban_invoke_setup|soroban_invoke|upgrade_setup|create_upgrade|mixed_classic_soroban)&accounts=N&offset=K&txs=M&txrate=R&spikesize=S&spikeinterval=I&maxfeerate=F&skiplowfeetxs=(0|1)&dextxpercent=D&minpercentsuccess=S&instances=Y&wasms=Z&payweight=P&sorobanuploadweight=Q&sorobaninvokeweight=R]`
 
     Artificially generate load for testing; must be used with
     `ARTIFICIALLY_GENERATE_LOAD_FOR_TESTING` set to true.
@@ -391,9 +391,9 @@ format.
     have a realistic size to help users "pretend" that they have real traffic.
     You can add optional configs `LOADGEN_OP_COUNT_FOR_TESTING` and
     `LOADGEN_OP_COUNT_DISTRIBUTION_FOR_TESTING` in the config file to specify
-    the # of ops / tx and how often they appear. More specifically, the
-    probability that a transaction contains `COUNT[i]` ops is `DISTRIBUTION
-    [i] / (DISTRIBUTION[0] + DISTRIBUTION[1] + ...)`.
+    the # of ops / tx and how often they appear. See the section on [specifying
+    discrete distributions](#specifying-discrete-distributions) for more info
+    on how to set these options.
   * `mixed_classic` mode generates a mix of DEX and non-DEX transactions
     (containing `PaymentOp` and `ManageBuyOfferOp` operations respectively).
     The fraction of DEX transactions generated is defined by the `dextxpercent`
@@ -401,9 +401,11 @@ format.
   * `soroban_upload` mode generates soroban TXs that upload random wasm blobs.
     Many of these TXs are invalid and not applied, so this test is appropriate
     for herder and overlay tests. This mode allows specification of the
-    distribution it samples wasm sizes from via the `wasmbytesintervals` and
-    `wasmbytesweights` parameters. See the section on [specifying piecewise
-    distributions](#specifying-piecewise-distributions) for more info on how to
+    distribution it samples wasm sizes from via the
+    `LOADGEN_WASM_BYTES_FOR_TESTING` and
+    `LOADGEN_WASM_BYTES_DISTRIBUTION_FOR_TESTING` config file options. See the
+    section on [specifying discrete
+    distributions](#specifying-discrete-distributions) for more info on how to
     set these parameters.
   * `soroban_invoke_setup` mode create soroban contract instances to be used by
     `soroban_invoke`. This mode must be run before `soroban_invoke` or
@@ -411,12 +413,17 @@ format.
   * `soroban_invoke` mode generates valid soroban TXs that invoke a resource
     intensive contract. Each invocation picks a random amount of resources
     between some bound. Resource distributions can be set with the
-    `dataentriesintervals`, `dataentriesweights`, `kilobytesintervals`,
-    `kilobytesweights`, `txsizeintervals`, `txsizeweights`, `cpuintervals`,
-    `cpuweights`, where CPU bounds correspond to instruction count.
-    `kilobytes*` values indicate the total amount of disk IO generated TXs
-    require.  See the section on [specifying piecewise
-    distributions](#specifying-piecewise-distributions) for more info on how to
+    `LOADGEN_NUM_DATA_ENTRIES_FOR_TESTING`,
+    `LOADGEN_NUM_DATA_ENTRIES_DISTRIBUTION_FOR_TESTING`,
+    `LOADGEN_IO_KILOBYTES_FOR_TESTING`,
+    `LOADGEN_IO_KILOBYTES_DISTRIBUTION_FOR_TESTING`,
+    `LOADGEN_TX_SIZE_BYTES_FOR_TESTING`,
+    `LOADGEN_TX_SIZE_BYTES_DISTRIBUTION_FOR_TESTING`,
+    `LOADGEN_INSTRUCTIONS_FOR_TESTING`, and
+    `LOADGEN_INSTRUCTIONS_DISTRIBUTION_FOR_TESTING` config file options.
+    `*KILOBYTES*` values indicate the total amount of disk IO generated TXs
+    require.  See the section on [specifying discrete
+    distributions](#specifying-discrete-distributions) for more info on how to
     set these parameters.  `instances` and `wasms` parameters determine how
     many unique contract instances and wasm entries will be used.
   * `upgrade_setup` mode create soroban contract instance to be used by
@@ -467,28 +474,14 @@ format.
   Note that F and T are seed strings but can also be specified as "root" as
   shorthand for the root account for the test instance.
 
-#### Specifying Piecewise Distributions
+#### Specifying Discrete Distributions
 
-Any option pair ending in `intervals` and `weights` specifies a piecewise
-distribution. Each of these options takes a space-separated list of natural
-numbers as a value.
-
-The resulting distributions consist of buckets (defined by `intervals`) as well
-as weights (defined by `weights`) indicating how frequently values from each
-bucket appear. Values are uniformly distributed within each bucket.
-
-`intervals` holds the boundaries for each bucket, inclusively on the low end of
-each bucket and exclusively on the high end of each bucket.  `weights` holds
-the weight of each bucket, determining how likely it is to be sampled from.
-Therefore, each `weights` value must contain one fewer element than its
-corresponding `intervals` value.
-
-For example, consider `dataentriesintervals` and `dataentriesweights` from the `generateload`
-command. If set as follows:
-* `dataentriesintervals=0 10 50 200`
-* `dataentriesweights=1 0 4`
-
-then sampling from the distribution will produce values in the ranges:
-* `[0, 10)` with `20%` probability,
-* `[10, 50)` with `0%` probability, and
-* `[50, 200)` with `80%` probability.
+Certain config file options for `generateload` mode support the specification
+of discrete distributions to sample from. For each parameter `X`, there are two
+options `LOADGEN_X_FOR_TESTING` and `LOADGEN_X_DISTRIBUTION_FOR_TESTING` that
+describe the shape of the distribution for `X`. Each of these options takes a
+list of values where `LOADGEN_X_FOR_TESTING` holds the values that may be
+sampled and `LOADGEN_X_DISTRIBUTION_FOR_TESTING` holds the weights of each
+value.  The probability that `LOADGEN_X_FOR_TESTING[i]` is sampled is
+`LOADGEN_X_DISTRIBUTION_FOR_TESTING[i]/sum(LOADGEN_X_DISTRIBUTION_FOR_TESTING)`
+for each `i`.

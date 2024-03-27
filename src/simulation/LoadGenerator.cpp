@@ -45,49 +45,29 @@ using namespace txtest;
 
 namespace
 {
-// Populate a JSON array `arr` with the contents of `vec`
-template <typename T>
-void
-fillJsonArray(Json::Value& arr, std::vector<T> const& vec)
-{
-    std::for_each(vec.begin(), vec.end(),
-                  [&](auto const& v) { arr.append(v); });
-}
+// Default distribution settings, largely based on averages seen on testnet
+constexpr unsigned short DEFAULT_OP_COUNT = 1;
+constexpr uint32_t DEFAULT_WASM_BYTES = 35 * 1024;
+constexpr uint32_t DEFAULT_NUM_DATA_ENTRIES = 2;
+constexpr uint32_t DEFAULT_IO_KILOBYTES = 1;
+constexpr uint32_t DEFAULT_TX_SIZE_BYTES = 256;
+constexpr uint64_t DEFAULT_INSTRUCTIONS = 28'000'000;
 
-// This specialized version of `fillJsonArray` for `uint64_t` is necessary
-// because the JSON library requires an explicit cast to `Json::UInt64` for each
-// element in `vec`.
-template <>
-void
-fillJsonArray(Json::Value& arr, std::vector<uint64_t> const& vec)
-{
-    std::for_each(vec.begin(), vec.end(), [&](auto const& v) {
-        arr.append(static_cast<Json::UInt64>(v));
-    });
-}
-
-// If a distribution is not set, set it to the provided defaults in `lo` and
-// `hi`. Additionally, check a distribution for correctness (`weights.size()`
-// must be one less than `intervals.size()`).
+// Sample from a discrete distribution of `values` with weights `weights`.
+// Returns `defaultValue` if `values` is empty.
 template <typename T>
-void
-checkDistribution(std::vector<T>& intervals, std::vector<uint32_t>& weights,
-                  T defaultLo, T defaultHi)
+T
+sampleDiscrete(std::vector<T> const& values,
+               std::vector<uint32_t> const& weights, T defaultValue)
 {
-    if (intervals.empty() && weights.empty())
+    if (values.empty())
     {
-        intervals = {defaultLo, defaultHi};
-        weights = {1};
+        return defaultValue;
     }
-    if (intervals.size() < 2)
-    {
-        throw std::runtime_error("intervals must have at least 2 elements");
-    }
-    if (weights.size() != intervals.size() - 1)
-    {
-        throw std::runtime_error("weights must have exactly one fewer element "
-                                 "than the corresponding intervals");
-    }
+
+    std::discrete_distribution<uint32_t> distribution(weights.begin(),
+                                                      weights.end());
+    return values.at(distribution(gRandomEngine));
 }
 } // namespace
 
@@ -223,17 +203,9 @@ LoadGenerator::createRootAccount()
 unsigned short
 LoadGenerator::chooseOpCount(Config const& cfg) const
 {
-    if (cfg.LOADGEN_OP_COUNT_FOR_TESTING.empty())
-    {
-        return 1;
-    }
-    else
-    {
-        std::discrete_distribution<uint32> distribution(
-            cfg.LOADGEN_OP_COUNT_DISTRIBUTION_FOR_TESTING.begin(),
-            cfg.LOADGEN_OP_COUNT_DISTRIBUTION_FOR_TESTING.end());
-        return cfg.LOADGEN_OP_COUNT_FOR_TESTING[distribution(gRandomEngine)];
-    }
+    return sampleDiscrete(cfg.LOADGEN_OP_COUNT_FOR_TESTING,
+                          cfg.LOADGEN_OP_COUNT_DISTRIBUTION_FOR_TESTING,
+                          DEFAULT_OP_COUNT);
 }
 
 int64_t
@@ -399,32 +371,6 @@ LoadGenerator::start(GeneratedLoadConfig& cfg)
                 sorobanLoadCfg.nInstances = 1;
             }
         }
-    }
-
-    if (cfg.modeUploads())
-    {
-        // Set sensible defaults for missing upload config options
-        auto& uploadCfg = cfg.getMutSorobanUploadConfig();
-        checkDistribution(uploadCfg.wasmBytesIntervals,
-                          uploadCfg.wasmBytesWeights, 1u,
-                          mApp.getLedgerManager()
-                              .getSorobanNetworkConfig()
-                              .maxContractSizeBytes());
-    }
-
-    if (cfg.modeInvokes())
-    {
-        // Set sensible defaults for missing invoke config options
-        auto& invokeCfg = cfg.getMutSorobanInvokeConfig();
-        checkDistribution(invokeCfg.nDataEntriesIntervals,
-                          invokeCfg.nDataEntriesWeights, 0u, 11u);
-        checkDistribution(invokeCfg.ioKiloBytesIntervals,
-                          invokeCfg.ioKiloBytesWeights, 1u, 6u);
-        checkDistribution(invokeCfg.txSizeBytesIntervals,
-                          invokeCfg.txSizeBytesWeights, 0u, 1001u);
-        checkDistribution(invokeCfg.instructionsIntervals,
-                          invokeCfg.instructionsWeights, uint64_t{0},
-                          uint64_t{5000000});
     }
 
     if (cfg.mode != LoadGenMode::CREATE)
@@ -646,30 +592,6 @@ GeneratedLoadConfig::getStatus() const
     {
         ret["instances"] = getSorobanConfig().nInstances;
         ret["wasms"] = getSorobanConfig().nWasms;
-        fillJsonArray(ret["data_entries_intervals"],
-                      getSorobanInvokeConfig().nDataEntriesIntervals);
-        fillJsonArray(ret["data_entries_weights"],
-                      getSorobanInvokeConfig().nDataEntriesWeights);
-        fillJsonArray(ret["io_kilo_bytes_intervals"],
-                      getSorobanInvokeConfig().ioKiloBytesIntervals);
-        fillJsonArray(ret["io_kilo_bytes_weights"],
-                      getSorobanInvokeConfig().ioKiloBytesWeights);
-        fillJsonArray(ret["tx_size_bytes_intervals"],
-                      getSorobanInvokeConfig().txSizeBytesIntervals);
-        fillJsonArray(ret["tx_size_bytes_weights"],
-                      getSorobanInvokeConfig().txSizeBytesWeights);
-        fillJsonArray(ret["instructions_intervals"],
-                      getSorobanInvokeConfig().instructionsIntervals);
-        fillJsonArray(ret["instructions_weights"],
-                      getSorobanInvokeConfig().instructionsWeights);
-    }
-
-    if (modeUploads())
-    {
-        fillJsonArray(ret["wasm_bytes_intervals"],
-                      getSorobanUploadConfig().wasmBytesIntervals);
-        fillJsonArray(ret["wasm_bytes_weights"],
-                      getSorobanUploadConfig().wasmBytesWeights);
     }
 
     if (mode == LoadGenMode::MIXED_CLASSIC_SOROBAN)
@@ -817,8 +739,7 @@ LoadGenerator::generateLoad(GeneratedLoadConfig cfg)
                     return sorobanRandomWasmTransaction(
                         ledgerNum, sourceAccountId,
                         generateFee(cfg.maxGeneratedFeeRate, mApp,
-                                    /* opsCnt */ 1),
-                        cfg.getSorobanUploadConfig());
+                                    /* opsCnt */ 1));
                 };
             }
             break;
@@ -1338,32 +1259,30 @@ LoadGenerator::invokeSorobanLoadTransaction(uint32_t ledgerNum,
                                             uint64_t accountId,
                                             GeneratedLoadConfig const& cfg)
 {
+    auto const& appCfg = mApp.getConfig();
+
     auto account = findAccount(accountId, ledgerNum);
     auto instanceIter = mContractInstances.find(accountId);
     releaseAssert(instanceIter != mContractInstances.end());
     auto const& instance = instanceIter->second;
 
     auto const& networkCfg = mApp.getLedgerManager().getSorobanNetworkConfig();
-    auto const& invokeCfg = cfg.getSorobanInvokeConfig();
 
     // Approximate instruction measurements from loadgen contract. While the
     // guest and host cycle counts are exact, and we can predict the cost of
     // the guest and host loops correctly, it is difficult to estimate the
     // CPU cost of storage given that the number and size of keys is variable.
-    // baseInstructionCount is a rough estimate for storage cost, but might be
-    // too small if a given invocation writes many or large entries.
     // This means some TXs will fail due to exceeding resource
     // limitations. However these should fail at apply time, so will still
     // generate siginificant load
-    uint64_t const baseInstructionCount = 3'000'000;
     uint64_t const instructionsPerGuestCycle = 80;
     uint64_t const instructionsPerHostCycle = 5030;
 
-    // Pick random number of cycles between bounds, respecting network limits
-    uint64_t maxInstructions =
-        networkCfg.mTxMaxInstructions - baseInstructionCount;
-    uint64_t targetInstructions = static_cast<uint64_t>(rand_piecewise(
-        invokeCfg.instructionsIntervals, invokeCfg.instructionsWeights));
+    // Pick random number of cycles between bounds
+    uint64_t targetInstructions =
+        sampleDiscrete(appCfg.LOADGEN_INSTRUCTIONS_FOR_TESTING,
+                       appCfg.LOADGEN_INSTRUCTIONS_DISTRIBUTION_FOR_TESTING,
+                       DEFAULT_INSTRUCTIONS);
 
     // Randomly select a number of guest cycles
     uint64_t guestCyclesMax = targetInstructions / instructionsPerGuestCycle;
@@ -1376,8 +1295,10 @@ LoadGenerator::invokeSorobanLoadTransaction(uint32_t ledgerNum,
     SorobanResources resources;
     resources.footprint.readOnly = instance.readOnlyKeys;
 
-    auto numEntries = static_cast<uint32_t>(rand_piecewise(
-        invokeCfg.nDataEntriesIntervals, invokeCfg.nDataEntriesWeights));
+    auto numEntries =
+        sampleDiscrete(appCfg.LOADGEN_NUM_DATA_ENTRIES_FOR_TESTING,
+                       appCfg.LOADGEN_NUM_DATA_ENTRIES_DISTRIBUTION_FOR_TESTING,
+                       DEFAULT_NUM_DATA_ENTRIES);
     for (uint32_t i = 0; i < numEntries; ++i)
     {
         auto lk = contractDataKey(instance.contractID, makeU32(i),
@@ -1385,10 +1306,13 @@ LoadGenerator::invokeSorobanLoadTransaction(uint32_t ledgerNum,
         resources.footprint.readWrite.emplace_back(lk);
     }
 
+    std::vector<uint32_t> const& ioKilobytesValues =
+        appCfg.LOADGEN_IO_KILOBYTES_FOR_TESTING;
     auto totalWriteBytes =
-        static_cast<uint32_t>(rand_piecewise(invokeCfg.ioKiloBytesIntervals,
-                                             invokeCfg.ioKiloBytesWeights) *
-                              1024);
+        sampleDiscrete(ioKilobytesValues,
+                       appCfg.LOADGEN_IO_KILOBYTES_DISTRIBUTION_FOR_TESTING,
+                       DEFAULT_IO_KILOBYTES) *
+        1024;
 
     if (totalWriteBytes < mContactOverheadBytes)
     {
@@ -1430,14 +1354,20 @@ LoadGenerator::invokeSorobanLoadTransaction(uint32_t ledgerNum,
     // We don't have a good way of knowing how many bytes we will need to read
     // since the previous invocation writes a random number of bytes, so use
     // upper bound
-    resources.readBytes = (invokeCfg.ioKiloBytesIntervals.back() - 1) * 1024;
+    uint32_t const maxReadKilobytes =
+        ioKilobytesValues.empty() ? DEFAULT_IO_KILOBYTES
+                                  : *std::max_element(ioKilobytesValues.begin(),
+                                                      ioKilobytesValues.end());
+    resources.readBytes = maxReadKilobytes * 1024;
     resources.writeBytes = totalWriteBytes;
 
     // Approximate TX size before padding and footprint, slightly over estimated
     // so we stay below limits, plus footprint size
     uint32_t const txOverheadBytes = 260 + xdr::xdr_size(resources);
-    uint32_t desiredTxBytes = static_cast<uint32_t>(rand_piecewise(
-        invokeCfg.txSizeBytesIntervals, invokeCfg.txSizeBytesWeights));
+    uint32_t desiredTxBytes =
+        sampleDiscrete(appCfg.LOADGEN_TX_SIZE_BYTES_FOR_TESTING,
+                       appCfg.LOADGEN_TX_SIZE_BYTES_DISTRIBUTION_FOR_TESTING,
+                       DEFAULT_TX_SIZE_BYTES);
     auto paddingBytes =
         txOverheadBytes > desiredTxBytes ? 0 : desiredTxBytes - txOverheadBytes;
     increaseOpSize(op, paddingBytes);
@@ -1701,11 +1631,11 @@ LoadGenerator::invokeSorobanCreateUpgradeTransaction(
 }
 
 std::pair<LoadGenerator::TestAccountPtr, TransactionFramePtr>
-LoadGenerator::sorobanRandomWasmTransaction(
-    uint32_t ledgerNum, uint64_t accountId, uint32_t inclusionFee,
-    GeneratedLoadConfig::SorobanUploadConfig const& cfg)
+LoadGenerator::sorobanRandomWasmTransaction(uint32_t ledgerNum,
+                                            uint64_t accountId,
+                                            uint32_t inclusionFee)
 {
-    auto [resources, wasmSize] = sorobanRandomUploadResources(cfg);
+    auto [resources, wasmSize] = sorobanRandomUploadResources();
 
     auto account = findAccount(accountId, ledgerNum);
     Operation uploadOp = createUploadWasmOperation(wasmSize);
@@ -1727,9 +1657,9 @@ LoadGenerator::sorobanRandomWasmTransaction(
 }
 
 std::pair<SorobanResources, uint32_t>
-LoadGenerator::sorobanRandomUploadResources(
-    GeneratedLoadConfig::SorobanUploadConfig const& cfg)
+LoadGenerator::sorobanRandomUploadResources()
 {
+    auto const& cfg = mApp.getConfig();
     Resource maxPerTx =
         mApp.getLedgerManager().maxSorobanTransactionResources();
 
@@ -1740,14 +1670,9 @@ LoadGenerator::sorobanRandomUploadResources(
     // Respect both contract size limit and TX write byte
     // limits including key overhead
     uint32_t const keyOverhead = 40;
-    auto maxWasmSize = std::min(
-        mApp.getLedgerManager()
-            .getSorobanNetworkConfig()
-            .maxContractSizeBytes(),
-        static_cast<uint32>(maxPerTx.getVal(Resource::Type::WRITE_BYTES)) -
-            keyOverhead);
-    uint32_t wasmSize =
-        rand_piecewise(cfg.wasmBytesIntervals, cfg.wasmBytesWeights);
+    uint32_t wasmSize = sampleDiscrete(
+        cfg.LOADGEN_WASM_BYTES_FOR_TESTING,
+        cfg.LOADGEN_WASM_BYTES_DISTRIBUTION_FOR_TESTING, DEFAULT_WASM_BYTES);
     resources.readBytes = rand_uniform<uint32_t>(
         1, static_cast<uint32>(maxPerTx.getVal(Resource::Type::READ_BYTES)));
     resources.writeBytes = rand_uniform<uint32_t>(
@@ -1835,8 +1760,7 @@ LoadGenerator::createMixedClassicSorobanTransaction(
         return sorobanRandomWasmTransaction(ledgerNum, sourceAccountId,
                                             generateFee(cfg.maxGeneratedFeeRate,
                                                         mApp,
-                                                        /* opsCnt */ 1),
-                                            cfg.getSorobanUploadConfig());
+                                                        /* opsCnt */ 1));
     }
     case 2:
     {
@@ -2300,34 +2224,6 @@ GeneratedLoadConfig::getSorobanConfig() const
 {
     releaseAssert(isSoroban() && mode != LoadGenMode::SOROBAN_UPLOAD);
     return sorobanConfig;
-}
-
-GeneratedLoadConfig::SorobanUploadConfig&
-GeneratedLoadConfig::getMutSorobanUploadConfig()
-{
-    releaseAssert(modeUploads());
-    return sorobanUploadConfig;
-}
-
-GeneratedLoadConfig::SorobanUploadConfig const&
-GeneratedLoadConfig::getSorobanUploadConfig() const
-{
-    releaseAssert(modeUploads());
-    return sorobanUploadConfig;
-}
-
-GeneratedLoadConfig::SorobanInvokeConfig&
-GeneratedLoadConfig::getMutSorobanInvokeConfig()
-{
-    releaseAssert(modeInvokes());
-    return sorobanInvokeConfig;
-}
-
-GeneratedLoadConfig::SorobanInvokeConfig const&
-GeneratedLoadConfig::getSorobanInvokeConfig() const
-{
-    releaseAssert(modeInvokes());
-    return sorobanInvokeConfig;
 }
 
 GeneratedLoadConfig::SorobanUpgradeConfig&

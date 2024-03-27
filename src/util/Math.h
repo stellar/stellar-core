@@ -34,16 +34,6 @@ rand_uniform(T lo, T hi)
     return stellar::uniform_int_distribution<T>(lo, hi)(gRandomEngine);
 }
 
-// Sample a piecewise constant distribution with intervals `intervals` and
-// weights `weights`.
-template <typename T, typename U>
-double
-rand_piecewise(T const& intervals, U const& weights)
-{
-    return std::piecewise_constant_distribution<double>(
-        intervals.begin(), intervals.end(), weights.begin())(gRandomEngine);
-}
-
 template <typename T>
 T const&
 rand_element(std::vector<T> const& v)

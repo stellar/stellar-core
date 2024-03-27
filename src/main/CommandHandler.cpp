@@ -229,41 +229,6 @@ parseOptionalParam(std::map<std::string, std::string> const& map,
     return std::nullopt;
 }
 
-// Parse a vector parameter `key`. If it exists in `map`, the value of `key`
-// should be a whitespace separated list of values. If `key` does not exist in
-// `map` this function returns an empty vector.
-template <typename T>
-std::vector<T>
-parseOptionalVectorParam(std::map<std::string, std::string> const& map,
-                         std::string const& key)
-{
-    auto i = map.find(key);
-    if (i != map.end())
-    {
-        std::stringstream str(i->second);
-        std::vector<T> val((std::istream_iterator<T>(str)),
-                           std::istream_iterator<T>());
-
-        // Throw an error if not all bytes were loaded into `val`
-        // NOTE: There is no point checking `str.fail()` here as
-        // `istream_iterator::operator++` reads until `fail()` returns `true`,
-        // then becomes the end iterator. Therefore, `str.fail()` will always be
-        // `true` here. We can detect errors by checking `!str.eof()` as an
-        // intermediate parse failure will result in the iterator not reaching
-        // the end of `str`, even if that parse failure occurs on the last
-        // element of the array.
-        if (!str.eof())
-        {
-            std::string errorMsg =
-                fmt::format(FMT_STRING("Failed to parse '{}' argument"), key);
-            throw std::runtime_error(errorMsg);
-        }
-        return val;
-    }
-
-    return {};
-}
-
 // If the key exists and the value successfully parses, return that value.
 // If the key doesn't exist, return defaultValue.
 // Otherwise, throws an error.
@@ -1267,36 +1232,7 @@ CommandHandler::generateLoad(std::string const& params, std::string& retStr)
             }
         }
 
-        if (cfg.modeUploads())
-        {
-            auto& uploadCfg = cfg.getMutSorobanUploadConfig();
-            uploadCfg.wasmBytesIntervals =
-                parseOptionalVectorParam<uint32_t>(map, "wasmbytesintervals");
-            uploadCfg.wasmBytesWeights =
-                parseOptionalVectorParam<uint32_t>(map, "wasmbytesweights");
-        }
-
-        if (cfg.modeInvokes())
-        {
-            auto& invokeCfg = cfg.getMutSorobanInvokeConfig();
-            invokeCfg.nDataEntriesIntervals =
-                parseOptionalVectorParam<uint32_t>(map, "dataentriesintervals");
-            invokeCfg.nDataEntriesWeights =
-                parseOptionalVectorParam<uint32_t>(map, "dataentriesweights");
-            invokeCfg.ioKiloBytesIntervals =
-                parseOptionalVectorParam<uint32_t>(map, "kilobytesintervals");
-            invokeCfg.ioKiloBytesWeights =
-                parseOptionalVectorParam<uint32_t>(map, "kilobytesweights");
-            invokeCfg.txSizeBytesIntervals =
-                parseOptionalVectorParam<uint32_t>(map, "txsizeintervals");
-            invokeCfg.txSizeBytesWeights =
-                parseOptionalVectorParam<uint32_t>(map, "txsizeweights");
-            invokeCfg.instructionsIntervals =
-                parseOptionalVectorParam<uint64_t>(map, "cpuintervals");
-            invokeCfg.instructionsWeights =
-                parseOptionalVectorParam<uint32_t>(map, "cpuweights");
-        }
-        else if (cfg.mode == LoadGenMode::SOROBAN_CREATE_UPGRADE)
+        if (cfg.mode == LoadGenMode::SOROBAN_CREATE_UPGRADE)
         {
             auto& upgradeCfg = cfg.getMutSorobanUpgradeConfig();
             upgradeCfg.maxContractSizeBytes =
