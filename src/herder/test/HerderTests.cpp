@@ -3560,121 +3560,119 @@ TEST_CASE("soroban txs each parameter surge priced", "[soroban][herder]")
     auto networkID = sha256(getTestConfig().NETWORK_PASSPHRASE);
     uint32_t baseTxRate = 1;
     uint32_t numAccounts = 100;
-    auto test =
-        [&](std::function<void(SorobanNetworkConfig & cfg)> tweakConfig, std::function<void(Config& appCfg)> tweakAppCfg) {
-            auto simulation = Topologies::core(
-                4, 1, Simulation::OVER_LOOPBACK, networkID, [&](int i) {
-                    auto cfg = getTestConfig(i, Config::TESTDB_ON_DISK_SQLITE);
-                    auto mid = std::numeric_limits<uint32_t>::max() / 2;
-                    /*
-                    cfg.LOADGEN_WASM_BYTES_FOR_TESTING = {mid};
-                    cfg.LOADGEN_WASM_BYTES_DISTRIBUTION_FOR_TESTING = {1};
-                    */
-                    cfg.LOADGEN_INSTRUCTIONS_FOR_TESTING = {mid};
-                    cfg.LOADGEN_INSTRUCTIONS_FOR_TESTING = {1};
-                    cfg.LOADGEN_IO_KILOBYTES_FOR_TESTING = {60};
-                    cfg.LOADGEN_IO_KILOBYTES_DISTRIBUTION_FOR_TESTING = {1};
-                    cfg.LOADGEN_NUM_DATA_ENTRIES_FOR_TESTING = {mid};
-                    cfg.LOADGEN_NUM_DATA_ENTRIES_FOR_TESTING = {1};
-                    cfg.TESTING_UPGRADE_MAX_TX_SET_SIZE = 100;
-                    tweakAppCfg(cfg);
-                    return cfg;
+    auto test = [&](std::function<void(SorobanNetworkConfig & cfg)> tweakConfig,
+                    std::function<void(Config & appCfg)> tweakAppCfg) {
+        auto simulation = Topologies::core(
+            4, 1, Simulation::OVER_LOOPBACK, networkID, [&](int i) {
+                auto cfg = getTestConfig(i, Config::TESTDB_ON_DISK_SQLITE);
+                auto mid = std::numeric_limits<uint32_t>::max() / 2;
+                /*
+                cfg.LOADGEN_WASM_BYTES_FOR_TESTING = {mid};
+                cfg.LOADGEN_WASM_BYTES_DISTRIBUTION_FOR_TESTING = {1};
+                */
+                cfg.LOADGEN_INSTRUCTIONS_FOR_TESTING = {mid};
+                cfg.LOADGEN_INSTRUCTIONS_FOR_TESTING = {1};
+                cfg.LOADGEN_IO_KILOBYTES_FOR_TESTING = {60};
+                cfg.LOADGEN_IO_KILOBYTES_DISTRIBUTION_FOR_TESTING = {1};
+                cfg.LOADGEN_NUM_DATA_ENTRIES_FOR_TESTING = {mid};
+                cfg.LOADGEN_NUM_DATA_ENTRIES_FOR_TESTING = {1};
+                cfg.TESTING_UPGRADE_MAX_TX_SET_SIZE = 100;
+                tweakAppCfg(cfg);
+                return cfg;
+            });
+        simulation->startAllNodes();
+        auto nodes = simulation->getNodes();
+        for (auto& node : nodes)
+        {
+            overrideSorobanNetworkConfigForTest(*node);
+            modifySorobanNetworkConfig(
+                *node, [&tweakConfig](SorobanNetworkConfig& cfg) {
+                    auto mx = std::numeric_limits<uint32_t>::max();
+                    // Set all Soroban resources to maximum initially; each
+                    // section will adjust the config as desired
+                    cfg.mLedgerMaxTxCount = mx;
+                    cfg.mLedgerMaxInstructions = mx;
+                    cfg.mLedgerMaxTransactionsSizeBytes = mx;
+                    cfg.mLedgerMaxReadLedgerEntries = mx;
+                    cfg.mLedgerMaxReadBytes = mx;
+                    cfg.mLedgerMaxWriteLedgerEntries = mx;
+                    cfg.mLedgerMaxWriteBytes = mx;
+                    tweakConfig(cfg);
                 });
-            simulation->startAllNodes();
-            auto nodes = simulation->getNodes();
-            for (auto& node : nodes)
-            {
-                overrideSorobanNetworkConfigForTest(*node);
-                modifySorobanNetworkConfig(
-                    *node, [&tweakConfig](SorobanNetworkConfig& cfg) {
-                        auto mx = std::numeric_limits<uint32_t>::max();
-                        // Set all Soroban resources to maximum initially; each
-                        // section will adjust the config as desired
-                        cfg.mLedgerMaxTxCount = mx;
-                        cfg.mLedgerMaxInstructions = mx;
-                        cfg.mLedgerMaxTransactionsSizeBytes = mx;
-                        cfg.mLedgerMaxReadLedgerEntries = mx;
-                        cfg.mLedgerMaxReadBytes = mx;
-                        cfg.mLedgerMaxWriteLedgerEntries = mx;
-                        cfg.mLedgerMaxWriteBytes = mx;
-                        tweakConfig(cfg);
-                    });
-            }
-            auto& loadGen = nodes[0]->getLoadGenerator();
+        }
+        auto& loadGen = nodes[0]->getLoadGenerator();
 
-            // Generate some accounts
-            auto& loadGenDone = nodes[0]->getMetrics().NewMeter(
-                {"loadgen", "run", "complete"}, "run");
-            auto currLoadGenCount = loadGenDone.count();
-            loadGen.generateLoad(GeneratedLoadConfig::createAccountsLoad(
-                numAccounts, baseTxRate));
-            simulation->crankUntil(
-                [&]() { return loadGenDone.count() > currLoadGenCount; },
-                10 * Herder::EXP_LEDGER_TIMESPAN_SECONDS, false);
+        // Generate some accounts
+        auto& loadGenDone = nodes[0]->getMetrics().NewMeter(
+            {"loadgen", "run", "complete"}, "run");
+        auto currLoadGenCount = loadGenDone.count();
+        loadGen.generateLoad(
+            GeneratedLoadConfig::createAccountsLoad(numAccounts, baseTxRate));
+        simulation->crankUntil(
+            [&]() { return loadGenDone.count() > currLoadGenCount; },
+            10 * Herder::EXP_LEDGER_TIMESPAN_SECONDS, false);
 
-            auto& secondLoadGen = nodes[1]->getLoadGenerator();
-            auto& secondLoadGenDone = nodes[1]->getMetrics().NewMeter(
-                {"loadgen", "run", "complete"}, "run");
-            // Generate load from several nodes, to produce both classic and
-            // soroban traffic
-            currLoadGenCount = loadGenDone.count();
-            auto secondLoadGenCount = secondLoadGenDone.count();
+        auto& secondLoadGen = nodes[1]->getLoadGenerator();
+        auto& secondLoadGenDone = nodes[1]->getMetrics().NewMeter(
+            {"loadgen", "run", "complete"}, "run");
+        // Generate load from several nodes, to produce both classic and
+        // soroban traffic
+        currLoadGenCount = loadGenDone.count();
+        auto secondLoadGenCount = secondLoadGenDone.count();
 
-            uint32_t maxInclusionFee = 100'000;
-            auto sorobanConfig =
-                GeneratedLoadConfig::txLoad(LoadGenMode::SOROBAN_UPLOAD, 50,
-                                            /* nTxs */ 100, baseTxRate * 3,
-                                            /* offset */ 0, maxInclusionFee);
+        uint32_t maxInclusionFee = 100'000;
+        auto sorobanConfig =
+            GeneratedLoadConfig::txLoad(LoadGenMode::SOROBAN_UPLOAD, 50,
+                                        /* nTxs */ 100, baseTxRate * 3,
+                                        /* offset */ 0, maxInclusionFee);
 
-            // Ignore low fees, submit at a tx rate higher than the network
-            // allows to trigger surge pricing
-            sorobanConfig.skipLowFeeTxs = true;
-            loadGen.generateLoad(sorobanConfig);
+        // Ignore low fees, submit at a tx rate higher than the network
+        // allows to trigger surge pricing
+        sorobanConfig.skipLowFeeTxs = true;
+        loadGen.generateLoad(sorobanConfig);
 
-            // Generate Soroban txs from one node
-            secondLoadGen.generateLoad(GeneratedLoadConfig::txLoad(
-                LoadGenMode::PAY, 50,
-                /* nTxs */ 50, baseTxRate, /* offset */ 50, maxInclusionFee));
-            auto& loadGenFailed = nodes[0]->getMetrics().NewMeter(
-                {"loadgen", "run", "failed"}, "run");
-            auto& secondLoadGenFailed = nodes[1]->getMetrics().NewMeter(
-                {"loadgen", "run", "failed"}, "run");
-            bool hadSorobanSurgePricing = false;
-            simulation->crankUntil(
-                [&]() {
-                    auto& lclHeader = nodes[0]
-                                          ->getLedgerManager()
-                                          .getLastClosedLedgerHeader()
-                                          .header;
-                    auto txSet = nodes[0]->getHerder().getTxSet(
-                        lclHeader.scpValue.txSetHash);
-                    GeneralizedTransactionSet xdrTxSet;
-                    txSet->toXDR(xdrTxSet);
-                    auto const& components =
-                        xdrTxSet.v1TxSet()
-                            .phases.at(static_cast<size_t>(TxSetPhase::SOROBAN))
-                            .v0Components();
-                    if (!components.empty())
-                    {
-                        auto baseFee =
-                            components.at(0).txsMaybeDiscountedFee().baseFee;
-                        hadSorobanSurgePricing = hadSorobanSurgePricing ||
-                                                 (baseFee && *baseFee > 100);
-                    }
+        // Generate Soroban txs from one node
+        secondLoadGen.generateLoad(GeneratedLoadConfig::txLoad(
+            LoadGenMode::PAY, 50,
+            /* nTxs */ 50, baseTxRate, /* offset */ 50, maxInclusionFee));
+        auto& loadGenFailed = nodes[0]->getMetrics().NewMeter(
+            {"loadgen", "run", "failed"}, "run");
+        auto& secondLoadGenFailed = nodes[1]->getMetrics().NewMeter(
+            {"loadgen", "run", "failed"}, "run");
+        bool hadSorobanSurgePricing = false;
+        simulation->crankUntil(
+            [&]() {
+                auto& lclHeader = nodes[0]
+                                      ->getLedgerManager()
+                                      .getLastClosedLedgerHeader()
+                                      .header;
+                auto txSet = nodes[0]->getHerder().getTxSet(
+                    lclHeader.scpValue.txSetHash);
+                GeneralizedTransactionSet xdrTxSet;
+                txSet->toXDR(xdrTxSet);
+                auto const& components =
+                    xdrTxSet.v1TxSet()
+                        .phases.at(static_cast<size_t>(TxSetPhase::SOROBAN))
+                        .v0Components();
+                if (!components.empty())
+                {
+                    auto baseFee =
+                        components.at(0).txsMaybeDiscountedFee().baseFee;
+                    hadSorobanSurgePricing =
+                        hadSorobanSurgePricing || (baseFee && *baseFee > 100);
+                }
 
-                    return loadGenDone.count() > currLoadGenCount &&
-                           secondLoadGenDone.count() > secondLoadGenCount;
-                },
-                200 * Herder::EXP_LEDGER_TIMESPAN_SECONDS, false);
+                return loadGenDone.count() > currLoadGenCount &&
+                       secondLoadGenDone.count() > secondLoadGenCount;
+            },
+            200 * Herder::EXP_LEDGER_TIMESPAN_SECONDS, false);
 
-            REQUIRE(loadGenFailed.count() == 0);
-            REQUIRE(secondLoadGenFailed.count() == 0);
-            REQUIRE(hadSorobanSurgePricing);
-        };
-
-    auto idTweakAppConfig = [](Config& cfg) {
-        return cfg;
+        REQUIRE(loadGenFailed.count() == 0);
+        REQUIRE(secondLoadGenFailed.count() == 0);
+        REQUIRE(hadSorobanSurgePricing);
     };
+
+    auto idTweakAppConfig = [](Config& cfg) { return cfg; };
 
     // We will be submitting soroban txs at desiredTxRate * 3, but the network
     // can only accept up to desiredTxRate for each resource dimension,
