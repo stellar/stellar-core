@@ -1362,8 +1362,10 @@ LoadGenerator::invokeSorobanLoadTransaction(uint32_t ledgerNum,
     resources.writeBytes = totalWriteBytes;
 
     // Approximate TX size before padding and footprint, slightly over estimated
-    // so we stay below limits, plus footprint size
-    uint32_t const txOverheadBytes = 260 + xdr::xdr_size(resources);
+    // by `baselineTxOverheadBytes` so we stay below limits, plus footprint size
+    uint32_t constexpr baselineTxOverheadBytes = 260;
+    uint32_t const txOverheadBytes =
+        baselineTxOverheadBytes + xdr::xdr_size(resources);
     uint32_t desiredTxBytes =
         sampleDiscrete(appCfg.LOADGEN_TX_SIZE_BYTES_FOR_TESTING,
                        appCfg.LOADGEN_TX_SIZE_BYTES_DISTRIBUTION_FOR_TESTING,
