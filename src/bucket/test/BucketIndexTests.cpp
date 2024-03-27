@@ -400,20 +400,17 @@ class BucketIndexTest
         prefetchAndClearClassicKeys();
 
         UnorderedMap<LedgerKey, std::vector<uint32_t>> meteredLedgerKeyToTx;
-        UnorderedMap<size_t, uint32_t> txReadBytes;
         LedgerKeySet expectedSuccessKeys;
         LedgerKeySet expectedFailedKeys;
 
-        // This test inserts keys and populates meteredLedgerKeyToTx and
-        // txReadBytes for several different transactions. The transactions will
-        // have less than, equal to, or more than enough read quota for their
-        // associated keys. The keys which do not have enough quota are added to
-        // expectedFailedKeys and those which do are added to
-        // expectedSuccessKeys. After calling loadKeysWithLimits, we assert:
-        // * for each key in expectedSuccessKeys, key ∈ loadResult & key ∉
-        // notLoaded
-        // * for each key in expectedFailedKeys, key ∉ loadResult & key ∈
-        // notLoaded
+        // This test inserts keys and populates a LedgerKeyMeter for several
+        // different transactions. The transactions will have less than, equal
+        // to, or more than enough read quota for their associated keys. The
+        // keys which do not have enough quota are added to expectedFailedKeys
+        // and those which do are added to expectedSuccessKeys. After calling
+        // loadKeysWithLimits, we assert:
+        // * for each key in expectedSuccessKeys, key ∈ loadResult
+        // * for each key in expectedFailedKeys, key ∉ loadResult
 
         UnorderedMap<LedgerKey, std::uint32_t> keyToEntrySize;
 

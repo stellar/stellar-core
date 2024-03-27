@@ -471,7 +471,7 @@ BucketList::loadPoolShareTrustLinesByAccountAndAsset(AccountID const& accountID,
 
     // Load all the LiquidityPool entries that the account has a trustline for.
     LedgerKeyMeter lkMeter{};
-    return loadKeysWithLimits(liquidityPoolKeysToSearch, lkMeter);
+    return loadKeysWithLimits(trustlinesToLoad, lkMeter);
 }
 
 std::vector<InflationWinner>
