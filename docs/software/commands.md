@@ -402,11 +402,18 @@ format.
     Many of these TXs are invalid and not applied, so this test is appropriate
     for herder and overlay tests. This mode allows specification of the
     distribution it samples wasm sizes from via the
-    `LOADGEN_WASM_BYTES_FOR_TESTING` and
-    `LOADGEN_WASM_BYTES_DISTRIBUTION_FOR_TESTING` config file options. See the
-    section on [specifying discrete
-    distributions](#specifying-discrete-distributions) for more info on how to
-    set these parameters.
+    `LOADGEN_WASM_BYTES_FOR_TESTING`,
+    `LOADGEN_WASM_BYTES_DISTRIBUTION_FOR_TESTING`,
+    `LOADGEN_NUM_DATA_ENTRIES_FOR_TESTING`,
+    `LOADGEN_NUM_DATA_ENTRIES_DISTRIBUTION_FOR_TESTING`,
+    `LOADGEN_IO_KILOBYTES_FOR_TESTING`,
+    `LOADGEN_IO_KILOBYTES_DISTRIBUTION_FOR_TESTING`,
+    `LOADGEN_INSTRUCTIONS_FOR_TESTING`, and
+    `LOADGEN_INSTRUCTIONS_DISTRIBUTION_FOR_TESTING` config file options.
+    `*KILOBYTES*` values for writes specifies teh amount of additional write
+    resouces to provide beyond the size of the contract itself.  See the section
+    on [specifying discrete distributions](#specifying-discrete-distributions)
+    for more info on how to set these parameters.
   * `soroban_invoke_setup` mode create soroban contract instances to be used by
     `soroban_invoke`. This mode must be run before `soroban_invoke` or
     `mixed_classic_soroban`.

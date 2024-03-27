@@ -1666,8 +1666,10 @@ LoadGenerator::sorobanRandomUploadResources()
         mApp.getLedgerManager().maxSorobanTransactionResources();
 
     SorobanResources resources{};
-    resources.instructions = rand_uniform<uint32_t>(
-        1, static_cast<uint32>(maxPerTx.getVal(Resource::Type::INSTRUCTIONS)));
+    resources.instructions =
+        sampleDiscrete(cfg.LOADGEN_INSTRUCTIONS_FOR_TESTING,
+                       cfg.LOADGEN_INSTRUCTIONS_DISTRIBUTION_FOR_TESTING,
+                       DEFAULT_INSTRUCTIONS);
 
     // Respect both contract size limit and TX write byte
     // limits including key overhead
@@ -1675,18 +1677,24 @@ LoadGenerator::sorobanRandomUploadResources()
     uint32_t wasmSize = sampleDiscrete(
         cfg.LOADGEN_WASM_BYTES_FOR_TESTING,
         cfg.LOADGEN_WASM_BYTES_DISTRIBUTION_FOR_TESTING, DEFAULT_WASM_BYTES);
-    resources.readBytes = rand_uniform<uint32_t>(
-        1, static_cast<uint32>(maxPerTx.getVal(Resource::Type::READ_BYTES)));
-    resources.writeBytes = rand_uniform<uint32_t>(
-        // Allocate at least enough write bytes to write the
-        // whole Wasm plus the 40 bytes of the key.
-        wasmSize + keyOverhead,
-        static_cast<uint32>(maxPerTx.getVal(Resource::Type::WRITE_BYTES)));
+    resources.readBytes =
+        sampleDiscrete(cfg.LOADGEN_IO_KILOBYTES_FOR_TESTING,
+                       cfg.LOADGEN_IO_KILOBYTES_DISTRIBUTION_FOR_TESTING,
+                       DEFAULT_IO_KILOBYTES) *
+        1024;
+    // Allocate enough write bytes to write the whole Wasm plus the 40 bytes of
+    // the key, plus extra drawn from the distribution.
+    resources.writeBytes =
+        wasmSize + keyOverhead +
+        sampleDiscrete(cfg.LOADGEN_IO_KILOBYTES_FOR_TESTING,
+                       cfg.LOADGEN_IO_KILOBYTES_DISTRIBUTION_FOR_TESTING,
+                       DEFAULT_IO_KILOBYTES) *
+            1024;
 
     auto writeKeys = LedgerTestUtils::generateUniqueValidSorobanLedgerEntryKeys(
-        rand_uniform<uint32_t>(
-            0, static_cast<uint32>(
-                   maxPerTx.getVal(Resource::Type::WRITE_LEDGER_ENTRIES) - 1)));
+        sampleDiscrete(cfg.LOADGEN_NUM_DATA_ENTRIES_FOR_TESTING,
+                       cfg.LOADGEN_NUM_DATA_ENTRIES_DISTRIBUTION_FOR_TESTING,
+                       DEFAULT_NUM_DATA_ENTRIES));
 
     for (auto const& key : writeKeys)
     {
@@ -1694,10 +1702,9 @@ LoadGenerator::sorobanRandomUploadResources()
     }
 
     auto readKeys = LedgerTestUtils::generateUniqueValidSorobanLedgerEntryKeys(
-        rand_uniform<uint32_t>(
-            0, static_cast<uint32>(
-                   maxPerTx.getVal(Resource::Type::READ_LEDGER_ENTRIES) -
-                   writeKeys.size() - 1)));
+        sampleDiscrete(cfg.LOADGEN_NUM_DATA_ENTRIES_FOR_TESTING,
+                       cfg.LOADGEN_NUM_DATA_ENTRIES_DISTRIBUTION_FOR_TESTING,
+                       DEFAULT_NUM_DATA_ENTRIES));
 
     for (auto const& key : readKeys)
     {

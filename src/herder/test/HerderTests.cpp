@@ -3561,11 +3561,23 @@ TEST_CASE("soroban txs each parameter surge priced", "[soroban][herder]")
     uint32_t baseTxRate = 1;
     uint32_t numAccounts = 100;
     auto test =
-        [&](std::function<void(SorobanNetworkConfig & cfg)> tweakConfig) {
+        [&](std::function<void(SorobanNetworkConfig & cfg)> tweakConfig, std::function<void(Config& appCfg)> tweakAppCfg) {
             auto simulation = Topologies::core(
                 4, 1, Simulation::OVER_LOOPBACK, networkID, [&](int i) {
                     auto cfg = getTestConfig(i, Config::TESTDB_ON_DISK_SQLITE);
+                    auto mid = std::numeric_limits<uint32_t>::max() / 2;
+                    /*
+                    cfg.LOADGEN_WASM_BYTES_FOR_TESTING = {mid};
+                    cfg.LOADGEN_WASM_BYTES_DISTRIBUTION_FOR_TESTING = {1};
+                    */
+                    cfg.LOADGEN_INSTRUCTIONS_FOR_TESTING = {mid};
+                    cfg.LOADGEN_INSTRUCTIONS_FOR_TESTING = {1};
+                    cfg.LOADGEN_IO_KILOBYTES_FOR_TESTING = {60};
+                    cfg.LOADGEN_IO_KILOBYTES_DISTRIBUTION_FOR_TESTING = {1};
+                    cfg.LOADGEN_NUM_DATA_ENTRIES_FOR_TESTING = {mid};
+                    cfg.LOADGEN_NUM_DATA_ENTRIES_FOR_TESTING = {1};
                     cfg.TESTING_UPGRADE_MAX_TX_SET_SIZE = 100;
+                    tweakAppCfg(cfg);
                     return cfg;
                 });
             simulation->startAllNodes();
@@ -3660,6 +3672,10 @@ TEST_CASE("soroban txs each parameter surge priced", "[soroban][herder]")
             REQUIRE(hadSorobanSurgePricing);
         };
 
+    auto idTweakAppConfig = [](Config& cfg) {
+        return cfg;
+    };
+
     // We will be submitting soroban txs at desiredTxRate * 3, but the network
     // can only accept up to desiredTxRate for each resource dimension,
     // triggering surge pricing
@@ -3669,7 +3685,7 @@ TEST_CASE("soroban txs each parameter surge priced", "[soroban][herder]")
             cfg.mLedgerMaxTxCount = static_cast<uint32>(
                 baseTxRate * Herder::EXP_LEDGER_TIMESPAN_SECONDS.count());
         };
-        test(tweakConfig);
+        test(tweakConfig, idTweakAppConfig);
     }
     SECTION("instructions")
     {
@@ -3678,7 +3694,11 @@ TEST_CASE("soroban txs each parameter surge priced", "[soroban][herder]")
                 baseTxRate * Herder::EXP_LEDGER_TIMESPAN_SECONDS.count() *
                 cfg.mTxMaxInstructions;
         };
-        test(tweakConfig);
+        auto tweakAppConfig = [](Config& cfg) {
+            cfg.LOADGEN_INSTRUCTIONS_FOR_TESTING = {50'000'000};
+            return cfg;
+        };
+        test(tweakConfig, tweakAppConfig);
     }
     SECTION("tx size")
     {
@@ -3687,7 +3707,7 @@ TEST_CASE("soroban txs each parameter surge priced", "[soroban][herder]")
                 baseTxRate * Herder::EXP_LEDGER_TIMESPAN_SECONDS.count() *
                 cfg.mTxMaxSizeBytes);
         };
-        test(tweakConfig);
+        test(tweakConfig, idTweakAppConfig);
     }
     SECTION("read entries")
     {
@@ -3696,7 +3716,11 @@ TEST_CASE("soroban txs each parameter surge priced", "[soroban][herder]")
                 baseTxRate * Herder::EXP_LEDGER_TIMESPAN_SECONDS.count() *
                 cfg.mTxMaxReadLedgerEntries);
         };
-        test(tweakConfig);
+        auto tweakAppConfig = [](Config& cfg) {
+            cfg.LOADGEN_NUM_DATA_ENTRIES_FOR_TESTING = {15};
+            return cfg;
+        };
+        test(tweakConfig, tweakAppConfig);
     }
     SECTION("write entries")
     {
@@ -3705,16 +3729,22 @@ TEST_CASE("soroban txs each parameter surge priced", "[soroban][herder]")
                 baseTxRate * Herder::EXP_LEDGER_TIMESPAN_SECONDS.count() *
                 cfg.mTxMaxWriteLedgerEntries);
         };
-        test(tweakConfig);
+        auto tweakAppConfig = [](Config& cfg) {
+            cfg.LOADGEN_NUM_DATA_ENTRIES_FOR_TESTING = {15};
+            return cfg;
+        };
+        test(tweakConfig, tweakAppConfig);
     }
     SECTION("read bytes")
     {
+        uint32_t constexpr txMaxReadBytes = 100 * 1024;
         auto tweakConfig = [&](SorobanNetworkConfig& cfg) {
+            cfg.mTxMaxReadBytes = txMaxReadBytes;
             cfg.mLedgerMaxReadBytes = static_cast<uint32>(
                 baseTxRate * Herder::EXP_LEDGER_TIMESPAN_SECONDS.count() *
                 cfg.mTxMaxReadBytes);
         };
-        test(tweakConfig);
+        test(tweakConfig, idTweakAppConfig);
     }
     SECTION("write bytes")
     {
@@ -3723,7 +3753,7 @@ TEST_CASE("soroban txs each parameter surge priced", "[soroban][herder]")
                 baseTxRate * Herder::EXP_LEDGER_TIMESPAN_SECONDS.count() *
                 cfg.mTxMaxWriteBytes);
         };
-        test(tweakConfig);
+        test(tweakConfig, idTweakAppConfig);
     }
 }
 

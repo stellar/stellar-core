@@ -245,13 +245,13 @@ class Config : public std::enable_shared_from_this<Config>
     std::vector<uint32_t> LOADGEN_WASM_BYTES_FOR_TESTING;
     std::vector<uint32_t> LOADGEN_WASM_BYTES_DISTRIBUTION_FOR_TESTING;
 
-    // Number of data entries for SOROBAN_INVOKE and MIX_CLASSIC_SOROBAN loadgen
-    // modes
+    // Number of data entries for SOROBAN_INVOKE, SOROBAN_UPLOAD, and
+    // MIX_CLASSIC_SOROBAN loadgen modes
     std::vector<uint32_t> LOADGEN_NUM_DATA_ENTRIES_FOR_TESTING;
     std::vector<uint32_t> LOADGEN_NUM_DATA_ENTRIES_DISTRIBUTION_FOR_TESTING;
 
-    // Total kilobytes of IO per transaction for SOROBAN_INVOKE and
-    // MIX_CLASSIC_SOROBAN loadgen modes.
+    // Total kilobytes of reads and writes per transaction for SOROBAN_INVOKE,
+    // SOROBAN_UPLOAD, and MIX_CLASSIC_SOROBAN loadgen modes.
     std::vector<uint32_t> LOADGEN_IO_KILOBYTES_FOR_TESTING;
     std::vector<uint32_t> LOADGEN_IO_KILOBYTES_DISTRIBUTION_FOR_TESTING;
 
@@ -260,8 +260,8 @@ class Config : public std::enable_shared_from_this<Config>
     std::vector<uint32_t> LOADGEN_TX_SIZE_BYTES_FOR_TESTING;
     std::vector<uint32_t> LOADGEN_TX_SIZE_BYTES_DISTRIBUTION_FOR_TESTING;
 
-    // Instructions per transaction for SOROBAN_INVOKE and MIX_CLASSIC_SOROBAN
-    // loadgen modes
+    // Instructions per transaction for SOROBAN_INVOKE, SOROBAN_UPLOAD, and
+    // MIX_CLASSIC_SOROBAN loadgen modes
     std::vector<uint64_t> LOADGEN_INSTRUCTIONS_FOR_TESTING;
     std::vector<uint32_t> LOADGEN_INSTRUCTIONS_DISTRIBUTION_FOR_TESTING;
 
