@@ -29,6 +29,7 @@
 #include "util/DebugMetaUtils.h"
 #include "util/LogSlowExecution.h"
 #include "util/Logging.h"
+#include "util/Math.h"
 #include "util/StatusManager.h"
 #include "util/Timer.h"
 
@@ -1786,13 +1787,16 @@ HerderImpl::checkAndMaybeReanalyzeQuorumMap()
         mLastQuorumMapIntersectionState.mInterruptFlag = false;
         mLastQuorumMapIntersectionState.mCheckingQuorumMapHash = curr;
         auto& cfg = mApp.getConfig();
+        assertThreadIsMain();
+        auto seed = gRandomEngine();
         auto qic = QuorumIntersectionChecker::create(
-            qmap, cfg, mLastQuorumMapIntersectionState.mInterruptFlag);
+            qmap, cfg, mLastQuorumMapIntersectionState.mInterruptFlag, seed);
         auto ledger = trackingConsensusLedgerIndex();
         auto nNodes = qmap.size();
         auto& hState = mLastQuorumMapIntersectionState;
         auto& app = mApp;
-        auto worker = [curr, ledger, nNodes, qic, qmap, cfg, &app, &hState] {
+        auto worker = [curr, ledger, nNodes, qic, qmap, cfg, seed, &app,
+                       &hState] {
             try
             {
                 ZoneScoped;
@@ -1805,8 +1809,8 @@ HerderImpl::checkAndMaybeReanalyzeQuorumMap()
                     // intersecting; if not intersecting we should finish ASAP
                     // and raise an alarm.
                     critical = QuorumIntersectionChecker::
-                        getIntersectionCriticalGroups(qmap, cfg,
-                                                      hState.mInterruptFlag);
+                        getIntersectionCriticalGroups(
+                            qmap, cfg, hState.mInterruptFlag, seed);
                 }
                 app.postOnMainThread(
                     [ok, curr, ledger, nNodes, split, critical, &hState] {

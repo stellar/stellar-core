@@ -269,16 +269,15 @@ MinQuorumEnumerator::anyMinQuorumHasDisjointQuorum()
 QuorumIntersectionCheckerImpl::QuorumIntersectionCheckerImpl(
     QuorumIntersectionChecker::QuorumSetMap const& qmap,
     std::optional<Config> const& cfg, std::atomic<bool>& interruptFlag,
-    bool quiet)
+    stellar_default_random_engine::result_type seed, bool quiet)
     : mCfg(cfg)
     , mLogTrace(Logging::logTrace("SCP"))
     , mQuiet(quiet)
     , mTSC()
     , mInterruptFlag(interruptFlag)
     , mCachedQuorums(MAX_CACHED_QUORUMS_SIZE)
+    , mRand(seed)
 {
-    assertThreadIsMain();
-    mRand.seed(stellar::gRandomEngine());
     buildGraph(qmap);
     // Awkwardly, the graph size is zero when we initialize mTSC. Update it
     // here.
@@ -818,35 +817,40 @@ toQuorumIntersectionMap(QuorumTracker::QuorumMap const& qmap)
 namespace stellar
 {
 std::shared_ptr<QuorumIntersectionChecker>
-QuorumIntersectionChecker::create(QuorumTracker::QuorumMap const& qmap,
-                                  std::optional<Config> const& cfg,
-                                  std::atomic<bool>& interruptFlag, bool quiet)
+QuorumIntersectionChecker::create(
+    QuorumTracker::QuorumMap const& qmap, std::optional<Config> const& cfg,
+    std::atomic<bool>& interruptFlag,
+    stellar_default_random_engine::result_type seed, bool quiet)
 {
-    return create(toQuorumIntersectionMap(qmap), cfg, interruptFlag, quiet);
+    return create(toQuorumIntersectionMap(qmap), cfg, interruptFlag, seed,
+                  quiet);
 }
 
 std::shared_ptr<QuorumIntersectionChecker>
-QuorumIntersectionChecker::create(QuorumSetMap const& qmap,
-                                  std::optional<Config> const& cfg,
-                                  std::atomic<bool>& interruptFlag, bool quiet)
+QuorumIntersectionChecker::create(
+    QuorumSetMap const& qmap, std::optional<Config> const& cfg,
+    std::atomic<bool>& interruptFlag,
+    stellar_default_random_engine::result_type seed, bool quiet)
 {
     return std::make_shared<QuorumIntersectionCheckerImpl>(
-        qmap, cfg, interruptFlag, quiet);
+        qmap, cfg, interruptFlag, seed, quiet);
 }
 
 std::set<std::set<NodeID>>
 QuorumIntersectionChecker::getIntersectionCriticalGroups(
     QuorumTracker::QuorumMap const& qmap, std::optional<Config> const& cfg,
-    std::atomic<bool>& interruptFlag)
+    std::atomic<bool>& interruptFlag,
+    stellar_default_random_engine::result_type seed)
 {
     return getIntersectionCriticalGroups(toQuorumIntersectionMap(qmap), cfg,
-                                         interruptFlag);
+                                         interruptFlag, seed);
 }
 
 std::set<std::set<NodeID>>
 QuorumIntersectionChecker::getIntersectionCriticalGroups(
     QuorumSetMap const& qmap, std::optional<Config> const& cfg,
-    std::atomic<bool>& interruptFlag)
+    std::atomic<bool>& interruptFlag,
+    stellar_default_random_engine::result_type seed)
 {
     // We're going to search for "intersection-critical" groups, by considering
     // each SCPQuorumSet S that (a) has no innerSets of its own and (b) occurs
@@ -932,9 +936,9 @@ QuorumIntersectionChecker::getIntersectionCriticalGroups(
         }
 
         // Check to see if this modified config is vulnerable to splitting.
-        auto checker =
-            QuorumIntersectionChecker::create(test_qmap, cfg, interruptFlag,
-                                              /*quiet=*/true);
+        auto checker = QuorumIntersectionChecker::create(test_qmap, cfg,
+                                                         interruptFlag, seed,
+                                                         /*quiet=*/true);
         if (checker->networkEnjoysQuorumIntersection())
         {
             CLOG_DEBUG(SCP,
