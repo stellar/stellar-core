@@ -241,6 +241,13 @@ FeeBumpTransactionFrame::checkValid(Application& app,
 }
 
 bool
+FeeBumpTransactionFrame::checkSorobanResourceAndSetError(Application& app,
+                                                         uint32_t ledgerVersion)
+{
+    return mInnerTx->checkSorobanResourceAndSetError(app, ledgerVersion);
+}
+
+bool
 FeeBumpTransactionFrame::commonValidPreSeqNum(AbstractLedgerTxn& ltx)
 {
     // this function does validations that are independent of the account state

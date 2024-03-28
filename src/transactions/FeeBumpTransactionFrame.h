@@ -67,6 +67,8 @@ class FeeBumpTransactionFrame : public TransactionFrameBase
     bool checkValid(Application& app, AbstractLedgerTxn& ltxOuter,
                     SequenceNumber current, uint64_t lowerBoundCloseTimeOffset,
                     uint64_t upperBoundCloseTimeOffset) override;
+    bool checkSorobanResourceAndSetError(Application& app,
+                                         uint32_t ledgerVersion) override;
 
     TransactionEnvelope const& getEnvelope() const override;
 
