@@ -1625,6 +1625,14 @@ TransactionFrame::insertKeysForTxApply(UnorderedSet<LedgerKey>& keys) const
         }
         op->insertLedgerKeysToPrefetch(keys);
     }
+    if (isSoroban())
+    {
+        auto const& resources = sorobanResources();
+        keys.insert(resources.footprint.readOnly.begin(),
+                    resources.footprint.readOnly.end());
+        keys.insert(resources.footprint.readWrite.begin(),
+                    resources.footprint.readWrite.end());
+    }
 }
 
 void

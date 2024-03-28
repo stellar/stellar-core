@@ -22,6 +22,7 @@
 #include "xdr/Stellar-ledger-entries.h"
 #include "xdrpp/marshal.h"
 #include <Tracy.hpp>
+#include <set>
 #include <soci.h>
 
 namespace stellar
@@ -166,6 +167,69 @@ bool
 LedgerEntryPtr::isDeleted() const
 {
     return mState == EntryPtrState::DELETED;
+}
+LedgerKeyMeter::LedgerKeyMeter() : meteredLedgerKeyToTx{}, txReadBytes{}
+{
+}
+
+void
+LedgerKeyMeter::addTxn(size_t txn, uint32_t readQuota,
+                       UnorderedSet<LedgerKey>& keys)
+{
+    // Overwrite any exisitng quota.
+    txReadBytes[txn] = readQuota;
+    for (auto key : keys)
+    {
+        meteredLedgerKeyToTx[key].insert(txn);
+    }
+}
+
+void
+LedgerKeyMeter::updateReadQuotasForKey(LedgerKey const& key,
+                                       LedgerEntry const& entry)
+{
+    auto iter = meteredLedgerKeyToTx.find(key);
+    if (iter == meteredLedgerKeyToTx.end())
+    {
+        // No metered transactions contain this key.
+        return;
+    }
+    if (key.type() == TTL)
+    {
+        // TTL entries do not count towards the txn read byte limit.
+        return;
+    }
+    // Update the read quota for every transaction containing this key.
+    size_t size = xdr::xdr_size(entry);
+    for (auto txn : iter->second)
+    {
+        if (txReadBytes[txn] < size)
+        {
+            txReadBytes[txn] = 0;
+        }
+        else
+        {
+            txReadBytes[txn] -= size;
+        }
+    }
+}
+
+uint32_t
+LedgerKeyMeter::maxReadQuotaForKey(LedgerKey const& key) const
+{
+    // If the meter has no entries, this is a classic prefetch.
+    if (meteredLedgerKeyToTx.size() == 0)
+    {
+        return std::numeric_limits<uint32_t>::max();
+    }
+    auto iter = meteredLedgerKeyToTx.find(key);
+    releaseAssert(iter != meteredLedgerKeyToTx.end());
+    return std::reduce(iter->second.begin(), iter->second.end(), 0,
+                       [&](uint32_t maxReadQuota, const size_t txn) {
+                           auto quota = txReadBytes.find(txn);
+                           releaseAssert(quota != txReadBytes.end());
+                           return std::max(maxReadQuota, quota->second);
+                       });
 }
 
 template <typename KeySetT>
@@ -2041,13 +2105,21 @@ LedgerTxn::Impl::getPrefetchHitRate() const
 uint32_t
 LedgerTxn::prefetch(UnorderedSet<LedgerKey> const& keys)
 {
-    return getImpl()->prefetch(keys);
+    LedgerKeyMeter lkMeter{};
+    return prefetchWithLimits(keys, lkMeter);
+}
+uint32_t
+LedgerTxn::prefetchWithLimits(UnorderedSet<LedgerKey> const& keys,
+                              LedgerKeyMeter& lkMeter)
+{
+    return getImpl()->prefetchWithLimits(keys, lkMeter);
 }
 
 uint32_t
-LedgerTxn::Impl::prefetch(UnorderedSet<LedgerKey> const& keys)
+LedgerTxn::Impl::prefetchWithLimits(UnorderedSet<LedgerKey> const& keys,
+                                    LedgerKeyMeter& lkMeter)
 {
-    return mParent.prefetch(keys);
+    return mParent.prefetchWithLimits(keys, lkMeter);
 }
 
 void
@@ -2953,11 +3025,27 @@ LedgerTxnRoot::dropTTL(bool rebuild)
 uint32_t
 LedgerTxnRoot::prefetch(UnorderedSet<LedgerKey> const& keys)
 {
-    return mImpl->prefetch(keys);
+    LedgerKeyMeter lkMeter{};
+    return prefetchWithLimits(keys, lkMeter);
+}
+uint32_t
+LedgerTxnRoot::prefetchWithLimits(UnorderedSet<LedgerKey> const& keys,
+                                  LedgerKeyMeter& lkMeter)
+
+{
+    return mImpl->prefetchWithLimits(keys, lkMeter);
 }
 
 uint32_t
 LedgerTxnRoot::Impl::prefetch(UnorderedSet<LedgerKey> const& keys)
+{
+    LedgerKeyMeter lkMeter{};
+    return prefetchWithLimits(keys, lkMeter);
+}
+
+uint32_t
+LedgerTxnRoot::Impl::prefetchWithLimits(UnorderedSet<LedgerKey> const& keys,
+                                        LedgerKeyMeter& lkMeter)
 {
     ZoneScoped;
     uint32_t total = 0;
@@ -2977,6 +3065,16 @@ LedgerTxnRoot::Impl::prefetch(UnorderedSet<LedgerKey> const& keys)
         {
             keys.insert(key);
         }
+        else
+        {
+            // If the key is already in the cache, it still contributes to
+            // metering.
+            auto le = mEntryCache.get(key);
+            if (le.entry)
+            {
+                lkMeter.updateReadQuotasForKey(key, *le.entry);
+            }
+        }
     };
 
     if (mApp.getConfig().isUsingBucketListDB())
@@ -2986,8 +3084,8 @@ LedgerTxnRoot::Impl::prefetch(UnorderedSet<LedgerKey> const& keys)
         {
             insertIfNotLoaded(keysToSearch, key);
         }
-
-        auto blLoad = mApp.getBucketManager().loadKeys(keysToSearch);
+        auto blLoad =
+            mApp.getBucketManager().loadKeysWithLimits(keysToSearch, lkMeter);
         cacheResult(populateLoadedEntries(keysToSearch, blLoad));
     }
     else
@@ -3483,7 +3581,6 @@ LedgerTxnRoot::Impl::getOffersByAccountAndAsset(AccountID const& account,
         }
     }
     prefetch(toPrefetch);
-
     return res;
 }
 

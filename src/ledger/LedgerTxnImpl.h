@@ -636,6 +636,8 @@ class LedgerTxn::Impl
     void unsealHeader(LedgerTxn& self, std::function<void(LedgerHeader&)> f);
 
     uint32_t prefetch(UnorderedSet<LedgerKey> const& keys);
+    uint32_t prefetchWithLimits(UnorderedSet<LedgerKey> const& keys,
+                                LedgerKeyMeter& lkMeter);
 
     double getPrefetchHitRate() const;
 
@@ -967,7 +969,8 @@ class LedgerTxnRoot::Impl
     // could occur if the cache is at its fill ratio. Returns number of keys
     // prefetched.
     uint32_t prefetch(UnorderedSet<LedgerKey> const& keys);
-
+    uint32_t prefetchWithLimits(UnorderedSet<LedgerKey> const& keys,
+                                LedgerKeyMeter& lkMeter);
     double getPrefetchHitRate() const;
 
     void prepareNewObjects(size_t s);

@@ -16,6 +16,7 @@
 #include <map>
 #include <memory>
 #include <set>
+#include <unordered_map>
 
 /////////////////////////////////////////////////////////////////////////////
 //  Overview
@@ -331,6 +332,24 @@ struct LedgerTxnDelta
     UnorderedMap<InternalLedgerKey, EntryDelta> entry;
     HeaderDelta header;
 };
+// An abstraction for storing and applying per-txn read bytes metering limits
+// when loading keys.
+class LedgerKeyMeter
+{
+  public:
+    LedgerKeyMeter();
+    // Adds a transaction with a read quota and the keys it will read.
+    void addTxn(size_t txn, uint32_t readQuota, UnorderedSet<LedgerKey>& keys);
+    // Called when an entry is loaded to update the read quota for the
+    // associated txns.
+    void updateReadQuotasForKey(LedgerKey const& key, LedgerEntry const& entry);
+    // Returns the maximum read quota across all transactions with this key.
+    uint32_t maxReadQuotaForKey(LedgerKey const& key) const;
+
+  private:
+    UnorderedMap<LedgerKey, std::set<size_t>> meteredLedgerKeyToTx;
+    UnorderedMap<size_t, uint32_t> txReadBytes;
+};
 
 // An abstraction for an object that is iterator-like and permits enumerating
 // the LedgerTxnEntry objects managed by an AbstractLedgerTxn. This enables
@@ -501,6 +520,10 @@ class AbstractLedgerTxnParent
     // work, while still being correct. Will throw when called on anything other
     // than a (real or stub) root LedgerTxn.
     virtual uint32_t prefetch(UnorderedSet<LedgerKey> const& keys) = 0;
+    // Prefetch a set of ledger entries into memory, while accounting for
+    // the read byte footprint of the transactions using the keys.
+    virtual uint32_t prefetchWithLimits(UnorderedSet<LedgerKey> const& keys,
+                                        LedgerKeyMeter& lkMeter) = 0;
 
     // prepares to increase the capacity of pending changes by up to "s" changes
     virtual void prepareNewObjects(size_t s) = 0;
@@ -795,6 +818,9 @@ class LedgerTxn : public AbstractLedgerTxn
 
     double getPrefetchHitRate() const override;
     uint32_t prefetch(UnorderedSet<LedgerKey> const& keys) override;
+
+    uint32_t prefetchWithLimits(UnorderedSet<LedgerKey> const& keys,
+                                LedgerKeyMeter& lkMeter) override;
     void prepareNewObjects(size_t s) override;
 
     bool hasSponsorshipEntry() const override;
@@ -887,8 +913,10 @@ class LedgerTxnRoot : public AbstractLedgerTxnParent
     void rollbackChild() noexcept override;
 
     uint32_t prefetch(UnorderedSet<LedgerKey> const& keys) override;
-    double getPrefetchHitRate() const override;
+    uint32_t prefetchWithLimits(UnorderedSet<LedgerKey> const& keys,
+                                LedgerKeyMeter& lkMeter) override;
 
+    double getPrefetchHitRate() const override;
     void prepareNewObjects(size_t s) override;
 
 #ifdef BEST_OFFER_DEBUGGING

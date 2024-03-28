@@ -1442,12 +1442,34 @@ LedgerManagerImpl::prefetchTransactionData(
     ZoneScoped;
     if (mApp.getConfig().PREFETCH_BATCH_SIZE > 0)
     {
-        UnorderedSet<LedgerKey> keys;
+        UnorderedSet<LedgerKey> sorobanKeys;
+        LedgerKeyMeter lkMeter{};
+        UnorderedSet<LedgerKey> classicKeys;
+        size_t txId = 0;
         for (auto const& tx : txs)
         {
-            tx->insertKeysForTxApply(keys);
+            UnorderedSet<LedgerKey> txKeys;
+            tx->insertKeysForTxApply(txKeys);
+            if (tx->isSoroban())
+            {
+                lkMeter.addTxn(
+                    txId,
+                    tx->getResources(/* useByteLimitInClassic */ false)
+                        .getVal(stellar::Resource::Type::READ_BYTES),
+                    txKeys);
+                // txId is only used for tracking soroban txns.
+                txId++;
+                sorobanKeys.insert(txKeys.begin(), txKeys.end());
+            }
+            else
+            {
+                classicKeys.insert(txKeys.begin(), txKeys.end());
+            }
         }
-        mApp.getLedgerTxnRoot().prefetch(keys);
+        // Prefetch classic and soroban keys separately for greater visibility
+        // into the performance of each mode.
+        mApp.getLedgerTxnRoot().prefetchWithLimits(sorobanKeys, lkMeter);
+        mApp.getLedgerTxnRoot().prefetch(classicKeys);
     }
 }
 

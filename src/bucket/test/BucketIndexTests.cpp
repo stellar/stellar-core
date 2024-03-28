@@ -17,7 +17,10 @@
 
 #include "lib/bloom_filter.hpp"
 
+#include "lib/xdrpp/xdrpp/autocheck.h"
 #include "util/XDRCereal.h"
+#include <autocheck/generator.hpp>
+#include <cmath>
 
 using namespace stellar;
 using namespace BucketTestUtils;
@@ -38,6 +41,7 @@ class BucketIndexTest
     LedgerKeySet mKeysToSearch;
     stellar::uniform_int_distribution<uint8_t> mDist;
     uint32_t mLevelsToBuild;
+    UnorderedMap<LedgerKey, std::uint32_t> keyToEntrySize;
 
     static void
     validateResults(UnorderedMap<LedgerKey, LedgerEntry> const& validEntries,
@@ -194,6 +198,38 @@ class BucketIndexTest
         insertEntries(entries);
     }
 
+    LedgerKey
+    insertContractKey(std::unordered_set<stellar::LedgerEntryType> types =
+                          {TTL, CONTRACT_CODE, CONTRACT_DATA},
+                      size_t minSize = 0)
+    {
+        LedgerEntry e;
+        LedgerKey k;
+        do
+        {
+            e = LedgerTestUtils::generateValidLedgerEntryWithTypes(types);
+            k = LedgerEntryKey(e);
+        } while (mTestEntries.find(k) != mTestEntries.end());
+        // No key collisions.
+
+        if (minSize > 0)
+        {
+            SCVal cdValue(SCV_BYTES);
+            auto dataBytes =
+                autocheck::generator<xdr::opaque_vec<xdr::XDR_MAX_LEN>>()(
+                    minSize);
+            cdValue.bytes().assign(dataBytes.begin(), dataBytes.end());
+            cdValue.bytes().resize(minSize);
+            e.data.contractData().val = cdValue;
+            REQUIRE(xdr::xdr_size(e) >= minSize);
+        }
+
+        mTestEntries.emplace(k, e);
+        mKeysToSearch.emplace(k);
+        insertEntries({e});
+        return k;
+    }
+
     virtual void
     run()
     {
@@ -269,6 +305,189 @@ class BucketIndexTest
         {
             auto entryPtr = getBM().getLedgerEntry(key);
             REQUIRE(!entryPtr);
+        }
+    }
+
+    void
+    prefetchAndClearClassicKeys()
+    {
+        // Test classic key prefetching.
+        auto loadResult = getBM().loadKeys(mKeysToSearch);
+        REQUIRE(loadResult.size() == mKeysToSearch.size());
+        for (auto const& le : loadResult)
+        {
+            REQUIRE(mKeysToSearch.find(LedgerEntryKey(le)) !=
+                    mKeysToSearch.end());
+        }
+        // Clear any existing keys, as we want to load soroban keys
+        // seperately.
+        mTestEntries.clear();
+        mKeysToSearch.clear();
+        REQUIRE(mTestEntries.size() == 0);
+        REQUIRE(mKeysToSearch.size() == 0);
+    }
+
+    void
+    testLoadContractKeySpanningPages()
+    {
+        prefetchAndClearClassicKeys();
+        size_t pageSize = std::pow(
+            2, getTestConfig()
+                   .EXPERIMENTAL_BUCKETLIST_DB_INDEX_PAGE_SIZE_EXPONENT);
+        LedgerKeySet expectedSuccessKeys;
+        LedgerKeySet expectedFailedKeys;
+        LedgerKeyMeter lkMeter;
+        UnorderedMap<size_t, UnorderedSet<LedgerKey>> txs;
+
+        txs[0].emplace(insertContractKey({CONTRACT_DATA}, pageSize));
+        lkMeter.addTxn(0, xdr::xdr_size(mTestEntries[*txs[0].begin()]), txs[0]);
+        expectedSuccessKeys.insert(txs[0].begin(), txs[0].end());
+
+        // loadKeys will load an entry if it has a transaction with a non-zero
+        // quota. Even with a quota of 1, we can load an entry with a size
+        // larger than the page size.
+        txs[1].emplace(insertContractKey({CONTRACT_DATA}, pageSize));
+        lkMeter.addTxn(1, 1, txs[1]);
+        expectedSuccessKeys.insert(txs[1].begin(), txs[1].end());
+
+        // txs[2] has zero quota, so no keys should succeed.
+        txs[2].emplace(insertContractKey({CONTRACT_DATA}, pageSize));
+        lkMeter.addTxn(2, 0, txs[2]);
+        expectedFailedKeys.insert(txs[2].begin(), txs[2].end());
+
+        // txs[3] has two keys, but only enopiugh quota for one of them.
+        auto keyA = insertContractKey({CONTRACT_DATA}, pageSize);
+        auto keyB = insertContractKey({CONTRACT_DATA}, pageSize);
+        txs[3].emplace(keyA);
+        txs[3].emplace(keyB);
+        lkMeter.addTxn(3, xdr::xdr_size(mTestEntries[*txs[3].begin()]), txs[3]);
+
+        // txs[4] has one key, large enough to span two pages.
+        txs[4].emplace(insertContractKey({CONTRACT_DATA}, pageSize * 2));
+        lkMeter.addTxn(4, xdr::xdr_size(mTestEntries[*txs[4].begin()]), txs[4]);
+        expectedSuccessKeys.insert(txs[4].begin(), txs[4].end());
+
+        auto loadResult = getBM().loadKeysWithLimits(mKeysToSearch, lkMeter);
+        LedgerKeySet loadResultSet{};
+        std::transform(
+            loadResult.begin(), loadResult.end(),
+            std::inserter(loadResultSet, loadResultSet.end()), [](auto& le) {
+                return LedgerEntryKey(const_cast<const LedgerEntry&>(le));
+            });
+        // Either a or b should be loaded, but not both.
+        REQUIRE(loadResultSet.count(keyA) + loadResultSet.count(keyB) == 1);
+        for (auto key : expectedSuccessKeys)
+        {
+            REQUIRE(loadResultSet.find(key) != loadResultSet.end());
+        }
+        for (auto key : expectedFailedKeys)
+        {
+            REQUIRE(loadResultSet.find(key) == loadResultSet.end());
+        }
+        for (auto tx : txs)
+        {
+            for (auto key : tx.second)
+            {
+                // might fail for tx[3]
+                REQUIRE(lkMeter.maxReadQuotaForKey(key) == 0);
+            }
+        }
+    }
+
+    void
+    testLoadContractKeysWithInsufficientReadBytes()
+    {
+        prefetchAndClearClassicKeys();
+
+        UnorderedMap<LedgerKey, std::vector<uint32_t>> meteredLedgerKeyToTx;
+        LedgerKeySet expectedSuccessKeys;
+        LedgerKeySet expectedFailedKeys;
+
+        // This test inserts keys and populates a LedgerKeyMeter for several
+        // different transactions. The transactions will have less than, equal
+        // to, or more than enough read quota for their associated keys. The
+        // keys which do not have enough quota are added to expectedFailedKeys
+        // and those which do are added to expectedSuccessKeys. After calling
+        // loadKeysWithLimits, we assert:
+        // * for each key in expectedSuccessKeys, key ∈ loadResult
+        // * for each key in expectedFailedKeys, key ∉ loadResult
+
+        UnorderedMap<LedgerKey, std::uint32_t> keyToEntrySize;
+
+        LedgerKeyMeter lkMeter;
+        UnorderedMap<size_t, UnorderedSet<LedgerKey>> txs;
+        // TX 0 has one key, with zero read quota.
+        txs[0].emplace(insertContractKey());
+        lkMeter.addTxn(0, 0, txs[0]);
+        expectedFailedKeys.insert(txs[0].begin(), txs[0].end());
+
+        // TX 1 has one key, with read quota of 1.
+        txs[1].emplace(insertContractKey());
+        lkMeter.addTxn(1, 1, txs[1]);
+        expectedSuccessKeys.insert(txs[1].begin(), txs[1].end());
+
+        // TX 2 has one key, with read quota one less than the entry size
+        txs[2].emplace(insertContractKey());
+        lkMeter.addTxn(2, xdr::xdr_size(mTestEntries[*txs[2].begin()]) - 1,
+                       txs[2]);
+        expectedSuccessKeys.insert(txs[2].begin(), txs[2].end());
+
+        // TX 3 has one key, quota equal to the entry size.
+        txs[3].emplace(insertContractKey());
+        lkMeter.addTxn(3, xdr::xdr_size(mTestEntries[*txs[3].begin()]), txs[3]);
+        expectedSuccessKeys.insert(txs[3].begin(), txs[3].end());
+
+        // TX 4 has one key, quota one more than the entry size.
+        txs[4].emplace(insertContractKey());
+        lkMeter.addTxn(4, xdr::xdr_size(mTestEntries[*txs[4].begin()]) + 1,
+                       txs[4]);
+        expectedSuccessKeys.insert(txs[4].begin(), txs[4].end());
+
+        // TX 5 and 6 share a key. TX 5 has enough quota, TX 6 does not.
+        auto keyShared = insertContractKey();
+        txs[5].emplace(keyShared);
+        txs[6].emplace(keyShared);
+        lkMeter.addTxn(5, xdr::xdr_size(mTestEntries[*txs[5].begin()]), txs[5]);
+        lkMeter.addTxn(6, 0, txs[6]);
+        expectedSuccessKeys.insert(keyShared);
+
+        // TX 7 has two keys, it has enough quota for one but not the other.
+        // Depending on the iteration order, one or both should succeed.
+        auto keyA = insertContractKey();
+        auto keyB = insertContractKey();
+        txs[7].emplace(keyA);
+        txs[7].emplace(keyB);
+        lkMeter.addTxn(7, xdr::xdr_size(mTestEntries[*txs[7].begin()]), txs[7]);
+
+        // TX 8 has three keys, enough for all.
+        uint32_t readBytes = 0;
+        for (int i = 0; i < 3; i++)
+        {
+            auto k = insertContractKey();
+            txs[8].emplace(k);
+            readBytes += xdr::xdr_size(mTestEntries[*txs[8].begin()]);
+        }
+        lkMeter.addTxn(8, readBytes, txs[8]);
+        expectedSuccessKeys.insert(txs[8].begin(), txs[8].end());
+
+        auto loadResult = getBM().loadKeysWithLimits(mKeysToSearch, lkMeter);
+        LedgerKeySet loadResultSet{};
+        std::transform(
+            loadResult.begin(), loadResult.end(),
+            std::inserter(loadResultSet, loadResultSet.end()), [](auto& le) {
+                return LedgerEntryKey(const_cast<const LedgerEntry&>(le));
+            });
+
+        // At least one (possibly both) of a and b should be loaded.
+        REQUIRE(loadResultSet.count(keyA) + loadResultSet.count(keyB) > 0);
+        LedgerKeySet notLoaded{};
+        for (auto key : expectedSuccessKeys)
+        {
+            REQUIRE(loadResultSet.find(key) != loadResultSet.end());
+        }
+        for (auto key : expectedFailedKeys)
+        {
+            REQUIRE(loadResultSet.find(key) == loadResultSet.end());
         }
     }
 
@@ -522,6 +741,30 @@ TEST_CASE("ContractData key with same ScVal", "[bucket][bucketindex]")
     testAllIndexTypes(f);
 }
 
+TEST_CASE("ContractData key with read bytes accounting",
+          "[bucket][bucketindex]")
+{
+    auto f = [&](Config& cfg) {
+        auto test = BucketIndexTest(cfg);
+        test.buildGeneralTest();
+        test.testLoadContractKeysWithInsufficientReadBytes();
+        test.run();
+    };
+
+    testAllIndexTypes(f);
+}
+TEST_CASE("ContractData entry spanning pages", "[bucket][bucketindex]")
+{
+    auto f = [&](Config& cfg) {
+        auto test = BucketIndexTest(cfg);
+        test.buildGeneralTest();
+        test.testLoadContractKeySpanningPages();
+        test.run();
+    };
+    // This test is intended to the correctness test edge cases of range based
+    // indexes, however we want to maintain semantics across index types.
+    testAllIndexTypes(f);
+}
 TEST_CASE("serialize bucket indexes", "[bucket][bucketindex][!hide]")
 {
     Config cfg(getTestConfig(0, Config::TESTDB_ON_DISK_SQLITE));

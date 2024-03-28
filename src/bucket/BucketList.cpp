@@ -18,7 +18,6 @@
 #include "util/GlobalChecks.h"
 #include "util/Logging.h"
 #include "util/ProtocolVersion.h"
-#include "util/UnorderedSet.h"
 #include "util/XDRStream.h"
 #include "util/types.h"
 
@@ -425,7 +424,9 @@ BucketList::getLedgerEntry(LedgerKey const& k) const
 }
 
 std::vector<LedgerEntry>
-BucketList::loadKeys(std::set<LedgerKey, LedgerEntryIdCmp> const& inKeys) const
+BucketList::loadKeysWithLimits(
+    std::set<LedgerKey, LedgerEntryIdCmp> const& inKeys,
+    LedgerKeyMeter& lkMeter) const
 {
     ZoneScoped;
     std::vector<LedgerEntry> entries;
@@ -433,7 +434,7 @@ BucketList::loadKeys(std::set<LedgerKey, LedgerEntryIdCmp> const& inKeys) const
     // Make a copy of the key set, this loop is destructive
     auto keys = inKeys;
     auto f = [&](std::shared_ptr<Bucket> b) {
-        b->loadKeys(keys, entries);
+        b->loadKeysWithLimits(keys, lkMeter, entries);
         return keys.empty();
     };
 
@@ -467,7 +468,10 @@ BucketList::loadPoolShareTrustLinesByAccountAndAsset(AccountID const& accountID,
     };
 
     loopAllBuckets(trustLineLoop);
-    return loadKeys(trustlinesToLoad);
+
+    // Load all the LiquidityPool entries that the account has a trustline for.
+    LedgerKeyMeter lkMeter{};
+    return loadKeysWithLimits(trustlinesToLoad, lkMeter);
 }
 
 std::vector<InflationWinner>

@@ -204,16 +204,22 @@ Bucket::getBucketEntry(LedgerKey const& k)
 // do not load shadowed entries. If we don't find the entry, we do not remove it
 // from keys so that it will be searched for again at a lower level.
 void
-Bucket::loadKeys(std::set<LedgerKey, LedgerEntryIdCmp>& keys,
-                 std::vector<LedgerEntry>& result)
+Bucket::loadKeysWithLimits(std::set<LedgerKey, LedgerEntryIdCmp>& keys,
+                           LedgerKeyMeter& lkMeter,
+                           std::vector<LedgerEntry>& result)
 {
     ZoneScoped;
-
     auto currKeyIt = keys.begin();
     auto const& index = getIndex();
     auto indexIter = index.begin();
     while (currKeyIt != keys.end() && indexIter != index.end())
     {
+        auto maxReadQuota = lkMeter.maxReadQuotaForKey(*currKeyIt);
+        if (maxReadQuota == 0)
+        {
+            currKeyIt = keys.erase(currKeyIt);
+            continue;
+        }
         auto [offOp, newIndexIter] = index.scan(indexIter, *currKeyIt);
         indexIter = newIndexIter;
         if (offOp)
@@ -224,6 +230,10 @@ Bucket::loadKeys(std::set<LedgerKey, LedgerEntryIdCmp>& keys,
             {
                 if (entryOp->type() != DEADENTRY)
                 {
+                    lkMeter.updateReadQuotasForKey(*currKeyIt,
+                                                   entryOp->liveEntry());
+                    // Regardless of read quota accounting, we want to add
+                    // entries to the cache once we have loaded them.
                     result.push_back(entryOp->liveEntry());
                 }
 

@@ -142,6 +142,9 @@ class BucketManagerImpl : public BucketManager
     std::vector<LedgerEntry>
     loadKeys(std::set<LedgerKey, LedgerEntryIdCmp> const& keys) const override;
     std::vector<LedgerEntry>
+    loadKeysWithLimits(std::set<LedgerKey, LedgerEntryIdCmp> const& keys,
+                       LedgerKeyMeter& lkMeter) const override;
+    std::vector<LedgerEntry>
     loadPoolShareTrustLinesByAccountAndAsset(AccountID const& accountID,
                                              Asset const& asset) const override;
     std::vector<InflationWinner>

@@ -5,6 +5,7 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "bucket/Bucket.h"
+#include "ledger/LedgerTxn.h"
 #include "overlay/StellarXDR.h"
 #include "util/NonCopyable.h"
 #include <future>
@@ -231,6 +232,11 @@ class BucketManager : NonMovableOrCopyable
     // Loads LedgerEntry for all keys.
     virtual std::vector<LedgerEntry>
     loadKeys(std::set<LedgerKey, LedgerEntryIdCmp> const& keys) const = 0;
+    // Loads LedgerEntry for all keys, but applies per-transaction read
+    //  limits stored in LedgerKeyMeter to soroban entries.
+    virtual std::vector<LedgerEntry>
+    loadKeysWithLimits(std::set<LedgerKey, LedgerEntryIdCmp> const& keys,
+                       LedgerKeyMeter& lkMeter) const = 0;
 
     virtual std::vector<LedgerEntry>
     loadPoolShareTrustLinesByAccountAndAsset(AccountID const& accountID,

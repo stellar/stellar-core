@@ -184,35 +184,44 @@ class XDRInputFileStream
             xdrStart += 4;
             const size_t xdrEnd = xdrStart + xdrSz;
 
-            // If entry continues past end of buffer, temporarily expand
-            // it and load the extra bytes. The buffer will be resized
-            // back to pageSize in the next readPage.
+            auto maybeReadAndDeserialize = [&](T& out, LedgerKey key,
+                                               size_t xdrStart, size_t xdrEnd,
+                                               size_t extraStart = 0,
+                                               size_t extraSize = 0) {
+                ZoneNamedN(__unpack, "xdr_unpack_entry", true);
+                releaseAssert(xdrStart <= xdrEnd);
+                if (extraStart != 0 && extraSize != 0)
+                {
+                    // If entry continues past end of buffer, temporarily expand
+                    // it and load the extra bytes. The buffer will be resized
+                    // back to pageSize in the next readPage.
+                    mBuf.resize(mBuf.size() + extraSize);
+                    if (!mIn.read(mBuf.data() + extraStart, extraSize))
+                    {
+                        throw xdr::xdr_runtime_error("IO failure in readPage");
+                    }
+                }
+                xdr::xdr_get g(mBuf.data() + xdrStart,
+                               mBuf.data() + mBuf.size());
+                xdr::xdr_argpack_archive(g, out);
+                // Key belongs to entry?
+                return getBucketLedgerKey(out) == key;
+            };
+            size_t extraStart = 0;
+            size_t extraSize = 0;
             if (xdrEnd > mBuf.size())
             {
-                const size_t extraStart = mBuf.size();
-                const size_t extraSz = xdrEnd - extraStart;
-                mBuf.resize(xdrEnd);
-                releaseAssert(extraStart + extraSz == mBuf.size());
-                if (!mIn.read(mBuf.data() + extraStart, extraSz))
-                {
-                    throw xdr::xdr_runtime_error(
-                        "malformed XDR file or IO failure in readPage");
-                }
+                extraStart = mBuf.size();
+                extraSize = xdrEnd - extraStart;
             }
-
-            ZoneNamedN(__unpack, "xdr_unpack_entry", true);
-            releaseAssert(xdrStart <= xdrEnd);
-            releaseAssert(xdrEnd <= mBuf.size());
-            xdr::xdr_get g(mBuf.data() + xdrStart, mBuf.data() + xdrEnd);
-            xdr::xdr_argpack_archive(g, out);
-            if (getBucketLedgerKey(out) == key)
+            // Read the entire entry.
+            if (maybeReadAndDeserialize(out, key, xdrStart, xdrEnd, extraStart,
+                                        extraSize))
             {
                 return true;
             }
-
             xdrStart = xdrEnd;
         }
-
         return false;
     }
 };
