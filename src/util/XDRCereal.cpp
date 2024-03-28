@@ -37,6 +37,23 @@ cereal_override(cereal::JSONOutputArchive& ar, const stellar::SCAddress& addr,
 
 void
 cereal_override(cereal::JSONOutputArchive& ar,
+                const stellar::ConfigUpgradeSetKey& key, const char* field)
+{
+    ar.setNextName(field);
+    ar.startNode();
+
+    xdr::archive(ar,
+                 stellar::strKey::toStrKey(stellar::strKey::STRKEY_CONTRACT,
+                                           key.contractID)
+                     .value,
+                 "contractID");
+    xdr::archive(ar, key.contentHash, "contentHash");
+
+    ar.finishNode();
+}
+
+void
+cereal_override(cereal::JSONOutputArchive& ar,
                 const stellar::MuxedAccount& muxedAccount, const char* field)
 {
     switch (muxedAccount.type())
