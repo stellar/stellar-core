@@ -525,9 +525,15 @@ CatchupSimulation::generateRandomLedger(uint32_t version)
 
     mLedgerCloseDatas.emplace_back(ledgerSeq, txSet, sv);
 
-    auto& txsSucceeded =
-        mApp.getMetrics().NewCounter({"ledger", "apply", "success"});
-    auto lastSucceeded = txsSucceeded.count();
+    auto txsSucceeded = [this]() {
+        return this->mApp.getMetrics()
+                   .NewCounter({"ledger", "apply", "success"})
+                   .count() +
+               this->mApp.getMetrics()
+                   .NewCounter({"ledger", "apply-soroban", "success"})
+                   .count();
+    };
+    auto lastSucceeded = txsSucceeded();
 
     lm.closeLedger(mLedgerCloseDatas.back());
 
@@ -535,7 +541,7 @@ CatchupSimulation::generateRandomLedger(uint32_t version)
     {
         // Make sure all classic transactions and at least some Soroban
         // transactions succeeded
-        REQUIRE(txsSucceeded.count() > lastSucceeded + phases[0].size());
+        REQUIRE(txsSucceeded() > lastSucceeded + phases[0].size());
     }
 
     auto const& lclh = lm.getLastClosedLedgerHeader();

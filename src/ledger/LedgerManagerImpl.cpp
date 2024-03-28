@@ -142,10 +142,14 @@ LedgerManagerImpl::LedgerManagerImpl(Application& app)
           {"ledger", "age", "closed"}, {5000.0, 7000.0, 10000.0, 20000.0}))
     , mLedgerAge(
           app.getMetrics().NewCounter({"ledger", "age", "current-seconds"}))
-    , mTransactionApplySucceeded(
+    , mClassicTransactionApplySucceeded(
           app.getMetrics().NewCounter({"ledger", "apply", "success"}))
-    , mTransactionApplyFailed(
+    , mClassicTransactionApplyFailed(
           app.getMetrics().NewCounter({"ledger", "apply", "failure"}))
+    , mSorobanTransactionApplySucceeded(
+          app.getMetrics().NewCounter({"ledger", "apply-soroban", "success"}))
+    , mSorobanTransactionApplyFailed(
+          app.getMetrics().NewCounter({"ledger", "apply-soroban", "failure"}))
     , mMetaStreamBytes(
           app.getMetrics().NewMeter({"ledger", "metastream", "bytes"}, "byte"))
     , mMetaStreamWriteTime(
@@ -1479,8 +1483,10 @@ LedgerManagerImpl::applyTransactions(
 
     Hash sorobanBasePrngSeed = txSet.getContentsHash();
     uint64_t txNum{0};
-    uint64_t txSucceeded{0};
-    uint64_t txFailed{0};
+    uint64_t classicTxSucceeded{0};
+    uint64_t classicTxFailed{0};
+    uint64_t sorobanTxSucceeded{0};
+    uint64_t sorobanTxFailed{0};
     for (auto tx : txs)
     {
         ZoneNamedN(txZone, "applyTransaction", true);
@@ -1509,11 +1515,25 @@ LedgerManagerImpl::applyTransactions(
         results.result = tx->getResult();
         if (results.result.result.code() == TransactionResultCode::txSUCCESS)
         {
-            ++txSucceeded;
+            if (tx->isSoroban())
+            {
+                ++sorobanTxSucceeded;
+            }
+            else
+            {
+                ++classicTxSucceeded;
+            }
         }
         else
         {
-            ++txFailed;
+            if (tx->isSoroban())
+            {
+                ++sorobanTxFailed;
+            }
+            else
+            {
+                ++classicTxFailed;
+            }
         }
 
         // First gather the TransactionResultPair into the TxResultSet for
@@ -1546,8 +1566,10 @@ LedgerManagerImpl::applyTransactions(
         }
     }
 
-    mTransactionApplySucceeded.inc(txSucceeded);
-    mTransactionApplyFailed.inc(txFailed);
+    mClassicTransactionApplySucceeded.inc(classicTxSucceeded);
+    mClassicTransactionApplyFailed.inc(classicTxFailed);
+    mSorobanTransactionApplySucceeded.inc(sorobanTxSucceeded);
+    mSorobanTransactionApplyFailed.inc(sorobanTxFailed);
     logTxApplyMetrics(ltx, numTxs, numOps);
 }
 
