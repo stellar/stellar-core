@@ -1409,7 +1409,7 @@ runCheckQuorumIntersection(CommandLineArgs const& args)
                     return 1;
                 }
             }
-            catch (KeyUtils::InvalidStrKey const& e)
+            catch (KeyUtils::InvalidStrKey const&)
             {
                 CLOG_FATAL(
                     SCP,
