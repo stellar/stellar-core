@@ -23,21 +23,24 @@ class QuorumIntersectionChecker
     static std::shared_ptr<QuorumIntersectionChecker>
     create(QuorumTracker::QuorumMap const& qmap,
            std::optional<stellar::Config> const& cfg,
-           std::atomic<bool>& interruptFlag, bool quiet = false);
+           std::atomic<bool>& interruptFlag,
+           stellar_default_random_engine::result_type seed, bool quiet = false);
 
     static std::shared_ptr<QuorumIntersectionChecker>
     create(QuorumSetMap const& qmap, std::optional<stellar::Config> const& cfg,
-           std::atomic<bool>& interruptFlag, bool quiet = false);
+           std::atomic<bool>& interruptFlag,
+           stellar_default_random_engine::result_type seed, bool quiet = false);
 
-    static std::set<std::set<NodeID>>
-    getIntersectionCriticalGroups(QuorumTracker::QuorumMap const& qmap,
-                                  std::optional<stellar::Config> const& cfg,
-                                  std::atomic<bool>& interruptFlag);
+    static std::set<std::set<NodeID>> getIntersectionCriticalGroups(
+        QuorumTracker::QuorumMap const& qmap,
+        std::optional<stellar::Config> const& cfg,
+        std::atomic<bool>& interruptFlag,
+        stellar_default_random_engine::result_type seed);
 
-    static std::set<std::set<NodeID>>
-    getIntersectionCriticalGroups(QuorumSetMap const& qmap,
-                                  std::optional<stellar::Config> const& cfg,
-                                  std::atomic<bool>& interruptFlag);
+    static std::set<std::set<NodeID>> getIntersectionCriticalGroups(
+        QuorumSetMap const& qmap, std::optional<stellar::Config> const& cfg,
+        std::atomic<bool>& interruptFlag,
+        stellar_default_random_engine::result_type seed);
 
     virtual ~QuorumIntersectionChecker(){};
     virtual bool networkEnjoysQuorumIntersection() const = 0;

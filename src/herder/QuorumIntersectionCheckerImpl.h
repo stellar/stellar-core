@@ -534,7 +534,9 @@ class QuorumIntersectionCheckerImpl : public stellar::QuorumIntersectionChecker
     QuorumIntersectionCheckerImpl(
         stellar::QuorumIntersectionChecker::QuorumSetMap const& qmap,
         std::optional<stellar::Config> const& cfg,
-        std::atomic<bool>& interruptFlag, bool quiet = false);
+        std::atomic<bool>& interruptFlag,
+        stellar::stellar_default_random_engine::result_type seed,
+        bool quiet = false);
     bool networkEnjoysQuorumIntersection() const override;
 
     std::pair<std::vector<stellar::NodeID>, std::vector<stellar::NodeID>>
