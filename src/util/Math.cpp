@@ -203,10 +203,11 @@ reinitializeAllGlobalStateWithSeed(unsigned int seed)
     autocheck::rng().seed(seed);
 }
 
+#endif
+
 unsigned int
 getLastGlobalStateSeed()
 {
     return lastGlobalSeed;
 }
-#endif
 }

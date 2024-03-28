@@ -11,6 +11,7 @@
 /*
 listens for peer connections.
 When found passes them to the OverlayManagerImpl
+Runs in the background thread only
 */
 
 namespace stellar

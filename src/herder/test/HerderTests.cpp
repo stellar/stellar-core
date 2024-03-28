@@ -3834,7 +3834,7 @@ TEST_CASE("soroban txs accepted by the network",
 
     // Set threshold to 1 so all have to vote
     auto simulation =
-        Topologies::core(4, 1, Simulation::OVER_LOOPBACK, networkID, [](int i) {
+        Topologies::core(4, 1, Simulation::OVER_TCP, networkID, [](int i) {
             auto cfg = getTestConfig(i, Config::TESTDB_ON_DISK_SQLITE);
             cfg.TESTING_UPGRADE_MAX_TX_SET_SIZE = 100;
             return cfg;

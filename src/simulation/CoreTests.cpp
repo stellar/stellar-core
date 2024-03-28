@@ -616,7 +616,7 @@ TEST_CASE("Mesh nodes vs network traffic", "[scalability][!hide]")
 {
     netTopologyTest("mesh", [&](int numNodes) -> Simulation::pointer {
         return Topologies::core(
-            numNodes, 1.0, Simulation::OVER_LOOPBACK,
+            numNodes, 1.0, Simulation::OVER_TCP,
             sha256(fmt::format("nodes-{:d}", numNodes)),
             [&](int cfgNum) -> Config {
                 Config res = getTestConfig(cfgNum);

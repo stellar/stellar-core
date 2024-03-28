@@ -101,6 +101,7 @@ Peer::pointer
 OverlayManagerImpl::PeersList::byAddress(PeerBareAddress const& address) const
 {
     ZoneScoped;
+
     auto pendingPeerIt = std::find_if(std::begin(mPending), std::end(mPending),
                                       [address](Peer::pointer const& peer) {
                                           return peer->getAddress() == address;
@@ -127,6 +128,7 @@ void
 OverlayManagerImpl::PeersList::removePeer(Peer* peer)
 {
     ZoneScoped;
+
     CLOG_TRACE(Overlay, "Removing peer {}", peer->toString());
     releaseAssert(peer->getState() == Peer::CLOSING);
 
@@ -137,6 +139,9 @@ OverlayManagerImpl::PeersList::removePeer(Peer* peer)
     {
         CLOG_TRACE(Overlay, "Dropping pending {} peer: {}", mDirectionString,
                    peer->toString());
+        // Prolong the lifetime of dropped peer for a bit until background
+        // thread is done processing it
+        mDropped.insert(*pendingIt);
         mPending.erase(pendingIt);
         mConnectionsDropped.Mark();
         return;
@@ -147,6 +152,9 @@ OverlayManagerImpl::PeersList::removePeer(Peer* peer)
     {
         CLOG_DEBUG(Overlay, "Dropping authenticated {} peer: {}",
                    mDirectionString, peer->toString());
+        // Prolong the lifetime of dropped peer for a bit until background
+        // thread is done processing it
+        mDropped.insert(authentiatedIt->second);
         mAuthenticated.erase(authentiatedIt);
         mConnectionsDropped.Mark();
         return;
@@ -161,6 +169,8 @@ bool
 OverlayManagerImpl::PeersList::moveToAuthenticated(Peer::pointer peer)
 {
     ZoneScoped;
+    releaseAssert(threadIsMain());
+
     CLOG_TRACE(Overlay, "Moving peer {} to authenticated  state: {}",
                peer->toString(), Peer::format_as(peer->getState()));
     auto pendingIt = std::find(std::begin(mPending), std::end(mPending), peer);
@@ -190,7 +200,7 @@ OverlayManagerImpl::PeersList::moveToAuthenticated(Peer::pointer peer)
     mPending.erase(pendingIt);
     mAuthenticated[peer->getPeerID()] = peer;
 
-    CLOG_INFO(Overlay, "Connected to {}", peer->toString());
+    CLOG_INFO(Overlay, "Authenticated to {}", peer->toString());
 
     return true;
 }
@@ -199,6 +209,8 @@ bool
 OverlayManagerImpl::PeersList::acceptAuthenticatedPeer(Peer::pointer peer)
 {
     ZoneScoped;
+    releaseAssert(threadIsMain());
+
     CLOG_TRACE(Overlay, "Trying to promote peer to authenticated {}",
                peer->toString());
     if (mOverlayManager.isPreferred(peer.get()))
@@ -269,6 +281,7 @@ void
 OverlayManagerImpl::PeersList::shutdown()
 {
     ZoneScoped;
+
     auto pendingPeersToStop = mPending;
     for (auto& p : pendingPeersToStop)
     {
@@ -280,6 +293,11 @@ OverlayManagerImpl::PeersList::shutdown()
     {
         p.second->sendErrorAndDrop(ERR_MISC, "shutdown",
                                    Peer::DropMode::IGNORE_WRITE_QUEUE);
+    }
+
+    for (auto& p : mDropped)
+    {
+        releaseAssert(p->getState() == Peer::CLOSING);
     }
 }
 
@@ -325,6 +343,8 @@ OverlayManagerImpl::~OverlayManagerImpl()
 void
 OverlayManagerImpl::start()
 {
+    std::lock_guard<std::recursive_mutex> lock(mOverlayMutex);
+
     mDoor.start();
     mTimer.expires_from_now(std::chrono::seconds(2));
 
@@ -346,6 +366,8 @@ OverlayManagerImpl::start()
 OverlayManager::AdjustedFlowControlConfig
 OverlayManagerImpl::getFlowControlBytesConfig() const
 {
+    std::lock_guard<std::recursive_mutex> lock(mOverlayMutex);
+
     auto const maxTxSize = mApp.getHerder().getMaxTxSize();
     releaseAssert(maxTxSize > 0);
     auto const& cfg = mApp.getConfig();
@@ -378,6 +400,8 @@ OverlayManagerImpl::dropPeersIf(
     std::function<bool(Peer::pointer, uint32_t)> predicate, uint32_t version,
     std::string const& reason)
 {
+    std::lock_guard<std::recursive_mutex> lock(mOverlayMutex);
+
     auto maybeDrop = [](auto peers,
                         std::function<bool(Peer::pointer, uint32_t)> predicate,
                         uint32_t version, std::string const& reason) {
@@ -407,7 +431,9 @@ OverlayManagerImpl::dropPeersIf(
 void
 OverlayManagerImpl::connectTo(PeerBareAddress const& address)
 {
+
     ZoneScoped;
+    std::lock_guard<std::recursive_mutex> lock(mOverlayMutex);
     connectToImpl(address, false);
 }
 
@@ -415,7 +441,10 @@ bool
 OverlayManagerImpl::connectToImpl(PeerBareAddress const& address,
                                   bool forceoutbound)
 {
-    CLOG_TRACE(Overlay, "Connect to {}", address.toString());
+    std::lock_guard<std::recursive_mutex> lock(mOverlayMutex);
+
+    releaseAssert(threadIsMain());
+    CLOG_TRACE(Overlay, "Initiate connect to {}", address.toString());
     auto currentConnection = getConnectedPeer(address);
     if (!currentConnection || (forceoutbound && currentConnection->getRole() ==
                                                     Peer::REMOTE_CALLED_US))
@@ -440,6 +469,8 @@ OverlayManagerImpl::connectToImpl(PeerBareAddress const& address,
 OverlayManagerImpl::PeersList&
 OverlayManagerImpl::getPeersList(Peer* peer)
 {
+    std::lock_guard<std::recursive_mutex> lock(mOverlayMutex);
+
     ZoneScoped;
     switch (peer->getRole())
     {
@@ -456,6 +487,8 @@ void
 OverlayManagerImpl::storePeerList(std::vector<PeerBareAddress> const& addresses,
                                   bool setPreferred, bool startup)
 {
+    std::lock_guard<std::recursive_mutex> lock(mOverlayMutex);
+
     ZoneScoped;
     auto type = setPreferred ? PeerType::PREFERRED : PeerType::OUTBOUND;
     if (setPreferred)
@@ -490,6 +523,8 @@ OverlayManagerImpl::storePeerList(std::vector<PeerBareAddress> const& addresses,
 void
 OverlayManagerImpl::storeConfigPeers()
 {
+    std::lock_guard<std::recursive_mutex> lock(mOverlayMutex);
+
     ZoneScoped;
     // Synchronously resolve and store peers from the config
     storePeerList(resolvePeers(mApp.getConfig().KNOWN_PEERS).first, false,
@@ -501,6 +536,8 @@ OverlayManagerImpl::storeConfigPeers()
 void
 OverlayManagerImpl::purgeDeadPeers()
 {
+    std::lock_guard<std::recursive_mutex> lock(mOverlayMutex);
+
     ZoneScoped;
     getPeerManager().removePeersWithManyFailures(
         Config::REALLY_DEAD_NUM_FAILURES_CUTOFF);
@@ -509,17 +546,21 @@ OverlayManagerImpl::purgeDeadPeers()
 void
 OverlayManagerImpl::triggerPeerResolution()
 {
+    std::lock_guard<std::recursive_mutex> lock(mOverlayMutex);
+
+    releaseAssert(threadIsMain());
+
     ZoneScoped;
     releaseAssert(!mResolvedPeers.valid());
 
     // Trigger DNS resolution on the background thread
     using task_t = std::packaged_task<ResolvedPeers()>;
-    std::shared_ptr<task_t> task = std::make_shared<task_t>([this]() {
+    auto const cfg = mApp.getConfig();
+    std::shared_ptr<task_t> task = std::make_shared<task_t>([this, cfg]() {
         if (!this->mShuttingDown)
         {
-            auto known = resolvePeers(this->mApp.getConfig().KNOWN_PEERS);
-            auto preferred =
-                resolvePeers(this->mApp.getConfig().PREFERRED_PEERS);
+            auto known = resolvePeers(cfg.KNOWN_PEERS);
+            auto preferred = resolvePeers(cfg.PREFERRED_PEERS);
             return ResolvedPeers{known.first, preferred.first,
                                  known.second || preferred.second};
         }
@@ -561,6 +602,8 @@ OverlayManagerImpl::resolvePeers(std::vector<string> const& peers)
 std::vector<PeerBareAddress>
 OverlayManagerImpl::getPeersToConnectTo(int maxNum, PeerType peerType)
 {
+    std::lock_guard<std::recursive_mutex> lock(mOverlayMutex);
+
     ZoneScoped;
     releaseAssert(maxNum >= 0);
     if (maxNum == 0)
@@ -582,6 +625,8 @@ OverlayManagerImpl::getPeersToConnectTo(int maxNum, PeerType peerType)
 int
 OverlayManagerImpl::connectTo(int maxNum, PeerType peerType)
 {
+    std::lock_guard<std::recursive_mutex> lock(mOverlayMutex);
+
     ZoneScoped;
     return connectTo(getPeersToConnectTo(maxNum, peerType),
                      peerType == PeerType::INBOUND);
@@ -591,6 +636,8 @@ int
 OverlayManagerImpl::connectTo(std::vector<PeerBareAddress> const& peers,
                               bool forceoutbound)
 {
+    std::lock_guard<std::recursive_mutex> lock(mOverlayMutex);
+
     ZoneScoped;
     auto count = 0;
     for (auto& address : peers)
@@ -606,6 +653,8 @@ OverlayManagerImpl::connectTo(std::vector<PeerBareAddress> const& peers,
 void
 OverlayManagerImpl::updateTimerAndMaybeDropRandomPeer(bool shouldDrop)
 {
+    std::lock_guard<std::recursive_mutex> lock(mOverlayMutex);
+
     // If we haven't heard from the network for a while, try randomly
     // disconnecting a peer in hopes of picking a better one. (preferred peers
     // aren't affected as we always want to stay connected)
@@ -663,6 +712,9 @@ OverlayManagerImpl::updateTimerAndMaybeDropRandomPeer(bool shouldDrop)
 void
 OverlayManagerImpl::tick()
 {
+    std::lock_guard<std::recursive_mutex> lock(mOverlayMutex);
+    releaseAssert(threadIsMain());
+
     ZoneScoped;
     CLOG_TRACE(Overlay, "OverlayManagerImpl tick");
 
@@ -672,6 +724,40 @@ OverlayManagerImpl::tick()
         mTimer.async_wait([this]() { this->tick(); },
                           VirtualTimer::onFailureNoop);
     });
+
+    // Cleanup unreferenced peers.
+    for (auto it = mInboundPeers.mDropped.begin();
+         it != mInboundPeers.mDropped.end();)
+    {
+        auto const& p = *it;
+        releaseAssert(p->getState() == Peer::CLOSING);
+        if (p.use_count() == 1)
+        {
+            getPeerManager().removePeersWithManyFailures(
+                Config::REALLY_DEAD_NUM_FAILURES_CUTOFF, &p->getAddress());
+            it = mInboundPeers.mDropped.erase(it);
+        }
+        else
+        {
+            ++it;
+        }
+    }
+    for (auto it = mOutboundPeers.mDropped.begin();
+         it != mOutboundPeers.mDropped.end();)
+    {
+        auto const& p = *it;
+        releaseAssert(p->getState() == Peer::CLOSING);
+        if (p.use_count() == 1)
+        {
+            getPeerManager().removePeersWithManyFailures(
+                Config::REALLY_DEAD_NUM_FAILURES_CUTOFF, &p->getAddress());
+            it = mOutboundPeers.mDropped.erase(it);
+        }
+        else
+        {
+            ++it;
+        }
+    }
 
     if (futureIsReady(mResolvedPeers))
     {
@@ -775,6 +861,8 @@ OverlayManagerImpl::tick()
 int
 OverlayManagerImpl::availableOutboundPendingSlots() const
 {
+    std::lock_guard<std::recursive_mutex> lock(mOverlayMutex);
+
     if (mOutboundPeers.mPending.size() <
         mApp.getConfig().MAX_OUTBOUND_PENDING_CONNECTIONS)
     {
@@ -791,12 +879,9 @@ OverlayManagerImpl::availableOutboundPendingSlots() const
 int
 OverlayManagerImpl::availableOutboundAuthenticatedSlots() const
 {
-    auto adjustedTarget =
-        mInboundPeers.mAuthenticated.size() == 0 &&
-                !mApp.getConfig()
-                     .ARTIFICIALLY_SKIP_CONNECTION_ADJUSTMENT_FOR_TESTING
-            ? OverlayManager::MIN_INBOUND_FACTOR
-            : mApp.getConfig().TARGET_PEER_CONNECTIONS;
+    std::lock_guard<std::recursive_mutex> lock(mOverlayMutex);
+
+    auto adjustedTarget = mApp.getConfig().TARGET_PEER_CONNECTIONS;
 
     if (mOutboundPeers.mAuthenticated.size() < adjustedTarget)
     {
@@ -812,6 +897,8 @@ OverlayManagerImpl::availableOutboundAuthenticatedSlots() const
 int
 OverlayManagerImpl::nonPreferredAuthenticatedCount() const
 {
+    std::lock_guard<std::recursive_mutex> lock(mOverlayMutex);
+
     unsigned short nonPreferredCount{0};
     for (auto const& p : mOutboundPeers.mAuthenticated)
     {
@@ -829,6 +916,8 @@ OverlayManagerImpl::nonPreferredAuthenticatedCount() const
 Peer::pointer
 OverlayManagerImpl::getConnectedPeer(PeerBareAddress const& address)
 {
+    std::lock_guard<std::recursive_mutex> lock(mOverlayMutex);
+
     auto outbound = mOutboundPeers.byAddress(address);
     return outbound ? outbound : mInboundPeers.byAddress(address);
 }
@@ -836,6 +925,8 @@ OverlayManagerImpl::getConnectedPeer(PeerBareAddress const& address)
 void
 OverlayManagerImpl::clearLedgersBelow(uint32_t ledgerSeq, uint32_t lclSeq)
 {
+    std::lock_guard<std::recursive_mutex> lock(mOverlayMutex);
+
     mFloodGate.clearBelow(ledgerSeq);
     mSurveyManager->clearOldLedgers(lclSeq);
     for (auto const& peer : getAuthenticatedPeers())
@@ -847,6 +938,8 @@ OverlayManagerImpl::clearLedgersBelow(uint32_t ledgerSeq, uint32_t lclSeq)
 void
 OverlayManagerImpl::updateSizeCounters()
 {
+    std::lock_guard<std::recursive_mutex> lock(mOverlayMutex);
+
     mOverlayMetrics.mPendingPeersSize.set_count(getPendingPeersCount());
     mOverlayMetrics.mAuthenticatedPeersSize.set_count(
         getAuthenticatedPeersCount());
@@ -855,6 +948,8 @@ OverlayManagerImpl::updateSizeCounters()
 void
 OverlayManagerImpl::maybeAddInboundConnection(Peer::pointer peer)
 {
+    std::lock_guard<std::recursive_mutex> lock(mOverlayMutex);
+
     ZoneScoped;
     mInboundPeers.mConnectionsAttempted.Mark();
 
@@ -886,6 +981,8 @@ OverlayManagerImpl::maybeAddInboundConnection(Peer::pointer peer)
 bool
 OverlayManagerImpl::isPossiblyPreferred(std::string const& ip) const
 {
+    std::lock_guard<std::recursive_mutex> lock(mOverlayMutex);
+
     return std::any_of(
         std::begin(mConfigurationPreferredPeers),
         std::end(mConfigurationPreferredPeers),
@@ -895,6 +992,8 @@ OverlayManagerImpl::isPossiblyPreferred(std::string const& ip) const
 bool
 OverlayManagerImpl::haveSpaceForConnection(std::string const& ip) const
 {
+    std::lock_guard<std::recursive_mutex> lock(mOverlayMutex);
+
     auto totalAuthenticated = getInboundAuthenticatedPeers().size();
     auto totalTracked = *getLiveInboundPeersCounter();
 
@@ -938,6 +1037,8 @@ OverlayManagerImpl::haveSpaceForConnection(std::string const& ip) const
 bool
 OverlayManagerImpl::addOutboundConnection(Peer::pointer peer)
 {
+    std::lock_guard<std::recursive_mutex> lock(mOverlayMutex);
+
     ZoneScoped;
     releaseAssert(peer->getRole() == Peer::WE_CALLED_REMOTE);
     mOutboundPeers.mConnectionsAttempted.Mark();
@@ -961,16 +1062,18 @@ OverlayManagerImpl::addOutboundConnection(Peer::pointer peer)
 void
 OverlayManagerImpl::removePeer(Peer* peer)
 {
+    std::lock_guard<std::recursive_mutex> lock(mOverlayMutex);
+
     ZoneScoped;
     getPeersList(peer).removePeer(peer);
-    getPeerManager().removePeersWithManyFailures(
-        Config::REALLY_DEAD_NUM_FAILURES_CUTOFF, &peer->getAddress());
     updateSizeCounters();
 }
 
 bool
 OverlayManagerImpl::moveToAuthenticated(Peer::pointer peer)
 {
+    std::lock_guard<std::recursive_mutex> lock(mOverlayMutex);
+
     auto result = getPeersList(peer.get()).moveToAuthenticated(peer);
     updateSizeCounters();
     return result;
@@ -979,24 +1082,32 @@ OverlayManagerImpl::moveToAuthenticated(Peer::pointer peer)
 bool
 OverlayManagerImpl::acceptAuthenticatedPeer(Peer::pointer peer)
 {
+    std::lock_guard<std::recursive_mutex> lock(mOverlayMutex);
+
     return getPeersList(peer.get()).acceptAuthenticatedPeer(peer);
 }
 
 std::vector<Peer::pointer> const&
 OverlayManagerImpl::getInboundPendingPeers() const
 {
+    std::lock_guard<std::recursive_mutex> lock(mOverlayMutex);
+
     return mInboundPeers.mPending;
 }
 
 std::vector<Peer::pointer> const&
 OverlayManagerImpl::getOutboundPendingPeers() const
 {
+    std::lock_guard<std::recursive_mutex> lock(mOverlayMutex);
+
     return mOutboundPeers.mPending;
 }
 
 std::vector<Peer::pointer>
 OverlayManagerImpl::getPendingPeers() const
 {
+    std::lock_guard<std::recursive_mutex> lock(mOverlayMutex);
+
     auto result = mOutboundPeers.mPending;
     result.insert(std::end(result), std::begin(mInboundPeers.mPending),
                   std::end(mInboundPeers.mPending));
@@ -1006,18 +1117,24 @@ OverlayManagerImpl::getPendingPeers() const
 std::map<NodeID, Peer::pointer> const&
 OverlayManagerImpl::getInboundAuthenticatedPeers() const
 {
+    std::lock_guard<std::recursive_mutex> lock(mOverlayMutex);
+
     return mInboundPeers.mAuthenticated;
 }
 
 std::map<NodeID, Peer::pointer> const&
 OverlayManagerImpl::getOutboundAuthenticatedPeers() const
 {
+    std::lock_guard<std::recursive_mutex> lock(mOverlayMutex);
+
     return mOutboundPeers.mAuthenticated;
 }
 
 std::map<NodeID, Peer::pointer>
 OverlayManagerImpl::getAuthenticatedPeers() const
 {
+    std::lock_guard<std::recursive_mutex> lock(mOverlayMutex);
+
     auto result = mOutboundPeers.mAuthenticated;
     result.insert(std::begin(mInboundPeers.mAuthenticated),
                   std::end(mInboundPeers.mAuthenticated));
@@ -1027,12 +1144,16 @@ OverlayManagerImpl::getAuthenticatedPeers() const
 std::shared_ptr<int>
 OverlayManagerImpl::getLiveInboundPeersCounter() const
 {
+    std::lock_guard<std::recursive_mutex> lock(mOverlayMutex);
+
     return mLiveInboundPeersCounter;
 }
 
 int
 OverlayManagerImpl::getPendingPeersCount() const
 {
+    std::lock_guard<std::recursive_mutex> lock(mOverlayMutex);
+
     return static_cast<int>(mInboundPeers.mPending.size() +
                             mOutboundPeers.mPending.size());
 }
@@ -1040,6 +1161,8 @@ OverlayManagerImpl::getPendingPeersCount() const
 int
 OverlayManagerImpl::getAuthenticatedPeersCount() const
 {
+    std::lock_guard<std::recursive_mutex> lock(mOverlayMutex);
+
     return static_cast<int>(mInboundPeers.mAuthenticated.size() +
                             mOutboundPeers.mAuthenticated.size());
 }
@@ -1047,6 +1170,8 @@ OverlayManagerImpl::getAuthenticatedPeersCount() const
 bool
 OverlayManagerImpl::isPreferred(Peer* peer) const
 {
+    std::lock_guard<std::recursive_mutex> lock(mOverlayMutex);
+
     std::string pstr = peer->toString();
 
     if (mConfigurationPreferredPeers.find(peer->getAddress()) !=
@@ -1071,20 +1196,25 @@ OverlayManagerImpl::isPreferred(Peer* peer) const
 }
 
 bool
-OverlayManagerImpl::isFloodMessage(StellarMessage const& msg)
+OverlayManager::isFloodMessage(StellarMessage const& msg)
 {
     return msg.type() == SCP_MESSAGE || msg.type() == TRANSACTION ||
            msg.type() == FLOOD_DEMAND || msg.type() == FLOOD_ADVERT;
 }
+
 std::vector<Peer::pointer>
 OverlayManagerImpl::getRandomAuthenticatedPeers()
 {
+    std::lock_guard<std::recursive_mutex> lock(mOverlayMutex);
+
     return getAuthenticatedPeers(true);
 }
 
 std::vector<Peer::pointer>
 OverlayManagerImpl::getAuthenticatedPeers(bool randomize)
 {
+    std::lock_guard<std::recursive_mutex> lock(mOverlayMutex);
+
     std::vector<Peer::pointer> result;
     result.reserve(mInboundPeers.mAuthenticated.size() +
                    mOutboundPeers.mAuthenticated.size());
@@ -1100,6 +1230,8 @@ OverlayManagerImpl::getAuthenticatedPeers(bool randomize)
 std::vector<Peer::pointer>
 OverlayManagerImpl::getRandomInboundAuthenticatedPeers()
 {
+    std::lock_guard<std::recursive_mutex> lock(mOverlayMutex);
+
     std::vector<Peer::pointer> result;
     result.reserve(mInboundPeers.mAuthenticated.size());
     extractPeersFromMap(mInboundPeers.mAuthenticated, result);
@@ -1110,6 +1242,8 @@ OverlayManagerImpl::getRandomInboundAuthenticatedPeers()
 std::vector<Peer::pointer>
 OverlayManagerImpl::getRandomOutboundAuthenticatedPeers()
 {
+    std::lock_guard<std::recursive_mutex> lock(mOverlayMutex);
+
     std::vector<Peer::pointer> result;
     result.reserve(mOutboundPeers.mAuthenticated.size());
     extractPeersFromMap(mOutboundPeers.mAuthenticated, result);
@@ -1122,6 +1256,8 @@ OverlayManagerImpl::extractPeersFromMap(
     std::map<NodeID, Peer::pointer> const& peerMap,
     std::vector<Peer::pointer>& result)
 {
+    std::lock_guard<std::recursive_mutex> lock(mOverlayMutex);
+
     auto extractPeer = [](std::pair<NodeID, Peer::pointer> const& peer) {
         return peer.second;
     };
@@ -1132,6 +1268,8 @@ OverlayManagerImpl::extractPeersFromMap(
 void
 OverlayManagerImpl::shufflePeerList(std::vector<Peer::pointer>& peerList)
 {
+    std::lock_guard<std::recursive_mutex> lock(mOverlayMutex);
+
     stellar::shuffle(peerList.begin(), peerList.end(), gRandomEngine);
 }
 
@@ -1139,6 +1277,8 @@ bool
 OverlayManagerImpl::recvFloodedMsgID(StellarMessage const& msg,
                                      Peer::pointer peer, Hash& msgID)
 {
+    std::lock_guard<std::recursive_mutex> lock(mOverlayMutex);
+
     ZoneScoped;
     return mFloodGate.addRecord(msg, peer, msgID);
 }
@@ -1146,6 +1286,8 @@ OverlayManagerImpl::recvFloodedMsgID(StellarMessage const& msg,
 void
 OverlayManagerImpl::forgetFloodedMsg(Hash const& msgID)
 {
+    std::lock_guard<std::recursive_mutex> lock(mOverlayMutex);
+
     ZoneScoped;
     mFloodGate.forgetRecord(msgID);
 }
@@ -1154,6 +1296,8 @@ bool
 OverlayManagerImpl::broadcastMessage(StellarMessage const& msg,
                                      std::optional<Hash> const hash)
 {
+    std::lock_guard<std::recursive_mutex> lock(mOverlayMutex);
+
     ZoneScoped;
     auto res = mFloodGate.broadcast(msg, hash);
     if (res)
@@ -1172,6 +1316,8 @@ OverlayManager::dropAll(Database& db)
 std::set<Peer::pointer>
 OverlayManagerImpl::getPeersKnows(Hash const& h)
 {
+    std::lock_guard<std::recursive_mutex> lock(mOverlayMutex);
+
     return mFloodGate.getPeersKnows(h);
 }
 
@@ -1202,15 +1348,19 @@ OverlayManagerImpl::getSurveyManager()
 void
 OverlayManagerImpl::shutdown()
 {
+    std::lock_guard<std::recursive_mutex> lock(mOverlayMutex);
+
     if (mShuttingDown)
     {
         return;
     }
-    mShuttingDown = true;
     mDoor.close();
     mFloodGate.shutdown();
     mInboundPeers.shutdown();
     mOutboundPeers.shutdown();
+
+    // TODO: this was cauing shouldAbort()
+    mShuttingDown = true;
 
     mDemandTimer.cancel();
 

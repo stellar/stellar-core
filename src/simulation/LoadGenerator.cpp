@@ -697,6 +697,7 @@ LoadGenerator::generateLoad(GeneratedLoadConfig cfg)
                 generateTx = [&]() {
                     SorobanResources resources;
                     uint32_t wasmSize{};
+                    uint32_t const keyOverhead = 40;
                     {
                         Resource maxPerTx =
                             mApp.getLedgerManager()
@@ -705,18 +706,27 @@ LoadGenerator::generateLoad(GeneratedLoadConfig cfg)
                         resources.instructions = rand_uniform<uint32_t>(
                             1, static_cast<uint32>(maxPerTx.getVal(
                                    Resource::Type::INSTRUCTIONS)));
-
-                        // Respect both contract size limit and TX write byte
-                        // limits including key overhead
-                        uint32_t const keyOverhead = 40;
-                        auto maxWasmSize =
-                            std::min(mApp.getLedgerManager()
-                                         .getSorobanNetworkConfig()
-                                         .maxContractSizeBytes(),
-                                     static_cast<uint32>(maxPerTx.getVal(
-                                         Resource::Type::WRITE_BYTES)) -
-                                         keyOverhead);
-                        wasmSize = rand_uniform<uint32_t>(1, maxWasmSize);
+                        auto const& appCfg = mApp.getConfig();
+                        if (!appCfg.LOADGEN_SOROBAN_TX_SIZE_FOR_TESTING.empty())
+                        {
+                            std::discrete_distribution<uint32> distribution(
+                                appCfg
+                                    .LOADGEN_SOROBAN_TX_SIZE_DISTRIBUTION_FOR_TESTING
+                                    .begin(),
+                                appCfg
+                                    .LOADGEN_SOROBAN_TX_SIZE_DISTRIBUTION_FOR_TESTING
+                                    .end());
+                            wasmSize =
+                                appCfg.LOADGEN_SOROBAN_TX_SIZE_FOR_TESTING
+                                    [distribution(gRandomEngine)];
+                        }
+                        else
+                        {
+                            wasmSize = rand_uniform<uint32_t>(
+                                1, mApp.getLedgerManager()
+                                       .getSorobanNetworkConfig()
+                                       .maxContractSizeBytes());
+                        }
                         resources.readBytes = rand_uniform<uint32_t>(
                             1, static_cast<uint32>(maxPerTx.getVal(
                                    Resource::Type::READ_BYTES)));

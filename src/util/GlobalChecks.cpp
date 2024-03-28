@@ -27,7 +27,7 @@ threadIsMain()
 void
 assertThreadIsMain()
 {
-    dbgAssert(threadIsMain());
+    releaseAssert(threadIsMain());
 }
 
 void

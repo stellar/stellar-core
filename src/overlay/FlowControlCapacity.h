@@ -4,7 +4,9 @@
 // under the Apache License, Version 2.0. See the COPYING file at the root
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
+#include "main/Config.h"
 #include "overlay/StellarXDR.h"
+#include <mutex>
 #include <optional>
 
 namespace stellar
@@ -12,10 +14,11 @@ namespace stellar
 
 class Application;
 
+// FlowControlCapacity is thread-safe
 class FlowControlCapacity
 {
   protected:
-    Application& mApp;
+    Config const mConfig;
 
     struct ReadingCapacity
     {
@@ -25,6 +28,7 @@ class FlowControlCapacity
 
     // Capacity of local node configured by the operator
     ReadingCapacity mCapacity;
+    mutable std::recursive_mutex mCapacityMutex;
 
     // Capacity of a connected peer
     uint64_t mOutboundCapacity{0};

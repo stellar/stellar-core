@@ -234,6 +234,9 @@ class Config : public std::enable_shared_from_this<Config>
     std::vector<unsigned short> LOADGEN_OP_COUNT_FOR_TESTING;
     std::vector<uint32> LOADGEN_OP_COUNT_DISTRIBUTION_FOR_TESTING;
 
+    std::vector<uint32> LOADGEN_SOROBAN_TX_SIZE_FOR_TESTING;
+    std::vector<uint32> LOADGEN_SOROBAN_TX_SIZE_DISTRIBUTION_FOR_TESTING;
+
     // Waits for merges to complete before applying transactions during catchup
     bool CATCHUP_WAIT_MERGES_TX_APPLY_FOR_TESTING;
 
@@ -325,6 +328,8 @@ class Config : public std::enable_shared_from_this<Config>
     // index page size == 0, value ingnored and all buckets have individual key
     // index.
     size_t EXPERIMENTAL_BUCKETLIST_DB_INDEX_CUTOFF;
+
+    bool EXPERIMENTAL_BACKGROUND_OVERLAY_PROCESSING;
 
     // When set to true, BucketListDB indexes are persisted on-disk so that the
     // BucketList does not need to be reindexed on startup. Defaults to true.

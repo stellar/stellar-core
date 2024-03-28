@@ -83,6 +83,10 @@ ApplicationImpl::ApplicationImpl(VirtualClock& clock, Config const& cfg)
     , mConfig(cfg)
     , mWorkerIOContext(mConfig.WORKER_THREADS)
     , mWork(std::make_unique<asio::io_context::work>(mWorkerIOContext))
+    // start with 1 thread for simplicity, as it avoids the need for strands
+    , mHighPriorityIOContext(1)
+    , mHighPriorityWork(
+          std::make_unique<asio::io_context::work>(mHighPriorityIOContext))
     , mWorkerThreads()
     , mStopSignals(clock.getIOContext(), SIGINT)
     , mStarted(false)
@@ -95,6 +99,8 @@ ApplicationImpl::ApplicationImpl(VirtualClock& clock, Config const& cfg)
           mMetrics->NewTimer({"app", "post-on-main-thread", "delay"}))
     , mPostOnBackgroundThreadDelay(
           mMetrics->NewTimer({"app", "post-on-background-thread", "delay"}))
+    , mPostOnOverlayThreadDelay(
+          mMetrics->NewTimer({"app", "post-on-overlay-thread", "delay"}))
     , mStartedOn(clock.system_now())
 {
 #ifdef SIGQUIT
@@ -143,6 +149,8 @@ ApplicationImpl::ApplicationImpl(VirtualClock& clock, Config const& cfg)
         }};
         mWorkerThreads.emplace_back(std::move(thread));
     }
+
+    mOverlayThread = std::thread{[this]() { mHighPriorityIOContext.run(); }};
 }
 
 static void
@@ -636,6 +644,12 @@ ApplicationImpl::~ApplicationImpl()
         {
             mBucketManager->shutdown();
         }
+        // Peers continue reading and writing in the background, so we need to
+        // issue a signal to start wrapping up
+        if (mOverlayManager)
+        {
+            mOverlayManager->shutdown();
+        }
     }
     catch (std::exception const& e)
     {
@@ -904,19 +918,27 @@ ApplicationImpl::joinAllThreads()
     {
         mWork.reset();
     }
-    LOG_DEBUG(DEFAULT_LOG, "Joining {} worker threads", mWorkerThreads.size());
+    if (mHighPriorityWork)
+    {
+        mHighPriorityWork.reset();
+    }
+
+    LOG_INFO(DEFAULT_LOG, "Joining {} worker threads", mWorkerThreads.size());
     for (auto& w : mWorkerThreads)
     {
         w.join();
     }
-    LOG_DEBUG(DEFAULT_LOG, "Joined all {} threads", mWorkerThreads.size());
+    LOG_INFO(DEFAULT_LOG, "Joining the overlay thread");
+    mOverlayThread->join();
+
+    LOG_INFO(DEFAULT_LOG, "Joined all {} threads", (mWorkerThreads.size() + 1));
 }
 
 std::string
 ApplicationImpl::manualClose(std::optional<uint32_t> const& manualLedgerSeq,
                              std::optional<TimePoint> const& manualCloseTime)
 {
-    assertThreadIsMain();
+    releaseAssert(threadIsMain());
 
     // Manual close only makes sense for validating nodes
     if (!mConfig.NODE_IS_VALIDATOR)
@@ -1378,6 +1400,12 @@ ApplicationImpl::getWorkerIOContext()
     return mWorkerIOContext;
 }
 
+asio::io_context&
+ApplicationImpl::getOverlayIOContext()
+{
+    return mHighPriorityIOContext;
+}
+
 void
 ApplicationImpl::postOnMainThread(std::function<void()>&& f, std::string&& name,
                                   Scheduler::ActionType type)
@@ -1406,6 +1434,18 @@ ApplicationImpl::postOnBackgroundThread(std::function<void()>&& f,
                             "executed after"};
     asio::post(getWorkerIOContext(), [this, f = std::move(f), isSlow]() {
         mPostOnBackgroundThreadDelay.Update(isSlow.checkElapsedTime());
+        f();
+    });
+}
+
+void
+ApplicationImpl::postOnOverlayThread(std::function<void()>&& f,
+                                     std::string jobName)
+{
+    LogSlowExecution isSlow{std::move(jobName), LogSlowExecution::Mode::MANUAL,
+                            "executed after"};
+    asio::post(mHighPriorityIOContext, [this, f = std::move(f), isSlow]() {
+        mPostOnOverlayThreadDelay.Update(isSlow.checkElapsedTime());
         f();
     });
 }
@@ -1452,7 +1492,7 @@ ApplicationImpl::createDatabase()
 AbstractLedgerTxnParent&
 ApplicationImpl::getLedgerTxnRoot()
 {
-    assertThreadIsMain();
+    releaseAssert(threadIsMain());
     return mConfig.MODE_USES_IN_MEMORY_LEDGER ? *mNeverCommittingLedgerTxn
                                               : *mLedgerTxnRoot;
 }

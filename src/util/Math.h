@@ -66,6 +66,7 @@ rand_element(std::vector<T>& v)
 // initializes all global state that depend on prngs
 // using sane default (pseudo) random values
 void initializeAllGlobalState();
+unsigned int getLastGlobalStateSeed();
 
 #ifdef BUILD_TESTS
 // This function should be called any time you need to reset stellar-core's
@@ -76,7 +77,6 @@ void initializeAllGlobalState();
 // shouldn't be resetting globals like this mid-run -- especially not things
 // like hash function keys.
 void reinitializeAllGlobalStateWithSeed(unsigned int seed);
-unsigned int getLastGlobalStateSeed();
 #endif
 
 }

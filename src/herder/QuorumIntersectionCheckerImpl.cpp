@@ -277,7 +277,7 @@ QuorumIntersectionCheckerImpl::QuorumIntersectionCheckerImpl(
     , mInterruptFlag(interruptFlag)
     , mCachedQuorums(MAX_CACHED_QUORUMS_SIZE)
 {
-    assertThreadIsMain();
+    releaseAssert(threadIsMain());
     mRand.seed(stellar::gRandomEngine());
     buildGraph(qmap);
     // Awkwardly, the graph size is zero when we initialize mTSC. Update it

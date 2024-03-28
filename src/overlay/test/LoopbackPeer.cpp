@@ -268,7 +268,7 @@ LoopbackPeer::recvMessage(xdr::msg_ptr const& msg)
             ZoneNamedN(xdrZone, "XDR deserialize", true);
             xdr::xdr_from_msg(msg, am);
         }
-        recvMessage(am);
+        recvMessage(std::move(am));
     }
     catch (xdr::xdr_runtime_error& e)
     {

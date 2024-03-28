@@ -54,6 +54,10 @@ Simulation::~Simulation()
     // kill scheduler before the io service
     testutil::shutdownWorkScheduler(*mIdleApp);
 
+    // shutdown overlay service such that it doesn't post anything to
+    // soon-to-be-dead main io service killed right below
+    mIdleApp->getOverlayManager().shutdown();
+
     // tear down main app/clock
     mClock.getIOContext().poll_one();
     mClock.getIOContext().stop();

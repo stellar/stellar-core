@@ -226,12 +226,15 @@ class Application
     // this io_context will execute in parallel with the calling thread, so use
     // with caution.
     virtual asio::io_context& getWorkerIOContext() = 0;
+    virtual asio::io_context& getOverlayIOContext() = 0;
 
     virtual void postOnMainThread(
         std::function<void()>&& f, std::string&& name,
         Scheduler::ActionType type = Scheduler::ActionType::NORMAL_ACTION) = 0;
     virtual void postOnBackgroundThread(std::function<void()>&& f,
                                         std::string jobName) = 0;
+    virtual void postOnOverlayThread(std::function<void()>&& f,
+                                     std::string jobName) = 0;
 
     // Perform actions necessary to transition from BOOTING_STATE to other
     // states. In particular: either reload or reinitialize the database, and

@@ -14,6 +14,7 @@ namespace stellar
 {
 
 class Peer;
+class OverlayManager;
 
 // The FlowControl class allows core to throttle flood traffic among its
 // connections. If a connections wants to use flow control, it should maintain
@@ -55,6 +56,7 @@ class FlowControl
     std::shared_ptr<FlowControlByteCapacity> mFlowControlBytesCapacity;
 
     Application& mApp;
+    OverlayManager& mOverlayManager;
 
     // Outbound queues indexes by priority
     // Priority 0 - SCP messages
@@ -71,7 +73,7 @@ class FlowControl
     uint64_t mFloodDataProcessedBytes{0};
     std::optional<VirtualClock::time_point> mNoOutboundCapacity;
     FlowControlMetrics mMetrics;
-    std::function<void(StellarMessage const&)> mSendCallback;
+    std::function<void(std::shared_ptr<StellarMessage>)> mSendCallback;
 
     // Release capacity used by this message. Return a struct that indicates how
     // much reading and flood capacity was freed
@@ -169,7 +171,7 @@ class FlowControl
     Json::Value getFlowControlJsonInfo(bool compact) const;
 
     void start(std::weak_ptr<Peer> peer,
-               std::function<void(StellarMessage const&)> sendCb,
+               std::function<void(std::shared_ptr<StellarMessage>)> sendCb,
                bool enableFCBytes);
 };
 

@@ -11,6 +11,7 @@
 #include "overlay/PeerBareAddress.h"
 #include "overlay/StellarXDR.h"
 #include "overlay/TxAdvertQueue.h"
+#include "transactions/TransactionFrameBase.h"
 #include "util/HashOfHash.h"
 #include "util/NonCopyable.h"
 #include "util/RandomEvictionCache.h"
@@ -127,38 +128,38 @@ class Peer : public std::enable_shared_from_this<Peer>,
     struct PeerMetrics
     {
         PeerMetrics(VirtualClock::time_point connectedTime);
-        uint64_t mMessageRead;
-        uint64_t mMessageWrite;
-        uint64_t mByteRead;
-        uint64_t mByteWrite;
-        uint64_t mAsyncRead;
-        uint64_t mAsyncWrite;
-        uint64_t mMessageDrop;
+        std::atomic<uint64_t> mMessageRead;
+        std::atomic<uint64_t> mMessageWrite;
+        std::atomic<uint64_t> mByteRead;
+        std::atomic<uint64_t> mByteWrite;
+        std::atomic<uint64_t> mAsyncRead;
+        std::atomic<uint64_t> mAsyncWrite;
+        std::atomic<uint64_t> mMessageDrop;
 
         medida::Timer mMessageDelayInWriteQueueTimer;
         medida::Timer mMessageDelayInAsyncWriteTimer;
         medida::Timer mAdvertQueueDelay;
         medida::Timer mPullLatency;
 
-        uint64_t mDemandTimeouts;
-        uint64_t mUniqueFloodBytesRecv;
-        uint64_t mDuplicateFloodBytesRecv;
-        uint64_t mUniqueFetchBytesRecv;
-        uint64_t mDuplicateFetchBytesRecv;
+        std::atomic<uint64_t> mDemandTimeouts;
+        std::atomic<uint64_t> mUniqueFloodBytesRecv;
+        std::atomic<uint64_t> mDuplicateFloodBytesRecv;
+        std::atomic<uint64_t> mUniqueFetchBytesRecv;
+        std::atomic<uint64_t> mDuplicateFetchBytesRecv;
 
-        uint64_t mUniqueFloodMessageRecv;
-        uint64_t mDuplicateFloodMessageRecv;
-        uint64_t mUniqueFetchMessageRecv;
-        uint64_t mDuplicateFetchMessageRecv;
+        std::atomic<uint64_t> mUniqueFloodMessageRecv;
+        std::atomic<uint64_t> mDuplicateFloodMessageRecv;
+        std::atomic<uint64_t> mUniqueFetchMessageRecv;
+        std::atomic<uint64_t> mDuplicateFetchMessageRecv;
 
-        uint64_t mTxHashReceived;
-        uint64_t mTxDemandSent;
+        std::atomic<uint64_t> mTxHashReceived;
+        std::atomic<uint64_t> mTxDemandSent;
 
-        VirtualClock::time_point mConnectedTime;
+        std::atomic<VirtualClock::time_point> mConnectedTime;
 
-        uint64_t mMessagesFulfilled;
-        uint64_t mBannedMessageUnfulfilled;
-        uint64_t mUnknownMessageUnfulfilled;
+        std::atomic<uint64_t> mMessagesFulfilled;
+        std::atomic<uint64_t> mBannedMessageUnfulfilled;
+        std::atomic<uint64_t> mUnknownMessageUnfulfilled;
     };
 
     struct TimestampedMessage
@@ -179,9 +180,11 @@ class Peer : public std::enable_shared_from_this<Peer>,
 
   protected:
     Application& mApp;
+    OverlayManager& mOverlayManager;
+    Config const mConfig;
 
     PeerRole mRole;
-    PeerState mState;
+    std::atomic<PeerState> mState;
     NodeID mPeerID;
     uint256 mSendNonce;
     uint256 mRecvNonce;
@@ -192,12 +195,13 @@ class Peer : public std::enable_shared_from_this<Peer>,
     {
         std::weak_ptr<Peer> mWeakPeer;
         StellarMessage mMsg;
+        bool mFinished{false};
 
       public:
         MsgCapacityTracker(std::weak_ptr<Peer> peer, StellarMessage const& msg);
-        ~MsgCapacityTracker();
         StellarMessage const& getMessage();
         std::weak_ptr<Peer> getPeer();
+        void finish();
     };
 
     // Is this peer currently throttled due to lack of capacity
@@ -205,6 +209,12 @@ class Peer : public std::enable_shared_from_this<Peer>,
 
     // Does local node have capacity to read from this peer
     bool canRead() const;
+
+    virtual bool
+    useBackgroundThread() const
+    {
+        return mConfig.EXPERIMENTAL_BACKGROUND_OVERLAY_PROCESSING;
+    }
 
     HmacSha256Key mSendMacKey;
     HmacSha256Key mRecvMacKey;
@@ -221,9 +231,9 @@ class Peer : public std::enable_shared_from_this<Peer>,
     VirtualTimer mRecurringTimer;
     VirtualTimer mDelayedExecutionTimer;
 
-    VirtualClock::time_point mLastRead;
-    VirtualClock::time_point mLastWrite;
-    VirtualClock::time_point mEnqueueTimeOfLastWrite;
+    std::atomic<VirtualClock::time_point> mLastRead;
+    std::atomic<VirtualClock::time_point> mLastWrite;
+    std::atomic<VirtualClock::time_point> mEnqueueTimeOfLastWrite;
 
     static Hash pingIDfromTimePoint(VirtualClock::time_point const& tp);
     void pingPeer();
@@ -232,13 +242,17 @@ class Peer : public std::enable_shared_from_this<Peer>,
     std::chrono::milliseconds mLastPing;
 
     PeerMetrics mPeerMetrics;
+    OverlayMetrics& mOverlayMetrics;
 
     OverlayMetrics& getOverlayMetrics();
 
     bool shouldAbort() const;
-    void recvRawMessage(StellarMessage const& msg);
-    void recvMessage(StellarMessage const& msg);
-    void recvMessage(AuthenticatedMessage const& msg);
+    void recvRawMessage(StellarMessage const& msg,
+                        TransactionFrameBasePtr tx = nullptr);
+    void recvMessage(StellarMessage const& stellarMsg,
+                     std::shared_ptr<MsgCapacityTracker> msgTracker,
+                     TransactionFrameBasePtr tx = nullptr);
+    void recvMessage(AuthenticatedMessage&& msg);
 
     virtual void recvError(StellarMessage const& msg);
     void updatePeerRecordAfterEcho();
@@ -255,7 +269,8 @@ class Peer : public std::enable_shared_from_this<Peer>,
     void recvGetTxSet(StellarMessage const& msg);
     void recvTxSet(StellarMessage const& msg);
     void recvGeneralizedTxSet(StellarMessage const& msg);
-    void recvTransaction(StellarMessage const& msg);
+    void recvTransaction(StellarMessage const& msg,
+                         TransactionFrameBasePtr tx = nullptr);
     void recvGetSCPQuorumSet(StellarMessage const& msg);
     void recvSCPQuorumSet(StellarMessage const& msg);
     void recvSCPMessage(StellarMessage const& msg);
@@ -283,11 +298,6 @@ class Peer : public std::enable_shared_from_this<Peer>,
     connected()
     {
     }
-    virtual bool
-    sendQueueIsOverloaded() const
-    {
-        return false;
-    }
 
     virtual AuthCert getAuthCert();
 
@@ -299,7 +309,7 @@ class Peer : public std::enable_shared_from_this<Peer>,
     // helper method to acknownledge that some bytes were received
     void receivedBytes(size_t byteCount, bool gotFullMessage);
 
-    void sendAuthenticatedMessage(StellarMessage const& msg);
+    void sendAuthenticatedMessage(std::shared_ptr<StellarMessage const> msg);
     void beginMessageProcessing(StellarMessage const& msg);
     void endMessageProcessing(StellarMessage const& msg);
     TxAdvertQueue mTxAdvertQueue;
@@ -327,7 +337,7 @@ class Peer : public std::enable_shared_from_this<Peer>,
         return mApp;
     }
 
-    void shutdown();
+    virtual void shutdown();
     void clearBelow(uint32_t ledgerSeq);
 
     std::string msgSummary(StellarMessage const& stellarMsg);

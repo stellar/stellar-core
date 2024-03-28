@@ -383,7 +383,7 @@ SurveyManager::populatePeerStats(std::vector<Peer::pointer> const& peers,
 
         stats.secondsConnected =
             std::chrono::duration_cast<std::chrono::seconds>(
-                now - peerMetrics.mConnectedTime)
+                now - peerMetrics.mConnectedTime.load())
                 .count();
 
         results.emplace_back(stats);

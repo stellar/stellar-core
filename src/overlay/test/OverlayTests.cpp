@@ -9,6 +9,7 @@
 #include "main/Config.h"
 #include "overlay/BanManager.h"
 #include "overlay/OverlayManagerImpl.h"
+#include "overlay/Peer.h"
 #include "overlay/PeerManager.h"
 #include "overlay/TCPPeer.h"
 #include "overlay/test/LoopbackPeer.h"
@@ -252,8 +253,10 @@ TEST_CASE("flow control byte capacity", "[overlay][flowcontrol]")
                         ->getCapacityBytes()
                         ->getOutboundCapacity() == expectedCapacity);
             REQUIRE(conn.getInitiator()->getTxQueueByteCount() == 0);
-
-            conn.getAcceptor()->recvMessage(tx1);
+            auto msgTracker =
+                std::make_shared<LoopbackPeer::MsgCapacityTracker>(
+                    conn.getAcceptor(), tx1);
+            conn.getAcceptor()->recvMessage(tx1, msgTracker);
             REQUIRE(conn.getAcceptor()
                         ->getFlowControl()
                         ->getCapacityBytes()
@@ -807,8 +810,10 @@ TEST_CASE("drop peers that dont respect capacity", "[overlay][flowcontrol]")
         REQUIRE(conn.getAcceptor()->isAuthenticated());
 
         // Acceptor sends too many flood messages, causing initiator to drop it
-        conn.getAcceptor()->sendAuthenticatedMessage(msg);
-        conn.getAcceptor()->sendAuthenticatedMessage(msg);
+        conn.getAcceptor()->sendAuthenticatedMessage(
+            std::make_shared<StellarMessage>(msg));
+        conn.getAcceptor()->sendAuthenticatedMessage(
+            std::make_shared<StellarMessage>(msg));
         testutil::crankSome(clock);
 
         REQUIRE(!conn.getInitiator()->isConnected());

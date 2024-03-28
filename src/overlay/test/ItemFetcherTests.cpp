@@ -269,7 +269,7 @@ TEST_CASE("ItemFetcher fetches", "[overlay][ItemFetcher]")
                     }
                 };
 
-                crankFor(Tracker::MS_TO_WAIT_FOR_FETCH_REPLY * 2);
+                crankFor(Tracker::MS_TO_WAIT_FOR_FETCH_REPLY * 3);
 
                 REQUIRE(asked.size() == 2);
 

@@ -63,6 +63,10 @@ class OverlayManagerImpl : public OverlayManager
 
         std::vector<Peer::pointer> mPending;
         std::map<NodeID, Peer::pointer> mAuthenticated;
+        // TODO: keep dropped peers alive, just so overlay thread can still
+        // safely perform delayed shutdown, etc; when overlay thread is done and
+        // main is the only user left, release all refeences
+        std::unordered_set<Peer::pointer> mDropped;
 
         Peer::pointer byAddress(PeerBareAddress const& address) const;
         void removePeer(Peer* peer);
@@ -75,13 +79,14 @@ class OverlayManagerImpl : public OverlayManager
     PeersList mOutboundPeers;
 
     std::shared_ptr<int> mLiveInboundPeersCounter;
+    mutable std::recursive_mutex mOverlayMutex;
 
     PeersList& getPeersList(Peer* peer);
 
     PeerManager mPeerManager;
     PeerDoor mDoor;
     PeerAuth mAuth;
-    bool mShuttingDown;
+    std::atomic<bool> mShuttingDown;
 
     OverlayMetrics mOverlayMetrics;
 
@@ -151,7 +156,6 @@ class OverlayManagerImpl : public OverlayManager
 
     bool acceptAuthenticatedPeer(Peer::pointer peer) override;
     bool isPreferred(Peer* peer) const override;
-    bool isFloodMessage(StellarMessage const& msg) override;
     std::vector<Peer::pointer> const& getInboundPendingPeers() const override;
     std::vector<Peer::pointer> const& getOutboundPendingPeers() const override;
     std::vector<Peer::pointer> getPendingPeers() const override;
@@ -244,5 +248,11 @@ class OverlayManagerImpl : public OverlayManager
     // Returns `true` iff the overlay can accept the outbound peer at `address`.
     // Logs whenever a peer cannot be accepted.
     bool canAcceptOutboundPeer(PeerBareAddress const& address) const;
+
+    virtual std::recursive_mutex&
+    getOverlayManagerMutex() override
+    {
+        return mOverlayMutex;
+    }
 };
 }

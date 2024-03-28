@@ -7,8 +7,10 @@
 #include "BanManager.h"
 #include "crypto/CryptoError.h"
 #include "crypto/Hex.h"
+#include "crypto/KeyUtils.h"
 #include "crypto/Random.h"
 #include "crypto/SHA.h"
+#include "crypto/SignerKey.h"
 #include "database/Database.h"
 #include "herder/Herder.h"
 #include "herder/TxSetFrame.h"
@@ -27,6 +29,7 @@
 #include "util/Logging.h"
 #include "util/ProtocolVersion.h"
 #include "util/XDROperators.h"
+#include "util/finally.h"
 
 #include "herder/HerderUtils.h"
 #include "medida/meter.h"
@@ -55,6 +58,7 @@ static constexpr VirtualClock::time_point PING_NOT_SENT =
 
 Peer::Peer(Application& app, PeerRole role)
     : mApp(app)
+    , mOverlayManager(app.getOverlayManager())
     , mRole(role)
     , mState(role == WE_CALLED_REMOTE ? CONNECTING : CONNECTED)
     , mFlowControl(std::make_shared<FlowControl>(mApp))
@@ -70,6 +74,8 @@ Peer::Peer(Application& app, PeerRole role)
     , mTxAdvertQueue(app)
     , mAdvertTimer(app)
     , mAdvertHistory(ADVERT_CACHE_SIZE)
+    , mOverlayMetrics(app.getOverlayManager().getOverlayMetrics())
+    , mConfig(app.getConfig())
 {
     mPingSentTime = PING_NOT_SENT;
     mLastPing = std::chrono::hours(24); // some default very high value
@@ -101,12 +107,15 @@ Peer::MsgCapacityTracker::MsgCapacityTracker(std::weak_ptr<Peer> peer,
     self->beginMessageProcessing(mMsg);
 }
 
-Peer::MsgCapacityTracker::~MsgCapacityTracker()
+void
+Peer::MsgCapacityTracker::finish()
 {
+    releaseAssert(!mFinished);
     auto self = mWeakPeer.lock();
     if (self)
     {
         self->endMessageProcessing(mMsg);
+        mFinished = true;
     }
 }
 
@@ -130,14 +139,13 @@ Peer::sendHello()
     StellarMessage msg;
     msg.type(HELLO);
     Hello& elo = msg.hello();
-    auto& cfg = mApp.getConfig();
-    elo.ledgerVersion = cfg.LEDGER_PROTOCOL_VERSION;
-    elo.overlayMinVersion = cfg.OVERLAY_PROTOCOL_MIN_VERSION;
-    elo.overlayVersion = cfg.OVERLAY_PROTOCOL_VERSION;
-    elo.versionStr = cfg.VERSION_STR;
+    elo.ledgerVersion = mConfig.LEDGER_PROTOCOL_VERSION;
+    elo.overlayMinVersion = mConfig.OVERLAY_PROTOCOL_MIN_VERSION;
+    elo.overlayVersion = mConfig.OVERLAY_PROTOCOL_VERSION;
+    elo.versionStr = mConfig.VERSION_STR;
     elo.networkID = mApp.getNetworkID();
-    elo.listeningPort = cfg.PEER_PORT;
-    elo.peerID = cfg.NODE_SEED.getPublicKey();
+    elo.listeningPort = mConfig.PEER_PORT;
+    elo.peerID = mConfig.NODE_SEED.getPublicKey();
     elo.cert = this->getAuthCert();
     elo.nonce = mSendNonce;
 
@@ -166,10 +174,13 @@ Peer::endMessageProcessing(StellarMessage const& msg)
         return;
     }
 
+    releaseAssert(threadIsMain());
     releaseAssert(mFlowControl);
     mFlowControl->endMessageProcessing(msg, shared_from_this());
 
-    releaseAssert(canRead());
+    // We may release reading capacity, which gets taken by the background
+    // thread immediately, so we can't assert `canRead` here
+
     if (mLastThrottle)
     {
         CLOG_DEBUG(Overlay, "Stop throttling reading from peer {}",
@@ -177,7 +188,23 @@ Peer::endMessageProcessing(StellarMessage const& msg)
         getOverlayMetrics().mConnectionReadThrottle.Update(
             mApp.getClock().now() - *mLastThrottle);
         mLastThrottle.reset();
-        scheduleRead();
+        if (useBackgroundThread())
+        {
+            std::weak_ptr<Peer> weak = shared_from_this();
+            mApp.postOnOverlayThread(
+                [weak]() {
+                    auto self = weak.lock();
+                    if (self)
+                    {
+                        self->scheduleRead();
+                    }
+                },
+                "Peer::endMessageProcessing scheduleRead");
+        }
+        else
+        {
+            scheduleRead();
+        }
     }
 }
 
@@ -190,7 +217,7 @@ Peer::getAuthCert()
 OverlayMetrics&
 Peer::getOverlayMetrics()
 {
-    return mApp.getOverlayManager().getOverlayMetrics();
+    return mOverlayMetrics;
 }
 
 std::chrono::seconds
@@ -232,6 +259,8 @@ Peer::receivedBytes(size_t byteCount, bool gotFullMessage)
 void
 Peer::startRecurrentTimer()
 {
+    releaseAssert(threadIsMain());
+
     constexpr std::chrono::seconds RECURRENT_TIMER_PERIOD(5);
 
     if (shouldAbort())
@@ -251,13 +280,16 @@ Peer::startRecurrentTimer()
 void
 Peer::recurrentTimerExpired(asio::error_code const& error)
 {
+    releaseAssert(threadIsMain());
+
     if (!error)
     {
         auto now = mApp.getClock().now();
         auto timeout = getIOTimeout();
         auto stragglerTimeout =
             std::chrono::seconds(mApp.getConfig().PEER_STRAGGLER_TIMEOUT);
-        if (((now - mLastRead) >= timeout) && ((now - mLastWrite) >= timeout))
+        if (((now - mLastRead.load()) >= timeout) &&
+            ((now - mLastWrite.load()) >= timeout))
         {
             getOverlayMetrics().mTimeoutIdle.Mark();
             drop("idle timeout", Peer::DropDirection::WE_DROPPED_REMOTE,
@@ -271,7 +303,7 @@ Peer::recurrentTimerExpired(asio::error_code const& error)
                  Peer::DropDirection::WE_DROPPED_REMOTE,
                  Peer::DropMode::IGNORE_WRITE_QUEUE);
         }
-        else if (((now - mEnqueueTimeOfLastWrite) >= stragglerTimeout))
+        else if (((now - mEnqueueTimeOfLastWrite.load()) >= stragglerTimeout))
         {
             getOverlayMetrics().mTimeoutStraggler.Mark();
             drop("straggling (cannot keep up)",
@@ -355,6 +387,8 @@ Peer::getJsonInfo(bool compact) const
 void
 Peer::sendAuth()
 {
+    releaseAssert(threadIsMain());
+
     ZoneScoped;
     StellarMessage msg;
     msg.type(AUTH);
@@ -375,6 +409,8 @@ Peer::toString()
 void
 Peer::shutdown()
 {
+    releaseAssert(threadIsMain());
+
     if (mShuttingDown)
     {
         return;
@@ -388,6 +424,10 @@ Peer::shutdown()
 void
 Peer::connectHandler(asio::error_code const& error)
 {
+    // Thread-safe
+    std::lock_guard<std::recursive_mutex> guard(
+        mOverlayManager.getOverlayManagerMutex());
+
     if (error)
     {
         drop("unable to connect: " + error.message(),
@@ -396,10 +436,13 @@ Peer::connectHandler(asio::error_code const& error)
     }
     else
     {
-        CLOG_DEBUG(Overlay, "Connected to {}", toString());
+        CLOG_DEBUG(Overlay, "Async connect to {}", toString());
         connected();
         mState = CONNECTED;
-        sendHello();
+        // Always send auth from main thread
+        mApp.postOnMainThread(
+            [self = shared_from_this()]() { self->sendHello(); },
+            "Peer::connectHandler sendHello");
     }
 }
 
@@ -513,7 +556,9 @@ Peer::sendErrorAndDrop(ErrorCode error, std::string const& message,
                        DropMode dropMode)
 {
     ZoneScoped;
+    releaseAssert(threadIsMain());
     sendError(error, message);
+    // TODO: flush write queue drop mode doesn't work
     drop(message, DropDirection::WE_DROPPED_REMOTE, dropMode);
 }
 
@@ -598,24 +643,12 @@ void
 Peer::sendMessage(std::shared_ptr<StellarMessage const> msg, bool log)
 {
     ZoneScoped;
-    CLOG_TRACE(Overlay, "send: {} to : {}", msgSummary(*msg),
-               mApp.getConfig().toShortString(mPeerID));
-
-    // There are really _two_ layers of queues, one in Scheduler for actions
-    // and one in Peer (and its subclasses) for outgoing writes. We enforce
-    // a similar load-shedding discipline here as in Scheduler: if there is
-    // more than the scheduler latency-window worth of material in the write
-    // queue, and we're being asked to add messages that are being generated
-    // _from_ a droppable action, we drop the message rather than enqueue
-    // it. This avoids growing our queues indefinitely.
-    if (mApp.getClock().currentSchedulerActionType() ==
-            Scheduler::ActionType::DROPPABLE_ACTION &&
-        sendQueueIsOverloaded())
+    if (shouldAbort())
     {
-        getOverlayMetrics().mMessageDrop.Mark();
-        mPeerMetrics.mMessageDrop++;
         return;
     }
+    CLOG_TRACE(Overlay, "send: {} to : {}", msgSummary(*msg),
+               mApp.getConfig().toShortString(mPeerID));
 
     switch (msg->type())
     {
@@ -681,29 +714,45 @@ Peer::sendMessage(std::shared_ptr<StellarMessage const> msg, bool log)
     if (!mFlowControl->maybeSendMessage(msg))
     {
         // Outgoing message is not flow-controlled, send it directly
-        sendAuthenticatedMessage(*msg);
+        sendAuthenticatedMessage(msg);
     }
 }
 
 void
-Peer::sendAuthenticatedMessage(StellarMessage const& msg)
+Peer::sendAuthenticatedMessage(std::shared_ptr<StellarMessage const> msg)
 {
-    AuthenticatedMessage amsg;
-    amsg.v0().message = msg;
-    if (msg.type() != HELLO && msg.type() != ERROR_MSG)
+    auto cb = [weak = std::weak_ptr<Peer>(shared_from_this()), msg]() {
+        auto self = weak.lock();
+        if (self)
+        {
+            AuthenticatedMessage amsg;
+            amsg.v0().message = *msg;
+            if (msg->type() != HELLO && msg->type() != ERROR_MSG)
+            {
+                ZoneNamedN(hmacZone, "message HMAC", true);
+                amsg.v0().sequence = self->mSendMacSeq;
+                amsg.v0().mac =
+                    hmacSha256(self->mSendMacKey,
+                               xdr::xdr_to_opaque(self->mSendMacSeq, *msg));
+                self->mSendMacSeq++;
+            }
+            xdr::msg_ptr xdrBytes;
+            {
+                ZoneNamedN(xdrZone, "XDR serialize", true);
+                xdrBytes = xdr::xdr_to_msg(amsg);
+            }
+            self->sendMessage(std::move(xdrBytes));
+        }
+    };
+
+    if (useBackgroundThread())
     {
-        ZoneNamedN(hmacZone, "message HMAC", true);
-        amsg.v0().sequence = mSendMacSeq;
-        amsg.v0().mac =
-            hmacSha256(mSendMacKey, xdr::xdr_to_opaque(mSendMacSeq, msg));
-        ++mSendMacSeq;
+        mApp.postOnOverlayThread(cb, "sendAuthenticatedMessage");
     }
-    xdr::msg_ptr xdrBytes;
+    else
     {
-        ZoneNamedN(xdrZone, "XDR serialize", true);
-        xdrBytes = xdr::xdr_to_msg(amsg);
+        cb();
     }
-    this->sendMessage(std::move(xdrBytes));
 }
 
 bool
@@ -728,13 +777,15 @@ Peer::getLifeTime() const
 bool
 Peer::shouldAbort() const
 {
-    return (mState == CLOSING) || mApp.getOverlayManager().isShuttingDown();
+    return mState == CLOSING || mOverlayManager.isShuttingDown();
 }
 
 void
-Peer::recvMessage(AuthenticatedMessage const& msg)
+Peer::recvMessage(AuthenticatedMessage&& msg)
 {
     ZoneScoped;
+    releaseAssert(!threadIsMain() || !useBackgroundThread());
+
     if (shouldAbort())
     {
         return;
@@ -761,15 +812,51 @@ Peer::recvMessage(AuthenticatedMessage const& msg)
         }
         ++mRecvMacSeq;
     }
-    recvMessage(msg.v0().message);
+
+    // Populate signature cache in the background
+    if (msg.v0().message.type() == SCP_MESSAGE)
+    {
+        auto& envelope = msg.v0().message.envelope();
+        PubKeyUtils::verifySig(envelope.statement.nodeID, envelope.signature,
+                               xdr::xdr_to_opaque(mApp.getNetworkID(),
+                                                  ENVELOPE_TYPE_SCP,
+                                                  envelope.statement));
+    }
+
+    // TODO: when snapshots are available, additionally check signatures. For
+    // now, create tx frame and cache hashes
+    TransactionFrameBasePtr tx;
+    if (msg.v0().message.type() == TRANSACTION)
+    {
+        tx = TransactionFrameBase::makeTransactionFromWire(
+            mApp.getNetworkID(), msg.v0().message.transaction());
+        CLOG_TRACE(Overlay, "recvMessage: transaction: {} {}",
+                   hexAbbrev(tx->getFullHash()),
+                   hexAbbrev(tx->getContentsHash()));
+    }
+
+    // Start tracking capacity here, so read throttling is applied appropriately
+    // Flow control might not be started at that time
+    auto msgTracker = std::make_shared<MsgCapacityTracker>(shared_from_this(),
+                                                           msg.v0().message);
+
+    auto f = [this, msg = msg.v0().message, tx, msgTracker]() {
+        this->recvMessage(msg, msgTracker, tx);
+    };
+
+    getApp().postOnMainThread(f, "recvMessage");
 }
 
 void
-Peer::recvMessage(StellarMessage const& stellarMsg)
+Peer::recvMessage(StellarMessage const& stellarMsg,
+                  std::shared_ptr<MsgCapacityTracker> msgTracker,
+                  TransactionFrameBasePtr tx)
 {
     ZoneScoped;
+    releaseAssert(threadIsMain());
     if (shouldAbort())
     {
+        msgTracker->finish();
         return;
     }
 
@@ -783,6 +870,7 @@ Peer::recvMessage(StellarMessage const& stellarMsg)
     case HELLO:
     case AUTH:
         Peer::recvRawMessage(stellarMsg);
+        msgTracker->finish();
         return;
     // control messages
     case GET_PEERS:
@@ -824,18 +912,20 @@ Peer::recvMessage(StellarMessage const& stellarMsg)
         cat = "MISC";
     }
 
-    std::weak_ptr<Peer> weak = shared_from_this();
-    auto msgTracker = std::make_shared<MsgCapacityTracker>(weak, stellarMsg);
-
     if (!mApp.getLedgerManager().isSynced() && ignoreIfOutOfSync)
     {
         // For transactions, exit early during the state rebuild, as we
         // can't properly verify them
+        msgTracker->finish();
         return;
     }
 
+    // Regardless, time to clean up msgTracker
     mApp.postOnMainThread(
-        [msgTracker, cat, port = mApp.getConfig().PEER_PORT]() {
+        [msgTracker, cat, tx]() {
+            auto cleanup =
+                gsl::finally([msgTracker]() { msgTracker->finish(); });
+
             auto self = msgTracker->getPeer().lock();
             if (!self)
             {
@@ -846,14 +936,14 @@ Peer::recvMessage(StellarMessage const& stellarMsg)
 
             try
             {
-                self->recvRawMessage(msgTracker->getMessage());
+                self->recvRawMessage(msgTracker->getMessage(), tx);
             }
             catch (CryptoError const& e)
             {
                 std::string err = fmt::format(
                     FMT_STRING("Error RecvMessage T:{} cat:{} {} @{:d}"),
                     msgTracker->getMessage().type(), cat, self->toString(),
-                    port);
+                    self->getApp().getConfig().PEER_PORT);
                 CLOG_ERROR(Overlay, "Dropping connection with {}: {}", err,
                            e.what());
                 self->drop("Bad crypto request",
@@ -872,9 +962,12 @@ Peer::recvSendMore(StellarMessage const& msg)
 }
 
 void
-Peer::recvRawMessage(StellarMessage const& stellarMsg)
+Peer::recvRawMessage(StellarMessage const& stellarMsg,
+                     TransactionFrameBasePtr tx)
 {
     ZoneScoped;
+    releaseAssert(threadIsMain());
+
     auto peerStr = toString();
     ZoneText(peerStr.c_str(), peerStr.size());
 
@@ -980,7 +1073,7 @@ Peer::recvRawMessage(StellarMessage const& stellarMsg)
     case TRANSACTION:
     {
         auto t = getOverlayMetrics().mRecvTransactionTimer.TimeScope();
-        recvTransaction(stellarMsg);
+        recvTransaction(stellarMsg, tx);
     }
     break;
 
@@ -1108,11 +1201,12 @@ Peer::recvGeneralizedTxSet(StellarMessage const& msg)
 }
 
 void
-Peer::recvTransaction(StellarMessage const& msg)
+Peer::recvTransaction(StellarMessage const& msg, TransactionFrameBasePtr tx)
 {
     ZoneScoped;
-    auto transaction = TransactionFrameBase::makeTransactionFromWire(
-        mApp.getNetworkID(), msg.transaction());
+    auto transaction = tx ? tx
+                          : TransactionFrameBase::makeTransactionFromWire(
+                                mApp.getNetworkID(), msg.transaction());
     if (transaction)
     {
         // record that this peer sent us this transaction
@@ -1375,6 +1469,9 @@ void
 Peer::recvHello(Hello const& elo)
 {
     ZoneScoped;
+    std::lock_guard<std::recursive_mutex> guard(
+        mOverlayManager.getOverlayManagerMutex());
+
     if (mState >= GOT_HELLO)
     {
         drop("received unexpected HELLO",
@@ -1524,6 +1621,10 @@ void
 Peer::recvAuth(StellarMessage const& msg)
 {
     ZoneScoped;
+    releaseAssert(threadIsMain());
+    std::lock_guard<std::recursive_mutex> guard(
+        mOverlayManager.getOverlayManagerMutex());
+
     if (mState != GOT_HELLO)
     {
         sendErrorAndDrop(ERR_MISC, "out-of-order AUTH message",
@@ -1559,7 +1660,7 @@ Peer::recvAuth(StellarMessage const& msg)
     // Subtle: after successful auth, must send sendMore message first to
     // tell the other peer about the local node's reading capacity.
     auto weakSelf = std::weak_ptr<Peer>(self);
-    auto sendCb = [weakSelf](StellarMessage const& msg) {
+    auto sendCb = [weakSelf](std::shared_ptr<StellarMessage> msg) {
         auto self = weakSelf.lock();
         if (self)
         {

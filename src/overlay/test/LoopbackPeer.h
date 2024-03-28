@@ -113,6 +113,12 @@ class LoopbackPeer : public Peer
 
     void clearInAndOutQueues();
 
+    virtual bool
+    useBackgroundThread() const override
+    {
+        return false;
+    }
+
     size_t
     getTxQueueByteCount() const
     {
@@ -141,6 +147,7 @@ class LoopbackPeer : public Peer
 
     std::string getIP() const override;
 
+    using Peer::MsgCapacityTracker;
     using Peer::recvMessage;
     using Peer::sendAuth;
     using Peer::sendAuthenticatedMessage;
