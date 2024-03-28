@@ -919,7 +919,9 @@ TransactionFrame::consumeRefundableSorobanResources(
     consumedContractEventsSizeBytes += contractEventSizeBytes;
 
     auto& consumedRentFee = mSorobanExtension->mConsumedRentFee;
+    auto& consumedRefundableFee = mSorobanExtension->mConsumedRefundableFee;
     consumedRentFee += rentFee;
+    consumedRefundableFee += rentFee;
 
     // mFeeRefund was set in apply
     auto& feeRefund = mSorobanExtension->mFeeRefund;
@@ -939,6 +941,7 @@ TransactionFrame::consumeRefundableSorobanResources(
         static_cast<uint32>(
             getResources(false).getVal(Resource::Type::TX_BYTE_SIZE)),
         consumedContractEventsSizeBytes, sorobanConfig, cfg);
+    consumedRefundableFee += consumedFee.refundable_fee;
     if (feeRefund < consumedFee.refundable_fee)
     {
         pushApplyTimeDiagnosticError(
@@ -1757,6 +1760,10 @@ TransactionFrame::applyOperations(SignatureChecker& signatureChecker,
                     std::move(mSorobanExtension->mDiagnosticEvents));
                 outerMeta.setReturnValue(
                     std::move(mSorobanExtension->mReturnValue));
+                outerMeta.setSorobanFeeInfo(
+                    mSorobanExtension->mConsumedNonRefundableFee,
+                    mSorobanExtension->mConsumedRefundableFee,
+                    mSorobanExtension->mConsumedRentFee);
             }
         }
         else
@@ -1777,6 +1784,10 @@ TransactionFrame::applyOperations(SignatureChecker& signatureChecker,
                                                 preApplyFee.non_refundable_fee;
                 outerMeta.pushDiagnosticEvents(
                     std::move(mSorobanExtension->mDiagnosticEvents));
+                outerMeta.setSorobanFeeInfo(
+                    mSorobanExtension->mConsumedNonRefundableFee,
+                    /* totalRefundableFeeSpent */ 0,
+                    /* rentFeeCharged */ 0);
             }
         }
         return success;
@@ -1873,7 +1884,8 @@ TransactionFrame::apply(Application& app, AbstractLedgerTxn& ltx,
             sorobanResourceFee = computePreApplySorobanResourceFee(
                 ledgerVersion, app.getLedgerManager().getSorobanNetworkConfig(),
                 app.getConfig());
-
+            mSorobanExtension->mConsumedNonRefundableFee =
+                sorobanResourceFee->non_refundable_fee;
             mSorobanExtension->mFeeRefund =
                 declaredSorobanResourceFee() -
                 sorobanResourceFee->non_refundable_fee;

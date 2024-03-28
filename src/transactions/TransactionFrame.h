@@ -61,8 +61,10 @@ class TransactionFrame : public TransactionFrameBase
         SCVal mReturnValue;
         // Size of the emitted Soroban events.
         uint32_t mConsumedContractEventsSizeBytes{};
-        int64_t mConsumedRentFee{};
         int64_t mFeeRefund{};
+        int64_t mConsumedNonRefundableFee{};
+        int64_t mConsumedRentFee{};
+        int64_t mConsumedRefundableFee{};
         SorobanData()
         {
         }
