@@ -1544,6 +1544,14 @@ LedgerManagerImpl::applyTransactions(
             storeTransaction(mApp.getDatabase(), ledgerSeq, tx, tm.getXDR(),
                              txResultSet);
         }
+        else if (mApp.getConfig().MODE_STORES_HISTORY_MINIMAL)
+        {
+            auto ledgerSeq = ltx.loadHeader().current().ledgerSeq;
+            TransactionMetaFrame emptyTM(
+                ltx.loadHeader().current().ledgerVersion);
+            storeTransaction(mApp.getDatabase(), ledgerSeq, tx,
+                             emptyTM.getXDR(), txResultSet);
+        }
     }
 
     mTransactionApplySucceeded.inc(txSucceeded);
