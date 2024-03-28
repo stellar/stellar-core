@@ -84,7 +84,7 @@ class SorobanMetrics
 
     // `NetworkConfig` metrics
     medida::Counter& mConfigContractDataKeySizeBytes;
-    medida::Counter& mConfigMacContractDataEntrySizeBytes;
+    medida::Counter& mConfigMaxContractDataEntrySizeBytes;
     medida::Counter& mConfigMaxContractSizeBytes;
     medida::Counter& mConfigTxMaxSizeByte;
     medida::Counter& mConfigTxMaxCpuInsn;
