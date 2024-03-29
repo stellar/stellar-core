@@ -99,13 +99,10 @@ class TCPPeer : public Peer
 
     static pointer initiate(Application& app, PeerBareAddress const& address);
     static pointer accept(Application& app, std::shared_ptr<SocketType> socket);
-    static std::string getIP(std::shared_ptr<SocketType> socket);
 
     virtual ~TCPPeer();
 
     virtual void drop(std::string const& reason, DropDirection dropDirection,
                       DropMode dropMode) override;
-
-    std::string getIP() const override;
 };
 }

@@ -401,7 +401,6 @@ class Peer : public std::enable_shared_from_this<Peer>,
     }
 
     std::string const& toString();
-    virtual std::string getIP() const = 0;
 
     // These exist mostly to be overridden in TCPPeer and callable via
     // shared_ptr<Peer> as a captured shared_from_this().

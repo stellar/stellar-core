@@ -1413,7 +1413,9 @@ Peer::recvHello(Hello const& elo)
 
     mState = GOT_HELLO;
 
-    auto ip = getIP();
+    // mAddress is set in TCPPeer::initiate and TCPPeer::accept. It should
+    // contain valid IP (but not necessarily port yet)
+    auto ip = mAddress.getIP();
     if (ip.empty())
     {
         drop("failed to determine remote address",

@@ -33,4 +33,11 @@ class LogSlowExecution
     std::string mMessage;
     std::chrono::milliseconds mThreshold;
 };
+
+// Helper class to emit rate-limited log messages without any threshold
+class RateLimitedLog : public LogSlowExecution
+{
+  public:
+    RateLimitedLog(std::string eventName, std::string message);
+};
 }

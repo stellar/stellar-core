@@ -44,14 +44,15 @@ LogSlowExecution::checkElapsedTime() const
     auto elapsed =
         std::chrono::duration_cast<std::chrono::milliseconds>(finish - mStart);
 
-    if (elapsed > mThreshold)
+    if (!mThreshold.count() || elapsed > mThreshold)
     {
         std::lock_guard<std::mutex> guard(gLogSlowExecMutex);
 
         // Check whether we're 10 times over the threshold to decide the log
         // level.
-        LogLevel ll = elapsed > mThreshold * 10 ? LogLevel::LVL_WARNING
-                                                : LogLevel::LVL_DEBUG;
+        LogLevel ll = (elapsed > mThreshold * 10 || !mThreshold.count())
+                          ? LogLevel::LVL_WARNING
+                          : LogLevel::LVL_DEBUG;
 
         auto& lastMsgTime = gLastLogMessage[ll].first;
         auto& skippedCnt = gLastLogMessage[ll].second;
@@ -67,9 +68,18 @@ LogSlowExecution::checkElapsedTime() const
                     fmt::format(FMT_STRING(" [skipped: {:d}]"), skippedCnt);
                 skippedCnt = 0;
             }
-            auto msg = fmt::format(
-                FMT_STRING("'{:s}' {:s} {:f} s{:s}"), mName, mMessage,
-                static_cast<float>(elapsed.count()) / 1000, skipped);
+            std::string msg;
+            if (mThreshold.count())
+            {
+                msg = fmt::format(
+                    FMT_STRING("'{:s}' {:s} {:f} s{:s}"), mName, mMessage,
+                    static_cast<float>(elapsed.count()) / 1000, skipped);
+            }
+            else
+            {
+                msg = fmt::format(FMT_STRING("'{:s}' {:s}{:s}"), mName,
+                                  mMessage, skipped);
+            }
             switch (ll)
             {
             case LogLevel::LVL_WARNING:
@@ -93,5 +103,12 @@ LogSlowExecution::checkElapsedTime() const
         }
     }
     return elapsed;
+}
+
+RateLimitedLog::RateLimitedLog(std::string eventName, std::string message)
+    // No threshold to emit logs regardless
+    : LogSlowExecution(eventName, Mode::AUTOMATIC_RAII, message,
+                       std::chrono::milliseconds::zero())
+{
 }
 }

@@ -59,12 +59,6 @@ class PeerStub : public Peer
         mAddress = address;
         mFlowControl = std::make_shared<FlowControlStub>(app);
     }
-    virtual std::string
-    getIP() const override
-    {
-        REQUIRE(false); // should not be called
-        return {};
-    }
     virtual void
     drop(std::string const&, DropDirection, DropMode) override
     {

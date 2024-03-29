@@ -16,6 +16,7 @@
 #include "overlay/PeerManager.h"
 #include "overlay/StellarXDR.h"
 #include "util/GlobalChecks.h"
+#include "util/LogSlowExecution.h"
 #include "util/Logging.h"
 #include "xdrpp/marshal.h"
 #include <Tracy.hpp>
@@ -85,10 +86,34 @@ TCPPeer::accept(Application& app, shared_ptr<TCPPeer::SocketType> socket)
 {
     assertThreadIsMain();
 
+    auto extractIP = [](shared_ptr<SocketType> socket) {
+        std::string result;
+        asio::error_code ec;
+        auto ep = socket->next_layer().remote_endpoint(ec);
+        if (ec)
+        {
+            auto msg = fmt::format(
+                FMT_STRING("Could not determine remote endpoint: {}"),
+                ec.message());
+            RateLimitedLog rateLimitedWarning{"TCPPeer::accept", msg};
+        }
+        else
+        {
+            result = ep.address().to_string();
+        }
+        return result;
+    };
+
+    auto ip = extractIP(socket);
+    if (ip.empty())
+    {
+        return nullptr;
+    }
+
     // First check if there's enough space to accept peer
     // If not, do not even create a peer instance as to not trigger any
     // additional reads and memory allocations
-    if (!app.getOverlayManager().haveSpaceForConnection(TCPPeer::getIP(socket)))
+    if (!app.getOverlayManager().haveSpaceForConnection(ip))
     {
         return nullptr;
     }
@@ -106,7 +131,7 @@ TCPPeer::accept(Application& app, shared_ptr<TCPPeer::SocketType> socket)
     {
         CLOG_DEBUG(Overlay, "TCPPeer:accept");
         result = make_shared<TCPPeer>(app, REMOTE_CALLED_US, socket);
-        result->mAddress = PeerBareAddress{result->getIP(), 0};
+        result->mAddress = PeerBareAddress{ip, 0};
         result->startRecurrentTimer();
         result->startRead();
     }
@@ -140,32 +165,6 @@ TCPPeer::~TCPPeer()
 #endif
         mSocket->close(ec);
     }
-}
-
-std::string
-TCPPeer::getIP() const
-{
-    return getIP(mSocket);
-}
-
-std::string
-TCPPeer::getIP(std::shared_ptr<SocketType> socket)
-{
-    std::string result;
-
-    asio::error_code ec;
-    auto ep = socket->next_layer().remote_endpoint(ec);
-    if (ec)
-    {
-        CLOG_ERROR(Overlay, "Could not determine remote endpoint: {}",
-                   ec.message());
-    }
-    else
-    {
-        result = ep.address().to_string();
-    }
-
-    return result;
 }
 
 void
