@@ -4,6 +4,7 @@
 
 #include "ledger/LedgerTxn.h"
 #include "bucket/BucketList.h"
+#include "bucket/BucketListSnapshot.h"
 #include "bucket/BucketManager.h"
 #include "crypto/Hex.h"
 #include "crypto/KeyUtils.h"
@@ -2987,7 +2988,7 @@ LedgerTxnRoot::Impl::prefetch(UnorderedSet<LedgerKey> const& keys)
             insertIfNotLoaded(keysToSearch, key);
         }
 
-        auto blLoad = mApp.getBucketManager().loadKeys(keysToSearch);
+        auto blLoad = getSearchableBucketListSnapshot().loadKeys(keysToSearch);
         cacheResult(populateLoadedEntries(keysToSearch, blLoad));
     }
     else
@@ -3369,6 +3370,20 @@ LedgerTxnRoot::Impl::areEntriesMissingInCacheForOffer(OfferEntry const& oe)
     return false;
 }
 
+SearchableBucketListSnapshot&
+LedgerTxnRoot::Impl::getSearchableBucketListSnapshot() const
+{
+    releaseAssert(mApp.getConfig().isUsingBucketListDB());
+    if (!mSearchableBucketListSnapshot)
+    {
+        mSearchableBucketListSnapshot = mApp.getBucketManager()
+                                            .getBucketSnapshotManager()
+                                            .getSearchableBucketListSnapshot();
+    }
+
+    return *mSearchableBucketListSnapshot;
+}
+
 std::shared_ptr<LedgerEntry const>
 LedgerTxnRoot::Impl::getBestOffer(Asset const& buying, Asset const& selling,
                                   OfferDescriptor const* worseThan)
@@ -3505,7 +3520,7 @@ LedgerTxnRoot::Impl::getPoolShareTrustLinesByAccountAndAsset(
         if (mApp.getConfig().isUsingBucketListDB())
         {
             trustLines =
-                mApp.getBucketManager()
+                getSearchableBucketListSnapshot()
                     .loadPoolShareTrustLinesByAccountAndAsset(account, asset);
         }
         else
@@ -3568,8 +3583,8 @@ LedgerTxnRoot::Impl::getInflationWinners(size_t maxWinners, int64_t minVotes)
     {
         if (mApp.getConfig().isUsingBucketListDB())
         {
-            return mApp.getBucketManager().loadInflationWinners(maxWinners,
-                                                                minVotes);
+            return getSearchableBucketListSnapshot().loadInflationWinners(
+                maxWinners, minVotes);
         }
         else
         {
@@ -3624,7 +3639,7 @@ LedgerTxnRoot::Impl::getNewestVersion(InternalLedgerKey const& gkey) const
     {
         if (mApp.getConfig().isUsingBucketListDB() && key.type() != OFFER)
         {
-            entry = mApp.getBucketManager().getLedgerEntry(key);
+            entry = getSearchableBucketListSnapshot().getLedgerEntry(key);
         }
         else
         {
