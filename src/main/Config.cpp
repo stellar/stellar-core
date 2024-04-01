@@ -275,6 +275,9 @@ Config::Config() : NODE_SEED(SecretKey::random())
     TESTING_STARTING_EVICTION_SCAN_LEVEL =
         InitialSorobanNetworkConfig::STARTING_EVICTION_SCAN_LEVEL;
 
+    EMIT_SOROBAN_TRANSACTION_META_EXT_V1 = false;
+    EMIT_LEDGER_CLOSE_META_EXT_V1 = false;
+
 #ifdef BUILD_TESTS
     TEST_CASES_ENABLED = false;
 #endif
@@ -1519,6 +1522,14 @@ Config::processConfig(std::shared_ptr<cpptoml::table> t)
                 }
                 MAX_DEX_TX_OPERATIONS_IN_TX_SET =
                     value == 0 ? std::nullopt : std::make_optional(value);
+            }
+            else if (item.first == "EMIT_SOROBAN_TRANSACTION_META_EXT_V1")
+            {
+                EMIT_SOROBAN_TRANSACTION_META_EXT_V1 = readBool(item);
+            }
+            else if (item.first == "EMIT_LEDGER_CLOSE_META_EXT_V1")
+            {
+                EMIT_LEDGER_CLOSE_META_EXT_V1 = readBool(item);
             }
             else
             {
