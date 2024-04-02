@@ -1760,10 +1760,13 @@ TransactionFrame::applyOperations(SignatureChecker& signatureChecker,
                     std::move(mSorobanExtension->mDiagnosticEvents));
                 outerMeta.setReturnValue(
                     std::move(mSorobanExtension->mReturnValue));
-                outerMeta.setSorobanFeeInfo(
-                    mSorobanExtension->mConsumedNonRefundableFee,
-                    mSorobanExtension->mConsumedRefundableFee,
-                    mSorobanExtension->mConsumedRentFee);
+                if (app.getConfig().EMIT_SOROBAN_TRANSACTION_META_EXT_V1)
+                {
+                    outerMeta.setSorobanFeeInfo(
+                        mSorobanExtension->mConsumedNonRefundableFee,
+                        mSorobanExtension->mConsumedRefundableFee,
+                        mSorobanExtension->mConsumedRentFee);
+                }
             }
         }
         else
@@ -1784,10 +1787,13 @@ TransactionFrame::applyOperations(SignatureChecker& signatureChecker,
                                                 preApplyFee.non_refundable_fee;
                 outerMeta.pushDiagnosticEvents(
                     std::move(mSorobanExtension->mDiagnosticEvents));
-                outerMeta.setSorobanFeeInfo(
-                    mSorobanExtension->mConsumedNonRefundableFee,
-                    /* totalRefundableFeeSpent */ 0,
-                    /* rentFeeCharged */ 0);
+                if (app.getConfig().EMIT_SOROBAN_TRANSACTION_META_EXT_V1)
+                {
+                    outerMeta.setSorobanFeeInfo(
+                        mSorobanExtension->mConsumedNonRefundableFee,
+                        /* totalRefundableFeeSpent */ 0,
+                        /* rentFeeCharged */ 0);
+                }
             }
         }
         return success;

@@ -3,13 +3,7 @@
         "v": 1,
         "v1": {
             "ext": {
-                "v": 1,
-                "v1": {
-                    "ext": {
-                        "v": 0
-                    },
-                    "sorobanFeeWrite1KB": 1001
-                }
+                "v": 0
             },
             "ledgerHeader": {
                 "hash": "66c9ed7a2c48eca4d10b7f802e780eb5cd5f79f0bfa7d353b035d64336e2509a",

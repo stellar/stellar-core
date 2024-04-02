@@ -1683,7 +1683,9 @@ LedgerManagerImpl::ledgerClosed(
     if (ledgerCloseMeta &&
         protocolVersionStartsFrom(initialLedgerVers, SOROBAN_PROTOCOL_VERSION))
     {
-        ledgerCloseMeta->setNetworkConfiguration(getSorobanNetworkConfig());
+        ledgerCloseMeta->setNetworkConfiguration(
+            getSorobanNetworkConfig(),
+            mApp.getConfig().EMIT_LEDGER_CLOSE_META_EXT_V1);
     }
 
     ltx.unsealHeader([this](LedgerHeader& lh) {

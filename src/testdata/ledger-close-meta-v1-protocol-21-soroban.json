@@ -3,13 +3,7 @@
         "v": 1,
         "v1": {
             "ext": {
-                "v": 1,
-                "v1": {
-                    "ext": {
-                        "v": 0
-                    },
-                    "sorobanFeeWrite1KB": 1000
-                }
+                "v": 0
             },
             "ledgerHeader": {
                 "hash": "13caf08ede4f6f371fc55f35f1428b31628d553b36fce746443963d427443b84",
@@ -773,15 +767,7 @@
                             ],
                             "sorobanMeta": {
                                 "ext": {
-                                    "v": 1,
-                                    "v1": {
-                                        "ext": {
-                                            "v": 0
-                                        },
-                                        "totalNonRefundableResourceFeeCharged": 61512,
-                                        "totalRefundableResourceFeeCharged": 0,
-                                        "rentFeeCharged": 0
-                                    }
+                                    "v": 0
                                 },
                                 "events": [],
                                 "returnValue": {
@@ -1060,15 +1046,7 @@
                             ],
                             "sorobanMeta": {
                                 "ext": {
-                                    "v": 1,
-                                    "v1": {
-                                        "ext": {
-                                            "v": 0
-                                        },
-                                        "totalNonRefundableResourceFeeCharged": 42846,
-                                        "totalRefundableResourceFeeCharged": 0,
-                                        "rentFeeCharged": 0
-                                    }
+                                    "v": 0
                                 },
                                 "events": [],
                                 "returnValue": {
@@ -1416,15 +1394,7 @@
                             ],
                             "sorobanMeta": {
                                 "ext": {
-                                    "v": 1,
-                                    "v1": {
-                                        "ext": {
-                                            "v": 0
-                                        },
-                                        "totalNonRefundableResourceFeeCharged": 20363,
-                                        "totalRefundableResourceFeeCharged": 40096,
-                                        "rentFeeCharged": 40096
-                                    }
+                                    "v": 0
                                 },
                                 "events": [],
                                 "returnValue": {
@@ -1752,15 +1722,7 @@
                             ],
                             "sorobanMeta": {
                                 "ext": {
-                                    "v": 1,
-                                    "v1": {
-                                        "ext": {
-                                            "v": 0
-                                        },
-                                        "totalNonRefundableResourceFeeCharged": 86626,
-                                        "totalRefundableResourceFeeCharged": 20049,
-                                        "rentFeeCharged": 20048
-                                    }
+                                    "v": 0
                                 },
                                 "events": [],
                                 "returnValue": {
@@ -2075,15 +2037,7 @@
                             ],
                             "sorobanMeta": {
                                 "ext": {
-                                    "v": 1,
-                                    "v1": {
-                                        "ext": {
-                                            "v": 0
-                                        },
-                                        "totalNonRefundableResourceFeeCharged": 31399,
-                                        "totalRefundableResourceFeeCharged": 20048,
-                                        "rentFeeCharged": 20048
-                                    }
+                                    "v": 0
                                 },
                                 "events": [],
                                 "returnValue": {

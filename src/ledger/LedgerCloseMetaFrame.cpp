@@ -22,10 +22,6 @@ LedgerCloseMetaFrame::LedgerCloseMetaFrame(uint32_t protocolVersion)
         mVersion = 1;
     }
     mLedgerCloseMeta.v(mVersion);
-    if (mLedgerCloseMeta.v() == 1)
-    {
-        mLedgerCloseMeta.v1().ext.v(1);
-    }
 }
 
 LedgerHeaderHistoryEntry&
@@ -175,13 +171,18 @@ LedgerCloseMetaFrame::populateEvictedEntries(
 
 void
 LedgerCloseMetaFrame::setNetworkConfiguration(
-    SorobanNetworkConfig const& networkConfig)
+    SorobanNetworkConfig const& networkConfig, bool emitExtV1)
 {
     releaseAssert(mVersion == 1);
     mLedgerCloseMeta.v1().totalByteSizeOfBucketList =
         networkConfig.getAverageBucketListSize();
-    auto& ext = mLedgerCloseMeta.v1().ext.v1();
-    ext.sorobanFeeWrite1KB = networkConfig.feeWrite1KB();
+
+    if (emitExtV1)
+    {
+        mLedgerCloseMeta.v1().ext.v(1);
+        auto& ext = mLedgerCloseMeta.v1().ext.v1();
+        ext.sorobanFeeWrite1KB = networkConfig.feeWrite1KB();
+    }
 }
 
 LedgerCloseMeta const&

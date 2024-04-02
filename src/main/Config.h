@@ -587,6 +587,9 @@ class Config : public std::enable_shared_from_this<Config>
     uint32_t TESTING_STARTING_EVICTION_SCAN_LEVEL;
     uint32_t TESTING_MAX_ENTRIES_TO_ARCHIVE;
 
+    bool EMIT_SOROBAN_TRANSACTION_META_EXT_V1;
+    bool EMIT_LEDGER_CLOSE_META_EXT_V1;
+
 #ifdef BUILD_TESTS
     // If set to true, the application will be aware this run is for a test
     // case.  This is used right now in the signal handler to exit() instead of
