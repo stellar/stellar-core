@@ -364,17 +364,21 @@ LedgerTxnRoot::Impl::dropContractCode(bool rebuild)
     std::string coll = mApp.getDatabase().getSimpleCollationClause();
 
     mApp.getDatabase().getSession() << "DROP TABLE IF EXISTS contractcode;";
-    mApp.getDatabase().getSession()
-        << "CREATE TABLE contractcode ("
-        << "hash   TEXT " << coll << " NOT NULL, "
-        << "ledgerentry  TEXT " << coll << " NOT NULL, "
-        << "lastmodified INT NOT NULL, "
-        << "PRIMARY KEY (hash));";
-    if (!mApp.getDatabase().isSqlite())
+
+    if (rebuild)
     {
-        mApp.getDatabase().getSession() << "ALTER TABLE contractcode "
-                                        << "ALTER COLUMN hash "
-                                        << "TYPE TEXT COLLATE \"C\";";
+        mApp.getDatabase().getSession()
+            << "CREATE TABLE contractcode ("
+            << "hash   TEXT " << coll << " NOT NULL, "
+            << "ledgerentry  TEXT " << coll << " NOT NULL, "
+            << "lastmodified INT NOT NULL, "
+            << "PRIMARY KEY (hash));";
+        if (!mApp.getDatabase().isSqlite())
+        {
+            mApp.getDatabase().getSession() << "ALTER TABLE contractcode "
+                                            << "ALTER COLUMN hash "
+                                            << "TYPE TEXT COLLATE \"C\";";
+        }
     }
 }
 
