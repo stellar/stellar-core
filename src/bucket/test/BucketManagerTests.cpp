@@ -186,6 +186,9 @@ TEST_CASE_VERSIONS("bucketmanager ownership", "[bucket][bucketmanager]")
     auto test = [&](bool bucketListDB) {
         VirtualClock clock;
         Config cfg = getTestConfig();
+
+        // Make sure all Buckets serialize indexes to disk for test
+        cfg.EXPERIMENTAL_BUCKETLIST_DB_INDEX_CUTOFF = 0;
         cfg.MANUAL_CLOSE = false;
 
         if (bucketListDB)
