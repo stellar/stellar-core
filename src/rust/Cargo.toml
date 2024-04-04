@@ -62,6 +62,14 @@ git = "https://github.com/stellar/rs-soroban-env"
 package = "soroban-env-host"
 rev = "1bfc0f2a2ee134efc1e1b0d5270281d0cba61c2e"
 
+# This copy of the soroban host with latest commits to the main branch
+# This is intended to be used for core-vnext builds
+
+[dependencies.soroban-env-host-next]
+git = "https://github.com/stellar/rs-soroban-env"
+package = "soroban-env-host"
+rev = "97168ab21d9a483a120640075588644d124985fd"
+
 [dependencies.soroban-test-wasms]
 version = "=20.3.0"
 git = "https://github.com/stellar/rs-soroban-env"
@@ -83,4 +91,4 @@ features = ["dependency-tree"]
 [features]
 soroban-env-host-prev = ["dep:soroban-env-host-prev"]
 tracy = ["dep:tracy-client", "soroban-env-host-curr/tracy"]
-core-vnext = ["soroban-env-host-curr/next"]
+core-vnext = ["soroban-env-host-next/next"]
