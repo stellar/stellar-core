@@ -246,12 +246,11 @@ TEST_CASE("generate soroban load", "[loadgen][soroban]")
                              upgrades);
     }
 
-    for (uint32_t i = 0;
-         i < static_cast<uint32_t>(CONFIG_SETTING_BUCKETLIST_SIZE_WINDOW); ++i)
+    // Loadgen doesn't update the cost types.
+    REQUIRE(upgrades.updatedEntry.size() == 10);
+    for (auto const& setting : upgrades.updatedEntry)
     {
-        auto setting = upgrades.updatedEntry[i];
-        REQUIRE(setting.configSettingID() == static_cast<ConfigSettingID>(i));
-        switch (static_cast<ConfigSettingID>(i))
+        switch (setting.configSettingID())
         {
         case CONFIG_SETTING_CONTRACT_MAX_SIZE_BYTES:
             REQUIRE(setting.contractMaxSizeBytes() ==

@@ -1176,7 +1176,7 @@ TEST_CASE("refund still happens on bad auth", "[tx][soroban]")
     // The initial fee charge is based on DEFAULT_TEST_RESOURCE_FEE, which is
     // 1'000'000, so the difference would be much higher if the refund did not
     // happen.
-    REQUIRE(a1PreTxBalance - a1PostTxBalance == 39288);
+    REQUIRE(a1PreTxBalance - a1PostTxBalance == 62697);
 }
 
 TEST_CASE("refund test with closeLedger", "[tx][soroban][feebump]")
@@ -1197,7 +1197,7 @@ TEST_CASE("refund test with closeLedger", "[tx][soroban][feebump]")
     auto r = closeLedger(test.getApp(), {tx});
     checkTx(0, r, txSUCCESS);
 
-    auto txFeeWithRefund = 59'344;
+    auto txFeeWithRefund = 82'753;
     REQUIRE(a1.getBalance() == a1StartingBalance - txFeeWithRefund);
 
     // DEFAULT_TEST_RESOURCE_FEE is added onto the calculated soroban resource
@@ -1250,7 +1250,7 @@ TEST_CASE_VERSIONS("refund is sent to fee-bump source",
         bool refundsInFeeCharged = protocolVersionStartsFrom(
             getLclProtocolVersion(test.getApp()), ProtocolVersion::V_21);
 
-        auto const txFeeWithRefund = 59'444;
+        auto const txFeeWithRefund = 82'853;
         auto const feeCharged =
             refundsInFeeCharged ? txFeeWithRefund : 1'040'971;
 
@@ -1479,6 +1479,19 @@ TEST_CASE("settings upgrade", "[tx][soroban][upgrades]")
              i < static_cast<uint32_t>(CONFIG_SETTING_BUCKETLIST_SIZE_WINDOW);
              ++i)
         {
+            // Because we added more cost types in v21, the initial
+            // contractDataEntrySizeBytes setting of 2000 is too low to write
+            // all settings at once. This isn't an issue in practice because 1.
+            // the setting on pubnet and testnet is much higher, and two, we
+            // don't need to upgrade every setting at once. To get around this
+            // in the test, we will remove the memory bytes cost types from the
+            // upgrade.
+            if (i == static_cast<uint32_t>(
+                         CONFIG_SETTING_CONTRACT_COST_PARAMS_MEMORY_BYTES))
+            {
+                continue;
+            }
+
             LedgerTxn ltx(test.getApp().getLedgerTxnRoot());
             auto costEntry =
                 ltx.load(configSettingKey(static_cast<ConfigSettingID>(i)));
@@ -2741,6 +2754,7 @@ TEST_CASE("settings upgrade command line utils", "[tx][soroban][upgrades]")
     // mAverageBucketListSize
     modifySorobanNetworkConfig(*app, [](SorobanNetworkConfig& cfg) {
         cfg.mStateArchivalSettings.bucketListWindowSamplePeriod = 1;
+        cfg.mMaxContractDataEntrySizeBytes = 2096;
     });
 
     const int64_t startingBalance =

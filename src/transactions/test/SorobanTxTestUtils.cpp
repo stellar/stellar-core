@@ -229,9 +229,9 @@ defaultUploadWasmResourcesWithoutFootprint(RustBuf const& wasm)
 {
     SorobanResources resources;
     resources.instructions =
-        static_cast<uint32_t>(500'000 + (wasm.data.size() * 1000));
+        static_cast<uint32_t>(500'000 + (wasm.data.size() * 5000));
     resources.readBytes = 1000;
-    resources.writeBytes = static_cast<uint32_t>(wasm.data.size() + 100);
+    resources.writeBytes = static_cast<uint32_t>(wasm.data.size() + 150);
     return resources;
 }
 

@@ -1205,7 +1205,7 @@ LoadGenerator::createUploadWasmTransaction(uint32_t ledgerNum,
     auto account = findAccount(accountId, ledgerNum);
 
     SorobanResources uploadResources{};
-    uploadResources.instructions = 2'000'000;
+    uploadResources.instructions = 2'500'000;
     uploadResources.readBytes = wasm.data.size() + 500;
     uploadResources.writeBytes = wasm.data.size() + 500;
 
@@ -1577,7 +1577,16 @@ LoadGenerator::getConfigUpgradeSetFromLoadConfig(
             releaseAssert(false);
             break;
         }
-        updatedEntries.emplace_back(entry.current().data.configSetting());
+
+        // These two definitely aren't changing, and including both will hit the
+        // contractDataEntrySizeBytes limit
+        if (entry.current().data.configSetting().configSettingID() !=
+                CONFIG_SETTING_CONTRACT_COST_PARAMS_CPU_INSTRUCTIONS &&
+            entry.current().data.configSetting().configSettingID() !=
+                CONFIG_SETTING_CONTRACT_COST_PARAMS_MEMORY_BYTES)
+        {
+            updatedEntries.emplace_back(entry.current().data.configSetting());
+        }
     }
 
     ConfigUpgradeSet upgradeSet;
@@ -1615,7 +1624,7 @@ LoadGenerator::invokeSorobanCreateUpgradeTransaction(
     SorobanResources resources;
     resources.footprint.readOnly = {instanceLK, *mCodeKey};
     resources.footprint.readWrite = {upgradeLK};
-    resources.instructions = 2'400'000;
+    resources.instructions = 2'500'000;
     resources.readBytes = 3'100;
     resources.writeBytes = 3'100;
 
