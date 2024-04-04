@@ -293,7 +293,11 @@ initialCpuCostParamsEntryForV20()
         case ComputeKeccak256Hash:
             params[val] = ContractCostParamEntry{ExtensionPoint{0}, 3766, 5969};
             break;
+#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
+        case DecodeEcdsaCurve256Sig:
+#else
         case ComputeEcdsaSecp256k1Sig:
+#endif
             params[val] = ContractCostParamEntry{ExtensionPoint{0}, 710, 0};
             break;
         case RecoverEcdsaSecp256k1Key:
@@ -537,7 +541,11 @@ initialMemCostParamsEntryForV20()
         case ComputeKeccak256Hash:
             params[val] = ContractCostParamEntry{ExtensionPoint{0}, 0, 0};
             break;
+#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
+        case DecodeEcdsaCurve256Sig:
+#else
         case ComputeEcdsaSecp256k1Sig:
+#endif
             params[val] = ContractCostParamEntry{ExtensionPoint{0}, 0, 0};
             break;
         case RecoverEcdsaSecp256k1Key:

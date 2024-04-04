@@ -2754,7 +2754,8 @@ TEST_CASE("settings upgrade command line utils", "[tx][soroban][upgrades]")
     // mAverageBucketListSize
     modifySorobanNetworkConfig(*app, [](SorobanNetworkConfig& cfg) {
         cfg.mStateArchivalSettings.bucketListWindowSamplePeriod = 1;
-        cfg.mMaxContractDataEntrySizeBytes = 2096;
+        // This is required to allow for an upgrade of all settings at once.
+        cfg.mMaxContractDataEntrySizeBytes = 3000;
     });
 
     const int64_t startingBalance =
@@ -2863,7 +2864,11 @@ TEST_CASE("settings upgrade command line utils", "[tx][soroban][upgrades]")
                     params[val] =
                         ContractCostParamEntry{ExtensionPoint{0}, 6481, 5943};
                     break;
+#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
+                case DecodeEcdsaCurve256Sig:
+#else
                 case ComputeEcdsaSecp256k1Sig:
+#endif
                     params[val] =
                         ContractCostParamEntry{ExtensionPoint{0}, 711, 0};
                     break;
@@ -2968,7 +2973,11 @@ TEST_CASE("settings upgrade command line utils", "[tx][soroban][upgrades]")
                     params[val] =
                         ContractCostParamEntry{ExtensionPoint{0}, 0, 0};
                     break;
+#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
+                case DecodeEcdsaCurve256Sig:
+#else
                 case ComputeEcdsaSecp256k1Sig:
+#endif
                     params[val] =
                         ContractCostParamEntry{ExtensionPoint{0}, 0, 0};
                     break;
