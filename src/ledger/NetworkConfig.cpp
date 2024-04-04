@@ -325,6 +325,7 @@ initialCpuCostParamsEntryForV20()
     return entry;
 }
 
+#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
 void
 updateCpuCostParamsEntryForV21(AbstractLedgerTxn& ltxRoot)
 {
@@ -419,6 +420,7 @@ updateCpuCostParamsEntryForV21(AbstractLedgerTxn& ltxRoot)
     }
     ltx.commit();
 }
+#endif
 
 ConfigSettingEntry
 initialStateArchivalSettings(Config const& cfg)
@@ -566,6 +568,7 @@ initialMemCostParamsEntryForV20()
     return entry;
 }
 
+#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
 void
 updateMemCostParamsEntryForV21(AbstractLedgerTxn& ltxRoot)
 {
@@ -661,6 +664,7 @@ updateMemCostParamsEntryForV21(AbstractLedgerTxn& ltxRoot)
 
     ltx.commit();
 }
+#endif
 
 ConfigSettingEntry
 initialBucketListSizeWindow(Application& app)
@@ -852,6 +856,7 @@ SorobanNetworkConfig::createLedgerEntriesForV20(AbstractLedgerTxn& ltx,
     createConfigSettingEntry(initialEvictionIterator(cfg), ltx);
 }
 
+#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
 void
 SorobanNetworkConfig::createCostTypesForV21(AbstractLedgerTxn& ltx,
                                             Application& app)
@@ -860,6 +865,7 @@ SorobanNetworkConfig::createCostTypesForV21(AbstractLedgerTxn& ltx,
     updateCpuCostParamsEntryForV21(ltx);
     updateMemCostParamsEntryForV21(ltx);
 }
+#endif
 
 void
 SorobanNetworkConfig::initializeGenesisLedgerForTesting(
@@ -876,10 +882,12 @@ SorobanNetworkConfig::initializeGenesisLedgerForTesting(
         SorobanNetworkConfig::createLedgerEntriesForV20(ltx, app);
         ltx.loadHeader().current().ledgerVersion = genesisLedgerProtocol;
     }
+#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
     if (protocolVersionStartsFrom(genesisLedgerProtocol, ProtocolVersion::V_21))
     {
         SorobanNetworkConfig::createCostTypesForV21(ltx, app);
     }
+#endif
 }
 
 void

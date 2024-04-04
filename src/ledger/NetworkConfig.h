@@ -211,10 +211,13 @@ class SorobanNetworkConfig
     static void createLedgerEntriesForV20(AbstractLedgerTxn& ltx,
                                           Application& app);
 
+#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
     // Creates the new cost types introduced in v21.
     // This should happen once during the correspondent protocol version
     // upgrade.
     static void createCostTypesForV21(AbstractLedgerTxn& ltx, Application& app);
+#endif
+
     // Test-only function that initializes contract network configuration
     // bypassing the normal upgrade process (i.e. when genesis ledger starts not
     // at v1)
