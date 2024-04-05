@@ -225,13 +225,28 @@ makeSorobanWasmUploadTx(Application& app, TestAccount& source,
 }
 
 SorobanResources
-defaultUploadWasmResourcesWithoutFootprint(RustBuf const& wasm)
+defaultUploadWasmResourcesWithoutFootprint(RustBuf const& wasm,
+                                           uint32_t ledgerVersion)
 {
     SorobanResources resources;
-    resources.instructions =
-        static_cast<uint32_t>(500'000 + (wasm.data.size() * 5000));
-    resources.readBytes = 1000;
-    resources.writeBytes = static_cast<uint32_t>(wasm.data.size() + 150);
+
+    // Use a different default starting from v21 for the vm module cache
+    // changes. Keep the v20 resources the same so we can validate that we're
+    // not changing fees for the existing protocol.
+    if (protocolVersionStartsFrom(ledgerVersion, ProtocolVersion::V_21))
+    {
+        resources.instructions =
+            static_cast<uint32_t>(500'000 + (wasm.data.size() * 5000));
+        resources.readBytes = 1000;
+        resources.writeBytes = static_cast<uint32_t>(wasm.data.size() + 150);
+    }
+    else
+    {
+        resources.instructions =
+            static_cast<uint32_t>(500'000 + (wasm.data.size() * 1000));
+        resources.readBytes = 1000;
+        resources.writeBytes = static_cast<uint32_t>(wasm.data.size() + 100);
+    }
     return resources;
 }
 
@@ -859,7 +874,8 @@ SorobanTest::deployWasmContract(RustBuf const& wasm,
 {
     if (!uploadResources)
     {
-        uploadResources = defaultUploadWasmResourcesWithoutFootprint(wasm);
+        uploadResources = defaultUploadWasmResourcesWithoutFootprint(
+            wasm, getLclProtocolVersion(getApp()));
     }
 
     if (!createResources)

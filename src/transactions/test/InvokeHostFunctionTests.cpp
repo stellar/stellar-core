@@ -1130,7 +1130,8 @@ TEST_CASE("refund account merged", "[tx][soroban][merge]")
     auto b1 = test.getRoot().create("B", startingBalance);
     auto c1 = test.getRoot().create("C", startingBalance);
     auto wasm = rust_bridge::get_test_wasm_add_i32();
-    auto resources = defaultUploadWasmResourcesWithoutFootprint(wasm);
+    auto resources = defaultUploadWasmResourcesWithoutFootprint(
+        wasm, getLclProtocolVersion(test.getApp()));
     auto tx = makeSorobanWasmUploadTx(test.getApp(), a1, wasm, resources, 1000);
 
     auto mergeOp = accountMerge(b1);
@@ -1156,7 +1157,8 @@ TEST_CASE("refund still happens on bad auth", "[tx][soroban]")
     auto a1 = test.getRoot().create("A", startingBalance);
     auto b1 = test.getRoot().create("B", startingBalance);
     auto wasm = rust_bridge::get_test_wasm_add_i32();
-    auto resources = defaultUploadWasmResourcesWithoutFootprint(wasm);
+    auto resources = defaultUploadWasmResourcesWithoutFootprint(
+        wasm, getLclProtocolVersion(test.getApp()));
     auto tx = makeSorobanWasmUploadTx(test.getApp(), a1, wasm, resources, 100);
 
     auto a1PreTxBalance = a1.getBalance();
@@ -1191,7 +1193,8 @@ TEST_CASE("refund test with closeLedger", "[tx][soroban][feebump]")
     auto a1StartingBalance = a1.getBalance();
 
     auto wasm = rust_bridge::get_test_wasm_add_i32();
-    auto resources = defaultUploadWasmResourcesWithoutFootprint(wasm);
+    auto resources = defaultUploadWasmResourcesWithoutFootprint(
+        wasm, getLclProtocolVersion(test.getApp()));
     auto tx = makeSorobanWasmUploadTx(test.getApp(), a1, wasm, resources, 100);
 
     auto r = closeLedger(test.getApp(), {tx});
@@ -1226,7 +1229,8 @@ TEST_CASE_VERSIONS("refund is sent to fee-bump source",
         auto feeBumperStartingBalance = feeBumper.getBalance();
 
         auto wasm = rust_bridge::get_test_wasm_add_i32();
-        auto resources = defaultUploadWasmResourcesWithoutFootprint(wasm);
+        auto resources = defaultUploadWasmResourcesWithoutFootprint(
+            wasm, getLclProtocolVersion(test.getApp()));
         auto tx =
             makeSorobanWasmUploadTx(test.getApp(), a1, wasm, resources, 100);
 
@@ -1247,12 +1251,11 @@ TEST_CASE_VERSIONS("refund is sent to fee-bump source",
         auto r = closeLedger(test.getApp(), {feeBumpTxFrame});
         checkTx(0, r, txFEE_BUMP_INNER_SUCCESS);
 
-        bool refundsInFeeCharged = protocolVersionStartsFrom(
+        bool afterV20 = protocolVersionStartsFrom(
             getLclProtocolVersion(test.getApp()), ProtocolVersion::V_21);
 
-        auto const txFeeWithRefund = 82'853;
-        auto const feeCharged =
-            refundsInFeeCharged ? txFeeWithRefund : 1'040'971;
+        auto const txFeeWithRefund = afterV20 ? 82'853 : 59'444;
+        auto const feeCharged = afterV20 ? txFeeWithRefund : 1'040'971;
 
         REQUIRE(
             r.at(0).first.result.result.innerResultPair().result.feeCharged ==
@@ -1290,7 +1293,8 @@ TEST_CASE("buying liabilities plus refund is greater than INT64_MAX",
 
     auto a1PreBalance = a1.getBalance();
     auto wasm = rust_bridge::get_test_wasm_add_i32();
-    auto resources = defaultUploadWasmResourcesWithoutFootprint(wasm);
+    auto resources = defaultUploadWasmResourcesWithoutFootprint(
+        wasm, getLclProtocolVersion(test.getApp()));
     auto tx =
         makeSorobanWasmUploadTx(test.getApp(), a1, wasm, resources, 300'000);
 
