@@ -14,12 +14,13 @@ namespace
 {
 void
 createConfigSettingEntry(ConfigSettingEntry const& configSetting,
-                         AbstractLedgerTxn& ltxRoot)
+                         AbstractLedgerTxn& ltxRoot,
+                         uint32_t versionToValidateAgainst)
 {
     ZoneScoped;
 
     if (!SorobanNetworkConfig::isValidConfigSettingEntry(
-            configSetting, ltx.loadHeader().current().ledgerVersion))
+            configSetting, versionToValidateAgainst))
     {
         throw std::runtime_error("Invalid configSettingEntry");
     }
@@ -845,23 +846,42 @@ SorobanNetworkConfig::createLedgerEntriesForV20(AbstractLedgerTxn& ltx,
 {
     ZoneScoped;
 
+    // The validation needs to be pinned to 20 and not ltx's ledgerVersion
+    // because a protocol bump from less than 19 to after 20 will result in a
+    // failed check because we expect most cost types in v21. Those new cost
+    // types will be created in this case, but that'll happen later in
+    // createCostTypesForV21.
+    static const uint32_t versionToValidateAgainst = 20;
+
     auto const& cfg = app.getConfig();
-    createConfigSettingEntry(initialMaxContractSizeEntry(cfg), ltx);
-    createConfigSettingEntry(initialMaxContractDataKeySizeEntry(cfg), ltx);
-    createConfigSettingEntry(initialMaxContractDataEntrySizeEntry(cfg), ltx);
-    createConfigSettingEntry(initialContractComputeSettingsEntry(cfg), ltx);
-    createConfigSettingEntry(initialContractLedgerAccessSettingsEntry(cfg),
-                             ltx);
-    createConfigSettingEntry(initialContractHistoricalDataSettingsEntry(), ltx);
-    createConfigSettingEntry(initialContractEventsSettingsEntry(cfg), ltx);
-    createConfigSettingEntry(initialContractBandwidthSettingsEntry(cfg), ltx);
+    createConfigSettingEntry(initialMaxContractSizeEntry(cfg), ltx,
+                             versionToValidateAgainst);
+    createConfigSettingEntry(initialMaxContractDataKeySizeEntry(cfg), ltx,
+                             versionToValidateAgainst);
+    createConfigSettingEntry(initialMaxContractDataEntrySizeEntry(cfg), ltx,
+                             versionToValidateAgainst);
+    createConfigSettingEntry(initialContractComputeSettingsEntry(cfg), ltx,
+                             versionToValidateAgainst);
+    createConfigSettingEntry(initialContractLedgerAccessSettingsEntry(cfg), ltx,
+                             versionToValidateAgainst);
+    createConfigSettingEntry(initialContractHistoricalDataSettingsEntry(), ltx,
+                             versionToValidateAgainst);
+    createConfigSettingEntry(initialContractEventsSettingsEntry(cfg), ltx,
+                             versionToValidateAgainst);
+    createConfigSettingEntry(initialContractBandwidthSettingsEntry(cfg), ltx,
+                             versionToValidateAgainst);
     createConfigSettingEntry(initialContractExecutionLanesSettingsEntry(cfg),
-                             ltx);
-    createConfigSettingEntry(initialCpuCostParamsEntryForV20(), ltx);
-    createConfigSettingEntry(initialMemCostParamsEntryForV20(), ltx);
-    createConfigSettingEntry(initialStateArchivalSettings(cfg), ltx);
-    createConfigSettingEntry(initialBucketListSizeWindow(app), ltx);
-    createConfigSettingEntry(initialEvictionIterator(cfg), ltx);
+                             ltx, versionToValidateAgainst);
+    createConfigSettingEntry(initialCpuCostParamsEntryForV20(), ltx,
+                             versionToValidateAgainst);
+    createConfigSettingEntry(initialMemCostParamsEntryForV20(), ltx,
+                             versionToValidateAgainst);
+    createConfigSettingEntry(initialStateArchivalSettings(cfg), ltx,
+                             versionToValidateAgainst);
+    createConfigSettingEntry(initialBucketListSizeWindow(app), ltx,
+                             versionToValidateAgainst);
+    createConfigSettingEntry(initialEvictionIterator(cfg), ltx,
+                             versionToValidateAgainst);
 }
 
 #ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
