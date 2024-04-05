@@ -13,6 +13,7 @@
 #include "util/Backtrace.h"
 #include "util/FileSystemException.h"
 #include "util/Logging.h"
+#include <mutex>
 #include <regex>
 #include <stdexcept>
 
@@ -25,6 +26,7 @@
 #include <system_error>
 #include <xdrpp/marshal.h>
 #ifdef USE_TRACY
+#include <Tracy.hpp>
 #include <TracyC.h>
 #endif
 
@@ -237,6 +239,73 @@ checkStellarCoreMajorVersionProtocolIdentity()
     }
 }
 
+#ifdef USE_TRACY
+
+std::mutex TRACY_MUTEX;
+static int TRACY_NOT_STARTED = 0;
+static int TRACY_RUNNING = 1;
+static int TRACY_STOPPED = 2;
+static int TRACY_STATE = TRACY_NOT_STARTED;
+
+// Call this only with mutex held
+bool
+tracyEnabled(std::lock_guard<std::mutex> const& _guard)
+{
+    if (TRACY_STATE == TRACY_NOT_STARTED)
+    {
+        stellar::rust_bridge::start_tracy();
+        TRACY_STATE = TRACY_RUNNING;
+    }
+    return TRACY_STATE != TRACY_STOPPED;
+}
+
+void*
+operator new(std::size_t count)
+{
+    auto ptr = malloc(count);
+    std::lock_guard<std::mutex> guard(TRACY_MUTEX);
+    if (tracyEnabled(guard))
+    {
+        TracyAlloc(ptr, count);
+    }
+    return ptr;
+}
+
+void
+operator delete(void* ptr) noexcept
+{
+    std::lock_guard<std::mutex> guard(TRACY_MUTEX);
+    if (tracyEnabled(guard))
+    {
+        TracyFree(ptr);
+    }
+    free(ptr);
+}
+
+void*
+operator new[](std::size_t count)
+{
+    auto ptr = malloc(count);
+    std::lock_guard<std::mutex> guard(TRACY_MUTEX);
+    if (tracyEnabled(guard))
+    {
+        TracyAlloc(ptr, count);
+    }
+    return ptr;
+}
+
+void
+operator delete[](void* ptr) noexcept
+{
+    std::lock_guard<std::mutex> guard(TRACY_MUTEX);
+    if (tracyEnabled(guard))
+    {
+        TracyFree(ptr);
+    }
+    free(ptr);
+}
+#endif
+
 int
 main(int argc, char* const* argv)
 {
@@ -276,7 +345,11 @@ main(int argc, char* const* argv)
 
     int res = handleCommandLine(argc, argv);
 #ifdef USE_TRACY
-    ___tracy_shutdown_profiler();
+    {
+        std::lock_guard<std::mutex> guard(TRACY_MUTEX);
+        ___tracy_shutdown_profiler();
+        TRACY_STATE = TRACY_STOPPED;
+    }
 #endif
     return res;
 }
