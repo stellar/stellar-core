@@ -82,7 +82,6 @@ BucketIndexImpl<IndexT>::BucketIndexImpl(BucketManager& bm,
             xdr::xdr_traits<BucketEntry>::serial_size(BucketEntry{});
         auto fileSize = fs::size(filename.string());
         auto estimatedNumElems = fileSize / estimatedLedgerEntrySize;
-        size_t estimatedIndexEntries;
 
         // Initialize bloom filter for range index
         if constexpr (std::is_same<IndexT, RangeIndex>::value)
@@ -105,7 +104,7 @@ BucketIndexImpl<IndexT>::BucketIndexImpl(BucketManager& bm,
             params.random_seed = shortHash::getShortHashInitKey();
             params.compute_optimal_parameters();
             mData.filter = std::make_unique<bloom_filter>(params);
-            estimatedIndexEntries = fileSize / mData.pageSize;
+            auto estimatedIndexEntries = fileSize / mData.pageSize;
             CLOG_DEBUG(
                 Bucket,
                 "Bloom filter initialized with params: projected element count "
@@ -115,13 +114,11 @@ BucketIndexImpl<IndexT>::BucketIndexImpl(BucketManager& bm,
                 params.false_positive_probability,
                 params.optimal_parameters.number_of_hashes,
                 params.optimal_parameters.table_size);
-        }
-        else
-        {
-            estimatedIndexEntries = estimatedNumElems;
-        }
 
-        mData.keysToOffset.reserve(estimatedIndexEntries);
+            // We don't have a good way of estimating IndividualIndex size, so
+            // only reserve range indexes
+            mData.keysToOffset.reserve(estimatedIndexEntries);
+        }
 
         XDRInputFileStream in;
         in.open(filename.string());
