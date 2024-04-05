@@ -31,10 +31,12 @@ class BucketSnapshot : public NonMovable
     XDRInputFileStream& getStream() const;
 
     // Loads the bucket entry for LedgerKey k. Starts at file offset pos and
-    // reads until key is found or the end of the page.
-    std::optional<BucketEntry> getEntryAtOffset(LedgerKey const& k,
-                                                std::streamoff pos,
-                                                size_t pageSize) const;
+    // reads until key is found or the end of the page. Returns <BucketEntry,
+    // bloomMiss>, where bloomMiss is true if a bloomMiss occurred during the
+    // load.
+    std::pair<std::optional<BucketEntry>, bool>
+    getEntryAtOffset(LedgerKey const& k, std::streamoff pos,
+                     size_t pageSize) const;
 
     BucketSnapshot(std::shared_ptr<Bucket const> const b);
 
@@ -46,8 +48,10 @@ class BucketSnapshot : public NonMovable
     bool isEmpty() const;
     std::shared_ptr<Bucket const> getRawBucket() const;
 
-    // Loads bucket entry for LedgerKey k.
-    std::optional<BucketEntry> getBucketEntry(LedgerKey const& k) const;
+    // Loads bucket entry for LedgerKey k. Returns <BucketEntry, bloomMiss>,
+    // where bloomMiss is true if a bloomMiss occurred during the load.
+    std::pair<std::optional<BucketEntry>, bool>
+    getBucketEntry(LedgerKey const& k) const;
 
     // Loads LedgerEntry's for given keys. When a key is found, the
     // entry is added to result and the key is removed from keys.

@@ -32,7 +32,7 @@ class BucketListSnapshot;
 class BucketSnapshotManager : NonMovableOrCopyable
 {
   private:
-    medida::MetricsRegistry& mMetrics;
+    Application& mApp;
 
     // Snapshot that is maintained and periodically updated by BucketManager on
     // the main thread. When background threads need to generate or refresh a
@@ -48,6 +48,8 @@ class BucketSnapshotManager : NonMovableOrCopyable
     medida::Meter& mBulkLoadMeter;
     medida::Meter& mBloomMisses;
     medida::Meter& mBloomLookups;
+
+    mutable std::optional<VirtualClock::time_point> mTimerStart;
 
     // Called by main thread to update mCurrentSnapshot whenever the BucketList
     // is updated
@@ -65,7 +67,7 @@ class BucketSnapshotManager : NonMovableOrCopyable
                                                bool restartMerges);
 
   public:
-    BucketSnapshotManager(medida::MetricsRegistry& metrics,
+    BucketSnapshotManager(Application& app,
                           std::unique_ptr<BucketListSnapshot const>&& snapshot);
 
     std::unique_ptr<SearchableBucketListSnapshot>
@@ -76,9 +78,10 @@ class BucketSnapshotManager : NonMovableOrCopyable
     void maybeUpdateSnapshot(
         std::unique_ptr<BucketListSnapshot const>& snapshot) const;
 
+    // All metric recording functions must only be called by the main thread
+    void startPointLoadTimer() const;
+    void endPointLoadTimer(LedgerEntryType t, bool bloomMiss) const;
     medida::Timer& recordBulkLoadMetrics(std::string const& label,
                                          size_t numEntries) const;
-
-    medida::Timer& getPointLoadTimer(LedgerEntryType t) const;
 };
 }

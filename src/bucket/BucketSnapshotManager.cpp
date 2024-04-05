@@ -13,16 +13,15 @@ namespace stellar
 {
 
 BucketSnapshotManager::BucketSnapshotManager(
-    medida::MetricsRegistry& metrics,
-    std::unique_ptr<BucketListSnapshot const>&& snapshot)
-    : mMetrics(metrics)
+    Application& app, std::unique_ptr<BucketListSnapshot const>&& snapshot)
+    : mApp(app)
     , mCurrentSnapshot(std::move(snapshot))
-    , mBulkLoadMeter(
-          mMetrics.NewMeter({"bucketlistDB", "query", "loads"}, "query"))
-    , mBloomMisses(
-          mMetrics.NewMeter({"bucketlistDB", "bloom", "misses"}, "bloom"))
-    , mBloomLookups(
-          mMetrics.NewMeter({"bucketlistDB", "bloom", "lookups"}, "bloom"))
+    , mBulkLoadMeter(app.getMetrics().NewMeter(
+          {"bucketlistDB", "query", "loads"}, "query"))
+    , mBloomMisses(app.getMetrics().NewMeter(
+          {"bucketlistDB", "bloom", "misses"}, "bloom"))
+    , mBloomLookups(app.getMetrics().NewMeter(
+          {"bucketlistDB", "bloom", "lookups"}, "bloom"))
 {
     releaseAssert(threadIsMain());
 }
@@ -51,26 +50,9 @@ BucketSnapshotManager::recordBulkLoadMetrics(std::string const& label,
     auto iter = mBulkTimers.find(label);
     if (iter == mBulkTimers.end())
     {
-        auto& metric = mMetrics.NewTimer({"bucketlistDB", "bulk", label});
+        auto& metric =
+            mApp.getMetrics().NewTimer({"bucketlistDB", "bulk", label});
         iter = mBulkTimers.emplace(label, metric).first;
-    }
-
-    return iter->second;
-}
-
-medida::Timer&
-BucketSnapshotManager::getPointLoadTimer(LedgerEntryType t) const
-{
-    // For now, only keep metrics for the main thread. We can decide on what
-    // metrics make sense when more background services are added later.
-    releaseAssert(threadIsMain());
-
-    auto iter = mPointTimers.find(t);
-    if (iter == mPointTimers.end())
-    {
-        auto const& label = xdr::xdr_traits<LedgerEntryType>::enum_name(t);
-        auto& metric = mMetrics.NewTimer({"bucketlistDB", "point", label});
-        iter = mPointTimers.emplace(t, metric).first;
     }
 
     return iter->second;
@@ -101,5 +83,40 @@ BucketSnapshotManager::updateCurrentSnapshot(
     releaseAssert(!mCurrentSnapshot || newSnapshot->getLedgerSeq() >=
                                            mCurrentSnapshot->getLedgerSeq());
     mCurrentSnapshot.swap(newSnapshot);
+}
+
+void
+BucketSnapshotManager::startPointLoadTimer() const
+{
+    releaseAssert(threadIsMain());
+    releaseAssert(!mTimerStart);
+    mTimerStart = mApp.getClock().now();
+}
+
+void
+BucketSnapshotManager::endPointLoadTimer(LedgerEntryType t,
+                                         bool bloomMiss) const
+{
+    releaseAssert(threadIsMain());
+    releaseAssert(mTimerStart);
+    auto duration = mApp.getClock().now() - *mTimerStart;
+    mTimerStart.reset();
+
+    // We expect about 0.1% of lookups to encounter a bloom miss. To avoid noise
+    // in disk performance metrics, we only track metrics for entries that did
+    // not encounter a bloom miss.
+    if (!bloomMiss)
+    {
+        auto iter = mPointTimers.find(t);
+        if (iter == mPointTimers.end())
+        {
+            auto const& label = xdr::xdr_traits<LedgerEntryType>::enum_name(t);
+            auto& metric =
+                mApp.getMetrics().NewTimer({"bucketlistDB", "point", label});
+            iter = mPointTimers.emplace(t, metric).first;
+        }
+
+        iter->second.Update(duration);
+    }
 }
 }

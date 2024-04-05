@@ -75,22 +75,28 @@ SearchableBucketListSnapshot::getLedgerEntry(LedgerKey const& k)
 
     if (threadIsMain())
     {
-        auto timer = mSnapshotManager.getPointLoadTimer(k.type()).TimeScope();
-        return getLedgerEntryInternal(k);
+        mSnapshotManager.startPointLoadTimer();
+        auto [result, bloomMiss] = getLedgerEntryInternal(k);
+        mSnapshotManager.endPointLoadTimer(k.type(), bloomMiss);
+        return result;
     }
     else
     {
-        return getLedgerEntryInternal(k);
+        auto [result, bloomMiss] = getLedgerEntryInternal(k);
+        return result;
     }
 }
 
-std::shared_ptr<LedgerEntry>
+std::pair<std::shared_ptr<LedgerEntry>, bool>
 SearchableBucketListSnapshot::getLedgerEntryInternal(LedgerKey const& k)
 {
     std::shared_ptr<LedgerEntry> result{};
+    auto sawBloomMiss = false;
 
     auto f = [&](BucketSnapshot const& b) {
-        auto be = b.getBucketEntry(k);
+        auto [be, bloomMiss] = b.getBucketEntry(k);
+        sawBloomMiss = sawBloomMiss || bloomMiss;
+
         if (be.has_value())
         {
             result =
@@ -106,7 +112,7 @@ SearchableBucketListSnapshot::getLedgerEntryInternal(LedgerKey const& k)
     };
 
     loopAllBuckets(f);
-    return result;
+    return {result, sawBloomMiss};
 }
 
 std::vector<LedgerEntry>
