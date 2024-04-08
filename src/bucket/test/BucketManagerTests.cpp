@@ -188,13 +188,13 @@ TEST_CASE_VERSIONS("bucketmanager ownership", "[bucket][bucketmanager]")
         Config cfg = getTestConfig();
 
         // Make sure all Buckets serialize indexes to disk for test
-        cfg.EXPERIMENTAL_BUCKETLIST_DB_INDEX_CUTOFF = 0;
+        cfg.BUCKETLIST_DB_INDEX_CUTOFF = 0;
         cfg.MANUAL_CLOSE = false;
 
         if (bucketListDB)
         {
             // Enable BucketListDB with persistent indexes
-            cfg.EXPERIMENTAL_BUCKETLIST_DB = true;
+            cfg.DEPRECATED_SQL_LEDGER_STATE = false;
             cfg.NODE_IS_VALIDATOR = false;
             cfg.FORCE_SCP = false;
         }

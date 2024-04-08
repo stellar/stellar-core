@@ -760,7 +760,7 @@ TEST_CASE_VERSIONS("eviction scan", "[bucketlist]")
     auto test = [&](bool backgroundScan) {
         // BucketTestApplication writes directly to BL and circumvents LedgerTxn
         // interface, so we have to use BucketListDB for lookups
-        cfg.EXPERIMENTAL_BUCKETLIST_DB = true;
+        cfg.DEPRECATED_SQL_LEDGER_STATE = false;
         cfg.EXPERIMENTAL_BACKGROUND_EVICTION_SCAN = backgroundScan;
 
         auto app = createTestApplication<BucketTestApplication>(clock, cfg);
@@ -1230,7 +1230,7 @@ TEST_CASE_VERSIONS("Searchable BucketListDB snapshots", "[bucketlist]")
 {
     VirtualClock clock;
     Config cfg(getTestConfig(0, Config::TESTDB_IN_MEMORY_SQLITE));
-    cfg.EXPERIMENTAL_BUCKETLIST_DB = true;
+    cfg.DEPRECATED_SQL_LEDGER_STATE = false;
 
     auto app = createTestApplication<BucketTestApplication>(clock, cfg);
     LedgerManagerForBucketTests& lm = app->getLedgerManager();

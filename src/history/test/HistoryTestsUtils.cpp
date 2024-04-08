@@ -721,7 +721,7 @@ CatchupSimulation::createCatchupApplication(
     mCfgs.back().CATCHUP_COMPLETE =
         count == std::numeric_limits<uint32_t>::max();
     mCfgs.back().CATCHUP_RECENT = count;
-    mCfgs.back().EXPERIMENTAL_BUCKETLIST_DB = useBucketListDB;
+    mCfgs.back().DEPRECATED_SQL_LEDGER_STATE = !useBucketListDB;
     if (ledgerVersion)
     {
         mCfgs.back().TESTING_UPGRADE_LEDGER_PROTOCOL_VERSION = *ledgerVersion;

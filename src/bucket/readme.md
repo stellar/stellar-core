@@ -28,9 +28,9 @@ The individual buckets that compose each level are checkpointed to history
 storage by the [history module](../history). The difference from the current bucket list (a subset
 of the buckets) is retrieved from history and applied in order to perform "fast" catchup.
 
-# BucketList Index [experimental]
+# BucketListDB Index
 
-Currently, the state of the ledger is redundantly copied in two places: the local SQL database
+Previously, the state of the ledger is redundantly copied in two places: the local SQL database
 and the BucketList. The BucketList is used to quickly compute the hash for a ledger, while the
 database is used for key-value lookup. This disjoint setup leads to write and disk amplification.
 Additionally, SQL is not the most efficient database for our read/write patterns. The database
@@ -59,7 +59,8 @@ corresponding `BucketIndex` kept in memory allowing minimal disk IO for each loa
 
 Due to the large number of `LedgerKey`'s, it is not possible to map each entry in a
 `Bucket` individually. Because of this, there are two types of indexes, the
-`IndividualIndex` and the `RangeIndex`. The `IndividualIndex` maps individual `LedgerKey`'s to a file offset as previously described. The `RangeIndex` maps a range of
+`IndividualIndex` and the `RangeIndex`. The `IndividualIndex` maps individual `LedgerKey`'s to a
+file offset as previously described. The `RangeIndex` maps a range of
 `LedgerKey`'s to a given page in the file. Because the `LedgerEntry`'s in each
 bucket file on disk are sorted, the `RangeIndex` can provide the page where a given
 entry may exist. However, the `RangeIndex` cannot determine if the given entry exists
@@ -69,7 +70,7 @@ must be iterated through in order to determine if the target entry exists in the
 
 To avoid additional disk reads from these "false positives", the `RangeIndex` also uses a
 bloom filter to determine if a given entry exists in the `Bucket` before doing a disk read
-and iterating through the corresponding page. The bloom filter is probabalistic and still
+and iterating through the corresponding page. The bloom filter is probabilistic and still
 has a false positive rate, but it is low (1/1000).
 
 Even with the bloom filter, the `RangeIndex` must still iterate through each entry in a
@@ -82,20 +83,20 @@ for smaller memory overhead.
 Because the `BucketIndex`'s must be in memory, there is a tradeoff between BucketList
 lookup speed and memory overhead. The following configuration flags control these options:
 
-- `EXPERIMENTAL_BUCKETLIST_DB`
-  - When set to true, the `BucketList` is indexed and used for ledger entry lookup
-- `EXPERIMENTAL_BUCKETLIST_DB_INDEX_PAGE_SIZE_EXPONENT`
+- `DEPRECATED_SQL_LEDGER_STATE`
+  - When set to false, the `BucketList` is indexed and used for ledger entry lookup
+- `BUCKETLIST_DB_INDEX_PAGE_SIZE_EXPONENT`
   - Page size used for `RangeIndex`, where `pageSize ==
-    2^EXPERIMENTAL_BUCKETLIST_DB_INDEX_PAGE_SIZE_EXPONENT`.
+    2^BUCKETLIST_DB_INDEX_PAGE_SIZE_EXPONENT`.
     Larger values slow down lookup speed but
     decrease memory usage.
-- `EXPERIMENTAL_BUCKETLIST_DB_INDEX_CUTOFF`
-  - Bucket file size, in MB, tyhat determines wether the `IndividualIndex` or
+- `BUCKETLIST_DB_INDEX_CUTOFF`
+  - Bucket file size, in MB, that determines wether the `IndividualIndex` or
    `RangeIndex` is used.
     Default value is 20 MB, which indexes the first ~3 levels with the `IndividualIndex`.
     Larger values speed up lookups but increase memory usage.
-- `EXPERIMENTAL_BUCKETLIST_DB_PERSIST_INDEX`
+- `BUCKETLIST_DB_PERSIST_INDEX`
   - When set to true, BucketListDB indexes are saved to disk to avoid reindexing
     on startup. Defaults to true, should only be set to false for testing purposes.
     Validators do not currently support persisted indexes. If NODE_IS_VALIDATOR=true,
-    this value is ingnored and indexes are never persisted.
+    this value is ignored and indexes are never persisted.
