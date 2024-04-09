@@ -419,6 +419,12 @@ updateCpuCostParamsEntryForV21(AbstractLedgerTxn& ltxRoot)
         case InstantiateWasmDataSegmentBytes:
             params[val] = ContractCostParamEntry{ExtensionPoint{0}, 0, 14};
             break;
+        case Sec1DecodePointUncompressed:
+            params[val] = ContractCostParamEntry{ExtensionPoint{0}, 1882, 0};
+            break;
+        case VerifyEcdsaSecp256r1Sig:
+            params[val] = ContractCostParamEntry{ExtensionPoint{0}, 3000906, 0};
+            break;
         default:
             break;
         }
@@ -665,6 +671,12 @@ updateMemCostParamsEntryForV21(AbstractLedgerTxn& ltxRoot)
             break;
         case InstantiateWasmDataSegmentBytes:
             params[val] = ContractCostParamEntry{ExtensionPoint{0}, 0, 126};
+            break;
+        case Sec1DecodePointUncompressed:
+            params[val] = ContractCostParamEntry{ExtensionPoint{0}, 0, 0};
+            break;
+        case VerifyEcdsaSecp256r1Sig:
+            params[val] = ContractCostParamEntry{ExtensionPoint{0}, 0, 0};
             break;
         default:
             break;
