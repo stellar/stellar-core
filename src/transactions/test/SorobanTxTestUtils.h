@@ -39,7 +39,8 @@ ContractExecutable makeWasmExecutable(Hash const& wasmHash);
 ContractExecutable makeAssetExecutable(Asset const& asset);
 
 SorobanResources
-defaultUploadWasmResourcesWithoutFootprint(RustBuf const& wasm);
+defaultUploadWasmResourcesWithoutFootprint(RustBuf const& wasm,
+                                           uint32_t ledgerVersion);
 
 // Creates a valid transaction for uploading provided Wasm.
 // Fills in the valid footprint automatically in case if `uploadResources`

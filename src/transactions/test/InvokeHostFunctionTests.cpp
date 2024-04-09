@@ -1130,7 +1130,8 @@ TEST_CASE("refund account merged", "[tx][soroban][merge]")
     auto b1 = test.getRoot().create("B", startingBalance);
     auto c1 = test.getRoot().create("C", startingBalance);
     auto wasm = rust_bridge::get_test_wasm_add_i32();
-    auto resources = defaultUploadWasmResourcesWithoutFootprint(wasm);
+    auto resources = defaultUploadWasmResourcesWithoutFootprint(
+        wasm, getLclProtocolVersion(test.getApp()));
     auto tx = makeSorobanWasmUploadTx(test.getApp(), a1, wasm, resources, 1000);
 
     auto mergeOp = accountMerge(b1);
@@ -1146,64 +1147,88 @@ TEST_CASE("refund account merged", "[tx][soroban][merge]")
     checkTx(1, r, txNO_ACCOUNT);
 }
 
-TEST_CASE("refund still happens on bad auth", "[tx][soroban]")
+TEST_CASE_VERSIONS("refund still happens on bad auth", "[tx][soroban]")
 {
-    SorobanTest test;
+    Config cfg = getTestConfig();
+    VirtualClock clock;
+    auto app = createTestApplication(clock, cfg);
 
-    const int64_t startingBalance =
-        test.getApp().getLedgerManager().getLastMinBalance(50);
+    for_versions_from(20, *app, [&] {
+        SorobanTest test(app);
 
-    auto a1 = test.getRoot().create("A", startingBalance);
-    auto b1 = test.getRoot().create("B", startingBalance);
-    auto wasm = rust_bridge::get_test_wasm_add_i32();
-    auto resources = defaultUploadWasmResourcesWithoutFootprint(wasm);
-    auto tx = makeSorobanWasmUploadTx(test.getApp(), a1, wasm, resources, 100);
+        const int64_t startingBalance =
+            test.getApp().getLedgerManager().getLastMinBalance(50);
 
-    auto a1PreTxBalance = a1.getBalance();
-    auto setOptions = txtest::setOptions(setMasterWeight(0));
-    setOptions.sourceAccount.activate() = toMuxedAccount(a1);
+        auto a1 = test.getRoot().create("A", startingBalance);
+        auto b1 = test.getRoot().create("B", startingBalance);
+        auto wasm = rust_bridge::get_test_wasm_add_i32();
+        auto resources = defaultUploadWasmResourcesWithoutFootprint(
+            wasm, getLclProtocolVersion(test.getApp()));
+        auto tx =
+            makeSorobanWasmUploadTx(test.getApp(), a1, wasm, resources, 100);
 
-    auto classicSetOptionsTx = b1.tx({setOptions});
-    classicSetOptionsTx->addSignature(a1.getSecretKey());
-    std::vector<TransactionFrameBasePtr> txs = {classicSetOptionsTx, tx};
-    auto r = closeLedger(test.getApp(), txs);
+        auto a1PreTxBalance = a1.getBalance();
+        auto setOptions = txtest::setOptions(setMasterWeight(0));
+        setOptions.sourceAccount.activate() = toMuxedAccount(a1);
 
-    checkTx(0, r, txSUCCESS);
-    checkTx(1, r, txBAD_AUTH);
+        auto classicSetOptionsTx = b1.tx({setOptions});
+        classicSetOptionsTx->addSignature(a1.getSecretKey());
+        std::vector<TransactionFrameBasePtr> txs = {classicSetOptionsTx, tx};
+        auto r = closeLedger(test.getApp(), txs);
 
-    auto a1PostTxBalance = a1.getBalance();
+        checkTx(0, r, txSUCCESS);
+        checkTx(1, r, txBAD_AUTH);
 
-    // The initial fee charge is based on DEFAULT_TEST_RESOURCE_FEE, which is
-    // 1'000'000, so the difference would be much higher if the refund did not
-    // happen.
-    REQUIRE(a1PreTxBalance - a1PostTxBalance == 39288);
+        auto a1PostTxBalance = a1.getBalance();
+
+        bool afterV20 = protocolVersionStartsFrom(
+            getLclProtocolVersion(test.getApp()), ProtocolVersion::V_21);
+
+        auto fee = afterV20 ? 62697 : 39288;
+
+        // The initial fee charge is based on DEFAULT_TEST_RESOURCE_FEE, which
+        // is 1'000'000, so the difference would be much higher if the refund
+        // did not happen.
+        REQUIRE(a1PreTxBalance - a1PostTxBalance == fee);
+    });
 }
 
-TEST_CASE("refund test with closeLedger", "[tx][soroban][feebump]")
+TEST_CASE_VERSIONS("refund test with closeLedger", "[tx][soroban][feebump]")
 {
-    SorobanTest test;
+    Config cfg = getTestConfig();
+    VirtualClock clock;
+    auto app = createTestApplication(clock, cfg);
 
-    const int64_t startingBalance =
-        test.getApp().getLedgerManager().getLastMinBalance(50);
+    for_versions_from(20, *app, [&] {
+        SorobanTest test(app);
 
-    auto a1 = test.getRoot().create("A", startingBalance);
+        const int64_t startingBalance =
+            test.getApp().getLedgerManager().getLastMinBalance(50);
 
-    auto a1StartingBalance = a1.getBalance();
+        auto a1 = test.getRoot().create("A", startingBalance);
 
-    auto wasm = rust_bridge::get_test_wasm_add_i32();
-    auto resources = defaultUploadWasmResourcesWithoutFootprint(wasm);
-    auto tx = makeSorobanWasmUploadTx(test.getApp(), a1, wasm, resources, 100);
+        auto a1StartingBalance = a1.getBalance();
 
-    auto r = closeLedger(test.getApp(), {tx});
-    checkTx(0, r, txSUCCESS);
+        auto wasm = rust_bridge::get_test_wasm_add_i32();
+        auto resources = defaultUploadWasmResourcesWithoutFootprint(
+            wasm, getLclProtocolVersion(test.getApp()));
+        auto tx =
+            makeSorobanWasmUploadTx(test.getApp(), a1, wasm, resources, 100);
 
-    auto txFeeWithRefund = 59'344;
-    REQUIRE(a1.getBalance() == a1StartingBalance - txFeeWithRefund);
+        auto r = closeLedger(test.getApp(), {tx});
+        checkTx(0, r, txSUCCESS);
 
-    // DEFAULT_TEST_RESOURCE_FEE is added onto the calculated soroban resource
-    // fee, so the total cost would be greater than DEFAULT_TEST_RESOURCE_FEE
-    // without the refund.
-    REQUIRE(txFeeWithRefund < DEFAULT_TEST_RESOURCE_FEE);
+        bool afterV20 = protocolVersionStartsFrom(
+            getLclProtocolVersion(test.getApp()), ProtocolVersion::V_21);
+
+        auto txFeeWithRefund = afterV20 ? 82'753 : 59'344;
+        REQUIRE(a1.getBalance() == a1StartingBalance - txFeeWithRefund);
+
+        // DEFAULT_TEST_RESOURCE_FEE is added onto the calculated soroban
+        // resource fee, so the total cost would be greater than
+        // DEFAULT_TEST_RESOURCE_FEE without the refund.
+        REQUIRE(txFeeWithRefund < DEFAULT_TEST_RESOURCE_FEE);
+    });
 }
 
 TEST_CASE_VERSIONS("refund is sent to fee-bump source",
@@ -1226,7 +1251,8 @@ TEST_CASE_VERSIONS("refund is sent to fee-bump source",
         auto feeBumperStartingBalance = feeBumper.getBalance();
 
         auto wasm = rust_bridge::get_test_wasm_add_i32();
-        auto resources = defaultUploadWasmResourcesWithoutFootprint(wasm);
+        auto resources = defaultUploadWasmResourcesWithoutFootprint(
+            wasm, getLclProtocolVersion(test.getApp()));
         auto tx =
             makeSorobanWasmUploadTx(test.getApp(), a1, wasm, resources, 100);
 
@@ -1247,12 +1273,11 @@ TEST_CASE_VERSIONS("refund is sent to fee-bump source",
         auto r = closeLedger(test.getApp(), {feeBumpTxFrame});
         checkTx(0, r, txFEE_BUMP_INNER_SUCCESS);
 
-        bool refundsInFeeCharged = protocolVersionStartsFrom(
+        bool afterV20 = protocolVersionStartsFrom(
             getLclProtocolVersion(test.getApp()), ProtocolVersion::V_21);
 
-        auto const txFeeWithRefund = 59'444;
-        auto const feeCharged =
-            refundsInFeeCharged ? txFeeWithRefund : 1'040'971;
+        auto const txFeeWithRefund = afterV20 ? 82'853 : 59'444;
+        auto const feeCharged = afterV20 ? txFeeWithRefund : 1'040'971;
 
         REQUIRE(
             r.at(0).first.result.result.innerResultPair().result.feeCharged ==
@@ -1290,7 +1315,8 @@ TEST_CASE("buying liabilities plus refund is greater than INT64_MAX",
 
     auto a1PreBalance = a1.getBalance();
     auto wasm = rust_bridge::get_test_wasm_add_i32();
-    auto resources = defaultUploadWasmResourcesWithoutFootprint(wasm);
+    auto resources = defaultUploadWasmResourcesWithoutFootprint(
+        wasm, getLclProtocolVersion(test.getApp()));
     auto tx =
         makeSorobanWasmUploadTx(test.getApp(), a1, wasm, resources, 300'000);
 
@@ -1479,6 +1505,19 @@ TEST_CASE("settings upgrade", "[tx][soroban][upgrades]")
              i < static_cast<uint32_t>(CONFIG_SETTING_BUCKETLIST_SIZE_WINDOW);
              ++i)
         {
+            // Because we added more cost types in v21, the initial
+            // contractDataEntrySizeBytes setting of 2000 is too low to write
+            // all settings at once. This isn't an issue in practice because 1.
+            // the setting on pubnet and testnet is much higher, and two, we
+            // don't need to upgrade every setting at once. To get around this
+            // in the test, we will remove the memory bytes cost types from the
+            // upgrade.
+            if (i == static_cast<uint32_t>(
+                         CONFIG_SETTING_CONTRACT_COST_PARAMS_MEMORY_BYTES))
+            {
+                continue;
+            }
+
             LedgerTxn ltx(test.getApp().getLedgerTxnRoot());
             auto costEntry =
                 ltx.load(configSettingKey(static_cast<ConfigSettingID>(i)));
@@ -2741,6 +2780,8 @@ TEST_CASE("settings upgrade command line utils", "[tx][soroban][upgrades]")
     // mAverageBucketListSize
     modifySorobanNetworkConfig(*app, [](SorobanNetworkConfig& cfg) {
         cfg.mStateArchivalSettings.bucketListWindowSamplePeriod = 1;
+        // This is required to allow for an upgrade of all settings at once.
+        cfg.mMaxContractDataEntrySizeBytes = 3000;
     });
 
     const int64_t startingBalance =
@@ -2849,7 +2890,11 @@ TEST_CASE("settings upgrade command line utils", "[tx][soroban][upgrades]")
                     params[val] =
                         ContractCostParamEntry{ExtensionPoint{0}, 6481, 5943};
                     break;
+#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
+                case DecodeEcdsaCurve256Sig:
+#else
                 case ComputeEcdsaSecp256k1Sig:
+#endif
                     params[val] =
                         ContractCostParamEntry{ExtensionPoint{0}, 711, 0};
                     break;
@@ -2954,7 +2999,11 @@ TEST_CASE("settings upgrade command line utils", "[tx][soroban][upgrades]")
                     params[val] =
                         ContractCostParamEntry{ExtensionPoint{0}, 0, 0};
                     break;
+#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
+                case DecodeEcdsaCurve256Sig:
+#else
                 case ComputeEcdsaSecp256k1Sig:
+#endif
                     params[val] =
                         ContractCostParamEntry{ExtensionPoint{0}, 0, 0};
                     break;

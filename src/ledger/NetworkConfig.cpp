@@ -14,11 +14,13 @@ namespace
 {
 void
 createConfigSettingEntry(ConfigSettingEntry const& configSetting,
-                         AbstractLedgerTxn& ltxRoot)
+                         AbstractLedgerTxn& ltxRoot,
+                         uint32_t versionToValidateAgainst)
 {
     ZoneScoped;
 
-    if (!SorobanNetworkConfig::isValidConfigSettingEntry(configSetting))
+    if (!SorobanNetworkConfig::isValidConfigSettingEntry(
+            configSetting, versionToValidateAgainst))
     {
         throw std::runtime_error("Invalid configSettingEntry");
     }
@@ -230,15 +232,16 @@ initialContractExecutionLanesSettingsEntry(Config const& cfg)
 }
 
 ConfigSettingEntry
-initialCpuCostParamsEntry()
+initialCpuCostParamsEntryForV20()
 {
     ConfigSettingEntry entry(
         CONFIG_SETTING_CONTRACT_COST_PARAMS_CPU_INSTRUCTIONS);
 
     auto& params = entry.contractCostParamsCpuInsns();
-    auto const& vals = xdr::xdr_traits<ContractCostType>::enum_values();
-    params.resize(static_cast<uint32>(vals.size()));
-    for (auto val : vals)
+    auto max_index = static_cast<uint32>(ContractCostType::ChaCha20DrawBytes);
+    params.resize(max_index + 1);
+
+    for (size_t val = 0; val <= max_index; ++val)
     {
         switch (val)
         {
@@ -291,7 +294,11 @@ initialCpuCostParamsEntry()
         case ComputeKeccak256Hash:
             params[val] = ContractCostParamEntry{ExtensionPoint{0}, 3766, 5969};
             break;
+#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
+        case DecodeEcdsaCurve256Sig:
+#else
         case ComputeEcdsaSecp256k1Sig:
+#endif
             params[val] = ContractCostParamEntry{ExtensionPoint{0}, 710, 0};
             break;
         case RecoverEcdsaSecp256k1Key:
@@ -315,11 +322,116 @@ initialCpuCostParamsEntry()
         case ChaCha20DrawBytes:
             params[val] = ContractCostParamEntry{ExtensionPoint{0}, 1058, 501};
             break;
+        default:
+            break;
         }
     }
 
     return entry;
 }
+
+#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
+void
+updateCpuCostParamsEntryForV21(AbstractLedgerTxn& ltxRoot)
+{
+    LedgerTxn ltx(ltxRoot);
+
+    LedgerKey key(CONFIG_SETTING);
+    key.configSetting().configSettingID =
+        ConfigSettingID::CONFIG_SETTING_CONTRACT_COST_PARAMS_CPU_INSTRUCTIONS;
+
+    auto& params = ltx.load(key)
+                       .current()
+                       .data.configSetting()
+                       .contractCostParamsCpuInsns();
+
+    auto const& vals = xdr::xdr_traits<ContractCostType>::enum_values();
+    params.resize(static_cast<uint32>(vals.size()));
+
+    // While we loop over the full ContractCostType enum, we only set the range
+    for (auto val : vals)
+    {
+        switch (val)
+        {
+        // VmCachedInstantiation is the only one we're updating. The rest are
+        // new.
+        case VmCachedInstantiation:
+            params[val] = ContractCostParamEntry{ExtensionPoint{0}, 41142, 634};
+            break;
+        case ParseWasmInstructions:
+            params[val] =
+                ContractCostParamEntry{ExtensionPoint{0}, 73077, 25410};
+            break;
+        case ParseWasmFunctions:
+            params[val] = ContractCostParamEntry{ExtensionPoint{0}, 0, 540752};
+            break;
+        case ParseWasmGlobals:
+            params[val] = ContractCostParamEntry{ExtensionPoint{0}, 0, 176363};
+            break;
+        case ParseWasmTableEntries:
+            params[val] = ContractCostParamEntry{ExtensionPoint{0}, 0, 29989};
+            break;
+        case ParseWasmTypes:
+            params[val] = ContractCostParamEntry{ExtensionPoint{0}, 0, 1061449};
+            break;
+        case ParseWasmDataSegments:
+            params[val] = ContractCostParamEntry{ExtensionPoint{0}, 0, 237336};
+            break;
+        case ParseWasmElemSegments:
+            params[val] = ContractCostParamEntry{ExtensionPoint{0}, 0, 328476};
+            break;
+        case ParseWasmImports:
+            params[val] = ContractCostParamEntry{ExtensionPoint{0}, 0, 701845};
+            break;
+        case ParseWasmExports:
+            params[val] = ContractCostParamEntry{ExtensionPoint{0}, 0, 429383};
+            break;
+        case ParseWasmDataSegmentBytes:
+            params[val] = ContractCostParamEntry{ExtensionPoint{0}, 0, 28};
+            break;
+        case InstantiateWasmInstructions:
+            params[val] = ContractCostParamEntry{ExtensionPoint{0}, 43030, 0};
+            break;
+        case InstantiateWasmFunctions:
+            params[val] = ContractCostParamEntry{ExtensionPoint{0}, 0, 7556};
+            break;
+        case InstantiateWasmGlobals:
+            params[val] = ContractCostParamEntry{ExtensionPoint{0}, 0, 10711};
+            break;
+        case InstantiateWasmTableEntries:
+            params[val] = ContractCostParamEntry{ExtensionPoint{0}, 0, 3300};
+            break;
+        case InstantiateWasmTypes:
+            params[val] = ContractCostParamEntry{ExtensionPoint{0}, 0, 0};
+            break;
+        case InstantiateWasmDataSegments:
+            params[val] = ContractCostParamEntry{ExtensionPoint{0}, 0, 23038};
+            break;
+        case InstantiateWasmElemSegments:
+            params[val] = ContractCostParamEntry{ExtensionPoint{0}, 0, 42488};
+            break;
+        case InstantiateWasmImports:
+            params[val] = ContractCostParamEntry{ExtensionPoint{0}, 0, 828974};
+            break;
+        case InstantiateWasmExports:
+            params[val] = ContractCostParamEntry{ExtensionPoint{0}, 0, 297100};
+            break;
+        case InstantiateWasmDataSegmentBytes:
+            params[val] = ContractCostParamEntry{ExtensionPoint{0}, 0, 14};
+            break;
+        case Sec1DecodePointUncompressed:
+            params[val] = ContractCostParamEntry{ExtensionPoint{0}, 1882, 0};
+            break;
+        case VerifyEcdsaSecp256r1Sig:
+            params[val] = ContractCostParamEntry{ExtensionPoint{0}, 3000906, 0};
+            break;
+        default:
+            break;
+        }
+    }
+    ltx.commit();
+}
+#endif
 
 ConfigSettingEntry
 initialStateArchivalSettings(Config const& cfg)
@@ -377,14 +489,15 @@ initialStateArchivalSettings(Config const& cfg)
 }
 
 ConfigSettingEntry
-initialMemCostParamsEntry()
+initialMemCostParamsEntryForV20()
 {
     ConfigSettingEntry entry(CONFIG_SETTING_CONTRACT_COST_PARAMS_MEMORY_BYTES);
 
     auto& params = entry.contractCostParamsMemBytes();
-    auto const& vals = xdr::xdr_traits<ContractCostType>::enum_values();
-    params.resize(static_cast<uint32>(vals.size()));
-    for (auto val : vals)
+    auto max_index = static_cast<uint32>(ContractCostType::ChaCha20DrawBytes);
+    params.resize(max_index + 1);
+
+    for (size_t val = 0; val <= max_index; ++val)
     {
         switch (val)
         {
@@ -435,7 +548,11 @@ initialMemCostParamsEntry()
         case ComputeKeccak256Hash:
             params[val] = ContractCostParamEntry{ExtensionPoint{0}, 0, 0};
             break;
+#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
+        case DecodeEcdsaCurve256Sig:
+#else
         case ComputeEcdsaSecp256k1Sig:
+#endif
             params[val] = ContractCostParamEntry{ExtensionPoint{0}, 0, 0};
             break;
         case RecoverEcdsaSecp256k1Key:
@@ -459,10 +576,116 @@ initialMemCostParamsEntry()
         case ChaCha20DrawBytes:
             params[val] = ContractCostParamEntry{ExtensionPoint{0}, 0, 0};
             break;
+        default:
+            break;
         }
     }
     return entry;
 }
+
+#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
+void
+updateMemCostParamsEntryForV21(AbstractLedgerTxn& ltxRoot)
+{
+    LedgerTxn ltx(ltxRoot);
+
+    LedgerKey key(CONFIG_SETTING);
+    key.configSetting().configSettingID =
+        ConfigSettingID::CONFIG_SETTING_CONTRACT_COST_PARAMS_MEMORY_BYTES;
+
+    auto& params = ltx.load(key)
+                       .current()
+                       .data.configSetting()
+                       .contractCostParamsMemBytes();
+
+    auto const& vals = xdr::xdr_traits<ContractCostType>::enum_values();
+    params.resize(static_cast<uint32>(vals.size()));
+
+    for (auto val : vals)
+    {
+        switch (val)
+        {
+        // VmCachedInstantiation is the only one we're updating. The rest are
+        // new.
+        case VmCachedInstantiation:
+            params[val] =
+                ContractCostParamEntry{ExtensionPoint{0}, 69472, 1217};
+            break;
+        case ParseWasmInstructions:
+            params[val] =
+                ContractCostParamEntry{ExtensionPoint{0}, 17564, 6457};
+            break;
+        case ParseWasmFunctions:
+            params[val] = ContractCostParamEntry{ExtensionPoint{0}, 0, 47464};
+            break;
+        case ParseWasmGlobals:
+            params[val] = ContractCostParamEntry{ExtensionPoint{0}, 0, 13420};
+            break;
+        case ParseWasmTableEntries:
+            params[val] = ContractCostParamEntry{ExtensionPoint{0}, 0, 6285};
+            break;
+        case ParseWasmTypes:
+            params[val] = ContractCostParamEntry{ExtensionPoint{0}, 0, 64670};
+            break;
+        case ParseWasmDataSegments:
+            params[val] = ContractCostParamEntry{ExtensionPoint{0}, 0, 29074};
+            break;
+        case ParseWasmElemSegments:
+            params[val] = ContractCostParamEntry{ExtensionPoint{0}, 0, 48095};
+            break;
+        case ParseWasmImports:
+            params[val] = ContractCostParamEntry{ExtensionPoint{0}, 0, 103229};
+            break;
+        case ParseWasmExports:
+            params[val] = ContractCostParamEntry{ExtensionPoint{0}, 0, 36394};
+            break;
+        case ParseWasmDataSegmentBytes:
+            params[val] = ContractCostParamEntry{ExtensionPoint{0}, 0, 257};
+            break;
+        case InstantiateWasmInstructions:
+            params[val] = ContractCostParamEntry{ExtensionPoint{0}, 70704, 0};
+            break;
+        case InstantiateWasmFunctions:
+            params[val] = ContractCostParamEntry{ExtensionPoint{0}, 0, 14613};
+            break;
+        case InstantiateWasmGlobals:
+            params[val] = ContractCostParamEntry{ExtensionPoint{0}, 0, 6833};
+            break;
+        case InstantiateWasmTableEntries:
+            params[val] = ContractCostParamEntry{ExtensionPoint{0}, 0, 1025};
+            break;
+        case InstantiateWasmTypes:
+            params[val] = ContractCostParamEntry{ExtensionPoint{0}, 0, 0};
+            break;
+        case InstantiateWasmDataSegments:
+            params[val] = ContractCostParamEntry{ExtensionPoint{0}, 0, 129632};
+            break;
+        case InstantiateWasmElemSegments:
+            params[val] = ContractCostParamEntry{ExtensionPoint{0}, 0, 13665};
+            break;
+        case InstantiateWasmImports:
+            params[val] = ContractCostParamEntry{ExtensionPoint{0}, 0, 97637};
+            break;
+        case InstantiateWasmExports:
+            params[val] = ContractCostParamEntry{ExtensionPoint{0}, 0, 9176};
+            break;
+        case InstantiateWasmDataSegmentBytes:
+            params[val] = ContractCostParamEntry{ExtensionPoint{0}, 0, 126};
+            break;
+        case Sec1DecodePointUncompressed:
+            params[val] = ContractCostParamEntry{ExtensionPoint{0}, 0, 0};
+            break;
+        case VerifyEcdsaSecp256r1Sig:
+            params[val] = ContractCostParamEntry{ExtensionPoint{0}, 0, 0};
+            break;
+        default:
+            break;
+        }
+    }
+
+    ltx.commit();
+}
+#endif
 
 ConfigSettingEntry
 initialBucketListSizeWindow(Application& app)
@@ -500,7 +723,8 @@ initialEvictionIterator(Config const& cfg)
 }
 
 bool
-SorobanNetworkConfig::isValidConfigSettingEntry(ConfigSettingEntry const& cfg)
+SorobanNetworkConfig::isValidConfigSettingEntry(ConfigSettingEntry const& cfg,
+                                                uint32_t ledgerVersion)
 {
     bool valid = false;
     switch (cfg.configSettingID())
@@ -511,11 +735,11 @@ SorobanNetworkConfig::isValidConfigSettingEntry(ConfigSettingEntry const& cfg)
         break;
     case ConfigSettingID::CONFIG_SETTING_CONTRACT_COST_PARAMS_CPU_INSTRUCTIONS:
         valid = SorobanNetworkConfig::isValidCostParams(
-            cfg.contractCostParamsCpuInsns());
+            cfg.contractCostParamsCpuInsns(), ledgerVersion);
         break;
     case ConfigSettingID::CONFIG_SETTING_CONTRACT_COST_PARAMS_MEMORY_BYTES:
         valid = SorobanNetworkConfig::isValidCostParams(
-            cfg.contractCostParamsMemBytes());
+            cfg.contractCostParamsMemBytes(), ledgerVersion);
         break;
     case ConfigSettingID::CONFIG_SETTING_CONTRACT_DATA_KEY_SIZE_BYTES:
         valid = cfg.contractDataKeySizeBytes() >=
@@ -634,24 +858,54 @@ SorobanNetworkConfig::createLedgerEntriesForV20(AbstractLedgerTxn& ltx,
 {
     ZoneScoped;
 
+    // The validation needs to be pinned to 20 and not ltx's ledgerVersion
+    // because a protocol bump from less than 19 to after 20 will result in a
+    // failed check because we expect most cost types in v21. Those new cost
+    // types will be created in this case, but that'll happen later in
+    // createCostTypesForV21.
+    static const uint32_t versionToValidateAgainst = 20;
+
     auto const& cfg = app.getConfig();
-    createConfigSettingEntry(initialMaxContractSizeEntry(cfg), ltx);
-    createConfigSettingEntry(initialMaxContractDataKeySizeEntry(cfg), ltx);
-    createConfigSettingEntry(initialMaxContractDataEntrySizeEntry(cfg), ltx);
-    createConfigSettingEntry(initialContractComputeSettingsEntry(cfg), ltx);
-    createConfigSettingEntry(initialContractLedgerAccessSettingsEntry(cfg),
-                             ltx);
-    createConfigSettingEntry(initialContractHistoricalDataSettingsEntry(), ltx);
-    createConfigSettingEntry(initialContractEventsSettingsEntry(cfg), ltx);
-    createConfigSettingEntry(initialContractBandwidthSettingsEntry(cfg), ltx);
+    createConfigSettingEntry(initialMaxContractSizeEntry(cfg), ltx,
+                             versionToValidateAgainst);
+    createConfigSettingEntry(initialMaxContractDataKeySizeEntry(cfg), ltx,
+                             versionToValidateAgainst);
+    createConfigSettingEntry(initialMaxContractDataEntrySizeEntry(cfg), ltx,
+                             versionToValidateAgainst);
+    createConfigSettingEntry(initialContractComputeSettingsEntry(cfg), ltx,
+                             versionToValidateAgainst);
+    createConfigSettingEntry(initialContractLedgerAccessSettingsEntry(cfg), ltx,
+                             versionToValidateAgainst);
+    createConfigSettingEntry(initialContractHistoricalDataSettingsEntry(), ltx,
+                             versionToValidateAgainst);
+    createConfigSettingEntry(initialContractEventsSettingsEntry(cfg), ltx,
+                             versionToValidateAgainst);
+    createConfigSettingEntry(initialContractBandwidthSettingsEntry(cfg), ltx,
+                             versionToValidateAgainst);
     createConfigSettingEntry(initialContractExecutionLanesSettingsEntry(cfg),
-                             ltx);
-    createConfigSettingEntry(initialCpuCostParamsEntry(), ltx);
-    createConfigSettingEntry(initialMemCostParamsEntry(), ltx);
-    createConfigSettingEntry(initialStateArchivalSettings(cfg), ltx);
-    createConfigSettingEntry(initialBucketListSizeWindow(app), ltx);
-    createConfigSettingEntry(initialEvictionIterator(cfg), ltx);
+                             ltx, versionToValidateAgainst);
+    createConfigSettingEntry(initialCpuCostParamsEntryForV20(), ltx,
+                             versionToValidateAgainst);
+    createConfigSettingEntry(initialMemCostParamsEntryForV20(), ltx,
+                             versionToValidateAgainst);
+    createConfigSettingEntry(initialStateArchivalSettings(cfg), ltx,
+                             versionToValidateAgainst);
+    createConfigSettingEntry(initialBucketListSizeWindow(app), ltx,
+                             versionToValidateAgainst);
+    createConfigSettingEntry(initialEvictionIterator(cfg), ltx,
+                             versionToValidateAgainst);
 }
+
+#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
+void
+SorobanNetworkConfig::createCostTypesForV21(AbstractLedgerTxn& ltx,
+                                            Application& app)
+{
+    ZoneScoped;
+    updateCpuCostParamsEntryForV21(ltx);
+    updateMemCostParamsEntryForV21(ltx);
+}
+#endif
 
 void
 SorobanNetworkConfig::initializeGenesisLedgerForTesting(
@@ -660,8 +914,20 @@ SorobanNetworkConfig::initializeGenesisLedgerForTesting(
     if (protocolVersionStartsFrom(genesisLedgerProtocol,
                                   SOROBAN_PROTOCOL_VERSION))
     {
+        // This sandwich is required because createLedgerEntriesForV20 (due to
+        // the validation in isValidCostParams) is only valid in v20 because the
+        // size of the cost types in the LedgerEntry matters.
+        ltx.loadHeader().current().ledgerVersion =
+            static_cast<uint32_t>(SOROBAN_PROTOCOL_VERSION);
         SorobanNetworkConfig::createLedgerEntriesForV20(ltx, app);
+        ltx.loadHeader().current().ledgerVersion = genesisLedgerProtocol;
     }
+#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
+    if (protocolVersionStartsFrom(genesisLedgerProtocol, ProtocolVersion::V_21))
+    {
+        SorobanNetworkConfig::createCostTypesForV21(ltx, app);
+    }
+#endif
 }
 
 void
@@ -1368,10 +1634,14 @@ SorobanNetworkConfig::evictionIterator()
 #endif
 
 bool
-SorobanNetworkConfig::isValidCostParams(ContractCostParams const& params)
+SorobanNetworkConfig::isValidCostParams(ContractCostParams const& params,
+                                        uint32_t ledgerVersion)
 {
-    if (params.size() !=
-        xdr::xdr_traits<ContractCostType>::enum_values().size())
+    auto numberOfCostTypes =
+        protocolVersionIsBefore(ledgerVersion, ProtocolVersion::V_21)
+            ? static_cast<uint32_t>(ContractCostType::ChaCha20DrawBytes) + 1
+            : xdr::xdr_traits<ContractCostType>::enum_values().size();
+    if (params.size() != numberOfCostTypes)
     {
         return false;
     }

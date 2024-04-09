@@ -210,6 +210,14 @@ class SorobanNetworkConfig
     // upgrade.
     static void createLedgerEntriesForV20(AbstractLedgerTxn& ltx,
                                           Application& app);
+
+#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
+    // Creates the new cost types introduced in v21.
+    // This should happen once during the correspondent protocol version
+    // upgrade.
+    static void createCostTypesForV21(AbstractLedgerTxn& ltx, Application& app);
+#endif
+
     // Test-only function that initializes contract network configuration
     // bypassing the normal upgrade process (i.e. when genesis ledger starts not
     // at v1)
@@ -295,7 +303,8 @@ class SorobanNetworkConfig
     // window.
     uint64_t getAverageBucketListSize() const;
 
-    static bool isValidConfigSettingEntry(ConfigSettingEntry const& cfg);
+    static bool isValidConfigSettingEntry(ConfigSettingEntry const& cfg,
+                                          uint32_t ledgerVersion);
     static bool
     isNonUpgradeableConfigSettingEntry(ConfigSettingEntry const& cfg);
 
@@ -303,7 +312,8 @@ class SorobanNetworkConfig
     ContractCostParams const& cpuCostParams() const;
     ContractCostParams const& memCostParams() const;
 
-    static bool isValidCostParams(ContractCostParams const& params);
+    static bool isValidCostParams(ContractCostParams const& params,
+                                  uint32_t ledgerVersion);
 
     CxxFeeConfiguration rustBridgeFeeConfiguration() const;
     CxxRentFeeConfiguration rustBridgeRentFeeConfiguration() const;

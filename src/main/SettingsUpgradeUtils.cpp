@@ -223,7 +223,7 @@ getInvokeTx(PublicKey const& publicKey, LedgerKey const& contractCodeLedgerKey,
     invokeResources.footprint.readWrite = {upgrade};
     invokeResources.instructions = 2'000'000;
     invokeResources.readBytes = 3000;
-    invokeResources.writeBytes = 2000;
+    invokeResources.writeBytes = 3000;
 
     tx.ext.v(1);
     tx.ext.sorobanData().resources = invokeResources;

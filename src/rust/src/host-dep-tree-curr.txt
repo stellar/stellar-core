@@ -1,4 +1,19 @@
-soroban-env-host 20.3.0 git+https://github.com/stellar/rs-soroban-env?rev=93120b6b32cd910fcc224cbf6aec1333f771a8bc#93120b6b32cd910fcc224cbf6aec1333f771a8bc
+soroban-env-host 20.3.0 git+https://github.com/stellar/rs-soroban-env?rev=f8d3bafa19b934741efbb6f8ef3311696b3556de#f8d3bafa19b934741efbb6f8ef3311696b3556de
+├── wasmparser 0.116.1 checksum:a58e28b80dd8340cb07b8242ae654756161f6fc8d0038123d679b7b99964fa50
+│   ├── semver 1.0.17 checksum:bebd363326d05ec3e2f532ab7660680f3b02130d780c299bca73469d521bc0ed
+│   │   └── serde 1.0.192 checksum:bca2a08484b285dcb282d0f67b26cadc0df8b19f8c12502c13d966bf9482f001
+│   │       └── serde_derive 1.0.192 checksum:d6c7207fbec9faa48073f3e3074cbe553af6ea512d7c21ba46e434e70ea9fbc1
+│   │           ├── syn 2.0.39 checksum:23e78b90f2fcf45d3e842032ce32e3f2d1545ba6636271dcbf24fa306d87be7a
+│   │           │   ├── unicode-ident 1.0.9 checksum:b15811caf2415fb889178633e7724bad2509101cde276048e013b9def5e51fa0
+│   │           │   ├── quote 1.0.33 checksum:5267fca4496028628a95160fc423a33e8b2e6af8a5302579e322e4b520293cae
+│   │           │   │   └── proc-macro2 1.0.69 checksum:134c189feb4956b20f6f547d2cf727d4c0fe06722b20a0eec87ed445a97f92da
+│   │           │   │       └── unicode-ident 1.0.9 checksum:b15811caf2415fb889178633e7724bad2509101cde276048e013b9def5e51fa0
+│   │           │   └── proc-macro2 1.0.69 checksum:134c189feb4956b20f6f547d2cf727d4c0fe06722b20a0eec87ed445a97f92da
+│   │           ├── quote 1.0.33 checksum:5267fca4496028628a95160fc423a33e8b2e6af8a5302579e322e4b520293cae
+│   │           └── proc-macro2 1.0.69 checksum:134c189feb4956b20f6f547d2cf727d4c0fe06722b20a0eec87ed445a97f92da
+│   └── indexmap 2.0.2 checksum:8adf3ddd720272c6ea8bf59463c04e0f93d0bbf7c5439b691bca2987e0270897
+│       ├── hashbrown 0.14.1 checksum:7dfda62a12f55daeae5015f81b0baea145391cb4520f86c248fc615d72640d12
+│       └── equivalent 1.0.1 checksum:5443807d6dff69373d433ab9ef5378ad8df50ca6298caf15de6e52e24aaf54d5
 ├── tracy-client 0.15.2 checksum:434ecabbda9f67eeea1eab44d52f4a20538afa3e2c2770f2efc161142b25b608
 │   ├── tracy-client-sys 0.20.0 checksum:e8cf8aeb20e40d13be65a0b134f8d82d360e72b2793a11de8867d7fbc0f9d6f6
 │   │   └── cc 1.0.79 checksum:50d30906286121d95be3d479533b458f87493b30a4b5f79a607db8f5d11aa91f
@@ -16,11 +31,6 @@ soroban-env-host 20.3.0 git+https://github.com/stellar/rs-soroban-env?rev=93120b
 │       │   │   ├── tracing-core 0.1.31 checksum:0955b8137a1df6f1a2e9a37d8a6656291ff0297c1a97c24e0d8425fe2312f79a
 │       │   │   ├── tracing-attributes 0.1.26 checksum:5f4f31f56159e98206da9efd823404b79b6ef3143b4a7ab76e67b1751b25a4ab
 │       │   │   │   ├── syn 2.0.39 checksum:23e78b90f2fcf45d3e842032ce32e3f2d1545ba6636271dcbf24fa306d87be7a
-│       │   │   │   │   ├── unicode-ident 1.0.9 checksum:b15811caf2415fb889178633e7724bad2509101cde276048e013b9def5e51fa0
-│       │   │   │   │   ├── quote 1.0.33 checksum:5267fca4496028628a95160fc423a33e8b2e6af8a5302579e322e4b520293cae
-│       │   │   │   │   │   └── proc-macro2 1.0.69 checksum:134c189feb4956b20f6f547d2cf727d4c0fe06722b20a0eec87ed445a97f92da
-│       │   │   │   │   │       └── unicode-ident 1.0.9 checksum:b15811caf2415fb889178633e7724bad2509101cde276048e013b9def5e51fa0
-│       │   │   │   │   └── proc-macro2 1.0.69 checksum:134c189feb4956b20f6f547d2cf727d4c0fe06722b20a0eec87ed445a97f92da
 │       │   │   │   ├── quote 1.0.33 checksum:5267fca4496028628a95160fc423a33e8b2e6af8a5302579e322e4b520293cae
 │       │   │   │   └── proc-macro2 1.0.69 checksum:134c189feb4956b20f6f547d2cf727d4c0fe06722b20a0eec87ed445a97f92da
 │       │   │   ├── pin-project-lite 0.2.10 checksum:4c40d25201921e5ff0c862a505c6557ea88568a4e3ace775ab55e93f2f4f9d57
@@ -75,10 +85,6 @@ soroban-env-host 20.3.0 git+https://github.com/stellar/rs-soroban-env?rev=93120b
 │   ├── crate-git-revision 0.0.6 checksum:c521bf1f43d31ed2f73441775ed31935d77901cb3451e44b38a1c1612fcbaf98
 │   │   ├── serde_json 1.0.108 checksum:3d1c7e3eac408d115102c4c24ad393e0821bb3a5df4d506a80f85f7a742a526b
 │   │   │   ├── serde 1.0.192 checksum:bca2a08484b285dcb282d0f67b26cadc0df8b19f8c12502c13d966bf9482f001
-│   │   │   │   └── serde_derive 1.0.192 checksum:d6c7207fbec9faa48073f3e3074cbe553af6ea512d7c21ba46e434e70ea9fbc1
-│   │   │   │       ├── syn 2.0.39 checksum:23e78b90f2fcf45d3e842032ce32e3f2d1545ba6636271dcbf24fa306d87be7a
-│   │   │   │       ├── quote 1.0.33 checksum:5267fca4496028628a95160fc423a33e8b2e6af8a5302579e322e4b520293cae
-│   │   │   │       └── proc-macro2 1.0.69 checksum:134c189feb4956b20f6f547d2cf727d4c0fe06722b20a0eec87ed445a97f92da
 │   │   │   ├── ryu 1.0.13 checksum:f91339c0467de62360649f8d3e185ca8de4224ff281f66000de5eb2a77a79041
 │   │   │   └── itoa 1.0.6 checksum:453ad9f582a441959e5f0d088b02ce04cfe8d51a8eaf077f12ac6d3e94164ca6
 │   │   ├── serde_derive 1.0.192 checksum:d6c7207fbec9faa48073f3e3074cbe553af6ea512d7c21ba46e434e70ea9fbc1
@@ -97,9 +103,10 @@ soroban-env-host 20.3.0 git+https://github.com/stellar/rs-soroban-env?rev=93120b
 │   ├── wasmi_arena 0.4.0 git+https://github.com/stellar/wasmi?rev=0ed3f3dee30dc41ebe21972399e0a73a41944aa0#0ed3f3dee30dc41ebe21972399e0a73a41944aa0
 │   ├── spin 0.9.8 checksum:6980e8d7511241f8acf4aebddbb1ff938df5eebe98691418c4468d0b72a96a67
 │   └── smallvec 1.10.0 checksum:a507befe795404456341dfab10cef66ead4c041f62b8b11bbb92bffe5d0953e0
-├── soroban-env-common 20.3.0 git+https://github.com/stellar/rs-soroban-env?rev=93120b6b32cd910fcc224cbf6aec1333f771a8bc#93120b6b32cd910fcc224cbf6aec1333f771a8bc
+├── soroban-env-common 20.3.0 git+https://github.com/stellar/rs-soroban-env?rev=f8d3bafa19b934741efbb6f8ef3311696b3556de#f8d3bafa19b934741efbb6f8ef3311696b3556de
+│   ├── wasmparser 0.116.1 checksum:a58e28b80dd8340cb07b8242ae654756161f6fc8d0038123d679b7b99964fa50
 │   ├── tracy-client 0.15.2 checksum:434ecabbda9f67eeea1eab44d52f4a20538afa3e2c2770f2efc161142b25b608
-│   ├── stellar-xdr 20.1.0 git+https://github.com/stellar/rs-stellar-xdr?rev=2e0f7f7d42fcd6c3c42eb0d65570fba9f5193d7e#2e0f7f7d42fcd6c3c42eb0d65570fba9f5193d7e
+│   ├── stellar-xdr 20.1.0 git+https://github.com/stellar/rs-stellar-xdr?rev=3a001b1fbb20e4cfa2cef2c0cc450564e8528057#3a001b1fbb20e4cfa2cef2c0cc450564e8528057
 │   │   ├── stellar-strkey 0.0.8 checksum:12d2bf45e114117ea91d820a846fd1afbe3ba7d717988fee094ce8227a3bf8bd
 │   │   ├── hex 0.4.3 checksum:7f24254aa9a54b5c858eaee2f5bccdb46aaf0e486a595ed5fd8f86ba55232a70
 │   │   ├── escape-bytes 0.1.1 checksum:2bfcf67fea2815c2fc3b90873fae90957be12ff417335dfadc7f52927feb03b2
@@ -107,9 +114,9 @@ soroban-env-host 20.3.0 git+https://github.com/stellar/rs-soroban-env?rev=93120b
 │   │   └── base64 0.13.1 checksum:9e1b586273c5702936fe7b7d6896644d8be71e6314cfe09d3167c95f712589e8
 │   ├── static_assertions 1.1.0 checksum:a2eb9349b6444b326872e140eb1cf5e7c522154d69e7a0ffb0fb81c06b37543f
 │   ├── soroban-wasmi 0.31.1-soroban.20.0.1 git+https://github.com/stellar/wasmi?rev=0ed3f3dee30dc41ebe21972399e0a73a41944aa0#0ed3f3dee30dc41ebe21972399e0a73a41944aa0
-│   ├── soroban-env-macros 20.3.0 git+https://github.com/stellar/rs-soroban-env?rev=93120b6b32cd910fcc224cbf6aec1333f771a8bc#93120b6b32cd910fcc224cbf6aec1333f771a8bc
+│   ├── soroban-env-macros 20.3.0 git+https://github.com/stellar/rs-soroban-env?rev=f8d3bafa19b934741efbb6f8ef3311696b3556de#f8d3bafa19b934741efbb6f8ef3311696b3556de
 │   │   ├── syn 2.0.39 checksum:23e78b90f2fcf45d3e842032ce32e3f2d1545ba6636271dcbf24fa306d87be7a
-│   │   ├── stellar-xdr 20.1.0 git+https://github.com/stellar/rs-stellar-xdr?rev=2e0f7f7d42fcd6c3c42eb0d65570fba9f5193d7e#2e0f7f7d42fcd6c3c42eb0d65570fba9f5193d7e
+│   │   ├── stellar-xdr 20.1.0 git+https://github.com/stellar/rs-stellar-xdr?rev=3a001b1fbb20e4cfa2cef2c0cc450564e8528057#3a001b1fbb20e4cfa2cef2c0cc450564e8528057
 │   │   ├── serde_json 1.0.108 checksum:3d1c7e3eac408d115102c4c24ad393e0821bb3a5df4d506a80f85f7a742a526b
 │   │   ├── serde 1.0.192 checksum:bca2a08484b285dcb282d0f67b26cadc0df8b19f8c12502c13d966bf9482f001
 │   │   ├── quote 1.0.33 checksum:5267fca4496028628a95160fc423a33e8b2e6af8a5302579e322e4b520293cae
@@ -123,7 +130,7 @@ soroban-env-host 20.3.0 git+https://github.com/stellar/rs-soroban-env?rev=93120b
 │   │   └── proc-macro2 1.0.69 checksum:134c189feb4956b20f6f547d2cf727d4c0fe06722b20a0eec87ed445a97f92da
 │   ├── ethnum 1.5.0 checksum:b90ca2580b73ab6a1f724b76ca11ab632df820fd6040c336200d2c1df7b3c82c
 │   └── crate-git-revision 0.0.6 checksum:c521bf1f43d31ed2f73441775ed31935d77901cb3451e44b38a1c1612fcbaf98
-├── soroban-builtin-sdk-macros 20.3.0 git+https://github.com/stellar/rs-soroban-env?rev=93120b6b32cd910fcc224cbf6aec1333f771a8bc#93120b6b32cd910fcc224cbf6aec1333f771a8bc
+├── soroban-builtin-sdk-macros 20.3.0 git+https://github.com/stellar/rs-soroban-env?rev=f8d3bafa19b934741efbb6f8ef3311696b3556de#f8d3bafa19b934741efbb6f8ef3311696b3556de
 │   ├── syn 2.0.39 checksum:23e78b90f2fcf45d3e842032ce32e3f2d1545ba6636271dcbf24fa306d87be7a
 │   ├── quote 1.0.33 checksum:5267fca4496028628a95160fc423a33e8b2e6af8a5302579e322e4b520293cae
 │   ├── proc-macro2 1.0.69 checksum:134c189feb4956b20f6f547d2cf727d4c0fe06722b20a0eec87ed445a97f92da
@@ -147,6 +154,19 @@ soroban-env-host 20.3.0 git+https://github.com/stellar/rs-soroban-env?rev=93120b
 │   ├── digest 0.10.7 checksum:9ed9a281f7bc9b7576e61468ba615a66a5c8cfdff42420a70aa82701a3b1e292
 │   ├── cpufeatures 0.2.8 checksum:03e69e28e9f7f77debdedbaafa2866e1de9ba56df55a8bd7cfc724c25a09987c
 │   └── cfg-if 1.0.0 checksum:baf1de4339761588bc0619e3cbc0120ee582ebb74b53b4efbf79117bd2da40fd
+├── sec1 0.7.2 checksum:f0aec48e813d6b90b15f0b8948af3c63483992dee44c03e9930b3eebdabe046e
+│   ├── zeroize 1.6.0 checksum:2a0956f1ba7c7909bfb66c2e9e4124ab6f6482560f6628b5aaeba39207c9aad9
+│   ├── subtle 2.5.0 checksum:81cdd64d312baedb58e21336b31bc043b77e01cc99033ce76ef539f78e965ebc
+│   ├── pkcs8 0.10.2 checksum:f950b2377845cebe5cf8b5165cb3cc1a5e0fa5cfa3e1f7f55707d8fd82e0a7b7
+│   │   ├── spki 0.7.2 checksum:9d1e996ef02c474957d681f1b05213dfb0abab947b446a62d37770b23500184a
+│   │   │   ├── der 0.7.6 checksum:56acb310e15652100da43d130af8d97b509e95af61aab1c5a7939ef24337ee17
+│   │   │   │   ├── zeroize 1.6.0 checksum:2a0956f1ba7c7909bfb66c2e9e4124ab6f6482560f6628b5aaeba39207c9aad9
+│   │   │   │   └── const-oid 0.9.2 checksum:520fbf3c07483f94e3e3ca9d0cfd913d7718ef2483d2cfd91c0d9e91474ab913
+│   │   │   └── base64ct 1.6.0 checksum:8c3c1a368f70d6cf7302d78f8f7093da241fb8e8807c05cc9e51a125895a6d5b
+│   │   └── der 0.7.6 checksum:56acb310e15652100da43d130af8d97b509e95af61aab1c5a7939ef24337ee17
+│   ├── generic-array 0.14.7 checksum:85649ca51fd72272d7821adaf274ad91c288277713d9c18820d8499a7ff69e9a
+│   ├── der 0.7.6 checksum:56acb310e15652100da43d130af8d97b509e95af61aab1c5a7939ef24337ee17
+│   └── base16ct 0.2.0 checksum:4c7f02d4ea65f2c1853089ffd8d2787bdbc63de2f0d29dedbcf8ccdfa0ccd4cf
 ├── rand_chacha 0.3.1 checksum:e6c10a63a0fa32252be49d21e7709d4d4baf8d231c2dbce1eaa8141b9b127d88
 │   ├── rand_core 0.6.4 checksum:ec0be4795e2f6a28069bec0b5ff3e2ac9bafc99e6a9a7dc3547996c5c816922c
 │   │   └── getrandom 0.2.11 checksum:fe9006bed769170c11f845cf00c7c1e9092aeb3f268e007c3e760ac68008070f
@@ -177,6 +197,43 @@ soroban-env-host 20.3.0 git+https://github.com/stellar/rs-soroban-env?rev=93120b
 │   ├── rand_core 0.6.4 checksum:ec0be4795e2f6a28069bec0b5ff3e2ac9bafc99e6a9a7dc3547996c5c816922c
 │   ├── rand_chacha 0.3.1 checksum:e6c10a63a0fa32252be49d21e7709d4d4baf8d231c2dbce1eaa8141b9b127d88
 │   └── libc 0.2.150 checksum:89d92a4743f9a61002fae18374ed11e7973f530cb3a3255fb354818118b2203c
+├── p256 0.13.2 checksum:c9863ad85fa8f4460f9c48cb909d38a0d689dba1f6f6988a5e3e0d31071bcd4b
+│   ├── sha2 0.10.8 checksum:793db75ad2bcafc3ffa7c68b215fee268f537982cd901d132f89c6343f3a3dc8
+│   ├── primeorder 0.13.3 checksum:c7dbe9ed3b56368bd99483eb32fe9c17fdd3730aebadc906918ce78d54c7eeb4
+│   │   └── elliptic-curve 0.13.5 checksum:968405c8fdc9b3bf4df0a6638858cc0b52462836ab6b1c87377785dd09cf1c0b
+│   │       ├── zeroize 1.6.0 checksum:2a0956f1ba7c7909bfb66c2e9e4124ab6f6482560f6628b5aaeba39207c9aad9
+│   │       ├── subtle 2.5.0 checksum:81cdd64d312baedb58e21336b31bc043b77e01cc99033ce76ef539f78e965ebc
+│   │       ├── sec1 0.7.2 checksum:f0aec48e813d6b90b15f0b8948af3c63483992dee44c03e9930b3eebdabe046e
+│   │       ├── rand_core 0.6.4 checksum:ec0be4795e2f6a28069bec0b5ff3e2ac9bafc99e6a9a7dc3547996c5c816922c
+│   │       ├── pkcs8 0.10.2 checksum:f950b2377845cebe5cf8b5165cb3cc1a5e0fa5cfa3e1f7f55707d8fd82e0a7b7
+│   │       ├── group 0.13.0 checksum:f0f9ef7462f7c099f518d754361858f86d8a07af53ba9af0fe635bbccb151a63
+│   │       │   ├── subtle 2.5.0 checksum:81cdd64d312baedb58e21336b31bc043b77e01cc99033ce76ef539f78e965ebc
+│   │       │   ├── rand_core 0.6.4 checksum:ec0be4795e2f6a28069bec0b5ff3e2ac9bafc99e6a9a7dc3547996c5c816922c
+│   │       │   └── ff 0.13.0 checksum:ded41244b729663b1e574f1b4fb731469f69f79c17667b5d776b16cda0479449
+│   │       │       ├── subtle 2.5.0 checksum:81cdd64d312baedb58e21336b31bc043b77e01cc99033ce76ef539f78e965ebc
+│   │       │       └── rand_core 0.6.4 checksum:ec0be4795e2f6a28069bec0b5ff3e2ac9bafc99e6a9a7dc3547996c5c816922c
+│   │       ├── generic-array 0.14.7 checksum:85649ca51fd72272d7821adaf274ad91c288277713d9c18820d8499a7ff69e9a
+│   │       ├── ff 0.13.0 checksum:ded41244b729663b1e574f1b4fb731469f69f79c17667b5d776b16cda0479449
+│   │       ├── digest 0.10.7 checksum:9ed9a281f7bc9b7576e61468ba615a66a5c8cfdff42420a70aa82701a3b1e292
+│   │       ├── crypto-bigint 0.5.2 checksum:cf4c2f4e1afd912bc40bfd6fed5d9dc1f288e0ba01bfcc835cc5bc3eb13efe15
+│   │       │   ├── zeroize 1.6.0 checksum:2a0956f1ba7c7909bfb66c2e9e4124ab6f6482560f6628b5aaeba39207c9aad9
+│   │       │   ├── subtle 2.5.0 checksum:81cdd64d312baedb58e21336b31bc043b77e01cc99033ce76ef539f78e965ebc
+│   │       │   ├── rand_core 0.6.4 checksum:ec0be4795e2f6a28069bec0b5ff3e2ac9bafc99e6a9a7dc3547996c5c816922c
+│   │       │   └── generic-array 0.14.7 checksum:85649ca51fd72272d7821adaf274ad91c288277713d9c18820d8499a7ff69e9a
+│   │       └── base16ct 0.2.0 checksum:4c7f02d4ea65f2c1853089ffd8d2787bdbc63de2f0d29dedbcf8ccdfa0ccd4cf
+│   ├── elliptic-curve 0.13.5 checksum:968405c8fdc9b3bf4df0a6638858cc0b52462836ab6b1c87377785dd09cf1c0b
+│   └── ecdsa 0.16.7 checksum:0997c976637b606099b9985693efa3581e84e41f5c11ba5255f88711058ad428
+│       ├── spki 0.7.2 checksum:9d1e996ef02c474957d681f1b05213dfb0abab947b446a62d37770b23500184a
+│       ├── signature 2.1.0 checksum:5e1788eed21689f9cf370582dfc467ef36ed9c707f073528ddafa8d83e3b8500
+│       │   ├── rand_core 0.6.4 checksum:ec0be4795e2f6a28069bec0b5ff3e2ac9bafc99e6a9a7dc3547996c5c816922c
+│       │   └── digest 0.10.7 checksum:9ed9a281f7bc9b7576e61468ba615a66a5c8cfdff42420a70aa82701a3b1e292
+│       ├── rfc6979 0.4.0 checksum:f8dd2a808d456c4a54e300a23e9f5a67e122c3024119acbfd73e3bf664491cb2
+│       │   ├── subtle 2.5.0 checksum:81cdd64d312baedb58e21336b31bc043b77e01cc99033ce76ef539f78e965ebc
+│       │   └── hmac 0.12.1 checksum:6c49c37c09c17a53d937dfbb742eb3a961d65a994e6bcdcf37e7399d0cc8ab5e
+│       │       └── digest 0.10.7 checksum:9ed9a281f7bc9b7576e61468ba615a66a5c8cfdff42420a70aa82701a3b1e292
+│       ├── elliptic-curve 0.13.5 checksum:968405c8fdc9b3bf4df0a6638858cc0b52462836ab6b1c87377785dd09cf1c0b
+│       ├── digest 0.10.7 checksum:9ed9a281f7bc9b7576e61468ba615a66a5c8cfdff42420a70aa82701a3b1e292
+│       └── der 0.7.6 checksum:56acb310e15652100da43d130af8d97b509e95af61aab1c5a7939ef24337ee17
 ├── num-traits 0.2.17 checksum:39e3200413f237f41ab11ad6d161bc7239c84dcb631773ccd7de3dfe4b5c267c
 ├── num-integer 0.1.45 checksum:225d3389fb3509a24c93f5c29eb6bde2586b98d9f016636dff58d7c6f7569cd9
 │   ├── num-traits 0.2.17 checksum:39e3200413f237f41ab11ad6d161bc7239c84dcb631773ccd7de3dfe4b5c267c
@@ -184,57 +241,16 @@ soroban-env-host 20.3.0 git+https://github.com/stellar/rs-soroban-env?rev=93120b
 ├── num-derive 0.4.1 checksum:cfb77679af88f8b125209d354a202862602672222e7f2313fdd6dc349bad4712
 ├── k256 0.13.1 checksum:cadb76004ed8e97623117f3df85b17aaa6626ab0b0831e6573f104df16cd1bcc
 │   ├── signature 2.1.0 checksum:5e1788eed21689f9cf370582dfc467ef36ed9c707f073528ddafa8d83e3b8500
-│   │   ├── rand_core 0.6.4 checksum:ec0be4795e2f6a28069bec0b5ff3e2ac9bafc99e6a9a7dc3547996c5c816922c
-│   │   └── digest 0.10.7 checksum:9ed9a281f7bc9b7576e61468ba615a66a5c8cfdff42420a70aa82701a3b1e292
 │   ├── sha2 0.10.8 checksum:793db75ad2bcafc3ffa7c68b215fee268f537982cd901d132f89c6343f3a3dc8
 │   ├── once_cell 1.18.0 checksum:dd8b5dd2ae5ed71462c540258bedcb51965123ad7e7ccf4b9a8cafaa4a63576d
 │   ├── elliptic-curve 0.13.5 checksum:968405c8fdc9b3bf4df0a6638858cc0b52462836ab6b1c87377785dd09cf1c0b
-│   │   ├── zeroize 1.6.0 checksum:2a0956f1ba7c7909bfb66c2e9e4124ab6f6482560f6628b5aaeba39207c9aad9
-│   │   ├── subtle 2.5.0 checksum:81cdd64d312baedb58e21336b31bc043b77e01cc99033ce76ef539f78e965ebc
-│   │   ├── sec1 0.7.2 checksum:f0aec48e813d6b90b15f0b8948af3c63483992dee44c03e9930b3eebdabe046e
-│   │   │   ├── zeroize 1.6.0 checksum:2a0956f1ba7c7909bfb66c2e9e4124ab6f6482560f6628b5aaeba39207c9aad9
-│   │   │   ├── subtle 2.5.0 checksum:81cdd64d312baedb58e21336b31bc043b77e01cc99033ce76ef539f78e965ebc
-│   │   │   ├── pkcs8 0.10.2 checksum:f950b2377845cebe5cf8b5165cb3cc1a5e0fa5cfa3e1f7f55707d8fd82e0a7b7
-│   │   │   │   ├── spki 0.7.2 checksum:9d1e996ef02c474957d681f1b05213dfb0abab947b446a62d37770b23500184a
-│   │   │   │   │   ├── der 0.7.6 checksum:56acb310e15652100da43d130af8d97b509e95af61aab1c5a7939ef24337ee17
-│   │   │   │   │   │   ├── zeroize 1.6.0 checksum:2a0956f1ba7c7909bfb66c2e9e4124ab6f6482560f6628b5aaeba39207c9aad9
-│   │   │   │   │   │   └── const-oid 0.9.2 checksum:520fbf3c07483f94e3e3ca9d0cfd913d7718ef2483d2cfd91c0d9e91474ab913
-│   │   │   │   │   └── base64ct 1.6.0 checksum:8c3c1a368f70d6cf7302d78f8f7093da241fb8e8807c05cc9e51a125895a6d5b
-│   │   │   │   └── der 0.7.6 checksum:56acb310e15652100da43d130af8d97b509e95af61aab1c5a7939ef24337ee17
-│   │   │   ├── generic-array 0.14.7 checksum:85649ca51fd72272d7821adaf274ad91c288277713d9c18820d8499a7ff69e9a
-│   │   │   ├── der 0.7.6 checksum:56acb310e15652100da43d130af8d97b509e95af61aab1c5a7939ef24337ee17
-│   │   │   └── base16ct 0.2.0 checksum:4c7f02d4ea65f2c1853089ffd8d2787bdbc63de2f0d29dedbcf8ccdfa0ccd4cf
-│   │   ├── rand_core 0.6.4 checksum:ec0be4795e2f6a28069bec0b5ff3e2ac9bafc99e6a9a7dc3547996c5c816922c
-│   │   ├── pkcs8 0.10.2 checksum:f950b2377845cebe5cf8b5165cb3cc1a5e0fa5cfa3e1f7f55707d8fd82e0a7b7
-│   │   ├── group 0.13.0 checksum:f0f9ef7462f7c099f518d754361858f86d8a07af53ba9af0fe635bbccb151a63
-│   │   │   ├── subtle 2.5.0 checksum:81cdd64d312baedb58e21336b31bc043b77e01cc99033ce76ef539f78e965ebc
-│   │   │   ├── rand_core 0.6.4 checksum:ec0be4795e2f6a28069bec0b5ff3e2ac9bafc99e6a9a7dc3547996c5c816922c
-│   │   │   └── ff 0.13.0 checksum:ded41244b729663b1e574f1b4fb731469f69f79c17667b5d776b16cda0479449
-│   │   │       ├── subtle 2.5.0 checksum:81cdd64d312baedb58e21336b31bc043b77e01cc99033ce76ef539f78e965ebc
-│   │   │       └── rand_core 0.6.4 checksum:ec0be4795e2f6a28069bec0b5ff3e2ac9bafc99e6a9a7dc3547996c5c816922c
-│   │   ├── generic-array 0.14.7 checksum:85649ca51fd72272d7821adaf274ad91c288277713d9c18820d8499a7ff69e9a
-│   │   ├── ff 0.13.0 checksum:ded41244b729663b1e574f1b4fb731469f69f79c17667b5d776b16cda0479449
-│   │   ├── digest 0.10.7 checksum:9ed9a281f7bc9b7576e61468ba615a66a5c8cfdff42420a70aa82701a3b1e292
-│   │   ├── crypto-bigint 0.5.2 checksum:cf4c2f4e1afd912bc40bfd6fed5d9dc1f288e0ba01bfcc835cc5bc3eb13efe15
-│   │   │   ├── zeroize 1.6.0 checksum:2a0956f1ba7c7909bfb66c2e9e4124ab6f6482560f6628b5aaeba39207c9aad9
-│   │   │   ├── subtle 2.5.0 checksum:81cdd64d312baedb58e21336b31bc043b77e01cc99033ce76ef539f78e965ebc
-│   │   │   ├── rand_core 0.6.4 checksum:ec0be4795e2f6a28069bec0b5ff3e2ac9bafc99e6a9a7dc3547996c5c816922c
-│   │   │   └── generic-array 0.14.7 checksum:85649ca51fd72272d7821adaf274ad91c288277713d9c18820d8499a7ff69e9a
-│   │   └── base16ct 0.2.0 checksum:4c7f02d4ea65f2c1853089ffd8d2787bdbc63de2f0d29dedbcf8ccdfa0ccd4cf
 │   ├── ecdsa 0.16.7 checksum:0997c976637b606099b9985693efa3581e84e41f5c11ba5255f88711058ad428
-│   │   ├── spki 0.7.2 checksum:9d1e996ef02c474957d681f1b05213dfb0abab947b446a62d37770b23500184a
-│   │   ├── signature 2.1.0 checksum:5e1788eed21689f9cf370582dfc467ef36ed9c707f073528ddafa8d83e3b8500
-│   │   ├── rfc6979 0.4.0 checksum:f8dd2a808d456c4a54e300a23e9f5a67e122c3024119acbfd73e3bf664491cb2
-│   │   │   ├── subtle 2.5.0 checksum:81cdd64d312baedb58e21336b31bc043b77e01cc99033ce76ef539f78e965ebc
-│   │   │   └── hmac 0.12.1 checksum:6c49c37c09c17a53d937dfbb742eb3a961d65a994e6bcdcf37e7399d0cc8ab5e
-│   │   │       └── digest 0.10.7 checksum:9ed9a281f7bc9b7576e61468ba615a66a5c8cfdff42420a70aa82701a3b1e292
-│   │   ├── elliptic-curve 0.13.5 checksum:968405c8fdc9b3bf4df0a6638858cc0b52462836ab6b1c87377785dd09cf1c0b
-│   │   ├── digest 0.10.7 checksum:9ed9a281f7bc9b7576e61468ba615a66a5c8cfdff42420a70aa82701a3b1e292
-│   │   └── der 0.7.6 checksum:56acb310e15652100da43d130af8d97b509e95af61aab1c5a7939ef24337ee17
 │   └── cfg-if 1.0.0 checksum:baf1de4339761588bc0619e3cbc0120ee582ebb74b53b4efbf79117bd2da40fd
 ├── hmac 0.12.1 checksum:6c49c37c09c17a53d937dfbb742eb3a961d65a994e6bcdcf37e7399d0cc8ab5e
 ├── hex-literal 0.4.1 checksum:6fe2267d4ed49bc07b63801559be28c718ea06c4738b7a03c94df7386d2cde46
 ├── getrandom 0.2.11 checksum:fe9006bed769170c11f845cf00c7c1e9092aeb3f268e007c3e760ac68008070f
+├── generic-array 0.14.7 checksum:85649ca51fd72272d7821adaf274ad91c288277713d9c18820d8499a7ff69e9a
+├── elliptic-curve 0.13.5 checksum:968405c8fdc9b3bf4df0a6638858cc0b52462836ab6b1c87377785dd09cf1c0b
 ├── ed25519-dalek 2.0.0 checksum:7277392b266383ef8396db7fdeb1e77b6c52fed775f5df15bb24f35b72156980
 │   ├── zeroize 1.6.0 checksum:2a0956f1ba7c7909bfb66c2e9e4124ab6f6482560f6628b5aaeba39207c9aad9
 │   ├── sha2 0.10.8 checksum:793db75ad2bcafc3ffa7c68b215fee268f537982cd901d132f89c6343f3a3dc8
@@ -248,7 +264,6 @@ soroban-env-host 20.3.0 git+https://github.com/stellar/rs-soroban-env?rev=93120b
 │       ├── subtle 2.5.0 checksum:81cdd64d312baedb58e21336b31bc043b77e01cc99033ce76ef539f78e965ebc
 │       ├── rustc_version 0.4.0 checksum:bfa0f585226d2e68097d4f95d113b15b83a82e819ab25717ec0590d9584ef366
 │       │   └── semver 1.0.17 checksum:bebd363326d05ec3e2f532ab7660680f3b02130d780c299bca73469d521bc0ed
-│       │       └── serde 1.0.192 checksum:bca2a08484b285dcb282d0f67b26cadc0df8b19f8c12502c13d966bf9482f001
 │       ├── platforms 3.0.2 checksum:e3d7ddaed09e0eb771a79ab0fd64609ba0afb0a8366421957936ad14cbd13630
 │       ├── fiat-crypto 0.2.5 checksum:27573eac26f4dd11e2b1916c3fe1baa56407c83c71a773a8ba17ec0bca03b6b7
 │       ├── digest 0.10.7 checksum:9ed9a281f7bc9b7576e61468ba615a66a5c8cfdff42420a70aa82701a3b1e292
@@ -258,4 +273,5 @@ soroban-env-host 20.3.0 git+https://github.com/stellar/rs-soroban-env?rev=93120b
 │       │   └── proc-macro2 1.0.69 checksum:134c189feb4956b20f6f547d2cf727d4c0fe06722b20a0eec87ed445a97f92da
 │       ├── cpufeatures 0.2.8 checksum:03e69e28e9f7f77debdedbaafa2866e1de9ba56df55a8bd7cfc724c25a09987c
 │       └── cfg-if 1.0.0 checksum:baf1de4339761588bc0619e3cbc0120ee582ebb74b53b4efbf79117bd2da40fd
+├── ecdsa 0.16.7 checksum:0997c976637b606099b9985693efa3581e84e41f5c11ba5255f88711058ad428
 └── curve25519-dalek 4.1.1 checksum:e89b8c6a2e4b1f45971ad09761aafb85514a84744b67a95e32c3cc1352d1f65c

@@ -1279,6 +1279,12 @@ Upgrades::applyVersionUpgrade(Application& app, AbstractLedgerTxn& ltx,
     {
         SorobanNetworkConfig::createLedgerEntriesForV20(ltx, app);
     }
+#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
+    if (needUpgradeToVersion(ProtocolVersion::V_21, prevVersion, newVersion))
+    {
+        SorobanNetworkConfig::createCostTypesForV21(ltx, app);
+    }
+#endif
 }
 
 void
@@ -1332,15 +1338,17 @@ ConfigUpgradeSetFrame::makeFromKey(AbstractLedgerTxn& ltx,
         return nullptr;
     }
 
-    return std::shared_ptr<ConfigUpgradeSetFrame>(
-        new ConfigUpgradeSetFrame(upgradeSet, key));
+    return std::shared_ptr<ConfigUpgradeSetFrame>(new ConfigUpgradeSetFrame(
+        upgradeSet, key, ltx.getHeader().ledgerVersion));
 }
 
 ConfigUpgradeSetFrame::ConfigUpgradeSetFrame(
-    ConfigUpgradeSet const& upgradeSetXDR, ConfigUpgradeSetKey const& key)
+    ConfigUpgradeSet const& upgradeSetXDR, ConfigUpgradeSetKey const& key,
+    uint32_t ledgerVersion)
     : mConfigUpgradeSet(upgradeSetXDR)
     , mKey(key)
     , mValidXDR(isValidXDR(upgradeSetXDR, key))
+    , mLedgerVersion(ledgerVersion)
 {
 }
 
@@ -1475,7 +1483,8 @@ ConfigUpgradeSetFrame::isValidForApply() const
     }
     for (auto const& cfg : mConfigUpgradeSet.updatedEntry)
     {
-        if (!SorobanNetworkConfig::isValidConfigSettingEntry(cfg) ||
+        if (!SorobanNetworkConfig::isValidConfigSettingEntry(cfg,
+                                                             mLedgerVersion) ||
             SorobanNetworkConfig::isNonUpgradeableConfigSettingEntry(cfg))
         {
             return Upgrades::UpgradeValidity::INVALID;

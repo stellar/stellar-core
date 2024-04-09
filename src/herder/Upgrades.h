@@ -179,7 +179,8 @@ class ConfigUpgradeSetFrame
 
   private:
     ConfigUpgradeSetFrame(ConfigUpgradeSet const& upgradeSetXDR,
-                          ConfigUpgradeSetKey const& key);
+                          ConfigUpgradeSetKey const& key,
+                          uint32_t ledgerVersion);
 
     static LedgerKey getLedgerKey(ConfigUpgradeSetKey const& upgradeKey);
 
@@ -189,5 +190,6 @@ class ConfigUpgradeSetFrame
     ConfigUpgradeSet mConfigUpgradeSet;
     ConfigUpgradeSetKey mKey;
     bool mValidXDR;
+    uint32_t const mLedgerVersion;
 };
 }
