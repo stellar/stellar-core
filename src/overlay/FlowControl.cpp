@@ -43,6 +43,8 @@ FlowControl::FlowControl(Application& app)
 void
 FlowControl::sendSendMore(uint32_t numMessages, std::shared_ptr<Peer> peer)
 {
+    releaseAssert(threadIsMain());
+
     ZoneScoped;
     StellarMessage m;
     m.type(SEND_MORE);
@@ -55,6 +57,8 @@ void
 FlowControl::sendSendMore(uint32_t numMessages, uint32_t numBytes,
                           std::shared_ptr<Peer> peer)
 {
+    releaseAssert(threadIsMain());
+
     ZoneScoped;
     StellarMessage m;
     m.type(SEND_MORE_EXTENDED);
@@ -68,6 +72,7 @@ FlowControl::sendSendMore(uint32_t numMessages, uint32_t numBytes,
 bool
 FlowControl::hasOutboundCapacity(StellarMessage const& msg) const
 {
+    releaseAssert(threadIsMain());
     releaseAssert(mFlowControlCapacity);
     return mFlowControlCapacity->hasOutboundCapacity(msg) &&
            (!mFlowControlBytesCapacity ||
@@ -80,6 +85,8 @@ FlowControl::start(std::weak_ptr<Peer> peer,
                    std::function<void(StellarMessage const&)> sendCb,
                    bool enableFCBytes)
 {
+    releaseAssert(threadIsMain());
+
     auto peerPtr = peer.lock();
     if (!peerPtr)
     {
@@ -281,6 +288,7 @@ FlowControl::endMessageProcessing(StellarMessage const& msg,
                                   std::weak_ptr<Peer> peer)
 {
     ZoneScoped;
+    releaseAssert(threadIsMain());
 
     mFloodDataProcessed += mFlowControlCapacity->releaseLocalCapacity(msg);
     if (mFlowControlBytesCapacity)
@@ -339,6 +347,7 @@ bool
 FlowControl::isSendMoreValid(StellarMessage const& msg,
                              std::string& errorMsg) const
 {
+    releaseAssert(threadIsMain());
     bool sendMoreExtendedType =
         mFlowControlBytesCapacity && msg.type() == SEND_MORE_EXTENDED;
     bool sendMoreType = !mFlowControlBytesCapacity && msg.type() == SEND_MORE;
@@ -385,6 +394,7 @@ bool
 dropMessageAfterTimeout(FlowControl::QueuedOutboundMessage const& queuedMsg,
                         VirtualClock::time_point now)
 {
+    releaseAssert(threadIsMain());
     auto const& msg = *(queuedMsg.mMessage);
     bool dropType = msg.type() == TRANSACTION || msg.type() == FLOOD_ADVERT ||
                     msg.type() == FLOOD_DEMAND;
@@ -554,6 +564,8 @@ FlowControl::addMsgAndMaybeTrimQueue(std::shared_ptr<StellarMessage const> msg)
 Json::Value
 FlowControl::getFlowControlJsonInfo(bool compact) const
 {
+    releaseAssert(threadIsMain());
+
     Json::Value res;
     if (mFlowControlCapacity->getCapacity().mTotalCapacity)
     {
@@ -608,5 +620,6 @@ FlowControl::FlowControlMetrics::FlowControlMetrics()
                                               Peer::PEER_METRICS_RATE_UNIT,
                                               Peer::PEER_METRICS_WINDOW_SIZE))
 {
+    releaseAssert(threadIsMain());
 }
 }

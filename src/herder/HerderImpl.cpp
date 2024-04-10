@@ -1787,7 +1787,7 @@ HerderImpl::checkAndMaybeReanalyzeQuorumMap()
         mLastQuorumMapIntersectionState.mInterruptFlag = false;
         mLastQuorumMapIntersectionState.mCheckingQuorumMapHash = curr;
         auto& cfg = mApp.getConfig();
-        assertThreadIsMain();
+        releaseAssert(threadIsMain());
         auto seed = gRandomEngine();
         auto qic = QuorumIntersectionChecker::create(
             qmap, cfg, mLastQuorumMapIntersectionState.mInterruptFlag, seed);

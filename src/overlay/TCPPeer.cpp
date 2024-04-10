@@ -52,7 +52,7 @@ TCPPeer::initiate(Application& app, PeerBareAddress const& address)
     releaseAssert(address.getType() == PeerBareAddress::Type::IPv4);
 
     CLOG_DEBUG(Overlay, "TCPPeer:initiate to {}", address.toString());
-    assertThreadIsMain();
+    releaseAssert(threadIsMain());
     auto socket = make_shared<SocketType>(app.getClock().getIOContext(), BUFSZ);
     auto result = make_shared<TCPPeer>(app, WE_CALLED_REMOTE, socket);
     result->mAddress = address;
@@ -90,7 +90,7 @@ TCPPeer::initiate(Application& app, PeerBareAddress const& address)
 TCPPeer::pointer
 TCPPeer::accept(Application& app, shared_ptr<TCPPeer::SocketType> socket)
 {
-    assertThreadIsMain();
+    releaseAssert(threadIsMain());
 
     auto extractIP = [](shared_ptr<SocketType> socket) {
         std::string result;
@@ -152,7 +152,7 @@ TCPPeer::accept(Application& app, shared_ptr<TCPPeer::SocketType> socket)
 
 TCPPeer::~TCPPeer()
 {
-    assertThreadIsMain();
+    releaseAssert(threadIsMain());
     Peer::shutdown();
     if (mRole == REMOTE_CALLED_US)
     {
@@ -181,7 +181,7 @@ TCPPeer::sendMessage(xdr::msg_ptr&& xdrBytes)
         return;
     }
 
-    assertThreadIsMain();
+    releaseAssert(threadIsMain());
 
     TimestampedMessage msg;
     msg.mEnqueuedTime = mApp.getClock().now();
@@ -263,7 +263,7 @@ void
 TCPPeer::messageSender()
 {
     ZoneScoped;
-    assertThreadIsMain();
+    releaseAssert(threadIsMain());
 
     // if nothing to do, mark progress and return.
     if (mWriteQueue.empty())
@@ -372,7 +372,7 @@ TCPPeer::writeHandler(asio::error_code const& error,
                       size_t messages_transferred)
 {
     ZoneScoped;
-    assertThreadIsMain();
+    releaseAssert(threadIsMain());
     mLastWrite = mApp.getClock().now();
 
     if (error)
@@ -473,7 +473,7 @@ TCPPeer::scheduleRead()
 
     releaseAssert(canRead());
 
-    assertThreadIsMain();
+    releaseAssert(threadIsMain());
     if (shouldAbort())
     {
         return;
@@ -488,7 +488,7 @@ void
 TCPPeer::startRead()
 {
     ZoneScoped;
-    assertThreadIsMain();
+    releaseAssert(threadIsMain());
     releaseAssert(canRead());
     if (shouldAbort())
     {
@@ -637,7 +637,7 @@ void
 TCPPeer::readHeaderHandler(asio::error_code const& error,
                            std::size_t bytes_transferred)
 {
-    assertThreadIsMain();
+    releaseAssert(threadIsMain());
     if (error)
     {
         noteErrorReadHeader(bytes_transferred, error);
@@ -669,7 +669,7 @@ TCPPeer::readBodyHandler(asio::error_code const& error,
                          std::size_t bytes_transferred,
                          std::size_t expected_length)
 {
-    assertThreadIsMain();
+    releaseAssert(threadIsMain());
 
     if (error)
     {
@@ -706,7 +706,7 @@ void
 TCPPeer::recvMessage()
 {
     ZoneScoped;
-    assertThreadIsMain();
+    releaseAssert(threadIsMain());
     releaseAssert(canRead());
 
     try
@@ -737,7 +737,7 @@ void
 TCPPeer::drop(std::string const& reason, DropDirection dropDirection,
               DropMode dropMode)
 {
-    assertThreadIsMain();
+    releaseAssert(threadIsMain());
     if (shouldAbort())
     {
         return;

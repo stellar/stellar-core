@@ -172,6 +172,7 @@ PeerManager::removePeersWithManyFailures(size_t minNumFailures,
                                          PeerBareAddress const* address)
 {
     ZoneScoped;
+    releaseAssert(threadIsMain());
     try
     {
         auto& db = mApp.getDatabase();
