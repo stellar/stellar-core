@@ -206,8 +206,14 @@ modifySorobanNetworkConfig(Application& app,
     app.getLedgerManager().updateNetworkConfig(ltx);
     auto& cfg = app.getLedgerManager().getMutableSorobanNetworkConfig();
     modifyFn(cfg);
-    cfg.writeAllSettings(ltx);
+    cfg.writeAllSettings(ltx, app);
     ltx.commit();
+
+    // Need to close a ledger following call to `addBatch` from config upgrade
+    if (app.getConfig().isUsingBucketListDB())
+    {
+        txtest::closeLedger(app);
+    }
 }
 
 void

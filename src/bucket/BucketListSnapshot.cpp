@@ -75,11 +75,11 @@ SearchableBucketListSnapshot::scanForEviction(
 {
     releaseAssert(mSnapshot);
 
-    auto getBucketFromIter = [&levels = mSnapshot->getLevels()](
-                                 EvictionIterator const& iter) {
+    auto getBucketFromIter =
+        [&levels = mSnapshot->getLevels()](
+            EvictionIterator const& iter) -> BucketSnapshot const& {
         auto& level = levels.at(iter.bucketListLevel);
-        return iter.isCurrBucket ? level.curr.getRawBucket()
-                                 : level.snap.getRawBucket();
+        return iter.isCurrBucket ? level.curr : level.snap;
     };
 
     BucketList::updateStartingEvictionIterator(
@@ -87,22 +87,28 @@ SearchableBucketListSnapshot::scanForEviction(
 
     EvictionResult result(sas);
     auto startIter = evictionIter;
-    auto b = getBucketFromIter(evictionIter);
     auto scanSize = sas.evictionScanSize;
 
-    while (!b->scanForEviction(evictionIter, scanSize, ledgerSeq,
-                               result.eligibleKeys, *this))
+    for (;;)
     {
+        auto const& b = getBucketFromIter(evictionIter);
+        BucketList::checkIfEvictionScanIsStuck(
+            evictionIter, sas.evictionScanSize, b.getRawBucket(), counters);
+
+        // If we scan scanSize before hitting bucket EOF, exit early
+        if (b.scanForEviction(evictionIter, scanSize, ledgerSeq,
+                              result.eligibleKeys, *this))
+        {
+            break;
+        }
+
+        // If we return back to the Bucket we started at, exit
         if (BucketList::updateEvictionIterAndRecordStats(
                 evictionIter, startIter, sas.startingEvictionScanLevel,
                 ledgerSeq, stats, counters))
         {
             break;
         }
-
-        b = getBucketFromIter(evictionIter);
-        BucketList::checkIfEvictionScanIsStuck(evictionIter, scanSize, b,
-                                               counters);
     }
 
     result.endOfRegionIterator = evictionIter;

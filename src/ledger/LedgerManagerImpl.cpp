@@ -1662,8 +1662,8 @@ LedgerManagerImpl::transferLedgerEntriesToBucketList(
             }
             else
             {
-                mApp.getBucketManager().scanForEvictionLegacySQL(ltxEvictions,
-                                                                 ledgerSeq);
+                mApp.getBucketManager().scanForEvictionLegacy(ltxEvictions,
+                                                              ledgerSeq);
             }
 
             if (ledgerCloseMeta)

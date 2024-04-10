@@ -746,8 +746,8 @@ BucketList::checkIfEvictionScanIsStuck(EvictionIterator const& evictionIter,
 {
     // Check to see if we can finish scanning the new bucket before it
     // receives an update
-    auto period = bucketUpdatePeriod(evictionIter.bucketListLevel,
-                                     evictionIter.isCurrBucket);
+    uint64_t period = bucketUpdatePeriod(evictionIter.bucketListLevel,
+                                         evictionIter.isCurrBucket);
     if (period * scanSize < b->getSize())
     {
         CLOG_WARNING(Bucket,
@@ -760,10 +760,10 @@ BucketList::checkIfEvictionScanIsStuck(EvictionIterator const& evictionIter,
 // eviction cycle. If a node joins the network mid cycle, metrics will be
 // nullopt and be initialized at the start of the next cycle.
 void
-BucketList::scanForEvictionLegacySQL(Application& app, AbstractLedgerTxn& ltx,
-                                     uint32_t ledgerSeq,
-                                     EvictionCounters& counters,
-                                     std::optional<EvictionStatistics>& stats)
+BucketList::scanForEvictionLegacy(Application& app, AbstractLedgerTxn& ltx,
+                                  uint32_t ledgerSeq,
+                                  EvictionCounters& counters,
+                                  std::optional<EvictionStatistics>& stats)
 {
     auto getBucketFromIter = [&levels = mLevels](EvictionIterator const& iter) {
         auto& level = levels.at(iter.bucketListLevel);
@@ -784,7 +784,7 @@ BucketList::scanForEvictionLegacySQL(Application& app, AbstractLedgerTxn& ltx,
     auto startIter = evictionIter;
     auto b = getBucketFromIter(evictionIter);
 
-    while (!b->scanForEvictionLegacySQL(
+    while (!b->scanForEvictionLegacy(
         ltx, evictionIter, scanSize, maxEntriesToEvict, ledgerSeq,
         counters.entriesEvicted, counters.bytesScannedForEviction, stats))
     {

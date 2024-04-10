@@ -942,13 +942,13 @@ BucketManagerImpl::maybeSetIndex(std::shared_ptr<Bucket> b,
 }
 
 void
-BucketManagerImpl::scanForEvictionLegacySQL(AbstractLedgerTxn& ltx,
-                                            uint32_t ledgerSeq)
+BucketManagerImpl::scanForEvictionLegacy(AbstractLedgerTxn& ltx,
+                                         uint32_t ledgerSeq)
 {
     ZoneScoped;
     releaseAssert(protocolVersionStartsFrom(ltx.getHeader().ledgerVersion,
                                             SOROBAN_PROTOCOL_VERSION));
-    mBucketList->scanForEvictionLegacySQL(
+    mBucketList->scanForEvictionLegacy(
         mApp, ltx, ledgerSeq, mBucketListEvictionCounters, mEvictionStatistics);
 }
 

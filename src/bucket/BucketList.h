@@ -481,10 +481,9 @@ class BucketList
                                            std::shared_ptr<Bucket const> b,
                                            EvictionCounters& counters);
 
-    void scanForEvictionLegacySQL(Application& app, AbstractLedgerTxn& ltx,
-                                  uint32_t ledgerSeq,
-                                  EvictionCounters& counters,
-                                  std::optional<EvictionStatistics>& stats);
+    void scanForEvictionLegacy(Application& app, AbstractLedgerTxn& ltx,
+                               uint32_t ledgerSeq, EvictionCounters& counters,
+                               std::optional<EvictionStatistics>& stats);
 
     // Restart any merges that might be running on background worker threads,
     // merging buckets between levels. This needs to be called after forcing a

@@ -277,8 +277,8 @@ class BucketManager : NonMovableOrCopyable
     // Scans BucketList for non-live entries to evict starting at the entry
     // pointed to by EvictionIterator. Scans until `maxEntriesToEvict` entries
     // have been evicted or maxEvictionScanSize bytes have been scanned.
-    virtual void scanForEvictionLegacySQL(AbstractLedgerTxn& ltx,
-                                          uint32_t ledgerSeq) = 0;
+    virtual void scanForEvictionLegacy(AbstractLedgerTxn& ltx,
+                                       uint32_t ledgerSeq) = 0;
 
     virtual void startBackgroundEvictionScan(uint32_t ledgerSeq) = 0;
     virtual void

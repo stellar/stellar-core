@@ -152,8 +152,8 @@ class BucketManagerImpl : public BucketManager
     void snapshotLedger(LedgerHeader& currentHeader) override;
     void maybeSetIndex(std::shared_ptr<Bucket> b,
                        std::unique_ptr<BucketIndex const>&& index) override;
-    void scanForEvictionLegacySQL(AbstractLedgerTxn& ltx,
-                                  uint32_t ledgerSeq) override;
+    void scanForEvictionLegacy(AbstractLedgerTxn& ltx,
+                               uint32_t ledgerSeq) override;
     void startBackgroundEvictionScan(uint32_t ledgerSeq) override;
     void
     resolveBackgroundEvictionScan(AbstractLedgerTxn& ltx, uint32_t ledgerSeq,

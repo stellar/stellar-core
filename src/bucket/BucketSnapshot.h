@@ -16,6 +16,8 @@ namespace stellar
 
 class Bucket;
 class XDRInputFileStream;
+class SearchableBucketListSnapshot;
+struct EvictionResultEntry;
 
 // A lightweight wrapper around Bucket for thread safe BucketListDB lookups
 class BucketSnapshot : public NonMovable
@@ -57,6 +59,11 @@ class BucketSnapshot : public NonMovable
     // Return all PoolIDs that contain the given asset on either side of the
     // pool
     std::vector<PoolID> const& getPoolIDsByAsset(Asset const& asset) const;
+
+    bool scanForEviction(EvictionIterator& iter, uint32_t& bytesToScan,
+                         uint32_t ledgerSeq,
+                         std::list<EvictionResultEntry>& evictableKeys,
+                         SearchableBucketListSnapshot& bl) const;
 
     friend struct BucketLevelSnapshot;
 };
