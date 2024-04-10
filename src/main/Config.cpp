@@ -1331,7 +1331,7 @@ Config::processConfig(std::shared_ptr<cpptoml::table> t)
             }
             else if (item.first == "WORKER_THREADS")
             {
-                WORKER_THREADS = readInt<int>(item, 1, 1000);
+                WORKER_THREADS = readInt<int>(item, 2, 1000);
             }
             else if (item.first == "MAX_CONCURRENT_SUBPROCESSES")
             {

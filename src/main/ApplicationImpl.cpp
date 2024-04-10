@@ -81,9 +81,20 @@ namespace stellar
 ApplicationImpl::ApplicationImpl(VirtualClock& clock, Config const& cfg)
     : mVirtualClock(clock)
     , mConfig(cfg)
-    , mWorkerIOContext(mConfig.WORKER_THREADS)
+    // Allocate one worker to eviction when background eviction enabled
+    , mWorkerIOContext(mConfig.EXPERIMENTAL_BACKGROUND_EVICTION_SCAN
+                           ? mConfig.WORKER_THREADS - 1
+                           : mConfig.WORKER_THREADS)
+    , mEvictionIOContext(mConfig.EXPERIMENTAL_BACKGROUND_EVICTION_SCAN
+                             ? std::make_optional<asio::io_context>(1)
+                             : std::nullopt)
     , mWork(std::make_unique<asio::io_context::work>(mWorkerIOContext))
+    , mEvictionWork(
+          mEvictionIOContext
+              ? std::make_unique<asio::io_context::work>(*mEvictionIOContext)
+              : nullptr)
     , mWorkerThreads()
+    , mEvictionThread()
     , mStopSignals(clock.getIOContext(), SIGINT)
     , mStarted(false)
     , mStopping(false)
@@ -135,6 +146,21 @@ ApplicationImpl::ApplicationImpl(VirtualClock& clock, Config const& cfg)
 
     auto t = mConfig.WORKER_THREADS;
     LOG_DEBUG(DEFAULT_LOG, "Application constructing (worker threads: {})", t);
+
+    if (mConfig.EXPERIMENTAL_BACKGROUND_EVICTION_SCAN)
+    {
+        releaseAssert(mConfig.WORKER_THREADS > 0);
+        releaseAssert(mEvictionIOContext);
+
+        // Allocate one thread for Eviction scan
+        mEvictionThread = std::thread{[this]() {
+            runCurrentThreadWithMediumPriority();
+            mEvictionIOContext->run();
+        }};
+
+        --t;
+    }
+
     while (t--)
     {
         auto thread = std::thread{[this]() {
@@ -760,12 +786,21 @@ ApplicationImpl::validateAndLogConfig()
             "stellar-core new-db.");
     }
 
-    if (mConfig.EXPERIMENTAL_BACKGROUND_EVICTION_SCAN &&
-        !mConfig.isUsingBucketListDB())
+    if (mConfig.EXPERIMENTAL_BACKGROUND_EVICTION_SCAN)
     {
-        throw std::invalid_argument(
-            "EXPERIMENTAL_BUCKETLIST_DB must be enabled to use "
-            "EXPERIMENTAL_BACKGROUND_EVICTION_SCAN");
+        if (!mConfig.isUsingBucketListDB())
+        {
+            throw std::invalid_argument(
+                "EXPERIMENTAL_BUCKETLIST_DB must be enabled to use "
+                "EXPERIMENTAL_BACKGROUND_EVICTION_SCAN");
+        }
+
+        if (mConfig.WORKER_THREADS < 2)
+        {
+            throw std::invalid_argument(
+                "EXPERIMENTAL_BACKGROUND_EVICTION_SCAN requires "
+                "WORKER_THREADS > 1");
+        }
     }
 
     if (isNetworkedValidator && mConfig.isInMemoryMode())
@@ -917,6 +952,18 @@ ApplicationImpl::joinAllThreads()
     {
         w.join();
     }
+
+    if (mEvictionWork)
+    {
+        mEvictionWork.reset();
+    }
+
+    if (mEvictionThread)
+    {
+        LOG_DEBUG(DEFAULT_LOG, "Joining eviction thread");
+        mEvictionThread->join();
+    }
+
     LOG_DEBUG(DEFAULT_LOG, "Joined all {} threads", mWorkerThreads.size());
 }
 
@@ -1386,6 +1433,13 @@ ApplicationImpl::getWorkerIOContext()
     return mWorkerIOContext;
 }
 
+asio::io_context&
+ApplicationImpl::getEvictionIOContext()
+{
+    releaseAssert(mEvictionIOContext);
+    return *mEvictionIOContext;
+}
+
 void
 ApplicationImpl::postOnMainThread(std::function<void()>&& f, std::string&& name,
                                   Scheduler::ActionType type)
@@ -1413,6 +1467,18 @@ ApplicationImpl::postOnBackgroundThread(std::function<void()>&& f,
     LogSlowExecution isSlow{std::move(jobName), LogSlowExecution::Mode::MANUAL,
                             "executed after"};
     asio::post(getWorkerIOContext(), [this, f = std::move(f), isSlow]() {
+        mPostOnBackgroundThreadDelay.Update(isSlow.checkElapsedTime());
+        f();
+    });
+}
+
+void
+ApplicationImpl::postOnEvictionBackgroundThread(std::function<void()>&& f,
+                                                std::string jobName)
+{
+    LogSlowExecution isSlow{std::move(jobName), LogSlowExecution::Mode::MANUAL,
+                            "executed after"};
+    asio::post(getEvictionIOContext(), [this, f = std::move(f), isSlow]() {
         mPostOnBackgroundThreadDelay.Update(isSlow.checkElapsedTime());
         f();
     });

@@ -972,8 +972,9 @@ BucketManagerImpl::startBackgroundEvictionScan(uint32_t ledgerSeq)
         });
 
     mEvictionFuture = task->get_future();
-    mApp.postOnBackgroundThread(bind(&task_t::operator(), task),
-                                "SearchableBucketListSnapshot: eviction scan");
+    mApp.postOnEvictionBackgroundThread(
+        bind(&task_t::operator(), task),
+        "SearchableBucketListSnapshot: eviction scan");
 }
 
 void
@@ -982,13 +983,13 @@ BucketManagerImpl::resolveBackgroundEvictionScan(
     LedgerKeySet const& modifiedKeys)
 {
     ZoneScoped;
+    releaseAssert(threadIsMain());
 
     if (!mEvictionFuture.valid())
     {
         startBackgroundEvictionScan(ledgerSeq);
     }
 
-    mEvictionFuture.wait();
     auto evictionCandidates = mEvictionFuture.get();
 
     auto const& networkConfig =
@@ -1000,7 +1001,6 @@ BucketManagerImpl::resolveBackgroundEvictionScan(
                                     networkConfig.stateArchivalSettings()))
     {
         startBackgroundEvictionScan(ledgerSeq);
-        mEvictionFuture.wait();
         evictionCandidates = mEvictionFuture.get();
     }
 

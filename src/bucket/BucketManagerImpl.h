@@ -62,17 +62,6 @@ class BucketManagerImpl : public BucketManager
 
     std::future<EvictionResult> mEvictionFuture{};
 
-    // Lock for managing raw Bucket files or the bucket directory. This lock is
-    // only required for file access, but is not required for logical changes to
-    // the BucketList (i.e. addBatch).
-    mutable std::recursive_mutex mBucketFileMutex;
-
-    // Lock for logical BucketList changes and snapshots (i.e. addBatch,
-    // getSearchableSnapshot). This lock is not required for raw Bucket file
-    // management.
-    mutable std::recursive_mutex mBucketSnapshotMutex;
-
-
     bool const mDeleteEntireBucketDirInDtor;
 
     // Records bucket-merges that are currently _live_ in some FutureBucket, in
