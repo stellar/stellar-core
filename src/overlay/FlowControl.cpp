@@ -249,7 +249,7 @@ bool
 FlowControl::maybeSendMessage(std::shared_ptr<StellarMessage const> msg)
 {
     ZoneScoped;
-    if (mApp.getOverlayManager().isFloodMessage(*msg))
+    if (OverlayManager::isFloodMessage(*msg))
     {
         addMsgAndMaybeTrimQueue(msg);
         maybeSendNextBatch();

@@ -1071,7 +1071,7 @@ OverlayManagerImpl::isPreferred(Peer* peer) const
 }
 
 bool
-OverlayManagerImpl::isFloodMessage(StellarMessage const& msg)
+OverlayManager::isFloodMessage(StellarMessage const& msg)
 {
     return msg.type() == SCP_MESSAGE || msg.type() == TRANSACTION ||
            msg.type() == FLOOD_DEMAND || msg.type() == FLOOD_ADVERT;

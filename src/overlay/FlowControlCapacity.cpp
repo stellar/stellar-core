@@ -133,7 +133,7 @@ void
 FlowControlCapacity::lockOutboundCapacity(StellarMessage const& msg)
 {
     ZoneScoped;
-    if (mApp.getOverlayManager().isFloodMessage(msg))
+    if (OverlayManager::isFloodMessage(msg))
     {
         releaseAssert(hasOutboundCapacity(msg));
         mOutboundCapacity -= getMsgResourceCount(msg);
@@ -152,7 +152,7 @@ FlowControlCapacity::lockLocalCapacity(StellarMessage const& msg)
         *mCapacity.mTotalCapacity -= msgResources;
     }
 
-    if (mApp.getOverlayManager().isFloodMessage(msg))
+    if (OverlayManager::isFloodMessage(msg))
     {
         // No capacity to process flood message
         if (mCapacity.mFloodCapacity < msgResources)
@@ -182,7 +182,7 @@ FlowControlCapacity::releaseLocalCapacity(StellarMessage const& msg)
         *mCapacity.mTotalCapacity += resourcesFreed;
     }
 
-    if (mApp.getOverlayManager().isFloodMessage(msg))
+    if (OverlayManager::isFloodMessage(msg))
     {
         if (mCapacity.mFloodCapacity == 0)
         {
