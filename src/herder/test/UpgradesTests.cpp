@@ -3058,7 +3058,7 @@ TEST_CASE("upgrades serialization roundtrip", "[upgrades]")
       "configupgradeset" : {
          "updatedEntry" : [
             {
-               "configSettingID" : 0,
+               "configSettingID" : "CONFIG_SETTING_CONTRACT_MAX_SIZE_BYTES",
                "contractMaxSizeBytes" : 32768
             }
          ]
