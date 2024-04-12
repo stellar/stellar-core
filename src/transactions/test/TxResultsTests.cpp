@@ -16,7 +16,6 @@
 
 #include <algorithm>
 #include <lib/catch.hpp>
-#include <xdrpp/printer.h>
 
 using namespace stellar;
 using namespace stellar::txbridge;

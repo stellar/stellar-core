@@ -202,8 +202,8 @@ TxSetUtils::getInvalidTxList(TxSetTransactions const& txs, Application& app,
                         CLOG_DEBUG(Herder,
                                    "minSeqAge or minSeqLedgerGap set on tx "
                                    "without lowest seqNum. tx: {}",
-                                   xdr_to_string(tx->getEnvelope(),
-                                                 "TransactionEnvelope"));
+                                   xdrToCerealString(tx->getEnvelope(),
+                                                     "TransactionEnvelope"));
                     }
                     else
                     {
@@ -212,8 +212,8 @@ TxSetUtils::getInvalidTxList(TxSetTransactions const& txs, Application& app,
                             "Got bad txSet: tx invalid lastSeq:{} tx: {} "
                             "result: {}",
                             lastSeq,
-                            xdr_to_string(tx->getEnvelope(),
-                                          "TransactionEnvelope"),
+                            xdrToCerealString(tx->getEnvelope(),
+                                              "TransactionEnvelope"),
                             tx->getResultCode());
                     }
                     return invalidTxs;
@@ -256,8 +256,8 @@ TxSetUtils::getInvalidTxList(TxSetTransactions const& txs, Application& app,
                 {
                     CLOG_DEBUG(Herder,
                                "Got bad txSet: account can't pay fee tx: {}",
-                               xdr_to_string(tx->getEnvelope(),
-                                             "TransactionEnvelope"));
+                               xdrToCerealString(tx->getEnvelope(),
+                                                 "TransactionEnvelope"));
                     return invalidTxs;
                 }
             }

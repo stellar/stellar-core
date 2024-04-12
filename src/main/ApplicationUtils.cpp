@@ -815,7 +815,7 @@ dumpLedger(Config cfg, std::string const& outputFile,
                 }
                 else
                 {
-                    ofs << xdr_to_string(entry, "entry", true) << std::endl;
+                    ofs << xdrToCerealString(entry, "entry", true) << std::endl;
                 }
                 ++entryCount;
                 return !limit || entryCount < *limit;

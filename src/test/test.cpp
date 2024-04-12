@@ -623,7 +623,7 @@ recordOrCheckGlobalTestTxMetadata(TransactionMeta const& txMetaIn)
     {
         gDebugTestTxMeta.value()
             << "=== " << ctx.first << " : " << ctx.second << " ===" << std::endl
-            << xdr_to_string(txMeta, "TransactionMeta", false) << std::endl;
+            << xdrToCerealString(txMeta, "TransactionMeta", false) << std::endl;
     }
     uint64_t gotTxMetaHash = shortHash::xdrComputeHash(txMeta);
     if (gTestTxMetaMode == TestTxMetaMode::META_TEST_RECORD)
