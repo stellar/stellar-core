@@ -166,7 +166,6 @@ FeeBumpTransactionFrame::processPostApply(Application& app,
     // should also be reflected here.
     int64_t refund = mInnerTx->processRefund(app, ltx, meta, getFeeSourceID());
 
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
     // The result codes and a feeCharged without the refund are set in
     // updateResult in FeeBumpTransactionFrame::apply. At this point, feeCharged
     // is set correctly on the inner transaction, so update the feeBump result.
@@ -183,7 +182,6 @@ FeeBumpTransactionFrame::processPostApply(Application& app,
         // Now set the updated feeCharged on the fee bump.
         mResult.feeCharged -= refund;
     }
-#endif
 }
 
 bool

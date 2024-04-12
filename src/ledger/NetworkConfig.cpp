@@ -294,11 +294,7 @@ initialCpuCostParamsEntryForV20()
         case ComputeKeccak256Hash:
             params[val] = ContractCostParamEntry{ExtensionPoint{0}, 3766, 5969};
             break;
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
         case DecodeEcdsaCurve256Sig:
-#else
-        case ComputeEcdsaSecp256k1Sig:
-#endif
             params[val] = ContractCostParamEntry{ExtensionPoint{0}, 710, 0};
             break;
         case RecoverEcdsaSecp256k1Key:
@@ -330,7 +326,6 @@ initialCpuCostParamsEntryForV20()
     return entry;
 }
 
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
 void
 updateCpuCostParamsEntryForV21(AbstractLedgerTxn& ltxRoot)
 {
@@ -431,7 +426,6 @@ updateCpuCostParamsEntryForV21(AbstractLedgerTxn& ltxRoot)
     }
     ltx.commit();
 }
-#endif
 
 ConfigSettingEntry
 initialStateArchivalSettings(Config const& cfg)
@@ -548,11 +542,7 @@ initialMemCostParamsEntryForV20()
         case ComputeKeccak256Hash:
             params[val] = ContractCostParamEntry{ExtensionPoint{0}, 0, 0};
             break;
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
         case DecodeEcdsaCurve256Sig:
-#else
-        case ComputeEcdsaSecp256k1Sig:
-#endif
             params[val] = ContractCostParamEntry{ExtensionPoint{0}, 0, 0};
             break;
         case RecoverEcdsaSecp256k1Key:
@@ -583,7 +573,6 @@ initialMemCostParamsEntryForV20()
     return entry;
 }
 
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
 void
 updateMemCostParamsEntryForV21(AbstractLedgerTxn& ltxRoot)
 {
@@ -685,7 +674,6 @@ updateMemCostParamsEntryForV21(AbstractLedgerTxn& ltxRoot)
 
     ltx.commit();
 }
-#endif
 
 ConfigSettingEntry
 initialBucketListSizeWindow(Application& app)
@@ -896,7 +884,6 @@ SorobanNetworkConfig::createLedgerEntriesForV20(AbstractLedgerTxn& ltx,
                              versionToValidateAgainst);
 }
 
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
 void
 SorobanNetworkConfig::createCostTypesForV21(AbstractLedgerTxn& ltx,
                                             Application& app)
@@ -905,7 +892,6 @@ SorobanNetworkConfig::createCostTypesForV21(AbstractLedgerTxn& ltx,
     updateCpuCostParamsEntryForV21(ltx);
     updateMemCostParamsEntryForV21(ltx);
 }
-#endif
 
 void
 SorobanNetworkConfig::initializeGenesisLedgerForTesting(
@@ -922,12 +908,11 @@ SorobanNetworkConfig::initializeGenesisLedgerForTesting(
         SorobanNetworkConfig::createLedgerEntriesForV20(ltx, app);
         ltx.loadHeader().current().ledgerVersion = genesisLedgerProtocol;
     }
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
+
     if (protocolVersionStartsFrom(genesisLedgerProtocol, ProtocolVersion::V_21))
     {
         SorobanNetworkConfig::createCostTypesForV21(ltx, app);
     }
-#endif
 }
 
 void
