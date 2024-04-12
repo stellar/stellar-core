@@ -1326,6 +1326,15 @@
     <ClCompile Include="..\..\src\main\SettingsUpgradeUtils.cpp">
       <Filter>main</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\src\bucket\BucketListSnapshot.cpp">
+      <Filter>bucket</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\bucket\BucketSnapshot.cpp">
+      <Filter>bucket</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\bucket\BucketSnapshotManager.cpp">
+      <Filter>bucket</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\..\lib\util\cpptoml.h">
@@ -2302,6 +2311,15 @@
     </ClInclude>
     <ClInclude Include="..\..\src\main\SettingsUpgradeUtils.h">
       <Filter>main</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\bucket\BucketListSnapshot.h">
+      <Filter>bucket</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\bucket\BucketSnapshot.h">
+      <Filter>bucket</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\bucket\BucketSnapshotManager.h">
+      <Filter>bucket</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
