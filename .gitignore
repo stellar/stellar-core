@@ -43,7 +43,11 @@ compile_commands.json
 /src/archtmp-*
 /src/main/StellarCoreVersion.cpp
 /src/main/XDRFilesSha256.cpp
-/src/testdata
+
+/src/testdata/*
+# Make an exception for ledger-close-meta files, which should be created and committed on every protocol bump.
+!/src/testdata/ledger-close-meta-*
+
 /src/protocol-curr/xdr/*.h
 /src/protocol-next/xdr/*.h
 /Makefile
