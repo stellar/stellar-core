@@ -1,6 +1,6 @@
 
 {
-	"!cfg protocol version" : 21,
+	"!cfg protocol version" : 22,
 	"!rng seed" : 12345,
 	"!test all versions" : true,
 	"!versions to test" : 
@@ -26,7 +26,8 @@
 		18,
 		19,
 		20,
-		21
+		21,
+		22
 	],
 	"fee bump transactions|protocol version 0|apply|bad signatures" : [ "Yhe2gNuDHbY=" ],
 	"fee bump transactions|protocol version 0|apply|extra signatures" : [ "OB5K2o+Lbus=", "2vq/WrMO01Y=" ],
@@ -255,6 +256,23 @@
 	"fee bump transactions|protocol version 21|validity|inner transaction invalid, transaction level" : [ "g4SMgLdHmkY=" ],
 	"fee bump transactions|protocol version 21|validity|insufficient balance" : [ "vq7v+aQvjuo=" ],
 	"fee bump transactions|protocol version 21|validity|valid" : [ "g4SMgLdHmkY=" ],
+	"fee bump transactions|protocol version 22|apply|bad signatures" : [ "Efz5uZa7U84=", "ofyE/F/i2I0=" ],
+	"fee bump transactions|protocol version 22|apply|extra signatures" : [ "eAy5C7YazX0=", "YY06OIIOp/w=", "+366qVuw7RI=" ],
+	"fee bump transactions|protocol version 22|apply|fee source does not exist" : [ "Efz5uZa7U84=", "UnwqqyolEMk=" ],
+	"fee bump transactions|protocol version 22|apply|inner transaction fails, operation level" : [ "Efz5uZa7U84=" ],
+	"fee bump transactions|protocol version 22|apply|inner transaction fails, transaction level" : [ "Efz5uZa7U84=", "0kuWmO0K+zM=" ],
+	"fee bump transactions|protocol version 22|apply|insufficient balance" : [ "Efz5uZa7U84=", "jtss133AcPA=" ],
+	"fee bump transactions|protocol version 22|apply|one-time signer removal" : [ "siq4VbKTdCc=", "xPbTKci83Eg=", "siq4VbKTdCc=", "xPbTKci83Eg=" ],
+	"fee bump transactions|protocol version 22|apply|one-time signer removal|not sponsored" : [ "ElE3StxPJSQ=", "Q5+veo2ktgI=" ],
+	"fee bump transactions|protocol version 22|apply|one-time signer removal|sponsored" : [ "ElE3StxPJSQ=" ],
+	"fee bump transactions|protocol version 22|fee processing" : [ "g4SMgLdHmkY=" ],
+	"fee bump transactions|protocol version 22|validity|bad signatures, signature invalid" : [ "vq7v+aQvjuo=" ],
+	"fee bump transactions|protocol version 22|validity|bad signatures, signature missing" : [ "vq7v+aQvjuo=" ],
+	"fee bump transactions|protocol version 22|validity|extra signatures" : [ "g4SMgLdHmkY=" ],
+	"fee bump transactions|protocol version 22|validity|inner transaction invalid, operation level" : [ "g4SMgLdHmkY=" ],
+	"fee bump transactions|protocol version 22|validity|inner transaction invalid, transaction level" : [ "g4SMgLdHmkY=" ],
+	"fee bump transactions|protocol version 22|validity|insufficient balance" : [ "vq7v+aQvjuo=" ],
+	"fee bump transactions|protocol version 22|validity|valid" : [ "g4SMgLdHmkY=" ],
 	"fee bump transactions|protocol version 2|apply|bad signatures" : [ "Yhe2gNuDHbY=" ],
 	"fee bump transactions|protocol version 2|apply|extra signatures" : [ "OB5K2o+Lbus=", "2vq/WrMO01Y=" ],
 	"fee bump transactions|protocol version 2|apply|fee source does not exist" : [ "Yhe2gNuDHbY=" ],

@@ -1,6 +1,6 @@
 
 {
-	"!cfg protocol version" : 21,
+	"!cfg protocol version" : 22,
 	"!rng seed" : 12345,
 	"!test all versions" : true,
 	"!versions to test" : 
@@ -26,7 +26,8 @@
 		18,
 		19,
 		20,
-		21
+		21,
+		22
 	],
 	"update sponsorship|protocol version 0|invalid input" : [ "+OHYPtl+vPU=", "+OHYPtl+vPU=", "+OHYPtl+vPU=", "+OHYPtl+vPU=" ],
 	"update sponsorship|protocol version 0|invalid input|invalid trustline keys" : [ "dhe5iAdbDEg=" ],
@@ -1322,6 +1323,152 @@
 		"z7zZuLB/nVY="
 	],
 	"update sponsorship|protocol version 21|too many sponsoring|trustline" : 
+	[
+		"Q8rVNUnFVyo=",
+		"ZJ6LqPNm9YU=",
+		"Q8rVNUnFVyo=",
+		"ZJ6LqPNm9YU=",
+		"Q8rVNUnFVyo=",
+		"ZJ6LqPNm9YU="
+	],
+	"update sponsorship|protocol version 22|entry is not sponsored|account is not sponsored|account" : [ "FugNlUBhrvA=" ],
+	"update sponsorship|protocol version 22|entry is not sponsored|account is not sponsored|claimable balances" : [ "zljpJI2QM6A=", "ukb0VD9tGXE=" ],
+	"update sponsorship|protocol version 22|entry is not sponsored|account is not sponsored|signer" : [ "zljpJI2QM6A=", "NkSdmMW7ViE=" ],
+	"update sponsorship|protocol version 22|entry is not sponsored|account is not sponsored|trust line" : [ "zljpJI2QM6A=", "LGoJXqPqFJA=" ],
+	"update sponsorship|protocol version 22|entry is not sponsored|account is sponsored|account" : [ "FugNlUBhrvA=" ],
+	"update sponsorship|protocol version 22|entry is not sponsored|account is sponsored|claimable balances" : [ "zljpJI2QM6A=", "ukb0VD9tGXE=" ],
+	"update sponsorship|protocol version 22|entry is not sponsored|account is sponsored|signer|Account has sponsored entry" : [ "zljpJI2QM6A=", "NkSdmMW7ViE=" ],
+	"update sponsorship|protocol version 22|entry is not sponsored|account is sponsored|signer|Signer is the only sponsorship" : [ "zljpJI2QM6A=", "NkSdmMW7ViE=" ],
+	"update sponsorship|protocol version 22|entry is not sponsored|account is sponsored|trust line" : [ "zljpJI2QM6A=", "LGoJXqPqFJA=" ],
+	"update sponsorship|protocol version 22|entry is sponsored|sponsor is not sponsored|claimable balance" : [ "FugNlUBhrvA=" ],
+	"update sponsorship|protocol version 22|entry is sponsored|sponsor is not sponsored|signer" : [ "FugNlUBhrvA=" ],
+	"update sponsorship|protocol version 22|entry is sponsored|sponsor is not sponsored|trust line" : [ "FugNlUBhrvA=" ],
+	"update sponsorship|protocol version 22|entry is sponsored|sponsor is sponsored by owner|data" : [ "FugNlUBhrvA=" ],
+	"update sponsorship|protocol version 22|entry is sponsored|sponsor is sponsored by owner|offer" : [ "7hLEl2G7DxE=", "iQjvkbpQ4po=" ],
+	"update sponsorship|protocol version 22|entry is sponsored|sponsor is sponsored by owner|signer" : [ "FugNlUBhrvA=" ],
+	"update sponsorship|protocol version 22|entry is sponsored|sponsor is sponsored by owner|trustline" : [ "FugNlUBhrvA=" ],
+	"update sponsorship|protocol version 22|entry is sponsored|sponsor is sponsored|account" : [ "qmTHu4kt2c0=" ],
+	"update sponsorship|protocol version 22|entry is sponsored|sponsor is sponsored|claimable balances" : [ "E9mO/AGttQw=", "H0TWbmJDKno=" ],
+	"update sponsorship|protocol version 22|entry is sponsored|sponsor is sponsored|data" : [ "0rCskf3w41Q=", "y5xsMWKAh1A=" ],
+	"update sponsorship|protocol version 22|entry is sponsored|sponsor is sponsored|offer" : [ "7hLEl2G7DxE=", "1S8bSkqTX0s=", "okQkPk1bwzk=" ],
+	"update sponsorship|protocol version 22|entry is sponsored|sponsor is sponsored|signer" : [ "0rCskf3w41Q=", "y5xsMWKAh1A=" ],
+	"update sponsorship|protocol version 22|entry is sponsored|sponsor is sponsored|trust line" : [ "0rCskf3w41Q=", "y5xsMWKAh1A=" ],
+	"update sponsorship|protocol version 22|failure tests|does not exist" : [ "FugNlUBhrvA=", "FugNlUBhrvA=", "FugNlUBhrvA=" ],
+	"update sponsorship|protocol version 22|failure tests|does not exist|use wrong account in offer key" : [ "EiXaQtJB464=", "S8my1pv0KcM=", "3IR+YmKs30M=" ],
+	"update sponsorship|protocol version 22|failure tests|low reserve|entry|establish sponsorship" : [ "zljpJI2QM6A=", "yNCcD809OGs=", "7eIlN1YVTBI=" ],
+	"update sponsorship|protocol version 22|failure tests|low reserve|entry|remove sponsorship" : [ "0rCskf3w41Q=", "CB3zlqUqXTU=" ],
+	"update sponsorship|protocol version 22|failure tests|low reserve|entry|transfer sponsorship" : [ "0rCskf3w41Q=", "CB3zlqUqXTU=" ],
+	"update sponsorship|protocol version 22|failure tests|low reserve|signer|establish sponsorship" : [ "zljpJI2QM6A=", "yNCcD809OGs=", "nx9GUWGUkwY=" ],
+	"update sponsorship|protocol version 22|failure tests|low reserve|signer|remove sponsorship" : [ "0rCskf3w41Q=", "CB3zlqUqXTU=" ],
+	"update sponsorship|protocol version 22|failure tests|low reserve|signer|transfer sponsorship" : [ "0rCskf3w41Q=", "CB3zlqUqXTU=" ],
+	"update sponsorship|protocol version 22|failure tests|not sponsor" : 
+	[
+		"zljpJI2QM6A=",
+		"0vkiBqYB0/I=",
+		"zljpJI2QM6A=",
+		"0vkiBqYB0/I=",
+		"zljpJI2QM6A=",
+		"0vkiBqYB0/I=",
+		"zljpJI2QM6A=",
+		"0vkiBqYB0/I="
+	],
+	"update sponsorship|protocol version 22|failure tests|not sponsor|entry is not sponsored. transfer from wrong source account" : [ "7eIlN1YVTBI=" ],
+	"update sponsorship|protocol version 22|failure tests|not sponsor|signer is not sponsored. transfer from wrong source account" : [ "nx9GUWGUkwY=" ],
+	"update sponsorship|protocol version 22|invalid input" : 
+	[
+		"4Pvtm7KpKs8=",
+		"4Pvtm7KpKs8=",
+		"4Pvtm7KpKs8=",
+		"4Pvtm7KpKs8=",
+		"4Pvtm7KpKs8=",
+		"4Pvtm7KpKs8="
+	],
+	"update sponsorship|protocol version 22|invalid input|invalid trustline keys" : [ "0o7C9IkSli4=" ],
+	"update sponsorship|protocol version 22|too many sponsoring" : 
+	[
+		"7hLEl2G7DxE=",
+		"7hLEl2G7DxE=",
+		"7hLEl2G7DxE=",
+		"7hLEl2G7DxE=",
+		"7hLEl2G7DxE=",
+		"7hLEl2G7DxE=",
+		"7hLEl2G7DxE=",
+		"7hLEl2G7DxE=",
+		"7hLEl2G7DxE=",
+		"7hLEl2G7DxE=",
+		"7hLEl2G7DxE=",
+		"7hLEl2G7DxE=",
+		"7hLEl2G7DxE=",
+		"7hLEl2G7DxE=",
+		"7hLEl2G7DxE=",
+		"7hLEl2G7DxE=",
+		"7hLEl2G7DxE=",
+		"7hLEl2G7DxE=",
+		"7hLEl2G7DxE=",
+		"7hLEl2G7DxE=",
+		"7hLEl2G7DxE="
+	],
+	"update sponsorship|protocol version 22|too many sponsoring|account" : 
+	[
+		"t4jbN1UrkUA=",
+		"t4jbN1UrkUA=",
+		"t4jbN1UrkUA=",
+		"t4jbN1UrkUA=",
+		"t4jbN1UrkUA=",
+		"t4jbN1UrkUA="
+	],
+	"update sponsorship|protocol version 22|too many sponsoring|claimable balance" : 
+	[
+		"/3jBHudBiys=",
+		"QctJflExV9Q=",
+		"/3jBHudBiys=",
+		"QctJflExV9Q=",
+		"/3jBHudBiys=",
+		"QctJflExV9Q="
+	],
+	"update sponsorship|protocol version 22|too many sponsoring|pool share trustline" : 
+	[
+		"BoWN0yYuSg0=",
+		"Sue6hMtbxU0=",
+		"GmDpnG7bnDI=",
+		"pJwif+p6+X4=",
+		"kyQ97y6FF+I=",
+		"BoWN0yYuSg0=",
+		"Sue6hMtbxU0=",
+		"GmDpnG7bnDI=",
+		"pJwif+p6+X4=",
+		"kyQ97y6FF+I=",
+		"BoWN0yYuSg0=",
+		"Sue6hMtbxU0=",
+		"GmDpnG7bnDI=",
+		"pJwif+p6+X4=",
+		"kyQ97y6FF+I=",
+		"BoWN0yYuSg0=",
+		"Sue6hMtbxU0=",
+		"GmDpnG7bnDI=",
+		"pJwif+p6+X4=",
+		"kyQ97y6FF+I=",
+		"BoWN0yYuSg0=",
+		"Sue6hMtbxU0=",
+		"GmDpnG7bnDI=",
+		"pJwif+p6+X4=",
+		"kyQ97y6FF+I=",
+		"BoWN0yYuSg0=",
+		"Sue6hMtbxU0=",
+		"GmDpnG7bnDI=",
+		"pJwif+p6+X4=",
+		"kyQ97y6FF+I="
+	],
+	"update sponsorship|protocol version 22|too many sponsoring|signer" : 
+	[
+		"ksToWFG6LM8=",
+		"z7zZuLB/nVY=",
+		"ksToWFG6LM8=",
+		"z7zZuLB/nVY=",
+		"ksToWFG6LM8=",
+		"z7zZuLB/nVY="
+	],
+	"update sponsorship|protocol version 22|too many sponsoring|trustline" : 
 	[
 		"Q8rVNUnFVyo=",
 		"ZJ6LqPNm9YU=",
