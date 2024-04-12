@@ -2890,11 +2890,7 @@ TEST_CASE("settings upgrade command line utils", "[tx][soroban][upgrades]")
                     params[val] =
                         ContractCostParamEntry{ExtensionPoint{0}, 6481, 5943};
                     break;
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
                 case DecodeEcdsaCurve256Sig:
-#else
-                case ComputeEcdsaSecp256k1Sig:
-#endif
                     params[val] =
                         ContractCostParamEntry{ExtensionPoint{0}, 711, 0};
                     break;
@@ -2999,11 +2995,7 @@ TEST_CASE("settings upgrade command line utils", "[tx][soroban][upgrades]")
                     params[val] =
                         ContractCostParamEntry{ExtensionPoint{0}, 0, 0};
                     break;
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
                 case DecodeEcdsaCurve256Sig:
-#else
-                case ComputeEcdsaSecp256k1Sig:
-#endif
                     params[val] =
                         ContractCostParamEntry{ExtensionPoint{0}, 0, 0};
                     break;

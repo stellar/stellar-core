@@ -1,6 +1,6 @@
 
 {
-	"!cfg protocol version" : 21,
+	"!cfg protocol version" : 22,
 	"!rng seed" : 12345,
 	"!test all versions" : true,
 	"!versions to test" : 
@@ -26,7 +26,8 @@
 		18,
 		19,
 		20,
-		21
+		21,
+		22
 	],
 	"bump sequence|protocol version 0" : 
 	[
@@ -344,6 +345,31 @@
 	"bump sequence|protocol version 21|test success|large bump" : [ "7o57/P1U05g=" ],
 	"bump sequence|protocol version 21|test success|large bump|no more tx when INT64_MAX is reached" : [ "X54ZIiBJtxs=" ],
 	"bump sequence|protocol version 21|test success|small bump" : [ "rmhFtGW0gpY=" ],
+	"bump sequence|protocol version 22" : 
+	[
+		"gQ2ltIp3Kcw=",
+		"WcjyKfiSFaQ=",
+		"gQ2ltIp3Kcw=",
+		"WcjyKfiSFaQ=",
+		"gQ2ltIp3Kcw=",
+		"WcjyKfiSFaQ=",
+		"gQ2ltIp3Kcw=",
+		"WcjyKfiSFaQ=",
+		"gQ2ltIp3Kcw=",
+		"WcjyKfiSFaQ=",
+		"gQ2ltIp3Kcw=",
+		"WcjyKfiSFaQ=",
+		"gQ2ltIp3Kcw=",
+		"WcjyKfiSFaQ=",
+		"gQ2ltIp3Kcw=",
+		"WcjyKfiSFaQ="
+	],
+	"bump sequence|protocol version 22|seqnum equals starting sequence" : [ "ihFCpXDZCnI=", "X54ZIiBJtxs=" ],
+	"bump sequence|protocol version 22|test success|backward jump (no-op)" : [ "iqwRrczE7TI=" ],
+	"bump sequence|protocol version 22|test success|bad seq" : [ "5CUf7GSjhq8=", "3yWoLT8R0CM=" ],
+	"bump sequence|protocol version 22|test success|large bump" : [ "7o57/P1U05g=" ],
+	"bump sequence|protocol version 22|test success|large bump|no more tx when INT64_MAX is reached" : [ "X54ZIiBJtxs=" ],
+	"bump sequence|protocol version 22|test success|small bump" : [ "rmhFtGW0gpY=" ],
 	"bump sequence|protocol version 2|not supported" : [ "/lfj8xIFS8I=" ],
 	"bump sequence|protocol version 3" : 
 	[

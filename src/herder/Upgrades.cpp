@@ -1279,12 +1279,10 @@ Upgrades::applyVersionUpgrade(Application& app, AbstractLedgerTxn& ltx,
     {
         SorobanNetworkConfig::createLedgerEntriesForV20(ltx, app);
     }
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
     if (needUpgradeToVersion(ProtocolVersion::V_21, prevVersion, newVersion))
     {
         SorobanNetworkConfig::createCostTypesForV21(ltx, app);
     }
-#endif
 }
 
 void
