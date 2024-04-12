@@ -697,7 +697,7 @@ Bucket::scanForEvictionLegacySQL(
     }
 
     XDRInputFileStream stream{};
-    stream.open(mFilename);
+    stream.open(mFilename.string());
     stream.seek(iter.bucketFileOffset);
 
     BucketEntry be;
