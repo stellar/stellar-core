@@ -4074,3 +4074,82 @@ TEST_CASE("Soroban authorization", "[tx][soroban]")
         genericAuthTest({accountSigner, customAccountSigner});
     }
 }
+
+TEST_CASE("Module cache", "[tx][soroban]")
+{
+    VirtualClock clock;
+    auto cfg = getTestConfig(0);
+    cfg.USE_CONFIG_FOR_GENESIS = false;
+
+    auto app = createTestApplication(clock, cfg);
+
+    auto upgrade20 = LedgerUpgrade{LEDGER_UPGRADE_VERSION};
+    upgrade20.newLedgerVersion() = static_cast<int>(SOROBAN_PROTOCOL_VERSION);
+    executeUpgrade(*app, upgrade20);
+
+    // First upload a wasm in v20, upgrade to v21, and then re-upload wasm.
+    auto wasm = rust_bridge::get_test_wasm_add_i32();
+    SorobanTest test(app);
+    auto const& addContract = test.deployWasmContract(wasm);
+    auto const& wasmHash = addContract.getKeys().front().contractCode().hash;
+    {
+        LedgerTxn ltx(app->getLedgerTxnRoot());
+        auto ltxe = loadContractCode(ltx, wasmHash);
+        auto const& code = ltxe.current().data.contractCode();
+        REQUIRE(code.ext.v() == 0);
+    }
+
+    auto upgrade21 = LedgerUpgrade{LEDGER_UPGRADE_VERSION};
+    upgrade21.newLedgerVersion() = static_cast<int>(ProtocolVersion::V_21);
+    executeUpgrade(*app, upgrade21);
+
+    auto resources = defaultUploadWasmResourcesWithoutFootprint(
+        wasm, getLclProtocolVersion(test.getApp()));
+    auto tx = makeSorobanWasmUploadTx(test.getApp(), test.getRoot(), wasm,
+                                      resources, 1000);
+
+    auto r = closeLedger(test.getApp(), {tx});
+    checkTx(0, r, txSUCCESS);
+
+    {
+        LedgerTxn ltx(app->getLedgerTxnRoot());
+        auto ltxe = loadContractCode(ltx, wasmHash);
+        auto const& code = ltxe.current().data.contractCode();
+        REQUIRE(code.ext.v() == 1);
+
+        auto const& inputs = code.ext.v1().costInputs;
+        REQUIRE(inputs.nInstructions == 119);
+        REQUIRE(inputs.nFunctions == 3);
+        REQUIRE(inputs.nGlobals == 3);
+        REQUIRE(inputs.nTableEntries == 0);
+        REQUIRE(inputs.nTypes == 3);
+        REQUIRE(inputs.nDataSegments == 0);
+        REQUIRE(inputs.nElemSegments == 0);
+        REQUIRE(inputs.nImports == 2);
+        REQUIRE(inputs.nExports == 5);
+        REQUIRE(inputs.nDataSegmentBytes == 0);
+    }
+
+    // Now upload a new wasm in v21
+    auto const& contract2 =
+        test.deployWasmContract(rust_bridge::get_hostile_large_val_wasm());
+    {
+        LedgerTxn ltx(app->getLedgerTxnRoot());
+        auto ltxe = loadContractCode(
+            ltx, contract2.getKeys().front().contractCode().hash);
+        auto const& code = ltxe.current().data.contractCode();
+        REQUIRE(code.ext.v() == 1);
+
+        auto const& inputs = code.ext.v1().costInputs;
+        REQUIRE(inputs.nInstructions == 417);
+        REQUIRE(inputs.nFunctions == 18);
+        REQUIRE(inputs.nGlobals == 3);
+        REQUIRE(inputs.nTableEntries == 0);
+        REQUIRE(inputs.nTypes == 9);
+        REQUIRE(inputs.nDataSegments == 0);
+        REQUIRE(inputs.nElemSegments == 0);
+        REQUIRE(inputs.nImports == 6);
+        REQUIRE(inputs.nExports == 14);
+        REQUIRE(inputs.nDataSegmentBytes == 0);
+    }
+}
