@@ -438,9 +438,12 @@ exit /b 0
     <ClCompile Include="..\..\src\bucket\BucketIndexImpl.cpp" />
     <ClCompile Include="..\..\src\bucket\BucketInputIterator.cpp" />
     <ClCompile Include="..\..\src\bucket\BucketList.cpp" />
+    <ClCompile Include="..\..\src\bucket\BucketListSnapshot.cpp" />
     <ClCompile Include="..\..\src\bucket\BucketManagerImpl.cpp" />
     <ClCompile Include="..\..\src\bucket\BucketMergeMap.cpp" />
     <ClCompile Include="..\..\src\bucket\BucketOutputIterator.cpp" />
+    <ClCompile Include="..\..\src\bucket\BucketSnapshot.cpp" />
+    <ClCompile Include="..\..\src\bucket\BucketSnapshotManager.cpp" />
     <ClCompile Include="..\..\src\bucket\FutureBucket.cpp" />
     <ClCompile Include="..\..\src\bucket\MergeKey.cpp" />
     <ClCompile Include="..\..\src\bucket\PublishQueueBuckets.cpp" />
@@ -879,10 +882,13 @@ exit /b 0
     <ClInclude Include="..\..\src\bucket\BucketIndexImpl.h" />
     <ClInclude Include="..\..\src\bucket\BucketInputIterator.h" />
     <ClInclude Include="..\..\src\bucket\BucketList.h" />
+    <ClInclude Include="..\..\src\bucket\BucketListSnapshot.h" />
     <ClInclude Include="..\..\src\bucket\BucketManager.h" />
     <ClInclude Include="..\..\src\bucket\BucketManagerImpl.h" />
     <ClInclude Include="..\..\src\bucket\BucketMergeMap.h" />
     <ClInclude Include="..\..\src\bucket\BucketOutputIterator.h" />
+    <ClInclude Include="..\..\src\bucket\BucketSnapshot.h" />
+    <ClInclude Include="..\..\src\bucket\BucketSnapshotManager.h" />
     <ClInclude Include="..\..\src\bucket\FutureBucket.h" />
     <ClInclude Include="..\..\src\bucket\LedgerCmp.h" />
     <ClInclude Include="..\..\src\bucket\MergeKey.h" />
