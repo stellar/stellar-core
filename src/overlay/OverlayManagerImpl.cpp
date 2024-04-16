@@ -1206,12 +1206,14 @@ OverlayManagerImpl::shutdown()
     {
         return;
     }
-    mShuttingDown = true;
     mDoor.close();
     mFloodGate.shutdown();
     mInboundPeers.shutdown();
     mOutboundPeers.shutdown();
 
+    // Switch overlay to "shutting down" state _after_ shutting down peers to
+    // allow graceful connection drop
+    mShuttingDown = true;
     mDemandTimer.cancel();
 
     // Stop ticking and resolving peers

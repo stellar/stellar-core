@@ -61,6 +61,12 @@ TCPPeer::initiate(Application& app, PeerBareAddress const& address)
         asio::ip::address::from_string(address.getIP()), address.getPort());
     socket->next_layer().async_connect(
         endpoint, [result](asio::error_code const& error) {
+            // Handler is invoked asynchronously, so check if connection got
+            // dropped in the meantime
+            if (result->shouldAbort())
+            {
+                return;
+            }
             asio::error_code ec;
             asio::error_code lingerEc;
             if (!error)
