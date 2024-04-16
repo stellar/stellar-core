@@ -661,7 +661,7 @@ pub fn check_lockfile_has_expected_dep_trees(curr_max_protocol_version: u32) {
         &lockfile,
         "latest",
         soroban_env_host_curr::VERSION.rev,
-        EXPECTED_HOST_DEP_TREE_CURR,
+        EXPECTED_HOST_DEP_TREE_LATEST,
     );    
 
 
