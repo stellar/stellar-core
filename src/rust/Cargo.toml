@@ -62,6 +62,15 @@ git = "https://github.com/stellar/rs-soroban-env"
 package = "soroban-env-host"
 rev = "93120b6b32cd910fcc224cbf6aec1333f771a8bc"
 
+# This copy of the soroban host is for testing the latest env changes.
+# This could be unstable so will only be used in our vnext job for 
+# early testing of env changes.
+
+[dependencies.soroban-env-host-latest]
+git = "https://github.com/stellar/rs-soroban-env"
+package = "soroban-env-host"
+branch = "main"
+
 [dependencies.soroban-test-wasms]
 version = "=21.0.0"
 git = "https://github.com/stellar/rs-soroban-env"
@@ -83,4 +92,4 @@ features = ["dependency-tree"]
 [features]
 soroban-env-host-prev = ["dep:soroban-env-host-prev"]
 tracy = ["dep:tracy-client", "soroban-env-host-curr/tracy"]
-core-vnext = ["soroban-env-host-curr/next"]
+core-vnext = ["soroban-env-host-latest/next"]

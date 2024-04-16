@@ -469,9 +469,18 @@ use crate::log::init_logging;
 // the `prev` copy of soroban. All others will run on the `curr` copy.
 // See `invoke_host_function` below.
 
+#[cfg(not(feature = "core-vnext"))]
 #[path = "."]
 mod soroban_curr {
     pub(crate) use soroban_env_host_curr as soroban_env_host;
+
+    pub(crate) mod contract;
+}
+
+#[cfg(feature = "core-vnext")]
+#[path = "."]
+mod soroban_curr {
+    pub(crate) use soroban_env_host_latest as soroban_env_host;
 
     pub(crate) mod contract;
 }
@@ -630,10 +639,13 @@ pub fn check_lockfile_has_expected_dep_trees(curr_max_protocol_version: u32) {
     static EXPECTED_HOST_DEP_TREE_CURR: &'static str = include_str!("host-dep-tree-curr.txt");
     #[cfg(feature = "soroban-env-host-prev")]
     static EXPECTED_HOST_DEP_TREE_PREV: &'static str = include_str!("host-dep-tree-prev.txt");
+    #[cfg(feature = "core-vnext")]
+    static EXPECTED_HOST_DEP_TREE_LATEST: &'static str = include_str!("host-dep-tree-latest.txt");
 
     let lockfile = Lockfile::from_str(CARGO_LOCK_FILE_CONTENT)
         .expect("parsing compiled-in Cargo.lock file content");
 
+    #[cfg(not(feature = "core-vnext"))]
     check_lockfile_has_expected_dep_tree(
         curr_max_protocol_version,
         soroban_env_host_curr::meta::INTERFACE_VERSION,
@@ -642,6 +654,17 @@ pub fn check_lockfile_has_expected_dep_trees(curr_max_protocol_version: u32) {
         soroban_env_host_curr::VERSION.rev,
         EXPECTED_HOST_DEP_TREE_CURR,
     );
+    #[cfg(feature = "core-vnext")]
+    check_lockfile_has_expected_dep_tree(
+        curr_max_protocol_version,
+        soroban_env_host_latest::meta::INTERFACE_VERSION,
+        &lockfile,
+        "latest",
+        soroban_env_host_curr::VERSION.rev,
+        EXPECTED_HOST_DEP_TREE_CURR,
+    );    
+
+
     #[cfg(feature = "soroban-env-host-prev")]
     check_lockfile_has_expected_dep_tree(
         curr_max_protocol_version - 1,
