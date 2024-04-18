@@ -318,7 +318,7 @@ struct SelectBucketListGenerator : public BucketListGenerator
 class ApplyBucketsWorkAddEntry : public ApplyBucketsWork
 {
   private:
-    LedgerEntry mEntry;
+    LedgerEntry const mEntry;
     bool mAdded;
 
   public:
@@ -371,8 +371,8 @@ class ApplyBucketsWorkAddEntry : public ApplyBucketsWork
 class ApplyBucketsWorkDeleteEntry : public ApplyBucketsWork
 {
   private:
-    LedgerKey mKey;
-    LedgerEntry mEntry;
+    LedgerKey const mKey;
+    LedgerEntry const mEntry;
     bool mDeleted;
 
   public:
@@ -414,8 +414,8 @@ class ApplyBucketsWorkDeleteEntry : public ApplyBucketsWork
 class ApplyBucketsWorkModifyEntry : public ApplyBucketsWork
 {
   private:
-    LedgerKey mKey;
-    LedgerEntry mEntry;
+    LedgerKey const mKey;
+    LedgerEntry const mEntry;
     bool mModified;
 
     void
@@ -552,7 +552,7 @@ class ApplyBucketsWorkModifyEntry : public ApplyBucketsWork
         {
             LedgerTxn ltx(mApp.getLedgerTxnRoot(), false);
             auto entry = ltx.load(mKey);
-            if (entry && entry.current() == mEntry)
+            while (entry && entry.current() == mEntry)
             {
                 switch (mEntry.data.type())
                 {
@@ -589,8 +589,12 @@ class ApplyBucketsWorkModifyEntry : public ApplyBucketsWork
                 default:
                     REQUIRE(false);
                 }
-                ltx.commit();
                 mModified = true;
+            }
+
+            if (mModified)
+            {
+                ltx.commit();
             }
         }
         auto r = ApplyBucketsWork::doWork();
