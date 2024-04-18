@@ -154,17 +154,17 @@ maybeRebuildLedger(Application& app, bool applyBuckets)
     auto bucketListDBEnabled = app.getConfig().isUsingBucketListDB();
     for (auto let : xdr::xdr_traits<LedgerEntryType>::enum_values())
     {
+        // If BucketListDB is enabled, drop all tables except for offers
         LedgerEntryType t = static_cast<LedgerEntryType>(let);
-        if (ps.shouldRebuildForType(t))
-        {
-            toRebuild.emplace(t);
-            continue;
-        }
-
-        // If bucketlist is enabled, drop all tables except for offers
         if (let != OFFER && bucketListDBEnabled)
         {
             toDrop.emplace(t);
+            continue;
+        }
+
+        if (ps.shouldRebuildForType(t))
+        {
+            toRebuild.emplace(t);
         }
     }
 
