@@ -214,13 +214,25 @@ BucketIndexImpl<IndexT>::BucketIndexImpl(BucketManager& bm,
     }
 }
 
-template <class IndexT>
+// Individual indexes are associated with small buckets, so it's more efficient
+// to just always recreate them instead of serializing to disk
+template <>
 void
-BucketIndexImpl<IndexT>::saveToDisk(BucketManager& bm, Hash const& hash) const
+BucketIndexImpl<BucketIndex::IndividualIndex>::saveToDisk(
+    BucketManager& bm, Hash const& hash) const
+{
+}
+
+template <>
+void
+BucketIndexImpl<BucketIndex::RangeIndex>::saveToDisk(BucketManager& bm,
+                                                     Hash const& hash) const
 {
     ZoneScoped;
     releaseAssert(bm.getConfig().isPersistingBucketListDBIndexes());
-    auto timer = LogSlowExecution("Saving index");
+    auto timer =
+        LogSlowExecution("Saving index", LogSlowExecution::Mode::AUTOMATIC_RAII,
+                         "took", std::chrono::milliseconds(100));
 
     std::filesystem::path tmpFilename =
         Bucket::randomBucketIndexName(bm.getTmpDir());

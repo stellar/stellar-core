@@ -542,8 +542,8 @@ TEST_CASE("serialize bucket indexes", "[bucket][bucketindex][!hide]")
 {
     Config cfg(getTestConfig(0, Config::TESTDB_ON_DISK_SQLITE));
 
-    // First 3 levels individual, last 3 range index
-    cfg.EXPERIMENTAL_BUCKETLIST_DB_INDEX_CUTOFF = 1;
+    // All levels use range config
+    cfg.EXPERIMENTAL_BUCKETLIST_DB_INDEX_CUTOFF = 0;
     cfg.EXPERIMENTAL_BUCKETLIST_DB = true;
     cfg.EXPERIMENTAL_BUCKETLIST_DB_PERSIST_INDEX = true;
 
