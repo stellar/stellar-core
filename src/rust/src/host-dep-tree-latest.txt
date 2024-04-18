@@ -1,4 +1,4 @@
-soroban-env-host 21.0.0 git+https://github.com/stellar/rs-soroban-env?branch=main#4d9b1020f7b5baa0f972eb08ed8aa2cd3343ad7c
+soroban-env-host 21.0.0 git+https://github.com/stellar/rs-soroban-env?branch=main#cd534ed18dc44368b26e0c5089756cd1bcde0bc1
 ├── wasmparser 0.116.1 checksum:a58e28b80dd8340cb07b8242ae654756161f6fc8d0038123d679b7b99964fa50
 │   ├── semver 1.0.17 checksum:bebd363326d05ec3e2f532ab7660680f3b02130d780c299bca73469d521bc0ed
 │   │   └── serde 1.0.192 checksum:bca2a08484b285dcb282d0f67b26cadc0df8b19f8c12502c13d966bf9482f001

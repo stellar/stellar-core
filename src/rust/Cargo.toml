@@ -69,7 +69,7 @@ rev = "93120b6b32cd910fcc224cbf6aec1333f771a8bc"
 [dependencies.soroban-env-host-latest]
 git = "https://github.com/stellar/rs-soroban-env"
 package = "soroban-env-host"
-branch = "main"
+rev = "cd534ed18dc44368b26e0c5089756cd1bcde0bc1"
 
 [dependencies.soroban-test-wasms]
 version = "=21.0.0"
