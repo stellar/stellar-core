@@ -4087,9 +4087,13 @@ TEST_CASE("Module cache", "[tx][soroban]")
     upgrade20.newLedgerVersion() = static_cast<int>(SOROBAN_PROTOCOL_VERSION);
     executeUpgrade(*app, upgrade20);
 
-    // First upload a wasm in v20, upgrade to v21, and then re-upload wasm.
+    // First upload a wasm in v20, upgrade to v21, and then re-upload wasm to
+    // create the module cache. Also validate with invocations to the same
+    // contract that the required instructions drops after the module cache is
+    // created.
     auto wasm = rust_bridge::get_test_wasm_add_i32();
     SorobanTest test(app);
+
     auto const& addContract = test.deployWasmContract(wasm);
     auto const& wasmHash = addContract.getKeys().front().contractCode().hash;
     {
@@ -4099,9 +4103,38 @@ TEST_CASE("Module cache", "[tx][soroban]")
         REQUIRE(code.ext.v() == 0);
     }
 
+    auto invocation = [&](int64_t instructions) -> bool {
+        auto fnName = "add";
+        auto sc7 = makeI32(7);
+        auto sc16 = makeI32(16);
+
+        auto invocationSpec = SorobanInvocationSpec()
+                                  .setInstructions(instructions)
+                                  .setReadBytes(2'000)
+                                  .setInclusionFee(12345);
+
+        uint32_t const expectedRefund = 100'000;
+        auto spec = invocationSpec.setNonRefundableResourceFee(33'000)
+                        .setRefundableResourceFee(expectedRefund);
+
+        auto invocation = addContract.prepareInvocation(fnName, {sc7, sc16},
+                                                        spec, expectedRefund);
+        auto tx =
+            std::dynamic_pointer_cast<TransactionFrame>(invocation.createTx());
+        return test.invokeTx(tx);
+    };
+
+    // Two million instructions is enough, but one million isn't without the
+    // module cache. Run the same invocations after the v21 upgrade as well.
+    REQUIRE(invocation(2'000'000));
+    REQUIRE(!invocation(1'000'000));
+
     auto upgrade21 = LedgerUpgrade{LEDGER_UPGRADE_VERSION};
     upgrade21.newLedgerVersion() = static_cast<int>(ProtocolVersion::V_21);
     executeUpgrade(*app, upgrade21);
+
+    REQUIRE(invocation(2'000'000));
+    REQUIRE(!invocation(1'000'000));
 
     auto resources = defaultUploadWasmResourcesWithoutFootprint(
         wasm, getLclProtocolVersion(test.getApp()));
@@ -4129,6 +4162,10 @@ TEST_CASE("Module cache", "[tx][soroban]")
         REQUIRE(inputs.nExports == 5);
         REQUIRE(inputs.nDataSegmentBytes == 0);
     }
+
+    // After the upload adding the module cache, 1 million instructions is
+    // enough.
+    REQUIRE(invocation(1'000'000));
 
     // Now upload a new wasm in v21
     auto const& contract2 =
