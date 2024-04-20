@@ -66,6 +66,7 @@ class OverlayManager
 
     // Drop all PeerRecords from the Database
     static void dropAll(Database& db);
+    static bool isFloodMessage(StellarMessage const& msg);
 
     // Flush all FloodGate and ItemFetcher state for ledgers older than
     // `ledgerSeq`.
@@ -140,8 +141,6 @@ class OverlayManager
     virtual bool isPreferred(Peer* peer) const = 0;
     virtual bool isPossiblyPreferred(std::string const& ip) const = 0;
     virtual bool haveSpaceForConnection(std::string const& ip) const = 0;
-
-    virtual bool isFloodMessage(StellarMessage const& msg) = 0;
 
     // Return the current in-memory set of inbound pending peers.
     virtual std::vector<Peer::pointer> const&

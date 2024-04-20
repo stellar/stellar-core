@@ -91,7 +91,7 @@ VirtualClockEventCompare::operator()(shared_ptr<VirtualClockEvent> a,
 VirtualClock::time_point
 VirtualClock::next() const
 {
-    assertThreadIsMain();
+    releaseAssert(threadIsMain());
     VirtualClock::time_point least = time_point::max();
     if (!mEvents.empty())
     {
@@ -196,7 +196,7 @@ VirtualClock::enqueue(shared_ptr<VirtualClockEvent> ve)
     {
         return;
     }
-    assertThreadIsMain();
+    releaseAssert(threadIsMain());
     mEvents.emplace(ve);
     maybeSetRealtimer();
 }
@@ -219,7 +219,7 @@ VirtualClock::flushCancelledEvents()
         mFlushesIgnored++;
         return;
     }
-    assertThreadIsMain();
+    releaseAssert(threadIsMain());
 
     auto toKeep = vector<shared_ptr<VirtualClockEvent>>();
     toKeep.reserve(mEvents.size());
@@ -242,7 +242,7 @@ bool
 VirtualClock::cancelAllEvents()
 {
     ZoneScoped;
-    assertThreadIsMain();
+    releaseAssert(threadIsMain());
 
     bool wasEmpty = mEvents.empty();
     while (!mEvents.empty())
@@ -509,7 +509,7 @@ VirtualClock::advanceToNow()
     {
         return 0;
     }
-    assertThreadIsMain();
+    releaseAssert(threadIsMain());
 
     auto n = now();
     vector<shared_ptr<VirtualClockEvent>> toDispatch;
@@ -539,7 +539,7 @@ VirtualClock::advanceToNext()
         return 0;
     }
     releaseAssert(mMode == VIRTUAL_TIME);
-    assertThreadIsMain();
+    releaseAssert(threadIsMain());
     if (mEvents.empty())
     {
         return 0;

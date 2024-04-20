@@ -96,7 +96,7 @@ struct TestContextListener : Catch::TestEventListenerBase
     {
         if (gTestTxMetaMode != TestTxMetaMode::META_TEST_IGNORE)
         {
-            assertThreadIsMain();
+            releaseAssert(threadIsMain());
             releaseAssert(!sTestCtx.has_value());
             sTestCtx.emplace(testInfo);
         }
@@ -106,7 +106,7 @@ struct TestContextListener : Catch::TestEventListenerBase
     {
         if (gTestTxMetaMode != TestTxMetaMode::META_TEST_IGNORE)
         {
-            assertThreadIsMain();
+            releaseAssert(threadIsMain());
             releaseAssert(sTestCtx.has_value());
             releaseAssert(sSectCtx.empty());
             sTestCtx.reset();
@@ -117,7 +117,7 @@ struct TestContextListener : Catch::TestEventListenerBase
     {
         if (gTestTxMetaMode != TestTxMetaMode::META_TEST_IGNORE)
         {
-            assertThreadIsMain();
+            releaseAssert(threadIsMain());
             sSectCtx.emplace_back(sectionInfo);
         }
     }
@@ -126,7 +126,7 @@ struct TestContextListener : Catch::TestEventListenerBase
     {
         if (gTestTxMetaMode != TestTxMetaMode::META_TEST_IGNORE)
         {
-            assertThreadIsMain();
+            releaseAssert(threadIsMain());
             sSectCtx.pop_back();
         }
     }
@@ -584,7 +584,7 @@ logFatalAndThrow(std::string const& msg)
 static std::pair<stdfs::path, std::string>
 getCurrentTestContext()
 {
-    assertThreadIsMain();
+    releaseAssert(threadIsMain());
 
     releaseAssert(TestContextListener::sTestCtx.has_value());
     auto& tc = TestContextListener::sTestCtx.value();

@@ -2501,7 +2501,7 @@ LedgerTxnRoot::Impl::addChild(AbstractLedgerTxn& child, TransactionMode mode)
     {
         // Read-only transactions are only allowed on the main thread to ensure
         // we're not competing with writes
-        assertThreadIsMain();
+        releaseAssert(threadIsMain());
     }
 
     mChild = &child;
