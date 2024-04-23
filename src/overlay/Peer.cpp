@@ -22,6 +22,7 @@
 #include "overlay/PeerManager.h"
 #include "overlay/StellarXDR.h"
 #include "overlay/SurveyManager.h"
+#include "overlay/TxPullMode.h"
 #include "util/Decoder.h"
 #include "util/GlobalChecks.h"
 #include "util/Logging.h"
@@ -45,8 +46,6 @@
 namespace stellar
 {
 
-constexpr uint32 const ADVERT_CACHE_SIZE = 50000;
-
 using namespace std;
 using namespace soci;
 
@@ -67,26 +66,11 @@ Peer::Peer(Application& app, PeerRole role)
     , mLastWrite(app.getClock().now())
     , mEnqueueTimeOfLastWrite(app.getClock().now())
     , mPeerMetrics(app.getClock().now())
-    , mTxAdvertQueue(app)
-    , mAdvertTimer(app)
-    , mAdvertHistory(ADVERT_CACHE_SIZE)
 {
     mPingSentTime = PING_NOT_SENT;
     mLastPing = std::chrono::hours(24); // some default very high value
     auto bytes = randomBytes(mSendNonce.size());
     std::copy(bytes.begin(), bytes.end(), mSendNonce.begin());
-}
-
-bool
-Peer::peerKnowsHash(Hash const& hash)
-{
-    return mAdvertHistory.exists(hash);
-}
-
-void
-Peer::rememberHash(Hash const& hash, uint32_t ledgerSeq)
-{
-    mAdvertHistory.put(hash, ledgerSeq);
 }
 
 Peer::MsgCapacityTracker::MsgCapacityTracker(std::weak_ptr<Peer> peer,
@@ -381,8 +365,20 @@ Peer::shutdown()
     }
     mShuttingDown = true;
     mRecurringTimer.cancel();
-    mAdvertTimer.cancel();
     mDelayedExecutionTimer.cancel();
+    if (mTxPullMode)
+    {
+        mTxPullMode->shutdown();
+    }
+}
+
+void
+Peer::clearBelow(uint32_t seq)
+{
+    if (mTxPullMode)
+    {
+        mTxPullMode->clearBelow(seq);
+    }
 }
 
 void
@@ -1537,6 +1533,8 @@ Peer::recvAuth(StellarMessage const& msg)
 
     mFlowControl->start(weakSelf, sendCb, bothWantBytes);
 
+    mTxPullMode = std::make_shared<TxPullMode>(mApp, self);
+
     // Ask for SCP data _after_ the flow control message
     auto low = mApp.getHerder().getMinLedgerSeqToAskPeers();
     sendGetScpState(low);
@@ -1615,25 +1613,17 @@ Peer::recvSurveyResponseMessage(StellarMessage const& msg)
 void
 Peer::recvFloodAdvert(StellarMessage const& msg)
 {
+    releaseAssert(mTxPullMode);
     auto seq = mApp.getHerder().trackingConsensusLedgerIndex();
-    for (auto const& hash : msg.floodAdvert().txHashes)
-    {
-        rememberHash(hash, seq);
-    }
-    mTxAdvertQueue.queueAndMaybeTrim(msg.floodAdvert().txHashes);
-}
-
-void
-Peer::clearBelow(uint32_t ledgerSeq)
-{
-    mAdvertHistory.erase_if(
-        [&](uint32_t const& seq) { return seq < ledgerSeq; });
+    mTxPullMode->queueIncomingAdvert(msg.floodAdvert().txHashes, seq);
 }
 
 void
 Peer::recvFloodDemand(StellarMessage const& msg)
 {
-    fulfillDemand(msg.floodDemand());
+    // Pass the demand to OverlayManager for processing
+    mApp.getOverlayManager().recvTxDemand(msg.floodDemand(),
+                                          shared_from_this());
 }
 
 Peer::PeerMetrics::PeerMetrics(VirtualClock::time_point connectedTime)
@@ -1674,50 +1664,6 @@ Peer::PeerMetrics::PeerMetrics(VirtualClock::time_point connectedTime)
 }
 
 void
-Peer::queueTxHashToAdvertise(Hash const& txHash)
-{
-    if (mTxHashesToAdvertise.empty())
-    {
-        startAdvertTimer();
-    }
-
-    if (mTxHashesToAdvertise.size() == TX_ADVERT_VECTOR_MAX_SIZE)
-    {
-        CLOG_TRACE(Overlay,
-                   "mTxHashesToAdvertise is full, dropping the txn hash {}",
-                   hexAbbrev(txHash));
-        return;
-    }
-
-    mTxHashesToAdvertise.emplace_back(txHash);
-
-    // Flush adverts at the earliest of the following two conditions:
-    // 1. The number of hashes reaches the threshold.
-    // 2. The oldest tx hash hash been in the queue for FLOOD_TX_PERIOD_MS.
-    if (mTxHashesToAdvertise.size() >=
-        mApp.getOverlayManager().getMaxAdvertSize())
-    {
-        flushAdvert();
-    }
-}
-
-void
-Peer::startAdvertTimer()
-{
-    if (shouldAbort())
-    {
-        return;
-    }
-    mAdvertTimer.expires_from_now(mApp.getConfig().FLOOD_ADVERT_PERIOD_MS);
-    mAdvertTimer.async_wait([this](asio::error_code const& error) {
-        if (!error)
-        {
-            flushAdvert();
-        }
-    });
-}
-
-void
 Peer::sendTxDemand(TxDemandVector&& demands)
 {
     if (demands.size() > 0)
@@ -1742,71 +1688,6 @@ Peer::sendTxDemand(TxDemandVector&& demands)
 }
 
 void
-Peer::flushAdvert()
-{
-    if (mTxHashesToAdvertise.size() > 0)
-    {
-        StellarMessage adv;
-        adv.type(FLOOD_ADVERT);
-
-        adv.floodAdvert().txHashes = std::move(mTxHashesToAdvertise);
-        mTxHashesToAdvertise.clear();
-        auto msg = std::make_shared<StellarMessage>(adv);
-        std::weak_ptr<Peer> weak = shared_from_this();
-        mApp.postOnMainThread(
-            [weak, msg = std::move(msg)]() {
-                auto strong = weak.lock();
-                if (strong)
-                {
-                    strong->sendMessage(msg);
-                }
-            },
-            "flushAdvert");
-    }
-}
-
-void
-Peer::fulfillDemand(FloodDemand const& dmd)
-{
-    ZoneScoped;
-    auto& herder = mApp.getHerder();
-
-    for (auto const& h : dmd.txHashes)
-    {
-        auto tx = herder.getTx(h);
-        if (tx)
-        {
-            // The tx exists
-            CLOG_TRACE(Overlay, "fulfilled demand for {} demanded by {}",
-                       hexAbbrev(h), KeyUtils::toShortString(getPeerID()));
-            mPeerMetrics.mMessagesFulfilled++;
-            getOverlayMetrics().mMessagesFulfilledMeter.Mark();
-            auto smsg =
-                std::make_shared<StellarMessage>(tx->toStellarMessage());
-            sendMessage(smsg);
-        }
-        else
-        {
-            auto banned = herder.isBannedTx(h);
-            CLOG_TRACE(Overlay,
-                       "can't fulfill demand for {} hash {} demanded by {}",
-                       banned ? "banned" : "unknown", hexAbbrev(h),
-                       KeyUtils::toShortString(getPeerID()));
-            if (banned)
-            {
-                getOverlayMetrics().mBannedMessageUnfulfilledMeter.Mark();
-                mPeerMetrics.mBannedMessageUnfulfilled++;
-            }
-            else
-            {
-                getOverlayMetrics().mUnknownMessageUnfulfilledMeter.Mark();
-                mPeerMetrics.mUnknownMessageUnfulfilled++;
-            }
-        }
-    }
-}
-
-void
 Peer::handleMaxTxSizeIncrease(uint32_t increase)
 {
     if (increase > 0)
@@ -1814,4 +1695,55 @@ Peer::handleMaxTxSizeIncrease(uint32_t increase)
         mFlowControl->handleTxSizeIncrease(increase, shared_from_this());
     }
 }
+bool
+Peer::peerKnowsHash(Hash const& hash)
+{
+    if (mTxPullMode)
+    {
+        return mTxPullMode->seenAdvert(hash);
+    }
+    return false;
+}
+
+void
+Peer::sendAdvert(Hash const& hash)
+{
+    if (!mTxPullMode)
+    {
+        throw std::runtime_error("Pull mode is not set");
+    }
+    mTxPullMode->queueOutgoingAdvert(hash);
+}
+
+void
+Peer::retryAdvert(std::list<Hash>& hashes)
+{
+    if (!mTxPullMode)
+    {
+        throw std::runtime_error("Pull mode is not set");
+    }
+    mTxPullMode->retryIncomingAdvert(hashes);
+}
+
+bool
+Peer::hasAdvert()
+{
+    if (!mTxPullMode)
+    {
+        throw std::runtime_error("Pull mode is not set");
+    }
+    return mTxPullMode->size() > 0;
+}
+
+std::pair<Hash, std::optional<VirtualClock::time_point>>
+Peer::popAdvert()
+{
+    if (!mTxPullMode)
+    {
+        throw std::runtime_error("Pull mode is not set");
+    }
+
+    return mTxPullMode->popIncomingAdvert();
+}
+
 }

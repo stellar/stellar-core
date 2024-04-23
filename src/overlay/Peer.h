@@ -10,8 +10,6 @@
 #include "medida/timer.h"
 #include "overlay/PeerBareAddress.h"
 #include "overlay/StellarXDR.h"
-#include "overlay/TxAdvertQueue.h"
-#include "util/HashOfHash.h"
 #include "util/NonCopyable.h"
 #include "util/RandomEvictionCache.h"
 #include "util/Timer.h"
@@ -39,6 +37,7 @@ class Application;
 class LoopbackPeer;
 struct OverlayMetrics;
 class FlowControl;
+class TxPullMode;
 
 // Peer class represents a connected peer (either inbound or outbound)
 //
@@ -185,7 +184,7 @@ class Peer : public std::enable_shared_from_this<Peer>,
     NodeID mPeerID;
     uint256 mSendNonce;
     uint256 mRecvNonce;
-
+    std::shared_ptr<TxPullMode> mTxPullMode;
     std::shared_ptr<FlowControl> mFlowControl;
 
     class MsgCapacityTracker : private NonMovableOrCopyable
@@ -294,7 +293,6 @@ class Peer : public std::enable_shared_from_this<Peer>,
     void startRecurrentTimer();
     void recurrentTimerExpired(asio::error_code const& error);
     std::chrono::seconds getIOTimeout() const;
-    void rememberHash(Hash const& hash, uint32_t ledgerSeq);
 
     // helper method to acknownledge that some bytes were received
     void receivedBytes(size_t byteCount, bool gotFullMessage);
@@ -302,20 +300,6 @@ class Peer : public std::enable_shared_from_this<Peer>,
     void sendAuthenticatedMessage(StellarMessage const& msg);
     void beginMessageProcessing(StellarMessage const& msg);
     void endMessageProcessing(StellarMessage const& msg);
-    TxAdvertQueue mTxAdvertQueue;
-
-    // As of MIN_OVERLAY_VERSION_FOR_FLOOD_ADVERT, peers accumulate an _advert_
-    // of flood messages, then periodically flush the advert and await a
-    // _demand_ message with a list of flood messages to send. Adverts are
-    // typically smaller than full messages and batching them means we also
-    // amortize the authentication framing.
-    TxAdvertVector mTxHashesToAdvertise;
-    void flushAdvert();
-    VirtualTimer mAdvertTimer;
-    void startAdvertTimer();
-    // transaction hash -> ledger number
-    RandomEvictionCache<Hash, uint32_t> mAdvertHistory;
-
     bool mShuttingDown{false};
 
   public:
@@ -328,7 +312,6 @@ class Peer : public std::enable_shared_from_this<Peer>,
     }
 
     void shutdown();
-    void clearBelow(uint32_t ledgerSeq);
 
     std::string msgSummary(StellarMessage const& stellarMsg);
     void sendGetTxSet(uint256 const& setID);
@@ -337,7 +320,10 @@ class Peer : public std::enable_shared_from_this<Peer>,
     void sendGetScpState(uint32 ledgerSeq);
     void sendErrorAndDrop(ErrorCode error, std::string const& message,
                           DropMode dropMode);
-
+    void sendTxDemand(TxDemandVector&& demands);
+    // Queue up an advert to send, return true if the advert was queued, and
+    // false otherwise (if advert is a duplicate, for example)
+    bool sendAdvert(Hash const& txHash);
     void sendMessage(std::shared_ptr<StellarMessage const> msg,
                      bool log = true);
 
@@ -412,16 +398,6 @@ class Peer : public std::enable_shared_from_this<Peer>,
     {
     }
 
-    void sendTxDemand(TxDemandVector&& demands);
-    void fulfillDemand(FloodDemand const& dmd);
-    void queueTxHashToAdvertise(Hash const& hash);
-    void queueTxHashAndMaybeTrim(Hash const& hash);
-    TxAdvertQueue&
-    getTxAdvertQueue()
-    {
-        return mTxAdvertQueue;
-    };
-
     void handleMaxTxSizeIncrease(uint32_t increase);
 
     friend class LoopbackPeer;
@@ -433,5 +409,16 @@ class Peer : public std::enable_shared_from_this<Peer>,
         return mFlowControl;
     }
 #endif
+
+    // Pull Mode facade methods
+    // Queue up transaction hashes for processing again. This method is normally
+    // called if a previous demand failed or timed out.
+    void retryAdvert(std::list<Hash>& hashes);
+    // Does this peer have any transaction hashes to process?
+    bool hasAdvert();
+    // Pop the next transaction hash to process
+    std::pair<Hash, std::optional<VirtualClock::time_point>> popAdvert();
+    // Clear pull mode state below `ledgerSeq`
+    void clearBelow(uint32_t ledgerSeq);
 };
 }

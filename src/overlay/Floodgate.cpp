@@ -10,6 +10,7 @@
 #include "medida/counter.h"
 #include "medida/metrics_registry.h"
 #include "overlay/OverlayManager.h"
+#include "overlay/TxFloodManager.h"
 #include "util/GlobalChecks.h"
 #include "util/Logging.h"
 #include "util/XDROperators.h"
@@ -131,7 +132,7 @@ Floodgate::broadcast(StellarMessage const& msg, std::optional<Hash> const& hash)
             if (pullMode)
             {
                 mMessagesAdvertised.Mark();
-                peer.second->queueTxHashToAdvertise(hash.value());
+                peer.second->sendAdvert(hash.value());
             }
             else
             {
