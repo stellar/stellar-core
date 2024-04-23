@@ -4087,6 +4087,65 @@ TEST_CASE("Module cache", "[tx][soroban]")
     upgrade20.newLedgerVersion() = static_cast<int>(SOROBAN_PROTOCOL_VERSION);
     executeUpgrade(*app, upgrade20);
 
+    // Test that repeated calls to a contract in a single transaction are cheaper
+    // due to caching introduced in v21.
+    auto sum_wasm = rust_bridge::get_test_wasm_sum_i32();
+    auto add_wasm = rust_bridge::get_test_wasm_add_i32();
+    SorobanTest test(app);
+
+    auto const& sumContract = test.deployWasmContract(sum_wasm);
+    auto const& addContract = test.deployWasmContract(add_wasm);
+
+    auto const& sumWasmHash = sumContract.getKeys().front().contractCode().hash;
+    auto const& addWasmHash = addContract.getKeys().front().contractCode().hash;
+
+    auto invocation = [&](int64_t instructions) -> bool {
+        auto fnName = "sum";
+        auto scVec = makeVecSCVal({makeI32(1), makeI32(2), makeI32(3),
+                                   makeI32(4), makeI32(5), makeI32(6)});
+
+        auto invocationSpec = SorobanInvocationSpec()
+                                  .setInstructions(instructions)
+                                  .setReadBytes(2'000)
+                                  .setInclusionFee(12345);
+
+        uint32_t const expectedRefund = 100'000;
+        auto spec = invocationSpec.setNonRefundableResourceFee(33'000)
+                        .setRefundableResourceFee(expectedRefund);
+
+        spec = spec.extendReadOnlyFootprint(addContract.getKeys());
+
+        auto invocation = sumContract.prepareInvocation(
+            fnName, {makeAddressSCVal(addContract.getAddress()), scVec}, spec,
+            expectedRefund);
+        auto tx =
+            std::dynamic_pointer_cast<TransactionFrame>(invocation.createTx());
+        return test.invokeTx(tx);
+    };
+
+    REQUIRE(invocation(7'000'000));
+    REQUIRE(!invocation(6'000'000));
+
+    auto upgrade21 = LedgerUpgrade{LEDGER_UPGRADE_VERSION};
+    upgrade21.newLedgerVersion() = static_cast<int>(ProtocolVersion::V_21);
+    executeUpgrade(*app, upgrade21);
+
+    // V21 Caching reduces the instructions required
+    REQUIRE(invocation(4'000'000));
+}
+
+TEST_CASE("Vm instantiation tightening", "[tx][soroban]")
+{
+    VirtualClock clock;
+    auto cfg = getTestConfig(0);
+    cfg.USE_CONFIG_FOR_GENESIS = false;
+
+    auto app = createTestApplication(clock, cfg);
+
+    auto upgrade20 = LedgerUpgrade{LEDGER_UPGRADE_VERSION};
+    upgrade20.newLedgerVersion() = static_cast<int>(SOROBAN_PROTOCOL_VERSION);
+    executeUpgrade(*app, upgrade20);
+
     // First upload a wasm in v20, upgrade to v21, and then re-upload wasm to
     // create the module cache. Also validate with invocations to the same
     // contract that the required instructions drops after the module cache is
