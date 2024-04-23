@@ -260,7 +260,8 @@ class TransactionFrame : public TransactionFrameBase
                     SequenceNumber current, uint64_t lowerBoundCloseTimeOffset,
                     uint64_t upperBoundCloseTimeOffset) override;
     bool checkSorobanResourceAndSetError(Application& app,
-                                         uint32_t ledgerVersion) override;
+                                         uint32_t ledgerVersion,
+                                         TransactionResult& txResult) override;
 
     void
     insertKeysForFeeProcessing(UnorderedSet<LedgerKey>& keys) const override;

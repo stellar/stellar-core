@@ -239,10 +239,11 @@ FeeBumpTransactionFrame::checkValid(Application& app,
 }
 
 bool
-FeeBumpTransactionFrame::checkSorobanResourceAndSetError(Application& app,
-                                                         uint32_t ledgerVersion)
+FeeBumpTransactionFrame::checkSorobanResourceAndSetError(
+    Application& app, uint32_t ledgerVersion, TransactionResult& txResult)
 {
-    return mInnerTx->checkSorobanResourceAndSetError(app, ledgerVersion);
+    return mInnerTx->checkSorobanResourceAndSetError(app, ledgerVersion,
+                                                     txResult);
 }
 
 bool

@@ -1126,7 +1126,7 @@ TransactionFrame::commonValidPreSeqNum(
             return false;
         }
 
-        if (!checkSorobanResourceAndSetError(app, ledgerVersion))
+        if (!checkSorobanResourceAndSetError(app, ledgerVersion, getResult()))
         {
             return false;
         }
@@ -1621,14 +1621,15 @@ TransactionFrame::checkValid(Application& app, AbstractLedgerTxn& ltxOuter,
 
 bool
 TransactionFrame::checkSorobanResourceAndSetError(Application& app,
-                                                  uint32_t ledgerVersion)
+                                                  uint32_t ledgerVersion,
+                                                  TransactionResult& txResult)
 {
     auto const& sorobanConfig =
         app.getLedgerManager().getSorobanNetworkConfig();
     if (!validateSorobanResources(sorobanConfig, app.getConfig(),
                                   ledgerVersion))
     {
-        getResult().result.code(txSOROBAN_INVALID);
+        txResult.result.code(txSOROBAN_INVALID);
         return false;
     }
     return true;

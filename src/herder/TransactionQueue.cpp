@@ -283,10 +283,13 @@ TransactionQueue::canAdd(
             // appropriate error message
             if (tx->isSoroban())
             {
+                TransactionResult result;
                 if (!tx->checkSorobanResourceAndSetError(
-                        mApp, mApp.getLedgerManager()
-                                  .getLastClosedLedgerHeader()
-                                  .header.ledgerVersion))
+                        mApp,
+                        mApp.getLedgerManager()
+                            .getLastClosedLedgerHeader()
+                            .header.ledgerVersion,
+                        result))
                 {
                     return TransactionQueue::AddResult::ADD_STATUS_ERROR;
                 }
