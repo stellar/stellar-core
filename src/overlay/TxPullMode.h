@@ -7,6 +7,7 @@
 #include "util/HashOfHash.h"
 #include "util/RandomEvictionCache.h"
 #include "xdr/Stellar-overlay.h"
+#include <optional>
 
 namespace stellar
 {
