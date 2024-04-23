@@ -137,6 +137,8 @@ class OverlayManagerImpl : public OverlayManager
     void clearLedgersBelow(uint32_t ledgerSeq, uint32_t lclSeq) override;
     bool recvFloodedMsgID(StellarMessage const& msg, Peer::pointer peer,
                           Hash& msgID) override;
+    void recvTransaction(StellarMessage const& msg,
+                         Peer::pointer peer) override;
     void forgetFloodedMsg(Hash const& msgID) override;
     bool
     broadcastMessage(StellarMessage const& msg,

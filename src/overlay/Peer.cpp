@@ -1111,51 +1111,7 @@ void
 Peer::recvTransaction(StellarMessage const& msg)
 {
     ZoneScoped;
-    auto transaction = TransactionFrameBase::makeTransactionFromWire(
-        mApp.getNetworkID(), msg.transaction());
-    if (transaction)
-    {
-        // record that this peer sent us this transaction
-        // add it to the floodmap so that this peer gets credit for it
-        Hash msgID;
-        mApp.getOverlayManager().recvFloodedMsgID(msg, shared_from_this(),
-                                                  msgID);
-
-        mApp.getOverlayManager().recordTxPullLatency(transaction->getFullHash(),
-                                                     shared_from_this());
-
-        // add it to our current set
-        // and make sure it is valid
-        auto recvRes = mApp.getHerder().recvTransaction(transaction, false);
-        bool pulledRelevantTx = false;
-        if (!(recvRes == TransactionQueue::AddResult::ADD_STATUS_PENDING ||
-              recvRes == TransactionQueue::AddResult::ADD_STATUS_DUPLICATE))
-        {
-            mApp.getOverlayManager().forgetFloodedMsg(msgID);
-            CLOG_DEBUG(Overlay,
-                       "Peer::recvTransaction Discarded transaction {} from {}",
-                       hexAbbrev(transaction->getFullHash()), toString());
-        }
-        else
-        {
-            bool dup =
-                recvRes == TransactionQueue::AddResult::ADD_STATUS_DUPLICATE;
-            if (!dup)
-            {
-                pulledRelevantTx = true;
-            }
-            CLOG_DEBUG(
-                Overlay,
-                "Peer::recvTransaction Received {} transaction {} from {}",
-                (dup ? "duplicate" : "unique"),
-                hexAbbrev(transaction->getFullHash()), toString());
-        }
-
-        auto const& om = mApp.getOverlayManager().getOverlayMetrics();
-        auto& meter =
-            pulledRelevantTx ? om.mPulledRelevantTxs : om.mPulledIrrelevantTxs;
-        meter.Mark();
-    }
+    mApp.getOverlayManager().recvTransaction(msg, shared_from_this());
 }
 
 Hash

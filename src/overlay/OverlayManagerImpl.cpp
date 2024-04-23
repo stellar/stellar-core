@@ -1144,6 +1144,56 @@ OverlayManagerImpl::recvFloodedMsgID(StellarMessage const& msg,
 }
 
 void
+OverlayManagerImpl::recvTransaction(StellarMessage const& msg,
+                                    Peer::pointer peer)
+{
+    ZoneScoped;
+    auto transaction = TransactionFrameBase::makeTransactionFromWire(
+        mApp.getNetworkID(), msg.transaction());
+    if (transaction)
+    {
+        // record that this peer sent us this transaction
+        // add it to the floodmap so that this peer gets credit for it
+        Hash msgID;
+        recvFloodedMsgID(msg, peer, msgID);
+
+        mTxFloodManager.recordTxPullLatency(transaction->getFullHash(), peer);
+
+        // add it to our current set
+        // and make sure it is valid
+        auto recvRes = mApp.getHerder().recvTransaction(transaction, false);
+        bool pulledRelevantTx = false;
+        if (!(recvRes == TransactionQueue::AddResult::ADD_STATUS_PENDING ||
+              recvRes == TransactionQueue::AddResult::ADD_STATUS_DUPLICATE))
+        {
+            forgetFloodedMsg(msgID);
+            CLOG_DEBUG(Overlay,
+                       "Peer::recvTransaction Discarded transaction {} from {}",
+                       hexAbbrev(transaction->getFullHash()), peer->toString());
+        }
+        else
+        {
+            bool dup =
+                recvRes == TransactionQueue::AddResult::ADD_STATUS_DUPLICATE;
+            if (!dup)
+            {
+                pulledRelevantTx = true;
+            }
+            CLOG_DEBUG(
+                Overlay,
+                "Peer::recvTransaction Received {} transaction {} from {}",
+                (dup ? "duplicate" : "unique"),
+                hexAbbrev(transaction->getFullHash()), peer->toString());
+        }
+
+        auto const& om = getOverlayMetrics();
+        auto& meter =
+            pulledRelevantTx ? om.mPulledRelevantTxs : om.mPulledIrrelevantTxs;
+        meter.Mark();
+    }
+}
+
+void
 OverlayManagerImpl::forgetFloodedMsg(Hash const& msgID)
 {
     ZoneScoped;
