@@ -28,6 +28,7 @@
 		20,
 		21
 	],
+	"Module cache" : [ "MR6BJ3xmn2c=" ],
 	"Native stellar asset contract" : [ "bKDF6V5IzTo=", "i7kalOBorks=" ],
 	"Soroban authorization" : 
 	[
@@ -1268,6 +1269,7 @@
 		"eueWEr2Qk5M=",
 		"ohJUyhoisZs="
 	],
+	"Vm instantiation tightening" : [ "MR6BJ3xmn2c=" ],
 	"basic contract invocation" : 
 	[
 		"bKDF6V5IzTo=",
@@ -1375,6 +1377,5 @@
 	],
 	"temp entry eviction" : [ "bKDF6V5IzTo=", "bKDF6V5IzTo=" ],
 	"transaction validation diagnostics" : [ "bKDF6V5IzTo=" ],
-	"version test" : [ "766L+TYsWqA=" ],
-	"version test acceptance" : [ "766L+TYsWqA=" ]
+	"version test" : [ "766L+TYsWqA=" ]
 }

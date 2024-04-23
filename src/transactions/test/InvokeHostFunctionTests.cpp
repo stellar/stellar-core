@@ -651,9 +651,7 @@ TEST_CASE("basic contract invocation", "[tx][soroban]")
     }
 }
 
-#ifdef ENABLE_PROTOCOL_UPGRADE_VIA_SOROBAN_ENV_HOST_PREV
-void
-versionTest()
+TEST_CASE("version test", "[tx][soroban]")
 {
     // This test is only valid from SOROBAN_PROTOCOL_VERSION + 1, and
     // CURRENT_LEDGER_PROTOCOL_VERSION will never decrease, so an equality check
@@ -726,20 +724,6 @@ versionTest()
         REQUIRE(txm2.getXDR().v3().sorobanMeta->returnValue.u32() == next);
     }
 }
-
-TEST_CASE("version test", "[tx][soroban]")
-{
-    versionTest();
-}
-
-// This test is the same as above but has the acceptance tag so it can run in
-// supercluster as a package with prev enabled. The test above will only run if
-// a user builds with prev locally.
-TEST_CASE("version test acceptance", "[tx][soroban][acceptance]")
-{
-    versionTest();
-}
-#endif
 
 TEST_CASE("Soroban footprint validation", "[tx][soroban]")
 {
@@ -4088,5 +4072,180 @@ TEST_CASE("Soroban authorization", "[tx][soroban]")
                 return makeBytesSCVal(accountSecretKey.sign(payload));
             });
         genericAuthTest({accountSigner, customAccountSigner});
+    }
+}
+
+TEST_CASE("Module cache", "[tx][soroban]")
+{
+    VirtualClock clock;
+    auto cfg = getTestConfig(0);
+    cfg.USE_CONFIG_FOR_GENESIS = false;
+
+    auto app = createTestApplication(clock, cfg);
+
+    auto upgrade20 = LedgerUpgrade{LEDGER_UPGRADE_VERSION};
+    upgrade20.newLedgerVersion() = static_cast<int>(SOROBAN_PROTOCOL_VERSION);
+    executeUpgrade(*app, upgrade20);
+
+    // Test that repeated calls to a contract in a single transaction are
+    // cheaper due to caching introduced in v21.
+    auto sum_wasm = rust_bridge::get_test_wasm_sum_i32();
+    auto add_wasm = rust_bridge::get_test_wasm_add_i32();
+    SorobanTest test(app);
+
+    auto const& sumContract = test.deployWasmContract(sum_wasm);
+    auto const& addContract = test.deployWasmContract(add_wasm);
+
+    auto const& sumWasmHash = sumContract.getKeys().front().contractCode().hash;
+    auto const& addWasmHash = addContract.getKeys().front().contractCode().hash;
+
+    auto invocation = [&](int64_t instructions) -> bool {
+        auto fnName = "sum";
+        auto scVec = makeVecSCVal({makeI32(1), makeI32(2), makeI32(3),
+                                   makeI32(4), makeI32(5), makeI32(6)});
+
+        auto invocationSpec = SorobanInvocationSpec()
+                                  .setInstructions(instructions)
+                                  .setReadBytes(2'000)
+                                  .setInclusionFee(12345);
+
+        uint32_t const expectedRefund = 100'000;
+        auto spec = invocationSpec.setNonRefundableResourceFee(33'000)
+                        .setRefundableResourceFee(expectedRefund);
+
+        spec = spec.extendReadOnlyFootprint(addContract.getKeys());
+
+        auto invocation = sumContract.prepareInvocation(
+            fnName, {makeAddressSCVal(addContract.getAddress()), scVec}, spec,
+            expectedRefund);
+        auto tx =
+            std::dynamic_pointer_cast<TransactionFrame>(invocation.createTx());
+        return test.invokeTx(tx);
+    };
+
+    REQUIRE(invocation(7'000'000));
+    REQUIRE(!invocation(6'000'000));
+
+    auto upgrade21 = LedgerUpgrade{LEDGER_UPGRADE_VERSION};
+    upgrade21.newLedgerVersion() = static_cast<int>(ProtocolVersion::V_21);
+    executeUpgrade(*app, upgrade21);
+
+    // V21 Caching reduces the instructions required
+    REQUIRE(invocation(4'000'000));
+}
+
+TEST_CASE("Vm instantiation tightening", "[tx][soroban]")
+{
+    VirtualClock clock;
+    auto cfg = getTestConfig(0);
+    cfg.USE_CONFIG_FOR_GENESIS = false;
+
+    auto app = createTestApplication(clock, cfg);
+
+    auto upgrade20 = LedgerUpgrade{LEDGER_UPGRADE_VERSION};
+    upgrade20.newLedgerVersion() = static_cast<int>(SOROBAN_PROTOCOL_VERSION);
+    executeUpgrade(*app, upgrade20);
+
+    // First upload a wasm in v20, upgrade to v21, and then re-upload wasm to
+    // create the module cache. Also validate with invocations to the same
+    // contract that the required instructions drops after the module cache is
+    // created.
+    auto wasm = rust_bridge::get_test_wasm_add_i32();
+    SorobanTest test(app);
+
+    auto const& addContract = test.deployWasmContract(wasm);
+    auto const& wasmHash = addContract.getKeys().front().contractCode().hash;
+    {
+        LedgerTxn ltx(app->getLedgerTxnRoot());
+        auto ltxe = loadContractCode(ltx, wasmHash);
+        auto const& code = ltxe.current().data.contractCode();
+        REQUIRE(code.ext.v() == 0);
+    }
+
+    auto invocation = [&](int64_t instructions) -> bool {
+        auto fnName = "add";
+        auto sc7 = makeI32(7);
+        auto sc16 = makeI32(16);
+
+        auto invocationSpec = SorobanInvocationSpec()
+                                  .setInstructions(instructions)
+                                  .setReadBytes(2'000)
+                                  .setInclusionFee(12345);
+
+        uint32_t const expectedRefund = 100'000;
+        auto spec = invocationSpec.setNonRefundableResourceFee(33'000)
+                        .setRefundableResourceFee(expectedRefund);
+
+        auto invocation = addContract.prepareInvocation(fnName, {sc7, sc16},
+                                                        spec, expectedRefund);
+        auto tx =
+            std::dynamic_pointer_cast<TransactionFrame>(invocation.createTx());
+        return test.invokeTx(tx);
+    };
+
+    // Two million instructions is enough, but one million isn't without the
+    // module cache. Run the same invocations after the v21 upgrade as well.
+    REQUIRE(invocation(2'000'000));
+    REQUIRE(!invocation(1'000'000));
+
+    auto upgrade21 = LedgerUpgrade{LEDGER_UPGRADE_VERSION};
+    upgrade21.newLedgerVersion() = static_cast<int>(ProtocolVersion::V_21);
+    executeUpgrade(*app, upgrade21);
+
+    REQUIRE(invocation(2'000'000));
+    REQUIRE(!invocation(1'000'000));
+
+    auto resources = defaultUploadWasmResourcesWithoutFootprint(
+        wasm, getLclProtocolVersion(test.getApp()));
+    auto tx = makeSorobanWasmUploadTx(test.getApp(), test.getRoot(), wasm,
+                                      resources, 1000);
+
+    auto r = closeLedger(test.getApp(), {tx});
+    checkTx(0, r, txSUCCESS);
+
+    {
+        LedgerTxn ltx(app->getLedgerTxnRoot());
+        auto ltxe = loadContractCode(ltx, wasmHash);
+        auto const& code = ltxe.current().data.contractCode();
+        REQUIRE(code.ext.v() == 1);
+
+        auto const& inputs = code.ext.v1().costInputs;
+        REQUIRE(inputs.nInstructions == 119);
+        REQUIRE(inputs.nFunctions == 3);
+        REQUIRE(inputs.nGlobals == 3);
+        REQUIRE(inputs.nTableEntries == 0);
+        REQUIRE(inputs.nTypes == 3);
+        REQUIRE(inputs.nDataSegments == 0);
+        REQUIRE(inputs.nElemSegments == 0);
+        REQUIRE(inputs.nImports == 2);
+        REQUIRE(inputs.nExports == 5);
+        REQUIRE(inputs.nDataSegmentBytes == 0);
+    }
+
+    // After the upload adding the module cache, 1 million instructions is
+    // enough.
+    REQUIRE(invocation(1'000'000));
+
+    // Now upload a new wasm in v21
+    auto const& contract2 =
+        test.deployWasmContract(rust_bridge::get_hostile_large_val_wasm());
+    {
+        LedgerTxn ltx(app->getLedgerTxnRoot());
+        auto ltxe = loadContractCode(
+            ltx, contract2.getKeys().front().contractCode().hash);
+        auto const& code = ltxe.current().data.contractCode();
+        REQUIRE(code.ext.v() == 1);
+
+        auto const& inputs = code.ext.v1().costInputs;
+        REQUIRE(inputs.nInstructions == 417);
+        REQUIRE(inputs.nFunctions == 18);
+        REQUIRE(inputs.nGlobals == 3);
+        REQUIRE(inputs.nTableEntries == 0);
+        REQUIRE(inputs.nTypes == 9);
+        REQUIRE(inputs.nDataSegments == 0);
+        REQUIRE(inputs.nElemSegments == 0);
+        REQUIRE(inputs.nImports == 6);
+        REQUIRE(inputs.nExports == 14);
+        REQUIRE(inputs.nDataSegmentBytes == 0);
     }
 }
