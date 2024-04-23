@@ -20,6 +20,7 @@
 #include "overlay/PeerManager.h"
 #include "overlay/RandomPeerSource.h"
 #include "overlay/TCPPeer.h"
+#include "overlay/TxFloodManager.h"
 #include "util/GlobalChecks.h"
 #include "util/Logging.h"
 #include "util/Math.h"
@@ -48,11 +49,6 @@ constexpr std::chrono::seconds PEER_IP_RESOLVE_RETRY_DELAY(10);
 constexpr std::chrono::seconds OUT_OF_SYNC_RECONNECT_DELAY(60);
 constexpr uint32_t INITIAL_PEER_FLOOD_READING_CAPACITY_BYTES{300000};
 constexpr uint32_t INITIAL_FLOW_CONTROL_SEND_MORE_BATCH_SIZE_BYTES{100000};
-
-// Regardless of the number of failed attempts &
-// FLOOD_DEMAND_BACKOFF_DELAY_MS it doesn't make much sense to wait much
-// longer than 2 seconds between re-issuing demands.
-constexpr std::chrono::seconds MAX_DELAY_DEMAND{2};
 
 bool
 OverlayManagerImpl::canAcceptOutboundPeer(PeerBareAddress const& address) const
@@ -305,8 +301,8 @@ OverlayManagerImpl::OverlayManagerImpl(Application& app)
     , mTimer(app)
     , mPeerIPTimer(app)
     , mFloodGate(app)
+    , mTxFloodManager(app)
     , mSurveyManager(make_shared<SurveyManager>(app))
-    , mDemandTimer(app)
     , mResolvingPeersWithBackoff(true)
     , mResolvingPeersRetryCount(0)
 {
@@ -339,8 +335,9 @@ OverlayManagerImpl::start()
             },
             VirtualTimer::onFailureNoop);
     }
-    // Start demanding.
-    demand();
+
+    // Start demand logic
+    mTxFloodManager.start();
 }
 
 OverlayManager::AdjustedFlowControlConfig
@@ -838,7 +835,7 @@ OverlayManagerImpl::clearLedgersBelow(uint32_t ledgerSeq, uint32_t lclSeq)
 {
     mFloodGate.clearBelow(ledgerSeq);
     mSurveyManager->clearOldLedgers(lclSeq);
-    for (auto const& peer : getAuthenticatedPeers())
+    for (auto& peer : getAuthenticatedPeers())
     {
         peer.second->clearBelow(ledgerSeq);
     }
@@ -1200,6 +1197,13 @@ OverlayManagerImpl::forgetFloodedMsg(Hash const& msgID)
     mFloodGate.forgetRecord(msgID);
 }
 
+void
+OverlayManagerImpl::recvTxDemand(FloodDemand const& dmd, Peer::pointer peer)
+{
+    ZoneScoped;
+    mTxFloodManager.recvTxDemand(dmd, peer);
+}
+
 bool
 OverlayManagerImpl::broadcastMessage(StellarMessage const& msg,
                                      std::optional<Hash> const hash)
@@ -1260,11 +1264,11 @@ OverlayManagerImpl::shutdown()
     mFloodGate.shutdown();
     mInboundPeers.shutdown();
     mOutboundPeers.shutdown();
+    mTxFloodManager.shutdown();
 
     // Switch overlay to "shutting down" state _after_ shutting down peers to
     // allow graceful connection drop
     mShuttingDown = true;
-    mDemandTimer.cancel();
 
     // Stop ticking and resolving peers
     mTimer.cancel();
@@ -1352,282 +1356,6 @@ OverlayManagerImpl::recordMessageMetric(StellarMessage const& stellarMsg,
             logMessage(true, "fetch");
         }
     }
-}
-
-int64_t
-getOpsFloodLedger(size_t maxOps, double rate)
-{
-    double opsToFloodPerLedgerDbl = rate * static_cast<double>(maxOps);
-    releaseAssertOrThrow(opsToFloodPerLedgerDbl >= 0.0);
-    return static_cast<int64_t>(opsToFloodPerLedgerDbl);
-}
-
-size_t
-OverlayManagerImpl::getMaxAdvertSize() const
-{
-    auto const& cfg = mApp.getConfig();
-    auto ledgerCloseTime =
-        std::chrono::duration_cast<std::chrono::milliseconds>(
-            cfg.getExpectedLedgerCloseTime())
-            .count();
-
-    int64_t opsToFloodPerLedger =
-        getOpsFloodLedger(mApp.getLedgerManager().getLastMaxTxSetSizeOps(),
-                          cfg.FLOOD_OP_RATE_PER_LEDGER);
-
-    {
-        LedgerTxn ltx(mApp.getLedgerTxnRoot(),
-                      /* shouldUpdateLastModified */ true,
-                      TransactionMode::READ_ONLY_WITHOUT_SQL_TXN);
-        if (protocolVersionStartsFrom(ltx.loadHeader().current().ledgerVersion,
-                                      SOROBAN_PROTOCOL_VERSION))
-        {
-            auto limits = mApp.getLedgerManager().getSorobanNetworkConfig();
-            opsToFloodPerLedger += getOpsFloodLedger(
-                limits.ledgerMaxTxCount(), cfg.FLOOD_SOROBAN_RATE_PER_LEDGER);
-        }
-    }
-
-    size_t res = static_cast<size_t>(bigDivideOrThrow(
-        opsToFloodPerLedger, cfg.FLOOD_ADVERT_PERIOD_MS.count(),
-        ledgerCloseTime, Rounding::ROUND_UP));
-
-    res = std::max<size_t>(1, res);
-    res = std::min<size_t>(TX_ADVERT_VECTOR_MAX_SIZE, res);
-    return res;
-}
-
-size_t
-OverlayManagerImpl::getMaxDemandSize() const
-{
-    auto const& cfg = mApp.getConfig();
-    auto ledgerCloseTime =
-        std::chrono::duration_cast<std::chrono::milliseconds>(
-            cfg.getExpectedLedgerCloseTime())
-            .count();
-    int64_t queueSizeInOps = getOpsFloodLedger(
-        mApp.getHerder().getMaxQueueSizeOps(), cfg.FLOOD_OP_RATE_PER_LEDGER);
-
-    queueSizeInOps +=
-        getOpsFloodLedger(mApp.getHerder().getMaxQueueSizeSorobanOps(),
-                          cfg.FLOOD_SOROBAN_RATE_PER_LEDGER);
-
-    size_t res = static_cast<size_t>(
-        bigDivideOrThrow(queueSizeInOps, cfg.FLOOD_DEMAND_PERIOD_MS.count(),
-                         ledgerCloseTime, Rounding::ROUND_UP));
-    res = std::max<size_t>(1, res);
-    res = std::min<size_t>(TX_DEMAND_VECTOR_MAX_SIZE, res);
-    return res;
-}
-
-void
-OverlayManagerImpl::recordTxPullLatency(Hash const& hash,
-                                        std::shared_ptr<Peer> peer)
-{
-    auto it = mDemandHistoryMap.find(hash);
-    auto now = mApp.getClock().now();
-    if (it != mDemandHistoryMap.end())
-    {
-        // Record end-to-end pull time
-        if (!it->second.latencyRecorded)
-        {
-            auto delta = now - it->second.firstDemanded;
-            mOverlayMetrics.mTxPullLatency.Update(delta);
-            it->second.latencyRecorded = true;
-            CLOG_DEBUG(
-                Overlay,
-                "Pulled transaction {} in {} milliseconds, asked {} peers",
-                hexAbbrev(hash),
-                std::chrono::duration_cast<std::chrono::milliseconds>(delta)
-                    .count(),
-                it->second.peers.size());
-        }
-
-        // Record pull time from individual peer
-        auto peerIt = it->second.peers.find(peer->getPeerID());
-        if (peerIt != it->second.peers.end())
-        {
-            auto delta = now - peerIt->second;
-            mOverlayMetrics.mPeerTxPullLatency.Update(delta);
-            peer->getPeerMetrics().mPullLatency.Update(delta);
-            CLOG_DEBUG(
-                Overlay,
-                "Pulled transaction {} in {} milliseconds from peer {}",
-                hexAbbrev(hash),
-                std::chrono::duration_cast<std::chrono::milliseconds>(delta)
-                    .count(),
-                peer->toString());
-        }
-    }
-}
-
-std::chrono::milliseconds
-OverlayManagerImpl::retryDelayDemand(int numAttemptsMade) const
-{
-    auto res = numAttemptsMade * mApp.getConfig().FLOOD_DEMAND_BACKOFF_DELAY_MS;
-    return std::min(res, std::chrono::milliseconds(MAX_DELAY_DEMAND));
-}
-
-OverlayManagerImpl::DemandStatus
-OverlayManagerImpl::demandStatus(Hash const& txHash, Peer::pointer peer) const
-{
-    if (mApp.getHerder().isBannedTx(txHash) ||
-        mApp.getHerder().getTx(txHash) != nullptr)
-    {
-        return DemandStatus::DISCARD;
-    }
-    auto it = mDemandHistoryMap.find(txHash);
-    if (it == mDemandHistoryMap.end())
-    {
-        // never demanded
-        return DemandStatus::DEMAND;
-    }
-    auto& demandedPeers = it->second.peers;
-    if (demandedPeers.find(peer->getPeerID()) != demandedPeers.end())
-    {
-        // We've already demanded.
-        return DemandStatus::DISCARD;
-    }
-    int const numDemanded = static_cast<int>(demandedPeers.size());
-    auto const lastDemanded = it->second.lastDemanded;
-
-    if (numDemanded < MAX_RETRY_COUNT)
-    {
-        // Check if it's been a while since our last demand
-        if ((mApp.getClock().now() - lastDemanded) >=
-            retryDelayDemand(numDemanded))
-        {
-            return DemandStatus::DEMAND;
-        }
-        else
-        {
-            return DemandStatus::RETRY_LATER;
-        }
-    }
-    return DemandStatus::DISCARD;
-}
-
-void
-OverlayManagerImpl::demand()
-{
-    ZoneScoped;
-    if (mShuttingDown)
-    {
-        return;
-    }
-    auto const now = mApp.getClock().now();
-
-    // We determine that demands are obsolete after maxRetention.
-    auto maxRetention = MAX_DELAY_DEMAND * MAX_RETRY_COUNT * 2;
-    while (!mPendingDemands.empty())
-    {
-        auto const& it = mDemandHistoryMap.find(mPendingDemands.front());
-        if ((now - it->second.firstDemanded) >= maxRetention)
-        {
-            if (!it->second.latencyRecorded)
-            {
-                // We never received the txn.
-                mOverlayMetrics.mAbandonedDemandMeter.Mark();
-            }
-            mPendingDemands.pop();
-            mDemandHistoryMap.erase(it);
-        }
-        else
-        {
-            // The oldest demand in mPendingDemands isn't old enough
-            // to be deleted from our record.
-            break;
-        }
-    }
-
-    auto peers = getRandomAuthenticatedPeers();
-
-    auto const& cfg = mApp.getConfig();
-
-    UnorderedMap<Peer::pointer, std::pair<TxDemandVector, std::list<Hash>>>
-        demandMap;
-    bool anyNewDemand = false;
-    // Pre-compute max demand size, as this function can get fairly expensive in
-    // called hundreds of times in the loop below
-    auto maxDemandSize = getMaxDemandSize();
-    do
-    {
-        anyNewDemand = false;
-        for (auto const& peer : peers)
-        {
-            auto& demPair = demandMap[peer];
-            auto& demand = demPair.first;
-            auto& retry = demPair.second;
-            bool addedNewDemand = false;
-            while (demand.size() < maxDemandSize &&
-                   peer->getTxAdvertQueue().size() > 0 && !addedNewDemand)
-            {
-                auto hashPair = peer->getTxAdvertQueue().pop();
-                auto txHash = hashPair.first;
-                if (hashPair.second)
-                {
-                    auto delta = now - *(hashPair.second);
-                    mOverlayMetrics.mAdvertQueueDelay.Update(delta);
-                    peer->getPeerMetrics().mAdvertQueueDelay.Update(delta);
-                }
-
-                switch (demandStatus(txHash, peer))
-                {
-                case DemandStatus::DEMAND:
-                    demand.push_back(txHash);
-                    if (mDemandHistoryMap.find(txHash) ==
-                        mDemandHistoryMap.end())
-                    {
-                        // We don't have any pending demand record of this tx
-                        // hash.
-                        mPendingDemands.push(txHash);
-                        mDemandHistoryMap[txHash].firstDemanded = now;
-                        CLOG_DEBUG(Overlay, "Demand tx {}, asking peer {}",
-                                   hexAbbrev(txHash), peer->toString());
-                    }
-                    else
-                    {
-                        getOverlayMetrics().mDemandTimeouts.Mark();
-                        ++(peer->getPeerMetrics().mDemandTimeouts);
-                        CLOG_DEBUG(Overlay, "Timeout for tx {}, asking peer {}",
-                                   hexAbbrev(txHash), peer->toString());
-                    }
-                    mDemandHistoryMap[txHash].peers.emplace(peer->getPeerID(),
-                                                            now);
-                    mDemandHistoryMap[txHash].lastDemanded = now;
-                    addedNewDemand = true;
-                    break;
-                case DemandStatus::RETRY_LATER:
-                    retry.push_back(txHash);
-                    break;
-                case DemandStatus::DISCARD:
-                    break;
-                }
-            }
-            anyNewDemand |= addedNewDemand;
-        }
-    } while (anyNewDemand);
-
-    for (auto const& peer : peers)
-    {
-        // We move `demand` here and also pass `retry` as a reference
-        // which gets appended. Don't touch `demand` or `retry` after here.
-        peer->sendTxDemand(std::move(demandMap[peer].first));
-        peer->getTxAdvertQueue().appendHashesToRetryAndMaybeTrim(
-            demandMap[peer].second);
-    }
-
-    // mPendingDemands and mDemandHistoryMap must always contain exactly the
-    // same tx hashes.
-    releaseAssert(mPendingDemands.size() == mDemandHistoryMap.size());
-
-    mDemandTimer.expires_from_now(cfg.FLOOD_DEMAND_PERIOD_MS);
-    mDemandTimer.async_wait([this](asio::error_code const& error) {
-        if (!error)
-        {
-            this->demand();
-        }
-    });
 }
 
 }
