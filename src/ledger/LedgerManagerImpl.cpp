@@ -146,6 +146,10 @@ LedgerManagerImpl::LedgerManagerImpl(Application& app)
           app.getMetrics().NewCounter({"ledger", "apply", "success"}))
     , mTransactionApplyFailed(
           app.getMetrics().NewCounter({"ledger", "apply", "failure"}))
+    , mSorobanTransactionApplySucceeded(
+          app.getMetrics().NewCounter({"ledger", "apply-soroban", "success"}))
+    , mSorobanTransactionApplyFailed(
+          app.getMetrics().NewCounter({"ledger", "apply-soroban", "failure"}))
     , mMetaStreamBytes(
           app.getMetrics().NewMeter({"ledger", "metastream", "bytes"}, "byte"))
     , mMetaStreamWriteTime(
@@ -1487,6 +1491,8 @@ LedgerManagerImpl::applyTransactions(
     uint64_t txNum{0};
     uint64_t txSucceeded{0};
     uint64_t txFailed{0};
+    uint64_t sorobanTxSucceeded{0};
+    uint64_t sorobanTxFailed{0};
     for (auto tx : txs)
     {
         ZoneNamedN(txZone, "applyTransaction", true);
@@ -1515,10 +1521,18 @@ LedgerManagerImpl::applyTransactions(
         results.result = tx->getResult();
         if (results.result.result.code() == TransactionResultCode::txSUCCESS)
         {
+            if (tx->isSoroban())
+            {
+                ++sorobanTxSucceeded;
+            }
             ++txSucceeded;
         }
         else
         {
+            if (tx->isSoroban())
+            {
+                ++sorobanTxFailed;
+            }
             ++txFailed;
         }
 
@@ -1554,6 +1568,8 @@ LedgerManagerImpl::applyTransactions(
 
     mTransactionApplySucceeded.inc(txSucceeded);
     mTransactionApplyFailed.inc(txFailed);
+    mSorobanTransactionApplySucceeded.inc(sorobanTxSucceeded);
+    mSorobanTransactionApplyFailed.inc(sorobanTxFailed);
     logTxApplyMetrics(ltx, numTxs, numOps);
 }
 
