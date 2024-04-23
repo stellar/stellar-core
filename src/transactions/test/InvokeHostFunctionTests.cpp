@@ -4087,8 +4087,8 @@ TEST_CASE("Module cache", "[tx][soroban]")
     upgrade20.newLedgerVersion() = static_cast<int>(SOROBAN_PROTOCOL_VERSION);
     executeUpgrade(*app, upgrade20);
 
-    // Test that repeated calls to a contract in a single transaction are cheaper
-    // due to caching introduced in v21.
+    // Test that repeated calls to a contract in a single transaction are
+    // cheaper due to caching introduced in v21.
     auto sum_wasm = rust_bridge::get_test_wasm_sum_i32();
     auto add_wasm = rust_bridge::get_test_wasm_add_i32();
     SorobanTest test(app);
