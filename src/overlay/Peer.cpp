@@ -1695,24 +1695,24 @@ Peer::handleMaxTxSizeIncrease(uint32_t increase)
         mFlowControl->handleTxSizeIncrease(increase, shared_from_this());
     }
 }
-bool
-Peer::peerKnowsHash(Hash const& hash)
-{
-    if (mTxPullMode)
-    {
-        return mTxPullMode->seenAdvert(hash);
-    }
-    return false;
-}
 
-void
+bool
 Peer::sendAdvert(Hash const& hash)
 {
     if (!mTxPullMode)
     {
         throw std::runtime_error("Pull mode is not set");
     }
+
+    // No-op if peer already knows about the hash
+    if (mTxPullMode->seenAdvert(hash))
+    {
+        return false;
+    }
+
+    // Otherwise, queue up an advert to broadcast to peer
     mTxPullMode->queueOutgoingAdvert(hash);
+    return true;
 }
 
 void
