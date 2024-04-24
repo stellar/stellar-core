@@ -58,7 +58,7 @@ class BucketManagerImpl : public BucketManager
     medida::Counter& mBucketListSizeCounter;
     EvictionCounters mBucketListEvictionCounters;
     MergeCounters mMergeCounters;
-    std::optional<EvictionStatistics> mEvictionStatistics{};
+    std::shared_ptr<EvictionStatistics> mEvictionStatistics{};
 
     std::future<EvictionResult> mEvictionFuture{};
 

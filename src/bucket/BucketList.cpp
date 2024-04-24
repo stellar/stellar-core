@@ -686,8 +686,10 @@ bool
 BucketList::updateEvictionIterAndRecordStats(
     EvictionIterator& iter, EvictionIterator startIter,
     uint32_t configFirstScanLevel, uint32_t ledgerSeq,
-    std::optional<EvictionStatistics>& stats, EvictionCounters& counters)
+    std::shared_ptr<EvictionStatistics> stats, EvictionCounters& counters)
 {
+    releaseAssert(stats);
+
     // If we reached eof in curr bucket, start scanning snap.
     // Last level has no snap so cycle back to the initial level.
     if (iter.isCurrBucket && iter.bucketListLevel != kNumLevels - 1)
@@ -708,23 +710,8 @@ BucketList::updateEvictionIterAndRecordStats(
         {
             iter.bucketListLevel = configFirstScanLevel;
 
-            // If eviction metrics are not null, we have accounted for a
-            // complete cycle and should log the metrics
-            if (stats)
-            {
-                counters.evictionCyclePeriod.set_count(
-                    ledgerSeq - stats->evictionCycleStartLedger);
-
-                auto averageAge = stats->numEntriesEvicted == 0
-                                      ? 0
-                                      : stats->evictedEntriesAgeSum /
-                                            stats->numEntriesEvicted;
-                counters.averageEvictedEntryAge.set_count(averageAge);
-            }
-
-            // Reset metrics at beginning of new eviction cycle
-            stats = std::make_optional<EvictionStatistics>();
-            stats->evictionCycleStartLedger = ledgerSeq;
+            // Record then reset metrics at beginning of new eviction cycle
+            stats->submitMetricsAndRestartCycle(ledgerSeq, counters);
         }
     }
 
@@ -763,8 +750,10 @@ void
 BucketList::scanForEvictionLegacy(Application& app, AbstractLedgerTxn& ltx,
                                   uint32_t ledgerSeq,
                                   EvictionCounters& counters,
-                                  std::optional<EvictionStatistics>& stats)
+                                  std::shared_ptr<EvictionStatistics> stats)
 {
+    releaseAssert(stats);
+
     auto getBucketFromIter = [&levels = mLevels](EvictionIterator const& iter) {
         auto& level = levels.at(iter.bucketListLevel);
         return iter.isCurrBucket ? level.getCurr() : level.getSnap();

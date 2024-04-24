@@ -125,15 +125,6 @@ struct EvictionResult
                  StateArchivalSettings const& currSas) const;
 };
 
-struct EvictionStatistics
-{
-    // Evicted entry "age" is the delta between its liveUntilLedger and the
-    // ledger when the entry is actually evicted
-    uint64_t evictedEntriesAgeSum{};
-    uint64_t numEntriesEvicted{};
-    uint32_t evictionCycleStartLedger{};
-};
-
 struct EvictionCounters
 {
     medida::Counter& entriesEvicted;
@@ -143,6 +134,26 @@ struct EvictionCounters
     medida::Counter& averageEvictedEntryAge;
 
     EvictionCounters(Application& app);
+};
+
+class EvictionStatistics
+{
+  private:
+    std::mutex mLock{};
+
+    // Only record metrics if we've seen a complete cycle to avoid noise
+    bool mCompleteCycle{false};
+    uint64_t mEvictedEntriesAgeSum{};
+    uint64_t mNumEntriesEvicted{};
+    uint32_t mEvictionCycleStartLedger{};
+
+  public:
+    // Evicted entry "age" is the delta between its liveUntilLedger and the
+    // ledger when the entry is actually evicted
+    void recordEvictedEntry(uint64_t age);
+
+    void submitMetricsAndRestartCycle(uint32_t currLedgerSeq,
+                                      EvictionCounters& counters);
 };
 
 /**

@@ -91,7 +91,7 @@ class SearchableBucketListSnapshot : public NonMovableOrCopyable
     EvictionResult scanForEviction(uint32_t ledgerSeq,
                                    EvictionCounters& counters,
                                    EvictionIterator evictionIter,
-                                   std::optional<EvictionStatistics>& stats,
+                                   std::shared_ptr<EvictionStatistics> stats,
                                    StateArchivalSettings const& sas);
 };
 }

@@ -688,9 +688,11 @@ Bucket::scanForEvictionLegacy(AbstractLedgerTxn& ltx, EvictionIterator& iter,
                               uint32_t ledgerSeq,
                               medida::Counter& entriesEvictedCounter,
                               medida::Counter& bytesScannedForEvictionCounter,
-                              std::optional<EvictionStatistics>& stats) const
+                              std::shared_ptr<EvictionStatistics> stats) const
 {
     ZoneScoped;
+    releaseAssert(stats);
+
     if (isEmpty() ||
         protocolVersionIsBefore(getBucketVersion(shared_from_this()),
                                 SOROBAN_PROTOCOL_VERSION))
@@ -739,12 +741,8 @@ Bucket::scanForEvictionLegacy(AbstractLedgerTxn& ltx, EvictionIterator& iter,
                 if (shouldEvict())
                 {
                     ZoneNamedN(evict, "evict entry", true);
-                    if (stats.has_value())
-                    {
-                        ++stats->numEntriesEvicted;
-                        stats->evictedEntriesAgeSum +=
-                            ledgerSeq - liveUntilLedger;
-                    }
+                    auto age = ledgerSeq - liveUntilLedger;
+                    stats->recordEvictedEntry(age);
 
                     ltx.erase(ttlKey);
                     ltx.erase(LedgerEntryKey(le));

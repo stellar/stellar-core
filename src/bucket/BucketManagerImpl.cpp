@@ -43,6 +43,39 @@
 namespace stellar
 {
 
+void
+EvictionStatistics::recordEvictedEntry(uint64_t age)
+{
+    std::lock_guard l(mLock);
+    ++mNumEntriesEvicted;
+    mEvictedEntriesAgeSum += age;
+}
+
+void
+EvictionStatistics::submitMetricsAndRestartCycle(uint32_t currLedgerSeq,
+                                                 EvictionCounters& counters)
+{
+    std::lock_guard l(mLock);
+
+    // Only record metrics if we've seen a complete cycle to avoid noise
+    if (mCompleteCycle)
+    {
+        counters.evictionCyclePeriod.set_count(currLedgerSeq -
+                                               mEvictionCycleStartLedger);
+
+        auto averageAge = mNumEntriesEvicted == 0
+                              ? 0
+                              : mEvictedEntriesAgeSum / mNumEntriesEvicted;
+        counters.averageEvictedEntryAge.set_count(averageAge);
+    }
+
+    // Reset to start new cycle
+    mCompleteCycle = true;
+    mEvictedEntriesAgeSum = 0;
+    mNumEntriesEvicted = 0;
+    mEvictionCycleStartLedger = currLedgerSeq;
+}
+
 std::unique_ptr<BucketManager>
 BucketManager::create(Application& app)
 {
@@ -147,6 +180,7 @@ BucketManagerImpl::BucketManagerImpl(Application& app)
     , mBucketListSizeCounter(
           app.getMetrics().NewCounter({"bucketlist", "size", "bytes"}))
     , mBucketListEvictionCounters(app)
+    , mEvictionStatistics(std::make_shared<EvictionStatistics>())
     // Minimal DB is stored in the buckets dir, so delete it only when
     // mode does not use minimal DB
     , mDeleteEntireBucketDirInDtor(
@@ -958,6 +992,7 @@ BucketManagerImpl::startBackgroundEvictionScan(uint32_t ledgerSeq)
     releaseAssert(mApp.getConfig().isUsingBucketListDB());
     releaseAssert(mSnapshotManager);
     releaseAssert(!mEvictionFuture.valid());
+    releaseAssert(mEvictionStatistics);
 
     auto searchableBL = mSnapshotManager->getSearchableBucketListSnapshot();
     auto const& cfg = mApp.getLedgerManager().getSorobanNetworkConfig();
@@ -966,8 +1001,7 @@ BucketManagerImpl::startBackgroundEvictionScan(uint32_t ledgerSeq)
     using task_t = std::packaged_task<EvictionResult()>;
     auto task = std::make_shared<task_t>(
         [bl = move(searchableBL), iter = cfg.evictionIterator(), ledgerSeq, sas,
-         &counters = mBucketListEvictionCounters,
-         &stats = mEvictionStatistics] {
+         &counters = mBucketListEvictionCounters, stats = mEvictionStatistics] {
             return bl->scanForEviction(ledgerSeq, counters, iter, stats, sas);
         });
 
@@ -984,6 +1018,7 @@ BucketManagerImpl::resolveBackgroundEvictionScan(
 {
     ZoneScoped;
     releaseAssert(threadIsMain());
+    releaseAssert(mEvictionStatistics);
 
     if (!mEvictionFuture.valid())
     {
@@ -1032,13 +1067,9 @@ BucketManagerImpl::resolveBackgroundEvictionScan(
         ltx.erase(getTTLKey(entryToEvictIter->key));
         --remainingEntriesToEvict;
 
+        auto age = ledgerSeq - entryToEvictIter->liveUntilLedger;
+        mEvictionStatistics->recordEvictedEntry(age);
         mBucketListEvictionCounters.entriesEvicted.inc();
-        if (mEvictionStatistics.has_value())
-        {
-            ++mEvictionStatistics->numEntriesEvicted;
-            mEvictionStatistics->evictedEntriesAgeSum +=
-                ledgerSeq - entryToEvictIter->liveUntilLedger;
-        }
 
         newEvictionIterator = entryToEvictIter->iter;
         entryToEvictIter = eligibleKeys.erase(entryToEvictIter);

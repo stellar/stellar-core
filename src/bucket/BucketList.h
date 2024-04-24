@@ -474,7 +474,7 @@ class BucketList
     static bool updateEvictionIterAndRecordStats(
         EvictionIterator& iter, EvictionIterator startIter,
         uint32_t configFirstScanLevel, uint32_t ledgerSeq,
-        std::optional<EvictionStatistics>& stats, EvictionCounters& counters);
+        std::shared_ptr<EvictionStatistics> stats, EvictionCounters& counters);
 
     static void checkIfEvictionScanIsStuck(EvictionIterator const& evictionIter,
                                            uint32_t scanSize,
@@ -483,7 +483,7 @@ class BucketList
 
     void scanForEvictionLegacy(Application& app, AbstractLedgerTxn& ltx,
                                uint32_t ledgerSeq, EvictionCounters& counters,
-                               std::optional<EvictionStatistics>& stats);
+                               std::shared_ptr<EvictionStatistics> stats);
 
     // Restart any merges that might be running on background worker threads,
     // merging buckets between levels. This needs to be called after forcing a

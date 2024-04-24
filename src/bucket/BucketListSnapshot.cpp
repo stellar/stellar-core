@@ -70,10 +70,11 @@ SearchableBucketListSnapshot::loopAllBuckets(
 EvictionResult
 SearchableBucketListSnapshot::scanForEviction(
     uint32_t ledgerSeq, EvictionCounters& counters,
-    EvictionIterator evictionIter, std::optional<EvictionStatistics>& stats,
+    EvictionIterator evictionIter, std::shared_ptr<EvictionStatistics> stats,
     StateArchivalSettings const& sas)
 {
     releaseAssert(mSnapshot);
+    releaseAssert(stats);
 
     auto getBucketFromIter =
         [&levels = mSnapshot->getLevels()](
