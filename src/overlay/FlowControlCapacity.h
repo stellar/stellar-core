@@ -4,18 +4,17 @@
 // under the Apache License, Version 2.0. See the COPYING file at the root
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
+#include "main/Config.h"
 #include "overlay/StellarXDR.h"
 #include <optional>
 
 namespace stellar
 {
 
-class Application;
-
 class FlowControlCapacity
 {
   protected:
-    Application& mApp;
+    Config const mConfig;
 
     struct ReadingCapacity
     {
@@ -67,7 +66,7 @@ class FlowControlCapacity
     }
 #endif
 
-    FlowControlCapacity(Application& app, NodeID const& nodeID);
+    FlowControlCapacity(Config const& cfg, NodeID const& nodeID);
 };
 
 class FlowControlByteCapacity : public FlowControlCapacity
@@ -77,7 +76,8 @@ class FlowControlByteCapacity : public FlowControlCapacity
     ReadingCapacity mCapacityLimits;
 
   public:
-    FlowControlByteCapacity(Application& app, NodeID const& nodeID);
+    FlowControlByteCapacity(Config const& cfg, NodeID const& nodeID,
+                            uint32_t capacity);
     virtual ~FlowControlByteCapacity() = default;
     virtual uint64_t
     getMsgResourceCount(StellarMessage const& msg) const override;
@@ -90,7 +90,7 @@ class FlowControlByteCapacity : public FlowControlCapacity
 class FlowControlMessageCapacity : public FlowControlCapacity
 {
   public:
-    FlowControlMessageCapacity(Application& app, NodeID const& nodeID);
+    FlowControlMessageCapacity(Config const& cfg, NodeID const& nodeID);
     virtual ~FlowControlMessageCapacity() = default;
     virtual uint64_t
     getMsgResourceCount(StellarMessage const& msg) const override;

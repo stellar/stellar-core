@@ -3,7 +3,6 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "overlay/FlowControlCapacity.h"
-#include "main/Application.h"
 #include "overlay/FlowControl.h"
 #include "overlay/OverlayManager.h"
 #include "util/Logging.h"
@@ -12,9 +11,9 @@
 namespace stellar
 {
 
-FlowControlMessageCapacity::FlowControlMessageCapacity(Application& app,
+FlowControlMessageCapacity::FlowControlMessageCapacity(Config const& cfg,
                                                        NodeID const& nodeID)
-    : FlowControlCapacity(app, nodeID)
+    : FlowControlCapacity(cfg, nodeID)
 {
     mCapacity = getCapacityLimits();
 }
@@ -29,9 +28,8 @@ FlowControlMessageCapacity::getMsgResourceCount(StellarMessage const& msg) const
 FlowControlCapacity::ReadingCapacity
 FlowControlMessageCapacity::getCapacityLimits() const
 {
-    return {
-        mApp.getConfig().PEER_FLOOD_READING_CAPACITY,
-        std::make_optional<uint64_t>(mApp.getConfig().PEER_READING_CAPACITY)};
+    return {mConfig.PEER_FLOOD_READING_CAPACITY,
+            std::make_optional<uint64_t>(mConfig.PEER_READING_CAPACITY)};
 }
 
 void
@@ -43,7 +41,7 @@ FlowControlMessageCapacity::releaseOutboundCapacity(StellarMessage const& msg)
     if (!hasOutboundCapacity(msg) && numMessages != 0)
     {
         CLOG_DEBUG(Overlay, "Got outbound message capacity for peer {}",
-                   mApp.getConfig().toShortString(mNodeID));
+                   mConfig.toShortString(mNodeID));
     }
     mOutboundCapacity += numMessages;
 }
@@ -56,12 +54,10 @@ FlowControlMessageCapacity::canRead() const
     return *mCapacity.mTotalCapacity > 0;
 }
 
-FlowControlByteCapacity::FlowControlByteCapacity(Application& app,
-                                                 NodeID const& nodeID)
-    : FlowControlCapacity(app, nodeID)
-    , mCapacityLimits{
-          app.getOverlayManager().getFlowControlBytesConfig().mTotal,
-          std::nullopt}
+FlowControlByteCapacity::FlowControlByteCapacity(Config const& cfg,
+                                                 NodeID const& nodeID,
+                                                 uint32_t capacity)
+    : FlowControlCapacity(cfg, nodeID), mCapacityLimits{capacity, std::nullopt}
 {
     mCapacity = mCapacityLimits;
 }
@@ -87,7 +83,7 @@ FlowControlByteCapacity::releaseOutboundCapacity(StellarMessage const& msg)
         (msg.sendMoreExtendedMessage().numBytes != 0))
     {
         CLOG_DEBUG(Overlay, "Got outbound byte capacity for peer {}",
-                   mApp.getConfig().toShortString(mNodeID));
+                   mConfig.toShortString(mNodeID));
     }
     mOutboundCapacity += msg.sendMoreExtendedMessage().numBytes;
 };
@@ -106,9 +102,11 @@ FlowControlByteCapacity::handleTxSizeIncrease(uint32_t increase)
     mCapacityLimits.mFloodCapacity += increase;
 }
 
-FlowControlCapacity::FlowControlCapacity(Application& app, NodeID const& nodeID)
-    : mApp(app), mNodeID(nodeID)
+FlowControlCapacity::FlowControlCapacity(Config const& cfg,
+                                         NodeID const& nodeID)
+    : mConfig(cfg), mNodeID(nodeID)
 {
+    releaseAssert(threadIsMain());
 }
 
 void
@@ -164,7 +162,7 @@ FlowControlCapacity::lockLocalCapacity(StellarMessage const& msg)
         if (mCapacity.mFloodCapacity == 0)
         {
             CLOG_DEBUG(Overlay, "No flood capacity for peer {}",
-                       mApp.getConfig().toShortString(mNodeID));
+                       mConfig.toShortString(mNodeID));
         }
     }
 
@@ -175,6 +173,7 @@ uint64_t
 FlowControlCapacity::releaseLocalCapacity(StellarMessage const& msg)
 {
     ZoneScoped;
+
     uint64_t releasedFloodCapacity = 0;
     size_t resourcesFreed = getMsgResourceCount(msg);
     if (mCapacity.mTotalCapacity)
@@ -187,7 +186,7 @@ FlowControlCapacity::releaseLocalCapacity(StellarMessage const& msg)
         if (mCapacity.mFloodCapacity == 0)
         {
             CLOG_DEBUG(Overlay, "Got flood capacity for peer {} ({})",
-                       mApp.getConfig().toShortString(mNodeID),
+                       mConfig.toShortString(mNodeID),
                        mCapacity.mFloodCapacity + resourcesFreed);
         }
         releasedFloodCapacity = resourcesFreed;
