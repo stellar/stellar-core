@@ -10,7 +10,6 @@
 #include "medida/counter.h"
 #include "medida/metrics_registry.h"
 #include "overlay/OverlayManager.h"
-#include "overlay/TxFloodManager.h"
 #include "util/GlobalChecks.h"
 #include "util/Logging.h"
 #include "util/XDROperators.h"

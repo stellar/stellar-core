@@ -22,7 +22,7 @@
 #include "overlay/PeerManager.h"
 #include "overlay/StellarXDR.h"
 #include "overlay/SurveyManager.h"
-#include "overlay/TxPullMode.h"
+#include "overlay/TxAdverts.h"
 #include "util/Decoder.h"
 #include "util/GlobalChecks.h"
 #include "util/Logging.h"
@@ -366,18 +366,18 @@ Peer::shutdown()
     mShuttingDown = true;
     mRecurringTimer.cancel();
     mDelayedExecutionTimer.cancel();
-    if (mTxPullMode)
+    if (mTxAdverts)
     {
-        mTxPullMode->shutdown();
+        mTxAdverts->shutdown();
     }
 }
 
 void
 Peer::clearBelow(uint32_t seq)
 {
-    if (mTxPullMode)
+    if (mTxAdverts)
     {
-        mTxPullMode->clearBelow(seq);
+        mTxAdverts->clearBelow(seq);
     }
 }
 
@@ -1533,7 +1533,7 @@ Peer::recvAuth(StellarMessage const& msg)
 
     mFlowControl->start(weakSelf, sendCb, bothWantBytes);
 
-    mTxPullMode = std::make_shared<TxPullMode>(mApp, self);
+    mTxAdverts = std::make_shared<TxAdverts>(mApp, self);
 
     // Ask for SCP data _after_ the flow control message
     auto low = mApp.getHerder().getMinLedgerSeqToAskPeers();
@@ -1613,9 +1613,9 @@ Peer::recvSurveyResponseMessage(StellarMessage const& msg)
 void
 Peer::recvFloodAdvert(StellarMessage const& msg)
 {
-    releaseAssert(mTxPullMode);
+    releaseAssert(mTxAdverts);
     auto seq = mApp.getHerder().trackingConsensusLedgerIndex();
-    mTxPullMode->queueIncomingAdvert(msg.floodAdvert().txHashes, seq);
+    mTxAdverts->queueIncomingAdvert(msg.floodAdvert().txHashes, seq);
 }
 
 void
@@ -1699,51 +1699,51 @@ Peer::handleMaxTxSizeIncrease(uint32_t increase)
 bool
 Peer::sendAdvert(Hash const& hash)
 {
-    if (!mTxPullMode)
+    if (!mTxAdverts)
     {
         throw std::runtime_error("Pull mode is not set");
     }
 
     // No-op if peer already knows about the hash
-    if (mTxPullMode->seenAdvert(hash))
+    if (mTxAdverts->seenAdvert(hash))
     {
         return false;
     }
 
     // Otherwise, queue up an advert to broadcast to peer
-    mTxPullMode->queueOutgoingAdvert(hash);
+    mTxAdverts->queueOutgoingAdvert(hash);
     return true;
 }
 
 void
 Peer::retryAdvert(std::list<Hash>& hashes)
 {
-    if (!mTxPullMode)
+    if (!mTxAdverts)
     {
         throw std::runtime_error("Pull mode is not set");
     }
-    mTxPullMode->retryIncomingAdvert(hashes);
+    mTxAdverts->retryIncomingAdvert(hashes);
 }
 
 bool
 Peer::hasAdvert()
 {
-    if (!mTxPullMode)
+    if (!mTxAdverts)
     {
         throw std::runtime_error("Pull mode is not set");
     }
-    return mTxPullMode->size() > 0;
+    return mTxAdverts->size() > 0;
 }
 
 std::pair<Hash, std::optional<VirtualClock::time_point>>
 Peer::popAdvert()
 {
-    if (!mTxPullMode)
+    if (!mTxAdverts)
     {
         throw std::runtime_error("Pull mode is not set");
     }
 
-    return mTxPullMode->popIncomingAdvert();
+    return mTxAdverts->popIncomingAdvert();
 }
 
 }

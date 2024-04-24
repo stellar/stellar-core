@@ -5,7 +5,7 @@
 #include "ledger/LedgerManager.h"
 #include "lib/catch.hpp"
 #include "main/Application.h"
-#include "overlay/TxPullMode.h"
+#include "overlay/TxAdverts.h"
 #include "test/TestUtils.h"
 #include "test/test.h"
 
@@ -18,7 +18,7 @@ TEST_CASE("advert queue", "[flood][pullmode][acceptance]")
     cfg.TESTING_UPGRADE_MAX_TX_SET_SIZE = 200;
     auto app = createTestApplication(clock, cfg);
     std::weak_ptr<Peer> weak;
-    TxPullMode pullMode(*app, weak);
+    TxAdverts pullMode(*app, weak);
     auto limit = app->getLedgerManager().getLastMaxTxSetSizeOps();
     auto getHash = [](auto i) { return sha256(std::to_string(i)); };
 
@@ -105,7 +105,7 @@ TEST_CASE("advert queue", "[flood][pullmode][acceptance]")
             cfg2.TESTING_UPGRADE_MAX_TX_SET_SIZE =
                 TX_ADVERT_VECTOR_MAX_SIZE * 100;
             auto app2 = createTestApplication(clock2, cfg2);
-            TxPullMode pullMode2(*app2, weak);
+            TxAdverts pullMode2(*app2, weak);
             // getMaxAdvertSize takes the limit into account
             REQUIRE(pullMode2.getMaxAdvertSize() <= TX_ADVERT_VECTOR_MAX_SIZE);
 

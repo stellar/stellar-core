@@ -2,14 +2,14 @@
 // under the Apache License, Version 2.0. See the COPYING file at the root
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
-#include "overlay/TxFloodManager.h"
+#include "overlay/TxDemandsManager.h"
 #include "crypto/Hex.h"
 #include "herder/Herder.h"
 #include "ledger/LedgerManager.h"
 #include "medida/meter.h"
 #include "overlay/OverlayManager.h"
 #include "overlay/OverlayMetrics.h"
-#include "overlay/TxPullMode.h"
+#include "overlay/TxAdverts.h"
 #include "util/Logging.h"
 #include "util/numeric.h"
 #include <Tracy.hpp>
@@ -23,34 +23,35 @@ namespace stellar
 // longer than 2 seconds between re-issuing demands.
 constexpr std::chrono::seconds MAX_DELAY_DEMAND{2};
 
-TxFloodManager::TxFloodManager(Application& app) : mApp(app), mDemandTimer(app)
+TxDemandsManager::TxDemandsManager(Application& app)
+    : mApp(app), mDemandTimer(app)
 {
 }
 
 void
-TxFloodManager::start()
+TxDemandsManager::start()
 {
     demand();
 }
 
 void
-TxFloodManager::shutdown()
+TxDemandsManager::shutdown()
 {
     mDemandTimer.cancel();
 }
 
 size_t
-TxFloodManager::getMaxDemandSize() const
+TxDemandsManager::getMaxDemandSize() const
 {
     auto const& cfg = mApp.getConfig();
     auto ledgerCloseTime =
         std::chrono::duration_cast<std::chrono::milliseconds>(
             cfg.getExpectedLedgerCloseTime())
             .count();
-    int64_t queueSizeInOps = TxPullMode::getOpsFloodLedger(
+    int64_t queueSizeInOps = TxAdverts::getOpsFloodLedger(
         mApp.getHerder().getMaxQueueSizeOps(), cfg.FLOOD_OP_RATE_PER_LEDGER);
 
-    queueSizeInOps += TxPullMode::getOpsFloodLedger(
+    queueSizeInOps += TxAdverts::getOpsFloodLedger(
         mApp.getHerder().getMaxQueueSizeSorobanOps(),
         cfg.FLOOD_SOROBAN_RATE_PER_LEDGER);
 
@@ -61,14 +62,14 @@ TxFloodManager::getMaxDemandSize() const
 }
 
 std::chrono::milliseconds
-TxFloodManager::retryDelayDemand(int numAttemptsMade) const
+TxDemandsManager::retryDelayDemand(int numAttemptsMade) const
 {
     auto res = numAttemptsMade * mApp.getConfig().FLOOD_DEMAND_BACKOFF_DELAY_MS;
     return std::min(res, std::chrono::milliseconds(MAX_DELAY_DEMAND));
 }
 
-TxFloodManager::DemandStatus
-TxFloodManager::demandStatus(Hash const& txHash, Peer::pointer peer) const
+TxDemandsManager::DemandStatus
+TxDemandsManager::demandStatus(Hash const& txHash, Peer::pointer peer) const
 {
     if (mApp.getHerder().isBannedTx(txHash) ||
         mApp.getHerder().getTx(txHash) != nullptr)
@@ -107,7 +108,7 @@ TxFloodManager::demandStatus(Hash const& txHash, Peer::pointer peer) const
 }
 
 void
-TxFloodManager::startDemandTimer()
+TxDemandsManager::startDemandTimer()
 {
     mDemandTimer.expires_from_now(mApp.getConfig().FLOOD_DEMAND_PERIOD_MS);
     mDemandTimer.async_wait([this](asio::error_code const& error) {
@@ -119,9 +120,13 @@ TxFloodManager::startDemandTimer()
 }
 
 void
-TxFloodManager::demand()
+TxDemandsManager::demand()
 {
     ZoneScoped;
+    if (mApp.getOverlayManager().isShuttingDown())
+    {
+        return;
+    }
     auto const now = mApp.getClock().now();
 
     auto& om = mApp.getOverlayManager().getOverlayMetrics();
@@ -225,8 +230,8 @@ TxFloodManager::demand()
 }
 
 void
-TxFloodManager::recordTxPullLatency(Hash const& hash,
-                                    std::shared_ptr<Peer> peer)
+TxDemandsManager::recordTxPullLatency(Hash const& hash,
+                                      std::shared_ptr<Peer> peer)
 {
     auto it = mDemandHistoryMap.find(hash);
     auto now = mApp.getClock().now();
@@ -267,7 +272,7 @@ TxFloodManager::recordTxPullLatency(Hash const& hash,
 }
 
 void
-TxFloodManager::recvTxDemand(FloodDemand const& dmd, Peer::pointer peer)
+TxDemandsManager::recvTxDemand(FloodDemand const& dmd, Peer::pointer peer)
 {
     ZoneScoped;
     auto& herder = mApp.getHerder();

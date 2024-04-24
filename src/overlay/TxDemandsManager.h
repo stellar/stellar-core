@@ -17,14 +17,14 @@ namespace stellar
 {
 
 /**
- * TxFloodManager is responsible for managing transaction demand schedule, and
+ * TxDemandsManager is responsible for managing transaction demand schedule, and
  * responding to demands.
  */
 
-class TxFloodManager : private NonMovableOrCopyable
+class TxDemandsManager : private NonMovableOrCopyable
 {
   public:
-    explicit TxFloodManager(Application& app);
+    explicit TxDemandsManager(Application& app);
 
     // Record how long it took to pull a transaction
     void recordTxPullLatency(Hash const& hash, std::shared_ptr<Peer> peer);

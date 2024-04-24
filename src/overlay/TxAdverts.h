@@ -15,7 +15,7 @@ namespace stellar
 class Peer;
 class Application;
 
-// TxPullMode class stores and properly trims incoming advertised transaction
+// TxAdverts class stores and properly trims incoming advertised transaction
 // hashes, and maintains which hashes to retry demanding. In addition, this
 // class is responsible for flushing batches of adverts periodically.
 //
@@ -24,7 +24,7 @@ class Application;
 // queue is empty, then we look at mIncomingTxHashes and pop the first element.
 // Both mIncomingTxHashes and mTxHashesToRetry are FIFO.
 
-class TxPullMode
+class TxAdverts
 {
   private:
     Application& mApp;
@@ -44,7 +44,7 @@ class TxPullMode
     void startAdvertTimer();
 
   public:
-    TxPullMode(Application& app, std::weak_ptr<Peer> peer);
+    TxAdverts(Application& app, std::weak_ptr<Peer> peer);
 
     // Total transaction hashes to process including demand retries.
     size_t size() const;

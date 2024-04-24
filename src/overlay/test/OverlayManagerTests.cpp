@@ -12,7 +12,7 @@
 #include "overlay/FlowControlCapacity.h"
 #include "overlay/OverlayManager.h"
 #include "overlay/OverlayManagerImpl.h"
-#include "overlay/TxPullMode.h"
+#include "overlay/TxAdverts.h"
 #include "test/TestAccount.h"
 #include "test/TestUtils.h"
 #include "test/TxTests.h"
@@ -76,7 +76,7 @@ class PeerStub : public Peer
     void
     setPullMode()
     {
-        mTxPullMode = std::make_shared<TxPullMode>(mApp, shared_from_this());
+        mTxAdverts = std::make_shared<TxAdverts>(mApp, shared_from_this());
     }
 };
 

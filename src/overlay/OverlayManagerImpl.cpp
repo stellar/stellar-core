@@ -20,7 +20,7 @@
 #include "overlay/PeerManager.h"
 #include "overlay/RandomPeerSource.h"
 #include "overlay/TCPPeer.h"
-#include "overlay/TxFloodManager.h"
+#include "overlay/TxDemandsManager.h"
 #include "util/GlobalChecks.h"
 #include "util/Logging.h"
 #include "util/Math.h"
@@ -301,7 +301,7 @@ OverlayManagerImpl::OverlayManagerImpl(Application& app)
     , mTimer(app)
     , mPeerIPTimer(app)
     , mFloodGate(app)
-    , mTxFloodManager(app)
+    , mTxDemandsManager(app)
     , mSurveyManager(make_shared<SurveyManager>(app))
     , mResolvingPeersWithBackoff(true)
     , mResolvingPeersRetryCount(0)
@@ -337,7 +337,7 @@ OverlayManagerImpl::start()
     }
 
     // Start demand logic
-    mTxFloodManager.start();
+    mTxDemandsManager.start();
 }
 
 OverlayManager::AdjustedFlowControlConfig
@@ -835,7 +835,7 @@ OverlayManagerImpl::clearLedgersBelow(uint32_t ledgerSeq, uint32_t lclSeq)
 {
     mFloodGate.clearBelow(ledgerSeq);
     mSurveyManager->clearOldLedgers(lclSeq);
-    for (auto& peer : getAuthenticatedPeers())
+    for (auto const& peer : getAuthenticatedPeers())
     {
         peer.second->clearBelow(ledgerSeq);
     }
@@ -1154,7 +1154,7 @@ OverlayManagerImpl::recvTransaction(StellarMessage const& msg,
         Hash msgID;
         recvFloodedMsgID(msg, peer, msgID);
 
-        mTxFloodManager.recordTxPullLatency(transaction->getFullHash(), peer);
+        mTxDemandsManager.recordTxPullLatency(transaction->getFullHash(), peer);
 
         // add it to our current set
         // and make sure it is valid
@@ -1201,7 +1201,7 @@ void
 OverlayManagerImpl::recvTxDemand(FloodDemand const& dmd, Peer::pointer peer)
 {
     ZoneScoped;
-    mTxFloodManager.recvTxDemand(dmd, peer);
+    mTxDemandsManager.recvTxDemand(dmd, peer);
 }
 
 bool
@@ -1264,7 +1264,7 @@ OverlayManagerImpl::shutdown()
     mFloodGate.shutdown();
     mInboundPeers.shutdown();
     mOutboundPeers.shutdown();
-    mTxFloodManager.shutdown();
+    mTxDemandsManager.shutdown();
 
     // Switch overlay to "shutting down" state _after_ shutting down peers to
     // allow graceful connection drop

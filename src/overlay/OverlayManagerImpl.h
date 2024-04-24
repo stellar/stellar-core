@@ -16,7 +16,7 @@
 #include "overlay/OverlayMetrics.h"
 #include "overlay/StellarXDR.h"
 #include "overlay/SurveyManager.h"
-#include "overlay/TxFloodManager.h"
+#include "overlay/TxDemandsManager.h"
 #include "util/Logging.h"
 #include "util/Timer.h"
 
@@ -98,7 +98,7 @@ class OverlayManagerImpl : public OverlayManager
     friend class OverlayManagerTests;
 
     Floodgate mFloodGate;
-    TxFloodManager mTxFloodManager;
+    TxDemandsManager mTxDemandsManager;
 
     std::shared_ptr<SurveyManager> mSurveyManager;
 

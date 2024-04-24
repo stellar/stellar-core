@@ -37,7 +37,7 @@ class Application;
 class LoopbackPeer;
 struct OverlayMetrics;
 class FlowControl;
-class TxPullMode;
+class TxAdverts;
 
 // Peer class represents a connected peer (either inbound or outbound)
 //
@@ -184,7 +184,7 @@ class Peer : public std::enable_shared_from_this<Peer>,
     NodeID mPeerID;
     uint256 mSendNonce;
     uint256 mRecvNonce;
-    std::shared_ptr<TxPullMode> mTxPullMode;
+    std::shared_ptr<TxAdverts> mTxAdverts;
     std::shared_ptr<FlowControl> mFlowControl;
 
     class MsgCapacityTracker : private NonMovableOrCopyable

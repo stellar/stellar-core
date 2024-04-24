@@ -2,7 +2,7 @@
 // under the Apache License, Version 2.0. See the COPYING file at the root
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
-#include "overlay/TxPullMode.h"
+#include "overlay/TxAdverts.h"
 #include "crypto/Hex.h"
 #include "ledger/LedgerManager.h"
 #include "main/Application.h"
@@ -16,7 +16,7 @@ namespace stellar
 
 constexpr uint32 const ADVERT_CACHE_SIZE = 50000;
 
-TxPullMode::TxPullMode(Application& app, std::weak_ptr<Peer> peer)
+TxAdverts::TxAdverts(Application& app, std::weak_ptr<Peer> peer)
     : mApp(app)
     , mAdvertHistory(ADVERT_CACHE_SIZE)
     , mAdvertTimer(app)
@@ -25,7 +25,7 @@ TxPullMode::TxPullMode(Application& app, std::weak_ptr<Peer> peer)
 }
 
 void
-TxPullMode::flushAdvert()
+TxAdverts::flushAdvert()
 {
     if (mOutgoingTxHashes.size() > 0)
     {
@@ -47,13 +47,13 @@ TxPullMode::flushAdvert()
 }
 
 void
-TxPullMode::shutdown()
+TxAdverts::shutdown()
 {
     mAdvertTimer.cancel();
 }
 
 void
-TxPullMode::startAdvertTimer()
+TxAdverts::startAdvertTimer()
 {
     mAdvertTimer.expires_from_now(mApp.getConfig().FLOOD_ADVERT_PERIOD_MS);
     mAdvertTimer.async_wait([this](asio::error_code const& error) {
@@ -65,7 +65,7 @@ TxPullMode::startAdvertTimer()
 }
 
 void
-TxPullMode::queueOutgoingAdvert(Hash const& txHash)
+TxAdverts::queueOutgoingAdvert(Hash const& txHash)
 {
     if (mOutgoingTxHashes.empty())
     {
@@ -85,25 +85,25 @@ TxPullMode::queueOutgoingAdvert(Hash const& txHash)
 }
 
 bool
-TxPullMode::seenAdvert(Hash const& hash)
+TxAdverts::seenAdvert(Hash const& hash)
 {
     return mAdvertHistory.exists(hash);
 }
 
 void
-TxPullMode::rememberHash(Hash const& hash, uint32_t ledgerSeq)
+TxAdverts::rememberHash(Hash const& hash, uint32_t ledgerSeq)
 {
     mAdvertHistory.put(hash, ledgerSeq);
 }
 
 size_t
-TxPullMode::size() const
+TxAdverts::size() const
 {
     return mIncomingTxHashes.size() + mTxHashesToRetry.size();
 }
 
 void
-TxPullMode::retryIncomingAdvert(std::list<Hash>& list)
+TxAdverts::retryIncomingAdvert(std::list<Hash>& list)
 {
     mTxHashesToRetry.splice(mTxHashesToRetry.end(), list);
     while (size() > mApp.getLedgerManager().getLastMaxTxSetSizeOps())
@@ -113,7 +113,7 @@ TxPullMode::retryIncomingAdvert(std::list<Hash>& list)
 }
 
 void
-TxPullMode::queueIncomingAdvert(TxAdvertVector const& txHashes, uint32_t seq)
+TxAdverts::queueIncomingAdvert(TxAdvertVector const& txHashes, uint32_t seq)
 {
     for (auto const& hash : txHashes)
     {
@@ -145,7 +145,7 @@ TxPullMode::queueIncomingAdvert(TxAdvertVector const& txHashes, uint32_t seq)
 }
 
 std::pair<Hash, std::optional<VirtualClock::time_point>>
-TxPullMode::popIncomingAdvert()
+TxAdverts::popIncomingAdvert()
 {
     if (size() <= 0)
     {
@@ -168,14 +168,14 @@ TxPullMode::popIncomingAdvert()
 }
 
 void
-TxPullMode::clearBelow(uint32_t ledgerSeq)
+TxAdverts::clearBelow(uint32_t ledgerSeq)
 {
     mAdvertHistory.erase_if(
         [&](uint32_t const& seq) { return seq < ledgerSeq; });
 }
 
 int64_t
-TxPullMode::getOpsFloodLedger(size_t maxOps, double rate)
+TxAdverts::getOpsFloodLedger(size_t maxOps, double rate)
 {
     double opsToFloodPerLedgerDbl = rate * static_cast<double>(maxOps);
     releaseAssertOrThrow(opsToFloodPerLedgerDbl >= 0.0);
@@ -183,7 +183,7 @@ TxPullMode::getOpsFloodLedger(size_t maxOps, double rate)
 }
 
 size_t
-TxPullMode::getMaxAdvertSize() const
+TxAdverts::getMaxAdvertSize() const
 {
     auto const& cfg = mApp.getConfig();
     auto ledgerCloseTime =
