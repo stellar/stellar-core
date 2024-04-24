@@ -6,7 +6,6 @@
 #include "crypto/Hex.h"
 #include "ledger/LedgerManager.h"
 #include "main/Application.h"
-#include "overlay/Peer.h"
 #include "util/Logging.h"
 #include "util/ProtocolVersion.h"
 #include <algorithm>
@@ -16,11 +15,8 @@ namespace stellar
 
 constexpr uint32 const ADVERT_CACHE_SIZE = 50000;
 
-TxAdverts::TxAdverts(Application& app, std::weak_ptr<Peer> peer)
-    : mApp(app)
-    , mAdvertHistory(ADVERT_CACHE_SIZE)
-    , mAdvertTimer(app)
-    , mWeakPeer(peer)
+TxAdverts::TxAdverts(Application& app)
+    : mApp(app), mAdvertHistory(ADVERT_CACHE_SIZE), mAdvertTimer(app)
 {
 }
 
@@ -35,12 +31,9 @@ TxAdverts::flushAdvert()
 
         mOutgoingTxHashes.clear();
         mApp.postOnMainThread(
-            [weak = mWeakPeer, msg = std::move(msg)]() {
-                auto strong = weak.lock();
-                if (strong)
-                {
-                    strong->sendMessage(msg);
-                }
+            [send = mSendCb, msg = std::move(msg)]() {
+                releaseAssert(send);
+                send(msg);
             },
             "flushAdvert");
     }
@@ -50,6 +43,17 @@ void
 TxAdverts::shutdown()
 {
     mAdvertTimer.cancel();
+}
+
+void
+TxAdverts::start(
+    std::function<void(std::shared_ptr<StellarMessage const>)> sendCb)
+{
+    if (!sendCb)
+    {
+        throw std::invalid_argument("sendCb must be set");
+    }
+    mSendCb = sendCb;
 }
 
 void

@@ -12,7 +12,6 @@
 namespace stellar
 {
 
-class Peer;
 class Application;
 
 // TxAdverts class stores and properly trims incoming advertised transaction
@@ -37,14 +36,14 @@ class TxAdverts
     RandomEvictionCache<Hash, uint32_t> mAdvertHistory;
     TxAdvertVector mOutgoingTxHashes;
     VirtualTimer mAdvertTimer;
-    std::weak_ptr<Peer> mWeakPeer;
+    std::function<void(std::shared_ptr<StellarMessage const>)> mSendCb;
 
     void rememberHash(Hash const& hash, uint32_t ledgerSeq);
     void flushAdvert();
     void startAdvertTimer();
 
   public:
-    TxAdverts(Application& app, std::weak_ptr<Peer> peer);
+    TxAdverts(Application& app);
 
     // Total transaction hashes to process including demand retries.
     size_t size() const;
@@ -63,6 +62,8 @@ class TxAdverts
 
     bool seenAdvert(Hash const& hash);
     void clearBelow(uint32_t ledgerSeq);
+    void
+    start(std::function<void(std::shared_ptr<StellarMessage const>)> sendCb);
     void shutdown();
 
 #ifdef BUILD_TESTS
