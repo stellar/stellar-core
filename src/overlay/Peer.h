@@ -8,6 +8,7 @@
 #include "database/Database.h"
 #include "lib/json/json.h"
 #include "medida/timer.h"
+#include "overlay/OverlayAppConnector.h"
 #include "overlay/PeerBareAddress.h"
 #include "overlay/StellarXDR.h"
 #include "util/NonCopyable.h"
@@ -80,7 +81,6 @@ class Peer : public std::enable_shared_from_this<Peer>,
     static constexpr std::chrono::seconds PEER_METRICS_WINDOW_SIZE =
         std::chrono::seconds(300);
 
-    bool peerKnowsHash(Hash const& hash);
     typedef std::shared_ptr<Peer> pointer;
 
     enum PeerState
@@ -170,23 +170,7 @@ class Peer : public std::enable_shared_from_this<Peer>,
         xdr::msg_ptr mMessage;
     };
 
-    void startExecutionDelayedTimer(
-        VirtualClock::duration d, std::function<void()> const& onSuccess,
-        std::function<void(asio::error_code)> const& onFailure);
-
-    Json::Value getJsonInfo(bool compact) const;
-
   protected:
-    Application& mApp;
-
-    PeerRole mRole;
-    PeerState mState;
-    NodeID mPeerID;
-    uint256 mSendNonce;
-    uint256 mRecvNonce;
-    std::shared_ptr<TxAdverts> mTxAdverts;
-    std::shared_ptr<FlowControl> mFlowControl;
-
     class MsgCapacityTracker : private NonMovableOrCopyable
     {
         std::weak_ptr<Peer> mWeakPeer;
@@ -199,16 +183,42 @@ class Peer : public std::enable_shared_from_this<Peer>,
         std::weak_ptr<Peer> getPeer();
     };
 
-    // Is this peer currently throttled due to lack of capacity
-    std::optional<VirtualClock::time_point> mLastThrottle;
+    OverlayAppConnector mAppConnector;
 
-    // Does local node have capacity to read from this peer
-    bool canRead() const;
+    Hash const mNetworkID;
+    std::shared_ptr<FlowControl> mFlowControl;
+    VirtualClock::time_point mLastRead;
+    VirtualClock::time_point mLastWrite;
+    VirtualClock::time_point mEnqueueTimeOfLastWrite;
+
+    PeerRole const mRole;
+    OverlayMetrics& mOverlayMetrics;
+    PeerMetrics mPeerMetrics;
 
     HmacSha256Key mSendMacKey;
     HmacSha256Key mRecvMacKey;
     uint64_t mSendMacSeq{0};
     uint64_t mRecvMacSeq{0};
+    VirtualTimer mRecurringTimer;
+
+    // Does local node have capacity to read from this peer
+    bool canRead() const;
+    // helper method to acknowledge that some bytes were received
+    void receivedBytes(size_t byteCount, bool gotFullMessage);
+    void initialize(PeerBareAddress const& address);
+    void setState(PeerState newState);
+    bool shouldAbort() const;
+
+    void recvAuthenticatedMessage(AuthenticatedMessage&& msg);
+    // These exist mostly to be overridden in TCPPeer and callable via
+    // shared_ptr<Peer> as a captured shared_from_this().
+    virtual void connectHandler(asio::error_code const& ec);
+
+  private:
+    PeerState mState;
+    NodeID mPeerID;
+    uint256 mSendNonce;
+    uint256 mRecvNonce;
 
     std::string mRemoteVersion;
     uint32_t mRemoteOverlayMinVersion;
@@ -217,12 +227,9 @@ class Peer : public std::enable_shared_from_this<Peer>,
 
     VirtualClock::time_point mCreationTime;
 
-    VirtualTimer mRecurringTimer;
     VirtualTimer mDelayedExecutionTimer;
 
-    VirtualClock::time_point mLastRead;
-    VirtualClock::time_point mLastWrite;
-    VirtualClock::time_point mEnqueueTimeOfLastWrite;
+    std::shared_ptr<TxAdverts> mTxAdverts;
 
     static Hash pingIDfromTimePoint(VirtualClock::time_point const& tp);
     void pingPeer();
@@ -230,14 +237,7 @@ class Peer : public std::enable_shared_from_this<Peer>,
     VirtualClock::time_point mPingSentTime;
     std::chrono::milliseconds mLastPing;
 
-    PeerMetrics mPeerMetrics;
-
-    OverlayMetrics& getOverlayMetrics();
-
-    bool shouldAbort() const;
     void recvRawMessage(StellarMessage const& msg);
-    void recvMessage(StellarMessage const& msg);
-    void recvMessage(AuthenticatedMessage const& msg);
 
     virtual void recvError(StellarMessage const& msg);
     void updatePeerRecordAfterEcho();
@@ -269,6 +269,8 @@ class Peer : public std::enable_shared_from_this<Peer>,
     void sendPeers();
     void sendError(ErrorCode error, std::string const& message);
 
+    void recvMessage(StellarMessage const& stellarMsg);
+
     // NB: This is a move-argument because the write-buffer has to travel
     // with the write-request through the async IO system, and we might have
     // several queued at once. We have carefully arranged this to not copy
@@ -294,22 +296,13 @@ class Peer : public std::enable_shared_from_this<Peer>,
     void recurrentTimerExpired(asio::error_code const& error);
     std::chrono::seconds getIOTimeout() const;
 
-    // helper method to acknownledge that some bytes were received
-    void receivedBytes(size_t byteCount, bool gotFullMessage);
-
-    void sendAuthenticatedMessage(StellarMessage const& msg);
+    void sendAuthenticatedMessage(std::shared_ptr<StellarMessage const> msg);
     void beginMessageProcessing(StellarMessage const& msg);
     void endMessageProcessing(StellarMessage const& msg);
     bool mShuttingDown{false};
 
   public:
     Peer(Application& app, PeerRole role);
-
-    Application&
-    getApp()
-    {
-        return mApp;
-    }
 
     void shutdown();
 
@@ -324,6 +317,9 @@ class Peer : public std::enable_shared_from_this<Peer>,
     // Queue up an advert to send, return true if the advert was queued, and
     // false otherwise (if advert is a duplicate, for example)
     bool sendAdvert(Hash const& txHash);
+    void sendSendMore(uint32_t numMessages);
+    void sendSendMore(uint32_t numMessages, uint32_t numBytes);
+
     void sendMessage(std::shared_ptr<StellarMessage const> msg,
                      bool log = true);
 
@@ -388,19 +384,20 @@ class Peer : public std::enable_shared_from_this<Peer>,
 
     std::string const& toString();
 
-    // These exist mostly to be overridden in TCPPeer and callable via
-    // shared_ptr<Peer> as a captured shared_from_this().
-    virtual void connectHandler(asio::error_code const& ec);
-
     virtual void drop(std::string const& reason, DropDirection dropDirection,
                       DropMode dropMode) = 0;
     virtual ~Peer()
     {
     }
 
+    void startExecutionDelayedTimer(
+        VirtualClock::duration d, std::function<void()> const& onSuccess,
+        std::function<void(asio::error_code)> const& onFailure);
+    Json::Value getJsonInfo(bool compact) const;
     void handleMaxTxSizeIncrease(uint32_t increase);
 
     friend class LoopbackPeer;
+    friend class PeerStub;
 
 #ifdef BUILD_TESTS
     std::shared_ptr<FlowControl>

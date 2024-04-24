@@ -35,7 +35,7 @@ class FlowControlStub : public FlowControl
   public:
     int mSent = 0;
 
-    FlowControlStub(Application& app) : FlowControl(app)
+    FlowControlStub(OverlayAppConnector& connector) : FlowControl(connector)
     {
     }
     virtual ~FlowControlStub() = default;
@@ -58,7 +58,7 @@ class PeerStub : public Peer
         mPeerID = SecretKey::pseudoRandomForTesting().getPublicKey();
         mState = GOT_AUTH;
         mAddress = address;
-        mFlowControl = std::make_shared<FlowControlStub>(app);
+        mFlowControl = std::make_shared<FlowControlStub>(mAppConnector);
     }
     virtual void
     drop(std::string const&, DropDirection, DropMode) override
@@ -76,7 +76,15 @@ class PeerStub : public Peer
     void
     setPullMode()
     {
-        mTxAdverts = std::make_shared<TxAdverts>(mApp, shared_from_this());
+        auto weakSelf = std::weak_ptr<Peer>(shared_from_this());
+        mTxAdverts->start(
+            [weakSelf](std::shared_ptr<StellarMessage const> msg) {
+                auto self = weakSelf.lock();
+                if (self)
+                {
+                    self->sendMessage(msg);
+                }
+            });
     }
 };
 

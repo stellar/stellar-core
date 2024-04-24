@@ -28,45 +28,18 @@ FlowControl::getOutboundQueueByteLimit() const
         return *mOutboundQueueLimit;
     }
 #endif
-    return mApp.getConfig().OUTBOUND_TX_QUEUE_BYTE_LIMIT;
+    return mAppConnector.getConfig().OUTBOUND_TX_QUEUE_BYTE_LIMIT;
 }
 
-FlowControl::FlowControl(Application& app)
-    : mApp(app)
+FlowControl::FlowControl(OverlayAppConnector& connector)
+    : mFlowControlCapacity(std::make_shared<FlowControlMessageCapacity>(
+          connector.getConfig(), mNodeID))
+    , mOverlayMetrics(connector.getOverlayManager().getOverlayMetrics())
+    , mAppConnector(connector)
     , mNoOutboundCapacity(
-          std::make_optional<VirtualClock::time_point>(app.getClock().now()))
-{
-    mFlowControlCapacity =
-        std::make_shared<FlowControlMessageCapacity>(mApp, mNodeID);
-}
-
-void
-FlowControl::sendSendMore(uint32_t numMessages, std::shared_ptr<Peer> peer)
+          std::make_optional<VirtualClock::time_point>(connector.now()))
 {
     releaseAssert(threadIsMain());
-
-    ZoneScoped;
-    StellarMessage m;
-    m.type(SEND_MORE);
-    m.sendMoreMessage().numMessages = numMessages;
-    auto msgPtr = std::make_shared<StellarMessage const>(m);
-    peer->sendMessage(msgPtr);
-}
-
-void
-FlowControl::sendSendMore(uint32_t numMessages, uint32_t numBytes,
-                          std::shared_ptr<Peer> peer)
-{
-    releaseAssert(threadIsMain());
-
-    ZoneScoped;
-    StellarMessage m;
-    m.type(SEND_MORE_EXTENDED);
-    m.sendMoreExtendedMessage().numMessages = numMessages;
-    m.sendMoreExtendedMessage().numBytes = numBytes;
-
-    auto msgPtr = std::make_shared<StellarMessage const>(m);
-    peer->sendMessage(msgPtr);
 }
 
 bool
@@ -81,33 +54,17 @@ FlowControl::hasOutboundCapacity(StellarMessage const& msg) const
 
 // Start flow control: send SEND_MORE to a peer to indicate available capacity
 void
-FlowControl::start(std::weak_ptr<Peer> peer,
-                   std::function<void(StellarMessage const&)> sendCb,
-                   bool enableFCBytes)
+FlowControl::start(NodeID const& peerID,
+                   std::function<void(std::shared_ptr<StellarMessage>)> sendCb,
+                   std::optional<uint32_t> enableFCBytes)
 {
-    releaseAssert(threadIsMain());
-
-    auto peerPtr = peer.lock();
-    if (!peerPtr)
-    {
-        return;
-    }
-
-    mNodeID = peerPtr->getPeerID();
+    mNodeID = peerID;
     mSendCallback = sendCb;
 
     if (enableFCBytes)
     {
-        mFlowControlBytesCapacity =
-            std::make_shared<FlowControlByteCapacity>(mApp, mNodeID);
-        sendSendMore(
-            mApp.getConfig().PEER_FLOOD_READING_CAPACITY,
-            mApp.getOverlayManager().getFlowControlBytesConfig().mTotal,
-            peerPtr);
-    }
-    else
-    {
-        sendSendMore(mApp.getConfig().PEER_FLOOD_READING_CAPACITY, peerPtr);
+        mFlowControlBytesCapacity = std::make_shared<FlowControlByteCapacity>(
+            mAppConnector.getConfig(), mNodeID, *enableFCBytes);
     }
 }
 
@@ -120,10 +77,8 @@ FlowControl::maybeReleaseCapacityAndTriggerSend(StellarMessage const& msg)
     {
         if (mNoOutboundCapacity)
         {
-            mApp.getOverlayManager()
-                .getOverlayMetrics()
-                .mConnectionFloodThrottle.Update(mApp.getClock().now() -
-                                                 *mNoOutboundCapacity);
+            mOverlayMetrics.mConnectionFloodThrottle.Update(
+                mAppConnector.now() - *mNoOutboundCapacity);
         }
         mNoOutboundCapacity.reset();
 
@@ -134,9 +89,9 @@ FlowControl::maybeReleaseCapacityAndTriggerSend(StellarMessage const& msg)
         }
 
         CLOG_TRACE(Overlay, "{}: Peer {} sent {} ({} messages, {} bytes)",
-                   mApp.getConfig().toShortString(
-                       mApp.getConfig().NODE_SEED.getPublicKey()),
-                   mApp.getConfig().toShortString(mNodeID),
+                   mAppConnector.getConfig().toShortString(
+                       mAppConnector.getConfig().NODE_SEED.getPublicKey()),
+                   mAppConnector.getConfig().toShortString(mNodeID),
                    xdr::xdr_traits<MessageType>::enum_name(msg.type()),
                    getNumMessages(msg),
                    mFlowControlBytesCapacity
@@ -171,22 +126,23 @@ FlowControl::maybeSendNextBatch()
             // Can't send _current_ message
             if (!hasOutboundCapacity(msg))
             {
-                CLOG_DEBUG(Overlay, "{}: No outbound capacity for peer {}",
-                           mApp.getConfig().toShortString(
-                               mApp.getConfig().NODE_SEED.getPublicKey()),
-                           mApp.getConfig().toShortString(mNodeID));
+                CLOG_DEBUG(
+                    Overlay, "{}: No outbound capacity for peer {}",
+                    mAppConnector.getConfig().toShortString(
+                        mAppConnector.getConfig().NODE_SEED.getPublicKey()),
+                    mAppConnector.getConfig().toShortString(mNodeID));
                 // Start a timeout for SEND_MORE
                 mNoOutboundCapacity =
                     std::make_optional<VirtualClock::time_point>(
-                        mApp.getClock().now());
+                        mAppConnector.now());
                 break;
             }
 
-            mSendCallback(msg);
+            mSendCallback(std::make_shared<StellarMessage>(msg));
             ++sent;
-            auto& om = mApp.getOverlayManager().getOverlayMetrics();
+            auto& om = mOverlayMetrics;
 
-            auto const& diff = mApp.getClock().now() - front.mTimeEmplaced;
+            auto const& diff = mAppConnector.now() - front.mTimeEmplaced;
             mFlowControlCapacity->lockOutboundCapacity(msg);
             if (mFlowControlBytesCapacity)
             {
@@ -240,9 +196,9 @@ FlowControl::maybeSendNextBatch()
     }
 
     CLOG_TRACE(Overlay, "{} Peer {}: send next flood batch of {}",
-               mApp.getConfig().toShortString(
-                   mApp.getConfig().NODE_SEED.getPublicKey()),
-               mApp.getConfig().toShortString(mNodeID), sent);
+               mAppConnector.getConfig().toShortString(
+                   mAppConnector.getConfig().NODE_SEED.getPublicKey()),
+               mAppConnector.getConfig().toShortString(mNodeID), sent);
 }
 
 bool
@@ -259,7 +215,7 @@ FlowControl::maybeSendMessage(std::shared_ptr<StellarMessage const> msg)
 }
 
 void
-FlowControl::handleTxSizeIncrease(uint32_t increase, std::shared_ptr<Peer> peer)
+FlowControl::handleTxSizeIncrease(uint32_t increase)
 {
     ZoneScoped;
     if (mFlowControlBytesCapacity)
@@ -267,9 +223,6 @@ FlowControl::handleTxSizeIncrease(uint32_t increase, std::shared_ptr<Peer> peer)
         releaseAssert(increase > 0);
         // Bump flood capacity to accommodate the upgrade
         mFlowControlBytesCapacity->handleTxSizeIncrease(increase);
-        // Send an additional SEND_MORE to let the other peer know we have more
-        // capacity available (and possibly unblock it)
-        sendSendMore(0, increase, peer);
     }
 }
 
@@ -283,9 +236,8 @@ FlowControl::beginMessageProcessing(StellarMessage const& msg)
             mFlowControlBytesCapacity->lockLocalCapacity(msg));
 }
 
-void
-FlowControl::endMessageProcessing(StellarMessage const& msg,
-                                  std::weak_ptr<Peer> peer)
+SendMoreCapacity
+FlowControl::endMessageProcessing(StellarMessage const& msg)
 {
     ZoneScoped;
     releaseAssert(threadIsMain());
@@ -298,34 +250,35 @@ FlowControl::endMessageProcessing(StellarMessage const& msg,
     }
 
     releaseAssert(mFloodDataProcessed <=
-                  mApp.getConfig().FLOW_CONTROL_SEND_MORE_BATCH_SIZE);
-    bool shouldSendMore = mFloodDataProcessed ==
-                          mApp.getConfig().FLOW_CONTROL_SEND_MORE_BATCH_SIZE;
+                  mAppConnector.getConfig().FLOW_CONTROL_SEND_MORE_BATCH_SIZE);
+    bool shouldSendMore =
+        mFloodDataProcessed ==
+        mAppConnector.getConfig().FLOW_CONTROL_SEND_MORE_BATCH_SIZE;
     if (mFlowControlBytesCapacity)
     {
-        auto const byteBatchSize =
-            mApp.getOverlayManager().getFlowControlBytesConfig().mBatchSize;
+        auto const byteBatchSize = mAppConnector.getOverlayManager()
+                                       .getFlowControlBytesConfig()
+                                       .mBatchSize;
         shouldSendMore =
             shouldSendMore || mFloodDataProcessedBytes >= byteBatchSize;
     }
-    auto peerPtr = peer.lock();
 
-    if (shouldSendMore && peerPtr)
+    SendMoreCapacity res{0, std::nullopt};
+    if (shouldSendMore)
     {
+        // First save result to return
+        res.first = mFloodDataProcessed;
         if (mFlowControlBytesCapacity)
         {
-            sendSendMore(static_cast<uint32>(mFloodDataProcessed),
-                         static_cast<uint32>(mFloodDataProcessedBytes),
-                         peerPtr);
+            res.second = mFloodDataProcessedBytes;
         }
-        else
-        {
-            sendSendMore(static_cast<uint32>(mFloodDataProcessed), peerPtr);
-            releaseAssert(mFloodDataProcessedBytes == 0);
-        }
+
+        // Reset counters
         mFloodDataProcessed = 0;
         mFloodDataProcessedBytes = 0;
     }
+
+    return res;
 }
 
 bool
@@ -405,11 +358,10 @@ void
 FlowControl::addMsgAndMaybeTrimQueue(std::shared_ptr<StellarMessage const> msg)
 {
     ZoneScoped;
-
     releaseAssert(msg);
     auto type = msg->type();
     size_t msgQInd = 0;
-    auto now = mApp.getClock().now();
+    auto now = mAppConnector.now();
 
     switch (type)
     {
@@ -426,7 +378,7 @@ FlowControl::addMsgAndMaybeTrimQueue(std::shared_ptr<StellarMessage const> msg)
             auto bytes = mFlowControlBytesCapacity->getMsgResourceCount(*msg);
             // Don't accept transactions that are over allowed byte limit: those
             // won't be properly flooded anyways
-            if (bytes > mApp.getHerder().getMaxTxSize())
+            if (bytes > mAppConnector.getHerder().getMaxTxSize())
             {
                 return;
             }
@@ -453,12 +405,13 @@ FlowControl::addMsgAndMaybeTrimQueue(std::shared_ptr<StellarMessage const> msg)
     }
     auto& queue = mOutboundQueues[msgQInd];
 
-    queue.emplace_back(QueuedOutboundMessage{msg, mApp.getClock().now()});
+    queue.emplace_back(QueuedOutboundMessage{msg, mAppConnector.now()});
 
     size_t dropped = 0;
 
-    uint32_t const limit = mApp.getLedgerManager().getLastMaxTxSetSizeOps();
-    auto& om = mApp.getOverlayManager().getOverlayMetrics();
+    uint32_t const limit =
+        mAppConnector.getLedgerManager().getLastMaxTxSetSizeOps();
+    auto& om = mOverlayMetrics;
     if (type == TRANSACTION)
     {
         auto isOverLimit = [&](auto const& queue) {
@@ -496,8 +449,10 @@ FlowControl::addMsgAndMaybeTrimQueue(std::shared_ptr<StellarMessage const> msg)
         // don't keep in-memory anymore, delete those. Otherwise, compare
         // messages for the same slot and validator against the latest SCP
         // message and drop
-        auto minSlotToRemember = mApp.getHerder().getMinLedgerSeqToRemember();
-        auto checkpointSeq = mApp.getHerder().getMostRecentCheckpointSeq();
+        auto minSlotToRemember =
+            mAppConnector.getHerder().getMinLedgerSeqToRemember();
+        auto checkpointSeq =
+            mAppConnector.getHerder().getMostRecentCheckpointSeq();
         bool valueReplaced = false;
 
         for (auto it = queue.begin(); it != queue.end();)
@@ -509,7 +464,7 @@ FlowControl::addMsgAndMaybeTrimQueue(std::shared_ptr<StellarMessage const> msg)
                 dropped++;
             }
             else if (!valueReplaced && it != queue.end() - 1 &&
-                     mApp.getHerder().isNewerNominationOrBallotSt(
+                     mAppConnector.getHerder().isNewerNominationOrBallotSt(
                          it->mMessage->envelope().statement,
                          queue.back().mMessage->envelope().statement))
             {
@@ -557,7 +512,7 @@ FlowControl::addMsgAndMaybeTrimQueue(std::shared_ptr<StellarMessage const> msg)
     {
         CLOG_TRACE(Overlay, "Dropped {} {} messages to peer {}", dropped,
                    xdr::xdr_traits<MessageType>::enum_name(type),
-                   mApp.getConfig().toShortString(mNodeID));
+                   mAppConnector.getConfig().toShortString(mNodeID));
     }
 }
 
@@ -604,6 +559,34 @@ FlowControl::getFlowControlJsonInfo(bool compact) const
     }
 
     return res;
+}
+
+void
+FlowControl::throttleRead()
+{
+    mLastThrottle = mAppConnector.now();
+}
+
+bool
+FlowControl::stopThrottling()
+{
+    releaseAssert(threadIsMain());
+    if (mLastThrottle)
+    {
+        CLOG_DEBUG(Overlay, "Stop throttling reading from peer {}",
+                   mAppConnector.getConfig().toShortString(mNodeID));
+        mOverlayMetrics.mConnectionReadThrottle.Update(mAppConnector.now() -
+                                                       *mLastThrottle);
+        mLastThrottle.reset();
+        return true;
+    }
+    return false;
+}
+
+bool
+FlowControl::isThrottled() const
+{
+    return static_cast<bool>(mLastThrottle);
 }
 
 FlowControl::FlowControlMetrics::FlowControlMetrics()

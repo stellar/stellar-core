@@ -13,7 +13,11 @@
 namespace stellar
 {
 
-class Peer;
+class OverlayAppConnector;
+struct OverlayMetrics;
+
+// num messages, optional bytes if enabled
+using SendMoreCapacity = std::pair<uint64_t, std::optional<uint64_t>>;
 
 // The FlowControl class allows core to throttle flood traffic among its
 // connections. If a connections wants to use flow control, it should maintain
@@ -50,11 +54,15 @@ class FlowControl
     size_t mDemandQueueTxHashCount{0};
     size_t mTxQueueByteCount{0};
 
+    // Is this peer currently throttled due to lack of capacity
+    std::optional<VirtualClock::time_point> mLastThrottle;
+
     NodeID mNodeID;
     std::shared_ptr<FlowControlCapacity> mFlowControlCapacity;
     std::shared_ptr<FlowControlByteCapacity> mFlowControlBytesCapacity;
 
-    Application& mApp;
+    OverlayMetrics& mOverlayMetrics;
+    OverlayAppConnector& mAppConnector;
 
     // Outbound queues indexes by priority
     // Priority 0 - SCP messages
@@ -71,26 +79,23 @@ class FlowControl
     uint64_t mFloodDataProcessedBytes{0};
     std::optional<VirtualClock::time_point> mNoOutboundCapacity;
     FlowControlMetrics mMetrics;
-    std::function<void(StellarMessage const&)> mSendCallback;
+    std::function<void(std::shared_ptr<StellarMessage>)> mSendCallback;
 
     // Release capacity used by this message. Return a struct that indicates how
     // much reading and flood capacity was freed
     void maybeSendNextBatch();
     // This methods drops obsolete load from the outbound queue
     void addMsgAndMaybeTrimQueue(std::shared_ptr<StellarMessage const> msg);
-    void sendSendMore(uint32_t numMessages, std::shared_ptr<Peer> peer);
-    void sendSendMore(uint32_t numMessages, uint32_t numBytes,
-                      std::shared_ptr<Peer> peer);
     bool hasOutboundCapacity(StellarMessage const& msg) const;
 
   public:
-    FlowControl(Application& app);
+    FlowControl(OverlayAppConnector& connector);
     virtual ~FlowControl() = default;
 
     virtual bool maybeSendMessage(std::shared_ptr<StellarMessage const> msg);
     void maybeReleaseCapacityAndTriggerSend(StellarMessage const& msg);
     virtual size_t getOutboundQueueByteLimit() const;
-    void handleTxSizeIncrease(uint32_t increase, std::shared_ptr<Peer> peer);
+    void handleTxSizeIncrease(uint32_t increase);
 
 #ifdef BUILD_TESTS
     std::shared_ptr<FlowControlCapacity>
@@ -117,18 +122,6 @@ class FlowControl
         return mOutboundQueues;
     }
 
-    void
-    sendSendMoreForTesting(uint32_t numMessages, std::shared_ptr<Peer> peer)
-    {
-        sendSendMore(numMessages, peer);
-    }
-    void
-    sendSendMoreForTesting(uint32_t numMessages, uint32_t numBytes,
-                           std::shared_ptr<Peer> peer)
-    {
-        sendSendMore(numMessages, numBytes, peer);
-    }
-
     size_t
     getTxQueueByteCountForTesting() const
     {
@@ -153,8 +146,7 @@ class FlowControl
     // This method ensures local capacity is released now that we've finished
     // processing the message. It returns available capacity that can now be
     // requested from the peer.
-    void endMessageProcessing(StellarMessage const& msg,
-                              std::weak_ptr<Peer> peer);
+    SendMoreCapacity endMessageProcessing(StellarMessage const& msg);
     bool canRead() const;
 
     // This method return last timestamp (if any) when peer had no available
@@ -168,9 +160,16 @@ class FlowControl
 
     Json::Value getFlowControlJsonInfo(bool compact) const;
 
-    void start(std::weak_ptr<Peer> peer,
-               std::function<void(StellarMessage const&)> sendCb,
-               bool enableFCBytes);
+    void start(NodeID const& peerID,
+               std::function<void(std::shared_ptr<StellarMessage>)> sendCb,
+               std::optional<uint32_t> enableFCBytes);
+
+    // Stop reading from this peer until capacity is released
+    void throttleRead();
+    // After releasing capacity, check if throttling was applied, and if so,
+    // reset it. Returns true if peer was throttled, and false otherwise
+    bool stopThrottling();
+    bool isThrottled() const;
 };
 
 }
