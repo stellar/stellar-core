@@ -266,14 +266,10 @@ TEST_CASE("flow control byte capacity", "[overlay][flowcontrol]")
             conn.getInitiator()->sendMessage(
                 std::make_shared<StellarMessage>(tx1));
 
-            auto& sendMoreMeter = conn.getAcceptor()
-                                      ->getApp()
-                                      .getOverlayManager()
+            auto& sendMoreMeter = app2->getOverlayManager()
                                       .getOverlayMetrics()
                                       .mSendSendMoreMeter;
-            auto& sendMoreRecvMeter = conn.getInitiator()
-                                          ->getApp()
-                                          .getOverlayManager()
+            auto& sendMoreRecvMeter = app1->getOverlayManager()
                                           .getOverlayMetrics()
                                           .mRecvSendMoreTimer;
             auto currentSendCount = sendMoreMeter.count();
@@ -675,15 +671,11 @@ TEST_CASE("loopback peer flow control activation", "[overlay][flowcontrol]")
                 // and the misbehaving peer gets dropped
                 if (fcInBytes)
                 {
-                    conn.getInitiator()
-                        ->getFlowControl()
-                        ->sendSendMoreForTesting(0, 0, conn.getAcceptor());
+                    conn.getAcceptor()->sendSendMore(0, 0);
                 }
                 else
                 {
-                    conn.getInitiator()
-                        ->getFlowControl()
-                        ->sendSendMoreForTesting(0, conn.getAcceptor());
+                    conn.getAcceptor()->sendSendMore(0);
                 }
                 dropReason = fcInBytes ? "invalid message SEND_MORE_EXTENDED"
                                        : "invalid message SEND_MORE";
@@ -692,15 +684,11 @@ TEST_CASE("loopback peer flow control activation", "[overlay][flowcontrol]")
             {
                 if (fcInBytes)
                 {
-                    conn.getInitiator()
-                        ->getFlowControl()
-                        ->sendSendMoreForTesting(0, conn.getAcceptor());
+                    conn.getAcceptor()->sendSendMore(1);
                 }
                 else
                 {
-                    conn.getInitiator()
-                        ->getFlowControl()
-                        ->sendSendMoreForTesting(0, 0, conn.getAcceptor());
+                    conn.getAcceptor()->sendSendMore(1, 1);
                 }
                 dropReason = fcInBytes
                                  ? "unexpected message type SEND_MORE"
@@ -807,8 +795,9 @@ TEST_CASE("drop peers that dont respect capacity", "[overlay][flowcontrol]")
         REQUIRE(conn.getAcceptor()->isAuthenticated());
 
         // Acceptor sends too many flood messages, causing initiator to drop it
-        conn.getAcceptor()->sendAuthenticatedMessage(msg);
-        conn.getAcceptor()->sendAuthenticatedMessage(msg);
+        auto msgPtr = std::make_shared<StellarMessage>(msg);
+        conn.getAcceptor()->sendAuthenticatedMessage(msgPtr);
+        conn.getAcceptor()->sendAuthenticatedMessage(msgPtr);
         testutil::crankSome(clock);
 
         REQUIRE(!conn.getInitiator()->isConnected());
@@ -929,8 +918,7 @@ TEST_CASE("drop peers that overflow capacity", "[overlay][flowcontrol]")
             ->setOutboundCapacity(limit);
     }
 
-    conn.getAcceptor()->getFlowControl()->sendSendMoreForTesting(
-        2, 2, conn.getAcceptor());
+    conn.getAcceptor()->sendSendMore(2, 2);
     testutil::crankFor(clock, std::chrono::seconds(1));
 
     REQUIRE(!conn.getInitiator()->isConnected());

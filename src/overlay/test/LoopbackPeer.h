@@ -137,6 +137,12 @@ class LoopbackPeer : public Peer
         return getFlowControl()->getCapacity()->getOutboundCapacity();
     }
 
+    Config const&
+    getConfig()
+    {
+        return mAppConnector.getConfig();
+    }
+
     bool checkCapacity(std::shared_ptr<LoopbackPeer> otherPeer) const;
 
     std::string getIP() const;
