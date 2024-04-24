@@ -2826,7 +2826,7 @@ TEST_CASE("overlay pull mode", "[overlay][pullmode]")
         links[1][2]->sendMessage(adv, false);
 
         // Give enough time to:
-        // 1) call `demand`, and
+        // 1) call `demand` exactly once, and
         // 2) send the demands out.
         testutil::crankFor(clock, apps[2]->getConfig().FLOOD_DEMAND_PERIOD_MS +
                                       epsilon);
@@ -3020,6 +3020,9 @@ TEST_CASE("overlay pull mode loadgen", "[overlay][pullmode][acceptance]")
     // Node 1 advertised 5 txn hashes to each of Node 2 and Node 3.
     REQUIRE(getAdvertisedHashCount(node1) == numAccounts);
     REQUIRE(getAdvertisedHashCount(node2) == 0);
+
+    REQUIRE(overlaytestutils::getSentDemandCount(node2) > 0);
+    REQUIRE(overlaytestutils::getFulfilledDemandCount(node1) == numAccounts);
 
     // As this is a "happy path", there should be no unknown demands.
     REQUIRE(getUnknownDemandCount(node1) == 0);

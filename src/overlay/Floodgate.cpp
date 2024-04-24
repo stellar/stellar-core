@@ -124,14 +124,15 @@ Floodgate::broadcast(StellarMessage const& msg, std::optional<Hash> const& hash)
     {
         releaseAssert(peer.second->isAuthenticated());
         bool pullMode = msg.type() == TRANSACTION;
-        bool hasAdvert = pullMode && peer.second->peerKnowsHash(hash.value());
 
-        if (peersTold.insert(peer.second->toString()).second && !hasAdvert)
+        if (peersTold.insert(peer.second->toString()).second)
         {
             if (pullMode)
             {
-                mMessagesAdvertised.Mark();
-                peer.second->queueTxHashToAdvertise(hash.value());
+                if (peer.second->sendAdvert(hash.value()))
+                {
+                    mMessagesAdvertised.Mark();
+                }
             }
             else
             {

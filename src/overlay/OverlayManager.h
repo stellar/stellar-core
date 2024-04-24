@@ -97,10 +97,18 @@ class OverlayManager
         return recvFloodedMsgID(msg, peer, msgID);
     }
 
+    // Process incoming transaction, pass it down to the transaction queue
+    virtual void recvTransaction(StellarMessage const& msg,
+                                 Peer::pointer peer) = 0;
+
     // removes msgID from the floodgate's internal state
     // as it's not tracked anymore, calling "broadcast" with a (now forgotten)
     // message with the ID msgID will cause it to be broadcast to all peers
     virtual void forgetFloodedMsg(Hash const& msgID) = 0;
+
+    // Process incoming transaction demand; this might trigger sending back a
+    // transaction
+    virtual void recvTxDemand(FloodDemand const& dmd, Peer::pointer peer) = 0;
 
     // Return a list of random peers from the set of authenticated peers.
     virtual std::vector<Peer::pointer> getRandomAuthenticatedPeers() = 0;
@@ -199,11 +207,6 @@ class OverlayManager
 
     virtual void recordMessageMetric(StellarMessage const& stellarMsg,
                                      Peer::pointer peer) = 0;
-
-    virtual void recordTxPullLatency(Hash const& hash,
-                                     std::shared_ptr<Peer> peer) = 0;
-
-    virtual size_t getMaxAdvertSize() const = 0;
 
     virtual AdjustedFlowControlConfig getFlowControlBytesConfig() const = 0;
 

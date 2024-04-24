@@ -12,6 +12,7 @@
 #include "overlay/FlowControlCapacity.h"
 #include "overlay/OverlayManager.h"
 #include "overlay/OverlayManagerImpl.h"
+#include "overlay/TxAdverts.h"
 #include "test/TestAccount.h"
 #include "test/TestUtils.h"
 #include "test/TxTests.h"
@@ -71,6 +72,12 @@ class PeerStub : public Peer
     scheduleRead() override
     {
     }
+
+    void
+    setPullMode()
+    {
+        mTxAdverts = std::make_shared<TxAdverts>(mApp, shared_from_this());
+    }
 };
 
 class OverlayManagerStub : public OverlayManagerImpl
@@ -91,6 +98,7 @@ class OverlayManagerStub : public OverlayManagerImpl
         getPeerManager().update(address, PeerManager::BackOffUpdate::INCREASE);
 
         auto peerStub = std::make_shared<PeerStub>(mApp, address);
+        peerStub->setPullMode();
         REQUIRE(addOutboundConnection(peerStub));
         return acceptAuthenticatedPeer(peerStub);
     }
