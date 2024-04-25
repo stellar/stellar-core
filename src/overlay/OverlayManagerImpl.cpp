@@ -4,7 +4,6 @@
 
 #include "overlay/OverlayManagerImpl.h"
 #include "crypto/Hex.h"
-#include "crypto/KeyUtils.h"
 #include "crypto/SecretKey.h"
 #include "crypto/ShortHash.h"
 #include "database/Database.h"
@@ -24,9 +23,7 @@
 #include "util/GlobalChecks.h"
 #include "util/Logging.h"
 #include "util/Math.h"
-#include "util/ProtocolVersion.h"
 #include "util/Thread.h"
-#include "util/XDROperators.h"
 #include "xdrpp/marshal.h"
 #include <Tracy.hpp>
 #include <fmt/format.h>
@@ -36,7 +33,6 @@
 #include "medida/metrics_registry.h"
 
 #include <algorithm>
-#include <random>
 
 namespace stellar
 {

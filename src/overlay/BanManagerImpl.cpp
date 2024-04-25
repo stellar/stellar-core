@@ -4,7 +4,6 @@
 
 #include "overlay/BanManagerImpl.h"
 #include "crypto/KeyUtils.h"
-#include "crypto/SecretKey.h"
 #include "database/Database.h"
 #include "main/Application.h"
 #include "util/Logging.h"

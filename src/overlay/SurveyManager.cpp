@@ -3,6 +3,7 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "SurveyManager.h"
+#include "crypto/Curve25519.h"
 #include "herder/Herder.h"
 #include "main/Application.h"
 #include "main/ErrorMessages.h"

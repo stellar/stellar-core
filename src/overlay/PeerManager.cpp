@@ -3,16 +3,13 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "overlay/PeerManager.h"
-#include "crypto/Random.h"
 #include "database/Database.h"
 #include "lib/util/stdrandom.h"
 #include "main/Application.h"
 #include "overlay/RandomPeerSource.h"
-#include "overlay/StellarXDR.h"
 #include "util/GlobalChecks.h"
 #include "util/Logging.h"
 #include "util/Math.h"
-#include "util/must_use.h"
 
 #include <Tracy.hpp>
 #include <algorithm>

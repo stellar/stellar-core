@@ -10,7 +10,6 @@
 #include "main/Application.h"
 #include "main/Config.h"
 #include "util/Logging.h"
-#include "util/XDROperators.h"
 #include "xdrpp/marshal.h"
 
 namespace stellar
