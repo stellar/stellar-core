@@ -46,7 +46,7 @@ PeerDoor::close()
     {
         asio::error_code ec;
         // ignore errors when closing
-        mAcceptor.close(ec);
+        std::ignore = mAcceptor.close(ec);
     }
 }
 
@@ -82,7 +82,7 @@ PeerDoor::handleKnock(shared_ptr<TCPPeer::SocketType> socket)
     if (!peer)
     {
         asio::error_code ec;
-        socket->close(ec);
+        std::ignore = socket->close(ec);
         if (ec)
         {
             CLOG_WARNING(Overlay, "TCPPeer: close socket failed: {}",
