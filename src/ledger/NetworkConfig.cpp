@@ -8,6 +8,10 @@
 #include "main/Application.h"
 #include "util/ProtocolVersion.h"
 
+#ifdef BUILD_TESTS
+#include "ledger/LedgerManager.h"
+#endif
+
 namespace stellar
 {
 namespace
@@ -1445,13 +1449,22 @@ SorobanNetworkConfig::getAverageBucketListSize() const
 #ifdef BUILD_TESTS
 void
 writeConfigSettingEntry(ConfigSettingEntry const& configSetting,
-                        AbstractLedgerTxn& ltxRoot)
+                        AbstractLedgerTxn& ltxRoot, Application& app)
 {
     ZoneScoped;
 
     LedgerEntry e;
     e.data.type(CONFIG_SETTING);
     e.data.configSetting() = configSetting;
+
+    // If testing with BucketListDB, we need to commit directly to the
+    // BucketList
+    if (app.getConfig().isUsingBucketListDB())
+    {
+        auto const& lcl = app.getLedgerManager().getLastClosedLedgerHeader();
+        app.getBucketManager().addBatch(app, lcl.header.ledgerSeq + 1,
+                                        lcl.header.ledgerVersion, {}, {e}, {});
+    }
 
     LedgerTxn ltx(ltxRoot);
     auto ltxe = ltx.load(LedgerEntryKey(e));
@@ -1461,26 +1474,27 @@ writeConfigSettingEntry(ConfigSettingEntry const& configSetting,
 }
 
 void
-SorobanNetworkConfig::writeAllSettings(AbstractLedgerTxn& ltx) const
+SorobanNetworkConfig::writeAllSettings(AbstractLedgerTxn& ltx,
+                                       Application& app) const
 {
     ZoneScoped;
 
     ConfigSettingEntry maxContractSizeEntry(
         CONFIG_SETTING_CONTRACT_MAX_SIZE_BYTES);
     maxContractSizeEntry.contractMaxSizeBytes() = mMaxContractSizeBytes;
-    writeConfigSettingEntry(maxContractSizeEntry, ltx);
+    writeConfigSettingEntry(maxContractSizeEntry, ltx, app);
 
     ConfigSettingEntry maxContractDataKeySizeEntry(
         CONFIG_SETTING_CONTRACT_DATA_KEY_SIZE_BYTES);
     maxContractDataKeySizeEntry.contractDataKeySizeBytes() =
         mMaxContractDataKeySizeBytes;
-    writeConfigSettingEntry(maxContractDataKeySizeEntry, ltx);
+    writeConfigSettingEntry(maxContractDataKeySizeEntry, ltx, app);
 
     ConfigSettingEntry maxContractDataEntrySizeEntry(
         CONFIG_SETTING_CONTRACT_DATA_ENTRY_SIZE_BYTES);
     maxContractDataEntrySizeEntry.contractDataEntrySizeBytes() =
         mMaxContractDataEntrySizeBytes;
-    writeConfigSettingEntry(maxContractDataEntrySizeEntry, ltx);
+    writeConfigSettingEntry(maxContractDataEntrySizeEntry, ltx, app);
 
     ConfigSettingEntry computeSettingsEntry(CONFIG_SETTING_CONTRACT_COMPUTE_V0);
     computeSettingsEntry.contractCompute().ledgerMaxInstructions =
@@ -1490,7 +1504,7 @@ SorobanNetworkConfig::writeAllSettings(AbstractLedgerTxn& ltx) const
     computeSettingsEntry.contractCompute().feeRatePerInstructionsIncrement =
         mFeeRatePerInstructionsIncrement;
     computeSettingsEntry.contractCompute().txMemoryLimit = mTxMemoryLimit;
-    writeConfigSettingEntry(computeSettingsEntry, ltx);
+    writeConfigSettingEntry(computeSettingsEntry, ltx, app);
 
     ConfigSettingEntry ledgerAccessSettingsEntry(
         CONFIG_SETTING_CONTRACT_LEDGER_COST_V0);
@@ -1510,13 +1524,13 @@ SorobanNetworkConfig::writeAllSettings(AbstractLedgerTxn& ltx) const
     cost.writeFee1KBBucketListLow = mWriteFee1KBBucketListLow;
     cost.writeFee1KBBucketListHigh = mWriteFee1KBBucketListHigh;
     cost.bucketListWriteFeeGrowthFactor = mBucketListWriteFeeGrowthFactor;
-    writeConfigSettingEntry(ledgerAccessSettingsEntry, ltx);
+    writeConfigSettingEntry(ledgerAccessSettingsEntry, ltx, app);
 
     ConfigSettingEntry historicalSettingsEntry(
         CONFIG_SETTING_CONTRACT_HISTORICAL_DATA_V0);
     historicalSettingsEntry.contractHistoricalData().feeHistorical1KB =
         mFeeHistorical1KB;
-    writeConfigSettingEntry(historicalSettingsEntry, ltx);
+    writeConfigSettingEntry(historicalSettingsEntry, ltx, app);
 
     ConfigSettingEntry contractEventsSettingsEntry(
         CONFIG_SETTING_CONTRACT_EVENTS_V0);
@@ -1524,7 +1538,7 @@ SorobanNetworkConfig::writeAllSettings(AbstractLedgerTxn& ltx) const
         mFeeContractEvents1KB;
     contractEventsSettingsEntry.contractEvents().txMaxContractEventsSizeBytes =
         mTxMaxContractEventsSizeBytes;
-    writeConfigSettingEntry(contractEventsSettingsEntry, ltx);
+    writeConfigSettingEntry(contractEventsSettingsEntry, ltx, app);
 
     ConfigSettingEntry bandwidthSettingsEntry(
         CONFIG_SETTING_CONTRACT_BANDWIDTH_V0);
@@ -1533,28 +1547,28 @@ SorobanNetworkConfig::writeAllSettings(AbstractLedgerTxn& ltx) const
     bandwidthSettingsEntry.contractBandwidth().txMaxSizeBytes = mTxMaxSizeBytes;
     bandwidthSettingsEntry.contractBandwidth().feeTxSize1KB =
         mFeeTransactionSize1KB;
-    writeConfigSettingEntry(bandwidthSettingsEntry, ltx);
+    writeConfigSettingEntry(bandwidthSettingsEntry, ltx, app);
 
     ConfigSettingEntry executionLanesSettingsEntry(
         CONFIG_SETTING_CONTRACT_EXECUTION_LANES);
     executionLanesSettingsEntry.contractExecutionLanes().ledgerMaxTxCount =
         mLedgerMaxTxCount;
-    writeConfigSettingEntry(executionLanesSettingsEntry, ltx);
+    writeConfigSettingEntry(executionLanesSettingsEntry, ltx, app);
 
     ConfigSettingEntry cpuCostParamsEntry(
         CONFIG_SETTING_CONTRACT_COST_PARAMS_CPU_INSTRUCTIONS);
     cpuCostParamsEntry.contractCostParamsCpuInsns() = mCpuCostParams;
-    writeConfigSettingEntry(cpuCostParamsEntry, ltx);
+    writeConfigSettingEntry(cpuCostParamsEntry, ltx, app);
 
     ConfigSettingEntry memCostParamsEntry(
         CONFIG_SETTING_CONTRACT_COST_PARAMS_MEMORY_BYTES);
     memCostParamsEntry.contractCostParamsMemBytes() = mMemCostParams;
-    writeConfigSettingEntry(memCostParamsEntry, ltx);
+    writeConfigSettingEntry(memCostParamsEntry, ltx, app);
 
     ConfigSettingEntry stateArchivalSettingsEntry(
         CONFIG_SETTING_STATE_ARCHIVAL);
     stateArchivalSettingsEntry.stateArchivalSettings() = mStateArchivalSettings;
-    writeConfigSettingEntry(stateArchivalSettingsEntry, ltx);
+    writeConfigSettingEntry(stateArchivalSettingsEntry, ltx, app);
 
     writeBucketListSizeWindow(ltx);
     updateEvictionIterator(ltx, mEvictionIterator);

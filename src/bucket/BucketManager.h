@@ -80,6 +80,82 @@ struct MergeCounters
     bool operator==(MergeCounters const& other) const;
 };
 
+// Stores key that is eligible for eviction and the position of the eviction
+// iterator as if that key was the last entry evicted
+struct EvictionResultEntry
+{
+    LedgerKey key;
+    EvictionIterator iter;
+    uint32_t liveUntilLedger;
+
+    EvictionResultEntry(LedgerKey const& key, EvictionIterator const& iter,
+                        uint32_t liveUntilLedger)
+        : key(key), iter(iter), liveUntilLedger(liveUntilLedger)
+    {
+    }
+};
+
+struct EvictionResult
+{
+    // List of keys eligible for eviction in the order in which they occur in
+    // the bucket
+    std::list<EvictionResultEntry> eligibleKeys{};
+
+    // Eviction iterator at the end of the scan region
+    EvictionIterator endOfRegionIterator;
+
+    // LedgerSeq which this scan is based on
+    uint32_t initialLedger{};
+
+    // State archival settings that this scan is based on
+    StateArchivalSettings initialSas;
+
+    EvictionResult(StateArchivalSettings const& sas) : initialSas(sas)
+    {
+    }
+
+    // Returns true if this is a valid archival scan for the current ledger
+    // and archival settings. This is necessary because we start the scan
+    // for ledger N immediately after N - 1 closes. However, ledger N may
+    // contain a network upgrade changing eviction scan settings. Legacy SQL
+    // scans will run based on the changes that occurred during ledger N,
+    // meaning the scan we started at ledger N - 1 is invalid since it was based
+    // off of older settings.
+    bool isValid(uint32_t currLedger,
+                 StateArchivalSettings const& currSas) const;
+};
+
+struct EvictionCounters
+{
+    medida::Counter& entriesEvicted;
+    medida::Counter& bytesScannedForEviction;
+    medida::Counter& incompleteBucketScan;
+    medida::Counter& evictionCyclePeriod;
+    medida::Counter& averageEvictedEntryAge;
+
+    EvictionCounters(Application& app);
+};
+
+class EvictionStatistics
+{
+  private:
+    std::mutex mLock{};
+
+    // Only record metrics if we've seen a complete cycle to avoid noise
+    bool mCompleteCycle{false};
+    uint64_t mEvictedEntriesAgeSum{};
+    uint64_t mNumEntriesEvicted{};
+    uint32_t mEvictionCycleStartLedger{};
+
+  public:
+    // Evicted entry "age" is the delta between its liveUntilLedger and the
+    // ledger when the entry is actually evicted
+    void recordEvictedEntry(uint64_t age);
+
+    void submitMetricsAndRestartCycle(uint32_t currLedgerSeq,
+                                      EvictionCounters& counters);
+};
+
 /**
  * BucketManager is responsible for maintaining a collection of Buckets of
  * ledger entries (each sorted, de-duplicated and identified by hash) and,
@@ -212,8 +288,13 @@ class BucketManager : NonMovableOrCopyable
     // Scans BucketList for non-live entries to evict starting at the entry
     // pointed to by EvictionIterator. Scans until `maxEntriesToEvict` entries
     // have been evicted or maxEvictionScanSize bytes have been scanned.
-    virtual void scanForEvictionLegacySQL(AbstractLedgerTxn& ltx,
-                                          uint32_t ledgerSeq) = 0;
+    virtual void scanForEvictionLegacy(AbstractLedgerTxn& ltx,
+                                       uint32_t ledgerSeq) = 0;
+
+    virtual void startBackgroundEvictionScan(uint32_t ledgerSeq) = 0;
+    virtual void
+    resolveBackgroundEvictionScan(AbstractLedgerTxn& ltx, uint32_t ledgerSeq,
+                                  LedgerKeySet const& modifiedKeys) = 0;
 
     virtual medida::Meter& getBloomMissMeter() const = 0;
     virtual medida::Meter& getBloomLookupMeter() const = 0;

@@ -732,6 +732,14 @@ void
 SorobanTest::invokeArchivalOp(TransactionFrameBasePtr tx,
                               int64_t expectedRefundableFeeCharged)
 {
+    // When BucketListDB is enabled, we can only apply TXs by closing a ledger,
+    // so just invoke the TX and return without any additional checks
+    if (mApp->getConfig().isUsingBucketListDB())
+    {
+        invokeTx(tx);
+        return;
+    }
+
     REQUIRE(isTxValid(tx));
     int64_t initBalance = getRoot().getBalance();
 
@@ -988,16 +996,27 @@ SorobanTest::isTxValid(TransactionFrameBasePtr tx)
 bool
 SorobanTest::invokeTx(TransactionFrameBasePtr tx, TransactionMetaFrame* txMeta)
 {
-    LedgerTxn ltx(getApp().getLedgerTxnRoot());
     TransactionMetaFrame dummyMeta(getLedgerVersion());
     if (txMeta == nullptr)
     {
         txMeta = &dummyMeta;
     }
-    REQUIRE(tx->checkValid(getApp(), ltx, 0, 0, 0));
-    bool res = tx->apply(getApp(), ltx, *txMeta);
-    ltx.commit();
-    return res;
+
+    // When BucketListDB is enabled, we can only apply TXs by closing a ledger,
+    // so just invoke the TX and return without any additional checks
+    if (mApp->getConfig().isUsingBucketListDB())
+    {
+        closeLedger(*mApp, {tx});
+        return true;
+    }
+    else
+    {
+        LedgerTxn ltx(getApp().getLedgerTxnRoot());
+        REQUIRE(tx->checkValid(getApp(), ltx, 0, 0, 0));
+        bool res = tx->apply(getApp(), ltx, *txMeta);
+        ltx.commit();
+        return res;
+    }
 }
 
 uint32_t

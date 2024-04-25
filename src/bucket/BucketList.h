@@ -352,6 +352,7 @@ class AbstractLedgerTxn;
 class Application;
 class Bucket;
 class Config;
+class EvictionCounters;
 struct InflationWinner;
 
 namespace testutil
@@ -402,34 +403,9 @@ class BucketListDepth
     friend class testutil::BucketListDepthModifier;
 };
 
-struct EvictionStatistics
-{
-    // Evicted entry "age" is the delta between its liveUntilLedger and the
-    // ledger when the entry is actually evicted
-    uint64_t evictedEntriesAgeSum{};
-    uint64_t numEntriesEvicted{};
-    uint32_t evictionCycleStartLedger{};
-};
-
-struct EvictionCounters
-{
-    medida::Counter& entriesEvicted;
-    medida::Counter& bytesScannedForEviction;
-    medida::Counter& incompleteBucketScan;
-    medida::Counter& evictionCyclePeriod;
-    medida::Counter& averageEvictedEntryAge;
-
-    EvictionCounters(Application& app);
-};
-
 class BucketList
 {
     std::vector<BucketLevel> mLevels;
-
-    // To avoid noisy data, only count metrics that encompass a complete
-    // eviction cycle. If a node joins the network mid cycle, metrics will be
-    // nullopt and be initialized at the start of the next cycle.
-    std::optional<EvictionStatistics> mEvictionStatistics;
 
   public:
     // Number of bucket levels in the bucketlist. Every bucketlist in the system
@@ -486,9 +462,28 @@ class BucketList
     // of the concatenation of the hashes of the `curr` and `snap` buckets.
     Hash getHash() const;
 
-    void scanForEvictionLegacySQL(Application& app, AbstractLedgerTxn& ltx,
-                                  uint32_t ledgerSeq,
-                                  EvictionCounters& counters);
+    // Reset Eviction Iterator position if an incoming spill or upgrade has
+    // invalidated the previous position
+    static void updateStartingEvictionIterator(EvictionIterator& iter,
+                                               uint32_t firstScanLevel,
+                                               uint32_t ledgerSeq);
+
+    // Update eviction iter and record stats after scanning a region in one
+    // bucket. Returns true if scan has looped back to startIter, false
+    // otherwise.
+    static bool updateEvictionIterAndRecordStats(
+        EvictionIterator& iter, EvictionIterator startIter,
+        uint32_t configFirstScanLevel, uint32_t ledgerSeq,
+        std::shared_ptr<EvictionStatistics> stats, EvictionCounters& counters);
+
+    static void checkIfEvictionScanIsStuck(EvictionIterator const& evictionIter,
+                                           uint32_t scanSize,
+                                           std::shared_ptr<Bucket const> b,
+                                           EvictionCounters& counters);
+
+    void scanForEvictionLegacy(Application& app, AbstractLedgerTxn& ltx,
+                               uint32_t ledgerSeq, EvictionCounters& counters,
+                               std::shared_ptr<EvictionStatistics> stats);
 
     // Restart any merges that might be running on background worker threads,
     // merging buckets between levels. This needs to be called after forcing a

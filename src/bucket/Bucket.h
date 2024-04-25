@@ -38,6 +38,8 @@ namespace stellar
 class AbstractLedgerTxn;
 class Application;
 class BucketManager;
+class SearchableBucketListSnapshot;
+struct EvictionResultEntry;
 struct EvictionStatistics;
 
 class Bucket : public std::enable_shared_from_this<Bucket>,
@@ -130,12 +132,18 @@ class Bucket : public std::enable_shared_from_this<Bucket>,
     // after this function returns:
     // bytesToScan -= amount_bytes_scanned
     // maxEntriesToEvict -= entries_evicted
-    bool scanForEvictionLegacySQL(
-        AbstractLedgerTxn& ltx, EvictionIterator& iter, uint32_t& bytesToScan,
-        uint32_t& remainingEntriesToEvict, uint32_t ledgerSeq,
-        medida::Counter& entriesEvictedCounter,
-        medida::Counter& bytesScannedForEvictionCounter,
-        std::optional<EvictionStatistics>& stats) const;
+    bool scanForEvictionLegacy(AbstractLedgerTxn& ltx, EvictionIterator& iter,
+                               uint32_t& bytesToScan,
+                               uint32_t& remainingEntriesToEvict,
+                               uint32_t ledgerSeq,
+                               medida::Counter& entriesEvictedCounter,
+                               medida::Counter& bytesScannedForEvictionCounter,
+                               std::shared_ptr<EvictionStatistics> stats) const;
+
+    bool scanForEviction(EvictionIterator& iter, uint32_t& bytesToScan,
+                         uint32_t ledgerSeq,
+                         std::list<EvictionResultEntry>& evictableKeys,
+                         SearchableBucketListSnapshot& bl) const;
 
     // Create a fresh bucket from given vectors of init (created) and live
     // (updated) LedgerEntries, and dead LedgerEntryKeys. The bucket will

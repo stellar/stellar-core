@@ -78,10 +78,13 @@ class ApplicationImpl : public Application
     virtual StatusManager& getStatusManager() override;
 
     virtual asio::io_context& getWorkerIOContext() override;
+    virtual asio::io_context& getEvictionIOContext() override;
     virtual void postOnMainThread(std::function<void()>&& f, std::string&& name,
                                   Scheduler::ActionType type) override;
     virtual void postOnBackgroundThread(std::function<void()>&& f,
                                         std::string jobName) override;
+    virtual void postOnEvictionBackgroundThread(std::function<void()>&& f,
+                                                std::string jobName) override;
 
     virtual void start() override;
     void startServices();
@@ -142,7 +145,9 @@ class ApplicationImpl : public Application
     // subsystems.
 
     asio::io_context mWorkerIOContext;
+    std::optional<asio::io_context> mEvictionIOContext;
     std::unique_ptr<asio::io_context::work> mWork;
+    std::unique_ptr<asio::io_context::work> mEvictionWork;
 
     std::unique_ptr<BucketManager> mBucketManager;
     std::unique_ptr<Database> mDatabase;
@@ -187,6 +192,12 @@ class ApplicationImpl : public Application
 #endif
 
     std::vector<std::thread> mWorkerThreads;
+
+    // Unlike mWorkerThreads (which are low priority), eviction scans require a
+    // medium priority thread. In the future, this may become a more general
+    // higher-priority worker thread type, but for now we only need a single
+    // thread for eviction scans.
+    std::optional<std::thread> mEvictionThread;
 
     asio::signal_set mStopSignals;
 

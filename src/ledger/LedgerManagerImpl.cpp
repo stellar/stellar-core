@@ -975,6 +975,7 @@ LedgerManagerImpl::closeLedger(LedgerCloseData const& ledgerData)
         }
     }
     auto maybeNewVersion = ltx.loadHeader().current().ledgerVersion;
+    auto ledgerSeq = ltx.loadHeader().current().ledgerSeq;
     if (protocolVersionStartsFrom(maybeNewVersion, SOROBAN_PROTOCOL_VERSION))
     {
         updateNetworkConfig(ltx);
@@ -1009,7 +1010,7 @@ LedgerManagerImpl::closeLedger(LedgerCloseData const& ledgerData)
         }
     }
 
-    // The next 4 steps happen in a relatively non-obvious, subtle order.
+    // The next 5 steps happen in a relatively non-obvious, subtle order.
     // This is unfortunate and it would be nice if we could make it not
     // be so subtle, but for the time being this is where we are.
     //
@@ -1019,12 +1020,16 @@ LedgerManagerImpl::closeLedger(LedgerCloseData const& ledgerData)
     //
     // 2. Commit the current transaction.
     //
-    // 3. Start any queued checkpoint publishing, _after_ the commit so that
+    // 3. Start background eviction scan for the next ledger, _after_ the commit
+    //    so that it takes its snapshot of network setting from the
+    //    committed state.
+    //
+    // 4. Start any queued checkpoint publishing, _after_ the commit so that
     //    it takes its snapshot of history-rows from the committed state, but
     //    _before_ we GC any buckets (because this is the step where the
     //    bucket refcounts are incremented for the duration of the publish).
     //
-    // 4. GC unreferenced buckets. Only do this once publishes are in progress.
+    // 5. GC unreferenced buckets. Only do this once publishes are in progress.
 
     // step 1
     auto& hm = mApp.getHistoryManager();
@@ -1034,10 +1039,18 @@ LedgerManagerImpl::closeLedger(LedgerCloseData const& ledgerData)
     ltx.commit();
 
     // step 3
+    if (protocolVersionStartsFrom(initialLedgerVers,
+                                  SOROBAN_PROTOCOL_VERSION) &&
+        mApp.getConfig().EXPERIMENTAL_BACKGROUND_EVICTION_SCAN)
+    {
+        mApp.getBucketManager().startBackgroundEvictionScan(ledgerSeq + 1);
+    }
+
+    // step 4
     hm.publishQueuedHistory();
     hm.logAndUpdatePublishStatus();
 
-    // step 4
+    // step 5
     mApp.getBucketManager().forgetUnreferencedBuckets();
 
     if (!mApp.getConfig().OP_APPLY_SLEEP_TIME_WEIGHT_FOR_TESTING.empty())
@@ -1639,9 +1652,20 @@ LedgerManagerImpl::transferLedgerEntriesToBucketList(
         protocolVersionStartsFrom(initialLedgerVers, SOROBAN_PROTOCOL_VERSION))
     {
         {
+            auto keys = ltx.getAllTTLKeysWithoutSealing();
             LedgerTxn ltxEvictions(ltx);
-            mApp.getBucketManager().scanForEvictionLegacySQL(ltxEvictions,
-                                                             ledgerSeq);
+
+            if (mApp.getConfig().EXPERIMENTAL_BACKGROUND_EVICTION_SCAN)
+            {
+                mApp.getBucketManager().resolveBackgroundEvictionScan(
+                    ltxEvictions, ledgerSeq, keys);
+            }
+            else
+            {
+                mApp.getBucketManager().scanForEvictionLegacy(ltxEvictions,
+                                                              ledgerSeq);
+            }
+
             if (ledgerCloseMeta)
             {
                 ledgerCloseMeta->populateEvictedEntries(

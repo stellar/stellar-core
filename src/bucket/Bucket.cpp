@@ -9,6 +9,7 @@
 #include "bucket/Bucket.h"
 #include "bucket/BucketApplicator.h"
 #include "bucket/BucketList.h"
+#include "bucket/BucketListSnapshot.h"
 #include "bucket/BucketManager.h"
 #include "bucket/BucketOutputIterator.h"
 #include "bucket/LedgerCmp.h"
@@ -681,14 +682,17 @@ mergeCasesWithEqualKeys(MergeCounters& mc, BucketInputIterator& oi,
 }
 
 bool
-Bucket::scanForEvictionLegacySQL(
-    AbstractLedgerTxn& ltx, EvictionIterator& iter, uint32_t& bytesToScan,
-    uint32_t& remainingEntriesToEvict, uint32_t ledgerSeq,
-    medida::Counter& entriesEvictedCounter,
-    medida::Counter& bytesScannedForEvictionCounter,
-    std::optional<EvictionStatistics>& stats) const
+Bucket::scanForEvictionLegacy(AbstractLedgerTxn& ltx, EvictionIterator& iter,
+                              uint32_t& bytesToScan,
+                              uint32_t& remainingEntriesToEvict,
+                              uint32_t ledgerSeq,
+                              medida::Counter& entriesEvictedCounter,
+                              medida::Counter& bytesScannedForEvictionCounter,
+                              std::shared_ptr<EvictionStatistics> stats) const
 {
     ZoneScoped;
+    releaseAssert(stats);
+
     if (isEmpty() ||
         protocolVersionIsBefore(getBucketVersion(shared_from_this()),
                                 SOROBAN_PROTOCOL_VERSION))
@@ -720,13 +724,11 @@ Bucket::scanForEvictionLegacySQL(
                 auto ttlKey = getTTLKey(le);
                 uint32_t liveUntilLedger = 0;
                 auto shouldEvict = [&] {
-                    auto entryLtxe = ltx.loadWithoutRecord(LedgerEntryKey(le));
                     auto ttlLtxe = ltx.loadWithoutRecord(ttlKey);
-                    if (!entryLtxe)
+                    if (!ttlLtxe)
                     {
                         // Entry was already deleted either manually or by an
                         // earlier eviction scan, do nothing
-                        releaseAssert(!ttlLtxe);
                         return false;
                     }
 
@@ -739,12 +741,8 @@ Bucket::scanForEvictionLegacySQL(
                 if (shouldEvict())
                 {
                     ZoneNamedN(evict, "evict entry", true);
-                    if (stats.has_value())
-                    {
-                        ++stats->numEntriesEvicted;
-                        stats->evictedEntriesAgeSum +=
-                            ledgerSeq - liveUntilLedger;
-                    }
+                    auto age = ledgerSeq - liveUntilLedger;
+                    stats->recordEvictedEntry(age);
 
                     ltx.erase(ttlKey);
                     ltx.erase(LedgerEntryKey(le));

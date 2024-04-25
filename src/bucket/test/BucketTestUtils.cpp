@@ -118,9 +118,46 @@ LedgerManagerForBucketTests::transferLedgerEntriesToBucketList(
                                       SOROBAN_PROTOCOL_VERSION))
         {
             {
+                // LedgerManagerForBucketTests does not modify entries via the
+                // ltx subsystem, so replicate the behavior of
+                // ltx.getAllTTLKeysWithoutSealing() here
+                LedgerKeySet keys;
+                for (auto const& le : mTestInitEntries)
+                {
+                    if (le.data.type() == TTL)
+                    {
+                        keys.emplace(LedgerEntryKey(le));
+                    }
+                }
+
+                for (auto const& le : mTestLiveEntries)
+                {
+                    if (le.data.type() == TTL)
+                    {
+                        keys.emplace(LedgerEntryKey(le));
+                    }
+                }
+
+                for (auto const& key : mTestDeadEntries)
+                {
+                    if (key.type() == TTL)
+                    {
+                        keys.emplace(key);
+                    }
+                }
+
                 LedgerTxn ltxEvictions(ltx);
-                mApp.getBucketManager().scanForEvictionLegacySQL(ltxEvictions,
-                                                                 ledgerSeq);
+                if (mApp.getConfig().EXPERIMENTAL_BACKGROUND_EVICTION_SCAN)
+                {
+                    mApp.getBucketManager().resolveBackgroundEvictionScan(
+                        ltxEvictions, ledgerSeq, keys);
+                }
+                else
+                {
+                    mApp.getBucketManager().scanForEvictionLegacy(ltxEvictions,
+                                                                  ledgerSeq);
+                }
+
                 if (ledgerCloseMeta)
                 {
                     ledgerCloseMeta->populateEvictedEntries(
@@ -134,6 +171,17 @@ LedgerManagerForBucketTests::transferLedgerEntriesToBucketList(
         }
 
         ltx.getAllEntries(init, live, dead);
+
+        // Add dead entries from ltx to entries that will be added to BucketList
+        // so we can test background eviction properly
+        if (mApp.getConfig().EXPERIMENTAL_BACKGROUND_EVICTION_SCAN)
+        {
+            for (auto const& k : dead)
+            {
+                mTestDeadEntries.emplace_back(k);
+            }
+        }
+
         // Use the testing values.
         mApp.getBucketManager().addBatch(mApp, ledgerSeq, currLedgerVers,
                                          mTestInitEntries, mTestLiveEntries,

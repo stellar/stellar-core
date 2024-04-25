@@ -43,6 +43,39 @@
 namespace stellar
 {
 
+void
+EvictionStatistics::recordEvictedEntry(uint64_t age)
+{
+    std::lock_guard l(mLock);
+    ++mNumEntriesEvicted;
+    mEvictedEntriesAgeSum += age;
+}
+
+void
+EvictionStatistics::submitMetricsAndRestartCycle(uint32_t currLedgerSeq,
+                                                 EvictionCounters& counters)
+{
+    std::lock_guard l(mLock);
+
+    // Only record metrics if we've seen a complete cycle to avoid noise
+    if (mCompleteCycle)
+    {
+        counters.evictionCyclePeriod.set_count(currLedgerSeq -
+                                               mEvictionCycleStartLedger);
+
+        auto averageAge = mNumEntriesEvicted == 0
+                              ? 0
+                              : mEvictedEntriesAgeSum / mNumEntriesEvicted;
+        counters.averageEvictedEntryAge.set_count(averageAge);
+    }
+
+    // Reset to start new cycle
+    mCompleteCycle = true;
+    mEvictedEntriesAgeSum = 0;
+    mNumEntriesEvicted = 0;
+    mEvictionCycleStartLedger = currLedgerSeq;
+}
+
 std::unique_ptr<BucketManager>
 BucketManager::create(Application& app)
 {
@@ -113,6 +146,20 @@ BucketManagerImpl::getTmpDirManager()
     return *mTmpDirManager;
 }
 
+EvictionCounters::EvictionCounters(Application& app)
+    : entriesEvicted(app.getMetrics().NewCounter(
+          {"state-archival", "eviction", "entries-evicted"}))
+    , bytesScannedForEviction(app.getMetrics().NewCounter(
+          {"state-archival", "eviction", "bytes-scanned"}))
+    , incompleteBucketScan(app.getMetrics().NewCounter(
+          {"state-archival", "eviction", "incomplete-scan"}))
+    , evictionCyclePeriod(
+          app.getMetrics().NewCounter({"state-archival", "eviction", "period"}))
+    , averageEvictedEntryAge(
+          app.getMetrics().NewCounter({"state-archival", "eviction", "age"}))
+{
+}
+
 BucketManagerImpl::BucketManagerImpl(Application& app)
     : mApp(app)
     , mBucketList(nullptr)
@@ -133,6 +180,7 @@ BucketManagerImpl::BucketManagerImpl(Application& app)
     , mBucketListSizeCounter(
           app.getMetrics().NewCounter({"bucketlist", "size", "bytes"}))
     , mBucketListEvictionCounters(app)
+    , mEvictionStatistics(std::make_shared<EvictionStatistics>())
     // Minimal DB is stored in the buckets dir, so delete it only when
     // mode does not use minimal DB
     , mDeleteEntireBucketDirInDtor(
@@ -288,6 +336,19 @@ BucketManagerImpl::readMergeCounters()
 {
     std::lock_guard<std::recursive_mutex> lock(mBucketMutex);
     return mMergeCounters;
+}
+
+// Check that eviction scan is based off of current ledger snapshot and that
+// archival settings have not changed
+bool
+EvictionResult::isValid(uint32_t currLedger,
+                        StateArchivalSettings const& currSas) const
+{
+    return initialLedger == currLedger &&
+           initialSas.maxEntriesToArchive == currSas.maxEntriesToArchive &&
+           initialSas.evictionScanSize == currSas.evictionScanSize &&
+           initialSas.startingEvictionScanLevel ==
+               currSas.startingEvictionScanLevel;
 }
 
 MergeCounters&
@@ -915,16 +976,115 @@ BucketManagerImpl::maybeSetIndex(std::shared_ptr<Bucket> b,
 }
 
 void
-BucketManagerImpl::scanForEvictionLegacySQL(AbstractLedgerTxn& ltx,
-                                            uint32_t ledgerSeq)
+BucketManagerImpl::scanForEvictionLegacy(AbstractLedgerTxn& ltx,
+                                         uint32_t ledgerSeq)
 {
     ZoneScoped;
-    if (protocolVersionStartsFrom(ltx.getHeader().ledgerVersion,
-                                  SOROBAN_PROTOCOL_VERSION))
+    releaseAssert(protocolVersionStartsFrom(ltx.getHeader().ledgerVersion,
+                                            SOROBAN_PROTOCOL_VERSION));
+    mBucketList->scanForEvictionLegacy(
+        mApp, ltx, ledgerSeq, mBucketListEvictionCounters, mEvictionStatistics);
+}
+
+void
+BucketManagerImpl::startBackgroundEvictionScan(uint32_t ledgerSeq)
+{
+    releaseAssert(mApp.getConfig().isUsingBucketListDB());
+    releaseAssert(mSnapshotManager);
+    releaseAssert(!mEvictionFuture.valid());
+    releaseAssert(mEvictionStatistics);
+
+    auto searchableBL = mSnapshotManager->getSearchableBucketListSnapshot();
+    auto const& cfg = mApp.getLedgerManager().getSorobanNetworkConfig();
+    auto const& sas = cfg.stateArchivalSettings();
+
+    using task_t = std::packaged_task<EvictionResult()>;
+    auto task = std::make_shared<task_t>(
+        [bl = move(searchableBL), iter = cfg.evictionIterator(), ledgerSeq, sas,
+         &counters = mBucketListEvictionCounters, stats = mEvictionStatistics] {
+            return bl->scanForEviction(ledgerSeq, counters, iter, stats, sas);
+        });
+
+    mEvictionFuture = task->get_future();
+    mApp.postOnEvictionBackgroundThread(
+        bind(&task_t::operator(), task),
+        "SearchableBucketListSnapshot: eviction scan");
+}
+
+void
+BucketManagerImpl::resolveBackgroundEvictionScan(
+    AbstractLedgerTxn& ltx, uint32_t ledgerSeq,
+    LedgerKeySet const& modifiedKeys)
+{
+    ZoneScoped;
+    releaseAssert(threadIsMain());
+    releaseAssert(mEvictionStatistics);
+
+    if (!mEvictionFuture.valid())
     {
-        mBucketList->scanForEvictionLegacySQL(mApp, ltx, ledgerSeq,
-                                              mBucketListEvictionCounters);
+        startBackgroundEvictionScan(ledgerSeq);
     }
+
+    auto evictionCandidates = mEvictionFuture.get();
+
+    auto const& networkConfig =
+        mApp.getLedgerManager().getSorobanNetworkConfig();
+
+    // If eviction related settings changed during the ledger, we have to
+    // restart the scan
+    if (!evictionCandidates.isValid(ledgerSeq,
+                                    networkConfig.stateArchivalSettings()))
+    {
+        startBackgroundEvictionScan(ledgerSeq);
+        evictionCandidates = mEvictionFuture.get();
+    }
+
+    auto& eligibleKeys = evictionCandidates.eligibleKeys;
+
+    for (auto iter = eligibleKeys.begin(); iter != eligibleKeys.end();)
+    {
+        // If the TTL has not been modified this ledger, we can evict the entry
+        if (modifiedKeys.find(getTTLKey(iter->key)) == modifiedKeys.end())
+        {
+            ++iter;
+        }
+        else
+        {
+            iter = eligibleKeys.erase(iter);
+        }
+    }
+
+    auto remainingEntriesToEvict =
+        networkConfig.stateArchivalSettings().maxEntriesToArchive;
+    auto entryToEvictIter = eligibleKeys.begin();
+    auto newEvictionIterator = evictionCandidates.endOfRegionIterator;
+
+    // Only actually evict up to maxEntriesToArchive of the eligible entries
+    while (remainingEntriesToEvict > 0 &&
+           entryToEvictIter != eligibleKeys.end())
+    {
+        ltx.erase(entryToEvictIter->key);
+        ltx.erase(getTTLKey(entryToEvictIter->key));
+        --remainingEntriesToEvict;
+
+        auto age = ledgerSeq - entryToEvictIter->liveUntilLedger;
+        mEvictionStatistics->recordEvictedEntry(age);
+        mBucketListEvictionCounters.entriesEvicted.inc();
+
+        newEvictionIterator = entryToEvictIter->iter;
+        entryToEvictIter = eligibleKeys.erase(entryToEvictIter);
+    }
+
+    // If remainingEntriesToEvict == 0, that means we could not evict the entire
+    // scan region, so the new eviction iterator should be after the last entry
+    // evicted. Otherwise, eviction iterator should be at the end of the scan
+    // region
+    if (remainingEntriesToEvict != 0)
+    {
+        newEvictionIterator = evictionCandidates.endOfRegionIterator;
+    }
+
+    networkConfig.updateEvictionIterator(ltx, newEvictionIterator);
 }
 
 medida::Meter&

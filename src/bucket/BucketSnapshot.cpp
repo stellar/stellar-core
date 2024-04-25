@@ -135,6 +135,98 @@ BucketSnapshot::getPoolIDsByAsset(Asset const& asset) const
     return mBucket->getIndex().getPoolIDsByAsset(asset);
 }
 
+bool
+BucketSnapshot::scanForEviction(EvictionIterator& iter, uint32_t& bytesToScan,
+                                uint32_t ledgerSeq,
+                                std::list<EvictionResultEntry>& evictableKeys,
+                                SearchableBucketListSnapshot& bl) const
+{
+    ZoneScoped;
+    if (isEmpty() || protocolVersionIsBefore(Bucket::getBucketVersion(mBucket),
+                                             SOROBAN_PROTOCOL_VERSION))
+    {
+        // EOF, skip to next bucket
+        return false;
+    }
+
+    if (bytesToScan == 0)
+    {
+        // Reached end of scan region
+        return true;
+    }
+
+    std::list<EvictionResultEntry> maybeEvictQueue;
+    LedgerKeySet keysToSearch;
+
+    auto processQueue = [&]() {
+        auto loadResult =
+            populateLoadedEntries(keysToSearch, bl.loadKeys(keysToSearch));
+        for (auto& e : maybeEvictQueue)
+        {
+            // If TTL entry has not yet been deleted
+            if (auto ttl = loadResult.find(getTTLKey(e.key))->second;
+                ttl != nullptr)
+            {
+                // If TTL of entry is expired
+                if (!isLive(*ttl, ledgerSeq))
+                {
+                    // If entry is expired but not yet deleted, add it to
+                    // evictable keys
+                    e.liveUntilLedger = ttl->data.ttl().liveUntilLedgerSeq;
+                    evictableKeys.emplace_back(e);
+                }
+            }
+        }
+    };
+
+    // Open new stream for eviction scan to not interfere with BucketListDB load
+    // streams
+    XDRInputFileStream stream{};
+    stream.open(mBucket->getFilename());
+    stream.seek(iter.bucketFileOffset);
+    BucketEntry be;
+
+    // First, scan the bucket region and record all temp entry keys in
+    // maybeEvictQueue. After scanning, we will load all the TTL keys for these
+    // entries in a single bulk load to determine
+    //   1. If the entry is expired
+    //   2. If the entry has already been deleted/evicted
+    while (stream.readOne(be))
+    {
+        auto newPos = stream.pos();
+        auto bytesRead = newPos - iter.bucketFileOffset;
+        iter.bucketFileOffset = newPos;
+
+        if (be.type() == INITENTRY || be.type() == LIVEENTRY)
+        {
+            auto const& le = be.liveEntry();
+            if (isTemporaryEntry(le.data))
+            {
+                keysToSearch.emplace(getTTLKey(le));
+
+                // Set lifetime to 0 as default, will be updated after TTL keys
+                // loaded
+                maybeEvictQueue.emplace_back(
+                    EvictionResultEntry(LedgerEntryKey(le), iter, 0));
+            }
+        }
+
+        if (bytesRead >= bytesToScan)
+        {
+            // Reached end of scan region
+            bytesToScan = 0;
+            processQueue();
+            return true;
+        }
+
+        bytesToScan -= bytesRead;
+    }
+
+    // Hit eof
+    processQueue();
+    return false;
+}
+
 XDRInputFileStream&
 BucketSnapshot::getStream() const
 {

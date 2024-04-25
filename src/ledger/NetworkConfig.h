@@ -409,7 +409,7 @@ class SorobanNetworkConfig
     uint64_t mAverageBucketListSize{0};
 
 #ifdef BUILD_TESTS
-    void writeAllSettings(AbstractLedgerTxn& ltx) const;
+    void writeAllSettings(AbstractLedgerTxn& ltx, Application& app) const;
 #endif
 
     // Host cost params
