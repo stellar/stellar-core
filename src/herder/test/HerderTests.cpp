@@ -5862,7 +5862,7 @@ TEST_CASE("SCP message capture from previous ledger", "[herder]")
     // Initialize simulation
     auto networkID = sha256(getTestConfig().NETWORK_PASSPHRASE);
     auto simulation = std::make_shared<Simulation>(
-        Simulation::OVER_LOOPBACK, networkID, [version](int i) {
+        Simulation::OVER_LOOPBACK, networkID, [](int i) {
             auto cfg = getTestConfig(i, Config::TESTDB_ON_DISK_SQLITE);
             cfg.TESTING_UPGRADE_LEDGER_PROTOCOL_VERSION = version;
             return cfg;
