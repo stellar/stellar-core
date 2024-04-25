@@ -1195,6 +1195,18 @@ TransactionFrame::commonValidPreSeqNum(
             return false;
         }
     }
+    else
+    {
+        if (protocolVersionStartsFrom(ledgerVersion, ProtocolVersion::V_21))
+        {
+            if (mEnvelope.type() == ENVELOPE_TYPE_TX &&
+                mEnvelope.v1().tx.ext.v() != 0)
+            {
+                getResult().result.code(txMALFORMED);
+                return false;
+            }
+        }
+    }
 
     auto header = ltx.loadHeader();
     if (isTooEarly(header, lowerBoundCloseTimeOffset))
