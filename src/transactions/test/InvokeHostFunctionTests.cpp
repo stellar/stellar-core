@@ -4147,9 +4147,6 @@ TEST_CASE("Module cache", "[tx][soroban]")
     auto const& sumContract = test.deployWasmContract(sum_wasm);
     auto const& addContract = test.deployWasmContract(add_wasm);
 
-    auto const& sumWasmHash = sumContract.getKeys().front().contractCode().hash;
-    auto const& addWasmHash = addContract.getKeys().front().contractCode().hash;
-
     auto invocation = [&](int64_t instructions) -> bool {
         auto fnName = "sum";
         auto scVec = makeVecSCVal({makeI32(1), makeI32(2), makeI32(3),
