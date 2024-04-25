@@ -5,6 +5,7 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "overlay/StellarXDR.h"
+#include "util/GlobalChecks.h"
 #include <cereal/cereal.hpp>
 #include <future>
 #include <memory>
@@ -176,7 +177,7 @@ class FutureBucket
             ar(cereal::make_nvp("state", FB_CLEAR));
             break;
         default:
-            assert(false);
+            releaseAssert(false);
             break;
         }
     }
