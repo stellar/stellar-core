@@ -93,8 +93,8 @@ TEST_CASE("generate load with unique accounts", "[loadgen]")
 
 TEST_CASE("generate soroban load", "[loadgen][soroban]")
 {
-    auto const numDataEntries = 5;
-    auto const ioKiloBytes = 15;
+    uint32_t const numDataEntries = 5;
+    uint32_t const ioKiloBytes = 15;
 
     Hash networkID = sha256(getTestConfig().NETWORK_PASSPHRASE);
     Simulation::pointer simulation =
