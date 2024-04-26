@@ -18,6 +18,12 @@ TEST_CASE("advert queue", "[flood][pullmode][acceptance]")
     cfg.TESTING_UPGRADE_MAX_TX_SET_SIZE = 200;
     auto app = createTestApplication(clock, cfg);
     TxAdverts pullMode(*app);
+
+    bool flushed = false;
+    pullMode.start([&flushed](std::shared_ptr<StellarMessage const> msg) {
+        flushed = true;
+    });
+
     auto limit = app->getLedgerManager().getLastMaxTxSetSizeOps();
     auto getHash = [](auto i) { return sha256(std::to_string(i)); };
 
@@ -80,9 +86,11 @@ TEST_CASE("advert queue", "[flood][pullmode][acceptance]")
             REQUIRE(1 < TX_ADVERT_VECTOR_MAX_SIZE);
             REQUIRE(1 < pullMode.getMaxAdvertSize());
 
+            REQUIRE(!flushed);
             REQUIRE(pullMode.outgoingSize() == 1);
             testutil::crankFor(clock, std::chrono::seconds(1));
             REQUIRE(pullMode.outgoingSize() == 0);
+            REQUIRE(flushed);
         }
         SECTION("flush advert when at capacity")
         {
@@ -92,9 +100,14 @@ TEST_CASE("advert queue", "[flood][pullmode][acceptance]")
                 pullMode.queueOutgoingAdvert(getHash(i));
             }
 
+            REQUIRE(!flushed);
             REQUIRE(pullMode.outgoingSize() == maxAdvert - 1);
             pullMode.queueOutgoingAdvert(getHash(maxAdvert));
             REQUIRE(pullMode.outgoingSize() == 0);
+
+            // Move the clock forward to fire the callback
+            testutil::crankFor(clock, std::chrono::seconds(1));
+            REQUIRE(flushed);
         }
         SECTION("ensure outgoing queue is capped")
         {
