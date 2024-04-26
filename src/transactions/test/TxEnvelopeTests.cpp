@@ -2483,6 +2483,39 @@ TEST_CASE("soroban txs not allowed before protocol upgrade",
     REQUIRE(tx->getResult().result.code() == txMALFORMED);
 }
 
+TEST_CASE_VERSIONS("Soroban extension for non-Soroban tx",
+                   "[tx][envelope][soroban]")
+{
+    VirtualClock clock;
+    auto app = createTestApplication(clock, getTestConfig());
+
+    SorobanResources resources;
+    for_versions_from(20, *app, [&]() {
+        auto root = TestAccount::createRoot(*app);
+        Operation op;
+        op.body.type(PAYMENT);
+        auto& payment = op.body.paymentOp();
+        payment.amount = 1;
+        payment.destination = toMuxedAccount(root);
+        payment.asset.type(ASSET_TYPE_NATIVE);
+        auto tx = sorobanTransactionFrameFromOps(app->getNetworkID(), root,
+                                                 {op}, {}, resources, 100, 100);
+        LedgerTxn ltx(app->getLedgerTxnRoot());
+        if (protocolVersionStartsFrom(app->getLedgerManager()
+                                          .getLastClosedLedgerHeader()
+                                          .header.ledgerVersion,
+                                      ProtocolVersion::V_21))
+        {
+            REQUIRE(!tx->checkValid(*app, ltx, 0, 0, 0));
+            REQUIRE(tx->getResult().result.code() == txMALFORMED);
+        }
+        else
+        {
+            REQUIRE(tx->checkValid(*app, ltx, 0, 0, 0));
+        }
+    });
+}
+
 TEST_CASE("soroban transaction validation", "[tx][envelope][soroban]")
 {
     VirtualClock clock;

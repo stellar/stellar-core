@@ -1023,9 +1023,6 @@
     <ClCompile Include="..\..\src\overlay\test\TrackerTests.cpp">
       <Filter>overlay\tests</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\src\overlay\test\TxAdvertQueueTests.cpp">
-      <Filter>overlay\tests</Filter>
-    </ClCompile>
     <ClCompile Include="..\..\src\overlay\BanManagerImpl.cpp">
       <Filter>overlay</Filter>
     </ClCompile>
@@ -1078,9 +1075,6 @@
       <Filter>overlay</Filter>
     </ClCompile>
     <ClCompile Include="..\..\src\overlay\Tracker.cpp">
-      <Filter>overlay</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\src\overlay\TxAdvertQueue.cpp">
       <Filter>overlay</Filter>
     </ClCompile>
     <ClCompile Include="..\..\src\transactions\test\AllowTrustTests.cpp">
@@ -1334,6 +1328,18 @@
     </ClCompile>
     <ClCompile Include="..\..\src\bucket\BucketSnapshotManager.cpp">
       <Filter>bucket</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\overlay\test\TxAdvertsTests.cpp">
+      <Filter>overlay\tests</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\overlay\TxAdverts.cpp">
+      <Filter>overlay</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\overlay\OverlayAppConnector.cpp">
+      <Filter>overlay</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\overlay\TxDemandsManager.cpp">
+      <Filter>overlay</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
@@ -2162,9 +2168,6 @@
     <ClInclude Include="..\..\src\overlay\Tracker.h">
       <Filter>overlay</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\src\overlay\TxAdvertQueue.h">
-      <Filter>overlay</Filter>
-    </ClInclude>
     <ClInclude Include="..\..\src\transactions\test\SponsorshipTestUtils.h">
       <Filter>transactions\tests</Filter>
     </ClInclude>
@@ -2320,6 +2323,15 @@
     </ClInclude>
     <ClInclude Include="..\..\src\bucket\BucketSnapshotManager.h">
       <Filter>bucket</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\overlay\TxAdverts.h">
+      <Filter>overlay</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\overlay\OverlayAppConnector.h">
+      <Filter>overlay</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\overlay\TxDemandsManager.h">
+      <Filter>overlay</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>

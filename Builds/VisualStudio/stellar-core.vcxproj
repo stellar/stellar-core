@@ -603,6 +603,7 @@ exit /b 0
     <ClCompile Include="..\..\src\overlay\FlowControl.cpp" />
     <ClCompile Include="..\..\src\overlay\FlowControlCapacity.cpp" />
     <ClCompile Include="..\..\src\overlay\ItemFetcher.cpp" />
+    <ClCompile Include="..\..\src\overlay\OverlayAppConnector.cpp" />
     <ClCompile Include="..\..\src\overlay\OverlayManagerImpl.cpp" />
     <ClCompile Include="..\..\src\overlay\OverlayMetrics.cpp" />
     <ClCompile Include="..\..\src\overlay\Peer.cpp" />
@@ -627,9 +628,10 @@ exit /b 0
     <ClCompile Include="..\..\src\overlay\test\SurveyMessageLimiterTests.cpp" />
     <ClCompile Include="..\..\src\overlay\test\TCPPeerTests.cpp" />
     <ClCompile Include="..\..\src\overlay\test\TrackerTests.cpp" />
-    <ClCompile Include="..\..\src\overlay\test\TxAdvertQueueTests.cpp" />
+    <ClCompile Include="..\..\src\overlay\test\TxAdvertsTests.cpp" />
     <ClCompile Include="..\..\src\overlay\Tracker.cpp" />
-    <ClCompile Include="..\..\src\overlay\TxAdvertQueue.cpp" />
+    <ClCompile Include="..\..\src\overlay\TxAdverts.cpp" />
+    <ClCompile Include="..\..\src\overlay\TxDemandsManager.cpp" />
     <ClCompile Include="..\..\src\test\FuzzerImpl.cpp" />
     <ClCompile Include="..\..\src\transactions\AllowTrustOpFrame.cpp" />
     <ClCompile Include="..\..\src\transactions\BeginSponsoringFutureReservesOpFrame.cpp" />
@@ -1017,6 +1019,7 @@ exit /b 0
     <ClInclude Include="..\..\src\overlay\FlowControl.h" />
     <ClInclude Include="..\..\src\overlay\FlowControlCapacity.h" />
     <ClInclude Include="..\..\src\overlay\ItemFetcher.h" />
+    <ClInclude Include="..\..\src\overlay\OverlayAppConnector.h" />
     <ClInclude Include="..\..\src\overlay\OverlayManager.h" />
     <ClInclude Include="..\..\src\overlay\OverlayManagerImpl.h" />
     <ClInclude Include="..\..\src\overlay\OverlayMetrics.h" />
@@ -1034,7 +1037,8 @@ exit /b 0
     <ClInclude Include="..\..\src\overlay\test\LoopbackPeer.h" />
     <ClInclude Include="..\..\src\overlay\test\OverlayTestUtils.h" />
     <ClInclude Include="..\..\src\overlay\Tracker.h" />
-    <ClInclude Include="..\..\src\overlay\TxAdvertQueue.h" />
+    <ClInclude Include="..\..\src\overlay\TxAdverts.h" />
+    <ClInclude Include="..\..\src\overlay\TxDemandsManager.h" />
     <ClInclude Include="..\..\src\test\Fuzzer.h" />
     <ClInclude Include="..\..\src\test\FuzzerImpl.h" />
     <ClInclude Include="..\..\src\transactions\AllowTrustOpFrame.h" />
