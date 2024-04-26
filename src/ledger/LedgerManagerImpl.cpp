@@ -48,7 +48,6 @@
 
 #include "xdr/Stellar-ledger.h"
 #include "xdr/Stellar-transaction.h"
-#include "xdrpp/printer.h"
 #include "xdrpp/types.h"
 
 #include "medida/buckets.h"
@@ -836,7 +835,7 @@ LedgerManagerImpl::closeLedger(LedgerCloseData const& ledgerData)
                    ledgerAbbrev(getLastClosedLedgerHeader()));
 
         CLOG_ERROR(Ledger, "{}",
-                   xdr_to_string(getLastClosedLedgerHeader(), "Full LCL"));
+                   xdrToCerealString(getLastClosedLedgerHeader(), "Full LCL"));
         CLOG_ERROR(Ledger, "{}", POSSIBLY_CORRUPTED_LOCAL_DATA);
 
         throw std::runtime_error("txset mismatch");
@@ -935,7 +934,7 @@ LedgerManagerImpl::closeLedger(LedgerCloseData const& ledgerData)
         case Upgrades::UpgradeValidity::INVALID:
         {
             CLOG_ERROR(Ledger, "Invalid upgrade at index {}: {}", i,
-                       xdr_to_string(lupgrade, "LedgerUpgrade"));
+                       xdrToCerealString(lupgrade, "LedgerUpgrade"));
             continue;
         }
         }

@@ -662,8 +662,8 @@ CommandHandler::dumpProposedSettings(std::string const& params,
             return;
         }
 
-        retStr =
-            xdr_to_string(ptr->toXDR().updatedEntry, "ConfigSettingsEntries");
+        retStr = xdrToCerealString(ptr->toXDR().updatedEntry,
+                                   "ConfigSettingsEntries");
     }
     else
     {
@@ -865,7 +865,7 @@ CommandHandler::sorobanInfo(std::string const& params, std::string& retStr)
                 entries.emplace_back(entry.current().data.configSetting());
             }
 
-            retStr = xdr_to_string(entries, "ConfigSettingsEntries");
+            retStr = xdrToCerealString(entries, "ConfigSettingsEntries");
         }
         else
         {
@@ -1426,8 +1426,8 @@ CommandHandler::testTx(std::string const& params, std::string& retStr)
         root["status"] = TX_STATUS_STRING[static_cast<int>(status)];
         if (status == TransactionQueue::AddResult::ADD_STATUS_ERROR)
         {
-            root["detail"] = xdr_to_string(txFrame->getResult().result.code(),
-                                           "TransactionResultCode");
+            root["detail"] = xdrToCerealString(
+                txFrame->getResult().result.code(), "TransactionResultCode");
         }
     }
     else

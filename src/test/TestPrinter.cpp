@@ -14,9 +14,9 @@ std::string
 StringMaker<stellar::OfferState>::convert(stellar::OfferState const& os)
 {
     return fmt::format("{}, {}, {}, amount: {}, type: {}",
-                       xdr_to_string(os.selling, "selling"),
-                       xdr_to_string(os.buying, "buying"),
-                       xdr_to_string(os.price, "price"), os.amount,
+                       xdrToCerealString(os.selling, "selling"),
+                       xdrToCerealString(os.buying, "buying"),
+                       xdrToCerealString(os.price, "price"), os.amount,
                        os.type == stellar::OfferType::PASSIVE ? "passive"
                                                               : "active");
 }

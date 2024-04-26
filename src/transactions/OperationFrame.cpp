@@ -143,12 +143,12 @@ OperationFrame::apply(Application& app, SignatureChecker& signatureChecker,
 {
     ZoneScoped;
     bool res;
-    CLOG_TRACE(Tx, "{}", xdr_to_string(mOperation, "Operation"));
+    CLOG_TRACE(Tx, "{}", xdrToCerealString(mOperation, "Operation"));
     res = checkValid(app, signatureChecker, ltx, true);
     if (res)
     {
         res = doApply(app, ltx, sorobanBasePrngSeed);
-        CLOG_TRACE(Tx, "{}", xdr_to_string(mResult, "OperationResult"));
+        CLOG_TRACE(Tx, "{}", xdrToCerealString(mResult, "OperationResult"));
     }
 
     return res;

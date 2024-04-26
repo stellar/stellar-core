@@ -12,7 +12,6 @@
 #include "util/ProtocolVersion.h"
 #include "util/XDRCereal.h"
 #include "util/types.h"
-#include "xdrpp/printer.h"
 #include <fmt/format.h>
 
 namespace stellar
@@ -102,9 +101,10 @@ checkAuthorized(LedgerEntry const* current, LedgerEntry const* previous)
 
                 if (sellingLiabilitiesInc || buyingLiabilitiesInc)
                 {
-                    return fmt::format(FMT_STRING("Liabilities increased on "
-                                                  "unauthorized trust line {}"),
-                                       xdr_to_string(trust, "TrustLineEntry"));
+                    return fmt::format(
+                        FMT_STRING("Liabilities increased on "
+                                   "unauthorized trust line {}"),
+                        xdrToCerealString(trust, "TrustLineEntry"));
                 }
             }
             else
@@ -115,7 +115,7 @@ checkAuthorized(LedgerEntry const* current, LedgerEntry const* previous)
                     return fmt::format(
                         FMT_STRING(
                             "Unauthorized trust line has liabilities {}"),
-                        xdr_to_string(trust, "TrustLineEntry"));
+                        xdrToCerealString(trust, "TrustLineEntry"));
                 }
             }
         }
@@ -264,7 +264,7 @@ checkBalanceAndLimit(LedgerHeader const& header, LedgerEntry const* current,
                 return fmt::format(
                     FMT_STRING(
                         "Balance not compatible with liabilities for {}"),
-                    xdr_to_string(account, "AccountEntry"));
+                    xdrToCerealString(account, "AccountEntry"));
             }
         }
     }
@@ -282,7 +282,7 @@ checkBalanceAndLimit(LedgerHeader const& header, LedgerEntry const* current,
         {
             return fmt::format(
                 FMT_STRING("Balance not compatible with liabilities for {}"),
-                xdr_to_string(trust, "TrustLineEntry"));
+                xdrToCerealString(trust, "TrustLineEntry"));
         }
     }
     return {};
@@ -355,8 +355,8 @@ LiabilitiesMatchOffers::checkOnOperationApply(Operation const& operation,
                                    "change in total buying liabilities of "
                                    "offers by {:d} for {} in {}"),
                         assetLiabilities.second.buying,
-                        xdr_to_string(accLiabilities.first, "account"),
-                        xdr_to_string(assetLiabilities.first, "asset"));
+                        xdrToCerealString(accLiabilities.first, "account"),
+                        xdrToCerealString(assetLiabilities.first, "asset"));
                 }
                 else if (assetLiabilities.second.selling != 0)
                 {
@@ -366,8 +366,8 @@ LiabilitiesMatchOffers::checkOnOperationApply(Operation const& operation,
                             "change in total selling liabilities of "
                             "offers by {:d} for {} in {}"),
                         assetLiabilities.second.selling,
-                        xdr_to_string(accLiabilities.first, "account"),
-                        xdr_to_string(assetLiabilities.first, "asset"));
+                        xdrToCerealString(accLiabilities.first, "account"),
+                        xdrToCerealString(assetLiabilities.first, "asset"));
                 }
             }
         }

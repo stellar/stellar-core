@@ -33,7 +33,7 @@ checkAgainstDatabase(AbstractLedgerTxn& ltx, LedgerEntry const& entry)
     {
         std::string s{
             "Inconsistent state between objects (not found in database): "};
-        s += xdr_to_string(entry, "live");
+        s += xdrToCerealString(entry, "live");
         return s;
     }
 
@@ -44,8 +44,8 @@ checkAgainstDatabase(AbstractLedgerTxn& ltx, LedgerEntry const& entry)
     else
     {
         std::string s{"Inconsistent state between objects: "};
-        s += xdr_to_string(fromDb.current(), "db");
-        s += xdr_to_string(entry, "live");
+        s += xdrToCerealString(fromDb.current(), "db");
+        s += xdrToCerealString(entry, "live");
         return s;
     }
 }
@@ -60,7 +60,7 @@ checkAgainstDatabase(AbstractLedgerTxn& ltx, LedgerKey const& key)
     }
 
     std::string s = "Entry with type DEADENTRY found in database ";
-    s += xdr_to_string(fromDb.current(), "db");
+    s += xdrToCerealString(fromDb.current(), "db");
     return s;
 }
 
@@ -275,8 +275,8 @@ BucketListIsConsistentWithDatabase::checkOnBucketApply(
             if (hasPreviousEntry && !BucketEntryIdCmp{}(previousEntry, e))
             {
                 std::string s = "Bucket has out of order entries: ";
-                s += xdr_to_string(previousEntry, "previous");
-                s += xdr_to_string(e, "current");
+                s += xdrToCerealString(previousEntry, "previous");
+                s += xdrToCerealString(e, "current");
                 return s;
             }
             previousEntry = e;
@@ -290,7 +290,7 @@ BucketListIsConsistentWithDatabase::checkOnBucketApply(
                         FMT_STRING("lastModifiedLedgerSeq beneath lower"
                                    " bound for this bucket ({:d} < {:d}): "),
                         e.liveEntry().lastModifiedLedgerSeq, oldestLedger);
-                    s += xdr_to_string(e.liveEntry(), "live");
+                    s += xdrToCerealString(e.liveEntry(), "live");
                     return s;
                 }
                 if (e.liveEntry().lastModifiedLedgerSeq > newestLedger)
@@ -299,7 +299,7 @@ BucketListIsConsistentWithDatabase::checkOnBucketApply(
                         FMT_STRING("lastModifiedLedgerSeq above upper"
                                    " bound for this bucket ({:d} > {:d}): "),
                         e.liveEntry().lastModifiedLedgerSeq, newestLedger);
-                    s += xdr_to_string(e.liveEntry(), "live");
+                    s += xdrToCerealString(e.liveEntry(), "live");
                     return s;
                 }
 

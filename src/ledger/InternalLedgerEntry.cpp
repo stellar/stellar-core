@@ -407,20 +407,22 @@ InternalLedgerKey::toString() const
     switch (mType)
     {
     case InternalLedgerEntryType::LEDGER_ENTRY:
-        return xdr_to_string(ledgerKey(), "LedgerKey");
+        return xdrToCerealString(ledgerKey(), "LedgerKey");
 
     case InternalLedgerEntryType::SPONSORSHIP:
         return fmt::format(
             FMT_STRING("{{\n  {}\n}}\n"),
-            xdr_to_string(sponsorshipKey().sponsoredID, "sponsoredID"));
+            xdrToCerealString(sponsorshipKey().sponsoredID, "sponsoredID"));
     case InternalLedgerEntryType::SPONSORSHIP_COUNTER:
-        return fmt::format(FMT_STRING("{{\n  {}\n}}\n"),
-                           xdr_to_string(sponsorshipCounterKey().sponsoringID,
-                                         "sponsoringID"));
+        return fmt::format(
+            FMT_STRING("{{\n  {}\n}}\n"),
+            xdrToCerealString(sponsorshipCounterKey().sponsoringID,
+                              "sponsoringID"));
     case InternalLedgerEntryType::MAX_SEQ_NUM_TO_APPLY:
-        return fmt::format(FMT_STRING("{{\n  {}\n}}\n"),
-                           xdr_to_string(maxSeqNumToApplyKey().sourceAccount,
-                                         "sourceAccount"));
+        return fmt::format(
+            FMT_STRING("{{\n  {}\n}}\n"),
+            xdrToCerealString(maxSeqNumToApplyKey().sourceAccount,
+                              "sourceAccount"));
     default:
         abort();
     }
@@ -732,22 +734,24 @@ InternalLedgerEntry::toString() const
     switch (mType)
     {
     case InternalLedgerEntryType::LEDGER_ENTRY:
-        return xdr_to_string(ledgerEntry(), "LedgerEntry");
+        return xdrToCerealString(ledgerEntry(), "LedgerEntry");
     case InternalLedgerEntryType::SPONSORSHIP:
         return fmt::format(
             FMT_STRING("{{\n  {},\n  {}\n}}\n"),
-            xdr_to_string(sponsorshipEntry().sponsoredID, "sponsoredID"),
-            xdr_to_string(sponsorshipEntry().sponsoringID, "sponsoringID"));
+            xdrToCerealString(sponsorshipEntry().sponsoredID, "sponsoredID"),
+            xdrToCerealString(sponsorshipEntry().sponsoringID, "sponsoringID"));
     case InternalLedgerEntryType::SPONSORSHIP_COUNTER:
-        return fmt::format(FMT_STRING("{{\n  {},\n  numSponsoring = {}\n}}\n"),
-                           xdr_to_string(sponsorshipCounterEntry().sponsoringID,
-                                         "sponsoringID"),
-                           sponsorshipCounterEntry().numSponsoring);
+        return fmt::format(
+            FMT_STRING("{{\n  {},\n  numSponsoring = {}\n}}\n"),
+            xdrToCerealString(sponsorshipCounterEntry().sponsoringID,
+                              "sponsoringID"),
+            sponsorshipCounterEntry().numSponsoring);
     case InternalLedgerEntryType::MAX_SEQ_NUM_TO_APPLY:
-        return fmt::format(FMT_STRING("{{\n  {},\n  maxSeqNum = {}\n}}\n"),
-                           xdr_to_string(maxSeqNumToApplyEntry().sourceAccount,
-                                         "sourceAccount"),
-                           maxSeqNumToApplyEntry().maxSeqNum);
+        return fmt::format(
+            FMT_STRING("{{\n  {},\n  maxSeqNum = {}\n}}\n"),
+            xdrToCerealString(maxSeqNumToApplyEntry().sourceAccount,
+                              "sourceAccount"),
+            maxSeqNumToApplyEntry().maxSeqNum);
     default:
         abort();
     }
