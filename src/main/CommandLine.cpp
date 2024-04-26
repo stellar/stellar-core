@@ -12,6 +12,7 @@
 #include "catchup/CatchupConfiguration.h"
 #include "catchup/CatchupRange.h"
 #include "catchup/ReplayDebugMetaWork.h"
+#include "crypto/SHA.h"
 #include "herder/Herder.h"
 #include "history/HistoryArchiveManager.h"
 #include "historywork/BatchDownloadWork.h"
