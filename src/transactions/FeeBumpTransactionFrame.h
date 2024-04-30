@@ -53,12 +53,23 @@ class FeeBumpTransactionFrame : public TransactionFrameBase
     FeeBumpTransactionFrame(Hash const& networkID,
                             TransactionEnvelope const& envelope,
                             TransactionFramePtr innerTx);
+
+    TransactionEnvelope& getEnvelope() override;
+    void clearCached() override;
+    TransactionFrame& toTransactionFrame() override;
+    TransactionFrame const& toTransactionFrame() const override;
+
+    bool
+    isTestTx() const override
+    {
+        return false;
+    }
 #endif
 
     virtual ~FeeBumpTransactionFrame(){};
 
     bool apply(Application& app, AbstractLedgerTxn& ltx,
-               TransactionMetaFrame& meta,
+               TransactionMetaFrame& meta, TransactionResultPayload& resPayload,
                Hash const& sorobanBasePrngSeed) override;
 
     void processPostApply(Application& app, AbstractLedgerTxn& ltx,
@@ -72,6 +83,7 @@ class FeeBumpTransactionFrame : public TransactionFrameBase
                                          TransactionResult& txResult) override;
 
     TransactionEnvelope const& getEnvelope() const override;
+    FeeBumpTransactionFrame const& toFeeBumpTransactionFrame() const override;
 
     int64_t getFullFee() const override;
     int64_t getInclusionFee() const override;

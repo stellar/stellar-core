@@ -239,7 +239,7 @@ doInflation(Application& app, int ledgerVersion, int nbAccounts,
 
     // verify balances
     InflationResult const& infResult =
-        getFirstResult(*txFrame).tr().inflationResult();
+        getFirstResult(txFrame).tr().inflationResult();
     auto const& payouts = infResult.payouts();
     size_t actualChanges = 0;
 

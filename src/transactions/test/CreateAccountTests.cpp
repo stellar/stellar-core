@@ -21,7 +21,7 @@ using namespace stellar;
 using namespace stellar::txtest;
 
 static CreateAccountResultCode
-getCreateAccountResultCode(TransactionFrameBasePtr& tx, size_t i)
+getCreateAccountResultCode(TransactionTestFramePtr tx, size_t i)
 {
     auto const& opRes = tx->getResult().result.results()[i];
     return opRes.tr().createAccountResult().code();

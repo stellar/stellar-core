@@ -34,7 +34,7 @@ using namespace stellar::txtest;
 
 namespace
 {
-TransactionFrameBasePtr
+TransactionTestFramePtr
 transaction(Application& app, TestAccount& account, int64_t sequenceDelta,
             int64_t amount, uint32_t fee, int nbOps = 1, bool isSoroban = false)
 {
@@ -61,7 +61,7 @@ transaction(Application& app, TestAccount& account, int64_t sequenceDelta,
     }
 }
 
-TransactionFramePtr
+TransactionTestFramePtr
 invalidTransaction(Application& app, TestAccount& account, int sequenceDelta)
 {
     return transactionFromOperations(

@@ -1533,7 +1533,8 @@ LedgerManagerImpl::applyTransactions(
         }
         ++txNum;
 
-        tx->apply(mApp, ltx, tm, subSeed);
+        TransactionResultPayload payload;
+        tx->apply(mApp, ltx, tm, payload, subSeed);
         tx->processPostApply(mApp, ltx, tm);
         TransactionResultPair results;
         results.transactionHash = tx->getContentsHash();

@@ -276,13 +276,13 @@ class LoadGenerator
     // re-submit. Any other code points to a loadgen misconfigurations, as
     // transactions must have valid (pre-generated) source accounts,
     // sufficient balances etc.
-    TransactionQueue::AddResult execute(TransactionFramePtr& txf,
+    TransactionQueue::AddResult execute(TransactionTestFramePtr& txf,
                                         LoadGenMode mode,
                                         TransactionResultCode& code);
-    TransactionFramePtr
-    createTransactionFramePtr(TestAccountPtr from, std::vector<Operation> ops,
-                              LoadGenMode mode,
-                              std::optional<uint32_t> maxGeneratedFeeRate);
+    TransactionTestFramePtr
+    createTransactionTestFramePtr(TestAccountPtr from,
+                                  std::vector<Operation> ops, LoadGenMode mode,
+                                  std::optional<uint32_t> maxGeneratedFeeRate);
 
     static const uint32_t STEP_MSECS;
     static const uint32_t TX_SUBMIT_MAX_TRIES;
@@ -372,39 +372,39 @@ class LoadGenerator
                     uint64_t sourceAccountId);
     TestAccountPtr findAccount(uint64_t accountId, uint32_t ledgerNum);
 
-    std::pair<TestAccountPtr, TransactionFramePtr>
+    std::pair<TestAccountPtr, TransactionTestFramePtr>
     paymentTransaction(uint32_t numAccounts, uint32_t offset,
                        uint32_t ledgerNum, uint64_t sourceAccount,
                        uint32_t opCount,
                        std::optional<uint32_t> maxGeneratedFeeRate);
-    std::pair<TestAccountPtr, TransactionFramePtr>
+    std::pair<TestAccountPtr, TransactionTestFramePtr>
     pretendTransaction(uint32_t numAccounts, uint32_t offset,
                        uint32_t ledgerNum, uint64_t sourceAccount,
                        uint32_t opCount,
                        std::optional<uint32_t> maxGeneratedFeeRate);
-    std::pair<LoadGenerator::TestAccountPtr, TransactionFramePtr>
+    std::pair<LoadGenerator::TestAccountPtr, TransactionTestFramePtr>
     manageOfferTransaction(uint32_t ledgerNum, uint64_t accountId,
                            uint32_t opCount,
                            std::optional<uint32_t> maxGeneratedFeeRate);
-    std::pair<LoadGenerator::TestAccountPtr, TransactionFramePtr>
+    std::pair<LoadGenerator::TestAccountPtr, TransactionTestFramePtr>
     createUploadWasmTransaction(uint32_t ledgerNum, uint64_t accountId,
                                 GeneratedLoadConfig const& cfg);
-    std::pair<LoadGenerator::TestAccountPtr, TransactionFramePtr>
+    std::pair<LoadGenerator::TestAccountPtr, TransactionTestFramePtr>
     createContractTransaction(uint32_t ledgerNum, uint64_t accountId,
                               GeneratedLoadConfig const& cfg);
-    std::pair<LoadGenerator::TestAccountPtr, TransactionFramePtr>
+    std::pair<LoadGenerator::TestAccountPtr, TransactionTestFramePtr>
     invokeSorobanLoadTransaction(uint32_t ledgerNum, uint64_t accountId,
                                  GeneratedLoadConfig const& cfg);
-    std::pair<LoadGenerator::TestAccountPtr, TransactionFramePtr>
+    std::pair<LoadGenerator::TestAccountPtr, TransactionTestFramePtr>
     invokeSorobanCreateUpgradeTransaction(uint32_t ledgerNum,
                                           uint64_t accountId,
                                           GeneratedLoadConfig const& cfg);
-    std::pair<LoadGenerator::TestAccountPtr, TransactionFramePtr>
+    std::pair<LoadGenerator::TestAccountPtr, TransactionTestFramePtr>
     sorobanRandomWasmTransaction(uint32_t ledgerNum, uint64_t accountId,
                                  uint32_t inclusionFee);
 
     // Create a transaction in MIXED_CLASSIC_SOROBAN mode
-    std::pair<LoadGenerator::TestAccountPtr, TransactionFramePtr>
+    std::pair<LoadGenerator::TestAccountPtr, TransactionTestFramePtr>
     createMixedClassicSorobanTransaction(uint32_t ledgerNum,
                                          uint64_t sourceAccountId,
                                          GeneratedLoadConfig const& cfg);
@@ -412,11 +412,11 @@ class LoadGenerator
     // distribution. Returns a pair containing the appropriate resources for a
     // wasm of that size as well as the size itself.
     std::pair<SorobanResources, uint32_t> sorobanRandomUploadResources();
-    void maybeHandleFailedTx(TransactionFramePtr tx,
+    void maybeHandleFailedTx(TransactionTestFramePtr tx,
                              TestAccountPtr sourceAccount,
                              TransactionQueue::AddResult status,
                              TransactionResultCode code);
-    std::pair<TestAccountPtr, TransactionFramePtr>
+    std::pair<TestAccountPtr, TransactionTestFramePtr>
     creationTransaction(uint64_t startAccount, uint64_t numItems,
                         uint32_t ledgerNum);
     void logProgress(std::chrono::nanoseconds submitTimer,
@@ -426,7 +426,7 @@ class LoadGenerator
                               uint32_t ledgerNum);
     bool submitTx(GeneratedLoadConfig const& cfg,
                   std::function<std::pair<LoadGenerator::TestAccountPtr,
-                                          TransactionFramePtr>()>
+                                          TransactionTestFramePtr>()>
                       generateTx);
     void waitTillComplete(GeneratedLoadConfig cfg);
     void waitTillCompleteWithoutChecks();

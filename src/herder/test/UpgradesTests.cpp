@@ -2418,7 +2418,7 @@ TEST_CASE_VERSIONS("upgrade base reserve", "[upgrades]")
                                   std::bind(executeUpgrade, 2 * baseReserve));
         });
 
-        auto submitTx = [&](TransactionFrameBasePtr tx) {
+        auto submitTx = [&](TransactionTestFramePtr tx) {
             LedgerTxn ltx(app->getLedgerTxnRoot());
             TransactionMetaFrame txm(ltx.loadHeader().current().ledgerVersion);
             REQUIRE(tx->checkValid(*app, ltx, 0, 0, 0));

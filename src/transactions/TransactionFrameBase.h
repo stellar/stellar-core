@@ -22,6 +22,9 @@ class AbstractLedgerTxn;
 class Application;
 class Database;
 class OperationFrame;
+class TransactionFrame;
+class FeeBumpTransactionFrame;
+class TransactionResultPayload;
 
 class TransactionFrameBase;
 using TransactionFrameBasePtr = std::shared_ptr<TransactionFrameBase>;
@@ -37,6 +40,7 @@ class TransactionFrameBase
 
     virtual bool apply(Application& app, AbstractLedgerTxn& ltx,
                        TransactionMetaFrame& meta,
+                       TransactionResultPayload& resPayload,
                        Hash const& sorobanBasePrngSeed = Hash{}) = 0;
 
     virtual bool checkValid(Application& app, AbstractLedgerTxn& ltxOuter,
@@ -48,6 +52,18 @@ class TransactionFrameBase
                                     TransactionResult& txResult) = 0;
 
     virtual TransactionEnvelope const& getEnvelope() const = 0;
+
+#ifdef BUILD_TESTS
+    virtual TransactionEnvelope& getEnvelope() = 0;
+    virtual void clearCached() = 0;
+    virtual TransactionFrame& toTransactionFrame() = 0;
+    virtual TransactionFrame const& toTransactionFrame() const = 0;
+    virtual bool isTestTx() const = 0;
+#endif
+
+    // Protected Cast
+    virtual FeeBumpTransactionFrame const&
+    toFeeBumpTransactionFrame() const = 0;
 
     // Returns the total fee of this transaction, including the 'flat',
     // non-market part.

@@ -93,13 +93,13 @@ getOperations(TransactionEnvelope& env)
 
 #ifdef BUILD_TESTS
 xdr::xvector<DecoratedSignature, 20>&
-getSignatures(TransactionFramePtr tx)
+getSignatures(TransactionTestFramePtr tx)
 {
     return getSignatures(tx->getEnvelope());
 }
 
 void
-setSeqNum(TransactionFramePtr tx, int64_t seq)
+setSeqNum(TransactionTestFramePtr tx, int64_t seq)
 {
     auto& env = tx->getEnvelope();
     int64_t& s = env.type() == ENVELOPE_TYPE_TX_V0 ? env.v0().tx.seqNum
@@ -108,7 +108,7 @@ setSeqNum(TransactionFramePtr tx, int64_t seq)
 }
 
 void
-setFullFee(TransactionFramePtr tx, uint32_t totalFee)
+setFullFee(TransactionTestFramePtr tx, uint32_t totalFee)
 {
     auto& env = tx->getEnvelope();
     uint32_t& f =
@@ -117,7 +117,7 @@ setFullFee(TransactionFramePtr tx, uint32_t totalFee)
 }
 
 void
-setSorobanFees(TransactionFramePtr tx, uint32_t totalFee, int64 resourceFee)
+setSorobanFees(TransactionTestFramePtr tx, uint32_t totalFee, int64 resourceFee)
 {
     setFullFee(tx, totalFee);
     auto& env = tx->getEnvelope();
@@ -126,7 +126,7 @@ setSorobanFees(TransactionFramePtr tx, uint32_t totalFee, int64 resourceFee)
 }
 
 void
-setMemo(TransactionFramePtr tx, Memo memo)
+setMemo(TransactionTestFramePtr tx, Memo memo)
 {
     auto& env = tx->getEnvelope();
     Memo& m =
@@ -135,7 +135,7 @@ setMemo(TransactionFramePtr tx, Memo memo)
 }
 
 void
-setMinTime(TransactionFramePtr tx, TimePoint minTime)
+setMinTime(TransactionTestFramePtr tx, TimePoint minTime)
 {
     auto& env = tx->getEnvelope();
     if (env.type() == ENVELOPE_TYPE_TX_V0)
@@ -160,7 +160,7 @@ setMinTime(TransactionFramePtr tx, TimePoint minTime)
 }
 
 void
-setMaxTime(TransactionFramePtr tx, TimePoint maxTime)
+setMaxTime(TransactionTestFramePtr tx, TimePoint maxTime)
 {
     auto& env = tx->getEnvelope();
     if (env.type() == ENVELOPE_TYPE_TX_V0)

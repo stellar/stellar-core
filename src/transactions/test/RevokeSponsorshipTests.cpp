@@ -17,7 +17,7 @@ using namespace stellar;
 using namespace stellar::txtest;
 
 static RevokeSponsorshipResultCode
-getRevokeSponsorshipResultCode(TransactionFrameBasePtr& tx, size_t i)
+getRevokeSponsorshipResultCode(TransactionTestFramePtr tx, size_t i)
 {
     auto const& opRes = tx->getResult().result.results()[i];
     return opRes.tr().revokeSponsorshipResult().code();

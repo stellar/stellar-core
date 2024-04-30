@@ -940,6 +940,14 @@ class FuzzTransactionFrame : public TransactionFrame
             throw std::runtime_error("Internal error while fuzzing");
         }
     }
+
+    std::vector<std::shared_ptr<OperationFrame>> const&
+    getOperations() const
+    {
+        // this can only be used on an initialized TransactionFrame
+        releaseAssert(mOperations.empty());
+        return mOperations;
+    }
 };
 
 std::shared_ptr<FuzzTransactionFrame>

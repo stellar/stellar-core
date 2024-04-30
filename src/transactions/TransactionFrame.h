@@ -45,6 +45,31 @@ class SHA256;
 class TransactionFrame;
 using TransactionFramePtr = std::shared_ptr<TransactionFrame>;
 
+// TODO: Make private inner struct of TransactionResult
+struct SorobanData
+{
+    xdr::xvector<ContractEvent> mEvents;
+    xdr::xvector<DiagnosticEvent> mDiagnosticEvents;
+    SCVal mReturnValue;
+    // Size of the emitted Soroban events.
+    uint32_t mConsumedContractEventsSizeBytes{};
+    int64_t mFeeRefund{};
+    int64_t mConsumedNonRefundableFee{};
+    int64_t mConsumedRentFee{};
+    int64_t mConsumedRefundableFee{};
+    SorobanData()
+    {
+    }
+};
+
+// TODO: Make proper class
+class TransactionResultPayload
+{
+  public:
+    TransactionResult result;
+    std::optional<SorobanData> sorobanExtension;
+};
+
 class TransactionFrame : public TransactionFrameBase
 {
   private:
@@ -54,21 +79,6 @@ class TransactionFrame : public TransactionFrameBase
     TransactionEnvelope mEnvelope;
     TransactionResult mResult;
 
-    struct SorobanData
-    {
-        xdr::xvector<ContractEvent> mEvents;
-        xdr::xvector<DiagnosticEvent> mDiagnosticEvents;
-        SCVal mReturnValue;
-        // Size of the emitted Soroban events.
-        uint32_t mConsumedContractEventsSizeBytes{};
-        int64_t mFeeRefund{};
-        int64_t mConsumedNonRefundableFee{};
-        int64_t mConsumedRentFee{};
-        int64_t mConsumedRefundableFee{};
-        SorobanData()
-        {
-        }
-    };
     std::optional<SorobanData> mSorobanExtension;
 
     std::shared_ptr<InternalLedgerEntry const> mCachedAccount;
@@ -172,19 +182,8 @@ class TransactionFrame : public TransactionFrameBase
     {
     }
 
-    // clear pre-computed hashes
-    void clearCached();
-
     Hash const& getFullHash() const override;
     Hash const& getContentsHash() const override;
-
-    std::vector<std::shared_ptr<OperationFrame>> const&
-    getOperations() const
-    {
-        // this can only be used on an initialized TransactionFrame
-        releaseAssert(!mOperations.empty());
-        return mOperations;
-    }
 
     TransactionResult const&
     getResult() const
@@ -221,7 +220,22 @@ class TransactionFrame : public TransactionFrameBase
     xdr::xvector<DiagnosticEvent> const& getDiagnosticEvents() const override;
 
     TransactionEnvelope const& getEnvelope() const override;
+
+#ifdef BUILD_TESTS
     TransactionEnvelope& getEnvelope();
+    void clearCached() override;
+    TransactionFrame& toTransactionFrame() override;
+    TransactionFrame const& toTransactionFrame() const override;
+
+    bool
+    isTestTx() const override
+    {
+        return false;
+    }
+#endif
+
+    [[noreturn]] FeeBumpTransactionFrame const&
+    toFeeBumpTransactionFrame() const override;
 
     SequenceNumber getSeqNum() const override;
 
@@ -239,9 +253,6 @@ class TransactionFrame : public TransactionFrameBase
     virtual int64_t getFee(LedgerHeader const& header,
                            std::optional<int64_t> baseFee,
                            bool applying) const override;
-
-    void addSignature(SecretKey const& secretKey);
-    void addSignature(DecoratedSignature const& signature);
 
     bool checkSignature(SignatureChecker& signatureChecker,
                         LedgerTxnEntry const& account, int32_t neededWeight);
@@ -275,10 +286,10 @@ class TransactionFrame : public TransactionFrameBase
     // apply this transaction to the current ledger
     // returns true if successfully applied
     bool apply(Application& app, AbstractLedgerTxn& ltx,
-               TransactionMetaFrame& meta, bool chargeFee,
-               Hash const& sorobanBasePrngSeed);
+               TransactionMetaFrame& meta, TransactionResultPayload& resPayload,
+               bool chargeFee, Hash const& sorobanBasePrngSeed);
     bool apply(Application& app, AbstractLedgerTxn& ltx,
-               TransactionMetaFrame& meta,
+               TransactionMetaFrame& meta, TransactionResultPayload& resPayload,
                Hash const& sorobanBasePrngSeed = Hash{}) override;
 
     // Performs the necessary post-apply transaction processing.
@@ -297,6 +308,7 @@ class TransactionFrame : public TransactionFrameBase
 
     // version without meta
     bool apply(Application& app, AbstractLedgerTxn& ltx,
+               TransactionResultPayload& resPayload,
                Hash const& sorobanBasePrngSeed);
 
     std::shared_ptr<StellarMessage const> toStellarMessage() const override;
@@ -326,5 +338,110 @@ class TransactionFrame : public TransactionFrameBase
         SorobanNetworkConfig const& sorobanConfig, Config const& cfg);
     virtual int64 declaredSorobanResourceFee() const override;
     virtual bool XDRProvidesValidFee() const override;
+
+    friend class TransactionTestFrame;
 };
+
+#ifdef BUILD_TESTS
+class TransactionTestFrame;
+using TransactionTestFramePtr = std::shared_ptr<TransactionTestFrame>;
+
+class TransactionTestFrame : public TransactionFrameBase
+{
+  private:
+    // TODO: Make const
+    TransactionFrameBasePtr mTransactionFrame;
+    TransactionResultPayload mTransactionResultPayload;
+
+    TransactionTestFrame(TransactionFrameBasePtr tx);
+
+  public:
+    static TransactionTestFramePtr fromTxFrame(TransactionFrameBasePtr txFrame);
+
+    // Test only functions
+    bool apply(Application& app, AbstractLedgerTxn& ltx,
+               TransactionMetaFrame& meta,
+               Hash const& sorobanBasePrngSeed = Hash{});
+
+    void addSignature(SecretKey const& secretKey);
+    void addSignature(DecoratedSignature const& signature);
+
+    std::vector<std::shared_ptr<OperationFrame>> const& getOperations() const;
+
+    // Redefinitions of TransactionFrameBase functions
+    bool apply(Application& app, AbstractLedgerTxn& ltx,
+               TransactionMetaFrame& meta, TransactionResultPayload& resPayload,
+               Hash const& sorobanBasePrngSeed = Hash{}) override;
+
+    bool checkValid(Application& app, AbstractLedgerTxn& ltxOuter,
+                    SequenceNumber current, uint64_t lowerBoundCloseTimeOffset,
+                    uint64_t upperBoundCloseTimeOffset) override;
+    bool checkSorobanResourceAndSetError(Application& app,
+                                         uint32_t ledgerVersion,
+                                         TransactionResult& txResult) override;
+
+    TransactionEnvelope const& getEnvelope() const override;
+    TransactionEnvelope& getEnvelope() override;
+
+    // clear pre-computed hashes
+    void clearCached() override;
+
+    TransactionFrame& toTransactionFrame() override;
+    TransactionFrame const& toTransactionFrame() const override;
+    FeeBumpTransactionFrame const& toFeeBumpTransactionFrame() const override;
+
+    // Returns the total fee of this transaction, including the 'flat',
+    // non-market part.
+    int64_t getFullFee() const override;
+    // Returns the part of the full fee used to make decisions as to
+    // whether this transaction should be included into ledger.
+    int64_t getInclusionFee() const override;
+    int64_t getFee(LedgerHeader const& header, std::optional<int64_t> baseFee,
+                   bool applying) const override;
+
+    Hash const& getContentsHash() const override;
+    Hash const& getFullHash() const override;
+
+    uint32_t getNumOperations() const override;
+    Resource getResources(bool useByteLimitInClassic) const override;
+
+    std::vector<Operation> const& getRawOperations() const override;
+
+    TransactionResult& getResult() override;
+    TransactionResultCode getResultCode() const override;
+
+    SequenceNumber getSeqNum() const override;
+    AccountID getFeeSourceID() const override;
+    AccountID getSourceID() const override;
+    std::optional<SequenceNumber const> const getMinSeqNum() const override;
+    Duration getMinSeqAge() const override;
+    uint32 getMinSeqLedgerGap() const override;
+
+    void
+    insertKeysForFeeProcessing(UnorderedSet<LedgerKey>& keys) const override;
+    void insertKeysForTxApply(UnorderedSet<LedgerKey>& keys) const override;
+
+    void processFeeSeqNum(AbstractLedgerTxn& ltx,
+                          std::optional<int64_t> baseFee) override;
+
+    void processPostApply(Application& app, AbstractLedgerTxn& ltx,
+                          TransactionMetaFrame& meta) override;
+
+    StellarMessage toStellarMessage() const override;
+
+    bool hasDexOperations() const override;
+
+    bool isSoroban() const override;
+    SorobanResources const& sorobanResources() const override;
+    xdr::xvector<DiagnosticEvent> const& getDiagnosticEvents() const override;
+    int64 declaredSorobanResourceFee() const override;
+    bool XDRProvidesValidFee() const override;
+
+    bool
+    isTestTx() const override
+    {
+        return true;
+    }
+};
+#endif
 }

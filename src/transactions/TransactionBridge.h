@@ -12,6 +12,11 @@ namespace stellar
 class TransactionFrame;
 typedef std::shared_ptr<TransactionFrame> TransactionFramePtr;
 
+#ifdef BUILD_TESTS
+class TransactionTestFrame;
+typedef std::shared_ptr<TransactionTestFrame> TransactionTestFramePtr;
+#endif
+
 namespace txbridge
 {
 
@@ -24,21 +29,21 @@ xdr::xvector<Operation, MAX_OPS_PER_TX>&
 getOperations(TransactionEnvelope& env);
 
 #ifdef BUILD_TESTS
-xdr::xvector<DecoratedSignature, 20>& getSignatures(TransactionFramePtr tx);
+xdr::xvector<DecoratedSignature, 20>& getSignatures(TransactionTestFramePtr tx);
 
-void setSeqNum(TransactionFramePtr tx, int64_t seq);
+void setSeqNum(TransactionTestFramePtr tx, int64_t seq);
 
-void setFullFee(TransactionFramePtr tx, uint32_t fee);
+void setFullFee(TransactionTestFramePtr tx, uint32_t fee);
 
 // only works on Soroban tx
-void setSorobanFees(TransactionFramePtr tx, uint32_t totalFee,
+void setSorobanFees(TransactionTestFramePtr tx, uint32_t totalFee,
                     int64 resourceFee);
 
-void setMemo(TransactionFramePtr tx, Memo memo);
+void setMemo(TransactionTestFramePtr tx, Memo memo);
 
-void setMinTime(TransactionFramePtr tx, TimePoint minTime);
+void setMinTime(TransactionTestFramePtr tx, TimePoint minTime);
 
-void setMaxTime(TransactionFramePtr tx, TimePoint maxTime);
+void setMaxTime(TransactionTestFramePtr tx, TimePoint maxTime);
 #endif
 }
 }

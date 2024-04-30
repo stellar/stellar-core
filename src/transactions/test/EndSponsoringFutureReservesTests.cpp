@@ -17,14 +17,14 @@ using namespace stellar;
 using namespace stellar::txtest;
 
 static OperationResultCode
-getOperationResultCode(TransactionFrameBasePtr& tx, size_t i)
+getOperationResultCode(TransactionTestFramePtr tx, size_t i)
 {
     auto const& opRes = tx->getResult().result.results()[i];
     return opRes.code();
 }
 
 static EndSponsoringFutureReservesResultCode
-getEndSponsoringFutureReservesResultCode(TransactionFrameBasePtr& tx, size_t i)
+getEndSponsoringFutureReservesResultCode(TransactionTestFramePtr tx, size_t i)
 {
     auto const& opRes = tx->getResult().result.results()[i];
     return opRes.tr().endSponsoringFutureReservesResult().code();

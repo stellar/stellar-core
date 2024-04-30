@@ -103,7 +103,7 @@ TestAccount::exists() const
     return doesAccountExist(mApp, getPublicKey());
 }
 
-TransactionFramePtr
+TransactionTestFramePtr
 TestAccount::tx(std::vector<Operation> const& ops, SequenceNumber sn)
 {
     if (sn == 0)
@@ -531,7 +531,7 @@ TestAccount::pay(PublicKey const& destination, Asset const& sendCur,
 
     REQUIRE(!noIssuer);
 
-    return getFirstResult(*transaction).tr().pathPaymentStrictReceiveResult();
+    return getFirstResult(transaction).tr().pathPaymentStrictReceiveResult();
 }
 
 PathPaymentStrictSendResult
@@ -561,7 +561,7 @@ TestAccount::pathPaymentStrictSend(PublicKey const& destination,
 
     REQUIRE(!noIssuer);
 
-    return getFirstResult(*transaction).tr().pathPaymentStrictSendResult();
+    return getFirstResult(transaction).tr().pathPaymentStrictSendResult();
 }
 
 void

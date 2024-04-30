@@ -18,7 +18,7 @@ using namespace stellar;
 using namespace stellar::txtest;
 
 static OperationResult
-getOperationResult(TransactionFrameBasePtr& tx, size_t i)
+getOperationResult(TransactionTestFramePtr tx, size_t i)
 {
     return tx->getResult().result.results()[i];
 }

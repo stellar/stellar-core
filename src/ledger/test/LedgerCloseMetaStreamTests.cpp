@@ -653,7 +653,9 @@ TEST_CASE_VERSIONS("meta stream contains reasonable meta", "[ledgerclosemeta]")
                 // or later), we re-wrap the final tx in a fee-bump from
                 // acc2.
                 auto tx = txs.back();
-                txs.back() = feeBump(*app, acc2, tx, 5000);
+                txs.back() = feeBump(
+                    *app, acc2,
+                    std::static_pointer_cast<TransactionTestFrame>(tx), 5000);
             }
             closeLedger(*app, txs);
 

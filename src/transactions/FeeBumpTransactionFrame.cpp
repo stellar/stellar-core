@@ -110,6 +110,7 @@ updateResult(TransactionResult& outerRes, TransactionFrameBasePtr innerTx)
 bool
 FeeBumpTransactionFrame::apply(Application& app, AbstractLedgerTxn& ltx,
                                TransactionMetaFrame& meta,
+                               TransactionResultPayload& resPayload,
                                Hash const& sorobanBasePrngSeed)
 {
     try
@@ -133,7 +134,8 @@ FeeBumpTransactionFrame::apply(Application& app, AbstractLedgerTxn& ltx,
 
     try
     {
-        bool res = mInnerTx->apply(app, ltx, meta, false, sorobanBasePrngSeed);
+        bool res = mInnerTx->apply(app, ltx, meta, resPayload, false,
+                                   sorobanBasePrngSeed);
         // If this throws, then we may not have the correct TransactionResult so
         // we must crash.
         // Note that even after updateResult is called here, feeCharged will not
@@ -348,6 +350,41 @@ TransactionEnvelope const&
 FeeBumpTransactionFrame::getEnvelope() const
 {
     return mEnvelope;
+}
+
+#ifdef BUILD_TESTS
+TransactionEnvelope&
+FeeBumpTransactionFrame::getEnvelope()
+{
+    return mEnvelope;
+}
+
+void
+FeeBumpTransactionFrame::clearCached()
+{
+    Hash zero;
+    mContentsHash = zero;
+    mFullHash = zero;
+    mInnerTx->clearCached();
+}
+
+TransactionFrame&
+FeeBumpTransactionFrame::toTransactionFrame()
+{
+    return *mInnerTx;
+}
+
+TransactionFrame const&
+FeeBumpTransactionFrame::toTransactionFrame() const
+{
+    return *mInnerTx;
+}
+#endif
+
+FeeBumpTransactionFrame const&
+FeeBumpTransactionFrame::toFeeBumpTransactionFrame() const
+{
+    return *this;
 }
 
 int64_t

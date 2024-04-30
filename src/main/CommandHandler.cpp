@@ -1530,7 +1530,7 @@ CommandHandler::testTx(std::string const& params, std::string& retStr)
         root["to_id"] = KeyUtils::toStrKey(toAccount.getPublicKey());
         root["amount"] = (Json::UInt64)paymentAmount;
 
-        TransactionFramePtr txFrame;
+        TransactionTestFramePtr txFrame;
         if (create != retMap.end() && create->second == "true")
         {
             txFrame = fromAccount.tx({createAccount(toAccount, paymentAmount)});

@@ -118,7 +118,7 @@ expectedResult(int64_t fee, size_t opsCount, TransactionResultCode code,
 }
 
 bool
-applyCheck(TransactionFramePtr tx, Application& app, bool checkSeqNum)
+applyCheck(TransactionTestFramePtr tx, Application& app, bool checkSeqNum)
 {
     // Close the ledger here to advance ledgerSeq
     closeLedger(app);
@@ -132,8 +132,9 @@ applyCheck(TransactionFramePtr tx, Application& app, bool checkSeqNum)
     TransactionResultCode code;
     AccountEntry srcAccountBefore;
 
-    auto checkedTx = TransactionFrameBase::makeTransactionFromWire(
+    auto rawTxFrame = TransactionFrameBase::makeTransactionFromWire(
         app.getNetworkID(), tx->getEnvelope());
+    auto checkedTx = TransactionTestFrame::fromTxFrame(rawTxFrame);
     bool checkedTxApplyRes = false;
     {
         LedgerTxn ltxFeeProc(ltx);
@@ -373,7 +374,7 @@ applyCheck(TransactionFramePtr tx, Application& app, bool checkSeqNum)
 }
 
 void
-checkTransaction(TransactionFrame& txFrame, Application& app)
+checkTransaction(TransactionTestFrame& txFrame, Application& app)
 {
     REQUIRE(txFrame.getResult().feeCharged ==
             app.getLedgerManager().getLastTxFee());
@@ -382,7 +383,7 @@ checkTransaction(TransactionFrame& txFrame, Application& app)
 }
 
 void
-applyTx(TransactionFramePtr const& tx, Application& app, bool checkSeqNum)
+applyTx(TransactionTestFramePtr const& tx, Application& app, bool checkSeqNum)
 {
     // We cannot commit directly to the DB if running BucketListDB, so close a
     // ledger with the TX instead
@@ -411,14 +412,15 @@ applyTx(TransactionFramePtr const& tx, Application& app, bool checkSeqNum)
 }
 
 void
-validateTxResults(TransactionFramePtr const& tx, Application& app,
+validateTxResults(TransactionTestFramePtr const& tx, Application& app,
                   ValidationResult validationResult,
                   TransactionResult const& applyResult)
 {
     auto shouldValidateOk = validationResult.code == txSUCCESS;
 
-    auto checkedTx = TransactionFrameBase::makeTransactionFromWire(
-        app.getNetworkID(), tx->getEnvelope());
+    auto checkedTx = TransactionTestFrame::fromTxFrame(
+        TransactionFrameBase::makeTransactionFromWire(app.getNetworkID(),
+                                                      tx->getEnvelope()));
     {
         LedgerTxn ltx(app.getLedgerTxnRoot());
         REQUIRE(checkedTx->checkValid(app, ltx, 0, 0, 0) == shouldValidateOk);
@@ -620,7 +622,7 @@ getAccountSigners(PublicKey const& k, Application& app)
     return account.current().data.account().signers;
 }
 
-TransactionFramePtr
+TransactionTestFramePtr
 transactionFromOperationsV0(Application& app, SecretKey const& from,
                             SequenceNumber seq,
                             const std::vector<Operation>& ops, uint32_t fee)
@@ -636,13 +638,13 @@ transactionFromOperationsV0(Application& app, SecretKey const& from,
     std::copy(std::begin(ops), std::end(ops),
               std::back_inserter(e.v0().tx.operations));
 
-    auto res = std::static_pointer_cast<TransactionFrame>(
+    auto res = TransactionTestFrame::fromTxFrame(
         TransactionFrameBase::makeTransactionFromWire(app.getNetworkID(), e));
     res->addSignature(from);
     return res;
 }
 
-TransactionFramePtr
+TransactionTestFramePtr
 transactionFromOperationsV1(Application& app, SecretKey const& from,
                             SequenceNumber seq,
                             const std::vector<Operation>& ops, uint32_t fee,
@@ -665,13 +667,13 @@ transactionFromOperationsV1(Application& app, SecretKey const& from,
         e.v1().tx.cond.v2() = *cond;
     }
 
-    auto res = std::static_pointer_cast<TransactionFrame>(
+    auto res = TransactionTestFrame::fromTxFrame(
         TransactionFrameBase::makeTransactionFromWire(app.getNetworkID(), e));
     res->addSignature(from);
     return res;
 }
 
-TransactionFramePtr
+TransactionTestFramePtr
 transactionFromOperations(Application& app, SecretKey const& from,
                           SequenceNumber seq, const std::vector<Operation>& ops,
                           uint32_t fee)
@@ -688,7 +690,7 @@ transactionFromOperations(Application& app, SecretKey const& from,
     return transactionFromOperationsV1(app, from, seq, ops, fee);
 }
 
-TransactionFramePtr
+TransactionTestFramePtr
 transactionWithV2Precondition(Application& app, TestAccount& account,
                               int64_t sequenceDelta, uint32_t fee,
                               PreconditionsV2 const& cond)
@@ -698,8 +700,8 @@ transactionWithV2Precondition(Application& app, TestAccount& account,
         {payment(account.getPublicKey(), 1)}, fee, cond);
 }
 
-TransactionFrameBasePtr
-feeBump(Application& app, TestAccount& feeSource, TransactionFrameBasePtr tx,
+TransactionTestFramePtr
+feeBump(Application& app, TestAccount& feeSource, TransactionTestFramePtr tx,
         int64_t fee, bool useInclusionAsFullFee)
 {
     REQUIRE(tx->getEnvelope().type() == ENVELOPE_TYPE_TX);
@@ -719,8 +721,9 @@ feeBump(Application& app, TestAccount& feeSource, TransactionFrameBasePtr tx,
     auto hash = sha256(xdr::xdr_to_opaque(
         app.getNetworkID(), ENVELOPE_TYPE_TX_FEE_BUMP, fb.feeBump().tx));
     fb.feeBump().signatures.emplace_back(SignatureUtils::sign(feeSource, hash));
-    return TransactionFrameBase::makeTransactionFromWire(app.getNetworkID(),
-                                                         fb);
+    auto ret =
+        TransactionFrameBase::makeTransactionFromWire(app.getNetworkID(), fb);
+    return TransactionTestFrame::fromTxFrame(ret);
 }
 
 Operation
@@ -797,14 +800,14 @@ payment(PublicKey const& to, Asset const& asset, int64_t amount)
     return op;
 }
 
-TransactionFramePtr
+TransactionTestFramePtr
 createPaymentTx(Application& app, SecretKey const& from, PublicKey const& to,
                 SequenceNumber seq, int64_t amount)
 {
     return transactionFromOperations(app, from, seq, {payment(to, amount)});
 }
 
-TransactionFramePtr
+TransactionTestFramePtr
 createCreditPaymentTx(Application& app, SecretKey const& from,
                       PublicKey const& to, Asset const& asset,
                       SequenceNumber seq, int64_t amount)
@@ -813,7 +816,7 @@ createCreditPaymentTx(Application& app, SecretKey const& from,
     return transactionFromOperations(app, from, seq, {op});
 }
 
-TransactionFramePtr
+TransactionTestFramePtr
 createSimpleDexTx(Application& app, TestAccount& account, uint32 nbOps,
                   uint32_t fee)
 {
@@ -863,7 +866,7 @@ createUploadWasmOperation(uint32_t generatedWasmSize)
     return uploadOp;
 }
 
-TransactionFramePtr
+TransactionTestFramePtr
 createUploadWasmTx(Application& app, TestAccount& account,
                    uint32_t inclusionFee, int64_t resourceFee,
                    SorobanResources resources, std::optional<std::string> memo,
@@ -891,10 +894,9 @@ createUploadWasmTx(Application& app, TestAccount& account,
         ops.emplace_back(uploadOp);
     }
 
-    auto tx = sorobanTransactionFrameFromOps(app.getNetworkID(), account, ops,
-                                             {}, resources, inclusionFee,
-                                             resourceFee, memo, seq);
-    return std::dynamic_pointer_cast<TransactionFrame>(tx);
+    return sorobanTransactionFrameFromOps(app.getNetworkID(), account, ops, {},
+                                          resources, inclusionFee, resourceFee,
+                                          memo, seq);
 }
 
 int64_t
@@ -1595,19 +1597,19 @@ liquidityPoolWithdraw(PoolID const& poolID, int64_t amount, int64_t minAmountA,
 }
 
 OperationFrame const&
-getFirstOperationFrame(TransactionFrame const& tx)
+getFirstOperationFrame(TransactionTestFramePtr tx)
 {
-    return *(tx.getOperations()[0]);
+    return *(tx->getOperations()[0]);
 }
 
 OperationResult const&
-getFirstResult(TransactionFrame const& tx)
+getFirstResult(TransactionTestFramePtr tx)
 {
     return getFirstOperationFrame(tx).getResult();
 }
 
 OperationResultCode
-getFirstResultCode(TransactionFrame const& tx)
+getFirstResultCode(TransactionTestFramePtr tx)
 {
     return getFirstOperationFrame(tx).getResultCode();
 }
@@ -1691,17 +1693,18 @@ sorobanEnvelopeFromOps(Hash const& networkID, TestAccount& source,
     return tx;
 }
 
-TransactionFrameBasePtr
+TransactionTestFramePtr
 transactionFrameFromOps(Hash const& networkID, TestAccount& source,
                         std::vector<Operation> const& ops,
                         std::vector<SecretKey> const& opKeys,
                         std::optional<PreconditionsV2> cond)
 {
-    return TransactionFrameBase::makeTransactionFromWire(
+    auto tx = TransactionFrameBase::makeTransactionFromWire(
         networkID, envelopeFromOps(networkID, source, ops, opKeys, cond));
+    return TransactionTestFrame::fromTxFrame(tx);
 }
 
-TransactionFrameBasePtr
+TransactionTestFramePtr
 sorobanTransactionFrameFromOps(Hash const& networkID, TestAccount& source,
                                std::vector<Operation> const& ops,
                                std::vector<SecretKey> const& opKeys,
@@ -1713,23 +1716,25 @@ sorobanTransactionFrameFromOps(Hash const& networkID, TestAccount& source,
     uint64 totalFee = inclusionFee;
     totalFee += resourceFee;
     releaseAssert(totalFee >= 0 && totalFee <= UINT32_MAX);
-    return TransactionFrameBase::makeTransactionFromWire(
+    auto tx = TransactionFrameBase::makeTransactionFromWire(
         networkID, sorobanEnvelopeFromOps(
                        networkID, source, ops, opKeys, resources,
                        static_cast<uint32>(totalFee), resourceFee, memo, seq));
+    return TransactionTestFrame::fromTxFrame(tx);
 }
 
-TransactionFrameBasePtr
+TransactionTestFramePtr
 sorobanTransactionFrameFromOpsWithTotalFee(
     Hash const& networkID, TestAccount& source,
     std::vector<Operation> const& ops, std::vector<SecretKey> const& opKeys,
     SorobanResources const& resources, uint32_t totalFee, int64_t resourceFee,
     std::optional<std::string> memo)
 {
-    return TransactionFrameBase::makeTransactionFromWire(
+    auto tx = TransactionFrameBase::makeTransactionFromWire(
         networkID,
         sorobanEnvelopeFromOps(networkID, source, ops, opKeys, resources,
                                totalFee, resourceFee, memo, std::nullopt));
+    return TransactionTestFrame::fromTxFrame(tx);
 }
 
 LedgerUpgrade

@@ -86,7 +86,7 @@ TEST_CASE_VERSIONS("standalone", "[herder][acceptance]")
         {
             VirtualTimer setupTimer(*app);
 
-            auto feedTx = [&](TransactionFramePtr& tx,
+            auto feedTx = [&](TransactionTestFramePtr tx,
                               TransactionQueue::AddResult expectedRes) {
                 REQUIRE(app->getHerder().recvTransaction(tx, false) ==
                         expectedRes);
@@ -145,7 +145,7 @@ TEST_CASE_VERSIONS("standalone", "[herder][acceptance]")
                         ProtocolVersion::V_10);
                 }
 
-                std::vector<TransactionFramePtr> txAs, txBs, txCs;
+                std::vector<TransactionTestFramePtr> txAs, txBs, txCs;
                 txAs.emplace_back(a1.tx({payment(root, paymentAmount)}));
                 txAs.emplace_back(b1.tx({payment(root, paymentAmount)}));
                 if (hasC)
@@ -257,7 +257,7 @@ TEST_CASE_VERSIONS("standalone", "[herder][acceptance]")
     });
 }
 
-static TransactionFramePtr
+static TransactionTestFramePtr
 makeMultiPayment(stellar::TestAccount& destAccount, stellar::TestAccount& src,
                  int nbOps, int64 paymentBase, uint32 extraFee, uint32 feeMult)
 {
@@ -274,7 +274,7 @@ makeMultiPayment(stellar::TestAccount& destAccount, stellar::TestAccount& src,
     return tx;
 }
 
-static TransactionFramePtr
+static TransactionTestFramePtr
 makeSelfPayment(stellar::TestAccount& account, int nbOps, uint32_t fee)
 {
     std::vector<stellar::Operation> ops;
@@ -376,7 +376,7 @@ testTxSet(uint32 protocolVersion)
         }
         SECTION("bad signature")
         {
-            auto tx = std::static_pointer_cast<TransactionFrame>(txs[0]);
+            auto tx = std::static_pointer_cast<TransactionTestFrame>(txs[0]);
             setMaxTime(tx, UINT64_MAX);
             tx->clearCached();
             TxSetTransactions removed;
@@ -388,7 +388,7 @@ testTxSet(uint32 protocolVersion)
     }
 }
 
-static TransactionFrameBasePtr
+static TransactionTestFramePtr
 transaction(Application& app, TestAccount& account, int64_t sequenceDelta,
             int64_t amount, uint32_t fee)
 {
@@ -1414,7 +1414,7 @@ TEST_CASE("surge pricing", "[herder][txset][soroban]")
 
         SECTION("invalid soroban is rejected")
         {
-            TransactionFramePtr invalidSoroban;
+            TransactionTestFramePtr invalidSoroban;
             SECTION("invalid fee")
             {
                 // Fee too small

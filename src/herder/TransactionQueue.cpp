@@ -218,9 +218,8 @@ isDuplicateTx(TransactionFrameBasePtr oldTx, TransactionFrameBasePtr newTx)
     }
     else if (oldEnv.type() == ENVELOPE_TYPE_TX_FEE_BUMP)
     {
-        auto oldFeeBump =
-            std::static_pointer_cast<FeeBumpTransactionFrame>(oldTx);
-        return oldFeeBump->getInnerFullHash() == newTx->getFullHash();
+        auto const& oldFeeBump = oldTx->toFeeBumpTransactionFrame();
+        return oldFeeBump.getInnerFullHash() == newTx->getFullHash();
     }
     return false;
 }

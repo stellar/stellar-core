@@ -405,8 +405,7 @@ TEST_CASE("basic contract invocation", "[tx][soroban]")
         int64_t initBalance = test.getRoot().getBalance();
         auto invocation = contract.prepareInvocation(functionName, args, spec,
                                                      addContractKeys);
-        auto tx =
-            std::dynamic_pointer_cast<TransactionFrame>(invocation.createTx());
+        auto tx = invocation.createTx();
 
         REQUIRE(test.isTxValid(tx));
 
@@ -685,8 +684,7 @@ TEST_CASE("version test", "[tx][soroban]")
                       SorobanInvocationSpec const& spec) {
         auto invocation =
             contract.prepareInvocation(functionName, args, spec, true);
-        auto tx =
-            std::dynamic_pointer_cast<TransactionFrame>(invocation.createTx());
+        auto tx = invocation.createTx();
 
         REQUIRE(test.isTxValid(tx));
 
@@ -998,13 +996,12 @@ TEST_CASE("Soroban non-refundable resource fees are stable", "[tx][soroban]")
         auto& app = test.getApp();
         // Sanity check the tx fee computation logic.
         auto actualFeePair =
-            std::dynamic_pointer_cast<TransactionFrame>(validTx)
-                ->computePreApplySorobanResourceFee(
-                    app.getLedgerManager()
-                        .getLastClosedLedgerHeader()
-                        .header.ledgerVersion,
-                    app.getLedgerManager().getSorobanNetworkConfig(),
-                    app.getConfig());
+            validTx->toTransactionFrame().computePreApplySorobanResourceFee(
+                app.getLedgerManager()
+                    .getLastClosedLedgerHeader()
+                    .header.ledgerVersion,
+                app.getLedgerManager().getSorobanNetworkConfig(),
+                app.getConfig());
         REQUIRE(expectedNonRefundableFee == actualFeePair.non_refundable_fee);
 
         REQUIRE(test.isTxValid(validTx));
@@ -1414,11 +1411,11 @@ TEST_CASE("transaction validation diagnostics", "[tx][soroban]")
     auto scMax = makeI32(INT32_MAX);
     auto invocationSpec =
         SorobanInvocationSpec().setInstructions(2'000'000).setReadBytes(2000);
-    auto tx = std::dynamic_pointer_cast<TransactionFrame>(
+    auto tx =
         addContract
             .prepareInvocation(fnName, {sc7, scMax},
                                invocationSpec.setInstructions(2'000'000'000))
-            .createTx());
+            .createTx();
     REQUIRE(!test.isTxValid(tx));
 
     auto const& diagEvents = tx->getDiagnosticEvents();
@@ -3109,8 +3106,9 @@ TEST_CASE("settings upgrade command line utils", "[tx][soroban][upgrades]")
             sha256(xdr::xdr_to_opaque(app->getNetworkID(), ENVELOPE_TYPE_TX,
                                       txEnv.v1().tx))));
 
-        auto const& tx = TransactionFrameBase::makeTransactionFromWire(
+        auto const& rawTx = TransactionFrameBase::makeTransactionFromWire(
             app->getNetworkID(), txEnv);
+        auto tx = TransactionTestFrame::fromTxFrame(rawTx);
         LedgerTxn ltx(app->getLedgerTxnRoot());
         TransactionMetaFrame txm(ltx.loadHeader().current().ledgerVersion);
         REQUIRE(tx->checkValid(*app, ltx, 0, 0, 0));
@@ -3175,9 +3173,9 @@ TEST_CASE("settings upgrade command line utils", "[tx][soroban][upgrades]")
             sha256(xdr::xdr_to_opaque(app->getNetworkID(), ENVELOPE_TYPE_TX,
                                       invokeRes2.first.v1().tx))));
 
-        auto const& txRevertSettings =
-            TransactionFrameBase::makeTransactionFromWire(app->getNetworkID(),
-                                                          invokeRes2.first);
+        auto const& txRaw = TransactionFrameBase::makeTransactionFromWire(
+            app->getNetworkID(), invokeRes2.first);
+        auto txRevertSettings = TransactionTestFrame::fromTxFrame(txRaw);
         LedgerTxn ltx(app->getLedgerTxnRoot());
         TransactionMetaFrame txm(ltx.loadHeader().current().ledgerVersion);
         REQUIRE(txRevertSettings->checkValid(*app, ltx, 0, 0, 0));

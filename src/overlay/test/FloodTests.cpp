@@ -140,7 +140,7 @@ TEST_CASE("Flooding", "[flood][overlay][acceptance]")
 
     SECTION("transaction flooding")
     {
-        TransactionFramePtr testTransaction = nullptr;
+        TransactionTestFramePtr testTransaction = nullptr;
         auto injectTransaction = [&](int i) {
             const int64 txAmount = 10000000;
 

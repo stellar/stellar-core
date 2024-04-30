@@ -201,7 +201,7 @@ makeContractInstanceKey(SCAddress const& contractAddress)
                            CONTRACT_INSTANCE_ENTRY_DURABILITY);
 }
 
-TransactionFrameBasePtr
+TransactionTestFramePtr
 makeSorobanWasmUploadTx(Application& app, TestAccount& source,
                         RustBuf const& wasm, SorobanResources& uploadResources,
                         uint32_t inclusionFee)
@@ -257,7 +257,7 @@ defaultCreateWasmContractResources(RustBuf const& wasm)
     return SorobanResources();
 }
 
-TransactionFrameBasePtr
+TransactionTestFramePtr
 makeSorobanCreateContractTx(Application& app, TestAccount& source,
                             ContractIDPreimage const& idPreimage,
                             ContractExecutable const& executable,
@@ -310,7 +310,7 @@ makeSorobanCreateContractTx(Application& app, TestAccount& source,
                                           inclusionFee, createResourceFee);
 }
 
-TransactionFrameBasePtr
+TransactionTestFramePtr
 sorobanTransactionFrameFromOps(Hash const& networkID, TestAccount& source,
                                std::vector<Operation> const& ops,
                                std::vector<SecretKey> const& opKeys,
@@ -599,7 +599,7 @@ TestContract::Invocation::getSpec()
     return mSpec;
 }
 
-TransactionFrameBasePtr
+TransactionTestFramePtr
 TestContract::Invocation::createTx(TestAccount* source)
 {
     if (mDeduplicateFootprint)
@@ -730,7 +730,7 @@ SorobanTest::computeFeePerIncrement(int64_t resourceVal, int64_t feeRate,
 };
 
 void
-SorobanTest::invokeArchivalOp(TransactionFrameBasePtr tx,
+SorobanTest::invokeArchivalOp(TransactionTestFramePtr tx,
                               int64_t expectedRefundableFeeCharged)
 {
     // When BucketListDB is enabled, we can only apply TXs by closing a ledger,
@@ -962,7 +962,7 @@ SorobanTest::getLedgerSeq() const
     return getApp().getLedgerManager().getLastClosedLedgerNum();
 }
 
-TransactionFrameBasePtr
+TransactionTestFramePtr
 SorobanTest::createExtendOpTx(SorobanResources const& resources,
                               uint32_t extendTo, uint32_t fee,
                               int64_t refundableFee, TestAccount* source)
@@ -975,7 +975,7 @@ SorobanTest::createExtendOpTx(SorobanResources const& resources,
                                           {}, resources, fee, refundableFee);
 }
 
-TransactionFrameBasePtr
+TransactionTestFramePtr
 SorobanTest::createRestoreTx(SorobanResources const& resources, uint32_t fee,
                              int64_t refundableFee, TestAccount* source)
 {
@@ -987,7 +987,7 @@ SorobanTest::createRestoreTx(SorobanResources const& resources, uint32_t fee,
 }
 
 bool
-SorobanTest::isTxValid(TransactionFrameBasePtr tx)
+SorobanTest::isTxValid(TransactionTestFramePtr tx)
 {
     LedgerTxn ltx(getApp().getLedgerTxnRoot());
     auto ret = tx->checkValid(getApp(), ltx, 0, 0, 0);
@@ -995,7 +995,7 @@ SorobanTest::isTxValid(TransactionFrameBasePtr tx)
 }
 
 bool
-SorobanTest::invokeTx(TransactionFrameBasePtr tx, TransactionMetaFrame* txMeta)
+SorobanTest::invokeTx(TransactionTestFramePtr tx, TransactionMetaFrame* txMeta)
 {
     TransactionMetaFrame dummyMeta(getLedgerVersion());
     if (txMeta == nullptr)
