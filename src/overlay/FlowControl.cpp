@@ -54,9 +54,10 @@ FlowControl::hasOutboundCapacity(StellarMessage const& msg) const
 
 // Start flow control: send SEND_MORE to a peer to indicate available capacity
 void
-FlowControl::start(NodeID const& peerID,
-                   std::function<void(std::shared_ptr<StellarMessage>)> sendCb,
-                   std::optional<uint32_t> enableFCBytes)
+FlowControl::start(
+    NodeID const& peerID,
+    std::function<void(std::shared_ptr<StellarMessage const>)> sendCb,
+    std::optional<uint32_t> enableFCBytes)
 {
     mNodeID = peerID;
     mSendCallback = sendCb;
@@ -138,7 +139,7 @@ FlowControl::maybeSendNextBatch()
                 break;
             }
 
-            mSendCallback(std::make_shared<StellarMessage>(msg));
+            mSendCallback(front.mMessage);
             ++sent;
             auto& om = mOverlayMetrics;
 

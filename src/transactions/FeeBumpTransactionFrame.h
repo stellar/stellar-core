@@ -103,7 +103,7 @@ class FeeBumpTransactionFrame : public TransactionFrameBase
     void processFeeSeqNum(AbstractLedgerTxn& ltx,
                           std::optional<int64_t> baseFee) override;
 
-    StellarMessage toStellarMessage() const override;
+    std::shared_ptr<StellarMessage const> toStellarMessage() const override;
 
     static TransactionEnvelope
     convertInnerTxToV1(TransactionEnvelope const& envelope);

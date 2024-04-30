@@ -1205,7 +1205,7 @@ OverlayManagerImpl::recvTxDemand(FloodDemand const& dmd, Peer::pointer peer)
 }
 
 bool
-OverlayManagerImpl::broadcastMessage(StellarMessage const& msg,
+OverlayManagerImpl::broadcastMessage(std::shared_ptr<StellarMessage const> msg,
                                      std::optional<Hash> const hash)
 {
     ZoneScoped;

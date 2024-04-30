@@ -289,9 +289,7 @@ TxDemandsManager::recvTxDemand(FloodDemand const& dmd, Peer::pointer peer)
                        KeyUtils::toShortString(peer->getPeerID()));
             peer->getPeerMetrics().mMessagesFulfilled++;
             om.mMessagesFulfilledMeter.Mark();
-            auto smsg =
-                std::make_shared<StellarMessage>(tx->toStellarMessage());
-            peer->sendMessage(smsg);
+            peer->sendMessage(tx->toStellarMessage());
         }
         else
         {

@@ -526,29 +526,26 @@ Peer::sendErrorAndDrop(ErrorCode error, std::string const& message,
 void
 Peer::sendSendMore(uint32_t numMessages)
 {
+    ZoneScoped;
     releaseAssert(threadIsMain());
 
-    ZoneScoped;
-    StellarMessage m;
-    m.type(SEND_MORE);
-    m.sendMoreMessage().numMessages = numMessages;
-    auto msgPtr = std::make_shared<StellarMessage const>(m);
-    sendMessage(msgPtr);
+    auto m = std::make_shared<StellarMessage>();
+    m->type(SEND_MORE);
+    m->sendMoreMessage().numMessages = numMessages;
+    sendMessage(m);
 }
 
 void
 Peer::sendSendMore(uint32_t numMessages, uint32_t numBytes)
 {
+    ZoneScoped;
     releaseAssert(threadIsMain());
 
-    ZoneScoped;
-    StellarMessage m;
-    m.type(SEND_MORE_EXTENDED);
-    m.sendMoreExtendedMessage().numMessages = numMessages;
-    m.sendMoreExtendedMessage().numBytes = numBytes;
-
-    auto msgPtr = std::make_shared<StellarMessage const>(m);
-    sendMessage(msgPtr);
+    auto m = std::make_shared<StellarMessage>();
+    m->type(SEND_MORE_EXTENDED);
+    m->sendMoreExtendedMessage().numMessages = numMessages;
+    m->sendMoreExtendedMessage().numBytes = numBytes;
+    sendMessage(m);
 }
 
 std::string
@@ -1079,20 +1076,19 @@ Peer::recvGetTxSet(StellarMessage const& msg)
     auto self = shared_from_this();
     if (auto txSet = mAppConnector.getHerder().getTxSet(msg.txSetHash()))
     {
-        StellarMessage newMsg;
+        auto newMsg = std::make_shared<StellarMessage>();
         if (txSet->isGeneralizedTxSet())
         {
-            newMsg.type(GENERALIZED_TX_SET);
-            txSet->toXDR(newMsg.generalizedTxSet());
+            newMsg->type(GENERALIZED_TX_SET);
+            txSet->toXDR(newMsg->generalizedTxSet());
         }
         else
         {
-            newMsg.type(TX_SET);
-            txSet->toXDR(newMsg.txSet());
+            newMsg->type(TX_SET);
+            txSet->toXDR(newMsg->txSet());
         }
 
-        auto newMsgPtr = std::make_shared<StellarMessage const>(newMsg);
-        self->sendMessage(newMsgPtr);
+        self->sendMessage(newMsg);
     }
     else
     {
@@ -1548,7 +1544,7 @@ Peer::recvAuth(StellarMessage const& msg)
     // Subtle: after successful auth, must send sendMore message first to
     // tell the other peer about the local node's reading capacity.
     auto weakSelf = std::weak_ptr<Peer>(self);
-    auto sendCb = [weakSelf](std::shared_ptr<StellarMessage> msg) {
+    auto sendCb = [weakSelf](std::shared_ptr<StellarMessage const> msg) {
         auto self = weakSelf.lock();
         if (self)
         {

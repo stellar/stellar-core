@@ -2150,8 +2150,8 @@ LoadGenerator::execute(TransactionFramePtr& txf, LoadGenMode mode,
 
     txm.mTxnAttempted.Mark();
 
-    StellarMessage msg(txf->toStellarMessage());
-    txm.mTxnBytes.Mark(xdr::xdr_argpack_size(msg));
+    auto msg = txf->toStellarMessage();
+    txm.mTxnBytes.Mark(xdr::xdr_argpack_size(*msg));
 
     auto status = mApp.getHerder().recvTransaction(txf, true);
     if (status != TransactionQueue::AddResult::ADD_STATUS_PENDING)
