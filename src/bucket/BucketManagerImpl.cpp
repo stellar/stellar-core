@@ -1000,8 +1000,9 @@ BucketManagerImpl::startBackgroundEvictionScan(uint32_t ledgerSeq)
 
     using task_t = std::packaged_task<EvictionResult()>;
     auto task = std::make_shared<task_t>(
-        [bl = move(searchableBL), iter = cfg.evictionIterator(), ledgerSeq, sas,
-         &counters = mBucketListEvictionCounters, stats = mEvictionStatistics] {
+        [bl = std::move(searchableBL), iter = cfg.evictionIterator(), ledgerSeq,
+         sas, &counters = mBucketListEvictionCounters,
+         stats = mEvictionStatistics] {
             return bl->scanForEviction(ledgerSeq, counters, iter, stats, sas);
         });
 
