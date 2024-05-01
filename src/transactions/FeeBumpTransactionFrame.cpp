@@ -206,37 +206,50 @@ FeeBumpTransactionFrame::checkSignature(SignatureChecker& signatureChecker,
 bool
 FeeBumpTransactionFrame::checkValid(Application& app,
                                     AbstractLedgerTxn& ltxOuter,
+                                    TransactionResultPayload& resPayload,
                                     SequenceNumber current,
                                     uint64_t lowerBoundCloseTimeOffset,
                                     uint64_t upperBoundCloseTimeOffset)
 {
     if (!XDRProvidesValidFee())
     {
+        resPayload.outerFeeBumpResult = TransactionResult();
+        resPayload.outerFeeBumpResult->result.code(txMALFORMED);
+
+        // TODO: Remove
         getResult().result.code(txMALFORMED);
         return false;
     }
     LedgerTxn ltx(ltxOuter);
     int64_t minBaseFee = ltx.loadHeader().current().baseFee;
-    resetResults(ltx.loadHeader().current(), minBaseFee, false);
+    resetResults(ltx.loadHeader().current(), minBaseFee, false, resPayload);
 
     SignatureChecker signatureChecker{ltx.loadHeader().current().ledgerVersion,
                                       getContentsHash(),
                                       mEnvelope.feeBump().signatures};
-    if (commonValid(signatureChecker, ltx, false) !=
+    if (commonValid(signatureChecker, ltx, false, resPayload) !=
         ValidationType::kFullyValid)
     {
         return false;
     }
     if (!signatureChecker.checkAllSignaturesUsed())
     {
+        resPayload.outerFeeBumpResult->result.code(txBAD_AUTH_EXTRA);
+
+        // TODO: Remove
         getResult().result.code(txBAD_AUTH_EXTRA);
         return false;
     }
 
     bool res = mInnerTx->checkValidWithOptionallyChargedFee(
-        app, ltx, current, false, lowerBoundCloseTimeOffset,
+        app, ltx, resPayload, current, false, lowerBoundCloseTimeOffset,
         upperBoundCloseTimeOffset);
+
+    updateResult(*resPayload.outerFeeBumpResult, mInnerTx);
+
+    // TODO: Remove
     updateResult(getResult(), mInnerTx);
+
     return res;
 }
 
@@ -249,7 +262,8 @@ FeeBumpTransactionFrame::checkSorobanResourceAndSetError(
 }
 
 bool
-FeeBumpTransactionFrame::commonValidPreSeqNum(AbstractLedgerTxn& ltx)
+FeeBumpTransactionFrame::commonValidPreSeqNum(
+    AbstractLedgerTxn& ltx, TransactionResultPayload& resPayload)
 {
     // this function does validations that are independent of the account state
     //    (stay true regardless of other side effects)
@@ -258,6 +272,9 @@ FeeBumpTransactionFrame::commonValidPreSeqNum(AbstractLedgerTxn& ltx)
     if (protocolVersionIsBefore(header.current().ledgerVersion,
                                 ProtocolVersion::V_13))
     {
+        resPayload.outerFeeBumpResult->result.code(txNOT_SUPPORTED);
+
+        // TODO: Remove
         getResult().result.code(txNOT_SUPPORTED);
         return false;
     }
@@ -265,6 +282,9 @@ FeeBumpTransactionFrame::commonValidPreSeqNum(AbstractLedgerTxn& ltx)
     auto minInclusionFee = getMinInclusionFee(*this, header.current());
     if (inclusionFee < minInclusionFee)
     {
+        resPayload.outerFeeBumpResult->result.code(txINSUFFICIENT_FEE);
+
+        // TODO: Remove
         getResult().result.code(txINSUFFICIENT_FEE);
         return false;
     }
@@ -275,6 +295,9 @@ FeeBumpTransactionFrame::commonValidPreSeqNum(AbstractLedgerTxn& ltx)
     // in order to have `bigMultiply` below not crash.
     if (mInnerTx->getInclusionFee() < 0)
     {
+        resPayload.outerFeeBumpResult->result.code(txFEE_BUMP_INNER_FAILED);
+
+        // TODO: Remove
         getResult().result.code(txFEE_BUMP_INNER_FAILED);
         return false;
     }
@@ -292,14 +315,23 @@ FeeBumpTransactionFrame::commonValidPreSeqNum(AbstractLedgerTxn& ltx)
                           getMinInclusionFee(*mInnerTx, lh),
                           Rounding::ROUND_UP))
         {
+            resPayload.outerFeeBumpResult->feeCharged = INT64_MAX;
+
+            // TODO: Remove
             getResult().feeCharged = INT64_MAX;
         }
+        resPayload.outerFeeBumpResult->result.code(txINSUFFICIENT_FEE);
+
+        // TODO: Remove
         getResult().result.code(txINSUFFICIENT_FEE);
         return false;
     }
 
     if (!stellar::loadAccount(ltx, getFeeSourceID()))
     {
+        resPayload.outerFeeBumpResult->result.code(txNO_ACCOUNT);
+
+        // TODO: Remove
         getResult().result.code(txNO_ACCOUNT);
         return false;
     }
@@ -309,12 +341,13 @@ FeeBumpTransactionFrame::commonValidPreSeqNum(AbstractLedgerTxn& ltx)
 
 FeeBumpTransactionFrame::ValidationType
 FeeBumpTransactionFrame::commonValid(SignatureChecker& signatureChecker,
-                                     AbstractLedgerTxn& ltxOuter, bool applying)
+                                     AbstractLedgerTxn& ltxOuter, bool applying,
+                                     TransactionResultPayload& resPayload)
 {
     LedgerTxn ltx(ltxOuter);
     ValidationType res = ValidationType::kInvalid;
 
-    if (!commonValidPreSeqNum(ltx))
+    if (!commonValidPreSeqNum(ltx, resPayload))
     {
         return res;
     }
@@ -324,6 +357,9 @@ FeeBumpTransactionFrame::commonValid(SignatureChecker& signatureChecker,
             signatureChecker, feeSource,
             feeSource.current().data.account().thresholds[THRESHOLD_LOW]))
     {
+        resPayload.outerFeeBumpResult->result.code(txBAD_AUTH);
+
+        // TODO: remove
         getResult().result.code(txBAD_AUTH);
         return res;
     }
@@ -339,6 +375,9 @@ FeeBumpTransactionFrame::commonValid(SignatureChecker& signatureChecker,
     // liabilities
     if (getAvailableBalance(header, feeSource) < feeToPay)
     {
+        resPayload.outerFeeBumpResult->result.code(txINSUFFICIENT_BALANCE);
+
+        // TODO: Remove
         getResult().result.code(txINSUFFICIENT_BALANCE);
         return res;
     }
@@ -556,9 +595,10 @@ FeeBumpTransactionFrame::insertKeysForTxApply(UnorderedSet<LedgerKey>& keys,
 
 void
 FeeBumpTransactionFrame::processFeeSeqNum(AbstractLedgerTxn& ltx,
-                                          std::optional<int64_t> baseFee)
+                                          std::optional<int64_t> baseFee,
+                                          TransactionResultPayload& resPayload)
 {
-    resetResults(ltx.loadHeader().current(), baseFee, true);
+    resetResults(ltx.loadHeader().current(), baseFee, true, resPayload);
 
     auto feeSource = stellar::loadAccount(ltx, getFeeSourceID());
     if (!feeSource)
@@ -568,7 +608,8 @@ FeeBumpTransactionFrame::processFeeSeqNum(AbstractLedgerTxn& ltx,
     auto& acc = feeSource.current().data.account();
 
     auto header = ltx.loadHeader();
-    int64_t& fee = getResult().feeCharged;
+
+    int64_t& fee = resPayload.outerFeeBumpResult->feeCharged;
     if (fee > 0)
     {
         fee = std::min(acc.balance, fee);
@@ -578,6 +619,9 @@ FeeBumpTransactionFrame::processFeeSeqNum(AbstractLedgerTxn& ltx,
         stellar::addBalance(acc.balance, -fee);
         header.current().feePool += fee;
     }
+
+    // TODO: Remove
+    getResult() = *resPayload.outerFeeBumpResult;
 }
 
 void
@@ -604,14 +648,21 @@ FeeBumpTransactionFrame::removeOneTimeSignerKeyFromFeeSource(
 void
 FeeBumpTransactionFrame::resetResults(LedgerHeader const& header,
                                       std::optional<int64_t> baseFee,
-                                      bool applying)
+                                      bool applying,
+                                      TransactionResultPayload& resPayload)
 {
-    mInnerTx->resetResults(header, baseFee, applying);
-    mResult.result.code(txFEE_BUMP_INNER_SUCCESS);
+    mInnerTx->resetResults(header, baseFee, applying, resPayload);
+
+    resPayload.outerFeeBumpResult = TransactionResult();
+    resPayload.outerFeeBumpResult->result.code(txFEE_BUMP_INNER_SUCCESS);
 
     // feeCharged is updated accordingly to represent the cost of the
     // transaction regardless of the failure modes.
-    mResult.feeCharged = getFee(header, baseFee, applying);
+    resPayload.outerFeeBumpResult->feeCharged =
+        getFee(header, baseFee, applying);
+
+    // TODO: Remove
+    mResult = *resPayload.outerFeeBumpResult;
 }
 
 std::shared_ptr<StellarMessage const>

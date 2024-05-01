@@ -27,7 +27,8 @@ class FeeBumpTransactionFrame : public TransactionFrameBase
     bool checkSignature(SignatureChecker& signatureChecker,
                         LedgerTxnEntry const& account, int32_t neededWeight);
 
-    bool commonValidPreSeqNum(AbstractLedgerTxn& ltx);
+    bool commonValidPreSeqNum(AbstractLedgerTxn& ltx,
+                              TransactionResultPayload& resPayload);
 
     enum ValidationType
     {
@@ -38,13 +39,10 @@ class FeeBumpTransactionFrame : public TransactionFrameBase
     };
 
     ValidationType commonValid(SignatureChecker& signatureChecker,
-                               AbstractLedgerTxn& ltxOuter, bool applying);
+                               AbstractLedgerTxn& ltxOuter, bool applying,
+                               TransactionResultPayload& resPayload);
 
     void removeOneTimeSignerKeyFromFeeSource(AbstractLedgerTxn& ltx) const;
-
-  protected:
-    void resetResults(LedgerHeader const& header,
-                      std::optional<int64_t> baseFee, bool applying);
 
   public:
     FeeBumpTransactionFrame(Hash const& networkID,
@@ -76,11 +74,16 @@ class FeeBumpTransactionFrame : public TransactionFrameBase
                           TransactionMetaFrame& meta) override;
 
     bool checkValid(Application& app, AbstractLedgerTxn& ltxOuter,
+                    TransactionResultPayload& resPayload,
                     SequenceNumber current, uint64_t lowerBoundCloseTimeOffset,
                     uint64_t upperBoundCloseTimeOffset) override;
     bool checkSorobanResourceAndSetError(Application& app,
                                          uint32_t ledgerVersion,
                                          TransactionResult& txResult) override;
+
+    void resetResults(LedgerHeader const& header,
+                      std::optional<int64_t> baseFee, bool applying,
+                      TransactionResultPayload& resPayload) override;
 
     TransactionEnvelope const& getEnvelope() const override;
     FeeBumpTransactionFrame const& toFeeBumpTransactionFrame() const override;
@@ -115,7 +118,8 @@ class FeeBumpTransactionFrame : public TransactionFrameBase
                               LedgerKeyMeter* lkMeter) const override;
 
     void processFeeSeqNum(AbstractLedgerTxn& ltx,
-                          std::optional<int64_t> baseFee) override;
+                          std::optional<int64_t> baseFee,
+                          TransactionResultPayload& resPayload) override;
 
     std::shared_ptr<StellarMessage const> toStellarMessage() const override;
 

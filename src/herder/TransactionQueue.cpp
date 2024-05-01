@@ -378,11 +378,9 @@ TransactionQueue::canAdd(
             mApp.getLedgerManager().getLastClosedLedgerNum() + 1;
     }
 
-    if (!tx->checkValid(mApp, ltx, 0, 0,
+    if (!tx->checkValid(mApp, ltx, resPayload, 0, 0,
                         getUpperBoundCloseTimeOffset(mApp, closeTime)))
     {
-        // TODO: Fix
-        resPayload.txResult = tx->getResult();
         return {TransactionQueue::AddResult::ADD_STATUS_ERROR, resPayload};
     }
 

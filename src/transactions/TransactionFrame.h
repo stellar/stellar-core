@@ -67,6 +67,8 @@ class TransactionResultPayload
 {
   public:
     TransactionResult txResult;
+    std::vector<std::shared_ptr<OperationFrame>> opFrames;
+    std::optional<TransactionResult> outerFeeBumpResult;
     std::optional<SorobanData> sorobanExtension;
 };
 
@@ -115,7 +117,8 @@ class TransactionFrame : public TransactionFrameBase
                               bool chargeFee,
                               uint64_t lowerBoundCloseTimeOffset,
                               uint64_t upperBoundCloseTimeOffset,
-                              std::optional<FeePair> sorobanResourceFee);
+                              std::optional<FeePair> sorobanResourceFee,
+                              TransactionResultPayload& resPayload);
 
     virtual bool isBadSeq(LedgerTxnHeader const& header, int64_t seqNum) const;
 
@@ -126,7 +129,8 @@ class TransactionFrame : public TransactionFrameBase
                                bool chargeFee,
                                uint64_t lowerBoundCloseTimeOffset,
                                uint64_t upperBoundCloseTimeOffset,
-                               std::optional<FeePair> sorobanResourceFee);
+                               std::optional<FeePair> sorobanResourceFee,
+                               TransactionResultPayload& resPayload);
 
     virtual std::shared_ptr<OperationFrame>
     makeOperation(Operation const& op, OperationResult& res, size_t index);
@@ -203,9 +207,6 @@ class TransactionFrame : public TransactionFrameBase
         return getResult().result.code();
     }
 
-    void resetResults(LedgerHeader const& header,
-                      std::optional<int64_t> baseFee, bool applying);
-
     void pushContractEvents(xdr::xvector<ContractEvent>&& evts);
     void pushDiagnosticEvents(xdr::xvector<DiagnosticEvent>&& evts);
     void setReturnValue(SCVal&& returnValue);
@@ -261,18 +262,22 @@ class TransactionFrame : public TransactionFrameBase
                                  AccountID const& accountID);
     bool checkExtraSigners(SignatureChecker& signatureChecker);
 
-    bool checkValidWithOptionallyChargedFee(Application& app,
-                                            AbstractLedgerTxn& ltxOuter,
-                                            SequenceNumber current,
-                                            bool chargeFee,
-                                            uint64_t lowerBoundCloseTimeOffset,
-                                            uint64_t upperBoundCloseTimeOffset);
+    bool checkValidWithOptionallyChargedFee(
+        Application& app, AbstractLedgerTxn& ltxOuter,
+        TransactionResultPayload& resPayload, SequenceNumber current,
+        bool chargeFee, uint64_t lowerBoundCloseTimeOffset,
+        uint64_t upperBoundCloseTimeOffset);
     bool checkValid(Application& app, AbstractLedgerTxn& ltxOuter,
+                    TransactionResultPayload& resPayload,
                     SequenceNumber current, uint64_t lowerBoundCloseTimeOffset,
                     uint64_t upperBoundCloseTimeOffset) override;
     bool checkSorobanResourceAndSetError(Application& app,
                                          uint32_t ledgerVersion,
                                          TransactionResult& txResult) override;
+
+    void resetResults(LedgerHeader const& header,
+                      std::optional<int64_t> baseFee, bool applying,
+                      TransactionResultPayload& resPayload) override;
 
     void
     insertKeysForFeeProcessing(UnorderedSet<LedgerKey>& keys) const override;
@@ -281,7 +286,8 @@ class TransactionFrame : public TransactionFrameBase
 
     // collect fee, consume sequence number
     void processFeeSeqNum(AbstractLedgerTxn& ltx,
-                          std::optional<int64_t> baseFee) override;
+                          std::optional<int64_t> baseFee,
+                          TransactionResultPayload& resPayload) override;
 
     // apply this transaction to the current ledger
     // returns true if successfully applied
@@ -339,7 +345,9 @@ class TransactionFrame : public TransactionFrameBase
     virtual int64 declaredSorobanResourceFee() const override;
     virtual bool XDRProvidesValidFee() const override;
 
+#ifdef BUILD_TESTS
     friend class TransactionTestFrame;
+#endif
 };
 
 #ifdef BUILD_TESTS
@@ -363,6 +371,13 @@ class TransactionTestFrame : public TransactionFrameBase
                TransactionMetaFrame& meta,
                Hash const& sorobanBasePrngSeed = Hash{});
 
+    bool checkValid(Application& app, AbstractLedgerTxn& ltxOuter,
+                    SequenceNumber current, uint64_t lowerBoundCloseTimeOffset,
+                    uint64_t upperBoundCloseTimeOffset);
+
+    void processFeeSeqNum(AbstractLedgerTxn& ltx,
+                          std::optional<int64_t> baseFee);
+
     void addSignature(SecretKey const& secretKey);
     void addSignature(DecoratedSignature const& signature);
 
@@ -374,11 +389,15 @@ class TransactionTestFrame : public TransactionFrameBase
                Hash const& sorobanBasePrngSeed = Hash{}) override;
 
     bool checkValid(Application& app, AbstractLedgerTxn& ltxOuter,
+                    TransactionResultPayload& resPayload,
                     SequenceNumber current, uint64_t lowerBoundCloseTimeOffset,
                     uint64_t upperBoundCloseTimeOffset) override;
     bool checkSorobanResourceAndSetError(Application& app,
                                          uint32_t ledgerVersion,
                                          TransactionResult& txResult) override;
+    void resetResults(LedgerHeader const& header,
+                      std::optional<int64_t> baseFee, bool applying,
+                      TransactionResultPayload& resPayload) override;
 
     TransactionEnvelope const& getEnvelope() const override;
     TransactionEnvelope& getEnvelope() override;
@@ -422,7 +441,8 @@ class TransactionTestFrame : public TransactionFrameBase
     void insertKeysForTxApply(UnorderedSet<LedgerKey>& keys) const override;
 
     void processFeeSeqNum(AbstractLedgerTxn& ltx,
-                          std::optional<int64_t> baseFee) override;
+                          std::optional<int64_t> baseFee,
+                          TransactionResultPayload& resPayload) override;
 
     void processPostApply(Application& app, AbstractLedgerTxn& ltx,
                           TransactionMetaFrame& meta) override;

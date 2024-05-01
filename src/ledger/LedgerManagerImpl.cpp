@@ -1356,7 +1356,11 @@ LedgerManagerImpl::processFeesSeqNums(
         for (auto tx : txs)
         {
             LedgerTxn ltxTx(ltx);
-            tx->processFeeSeqNum(ltxTx, txSet.getTxBaseFee(tx, header));
+
+            // TODO: Vector of pairs of TxResultPayload with the associated TX
+            TransactionResultPayload resPayload;
+            tx->processFeeSeqNum(ltxTx, txSet.getTxBaseFee(tx, header),
+                                 resPayload);
 
             if (protocolVersionStartsFrom(
                     ltxTx.loadHeader().current().ledgerVersion,

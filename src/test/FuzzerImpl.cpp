@@ -894,6 +894,10 @@ resetTxInternalState(Application& app)
 // ledger state and deterministically attempting application of transactions.
 class FuzzTransactionFrame : public TransactionFrame
 {
+  private:
+    // TODO: Add initializer, getter and setter
+    TransactionResultPayload mResultPayload;
+
   public:
     FuzzTransactionFrame(Hash const& networkID,
                          TransactionEnvelope const& envelope)
@@ -911,7 +915,7 @@ class FuzzTransactionFrame : public TransactionFrame
         }
 
         // reset results of operations
-        resetResults(ltx.getHeader(), 0, true);
+        resetResults(ltx.getHeader(), 0, true, mResultPayload);
 
         // attempt application of transaction without processing the fee or
         // committing the LedgerTxn
