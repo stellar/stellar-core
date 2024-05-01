@@ -73,22 +73,6 @@ getLedgerInfo(AbstractLedgerTxn& ltx, Application& app,
     auto cpu = sorobanConfig.cpuCostParams();
     auto mem = sorobanConfig.memCostParams();
 
-// The host expects this vector to be the size of the # of cost types in the
-// xdr, but the v20 ledgers only have a subset due to the xdr for v21, so we
-// need to resize them before passing them to a host that supports v21. This is
-// not true for the prev build though because that one will be on the old xdr,
-// which is why we compile this resizing out here if we're NOT using prev.
-#ifndef ENABLE_PROTOCOL_UPGRADE_VIA_SOROBAN_ENV_HOST_PREV
-    if (protocolVersionEquals(ltx.loadHeader().current().ledgerVersion,
-                              ProtocolVersion::V_20))
-    {
-        auto numCostTypes =
-            xdr::xdr_traits<ContractCostType>::enum_values().size();
-        cpu.resize(numCostTypes);
-        mem.resize(numCostTypes);
-    }
-#endif
-
     info.cpu_cost_params = toCxxBuf(cpu);
     info.mem_cost_params = toCxxBuf(mem);
 
