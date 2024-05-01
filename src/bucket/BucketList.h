@@ -352,7 +352,7 @@ class AbstractLedgerTxn;
 class Application;
 class Bucket;
 class Config;
-class EvictionCounters;
+struct EvictionCounters;
 struct InflationWinner;
 
 namespace testutil

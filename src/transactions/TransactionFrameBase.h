@@ -86,7 +86,7 @@ class TransactionFrameBase
     virtual void processPostApply(Application& app, AbstractLedgerTxn& ltx,
                                   TransactionMetaFrame& meta) = 0;
 
-    virtual StellarMessage toStellarMessage() const = 0;
+    virtual std::shared_ptr<StellarMessage const> toStellarMessage() const = 0;
 
     virtual bool hasDexOperations() const = 0;
 

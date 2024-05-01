@@ -345,7 +345,8 @@ SurveyManager::processTopologyRequest(SurveyRequestMessage const& request) const
 void
 SurveyManager::broadcast(StellarMessage const& msg) const
 {
-    mApp.getOverlayManager().broadcastMessage(msg);
+    mApp.getOverlayManager().broadcastMessage(
+        std::make_shared<StellarMessage const>(msg));
 }
 
 void

@@ -539,9 +539,9 @@ PendingEnvelopes::envelopeReady(SCPEnvelope const& envelope)
     // envelope.
     recordReceivedCost(envelope);
 
-    StellarMessage msg;
-    msg.type(SCP_MESSAGE);
-    msg.envelope() = envelope;
+    auto msg = std::make_shared<StellarMessage>();
+    msg->type(SCP_MESSAGE);
+    msg->envelope() = envelope;
     mApp.getOverlayManager().broadcastMessage(msg);
 
     auto envW = mHerder.getHerderSCPDriver().wrapEnvelope(envelope);

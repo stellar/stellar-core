@@ -497,9 +497,9 @@ HerderImpl::broadcast(SCPEnvelope const& e)
     ZoneScoped;
     if (!mApp.getConfig().MANUAL_CLOSE)
     {
-        StellarMessage m;
-        m.type(SCP_MESSAGE);
-        m.envelope() = e;
+        auto m = std::make_shared<StellarMessage>();
+        m->type(SCP_MESSAGE);
+        m->envelope() = e;
 
         CLOG_DEBUG(Herder, "broadcast  s:{} i:{}", e.statement.pledges.type(),
                    e.statement.slotIndex);

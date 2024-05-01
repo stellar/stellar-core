@@ -79,7 +79,7 @@ class FlowControl
     uint64_t mFloodDataProcessedBytes{0};
     std::optional<VirtualClock::time_point> mNoOutboundCapacity;
     FlowControlMetrics mMetrics;
-    std::function<void(std::shared_ptr<StellarMessage>)> mSendCallback;
+    std::function<void(std::shared_ptr<StellarMessage const>)> mSendCallback;
 
     // Release capacity used by this message. Return a struct that indicates how
     // much reading and flood capacity was freed
@@ -160,9 +160,10 @@ class FlowControl
 
     Json::Value getFlowControlJsonInfo(bool compact) const;
 
-    void start(NodeID const& peerID,
-               std::function<void(std::shared_ptr<StellarMessage>)> sendCb,
-               std::optional<uint32_t> enableFCBytes);
+    void
+    start(NodeID const& peerID,
+          std::function<void(std::shared_ptr<StellarMessage const>)> sendCb,
+          std::optional<uint32_t> enableFCBytes);
 
     // Stop reading from this peer until capacity is released
     void throttleRead();

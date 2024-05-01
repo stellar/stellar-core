@@ -297,7 +297,7 @@ class TransactionFrame : public TransactionFrameBase
     bool apply(Application& app, AbstractLedgerTxn& ltx,
                Hash const& sorobanBasePrngSeed);
 
-    StellarMessage toStellarMessage() const override;
+    std::shared_ptr<StellarMessage const> toStellarMessage() const override;
 
     LedgerTxnEntry loadAccount(AbstractLedgerTxn& ltx,
                                LedgerTxnHeader const& header,

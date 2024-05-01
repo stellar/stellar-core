@@ -2737,8 +2737,9 @@ TEST_CASE("overlay pull mode", "[overlay][pullmode]")
         auto root = TestAccount::createRoot(*apps[0]);
         auto tx = root.tx({txtest::createAccount(
             txtest::getAccount("acc").getPublicKey(), 100)});
-        auto adv = createAdvert(std::vector<std::shared_ptr<StellarMessage>>{
-            std::make_shared<StellarMessage>(tx->toStellarMessage())});
+        auto adv =
+            createAdvert(std::vector<std::shared_ptr<StellarMessage const>>{
+                tx->toStellarMessage()});
         auto twoNodesRecvTx = [&]() {
             // Node0 and Node1 know about tx0 and will advertise it to Node2
             REQUIRE(apps[0]->getHerder().recvTransaction(tx, true) ==

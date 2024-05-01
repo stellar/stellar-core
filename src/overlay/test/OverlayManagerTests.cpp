@@ -295,17 +295,17 @@ class OverlayManagerTests
         auto c = TestAccount{*app, getAccount("c")};
         auto d = TestAccount{*app, getAccount("d")};
 
-        StellarMessage AtoB = a.tx({payment(b, 10)})->toStellarMessage();
+        auto AtoB = a.tx({payment(b, 10)})->toStellarMessage();
         auto i = 0;
         for (auto p : pm.mOutboundPeers.mAuthenticated)
         {
             if (i++ == 2)
             {
-                pm.recvFloodedMsg(AtoB, p.second);
+                pm.recvFloodedMsg(*AtoB, p.second);
             }
         }
         auto broadcastTxnMsg = [&](auto msg) {
-            pm.broadcastMessage(msg, xdrSha256(msg.transaction()));
+            pm.broadcastMessage(msg, xdrSha256(msg->transaction()));
         };
         broadcastTxnMsg(AtoB);
         crank(10);
@@ -314,7 +314,7 @@ class OverlayManagerTests
         broadcastTxnMsg(AtoB);
         crank(10);
         REQUIRE(sentCounts(pm) == expected);
-        StellarMessage CtoD = c.tx({payment(d, 10)})->toStellarMessage();
+        auto CtoD = c.tx({payment(d, 10)})->toStellarMessage();
         broadcastTxnMsg(CtoD);
         crank(10);
         std::vector<int> expectedFinal{2, 2, 1, 2, 2};

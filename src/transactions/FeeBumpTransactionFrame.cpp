@@ -576,11 +576,12 @@ FeeBumpTransactionFrame::resetResults(LedgerHeader const& header,
     mResult.feeCharged = getFee(header, baseFee, applying);
 }
 
-StellarMessage
+std::shared_ptr<StellarMessage const>
 FeeBumpTransactionFrame::toStellarMessage() const
 {
-    StellarMessage msg(TRANSACTION);
-    msg.transaction() = mEnvelope;
+    auto msg = std::make_shared<StellarMessage>();
+    msg->type(TRANSACTION);
+    msg->transaction() = mEnvelope;
     return msg;
 }
 }

@@ -85,19 +85,20 @@ Floodgate::addRecord(StellarMessage const& msg, Peer::pointer peer, Hash& index)
 
 // send message to anyone you haven't gotten it from
 bool
-Floodgate::broadcast(StellarMessage const& msg, std::optional<Hash> const& hash)
+Floodgate::broadcast(std::shared_ptr<StellarMessage const> msg,
+                     std::optional<Hash> const& hash)
 {
     ZoneScoped;
     if (mShuttingDown)
     {
         return false;
     }
-    if (msg.type() == TRANSACTION)
+    if (msg->type() == TRANSACTION)
     {
         // Must pass a hash when broadcasting transactions.
         releaseAssert(hash.has_value());
     }
-    Hash index = xdrBlake2(msg);
+    Hash index = xdrBlake2(*msg);
 
     FloodRecord::pointer fr;
     auto result = mFloodMap.find(index);
@@ -119,11 +120,10 @@ Floodgate::broadcast(StellarMessage const& msg, std::optional<Hash> const& hash)
     auto peers = mApp.getOverlayManager().getAuthenticatedPeers();
 
     bool broadcasted = false;
-    auto smsg = std::make_shared<StellarMessage const>(msg);
     for (auto peer : peers)
     {
         releaseAssert(peer.second->isAuthenticated());
-        bool pullMode = msg.type() == TRANSACTION;
+        bool pullMode = msg->type() == TRANSACTION;
 
         if (peersTold.insert(peer.second->toString()).second)
         {
@@ -140,11 +140,11 @@ Floodgate::broadcast(StellarMessage const& msg, std::optional<Hash> const& hash)
                 std::weak_ptr<Peer> weak(
                     std::static_pointer_cast<Peer>(peer.second));
                 mApp.postOnMainThread(
-                    [smsg, weak, log = !broadcasted]() {
+                    [msg, weak, log = !broadcasted]() {
                         auto strong = weak.lock();
                         if (strong)
                         {
-                            strong->sendMessage(smsg, log);
+                            strong->sendMessage(msg, log);
                         }
                     },
                     fmt::format(FMT_STRING("broadcast to {}"),

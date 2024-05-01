@@ -40,7 +40,7 @@ class Application;
 class BucketManager;
 class SearchableBucketListSnapshot;
 struct EvictionResultEntry;
-struct EvictionStatistics;
+class EvictionStatistics;
 
 class Bucket : public std::enable_shared_from_this<Bucket>,
                public NonMovableOrCopyable

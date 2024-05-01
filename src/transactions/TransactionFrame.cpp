@@ -2015,11 +2015,12 @@ TransactionFrame::processRefund(Application& app, AbstractLedgerTxn& ltxOuter,
     return refund;
 }
 
-StellarMessage
+std::shared_ptr<StellarMessage const>
 TransactionFrame::toStellarMessage() const
 {
-    StellarMessage msg(TRANSACTION);
-    msg.transaction() = mEnvelope;
+    auto msg = std::make_shared<StellarMessage>();
+    msg->type(TRANSACTION);
+    msg->transaction() = mEnvelope;
     return msg;
 }
 
