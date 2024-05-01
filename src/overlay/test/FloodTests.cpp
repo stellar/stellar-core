@@ -158,8 +158,8 @@ TEST_CASE("Flooding", "[flood][overlay][acceptance]")
             }
             // this is basically a modified version of Peer::recvTransaction
             auto msg = tx1->toStellarMessage();
-            auto res = inApp->getHerder().recvTransaction(tx1, false);
-            REQUIRE(res == TransactionQueue::AddResult::ADD_STATUS_PENDING);
+            auto [status, _] = inApp->getHerder().recvTransaction(tx1, false);
+            REQUIRE(status == TransactionQueue::AddResult::ADD_STATUS_PENDING);
             inApp->getOverlayManager().broadcastMessage(msg,
                                                         tx1->getFullHash());
         };

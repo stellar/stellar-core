@@ -66,7 +66,7 @@ struct SorobanData
 class TransactionResultPayload
 {
   public:
-    TransactionResult result;
+    TransactionResult txResult;
     std::optional<SorobanData> sorobanExtension;
 };
 

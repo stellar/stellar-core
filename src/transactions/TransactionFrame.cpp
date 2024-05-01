@@ -1637,6 +1637,9 @@ TransactionFrame::checkSorobanResourceAndSetError(Application& app,
                                   ledgerVersion))
     {
         txResult.result.code(txSOROBAN_INVALID);
+
+        // TODO: Remove
+        getResult().result.code(txSOROBAN_INVALID);
         return false;
     }
     return true;

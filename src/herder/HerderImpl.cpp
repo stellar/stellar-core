@@ -583,11 +583,11 @@ HerderImpl::emitEnvelope(SCPEnvelope const& envelope)
     broadcast(envelope);
 }
 
-TransactionQueue::AddResult
+std::pair<TransactionQueue::AddResult, TransactionResultPayload>
 HerderImpl::recvTransaction(TransactionFrameBasePtr tx, bool submittedFromSelf)
 {
     ZoneScoped;
-    TransactionQueue::AddResult result;
+    std::pair<TransactionQueue::AddResult, TransactionResultPayload> result{};
 
     // Allow txs of the same kind to reach the tx queue in case it can be
     // replaced by fee
@@ -605,7 +605,7 @@ HerderImpl::recvTransaction(TransactionFrameBasePtr tx, bool submittedFromSelf)
                    "account per ledger limit",
                    hexAbbrev(tx->getFullHash()),
                    KeyUtils::toShortString(tx->getSourceID()));
-        result = TransactionQueue::AddResult::ADD_STATUS_TRY_AGAIN_LATER;
+        result.first = TransactionQueue::AddResult::ADD_STATUS_TRY_AGAIN_LATER;
     }
     else if (!tx->isSoroban())
     {
@@ -619,10 +619,10 @@ HerderImpl::recvTransaction(TransactionFrameBasePtr tx, bool submittedFromSelf)
     {
         // Received Soroban transaction before protocol 20; since this
         // transaction isn't supported yet, return ERROR
-        result = TransactionQueue::AddResult::ADD_STATUS_ERROR;
+        result.first = TransactionQueue::AddResult::ADD_STATUS_ERROR;
     }
 
-    if (result == TransactionQueue::AddResult::ADD_STATUS_PENDING)
+    if (result.first == TransactionQueue::AddResult::ADD_STATUS_PENDING)
     {
         CLOG_TRACE(Herder, "recv transaction {} for {}",
                    hexAbbrev(tx->getFullHash()),

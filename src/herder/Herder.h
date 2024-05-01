@@ -124,7 +124,7 @@ class Herder
                                   SCPQuorumSet const& qset) = 0;
     virtual bool recvTxSet(Hash const& hash, TxSetXDRFrameConstPtr txset) = 0;
     // We are learning about a new transaction.
-    virtual TransactionQueue::AddResult
+    virtual std::pair<TransactionQueue::AddResult, TransactionResultPayload>
     recvTransaction(TransactionFrameBasePtr tx, bool submittedFromSelf) = 0;
     virtual void peerDoesntHave(stellar::MessageType type,
                                 uint256 const& itemID, Peer::pointer peer) = 0;

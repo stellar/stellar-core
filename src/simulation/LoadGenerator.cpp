@@ -2176,18 +2176,18 @@ LoadGenerator::execute(TransactionTestFramePtr& txf, LoadGenMode mode,
     auto msg = txf->toStellarMessage();
     txm.mTxnBytes.Mark(xdr::xdr_argpack_size(*msg));
 
-    auto status = mApp.getHerder().recvTransaction(txf, true);
+    auto [status, resPayload] = mApp.getHerder().recvTransaction(txf, true);
     if (status != TransactionQueue::AddResult::ADD_STATUS_PENDING)
     {
         CLOG_INFO(LoadGen, "tx rejected '{}': ===> {}, {}",
                   TX_STATUS_STRING[static_cast<int>(status)],
                   txf->isSoroban() ? "soroban"
                                    : xdrToCerealString(txf->getEnvelope(),
-                                                       "TransactionEnvelope"),
-                  xdrToCerealString(txf->getResult(), "TransactionResult"));
+                                                   "TransactionEnvelope"),
+                  xdrToCerealString(resPayload.txResult, "TransactionResult"));
         if (status == TransactionQueue::AddResult::ADD_STATUS_ERROR)
         {
-            code = txf->getResultCode();
+            code = resPayload.txResult.result.code();
         }
         txm.mTxnRejected.Mark();
     }

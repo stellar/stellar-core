@@ -1015,14 +1015,14 @@ CommandHandler::tx(std::string const& params, std::string& retStr)
         if (transaction)
         {
             // Add it to our current set and make sure it is valid.
-            TransactionQueue::AddResult status =
+            auto [status, payload] =
                 mApp.getHerder().recvTransaction(transaction, true);
 
             root["status"] = TX_STATUS_STRING[static_cast<int>(status)];
             if (status == TransactionQueue::AddResult::ADD_STATUS_ERROR)
             {
                 std::string resultBase64;
-                auto resultBin = xdr::xdr_to_opaque(transaction->getResult());
+                auto resultBin = xdr::xdr_to_opaque(payload.txResult);
                 resultBase64.reserve(decoder::encoded_size64(resultBin.size()) +
                                      1);
                 resultBase64 = decoder::encode_b64(resultBin);
@@ -1031,6 +1031,7 @@ CommandHandler::tx(std::string const& params, std::string& retStr)
                     transaction->isSoroban() &&
                     !transaction->getDiagnosticEvents().empty())
                 {
+                    // TODO: Remove
                     auto diagsBin =
                         xdr::xdr_to_opaque(transaction->getDiagnosticEvents());
                     auto diagsBase64 = decoder::encode_b64(diagsBin);
@@ -1540,12 +1541,13 @@ CommandHandler::testTx(std::string const& params, std::string& retStr)
             txFrame = fromAccount.tx({payment(toAccount, paymentAmount)});
         }
 
-        auto status = mApp.getHerder().recvTransaction(txFrame, true);
+        auto [status, resultPayload] =
+            mApp.getHerder().recvTransaction(txFrame, true);
         root["status"] = TX_STATUS_STRING[static_cast<int>(status)];
         if (status == TransactionQueue::AddResult::ADD_STATUS_ERROR)
         {
-            root["detail"] = xdrToCerealString(
-                txFrame->getResult().result.code(), "TransactionResultCode");
+            root["detail"] = xdrToCerealString(resultPayload.txResult.result.code(),
+                                           "TransactionResultCode");
         }
     }
     else

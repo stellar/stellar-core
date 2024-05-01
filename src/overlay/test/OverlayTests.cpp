@@ -2647,9 +2647,9 @@ TEST_CASE("overlay pull mode", "[overlay][pullmode]")
                 tx->toStellarMessage()});
         auto twoNodesRecvTx = [&]() {
             // Node0 and Node1 know about tx0 and will advertise it to Node2
-            REQUIRE(apps[0]->getHerder().recvTransaction(tx, true) ==
+            REQUIRE(apps[0]->getHerder().recvTransaction(tx, true).first ==
                     TransactionQueue::AddResult::ADD_STATUS_PENDING);
-            REQUIRE(apps[1]->getHerder().recvTransaction(tx, true) ==
+            REQUIRE(apps[1]->getHerder().recvTransaction(tx, true).first ==
                     TransactionQueue::AddResult::ADD_STATUS_PENDING);
         };
 
