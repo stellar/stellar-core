@@ -7,7 +7,6 @@
 #include "bucket/BucketManagerImpl.h"
 #include "util/NonCopyable.h"
 #include "util/UnorderedMap.h"
-#include "util/types.h"
 
 #include <memory>
 #include <mutex>

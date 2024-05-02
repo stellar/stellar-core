@@ -7,8 +7,7 @@
 #include "bucket/BucketListSnapshot.h"
 #include "ledger/LedgerTxn.h"
 #include "ledger/LedgerTypeUtils.h"
-
-#include "medida/counter.h"
+#include "util/XDRStream.h"
 
 namespace stellar
 {

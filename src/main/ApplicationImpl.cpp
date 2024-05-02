@@ -17,6 +17,7 @@
 #include "bucket/Bucket.h"
 #include "bucket/BucketManager.h"
 #include "catchup/ApplyBucketsWork.h"
+#include "crypto/Hex.h"
 #include "crypto/SHA.h"
 #include "crypto/SecretKey.h"
 #include "database/Database.h"

@@ -4,11 +4,10 @@
 
 #include "bucket/BucketListSnapshot.h"
 #include "bucket/BucketInputIterator.h"
-#include "crypto/SecretKey.h"
+#include "crypto/SecretKey.h" // IWYU pragma: keep
 #include "ledger/LedgerTxn.h"
 
-#include "medida/meter.h"
-#include "medida/metrics_registry.h"
+#include "medida/timer.h"
 
 namespace stellar
 {

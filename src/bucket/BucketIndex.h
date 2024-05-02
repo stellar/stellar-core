@@ -4,10 +4,10 @@
 // under the Apache License, Version 2.0. See the COPYING file at the root
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
-#include "bucket/LedgerCmp.h"
 #include "util/GlobalChecks.h"
 #include "util/NonCopyable.h"
-#include <atomic>
+#include "util/XDROperators.h" // IWYU pragma: keep
+#include "xdr/Stellar-ledger-entries.h"
 #include <filesystem>
 #include <memory>
 #include <optional>

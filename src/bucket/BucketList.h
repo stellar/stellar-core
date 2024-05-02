@@ -6,12 +6,6 @@
 
 #include "bucket/Bucket.h"
 #include "bucket/FutureBucket.h"
-#include "bucket/LedgerCmp.h"
-#include "overlay/StellarXDR.h"
-#include "xdrpp/message.h"
-#include <future>
-#include <optional>
-#include <set>
 
 namespace medida
 {

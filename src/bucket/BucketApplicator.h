@@ -6,9 +6,7 @@
 
 #include "bucket/Bucket.h"
 #include "bucket/BucketInputIterator.h"
-#include "ledger/LedgerHashUtils.h"
 #include "util/Timer.h"
-#include "util/XDRStream.h"
 #include <memory>
 
 namespace stellar

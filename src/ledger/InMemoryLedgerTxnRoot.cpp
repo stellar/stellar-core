@@ -6,6 +6,7 @@
 #include "ledger/LedgerRange.h"
 #include "ledger/LedgerTxn.h"
 #include "util/XDROperators.h"
+#include "util/XDRStream.h"
 #include "util/types.h"
 #include "xdr/Stellar-ledger-entries.h"
 #include "xdrpp/marshal.h"

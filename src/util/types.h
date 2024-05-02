@@ -5,11 +5,10 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "bucket/LedgerCmp.h"
-#include "numeric.h"
-#include "overlay/StellarXDR.h"
-#include "xdrpp/message.h"
+#include "xdr/Stellar-ledger-entries.h"
+#include "xdr/Stellar-ledger.h"
+#include "xdr/Stellar-types.h"
 #include <set>
-#include <type_traits>
 #include <vector>
 
 namespace stellar

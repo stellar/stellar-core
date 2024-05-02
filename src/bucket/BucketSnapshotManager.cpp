@@ -5,6 +5,7 @@
 #include "bucket/BucketSnapshotManager.h"
 #include "bucket/BucketListSnapshot.h"
 #include "main/Application.h"
+#include "util/XDRStream.h" // IWYU pragma: keep
 
 #include "medida/meter.h"
 #include "medida/metrics_registry.h"

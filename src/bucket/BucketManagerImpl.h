@@ -3,7 +3,7 @@
 #include "bucket/BucketList.h"
 #include "bucket/BucketManager.h"
 #include "bucket/BucketMergeMap.h"
-#include "overlay/StellarXDR.h"
+#include "xdr/Stellar-ledger.h"
 
 #include <map>
 #include <memory>
