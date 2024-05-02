@@ -2513,7 +2513,7 @@ TEST_CASE("temp entry eviction", "[tx][soroban]")
         std::string metaPath = td.getName() + "/stream.xdr";
 
         cfg.METADATA_OUTPUT_STREAM = metaPath;
-        cfg.EXPERIMENTAL_BUCKETLIST_DB = enableBucketListDB;
+        cfg.DEPRECATED_SQL_LEDGER_STATE = !enableBucketListDB;
         cfg.EXPERIMENTAL_BACKGROUND_EVICTION_SCAN = backgroundEviction;
 
         // overrideSorobanNetworkConfigForTest commits directly to the database,
@@ -2806,7 +2806,6 @@ TEST_CASE("settings upgrade command line utils", "[tx][soroban][upgrades]")
     VirtualClock clock;
     auto cfg = getTestConfig();
     cfg.ENABLE_SOROBAN_DIAGNOSTIC_EVENTS = true;
-    cfg.EXPERIMENTAL_BUCKETLIST_DB = false;
     auto app = createTestApplication(clock, cfg);
     auto root = TestAccount::createRoot(*app);
     auto& lm = app->getLedgerManager();

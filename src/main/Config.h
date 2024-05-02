@@ -340,22 +340,22 @@ class Config : public std::enable_shared_from_this<Config>
     // configuration) to delay emitting metadata by one ledger.
     bool EXPERIMENTAL_PRECAUTION_DELAY_META;
 
-    // A config parameter that when set uses the BucketList as the primary
-    // key-value store for LedgerEntry lookups
-    bool EXPERIMENTAL_BUCKETLIST_DB;
+    // A config parameter that when set uses SQL as the primary
+    // key-value store for LedgerEntry lookups instead of BucketListDB.
+    bool DEPRECATED_SQL_LEDGER_STATE;
 
     // Page size exponent used by BucketIndex when indexing ranges of
     // BucketEntry's. If set to 0, BucketEntry's are individually indexed.
     // Otherwise, pageSize ==
-    // 2^EXPERIMENTAL_BUCKETLIST_DB_INDEX_PAGE_SIZE_EXPONENT.
-    size_t EXPERIMENTAL_BUCKETLIST_DB_INDEX_PAGE_SIZE_EXPONENT;
+    // 2^BUCKETLIST_DB_INDEX_PAGE_SIZE_EXPONENT.
+    size_t BUCKETLIST_DB_INDEX_PAGE_SIZE_EXPONENT;
 
     // Size, in MB, determining whether a bucket should have an individual
     // key index or a key range index. If bucket size is below this value, range
     // based index will be used. If set to 0, all buckets are range indexed. If
     // index page size == 0, value ingnored and all buckets have individual key
     // index.
-    size_t EXPERIMENTAL_BUCKETLIST_DB_INDEX_CUTOFF;
+    size_t BUCKETLIST_DB_INDEX_CUTOFF;
 
     // When set to true, BucketListDB indexes are persisted on-disk so that the
     // BucketList does not need to be reindexed on startup. Defaults to true.
@@ -363,7 +363,7 @@ class Config : public std::enable_shared_from_this<Config>
     // Validators do not currently support persisted indexes. If
     // NODE_IS_VALIDATOR=true, this value is ingnored and indexes are never
     // persisted.
-    bool EXPERIMENTAL_BUCKETLIST_DB_PERSIST_INDEX;
+    bool BUCKETLIST_DB_PERSIST_INDEX;
 
     // When set to true, eviction scans occur on the background thread,
     // increasing performance. Requires EXPERIMENTAL_BUCKETLIST_DB.

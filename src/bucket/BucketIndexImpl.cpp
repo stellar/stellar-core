@@ -46,13 +46,13 @@ static inline std::streamoff
 effectivePageSize(Config const& cfg, size_t bucketSize)
 {
     // Convert cfg param from MB to bytes
-    if (auto cutoff = cfg.EXPERIMENTAL_BUCKETLIST_DB_INDEX_CUTOFF * 1000000;
+    if (auto cutoff = cfg.BUCKETLIST_DB_INDEX_CUTOFF * 1000000;
         bucketSize < cutoff)
     {
         return 0;
     }
 
-    auto pageSizeExp = cfg.EXPERIMENTAL_BUCKETLIST_DB_INDEX_PAGE_SIZE_EXPONENT;
+    auto pageSizeExp = cfg.BUCKETLIST_DB_INDEX_PAGE_SIZE_EXPONENT;
     releaseAssertOrThrow(pageSizeExp < 32);
     return pageSizeExp == 0 ? 0 : 1UL << pageSizeExp;
 }

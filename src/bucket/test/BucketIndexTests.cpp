@@ -455,26 +455,26 @@ testAllIndexTypes(std::function<void(Config&)> f)
     SECTION("individual index only")
     {
         Config cfg(getTestConfig());
-        cfg.EXPERIMENTAL_BUCKETLIST_DB = true;
-        cfg.EXPERIMENTAL_BUCKETLIST_DB_INDEX_PAGE_SIZE_EXPONENT = 0;
+        cfg.DEPRECATED_SQL_LEDGER_STATE = false;
+        cfg.BUCKETLIST_DB_INDEX_PAGE_SIZE_EXPONENT = 0;
         f(cfg);
     }
 
     SECTION("individual and range index")
     {
         Config cfg(getTestConfig());
-        cfg.EXPERIMENTAL_BUCKETLIST_DB = true;
+        cfg.DEPRECATED_SQL_LEDGER_STATE = false;
 
         // First 3 levels individual, last 3 range index
-        cfg.EXPERIMENTAL_BUCKETLIST_DB_INDEX_CUTOFF = 1;
+        cfg.BUCKETLIST_DB_INDEX_CUTOFF = 1;
         f(cfg);
     }
 
     SECTION("range index only")
     {
         Config cfg(getTestConfig());
-        cfg.EXPERIMENTAL_BUCKETLIST_DB = true;
-        cfg.EXPERIMENTAL_BUCKETLIST_DB_INDEX_CUTOFF = 0;
+        cfg.DEPRECATED_SQL_LEDGER_STATE = false;
+        cfg.BUCKETLIST_DB_INDEX_CUTOFF = 0;
         f(cfg);
     }
 }
@@ -543,9 +543,9 @@ TEST_CASE("serialize bucket indexes", "[bucket][bucketindex][!hide]")
     Config cfg(getTestConfig(0, Config::TESTDB_ON_DISK_SQLITE));
 
     // All levels use range config
-    cfg.EXPERIMENTAL_BUCKETLIST_DB_INDEX_CUTOFF = 0;
-    cfg.EXPERIMENTAL_BUCKETLIST_DB = true;
-    cfg.EXPERIMENTAL_BUCKETLIST_DB_PERSIST_INDEX = true;
+    cfg.BUCKETLIST_DB_INDEX_CUTOFF = 0;
+    cfg.DEPRECATED_SQL_LEDGER_STATE = false;
+    cfg.BUCKETLIST_DB_PERSIST_INDEX = true;
 
     // Node is not a validator, so indexes will persist
     cfg.NODE_IS_VALIDATOR = false;
@@ -580,8 +580,8 @@ TEST_CASE("serialize bucket indexes", "[bucket][bucketindex][!hide]")
     // Restart app with different config to test that indexes created with
     // different config settings are not loaded from disk. These params will
     // invalidate every index in BL
-    cfg.EXPERIMENTAL_BUCKETLIST_DB_INDEX_CUTOFF = 0;
-    cfg.EXPERIMENTAL_BUCKETLIST_DB_INDEX_PAGE_SIZE_EXPONENT = 10;
+    cfg.BUCKETLIST_DB_INDEX_CUTOFF = 0;
+    cfg.BUCKETLIST_DB_INDEX_PAGE_SIZE_EXPONENT = 10;
     test.restartWithConfig(cfg);
 
     for (auto const& bucketHash : buckets)

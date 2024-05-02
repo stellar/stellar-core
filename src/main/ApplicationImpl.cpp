@@ -731,14 +731,36 @@ ApplicationImpl::validateAndLogConfig()
             "requires --in-memory");
     }
 
-    if (mConfig.EXPERIMENTAL_BUCKETLIST_DB)
+    if (mConfig.isInMemoryMode())
+    {
+        CLOG_WARNING(
+            Bucket,
+            "in-memory mode is enabled. This feature is deprecated! Node "
+            "may see performance degredation and lose sync with the network.");
+    }
+
+    if (mConfig.DEPRECATED_SQL_LEDGER_STATE)
+    {
+        if (mPersistentState->getState(PersistentState::kDBBackend) ==
+            BucketIndex::DB_BACKEND_STATE)
+        {
+            throw std::invalid_argument(
+                "To downgrade to DEPRECATED_SQL_LEDGER_STATE, run "
+                "stellar-core new-db.");
+        }
+
+        CLOG_WARNING(
+            Bucket,
+            "SQL for ledger state is enabled. This feature is deprecated! Node "
+            "may see performance degredation and lose sync with the network.");
+    }
+    else
     {
         if (mConfig.isUsingBucketListDB())
         {
             mPersistentState->setState(PersistentState::kDBBackend,
                                        BucketIndex::DB_BACKEND_STATE);
-            auto pageSizeExp =
-                mConfig.EXPERIMENTAL_BUCKETLIST_DB_INDEX_PAGE_SIZE_EXPONENT;
+            auto pageSizeExp = mConfig.BUCKETLIST_DB_INDEX_PAGE_SIZE_EXPONENT;
             if (pageSizeExp != 0)
             {
                 // If the page size is less than 256 bytes, it is essentially
@@ -747,7 +769,7 @@ ApplicationImpl::validateAndLogConfig()
                 if (pageSizeExp < 8)
                 {
                     throw std::invalid_argument(
-                        "EXPERIMENTAL_BUCKETLIST_DB_INDEX_PAGE_SIZE_EXPONENT "
+                        "BUCKETLIST_DB_INDEX_PAGE_SIZE_EXPONENT "
                         "must be at least 8 or set to 0 for individual entry "
                         "indexing");
                 }
@@ -756,7 +778,7 @@ ApplicationImpl::validateAndLogConfig()
                 if (pageSizeExp > 31)
                 {
                     throw std::invalid_argument(
-                        "EXPERIMENTAL_BUCKETLIST_DB_INDEX_PAGE_SIZE_EXPONENT "
+                        "BUCKETLIST_DB_INDEX_PAGE_SIZE_EXPONENT "
                         "must be less than 32");
                 }
             }
@@ -764,26 +786,19 @@ ApplicationImpl::validateAndLogConfig()
             CLOG_INFO(Bucket,
                       "BucketListDB enabled: pageSizeExponent: {} indexCutOff: "
                       "{}MB, persist indexes: {}",
-                      pageSizeExp,
-                      mConfig.EXPERIMENTAL_BUCKETLIST_DB_INDEX_CUTOFF,
+                      pageSizeExp, mConfig.BUCKETLIST_DB_INDEX_CUTOFF,
                       mConfig.isPersistingBucketListDBIndexes());
         }
         else
         {
             CLOG_WARNING(
                 Bucket,
-                "EXPERIMENTAL_BUCKETLIST_DB flag set but "
-                "BucketListDB not enabled. To enable BucketListDB, "
+                "DEPRECATED_SQL_LEDGER_STATE set to false but "
+                "deprecated SQL ledger state is active. To disable deprecated "
+                "SQL ledger state, "
                 "MODE_ENABLES_BUCKETLIST must be set and --in-memory flag "
                 "must not be used.");
         }
-    }
-    else if (mPersistentState->getState(PersistentState::kDBBackend) ==
-             BucketIndex::DB_BACKEND_STATE)
-    {
-        throw std::invalid_argument(
-            "To downgrade from EXPERIMENTAL_BUCKETLIST_DB, run "
-            "stellar-core new-db.");
     }
 
     if (mConfig.EXPERIMENTAL_BACKGROUND_EVICTION_SCAN)
@@ -791,7 +806,7 @@ ApplicationImpl::validateAndLogConfig()
         if (!mConfig.isUsingBucketListDB())
         {
             throw std::invalid_argument(
-                "EXPERIMENTAL_BUCKETLIST_DB must be enabled to use "
+                "DEPRECATED_SQL_LEDGER_STATE must be false to use "
                 "EXPERIMENTAL_BACKGROUND_EVICTION_SCAN");
         }
 
