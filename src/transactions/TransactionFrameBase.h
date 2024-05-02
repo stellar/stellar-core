@@ -50,7 +50,7 @@ class TransactionFrameBase
                             uint64_t upperBoundCloseTimeOffset) = 0;
     virtual bool
     checkSorobanResourceAndSetError(Application& app, uint32_t ledgerVersion,
-                                    TransactionResult& txResult) = 0;
+                                    TransactionResultPayload& resPayload) = 0;
 
     virtual void resetResults(LedgerHeader const& header,
                               std::optional<int64_t> baseFee, bool applying,

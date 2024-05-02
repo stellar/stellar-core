@@ -107,7 +107,7 @@ class TransactionQueue
     static std::vector<AssetPair>
     findAllAssetPairsInvolvedInPaymentLoops(TransactionFrameBasePtr tx);
 
-    std::pair<TransactionQueue::AddResult, TransactionResultPayload>
+    std::pair<TransactionQueue::AddResult, TransactionResultPayloadPtr>
     tryAdd(TransactionFrameBasePtr tx, bool submittedFromSelf);
     void removeApplied(Transactions const& txs);
     // Ban transactions that are no longer valid or have insufficient fee;
@@ -201,7 +201,7 @@ class TransactionQueue
         BROADCAST_STATUS_SKIPPED
     };
     BroadcastStatus broadcastTx(TimestampedTx& tx);
-    std::pair<AddResult, TransactionResultPayload>
+    std::pair<AddResult, TransactionResultPayloadPtr>
     canAdd(TransactionFrameBasePtr tx, AccountStates::iterator& stateIter,
            std::vector<std::pair<TransactionFrameBasePtr, bool>>& txsToEvict);
 

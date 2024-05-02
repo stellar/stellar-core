@@ -897,13 +897,21 @@ LedgerManagerImpl::closeLedger(LedgerCloseData const& ledgerData)
     std::vector<TransactionFrameBasePtr> const txs =
         applicableTxSet->getTxsInApplyOrder();
 
+    std::vector<TransactionResultPayloadPtr> txResults;
+    for (auto tx : txs)
+    {
+        txResults.emplace_back(
+            TransactionResultPayload::create(tx->toTransactionFrame()));
+    }
+
     // first, prefetch source accounts for txset, then charge fees
     prefetchTxSourceIds(txs);
-    processFeesSeqNums(txs, ltx, *applicableTxSet, ledgerCloseMeta);
+    processFeesSeqNums(txs, txResults, ltx, *applicableTxSet, ledgerCloseMeta);
 
     TransactionResultSet txResultSet;
     txResultSet.results.reserve(txs.size());
-    applyTransactions(*applicableTxSet, txs, ltx, txResultSet, ledgerCloseMeta);
+    applyTransactions(*applicableTxSet, txs, txResults, ltx, txResultSet,
+                      ledgerCloseMeta);
     if (mApp.getConfig().MODE_STORES_HISTORY_MISC)
     {
         storeTxSet(mApp.getDatabase(), ltx.loadHeader().current().ledgerSeq,
@@ -1340,10 +1348,12 @@ mergeOpInTx(std::vector<Operation> const& ops)
 void
 LedgerManagerImpl::processFeesSeqNums(
     std::vector<TransactionFrameBasePtr> const& txs,
+    std::vector<TransactionResultPayloadPtr> const& txResults,
     AbstractLedgerTxn& ltxOuter, ApplicableTxSetFrame const& txSet,
     std::unique_ptr<LedgerCloseMetaFrame> const& ledgerCloseMeta)
 {
     ZoneScoped;
+    releaseAssert(txs.size() == txResults.size());
     CLOG_DEBUG(Ledger, "processing fees and sequence numbers");
     int index = 0;
     try
@@ -1353,14 +1363,15 @@ LedgerManagerImpl::processFeesSeqNums(
         std::map<AccountID, SequenceNumber> accToMaxSeq;
 
         bool mergeSeen = false;
-        for (auto tx : txs)
+        for (size_t i = 0; i < txs.size(); ++i)
         {
+            auto tx = txs.at(i);
+            auto& txResult = *txResults.at(i);
+
             LedgerTxn ltxTx(ltx);
 
-            // TODO: Vector of pairs of TxResultPayload with the associated TX
-            TransactionResultPayload resPayload;
             tx->processFeeSeqNum(ltxTx, txSet.getTxBaseFee(tx, header),
-                                 resPayload);
+                                 txResult);
 
             if (protocolVersionStartsFrom(
                     ltxTx.loadHeader().current().ledgerVersion,
@@ -1487,11 +1498,13 @@ LedgerManagerImpl::prefetchTransactionData(
 void
 LedgerManagerImpl::applyTransactions(
     ApplicableTxSetFrame const& txSet,
-    std::vector<TransactionFrameBasePtr> const& txs, AbstractLedgerTxn& ltx,
-    TransactionResultSet& txResultSet,
+    std::vector<TransactionFrameBasePtr> const& txs,
+    std::vector<TransactionResultPayloadPtr> const& txResults,
+    AbstractLedgerTxn& ltx, TransactionResultSet& txResultSet,
     std::unique_ptr<LedgerCloseMetaFrame> const& ledgerCloseMeta)
 {
     ZoneNamedN(txsZone, "applyTransactions", true);
+    releaseAssert(txs.size() == txResults.size());
     int index = 0;
 
     // Record counts
@@ -1516,9 +1529,12 @@ LedgerManagerImpl::applyTransactions(
     uint64_t txFailed{0};
     uint64_t sorobanTxSucceeded{0};
     uint64_t sorobanTxFailed{0};
-    for (auto tx : txs)
+    for (size_t i = 0; i < txs.size(); ++i)
     {
         ZoneNamedN(txZone, "applyTransaction", true);
+        auto tx = txs.at(i);
+        auto& txResult = *txResults.at(i);
+
         auto txTime = mTransactionApply.TimeScope();
         TransactionMetaFrame tm(ltx.loadHeader().current().ledgerVersion);
         CLOG_DEBUG(Tx, " tx#{} = {} ops={} txseq={} (@ {})", index,
@@ -1537,8 +1553,7 @@ LedgerManagerImpl::applyTransactions(
         }
         ++txNum;
 
-        TransactionResultPayload payload;
-        tx->apply(mApp, ltx, tm, payload, subSeed);
+        tx->apply(mApp, ltx, tm, txResult, subSeed);
         tx->processPostApply(mApp, ltx, tm);
         TransactionResultPair results;
         results.transactionHash = tx->getContentsHash();

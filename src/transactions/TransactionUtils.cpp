@@ -1834,7 +1834,8 @@ getMinInclusionFee(TransactionFrameBase const& tx, LedgerHeader const& header,
 bool
 validateContractLedgerEntry(LedgerKey const& lk, size_t entrySize,
                             SorobanNetworkConfig const& config,
-                            Config const& appConfig, TransactionFrame& parentTx)
+                            Config const& appConfig, TransactionFrame& parentTx,
+                            TransactionResultPayload& resPayload)
 {
     // check contract code size limit
     if (lk.type() == CONTRACT_CODE && config.maxContractSizeBytes() < entrySize)
@@ -1842,6 +1843,7 @@ validateContractLedgerEntry(LedgerKey const& lk, size_t entrySize,
         parentTx.pushApplyTimeDiagnosticError(
             appConfig, SCE_BUDGET, SCEC_EXCEEDED_LIMIT,
             "Wasm size exceeds network config maximum contract size",
+            resPayload,
             {makeU64SCVal(entrySize),
              makeU64SCVal(config.maxContractSizeBytes())});
         return false;
@@ -1852,7 +1854,7 @@ validateContractLedgerEntry(LedgerKey const& lk, size_t entrySize,
     {
         parentTx.pushApplyTimeDiagnosticError(
             appConfig, SCE_BUDGET, SCEC_EXCEEDED_LIMIT,
-            "ContractData size exceeds network config maximum size",
+            "ContractData size exceeds network config maximum size", resPayload,
             {makeU64SCVal(entrySize),
              makeU64SCVal(config.maxContractDataEntrySizeBytes())});
         return false;

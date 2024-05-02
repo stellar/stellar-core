@@ -28,6 +28,7 @@ class InternalLedgerKey;
 class SorobanNetworkConfig;
 class TransactionFrame;
 class TransactionFrameBase;
+class TransactionResultPayload;
 struct ClaimAtom;
 struct LedgerHeader;
 struct LedgerKey;
@@ -308,7 +309,8 @@ int64_t getMinInclusionFee(TransactionFrameBase const& tx,
 bool validateContractLedgerEntry(LedgerKey const& lk, size_t entrySize,
                                  SorobanNetworkConfig const& config,
                                  Config const& appConfig,
-                                 TransactionFrame& parentTx);
+                                 TransactionFrame& parentTx,
+                                 TransactionResultPayload& resPayload);
 
 struct LumenContractInfo
 {

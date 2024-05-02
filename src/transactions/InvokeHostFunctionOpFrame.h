@@ -26,7 +26,8 @@ class InvokeHostFunctionOpFrame : public OperationFrame
 
     void maybePopulateDiagnosticEvents(Config const& cfg,
                                        InvokeHostFunctionOutput const& output,
-                                       HostFunctionMetrics const& metrics);
+                                       HostFunctionMetrics const& metrics,
+                                       TransactionResultPayload& resPayload);
 
     InvokeHostFunctionOp const& mInvokeHostFunction;
 
@@ -38,10 +39,12 @@ class InvokeHostFunctionOpFrame : public OperationFrame
 
     bool doApply(AbstractLedgerTxn& ltx) override;
     bool doApply(Application& app, AbstractLedgerTxn& ltx,
-                 Hash const& sorobanBasePrngSeed) override;
+                 Hash const& sorobanBasePrngSeed,
+                 TransactionResultPayload& resPayload) override;
 
     bool doCheckValid(SorobanNetworkConfig const& config,
-                      Config const& appConfig, uint32_t ledgerVersion) override;
+                      Config const& appConfig, uint32_t ledgerVersion,
+                      TransactionResultPayload& resPayload) override;
     bool doCheckValid(uint32_t ledgerVersion) override;
 
     void

@@ -139,15 +139,16 @@ OperationFrame::OperationFrame(Operation const& op, OperationResult& res,
 
 bool
 OperationFrame::apply(Application& app, SignatureChecker& signatureChecker,
-                      AbstractLedgerTxn& ltx, Hash const& sorobanBasePrngSeed)
+                      AbstractLedgerTxn& ltx, Hash const& sorobanBasePrngSeed,
+                      TransactionResultPayload& resPayload)
 {
     ZoneScoped;
     bool res;
     CLOG_TRACE(Tx, "{}", xdrToCerealString(mOperation, "Operation"));
-    res = checkValid(app, signatureChecker, ltx, true);
+    res = checkValid(app, signatureChecker, ltx, true, resPayload);
     if (res)
     {
-        res = doApply(app, ltx, sorobanBasePrngSeed);
+        res = doApply(app, ltx, sorobanBasePrngSeed, resPayload);
         CLOG_TRACE(Tx, "{}", xdrToCerealString(mResult, "OperationResult"));
     }
 
@@ -156,7 +157,8 @@ OperationFrame::apply(Application& app, SignatureChecker& signatureChecker,
 
 bool
 OperationFrame::doApply(Application& _app, AbstractLedgerTxn& ltx,
-                        Hash const& sorobanBasePrngSeed)
+                        Hash const& sorobanBasePrngSeed,
+                        TransactionResultPayload& resPayload)
 {
     // By default we ignore the app and seed, but subclasses can override to
     // intercept and use them.
@@ -231,7 +233,8 @@ OperationFrame::getResultCode() const
 // verifies that the operation is well formed (operation specific)
 bool
 OperationFrame::checkValid(Application& app, SignatureChecker& signatureChecker,
-                           AbstractLedgerTxn& ltxOuter, bool forApply)
+                           AbstractLedgerTxn& ltxOuter, bool forApply,
+                           TransactionResultPayload& resPayload)
 {
     ZoneScoped;
     // Note: ltx is always rolled back so checkValid never modifies the ledger
@@ -269,7 +272,8 @@ OperationFrame::checkValid(Application& app, SignatureChecker& signatureChecker,
         auto const& sorobanConfig =
             app.getLedgerManager().getSorobanNetworkConfig();
 
-        return doCheckValid(sorobanConfig, app.getConfig(), ledgerVersion);
+        return doCheckValid(sorobanConfig, app.getConfig(), ledgerVersion,
+                            resPayload);
     }
     else
     {
@@ -279,7 +283,8 @@ OperationFrame::checkValid(Application& app, SignatureChecker& signatureChecker,
 
 bool
 OperationFrame::doCheckValid(SorobanNetworkConfig const& config,
-                             Config const& appConfig, uint32_t ledgerVersion)
+                             Config const& appConfig, uint32_t ledgerVersion,
+                             TransactionResultPayload& resPayload)
 {
     return doCheckValid(ledgerVersion);
 }

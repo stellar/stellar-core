@@ -45,6 +45,9 @@ class SHA256;
 class TransactionFrame;
 using TransactionFramePtr = std::shared_ptr<TransactionFrame>;
 
+class TransactionResultPayload;
+using TransactionResultPayloadPtr = std::shared_ptr<TransactionResultPayload>;
+
 // TODO: Make private inner struct of TransactionResult
 struct SorobanData
 {
@@ -63,9 +66,12 @@ struct SorobanData
 };
 
 // TODO: Make proper class
-class TransactionResultPayload
+class TransactionResultPayload : NonMovableOrCopyable
 {
   public:
+    TransactionResultPayload(TransactionFrame const& tx);
+    static TransactionResultPayloadPtr create(TransactionFrame const& tx);
+
     TransactionResult txResult;
     std::vector<std::shared_ptr<OperationFrame>> opFrames;
     std::optional<TransactionResult> outerFeeBumpResult;
@@ -145,6 +151,7 @@ class TransactionFrame : public TransactionFrameBase
 
     bool applyOperations(SignatureChecker& checker, Application& app,
                          AbstractLedgerTxn& ltx, TransactionMetaFrame& meta,
+                         TransactionResultPayload& resPayload,
                          Hash const& sorobanBasePrngSeed);
 
     virtual void processSeqNum(AbstractLedgerTxn& ltx);
@@ -160,7 +167,8 @@ class TransactionFrame : public TransactionFrameBase
     bool validateSorobanOpsConsistency() const;
     bool validateSorobanResources(SorobanNetworkConfig const& config,
                                   Config const& appConfig,
-                                  uint32_t protocolVersion);
+                                  uint32_t protocolVersion,
+                                  TransactionResultPayload& resPayload);
     int64_t refundSorobanFee(AbstractLedgerTxn& ltx,
                              AccountID const& feeSource);
     void updateSorobanMetrics(Application& app);
@@ -174,7 +182,8 @@ class TransactionFrame : public TransactionFrameBase
 
     void pushSimpleDiagnosticError(Config const& cfg, SCErrorType ty,
                                    SCErrorCode code, std::string&& message,
-                                   xdr::xvector<SCVal>&& args);
+                                   xdr::xvector<SCVal>&& args,
+                                   TransactionResultPayload& resPayload);
 
   public:
     TransactionFrame(Hash const& networkID,
@@ -207,16 +216,22 @@ class TransactionFrame : public TransactionFrameBase
         return getResult().result.code();
     }
 
-    void pushContractEvents(xdr::xvector<ContractEvent>&& evts);
-    void pushDiagnosticEvents(xdr::xvector<DiagnosticEvent>&& evts);
-    void setReturnValue(SCVal&& returnValue);
-    void pushDiagnosticEvent(DiagnosticEvent&& evt);
+    void pushContractEvents(xdr::xvector<ContractEvent> const& evts,
+                            TransactionResultPayload& resPayload);
+    void pushDiagnosticEvents(xdr::xvector<DiagnosticEvent> const& evts,
+                              TransactionResultPayload& resPayload);
+    void setReturnValue(SCVal const& returnValue,
+                        TransactionResultPayload& resPayload);
+    void pushDiagnosticEvent(DiagnosticEvent const& evt,
+                             TransactionResultPayload& resPayload);
     void pushApplyTimeDiagnosticError(Config const& cfg, SCErrorType ty,
                                       SCErrorCode code, std::string&& message,
+                                      TransactionResultPayload& resPayload,
                                       xdr::xvector<SCVal>&& args = {});
     void pushValidationTimeDiagnosticError(Config const& cfg, SCErrorType ty,
                                            SCErrorCode code,
                                            std::string&& message,
+                                           TransactionResultPayload& resPayload,
                                            xdr::xvector<SCVal>&& args = {});
     xdr::xvector<DiagnosticEvent> const& getDiagnosticEvents() const override;
 
@@ -271,9 +286,9 @@ class TransactionFrame : public TransactionFrameBase
                     TransactionResultPayload& resPayload,
                     SequenceNumber current, uint64_t lowerBoundCloseTimeOffset,
                     uint64_t upperBoundCloseTimeOffset) override;
-    bool checkSorobanResourceAndSetError(Application& app,
-                                         uint32_t ledgerVersion,
-                                         TransactionResult& txResult) override;
+    bool checkSorobanResourceAndSetError(
+        Application& app, uint32_t ledgerVersion,
+        TransactionResultPayload& resPayload) override;
 
     void resetResults(LedgerHeader const& header,
                       std::optional<int64_t> baseFee, bool applying,
@@ -332,11 +347,10 @@ class TransactionFrame : public TransactionFrameBase
     bool isSoroban() const override;
     SorobanResources const& sorobanResources() const override;
 
-    bool
-    consumeRefundableSorobanResources(uint32_t contractEventSizeBytes,
-                                      int64_t rentFee, uint32_t protocolVersion,
-                                      SorobanNetworkConfig const& sorobanConfig,
-                                      Config const& cfg);
+    bool consumeRefundableSorobanResources(
+        uint32_t contractEventSizeBytes, int64_t rentFee,
+        uint32_t protocolVersion, SorobanNetworkConfig const& sorobanConfig,
+        Config const& cfg, TransactionResultPayload& resPayload);
 
     static FeePair computeSorobanResourceFee(
         uint32_t protocolVersion, SorobanResources const& txResources,
@@ -344,6 +358,9 @@ class TransactionFrame : public TransactionFrameBase
         SorobanNetworkConfig const& sorobanConfig, Config const& cfg);
     virtual int64 declaredSorobanResourceFee() const override;
     virtual bool XDRProvidesValidFee() const override;
+
+    // TODO: Remove
+    friend class TransactionResultPayload;
 
 #ifdef BUILD_TESTS
     friend class TransactionTestFrame;
@@ -392,9 +409,9 @@ class TransactionTestFrame : public TransactionFrameBase
                     TransactionResultPayload& resPayload,
                     SequenceNumber current, uint64_t lowerBoundCloseTimeOffset,
                     uint64_t upperBoundCloseTimeOffset) override;
-    bool checkSorobanResourceAndSetError(Application& app,
-                                         uint32_t ledgerVersion,
-                                         TransactionResult& txResult) override;
+    bool checkSorobanResourceAndSetError(
+        Application& app, uint32_t ledgerVersion,
+        TransactionResultPayload& resPayload) override;
     void resetResults(LedgerHeader const& header,
                       std::optional<int64_t> baseFee, bool applying,
                       TransactionResultPayload& resPayload) override;

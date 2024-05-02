@@ -29,10 +29,12 @@ class RestoreFootprintOpFrame : public OperationFrame
 
     bool doApply(AbstractLedgerTxn& ltx) override;
     bool doApply(Application& app, AbstractLedgerTxn& ltx,
-                 Hash const& sorobanBasePrngSeed) override;
+                 Hash const& sorobanBasePrngSeed,
+                 TransactionResultPayload& resPayload) override;
 
     bool doCheckValid(SorobanNetworkConfig const& networkConfig,
-                      Config const& appConfig, uint32_t ledgerVersion) override;
+                      Config const& appConfig, uint32_t ledgerVersion,
+                      TransactionResultPayload& resPayload) override;
     bool doCheckValid(uint32_t ledgerVersion) override;
 
     void

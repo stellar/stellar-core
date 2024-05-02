@@ -583,11 +583,13 @@ HerderImpl::emitEnvelope(SCPEnvelope const& envelope)
     broadcast(envelope);
 }
 
-std::pair<TransactionQueue::AddResult, TransactionResultPayload>
+std::pair<TransactionQueue::AddResult, TransactionResultPayloadPtr>
 HerderImpl::recvTransaction(TransactionFrameBasePtr tx, bool submittedFromSelf)
 {
     ZoneScoped;
-    std::pair<TransactionQueue::AddResult, TransactionResultPayload> result{};
+    auto payload = TransactionResultPayload::create(tx->toTransactionFrame());
+    std::pair<TransactionQueue::AddResult, TransactionResultPayloadPtr> result{
+        TransactionQueue::AddResult::ADD_STATUS_COUNT, payload};
 
     // Allow txs of the same kind to reach the tx queue in case it can be
     // replaced by fee

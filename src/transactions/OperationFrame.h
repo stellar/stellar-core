@@ -26,6 +26,7 @@ class LedgerTxnHeader;
 
 class SignatureChecker;
 class TransactionFrame;
+class TransactionResultPayload;
 
 enum class ThresholdLevel
 {
@@ -42,11 +43,13 @@ class OperationFrame
     OperationResult& mResult;
 
     virtual bool doCheckValid(SorobanNetworkConfig const& config,
-                              Config const& appConfig, uint32_t ledgerVersion);
+                              Config const& appConfig, uint32_t ledgerVersion,
+                              TransactionResultPayload& resPayload);
     virtual bool doCheckValid(uint32_t ledgerVersion) = 0;
 
     virtual bool doApply(Application& app, AbstractLedgerTxn& ltx,
-                         Hash const& sorobanBasePrngSeed);
+                         Hash const& sorobanBasePrngSeed,
+                         TransactionResultPayload& resPayload);
     virtual bool doApply(AbstractLedgerTxn& ltx) = 0;
 
     // returns the threshold this operation requires
@@ -86,10 +89,12 @@ class OperationFrame
     OperationResultCode getResultCode() const;
 
     bool checkValid(Application& app, SignatureChecker& signatureChecker,
-                    AbstractLedgerTxn& ltxOuter, bool forApply);
+                    AbstractLedgerTxn& ltxOuter, bool forApply,
+                    TransactionResultPayload& resPayload);
 
     bool apply(Application& app, SignatureChecker& signatureChecker,
-               AbstractLedgerTxn& ltx, Hash const& sorobanBasePrngSeed);
+               AbstractLedgerTxn& ltx, Hash const& sorobanBasePrngSeed,
+               TransactionResultPayload& resPayload);
 
     Operation const&
     getOperation() const

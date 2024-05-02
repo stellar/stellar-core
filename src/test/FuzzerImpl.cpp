@@ -901,7 +901,7 @@ class FuzzTransactionFrame : public TransactionFrame
   public:
     FuzzTransactionFrame(Hash const& networkID,
                          TransactionEnvelope const& envelope)
-        : TransactionFrame(networkID, envelope){};
+        : TransactionFrame(networkID, envelope), mResultPayload(*this){};
 
     void
     attemptApplication(Application& app, AbstractLedgerTxn& ltx)
@@ -924,7 +924,8 @@ class FuzzTransactionFrame : public TransactionFrame
             mEnvelope.v1().signatures};
         // if any ill-formed Operations, do not attempt transaction application
         auto isInvalidOperation = [&](auto const& op) {
-            return !op->checkValid(app, signatureChecker, ltx, false);
+            return !op->checkValid(app, signatureChecker, ltx, false,
+                                   mResultPayload);
         };
         if (std::any_of(mOperations.begin(), mOperations.end(),
                         isInvalidOperation))
@@ -938,7 +939,7 @@ class FuzzTransactionFrame : public TransactionFrame
         loadSourceAccount(ltx, ltx.loadHeader());
         processSeqNum(ltx);
         TransactionMetaFrame tm(2);
-        applyOperations(signatureChecker, app, ltx, tm, Hash{});
+        applyOperations(signatureChecker, app, ltx, tm, mResultPayload, Hash{});
         if (getResultCode() == txINTERNAL_ERROR)
         {
             throw std::runtime_error("Internal error while fuzzing");

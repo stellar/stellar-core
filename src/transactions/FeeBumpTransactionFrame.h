@@ -77,9 +77,9 @@ class FeeBumpTransactionFrame : public TransactionFrameBase
                     TransactionResultPayload& resPayload,
                     SequenceNumber current, uint64_t lowerBoundCloseTimeOffset,
                     uint64_t upperBoundCloseTimeOffset) override;
-    bool checkSorobanResourceAndSetError(Application& app,
-                                         uint32_t ledgerVersion,
-                                         TransactionResult& txResult) override;
+    bool checkSorobanResourceAndSetError(
+        Application& app, uint32_t ledgerVersion,
+        TransactionResultPayload& resPayload) override;
 
     void resetResults(LedgerHeader const& header,
                       std::optional<int64_t> baseFee, bool applying,
