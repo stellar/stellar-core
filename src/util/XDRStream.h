@@ -14,6 +14,7 @@
 #include "xdrpp/marshal.h"
 #include <Tracy.hpp>
 
+#include <filesystem>
 #include <fstream>
 #include <string>
 #include <vector>
@@ -64,6 +65,12 @@ class XDRInputFileStream
         }
         mIn.exceptions(std::ios::badbit);
         mSize = fs::size(mIn);
+    }
+
+    void
+    open(std::filesystem::path const& filename)
+    {
+        open(filename.string());
     }
 
     operator bool() const
