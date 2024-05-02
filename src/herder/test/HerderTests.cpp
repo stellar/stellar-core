@@ -5856,16 +5856,10 @@ TEST_CASE("exclude transactions by operation type", "[herder]")
 // ledger `n-1` when closing ledger `n`
 TEST_CASE("SCP message capture from previous ledger", "[herder]")
 {
-    uint32_t version = static_cast<uint32_t>(SOROBAN_PROTOCOL_VERSION);
-
     // Initialize simulation
     auto networkID = sha256(getTestConfig().NETWORK_PASSPHRASE);
-    auto simulation = std::make_shared<Simulation>(
-        Simulation::OVER_LOOPBACK, networkID, [version](int i) {
-            auto cfg = getTestConfig(i, Config::TESTDB_ON_DISK_SQLITE);
-            cfg.TESTING_UPGRADE_LEDGER_PROTOCOL_VERSION = version;
-            return cfg;
-        });
+    auto simulation =
+        std::make_shared<Simulation>(Simulation::OVER_LOOPBACK, networkID);
 
     // Create three validators: A, B, and C
     auto validatorAKey = SecretKey::fromSeed(sha256("validator-A"));
