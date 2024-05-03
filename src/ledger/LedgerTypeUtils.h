@@ -6,10 +6,10 @@
 
 #include "ledger/LedgerHashUtils.h"
 #include "overlay/StellarXDR.h"
-#include "util/types.h"
 #include "util/UnorderedMap.h"
 #include "util/UnorderedSet.h"
 #include "util/XDROperators.h"
+#include "util/types.h"
 
 namespace stellar
 {
@@ -23,7 +23,7 @@ LedgerKey getTTLKey(LedgerKey const& e);
 template <typename KeySetT>
 UnorderedMap<LedgerKey, std::shared_ptr<LedgerEntry const>>
 populateLoadedEntries(KeySetT const& keys,
-                     std::vector<LedgerEntry> const& entries)
+                      std::vector<LedgerEntry> const& entries)
 {
     UnorderedMap<LedgerKey, std::shared_ptr<LedgerEntry const>> res;
 
