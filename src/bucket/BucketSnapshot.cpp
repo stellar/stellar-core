@@ -31,14 +31,14 @@ BucketSnapshot::isEmpty() const
     return mBucket->isEmpty();
 }
 
-std::optional<BucketEntry>
+std::pair<std::optional<BucketEntry>, bool>
 BucketSnapshot::getEntryAtOffset(LedgerKey const& k, std::streamoff pos,
                                  size_t pageSize) const
 {
     ZoneScoped;
     if (isEmpty())
     {
-        return std::nullopt;
+        return {std::nullopt, false};
     }
 
     auto& stream = getStream();
@@ -49,26 +49,26 @@ BucketSnapshot::getEntryAtOffset(LedgerKey const& k, std::streamoff pos,
     {
         if (stream.readOne(be))
         {
-            return std::make_optional(be);
+            return {std::make_optional(be), false};
         }
     }
     else if (stream.readPage(be, k, pageSize))
     {
-        return std::make_optional(be);
+        return {std::make_optional(be), false};
     }
 
     // Mark entry miss for metrics
     mBucket->getIndex().markBloomMiss();
-    return std::nullopt;
+    return {std::nullopt, true};
 }
 
-std::optional<BucketEntry>
+std::pair<std::optional<BucketEntry>, bool>
 BucketSnapshot::getBucketEntry(LedgerKey const& k) const
 {
     ZoneScoped;
     if (isEmpty())
     {
-        return std::nullopt;
+        return {std::nullopt, false};
     }
 
     auto pos = mBucket->getIndex().lookup(k);
@@ -78,7 +78,7 @@ BucketSnapshot::getBucketEntry(LedgerKey const& k) const
                                 mBucket->getIndex().getPageSize());
     }
 
-    return std::nullopt;
+    return {std::nullopt, false};
 }
 
 // When searching for an entry, BucketList calls this function on every bucket.
@@ -105,8 +105,8 @@ BucketSnapshot::loadKeys(std::set<LedgerKey, LedgerEntryIdCmp>& keys,
         indexIter = newIndexIter;
         if (offOp)
         {
-            auto entryOp = getEntryAtOffset(*currKeyIt, *offOp,
-                                            mBucket->getIndex().getPageSize());
+            auto [entryOp, bloomMiss] = getEntryAtOffset(
+                *currKeyIt, *offOp, mBucket->getIndex().getPageSize());
             if (entryOp)
             {
                 if (entryOp->type() != DEADENTRY)

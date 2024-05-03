@@ -68,7 +68,10 @@ class SearchableBucketListSnapshot : public NonMovableOrCopyable
     std::vector<LedgerEntry>
     loadKeysInternal(std::set<LedgerKey, LedgerEntryIdCmp> const& inKeys);
 
-    std::shared_ptr<LedgerEntry> getLedgerEntryInternal(LedgerKey const& k);
+    // Loads bucket entry for LedgerKey k. Returns <LedgerEntry, bloomMiss>,
+    // where bloomMiss is true if a bloom miss occurred during the load.
+    std::pair<std::shared_ptr<LedgerEntry>, bool>
+    getLedgerEntryInternal(LedgerKey const& k);
 
     SearchableBucketListSnapshot(BucketSnapshotManager const& snapshotManager);
 

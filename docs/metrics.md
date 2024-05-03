@@ -38,7 +38,7 @@ bucketlistDB.bulk.loads                   | meter     | number of entries Bucket
 bucketlistDB.bulk.inflationWinners        | timer     | time to load inflation winners
 bucketlistDB.bulk.poolshareTrustlines     | timer     | time to load poolshare trustlines by accountID and assetID
 bucketlistDB.bulk.prefetch                | timer     | time to prefetch
-bucketlistDB.point.<X>                    | timer     | time to load single entry of type <X>
+bucketlistDB.point.<X>                    | timer     | time to load single entry of type <X> (if no bloom miss occurred)
 herder.pending[-soroban]-txs.age0         | counter   | number of gen0 pending transactions
 herder.pending[-soroban]-txs.age1         | counter   | number of gen1 pending transactions
 herder.pending[-soroban]-txs.age2         | counter   | number of gen2 pending transactions
