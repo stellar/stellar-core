@@ -4,6 +4,7 @@
 
 #include "ledger/LedgerCloseMetaFrame.h"
 #include "crypto/SHA.h"
+#include "ledger/LedgerTypeUtils.h"
 #include "transactions/TransactionMetaFrame.h"
 #include "util/GlobalChecks.h"
 #include "util/ProtocolVersion.h"

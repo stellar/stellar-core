@@ -7,6 +7,7 @@
 #include "database/Database.h"
 #include "database/DatabaseTypeSpecificOperation.h"
 #include "ledger/LedgerTxnImpl.h"
+#include "ledger/LedgerTypeUtils.h"
 #include "ledger/NonSociRelatedException.h"
 #include "main/Application.h"
 #include "util/GlobalChecks.h"

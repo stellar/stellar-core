@@ -13,6 +13,7 @@
 #include "ledger/LedgerTxn.h"
 #include "ledger/LedgerTxnEntry.h"
 #include "ledger/LedgerTxnHeader.h"
+#include "ledger/LedgerTypeUtils.h"
 #include "ledger/NetworkConfig.h"
 #include "ledger/TrustLineWrapper.h"
 #include "main/Config.h"

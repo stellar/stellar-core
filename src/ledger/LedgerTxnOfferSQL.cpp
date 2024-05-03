@@ -7,6 +7,7 @@
 #include "database/Database.h"
 #include "database/DatabaseTypeSpecificOperation.h"
 #include "ledger/LedgerTxnImpl.h"
+#include "ledger/LedgerTypeUtils.h"
 #include "main/Application.h"
 #include "main/Config.h"
 #include "transactions/TransactionUtils.h"

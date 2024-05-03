@@ -14,6 +14,7 @@
 #include "historywork/VerifyBucketWork.h"
 #include "ledger/LedgerManager.h"
 #include "ledger/LedgerTxn.h"
+#include "ledger/LedgerTypeUtils.h"
 #include "main/Application.h"
 #include "main/Config.h"
 #include "util/Fs.h"

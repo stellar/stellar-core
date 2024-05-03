@@ -5,6 +5,7 @@
 #include "transactions/RestoreFootprintOpFrame.h"
 #include "TransactionUtils.h"
 #include "ledger/LedgerManagerImpl.h"
+#include "ledger/LedgerTypeUtils.h"
 #include <Tracy.hpp>
 
 namespace stellar

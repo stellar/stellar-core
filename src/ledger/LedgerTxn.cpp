@@ -14,6 +14,7 @@
 #include "ledger/LedgerTxnEntry.h"
 #include "ledger/LedgerTxnHeader.h"
 #include "ledger/LedgerTxnImpl.h"
+#include "ledger/LedgerTypeUtils.h"
 #include "ledger/NonSociRelatedException.h"
 #include "main/Application.h"
 #include "transactions/TransactionUtils.h"

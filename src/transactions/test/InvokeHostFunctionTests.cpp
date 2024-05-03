@@ -13,6 +13,7 @@
 #include "herder/Herder.h"
 #include "ledger/LedgerManager.h"
 #include "ledger/LedgerTxn.h"
+#include "ledger/LedgerTypeUtils.h"
 #include "ledger/test/LedgerTestUtils.h"
 #include "lib/catch.hpp"
 #include "main/Application.h"
