@@ -67,7 +67,7 @@ class BucketSnapshotManager : NonMovableOrCopyable
     BucketSnapshotManager(medida::MetricsRegistry& metrics,
                           std::unique_ptr<BucketListSnapshot const>&& snapshot);
 
-    std::unique_ptr<SearchableBucketListSnapshot>
+    std::shared_ptr<SearchableBucketListSnapshot>
     getSearchableBucketListSnapshot() const;
 
     // Checks if snapshot is out of date with mCurrentSnapshot and updates

@@ -28,11 +28,11 @@ BucketSnapshotManager::BucketSnapshotManager(
     releaseAssert(threadIsMain());
 }
 
-std::unique_ptr<SearchableBucketListSnapshot>
+std::shared_ptr<SearchableBucketListSnapshot>
 BucketSnapshotManager::getSearchableBucketListSnapshot() const
 {
-    // Can't use std::make_unique due to private constructor
-    return std::unique_ptr<SearchableBucketListSnapshot>(
+    // Can't use std::make_shared due to private constructor
+    return std::shared_ptr<SearchableBucketListSnapshot>(
         new SearchableBucketListSnapshot(*this));
 }
 
