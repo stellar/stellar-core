@@ -60,7 +60,7 @@ int64_t const MAX_RESOURCE_FEE = 1LL << 50;
 using namespace std;
 using namespace stellar::txbridge;
 
-TransactionResultPayload::TransactionResultPayload(TransactionFrame const& tx)
+TransactionResultPayload::TransactionResultPayload(TransactionFrame& tx)
 {
     auto const& envelope = tx.getEnvelope();
     auto const& ops = envelope.type() == ENVELOPE_TYPE_TX_V0
@@ -69,17 +69,11 @@ TransactionResultPayload::TransactionResultPayload(TransactionFrame const& tx)
     txResult.result.code(txFAILED);
     txResult.result.results().resize(static_cast<uint32_t>(ops.size()));
 
-    // TODO: Remove mOperations from tx frame and build op pointers here
     for (size_t i = 0; i < ops.size(); i++)
     {
-        opFrames.push_back(tx.mOperations[i]);
+        opFrames.push_back(
+            tx.makeOperation(ops[i], txResult.result.results()[i], i));
     }
-}
-
-TransactionResultPayloadPtr
-TransactionResultPayload::create(TransactionFrame const& tx)
-{
-    return TransactionResultPayloadPtr(new TransactionResultPayload(tx));
 }
 
 TransactionFrame::TransactionFrame(Hash const& networkID,
@@ -1399,7 +1393,8 @@ TransactionFrame::processSeqNum(AbstractLedgerTxn& ltx)
 bool
 TransactionFrame::processSignatures(ValidationType cv,
                                     SignatureChecker& signatureChecker,
-                                    AbstractLedgerTxn& ltxOuter)
+                                    AbstractLedgerTxn& ltxOuter,
+                                    TransactionResultPayload& resPayload)
 {
     ZoneScoped;
     bool maybeValid = (cv == ValidationType::kMaybeValid);
@@ -1427,7 +1422,7 @@ TransactionFrame::processSignatures(ValidationType cv,
     {
         // scope here to avoid potential side effects of loading source accounts
         LedgerTxn ltx(ltxOuter);
-        for (auto& op : mOperations)
+        for (auto& op : resPayload.opFrames)
         {
             if (!op->checkSignature(signatureChecker, ltx, false))
             {
@@ -1440,12 +1435,15 @@ TransactionFrame::processSignatures(ValidationType cv,
 
     if (!allOpsValid)
     {
-        markResultFailed();
+        markResultFailed(resPayload);
         return false;
     }
 
     if (!signatureChecker.checkAllSignaturesUsed())
     {
+        resPayload.txResult.result.code(txBAD_AUTH_EXTRA);
+
+        // TODO: Remove
         getResult().result.code(txBAD_AUTH_EXTRA);
         return false;
     }
@@ -1747,14 +1745,14 @@ TransactionFrame::checkValidWithOptionallyChargedFee(
                            resPayload) == ValidationType::kMaybeValid;
     if (res)
     {
-        for (auto& op : mOperations)
+        for (auto& op : resPayload.opFrames)
         {
             if (!op->checkValid(app, signatureChecker, ltx, false, resPayload))
             {
                 // it's OK to just fast fail here and not try to call
                 // checkValid on all operations as the resulting object
                 // is only used by applications
-                markResultFailed();
+                markResultFailed(resPayload);
                 return false;
             }
         }
@@ -1845,12 +1843,15 @@ TransactionFrame::insertKeysForTxApply(UnorderedSet<LedgerKey>& keys,
 }
 
 void
-TransactionFrame::markResultFailed()
+TransactionFrame::markResultFailed(TransactionResultPayload& resPayload)
 {
     // Changing "code" normally causes the XDR structure to be destructed,
     // then a different XDR structure is constructed. However, txFAILED and
     // txSUCCESS have the same underlying field number so this does not
     // occur.
+    resPayload.txResult.result.code(txFAILED);
+
+    // TODO: REMOVE
     getResult().result.code(txFAILED);
 }
 
@@ -1997,7 +1998,7 @@ TransactionFrame::applyOperations(SignatureChecker& signatureChecker,
         }
         else
         {
-            markResultFailed();
+            markResultFailed(resPayload);
             if (protocolVersionStartsFrom(ledgerVersion,
                                           SOROBAN_PROTOCOL_VERSION) &&
                 isSoroban())
@@ -2151,7 +2152,8 @@ TransactionFrame::apply(Application& app, AbstractLedgerTxn& ltx,
             processSeqNum(ltxTx);
         }
 
-        bool signaturesValid = processSignatures(cv, signatureChecker, ltxTx);
+        bool signaturesValid =
+            processSignatures(cv, signatureChecker, ltxTx, resPayload);
 
         meta.pushTxChangesBefore(ltxTx.getChanges());
         ltxTx.commit();
@@ -2308,7 +2310,7 @@ TransactionTestFrame::clearCached()
     mTransactionFrame->clearCached();
 }
 
-std::vector<std::shared_ptr<OperationFrame>> const&
+std::vector<std::shared_ptr<OperationFrame const>> const&
 TransactionTestFrame::getOperations() const
 {
     auto const& tx = this->toTransactionFrame();

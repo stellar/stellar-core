@@ -375,7 +375,7 @@ TEST_CASE_VERSIONS("manage buy offer liabilities", "[tx][offers]")
                 tx->checkValid(*app, ltx, 0, 0, 0);
             }
 
-            auto buyOp = std::static_pointer_cast<ManageBuyOfferOpFrame>(
+            auto buyOp = std::static_pointer_cast<ManageBuyOfferOpFrame const>(
                 tx->getOperations().front());
             REQUIRE(expectedBuying == buyOp->getOfferBuyingLiabilities());
             REQUIRE(expectedSelling == buyOp->getOfferSellingLiabilities());

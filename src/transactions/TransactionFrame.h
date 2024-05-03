@@ -69,8 +69,7 @@ struct SorobanData
 class TransactionResultPayload : NonMovableOrCopyable
 {
   public:
-    TransactionResultPayload(TransactionFrame const& tx);
-    static TransactionResultPayloadPtr create(TransactionFrame const& tx);
+    TransactionResultPayload(TransactionFrame& tx);
 
     TransactionResult txResult;
     std::vector<std::shared_ptr<OperationFrame>> opFrames;
@@ -95,7 +94,9 @@ class TransactionFrame : public TransactionFrameBase
     mutable Hash mContentsHash; // the hash of the contents
     mutable Hash mFullHash;     // the hash of the contents and the sig.
 
-    std::vector<std::shared_ptr<OperationFrame>> mOperations;
+    // TODO: Remove, but for now have a redundant copy of the operations for
+    // const state query (i.e. isSoroban)
+    std::vector<std::shared_ptr<OperationFrame const>> mOperations;
 
     LedgerTxnEntry loadSourceAccount(AbstractLedgerTxn& ltx,
                                      LedgerTxnHeader const& header);
@@ -147,7 +148,7 @@ class TransactionFrame : public TransactionFrameBase
                              AccountID const& accountID,
                              SignerKey const& signerKey) const;
 
-    void markResultFailed();
+    void markResultFailed(TransactionResultPayload& resPayload);
 
     bool applyOperations(SignatureChecker& checker, Application& app,
                          AbstractLedgerTxn& ltx, TransactionMetaFrame& meta,
@@ -158,7 +159,8 @@ class TransactionFrame : public TransactionFrameBase
 
     bool processSignatures(ValidationType cv,
                            SignatureChecker& signatureChecker,
-                           AbstractLedgerTxn& ltxOuter);
+                           AbstractLedgerTxn& ltxOuter,
+                           TransactionResultPayload& resPayload);
 
     std::optional<TimeBounds const> const getTimeBounds() const;
     std::optional<LedgerBounds const> const getLedgerBounds() const;
@@ -398,7 +400,8 @@ class TransactionTestFrame : public TransactionFrameBase
     void addSignature(SecretKey const& secretKey);
     void addSignature(DecoratedSignature const& signature);
 
-    std::vector<std::shared_ptr<OperationFrame>> const& getOperations() const;
+    std::vector<std::shared_ptr<OperationFrame const>> const&
+    getOperations() const;
 
     // Redefinitions of TransactionFrameBase functions
     bool apply(Application& app, AbstractLedgerTxn& ltx,

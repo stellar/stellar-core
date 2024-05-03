@@ -58,7 +58,7 @@ ManageSellOfferOpFrame::isDeleteOffer() const
 }
 
 int64_t
-ManageSellOfferOpFrame::getOfferBuyingLiabilities()
+ManageSellOfferOpFrame::getOfferBuyingLiabilities() const
 {
     auto res = exchangeV10WithoutPriceErrorThresholds(
         mManageSellOffer.price, mManageSellOffer.amount, INT64_MAX, INT64_MAX,
@@ -67,7 +67,7 @@ ManageSellOfferOpFrame::getOfferBuyingLiabilities()
 }
 
 int64_t
-ManageSellOfferOpFrame::getOfferSellingLiabilities()
+ManageSellOfferOpFrame::getOfferSellingLiabilities() const
 {
     auto res = exchangeV10WithoutPriceErrorThresholds(
         mManageSellOffer.price, mManageSellOffer.amount, INT64_MAX, INT64_MAX,

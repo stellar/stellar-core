@@ -51,7 +51,7 @@ ManageBuyOfferOpFrame::isDeleteOffer() const
 }
 
 int64_t
-ManageBuyOfferOpFrame::getOfferBuyingLiabilities()
+ManageBuyOfferOpFrame::getOfferBuyingLiabilities() const
 {
     auto res = exchangeV10WithoutPriceErrorThresholds(
         getInversePrice(mManageBuyOffer.price), INT64_MAX, INT64_MAX, INT64_MAX,
@@ -60,7 +60,7 @@ ManageBuyOfferOpFrame::getOfferBuyingLiabilities()
 }
 
 int64_t
-ManageBuyOfferOpFrame::getOfferSellingLiabilities()
+ManageBuyOfferOpFrame::getOfferSellingLiabilities() const
 {
     auto res = exchangeV10WithoutPriceErrorThresholds(
         getInversePrice(mManageBuyOffer.price), INT64_MAX, INT64_MAX, INT64_MAX,

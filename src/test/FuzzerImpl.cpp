@@ -910,7 +910,7 @@ class FuzzTransactionFrame : public TransactionFrame
         if (std::any_of(mOperations.begin(), mOperations.end(),
                         [](auto const& x) { return x->isSoroban(); }))
         {
-            markResultFailed();
+            markResultFailed(mResultPayload);
             return;
         }
 
@@ -927,10 +927,10 @@ class FuzzTransactionFrame : public TransactionFrame
             return !op->checkValid(app, signatureChecker, ltx, false,
                                    mResultPayload);
         };
-        if (std::any_of(mOperations.begin(), mOperations.end(),
-                        isInvalidOperation))
+        if (std::any_of(mResultPayload.opFrames.begin(),
+                        mResultPayload.opFrames.end(), isInvalidOperation))
         {
-            markResultFailed();
+            markResultFailed(mResultPayload);
             return;
         }
         // while the following method's result is not captured, regardless, for
@@ -946,7 +946,7 @@ class FuzzTransactionFrame : public TransactionFrame
         }
     }
 
-    std::vector<std::shared_ptr<OperationFrame>> const&
+    std::vector<std::shared_ptr<OperationFrame const>> const&
     getOperations() const
     {
         // this can only be used on an initialized TransactionFrame

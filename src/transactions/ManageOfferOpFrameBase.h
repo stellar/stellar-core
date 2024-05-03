@@ -50,8 +50,8 @@ class ManageOfferOpFrameBase : public OperationFrame
     virtual bool isAmountValid() const = 0;
     virtual bool isDeleteOffer() const = 0;
 
-    virtual int64_t getOfferBuyingLiabilities() = 0;
-    virtual int64_t getOfferSellingLiabilities() = 0;
+    virtual int64_t getOfferBuyingLiabilities() const = 0;
+    virtual int64_t getOfferSellingLiabilities() const = 0;
 
     virtual void applyOperationSpecificLimits(int64_t& maxSheepSend,
                                               int64_t sheepSent,

@@ -900,8 +900,8 @@ LedgerManagerImpl::closeLedger(LedgerCloseData const& ledgerData)
     std::vector<TransactionResultPayloadPtr> txResults;
     for (auto tx : txs)
     {
-        txResults.emplace_back(
-            TransactionResultPayload::create(tx->toTransactionFrame()));
+        txResults.emplace_back(std::make_shared<TransactionResultPayload>(
+            tx->toTransactionFrame()));
     }
 
     // first, prefetch source accounts for txset, then charge fees

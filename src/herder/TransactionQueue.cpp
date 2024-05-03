@@ -236,7 +236,8 @@ TransactionQueue::canAdd(
     std::vector<std::pair<TransactionFrameBasePtr, bool>>& txsToEvict)
 {
     ZoneScoped;
-    TransactionResultPayload resPayload;
+    TransactionResultPayloadPtr resPayload =
+        std::make_shared<TransactionResultPayload>(tx->toTransactionFrame());
     if (isBanned(tx->getFullHash()))
     {
         return {TransactionQueue::AddResult::ADD_STATUS_TRY_AGAIN_LATER,
@@ -560,8 +561,9 @@ TransactionQueue::tryAdd(TransactionFrameBasePtr tx, bool submittedFromSelf)
         // TODO: Remove
         tx->getResult().result.code(txMALFORMED);
 
-        TransactionResultPayload resPayload;
-        resPayload.txResult.result.code(txMALFORMED);
+        auto resPayload = std::make_shared<TransactionResultPayload>(
+            tx->toTransactionFrame());
+        resPayload->txResult.result.code(txMALFORMED);
         return {TransactionQueue::AddResult::ADD_STATUS_ERROR, resPayload};
     }
 

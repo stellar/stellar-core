@@ -30,8 +30,8 @@ class ManageSellOfferOpFrame : public ManageOfferOpFrameBase
     bool isAmountValid() const override;
     bool isDeleteOffer() const override;
 
-    int64_t getOfferBuyingLiabilities() override;
-    int64_t getOfferSellingLiabilities() override;
+    int64_t getOfferBuyingLiabilities() const override;
+    int64_t getOfferSellingLiabilities() const override;
 
     void applyOperationSpecificLimits(int64_t& maxSheepSend, int64_t sheepSent,
                                       int64_t& maxWheatReceive,
