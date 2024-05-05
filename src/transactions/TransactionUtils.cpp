@@ -12,6 +12,7 @@
 #include "ledger/TrustLineWrapper.h"
 #include "transactions/OfferExchange.h"
 #include "transactions/SponsorshipUtils.h"
+#include "transactions/TransactionResultPayload.h"
 #include "util/ProtocolVersion.h"
 #include "util/XDROperators.h"
 #include "util/types.h"
@@ -1840,10 +1841,9 @@ validateContractLedgerEntry(LedgerKey const& lk, size_t entrySize,
     // check contract code size limit
     if (lk.type() == CONTRACT_CODE && config.maxContractSizeBytes() < entrySize)
     {
-        parentTx.pushApplyTimeDiagnosticError(
+        resPayload.pushApplyTimeDiagnosticError(
             appConfig, SCE_BUDGET, SCEC_EXCEEDED_LIMIT,
             "Wasm size exceeds network config maximum contract size",
-            resPayload,
             {makeU64SCVal(entrySize),
              makeU64SCVal(config.maxContractSizeBytes())});
         return false;
@@ -1852,9 +1852,9 @@ validateContractLedgerEntry(LedgerKey const& lk, size_t entrySize,
     if (lk.type() == CONTRACT_DATA &&
         config.maxContractDataEntrySizeBytes() < entrySize)
     {
-        parentTx.pushApplyTimeDiagnosticError(
+        resPayload.pushApplyTimeDiagnosticError(
             appConfig, SCE_BUDGET, SCEC_EXCEEDED_LIMIT,
-            "ContractData size exceeds network config maximum size", resPayload,
+            "ContractData size exceeds network config maximum size",
             {makeU64SCVal(entrySize),
              makeU64SCVal(config.maxContractDataEntrySizeBytes())});
         return false;

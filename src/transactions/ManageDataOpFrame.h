@@ -25,7 +25,8 @@ class ManageDataOpFrame : public OperationFrame
     ManageDataOpFrame(Operation const& op, OperationResult& res,
                       TransactionFrame& parentTx);
 
-    bool doApply(AbstractLedgerTxn& ltx) override;
+    bool doApply(AbstractLedgerTxn& ltx,
+                 TransactionResultPayload& resPayload) override;
     bool doCheckValid(uint32_t ledgerVersion) override;
     void
     insertLedgerKeysToPrefetch(UnorderedSet<LedgerKey>& keys) const override;

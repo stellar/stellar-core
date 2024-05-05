@@ -19,6 +19,7 @@
 #include "transactions/OperationFrame.h"
 #include "transactions/SignatureChecker.h"
 #include "transactions/TransactionMetaFrame.h"
+#include "transactions/TransactionResultPayload.h"
 #include "transactions/TransactionUtils.h"
 #include "util/Logging.h"
 #include "util/Math.h"
@@ -895,13 +896,13 @@ resetTxInternalState(Application& app)
 class FuzzTransactionFrame : public TransactionFrame
 {
   private:
-    // TODO: Add initializer, getter and setter
-    TransactionResultPayload mResultPayload;
+    TransactionResultPayloadPtr mResultPayload;
 
   public:
     FuzzTransactionFrame(Hash const& networkID,
                          TransactionEnvelope const& envelope)
-        : TransactionFrame(networkID, envelope), mResultPayload(*this){};
+        : TransactionFrame(networkID, envelope)
+        , mResultPayload(TransactionResultPayload::create(*this)){};
 
     void
     attemptApplication(Application& app, AbstractLedgerTxn& ltx)
@@ -910,12 +911,12 @@ class FuzzTransactionFrame : public TransactionFrame
         if (std::any_of(mOperations.begin(), mOperations.end(),
                         [](auto const& x) { return x->isSoroban(); }))
         {
-            markResultFailed(mResultPayload);
+            markResultFailed(*mResultPayload);
             return;
         }
 
         // reset results of operations
-        resetResults(ltx.getHeader(), 0, true, mResultPayload);
+        resetResults(ltx.getHeader(), 0, true, *mResultPayload);
 
         // attempt application of transaction without processing the fee or
         // committing the LedgerTxn
@@ -925,22 +926,24 @@ class FuzzTransactionFrame : public TransactionFrame
         // if any ill-formed Operations, do not attempt transaction application
         auto isInvalidOperation = [&](auto const& op) {
             return !op->checkValid(app, signatureChecker, ltx, false,
-                                   mResultPayload);
+                                   *mResultPayload);
         };
-        if (std::any_of(mResultPayload.opFrames.begin(),
-                        mResultPayload.opFrames.end(), isInvalidOperation))
+        if (std::any_of(mResultPayload->getOpFrames().begin(),
+                        mResultPayload->getOpFrames().end(),
+                        isInvalidOperation))
         {
-            markResultFailed(mResultPayload);
+            markResultFailed(*mResultPayload);
             return;
         }
         // while the following method's result is not captured, regardless, for
         // protocols < 8, this triggered buggy caching, and potentially may do
         // so in the future
-        loadSourceAccount(ltx, ltx.loadHeader());
-        processSeqNum(ltx);
+        loadSourceAccount(ltx, ltx.loadHeader(), *mResultPayload);
+        processSeqNum(ltx, *mResultPayload);
         TransactionMetaFrame tm(2);
-        applyOperations(signatureChecker, app, ltx, tm, mResultPayload, Hash{});
-        if (getResultCode() == txINTERNAL_ERROR)
+        applyOperations(signatureChecker, app, ltx, tm, *mResultPayload,
+                        Hash{});
+        if (mResultPayload->getResultCode() == txINTERNAL_ERROR)
         {
             throw std::runtime_error("Internal error while fuzzing");
         }
@@ -952,6 +955,18 @@ class FuzzTransactionFrame : public TransactionFrame
         // this can only be used on an initialized TransactionFrame
         releaseAssert(mOperations.empty());
         return mOperations;
+    }
+
+    TransactionResult&
+    getResult()
+    {
+        return mResultPayload->getResult();
+    }
+
+    TransactionResultCode
+    getResultCode() const
+    {
+        return mResultPayload->getResultCode();
     }
 };
 

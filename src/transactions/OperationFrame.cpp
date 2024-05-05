@@ -31,6 +31,7 @@
 #include "transactions/SetOptionsOpFrame.h"
 #include "transactions/SetTrustLineFlagsOpFrame.h"
 #include "transactions/TransactionFrame.h"
+#include "transactions/TransactionResultPayload.h"
 #include "transactions/TransactionUtils.h"
 #include "util/Logging.h"
 #include "util/ProtocolVersion.h"
@@ -162,7 +163,7 @@ OperationFrame::doApply(Application& _app, AbstractLedgerTxn& ltx,
 {
     // By default we ignore the app and seed, but subclasses can override to
     // intercept and use them.
-    return doApply(ltx);
+    return doApply(ltx, resPayload);
 }
 
 ThresholdLevel
@@ -179,11 +180,13 @@ OperationFrame::isOpSupported(LedgerHeader const&) const
 
 bool
 OperationFrame::checkSignature(SignatureChecker& signatureChecker,
-                               AbstractLedgerTxn& ltx, bool forApply)
+                               AbstractLedgerTxn& ltx,
+                               TransactionResultPayload& resPayload,
+                               bool forApply)
 {
     ZoneScoped;
     auto header = ltx.loadHeader();
-    auto sourceAccount = loadSourceAccount(ltx, header);
+    auto sourceAccount = loadSourceAccount(ltx, header, resPayload);
     if (sourceAccount)
     {
         auto neededThreshold =
@@ -249,7 +252,7 @@ OperationFrame::checkValid(Application& app, SignatureChecker& signatureChecker,
     if (!forApply ||
         protocolVersionIsBefore(ledgerVersion, ProtocolVersion::V_10))
     {
-        if (!checkSignature(signatureChecker, ltx, forApply))
+        if (!checkSignature(signatureChecker, ltx, resPayload, forApply))
         {
             return false;
         }
@@ -258,7 +261,7 @@ OperationFrame::checkValid(Application& app, SignatureChecker& signatureChecker,
     {
         // for ledger versions >= 10 we need to load account here, as for
         // previous versions it is done in checkSignature call
-        if (!loadSourceAccount(ltx, ltx.loadHeader()))
+        if (!loadSourceAccount(ltx, ltx.loadHeader(), resPayload))
         {
             mResult.code(opNO_ACCOUNT);
             return false;
@@ -291,10 +294,11 @@ OperationFrame::doCheckValid(SorobanNetworkConfig const& config,
 
 LedgerTxnEntry
 OperationFrame::loadSourceAccount(AbstractLedgerTxn& ltx,
-                                  LedgerTxnHeader const& header)
+                                  LedgerTxnHeader const& header,
+                                  TransactionResultPayload& resPayload)
 {
     ZoneScoped;
-    return mParentTx.loadAccount(ltx, header, getSourceID());
+    return mParentTx.loadAccount(ltx, header, getSourceID(), resPayload);
 }
 
 void

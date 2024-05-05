@@ -50,7 +50,8 @@ class OperationFrame
     virtual bool doApply(Application& app, AbstractLedgerTxn& ltx,
                          Hash const& sorobanBasePrngSeed,
                          TransactionResultPayload& resPayload);
-    virtual bool doApply(AbstractLedgerTxn& ltx) = 0;
+    virtual bool doApply(AbstractLedgerTxn& ltx,
+                         TransactionResultPayload& resPayload) = 0;
 
     // returns the threshold this operation requires
     virtual ThresholdLevel getThresholdLevel() const;
@@ -60,7 +61,8 @@ class OperationFrame
     virtual bool isOpSupported(LedgerHeader const& header) const;
 
     LedgerTxnEntry loadSourceAccount(AbstractLedgerTxn& ltx,
-                                     LedgerTxnHeader const& header);
+                                     LedgerTxnHeader const& header,
+                                     TransactionResultPayload& resPayload);
 
     // given an operation, gives a default value representing "success" for the
     // result
@@ -77,7 +79,8 @@ class OperationFrame
     virtual ~OperationFrame() = default;
 
     bool checkSignature(SignatureChecker& signatureChecker,
-                        AbstractLedgerTxn& ltx, bool forApply);
+                        AbstractLedgerTxn& ltx,
+                        TransactionResultPayload& resPayload, bool forApply);
 
     AccountID getSourceID() const;
 

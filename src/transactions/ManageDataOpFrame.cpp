@@ -30,7 +30,8 @@ ManageDataOpFrame::ManageDataOpFrame(Operation const& op, OperationResult& res,
 }
 
 bool
-ManageDataOpFrame::doApply(AbstractLedgerTxn& ltx)
+ManageDataOpFrame::doApply(AbstractLedgerTxn& ltx,
+                           TransactionResultPayload& resPayload)
 {
     ZoneNamedN(applyZone, "ManageDataOp apply", true);
     auto header = ltx.loadHeader();
@@ -53,7 +54,7 @@ ManageDataOpFrame::doApply(AbstractLedgerTxn& ltx)
             dataEntry.dataName = mManageData.dataName;
             dataEntry.dataValue = *mManageData.dataValue;
 
-            auto sourceAccount = loadSourceAccount(ltx, header);
+            auto sourceAccount = loadSourceAccount(ltx, header, resPayload);
             switch (createEntryWithPossibleSponsorship(ltx, header, newData,
                                                        sourceAccount))
             {
@@ -90,7 +91,7 @@ ManageDataOpFrame::doApply(AbstractLedgerTxn& ltx)
             return false;
         }
 
-        auto sourceAccount = loadSourceAccount(ltx, header);
+        auto sourceAccount = loadSourceAccount(ltx, header, resPayload);
         removeEntryWithPossibleSponsorship(ltx, header, data.current(),
                                            sourceAccount);
         data.erase();

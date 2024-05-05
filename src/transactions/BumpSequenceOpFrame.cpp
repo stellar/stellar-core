@@ -37,12 +37,13 @@ BumpSequenceOpFrame::isOpSupported(LedgerHeader const& header) const
 }
 
 bool
-BumpSequenceOpFrame::doApply(AbstractLedgerTxn& ltx)
+BumpSequenceOpFrame::doApply(AbstractLedgerTxn& ltx,
+                             TransactionResultPayload& resPayload)
 {
     ZoneNamedN(applyZone, "BumpSequenceOp apply", true);
     LedgerTxn ltxInner(ltx);
     auto header = ltxInner.loadHeader();
-    auto sourceAccountEntry = loadSourceAccount(ltxInner, header);
+    auto sourceAccountEntry = loadSourceAccount(ltxInner, header, resPayload);
     maybeUpdateAccountOnLedgerSeqUpdate(header, sourceAccountEntry);
 
     auto& sourceAccount = sourceAccountEntry.current().data.account();

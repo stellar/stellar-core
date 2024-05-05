@@ -48,35 +48,6 @@ using TransactionFramePtr = std::shared_ptr<TransactionFrame>;
 class TransactionResultPayload;
 using TransactionResultPayloadPtr = std::shared_ptr<TransactionResultPayload>;
 
-// TODO: Make private inner struct of TransactionResult
-struct SorobanData
-{
-    xdr::xvector<ContractEvent> mEvents;
-    xdr::xvector<DiagnosticEvent> mDiagnosticEvents;
-    SCVal mReturnValue;
-    // Size of the emitted Soroban events.
-    uint32_t mConsumedContractEventsSizeBytes{};
-    int64_t mFeeRefund{};
-    int64_t mConsumedNonRefundableFee{};
-    int64_t mConsumedRentFee{};
-    int64_t mConsumedRefundableFee{};
-    SorobanData()
-    {
-    }
-};
-
-// TODO: Make proper class
-class TransactionResultPayload : NonMovableOrCopyable
-{
-  public:
-    TransactionResultPayload(TransactionFrame& tx);
-
-    TransactionResult txResult;
-    std::vector<std::shared_ptr<OperationFrame>> opFrames;
-    std::optional<TransactionResult> outerFeeBumpResult;
-    std::optional<SorobanData> sorobanExtension;
-};
-
 class TransactionFrame : public TransactionFrameBase
 {
   private:
@@ -85,10 +56,6 @@ class TransactionFrame : public TransactionFrameBase
   protected:
     TransactionEnvelope mEnvelope;
     TransactionResult mResult;
-
-    std::optional<SorobanData> mSorobanExtension;
-
-    std::shared_ptr<InternalLedgerEntry const> mCachedAccount;
 
     Hash const& mNetworkID;     // used to change the way we compute signatures
     mutable Hash mContentsHash; // the hash of the contents
@@ -99,7 +66,8 @@ class TransactionFrame : public TransactionFrameBase
     std::vector<std::shared_ptr<OperationFrame const>> mOperations;
 
     LedgerTxnEntry loadSourceAccount(AbstractLedgerTxn& ltx,
-                                     LedgerTxnHeader const& header);
+                                     LedgerTxnHeader const& header,
+                                     TransactionResultPayload& resPayload);
 
     enum ValidationType
     {
@@ -155,7 +123,8 @@ class TransactionFrame : public TransactionFrameBase
                          TransactionResultPayload& resPayload,
                          Hash const& sorobanBasePrngSeed);
 
-    virtual void processSeqNum(AbstractLedgerTxn& ltx);
+    virtual void processSeqNum(AbstractLedgerTxn& ltx,
+                               TransactionResultPayload& resPayload);
 
     bool processSignatures(ValidationType cv,
                            SignatureChecker& signatureChecker,
@@ -182,11 +151,6 @@ class TransactionFrame : public TransactionFrameBase
                                       SorobanNetworkConfig const& sorobanConfig,
                                       Config const& cfg);
 
-    void pushSimpleDiagnosticError(Config const& cfg, SCErrorType ty,
-                                   SCErrorCode code, std::string&& message,
-                                   xdr::xvector<SCVal>&& args,
-                                   TransactionResultPayload& resPayload);
-
   public:
     TransactionFrame(Hash const& networkID,
                      TransactionEnvelope const& envelope);
@@ -199,44 +163,6 @@ class TransactionFrame : public TransactionFrameBase
 
     Hash const& getFullHash() const override;
     Hash const& getContentsHash() const override;
-
-    TransactionResult const&
-    getResult() const
-    {
-        return mResult;
-    }
-
-    TransactionResult&
-    getResult() override
-    {
-        return mResult;
-    }
-
-    TransactionResultCode
-    getResultCode() const override
-    {
-        return getResult().result.code();
-    }
-
-    void pushContractEvents(xdr::xvector<ContractEvent> const& evts,
-                            TransactionResultPayload& resPayload);
-    void pushDiagnosticEvents(xdr::xvector<DiagnosticEvent> const& evts,
-                              TransactionResultPayload& resPayload);
-    void setReturnValue(SCVal const& returnValue,
-                        TransactionResultPayload& resPayload);
-    void pushDiagnosticEvent(DiagnosticEvent const& evt,
-                             TransactionResultPayload& resPayload);
-    void pushApplyTimeDiagnosticError(Config const& cfg, SCErrorType ty,
-                                      SCErrorCode code, std::string&& message,
-                                      TransactionResultPayload& resPayload,
-                                      xdr::xvector<SCVal>&& args = {});
-    void pushValidationTimeDiagnosticError(Config const& cfg, SCErrorType ty,
-                                           SCErrorCode code,
-                                           std::string&& message,
-                                           TransactionResultPayload& resPayload,
-                                           xdr::xvector<SCVal>&& args = {});
-    xdr::xvector<DiagnosticEvent> const& getDiagnosticEvents() const override;
-
     TransactionEnvelope const& getEnvelope() const override;
 
 #ifdef BUILD_TESTS
@@ -340,7 +266,8 @@ class TransactionFrame : public TransactionFrameBase
 
     LedgerTxnEntry loadAccount(AbstractLedgerTxn& ltx,
                                LedgerTxnHeader const& header,
-                               AccountID const& accountID);
+                               AccountID const& accountID,
+                               TransactionResultPayload& resPayload);
 
     std::optional<SequenceNumber const> const getMinSeqNum() const override;
     Duration getMinSeqAge() const override;
@@ -350,11 +277,6 @@ class TransactionFrame : public TransactionFrameBase
 
     bool isSoroban() const override;
     SorobanResources const& sorobanResources() const override;
-
-    bool consumeRefundableSorobanResources(
-        uint32_t contractEventSizeBytes, int64_t rentFee,
-        uint32_t protocolVersion, SorobanNetworkConfig const& sorobanConfig,
-        Config const& cfg, TransactionResultPayload& resPayload);
 
     static FeePair computeSorobanResourceFee(
         uint32_t protocolVersion, SorobanResources const& txResources,
@@ -380,9 +302,10 @@ class TransactionTestFrame : public TransactionFrameBase
   private:
     // TODO: Make const
     TransactionFrameBasePtr mTransactionFrame;
-    TransactionResultPayload mTransactionResultPayload;
+    TransactionResultPayloadPtr mTransactionResultPayload;
 
     TransactionTestFrame(TransactionFrameBasePtr tx);
+    void updateResultPayload(TransactionResultPayload& resPayload);
 
   public:
     static TransactionTestFramePtr fromTxFrame(TransactionFrameBasePtr txFrame);
@@ -407,6 +330,8 @@ class TransactionTestFrame : public TransactionFrameBase
 
     std::vector<std::shared_ptr<OperationFrame const>> const&
     getOperations() const;
+
+    xdr::xvector<DiagnosticEvent> const& getDiagnosticEvents() const;
 
     // Redefinitions of TransactionFrameBase functions
     bool apply(Application& app, AbstractLedgerTxn& ltx,
@@ -451,8 +376,8 @@ class TransactionTestFrame : public TransactionFrameBase
 
     std::vector<Operation> const& getRawOperations() const override;
 
-    TransactionResult& getResult() override;
-    TransactionResultCode getResultCode() const override;
+    TransactionResult& getResult();
+    TransactionResultCode getResultCode() const;
 
     SequenceNumber getSeqNum() const override;
     AccountID getFeeSourceID() const override;
@@ -479,7 +404,6 @@ class TransactionTestFrame : public TransactionFrameBase
 
     bool isSoroban() const override;
     SorobanResources const& sorobanResources() const override;
-    xdr::xvector<DiagnosticEvent> const& getDiagnosticEvents() const override;
     int64 declaredSorobanResourceFee() const override;
     bool XDRProvidesValidFee() const override;
 

@@ -139,10 +139,9 @@ PathPaymentOpFrameBase::shouldBypassIssuerCheck(
 }
 
 bool
-PathPaymentOpFrameBase::updateSourceBalance(AbstractLedgerTxn& ltx,
-                                            int64_t amount,
-                                            bool bypassIssuerCheck,
-                                            bool doesSourceAccountExist)
+PathPaymentOpFrameBase::updateSourceBalance(
+    AbstractLedgerTxn& ltx, TransactionResultPayload& resPayload,
+    int64_t amount, bool bypassIssuerCheck, bool doesSourceAccountExist)
 {
     auto const& asset = getSourceAsset();
 
@@ -162,7 +161,7 @@ PathPaymentOpFrameBase::updateSourceBalance(AbstractLedgerTxn& ltx,
         }
         else
         {
-            sourceAccount = loadSourceAccount(ltx, header);
+            sourceAccount = loadSourceAccount(ltx, header, resPayload);
         }
 
         if (amount > getAvailableBalance(header, sourceAccount))

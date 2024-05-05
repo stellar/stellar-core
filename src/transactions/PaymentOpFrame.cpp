@@ -25,7 +25,8 @@ PaymentOpFrame::PaymentOpFrame(Operation const& op, OperationResult& res,
 }
 
 bool
-PaymentOpFrame::doApply(AbstractLedgerTxn& ltx)
+PaymentOpFrame::doApply(AbstractLedgerTxn& ltx,
+                        TransactionResultPayload& resPayload)
 {
     ZoneNamedN(applyZone, "PaymentOp apply", true);
     std::string payStr = assetToString(mPayment.asset);
@@ -65,7 +66,8 @@ PaymentOpFrame::doApply(AbstractLedgerTxn& ltx)
     opRes.tr().type(PATH_PAYMENT_STRICT_RECEIVE);
     PathPaymentStrictReceiveOpFrame ppayment(op, opRes, mParentTx);
 
-    if (!ppayment.doCheckValid(ledgerVersion) || !ppayment.doApply(ltx))
+    if (!ppayment.doCheckValid(ledgerVersion) ||
+        !ppayment.doApply(ltx, resPayload))
     {
         if (ppayment.getResultCode() != opINNER)
         {

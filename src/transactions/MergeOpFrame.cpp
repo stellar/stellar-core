@@ -61,23 +61,25 @@ MergeOpFrame::isSeqnumTooFar(AbstractLedgerTxn& ltx,
 // make sure the we delete all the trustlines
 // move the XLM to the new account
 bool
-MergeOpFrame::doApply(AbstractLedgerTxn& ltx)
+MergeOpFrame::doApply(AbstractLedgerTxn& ltx,
+                      TransactionResultPayload& resPayload)
 {
     ZoneNamedN(applyZone, "MergeOp apply", true);
 
     if (protocolVersionIsBefore(ltx.loadHeader().current().ledgerVersion,
                                 ProtocolVersion::V_16))
     {
-        return doApplyBeforeV16(ltx);
+        return doApplyBeforeV16(ltx, resPayload);
     }
     else
     {
-        return doApplyFromV16(ltx);
+        return doApplyFromV16(ltx, resPayload);
     }
 }
 
 bool
-MergeOpFrame::doApplyBeforeV16(AbstractLedgerTxn& ltx)
+MergeOpFrame::doApplyBeforeV16(AbstractLedgerTxn& ltx,
+                               TransactionResultPayload& resPayload)
 {
     auto header = ltx.loadHeader();
 
@@ -112,7 +114,7 @@ MergeOpFrame::doApplyBeforeV16(AbstractLedgerTxn& ltx)
         }
     }
 
-    auto sourceAccountEntry = loadSourceAccount(ltx, header);
+    auto sourceAccountEntry = loadSourceAccount(ltx, header, resPayload);
     auto const& sourceAccount = sourceAccountEntry.current().data.account();
     // Only set sourceBalance here if it wasn't set in the previous block
     if (protocolVersionIsBefore(header.current().ledgerVersion,
@@ -185,7 +187,8 @@ MergeOpFrame::doApplyBeforeV16(AbstractLedgerTxn& ltx)
 }
 
 bool
-MergeOpFrame::doApplyFromV16(AbstractLedgerTxn& ltx)
+MergeOpFrame::doApplyFromV16(AbstractLedgerTxn& ltx,
+                             TransactionResultPayload& resPayload)
 {
     auto header = ltx.loadHeader();
 
@@ -195,7 +198,7 @@ MergeOpFrame::doApplyFromV16(AbstractLedgerTxn& ltx)
         return false;
     }
 
-    auto sourceAccountEntry = loadSourceAccount(ltx, header);
+    auto sourceAccountEntry = loadSourceAccount(ltx, header, resPayload);
 
     if (isImmutableAuth(sourceAccountEntry))
     {

@@ -29,7 +29,8 @@ LiquidityPoolWithdrawOpFrame::isOpSupported(LedgerHeader const& header) const
 }
 
 bool
-LiquidityPoolWithdrawOpFrame::doApply(AbstractLedgerTxn& ltx)
+LiquidityPoolWithdrawOpFrame::doApply(AbstractLedgerTxn& ltx,
+                                      TransactionResultPayload& resPayload)
 {
     ZoneNamedN(applyZone, "LiquidityPoolWithdrawOpFrame apply", true);
 
@@ -62,7 +63,8 @@ LiquidityPoolWithdrawOpFrame::doApply(AbstractLedgerTxn& ltx)
     auto amountA = getPoolWithdrawalAmount(mLiquidityPoolWithdraw.amount,
                                            constantProduct().totalPoolShares,
                                            constantProduct().reserveA);
-    if (!tryAddAssetBalance(ltx, header, constantProduct().params.assetA,
+    if (!tryAddAssetBalance(ltx, resPayload, header,
+                            constantProduct().params.assetA,
                             mLiquidityPoolWithdraw.minAmountA, amountA))
     {
         return false;
@@ -71,7 +73,8 @@ LiquidityPoolWithdrawOpFrame::doApply(AbstractLedgerTxn& ltx)
     auto amountB = getPoolWithdrawalAmount(mLiquidityPoolWithdraw.amount,
                                            constantProduct().totalPoolShares,
                                            constantProduct().reserveB);
-    if (!tryAddAssetBalance(ltx, header, constantProduct().params.assetB,
+    if (!tryAddAssetBalance(ltx, resPayload, header,
+                            constantProduct().params.assetB,
                             mLiquidityPoolWithdraw.minAmountB, amountB))
     {
         return false;
@@ -125,11 +128,10 @@ LiquidityPoolWithdrawOpFrame::insertLedgerKeysToPrefetch(
 }
 
 bool
-LiquidityPoolWithdrawOpFrame::tryAddAssetBalance(AbstractLedgerTxn& ltx,
-                                                 LedgerTxnHeader const& header,
-                                                 Asset const& asset,
-                                                 int64_t minAmount,
-                                                 int64_t amount)
+LiquidityPoolWithdrawOpFrame::tryAddAssetBalance(
+    AbstractLedgerTxn& ltx, TransactionResultPayload& resPayload,
+    LedgerTxnHeader const& header, Asset const& asset, int64_t minAmount,
+    int64_t amount)
 {
     if (amount < minAmount)
     {
@@ -139,7 +141,7 @@ LiquidityPoolWithdrawOpFrame::tryAddAssetBalance(AbstractLedgerTxn& ltx,
 
     if (asset.type() == ASSET_TYPE_NATIVE)
     {
-        auto sourceAccount = loadSourceAccount(ltx, header);
+        auto sourceAccount = loadSourceAccount(ltx, header, resPayload);
         if (!addBalance(header, sourceAccount, amount))
         {
             innerResult().code(LIQUIDITY_POOL_WITHDRAW_LINE_FULL);

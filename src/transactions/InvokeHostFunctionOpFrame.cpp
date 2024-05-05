@@ -27,6 +27,7 @@
 #include "ledger/LedgerTypeUtils.h"
 #include "rust/RustBridge.h"
 #include "transactions/InvokeHostFunctionOpFrame.h"
+#include "transactions/TransactionResultPayload.h"
 #include <Tracy.hpp>
 #include <crypto/SHA.h>
 
@@ -249,7 +250,8 @@ InvokeHostFunctionOpFrame::isOpSupported(LedgerHeader const& header) const
 }
 
 bool
-InvokeHostFunctionOpFrame::doApply(AbstractLedgerTxn& ltx)
+InvokeHostFunctionOpFrame::doApply(AbstractLedgerTxn& ltx,
+                                   TransactionResultPayload& resPayload)
 {
     throw std::runtime_error(
         "InvokeHostFunctionOpFrame::doApply needs Config and base PRNG seed");
@@ -318,7 +320,7 @@ InvokeHostFunctionOpFrame::maybePopulateDiagnosticEvents(
                                                    "max_emit_event_byte",
                                                    metrics.mMaxEmitEventByte));
 
-        mParentTx.pushDiagnosticEvents(diagnosticEvents, resPayload);
+        resPayload.pushDiagnosticEvents(diagnosticEvents);
     }
 }
 
@@ -372,22 +374,20 @@ InvokeHostFunctionOpFrame::doApply(Application& app, AbstractLedgerTxn& ltx,
                         {
                             if (lk.type() == CONTRACT_CODE)
                             {
-                                mParentTx.pushApplyTimeDiagnosticError(
+                                resPayload.pushApplyTimeDiagnosticError(
                                     appConfig, SCE_VALUE, SCEC_INVALID_INPUT,
                                     "trying to access an archived contract "
                                     "code "
                                     "entry",
-                                    resPayload,
                                     {makeBytesSCVal(lk.contractCode().hash)});
                             }
                             else if (lk.type() == CONTRACT_DATA)
                             {
-                                mParentTx.pushApplyTimeDiagnosticError(
+                                resPayload.pushApplyTimeDiagnosticError(
                                     appConfig, SCE_VALUE, SCEC_INVALID_INPUT,
                                     "trying to access an archived contract "
                                     "data "
                                     "entry",
-                                    resPayload,
                                     {makeAddressSCVal(
                                          lk.contractData().contract),
                                      lk.contractData().key});
@@ -444,10 +444,9 @@ InvokeHostFunctionOpFrame::doApply(Application& app, AbstractLedgerTxn& ltx,
 
             if (resources.readBytes < metrics.mLedgerReadByte)
             {
-                mParentTx.pushApplyTimeDiagnosticError(
+                resPayload.pushApplyTimeDiagnosticError(
                     appConfig, SCE_BUDGET, SCEC_EXCEEDED_LIMIT,
                     "operation byte-read resources exceeds amount specified",
-                    resPayload,
                     {makeU64SCVal(metrics.mLedgerReadByte),
                      makeU64SCVal(resources.readBytes)});
 
@@ -523,19 +522,18 @@ InvokeHostFunctionOpFrame::doApply(Application& app, AbstractLedgerTxn& ltx,
         }
         if (resources.instructions < out.cpu_insns)
         {
-            mParentTx.pushApplyTimeDiagnosticError(
+            resPayload.pushApplyTimeDiagnosticError(
                 appConfig, SCE_BUDGET, SCEC_EXCEEDED_LIMIT,
-                "operation instructions exceeds amount specified", resPayload,
+                "operation instructions exceeds amount specified",
                 {makeU64SCVal(out.cpu_insns),
                  makeU64SCVal(resources.instructions)});
             innerResult().code(INVOKE_HOST_FUNCTION_RESOURCE_LIMIT_EXCEEDED);
         }
         else if (sorobanConfig.txMemoryLimit() < out.mem_bytes)
         {
-            mParentTx.pushApplyTimeDiagnosticError(
+            resPayload.pushApplyTimeDiagnosticError(
                 appConfig, SCE_BUDGET, SCEC_EXCEEDED_LIMIT,
                 "operation memory usage exceeds network config limit",
-                resPayload,
                 {makeU64SCVal(out.mem_bytes),
                  makeU64SCVal(sorobanConfig.txMemoryLimit())});
             innerResult().code(INVOKE_HOST_FUNCTION_RESOURCE_LIMIT_EXCEEDED);
@@ -575,10 +573,9 @@ InvokeHostFunctionOpFrame::doApply(Application& app, AbstractLedgerTxn& ltx,
             metrics.noteWriteEntry(isCodeKey(lk), keySize, entrySize);
             if (resources.writeBytes < metrics.mLedgerWriteByte)
             {
-                mParentTx.pushApplyTimeDiagnosticError(
+                resPayload.pushApplyTimeDiagnosticError(
                     appConfig, SCE_BUDGET, SCEC_EXCEEDED_LIMIT,
                     "operation byte-write resources exceeds amount specified",
-                    resPayload,
                     {makeU64SCVal(metrics.mLedgerWriteByte),
                      makeU64SCVal(resources.writeBytes)});
                 innerResult().code(
@@ -651,9 +648,9 @@ InvokeHostFunctionOpFrame::doApply(Application& app, AbstractLedgerTxn& ltx,
         if (sorobanConfig.txMaxContractEventsSizeBytes() <
             metrics.mEmitEventByte)
         {
-            mParentTx.pushApplyTimeDiagnosticError(
+            resPayload.pushApplyTimeDiagnosticError(
                 appConfig, SCE_BUDGET, SCEC_EXCEEDED_LIMIT,
-                "total events size exceeds network config maximum", resPayload,
+                "total events size exceeds network config maximum",
                 {makeU64SCVal(metrics.mEmitEventByte),
                  makeU64SCVal(sorobanConfig.txMaxContractEventsSizeBytes())});
             innerResult().code(INVOKE_HOST_FUNCTION_RESOURCE_LIMIT_EXCEEDED);
@@ -669,20 +666,19 @@ InvokeHostFunctionOpFrame::doApply(Application& app, AbstractLedgerTxn& ltx,
     metrics.mEmitEventByte += static_cast<uint32>(out.result_value.data.size());
     if (sorobanConfig.txMaxContractEventsSizeBytes() < metrics.mEmitEventByte)
     {
-        mParentTx.pushApplyTimeDiagnosticError(
+        resPayload.pushApplyTimeDiagnosticError(
             appConfig, SCE_BUDGET, SCEC_EXCEEDED_LIMIT,
             "return value pushes events size above network config maximum",
-            resPayload,
             {makeU64SCVal(metrics.mEmitEventByte),
              makeU64SCVal(sorobanConfig.txMaxContractEventsSizeBytes())});
         innerResult().code(INVOKE_HOST_FUNCTION_RESOURCE_LIMIT_EXCEEDED);
         return false;
     }
 
-    if (!mParentTx.consumeRefundableSorobanResources(
+    if (!resPayload.consumeRefundableSorobanResources(
             metrics.mEmitEventByte, out.rent_fee,
             ltx.loadHeader().current().ledgerVersion, sorobanConfig, appConfig,
-            resPayload))
+            mParentTx))
     {
         innerResult().code(INVOKE_HOST_FUNCTION_INSUFFICIENT_REFUNDABLE_FEE);
         return false;
@@ -692,8 +688,8 @@ InvokeHostFunctionOpFrame::doApply(Application& app, AbstractLedgerTxn& ltx,
     innerResult().code(INVOKE_HOST_FUNCTION_SUCCESS);
     innerResult().success() = xdrSha256(success);
 
-    mParentTx.pushContractEvents(success.events, resPayload);
-    mParentTx.setReturnValue(success.returnValue, resPayload);
+    resPayload.pushContractEvents(success.events);
+    resPayload.setReturnValue(success.returnValue);
     metrics.mSuccess = true;
     return true;
 }
@@ -708,10 +704,9 @@ InvokeHostFunctionOpFrame::doCheckValid(
     if (hostFn.type() == HOST_FUNCTION_TYPE_UPLOAD_CONTRACT_WASM &&
         hostFn.wasm().size() > networkConfig.maxContractSizeBytes())
     {
-        mParentTx.pushValidationTimeDiagnosticError(
+        resPayload.pushValidationTimeDiagnosticError(
             appConfig, SCE_BUDGET, SCEC_EXCEEDED_LIMIT,
             "uploaded Wasm size exceeds network config maximum contract size",
-            resPayload,
             {makeU64SCVal(hostFn.wasm().size()),
              makeU64SCVal(networkConfig.maxContractSizeBytes())});
         return false;
@@ -722,9 +717,9 @@ InvokeHostFunctionOpFrame::doCheckValid(
         if (preimage.type() == CONTRACT_ID_PREIMAGE_FROM_ASSET &&
             !isAssetValid(preimage.fromAsset(), ledgerVersion))
         {
-            mParentTx.pushValidationTimeDiagnosticError(
+            resPayload.pushValidationTimeDiagnosticError(
                 appConfig, SCE_VALUE, SCEC_INVALID_INPUT,
-                "invalid asset to create contract from", resPayload);
+                "invalid asset to create contract from");
             return false;
         }
     }

@@ -21,8 +21,9 @@ class PathPaymentOpFrameBase : public OperationFrame
 
     bool shouldBypassIssuerCheck(std::vector<Asset> const& path) const;
 
-    bool updateSourceBalance(AbstractLedgerTxn& ltx, int64_t amount,
-                             bool bypassIssuerCheck,
+    bool updateSourceBalance(AbstractLedgerTxn& ltx,
+                             TransactionResultPayload& resPayload,
+                             int64_t amount, bool bypassIssuerCheck,
                              bool doesSourceAccountExist);
 
     bool updateDestBalance(AbstractLedgerTxn& ltx, int64_t amount,

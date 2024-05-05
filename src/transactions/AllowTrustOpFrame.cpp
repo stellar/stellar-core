@@ -99,12 +99,13 @@ AllowTrustOpFrame::setFlagValue(AbstractLedgerTxn& ltx, LedgerKey const& key,
 
 bool
 AllowTrustOpFrame::isAuthRevocationValid(AbstractLedgerTxn& ltx,
-                                         bool& authRevocable)
+                                         bool& authRevocable,
+                                         TransactionResultPayload& resPayload)
 {
     // Load the source account
     LedgerTxn ltxSource(ltx); // ltxSource will be rolled back
     auto header = ltxSource.loadHeader();
-    auto sourceAccountEntry = loadSourceAccount(ltxSource, header);
+    auto sourceAccountEntry = loadSourceAccount(ltxSource, header, resPayload);
     auto const& sourceAccount = sourceAccountEntry.current().data.account();
 
     // Check if the source account doesn't require authorization check

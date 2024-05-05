@@ -25,6 +25,7 @@
 #include "overlay/OverlayManager.h"
 #include "scp/LocalNode.h"
 #include "scp/Slot.h"
+#include "transactions/TransactionResultPayload.h"
 #include "transactions/TransactionUtils.h"
 #include "util/DebugMetaUtils.h"
 #include "util/LogSlowExecution.h"
@@ -587,8 +588,7 @@ std::pair<TransactionQueue::AddResult, TransactionResultPayloadPtr>
 HerderImpl::recvTransaction(TransactionFrameBasePtr tx, bool submittedFromSelf)
 {
     ZoneScoped;
-    auto payload =
-        std::make_shared<TransactionResultPayload>(tx->toTransactionFrame());
+    auto payload = TransactionResultPayload::create(tx->toTransactionFrame());
     std::pair<TransactionQueue::AddResult, TransactionResultPayloadPtr> result{
         TransactionQueue::AddResult::ADD_STATUS_COUNT, payload};
 

@@ -88,9 +88,6 @@ class TransactionFrameBase
 
     virtual std::vector<Operation> const& getRawOperations() const = 0;
 
-    virtual TransactionResult& getResult() = 0;
-    virtual TransactionResultCode getResultCode() const = 0;
-
     virtual SequenceNumber getSeqNum() const = 0;
     virtual AccountID getFeeSourceID() const = 0;
     virtual AccountID getSourceID() const = 0;
@@ -117,8 +114,6 @@ class TransactionFrameBase
 
     virtual bool isSoroban() const = 0;
     virtual SorobanResources const& sorobanResources() const = 0;
-    virtual xdr::xvector<DiagnosticEvent> const&
-    getDiagnosticEvents() const = 0;
     virtual int64 declaredSorobanResourceFee() const = 0;
     virtual bool XDRProvidesValidFee() const = 0;
 };

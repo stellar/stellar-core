@@ -15,10 +15,12 @@ class SignatureChecker;
 
 class FeeBumpTransactionFrame : public TransactionFrameBase
 {
-    TransactionEnvelope mEnvelope;
-    TransactionResult mResult;
 
-    TransactionFramePtr mInnerTx;
+#ifndef BUILD_TESTS
+    const
+#endif
+        TransactionEnvelope mEnvelope;
+    TransactionFramePtr const mInnerTx;
 
     Hash const& mNetworkID;
     mutable Hash mContentsHash;
@@ -103,9 +105,6 @@ class FeeBumpTransactionFrame : public TransactionFrameBase
 
     std::vector<Operation> const& getRawOperations() const override;
 
-    TransactionResult& getResult() override;
-    TransactionResultCode getResultCode() const override;
-
     SequenceNumber getSeqNum() const override;
     AccountID getFeeSourceID() const override;
     AccountID getSourceID() const override;
@@ -131,7 +130,6 @@ class FeeBumpTransactionFrame : public TransactionFrameBase
 
     bool isSoroban() const override;
     SorobanResources const& sorobanResources() const override;
-    xdr::xvector<DiagnosticEvent> const& getDiagnosticEvents() const override;
     virtual int64 declaredSorobanResourceFee() const override;
     virtual bool XDRProvidesValidFee() const override;
 };

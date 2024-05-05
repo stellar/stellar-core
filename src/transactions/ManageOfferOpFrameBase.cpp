@@ -104,13 +104,13 @@ ManageOfferOpFrameBase::checkOfferValid(AbstractLedgerTxn& ltxOuter)
 
 bool
 ManageOfferOpFrameBase::computeOfferExchangeParameters(
-    AbstractLedgerTxn& ltxOuter, bool creatingNewOffer, int64_t& maxSheepSend,
-    int64_t& maxWheatReceive)
+    AbstractLedgerTxn& ltxOuter, TransactionResultPayload& resPayload,
+    bool creatingNewOffer, int64_t& maxSheepSend, int64_t& maxWheatReceive)
 {
     LedgerTxn ltx(ltxOuter); // ltx will always be rolled back
 
     auto header = ltx.loadHeader();
-    auto sourceAccount = loadSourceAccount(ltx, header);
+    auto sourceAccount = loadSourceAccount(ltx, header, resPayload);
 
     auto ledgerVersion = header.current().ledgerVersion;
     if (protocolVersionIsBefore(ledgerVersion, ProtocolVersion::V_14) &&
@@ -211,7 +211,8 @@ ManageOfferOpFrameBase::computeOfferExchangeParameters(
 }
 
 bool
-ManageOfferOpFrameBase::doApply(AbstractLedgerTxn& ltxOuter)
+ManageOfferOpFrameBase::doApply(AbstractLedgerTxn& ltxOuter,
+                                TransactionResultPayload& resPayload)
 {
     ZoneNamedN(applyZone, "ManageOfferOp apply", true);
     std::string pairStr = assetToString(mSheep);
@@ -318,8 +319,8 @@ ManageOfferOpFrameBase::doApply(AbstractLedgerTxn& ltxOuter)
     {
         int64_t maxSheepSend = 0;
         int64_t maxWheatReceive = 0;
-        if (!computeOfferExchangeParameters(ltx, creatingNewOffer, maxSheepSend,
-                                            maxWheatReceive))
+        if (!computeOfferExchangeParameters(ltx, resPayload, creatingNewOffer,
+                                            maxSheepSend, maxWheatReceive))
         {
             return false;
         }
@@ -397,7 +398,7 @@ ManageOfferOpFrameBase::doApply(AbstractLedgerTxn& ltxOuter)
         {
             if (mWheat.type() == ASSET_TYPE_NATIVE)
             {
-                auto sourceAccount = loadSourceAccount(ltx, header);
+                auto sourceAccount = loadSourceAccount(ltx, header, resPayload);
                 if (!addBalance(header, sourceAccount, wheatReceived))
                 {
                     // this would indicate a bug in OfferExchange
@@ -416,7 +417,7 @@ ManageOfferOpFrameBase::doApply(AbstractLedgerTxn& ltxOuter)
 
             if (mSheep.type() == ASSET_TYPE_NATIVE)
             {
-                auto sourceAccount = loadSourceAccount(ltx, header);
+                auto sourceAccount = loadSourceAccount(ltx, header, resPayload);
                 if (!addBalance(header, sourceAccount, -sheepSent))
                 {
                     // this would indicate a bug in OfferExchange
@@ -476,7 +477,7 @@ ManageOfferOpFrameBase::doApply(AbstractLedgerTxn& ltxOuter)
             {
                 // make sure we don't allow us to add offers when we don't have
                 // the minbalance (should never happen at this stage in v9+)
-                auto sourceAccount = loadSourceAccount(ltx, header);
+                auto sourceAccount = loadSourceAccount(ltx, header, resPayload);
                 switch (canCreateEntryWithoutSponsorship(
                     header.current(), newOffer, sourceAccount.current()))
                 {
@@ -528,7 +529,7 @@ ManageOfferOpFrameBase::doApply(AbstractLedgerTxn& ltxOuter)
             protocolVersionStartsFrom(header.current().ledgerVersion,
                                       ProtocolVersion::V_14))
         {
-            auto sourceAccount = loadSourceAccount(ltx, header);
+            auto sourceAccount = loadSourceAccount(ltx, header, resPayload);
             auto le = buildOffer(0, 0, extension);
             removeEntryWithPossibleSponsorship(ltx, header, le, sourceAccount);
         }

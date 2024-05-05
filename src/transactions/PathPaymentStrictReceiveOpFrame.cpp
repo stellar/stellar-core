@@ -23,7 +23,8 @@ PathPaymentStrictReceiveOpFrame::PathPaymentStrictReceiveOpFrame(
 }
 
 bool
-PathPaymentStrictReceiveOpFrame::doApply(AbstractLedgerTxn& ltx)
+PathPaymentStrictReceiveOpFrame::doApply(AbstractLedgerTxn& ltx,
+                                         TransactionResultPayload& resPayload)
 {
     ZoneNamedN(applyZone, "PathPaymentStrictReceiveOp apply", true);
     std::string pathStr = assetToString(getSourceAsset());
@@ -122,7 +123,7 @@ PathPaymentStrictReceiveOpFrame::doApply(AbstractLedgerTxn& ltx)
         return false;
     }
 
-    if (!updateSourceBalance(ltx, maxAmountRecv, bypassIssuerCheck,
+    if (!updateSourceBalance(ltx, resPayload, maxAmountRecv, bypassIssuerCheck,
                              doesSourceAccountExist))
     {
         return false;

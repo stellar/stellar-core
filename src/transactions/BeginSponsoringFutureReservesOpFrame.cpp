@@ -61,7 +61,8 @@ BeginSponsoringFutureReservesOpFrame::createSponsorshipCounter(
 }
 
 bool
-BeginSponsoringFutureReservesOpFrame::doApply(AbstractLedgerTxn& ltx)
+BeginSponsoringFutureReservesOpFrame::doApply(
+    AbstractLedgerTxn& ltx, TransactionResultPayload& resPayload)
 {
     ZoneNamedN(applyZone, "BeginSponsoringFutureReservesOpFrame apply", true);
     if (loadSponsorship(ltx, mBeginSponsoringFutureReservesOp.sponsoredID))

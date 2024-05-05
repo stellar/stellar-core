@@ -51,7 +51,8 @@ TrustFlagsOpFrameBase::removeOffers(AbstractLedgerTxn& ltx)
 }
 
 bool
-TrustFlagsOpFrameBase::doApply(AbstractLedgerTxn& ltx)
+TrustFlagsOpFrameBase::doApply(AbstractLedgerTxn& ltx,
+                               TransactionResultPayload& resPayload)
 {
     ZoneNamedN(applyZone, "TrustFlagsOpFrameBase apply", true);
 
@@ -70,7 +71,7 @@ TrustFlagsOpFrameBase::doApply(AbstractLedgerTxn& ltx)
     }
 
     bool authRevocable = true;
-    if (!isAuthRevocationValid(ltx, authRevocable))
+    if (!isAuthRevocationValid(ltx, authRevocable, resPayload))
     {
         return false;
     }

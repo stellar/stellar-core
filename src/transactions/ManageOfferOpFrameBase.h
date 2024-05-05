@@ -23,6 +23,7 @@ class ManageOfferOpFrameBase : public OperationFrame
     bool checkOfferValid(AbstractLedgerTxn& lsOuter);
 
     bool computeOfferExchangeParameters(AbstractLedgerTxn& ltxOuter,
+                                        TransactionResultPayload& resPayload,
                                         bool creatingNewOffer,
                                         int64_t& maxSheepSend,
                                         int64_t& maxWheatReceive);
@@ -40,7 +41,8 @@ class ManageOfferOpFrameBase : public OperationFrame
 
     bool doCheckValid(uint32_t ledgerVersion) override;
 
-    bool doApply(AbstractLedgerTxn& lsOuter) override;
+    bool doApply(AbstractLedgerTxn& lsOuter,
+                 TransactionResultPayload& resPayload) override;
 
     bool isDexOperation() const override;
 

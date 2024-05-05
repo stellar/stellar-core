@@ -34,7 +34,8 @@ CreateAccountOpFrame::CreateAccountOpFrame(Operation const& op,
 }
 
 bool
-CreateAccountOpFrame::doApplyBeforeV14(AbstractLedgerTxn& ltx)
+CreateAccountOpFrame::doApplyBeforeV14(AbstractLedgerTxn& ltx,
+                                       TransactionResultPayload& resPayload)
 {
     auto header = ltx.loadHeader();
     if (mCreateAccount.startingBalance <
@@ -49,7 +50,7 @@ CreateAccountOpFrame::doApplyBeforeV14(AbstractLedgerTxn& ltx)
                                   ProtocolVersion::V_8) ||
         (bool)ltx.loadWithoutRecord(accountKey(getSourceID()));
 
-    auto sourceAccount = loadSourceAccount(ltx, header);
+    auto sourceAccount = loadSourceAccount(ltx, header, resPayload);
     if (getAvailableBalance(header, sourceAccount) <
         mCreateAccount.startingBalance)
     { // they don't have enough to send
@@ -80,7 +81,8 @@ CreateAccountOpFrame::doApplyBeforeV14(AbstractLedgerTxn& ltx)
 }
 
 bool
-CreateAccountOpFrame::doApplyFromV14(AbstractLedgerTxn& ltxOuter)
+CreateAccountOpFrame::doApplyFromV14(AbstractLedgerTxn& ltxOuter,
+                                     TransactionResultPayload& resPayload)
 {
     LedgerTxn ltx(ltxOuter);
     auto header = ltx.loadHeader();
@@ -136,7 +138,8 @@ CreateAccountOpFrame::doApplyFromV14(AbstractLedgerTxn& ltxOuter)
 }
 
 bool
-CreateAccountOpFrame::doApply(AbstractLedgerTxn& ltx)
+CreateAccountOpFrame::doApply(AbstractLedgerTxn& ltx,
+                              TransactionResultPayload& resPayload)
 {
     ZoneNamedN(applyZone, "CreateAccountOp apply", true);
     if (stellar::loadAccount(ltx, mCreateAccount.destination))
@@ -148,11 +151,11 @@ CreateAccountOpFrame::doApply(AbstractLedgerTxn& ltx)
     if (protocolVersionIsBefore(ltx.loadHeader().current().ledgerVersion,
                                 ProtocolVersion::V_14))
     {
-        return doApplyBeforeV14(ltx);
+        return doApplyBeforeV14(ltx, resPayload);
     }
     else
     {
-        return doApplyFromV14(ltx);
+        return doApplyFromV14(ltx, resPayload);
     }
 }
 

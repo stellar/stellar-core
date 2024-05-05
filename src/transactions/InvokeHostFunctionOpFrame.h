@@ -12,6 +12,7 @@
 namespace stellar
 {
 class AbstractLedgerTxn;
+class TransactionResultPayload;
 
 static constexpr ContractDataDurability CONTRACT_INSTANCE_ENTRY_DURABILITY =
     ContractDataDurability::PERSISTENT;
@@ -37,7 +38,8 @@ class InvokeHostFunctionOpFrame : public OperationFrame
 
     bool isOpSupported(LedgerHeader const& header) const override;
 
-    bool doApply(AbstractLedgerTxn& ltx) override;
+    bool doApply(AbstractLedgerTxn& ltx,
+                 TransactionResultPayload& resPayload) override;
     bool doApply(Application& app, AbstractLedgerTxn& ltx,
                  Hash const& sorobanBasePrngSeed,
                  TransactionResultPayload& resPayload) override;

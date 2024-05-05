@@ -43,10 +43,11 @@ SetOptionsOpFrame::getThresholdLevel() const
 }
 
 bool
-SetOptionsOpFrame::addOrChangeSigner(AbstractLedgerTxn& ltx)
+SetOptionsOpFrame::addOrChangeSigner(AbstractLedgerTxn& ltx,
+                                     TransactionResultPayload& resPayload)
 {
     auto header = ltx.loadHeader();
-    auto sourceAccount = loadSourceAccount(ltx, header);
+    auto sourceAccount = loadSourceAccount(ltx, header, resPayload);
 
     auto& account = sourceAccount.current().data.account();
     auto& signers = account.signers;
@@ -121,12 +122,13 @@ SetOptionsOpFrame::deleteSigner(AbstractLedgerTxn& ltx,
 }
 
 bool
-SetOptionsOpFrame::doApply(AbstractLedgerTxn& ltx)
+SetOptionsOpFrame::doApply(AbstractLedgerTxn& ltx,
+                           TransactionResultPayload& resPayload)
 {
     ZoneNamedN(applyZone, "SetOptionsOp apply", true);
 
     auto header = ltx.loadHeader();
-    auto sourceAccount = loadSourceAccount(ltx, header);
+    auto sourceAccount = loadSourceAccount(ltx, header, resPayload);
     auto& account = sourceAccount.current().data.account();
     if (mSetOptions.inflationDest)
     {
@@ -209,7 +211,7 @@ SetOptionsOpFrame::doApply(AbstractLedgerTxn& ltx)
         if (mSetOptions.signer->weight)
         {
             LedgerTxn ltxInner(ltx);
-            if (!addOrChangeSigner(ltxInner))
+            if (!addOrChangeSigner(ltxInner, resPayload))
             {
                 return false;
             }

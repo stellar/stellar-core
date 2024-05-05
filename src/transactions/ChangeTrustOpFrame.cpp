@@ -140,7 +140,8 @@ ChangeTrustOpFrame::ChangeTrustOpFrame(Operation const& op,
 }
 
 bool
-ChangeTrustOpFrame::doApply(AbstractLedgerTxn& ltx)
+ChangeTrustOpFrame::doApply(AbstractLedgerTxn& ltx,
+                            TransactionResultPayload& resPayload)
 {
     ZoneNamedN(applyZone, "ChangeTrustOp apply", true);
 
@@ -210,7 +211,7 @@ ChangeTrustOpFrame::doApply(AbstractLedgerTxn& ltx)
 
             // line gets deleted. first release reserves
             auto header = ltx.loadHeader();
-            auto sourceAccount = loadSourceAccount(ltx, header);
+            auto sourceAccount = loadSourceAccount(ltx, header, resPayload);
             removeEntryWithPossibleSponsorship(ltx, header, trustLine.current(),
                                                sourceAccount);
             trustLine.erase();
@@ -275,7 +276,7 @@ ChangeTrustOpFrame::doApply(AbstractLedgerTxn& ltx)
         }
 
         auto header = ltx.loadHeader();
-        auto sourceAccount = loadSourceAccount(ltx, header);
+        auto sourceAccount = loadSourceAccount(ltx, header, resPayload);
         switch (createEntryWithPossibleSponsorship(ltx, header, trustLineEntry,
                                                    sourceAccount))
         {

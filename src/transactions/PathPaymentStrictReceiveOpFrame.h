@@ -23,7 +23,8 @@ class PathPaymentStrictReceiveOpFrame : public PathPaymentOpFrameBase
     PathPaymentStrictReceiveOpFrame(Operation const& op, OperationResult& res,
                                     TransactionFrame& parentTx);
 
-    bool doApply(AbstractLedgerTxn& ltx) override;
+    bool doApply(AbstractLedgerTxn& ltx,
+                 TransactionResultPayload& resPayload) override;
     bool doCheckValid(uint32_t ledgerVersion) override;
 
     bool checkTransfer(int64_t maxSend, int64_t amountSend, int64_t maxRecv,

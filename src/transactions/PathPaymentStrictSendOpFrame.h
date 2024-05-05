@@ -25,7 +25,8 @@ class PathPaymentStrictSendOpFrame : public PathPaymentOpFrameBase
 
     bool isOpSupported(LedgerHeader const& header) const override;
 
-    bool doApply(AbstractLedgerTxn& ltx) override;
+    bool doApply(AbstractLedgerTxn& ltx,
+                 TransactionResultPayload& resPayload) override;
     bool doCheckValid(uint32_t ledgerVersion) override;
 
     bool checkTransfer(int64_t maxSend, int64_t amountSend, int64_t maxRecv,

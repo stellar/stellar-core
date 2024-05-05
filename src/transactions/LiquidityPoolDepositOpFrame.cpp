@@ -188,7 +188,8 @@ updateBalance(LedgerTxnHeader& header, TrustLineWrapper& tl,
 }
 
 bool
-LiquidityPoolDepositOpFrame::doApply(AbstractLedgerTxn& ltx)
+LiquidityPoolDepositOpFrame::doApply(AbstractLedgerTxn& ltx,
+                                     TransactionResultPayload& resPayload)
 {
     ZoneNamedN(applyZone, "LiquidityPoolDepositOpFrame apply", true);
 
