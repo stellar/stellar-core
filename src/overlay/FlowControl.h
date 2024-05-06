@@ -29,6 +29,8 @@ using SendMoreCapacity = std::pair<uint64_t, std::optional<uint64_t>>;
 // * Outbound processing. `sendMessage` will queue appropriate flood messages,
 // and ensure that those are only sent when the receiver is ready to accept.
 // This module also performs load shedding.
+
+// Flow control is a thread-safe class
 class FlowControl
 {
   public:
@@ -54,6 +56,8 @@ class FlowControl
     size_t mDemandQueueTxHashCount{0};
     size_t mTxQueueByteCount{0};
 
+    // Mutex to synchronize flow control state
+    std::recursive_mutex mutable mFlowControlMutex;
     // Is this peer currently throttled due to lack of capacity
     std::optional<VirtualClock::time_point> mLastThrottle;
 
@@ -63,6 +67,7 @@ class FlowControl
 
     OverlayMetrics& mOverlayMetrics;
     OverlayAppConnector& mAppConnector;
+    bool const mUseBackgroundThread;
 
     // Outbound queues indexes by priority
     // Priority 0 - SCP messages
@@ -89,7 +94,7 @@ class FlowControl
     bool hasOutboundCapacity(StellarMessage const& msg) const;
 
   public:
-    FlowControl(OverlayAppConnector& connector);
+    FlowControl(OverlayAppConnector& connector, bool useBackgoundThread);
     virtual ~FlowControl() = default;
 
     virtual bool maybeSendMessage(std::shared_ptr<StellarMessage const> msg);
