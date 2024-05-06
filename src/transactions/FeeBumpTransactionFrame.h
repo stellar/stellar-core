@@ -71,7 +71,8 @@ class FeeBumpTransactionFrame : public TransactionFrameBase
                Hash const& sorobanBasePrngSeed) override;
 
     void processPostApply(Application& app, AbstractLedgerTxn& ltx,
-                          TransactionMetaFrame& meta) override;
+                          TransactionMetaFrame& meta,
+                          TransactionResultPayload& resPayload) override;
 
     bool checkValid(Application& app, AbstractLedgerTxn& ltxOuter,
                     TransactionResultPayload& resPayload,

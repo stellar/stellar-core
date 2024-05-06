@@ -108,7 +108,8 @@ class TransactionFrameBase
                                   TransactionResultPayload& resPayload) = 0;
 
     virtual void processPostApply(Application& app, AbstractLedgerTxn& ltx,
-                                  TransactionMetaFrame& meta) = 0;
+                                  TransactionMetaFrame& meta,
+                                  TransactionResultPayload& resPayload) = 0;
 
     virtual std::shared_ptr<StellarMessage const> toStellarMessage() const = 0;
 

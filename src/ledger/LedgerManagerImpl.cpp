@@ -1554,7 +1554,7 @@ LedgerManagerImpl::applyTransactions(
         ++txNum;
 
         tx->apply(mApp, ltx, tm, txResult, subSeed);
-        tx->processPostApply(mApp, ltx, tm);
+        tx->processPostApply(mApp, ltx, tm, txResult);
         TransactionResultPair results;
         results.transactionHash = tx->getContentsHash();
         results.result = tx->getResult();

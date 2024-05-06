@@ -159,14 +159,16 @@ FeeBumpTransactionFrame::apply(Application& app, AbstractLedgerTxn& ltx,
 void
 FeeBumpTransactionFrame::processPostApply(Application& app,
                                           AbstractLedgerTxn& ltx,
-                                          TransactionMetaFrame& meta)
+                                          TransactionMetaFrame& meta,
+                                          TransactionResultPayload& resPayload)
 {
     // We must forward the Fee-bump source so the refund is applied to the
     // correct account
     // Note that we are not calling TransactionFrame::processPostApply, so if
     // any logic is added there, we would have to reason through if that logic
     // should also be reflected here.
-    int64_t refund = mInnerTx->processRefund(app, ltx, meta, getFeeSourceID());
+    int64_t refund =
+        mInnerTx->processRefund(app, ltx, meta, getFeeSourceID(), resPayload);
 
     // The result codes and a feeCharged without the refund are set in
     // updateResult in FeeBumpTransactionFrame::apply. At this point, feeCharged

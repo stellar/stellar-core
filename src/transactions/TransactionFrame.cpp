@@ -865,7 +865,8 @@ TransactionFrame::validateSorobanResources(SorobanNetworkConfig const& config,
 
 int64_t
 TransactionFrame::refundSorobanFee(AbstractLedgerTxn& ltxOuter,
-                                   AccountID const& feeSource)
+                                   AccountID const& feeSource,
+                                   TransactionResultPayload& resPayload)
 {
     ZoneScoped;
     releaseAssertOrThrow(mSorobanExtension);
@@ -892,6 +893,8 @@ TransactionFrame::refundSorobanFee(AbstractLedgerTxn& ltxOuter,
         return 0;
     }
 
+    resPayload.getResult().feeCharged -= feeRefund;
+    // TODO: Remove
     getResult().feeCharged -= feeRefund;
 
     header.current().feePool -= feeRefund;
@@ -2211,9 +2214,10 @@ TransactionFrame::apply(Application& app, AbstractLedgerTxn& ltx,
 void
 TransactionFrame::processPostApply(Application& app,
                                    AbstractLedgerTxn& ltxOuter,
-                                   TransactionMetaFrame& meta)
+                                   TransactionMetaFrame& meta,
+                                   TransactionResultPayload& resPayload)
 {
-    processRefund(app, ltxOuter, meta, getSourceID());
+    processRefund(app, ltxOuter, meta, getSourceID(), resPayload);
 }
 
 // This is a TransactionFrame specific function that should only be used by
@@ -2221,7 +2225,8 @@ TransactionFrame::processPostApply(Application& app,
 int64_t
 TransactionFrame::processRefund(Application& app, AbstractLedgerTxn& ltxOuter,
                                 TransactionMetaFrame& meta,
-                                AccountID const& feeSource)
+                                AccountID const& feeSource,
+                                TransactionResultPayload& resPayload)
 {
     ZoneScoped;
 
@@ -2232,7 +2237,7 @@ TransactionFrame::processRefund(Application& app, AbstractLedgerTxn& ltxOuter,
     // Process Soroban resource fee refund (this is independent of the
     // transaction success).
     LedgerTxn ltx(ltxOuter);
-    int64_t refund = refundSorobanFee(ltx, feeSource);
+    int64_t refund = refundSorobanFee(ltx, feeSource, resPayload);
     meta.pushTxChangesAfter(ltx.getChanges());
     ltx.commit();
 
@@ -2361,6 +2366,14 @@ TransactionTestFrame::processFeeSeqNum(AbstractLedgerTxn& ltx,
                                        std::optional<int64_t> baseFee)
 {
     mTransactionFrame->processFeeSeqNum(ltx, baseFee,
+                                        mTransactionResultPayload);
+}
+
+void
+TransactionTestFrame::processPostApply(Application& app, AbstractLedgerTxn& ltx,
+                                       TransactionMetaFrame& meta)
+{
+    mTransactionFrame->processPostApply(app, ltx, meta,
                                         mTransactionResultPayload);
 }
 
@@ -2535,9 +2548,10 @@ TransactionTestFrame::processFeeSeqNum(AbstractLedgerTxn& ltx,
 
 void
 TransactionTestFrame::processPostApply(Application& app, AbstractLedgerTxn& ltx,
-                                       TransactionMetaFrame& meta)
+                                       TransactionMetaFrame& meta,
+                                       TransactionResultPayload& resPayload)
 {
-    mTransactionFrame->processPostApply(app, ltx, meta);
+    mTransactionFrame->processPostApply(app, ltx, meta, resPayload);
 }
 
 StellarMessage

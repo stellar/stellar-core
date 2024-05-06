@@ -171,8 +171,8 @@ class TransactionFrame : public TransactionFrameBase
                                   Config const& appConfig,
                                   uint32_t protocolVersion,
                                   TransactionResultPayload& resPayload);
-    int64_t refundSorobanFee(AbstractLedgerTxn& ltx,
-                             AccountID const& feeSource);
+    int64_t refundSorobanFee(AbstractLedgerTxn& ltx, AccountID const& feeSource,
+                             TransactionResultPayload& resPayload);
     void updateSorobanMetrics(Application& app);
 #ifdef BUILD_TESTS
   public:
@@ -320,14 +320,16 @@ class TransactionFrame : public TransactionFrameBase
     // `apply` have been called.
     // Currently this only takes care of Soroban fee refunds.
     void processPostApply(Application& app, AbstractLedgerTxn& ltx,
-                          TransactionMetaFrame& meta) override;
+                          TransactionMetaFrame& meta,
+                          TransactionResultPayload& resPayload) override;
 
     // TransactionFrame specific function that allows fee bumps to forward a
     // different account for the refund. It also returns the refund so
     // FeeBumpTransactionFrame can adjust feeCharged.
     int64_t processRefund(Application& app, AbstractLedgerTxn& ltx,
                           TransactionMetaFrame& meta,
-                          AccountID const& feeSource);
+                          AccountID const& feeSource,
+                          TransactionResultPayload& resPayload);
 
     // version without meta
     bool apply(Application& app, AbstractLedgerTxn& ltx,
@@ -397,6 +399,9 @@ class TransactionTestFrame : public TransactionFrameBase
     void processFeeSeqNum(AbstractLedgerTxn& ltx,
                           std::optional<int64_t> baseFee);
 
+    void processPostApply(Application& app, AbstractLedgerTxn& ltx,
+                          TransactionMetaFrame& meta);
+
     void addSignature(SecretKey const& secretKey);
     void addSignature(DecoratedSignature const& signature);
 
@@ -465,7 +470,8 @@ class TransactionTestFrame : public TransactionFrameBase
                           TransactionResultPayload& resPayload) override;
 
     void processPostApply(Application& app, AbstractLedgerTxn& ltx,
-                          TransactionMetaFrame& meta) override;
+                          TransactionMetaFrame& meta,
+                          TransactionResultPayload& resPayload) override;
 
     StellarMessage toStellarMessage() const override;
 
