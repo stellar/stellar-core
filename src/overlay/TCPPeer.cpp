@@ -4,18 +4,14 @@
 
 #include "overlay/TCPPeer.h"
 #include "crypto/CryptoError.h"
-#include "crypto/Curve25519.h"
 #include "database/Database.h"
 #include "main/Application.h"
 #include "main/Config.h"
 #include "main/ErrorMessages.h"
 #include "medida/meter.h"
-#include "medida/metrics_registry.h"
 #include "overlay/FlowControl.h"
 #include "overlay/OverlayManager.h"
 #include "overlay/OverlayMetrics.h"
-#include "overlay/PeerManager.h"
-#include "overlay/StellarXDR.h"
 #include "util/GlobalChecks.h"
 #include "util/LogSlowExecution.h"
 #include "util/Logging.h"
@@ -73,8 +69,10 @@ TCPPeer::initiate(Application& app, PeerBareAddress const& address)
             {
                 asio::ip::tcp::no_delay nodelay(true);
                 asio::ip::tcp::socket::linger linger(false, 0);
-                result->mSocket->next_layer().set_option(nodelay, ec);
-                result->mSocket->next_layer().set_option(linger, lingerEc);
+                std::ignore =
+                    result->mSocket->next_layer().set_option(nodelay, ec);
+                std::ignore =
+                    result->mSocket->next_layer().set_option(linger, lingerEc);
             }
             else
             {
@@ -130,8 +128,8 @@ TCPPeer::accept(Application& app, shared_ptr<TCPPeer::SocketType> socket)
 
     asio::ip::tcp::no_delay nodelay(true);
     asio::ip::tcp::socket::linger linger(false, 0);
-    socket->next_layer().set_option(nodelay, ec);
-    socket->next_layer().set_option(linger, lingerEc);
+    std::ignore = socket->next_layer().set_option(nodelay, ec);
+    std::ignore = socket->next_layer().set_option(linger, lingerEc);
 
     if (!ec && !lingerEc)
     {
@@ -166,9 +164,9 @@ TCPPeer::~TCPPeer()
 #ifndef _WIN32
         // This always fails on windows and ASIO won't
         // even build it.
-        mSocket->next_layer().cancel(ec);
+        std::ignore = mSocket->next_layer().cancel(ec);
 #endif
-        mSocket->close(ec);
+        std::ignore = mSocket->close(ec);
     }
 }
 
@@ -228,7 +226,7 @@ TCPPeer::shutdown()
         // done with it, but we want to give some chance of telling peers
         // why we're disconnecting them.
         asio::error_code ec;
-        self->mSocket->next_layer().shutdown(
+        std::ignore = self->mSocket->next_layer().shutdown(
             asio::ip::tcp::socket::shutdown_both, ec);
         if (ec)
         {
@@ -247,7 +245,7 @@ TCPPeer::shutdown()
                 // read/write handlers, i.e. fire them with an error code
                 // indicating cancellation.
                 asio::error_code ec2;
-                self->mSocket->close(ec2);
+                std::ignore = self->mSocket->close(ec2);
                 if (ec2)
                 {
                     CLOG_DEBUG(Overlay, "TCPPeer::drop close socket failed: {}",

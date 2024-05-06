@@ -4,16 +4,11 @@
 
 #include "overlay/ItemFetcher.h"
 #include "crypto/Hex.h"
-#include "crypto/SHA.h"
 #include "herder/Herder.h"
 #include "herder/TxSetFrame.h"
 #include "main/Application.h"
-#include "medida/metrics_registry.h"
-#include "overlay/OverlayManager.h"
-#include "overlay/StellarXDR.h"
 #include "overlay/Tracker.h"
 #include "util/Logging.h"
-#include "xdrpp/marshal.h"
 #include <Tracy.hpp>
 
 namespace stellar

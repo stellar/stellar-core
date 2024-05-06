@@ -6,7 +6,6 @@
 #include "herder/Herder.h"
 #include "main/Application.h"
 #include "medida/meter.h"
-#include "medida/metrics_registry.h"
 #include "medida/timer.h"
 #include "overlay/OverlayManager.h"
 #include "overlay/OverlayMetrics.h"

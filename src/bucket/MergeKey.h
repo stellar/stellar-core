@@ -5,7 +5,6 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 #include "bucket/Bucket.h"
 #include "xdr/Stellar-types.h"
-#include <cstdint>
 #include <iosfwd>
 #include <vector>
 

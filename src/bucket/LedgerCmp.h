@@ -6,8 +6,9 @@
 
 #include <type_traits>
 
-#include "overlay/StellarXDR.h"
-#include "util/XDROperators.h"
+#include "util/XDROperators.h" // IWYU pragma: keep
+#include "xdr/Stellar-ledger-entries.h"
+#include "xdr/Stellar-ledger.h"
 
 namespace stellar
 {

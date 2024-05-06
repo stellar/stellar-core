@@ -5,15 +5,17 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "bucket/BucketIndex.h"
-#include "crypto/Hex.h"
-#include "overlay/StellarXDR.h"
 #include "util/NonCopyable.h"
 #include "util/ProtocolVersion.h"
-#include "util/UnorderedMap.h"
-#include "util/UnorderedSet.h"
-#include "util/XDRStream.h"
+#include "xdr/Stellar-ledger.h"
+#include <list>
 #include <optional>
 #include <string>
+
+namespace asio
+{
+class io_context;
+}
 
 namespace medida
 {

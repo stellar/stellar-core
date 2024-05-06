@@ -6,6 +6,7 @@
 #include "bucket/BucketList.h"
 #include "bucket/BucketManager.h"
 #include "catchup/IndexBucketsWork.h"
+#include "crypto/Hex.h"
 #include "history/HistoryArchive.h"
 #include "work/WorkSequence.h"
 #include "work/WorkWithCallback.h"

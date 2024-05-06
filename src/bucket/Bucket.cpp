@@ -5,7 +5,7 @@
 // ASIO is somewhat particular about when it gets included -- it wants to be the
 // first to include <windows.h> -- so we try to include it before everything
 // else.
-#include "util/asio.h"
+#include "util/asio.h" // IWYU pragma: keep
 #include "bucket/Bucket.h"
 #include "bucket/BucketApplicator.h"
 #include "bucket/BucketList.h"
@@ -16,9 +16,7 @@
 #include "bucket/MergeKey.h"
 #include "crypto/Hex.h"
 #include "crypto/Random.h"
-#include "crypto/SHA.h"
 #include "database/Database.h"
-#include "ledger/LedgerHashUtils.h"
 #include "ledger/LedgerTxn.h"
 #include "ledger/LedgerTypeUtils.h"
 #include "main/Application.h"
@@ -26,15 +24,11 @@
 #include "util/Fs.h"
 #include "util/GlobalChecks.h"
 #include "util/Logging.h"
-#include "util/TmpDir.h"
 #include "util/XDRStream.h"
 #include "util/types.h"
-#include "xdrpp/message.h"
 #include <Tracy.hpp>
-#include <future>
 
 #include "medida/counter.h"
-#include "medida/meter.h"
 
 namespace stellar
 {

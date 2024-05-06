@@ -7,6 +7,7 @@
 #include "bucket/BucketManager.h"
 #include "main/Application.h"
 #include "util/ProtocolVersion.h"
+#include <Tracy.hpp>
 
 #ifdef BUILD_TESTS
 #include "ledger/LedgerManager.h"

@@ -11,13 +11,10 @@
 #include "herder/TxSetFrame.h"
 #include "ledger/LedgerTxn.h"
 #include "overlay/Floodgate.h"
-#include "overlay/ItemFetcher.h"
 #include "overlay/OverlayManager.h"
 #include "overlay/OverlayMetrics.h"
-#include "overlay/StellarXDR.h"
 #include "overlay/SurveyManager.h"
 #include "overlay/TxDemandsManager.h"
-#include "util/Logging.h"
 #include "util/Timer.h"
 
 #include "medida/metrics_registry.h"

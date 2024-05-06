@@ -3,10 +3,8 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "overlay/TxAdverts.h"
-#include "crypto/Hex.h"
 #include "ledger/LedgerManager.h"
 #include "main/Application.h"
-#include "util/Logging.h"
 #include "util/ProtocolVersion.h"
 #include <algorithm>
 

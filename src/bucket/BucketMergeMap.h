@@ -1,7 +1,7 @@
 #pragma once
 
 #include "bucket/MergeKey.h"
-#include "util/HashOfHash.h"
+#include "util/HashOfHash.h" // IWYU pragma: keep
 #include "util/UnorderedMap.h"
 #include "util/UnorderedSet.h"
 #include "xdr/Stellar-types.h"

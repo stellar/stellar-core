@@ -7,6 +7,7 @@
 #include "bucket/BucketManager.h"
 #include "util/HashOfHash.h"
 #include "util/UnorderedSet.h"
+#include "util/XDRStream.h"
 #include "util/types.h"
 #include "work/WorkWithCallback.h"
 #include <Tracy.hpp>

@@ -21,19 +21,15 @@
 #include "overlay/OverlayMetrics.h"
 #include "overlay/PeerAuth.h"
 #include "overlay/PeerManager.h"
-#include "overlay/StellarXDR.h"
 #include "overlay/SurveyManager.h"
 #include "overlay/TxAdverts.h"
-#include "util/Decoder.h"
 #include "util/GlobalChecks.h"
 #include "util/Logging.h"
 #include "util/ProtocolVersion.h"
-#include "util/XDROperators.h"
 #include "util/finally.h"
 
 #include "herder/HerderUtils.h"
 #include "medida/meter.h"
-#include "medida/metrics_registry.h"
 #include "medida/timer.h"
 #include "xdrpp/marshal.h"
 #include <fmt/format.h>
@@ -57,18 +53,18 @@ static constexpr VirtualClock::time_point PING_NOT_SENT =
 Peer::Peer(Application& app, PeerRole role)
     : mAppConnector(app)
     , mNetworkID(app.getNetworkID())
+    , mFlowControl(std::make_shared<FlowControl>(mAppConnector))
     , mLastRead(app.getClock().now())
     , mLastWrite(app.getClock().now())
     , mEnqueueTimeOfLastWrite(app.getClock().now())
     , mRole(role)
     , mOverlayMetrics(app.getOverlayManager().getOverlayMetrics())
     , mPeerMetrics(app.getClock().now())
-    , mFlowControl(std::make_shared<FlowControl>(mAppConnector))
+    , mRecurringTimer(app)
     , mState(role == WE_CALLED_REMOTE ? CONNECTING : CONNECTED)
     , mRemoteOverlayMinVersion(0)
     , mRemoteOverlayVersion(std::nullopt)
     , mCreationTime(app.getClock().now())
-    , mRecurringTimer(app)
     , mDelayedExecutionTimer(app)
     , mTxAdverts(std::make_shared<TxAdverts>(app))
 {

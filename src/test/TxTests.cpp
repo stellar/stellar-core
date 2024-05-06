@@ -11,6 +11,7 @@
 #include "ledger/LedgerTxn.h"
 #include "ledger/LedgerTxnEntry.h"
 #include "ledger/LedgerTxnHeader.h"
+#include "ledger/LedgerTypeUtils.h"
 #include "ledger/TrustLineWrapper.h"
 #include "ledger/test/LedgerTestUtils.h"
 #include "main/Application.h"

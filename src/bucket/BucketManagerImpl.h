@@ -3,7 +3,7 @@
 #include "bucket/BucketList.h"
 #include "bucket/BucketManager.h"
 #include "bucket/BucketMergeMap.h"
-#include "overlay/StellarXDR.h"
+#include "xdr/Stellar-ledger.h"
 
 #include <map>
 #include <memory>
@@ -109,7 +109,7 @@ class BucketManagerImpl : public BucketManager
     std::string const& getTmpDir() override;
     std::string const& getBucketDir() const override;
     BucketList& getBucketList() override;
-    BucketSnapshotManager& getBucketSnapshotManager() const;
+    BucketSnapshotManager& getBucketSnapshotManager() const override;
     medida::Timer& getMergeTimer() override;
     MergeCounters readMergeCounters() override;
     void incrMergeCounters(MergeCounters const&) override;

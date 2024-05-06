@@ -5,6 +5,7 @@
 #include "BucketTestUtils.h"
 #include "bucket/BucketInputIterator.h"
 #include "bucket/BucketManager.h"
+#include "crypto/Hex.h"
 #include "herder/Herder.h"
 #include "ledger/LedgerTxn.h"
 #include "main/Application.h"

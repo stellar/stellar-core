@@ -1,9 +1,7 @@
 #include "overlay/OverlayMetrics.h"
 #include "main/Application.h"
 
-#include "medida/meter.h"
 #include "medida/metrics_registry.h"
-#include "medida/timer.h"
 
 namespace stellar
 {

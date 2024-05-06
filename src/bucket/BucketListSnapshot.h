@@ -75,7 +75,7 @@ class SearchableBucketListSnapshot : public NonMovableOrCopyable
 
     SearchableBucketListSnapshot(BucketSnapshotManager const& snapshotManager);
 
-    friend std::unique_ptr<SearchableBucketListSnapshot>
+    friend std::shared_ptr<SearchableBucketListSnapshot>
     BucketSnapshotManager::getSearchableBucketListSnapshot() const;
 
   public:

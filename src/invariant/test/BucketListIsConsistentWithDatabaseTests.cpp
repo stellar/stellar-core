@@ -163,11 +163,10 @@ struct BucketListGenerator
     generateDeadEntries(AbstractLedgerTxn& ltx)
     {
         UnorderedSet<LedgerKey> liveDeletable(mLiveKeys.size());
-        std::copy_if(mLiveKeys.begin(), mLiveKeys.end(),
-                     std::inserter(liveDeletable, liveDeletable.end()),
-                     [this](LedgerKey const& key) {
-                         return key.type() != CONFIG_SETTING;
-                     });
+        std::copy_if(
+            mLiveKeys.begin(), mLiveKeys.end(),
+            std::inserter(liveDeletable, liveDeletable.end()),
+            [](LedgerKey const& key) { return key.type() != CONFIG_SETTING; });
 
         std::vector<LedgerKey> dead;
         while (dead.size() < 2 && !liveDeletable.empty())

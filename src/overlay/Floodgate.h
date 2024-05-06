@@ -5,7 +5,6 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "overlay/Peer.h"
-#include "overlay/StellarXDR.h"
 #include <map>
 
 /**
@@ -28,6 +27,8 @@ class Counter;
 
 namespace stellar
 {
+
+struct StellarMessage;
 
 class Floodgate
 {

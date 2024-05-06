@@ -5,7 +5,6 @@
 #include "overlay/TxDemandsManager.h"
 #include "crypto/Hex.h"
 #include "herder/Herder.h"
-#include "ledger/LedgerManager.h"
 #include "medida/meter.h"
 #include "overlay/OverlayManager.h"
 #include "overlay/OverlayMetrics.h"

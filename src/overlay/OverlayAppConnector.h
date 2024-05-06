@@ -1,7 +1,6 @@
 #pragma once
 
 #include "main/Config.h"
-#include "util/GlobalChecks.h"
 
 namespace stellar
 {

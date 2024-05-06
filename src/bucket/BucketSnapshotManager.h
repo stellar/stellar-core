@@ -7,7 +7,6 @@
 #include "bucket/BucketManagerImpl.h"
 #include "util/NonCopyable.h"
 #include "util/UnorderedMap.h"
-#include "util/types.h"
 
 #include <memory>
 #include <mutex>
@@ -70,7 +69,7 @@ class BucketSnapshotManager : NonMovableOrCopyable
     BucketSnapshotManager(Application& app,
                           std::unique_ptr<BucketListSnapshot const>&& snapshot);
 
-    std::unique_ptr<SearchableBucketListSnapshot>
+    std::shared_ptr<SearchableBucketListSnapshot>
     getSearchableBucketListSnapshot() const;
 
     // Checks if snapshot is out of date with mCurrentSnapshot and updates

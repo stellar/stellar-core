@@ -12,8 +12,6 @@
 #include "overlay/OverlayManager.h"
 #include "util/GlobalChecks.h"
 #include "util/Logging.h"
-#include "util/XDROperators.h"
-#include "xdrpp/marshal.h"
 #include <Tracy.hpp>
 #include <fmt/format.h>
 

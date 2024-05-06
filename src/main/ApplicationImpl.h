@@ -145,7 +145,7 @@ class ApplicationImpl : public Application
     // subsystems.
 
     asio::io_context mWorkerIOContext;
-    std::optional<asio::io_context> mEvictionIOContext;
+    std::unique_ptr<asio::io_context> mEvictionIOContext;
     std::unique_ptr<asio::io_context::work> mWork;
     std::unique_ptr<asio::io_context::work> mEvictionWork;
 

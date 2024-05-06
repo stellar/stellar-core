@@ -13,6 +13,7 @@
 #include "herder/Herder.h"
 #include "ledger/LedgerManager.h"
 #include "ledger/LedgerTxn.h"
+#include "ledger/LedgerTypeUtils.h"
 #include "ledger/test/LedgerTestUtils.h"
 #include "lib/catch.hpp"
 #include "main/Application.h"
@@ -4145,9 +4146,6 @@ TEST_CASE("Module cache", "[tx][soroban]")
 
     auto const& sumContract = test.deployWasmContract(sum_wasm);
     auto const& addContract = test.deployWasmContract(add_wasm);
-
-    auto const& sumWasmHash = sumContract.getKeys().front().contractCode().hash;
-    auto const& addWasmHash = addContract.getKeys().front().contractCode().hash;
 
     auto invocation = [&](int64_t instructions) -> bool {
         auto fnName = "sum";

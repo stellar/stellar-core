@@ -4,15 +4,13 @@
 // under the Apache License, Version 2.0. See the COPYING file at the root
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
-#include "util/asio.h"
+#include "util/asio.h" // IWYU pragma: keep
 #include "database/Database.h"
 #include "lib/json/json.h"
 #include "medida/timer.h"
 #include "overlay/OverlayAppConnector.h"
 #include "overlay/PeerBareAddress.h"
-#include "overlay/StellarXDR.h"
 #include "util/NonCopyable.h"
-#include "util/RandomEvictionCache.h"
 #include "util/Timer.h"
 #include "xdrpp/message.h"
 

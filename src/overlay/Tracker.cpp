@@ -9,13 +9,11 @@
 #include "crypto/Hex.h"
 #include "herder/Herder.h"
 #include "main/Application.h"
-#include "medida/medida.h"
+#include "medida/meter.h"
 #include "overlay/OverlayManager.h"
 #include "util/GlobalChecks.h"
 #include "util/Logging.h"
 #include "util/Math.h"
-#include "util/XDROperators.h"
-#include "xdrpp/marshal.h"
 #include <Tracy.hpp>
 
 namespace stellar

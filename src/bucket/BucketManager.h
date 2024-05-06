@@ -5,8 +5,8 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "bucket/Bucket.h"
-#include "overlay/StellarXDR.h"
 #include "util/NonCopyable.h"
+#include "util/types.h"
 #include <future>
 #include <map>
 #include <memory>

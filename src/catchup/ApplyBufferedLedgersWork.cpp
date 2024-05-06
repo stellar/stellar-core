@@ -6,6 +6,7 @@
 #include "bucket/BucketList.h"
 #include "bucket/BucketManager.h"
 #include "catchup/ApplyLedgerWork.h"
+#include "crypto/Hex.h"
 #include "ledger/LedgerManager.h"
 #include "main/Application.h"
 #include <Tracy.hpp>
