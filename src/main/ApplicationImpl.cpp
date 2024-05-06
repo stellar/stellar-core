@@ -94,6 +94,12 @@ ApplicationImpl::ApplicationImpl(VirtualClock& clock, Config const& cfg)
           mEvictionIOContext
               ? std::make_unique<asio::io_context::work>(*mEvictionIOContext)
               : nullptr)
+    , mOverlayIOContext(mConfig.EXPERIMENTAL_BACKGROUND_OVERLAY_PROCESSING
+                            ? std::make_optional<asio::io_context>(1)
+                            : std::nullopt)
+    , mOverlayWork(mOverlayIOContext ? std::make_unique<asio::io_context::work>(
+                                           *mOverlayIOContext)
+                                     : nullptr)
     , mWorkerThreads()
     , mEvictionThread()
     , mStopSignals(clock.getIOContext(), SIGINT)
@@ -107,6 +113,8 @@ ApplicationImpl::ApplicationImpl(VirtualClock& clock, Config const& cfg)
           mMetrics->NewTimer({"app", "post-on-main-thread", "delay"}))
     , mPostOnBackgroundThreadDelay(
           mMetrics->NewTimer({"app", "post-on-background-thread", "delay"}))
+    , mPostOnOverlayThreadDelay(
+          mMetrics->NewTimer({"app", "post-on-overlay-thread", "delay"}))
     , mStartedOn(clock.system_now())
 {
 #ifdef SIGQUIT
@@ -169,6 +177,12 @@ ApplicationImpl::ApplicationImpl(VirtualClock& clock, Config const& cfg)
             mWorkerIOContext.run();
         }};
         mWorkerThreads.emplace_back(std::move(thread));
+    }
+
+    if (mConfig.EXPERIMENTAL_BACKGROUND_OVERLAY_PROCESSING)
+    {
+        // Keep priority unchanged as overlay processes time-sensitive tasks
+        mOverlayThread = std::thread{[this]() { mOverlayIOContext->run(); }};
     }
 }
 
@@ -663,6 +677,12 @@ ApplicationImpl::~ApplicationImpl()
         {
             mBucketManager->shutdown();
         }
+        // Peers continue reading and writing in the background, so we need to
+        // issue a signal to start wrapping up
+        if (mOverlayManager)
+        {
+            mOverlayManager->shutdown();
+        }
     }
     catch (std::exception const& e)
     {
@@ -963,7 +983,12 @@ ApplicationImpl::joinAllThreads()
     {
         mWork.reset();
     }
-    LOG_DEBUG(DEFAULT_LOG, "Joining {} worker threads", mWorkerThreads.size());
+    if (mOverlayWork)
+    {
+        mOverlayWork.reset();
+    }
+
+    LOG_INFO(DEFAULT_LOG, "Joining {} worker threads", mWorkerThreads.size());
     for (auto& w : mWorkerThreads)
     {
         w.join();
@@ -976,11 +1001,17 @@ ApplicationImpl::joinAllThreads()
 
     if (mEvictionThread)
     {
-        LOG_DEBUG(DEFAULT_LOG, "Joining eviction thread");
+        LOG_INFO(DEFAULT_LOG, "Joining eviction thread");
         mEvictionThread->join();
     }
 
-    LOG_DEBUG(DEFAULT_LOG, "Joined all {} threads", mWorkerThreads.size());
+    if (mOverlayThread)
+    {
+        LOG_INFO(DEFAULT_LOG, "Joining the overlay thread");
+        mOverlayThread->join();
+    }
+
+    LOG_INFO(DEFAULT_LOG, "Joined all {} threads", (mWorkerThreads.size() + 1));
 }
 
 std::string
@@ -1456,6 +1487,13 @@ ApplicationImpl::getEvictionIOContext()
     return *mEvictionIOContext;
 }
 
+asio::io_context&
+ApplicationImpl::getOverlayIOContext()
+{
+    releaseAssert(mOverlayIOContext);
+    return *mOverlayIOContext;
+}
+
 void
 ApplicationImpl::postOnMainThread(std::function<void()>&& f, std::string&& name,
                                   Scheduler::ActionType type)
@@ -1496,6 +1534,19 @@ ApplicationImpl::postOnEvictionBackgroundThread(std::function<void()>&& f,
                             "executed after"};
     asio::post(getEvictionIOContext(), [this, f = std::move(f), isSlow]() {
         mPostOnBackgroundThreadDelay.Update(isSlow.checkElapsedTime());
+        f();
+    });
+}
+
+void
+ApplicationImpl::postOnOverlayThread(std::function<void()>&& f,
+                                     std::string jobName)
+{
+    releaseAssert(mOverlayIOContext);
+    LogSlowExecution isSlow{std::move(jobName), LogSlowExecution::Mode::MANUAL,
+                            "executed after"};
+    asio::post(*mOverlayIOContext, [this, f = std::move(f), isSlow]() {
+        mPostOnOverlayThreadDelay.Update(isSlow.checkElapsedTime());
         f();
     });
 }
