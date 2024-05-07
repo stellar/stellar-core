@@ -871,6 +871,7 @@ runCatchup(CommandLineArgs const& args)
             int result;
             {
                 auto app = Application::create(clock, config, inMemory);
+                app->applyCfgCommands();
                 auto const& ham = app->getHistoryArchiveManager();
                 auto archivePtr = ham.getHistoryArchive(archive);
                 if (iequals(archive, "any"))
