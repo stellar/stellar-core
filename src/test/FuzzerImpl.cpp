@@ -16,10 +16,10 @@
 #include "test/TxTests.h"
 #include "test/fuzz.h"
 #include "test/test.h"
+#include "transactions/MutableTransactionResult.h"
 #include "transactions/OperationFrame.h"
 #include "transactions/SignatureChecker.h"
 #include "transactions/TransactionMetaFrame.h"
-#include "transactions/TransactionResultPayload.h"
 #include "transactions/TransactionUtils.h"
 #include "util/Logging.h"
 #include "util/Math.h"
@@ -902,21 +902,23 @@ class FuzzTransactionFrame : public TransactionFrame
     FuzzTransactionFrame(Hash const& networkID,
                          TransactionEnvelope const& envelope)
         : TransactionFrame(networkID, envelope)
-        , mResultPayload(TransactionResultPayload::create(*this)){};
+        , mResultPayload(createResultPayload()){};
 
     void
     attemptApplication(Application& app, AbstractLedgerTxn& ltx)
     {
         // No soroban ops allowed
-        if (std::any_of(mOperations.begin(), mOperations.end(),
+        if (std::any_of(mResultPayload->getOpFrames().begin(),
+                        mResultPayload->getOpFrames().end(),
                         [](auto const& x) { return x->isSoroban(); }))
         {
-            markResultFailed(*mResultPayload);
+            mResultPayload->setResultCode(txFAILED);
             return;
         }
 
         // reset results of operations
-        resetResults(ltx.getHeader(), 0, true, *mResultPayload);
+        mResultPayload =
+            createResultPayloadWithFeeCharged(ltx.getHeader(), 0, true);
 
         // attempt application of transaction without processing the fee or
         // committing the LedgerTxn
@@ -932,7 +934,7 @@ class FuzzTransactionFrame : public TransactionFrame
                         mResultPayload->getOpFrames().end(),
                         isInvalidOperation))
         {
-            markResultFailed(*mResultPayload);
+            mResultPayload->setResultCode(txFAILED);
             return;
         }
         // while the following method's result is not captured, regardless, for
@@ -949,12 +951,12 @@ class FuzzTransactionFrame : public TransactionFrame
         }
     }
 
-    std::vector<std::shared_ptr<OperationFrame const>> const&
+    std::vector<std::shared_ptr<OperationFrame>> const&
     getOperations() const
     {
         // this can only be used on an initialized TransactionFrame
-        releaseAssert(mOperations.empty());
-        return mOperations;
+        releaseAssert(!mResultPayload->getOpFrames().empty());
+        return mResultPayload->getOpFrames();
     }
 
     TransactionResult&

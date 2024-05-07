@@ -27,14 +27,14 @@ using namespace std;
 
 ManageSellOfferOpFrame::ManageSellOfferOpFrame(Operation const& op,
                                                OperationResult& res,
-                                               TransactionFrame& parentTx)
+                                               TransactionFrame const& parentTx)
     : ManageSellOfferOpFrame(op, res, parentTx, false)
 {
 }
 
 ManageSellOfferOpFrame::ManageSellOfferOpFrame(Operation const& op,
                                                OperationResult& res,
-                                               TransactionFrame& parentTx,
+                                               TransactionFrame const& parentTx,
                                                bool passive)
     : ManageOfferOpFrameBase(op, res, parentTx,
                              op.body.manageSellOfferOp().selling,

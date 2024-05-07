@@ -17,7 +17,7 @@ namespace stellar
 
 PathPaymentOpFrameBase::PathPaymentOpFrameBase(Operation const& op,
                                                OperationResult& res,
-                                               TransactionFrame& parentTx)
+                                               TransactionFrame const& parentTx)
     : OperationFrame(op, res, parentTx)
 {
 }
@@ -140,7 +140,7 @@ PathPaymentOpFrameBase::shouldBypassIssuerCheck(
 
 bool
 PathPaymentOpFrameBase::updateSourceBalance(
-    AbstractLedgerTxn& ltx, TransactionResultPayload& resPayload,
+    AbstractLedgerTxn& ltx, MutableTransactionResultBase& txResult,
     int64_t amount, bool bypassIssuerCheck, bool doesSourceAccountExist)
 {
     auto const& asset = getSourceAsset();
@@ -161,7 +161,7 @@ PathPaymentOpFrameBase::updateSourceBalance(
         }
         else
         {
-            sourceAccount = loadSourceAccount(ltx, header, resPayload);
+            sourceAccount = loadSourceAccount(ltx, header, txResult);
         }
 
         if (amount > getAvailableBalance(header, sourceAccount))

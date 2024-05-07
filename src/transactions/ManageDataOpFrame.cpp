@@ -23,7 +23,7 @@ namespace stellar
 using namespace std;
 
 ManageDataOpFrame::ManageDataOpFrame(Operation const& op, OperationResult& res,
-                                     TransactionFrame& parentTx)
+                                     TransactionFrame const& parentTx)
     : OperationFrame(op, res, parentTx)
     , mManageData(mOperation.body.manageDataOp())
 {
@@ -31,7 +31,7 @@ ManageDataOpFrame::ManageDataOpFrame(Operation const& op, OperationResult& res,
 
 bool
 ManageDataOpFrame::doApply(AbstractLedgerTxn& ltx,
-                           TransactionResultPayload& resPayload)
+                           MutableTransactionResultBase& txResult)
 {
     ZoneNamedN(applyZone, "ManageDataOp apply", true);
     auto header = ltx.loadHeader();
@@ -54,7 +54,7 @@ ManageDataOpFrame::doApply(AbstractLedgerTxn& ltx,
             dataEntry.dataName = mManageData.dataName;
             dataEntry.dataValue = *mManageData.dataValue;
 
-            auto sourceAccount = loadSourceAccount(ltx, header, resPayload);
+            auto sourceAccount = loadSourceAccount(ltx, header, txResult);
             switch (createEntryWithPossibleSponsorship(ltx, header, newData,
                                                        sourceAccount))
             {
@@ -91,7 +91,7 @@ ManageDataOpFrame::doApply(AbstractLedgerTxn& ltx,
             return false;
         }
 
-        auto sourceAccount = loadSourceAccount(ltx, header, resPayload);
+        auto sourceAccount = loadSourceAccount(ltx, header, txResult);
         removeEntryWithPossibleSponsorship(ltx, header, data.current(),
                                            sourceAccount);
         data.erase();

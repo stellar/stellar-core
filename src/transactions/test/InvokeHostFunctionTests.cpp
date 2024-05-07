@@ -996,7 +996,7 @@ TEST_CASE("Soroban non-refundable resource fees are stable", "[tx][soroban]")
         auto& app = test.getApp();
         // Sanity check the tx fee computation logic.
         auto actualFeePair =
-            validTx->toTransactionFrame().computePreApplySorobanResourceFee(
+            validTx->getRawTransactionFrame().computePreApplySorobanResourceFee(
                 app.getLedgerManager()
                     .getLastClosedLedgerHeader()
                     .header.ledgerVersion,
@@ -3111,7 +3111,7 @@ TEST_CASE("settings upgrade command line utils", "[tx][soroban][upgrades]")
         auto tx = TransactionTestFrame::fromTxFrame(rawTx);
         LedgerTxn ltx(app->getLedgerTxnRoot());
         TransactionMetaFrame txm(ltx.loadHeader().current().ledgerVersion);
-        REQUIRE(tx->checkValid(*app, ltx, 0, 0, 0));
+        REQUIRE(tx->checkValidForTesting(*app, ltx, 0, 0, 0));
         REQUIRE(tx->apply(*app, ltx, txm));
         ltx.commit();
     }
@@ -3178,7 +3178,7 @@ TEST_CASE("settings upgrade command line utils", "[tx][soroban][upgrades]")
         auto txRevertSettings = TransactionTestFrame::fromTxFrame(txRaw);
         LedgerTxn ltx(app->getLedgerTxnRoot());
         TransactionMetaFrame txm(ltx.loadHeader().current().ledgerVersion);
-        REQUIRE(txRevertSettings->checkValid(*app, ltx, 0, 0, 0));
+        REQUIRE(txRevertSettings->checkValidForTesting(*app, ltx, 0, 0, 0));
         REQUIRE(txRevertSettings->apply(*app, ltx, txm));
         ltx.commit();
 
@@ -4164,8 +4164,7 @@ TEST_CASE("Module cache", "[tx][soroban]")
         auto invocation = sumContract.prepareInvocation(
             fnName, {makeAddressSCVal(addContract.getAddress()), scVec}, spec,
             expectedRefund);
-        auto tx =
-            std::dynamic_pointer_cast<TransactionFrame>(invocation.createTx());
+        auto tx = invocation.createTx();
         return test.invokeTx(tx);
     };
 
@@ -4224,8 +4223,7 @@ TEST_CASE("Vm instantiation tightening", "[tx][soroban]")
 
         auto invocation = addContract.prepareInvocation(fnName, {sc7, sc16},
                                                         spec, expectedRefund);
-        auto tx =
-            std::dynamic_pointer_cast<TransactionFrame>(invocation.createTx());
+        auto tx = invocation.createTx();
         return test.invokeTx(tx);
     };
 

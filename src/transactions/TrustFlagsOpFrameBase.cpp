@@ -13,7 +13,7 @@ namespace stellar
 
 TrustFlagsOpFrameBase::TrustFlagsOpFrameBase(Operation const& op,
                                              OperationResult& res,
-                                             TransactionFrame& parentTx)
+                                             TransactionFrame const& parentTx)
     : OperationFrame(op, res, parentTx)
 {
 }
@@ -52,7 +52,7 @@ TrustFlagsOpFrameBase::removeOffers(AbstractLedgerTxn& ltx)
 
 bool
 TrustFlagsOpFrameBase::doApply(AbstractLedgerTxn& ltx,
-                               TransactionResultPayload& resPayload)
+                               MutableTransactionResultBase& txResult)
 {
     ZoneNamedN(applyZone, "TrustFlagsOpFrameBase apply", true);
 
@@ -71,7 +71,7 @@ TrustFlagsOpFrameBase::doApply(AbstractLedgerTxn& ltx,
     }
 
     bool authRevocable = true;
-    if (!isAuthRevocationValid(ltx, authRevocable, resPayload))
+    if (!isAuthRevocationValid(ltx, authRevocable, txResult))
     {
         return false;
     }

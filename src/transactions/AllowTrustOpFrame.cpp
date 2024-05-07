@@ -18,7 +18,8 @@ namespace stellar
 {
 
 AllowTrustOpFrame::AllowTrustOpFrame(Operation const& op, OperationResult& res,
-                                     TransactionFrame& parentTx, uint32_t index)
+                                     TransactionFrame const& parentTx,
+                                     uint32_t index)
     : TrustFlagsOpFrameBase(op, res, parentTx)
     , mAllowTrust(mOperation.body.allowTrustOp())
     , mAsset(getAsset(getSourceID(), mAllowTrust.asset))
@@ -100,12 +101,12 @@ AllowTrustOpFrame::setFlagValue(AbstractLedgerTxn& ltx, LedgerKey const& key,
 bool
 AllowTrustOpFrame::isAuthRevocationValid(AbstractLedgerTxn& ltx,
                                          bool& authRevocable,
-                                         TransactionResultPayload& resPayload)
+                                         MutableTransactionResultBase& txResult)
 {
     // Load the source account
     LedgerTxn ltxSource(ltx); // ltxSource will be rolled back
     auto header = ltxSource.loadHeader();
-    auto sourceAccountEntry = loadSourceAccount(ltxSource, header, resPayload);
+    auto sourceAccountEntry = loadSourceAccount(ltxSource, header, txResult);
     auto const& sourceAccount = sourceAccountEntry.current().data.account();
 
     // Check if the source account doesn't require authorization check

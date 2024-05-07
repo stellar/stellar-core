@@ -37,12 +37,12 @@ class LiquidityPoolDepositOpFrame : public OperationFrame
 
   public:
     LiquidityPoolDepositOpFrame(Operation const& op, OperationResult& res,
-                                TransactionFrame& parentTx);
+                                TransactionFrame const& parentTx);
 
     bool isOpSupported(LedgerHeader const& header) const override;
 
     bool doApply(AbstractLedgerTxn& ltx,
-                 TransactionResultPayload& resPayload) override;
+                 MutableTransactionResultBase& txResult) override;
     bool doCheckValid(uint32_t ledgerVersion) override;
     void
     insertLedgerKeysToPrefetch(UnorderedSet<LedgerKey>& keys) const override;

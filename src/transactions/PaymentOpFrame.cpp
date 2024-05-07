@@ -19,14 +19,14 @@ namespace stellar
 using namespace std;
 
 PaymentOpFrame::PaymentOpFrame(Operation const& op, OperationResult& res,
-                               TransactionFrame& parentTx)
+                               TransactionFrame const& parentTx)
     : OperationFrame(op, res, parentTx), mPayment(mOperation.body.paymentOp())
 {
 }
 
 bool
 PaymentOpFrame::doApply(AbstractLedgerTxn& ltx,
-                        TransactionResultPayload& resPayload)
+                        MutableTransactionResultBase& txResult)
 {
     ZoneNamedN(applyZone, "PaymentOp apply", true);
     std::string payStr = assetToString(mPayment.asset);
@@ -67,7 +67,7 @@ PaymentOpFrame::doApply(AbstractLedgerTxn& ltx,
     PathPaymentStrictReceiveOpFrame ppayment(op, opRes, mParentTx);
 
     if (!ppayment.doCheckValid(ledgerVersion) ||
-        !ppayment.doApply(ltx, resPayload))
+        !ppayment.doApply(ltx, txResult))
     {
         if (ppayment.getResultCode() != opINNER)
         {

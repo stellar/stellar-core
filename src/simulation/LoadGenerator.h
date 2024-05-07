@@ -276,9 +276,9 @@ class LoadGenerator
     // re-submit. Any other code points to a loadgen misconfigurations, as
     // transactions must have valid (pre-generated) source accounts,
     // sufficient balances etc.
-    TransactionQueue::AddResult execute(TransactionTestFramePtr& txf,
-                                        LoadGenMode mode,
-                                        TransactionResultCode& code);
+    TransactionQueue::AddResultCode execute(TransactionTestFramePtr& txf,
+                                            LoadGenMode mode,
+                                            TransactionResultCode& code);
     TransactionTestFramePtr
     createTransactionTestFramePtr(TestAccountPtr from,
                                   std::vector<Operation> ops, LoadGenMode mode,
@@ -414,7 +414,7 @@ class LoadGenerator
     std::pair<SorobanResources, uint32_t> sorobanRandomUploadResources();
     void maybeHandleFailedTx(TransactionTestFramePtr tx,
                              TestAccountPtr sourceAccount,
-                             TransactionQueue::AddResult status,
+                             TransactionQueue::AddResultCode status,
                              TransactionResultCode code);
     std::pair<TestAccountPtr, TransactionTestFramePtr>
     creationTransaction(uint64_t startAccount, uint64_t numItems,

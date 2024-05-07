@@ -23,6 +23,7 @@
 #include "transactions/ManageDataOpFrame.h"
 #include "transactions/ManageSellOfferOpFrame.h"
 #include "transactions/MergeOpFrame.h"
+#include "transactions/MutableTransactionResult.h"
 #include "transactions/PathPaymentStrictReceiveOpFrame.h"
 #include "transactions/PathPaymentStrictSendOpFrame.h"
 #include "transactions/PaymentOpFrame.h"
@@ -31,7 +32,6 @@
 #include "transactions/SetOptionsOpFrame.h"
 #include "transactions/SetTrustLineFlagsOpFrame.h"
 #include "transactions/TransactionFrame.h"
-#include "transactions/TransactionResultPayload.h"
 #include "transactions/TransactionUtils.h"
 #include "util/Logging.h"
 #include "util/ProtocolVersion.h"
@@ -63,7 +63,7 @@ getNeededThreshold(LedgerTxnEntry const& account, ThresholdLevel const level)
 
 shared_ptr<OperationFrame>
 OperationFrame::makeHelper(Operation const& op, OperationResult& res,
-                           TransactionFrame& tx, uint32_t index)
+                           TransactionFrame const& tx, uint32_t index)
 {
     switch (op.body.type())
     {
@@ -132,7 +132,7 @@ OperationFrame::makeHelper(Operation const& op, OperationResult& res,
 }
 
 OperationFrame::OperationFrame(Operation const& op, OperationResult& res,
-                               TransactionFrame& parentTx)
+                               TransactionFrame const& parentTx)
     : mOperation(op), mParentTx(parentTx), mResult(res)
 {
     resetResultSuccess();
@@ -141,15 +141,15 @@ OperationFrame::OperationFrame(Operation const& op, OperationResult& res,
 bool
 OperationFrame::apply(Application& app, SignatureChecker& signatureChecker,
                       AbstractLedgerTxn& ltx, Hash const& sorobanBasePrngSeed,
-                      TransactionResultPayload& resPayload)
+                      MutableTransactionResultBase& txResult)
 {
     ZoneScoped;
     bool res;
     CLOG_TRACE(Tx, "{}", xdrToCerealString(mOperation, "Operation"));
-    res = checkValid(app, signatureChecker, ltx, true, resPayload);
+    res = checkValid(app, signatureChecker, ltx, true, txResult);
     if (res)
     {
-        res = doApply(app, ltx, sorobanBasePrngSeed, resPayload);
+        res = doApply(app, ltx, sorobanBasePrngSeed, txResult);
         CLOG_TRACE(Tx, "{}", xdrToCerealString(mResult, "OperationResult"));
     }
 
@@ -159,11 +159,11 @@ OperationFrame::apply(Application& app, SignatureChecker& signatureChecker,
 bool
 OperationFrame::doApply(Application& _app, AbstractLedgerTxn& ltx,
                         Hash const& sorobanBasePrngSeed,
-                        TransactionResultPayload& resPayload)
+                        MutableTransactionResultBase& txResult)
 {
     // By default we ignore the app and seed, but subclasses can override to
     // intercept and use them.
-    return doApply(ltx, resPayload);
+    return doApply(ltx, txResult);
 }
 
 ThresholdLevel
@@ -181,12 +181,12 @@ OperationFrame::isOpSupported(LedgerHeader const&) const
 bool
 OperationFrame::checkSignature(SignatureChecker& signatureChecker,
                                AbstractLedgerTxn& ltx,
-                               TransactionResultPayload& resPayload,
+                               MutableTransactionResultBase& txResult,
                                bool forApply)
 {
     ZoneScoped;
     auto header = ltx.loadHeader();
-    auto sourceAccount = loadSourceAccount(ltx, header, resPayload);
+    auto sourceAccount = loadSourceAccount(ltx, header, txResult);
     if (sourceAccount)
     {
         auto neededThreshold =
@@ -237,7 +237,7 @@ OperationFrame::getResultCode() const
 bool
 OperationFrame::checkValid(Application& app, SignatureChecker& signatureChecker,
                            AbstractLedgerTxn& ltxOuter, bool forApply,
-                           TransactionResultPayload& resPayload)
+                           MutableTransactionResultBase& txResult)
 {
     ZoneScoped;
     // Note: ltx is always rolled back so checkValid never modifies the ledger
@@ -252,7 +252,7 @@ OperationFrame::checkValid(Application& app, SignatureChecker& signatureChecker,
     if (!forApply ||
         protocolVersionIsBefore(ledgerVersion, ProtocolVersion::V_10))
     {
-        if (!checkSignature(signatureChecker, ltx, resPayload, forApply))
+        if (!checkSignature(signatureChecker, ltx, txResult, forApply))
         {
             return false;
         }
@@ -261,7 +261,7 @@ OperationFrame::checkValid(Application& app, SignatureChecker& signatureChecker,
     {
         // for ledger versions >= 10 we need to load account here, as for
         // previous versions it is done in checkSignature call
-        if (!loadSourceAccount(ltx, ltx.loadHeader(), resPayload))
+        if (!loadSourceAccount(ltx, ltx.loadHeader(), txResult))
         {
             mResult.code(opNO_ACCOUNT);
             return false;
@@ -276,7 +276,7 @@ OperationFrame::checkValid(Application& app, SignatureChecker& signatureChecker,
             app.getLedgerManager().getSorobanNetworkConfig();
 
         return doCheckValid(sorobanConfig, app.getConfig(), ledgerVersion,
-                            resPayload);
+                            txResult);
     }
     else
     {
@@ -287,7 +287,7 @@ OperationFrame::checkValid(Application& app, SignatureChecker& signatureChecker,
 bool
 OperationFrame::doCheckValid(SorobanNetworkConfig const& config,
                              Config const& appConfig, uint32_t ledgerVersion,
-                             TransactionResultPayload& resPayload)
+                             MutableTransactionResultBase& txResult)
 {
     return doCheckValid(ledgerVersion);
 }
@@ -295,10 +295,10 @@ OperationFrame::doCheckValid(SorobanNetworkConfig const& config,
 LedgerTxnEntry
 OperationFrame::loadSourceAccount(AbstractLedgerTxn& ltx,
                                   LedgerTxnHeader const& header,
-                                  TransactionResultPayload& resPayload)
+                                  MutableTransactionResultBase& txResult)
 {
     ZoneScoped;
-    return mParentTx.loadAccount(ltx, header, getSourceID(), resPayload);
+    return mParentTx.loadAccount(ltx, header, getSourceID(), txResult);
 }
 
 void

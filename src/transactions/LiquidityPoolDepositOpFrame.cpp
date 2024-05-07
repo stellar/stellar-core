@@ -15,7 +15,7 @@ namespace stellar
 {
 
 LiquidityPoolDepositOpFrame::LiquidityPoolDepositOpFrame(
-    Operation const& op, OperationResult& res, TransactionFrame& parentTx)
+    Operation const& op, OperationResult& res, TransactionFrame const& parentTx)
     : OperationFrame(op, res, parentTx)
     , mLiquidityPoolDeposit(mOperation.body.liquidityPoolDepositOp())
 {
@@ -189,7 +189,7 @@ updateBalance(LedgerTxnHeader& header, TrustLineWrapper& tl,
 
 bool
 LiquidityPoolDepositOpFrame::doApply(AbstractLedgerTxn& ltx,
-                                     TransactionResultPayload& resPayload)
+                                     MutableTransactionResultBase& txResult)
 {
     ZoneNamedN(applyZone, "LiquidityPoolDepositOpFrame apply", true);
 

@@ -15,9 +15,8 @@
 namespace stellar
 {
 
-RevokeSponsorshipOpFrame::RevokeSponsorshipOpFrame(Operation const& op,
-                                                   OperationResult& res,
-                                                   TransactionFrame& parentTx)
+RevokeSponsorshipOpFrame::RevokeSponsorshipOpFrame(
+    Operation const& op, OperationResult& res, TransactionFrame const& parentTx)
     : OperationFrame(op, res, parentTx)
     , mRevokeSponsorshipOp(mOperation.body.revokeSponsorshipOp())
 {
@@ -379,7 +378,7 @@ RevokeSponsorshipOpFrame::updateSignerSponsorship(AbstractLedgerTxn& ltx)
 
 bool
 RevokeSponsorshipOpFrame::doApply(AbstractLedgerTxn& ltx,
-                                  TransactionResultPayload& resPayload)
+                                  MutableTransactionResultBase& txResult)
 {
     ZoneNamedN(applyZone, "RevokeSponsorshipOpFrame apply", true);
 

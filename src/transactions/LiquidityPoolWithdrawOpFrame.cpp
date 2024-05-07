@@ -14,7 +14,7 @@ namespace stellar
 {
 
 LiquidityPoolWithdrawOpFrame::LiquidityPoolWithdrawOpFrame(
-    Operation const& op, OperationResult& res, TransactionFrame& parentTx)
+    Operation const& op, OperationResult& res, TransactionFrame const& parentTx)
     : OperationFrame(op, res, parentTx)
     , mLiquidityPoolWithdraw(mOperation.body.liquidityPoolWithdrawOp())
 {
@@ -30,7 +30,7 @@ LiquidityPoolWithdrawOpFrame::isOpSupported(LedgerHeader const& header) const
 
 bool
 LiquidityPoolWithdrawOpFrame::doApply(AbstractLedgerTxn& ltx,
-                                      TransactionResultPayload& resPayload)
+                                      MutableTransactionResultBase& txResult)
 {
     ZoneNamedN(applyZone, "LiquidityPoolWithdrawOpFrame apply", true);
 
@@ -63,7 +63,7 @@ LiquidityPoolWithdrawOpFrame::doApply(AbstractLedgerTxn& ltx,
     auto amountA = getPoolWithdrawalAmount(mLiquidityPoolWithdraw.amount,
                                            constantProduct().totalPoolShares,
                                            constantProduct().reserveA);
-    if (!tryAddAssetBalance(ltx, resPayload, header,
+    if (!tryAddAssetBalance(ltx, txResult, header,
                             constantProduct().params.assetA,
                             mLiquidityPoolWithdraw.minAmountA, amountA))
     {
@@ -73,7 +73,7 @@ LiquidityPoolWithdrawOpFrame::doApply(AbstractLedgerTxn& ltx,
     auto amountB = getPoolWithdrawalAmount(mLiquidityPoolWithdraw.amount,
                                            constantProduct().totalPoolShares,
                                            constantProduct().reserveB);
-    if (!tryAddAssetBalance(ltx, resPayload, header,
+    if (!tryAddAssetBalance(ltx, txResult, header,
                             constantProduct().params.assetB,
                             mLiquidityPoolWithdraw.minAmountB, amountB))
     {
@@ -129,7 +129,7 @@ LiquidityPoolWithdrawOpFrame::insertLedgerKeysToPrefetch(
 
 bool
 LiquidityPoolWithdrawOpFrame::tryAddAssetBalance(
-    AbstractLedgerTxn& ltx, TransactionResultPayload& resPayload,
+    AbstractLedgerTxn& ltx, MutableTransactionResultBase& txResult,
     LedgerTxnHeader const& header, Asset const& asset, int64_t minAmount,
     int64_t amount)
 {
@@ -141,7 +141,7 @@ LiquidityPoolWithdrawOpFrame::tryAddAssetBalance(
 
     if (asset.type() == ASSET_TYPE_NATIVE)
     {
-        auto sourceAccount = loadSourceAccount(ltx, header, resPayload);
+        auto sourceAccount = loadSourceAccount(ltx, header, txResult);
         if (!addBalance(header, sourceAccount, amount))
         {
             innerResult().code(LIQUIDITY_POOL_WITHDRAW_LINE_FULL);

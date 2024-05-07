@@ -23,9 +23,9 @@ class ManageSellOfferOpFrame : public ManageOfferOpFrameBase
 
   public:
     ManageSellOfferOpFrame(Operation const& op, OperationResult& res,
-                           TransactionFrame& parentTx);
+                           TransactionFrame const& parentTx);
     ManageSellOfferOpFrame(Operation const& op, OperationResult& res,
-                           TransactionFrame& parentTx, bool passive);
+                           TransactionFrame const& parentTx, bool passive);
 
     bool isAmountValid() const override;
     bool isDeleteOffer() const override;

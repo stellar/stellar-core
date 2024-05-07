@@ -94,7 +94,7 @@ class HerderImpl : public Herder
                            bool isLatestSlot);
     void emitEnvelope(SCPEnvelope const& envelope);
 
-    std::pair<TransactionQueue::AddResult, TransactionResultPayloadPtr>
+    TransactionQueue::AddResult
     recvTransaction(TransactionFrameBasePtr tx,
                     bool submittedFromSelf) override;
 

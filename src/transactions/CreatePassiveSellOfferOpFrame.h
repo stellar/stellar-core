@@ -20,6 +20,6 @@ class CreatePassiveSellOfferOpFrame : public ManageSellOfferOpHolder,
 {
   public:
     CreatePassiveSellOfferOpFrame(Operation const& op, OperationResult& res,
-                                  TransactionFrame& parentTx);
+                                  TransactionFrame const& parentTx);
 };
 }

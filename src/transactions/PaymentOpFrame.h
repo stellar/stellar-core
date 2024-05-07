@@ -21,10 +21,10 @@ class PaymentOpFrame : public OperationFrame
 
   public:
     PaymentOpFrame(Operation const& op, OperationResult& res,
-                   TransactionFrame& parentTx);
+                   TransactionFrame const& parentTx);
 
     bool doApply(AbstractLedgerTxn& ltx,
-                 TransactionResultPayload& resPayload) override;
+                 MutableTransactionResultBase& txResult) override;
     bool doCheckValid(uint32_t ledgerVersion) override;
     void
     insertLedgerKeysToPrefetch(UnorderedSet<LedgerKey>& keys) const override;

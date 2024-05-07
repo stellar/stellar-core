@@ -990,7 +990,7 @@ bool
 SorobanTest::isTxValid(TransactionTestFramePtr tx)
 {
     LedgerTxn ltx(getApp().getLedgerTxnRoot());
-    auto ret = tx->checkValid(getApp(), ltx, 0, 0, 0);
+    auto ret = tx->checkValidForTesting(getApp(), ltx, 0, 0, 0);
     return ret;
 }
 
@@ -1013,7 +1013,7 @@ SorobanTest::invokeTx(TransactionTestFramePtr tx, TransactionMetaFrame* txMeta)
     else
     {
         LedgerTxn ltx(getApp().getLedgerTxnRoot());
-        REQUIRE(tx->checkValid(getApp(), ltx, 0, 0, 0));
+        REQUIRE(tx->checkValidForTesting(getApp(), ltx, 0, 0, 0));
         bool res = tx->apply(getApp(), ltx, *txMeta);
         ltx.commit();
         return res;

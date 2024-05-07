@@ -22,7 +22,7 @@ ManageSellOfferOpHolder::ManageSellOfferOpHolder(Operation const& op)
 }
 
 CreatePassiveSellOfferOpFrame::CreatePassiveSellOfferOpFrame(
-    Operation const& op, OperationResult& res, TransactionFrame& parentTx)
+    Operation const& op, OperationResult& res, TransactionFrame const& parentTx)
     : ManageSellOfferOpHolder(op)
     , ManageSellOfferOpFrame(mCreateOp, res, parentTx, true)
 {

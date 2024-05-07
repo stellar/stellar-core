@@ -11,9 +11,9 @@
 #include "overlay/OverlayManager.h"
 #include "test/TestAccount.h"
 #include "test/TxTests.h"
+#include "transactions/MutableTransactionResult.h"
 #include "transactions/TransactionBridge.h"
 #include "transactions/TransactionSQL.h"
-#include "transactions/TransactionResultPayload.h"
 #include "transactions/TransactionUtils.h"
 #include "transactions/test/SorobanTxTestUtils.h"
 #include "util/Logging.h"
@@ -819,27 +819,25 @@ LoadGenerator::submitCreationTx(uint32_t nAccounts, uint32_t offset,
 {
     uint32_t numToProcess =
         nAccounts < MAX_OPS_PER_TX ? nAccounts : MAX_OPS_PER_TX;
-    TestAccountPtr from;
-    TransactionTestFramePtr tx;
-    std::tie(from, tx) =
+    auto [from, tx] =
         creationTransaction(mAccounts.size() + offset, numToProcess, ledgerNum);
     TransactionResultCode code;
-    TransactionQueue::AddResult status;
+    TransactionQueue::AddResultCode status;
     bool createDuplicate = false;
     uint32_t numTries = 0;
 
     while ((status = execute(tx, LoadGenMode::CREATE, code)) !=
-           TransactionQueue::AddResult::ADD_STATUS_PENDING)
+           TransactionQueue::AddResultCode::ADD_STATUS_PENDING)
     {
         // Ignore duplicate transactions, simply continue generating load
-        if (status == TransactionQueue::AddResult::ADD_STATUS_DUPLICATE)
+        if (status == TransactionQueue::AddResultCode::ADD_STATUS_DUPLICATE)
         {
             createDuplicate = true;
             break;
         }
 
         if (++numTries >= TX_SUBMIT_MAX_TRIES ||
-            status != TransactionQueue::AddResult::ADD_STATUS_ERROR)
+            status != TransactionQueue::AddResultCode::ADD_STATUS_ERROR)
         {
             // Failed to submit the step of load
             mFailed = true;
@@ -867,17 +865,17 @@ LoadGenerator::submitTx(GeneratedLoadConfig const& cfg,
     auto [from, tx] = generateTx();
 
     TransactionResultCode code;
-    TransactionQueue::AddResult status;
+    TransactionQueue::AddResultCode status;
     uint32_t numTries = 0;
 
     while ((status = execute(tx, cfg.mode, code)) !=
-           TransactionQueue::AddResult::ADD_STATUS_PENDING)
+           TransactionQueue::AddResultCode::ADD_STATUS_PENDING)
     {
 
         if (cfg.skipLowFeeTxs &&
             (status ==
-                 TransactionQueue::AddResult::ADD_STATUS_TRY_AGAIN_LATER ||
-             (status == TransactionQueue::AddResult::ADD_STATUS_ERROR &&
+                 TransactionQueue::AddResultCode::ADD_STATUS_TRY_AGAIN_LATER ||
+             (status == TransactionQueue::AddResultCode::ADD_STATUS_ERROR &&
               code == txINSUFFICIENT_FEE)))
         {
             // Rollback the seq num of the test account as we regenerate the
@@ -888,7 +886,7 @@ LoadGenerator::submitTx(GeneratedLoadConfig const& cfg,
             return false;
         }
         if (++numTries >= TX_SUBMIT_MAX_TRIES ||
-            status != TransactionQueue::AddResult::ADD_STATUS_ERROR)
+            status != TransactionQueue::AddResultCode::ADD_STATUS_ERROR)
         {
             mFailed = true;
             return false;
@@ -1772,7 +1770,7 @@ LoadGenerator::pretendTransaction(uint32_t numAccounts, uint32_t offset,
                                            maxGeneratedFeeRate));
 }
 
-std::pair<LoadGenerator::TestAccountPtr, TransactionFramePtr>
+std::pair<LoadGenerator::TestAccountPtr, TransactionTestFramePtr>
 LoadGenerator::createMixedClassicSorobanTransaction(
     uint32_t ledgerNum, uint64_t sourceAccountId,
     GeneratedLoadConfig const& cfg)
@@ -1813,12 +1811,12 @@ LoadGenerator::createMixedClassicSorobanTransaction(
 void
 LoadGenerator::maybeHandleFailedTx(TransactionTestFramePtr tx,
                                    TestAccountPtr sourceAccount,
-                                   TransactionQueue::AddResult status,
+                                   TransactionQueue::AddResultCode status,
                                    TransactionResultCode code)
 {
     // Note that if transaction is a DUPLICATE, its sequence number is
     // incremented on the next call to execute.
-    if (status == TransactionQueue::AddResult::ADD_STATUS_ERROR &&
+    if (status == TransactionQueue::AddResultCode::ADD_STATUS_ERROR &&
         code == txBAD_SEQ)
     {
         auto txQueueSeqNum =
@@ -2111,7 +2109,7 @@ LoadGenerator::createTransactionTestFramePtr(
     return txf;
 }
 
-TransactionQueue::AddResult
+TransactionQueue::AddResultCode
 LoadGenerator::execute(TransactionTestFramePtr& txf, LoadGenMode mode,
                        TransactionResultCode& code)
 {
@@ -2177,18 +2175,25 @@ LoadGenerator::execute(TransactionTestFramePtr& txf, LoadGenMode mode,
     auto msg = txf->toStellarMessage();
     txm.mTxnBytes.Mark(xdr::xdr_argpack_size(*msg));
 
-    auto [status, resPayload] = mApp.getHerder().recvTransaction(txf, true);
-    if (status != TransactionQueue::AddResult::ADD_STATUS_PENDING)
+    auto addResult = mApp.getHerder().recvTransaction(txf, true);
+    if (addResult.code != TransactionQueue::AddResultCode::ADD_STATUS_PENDING)
     {
+
+        auto resultStr = addResult.resultPayload
+                             ? xdrToCerealString(
+                                   addResult.resultPayload.value()->getResult(),
+                                   "TransactionResult")
+                             : "";
         CLOG_INFO(LoadGen, "tx rejected '{}': ===> {}, {}",
-                  TX_STATUS_STRING[static_cast<int>(status)],
+                  TX_STATUS_STRING[static_cast<int>(addResult.code)],
                   txf->isSoroban() ? "soroban"
                                    : xdrToCerealString(txf->getEnvelope(),
-                                                   "TransactionEnvelope"),
-                  xdrToCerealString(resPayload->getResult(), "TransactionResult"));
-        if (status == TransactionQueue::AddResult::ADD_STATUS_ERROR)
+                                                       "TransactionEnvelope"),
+                  resultStr);
+        if (addResult.code == TransactionQueue::AddResultCode::ADD_STATUS_ERROR)
         {
-            code = resPayload->getResultCode();
+            releaseAssert(addResult.resultPayload);
+            code = addResult.resultPayload.value()->getResultCode();
         }
         txm.mTxnRejected.Mark();
     }
@@ -2197,7 +2202,7 @@ LoadGenerator::execute(TransactionTestFramePtr& txf, LoadGenMode mode,
         mApp.getOverlayManager().broadcastMessage(msg, txf->getFullHash());
     }
 
-    return status;
+    return addResult.code;
 }
 
 GeneratedLoadConfig

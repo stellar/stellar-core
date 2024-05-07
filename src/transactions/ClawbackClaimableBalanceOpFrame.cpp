@@ -13,7 +13,7 @@ namespace stellar
 {
 
 ClawbackClaimableBalanceOpFrame::ClawbackClaimableBalanceOpFrame(
-    Operation const& op, OperationResult& res, TransactionFrame& parentTx)
+    Operation const& op, OperationResult& res, TransactionFrame const& parentTx)
     : OperationFrame(op, res, parentTx)
     , mClawbackClaimableBalance(mOperation.body.clawbackClaimableBalanceOp())
 {
@@ -28,7 +28,7 @@ ClawbackClaimableBalanceOpFrame::isOpSupported(LedgerHeader const& header) const
 
 bool
 ClawbackClaimableBalanceOpFrame::doApply(AbstractLedgerTxn& ltx,
-                                         TransactionResultPayload& resPayload)
+                                         MutableTransactionResultBase& txResult)
 {
     ZoneNamedN(applyZone, "ClawbackClaimableBalanceOp apply", true);
 
@@ -65,7 +65,7 @@ ClawbackClaimableBalanceOpFrame::doApply(AbstractLedgerTxn& ltx,
     }
 
     auto header = ltx.loadHeader();
-    auto sourceAccount = loadSourceAccount(ltx, header, resPayload);
+    auto sourceAccount = loadSourceAccount(ltx, header, txResult);
     removeEntryWithPossibleSponsorship(
         ltx, header, claimableBalanceLtxEntry.current(), sourceAccount);
 

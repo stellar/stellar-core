@@ -12,7 +12,7 @@ namespace stellar
 {
 
 ClawbackOpFrame::ClawbackOpFrame(Operation const& op, OperationResult& res,
-                                 TransactionFrame& parentTx)
+                                 TransactionFrame const& parentTx)
     : OperationFrame(op, res, parentTx), mClawback(mOperation.body.clawbackOp())
 {
 }
@@ -26,7 +26,7 @@ ClawbackOpFrame::isOpSupported(LedgerHeader const& header) const
 
 bool
 ClawbackOpFrame::doApply(AbstractLedgerTxn& ltx,
-                         TransactionResultPayload& resPayload)
+                         MutableTransactionResultBase& txResult)
 {
     ZoneNamedN(applyZone, "ClawbackOp apply", true);
 

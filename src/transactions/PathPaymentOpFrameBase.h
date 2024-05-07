@@ -22,7 +22,7 @@ class PathPaymentOpFrameBase : public OperationFrame
     bool shouldBypassIssuerCheck(std::vector<Asset> const& path) const;
 
     bool updateSourceBalance(AbstractLedgerTxn& ltx,
-                             TransactionResultPayload& resPayload,
+                             MutableTransactionResultBase& txResult,
                              int64_t amount, bool bypassIssuerCheck,
                              bool doesSourceAccountExist);
 
@@ -33,7 +33,7 @@ class PathPaymentOpFrameBase : public OperationFrame
 
   public:
     PathPaymentOpFrameBase(Operation const& op, OperationResult& res,
-                           TransactionFrame& parentTx);
+                           TransactionFrame const& parentTx);
 
     void
     insertLedgerKeysToPrefetch(UnorderedSet<LedgerKey>& keys) const override;

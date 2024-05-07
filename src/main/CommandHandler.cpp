@@ -22,8 +22,8 @@
 #include "overlay/OverlayManager.h"
 #include "overlay/SurveyManager.h"
 #include "transactions/InvokeHostFunctionOpFrame.h"
+#include "transactions/MutableTransactionResult.h"
 #include "transactions/TransactionBridge.h"
-#include "transactions/TransactionResultPayload.h"
 #include "transactions/TransactionUtils.h"
 #include "util/Logging.h"
 #include "util/StatusManager.h"
@@ -1016,13 +1016,17 @@ CommandHandler::tx(std::string const& params, std::string& retStr)
         if (transaction)
         {
             // Add it to our current set and make sure it is valid.
-            auto [status, payload] =
+            auto addResult =
                 mApp.getHerder().recvTransaction(transaction, true);
 
-            root["status"] = TX_STATUS_STRING[static_cast<int>(status)];
-            if (status == TransactionQueue::AddResult::ADD_STATUS_ERROR)
+            root["status"] = TX_STATUS_STRING[static_cast<int>(addResult.code)];
+            if (addResult.code ==
+                TransactionQueue::AddResultCode::ADD_STATUS_ERROR)
             {
                 std::string resultBase64;
+                releaseAssertOrThrow(addResult.resultPayload);
+
+                auto const& payload = addResult.resultPayload.value();
                 auto resultBin = xdr::xdr_to_opaque(payload->getResult());
                 resultBase64.reserve(decoder::encoded_size64(resultBin.size()) +
                                      1);
@@ -1541,13 +1545,14 @@ CommandHandler::testTx(std::string const& params, std::string& retStr)
             txFrame = fromAccount.tx({payment(toAccount, paymentAmount)});
         }
 
-        auto [status, resultPayload] =
-            mApp.getHerder().recvTransaction(txFrame, true);
-        root["status"] = TX_STATUS_STRING[static_cast<int>(status)];
-        if (status == TransactionQueue::AddResult::ADD_STATUS_ERROR)
+        auto addResult = mApp.getHerder().recvTransaction(txFrame, true);
+        root["status"] = TX_STATUS_STRING[static_cast<int>(addResult.code)];
+        if (addResult.code == TransactionQueue::AddResultCode::ADD_STATUS_ERROR)
         {
-            root["detail"] = xdrToCerealString(resultPayload->getResultCode(),
-                                           "TransactionResultCode");
+            releaseAssert(addResult.resultPayload);
+            root["detail"] = xdrToCerealString(
+                addResult.resultPayload.value()->getResultCode(),
+                "TransactionResultCode");
         }
     }
     else

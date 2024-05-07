@@ -25,7 +25,7 @@
 #include "overlay/OverlayManager.h"
 #include "scp/LocalNode.h"
 #include "scp/Slot.h"
-#include "transactions/TransactionResultPayload.h"
+#include "transactions/MutableTransactionResult.h"
 #include "transactions/TransactionUtils.h"
 #include "util/DebugMetaUtils.h"
 #include "util/LogSlowExecution.h"
@@ -584,13 +584,12 @@ HerderImpl::emitEnvelope(SCPEnvelope const& envelope)
     broadcast(envelope);
 }
 
-std::pair<TransactionQueue::AddResult, TransactionResultPayloadPtr>
+TransactionQueue::AddResult
 HerderImpl::recvTransaction(TransactionFrameBasePtr tx, bool submittedFromSelf)
 {
     ZoneScoped;
-    auto payload = TransactionResultPayload::create(tx->toTransactionFrame());
-    std::pair<TransactionQueue::AddResult, TransactionResultPayloadPtr> result{
-        TransactionQueue::AddResult::ADD_STATUS_COUNT, payload};
+    TransactionQueue::AddResult result(
+        TransactionQueue::AddResultCode::ADD_STATUS_COUNT);
 
     // Allow txs of the same kind to reach the tx queue in case it can be
     // replaced by fee
@@ -608,7 +607,8 @@ HerderImpl::recvTransaction(TransactionFrameBasePtr tx, bool submittedFromSelf)
                    "account per ledger limit",
                    hexAbbrev(tx->getFullHash()),
                    KeyUtils::toShortString(tx->getSourceID()));
-        result.first = TransactionQueue::AddResult::ADD_STATUS_TRY_AGAIN_LATER;
+        result.code =
+            TransactionQueue::AddResultCode::ADD_STATUS_TRY_AGAIN_LATER;
     }
     else if (!tx->isSoroban())
     {
@@ -622,10 +622,10 @@ HerderImpl::recvTransaction(TransactionFrameBasePtr tx, bool submittedFromSelf)
     {
         // Received Soroban transaction before protocol 20; since this
         // transaction isn't supported yet, return ERROR
-        result.first = TransactionQueue::AddResult::ADD_STATUS_ERROR;
+        result.code = TransactionQueue::AddResultCode::ADD_STATUS_ERROR;
     }
 
-    if (result.first == TransactionQueue::AddResult::ADD_STATUS_PENDING)
+    if (result.code == TransactionQueue::AddResultCode::ADD_STATUS_PENDING)
     {
         CLOG_TRACE(Herder, "recv transaction {} for {}",
                    hexAbbrev(tx->getFullHash()),

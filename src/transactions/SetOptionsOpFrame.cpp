@@ -23,7 +23,7 @@ static const uint32 allAccountAuthFlags =
      AUTH_CLAWBACK_ENABLED_FLAG);
 
 SetOptionsOpFrame::SetOptionsOpFrame(Operation const& op, OperationResult& res,
-                                     TransactionFrame& parentTx)
+                                     TransactionFrame const& parentTx)
     : OperationFrame(op, res, parentTx)
     , mSetOptions(mOperation.body.setOptionsOp())
 {
@@ -44,10 +44,10 @@ SetOptionsOpFrame::getThresholdLevel() const
 
 bool
 SetOptionsOpFrame::addOrChangeSigner(AbstractLedgerTxn& ltx,
-                                     TransactionResultPayload& resPayload)
+                                     MutableTransactionResultBase& txResult)
 {
     auto header = ltx.loadHeader();
-    auto sourceAccount = loadSourceAccount(ltx, header, resPayload);
+    auto sourceAccount = loadSourceAccount(ltx, header, txResult);
 
     auto& account = sourceAccount.current().data.account();
     auto& signers = account.signers;
@@ -123,12 +123,12 @@ SetOptionsOpFrame::deleteSigner(AbstractLedgerTxn& ltx,
 
 bool
 SetOptionsOpFrame::doApply(AbstractLedgerTxn& ltx,
-                           TransactionResultPayload& resPayload)
+                           MutableTransactionResultBase& txResult)
 {
     ZoneNamedN(applyZone, "SetOptionsOp apply", true);
 
     auto header = ltx.loadHeader();
-    auto sourceAccount = loadSourceAccount(ltx, header, resPayload);
+    auto sourceAccount = loadSourceAccount(ltx, header, txResult);
     auto& account = sourceAccount.current().data.account();
     if (mSetOptions.inflationDest)
     {
@@ -211,7 +211,7 @@ SetOptionsOpFrame::doApply(AbstractLedgerTxn& ltx,
         if (mSetOptions.signer->weight)
         {
             LedgerTxn ltxInner(ltx);
-            if (!addOrChangeSigner(ltxInner, resPayload))
+            if (!addOrChangeSigner(ltxInner, txResult))
             {
                 return false;
             }

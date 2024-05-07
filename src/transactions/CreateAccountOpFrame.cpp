@@ -27,7 +27,7 @@ using namespace std;
 
 CreateAccountOpFrame::CreateAccountOpFrame(Operation const& op,
                                            OperationResult& res,
-                                           TransactionFrame& parentTx)
+                                           TransactionFrame const& parentTx)
     : OperationFrame(op, res, parentTx)
     , mCreateAccount(mOperation.body.createAccountOp())
 {
@@ -35,7 +35,7 @@ CreateAccountOpFrame::CreateAccountOpFrame(Operation const& op,
 
 bool
 CreateAccountOpFrame::doApplyBeforeV14(AbstractLedgerTxn& ltx,
-                                       TransactionResultPayload& resPayload)
+                                       MutableTransactionResultBase& txResult)
 {
     auto header = ltx.loadHeader();
     if (mCreateAccount.startingBalance <
@@ -50,7 +50,7 @@ CreateAccountOpFrame::doApplyBeforeV14(AbstractLedgerTxn& ltx,
                                   ProtocolVersion::V_8) ||
         (bool)ltx.loadWithoutRecord(accountKey(getSourceID()));
 
-    auto sourceAccount = loadSourceAccount(ltx, header, resPayload);
+    auto sourceAccount = loadSourceAccount(ltx, header, txResult);
     if (getAvailableBalance(header, sourceAccount) <
         mCreateAccount.startingBalance)
     { // they don't have enough to send
@@ -82,7 +82,7 @@ CreateAccountOpFrame::doApplyBeforeV14(AbstractLedgerTxn& ltx,
 
 bool
 CreateAccountOpFrame::doApplyFromV14(AbstractLedgerTxn& ltxOuter,
-                                     TransactionResultPayload& resPayload)
+                                     MutableTransactionResultBase& txResult)
 {
     LedgerTxn ltx(ltxOuter);
     auto header = ltx.loadHeader();
@@ -139,7 +139,7 @@ CreateAccountOpFrame::doApplyFromV14(AbstractLedgerTxn& ltxOuter,
 
 bool
 CreateAccountOpFrame::doApply(AbstractLedgerTxn& ltx,
-                              TransactionResultPayload& resPayload)
+                              MutableTransactionResultBase& txResult)
 {
     ZoneNamedN(applyZone, "CreateAccountOp apply", true);
     if (stellar::loadAccount(ltx, mCreateAccount.destination))
@@ -151,11 +151,11 @@ CreateAccountOpFrame::doApply(AbstractLedgerTxn& ltx,
     if (protocolVersionIsBefore(ltx.loadHeader().current().ledgerVersion,
                                 ProtocolVersion::V_14))
     {
-        return doApplyBeforeV14(ltx, resPayload);
+        return doApplyBeforeV14(ltx, txResult);
     }
     else
     {
-        return doApplyFromV14(ltx, resPayload);
+        return doApplyFromV14(ltx, txResult);
     }
 }
 

@@ -125,7 +125,7 @@ validatePredicate(ClaimPredicate const& pred, uint32_t depth)
 }
 
 CreateClaimableBalanceOpFrame::CreateClaimableBalanceOpFrame(
-    Operation const& op, OperationResult& res, TransactionFrame& parentTx,
+    Operation const& op, OperationResult& res, TransactionFrame const& parentTx,
     uint32_t index)
     : OperationFrame(op, res, parentTx)
     , mCreateClaimableBalance(mOperation.body.createClaimableBalanceOp())
@@ -142,12 +142,12 @@ CreateClaimableBalanceOpFrame::isOpSupported(LedgerHeader const& header) const
 
 bool
 CreateClaimableBalanceOpFrame::doApply(AbstractLedgerTxn& ltx,
-                                       TransactionResultPayload& resPayload)
+                                       MutableTransactionResultBase& txResult)
 {
     ZoneNamedN(applyZone, "CreateClaimableBalanceOpFrame apply", true);
 
     auto header = ltx.loadHeader();
-    auto sourceAccount = loadSourceAccount(ltx, header, resPayload);
+    auto sourceAccount = loadSourceAccount(ltx, header, txResult);
 
     auto const& claimants = mCreateClaimableBalance.claimants;
 

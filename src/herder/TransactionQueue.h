@@ -62,7 +62,7 @@ class TransactionQueue
   public:
     static uint64_t const FEE_MULTIPLIER;
 
-    enum class AddResult
+    enum class AddResultCode
     {
         ADD_STATUS_PENDING = 0,
         ADD_STATUS_DUPLICATE,
@@ -70,6 +70,24 @@ class TransactionQueue
         ADD_STATUS_TRY_AGAIN_LATER,
         ADD_STATUS_FILTERED,
         ADD_STATUS_COUNT
+    };
+
+    struct AddResult
+    {
+        TransactionQueue::AddResultCode code;
+        std::optional<TransactionResultPayloadPtr> resultPayload;
+
+        // AddResult with no resultPayload
+        AddResult(TransactionQueue::AddResultCode addCode);
+
+        // AddResult from existing transaction result
+        AddResult(TransactionQueue::AddResultCode addCode,
+                  TransactionResultPayloadPtr payload);
+
+        // AddResult with error resultPayload with the specified txErrorCode
+        AddResult(TransactionQueue::AddResultCode addCode,
+                  TransactionFrameBasePtr tx,
+                  TransactionResultCode txErrorCode);
     };
 
     /**
@@ -107,8 +125,7 @@ class TransactionQueue
     static std::vector<AssetPair>
     findAllAssetPairsInvolvedInPaymentLoops(TransactionFrameBasePtr tx);
 
-    std::pair<TransactionQueue::AddResult, TransactionResultPayloadPtr>
-    tryAdd(TransactionFrameBasePtr tx, bool submittedFromSelf);
+    AddResult tryAdd(TransactionFrameBasePtr tx, bool submittedFromSelf);
     void removeApplied(Transactions const& txs);
     // Ban transactions that are no longer valid or have insufficient fee;
     // transaction per account limit applies here, so `txs` should have no
@@ -201,7 +218,8 @@ class TransactionQueue
         BROADCAST_STATUS_SKIPPED
     };
     BroadcastStatus broadcastTx(TimestampedTx& tx);
-    std::pair<AddResult, TransactionResultPayloadPtr>
+
+    TransactionQueue::AddResult
     canAdd(TransactionFrameBasePtr tx, AccountStates::iterator& stateIter,
            std::vector<std::pair<TransactionFrameBasePtr, bool>>& txsToEvict);
 
@@ -282,7 +300,6 @@ class ClassicTransactionQueue : public TransactionQueue
 
 extern std::array<const char*,
                   static_cast<int>(
-                      TransactionQueue::AddResult::ADD_STATUS_COUNT)>
+                      TransactionQueue::AddResultCode::ADD_STATUS_COUNT)>
     TX_STATUS_STRING;
-
 }

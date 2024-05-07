@@ -22,7 +22,7 @@ getInversePrice(Price const& price)
 
 ManageBuyOfferOpFrame::ManageBuyOfferOpFrame(Operation const& op,
                                              OperationResult& res,
-                                             TransactionFrame& parentTx)
+                                             TransactionFrame const& parentTx)
     : ManageOfferOpFrameBase(
           op, res, parentTx, op.body.manageBuyOfferOp().selling,
           op.body.manageBuyOfferOp().buying, op.body.manageBuyOfferOp().offerID,

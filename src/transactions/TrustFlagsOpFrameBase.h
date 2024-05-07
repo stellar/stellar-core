@@ -17,7 +17,7 @@ class TrustFlagsOpFrameBase : public OperationFrame
     virtual void setResultSuccess() = 0;
     virtual bool
     isAuthRevocationValid(AbstractLedgerTxn& ltx, bool& authRevocable,
-                          TransactionResultPayload& resPayload) = 0;
+                          MutableTransactionResultBase& txResult) = 0;
     virtual bool isRevocationToMaintainLiabilitiesValid(
         bool authRevocable, LedgerTxnEntry const& trust, uint32_t flags) = 0;
 
@@ -35,10 +35,10 @@ class TrustFlagsOpFrameBase : public OperationFrame
 
   public:
     TrustFlagsOpFrameBase(Operation const& op, OperationResult& res,
-                          TransactionFrame& parentTx);
+                          TransactionFrame const& parentTx);
 
     bool doApply(AbstractLedgerTxn& ltx,
-                 TransactionResultPayload& resPayload) override;
+                 MutableTransactionResultBase& txResult) override;
 };
 
 }

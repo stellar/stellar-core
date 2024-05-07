@@ -26,12 +26,13 @@ class CreateClaimableBalanceOpFrame : public OperationFrame
 
   public:
     CreateClaimableBalanceOpFrame(Operation const& op, OperationResult& res,
-                                  TransactionFrame& parentTx, uint32_t index);
+                                  TransactionFrame const& parentTx,
+                                  uint32_t index);
 
     bool isOpSupported(LedgerHeader const& header) const override;
 
     bool doApply(AbstractLedgerTxn& ltx,
-                 TransactionResultPayload& resPayload) override;
+                 MutableTransactionResultBase& txResult) override;
     bool doCheckValid(uint32_t ledgerVersion) override;
     void
     insertLedgerKeysToPrefetch(UnorderedSet<LedgerKey>& keys) const override;

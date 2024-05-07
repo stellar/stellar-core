@@ -24,7 +24,6 @@
 #include "overlay/SurveyDataManager.h"
 #include "overlay/SurveyManager.h"
 #include "overlay/TxAdverts.h"
-#include "transactions/TransactionResultPayload.h"
 #include "util/GlobalChecks.h"
 #include "util/Logging.h"
 #include "util/ProtocolVersion.h"

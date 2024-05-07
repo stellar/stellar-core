@@ -143,7 +143,8 @@ transactionWithV2Precondition(Application& app, TestAccount& account,
 // If useInclusionAsFullFee is true, `inclusion` will be used as the full fee.
 // Otherwise, `tx` resource fee is added to full fee.
 TransactionTestFramePtr feeBump(Application& app, TestAccount& feeSource,
-                                TransactionTestFramePtr tx, int64_t inclusion,
+                                std::shared_ptr<TransactionTestFrame const> tx,
+                                int64_t inclusion,
                                 bool useInclusionAsFullFee = false);
 
 Operation changeTrust(Asset const& asset, int64_t limit);

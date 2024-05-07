@@ -14,7 +14,7 @@ namespace stellar
 {
 
 BeginSponsoringFutureReservesOpFrame::BeginSponsoringFutureReservesOpFrame(
-    Operation const& op, OperationResult& res, TransactionFrame& parentTx)
+    Operation const& op, OperationResult& res, TransactionFrame const& parentTx)
     : OperationFrame(op, res, parentTx)
     , mBeginSponsoringFutureReservesOp(
           mOperation.body.beginSponsoringFutureReservesOp())
@@ -62,7 +62,7 @@ BeginSponsoringFutureReservesOpFrame::createSponsorshipCounter(
 
 bool
 BeginSponsoringFutureReservesOpFrame::doApply(
-    AbstractLedgerTxn& ltx, TransactionResultPayload& resPayload)
+    AbstractLedgerTxn& ltx, MutableTransactionResultBase& txResult)
 {
     ZoneNamedN(applyZone, "BeginSponsoringFutureReservesOpFrame apply", true);
     if (loadSponsorship(ltx, mBeginSponsoringFutureReservesOp.sponsoredID))

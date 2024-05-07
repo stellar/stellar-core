@@ -21,7 +21,7 @@ namespace stellar
 {
 
 MergeOpFrame::MergeOpFrame(Operation const& op, OperationResult& res,
-                           TransactionFrame& parentTx)
+                           TransactionFrame const& parentTx)
     : OperationFrame(op, res, parentTx)
 {
 }
@@ -62,24 +62,24 @@ MergeOpFrame::isSeqnumTooFar(AbstractLedgerTxn& ltx,
 // move the XLM to the new account
 bool
 MergeOpFrame::doApply(AbstractLedgerTxn& ltx,
-                      TransactionResultPayload& resPayload)
+                      MutableTransactionResultBase& txResult)
 {
     ZoneNamedN(applyZone, "MergeOp apply", true);
 
     if (protocolVersionIsBefore(ltx.loadHeader().current().ledgerVersion,
                                 ProtocolVersion::V_16))
     {
-        return doApplyBeforeV16(ltx, resPayload);
+        return doApplyBeforeV16(ltx, txResult);
     }
     else
     {
-        return doApplyFromV16(ltx, resPayload);
+        return doApplyFromV16(ltx, txResult);
     }
 }
 
 bool
 MergeOpFrame::doApplyBeforeV16(AbstractLedgerTxn& ltx,
-                               TransactionResultPayload& resPayload)
+                               MutableTransactionResultBase& txResult)
 {
     auto header = ltx.loadHeader();
 
@@ -114,7 +114,7 @@ MergeOpFrame::doApplyBeforeV16(AbstractLedgerTxn& ltx,
         }
     }
 
-    auto sourceAccountEntry = loadSourceAccount(ltx, header, resPayload);
+    auto sourceAccountEntry = loadSourceAccount(ltx, header, txResult);
     auto const& sourceAccount = sourceAccountEntry.current().data.account();
     // Only set sourceBalance here if it wasn't set in the previous block
     if (protocolVersionIsBefore(header.current().ledgerVersion,
@@ -188,7 +188,7 @@ MergeOpFrame::doApplyBeforeV16(AbstractLedgerTxn& ltx,
 
 bool
 MergeOpFrame::doApplyFromV16(AbstractLedgerTxn& ltx,
-                             TransactionResultPayload& resPayload)
+                             MutableTransactionResultBase& txResult)
 {
     auto header = ltx.loadHeader();
 
@@ -198,7 +198,7 @@ MergeOpFrame::doApplyFromV16(AbstractLedgerTxn& ltx,
         return false;
     }
 
-    auto sourceAccountEntry = loadSourceAccount(ltx, header, resPayload);
+    auto sourceAccountEntry = loadSourceAccount(ltx, header, txResult);
 
     if (isImmutableAuth(sourceAccountEntry))
     {

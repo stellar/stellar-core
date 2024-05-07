@@ -16,7 +16,7 @@ namespace stellar
 {
 
 PathPaymentStrictReceiveOpFrame::PathPaymentStrictReceiveOpFrame(
-    Operation const& op, OperationResult& res, TransactionFrame& parentTx)
+    Operation const& op, OperationResult& res, TransactionFrame const& parentTx)
     : PathPaymentOpFrameBase(op, res, parentTx)
     , mPathPayment(mOperation.body.pathPaymentStrictReceiveOp())
 {
@@ -24,7 +24,7 @@ PathPaymentStrictReceiveOpFrame::PathPaymentStrictReceiveOpFrame(
 
 bool
 PathPaymentStrictReceiveOpFrame::doApply(AbstractLedgerTxn& ltx,
-                                         TransactionResultPayload& resPayload)
+                                         MutableTransactionResultBase& txResult)
 {
     ZoneNamedN(applyZone, "PathPaymentStrictReceiveOp apply", true);
     std::string pathStr = assetToString(getSourceAsset());
@@ -123,7 +123,7 @@ PathPaymentStrictReceiveOpFrame::doApply(AbstractLedgerTxn& ltx,
         return false;
     }
 
-    if (!updateSourceBalance(ltx, resPayload, maxAmountRecv, bypassIssuerCheck,
+    if (!updateSourceBalance(ltx, txResult, maxAmountRecv, bypassIssuerCheck,
                              doesSourceAccountExist))
     {
         return false;

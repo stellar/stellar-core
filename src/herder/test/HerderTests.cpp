@@ -87,8 +87,8 @@ TEST_CASE_VERSIONS("standalone", "[herder][acceptance]")
             VirtualTimer setupTimer(*app);
 
             auto feedTx = [&](TransactionTestFramePtr tx,
-                              TransactionQueue::AddResult expectedRes) {
-                REQUIRE(app->getHerder().recvTransaction(tx, false).first ==
+                              TransactionQueue::AddResultCode expectedRes) {
+                REQUIRE(app->getHerder().recvTransaction(tx, false).code ==
                         expectedRes);
             };
 
@@ -122,7 +122,7 @@ TEST_CASE_VERSIONS("standalone", "[herder][acceptance]")
                                         createAccount(c1, startingBalance)});
 
                 feedTx(txFrame,
-                       TransactionQueue::AddResult::ADD_STATUS_PENDING);
+                       TransactionQueue::AddResultCode::ADD_STATUS_PENDING);
             };
 
             setupTimer.expires_from_now(std::chrono::seconds(0));
@@ -155,7 +155,8 @@ TEST_CASE_VERSIONS("standalone", "[herder][acceptance]")
 
                 for (auto a : txAs)
                 {
-                    feedTx(a, TransactionQueue::AddResult::ADD_STATUS_PENDING);
+                    feedTx(a,
+                           TransactionQueue::AddResultCode::ADD_STATUS_PENDING);
                 }
                 waitForExternalize();
 
@@ -169,7 +170,8 @@ TEST_CASE_VERSIONS("standalone", "[herder][acceptance]")
 
                 for (auto b : txBs)
                 {
-                    feedTx(b, TransactionQueue::AddResult::ADD_STATUS_PENDING);
+                    feedTx(b,
+                           TransactionQueue::AddResultCode::ADD_STATUS_PENDING);
                 }
                 waitForExternalize();
 
@@ -178,12 +180,13 @@ TEST_CASE_VERSIONS("standalone", "[herder][acceptance]")
                 txCs.emplace_back(c1.tx({payment(root, paymentAmount)}));
 
                 feedTx(txCs[0],
-                       TransactionQueue::AddResult::ADD_STATUS_PENDING);
-                feedTx(txCs[1], TransactionQueue::AddResult::ADD_STATUS_ERROR);
+                       TransactionQueue::AddResultCode::ADD_STATUS_PENDING);
+                feedTx(txCs[1],
+                       TransactionQueue::AddResultCode::ADD_STATUS_ERROR);
                 if (hasC)
                 {
                     feedTx(txCs[2],
-                           TransactionQueue::AddResult::ADD_STATUS_ERROR);
+                           TransactionQueue::AddResultCode::ADD_STATUS_ERROR);
                 }
 
                 waitForExternalize();
@@ -376,7 +379,8 @@ testTxSet(uint32 protocolVersion)
         }
         SECTION("bad signature")
         {
-            auto tx = std::static_pointer_cast<TransactionTestFrame>(txs[0]);
+            auto tx =
+                std::static_pointer_cast<TransactionTestFrame const>(txs[0]);
             setMaxTime(tx, UINT64_MAX);
             tx->clearCached();
             TxSetTransactions removed;
@@ -2345,9 +2349,9 @@ testSCPDriver(uint32 protocolVersion, uint32_t maxTxSetSize, size_t expectedOps)
             auto tx = makeMultiPayment(root, root, 10, 1000, 0, 100);
             setMinTime(tx, minTime);
             setMaxTime(tx, maxTime);
-            auto& sig = tx->getEnvelope().type() == ENVELOPE_TYPE_TX_V0
-                            ? tx->getEnvelope().v0().signatures
-                            : tx->getEnvelope().v1().signatures;
+            auto& sig = tx->getMutableEnvelope().type() == ENVELOPE_TYPE_TX_V0
+                            ? tx->getMutableEnvelope().v0().signatures
+                            : tx->getMutableEnvelope().v1().signatures;
             sig.clear();
             tx->addSignature(root.getSecretKey());
             auto [txSet, applicableTxSet] =
@@ -3127,12 +3131,12 @@ TEST_CASE("tx queue source account limit", "[herder][transactionqueue]")
     auto [root, a1, b1, tx1, tx2] = makeTxs(app);
 
     // Submit txs for the same account, should be good
-    REQUIRE(app->getHerder().recvTransaction(tx1, true).first ==
-            TransactionQueue::AddResult::ADD_STATUS_PENDING);
+    REQUIRE(app->getHerder().recvTransaction(tx1, true).code ==
+            TransactionQueue::AddResultCode::ADD_STATUS_PENDING);
 
     // Second tx is rejected due to limit
-    REQUIRE(app->getHerder().recvTransaction(tx2, true).first ==
-            TransactionQueue::AddResult::ADD_STATUS_TRY_AGAIN_LATER);
+    REQUIRE(app->getHerder().recvTransaction(tx2, true).code ==
+            TransactionQueue::AddResultCode::ADD_STATUS_TRY_AGAIN_LATER);
 
     uint32_t lcl = app->getLedgerManager().getLastClosedLedgerNum();
     simulation->crankUntil(
@@ -3158,8 +3162,8 @@ TEST_CASE("tx queue source account limit", "[herder][transactionqueue]")
 
     // Now submit the second tx (which was rejected earlier) and make sure
     // it ends up in the ledger
-    REQUIRE(app->getHerder().recvTransaction(tx2, true).first ==
-            TransactionQueue::AddResult::ADD_STATUS_PENDING);
+    REQUIRE(app->getHerder().recvTransaction(tx2, true).code ==
+            TransactionQueue::AddResultCode::ADD_STATUS_PENDING);
 
     lcl = app->getLedgerManager().getLastClosedLedgerNum();
     simulation->crankUntil(
@@ -3912,8 +3916,9 @@ herderExternalizesValuesWithProtocol(uint32_t version)
                     SorobanResources resources;
                     auto sorobanTx = createUploadWasmTx(
                         *A, root, 100, DEFAULT_TEST_RESOURCE_FEE, resources);
-                    REQUIRE(herderA.recvTransaction(sorobanTx, true).first ==
-                            TransactionQueue::AddResult::ADD_STATUS_PENDING);
+                    REQUIRE(
+                        herderA.recvTransaction(sorobanTx, true).code ==
+                        TransactionQueue::AddResultCode::ADD_STATUS_PENDING);
                     submitted = true;
                 }
                 return currentALedger() >= destinationLedger &&
@@ -4699,8 +4704,8 @@ TEST_CASE("do not flood too many soroban transactions",
 
         auto tx = createUploadWasmTx(*app, source, inclusionFee, 10'000'000,
                                      resources);
-        REQUIRE(herder.recvTransaction(tx, false).first ==
-                TransactionQueue::AddResult::ADD_STATUS_PENDING);
+        REQUIRE(herder.recvTransaction(tx, false).code ==
+                TransactionQueue::AddResultCode::ADD_STATUS_PENDING);
         return tx;
     };
 
@@ -4872,8 +4877,8 @@ TEST_CASE("do not flood too many transactions", "[herder][transactionqueue]")
                 curFeeOffset--;
             }
 
-            REQUIRE(herder.recvTransaction(tx, false).first ==
-                    TransactionQueue::AddResult::ADD_STATUS_PENDING);
+            REQUIRE(herder.recvTransaction(tx, false).code ==
+                    TransactionQueue::AddResultCode::ADD_STATUS_PENDING);
             return tx;
         };
 
@@ -5082,8 +5087,8 @@ TEST_CASE("do not flood too many transactions with DEX separation",
                 curFeeOffset--;
             }
 
-            REQUIRE(herder.recvTransaction(tx, false).first ==
-                    TransactionQueue::AddResult::ADD_STATUS_PENDING);
+            REQUIRE(herder.recvTransaction(tx, false).code ==
+                    TransactionQueue::AddResultCode::ADD_STATUS_PENDING);
             return tx;
         };
 
@@ -5510,8 +5515,8 @@ TEST_CASE("exclude transactions by operation type", "[herder]")
         auto acc = getAccount("acc");
         auto tx = root.tx({createAccount(acc.getPublicKey(), 1)});
 
-        REQUIRE(app->getHerder().recvTransaction(tx, false).first ==
-                TransactionQueue::AddResult::ADD_STATUS_PENDING);
+        REQUIRE(app->getHerder().recvTransaction(tx, false).code ==
+                TransactionQueue::AddResultCode::ADD_STATUS_PENDING);
     }
 
     SECTION("filter excludes transaction containing specified operation")
@@ -5525,8 +5530,8 @@ TEST_CASE("exclude transactions by operation type", "[herder]")
         auto acc = getAccount("acc");
         auto tx = root.tx({createAccount(acc.getPublicKey(), 1)});
 
-        REQUIRE(app->getHerder().recvTransaction(tx, false).first ==
-                TransactionQueue::AddResult::ADD_STATUS_FILTERED);
+        REQUIRE(app->getHerder().recvTransaction(tx, false).code ==
+                TransactionQueue::AddResultCode::ADD_STATUS_FILTERED);
     }
 
     SECTION("filter does not exclude transaction containing non-specified "
@@ -5541,8 +5546,8 @@ TEST_CASE("exclude transactions by operation type", "[herder]")
         auto acc = getAccount("acc");
         auto tx = root.tx({createAccount(acc.getPublicKey(), 1)});
 
-        REQUIRE(app->getHerder().recvTransaction(tx, false).first ==
-                TransactionQueue::AddResult::ADD_STATUS_PENDING);
+        REQUIRE(app->getHerder().recvTransaction(tx, false).code ==
+                TransactionQueue::AddResultCode::ADD_STATUS_PENDING);
     }
 }
 

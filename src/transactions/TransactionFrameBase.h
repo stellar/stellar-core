@@ -24,10 +24,13 @@ class Database;
 class OperationFrame;
 class TransactionFrame;
 class FeeBumpTransactionFrame;
-class TransactionResultPayload;
+
+class MutableTransactionResultBase;
+using TransactionResultPayloadPtr =
+    std::shared_ptr<MutableTransactionResultBase>;
 
 class TransactionFrameBase;
-using TransactionFrameBasePtr = std::shared_ptr<TransactionFrameBase>;
+using TransactionFrameBasePtr = std::shared_ptr<TransactionFrameBase const>;
 using TransactionFrameBaseConstPtr =
     std::shared_ptr<TransactionFrameBase const>;
 
@@ -40,35 +43,31 @@ class TransactionFrameBase
 
     virtual bool apply(Application& app, AbstractLedgerTxn& ltx,
                        TransactionMetaFrame& meta,
-                       TransactionResultPayload& resPayload,
-                       Hash const& sorobanBasePrngSeed = Hash{}) = 0;
+                       TransactionResultPayloadPtr txResult,
+                       Hash const& sorobanBasePrngSeed = Hash{}) const = 0;
 
-    virtual bool checkValid(Application& app, AbstractLedgerTxn& ltxOuter,
-                            TransactionResultPayload& resPayload,
-                            SequenceNumber current,
-                            uint64_t lowerBoundCloseTimeOffset,
-                            uint64_t upperBoundCloseTimeOffset) = 0;
-    virtual bool
-    checkSorobanResourceAndSetError(Application& app, uint32_t ledgerVersion,
-                                    TransactionResultPayload& resPayload) = 0;
+    virtual std::pair<bool, TransactionResultPayloadPtr>
+    checkValid(Application& app, AbstractLedgerTxn& ltxOuter,
+               SequenceNumber current, uint64_t lowerBoundCloseTimeOffset,
+               uint64_t upperBoundCloseTimeOffset) const = 0;
+    virtual bool checkSorobanResourceAndSetError(
+        Application& app, uint32_t ledgerVersion,
+        TransactionResultPayloadPtr txResult) const = 0;
 
-    virtual void resetResults(LedgerHeader const& header,
-                              std::optional<int64_t> baseFee, bool applying,
-                              TransactionResultPayload& resPayload) = 0;
+    virtual TransactionResultPayloadPtr createResultPayload() const = 0;
+
+    virtual TransactionResultPayloadPtr
+    createResultPayloadWithFeeCharged(LedgerHeader const& header,
+                                      std::optional<int64_t> baseFee,
+                                      bool applying) const = 0;
 
     virtual TransactionEnvelope const& getEnvelope() const = 0;
 
 #ifdef BUILD_TESTS
-    virtual TransactionEnvelope& getEnvelope() = 0;
-    virtual void clearCached() = 0;
-    virtual TransactionFrame& toTransactionFrame() = 0;
-    virtual TransactionFrame const& toTransactionFrame() const = 0;
+    virtual TransactionEnvelope& getMutableEnvelope() const = 0;
+    virtual void clearCached() const = 0;
     virtual bool isTestTx() const = 0;
 #endif
-
-    // Protected Cast
-    virtual FeeBumpTransactionFrame const&
-    toFeeBumpTransactionFrame() const = 0;
 
     // Returns the total fee of this transaction, including the 'flat',
     // non-market part.
@@ -100,13 +99,14 @@ class TransactionFrameBase
     virtual void insertKeysForTxApply(UnorderedSet<LedgerKey>& keys,
                                       LedgerKeyMeter* lkMeter) const = 0;
 
-    virtual void processFeeSeqNum(AbstractLedgerTxn& ltx,
-                                  std::optional<int64_t> baseFee,
-                                  TransactionResultPayload& resPayload) = 0;
+    virtual TransactionResultPayloadPtr
+    processFeeSeqNum(AbstractLedgerTxn& ltx,
+                     std::optional<int64_t> baseFee) const = 0;
 
-    virtual void processPostApply(Application& app, AbstractLedgerTxn& ltx,
-                                  TransactionMetaFrame& meta,
-                                  TransactionResultPayload& resPayload) = 0;
+    virtual void
+    processPostApply(Application& app, AbstractLedgerTxn& ltx,
+                     TransactionMetaFrame& meta,
+                     TransactionResultPayloadPtr txResult) const = 0;
 
     virtual std::shared_ptr<StellarMessage const> toStellarMessage() const = 0;
 

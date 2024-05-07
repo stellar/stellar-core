@@ -13,7 +13,7 @@ namespace stellar
 {
 
 EndSponsoringFutureReservesOpFrame::EndSponsoringFutureReservesOpFrame(
-    Operation const& op, OperationResult& res, TransactionFrame& parentTx)
+    Operation const& op, OperationResult& res, TransactionFrame const& parentTx)
     : OperationFrame(op, res, parentTx)
 {
 }
@@ -28,7 +28,7 @@ EndSponsoringFutureReservesOpFrame::isOpSupported(
 
 bool
 EndSponsoringFutureReservesOpFrame::doApply(
-    AbstractLedgerTxn& ltx, TransactionResultPayload& resPayload)
+    AbstractLedgerTxn& ltx, MutableTransactionResultBase& txResult)
 {
     ZoneNamedN(applyZone, "EndSponsoringFutureReservesOpFrame apply", true);
 
