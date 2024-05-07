@@ -124,38 +124,38 @@ class Peer : public std::enable_shared_from_this<Peer>,
     struct PeerMetrics
     {
         PeerMetrics(VirtualClock::time_point connectedTime);
-        uint64_t mMessageRead;
-        uint64_t mMessageWrite;
-        uint64_t mByteRead;
-        uint64_t mByteWrite;
-        uint64_t mAsyncRead;
-        uint64_t mAsyncWrite;
-        uint64_t mMessageDrop;
+        std::atomic<uint64_t> mMessageRead;
+        std::atomic<uint64_t> mMessageWrite;
+        std::atomic<uint64_t> mByteRead;
+        std::atomic<uint64_t> mByteWrite;
+        std::atomic<uint64_t> mAsyncRead;
+        std::atomic<uint64_t> mAsyncWrite;
+        std::atomic<uint64_t> mMessageDrop;
 
         medida::Timer mMessageDelayInWriteQueueTimer;
         medida::Timer mMessageDelayInAsyncWriteTimer;
         medida::Timer mAdvertQueueDelay;
         medida::Timer mPullLatency;
 
-        uint64_t mDemandTimeouts;
-        uint64_t mUniqueFloodBytesRecv;
-        uint64_t mDuplicateFloodBytesRecv;
-        uint64_t mUniqueFetchBytesRecv;
-        uint64_t mDuplicateFetchBytesRecv;
+        std::atomic<uint64_t> mDemandTimeouts;
+        std::atomic<uint64_t> mUniqueFloodBytesRecv;
+        std::atomic<uint64_t> mDuplicateFloodBytesRecv;
+        std::atomic<uint64_t> mUniqueFetchBytesRecv;
+        std::atomic<uint64_t> mDuplicateFetchBytesRecv;
 
-        uint64_t mUniqueFloodMessageRecv;
-        uint64_t mDuplicateFloodMessageRecv;
-        uint64_t mUniqueFetchMessageRecv;
-        uint64_t mDuplicateFetchMessageRecv;
+        std::atomic<uint64_t> mUniqueFloodMessageRecv;
+        std::atomic<uint64_t> mDuplicateFloodMessageRecv;
+        std::atomic<uint64_t> mUniqueFetchMessageRecv;
+        std::atomic<uint64_t> mDuplicateFetchMessageRecv;
 
-        uint64_t mTxHashReceived;
-        uint64_t mTxDemandSent;
+        std::atomic<uint64_t> mTxHashReceived;
+        std::atomic<uint64_t> mTxDemandSent;
 
-        VirtualClock::time_point mConnectedTime;
+        std::atomic<VirtualClock::time_point> mConnectedTime;
 
-        uint64_t mMessagesFulfilled;
-        uint64_t mBannedMessageUnfulfilled;
-        uint64_t mUnknownMessageUnfulfilled;
+        std::atomic<uint64_t> mMessagesFulfilled;
+        std::atomic<uint64_t> mBannedMessageUnfulfilled;
+        std::atomic<uint64_t> mUnknownMessageUnfulfilled;
     };
 
     struct TimestampedMessage
@@ -185,9 +185,9 @@ class Peer : public std::enable_shared_from_this<Peer>,
 
     Hash const mNetworkID;
     std::shared_ptr<FlowControl> mFlowControl;
-    VirtualClock::time_point mLastRead;
-    VirtualClock::time_point mLastWrite;
-    VirtualClock::time_point mEnqueueTimeOfLastWrite;
+    std::atomic<VirtualClock::time_point> mLastRead;
+    std::atomic<VirtualClock::time_point> mLastWrite;
+    std::atomic<VirtualClock::time_point> mEnqueueTimeOfLastWrite;
 
     PeerRole const mRole;
     OverlayMetrics& mOverlayMetrics;
@@ -195,10 +195,8 @@ class Peer : public std::enable_shared_from_this<Peer>,
 
     HmacSha256Key mSendMacKey;
     HmacSha256Key mRecvMacKey;
-    uint64_t mSendMacSeq{0};
-    uint64_t mRecvMacSeq{0};
-    VirtualTimer mRecurringTimer;
-
+    std::atomic<uint64_t> mSendMacSeq{0};
+    std::atomic<uint64_t> mRecvMacSeq{0};
     // Does local node have capacity to read from this peer
     bool canRead() const;
     // helper method to acknowledge that some bytes were received
@@ -224,7 +222,7 @@ class Peer : public std::enable_shared_from_this<Peer>,
     PeerBareAddress mAddress;
 
     VirtualClock::time_point mCreationTime;
-
+    VirtualTimer mRecurringTimer;
     VirtualTimer mDelayedExecutionTimer;
 
     std::shared_ptr<TxAdverts> mTxAdverts;
@@ -327,11 +325,6 @@ class Peer : public std::enable_shared_from_this<Peer>,
     bool isConnected() const;
     bool isAuthenticated() const;
 
-    VirtualClock::time_point
-    getCreationTime() const
-    {
-        return mCreationTime;
-    }
     std::chrono::seconds getLifeTime() const;
     std::chrono::milliseconds getPing() const;
 
@@ -345,12 +338,6 @@ class Peer : public std::enable_shared_from_this<Peer>,
     getRemoteVersion() const
     {
         return mRemoteVersion;
-    }
-
-    uint32_t
-    getRemoteOverlayMinVersion() const
-    {
-        return mRemoteOverlayMinVersion;
     }
 
     std::optional<uint32_t>
