@@ -1950,6 +1950,12 @@ TransactionFrame::apply(Application& app, AbstractLedgerTxn& ltx,
 
                 ok = applyOperations(signatureChecker, app, ltx, meta,
                                      sorobanBasePrngSeed);
+
+                if (isSoroban())
+                {
+                    CLOG_TRACE(Tx, "Soroban transaction meta: {}",
+                               xdr::xdr_to_string(meta.getXDR(), "meta"));
+                }
             }
             return ok;
         }
