@@ -122,7 +122,7 @@ OverlayManagerImpl::PeersList::removePeer(Peer* peer)
 {
     ZoneScoped;
     CLOG_TRACE(Overlay, "Removing peer {}", peer->toString());
-    releaseAssert(peer->getState() == Peer::CLOSING);
+    peer->assertShuttingDown();
 
     auto pendingIt =
         std::find_if(std::begin(mPending), std::end(mPending),
@@ -131,6 +131,9 @@ OverlayManagerImpl::PeersList::removePeer(Peer* peer)
     {
         CLOG_TRACE(Overlay, "Dropping pending {} peer: {}", mDirectionString,
                    peer->toString());
+        // Prolong the lifetime of dropped peer for a bit until background
+        // thread is done processing it
+        mDropped.insert(*pendingIt);
         mPending.erase(pendingIt);
         mConnectionsDropped.Mark();
         return;
@@ -141,6 +144,9 @@ OverlayManagerImpl::PeersList::removePeer(Peer* peer)
     {
         CLOG_DEBUG(Overlay, "Dropping authenticated {} peer: {}",
                    mDirectionString, peer->toString());
+        // Prolong the lifetime of dropped peer for a bit until background
+        // thread is done processing it
+        mDropped.insert(authentiatedIt->second);
         mAuthenticated.erase(authentiatedIt);
         mConnectionsDropped.Mark();
         mSurveyManager->recordDroppedPeer(*peer);
@@ -156,8 +162,10 @@ bool
 OverlayManagerImpl::PeersList::moveToAuthenticated(Peer::pointer peer)
 {
     ZoneScoped;
-    CLOG_TRACE(Overlay, "Moving peer {} to authenticated  state: {}",
-               peer->toString(), Peer::format_as(peer->getState()));
+    releaseAssert(threadIsMain());
+
+    CLOG_TRACE(Overlay, "Moving peer {} to authenticated  state",
+               peer->toString());
     auto pendingIt = std::find(std::begin(mPending), std::end(mPending), peer);
     if (pendingIt == std::end(mPending))
     {
@@ -185,7 +193,7 @@ OverlayManagerImpl::PeersList::moveToAuthenticated(Peer::pointer peer)
     mPending.erase(pendingIt);
     mAuthenticated[peer->getPeerID()] = peer;
 
-    CLOG_INFO(Overlay, "Connected to {}", peer->toString());
+    CLOG_INFO(Overlay, "Authenticated to {}", peer->toString());
 
     mSurveyManager->modifyNodeData([&](CollectingNodeData& nodeData) {
         ++nodeData.mAddedAuthenticatedPeers;
@@ -198,6 +206,8 @@ bool
 OverlayManagerImpl::PeersList::acceptAuthenticatedPeer(Peer::pointer peer)
 {
     ZoneScoped;
+    releaseAssert(threadIsMain());
+
     CLOG_TRACE(Overlay, "Trying to promote peer to authenticated {}",
                peer->toString());
     if (mOverlayManager.isPreferred(peer.get()))
@@ -279,6 +289,11 @@ OverlayManagerImpl::PeersList::shutdown()
     {
         p.second->sendErrorAndDrop(ERR_MISC, "shutdown",
                                    Peer::DropMode::IGNORE_WRITE_QUEUE);
+    }
+
+    for (auto& p : mDropped)
+    {
+        p->assertShuttingDown();
     }
 }
 
@@ -416,7 +431,8 @@ bool
 OverlayManagerImpl::connectToImpl(PeerBareAddress const& address,
                                   bool forceoutbound)
 {
-    CLOG_TRACE(Overlay, "Connect to {}", address.toString());
+    releaseAssert(threadIsMain());
+    CLOG_TRACE(Overlay, "Initiate connect to {}", address.toString());
     auto currentConnection = getConnectedPeer(address);
     if (!currentConnection || (forceoutbound && currentConnection->getRole() ==
                                                     Peer::REMOTE_CALLED_US))
@@ -673,6 +689,27 @@ OverlayManagerImpl::tick()
         mTimer.async_wait([this]() { this->tick(); },
                           VirtualTimer::onFailureNoop);
     });
+
+    // Cleanup unreferenced peers.
+    auto cleanupPeers = [](auto& peerList) {
+        for (auto it = peerList.mDropped.begin();
+             it != peerList.mDropped.end();)
+        {
+            auto const& p = *it;
+            p->assertShuttingDown();
+            if (p.use_count() == 1)
+            {
+                it = peerList.mDropped.erase(it);
+            }
+            else
+            {
+                ++it;
+            }
+        }
+    };
+
+    cleanupPeers(mInboundPeers);
+    cleanupPeers(mOutboundPeers);
 
     if (futureIsReady(mResolvedPeers))
     {
@@ -967,6 +1004,7 @@ OverlayManagerImpl::addOutboundConnection(Peer::pointer peer)
 void
 OverlayManagerImpl::removePeer(Peer* peer)
 {
+    releaseAssert(threadIsMain());
     ZoneScoped;
     getPeersList(peer).removePeer(peer);
     getPeerManager().removePeersWithManyFailures(
@@ -1062,14 +1100,17 @@ OverlayManagerImpl::isPreferred(Peer* peer) const
         return true;
     }
 
-    if (peer->isAuthenticated())
+    bool isPreferred = false;
+    peer->doIfAuthenticated([&]() {
+        isPreferred =
+            mApp.getConfig().PREFERRED_PEER_KEYS.count(peer->getPeerID()) != 0;
+    });
+
+    if (isPreferred)
     {
-        if (mApp.getConfig().PREFERRED_PEER_KEYS.count(peer->getPeerID()) != 0)
-        {
-            CLOG_DEBUG(Overlay, "Peer key {} is preferred",
-                       mApp.getConfig().toShortString(peer->getPeerID()));
-            return true;
-        }
+        CLOG_DEBUG(Overlay, "Peer key {} is preferred",
+                   mApp.getConfig().toShortString(peer->getPeerID()));
+        return true;
     }
 
     CLOG_TRACE(Overlay, "Peer {} is not preferred", pstr);
