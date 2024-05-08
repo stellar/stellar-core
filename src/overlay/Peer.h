@@ -173,12 +173,16 @@ class Peer : public std::enable_shared_from_this<Peer>,
     {
         std::weak_ptr<Peer> mWeakPeer;
         StellarMessage mMsg;
+        std::atomic<bool> mFinished{false};
 
       public:
         MsgCapacityTracker(std::weak_ptr<Peer> peer, StellarMessage const& msg);
-        ~MsgCapacityTracker();
         StellarMessage const& getMessage();
         std::weak_ptr<Peer> getPeer();
+        // Since MsgCapacityTracker is passed around between thread and stored
+        // by ASIO in lambdas, do not rely on RAII to trigger completion.
+        // Instead, explicitly call `finish`.
+        void finish();
     };
 
     OverlayAppConnector mAppConnector;
@@ -193,6 +197,10 @@ class Peer : public std::enable_shared_from_this<Peer>,
     OverlayMetrics& mOverlayMetrics;
     PeerMetrics mPeerMetrics;
 
+    // Mutex to protect PeerState, which can be accessed and modified from
+    // multiple threads
+    std::recursive_mutex mutable mStateMutex;
+
     HmacSha256Key mSendMacKey;
     HmacSha256Key mRecvMacKey;
     std::atomic<uint64_t> mSendMacSeq{0};
@@ -201,14 +209,40 @@ class Peer : public std::enable_shared_from_this<Peer>,
     bool canRead() const;
     // helper method to acknowledge that some bytes were received
     void receivedBytes(size_t byteCount, bool gotFullMessage);
+    virtual bool
+    useBackgroundThread() const
+    {
+        return mAppConnector.getConfig()
+            .EXPERIMENTAL_BACKGROUND_OVERLAY_PROCESSING;
+    }
+
     void initialize(PeerBareAddress const& address);
-    void setState(PeerState newState);
-    bool shouldAbort() const;
+    void setState(std::lock_guard<std::recursive_mutex>& stateGuard,
+                  PeerState newState);
+    bool shouldAbort(std::lock_guard<std::recursive_mutex>& stateGuard) const;
+    void shutdownAndRemovePeer(std::string const& reason,
+                               DropDirection dropDirection, DropMode dropMode);
+
+    // Subclasses should only use these methods to load and modify peer state,
+    // signatured hint that callers need to grab mStateMutex.
+    PeerState
+    getState(std::lock_guard<std::recursive_mutex>& stateGuard) const
+    {
+        return mState;
+    }
 
     void recvAuthenticatedMessage(AuthenticatedMessage&& msg);
     // These exist mostly to be overridden in TCPPeer and callable via
     // shared_ptr<Peer> as a captured shared_from_this().
     virtual void connectHandler(asio::error_code const& ec);
+
+    void maybeExecuteInBackground(std::string const& jobName,
+                                  std::function<void(std::shared_ptr<Peer>)> f);
+
+    virtual void
+    startShutdownTimer()
+    {
+    }
 
   private:
     PeerState mState;
@@ -267,7 +301,7 @@ class Peer : public std::enable_shared_from_this<Peer>,
     void sendPeers();
     void sendError(ErrorCode error, std::string const& message);
 
-    void recvMessage(StellarMessage const& stellarMsg);
+    void recvMessage(std::shared_ptr<MsgCapacityTracker> msgTracker);
 
     // NB: This is a move-argument because the write-buffer has to travel
     // with the write-request through the async IO system, and we might have
@@ -286,6 +320,7 @@ class Peer : public std::enable_shared_from_this<Peer>,
     virtual AuthCert getAuthCert();
 
     void startRecurrentTimer();
+
     void recurrentTimerExpired(asio::error_code const& error);
     std::chrono::seconds getIOTimeout() const;
 
@@ -295,6 +330,8 @@ class Peer : public std::enable_shared_from_this<Peer>,
     bool mShuttingDown{false};
 
   public:
+    /* The following functions must all be called from the main thread (they all
+     * contain releaseAssert(threadIsMain())) */
     Peer(Application& app, PeerRole role);
 
     void shutdown();
@@ -319,48 +356,74 @@ class Peer : public std::enable_shared_from_this<Peer>,
     PeerRole
     getRole() const
     {
+        releaseAssert(threadIsMain());
         return mRole;
     }
-
-    bool isConnected() const;
-    bool isAuthenticated() const;
 
     std::chrono::seconds getLifeTime() const;
     std::chrono::milliseconds getPing() const;
 
-    PeerState
-    getState() const
-    {
-        return mState;
-    }
-
     std::string const&
     getRemoteVersion() const
     {
+        releaseAssert(threadIsMain());
         return mRemoteVersion;
     }
 
     std::optional<uint32_t>
     getRemoteOverlayVersion() const
     {
+        releaseAssert(threadIsMain());
         return mRemoteOverlayVersion;
     }
 
     PeerBareAddress const&
     getAddress()
     {
+        releaseAssert(threadIsMain());
         return mAddress;
     }
 
     NodeID
     getPeerID() const
     {
+        releaseAssert(threadIsMain());
         return mPeerID;
     }
+
+    std::string const& toString();
+
+    void startExecutionDelayedTimer(
+        VirtualClock::duration d, std::function<void()> const& onSuccess,
+        std::function<void(asio::error_code)> const& onFailure);
+    Json::Value getJsonInfo(bool compact) const;
+    void handleMaxTxSizeIncrease(uint32_t increase);
+    virtual ~Peer()
+    {
+        releaseAssert(threadIsMain());
+    }
+
+    // Pull Mode facade methods , must be called from the main thread.
+    // Queue up transaction hashes for processing again. This method is normally
+    // called if a previous demand failed or timed out.
+    void retryAdvert(std::list<Hash>& hashes);
+    // Does this peer have any transaction hashes to process?
+    bool hasAdvert();
+    // Pop the next transaction hash to process
+    std::pair<Hash, std::optional<VirtualClock::time_point>> popAdvert();
+    // Clear pull mode state below `ledgerSeq`
+    void clearBelow(uint32_t ledgerSeq);
+
+    /* The following functions can be called from background thread, so they
+     * must be thread-safe */
+    bool isConnected(std::lock_guard<std::recursive_mutex>& stateGuard) const;
+    bool
+    isAuthenticated(std::lock_guard<std::recursive_mutex>& stateGuard) const;
 
     PeerMetrics&
     getPeerMetrics()
     {
+        // PeerMetrics is thread-safe
         return mPeerMetrics;
     }
 
@@ -370,19 +433,8 @@ class Peer : public std::enable_shared_from_this<Peer>,
         return mPeerMetrics;
     }
 
-    std::string const& toString();
-
     virtual void drop(std::string const& reason, DropDirection dropDirection,
                       DropMode dropMode) = 0;
-    virtual ~Peer()
-    {
-    }
-
-    void startExecutionDelayedTimer(
-        VirtualClock::duration d, std::function<void()> const& onSuccess,
-        std::function<void(asio::error_code)> const& onFailure);
-    Json::Value getJsonInfo(bool compact) const;
-    void handleMaxTxSizeIncrease(uint32_t increase);
 
     friend class LoopbackPeer;
     friend class PeerStub;
@@ -393,17 +445,45 @@ class Peer : public std::enable_shared_from_this<Peer>,
     {
         return mFlowControl;
     }
+    bool isAuthenticatedForTesting() const;
+    bool shouldAbortForTesting() const;
+    bool isConnectedForTesting() const;
 #endif
 
-    // Pull Mode facade methods
-    // Queue up transaction hashes for processing again. This method is normally
-    // called if a previous demand failed or timed out.
-    void retryAdvert(std::list<Hash>& hashes);
-    // Does this peer have any transaction hashes to process?
-    bool hasAdvert();
-    // Pop the next transaction hash to process
-    std::pair<Hash, std::optional<VirtualClock::time_point>> popAdvert();
-    // Clear pull mode state below `ledgerSeq`
-    void clearBelow(uint32_t ledgerSeq);
+    // Public thread-safe methods that access Peer's state
+    void
+    assertAuthenticated() const
+    {
+        std::lock_guard<std::recursive_mutex> guard(mStateMutex);
+        releaseAssert(isAuthenticated(guard));
+    }
+
+    void
+    assertShuttingDown() const
+    {
+        std::lock_guard<std::recursive_mutex> guard(mStateMutex);
+        releaseAssert(mState == CLOSING);
+    }
+
+    // equivalent to isAuthenticated being an atomic flag; i.e. it can be safely
+    // loaded, but once it's loaded, there are no guarantees on its value. If
+    // the code block depends on isAuthenticated value being constant, use
+    // `doIfAuthenticated`
+    bool
+    isAuthenticatedAtomic() const
+    {
+        std::lock_guard<std::recursive_mutex> guard(mStateMutex);
+        return isAuthenticated(guard);
+    }
+
+    void
+    doIfAuthenticated(std::function<void()> f)
+    {
+        std::lock_guard<std::recursive_mutex> guard(mStateMutex);
+        if (isAuthenticated(guard))
+        {
+            f();
+        }
+    }
 };
 }
