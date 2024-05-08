@@ -40,7 +40,10 @@ Simulation::Simulation(Mode mode, Hash const& networkID, ConfigGen confGen,
     , mConfigGen(confGen)
     , mQuorumSetAdjuster(qSetAdjust)
 {
-    mIdleApp = Application::create(mClock, newConfig());
+    auto cfg = newConfig();
+    cfg.EXPERIMENTAL_BACKGROUND_OVERLAY_PROCESSING =
+        mVirtualClockMode == VirtualClock::REAL_TIME;
+    mIdleApp = Application::create(mClock, cfg);
     mPeerMap.emplace(mIdleApp->getConfig().PEER_PORT, mIdleApp);
 }
 
@@ -48,11 +51,23 @@ Simulation::~Simulation()
 {
     // kills all connections
     mLoopbackConnections.clear();
+
+    // shutdown overlay on all nodes first to ensure socket closure is properly
+    // triggered in TCP mode. This shouldn't normally be needed, but because in
+    // Simulation we shutdown nodes quickly before they
+    for (auto& p : mNodes)
+    {
+        p.second.mApp->getOverlayManager().shutdown();
+    }
     // destroy all nodes first
     mNodes.clear();
 
     // kill scheduler before the io service
     testutil::shutdownWorkScheduler(*mIdleApp);
+
+    // shutdown overlay service such that it doesn't post anything to
+    // soon-to-be-dead main io service killed right below
+    mIdleApp->getOverlayManager().shutdown();
 
     // tear down main app/clock
     mClock.getIOContext().poll_one();
@@ -91,6 +106,8 @@ Simulation::addNode(SecretKey nodeKey, SCPQuorumSet qSet, Config const* cfg2,
     cfg->adjust();
     cfg->NODE_SEED = nodeKey;
     cfg->MANUAL_CLOSE = false;
+    cfg->EXPERIMENTAL_BACKGROUND_OVERLAY_PROCESSING =
+        mVirtualClockMode == VirtualClock::REAL_TIME;
 
     if (mQuorumSetAdjuster)
     {
@@ -775,7 +792,7 @@ LoopbackOverlayManager::connectToImpl(PeerBareAddress const& address,
             return false;
         }
         auto res = LoopbackPeer::initiate(mApp, *otherApp);
-        return res.first->getState() == Peer::CONNECTED;
+        return res.first->isConnectedForTesting();
     }
     else
     {

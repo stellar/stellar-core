@@ -49,8 +49,28 @@ TEST_CASE("TCPPeer can communicate", "[overlay][acceptance]")
 
     REQUIRE(p0);
     REQUIRE(p1);
-    REQUIRE(p0->isAuthenticated());
-    REQUIRE(p1->isAuthenticated());
+    REQUIRE(p0->isAuthenticatedForTesting());
+    REQUIRE(p1->isAuthenticatedForTesting());
+
+    SECTION("delayed shutdown")
+    {
+        auto& recvGetPeers =
+            n1->getOverlayManager().getOverlayMetrics().mRecvGetPeersTimer;
+        auto& recvError =
+            n1->getOverlayManager().getOverlayMetrics().mRecvErrorTimer;
+        auto prevPeers = recvGetPeers.count();
+        auto prevError = recvError.count();
+        p0->sendGetPeers();
+        p0->sendErrorAndDrop(ERR_MISC, "test drop",
+                             Peer::DropMode::FLUSH_WRITE_QUEUE);
+        s->crankForAtLeast(std::chrono::seconds(1), false);
+        REQUIRE(!p0->isConnectedForTesting());
+        REQUIRE(!p1->isConnectedForTesting());
+
+        // p1 must have received getPeers, Error
+        REQUIRE(recvGetPeers.count() == prevPeers + 1);
+        REQUIRE(recvError.count() == prevError + 1);
+    }
     s->stopAllNodes();
 }
 }

@@ -35,7 +35,8 @@ class FlowControlStub : public FlowControl
   public:
     int mSent = 0;
 
-    FlowControlStub(OverlayAppConnector& connector) : FlowControl(connector)
+    FlowControlStub(OverlayAppConnector& connector)
+        : FlowControl(connector, false)
     {
     }
     virtual ~FlowControlStub() = default;

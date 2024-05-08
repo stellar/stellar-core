@@ -26,6 +26,8 @@ using namespace std;
 
 LoopbackPeer::LoopbackPeer(Application& app, PeerRole role) : Peer(app, role)
 {
+    mFlowControl =
+        std::make_shared<FlowControl>(mAppConnector, useBackgroundThread());
 }
 
 std::string
@@ -255,7 +257,7 @@ void
 LoopbackPeer::recvMessage(xdr::msg_ptr const& msg)
 {
     ZoneScoped;
-    if (shouldAbort())
+    if (shouldAbortForTesting())
     {
         return;
     }
@@ -273,11 +275,21 @@ LoopbackPeer::recvMessage(xdr::msg_ptr const& msg)
     catch (xdr::xdr_runtime_error& e)
     {
         CLOG_ERROR(Overlay, "received corrupt xdr::msg_ptr {}", e.what());
-        drop("received corrupted message",
+        drop("git received corrupted message",
              Peer::DropDirection::WE_DROPPED_REMOTE,
              Peer::DropMode::IGNORE_WRITE_QUEUE);
         return;
     }
+}
+
+void
+LoopbackPeer::recvMessage(std::shared_ptr<MsgCapacityTracker> msgTracker)
+{
+    mAppConnector.postOnMainThread(
+        [self = shared_from_this(), msgTracker]() {
+            self->recvMessage(msgTracker);
+        },
+        "LoopbackPeer: processInQueue");
 }
 
 void
