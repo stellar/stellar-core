@@ -55,21 +55,12 @@ FlowControl::hasOutboundCapacity(StellarMessage const& msg) const
             mFlowControlBytesCapacity->hasOutboundCapacity(msg));
 }
 
-// Start flow control: send SEND_MORE to a peer to indicate available capacity
-// NOTE: this is the only place where FlowControl has access to Peer via the
-// lambda passed. The lambda calls `Peer::sendAuthenticatedMessage` which
-// creates an opportunity for a deadlock if that method acquires mStateMutex.
-// Peer must ensure it doesn't pass any lambda that acquires a lock.
 void
-FlowControl::start(
-    NodeID const& peerID,
-    std::function<void(std::shared_ptr<StellarMessage const>)> sendCb,
-    std::optional<uint32_t> enableFCBytes)
+FlowControl::start(NodeID const& peerID, std::optional<uint32_t> enableFCBytes)
 {
     releaseAssert(threadIsMain());
     std::lock_guard<std::recursive_mutex> guard(mFlowControlMutex);
     mNodeID = peerID;
-    mSendCallback = sendCb;
 
     if (enableFCBytes)
     {
@@ -79,7 +70,7 @@ FlowControl::start(
 }
 
 void
-FlowControl::maybeReleaseCapacityAndTriggerSend(StellarMessage const& msg)
+FlowControl::maybeReleaseCapacity(StellarMessage const& msg)
 {
     ZoneScoped;
     releaseAssert(threadIsMain());
@@ -109,35 +100,17 @@ FlowControl::maybeReleaseCapacityAndTriggerSend(StellarMessage const& msg)
                    mFlowControlBytesCapacity
                        ? std::to_string(msg.sendMoreExtendedMessage().numBytes)
                        : "N/A");
-
-        // SEND_MORE means we can free some capacity, and dump the next batch of
-        // messages onto the writing queue
-        if (mUseBackgroundThread)
-        {
-            mAppConnector.postOnOverlayThread(
-                [this]() { this->maybeSendNextBatch(); },
-                "FlowControl::maybeSendNextBatch");
-        }
-        else
-        {
-            maybeSendNextBatch();
-        }
     }
 }
 
-void
-FlowControl::maybeSendNextBatch()
+std::vector<std::shared_ptr<StellarMessage const>>
+FlowControl::getNextBatchToSend()
 {
     ZoneScoped;
     releaseAssert(!threadIsMain() || !mUseBackgroundThread);
 
     std::lock_guard<std::recursive_mutex> guard(mFlowControlMutex);
-
-    if (!mSendCallback)
-    {
-        throw std::runtime_error(
-            "MaybeSendNextBatch: FLowControl was not started properly");
-    }
+    std::vector<std::shared_ptr<StellarMessage const>> batchToSend;
 
     int sent = 0;
     for (int i = 0; i < mOutboundQueues.size(); i++)
@@ -162,9 +135,7 @@ FlowControl::maybeSendNextBatch()
                 break;
             }
 
-            // TODO: ideally, there's no dependency on Peer here to avoid
-            // deadlocks
-            mSendCallback(front.mMessage);
+            batchToSend.push_back(front.mMessage);
             ++sent;
             auto& om = mOverlayMetrics;
 
@@ -225,35 +196,7 @@ FlowControl::maybeSendNextBatch()
                mAppConnector.getConfig().toShortString(
                    mAppConnector.getConfig().NODE_SEED.getPublicKey()),
                mAppConnector.getConfig().toShortString(mNodeID), sent);
-}
-
-bool
-FlowControl::maybeSendMessage(std::shared_ptr<StellarMessage const> msg)
-{
-    ZoneScoped;
-    releaseAssert(threadIsMain());
-    std::lock_guard<std::recursive_mutex> guard(mFlowControlMutex);
-
-    if (OverlayManager::isFloodMessage(*msg))
-    {
-        addMsgAndMaybeTrimQueue(msg);
-        if (mUseBackgroundThread)
-        {
-            mAppConnector.postOnOverlayThread(
-                [this, msg]() {
-                    std::lock_guard<std::recursive_mutex> guard(
-                        mFlowControlMutex);
-                    maybeSendNextBatch();
-                },
-                "FlowControl::maybeSendMessage");
-        }
-        else
-        {
-            maybeSendNextBatch();
-        }
-        return true;
-    }
-    return false;
+    return batchToSend;
 }
 
 void

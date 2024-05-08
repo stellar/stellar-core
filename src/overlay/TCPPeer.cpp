@@ -222,11 +222,15 @@ TCPPeer::sendMessage(xdr::msg_ptr&& xdrBytes)
 {
     releaseAssert(!threadIsMain() || !useBackgroundThread());
 
-    // TODO: uncomment this
-    // if (shouldAbort())
-    // {
-    //     return;
-    // }
+    {
+        // No need to hold the lock in `messageSender`, just need to check
+        // Peer's state here to avoid putting any _new_ work onto the queues
+        std::lock_guard<std::recursive_mutex> guard(mStateMutex);
+        if (shouldAbort(guard))
+        {
+            return;
+        }
+    }
 
     TimestampedMessage msg;
     msg.mEnqueuedTime = mAppConnector.now();

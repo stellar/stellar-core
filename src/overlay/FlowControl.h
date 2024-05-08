@@ -84,23 +84,22 @@ class FlowControl
     uint64_t mFloodDataProcessedBytes{0};
     std::optional<VirtualClock::time_point> mNoOutboundCapacity;
     FlowControlMetrics mMetrics;
-    std::function<void(std::shared_ptr<StellarMessage const>)> mSendCallback;
 
-    // Release capacity used by this message. Return a struct that indicates how
-    // much reading and flood capacity was freed
-    void maybeSendNextBatch();
-    // This methods drops obsolete load from the outbound queue
-    void addMsgAndMaybeTrimQueue(std::shared_ptr<StellarMessage const> msg);
     bool hasOutboundCapacity(StellarMessage const& msg) const;
 
   public:
     FlowControl(OverlayAppConnector& connector, bool useBackgoundThread);
     virtual ~FlowControl() = default;
 
-    virtual bool maybeSendMessage(std::shared_ptr<StellarMessage const> msg);
-    void maybeReleaseCapacityAndTriggerSend(StellarMessage const& msg);
+    void maybeReleaseCapacity(StellarMessage const& msg);
     virtual size_t getOutboundQueueByteLimit() const;
     void handleTxSizeIncrease(uint32_t increase);
+    // This method adds a new message to the outbound queue, while shedding
+    // obsolete load
+    void addMsgAndMaybeTrimQueue(std::shared_ptr<StellarMessage const> msg);
+    // Return next batch of messages to send
+    // NOTE: this methods _releases_ capacity and cleans up flow control queues
+    std::vector<std::shared_ptr<StellarMessage const>> getNextBatchToSend();
 
 #ifdef BUILD_TESTS
     std::shared_ptr<FlowControlCapacity>
@@ -165,10 +164,7 @@ class FlowControl
 
     Json::Value getFlowControlJsonInfo(bool compact) const;
 
-    void
-    start(NodeID const& peerID,
-          std::function<void(std::shared_ptr<StellarMessage const>)> sendCb,
-          std::optional<uint32_t> enableFCBytes);
+    void start(NodeID const& peerID, std::optional<uint32_t> enableFCBytes);
 
     // Stop reading from this peer until capacity is released
     void throttleRead();

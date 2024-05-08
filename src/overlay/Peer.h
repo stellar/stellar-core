@@ -350,8 +350,8 @@ class Peer : public std::enable_shared_from_this<Peer>,
     void sendSendMore(uint32_t numMessages);
     void sendSendMore(uint32_t numMessages, uint32_t numBytes);
 
-    void sendMessage(std::shared_ptr<StellarMessage const> msg,
-                     bool log = true);
+    virtual void sendMessage(std::shared_ptr<StellarMessage const> msg,
+                             bool log = true);
 
     PeerRole
     getRole() const

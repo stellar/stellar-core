@@ -30,29 +30,10 @@ using namespace txtest;
 namespace stellar
 {
 
-class FlowControlStub : public FlowControl
-{
-  public:
-    int mSent = 0;
-
-    FlowControlStub(OverlayAppConnector& connector)
-        : FlowControl(connector, false)
-    {
-    }
-    virtual ~FlowControlStub() = default;
-
-    virtual bool
-    maybeSendMessage(std::shared_ptr<StellarMessage const> msg) override
-    {
-        // mock flow control
-        mSent++;
-        return true;
-    }
-};
-
 class PeerStub : public Peer
 {
   public:
+    int mSent = 0;
     PeerStub(Application& app, PeerBareAddress const& address)
         : Peer(app, WE_CALLED_REMOTE)
     {
@@ -60,7 +41,6 @@ class PeerStub : public Peer
         mState = GOT_AUTH;
         mAddress = address;
         mRemoteOverlayVersion = app.getConfig().OVERLAY_PROTOCOL_VERSION;
-        mFlowControl = std::make_shared<FlowControlStub>(mAppConnector);
     }
     virtual void
     drop(std::string const&, DropDirection, DropMode) override
@@ -69,6 +49,11 @@ class PeerStub : public Peer
     virtual void
     sendMessage(xdr::msg_ptr&& xdrBytes) override
     {
+    }
+    virtual void
+    sendMessage(std::shared_ptr<StellarMessage const> msg, bool log = true)
+    {
+        mSent += static_cast<int>(OverlayManager::isFloodMessage(*msg));
     }
     virtual void
     scheduleRead() override
@@ -256,9 +241,7 @@ class OverlayManagerTests
     {
         auto getSent = [](Peer::pointer p) {
             auto peer = static_pointer_cast<PeerStub>(p);
-            auto fc =
-                static_pointer_cast<FlowControlStub>(peer->getFlowControl());
-            return fc->mSent;
+            return peer->mSent;
         };
         std::vector<int> result;
         for (auto p : pm.mInboundPeers.mAuthenticated)

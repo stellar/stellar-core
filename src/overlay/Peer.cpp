@@ -806,7 +806,19 @@ Peer::sendMessage(std::shared_ptr<StellarMessage const> msg, bool log)
     };
 
     releaseAssert(mFlowControl);
-    if (!mFlowControl->maybeSendMessage(msg))
+    if (OverlayManager::isFloodMessage(*msg))
+    {
+        mFlowControl->addMsgAndMaybeTrimQueue(msg);
+        maybeExecuteInBackground(
+            "Peer::sendMessage maybeSendNextBatch",
+            [](std::shared_ptr<Peer> self) {
+                for (auto const& m : self->mFlowControl->getNextBatchToSend())
+                {
+                    self->sendAuthenticatedMessage(m);
+                }
+            });
+    }
+    else
     {
         // Outgoing message is not flow-controlled, send it directly
         sendAuthenticatedMessage(msg);
@@ -1063,7 +1075,15 @@ Peer::recvSendMore(StellarMessage const& msg)
 {
     releaseAssert(threadIsMain());
     releaseAssert(mFlowControl);
-    mFlowControl->maybeReleaseCapacityAndTriggerSend(msg);
+    mFlowControl->maybeReleaseCapacity(msg);
+    maybeExecuteInBackground("Peer::recvSendMore maybeSendNextBatch",
+                             [](std::shared_ptr<Peer> self) {
+                                 for (auto const& m :
+                                      self->mFlowControl->getNextBatchToSend())
+                                 {
+                                     self->sendAuthenticatedMessage(m);
+                                 }
+                             });
 }
 
 void
@@ -1791,7 +1811,7 @@ Peer::recvAuth(StellarMessage const& msg)
                                           .getFlowControlBytesConfig()
                                           .mTotal)
             : std::nullopt;
-    mFlowControl->start(mPeerID, sendCb, fcBytes);
+    mFlowControl->start(mPeerID, fcBytes);
     if (fcBytes)
     {
         sendSendMore(mAppConnector.getConfig().PEER_FLOOD_READING_CAPACITY,
