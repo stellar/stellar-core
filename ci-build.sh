@@ -10,6 +10,7 @@ CACHE_MAX_DAYS=30
 
 WITH_TESTS=1
 export TEMP_POSTGRES=0
+WITH_CODEQL=0
 
 PROTOCOL_CONFIG=""
 
@@ -25,6 +26,10 @@ while [[ -n "$1" ]]; do
     "--use-temp-db")
             export TEMP_POSTGRES=1
             echo Using temp database
+            ;;
+    "--build-with-codeql")
+            WITH_CODEQL=1
+            echo Building with CodeQL for static analysis
             ;;
     "--check-test-tx-meta")
             if [[ -z "${PROTOCOL}" ]]; then
@@ -68,16 +73,20 @@ NPROCS=$(getconf _NPROCESSORS_ONLN)
 echo "Found $NPROCS processors"
 date
 
-# Short-circuit transient 'auto-initialization' builds
-git fetch origin master
-MASTER=$(git describe --always FETCH_HEAD)
-HEAD=$(git describe --always HEAD)
-echo $MASTER
-echo $HEAD
-if [ $HEAD == $MASTER ]
+# Short-circuit transient 'auto-initialization' builds (if not building through CodeQL
+# since CodeQL shall only build from master periodically and not on PRs, as CodeQL scan takes around 3 hrs to run)
+if [ $WITH_CODEQL -eq 0 ]
 then
-    echo "HEAD SHA1 equals master; probably just establishing merge, exiting build early"
-    exit 1
+    git fetch origin master
+    MASTER=$(git describe --always FETCH_HEAD)
+    HEAD=$(git describe --always HEAD)
+    echo $MASTER
+    echo $HEAD
+    if [ $HEAD == $MASTER ]
+    then
+        echo "HEAD SHA1 equals master; probably just establishing merge, exiting build early"
+        exit 1
+    fi
 fi
 
 # Try to ensure we're using the real g++ and clang++ versions we want
@@ -107,7 +116,13 @@ elif test $CXX = 'g++'; then
     g++ -v
 fi
 
-config_flags="--enable-asan --enable-extrachecks --enable-ccache --enable-sdfprefs ${PROTOCOL_CONFIG}"
+if [ $WITH_CODEQL -eq 0 ]
+then
+    config_flags="--enable-asan --enable-extrachecks --enable-ccache --enable-sdfprefs ${PROTOCOL_CONFIG}"
+else
+    # Don't enable asan when building with CodeQL as it interferes with CodeQL build
+    config_flags="--enable-extrachecks --enable-ccache --enable-sdfprefs ${PROTOCOL_CONFIG}"
+fi
 export CFLAGS="-O2 -g1 -fno-omit-frame-pointer -fsanitize-address-use-after-scope -fno-common"
 export CXXFLAGS="-w $CFLAGS"
 
@@ -160,7 +175,12 @@ then
 fi
 
 date
-time make -j$(($NPROCS + 1))
+if [ $WITH_CODEQL -eq 0 ]
+then
+    time make -j$(($NPROCS + 1))
+else
+    codeql database create core-codeql-database --language=c-cpp --command make -j$(($NPROCS + 1))
+fi
 
 ccache -s
 

@@ -1,0 +1,83 @@
+name: "CodeQL"
+
+on:
+  # allow manual run
+  workflow_dispatch:
+  schedule:
+    # run every Sunday at 4:30 UTC
+    - cron: '30 4 * * 0'
+
+jobs:
+  analyze:
+    name: Analyze c-cpp
+    runs-on: ubuntu-latest
+    timeout-minutes: 360
+    permissions:
+      # required for all workflows
+      security-events: write
+
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+        - language: c-cpp
+          build-mode: manual
+        toolchain: ["gcc", "clang"]
+        protocol: ["current", "next"]
+
+    steps:  
+    - name: Fix kernel mmap rnd bits
+      # Asan in llvm provided in ubuntu 22.04 is incompatible with
+      # high-entropy ASLR in much newer kernels that GitHub runners are
+      # using leading to random crashes: https://reviews.llvm.org/D148280
+      run: sudo sysctl vm.mmap_rnd_bits=28
+    - uses: actions/checkout@v3.5.2
+      with:
+          fetch-depth: 200
+          submodules: true
+    - name: Get CodeQL CLI
+      run: |
+        cd /home/runner/work/stellar-core
+        wget https://github.com/github/codeql-action/releases/download/codeql-bundle-v2.17.2/codeql-bundle-linux64.tar.gz
+        tar -xvzf codeql-bundle-linux64.tar.gz
+    - name: Add CodeQL CLI to PATH
+      env:
+        ACTIONS_ALLOW_UNSECURE_COMMANDS: true
+      run: |
+        echo "::add-path::/home/runner/work/stellar-core/codeql:$PATH"
+    - name: install core packages
+      run: |
+        sudo apt-get update
+        sudo apt-get -y install --no-install-recommends apt-utils dialog git iproute2 procps lsb-release
+    - name: install tool chain
+      run: |
+        sudo apt-get -y install libstdc++-10-dev clang-format-12 ccache lldb
+        if test "${{ matrix.toolchain }}" = "gcc" ; then
+          sudo apt-get -y install cpp-10 gcc-10 g++-10
+        else
+          sudo apt-get -y install clang-12 llvm-12
+        fi
+    - name: install rustup components
+      run: rustup component add rustfmt
+    - name: install dependencies
+      run: sudo apt-get -y install postgresql git build-essential pkg-config autoconf automake libtool bison flex libpq-dev parallel libunwind-dev sed perl
+    - name: Build
+      run: |
+        if test "${{ matrix.toolchain }}" = "gcc" ; then
+          export CC='gcc'
+          export CXX='g++'
+        else
+          export CC='clang'
+          export CXX='clang++'
+        fi
+        echo Build with $CC and $CXX
+        ./ci-build.sh --build-with-codeql --disable-tests --protocol ${{ matrix.protocol }}
+    - name: Perform CodeQL Analysis
+      run: |
+        codeql database analyze core-codeql-database --format=sarif-latest --output=results.sarif
+    - name: Upload SARIF file
+      uses: github/codeql-action/upload-sarif@v3
+      with:
+        sarif_file: results.sarif
+        category: CodeQL
+
