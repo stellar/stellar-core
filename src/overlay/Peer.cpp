@@ -1762,17 +1762,6 @@ Peer::recvAuth(StellarMessage const& msg)
         return;
     }
 
-    // Subtle: after successful auth, must send sendMore message first to
-    // tell the other peer about the local node's reading capacity.
-    auto weakSelf = std::weak_ptr<Peer>(self);
-    auto sendCb = [weakSelf](std::shared_ptr<StellarMessage const> msg) {
-        auto self = weakSelf.lock();
-        if (self)
-        {
-            self->sendAuthenticatedMessage(msg);
-        }
-    };
-
     bool enableBytes =
         (mAppConnector.getConfig().OVERLAY_PROTOCOL_VERSION >=
              Peer::FIRST_VERSION_SUPPORTING_FLOW_CONTROL_IN_BYTES &&
@@ -1790,6 +1779,9 @@ Peer::recvAuth(StellarMessage const& msg)
                                           .mTotal)
             : std::nullopt;
     mFlowControl->start(mPeerID, fcBytes);
+
+    // Subtle: after successful auth, must send sendMore message first to
+    // tell the other peer about the local node's reading capacity.
     if (fcBytes)
     {
         sendSendMore(mAppConnector.getConfig().PEER_FLOOD_READING_CAPACITY,
@@ -1800,6 +1792,7 @@ Peer::recvAuth(StellarMessage const& msg)
         sendSendMore(mAppConnector.getConfig().PEER_FLOOD_READING_CAPACITY);
     }
 
+    auto weakSelf = std::weak_ptr<Peer>(shared_from_this());
     mTxAdverts->start([weakSelf](std::shared_ptr<StellarMessage const> msg) {
         auto self = weakSelf.lock();
         if (self)
@@ -1977,14 +1970,9 @@ Peer::sendTxDemand(TxDemandVector&& demands)
         msg->floodDemand().txHashes = std::move(demands);
         mOverlayMetrics.mMessagesDemanded.Mark(
             msg->floodDemand().txHashes.size());
-        std::weak_ptr<Peer> weak = shared_from_this();
         mAppConnector.postOnMainThread(
-            [weak, msg = std::move(msg)]() {
-                auto strong = weak.lock();
-                if (strong)
-                {
-                    strong->sendMessage(msg);
-                }
+            [self = shared_from_this(), msg = std::move(msg)]() {
+                self->sendMessage(msg);
             },
             "sendTxDemand");
         ++mPeerMetrics.mTxDemandSent;
