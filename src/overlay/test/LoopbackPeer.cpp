@@ -171,7 +171,7 @@ LoopbackPeer::drop(std::string const& reason, DropDirection direction, DropMode)
 
     mDropReason = reason;
     mState = CLOSING;
-    Peer::shutdown();
+    cancelTimers();
     mAppConnector.getOverlayManager().removePeer(this);
 
     auto remote = mRemote.lock();

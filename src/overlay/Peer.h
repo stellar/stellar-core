@@ -327,14 +327,13 @@ class Peer : public std::enable_shared_from_this<Peer>,
     void sendAuthenticatedMessage(std::shared_ptr<StellarMessage const> msg);
     void beginMessageProcessing(StellarMessage const& msg);
     void endMessageProcessing(StellarMessage const& msg);
-    bool mShuttingDown{false};
 
   public:
     /* The following functions must all be called from the main thread (they all
      * contain releaseAssert(threadIsMain())) */
     Peer(Application& app, PeerRole role);
 
-    void shutdown();
+    void cancelTimers();
 
     std::string msgSummary(StellarMessage const& stellarMsg);
     void sendGetTxSet(uint256 const& setID);

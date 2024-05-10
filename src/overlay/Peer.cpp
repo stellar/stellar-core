@@ -424,15 +424,9 @@ Peer::toString()
 }
 
 void
-Peer::shutdown()
+Peer::cancelTimers()
 {
     releaseAssert(threadIsMain());
-
-    if (mShuttingDown)
-    {
-        return;
-    }
-    mShuttingDown = true;
     mRecurringTimer.cancel();
     mDelayedExecutionTimer.cancel();
     if (mTxAdverts)

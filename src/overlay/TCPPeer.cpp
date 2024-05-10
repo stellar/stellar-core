@@ -191,7 +191,7 @@ TCPPeer::accept(Application& app, shared_ptr<TCPPeer::SocketType> socket)
 TCPPeer::~TCPPeer()
 {
     releaseAssert(threadIsMain());
-    Peer::shutdown();
+    cancelTimers();
     if (mRole == REMOTE_CALLED_US)
     {
         (*mLiveInboundPeersCounter)--;

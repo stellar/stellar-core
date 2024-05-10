@@ -51,7 +51,8 @@ class PeerStub : public Peer
     {
     }
     virtual void
-    sendMessage(std::shared_ptr<StellarMessage const> msg, bool log = true) override
+    sendMessage(std::shared_ptr<StellarMessage const> msg,
+                bool log = true) override
     {
         mSent += static_cast<int>(OverlayManager::isFloodMessage(*msg));
     }
