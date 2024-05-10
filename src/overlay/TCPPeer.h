@@ -102,6 +102,7 @@ class TCPPeer : public Peer
     // an atomic
     std::atomic<bool> mDropStarted{false};
     std::shared_ptr<SocketType> mSocket;
+    std::string const mIPAddress;
 
     void recvMessage();
     void sendMessage(xdr::msg_ptr&& xdrBytes) override;
@@ -158,10 +159,11 @@ class TCPPeer : public Peer
     typedef std::shared_ptr<TCPPeer> pointer;
 
     TCPPeer(Application& app, Peer::PeerRole role,
-            std::shared_ptr<SocketType> socket); // hollow
-                                                 // constructor; use
-                                                 // `initiate` or
-                                                 // `accept` instead
+            std::shared_ptr<SocketType> socket,
+            std::string address); // hollow
+                                  // constructor; use
+                                  // `initiate` or
+                                  // `accept` instead
 
     static pointer initiate(Application& app, PeerBareAddress const& address);
     static pointer accept(Application& app, std::shared_ptr<SocketType> socket);

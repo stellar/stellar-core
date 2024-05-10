@@ -31,10 +31,12 @@ using namespace std;
 ///////////////////////////////////////////////////////////////////////
 
 TCPPeer::TCPPeer(Application& app, Peer::PeerRole role,
-                 std::shared_ptr<TCPPeer::SocketType> socket)
+                 std::shared_ptr<TCPPeer::SocketType> socket,
+                 std::string address)
     : Peer(app, role)
     , mThreadVars(useBackgroundThread())
     , mSocket(socket)
+    , mIPAddress(std::move(address))
     , mLiveInboundPeersCounter(
           app.getOverlayManager().getLiveInboundPeersCounter())
 {
@@ -56,7 +58,8 @@ TCPPeer::initiate(Application& app, PeerBareAddress const& address)
                           ? app.getOverlayIOContext()
                           : app.getClock().getIOContext();
     auto socket = make_shared<SocketType>(ioContext, BUFSZ);
-    auto result = make_shared<TCPPeer>(app, WE_CALLED_REMOTE, socket);
+    auto result =
+        make_shared<TCPPeer>(app, WE_CALLED_REMOTE, socket, address.toString());
     result->initialize(address);
     asio::ip::tcp::endpoint endpoint(
         asio::ip::address::from_string(address.getIP()), address.getPort());
@@ -154,7 +157,7 @@ TCPPeer::accept(Application& app, shared_ptr<TCPPeer::SocketType> socket)
     if (!ec && !lingerEc)
     {
         CLOG_DEBUG(Overlay, "TCPPeer:accept");
-        result = make_shared<TCPPeer>(app, REMOTE_CALLED_US, socket);
+        result = make_shared<TCPPeer>(app, REMOTE_CALLED_US, socket, ip);
         result->initialize(PeerBareAddress{ip, 0});
 
         // Use weak_ptr here in case the peer is dropped before main thread
@@ -325,7 +328,7 @@ TCPPeer::messageSender()
             break;
     }
 
-    CLOG_DEBUG(Overlay, "messageSender {} - b:{} n:{}/{}", toString(),
+    CLOG_DEBUG(Overlay, "messageSender {} - b:{} n:{}/{}", mIPAddress,
                expected_length, mThreadVars.getWriteBuffers().size(),
                mThreadVars.getWriteQueue().size());
     mOverlayMetrics.mAsyncWrite.Mark();
@@ -407,7 +410,7 @@ TCPPeer::writeHandler(asio::error_code const& error,
             // errors during shutdown or connection are common/expected.
             mOverlayMetrics.mErrorWrite.Mark();
             CLOG_ERROR(Overlay, "Error during sending message to {}",
-                       toString());
+                       mIPAddress);
         }
         drop("error during write", Peer::DropDirection::WE_DROPPED_REMOTE);
     }
@@ -504,7 +507,7 @@ TCPPeer::scheduleRead()
     };
 
     std::string taskName =
-        fmt::format(FMT_STRING("TCPPeer::startRead for {}"), toString());
+        fmt::format(FMT_STRING("TCPPeer::startRead for {}"), mIPAddress);
 
     if (useBackgroundThread())
     {
@@ -531,7 +534,7 @@ TCPPeer::startRead()
     mThreadVars.getIncomingHeader().clear();
 
     CLOG_DEBUG(Overlay, "TCPPeer::startRead {} from {}", mSocket->in_avail(),
-               toString());
+               mIPAddress);
 
     mThreadVars.getIncomingHeader().resize(HDRSZ);
 
@@ -751,12 +754,12 @@ TCPPeer::recvMessage()
     catch (xdr::xdr_runtime_error& e)
     {
         CLOG_ERROR(Overlay, "{} - recvMessage got a corrupt xdr: {}",
-                   toString(), e.what());
+                   mIPAddress, e.what());
         errorMsg = "received corrupt XDR";
     }
     catch (CryptoError const& e)
     {
-        CLOG_ERROR(Overlay, "{} - Crypto error: {}", toString(), e.what());
+        CLOG_ERROR(Overlay, "{} - Crypto error: {}", mIPAddress, e.what());
         errorMsg = "crypto error";
     }
 
@@ -805,7 +808,7 @@ TCPPeer::drop(std::string const& reason, DropDirection dropDirection)
         {
             // should not happen, leave here for debugging purposes
             CLOG_ERROR(Overlay, "Double schedule of shutdown {}",
-                       self->toString());
+                       self->mIPAddress);
             CLOG_ERROR(Overlay, "{}", REPORT_INTERNAL_BUG);
             return;
         }

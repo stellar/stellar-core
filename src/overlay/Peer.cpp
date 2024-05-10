@@ -412,7 +412,7 @@ Peer::sendAuth()
 std::string const&
 Peer::toString()
 {
-    // TODO: this isn't thread-safe
+    releaseAssert(threadIsMain());
     return mAddress.toString();
 }
 
