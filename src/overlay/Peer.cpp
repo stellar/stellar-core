@@ -255,9 +255,6 @@ Peer::initialize(PeerBareAddress const& address)
     releaseAssert(threadIsMain());
     mAddress = address;
     startRecurrentTimer();
-    maybeExecuteInBackground(
-        "Peer::initialize connect",
-        [](std::shared_ptr<Peer> self) { self->startShutdownTimer(); });
 }
 
 void
@@ -816,6 +813,19 @@ Peer::sendMessage(std::shared_ptr<StellarMessage const> msg, bool log)
 void
 Peer::sendAuthenticatedMessage(std::shared_ptr<StellarMessage const> msg)
 {
+    {
+        // No need to hold the lock for the duration of this function: simply
+        // check if peer is shutting down, and if so, avoid putting more work
+        // onto the queues. If peer shuts down _after_ we already placed the
+        // message, any remaining messages will still go through before we close
+        // the socket, so this should be harmless.
+        std::lock_guard<std::recursive_mutex> guard(mStateMutex);
+        if (shouldAbort(guard))
+        {
+            return;
+        }
+    }
+
     auto cb = [msg](std::shared_ptr<Peer> self) {
         // Synchronous code block that executes TCPPeer::sendMessage preserves
         // ordering of messages, which is important here, because we assign

@@ -344,6 +344,20 @@ Simulation::addTCPConnection(NodeID initiator, NodeID acceptor)
 }
 
 void
+Simulation::stopOverlayTick()
+{
+    auto cancel = [](Application::pointer app) {
+        auto& ov = static_cast<OverlayManagerImpl&>(app->getOverlayManager());
+        ov.mTimer.cancel();
+    };
+    cancel(mIdleApp);
+    for (auto& n : mNodes)
+    {
+        cancel(n.second.mApp);
+    }
+}
+
+void
 Simulation::startAllNodes()
 {
     for (auto const& it : mNodes)

@@ -51,6 +51,7 @@ TEST_CASE("TCPPeer can communicate", "[overlay][acceptance]")
     REQUIRE(p1);
     REQUIRE(p0->isAuthenticatedForTesting());
     REQUIRE(p1->isAuthenticatedForTesting());
+    s->stopOverlayTick();
 
     SECTION("delayed shutdown")
     {

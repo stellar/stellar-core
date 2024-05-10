@@ -232,10 +232,11 @@ class Peer : public std::enable_shared_from_this<Peer>,
 
     void maybeExecuteInBackground(std::string const& jobName,
                                   std::function<void(std::shared_ptr<Peer>)> f);
-
-    virtual void
-    startShutdownTimer()
+    VirtualTimer&
+    getRecurrentTimer()
     {
+        releaseAssert(threadIsMain());
+        return mRecurringTimer;
     }
 
   private:

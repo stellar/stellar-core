@@ -96,6 +96,7 @@ class OverlayManagerImpl : public OverlayManager
     std::optional<VirtualClock::time_point> mLastOutOfSyncReconnect;
 
     friend class OverlayManagerTests;
+    friend class Simulation;
 
     Floodgate mFloodGate;
     TxDemandsManager mTxDemandsManager;

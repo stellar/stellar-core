@@ -33,12 +33,10 @@ using namespace std;
 TCPPeer::TCPPeer(Application& app, Peer::PeerRole role,
                  std::shared_ptr<TCPPeer::SocketType> socket)
     : Peer(app, role)
-    , mSocket(socket)
     , mThreadVars(useBackgroundThread())
+    , mSocket(socket)
     , mLiveInboundPeersCounter(
           app.getOverlayManager().getLiveInboundPeersCounter())
-    , mShutdownTimer(useBackgroundThread() ? app.getOverlayIOContext()
-                                           : app.getClock().getIOContext())
 {
     releaseAssert(threadIsMain());
     if (mRole == REMOTE_CALLED_US)
@@ -222,16 +220,6 @@ TCPPeer::sendMessage(xdr::msg_ptr&& xdrBytes)
 {
     releaseAssert(!threadIsMain() || !useBackgroundThread());
 
-    {
-        // No need to hold the lock in `messageSender`, just need to check
-        // Peer's state here to avoid putting any _new_ work onto the queues
-        std::lock_guard<std::recursive_mutex> guard(mStateMutex);
-        if (shouldAbort(guard))
-        {
-            return;
-        }
-    }
-
     TimestampedMessage msg;
     msg.mEnqueuedTime = mAppConnector.now();
     msg.mMessage = std::move(xdrBytes);
@@ -245,105 +233,53 @@ TCPPeer::sendMessage(xdr::msg_ptr&& xdrBytes)
 }
 
 void
-TCPPeer::startShutdownTimer()
-{
-    releaseAssert(!threadIsMain() || !useBackgroundThread());
-    std::weak_ptr<TCPPeer> weak =
-        static_pointer_cast<TCPPeer>(shared_from_this());
-    mShutdownTimer.expires_from_now(
-        std::chrono::milliseconds(SHUTDOWN_POLL_DELAY));
-    mShutdownTimer.async_wait([weak](asio::error_code const& ec) {
-        if (ec)
-        {
-            // Stop if ec was set, assuming app is shutting down
-            return;
-        }
-
-        auto self = weak.lock();
-        if (self)
-        {
-            std::lock_guard<std::recursive_mutex> guard(self->mStateMutex);
-            if (self->getState(guard) == CLOSING)
-            {
-                CLOG_TRACE(Overlay,
-                           "Shutdown detected: trigger socket close of {}",
-                           self->toString());
-                self->shutdown();
-                return;
-            }
-            self->startShutdownTimer();
-        }
-    });
-}
-
-void
 TCPPeer::shutdown()
 {
     releaseAssert(!threadIsMain() || !useBackgroundThread());
 
-    // Socket shutdown should be scheduled only once
-    if (mThreadVars.socketShutdownScheduled())
+    // Gracefully shut down connection: this pushes a FIN packet into
+    // TCP which, if we wanted to be really polite about, we would wait
+    // for an ACK from by doing repeated reads until we get a 0-read.
+    //
+    // But since we _might_ be dropping a hostile or unresponsive
+    // connection, we're going to just post a close() immediately after,
+    // and hope the kernel does something useful as far as putting any
+    // queued last-gasp ERROR_MSG packet on the wire.
+    //
+    // All of this is voluntary. We can also just close(2) here and be
+    // done with it, but we want to give some chance of telling peers
+    // why we're disconnecting them.
+    asio::error_code ec;
+    std::ignore = mSocket->next_layer().shutdown(
+        asio::ip::tcp::socket::shutdown_both, ec);
+    if (ec)
     {
-        // should not happen, leave here for debugging purposes
-        CLOG_ERROR(Overlay, "Double schedule of shutdown {}", toString());
-        CLOG_ERROR(Overlay, "{}", REPORT_INTERNAL_BUG);
-        return;
+        CLOG_DEBUG(Overlay, "TCPPeer::drop shutdown socket failed: {}",
+                   ec.message());
     }
 
-    auto self = static_pointer_cast<TCPPeer>(shared_from_this());
-    mThreadVars.scheduleSocketShutdown(true);
-
-    // To shutdown, we first queue up our desire to shutdown in the strand,
-    // behind any pending read/write calls. We'll let them issue first.
-    mShutdownTimer.cancel();
-
-    // leave some time before actually calling shutdown
-    mShutdownTimer.expires_from_now(std::chrono::seconds(5));
-    mShutdownTimer.async_wait([self](asio::error_code) {
-        // Gracefully shut down connection: this pushes a FIN packet into
-        // TCP which, if we wanted to be really polite about, we would wait
-        // for an ACK from by doing repeated reads until we get a 0-read.
+    auto socketClose = [](std::shared_ptr<Peer> self) {
+        // Close fd associated with socket. Socket is already
+        // shut down, but depending on platform (and apparently
+        // whether there was unread data when we issued
+        // shutdown()) this call might push RST onto the wire,
+        // or some other action; in any case it has to be done
+        // to free the OS resources.
         //
-        // But since we _might_ be dropping a hostile or unresponsive
-        // connection, we're going to just post a close() immediately after,
-        // and hope the kernel does something useful as far as putting any
-        // queued last-gasp ERROR_MSG packet on the wire.
-        //
-        // All of this is voluntary. We can also just close(2) here and be
-        // done with it, but we want to give some chance of telling peers
-        // why we're disconnecting them.
-        asio::error_code ec;
-        std::ignore = self->mSocket->next_layer().shutdown(
-            asio::ip::tcp::socket::shutdown_both, ec);
-        if (ec)
+        // It will also, at this point, cancel any pending asio
+        // read/write handlers, i.e. fire them with an error
+        // code indicating cancellation.
+        auto self_ = std::static_pointer_cast<TCPPeer>(self);
+        asio::error_code ec2;
+        self_->mSocket->close(ec2);
+        if (ec2)
         {
-            CLOG_DEBUG(Overlay, "TCPPeer::drop shutdown socket failed: {}",
-                       ec.message());
+            CLOG_DEBUG(Overlay, "TCPPeer::drop close socket failed: {}",
+                       ec2.message());
         }
+    };
 
-        auto socketClose = [](std::shared_ptr<Peer> self) {
-            // Close fd associated with socket. Socket is already
-            // shut down, but depending on platform (and apparently
-            // whether there was unread data when we issued
-            // shutdown()) this call might push RST onto the wire,
-            // or some other action; in any case it has to be done
-            // to free the OS resources.
-            //
-            // It will also, at this point, cancel any pending asio
-            // read/write handlers, i.e. fire them with an error
-            // code indicating cancellation.
-            auto self_ = std::static_pointer_cast<TCPPeer>(self);
-            asio::error_code ec2;
-            self_->mSocket->close(ec2);
-            if (ec2)
-            {
-                CLOG_DEBUG(Overlay, "TCPPeer::drop close socket failed: {}",
-                           ec2.message());
-            }
-        };
-
-        self->maybeExecuteInBackground("TCPPeer: close", socketClose);
-    });
+    maybeExecuteInBackground("TCPPeer: close", socketClose);
 }
 
 void
@@ -864,9 +800,28 @@ TCPPeer::drop(std::string const& reason, DropDirection dropDirection)
     auto mainThreadDrop = [self, reason, dropDirection]() {
         self->shutdownAndRemovePeer(reason, dropDirection);
 
-        // Note there isn't any calls to `shutdown` directly; background will
-        // automatically detect that it's time to shutdown and either perform an
-        // immediate socket close, or flush the write queue first.
+        // Socket shutdown should be scheduled only once
+        if (self->mThreadVars.socketShutdownScheduled())
+        {
+            // should not happen, leave here for debugging purposes
+            CLOG_ERROR(Overlay, "Double schedule of shutdown {}",
+                       self->toString());
+            CLOG_ERROR(Overlay, "{}", REPORT_INTERNAL_BUG);
+            return;
+        }
+
+        self->mThreadVars.scheduleSocketShutdown(true);
+
+        self->getRecurrentTimer().cancel();
+        self->getRecurrentTimer().expires_from_now(std::chrono::seconds(5));
+        self->getRecurrentTimer().async_wait(
+            [self](asio::error_code const& ec) {
+                self->maybeExecuteInBackground(
+                    "TCPPeer::shutdown", [](std::shared_ptr<Peer> peer) {
+                        auto self = std::static_pointer_cast<TCPPeer>(peer);
+                        self->shutdown();
+                    });
+            });
     };
 
     if (threadIsMain())

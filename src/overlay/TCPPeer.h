@@ -84,13 +84,13 @@ class TCPPeer : public Peer
         bool
         socketShutdownScheduled() const
         {
-            releaseAssert(!threadIsMain() || !mUseBackgroundThread);
+            releaseAssert(threadIsMain());
             return mSocketShutdownScheduled;
         }
         void
         scheduleSocketShutdown(bool value)
         {
-            releaseAssert(!threadIsMain() || !mUseBackgroundThread);
+            releaseAssert(threadIsMain());
             releaseAssert(!mSocketShutdownScheduled);
             mSocketShutdownScheduled = value;
         }
@@ -153,12 +153,6 @@ class TCPPeer : public Peer
     // because any other central place we might track the live count (overlay
     // manager or metrics) may be dead before the TCPPeer destructor runs.
     std::shared_ptr<int> mLiveInboundPeersCounter;
-
-    // Use shutdown timer to periodically check if peer is shutting down and
-    // it's time to close the socket. This is triggered by main thread, which
-    // sets Peer's state to CLOSING
-    RealSteadyTimer mShutdownTimer;
-    void startShutdownTimer() override;
 
   public:
     typedef std::shared_ptr<TCPPeer> pointer;
