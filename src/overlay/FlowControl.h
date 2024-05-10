@@ -57,7 +57,7 @@ class FlowControl
     size_t mTxQueueByteCount{0};
 
     // Mutex to synchronize flow control state
-    std::recursive_mutex mutable mFlowControlMutex;
+    std::mutex mutable mFlowControlMutex;
     // Is this peer currently throttled due to lack of capacity
     std::optional<VirtualClock::time_point> mLastThrottle;
 
@@ -85,14 +85,16 @@ class FlowControl
     std::optional<VirtualClock::time_point> mNoOutboundCapacity;
     FlowControlMetrics mMetrics;
 
-    bool hasOutboundCapacity(StellarMessage const& msg) const;
+    bool hasOutboundCapacity(StellarMessage const& msg,
+                             std::lock_guard<std::mutex>& lockGuard) const;
+    virtual size_t
+    getOutboundQueueByteLimit(std::lock_guard<std::mutex>& lockGuard) const;
 
   public:
     FlowControl(OverlayAppConnector& connector, bool useBackgoundThread);
     virtual ~FlowControl() = default;
 
     void maybeReleaseCapacity(StellarMessage const& msg);
-    virtual size_t getOutboundQueueByteLimit() const;
     void handleTxSizeIncrease(uint32_t increase);
     // This method adds a new message to the outbound queue, while shedding
     // obsolete load
@@ -136,6 +138,12 @@ class FlowControl
     setOutboundQueueLimit(size_t bytes)
     {
         mOutboundQueueLimit = std::make_optional<size_t>(bytes);
+    }
+    size_t
+    getOutboundQueueByteLimit() const
+    {
+        std::lock_guard<std::mutex> lockGuard(mFlowControlMutex);
+        return getOutboundQueueByteLimit(lockGuard);
     }
 #endif
 
