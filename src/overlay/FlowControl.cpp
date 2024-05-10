@@ -162,6 +162,8 @@ FlowControl::maybeSendNextBatch()
                 break;
             }
 
+            // TODO: ideally, there's no dependency on Peer here to avoid
+            // deadlocks
             mSendCallback(front.mMessage);
             ++sent;
             auto& om = mOverlayMetrics;
@@ -616,6 +618,8 @@ void
 FlowControl::throttleRead()
 {
     std::lock_guard<std::recursive_mutex> guard(mFlowControlMutex);
+    CLOG_DEBUG(Overlay, "Throttle reading from peer {}",
+               mAppConnector.getConfig().toShortString(mNodeID));
     mLastThrottle = mAppConnector.now();
 }
 

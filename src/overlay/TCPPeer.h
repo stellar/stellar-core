@@ -17,6 +17,8 @@ namespace stellar
 {
 
 static auto const MAX_UNAUTH_MESSAGE_SIZE = 0x1000;
+static std::chrono::milliseconds const SHUTDOWN_POLL_DELAY =
+    std::chrono::milliseconds(100);
 
 // Peer that communicates via a TCP socket.
 class TCPPeer : public Peer
@@ -26,15 +28,82 @@ class TCPPeer : public Peer
     static constexpr size_t BUFSZ = 0x40000; // 256KB
 
   private:
-    std::shared_ptr<SocketType> mSocket;
-    std::vector<uint8_t> mIncomingHeader;
-    std::vector<uint8_t> mIncomingBody;
+    // Helper class which provides invariance for various data structures;
+    // Each method should be called from the same thread
+    class ThreadRestrictedVars
+    {
+        std::deque<TimestampedMessage> mWriteQueue;
+        std::vector<asio::const_buffer> mWriteBuffers;
+        bool const mUseBackgroundThread;
+        bool mWriting{false};
+        bool mSocketShutdownScheduled{false};
+        std::vector<uint8_t> mIncomingHeader;
+        std::vector<uint8_t> mIncomingBody;
 
-    std::vector<asio::const_buffer> mWriteBuffers;
-    std::deque<TimestampedMessage> mWriteQueue;
-    bool mWriting{false};
-    bool mDelayedShutdown{false};
-    bool mShutdownScheduled{false};
+      public:
+        ThreadRestrictedVars(bool useBackgroundThread)
+            : mUseBackgroundThread(useBackgroundThread)
+        {
+        }
+        std::deque<TimestampedMessage>&
+        getWriteQueue()
+        {
+            releaseAssert(!threadIsMain() || !mUseBackgroundThread);
+            return mWriteQueue;
+        }
+        std::vector<asio::const_buffer>&
+        getWriteBuffers()
+        {
+            releaseAssert(!threadIsMain() || !mUseBackgroundThread);
+            return mWriteBuffers;
+        }
+        std::vector<uint8_t>&
+        getIncomingHeader()
+        {
+            releaseAssert(!threadIsMain() || !mUseBackgroundThread);
+            return mIncomingHeader;
+        }
+        std::vector<uint8_t>&
+        getIncomingBody()
+        {
+            releaseAssert(!threadIsMain() || !mUseBackgroundThread);
+            return mIncomingBody;
+        }
+        bool
+        isWriting() const
+        {
+            releaseAssert(!threadIsMain() || !mUseBackgroundThread);
+            return mWriting;
+        }
+        void
+        setWriting(bool value)
+        {
+            releaseAssert(!threadIsMain() || !mUseBackgroundThread);
+            mWriting = value;
+        }
+        bool
+        socketShutdownScheduled() const
+        {
+            releaseAssert(!threadIsMain() || !mUseBackgroundThread);
+            return mSocketShutdownScheduled;
+        }
+        void
+        scheduleSocketShutdown(bool value)
+        {
+            releaseAssert(!threadIsMain() || !mUseBackgroundThread);
+            releaseAssert(!mSocketShutdownScheduled);
+            mSocketShutdownScheduled = value;
+        }
+    };
+
+    ThreadRestrictedVars mThreadVars;
+
+    // Drop can be initiated from any thread only once, keep track of that with
+    // an atomic
+    std::atomic<bool> mDropStarted{false};
+    // When dropped, flush the queue if `mFlushQueueOnDrop` is set
+    std::atomic<bool> mFlushQueueOnDrop{false};
+    std::shared_ptr<SocketType> mSocket;
 
     void recvMessage();
     void sendMessage(xdr::msg_ptr&& xdrBytes) override;
@@ -86,6 +155,12 @@ class TCPPeer : public Peer
     // because any other central place we might track the live count (overlay
     // manager or metrics) may be dead before the TCPPeer destructor runs.
     std::shared_ptr<int> mLiveInboundPeersCounter;
+
+    // Use shutdown timer to periodically check if peer is shutting down and
+    // it's time to close the socket. This is triggered by main thread, which
+    // sets Peer's state to CLOSING
+    RealSteadyTimer mShutdownTimer;
+    void startShutdownTimer() override;
 
   public:
     typedef std::shared_ptr<TCPPeer> pointer;

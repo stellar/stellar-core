@@ -55,7 +55,8 @@ static constexpr VirtualClock::time_point PING_NOT_SENT =
 Peer::Peer(Application& app, PeerRole role)
     : mAppConnector(app)
     , mNetworkID(app.getNetworkID())
-    , mFlowControl(std::make_shared<FlowControl>(mAppConnector))
+    , mFlowControl(
+          std::make_shared<FlowControl>(mAppConnector, useBackgroundThread()))
     , mLastRead(app.getClock().now())
     , mLastWrite(app.getClock().now())
     , mEnqueueTimeOfLastWrite(app.getClock().now())
@@ -418,7 +419,7 @@ Peer::sendAuth()
 std::string const&
 Peer::toString()
 {
-    releaseAssert(threadIsMain());
+    // TODO: this isn't thread-safe
     return mAddress.toString();
 }
 
@@ -484,16 +485,8 @@ Peer::maybeExecuteInBackground(std::string const& jobName,
 {
     if (useBackgroundThread() && threadIsMain())
     {
-        auto weak = std::weak_ptr<Peer>(shared_from_this());
         mAppConnector.postOnOverlayThread(
-            [weak, f]() {
-                auto self = weak.lock();
-                if (self)
-                {
-                    f(self);
-                }
-            },
-            jobName);
+            [self = shared_from_this(), f]() { f(self); }, jobName);
     }
     else
     {

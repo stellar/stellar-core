@@ -11,6 +11,8 @@
 /*
 listens for peer connections.
 When found passes them to the OverlayManagerImpl
+Accepts connections on the main thread, but then lets the overlay thread deal
+with socket operations like read and write
 */
 
 namespace stellar

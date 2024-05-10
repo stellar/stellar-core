@@ -26,6 +26,8 @@ PeerDoor::PeerDoor(Application& app)
 void
 PeerDoor::start()
 {
+    releaseAssert(threadIsMain());
+
     if (!mApp.getConfig().RUN_STANDALONE)
     {
         tcp::endpoint endpoint(tcp::v4(), mApp.getConfig().PEER_PORT);
@@ -59,10 +61,14 @@ PeerDoor::acceptNextPeer()
     }
 
     CLOG_DEBUG(Overlay, "PeerDoor acceptNextPeer()");
-    auto sock = make_shared<TCPPeer::SocketType>(mApp.getClock().getIOContext(),
-                                                 TCPPeer::BUFSZ);
+    auto& ioContext =
+        mApp.getConfig().EXPERIMENTAL_BACKGROUND_OVERLAY_PROCESSING
+            ? mApp.getOverlayIOContext()
+            : mApp.getClock().getIOContext();
+    auto sock = make_shared<TCPPeer::SocketType>(ioContext, TCPPeer::BUFSZ);
     mAcceptor.async_accept(sock->next_layer(),
                            [this, sock](asio::error_code const& ec) {
+                               releaseAssert(threadIsMain());
                                if (ec)
                                    this->acceptNextPeer();
                                else
@@ -73,6 +79,8 @@ PeerDoor::acceptNextPeer()
 void
 PeerDoor::handleKnock(shared_ptr<TCPPeer::SocketType> socket)
 {
+    releaseAssert(threadIsMain());
+
     CLOG_DEBUG(Overlay, "PeerDoor handleKnock()");
     Peer::pointer peer = TCPPeer::accept(mApp, socket);
 
