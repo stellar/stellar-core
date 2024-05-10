@@ -273,7 +273,7 @@ LoopbackPeer::recvMessage(xdr::msg_ptr const& msg)
     catch (xdr::xdr_runtime_error& e)
     {
         CLOG_ERROR(Overlay, "received corrupt xdr::msg_ptr {}", e.what());
-        drop("git received corrupted message",
+        drop("received corrupted message",
              Peer::DropDirection::WE_DROPPED_REMOTE);
         return;
     }

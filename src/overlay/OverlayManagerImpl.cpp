@@ -906,6 +906,7 @@ OverlayManagerImpl::maybeAddInboundConnection(Peer::pointer peer)
             mInboundPeers.mConnectionsCancelled.Mark();
             peer->drop("all pending inbound connections are taken",
                        Peer::DropDirection::WE_DROPPED_REMOTE);
+            mInboundPeers.mDropped.insert(peer);
             return;
         }
         CLOG_DEBUG(Overlay, "New (inbound) connected peer {}",
@@ -984,6 +985,7 @@ OverlayManagerImpl::addOutboundConnection(Peer::pointer peer)
         mOutboundPeers.mConnectionsCancelled.Mark();
         peer->drop("all outbound connections taken",
                    Peer::DropDirection::WE_DROPPED_REMOTE);
+        mOutboundPeers.mDropped.insert(peer);
         return false;
     }
     CLOG_DEBUG(Overlay, "New (outbound) connected peer {}", peer->toString());

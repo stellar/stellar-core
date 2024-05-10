@@ -52,13 +52,6 @@ Simulation::~Simulation()
     // kills all connections
     mLoopbackConnections.clear();
 
-    // shutdown overlay on all nodes first to ensure socket closure is properly
-    // triggered in TCP mode. This shouldn't normally be needed, but because in
-    // Simulation we shutdown nodes quickly before they
-    for (auto& p : mNodes)
-    {
-        p.second.mApp->getOverlayManager().shutdown();
-    }
     // destroy all nodes first
     mNodes.clear();
 
