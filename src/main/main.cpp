@@ -217,21 +217,51 @@ checkXDRFileIdentity()
 void
 checkStellarCoreMajorVersionProtocolIdentity()
 {
-    auto vers =
+    // This extracts a major version number from the git version string embedded
+    // in the binary if, and only if, that version string has the form of a
+    // release tag: specifically vX.Y.Z, or vX.Y.ZrcN, or vX.Y.ZHOTN. Other
+    // version strings return nullopt, for example non-release-tagged versions
+    // that typically look more like `v21.0.0rc1-84-g08d89bb4a`
+    auto major_release_version =
         stellar::getStellarCoreMajorReleaseVersion(STELLAR_CORE_VERSION);
-    if (vers)
+    if (major_release_version)
     {
-        if (*vers != stellar::Config::CURRENT_LEDGER_PROTOCOL_VERSION)
+#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
+        // In a vNext build, we expect the major release version to be one less
+        // than the CURRENT_LEDGER_PROTOCOL_VERSION. In other words if we are
+        // developing v21.X.Y and we enable vNext, then
+        // CURRENT_LEDGER_PROTOCOL_VERSION should be 22.
+        if (*major_release_version + 1 !=
+            stellar::Config::CURRENT_LEDGER_PROTOCOL_VERSION)
+        {
+            throw std::runtime_error(
+                fmt::format("stellar-core version {} has major version {} and "
+                            "is configured for next-protocol support, but "
+                            "CURRENT_LEDGER_PROTOCOL_VERSION is {}",
+                            STELLAR_CORE_VERSION, *major_release_version,
+                            stellar::Config::CURRENT_LEDGER_PROTOCOL_VERSION));
+        }
+#else
+        // In a non-vNext build, we expect the major release version to be the
+        // same as the CURRENT_LEDGER_PROTOCOL_VERSION. In other words if we are
+        // developing v21.X.Y and we are not enabling vNext, then
+        // CURRENT_LEDGER_PROTOCOL_VERSION should be 21.
+        if (*major_release_version !=
+            stellar::Config::CURRENT_LEDGER_PROTOCOL_VERSION)
         {
             throw std::runtime_error(
                 fmt::format("stellar-core version {} has major version {} but "
                             "CURRENT_LEDGER_PROTOCOL_VERSION is {}",
-                            STELLAR_CORE_VERSION, *vers,
+                            STELLAR_CORE_VERSION, *major_release_version,
                             stellar::Config::CURRENT_LEDGER_PROTOCOL_VERSION));
         }
+#endif
     }
     else
     {
+        // If we are running a version that does not look exactly like vX.Y.Z or
+        // vX.Y.ZrcN or vX.Y.ZHOTN, then we are running a non-release version of
+        // stellar-core and we relax the check above and just warn.
         std::cerr << "Warning: running non-release version "
                   << STELLAR_CORE_VERSION << " of stellar-core" << std::endl;
     }
@@ -262,8 +292,7 @@ main(int argc, char* const* argv)
     initializeAllGlobalState();
     xdr::marshaling_stack_limit = 1000;
 
-    // TODO: This should only be enabled after we tag a v20 version
-    // checkStellarCoreMajorVersionProtocolIdentity();
+    checkStellarCoreMajorVersionProtocolIdentity();
     rust_bridge::check_lockfile_has_expected_dep_trees(
         Config::CURRENT_LEDGER_PROTOCOL_VERSION);
 
