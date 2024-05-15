@@ -25,8 +25,10 @@
 #include "xdr/Stellar-ledger-entries.h"
 #include "xdrpp/marshal.h"
 #include <Tracy.hpp>
-#include <algorithm>
 #include <soci.h>
+
+#include <algorithm>
+#include <numeric>
 
 namespace stellar
 {

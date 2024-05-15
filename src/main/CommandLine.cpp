@@ -458,6 +458,13 @@ limitParser(std::optional<std::uint64_t>& limit)
         "process only this many recent ledger entries (not *most* recent)");
 }
 
+clara::Opt
+includeAllStatesParser(bool& include)
+{
+    return clara::Opt{include}["--include-all-states"](
+        "include all non-dead states of the entry into query results");
+}
+
 int
 runWithHelp(CommandLineArgs const& args,
             std::vector<ParserWithValidation> parsers, std::function<int()> f)
@@ -1188,19 +1195,20 @@ runDumpLedger(CommandLineArgs const& args)
     std::optional<uint64_t> limit;
     std::optional<std::string> groupBy;
     std::optional<std::string> aggregate;
-    return runWithHelp(args,
-                       {configurationParser(configOption),
-                        outputFileParser(outputFile).required(),
-                        filterQueryParser(filterQuery),
-                        lastModifiedLedgerCountParser(lastModifiedLedgerCount),
-                        limitParser(limit), groupByParser(groupBy),
-                        aggregateParser(aggregate)},
-                       [&] {
-                           return dumpLedger(configOption.getConfig(),
-                                             outputFile, filterQuery,
-                                             lastModifiedLedgerCount, limit,
-                                             groupBy, aggregate);
-                       });
+    bool includeAllStates = false;
+    return runWithHelp(
+        args,
+        {configurationParser(configOption),
+         outputFileParser(outputFile).required(),
+         filterQueryParser(filterQuery),
+         lastModifiedLedgerCountParser(lastModifiedLedgerCount),
+         limitParser(limit), groupByParser(groupBy), aggregateParser(aggregate),
+         includeAllStatesParser(includeAllStates)},
+        [&] {
+            return dumpLedger(configOption.getConfig(), outputFile, filterQuery,
+                              lastModifiedLedgerCount, limit, groupBy,
+                              aggregate, includeAllStates);
+        });
 }
 
 int

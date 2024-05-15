@@ -55,7 +55,7 @@ writeLedgerAggregationTable(
     std::vector<std::string> keyFields;
     if (groupByExtractor)
     {
-        keyFields = groupByExtractor->getFieldNames();
+        keyFields = groupByExtractor->getColumnNames();
         for (auto const& keyField : keyFields)
         {
             ofs << keyField << ",";
@@ -742,7 +742,7 @@ dumpLedger(Config cfg, std::string const& outputFile,
            std::optional<std::string> filterQuery,
            std::optional<uint32_t> lastModifiedLedgerCount,
            std::optional<uint64_t> limit, std::optional<std::string> groupBy,
-           std::optional<std::string> aggregate)
+           std::optional<std::string> aggregate, bool includeAllStates)
 {
     if (groupBy && !aggregate)
     {
@@ -820,7 +820,8 @@ dumpLedger(Config cfg, std::string const& outputFile,
                 }
                 ++entryCount;
                 return !limit || entryCount < *limit;
-            });
+            },
+            includeAllStates);
     }
     catch (xdrquery::XDRQueryError& e)
     {

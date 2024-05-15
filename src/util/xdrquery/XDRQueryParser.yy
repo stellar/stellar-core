@@ -40,6 +40,7 @@ parseXDRQuery(std::string const& query);
 %token SUM
 %token AVG
 %token COUNT
+%token ENTRY_SIZE
 
 %token AND "&&"
 %token OR "||"
@@ -65,18 +66,20 @@ parseXDRQuery(std::string const& query);
 
 %type <std::shared_ptr<EvalNode>> literal operand
 %type <std::shared_ptr<BoolEvalNode>> comparison_expr logic_expr
+%type <std::shared_ptr<ColumnNode>> column
 %type <std::shared_ptr<FieldNode>> field
+%type <std::shared_ptr<EntrySizeNode>> entry_size
 
 %type <std::shared_ptr<Accumulator>> accumulator
 %type <std::shared_ptr<AccumulatorList>> accumulator_list
 
-%type <std::shared_ptr<FieldList>> field_list
+%type <std::shared_ptr<ColumnList>> column_list
 
 %%
 
 statement: logic_expr { root = std::move($1); }
          | accumulator_list { root = std::move($1); }
-         | field_list { root = std::move($1); }
+         | column_list { root = std::move($1); }
 
 logic_expr: comparison_expr { $$ = std::move($1); }
           | "(" logic_expr ")" { $$ = std::move($2); }
@@ -107,32 +110,36 @@ comparison_expr: operand "==" operand {
                 std::move($1), std::move($3)); }
 
 operand: literal { $$ = std::move($1); }
-       | field { $$ = std::move($1); }
+       | column { $$ = std::move($1); }
 
 literal: INT { $$ = std::make_shared<LiteralNode>(LiteralNodeType::INT, $1); }
        | STR { $$ = std::make_shared<LiteralNode>(LiteralNodeType::STR, $1); }
        | NULL { $$ = std::make_shared<LiteralNode>(LiteralNodeType::NULL_LITERAL, ""); }
 
+column: field { $$ = std::move($1); }
+      | entry_size { $$ = std::move($1); }
+
+entry_size: ENTRY_SIZE "(" ")" { $$ = std::make_shared<EntrySizeNode>(); }
+
 field: ID { $$ = std::make_shared<FieldNode>($1); }
      | field "." ID { $1->mFieldPath.push_back($3); $$ = std::move($1); }
-
 
 accumulator_list: accumulator { $$ = std::make_shared<AccumulatorList>(std::move($1)); }
                 | accumulator_list "," accumulator { $1->addAccumulator($3); $$ = std::move($1); }
 
 accumulator: COUNT "(" ")" { 
                 $$ = std::make_shared<Accumulator>(AccumulatorType::COUNT); }
-           | SUM "(" field ")" {
+           | SUM "(" column ")" {
                 $$ = std::make_shared<Accumulator>(
                     AccumulatorType::SUM, std::move($3));
            }
-           | AVG "(" field ")" {
+           | AVG "(" column ")" {
                 $$ = std::make_shared<Accumulator>(
                     AccumulatorType::AVERAGE, std::move($3));
            }
 
-field_list: field { $$ = std::make_shared<FieldList>(std::move($1)); }
-          | field_list "," field { $1->addField($3); $$ = std::move($1); }
+column_list: column { $$ = std::make_shared<ColumnList>(std::move($1)); }
+           | column_list "," column { $1->addColumn($3); $$ = std::move($1); }
 
 %%
 
