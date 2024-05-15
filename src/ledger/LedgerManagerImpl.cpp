@@ -13,7 +13,6 @@
 #include "database/Database.h"
 #include "herder/Herder.h"
 #include "herder/HerderPersistence.h"
-#include "herder/HerderUtils.h"
 #include "herder/LedgerCloseData.h"
 #include "herder/TxSetFrame.h"
 #include "herder/Upgrades.h"
@@ -978,8 +977,6 @@ LedgerManagerImpl::closeLedger(LedgerCloseData const& ledgerData)
     if (protocolVersionStartsFrom(maybeNewVersion, SOROBAN_PROTOCOL_VERSION))
     {
         updateNetworkConfig(ltx);
-        mApp.getOverlayManager().dropPeersIf(
-            shouldDropPeerPredicate, maybeNewVersion, "version too old");
     }
 
     ledgerClosed(ltx, ledgerCloseMeta, initialLedgerVers);

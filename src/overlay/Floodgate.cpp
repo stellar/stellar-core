@@ -124,7 +124,7 @@ Floodgate::broadcast(std::shared_ptr<StellarMessage const> msg,
         // Assert must hold since only main thread is allowed to modify
         // authenticated peers and peer state during drop
         peer.second->assertAuthenticated();
-        if (peer.second->getRemoteOverlayVersion().value() < minOverlayVersion)
+        if (peer.second->getRemoteOverlayVersion() < minOverlayVersion)
         {
             // Skip peers running overlay versions that are older than
             // `minOverlayVersion`.
