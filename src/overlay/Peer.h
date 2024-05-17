@@ -193,7 +193,11 @@ class Peer : public std::enable_shared_from_this<Peer>,
 
     // Mutex to protect PeerState, which can be accessed and modified from
     // multiple threads
+#ifndef USE_TRACY
     std::recursive_mutex mutable mStateMutex;
+#else
+    mutable TracyLockable(std::recursive_mutex, mStateMutex);
+#endif
 
     HmacSha256Key mSendMacKey;
     HmacSha256Key mRecvMacKey;
@@ -211,16 +215,15 @@ class Peer : public std::enable_shared_from_this<Peer>,
     }
 
     void initialize(PeerBareAddress const& address);
-    void setState(std::lock_guard<std::recursive_mutex>& stateGuard,
-                  PeerState newState);
-    bool shouldAbort(std::lock_guard<std::recursive_mutex>& stateGuard) const;
+    void setState(LockGuard& stateGuard, PeerState newState);
+    bool shouldAbort(LockGuard& stateGuard) const;
     void shutdownAndRemovePeer(std::string const& reason,
                                DropDirection dropDirection);
 
     // Subclasses should only use these methods to load and modify peer state,
     // signatured hint that callers need to grab mStateMutex.
     PeerState
-    getState(std::lock_guard<std::recursive_mutex>& stateGuard) const
+    getState(LockGuard& stateGuard) const
     {
         return mState;
     }
@@ -409,9 +412,8 @@ class Peer : public std::enable_shared_from_this<Peer>,
 
     /* The following functions can be called from background thread, so they
      * must be thread-safe */
-    bool isConnected(std::lock_guard<std::recursive_mutex>& stateGuard) const;
-    bool
-    isAuthenticated(std::lock_guard<std::recursive_mutex>& stateGuard) const;
+    bool isConnected(LockGuard& stateGuard) const;
+    bool isAuthenticated(LockGuard& stateGuard) const;
 
     PeerMetrics&
     getPeerMetrics()
@@ -446,14 +448,14 @@ class Peer : public std::enable_shared_from_this<Peer>,
     void
     assertAuthenticated() const
     {
-        std::lock_guard<std::recursive_mutex> guard(mStateMutex);
+        LockGuard guard(mStateMutex);
         releaseAssert(isAuthenticated(guard));
     }
 
     void
     assertShuttingDown() const
     {
-        std::lock_guard<std::recursive_mutex> guard(mStateMutex);
+        LockGuard guard(mStateMutex);
         releaseAssert(mState == CLOSING);
     }
 
@@ -464,14 +466,14 @@ class Peer : public std::enable_shared_from_this<Peer>,
     bool
     isAuthenticatedAtomic() const
     {
-        std::lock_guard<std::recursive_mutex> guard(mStateMutex);
+        LockGuard guard(mStateMutex);
         return isAuthenticated(guard);
     }
 
     void
     doIfAuthenticated(std::function<void()> f)
     {
-        std::lock_guard<std::recursive_mutex> guard(mStateMutex);
+        LockGuard guard(mStateMutex);
         if (isAuthenticated(guard))
         {
             f();

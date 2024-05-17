@@ -156,7 +156,7 @@ void
 Peer::endMessageProcessing(StellarMessage const& msg)
 {
     releaseAssert(threadIsMain());
-    std::lock_guard<std::recursive_mutex> guard(mStateMutex);
+    RECURSIVE_LOCK_GUARD(mStateMutex, guard);
 
     if (shouldAbort(guard))
     {
@@ -198,7 +198,7 @@ std::chrono::seconds
 Peer::getIOTimeout() const
 {
     releaseAssert(threadIsMain());
-    std::lock_guard<std::recursive_mutex> guard(mStateMutex);
+    RECURSIVE_LOCK_GUARD(mStateMutex, guard);
     if (isAuthenticated(guard))
     {
         // Normally willing to wait 30s to hear anything
@@ -231,7 +231,7 @@ void
 Peer::startRecurrentTimer()
 {
     releaseAssert(threadIsMain());
-    std::lock_guard<std::recursive_mutex> guard(mStateMutex);
+    RECURSIVE_LOCK_GUARD(mStateMutex, guard);
 
     constexpr std::chrono::seconds RECURRENT_TIMER_PERIOD(5);
 
@@ -262,7 +262,7 @@ Peer::shutdownAndRemovePeer(std::string const& reason,
                             DropDirection dropDirection)
 {
     releaseAssert(threadIsMain());
-    std::lock_guard<std::recursive_mutex> guard(mStateMutex);
+    RECURSIVE_LOCK_GUARD(mStateMutex, guard);
     auto state = getState(guard);
 
     if (state != GOT_AUTH)
@@ -441,7 +441,7 @@ Peer::clearBelow(uint32_t seq)
 void
 Peer::connectHandler(asio::error_code const& error)
 {
-    std::lock_guard<std::recursive_mutex> guard(mStateMutex);
+    RECURSIVE_LOCK_GUARD(mStateMutex, guard);
     if (error)
     {
         drop("unable to connect: " + error.message(),
@@ -819,7 +819,7 @@ Peer::sendAuthenticatedMessage(std::shared_ptr<StellarMessage const> msg)
         // onto the queues. If peer shuts down _after_ we already placed the
         // message, any remaining messages will still go through before we close
         // the socket, so this should be harmless.
-        std::lock_guard<std::recursive_mutex> guard(mStateMutex);
+        RECURSIVE_LOCK_GUARD(mStateMutex, guard);
         if (shouldAbort(guard))
         {
             return;
@@ -855,13 +855,13 @@ Peer::sendAuthenticatedMessage(std::shared_ptr<StellarMessage const> msg)
 }
 
 bool
-Peer::isConnected(std::lock_guard<std::recursive_mutex>& stateGuard) const
+Peer::isConnected(LockGuard& stateGuard) const
 {
     return mState != CONNECTING && mState != CLOSING;
 }
 
 bool
-Peer::isAuthenticated(std::lock_guard<std::recursive_mutex>& stateGuard) const
+Peer::isAuthenticated(LockGuard& stateGuard) const
 {
     return mState == GOT_AUTH;
 }
@@ -870,19 +870,19 @@ Peer::isAuthenticated(std::lock_guard<std::recursive_mutex>& stateGuard) const
 bool
 Peer::isAuthenticatedForTesting() const
 {
-    std::lock_guard<std::recursive_mutex> guard(mStateMutex);
+    RECURSIVE_LOCK_GUARD(mStateMutex, guard);
     return isAuthenticated(guard);
 }
 bool
 Peer::isConnectedForTesting() const
 {
-    std::lock_guard<std::recursive_mutex> guard(mStateMutex);
+    RECURSIVE_LOCK_GUARD(mStateMutex, guard);
     return isConnected(guard);
 }
 bool
 Peer::shouldAbortForTesting() const
 {
-    std::lock_guard<std::recursive_mutex> guard(mStateMutex);
+    RECURSIVE_LOCK_GUARD(mStateMutex, guard);
     return shouldAbort(guard);
 }
 #endif
@@ -896,7 +896,7 @@ Peer::getLifeTime() const
 }
 
 bool
-Peer::shouldAbort(std::lock_guard<std::recursive_mutex>& stateGuard) const
+Peer::shouldAbort(LockGuard& stateGuard) const
 {
     return mState == CLOSING;
 }
@@ -906,7 +906,7 @@ Peer::recvAuthenticatedMessage(AuthenticatedMessage&& msg)
 {
     ZoneScoped;
     releaseAssert(!threadIsMain() || !useBackgroundThread());
-    std::lock_guard<std::recursive_mutex> guard(mStateMutex);
+    RECURSIVE_LOCK_GUARD(mStateMutex, guard);
 
     if (shouldAbort(guard))
     {
@@ -1033,7 +1033,7 @@ Peer::recvMessage(std::shared_ptr<MsgCapacityTracker> msgTracker)
     auto cleanup = gsl::finally([msgTracker]() { msgTracker->finish(); });
 
     auto const& stellarMsg = msgTracker->getMessage();
-    std::lock_guard<std::recursive_mutex> guard(mStateMutex);
+    RECURSIVE_LOCK_GUARD(mStateMutex, guard);
     if (shouldAbort(guard))
     {
         return;
@@ -1086,7 +1086,7 @@ Peer::recvRawMessage(StellarMessage const& stellarMsg)
 {
     ZoneScoped;
     releaseAssert(threadIsMain());
-    std::lock_guard<std::recursive_mutex> guard(mStateMutex);
+    RECURSIVE_LOCK_GUARD(mStateMutex, guard);
 
     auto peerStr = toString();
     ZoneText(peerStr.c_str(), peerStr.size());
@@ -1361,7 +1361,7 @@ void
 Peer::pingPeer()
 {
     releaseAssert(threadIsMain());
-    std::lock_guard<std::recursive_mutex> guard(mStateMutex);
+    RECURSIVE_LOCK_GUARD(mStateMutex, guard);
     if (isAuthenticated(guard) && mPingSentTime == PING_NOT_SENT)
     {
         mPingSentTime = mAppConnector.now();
@@ -1578,7 +1578,7 @@ Peer::recvHello(Hello const& elo)
 {
     ZoneScoped;
     releaseAssert(threadIsMain());
-    std::lock_guard<std::recursive_mutex> guard(mStateMutex);
+    RECURSIVE_LOCK_GUARD(mStateMutex, guard);
 
     if (getState(guard) >= GOT_HELLO)
     {
@@ -1720,8 +1720,7 @@ Peer::recvHello(Hello const& elo)
 }
 
 void
-Peer::setState(std::lock_guard<std::recursive_mutex>& stateGuard,
-               PeerState newState)
+Peer::setState(LockGuard& stateGuard, PeerState newState)
 {
     mState = newState;
 }
@@ -1731,7 +1730,7 @@ Peer::recvAuth(StellarMessage const& msg)
 {
     ZoneScoped;
     releaseAssert(threadIsMain());
-    std::lock_guard<std::recursive_mutex> guard(mStateMutex);
+    RECURSIVE_LOCK_GUARD(mStateMutex, guard);
 
     if (getState(guard) != GOT_HELLO)
     {

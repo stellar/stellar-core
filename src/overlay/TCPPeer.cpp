@@ -81,7 +81,7 @@ TCPPeer::initiate(Application& app, PeerBareAddress const& address)
 
             // We might have been dropped while waiting to connect; in this
             // case, do not execute handler and just exit
-            std::lock_guard<std::recursive_mutex> guard(result->mStateMutex);
+            RECURSIVE_LOCK_GUARD(result->mStateMutex, guard);
             if (result->shouldAbort(guard))
             {
                 return;
@@ -398,7 +398,7 @@ TCPPeer::writeHandler(asio::error_code const& error,
 {
     ZoneScoped;
     releaseAssert(!threadIsMain() || !useBackgroundThread());
-    std::lock_guard<std::recursive_mutex> guard(mStateMutex);
+    RECURSIVE_LOCK_GUARD(mStateMutex, guard);
 
     mLastWrite = mAppConnector.now();
 
@@ -488,7 +488,7 @@ TCPPeer::scheduleRead()
     // Post to the peer-specific Scheduler a call to ::startRead below;
     // this will be throttled to try to balance input rates across peers.
     ZoneScoped;
-    std::lock_guard<std::recursive_mutex> guard(mStateMutex);
+    RECURSIVE_LOCK_GUARD(mStateMutex, guard);
 
     if (mFlowControl->isThrottled())
     {
@@ -525,7 +525,7 @@ TCPPeer::startRead()
     ZoneScoped;
     releaseAssert(!threadIsMain() || !useBackgroundThread());
     releaseAssert(canRead());
-    std::lock_guard<std::recursive_mutex> guard(mStateMutex);
+    RECURSIVE_LOCK_GUARD(mStateMutex, guard);
     if (shouldAbort(guard))
     {
         return;
@@ -638,7 +638,7 @@ TCPPeer::startRead()
 size_t
 TCPPeer::getIncomingMsgLength()
 {
-    std::lock_guard<std::recursive_mutex> guard(mStateMutex);
+    RECURSIVE_LOCK_GUARD(mStateMutex, guard);
     size_t length = static_cast<size_t>(mThreadVars.getIncomingHeader()[0]);
     length &= 0x7f; // clear the XDR 'continuation' bit
     length <<= 8;
