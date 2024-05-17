@@ -131,7 +131,7 @@ class VirtualClock
 
   private:
     asio::io_context mIOContext;
-    Mode mMode;
+    Mode const mMode;
 
     size_t nRealTimerCancelEvents{0};
     time_point mVirtualNow;

@@ -41,8 +41,8 @@ Simulation::Simulation(Mode mode, Hash const& networkID, ConfigGen confGen,
     , mQuorumSetAdjuster(qSetAdjust)
 {
     auto cfg = newConfig();
-    cfg.EXPERIMENTAL_BACKGROUND_OVERLAY_PROCESSING =
-        mVirtualClockMode == VirtualClock::REAL_TIME;
+    auto& parallel = cfg.EXPERIMENTAL_BACKGROUND_OVERLAY_PROCESSING;
+    parallel = parallel && mVirtualClockMode == VirtualClock::REAL_TIME;
     mIdleApp = Application::create(mClock, cfg);
     mPeerMap.emplace(mIdleApp->getConfig().PEER_PORT, mIdleApp);
 }
@@ -99,8 +99,8 @@ Simulation::addNode(SecretKey nodeKey, SCPQuorumSet qSet, Config const* cfg2,
     cfg->adjust();
     cfg->NODE_SEED = nodeKey;
     cfg->MANUAL_CLOSE = false;
-    cfg->EXPERIMENTAL_BACKGROUND_OVERLAY_PROCESSING =
-        mVirtualClockMode == VirtualClock::REAL_TIME;
+    auto& parallel = cfg->EXPERIMENTAL_BACKGROUND_OVERLAY_PROCESSING;
+    parallel = parallel && mVirtualClockMode == VirtualClock::REAL_TIME;
 
     if (mQuorumSetAdjuster)
     {
