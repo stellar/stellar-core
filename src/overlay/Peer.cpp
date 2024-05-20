@@ -1033,10 +1033,16 @@ Peer::recvMessage(std::shared_ptr<MsgCapacityTracker> msgTracker)
     auto cleanup = gsl::finally([msgTracker]() { msgTracker->finish(); });
 
     auto const& stellarMsg = msgTracker->getMessage();
-    RECURSIVE_LOCK_GUARD(mStateMutex, guard);
-    if (shouldAbort(guard))
+
+    // No need to hold the lock for the whole duration of the function, just
+    // need to check state for a potential early exit. If the peer gets dropped
+    // after, we'd still process the message, but that's harmless.
     {
-        return;
+        RECURSIVE_LOCK_GUARD(mStateMutex, guard);
+        if (shouldAbort(guard))
+        {
+            return;
+        }
     }
 
     auto msgType = stellarMsg.type();
@@ -1086,29 +1092,36 @@ Peer::recvRawMessage(StellarMessage const& stellarMsg)
 {
     ZoneScoped;
     releaseAssert(threadIsMain());
-    RECURSIVE_LOCK_GUARD(mStateMutex, guard);
 
     auto peerStr = toString();
     ZoneText(peerStr.c_str(), peerStr.size());
 
-    if (shouldAbort(guard))
+    // No need to hold the lock for the whole duration of the function, just
+    // need to check state for a potential early exit. If the peer gets dropped
+    // after, we'd still process the message, but that's harmless.
     {
-        return;
-    }
+        RECURSIVE_LOCK_GUARD(mStateMutex, guard);
+        if (shouldAbort(guard))
+        {
+            return;
+        }
 
-    if (!isAuthenticated(guard) && (stellarMsg.type() != HELLO) &&
-        (stellarMsg.type() != AUTH) && (stellarMsg.type() != ERROR_MSG))
-    {
-        drop(fmt::format(FMT_STRING("received {} before completed handshake"),
-                         stellarMsg.type()),
-             Peer::DropDirection::WE_DROPPED_REMOTE);
-        return;
-    }
+        if (!isAuthenticated(guard) && (stellarMsg.type() != HELLO) &&
+            (stellarMsg.type() != AUTH) && (stellarMsg.type() != ERROR_MSG))
+        {
+            drop(fmt::format(
+                     FMT_STRING("received {} before completed handshake"),
+                     stellarMsg.type()),
+                 Peer::DropDirection::WE_DROPPED_REMOTE);
+            return;
+        }
 
-    releaseAssert(isAuthenticated(guard) || stellarMsg.type() == HELLO ||
-                  stellarMsg.type() == AUTH || stellarMsg.type() == ERROR_MSG);
-    mAppConnector.getOverlayManager().recordMessageMetric(stellarMsg,
-                                                          shared_from_this());
+        releaseAssert(isAuthenticated(guard) || stellarMsg.type() == HELLO ||
+                      stellarMsg.type() == AUTH ||
+                      stellarMsg.type() == ERROR_MSG);
+        mAppConnector.getOverlayManager().recordMessageMetric(
+            stellarMsg, shared_from_this());
+    }
 
     switch (stellarMsg.type())
     {

@@ -113,6 +113,10 @@ TCPPeer::accept(Application& app, shared_ptr<TCPPeer::SocketType> socket)
 {
     releaseAssert(threadIsMain());
 
+    // Asio guarantees it is safe to create a socket object with overlay's
+    // io_context on main (as long as the socket object isn't shared across
+    // threads) Therefore, it is safe to call functions like `remote_endpoint`
+    // and `set_option` (the socket object isn't passed to background yet)
     auto extractIP = [](shared_ptr<SocketType> socket) {
         std::string result;
         asio::error_code ec;
