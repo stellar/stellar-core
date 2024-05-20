@@ -5,6 +5,7 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "ledger/LedgerHashUtils.h"
+#include "ledger/LedgerTxn.h"
 #include "overlay/StellarXDR.h"
 #include "util/UnorderedMap.h"
 #include "util/UnorderedSet.h"
@@ -13,6 +14,7 @@
 
 namespace stellar
 {
+class LedgerKeyMeter;
 bool isLive(LedgerEntry const& e, uint32_t cutoffLedger);
 
 LedgerKey getTTLKey(LedgerEntry const& e);
@@ -23,7 +25,8 @@ LedgerKey getTTLKey(LedgerKey const& e);
 template <typename KeySetT>
 UnorderedMap<LedgerKey, std::shared_ptr<LedgerEntry const>>
 populateLoadedEntries(KeySetT const& keys,
-                      std::vector<LedgerEntry> const& entries)
+                      std::vector<LedgerEntry> const& entries,
+                      LedgerKeyMeter* lkMeter = nullptr)
 {
     UnorderedMap<LedgerKey, std::shared_ptr<LedgerEntry const>> res;
 
@@ -43,7 +46,10 @@ populateLoadedEntries(KeySetT const& keys,
 
     for (auto const& key : keys)
     {
-        if (res.find(key) == res.end())
+        // If the key was not loaded (but not due to metering), we should put
+        // a nullptr entry in the result.
+        if (res.find(key) == res.end() &&
+            (!lkMeter || !lkMeter->loadFailed(key)))
         {
             res.emplace(key, nullptr);
         }

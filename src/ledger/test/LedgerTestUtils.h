@@ -50,6 +50,9 @@ std::vector<LedgerKey> generateUniqueValidSorobanLedgerEntryKeys(size_t n);
 std::vector<LedgerKey> generateValidUniqueLedgerEntryKeysWithExclusions(
     std::unordered_set<LedgerEntryType> const& excludedTypes, size_t n);
 
+std::vector<LedgerEntry> generateValidUniqueLedgerEntriesWithExclusions(
+    std::unordered_set<LedgerEntryType> const& excludedTypes, size_t n);
+
 LedgerEntry generateValidLedgerEntryWithExclusions(
     std::unordered_set<LedgerEntryType> const& excludedTypes, size_t b = 3);
 std::vector<LedgerEntry> generateValidLedgerEntriesWithExclusions(

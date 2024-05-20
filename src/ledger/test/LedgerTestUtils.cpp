@@ -691,6 +691,29 @@ generateValidUniqueLedgerEntryKeysWithExclusions(
     return res;
 }
 
+std::vector<LedgerEntry>
+generateValidUniqueLedgerEntriesWithExclusions(
+    std::unordered_set<LedgerEntryType> const& excludedTypes, size_t n)
+{
+    UnorderedSet<LedgerKey> keys;
+    std::vector<LedgerEntry> res;
+    keys.reserve(n);
+    res.reserve(n);
+    while (keys.size() < n)
+    {
+        auto entry = generateValidLedgerEntryWithExclusions(excludedTypes, n);
+        auto key = LedgerEntryKey(entry);
+        if (keys.find(key) != keys.end())
+        {
+            continue;
+        }
+
+        keys.insert(key);
+        res.emplace_back(entry);
+    }
+    return res;
+}
+
 LedgerEntry
 generateValidLedgerEntryWithTypes(
     std::unordered_set<LedgerEntryType> const& types, size_t b)

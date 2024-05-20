@@ -1450,7 +1450,7 @@ LedgerManagerImpl::prefetchTxSourceIds(
         {
             tx->insertKeysForFeeProcessing(keys);
         }
-        mApp.getLedgerTxnRoot().prefetch(keys);
+        mApp.getLedgerTxnRoot().prefetchClassic(keys);
     }
 }
 
@@ -1461,12 +1461,34 @@ LedgerManagerImpl::prefetchTransactionData(
     ZoneScoped;
     if (mApp.getConfig().PREFETCH_BATCH_SIZE > 0)
     {
-        UnorderedSet<LedgerKey> keys;
+        UnorderedSet<LedgerKey> sorobanKeys;
+        auto lkMeter = make_unique<LedgerKeyMeter>();
+        UnorderedSet<LedgerKey> classicKeys;
         for (auto const& tx : txs)
         {
-            tx->insertKeysForTxApply(keys);
+            if (tx->isSoroban())
+            {
+                if (mApp.getConfig().isUsingBucketListDB())
+                {
+                    tx->insertKeysForTxApply(sorobanKeys, lkMeter.get());
+                }
+            }
+            else
+            {
+                tx->insertKeysForTxApply(classicKeys, {nullptr});
+            }
         }
-        mApp.getLedgerTxnRoot().prefetch(keys);
+        // Prefetch classic and soroban keys separately for greater visibility
+        // into the performance of each mode.
+        if (mApp.getConfig().isUsingBucketListDB())
+        {
+            if (!sorobanKeys.empty())
+            {
+                mApp.getLedgerTxnRoot().prefetchSoroban(sorobanKeys,
+                                                        lkMeter.get());
+            }
+        }
+        mApp.getLedgerTxnRoot().prefetchClassic(classicKeys);
     }
 }
 
