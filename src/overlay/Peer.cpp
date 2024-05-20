@@ -110,12 +110,6 @@ Peer::MsgCapacityTracker::getMessage()
     return mMsg;
 }
 
-std::weak_ptr<Peer>
-Peer::MsgCapacityTracker::getPeer()
-{
-    return mWeakPeer;
-}
-
 void
 Peer::sendHello()
 {
@@ -813,23 +807,23 @@ Peer::sendMessage(std::shared_ptr<StellarMessage const> msg, bool log)
 void
 Peer::sendAuthenticatedMessage(std::shared_ptr<StellarMessage const> msg)
 {
-    {
-        // No need to hold the lock for the duration of this function: simply
-        // check if peer is shutting down, and if so, avoid putting more work
-        // onto the queues. If peer shuts down _after_ we already placed the
-        // message, any remaining messages will still go through before we close
-        // the socket, so this should be harmless.
-        RECURSIVE_LOCK_GUARD(mStateMutex, guard);
-        if (shouldAbort(guard))
-        {
-            return;
-        }
-    }
-
     auto cb = [msg](std::shared_ptr<Peer> self) {
+        {
+            // No need to hold the lock for the duration of this function:
+            // simply check if peer is shutting down, and if so, avoid putting
+            // more work onto the queues. If peer shuts down _after_ we already
+            // placed the message, any remaining messages will still go through
+            // before we close the socket, so this should be harmless.
+            RECURSIVE_LOCK_GUARD(self->mStateMutex, guard);
+            if (self->shouldAbort(guard))
+            {
+                return;
+            }
+        }
+
         // Synchronous code block that executes TCPPeer::sendMessage preserves
         // ordering of messages, which is important here, because we assign
-        // sequences
+        // auth sequence numbers.
         AuthenticatedMessage amsg;
         amsg.v0().message = *msg;
         if (msg->type() != HELLO && msg->type() != ERROR_MSG)
@@ -855,13 +849,13 @@ Peer::sendAuthenticatedMessage(std::shared_ptr<StellarMessage const> msg)
 }
 
 bool
-Peer::isConnected(LockGuard& stateGuard) const
+Peer::isConnected(LockGuard const& stateGuard) const
 {
     return mState != CONNECTING && mState != CLOSING;
 }
 
 bool
-Peer::isAuthenticated(LockGuard& stateGuard) const
+Peer::isAuthenticated(LockGuard const& stateGuard) const
 {
     return mState == GOT_AUTH;
 }
@@ -896,7 +890,7 @@ Peer::getLifeTime() const
 }
 
 bool
-Peer::shouldAbort(LockGuard& stateGuard) const
+Peer::shouldAbort(LockGuard const& stateGuard) const
 {
     return mState == CLOSING;
 }
@@ -959,8 +953,8 @@ Peer::recvAuthenticatedMessage(AuthenticatedMessage&& msg)
     // NOTE: Additionally, we may use state snapshots to verify TRANSACTION type
     // messages in the background.
 
-    // Start tracking capacity here, so read throttling is applied appropriately
-    // Flow control might not be started at that time
+    // Start tracking capacity here, so read throttling is applied
+    // appropriately. Flow control might not be started at that time
     auto msgTracker = std::make_shared<MsgCapacityTracker>(shared_from_this(),
                                                            msg.v0().message);
 
@@ -1733,7 +1727,7 @@ Peer::recvHello(Hello const& elo)
 }
 
 void
-Peer::setState(LockGuard& stateGuard, PeerState newState)
+Peer::setState(LockGuard const& stateGuard, PeerState newState)
 {
     mState = newState;
 }

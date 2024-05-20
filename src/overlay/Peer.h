@@ -165,14 +165,13 @@ class Peer : public std::enable_shared_from_this<Peer>,
   protected:
     class MsgCapacityTracker : private NonMovableOrCopyable
     {
-        std::weak_ptr<Peer> mWeakPeer;
-        StellarMessage mMsg;
+        std::weak_ptr<Peer> const mWeakPeer;
+        StellarMessage const mMsg;
         std::atomic<bool> mFinished{false};
 
       public:
         MsgCapacityTracker(std::weak_ptr<Peer> peer, StellarMessage const& msg);
         StellarMessage const& getMessage();
-        std::weak_ptr<Peer> getPeer();
         // Since MsgCapacityTracker is passed around between thread and stored
         // by ASIO in lambdas, do not rely on RAII to trigger completion.
         // Instead, explicitly call `finish`.
@@ -215,15 +214,15 @@ class Peer : public std::enable_shared_from_this<Peer>,
     }
 
     void initialize(PeerBareAddress const& address);
-    void setState(LockGuard& stateGuard, PeerState newState);
-    bool shouldAbort(LockGuard& stateGuard) const;
+    void setState(LockGuard const& stateGuard, PeerState newState);
+    bool shouldAbort(LockGuard const& stateGuard) const;
     void shutdownAndRemovePeer(std::string const& reason,
                                DropDirection dropDirection);
 
     // Subclasses should only use these methods to load and modify peer state,
     // signatured hint that callers need to grab mStateMutex.
     PeerState
-    getState(LockGuard& stateGuard) const
+    getState(LockGuard const& stateGuard) const
     {
         return mState;
     }
@@ -233,6 +232,8 @@ class Peer : public std::enable_shared_from_this<Peer>,
     // shared_ptr<Peer> as a captured shared_from_this().
     virtual void connectHandler(asio::error_code const& ec);
 
+    // If parallel processing is enabled, execute this function in the
+    // background. Otherwise, synchronously execute on the main thread.
     void maybeExecuteInBackground(std::string const& jobName,
                                   std::function<void(std::shared_ptr<Peer>)> f);
     VirtualTimer&
@@ -412,8 +413,8 @@ class Peer : public std::enable_shared_from_this<Peer>,
 
     /* The following functions can be called from background thread, so they
      * must be thread-safe */
-    bool isConnected(LockGuard& stateGuard) const;
-    bool isAuthenticated(LockGuard& stateGuard) const;
+    bool isConnected(LockGuard const& stateGuard) const;
+    bool isAuthenticated(LockGuard const& stateGuard) const;
 
     PeerMetrics&
     getPeerMetrics()

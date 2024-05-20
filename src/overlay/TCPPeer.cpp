@@ -71,7 +71,7 @@ TCPPeer::initiate(Application& app, PeerBareAddress const& address)
             auto result = weak.lock();
             if (!result)
             {
-                // If peer was rejected was reasons like no pending slots
+                // If peer was rejected for reasons like no pending slots
                 // available, and isn't referenced by the main thread anymore,
                 // exit early.
                 return;
@@ -643,14 +643,16 @@ size_t
 TCPPeer::getIncomingMsgLength()
 {
     RECURSIVE_LOCK_GUARD(mStateMutex, guard);
-    size_t length = static_cast<size_t>(mThreadVars.getIncomingHeader()[0]);
+    auto const& header = mThreadVars.getIncomingHeader();
+    releaseAssert(header.size() == HDRSZ);
+    size_t length = static_cast<size_t>(header[0]);
     length &= 0x7f; // clear the XDR 'continuation' bit
     length <<= 8;
-    length |= mThreadVars.getIncomingHeader()[1];
+    length |= header[1];
     length <<= 8;
-    length |= mThreadVars.getIncomingHeader()[2];
+    length |= header[2];
     length <<= 8;
-    length |= mThreadVars.getIncomingHeader()[3];
+    length |= header[3];
     if (length <= 0 ||
         (!isAuthenticated(guard) && (length > MAX_UNAUTH_MESSAGE_SIZE)) ||
         length > MAX_MESSAGE_SIZE)
@@ -788,9 +790,7 @@ TCPPeer::recvMessage()
 
 // `drop` can be initiated from any thread and is thread-safe. The method simply
 // schedules a callback on the main thread, that is going to clean up connection
-// lists and remove the peer. Once peer's state changes to "CLOSING", background
-// thread will automatically close the socket via its polling mechanism in
-// `startShutdownTimer`.
+// lists and remove the peer.
 void
 TCPPeer::drop(std::string const& reason, DropDirection dropDirection)
 {
@@ -817,7 +817,7 @@ TCPPeer::drop(std::string const& reason, DropDirection dropDirection)
             return;
         }
 
-        self->mThreadVars.scheduleSocketShutdown(true);
+        self->mThreadVars.scheduleSocketShutdown();
 
         self->getRecurrentTimer().cancel();
         self->getRecurrentTimer().expires_from_now(std::chrono::seconds(5));

@@ -88,11 +88,11 @@ class TCPPeer : public Peer
             return mSocketShutdownScheduled;
         }
         void
-        scheduleSocketShutdown(bool value)
+        scheduleSocketShutdown()
         {
             releaseAssert(threadIsMain());
             releaseAssert(!mSocketShutdownScheduled);
-            mSocketShutdownScheduled = value;
+            mSocketShutdownScheduled = true;
         }
     };
 
