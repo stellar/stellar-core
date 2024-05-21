@@ -133,8 +133,12 @@ overlay.outbound.establish                | meter     | outbound connection esta
 overlay.recv.<X>                          | timer     | received message <X>
 overlay.send.<X>                          | meter     | sent message <X>
 overlay.timeout.idle                      | meter     | idle peer timeout
+overlay.recv.start-survey-collecting      | timer     | time spent in processing request to start survey collecting phase
+overlay.recv.stop-survey-collecting       | timer     | time spent in processing request to stop survey collecting phase
 overlay.recv.survey-request               | timer     | time spent in processing survey request
 overlay.recv.survey-response              | timer     | time spent in processing survey response
+overlay.send.start-survey-collecting      | timer     | sent request to start survey collecting phase
+overlay.send.stop-survey-collecting       | timer     | sent request to stop survey collecting phase
 overlay.send.survey-request               | meter     | sent survey request
 overlay.send.survey-response              | meter     | sent survey response
 process.action.queue                      | counter   | number of items waiting in internal action-queue

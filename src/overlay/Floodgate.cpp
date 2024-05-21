@@ -84,7 +84,8 @@ Floodgate::addRecord(StellarMessage const& msg, Peer::pointer peer, Hash& index)
 // send message to anyone you haven't gotten it from
 bool
 Floodgate::broadcast(std::shared_ptr<StellarMessage const> msg,
-                     std::optional<Hash> const& hash)
+                     std::optional<Hash> const& hash,
+                     uint32_t minOverlayVersion)
 {
     ZoneScoped;
     if (mShuttingDown)
@@ -121,6 +122,14 @@ Floodgate::broadcast(std::shared_ptr<StellarMessage const> msg,
     for (auto peer : peers)
     {
         releaseAssert(peer.second->isAuthenticated());
+
+        if (peer.second->getRemoteOverlayVersion().value() < minOverlayVersion)
+        {
+            // Skip peers running overlay versions that are older than
+            // `minOverlayVersion`.
+            continue;
+        }
+
         bool pullMode = msg->type() == TRANSACTION;
 
         if (peersTold.insert(peer.second->toString()).second)

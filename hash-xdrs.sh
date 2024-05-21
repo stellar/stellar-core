@@ -25,7 +25,11 @@ namespace stellar {
 extern const std::vector<std::pair<std::filesystem::path, std::string>> XDR_FILES_SHA256 = {
 EOF
 
-sha256sum -b $1/xdr/*.x | grep -v Stellar-internal | perl -pe 's/([a-f0-9]+)[ \*]+(.*)/{"$2", "$1"},/'
+# Hashes to ignore
+IGNORE="Stellar-internal\|Stellar-overlay\|Stellar-contract-spec\|Stellar-contract-meta\|Stellar-contract-env-meta"
 
-echo '{"", ""}};'
+sha256sum -b $1/xdr/*.x | grep -v "${IGNORE}" | perl -pe 's/([a-f0-9]+)[ \*]+(.*)/{"$2", "$1"},/'
+
+# Add empty entries for the 5 skipped files
+echo '{"", ""}, {"", ""}, {"", ""}, {"", ""}, {"", ""}};'
 echo '}'
