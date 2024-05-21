@@ -12,13 +12,15 @@
 #include <autocheck/generator.hpp>
 #include <catch.hpp>
 #include <cmath>
+#include <mutex>
 #include <numeric>
 #include <set>
 
 namespace stellar
 {
 
-stellar_default_random_engine gRandomEngine;
+thread_local stellar_default_random_engine
+    gRandomEngine(getLastGlobalStateSeed());
 std::uniform_real_distribution<double> uniformFractionDistribution(0.0, 1.0);
 
 double
@@ -169,14 +171,38 @@ k_means(std::vector<double> const& points, uint32_t k)
     return centroids;
 }
 
+static std::mutex gGlobalSeedMutex;
 static unsigned int lastGlobalSeed{0};
+
+unsigned int
+getLastGlobalStateSeed()
+{
+    std::lock_guard<std::mutex> guard(gGlobalSeedMutex);
+    return lastGlobalSeed;
+}
+
 static void
 reinitializeAllGlobalStateWithSeedInternal(unsigned int seed)
 {
-    lastGlobalSeed = seed;
+    {
+        std::lock_guard<std::mutex> guard(gGlobalSeedMutex);
+        lastGlobalSeed = seed;
+    }
     PubKeyUtils::clearVerifySigCache();
     srand(seed);
+
+    // gRandomEngine is a thread_local, and is initialized / initially seeded
+    // with the result of calling getLastGlobalStateSeed(). This means that the
+    // main thread's gRandomEngine will be initialized with the initial value of
+    // lastGlobalSeed: 0. So we _reseed_ it here. But other non-main threads
+    // will initialize their thread_local gRandomEngine instances as the threads
+    // are launched, which should happen _after_ we've set lastGlobalSeed to
+    // some nontrivial value (either test-provided, user-provded or from the
+    // system PRNG), so they will pick up that nontrivial value and we don't
+    // need to "reseed" them explicitly the same way.
+    assert(threadIsMain());
     gRandomEngine.seed(seed);
+
     randHash::initialize();
 }
 
@@ -184,8 +210,13 @@ void
 initializeAllGlobalState()
 {
     releaseAssert(lastGlobalSeed == 0);
-    auto const seed = static_cast<unsigned int>(
-        std::chrono::system_clock::now().time_since_epoch().count());
+    // libstdc++ and libc++ accept and use "/dev/urandom" as the token
+    // identifying the system _nonblocking_ random number generator: we're not
+    // after strong cryptographic randomness here, just nonblocking best-effort.
+    //
+    // MSVC ignores this parameter and calls into the RtlGenRandom /
+    // CryptGenRandom complex (depending on Windows version) to get the seed.
+    auto const seed = std::random_device("/dev/urandom")();
     reinitializeAllGlobalStateWithSeedInternal(seed);
     // shortHash needs to be initialized with a strong random seed
     shortHash::initialize();
@@ -203,10 +234,5 @@ reinitializeAllGlobalStateWithSeed(unsigned int seed)
     autocheck::rng().seed(seed);
 }
 
-unsigned int
-getLastGlobalStateSeed()
-{
-    return lastGlobalSeed;
-}
 #endif
 }

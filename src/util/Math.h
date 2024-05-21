@@ -25,7 +25,7 @@ bool rand_flip();
 
 typedef std::minstd_rand stellar_default_random_engine;
 
-extern stellar_default_random_engine gRandomEngine;
+extern thread_local stellar_default_random_engine gRandomEngine;
 
 template <typename T>
 T
@@ -76,7 +76,8 @@ void initializeAllGlobalState();
 // shouldn't be resetting globals like this mid-run -- especially not things
 // like hash function keys.
 void reinitializeAllGlobalStateWithSeed(unsigned int seed);
-unsigned int getLastGlobalStateSeed();
 #endif
+
+unsigned int getLastGlobalStateSeed();
 
 }
