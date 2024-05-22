@@ -1634,6 +1634,8 @@ int
 runVersion(CommandLineArgs const&)
 {
     std::cout << STELLAR_CORE_VERSION << std::endl;
+    std::cout << "ledger protocol version: "
+              << Config::CURRENT_LEDGER_PROTOCOL_VERSION << std::endl;
     std::cout << "rust version: " << rust_bridge::get_rustc_version().c_str()
               << std::endl;
 
