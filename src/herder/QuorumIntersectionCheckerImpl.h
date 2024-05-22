@@ -427,8 +427,7 @@ class MinQuorumEnumerator
     QuorumIntersectionCheckerImpl const& mQic;
 
     // Select the next node in mRemaining to split recursive cases between.
-    size_t
-    pickSplitNode(stellar::stellar_default_random_engine& randEngine) const;
+    size_t pickSplitNode() const;
 
     // Size limit for mCommitted beyond which we should stop scanning.
     size_t maxCommit() const;
@@ -534,9 +533,7 @@ class QuorumIntersectionCheckerImpl : public stellar::QuorumIntersectionChecker
     QuorumIntersectionCheckerImpl(
         stellar::QuorumIntersectionChecker::QuorumSetMap const& qmap,
         std::optional<stellar::Config> const& cfg,
-        std::atomic<bool>& interruptFlag,
-        stellar::stellar_default_random_engine::result_type seed,
-        bool quiet = false);
+        std::atomic<bool>& interruptFlag, bool quiet = false);
     bool networkEnjoysQuorumIntersection() const override;
 
     std::pair<std::vector<stellar::NodeID>, std::vector<stellar::NodeID>>

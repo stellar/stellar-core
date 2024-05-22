@@ -882,8 +882,7 @@ TEST_CASE("quorum intersection interruption", "[herder][quorumintersection]")
     Config cfg(getTestConfig());
     cfg = configureShortNames(cfg, orgs);
     std::atomic<bool> interruptFlag{false};
-    auto qic = QuorumIntersectionChecker::create(qm, cfg, interruptFlag,
-                                                 gRandomEngine());
+    auto qic = QuorumIntersectionChecker::create(qm, cfg, interruptFlag);
     std::thread canceller([&interruptFlag]() {
         std::this_thread::sleep_for(std::chrono::milliseconds(100));
         interruptFlag = true;
@@ -897,9 +896,9 @@ TEST_CASE("quorum intersection interruption", "[herder][quorumintersection]")
         std::this_thread::sleep_for(std::chrono::milliseconds(100));
         interruptFlag = true;
     });
-    REQUIRE_THROWS_AS(qic->getIntersectionCriticalGroups(qm, cfg, interruptFlag,
-                                                         gRandomEngine()),
-                      QuorumIntersectionChecker::InterruptedException);
+    REQUIRE_THROWS_AS(
+        qic->getIntersectionCriticalGroups(qm, cfg, interruptFlag),
+        QuorumIntersectionChecker::InterruptedException);
     canceller2.join();
 }
 
@@ -982,12 +981,11 @@ TEST_CASE("quorum intersection criticality",
     cfg = configureShortNames(cfg, orgs);
     debugQmap(cfg, qm);
     std::atomic<bool> flag{false};
-    auto qic =
-        QuorumIntersectionChecker::create(qm, cfg, flag, gRandomEngine());
+    auto qic = QuorumIntersectionChecker::create(qm, cfg, flag);
     REQUIRE(qic->networkEnjoysQuorumIntersection());
 
-    auto groups = QuorumIntersectionChecker::getIntersectionCriticalGroups(
-        qm, cfg, flag, gRandomEngine());
+    auto groups =
+        QuorumIntersectionChecker::getIntersectionCriticalGroups(qm, cfg, flag);
     REQUIRE(groups.size() == 1);
     REQUIRE(groups == std::set<std::set<PublicKey>>{{orgs[3][0]}});
 }

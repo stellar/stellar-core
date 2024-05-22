@@ -58,8 +58,7 @@ QBitSet::getSuccessors(BitSet const& nodes, QGraph const& inner)
 
 // Slightly tweaked variant of Lachowski's next-node function.
 size_t
-MinQuorumEnumerator::pickSplitNode(
-    stellar::stellar_default_random_engine& randEngine) const
+MinQuorumEnumerator::pickSplitNode() const
 {
     std::vector<size_t>& inDegrees = mQic.mInDegrees;
     inDegrees.assign(mQic.mGraph.size(), 0);
@@ -84,7 +83,7 @@ MinQuorumEnumerator::pickSplitNode(
                     // currDegree same as existing max: replace it
                     // only probabilistically.
                     maxCount++;
-                    if (rand_uniform<size_t>(0, maxCount, randEngine) == 0)
+                    if (rand_uniform<size_t>(0, maxCount, gRandomEngine) == 0)
                     {
                         // Not switching max element with max degree.
                         continue;
@@ -237,7 +236,7 @@ MinQuorumEnumerator::anyMinQuorumHasDisjointQuorum()
     }
 
     // Phase two: recurse into subproblems.
-    size_t split = pickSplitNode(mQic.mRand);
+    size_t split = pickSplitNode();
     if (mQic.mLogTrace)
     {
         CLOG_TRACE(SCP, "recursing into subproblems, split={}", split);
@@ -269,14 +268,13 @@ MinQuorumEnumerator::anyMinQuorumHasDisjointQuorum()
 QuorumIntersectionCheckerImpl::QuorumIntersectionCheckerImpl(
     QuorumIntersectionChecker::QuorumSetMap const& qmap,
     std::optional<Config> const& cfg, std::atomic<bool>& interruptFlag,
-    stellar_default_random_engine::result_type seed, bool quiet)
+    bool quiet)
     : mCfg(cfg)
     , mLogTrace(Logging::logTrace("SCP"))
     , mQuiet(quiet)
     , mTSC()
     , mInterruptFlag(interruptFlag)
     , mCachedQuorums(MAX_CACHED_QUORUMS_SIZE)
-    , mRand(seed)
 {
     buildGraph(qmap);
     // Awkwardly, the graph size is zero when we initialize mTSC. Update it
@@ -817,40 +815,35 @@ toQuorumIntersectionMap(QuorumTracker::QuorumMap const& qmap)
 namespace stellar
 {
 std::shared_ptr<QuorumIntersectionChecker>
-QuorumIntersectionChecker::create(
-    QuorumTracker::QuorumMap const& qmap, std::optional<Config> const& cfg,
-    std::atomic<bool>& interruptFlag,
-    stellar_default_random_engine::result_type seed, bool quiet)
+QuorumIntersectionChecker::create(QuorumTracker::QuorumMap const& qmap,
+                                  std::optional<Config> const& cfg,
+                                  std::atomic<bool>& interruptFlag, bool quiet)
 {
-    return create(toQuorumIntersectionMap(qmap), cfg, interruptFlag, seed,
-                  quiet);
+    return create(toQuorumIntersectionMap(qmap), cfg, interruptFlag, quiet);
 }
 
 std::shared_ptr<QuorumIntersectionChecker>
-QuorumIntersectionChecker::create(
-    QuorumSetMap const& qmap, std::optional<Config> const& cfg,
-    std::atomic<bool>& interruptFlag,
-    stellar_default_random_engine::result_type seed, bool quiet)
+QuorumIntersectionChecker::create(QuorumSetMap const& qmap,
+                                  std::optional<Config> const& cfg,
+                                  std::atomic<bool>& interruptFlag, bool quiet)
 {
     return std::make_shared<QuorumIntersectionCheckerImpl>(
-        qmap, cfg, interruptFlag, seed, quiet);
+        qmap, cfg, interruptFlag, quiet);
 }
 
 std::set<std::set<NodeID>>
 QuorumIntersectionChecker::getIntersectionCriticalGroups(
     QuorumTracker::QuorumMap const& qmap, std::optional<Config> const& cfg,
-    std::atomic<bool>& interruptFlag,
-    stellar_default_random_engine::result_type seed)
+    std::atomic<bool>& interruptFlag)
 {
     return getIntersectionCriticalGroups(toQuorumIntersectionMap(qmap), cfg,
-                                         interruptFlag, seed);
+                                         interruptFlag);
 }
 
 std::set<std::set<NodeID>>
 QuorumIntersectionChecker::getIntersectionCriticalGroups(
     QuorumSetMap const& qmap, std::optional<Config> const& cfg,
-    std::atomic<bool>& interruptFlag,
-    stellar_default_random_engine::result_type seed)
+    std::atomic<bool>& interruptFlag)
 {
     // We're going to search for "intersection-critical" groups, by considering
     // each SCPQuorumSet S that (a) has no innerSets of its own and (b) occurs
@@ -936,9 +929,9 @@ QuorumIntersectionChecker::getIntersectionCriticalGroups(
         }
 
         // Check to see if this modified config is vulnerable to splitting.
-        auto checker = QuorumIntersectionChecker::create(test_qmap, cfg,
-                                                         interruptFlag, seed,
-                                                         /*quiet=*/true);
+        auto checker =
+            QuorumIntersectionChecker::create(test_qmap, cfg, interruptFlag,
+                                              /*quiet=*/true);
         if (checker->networkEnjoysQuorumIntersection())
         {
             CLOG_DEBUG(SCP,
