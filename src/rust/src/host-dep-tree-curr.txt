@@ -1,4 +1,4 @@
-soroban-env-host 21.0.2 git+https://github.com/stellar/rs-soroban-env?rev=6ddc1d05380646f88447c4e78390784df2269737#6ddc1d05380646f88447c4e78390784df2269737
+soroban-env-host 21.0.2 git+https://github.com/stellar/rs-soroban-env?rev=f4a1ed8aaaf82256a98efc1eaa1f8f4c5a79e50d#f4a1ed8aaaf82256a98efc1eaa1f8f4c5a79e50d
 ├── wasmparser 0.116.1 checksum:a58e28b80dd8340cb07b8242ae654756161f6fc8d0038123d679b7b99964fa50
 │   ├── semver 1.0.17 checksum:bebd363326d05ec3e2f532ab7660680f3b02130d780c299bca73469d521bc0ed
 │   │   └── serde 1.0.192 checksum:bca2a08484b285dcb282d0f67b26cadc0df8b19f8c12502c13d966bf9482f001
@@ -14,9 +14,9 @@ soroban-env-host 21.0.2 git+https://github.com/stellar/rs-soroban-env?rev=6ddc1d
 │   └── indexmap 2.0.2 checksum:8adf3ddd720272c6ea8bf59463c04e0f93d0bbf7c5439b691bca2987e0270897
 │       ├── hashbrown 0.14.1 checksum:7dfda62a12f55daeae5015f81b0baea145391cb4520f86c248fc615d72640d12
 │       └── equivalent 1.0.1 checksum:5443807d6dff69373d433ab9ef5378ad8df50ca6298caf15de6e52e24aaf54d5
-├── tracy-client 0.15.2 checksum:434ecabbda9f67eeea1eab44d52f4a20538afa3e2c2770f2efc161142b25b608
-│   ├── tracy-client-sys 0.20.0 checksum:e8cf8aeb20e40d13be65a0b134f8d82d360e72b2793a11de8867d7fbc0f9d6f6
-│   │   └── cc 1.0.79 checksum:50d30906286121d95be3d479533b458f87493b30a4b5f79a607db8f5d11aa91f
+├── tracy-client 0.16.4 checksum:82da0d50d9df1106619b1e5b118f39de779f7d8b9c3504485b291cb16fabd20f
+│   ├── tracy-client-sys 0.22.2 checksum:9d104d610dfa9dd154535102cc9c6164ae1fa37842bc2d9e83f9ac82b0ae0882
+│   │   └── cc 1.0.98 checksum:41c270e7540d725e65ac7f1b212ac8ce349719624d7bcff99f8e2e488e8cf03f
 │   ├── once_cell 1.18.0 checksum:dd8b5dd2ae5ed71462c540258bedcb51965123ad7e7ccf4b9a8cafaa4a63576d
 │   └── loom 0.5.6 checksum:ff50ecb28bb86013e935fb6683ab1f6d3a20016f123c76fd4c27470076ac30f5
 │       ├── tracing-subscriber 0.3.17 checksum:30a651bc37f915e81f087d86e62a18eec5f79550c7faff886f7090b4ea757c77
@@ -103,9 +103,9 @@ soroban-env-host 21.0.2 git+https://github.com/stellar/rs-soroban-env?rev=6ddc1d
 │   ├── wasmi_arena 0.4.0 git+https://github.com/stellar/wasmi?rev=0ed3f3dee30dc41ebe21972399e0a73a41944aa0#0ed3f3dee30dc41ebe21972399e0a73a41944aa0
 │   ├── spin 0.9.8 checksum:6980e8d7511241f8acf4aebddbb1ff938df5eebe98691418c4468d0b72a96a67
 │   └── smallvec 1.10.0 checksum:a507befe795404456341dfab10cef66ead4c041f62b8b11bbb92bffe5d0953e0
-├── soroban-env-common 21.0.2 git+https://github.com/stellar/rs-soroban-env?rev=6ddc1d05380646f88447c4e78390784df2269737#6ddc1d05380646f88447c4e78390784df2269737
+├── soroban-env-common 21.0.2 git+https://github.com/stellar/rs-soroban-env?rev=f4a1ed8aaaf82256a98efc1eaa1f8f4c5a79e50d#f4a1ed8aaaf82256a98efc1eaa1f8f4c5a79e50d
 │   ├── wasmparser 0.116.1 checksum:a58e28b80dd8340cb07b8242ae654756161f6fc8d0038123d679b7b99964fa50
-│   ├── tracy-client 0.15.2 checksum:434ecabbda9f67eeea1eab44d52f4a20538afa3e2c2770f2efc161142b25b608
+│   ├── tracy-client 0.16.4 checksum:82da0d50d9df1106619b1e5b118f39de779f7d8b9c3504485b291cb16fabd20f
 │   ├── stellar-xdr 21.0.1 checksum:88e716110d5e050e528820217f84d4667e166ced841ba48d074152d4ad4ab884
 │   │   ├── stellar-strkey 0.0.8 checksum:12d2bf45e114117ea91d820a846fd1afbe3ba7d717988fee094ce8227a3bf8bd
 │   │   ├── hex 0.4.3 checksum:7f24254aa9a54b5c858eaee2f5bccdb46aaf0e486a595ed5fd8f86ba55232a70
@@ -114,7 +114,7 @@ soroban-env-host 21.0.2 git+https://github.com/stellar/rs-soroban-env?rev=6ddc1d
 │   │   └── base64 0.13.1 checksum:9e1b586273c5702936fe7b7d6896644d8be71e6314cfe09d3167c95f712589e8
 │   ├── static_assertions 1.1.0 checksum:a2eb9349b6444b326872e140eb1cf5e7c522154d69e7a0ffb0fb81c06b37543f
 │   ├── soroban-wasmi 0.31.1-soroban.20.0.1 git+https://github.com/stellar/wasmi?rev=0ed3f3dee30dc41ebe21972399e0a73a41944aa0#0ed3f3dee30dc41ebe21972399e0a73a41944aa0
-│   ├── soroban-env-macros 21.0.2 git+https://github.com/stellar/rs-soroban-env?rev=6ddc1d05380646f88447c4e78390784df2269737#6ddc1d05380646f88447c4e78390784df2269737
+│   ├── soroban-env-macros 21.0.2 git+https://github.com/stellar/rs-soroban-env?rev=f4a1ed8aaaf82256a98efc1eaa1f8f4c5a79e50d#f4a1ed8aaaf82256a98efc1eaa1f8f4c5a79e50d
 │   │   ├── syn 2.0.39 checksum:23e78b90f2fcf45d3e842032ce32e3f2d1545ba6636271dcbf24fa306d87be7a
 │   │   ├── stellar-xdr 21.0.1 checksum:88e716110d5e050e528820217f84d4667e166ced841ba48d074152d4ad4ab884
 │   │   ├── serde_json 1.0.108 checksum:3d1c7e3eac408d115102c4c24ad393e0821bb3a5df4d506a80f85f7a742a526b
@@ -130,7 +130,7 @@ soroban-env-host 21.0.2 git+https://github.com/stellar/rs-soroban-env?rev=6ddc1d
 │   │   └── proc-macro2 1.0.69 checksum:134c189feb4956b20f6f547d2cf727d4c0fe06722b20a0eec87ed445a97f92da
 │   ├── ethnum 1.5.0 checksum:b90ca2580b73ab6a1f724b76ca11ab632df820fd6040c336200d2c1df7b3c82c
 │   └── crate-git-revision 0.0.6 checksum:c521bf1f43d31ed2f73441775ed31935d77901cb3451e44b38a1c1612fcbaf98
-├── soroban-builtin-sdk-macros 21.0.2 git+https://github.com/stellar/rs-soroban-env?rev=6ddc1d05380646f88447c4e78390784df2269737#6ddc1d05380646f88447c4e78390784df2269737
+├── soroban-builtin-sdk-macros 21.0.2 git+https://github.com/stellar/rs-soroban-env?rev=f4a1ed8aaaf82256a98efc1eaa1f8f4c5a79e50d#f4a1ed8aaaf82256a98efc1eaa1f8f4c5a79e50d
 │   ├── syn 2.0.39 checksum:23e78b90f2fcf45d3e842032ce32e3f2d1545ba6636271dcbf24fa306d87be7a
 │   ├── quote 1.0.33 checksum:5267fca4496028628a95160fc423a33e8b2e6af8a5302579e322e4b520293cae
 │   ├── proc-macro2 1.0.69 checksum:134c189feb4956b20f6f547d2cf727d4c0fe06722b20a0eec87ed445a97f92da

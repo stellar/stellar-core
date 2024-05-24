@@ -941,7 +941,7 @@ dependencies = [
 [[package]]
 name = "soroban-builtin-sdk-macros"
 version = "21.0.2"
-source = "git+https://github.com/stellar/rs-soroban-env?rev=6ddc1d05380646f88447c4e78390784df2269737#6ddc1d05380646f88447c4e78390784df2269737"
+source = "git+https://github.com/stellar/rs-soroban-env?rev=f4a1ed8aaaf82256a98efc1eaa1f8f4c5a79e50d#f4a1ed8aaaf82256a98efc1eaa1f8f4c5a79e50d"
 dependencies = [
  "itertools",
  "proc-macro2",
@@ -967,7 +967,7 @@ dependencies = [
 [[package]]
 name = "soroban-env-common"
 version = "21.0.2"
-source = "git+https://github.com/stellar/rs-soroban-env?rev=6ddc1d05380646f88447c4e78390784df2269737#6ddc1d05380646f88447c4e78390784df2269737"
+source = "git+https://github.com/stellar/rs-soroban-env?rev=f4a1ed8aaaf82256a98efc1eaa1f8f4c5a79e50d#f4a1ed8aaaf82256a98efc1eaa1f8f4c5a79e50d"
 dependencies = [
  "crate-git-revision",
  "ethnum",
@@ -1009,7 +1009,7 @@ dependencies = [
 [[package]]
 name = "soroban-env-host"
 version = "21.0.2"
-source = "git+https://github.com/stellar/rs-soroban-env?rev=6ddc1d05380646f88447c4e78390784df2269737#6ddc1d05380646f88447c4e78390784df2269737"
+source = "git+https://github.com/stellar/rs-soroban-env?rev=f4a1ed8aaaf82256a98efc1eaa1f8f4c5a79e50d#f4a1ed8aaaf82256a98efc1eaa1f8f4c5a79e50d"
 dependencies = [
  "curve25519-dalek",
  "ecdsa",
@@ -1055,7 +1055,7 @@ dependencies = [
 [[package]]
 name = "soroban-env-macros"
 version = "21.0.2"
-source = "git+https://github.com/stellar/rs-soroban-env?rev=6ddc1d05380646f88447c4e78390784df2269737#6ddc1d05380646f88447c4e78390784df2269737"
+source = "git+https://github.com/stellar/rs-soroban-env?rev=f4a1ed8aaaf82256a98efc1eaa1f8f4c5a79e50d#f4a1ed8aaaf82256a98efc1eaa1f8f4c5a79e50d"
 dependencies = [
  "itertools",
  "proc-macro2",
@@ -1069,7 +1069,7 @@ dependencies = [
 [[package]]
 name = "soroban-synth-wasm"
 version = "21.0.2"
-source = "git+https://github.com/stellar/rs-soroban-env?rev=6ddc1d05380646f88447c4e78390784df2269737#6ddc1d05380646f88447c4e78390784df2269737"
+source = "git+https://github.com/stellar/rs-soroban-env?rev=f4a1ed8aaaf82256a98efc1eaa1f8f4c5a79e50d#f4a1ed8aaaf82256a98efc1eaa1f8f4c5a79e50d"
 dependencies = [
  "arbitrary",
  "soroban-env-common 21.0.2",
@@ -1082,7 +1082,7 @@ dependencies = [
 [[package]]
 name = "soroban-test-wasms"
 version = "21.0.2"
-source = "git+https://github.com/stellar/rs-soroban-env?rev=6ddc1d05380646f88447c4e78390784df2269737#6ddc1d05380646f88447c4e78390784df2269737"
+source = "git+https://github.com/stellar/rs-soroban-env?rev=f4a1ed8aaaf82256a98efc1eaa1f8f4c5a79e50d#f4a1ed8aaaf82256a98efc1eaa1f8f4c5a79e50d"
 
 [[package]]
 name = "soroban-wasmi"
@@ -1334,27 +1334,27 @@ dependencies = [
 
 [[package]]
 name = "tracy-client"
-version = "0.15.2"
+version = "0.16.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "434ecabbda9f67eeea1eab44d52f4a20538afa3e2c2770f2efc161142b25b608"
+checksum = "82da0d50d9df1106619b1e5b118f39de779f7d8b9c3504485b291cb16fabd20f"
 dependencies = [
  "loom",
  "once_cell",
- "tracy-client-sys 0.20.0",
+ "tracy-client-sys 0.22.2",
 ]
 
 [[package]]
 name = "tracy-client-sys"
-version = "0.20.0"
+version = "0.22.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e8cf8aeb20e40d13be65a0b134f8d82d360e72b2793a11de8867d7fbc0f9d6f6"
+checksum = "9d104d610dfa9dd154535102cc9c6164ae1fa37842bc2d9e83f9ac82b0ae0882"
 dependencies = [
  "cc",
 ]
 
 [[package]]
 name = "tracy-client-sys"
-version = "0.21.0"
+version = "0.22.3"
 
 [[package]]
 name = "typenum"
