@@ -825,15 +825,11 @@ Peer::sendAuthenticatedMessage(std::shared_ptr<StellarMessage const> msg)
         // ordering of messages, which is important here, because we assign
         // auth sequence numbers.
         AuthenticatedMessage amsg;
-        amsg.v0().message = *msg;
-        if (msg->type() != HELLO && msg->type() != ERROR_MSG)
+        std::string errorMsg;
+        if (!self->mHmac.setAuthenticatedMessageBody(amsg, *msg, errorMsg))
         {
-            ZoneNamedN(hmacZone, "message HMAC", true);
-            amsg.v0().sequence = self->mSendMacSeq;
-            amsg.v0().mac =
-                hmacSha256(self->mSendMacKey,
-                           xdr::xdr_to_opaque(self->mSendMacSeq.load(), *msg));
-            self->mSendMacSeq++;
+            self->sendErrorAndDrop(ERR_AUTH, errorMsg);
+            return;
         }
         xdr::msg_ptr xdrBytes;
         {
@@ -849,13 +845,13 @@ Peer::sendAuthenticatedMessage(std::shared_ptr<StellarMessage const> msg)
 }
 
 bool
-Peer::isConnected(LockGuard const& stateGuard) const
+Peer::isConnected(RecursiveLockGuard const& stateGuard) const
 {
     return mState != CONNECTING && mState != CLOSING;
 }
 
 bool
-Peer::isAuthenticated(LockGuard const& stateGuard) const
+Peer::isAuthenticated(RecursiveLockGuard const& stateGuard) const
 {
     return mState == GOT_AUTH;
 }
@@ -890,7 +886,7 @@ Peer::getLifeTime() const
 }
 
 bool
-Peer::shouldAbort(LockGuard const& stateGuard) const
+Peer::shouldAbort(RecursiveLockGuard const& stateGuard) const
 {
     return mState == CLOSING;
 }
@@ -910,20 +906,7 @@ Peer::recvAuthenticatedMessage(AuthenticatedMessage&& msg)
     std::string errorMsg;
     if (getState(guard) >= GOT_HELLO && msg.v0().message.type() != ERROR_MSG)
     {
-        if (msg.v0().sequence != mRecvMacSeq)
-        {
-            errorMsg = "unexpected auth sequence";
-        }
-
-        if (!hmacSha256Verify(
-                msg.v0().mac, mRecvMacKey,
-                xdr::xdr_to_opaque(msg.v0().sequence, msg.v0().message)))
-        {
-            errorMsg = "unexpected MAC";
-        }
-        ++mRecvMacSeq;
-
-        if (!errorMsg.empty())
+        if (!mHmac.checkAuthenticatedMessage(msg, errorMsg))
         {
             if (!threadIsMain())
             {
@@ -1613,12 +1596,10 @@ Peer::recvHello(Hello const& elo)
     mRemoteVersion = elo.versionStr;
     mPeerID = elo.peerID;
     mRecvNonce = elo.nonce;
-    mSendMacSeq = 0;
-    mRecvMacSeq = 0;
-    mSendMacKey = peerAuth.getSendingMacKey(elo.cert.pubkey, mSendNonce,
-                                            mRecvNonce, mRole);
-    mRecvMacKey = peerAuth.getReceivingMacKey(elo.cert.pubkey, mSendNonce,
-                                              mRecvNonce, mRole);
+    mHmac.setSendMackey(peerAuth.getSendingMacKey(elo.cert.pubkey, mSendNonce,
+                                                  mRecvNonce, mRole));
+    mHmac.setRecvMackey(peerAuth.getReceivingMacKey(elo.cert.pubkey, mSendNonce,
+                                                    mRecvNonce, mRole));
 
     setState(guard, GOT_HELLO);
 
@@ -1727,7 +1708,7 @@ Peer::recvHello(Hello const& elo)
 }
 
 void
-Peer::setState(LockGuard const& stateGuard, PeerState newState)
+Peer::setState(RecursiveLockGuard const& stateGuard, PeerState newState)
 {
     mState = newState;
 }

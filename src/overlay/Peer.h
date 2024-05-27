@@ -8,6 +8,7 @@
 #include "database/Database.h"
 #include "lib/json/json.h"
 #include "medida/timer.h"
+#include "overlay/Hmac.h"
 #include "overlay/OverlayAppConnector.h"
 #include "overlay/PeerBareAddress.h"
 #include "util/NonCopyable.h"
@@ -198,10 +199,7 @@ class Peer : public std::enable_shared_from_this<Peer>,
     mutable TracyLockable(std::recursive_mutex, mStateMutex);
 #endif
 
-    HmacSha256Key mSendMacKey;
-    HmacSha256Key mRecvMacKey;
-    std::atomic<uint64_t> mSendMacSeq{0};
-    std::atomic<uint64_t> mRecvMacSeq{0};
+    Hmac mHmac;
     // Does local node have capacity to read from this peer
     bool canRead() const;
     // helper method to acknowledge that some bytes were received
@@ -214,15 +212,15 @@ class Peer : public std::enable_shared_from_this<Peer>,
     }
 
     void initialize(PeerBareAddress const& address);
-    void setState(LockGuard const& stateGuard, PeerState newState);
-    bool shouldAbort(LockGuard const& stateGuard) const;
+    void setState(RecursiveLockGuard const& stateGuard, PeerState newState);
+    bool shouldAbort(RecursiveLockGuard const& stateGuard) const;
     void shutdownAndRemovePeer(std::string const& reason,
                                DropDirection dropDirection);
 
     // Subclasses should only use these methods to load and modify peer state,
     // signatured hint that callers need to grab mStateMutex.
     PeerState
-    getState(LockGuard const& stateGuard) const
+    getState(RecursiveLockGuard const& stateGuard) const
     {
         return mState;
     }
@@ -413,8 +411,8 @@ class Peer : public std::enable_shared_from_this<Peer>,
 
     /* The following functions can be called from background thread, so they
      * must be thread-safe */
-    bool isConnected(LockGuard const& stateGuard) const;
-    bool isAuthenticated(LockGuard const& stateGuard) const;
+    bool isConnected(RecursiveLockGuard const& stateGuard) const;
+    bool isAuthenticated(RecursiveLockGuard const& stateGuard) const;
 
     PeerMetrics&
     getPeerMetrics()
@@ -449,14 +447,14 @@ class Peer : public std::enable_shared_from_this<Peer>,
     void
     assertAuthenticated() const
     {
-        LockGuard guard(mStateMutex);
+        RecursiveLockGuard guard(mStateMutex);
         releaseAssert(isAuthenticated(guard));
     }
 
     void
     assertShuttingDown() const
     {
-        LockGuard guard(mStateMutex);
+        RecursiveLockGuard guard(mStateMutex);
         releaseAssert(mState == CLOSING);
     }
 
@@ -467,14 +465,14 @@ class Peer : public std::enable_shared_from_this<Peer>,
     bool
     isAuthenticatedAtomic() const
     {
-        LockGuard guard(mStateMutex);
+        RecursiveLockGuard guard(mStateMutex);
         return isAuthenticated(guard);
     }
 
     void
     doIfAuthenticated(std::function<void()> f)
     {
-        LockGuard guard(mStateMutex);
+        RecursiveLockGuard guard(mStateMutex);
         if (isAuthenticated(guard))
         {
             f();
