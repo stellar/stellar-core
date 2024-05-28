@@ -42,9 +42,9 @@ struct CollectingNodeData
     uint32_t mAddedAuthenticatedPeers = 0;
     uint32_t mDroppedAuthenticatedPeers = 0;
 
-    // SCP stats (in nanoseconds)
-    medida::Histogram mSCPFirstToSelfLatencyNsHistogram;
-    medida::Histogram mSCPSelfToOtherLatencyNsHistogram;
+    // SCP stats (in milliseconds)
+    medida::Histogram mSCPFirstToSelfLatencyMsHistogram;
+    medida::Histogram mSCPSelfToOtherLatencyMsHistogram;
 
     // To compute how many times the node lost sync in the time slice
     uint64_t const mInitialLostSyncCount;

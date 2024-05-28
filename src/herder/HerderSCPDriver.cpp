@@ -1038,8 +1038,8 @@ HerderSCPDriver::recordSCPExternalizeEvent(uint64_t slotIndex, NodeID const& id,
                             std::chrono::nanoseconds::zero(), slotIndex);
             mApp.getOverlayManager().getSurveyManager().modifyNodeData(
                 [&](CollectingNodeData& nd) {
-                    nd.mSCPFirstToSelfLatencyNsHistogram.Update(
-                        std::chrono::duration_cast<std::chrono::nanoseconds>(
+                    nd.mSCPFirstToSelfLatencyMsHistogram.Update(
+                        std::chrono::duration_cast<std::chrono::milliseconds>(
                             now - *timing.mFirstExternalize)
                             .count());
                 });
@@ -1063,8 +1063,8 @@ HerderSCPDriver::recordSCPExternalizeEvent(uint64_t slotIndex, NodeID const& id,
                 std::chrono::nanoseconds::zero(), slotIndex);
             mApp.getOverlayManager().getSurveyManager().modifyNodeData(
                 [&](CollectingNodeData& nd) {
-                    nd.mSCPSelfToOtherLatencyNsHistogram.Update(
-                        std::chrono::duration_cast<std::chrono::nanoseconds>(
+                    nd.mSCPSelfToOtherLatencyMsHistogram.Update(
+                        std::chrono::duration_cast<std::chrono::milliseconds>(
                             now - *timing.mFirstExternalize)
                             .count());
                 });
