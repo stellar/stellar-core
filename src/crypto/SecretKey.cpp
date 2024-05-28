@@ -41,10 +41,9 @@ namespace stellar
 // makes all signature-verification in the program faster and
 // has no effect on correctness.
 
-static std::mutex gVerifySigCacheMutex;
-static RandomEvictionCache<Hash, bool> gVerifySigCache(0xffff);
-static uint64_t gVerifyCacheHit = 0;
-static uint64_t gVerifyCacheMiss = 0;
+static thread_local RandomEvictionCache<Hash, bool> gVerifySigCache(0xffff);
+static thread_local uint64_t gVerifyCacheHit = 0;
+static thread_local uint64_t gVerifyCacheMiss = 0;
 
 static Hash
 verifySigCacheKey(PublicKey const& key, Signature const& signature,
@@ -316,14 +315,12 @@ SecretKey::fromStrKeySeed(std::string const& strKeySeed)
 void
 PubKeyUtils::clearVerifySigCache()
 {
-    std::lock_guard<std::mutex> guard(gVerifySigCacheMutex);
     gVerifySigCache.clear();
 }
 
 void
 PubKeyUtils::flushVerifySigCacheCounts(uint64_t& hits, uint64_t& misses)
 {
-    std::lock_guard<std::mutex> guard(gVerifySigCacheMutex);
     hits = gVerifyCacheHit;
     misses = gVerifyCacheMiss;
     gVerifyCacheHit = 0;
@@ -438,7 +435,6 @@ PubKeyUtils::verifySig(PublicKey const& key, Signature const& signature,
     auto cacheKey = verifySigCacheKey(key, signature, bin);
 
     {
-        std::lock_guard<std::mutex> guard(gVerifySigCacheMutex);
         if (gVerifySigCache.exists(cacheKey))
         {
             ++gVerifyCacheHit;
@@ -453,7 +449,6 @@ PubKeyUtils::verifySig(PublicKey const& key, Signature const& signature,
     bool ok =
         (crypto_sign_verify_detached(signature.data(), bin.data(), bin.size(),
                                      key.ed25519().data()) == 0);
-    std::lock_guard<std::mutex> guard(gVerifySigCacheMutex);
     ++gVerifyCacheMiss;
     gVerifySigCache.put(cacheKey, ok);
     return ok;

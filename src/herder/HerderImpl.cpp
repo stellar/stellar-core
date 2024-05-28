@@ -1788,15 +1788,13 @@ HerderImpl::checkAndMaybeReanalyzeQuorumMap()
         mLastQuorumMapIntersectionState.mCheckingQuorumMapHash = curr;
         auto& cfg = mApp.getConfig();
         releaseAssert(threadIsMain());
-        auto seed = gRandomEngine();
         auto qic = QuorumIntersectionChecker::create(
-            qmap, cfg, mLastQuorumMapIntersectionState.mInterruptFlag, seed);
+            qmap, cfg, mLastQuorumMapIntersectionState.mInterruptFlag);
         auto ledger = trackingConsensusLedgerIndex();
         auto nNodes = qmap.size();
         auto& hState = mLastQuorumMapIntersectionState;
         auto& app = mApp;
-        auto worker = [curr, ledger, nNodes, qic, qmap, cfg, seed, &app,
-                       &hState] {
+        auto worker = [curr, ledger, nNodes, qic, qmap, cfg, &app, &hState] {
             try
             {
                 ZoneScoped;
@@ -1809,8 +1807,8 @@ HerderImpl::checkAndMaybeReanalyzeQuorumMap()
                     // intersecting; if not intersecting we should finish ASAP
                     // and raise an alarm.
                     critical = QuorumIntersectionChecker::
-                        getIntersectionCriticalGroups(
-                            qmap, cfg, hState.mInterruptFlag, seed);
+                        getIntersectionCriticalGroups(qmap, cfg,
+                                                      hState.mInterruptFlag);
                 }
                 app.postOnMainThread(
                     [ok, curr, ledger, nNodes, split, critical, &hState] {
