@@ -168,15 +168,11 @@ class Peer : public std::enable_shared_from_this<Peer>,
     {
         std::weak_ptr<Peer> const mWeakPeer;
         StellarMessage const mMsg;
-        std::atomic<bool> mFinished{false};
 
       public:
         MsgCapacityTracker(std::weak_ptr<Peer> peer, StellarMessage const& msg);
         StellarMessage const& getMessage();
-        // Since MsgCapacityTracker is passed around between thread and stored
-        // by ASIO in lambdas, do not rely on RAII to trigger completion.
-        // Instead, explicitly call `finish`.
-        void finish();
+        ~MsgCapacityTracker();
     };
 
     OverlayAppConnector mAppConnector;

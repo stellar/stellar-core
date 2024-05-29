@@ -90,13 +90,8 @@ Peer::MsgCapacityTracker::MsgCapacityTracker(std::weak_ptr<Peer> peer,
     self->beginMessageProcessing(mMsg);
 }
 
-void
-Peer::MsgCapacityTracker::finish()
+Peer::MsgCapacityTracker::~MsgCapacityTracker()
 {
-    // `finish` must be called once
-    bool expected = false;
-    releaseAssert(mFinished.compare_exchange_strong(expected, true));
-
     auto self = mWeakPeer.lock();
     if (self)
     {
@@ -946,8 +941,6 @@ Peer::recvAuthenticatedMessage(AuthenticatedMessage&& msg)
 
     switch (msgTracker->getMessage().type())
     {
-    // order of execution during handshake must be preserved so place all
-    // messages in the same scheduler queue
     case HELLO:
     case AUTH:
         cat = AUTH_ACTION_QUEUE;
@@ -991,13 +984,24 @@ Peer::recvAuthenticatedMessage(AuthenticatedMessage&& msg)
         cat = "MISC";
     }
 
+    // processing of incoming messages during authenticated must be in-order, so
+    // while not authenticated, place all messages onto AUTH_ACTION_QUEUE
+    // scheduler queue
     auto queueName = isAuthenticated(guard) ? cat : AUTH_ACTION_QUEUE;
     type = isAuthenticated(guard) ? type : Scheduler::ActionType::NORMAL_ACTION;
+    // Subtle: move `msgTracker` shared_ptr into the lambda, to ensure
+    // its destructor is invoked from main thread only. Note that we can't use
+    // unique_ptr here, because std::function requires its callable
+    // to be copyable (C++23 fixes this with std::move_only_function, but we're
+    // not there yet)
     mAppConnector.postOnMainThread(
-        [self = shared_from_this(), msgTracker]() {
-            self->recvMessage(msgTracker);
+        [self = shared_from_this(), t = std::move(msgTracker)]() {
+            self->recvMessage(t);
         },
         std::move(queueName), type);
+
+    // msgTracker should be null now
+    releaseAssert(!msgTracker);
 }
 
 void
@@ -1005,9 +1009,6 @@ Peer::recvMessage(std::shared_ptr<MsgCapacityTracker> msgTracker)
 {
     ZoneScoped;
     releaseAssert(threadIsMain());
-
-    // Always clean up message tracker, including early exits
-    auto cleanup = gsl::finally([msgTracker]() { msgTracker->finish(); });
 
     auto const& stellarMsg = msgTracker->getMessage();
 
