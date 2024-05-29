@@ -299,7 +299,6 @@ TCPPeer::messageSender()
     if (mThreadVars.getWriteQueue().empty())
     {
         mThreadVars.setWriting(false);
-        // Shutdown will be handled automatically by the timer
         return;
     }
 
@@ -773,13 +772,13 @@ TCPPeer::recvMessage()
     {
         auto drop = [errorMsg, self = shared_from_this()]() {
             // Queue up a drop; we may still process new messages
-            // from this peer, but it'll be dropped as soon as main
-            // thread gets to it
+            // from this peer, which is harmless. Any new message processing
+            // will stop once the main thread officially drops this peer.
             self->sendErrorAndDrop(ERR_DATA, errorMsg);
         };
         if (!threadIsMain())
         {
-            mAppConnector.postOnMainThread(drop, "TCPPeer::recvMessage");
+            mAppConnector.postOnMainThread(drop, "TCPPeer::recvMessage drop");
         }
         else
         {
@@ -806,19 +805,7 @@ TCPPeer::drop(std::string const& reason, DropDirection dropDirection)
     auto self = static_pointer_cast<TCPPeer>(shared_from_this());
     auto mainThreadDrop = [self, reason, dropDirection]() {
         self->shutdownAndRemovePeer(reason, dropDirection);
-
-        // Socket shutdown should be scheduled only once
-        if (self->mThreadVars.socketShutdownScheduled())
-        {
-            // should not happen, leave here for debugging purposes
-            CLOG_ERROR(Overlay, "Double schedule of shutdown {}",
-                       self->mIPAddress);
-            CLOG_ERROR(Overlay, "{}", REPORT_INTERNAL_BUG);
-            return;
-        }
-
-        self->mThreadVars.scheduleSocketShutdown();
-
+        // Close the socket with a delay
         self->getRecurrentTimer().cancel();
         self->getRecurrentTimer().expires_from_now(std::chrono::seconds(5));
         self->getRecurrentTimer().async_wait(

@@ -473,7 +473,7 @@ SurveyDataManager::finalizePeerData(
                 peerMetrics.mByteWrite - collectingData.mInitialByteWrite;
             finalStats.secondsConnected = static_cast<uint64>(
                 std::chrono::duration_cast<std::chrono::seconds>(
-                    mGetNow() - peerMetrics.mConnectedTime)
+                    mGetNow() - peerMetrics.mConnectedTime.load())
                     .count());
             finalStats.uniqueFloodBytesRecv =
                 peerMetrics.mUniqueFloodBytesRecv -

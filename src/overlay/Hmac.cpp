@@ -61,10 +61,9 @@ Hmac::checkAuthenticatedMessage(AuthenticatedMessage const& msg,
     return true;
 }
 
-bool
+void
 Hmac::setAuthenticatedMessageBody(AuthenticatedMessage& aMsg,
-                                  StellarMessage const& msg,
-                                  std::string& errorMsg)
+                                  StellarMessage const& msg)
 
 {
     ZoneScoped;
@@ -73,17 +72,11 @@ Hmac::setAuthenticatedMessageBody(AuthenticatedMessage& aMsg,
     aMsg.v0().message = msg;
     if (msg.type() != HELLO && msg.type() != ERROR_MSG)
     {
-        if (isZero(mRecvMacKey.key))
-        {
-            errorMsg = "receive mac key is zero";
-            return false;
-        }
         aMsg.v0().sequence = mSendMacSeq;
         aMsg.v0().mac =
             hmacSha256(mSendMacKey, xdr::xdr_to_opaque(mSendMacSeq, msg));
         mSendMacSeq++;
     }
-    return true;
 }
 
 #ifdef BUILD_TESTS

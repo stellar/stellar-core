@@ -17,8 +17,6 @@ namespace stellar
 {
 
 static auto const MAX_UNAUTH_MESSAGE_SIZE = 0x1000;
-static std::chrono::milliseconds const SHUTDOWN_POLL_DELAY =
-    std::chrono::milliseconds(100);
 
 // Peer that communicates via a TCP socket.
 class TCPPeer : public Peer
@@ -36,7 +34,6 @@ class TCPPeer : public Peer
         std::vector<asio::const_buffer> mWriteBuffers;
         bool const mUseBackgroundThread;
         bool mWriting{false};
-        bool mSocketShutdownScheduled{false};
         std::vector<uint8_t> mIncomingHeader;
         std::vector<uint8_t> mIncomingBody;
 
@@ -80,19 +77,6 @@ class TCPPeer : public Peer
         {
             releaseAssert(!threadIsMain() || !mUseBackgroundThread);
             mWriting = value;
-        }
-        bool
-        socketShutdownScheduled() const
-        {
-            releaseAssert(threadIsMain());
-            return mSocketShutdownScheduled;
-        }
-        void
-        scheduleSocketShutdown()
-        {
-            releaseAssert(threadIsMain());
-            releaseAssert(!mSocketShutdownScheduled);
-            mSocketShutdownScheduled = true;
         }
     };
 

@@ -62,8 +62,9 @@ PeerDoor::acceptNextPeer()
 
     CLOG_DEBUG(Overlay, "PeerDoor acceptNextPeer()");
     // Asio guarantees it is safe to create a socket object with overlay's
-    // io_context on main (as long as the socket object isn't shared across
-    // threads)
+    // io_context on main (as long as the socket is not accessed by multiple
+    // threads simultaneously, or the caller manually synchronizes access to the
+    // socket).
     auto& ioContext =
         mApp.getConfig().EXPERIMENTAL_BACKGROUND_OVERLAY_PROCESSING
             ? mApp.getOverlayIOContext()

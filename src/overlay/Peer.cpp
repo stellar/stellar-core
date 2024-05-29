@@ -257,7 +257,7 @@ Peer::shutdownAndRemovePeer(std::string const& reason,
     if (state != GOT_AUTH)
     {
         CLOG_DEBUG(Overlay,
-                   "TCPPeer::drop {} in state {} we called:{}, reason: {}",
+                   "Dropping peer {} with state {}, role {}, reason {}",
                    toString(), format_as(state), format_as(mRole), reason);
     }
     else if (dropDirection == Peer::DropDirection::WE_DROPPED_REMOTE)
@@ -266,7 +266,7 @@ Peer::shutdownAndRemovePeer(std::string const& reason,
     }
     else
     {
-        CLOG_INFO(Overlay, "peer {} dropped us, reason {}", toString(), reason);
+        CLOG_INFO(Overlay, "Peer {} dropped us, reason {}", toString(), reason);
     }
 
     // Set peer state to CLOSING to prevent any further processing
@@ -440,12 +440,12 @@ Peer::connectHandler(asio::error_code const& error)
     {
         connected();
         setState(guard, CONNECTED);
-        // Always send auth from main thread
+        // Always send HELLO from main thread
         if (useBackgroundThread())
         {
             mAppConnector.postOnMainThread(
                 [self = shared_from_this()]() { self->sendHello(); },
-                "Peer::connectHandler sendAuth");
+                "Peer::connectHandler sendHello");
         }
         else
         {
@@ -821,11 +821,7 @@ Peer::sendAuthenticatedMessage(std::shared_ptr<StellarMessage const> msg)
         // auth sequence numbers.
         AuthenticatedMessage amsg;
         std::string errorMsg;
-        if (!self->mHmac.setAuthenticatedMessageBody(amsg, *msg, errorMsg))
-        {
-            self->sendErrorAndDrop(ERR_AUTH, errorMsg);
-            return;
-        }
+        self->mHmac.setAuthenticatedMessageBody(amsg, *msg);
         xdr::msg_ptr xdrBytes;
         {
             ZoneNamedN(xdrZone, "XDR serialize", true);
@@ -883,7 +879,7 @@ Peer::getLifeTime() const
 bool
 Peer::shouldAbort(RecursiveLockGuard const& stateGuard) const
 {
-    return mState == CLOSING;
+    return mState == CLOSING || mAppConnector.overlayShuttingDown();
 }
 
 void

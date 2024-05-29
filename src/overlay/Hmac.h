@@ -28,9 +28,8 @@ class Hmac
     bool setRecvMackey(HmacSha256Key const& key);
     bool checkAuthenticatedMessage(AuthenticatedMessage const& msg,
                                    std::string& errorMsg);
-    bool setAuthenticatedMessageBody(AuthenticatedMessage& aMsg,
-                                     StellarMessage const& msg,
-                                     std::string& errorMsg);
+    void setAuthenticatedMessageBody(AuthenticatedMessage& aMsg,
+                                     StellarMessage const& msg);
 #ifdef BUILD_TESTS
     void damageRecvMacKey();
 #endif

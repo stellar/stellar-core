@@ -163,6 +163,12 @@ class Peer : public std::enable_shared_from_this<Peer>,
         xdr::msg_ptr mMessage;
     };
 
+    // NB: all Peer's protected state should have some synchronization
+    // mechanisms on it: either be const, or atomic, or associated with a lock,
+    // or hidden in a helper class that does one of the same. Some methods in
+    // subclasses of Peer will run on a background thread, so may try to access
+    // the protected state. Peer state lacking synchronization should be moved
+    // to the private section below.
   protected:
     class MsgCapacityTracker : private NonMovableOrCopyable
     {
@@ -208,13 +214,15 @@ class Peer : public std::enable_shared_from_this<Peer>,
     }
 
     void initialize(PeerBareAddress const& address);
-    void setState(RecursiveLockGuard const& stateGuard, PeerState newState);
-    bool shouldAbort(RecursiveLockGuard const& stateGuard) const;
     void shutdownAndRemovePeer(std::string const& reason,
                                DropDirection dropDirection);
 
-    // Subclasses should only use these methods to load and modify peer state,
-    // signatured hint that callers need to grab mStateMutex.
+    // Subclasses should only use these methods to access peer state;
+    // they all take a LockGuard that should be holding mStateMutex,
+    // but do not lock that mutex themselves (to allow atomic
+    // read-modify-write cycles or similar patterns in callers).
+    bool shouldAbort(RecursiveLockGuard const& stateGuard) const;
+    void setState(RecursiveLockGuard const& stateGuard, PeerState newState);
     PeerState
     getState(RecursiveLockGuard const& stateGuard) const
     {
@@ -237,6 +245,10 @@ class Peer : public std::enable_shared_from_this<Peer>,
         return mRecurringTimer;
     }
 
+    // NB: Everything below is private to minimize the chance that subclasses
+    // with methods running on background threads might access this
+    // unsynchronized state. All methods that access this private state should
+    // assert that they are running on the main
   private:
     PeerState mState;
     NodeID mPeerID;
