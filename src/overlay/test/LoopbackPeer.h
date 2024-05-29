@@ -73,8 +73,7 @@ class LoopbackPeer : public Peer
                      std::shared_ptr<LoopbackPeer>>
     initiate(Application& app, Application& otherApp);
 
-    void drop(std::string const& reason, DropDirection dropDirection,
-              DropMode dropMode) override;
+    void drop(std::string const& reason, DropDirection dropDirection) override;
 
     void deliverOne();
     void deliverAll();

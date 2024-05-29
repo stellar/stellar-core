@@ -109,12 +109,6 @@ class Peer : public std::enable_shared_from_this<Peer>,
                                        : "WE_CALLED_REMOTE";
     }
 
-    enum class DropMode
-    {
-        FLUSH_WRITE_QUEUE,
-        IGNORE_WRITE_QUEUE
-    };
-
     enum class DropDirection
     {
         REMOTE_DROPPED_US,
@@ -221,7 +215,7 @@ class Peer : public std::enable_shared_from_this<Peer>,
                   PeerState newState);
     bool shouldAbort(std::lock_guard<std::recursive_mutex>& stateGuard) const;
     void shutdownAndRemovePeer(std::string const& reason,
-                               DropDirection dropDirection, DropMode dropMode);
+                               DropDirection dropDirection);
 
     // Subclasses should only use these methods to load and modify peer state,
     // signatured hint that callers need to grab mStateMutex.
@@ -340,8 +334,7 @@ class Peer : public std::enable_shared_from_this<Peer>,
     void sendGetQuorumSet(uint256 const& setID);
     void sendGetPeers();
     void sendGetScpState(uint32 ledgerSeq);
-    void sendErrorAndDrop(ErrorCode error, std::string const& message,
-                          DropMode dropMode);
+    void sendErrorAndDrop(ErrorCode error, std::string const& message);
     void sendTxDemand(TxDemandVector&& demands);
     // Queue up an advert to send, return true if the advert was queued, and
     // false otherwise (if advert is a duplicate, for example)
@@ -431,9 +424,8 @@ class Peer : public std::enable_shared_from_this<Peer>,
     {
         return mPeerMetrics;
     }
-
-    virtual void drop(std::string const& reason, DropDirection dropDirection,
-                      DropMode dropMode) = 0;
+    virtual void drop(std::string const& reason,
+                      DropDirection dropDirection) = 0;
 
     friend class LoopbackPeer;
     friend class PeerStub;

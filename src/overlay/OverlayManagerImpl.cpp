@@ -227,8 +227,7 @@ OverlayManagerImpl::PeersList::acceptAuthenticatedPeer(Peer::pointer peer)
                     mDirectionString, victim.second->toString(),
                     peer->toString());
                 victim.second->sendErrorAndDrop(
-                    ERR_LOAD, "preferred peer selected instead",
-                    Peer::DropMode::IGNORE_WRITE_QUEUE);
+                    ERR_LOAD, "preferred peer selected instead");
                 return moveToAuthenticated(peer);
             }
         }
@@ -281,14 +280,12 @@ OverlayManagerImpl::PeersList::shutdown()
     auto pendingPeersToStop = mPending;
     for (auto& p : pendingPeersToStop)
     {
-        p->sendErrorAndDrop(ERR_MISC, "shutdown",
-                            Peer::DropMode::IGNORE_WRITE_QUEUE);
+        p->sendErrorAndDrop(ERR_MISC, "shutdown");
     }
     auto authenticatedPeersToStop = mAuthenticated;
     for (auto& p : authenticatedPeersToStop)
     {
-        p.second->sendErrorAndDrop(ERR_MISC, "shutdown",
-                                   Peer::DropMode::IGNORE_WRITE_QUEUE);
+        p.second->sendErrorAndDrop(ERR_MISC, "shutdown");
     }
 
     for (auto& p : mDropped)
@@ -410,8 +407,7 @@ OverlayManagerImpl::dropPeersIf(
         {
             // Drop will cleanup peer lists and remove peer references from
             // overlay manager
-            peer->drop(reason, Peer::DropDirection::WE_DROPPED_REMOTE,
-                       Peer::DropMode::IGNORE_WRITE_QUEUE);
+            peer->drop(reason, Peer::DropDirection::WE_DROPPED_REMOTE);
         }
     };
 
@@ -647,8 +643,7 @@ OverlayManagerImpl::updateTimerAndMaybeDropRandomPeer(bool shouldDrop)
                 {
                     auto peerToDrop = rand_element(nonPreferredPeers);
                     peerToDrop.second->sendErrorAndDrop(
-                        ERR_LOAD, "random disconnect due to out of sync",
-                        Peer::DropMode::IGNORE_WRITE_QUEUE);
+                        ERR_LOAD, "random disconnect due to out of sync");
                 }
                 // Reset the timer to throttle dropping peers
                 mLastOutOfSyncReconnect =
@@ -910,8 +905,7 @@ OverlayManagerImpl::maybeAddInboundConnection(Peer::pointer peer)
         {
             mInboundPeers.mConnectionsCancelled.Mark();
             peer->drop("all pending inbound connections are taken",
-                       Peer::DropDirection::WE_DROPPED_REMOTE,
-                       Peer::DropMode::IGNORE_WRITE_QUEUE);
+                       Peer::DropDirection::WE_DROPPED_REMOTE);
             return;
         }
         CLOG_DEBUG(Overlay, "New (inbound) connected peer {}",
@@ -989,8 +983,7 @@ OverlayManagerImpl::addOutboundConnection(Peer::pointer peer)
     {
         mOutboundPeers.mConnectionsCancelled.Mark();
         peer->drop("all outbound connections taken",
-                   Peer::DropDirection::WE_DROPPED_REMOTE,
-                   Peer::DropMode::IGNORE_WRITE_QUEUE);
+                   Peer::DropDirection::WE_DROPPED_REMOTE);
         return false;
     }
     CLOG_DEBUG(Overlay, "New (outbound) connected peer {}", peer->toString());

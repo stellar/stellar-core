@@ -43,7 +43,7 @@ class PeerStub : public Peer
         mRemoteOverlayVersion = app.getConfig().OVERLAY_PROTOCOL_VERSION;
     }
     virtual void
-    drop(std::string const&, DropDirection, DropMode) override
+    drop(std::string const&, DropDirection) override
     {
     }
     virtual void

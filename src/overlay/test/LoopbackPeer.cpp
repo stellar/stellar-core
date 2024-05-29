@@ -101,8 +101,7 @@ LoopbackPeer::sendMessage(xdr::msg_ptr&& msg)
 {
     if (mRemote.expired())
     {
-        drop("remote expired", Peer::DropDirection::WE_DROPPED_REMOTE,
-             Peer::DropMode::IGNORE_WRITE_QUEUE);
+        drop("remote expired", Peer::DropDirection::WE_DROPPED_REMOTE);
         return;
     }
 
@@ -147,7 +146,7 @@ LoopbackPeer::sendMessage(xdr::msg_ptr&& msg)
 }
 
 void
-LoopbackPeer::drop(std::string const& reason, DropDirection direction, DropMode)
+LoopbackPeer::drop(std::string const& reason, DropDirection direction)
 {
     if (mState == CLOSING)
     {
@@ -186,8 +185,7 @@ LoopbackPeer::drop(std::string const& reason, DropDirection direction, DropMode)
                                direction ==
                                        Peer::DropDirection::WE_DROPPED_REMOTE
                                    ? Peer::DropDirection::REMOTE_DROPPED_US
-                                   : Peer::DropDirection::WE_DROPPED_REMOTE,
-                               Peer::DropMode::IGNORE_WRITE_QUEUE);
+                                   : Peer::DropDirection::WE_DROPPED_REMOTE);
                 }
             },
             "LoopbackPeer: drop");
@@ -276,8 +274,7 @@ LoopbackPeer::recvMessage(xdr::msg_ptr const& msg)
     {
         CLOG_ERROR(Overlay, "received corrupt xdr::msg_ptr {}", e.what());
         drop("git received corrupted message",
-             Peer::DropDirection::WE_DROPPED_REMOTE,
-             Peer::DropMode::IGNORE_WRITE_QUEUE);
+             Peer::DropDirection::WE_DROPPED_REMOTE);
         return;
     }
 }
@@ -548,8 +545,7 @@ LoopbackPeerConnection::~LoopbackPeerConnection()
     // NB: Dropping the peer from one side will automatically drop the
     // other.
     mInitiator->drop("loopback destruction",
-                     Peer::DropDirection::WE_DROPPED_REMOTE,
-                     Peer::DropMode::IGNORE_WRITE_QUEUE);
+                     Peer::DropDirection::WE_DROPPED_REMOTE);
 }
 
 std::shared_ptr<LoopbackPeer>

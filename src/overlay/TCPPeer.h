@@ -101,8 +101,6 @@ class TCPPeer : public Peer
     // Drop can be initiated from any thread only once, keep track of that with
     // an atomic
     std::atomic<bool> mDropStarted{false};
-    // When dropped, flush the queue if `mFlushQueueOnDrop` is set
-    std::atomic<bool> mFlushQueueOnDrop{false};
     std::shared_ptr<SocketType> mSocket;
 
     void recvMessage();
@@ -176,7 +174,7 @@ class TCPPeer : public Peer
 
     virtual ~TCPPeer();
 
-    virtual void drop(std::string const& reason, DropDirection dropDirection,
-                      DropMode dropMode) override;
+    virtual void drop(std::string const& reason,
+                      DropDirection dropDirection) override;
 };
 }

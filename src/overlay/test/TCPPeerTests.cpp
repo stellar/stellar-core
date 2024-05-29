@@ -61,8 +61,7 @@ TEST_CASE("TCPPeer can communicate", "[overlay][acceptance]")
         auto prevPeers = recvGetPeers.count();
         auto prevError = recvError.count();
         p0->sendGetPeers();
-        p0->sendErrorAndDrop(ERR_MISC, "test drop",
-                             Peer::DropMode::FLUSH_WRITE_QUEUE);
+        p0->sendErrorAndDrop(ERR_MISC, "test drop");
         s->crankForAtLeast(std::chrono::seconds(1), false);
         REQUIRE(!p0->isConnectedForTesting());
         REQUIRE(!p1->isConnectedForTesting());

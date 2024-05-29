@@ -1097,8 +1097,7 @@ SurveyManager::dropPeerIfSigInvalid(PublicKey const& key,
     {
         // we drop the connection to keep a bad peer from pegging the CPU with
         // signature verification
-        peer->sendErrorAndDrop(ERR_MISC, "Survey has invalid signature",
-                               Peer::DropMode::IGNORE_WRITE_QUEUE);
+        peer->sendErrorAndDrop(ERR_MISC, "Survey has invalid signature");
     }
     return success;
 }

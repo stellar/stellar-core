@@ -148,8 +148,7 @@ Peer::beginMessageProcessing(StellarMessage const& msg)
     if (!success)
     {
         drop("unexpected flood message, peer at capacity",
-             Peer::DropDirection::WE_DROPPED_REMOTE,
-             Peer::DropMode::IGNORE_WRITE_QUEUE);
+             Peer::DropDirection::WE_DROPPED_REMOTE);
     }
 }
 
@@ -263,7 +262,7 @@ Peer::initialize(PeerBareAddress const& address)
 
 void
 Peer::shutdownAndRemovePeer(std::string const& reason,
-                            DropDirection dropDirection, DropMode dropMode)
+                            DropDirection dropDirection)
 {
     releaseAssert(threadIsMain());
     std::lock_guard<std::recursive_mutex> guard(mStateMutex);
@@ -306,23 +305,20 @@ Peer::recurrentTimerExpired(asio::error_code const& error)
             ((now - mLastWrite.load()) >= timeout))
         {
             mOverlayMetrics.mTimeoutIdle.Mark();
-            drop("idle timeout", Peer::DropDirection::WE_DROPPED_REMOTE,
-                 Peer::DropMode::IGNORE_WRITE_QUEUE);
+            drop("idle timeout", Peer::DropDirection::WE_DROPPED_REMOTE);
         }
         else if (mFlowControl && mFlowControl->getOutboundCapacityTimestamp() &&
                  (now - *(mFlowControl->getOutboundCapacityTimestamp())) >=
                      Peer::PEER_SEND_MODE_IDLE_TIMEOUT)
         {
             drop("idle timeout (no new flood requests)",
-                 Peer::DropDirection::WE_DROPPED_REMOTE,
-                 Peer::DropMode::IGNORE_WRITE_QUEUE);
+                 Peer::DropDirection::WE_DROPPED_REMOTE);
         }
         else if (((now - mEnqueueTimeOfLastWrite.load()) >= stragglerTimeout))
         {
             mOverlayMetrics.mTimeoutStraggler.Mark();
             drop("straggling (cannot keep up)",
-                 Peer::DropDirection::WE_DROPPED_REMOTE,
-                 Peer::DropMode::IGNORE_WRITE_QUEUE);
+                 Peer::DropDirection::WE_DROPPED_REMOTE);
         }
         else
         {
@@ -452,8 +448,7 @@ Peer::connectHandler(asio::error_code const& error)
     if (error)
     {
         drop("unable to connect: " + error.message(),
-             Peer::DropDirection::WE_DROPPED_REMOTE,
-             Peer::DropMode::IGNORE_WRITE_QUEUE);
+             Peer::DropDirection::WE_DROPPED_REMOTE);
     }
     else
     {
@@ -605,13 +600,12 @@ Peer::sendError(ErrorCode error, std::string const& message)
 }
 
 void
-Peer::sendErrorAndDrop(ErrorCode error, std::string const& message,
-                       DropMode dropMode)
+Peer::sendErrorAndDrop(ErrorCode error, std::string const& message)
 {
     ZoneScoped;
     releaseAssert(threadIsMain());
     sendError(error, message);
-    drop(message, DropDirection::WE_DROPPED_REMOTE, dropMode);
+    drop(message, DropDirection::WE_DROPPED_REMOTE);
 }
 
 void
@@ -931,15 +925,13 @@ Peer::recvAuthenticatedMessage(AuthenticatedMessage&& msg)
             {
                 mAppConnector.postOnMainThread(
                     [self = shared_from_this(), errorMsg]() {
-                        self->sendErrorAndDrop(ERR_AUTH, errorMsg,
-                                               DropMode::IGNORE_WRITE_QUEUE);
+                        self->sendErrorAndDrop(ERR_AUTH, errorMsg);
                     },
                     "Peer::sendErrorAndDrop");
             }
             else
             {
-                sendErrorAndDrop(ERR_AUTH, errorMsg,
-                                 DropMode::IGNORE_WRITE_QUEUE);
+                sendErrorAndDrop(ERR_AUTH, errorMsg);
             }
             return;
         }
@@ -1059,8 +1051,7 @@ Peer::recvMessage(std::shared_ptr<MsgCapacityTracker> msgTracker)
                         stellarMsg.type(), msgSummary(stellarMsg), toString(),
                         mAppConnector.getConfig().PEER_PORT);
         CLOG_ERROR(Overlay, "Dropping connection with {}: {}", err, e.what());
-        drop("Bad crypto request", Peer::DropDirection::WE_DROPPED_REMOTE,
-             Peer::DropMode::IGNORE_WRITE_QUEUE);
+        drop("Bad crypto request", Peer::DropDirection::WE_DROPPED_REMOTE);
     }
 }
 
@@ -1100,8 +1091,7 @@ Peer::recvRawMessage(StellarMessage const& stellarMsg)
     {
         drop(fmt::format(FMT_STRING("received {} before completed handshake"),
                          stellarMsg.type()),
-             Peer::DropDirection::WE_DROPPED_REMOTE,
-             Peer::DropMode::IGNORE_WRITE_QUEUE);
+             Peer::DropDirection::WE_DROPPED_REMOTE);
         return;
     }
 
@@ -1246,8 +1236,7 @@ Peer::recvRawMessage(StellarMessage const& stellarMsg)
         releaseAssert(mFlowControl);
         if (!mFlowControl->isSendMoreValid(stellarMsg, errorMsg))
         {
-            drop(errorMsg, Peer::DropDirection::WE_DROPPED_REMOTE,
-                 Peer::DropMode::IGNORE_WRITE_QUEUE);
+            drop(errorMsg, Peer::DropDirection::WE_DROPPED_REMOTE);
             return;
         }
         auto t = mOverlayMetrics.mRecvSendMoreTimer.TimeScope();
@@ -1529,8 +1518,7 @@ Peer::recvError(StellarMessage const& msg)
                    [](char c) { return (isalnum(c) || c == ' ') ? c : '*'; });
 
     drop(fmt::format(FMT_STRING("{} ({})"), codeStr, msgStr),
-         Peer::DropDirection::REMOTE_DROPPED_US,
-         Peer::DropMode::IGNORE_WRITE_QUEUE);
+         Peer::DropDirection::REMOTE_DROPPED_US);
 }
 
 void
@@ -1585,8 +1573,7 @@ Peer::recvHello(Hello const& elo)
     if (getState(guard) >= GOT_HELLO)
     {
         drop("received unexpected HELLO",
-             Peer::DropDirection::WE_DROPPED_REMOTE,
-             Peer::DropMode::IGNORE_WRITE_QUEUE);
+             Peer::DropDirection::WE_DROPPED_REMOTE);
         return;
     }
 
@@ -1594,15 +1581,13 @@ Peer::recvHello(Hello const& elo)
     if (!peerAuth.verifyRemoteAuthCert(elo.peerID, elo.cert))
     {
         drop("failed to verify auth cert",
-             Peer::DropDirection::WE_DROPPED_REMOTE,
-             Peer::DropMode::IGNORE_WRITE_QUEUE);
+             Peer::DropDirection::WE_DROPPED_REMOTE);
         return;
     }
 
     if (mAppConnector.getBanManager().isBanned(elo.peerID))
     {
-        drop("node is banned", Peer::DropDirection::WE_DROPPED_REMOTE,
-             Peer::DropMode::IGNORE_WRITE_QUEUE);
+        drop("node is banned", Peer::DropDirection::WE_DROPPED_REMOTE);
         return;
     }
 
@@ -1626,8 +1611,7 @@ Peer::recvHello(Hello const& elo)
     if (ip.empty())
     {
         drop("failed to determine remote address",
-             Peer::DropDirection::WE_DROPPED_REMOTE,
-             Peer::DropMode::IGNORE_WRITE_QUEUE);
+             Peer::DropDirection::WE_DROPPED_REMOTE);
         return;
     }
     mAddress =
@@ -1635,7 +1619,6 @@ Peer::recvHello(Hello const& elo)
 
     CLOG_DEBUG(Overlay, "recvHello from {}", toString());
 
-    auto dropMode = Peer::DropMode::IGNORE_WRITE_QUEUE;
     if (mRole == REMOTE_CALLED_US)
     {
         // Send a HELLO back, even if it's going to be followed
@@ -1643,7 +1626,6 @@ Peer::recvHello(Hello const& elo)
         // message type and the caller won't decode it right if
         // still waiting for an unauthenticated HELLO.
         sendHello();
-        dropMode = Peer::DropMode::FLUSH_WRITE_QUEUE;
     }
 
     bool rejectBasedOnLedgerVersion = shouldDropPeerPredicate(
@@ -1661,13 +1643,13 @@ Peer::recvHello(Hello const& elo)
                    mRemoteOverlayMinVersion, mRemoteOverlayVersion.value(),
                    mAppConnector.getConfig().OVERLAY_PROTOCOL_MIN_VERSION,
                    mAppConnector.getConfig().OVERLAY_PROTOCOL_VERSION);
-        sendErrorAndDrop(ERR_CONF, "wrong protocol version", dropMode);
+        sendErrorAndDrop(ERR_CONF, "wrong protocol version");
         return;
     }
 
     if (elo.peerID == mAppConnector.getConfig().NODE_SEED.getPublicKey())
     {
-        sendErrorAndDrop(ERR_CONF, "connecting to self", dropMode);
+        sendErrorAndDrop(ERR_CONF, "connecting to self");
         return;
     }
 
@@ -1679,14 +1661,13 @@ Peer::recvHello(Hello const& elo)
                               "that are from other networks.");
         CLOG_DEBUG(Overlay, "NetworkID = {} expected: {}",
                    hexAbbrev(elo.networkID), hexAbbrev(mNetworkID));
-        sendErrorAndDrop(ERR_CONF, "wrong network passphrase", dropMode);
+        sendErrorAndDrop(ERR_CONF, "wrong network passphrase");
         return;
     }
 
     if (elo.listeningPort <= 0 || elo.listeningPort > UINT16_MAX || ip.empty())
     {
-        sendErrorAndDrop(ERR_CONF, "bad address",
-                         Peer::DropMode::IGNORE_WRITE_QUEUE);
+        sendErrorAndDrop(ERR_CONF, "bad address");
         return;
     }
 
@@ -1701,10 +1682,8 @@ Peer::recvHello(Hello const& elo)
         if (&(authenticatedIt->second->mPeerID) != &mPeerID)
         {
             sendErrorAndDrop(
-                ERR_CONF,
-                "already-connected peer: " +
-                    mAppConnector.getConfig().toShortString(mPeerID),
-                dropMode);
+                ERR_CONF, "already-connected peer: " +
+                              mAppConnector.getConfig().toShortString(mPeerID));
             return;
         }
     }
@@ -1718,10 +1697,8 @@ Peer::recvHello(Hello const& elo)
         if (p->getPeerID() == mPeerID)
         {
             sendErrorAndDrop(
-                ERR_CONF,
-                "already-connected peer: " +
-                    mAppConnector.getConfig().toShortString(mPeerID),
-                dropMode);
+                ERR_CONF, "already-connected peer: " +
+                              mAppConnector.getConfig().toShortString(mPeerID));
             return;
         }
     }
@@ -1748,15 +1725,13 @@ Peer::recvAuth(StellarMessage const& msg)
 
     if (getState(guard) != GOT_HELLO)
     {
-        sendErrorAndDrop(ERR_MISC, "out-of-order AUTH message",
-                         DropMode::IGNORE_WRITE_QUEUE);
+        sendErrorAndDrop(ERR_MISC, "out-of-order AUTH message");
         return;
     }
 
     if (isAuthenticated(guard))
     {
-        sendErrorAndDrop(ERR_MISC, "out-of-order AUTH message",
-                         DropMode::IGNORE_WRITE_QUEUE);
+        sendErrorAndDrop(ERR_MISC, "out-of-order AUTH message");
         return;
     }
 
@@ -1773,8 +1748,7 @@ Peer::recvAuth(StellarMessage const& msg)
     auto self = shared_from_this();
     if (!mAppConnector.getOverlayManager().acceptAuthenticatedPeer(self))
     {
-        sendErrorAndDrop(ERR_LOAD, "peer rejected",
-                         Peer::DropMode::FLUSH_WRITE_QUEUE);
+        sendErrorAndDrop(ERR_LOAD, "peer rejected");
         return;
     }
 

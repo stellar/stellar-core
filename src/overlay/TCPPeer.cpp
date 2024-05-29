@@ -265,16 +265,11 @@ TCPPeer::startShutdownTimer()
             std::lock_guard<std::recursive_mutex> guard(self->mStateMutex);
             if (self->getState(guard) == CLOSING)
             {
-                bool shutdownNow =
-                    !self->mFlushQueueOnDrop || !self->mThreadVars.isWriting();
-                if (shutdownNow)
-                {
-                    CLOG_TRACE(Overlay,
-                               "Shutdown detected: trigger socket close of {}",
-                               self->toString());
-                    self->shutdown();
-                    return;
-                }
+                CLOG_TRACE(Overlay,
+                           "Shutdown detected: trigger socket close of {}",
+                           self->toString());
+                self->shutdown();
+                return;
             }
             self->startShutdownTimer();
         }
@@ -408,8 +403,7 @@ TCPPeer::messageSender()
             if (expected_length != length)
             {
                 self->drop("error during async_write",
-                           Peer::DropDirection::WE_DROPPED_REMOTE,
-                           Peer::DropMode::IGNORE_WRITE_QUEUE);
+                           Peer::DropDirection::WE_DROPPED_REMOTE);
                 return;
             }
             self->writeHandler(ec, length,
@@ -479,8 +473,7 @@ TCPPeer::writeHandler(asio::error_code const& error,
             CLOG_ERROR(Overlay, "Error during sending message to {}",
                        toString());
         }
-        drop("error during write", Peer::DropDirection::WE_DROPPED_REMOTE,
-             Peer::DropMode::IGNORE_WRITE_QUEUE);
+        drop("error during write", Peer::DropDirection::WE_DROPPED_REMOTE);
     }
     else if (bytes_transferred != 0)
     {
@@ -500,8 +493,7 @@ TCPPeer::noteErrorReadHeader(size_t nbytes, asio::error_code const& ec)
     mOverlayMetrics.mErrorRead.Mark();
     std::string msg("error reading message header: ");
     msg.append(ec.message());
-    drop(msg, Peer::DropDirection::WE_DROPPED_REMOTE,
-         Peer::DropMode::IGNORE_WRITE_QUEUE);
+    drop(msg, Peer::DropDirection::WE_DROPPED_REMOTE);
 }
 
 void
@@ -510,8 +502,8 @@ TCPPeer::noteShortReadHeader(size_t nbytes)
     releaseAssert(!threadIsMain() || !useBackgroundThread());
     receivedBytes(nbytes, false);
     mOverlayMetrics.mErrorRead.Mark();
-    drop("short read of message header", Peer::DropDirection::WE_DROPPED_REMOTE,
-         Peer::DropMode::IGNORE_WRITE_QUEUE);
+    drop("short read of message header",
+         Peer::DropDirection::WE_DROPPED_REMOTE);
 }
 
 void
@@ -530,8 +522,7 @@ TCPPeer::noteErrorReadBody(size_t nbytes, asio::error_code const& ec)
     mOverlayMetrics.mErrorRead.Mark();
     std::string msg("error reading message body: ");
     msg.append(ec.message());
-    drop(msg, Peer::DropDirection::WE_DROPPED_REMOTE,
-         Peer::DropMode::IGNORE_WRITE_QUEUE);
+    drop(msg, Peer::DropDirection::WE_DROPPED_REMOTE);
 }
 
 void
@@ -541,8 +532,7 @@ TCPPeer::noteShortReadBody(size_t nbytes)
 
     receivedBytes(nbytes, false);
     mOverlayMetrics.mErrorRead.Mark();
-    drop("short read of message body", Peer::DropDirection::WE_DROPPED_REMOTE,
-         Peer::DropMode::IGNORE_WRITE_QUEUE);
+    drop("short read of message body", Peer::DropDirection::WE_DROPPED_REMOTE);
 }
 
 void
@@ -725,8 +715,7 @@ TCPPeer::getIncomingMsgLength()
         mOverlayMetrics.mErrorRead.Mark();
         CLOG_ERROR(Overlay, "TCP: message size unacceptable: {}{}", length,
                    (isAuthenticated(guard) ? "" : " while not authenticated"));
-        drop("error during read", Peer::DropDirection::WE_DROPPED_REMOTE,
-             Peer::DropMode::IGNORE_WRITE_QUEUE);
+        drop("error during read", Peer::DropDirection::WE_DROPPED_REMOTE);
         length = 0;
     }
     return (length);
@@ -841,8 +830,7 @@ TCPPeer::recvMessage()
             // Queue up a drop; we may still process new messages
             // from this peer, but it'll be dropped as soon as main
             // thread gets to it
-            self->sendErrorAndDrop(ERR_DATA, errorMsg,
-                                   Peer::DropMode::IGNORE_WRITE_QUEUE);
+            self->sendErrorAndDrop(ERR_DATA, errorMsg);
         };
         if (!threadIsMain())
         {
@@ -861,8 +849,7 @@ TCPPeer::recvMessage()
 // thread will automatically close the socket via its polling mechanism in
 // `startShutdownTimer`.
 void
-TCPPeer::drop(std::string const& reason, DropDirection dropDirection,
-              DropMode dropMode)
+TCPPeer::drop(std::string const& reason, DropDirection dropDirection)
 {
     // Attempts to set mDropStarted to true, returns previous value. If previous
     // value was false, this means we're initiating the drop for the first time
@@ -874,9 +861,8 @@ TCPPeer::drop(std::string const& reason, DropDirection dropDirection,
     }
 
     auto self = static_pointer_cast<TCPPeer>(shared_from_this());
-    auto mainThreadDrop = [self, reason, dropDirection, dropMode]() {
-        self->mFlushQueueOnDrop = dropMode == DropMode::FLUSH_WRITE_QUEUE;
-        self->shutdownAndRemovePeer(reason, dropDirection, dropMode);
+    auto mainThreadDrop = [self, reason, dropDirection]() {
+        self->shutdownAndRemovePeer(reason, dropDirection);
 
         // Note there isn't any calls to `shutdown` directly; background will
         // automatically detect that it's time to shutdown and either perform an
