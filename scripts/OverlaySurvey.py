@@ -2,75 +2,105 @@
 """
 Script to trigger network survey and record results. Sample survey result:
 {
-    "topology" :
-    {
-      "GDZPYXO3HC3GC6CCNTJH7BNURRH5VJTPDP5YALGNDCTPNDCSR74QBH3H" : {
-         "inboundPeers" : [
-            {
-               "bytesRead" : 218480,
-               "bytesWritten" : 225188,
-               "duplicateFetchBytesRecv" : 0,
-               "duplicateFetchMessageRecv" : 0,
-               "duplicateFloodBytesRecv" : 173296,
-               "duplicateFloodMessageRecv" : 443,
-               "messagesRead" : 511,
-               "messagesWritten" : 522,
-               "nodeId" : "GB4HZXA2IALAMH4CIA5CBLOITQT45CC3275MNRQ4VTYJCFKJW2AHHMXP",
-               "secondsConnected" : 4,
-               "uniqueFetchBytesRecv" : 0,
-               "uniqueFetchMessageRecv" : 0,
-               "uniqueFloodBytesRecv" : 10288,
-               "uniqueFloodMessageRecv" : 26,
-               "version" : "v19.5.0-126-gcdf8d018-dirty"
-            }
-         ],
-         "maxInboundPeerCount" : 64,
-         "maxOutboundPeerCount" : 8,
-         "numTotalInboundPeers" : 6,
-         "numTotalOutboundPeers" : 8,
-         "outboundPeers" : [
-            {
-               "bytesRead" : 220540,
-               "bytesWritten" : 224720,
-               "duplicateFetchBytesRecv" : 0,
-               "duplicateFetchMessageRecv" : 0,
-               "duplicateFloodBytesRecv" : 186584,
-               "duplicateFloodMessageRecv" : 473,
-               "messagesRead" : 517,
-               "messagesWritten" : 521,
-               "nodeId" : "GARM4GDQIQ2Z4SN5OXPG4XVHWZMKYEYTHY2X4TTP2TD2FDRAQOZIVJVX",
-               "secondsConnected" : 4,
-               "uniqueFetchBytesRecv" : 0,
-               "uniqueFetchMessageRecv" : 0,
-               "uniqueFloodBytesRecv" : 10612,
-               "uniqueFloodMessageRecv" : 27,
-               "version" : "v19.5.0-126-gcdf8d018-dirty"
-            }
-         ]
-      }
+  "backlog": [],
+  "badResponseNodes": null,
+  "surveyInProgress": true,
+  "topology": {
+    "GBBNXPPGDFDUQYH6RT5VGPDSOWLZEXXFD3ACUPG5YXRHLTATTUKY42CL": null,
+    "GDEXJV6XKKLDUWKTSXOOYVOYWZGVNIKKQ7GVNR5FOV7VV5K4MGJT5US4": {
+      "inboundPeers": [
+        {
+          "averageLatencyMs": 23,
+          "bytesRead": 26392,
+          "bytesWritten": 26960,
+          "duplicateFetchBytesRecv": 0,
+          "duplicateFetchMessageRecv": 0,
+          "duplicateFloodBytesRecv": 10424,
+          "duplicateFloodMessageRecv": 43,
+          "messagesRead": 93,
+          "messagesWritten": 96,
+          "nodeId": "GBBNXPPGDFDUQYH6RT5VGPDSOWLZEXXFD3ACUPG5YXRHLTATTUKY42CL",
+          "secondsConnected": 22,
+          "uniqueFetchBytesRecv": 0,
+          "uniqueFetchMessageRecv": 0,
+          "uniqueFloodBytesRecv": 11200,
+          "uniqueFloodMessageRecv": 46,
+          "version": "v12.2.0-46-g61aadd29"
+        },
+        {
+          "averageLatencyMs": 213,
+          "bytesRead": 32204,
+          "bytesWritten": 31212,
+          "duplicateFetchBytesRecv": 0,
+          "duplicateFetchMessageRecv": 0,
+          "duplicateFloodBytesRecv": 11200,
+          "duplicateFloodMessageRecv": 46,
+          "messagesRead": 115,
+          "messagesWritten": 112,
+          "nodeId": "GBUICIITZTGKL7PUBHUPWD67GDRAIYUA4KCOH2PUIMMZ6JQLNVA7C4JL",
+          "secondsConnected": 23,
+          "uniqueFetchBytesRecv": 176,
+          "uniqueFetchMessageRecv": 2,
+          "uniqueFloodBytesRecv": 14968,
+          "uniqueFloodMessageRecv": 62,
+          "version": "v12.2.0-46-g61aadd29"
+        }
+      ],
+      "numTotalInboundPeers": 2,
+      "numTotalOutboundPeers": 0,
+      "maxInboundPeerCount": 64,
+      "maxOutboundPeerCount": 8,
+      "addedAuthenticatedPeers" : 0,
+      "droppedAuthenticatedPeers" : 0,
+      "p75SCPFirstToSelfLatencyMs" : 121,
+      "p75SCPSelfToOtherLatencyMs" : 112,
+      "lostSyncCount" : 0,
+      "isValidator" : false,
+      "outboundPeers": null
     }
+  }
 }
 """
 
 import argparse
 from collections import defaultdict
 import json
+import logging
 import networkx as nx
+import random
 import requests
 import sys
 import time
 
 import overlay_survey.simulation as sim
+import overlay_survey.util as util
+
+logger = logging.getLogger(__name__)
 
 # A SurveySimulation, if running in simulation mode, or None otherwise.
 SIMULATION = None
 
+# Maximum duration of collecting phase in minutes. This matches stellar-core's
+# internal limit.
+MAX_DURATION = 30
+
+# Maximum number of consecutive rounds in which the surveyor neither sent
+# requests to nor received responses from any nodes. A round contains a batch of
+# requests sent to select nodes, followed by a wait period of 15 seconds,
+# followed by checking for responses and building up the next batch of requests
+# to send. Therefore, a setting of `8` is roughly 2 minutes of inactivity
+# before the script considers the survey complete.
+MAX_INACTIVE_ROUNDS = 8
+
 def get_request(url, params=None):
     """ Make a GET request, or simulate one if running in simulation mode. """
+    logger.debug("Sending GET request for %s with params %s", url, params)
     if SIMULATION:
-        return SIMULATION.get(url=url, params=params)
+        res = SIMULATION.get(url=url, params=params)
     else:
-        return requests.get(url=url, params=params)
+        res = requests.get(url=url, params=params)
+    logger.debug("Received response: %s", res.text)
+    return res
 
 def next_peer(direction_tag, node_info):
     if direction_tag in node_info and node_info[direction_tag]:
@@ -94,6 +124,17 @@ def get_next_peers(topology):
 
     return results
 
+def update_node(graph, node_info, node_key, results, field_names):
+    """
+    For each `(info_field, node_field)` pair in `field_names`, if `info_field`
+    is in `node_info`, modify the node in `graph` with key `node_key` to store
+    the value of `info_field` in `node_field`.
+    """
+    for (info_field, node_field) in field_names:
+        if info_field in node_info:
+            val = node_info[info_field]
+            results[node_field] = val
+            graph.add_node(node_key, **{node_field: val})
 
 def update_results(graph, parent_info, parent_key, results, is_inbound):
     direction_tag = "inboundPeers" if is_inbound else "outboundPeers"
@@ -113,53 +154,40 @@ def update_results(graph, parent_info, parent_key, results, is_inbound):
         else:
             graph.add_edge(parent_key, other_key, **edge_properties)
 
-    if "numTotalInboundPeers" in parent_info:
-        results["totalInbound"] = parent_info["numTotalInboundPeers"]
-        graph.add_node(parent_key,
-                       numTotalInboundPeers=parent_info[
-                           "numTotalInboundPeers"
-                       ])
-
-    if "numTotalOutboundPeers" in parent_info:
-        results["totalOutbound"] = parent_info["numTotalOutboundPeers"]
-        graph.add_node(parent_key,
-                       numTotalOutboundPeers=parent_info[
-                           "numTotalOutboundPeers"
-                       ])
-
-    if "maxInboundPeerCount" in parent_info:
-        results["maxInboundPeerCount"] = parent_info["maxInboundPeerCount"]
-        graph.add_node(parent_key,
-                       maxInboundPeerCount=parent_info[
-                           "maxInboundPeerCount"
-                       ])
-
-    if "maxOutboundPeerCount" in parent_info:
-        results["maxOutboundPeerCount"] = parent_info["maxOutboundPeerCount"]
-        graph.add_node(parent_key,
-                       maxOutboundPeerCount=parent_info[
-                           "maxOutboundPeerCount"
-                       ])
+    # Add survey results to parent node (if available)
+    field_names = [("numTotalInboundPeers", "totalInbound"),
+                   ("numTotalOutboundPeers", "totalOutbound"),
+                   ("maxInboundPeerCount", "maxInboundPeerCount"),
+                   ("maxOutboundPeerCount", "maxOutboundPeerCount"),
+                   ("addedAuthenticatedPeers", "addedAuthenticatedPeers"),
+                   ("droppedAuthenticatedPeers", "droppedAuthenticatedPeers"),
+                   ("p75SCPFirstToSelfLatencyMs", "p75SCPFirstToSelfLatencyMs"),
+                   ("p75SCPSelfToOtherLatencyMs", "p75SCPSelfToOtherLatencyMs"),
+                   ("lostSyncCount", "lostSyncCount"),
+                   ("isValidator", "isValidator")]
+    update_node(graph, parent_info, parent_key, results, field_names)
 
 
-request_count = 0
+def send_survey_requests(peer_list, url_base):
+    """
+    Request survey data from a list of peers. `url_base` is the root HTTP
+    endpoint to send requests to.
+    """
+    request_url = url_base + "/surveytopologytimesliced"
+    logger.info("Requesting survey data from %s peers", len(peer_list))
+    for (nodeid, inbound_peer_index, outbound_peer_index) in peer_list:
+        params = { "node": nodeid,
+                   "inboundpeerindex": inbound_peer_index,
+                   "outboundpeerindex": outbound_peer_index }
+        response = get_request(url=request_url, params=params)
+        if response.text.startswith(
+            util.SURVEY_TOPOLOGY_TIME_SLICED_SUCCESS_START):
+            logger.debug("Send request to %s", nodeid)
+        else:
+            logger.error("Failed to send survey request to %s: %s",
+                         nodeid, response.text)
 
-
-def send_requests(peer_list, params, request_url):
-    print("Requesting %s for %s peers" % (request_url, len(peer_list)))
-    limit = 10
-    # Submit `limit` queries roughly every ledger
-    for key in peer_list:
-        params["node"] = key
-        get_request(url=request_url, params=params)
-        print("Send request to %s" % key)
-        global request_count
-        request_count += 1
-        if (request_count % limit) == 0:
-            print("Submitted %i queries, sleep for ~1 ledger" % limit)
-            time.sleep(5)
-
-    print("Done")
+    logger.info("Done sending survey requests")
 
 
 def check_results(data, graph, merged_results):
@@ -218,18 +246,19 @@ def get_tier1_stats(augmented_directed_graph):
                 dist = nx.shortest_path_length(graph, node, other_node)
                 distances.append(dist)
         avg_for_one_node = sum(distances)/len(distances)
-        print("Average distance from %s to everyone else in Tier1: %.2f" %
-              (nx.get_node_attributes(graph, 'sb_name')[node], avg_for_one_node))
+        logger.info("Average distance from %s to everyone else in Tier1: %.2f",
+                    nx.get_node_attributes(graph, 'sb_name')[node],
+                    avg_for_one_node)
         all_node_average.append(avg_for_one_node)
 
     if len(tier1_nodes):
-        print("Average distance between all Tier1 nodes %.2f" %
-              (sum(all_node_average)/len(all_node_average)))
+        logger.info("Average distance between all Tier1 nodes %.2f",
+              sum(all_node_average)/len(all_node_average))
 
         # Get average degree among Tier1 nodes
         degrees = [degree for (node, degree) in graph.degree()
                    if node in tier1_nodes]
-        print("Average degree among Tier1 nodes: %.2f" %
+        logger.info("Average degree among Tier1 nodes: %.2f",
               (sum(degrees)/len(degrees)))
 
 
@@ -266,7 +295,7 @@ def augment(args):
         if graph.has_node(key):
             graph.add_node(key, isTier1=True)
         else:
-            print("Warning: Tier1 node %s is not found in the survey data" % key)
+            logger.warning("Tier1 node %s is not found in the survey data", key)
 
     # Print a little more info about the quorum
     get_tier1_stats(graph)
@@ -289,28 +318,48 @@ def run_survey(args):
         try:
             SIMULATION = sim.SurveySimulation(args.simGraph, args.simRoot)
         except sim.SimulationError as e:
-            print(f"Error: {e}")
+            logger.critical("%s", e)
             sys.exit(1)
 
     url = args.node
 
     peers = url + "/peers"
-    survey_request = url + "/surveytopology"
+    start_collecting = url + "/startsurveycollecting"
+    stop_collecting = url + "/stopsurveycollecting"
     survey_result = url + "/getsurveyresult"
-    stop_survey = url + "/stopsurvey"
 
-    duration = int(args.duration)
-    params = {'duration': duration}
+    # start survey recording
+    nonce = random.randint(0, 2**32-1)
+    logger.info("Starting survey with nonce %s", nonce)
+    response = get_request(url=start_collecting, params={'nonce': nonce})
+    if response.text != util.START_SURVEY_COLLECTING_SUCCESS_TEXT:
+        logger.critical("Failed to start survey: %s", response.text)
+        sys.exit(1)
 
-    # reset survey
-    get_request(url=stop_survey)
+    # Sleep for duration of collecting phase
+    logger.info("Sleeping for collecting phase (%i minutes)", args.duration)
+    time.sleep(args.duration * 60)
+
+    # Stop survey recording
+    logger.info("Stopping survey collecting")
+    response = get_request(url=stop_collecting)
+    if response.text != util.STOP_SURVEY_COLLECTING_SUCCESS_TEXT:
+        logger.critical("Failed to stop survey: %s", response.text)
+        sys.exit(1)
+
+    # Allow time for stop message to propagate
+    sleep_time = 30
+    logger.info(
+        "Waiting %i seconds for 'stop collecting' message to propagate",
+        sleep_time)
+    time.sleep(sleep_time)
 
     peer_list = set()
     if args.nodeList:
         # include nodes from file
-        f = open(args.nodeList, "r")
-        for node in f:
-            peer_list.add(node.rstrip('\n'))
+        with open(args.nodeList, "r") as f:
+            for node in f:
+                peer_list.add(node.rstrip('\n'))
 
     peers_params = {'fullkeys': "true"}
 
@@ -320,10 +369,10 @@ def run_survey(args):
     # seed initial peers off of /peers endpoint
     if peers["inbound"]:
         for peer in peers["inbound"]:
-            peer_list.add(peer["id"])
+            peer_list.add(util.PendingRequest(peer["id"], 0, 0))
     if peers["outbound"]:
         for peer in peers["outbound"]:
-            peer_list.add(peer["id"])
+            peer_list.add(util.PendingRequest(peer["id"], 0, 0))
 
     scp_params = {'fullkeys': "true", 'limit': 0}
     self_name = get_request(url + "/scp", scp_params).json()["you"]
@@ -335,55 +384,80 @@ def run_survey(args):
     sent_requests = set()
     heard_from = set()
 
+    # Number of consecutive rounds in which surveyor neither sent requests nor
+    # received responses
+    inactive_rounds = 0
+
     while True:
-        send_requests(peer_list, params, survey_request)
+        if peer_list:
+            inactive_rounds = 0
+        else:
+            inactive_rounds += 1
+
+        send_survey_requests(peer_list, url)
 
         for peer in peer_list:
-            sent_requests.add(peer)
+            sent_requests.add(peer.node)
 
         peer_list = set()
 
-        # allow time for results
-        time.sleep(1)
+        # allow time for results. Stellar-core sends out a batch of requests
+        # every 15 seconds, so there's not much benefit in checking more
+        # frequently than that
+        sleep_time = 15
+        logger.info("Waiting %i seconds for survey results", sleep_time)
+        time.sleep(sleep_time)
 
-        print("Fetching survey result")
+        logger.info("Fetching survey result")
         data = get_request(url=survey_result).json()
-        print("Done")
+        logger.info("Done fetching result")
 
         if "topology" in data:
             for key in data["topology"]:
                 if data["topology"][key] is not None:
-                    heard_from.add(key)
+                    if key not in heard_from:
+                        # Received a new response!
+                        logger.debug("Received response from %s", key)
+                        inactive_rounds = 0
+                        heard_from.add(key)
 
         waiting_to_hear = set()
         for node in sent_requests:
             if node not in heard_from and node != self_name:
                 waiting_to_hear.add(node)
-                print("Have not received response from %s" % node)
+                logger.debug("Have not received response from %s", node)
 
-        print("Still waiting for survey results from %i nodes" %
+        logger.info("Still waiting for survey results from %i nodes",
               len(waiting_to_hear))
 
         result_node_list = check_results(data, graph, merged_results)
 
-        if "surveyInProgress" in data and data["surveyInProgress"] is False:
-            print("Survey complete")
+        if inactive_rounds >= MAX_INACTIVE_ROUNDS:
+            logger.info("Survey complete")
             break
+
+        if inactive_rounds > 0:
+            logger.info("No activity for %i rounds. %i rounds remaining",
+                        inactive_rounds,
+                        MAX_INACTIVE_ROUNDS - inactive_rounds)
 
         # try new nodes
         for key in result_node_list:
             if key not in sent_requests:
-                peer_list.add(key)
+                peer_list.add(util.PendingRequest(key, 0, 0))
         new_peers = len(peer_list)
-        # retry for incomplete nodes
+        # Gather additional peers for incomplete nodes
         for key in merged_results:
             node = merged_results[key]
-            if node["totalInbound"] > len(node["inboundPeers"]):
-                peer_list.add(key)
-            if node["totalOutbound"] > len(node["outboundPeers"]):
-                peer_list.add(key)
-        print("New peers: %s  Retrying: %s" %
-              (new_peers, len(peer_list)-new_peers))
+            have_inbound = len(node["inboundPeers"])
+            have_outbound = len(node["outboundPeers"])
+            if (node["totalInbound"] > have_inbound or
+                node["totalOutbound"] > have_outbound):
+                peer_list.add(util.PendingRequest(key,
+                                                  have_inbound,
+                                                  have_outbound))
+        logger.info("New nodes: %s  Gathering additional peer data: %s",
+              new_peers, len(peer_list)-new_peers)
 
     # sanity check that simulation produced a graph isomorphic to the input
     assert (not args.simulate or
@@ -392,7 +466,7 @@ def run_survey(args):
             "graph")
 
     if nx.is_empty(graph):
-        print("Graph is empty!")
+        logger.warning("Graph is empty!")
         sys.exit(0)
 
     if args.graphStats is not None:
@@ -429,7 +503,9 @@ def init_parser_survey(parser_survey):
     parser_survey.add_argument("-d",
                                "--duration",
                                required=True,
-                               help="duration of survey in seconds")
+                               type=int,
+                               choices=range(1, MAX_DURATION + 1),
+                               help="Duration of collecting phase in minutes. " "Must be between 1 and 30.")
     parser_survey.add_argument("-sr",
                                "--surveyResult",
                                required=True,
@@ -449,6 +525,10 @@ def main():
     argument_parser.add_argument("-gs",
                                  "--graphStats",
                                  help="output file for graph stats")
+    argument_parser.add_argument("-v",
+                                 "--verbose",
+                                 help="increase output verbosity",
+                                 action="store_true")
 
     subparsers = argument_parser.add_subparsers()
 
@@ -506,6 +586,10 @@ def main():
     parser_flatten.set_defaults(func=flatten)
 
     args = argument_parser.parse_args()
+
+    logging.basicConfig(level=logging.DEBUG if args.verbose else logging.INFO,
+                        format="[%(asctime)s %(levelname)8s] %(message)s")
+
     args.func(args)
 
 

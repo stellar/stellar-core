@@ -12,15 +12,16 @@ This folder is for storing any scripts that may be helpful for using stellar-cor
 - Usage - Ex. `python3 OverlaySurvey.py -gs gs.json survey -n http://127.0.0.1:11626 -d 50 -sr sr.json -gmlw gmlw.graphml` to run the survey, `python3 OverlaySurvey.py -gs gs.json analyze -gmla gmla.graphml` to analyze an existing graph, or `python3 OverlaySurvey.py -gs gs.json augment -gmli gmlw.graphml -gmlo augmented.graphml` to augment the existing graph with data from StellarBeat.
 
     - `-gs GRAPHSTATS`, `--graphStats GRAPHSTATS` - output file for graph stats (Optional)
+    - `-v`, `--verbose` - increase log verbosity (Optional)
     - sub command `survey` - run survey and analyze
         - `-n NODE`, `--node NODE` - address of initial survey node
-        - `-d DURATION`, `--duration DURATION` - duration of survey in seconds
+        - `-d DURATION`, `--duration DURATION` - duration of survey collecting phase in minutes
         - `-nl NODELIST`, `--nodeList NODELIST` - list of seed nodes. One node per line. (Optional)
         - `-gmlw GRAPHMLWRITE`, `--graphmlWrite GRAPHMLWRITE` - output file for graphml file
         - `-sr SURVEYRESULT`, `--surveyResult SURVEYRESULT` - output file for survey results
     - sub command `simulate` - simulate a run of the `survey` subcommand without any network calls. Takes the same arguments as `survey`, plus the following:
         - `-s SIMGRAPH`, `--simGraph SIMGRAPH` - Network topology to simulate in graphml format.
-        - `r SIMROOT`, `--simRoot SIMROOT` - Node in graph to start simulation from.
+        - `-r SIMROOT`, `--simRoot SIMROOT` - Node in graph to start simulation from.
     - sub command `analyze` - analyze an existing graph
         - `-gmla GRAPHMLANALYZE`, `--graphmlAnalyze GRAPHMLANALYZE` - input graphml file
     - sub command `augment` - augment an existing graph with information from  stellarbeat.io. Currently, only Public Network graphs are supported.
