@@ -18,16 +18,16 @@
         "ledger_max_write_ledger_entries": 125,
         "ledger_max_write_bytes": 70000,
         "tx_max_read_ledger_entries": 40,
-        "tx_max_read_bytes": 133120,
+        "tx_max_read_bytes": 200000,
         "tx_max_write_ledger_entries": 25,
         "tx_max_write_bytes": 66560,
         "fee_read_ledger_entry": 6250,
         "fee_write_ledger_entry": 10000,
         "fee_read1_kb": 1786,
-        "bucket_list_target_size_bytes": 200000000,
-        "write_fee1_kb_bucket_list_low": 9231,
-        "write_fee1_kb_bucket_list_high": 23078,
-        "bucket_list_write_fee_growth_factor": 1000
+        "bucket_list_target_size_bytes": 300000000,
+        "write_fee1_kb_bucket_list_low": 9836,
+        "write_fee1_kb_bucket_list_high": 12116,
+        "bucket_list_write_fee_growth_factor": 5000
       }
     },
     {
@@ -112,8 +112,8 @@
         },
         {
           "ext": "v0",
-          "const_term": 417482,
-          "linear_term": 45712
+          "const_term": 41142,
+          "linear_term": 634
         },
         {
           "ext": "v0",
@@ -164,6 +164,116 @@
           "ext": "v0",
           "const_term": 1059,
           "linear_term": 502
+        },
+        {
+          "ext": "v0",
+          "const_term": 73077,
+          "linear_term": 25410
+        },
+        {
+          "ext": "v0",
+          "const_term": 0,
+          "linear_term": 540752
+        },
+        {
+          "ext": "v0",
+          "const_term": 0,
+          "linear_term": 176363
+        },
+        {
+          "ext": "v0",
+          "const_term": 0,
+          "linear_term": 29989
+        },
+        {
+          "ext": "v0",
+          "const_term": 0,
+          "linear_term": 1061449
+        },
+        {
+          "ext": "v0",
+          "const_term": 0,
+          "linear_term": 237336
+        },
+        {
+          "ext": "v0",
+          "const_term": 0,
+          "linear_term": 328476
+        },
+        {
+          "ext": "v0",
+          "const_term": 0,
+          "linear_term": 701845
+        },
+        {
+          "ext": "v0",
+          "const_term": 0,
+          "linear_term": 429383
+        },
+        {
+          "ext": "v0",
+          "const_term": 0,
+          "linear_term": 28
+        },
+        {
+          "ext": "v0",
+          "const_term": 43030,
+          "linear_term": 0
+        },
+        {
+          "ext": "v0",
+          "const_term": 0,
+          "linear_term": 7556
+        },
+        {
+          "ext": "v0",
+          "const_term": 0,
+          "linear_term": 10711
+        },
+        {
+          "ext": "v0",
+          "const_term": 0,
+          "linear_term": 3300
+        },
+        {
+          "ext": "v0",
+          "const_term": 0,
+          "linear_term": 0
+        },
+        {
+          "ext": "v0",
+          "const_term": 0,
+          "linear_term": 23038
+        },
+        {
+          "ext": "v0",
+          "const_term": 0,
+          "linear_term": 42488
+        },
+        {
+          "ext": "v0",
+          "const_term": 0,
+          "linear_term": 828974
+        },
+        {
+          "ext": "v0",
+          "const_term": 0,
+          "linear_term": 297100
+        },
+        {
+          "ext": "v0",
+          "const_term": 0,
+          "linear_term": 14
+        },
+        {
+          "ext": "v0",
+          "const_term": 1882,
+          "linear_term": 0
+        },
+        {
+          "ext": "v0",
+          "const_term": 3000906,
+          "linear_term": 0
         }
       ]
     },
@@ -231,8 +341,8 @@
         },
         {
           "ext": "v0",
-          "const_term": 132773,
-          "linear_term": 4903
+          "const_term": 69472,
+          "linear_term": 1217
         },
         {
           "ext": "v0",
@@ -283,6 +393,116 @@
           "ext": "v0",
           "const_term": 0,
           "linear_term": 0
+        },
+        {
+          "ext": "v0",
+          "const_term": 17564,
+          "linear_term": 6457
+        },
+        {
+          "ext": "v0",
+          "const_term": 0,
+          "linear_term": 47464
+        },
+        {
+          "ext": "v0",
+          "const_term": 0,
+          "linear_term": 13420
+        },
+        {
+          "ext": "v0",
+          "const_term": 0,
+          "linear_term": 6285
+        },
+        {
+          "ext": "v0",
+          "const_term": 0,
+          "linear_term": 64670
+        },
+        {
+          "ext": "v0",
+          "const_term": 0,
+          "linear_term": 29074
+        },
+        {
+          "ext": "v0",
+          "const_term": 0,
+          "linear_term": 48095
+        },
+        {
+          "ext": "v0",
+          "const_term": 0,
+          "linear_term": 103229
+        },
+        {
+          "ext": "v0",
+          "const_term": 0,
+          "linear_term": 36394
+        },
+        {
+          "ext": "v0",
+          "const_term": 0,
+          "linear_term": 257
+        },
+        {
+          "ext": "v0",
+          "const_term": 70704,
+          "linear_term": 0
+        },
+        {
+          "ext": "v0",
+          "const_term": 0,
+          "linear_term": 14613
+        },
+        {
+          "ext": "v0",
+          "const_term": 0,
+          "linear_term": 6833
+        },
+        {
+          "ext": "v0",
+          "const_term": 0,
+          "linear_term": 1025
+        },
+        {
+          "ext": "v0",
+          "const_term": 0,
+          "linear_term": 0
+        },
+        {
+          "ext": "v0",
+          "const_term": 0,
+          "linear_term": 129632
+        },
+        {
+          "ext": "v0",
+          "const_term": 0,
+          "linear_term": 13665
+        },
+        {
+          "ext": "v0",
+          "const_term": 0,
+          "linear_term": 97637
+        },
+        {
+          "ext": "v0",
+          "const_term": 0,
+          "linear_term": 9176
+        },
+        {
+          "ext": "v0",
+          "const_term": 0,
+          "linear_term": 126
+        },
+        {
+          "ext": "v0",
+          "const_term": 0,
+          "linear_term": 0
+        },
+        {
+          "ext": "v0",
+          "const_term": 0,
+          "linear_term": 0
         }
       ]
     },
@@ -297,8 +517,8 @@
           "max_entry_ttl": 3110400,
           "min_temporary_ttl": 17280,
           "min_persistent_ttl": 2073600,
-          "persistent_rent_rate_denominator": 1402,
-          "temp_rent_rate_denominator": 2804,
+          "persistent_rent_rate_denominator": 2103,
+          "temp_rent_rate_denominator": 4206,
           "max_entries_to_archive": 1000,
           "bucket_list_size_window_sample_size": 30,
           "bucket_list_window_sample_period": 64,
