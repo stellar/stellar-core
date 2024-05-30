@@ -29,6 +29,8 @@ using SendMoreCapacity = std::pair<uint64_t, std::optional<uint64_t>>;
 // * Outbound processing. `sendMessage` will queue appropriate flood messages,
 // and ensure that those are only sent when the receiver is ready to accept.
 // This module also performs load shedding.
+
+// Flow control is a thread-safe class
 class FlowControl
 {
   public:
@@ -54,6 +56,8 @@ class FlowControl
     size_t mDemandQueueTxHashCount{0};
     size_t mTxQueueByteCount{0};
 
+    // Mutex to synchronize flow control state
+    std::mutex mutable mFlowControlMutex;
     // Is this peer currently throttled due to lack of capacity
     std::optional<VirtualClock::time_point> mLastThrottle;
 
@@ -63,6 +67,7 @@ class FlowControl
 
     OverlayMetrics& mOverlayMetrics;
     OverlayAppConnector& mAppConnector;
+    bool const mUseBackgroundThread;
 
     // Outbound queues indexes by priority
     // Priority 0 - SCP messages
@@ -79,23 +84,24 @@ class FlowControl
     uint64_t mFloodDataProcessedBytes{0};
     std::optional<VirtualClock::time_point> mNoOutboundCapacity;
     FlowControlMetrics mMetrics;
-    std::function<void(std::shared_ptr<StellarMessage const>)> mSendCallback;
 
-    // Release capacity used by this message. Return a struct that indicates how
-    // much reading and flood capacity was freed
-    void maybeSendNextBatch();
-    // This methods drops obsolete load from the outbound queue
-    void addMsgAndMaybeTrimQueue(std::shared_ptr<StellarMessage const> msg);
-    bool hasOutboundCapacity(StellarMessage const& msg) const;
+    bool hasOutboundCapacity(StellarMessage const& msg,
+                             std::lock_guard<std::mutex>& lockGuard) const;
+    virtual size_t
+    getOutboundQueueByteLimit(std::lock_guard<std::mutex>& lockGuard) const;
 
   public:
-    FlowControl(OverlayAppConnector& connector);
+    FlowControl(OverlayAppConnector& connector, bool useBackgoundThread);
     virtual ~FlowControl() = default;
 
-    virtual bool maybeSendMessage(std::shared_ptr<StellarMessage const> msg);
-    void maybeReleaseCapacityAndTriggerSend(StellarMessage const& msg);
-    virtual size_t getOutboundQueueByteLimit() const;
+    void maybeReleaseCapacity(StellarMessage const& msg);
     void handleTxSizeIncrease(uint32_t increase);
+    // This method adds a new message to the outbound queue, while shedding
+    // obsolete load
+    void addMsgAndMaybeTrimQueue(std::shared_ptr<StellarMessage const> msg);
+    // Return next batch of messages to send
+    // NOTE: this methods _releases_ capacity and cleans up flow control queues
+    std::vector<std::shared_ptr<StellarMessage const>> getNextBatchToSend();
 
 #ifdef BUILD_TESTS
     std::shared_ptr<FlowControlCapacity>
@@ -133,6 +139,12 @@ class FlowControl
     {
         mOutboundQueueLimit = std::make_optional<size_t>(bytes);
     }
+    size_t
+    getOutboundQueueByteLimit() const
+    {
+        std::lock_guard<std::mutex> lockGuard(mFlowControlMutex);
+        return getOutboundQueueByteLimit(lockGuard);
+    }
 #endif
 
     static uint32_t getNumMessages(StellarMessage const& msg);
@@ -160,10 +172,7 @@ class FlowControl
 
     Json::Value getFlowControlJsonInfo(bool compact) const;
 
-    void
-    start(NodeID const& peerID,
-          std::function<void(std::shared_ptr<StellarMessage const>)> sendCb,
-          std::optional<uint32_t> enableFCBytes);
+    void start(NodeID const& peerID, std::optional<uint32_t> enableFCBytes);
 
     // Stop reading from this peer until capacity is released
     void throttleRead();

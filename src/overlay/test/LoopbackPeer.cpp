@@ -26,6 +26,8 @@ using namespace std;
 
 LoopbackPeer::LoopbackPeer(Application& app, PeerRole role) : Peer(app, role)
 {
+    mFlowControl =
+        std::make_shared<FlowControl>(mAppConnector, useBackgroundThread());
 }
 
 std::string
@@ -99,16 +101,14 @@ LoopbackPeer::sendMessage(xdr::msg_ptr&& msg)
 {
     if (mRemote.expired())
     {
-        drop("remote expired", Peer::DropDirection::WE_DROPPED_REMOTE,
-             Peer::DropMode::IGNORE_WRITE_QUEUE);
+        drop("remote expired", Peer::DropDirection::WE_DROPPED_REMOTE);
         return;
     }
 
     // Damage authentication material.
     if (mDamageAuth)
     {
-        auto bytes = randomBytes(mRecvMacKey.key.size());
-        std::copy(bytes.begin(), bytes.end(), mRecvMacKey.key.begin());
+        mHmac.damageRecvMacKey();
     }
 
     TimestampedMessage tsm;
@@ -145,7 +145,7 @@ LoopbackPeer::sendMessage(xdr::msg_ptr&& msg)
 }
 
 void
-LoopbackPeer::drop(std::string const& reason, DropDirection direction, DropMode)
+LoopbackPeer::drop(std::string const& reason, DropDirection direction)
 {
     if (mState == CLOSING)
     {
@@ -169,7 +169,7 @@ LoopbackPeer::drop(std::string const& reason, DropDirection direction, DropMode)
 
     mDropReason = reason;
     mState = CLOSING;
-    Peer::shutdown();
+    cancelTimers();
     mAppConnector.getOverlayManager().removePeer(this);
 
     auto remote = mRemote.lock();
@@ -184,8 +184,7 @@ LoopbackPeer::drop(std::string const& reason, DropDirection direction, DropMode)
                                direction ==
                                        Peer::DropDirection::WE_DROPPED_REMOTE
                                    ? Peer::DropDirection::REMOTE_DROPPED_US
-                                   : Peer::DropDirection::WE_DROPPED_REMOTE,
-                               Peer::DropMode::IGNORE_WRITE_QUEUE);
+                                   : Peer::DropDirection::WE_DROPPED_REMOTE);
                 }
             },
             "LoopbackPeer: drop");
@@ -255,7 +254,7 @@ void
 LoopbackPeer::recvMessage(xdr::msg_ptr const& msg)
 {
     ZoneScoped;
-    if (shouldAbort())
+    if (shouldAbortForTesting())
     {
         return;
     }
@@ -274,10 +273,19 @@ LoopbackPeer::recvMessage(xdr::msg_ptr const& msg)
     {
         CLOG_ERROR(Overlay, "received corrupt xdr::msg_ptr {}", e.what());
         drop("received corrupted message",
-             Peer::DropDirection::WE_DROPPED_REMOTE,
-             Peer::DropMode::IGNORE_WRITE_QUEUE);
+             Peer::DropDirection::WE_DROPPED_REMOTE);
         return;
     }
+}
+
+void
+LoopbackPeer::recvMessage(std::shared_ptr<MsgCapacityTracker> msgTracker)
+{
+    mAppConnector.postOnMainThread(
+        [self = shared_from_this(), msgTracker]() {
+            self->recvMessage(msgTracker);
+        },
+        "LoopbackPeer: processInQueue");
 }
 
 void
@@ -536,8 +544,7 @@ LoopbackPeerConnection::~LoopbackPeerConnection()
     // NB: Dropping the peer from one side will automatically drop the
     // other.
     mInitiator->drop("loopback destruction",
-                     Peer::DropDirection::WE_DROPPED_REMOTE,
-                     Peer::DropMode::IGNORE_WRITE_QUEUE);
+                     Peer::DropDirection::WE_DROPPED_REMOTE);
 }
 
 std::shared_ptr<LoopbackPeer>

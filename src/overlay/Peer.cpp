@@ -45,6 +45,7 @@
 namespace stellar
 {
 
+static std::string const AUTH_ACTION_QUEUE = "AUTH";
 using namespace std;
 using namespace soci;
 
@@ -54,21 +55,23 @@ static constexpr VirtualClock::time_point PING_NOT_SENT =
 Peer::Peer(Application& app, PeerRole role)
     : mAppConnector(app)
     , mNetworkID(app.getNetworkID())
-    , mFlowControl(std::make_shared<FlowControl>(mAppConnector))
+    , mFlowControl(
+          std::make_shared<FlowControl>(mAppConnector, useBackgroundThread()))
     , mLastRead(app.getClock().now())
     , mLastWrite(app.getClock().now())
     , mEnqueueTimeOfLastWrite(app.getClock().now())
     , mRole(role)
     , mOverlayMetrics(app.getOverlayManager().getOverlayMetrics())
     , mPeerMetrics(app.getClock().now())
-    , mRecurringTimer(app)
     , mState(role == WE_CALLED_REMOTE ? CONNECTING : CONNECTED)
     , mRemoteOverlayMinVersion(0)
     , mRemoteOverlayVersion(std::nullopt)
     , mCreationTime(app.getClock().now())
+    , mRecurringTimer(app)
     , mDelayedExecutionTimer(app)
     , mTxAdverts(std::make_shared<TxAdverts>(app))
 {
+    releaseAssert(threadIsMain());
     mPingSentTime = PING_NOT_SENT;
     mLastPing = std::chrono::hours(24); // some default very high value
     auto bytes = randomBytes(mSendNonce.size());
@@ -102,15 +105,10 @@ Peer::MsgCapacityTracker::getMessage()
     return mMsg;
 }
 
-std::weak_ptr<Peer>
-Peer::MsgCapacityTracker::getPeer()
-{
-    return mWeakPeer;
-}
-
 void
 Peer::sendHello()
 {
+    releaseAssert(threadIsMain());
     ZoneScoped;
     CLOG_DEBUG(Overlay, "Peer::sendHello to {}", toString());
     StellarMessage msg;
@@ -139,20 +137,21 @@ Peer::beginMessageProcessing(StellarMessage const& msg)
     if (!success)
     {
         drop("unexpected flood message, peer at capacity",
-             Peer::DropDirection::WE_DROPPED_REMOTE,
-             Peer::DropMode::IGNORE_WRITE_QUEUE);
+             Peer::DropDirection::WE_DROPPED_REMOTE);
     }
 }
 
 void
 Peer::endMessageProcessing(StellarMessage const& msg)
 {
-    if (shouldAbort())
+    releaseAssert(threadIsMain());
+    RECURSIVE_LOCK_GUARD(mStateMutex, guard);
+
+    if (shouldAbort(guard))
     {
         return;
     }
 
-    releaseAssert(threadIsMain());
     releaseAssert(mFlowControl);
 
     // We may release reading capacity, which gets taken by the background
@@ -171,20 +170,25 @@ Peer::endMessageProcessing(StellarMessage const& msg)
     // Now that we've released some capacity, maybe schedule more reads
     if (mFlowControl->stopThrottling())
     {
-        scheduleRead();
+        maybeExecuteInBackground(
+            "Peer::stopThrottling scheduleRead",
+            [](std::shared_ptr<Peer> self) { self->scheduleRead(); });
     }
 }
 
 AuthCert
 Peer::getAuthCert()
 {
+    releaseAssert(threadIsMain());
     return mAppConnector.getOverlayManager().getPeerAuth().getAuthCert();
 }
 
 std::chrono::seconds
 Peer::getIOTimeout() const
 {
-    if (isAuthenticated())
+    releaseAssert(threadIsMain());
+    RECURSIVE_LOCK_GUARD(mStateMutex, guard);
+    if (isAuthenticated(guard))
     {
         // Normally willing to wait 30s to hear anything
         // from an authenticated peer.
@@ -215,9 +219,12 @@ Peer::receivedBytes(size_t byteCount, bool gotFullMessage)
 void
 Peer::startRecurrentTimer()
 {
+    releaseAssert(threadIsMain());
+    RECURSIVE_LOCK_GUARD(mStateMutex, guard);
+
     constexpr std::chrono::seconds RECURRENT_TIMER_PERIOD(5);
 
-    if (shouldAbort())
+    if (shouldAbort(guard))
     {
         return;
     }
@@ -234,39 +241,70 @@ Peer::startRecurrentTimer()
 void
 Peer::initialize(PeerBareAddress const& address)
 {
+    releaseAssert(threadIsMain());
     mAddress = address;
     startRecurrentTimer();
 }
 
 void
+Peer::shutdownAndRemovePeer(std::string const& reason,
+                            DropDirection dropDirection)
+{
+    releaseAssert(threadIsMain());
+    RECURSIVE_LOCK_GUARD(mStateMutex, guard);
+    auto state = getState(guard);
+
+    if (state != GOT_AUTH)
+    {
+        CLOG_DEBUG(Overlay,
+                   "Dropping peer {} with state {}, role {}, reason {}",
+                   toString(), format_as(state), format_as(mRole), reason);
+    }
+    else if (dropDirection == Peer::DropDirection::WE_DROPPED_REMOTE)
+    {
+        CLOG_INFO(Overlay, "Dropping peer {}, reason {}", toString(), reason);
+    }
+    else
+    {
+        CLOG_INFO(Overlay, "Peer {} dropped us, reason {}", toString(), reason);
+    }
+
+    // Set peer state to CLOSING to prevent any further processing
+    setState(guard, CLOSING);
+
+    // Remove peer from peer lists tracked by OverlayManager
+    mAppConnector.getOverlayManager().removePeer(this);
+}
+
+void
 Peer::recurrentTimerExpired(asio::error_code const& error)
 {
+    releaseAssert(threadIsMain());
+
     if (!error)
     {
         auto now = mAppConnector.now();
         auto timeout = getIOTimeout();
         auto stragglerTimeout = std::chrono::seconds(
             mAppConnector.getConfig().PEER_STRAGGLER_TIMEOUT);
-        if (((now - mLastRead) >= timeout) && ((now - mLastWrite) >= timeout))
+        if (((now - mLastRead.load()) >= timeout) &&
+            ((now - mLastWrite.load()) >= timeout))
         {
             mOverlayMetrics.mTimeoutIdle.Mark();
-            drop("idle timeout", Peer::DropDirection::WE_DROPPED_REMOTE,
-                 Peer::DropMode::IGNORE_WRITE_QUEUE);
+            drop("idle timeout", Peer::DropDirection::WE_DROPPED_REMOTE);
         }
         else if (mFlowControl && mFlowControl->getOutboundCapacityTimestamp() &&
                  (now - *(mFlowControl->getOutboundCapacityTimestamp())) >=
                      Peer::PEER_SEND_MODE_IDLE_TIMEOUT)
         {
             drop("idle timeout (no new flood requests)",
-                 Peer::DropDirection::WE_DROPPED_REMOTE,
-                 Peer::DropMode::IGNORE_WRITE_QUEUE);
+                 Peer::DropDirection::WE_DROPPED_REMOTE);
         }
-        else if (((now - mEnqueueTimeOfLastWrite) >= stragglerTimeout))
+        else if (((now - mEnqueueTimeOfLastWrite.load()) >= stragglerTimeout))
         {
             mOverlayMetrics.mTimeoutStraggler.Mark();
             drop("straggling (cannot keep up)",
-                 Peer::DropDirection::WE_DROPPED_REMOTE,
-                 Peer::DropMode::IGNORE_WRITE_QUEUE);
+                 Peer::DropDirection::WE_DROPPED_REMOTE);
         }
         else
         {
@@ -280,6 +318,7 @@ Peer::startExecutionDelayedTimer(
     VirtualClock::duration d, std::function<void()> const& onSuccess,
     std::function<void(asio::error_code)> const& onFailure)
 {
+    releaseAssert(threadIsMain());
     mDelayedExecutionTimer.expires_from_now(d);
     mDelayedExecutionTimer.async_wait(onSuccess, onFailure);
 }
@@ -287,6 +326,7 @@ Peer::startExecutionDelayedTimer(
 Json::Value
 Peer::getJsonInfo(bool compact) const
 {
+    releaseAssert(threadIsMain());
     Json::Value res;
     res["address"] = mAddress.toString();
     res["elapsed"] = (int)getLifeTime().count();
@@ -345,6 +385,8 @@ Peer::getJsonInfo(bool compact) const
 void
 Peer::sendAuth()
 {
+    releaseAssert(threadIsMain());
+
     ZoneScoped;
     StellarMessage msg;
     msg.type(AUTH);
@@ -359,17 +401,14 @@ Peer::sendAuth()
 std::string const&
 Peer::toString()
 {
+    releaseAssert(threadIsMain());
     return mAddress.toString();
 }
 
 void
-Peer::shutdown()
+Peer::cancelTimers()
 {
-    if (mShuttingDown)
-    {
-        return;
-    }
-    mShuttingDown = true;
+    releaseAssert(threadIsMain());
     mRecurringTimer.cancel();
     mDelayedExecutionTimer.cancel();
     if (mTxAdverts)
@@ -381,6 +420,7 @@ Peer::shutdown()
 void
 Peer::clearBelow(uint32_t seq)
 {
+    releaseAssert(threadIsMain());
     if (mTxAdverts)
     {
         mTxAdverts->clearBelow(seq);
@@ -390,18 +430,44 @@ Peer::clearBelow(uint32_t seq)
 void
 Peer::connectHandler(asio::error_code const& error)
 {
+    RECURSIVE_LOCK_GUARD(mStateMutex, guard);
     if (error)
     {
         drop("unable to connect: " + error.message(),
-             Peer::DropDirection::WE_DROPPED_REMOTE,
-             Peer::DropMode::IGNORE_WRITE_QUEUE);
+             Peer::DropDirection::WE_DROPPED_REMOTE);
     }
     else
     {
-        CLOG_DEBUG(Overlay, "Async connect to {}", toString());
         connected();
-        setState(CONNECTED);
-        sendHello();
+        setState(guard, CONNECTED);
+        // Always send HELLO from main thread
+        if (useBackgroundThread())
+        {
+            mAppConnector.postOnMainThread(
+                [self = shared_from_this()]() { self->sendHello(); },
+                "Peer::connectHandler sendHello");
+        }
+        else
+        {
+            sendHello();
+        }
+    }
+}
+
+void
+Peer::maybeExecuteInBackground(std::string const& jobName,
+                               std::function<void(std::shared_ptr<Peer>)> f)
+{
+    if (useBackgroundThread() && threadIsMain())
+    {
+        mAppConnector.postOnOverlayThread(
+            [self = shared_from_this(), f]() { f(self); }, jobName);
+    }
+    else
+    {
+        // Execute the function directly if background processing is disabled or
+        // we're already on the background thread.
+        f(shared_from_this());
     }
 }
 
@@ -409,6 +475,7 @@ void
 Peer::sendDontHave(MessageType type, uint256 const& itemID)
 {
     ZoneScoped;
+    releaseAssert(threadIsMain());
     StellarMessage msg;
     msg.type(DONT_HAVE);
     msg.dontHave().reqHash = itemID;
@@ -421,6 +488,7 @@ void
 Peer::sendSCPQuorumSet(SCPQuorumSetPtr qSet)
 {
     ZoneScoped;
+    releaseAssert(threadIsMain());
     StellarMessage msg;
     msg.type(SCP_QUORUMSET);
     msg.qSet() = *qSet;
@@ -432,6 +500,7 @@ void
 Peer::sendGetTxSet(uint256 const& setID)
 {
     ZoneScoped;
+    releaseAssert(threadIsMain());
     StellarMessage newMsg;
     newMsg.type(GET_TX_SET);
     newMsg.txSetHash() = setID;
@@ -444,6 +513,7 @@ void
 Peer::sendGetQuorumSet(uint256 const& setID)
 {
     ZoneScoped;
+    releaseAssert(threadIsMain());
     StellarMessage newMsg;
     newMsg.type(GET_SCP_QUORUMSET);
     newMsg.qSetHash() = setID;
@@ -456,6 +526,7 @@ void
 Peer::sendGetPeers()
 {
     ZoneScoped;
+    releaseAssert(threadIsMain());
     StellarMessage newMsg;
     newMsg.type(GET_PEERS);
     auto msgPtr = std::make_shared<StellarMessage const>(newMsg);
@@ -466,6 +537,7 @@ void
 Peer::sendGetScpState(uint32 ledgerSeq)
 {
     ZoneScoped;
+    releaseAssert(threadIsMain());
     StellarMessage newMsg;
     newMsg.type(GET_SCP_STATE);
     newMsg.getSCPLedgerSeq() = ledgerSeq;
@@ -477,6 +549,7 @@ void
 Peer::sendPeers()
 {
     ZoneScoped;
+    releaseAssert(threadIsMain());
     StellarMessage newMsg;
     newMsg.type(PEERS);
     uint32 maxPeerCount = std::min<uint32>(50, newMsg.peers().max_size());
@@ -503,6 +576,7 @@ void
 Peer::sendError(ErrorCode error, std::string const& message)
 {
     ZoneScoped;
+    releaseAssert(threadIsMain());
     StellarMessage m;
     m.type(ERROR_MSG);
     m.error().code = error;
@@ -512,12 +586,12 @@ Peer::sendError(ErrorCode error, std::string const& message)
 }
 
 void
-Peer::sendErrorAndDrop(ErrorCode error, std::string const& message,
-                       DropMode dropMode)
+Peer::sendErrorAndDrop(ErrorCode error, std::string const& message)
 {
     ZoneScoped;
+    releaseAssert(threadIsMain());
     sendError(error, message);
-    drop(message, DropDirection::WE_DROPPED_REMOTE, dropMode);
+    drop(message, DropDirection::WE_DROPPED_REMOTE);
 }
 
 void
@@ -548,6 +622,8 @@ Peer::sendSendMore(uint32_t numMessages, uint32_t numBytes)
 std::string
 Peer::msgSummary(StellarMessage const& msg)
 {
+    releaseAssert(threadIsMain());
+
     switch (msg.type())
     {
     case ERROR_MSG:
@@ -630,6 +706,8 @@ void
 Peer::sendMessage(std::shared_ptr<StellarMessage const> msg, bool log)
 {
     ZoneScoped;
+    releaseAssert(threadIsMain());
+
     CLOG_TRACE(Overlay, "send: {} to : {}", msgSummary(*msg),
                mAppConnector.getConfig().toShortString(mPeerID));
 
@@ -702,7 +780,19 @@ Peer::sendMessage(std::shared_ptr<StellarMessage const> msg, bool log)
     };
 
     releaseAssert(mFlowControl);
-    if (!mFlowControl->maybeSendMessage(msg))
+    if (OverlayManager::isFloodMessage(*msg))
+    {
+        mFlowControl->addMsgAndMaybeTrimQueue(msg);
+        maybeExecuteInBackground(
+            "Peer::sendMessage maybeSendNextBatch",
+            [](std::shared_ptr<Peer> self) {
+                for (auto const& m : self->mFlowControl->getNextBatchToSend())
+                {
+                    self->sendAuthenticatedMessage(m);
+                }
+            });
+    }
+    else
     {
         // Outgoing message is not flow-controlled, send it directly
         sendAuthenticatedMessage(msg);
@@ -712,45 +802,82 @@ Peer::sendMessage(std::shared_ptr<StellarMessage const> msg, bool log)
 void
 Peer::sendAuthenticatedMessage(std::shared_ptr<StellarMessage const> msg)
 {
-    AuthenticatedMessage amsg;
-    amsg.v0().message = *msg;
-    if (msg->type() != HELLO && msg->type() != ERROR_MSG)
-    {
-        ZoneNamedN(hmacZone, "message HMAC", true);
-        amsg.v0().sequence = mSendMacSeq;
-        amsg.v0().mac =
-            hmacSha256(mSendMacKey, xdr::xdr_to_opaque(mSendMacSeq, *msg));
-        ++mSendMacSeq;
-    }
-    xdr::msg_ptr xdrBytes;
-    {
-        ZoneNamedN(xdrZone, "XDR serialize", true);
-        xdrBytes = xdr::xdr_to_msg(amsg);
-    }
-    this->sendMessage(std::move(xdrBytes));
+    auto cb = [msg](std::shared_ptr<Peer> self) {
+        {
+            // No need to hold the lock for the duration of this function:
+            // simply check if peer is shutting down, and if so, avoid putting
+            // more work onto the queues. If peer shuts down _after_ we already
+            // placed the message, any remaining messages will still go through
+            // before we close the socket, so this should be harmless.
+            RECURSIVE_LOCK_GUARD(self->mStateMutex, guard);
+            if (self->shouldAbort(guard))
+            {
+                return;
+            }
+        }
+
+        // Synchronous code block that executes TCPPeer::sendMessage preserves
+        // ordering of messages, which is important here, because we assign
+        // auth sequence numbers.
+        AuthenticatedMessage amsg;
+        std::string errorMsg;
+        self->mHmac.setAuthenticatedMessageBody(amsg, *msg);
+        xdr::msg_ptr xdrBytes;
+        {
+            ZoneNamedN(xdrZone, "XDR serialize", true);
+            xdrBytes = xdr::xdr_to_msg(amsg);
+        }
+        self->sendMessage(std::move(xdrBytes));
+    };
+
+    // If we're already on the background thread (i.e. via flow control), move
+    // msg to the queue right away
+    maybeExecuteInBackground("sendAuthenticatedMessage", cb);
 }
 
 bool
-Peer::isConnected() const
+Peer::isConnected(RecursiveLockGuard const& stateGuard) const
 {
     return mState != CONNECTING && mState != CLOSING;
 }
 
 bool
-Peer::isAuthenticated() const
+Peer::isAuthenticated(RecursiveLockGuard const& stateGuard) const
 {
     return mState == GOT_AUTH;
 }
 
+#ifdef BUILD_TESTS
+bool
+Peer::isAuthenticatedForTesting() const
+{
+    RECURSIVE_LOCK_GUARD(mStateMutex, guard);
+    return isAuthenticated(guard);
+}
+bool
+Peer::isConnectedForTesting() const
+{
+    RECURSIVE_LOCK_GUARD(mStateMutex, guard);
+    return isConnected(guard);
+}
+bool
+Peer::shouldAbortForTesting() const
+{
+    RECURSIVE_LOCK_GUARD(mStateMutex, guard);
+    return shouldAbort(guard);
+}
+#endif
+
 std::chrono::seconds
 Peer::getLifeTime() const
 {
+    releaseAssert(threadIsMain());
     return std::chrono::duration_cast<std::chrono::seconds>(
         mAppConnector.now() - mCreationTime);
 }
 
 bool
-Peer::shouldAbort() const
+Peer::shouldAbort(RecursiveLockGuard const& stateGuard) const
 {
     return mState == CLOSING || mAppConnector.overlayShuttingDown();
 }
@@ -759,55 +886,61 @@ void
 Peer::recvAuthenticatedMessage(AuthenticatedMessage&& msg)
 {
     ZoneScoped;
-    if (shouldAbort())
+    releaseAssert(!threadIsMain() || !useBackgroundThread());
+    RECURSIVE_LOCK_GUARD(mStateMutex, guard);
+
+    if (shouldAbort(guard))
     {
         return;
     }
 
-    if (mState >= GOT_HELLO && msg.v0().message.type() != ERROR_MSG)
+    std::string errorMsg;
+    if (getState(guard) >= GOT_HELLO && msg.v0().message.type() != ERROR_MSG)
     {
-        if (msg.v0().sequence != mRecvMacSeq)
+        if (!mHmac.checkAuthenticatedMessage(msg, errorMsg))
         {
-            ++mRecvMacSeq;
-            sendErrorAndDrop(ERR_AUTH, "unexpected auth sequence",
-                             DropMode::IGNORE_WRITE_QUEUE);
+            if (!threadIsMain())
+            {
+                mAppConnector.postOnMainThread(
+                    [self = shared_from_this(), errorMsg]() {
+                        self->sendErrorAndDrop(ERR_AUTH, errorMsg);
+                    },
+                    "Peer::sendErrorAndDrop");
+            }
+            else
+            {
+                sendErrorAndDrop(ERR_AUTH, errorMsg);
+            }
             return;
         }
-
-        if (!hmacSha256Verify(
-                msg.v0().mac, mRecvMacKey,
-                xdr::xdr_to_opaque(msg.v0().sequence, msg.v0().message)))
-        {
-            ++mRecvMacSeq;
-            sendErrorAndDrop(ERR_AUTH, "unexpected MAC",
-                             DropMode::IGNORE_WRITE_QUEUE);
-            return;
-        }
-        ++mRecvMacSeq;
     }
-    recvMessage(msg.v0().message);
-}
 
-void
-Peer::recvMessage(StellarMessage const& stellarMsg)
-{
-    ZoneScoped;
-    if (shouldAbort())
+    // Populate signature cache in the background
+    if (msg.v0().message.type() == SCP_MESSAGE)
     {
-        return;
+        auto& envelope = msg.v0().message.envelope();
+        PubKeyUtils::verifySig(envelope.statement.nodeID, envelope.signature,
+                               xdr::xdr_to_opaque(mNetworkID, ENVELOPE_TYPE_SCP,
+                                                  envelope.statement));
     }
 
-    char const* cat = nullptr;
+    // NOTE: Additionally, we may use state snapshots to verify TRANSACTION type
+    // messages in the background.
+
+    // Start tracking capacity here, so read throttling is applied
+    // appropriately. Flow control might not be started at that time
+    auto msgTracker = std::make_shared<MsgCapacityTracker>(shared_from_this(),
+                                                           msg.v0().message);
+
+    std::string cat;
     Scheduler::ActionType type = Scheduler::ActionType::NORMAL_ACTION;
-    auto msgType = stellarMsg.type();
-    bool ignoreIfOutOfSync = false;
-    switch (msgType)
+
+    switch (msgTracker->getMessage().type())
     {
-    // group messages used during handshake, process those synchronously
     case HELLO:
     case AUTH:
-        Peer::recvRawMessage(stellarMsg);
-        return;
+        cat = AUTH_ACTION_QUEUE;
+        break;
     // control messages
     case GET_PEERS:
     case PEERS:
@@ -823,7 +956,6 @@ Peer::recvMessage(StellarMessage const& stellarMsg)
     {
         cat = "TX";
         type = Scheduler::ActionType::DROPPABLE_ACTION;
-        ignoreIfOutOfSync = true;
         break;
     }
 
@@ -848,8 +980,48 @@ Peer::recvMessage(StellarMessage const& stellarMsg)
         cat = "MISC";
     }
 
-    std::weak_ptr<Peer> weak = shared_from_this();
-    auto msgTracker = std::make_shared<MsgCapacityTracker>(weak, stellarMsg);
+    // processing of incoming messages during authenticated must be in-order, so
+    // while not authenticated, place all messages onto AUTH_ACTION_QUEUE
+    // scheduler queue
+    auto queueName = isAuthenticated(guard) ? cat : AUTH_ACTION_QUEUE;
+    type = isAuthenticated(guard) ? type : Scheduler::ActionType::NORMAL_ACTION;
+    // Subtle: move `msgTracker` shared_ptr into the lambda, to ensure
+    // its destructor is invoked from main thread only. Note that we can't use
+    // unique_ptr here, because std::function requires its callable
+    // to be copyable (C++23 fixes this with std::move_only_function, but we're
+    // not there yet)
+    mAppConnector.postOnMainThread(
+        [self = shared_from_this(), t = std::move(msgTracker)]() {
+            self->recvMessage(t);
+        },
+        std::move(queueName), type);
+
+    // msgTracker should be null now
+    releaseAssert(!msgTracker);
+}
+
+void
+Peer::recvMessage(std::shared_ptr<MsgCapacityTracker> msgTracker)
+{
+    ZoneScoped;
+    releaseAssert(threadIsMain());
+
+    auto const& stellarMsg = msgTracker->getMessage();
+
+    // No need to hold the lock for the whole duration of the function, just
+    // need to check state for a potential early exit. If the peer gets dropped
+    // after, we'd still process the message, but that's harmless.
+    {
+        RECURSIVE_LOCK_GUARD(mStateMutex, guard);
+        if (shouldAbort(guard))
+        {
+            return;
+        }
+    }
+
+    auto msgType = stellarMsg.type();
+    bool ignoreIfOutOfSync = msgType == TRANSACTION ||
+                             msgType == FLOOD_ADVERT || msgType == FLOOD_DEMAND;
 
     if (!mAppConnector.getLedgerManager().isSynced() && ignoreIfOutOfSync)
     {
@@ -858,41 +1030,35 @@ Peer::recvMessage(StellarMessage const& stellarMsg)
         return;
     }
 
-    mAppConnector.postOnMainThread(
-        [msgTracker, cat, port = mAppConnector.getConfig().PEER_PORT]() {
-            auto self = msgTracker->getPeer().lock();
-            if (!self)
-            {
-                CLOG_TRACE(Overlay, "Error RecvMessage T:{} cat:{}",
-                           msgTracker->getMessage().type(), cat);
-                return;
-            }
-
-            try
-            {
-                self->recvRawMessage(msgTracker->getMessage());
-            }
-            catch (CryptoError const& e)
-            {
-                std::string err = fmt::format(
-                    FMT_STRING("Error RecvMessage T:{} cat:{} {} @{:d}"),
-                    msgTracker->getMessage().type(), cat, self->toString(),
-                    port);
-                CLOG_ERROR(Overlay, "Dropping connection with {}: {}", err,
-                           e.what());
-                self->drop("Bad crypto request",
-                           Peer::DropDirection::WE_DROPPED_REMOTE,
-                           Peer::DropMode::IGNORE_WRITE_QUEUE);
-            }
-        },
-        fmt::format(FMT_STRING("{} recvMessage"), cat), type);
+    try
+    {
+        recvRawMessage(stellarMsg);
+    }
+    catch (CryptoError const& e)
+    {
+        std::string err =
+            fmt::format(FMT_STRING("Error RecvMessage T:{} msg:{} {} @{:d}"),
+                        stellarMsg.type(), msgSummary(stellarMsg), toString(),
+                        mAppConnector.getConfig().PEER_PORT);
+        CLOG_ERROR(Overlay, "Dropping connection with {}: {}", err, e.what());
+        drop("Bad crypto request", Peer::DropDirection::WE_DROPPED_REMOTE);
+    }
 }
 
 void
 Peer::recvSendMore(StellarMessage const& msg)
 {
+    releaseAssert(threadIsMain());
     releaseAssert(mFlowControl);
-    mFlowControl->maybeReleaseCapacityAndTriggerSend(msg);
+    mFlowControl->maybeReleaseCapacity(msg);
+    maybeExecuteInBackground("Peer::recvSendMore maybeSendNextBatch",
+                             [](std::shared_ptr<Peer> self) {
+                                 for (auto const& m :
+                                      self->mFlowControl->getNextBatchToSend())
+                                 {
+                                     self->sendAuthenticatedMessage(m);
+                                 }
+                             });
 }
 
 void
@@ -904,25 +1070,32 @@ Peer::recvRawMessage(StellarMessage const& stellarMsg)
     auto peerStr = toString();
     ZoneText(peerStr.c_str(), peerStr.size());
 
-    if (shouldAbort())
+    // No need to hold the lock for the whole duration of the function, just
+    // need to check state for a potential early exit. If the peer gets dropped
+    // after, we'd still process the message, but that's harmless.
     {
-        return;
-    }
+        RECURSIVE_LOCK_GUARD(mStateMutex, guard);
+        if (shouldAbort(guard))
+        {
+            return;
+        }
 
-    if (!isAuthenticated() && (stellarMsg.type() != HELLO) &&
-        (stellarMsg.type() != AUTH) && (stellarMsg.type() != ERROR_MSG))
-    {
-        drop(fmt::format(FMT_STRING("received {} before completed handshake"),
-                         stellarMsg.type()),
-             Peer::DropDirection::WE_DROPPED_REMOTE,
-             Peer::DropMode::IGNORE_WRITE_QUEUE);
-        return;
-    }
+        if (!isAuthenticated(guard) && (stellarMsg.type() != HELLO) &&
+            (stellarMsg.type() != AUTH) && (stellarMsg.type() != ERROR_MSG))
+        {
+            drop(fmt::format(
+                     FMT_STRING("received {} before completed handshake"),
+                     stellarMsg.type()),
+                 Peer::DropDirection::WE_DROPPED_REMOTE);
+            return;
+        }
 
-    releaseAssert(isAuthenticated() || stellarMsg.type() == HELLO ||
-                  stellarMsg.type() == AUTH || stellarMsg.type() == ERROR_MSG);
-    mAppConnector.getOverlayManager().recordMessageMetric(stellarMsg,
-                                                          shared_from_this());
+        releaseAssert(isAuthenticated(guard) || stellarMsg.type() == HELLO ||
+                      stellarMsg.type() == AUTH ||
+                      stellarMsg.type() == ERROR_MSG);
+        mAppConnector.getOverlayManager().recordMessageMetric(
+            stellarMsg, shared_from_this());
+    }
 
     switch (stellarMsg.type())
     {
@@ -1060,8 +1233,7 @@ Peer::recvRawMessage(StellarMessage const& stellarMsg)
         releaseAssert(mFlowControl);
         if (!mFlowControl->isSendMoreValid(stellarMsg, errorMsg))
         {
-            drop(errorMsg, Peer::DropDirection::WE_DROPPED_REMOTE,
-                 Peer::DropMode::IGNORE_WRITE_QUEUE);
+            drop(errorMsg, Peer::DropDirection::WE_DROPPED_REMOTE);
             return;
         }
         auto t = mOverlayMetrics.mRecvSendMoreTimer.TimeScope();
@@ -1088,6 +1260,7 @@ void
 Peer::recvDontHave(StellarMessage const& msg)
 {
     ZoneScoped;
+    releaseAssert(threadIsMain());
     maybeProcessPingResponse(msg.dontHave().reqHash);
 
     mAppConnector.getHerder().peerDoesntHave(
@@ -1098,6 +1271,7 @@ void
 Peer::recvGetTxSet(StellarMessage const& msg)
 {
     ZoneScoped;
+    releaseAssert(threadIsMain());
     auto self = shared_from_this();
     if (auto txSet = mAppConnector.getHerder().getTxSet(msg.txSetHash()))
     {
@@ -1136,6 +1310,7 @@ void
 Peer::recvTxSet(StellarMessage const& msg)
 {
     ZoneScoped;
+    releaseAssert(threadIsMain());
     auto frame = TxSetXDRFrame::makeFromWire(msg.txSet());
     mAppConnector.getHerder().recvTxSet(frame->getContentsHash(), frame);
 }
@@ -1144,6 +1319,7 @@ void
 Peer::recvGeneralizedTxSet(StellarMessage const& msg)
 {
     ZoneScoped;
+    releaseAssert(threadIsMain());
     auto frame = TxSetXDRFrame::makeFromWire(msg.generalizedTxSet());
     mAppConnector.getHerder().recvTxSet(frame->getContentsHash(), frame);
 }
@@ -1152,12 +1328,14 @@ void
 Peer::recvTransaction(StellarMessage const& msg)
 {
     ZoneScoped;
+    releaseAssert(threadIsMain());
     mAppConnector.getOverlayManager().recvTransaction(msg, shared_from_this());
 }
 
 Hash
 Peer::pingIDfromTimePoint(VirtualClock::time_point const& tp)
 {
+    releaseAssert(threadIsMain());
     auto sh = shortHash::xdrComputeHash(
         xdr::xdr_to_opaque(uint64_t(tp.time_since_epoch().count())));
     Hash res;
@@ -1169,7 +1347,9 @@ Peer::pingIDfromTimePoint(VirtualClock::time_point const& tp)
 void
 Peer::pingPeer()
 {
-    if (isAuthenticated() && mPingSentTime == PING_NOT_SENT)
+    releaseAssert(threadIsMain());
+    RECURSIVE_LOCK_GUARD(mStateMutex, guard);
+    if (isAuthenticated(guard) && mPingSentTime == PING_NOT_SENT)
     {
         mPingSentTime = mAppConnector.now();
         auto h = pingIDfromTimePoint(mPingSentTime);
@@ -1180,6 +1360,7 @@ Peer::pingPeer()
 void
 Peer::maybeProcessPingResponse(Hash const& id)
 {
+    releaseAssert(threadIsMain());
     if (mPingSentTime != PING_NOT_SENT)
     {
         auto h = pingIDfromTimePoint(mPingSentTime);
@@ -1202,6 +1383,7 @@ Peer::maybeProcessPingResponse(Hash const& id)
 std::chrono::milliseconds
 Peer::getPing() const
 {
+    releaseAssert(threadIsMain());
     return mLastPing;
 }
 
@@ -1216,6 +1398,7 @@ void
 Peer::recvGetSCPQuorumSet(StellarMessage const& msg)
 {
     ZoneScoped;
+    releaseAssert(threadIsMain());
 
     SCPQuorumSetPtr qset = mAppConnector.getHerder().getQSet(msg.qSetHash());
 
@@ -1234,6 +1417,7 @@ void
 Peer::recvSCPQuorumSet(StellarMessage const& msg)
 {
     ZoneScoped;
+    releaseAssert(threadIsMain());
     Hash hash = xdrSha256(msg.qSet());
     maybeProcessPingResponse(hash);
     mAppConnector.getHerder().recvSCPQuorumSet(hash, msg.qSet());
@@ -1243,6 +1427,7 @@ void
 Peer::recvSCPMessage(StellarMessage const& msg)
 {
     ZoneScoped;
+    releaseAssert(threadIsMain());
     SCPEnvelope const& envelope = msg.envelope();
 
     auto type = msg.envelope().statement.pledges.type();
@@ -1291,6 +1476,7 @@ void
 Peer::recvGetSCPState(StellarMessage const& msg)
 {
     ZoneScoped;
+    releaseAssert(threadIsMain());
     uint32 seq = msg.getSCPLedgerSeq();
     mAppConnector.getHerder().sendSCPStateToPeer(seq, shared_from_this());
 }
@@ -1299,6 +1485,7 @@ void
 Peer::recvError(StellarMessage const& msg)
 {
     ZoneScoped;
+    releaseAssert(threadIsMain());
     std::string codeStr = "UNKNOWN";
     switch (msg.error().code)
     {
@@ -1328,13 +1515,13 @@ Peer::recvError(StellarMessage const& msg)
                    [](char c) { return (isalnum(c) || c == ' ') ? c : '*'; });
 
     drop(fmt::format(FMT_STRING("{} ({})"), codeStr, msgStr),
-         Peer::DropDirection::REMOTE_DROPPED_US,
-         Peer::DropMode::IGNORE_WRITE_QUEUE);
+         Peer::DropDirection::REMOTE_DROPPED_US);
 }
 
 void
 Peer::updatePeerRecordAfterEcho()
 {
+    releaseAssert(threadIsMain());
     releaseAssert(!getAddress().isEmpty());
 
     PeerType type;
@@ -1360,6 +1547,7 @@ Peer::updatePeerRecordAfterEcho()
 void
 Peer::updatePeerRecordAfterAuthentication()
 {
+    releaseAssert(threadIsMain());
     releaseAssert(!getAddress().isEmpty());
 
     if (mRole == WE_CALLED_REMOTE)
@@ -1369,19 +1557,20 @@ Peer::updatePeerRecordAfterAuthentication()
     }
 
     CLOG_DEBUG(Overlay, "successful handshake with {}@{}",
-               mAppConnector.getConfig().toShortString(mPeerID),
-               getAddress().toString());
+               mAppConnector.getConfig().toShortString(mPeerID), toString());
 }
 
 void
 Peer::recvHello(Hello const& elo)
 {
     ZoneScoped;
-    if (mState >= GOT_HELLO)
+    releaseAssert(threadIsMain());
+    RECURSIVE_LOCK_GUARD(mStateMutex, guard);
+
+    if (getState(guard) >= GOT_HELLO)
     {
         drop("received unexpected HELLO",
-             Peer::DropDirection::WE_DROPPED_REMOTE,
-             Peer::DropMode::IGNORE_WRITE_QUEUE);
+             Peer::DropDirection::WE_DROPPED_REMOTE);
         return;
     }
 
@@ -1389,15 +1578,13 @@ Peer::recvHello(Hello const& elo)
     if (!peerAuth.verifyRemoteAuthCert(elo.peerID, elo.cert))
     {
         drop("failed to verify auth cert",
-             Peer::DropDirection::WE_DROPPED_REMOTE,
-             Peer::DropMode::IGNORE_WRITE_QUEUE);
+             Peer::DropDirection::WE_DROPPED_REMOTE);
         return;
     }
 
     if (mAppConnector.getBanManager().isBanned(elo.peerID))
     {
-        drop("node is banned", Peer::DropDirection::WE_DROPPED_REMOTE,
-             Peer::DropMode::IGNORE_WRITE_QUEUE);
+        drop("node is banned", Peer::DropDirection::WE_DROPPED_REMOTE);
         return;
     }
 
@@ -1406,14 +1593,12 @@ Peer::recvHello(Hello const& elo)
     mRemoteVersion = elo.versionStr;
     mPeerID = elo.peerID;
     mRecvNonce = elo.nonce;
-    mSendMacSeq = 0;
-    mRecvMacSeq = 0;
-    mSendMacKey = peerAuth.getSendingMacKey(elo.cert.pubkey, mSendNonce,
-                                            mRecvNonce, mRole);
-    mRecvMacKey = peerAuth.getReceivingMacKey(elo.cert.pubkey, mSendNonce,
-                                              mRecvNonce, mRole);
+    mHmac.setSendMackey(peerAuth.getSendingMacKey(elo.cert.pubkey, mSendNonce,
+                                                  mRecvNonce, mRole));
+    mHmac.setRecvMackey(peerAuth.getReceivingMacKey(elo.cert.pubkey, mSendNonce,
+                                                    mRecvNonce, mRole));
 
-    setState(GOT_HELLO);
+    setState(guard, GOT_HELLO);
 
     // mAddress is set in TCPPeer::initiate and TCPPeer::accept. It should
     // contain valid IP (but not necessarily port yet)
@@ -1421,8 +1606,7 @@ Peer::recvHello(Hello const& elo)
     if (ip.empty())
     {
         drop("failed to determine remote address",
-             Peer::DropDirection::WE_DROPPED_REMOTE,
-             Peer::DropMode::IGNORE_WRITE_QUEUE);
+             Peer::DropDirection::WE_DROPPED_REMOTE);
         return;
     }
     mAddress =
@@ -1430,7 +1614,6 @@ Peer::recvHello(Hello const& elo)
 
     CLOG_DEBUG(Overlay, "recvHello from {}", toString());
 
-    auto dropMode = Peer::DropMode::IGNORE_WRITE_QUEUE;
     if (mRole == REMOTE_CALLED_US)
     {
         // Send a HELLO back, even if it's going to be followed
@@ -1438,7 +1621,6 @@ Peer::recvHello(Hello const& elo)
         // message type and the caller won't decode it right if
         // still waiting for an unauthenticated HELLO.
         sendHello();
-        dropMode = Peer::DropMode::FLUSH_WRITE_QUEUE;
     }
 
     bool rejectBasedOnLedgerVersion = shouldDropPeerPredicate(
@@ -1456,13 +1638,13 @@ Peer::recvHello(Hello const& elo)
                    mRemoteOverlayMinVersion, mRemoteOverlayVersion.value(),
                    mAppConnector.getConfig().OVERLAY_PROTOCOL_MIN_VERSION,
                    mAppConnector.getConfig().OVERLAY_PROTOCOL_VERSION);
-        sendErrorAndDrop(ERR_CONF, "wrong protocol version", dropMode);
+        sendErrorAndDrop(ERR_CONF, "wrong protocol version");
         return;
     }
 
     if (elo.peerID == mAppConnector.getConfig().NODE_SEED.getPublicKey())
     {
-        sendErrorAndDrop(ERR_CONF, "connecting to self", dropMode);
+        sendErrorAndDrop(ERR_CONF, "connecting to self");
         return;
     }
 
@@ -1474,14 +1656,13 @@ Peer::recvHello(Hello const& elo)
                               "that are from other networks.");
         CLOG_DEBUG(Overlay, "NetworkID = {} expected: {}",
                    hexAbbrev(elo.networkID), hexAbbrev(mNetworkID));
-        sendErrorAndDrop(ERR_CONF, "wrong network passphrase", dropMode);
+        sendErrorAndDrop(ERR_CONF, "wrong network passphrase");
         return;
     }
 
     if (elo.listeningPort <= 0 || elo.listeningPort > UINT16_MAX || ip.empty())
     {
-        sendErrorAndDrop(ERR_CONF, "bad address",
-                         Peer::DropMode::IGNORE_WRITE_QUEUE);
+        sendErrorAndDrop(ERR_CONF, "bad address");
         return;
     }
 
@@ -1496,10 +1677,8 @@ Peer::recvHello(Hello const& elo)
         if (&(authenticatedIt->second->mPeerID) != &mPeerID)
         {
             sendErrorAndDrop(
-                ERR_CONF,
-                "already-connected peer: " +
-                    mAppConnector.getConfig().toShortString(mPeerID),
-                dropMode);
+                ERR_CONF, "already-connected peer: " +
+                              mAppConnector.getConfig().toShortString(mPeerID));
             return;
         }
     }
@@ -1513,10 +1692,8 @@ Peer::recvHello(Hello const& elo)
         if (p->getPeerID() == mPeerID)
         {
             sendErrorAndDrop(
-                ERR_CONF,
-                "already-connected peer: " +
-                    mAppConnector.getConfig().toShortString(mPeerID),
-                dropMode);
+                ERR_CONF, "already-connected peer: " +
+                              mAppConnector.getConfig().toShortString(mPeerID));
             return;
         }
     }
@@ -1528,7 +1705,7 @@ Peer::recvHello(Hello const& elo)
 }
 
 void
-Peer::setState(PeerState newState)
+Peer::setState(RecursiveLockGuard const& stateGuard, PeerState newState)
 {
     mState = newState;
 }
@@ -1537,22 +1714,22 @@ void
 Peer::recvAuth(StellarMessage const& msg)
 {
     ZoneScoped;
+    releaseAssert(threadIsMain());
+    RECURSIVE_LOCK_GUARD(mStateMutex, guard);
 
-    if (mState != GOT_HELLO)
+    if (getState(guard) != GOT_HELLO)
     {
-        sendErrorAndDrop(ERR_MISC, "out-of-order AUTH message",
-                         DropMode::IGNORE_WRITE_QUEUE);
+        sendErrorAndDrop(ERR_MISC, "out-of-order AUTH message");
         return;
     }
 
-    if (isAuthenticated())
+    if (isAuthenticated(guard))
     {
-        sendErrorAndDrop(ERR_MISC, "out-of-order AUTH message",
-                         DropMode::IGNORE_WRITE_QUEUE);
+        sendErrorAndDrop(ERR_MISC, "out-of-order AUTH message");
         return;
     }
 
-    setState(GOT_AUTH);
+    setState(guard, GOT_AUTH);
 
     if (mRole == REMOTE_CALLED_US)
     {
@@ -1565,21 +1742,9 @@ Peer::recvAuth(StellarMessage const& msg)
     auto self = shared_from_this();
     if (!mAppConnector.getOverlayManager().acceptAuthenticatedPeer(self))
     {
-        sendErrorAndDrop(ERR_LOAD, "peer rejected",
-                         Peer::DropMode::FLUSH_WRITE_QUEUE);
+        sendErrorAndDrop(ERR_LOAD, "peer rejected");
         return;
     }
-
-    // Subtle: after successful auth, must send sendMore message first to
-    // tell the other peer about the local node's reading capacity.
-    auto weakSelf = std::weak_ptr<Peer>(self);
-    auto sendCb = [weakSelf](std::shared_ptr<StellarMessage const> msg) {
-        auto self = weakSelf.lock();
-        if (self)
-        {
-            self->sendAuthenticatedMessage(msg);
-        }
-    };
 
     bool enableBytes =
         (mAppConnector.getConfig().OVERLAY_PROTOCOL_VERSION >=
@@ -1597,7 +1762,10 @@ Peer::recvAuth(StellarMessage const& msg)
                                           .getFlowControlBytesConfig()
                                           .mTotal)
             : std::nullopt;
-    mFlowControl->start(mPeerID, sendCb, fcBytes);
+    mFlowControl->start(mPeerID, fcBytes);
+
+    // Subtle: after successful auth, must send sendMore message first to
+    // tell the other peer about the local node's reading capacity.
     if (fcBytes)
     {
         sendSendMore(mAppConnector.getConfig().PEER_FLOOD_READING_CAPACITY,
@@ -1608,6 +1776,7 @@ Peer::recvAuth(StellarMessage const& msg)
         sendSendMore(mAppConnector.getConfig().PEER_FLOOD_READING_CAPACITY);
     }
 
+    auto weakSelf = std::weak_ptr<Peer>(shared_from_this());
     mTxAdverts->start([weakSelf](std::shared_ptr<StellarMessage const> msg) {
         auto self = weakSelf.lock();
         if (self)
@@ -1625,6 +1794,8 @@ void
 Peer::recvGetPeers(StellarMessage const& msg)
 {
     ZoneScoped;
+    releaseAssert(threadIsMain());
+
     sendPeers();
 }
 
@@ -1632,6 +1803,8 @@ void
 Peer::recvPeers(StellarMessage const& msg)
 {
     ZoneScoped;
+    releaseAssert(threadIsMain());
+
     for (auto const& peer : msg.peers())
     {
         if (peer.port == 0 || peer.port > UINT16_MAX)
@@ -1681,6 +1854,8 @@ void
 Peer::recvSurveyRequestMessage(StellarMessage const& msg)
 {
     ZoneScoped;
+    releaseAssert(threadIsMain());
+
     mAppConnector.getOverlayManager().getSurveyManager().relayOrProcessRequest(
         msg, shared_from_this());
 }
@@ -1689,6 +1864,8 @@ void
 Peer::recvSurveyResponseMessage(StellarMessage const& msg)
 {
     ZoneScoped;
+    releaseAssert(threadIsMain());
+
     mAppConnector.getOverlayManager().getSurveyManager().relayOrProcessResponse(
         msg, shared_from_this());
 }
@@ -1714,6 +1891,7 @@ Peer::recvSurveyStopCollectingMessage(StellarMessage const& msg)
 void
 Peer::recvFloodAdvert(StellarMessage const& msg)
 {
+    releaseAssert(threadIsMain());
     releaseAssert(mTxAdverts);
     auto seq = mAppConnector.getHerder().trackingConsensusLedgerIndex();
     mTxAdverts->queueIncomingAdvert(msg.floodAdvert().txHashes, seq);
@@ -1722,6 +1900,7 @@ Peer::recvFloodAdvert(StellarMessage const& msg)
 void
 Peer::recvFloodDemand(StellarMessage const& msg)
 {
+    releaseAssert(threadIsMain());
     // Pass the demand to OverlayManager for processing
     mAppConnector.getOverlayManager().recvTxDemand(msg.floodDemand(),
                                                    shared_from_this());
@@ -1767,6 +1946,7 @@ Peer::PeerMetrics::PeerMetrics(VirtualClock::time_point connectedTime)
 void
 Peer::sendTxDemand(TxDemandVector&& demands)
 {
+    releaseAssert(threadIsMain());
     if (demands.size() > 0)
     {
         auto msg = std::make_shared<StellarMessage>();
@@ -1774,14 +1954,9 @@ Peer::sendTxDemand(TxDemandVector&& demands)
         msg->floodDemand().txHashes = std::move(demands);
         mOverlayMetrics.mMessagesDemanded.Mark(
             msg->floodDemand().txHashes.size());
-        std::weak_ptr<Peer> weak = shared_from_this();
         mAppConnector.postOnMainThread(
-            [weak, msg = std::move(msg)]() {
-                auto strong = weak.lock();
-                if (strong)
-                {
-                    strong->sendMessage(msg);
-                }
+            [self = shared_from_this(), msg = std::move(msg)]() {
+                self->sendMessage(msg);
             },
             "sendTxDemand");
         ++mPeerMetrics.mTxDemandSent;
@@ -1791,6 +1966,7 @@ Peer::sendTxDemand(TxDemandVector&& demands)
 void
 Peer::handleMaxTxSizeIncrease(uint32_t increase)
 {
+    releaseAssert(threadIsMain());
     if (increase > 0)
     {
         mFlowControl->handleTxSizeIncrease(increase);
@@ -1803,6 +1979,7 @@ Peer::handleMaxTxSizeIncrease(uint32_t increase)
 bool
 Peer::sendAdvert(Hash const& hash)
 {
+    releaseAssert(threadIsMain());
     if (!mTxAdverts)
     {
         throw std::runtime_error("Pull mode is not set");
@@ -1822,6 +1999,7 @@ Peer::sendAdvert(Hash const& hash)
 void
 Peer::retryAdvert(std::list<Hash>& hashes)
 {
+    releaseAssert(threadIsMain());
     if (!mTxAdverts)
     {
         throw std::runtime_error("Pull mode is not set");
@@ -1832,6 +2010,7 @@ Peer::retryAdvert(std::list<Hash>& hashes)
 bool
 Peer::hasAdvert()
 {
+    releaseAssert(threadIsMain());
     if (!mTxAdverts)
     {
         throw std::runtime_error("Pull mode is not set");
@@ -1842,6 +2021,7 @@ Peer::hasAdvert()
 std::pair<Hash, std::optional<VirtualClock::time_point>>
 Peer::popAdvert()
 {
+    releaseAssert(threadIsMain());
     if (!mTxAdverts)
     {
         throw std::runtime_error("Pull mode is not set");

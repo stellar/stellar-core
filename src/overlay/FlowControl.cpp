@@ -19,7 +19,8 @@ constexpr std::chrono::seconds const OUTBOUND_QUEUE_TIMEOUT =
     std::chrono::seconds(30);
 
 size_t
-FlowControl::getOutboundQueueByteLimit() const
+FlowControl::getOutboundQueueByteLimit(
+    std::lock_guard<std::mutex>& lockGuard) const
 {
 #ifdef BUILD_TESTS
     if (mOutboundQueueLimit)
@@ -30,11 +31,13 @@ FlowControl::getOutboundQueueByteLimit() const
     return mAppConnector.getConfig().OUTBOUND_TX_QUEUE_BYTE_LIMIT;
 }
 
-FlowControl::FlowControl(OverlayAppConnector& connector)
+FlowControl::FlowControl(OverlayAppConnector& connector,
+                         bool useBackgroundThread)
     : mFlowControlCapacity(std::make_shared<FlowControlMessageCapacity>(
           connector.getConfig(), mNodeID))
     , mOverlayMetrics(connector.getOverlayManager().getOverlayMetrics())
     , mAppConnector(connector)
+    , mUseBackgroundThread(useBackgroundThread)
     , mNoOutboundCapacity(
           std::make_optional<VirtualClock::time_point>(connector.now()))
 {
@@ -42,24 +45,22 @@ FlowControl::FlowControl(OverlayAppConnector& connector)
 }
 
 bool
-FlowControl::hasOutboundCapacity(StellarMessage const& msg) const
+FlowControl::hasOutboundCapacity(StellarMessage const& msg,
+                                 std::lock_guard<std::mutex>& lockGuard) const
 {
-    releaseAssert(threadIsMain());
+    releaseAssert(!threadIsMain() || !mUseBackgroundThread);
     releaseAssert(mFlowControlCapacity);
     return mFlowControlCapacity->hasOutboundCapacity(msg) &&
            (!mFlowControlBytesCapacity ||
             mFlowControlBytesCapacity->hasOutboundCapacity(msg));
 }
 
-// Start flow control: send SEND_MORE to a peer to indicate available capacity
 void
-FlowControl::start(
-    NodeID const& peerID,
-    std::function<void(std::shared_ptr<StellarMessage const>)> sendCb,
-    std::optional<uint32_t> enableFCBytes)
+FlowControl::start(NodeID const& peerID, std::optional<uint32_t> enableFCBytes)
 {
+    releaseAssert(threadIsMain());
+    std::lock_guard<std::mutex> guard(mFlowControlMutex);
     mNodeID = peerID;
-    mSendCallback = sendCb;
 
     if (enableFCBytes)
     {
@@ -69,9 +70,11 @@ FlowControl::start(
 }
 
 void
-FlowControl::maybeReleaseCapacityAndTriggerSend(StellarMessage const& msg)
+FlowControl::maybeReleaseCapacity(StellarMessage const& msg)
 {
     ZoneScoped;
+    releaseAssert(threadIsMain());
+    std::lock_guard<std::mutex> guard(mFlowControlMutex);
 
     if (msg.type() == SEND_MORE || msg.type() == SEND_MORE_EXTENDED)
     {
@@ -97,23 +100,17 @@ FlowControl::maybeReleaseCapacityAndTriggerSend(StellarMessage const& msg)
                    mFlowControlBytesCapacity
                        ? std::to_string(msg.sendMoreExtendedMessage().numBytes)
                        : "N/A");
-
-        // SEND_MORE means we can free some capacity, and dump the next batch of
-        // messages onto the writing queue
-        maybeSendNextBatch();
     }
 }
 
-void
-FlowControl::maybeSendNextBatch()
+std::vector<std::shared_ptr<StellarMessage const>>
+FlowControl::getNextBatchToSend()
 {
     ZoneScoped;
+    releaseAssert(!threadIsMain() || !mUseBackgroundThread);
 
-    if (!mSendCallback)
-    {
-        throw std::runtime_error(
-            "MaybeSendNextBatch: FLowControl was not started properly");
-    }
+    std::lock_guard<std::mutex> guard(mFlowControlMutex);
+    std::vector<std::shared_ptr<StellarMessage const>> batchToSend;
 
     int sent = 0;
     for (int i = 0; i < mOutboundQueues.size(); i++)
@@ -124,7 +121,7 @@ FlowControl::maybeSendNextBatch()
             auto& front = queue.front();
             auto const& msg = *(front.mMessage);
             // Can't send _current_ message
-            if (!hasOutboundCapacity(msg))
+            if (!hasOutboundCapacity(msg, guard))
             {
                 CLOG_DEBUG(
                     Overlay, "{}: No outbound capacity for peer {}",
@@ -138,7 +135,7 @@ FlowControl::maybeSendNextBatch()
                 break;
             }
 
-            mSendCallback(front.mMessage);
+            batchToSend.push_back(front.mMessage);
             ++sent;
             auto& om = mOverlayMetrics;
 
@@ -199,25 +196,15 @@ FlowControl::maybeSendNextBatch()
                mAppConnector.getConfig().toShortString(
                    mAppConnector.getConfig().NODE_SEED.getPublicKey()),
                mAppConnector.getConfig().toShortString(mNodeID), sent);
-}
-
-bool
-FlowControl::maybeSendMessage(std::shared_ptr<StellarMessage const> msg)
-{
-    ZoneScoped;
-    if (OverlayManager::isFloodMessage(*msg))
-    {
-        addMsgAndMaybeTrimQueue(msg);
-        maybeSendNextBatch();
-        return true;
-    }
-    return false;
+    return batchToSend;
 }
 
 void
 FlowControl::handleTxSizeIncrease(uint32_t increase)
 {
     ZoneScoped;
+    releaseAssert(threadIsMain());
+    std::lock_guard<std::mutex> guard(mFlowControlMutex);
     if (mFlowControlBytesCapacity)
     {
         releaseAssert(increase > 0);
@@ -230,6 +217,8 @@ bool
 FlowControl::beginMessageProcessing(StellarMessage const& msg)
 {
     ZoneScoped;
+    releaseAssert(!threadIsMain() || !mUseBackgroundThread);
+    std::lock_guard<std::mutex> guard(mFlowControlMutex);
 
     return mFlowControlCapacity->lockLocalCapacity(msg) &&
            (!mFlowControlBytesCapacity ||
@@ -241,6 +230,7 @@ FlowControl::endMessageProcessing(StellarMessage const& msg)
 {
     ZoneScoped;
     releaseAssert(threadIsMain());
+    std::lock_guard<std::mutex> guard(mFlowControlMutex);
 
     mFloodDataProcessed += mFlowControlCapacity->releaseLocalCapacity(msg);
     if (mFlowControlBytesCapacity)
@@ -284,6 +274,7 @@ FlowControl::endMessageProcessing(StellarMessage const& msg)
 bool
 FlowControl::canRead() const
 {
+    std::lock_guard<std::mutex> guard(mFlowControlMutex);
     bool canReadBytes =
         !mFlowControlBytesCapacity || mFlowControlBytesCapacity->canRead();
     return canReadBytes && mFlowControlCapacity->canRead();
@@ -301,6 +292,8 @@ FlowControl::isSendMoreValid(StellarMessage const& msg,
                              std::string& errorMsg) const
 {
     releaseAssert(threadIsMain());
+    std::lock_guard<std::mutex> guard(mFlowControlMutex);
+
     bool sendMoreExtendedType =
         mFlowControlBytesCapacity && msg.type() == SEND_MORE_EXTENDED;
     bool sendMoreType = !mFlowControlBytesCapacity && msg.type() == SEND_MORE;
@@ -358,6 +351,8 @@ void
 FlowControl::addMsgAndMaybeTrimQueue(std::shared_ptr<StellarMessage const> msg)
 {
     ZoneScoped;
+    releaseAssert(threadIsMain());
+    std::lock_guard<std::mutex> guard(mFlowControlMutex);
     releaseAssert(msg);
     auto type = msg->type();
     size_t msgQInd = 0;
@@ -418,8 +413,8 @@ FlowControl::addMsgAndMaybeTrimQueue(std::shared_ptr<StellarMessage const> msg)
             bool overLimit = queue.size() > limit;
             if (mFlowControlBytesCapacity)
             {
-                overLimit = overLimit ||
-                            mTxQueueByteCount > getOutboundQueueByteLimit();
+                overLimit = overLimit || mTxQueueByteCount >
+                                             getOutboundQueueByteLimit(guard);
             }
             // Time-based purge
             overLimit =
@@ -520,6 +515,7 @@ Json::Value
 FlowControl::getFlowControlJsonInfo(bool compact) const
 {
     releaseAssert(threadIsMain());
+    std::lock_guard<std::mutex> guard(mFlowControlMutex);
 
     Json::Value res;
     if (mFlowControlCapacity->getCapacity().mTotalCapacity)
@@ -564,12 +560,16 @@ FlowControl::getFlowControlJsonInfo(bool compact) const
 void
 FlowControl::throttleRead()
 {
+    std::lock_guard<std::mutex> guard(mFlowControlMutex);
+    CLOG_DEBUG(Overlay, "Throttle reading from peer {}",
+               mAppConnector.getConfig().toShortString(mNodeID));
     mLastThrottle = mAppConnector.now();
 }
 
 bool
 FlowControl::stopThrottling()
 {
+    std::lock_guard<std::mutex> guard(mFlowControlMutex);
     releaseAssert(threadIsMain());
     if (mLastThrottle)
     {
@@ -586,6 +586,7 @@ FlowControl::stopThrottling()
 bool
 FlowControl::isThrottled() const
 {
+    std::lock_guard<std::mutex> guard(mFlowControlMutex);
     return static_cast<bool>(mLastThrottle);
 }
 

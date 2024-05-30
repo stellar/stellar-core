@@ -40,7 +40,10 @@ Simulation::Simulation(Mode mode, Hash const& networkID, ConfigGen confGen,
     , mConfigGen(confGen)
     , mQuorumSetAdjuster(qSetAdjust)
 {
-    mIdleApp = Application::create(mClock, newConfig());
+    auto cfg = newConfig();
+    auto& parallel = cfg.EXPERIMENTAL_BACKGROUND_OVERLAY_PROCESSING;
+    parallel = parallel && mVirtualClockMode == VirtualClock::REAL_TIME;
+    mIdleApp = Application::create(mClock, cfg);
     mPeerMap.emplace(mIdleApp->getConfig().PEER_PORT, mIdleApp);
 }
 
@@ -48,11 +51,16 @@ Simulation::~Simulation()
 {
     // kills all connections
     mLoopbackConnections.clear();
+
     // destroy all nodes first
     mNodes.clear();
 
     // kill scheduler before the io service
     testutil::shutdownWorkScheduler(*mIdleApp);
+
+    // shutdown overlay service such that it doesn't post anything to
+    // soon-to-be-dead main io service killed right below
+    mIdleApp->getOverlayManager().shutdown();
 
     // tear down main app/clock
     mClock.getIOContext().poll_one();
@@ -91,6 +99,8 @@ Simulation::addNode(SecretKey nodeKey, SCPQuorumSet qSet, Config const* cfg2,
     cfg->adjust();
     cfg->NODE_SEED = nodeKey;
     cfg->MANUAL_CLOSE = false;
+    auto& parallel = cfg->EXPERIMENTAL_BACKGROUND_OVERLAY_PROCESSING;
+    parallel = parallel && mVirtualClockMode == VirtualClock::REAL_TIME;
 
     if (mQuorumSetAdjuster)
     {
@@ -259,8 +269,7 @@ Simulation::dropConnection(NodeID initiator, NodeID acceptor)
                 PeerBareAddress{"127.0.0.1", cAcceptor.PEER_PORT});
             if (peer)
             {
-                peer->drop("drop", Peer::DropDirection::WE_DROPPED_REMOTE,
-                           Peer::DropMode::IGNORE_WRITE_QUEUE);
+                peer->drop("drop", Peer::DropDirection::WE_DROPPED_REMOTE);
             }
         }
     }
@@ -325,6 +334,20 @@ Simulation::addTCPConnection(NodeID initiator, NodeID acceptor)
     }
     auto address = PeerBareAddress{"127.0.0.1", to->getConfig().PEER_PORT};
     from->getOverlayManager().connectTo(address);
+}
+
+void
+Simulation::stopOverlayTick()
+{
+    auto cancel = [](Application::pointer app) {
+        auto& ov = static_cast<OverlayManagerImpl&>(app->getOverlayManager());
+        ov.mTimer.cancel();
+    };
+    cancel(mIdleApp);
+    for (auto& n : mNodes)
+    {
+        cancel(n.second.mApp);
+    }
 }
 
 void
@@ -775,7 +798,7 @@ LoopbackOverlayManager::connectToImpl(PeerBareAddress const& address,
             return false;
         }
         auto res = LoopbackPeer::initiate(mApp, *otherApp);
-        return res.first->getState() == Peer::CONNECTED;
+        return res.first->isConnectedForTesting();
     }
     else
     {

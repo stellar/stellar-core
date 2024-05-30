@@ -227,6 +227,7 @@ class Application
     // with caution.
     virtual asio::io_context& getWorkerIOContext() = 0;
     virtual asio::io_context& getEvictionIOContext() = 0;
+    virtual asio::io_context& getOverlayIOContext() = 0;
 
     virtual void postOnMainThread(
         std::function<void()>&& f, std::string&& name,
@@ -238,6 +239,8 @@ class Application
                                         std::string jobName) = 0;
     virtual void postOnEvictionBackgroundThread(std::function<void()>&& f,
                                                 std::string jobName) = 0;
+    virtual void postOnOverlayThread(std::function<void()>&& f,
+                                     std::string jobName) = 0;
 
     // Perform actions necessary to transition from BOOTING_STATE to other
     // states. In particular: either reload or reinitialize the database, and

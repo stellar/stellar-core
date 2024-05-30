@@ -26,15 +26,67 @@ class TCPPeer : public Peer
     static constexpr size_t BUFSZ = 0x40000; // 256KB
 
   private:
-    std::shared_ptr<SocketType> mSocket;
-    std::vector<uint8_t> mIncomingHeader;
-    std::vector<uint8_t> mIncomingBody;
+    // Helper class which provides invariance for various data structures;
+    // Each method should be called from the same thread
+    class ThreadRestrictedVars
+    {
+        std::deque<TimestampedMessage> mWriteQueue;
+        std::vector<asio::const_buffer> mWriteBuffers;
+        bool const mUseBackgroundThread;
+        bool mWriting{false};
+        std::vector<uint8_t> mIncomingHeader;
+        std::vector<uint8_t> mIncomingBody;
 
-    std::vector<asio::const_buffer> mWriteBuffers;
-    std::deque<TimestampedMessage> mWriteQueue;
-    bool mWriting{false};
-    bool mDelayedShutdown{false};
-    bool mShutdownScheduled{false};
+      public:
+        ThreadRestrictedVars(bool useBackgroundThread)
+            : mUseBackgroundThread(useBackgroundThread)
+        {
+        }
+        std::deque<TimestampedMessage>&
+        getWriteQueue()
+        {
+            releaseAssert(!threadIsMain() || !mUseBackgroundThread);
+            return mWriteQueue;
+        }
+        std::vector<asio::const_buffer>&
+        getWriteBuffers()
+        {
+            releaseAssert(!threadIsMain() || !mUseBackgroundThread);
+            return mWriteBuffers;
+        }
+        std::vector<uint8_t>&
+        getIncomingHeader()
+        {
+            releaseAssert(!threadIsMain() || !mUseBackgroundThread);
+            return mIncomingHeader;
+        }
+        std::vector<uint8_t>&
+        getIncomingBody()
+        {
+            releaseAssert(!threadIsMain() || !mUseBackgroundThread);
+            return mIncomingBody;
+        }
+        bool
+        isWriting() const
+        {
+            releaseAssert(!threadIsMain() || !mUseBackgroundThread);
+            return mWriting;
+        }
+        void
+        setWriting(bool value)
+        {
+            releaseAssert(!threadIsMain() || !mUseBackgroundThread);
+            mWriting = value;
+        }
+    };
+
+    ThreadRestrictedVars mThreadVars;
+
+    // Drop can be initiated from any thread only once, keep track of that with
+    // an atomic
+    std::atomic<bool> mDropStarted{false};
+    std::shared_ptr<SocketType> mSocket;
+    std::string const mIPAddress;
 
     void recvMessage();
     void sendMessage(xdr::msg_ptr&& xdrBytes) override;
@@ -44,7 +96,6 @@ class TCPPeer : public Peer
     size_t getIncomingMsgLength();
     virtual void connected() override;
     void scheduleRead() override;
-    virtual bool sendQueueIsOverloaded() const override;
     void startRead();
 
     static constexpr size_t HDRSZ = 4;
@@ -92,17 +143,18 @@ class TCPPeer : public Peer
     typedef std::shared_ptr<TCPPeer> pointer;
 
     TCPPeer(Application& app, Peer::PeerRole role,
-            std::shared_ptr<SocketType> socket); // hollow
-                                                 // constructor; use
-                                                 // `initiate` or
-                                                 // `accept` instead
+            std::shared_ptr<SocketType> socket,
+            std::string address); // hollow
+                                  // constructor; use
+                                  // `initiate` or
+                                  // `accept` instead
 
     static pointer initiate(Application& app, PeerBareAddress const& address);
     static pointer accept(Application& app, std::shared_ptr<SocketType> socket);
 
     virtual ~TCPPeer();
 
-    virtual void drop(std::string const& reason, DropDirection dropDirection,
-                      DropMode dropMode) override;
+    virtual void drop(std::string const& reason,
+                      DropDirection dropDirection) override;
 };
 }

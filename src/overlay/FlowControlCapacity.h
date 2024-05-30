@@ -12,6 +12,8 @@ namespace stellar
 
 struct StellarMessage;
 
+// FlowControlCapacity is _not_ thread-safe; users (e.g. FlowControl) must
+// implement synchronization.
 class FlowControlCapacity
 {
   protected:

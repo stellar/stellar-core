@@ -483,9 +483,7 @@ CommandHandler::dropPeer(std::string const& params, std::string& retStr)
             auto peer = peers.find(n);
             if (peer != peers.end())
             {
-                peer->second->sendErrorAndDrop(
-                    ERR_MISC, "dropped by user",
-                    Peer::DropMode::IGNORE_WRITE_QUEUE);
+                peer->second->sendErrorAndDrop(ERR_MISC, "dropped by user");
                 if (ban != retMap.end() && ban->second == "1")
                 {
                     retStr = "Drop and ban peer: ";

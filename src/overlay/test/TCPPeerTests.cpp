@@ -16,6 +16,72 @@
 
 namespace stellar
 {
+TEST_CASE("TCPPeer lifetime")
+{
+    Hash networkID = sha256(getTestConfig().NETWORK_PASSPHRASE);
+    Simulation::pointer s = std::make_shared<Simulation>(
+        Simulation::OVER_TCP, networkID, [](int i) {
+            Config cfg = getTestConfig(i);
+            cfg.MAX_INBOUND_PENDING_CONNECTIONS = i % 2;
+            cfg.MAX_OUTBOUND_PENDING_CONNECTIONS = i % 2;
+            cfg.TARGET_PEER_CONNECTIONS = i % 2;
+            cfg.MAX_ADDITIONAL_PEER_CONNECTIONS = i % 2;
+            cfg.EXPERIMENTAL_BACKGROUND_OVERLAY_PROCESSING = true;
+            return cfg;
+        });
+
+    auto v10SecretKey = SecretKey::fromSeed(sha256("v10"));
+    auto v11SecretKey = SecretKey::fromSeed(sha256("v11"));
+
+    SCPQuorumSet n0_qset;
+    n0_qset.threshold = 1;
+    n0_qset.validators.push_back(v10SecretKey.getPublicKey());
+    auto n0 = s->addNode(v10SecretKey, n0_qset);
+
+    SCPQuorumSet n1_qset;
+    n1_qset.threshold = 1;
+    n1_qset.validators.push_back(v11SecretKey.getPublicKey());
+    auto n1 = s->addNode(v11SecretKey, n1_qset);
+
+    SECTION("p0 connects to p1, but p1 can't accept, destroy TCPPeer on main")
+    {
+        s->addPendingConnection(v10SecretKey.getPublicKey(),
+                                v11SecretKey.getPublicKey());
+        s->startAllNodes();
+        s->stopOverlayTick();
+        s->crankForAtLeast(std::chrono::seconds(5), false);
+
+        REQUIRE(n0->getMetrics()
+                    .NewMeter({"overlay", "outbound", "attempt"}, "connection")
+                    .count() == 1);
+        REQUIRE(n1->getMetrics()
+                    .NewMeter({"overlay", "inbound", "attempt"}, "connection")
+                    .count() == 1);
+    }
+    SECTION("p1 connects to p0, but p1 can't initiate, destroy TCPPeer on main")
+    {
+        s->addPendingConnection(v11SecretKey.getPublicKey(),
+                                v10SecretKey.getPublicKey());
+        s->startAllNodes();
+        s->stopOverlayTick();
+        s->crankForAtLeast(std::chrono::seconds(5), false);
+        REQUIRE(n1->getMetrics()
+                    .NewMeter({"overlay", "outbound", "attempt"}, "connection")
+                    .count() == 0);
+        REQUIRE(n0->getMetrics()
+                    .NewMeter({"overlay", "inbound", "attempt"}, "connection")
+                    .count() == 0);
+    }
+
+    auto p0 = n0->getOverlayManager().getConnectedPeer(
+        PeerBareAddress{"127.0.0.1", n1->getConfig().PEER_PORT});
+
+    auto p1 = n1->getOverlayManager().getConnectedPeer(
+        PeerBareAddress{"127.0.0.1", n0->getConfig().PEER_PORT});
+
+    REQUIRE(!p0);
+    REQUIRE(!p1);
+}
 
 TEST_CASE("TCPPeer can communicate", "[overlay][acceptance]")
 {
@@ -49,8 +115,28 @@ TEST_CASE("TCPPeer can communicate", "[overlay][acceptance]")
 
     REQUIRE(p0);
     REQUIRE(p1);
-    REQUIRE(p0->isAuthenticated());
-    REQUIRE(p1->isAuthenticated());
+    REQUIRE(p0->isAuthenticatedForTesting());
+    REQUIRE(p1->isAuthenticatedForTesting());
+    s->stopOverlayTick();
+
+    SECTION("shutdown flushes ERROR")
+    {
+        auto& recvGetPeers =
+            n1->getOverlayManager().getOverlayMetrics().mRecvGetPeersTimer;
+        auto& recvError =
+            n1->getOverlayManager().getOverlayMetrics().mRecvErrorTimer;
+        auto prevPeers = recvGetPeers.count();
+        auto prevError = recvError.count();
+        p0->sendGetPeers();
+        p0->sendErrorAndDrop(ERR_MISC, "test drop");
+        s->crankForAtLeast(std::chrono::seconds(1), false);
+        REQUIRE(!p0->isConnectedForTesting());
+        REQUIRE(!p1->isConnectedForTesting());
+
+        // p1 must have received getPeers, Error
+        REQUIRE(recvGetPeers.count() == prevPeers + 1);
+        REQUIRE(recvError.count() == prevError + 1);
+    }
     s->stopAllNodes();
 }
 }
