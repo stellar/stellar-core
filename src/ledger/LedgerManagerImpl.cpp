@@ -679,7 +679,6 @@ LedgerManagerImpl::valueExternalized(LedgerCloseData const& ledgerData)
                    lcl, getLastClosedLedgerNum());
         mApp.getHerder().lastClosedLedgerIncreased(appliedLatest);
     }
-    FrameMark;
 }
 
 void
@@ -1080,6 +1079,7 @@ LedgerManagerImpl::closeLedger(LedgerCloseData const& ledgerData)
 
     std::chrono::duration<double> ledgerTimeSeconds = ledgerTime.Stop();
     CLOG_DEBUG(Perf, "Applied ledger in {} seconds", ledgerTimeSeconds.count());
+    FrameMark;
 }
 
 void
