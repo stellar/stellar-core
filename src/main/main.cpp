@@ -289,6 +289,17 @@ tracyEnabled(std::lock_guard<std::mutex> const& _guard)
     return TRACY_STATE != TRACY_STOPPED;
 }
 
+#ifdef __has_feature
+#if __has_feature(address_sanitizer)
+#define ASAN_ENABLED
+#endif
+#else
+#ifdef __SANITIZE_ADDRESS__
+#define ASAN_ENABLED
+#endif
+#endif
+
+#ifndef ASAN_ENABLED
 void*
 operator new(std::size_t count)
 {
@@ -334,7 +345,8 @@ operator delete[](void* ptr) noexcept
     }
     free(ptr);
 }
-#endif
+#endif // ASAN_ENABLED
+#endif // USE_TRACY
 
 int
 main(int argc, char* const* argv)
