@@ -836,13 +836,18 @@ bool
 SorobanNetworkConfig::isNonUpgradeableConfigSettingEntry(
     ConfigSettingEntry const& cfg)
 {
+    return isNonUpgradeableConfigSettingEntry(cfg.configSettingID());
+}
+
+bool
+SorobanNetworkConfig::isNonUpgradeableConfigSettingEntry(
+    ConfigSettingID const& cfg)
+{
     // While the BucketList size window and eviction iterator are stored in a
     // ConfigSetting entry, the BucketList defines these values, they should
     // never be changed via upgrade
-    return cfg.configSettingID() ==
-               ConfigSettingID::CONFIG_SETTING_BUCKETLIST_SIZE_WINDOW ||
-           cfg.configSettingID() ==
-               ConfigSettingID::CONFIG_SETTING_EVICTION_ITERATOR;
+    return cfg == ConfigSettingID::CONFIG_SETTING_BUCKETLIST_SIZE_WINDOW ||
+           cfg == ConfigSettingID::CONFIG_SETTING_EVICTION_ITERATOR;
 }
 
 void
