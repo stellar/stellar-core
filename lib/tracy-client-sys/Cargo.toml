@@ -3,7 +3,7 @@
 
 [package]
 name = "tracy-client-sys"
-version = "0.21.0"
+version = "0.22.2"
 authors = ["Simonas Kazlauskas <tracy-client-sys@kazlauskas.me>"]
 license = "(MIT OR Apache-2.0) AND BSD-3-Clause"
 edition = "2018"

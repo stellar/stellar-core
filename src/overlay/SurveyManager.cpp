@@ -730,8 +730,8 @@ SurveyManager::processTimeSlicedTopologyResponse(NodeID const& surveyedPeerID,
     peerResults["droppedAuthenticatedPeers"] = node.droppedAuthenticatedPeers;
     peerResults["numTotalInboundPeers"] = node.totalInboundPeerCount;
     peerResults["numTotalOutboundPeers"] = node.totalOutboundPeerCount;
-    peerResults["p75SCPFirstToSelfLatencyNs"] = node.p75SCPFirstToSelfLatencyNs;
-    peerResults["p75SCPSelfToOtherLatencyNs"] = node.p75SCPSelfToOtherLatencyNs;
+    peerResults["p75SCPFirstToSelfLatencyMs"] = node.p75SCPFirstToSelfLatencyMs;
+    peerResults["p75SCPSelfToOtherLatencyMs"] = node.p75SCPSelfToOtherLatencyMs;
     peerResults["lostSyncCount"] = node.lostSyncCount;
     peerResults["isValidator"] = node.isValidator;
     peerResults["maxInboundPeerCount"] = node.maxInboundPeerCount;

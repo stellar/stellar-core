@@ -417,10 +417,10 @@ SurveyDataManager::finalizeNodeData(Config const& config)
         static_cast<uint32_t>(mFinalInboundPeerData.size());
     mFinalNodeData->totalOutboundPeerCount =
         static_cast<uint32_t>(mFinalOutboundPeerData.size());
-    mFinalNodeData->p75SCPFirstToSelfLatencyNs =
+    mFinalNodeData->p75SCPFirstToSelfLatencyMs =
         mCollectingNodeData->mSCPFirstToSelfLatencyNsHistogram.GetSnapshot()
             .get75thPercentile();
-    mFinalNodeData->p75SCPSelfToOtherLatencyNs =
+    mFinalNodeData->p75SCPSelfToOtherLatencyMs =
         mCollectingNodeData->mSCPSelfToOtherLatencyNsHistogram.GetSnapshot()
             .get75thPercentile();
     mFinalNodeData->lostSyncCount = static_cast<uint32_t>(
