@@ -268,6 +268,9 @@ Peer::shutdownAndRemovePeer(std::string const& reason,
     {
         CLOG_INFO(Overlay, "Peer {} dropped us, reason {}", toString(), reason);
     }
+#ifdef BUILD_TESTS
+    mDropReason = reason;
+#endif
 
     // Set peer state to CLOSING to prevent any further processing
     setState(guard, CLOSING);
@@ -881,7 +884,7 @@ Peer::shouldAbort(RecursiveLockGuard const& stateGuard) const
     return mState == CLOSING || mAppConnector.overlayShuttingDown();
 }
 
-void
+bool
 Peer::recvAuthenticatedMessage(AuthenticatedMessage&& msg)
 {
     ZoneScoped;
@@ -890,7 +893,7 @@ Peer::recvAuthenticatedMessage(AuthenticatedMessage&& msg)
 
     if (shouldAbort(guard))
     {
-        return;
+        return false;
     }
 
     std::string errorMsg;
@@ -910,7 +913,7 @@ Peer::recvAuthenticatedMessage(AuthenticatedMessage&& msg)
             {
                 sendErrorAndDrop(ERR_AUTH, errorMsg);
             }
-            return;
+            return false;
         }
     }
 
@@ -997,6 +1000,7 @@ Peer::recvAuthenticatedMessage(AuthenticatedMessage&& msg)
 
     // msgTracker should be null now
     releaseAssert(!msgTracker);
+    return true;
 }
 
 void

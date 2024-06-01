@@ -89,6 +89,7 @@ class FlowControl
                              std::lock_guard<std::mutex>& lockGuard) const;
     virtual size_t
     getOutboundQueueByteLimit(std::lock_guard<std::mutex>& lockGuard) const;
+    bool canRead(std::lock_guard<std::mutex> const& lockGuard) const;
 
   public:
     FlowControl(OverlayAppConnector& connector, bool useBackgoundThread);
@@ -175,7 +176,7 @@ class FlowControl
     void start(NodeID const& peerID, std::optional<uint32_t> enableFCBytes);
 
     // Stop reading from this peer until capacity is released
-    void throttleRead();
+    bool maybeThrottleRead();
     // After releasing capacity, check if throttling was applied, and if so,
     // reset it. Returns true if peer was throttled, and false otherwise
     bool stopThrottling();

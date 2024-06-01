@@ -88,7 +88,7 @@ class TCPPeer : public Peer
     std::shared_ptr<SocketType> mSocket;
     std::string const mIPAddress;
 
-    void recvMessage();
+    bool recvMessage();
     void sendMessage(xdr::msg_ptr&& xdrBytes) override;
 
     void messageSender();
