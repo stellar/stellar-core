@@ -7,6 +7,7 @@
 #include "crypto/SecretKey.h"
 #include "overlay/Peer.h"
 #include "util/Logging.h"
+#include "util/numeric.h"
 
 #include <Tracy.hpp>
 #include <chrono>
@@ -67,9 +68,9 @@ initializeCollectingPeerData(
 
 CollectingNodeData::CollectingNodeData(uint64_t initialLostSyncCount,
                                        Application::State initialState)
-    : mSCPFirstToSelfLatencyNsHistogram(
+    : mSCPFirstToSelfLatencyMsHistogram(
           medida::SamplingInterface::SampleType::kSliding)
-    , mSCPSelfToOtherLatencyNsHistogram(
+    , mSCPSelfToOtherLatencyMsHistogram(
           medida::SamplingInterface::SampleType::kSliding)
     , mInitialLostSyncCount(initialLostSyncCount)
     , mInitialState(initialState)
@@ -417,12 +418,12 @@ SurveyDataManager::finalizeNodeData(Config const& config)
         static_cast<uint32_t>(mFinalInboundPeerData.size());
     mFinalNodeData->totalOutboundPeerCount =
         static_cast<uint32_t>(mFinalOutboundPeerData.size());
-    mFinalNodeData->p75SCPFirstToSelfLatencyMs =
-        mCollectingNodeData->mSCPFirstToSelfLatencyNsHistogram.GetSnapshot()
-            .get75thPercentile();
-    mFinalNodeData->p75SCPSelfToOtherLatencyMs =
-        mCollectingNodeData->mSCPSelfToOtherLatencyNsHistogram.GetSnapshot()
-            .get75thPercentile();
+    mFinalNodeData->p75SCPFirstToSelfLatencyMs = doubleToClampedUint32(
+        mCollectingNodeData->mSCPFirstToSelfLatencyMsHistogram.GetSnapshot()
+            .get75thPercentile());
+    mFinalNodeData->p75SCPSelfToOtherLatencyMs = doubleToClampedUint32(
+        mCollectingNodeData->mSCPSelfToOtherLatencyMsHistogram.GetSnapshot()
+            .get75thPercentile());
     mFinalNodeData->lostSyncCount = static_cast<uint32_t>(
         mLostSyncMeter.count() - mCollectingNodeData->mInitialLostSyncCount);
     switch (mCollectingNodeData->mInitialState)
@@ -499,7 +500,7 @@ SurveyDataManager::finalizePeerData(
             finalStats.duplicateFetchMessageRecv =
                 peerMetrics.mDuplicateFetchMessageRecv -
                 collectingData.mInitialDuplicateFetchMessageRecv;
-            finalData.averageLatencyMs = static_cast<uint32_t>(
+            finalData.averageLatencyMs = doubleToClampedUint32(
                 collectingData.mLatencyMsHistogram.GetSnapshot().getMedian());
         }
     }
