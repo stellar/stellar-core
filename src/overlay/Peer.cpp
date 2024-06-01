@@ -802,25 +802,24 @@ Peer::sendMessage(std::shared_ptr<StellarMessage const> msg, bool log)
 void
 Peer::sendAuthenticatedMessage(std::shared_ptr<StellarMessage const> msg)
 {
-    auto cb = [msg](std::shared_ptr<Peer> self) {
+    {
+        // No need to hold the lock for the duration of this function:
+        // simply check if peer is shutting down, and if so, avoid putting
+        // more work onto the queues. If peer shuts down _after_ we already
+        // placed the message, any remaining messages will still go through
+        // before we close the socket, so this should be harmless.
+        RECURSIVE_LOCK_GUARD(mStateMutex, guard);
+        if (shouldAbort(guard))
         {
-            // No need to hold the lock for the duration of this function:
-            // simply check if peer is shutting down, and if so, avoid putting
-            // more work onto the queues. If peer shuts down _after_ we already
-            // placed the message, any remaining messages will still go through
-            // before we close the socket, so this should be harmless.
-            RECURSIVE_LOCK_GUARD(self->mStateMutex, guard);
-            if (self->shouldAbort(guard))
-            {
-                return;
-            }
+            return;
         }
+    }
 
-        // Synchronous code block that executes TCPPeer::sendMessage preserves
-        // ordering of messages, which is important here, because we assign
-        // auth sequence numbers.
+    auto cb = [msg](std::shared_ptr<Peer> self) {
+        // Construct an authenticated message and place it in the queue
+        // _synchronously_ This is important because we assign auth sequence to
+        // each message, which must be ordered
         AuthenticatedMessage amsg;
-        std::string errorMsg;
         self->mHmac.setAuthenticatedMessageBody(amsg, *msg);
         xdr::msg_ptr xdrBytes;
         {
