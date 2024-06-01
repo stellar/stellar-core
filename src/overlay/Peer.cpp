@@ -915,8 +915,8 @@ Peer::recvAuthenticatedMessage(AuthenticatedMessage&& msg)
         }
     }
 
-    // Populate signature cache in the background
-    if (msg.v0().message.type() == SCP_MESSAGE)
+    // Verify SCP signatures when in the background
+    if (useBackgroundThread() && msg.v0().message.type() == SCP_MESSAGE)
     {
         auto& envelope = msg.v0().message.envelope();
         PubKeyUtils::verifySig(envelope.statement.nodeID, envelope.signature,
