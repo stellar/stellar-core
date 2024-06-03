@@ -228,9 +228,8 @@ duplicateMessage(Peer::TimestampedMessage const& msg)
 void
 LoopbackPeer::processInQueue()
 {
-    if (!canRead())
+    if (mFlowControl->maybeThrottleRead())
     {
-        mFlowControl->throttleRead();
         return;
     }
 

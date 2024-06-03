@@ -268,6 +268,9 @@ Peer::shutdownAndRemovePeer(std::string const& reason,
     {
         CLOG_INFO(Overlay, "Peer {} dropped us, reason {}", toString(), reason);
     }
+#ifdef BUILD_TESTS
+    mDropReason = reason;
+#endif
 
     // Set peer state to CLOSING to prevent any further processing
     setState(guard, CLOSING);
@@ -802,25 +805,24 @@ Peer::sendMessage(std::shared_ptr<StellarMessage const> msg, bool log)
 void
 Peer::sendAuthenticatedMessage(std::shared_ptr<StellarMessage const> msg)
 {
-    auto cb = [msg](std::shared_ptr<Peer> self) {
+    {
+        // No need to hold the lock for the duration of this function:
+        // simply check if peer is shutting down, and if so, avoid putting
+        // more work onto the queues. If peer shuts down _after_ we already
+        // placed the message, any remaining messages will still go through
+        // before we close the socket, so this should be harmless.
+        RECURSIVE_LOCK_GUARD(mStateMutex, guard);
+        if (shouldAbort(guard))
         {
-            // No need to hold the lock for the duration of this function:
-            // simply check if peer is shutting down, and if so, avoid putting
-            // more work onto the queues. If peer shuts down _after_ we already
-            // placed the message, any remaining messages will still go through
-            // before we close the socket, so this should be harmless.
-            RECURSIVE_LOCK_GUARD(self->mStateMutex, guard);
-            if (self->shouldAbort(guard))
-            {
-                return;
-            }
+            return;
         }
+    }
 
-        // Synchronous code block that executes TCPPeer::sendMessage preserves
-        // ordering of messages, which is important here, because we assign
-        // auth sequence numbers.
+    auto cb = [msg](std::shared_ptr<Peer> self) {
+        // Construct an authenticated message and place it in the queue
+        // _synchronously_ This is important because we assign auth sequence to
+        // each message, which must be ordered
         AuthenticatedMessage amsg;
-        std::string errorMsg;
         self->mHmac.setAuthenticatedMessageBody(amsg, *msg);
         xdr::msg_ptr xdrBytes;
         {
@@ -882,7 +884,7 @@ Peer::shouldAbort(RecursiveLockGuard const& stateGuard) const
     return mState == CLOSING || mAppConnector.overlayShuttingDown();
 }
 
-void
+bool
 Peer::recvAuthenticatedMessage(AuthenticatedMessage&& msg)
 {
     ZoneScoped;
@@ -891,7 +893,7 @@ Peer::recvAuthenticatedMessage(AuthenticatedMessage&& msg)
 
     if (shouldAbort(guard))
     {
-        return;
+        return false;
     }
 
     std::string errorMsg;
@@ -911,12 +913,12 @@ Peer::recvAuthenticatedMessage(AuthenticatedMessage&& msg)
             {
                 sendErrorAndDrop(ERR_AUTH, errorMsg);
             }
-            return;
+            return false;
         }
     }
 
-    // Populate signature cache in the background
-    if (msg.v0().message.type() == SCP_MESSAGE)
+    // Verify SCP signatures when in the background
+    if (useBackgroundThread() && msg.v0().message.type() == SCP_MESSAGE)
     {
         auto& envelope = msg.v0().message.envelope();
         PubKeyUtils::verifySig(envelope.statement.nodeID, envelope.signature,
@@ -998,6 +1000,7 @@ Peer::recvAuthenticatedMessage(AuthenticatedMessage&& msg)
 
     // msgTracker should be null now
     releaseAssert(!msgTracker);
+    return true;
 }
 
 void

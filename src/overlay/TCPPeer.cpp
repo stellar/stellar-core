@@ -567,34 +567,42 @@ TCPPeer::startRead()
             // We can finish reading a full message here synchronously,
             // which means we will count the received header bytes here.
             noteFullyReadHeader();
-            if (length != 0)
+
+            // Exit early if message body size is not acceptable
+            // Peer will be dropped anyway
+            if (length == 0)
             {
-                mThreadVars.getIncomingBody().resize(length);
-                n = mSocket->read_some(
-                    asio::buffer(mThreadVars.getIncomingBody()), ec_body);
-                if (ec_body)
-                {
-                    noteErrorReadBody(n, ec_body);
-                    return;
-                }
-                if (n != length)
-                {
-                    noteShortReadBody(n);
-                    return;
-                }
-                noteFullyReadBody(length);
-                recvMessage();
-                if (!canRead())
-                {
-                    // Break and wait until more capacity frees up
-                    // When it does, read will get rescheduled automatically
-                    mFlowControl->throttleRead();
-                    return;
-                }
-                if (!useBackgroundThread() && mAppConnector.shouldYield())
-                {
-                    break;
-                }
+                return;
+            }
+
+            mThreadVars.getIncomingBody().resize(length);
+            n = mSocket->read_some(asio::buffer(mThreadVars.getIncomingBody()),
+                                   ec_body);
+            if (ec_body)
+            {
+                noteErrorReadBody(n, ec_body);
+                return;
+            }
+            if (n != length)
+            {
+                noteShortReadBody(n);
+                return;
+            }
+            noteFullyReadBody(length);
+            if (!recvMessage())
+            {
+                return;
+            }
+
+            if (mFlowControl->maybeThrottleRead())
+            {
+                // Break and wait until more capacity frees up
+                // When it does, read will get rescheduled automatically
+                return;
+            }
+            if (!useBackgroundThread() && mAppConnector.shouldYield())
+            {
+                break;
             }
         }
         else
@@ -657,7 +665,8 @@ TCPPeer::getIncomingMsgLength()
         length > MAX_MESSAGE_SIZE)
     {
         mOverlayMetrics.mErrorRead.Mark();
-        CLOG_ERROR(Overlay, "TCP: message size unacceptable: {}{}", length,
+        CLOG_ERROR(Overlay, "{} TCP: message size unacceptable: {}{}",
+                   mIPAddress, length,
                    (isAuthenticated(guard) ? "" : " while not authenticated"));
         drop("error during read", Peer::DropDirection::WE_DROPPED_REMOTE);
         length = 0;
@@ -721,16 +730,18 @@ TCPPeer::readBodyHandler(asio::error_code const& error,
     else
     {
         noteFullyReadBody(bytes_transferred);
-        recvMessage();
+        if (!recvMessage())
+        {
+            return;
+        }
         mThreadVars.getIncomingHeader().clear();
         // Completing a startRead => readHeaderHandler => readBodyHandler
         // sequence happens after the first read of a single large input-buffer
         // worth of input. Even when we weren't preempted, we still bounce off
         // the per-peer scheduler queue here, to balance input across peers.
-        if (!canRead())
+        if (mFlowControl->maybeThrottleRead())
         {
             // No more capacity after processing this message
-            mFlowControl->throttleRead();
             return;
         }
 
@@ -738,13 +749,14 @@ TCPPeer::readBodyHandler(asio::error_code const& error,
     }
 }
 
-void
+bool
 TCPPeer::recvMessage()
 {
     ZoneScoped;
     releaseAssert(!threadIsMain() || !useBackgroundThread());
     releaseAssert(canRead());
     std::string errorMsg;
+    bool valid = false;
 
     try
     {
@@ -754,7 +766,7 @@ TCPPeer::recvMessage()
         AuthenticatedMessage am;
         xdr::xdr_argpack_archive(g, am);
 
-        Peer::recvAuthenticatedMessage(std::move(am));
+        valid = Peer::recvAuthenticatedMessage(std::move(am));
     }
     catch (xdr::xdr_runtime_error& e)
     {
@@ -784,7 +796,9 @@ TCPPeer::recvMessage()
         {
             drop();
         }
+        return false;
     }
+    return valid;
 }
 
 // `drop` can be initiated from any thread and is thread-safe. The method simply

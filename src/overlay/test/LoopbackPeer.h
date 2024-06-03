@@ -59,8 +59,6 @@ class LoopbackPeer : public Peer
     void processInQueue();
     void recvMessage(xdr::msg_ptr const& xdrBytes);
 
-    std::string mDropReason;
-
   public:
     virtual ~LoopbackPeer()
     {

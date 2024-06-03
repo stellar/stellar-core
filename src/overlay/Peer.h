@@ -229,7 +229,7 @@ class Peer : public std::enable_shared_from_this<Peer>,
         return mState;
     }
 
-    void recvAuthenticatedMessage(AuthenticatedMessage&& msg);
+    bool recvAuthenticatedMessage(AuthenticatedMessage&& msg);
     // These exist mostly to be overridden in TCPPeer and callable via
     // shared_ptr<Peer> as a captured shared_from_this().
     virtual void connectHandler(asio::error_code const& ec);
@@ -449,6 +449,18 @@ class Peer : public std::enable_shared_from_this<Peer>,
     bool isAuthenticatedForTesting() const;
     bool shouldAbortForTesting() const;
     bool isConnectedForTesting() const;
+    void
+    sendAuthenticatedMessageForTesting(
+        std::shared_ptr<StellarMessage const> msg)
+    {
+        sendAuthenticatedMessage(std::move(msg));
+    }
+    void
+    sendXdrMessageForTesting(xdr::msg_ptr xdrBytes)
+    {
+        sendMessage(std::move(xdrBytes));
+    }
+    std::string mDropReason;
 #endif
 
     // Public thread-safe methods that access Peer's state

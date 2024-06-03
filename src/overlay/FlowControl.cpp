@@ -272,12 +272,18 @@ FlowControl::endMessageProcessing(StellarMessage const& msg)
 }
 
 bool
-FlowControl::canRead() const
+FlowControl::canRead(std::lock_guard<std::mutex> const& guard) const
 {
-    std::lock_guard<std::mutex> guard(mFlowControlMutex);
     bool canReadBytes =
         !mFlowControlBytesCapacity || mFlowControlBytesCapacity->canRead();
     return canReadBytes && mFlowControlCapacity->canRead();
+}
+
+bool
+FlowControl::canRead() const
+{
+    std::lock_guard<std::mutex> guard(mFlowControlMutex);
+    return canRead(guard);
 }
 
 uint32_t
@@ -557,13 +563,18 @@ FlowControl::getFlowControlJsonInfo(bool compact) const
     return res;
 }
 
-void
-FlowControl::throttleRead()
+bool
+FlowControl::maybeThrottleRead()
 {
     std::lock_guard<std::mutex> guard(mFlowControlMutex);
-    CLOG_DEBUG(Overlay, "Throttle reading from peer {}",
-               mAppConnector.getConfig().toShortString(mNodeID));
-    mLastThrottle = mAppConnector.now();
+    if (!canRead(guard))
+    {
+        CLOG_DEBUG(Overlay, "Throttle reading from peer {}",
+                   mAppConnector.getConfig().toShortString(mNodeID));
+        mLastThrottle = mAppConnector.now();
+        return true;
+    }
+    return false;
 }
 
 bool
