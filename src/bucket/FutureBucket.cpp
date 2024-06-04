@@ -353,7 +353,10 @@ FutureBucket::startMerge(Application& app, uint32_t maxProtocolVersion,
     std::shared_ptr<task_t> task = std::make_shared<task_t>(
         [curr, snap, &bm, shadows, maxProtocolVersion, countMergeEvents, level,
          &timer, &ctx, doFsync, availableTime]() mutable {
-            auto timeScope = timer.TimeScope();
+            auto timeScope = LogSlowExecution(
+                "Bucket merge", LogSlowExecution::Mode::AUTOMATIC_RAII, "took",
+                std::chrono::seconds(120), /*warnOnThreshold=*/true,
+                /*logEveryExecution=*/true);
             CLOG_TRACE(Bucket, "Worker merging curr={} with snap={}",
                        hexAbbrev(curr->getHash()), hexAbbrev(snap->getHash()));
 
@@ -372,14 +375,6 @@ FutureBucket::startMerge(Application& app, uint32_t maxProtocolVersion,
                     CLOG_TRACE(
                         Bucket, "Worker finished merging curr={} with snap={}",
                         hexAbbrev(curr->getHash()), hexAbbrev(snap->getHash()));
-
-                    std::chrono::duration<double> time(timeScope.Stop());
-                    double timePct = time.count() / availableTime.count() * 100;
-                    CLOG_DEBUG(
-                        Perf,
-                        "Bucket merge on level {} finished in {} seconds "
-                        "({}% of available time)",
-                        level, time.count(), timePct);
                 }
 
                 return res;

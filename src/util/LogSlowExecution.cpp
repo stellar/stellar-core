@@ -22,12 +22,15 @@ namespace stellar
 {
 LogSlowExecution::LogSlowExecution(std::string eventName, Mode mode,
                                    std::string message,
-                                   std::chrono::milliseconds threshold)
+                                   std::chrono::milliseconds threshold,
+                                   bool warnOnThreshold, bool logEveryExecution)
     : mStart(std::chrono::system_clock::now())
     , mName(std::move(eventName))
     , mMode(mode)
     , mMessage(std::move(message))
-    , mThreshold(threshold){};
+    , mThreshold(threshold)
+    , mWarnOnThreshold(warnOnThreshold)
+    , mLogEveryExecution(logEveryExecution){};
 
 LogSlowExecution::~LogSlowExecution()
 {
@@ -44,13 +47,15 @@ LogSlowExecution::checkElapsedTime() const
     auto elapsed =
         std::chrono::duration_cast<std::chrono::milliseconds>(finish - mStart);
 
-    if (!mThreshold.count() || elapsed > mThreshold)
+    if (!mThreshold.count() || elapsed > mThreshold || mLogEveryExecution)
     {
         std::lock_guard<std::mutex> guard(gLogSlowExecMutex);
 
         // Check whether we're 10 times over the threshold to decide the log
-        // level.
-        LogLevel ll = (elapsed > mThreshold * 10 || !mThreshold.count())
+        // level. If warnOnThreshold is set, log as warning if we're over the
+        // threshold.
+        LogLevel ll = (elapsed > mThreshold * 10 || !mThreshold.count() ||
+                       (elapsed > mThreshold && mWarnOnThreshold))
                           ? LogLevel::LVL_WARNING
                           : LogLevel::LVL_DEBUG;
 
