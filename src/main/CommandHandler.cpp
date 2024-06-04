@@ -12,6 +12,7 @@
 #include "ledger/LedgerTxn.h"
 #include "ledger/LedgerTxnEntry.h"
 #include "ledger/LedgerTxnImpl.h"
+#include "ledger/NetworkConfig.h"
 #include "lib/http/server.hpp"
 #include "lib/json/json.h"
 #include "main/Application.h"
@@ -873,6 +874,28 @@ CommandHandler::sorobanInfo(std::string const& params, std::string& retStr)
             }
 
             retStr = xdrToCerealString(entries, "ConfigSettingsEntries");
+        }
+        else if (format == "upgrade_xdr")
+        {
+            LedgerTxn ltx(mApp.getLedgerTxnRoot(),
+                          /* shouldUpdateLastModified */ false,
+                          TransactionMode::READ_ONLY_WITHOUT_SQL_TXN);
+
+            ConfigUpgradeSet upgradeSet;
+            for (auto c : xdr::xdr_traits<ConfigSettingID>::enum_values())
+            {
+                auto configSettingID = static_cast<ConfigSettingID>(c);
+                if (SorobanNetworkConfig::isNonUpgradeableConfigSettingEntry(
+                        configSettingID))
+                {
+                    continue;
+                }
+                auto entry = ltx.load(configSettingKey(configSettingID));
+                upgradeSet.updatedEntry.emplace_back(
+                    entry.current().data.configSetting());
+            }
+
+            retStr = decoder::encode_b64(xdr::xdr_to_opaque(upgradeSet));
         }
         else
         {
