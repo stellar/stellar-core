@@ -89,7 +89,10 @@ MAX_COLLECT_DURATION = 30
 # requests sent to select nodes, followed by a wait period of 15 seconds,
 # followed by checking for responses and building up the next batch of requests
 # to send. Therefore, a setting of `8` is roughly 2 minutes of inactivity
-# before the script considers the survey complete.
+# before the script considers the survey complete. This is necessary because
+# it's very likely that not all surveyed nodes will respond to the survey.
+# Therefore, we need some cutoff after we which we assume those nodes will never
+# respond.
 MAX_INACTIVE_ROUNDS = 8
 
 def get_request(url, params=None):
