@@ -82,7 +82,7 @@ SIMULATION = None
 
 # Maximum duration of collecting phase in minutes. This matches stellar-core's
 # internal limit.
-MAX_DURATION = 30
+MAX_COLLECT_DURATION = 30
 
 # Maximum number of consecutive rounds in which the surveyor neither sent
 # requests to nor received responses from any nodes. A round contains a batch of
@@ -337,8 +337,9 @@ def run_survey(args):
         sys.exit(1)
 
     # Sleep for duration of collecting phase
-    logger.info("Sleeping for collecting phase (%i minutes)", args.duration)
-    time.sleep(args.duration * 60)
+    logger.info("Sleeping for collecting phase (%i minutes)",
+                args.collect_duration)
+    time.sleep(args.collect_duration * 60)
 
     # Stop survey recording
     logger.info("Stopping survey collecting")
@@ -348,7 +349,7 @@ def run_survey(args):
         sys.exit(1)
 
     # Allow time for stop message to propagate
-    sleep_time = 30
+    sleep_time = 60
     logger.info(
         "Waiting %i seconds for 'stop collecting' message to propagate",
         sleep_time)
@@ -500,11 +501,11 @@ def init_parser_survey(parser_survey):
                                "--node",
                                required=True,
                                help="address of initial survey node")
-    parser_survey.add_argument("-d",
-                               "--duration",
+    parser_survey.add_argument("-c",
+                               "--collect-duration",
                                required=True,
                                type=int,
-                               choices=range(1, MAX_DURATION + 1),
+                               choices=range(1, MAX_COLLECT_DURATION + 1),
                                help="Duration of collecting phase in minutes. " "Must be between 1 and 30.")
     parser_survey.add_argument("-sr",
                                "--surveyResult",

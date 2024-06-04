@@ -15,7 +15,7 @@ This folder is for storing any scripts that may be helpful for using stellar-cor
     - `-v`, `--verbose` - increase log verbosity (Optional)
     - sub command `survey` - run survey and analyze
         - `-n NODE`, `--node NODE` - address of initial survey node
-        - `-d DURATION`, `--duration DURATION` - duration of survey collecting phase in minutes
+        - `-c DURATION`, `--collect-duration DURATION` - duration of survey collecting phase in minutes
         - `-nl NODELIST`, `--nodeList NODELIST` - list of seed nodes. One node per line. (Optional)
         - `-gmlw GRAPHMLWRITE`, `--graphmlWrite GRAPHMLWRITE` - output file for graphml file
         - `-sr SURVEYRESULT`, `--surveyResult SURVEYRESULT` - output file for survey results
