@@ -346,6 +346,21 @@ format.
         ConfigUpgradeSet will be used to update the existing network ConfigSettingEntry
         that exists at the corresponding CONFIG_SETTING LedgerKey.
 
+* **sorobaninfo**
+  `sorobaninfo?[format=basic,detailed,upgrade_xdr]`
+    Retrieves the current Soroban settings in different formats.
+
+    * `basic` is the default if the `format` parameter is not specified. It
+      will dump a subset of the Soroban settings in an easy to read format.
+    * `detailed` will insert every setting into a `ConfigUpgradeSet` and dump
+      it in the same format as the **dumpproposedsettings** command, which lets
+      a user easily compare the existing settings against a proposal.
+    * `upgrade_xdr` will insert the current upgradeable settings into a `ConfigUpgradeSet`
+      and dump it as base64 xdr. This can be used along with the `stellar-xdr` command line tool
+      to dump the current settings in the same format as the JSON file we use for upgrades. This
+      is helpful if you want to make settings changes off of the current settings.
+      Ex. `curl -s "127.0.0.1:11626/sorobaninfo?format=upgrade_xdr" | stellar-xdr decode --type ConfigUpgradeSet`
+
 * **dumpproposedsettings**
   `dumpproposedsettings?blob=Base64`<br>
   blob is a base64 encoded XDR serialized `ConfigUpgradeSetKey`.
