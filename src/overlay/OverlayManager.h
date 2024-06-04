@@ -114,8 +114,6 @@ class OverlayManager
 
     // Return a list of random peers from the set of authenticated peers.
     virtual std::vector<Peer::pointer> getRandomAuthenticatedPeers() = 0;
-    virtual std::vector<Peer::pointer>
-    getAuthenticatedPeers(bool randomize) = 0;
 
     // Return a list of random peers from the set of inbound authenticated
     // peers.
@@ -209,12 +207,7 @@ class OverlayManager
 
     virtual void recordMessageMetric(StellarMessage const& stellarMsg,
                                      Peer::pointer peer) = 0;
-
     virtual AdjustedFlowControlConfig getFlowControlBytesConfig() const = 0;
-
-    virtual void
-    dropPeersIf(std::function<bool(Peer::pointer, uint32_t)> predicate,
-                uint32_t version, std::string const& reason) = 0;
     virtual ~OverlayManager()
     {
     }

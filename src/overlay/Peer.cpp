@@ -29,7 +29,6 @@
 #include "util/ProtocolVersion.h"
 #include "util/finally.h"
 
-#include "herder/HerderUtils.h"
 #include "medida/meter.h"
 #include "medida/timer.h"
 #include "xdrpp/marshal.h"
@@ -65,7 +64,7 @@ Peer::Peer(Application& app, PeerRole role)
     , mPeerMetrics(app.getClock().now())
     , mState(role == WE_CALLED_REMOTE ? CONNECTING : CONNECTED)
     , mRemoteOverlayMinVersion(0)
-    , mRemoteOverlayVersion(std::nullopt)
+    , mRemoteOverlayVersion(0)
     , mCreationTime(app.getClock().now())
     , mRecurringTimer(app)
     , mDelayedExecutionTimer(app)
@@ -335,10 +334,7 @@ Peer::getJsonInfo(bool compact) const
     res["elapsed"] = (int)getLifeTime().count();
     res["latency"] = (int)getPing().count();
     res["ver"] = getRemoteVersion();
-    if (getRemoteOverlayVersion())
-    {
-        res["olver"] = getRemoteOverlayVersion().value();
-    }
+    res["olver"] = (int)getRemoteOverlayVersion();
     if (mFlowControl)
     {
         res["flow_control"] = mFlowControl->getFlowControlJsonInfo(compact);
@@ -1626,19 +1622,14 @@ Peer::recvHello(Hello const& elo)
         sendHello();
     }
 
-    bool rejectBasedOnLedgerVersion = shouldDropPeerPredicate(
-        shared_from_this(), mAppConnector.getLedgerManager()
-                                .getLastClosedLedgerHeader()
-                                .header.ledgerVersion);
-    if (mRemoteOverlayMinVersion > mRemoteOverlayVersion.value() ||
-        mRemoteOverlayVersion.value() <
+    if (mRemoteOverlayMinVersion > mRemoteOverlayVersion ||
+        mRemoteOverlayVersion <
             mAppConnector.getConfig().OVERLAY_PROTOCOL_MIN_VERSION ||
         mRemoteOverlayMinVersion >
-            mAppConnector.getConfig().OVERLAY_PROTOCOL_VERSION ||
-        rejectBasedOnLedgerVersion)
+            mAppConnector.getConfig().OVERLAY_PROTOCOL_VERSION)
     {
         CLOG_DEBUG(Overlay, "Protocol = [{},{}] expected: [{},{}]",
-                   mRemoteOverlayMinVersion, mRemoteOverlayVersion.value(),
+                   mRemoteOverlayMinVersion, mRemoteOverlayVersion,
                    mAppConnector.getConfig().OVERLAY_PROTOCOL_MIN_VERSION,
                    mAppConnector.getConfig().OVERLAY_PROTOCOL_VERSION);
         sendErrorAndDrop(ERR_CONF, "wrong protocol version");

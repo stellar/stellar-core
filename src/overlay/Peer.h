@@ -257,7 +257,7 @@ class Peer : public std::enable_shared_from_this<Peer>,
 
     std::string mRemoteVersion;
     uint32_t mRemoteOverlayMinVersion;
-    std::optional<uint32_t> mRemoteOverlayVersion;
+    uint32_t mRemoteOverlayVersion;
     PeerBareAddress mAddress;
 
     VirtualClock::time_point mCreationTime;
@@ -373,7 +373,7 @@ class Peer : public std::enable_shared_from_this<Peer>,
         return mRemoteVersion;
     }
 
-    std::optional<uint32_t>
+    uint32_t
     getRemoteOverlayVersion() const
     {
         releaseAssert(threadIsMain());

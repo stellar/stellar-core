@@ -387,36 +387,6 @@ OverlayManagerImpl::getFlowControlBytesConfig() const
 }
 
 void
-OverlayManagerImpl::dropPeersIf(
-    std::function<bool(Peer::pointer, uint32_t)> predicate, uint32_t version,
-    std::string const& reason)
-{
-    auto maybeDrop = [](auto peers,
-                        std::function<bool(Peer::pointer, uint32_t)> predicate,
-                        uint32_t version, std::string const& reason) {
-        std::vector<Peer::pointer> peersToDrop;
-        for (auto it = peers.begin(); it != peers.end(); ++it)
-        {
-            if (predicate(*it, version))
-            {
-                peersToDrop.emplace_back(*it);
-            }
-        }
-
-        for (auto& peer : peersToDrop)
-        {
-            // Drop will cleanup peer lists and remove peer references from
-            // overlay manager
-            peer->drop(reason, Peer::DropDirection::WE_DROPPED_REMOTE);
-        }
-    };
-
-    maybeDrop(getPendingPeers(), predicate, version, reason);
-    maybeDrop(getAuthenticatedPeers(/* randomize */ false), predicate, version,
-              reason);
-}
-
-void
 OverlayManagerImpl::connectTo(PeerBareAddress const& address)
 {
     ZoneScoped;
@@ -1121,21 +1091,12 @@ OverlayManager::isFloodMessage(StellarMessage const& msg)
 std::vector<Peer::pointer>
 OverlayManagerImpl::getRandomAuthenticatedPeers()
 {
-    return getAuthenticatedPeers(true);
-}
-
-std::vector<Peer::pointer>
-OverlayManagerImpl::getAuthenticatedPeers(bool randomize)
-{
     std::vector<Peer::pointer> result;
     result.reserve(mInboundPeers.mAuthenticated.size() +
                    mOutboundPeers.mAuthenticated.size());
     extractPeersFromMap(mInboundPeers.mAuthenticated, result);
     extractPeersFromMap(mOutboundPeers.mAuthenticated, result);
-    if (randomize)
-    {
-        shufflePeerList(result);
-    }
+    shufflePeerList(result);
     return result;
 }
 

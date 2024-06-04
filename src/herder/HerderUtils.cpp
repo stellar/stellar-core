@@ -4,7 +4,6 @@
 
 #include "herder/HerderUtils.h"
 #include "scp/Slot.h"
-#include "util/ProtocolVersion.h"
 #include "xdr/Stellar-ledger.h"
 #include <algorithm>
 #include <xdrpp/marshal.h>
@@ -40,19 +39,5 @@ getStellarValues(SCPStatement const& statement)
                    });
 
     return result;
-}
-
-bool
-shouldDropPeerPredicate(Peer::pointer peer, uint32_t protocolVersion)
-{
-    bool upgraded =
-        protocolVersionStartsFrom(protocolVersion, SOROBAN_PROTOCOL_VERSION);
-    auto ovVersion = peer->getRemoteOverlayVersion();
-    if (upgraded && ovVersion &&
-        ovVersion.value() < Peer::FIRST_VERSION_REQUIRED_FOR_PROTOCOL_20)
-    {
-        return true;
-    }
-    return false;
 }
 }
