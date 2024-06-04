@@ -189,9 +189,10 @@ SurveyMessageLimiter::validateStopSurveyCollecting(
 bool
 SurveyMessageLimiter::surveyLedgerNumValid(uint32_t ledgerNum)
 {
-    uint32_t curLedgerNum = mApp.getHerder().trackingConsensusLedgerIndex();
-    return ledgerNum + mNumLedgersBeforeIgnore >= curLedgerNum &&
-           ledgerNum <= curLedgerNum + 1;
+    uint32_t localLedgerNum = mApp.getHerder().trackingConsensusLedgerIndex();
+    return ledgerNum + mNumLedgersBeforeIgnore >= localLedgerNum &&
+           ledgerNum <=
+               localLedgerNum + std::max<uint32_t>(mNumLedgersBeforeIgnore, 1);
 }
 
 void
