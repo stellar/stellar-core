@@ -3,6 +3,9 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "main/CommandHandler.h"
+#include "bucket/BucketListSnapshot.h"
+#include "bucket/BucketManager.h"
+#include "bucket/BucketSnapshotManager.h"
 #include "crypto/Hex.h"
 #include "crypto/KeyUtils.h"
 #include "herder/Herder.h"
@@ -74,6 +77,15 @@ CommandHandler::CommandHandler(Application& app) : mApp(app)
         mServer = std::make_unique<http::server::server>(
             app.getClock().getIOContext(), ipStr, mApp.getConfig().HTTP_PORT,
             httpMaxClient);
+
+        if (mApp.getConfig().RPC_HTTP_PORT)
+        {
+            LOG_INFO(DEFAULT_LOG, "Listening on {}:{} for RPC requests", ipStr,
+                     mApp.getConfig().RPC_HTTP_PORT);
+            mRpcServer = std::make_unique<httpThreaded::server::server>(
+                ipStr, mApp.getConfig().RPC_HTTP_PORT, httpMaxClient,
+                mApp.getConfig().RPC_THREADS);
+        }
     }
     else
     {
@@ -82,6 +94,11 @@ CommandHandler::CommandHandler(Application& app) : mApp(app)
     }
 
     mServer->add404(std::bind(&CommandHandler::fileNotFound, this, _1, _2));
+    if (mRpcServer)
+    {
+        mRpcServer->add404(
+            std::bind(&CommandHandler::fileNotFound, this, _1, _2));
+    }
 
     if (mApp.getConfig().modeStoresAnyHistory())
     {
@@ -119,11 +136,13 @@ CommandHandler::CommandHandler(Application& app) : mApp(app)
     addRoute("manualclose", &CommandHandler::manualClose);
     addRoute("metrics", &CommandHandler::metrics);
     addRoute("tx", &CommandHandler::tx);
-    addRoute("getledgerentry", &CommandHandler::getLedgerEntry);
     addRoute("upgrades", &CommandHandler::upgrades);
     addRoute("dumpproposedsettings", &CommandHandler::dumpProposedSettings);
     addRoute("self-check", &CommandHandler::selfCheck);
     addRoute("sorobaninfo", &CommandHandler::sorobanInfo);
+
+    addRoute("getledgerentry", &CommandHandler::getLedgerEntry,
+             static_cast<bool>(mRpcServer));
 
 #ifdef BUILD_TESTS
     addRoute("generateload", &CommandHandler::generateLoad);
@@ -136,13 +155,28 @@ CommandHandler::CommandHandler(Application& app) : mApp(app)
     addRoute("surveytopologytimesliced",
              &CommandHandler::surveyTopologyTimeSliced);
 #endif
+
+    if (mRpcServer)
+    {
+        mRpcServer->start();
+    }
 }
 
 void
-CommandHandler::addRoute(std::string const& name, HandlerRoute route)
+CommandHandler::addRoute(std::string const& name, HandlerRoute route,
+                         bool isRpc)
 {
-    mServer->addRoute(
-        name, std::bind(&CommandHandler::safeRouter, this, route, _1, _2));
+    if (isRpc)
+    {
+        releaseAssert(mRpcServer);
+        mRpcServer->addRoute(
+            name, std::bind(&CommandHandler::safeRouter, this, route, _1, _2));
+    }
+    else
+    {
+        mServer->addRoute(
+            name, std::bind(&CommandHandler::safeRouter, this, route, _1, _2));
+    }
 }
 
 void
@@ -957,18 +991,18 @@ CommandHandler::getLedgerEntry(std::string const& params, std::string& retStr)
     std::string key = paramMap["key"];
     if (!key.empty())
     {
-        LedgerTxn ltx(mApp.getLedgerTxnRoot(),
-                      /* shouldUpdateLastModified */ false,
-                      TransactionMode::READ_ONLY_WITHOUT_SQL_TXN);
-        root["ledger"] = ltx.loadHeader().current().ledgerSeq;
+        auto bl = mApp.getBucketManager()
+                      .getBucketSnapshotManager()
+                      .getSearchableBucketListSnapshot();
+        root["ledger"] = bl->getLedgerSeq();
 
         LedgerKey k;
         fromOpaqueBase64(k, key);
-        auto le = ltx.loadWithoutRecord(k);
+        auto le = bl->getLedgerEntry(k);
         if (le)
         {
             root["state"] = "live";
-            root["entry"] = toOpaqueBase64(le.current());
+            root["entry"] = toOpaqueBase64(*le);
         }
         else
         {

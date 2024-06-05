@@ -66,6 +66,13 @@ SearchableBucketListSnapshot::loopAllBuckets(
     }
 }
 
+uint32_t
+SearchableBucketListSnapshot::getLedgerSeq() const
+{
+    releaseAssert(mSnapshot);
+    return mSnapshot->getLedgerSeq();
+}
+
 EvictionResult
 SearchableBucketListSnapshot::scanForEviction(
     uint32_t ledgerSeq, EvictionCounters& counters,

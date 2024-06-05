@@ -5,6 +5,7 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "lib/http/server.hpp"
+#include "lib/httpthreaded/server.hpp"
 #include "util/ProtocolVersion.h"
 #include <string>
 
@@ -24,8 +25,10 @@ class CommandHandler
 
     Application& mApp;
     std::unique_ptr<http::server::server> mServer;
+    std::unique_ptr<httpThreaded::server::server> mRpcServer;
 
-    void addRoute(std::string const& name, HandlerRoute route);
+    void addRoute(std::string const& name, HandlerRoute route,
+                  bool isRpc = false);
     void safeRouter(HandlerRoute route, std::string const& params,
                     std::string& retStr);
 
