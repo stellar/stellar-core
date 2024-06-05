@@ -7,6 +7,7 @@
 #include "lib/http/server.hpp"
 #include "lib/httpthreaded/server.hpp"
 #include "util/ProtocolVersion.h"
+#include <map>
 #include <string>
 
 /*
@@ -16,6 +17,7 @@ handler functions for the http commands this server supports
 namespace stellar
 {
 class Application;
+class SearchableBucketListSnapshot;
 
 class CommandHandler
 {
@@ -27,6 +29,9 @@ class CommandHandler
     std::unique_ptr<http::server::server> mServer;
     std::unique_ptr<httpThreaded::server::server> mRpcServer;
 
+    std::map<std::thread::id, std::shared_ptr<SearchableBucketListSnapshot>>
+        mBucketListSnapshots;
+
     void addRoute(std::string const& name, HandlerRoute route,
                   bool isRpc = false);
     void safeRouter(HandlerRoute route, std::string const& params,
@@ -37,6 +42,9 @@ class CommandHandler
                                ProtocolVersion minVer);
     void ensureProtocolVersion(std::string const& errString,
                                ProtocolVersion minVer);
+
+    void
+    initializeBucketListSnapshots(std::vector<std::thread::id> const& pids);
 
   public:
     CommandHandler(Application& app);
