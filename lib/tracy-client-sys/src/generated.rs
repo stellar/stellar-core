@@ -350,7 +350,7 @@ pub struct ___tracy_gpu_new_context_data {
     pub period: f32,
     pub context: u8,
     pub flags: u8,
-    type_: u8,
+    pub type_: u8,
 }
 #[test]
 fn bindgen_test_layout____tracy_gpu_new_context_data() {

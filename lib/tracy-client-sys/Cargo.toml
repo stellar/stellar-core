@@ -16,9 +16,20 @@ Low level bindings to the client libraries for the Tracy profiler
 
 [features]
 default = [ "enable" ]
+
+manual-lifetime = []
+delayed-init = []
 enable = []
-broadcast = []
-code-transfer = []
+flush-on-exit = []
+system-tracing = []
 context-switch-tracing = []
 sampling = []
-system-tracing = []
+code-transfer = []
+broadcast = []
+only-localhost = []
+only-ipv4 = []
+timer-fallback = []
+ondemand = []
+fibers = []
+callstack-inlines = []
+
