@@ -90,7 +90,8 @@ extractSurveyRequestMessage(StellarMessage const& msg)
 SurveyManager::SurveyManager(Application& app)
     : mApp(app)
     , mSurveyThrottleTimer(std::make_unique<VirtualTimer>(mApp))
-    , NUM_LEDGERS_BEFORE_IGNORE(12) // ~60 seconds
+    , NUM_LEDGERS_BEFORE_IGNORE(
+          6) // ~30 seconds ahead of or behind the current ledger
     , MAX_REQUEST_LIMIT_PER_LEDGER(10)
     , mMessageLimiter(app, NUM_LEDGERS_BEFORE_IGNORE,
                       MAX_REQUEST_LIMIT_PER_LEDGER)
