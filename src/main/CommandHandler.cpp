@@ -158,7 +158,21 @@ CommandHandler::CommandHandler(Application& app) : mApp(app)
 
     if (mRpcServer)
     {
-        mRpcServer->start();
+        auto rpcPids = mRpcServer->start();
+        initializeBucketListSnapshots(rpcPids);
+    }
+}
+
+void
+CommandHandler::initializeBucketListSnapshots(
+    std::vector<std::thread::id> const& pids)
+{
+    for (auto const& pid : pids)
+    {
+        mBucketListSnapshots.emplace(pid,
+                                     mApp.getBucketManager()
+                                         .getBucketSnapshotManager()
+                                         .getSearchableBucketListSnapshot());
     }
 }
 
@@ -991,9 +1005,7 @@ CommandHandler::getLedgerEntry(std::string const& params, std::string& retStr)
     std::string key = paramMap["key"];
     if (!key.empty())
     {
-        auto bl = mApp.getBucketManager()
-                      .getBucketSnapshotManager()
-                      .getSearchableBucketListSnapshot();
+        auto bl = mBucketListSnapshots.at(std::this_thread::get_id());
         root["ledger"] = bl->getLedgerSeq();
 
         LedgerKey k;
