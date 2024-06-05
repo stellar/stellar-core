@@ -107,6 +107,58 @@ class BucketIndexTest
         buildBucketList(f);
     }
 
+    void
+    runHistoricalSnapshotTest()
+    {
+        uint32_t ledger = 0;
+        auto canonicalEntry = LedgerTestUtils::generateValidLedgerEntry();
+        canonicalEntry.lastModifiedLedgerSeq = 0;
+
+        do
+        {
+            ++ledger;
+            auto entryCopy = canonicalEntry;
+            entryCopy.lastModifiedLedgerSeq = ledger;
+            mApp->getLedgerManager().setNextLedgerEntryBatchForBucketTesting(
+                {}, {entryCopy}, {});
+            closeLedger(*mApp);
+        } while (ledger < mApp->getConfig().QUERY_SNAPSHOT_LEDGERS + 2);
+        ++ledger;
+
+        auto searchableBL = getBM()
+                                .getBucketSnapshotManager()
+                                .copySearchableBucketListSnapshot();
+        auto lk = LedgerEntryKey(canonicalEntry);
+
+        auto currentLoadedEntry = searchableBL->getLedgerEntry(lk);
+        REQUIRE(currentLoadedEntry);
+
+        // Note: The definition of "historical snapshot" ledger is that the
+        // BucketList snapshot for ledger N is the BucketList as it exists at
+        // the beginning of ledger N. This means that the lastModifiedLedgerSeq
+        // is at most N - 1.
+        REQUIRE(currentLoadedEntry->lastModifiedLedgerSeq == ledger - 1);
+
+        for (uint32_t currLedger = ledger; currLedger > 0; --currLedger)
+        {
+            auto [loadRes, snapshotExists] =
+                searchableBL->loadKeysFromLedger({lk}, currLedger);
+
+            // If we query an older snapshot, should return <null, notFound>
+            if (currLedger < ledger - mApp->getConfig().QUERY_SNAPSHOT_LEDGERS)
+            {
+                REQUIRE(!snapshotExists);
+                REQUIRE(loadRes.empty());
+            }
+            else
+            {
+                REQUIRE(snapshotExists);
+                REQUIRE(loadRes.size() == 1);
+                REQUIRE(loadRes[0].lastModifiedLedgerSeq == currLedger - 1);
+            }
+        }
+    }
+
     virtual void
     buildMultiVersionTest()
     {
@@ -196,7 +248,7 @@ class BucketIndexTest
     {
         auto searchableBL = getBM()
                                 .getBucketSnapshotManager()
-                                .getSearchableBucketListSnapshot();
+                                .copySearchableBucketListSnapshot();
 
         // Test bulk load lookup
         auto loadResult =
@@ -223,7 +275,7 @@ class BucketIndexTest
     {
         auto searchableBL = getBM()
                                 .getBucketSnapshotManager()
-                                .getSearchableBucketListSnapshot();
+                                .copySearchableBucketListSnapshot();
         for (size_t i = 0; i < n; ++i)
         {
             LedgerKeySet searchSubset;
@@ -263,7 +315,7 @@ class BucketIndexTest
     {
         auto searchableBL = getBM()
                                 .getBucketSnapshotManager()
-                                .getSearchableBucketListSnapshot();
+                                .copySearchableBucketListSnapshot();
 
         // Load should return empty vector for keys not in bucket list
         auto keysNotInBL =
@@ -440,7 +492,7 @@ class BucketIndexPoolShareTest : public BucketIndexTest
     {
         auto searchableBL = getBM()
                                 .getBucketSnapshotManager()
-                                .getSearchableBucketListSnapshot();
+                                .copySearchableBucketListSnapshot();
         auto loadResult =
             searchableBL->loadPoolShareTrustLinesByAccountAndAsset(
                 mAccountToSearch.accountID, mAssetToSearch);
@@ -496,6 +548,17 @@ TEST_CASE("do not load outdated values", "[bucket][bucketindex]")
         auto test = BucketIndexTest(cfg);
         test.buildMultiVersionTest();
         test.run();
+    };
+
+    testAllIndexTypes(f);
+}
+
+TEST_CASE("load from historical snapshots", "[bucket][bucketindex]")
+{
+    auto f = [&](Config& cfg) {
+        cfg.QUERY_SNAPSHOT_LEDGERS = 5;
+        auto test = BucketIndexTest(cfg);
+        test.runHistoricalSnapshotTest();
     };
 
     testAllIndexTypes(f);

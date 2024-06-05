@@ -31,7 +31,11 @@ class server
 {
 
   public:
-    typedef std::function<void(const std::string&, std::string&)> routeHandler;
+    // If route handler returns true, send response with 200 OK status.
+    // Otherwise, send 404 Not Found.
+    typedef std::function<bool(const std::string&, const std::string&,
+                               std::string&)>
+        routeHandler;
     server(const server&) = delete;
     server& operator=(const server&) = delete;
 
@@ -50,6 +54,9 @@ class server
 
     static void parseParams(const std::string& params,
                             std::map<std::string, std::string>& retMap);
+    static void
+    parsePostParams(const std::string& params,
+                    std::map<std::string, std::vector<std::string>>& retMap);
 
   private:
     /// Perform an asynchronous accept operation.

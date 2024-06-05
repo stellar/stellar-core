@@ -223,6 +223,10 @@ Config::Config() : NODE_SEED(SecretKey::random())
     TESTING_UPGRADE_FLAGS = 0;
 
     HTTP_PORT = DEFAULT_PEER_PORT + 1;
+
+    QUERY_THREAD_POOL_SIZE = 4;
+    QUERY_SNAPSHOT_LEDGERS = 5;
+    HTTP_QUERY_PORT = 0;
     PUBLIC_HTTP_PORT = false;
     HTTP_MAX_CLIENT = 128;
     PEER_PORT = DEFAULT_PEER_PORT;
@@ -1042,6 +1046,10 @@ Config::processConfig(std::shared_ptr<cpptoml::table> t)
             {
                 HTTP_PORT = readInt<unsigned short>(item);
             }
+            else if (item.first == "HTTP_QUERY_PORT")
+            {
+                HTTP_QUERY_PORT = readInt<unsigned short>(item);
+            }
             else if (item.first == "HTTP_MAX_CLIENT")
             {
                 HTTP_MAX_CLIENT = readInt<unsigned short>(item, 0);
@@ -1368,6 +1376,14 @@ Config::processConfig(std::shared_ptr<cpptoml::table> t)
             else if (item.first == "WORKER_THREADS")
             {
                 WORKER_THREADS = readInt<int>(item, 2, 1000);
+            }
+            else if (item.first == "QUERY_THREAD_POOL_SIZE")
+            {
+                QUERY_THREAD_POOL_SIZE = readInt<int>(item, 1, 1000);
+            }
+            else if (item.first == "QUERY_SNAPSHOT_LEDGERS")
+            {
+                QUERY_SNAPSHOT_LEDGERS = readInt<uint32_t>(item, 0, 10);
             }
             else if (item.first == "MAX_CONCURRENT_SUBPROCESSES")
             {
@@ -2352,6 +2368,7 @@ Config::setNoListen()
     // prevent opening up a port for other peers
     RUN_STANDALONE = true;
     HTTP_PORT = 0;
+    HTTP_QUERY_PORT = 0;
     MANUAL_CLOSE = true;
 }
 

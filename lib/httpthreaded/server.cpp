@@ -153,31 +153,47 @@ server::handle_request(const request& req, reply& rep)
         params = request_path.substr(pos);
     }
 
-    auto it = mRoutes.find(command);
-    if (it != mRoutes.end())
+    std::string parsed_body;
+    if (!url_decode(req.body, parsed_body))
     {
-        it->second(params, rep.content);
+        rep = reply::stock_reply(reply::bad_request);
+        return;
+    }
 
-        rep.status = reply::ok;
+    auto add404 = [&](auto& rep) {
+        rep.status = reply::not_found;
         rep.headers.resize(2);
         rep.headers[0].name = "Content-Length";
         rep.headers[0].value = std::to_string(rep.content.size());
         rep.headers[1].name = "Content-Type";
-        rep.headers[1].value = "application/json";
+        rep.headers[1].value = "text/html";
+    };
+
+    auto it = mRoutes.find(command);
+    if (it != mRoutes.end())
+    {
+        if (it->second(params, parsed_body, rep.content))
+        {
+            rep.status = reply::ok;
+            rep.headers.resize(2);
+            rep.headers[0].name = "Content-Length";
+            rep.headers[0].value = std::to_string(rep.content.size());
+            rep.headers[1].name = "Content-Type";
+            rep.headers[1].value = "application/json";
+        }
+        else
+        {
+            add404(rep);
+        }
     }
     else
     {
         it = mRoutes.find("404");
         if (it != mRoutes.end())
         {
-            it->second(params, rep.content);
+            it->second(params, parsed_body, rep.content);
 
-            rep.status = reply::not_found;
-            rep.headers.resize(2);
-            rep.headers[0].name = "Content-Length";
-            rep.headers[0].value = std::to_string(rep.content.size());
-            rep.headers[1].name = "Content-Type";
-            rep.headers[1].value = "text/html";
+            add404(rep);
         }
         else
         {
@@ -260,6 +276,42 @@ server::parseParams(const std::string& params,
     if (name.size() && value.size())
     {
         retMap[name] = value;
+    }
+}
+
+void
+server::parsePostParams(const std::string& body,
+                        std::map<std::string, std::vector<std::string>>& retMap)
+{
+    bool buildingName = true;
+    std::string name, value;
+    for (auto c : body)
+    {
+        if (c == '?')
+        {
+        }
+        else if (c == '=')
+        {
+            buildingName = false;
+        }
+        else if (c == '&')
+        {
+            buildingName = true;
+            retMap[name].push_back(value);
+            name = "";
+            value = "";
+        }
+        else
+        {
+            if (buildingName)
+                name += c;
+            else
+                value += c;
+        }
+    }
+    if (name.size() && value.size())
+    {
+        retMap[name].push_back(value);
     }
 }
 

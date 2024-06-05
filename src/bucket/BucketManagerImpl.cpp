@@ -127,7 +127,8 @@ BucketManagerImpl::initialize()
         if (mApp.getConfig().isUsingBucketListDB())
         {
             mSnapshotManager = std::make_unique<BucketSnapshotManager>(
-                mApp, std::make_unique<BucketListSnapshot>(*mBucketList, 0));
+                mApp, std::make_unique<BucketListSnapshot>(*mBucketList, 0),
+                mApp.getConfig().QUERY_SNAPSHOT_LEDGERS);
         }
     }
 }
@@ -994,7 +995,7 @@ BucketManagerImpl::startBackgroundEvictionScan(uint32_t ledgerSeq)
     releaseAssert(!mEvictionFuture.valid());
     releaseAssert(mEvictionStatistics);
 
-    auto searchableBL = mSnapshotManager->getSearchableBucketListSnapshot();
+    auto searchableBL = mSnapshotManager->copySearchableBucketListSnapshot();
     auto const& cfg = mApp.getLedgerManager().getSorobanNetworkConfig();
     auto const& sas = cfg.stateArchivalSettings();
 

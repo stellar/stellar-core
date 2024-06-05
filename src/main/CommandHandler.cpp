@@ -3,6 +3,9 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "main/CommandHandler.h"
+#include "bucket/BucketListSnapshot.h"
+#include "bucket/BucketManager.h"
+#include "bucket/BucketSnapshotManager.h"
 #include "crypto/Hex.h"
 #include "crypto/KeyUtils.h"
 #include "herder/Herder.h"
@@ -18,6 +21,7 @@
 #include "main/Application.h"
 #include "main/Config.h"
 #include "main/Maintainer.h"
+#include "main/QueryServer.h"
 #include "overlay/BanManager.h"
 #include "overlay/OverlayManager.h"
 #include "overlay/SurveyManager.h"
@@ -25,6 +29,7 @@
 #include "transactions/MutableTransactionResult.h"
 #include "transactions/TransactionBridge.h"
 #include "transactions/TransactionUtils.h"
+#include "util/GlobalChecks.h"
 #include "util/Logging.h"
 #include "util/StatusManager.h"
 #include <Tracy.hpp>
@@ -34,6 +39,7 @@
 #include "util/Decoder.h"
 #include "util/XDRCereal.h"
 #include "util/XDROperators.h"
+#include "util/XDRStream.h" // IWYU pragma: keep
 #include "xdr/Stellar-ledger-entries.h"
 #include "xdr/Stellar-transaction.h"
 #include "xdrpp/marshal.h"
@@ -75,6 +81,15 @@ CommandHandler::CommandHandler(Application& app) : mApp(app)
         mServer = std::make_unique<http::server::server>(
             app.getClock().getIOContext(), ipStr, mApp.getConfig().HTTP_PORT,
             httpMaxClient);
+
+        if (mApp.getConfig().HTTP_QUERY_PORT &&
+            mApp.getConfig().isUsingBucketListDB())
+        {
+            mQueryServer = std::make_unique<QueryServer>(
+                ipStr, mApp.getConfig().HTTP_QUERY_PORT, httpMaxClient,
+                mApp.getConfig().QUERY_THREAD_POOL_SIZE,
+                mApp.getBucketManager().getBucketSnapshotManager());
+        }
     }
     else
     {
@@ -83,7 +98,6 @@ CommandHandler::CommandHandler(Application& app) : mApp(app)
     }
 
     mServer->add404(std::bind(&CommandHandler::fileNotFound, this, _1, _2));
-
     if (mApp.getConfig().modeStoresAnyHistory())
     {
         addRoute("dropcursor", &CommandHandler::dropcursor);
@@ -120,7 +134,6 @@ CommandHandler::CommandHandler(Application& app) : mApp(app)
     addRoute("manualclose", &CommandHandler::manualClose);
     addRoute("metrics", &CommandHandler::metrics);
     addRoute("tx", &CommandHandler::tx);
-    addRoute("getledgerentry", &CommandHandler::getLedgerEntry);
     addRoute("upgrades", &CommandHandler::upgrades);
     addRoute("dumpproposedsettings", &CommandHandler::dumpProposedSettings);
     addRoute("self-check", &CommandHandler::selfCheck);
@@ -142,6 +155,7 @@ CommandHandler::CommandHandler(Application& app) : mApp(app)
 void
 CommandHandler::addRoute(std::string const& name, HandlerRoute route)
 {
+
     mServer->addRoute(
         name, std::bind(&CommandHandler::safeRouter, this, route, _1, _2));
 }
@@ -945,44 +959,6 @@ CommandHandler::ll(std::string const& params, std::string& retStr)
     }
 
     retStr = root.toStyledString();
-}
-
-void
-CommandHandler::getLedgerEntry(std::string const& params, std::string& retStr)
-{
-    ZoneScoped;
-    Json::Value root;
-
-    std::map<std::string, std::string> paramMap;
-    http::server::server::parseParams(params, paramMap);
-    std::string key = paramMap["key"];
-    if (!key.empty())
-    {
-        LedgerTxn ltx(mApp.getLedgerTxnRoot(),
-                      /* shouldUpdateLastModified */ false,
-                      TransactionMode::READ_ONLY_WITHOUT_SQL_TXN);
-        root["ledger"] = ltx.loadHeader().current().ledgerSeq;
-
-        LedgerKey k;
-        fromOpaqueBase64(k, key);
-        auto le = ltx.loadWithoutRecord(k);
-        if (le)
-        {
-            root["state"] = "live";
-            root["entry"] = toOpaqueBase64(le.current());
-        }
-        else
-        {
-            root["state"] = "dead";
-        }
-    }
-    else
-    {
-        throw std::invalid_argument(
-            "Must specify ledger key: getLedgerEntry?key=<LedgerKey in base64 "
-            "XDR format>");
-    }
-    retStr = Json::FastWriter().write(root);
 }
 
 void

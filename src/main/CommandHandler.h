@@ -5,7 +5,10 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "lib/http/server.hpp"
+#include "main/QueryServer.h"
 #include "util/ProtocolVersion.h"
+#include <map>
+#include <memory>
 #include <string>
 
 /*
@@ -24,8 +27,10 @@ class CommandHandler
 
     Application& mApp;
     std::unique_ptr<http::server::server> mServer;
+    std::unique_ptr<QueryServer> mQueryServer;
 
     void addRoute(std::string const& name, HandlerRoute route);
+
     void safeRouter(HandlerRoute route, std::string const& params,
                     std::string& retStr);
 
@@ -60,7 +65,6 @@ class CommandHandler
     void getcursor(std::string const& params, std::string& retStr);
     void scpInfo(std::string const& params, std::string& retStr);
     void tx(std::string const& params, std::string& retStr);
-    void getLedgerEntry(std::string const& params, std::string& retStr);
     void unban(std::string const& params, std::string& retStr);
     void upgrades(std::string const& params, std::string& retStr);
     void dumpProposedSettings(std::string const& params, std::string& retStr);

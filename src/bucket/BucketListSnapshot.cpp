@@ -8,6 +8,7 @@
 #include "ledger/LedgerTxn.h"
 
 #include "medida/timer.h"
+#include "util/GlobalChecks.h"
 
 namespace stellar
 {
@@ -41,13 +42,16 @@ BucketListSnapshot::getLedgerSeq() const
     return mLedgerSeq;
 }
 
-void
-SearchableBucketListSnapshot::loopAllBuckets(
-    std::function<bool(BucketSnapshot const&)> f) const
+// Loops through all buckets in the given snapshot, starting with curr at level
+// 0, then snap at level 0, etc. Calls f on each bucket. Exits early if function
+// returns true
+namespace
 {
-    releaseAssert(mSnapshot);
-
-    for (auto const& lev : mSnapshot->getLevels())
+void
+loopAllBuckets(std::function<bool(BucketSnapshot const&)> f,
+               BucketListSnapshot const& snapshot)
+{
+    for (auto const& lev : snapshot.getLevels())
     {
         // Return true if we should exit loop early
         auto processBucket = [f](BucketSnapshot const& b) {
@@ -64,6 +68,62 @@ SearchableBucketListSnapshot::loopAllBuckets(
             return;
         }
     }
+}
+
+// Loads bucket entry for LedgerKey k. Returns <LedgerEntry, bloomMiss>,
+// where bloomMiss is true if a bloom miss occurred during the load.
+std::pair<std::shared_ptr<LedgerEntry>, bool>
+getLedgerEntryInternal(LedgerKey const& k, BucketListSnapshot const& snapshot)
+{
+    std::shared_ptr<LedgerEntry> result{};
+    auto sawBloomMiss = false;
+
+    auto f = [&](BucketSnapshot const& b) {
+        auto [be, bloomMiss] = b.getBucketEntry(k);
+        sawBloomMiss = sawBloomMiss || bloomMiss;
+
+        if (be.has_value())
+        {
+            result =
+                be.value().type() == DEADENTRY
+                    ? nullptr
+                    : std::make_shared<LedgerEntry>(be.value().liveEntry());
+            return true;
+        }
+        else
+        {
+            return false;
+        }
+    };
+
+    loopAllBuckets(f, snapshot);
+    return {result, sawBloomMiss};
+}
+
+std::vector<LedgerEntry>
+loadKeysInternal(std::set<LedgerKey, LedgerEntryIdCmp> const& inKeys,
+                 BucketListSnapshot const& snapshot, LedgerKeyMeter* lkMeter)
+{
+    std::vector<LedgerEntry> entries;
+
+    // Make a copy of the key set, this loop is destructive
+    auto keys = inKeys;
+    auto f = [&](BucketSnapshot const& b) {
+        b.loadKeysWithLimits(keys, entries, lkMeter);
+        return keys.empty();
+    };
+
+    loopAllBuckets(f, snapshot);
+    return entries;
+}
+
+}
+
+uint32_t
+SearchableBucketListSnapshot::getLedgerSeq() const
+{
+    releaseAssert(mSnapshot);
+    return mSnapshot->getLedgerSeq();
 }
 
 EvictionResult
@@ -120,66 +180,46 @@ std::shared_ptr<LedgerEntry>
 SearchableBucketListSnapshot::getLedgerEntry(LedgerKey const& k)
 {
     ZoneScoped;
-    mSnapshotManager.maybeUpdateSnapshot(mSnapshot);
+    mSnapshotManager.maybeUpdateSnapshot(mSnapshot, mHistoricalSnapshots);
+    releaseAssert(mSnapshot);
 
     if (threadIsMain())
     {
         mSnapshotManager.startPointLoadTimer();
-        auto [result, bloomMiss] = getLedgerEntryInternal(k);
+        auto [result, bloomMiss] = getLedgerEntryInternal(k, *mSnapshot);
         mSnapshotManager.endPointLoadTimer(k.type(), bloomMiss);
         return result;
     }
     else
     {
-        auto [result, bloomMiss] = getLedgerEntryInternal(k);
+        auto [result, bloomMiss] = getLedgerEntryInternal(k, *mSnapshot);
         return result;
     }
 }
 
-std::pair<std::shared_ptr<LedgerEntry>, bool>
-SearchableBucketListSnapshot::getLedgerEntryInternal(LedgerKey const& k)
+std::pair<std::vector<LedgerEntry>, bool>
+SearchableBucketListSnapshot::loadKeysFromLedger(
+    std::set<LedgerKey, LedgerEntryIdCmp> const& inKeys, uint32_t ledgerSeq)
 {
-    std::shared_ptr<LedgerEntry> result{};
-    auto sawBloomMiss = false;
+    ZoneScoped;
+    mSnapshotManager.maybeUpdateSnapshot(mSnapshot, mHistoricalSnapshots);
+    releaseAssert(mSnapshot);
 
-    auto f = [&](BucketSnapshot const& b) {
-        auto [be, bloomMiss] = b.getBucketEntry(k);
-        sawBloomMiss = sawBloomMiss || bloomMiss;
+    if (ledgerSeq == mSnapshot->getLedgerSeq())
+    {
+        auto result = loadKeysInternal(inKeys, *mSnapshot, /*lkMeter=*/nullptr);
+        return {result, true};
+    }
 
-        if (be.has_value())
-        {
-            result =
-                be.value().type() == DEADENTRY
-                    ? nullptr
-                    : std::make_shared<LedgerEntry>(be.value().liveEntry());
-            return true;
-        }
-        else
-        {
-            return false;
-        }
-    };
+    auto iter = mHistoricalSnapshots.find(ledgerSeq);
+    if (iter == mHistoricalSnapshots.end())
+    {
+        return {{}, false};
+    }
 
-    loopAllBuckets(f);
-    return {result, sawBloomMiss};
-}
-
-std::vector<LedgerEntry>
-SearchableBucketListSnapshot::loadKeysInternal(
-    std::set<LedgerKey, LedgerEntryIdCmp> const& inKeys,
-    LedgerKeyMeter* lkMeter)
-{
-    std::vector<LedgerEntry> entries;
-
-    // Make a copy of the key set, this loop is destructive
-    auto keys = inKeys;
-    auto f = [&](BucketSnapshot const& b) {
-        b.loadKeysWithLimits(keys, entries, lkMeter);
-        return keys.empty();
-    };
-
-    loopAllBuckets(f);
-    return entries;
+    releaseAssert(iter->second);
+    auto result = loadKeysInternal(inKeys, *iter->second, /*lkMeter=*/nullptr);
+    return {result, true};
 }
 
 std::vector<LedgerEntry>
@@ -188,18 +228,19 @@ SearchableBucketListSnapshot::loadKeysWithLimits(
     LedgerKeyMeter* lkMeter)
 {
     ZoneScoped;
-    mSnapshotManager.maybeUpdateSnapshot(mSnapshot);
+    mSnapshotManager.maybeUpdateSnapshot(mSnapshot, mHistoricalSnapshots);
+    releaseAssert(mSnapshot);
 
     if (threadIsMain())
     {
         auto timer =
             mSnapshotManager.recordBulkLoadMetrics("prefetch", inKeys.size())
                 .TimeScope();
-        return loadKeysInternal(inKeys, lkMeter);
+        return loadKeysInternal(inKeys, *mSnapshot, lkMeter);
     }
     else
     {
-        return loadKeysInternal(inKeys, lkMeter);
+        return loadKeysInternal(inKeys, *mSnapshot, lkMeter);
     }
 }
 
@@ -216,7 +257,8 @@ SearchableBucketListSnapshot::loadPoolShareTrustLinesByAccountAndAsset(
 
     // This query should only be called during TX apply
     releaseAssert(threadIsMain());
-    mSnapshotManager.maybeUpdateSnapshot(mSnapshot);
+    mSnapshotManager.maybeUpdateSnapshot(mSnapshot, mHistoricalSnapshots);
+    releaseAssert(mSnapshot);
 
     LedgerKeySet trustlinesToLoad;
 
@@ -233,13 +275,13 @@ SearchableBucketListSnapshot::loadPoolShareTrustLinesByAccountAndAsset(
         return false; // continue
     };
 
-    loopAllBuckets(trustLineLoop);
+    loopAllBuckets(trustLineLoop, *mSnapshot);
 
     auto timer = mSnapshotManager
                      .recordBulkLoadMetrics("poolshareTrustlines",
                                             trustlinesToLoad.size())
                      .TimeScope();
-    return loadKeysInternal(trustlinesToLoad, nullptr);
+    return loadKeysInternal(trustlinesToLoad, *mSnapshot, nullptr);
 }
 
 std::vector<InflationWinner>
@@ -247,7 +289,8 @@ SearchableBucketListSnapshot::loadInflationWinners(size_t maxWinners,
                                                    int64_t minBalance)
 {
     ZoneScoped;
-    mSnapshotManager.maybeUpdateSnapshot(mSnapshot);
+    mSnapshotManager.maybeUpdateSnapshot(mSnapshot, mHistoricalSnapshots);
+    releaseAssert(mSnapshot);
 
     // This is a legacy query, should only be called by main thread during
     // catchup
@@ -296,7 +339,7 @@ SearchableBucketListSnapshot::loadInflationWinners(size_t maxWinners,
         return false;
     };
 
-    loopAllBuckets(countVotesInBucket);
+    loopAllBuckets(countVotesInBucket, *mSnapshot);
     std::vector<InflationWinner> winners;
 
     // Check if we need to sort the voteCount by number of votes
@@ -341,9 +384,9 @@ BucketLevelSnapshot::BucketLevelSnapshot(BucketLevel const& level)
 
 SearchableBucketListSnapshot::SearchableBucketListSnapshot(
     BucketSnapshotManager const& snapshotManager)
-    : mSnapshotManager(snapshotManager)
+    : mSnapshotManager(snapshotManager), mHistoricalSnapshots()
 {
     // Initialize snapshot from SnapshotManager
-    mSnapshotManager.maybeUpdateSnapshot(mSnapshot);
+    mSnapshotManager.maybeUpdateSnapshot(mSnapshot, mHistoricalSnapshots);
 }
 }

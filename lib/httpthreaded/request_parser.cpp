@@ -16,20 +16,22 @@ namespace httpThreaded
 namespace server
 {
 
-request_parser::request_parser() : state_(method_start)
+request_parser::request_parser() : header_state_(method_start)
 {
 }
 
 void
 request_parser::reset()
 {
-    state_ = method_start;
+    header_state_ = method_start;
+    parsed_header_ = false;
+    body_consumed_bytes_ = 0;
 }
 
 request_parser::result_type
-request_parser::consume(request& req, char input)
+request_parser::consumeHeader(request& req, char input)
 {
-    switch (state_)
+    switch (header_state_)
     {
     case method_start:
         if (!is_char(input) || is_ctl(input) || is_tspecial(input))
@@ -38,14 +40,14 @@ request_parser::consume(request& req, char input)
         }
         else
         {
-            state_ = method;
+            header_state_ = method;
             req.method.push_back(input);
             return indeterminate;
         }
     case method:
         if (input == ' ')
         {
-            state_ = uri;
+            header_state_ = uri;
             return indeterminate;
         }
         else if (!is_char(input) || is_ctl(input) || is_tspecial(input))
@@ -60,7 +62,7 @@ request_parser::consume(request& req, char input)
     case uri:
         if (input == ' ')
         {
-            state_ = http_version_h;
+            header_state_ = http_version_h;
             return indeterminate;
         }
         else if (is_ctl(input))
@@ -75,7 +77,7 @@ request_parser::consume(request& req, char input)
     case http_version_h:
         if (input == 'H')
         {
-            state_ = http_version_t_1;
+            header_state_ = http_version_t_1;
             return indeterminate;
         }
         else
@@ -85,7 +87,7 @@ request_parser::consume(request& req, char input)
     case http_version_t_1:
         if (input == 'T')
         {
-            state_ = http_version_t_2;
+            header_state_ = http_version_t_2;
             return indeterminate;
         }
         else
@@ -95,7 +97,7 @@ request_parser::consume(request& req, char input)
     case http_version_t_2:
         if (input == 'T')
         {
-            state_ = http_version_p;
+            header_state_ = http_version_p;
             return indeterminate;
         }
         else
@@ -105,7 +107,7 @@ request_parser::consume(request& req, char input)
     case http_version_p:
         if (input == 'P')
         {
-            state_ = http_version_slash;
+            header_state_ = http_version_slash;
             return indeterminate;
         }
         else
@@ -117,7 +119,7 @@ request_parser::consume(request& req, char input)
         {
             req.http_version_major = 0;
             req.http_version_minor = 0;
-            state_ = http_version_major_start;
+            header_state_ = http_version_major_start;
             return indeterminate;
         }
         else
@@ -128,7 +130,7 @@ request_parser::consume(request& req, char input)
         if (is_digit(input))
         {
             req.http_version_major = req.http_version_major * 10 + input - '0';
-            state_ = http_version_major;
+            header_state_ = http_version_major;
             return indeterminate;
         }
         else
@@ -138,7 +140,7 @@ request_parser::consume(request& req, char input)
     case http_version_major:
         if (input == '.')
         {
-            state_ = http_version_minor_start;
+            header_state_ = http_version_minor_start;
             return indeterminate;
         }
         else if (is_digit(input))
@@ -154,7 +156,7 @@ request_parser::consume(request& req, char input)
         if (is_digit(input))
         {
             req.http_version_minor = req.http_version_minor * 10 + input - '0';
-            state_ = http_version_minor;
+            header_state_ = http_version_minor;
             return indeterminate;
         }
         else
@@ -164,7 +166,7 @@ request_parser::consume(request& req, char input)
     case http_version_minor:
         if (input == '\r')
         {
-            state_ = expecting_newline_1;
+            header_state_ = expecting_newline_1;
             return indeterminate;
         }
         else if (is_digit(input))
@@ -179,7 +181,7 @@ request_parser::consume(request& req, char input)
     case expecting_newline_1:
         if (input == '\n')
         {
-            state_ = header_line_start;
+            header_state_ = header_line_start;
             return indeterminate;
         }
         else
@@ -189,12 +191,12 @@ request_parser::consume(request& req, char input)
     case header_line_start:
         if (input == '\r')
         {
-            state_ = expecting_newline_3;
+            header_state_ = expecting_newline_3;
             return indeterminate;
         }
         else if (!req.headers.empty() && (input == ' ' || input == '\t'))
         {
-            state_ = header_lws;
+            header_state_ = header_lws;
             return indeterminate;
         }
         else if (!is_char(input) || is_ctl(input) || is_tspecial(input))
@@ -205,13 +207,13 @@ request_parser::consume(request& req, char input)
         {
             req.headers.push_back(header());
             req.headers.back().name.push_back(input);
-            state_ = header_name;
+            header_state_ = header_name;
             return indeterminate;
         }
     case header_lws:
         if (input == '\r')
         {
-            state_ = expecting_newline_2;
+            header_state_ = expecting_newline_2;
             return indeterminate;
         }
         else if (input == ' ' || input == '\t')
@@ -224,14 +226,14 @@ request_parser::consume(request& req, char input)
         }
         else
         {
-            state_ = header_value;
+            header_state_ = header_value;
             req.headers.back().value.push_back(input);
             return indeterminate;
         }
     case header_name:
         if (input == ':')
         {
-            state_ = space_before_header_value;
+            header_state_ = space_before_header_value;
             return indeterminate;
         }
         else if (!is_char(input) || is_ctl(input) || is_tspecial(input))
@@ -246,7 +248,7 @@ request_parser::consume(request& req, char input)
     case space_before_header_value:
         if (input == ' ')
         {
-            state_ = header_value;
+            header_state_ = header_value;
             return indeterminate;
         }
         else
@@ -256,7 +258,7 @@ request_parser::consume(request& req, char input)
     case header_value:
         if (input == '\r')
         {
-            state_ = expecting_newline_2;
+            header_state_ = expecting_newline_2;
             return indeterminate;
         }
         else if (is_ctl(input))
@@ -271,7 +273,7 @@ request_parser::consume(request& req, char input)
     case expecting_newline_2:
         if (input == '\n')
         {
-            state_ = header_line_start;
+            header_state_ = header_line_start;
             return indeterminate;
         }
         else
@@ -283,6 +285,44 @@ request_parser::consume(request& req, char input)
     default:
         return bad;
     }
+}
+
+request_parser::result_type
+request_parser::initializeForBody(request const& req)
+{
+    for (auto const& header : req.headers)
+    {
+        if (header.name == "Content-Length")
+        {
+            body_content_length_ = stoi(header.value);
+            if (body_content_length_ == 0)
+            {
+                return bad;
+            }
+
+            return good;
+        }
+    }
+
+    return bad;
+}
+
+request_parser::result_type
+request_parser::consumeBody(request& req, char input)
+{
+    if (is_ctl(input))
+    {
+        return bad;
+    }
+
+    req.body.push_back(input);
+    ++body_consumed_bytes_;
+    if (body_consumed_bytes_ == body_content_length_)
+    {
+        return good;
+    }
+
+    return indeterminate;
 }
 
 bool
