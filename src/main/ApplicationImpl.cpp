@@ -759,6 +759,13 @@ ApplicationImpl::validateAndLogConfig()
             "in-memory mode is enabled. This feature is deprecated! Node "
             "may see performance degredation and lose sync with the network.");
     }
+    if (!mDatabase->isSqlite())
+    {
+        CLOG_WARNING(Database,
+                     "Non-sqlite3 database detected. Support for other sql "
+                     "backends is deprecated and will be removed in a future "
+                     "release. Please use sqlite3 for non-ledger state data.");
+    }
 
     if (mConfig.DEPRECATED_SQL_LEDGER_STATE)
     {
