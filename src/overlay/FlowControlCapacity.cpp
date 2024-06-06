@@ -36,7 +36,7 @@ void
 FlowControlMessageCapacity::releaseOutboundCapacity(StellarMessage const& msg)
 {
     ZoneScoped;
-    releaseAssert(msg.type() == SEND_MORE || msg.type() == SEND_MORE_EXTENDED);
+    releaseAssert(msg.type() == SEND_MORE_EXTENDED);
     auto numMessages = FlowControl::getNumMessages(msg);
     if (!hasOutboundCapacity(msg) && numMessages != 0)
     {

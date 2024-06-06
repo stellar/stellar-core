@@ -45,6 +45,12 @@ Simulation::Simulation(Mode mode, Hash const& networkID, ConfigGen confGen,
     parallel = parallel && mVirtualClockMode == VirtualClock::REAL_TIME;
     mIdleApp = Application::create(mClock, cfg);
     mPeerMap.emplace(mIdleApp->getConfig().PEER_PORT, mIdleApp);
+
+    // mIdleApp can end up connected to some nodes in the simulation, but never
+    // starts Herder. Therefore, it needs to initialize the max tx size so that
+    // an assertion doesn't fail when it initializes flow control.
+    Herder& herder = mIdleApp->getHerder();
+    herder.setMaxTxSize(herder.getMaxClassicTxSize());
 }
 
 Simulation::~Simulation()
@@ -147,6 +153,17 @@ Simulation::addNode(SecretKey nodeKey, SCPQuorumSet qSet, Config const* cfg2,
     mPeerMap.emplace(app->getConfig().PEER_PORT,
                      std::weak_ptr<Application>(app));
 
+    Herder& herder = app->getHerder();
+    if (herder.getState() == Herder::HERDER_BOOTING_STATE)
+    {
+        // Application creation did not start Herder.  To protect against cases
+        // where the test using this new node run the node's OverlayManager
+        // without starting Herder, we initialize the max tx size here. This
+        // prevents an assertion failure on flow control initialization. This is
+        // harmless if the test later starts Herder as `HerderImpl::start` will
+        // overwrite this value.
+        herder.setMaxTxSize(herder.getMaxClassicTxSize());
+    }
     return app;
 }
 
