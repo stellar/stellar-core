@@ -1005,14 +1005,39 @@ CommandHandler::getLedgerEntry(std::string const& params, std::string& retStr)
     std::map<std::string, std::string> paramMap;
     http::server::server::parseParams(params, paramMap);
     std::string key = paramMap["key"];
+    auto snapshotLedger = parseOptionalParam<uint32_t>(paramMap, "ledgerSeq");
+
     if (!key.empty())
     {
         auto bl = mBucketListSnapshots.at(std::this_thread::get_id());
-        root["ledger"] = bl->getLedgerSeq();
 
         LedgerKey k;
         fromOpaqueBase64(k, key);
-        auto le = bl->getLedgerEntry(k);
+
+        std::shared_ptr<LedgerEntry> le;
+
+        // If a snapshot ledger is specified, use it to get the ledger entry
+        if (snapshotLedger)
+        {
+            root["ledger"] = *snapshotLedger;
+
+            bool snapshotExists;
+            std::tie(le, snapshotExists) =
+                bl->getLedgerEntryFromLedger(k, *snapshotLedger);
+            if (!snapshotExists)
+            {
+                root["state"] = "not_found";
+                retStr = Json::FastWriter().write(root);
+                return;
+            }
+        }
+        // Otherwise default to current ledger
+        else
+        {
+            root["ledger"] = bl->getLedgerSeq();
+            le = bl->getLedgerEntry(k);
+        }
+
         if (le)
         {
             root["state"] = "live";
