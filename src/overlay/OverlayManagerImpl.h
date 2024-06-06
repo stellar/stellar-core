@@ -169,6 +169,11 @@ class OverlayManagerImpl : public OverlayManager
     void recordMessageMetric(StellarMessage const& stellarMsg,
                              Peer::pointer peer) override;
 
+#ifdef BUILD_TESTS
+    void disableFlowControlBytesForTesting() override;
+    bool isFlowControlBytesDisabledForTesting() const override;
+#endif // BUILD_TESTS
+
   private:
     struct ResolvedPeers
     {
@@ -181,6 +186,10 @@ class OverlayManagerImpl : public OverlayManager
     std::future<ResolvedPeers> mResolvedPeers;
     bool mResolvingPeersWithBackoff;
     int mResolvingPeersRetryCount;
+
+#ifdef BUILD_TESTS
+    std::atomic<bool> mDisableFlowControlBytesForTesting{false};
+#endif
 
     void triggerPeerResolution();
     std::pair<std::vector<PeerBareAddress>, bool>

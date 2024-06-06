@@ -1369,4 +1369,18 @@ OverlayManagerImpl::recordMessageMetric(StellarMessage const& stellarMsg,
     }
 }
 
+#ifdef BUILD_TESTS
+void
+OverlayManagerImpl::disableFlowControlBytesForTesting()
+{
+    mDisableFlowControlBytesForTesting.store(true);
+}
+
+bool
+OverlayManagerImpl::isFlowControlBytesDisabledForTesting() const
+{
+    return mDisableFlowControlBytesForTesting.load();
+}
+#endif // BUILD_TESTS
+
 }

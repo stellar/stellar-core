@@ -389,10 +389,15 @@ Peer::sendAuth()
     ZoneScoped;
     StellarMessage msg;
     msg.type(AUTH);
-    if (mAppConnector.getConfig().ENABLE_FLOW_CONTROL_BYTES)
+#ifdef BUILD_TESTS
+    if (!mAppConnector.getOverlayManager()
+             .isFlowControlBytesDisabledForTesting())
     {
         msg.auth().flags = AUTH_MSG_FLAG_FLOW_CONTROL_BYTES_REQUESTED;
     }
+#else
+    msg.auth().flags = AUTH_MSG_FLAG_FLOW_CONTROL_BYTES_REQUESTED;
+#endif
     auto msgPtr = std::make_shared<StellarMessage const>(msg);
     sendMessage(msgPtr);
 }
@@ -1740,15 +1745,17 @@ Peer::recvAuth(StellarMessage const& msg)
         return;
     }
 
-    bool enableBytes =
-        (mAppConnector.getConfig().OVERLAY_PROTOCOL_VERSION >=
-             Peer::FIRST_VERSION_SUPPORTING_FLOW_CONTROL_IN_BYTES &&
-         getRemoteOverlayVersion() >=
-             Peer::FIRST_VERSION_SUPPORTING_FLOW_CONTROL_IN_BYTES);
+    // NOTE: Once min overlay version is 35 we can remove this check
     bool bothWantBytes =
-        enableBytes &&
-        msg.auth().flags == AUTH_MSG_FLAG_FLOW_CONTROL_BYTES_REQUESTED &&
-        mAppConnector.getConfig().ENABLE_FLOW_CONTROL_BYTES;
+        msg.auth().flags == AUTH_MSG_FLAG_FLOW_CONTROL_BYTES_REQUESTED;
+
+#ifdef BUILD_TESTS
+    if (mAppConnector.getOverlayManager()
+            .isFlowControlBytesDisabledForTesting())
+    {
+        bothWantBytes = false;
+    }
+#endif
 
     std::optional<uint32_t> fcBytes =
         bothWantBytes

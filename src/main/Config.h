@@ -324,11 +324,6 @@ class Config : public std::enable_shared_from_this<Config>
     uint32_t PEER_FLOOD_READING_CAPACITY_BYTES;
     uint32_t FLOW_CONTROL_SEND_MORE_BATCH_SIZE_BYTES;
 
-    // Enable flow control in bytes. This config allows core to process large
-    // transactions on the network more efficiently and apply back pressure if
-    // needed.
-    bool ENABLE_FLOW_CONTROL_BYTES;
-
     // Byte limit for outbound transaction queue.
     uint32_t OUTBOUND_TX_QUEUE_BYTE_LIMIT;
 
