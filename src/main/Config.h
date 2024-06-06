@@ -558,6 +558,7 @@ class Config : public std::enable_shared_from_this<Config>
     int WORKER_THREADS;
 
     int RPC_THREADS;
+    uint32_t RPC_SNAPSHOT_LEDGERS;
 
     // process-management config
     size_t MAX_CONCURRENT_SUBPROCESSES;

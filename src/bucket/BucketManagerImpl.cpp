@@ -126,7 +126,8 @@ BucketManagerImpl::initialize()
         if (mApp.getConfig().isUsingBucketListDB())
         {
             mSnapshotManager = std::make_unique<BucketSnapshotManager>(
-                mApp, std::make_unique<BucketListSnapshot>(*mBucketList, 0));
+                mApp, std::make_unique<BucketListSnapshot>(*mBucketList, 0),
+                mApp.getConfig().RPC_SNAPSHOT_LEDGERS);
         }
     }
 }
