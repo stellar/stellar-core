@@ -226,6 +226,8 @@ Config::Config() : NODE_SEED(SecretKey::random())
 
     RPC_THREADS = 4;
     // TODO: Default to 0
+    RPC_SNAPSHOT_LEDGERS = 5;
+    // TODO: Default to 0
     RPC_HTTP_PORT = DEFAULT_PEER_PORT + 2;
     PUBLIC_HTTP_PORT = false;
     HTTP_MAX_CLIENT = 128;
@@ -1385,6 +1387,10 @@ Config::processConfig(std::shared_ptr<cpptoml::table> t)
             else if (item.first == "RPC_THREADS")
             {
                 RPC_THREADS = readInt<int>(item, 1, 1000);
+            }
+            else if (item.first == "RPC_SNAPSHOT_LEDGERS")
+            {
+                RPC_SNAPSHOT_LEDGERS = readInt<uint32_t>(item, 0, 10);
             }
             else if (item.first == "MAX_CONCURRENT_SUBPROCESSES")
             {

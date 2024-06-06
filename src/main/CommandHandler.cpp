@@ -78,7 +78,9 @@ CommandHandler::CommandHandler(Application& app) : mApp(app)
             app.getClock().getIOContext(), ipStr, mApp.getConfig().HTTP_PORT,
             httpMaxClient);
 
-        if (mApp.getConfig().RPC_HTTP_PORT)
+        // TOOD: Add BucketListDB check to Config enforcement
+        if (mApp.getConfig().RPC_HTTP_PORT &&
+            mApp.getConfig().isUsingBucketListDB())
         {
             LOG_INFO(DEFAULT_LOG, "Listening on {}:{} for RPC requests", ipStr,
                      mApp.getConfig().RPC_HTTP_PORT);
