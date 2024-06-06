@@ -100,13 +100,15 @@ Command options can only by placed after command.
   Option **--signtxs** will prompt for a secret key and sign the TransactionEnvelopes.<br>
 
   Output format by line - 
-  1. Base64 upload tx envelope XDR
-  2. Hex tx ID for the upload tx.
-  3. Base 64 create tx envelope XDR
-  4. Hex tx ID for the create tx.
-  5. Base64 invoke tx envelope XDR
-  6. Hex tx ID for the invoke tx.
-  7. Base64 ConfigUpgradeSetKey XDR.
+  1. Base64 wasm restore tx envelope XDR
+  2. Hex tx ID for the wasm restore tx.
+  3. Base64 upload tx envelope XDR
+  4. Hex tx ID for the upload tx.
+  5. Base 64 create tx envelope XDR
+  6. Hex tx ID for the create tx.
+  7. Base64 invoke tx envelope XDR
+  8. Hex tx ID for the invoke tx.
+  9. Base64 ConfigUpgradeSetKey XDR.
 
 * **help**: Print the available command line options and then exit..
 * **http-command <COMMAND>** Send an [HTTP command](#http-commands) to an
