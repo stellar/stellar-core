@@ -123,25 +123,6 @@ class BulkLoadTTLOperation
         sqlite3_bind_int(st, 2, static_cast<int>(cStrKeyHashes.size()));
         return executeAndFetch(prep.statement());
     }
-
-#ifdef USE_POSTGRES
-    std::vector<LedgerEntry>
-    doPostgresSpecificOperation(soci::postgresql_session_backend* pg) override
-    {
-        std::string strKeyHashes;
-        marshalToPGArray(pg->conn_, strKeyHashes, mKeyHashes);
-
-        std::string sql = "WITH r AS (SELECT unnest(:v1::TEXT[])) "
-                          "SELECT ledgerentry "
-                          "FROM ttl "
-                          "WHERE (keyHash) IN (SELECT * from r)";
-
-        auto prep = mDb.getPreparedStatement(sql);
-        auto& st = prep.statement();
-        st.exchange(soci::use(strKeyHashes));
-        return executeAndFetch(st);
-    }
-#endif
 };
 
 UnorderedMap<LedgerKey, std::shared_ptr<LedgerEntry const>>
@@ -204,33 +185,6 @@ class BulkDeleteTTLOperation : public DatabaseTypeSpecificOperation<void>
     {
         doSociGenericOperation();
     }
-
-#ifdef USE_POSTGRES
-    void
-    doPostgresSpecificOperation(soci::postgresql_session_backend* pg) override
-    {
-        std::string strKeyHashes;
-        marshalToPGArray(pg->conn_, strKeyHashes, mKeyHashes);
-
-        std::string sql = "WITH r AS (SELECT unnest(:v1::TEXT[])) "
-                          "DELETE FROM ttl "
-                          "WHERE keyHash IN (SELECT * FROM r)";
-
-        auto prep = mDb.getPreparedStatement(sql);
-        auto& st = prep.statement();
-        st.exchange(soci::use(strKeyHashes));
-        st.define_and_bind();
-        {
-            auto timer = mDb.getDeleteTimer("ttl");
-            st.execute(true);
-        }
-        if (static_cast<size_t>(st.get_affected_rows()) != mKeyHashes.size() &&
-            mCons == LedgerTxnConsistency::EXACT)
-        {
-            throw std::runtime_error("Could not update data in SQL");
-        }
-    }
-#endif
 };
 
 void
@@ -303,44 +257,6 @@ class BulkUpsertTTLOperation : public DatabaseTypeSpecificOperation<void>
     {
         doSociGenericOperation();
     }
-
-#ifdef USE_POSTGRES
-    void
-    doPostgresSpecificOperation(soci::postgresql_session_backend* pg) override
-    {
-        std::string strKeyHashes, strTTLEntries, strLastModifieds;
-
-        PGconn* conn = pg->conn_;
-        marshalToPGArray(conn, strKeyHashes, mKeyHashes);
-        marshalToPGArray(conn, strTTLEntries, mTTLEntries);
-        marshalToPGArray(conn, strLastModifieds, mLastModifieds);
-
-        std::string sql = "WITH r AS "
-                          "(SELECT unnest(:v1::TEXT[]), "
-                          "unnest(:v2::TEXT[]), unnest(:v3::INT[])) "
-                          "INSERT INTO ttl "
-                          "(keyHash, ledgerentry, lastmodified) "
-                          "SELECT * FROM r "
-                          "ON CONFLICT (keyhash) DO UPDATE SET "
-                          "ledgerentry = excluded.ledgerentry, "
-                          "lastmodified = excluded.lastmodified";
-
-        auto prep = mDb.getPreparedStatement(sql);
-        soci::statement& st = prep.statement();
-        st.exchange(soci::use(strKeyHashes));
-        st.exchange(soci::use(strTTLEntries));
-        st.exchange(soci::use(strLastModifieds));
-        st.define_and_bind();
-        {
-            auto timer = mDb.getUpsertTimer("ttl");
-            st.execute(true);
-        }
-        if (static_cast<size_t>(st.get_affected_rows()) != mKeyHashes.size())
-        {
-            throw std::runtime_error("Could not update data in SQL");
-        }
-    }
-#endif
 };
 
 void
@@ -357,24 +273,16 @@ LedgerTxnRoot::Impl::dropTTL(bool rebuild)
     mEntryCache.clear();
     mBestOffers.clear();
 
-    std::string coll = mApp.getDatabase().getSimpleCollationClause();
-
     mApp.getDatabase().getSession() << "DROP TABLE IF EXISTS ttl;";
 
     if (rebuild)
     {
         mApp.getDatabase().getSession()
             << "CREATE TABLE ttl ("
-            << "keyhash   TEXT " << coll << " NOT NULL, "
-            << "ledgerentry  TEXT " << coll << " NOT NULL, "
+            << "keyhash   TEXT NOT NULL, "
+            << "ledgerentry  TEXT NOT NULL, "
             << "lastmodified INT NOT NULL, "
             << "PRIMARY KEY (keyhash));";
-        if (!mApp.getDatabase().isSqlite())
-        {
-            mApp.getDatabase().getSession() << "ALTER TABLE ttl "
-                                            << "ALTER COLUMN keyhash "
-                                            << "TYPE TEXT COLLATE \"C\";";
-        }
     }
 }
 

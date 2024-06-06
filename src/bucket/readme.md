@@ -38,12 +38,11 @@ receives a single large, atomic write whenever a ledger closes and many
 reads during consensus. There is never a write during a read, so all the reads occur on an
 effectively
 immutable database. This write once read many times paradigm is suited better for a LSM structure
-(the bucket list) than SQL DBs. In particular, Postgres is ACID compliant and supports
-transactions that can be rolled back. This introduces significant, unnecessary overhead.
+(the bucket list) than SQL DBs. 
 Since our access pattern never has conflicting reads and writes, ACID compliance is not required.
 Additionally, the current core implementation never rolls back a SQL transaction. Finally,
 all reads occur on an immutable database, opening the door for parallelism.
-However, MySQL and Postgres do not treat the DB as immutable during reads
+However, SQL DBs do not treat the DB as immutable during reads
 and cannot take advantage of this parallelism.
 
 By performing key-value lookup directly on the BucketList, we can remove ACID/rollback overhead,

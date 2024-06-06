@@ -95,10 +95,6 @@ PeerManager::loadRandomPeers(PeerQuery const& query, size_t size)
     // BATCH_SIZE should always be bigger, so it should win anyway
     size = std::max(size, BATCH_SIZE);
 
-    // if we ever start removing peers from db, we may need to enable this
-    // soci::transaction sqltx(mApp.getDatabase().getSession());
-    // mApp.getDatabase().setCurrentTransactionReadOnly();
-
     std::vector<std::string> conditions;
     if (query.mUseNextAttempt)
     {

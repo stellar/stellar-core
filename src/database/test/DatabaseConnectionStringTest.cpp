@@ -19,124 +19,124 @@ TEST_CASE("remove password from database connection string",
     SECTION("password is removed if first")
     {
         REQUIRE(removePasswordFromConnectionString(
-                    R"(postgresql://password=abc dbname=stellar)") ==
-                R"(postgresql://password=******** dbname=stellar)");
+                    R"(sqlite3://password=abc dbname=stellar)") ==
+                R"(sqlite3://password=******** dbname=stellar)");
     }
 
     SECTION("password is removed if second")
     {
         REQUIRE(removePasswordFromConnectionString(
-                    R"(postgresql://dbname=stellar password=dbname)") ==
-                R"(postgresql://dbname=stellar password=********)");
+                    R"(sqlite3://dbname=stellar password=dbname)") ==
+                R"(sqlite3://dbname=stellar password=********)");
     }
 
     SECTION("database can be named password")
     {
         REQUIRE(removePasswordFromConnectionString(
-                    R"(postgresql://dbname=password password=dbname)") ==
-                R"(postgresql://dbname=password password=********)");
+                    R"(sqlite3://dbname=password password=dbname)") ==
+                R"(sqlite3://dbname=password password=********)");
     }
 
     SECTION("quoted password is removed")
     {
         REQUIRE(
             removePasswordFromConnectionString(
-                R"(postgresql://dbname=stellar password='quoted password')") ==
-            R"(postgresql://dbname=stellar password=********)");
+                R"(sqlite3://dbname=stellar password='quoted password')") ==
+            R"(sqlite3://dbname=stellar password=********)");
     }
 
     SECTION("quoted password with quote is removed")
     {
         REQUIRE(
             removePasswordFromConnectionString(
-                R"(postgresql://dbname=stellar password='quoted \' password')") ==
-            R"(postgresql://dbname=stellar password=********)");
+                R"(sqlite3://dbname=stellar password='quoted \' password')") ==
+            R"(sqlite3://dbname=stellar password=********)");
     }
 
     SECTION("quoted password with backslash is removed")
     {
         REQUIRE(
             removePasswordFromConnectionString(
-                R"(postgresql://dbname=stellar password='quoted \\ password')") ==
-            R"(postgresql://dbname=stellar password=********)");
+                R"(sqlite3://dbname=stellar password='quoted \\ password')") ==
+            R"(sqlite3://dbname=stellar password=********)");
     }
 
     SECTION("quoted password with backslash and quote is removed")
     {
         REQUIRE(
             removePasswordFromConnectionString(
-                R"(postgresql://dbname=stellar password='quoted \\ password')") ==
-            R"(postgresql://dbname=stellar password=********)");
+                R"(sqlite3://dbname=stellar password='quoted \\ password')") ==
+            R"(sqlite3://dbname=stellar password=********)");
     }
 
     SECTION("parameters after password remain unchanged")
     {
         REQUIRE(
             removePasswordFromConnectionString(
-                R"(postgresql://dbname=stellar password='quoted \\ password' performance='as fast as possible')") ==
-            R"(postgresql://dbname=stellar password=******** performance='as fast as possible')");
+                R"(sqlite3://dbname=stellar password='quoted \\ password' performance='as fast as possible')") ==
+            R"(sqlite3://dbname=stellar password=******** performance='as fast as possible')");
     }
 
     SECTION("dbname can be quored")
     {
         REQUIRE(
             removePasswordFromConnectionString(
-                R"(postgresql://dbname='stellar with spaces' password='quoted \\ password' performance='as fast as possible')") ==
-            R"(postgresql://dbname='stellar with spaces' password=******** performance='as fast as possible')");
+                R"(sqlite3://dbname='stellar with spaces' password='quoted \\ password' performance='as fast as possible')") ==
+            R"(sqlite3://dbname='stellar with spaces' password=******** performance='as fast as possible')");
     }
 
     SECTION("spaces before equals are accepted")
     {
         REQUIRE(
             removePasswordFromConnectionString(
-                R"(postgresql://dbname ='stellar with spaces' password ='quoted \\ password' performance ='as fast as possible')") ==
-            R"(postgresql://dbname ='stellar with spaces' password =******** performance ='as fast as possible')");
+                R"(sqlite3://dbname ='stellar with spaces' password ='quoted \\ password' performance ='as fast as possible')") ==
+            R"(sqlite3://dbname ='stellar with spaces' password =******** performance ='as fast as possible')");
     }
 
     SECTION("spaces after equals are accepted")
     {
         REQUIRE(
             removePasswordFromConnectionString(
-                R"(postgresql://dbname= 'stellar with spaces' password= 'quoted \\ password' performance= 'as fast as possible')") ==
-            R"(postgresql://dbname= 'stellar with spaces' password= ******** performance= 'as fast as possible')");
+                R"(sqlite3://dbname= 'stellar with spaces' password= 'quoted \\ password' performance= 'as fast as possible')") ==
+            R"(sqlite3://dbname= 'stellar with spaces' password= ******** performance= 'as fast as possible')");
     }
 
     SECTION("spaces around equals are accepted")
     {
         REQUIRE(
             removePasswordFromConnectionString(
-                R"(postgresql://dbname = 'stellar with spaces' password = 'quoted \\ password' performance = 'as fast as possible')") ==
-            R"(postgresql://dbname = 'stellar with spaces' password = ******** performance = 'as fast as possible')");
+                R"(sqlite3://dbname = 'stellar with spaces' password = 'quoted \\ password' performance = 'as fast as possible')") ==
+            R"(sqlite3://dbname = 'stellar with spaces' password = ******** performance = 'as fast as possible')");
     }
 
     SECTION(
         "invalid connection string without equals and value remains as it was")
     {
         REQUIRE(removePasswordFromConnectionString(
-                    R"(postgresql://dbname password=asbc)") ==
-                R"(postgresql://dbname password=asbc)");
+                    R"(sqlite3://dbname password=asbc)") ==
+                R"(sqlite3://dbname password=asbc)");
     }
 
     SECTION("invalid connection string without value remains as it was")
     {
         REQUIRE(removePasswordFromConnectionString(
-                    R"(postgresql://dbname= password=asbc)") ==
-                R"(postgresql://dbname= password=asbc)");
+                    R"(sqlite3://dbname= password=asbc)") ==
+                R"(sqlite3://dbname= password=asbc)");
     }
 
     SECTION("invalid connection string with unfinished quoted value")
     {
         REQUIRE(removePasswordFromConnectionString(
-                    R"(postgresql://dbname='quoted value)") ==
-                R"(postgresql://dbname='quoted value)");
+                    R"(sqlite3://dbname='quoted value)") ==
+                R"(sqlite3://dbname='quoted value)");
     }
 
     SECTION("invalid connection string with quoted value with unfinished "
             "escape sequence")
     {
         REQUIRE(removePasswordFromConnectionString(
-                    R"(postgresql://dbname='quoted value\ password=abc)") ==
-                R"(postgresql://dbname='quoted value\ password=abc)");
+                    R"(sqlite3://dbname='quoted value\ password=abc)") ==
+                R"(sqlite3://dbname='quoted value\ password=abc)");
     }
 
     SECTION("invalid connection string without backend name")
@@ -159,11 +159,11 @@ TEST_CASE("remove password from database connection string",
         // really need to allow '\S' or [^[:space:]]. This manifests as a match
         // failure -- and thereby leads to a failure-to-scrub -- when someone
         // writes /some/path/with/slashes as a bareword. This is legal as a
-        // token in a PostgreSQL connect string, but we failed to recognize it
+        // token in a sqlite3 connect string, but we failed to recognize it
         // as such before.
         REQUIRE(
             removePasswordFromConnectionString(
-                R"(postgresql://dbname=stellar user=stellar password=thisshouldbesecret host=/var/run/postgresql/)") ==
-            R"(postgresql://dbname=stellar user=stellar password=******** host=/var/run/postgresql/)");
+                R"(sqlite3://dbname=stellar user=stellar password=thisshouldbesecret host=/var/run/sqlite3/)") ==
+            R"(sqlite3://dbname=stellar user=stellar password=******** host=/var/run/sqlite3/)");
     }
 }

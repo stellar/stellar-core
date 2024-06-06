@@ -121,9 +121,6 @@ class Config : public std::enable_shared_from_this<Config>
         TESTDB_DEFAULT,
         TESTDB_IN_MEMORY_SQLITE,
         TESTDB_ON_DISK_SQLITE,
-#ifdef USE_POSTGRES
-        TESTDB_POSTGRESQL,
-#endif
         TESTDB_MODES
     };
 

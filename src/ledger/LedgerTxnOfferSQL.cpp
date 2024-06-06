@@ -471,89 +471,6 @@ class BulkUpsertOffersOperation : public DatabaseTypeSpecificOperation<void>
     {
         doSociGenericOperation();
     }
-
-#ifdef USE_POSTGRES
-    void
-    doPostgresSpecificOperation(soci::postgresql_session_backend* pg) override
-    {
-
-        std::string strSellerIDs, strOfferIDs, strSellingAssets,
-            strBuyingAssets, strAmounts, strPriceNs, strPriceDs, strPrices,
-            strFlags, strLastModifieds, strExtensions, strLedgerExtensions;
-
-        PGconn* conn = pg->conn_;
-        marshalToPGArray(conn, strSellerIDs, mSellerIDs);
-        marshalToPGArray(conn, strOfferIDs, mOfferIDs);
-
-        marshalToPGArray(conn, strSellingAssets, mSellingAssets);
-        marshalToPGArray(conn, strBuyingAssets, mBuyingAssets);
-
-        marshalToPGArray(conn, strAmounts, mAmounts);
-        marshalToPGArray(conn, strPriceNs, mPriceNs);
-        marshalToPGArray(conn, strPriceDs, mPriceDs);
-        marshalToPGArray(conn, strPrices, mPrices);
-        marshalToPGArray(conn, strFlags, mFlags);
-        marshalToPGArray(conn, strLastModifieds, mLastModifieds);
-        marshalToPGArray(conn, strExtensions, mExtensions);
-        marshalToPGArray(conn, strLedgerExtensions, mLedgerExtensions);
-
-        std::string sql =
-            "WITH r AS (SELECT "
-            "unnest(:v1::TEXT[]), "
-            "unnest(:v2::BIGINT[]), "
-            "unnest(:v3::TEXT[]), "
-            "unnest(:v4::TEXT[]), "
-            "unnest(:v5::BIGINT[]), "
-            "unnest(:v6::INT[]), "
-            "unnest(:v7::INT[]), "
-            "unnest(:v8::DOUBLE PRECISION[]), "
-            "unnest(:v9::INT[]), "
-            "unnest(:v10::INT[]), "
-            "unnest(:v11::TEXT[]), "
-            "unnest(:v12::TEXT[]) "
-            ")"
-            "INSERT INTO offers ( "
-            "sellerid, offerid, sellingasset, buyingasset, "
-            "amount, pricen, priced, price, flags, lastmodified, extension, "
-            "ledgerext "
-            ") SELECT * from r "
-            "ON CONFLICT (offerid) DO UPDATE SET "
-            "sellerid = excluded.sellerid, "
-            "sellingasset = excluded.sellingasset, "
-            "buyingasset = excluded.buyingasset, "
-            "amount = excluded.amount, "
-            "pricen = excluded.pricen, "
-            "priced = excluded.priced, "
-            "price = excluded.price, "
-            "flags = excluded.flags, "
-            "lastmodified = excluded.lastmodified, "
-            "extension = excluded.extension, "
-            "ledgerext = excluded.ledgerext";
-        auto prep = mDB.getPreparedStatement(sql);
-        soci::statement& st = prep.statement();
-        st.exchange(soci::use(strSellerIDs));
-        st.exchange(soci::use(strOfferIDs));
-        st.exchange(soci::use(strSellingAssets));
-        st.exchange(soci::use(strBuyingAssets));
-        st.exchange(soci::use(strAmounts));
-        st.exchange(soci::use(strPriceNs));
-        st.exchange(soci::use(strPriceDs));
-        st.exchange(soci::use(strPrices));
-        st.exchange(soci::use(strFlags));
-        st.exchange(soci::use(strLastModifieds));
-        st.exchange(soci::use(strExtensions));
-        st.exchange(soci::use(strLedgerExtensions));
-        st.define_and_bind();
-        {
-            auto timer = mDB.getUpsertTimer("offer");
-            st.execute(true);
-        }
-        if (static_cast<size_t>(st.get_affected_rows()) != mOfferIDs.size())
-        {
-            throw std::runtime_error("Could not update data in SQL");
-        }
-    }
-#endif
 };
 
 class BulkDeleteOffersOperation : public DatabaseTypeSpecificOperation<void>
@@ -602,34 +519,6 @@ class BulkDeleteOffersOperation : public DatabaseTypeSpecificOperation<void>
     {
         doSociGenericOperation();
     }
-
-#ifdef USE_POSTGRES
-    void
-    doPostgresSpecificOperation(soci::postgresql_session_backend* pg) override
-    {
-        PGconn* conn = pg->conn_;
-        std::string strOfferIDs;
-        marshalToPGArray(conn, strOfferIDs, mOfferIDs);
-        std::string sql = "WITH r AS (SELECT "
-                          "unnest(:ids::BIGINT[]) "
-                          ") "
-                          "DELETE FROM offers WHERE "
-                          "offerid IN (SELECT * FROM r)";
-        auto prep = mDB.getPreparedStatement(sql);
-        soci::statement& st = prep.statement();
-        st.exchange(soci::use(strOfferIDs));
-        st.define_and_bind();
-        {
-            auto timer = mDB.getDeleteTimer("offer");
-            st.execute(true);
-        }
-        if (static_cast<size_t>(st.get_affected_rows()) != mOfferIDs.size() &&
-            mCons == LedgerTxnConsistency::EXACT)
-        {
-            throw std::runtime_error("Could not update data in SQL");
-        }
-    }
-#endif
 };
 
 void
@@ -662,15 +551,14 @@ LedgerTxnRoot::Impl::dropOffers(bool rebuild)
 
     if (rebuild)
     {
-        std::string coll = mApp.getDatabase().getSimpleCollationClause();
         mApp.getDatabase().getSession()
             << "CREATE TABLE offers"
             << "("
-            << "sellerid         VARCHAR(56) " << coll << "NOT NULL,"
+            << "sellerid         VARCHAR(56) NOT NULL,"
             << "offerid          BIGINT           NOT NULL CHECK (offerid >= "
                "0),"
-            << "sellingasset     TEXT " << coll << " NOT NULL,"
-            << "buyingasset      TEXT " << coll << " NOT NULL,"
+            << "sellingasset     TEXT NOT NULL,"
+            << "buyingasset      TEXT NOT NULL,"
             << "amount           BIGINT           NOT NULL CHECK (amount >= 0),"
                "pricen           INT              NOT NULL,"
                "priced           INT              NOT NULL,"
@@ -687,17 +575,6 @@ LedgerTxnRoot::Impl::dropOffers(bool rebuild)
         mApp.getDatabase().getSession()
             << "CREATE INDEX offerbyseller ON offers "
                "(sellerid);";
-        if (!mApp.getDatabase().isSqlite())
-        {
-            mApp.getDatabase().getSession()
-                << "ALTER TABLE offers "
-                << "ALTER COLUMN sellerid "
-                << "TYPE VARCHAR(56) COLLATE \"C\", "
-                << "ALTER COLUMN buyingasset "
-                << "TYPE TEXT COLLATE \"C\", "
-                << "ALTER COLUMN sellingasset "
-                << "TYPE TEXT COLLATE \"C\"";
-        }
     }
 }
 
@@ -805,26 +682,6 @@ class BulkLoadOffersOperation
         sqlite3_bind_int(st, 2, static_cast<int>(mOfferIDs.size()));
         return executeAndFetch(prep.statement());
     }
-
-#ifdef USE_POSTGRES
-    std::vector<LedgerEntry>
-    doPostgresSpecificOperation(soci::postgresql_session_backend* pg) override
-    {
-        std::string strOfferIDs;
-        marshalToPGArray(pg->conn_, strOfferIDs, mOfferIDs);
-
-        std::string sql =
-            "WITH r AS (SELECT unnest(:v1::BIGINT[])) "
-            "SELECT sellerid, offerid, sellingasset, buyingasset, "
-            "amount, pricen, priced, flags, lastmodified, extension, "
-            "ledgerext "
-            "FROM offers WHERE offerid IN (SELECT * FROM r)";
-        auto prep = mDb.getPreparedStatement(sql);
-        auto& st = prep.statement();
-        st.exchange(soci::use(strOfferIDs));
-        return executeAndFetch(st);
-    }
-#endif
 };
 
 UnorderedMap<LedgerKey, std::shared_ptr<LedgerEntry const>>

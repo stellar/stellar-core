@@ -116,25 +116,6 @@ class BulkLoadClaimableBalanceOperation
         sqlite3_bind_int(st, 2, static_cast<int>(cstrBalanceIDs.size()));
         return executeAndFetch(prep.statement());
     }
-
-#ifdef USE_POSTGRES
-    std::vector<LedgerEntry>
-    doPostgresSpecificOperation(soci::postgresql_session_backend* pg) override
-    {
-        std::string strBalanceIDs;
-        marshalToPGArray(pg->conn_, strBalanceIDs, mBalanceIDs);
-
-        std::string sql = "WITH r AS (SELECT unnest(:v1::TEXT[])) "
-                          "SELECT balanceid, ledgerentry "
-                          "FROM claimablebalance "
-                          "WHERE balanceid IN (SELECT * from r)";
-
-        auto prep = mDb.getPreparedStatement(sql);
-        auto& st = prep.statement();
-        st.exchange(soci::use(strBalanceIDs));
-        return executeAndFetch(st);
-    }
-#endif
 };
 
 UnorderedMap<LedgerKey, std::shared_ptr<LedgerEntry const>>
@@ -200,33 +181,6 @@ class BulkDeleteClaimableBalanceOperation
     {
         doSociGenericOperation();
     }
-
-#ifdef USE_POSTGRES
-    void
-    doPostgresSpecificOperation(soci::postgresql_session_backend* pg) override
-    {
-        std::string strBalanceIDs;
-        marshalToPGArray(pg->conn_, strBalanceIDs, mBalanceIDs);
-
-        std::string sql = "WITH r AS (SELECT unnest(:v1::TEXT[])) "
-                          "DELETE FROM claimablebalance "
-                          "WHERE balanceid IN (SELECT * FROM r)";
-
-        auto prep = mDb.getPreparedStatement(sql);
-        auto& st = prep.statement();
-        st.exchange(soci::use(strBalanceIDs));
-        st.define_and_bind();
-        {
-            auto timer = mDb.getDeleteTimer("claimablebalance");
-            st.execute(true);
-        }
-        if (static_cast<size_t>(st.get_affected_rows()) != mBalanceIDs.size() &&
-            mCons == LedgerTxnConsistency::EXACT)
-        {
-            throw std::runtime_error("Could not update data in SQL");
-        }
-    }
-#endif
 };
 
 void
@@ -301,46 +255,6 @@ class BulkUpsertClaimableBalanceOperation
     {
         doSociGenericOperation();
     }
-
-#ifdef USE_POSTGRES
-    void
-    doPostgresSpecificOperation(soci::postgresql_session_backend* pg) override
-    {
-        std::string strBalanceIDs, strClaimableBalanceEntry, strLastModifieds;
-
-        PGconn* conn = pg->conn_;
-        marshalToPGArray(conn, strBalanceIDs, mBalanceIDs);
-        marshalToPGArray(conn, strClaimableBalanceEntry,
-                         mClaimableBalanceEntrys);
-        marshalToPGArray(conn, strLastModifieds, mLastModifieds);
-
-        std::string sql = "WITH r AS "
-                          "(SELECT unnest(:ids::TEXT[]), unnest(:v1::TEXT[]), "
-                          "unnest(:v2::INT[]))"
-                          "INSERT INTO claimablebalance "
-                          "(balanceid, ledgerentry, lastmodified) "
-                          "SELECT * FROM r "
-                          "ON CONFLICT (balanceid) DO UPDATE SET "
-                          "balanceid = excluded.balanceid, ledgerentry = "
-                          "excluded.ledgerentry, "
-                          "lastmodified = excluded.lastmodified";
-
-        auto prep = mDb.getPreparedStatement(sql);
-        soci::statement& st = prep.statement();
-        st.exchange(soci::use(strBalanceIDs));
-        st.exchange(soci::use(strClaimableBalanceEntry));
-        st.exchange(soci::use(strLastModifieds));
-        st.define_and_bind();
-        {
-            auto timer = mDb.getUpsertTimer("claimablebalance");
-            st.execute(true);
-        }
-        if (static_cast<size_t>(st.get_affected_rows()) != mBalanceIDs.size())
-        {
-            throw std::runtime_error("Could not update data in SQL");
-        }
-    }
-#endif
 };
 
 void
@@ -362,10 +276,9 @@ LedgerTxnRoot::Impl::dropClaimableBalances(bool rebuild)
 
     if (rebuild)
     {
-        std::string coll = mApp.getDatabase().getSimpleCollationClause();
         mApp.getDatabase().getSession()
             << "CREATE TABLE claimablebalance ("
-            << "balanceid             VARCHAR(48) " << coll << " PRIMARY KEY, "
+            << "balanceid             VARCHAR(48) PRIMARY KEY, "
             << "ledgerentry TEXT NOT NULL, "
             << "lastmodified          INT NOT NULL);";
     }

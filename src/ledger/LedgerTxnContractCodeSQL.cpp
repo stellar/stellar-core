@@ -124,25 +124,6 @@ class BulkLoadContractCodeOperation
         sqlite3_bind_int(st, 2, static_cast<int>(cStrHashes.size()));
         return executeAndFetch(prep.statement());
     }
-
-#ifdef USE_POSTGRES
-    std::vector<LedgerEntry>
-    doPostgresSpecificOperation(soci::postgresql_session_backend* pg) override
-    {
-        std::string strHashes;
-        marshalToPGArray(pg->conn_, strHashes, mHashes);
-
-        std::string sql = "WITH r AS (SELECT unnest(:v1::TEXT[])) "
-                          "SELECT ledgerentry "
-                          "FROM contractcode "
-                          "WHERE (hash) IN (SELECT * from r)";
-
-        auto prep = mDb.getPreparedStatement(sql);
-        auto& st = prep.statement();
-        st.exchange(soci::use(strHashes));
-        return executeAndFetch(st);
-    }
-#endif
 };
 
 UnorderedMap<LedgerKey, std::shared_ptr<LedgerEntry const>>
@@ -207,33 +188,6 @@ class BulkDeleteContractCodeOperation
     {
         doSociGenericOperation();
     }
-
-#ifdef USE_POSTGRES
-    void
-    doPostgresSpecificOperation(soci::postgresql_session_backend* pg) override
-    {
-        std::string strHashes;
-        marshalToPGArray(pg->conn_, strHashes, mHashes);
-
-        std::string sql = "WITH r AS (SELECT unnest(:v1::TEXT[])) "
-                          "DELETE FROM contractcode "
-                          "WHERE hash IN (SELECT * FROM r)";
-
-        auto prep = mDb.getPreparedStatement(sql);
-        auto& st = prep.statement();
-        st.exchange(soci::use(strHashes));
-        st.define_and_bind();
-        {
-            auto timer = mDb.getDeleteTimer("contractcode");
-            st.execute(true);
-        }
-        if (static_cast<size_t>(st.get_affected_rows()) != mHashes.size() &&
-            mCons == LedgerTxnConsistency::EXACT)
-        {
-            throw std::runtime_error("Could not update data in SQL");
-        }
-    }
-#endif
 };
 
 void
@@ -308,43 +262,6 @@ class BulkUpsertContractCodeOperation
         doSociGenericOperation();
     }
 
-#ifdef USE_POSTGRES
-    void
-    doPostgresSpecificOperation(soci::postgresql_session_backend* pg) override
-    {
-        std::string strHashes, strContractCodeEntries, strLastModifieds;
-
-        PGconn* conn = pg->conn_;
-        marshalToPGArray(conn, strHashes, mHashes);
-        marshalToPGArray(conn, strContractCodeEntries, mContractCodeEntries);
-        marshalToPGArray(conn, strLastModifieds, mLastModifieds);
-
-        std::string sql = "WITH r AS "
-                          "(SELECT unnest(:v1::TEXT[]), "
-                          "unnest(:v1::TEXT[]), unnest(:v2::INT[])) "
-                          "INSERT INTO contractcode "
-                          "(hash, ledgerentry, lastmodified) "
-                          "SELECT * FROM r "
-                          "ON CONFLICT (hash) DO UPDATE SET "
-                          "ledgerentry = excluded.ledgerentry, "
-                          "lastmodified = excluded.lastmodified";
-
-        auto prep = mDb.getPreparedStatement(sql);
-        soci::statement& st = prep.statement();
-        st.exchange(soci::use(strHashes));
-        st.exchange(soci::use(strContractCodeEntries));
-        st.exchange(soci::use(strLastModifieds));
-        st.define_and_bind();
-        {
-            auto timer = mDb.getUpsertTimer("contractcode");
-            st.execute(true);
-        }
-        if (static_cast<size_t>(st.get_affected_rows()) != mHashes.size())
-        {
-            throw std::runtime_error("Could not update data in SQL");
-        }
-    }
-#endif
 };
 
 void
@@ -362,24 +279,16 @@ LedgerTxnRoot::Impl::dropContractCode(bool rebuild)
     mEntryCache.clear();
     mBestOffers.clear();
 
-    std::string coll = mApp.getDatabase().getSimpleCollationClause();
-
     mApp.getDatabase().getSession() << "DROP TABLE IF EXISTS contractcode;";
 
     if (rebuild)
     {
         mApp.getDatabase().getSession()
             << "CREATE TABLE contractcode ("
-            << "hash   TEXT " << coll << " NOT NULL, "
-            << "ledgerentry  TEXT " << coll << " NOT NULL, "
+            << "hash   TEXT NOT NULL, "
+            << "ledgerentry  TEXT NOT NULL, "
             << "lastmodified INT NOT NULL, "
             << "PRIMARY KEY (hash));";
-        if (!mApp.getDatabase().isSqlite())
-        {
-            mApp.getDatabase().getSession() << "ALTER TABLE contractcode "
-                                            << "ALTER COLUMN hash "
-                                            << "TYPE TEXT COLLATE \"C\";";
-        }
     }
 }
 

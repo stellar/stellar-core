@@ -198,7 +198,6 @@ getTestConfig(int instanceNumber, Config::TestDbMode mode)
         // you can change this by enabling the appropriate line below
         mode = Config::TESTDB_IN_MEMORY_SQLITE;
         // mode = Config::TESTDB_ON_DISK_SQLITE;
-        // mode = Config::TESTDB_POSTGRESQL;
     }
     auto& cfgs = gTestCfg[mode];
     if (cfgs.size() <= static_cast<size_t>(instanceNumber))
@@ -286,11 +285,6 @@ getTestConfig(int instanceNumber, Config::TestDbMode mode)
         case Config::TESTDB_ON_DISK_SQLITE:
             dbname << "sqlite3://" << rootDir << "test.db";
             break;
-#ifdef USE_POSTGRES
-        case Config::TESTDB_POSTGRESQL:
-            dbname << "postgresql://dbname=test" << instanceNumber;
-            break;
-#endif
         default:
             abort();
         }

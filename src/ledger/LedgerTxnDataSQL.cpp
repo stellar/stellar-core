@@ -159,57 +159,6 @@ class BulkUpsertDataOperation : public DatabaseTypeSpecificOperation<void>
     {
         doSociGenericOperation();
     }
-#ifdef USE_POSTGRES
-    void
-    doPostgresSpecificOperation(soci::postgresql_session_backend* pg) override
-    {
-        std::string strAccountIDs, strDataNames, strDataValues,
-            strLastModifieds, strExtensions, strLedgerExtensions;
-
-        PGconn* conn = pg->conn_;
-        marshalToPGArray(conn, strAccountIDs, mAccountIDs);
-        marshalToPGArray(conn, strDataNames, mDataNames);
-        marshalToPGArray(conn, strDataValues, mDataValues);
-        marshalToPGArray(conn, strLastModifieds, mLastModifieds);
-        marshalToPGArray(conn, strExtensions, mExtensions);
-        marshalToPGArray(conn, strLedgerExtensions, mLedgerExtensions);
-        std::string sql =
-            "WITH r AS (SELECT "
-            "unnest(:ids::TEXT[]), "
-            "unnest(:v1::TEXT[]), "
-            "unnest(:v2::TEXT[]), "
-            "unnest(:v3::INT[]), "
-            "unnest(:v4::TEXT[]), "
-            "unnest(:v5::TEXT[]) "
-            ")"
-            "INSERT INTO accountdata ( "
-            "accountid, dataname, datavalue, lastmodified, extension, "
-            "ledgerext "
-            ") SELECT * FROM r "
-            "ON CONFLICT (accountid, dataname) DO UPDATE SET "
-            "datavalue = excluded.datavalue, "
-            "lastmodified = excluded.lastmodified, "
-            "extension = excluded.extension, "
-            "ledgerext = excluded.ledgerext";
-        auto prep = mDB.getPreparedStatement(sql);
-        soci::statement& st = prep.statement();
-        st.exchange(soci::use(strAccountIDs));
-        st.exchange(soci::use(strDataNames));
-        st.exchange(soci::use(strDataValues));
-        st.exchange(soci::use(strLastModifieds));
-        st.exchange(soci::use(strExtensions));
-        st.exchange(soci::use(strLedgerExtensions));
-        st.define_and_bind();
-        {
-            auto timer = mDB.getUpsertTimer("data");
-            st.execute(true);
-        }
-        if (static_cast<size_t>(st.get_affected_rows()) != mAccountIDs.size())
-        {
-            throw std::runtime_error("Could not update data in SQL");
-        }
-    }
-#endif
 };
 
 class BulkDeleteDataOperation : public DatabaseTypeSpecificOperation<void>
@@ -262,39 +211,6 @@ class BulkDeleteDataOperation : public DatabaseTypeSpecificOperation<void>
     {
         doSociGenericOperation();
     }
-
-#ifdef USE_POSTGRES
-    void
-    doPostgresSpecificOperation(soci::postgresql_session_backend* pg) override
-    {
-        std::string strAccountIDs;
-        std::string strDataNames;
-        PGconn* conn = pg->conn_;
-        marshalToPGArray(conn, strAccountIDs, mAccountIDs);
-        marshalToPGArray(conn, strDataNames, mDataNames);
-        std::string sql =
-            "WITH r AS ( SELECT "
-            "unnest(:ids::TEXT[]),"
-            "unnest(:v1::TEXT[])"
-            " ) "
-            "DELETE FROM accountdata WHERE (accountid, dataname) IN "
-            "(SELECT * FROM r)";
-        auto prep = mDB.getPreparedStatement(sql);
-        soci::statement& st = prep.statement();
-        st.exchange(soci::use(strAccountIDs));
-        st.exchange(soci::use(strDataNames));
-        st.define_and_bind();
-        {
-            auto timer = mDB.getDeleteTimer("data");
-            st.execute(true);
-        }
-        if (static_cast<size_t>(st.get_affected_rows()) != mAccountIDs.size() &&
-            mCons == LedgerTxnConsistency::EXACT)
-        {
-            throw std::runtime_error("Could not update data in SQL");
-        }
-    }
-#endif
 };
 
 void
@@ -328,27 +244,17 @@ LedgerTxnRoot::Impl::dropData(bool rebuild)
 
     if (rebuild)
     {
-        std::string coll = mApp.getDatabase().getSimpleCollationClause();
         mApp.getDatabase().getSession()
             << "CREATE TABLE accountdata"
             << "("
-            << "accountid    VARCHAR(56) " << coll << " NOT NULL,"
-            << "dataname     VARCHAR(88) " << coll << " NOT NULL,"
+            << "accountid    VARCHAR(56)  NOT NULL,"
+            << "dataname     VARCHAR(88)  NOT NULL,"
             << "datavalue    VARCHAR(112) NOT NULL,"
                "lastmodified INT          NOT NULL,"
                "extension    TEXT,"
                "ledgerext    TEXT         NOT NULL,"
                "PRIMARY KEY  (accountid, dataname)"
                ");";
-        if (!mApp.getDatabase().isSqlite())
-        {
-            mApp.getDatabase().getSession()
-                << "ALTER TABLE accountdata "
-                << "ALTER COLUMN accountid "
-                << "TYPE VARCHAR(56) COLLATE \"C\", "
-                << "ALTER COLUMN dataname "
-                << "TYPE VARCHAR(88) COLLATE \"C\"";
-        }
     }
 }
 
@@ -461,31 +367,6 @@ class BulkLoadDataOperation
         sqlite3_bind_int(st, 4, static_cast<int>(cstrDataNames.size()));
         return executeAndFetch(prep.statement());
     }
-
-#ifdef USE_POSTGRES
-    std::vector<LedgerEntry>
-    doPostgresSpecificOperation(soci::postgresql_session_backend* pg) override
-    {
-        releaseAssert(mAccountIDs.size() == mDataNames.size());
-
-        std::string strAccountIDs;
-        std::string strDataNames;
-        marshalToPGArray(pg->conn_, strAccountIDs, mAccountIDs);
-        marshalToPGArray(pg->conn_, strDataNames, mDataNames);
-
-        std::string sql =
-            "WITH r AS (SELECT unnest(:v1::TEXT[]), unnest(:v2::TEXT[])) "
-            "SELECT accountid, dataname, datavalue, lastmodified, extension, "
-            "ledgerext "
-            "FROM accountdata WHERE (accountid, dataname) IN (SELECT * FROM r)";
-
-        auto prep = mDb.getPreparedStatement(sql);
-        auto& st = prep.statement();
-        st.exchange(soci::use(strAccountIDs));
-        st.exchange(soci::use(strDataNames));
-        return executeAndFetch(st);
-    }
-#endif
 };
 
 UnorderedMap<LedgerKey, std::shared_ptr<LedgerEntry const>>
