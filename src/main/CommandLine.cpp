@@ -1293,20 +1293,22 @@ getSettingsUpgradeTransactions(CommandLineArgs const& args)
             PublicKey pk = KeyUtils::fromStrKey<PublicKey>(id);
 
             std::vector<TransactionEnvelope> txsToSign;
+            auto restoreRes = getWasmRestoreTx(pk, seqNum + 1);
+            txsToSign.emplace_back(restoreRes.first);
 
-            auto uploadRes = getUploadTx(pk, seqNum + 1);
+            auto uploadRes = getUploadTx(pk, seqNum + 2);
             txsToSign.emplace_back(uploadRes.first);
             auto const& contractCodeLedgerKey = uploadRes.second;
 
             auto createRes =
-                getCreateTx(pk, contractCodeLedgerKey, netId, seqNum + 2);
+                getCreateTx(pk, contractCodeLedgerKey, netId, seqNum + 3);
             txsToSign.emplace_back(std::get<0>(createRes));
             auto const& contractSourceRefLedgerKey = std::get<1>(createRes);
             auto const& contractID = std::get<2>(createRes);
 
             auto invokeRes = getInvokeTx(pk, contractCodeLedgerKey,
                                          contractSourceRefLedgerKey, contractID,
-                                         upgradeSet, seqNum + 3);
+                                         upgradeSet, seqNum + 4);
             txsToSign.emplace_back(invokeRes.first);
             auto const& upgradeSetKey = invokeRes.second;
 

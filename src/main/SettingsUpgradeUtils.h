@@ -6,6 +6,9 @@ namespace stellar
 {
 
 std::pair<TransactionEnvelope, LedgerKey>
+getWasmRestoreTx(PublicKey const& publicKey, SequenceNumber seqNum);
+
+std::pair<TransactionEnvelope, LedgerKey>
 getUploadTx(PublicKey const& publicKey, SequenceNumber seqNum);
 
 std::tuple<TransactionEnvelope, LedgerKey, Hash>
