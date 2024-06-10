@@ -6,6 +6,10 @@
 #include "transactions/TransactionFrame.h"
 #include "util/GlobalChecks.h"
 
+#ifdef BUILD_TESTS
+#include "transactions/test/TransactionTestFrame.h"
+#endif
+
 namespace stellar
 {
 namespace txbridge

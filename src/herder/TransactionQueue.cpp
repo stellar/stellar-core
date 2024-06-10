@@ -40,6 +40,7 @@
 
 #ifdef BUILD_TESTS
 #include "test/TxTests.h"
+#include "transactions/test/TransactionTestFrame.h"
 #endif
 
 namespace stellar
@@ -248,16 +249,15 @@ isDuplicateTx(TransactionFrameBasePtr oldTx, TransactionFrameBasePtr newTx)
         if (oldTx->isTestTx())
         {
             auto testFrame =
-                std::dynamic_pointer_cast<TransactionTestFrame const>(oldTx);
+                std::static_pointer_cast<TransactionTestFrame const>(oldTx);
             feeBumpPtr =
-                std::dynamic_pointer_cast<FeeBumpTransactionFrame const>(
+                std::static_pointer_cast<FeeBumpTransactionFrame const>(
                     testFrame->getTxFramePtr());
         }
         else
 #endif
             feeBumpPtr =
-                std::dynamic_pointer_cast<FeeBumpTransactionFrame const>(oldTx);
-        releaseAssertOrThrow(feeBumpPtr);
+                std::static_pointer_cast<FeeBumpTransactionFrame const>(oldTx);
         return feeBumpPtr->getInnerFullHash() == newTx->getFullHash();
     }
     return false;

@@ -8,6 +8,7 @@
 #include "herder/LedgerCloseData.h"
 #include "herder/Upgrades.h"
 #include "overlay/StellarXDR.h"
+#include "transactions/test/TransactionTestFrame.h"
 #include <optional>
 
 namespace stellar

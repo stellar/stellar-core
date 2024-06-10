@@ -216,10 +216,10 @@ FeeBumpTransactionFrame::checkValid(Application& app,
         return {false, txResult};
     }
 
-    auto [res, innerResPayload] = mInnerTx->checkValidWithOptionallyChargedFee(
+    auto [res, innerTxResult] = mInnerTx->checkValidWithOptionallyChargedFee(
         app, ltx, current, false, lowerBoundCloseTimeOffset,
         upperBoundCloseTimeOffset);
-    txResult->setInnerResultPayload(innerResPayload, mInnerTx);
+    txResult->setInnerResultPayload(innerTxResult, mInnerTx);
 
     return {res, txResult};
 }
@@ -571,14 +571,14 @@ FeeBumpTransactionFrame::createResultPayloadWithFeeCharged(
     LedgerHeader const& header, std::optional<int64_t> baseFee,
     bool applying) const
 {
-    auto innerResPayload =
+    auto innerTxResult =
         mInnerTx->createResultPayloadWithFeeCharged(header, baseFee, applying);
 
     // feeCharged is updated accordingly to represent the cost of the
     // transaction regardless of the failure modes.
     auto feeCharged = getFee(header, baseFee, applying);
     std::shared_ptr<FeeBumpMutableTransactionResult> txResult(
-        new FeeBumpMutableTransactionResult(innerResPayload));
+        new FeeBumpMutableTransactionResult(innerTxResult));
     txResult->setResultCode(txFEE_BUMP_INNER_SUCCESS);
     txResult->getResult().feeCharged = feeCharged;
 
