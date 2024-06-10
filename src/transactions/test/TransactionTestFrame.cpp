@@ -57,12 +57,10 @@ TransactionTestFrame::clearCached() const
     mTransactionFrame->clearCached();
 }
 
-std::vector<std::shared_ptr<OperationFrame>> const&
-TransactionTestFrame::getOperations() const
+OperationResult&
+TransactionTestFrame::getOperationResultAt(size_t i) const
 {
-    // this can only be used on an initialized TransactionFrame
-    releaseAssert(!mTransactionResultPayload->getOpFrames().empty());
-    return mTransactionResultPayload->getOpFrames();
+    return mTransactionResultPayload->getOpResultAt(i);
 }
 
 void

@@ -908,8 +908,7 @@ class FuzzTransactionFrame : public TransactionFrame
     attemptApplication(Application& app, AbstractLedgerTxn& ltx)
     {
         // No soroban ops allowed
-        if (std::any_of(mResultPayload->getOpFrames().begin(),
-                        mResultPayload->getOpFrames().end(),
+        if (std::any_of(getOperations().begin(), getOperations().end(),
                         [](auto const& x) { return x->isSoroban(); }))
         {
             mResultPayload->setResultCode(txFAILED);
@@ -926,22 +925,28 @@ class FuzzTransactionFrame : public TransactionFrame
             ltx.loadHeader().current().ledgerVersion, getContentsHash(),
             mEnvelope.v1().signatures};
         // if any ill-formed Operations, do not attempt transaction application
-        auto isInvalidOperation = [&](auto const& op) {
-            return !op->checkValid(app, signatureChecker, ltx, false,
+        auto isInvalidOperation = [&](auto const& op, auto& opResult) {
+            return !op->checkValid(app, signatureChecker, ltx, false, opResult,
                                    *mResultPayload);
         };
-        if (std::any_of(mResultPayload->getOpFrames().begin(),
-                        mResultPayload->getOpFrames().end(),
-                        isInvalidOperation))
+
+        auto const& ops = getOperations();
+        for (size_t i = 0; i < ops.size(); ++i)
         {
-            mResultPayload->setResultCode(txFAILED);
-            return;
+            auto const& op = ops[i];
+            auto& opResult = mResultPayload->getOpResultAt(i);
+            if (isInvalidOperation(op, opResult))
+            {
+                mResultPayload->setResultCode(txFAILED);
+                return;
+            }
         }
+
         // while the following method's result is not captured, regardless, for
         // protocols < 8, this triggered buggy caching, and potentially may do
         // so in the future
-        loadSourceAccount(ltx, ltx.loadHeader(), *mResultPayload);
-        processSeqNum(ltx, *mResultPayload);
+        loadSourceAccount(ltx, ltx.loadHeader());
+        processSeqNum(ltx);
         TransactionMetaFrame tm(2);
         applyOperations(signatureChecker, app, ltx, tm, *mResultPayload,
                         Hash{});
@@ -949,14 +954,6 @@ class FuzzTransactionFrame : public TransactionFrame
         {
             throw std::runtime_error("Internal error while fuzzing");
         }
-    }
-
-    std::vector<std::shared_ptr<OperationFrame>> const&
-    getOperations() const
-    {
-        // this can only be used on an initialized TransactionFrame
-        releaseAssert(!mResultPayload->getOpFrames().empty());
-        return mResultPayload->getOpFrames();
     }
 
     TransactionResult&
@@ -1040,10 +1037,14 @@ applySetupOperations(LedgerTxn& ltx, PublicKey const& sourceAccount,
             throw std::runtime_error(msg);
         }
 
-        for (auto const& opFrame : txFramePtr->getOperations())
+        auto const& ops = txFramePtr->getOperations();
+        for (size_t i = 0; i < ops.size(); ++i)
         {
+            auto const& opFrame = ops.at(i);
+            auto& opResult = txFramePtr->getResult().result.results().at(i);
+
             auto const& op = opFrame->getOperation();
-            auto const& tr = opFrame->getResult().tr();
+            auto const& tr = opResult.tr();
             auto const opType = op.body.type();
 
             if ((opType == MANAGE_BUY_OFFER &&

@@ -13,8 +13,8 @@ namespace stellar
 {
 
 ClawbackClaimableBalanceOpFrame::ClawbackClaimableBalanceOpFrame(
-    Operation const& op, OperationResult& res, TransactionFrame const& parentTx)
-    : OperationFrame(op, res, parentTx)
+    Operation const& op, TransactionFrame const& parentTx)
+    : OperationFrame(op, parentTx)
     , mClawbackClaimableBalance(mOperation.body.clawbackClaimableBalanceOp())
 {
 }
@@ -28,7 +28,7 @@ ClawbackClaimableBalanceOpFrame::isOpSupported(LedgerHeader const& header) const
 
 bool
 ClawbackClaimableBalanceOpFrame::doApply(AbstractLedgerTxn& ltx,
-                                         MutableTransactionResultBase& txResult)
+                                         OperationResult& res) const
 {
     ZoneNamedN(applyZone, "ClawbackClaimableBalanceOp apply", true);
 
@@ -36,7 +36,7 @@ ClawbackClaimableBalanceOpFrame::doApply(AbstractLedgerTxn& ltx,
         stellar::loadClaimableBalance(ltx, mClawbackClaimableBalance.balanceID);
     if (!claimableBalanceLtxEntry)
     {
-        innerResult().code(CLAWBACK_CLAIMABLE_BALANCE_DOES_NOT_EXIST);
+        innerResult(res).code(CLAWBACK_CLAIMABLE_BALANCE_DOES_NOT_EXIST);
         return false;
     }
 
@@ -47,36 +47,37 @@ ClawbackClaimableBalanceOpFrame::doApply(AbstractLedgerTxn& ltx,
 
     if (asset().type() == ASSET_TYPE_NATIVE)
     {
-        innerResult().code(CLAWBACK_CLAIMABLE_BALANCE_NOT_ISSUER);
+        innerResult(res).code(CLAWBACK_CLAIMABLE_BALANCE_NOT_ISSUER);
         return false;
     }
 
     if (!(getSourceID() == getIssuer(asset())))
     {
-        innerResult().code(CLAWBACK_CLAIMABLE_BALANCE_NOT_ISSUER);
+        innerResult(res).code(CLAWBACK_CLAIMABLE_BALANCE_NOT_ISSUER);
         return false;
     }
 
     if (!isClawbackEnabledOnClaimableBalance(
             claimableBalanceLtxEntry.current()))
     {
-        innerResult().code(CLAWBACK_CLAIMABLE_BALANCE_NOT_CLAWBACK_ENABLED);
+        innerResult(res).code(CLAWBACK_CLAIMABLE_BALANCE_NOT_CLAWBACK_ENABLED);
         return false;
     }
 
     auto header = ltx.loadHeader();
-    auto sourceAccount = loadSourceAccount(ltx, header, txResult);
+    auto sourceAccount = loadSourceAccount(ltx, header);
     removeEntryWithPossibleSponsorship(
         ltx, header, claimableBalanceLtxEntry.current(), sourceAccount);
 
     claimableBalanceLtxEntry.erase();
 
-    innerResult().code(CLAWBACK_CLAIMABLE_BALANCE_SUCCESS);
+    innerResult(res).code(CLAWBACK_CLAIMABLE_BALANCE_SUCCESS);
     return true;
 }
 
 bool
-ClawbackClaimableBalanceOpFrame::doCheckValid(uint32_t ledgerVersion)
+ClawbackClaimableBalanceOpFrame::doCheckValid(uint32_t ledgerVersion,
+                                              OperationResult& res) const
 {
     return true;
 }

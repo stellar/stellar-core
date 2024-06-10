@@ -15,34 +15,39 @@ class RevokeSponsorshipOpFrame : public OperationFrame
     bool isOpSupported(LedgerHeader const& header) const override;
 
     RevokeSponsorshipResult&
-    innerResult()
+    innerResult(OperationResult& res) const
     {
-        return mResult.tr().revokeSponsorshipResult();
+        return res.tr().revokeSponsorshipResult();
     }
     RevokeSponsorshipOp const& mRevokeSponsorshipOp;
 
-    bool processSponsorshipResult(SponsorshipResult sr);
+    bool processSponsorshipResult(SponsorshipResult sr,
+                                  OperationResult& res) const;
 
-    bool updateLedgerEntrySponsorship(AbstractLedgerTxn& ltx);
-    bool updateSignerSponsorship(AbstractLedgerTxn& ltx);
+    bool updateLedgerEntrySponsorship(AbstractLedgerTxn& ltx,
+                                      OperationResult& res) const;
+    bool updateSignerSponsorship(AbstractLedgerTxn& ltx,
+                                 OperationResult& res) const;
 
     bool tryRemoveEntrySponsorship(AbstractLedgerTxn& ltx,
                                    LedgerTxnHeader const& header,
                                    LedgerEntry& le, LedgerEntry& sponsoringAcc,
-                                   LedgerEntry& sponsoredAcc);
+                                   LedgerEntry& sponsoredAcc,
+                                   OperationResult& res) const;
     bool tryEstablishEntrySponsorship(AbstractLedgerTxn& ltx,
                                       LedgerTxnHeader const& header,
                                       LedgerEntry& le,
                                       LedgerEntry& sponsoringAcc,
-                                      LedgerEntry& sponsoredAcc);
+                                      LedgerEntry& sponsoredAcc,
+                                      OperationResult& res) const;
 
   public:
-    RevokeSponsorshipOpFrame(Operation const& op, OperationResult& res,
+    RevokeSponsorshipOpFrame(Operation const& op,
                              TransactionFrame const& parentTx);
 
-    bool doApply(AbstractLedgerTxn& ltx,
-                 MutableTransactionResultBase& txResult) override;
-    bool doCheckValid(uint32_t ledgerVersion) override;
+    bool doApply(AbstractLedgerTxn& ltx, OperationResult& res) const override;
+    bool doCheckValid(uint32_t ledgerVersion,
+                      OperationResult& res) const override;
 
     static RevokeSponsorshipResultCode
     getInnerCode(OperationResult const& res)

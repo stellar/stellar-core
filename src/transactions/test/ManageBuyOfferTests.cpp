@@ -376,7 +376,7 @@ TEST_CASE_VERSIONS("manage buy offer liabilities", "[tx][offers]")
             }
 
             auto buyOp = std::static_pointer_cast<ManageBuyOfferOpFrame const>(
-                tx->getOperations().front());
+                tx->getRawTransactionFrame().getOperations().front());
             REQUIRE(expectedBuying == buyOp->getOfferBuyingLiabilities());
             REQUIRE(expectedSelling == buyOp->getOfferSellingLiabilities());
         }

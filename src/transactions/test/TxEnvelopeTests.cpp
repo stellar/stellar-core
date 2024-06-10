@@ -1711,8 +1711,7 @@ TEST_CASE_VERSIONS("txenvelope", "[tx][envelope]")
                         }
                         applyCheck(tx, *app);
                         REQUIRE(tx->getResultCode() == txFAILED);
-                        REQUIRE(tx->getOperations()[0]->getResultCode() ==
-                                opBAD_AUTH);
+                        REQUIRE(getFirstResultCode(tx) == opBAD_AUTH);
                     });
                     for_versions({7}, *app, [&] {
                         auto tx = a1.tx({b1.op(payment(root, 1000))});
@@ -1779,7 +1778,7 @@ TEST_CASE_VERSIONS("txenvelope", "[tx][envelope]")
                                     getFirstResult(tx)) == PAYMENT_SUCCESS);
                         // second
                         REQUIRE(ManageSellOfferOpFrame::getInnerCode(
-                                    tx->getOperations()[1]->getResult()) ==
+                                    tx->getOperationResultAt(1)) ==
                                 MANAGE_SELL_OFFER_MALFORMED);
                     }
                     SECTION("one failed tx")
@@ -1807,7 +1806,7 @@ TEST_CASE_VERSIONS("txenvelope", "[tx][envelope]")
                                     getFirstResult(tx)) == PAYMENT_SUCCESS);
                         // second
                         REQUIRE(PaymentOpFrame::getInnerCode(
-                                    tx->getOperations()[1]->getResult()) ==
+                                    tx->getOperationResultAt(1)) ==
                                 PAYMENT_UNDERFUNDED);
                     }
                     SECTION("both success")
@@ -1833,7 +1832,7 @@ TEST_CASE_VERSIONS("txenvelope", "[tx][envelope]")
                         REQUIRE(PaymentOpFrame::getInnerCode(
                                     getFirstResult(tx)) == PAYMENT_SUCCESS);
                         REQUIRE(PaymentOpFrame::getInnerCode(
-                                    tx->getOperations()[1]->getResult()) ==
+                                    tx->getOperationResultAt(1)) ==
                                 PAYMENT_SUCCESS);
                     }
                 });
@@ -1862,7 +1861,7 @@ TEST_CASE_VERSIONS("txenvelope", "[tx][envelope]")
                     REQUIRE(CreateAccountOpFrame::getInnerCode(
                                 getFirstResult(tx)) == CREATE_ACCOUNT_SUCCESS);
                     REQUIRE(PaymentOpFrame::getInnerCode(
-                                tx->getOperations()[1]->getResult()) ==
+                                tx->getOperationResultAt(1)) ==
                             PAYMENT_SUCCESS);
                 });
             }
@@ -2377,7 +2376,7 @@ TEST_CASE_VERSIONS("txenvelope", "[tx][envelope]")
                         REQUIRE(tx->getResultCode() == txFAILED);
                         REQUIRE(PaymentOpFrame::getInnerCode(
                                     getFirstResult(tx)) == PAYMENT_SUCCESS);
-                        REQUIRE(tx->getOperations()[1]->getResultCode() ==
+                        REQUIRE(tx->getOperationResultAt(1).code() ==
                                 opBAD_AUTH);
                     });
                 }

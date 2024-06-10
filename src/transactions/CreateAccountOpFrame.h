@@ -14,28 +14,22 @@ class AbstractLedgerTxn;
 class CreateAccountOpFrame : public OperationFrame
 {
     CreateAccountResult&
-    innerResult()
+    innerResult(OperationResult& res) const
     {
-        return mResult.tr().createAccountResult();
+        return res.tr().createAccountResult();
     }
     CreateAccountOp const& mCreateAccount;
 
-    bool doApplyBeforeV14(AbstractLedgerTxn& ltx,
-                          MutableTransactionResultBase& txResult);
+    bool doApplyBeforeV14(AbstractLedgerTxn& ltx, OperationResult& res) const;
     bool doApplyFromV14(AbstractLedgerTxn& ltxOuter,
-                        MutableTransactionResultBase& txResult);
-
-    bool checkLowReserve(AbstractLedgerTxn& ltx);
-    bool deductStartingBalance(AbstractLedgerTxn& ltx);
-    void createAccount(AbstractLedgerTxn& ltx);
+                        OperationResult& res) const;
 
   public:
-    CreateAccountOpFrame(Operation const& op, OperationResult& res,
-                         TransactionFrame const& parentTx);
+    CreateAccountOpFrame(Operation const& op, TransactionFrame const& parentTx);
 
-    bool doApply(AbstractLedgerTxn& ltx,
-                 MutableTransactionResultBase& txResult) override;
-    bool doCheckValid(uint32_t ledgerVersion) override;
+    bool doApply(AbstractLedgerTxn& ltx, OperationResult& res) const override;
+    bool doCheckValid(uint32_t ledgerVersion,
+                      OperationResult& res) const override;
     void
     insertLedgerKeysToPrefetch(UnorderedSet<LedgerKey>& keys) const override;
 

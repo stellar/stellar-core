@@ -36,8 +36,8 @@ struct RestoreFootprintMetrics
 };
 
 RestoreFootprintOpFrame::RestoreFootprintOpFrame(
-    Operation const& op, OperationResult& res, TransactionFrame const& parentTx)
-    : OperationFrame(op, res, parentTx)
+    Operation const& op, TransactionFrame const& parentTx)
+    : OperationFrame(op, parentTx)
     , mRestoreFootprintOp(mOperation.body.restoreFootprintOp())
 {
 }
@@ -50,7 +50,7 @@ RestoreFootprintOpFrame::isOpSupported(LedgerHeader const& header) const
 
 bool
 RestoreFootprintOpFrame::doApply(AbstractLedgerTxn& ltx,
-                                 MutableTransactionResultBase& txResult)
+                                 OperationResult& res) const
 {
     throw std::runtime_error("RestoreFootprintOpFrame::doApply needs Config");
 }
@@ -58,7 +58,8 @@ RestoreFootprintOpFrame::doApply(AbstractLedgerTxn& ltx,
 bool
 RestoreFootprintOpFrame::doApply(Application& app, AbstractLedgerTxn& ltx,
                                  Hash const& sorobanBasePrngSeed,
-                                 MutableTransactionResultBase& txResult)
+                                 OperationResult& res,
+                                 MutableTransactionResultBase& txResult) const
 {
     ZoneNamedN(applyZone, "RestoreFootprintOpFrame apply", true);
 
@@ -108,7 +109,7 @@ RestoreFootprintOpFrame::doApply(Application& app, AbstractLedgerTxn& ltx,
                 "operation byte-read resources exceeds amount specified",
                 {makeU64SCVal(metrics.mLedgerReadByte),
                  makeU64SCVal(resources.readBytes)});
-            innerResult().code(RESTORE_FOOTPRINT_RESOURCE_LIMIT_EXCEEDED);
+            innerResult(res).code(RESTORE_FOOTPRINT_RESOURCE_LIMIT_EXCEEDED);
             return false;
         }
 
@@ -118,7 +119,7 @@ RestoreFootprintOpFrame::doApply(Application& app, AbstractLedgerTxn& ltx,
         if (!validateContractLedgerEntry(lk, entrySize, sorobanConfig,
                                          appConfig, mParentTx, txResult))
         {
-            innerResult().code(RESTORE_FOOTPRINT_RESOURCE_LIMIT_EXCEEDED);
+            innerResult(res).code(RESTORE_FOOTPRINT_RESOURCE_LIMIT_EXCEEDED);
             return false;
         }
 
@@ -129,7 +130,7 @@ RestoreFootprintOpFrame::doApply(Application& app, AbstractLedgerTxn& ltx,
                 "operation byte-write resources exceeds amount specified",
                 {makeU64SCVal(metrics.mLedgerWriteByte),
                  makeU64SCVal(resources.writeBytes)});
-            innerResult().code(RESTORE_FOOTPRINT_RESOURCE_LIMIT_EXCEEDED);
+            innerResult(res).code(RESTORE_FOOTPRINT_RESOURCE_LIMIT_EXCEEDED);
             return false;
         }
 
@@ -162,23 +163,23 @@ RestoreFootprintOpFrame::doApply(Application& app, AbstractLedgerTxn& ltx,
             app.getLedgerManager().getSorobanNetworkConfig(), app.getConfig(),
             mParentTx))
     {
-        innerResult().code(RESTORE_FOOTPRINT_INSUFFICIENT_REFUNDABLE_FEE);
+        innerResult(res).code(RESTORE_FOOTPRINT_INSUFFICIENT_REFUNDABLE_FEE);
         return false;
     }
-    innerResult().code(RESTORE_FOOTPRINT_SUCCESS);
+    innerResult(res).code(RESTORE_FOOTPRINT_SUCCESS);
     return true;
 }
 
 bool
-RestoreFootprintOpFrame::doCheckValid(SorobanNetworkConfig const& networkConfig,
-                                      Config const& appConfig,
-                                      uint32_t ledgerVersion,
-                                      MutableTransactionResultBase& txResult)
+RestoreFootprintOpFrame::doCheckValid(
+    SorobanNetworkConfig const& networkConfig, Config const& appConfig,
+    uint32_t ledgerVersion, OperationResult& res,
+    MutableTransactionResultBase& txResult) const
 {
     auto const& footprint = mParentTx.sorobanResources().footprint;
     if (!footprint.readOnly.empty())
     {
-        innerResult().code(RESTORE_FOOTPRINT_MALFORMED);
+        innerResult(res).code(RESTORE_FOOTPRINT_MALFORMED);
         txResult.pushValidationTimeDiagnosticError(
             appConfig, SCE_STORAGE, SCEC_INVALID_INPUT,
             "read-only footprint must be empty for RestoreFootprint operation",
@@ -190,7 +191,7 @@ RestoreFootprintOpFrame::doCheckValid(SorobanNetworkConfig const& networkConfig,
     {
         if (!isPersistentEntry(lk))
         {
-            innerResult().code(RESTORE_FOOTPRINT_MALFORMED);
+            innerResult(res).code(RESTORE_FOOTPRINT_MALFORMED);
             txResult.pushValidationTimeDiagnosticError(
                 appConfig, SCE_STORAGE, SCEC_INVALID_INPUT,
                 "only persistent Soroban entries can be restored", {});
@@ -202,7 +203,8 @@ RestoreFootprintOpFrame::doCheckValid(SorobanNetworkConfig const& networkConfig,
 }
 
 bool
-RestoreFootprintOpFrame::doCheckValid(uint32_t ledgerVersion)
+RestoreFootprintOpFrame::doCheckValid(uint32_t ledgerVersion,
+                                      OperationResult& res) const
 {
     throw std::runtime_error(
         "RestoreFootprintOpFrame::doCheckValid needs Config");

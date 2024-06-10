@@ -20,29 +20,31 @@ class ManageOfferOpFrameBase : public OperationFrame
 
     bool const mSetPassiveOnCreate;
 
-    bool checkOfferValid(AbstractLedgerTxn& lsOuter);
+    bool checkOfferValid(AbstractLedgerTxn& ltxOuter,
+                         OperationResult& res) const;
 
     bool computeOfferExchangeParameters(AbstractLedgerTxn& ltxOuter,
-                                        MutableTransactionResultBase& txResult,
+                                        OperationResult& res,
                                         bool creatingNewOffer,
                                         int64_t& maxSheepSend,
-                                        int64_t& maxWheatReceive);
+                                        int64_t& maxWheatReceive) const;
 
     LedgerEntry buildOffer(int64_t amount, uint32_t flags,
                            LedgerEntry::_ext_t const& extension) const;
 
-    virtual int64_t generateNewOfferID(LedgerTxnHeader& header);
+    virtual int64_t generateNewOfferID(LedgerTxnHeader& header) const;
 
   public:
-    ManageOfferOpFrameBase(Operation const& op, OperationResult& res,
+    ManageOfferOpFrameBase(Operation const& op,
                            TransactionFrame const& parentTx, Asset const& sheep,
                            Asset const& wheat, int64_t offerID,
                            Price const& price, bool setPassiveOnCreate);
 
-    bool doCheckValid(uint32_t ledgerVersion) override;
+    bool doCheckValid(uint32_t ledgerVersion,
+                      OperationResult& res) const override;
 
-    bool doApply(AbstractLedgerTxn& lsOuter,
-                 MutableTransactionResultBase& txResult) override;
+    bool doApply(AbstractLedgerTxn& ltxOuter,
+                 OperationResult& res) const override;
 
     bool isDexOperation() const override;
 
@@ -58,24 +60,26 @@ class ManageOfferOpFrameBase : public OperationFrame
     virtual void applyOperationSpecificLimits(int64_t& maxSheepSend,
                                               int64_t sheepSent,
                                               int64_t& maxWheatReceive,
-                                              int64_t wheatReceived) = 0;
-    virtual void getExchangeParametersBeforeV10(int64_t& maxSheepSend,
-                                                int64_t& maxWheatReceive) = 0;
+                                              int64_t wheatReceived) const = 0;
+    virtual void
+    getExchangeParametersBeforeV10(int64_t& maxSheepSend,
+                                   int64_t& maxWheatReceive) const = 0;
 
-    virtual ManageOfferSuccessResult& getSuccessResult() = 0;
+    virtual ManageOfferSuccessResult&
+    getSuccessResult(OperationResult& res) const = 0;
 
-    virtual void setResultSuccess() = 0;
-    virtual void setResultMalformed() = 0;
-    virtual void setResultSellNoTrust() = 0;
-    virtual void setResultBuyNoTrust() = 0;
-    virtual void setResultSellNotAuthorized() = 0;
-    virtual void setResultBuyNotAuthorized() = 0;
-    virtual void setResultLineFull() = 0;
-    virtual void setResultUnderfunded() = 0;
-    virtual void setResultCrossSelf() = 0;
-    virtual void setResultSellNoIssuer() = 0;
-    virtual void setResultBuyNoIssuer() = 0;
-    virtual void setResultNotFound() = 0;
-    virtual void setResultLowReserve() = 0;
+    virtual void setResultSuccess(OperationResult& res) const = 0;
+    virtual void setResultMalformed(OperationResult& res) const = 0;
+    virtual void setResultSellNoTrust(OperationResult& res) const = 0;
+    virtual void setResultBuyNoTrust(OperationResult& res) const = 0;
+    virtual void setResultSellNotAuthorized(OperationResult& res) const = 0;
+    virtual void setResultBuyNotAuthorized(OperationResult& res) const = 0;
+    virtual void setResultLineFull(OperationResult& res) const = 0;
+    virtual void setResultUnderfunded(OperationResult& res) const = 0;
+    virtual void setResultCrossSelf(OperationResult& res) const = 0;
+    virtual void setResultSellNoIssuer(OperationResult& res) const = 0;
+    virtual void setResultBuyNoIssuer(OperationResult& res) const = 0;
+    virtual void setResultNotFound(OperationResult& res) const = 0;
+    virtual void setResultLowReserve(OperationResult& res) const = 0;
 };
 }

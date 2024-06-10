@@ -14,8 +14,8 @@ namespace stellar
 {
 
 BeginSponsoringFutureReservesOpFrame::BeginSponsoringFutureReservesOpFrame(
-    Operation const& op, OperationResult& res, TransactionFrame const& parentTx)
-    : OperationFrame(op, res, parentTx)
+    Operation const& op, TransactionFrame const& parentTx)
+    : OperationFrame(op, parentTx)
     , mBeginSponsoringFutureReservesOp(
           mOperation.body.beginSponsoringFutureReservesOp())
 {
@@ -30,7 +30,8 @@ BeginSponsoringFutureReservesOpFrame::isOpSupported(
 }
 
 void
-BeginSponsoringFutureReservesOpFrame::createSponsorship(AbstractLedgerTxn& ltx)
+BeginSponsoringFutureReservesOpFrame::createSponsorship(
+    AbstractLedgerTxn& ltx) const
 {
     InternalLedgerEntry gle(InternalLedgerEntryType::SPONSORSHIP);
     auto& se = gle.sponsorshipEntry();
@@ -46,7 +47,7 @@ BeginSponsoringFutureReservesOpFrame::createSponsorship(AbstractLedgerTxn& ltx)
 
 void
 BeginSponsoringFutureReservesOpFrame::createSponsorshipCounter(
-    AbstractLedgerTxn& ltx)
+    AbstractLedgerTxn& ltx) const
 {
     InternalLedgerEntry gle(InternalLedgerEntryType::SPONSORSHIP_COUNTER);
     auto& sce = gle.sponsorshipCounterEntry();
@@ -61,25 +62,26 @@ BeginSponsoringFutureReservesOpFrame::createSponsorshipCounter(
 }
 
 bool
-BeginSponsoringFutureReservesOpFrame::doApply(
-    AbstractLedgerTxn& ltx, MutableTransactionResultBase& txResult)
+BeginSponsoringFutureReservesOpFrame::doApply(AbstractLedgerTxn& ltx,
+                                              OperationResult& res) const
 {
     ZoneNamedN(applyZone, "BeginSponsoringFutureReservesOpFrame apply", true);
     if (loadSponsorship(ltx, mBeginSponsoringFutureReservesOp.sponsoredID))
     {
-        innerResult().code(BEGIN_SPONSORING_FUTURE_RESERVES_ALREADY_SPONSORED);
+        innerResult(res).code(
+            BEGIN_SPONSORING_FUTURE_RESERVES_ALREADY_SPONSORED);
         return false;
     }
 
     if (loadSponsorship(ltx, getSourceID()))
     {
-        innerResult().code(BEGIN_SPONSORING_FUTURE_RESERVES_RECURSIVE);
+        innerResult(res).code(BEGIN_SPONSORING_FUTURE_RESERVES_RECURSIVE);
         return false;
     }
     if (loadSponsorshipCounter(ltx,
                                mBeginSponsoringFutureReservesOp.sponsoredID))
     {
-        innerResult().code(BEGIN_SPONSORING_FUTURE_RESERVES_RECURSIVE);
+        innerResult(res).code(BEGIN_SPONSORING_FUTURE_RESERVES_RECURSIVE);
         return false;
     }
 
@@ -95,16 +97,17 @@ BeginSponsoringFutureReservesOpFrame::doApply(
         createSponsorshipCounter(ltx);
     }
 
-    innerResult().code(BEGIN_SPONSORING_FUTURE_RESERVES_SUCCESS);
+    innerResult(res).code(BEGIN_SPONSORING_FUTURE_RESERVES_SUCCESS);
     return true;
 }
 
 bool
-BeginSponsoringFutureReservesOpFrame::doCheckValid(uint32_t ledgerVersion)
+BeginSponsoringFutureReservesOpFrame::doCheckValid(uint32_t ledgerVersion,
+                                                   OperationResult& res) const
 {
     if (mBeginSponsoringFutureReservesOp.sponsoredID == getSourceID())
     {
-        innerResult().code(BEGIN_SPONSORING_FUTURE_RESERVES_MALFORMED);
+        innerResult(res).code(BEGIN_SPONSORING_FUTURE_RESERVES_MALFORMED);
         return false;
     }
     return true;

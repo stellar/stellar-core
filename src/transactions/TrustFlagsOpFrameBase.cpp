@@ -12,9 +12,8 @@ namespace stellar
 {
 
 TrustFlagsOpFrameBase::TrustFlagsOpFrameBase(Operation const& op,
-                                             OperationResult& res,
                                              TransactionFrame const& parentTx)
-    : OperationFrame(op, res, parentTx)
+    : OperationFrame(op, parentTx)
 {
 }
 
@@ -25,24 +24,25 @@ TrustFlagsOpFrameBase::getThresholdLevel() const
 }
 
 bool
-TrustFlagsOpFrameBase::removeOffers(AbstractLedgerTxn& ltx)
+TrustFlagsOpFrameBase::removeOffers(AbstractLedgerTxn& ltx,
+                                    OperationResult& res) const
 {
     // Delete all offers owned by the trustor that are either buying or
     // selling the asset which had authorization revoked. Also redeem pool
     // share trustlines owned by the trustor that use this asset
-    auto res = removeOffersAndPoolShareTrustLines(
+    auto removeResult = removeOffersAndPoolShareTrustLines(
         ltx, getOpTrustor(), getOpAsset(), mParentTx.getSourceID(),
         mParentTx.getSeqNum(), getOpIndex());
 
-    switch (res)
+    switch (removeResult)
     {
     case RemoveResult::SUCCESS:
         break;
     case RemoveResult::LOW_RESERVE:
-        setResultLowReserve();
+        setResultLowReserve(res);
         return false;
     case RemoveResult::TOO_MANY_SPONSORING:
-        mResult.code(opTOO_MANY_SPONSORING);
+        res.code(opTOO_MANY_SPONSORING);
         return false;
     default:
         throw std::runtime_error("Unexpected RemoveResult");
@@ -52,7 +52,7 @@ TrustFlagsOpFrameBase::removeOffers(AbstractLedgerTxn& ltx)
 
 bool
 TrustFlagsOpFrameBase::doApply(AbstractLedgerTxn& ltx,
-                               MutableTransactionResultBase& txResult)
+                               OperationResult& res) const
 {
     ZoneNamedN(applyZone, "TrustFlagsOpFrameBase apply", true);
 
@@ -65,13 +65,13 @@ TrustFlagsOpFrameBase::doApply(AbstractLedgerTxn& ltx,
         // explicitly disallowed in doCheckValid.
         if (getOpTrustor() == getSourceID())
         {
-            setResultSelfNotAllowed();
+            setResultSelfNotAllowed(res);
             return false;
         }
     }
 
     bool authRevocable = true;
-    if (!isAuthRevocationValid(ltx, authRevocable, txResult))
+    if (!isAuthRevocationValid(ltx, authRevocable, res))
     {
         return false;
     }
@@ -81,7 +81,7 @@ TrustFlagsOpFrameBase::doApply(AbstractLedgerTxn& ltx,
         // Only relevant for AllowTrust, possible for version <= 2.
         // In SetTrustLineFlags, trust-to-self is explicitly disallowed
         // in doCheckValid.
-        setResultSuccess();
+        setResultSuccess(res);
         return true;
     }
 
@@ -94,12 +94,12 @@ TrustFlagsOpFrameBase::doApply(AbstractLedgerTxn& ltx,
         auto const trust = ltx.load(key);
         if (!trust)
         {
-            setResultNoTrustLine();
+            setResultNoTrustLine(res);
             return false;
         }
 
         // Calc expected flag value of this trustline.
-        if (!calcExpectedFlagValue(trust, expectedFlagValue))
+        if (!calcExpectedFlagValue(trust, expectedFlagValue, res))
         {
             return false;
         }
@@ -107,7 +107,7 @@ TrustFlagsOpFrameBase::doApply(AbstractLedgerTxn& ltx,
         // Check the auth revoc valid for the 2nd time, only needed for
         // AllowTrust
         if (!isRevocationToMaintainLiabilitiesValid(authRevocable, trust,
-                                                    expectedFlagValue))
+                                                    expectedFlagValue, res))
         {
             return false;
         }
@@ -122,7 +122,7 @@ TrustFlagsOpFrameBase::doApply(AbstractLedgerTxn& ltx,
     if (protocolVersionStartsFrom(ledgerVersion, ProtocolVersion::V_10) &&
         shouldRemoveOffers)
     {
-        if (!removeOffers(ltx))
+        if (!removeOffers(ltx, res))
         {
             return false;
         }
@@ -130,7 +130,7 @@ TrustFlagsOpFrameBase::doApply(AbstractLedgerTxn& ltx,
 
     // Set value
     setFlagValue(ltx, key, expectedFlagValue);
-    setResultSuccess();
+    setResultSuccess(res);
     return true;
 }
 

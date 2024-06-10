@@ -14,24 +14,22 @@ class SetOptionsOpFrame : public OperationFrame
 {
     ThresholdLevel getThresholdLevel() const override;
     SetOptionsResult&
-    innerResult()
+    innerResult(OperationResult& res) const
     {
-        return mResult.tr().setOptionsResult();
+        return res.tr().setOptionsResult();
     }
     SetOptionsOp const& mSetOptions;
 
-    bool addOrChangeSigner(AbstractLedgerTxn& ltx,
-                           MutableTransactionResultBase& txResult);
+    bool addOrChangeSigner(AbstractLedgerTxn& ltx, OperationResult& res) const;
     void deleteSigner(AbstractLedgerTxn& ltx, LedgerTxnHeader const& header,
-                      LedgerTxnEntry& sourceAccount);
+                      LedgerTxnEntry& sourceAccount) const;
 
   public:
-    SetOptionsOpFrame(Operation const& op, OperationResult& res,
-                      TransactionFrame const& parentTx);
+    SetOptionsOpFrame(Operation const& op, TransactionFrame const& parentTx);
 
-    bool doApply(AbstractLedgerTxn& ltx,
-                 MutableTransactionResultBase& txResult) override;
-    bool doCheckValid(uint32_t ledgerVersion) override;
+    bool doApply(AbstractLedgerTxn& ltx, OperationResult& res) const override;
+    bool doCheckValid(uint32_t ledgerVersion,
+                      OperationResult& res) const override;
 
     static SetOptionsResultCode
     getInnerCode(OperationResult const& res)

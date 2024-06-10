@@ -15,9 +15,8 @@
 namespace stellar
 {
 BumpSequenceOpFrame::BumpSequenceOpFrame(Operation const& op,
-                                         OperationResult& res,
                                          TransactionFrame const& parentTx)
-    : OperationFrame(op, res, parentTx)
+    : OperationFrame(op, parentTx)
     , mBumpSequenceOp(mOperation.body.bumpSequenceOp())
 {
 }
@@ -37,13 +36,12 @@ BumpSequenceOpFrame::isOpSupported(LedgerHeader const& header) const
 }
 
 bool
-BumpSequenceOpFrame::doApply(AbstractLedgerTxn& ltx,
-                             MutableTransactionResultBase& txResult)
+BumpSequenceOpFrame::doApply(AbstractLedgerTxn& ltx, OperationResult& res) const
 {
     ZoneNamedN(applyZone, "BumpSequenceOp apply", true);
     LedgerTxn ltxInner(ltx);
     auto header = ltxInner.loadHeader();
-    auto sourceAccountEntry = loadSourceAccount(ltxInner, header, txResult);
+    auto sourceAccountEntry = loadSourceAccount(ltxInner, header);
     maybeUpdateAccountOnLedgerSeqUpdate(header, sourceAccountEntry);
 
     auto& sourceAccount = sourceAccountEntry.current().data.account();
@@ -64,16 +62,17 @@ BumpSequenceOpFrame::doApply(AbstractLedgerTxn& ltx,
     }
 
     // Return successful results
-    innerResult().code(BUMP_SEQUENCE_SUCCESS);
+    innerResult(res).code(BUMP_SEQUENCE_SUCCESS);
     return true;
 }
 
 bool
-BumpSequenceOpFrame::doCheckValid(uint32_t ledgerVersion)
+BumpSequenceOpFrame::doCheckValid(uint32_t ledgerVersion,
+                                  OperationResult& res) const
 {
     if (mBumpSequenceOp.bumpTo < 0)
     {
-        innerResult().code(BUMP_SEQUENCE_BAD_SEQ);
+        innerResult(res).code(BUMP_SEQUENCE_BAD_SEQ);
         return false;
     }
     return true;

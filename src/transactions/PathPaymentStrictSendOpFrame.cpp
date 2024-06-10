@@ -16,8 +16,8 @@ namespace stellar
 {
 
 PathPaymentStrictSendOpFrame::PathPaymentStrictSendOpFrame(
-    Operation const& op, OperationResult& res, TransactionFrame const& parentTx)
-    : PathPaymentOpFrameBase(op, res, parentTx)
+    Operation const& op, TransactionFrame const& parentTx)
+    : PathPaymentOpFrameBase(op, parentTx)
     , mPathPayment(mOperation.body.pathPaymentStrictSendOp())
 {
 }
@@ -31,7 +31,7 @@ PathPaymentStrictSendOpFrame::isOpSupported(LedgerHeader const& header) const
 
 bool
 PathPaymentStrictSendOpFrame::doApply(AbstractLedgerTxn& ltx,
-                                      MutableTransactionResultBase& txResult)
+                                      OperationResult& res) const
 {
     ZoneNamedN(applyZone, "PathPaymentStrictSendOp apply", true);
     std::string pathStr = assetToString(getSourceAsset());
@@ -44,19 +44,19 @@ PathPaymentStrictSendOpFrame::doApply(AbstractLedgerTxn& ltx,
     pathStr += assetToString(getDestAsset());
     ZoneTextV(applyZone, pathStr.c_str(), pathStr.size());
 
-    setResultSuccess();
+    setResultSuccess(res);
 
     bool bypassIssuerCheck = shouldBypassIssuerCheck(mPathPayment.path);
     if (!bypassIssuerCheck)
     {
         if (!stellar::loadAccountWithoutRecord(ltx, getDestID()))
         {
-            setResultNoDest();
+            setResultNoDest(res);
             return false;
         }
     }
 
-    if (!updateSourceBalance(ltx, txResult, mPathPayment.sendAmount,
+    if (!updateSourceBalance(ltx, res, mPathPayment.sendAmount,
                              bypassIssuerCheck, true))
     {
         return false;
@@ -78,12 +78,12 @@ PathPaymentStrictSendOpFrame::doApply(AbstractLedgerTxn& ltx,
             continue;
         }
 
-        if (!checkIssuer(ltx, recvAsset))
+        if (!checkIssuer(ltx, recvAsset, res))
         {
             return false;
         }
 
-        size_t offersCrossed = innerResult().success().offers.size();
+        size_t offersCrossed = innerResult(res).success().offers.size();
         // offersCrossed will never be bigger than INT64_MAX because
         // - the machine would have run out of memory
         // - the limit, which cannot exceed INT64_MAX, should be enforced
@@ -95,7 +95,7 @@ PathPaymentStrictSendOpFrame::doApply(AbstractLedgerTxn& ltx,
         std::vector<ClaimAtom> offerTrail;
         if (!convert(ltx, maxOffersToCross, sendAsset, maxAmountSend,
                      amountSend, recvAsset, INT64_MAX, amountRecv,
-                     RoundingType::PATH_PAYMENT_STRICT_SEND, offerTrail))
+                     RoundingType::PATH_PAYMENT_STRICT_SEND, offerTrail, res))
         {
             return false;
         }
@@ -105,44 +105,45 @@ PathPaymentStrictSendOpFrame::doApply(AbstractLedgerTxn& ltx,
 
         // add offers that got taken on the way
         // insert in back to match the path's order
-        auto& offers = innerResult().success().offers;
+        auto& offers = innerResult(res).success().offers;
         offers.insert(offers.end(), offerTrail.begin(), offerTrail.end());
     }
 
     if (maxAmountSend < mPathPayment.destMin)
     { // make sure not over the max
-        setResultConstraintNotMet();
+        setResultConstraintNotMet(res);
         return false;
     }
 
-    if (!updateDestBalance(ltx, maxAmountSend, bypassIssuerCheck))
+    if (!updateDestBalance(ltx, maxAmountSend, bypassIssuerCheck, res))
     {
         return false;
     }
-    innerResult().success().last =
+    innerResult(res).success().last =
         SimplePaymentResult(getDestID(), getDestAsset(), maxAmountSend);
     return true;
 }
 
 bool
-PathPaymentStrictSendOpFrame::doCheckValid(uint32_t ledgerVersion)
+PathPaymentStrictSendOpFrame::doCheckValid(uint32_t ledgerVersion,
+                                           OperationResult& res) const
 {
     if (mPathPayment.sendAmount <= 0 || mPathPayment.destMin <= 0)
     {
-        setResultMalformed();
+        setResultMalformed(res);
         return false;
     }
     if (!isAssetValid(mPathPayment.sendAsset, ledgerVersion) ||
         !isAssetValid(mPathPayment.destAsset, ledgerVersion))
     {
-        setResultMalformed();
+        setResultMalformed(res);
         return false;
     }
     for (auto const& p : mPathPayment.path)
     {
         if (!isAssetValid(p, ledgerVersion))
         {
-            setResultMalformed();
+            setResultMalformed(res);
             return false;
         }
     }
@@ -182,81 +183,86 @@ PathPaymentStrictSendOpFrame::getPath() const
 }
 
 void
-PathPaymentStrictSendOpFrame::setResultSuccess()
+PathPaymentStrictSendOpFrame::setResultSuccess(OperationResult& res) const
 {
-    innerResult().code(PATH_PAYMENT_STRICT_SEND_SUCCESS);
+    innerResult(res).code(PATH_PAYMENT_STRICT_SEND_SUCCESS);
 }
 
 void
-PathPaymentStrictSendOpFrame::setResultMalformed()
+PathPaymentStrictSendOpFrame::setResultMalformed(OperationResult& res) const
 {
-    innerResult().code(PATH_PAYMENT_STRICT_SEND_MALFORMED);
+    innerResult(res).code(PATH_PAYMENT_STRICT_SEND_MALFORMED);
 }
 
 void
-PathPaymentStrictSendOpFrame::setResultUnderfunded()
+PathPaymentStrictSendOpFrame::setResultUnderfunded(OperationResult& res) const
 {
-    innerResult().code(PATH_PAYMENT_STRICT_SEND_UNDERFUNDED);
+    innerResult(res).code(PATH_PAYMENT_STRICT_SEND_UNDERFUNDED);
 }
 
 void
-PathPaymentStrictSendOpFrame::setResultSourceNoTrust()
+PathPaymentStrictSendOpFrame::setResultSourceNoTrust(OperationResult& res) const
 {
-    innerResult().code(PATH_PAYMENT_STRICT_SEND_SRC_NO_TRUST);
+    innerResult(res).code(PATH_PAYMENT_STRICT_SEND_SRC_NO_TRUST);
 }
 
 void
-PathPaymentStrictSendOpFrame::setResultSourceNotAuthorized()
+PathPaymentStrictSendOpFrame::setResultSourceNotAuthorized(
+    OperationResult& res) const
 {
-    innerResult().code(PATH_PAYMENT_STRICT_SEND_SRC_NOT_AUTHORIZED);
+    innerResult(res).code(PATH_PAYMENT_STRICT_SEND_SRC_NOT_AUTHORIZED);
 }
 
 void
-PathPaymentStrictSendOpFrame::setResultNoDest()
+PathPaymentStrictSendOpFrame::setResultNoDest(OperationResult& res) const
 {
-    innerResult().code(PATH_PAYMENT_STRICT_SEND_NO_DESTINATION);
+    innerResult(res).code(PATH_PAYMENT_STRICT_SEND_NO_DESTINATION);
 }
 
 void
-PathPaymentStrictSendOpFrame::setResultDestNoTrust()
+PathPaymentStrictSendOpFrame::setResultDestNoTrust(OperationResult& res) const
 {
-    innerResult().code(PATH_PAYMENT_STRICT_SEND_NO_TRUST);
+    innerResult(res).code(PATH_PAYMENT_STRICT_SEND_NO_TRUST);
 }
 
 void
-PathPaymentStrictSendOpFrame::setResultDestNotAuthorized()
+PathPaymentStrictSendOpFrame::setResultDestNotAuthorized(
+    OperationResult& res) const
 {
-    innerResult().code(PATH_PAYMENT_STRICT_SEND_NOT_AUTHORIZED);
+    innerResult(res).code(PATH_PAYMENT_STRICT_SEND_NOT_AUTHORIZED);
 }
 
 void
-PathPaymentStrictSendOpFrame::setResultLineFull()
+PathPaymentStrictSendOpFrame::setResultLineFull(OperationResult& res) const
 {
-    innerResult().code(PATH_PAYMENT_STRICT_SEND_LINE_FULL);
+    innerResult(res).code(PATH_PAYMENT_STRICT_SEND_LINE_FULL);
 }
 
 void
-PathPaymentStrictSendOpFrame::setResultNoIssuer(Asset const& asset)
+PathPaymentStrictSendOpFrame::setResultNoIssuer(Asset const& asset,
+                                                OperationResult& res) const
 {
-    innerResult().code(PATH_PAYMENT_STRICT_SEND_NO_ISSUER);
-    innerResult().noIssuer() = asset;
+    innerResult(res).code(PATH_PAYMENT_STRICT_SEND_NO_ISSUER);
+    innerResult(res).noIssuer() = asset;
 }
 
 void
-PathPaymentStrictSendOpFrame::setResultTooFewOffers()
+PathPaymentStrictSendOpFrame::setResultTooFewOffers(OperationResult& res) const
 {
-    innerResult().code(PATH_PAYMENT_STRICT_SEND_TOO_FEW_OFFERS);
+    innerResult(res).code(PATH_PAYMENT_STRICT_SEND_TOO_FEW_OFFERS);
 }
 
 void
-PathPaymentStrictSendOpFrame::setResultOfferCrossSelf()
+PathPaymentStrictSendOpFrame::setResultOfferCrossSelf(
+    OperationResult& res) const
 {
-    innerResult().code(PATH_PAYMENT_STRICT_SEND_OFFER_CROSS_SELF);
+    innerResult(res).code(PATH_PAYMENT_STRICT_SEND_OFFER_CROSS_SELF);
 }
 
 void
-PathPaymentStrictSendOpFrame::setResultConstraintNotMet()
+PathPaymentStrictSendOpFrame::setResultConstraintNotMet(
+    OperationResult& res) const
 {
-    innerResult().code(PATH_PAYMENT_STRICT_SEND_UNDER_DESTMIN);
+    innerResult(res).code(PATH_PAYMENT_STRICT_SEND_UNDER_DESTMIN);
 }
 }

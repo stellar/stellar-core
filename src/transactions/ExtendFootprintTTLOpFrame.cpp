@@ -34,8 +34,8 @@ struct ExtendFootprintTTLMetrics
 };
 
 ExtendFootprintTTLOpFrame::ExtendFootprintTTLOpFrame(
-    Operation const& op, OperationResult& res, TransactionFrame const& parentTx)
-    : OperationFrame(op, res, parentTx)
+    Operation const& op, TransactionFrame const& parentTx)
+    : OperationFrame(op, parentTx)
     , mExtendFootprintTTLOp(mOperation.body.extendFootprintTTLOp())
 {
 }
@@ -48,7 +48,7 @@ ExtendFootprintTTLOpFrame::isOpSupported(LedgerHeader const& header) const
 
 bool
 ExtendFootprintTTLOpFrame::doApply(AbstractLedgerTxn& ltx,
-                                   MutableTransactionResultBase& txResult)
+                                   OperationResult& res) const
 {
     throw std::runtime_error("ExtendFootprintTTLOpFrame::doApply needs Config");
 }
@@ -56,7 +56,8 @@ ExtendFootprintTTLOpFrame::doApply(AbstractLedgerTxn& ltx,
 bool
 ExtendFootprintTTLOpFrame::doApply(Application& app, AbstractLedgerTxn& ltx,
                                    Hash const& sorobanBasePrngSeed,
-                                   MutableTransactionResultBase& txResult)
+                                   OperationResult& res,
+                                   MutableTransactionResultBase& txResult) const
 {
     ZoneNamedN(applyZone, "ExtendFootprintTTLOpFrame apply", true);
 
@@ -114,7 +115,7 @@ ExtendFootprintTTLOpFrame::doApply(Application& app, AbstractLedgerTxn& ltx,
         if (!validateContractLedgerEntry(lk, entrySize, sorobanConfig,
                                          app.getConfig(), mParentTx, txResult))
         {
-            innerResult().code(EXTEND_FOOTPRINT_TTL_RESOURCE_LIMIT_EXCEEDED);
+            innerResult(res).code(EXTEND_FOOTPRINT_TTL_RESOURCE_LIMIT_EXCEEDED);
             return false;
         }
 
@@ -126,7 +127,7 @@ ExtendFootprintTTLOpFrame::doApply(Application& app, AbstractLedgerTxn& ltx,
                 {makeU64SCVal(metrics.mLedgerReadByte),
                  makeU64SCVal(resources.readBytes)});
 
-            innerResult().code(EXTEND_FOOTPRINT_TTL_RESOURCE_LIMIT_EXCEEDED);
+            innerResult(res).code(EXTEND_FOOTPRINT_TTL_RESOURCE_LIMIT_EXCEEDED);
             return false;
         }
 
@@ -153,22 +154,23 @@ ExtendFootprintTTLOpFrame::doApply(Application& app, AbstractLedgerTxn& ltx,
                                                     sorobanConfig,
                                                     app.getConfig(), mParentTx))
     {
-        innerResult().code(EXTEND_FOOTPRINT_TTL_INSUFFICIENT_REFUNDABLE_FEE);
+        innerResult(res).code(EXTEND_FOOTPRINT_TTL_INSUFFICIENT_REFUNDABLE_FEE);
         return false;
     }
-    innerResult().code(EXTEND_FOOTPRINT_TTL_SUCCESS);
+    innerResult(res).code(EXTEND_FOOTPRINT_TTL_SUCCESS);
     return true;
 }
 
 bool
 ExtendFootprintTTLOpFrame::doCheckValid(
     SorobanNetworkConfig const& networkConfig, Config const& appConfig,
-    uint32_t ledgerVersion, MutableTransactionResultBase& txResult)
+    uint32_t ledgerVersion, OperationResult& res,
+    MutableTransactionResultBase& txResult) const
 {
     auto const& footprint = mParentTx.sorobanResources().footprint;
     if (!footprint.readWrite.empty())
     {
-        innerResult().code(EXTEND_FOOTPRINT_TTL_MALFORMED);
+        innerResult(res).code(EXTEND_FOOTPRINT_TTL_MALFORMED);
         txResult.pushValidationTimeDiagnosticError(
             appConfig, SCE_STORAGE, SCEC_INVALID_INPUT,
             "read-write footprint must be empty for ExtendFootprintTTL "
@@ -181,7 +183,7 @@ ExtendFootprintTTLOpFrame::doCheckValid(
     {
         if (!isSorobanEntry(lk))
         {
-            innerResult().code(EXTEND_FOOTPRINT_TTL_MALFORMED);
+            innerResult(res).code(EXTEND_FOOTPRINT_TTL_MALFORMED);
             txResult.pushValidationTimeDiagnosticError(
                 appConfig, SCE_STORAGE, SCEC_INVALID_INPUT,
                 "only entries with TTL (contract data or code entries) can "
@@ -194,7 +196,7 @@ ExtendFootprintTTLOpFrame::doCheckValid(
     if (mExtendFootprintTTLOp.extendTo >
         networkConfig.stateArchivalSettings().maxEntryTTL - 1)
     {
-        innerResult().code(EXTEND_FOOTPRINT_TTL_MALFORMED);
+        innerResult(res).code(EXTEND_FOOTPRINT_TTL_MALFORMED);
         txResult.pushValidationTimeDiagnosticError(
             appConfig, SCE_STORAGE, SCEC_INVALID_INPUT,
             "TTL extension is too large: {} > {}",
@@ -210,7 +212,8 @@ ExtendFootprintTTLOpFrame::doCheckValid(
 }
 
 bool
-ExtendFootprintTTLOpFrame::doCheckValid(uint32_t ledgerVersion)
+ExtendFootprintTTLOpFrame::doCheckValid(uint32_t ledgerVersion,
+                                        OperationResult& res) const
 {
     throw std::runtime_error(
         "ExtendFootprintTTLOpFrame::doCheckValid needs Config");

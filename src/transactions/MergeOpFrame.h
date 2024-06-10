@@ -14,29 +14,26 @@ class LedgerTxnHeader;
 class MergeOpFrame : public OperationFrame
 {
     AccountMergeResult&
-    innerResult()
+    innerResult(OperationResult& res) const
     {
-        return mResult.tr().accountMergeResult();
+        return res.tr().accountMergeResult();
     }
 
-    bool doApplyBeforeV16(AbstractLedgerTxn& ltx,
-                          MutableTransactionResultBase& txResult);
-    bool doApplyFromV16(AbstractLedgerTxn& ltx,
-                        MutableTransactionResultBase& txResult);
+    bool doApplyBeforeV16(AbstractLedgerTxn& ltx, OperationResult& res) const;
+    bool doApplyFromV16(AbstractLedgerTxn& ltx, OperationResult& res) const;
 
     ThresholdLevel getThresholdLevel() const override;
 
     virtual bool isSeqnumTooFar(AbstractLedgerTxn& ltx,
                                 LedgerTxnHeader const& header,
-                                AccountEntry const& sourceAccount);
+                                AccountEntry const& sourceAccount) const;
 
   public:
-    MergeOpFrame(Operation const& op, OperationResult& res,
-                 TransactionFrame const& parentTx);
+    MergeOpFrame(Operation const& op, TransactionFrame const& parentTx);
 
-    bool doApply(AbstractLedgerTxn& ltx,
-                 MutableTransactionResultBase& txResult) override;
-    bool doCheckValid(uint32_t ledgerVersion) override;
+    bool doApply(AbstractLedgerTxn& ltx, OperationResult& res) const override;
+    bool doCheckValid(uint32_t ledgerVersion,
+                      OperationResult& res) const override;
 
     static AccountMergeResultCode
     getInnerCode(OperationResult const& res)

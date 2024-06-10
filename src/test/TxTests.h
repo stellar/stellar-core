@@ -281,7 +281,6 @@ ChangeTrustAsset makeChangeTrustAssetPoolShare(Asset const& assetA,
                                                Asset const& assetB,
                                                int32_t fee);
 
-OperationFrame const& getFirstOperationFrame(TransactionTestFramePtr tx);
 OperationResult const& getFirstResult(TransactionTestFramePtr tx);
 OperationResultCode getFirstResultCode(TransactionTestFramePtr tx);
 

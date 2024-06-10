@@ -13,8 +13,8 @@ namespace stellar
 {
 
 EndSponsoringFutureReservesOpFrame::EndSponsoringFutureReservesOpFrame(
-    Operation const& op, OperationResult& res, TransactionFrame const& parentTx)
-    : OperationFrame(op, res, parentTx)
+    Operation const& op, TransactionFrame const& parentTx)
+    : OperationFrame(op, parentTx)
 {
 }
 
@@ -27,15 +27,15 @@ EndSponsoringFutureReservesOpFrame::isOpSupported(
 }
 
 bool
-EndSponsoringFutureReservesOpFrame::doApply(
-    AbstractLedgerTxn& ltx, MutableTransactionResultBase& txResult)
+EndSponsoringFutureReservesOpFrame::doApply(AbstractLedgerTxn& ltx,
+                                            OperationResult& res) const
 {
     ZoneNamedN(applyZone, "EndSponsoringFutureReservesOpFrame apply", true);
 
     auto sponsorship = loadSponsorship(ltx, getSourceID());
     if (!sponsorship)
     {
-        innerResult().code(END_SPONSORING_FUTURE_RESERVES_NOT_SPONSORED);
+        innerResult(res).code(END_SPONSORING_FUTURE_RESERVES_NOT_SPONSORED);
         return false;
     }
 
@@ -61,12 +61,13 @@ EndSponsoringFutureReservesOpFrame::doApply(
     }
 
     sponsorship.erase();
-    innerResult().code(END_SPONSORING_FUTURE_RESERVES_SUCCESS);
+    innerResult(res).code(END_SPONSORING_FUTURE_RESERVES_SUCCESS);
     return true;
 }
 
 bool
-EndSponsoringFutureReservesOpFrame::doCheckValid(uint32_t ledgerVersion)
+EndSponsoringFutureReservesOpFrame::doCheckValid(uint32_t ledgerVersion,
+                                                 OperationResult& res) const
 {
     return true;
 }

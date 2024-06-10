@@ -26,22 +26,21 @@ namespace stellar
 using namespace std;
 
 CreateAccountOpFrame::CreateAccountOpFrame(Operation const& op,
-                                           OperationResult& res,
                                            TransactionFrame const& parentTx)
-    : OperationFrame(op, res, parentTx)
+    : OperationFrame(op, parentTx)
     , mCreateAccount(mOperation.body.createAccountOp())
 {
 }
 
 bool
 CreateAccountOpFrame::doApplyBeforeV14(AbstractLedgerTxn& ltx,
-                                       MutableTransactionResultBase& txResult)
+                                       OperationResult& res) const
 {
     auto header = ltx.loadHeader();
     if (mCreateAccount.startingBalance <
         getMinBalance(header.current(), 0, 0, 0))
     { // not over the minBalance to make an account
-        innerResult().code(CREATE_ACCOUNT_LOW_RESERVE);
+        innerResult(res).code(CREATE_ACCOUNT_LOW_RESERVE);
         return false;
     }
 
@@ -50,11 +49,11 @@ CreateAccountOpFrame::doApplyBeforeV14(AbstractLedgerTxn& ltx,
                                   ProtocolVersion::V_8) ||
         (bool)ltx.loadWithoutRecord(accountKey(getSourceID()));
 
-    auto sourceAccount = loadSourceAccount(ltx, header, txResult);
+    auto sourceAccount = loadSourceAccount(ltx, header);
     if (getAvailableBalance(header, sourceAccount) <
         mCreateAccount.startingBalance)
     { // they don't have enough to send
-        innerResult().code(CREATE_ACCOUNT_UNDERFUNDED);
+        innerResult(res).code(CREATE_ACCOUNT_UNDERFUNDED);
         return false;
     }
 
@@ -76,13 +75,13 @@ CreateAccountOpFrame::doApplyBeforeV14(AbstractLedgerTxn& ltx,
     newAccount.balance = mCreateAccount.startingBalance;
     ltx.create(newAccountEntry);
 
-    innerResult().code(CREATE_ACCOUNT_SUCCESS);
+    innerResult(res).code(CREATE_ACCOUNT_SUCCESS);
     return true;
 }
 
 bool
 CreateAccountOpFrame::doApplyFromV14(AbstractLedgerTxn& ltxOuter,
-                                     MutableTransactionResultBase& txResult)
+                                     OperationResult& res) const
 {
     LedgerTxn ltx(ltxOuter);
     auto header = ltx.loadHeader();
@@ -102,13 +101,13 @@ CreateAccountOpFrame::doApplyFromV14(AbstractLedgerTxn& ltxOuter,
     case SponsorshipResult::SUCCESS:
         break;
     case SponsorshipResult::LOW_RESERVE:
-        innerResult().code(CREATE_ACCOUNT_LOW_RESERVE);
+        innerResult(res).code(CREATE_ACCOUNT_LOW_RESERVE);
         return false;
     case SponsorshipResult::TOO_MANY_SUBENTRIES:
-        mResult.code(opTOO_MANY_SUBENTRIES);
+        res.code(opTOO_MANY_SUBENTRIES);
         return false;
     case SponsorshipResult::TOO_MANY_SPONSORING:
-        mResult.code(opTOO_MANY_SPONSORING);
+        res.code(opTOO_MANY_SPONSORING);
         return false;
     case SponsorshipResult::TOO_MANY_SPONSORED:
         // This is impossible right now because there is a limit on sub
@@ -122,7 +121,7 @@ CreateAccountOpFrame::doApplyFromV14(AbstractLedgerTxn& ltxOuter,
     if (getAvailableBalance(header, sourceAccount) <
         mCreateAccount.startingBalance)
     { // they don't have enough to send
-        innerResult().code(CREATE_ACCOUNT_UNDERFUNDED);
+        innerResult(res).code(CREATE_ACCOUNT_UNDERFUNDED);
         return false;
     }
 
@@ -131,7 +130,7 @@ CreateAccountOpFrame::doApplyFromV14(AbstractLedgerTxn& ltxOuter,
     releaseAssertOrThrow(ok);
 
     ltx.create(newAccountEntry);
-    innerResult().code(CREATE_ACCOUNT_SUCCESS);
+    innerResult(res).code(CREATE_ACCOUNT_SUCCESS);
 
     ltx.commit();
     return true;
@@ -139,40 +138,41 @@ CreateAccountOpFrame::doApplyFromV14(AbstractLedgerTxn& ltxOuter,
 
 bool
 CreateAccountOpFrame::doApply(AbstractLedgerTxn& ltx,
-                              MutableTransactionResultBase& txResult)
+                              OperationResult& res) const
 {
     ZoneNamedN(applyZone, "CreateAccountOp apply", true);
     if (stellar::loadAccount(ltx, mCreateAccount.destination))
     {
-        innerResult().code(CREATE_ACCOUNT_ALREADY_EXIST);
+        innerResult(res).code(CREATE_ACCOUNT_ALREADY_EXIST);
         return false;
     }
 
     if (protocolVersionIsBefore(ltx.loadHeader().current().ledgerVersion,
                                 ProtocolVersion::V_14))
     {
-        return doApplyBeforeV14(ltx, txResult);
+        return doApplyBeforeV14(ltx, res);
     }
     else
     {
-        return doApplyFromV14(ltx, txResult);
+        return doApplyFromV14(ltx, res);
     }
 }
 
 bool
-CreateAccountOpFrame::doCheckValid(uint32_t ledgerVersion)
+CreateAccountOpFrame::doCheckValid(uint32_t ledgerVersion,
+                                   OperationResult& res) const
 {
     int64_t minStartingBalance =
         protocolVersionStartsFrom(ledgerVersion, ProtocolVersion::V_14) ? 0 : 1;
     if (mCreateAccount.startingBalance < minStartingBalance)
     {
-        innerResult().code(CREATE_ACCOUNT_MALFORMED);
+        innerResult(res).code(CREATE_ACCOUNT_MALFORMED);
         return false;
     }
 
     if (mCreateAccount.destination == getSourceID())
     {
-        innerResult().code(CREATE_ACCOUNT_MALFORMED);
+        innerResult(res).code(CREATE_ACCOUNT_MALFORMED);
         return false;
     }
 

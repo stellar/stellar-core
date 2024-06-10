@@ -15,23 +15,17 @@ namespace stellar
 MutableTransactionResult::MutableTransactionResult(TransactionFrame const& tx,
                                                    int64_t feeCharged)
 {
-    auto const& envelope = tx.getEnvelope();
-    auto const& ops = envelope.type() == ENVELOPE_TYPE_TX_V0
-                          ? envelope.v0().tx.operations
-                          : envelope.v1().tx.operations;
+    auto const& ops = tx.getOperations();
 
     // pre-allocates the results for all operations
     mTxResult.result.code(txSUCCESS);
     mTxResult.result.results().resize(static_cast<uint32_t>(ops.size()));
 
-    mOpFrames.clear();
-
-    // bind operations to the results
+    // Initialize op results to the correct op type
     for (size_t i = 0; i < ops.size(); i++)
     {
-        mOpFrames.push_back(
-            OperationFrame::makeHelper(ops[i], mTxResult.result.results()[i],
-                                       tx, static_cast<uint32_t>(i)));
+        auto const& opFrame = ops[i];
+        opFrame->resetResultSuccess(mTxResult.result.results()[i]);
     }
 
     mTxResult.feeCharged = feeCharged;
@@ -139,10 +133,10 @@ MutableTransactionResult::setSorobanFeeRefund(int64_t fee)
     mSorobanExtension->mFeeRefund = fee;
 }
 
-std::vector<std::shared_ptr<OperationFrame>> const&
-MutableTransactionResult::getOpFrames() const
+OperationResult&
+MutableTransactionResult::getOpResultAt(size_t index)
 {
-    return mOpFrames;
+    return mTxResult.result.results().at(index);
 }
 
 xdr::xvector<DiagnosticEvent> const&
@@ -157,12 +151,6 @@ MutableTransactionResult::getDiagnosticEvents() const
     {
         return empty;
     }
-}
-
-std::shared_ptr<InternalLedgerEntry const>&
-MutableTransactionResult::getCachedAccountPtr()
-{
-    return mCachedAccount;
 }
 
 void
@@ -368,22 +356,16 @@ FeeBumpMutableTransactionResult::setResultCode(TransactionResultCode code)
     getResult().result.code(code);
 }
 
-std::vector<std::shared_ptr<OperationFrame>> const&
-FeeBumpMutableTransactionResult::getOpFrames() const
+OperationResult&
+FeeBumpMutableTransactionResult::getOpResultAt(size_t index)
 {
-    return mInnerResultPayload->getOpFrames();
+    return mTxResult.result.results().at(index);
 }
 
 xdr::xvector<DiagnosticEvent> const&
 FeeBumpMutableTransactionResult::getDiagnosticEvents() const
 {
     return mInnerResultPayload->getDiagnosticEvents();
-}
-
-std::shared_ptr<InternalLedgerEntry const>&
-FeeBumpMutableTransactionResult::getCachedAccountPtr()
-{
-    return mInnerResultPayload->getCachedAccountPtr();
 }
 
 bool

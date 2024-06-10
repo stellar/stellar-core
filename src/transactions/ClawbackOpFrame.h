@@ -14,22 +14,21 @@ class AbstractLedgerTxn;
 class ClawbackOpFrame : public OperationFrame
 {
     ClawbackResult&
-    innerResult()
+    innerResult(OperationResult& res) const
     {
-        return mResult.tr().clawbackResult();
+        return res.tr().clawbackResult();
     }
 
     ClawbackOp const& mClawback;
 
   public:
-    ClawbackOpFrame(Operation const& op, OperationResult& res,
-                    TransactionFrame const& parentTx);
+    ClawbackOpFrame(Operation const& op, TransactionFrame const& parentTx);
 
     bool isOpSupported(LedgerHeader const& header) const override;
 
-    bool doApply(AbstractLedgerTxn& ltx,
-                 MutableTransactionResultBase& txResult) override;
-    bool doCheckValid(uint32_t ledgerVersion) override;
+    bool doApply(AbstractLedgerTxn& ltx, OperationResult& res) const override;
+    bool doCheckValid(uint32_t ledgerVersion,
+                      OperationResult& res) const override;
     void
     insertLedgerKeysToPrefetch(UnorderedSet<LedgerKey>& keys) const override;
 

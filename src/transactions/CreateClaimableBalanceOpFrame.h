@@ -13,27 +13,27 @@ class AbstractLedgerTxn;
 
 class CreateClaimableBalanceOpFrame : public OperationFrame
 {
-    virtual Hash getBalanceID();
+    virtual Hash getBalanceID() const;
 
     CreateClaimableBalanceResult&
-    innerResult()
+    innerResult(OperationResult& res) const
     {
-        return mResult.tr().createClaimableBalanceResult();
+        return res.tr().createClaimableBalanceResult();
     }
     CreateClaimableBalanceOp const& mCreateClaimableBalance;
 
     uint32_t mOpIndex;
 
   public:
-    CreateClaimableBalanceOpFrame(Operation const& op, OperationResult& res,
+    CreateClaimableBalanceOpFrame(Operation const& op,
                                   TransactionFrame const& parentTx,
                                   uint32_t index);
 
     bool isOpSupported(LedgerHeader const& header) const override;
 
-    bool doApply(AbstractLedgerTxn& ltx,
-                 MutableTransactionResultBase& txResult) override;
-    bool doCheckValid(uint32_t ledgerVersion) override;
+    bool doApply(AbstractLedgerTxn& ltx, OperationResult& res) const override;
+    bool doCheckValid(uint32_t ledgerVersion,
+                      OperationResult& res) const override;
     void
     insertLedgerKeysToPrefetch(UnorderedSet<LedgerKey>& keys) const override;
 

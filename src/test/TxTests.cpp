@@ -1598,22 +1598,16 @@ liquidityPoolWithdraw(PoolID const& poolID, int64_t amount, int64_t minAmountA,
     return op;
 }
 
-OperationFrame const&
-getFirstOperationFrame(TransactionTestFramePtr tx)
-{
-    return *(tx->getOperations()[0]);
-}
-
 OperationResult const&
 getFirstResult(TransactionTestFramePtr tx)
 {
-    return getFirstOperationFrame(tx).getResult();
+    return tx->getOperationResultAt(0);
 }
 
 OperationResultCode
 getFirstResultCode(TransactionTestFramePtr tx)
 {
-    return getFirstOperationFrame(tx).getResultCode();
+    return tx->getOperationResultAt(0).code();
 }
 
 void

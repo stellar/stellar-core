@@ -28,12 +28,9 @@ class MutableTransactionResultBase : public NonMovableOrCopyable
     virtual TransactionResultCode getResultCode() const = 0;
     virtual void setResultCode(TransactionResultCode code) = 0;
 
-    virtual std::vector<std::shared_ptr<OperationFrame>> const&
-    getOpFrames() const = 0;
+    virtual OperationResult& getOpResultAt(size_t index) = 0;
     virtual xdr::xvector<DiagnosticEvent> const&
     getDiagnosticEvents() const = 0;
-    virtual std::shared_ptr<InternalLedgerEntry const>&
-    getCachedAccountPtr() = 0;
 
     virtual bool consumeRefundableSorobanResources(
         uint32_t contractEventSizeBytes, int64_t rentFee,
@@ -85,10 +82,7 @@ class MutableTransactionResult : public MutableTransactionResultBase
     };
 
     TransactionResult mTxResult;
-    std::vector<std::shared_ptr<OperationFrame>> mOpFrames;
     std::optional<SorobanData> mSorobanExtension;
-
-    std::shared_ptr<InternalLedgerEntry const> mCachedAccount;
 
     MutableTransactionResult(TransactionFrame const& tx, int64_t feeCharged);
 
@@ -108,10 +102,8 @@ class MutableTransactionResult : public MutableTransactionResultBase
     TransactionResultCode getResultCode() const override;
     void setResultCode(TransactionResultCode code) override;
 
-    std::vector<std::shared_ptr<OperationFrame>> const&
-    getOpFrames() const override;
+    OperationResult& getOpResultAt(size_t index) override;
     xdr::xvector<DiagnosticEvent> const& getDiagnosticEvents() const override;
-    std::shared_ptr<InternalLedgerEntry const>& getCachedAccountPtr() override;
 
     bool consumeRefundableSorobanResources(
         uint32_t contractEventSizeBytes, int64_t rentFee,
@@ -175,10 +167,8 @@ class FeeBumpMutableTransactionResult : public MutableTransactionResultBase
     TransactionResultCode getResultCode() const override;
     void setResultCode(TransactionResultCode code) override;
 
-    std::vector<std::shared_ptr<OperationFrame>> const&
-    getOpFrames() const override;
+    OperationResult& getOpResultAt(size_t index) override;
     xdr::xvector<DiagnosticEvent> const& getDiagnosticEvents() const override;
-    std::shared_ptr<InternalLedgerEntry const>& getCachedAccountPtr() override;
 
     bool consumeRefundableSorobanResources(
         uint32_t contractEventSizeBytes, int64_t rentFee,

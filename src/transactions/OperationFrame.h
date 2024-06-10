@@ -8,6 +8,7 @@
 #include "ledger/LedgerManager.h"
 #include "ledger/NetworkConfig.h"
 #include "overlay/StellarXDR.h"
+#include "transactions/MutableTransactionResult.h"
 #include "util/types.h"
 #include <medida/metrics_registry.h>
 #include <memory>
@@ -40,18 +41,21 @@ class OperationFrame
   protected:
     Operation const& mOperation;
     TransactionFrame const& mParentTx;
-    OperationResult& mResult;
 
-    virtual bool doCheckValid(SorobanNetworkConfig const& config,
+    // TODO: replace MutableTransactionResultBase with Soroban diagnostic state
+    virtual bool doCheckValid(SorobanNetworkConfig const& networkConfig,
                               Config const& appConfig, uint32_t ledgerVersion,
-                              MutableTransactionResultBase& txResult);
-    virtual bool doCheckValid(uint32_t ledgerVersion) = 0;
+                              OperationResult& res,
+                              MutableTransactionResultBase& txResult) const;
+    virtual bool doCheckValid(uint32_t ledgerVersion,
+                              OperationResult& res) const = 0;
 
+    // TODO: replace MutableTransactionResultBase with Soroban diagnostic state
     virtual bool doApply(Application& app, AbstractLedgerTxn& ltx,
-                         Hash const& sorobanBasePrngSeed,
-                         MutableTransactionResultBase& txResult);
+                         Hash const& sorobanBasePrngSeed, OperationResult& res,
+                         MutableTransactionResultBase& txResult) const;
     virtual bool doApply(AbstractLedgerTxn& ltx,
-                         MutableTransactionResultBase& txResult) = 0;
+                         OperationResult& res) const = 0;
 
     // returns the threshold this operation requires
     virtual ThresholdLevel getThresholdLevel() const;
@@ -61,43 +65,36 @@ class OperationFrame
     virtual bool isOpSupported(LedgerHeader const& header) const;
 
     LedgerTxnEntry loadSourceAccount(AbstractLedgerTxn& ltx,
-                                     LedgerTxnHeader const& header,
-                                     MutableTransactionResultBase& txResult);
-
-    // given an operation, gives a default value representing "success" for the
-    // result
-    void resetResultSuccess();
+                                     LedgerTxnHeader const& header) const;
 
   public:
     static std::shared_ptr<OperationFrame>
-    makeHelper(Operation const& op, OperationResult& res,
-               TransactionFrame const& parentTx, uint32_t index);
+    makeHelper(Operation const& op, TransactionFrame const& parentTx,
+               uint32_t index);
 
-    OperationFrame(Operation const& op, OperationResult& res,
-                   TransactionFrame const& parentTx);
+    OperationFrame(Operation const& op, TransactionFrame const& parentTx);
     OperationFrame(OperationFrame const&) = delete;
     virtual ~OperationFrame() = default;
 
+    // given an operation result, gives a default value representing "success"
+    void resetResultSuccess(OperationResult& res) const;
+
     bool checkSignature(SignatureChecker& signatureChecker,
-                        AbstractLedgerTxn& ltx,
-                        MutableTransactionResultBase& txResult, bool forApply);
+                        AbstractLedgerTxn& ltx, OperationResult& res,
+                        bool forApply) const;
 
     AccountID getSourceID() const;
 
-    OperationResult&
-    getResult() const
-    {
-        return mResult;
-    }
-    OperationResultCode getResultCode() const;
-
     bool checkValid(Application& app, SignatureChecker& signatureChecker,
                     AbstractLedgerTxn& ltxOuter, bool forApply,
-                    MutableTransactionResultBase& txResult);
+                    OperationResult& res,
+                    MutableTransactionResultBase& txResult) const;
 
+    // TODO: replace MutableTransactionResultBase with Soroban diagnostic state
     bool apply(Application& app, SignatureChecker& signatureChecker,
                AbstractLedgerTxn& ltx, Hash const& sorobanBasePrngSeed,
-               MutableTransactionResultBase& txResult);
+               OperationResult& res,
+               MutableTransactionResultBase& txResult) const;
 
     Operation const&
     getOperation() const

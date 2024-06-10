@@ -49,7 +49,7 @@ class TransactionTestFrame : public TransactionFrameBase
     void addSignature(SecretKey const& secretKey);
     void addSignature(DecoratedSignature const& signature);
 
-    std::vector<std::shared_ptr<OperationFrame>> const& getOperations() const;
+    OperationResult& getOperationResultAt(size_t i) const;
 
     xdr::xvector<DiagnosticEvent> const& getDiagnosticEvents() const;
 

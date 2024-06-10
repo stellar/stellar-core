@@ -15,22 +15,22 @@ class ClaimClaimableBalanceOpFrame : public OperationFrame
 {
     ThresholdLevel getThresholdLevel() const override;
     ClaimClaimableBalanceResult&
-    innerResult()
+    innerResult(OperationResult& res) const
     {
-        return mResult.tr().claimClaimableBalanceResult();
+        return res.tr().claimClaimableBalanceResult();
     }
 
     ClaimClaimableBalanceOp const& mClaimClaimableBalance;
 
   public:
-    ClaimClaimableBalanceOpFrame(Operation const& op, OperationResult& res,
+    ClaimClaimableBalanceOpFrame(Operation const& op,
                                  TransactionFrame const& parentTx);
 
     bool isOpSupported(LedgerHeader const& header) const override;
 
-    bool doApply(AbstractLedgerTxn& ltx,
-                 MutableTransactionResultBase& txResult) override;
-    bool doCheckValid(uint32_t ledgerVersion) override;
+    bool doApply(AbstractLedgerTxn& ltx, OperationResult& res) const override;
+    bool doCheckValid(uint32_t ledgerVersion,
+                      OperationResult& res) const override;
     void
     insertLedgerKeysToPrefetch(UnorderedSet<LedgerKey>& keys) const override;
 

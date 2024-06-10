@@ -14,23 +14,22 @@ class BeginSponsoringFutureReservesOpFrame : public OperationFrame
     bool isOpSupported(LedgerHeader const& header) const override;
 
     BeginSponsoringFutureReservesResult&
-    innerResult()
+    innerResult(OperationResult& res) const
     {
-        return mResult.tr().beginSponsoringFutureReservesResult();
+        return res.tr().beginSponsoringFutureReservesResult();
     }
     BeginSponsoringFutureReservesOp const& mBeginSponsoringFutureReservesOp;
 
-    void createSponsorship(AbstractLedgerTxn& ltx);
-    void createSponsorshipCounter(AbstractLedgerTxn& ltx);
+    void createSponsorship(AbstractLedgerTxn& ltx) const;
+    void createSponsorshipCounter(AbstractLedgerTxn& ltx) const;
 
   public:
     BeginSponsoringFutureReservesOpFrame(Operation const& op,
-                                         OperationResult& res,
                                          TransactionFrame const& parentTx);
 
-    bool doApply(AbstractLedgerTxn& ltx,
-                 MutableTransactionResultBase& txResult) override;
-    bool doCheckValid(uint32_t ledgerVersion) override;
+    bool doApply(AbstractLedgerTxn& ltx, OperationResult& res) const override;
+    bool doCheckValid(uint32_t ledgerVersion,
+                      OperationResult& res) const override;
 
     static BeginSponsoringFutureReservesResultCode
     getInnerCode(OperationResult const& res)

@@ -20,9 +20,9 @@ using namespace soci;
 namespace stellar
 {
 
-MergeOpFrame::MergeOpFrame(Operation const& op, OperationResult& res,
+MergeOpFrame::MergeOpFrame(Operation const& op,
                            TransactionFrame const& parentTx)
-    : OperationFrame(op, res, parentTx)
+    : OperationFrame(op, parentTx)
 {
 }
 
@@ -35,7 +35,7 @@ MergeOpFrame::getThresholdLevel() const
 bool
 MergeOpFrame::isSeqnumTooFar(AbstractLedgerTxn& ltx,
                              LedgerTxnHeader const& header,
-                             AccountEntry const& sourceAccount)
+                             AccountEntry const& sourceAccount) const
 {
     // don't allow the account to be merged if recreating it would cause it
     // to jump backwards
@@ -61,25 +61,24 @@ MergeOpFrame::isSeqnumTooFar(AbstractLedgerTxn& ltx,
 // make sure the we delete all the trustlines
 // move the XLM to the new account
 bool
-MergeOpFrame::doApply(AbstractLedgerTxn& ltx,
-                      MutableTransactionResultBase& txResult)
+MergeOpFrame::doApply(AbstractLedgerTxn& ltx, OperationResult& res) const
 {
     ZoneNamedN(applyZone, "MergeOp apply", true);
 
     if (protocolVersionIsBefore(ltx.loadHeader().current().ledgerVersion,
                                 ProtocolVersion::V_16))
     {
-        return doApplyBeforeV16(ltx, txResult);
+        return doApplyBeforeV16(ltx, res);
     }
     else
     {
-        return doApplyFromV16(ltx, txResult);
+        return doApplyFromV16(ltx, res);
     }
 }
 
 bool
 MergeOpFrame::doApplyBeforeV16(AbstractLedgerTxn& ltx,
-                               MutableTransactionResultBase& txResult)
+                               OperationResult& res) const
 {
     auto header = ltx.loadHeader();
 
@@ -87,7 +86,7 @@ MergeOpFrame::doApplyBeforeV16(AbstractLedgerTxn& ltx,
         stellar::loadAccount(ltx, toAccountID(mOperation.body.destination()));
     if (!otherAccount)
     {
-        innerResult().code(ACCOUNT_MERGE_NO_ACCOUNT);
+        innerResult(res).code(ACCOUNT_MERGE_NO_ACCOUNT);
         return false;
     }
 
@@ -103,7 +102,7 @@ MergeOpFrame::doApplyBeforeV16(AbstractLedgerTxn& ltx,
         auto thisAccount = ltx.loadWithoutRecord(key);
         if (!thisAccount)
         {
-            innerResult().code(ACCOUNT_MERGE_NO_ACCOUNT);
+            innerResult(res).code(ACCOUNT_MERGE_NO_ACCOUNT);
             return false;
         }
 
@@ -114,7 +113,7 @@ MergeOpFrame::doApplyBeforeV16(AbstractLedgerTxn& ltx,
         }
     }
 
-    auto sourceAccountEntry = loadSourceAccount(ltx, header, txResult);
+    auto sourceAccountEntry = loadSourceAccount(ltx, header);
     auto const& sourceAccount = sourceAccountEntry.current().data.account();
     // Only set sourceBalance here if it wasn't set in the previous block
     if (protocolVersionIsBefore(header.current().ledgerVersion,
@@ -127,13 +126,13 @@ MergeOpFrame::doApplyBeforeV16(AbstractLedgerTxn& ltx,
 
     if (isImmutableAuth(sourceAccountEntry))
     {
-        innerResult().code(ACCOUNT_MERGE_IMMUTABLE_SET);
+        innerResult(res).code(ACCOUNT_MERGE_IMMUTABLE_SET);
         return false;
     }
 
     if (sourceAccount.numSubEntries != sourceAccount.signers.size())
     {
-        innerResult().code(ACCOUNT_MERGE_HAS_SUB_ENTRIES);
+        innerResult(res).code(ACCOUNT_MERGE_HAS_SUB_ENTRIES);
         return false;
     }
 
@@ -142,7 +141,7 @@ MergeOpFrame::doApplyBeforeV16(AbstractLedgerTxn& ltx,
     {
         if (isSeqnumTooFar(ltx, header, sourceAccount))
         {
-            innerResult().code(ACCOUNT_MERGE_SEQNUM_TOO_FAR);
+            innerResult(res).code(ACCOUNT_MERGE_SEQNUM_TOO_FAR);
             return false;
         }
     }
@@ -152,13 +151,13 @@ MergeOpFrame::doApplyBeforeV16(AbstractLedgerTxn& ltx,
     {
         if (loadSponsorshipCounter(ltx, getSourceID()))
         {
-            innerResult().code(ACCOUNT_MERGE_IS_SPONSOR);
+            innerResult(res).code(ACCOUNT_MERGE_IS_SPONSOR);
             return false;
         }
 
         if (getNumSponsoring(sourceAccountEntry.current()) > 0)
         {
-            innerResult().code(ACCOUNT_MERGE_IS_SPONSOR);
+            innerResult(res).code(ACCOUNT_MERGE_IS_SPONSOR);
             return false;
         }
 
@@ -173,7 +172,7 @@ MergeOpFrame::doApplyBeforeV16(AbstractLedgerTxn& ltx,
     // "success" path starts
     if (!addBalance(header, otherAccount, sourceBalance))
     {
-        innerResult().code(ACCOUNT_MERGE_DEST_FULL);
+        innerResult(res).code(ACCOUNT_MERGE_DEST_FULL);
         return false;
     }
 
@@ -181,28 +180,27 @@ MergeOpFrame::doApplyBeforeV16(AbstractLedgerTxn& ltx,
         ltx, header, sourceAccountEntry.current(), sourceAccountEntry);
     sourceAccountEntry.erase();
 
-    innerResult().code(ACCOUNT_MERGE_SUCCESS);
-    innerResult().sourceAccountBalance() = sourceBalance;
+    innerResult(res).code(ACCOUNT_MERGE_SUCCESS);
+    innerResult(res).sourceAccountBalance() = sourceBalance;
     return true;
 }
 
 bool
-MergeOpFrame::doApplyFromV16(AbstractLedgerTxn& ltx,
-                             MutableTransactionResultBase& txResult)
+MergeOpFrame::doApplyFromV16(AbstractLedgerTxn& ltx, OperationResult& res) const
 {
     auto header = ltx.loadHeader();
 
     if (!stellar::loadAccount(ltx, toAccountID(mOperation.body.destination())))
     {
-        innerResult().code(ACCOUNT_MERGE_NO_ACCOUNT);
+        innerResult(res).code(ACCOUNT_MERGE_NO_ACCOUNT);
         return false;
     }
 
-    auto sourceAccountEntry = loadSourceAccount(ltx, header, txResult);
+    auto sourceAccountEntry = loadSourceAccount(ltx, header);
 
     if (isImmutableAuth(sourceAccountEntry))
     {
-        innerResult().code(ACCOUNT_MERGE_IMMUTABLE_SET);
+        innerResult(res).code(ACCOUNT_MERGE_IMMUTABLE_SET);
         return false;
     }
 
@@ -213,25 +211,25 @@ MergeOpFrame::doApplyFromV16(AbstractLedgerTxn& ltx,
 
     if (sourceAccount().numSubEntries != sourceAccount().signers.size())
     {
-        innerResult().code(ACCOUNT_MERGE_HAS_SUB_ENTRIES);
+        innerResult(res).code(ACCOUNT_MERGE_HAS_SUB_ENTRIES);
         return false;
     }
 
     if (isSeqnumTooFar(ltx, header, sourceAccount()))
     {
-        innerResult().code(ACCOUNT_MERGE_SEQNUM_TOO_FAR);
+        innerResult(res).code(ACCOUNT_MERGE_SEQNUM_TOO_FAR);
         return false;
     }
 
     if (loadSponsorshipCounter(ltx, getSourceID()))
     {
-        innerResult().code(ACCOUNT_MERGE_IS_SPONSOR);
+        innerResult(res).code(ACCOUNT_MERGE_IS_SPONSOR);
         return false;
     }
 
     if (getNumSponsoring(sourceAccountEntry.current()) > 0)
     {
-        innerResult().code(ACCOUNT_MERGE_IS_SPONSOR);
+        innerResult(res).code(ACCOUNT_MERGE_IS_SPONSOR);
         return false;
     }
 
@@ -248,7 +246,7 @@ MergeOpFrame::doApplyFromV16(AbstractLedgerTxn& ltx,
             ltx, toAccountID(mOperation.body.destination()));
         if (!addBalance(header, otherAccount, sourceBalance))
         {
-            innerResult().code(ACCOUNT_MERGE_DEST_FULL);
+            innerResult(res).code(ACCOUNT_MERGE_DEST_FULL);
             return false;
         }
     }
@@ -257,18 +255,18 @@ MergeOpFrame::doApplyFromV16(AbstractLedgerTxn& ltx,
         ltx, header, sourceAccountEntry.current(), sourceAccountEntry);
     sourceAccountEntry.erase();
 
-    innerResult().code(ACCOUNT_MERGE_SUCCESS);
-    innerResult().sourceAccountBalance() = sourceBalance;
+    innerResult(res).code(ACCOUNT_MERGE_SUCCESS);
+    innerResult(res).sourceAccountBalance() = sourceBalance;
     return true;
 }
 
 bool
-MergeOpFrame::doCheckValid(uint32_t ledgerVersion)
+MergeOpFrame::doCheckValid(uint32_t ledgerVersion, OperationResult& res) const
 {
     // makes sure not merging into self
     if (getSourceID() == toAccountID(mOperation.body.destination()))
     {
-        innerResult().code(ACCOUNT_MERGE_MALFORMED);
+        innerResult(res).code(ACCOUNT_MERGE_MALFORMED);
         return false;
     }
     return true;

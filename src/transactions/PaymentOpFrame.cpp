@@ -18,15 +18,14 @@ namespace stellar
 
 using namespace std;
 
-PaymentOpFrame::PaymentOpFrame(Operation const& op, OperationResult& res,
+PaymentOpFrame::PaymentOpFrame(Operation const& op,
                                TransactionFrame const& parentTx)
-    : OperationFrame(op, res, parentTx), mPayment(mOperation.body.paymentOp())
+    : OperationFrame(op, parentTx), mPayment(mOperation.body.paymentOp())
 {
 }
 
 bool
-PaymentOpFrame::doApply(AbstractLedgerTxn& ltx,
-                        MutableTransactionResultBase& txResult)
+PaymentOpFrame::doApply(AbstractLedgerTxn& ltx, OperationResult& res) const
 {
     ZoneNamedN(applyZone, "PaymentOp apply", true);
     std::string payStr = assetToString(mPayment.asset);
@@ -44,7 +43,7 @@ PaymentOpFrame::doApply(AbstractLedgerTxn& ltx,
             : destID == getSourceID();
     if (instantSuccess)
     {
-        innerResult().code(PAYMENT_SUCCESS);
+        innerResult(res).code(PAYMENT_SUCCESS);
         return true;
     }
 
@@ -61,76 +60,74 @@ PaymentOpFrame::doApply(AbstractLedgerTxn& ltx,
 
     ppOp.destination = mPayment.destination;
 
-    OperationResult opRes;
-    opRes.code(opINNER);
-    opRes.tr().type(PATH_PAYMENT_STRICT_RECEIVE);
-    PathPaymentStrictReceiveOpFrame ppayment(op, opRes, mParentTx);
+    OperationResult ppRes;
+    ppRes.code(opINNER);
+    ppRes.tr().type(PATH_PAYMENT_STRICT_RECEIVE);
+    PathPaymentStrictReceiveOpFrame ppayment(op, mParentTx);
 
-    if (!ppayment.doCheckValid(ledgerVersion) ||
-        !ppayment.doApply(ltx, txResult))
+    if (!ppayment.doCheckValid(ledgerVersion, ppRes) ||
+        !ppayment.doApply(ltx, ppRes))
     {
-        if (ppayment.getResultCode() != opINNER)
+        if (ppRes.code() != opINNER)
         {
             throw std::runtime_error(
                 "Unexpected error code from pathPaymentStrictReceive");
         }
-        PaymentResultCode res;
+        PaymentResultCode resCode;
 
-        switch (
-            PathPaymentStrictReceiveOpFrame::getInnerCode(ppayment.getResult()))
+        switch (PathPaymentStrictReceiveOpFrame::getInnerCode(ppRes))
         {
         case PATH_PAYMENT_STRICT_RECEIVE_UNDERFUNDED:
-            res = PAYMENT_UNDERFUNDED;
+            resCode = PAYMENT_UNDERFUNDED;
             break;
         case PATH_PAYMENT_STRICT_RECEIVE_SRC_NOT_AUTHORIZED:
-            res = PAYMENT_SRC_NOT_AUTHORIZED;
+            resCode = PAYMENT_SRC_NOT_AUTHORIZED;
             break;
         case PATH_PAYMENT_STRICT_RECEIVE_SRC_NO_TRUST:
-            res = PAYMENT_SRC_NO_TRUST;
+            resCode = PAYMENT_SRC_NO_TRUST;
             break;
         case PATH_PAYMENT_STRICT_RECEIVE_NO_DESTINATION:
-            res = PAYMENT_NO_DESTINATION;
+            resCode = PAYMENT_NO_DESTINATION;
             break;
         case PATH_PAYMENT_STRICT_RECEIVE_NO_TRUST:
-            res = PAYMENT_NO_TRUST;
+            resCode = PAYMENT_NO_TRUST;
             break;
         case PATH_PAYMENT_STRICT_RECEIVE_NOT_AUTHORIZED:
-            res = PAYMENT_NOT_AUTHORIZED;
+            resCode = PAYMENT_NOT_AUTHORIZED;
             break;
         case PATH_PAYMENT_STRICT_RECEIVE_LINE_FULL:
-            res = PAYMENT_LINE_FULL;
+            resCode = PAYMENT_LINE_FULL;
             break;
         case PATH_PAYMENT_STRICT_RECEIVE_NO_ISSUER:
-            res = PAYMENT_NO_ISSUER;
+            resCode = PAYMENT_NO_ISSUER;
             break;
         default:
             throw std::runtime_error(
                 "Unexpected error code from pathPaymentStrictReceive");
         }
-        innerResult().code(res);
+        innerResult(res).code(resCode);
         return false;
     }
 
-    releaseAssertOrThrow(
-        PathPaymentStrictReceiveOpFrame::getInnerCode(ppayment.getResult()) ==
-        PATH_PAYMENT_STRICT_RECEIVE_SUCCESS);
+    releaseAssertOrThrow(PathPaymentStrictReceiveOpFrame::getInnerCode(ppRes) ==
+                         PATH_PAYMENT_STRICT_RECEIVE_SUCCESS);
 
-    innerResult().code(PAYMENT_SUCCESS);
+    innerResult(res).code(PAYMENT_SUCCESS);
 
     return true;
 }
 
 bool
-PaymentOpFrame::doCheckValid(uint32_t ledgerVersion)
+PaymentOpFrame::doCheckValid(uint32_t ledgerVersion, OperationResult& res) const
 {
     if (mPayment.amount <= 0)
     {
-        innerResult().code(PAYMENT_MALFORMED);
+        innerResult(res).code(PAYMENT_MALFORMED);
         return false;
     }
     if (!isAssetValid(mPayment.asset, ledgerVersion))
     {
-        innerResult().code(PAYMENT_MALFORMED);
+        innerResult(res).code(PAYMENT_MALFORMED);
         return false;
     }
     return true;
