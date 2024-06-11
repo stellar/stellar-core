@@ -3,17 +3,23 @@
 import argparse
 from datetime import datetime
 import os
+import re
+import glob
 import subprocess
 import sys
 import shutil
-
+import time
 
 def parse_args():
+
     parser = argparse.ArgumentParser(description='Gathers information about host and stellar-core')
     parser.add_argument('-d', '--dest', required=False, type=str, help='Pre-existing path to use for storing results',
                         default='/var/lib/stellar/')
     parser.add_argument('-c', '--core-config', required=False, type=str, help='Path to the stellar-core config file',
                         default='/etc/stellar/stellar-core.cfg')
+    parser.add_argument('-l', '--log-dir', required=False, type=str, help='Path where logs are written to.'
+                        'Set to empty string to exclude logs',
+                        default='/var/log/stellar')
     return parser.parse_args()
 
 
@@ -34,6 +40,8 @@ class Gatherer(object):
         self.scratch_dir = os.path.join(args.dest, '{}-{}'.format('stellar-core-debug-info', timestamp))
         self.tgz_file = '{}.tar.gz'.format(self.scratch_dir)
         self.core_config = args.core_config
+        self.log_dir = args.log_dir
+        self.header_template = '#####################\n# {}\n#####################\n'
 
     def pre_flight(self):
         if not os.path.isdir(self.scratch_dir):
@@ -43,6 +51,7 @@ class Gatherer(object):
             except:
                 print('Failed to create directory')
                 return False
+
         if not os.access(self.scratch_dir, os.W_OK):
             print('Error: directory is not writable: {}'.format(self.scratch_dir))
             return False
@@ -51,11 +60,18 @@ class Gatherer(object):
             if not os.path.isdir(d):
                 os.mkdir(d, mode=0o755)
 
+        if not os.access(self.core_config, os.R_OK):
+            print("Error: can't read core config file: {}. Maybe you need --core-config flag?".format(self.core_config))
+            return False
+        return True
+
     def collect(self):
-        if not all([self.pre_flight(),
-                    self.gather_os_info(),
+        if not self.pre_flight():
+            return False
+        if not all([self.gather_os_info(),
                     self.gather_core_info(),
                     self.gather_offline_info(),
+                    self.gather_logs(),
                     self.create_archive(),
                     ]):
             return False
@@ -66,35 +82,69 @@ class Gatherer(object):
     def gather_os_info(self):
         print('Gathering OS information...')
         shutil.copy('/etc/os-release', os.path.join(self.scratch_dir, 'os-info'))
-        with open(os.path.join(self.scratch_dir, 'os-info', 'disk-info'), 'w') as f:
-            f.write('#####################\n# df -h\n#####################\n')
+        with open(os.path.join(self.scratch_dir, 'os-info', 'info'), 'w') as f:
+            f.write(self.header_template.format('df -h'))
             f.write(subprocess.check_output(['df', '-h']).decode('utf-8'))
-            f.write('#####################\n# lsblk\n#####################\n')
+            f.write(self.header_template.format('lsblk'))
             f.write(subprocess.check_output(['lsblk']).decode('utf-8'))
+            f.write(self.header_template.format('environment'))
+            if 'KUBERNETES_SERVICE_HOST' in os.environ.keys():
+                f.write('"KUBERNETES_SERVICE_HOST" environment variable detected, likely runnig in a k8s pod\n')
+            elif os.environ.get('container', '') == 'podman':
+               f.write('"container" environment variable detected with value podman, likely runnig in a podman container\n')
+            elif os.path.isfile('/.dockerenv'):
+               f.write('File /.dockerenv detected, likely runnig in a docker container\n')
+            else:
+               f.write('Could not detect container files, likely running on bare OS\n')
+
 
     @catch_errors
     def gather_core_info(self):
         print('Gathering stellar-core version and config...')
         with open(os.path.join(self.scratch_dir, 'core', 'version'), 'w') as f:
-            f.write('#####################\n# stellar-core version\n#####################\n')
+            f.write(self.header_template.format('stellar-core version'))
             f.write(subprocess.check_output(['stellar-core', 'version']).decode('utf-8'))
 
+            f.write(self.header_template.format('package information'))
+            dpkg = subprocess.check_output(['dpkg', '-l']).decode('utf-8')
+            for l in dpkg.split('\n'):
+                if re.match('ii.*stellar-core', l):
+                    f.write('{}\n'.format(l))
+
         with open(self.core_config, 'r') as f:
-            raw_config = f.read()
-        # TODO: redact secrets from config and store in self.scratch_dir/core/stellar-core.cfg
+            config = f.read()
+            config = re.sub('(.*DATABASE=.*:).*$', '\\1 REDACTED"', config, flags=re.MULTILINE|re.IGNORECASE)
+            config = re.sub('(.*NODE_SEED=).*$', '\\1"REDACTED"', config, flags=re.MULTILINE|re.IGNORECASE)
+            config = re.sub('G[A-Z0-9]{55,55}', 'REDACTED_SEED', config, flags=re.MULTILINE|re.IGNORECASE)
+
+        with open(os.path.join(self.scratch_dir, 'core', 'stellar-core.cfg'), 'w') as f:
+            f.write(config)
+
 
     @catch_errors
     def gather_offline_info(self):
         print('Gathering stellar-core offline-info...')
         with open(os.path.join(self.scratch_dir, 'offline-info', 'output'), 'w') as f:
-            f.write('#####################\n# stellar-core --conf {} offline-info\n#####################\n'.format(
-                    self.core_config))
+            f.write(self.header_template.format('stellar-core --conf {} offline-info'.format(self.core_config)))
             f.write(subprocess.check_output(['stellar-core', '--conf', self.core_config, 'offline-info'],
                     cwd=os.path.join(self.scratch_dir, 'offline-info')).decode('utf-8'))
 
+    @catch_errors
+    def gather_logs(self):
+        if not self.log_dir:
+            print('Skipping log gathering')
+            return True
+        all_files = glob.glob('{}/*.log'.format(self.log_dir))
+        now = time.time()
+        for file in all_files:
+            delta = now - os.path.getmtime(file)
+            if delta / 3600 < 24:
+                shutil.copy(file, os.path.join(self.scratch_dir, 'logs'))
+        return True
+
+
     def create_archive(self):
         cmd = ['tar', '-C', self.base_dir, '-czf', self.tgz_file, os.path.basename(self.scratch_dir)]
-        print(" ".join(cmd))
         subprocess.check_call(cmd)
         shutil.rmtree(self.scratch_dir)
 
