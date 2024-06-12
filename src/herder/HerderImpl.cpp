@@ -1350,7 +1350,7 @@ HerderImpl::triggerNextLedger(uint32_t ledgerSeqToTrigger,
     // our first choice for this round's set is all the tx we have collected
     // during last few ledger closes
     auto const& lcl = mLedgerManager.getLastClosedLedgerHeader();
-    TxSetPhaseTransactions txPhases;
+    PerPhaseTransactionList txPhases;
     txPhases.emplace_back(mTransactionQueue.getTransactions(lcl.header));
 
     if (protocolVersionStartsFrom(lcl.header.ledgerVersion,
@@ -1415,7 +1415,7 @@ HerderImpl::triggerNextLedger(uint32_t ledgerSeqToTrigger,
     upperBoundCloseTimeOffset = nextCloseTime - lcl.header.scpValue.closeTime;
     lowerBoundCloseTimeOffset = upperBoundCloseTimeOffset;
 
-    TxSetPhaseTransactions invalidTxPhases;
+    PerPhaseTransactionList invalidTxPhases;
     invalidTxPhases.resize(txPhases.size());
 
     auto [proposedSet, applicableProposedSet] =

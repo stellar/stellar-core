@@ -143,7 +143,7 @@ class TransactionQueue
 
     bool isBanned(Hash const& hash) const;
     TransactionFrameBaseConstPtr getTx(Hash const& hash) const;
-    TxSetTransactions getTransactions(LedgerHeader const& lcl) const;
+    TxFrameList getTransactions(LedgerHeader const& lcl) const;
     bool sourceAccountPending(AccountID const& accountID) const;
 
     virtual size_t getMaxQueueSizeOps() const = 0;

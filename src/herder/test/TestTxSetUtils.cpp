@@ -3,6 +3,7 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "herder/test/TestTxSetUtils.h"
+#include "ledger/LedgerManager.h"
 #include "ledger/LedgerTxn.h"
 #include "main/Application.h"
 #include "util/ProtocolVersion.h"
@@ -30,13 +31,26 @@ makeTxSetXDR(std::vector<TransactionFrameBasePtr> const& txs,
 }
 
 GeneralizedTransactionSet
-makeGeneralizedTxSetXDR(std::vector<ComponentPhases> const& txsPerBaseFeePhases,
-                        Hash const& previousLedgerHash)
+makeGeneralizedTxSetXDR(std::vector<ComponentPhases> const& phases,
+                        Hash const& previousLedgerHash,
+                        bool useParallelSorobanPhase)
 {
     GeneralizedTransactionSet xdrTxSet(1);
-    for (auto& txsPerBaseFee : txsPerBaseFeePhases)
+    for (size_t i = 0; i < phases.size(); ++i)
     {
-        auto normalizedTxsPerBaseFee = txsPerBaseFee;
+        releaseAssert(i < static_cast<size_t>(TxSetPhase::PHASE_COUNT));
+        auto const& phase = phases[i];
+        bool isParallelSorobanPhase = false;
+#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
+        if (useParallelSorobanPhase &&
+            i == static_cast<size_t>(TxSetPhase::SOROBAN))
+        {
+            releaseAssert(phase.size() <= 1);
+            isParallelSorobanPhase = true;
+        }
+#endif
+
+        auto normalizedTxsPerBaseFee = phase;
         std::sort(normalizedTxsPerBaseFee.begin(),
                   normalizedTxsPerBaseFee.end());
         for (auto& [_, txs] : normalizedTxsPerBaseFee)
@@ -45,19 +59,48 @@ makeGeneralizedTxSetXDR(std::vector<ComponentPhases> const& txsPerBaseFeePhases,
         }
 
         xdrTxSet.v1TxSet().previousLedgerHash = previousLedgerHash;
-        auto& phase = xdrTxSet.v1TxSet().phases.emplace_back();
+        auto& xdrPhase = xdrTxSet.v1TxSet().phases.emplace_back();
+        if (isParallelSorobanPhase)
+        {
+            xdrPhase.v(1);
+        }
         for (auto const& [baseFee, txs] : normalizedTxsPerBaseFee)
         {
-            auto& component = phase.v0Components().emplace_back(
-                TXSET_COMP_TXS_MAYBE_DISCOUNTED_FEE);
-            if (baseFee)
+            if (isParallelSorobanPhase)
             {
-                component.txsMaybeDiscountedFee().baseFee.activate() = *baseFee;
+#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
+                auto& component = xdrPhase.parallelTxsComponent();
+                if (baseFee)
+                {
+                    component.baseFee.activate() = *baseFee;
+                }
+                if (!txs.empty())
+                {
+                    auto& thread =
+                        component.executionStages.emplace_back().emplace_back();
+                    for (auto const& tx : txs)
+                    {
+                        thread.emplace_back(tx->getEnvelope());
+                    }
+                }
+#else
+                releaseAssert(false);
+#endif
             }
-            auto& componentTxs = component.txsMaybeDiscountedFee().txs;
-            for (auto const& tx : txs)
+            else
             {
-                componentTxs.emplace_back(tx->getEnvelope());
+                auto& component = xdrPhase.v0Components().emplace_back(
+                    TXSET_COMP_TXS_MAYBE_DISCOUNTED_FEE);
+                if (baseFee)
+                {
+                    component.txsMaybeDiscountedFee().baseFee.activate() =
+                        *baseFee;
+                }
+                auto& componentTxs = component.txsMaybeDiscountedFee().txs;
+                for (auto const& tx : txs)
+                {
+                    componentTxs.emplace_back(tx->getEnvelope());
+                }
             }
         }
     }
@@ -78,19 +121,32 @@ makeNonValidatedTxSet(std::vector<TransactionFrameBasePtr> const& txs,
 std::pair<TxSetXDRFrameConstPtr, ApplicableTxSetFrameConstPtr>
 makeNonValidatedGeneralizedTxSet(
     std::vector<ComponentPhases> const& txsPerBaseFee, Application& app,
-    Hash const& previousLedgerHash)
+    Hash const& previousLedgerHash, std::optional<bool> useParallelSorobanPhase)
 {
-    auto xdrTxSet = makeGeneralizedTxSetXDR(txsPerBaseFee, previousLedgerHash);
+    if (!useParallelSorobanPhase.has_value())
+    {
+        useParallelSorobanPhase =
+            protocolVersionStartsFrom(app.getLedgerManager()
+                                          .getLastClosedLedgerHeader()
+                                          .header.ledgerVersion,
+                                      PARALLEL_SOROBAN_PHASE_PROTOCOL_VERSION);
+    }
+
+    auto xdrTxSet = makeGeneralizedTxSetXDR(txsPerBaseFee, previousLedgerHash,
+                                            *useParallelSorobanPhase);
     auto txSet = TxSetXDRFrame::makeFromWire(xdrTxSet);
     return std::make_pair(txSet, txSet->prepareForApply(app));
 }
 
 std::pair<TxSetXDRFrameConstPtr, ApplicableTxSetFrameConstPtr>
 makeNonValidatedTxSetBasedOnLedgerVersion(
-    uint32_t ledgerVersion, std::vector<TransactionFrameBasePtr> const& txs,
-    Application& app, Hash const& previousLedgerHash)
+    std::vector<TransactionFrameBasePtr> const& txs, Application& app,
+    Hash const& previousLedgerHash)
 {
-    if (protocolVersionStartsFrom(ledgerVersion, SOROBAN_PROTOCOL_VERSION))
+    if (protocolVersionStartsFrom(app.getLedgerManager()
+                                      .getLastClosedLedgerHeader()
+                                      .header.ledgerVersion,
+                                  SOROBAN_PROTOCOL_VERSION))
     {
         return makeNonValidatedGeneralizedTxSet(
             {{std::make_pair(100LL, txs)}, {}}, app, previousLedgerHash);

@@ -540,15 +540,15 @@ closeLedgerOn(Application& app, uint32 ledgerSeq, TimePoint closeTime,
         }
         else
         {
-            TxSetTransactions classic;
-            TxSetTransactions soroban;
+            TxFrameList classic;
+            TxFrameList soroban;
             for (auto const& tx : txs)
             {
                 tx->isSoroban() ? soroban.emplace_back(tx)
                                 : classic.emplace_back(tx);
             }
 
-            TxSetPhaseTransactions phases = {classic};
+            PerPhaseTransactionList phases = {classic};
             if (!soroban.empty())
             {
                 phases.emplace_back(soroban);

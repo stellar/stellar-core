@@ -89,16 +89,14 @@ class LedgerManagerImpl : public LedgerManager
     std::unique_ptr<LedgerCloseMetaFrame> mNextMetaToEmit;
 
     std::vector<MutableTxResultPtr> processFeesSeqNums(
-        std::vector<TransactionFrameBasePtr> const& txs,
-        AbstractLedgerTxn& ltxOuter, ApplicableTxSetFrame const& txSet,
+        ApplicableTxSetFrame const& txSet, AbstractLedgerTxn& ltxOuter,
         std::unique_ptr<LedgerCloseMetaFrame> const& ledgerCloseMeta,
         LedgerCloseData const& ledgerData);
 
-    void applyTransactions(
+    TransactionResultSet applyTransactions(
         ApplicableTxSetFrame const& txSet,
-        std::vector<TransactionFrameBasePtr> const& txs,
         std::vector<MutableTxResultPtr> const& mutableTxResults,
-        AbstractLedgerTxn& ltx, TransactionResultSet& txResultSet,
+        AbstractLedgerTxn& ltx,
         std::unique_ptr<LedgerCloseMetaFrame> const& ledgerCloseMeta);
 
     // initialLedgerVers must be the ledger version at the start of the ledger.
@@ -111,9 +109,8 @@ class LedgerManagerImpl : public LedgerManager
 
     void storeCurrentLedger(LedgerHeader const& header, bool storeHeader,
                             bool appendToCheckpoint);
-    void
-    prefetchTransactionData(std::vector<TransactionFrameBasePtr> const& txs);
-    void prefetchTxSourceIds(std::vector<TransactionFrameBasePtr> const& txs);
+    void prefetchTransactionData(ApplicableTxSetFrame const& txSet);
+    void prefetchTxSourceIds(ApplicableTxSetFrame const& txSet);
     void closeLedgerIf(LedgerCloseData const& ledgerData);
 
     State mState;

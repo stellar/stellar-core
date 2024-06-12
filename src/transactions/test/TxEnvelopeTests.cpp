@@ -64,11 +64,11 @@ TEST_CASE("txset - correct apply order", "[tx][envelope]")
     auto tx1 = b1.tx({accountMerge(a1)});
     auto tx2 = a1.tx({a1.op(payment(root, 112)), a1.op(payment(root, 101))});
 
-    auto txSet =
-        makeTxSetFromTransactions(TxSetTransactions{tx1, tx2}, *app, 0, 0)
-            .second;
+    auto txSet = makeTxSetFromTransactions({tx1, tx2}, *app, 0, 0).second;
 
-    auto txs = txSet->getTxsInApplyOrder();
+    auto txs =
+        txSet->getPhasesInApplyOrder()[static_cast<size_t>(TxSetPhase::CLASSIC)]
+            .getSequentialTxs();
     REQUIRE(txs.size() == 2);
     // Sort for apply re-orders transaction set based on the contents hash
     if (lessThanXored(tx1->getFullHash(), tx2->getFullHash(),
