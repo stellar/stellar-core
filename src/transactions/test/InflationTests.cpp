@@ -344,8 +344,8 @@ TEST_CASE_VERSIONS("inflation total coins", "[tx][inflation]")
     auto target1tx = root.tx({createAccount(target1, minBalance)});
     auto target2tx = root.tx({createAccount(target2, minBalance)});
 
-    closeLedgerOn(*app, 21, 7, 2014,
-                  {voter1tx, voter2tx, target1tx, target2tx});
+    closeLedgerOn(*app, 21, 7, 2014, {voter1tx, voter2tx, target1tx, target2tx},
+                  true);
 
     REQUIRE(getFeePool() == 1000000299);
     REQUIRE(getTotalCoins() == 1000000000000000000);
