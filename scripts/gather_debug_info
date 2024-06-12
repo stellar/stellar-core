@@ -30,22 +30,22 @@ class Gatherer(object):
                 func(self)
                 return True
             except:
-                print('Error calling function {}'.format(func.__name__))
+                print(f'Error calling function {func.__name__}')
                 return False
         return wrapper
 
     def __init__(self, args):
         timestamp = datetime.now().strftime("%Y-%m-%d-%H-%M-%S")
         self.base_dir = args.dest
-        self.scratch_dir = os.path.join(args.dest, '{}-{}'.format('stellar-core-debug-info', timestamp))
-        self.tgz_file = '{}.tar.gz'.format(self.scratch_dir)
+        self.scratch_dir = os.path.join(args.dest, f'stellar-core-debug-info-{timestamp}')
+        self.tgz_file = f'{self.scratch_dir}.tar.gz'
         self.core_config = args.core_config
         self.log_dir = args.log_dir
         self.header_template = '#####################\n# {}\n#####################\n'
 
     def pre_flight(self):
         if not os.path.isdir(self.scratch_dir):
-            print('Creating scratch directory: {}'.format(self.scratch_dir))
+            print(f'Creating scratch directory: {self.scratch_dir}')
             try:
                 os.mkdir(self.scratch_dir, mode=0o755)
             except:
@@ -53,7 +53,7 @@ class Gatherer(object):
                 return False
 
         if not os.access(self.scratch_dir, os.W_OK):
-            print('Error: directory is not writable: {}'.format(self.scratch_dir))
+            print(f'Error: directory is not writable: {self.scratch_dir}')
             return False
 
         for d in [os.path.join(self.scratch_dir, i) for i in ['os-info', 'core', 'logs', 'offline-info']]:
@@ -61,7 +61,7 @@ class Gatherer(object):
                 os.mkdir(d, mode=0o755)
 
         if not os.access(self.core_config, os.R_OK):
-            print("Error: can't read core config file: {}. Maybe you need --core-config flag?".format(self.core_config))
+            print(f"Error: can't read core config file: {self.core_config}. Maybe you need --core-config flag?")
             return False
         return True
 
@@ -109,7 +109,7 @@ class Gatherer(object):
             dpkg = subprocess.check_output(['dpkg', '-l']).decode('utf-8')
             for l in dpkg.split('\n'):
                 if re.match('ii.*stellar-core', l):
-                    f.write('{}\n'.format(l))
+                    f.write(f'{l}\n')
 
         with open(self.core_config, 'r') as f:
             config = f.read()
@@ -125,7 +125,7 @@ class Gatherer(object):
     def gather_offline_info(self):
         print('Gathering stellar-core offline-info...')
         with open(os.path.join(self.scratch_dir, 'offline-info', 'output'), 'w') as f:
-            f.write(self.header_template.format('stellar-core --conf {} offline-info'.format(self.core_config)))
+            f.write(self.header_template.format(f'stellar-core --conf {self.core_config} offline-info'))
             f.write(subprocess.check_output(['stellar-core', '--conf', self.core_config, 'offline-info'],
                     cwd=os.path.join(self.scratch_dir, 'offline-info')).decode('utf-8'))
 
@@ -134,7 +134,7 @@ class Gatherer(object):
         if not self.log_dir:
             print('Skipping log gathering')
             return True
-        all_files = glob.glob('{}/*.log'.format(self.log_dir))
+        all_files = glob.glob(f'{self.log_dir}/*.log')
         now = time.time()
         for file in all_files:
             delta = now - os.path.getmtime(file)
