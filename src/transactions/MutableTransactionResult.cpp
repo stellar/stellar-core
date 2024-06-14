@@ -12,6 +12,18 @@
 namespace stellar
 {
 
+MutableTransactionResultBase::MutableTransactionResultBase()
+    : mTxResult(std::make_unique<TransactionResult>())
+{
+}
+
+MutableTransactionResultBase::MutableTransactionResultBase(
+    MutableTransactionResultBase&& rhs)
+    : mTxResult(std::move(rhs.mTxResult))
+{
+    releaseAssertOrThrow(mTxResult);
+}
+
 void
 SorobanTxData::setSorobanConsumedNonRefundableFee(int64_t fee)
 {
@@ -199,21 +211,22 @@ SorobanTxData::consumeRefundableSorobanResources(
 
 MutableTransactionResult::MutableTransactionResult(TransactionFrame const& tx,
                                                    int64_t feeCharged)
+    : MutableTransactionResultBase()
 {
     auto const& ops = tx.getOperations();
 
     // pre-allocates the results for all operations
-    mTxResult.result.code(txSUCCESS);
-    mTxResult.result.results().resize(static_cast<uint32_t>(ops.size()));
+    mTxResult->result.code(txSUCCESS);
+    mTxResult->result.results().resize(static_cast<uint32_t>(ops.size()));
 
     // Initialize op results to the correct op type
     for (size_t i = 0; i < ops.size(); i++)
     {
         auto const& opFrame = ops[i];
-        opFrame->resetResultSuccess(mTxResult.result.results()[i]);
+        opFrame->resetResultSuccess(mTxResult->result.results()[i]);
     }
 
-    mTxResult.feeCharged = feeCharged;
+    mTxResult->feeCharged = feeCharged;
 
     // resets Soroban related fields
     if (tx.isSoroban())
@@ -223,15 +236,27 @@ MutableTransactionResult::MutableTransactionResult(TransactionFrame const& tx,
 }
 
 TransactionResult&
+MutableTransactionResult::getInnermostResult()
+{
+    return *mTxResult;
+}
+
+void
+MutableTransactionResult::setInnermostResultCode(TransactionResultCode code)
+{
+    mTxResult->result.code(code);
+}
+
+TransactionResult&
 MutableTransactionResult::getResult()
 {
-    return mTxResult;
+    return *mTxResult;
 }
 
 TransactionResult const&
 MutableTransactionResult::getResult() const
 {
-    return mTxResult;
+    return *mTxResult;
 }
 
 TransactionResultCode
@@ -255,7 +280,7 @@ MutableTransactionResult::getSorobanData()
 OperationResult&
 MutableTransactionResult::getOpResultAt(size_t index)
 {
-    return mTxResult.result.results().at(index);
+    return mTxResult->result.results().at(index);
 }
 
 xdr::xvector<DiagnosticEvent> const&
@@ -274,28 +299,42 @@ MutableTransactionResult::getDiagnosticEvents() const
 
 FeeBumpMutableTransactionResult::FeeBumpMutableTransactionResult(
     TransactionResultPayloadPtr innerResultPayload)
-    : mInnerResultPayload(innerResultPayload)
+    : MutableTransactionResultBase(), mInnerResultPayload(innerResultPayload)
 {
     releaseAssertOrThrow(mInnerResultPayload);
 }
 
-void
-FeeBumpMutableTransactionResult::updateResult(TransactionFrameBasePtr innerTx)
+FeeBumpMutableTransactionResult::FeeBumpMutableTransactionResult(
+    TransactionResultPayloadPtr&& outerResultPayload,
+    TransactionResultPayloadPtr&& innerResultPayload,
+    TransactionFrameBasePtr innerTx)
+    : MutableTransactionResultBase(std::move(*outerResultPayload))
+    , mInnerResultPayload(std::move(innerResultPayload))
 {
-    releaseAssert(mInnerResultPayload);
-    if (mInnerResultPayload->getResultCode() == txSUCCESS)
+    releaseAssertOrThrow(mInnerResultPayload);
+    innerResultPayload.reset();
+    outerResultPayload.reset();
+
+    updateResult(innerTx, *this);
+}
+
+void
+FeeBumpMutableTransactionResult::updateResult(
+    TransactionFrameBasePtr innerTx, MutableTransactionResultBase& txResult)
+{
+    if (txResult.getInnermostResult().result.code() == txSUCCESS)
     {
-        getResult().result.code(txFEE_BUMP_INNER_SUCCESS);
+        txResult.setResultCode(txFEE_BUMP_INNER_SUCCESS);
     }
     else
     {
-        getResult().result.code(txFEE_BUMP_INNER_FAILED);
+        txResult.setResultCode(txFEE_BUMP_INNER_FAILED);
     }
 
-    auto& feeBumpIrp = getResult().result.innerResultPair();
+    auto& feeBumpIrp = txResult.getResult().result.innerResultPair();
     feeBumpIrp.transactionHash = innerTx->getContentsHash();
 
-    auto const& innerTxRes = mInnerResultPayload->getResult();
+    auto const& innerTxRes = txResult.getInnermostResult();
     auto& feeBumpIrpRes = feeBumpIrp.result;
     feeBumpIrpRes.feeCharged = innerTxRes.feeCharged;
     feeBumpIrpRes.result.code(innerTxRes.result.code());
@@ -310,32 +349,29 @@ FeeBumpMutableTransactionResult::updateResult(TransactionFrameBasePtr innerTx)
     }
 }
 
-void
-FeeBumpMutableTransactionResult::setInnerResultPayload(
-    TransactionResultPayloadPtr innerResultPayload,
-    TransactionFrameBasePtr innerTx)
+TransactionResult&
+FeeBumpMutableTransactionResult::getInnermostResult()
 {
-    releaseAssertOrThrow(innerResultPayload);
-    mInnerResultPayload = innerResultPayload;
-    updateResult(innerTx);
+    return mInnerResultPayload->getResult();
 }
 
-TransactionResultPayloadPtr
-FeeBumpMutableTransactionResult::getInnerResultPayload()
+void
+FeeBumpMutableTransactionResult::setInnermostResultCode(
+    TransactionResultCode code)
 {
-    return mInnerResultPayload;
+    mInnerResultPayload->setResultCode(code);
 }
 
 TransactionResult&
 FeeBumpMutableTransactionResult::getResult()
 {
-    return mTxResult;
+    return *mTxResult;
 }
 
 TransactionResult const&
 FeeBumpMutableTransactionResult::getResult() const
 {
-    return mTxResult;
+    return *mTxResult;
 }
 
 TransactionResultCode
@@ -353,7 +389,7 @@ FeeBumpMutableTransactionResult::setResultCode(TransactionResultCode code)
 OperationResult&
 FeeBumpMutableTransactionResult::getOpResultAt(size_t index)
 {
-    return mTxResult.result.results().at(index);
+    return mInnerResultPayload->getOpResultAt(index);
 }
 
 std::shared_ptr<SorobanTxData>

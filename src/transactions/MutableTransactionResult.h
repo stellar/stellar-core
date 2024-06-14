@@ -69,7 +69,18 @@ class SorobanTxData
 // This class holds all mutable state that is associated with a transaction.
 class MutableTransactionResultBase : public NonMovableOrCopyable
 {
+  protected:
+    std::unique_ptr<TransactionResult> mTxResult;
+
+    MutableTransactionResultBase();
+    MutableTransactionResultBase(MutableTransactionResultBase&& rhs);
+
   public:
+    // For FeeBumpTxs, returns the inner TX result. For normal TXs, returns the
+    // TX result.
+    virtual TransactionResult& getInnermostResult() = 0;
+    virtual void setInnermostResultCode(TransactionResultCode code) = 0;
+
     virtual TransactionResult& getResult() = 0;
     virtual TransactionResult const& getResult() const = 0;
     virtual TransactionResultCode getResultCode() const = 0;
@@ -84,7 +95,6 @@ class MutableTransactionResultBase : public NonMovableOrCopyable
 class MutableTransactionResult : public MutableTransactionResultBase
 {
   private:
-    TransactionResult mTxResult;
     std::shared_ptr<SorobanTxData> mSorobanExtension;
 
     MutableTransactionResult(TransactionFrame const& tx, int64_t feeCharged);
@@ -100,6 +110,8 @@ class MutableTransactionResult : public MutableTransactionResultBase
   public:
     virtual ~MutableTransactionResult() = default;
 
+    TransactionResult& getInnermostResult() override;
+    void setInnermostResultCode(TransactionResultCode code) override;
     TransactionResult& getResult() override;
     TransactionResult const& getResult() const override;
     TransactionResultCode getResultCode() const override;
@@ -112,11 +124,16 @@ class MutableTransactionResult : public MutableTransactionResultBase
 
 class FeeBumpMutableTransactionResult : public MutableTransactionResultBase
 {
-    TransactionResult mTxResult;
-    TransactionResultPayloadPtr mInnerResultPayload{};
+    // mTxResult is outer result
+    TransactionResultPayloadPtr const mInnerResultPayload;
 
     FeeBumpMutableTransactionResult(
         TransactionResultPayloadPtr innerResultPayload);
+
+    FeeBumpMutableTransactionResult(
+        TransactionResultPayloadPtr&& outerResultPayload,
+        TransactionResultPayloadPtr&& innerResultPayload,
+        TransactionFrameBasePtr innerTx);
 
     friend TransactionResultPayloadPtr
     FeeBumpTransactionFrame::createResultPayload() const;
@@ -126,17 +143,21 @@ class FeeBumpMutableTransactionResult : public MutableTransactionResultBase
         LedgerHeader const& header, std::optional<int64_t> baseFee,
         bool applying) const;
 
+    friend TransactionResultPayloadPtr
+    FeeBumpTransactionFrame::createResultPayloadWithNewInnerTx(
+        TransactionResultPayloadPtr&& outerResult,
+        TransactionResultPayloadPtr&& innerResult,
+        TransactionFrameBasePtr innerTx) const;
+
   public:
     virtual ~FeeBumpMutableTransactionResult() = default;
 
     // Updates outer fee bump result based on inner result.
-    void updateResult(TransactionFrameBasePtr innerTx);
+    static void updateResult(TransactionFrameBasePtr innerTx,
+                             MutableTransactionResultBase& txResult);
 
-    void setInnerResultPayload(TransactionResultPayloadPtr innerResultPayload,
-                               TransactionFrameBasePtr innerTx);
-
-    TransactionResultPayloadPtr getInnerResultPayload();
-
+    TransactionResult& getInnermostResult() override;
+    void setInnermostResultCode(TransactionResultCode code) override;
     TransactionResult& getResult() override;
     TransactionResult const& getResult() const override;
     TransactionResultCode getResultCode() const override;

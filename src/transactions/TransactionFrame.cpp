@@ -694,7 +694,7 @@ TransactionFrame::refundSorobanFee(AbstractLedgerTxn& ltxOuter,
         return 0;
     }
 
-    txResult.getResult().feeCharged -= feeRefund;
+    txResult.getInnermostResult().feeCharged -= feeRefund;
     header.current().feePool -= feeRefund;
     ltx.commit();
 
@@ -892,7 +892,7 @@ TransactionFrame::commonValidPreSeqNum(
         (protocolVersionStartsFrom(ledgerVersion, ProtocolVersion::V_13) &&
          mEnvelope.type() == ENVELOPE_TYPE_TX_V0))
     {
-        txResult->setResultCode(txNOT_SUPPORTED);
+        txResult->setInnermostResultCode(txNOT_SUPPORTED);
         return false;
     }
 
@@ -900,7 +900,7 @@ TransactionFrame::commonValidPreSeqNum(
         mEnvelope.type() == ENVELOPE_TYPE_TX &&
         mEnvelope.v1().tx.cond.type() == PRECOND_V2)
     {
-        txResult->setResultCode(txNOT_SUPPORTED);
+        txResult->setInnermostResultCode(txNOT_SUPPORTED);
         return false;
     }
 
@@ -911,7 +911,7 @@ TransactionFrame::commonValidPreSeqNum(
         static_assert(decltype(PreconditionsV2::extraSigners)::max_size() == 2);
         if (extraSigners.size() == 2 && extraSigners[0] == extraSigners[1])
         {
-            txResult->setResultCode(txMALFORMED);
+            txResult->setInnermostResultCode(txMALFORMED);
             return false;
         }
 
@@ -920,7 +920,7 @@ TransactionFrame::commonValidPreSeqNum(
             if (signer.type() == SIGNER_KEY_TYPE_ED25519_SIGNED_PAYLOAD &&
                 signer.ed25519SignedPayload().payload.empty())
             {
-                txResult->setResultCode(txMALFORMED);
+                txResult->setInnermostResultCode(txMALFORMED);
                 return false;
             }
         }
@@ -928,20 +928,20 @@ TransactionFrame::commonValidPreSeqNum(
 
     if (getNumOperations() == 0)
     {
-        txResult->setResultCode(txMISSING_OPERATION);
+        txResult->setInnermostResultCode(txMISSING_OPERATION);
         return false;
     }
 
     if (!validateSorobanOpsConsistency())
     {
-        txResult->setResultCode(txMALFORMED);
+        txResult->setInnermostResultCode(txMALFORMED);
         return false;
     }
     if (isSoroban())
     {
         if (protocolVersionIsBefore(ledgerVersion, SOROBAN_PROTOCOL_VERSION))
         {
-            txResult->setResultCode(txMALFORMED);
+            txResult->setInnermostResultCode(txMALFORMED);
             return false;
         }
 
@@ -961,7 +961,7 @@ TransactionFrame::commonValidPreSeqNum(
                 {makeU64SCVal(sorobanData.resourceFee),
                  makeU64SCVal(getFullFee())});
 
-            txResult->setResultCode(txSOROBAN_INVALID);
+            txResult->setInnermostResultCode(txSOROBAN_INVALID);
             return false;
         }
         releaseAssertOrThrow(sorobanResourceFee);
@@ -974,7 +974,7 @@ TransactionFrame::commonValidPreSeqNum(
                 {makeU64SCVal(sorobanResourceFee->refundable_fee),
                  makeU64SCVal(sorobanResourceFee->non_refundable_fee)});
 
-            txResult->setResultCode(txSOROBAN_INVALID);
+            txResult->setInnermostResultCode(txSOROBAN_INVALID);
             return false;
         }
         auto const resourceFees = sorobanResourceFee->refundable_fee +
@@ -988,7 +988,7 @@ TransactionFrame::commonValidPreSeqNum(
                 {makeU64SCVal(sorobanData.resourceFee),
                  makeU64SCVal(resourceFees)});
 
-            txResult->setResultCode(txSOROBAN_INVALID);
+            txResult->setInnermostResultCode(txSOROBAN_INVALID);
             return false;
         }
 
@@ -1007,7 +1007,7 @@ TransactionFrame::commonValidPreSeqNum(
                         "be unique.",
                         {});
 
-                    txResult->setResultCode(txSOROBAN_INVALID);
+                    txResult->setInnermostResultCode(txSOROBAN_INVALID);
                     return false;
                 }
             }
@@ -1027,7 +1027,7 @@ TransactionFrame::commonValidPreSeqNum(
             if (mEnvelope.type() == ENVELOPE_TYPE_TX &&
                 mEnvelope.v1().tx.ext.v() != 0)
             {
-                txResult->setResultCode(txMALFORMED);
+                txResult->setInnermostResultCode(txMALFORMED);
                 return false;
             }
         }
@@ -1036,30 +1036,30 @@ TransactionFrame::commonValidPreSeqNum(
     auto header = ltx.loadHeader();
     if (isTooEarly(header, lowerBoundCloseTimeOffset))
     {
-        txResult->setResultCode(txTOO_EARLY);
+        txResult->setInnermostResultCode(txTOO_EARLY);
         return false;
     }
     if (isTooLate(header, upperBoundCloseTimeOffset))
     {
-        txResult->setResultCode(txTOO_LATE);
+        txResult->setInnermostResultCode(txTOO_LATE);
         return false;
     }
 
     if (chargeFee &&
         getInclusionFee() < getMinInclusionFee(*this, header.current()))
     {
-        txResult->setResultCode(txINSUFFICIENT_FEE);
+        txResult->setInnermostResultCode(txINSUFFICIENT_FEE);
         return false;
     }
     if (!chargeFee && getInclusionFee() < 0)
     {
-        txResult->setResultCode(txINSUFFICIENT_FEE);
+        txResult->setInnermostResultCode(txINSUFFICIENT_FEE);
         return false;
     }
 
     if (!loadSourceAccount(ltx, header))
     {
-        txResult->setResultCode(txNO_ACCOUNT);
+        txResult->setInnermostResultCode(txNO_ACCOUNT);
         return false;
     }
 
@@ -1117,8 +1117,8 @@ TransactionFrame::processSignatures(
     // From protocol 10-13, there's a dangling reference bug where we check op
     // signatures even if no OperationResult object exists. This check ensures
     // opResult actually exists.
-    if (txResult.getResultCode() == txSUCCESS ||
-        txResult.getResultCode() == txFAILED)
+    if (auto code = txResult.getInnermostResult().result.code();
+        code == txSUCCESS || code == txFAILED)
     {
         // scope here to avoid potential side effects of loading source accounts
         LedgerTxn ltx(ltxOuter);
@@ -1141,13 +1141,13 @@ TransactionFrame::processSignatures(
         // then a different XDR structure is constructed. However, txFAILED and
         // txSUCCESS have the same underlying field number so this does not
         // occur.
-        txResult.setResultCode(txFAILED);
+        txResult.setInnermostResultCode(txFAILED);
         return false;
     }
 
     if (!signatureChecker.checkAllSignaturesUsed())
     {
-        txResult.setResultCode(txBAD_AUTH_EXTRA);
+        txResult.setInnermostResultCode(txBAD_AUTH_EXTRA);
         return false;
     }
 
@@ -1225,7 +1225,7 @@ TransactionFrame::commonValid(Application& app,
         }
         if (isBadSeq(header, current))
         {
-            txResult->setResultCode(txBAD_SEQ);
+            txResult->setInnermostResultCode(txBAD_SEQ);
             return res;
         }
     }
@@ -1234,7 +1234,7 @@ TransactionFrame::commonValid(Application& app,
 
     if (isTooEarlyForAccount(header, sourceAccount, lowerBoundCloseTimeOffset))
     {
-        txResult->setResultCode(txBAD_MIN_SEQ_AGE_OR_GAP);
+        txResult->setInnermostResultCode(txBAD_MIN_SEQ_AGE_OR_GAP);
         return res;
     }
 
@@ -1242,7 +1242,7 @@ TransactionFrame::commonValid(Application& app,
             signatureChecker, sourceAccount,
             sourceAccount.current().data.account().thresholds[THRESHOLD_LOW]))
     {
-        txResult->setResultCode(txBAD_AUTH);
+        txResult->setInnermostResultCode(txBAD_AUTH);
         return res;
     }
 
@@ -1250,7 +1250,7 @@ TransactionFrame::commonValid(Application& app,
                                   ProtocolVersion::V_19) &&
         !checkExtraSigners(signatureChecker))
     {
-        txResult->setResultCode(txBAD_AUTH);
+        txResult->setInnermostResultCode(txBAD_AUTH);
         return res;
     }
 
@@ -1268,7 +1268,7 @@ TransactionFrame::commonValid(Application& app,
     // liabilities
     if (chargeFee && getAvailableBalance(header, sourceAccount) < feeToPay)
     {
-        txResult->setResultCode(txINSUFFICIENT_BALANCE);
+        txResult->setInnermostResultCode(txINSUFFICIENT_BALANCE);
         return res;
     }
 
@@ -1295,7 +1295,7 @@ TransactionFrame::processFeeSeqNum(AbstractLedgerTxn& ltx,
 
     auto& acc = sourceAccount.current().data.account();
 
-    int64_t& fee = txResult->getResult().feeCharged;
+    int64_t& fee = txResult->getInnermostResult().feeCharged;
     if (fee > 0)
     {
         fee = std::min(acc.balance, fee);
@@ -1400,7 +1400,7 @@ TransactionFrame::checkValidWithOptionallyChargedFee(
     if (!XDRProvidesValidFee())
     {
         auto txResult = createResultPayload();
-        txResult->setResultCode(txMALFORMED);
+        txResult->setInnermostResultCode(txMALFORMED);
         return {false, txResult};
     }
 
@@ -1444,7 +1444,7 @@ TransactionFrame::checkValidWithOptionallyChargedFee(
                 // it's OK to just fast fail here and not try to call
                 // checkValid on all operations as the resulting object
                 // is only used by applications
-                txResult->setResultCode(txFAILED);
+                txResult->setInnermostResultCode(txFAILED);
                 return {false, txResult};
             }
         }
@@ -1452,7 +1452,7 @@ TransactionFrame::checkValidWithOptionallyChargedFee(
         if (!signatureChecker.checkAllSignaturesUsed())
         {
             res = false;
-            txResult->setResultCode(txBAD_AUTH_EXTRA);
+            txResult->setInnermostResultCode(txBAD_AUTH_EXTRA);
         }
     }
     return {res, txResult};
@@ -1479,7 +1479,7 @@ TransactionFrame::checkSorobanResourceAndSetError(
     if (!validateSorobanResources(sorobanConfig, app.getConfig(), ledgerVersion,
                                   *txResult->getSorobanData()))
     {
-        txResult->setResultCode(txSOROBAN_INVALID);
+        txResult->setInnermostResultCode(txSOROBAN_INVALID);
         return false;
     }
     return true;
@@ -1619,7 +1619,7 @@ TransactionFrame::applyOperations(SignatureChecker& signatureChecker,
             {
                 if (!signatureChecker.checkAllSignaturesUsed())
                 {
-                    txResult.setResultCode(txBAD_AUTH_EXTRA);
+                    txResult.setInnermostResultCode(txBAD_AUTH_EXTRA);
 
                     // this should never happen: malformed transaction
                     // should not be accepted by nodes
@@ -1637,7 +1637,7 @@ TransactionFrame::applyOperations(SignatureChecker& signatureChecker,
                                                ProtocolVersion::V_14) &&
                      ltxTx.hasSponsorshipEntry())
             {
-                txResult.setResultCode(txBAD_SPONSORSHIP);
+                txResult.setInnermostResultCode(txBAD_SPONSORSHIP);
                 return false;
             }
 
@@ -1660,7 +1660,7 @@ TransactionFrame::applyOperations(SignatureChecker& signatureChecker,
             // destructed, then a different XDR structure is constructed.
             // However, txFAILED and txSUCCESS have the same underlying field
             // number so this does not occur.
-            txResult.setResultCode(txFAILED);
+            txResult.setInnermostResultCode(txFAILED);
             if (protocolVersionStartsFrom(ledgerVersion,
                                           SOROBAN_PROTOCOL_VERSION) &&
                 isSoroban())
@@ -1734,7 +1734,7 @@ TransactionFrame::applyOperations(SignatureChecker& signatureChecker,
                            "operations, see logs for details.");
     }
     // This is only reachable if an exception is thrown
-    txResult.setResultCode(txINTERNAL_ERROR);
+    txResult.setInnermostResultCode(txINTERNAL_ERROR);
 
     // We only increase the internal-error metric count if the ledger is a
     // newer version.

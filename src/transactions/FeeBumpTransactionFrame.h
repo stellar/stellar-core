@@ -91,6 +91,11 @@ class FeeBumpTransactionFrame : public TransactionFrameBase
                                       std::optional<int64_t> baseFee,
                                       bool applying) const override;
 
+    TransactionResultPayloadPtr
+    createResultPayloadWithNewInnerTx(TransactionResultPayloadPtr&& outerResult,
+                                      TransactionResultPayloadPtr&& innerResult,
+                                      TransactionFrameBasePtr innerTx) const;
+
     TransactionEnvelope const& getEnvelope() const override;
 
     int64_t getFullFee() const override;

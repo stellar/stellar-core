@@ -104,14 +104,9 @@ FeeBumpTransactionFrame::apply(Application& app, AbstractLedgerTxn& ltx,
         // Note that even after updateResult is called here, feeCharged will not
         // be accurate for Soroban transactions until
         // FeeBumpTransactionFrame::processPostApply is called.
-        auto feeBumpPayload =
-            std::dynamic_pointer_cast<FeeBumpMutableTransactionResult>(
-                txResult);
-        releaseAssertOrThrow(feeBumpPayload);
-        bool res = mInnerTx->apply(app, ltx, meta,
-                                   feeBumpPayload->getInnerResultPayload(),
-                                   false, sorobanBasePrngSeed);
-        feeBumpPayload->updateResult(mInnerTx);
+        bool res = mInnerTx->apply(app, ltx, meta, txResult, false,
+                                   sorobanBasePrngSeed);
+        FeeBumpMutableTransactionResult::updateResult(mInnerTx, *txResult);
         return res;
     }
     catch (std::exception& e)
@@ -131,16 +126,13 @@ FeeBumpTransactionFrame::processPostApply(
     Application& app, AbstractLedgerTxn& ltx, TransactionMetaFrame& meta,
     TransactionResultPayloadPtr txResult) const
 {
-    auto feeBumpPayload =
-        std::dynamic_pointer_cast<FeeBumpMutableTransactionResult>(txResult);
     // We must forward the Fee-bump source so the refund is applied to the
     // correct account
     // Note that we are not calling TransactionFrame::processPostApply, so if
     // any logic is added there, we would have to reason through if that logic
     // should also be reflected here.
     int64_t refund =
-        mInnerTx->processRefund(app, ltx, meta, getFeeSourceID(),
-                                *(feeBumpPayload->getInnerResultPayload()));
+        mInnerTx->processRefund(app, ltx, meta, getFeeSourceID(), *txResult);
 
     // The result codes and a feeCharged without the refund are set in
     // updateResult in FeeBumpTransactionFrame::apply. At this point, feeCharged
@@ -152,13 +144,12 @@ FeeBumpTransactionFrame::processPostApply(
         // First update feeCharged of the inner result on the feeBump using
         // mInnerTx
         {
-            auto& irp = feeBumpPayload->getResult().result.innerResultPair();
+            auto& irp = txResult->getResult().result.innerResultPair();
             auto& innerRes = irp.result;
-            innerRes.feeCharged =
-                feeBumpPayload->getInnerResultPayload()->getResult().feeCharged;
+            innerRes.feeCharged = txResult->getInnermostResult().feeCharged;
 
             // Now set the updated feeCharged on the fee bump.
-            feeBumpPayload->getResult().feeCharged -= refund;
+            txResult->getResult().feeCharged -= refund;
         }
     }
 }
@@ -196,10 +187,8 @@ FeeBumpTransactionFrame::checkValid(Application& app,
 
     LedgerTxn ltx(ltxOuter);
     int64_t minBaseFee = ltx.loadHeader().current().baseFee;
-    auto txResult = std::dynamic_pointer_cast<FeeBumpMutableTransactionResult>(
-        createResultPayloadWithFeeCharged(ltx.loadHeader().current(),
-                                          minBaseFee, false));
-    releaseAssert(txResult);
+    auto txResult = createResultPayloadWithFeeCharged(
+        ltx.loadHeader().current(), minBaseFee, false);
 
     SignatureChecker signatureChecker{ltx.loadHeader().current().ledgerVersion,
                                       getContentsHash(),
@@ -219,9 +208,10 @@ FeeBumpTransactionFrame::checkValid(Application& app,
     auto [res, innerTxResult] = mInnerTx->checkValidWithOptionallyChargedFee(
         app, ltx, current, false, lowerBoundCloseTimeOffset,
         upperBoundCloseTimeOffset);
-    txResult->setInnerResultPayload(innerTxResult, mInnerTx);
+    auto finalTxResult = createResultPayloadWithNewInnerTx(
+        std::move(txResult), std::move(innerTxResult), mInnerTx);
 
-    return {res, txResult};
+    return {res, finalTxResult};
 }
 
 bool
@@ -229,11 +219,8 @@ FeeBumpTransactionFrame::checkSorobanResourceAndSetError(
     Application& app, uint32_t ledgerVersion,
     TransactionResultPayloadPtr txResult) const
 {
-    auto feeBumpPayload =
-        std::dynamic_pointer_cast<FeeBumpMutableTransactionResult>(txResult);
-    releaseAssertOrThrow(feeBumpPayload);
-    return mInnerTx->checkSorobanResourceAndSetError(
-        app, ledgerVersion, feeBumpPayload->getInnerResultPayload());
+    return mInnerTx->checkSorobanResourceAndSetError(app, ledgerVersion,
+                                                     txResult);
 }
 
 bool
@@ -590,6 +577,16 @@ FeeBumpTransactionFrame::createResultPayload() const
 {
     return TransactionResultPayloadPtr(
         new FeeBumpMutableTransactionResult(mInnerTx->createResultPayload()));
+}
+
+TransactionResultPayloadPtr
+FeeBumpTransactionFrame::createResultPayloadWithNewInnerTx(
+    TransactionResultPayloadPtr&& outerResult,
+    TransactionResultPayloadPtr&& innerResult,
+    TransactionFrameBasePtr innerTx) const
+{
+    return TransactionResultPayloadPtr(new FeeBumpMutableTransactionResult(
+        std::move(outerResult), std::move(innerResult), innerTx));
 }
 
 std::shared_ptr<StellarMessage const>
