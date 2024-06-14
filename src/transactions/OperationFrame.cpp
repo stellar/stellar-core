@@ -138,15 +138,24 @@ bool
 OperationFrame::apply(Application& app, SignatureChecker& signatureChecker,
                       AbstractLedgerTxn& ltx, Hash const& sorobanBasePrngSeed,
                       OperationResult& res,
-                      MutableTransactionResultBase& txResult) const
+                      std::shared_ptr<SorobanTxData> sorobanData) const
 {
     ZoneScoped;
     bool applyRes;
     CLOG_TRACE(Tx, "{}", xdrToCerealString(mOperation, "Operation"));
-    applyRes = checkValid(app, signatureChecker, ltx, true, res, txResult);
+    applyRes = checkValid(app, signatureChecker, ltx, true, res, sorobanData);
     if (applyRes)
     {
-        applyRes = doApply(app, ltx, sorobanBasePrngSeed, res, txResult);
+        if (isSoroban())
+        {
+            releaseAssertOrThrow(sorobanData);
+            applyRes = doApplyForSoroban(app, ltx, sorobanBasePrngSeed, res,
+                                         *sorobanData);
+        }
+        else
+        {
+            applyRes = doApply(ltx, res);
+        }
         CLOG_TRACE(Tx, "{}", xdrToCerealString(res, "OperationResult"));
     }
 
@@ -154,9 +163,10 @@ OperationFrame::apply(Application& app, SignatureChecker& signatureChecker,
 }
 
 bool
-OperationFrame::doApply(Application& _app, AbstractLedgerTxn& ltx,
-                        Hash const& sorobanBasePrngSeed, OperationResult& res,
-                        MutableTransactionResultBase& txResult) const
+OperationFrame::doApplyForSoroban(Application& _app, AbstractLedgerTxn& ltx,
+                                  Hash const& sorobanBasePrngSeed,
+                                  OperationResult& res,
+                                  SorobanTxData& sorobanData) const
 {
     // By default we ignore the app and seed, but subclasses can override to
     // intercept and use them.
@@ -228,7 +238,7 @@ bool
 OperationFrame::checkValid(Application& app, SignatureChecker& signatureChecker,
                            AbstractLedgerTxn& ltxOuter, bool forApply,
                            OperationResult& res,
-                           MutableTransactionResultBase& txResult) const
+                           std::shared_ptr<SorobanTxData> sorobanData) const
 {
     ZoneScoped;
     // Note: ltx is always rolled back so checkValid never modifies the ledger
@@ -261,13 +271,15 @@ OperationFrame::checkValid(Application& app, SignatureChecker& signatureChecker,
 
     resetResultSuccess(res);
 
-    if (protocolVersionStartsFrom(ledgerVersion, SOROBAN_PROTOCOL_VERSION))
+    if (protocolVersionStartsFrom(ledgerVersion, SOROBAN_PROTOCOL_VERSION) &&
+        isSoroban())
     {
+        releaseAssertOrThrow(sorobanData);
         auto const& sorobanConfig =
             app.getLedgerManager().getSorobanNetworkConfig();
 
-        return doCheckValid(sorobanConfig, app.getConfig(), ledgerVersion, res,
-                            txResult);
+        return doCheckValidForSoroban(sorobanConfig, app.getConfig(),
+                                      ledgerVersion, res, *sorobanData);
     }
     else
     {
@@ -276,10 +288,11 @@ OperationFrame::checkValid(Application& app, SignatureChecker& signatureChecker,
 }
 
 bool
-OperationFrame::doCheckValid(SorobanNetworkConfig const& config,
-                             Config const& appConfig, uint32_t ledgerVersion,
-                             OperationResult& res,
-                             MutableTransactionResultBase& txResult) const
+OperationFrame::doCheckValidForSoroban(SorobanNetworkConfig const& config,
+                                       Config const& appConfig,
+                                       uint32_t ledgerVersion,
+                                       OperationResult& res,
+                                       SorobanTxData& sorobanData) const
 {
     return doCheckValid(ledgerVersion, res);
 }

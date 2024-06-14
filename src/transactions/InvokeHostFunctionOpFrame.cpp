@@ -259,8 +259,7 @@ InvokeHostFunctionOpFrame::doApply(AbstractLedgerTxn& ltx,
 void
 InvokeHostFunctionOpFrame::maybePopulateDiagnosticEvents(
     Config const& cfg, InvokeHostFunctionOutput const& output,
-    HostFunctionMetrics const& metrics,
-    MutableTransactionResultBase& txResult) const
+    HostFunctionMetrics const& metrics, SorobanTxData& sorobanData) const
 {
     if (cfg.ENABLE_SOROBAN_DIAGNOSTIC_EVENTS)
     {
@@ -320,15 +319,16 @@ InvokeHostFunctionOpFrame::maybePopulateDiagnosticEvents(
                                                    "max_emit_event_byte",
                                                    metrics.mMaxEmitEventByte));
 
-        txResult.pushDiagnosticEvents(diagnosticEvents);
+        sorobanData.pushDiagnosticEvents(diagnosticEvents);
     }
 }
 
 bool
-InvokeHostFunctionOpFrame::doApply(Application& app, AbstractLedgerTxn& ltx,
-                                   Hash const& sorobanBasePrngSeed,
-                                   OperationResult& res,
-                                   MutableTransactionResultBase& txResult) const
+InvokeHostFunctionOpFrame::doApplyForSoroban(Application& app,
+                                             AbstractLedgerTxn& ltx,
+                                             Hash const& sorobanBasePrngSeed,
+                                             OperationResult& res,
+                                             SorobanTxData& sorobanData) const
 {
     ZoneNamedN(applyZone, "InvokeHostFunctionOpFrame apply", true);
 
@@ -351,7 +351,7 @@ InvokeHostFunctionOpFrame::doApply(Application& app, AbstractLedgerTxn& ltx,
     ttlEntryCxxBufs.reserve(footprintLength);
 
     auto addReads = [&ledgerEntryCxxBufs, &ttlEntryCxxBufs, &ltx, &metrics,
-                     &resources, &sorobanConfig, &appConfig, &txResult, &res,
+                     &resources, &sorobanConfig, &appConfig, &sorobanData, &res,
                      this](auto const& keys) -> bool {
         for (auto const& lk : keys)
         {
@@ -375,7 +375,7 @@ InvokeHostFunctionOpFrame::doApply(Application& app, AbstractLedgerTxn& ltx,
                         {
                             if (lk.type() == CONTRACT_CODE)
                             {
-                                txResult.pushApplyTimeDiagnosticError(
+                                sorobanData.pushApplyTimeDiagnosticError(
                                     appConfig, SCE_VALUE, SCEC_INVALID_INPUT,
                                     "trying to access an archived contract "
                                     "code "
@@ -384,7 +384,7 @@ InvokeHostFunctionOpFrame::doApply(Application& app, AbstractLedgerTxn& ltx,
                             }
                             else if (lk.type() == CONTRACT_DATA)
                             {
-                                txResult.pushApplyTimeDiagnosticError(
+                                sorobanData.pushApplyTimeDiagnosticError(
                                     appConfig, SCE_VALUE, SCEC_INVALID_INPUT,
                                     "trying to access an archived contract "
                                     "data "
@@ -436,7 +436,7 @@ InvokeHostFunctionOpFrame::doApply(Application& app, AbstractLedgerTxn& ltx,
 
             metrics.noteReadEntry(isCodeKey(lk), keySize, entrySize);
             if (!validateContractLedgerEntry(lk, entrySize, sorobanConfig,
-                                             appConfig, mParentTx, txResult))
+                                             appConfig, mParentTx, sorobanData))
             {
                 this->innerResult(res).code(
                     INVOKE_HOST_FUNCTION_RESOURCE_LIMIT_EXCEEDED);
@@ -445,7 +445,7 @@ InvokeHostFunctionOpFrame::doApply(Application& app, AbstractLedgerTxn& ltx,
 
             if (resources.readBytes < metrics.mLedgerReadByte)
             {
-                txResult.pushApplyTimeDiagnosticError(
+                sorobanData.pushApplyTimeDiagnosticError(
                     appConfig, SCE_BUDGET, SCEC_EXCEEDED_LIMIT,
                     "operation byte-read resources exceeds amount specified",
                     {makeU64SCVal(metrics.mLedgerReadByte),
@@ -503,7 +503,7 @@ InvokeHostFunctionOpFrame::doApply(Application& app, AbstractLedgerTxn& ltx,
             out.time_nsecs_excluding_vm_instantiation;
         if (!out.success)
         {
-            maybePopulateDiagnosticEvents(appConfig, out, metrics, txResult);
+            maybePopulateDiagnosticEvents(appConfig, out, metrics, sorobanData);
         }
     }
     catch (std::exception& e)
@@ -523,7 +523,7 @@ InvokeHostFunctionOpFrame::doApply(Application& app, AbstractLedgerTxn& ltx,
         }
         if (resources.instructions < out.cpu_insns)
         {
-            txResult.pushApplyTimeDiagnosticError(
+            sorobanData.pushApplyTimeDiagnosticError(
                 appConfig, SCE_BUDGET, SCEC_EXCEEDED_LIMIT,
                 "operation instructions exceeds amount specified",
                 {makeU64SCVal(out.cpu_insns),
@@ -532,7 +532,7 @@ InvokeHostFunctionOpFrame::doApply(Application& app, AbstractLedgerTxn& ltx,
         }
         else if (sorobanConfig.txMemoryLimit() < out.mem_bytes)
         {
-            txResult.pushApplyTimeDiagnosticError(
+            sorobanData.pushApplyTimeDiagnosticError(
                 appConfig, SCE_BUDGET, SCEC_EXCEEDED_LIMIT,
                 "operation memory usage exceeds network config limit",
                 {makeU64SCVal(out.mem_bytes),
@@ -555,7 +555,7 @@ InvokeHostFunctionOpFrame::doApply(Application& app, AbstractLedgerTxn& ltx,
         xdr::xdr_from_opaque(buf.data, le);
         if (!validateContractLedgerEntry(LedgerEntryKey(le), buf.data.size(),
                                          sorobanConfig, appConfig, mParentTx,
-                                         txResult))
+                                         sorobanData))
         {
             innerResult(res).code(INVOKE_HOST_FUNCTION_RESOURCE_LIMIT_EXCEEDED);
             return false;
@@ -574,7 +574,7 @@ InvokeHostFunctionOpFrame::doApply(Application& app, AbstractLedgerTxn& ltx,
             metrics.noteWriteEntry(isCodeKey(lk), keySize, entrySize);
             if (resources.writeBytes < metrics.mLedgerWriteByte)
             {
-                txResult.pushApplyTimeDiagnosticError(
+                sorobanData.pushApplyTimeDiagnosticError(
                     appConfig, SCE_BUDGET, SCEC_EXCEEDED_LIMIT,
                     "operation byte-write resources exceeds amount specified",
                     {makeU64SCVal(metrics.mLedgerWriteByte),
@@ -649,7 +649,7 @@ InvokeHostFunctionOpFrame::doApply(Application& app, AbstractLedgerTxn& ltx,
         if (sorobanConfig.txMaxContractEventsSizeBytes() <
             metrics.mEmitEventByte)
         {
-            txResult.pushApplyTimeDiagnosticError(
+            sorobanData.pushApplyTimeDiagnosticError(
                 appConfig, SCE_BUDGET, SCEC_EXCEEDED_LIMIT,
                 "total events size exceeds network config maximum",
                 {makeU64SCVal(metrics.mEmitEventByte),
@@ -662,12 +662,12 @@ InvokeHostFunctionOpFrame::doApply(Application& app, AbstractLedgerTxn& ltx,
         success.events.emplace_back(evt);
     }
 
-    maybePopulateDiagnosticEvents(appConfig, out, metrics, txResult);
+    maybePopulateDiagnosticEvents(appConfig, out, metrics, sorobanData);
 
     metrics.mEmitEventByte += static_cast<uint32>(out.result_value.data.size());
     if (sorobanConfig.txMaxContractEventsSizeBytes() < metrics.mEmitEventByte)
     {
-        txResult.pushApplyTimeDiagnosticError(
+        sorobanData.pushApplyTimeDiagnosticError(
             appConfig, SCE_BUDGET, SCEC_EXCEEDED_LIMIT,
             "return value pushes events size above network config maximum",
             {makeU64SCVal(metrics.mEmitEventByte),
@@ -676,7 +676,7 @@ InvokeHostFunctionOpFrame::doApply(Application& app, AbstractLedgerTxn& ltx,
         return false;
     }
 
-    if (!txResult.consumeRefundableSorobanResources(
+    if (!sorobanData.consumeRefundableSorobanResources(
             metrics.mEmitEventByte, out.rent_fee,
             ltx.loadHeader().current().ledgerVersion, sorobanConfig, appConfig,
             mParentTx))
@@ -689,24 +689,24 @@ InvokeHostFunctionOpFrame::doApply(Application& app, AbstractLedgerTxn& ltx,
     innerResult(res).code(INVOKE_HOST_FUNCTION_SUCCESS);
     innerResult(res).success() = xdrSha256(success);
 
-    txResult.pushContractEvents(success.events);
-    txResult.setReturnValue(success.returnValue);
+    sorobanData.pushContractEvents(success.events);
+    sorobanData.setReturnValue(success.returnValue);
     metrics.mSuccess = true;
     return true;
 }
 
 bool
-InvokeHostFunctionOpFrame::doCheckValid(
+InvokeHostFunctionOpFrame::doCheckValidForSoroban(
     SorobanNetworkConfig const& networkConfig, Config const& appConfig,
     uint32_t ledgerVersion, OperationResult& res,
-    MutableTransactionResultBase& txResult) const
+    SorobanTxData& sorobanData) const
 {
     // check wasm size if uploading contract
     auto const& hostFn = mInvokeHostFunction.hostFunction;
     if (hostFn.type() == HOST_FUNCTION_TYPE_UPLOAD_CONTRACT_WASM &&
         hostFn.wasm().size() > networkConfig.maxContractSizeBytes())
     {
-        txResult.pushValidationTimeDiagnosticError(
+        sorobanData.pushValidationTimeDiagnosticError(
             appConfig, SCE_BUDGET, SCEC_EXCEEDED_LIMIT,
             "uploaded Wasm size exceeds network config maximum contract size",
             {makeU64SCVal(hostFn.wasm().size()),
@@ -719,7 +719,7 @@ InvokeHostFunctionOpFrame::doCheckValid(
         if (preimage.type() == CONTRACT_ID_PREIMAGE_FROM_ASSET &&
             !isAssetValid(preimage.fromAsset(), ledgerVersion))
         {
-            txResult.pushValidationTimeDiagnosticError(
+            sorobanData.pushValidationTimeDiagnosticError(
                 appConfig, SCE_VALUE, SCEC_INVALID_INPUT,
                 "invalid asset to create contract from");
             return false;

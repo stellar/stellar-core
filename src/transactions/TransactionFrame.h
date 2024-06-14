@@ -40,6 +40,7 @@ class LedgerTxnHeader;
 class SecretKey;
 class SignatureChecker;
 class MutableTransactionResultBase;
+class SorobanTxData;
 class XDROutputFileStream;
 class SHA256;
 
@@ -136,7 +137,7 @@ class TransactionFrame : public TransactionFrameBase
     bool validateSorobanResources(SorobanNetworkConfig const& config,
                                   Config const& appConfig,
                                   uint32_t protocolVersion,
-                                  MutableTransactionResultBase& txResult) const;
+                                  SorobanTxData& sorobanData) const;
     int64_t refundSorobanFee(AbstractLedgerTxn& ltx, AccountID const& feeSource,
                              MutableTransactionResultBase& txResult) const;
     void updateSorobanMetrics(Application& app) const;

@@ -927,7 +927,7 @@ class FuzzTransactionFrame : public TransactionFrame
         // if any ill-formed Operations, do not attempt transaction application
         auto isInvalidOperation = [&](auto const& op, auto& opResult) {
             return !op->checkValid(app, signatureChecker, ltx, false, opResult,
-                                   *mResultPayload);
+                                   mResultPayload->getSorobanData());
         };
 
         auto const& ops = getOperations();

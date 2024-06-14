@@ -42,18 +42,18 @@ class OperationFrame
     Operation const& mOperation;
     TransactionFrame const& mParentTx;
 
-    // TODO: replace MutableTransactionResultBase with Soroban diagnostic state
-    virtual bool doCheckValid(SorobanNetworkConfig const& networkConfig,
-                              Config const& appConfig, uint32_t ledgerVersion,
-                              OperationResult& res,
-                              MutableTransactionResultBase& txResult) const;
+    virtual bool
+    doCheckValidForSoroban(SorobanNetworkConfig const& networkConfig,
+                           Config const& appConfig, uint32_t ledgerVersion,
+                           OperationResult& res,
+                           SorobanTxData& sorobanData) const;
     virtual bool doCheckValid(uint32_t ledgerVersion,
                               OperationResult& res) const = 0;
 
-    // TODO: replace MutableTransactionResultBase with Soroban diagnostic state
-    virtual bool doApply(Application& app, AbstractLedgerTxn& ltx,
-                         Hash const& sorobanBasePrngSeed, OperationResult& res,
-                         MutableTransactionResultBase& txResult) const;
+    virtual bool doApplyForSoroban(Application& app, AbstractLedgerTxn& ltx,
+                                   Hash const& sorobanBasePrngSeed,
+                                   OperationResult& res,
+                                   SorobanTxData& sorobanData) const;
     virtual bool doApply(AbstractLedgerTxn& ltx,
                          OperationResult& res) const = 0;
 
@@ -88,13 +88,12 @@ class OperationFrame
     bool checkValid(Application& app, SignatureChecker& signatureChecker,
                     AbstractLedgerTxn& ltxOuter, bool forApply,
                     OperationResult& res,
-                    MutableTransactionResultBase& txResult) const;
+                    std::shared_ptr<SorobanTxData> sorobanData) const;
 
-    // TODO: replace MutableTransactionResultBase with Soroban diagnostic state
     bool apply(Application& app, SignatureChecker& signatureChecker,
                AbstractLedgerTxn& ltx, Hash const& sorobanBasePrngSeed,
                OperationResult& res,
-               MutableTransactionResultBase& txResult) const;
+               std::shared_ptr<SorobanTxData> sorobanData) const;
 
     Operation const&
     getOperation() const

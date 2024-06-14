@@ -19,6 +19,53 @@ class Config;
 class InternalLedgerEntry;
 class SorobanNetworkConfig;
 
+class SorobanTxData
+{
+  private:
+    xdr::xvector<DiagnosticEvent> mDiagnosticEvents;
+    xdr::xvector<ContractEvent> mEvents;
+    SCVal mReturnValue;
+    // Size of the emitted Soroban events.
+    uint32_t mConsumedContractEventsSizeBytes{};
+    int64_t mFeeRefund{};
+    int64_t mConsumedNonRefundableFee{};
+    int64_t mConsumedRentFee{};
+    int64_t mConsumedRefundableFee{};
+
+    void pushDiagnosticEvent(DiagnosticEvent const& ecvt);
+
+  public:
+    xdr::xvector<DiagnosticEvent> const& getDiagnosticEvents() const;
+
+    bool consumeRefundableSorobanResources(
+        uint32_t contractEventSizeBytes, int64_t rentFee,
+        uint32_t protocolVersion, SorobanNetworkConfig const& sorobanConfig,
+        Config const& cfg, TransactionFrame const& tx);
+
+    void setSorobanConsumedNonRefundableFee(int64_t);
+    int64_t getSorobanFeeRefund() const;
+    void setSorobanFeeRefund(int64_t fee);
+
+    void pushContractEvents(xdr::xvector<ContractEvent> const& evts);
+    void setReturnValue(SCVal const& returnValue);
+
+    void pushDiagnosticEvents(xdr::xvector<DiagnosticEvent> const& evts);
+    void pushSimpleDiagnosticError(Config const& cfg, SCErrorType ty,
+                                   SCErrorCode code, std::string&& message,
+                                   xdr::xvector<SCVal>&& args);
+    void pushApplyTimeDiagnosticError(Config const& cfg, SCErrorType ty,
+                                      SCErrorCode code, std::string&& message,
+                                      xdr::xvector<SCVal>&& args = {});
+    void pushValidationTimeDiagnosticError(Config const& cfg, SCErrorType ty,
+                                           SCErrorCode code,
+                                           std::string&& message,
+                                           xdr::xvector<SCVal>&& args = {});
+    void publishSuccessDiagnosticsToMeta(TransactionMetaFrame& meta,
+                                         Config const& cfg);
+    void publishFailureDiagnosticsToMeta(TransactionMetaFrame& meta,
+                                         Config const& cfg);
+};
+
 // This class holds all mutable state that is associated with a transaction.
 class MutableTransactionResultBase : public NonMovableOrCopyable
 {
@@ -27,62 +74,18 @@ class MutableTransactionResultBase : public NonMovableOrCopyable
     virtual TransactionResult const& getResult() const = 0;
     virtual TransactionResultCode getResultCode() const = 0;
     virtual void setResultCode(TransactionResultCode code) = 0;
-
     virtual OperationResult& getOpResultAt(size_t index) = 0;
+    virtual std::shared_ptr<SorobanTxData> getSorobanData() = 0;
+
     virtual xdr::xvector<DiagnosticEvent> const&
     getDiagnosticEvents() const = 0;
-
-    virtual bool consumeRefundableSorobanResources(
-        uint32_t contractEventSizeBytes, int64_t rentFee,
-        uint32_t protocolVersion, SorobanNetworkConfig const& sorobanConfig,
-        Config const& cfg, TransactionFrame const& tx) = 0;
-
-    virtual void setSorobanConsumedNonRefundableFee(int64_t) = 0;
-    virtual int64_t getSorobanFeeRefund() const = 0;
-    virtual void setSorobanFeeRefund(int64_t fee) = 0;
-
-    virtual void
-    pushContractEvents(xdr::xvector<ContractEvent> const& evts) = 0;
-    virtual void
-    pushDiagnosticEvents(xdr::xvector<DiagnosticEvent> const& evts) = 0;
-    virtual void setReturnValue(SCVal const& returnValue) = 0;
-    virtual void pushDiagnosticEvent(DiagnosticEvent const& ecvt) = 0;
-    virtual void pushSimpleDiagnosticError(Config const& cfg, SCErrorType ty,
-                                           SCErrorCode code,
-                                           std::string&& message,
-                                           xdr::xvector<SCVal>&& args) = 0;
-    virtual void
-    pushApplyTimeDiagnosticError(Config const& cfg, SCErrorType ty,
-                                 SCErrorCode code, std::string&& message,
-                                 xdr::xvector<SCVal>&& args = {}) = 0;
-    virtual void
-    pushValidationTimeDiagnosticError(Config const& cfg, SCErrorType ty,
-                                      SCErrorCode code, std::string&& message,
-                                      xdr::xvector<SCVal>&& args = {}) = 0;
-    virtual void publishSuccessDiagnosticsToMeta(TransactionMetaFrame& meta,
-                                                 Config const& cfg) = 0;
-    virtual void publishFailureDiagnosticsToMeta(TransactionMetaFrame& meta,
-                                                 Config const& cfg) = 0;
 };
 
 class MutableTransactionResult : public MutableTransactionResultBase
 {
   private:
-    struct SorobanData
-    {
-        xdr::xvector<ContractEvent> mEvents;
-        xdr::xvector<DiagnosticEvent> mDiagnosticEvents;
-        SCVal mReturnValue;
-        // Size of the emitted Soroban events.
-        uint32_t mConsumedContractEventsSizeBytes{};
-        int64_t mFeeRefund{};
-        int64_t mConsumedNonRefundableFee{};
-        int64_t mConsumedRentFee{};
-        int64_t mConsumedRefundableFee{};
-    };
-
     TransactionResult mTxResult;
-    std::optional<SorobanData> mSorobanExtension;
+    std::shared_ptr<SorobanTxData> mSorobanExtension;
 
     MutableTransactionResult(TransactionFrame const& tx, int64_t feeCharged);
 
@@ -103,36 +106,8 @@ class MutableTransactionResult : public MutableTransactionResultBase
     void setResultCode(TransactionResultCode code) override;
 
     OperationResult& getOpResultAt(size_t index) override;
+    std::shared_ptr<SorobanTxData> getSorobanData() override;
     xdr::xvector<DiagnosticEvent> const& getDiagnosticEvents() const override;
-
-    bool consumeRefundableSorobanResources(
-        uint32_t contractEventSizeBytes, int64_t rentFee,
-        uint32_t protocolVersion, SorobanNetworkConfig const& sorobanConfig,
-        Config const& cfg, TransactionFrame const& tx) override;
-
-    void setSorobanConsumedNonRefundableFee(int64_t fee) override;
-    int64_t getSorobanFeeRefund() const override;
-    void setSorobanFeeRefund(int64_t fee) override;
-
-    void pushContractEvents(xdr::xvector<ContractEvent> const& evts) override;
-    void
-    pushDiagnosticEvents(xdr::xvector<DiagnosticEvent> const& evts) override;
-    void setReturnValue(SCVal const& returnValue) override;
-    void pushDiagnosticEvent(DiagnosticEvent const& ecvt) override;
-    void pushSimpleDiagnosticError(Config const& cfg, SCErrorType ty,
-                                   SCErrorCode code, std::string&& message,
-                                   xdr::xvector<SCVal>&& args) override;
-    void pushApplyTimeDiagnosticError(Config const& cfg, SCErrorType ty,
-                                      SCErrorCode code, std::string&& message,
-                                      xdr::xvector<SCVal>&& args = {}) override;
-    void
-    pushValidationTimeDiagnosticError(Config const& cfg, SCErrorType ty,
-                                      SCErrorCode code, std::string&& message,
-                                      xdr::xvector<SCVal>&& args = {}) override;
-    void publishSuccessDiagnosticsToMeta(TransactionMetaFrame& meta,
-                                         Config const& cfg) override;
-    void publishFailureDiagnosticsToMeta(TransactionMetaFrame& meta,
-                                         Config const& cfg) override;
 };
 
 class FeeBumpMutableTransactionResult : public MutableTransactionResultBase
@@ -168,35 +143,7 @@ class FeeBumpMutableTransactionResult : public MutableTransactionResultBase
     void setResultCode(TransactionResultCode code) override;
 
     OperationResult& getOpResultAt(size_t index) override;
+    std::shared_ptr<SorobanTxData> getSorobanData() override;
     xdr::xvector<DiagnosticEvent> const& getDiagnosticEvents() const override;
-
-    bool consumeRefundableSorobanResources(
-        uint32_t contractEventSizeBytes, int64_t rentFee,
-        uint32_t protocolVersion, SorobanNetworkConfig const& sorobanConfig,
-        Config const& cfg, TransactionFrame const& tx) override;
-
-    void setSorobanConsumedNonRefundableFee(int64_t fee) override;
-    int64_t getSorobanFeeRefund() const override;
-    void setSorobanFeeRefund(int64_t fee) override;
-
-    void pushContractEvents(xdr::xvector<ContractEvent> const& evts) override;
-    void
-    pushDiagnosticEvents(xdr::xvector<DiagnosticEvent> const& evts) override;
-    void setReturnValue(SCVal const& returnValue) override;
-    void pushDiagnosticEvent(DiagnosticEvent const& ecvt) override;
-    void pushSimpleDiagnosticError(Config const& cfg, SCErrorType ty,
-                                   SCErrorCode code, std::string&& message,
-                                   xdr::xvector<SCVal>&& args) override;
-    void pushApplyTimeDiagnosticError(Config const& cfg, SCErrorType ty,
-                                      SCErrorCode code, std::string&& message,
-                                      xdr::xvector<SCVal>&& args = {}) override;
-    void
-    pushValidationTimeDiagnosticError(Config const& cfg, SCErrorType ty,
-                                      SCErrorCode code, std::string&& message,
-                                      xdr::xvector<SCVal>&& args = {}) override;
-    void publishSuccessDiagnosticsToMeta(TransactionMetaFrame& meta,
-                                         Config const& cfg) override;
-    void publishFailureDiagnosticsToMeta(TransactionMetaFrame& meta,
-                                         Config const& cfg) override;
 };
 }

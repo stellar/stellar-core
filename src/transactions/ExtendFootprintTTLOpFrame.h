@@ -29,14 +29,15 @@ class ExtendFootprintTTLOpFrame : public OperationFrame
     bool isOpSupported(LedgerHeader const& header) const override;
 
     bool doApply(AbstractLedgerTxn& ltx, OperationResult& res) const override;
-    bool doApply(Application& app, AbstractLedgerTxn& ltx,
-                 Hash const& sorobanBasePrngSeed, OperationResult& res,
-                 MutableTransactionResultBase& txResult) const override;
+    bool doApplyForSoroban(Application& app, AbstractLedgerTxn& ltx,
+                           Hash const& sorobanBasePrngSeed,
+                           OperationResult& res,
+                           SorobanTxData& sorobanData) const override;
 
-    bool doCheckValid(SorobanNetworkConfig const& networkConfig,
-                      Config const& appConfig, uint32_t ledgerVersion,
-                      OperationResult& res,
-                      MutableTransactionResultBase& txResult) const override;
+    bool doCheckValidForSoroban(SorobanNetworkConfig const& networkConfig,
+                                Config const& appConfig, uint32_t ledgerVersion,
+                                OperationResult& res,
+                                SorobanTxData& sorobanData) const override;
     bool doCheckValid(uint32_t ledgerVersion,
                       OperationResult& res) const override;
 

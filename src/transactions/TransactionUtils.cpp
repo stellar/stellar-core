@@ -1837,12 +1837,12 @@ validateContractLedgerEntry(LedgerKey const& lk, size_t entrySize,
                             SorobanNetworkConfig const& config,
                             Config const& appConfig,
                             TransactionFrame const& parentTx,
-                            MutableTransactionResultBase& txResult)
+                            SorobanTxData& sorobanData)
 {
     // check contract code size limit
     if (lk.type() == CONTRACT_CODE && config.maxContractSizeBytes() < entrySize)
     {
-        txResult.pushApplyTimeDiagnosticError(
+        sorobanData.pushApplyTimeDiagnosticError(
             appConfig, SCE_BUDGET, SCEC_EXCEEDED_LIMIT,
             "Wasm size exceeds network config maximum contract size",
             {makeU64SCVal(entrySize),
@@ -1853,7 +1853,7 @@ validateContractLedgerEntry(LedgerKey const& lk, size_t entrySize,
     if (lk.type() == CONTRACT_DATA &&
         config.maxContractDataEntrySizeBytes() < entrySize)
     {
-        txResult.pushApplyTimeDiagnosticError(
+        sorobanData.pushApplyTimeDiagnosticError(
             appConfig, SCE_BUDGET, SCEC_EXCEEDED_LIMIT,
             "ContractData size exceeds network config maximum size",
             {makeU64SCVal(entrySize),

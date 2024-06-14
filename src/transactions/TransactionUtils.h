@@ -28,7 +28,7 @@ class InternalLedgerKey;
 class SorobanNetworkConfig;
 class TransactionFrame;
 class TransactionFrameBase;
-class MutableTransactionResultBase;
+class SorobanTxData;
 struct ClaimAtom;
 struct LedgerHeader;
 struct LedgerKey;
@@ -310,7 +310,7 @@ bool validateContractLedgerEntry(LedgerKey const& lk, size_t entrySize,
                                  SorobanNetworkConfig const& config,
                                  Config const& appConfig,
                                  TransactionFrame const& parentTx,
-                                 MutableTransactionResultBase& txResult);
+                                 SorobanTxData& sorobanData);
 
 struct LumenContractInfo
 {

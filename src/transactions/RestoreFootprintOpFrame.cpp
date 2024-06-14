@@ -56,10 +56,11 @@ RestoreFootprintOpFrame::doApply(AbstractLedgerTxn& ltx,
 }
 
 bool
-RestoreFootprintOpFrame::doApply(Application& app, AbstractLedgerTxn& ltx,
-                                 Hash const& sorobanBasePrngSeed,
-                                 OperationResult& res,
-                                 MutableTransactionResultBase& txResult) const
+RestoreFootprintOpFrame::doApplyForSoroban(Application& app,
+                                           AbstractLedgerTxn& ltx,
+                                           Hash const& sorobanBasePrngSeed,
+                                           OperationResult& res,
+                                           SorobanTxData& sorobanData) const
 {
     ZoneNamedN(applyZone, "RestoreFootprintOpFrame apply", true);
 
@@ -104,7 +105,7 @@ RestoreFootprintOpFrame::doApply(Application& app, AbstractLedgerTxn& ltx,
         metrics.mLedgerReadByte += entrySize;
         if (resources.readBytes < metrics.mLedgerReadByte)
         {
-            txResult.pushApplyTimeDiagnosticError(
+            sorobanData.pushApplyTimeDiagnosticError(
                 appConfig, SCE_BUDGET, SCEC_EXCEEDED_LIMIT,
                 "operation byte-read resources exceeds amount specified",
                 {makeU64SCVal(metrics.mLedgerReadByte),
@@ -117,7 +118,7 @@ RestoreFootprintOpFrame::doApply(Application& app, AbstractLedgerTxn& ltx,
         // writes come out of refundable fee, so only add entrySize
         metrics.mLedgerWriteByte += entrySize;
         if (!validateContractLedgerEntry(lk, entrySize, sorobanConfig,
-                                         appConfig, mParentTx, txResult))
+                                         appConfig, mParentTx, sorobanData))
         {
             innerResult(res).code(RESTORE_FOOTPRINT_RESOURCE_LIMIT_EXCEEDED);
             return false;
@@ -125,7 +126,7 @@ RestoreFootprintOpFrame::doApply(Application& app, AbstractLedgerTxn& ltx,
 
         if (resources.writeBytes < metrics.mLedgerWriteByte)
         {
-            txResult.pushApplyTimeDiagnosticError(
+            sorobanData.pushApplyTimeDiagnosticError(
                 appConfig, SCE_BUDGET, SCEC_EXCEEDED_LIMIT,
                 "operation byte-write resources exceeds amount specified",
                 {makeU64SCVal(metrics.mLedgerWriteByte),
@@ -158,7 +159,7 @@ RestoreFootprintOpFrame::doApply(Application& app, AbstractLedgerTxn& ltx,
             .getSorobanNetworkConfig()
             .rustBridgeRentFeeConfiguration(),
         ledgerSeq);
-    if (!txResult.consumeRefundableSorobanResources(
+    if (!sorobanData.consumeRefundableSorobanResources(
             0, rentFee, ltx.loadHeader().current().ledgerVersion,
             app.getLedgerManager().getSorobanNetworkConfig(), app.getConfig(),
             mParentTx))
@@ -171,16 +172,16 @@ RestoreFootprintOpFrame::doApply(Application& app, AbstractLedgerTxn& ltx,
 }
 
 bool
-RestoreFootprintOpFrame::doCheckValid(
+RestoreFootprintOpFrame::doCheckValidForSoroban(
     SorobanNetworkConfig const& networkConfig, Config const& appConfig,
     uint32_t ledgerVersion, OperationResult& res,
-    MutableTransactionResultBase& txResult) const
+    SorobanTxData& sorobanData) const
 {
     auto const& footprint = mParentTx.sorobanResources().footprint;
     if (!footprint.readOnly.empty())
     {
         innerResult(res).code(RESTORE_FOOTPRINT_MALFORMED);
-        txResult.pushValidationTimeDiagnosticError(
+        sorobanData.pushValidationTimeDiagnosticError(
             appConfig, SCE_STORAGE, SCEC_INVALID_INPUT,
             "read-only footprint must be empty for RestoreFootprint operation",
             {});
@@ -192,7 +193,7 @@ RestoreFootprintOpFrame::doCheckValid(
         if (!isPersistentEntry(lk))
         {
             innerResult(res).code(RESTORE_FOOTPRINT_MALFORMED);
-            txResult.pushValidationTimeDiagnosticError(
+            sorobanData.pushValidationTimeDiagnosticError(
                 appConfig, SCE_STORAGE, SCEC_INVALID_INPUT,
                 "only persistent Soroban entries can be restored", {});
             return false;
