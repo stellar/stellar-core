@@ -141,36 +141,16 @@ OperationFrame::apply(Application& app, SignatureChecker& signatureChecker,
                       std::shared_ptr<SorobanTxData> sorobanData) const
 {
     ZoneScoped;
-    bool applyRes;
     CLOG_TRACE(Tx, "{}", xdrToCerealString(mOperation, "Operation"));
-    applyRes = checkValid(app, signatureChecker, ltx, true, res, sorobanData);
+    bool applyRes =
+        checkValid(app, signatureChecker, ltx, true, res, sorobanData);
     if (applyRes)
     {
-        if (isSoroban())
-        {
-            releaseAssertOrThrow(sorobanData);
-            applyRes = doApplyForSoroban(app, ltx, sorobanBasePrngSeed, res,
-                                         *sorobanData);
-        }
-        else
-        {
-            applyRes = doApply(ltx, res);
-        }
+        applyRes = doApply(app, ltx, sorobanBasePrngSeed, res, sorobanData);
         CLOG_TRACE(Tx, "{}", xdrToCerealString(res, "OperationResult"));
     }
 
     return applyRes;
-}
-
-bool
-OperationFrame::doApplyForSoroban(Application& _app, AbstractLedgerTxn& ltx,
-                                  Hash const& sorobanBasePrngSeed,
-                                  OperationResult& res,
-                                  SorobanTxData& sorobanData) const
-{
-    // By default we ignore the app and seed, but subclasses can override to
-    // intercept and use them.
-    return doApply(ltx, res);
 }
 
 ThresholdLevel
@@ -269,8 +249,6 @@ OperationFrame::checkValid(Application& app, SignatureChecker& signatureChecker,
         }
     }
 
-    resetResultSuccess(res);
-
     if (protocolVersionStartsFrom(ledgerVersion, SOROBAN_PROTOCOL_VERSION) &&
         isSoroban())
     {
@@ -303,13 +281,6 @@ OperationFrame::loadSourceAccount(AbstractLedgerTxn& ltx,
 {
     ZoneScoped;
     return mParentTx.loadAccount(ltx, header, getSourceID());
-}
-
-void
-OperationFrame::resetResultSuccess(OperationResult& res) const
-{
-    res.code(opINNER);
-    res.tr().type(mOperation.body.type());
 }
 
 bool

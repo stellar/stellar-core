@@ -11,8 +11,7 @@
 namespace stellar
 {
 TransactionTestFrame::TransactionTestFrame(TransactionFrameBasePtr tx)
-    : mTransactionFrame(tx)
-    , mTransactionResultPayload(tx->createResultPayload())
+    : mTransactionFrame(tx), mTransactionTxResult(tx->createSuccessResult())
 {
     releaseAssert(mTransactionFrame);
     releaseAssert(!mTransactionFrame->isTestTx());
@@ -27,19 +26,19 @@ TransactionTestFrame::fromTxFrame(TransactionFrameBasePtr txFrame)
         new TransactionTestFrame(txFrame));
 }
 
-TransactionResultPayloadPtr
-TransactionTestFrame::createResultPayloadWithFeeCharged(
+MutableTxResultPtr
+TransactionTestFrame::createSuccessResultWithFeeCharged(
     LedgerHeader const& header, std::optional<int64_t> baseFee,
     bool applying) const
 {
-    return mTransactionFrame->createResultPayloadWithFeeCharged(header, baseFee,
+    return mTransactionFrame->createSuccessResultWithFeeCharged(header, baseFee,
                                                                 applying);
 }
 
-TransactionResultPayloadPtr
-TransactionTestFrame::createResultPayload() const
+MutableTxResultPtr
+TransactionTestFrame::createSuccessResult() const
 {
-    return mTransactionFrame->createResultPayload();
+    return mTransactionFrame->createSuccessResult();
 }
 
 bool
@@ -47,7 +46,7 @@ TransactionTestFrame::apply(Application& app, AbstractLedgerTxn& ltx,
                             TransactionMetaFrame& meta,
                             Hash const& sorobanBasePrngSeed)
 {
-    return mTransactionFrame->apply(app, ltx, meta, mTransactionResultPayload,
+    return mTransactionFrame->apply(app, ltx, meta, mTransactionTxResult,
                                     sorobanBasePrngSeed);
 }
 
@@ -60,7 +59,7 @@ TransactionTestFrame::clearCached() const
 OperationResult&
 TransactionTestFrame::getOperationResultAt(size_t i) const
 {
-    return mTransactionResultPayload->getOpResultAt(i);
+    return mTransactionTxResult->getOpResultAt(i);
 }
 
 void
@@ -80,42 +79,39 @@ TransactionTestFrame::addSignature(DecoratedSignature const& signature)
 bool
 TransactionTestFrame::apply(Application& app, AbstractLedgerTxn& ltx,
                             TransactionMetaFrame& meta,
-                            TransactionResultPayloadPtr txResult,
+                            MutableTxResultPtr txResult,
                             Hash const& sorobanBasePrngSeed) const
 {
     auto ret =
         mTransactionFrame->apply(app, ltx, meta, txResult, sorobanBasePrngSeed);
-    mTransactionResultPayload = txResult;
+    mTransactionTxResult = txResult;
     return ret;
 }
 
-std::pair<bool, TransactionResultPayloadPtr>
+MutableTxResultPtr
 TransactionTestFrame::checkValid(Application& app, AbstractLedgerTxn& ltxOuter,
                                  SequenceNumber current,
                                  uint64_t lowerBoundCloseTimeOffset,
                                  uint64_t upperBoundCloseTimeOffset) const
 {
-    auto result = mTransactionFrame->checkValid(app, ltxOuter, current,
-                                                lowerBoundCloseTimeOffset,
-                                                upperBoundCloseTimeOffset);
-    mTransactionResultPayload = result.second;
-    return result;
+    mTransactionTxResult = mTransactionFrame->checkValid(
+        app, ltxOuter, current, lowerBoundCloseTimeOffset,
+        upperBoundCloseTimeOffset);
+    return mTransactionTxResult;
 }
 
 void
 TransactionTestFrame::processFeeSeqNum(AbstractLedgerTxn& ltx,
                                        std::optional<int64_t> baseFee)
 {
-    mTransactionResultPayload =
-        mTransactionFrame->processFeeSeqNum(ltx, baseFee);
+    mTransactionTxResult = mTransactionFrame->processFeeSeqNum(ltx, baseFee);
 }
 
 void
 TransactionTestFrame::processPostApply(Application& app, AbstractLedgerTxn& ltx,
                                        TransactionMetaFrame& meta)
 {
-    mTransactionFrame->processPostApply(app, ltx, meta,
-                                        mTransactionResultPayload);
+    mTransactionFrame->processPostApply(app, ltx, meta, mTransactionTxResult);
 }
 
 bool
@@ -125,21 +121,19 @@ TransactionTestFrame::checkValidForTesting(Application& app,
                                            uint64_t lowerBoundCloseTimeOffset,
                                            uint64_t upperBoundCloseTimeOffset)
 {
-    bool res;
-    std::tie(res, mTransactionResultPayload) =
+    mTransactionTxResult =
         checkValid(app, ltxOuter, current, lowerBoundCloseTimeOffset,
                    upperBoundCloseTimeOffset);
-    return res;
+    return mTransactionTxResult->isSuccess();
 }
 
 bool
 TransactionTestFrame::checkSorobanResourceAndSetError(
-    Application& app, uint32_t ledgerVersion,
-    TransactionResultPayloadPtr txResult) const
+    Application& app, uint32_t ledgerVersion, MutableTxResultPtr txResult) const
 {
     auto ret = mTransactionFrame->checkSorobanResourceAndSetError(
         app, ledgerVersion, txResult);
-    mTransactionResultPayload = txResult;
+    mTransactionTxResult = txResult;
     return ret;
 }
 
@@ -223,13 +217,13 @@ TransactionTestFrame::getRawOperations() const
 TransactionResult&
 TransactionTestFrame::getResult()
 {
-    return mTransactionResultPayload->getResult();
+    return mTransactionTxResult->getResult();
 }
 
 TransactionResultCode
 TransactionTestFrame::getResultCode() const
 {
-    return mTransactionResultPayload->getResult().result.code();
+    return mTransactionTxResult->getResult().result.code();
 }
 
 SequenceNumber
@@ -276,27 +270,27 @@ TransactionTestFrame::insertKeysForFeeProcessing(
 }
 
 void
-TransactionTestFrame::insertKeysForTxApply(UnorderedSet<LedgerKey>& keys) const
+TransactionTestFrame::insertKeysForTxApply(UnorderedSet<LedgerKey>& keys,
+                                           LedgerKeyMeter* lkMeter) const
 {
-    mTransactionFrame->insertKeysForTxApply(keys);
+    mTransactionFrame->insertKeysForTxApply(keys, lkMeter);
 }
 
-TransactionResultPayloadPtr
+MutableTxResultPtr
 TransactionTestFrame::processFeeSeqNum(AbstractLedgerTxn& ltx,
                                        std::optional<int64_t> baseFee) const
 {
-    mTransactionResultPayload =
-        mTransactionFrame->processFeeSeqNum(ltx, baseFee);
-    return mTransactionResultPayload;
+    mTransactionTxResult = mTransactionFrame->processFeeSeqNum(ltx, baseFee);
+    return mTransactionTxResult;
 }
 
 void
-TransactionTestFrame::processPostApply(
-    Application& app, AbstractLedgerTxn& ltx, TransactionMetaFrame& meta,
-    TransactionResultPayloadPtr txResult) const
+TransactionTestFrame::processPostApply(Application& app, AbstractLedgerTxn& ltx,
+                                       TransactionMetaFrame& meta,
+                                       MutableTxResultPtr txResult) const
 {
     mTransactionFrame->processPostApply(app, ltx, meta, txResult);
-    mTransactionResultPayload = txResult;
+    mTransactionTxResult = txResult;
 }
 
 std::shared_ptr<StellarMessage const>
@@ -326,7 +320,7 @@ TransactionTestFrame::sorobanResources() const
 xdr::xvector<DiagnosticEvent> const&
 TransactionTestFrame::getDiagnosticEvents() const
 {
-    return mTransactionResultPayload->getDiagnosticEvents();
+    return mTransactionTxResult->getDiagnosticEvents();
 }
 
 int64

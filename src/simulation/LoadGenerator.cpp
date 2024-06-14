@@ -2179,11 +2179,11 @@ LoadGenerator::execute(TransactionTestFramePtr& txf, LoadGenMode mode,
     if (addResult.code != TransactionQueue::AddResultCode::ADD_STATUS_PENDING)
     {
 
-        auto resultStr = addResult.resultPayload
-                             ? xdrToCerealString(
-                                   addResult.resultPayload.value()->getResult(),
-                                   "TransactionResult")
-                             : "";
+        auto resultStr =
+            addResult.txResult
+                ? xdrToCerealString(addResult.txResult.value()->getResult(),
+                                    "TransactionResult")
+                : "";
         CLOG_INFO(LoadGen, "tx rejected '{}': ===> {}, {}",
                   TX_STATUS_STRING[static_cast<int>(addResult.code)],
                   txf->isSoroban() ? "soroban"
@@ -2192,8 +2192,8 @@ LoadGenerator::execute(TransactionTestFramePtr& txf, LoadGenMode mode,
                   resultStr);
         if (addResult.code == TransactionQueue::AddResultCode::ADD_STATUS_ERROR)
         {
-            releaseAssert(addResult.resultPayload);
-            code = addResult.resultPayload.value()->getResultCode();
+            releaseAssert(addResult.txResult);
+            code = addResult.txResult.value()->getResultCode();
         }
         txm.mTxnRejected.Mark();
     }

@@ -30,8 +30,9 @@ PathPaymentStrictSendOpFrame::isOpSupported(LedgerHeader const& header) const
 }
 
 bool
-PathPaymentStrictSendOpFrame::doApply(AbstractLedgerTxn& ltx,
-                                      OperationResult& res) const
+PathPaymentStrictSendOpFrame::doApply(
+    Application& app, AbstractLedgerTxn& ltx, Hash const& sorobanBasePrngSeed,
+    OperationResult& res, std::shared_ptr<SorobanTxData> sorobanData) const
 {
     ZoneNamedN(applyZone, "PathPaymentStrictSendOp apply", true);
     std::string pathStr = assetToString(getSourceAsset());

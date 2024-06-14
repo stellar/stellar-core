@@ -900,12 +900,12 @@ LedgerManagerImpl::closeLedger(LedgerCloseData const& ledgerData)
 
     // first, prefetch source accounts for txset, then charge fees
     prefetchTxSourceIds(txs);
-    auto const txResults =
+    auto const mutableTxResults =
         processFeesSeqNums(txs, ltx, *applicableTxSet, ledgerCloseMeta);
 
     TransactionResultSet txResultSet;
     txResultSet.results.reserve(txs.size());
-    applyTransactions(*applicableTxSet, txs, txResults, ltx, txResultSet,
+    applyTransactions(*applicableTxSet, txs, mutableTxResults, ltx, txResultSet,
                       ledgerCloseMeta);
     if (mApp.getConfig().MODE_STORES_HISTORY_MISC)
     {
@@ -1340,14 +1340,14 @@ mergeOpInTx(std::vector<Operation> const& ops)
     return false;
 }
 
-std::vector<TransactionResultPayloadPtr>
+std::vector<MutableTxResultPtr>
 LedgerManagerImpl::processFeesSeqNums(
     std::vector<TransactionFrameBasePtr> const& txs,
     AbstractLedgerTxn& ltxOuter, ApplicableTxSetFrame const& txSet,
     std::unique_ptr<LedgerCloseMetaFrame> const& ledgerCloseMeta)
 {
     ZoneScoped;
-    std::vector<TransactionResultPayloadPtr> txResults;
+    std::vector<MutableTxResultPtr> txResults;
     txResults.reserve(txs.size());
     CLOG_DEBUG(Ledger, "processing fees and sequence numbers");
     int index = 0;
@@ -1493,12 +1493,12 @@ void
 LedgerManagerImpl::applyTransactions(
     ApplicableTxSetFrame const& txSet,
     std::vector<TransactionFrameBasePtr> const& txs,
-    std::vector<TransactionResultPayloadPtr> const& txResults,
+    std::vector<MutableTxResultPtr> const& mutableTxResults,
     AbstractLedgerTxn& ltx, TransactionResultSet& txResultSet,
     std::unique_ptr<LedgerCloseMetaFrame> const& ledgerCloseMeta)
 {
     ZoneNamedN(txsZone, "applyTransactions", true);
-    releaseAssert(txs.size() == txResults.size());
+    releaseAssert(txs.size() == mutableTxResults.size());
     int index = 0;
 
     // Record counts
@@ -1527,7 +1527,7 @@ LedgerManagerImpl::applyTransactions(
     {
         ZoneNamedN(txZone, "applyTransaction", true);
         auto tx = txs.at(i);
-        auto txResult = txResults.at(i);
+        auto mutableTxResult = mutableTxResults.at(i);
 
         auto txTime = mTransactionApply.TimeScope();
         TransactionMetaFrame tm(ltx.loadHeader().current().ledgerVersion);
@@ -1547,11 +1547,11 @@ LedgerManagerImpl::applyTransactions(
         }
         ++txNum;
 
-        tx->apply(mApp, ltx, tm, txResult, subSeed);
-        tx->processPostApply(mApp, ltx, tm, txResult);
+        tx->apply(mApp, ltx, tm, mutableTxResult, subSeed);
+        tx->processPostApply(mApp, ltx, tm, mutableTxResult);
         TransactionResultPair results;
         results.transactionHash = tx->getContentsHash();
-        results.result = txResult->getResult();
+        results.result = mutableTxResult->getResult();
         if (results.result.result.code() == TransactionResultCode::txSUCCESS)
         {
             if (tx->isSoroban())

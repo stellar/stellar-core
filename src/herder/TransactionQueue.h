@@ -75,19 +75,19 @@ class TransactionQueue
     struct AddResult
     {
         TransactionQueue::AddResultCode code;
-        std::optional<TransactionResultPayloadPtr> resultPayload;
+        std::optional<MutableTxResultPtr> txResult;
 
-        // AddResult with no resultPayload
-        AddResult(TransactionQueue::AddResultCode addCode);
+        // AddResult with no txResult
+        explicit AddResult(TransactionQueue::AddResultCode addCode);
 
         // AddResult from existing transaction result
-        AddResult(TransactionQueue::AddResultCode addCode,
-                  TransactionResultPayloadPtr payload);
+        explicit AddResult(TransactionQueue::AddResultCode addCode,
+                           MutableTxResultPtr payload);
 
-        // AddResult with error resultPayload with the specified txErrorCode
-        AddResult(TransactionQueue::AddResultCode addCode,
-                  TransactionFrameBasePtr tx,
-                  TransactionResultCode txErrorCode);
+        // AddResult with error txResult with the specified txErrorCode
+        explicit AddResult(TransactionQueue::AddResultCode addCode,
+                           TransactionFrameBasePtr tx,
+                           TransactionResultCode txErrorCode);
     };
 
     /**

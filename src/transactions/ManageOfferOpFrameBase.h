@@ -43,8 +43,9 @@ class ManageOfferOpFrameBase : public OperationFrame
     bool doCheckValid(uint32_t ledgerVersion,
                       OperationResult& res) const override;
 
-    bool doApply(AbstractLedgerTxn& ltxOuter,
-                 OperationResult& res) const override;
+    bool doApply(Application& app, AbstractLedgerTxn& ltxOuter,
+                 Hash const& sorobanBasePrngSeed, OperationResult& res,
+                 std::shared_ptr<SorobanTxData> sorobanData) const override;
 
     bool isDexOperation() const override;
 

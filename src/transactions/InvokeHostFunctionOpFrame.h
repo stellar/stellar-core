@@ -38,11 +38,9 @@ class InvokeHostFunctionOpFrame : public OperationFrame
 
     bool isOpSupported(LedgerHeader const& header) const override;
 
-    bool doApply(AbstractLedgerTxn& ltx, OperationResult& res) const override;
-    bool doApplyForSoroban(Application& app, AbstractLedgerTxn& ltx,
-                           Hash const& sorobanBasePrngSeed,
-                           OperationResult& res,
-                           SorobanTxData& sorobanData) const override;
+    bool doApply(Application& app, AbstractLedgerTxn& ltx,
+                 Hash const& sorobanBasePrngSeed, OperationResult& res,
+                 std::shared_ptr<SorobanTxData> sorobanData) const override;
 
     bool doCheckValidForSoroban(SorobanNetworkConfig const& networkConfig,
                                 Config const& appConfig, uint32_t ledgerVersion,

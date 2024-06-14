@@ -7,6 +7,7 @@
 #include "ledger/LedgerManagerImpl.h"
 #include "ledger/LedgerTypeUtils.h"
 #include "transactions/MutableTransactionResult.h"
+#include "util/GlobalChecks.h"
 #include <Tracy.hpp>
 
 namespace stellar
@@ -47,19 +48,11 @@ ExtendFootprintTTLOpFrame::isOpSupported(LedgerHeader const& header) const
 }
 
 bool
-ExtendFootprintTTLOpFrame::doApply(AbstractLedgerTxn& ltx,
-                                   OperationResult& res) const
+ExtendFootprintTTLOpFrame::doApply(
+    Application& app, AbstractLedgerTxn& ltx, Hash const& sorobanBasePrngSeed,
+    OperationResult& res, std::shared_ptr<SorobanTxData> sorobanData) const
 {
-    throw std::runtime_error("ExtendFootprintTTLOpFrame::doApply needs Config");
-}
-
-bool
-ExtendFootprintTTLOpFrame::doApplyForSoroban(Application& app,
-                                             AbstractLedgerTxn& ltx,
-                                             Hash const& sorobanBasePrngSeed,
-                                             OperationResult& res,
-                                             SorobanTxData& sorobanData) const
-{
+    releaseAssertOrThrow(sorobanData);
     ZoneNamedN(applyZone, "ExtendFootprintTTLOpFrame apply", true);
 
     ExtendFootprintTTLMetrics metrics(
@@ -115,7 +108,7 @@ ExtendFootprintTTLOpFrame::doApplyForSoroban(Application& app,
 
         if (!validateContractLedgerEntry(lk, entrySize, sorobanConfig,
                                          app.getConfig(), mParentTx,
-                                         sorobanData))
+                                         *sorobanData))
         {
             innerResult(res).code(EXTEND_FOOTPRINT_TTL_RESOURCE_LIMIT_EXCEEDED);
             return false;
@@ -123,7 +116,7 @@ ExtendFootprintTTLOpFrame::doApplyForSoroban(Application& app,
 
         if (resources.readBytes < metrics.mLedgerReadByte)
         {
-            sorobanData.pushApplyTimeDiagnosticError(
+            sorobanData->pushApplyTimeDiagnosticError(
                 app.getConfig(), SCE_BUDGET, SCEC_EXCEEDED_LIMIT,
                 "operation byte-read resources exceeds amount specified",
                 {makeU64SCVal(metrics.mLedgerReadByte),
@@ -152,7 +145,7 @@ ExtendFootprintTTLOpFrame::doApplyForSoroban(Application& app,
         app.getConfig().CURRENT_LEDGER_PROTOCOL_VERSION, ledgerVersion,
         rustEntryRentChanges, sorobanConfig.rustBridgeRentFeeConfiguration(),
         ledgerSeq);
-    if (!sorobanData.consumeRefundableSorobanResources(
+    if (!sorobanData->consumeRefundableSorobanResources(
             0, rentFee, ledgerVersion, sorobanConfig, app.getConfig(),
             mParentTx))
     {

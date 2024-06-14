@@ -29,7 +29,10 @@ ManageDataOpFrame::ManageDataOpFrame(Operation const& op,
 }
 
 bool
-ManageDataOpFrame::doApply(AbstractLedgerTxn& ltx, OperationResult& res) const
+ManageDataOpFrame::doApply(Application& app, AbstractLedgerTxn& ltx,
+                           Hash const& sorobanBasePrngSeed,
+                           OperationResult& res,
+                           std::shared_ptr<SorobanTxData> sorobanData) const
 {
     ZoneNamedN(applyZone, "ManageDataOp apply", true);
     auto header = ltx.loadHeader();

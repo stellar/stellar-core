@@ -27,8 +27,9 @@ EndSponsoringFutureReservesOpFrame::isOpSupported(
 }
 
 bool
-EndSponsoringFutureReservesOpFrame::doApply(AbstractLedgerTxn& ltx,
-                                            OperationResult& res) const
+EndSponsoringFutureReservesOpFrame::doApply(
+    Application& app, AbstractLedgerTxn& ltx, Hash const& sorobanBasePrngSeed,
+    OperationResult& res, std::shared_ptr<SorobanTxData> sorobanData) const
 {
     ZoneNamedN(applyZone, "EndSponsoringFutureReservesOpFrame apply", true);
 

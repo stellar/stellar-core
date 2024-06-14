@@ -23,8 +23,9 @@ PathPaymentStrictReceiveOpFrame::PathPaymentStrictReceiveOpFrame(
 }
 
 bool
-PathPaymentStrictReceiveOpFrame::doApply(AbstractLedgerTxn& ltx,
-                                         OperationResult& res) const
+PathPaymentStrictReceiveOpFrame::doApply(
+    Application& app, AbstractLedgerTxn& ltx, Hash const& sorobanBasePrngSeed,
+    OperationResult& res, std::shared_ptr<SorobanTxData> sorobanData) const
 {
     ZoneNamedN(applyZone, "PathPaymentStrictReceiveOp apply", true);
     std::string pathStr = assetToString(getSourceAsset());

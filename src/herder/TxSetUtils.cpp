@@ -162,8 +162,9 @@ TxSetUtils::getInvalidTxList(TxSetTransactions const& txs, Application& app,
 
     for (auto const& tx : txs)
     {
-        if (!tx->checkValid(app, ltx, 0, lowerBoundCloseTimeOffset,
-                            upperBoundCloseTimeOffset))
+        auto txResult = tx->checkValid(app, ltx, 0, lowerBoundCloseTimeOffset,
+                                       upperBoundCloseTimeOffset);
+        if (!txResult->isSuccess())
         {
             invalidTxs.emplace_back(tx);
         }

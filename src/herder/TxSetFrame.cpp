@@ -17,6 +17,7 @@
 #include "main/Application.h"
 #include "main/Config.h"
 #include "overlay/Peer.h"
+#include "transactions/MutableTransactionResult.h"
 #include "transactions/TransactionUtils.h"
 #include "util/GlobalChecks.h"
 #include "util/Logging.h"
@@ -241,14 +242,15 @@ phaseTxsAreValid(TxSetTransactions const& phase, Application& app,
         app.getLedgerManager().getLastClosedLedgerNum() + 1;
     for (auto const& tx : phase)
     {
-        if (!tx->checkValid(app, ltx, 0, lowerBoundCloseTimeOffset,
-                            upperBoundCloseTimeOffset))
+        auto txResult = tx->checkValid(app, ltx, 0, lowerBoundCloseTimeOffset,
+                                       upperBoundCloseTimeOffset);
+        if (!txResult->isSuccess())
         {
 
             CLOG_DEBUG(
                 Herder, "Got bad txSet: tx invalid tx: {} result: {}",
                 xdrToCerealString(tx->getEnvelope(), "TransactionEnvelope"),
-                tx->getResultCode());
+                txResult->getResultCode());
             return false;
         }
     }

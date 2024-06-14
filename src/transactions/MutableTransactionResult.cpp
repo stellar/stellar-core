@@ -6,6 +6,7 @@
 #include "transactions/OperationFrame.h"
 #include "transactions/TransactionFrame.h"
 #include "transactions/TransactionUtils.h"
+#include "xdr/Stellar-transaction.h"
 
 #include <Tracy.hpp>
 
@@ -223,7 +224,9 @@ MutableTransactionResult::MutableTransactionResult(TransactionFrame const& tx,
     for (size_t i = 0; i < ops.size(); i++)
     {
         auto const& opFrame = ops[i];
-        opFrame->resetResultSuccess(mTxResult->result.results()[i]);
+        auto& opFrameResult = mTxResult->result.results()[i];
+        opFrameResult.code(opINNER);
+        opFrameResult.tr().type(opFrame->getOperation().body.type());
     }
 
     mTxResult->feeCharged = feeCharged;
@@ -297,23 +300,36 @@ MutableTransactionResult::getDiagnosticEvents() const
     }
 }
 
-FeeBumpMutableTransactionResult::FeeBumpMutableTransactionResult(
-    TransactionResultPayloadPtr innerResultPayload)
-    : MutableTransactionResultBase(), mInnerResultPayload(innerResultPayload)
+void
+MutableTransactionResult::refundSorobanFee(int64_t feeRefund,
+                                           uint32_t ledgerVersion)
 {
-    releaseAssertOrThrow(mInnerResultPayload);
+    releaseAssertOrThrow(mSorobanExtension);
+    mTxResult->feeCharged -= feeRefund;
+}
+
+bool
+MutableTransactionResult::isSuccess() const
+{
+    return getResult().result.code() == txSUCCESS;
 }
 
 FeeBumpMutableTransactionResult::FeeBumpMutableTransactionResult(
-    TransactionResultPayloadPtr&& outerResultPayload,
-    TransactionResultPayloadPtr&& innerResultPayload,
-    TransactionFrameBasePtr innerTx)
-    : MutableTransactionResultBase(std::move(*outerResultPayload))
-    , mInnerResultPayload(std::move(innerResultPayload))
+    MutableTxResultPtr innerTxResult)
+    : MutableTransactionResultBase(), mInnerTxResult(innerTxResult)
 {
-    releaseAssertOrThrow(mInnerResultPayload);
-    innerResultPayload.reset();
-    outerResultPayload.reset();
+    releaseAssertOrThrow(mInnerTxResult);
+}
+
+FeeBumpMutableTransactionResult::FeeBumpMutableTransactionResult(
+    MutableTxResultPtr&& outerTxResult, MutableTxResultPtr&& innerTxResult,
+    TransactionFrameBasePtr innerTx)
+    : MutableTransactionResultBase(std::move(*outerTxResult))
+    , mInnerTxResult(std::move(innerTxResult))
+{
+    releaseAssertOrThrow(mInnerTxResult);
+    innerTxResult.reset();
+    outerTxResult.reset();
 
     updateResult(innerTx, *this);
 }
@@ -352,14 +368,14 @@ FeeBumpMutableTransactionResult::updateResult(
 TransactionResult&
 FeeBumpMutableTransactionResult::getInnermostResult()
 {
-    return mInnerResultPayload->getResult();
+    return mInnerTxResult->getResult();
 }
 
 void
 FeeBumpMutableTransactionResult::setInnermostResultCode(
     TransactionResultCode code)
 {
-    mInnerResultPayload->setResultCode(code);
+    mInnerTxResult->setResultCode(code);
 }
 
 TransactionResult&
@@ -389,18 +405,46 @@ FeeBumpMutableTransactionResult::setResultCode(TransactionResultCode code)
 OperationResult&
 FeeBumpMutableTransactionResult::getOpResultAt(size_t index)
 {
-    return mInnerResultPayload->getOpResultAt(index);
+    return mInnerTxResult->getOpResultAt(index);
 }
 
 std::shared_ptr<SorobanTxData>
 FeeBumpMutableTransactionResult::getSorobanData()
 {
-    return mInnerResultPayload->getSorobanData();
+    return mInnerTxResult->getSorobanData();
 }
 
 xdr::xvector<DiagnosticEvent> const&
 FeeBumpMutableTransactionResult::getDiagnosticEvents() const
 {
-    return mInnerResultPayload->getDiagnosticEvents();
+    return mInnerTxResult->getDiagnosticEvents();
+}
+
+void
+FeeBumpMutableTransactionResult::refundSorobanFee(int64_t feeRefund,
+                                                  uint32_t ledgerVersion)
+{
+    // First update feeCharged of the inner result
+    mInnerTxResult->refundSorobanFee(feeRefund, ledgerVersion);
+
+    // The result codes and a feeCharged without the refund should have been set
+    // already in updateResult in FeeBumpTransactionFrame::apply. At this point,
+    // feeCharged is set correctly on the inner transaction, so update the
+    // feeBump result.
+    if (protocolVersionStartsFrom(ledgerVersion, ProtocolVersion::V_21))
+    {
+        auto& irp = mTxResult->result.innerResultPair();
+        auto& innerRes = irp.result;
+        innerRes.feeCharged = mInnerTxResult->getResult().feeCharged;
+
+        // Now set the updated feeCharged on the fee bump.
+        mTxResult->feeCharged -= feeRefund;
+    }
+}
+
+bool
+FeeBumpMutableTransactionResult::isSuccess() const
+{
+    return mTxResult->result.code() == txFEE_BUMP_INNER_SUCCESS;
 }
 }

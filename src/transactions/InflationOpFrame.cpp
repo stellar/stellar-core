@@ -29,7 +29,9 @@ InflationOpFrame::InflationOpFrame(Operation const& op,
 }
 
 bool
-InflationOpFrame::doApply(AbstractLedgerTxn& ltx, OperationResult& res) const
+InflationOpFrame::doApply(Application& app, AbstractLedgerTxn& ltx,
+                          Hash const& sorobanBasePrngSeed, OperationResult& res,
+                          std::shared_ptr<SorobanTxData> sorobanData) const
 {
     auto header = ltx.loadHeader();
     auto& lh = header.current();

@@ -30,7 +30,9 @@ class LiquidityPoolWithdrawOpFrame : public OperationFrame
 
     bool isOpSupported(LedgerHeader const& header) const override;
 
-    bool doApply(AbstractLedgerTxn& ltx, OperationResult& res) const override;
+    bool doApply(Application& app, AbstractLedgerTxn& ltx,
+                 Hash const& sorobanBasePrngSeed, OperationResult& res,
+                 std::shared_ptr<SorobanTxData> sorobanData) const override;
     bool doCheckValid(uint32_t ledgerVersion,
                       OperationResult& res) const override;
     void

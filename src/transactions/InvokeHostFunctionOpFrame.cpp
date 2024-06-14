@@ -248,14 +248,6 @@ InvokeHostFunctionOpFrame::isOpSupported(LedgerHeader const& header) const
     return header.ledgerVersion >= 20;
 }
 
-bool
-InvokeHostFunctionOpFrame::doApply(AbstractLedgerTxn& ltx,
-                                   OperationResult& res) const
-{
-    throw std::runtime_error(
-        "InvokeHostFunctionOpFrame::doApply needs Config and base PRNG seed");
-}
-
 void
 InvokeHostFunctionOpFrame::maybePopulateDiagnosticEvents(
     Config const& cfg, InvokeHostFunctionOutput const& output,
@@ -324,12 +316,11 @@ InvokeHostFunctionOpFrame::maybePopulateDiagnosticEvents(
 }
 
 bool
-InvokeHostFunctionOpFrame::doApplyForSoroban(Application& app,
-                                             AbstractLedgerTxn& ltx,
-                                             Hash const& sorobanBasePrngSeed,
-                                             OperationResult& res,
-                                             SorobanTxData& sorobanData) const
+InvokeHostFunctionOpFrame::doApply(
+    Application& app, AbstractLedgerTxn& ltx, Hash const& sorobanBasePrngSeed,
+    OperationResult& res, std::shared_ptr<SorobanTxData> sorobanData) const
 {
+    releaseAssertOrThrow(sorobanData);
     ZoneNamedN(applyZone, "InvokeHostFunctionOpFrame apply", true);
 
     Config const& appConfig = app.getConfig();
@@ -351,7 +342,7 @@ InvokeHostFunctionOpFrame::doApplyForSoroban(Application& app,
     ttlEntryCxxBufs.reserve(footprintLength);
 
     auto addReads = [&ledgerEntryCxxBufs, &ttlEntryCxxBufs, &ltx, &metrics,
-                     &resources, &sorobanConfig, &appConfig, &sorobanData, &res,
+                     &resources, &sorobanConfig, &appConfig, sorobanData, &res,
                      this](auto const& keys) -> bool {
         for (auto const& lk : keys)
         {
@@ -375,7 +366,7 @@ InvokeHostFunctionOpFrame::doApplyForSoroban(Application& app,
                         {
                             if (lk.type() == CONTRACT_CODE)
                             {
-                                sorobanData.pushApplyTimeDiagnosticError(
+                                sorobanData->pushApplyTimeDiagnosticError(
                                     appConfig, SCE_VALUE, SCEC_INVALID_INPUT,
                                     "trying to access an archived contract "
                                     "code "
@@ -384,7 +375,7 @@ InvokeHostFunctionOpFrame::doApplyForSoroban(Application& app,
                             }
                             else if (lk.type() == CONTRACT_DATA)
                             {
-                                sorobanData.pushApplyTimeDiagnosticError(
+                                sorobanData->pushApplyTimeDiagnosticError(
                                     appConfig, SCE_VALUE, SCEC_INVALID_INPUT,
                                     "trying to access an archived contract "
                                     "data "
@@ -436,7 +427,8 @@ InvokeHostFunctionOpFrame::doApplyForSoroban(Application& app,
 
             metrics.noteReadEntry(isCodeKey(lk), keySize, entrySize);
             if (!validateContractLedgerEntry(lk, entrySize, sorobanConfig,
-                                             appConfig, mParentTx, sorobanData))
+                                             appConfig, mParentTx,
+                                             *sorobanData))
             {
                 this->innerResult(res).code(
                     INVOKE_HOST_FUNCTION_RESOURCE_LIMIT_EXCEEDED);
@@ -445,7 +437,7 @@ InvokeHostFunctionOpFrame::doApplyForSoroban(Application& app,
 
             if (resources.readBytes < metrics.mLedgerReadByte)
             {
-                sorobanData.pushApplyTimeDiagnosticError(
+                sorobanData->pushApplyTimeDiagnosticError(
                     appConfig, SCE_BUDGET, SCEC_EXCEEDED_LIMIT,
                     "operation byte-read resources exceeds amount specified",
                     {makeU64SCVal(metrics.mLedgerReadByte),
@@ -503,7 +495,8 @@ InvokeHostFunctionOpFrame::doApplyForSoroban(Application& app,
             out.time_nsecs_excluding_vm_instantiation;
         if (!out.success)
         {
-            maybePopulateDiagnosticEvents(appConfig, out, metrics, sorobanData);
+            maybePopulateDiagnosticEvents(appConfig, out, metrics,
+                                          *sorobanData);
         }
     }
     catch (std::exception& e)
@@ -523,7 +516,7 @@ InvokeHostFunctionOpFrame::doApplyForSoroban(Application& app,
         }
         if (resources.instructions < out.cpu_insns)
         {
-            sorobanData.pushApplyTimeDiagnosticError(
+            sorobanData->pushApplyTimeDiagnosticError(
                 appConfig, SCE_BUDGET, SCEC_EXCEEDED_LIMIT,
                 "operation instructions exceeds amount specified",
                 {makeU64SCVal(out.cpu_insns),
@@ -532,7 +525,7 @@ InvokeHostFunctionOpFrame::doApplyForSoroban(Application& app,
         }
         else if (sorobanConfig.txMemoryLimit() < out.mem_bytes)
         {
-            sorobanData.pushApplyTimeDiagnosticError(
+            sorobanData->pushApplyTimeDiagnosticError(
                 appConfig, SCE_BUDGET, SCEC_EXCEEDED_LIMIT,
                 "operation memory usage exceeds network config limit",
                 {makeU64SCVal(out.mem_bytes),
@@ -555,7 +548,7 @@ InvokeHostFunctionOpFrame::doApplyForSoroban(Application& app,
         xdr::xdr_from_opaque(buf.data, le);
         if (!validateContractLedgerEntry(LedgerEntryKey(le), buf.data.size(),
                                          sorobanConfig, appConfig, mParentTx,
-                                         sorobanData))
+                                         *sorobanData))
         {
             innerResult(res).code(INVOKE_HOST_FUNCTION_RESOURCE_LIMIT_EXCEEDED);
             return false;
@@ -574,7 +567,7 @@ InvokeHostFunctionOpFrame::doApplyForSoroban(Application& app,
             metrics.noteWriteEntry(isCodeKey(lk), keySize, entrySize);
             if (resources.writeBytes < metrics.mLedgerWriteByte)
             {
-                sorobanData.pushApplyTimeDiagnosticError(
+                sorobanData->pushApplyTimeDiagnosticError(
                     appConfig, SCE_BUDGET, SCEC_EXCEEDED_LIMIT,
                     "operation byte-write resources exceeds amount specified",
                     {makeU64SCVal(metrics.mLedgerWriteByte),
@@ -649,7 +642,7 @@ InvokeHostFunctionOpFrame::doApplyForSoroban(Application& app,
         if (sorobanConfig.txMaxContractEventsSizeBytes() <
             metrics.mEmitEventByte)
         {
-            sorobanData.pushApplyTimeDiagnosticError(
+            sorobanData->pushApplyTimeDiagnosticError(
                 appConfig, SCE_BUDGET, SCEC_EXCEEDED_LIMIT,
                 "total events size exceeds network config maximum",
                 {makeU64SCVal(metrics.mEmitEventByte),
@@ -662,12 +655,12 @@ InvokeHostFunctionOpFrame::doApplyForSoroban(Application& app,
         success.events.emplace_back(evt);
     }
 
-    maybePopulateDiagnosticEvents(appConfig, out, metrics, sorobanData);
+    maybePopulateDiagnosticEvents(appConfig, out, metrics, *sorobanData);
 
     metrics.mEmitEventByte += static_cast<uint32>(out.result_value.data.size());
     if (sorobanConfig.txMaxContractEventsSizeBytes() < metrics.mEmitEventByte)
     {
-        sorobanData.pushApplyTimeDiagnosticError(
+        sorobanData->pushApplyTimeDiagnosticError(
             appConfig, SCE_BUDGET, SCEC_EXCEEDED_LIMIT,
             "return value pushes events size above network config maximum",
             {makeU64SCVal(metrics.mEmitEventByte),
@@ -676,7 +669,7 @@ InvokeHostFunctionOpFrame::doApplyForSoroban(Application& app,
         return false;
     }
 
-    if (!sorobanData.consumeRefundableSorobanResources(
+    if (!sorobanData->consumeRefundableSorobanResources(
             metrics.mEmitEventByte, out.rent_fee,
             ltx.loadHeader().current().ledgerVersion, sorobanConfig, appConfig,
             mParentTx))
@@ -689,8 +682,8 @@ InvokeHostFunctionOpFrame::doApplyForSoroban(Application& app,
     innerResult(res).code(INVOKE_HOST_FUNCTION_SUCCESS);
     innerResult(res).success() = xdrSha256(success);
 
-    sorobanData.pushContractEvents(success.events);
-    sorobanData.setReturnValue(success.returnValue);
+    sorobanData->pushContractEvents(success.events);
+    sorobanData->setReturnValue(success.returnValue);
     metrics.mSuccess = true;
     return true;
 }

@@ -798,9 +798,9 @@ TEST_CASE("TransactionQueue hitting the rate limit",
         auto tx = transaction(*app, account5, 1, 1, 300 * 3, 3);
         auto addResult = testQueue.add(
             tx, TransactionQueue::AddResultCode::ADD_STATUS_ERROR);
-        REQUIRE(addResult.resultPayload.value()->getResultCode() ==
+        REQUIRE(addResult.txResult.value()->getResultCode() ==
                 txINSUFFICIENT_FEE);
-        REQUIRE(addResult.resultPayload.value()->getResult().feeCharged ==
+        REQUIRE(addResult.txResult.value()->getResult().feeCharged ==
                 300 * 3 + 1);
     }
     SECTION("add high fee tx with eviction")
@@ -817,10 +817,9 @@ TEST_CASE("TransactionQueue hitting the rate limit",
             auto nextTx = transaction(*app, account6, 1, 1, 300, 1);
             auto addResult = testQueue.add(
                 nextTx, TransactionQueue::AddResultCode::ADD_STATUS_ERROR);
-            REQUIRE(addResult.resultPayload.value()->getResultCode() ==
+            REQUIRE(addResult.txResult.value()->getResultCode() ==
                     txINSUFFICIENT_FEE);
-            REQUIRE(addResult.resultPayload.value()->getResult().feeCharged ==
-                    301);
+            REQUIRE(addResult.txResult.value()->getResult().feeCharged == 301);
         }
         SECTION("then add tx with higher fee than evicted")
         {
@@ -890,7 +889,7 @@ TEST_CASE("TransactionQueue with PreconditionsV2", "[herder][transactionqueue]")
         auto tx = transactionWithV2Precondition(*app, account1, 5, 200, cond);
 
         TransactionQueueTest test{queue};
-        test.add(tx, TransactionQueue::AddResult::ADD_STATUS_ERROR);
+        test.add(tx, TransactionQueue::AddResultCode::ADD_STATUS_ERROR);
     }
     SECTION("fee bump only existing tx")
     {
@@ -899,24 +898,25 @@ TEST_CASE("TransactionQueue with PreconditionsV2", "[herder][transactionqueue]")
         auto tx = transactionWithV2Precondition(*app, account1, 5, 200, cond);
 
         TransactionQueueTest test{queue};
-        test.add(tx, TransactionQueue::AddResult::ADD_STATUS_PENDING);
+        test.add(tx, TransactionQueue::AddResultCode::ADD_STATUS_PENDING);
 
         auto fb = feeBump(*app, account1, tx, 4000);
-        test.add(fb, TransactionQueue::AddResult::ADD_STATUS_PENDING);
+        test.add(fb, TransactionQueue::AddResultCode::ADD_STATUS_PENDING);
 
         test.check({{{account1, 0, {fb}}, {account2}}, {}});
     }
     SECTION("fee bump existing tx and add minSeqNum")
     {
         TransactionQueueTest test{queue};
-        test.add(txSeqA1S1, TransactionQueue::AddResult::ADD_STATUS_PENDING);
+        test.add(txSeqA1S1,
+                 TransactionQueue::AddResultCode::ADD_STATUS_PENDING);
 
         PreconditionsV2 cond;
         cond.minSeqNum.activate() = 2;
 
         auto tx = transactionWithV2Precondition(*app, account1, 1, 200, cond);
         auto fb = feeBump(*app, account1, tx, 4000);
-        test.add(fb, TransactionQueue::AddResult::ADD_STATUS_PENDING);
+        test.add(fb, TransactionQueue::AddResultCode::ADD_STATUS_PENDING);
 
         test.check({{{account1, 0, {fb}}, {account2}}, {}});
     }
@@ -928,10 +928,10 @@ TEST_CASE("TransactionQueue with PreconditionsV2", "[herder][transactionqueue]")
         cond.minSeqNum.activate() = 2;
 
         auto tx = transactionWithV2Precondition(*app, account1, 1, 200, cond);
-        test.add(tx, TransactionQueue::AddResult::ADD_STATUS_PENDING);
+        test.add(tx, TransactionQueue::AddResultCode::ADD_STATUS_PENDING);
 
         auto fb = feeBump(*app, account1, txSeqA1S1, 4000);
-        test.add(fb, TransactionQueue::AddResult::ADD_STATUS_PENDING);
+        test.add(fb, TransactionQueue::AddResultCode::ADD_STATUS_PENDING);
 
         test.check({{{account1, 0, {fb}}, {account2}}, {}});
     }
@@ -950,10 +950,10 @@ TEST_CASE("TransactionQueue with PreconditionsV2", "[herder][transactionqueue]")
         {
             auto tx =
                 transactionWithV2Precondition(*app, account1, 1, 200, cond);
-            test.add(tx, TransactionQueue::AddResult::ADD_STATUS_ERROR);
+            test.add(tx, TransactionQueue::AddResultCode::ADD_STATUS_ERROR);
 
             tx->addSignature(account2.getSecretKey());
-            test.add(tx, TransactionQueue::AddResult::ADD_STATUS_PENDING);
+            test.add(tx, TransactionQueue::AddResultCode::ADD_STATUS_PENDING);
         }
 
         SECTION("two signers")
@@ -967,12 +967,12 @@ TEST_CASE("TransactionQueue with PreconditionsV2", "[herder][transactionqueue]")
                 transactionWithV2Precondition(*app, account1, 1, 200, cond);
 
             // no signature
-            test.add(tx, TransactionQueue::AddResult::ADD_STATUS_ERROR);
+            test.add(tx, TransactionQueue::AddResultCode::ADD_STATUS_ERROR);
 
             SECTION("first signature missing")
             {
                 tx->addSignature(root.getSecretKey());
-                test.add(tx, TransactionQueue::AddResult::ADD_STATUS_ERROR);
+                test.add(tx, TransactionQueue::AddResultCode::ADD_STATUS_ERROR);
 
                 tx->addSignature(account2.getSecretKey());
                 test.add(tx,
@@ -982,10 +982,11 @@ TEST_CASE("TransactionQueue with PreconditionsV2", "[herder][transactionqueue]")
             SECTION("second signature missing")
             {
                 tx->addSignature(account2.getSecretKey());
-                test.add(tx, TransactionQueue::AddResult::ADD_STATUS_ERROR);
+                test.add(tx, TransactionQueue::AddResultCode::ADD_STATUS_ERROR);
 
                 tx->addSignature(root.getSecretKey());
-                test.add(tx, TransactionQueue::AddResult::ADD_STATUS_PENDING);
+                test.add(tx,
+                         TransactionQueue::AddResultCode::ADD_STATUS_PENDING);
             }
         }
     }
@@ -1004,8 +1005,8 @@ TEST_CASE("TransactionQueue with PreconditionsV2", "[herder][transactionqueue]")
         auto& herder = static_cast<HerderImpl&>(app->getHerder());
         auto& tq = herder.getTransactionQueue();
 
-        REQUIRE(herder.recvTransaction(tx, false) ==
-                TransactionQueue::AddResult::ADD_STATUS_PENDING);
+        REQUIRE(herder.recvTransaction(tx, false).code ==
+                TransactionQueue::AddResultCode::ADD_STATUS_PENDING);
 
         REQUIRE(tq.getTransactions({}).size() == 1);
         closeLedger(*app);
@@ -1025,34 +1026,35 @@ TEST_CASE("TransactionQueue with PreconditionsV2", "[herder][transactionqueue]")
             auto tx =
                 transactionWithV2Precondition(*app, account1, 5, 200, cond);
 
-            test.add(tx, TransactionQueue::AddResult::ADD_STATUS_ERROR);
+            test.add(tx, TransactionQueue::AddResultCode::ADD_STATUS_ERROR);
         }
 
         test.add(txSeqA1S5MinSeqNum,
-                 TransactionQueue::AddResult::ADD_STATUS_PENDING);
+                 TransactionQueue::AddResultCode::ADD_STATUS_PENDING);
 
         // make sure duplicates are identified correctly
         test.add(txSeqA1S5MinSeqNum,
-                 TransactionQueue::AddResult::ADD_STATUS_DUPLICATE);
+                 TransactionQueue::AddResultCode::ADD_STATUS_DUPLICATE);
 
         // try to fill in gap with a tx
-        test.add(txSeqA1S2, TransactionQueue::AddResult::ADD_STATUS_ERROR);
+        test.add(txSeqA1S2, TransactionQueue::AddResultCode::ADD_STATUS_ERROR);
 
         // try to fill in gap with a minSeqNum tx
         test.add(txSeqA1S4MinSeqNum,
-                 TransactionQueue::AddResult::ADD_STATUS_ERROR);
+                 TransactionQueue::AddResultCode::ADD_STATUS_ERROR);
 
         test.check({{{account1, 0, {txSeqA1S5MinSeqNum}}, {account2}}, {}});
 
         // fee bump the existing minSeqNum tx
         auto fb = feeBump(*app, account1, txSeqA1S5MinSeqNum, 4000);
-        test.add(fb, TransactionQueue::AddResult::ADD_STATUS_PENDING);
+        test.add(fb, TransactionQueue::AddResultCode::ADD_STATUS_PENDING);
 
         test.check({{{account1, 0, {fb}}, {account2}}, {}});
 
         // fee bump a new minSeqNum tx fails due to account limit
         auto fb2 = feeBump(*app, account1, txSeqA1S8MinSeqNum, 400);
-        test.add(fb2, TransactionQueue::AddResult::ADD_STATUS_TRY_AGAIN_LATER);
+        test.add(fb2,
+                 TransactionQueue::AddResultCode::ADD_STATUS_TRY_AGAIN_LATER);
 
         test.check({{{account1, 0, {fb}}, {account2}}, {}});
     }
@@ -1236,9 +1238,8 @@ TEST_CASE("Soroban TransactionQueue limits",
         auto addResult = app->getHerder().recvTransaction(badTx, false);
         REQUIRE(addResult.code ==
                 TransactionQueue::AddResultCode::ADD_STATUS_ERROR);
-        REQUIRE(addResult.resultPayload);
-        REQUIRE(addResult.resultPayload.value()->getResultCode() ==
-                txMALFORMED);
+        REQUIRE(addResult.txResult);
+        REQUIRE(addResult.txResult.value()->getResultCode() == txMALFORMED);
     }
     SECTION("source account limit, soroban and classic tx queue")
     {
@@ -1349,12 +1350,11 @@ TEST_CASE("Soroban TransactionQueue limits",
                         TransactionQueue::AddResultCode::ADD_STATUS_ERROR);
                 REQUIRE(!app->getHerder().isBannedTx(tx->getFullHash()));
 
-                REQUIRE(addResult.resultPayload);
-                REQUIRE(addResult.resultPayload.value()->getResultCode() ==
+                REQUIRE(addResult.txResult);
+                REQUIRE(addResult.txResult.value()->getResultCode() ==
                         TransactionResultCode::txINSUFFICIENT_FEE);
-                REQUIRE(
-                    addResult.resultPayload.value()->getResult().feeCharged ==
-                    expectedFeeCharged);
+                REQUIRE(addResult.txResult.value()->getResult().feeCharged ==
+                        expectedFeeCharged);
             }
             SECTION("insufficient account balance")
             {
@@ -1367,8 +1367,8 @@ TEST_CASE("Soroban TransactionQueue limits",
                 REQUIRE(addResult.code ==
                         TransactionQueue::AddResultCode::ADD_STATUS_ERROR);
                 REQUIRE(!app->getHerder().isBannedTx(tx->getFullHash()));
-                REQUIRE(addResult.resultPayload);
-                REQUIRE(addResult.resultPayload.value()->getResultCode() ==
+                REQUIRE(addResult.txResult);
+                REQUIRE(addResult.txResult.value()->getResultCode() ==
                         TransactionResultCode::txINSUFFICIENT_BALANCE);
             }
             SECTION("invalid resources")
@@ -1396,8 +1396,8 @@ TEST_CASE("Soroban TransactionQueue limits",
                 REQUIRE(addResult.code ==
                         TransactionQueue::AddResultCode::ADD_STATUS_ERROR);
                 REQUIRE(!app->getHerder().isBannedTx(tx->getFullHash()));
-                REQUIRE(addResult.resultPayload);
-                REQUIRE(addResult.resultPayload.value()->getResultCode() ==
+                REQUIRE(addResult.txResult);
+                REQUIRE(addResult.txResult.value()->getResultCode() ==
                         TransactionResultCode::txSOROBAN_INVALID);
             }
             SECTION("too many ops")
@@ -1410,8 +1410,8 @@ TEST_CASE("Soroban TransactionQueue limits",
                 REQUIRE(addResult.code ==
                         TransactionQueue::AddResultCode::ADD_STATUS_ERROR);
                 REQUIRE(!app->getHerder().isBannedTx(tx->getFullHash()));
-                REQUIRE(addResult.resultPayload);
-                REQUIRE(addResult.resultPayload.value()->getResultCode() ==
+                REQUIRE(addResult.txResult);
+                REQUIRE(addResult.txResult.value()->getResultCode() ==
                         TransactionResultCode::txMALFORMED);
             }
         }
@@ -2314,7 +2314,7 @@ TEST_CASE("transaction queue with fee-bump", "[herder][transactionqueue]")
                                        1, isSoroban);
                 auto addResult = test.add(
                     tx2, TransactionQueue::AddResultCode::ADD_STATUS_ERROR);
-                REQUIRE(addResult.resultPayload.value()->getResultCode() ==
+                REQUIRE(addResult.txResult.value()->getResultCode() ==
                         txINSUFFICIENT_BALANCE);
                 test.check(
                     {{{account1, 0, {fb1}}, {account2}, {account3, 0}}, {}});
@@ -2326,7 +2326,7 @@ TEST_CASE("transaction queue with fee-bump", "[herder][transactionqueue]")
                 auto fb2 = feeBump(*app, account3, tx2, newInclusionToPay);
                 auto addResult = test.add(
                     fb2, TransactionQueue::AddResultCode::ADD_STATUS_ERROR);
-                REQUIRE(addResult.resultPayload.value()->getResultCode() ==
+                REQUIRE(addResult.txResult.value()->getResultCode() ==
                         txINSUFFICIENT_BALANCE);
                 test.check(
                     {{{account1, 0, {fb1}}, {account2}, {account3, 0}}, {}});
@@ -2339,7 +2339,7 @@ TEST_CASE("transaction queue with fee-bump", "[herder][transactionqueue]")
                 REQUIRE(account3.getAvailableBalance() >= fb2->getFullFee());
                 auto addResult = test.add(
                     fb2, TransactionQueue::AddResultCode::ADD_STATUS_ERROR);
-                REQUIRE(addResult.resultPayload.value()->getResultCode() ==
+                REQUIRE(addResult.txResult.value()->getResultCode() ==
                         txINSUFFICIENT_BALANCE);
                 test.check(
                     {{{account1, 0, {fb1}}, {account2}, {account3, 0}}, {}});
@@ -2383,7 +2383,7 @@ TEST_CASE("transaction queue with fee-bump", "[herder][transactionqueue]")
                     auto addResult = test.add(
                         fb2, TransactionQueue::AddResultCode::ADD_STATUS_ERROR);
 
-                    REQUIRE(addResult.resultPayload.value()->getResultCode() ==
+                    REQUIRE(addResult.txResult.value()->getResultCode() ==
                             txINSUFFICIENT_BALANCE);
                     test.check(
                         {{{account1, 0, {fb1}}, {account2}, {account3, 0}},
@@ -2492,7 +2492,7 @@ TEST_CASE("replace by fee", "[herder][transactionqueue]")
                 auto fb = feeBump(*app, feeSource, tx, 399);
                 auto addResult = test.add(
                     fb, TransactionQueue::AddResultCode::ADD_STATUS_ERROR);
-                auto& txResult = addResult.resultPayload.value();
+                auto& txResult = addResult.txResult.value();
                 REQUIRE(txResult->getResultCode() == txINSUFFICIENT_FEE);
                 REQUIRE(txResult->getResult().feeCharged ==
                         4000 + (tx->getFullFee() - tx->getInclusionFee()));
@@ -2509,7 +2509,7 @@ TEST_CASE("replace by fee", "[herder][transactionqueue]")
                 auto fb = feeBump(*app, feeSource, tx, 3999);
                 auto addResult = test.add(
                     fb, TransactionQueue::AddResultCode::ADD_STATUS_ERROR);
-                auto& txResult = addResult.resultPayload.value();
+                auto& txResult = addResult.txResult.value();
                 REQUIRE(txResult->getResultCode() == txINSUFFICIENT_FEE);
                 REQUIRE(txResult->getResult().feeCharged ==
                         4000 + (tx->getFullFee() - tx->getInclusionFee()));

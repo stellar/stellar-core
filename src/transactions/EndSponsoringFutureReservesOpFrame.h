@@ -23,7 +23,9 @@ class EndSponsoringFutureReservesOpFrame : public OperationFrame
     EndSponsoringFutureReservesOpFrame(Operation const& op,
                                        TransactionFrame const& parentTx);
 
-    bool doApply(AbstractLedgerTxn& ltx, OperationResult& res) const override;
+    bool doApply(Application& app, AbstractLedgerTxn& ltx,
+                 Hash const& sorobanBasePrngSeed, OperationResult& res,
+                 std::shared_ptr<SorobanTxData> sorobanData) const override;
     bool doCheckValid(uint32_t ledgerVersion,
                       OperationResult& res) const override;
 

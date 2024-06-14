@@ -49,13 +49,9 @@ class OperationFrame
                            SorobanTxData& sorobanData) const;
     virtual bool doCheckValid(uint32_t ledgerVersion,
                               OperationResult& res) const = 0;
-
-    virtual bool doApplyForSoroban(Application& app, AbstractLedgerTxn& ltx,
-                                   Hash const& sorobanBasePrngSeed,
-                                   OperationResult& res,
-                                   SorobanTxData& sorobanData) const;
-    virtual bool doApply(AbstractLedgerTxn& ltx,
-                         OperationResult& res) const = 0;
+    virtual bool doApply(Application& app, AbstractLedgerTxn& ltx,
+                         Hash const& sorobanBasePrngSeed, OperationResult& res,
+                         std::shared_ptr<SorobanTxData> sorobanData) const = 0;
 
     // returns the threshold this operation requires
     virtual ThresholdLevel getThresholdLevel() const;
@@ -75,9 +71,6 @@ class OperationFrame
     OperationFrame(Operation const& op, TransactionFrame const& parentTx);
     OperationFrame(OperationFrame const&) = delete;
     virtual ~OperationFrame() = default;
-
-    // given an operation result, gives a default value representing "success"
-    void resetResultSuccess(OperationResult& res) const;
 
     bool checkSignature(SignatureChecker& signatureChecker,
                         AbstractLedgerTxn& ltx, OperationResult& res,

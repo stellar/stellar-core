@@ -84,12 +84,21 @@ class MutableTransactionResultBase : public NonMovableOrCopyable
     virtual TransactionResult& getResult() = 0;
     virtual TransactionResult const& getResult() const = 0;
     virtual TransactionResultCode getResultCode() const = 0;
+
+    // Note: changing "code" normally causes the XDR structure to be destructed,
+    // then a different XDR structure is constructed. However, txFAILED and
+    // txSUCCESS have the same underlying field number so this does not
+    // occur when changing between these two codes.
     virtual void setResultCode(TransactionResultCode code) = 0;
     virtual OperationResult& getOpResultAt(size_t index) = 0;
     virtual std::shared_ptr<SorobanTxData> getSorobanData() = 0;
-
     virtual xdr::xvector<DiagnosticEvent> const&
     getDiagnosticEvents() const = 0;
+
+    virtual void refundSorobanFee(int64_t feeRefund,
+                                  uint32_t ledgerVersion) = 0;
+
+    virtual bool isSuccess() const = 0;
 };
 
 class MutableTransactionResult : public MutableTransactionResultBase
@@ -99,11 +108,10 @@ class MutableTransactionResult : public MutableTransactionResultBase
 
     MutableTransactionResult(TransactionFrame const& tx, int64_t feeCharged);
 
-    friend TransactionResultPayloadPtr
-    TransactionFrame::createResultPayload() const;
+    friend MutableTxResultPtr TransactionFrame::createSuccessResult() const;
 
-    friend TransactionResultPayloadPtr
-    TransactionFrame::createResultPayloadWithFeeCharged(
+    friend MutableTxResultPtr
+    TransactionFrame::createSuccessResultWithFeeCharged(
         LedgerHeader const& header, std::optional<int64_t> baseFee,
         bool applying) const;
 
@@ -120,33 +128,33 @@ class MutableTransactionResult : public MutableTransactionResultBase
     OperationResult& getOpResultAt(size_t index) override;
     std::shared_ptr<SorobanTxData> getSorobanData() override;
     xdr::xvector<DiagnosticEvent> const& getDiagnosticEvents() const override;
+
+    void refundSorobanFee(int64_t feeRefund, uint32_t ledgerVersion) override;
+    bool isSuccess() const override;
 };
 
 class FeeBumpMutableTransactionResult : public MutableTransactionResultBase
 {
     // mTxResult is outer result
-    TransactionResultPayloadPtr const mInnerResultPayload;
+    MutableTxResultPtr const mInnerTxResult;
 
-    FeeBumpMutableTransactionResult(
-        TransactionResultPayloadPtr innerResultPayload);
+    FeeBumpMutableTransactionResult(MutableTxResultPtr innerTxResult);
 
-    FeeBumpMutableTransactionResult(
-        TransactionResultPayloadPtr&& outerResultPayload,
-        TransactionResultPayloadPtr&& innerResultPayload,
-        TransactionFrameBasePtr innerTx);
+    FeeBumpMutableTransactionResult(MutableTxResultPtr&& outerTxResult,
+                                    MutableTxResultPtr&& innerTxResult,
+                                    TransactionFrameBasePtr innerTx);
 
-    friend TransactionResultPayloadPtr
-    FeeBumpTransactionFrame::createResultPayload() const;
+    friend MutableTxResultPtr
+    FeeBumpTransactionFrame::createSuccessResult() const;
 
-    friend TransactionResultPayloadPtr
-    FeeBumpTransactionFrame::createResultPayloadWithFeeCharged(
+    friend MutableTxResultPtr
+    FeeBumpTransactionFrame::createSuccessResultWithFeeCharged(
         LedgerHeader const& header, std::optional<int64_t> baseFee,
         bool applying) const;
 
-    friend TransactionResultPayloadPtr
-    FeeBumpTransactionFrame::createResultPayloadWithNewInnerTx(
-        TransactionResultPayloadPtr&& outerResult,
-        TransactionResultPayloadPtr&& innerResult,
+    friend MutableTxResultPtr
+    FeeBumpTransactionFrame::createSuccessResultWithNewInnerTx(
+        MutableTxResultPtr&& outerResult, MutableTxResultPtr&& innerResult,
         TransactionFrameBasePtr innerTx) const;
 
   public:
@@ -166,5 +174,8 @@ class FeeBumpMutableTransactionResult : public MutableTransactionResultBase
     OperationResult& getOpResultAt(size_t index) override;
     std::shared_ptr<SorobanTxData> getSorobanData() override;
     xdr::xvector<DiagnosticEvent> const& getDiagnosticEvents() const override;
+
+    void refundSorobanFee(int64_t feeRefund, uint32_t ledgerVersion) override;
+    bool isSuccess() const override;
 };
 }

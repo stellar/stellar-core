@@ -26,8 +26,7 @@ class TransactionFrame;
 class FeeBumpTransactionFrame;
 
 class MutableTransactionResultBase;
-using TransactionResultPayloadPtr =
-    std::shared_ptr<MutableTransactionResultBase>;
+using MutableTxResultPtr = std::shared_ptr<MutableTransactionResultBase>;
 
 class TransactionFrameBase;
 using TransactionFrameBasePtr = std::shared_ptr<TransactionFrameBase const>;
@@ -42,22 +41,21 @@ class TransactionFrameBase
                             TransactionEnvelope const& env);
 
     virtual bool apply(Application& app, AbstractLedgerTxn& ltx,
-                       TransactionMetaFrame& meta,
-                       TransactionResultPayloadPtr txResult,
+                       TransactionMetaFrame& meta, MutableTxResultPtr txResult,
                        Hash const& sorobanBasePrngSeed = Hash{}) const = 0;
 
-    virtual std::pair<bool, TransactionResultPayloadPtr>
+    virtual MutableTxResultPtr
     checkValid(Application& app, AbstractLedgerTxn& ltxOuter,
                SequenceNumber current, uint64_t lowerBoundCloseTimeOffset,
                uint64_t upperBoundCloseTimeOffset) const = 0;
-    virtual bool checkSorobanResourceAndSetError(
-        Application& app, uint32_t ledgerVersion,
-        TransactionResultPayloadPtr txResult) const = 0;
+    virtual bool
+    checkSorobanResourceAndSetError(Application& app, uint32_t ledgerVersion,
+                                    MutableTxResultPtr txResult) const = 0;
 
-    virtual TransactionResultPayloadPtr createResultPayload() const = 0;
+    virtual MutableTxResultPtr createSuccessResult() const = 0;
 
-    virtual TransactionResultPayloadPtr
-    createResultPayloadWithFeeCharged(LedgerHeader const& header,
+    virtual MutableTxResultPtr
+    createSuccessResultWithFeeCharged(LedgerHeader const& header,
                                       std::optional<int64_t> baseFee,
                                       bool applying) const = 0;
 
@@ -99,14 +97,13 @@ class TransactionFrameBase
     virtual void insertKeysForTxApply(UnorderedSet<LedgerKey>& keys,
                                       LedgerKeyMeter* lkMeter) const = 0;
 
-    virtual TransactionResultPayloadPtr
+    virtual MutableTxResultPtr
     processFeeSeqNum(AbstractLedgerTxn& ltx,
                      std::optional<int64_t> baseFee) const = 0;
 
-    virtual void
-    processPostApply(Application& app, AbstractLedgerTxn& ltx,
-                     TransactionMetaFrame& meta,
-                     TransactionResultPayloadPtr txResult) const = 0;
+    virtual void processPostApply(Application& app, AbstractLedgerTxn& ltx,
+                                  TransactionMetaFrame& meta,
+                                  MutableTxResultPtr txResult) const = 0;
 
     virtual std::shared_ptr<StellarMessage const> toStellarMessage() const = 0;
 

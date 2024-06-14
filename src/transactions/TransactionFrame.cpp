@@ -401,22 +401,21 @@ TransactionFrame::sorobanResources() const
     return mEnvelope.v1().tx.ext.sorobanData().resources;
 }
 
-TransactionResultPayloadPtr
-TransactionFrame::createResultPayloadWithFeeCharged(
+MutableTxResultPtr
+TransactionFrame::createSuccessResultWithFeeCharged(
     LedgerHeader const& header, std::optional<int64_t> baseFee,
     bool applying) const
 {
     // feeCharged is updated accordingly to represent the cost of the
     // transaction regardless of the failure modes.
     auto feeCharged = getFee(header, baseFee, applying);
-    return TransactionResultPayloadPtr(
-        new MutableTransactionResult(*this, feeCharged));
+    return MutableTxResultPtr(new MutableTransactionResult(*this, feeCharged));
 }
 
-TransactionResultPayloadPtr
-TransactionFrame::createResultPayload() const
+MutableTxResultPtr
+TransactionFrame::createSuccessResult() const
 {
-    return TransactionResultPayloadPtr(new MutableTransactionResult(*this, 0));
+    return MutableTxResultPtr(new MutableTransactionResult(*this, 0));
 }
 
 std::optional<TimeBounds const> const
@@ -694,7 +693,7 @@ TransactionFrame::refundSorobanFee(AbstractLedgerTxn& ltxOuter,
         return 0;
     }
 
-    txResult.getInnermostResult().feeCharged -= feeRefund;
+    txResult.refundSorobanFee(feeRefund, header.current().ledgerVersion);
     header.current().feePool -= feeRefund;
     ltx.commit();
 
@@ -878,7 +877,7 @@ TransactionFrame::commonValidPreSeqNum(
     Application& app, AbstractLedgerTxn& ltx, bool chargeFee,
     uint64_t lowerBoundCloseTimeOffset, uint64_t upperBoundCloseTimeOffset,
     std::optional<FeePair> sorobanResourceFee,
-    TransactionResultPayloadPtr txResult) const
+    MutableTxResultPtr txResult) const
 {
     ZoneScoped;
     releaseAssertOrThrow(txResult);
@@ -1137,10 +1136,6 @@ TransactionFrame::processSignatures(
 
     if (!allOpsValid)
     {
-        // Changing "code" normally causes the XDR structure to be destructed,
-        // then a different XDR structure is constructed. However, txFAILED and
-        // txSUCCESS have the same underlying field number so this does not
-        // occur.
         txResult.setInnermostResultCode(txFAILED);
         return false;
     }
@@ -1189,7 +1184,7 @@ TransactionFrame::commonValid(Application& app,
                               uint64_t lowerBoundCloseTimeOffset,
                               uint64_t upperBoundCloseTimeOffset,
                               std::optional<FeePair> sorobanResourceFee,
-                              TransactionResultPayloadPtr txResult) const
+                              MutableTxResultPtr txResult) const
 {
     ZoneScoped;
     releaseAssertOrThrow(txResult);
@@ -1275,7 +1270,7 @@ TransactionFrame::commonValid(Application& app,
     return ValidationType::kMaybeValid;
 }
 
-TransactionResultPayloadPtr
+MutableTxResultPtr
 TransactionFrame::processFeeSeqNum(AbstractLedgerTxn& ltx,
                                    std::optional<int64_t> baseFee) const
 {
@@ -1284,7 +1279,7 @@ TransactionFrame::processFeeSeqNum(AbstractLedgerTxn& ltx,
 
     auto header = ltx.loadHeader();
     auto txResult =
-        createResultPayloadWithFeeCharged(header.current(), baseFee, true);
+        createSuccessResultWithFeeCharged(header.current(), baseFee, true);
     releaseAssert(txResult);
 
     auto sourceAccount = loadSourceAccount(ltx, header);
@@ -1388,7 +1383,7 @@ TransactionFrame::removeAccountSigner(AbstractLedgerTxn& ltxOuter,
     }
 }
 
-std::pair<bool, TransactionResultPayloadPtr>
+MutableTxResultPtr
 TransactionFrame::checkValidWithOptionallyChargedFee(
     Application& app, AbstractLedgerTxn& ltxOuter, SequenceNumber current,
     bool chargeFee, uint64_t lowerBoundCloseTimeOffset,
@@ -1399,9 +1394,9 @@ TransactionFrame::checkValidWithOptionallyChargedFee(
 
     if (!XDRProvidesValidFee())
     {
-        auto txResult = createResultPayload();
+        auto txResult = createSuccessResult();
         txResult->setInnermostResultCode(txMALFORMED);
-        return {false, txResult};
+        return txResult;
     }
 
     LedgerTxn ltx(ltxOuter);
@@ -1411,7 +1406,7 @@ TransactionFrame::checkValidWithOptionallyChargedFee(
         minBaseFee = 0;
     }
 
-    auto txResult = createResultPayloadWithFeeCharged(
+    auto txResult = createSuccessResultWithFeeCharged(
         ltx.loadHeader().current(), minBaseFee, false);
     releaseAssert(txResult);
 
@@ -1445,7 +1440,7 @@ TransactionFrame::checkValidWithOptionallyChargedFee(
                 // checkValid on all operations as the resulting object
                 // is only used by applications
                 txResult->setInnermostResultCode(txFAILED);
-                return {false, txResult};
+                return txResult;
             }
         }
 
@@ -1455,10 +1450,11 @@ TransactionFrame::checkValidWithOptionallyChargedFee(
             txResult->setInnermostResultCode(txBAD_AUTH_EXTRA);
         }
     }
-    return {res, txResult};
+
+    return txResult;
 }
 
-std::pair<bool, TransactionResultPayloadPtr>
+MutableTxResultPtr
 TransactionFrame::checkValid(Application& app, AbstractLedgerTxn& ltxOuter,
                              SequenceNumber current,
                              uint64_t lowerBoundCloseTimeOffset,
@@ -1471,8 +1467,7 @@ TransactionFrame::checkValid(Application& app, AbstractLedgerTxn& ltxOuter,
 
 bool
 TransactionFrame::checkSorobanResourceAndSetError(
-    Application& app, uint32_t ledgerVersion,
-    TransactionResultPayloadPtr txResult) const
+    Application& app, uint32_t ledgerVersion, MutableTxResultPtr txResult) const
 {
     auto const& sorobanConfig =
         app.getLedgerManager().getSorobanNetworkConfig();
@@ -1529,7 +1524,7 @@ TransactionFrame::insertKeysForTxApply(UnorderedSet<LedgerKey>& keys,
 
 bool
 TransactionFrame::apply(Application& app, AbstractLedgerTxn& ltx,
-                        TransactionResultPayloadPtr txResult,
+                        MutableTxResultPtr txResult,
                         Hash const& sorobanBasePrngSeed) const
 {
     TransactionMetaFrame tm(ltx.loadHeader().current().ledgerVersion);
@@ -1656,10 +1651,6 @@ TransactionFrame::applyOperations(SignatureChecker& signatureChecker,
         }
         else
         {
-            // Changing "code" normally causes the XDR structure to be
-            // destructed, then a different XDR structure is constructed.
-            // However, txFAILED and txSUCCESS have the same underlying field
-            // number so this does not occur.
             txResult.setInnermostResultCode(txFAILED);
             if (protocolVersionStartsFrom(ledgerVersion,
                                           SOROBAN_PROTOCOL_VERSION) &&
@@ -1751,9 +1742,8 @@ TransactionFrame::applyOperations(SignatureChecker& signatureChecker,
 
 bool
 TransactionFrame::apply(Application& app, AbstractLedgerTxn& ltx,
-                        TransactionMetaFrame& meta,
-                        TransactionResultPayloadPtr txResult, bool chargeFee,
-                        Hash const& sorobanBasePrngSeed) const
+                        TransactionMetaFrame& meta, MutableTxResultPtr txResult,
+                        bool chargeFee, Hash const& sorobanBasePrngSeed) const
 {
     ZoneScoped;
     try
@@ -1839,8 +1829,7 @@ TransactionFrame::apply(Application& app, AbstractLedgerTxn& ltx,
 
 bool
 TransactionFrame::apply(Application& app, AbstractLedgerTxn& ltx,
-                        TransactionMetaFrame& meta,
-                        TransactionResultPayloadPtr txResult,
+                        TransactionMetaFrame& meta, MutableTxResultPtr txResult,
                         Hash const& sorobanBasePrngSeed) const
 {
     return apply(app, ltx, meta, txResult, true, sorobanBasePrngSeed);
@@ -1850,7 +1839,7 @@ void
 TransactionFrame::processPostApply(Application& app,
                                    AbstractLedgerTxn& ltxOuter,
                                    TransactionMetaFrame& meta,
-                                   TransactionResultPayloadPtr txResult) const
+                                   MutableTxResultPtr txResult) const
 {
     releaseAssertOrThrow(txResult);
     processRefund(app, ltxOuter, meta, getSourceID(), *txResult);

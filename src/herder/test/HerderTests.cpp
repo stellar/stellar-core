@@ -34,6 +34,7 @@
 #include "transactions/TransactionBridge.h"
 #include "transactions/TransactionFrame.h"
 #include "transactions/TransactionUtils.h"
+#include "transactions/test/TransactionTestFrame.h"
 #include "util/Math.h"
 #include "util/ProtocolVersion.h"
 
@@ -45,6 +46,7 @@
 #include "xdrpp/marshal.h"
 #include <algorithm>
 #include <fmt/format.h>
+#include <memory>
 #include <numeric>
 #include <optional>
 
@@ -356,7 +358,8 @@ testTxSet(uint32 protocolVersion)
         }
         SECTION("sequence gap")
         {
-            setSeqNum(std::static_pointer_cast<TransactionFrame>(txs[0]),
+            auto txPtr = std::const_pointer_cast<TransactionFrameBase>(txs[0]);
+            setSeqNum(std::static_pointer_cast<TransactionTestFrame>(txPtr),
                       txs[0]->getSeqNum() + 5);
 
             TxSetTransactions removed;

@@ -141,7 +141,10 @@ ChangeTrustOpFrame::ChangeTrustOpFrame(Operation const& op,
 }
 
 bool
-ChangeTrustOpFrame::doApply(AbstractLedgerTxn& ltx, OperationResult& res) const
+ChangeTrustOpFrame::doApply(Application& app, AbstractLedgerTxn& ltx,
+                            Hash const& sorobanBasePrngSeed,
+                            OperationResult& res,
+                            std::shared_ptr<SorobanTxData> sorobanData) const
 {
     ZoneNamedN(applyZone, "ChangeTrustOp apply", true);
 

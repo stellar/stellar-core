@@ -61,7 +61,9 @@ MergeOpFrame::isSeqnumTooFar(AbstractLedgerTxn& ltx,
 // make sure the we delete all the trustlines
 // move the XLM to the new account
 bool
-MergeOpFrame::doApply(AbstractLedgerTxn& ltx, OperationResult& res) const
+MergeOpFrame::doApply(Application& app, AbstractLedgerTxn& ltx,
+                      Hash const& sorobanBasePrngSeed, OperationResult& res,
+                      std::shared_ptr<SorobanTxData> sorobanData) const
 {
     ZoneNamedN(applyZone, "MergeOp apply", true);
 

@@ -49,18 +49,9 @@ RestoreFootprintOpFrame::isOpSupported(LedgerHeader const& header) const
 }
 
 bool
-RestoreFootprintOpFrame::doApply(AbstractLedgerTxn& ltx,
-                                 OperationResult& res) const
-{
-    throw std::runtime_error("RestoreFootprintOpFrame::doApply needs Config");
-}
-
-bool
-RestoreFootprintOpFrame::doApplyForSoroban(Application& app,
-                                           AbstractLedgerTxn& ltx,
-                                           Hash const& sorobanBasePrngSeed,
-                                           OperationResult& res,
-                                           SorobanTxData& sorobanData) const
+RestoreFootprintOpFrame::doApply(
+    Application& app, AbstractLedgerTxn& ltx, Hash const& sorobanBasePrngSeed,
+    OperationResult& res, std::shared_ptr<SorobanTxData> sorobanData) const
 {
     ZoneNamedN(applyZone, "RestoreFootprintOpFrame apply", true);
 
@@ -105,7 +96,7 @@ RestoreFootprintOpFrame::doApplyForSoroban(Application& app,
         metrics.mLedgerReadByte += entrySize;
         if (resources.readBytes < metrics.mLedgerReadByte)
         {
-            sorobanData.pushApplyTimeDiagnosticError(
+            sorobanData->pushApplyTimeDiagnosticError(
                 appConfig, SCE_BUDGET, SCEC_EXCEEDED_LIMIT,
                 "operation byte-read resources exceeds amount specified",
                 {makeU64SCVal(metrics.mLedgerReadByte),
@@ -118,7 +109,7 @@ RestoreFootprintOpFrame::doApplyForSoroban(Application& app,
         // writes come out of refundable fee, so only add entrySize
         metrics.mLedgerWriteByte += entrySize;
         if (!validateContractLedgerEntry(lk, entrySize, sorobanConfig,
-                                         appConfig, mParentTx, sorobanData))
+                                         appConfig, mParentTx, *sorobanData))
         {
             innerResult(res).code(RESTORE_FOOTPRINT_RESOURCE_LIMIT_EXCEEDED);
             return false;
@@ -126,7 +117,7 @@ RestoreFootprintOpFrame::doApplyForSoroban(Application& app,
 
         if (resources.writeBytes < metrics.mLedgerWriteByte)
         {
-            sorobanData.pushApplyTimeDiagnosticError(
+            sorobanData->pushApplyTimeDiagnosticError(
                 appConfig, SCE_BUDGET, SCEC_EXCEEDED_LIMIT,
                 "operation byte-write resources exceeds amount specified",
                 {makeU64SCVal(metrics.mLedgerWriteByte),
@@ -159,7 +150,7 @@ RestoreFootprintOpFrame::doApplyForSoroban(Application& app,
             .getSorobanNetworkConfig()
             .rustBridgeRentFeeConfiguration(),
         ledgerSeq);
-    if (!sorobanData.consumeRefundableSorobanResources(
+    if (!sorobanData->consumeRefundableSorobanResources(
             0, rentFee, ltx.loadHeader().current().ledgerVersion,
             app.getLedgerManager().getSorobanNetworkConfig(), app.getConfig(),
             mParentTx))
