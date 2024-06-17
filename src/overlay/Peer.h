@@ -27,6 +27,9 @@ static size_t const MAX_SOROBAN_BYTE_ALLOWANCE =
 static size_t const MAX_CLASSIC_BYTE_ALLOWANCE =
     MAX_TX_SET_ALLOWANCE / 2; // 5 MB
 
+// Overlay version at which we started mandating flow control bytes
+uint32_t constexpr MANDATORY_FLOW_CONTROL_BYTES_MIN_OVERLAY_VERSION = 35;
+
 static_assert(MAX_TX_SET_ALLOWANCE >=
               MAX_SOROBAN_BYTE_ALLOWANCE + MAX_CLASSIC_BYTE_ALLOWANCE);
 
