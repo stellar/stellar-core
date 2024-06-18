@@ -21,10 +21,13 @@ def parse_args():
     parser.add_argument('-c', '--core-config', required=False, type=str, help='Path to the stellar-core config file',
                         default='/etc/stellar/stellar-core.cfg')
     parser.add_argument('-l', '--log-dir', required=False, type=str, help='Path where logs are written to.'
-                        'Set to empty string to exclude logs',
-                        default='/var/log/stellar')
+                        'If not set we will try to find it in the config or use /var/log/stellar/ location.'
+                        'Set to string "disabled" to exclude logs.')
     parser.add_argument('-b', '--bucket-dir', required=False, type=str, help='Path where buckets are written to.'
-                        'If not set we will try to find it in the config or use /var/lib/staller/buckets location.'
+                        'If not set we will try to find it in the config or use /var/lib/stellar/buckets location.'
+                        'Set to string "disabled" to exclude buckets directory.')
+    parser.add_argument('-b', '--bucket-dir', required=False, type=str, help='Path where buckets are written to.'
+                        'If not set we will try to find it in the config or use /var/lib/stellar/buckets location.'
                         'Set to string "disabled" to exclude buckets directory.')
     return parser.parse_args()
 
@@ -153,10 +156,23 @@ class Gatherer(object):
 
     @catch_errors
     def gather_logs(self):
-        print('Gathering logs...')
-        if not self.log_dir:
+        if self.log_dir == 'disabled':
             print('Skipping log gathering')
             return True
+        else:
+            print('Gathering logs...')
+
+        if not self.log_dir:
+            m = re.search('.*LOG_FILE_PATH *= *"(/.*/).*"$', self.parsed_core_config, flags=re.MULTILINE | re.IGNORECASE)
+            if m:
+                self.log_dir = m[1]
+            else:
+                self.log_dir = '/var/log/stellar/'
+
+        if not os.path.isdir(self.log_dir) or not os.access(self.log_dir, os.R_OK):
+            print(f"Error: can't access log directory: {self.log_dir}")
+            return False
+
         all_files = glob.glob(f'{self.log_dir}/*.log')
         now = time.time()
         if not all_files:
@@ -177,13 +193,13 @@ class Gatherer(object):
             print('Gathering buckets directory')
 
         if not self.bucket_dir:
-            m = re.search('.*BUCKET_DIR_PATH="(/.*)"$', self.parsed_core_config, flags=re.MULTILINE | re.IGNORECASE)
+            m = re.search('.*BUCKET_DIR_PATH *= *"(/.*)"$', self.parsed_core_config, flags=re.MULTILINE | re.IGNORECASE)
             if m:
                 self.bucket_dir = m[1]
             else:
                 self.bucket_dir = '/var/lib/stellar/buckets'
 
-        if not os.path.isdir(self.bucket_dir) or not os.access(self.bucket_dir, os.W_OK):
+        if not os.path.isdir(self.bucket_dir) or not os.access(self.bucket_dir, os.R_OK):
             print(f"Error: can't access buckets directory: {self.bucket_dir}")
             return False
 
