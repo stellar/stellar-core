@@ -50,6 +50,9 @@ class server
 
     static void parseParams(const std::string& params,
                             std::map<std::string, std::string>& retMap);
+    static void
+    parsePostParams(const std::string& params,
+                    std::map<std::string, std::vector<std::string>>& retMap);
 
   private:
     /// Perform an asynchronous accept operation.
