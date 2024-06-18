@@ -26,3 +26,12 @@ STOP_SURVEY_COLLECTING_SUCCESS_TEXT = \
 SURVEY_TOPOLOGY_TIME_SLICED_SUCCESS_START = "Adding node."
 SURVEY_TOPOLOGY_TIME_SLICED_SUCCESS_TEXT = \
     SURVEY_TOPOLOGY_TIME_SLICED_SUCCESS_START + "Survey already running!"
+
+# The error response from the surveytopologytimesliced endpoint when the survey
+# backlog already contains the node requested to be surveyed, or the requested
+# node is the surveyor. stellar-core returns this error JSON object where the
+# error text is contained in the "exception" field.
+SURVEY_TOPOLOGY_TIME_SLICED_ALREADY_IN_BACKLOG_OR_SELF = (
+        "addPeerToBacklog failed: Peer is already in the backlog, or peer "
+        "is self."
+        )

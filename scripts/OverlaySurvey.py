@@ -84,15 +84,14 @@ SIMULATION = None
 # internal limit.
 MAX_COLLECT_DURATION = 30
 
-# Maximum number of consecutive rounds in which the surveyor neither sent
-# requests to nor received responses from any nodes. A round contains a batch of
-# requests sent to select nodes, followed by a wait period of 15 seconds,
-# followed by checking for responses and building up the next batch of requests
-# to send. Therefore, a setting of `8` is roughly 2 minutes of inactivity
-# before the script considers the survey complete. This is necessary because
-# it's very likely that not all surveyed nodes will respond to the survey.
-# Therefore, we need some cutoff after we which we assume those nodes will never
-# respond.
+# Maximum number of consecutive rounds in which the surveyor does not receive
+# responses from any nodes. A round contains a batch of requests sent to select
+# nodes, followed by a wait period of 15 seconds, followed by checking for
+# responses and building up the next batch of requests to send. Therefore, a
+# setting of `8` is roughly 2 minutes of inactivity before the script considers
+# the survey complete. This is necessary because it's very likely that not all
+# surveyed nodes will respond to the survey.  Therefore, we need some cutoff
+# after we which we assume those nodes will never respond.
 MAX_INACTIVE_ROUNDS = 8
 
 def get_request(url, params=None):
@@ -187,8 +186,18 @@ def send_survey_requests(peer_list, url_base):
             util.SURVEY_TOPOLOGY_TIME_SLICED_SUCCESS_START):
             logger.debug("Send request to %s", nodeid)
         else:
-            logger.error("Failed to send survey request to %s: %s",
-                         nodeid, response.text)
+            try:
+                exception = response.json()["exception"]
+                if exception == \
+                   util.SURVEY_TOPOLOGY_TIME_SLICED_ALREADY_IN_BACKLOG_OR_SELF:
+                    logger.debug("Node %s is already in backlog or is self",
+                                 nodeid)
+                else:
+                    logger.error("Failed to send survey request to %s: %s",
+                                nodeid, exception)
+            except (requests.exceptions.JSONDecodeError, KeyError):
+                logger.error("Failed to send survey request to %s: %s",
+                             nodeid, response.text)
 
     logger.info("Done sending survey requests")
 
@@ -324,6 +333,7 @@ def run_survey(args):
             logger.critical("%s", e)
             sys.exit(1)
 
+    skip_sleep = args.simulate and args.fast
     url = args.node
 
     peers = url + "/peers"
@@ -339,10 +349,11 @@ def run_survey(args):
         logger.critical("Failed to start survey: %s", response.text)
         sys.exit(1)
 
-    # Sleep for duration of collecting phase
-    logger.info("Sleeping for collecting phase (%i minutes)",
-                args.collect_duration)
-    time.sleep(args.collect_duration * 60)
+    if not skip_sleep:
+        # Sleep for duration of collecting phase
+        logger.info("Sleeping for collecting phase (%i minutes)",
+                    args.collect_duration)
+        time.sleep(args.collect_duration * 60)
 
     # Stop survey recording
     logger.info("Stopping survey collecting")
@@ -351,12 +362,13 @@ def run_survey(args):
         logger.critical("Failed to stop survey: %s", response.text)
         sys.exit(1)
 
-    # Allow time for stop message to propagate
-    sleep_time = 60
-    logger.info(
-        "Waiting %i seconds for 'stop collecting' message to propagate",
-        sleep_time)
-    time.sleep(sleep_time)
+    if not skip_sleep:
+        # Allow time for stop message to propagate
+        sleep_time = 60
+        logger.info(
+            "Waiting %i seconds for 'stop collecting' message to propagate",
+            sleep_time)
+        time.sleep(sleep_time)
 
     peer_list = set()
     if args.nodeList:
@@ -382,21 +394,19 @@ def run_survey(args):
     self_name = get_request(url + "/scp", scp_params).json()["you"]
     graph.add_node(self_name,
                    version=get_request(url + "/info").json()["info"]["build"],
-                   numTotalInboundPeers=len(peers["inbound"] or []),
-                   numTotalOutboundPeers=len(peers["outbound"] or []))
+                   totalInbound=len(peers["inbound"] or []),
+                   totalOutbound=len(peers["outbound"] or []))
 
     sent_requests = set()
     heard_from = set()
+    incomplete_responses = set()
 
     # Number of consecutive rounds in which surveyor neither sent requests nor
     # received responses
     inactive_rounds = 0
 
     while True:
-        if peer_list:
-            inactive_rounds = 0
-        else:
-            inactive_rounds += 1
+        inactive_rounds += 1
 
         send_survey_requests(peer_list, url)
 
@@ -405,12 +415,13 @@ def run_survey(args):
 
         peer_list = set()
 
-        # allow time for results. Stellar-core sends out a batch of requests
-        # every 15 seconds, so there's not much benefit in checking more
-        # frequently than that
-        sleep_time = 15
-        logger.info("Waiting %i seconds for survey results", sleep_time)
-        time.sleep(sleep_time)
+        if not skip_sleep:
+            # allow time for results. Stellar-core sends out a batch of requests
+            # every 15 seconds, so there's not much benefit in checking more
+            # frequently than that
+            sleep_time = 15
+            logger.info("Waiting %i seconds for survey results", sleep_time)
+            time.sleep(sleep_time)
 
         logger.info("Fetching survey result")
         data = get_request(url=survey_result).json()
@@ -418,12 +429,19 @@ def run_survey(args):
 
         if "topology" in data:
             for key in data["topology"]:
-                if data["topology"][key] is not None:
+                node_data = data["topology"][key]
+                if node_data is not None:
                     if key not in heard_from:
                         # Received a new response!
                         logger.debug("Received response from %s", key)
                         inactive_rounds = 0
                         heard_from.add(key)
+                    elif key in incomplete_responses and len(node_data) > 0:
+                        # Received additional data for a node that previously
+                        # responded
+                        logger.debug("Received additional data for %s", key)
+                        inactive_rounds = 0
+                        incomplete_responses.remove(key)
 
         waiting_to_hear = set()
         for node in sent_requests:
@@ -457,9 +475,9 @@ def run_survey(args):
             have_outbound = len(node["outboundPeers"])
             if (node["totalInbound"] > have_inbound or
                 node["totalOutbound"] > have_outbound):
-                peer_list.add(util.PendingRequest(key,
-                                                  have_inbound,
-                                                  have_outbound))
+                incomplete_responses.add(key)
+                req = util.PendingRequest(key, have_inbound, have_outbound)
+                peer_list.add(req)
         logger.info("New nodes: %s  Gathering additional peer data: %s",
               new_peers, len(peer_list)-new_peers)
 
@@ -554,6 +572,10 @@ def main():
                                  "--simRoot",
                                  required=True,
                                  help="node to start simulation from")
+    parser_simulate.add_argument("-f",
+                                 "--fast",
+                                 action="store_true",
+                                 help="Skip sleep calls during simulation.")
     parser_simulate.set_defaults(simulate=True)
 
     parser_analyze = subparsers.add_parser('analyze',
