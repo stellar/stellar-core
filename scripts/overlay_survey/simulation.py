@@ -41,7 +41,7 @@ def _add_v2_survey_data(node_json):
     Does nothing if the node_json is already a v2 survey result or if the V1
     survey data indicates the node didn't respond to the survey.
     """
-    if "numTotalInboundPeers" not in node_json:
+    if "totalInbound" not in node_json:
         # Node did not respond to the survey. Nothing to do.
         return
 
@@ -63,6 +63,13 @@ def _add_v2_survey_data(node_json):
     for peer in node_json["outboundPeers"]:
         peer["averageLatencyMs"] = random.randint(0, 2**32-1)
 
+def _rename_dictionary_field(dictionary, old_key, new_key):
+    """
+    Rename a field in a dictionary. If the field is not present, do nothing.
+    """
+    if old_key in dictionary:
+        dictionary[new_key] = dictionary[old_key]
+        del dictionary[old_key]
 
 class SurveySimulation:
     """
@@ -139,11 +146,25 @@ class SurveySimulation:
         assert params.keys() == {"node",
                                  "inboundpeerindex",
                                  "outboundpeerindex"}
-        if params["node"] != self._root_node:
-            req = util.PendingRequest(params["node"],
-                                      params["inboundpeerindex"],
-                                      params["outboundpeerindex"])
-            self._pending_requests.append(req)
+
+        fail_response = SimulatedResponse(
+            {"exception" :
+                util.SURVEY_TOPOLOGY_TIME_SLICED_ALREADY_IN_BACKLOG_OR_SELF})
+        node = params["node"]
+        inbound_peer_idx = params["inboundpeerindex"]
+        outbound_peer_idx = params["outboundpeerindex"]
+        if node == self._root_node:
+            # Nodes cannot survey themselves (yet)
+            return fail_response
+
+        if ((inbound_peer_idx > 0 or outbound_peer_idx > 0) and
+            random.random() < 0.2):
+            # Randomly indicate that node is already in backlog if it is being
+            # resurveyed. Script should handle this by trying again later.
+            return fail_response
+
+        req = util.PendingRequest(node, inbound_peer_idx, outbound_peer_idx)
+        self._pending_requests.append(req)
         return SimulatedResponse(
             text=util.SURVEY_TOPOLOGY_TIME_SLICED_SUCCESS_TEXT)
 
@@ -191,8 +212,8 @@ class SurveySimulation:
                 ]
             for (node_id, _, data) in inbound_slice:
                 self._addpeer(node_id, data, node_json["inboundPeers"])
-            if ("numTotalInboundPeers" in node_json and
-                node_json["numTotalInboundPeers"] != len(in_edges)):
+            if ("totalInbound" in node_json and
+                node_json["totalInbound"] != len(in_edges)):
                 # The V1 survey contains a race condition in which the number of
                 # peers can change between when a node reports its peer count
                 # and when the surveyor requests the peers themselves. The V2
@@ -209,8 +230,8 @@ class SurveySimulation:
                                "count.",
                                node,
                                len(in_edges),
-                               node_json["numTotalInboundPeers"])
-                node_json["numTotalInboundPeers"] = len(in_edges)
+                               node_json["totalInbound"])
+                node_json["totalInbound"] = len(in_edges)
 
             # Generate outboundPeers list
             node_json["outboundPeers"] = []
@@ -220,8 +241,8 @@ class SurveySimulation:
                 ]
             for (_, node_id, data) in outbound_slice:
                 self._addpeer(node_id, data, node_json["outboundPeers"])
-            if ("numTotalOutboundPeers" in node_json and
-                node_json["numTotalOutboundPeers"] != len(out_edges)):
+            if ("totalOutbound" in node_json and
+                node_json["totalOutbound"] != len(out_edges)):
                 # Patch up peer counts in simulated survey results with real
                 # peer counts (see note on similar conditional for inbound peers
                 # above)
@@ -231,10 +252,18 @@ class SurveySimulation:
                                "count.",
                                node,
                                len(out_edges),
-                               node_json["numTotalOutboundPeers"])
-                node_json["numTotalOutboundPeers"] = len(out_edges)
+                               node_json["totalOutbound"])
+                node_json["totalOutbound"] = len(out_edges)
 
             _add_v2_survey_data(node_json)
+
+            # Rename peer count fields to match stellar-core's response
+            _rename_dictionary_field(node_json,
+                                     "totalInbound",
+                                     "numTotalInboundPeers")
+            _rename_dictionary_field(node_json,
+                                     "totalOutbound",
+                                     "numTotalOutboundPeers")
 
             self._results["topology"][node] = node_json
         return SimulatedResponse(json=self._results)
