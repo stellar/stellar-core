@@ -11,6 +11,7 @@
 #ifndef HTTP_THREADED_REQUEST_PARSER_HPP
 #define HTTP_THREADED_REQUEST_PARSER_HPP
 
+#include "lib/httpthreaded/request.hpp"
 #include <tuple>
 
 namespace httpThreaded
@@ -48,16 +49,47 @@ class request_parser
     {
         while (begin != end)
         {
-            result_type result = consume(req, *begin++);
-            if (result == good || result == bad)
-                return std::make_tuple(result, begin);
+            if (parsed_header_)
+            {
+                result_type result = consumeBody(req, *begin++);
+                if (result == good || result == bad)
+                {
+                    return std::make_tuple(result, begin);
+                }
+            }
+            else
+            {
+                result_type result = consumeHeader(req, *begin++);
+                if (result == bad)
+                {
+                    return std::make_tuple(result, begin);
+                }
+                else if (result == good)
+                {
+                    if (req.method == "GET")
+                    {
+                        return std::make_tuple(result, begin);
+                    }
+
+                    parsed_header_ = true;
+                    if (initializeForBody(req) == bad)
+                    {
+                        return std::make_tuple(bad, begin);
+                    }
+                }
+            }
         }
         return std::make_tuple(indeterminate, begin);
     }
 
   private:
-    /// Handle the next character of input.
-    result_type consume(request& req, char input);
+    /// Handle the next character of input for header.
+    result_type consumeHeader(request& req, char input);
+
+    /// Handle the next character of input for body.
+    result_type consumeBody(request& req, char input);
+
+    result_type initializeForBody(request const& req);
 
     /// Check if a byte is an HTTP character.
     static bool is_char(int c);
@@ -72,7 +104,7 @@ class request_parser
     static bool is_digit(int c);
 
     /// The current state of the parser.
-    enum state
+    enum header_state
     {
         method_start,
         method,
@@ -94,7 +126,11 @@ class request_parser
         header_value,
         expecting_newline_2,
         expecting_newline_3
-    } state_;
+    } header_state_;
+
+    bool parsed_header_{false};
+    size_t body_consumed_bytes_{0};
+    size_t body_content_length_{0};
 };
 
 } // namespace server

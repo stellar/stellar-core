@@ -263,5 +263,41 @@ server::parseParams(const std::string& params,
     }
 }
 
+void
+server::parsePostParams(const std::string& body,
+                        std::map<std::string, std::vector<std::string>>& retMap)
+{
+    bool buildingName = true;
+    std::string name, value;
+    for (auto c : body)
+    {
+        if (c == '?')
+        {
+        }
+        else if (c == '=')
+        {
+            buildingName = false;
+        }
+        else if (c == '&')
+        {
+            buildingName = true;
+            retMap[name].push_back(value);
+            name = "";
+            value = "";
+        }
+        else
+        {
+            if (buildingName)
+                name += c;
+            else
+                value += c;
+        }
+    }
+    if (name.size() && value.size())
+    {
+        retMap[name].push_back(value);
+    }
+}
+
 } // namespace server
 } // namespace httpThreaded
