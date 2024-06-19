@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 
+from urllib.parse import urlparse
 import argparse
 from datetime import datetime
 import os
@@ -13,7 +14,6 @@ import time
 
 
 def parse_args():
-
     parser = argparse.ArgumentParser(description='Gathers information about host and stellar-core')
     parser.add_argument('-d', '--dest', required=False, type=str, help='Pre-existing path to use for scratch space and.'
                         'storing results. The script will create new subdirectory under this path.',
@@ -26,9 +26,12 @@ def parse_args():
     parser.add_argument('-b', '--bucket-dir', required=False, type=str, help='Path where buckets are written to.'
                         'If not set we will try to find it in the config or use /var/lib/stellar/buckets location.'
                         'Set to string "disabled" to exclude buckets directory.')
-    parser.add_argument('-b', '--bucket-dir', required=False, type=str, help='Path where buckets are written to.'
-                        'If not set we will try to find it in the config or use /var/lib/stellar/buckets location.'
-                        'Set to string "disabled" to exclude buckets directory.')
+    parser.add_argument('-p', '--core-path', required=False, type=str, help='Path to the stellar-core binary'
+                        'If not set "stellar-core" will be used.',
+                        default='stellar-core')
+    parser.add_argument('-s', '--sqlite-path', required=False, type=str, help='Path to the sqlite database.'
+                        'If not set we will try to find it in the config or use /var/lib/stellar/stellar.db location.'
+                        'Set to string "disabled" to exclude sqlite.')
     return parser.parse_args()
 
 
@@ -49,8 +52,10 @@ class Gatherer(object):
         self.scratch_dir = os.path.join(args.dest, f'stellar-core-debug-info-{timestamp}')
         self.tgz_file = f'{self.scratch_dir}.tar.gz'
         self.core_config = args.core_config
+        self.core_path = args.core_path
         self.log_dir = args.log_dir
         self.bucket_dir = args.bucket_dir
+        self.sqlite_path = args.sqlite_path
         self.header_template = '#####################\n# {}\n#####################\n'
 
     def pre_flight(self):
@@ -86,6 +91,7 @@ class Gatherer(object):
                     self.gather_offline_info(),
                     self.gather_logs(),
                     self.gather_buckets(),
+                    self.gather_sqlite_db(),
                     self.create_archive(),
                     ]):
             return False
@@ -115,8 +121,8 @@ class Gatherer(object):
     def gather_core_info(self):
         print('Gathering stellar-core version and config...')
         with open(os.path.join(self.scratch_dir, 'core', 'version'), 'w') as f:
-            f.write(self.header_template.format('stellar-core version'))
-            f.write(subprocess.check_output(['stellar-core', 'version']).decode('utf-8'))
+            f.write(self.header_template.format(f'{self.core_path} version'))
+            f.write(subprocess.check_output([self.core_path, 'version']).decode('utf-8'))
 
             f.write(self.header_template.format('package information'))
             dpkg = subprocess.check_output(['dpkg', '-l']).decode('utf-8')
@@ -126,6 +132,11 @@ class Gatherer(object):
 
         with open(self.core_config, 'r') as f:
             config = f.read()
+            m = re.search('.*DATABASE *= *"(sqlite.*)"$', config, flags=re.MULTILINE | re.IGNORECASE)
+            if m:
+                self.db_url = m[1]
+            else:
+                self.db_url = False
             config = re.sub('(.*DATABASE=.*:).*$', '\\1 REDACTED"', config, flags=re.MULTILINE | re.IGNORECASE)
             config = re.sub('(.*NODE_SEED=).*$', '\\1"REDACTED"', config, flags=re.MULTILINE | re.IGNORECASE)
             config = re.sub('G[A-Z0-9]{55,55}', 'REDACTED_SEED', config, flags=re.MULTILINE | re.IGNORECASE)
@@ -139,14 +150,14 @@ class Gatherer(object):
     @catch_errors
     def gather_offline_info(self):
         print('Gathering stellar-core offline-info...')
-        cmd = ['stellar-core', '--console', '--conf', self.core_config, 'offline-info']
+        cmd = [self.core_path, '--console', '--conf', self.core_config, 'offline-info']
         output_path = os.path.join(self.scratch_dir, 'offline-info', 'output')
         offline_info = ""
         try:
             offline_info = subprocess.check_output(cmd, cwd=os.path.join(self.scratch_dir, 'offline-info'),
                                                    stderr=subprocess.STDOUT).decode('utf-8')
         except subprocess.CalledProcessError as e:
-            print('Warning: offline-info command failed. Maybe stellar-core is still running?'
+            print('Warning: offline-info command failed. Maybe stellar-core is still running? '
                   f'For more information check {output_path}')
             offline_info = e.output.decode('utf-8')
         with open(output_path, 'w') as f:
@@ -204,6 +215,27 @@ class Gatherer(object):
             return False
 
         shutil.copytree(self.bucket_dir, os.path.join(self.scratch_dir, 'buckets'))
+        return True
+
+    @catch_errors
+    def gather_sqlite_db(self):
+        if self.sqlite_path == 'disabled':
+            print('Skipping sqlite gathering')
+            return True
+        else:
+            print('Gathering sqlite DB')
+
+        if not self.sqlite_path:
+            try:
+                self.sqlite_path = urlparse(self.db_url).path
+            except:  # noqa: E722
+                self.sqlite_path = '/var/lib/stellar/stellar.db'
+
+        if not os.access(self.sqlite_path, os.R_OK):
+            print(f"Error: can't access sqlite database file: {self.sqlite_path}")
+            return False
+
+        shutil.copy(self.sqlite_path, os.path.join(self.scratch_dir))
         return True
 
     def create_archive(self):
