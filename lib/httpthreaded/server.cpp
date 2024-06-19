@@ -153,10 +153,17 @@ server::handle_request(const request& req, reply& rep)
         params = request_path.substr(pos);
     }
 
+    std::string parsed_body;
+    if (!url_decode(req.body, parsed_body))
+    {
+        rep = reply::stock_reply(reply::bad_request);
+        return;
+    }
+
     auto it = mRoutes.find(command);
     if (it != mRoutes.end())
     {
-        it->second(params, rep.content);
+        it->second(params, parsed_body, rep.content);
 
         rep.status = reply::ok;
         rep.headers.resize(2);
@@ -170,7 +177,7 @@ server::handle_request(const request& req, reply& rep)
         it = mRoutes.find("404");
         if (it != mRoutes.end())
         {
-            it->second(params, rep.content);
+            it->second(params, parsed_body, rep.content);
 
             rep.status = reply::not_found;
             rep.headers.resize(2);

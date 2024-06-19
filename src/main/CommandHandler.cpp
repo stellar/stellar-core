@@ -99,7 +99,7 @@ CommandHandler::CommandHandler(Application& app) : mApp(app)
     if (mRpcServer)
     {
         mRpcServer->add404(
-            std::bind(&CommandHandler::fileNotFound, this, _1, _2));
+            std::bind(&CommandHandler::fileNotFoundRPC, this, _1, _2, _3));
     }
 
     if (mApp.getConfig().modeStoresAnyHistory())
@@ -143,8 +143,16 @@ CommandHandler::CommandHandler(Application& app) : mApp(app)
     addRoute("self-check", &CommandHandler::selfCheck);
     addRoute("sorobaninfo", &CommandHandler::sorobanInfo);
 
-    addRoute("getledgerentry", &CommandHandler::getLedgerEntry,
-             static_cast<bool>(mRpcServer));
+    if (mRpcServer)
+    {
+        addRPCRoute("getledgerentry", &CommandHandler::getLedgerEntryInternal);
+        addRPCRoute("getledgerentrybatch",
+                    &CommandHandler::getLedgerEntryBatch);
+    }
+    else
+    {
+        addRoute("getledgerentry", &CommandHandler::getLedgerEntry);
+    }
 
 #ifdef BUILD_TESTS
     addRoute("generateload", &CommandHandler::generateLoad);
@@ -179,20 +187,19 @@ CommandHandler::initializeBucketListSnapshots(
 }
 
 void
-CommandHandler::addRoute(std::string const& name, HandlerRoute route,
-                         bool isRpc)
+CommandHandler::addRoute(std::string const& name, HandlerRoute route)
 {
-    if (isRpc)
-    {
-        releaseAssert(mRpcServer);
-        mRpcServer->addRoute(
-            name, std::bind(&CommandHandler::safeRouter, this, route, _1, _2));
-    }
-    else
-    {
-        mServer->addRoute(
-            name, std::bind(&CommandHandler::safeRouter, this, route, _1, _2));
-    }
+
+    mServer->addRoute(
+        name, std::bind(&CommandHandler::safeRouter, this, route, _1, _2));
+}
+
+void
+CommandHandler::addRPCRoute(std::string const& name, HandlerRouteRPC route)
+{
+    releaseAssert(mRpcServer);
+    mRpcServer->addRoute(name, std::bind(&CommandHandler::safeRouterRPC, this,
+                                         route, _1, _2, _3));
 }
 
 void
@@ -203,6 +210,26 @@ CommandHandler::safeRouter(CommandHandler::HandlerRoute route,
     {
         ZoneNamedN(httpZone, "HTTP command handler", true);
         route(this, params, retStr);
+    }
+    catch (std::exception const& e)
+    {
+        retStr = fmt::format(FMT_STRING(R"({{"exception": "{}"}})"), e.what());
+    }
+    catch (...)
+    {
+        retStr = R"({"exception": "generic"})";
+    }
+}
+
+void
+CommandHandler::safeRouterRPC(CommandHandler::HandlerRouteRPC route,
+                              std::string const& params,
+                              std::string const& body, std::string& retStr)
+{
+    try
+    {
+        ZoneNamedN(httpZone, "HTTP command handler", true);
+        route(this, params, body, retStr);
     }
     catch (std::exception const& e)
     {
@@ -264,6 +291,19 @@ CommandHandler::fileNotFound(std::string const& params, std::string& retStr)
         "<p>Have fun!</p>";
 }
 
+void
+CommandHandler::fileNotFoundRPC(std::string const& params,
+                                std::string const& body, std::string& retStr)
+{
+    retStr = "<b>Welcome to stellar-core!</b><p>";
+    retStr +=
+        "Supported HTTP commands are listed in the <a href=\""
+        "https://github.com/stellar/stellar-core/blob/master/docs/software/"
+        "commands.md#http-commands"
+        "\">docs</a> as well as in the man pages.</p>"
+        "<p>Have fun!</p>";
+}
+
 template <typename T>
 std::optional<T>
 parseOptionalParam(std::map<std::string, std::string> const& map,
@@ -273,6 +313,38 @@ parseOptionalParam(std::map<std::string, std::string> const& map,
     if (i != map.end())
     {
         std::stringstream str(i->second);
+        T val;
+        str >> val;
+
+        // Throw an error if not all bytes were loaded into `val`
+        if (str.fail() || !str.eof())
+        {
+            std::string errorMsg =
+                fmt::format(FMT_STRING("Failed to parse '{}' argument"), key);
+            throw std::runtime_error(errorMsg);
+        }
+        return std::make_optional<T>(val);
+    }
+
+    return std::nullopt;
+}
+
+template <typename T>
+std::optional<T>
+parseOptionalParam(std::map<std::string, std::vector<std::string>> const& map,
+                   std::string const& key)
+{
+    auto i = map.find(key);
+    if (i != map.end())
+    {
+        if (i->second.size() != 1)
+        {
+            std::string errorMsg = fmt::format(
+                FMT_STRING("Expected exactly one '{}' argument"), key);
+            throw std::runtime_error(errorMsg);
+        }
+
+        std::stringstream str(i->second.at(0));
         T val;
         str >> val;
 
@@ -997,7 +1069,9 @@ CommandHandler::ll(std::string const& params, std::string& retStr)
 }
 
 void
-CommandHandler::getLedgerEntry(std::string const& params, std::string& retStr)
+CommandHandler::getLedgerEntryInternal(std::string const& params,
+                                       std::string const& body,
+                                       std::string& retStr)
 {
     ZoneScoped;
     Json::Value root;
@@ -1034,8 +1108,8 @@ CommandHandler::getLedgerEntry(std::string const& params, std::string& retStr)
         // Otherwise default to current ledger
         else
         {
-            root["ledger"] = bl->getLedgerSeq();
             le = bl->getLedgerEntry(k);
+            root["ledger"] = bl->getLedgerSeq();
         }
 
         if (le)
@@ -1052,6 +1126,91 @@ CommandHandler::getLedgerEntry(std::string const& params, std::string& retStr)
     {
         throw std::invalid_argument(
             "Must specify ledger key: getLedgerEntry?key=<LedgerKey in base64 "
+            "XDR format>");
+    }
+    retStr = Json::FastWriter().write(root);
+}
+
+void
+CommandHandler::getLedgerEntry(std::string const& params, std::string& retStr)
+{
+    std::string empty{};
+    getLedgerEntryInternal(params, empty, retStr);
+}
+
+void
+CommandHandler::getLedgerEntryBatch(std::string const& params,
+                                    std::string const& body,
+                                    std::string& retStr)
+{
+    ZoneScoped;
+    Json::Value root;
+
+    std::map<std::string, std::vector<std::string>> paramMap;
+    httpThreaded::server::server::parsePostParams(body, paramMap);
+
+    auto keys = paramMap["key"];
+    auto snapshotLedger = parseOptionalParam<uint32_t>(paramMap, "ledgerSeq");
+
+    if (!keys.empty())
+    {
+        auto bl = mBucketListSnapshots.at(std::this_thread::get_id());
+
+        LedgerKeySet orderedKeys;
+        for (auto const& key : keys)
+        {
+            LedgerKey k;
+            fromOpaqueBase64(k, key);
+            orderedKeys.emplace(k);
+        }
+
+        std::vector<LedgerEntry> loadedKeys;
+
+        // If a snapshot ledger is specified, use it to get the ledger entry
+        if (snapshotLedger)
+        {
+            root["ledger"] = *snapshotLedger;
+
+            bool snapshotExists;
+            std::tie(loadedKeys, snapshotExists) =
+                bl->loadKeysFromLedger(orderedKeys, *snapshotLedger);
+            if (!snapshotExists)
+            {
+                root["state"] = "not_found";
+                retStr = Json::FastWriter().write(root);
+                return;
+            }
+        }
+        // Otherwise default to current ledger
+        else
+        {
+            loadedKeys = bl->loadKeys(orderedKeys);
+            root["ledger"] = bl->getLedgerSeq();
+        }
+
+        for (auto const& le : loadedKeys)
+        {
+            Json::Value entry;
+            entry["state"] = "live";
+            entry["entry"] = toOpaqueBase64(le);
+            root["entries"].append(entry);
+
+            auto k = LedgerEntryKey(le);
+            orderedKeys.erase(k);
+        }
+
+        for (auto const& k : orderedKeys)
+        {
+            Json::Value entry;
+            entry["state"] = "dead";
+            entry["entry"] = toOpaqueBase64(k);
+            root["entries"].append(entry);
+        }
+    }
+    else
+    {
+        throw std::invalid_argument(
+            "Must specify ledger key in POST body: key=<LedgerKey in base64 "
             "XDR format>");
     }
     retStr = Json::FastWriter().write(root);

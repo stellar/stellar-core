@@ -222,6 +222,29 @@ SearchableBucketListSnapshot::getLedgerEntryFromLedger(LedgerKey const& k,
     return {result, true};
 }
 
+std::pair<std::vector<LedgerEntry>, bool>
+SearchableBucketListSnapshot::loadKeysFromLedger(
+    std::set<LedgerKey, LedgerEntryIdCmp> const& inKeys, uint32_t ledgerSeq)
+{
+    ZoneScoped;
+    mSnapshotManager.maybeUpdateSnapshot(mSnapshot, mHistoricalSnapshots);
+
+    if (ledgerSeq == mSnapshot->getLedgerSeq())
+    {
+        auto result = loadKeysInternal(inKeys, mSnapshot);
+        return {result, true};
+    }
+
+    auto iter = mHistoricalSnapshots.find(ledgerSeq);
+    if (iter == mHistoricalSnapshots.end())
+    {
+        return {{}, false};
+    }
+
+    auto result = loadKeysInternal(inKeys, iter->second);
+    return {result, true};
+}
+
 std::vector<LedgerEntry>
 SearchableBucketListSnapshot::loadKeysWithLimits(
     std::set<LedgerKey, LedgerEntryIdCmp> const& inKeys,

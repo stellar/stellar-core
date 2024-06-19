@@ -31,7 +31,9 @@ class server
 {
 
   public:
-    typedef std::function<void(const std::string&, std::string&)> routeHandler;
+    typedef std::function<void(const std::string&, const std::string&,
+                               std::string&)>
+        routeHandler;
     server(const server&) = delete;
     server& operator=(const server&) = delete;
 
