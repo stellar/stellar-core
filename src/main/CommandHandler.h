@@ -25,6 +25,11 @@ class CommandHandler
                                std::string&)>
         HandlerRoute;
 
+    // RPC supports post requests
+    typedef std::function<void(CommandHandler*, std::string const&,
+                               std::string const&, std::string&)>
+        HandlerRouteRPC;
+
     Application& mApp;
     std::unique_ptr<http::server::server> mServer;
     std::unique_ptr<httpThreaded::server::server> mRpcServer;
@@ -32,10 +37,13 @@ class CommandHandler
     std::map<std::thread::id, std::shared_ptr<SearchableBucketListSnapshot>>
         mBucketListSnapshots;
 
-    void addRoute(std::string const& name, HandlerRoute route,
-                  bool isRpc = false);
+    void addRoute(std::string const& name, HandlerRoute route);
+    void addRPCRoute(std::string const& name, HandlerRouteRPC route);
+
     void safeRouter(HandlerRoute route, std::string const& params,
                     std::string& retStr);
+    void safeRouterRPC(HandlerRouteRPC route, std::string const& params,
+                       std::string const& body, std::string& retStr);
 
     void ensureProtocolVersion(std::map<std::string, std::string> const& args,
                                std::string const& argName,
@@ -52,6 +60,9 @@ class CommandHandler
     std::string manualCmd(std::string const& cmd);
 
     void fileNotFound(std::string const& params, std::string& retStr);
+
+    void fileNotFoundRPC(std::string const& params, std::string const& body,
+                         std::string& retStr);
 
     void bans(std::string const& params, std::string& retStr);
     void connect(std::string const& params, std::string& retStr);
@@ -72,6 +83,11 @@ class CommandHandler
     void scpInfo(std::string const& params, std::string& retStr);
     void tx(std::string const& params, std::string& retStr);
     void getLedgerEntry(std::string const& params, std::string& retStr);
+
+    void getLedgerEntryInternal(std::string const& params,
+                                std::string const& body, std::string& retStr);
+    void getLedgerEntryBatch(std::string const& params, std::string const& body,
+                             std::string& retStr);
     void unban(std::string const& params, std::string& retStr);
     void upgrades(std::string const& params, std::string& retStr);
     void dumpProposedSettings(std::string const& params, std::string& retStr);

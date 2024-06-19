@@ -89,6 +89,10 @@ class SearchableBucketListSnapshot : public NonMovableOrCopyable
     std::pair<std::shared_ptr<LedgerEntry>, bool>
     getLedgerEntryFromLedger(LedgerKey const& k, uint32_t ledgerSeq);
 
+    std::pair<std::vector<LedgerEntry>, bool>
+    loadKeysFromLedger(std::set<LedgerKey, LedgerEntryIdCmp> const& inKeys,
+                       uint32_t ledgerSeq);
+
     EvictionResult scanForEviction(uint32_t ledgerSeq,
                                    EvictionCounters& counters,
                                    EvictionIterator evictionIter,
