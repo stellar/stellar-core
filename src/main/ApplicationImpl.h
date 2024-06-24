@@ -153,7 +153,7 @@ class ApplicationImpl : public Application
     std::unique_ptr<asio::io_context::work> mWork;
     std::unique_ptr<asio::io_context::work> mEvictionWork;
 
-    std::optional<asio::io_context> mOverlayIOContext;
+    std::unique_ptr<asio::io_context> mOverlayIOContext;
     std::unique_ptr<asio::io_context::work> mOverlayWork;
 
     std::unique_ptr<BucketManager> mBucketManager;
