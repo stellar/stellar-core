@@ -1344,6 +1344,9 @@
     <ClCompile Include="..\..\src\overlay\TxDemandsManager.cpp">
       <Filter>overlay</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\src\overlay\Hmac.cpp">
+      <Filter>overlay</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\..\lib\util\cpptoml.h">
@@ -2337,6 +2340,9 @@
       <Filter>overlay</Filter>
     </ClInclude>
     <ClInclude Include="..\..\src\overlay\TxDemandsManager.h">
+      <Filter>overlay</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\overlay\Hmac.h">
       <Filter>overlay</Filter>
     </ClInclude>
   </ItemGroup>

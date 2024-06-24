@@ -602,6 +602,7 @@ exit /b 0
     <ClCompile Include="..\..\src\overlay\Floodgate.cpp" />
     <ClCompile Include="..\..\src\overlay\FlowControl.cpp" />
     <ClCompile Include="..\..\src\overlay\FlowControlCapacity.cpp" />
+    <ClCompile Include="..\..\src\overlay\Hmac.cpp" />
     <ClCompile Include="..\..\src\overlay\ItemFetcher.cpp" />
     <ClCompile Include="..\..\src\overlay\OverlayAppConnector.cpp" />
     <ClCompile Include="..\..\src\overlay\OverlayManagerImpl.cpp" />
@@ -1019,6 +1020,7 @@ exit /b 0
     <ClInclude Include="..\..\src\overlay\Floodgate.h" />
     <ClInclude Include="..\..\src\overlay\FlowControl.h" />
     <ClInclude Include="..\..\src\overlay\FlowControlCapacity.h" />
+    <ClInclude Include="..\..\src\overlay\Hmac.h" />
     <ClInclude Include="..\..\src\overlay\ItemFetcher.h" />
     <ClInclude Include="..\..\src\overlay\OverlayAppConnector.h" />
     <ClInclude Include="..\..\src\overlay\OverlayManager.h" />
