@@ -51,7 +51,10 @@ exclude = [
    # Somehow the tracking machinery of two different dev-dep tracing
    # subsystems also winds up pulling in conflicts, but again, just
    # dev-deps or non-produciton configs.
-   "tracking-allocator"
+   "tracking-allocator",
+   # Temporary exclusion due to signing-related vulnerability (this doesn't
+   # affect Core as Core doesn't use this for signing)
+   "curve25519-dalek"
 ]
 
 # If true, metadata will be collected with `--all-features`. Note that this can't
