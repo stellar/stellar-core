@@ -12,6 +12,7 @@
 #include "ledger/LedgerTxn.h"
 #include "ledger/LedgerTxnEntry.h"
 #include "ledger/LedgerTxnImpl.h"
+#include "ledger/NetworkConfig.h"
 #include "lib/http/server.hpp"
 #include "lib/json/json.h"
 #include "main/Application.h"
@@ -102,6 +103,11 @@ CommandHandler::CommandHandler(Application& app) : mApp(app)
 #ifndef BUILD_TESTS
         addRoute("getsurveyresult", &CommandHandler::getSurveyResult);
         addRoute("surveytopology", &CommandHandler::surveyTopology);
+        addRoute("startsurveycollecting",
+                 &CommandHandler::startSurveyCollecting);
+        addRoute("stopsurveycollecting", &CommandHandler::stopSurveyCollecting);
+        addRoute("surveytopologytimesliced",
+                 &CommandHandler::surveyTopologyTimeSliced);
 #endif
         addRoute("unban", &CommandHandler::unban);
     }
@@ -125,6 +131,10 @@ CommandHandler::CommandHandler(Application& app) : mApp(app)
     addRoute("testtx", &CommandHandler::testTx);
     addRoute("getsurveyresult", &CommandHandler::getSurveyResult);
     addRoute("surveytopology", &CommandHandler::surveyTopology);
+    addRoute("startsurveycollecting", &CommandHandler::startSurveyCollecting);
+    addRoute("stopsurveycollecting", &CommandHandler::stopSurveyCollecting);
+    addRoute("surveytopologytimesliced",
+             &CommandHandler::surveyTopologyTimeSliced);
 #endif
 }
 
@@ -474,9 +484,7 @@ CommandHandler::dropPeer(std::string const& params, std::string& retStr)
             auto peer = peers.find(n);
             if (peer != peers.end())
             {
-                peer->second->sendErrorAndDrop(
-                    ERR_MISC, "dropped by user",
-                    Peer::DropMode::IGNORE_WRITE_QUEUE);
+                peer->second->sendErrorAndDrop(ERR_MISC, "dropped by user");
                 if (ban != retMap.end() && ban->second == "1")
                 {
                     retStr = "Drop and ban peer: ";
@@ -867,6 +875,28 @@ CommandHandler::sorobanInfo(std::string const& params, std::string& retStr)
 
             retStr = xdrToCerealString(entries, "ConfigSettingsEntries");
         }
+        else if (format == "upgrade_xdr")
+        {
+            LedgerTxn ltx(mApp.getLedgerTxnRoot(),
+                          /* shouldUpdateLastModified */ false,
+                          TransactionMode::READ_ONLY_WITHOUT_SQL_TXN);
+
+            ConfigUpgradeSet upgradeSet;
+            for (auto c : xdr::xdr_traits<ConfigSettingID>::enum_values())
+            {
+                auto configSettingID = static_cast<ConfigSettingID>(c);
+                if (SorobanNetworkConfig::isNonUpgradeableConfigSettingEntry(
+                        configSettingID))
+                {
+                    continue;
+                }
+                auto entry = ltx.load(configSettingKey(configSettingID));
+                upgradeSet.updatedEntry.emplace_back(
+                    entry.current().data.configSetting());
+            }
+
+            retStr = decoder::encode_b64(xdr::xdr_to_opaque(upgradeSet));
+        }
         else
         {
             retStr = "Invalid format option";
@@ -1125,16 +1155,27 @@ CommandHandler::clearMetrics(std::string const& params, std::string& retStr)
 }
 
 void
-CommandHandler::surveyTopology(std::string const& params, std::string& retStr)
+CommandHandler::checkBooted() const
 {
-    ZoneScoped;
-
     if (mApp.getState() == Application::APP_CREATED_STATE ||
         mApp.getHerder().getState() == Herder::HERDER_BOOTING_STATE)
     {
         throw std::runtime_error(
             "Application is not fully booted, try again later");
     }
+}
+
+void
+CommandHandler::surveyTopology(std::string const& params, std::string& retStr)
+{
+    ZoneScoped;
+
+    CLOG_WARNING(
+        Overlay,
+        "`surveytopology` is deprecated and will be removed in a future "
+        "release.  Please use the new time sliced survey interface.");
+
+    checkBooted();
 
     std::map<std::string, std::string> map;
     http::server::server::parseParams(params, map);
@@ -1146,11 +1187,12 @@ CommandHandler::surveyTopology(std::string const& params, std::string& retStr)
 
     auto& surveyManager = mApp.getOverlayManager().getSurveyManager();
 
-    bool success = surveyManager.startSurvey(
+    bool success = surveyManager.startSurveyReporting(
         SurveyMessageCommandType::SURVEY_TOPOLOGY, duration);
 
     surveyManager.addNodeToRunningSurveyBacklog(
-        SurveyMessageCommandType::SURVEY_TOPOLOGY, duration, id);
+        SurveyMessageCommandType::SURVEY_TOPOLOGY, duration, id, std::nullopt,
+        std::nullopt);
     retStr = "Adding node.";
 
     retStr += success ? "Survey started " : "Survey already running!";
@@ -1160,8 +1202,11 @@ void
 CommandHandler::stopSurvey(std::string const&, std::string& retStr)
 {
     ZoneScoped;
+    CLOG_WARNING(Overlay,
+                 "`stopsurvey` is deprecated and will be removed in a future "
+                 "release.  Please use the new time sliced survey interface.");
     auto& surveyManager = mApp.getOverlayManager().getSurveyManager();
-    surveyManager.stopSurvey();
+    surveyManager.stopSurveyReporting();
     retStr = "survey stopped";
 }
 
@@ -1171,6 +1216,79 @@ CommandHandler::getSurveyResult(std::string const&, std::string& retStr)
     ZoneScoped;
     auto& surveyManager = mApp.getOverlayManager().getSurveyManager();
     retStr = surveyManager.getJsonResults().toStyledString();
+}
+
+void
+CommandHandler::startSurveyCollecting(std::string const& params,
+                                      std::string& retStr)
+{
+    ZoneScoped;
+    checkBooted();
+
+    std::map<std::string, std::string> map;
+    http::server::server::parseParams(params, map);
+
+    uint32_t const nonce = parseRequiredParam<uint32_t>(map, "nonce");
+
+    auto& surveyManager = mApp.getOverlayManager().getSurveyManager();
+    if (surveyManager.broadcastStartSurveyCollecting(nonce))
+    {
+        retStr = "Requested network to start survey collecting.";
+    }
+    else
+    {
+        retStr = "Failed to start survey collecting. Another survey is active "
+                 "on the network.";
+    }
+}
+
+void
+CommandHandler::stopSurveyCollecting(std::string const&, std::string& retStr)
+{
+    ZoneScoped;
+    checkBooted();
+
+    auto& surveyManager = mApp.getOverlayManager().getSurveyManager();
+    if (surveyManager.broadcastStopSurveyCollecting())
+    {
+        retStr = "Requested network to stop survey collecting.";
+    }
+    else
+    {
+        retStr = "Failed to stop survey collecting. No survey is active on the "
+                 "network.";
+    }
+}
+
+void
+CommandHandler::surveyTopologyTimeSliced(std::string const& params,
+                                         std::string& retStr)
+{
+    ZoneScoped;
+    checkBooted();
+
+    std::map<std::string, std::string> map;
+    http::server::server::parseParams(params, map);
+
+    auto idString = parseRequiredParam<std::string>(map, "node");
+    NodeID id = KeyUtils::fromStrKey<NodeID>(idString);
+    auto inboundPeerIndex = parseRequiredParam<uint32>(map, "inboundpeerindex");
+    auto outboundPeerIndex =
+        parseRequiredParam<uint32>(map, "outboundpeerindex");
+
+    auto& surveyManager = mApp.getOverlayManager().getSurveyManager();
+
+    bool success = surveyManager.startSurveyReporting(
+        SurveyMessageCommandType::TIME_SLICED_SURVEY_TOPOLOGY,
+        /*surveyDuration*/ std::nullopt);
+
+    surveyManager.addNodeToRunningSurveyBacklog(
+        SurveyMessageCommandType::TIME_SLICED_SURVEY_TOPOLOGY,
+        /*surveyDuration*/ std::nullopt, id, inboundPeerIndex,
+        outboundPeerIndex);
+    retStr = "Adding node.";
+
+    retStr += success ? "Survey started " : "Survey already running!";
 }
 
 #ifdef BUILD_TESTS

@@ -140,6 +140,7 @@ bool verifySig(PublicKey const& key, Signature const& signature,
                ByteSlice const& bin);
 
 void clearVerifySigCache();
+void maybeSeedVerifySigCache(unsigned int seed);
 void flushVerifySigCacheCounts(uint64_t& hits, uint64_t& misses);
 
 PublicKey random();

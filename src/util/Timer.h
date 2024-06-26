@@ -22,6 +22,8 @@
 namespace stellar
 {
 
+using RealSteadyTimer = asio::steady_timer;
+
 /**
  * The purpose of this module is to provide "timing service" to stellar-core;
  * but in such a way that strongly favours the use of virtual time over real
@@ -129,7 +131,7 @@ class VirtualClock
 
   private:
     asio::io_context mIOContext;
-    Mode mMode;
+    Mode const mMode;
 
     size_t nRealTimerCancelEvents{0};
     time_point mVirtualNow;
@@ -171,7 +173,7 @@ class VirtualClock
     size_t advanceToNow();
 
     // timer should be last to ensure it gets destroyed first
-    asio::basic_waitable_timer<std::chrono::steady_clock> mRealTimer;
+    RealSteadyTimer mRealTimer;
 
   public:
     // A VirtualClock is instantiated in either real or virtual mode. In real

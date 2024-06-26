@@ -306,6 +306,8 @@ class SorobanNetworkConfig
     static bool
     isNonUpgradeableConfigSettingEntry(ConfigSettingEntry const& cfg);
 
+    static bool isNonUpgradeableConfigSettingEntry(ConfigSettingID const& cfg);
+
     // Cost model parameters of the Soroban host
     ContractCostParams const& cpuCostParams() const;
     ContractCostParams const& memCostParams() const;

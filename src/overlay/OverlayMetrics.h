@@ -61,6 +61,8 @@ struct OverlayMetrics
 
     medida::Timer& mRecvSurveyRequestTimer;
     medida::Timer& mRecvSurveyResponseTimer;
+    medida::Timer& mRecvStartSurveyCollectingTimer;
+    medida::Timer& mRecvStopSurveyCollectingTimer;
 
     medida::Timer& mRecvFloodAdvertTimer;
     medida::Timer& mRecvFloodDemandTimer;
@@ -94,6 +96,8 @@ struct OverlayMetrics
 
     medida::Meter& mSendSurveyRequestMeter;
     medida::Meter& mSendSurveyResponseMeter;
+    medida::Meter& mSendStartSurveyCollectingMeter;
+    medida::Meter& mSendStopSurveyCollectingMeter;
 
     medida::Meter& mSendFloodAdvertMeter;
     medida::Meter& mSendFloodDemandMeter;

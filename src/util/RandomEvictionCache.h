@@ -6,6 +6,7 @@
 #include "util/Math.h"
 #include "util/NonCopyable.h"
 
+#include <optional>
 #include <random>
 #include <unordered_map>
 
@@ -56,6 +57,10 @@ class RandomEvictionCache : public NonMovableOrCopyable
     // Each cache keeps some counters just to monitor its performance.
     Counters mCounters;
 
+    // Optionally use a dedicated random engine
+    bool const mSeparatePRNG{false};
+    stellar_default_random_engine mRandEngine;
+
     // Randomly pick two elements and evict the less-recently-used one.
     void
     evictOne()
@@ -65,8 +70,15 @@ class RandomEvictionCache : public NonMovableOrCopyable
         {
             return;
         }
-        MapValueType*& vp1 = mValuePtrs.at(rand_uniform<size_t>(0, sz - 1));
-        MapValueType*& vp2 = mValuePtrs.at(rand_uniform<size_t>(0, sz - 1));
+        auto getRandIndex = [&]() {
+            if (mSeparatePRNG)
+            {
+                return rand_uniform<size_t>(0, sz - 1, mRandEngine);
+            }
+            return rand_uniform<size_t>(0, sz - 1);
+        };
+        MapValueType*& vp1 = mValuePtrs.at(getRandIndex());
+        MapValueType*& vp2 = mValuePtrs.at(getRandIndex());
         MapValueType*& victim =
             (vp1->second.mLastAccess < vp2->second.mLastAccess ? vp1 : vp2);
         mValueMap.erase(victim->first);
@@ -76,10 +88,27 @@ class RandomEvictionCache : public NonMovableOrCopyable
     }
 
   public:
-    explicit RandomEvictionCache(size_t maxSize) : mMaxSize(maxSize)
+    explicit RandomEvictionCache(size_t maxSize)
+        : mMaxSize(maxSize), mSeparatePRNG(false)
     {
         mValueMap.reserve(maxSize + 1);
         mValuePtrs.reserve(maxSize + 1);
+    }
+
+    RandomEvictionCache(size_t maxSize, bool separatePRNG)
+        : mMaxSize(maxSize), mSeparatePRNG(separatePRNG)
+    {
+        mValueMap.reserve(maxSize + 1);
+        mValuePtrs.reserve(maxSize + 1);
+    }
+
+    void
+    maybeSeed(unsigned int seed)
+    {
+        if (mSeparatePRNG)
+        {
+            mRandEngine.seed(seed);
+        }
     }
 
     size_t

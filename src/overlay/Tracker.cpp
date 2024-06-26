@@ -102,9 +102,12 @@ Tracker::tryNextPeer()
         mLastAskedPeer.reset();
     }
 
+    // canAskPeer is best effort and send happens asynchronously; in the worst
+    // case, we'll place something in the queue that will subsequently be
+    // discarded due to a peer drop.
     auto canAskPeer = [&](Peer::pointer const& p, bool peerHas) {
         auto it = mPeersAsked.find(p);
-        return (p->isAuthenticated() &&
+        return (p->isAuthenticatedAtomic() &&
                 (it == mPeersAsked.end() || (peerHas && !it->second)));
     };
 

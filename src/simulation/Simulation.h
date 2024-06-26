@@ -83,6 +83,8 @@ class Simulation
     void addConnection(NodeID initiator, NodeID acceptor);
     void dropConnection(NodeID initiator, NodeID acceptor);
     Config newConfig(); // generates a new config
+    // prevent overlay from automatically re-connecting to peers
+    void stopOverlayTick();
 
   private:
     void addLoopbackConnection(NodeID initiator, NodeID acceptor);

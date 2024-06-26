@@ -59,20 +59,19 @@ class LoopbackPeer : public Peer
     void processInQueue();
     void recvMessage(xdr::msg_ptr const& xdrBytes);
 
-    std::string mDropReason;
-
   public:
     virtual ~LoopbackPeer()
     {
     }
     LoopbackPeer(Application& app, PeerRole role);
 
+    void recvMessage(std::shared_ptr<MsgCapacityTracker> msgTracker);
+
     static std::pair<std::shared_ptr<LoopbackPeer>,
                      std::shared_ptr<LoopbackPeer>>
     initiate(Application& app, Application& otherApp);
 
-    void drop(std::string const& reason, DropDirection dropDirection,
-              DropMode dropMode) override;
+    void drop(std::string const& reason, DropDirection dropDirection) override;
 
     void deliverOne();
     void deliverAll();
@@ -113,6 +112,12 @@ class LoopbackPeer : public Peer
 
     void clearInAndOutQueues();
 
+    virtual bool
+    useBackgroundThread() const override
+    {
+        return false;
+    }
+
     size_t
     getTxQueueByteCount() const
     {
@@ -147,6 +152,7 @@ class LoopbackPeer : public Peer
 
     std::string getIP() const;
 
+    using Peer::MsgCapacityTracker;
     using Peer::recvMessage;
     using Peer::sendAuth;
     using Peer::sendAuthenticatedMessage;

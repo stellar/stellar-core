@@ -1065,6 +1065,9 @@
     <ClCompile Include="..\..\src\overlay\RandomPeerSource.cpp">
       <Filter>overlay</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\src\overlay\SurveyDataManager.cpp">
+      <Filter>overlay</Filter>
+    </ClCompile>
     <ClCompile Include="..\..\src\overlay\SurveyManager.cpp">
       <Filter>overlay</Filter>
     </ClCompile>
@@ -2154,6 +2157,9 @@
       <Filter>overlay</Filter>
     </ClInclude>
     <ClInclude Include="..\..\src\overlay\StellarXDR.h">
+      <Filter>overlay</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\overlay\SurveyDataManager.h">
       <Filter>overlay</Filter>
     </ClInclude>
     <ClInclude Include="..\..\src\overlay\SurveyManager.h">

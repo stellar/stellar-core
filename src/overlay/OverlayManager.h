@@ -77,9 +77,11 @@ class OverlayManager
     // returns true if message was sent to at least one peer
     // When passing a transaction message,
     // the hash of TransactionEnvelope must be passed also for pull mode.
-    virtual bool
-    broadcastMessage(std::shared_ptr<StellarMessage const> msg,
-                     std::optional<Hash> const hash = std::nullopt) = 0;
+    // `minOverlayVersion` is the minimum overlay version a peer must have in
+    // order to be sent the message.
+    virtual bool broadcastMessage(std::shared_ptr<StellarMessage const> msg,
+                                  std::optional<Hash> const hash = std::nullopt,
+                                  uint32_t minOverlayVersion = 0) = 0;
 
     // Make a note in the FloodGate that a given peer has provided us with a
     // given broadcast message, so that it is inhibited from being resent to
@@ -112,8 +114,6 @@ class OverlayManager
 
     // Return a list of random peers from the set of authenticated peers.
     virtual std::vector<Peer::pointer> getRandomAuthenticatedPeers() = 0;
-    virtual std::vector<Peer::pointer>
-    getAuthenticatedPeers(bool randomize) = 0;
 
     // Return a list of random peers from the set of inbound authenticated
     // peers.
@@ -207,12 +207,7 @@ class OverlayManager
 
     virtual void recordMessageMetric(StellarMessage const& stellarMsg,
                                      Peer::pointer peer) = 0;
-
     virtual AdjustedFlowControlConfig getFlowControlBytesConfig() const = 0;
-
-    virtual void
-    dropPeersIf(std::function<bool(Peer::pointer, uint32_t)> predicate,
-                uint32_t version, std::string const& reason) = 0;
     virtual ~OverlayManager()
     {
     }

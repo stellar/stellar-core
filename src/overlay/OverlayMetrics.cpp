@@ -75,6 +75,10 @@ OverlayMetrics::OverlayMetrics(Application& app)
           app.getMetrics().NewTimer({"overlay", "recv", "survey-request"}))
     , mRecvSurveyResponseTimer(
           app.getMetrics().NewTimer({"overlay", "recv", "survey-response"}))
+    , mRecvStartSurveyCollectingTimer(app.getMetrics().NewTimer(
+          {"overlay", "recv", "start-survey-collecting"}))
+    , mRecvStopSurveyCollectingTimer(app.getMetrics().NewTimer(
+          {"overlay", "recv", "stop-survey-collecting"}))
 
     , mRecvFloodAdvertTimer(
           app.getMetrics().NewTimer({"overlay", "recv", "flood-advert"}))
@@ -134,6 +138,10 @@ OverlayMetrics::OverlayMetrics(Application& app)
           {"overlay", "send", "survey-request"}, "message"))
     , mSendSurveyResponseMeter(app.getMetrics().NewMeter(
           {"overlay", "send", "survey-response"}, "message"))
+    , mSendStartSurveyCollectingMeter(app.getMetrics().NewMeter(
+          {"overlay", "send", "start-survey-collecting"}, "message"))
+    , mSendStopSurveyCollectingMeter(app.getMetrics().NewMeter(
+          {"overlay", "send", "stop-survey-collecting"}, "message"))
     , mSendFloodAdvertMeter(app.getMetrics().NewMeter(
           {"overlay", "send", "flood-advert"}, "message"))
     , mSendFloodDemandMeter(app.getMetrics().NewMeter(

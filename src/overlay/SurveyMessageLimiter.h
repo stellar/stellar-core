@@ -5,6 +5,7 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "overlay/StellarXDR.h" // IWYU pragma: keep
+#include "overlay/SurveyDataManager.h"
 #include "util/UnorderedMap.h"
 #include <functional>
 #include <map>
@@ -38,6 +39,15 @@ class SurveyMessageLimiter
     bool recordAndValidateResponse(SurveyResponseMessage const& response,
                                    std::function<bool()> onSuccessValidation);
     void clearOldLedgers(uint32_t lastClosedledgerSeq);
+
+    bool validateStartSurveyCollecting(
+        TimeSlicedSurveyStartCollectingMessage const& startSurvey,
+        SurveyDataManager& surveyDataManager,
+        std::function<bool()> onSuccessValidation);
+
+    bool validateStopSurveyCollecting(
+        TimeSlicedSurveyStopCollectingMessage const& stopSurvey,
+        std::function<bool()> onSuccessValidation);
 
   private:
     bool surveyLedgerNumValid(uint32_t ledgerNum);

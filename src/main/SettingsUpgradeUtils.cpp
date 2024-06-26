@@ -8,6 +8,51 @@ namespace stellar
 {
 
 std::pair<TransactionEnvelope, LedgerKey>
+getWasmRestoreTx(PublicKey const& publicKey, SequenceNumber seqNum)
+{
+    TransactionEnvelope txEnv;
+    txEnv.type(ENVELOPE_TYPE_TX);
+
+    auto& tx = txEnv.v1().tx;
+    tx.sourceAccount = toMuxedAccount(publicKey);
+    tx.fee = 100'000'000;
+    tx.seqNum = seqNum;
+
+    Preconditions cond;
+    cond.type(PRECOND_NONE);
+    tx.cond = cond;
+
+    Memo memo;
+    memo.type(MEMO_NONE);
+    tx.memo = memo;
+
+    Operation restoreOp;
+    restoreOp.body.type(RESTORE_FOOTPRINT);
+
+    tx.operations.emplace_back(restoreOp);
+
+    auto const writeByteWasm = rust_bridge::get_write_bytes();
+    std::vector<uint8_t> wasm(writeByteWasm.data.begin(),
+                              writeByteWasm.data.end());
+
+    LedgerKey contractCodeLedgerKey;
+    contractCodeLedgerKey.type(CONTRACT_CODE);
+    contractCodeLedgerKey.contractCode().hash = sha256(wasm);
+
+    SorobanResources restoreResources;
+    restoreResources.footprint.readWrite = {contractCodeLedgerKey};
+    restoreResources.instructions = 0;
+    restoreResources.readBytes = 2000;
+    restoreResources.writeBytes = 2000;
+
+    tx.ext.v(1);
+    tx.ext.sorobanData().resources = restoreResources;
+    tx.ext.sorobanData().resourceFee = 55'000'000;
+
+    return {txEnv, contractCodeLedgerKey};
+}
+
+std::pair<TransactionEnvelope, LedgerKey>
 getUploadTx(PublicKey const& publicKey, SequenceNumber seqNum)
 {
     TransactionEnvelope txEnv;

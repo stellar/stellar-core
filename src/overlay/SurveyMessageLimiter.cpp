@@ -5,6 +5,7 @@
 #include "SurveyMessageLimiter.h"
 #include "herder/Herder.h"
 #include "main/Application.h"
+#include "overlay/SurveyDataManager.h"
 
 namespace stellar
 {
@@ -140,11 +141,58 @@ SurveyMessageLimiter::recordAndValidateResponse(
 }
 
 bool
+SurveyMessageLimiter::validateStartSurveyCollecting(
+    TimeSlicedSurveyStartCollectingMessage const& startSurvey,
+    SurveyDataManager& surveyDataManager,
+    std::function<bool()> onSuccessValidation)
+{
+    if (!surveyLedgerNumValid(startSurvey.ledgerNum))
+    {
+        // Request too old (or otherwise invalid)
+        return false;
+    }
+
+    if (surveyDataManager.surveyIsActive())
+    {
+        // A survey already active, toss. Only one survey may be active at a
+        // time.
+        return false;
+    }
+
+    if (!onSuccessValidation())
+    {
+        return false;
+    }
+
+    return true;
+}
+
+bool
+SurveyMessageLimiter::validateStopSurveyCollecting(
+    TimeSlicedSurveyStopCollectingMessage const& stopSurvey,
+    std::function<bool()> onSuccessValidation)
+{
+    if (!surveyLedgerNumValid(stopSurvey.ledgerNum))
+    {
+        // Request too old (or otherwise invalid)
+        return false;
+    }
+
+    if (!onSuccessValidation())
+    {
+        return false;
+    }
+
+    return true;
+}
+
+bool
 SurveyMessageLimiter::surveyLedgerNumValid(uint32_t ledgerNum)
 {
-    uint32_t curLedgerNum = mApp.getHerder().trackingConsensusLedgerIndex();
-    return ledgerNum + mNumLedgersBeforeIgnore >= curLedgerNum &&
-           ledgerNum <= curLedgerNum + 1;
+    uint32_t localLedgerNum = mApp.getHerder().trackingConsensusLedgerIndex();
+    return ledgerNum + mNumLedgersBeforeIgnore >= localLedgerNum &&
+           ledgerNum <=
+               localLedgerNum + std::max<uint32_t>(mNumLedgersBeforeIgnore, 1);
 }
 
 void

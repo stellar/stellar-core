@@ -18,8 +18,7 @@ stellar-core generates several types of data that can be used by applications, d
 ## Ledger State
 
 Full [Ledger](ledger.md) snapshots are available in both:
-* [history archives](history.md) (checkpoints, every 64 ledgers, updated every 5 minutes)
-* core's SQL database (latest only, updated every ledger)
+  * [history archives](history.md) (checkpoints, every 64 ledgers, updated every 5 minutes)
   * in the case of captive-core (enabled via the `--in-memory` command line option) the ledger is maintained within the stellar-core process and ledger-state need to be tracked as it changes via "meta" updates.
 
 ## Ledger State transition information (transactions, etc)
@@ -35,7 +34,6 @@ As part of this transition, stellar-core records:
   * NB: the meta-data presents changes to ledger entries in a simple to process format (old value/new value)
 
 In captive-core mode, this entire per-ledger transition dataset is emitted by stellar-core over a (optionally named) pipe, as an xdr encoded `LedgerCloseMeta` object.
-For older style deployments, core stores this data in its [historical SQL tables](#sql-tables).
 
 ## Custom ledger view
 
@@ -189,44 +187,10 @@ The logic for this would look at each `LedgerEntryChange` (in the context of a t
 2. compute the balance change `delta_balance` (difference between old and new balance)
 3. generate and store the XRef, for example `(Account ID, ledgerID, txID, Asset, delta_balance)`
 
-### Notes on direct access to core's database for Ledger State
-
-Right now, stellar-core uses SQL to store the current state of the ledger.
-
-This makes querying the database fairly simple and just requires basic understanding of the schema.
-
-_Warning_:
-
-This approach is not recommended in general as it creates many challenges. To name a few:
-* developers of Horizon have to
-  *  keep track of changes in how stellar-core is storing and updating data in its database
-  *  be extremely careful when performing requests as to avoid
-     *  inconsistent queries
-        *  stellar-core may change ledger between or while Horizon is making queries
-        *  multiple stellar-core instances may not be in perfect sync with each other
-     *  performance problems with poorly designed queries (non-indexed, etc).
-* operationally, this creates coupling between stellar-core and Horizon:
-  * a traffic spike in Horizon may cause enough stress on stellar-core that it loses sync
-  * it's hard to "scale out" Horizon
 
 ### Additional reading
 
 An overview of how the data flows within stellar-core is [this data flow presentation](software/core-data-flow.pdf)
-
-#### SQL tables
-This includes near real time version of the changes that occurred in the network
-as well as the current state of the ledger.
-
-Applications can safely perform READ ONLY transactions on the data located there.
-
-The schema is described in [`db-schema.md`](db-schema.md)
-
-**Important**: when consuming data from SQL, be sure that your service is
-properly registered by updating its cursor so that stellar-core can safely
-garbage collect data no longer needed.
-By default stellar-core only keeps track of its internal state and will
- therefore delete data it does not need anymore.
-See `setcursor` in [`software/commands.md#http-commands`](software/commands.md#http-commands)
 
 # API to stellar-core
 

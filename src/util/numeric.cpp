@@ -6,6 +6,7 @@
 #include "util/GlobalChecks.h"
 #include "util/numeric128.h"
 
+#include <algorithm>
 #include <stdexcept>
 
 namespace stellar
@@ -328,5 +329,25 @@ hugeDivide(int64_t& result, int32_t a, uint128_t const& B, uint128_t const& C,
         return true;
     }
     return false;
+}
+
+uint32_t
+doubleToClampedUint32(double d)
+{
+    // IEEE-754 doubles have 52-bit fractions, and so can perfectly represent
+    // uint32_t values. Therefore, it should be safe to convert to the full
+    // range of uint32_t values.  However, the C++ standard does not mandate
+    // that doubles adhere to the IEEE-754 specification. That being said, it
+    // would be shocking if we built for any platform that wasn't using IEEE-754
+    // doubles. Regardless, it's an easy compile-time check to be sure.
+    static_assert(std::numeric_limits<double>::is_iec559,
+                  "double is not IEEE-754 compliant");
+
+    constexpr uint32_t maxUint32 = std::numeric_limits<uint32_t>::max();
+    if (std::isnan(d))
+    {
+        return maxUint32;
+    }
+    return static_cast<uint32_t>(std::clamp<double>(d, 0, maxUint32));
 }
 }

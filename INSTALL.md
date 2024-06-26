@@ -183,6 +183,20 @@ Here are sample steps to achieve this:
     cd stellar-core/
     ./autogen.sh && ./configure && make -j6
 
+## Building for ARM Linux (i.e. Raspberry Pi)
+
+`stellar-core` is lightweight and can run on many edge devices such as a Raspberry Pi. However, there is currently a
+[linker bug](https://bugs.llvm.org/show_bug.cgi?id=16404) in the default ARM `libgcc` runtime, so `compiler-rt` must be used instead.
+Here are sample steps to achieve this:
+
+    export CC=clang-12
+    export CXX=clang++-12
+    export CFLAGS="-O3 -g1 -fno-omit-frame-pointer --rtlib=compiler-rt"
+    export CXXFLAGS="$CFLAGS -stdlib=libc++"
+    git clone https://github.com/stellar/stellar-core.git
+    cd stellar-core/
+    ./autogen.sh && ./configure && make -j4
+
 ## Building with Tracing
 
 Configuring with `--enable-tracy` will build and embed the client component of the [Tracy](https://github.com/wolfpld/tracy) high-resolution tracing system in the `stellar-core` binary.

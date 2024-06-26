@@ -100,13 +100,15 @@ Command options can only by placed after command.
   Option **--signtxs** will prompt for a secret key and sign the TransactionEnvelopes.<br>
 
   Output format by line - 
-  1. Base64 upload tx envelope XDR
-  2. Hex tx ID for the upload tx.
-  3. Base 64 create tx envelope XDR
-  4. Hex tx ID for the create tx.
-  5. Base64 invoke tx envelope XDR
-  6. Hex tx ID for the invoke tx.
-  7. Base64 ConfigUpgradeSetKey XDR.
+  1. Base64 wasm restore tx envelope XDR
+  2. Hex tx ID for the wasm restore tx.
+  3. Base64 upload tx envelope XDR
+  4. Hex tx ID for the upload tx.
+  5. Base 64 create tx envelope XDR
+  6. Hex tx ID for the create tx.
+  7. Base64 invoke tx envelope XDR
+  8. Hex tx ID for the invoke tx.
+  9. Base64 ConfigUpgradeSetKey XDR.
 
 * **help**: Print the available command line options and then exit..
 * **http-command <COMMAND>** Send an [HTTP command](#http-commands) to an
@@ -346,6 +348,21 @@ format.
         ConfigUpgradeSet will be used to update the existing network ConfigSettingEntry
         that exists at the corresponding CONFIG_SETTING LedgerKey.
 
+* **sorobaninfo**
+  `sorobaninfo?[format=basic,detailed,upgrade_xdr]`
+    Retrieves the current Soroban settings in different formats.
+
+    * `basic` is the default if the `format` parameter is not specified. It
+      will dump a subset of the Soroban settings in an easy to read format.
+    * `detailed` will insert every setting into a `ConfigUpgradeSet` and dump
+      it in the same format as the **dumpproposedsettings** command, which lets
+      a user easily compare the existing settings against a proposal.
+    * `upgrade_xdr` will insert the current upgradeable settings into a `ConfigUpgradeSet`
+      and dump it as base64 xdr. This can be used along with the `stellar-xdr` command line tool
+      to dump the current settings in the same format as the JSON file we use for upgrades. This
+      is helpful if you want to make settings changes off of the current settings.
+      Ex. `curl -s "127.0.0.1:11626/sorobaninfo?format=upgrade_xdr" | stellar-xdr decode --type ConfigUpgradeSet`
+
 * **dumpproposedsettings**
   `dumpproposedsettings?blob=Base64`<br>
   blob is a base64 encoded XDR serialized `ConfigUpgradeSetKey`.
@@ -357,25 +374,66 @@ format.
 
 * **surveytopology**
   `surveytopology?duration=DURATION&node=NODE_ID`<br>
+  **This command is deprecated and will be removed in a future release. Use the
+  new time sliced survey interface instead (`startsurveycollecting`,
+  `stopsurveycollecting`, `surveytopologytimesliced`, and `getsurveyresults`).**
   Starts a survey that will request peer connectivity information from nodes
   in the backlog. `DURATION` is the number of seconds this survey will run
   for, and `NODE_ID` is the public key you will add to the backlog to survey.
   Running this command while the survey is running will add the node to the
-  backlog and reset the timer to run for `DURATION` seconds. By default, this
-  node will respond to/relay a survey message if the message originated 
-  from a node in it's transitive quorum. This behaviour can be overridden by adding 
-  keys to `SURVEYOR_KEYS` in the config file, which will be the set of keys to check
-  instead of the transitive quorum. If you would like to opt-out of this survey mechanism,
-  just set `SURVEYOR_KEYS` to `$self` or a bogus key
+  backlog and reset the timer to run for `DURATION` seconds.  See [Changing
+  default survey behavior](#changing-default-survey-behavior) for details about
+  the default survey behavior, as well as how to change that behavior or opt-out
+  entirely.
 
 * **stopsurvey**
   `stopsurvey`<br>
+  **This command is deprecated and will be removed in a future release. It is no
+  longer necessary to explicitly stop a survey in the new time sliced survey
+  interface as these surveys expire automatically.**
   Will stop the survey if one is running. Noop if no survey is running
+
+* **startsurveycollecting**
+  `startsurveycollecting?nonce=NONCE`<br>
+  Start a survey in the collecting phase with a given nonce. Does nothing if a
+  survey is already running on the network as only one survey may run at a time.
+  See [Changing default survey behavior](#changing-default-survey-behavior) for
+  details about the default survey behavior, as well as how to change that
+  behavior or opt-out entirely.
+
+* **stopsurveycollecting**
+  `stopsurveycollecting`<br>
+  Stop the collecting phase of the survey started in the previous
+  `startsurveycollecting` command. Moves the survey into the reporting phase.
+  Does nothing if no survey is running, or if a different node is running the
+  active survey.
+
+* **surveytopologytimesliced**
+  `surveytopologytimesliced?node=NODE_ID&inboundpeerindex=INBOUND_INDEX&outboundpeerindex=OUTBOUND_INDEX`<br>
+  During the reporting phase of a survey, invoke this command to request
+  information recorded during the collecting phase from `NODE_ID`. This command
+  adds the survey request to a backlog; it does not immediately send the
+  request. Use `getsurveyresult` to see the response. A response will include
+  information about up to 25 inbound and outbound peers respectively. If a node
+  has more than 25 inbound and/or outbound peers, you will need to survey the
+  node multiple times to get the complete peer list. You can request peers
+  starting from a specific index in each peer list by setting `INBOUND_INDEX`
+  and `OUTBOUND_INDEX` appropriately.  See [Changing default survey
+  behavior](#changing-default-survey-behavior) for details about the default
+  survey behavior, as well as how to change that behavior or opt-out entirely.
 
 * **getsurveyresult**
   `getsurveyresult`<br>
   Returns the current survey results. The results will be reset every time a new survey
-  is started
+  is started. Use this command for both the time sliced survey interface as well
+  as the old deprecated survey interface.
+
+#### Changing default survey behavior
+By default, this node will respond to/relay a survey message if the message
+originated from a node in its transitive quorum. This behavior can be overridden
+by adding keys to `SURVEYOR_KEYS` in the config file, which will be the set of
+keys to check instead of the transitive quorum. If you would like to opt-out of
+this survey mechanism, just set `SURVEYOR_KEYS` to `$self` or a bogus key
 
 ### The following HTTP commands are exposed on test instances
 * **generateload** `generateload[?mode=

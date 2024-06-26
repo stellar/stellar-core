@@ -64,6 +64,7 @@ static const std::unordered_set<std::string> TESTING_ONLY_OPTIONS = {
     "LOADGEN_INSTRUCTIONS_FOR_TESTING",
     "LOADGEN_INSTRUCTIONS_DISTRIBUTION_FOR_TESTING"
     "CATCHUP_WAIT_MERGES_TX_APPLY_FOR_TESTING",
+    "ARTIFICIALLY_SET_SURVEY_PHASE_DURATION_FOR_TESTING",
     "ARTIFICIALLY_DELAY_BUCKET_APPLICATION_FOR_TESTING",
     "ARTIFICIALLY_SLEEP_MAIN_THREAD_FOR_TESTING",
     "ARTIFICIALLY_SKIP_CONNECTION_ADJUSTMENT_FOR_TESTING"};
@@ -141,6 +142,8 @@ Config::Config() : NODE_SEED(SecretKey::random())
     LOADGEN_INSTRUCTIONS_FOR_TESTING = {};
     LOADGEN_INSTRUCTIONS_DISTRIBUTION_FOR_TESTING = {};
     CATCHUP_WAIT_MERGES_TX_APPLY_FOR_TESTING = false;
+    ARTIFICIALLY_SET_SURVEY_PHASE_DURATION_FOR_TESTING =
+        std::chrono::minutes::zero();
     ARTIFICIALLY_SLEEP_MAIN_THREAD_FOR_TESTING =
         std::chrono::microseconds::zero();
 
@@ -149,7 +152,7 @@ Config::Config() : NODE_SEED(SecretKey::random())
     LEDGER_PROTOCOL_MIN_VERSION_INTERNAL_ERROR_REPORT = 18;
 
     OVERLAY_PROTOCOL_MIN_VERSION = 32;
-    OVERLAY_PROTOCOL_VERSION = 33;
+    OVERLAY_PROTOCOL_VERSION = 34;
 
     VERSION_STR = STELLAR_CORE_VERSION;
 
@@ -159,6 +162,7 @@ Config::Config() : NODE_SEED(SecretKey::random())
     CATCHUP_COMPLETE = false;
     CATCHUP_RECENT = 0;
     EXPERIMENTAL_PRECAUTION_DELAY_META = false;
+    EXPERIMENTAL_BACKGROUND_OVERLAY_PROCESSING = false;
     DEPRECATED_SQL_LEDGER_STATE = false;
     BUCKETLIST_DB_INDEX_PAGE_SIZE_EXPONENT = 14; // 2^14 == 16 kb
     BUCKETLIST_DB_INDEX_CUTOFF = 20;             // 20 mb
@@ -1071,6 +1075,10 @@ Config::processConfig(std::shared_ptr<cpptoml::table> t)
             {
                 EXPERIMENTAL_PRECAUTION_DELAY_META = readBool(item);
             }
+            else if (item.first == "EXPERIMENTAL_BACKGROUND_OVERLAY_PROCESSING")
+            {
+                EXPERIMENTAL_BACKGROUND_OVERLAY_PROCESSING = readBool(item);
+            }
             else if (item.first == "EXPERIMENTAL_BACKGROUND_EVICTION_SCAN")
             {
                 EXPERIMENTAL_BACKGROUND_EVICTION_SCAN = readBool(item);
@@ -1548,6 +1556,12 @@ Config::processConfig(std::shared_ptr<cpptoml::table> t)
             {
                 CATCHUP_WAIT_MERGES_TX_APPLY_FOR_TESTING = readBool(item);
             }
+            else if (item.first ==
+                     "ARTIFICIALLY_SET_SURVEY_PHASE_DURATION_FOR_TESTING")
+            {
+                ARTIFICIALLY_SET_SURVEY_PHASE_DURATION_FOR_TESTING =
+                    std::chrono::minutes(readInt<uint32_t>(item));
+            }
             else if (item.first == "HISTOGRAM_WINDOW_SIZE")
             {
                 auto const s = readInt<uint32_t>(item);
@@ -2004,6 +2018,10 @@ Config::logBasicInfo()
              MAX_OUTBOUND_PENDING_CONNECTIONS);
     LOG_INFO(DEFAULT_LOG, "MAX_INBOUND_PENDING_CONNECTIONS: {}",
              MAX_INBOUND_PENDING_CONNECTIONS);
+    LOG_INFO(DEFAULT_LOG,
+             "EXPERIMENTAL_BACKGROUND_OVERLAY_PROCESSING="
+             "{}",
+             EXPERIMENTAL_BACKGROUND_OVERLAY_PROCESSING ? "true" : "false");
 }
 
 void

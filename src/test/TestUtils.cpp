@@ -55,7 +55,7 @@ injectSendPeersAndReschedule(VirtualClock::time_point& end, VirtualClock& clock,
                              LoopbackPeerConnection& connection)
 {
     connection.getInitiator()->sendGetPeers();
-    if (clock.now() < end && connection.getInitiator()->isConnected())
+    if (clock.now() < end && connection.getInitiator()->isConnectedForTesting())
     {
         timer.expires_from_now(std::chrono::milliseconds(10));
         timer.async_wait(

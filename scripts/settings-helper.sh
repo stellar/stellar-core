@@ -47,8 +47,12 @@ echo "----- TX #3 -----"
 echo "curl -G 'http://localhost:11626/tx' --data-urlencode 'blob=$(echo "$OUTPUT" | sed -n '5p')'"
 echo "-----"
 
-echo "curl -G 'http://localhost:11626/dumpproposedsettings' --data-urlencode 'blob=$(echo "$OUTPUT" | sed -n '7p')'"
+echo "----- TX #4 -----"
+echo "curl -G 'http://localhost:11626/tx' --data-urlencode 'blob=$(echo "$OUTPUT" | sed -n '7p')'"
+echo "-----"
+
+echo "curl -G 'http://localhost:11626/dumpproposedsettings' --data-urlencode 'blob=$(echo "$OUTPUT" | sed -n '9p')'"
 echo "-----"
 
 echo "distribute the following command with the upgradetime set to an agreed upon point in the future"
-echo "curl -G 'http://localhost:11626/upgrades?mode=set&upgradetime=YYYY-MM-DDT01:25:00Z' --data-urlencode 'configupgradesetkey=$(echo "$OUTPUT" | sed -n '7p')'"
+echo "curl -G 'http://localhost:11626/upgrades?mode=set&upgradetime=YYYY-MM-DDT01:25:00Z' --data-urlencode 'configupgradesetkey=$(echo "$OUTPUT" | sed -n '9p')'"

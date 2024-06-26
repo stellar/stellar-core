@@ -13,7 +13,6 @@
 #include "database/Database.h"
 #include "herder/Herder.h"
 #include "herder/HerderPersistence.h"
-#include "herder/HerderUtils.h"
 #include "herder/LedgerCloseData.h"
 #include "herder/TxSetFrame.h"
 #include "herder/Upgrades.h"
@@ -679,7 +678,6 @@ LedgerManagerImpl::valueExternalized(LedgerCloseData const& ledgerData)
                    lcl, getLastClosedLedgerNum());
         mApp.getHerder().lastClosedLedgerIncreased(appliedLatest);
     }
-    FrameMark;
 }
 
 void
@@ -978,8 +976,6 @@ LedgerManagerImpl::closeLedger(LedgerCloseData const& ledgerData)
     if (protocolVersionStartsFrom(maybeNewVersion, SOROBAN_PROTOCOL_VERSION))
     {
         updateNetworkConfig(ltx);
-        mApp.getOverlayManager().dropPeersIf(
-            shouldDropPeerPredicate, maybeNewVersion, "version too old");
     }
 
     ledgerClosed(ltx, ledgerCloseMeta, initialLedgerVers);
@@ -1080,6 +1076,7 @@ LedgerManagerImpl::closeLedger(LedgerCloseData const& ledgerData)
 
     std::chrono::duration<double> ledgerTimeSeconds = ledgerTime.Stop();
     CLOG_DEBUG(Perf, "Applied ledger in {} seconds", ledgerTimeSeconds.count());
+    FrameMark;
 }
 
 void

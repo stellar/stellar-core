@@ -3864,6 +3864,75 @@ TEST_CASE("accept soroban txs after network upgrade", "[soroban][herder]")
     REQUIRE(totalSoroban > 0);
 }
 
+TEST_CASE("overlay parallel processing")
+{
+    auto networkID = sha256(getTestConfig().NETWORK_PASSPHRASE);
+
+    // Set threshold to 1 so all have to vote
+    auto simulation =
+        Topologies::core(4, 1, Simulation::OVER_TCP, networkID, [](int i) {
+            auto cfg = getTestConfig(i);
+            cfg.TESTING_UPGRADE_MAX_TX_SET_SIZE = 100;
+            cfg.EXPERIMENTAL_BACKGROUND_OVERLAY_PROCESSING = true;
+            return cfg;
+        });
+    simulation->startAllNodes();
+    auto nodes = simulation->getNodes();
+    uint32_t desiredTxRate = 1;
+    uint32_t ledgerWideLimit = static_cast<uint32>(
+        desiredTxRate * Herder::EXP_LEDGER_TIMESPAN_SECONDS.count() * 2);
+    uint32_t const numAccounts = 100;
+    for (auto& node : nodes)
+    {
+        overrideSorobanNetworkConfigForTest(*node);
+        modifySorobanNetworkConfig(*node, [&](SorobanNetworkConfig& cfg) {
+            cfg.mLedgerMaxTxCount = ledgerWideLimit;
+        });
+    }
+    auto& loadGen = nodes[0]->getLoadGenerator();
+
+    // Generate some accounts
+    auto& loadGenDone =
+        nodes[0]->getMetrics().NewMeter({"loadgen", "run", "complete"}, "run");
+    auto currLoadGenCount = loadGenDone.count();
+    loadGen.generateLoad(
+        GeneratedLoadConfig::createAccountsLoad(numAccounts, desiredTxRate));
+    simulation->crankUntil(
+        [&]() { return loadGenDone.count() > currLoadGenCount; },
+        10 * Herder::EXP_LEDGER_TIMESPAN_SECONDS, false);
+
+    auto& secondLoadGen = nodes[1]->getLoadGenerator();
+    auto& secondLoadGenDone =
+        nodes[1]->getMetrics().NewMeter({"loadgen", "run", "complete"}, "run");
+    // Generate load from several nodes, to produce both classic and
+    // soroban traffic
+    currLoadGenCount = loadGenDone.count();
+    auto secondLoadGenCount = secondLoadGenDone.count();
+    uint32_t const classicTxCount = 200;
+    // Generate Soroban txs from one node
+    loadGen.generateLoad(GeneratedLoadConfig::txLoad(
+        LoadGenMode::SOROBAN_UPLOAD, 50,
+        /* nTxs */ 500, desiredTxRate, /* offset */ 0));
+    // Generate classic txs from another node (with offset to prevent
+    // overlapping accounts)
+    secondLoadGen.generateLoad(GeneratedLoadConfig::txLoad(
+        LoadGenMode::PAY, 50, classicTxCount, desiredTxRate,
+        /* offset */ 50));
+
+    simulation->crankUntil(
+        [&]() {
+            return loadGenDone.count() > currLoadGenCount &&
+                   secondLoadGenDone.count() > secondLoadGenCount;
+        },
+        200 * Herder::EXP_LEDGER_TIMESPAN_SECONDS, false);
+    auto& loadGenFailed =
+        nodes[0]->getMetrics().NewMeter({"loadgen", "run", "failed"}, "run");
+    REQUIRE(loadGenFailed.count() == 0);
+    auto& secondLoadGenFailed =
+        nodes[1]->getMetrics().NewMeter({"loadgen", "run", "failed"}, "run");
+    REQUIRE(secondLoadGenFailed.count() == 0);
+}
+
 TEST_CASE("soroban txs accepted by the network",
           "[herder][soroban][transactionqueue]")
 {

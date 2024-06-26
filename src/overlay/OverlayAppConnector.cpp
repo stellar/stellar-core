@@ -9,6 +9,11 @@
 namespace stellar
 {
 
+OverlayAppConnector::OverlayAppConnector(Application& app)
+    : mApp(app), mConfig(app.getConfig())
+{
+}
+
 Herder&
 OverlayAppConnector::getHerder()
 {
@@ -42,28 +47,31 @@ OverlayAppConnector::postOnMainThread(std::function<void()>&& f,
                                       std::string&& message,
                                       Scheduler::ActionType type)
 {
-    releaseAssert(threadIsMain());
     mApp.postOnMainThread(std::move(f), std::move(message), type);
+}
+
+void
+OverlayAppConnector::postOnOverlayThread(std::function<void()>&& f,
+                                         std::string const& message)
+{
+    mApp.postOnOverlayThread(std::move(f), message);
 }
 
 Config const&
 OverlayAppConnector::getConfig() const
 {
-    releaseAssert(threadIsMain());
-    return mApp.getConfig();
+    return mConfig;
 }
 
 bool
 OverlayAppConnector::overlayShuttingDown() const
 {
-    releaseAssert(threadIsMain());
     return mApp.getOverlayManager().isShuttingDown();
 }
 
 VirtualClock::time_point
 OverlayAppConnector::now() const
 {
-    releaseAssert(threadIsMain());
     return mApp.getClock().now();
 }
 

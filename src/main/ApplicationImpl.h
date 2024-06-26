@@ -79,6 +79,8 @@ class ApplicationImpl : public Application
 
     virtual asio::io_context& getWorkerIOContext() override;
     virtual asio::io_context& getEvictionIOContext() override;
+    virtual asio::io_context& getOverlayIOContext() override;
+
     virtual void postOnMainThread(std::function<void()>&& f, std::string&& name,
                                   Scheduler::ActionType type) override;
     virtual void postOnBackgroundThread(std::function<void()>&& f,
@@ -86,6 +88,8 @@ class ApplicationImpl : public Application
     virtual void postOnEvictionBackgroundThread(std::function<void()>&& f,
                                                 std::string jobName) override;
 
+    virtual void postOnOverlayThread(std::function<void()>&& f,
+                                     std::string jobName) override;
     virtual void start() override;
     void startServices();
 
@@ -149,6 +153,9 @@ class ApplicationImpl : public Application
     std::unique_ptr<asio::io_context::work> mWork;
     std::unique_ptr<asio::io_context::work> mEvictionWork;
 
+    std::optional<asio::io_context> mOverlayIOContext;
+    std::unique_ptr<asio::io_context::work> mOverlayWork;
+
     std::unique_ptr<BucketManager> mBucketManager;
     std::unique_ptr<Database> mDatabase;
     std::unique_ptr<OverlayManager> mOverlayManager;
@@ -192,6 +199,7 @@ class ApplicationImpl : public Application
 #endif
 
     std::vector<std::thread> mWorkerThreads;
+    std::optional<std::thread> mOverlayThread;
 
     // Unlike mWorkerThreads (which are low priority), eviction scans require a
     // medium priority thread. In the future, this may become a more general
@@ -210,6 +218,8 @@ class ApplicationImpl : public Application
     std::unique_ptr<medida::MetricsRegistry> mMetrics;
     medida::Timer& mPostOnMainThreadDelay;
     medida::Timer& mPostOnBackgroundThreadDelay;
+    medida::Timer& mPostOnOverlayThreadDelay;
+
     VirtualClock::system_time_point mStartedOn;
 
     Hash mNetworkID;

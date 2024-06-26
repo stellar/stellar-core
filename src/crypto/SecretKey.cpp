@@ -42,7 +42,8 @@ namespace stellar
 // has no effect on correctness.
 
 static std::mutex gVerifySigCacheMutex;
-static RandomEvictionCache<Hash, bool> gVerifySigCache(0xffff);
+static RandomEvictionCache<Hash, bool> gVerifySigCache(0xffff,
+                                                       /* separatePRNG */ true);
 static uint64_t gVerifyCacheHit = 0;
 static uint64_t gVerifyCacheMiss = 0;
 
@@ -318,6 +319,13 @@ PubKeyUtils::clearVerifySigCache()
 {
     std::lock_guard<std::mutex> guard(gVerifySigCacheMutex);
     gVerifySigCache.clear();
+}
+
+void
+PubKeyUtils::maybeSeedVerifySigCache(unsigned int seed)
+{
+    std::lock_guard<std::mutex> guard(gVerifySigCacheMutex);
+    gVerifySigCache.maybeSeed(seed);
 }
 
 void

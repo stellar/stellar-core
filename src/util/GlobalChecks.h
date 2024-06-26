@@ -4,6 +4,9 @@
 
 #pragma once
 
+#include <Tracy.hpp>
+#include <mutex>
+
 namespace stellar
 {
 bool threadIsMain();
@@ -41,4 +44,15 @@ void dbgAbort();
 #define dbgAssert(expression) (void)((!!(expression)) || (dbgAbort(), 0))
 
 #endif
+
+#ifndef USE_TRACY
+using RecursiveLockGuard = std::lock_guard<std::recursive_mutex>;
+using LockGuard = std::lock_guard<std::mutex>;
+#else
+using RecursiveLockGuard = std::lock_guard<LockableBase(std::recursive_mutex)>;
+using LockGuard = std::lock_guard<LockableBase(std::mutex)>;
+#endif
+#define RECURSIVE_LOCK_GUARD(mutex_, guardName) \
+    RecursiveLockGuard guardName(mutex_)
+#define LOCK_GUARD(mutex_, guardName) LockGuard guardName(mutex_)
 }

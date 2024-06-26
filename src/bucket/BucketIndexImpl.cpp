@@ -344,20 +344,20 @@ BucketIndex::createIndex(BucketManager& bm,
     {
         if (pageSize == 0)
         {
-            CLOG_INFO(Bucket,
-                      "BucketIndex::createIndex() indexing individual keys in "
-                      "bucket {}",
-                      filename);
+            CLOG_DEBUG(Bucket,
+                       "BucketIndex::createIndex() indexing individual keys in "
+                       "bucket {}",
+                       filename);
             return std::unique_ptr<BucketIndexImpl<IndividualIndex> const>(
                 new BucketIndexImpl<IndividualIndex>(bm, filename, 0, hash));
         }
         else
         {
-            CLOG_INFO(Bucket,
-                      "BucketIndex::createIndex() indexing key range with "
-                      "page size "
-                      "{} in bucket {}",
-                      pageSize, filename);
+            CLOG_DEBUG(Bucket,
+                       "BucketIndex::createIndex() indexing key range with "
+                       "page size "
+                       "{} in bucket {}",
+                       pageSize, filename);
             return std::unique_ptr<BucketIndexImpl<RangeIndex> const>(
                 new BucketIndexImpl<RangeIndex>(bm, filename, pageSize, hash));
         }
