@@ -688,6 +688,8 @@ void
 CommandLine::writeToStream(std::string const& exeName, std::ostream& os) const
 {
 #ifdef BUILD_TESTS
+    // Printing this line enables automatic test discovery in VSCode, and
+    // it is generally harmless otherwise (only shown in a BUILD_TESTS build).
     std::cout << "Catch2 v" << CATCH_VERSION_MAJOR << "." << CATCH_VERSION_MINOR
               << "." << CATCH_VERSION_PATCH << std::endl;
 #endif
