@@ -7,6 +7,7 @@
 #include "ledger/LedgerTxn.h"
 #include "main/Config.h"
 #include "rust/RustBridge.h"
+#include "util/TxResource.h"
 #include <cstdint>
 #include <deque>
 
@@ -340,6 +341,8 @@ class SorobanNetworkConfig
 
     // Parallel execution settings
     uint32_t ledgerMaxDependentTxClusters() const;
+
+    Resource maxLedgerResources() const;
 
 #ifdef BUILD_TESTS
     StateArchivalSettings& stateArchivalSettings();

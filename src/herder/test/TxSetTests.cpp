@@ -2,6 +2,7 @@
 // under the Apache License, Version 2.0. See the COPYING file at the root
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
+#include "crypto/SHA.h"
 #include "herder/TxSetFrame.h"
 #include "herder/test/TestTxSetUtils.h"
 #include "ledger/LedgerManager.h"
@@ -13,6 +14,8 @@
 #include "test/TxTests.h"
 #include "test/test.h"
 #include "transactions/MutableTransactionResult.h"
+#include "transactions/TransactionUtils.h"
+#include "transactions/test/SorobanTxTestUtils.h"
 #include "util/ProtocolVersion.h"
 #include "util/XDRCereal.h"
 
@@ -25,10 +28,9 @@ using namespace txtest;
 TEST_CASE("generalized tx set XDR validation", "[txset]")
 {
     Config cfg(getTestConfig());
-    cfg.LEDGER_PROTOCOL_VERSION =
-        static_cast<uint32_t>(SOROBAN_PROTOCOL_VERSION);
+    cfg.LEDGER_PROTOCOL_VERSION = Config::CURRENT_LEDGER_PROTOCOL_VERSION;
     cfg.TESTING_UPGRADE_LEDGER_PROTOCOL_VERSION =
-        static_cast<uint32_t>(SOROBAN_PROTOCOL_VERSION);
+        Config::CURRENT_LEDGER_PROTOCOL_VERSION;
     VirtualClock clock;
     Application::pointer app = createTestApplication(clock, cfg);
 
@@ -41,6 +43,12 @@ TEST_CASE("generalized tx set XDR validation", "[txset]")
         auto txSet = TxSetXDRFrame::makeFromWire(xdrTxSet);
         REQUIRE(txSet->prepareForApply(*app) == nullptr);
     }
+    SECTION("one phase")
+    {
+        auto txSet = TxSetXDRFrame::makeFromWire(xdrTxSet);
+        xdrTxSet.v1TxSet().phases.emplace_back();
+        REQUIRE(txSet->prepareForApply(*app) == nullptr);
+    }
     SECTION("too many phases")
     {
         xdrTxSet.v1TxSet().phases.emplace_back();
@@ -49,424 +57,395 @@ TEST_CASE("generalized tx set XDR validation", "[txset]")
         auto txSet = TxSetXDRFrame::makeFromWire(xdrTxSet);
         REQUIRE(txSet->prepareForApply(*app) == nullptr);
     }
-    SECTION("incorrect base fee order")
+
+    SECTION("two phase scenarios")
     {
         xdrTxSet.v1TxSet().phases.emplace_back();
         xdrTxSet.v1TxSet().phases.emplace_back();
-        for (int i = 0; i < xdrTxSet.v1TxSet().phases.size(); ++i)
-        {
-            SECTION("phase " + std::to_string(i))
+        int txId = 0;
+        auto buildTx = [&](TransactionEnvelope& txEnv, bool isSoroban) {
+            txEnv.v1().tx.operations.emplace_back();
+            // The fee is actually not relevant for XDR validation, we just use
+            // it to have different tx envelopes.
+            txEnv.v1().tx.fee = 100 + txId;
+            ++txId;
+            txEnv.v1().tx.operations.back().body.type(
+                isSoroban ? OperationType::INVOKE_HOST_FUNCTION
+                          : OperationType::PAYMENT);
+            if (isSoroban)
             {
-                SECTION("all components discounted")
-                {
-
-                    xdrTxSet.v1TxSet().phases[i].v0Components().emplace_back(
-                        TXSET_COMP_TXS_MAYBE_DISCOUNTED_FEE);
-                    xdrTxSet.v1TxSet()
-                        .phases[i]
-                        .v0Components()
-                        .back()
-                        .txsMaybeDiscountedFee()
-                        .baseFee.activate() = 1500;
-                    xdrTxSet.v1TxSet()
-                        .phases[i]
-                        .v0Components()
-                        .back()
-                        .txsMaybeDiscountedFee()
-                        .txs.emplace_back();
-
-                    xdrTxSet.v1TxSet().phases[i].v0Components().emplace_back(
-                        TXSET_COMP_TXS_MAYBE_DISCOUNTED_FEE);
-                    xdrTxSet.v1TxSet()
-                        .phases[i]
-                        .v0Components()
-                        .back()
-                        .txsMaybeDiscountedFee()
-                        .baseFee.activate() = 1400;
-                    xdrTxSet.v1TxSet()
-                        .phases[i]
-                        .v0Components()
-                        .back()
-                        .txsMaybeDiscountedFee()
-                        .txs.emplace_back();
-
-                    xdrTxSet.v1TxSet().phases[i].v0Components().emplace_back(
-                        TXSET_COMP_TXS_MAYBE_DISCOUNTED_FEE);
-                    xdrTxSet.v1TxSet()
-                        .phases[i]
-                        .v0Components()
-                        .back()
-                        .txsMaybeDiscountedFee()
-                        .baseFee.activate() = 1600;
-                    xdrTxSet.v1TxSet()
-                        .phases[i]
-                        .v0Components()
-                        .back()
-                        .txsMaybeDiscountedFee()
-                        .txs.emplace_back();
-
-                    auto txSet = TxSetXDRFrame::makeFromWire(xdrTxSet);
-                    REQUIRE(txSet->prepareForApply(*app) == nullptr);
-                }
-                SECTION("non-discounted component out of place")
-                {
-
-                    xdrTxSet.v1TxSet().phases[i].v0Components().emplace_back(
-                        TXSET_COMP_TXS_MAYBE_DISCOUNTED_FEE);
-                    xdrTxSet.v1TxSet()
-                        .phases[i]
-                        .v0Components()
-                        .back()
-                        .txsMaybeDiscountedFee()
-                        .baseFee.activate() = 1500;
-                    xdrTxSet.v1TxSet()
-                        .phases[i]
-                        .v0Components()
-                        .back()
-                        .txsMaybeDiscountedFee()
-                        .txs.emplace_back();
-
-                    xdrTxSet.v1TxSet().phases[i].v0Components().emplace_back(
-                        TXSET_COMP_TXS_MAYBE_DISCOUNTED_FEE);
-                    xdrTxSet.v1TxSet()
-                        .phases[i]
-                        .v0Components()
-                        .back()
-                        .txsMaybeDiscountedFee()
-                        .baseFee.activate() = 1600;
-                    xdrTxSet.v1TxSet()
-                        .phases[i]
-                        .v0Components()
-                        .back()
-                        .txsMaybeDiscountedFee()
-                        .txs.emplace_back();
-
-                    xdrTxSet.v1TxSet().phases[i].v0Components().emplace_back(
-                        TXSET_COMP_TXS_MAYBE_DISCOUNTED_FEE);
-
-                    auto txSet = TxSetXDRFrame::makeFromWire(xdrTxSet);
-                    REQUIRE(txSet->prepareForApply(*app) == nullptr);
-                }
-                SECTION(
-                    "with non-discounted component, discounted out of place")
-                {
-                    xdrTxSet.v1TxSet().phases[i].v0Components().emplace_back(
-                        TXSET_COMP_TXS_MAYBE_DISCOUNTED_FEE);
-                    xdrTxSet.v1TxSet()
-                        .phases[i]
-                        .v0Components()
-                        .back()
-                        .txsMaybeDiscountedFee()
-                        .txs.emplace_back();
-
-                    xdrTxSet.v1TxSet().phases[i].v0Components().emplace_back(
-                        TXSET_COMP_TXS_MAYBE_DISCOUNTED_FEE);
-                    xdrTxSet.v1TxSet()
-                        .phases[i]
-                        .v0Components()
-                        .back()
-                        .txsMaybeDiscountedFee()
-                        .baseFee.activate() = 1500;
-                    xdrTxSet.v1TxSet()
-                        .phases[i]
-                        .v0Components()
-                        .back()
-                        .txsMaybeDiscountedFee()
-                        .txs.emplace_back();
-
-                    xdrTxSet.v1TxSet().phases[i].v0Components().emplace_back(
-                        TXSET_COMP_TXS_MAYBE_DISCOUNTED_FEE);
-                    xdrTxSet.v1TxSet()
-                        .phases[i]
-                        .v0Components()
-                        .back()
-                        .txsMaybeDiscountedFee()
-                        .baseFee.activate() = 1400;
-                    xdrTxSet.v1TxSet()
-                        .phases[i]
-                        .v0Components()
-                        .back()
-                        .txsMaybeDiscountedFee()
-                        .txs.emplace_back();
-
-                    auto txSet = TxSetXDRFrame::makeFromWire(xdrTxSet);
-                    REQUIRE(txSet->prepareForApply(*app) == nullptr);
-                }
+                txEnv.v1().tx.ext.v(1);
+                txEnv.v1().tx.ext.sorobanData().resourceFee = 1000;
             }
-        }
-    }
-    SECTION("duplicate base fee")
-    {
-        xdrTxSet.v1TxSet().phases.emplace_back();
-        xdrTxSet.v1TxSet().phases.emplace_back();
-        for (int i = 0; i < xdrTxSet.v1TxSet().phases.size(); ++i)
-        {
-            SECTION("phase " + std::to_string(i))
+        };
+        auto compareTxHash = [](TransactionEnvelope const& tx1,
+                                TransactionEnvelope const& tx2) -> bool {
+            return xdrSha256(tx1) < xdrSha256(tx2);
+        };
+        auto v0Phase =
+            [&](std::vector<std::optional<int64_t>> componentBaseFees,
+                bool isSoroban) -> TransactionPhase {
+            TransactionPhase phase(0);
+            for (auto const& baseFee : componentBaseFees)
             {
-                SECTION("duplicate discounts")
-                {
-                    xdrTxSet.v1TxSet().phases[i].v0Components().emplace_back(
-                        TXSET_COMP_TXS_MAYBE_DISCOUNTED_FEE);
-                    xdrTxSet.v1TxSet()
-                        .phases[i]
-                        .v0Components()
-                        .back()
-                        .txsMaybeDiscountedFee()
-                        .txs.emplace_back();
-
-                    xdrTxSet.v1TxSet().phases[i].v0Components().emplace_back(
-                        TXSET_COMP_TXS_MAYBE_DISCOUNTED_FEE);
-                    xdrTxSet.v1TxSet()
-                        .phases[i]
-                        .v0Components()
-                        .back()
-                        .txsMaybeDiscountedFee()
-                        .baseFee.activate() = 1500;
-                    xdrTxSet.v1TxSet()
-                        .phases[i]
-                        .v0Components()
-                        .back()
-                        .txsMaybeDiscountedFee()
-                        .txs.emplace_back();
-
-                    xdrTxSet.v1TxSet().phases[i].v0Components().emplace_back(
-                        TXSET_COMP_TXS_MAYBE_DISCOUNTED_FEE);
-                    xdrTxSet.v1TxSet()
-                        .phases[i]
-                        .v0Components()
-                        .back()
-                        .txsMaybeDiscountedFee()
-                        .baseFee.activate() = 1500;
-                    xdrTxSet.v1TxSet()
-                        .phases[i]
-                        .v0Components()
-                        .back()
-                        .txsMaybeDiscountedFee()
-                        .txs.emplace_back();
-
-                    xdrTxSet.v1TxSet().phases[i].v0Components().emplace_back(
-                        TXSET_COMP_TXS_MAYBE_DISCOUNTED_FEE);
-                    xdrTxSet.v1TxSet()
-                        .phases[i]
-                        .v0Components()
-                        .back()
-                        .txsMaybeDiscountedFee()
-                        .baseFee.activate() = 1600;
-                    xdrTxSet.v1TxSet()
-                        .phases[i]
-                        .v0Components()
-                        .back()
-                        .txsMaybeDiscountedFee()
-                        .txs.emplace_back();
-
-                    auto txSet = TxSetXDRFrame::makeFromWire(xdrTxSet);
-                    REQUIRE(txSet->prepareForApply(*app) == nullptr);
-                }
-                SECTION("duplicate non-discounted components")
-                {
-
-                    xdrTxSet.v1TxSet().phases[i].v0Components().emplace_back(
-                        TXSET_COMP_TXS_MAYBE_DISCOUNTED_FEE);
-                    xdrTxSet.v1TxSet()
-                        .phases[i]
-                        .v0Components()
-                        .back()
-                        .txsMaybeDiscountedFee()
-                        .txs.emplace_back();
-
-                    xdrTxSet.v1TxSet().phases[i].v0Components().emplace_back(
-                        TXSET_COMP_TXS_MAYBE_DISCOUNTED_FEE);
-                    xdrTxSet.v1TxSet()
-                        .phases[i]
-                        .v0Components()
-                        .back()
-                        .txsMaybeDiscountedFee()
-                        .txs.emplace_back();
-
-                    xdrTxSet.v1TxSet().phases[i].v0Components().emplace_back(
-                        TXSET_COMP_TXS_MAYBE_DISCOUNTED_FEE);
-                    xdrTxSet.v1TxSet()
-                        .phases[i]
-                        .v0Components()
-                        .back()
-                        .txsMaybeDiscountedFee()
-                        .baseFee.activate() = 1500;
-                    xdrTxSet.v1TxSet()
-                        .phases[i]
-                        .v0Components()
-                        .back()
-                        .txsMaybeDiscountedFee()
-                        .txs.emplace_back();
-
-                    auto txSet = TxSetXDRFrame::makeFromWire(xdrTxSet);
-                    REQUIRE(txSet->prepareForApply(*app) == nullptr);
-                }
-            }
-        }
-    }
-    SECTION("empty component")
-    {
-        xdrTxSet.v1TxSet().phases.emplace_back();
-        xdrTxSet.v1TxSet().phases.emplace_back();
-
-        for (int i = 0; i < xdrTxSet.v1TxSet().phases.size(); ++i)
-        {
-            SECTION("phase " + std::to_string(i))
-            {
-                xdrTxSet.v1TxSet().phases[i].v0Components().emplace_back(
+                auto& component = phase.v0Components().emplace_back(
                     TXSET_COMP_TXS_MAYBE_DISCOUNTED_FEE);
+                if (baseFee)
+                {
+                    component.txsMaybeDiscountedFee().baseFee.activate() =
+                        *baseFee;
+                }
+                for (int i = 0; i < 10; ++i)
+                {
+                    auto& txEnv =
+                        component.txsMaybeDiscountedFee().txs.emplace_back(
+                            ENVELOPE_TYPE_TX);
+                    buildTx(txEnv, isSoroban);
+                }
+                std::sort(component.txsMaybeDiscountedFee().txs.begin(),
+                          component.txsMaybeDiscountedFee().txs.end(),
+                          compareTxHash);
+            }
+            return phase;
+        };
+        // Collection of per-phase scenarios: each scenario consists of a phase
+        // XDR, a flag indicating whether the XDR is valid or not, and a string
+        // name of the scenario.
+        std::vector<
+            std::vector<std::tuple<TransactionPhase, bool, std::string>>>
+            scenarios(static_cast<size_t>(TxSetPhase::PHASE_COUNT));
+        // Most of the scenarios are the same for Soroban and Classic phases, so
+        // generate the same scenarios for both.
+        for (int phaseId = 0;
+             phaseId < static_cast<int>(TxSetPhase::PHASE_COUNT); ++phaseId)
+        {
+            bool isSoroban = phaseId == static_cast<int>(TxSetPhase::SOROBAN);
 
-                auto txSet = TxSetXDRFrame::makeFromWire(xdrTxSet);
-                REQUIRE(txSet->prepareForApply(*app) == nullptr);
+            // Valid scenarios
+            scenarios[phaseId].emplace_back(v0Phase({}, isSoroban), true,
+                                            "no txs");
+            scenarios[phaseId].emplace_back(v0Phase({std::nullopt}, isSoroban),
+                                            true,
+                                            "single no discount component");
+            scenarios[phaseId].emplace_back(v0Phase({1000}, isSoroban), true,
+                                            "single discount component");
+            scenarios[phaseId].emplace_back(
+                v0Phase({1000, 1001, 1002}, isSoroban), true,
+                "multiple discount components");
+            auto validMultiComponentPhase =
+                v0Phase({std::nullopt, 1000, 2000, 3000}, isSoroban);
+            scenarios[phaseId].emplace_back(
+                validMultiComponentPhase, true,
+                "multiple discount components and no discount component");
+
+            {
+                auto phase = validMultiComponentPhase;
+                phase.v0Components().emplace_back(
+                    TXSET_COMP_TXS_MAYBE_DISCOUNTED_FEE);
+                phase.v0Components().back() = phase.v0Components()[1];
+                phase.v0Components()
+                    .back()
+                    .txsMaybeDiscountedFee()
+                    .baseFee.activate() = 10000;
+                // Note, that during XDR validation we don't try to check that
+                // transactions are unique across components or phases.
+                scenarios[phaseId].emplace_back(phase, true,
+                                                "duplicate txs across phases");
+            }
+
+            // Invalid scenarios
+            scenarios[phaseId].emplace_back(
+                v0Phase({1000, 3000, 2000}, isSoroban), false,
+                "incorrect discounted component order");
+            scenarios[phaseId].emplace_back(
+                v0Phase({1000, std::nullopt, 2000}, isSoroban), false,
+                "incorrect non-discounted component order");
+            scenarios[phaseId].emplace_back(
+                v0Phase({std::nullopt, std::nullopt, 1000}, isSoroban), false,
+                "duplicate non-discounted component");
+            scenarios[phaseId].emplace_back(
+                v0Phase({std::nullopt, 1000, 1000, 2000}, isSoroban), false,
+                "duplicate discounted component");
+            {
+                auto phase = v0Phase({1000}, isSoroban);
+                phase.v0Components()[0].txsMaybeDiscountedFee().txs.clear();
+
+                scenarios[phaseId].emplace_back(phase, false,
+                                                "single empty component");
+            }
+            {
+                auto phase = validMultiComponentPhase;
+                phase.v0Components()[3].txsMaybeDiscountedFee().txs.clear();
+
+                scenarios[phaseId].emplace_back(
+                    phase, false,
+                    "one empty component among non-empty components");
+            }
+            {
+                auto phase = validMultiComponentPhase;
+                phase.v0Components()[1]
+                    .txsMaybeDiscountedFee()
+                    .txs.emplace_back(
+                        phase.v0Components()[1].txsMaybeDiscountedFee().txs[5]);
+                std::sort(
+                    phase.v0Components()[0].txsMaybeDiscountedFee().txs.begin(),
+                    phase.v0Components()[0].txsMaybeDiscountedFee().txs.end(),
+                    compareTxHash);
+                scenarios[phaseId].emplace_back(
+                    phase, false, "duplicate txs within a component");
+            }
+            {
+                auto phase = validMultiComponentPhase;
+                std::swap(
+                    phase.v0Components()[2].txsMaybeDiscountedFee().txs[4],
+                    phase.v0Components()[2].txsMaybeDiscountedFee().txs[5]);
+
+                scenarios[phaseId].emplace_back(
+                    phase, false, "non-canonical tx order within component");
+            }
+
+            // Invalid scenarios specific to Soroban.
+            if (isSoroban)
+            {
+                {
+                    auto phase = validMultiComponentPhase;
+                    TransactionEnvelope tx(EnvelopeType::ENVELOPE_TYPE_TX_V0);
+                    tx.v0().tx.operations = phase.v0Components()[1]
+                                                .txsMaybeDiscountedFee()
+                                                .txs[0]
+                                                .v1()
+                                                .tx.operations;
+                    phase.v0Components()[1].txsMaybeDiscountedFee().txs[0] = tx;
+                    std::sort(phase.v0Components()[1]
+                                  .txsMaybeDiscountedFee()
+                                  .txs.begin(),
+                              phase.v0Components()[1]
+                                  .txsMaybeDiscountedFee()
+                                  .txs.end(),
+                              compareTxHash);
+                    scenarios[phaseId].emplace_back(
+                        phase, false, "v0 envelope for Soroban tx");
+                }
+                {
+                    auto phase = validMultiComponentPhase;
+                    phase.v0Components()[0]
+                        .txsMaybeDiscountedFee()
+                        .txs[7]
+                        .v1()
+                        .tx.ext.v(0);
+                    std::sort(phase.v0Components()[0]
+                                  .txsMaybeDiscountedFee()
+                                  .txs.begin(),
+                              phase.v0Components()[0]
+                                  .txsMaybeDiscountedFee()
+                                  .txs.end(),
+                              compareTxHash);
+                    scenarios[phaseId].emplace_back(
+                        phase, false, "Soroban tx without extension");
+                }
+                {
+                    auto phase = validMultiComponentPhase;
+                    phase.v0Components()[3]
+                        .txsMaybeDiscountedFee()
+                        .txs[4]
+                        .v1()
+                        .tx.ext.sorobanData()
+                        .resourceFee = -1;
+                    std::sort(phase.v0Components()[3]
+                                  .txsMaybeDiscountedFee()
+                                  .txs.begin(),
+                              phase.v0Components()[3]
+                                  .txsMaybeDiscountedFee()
+                                  .txs.end(),
+                              compareTxHash);
+
+                    scenarios[phaseId].emplace_back(
+                        phase, false, "Soroban tx with negative resource fee");
+                }
             }
         }
-    }
-    SECTION("wrong tx type in phases")
-    {
-        xdrTxSet.v1TxSet().phases.emplace_back();
-        xdrTxSet.v1TxSet().phases.emplace_back();
-        SECTION("classic phase")
-        {
-            xdrTxSet.v1TxSet().phases[1].v0Components().emplace_back(
-                TXSET_COMP_TXS_MAYBE_DISCOUNTED_FEE);
-            xdrTxSet.v1TxSet()
-                .phases[1]
-                .v0Components()
-                .back()
-                .txsMaybeDiscountedFee()
-                .txs.emplace_back();
-        }
-        SECTION("soroban phase")
-        {
-            xdrTxSet.v1TxSet().phases[0].v0Components().emplace_back(
-                TXSET_COMP_TXS_MAYBE_DISCOUNTED_FEE);
-            xdrTxSet.v1TxSet()
-                .phases[0]
-                .v0Components()
-                .back()
-                .txsMaybeDiscountedFee()
-                .txs.emplace_back();
-
-            auto& txEnv = xdrTxSet.v1TxSet()
-                              .phases[0]
-                              .v0Components()
-                              .back()
-                              .txsMaybeDiscountedFee()
-                              .txs.back();
-            txEnv.v0().tx.operations.emplace_back();
-            txEnv.v0().tx.operations.back().body.type(INVOKE_HOST_FUNCTION);
-        }
-        auto txSet = TxSetXDRFrame::makeFromWire(xdrTxSet);
-        REQUIRE(txSet->prepareForApply(*app) == nullptr);
-    }
-    SECTION("valid XDR")
-    {
-
-        for (int i = 0; i < xdrTxSet.v1TxSet().phases.size(); ++i)
-        {
-            auto maybeAddSorobanOp = [&](GeneralizedTransactionSet& txSet) {
-                if (i == 1)
-                {
-                    auto& txEnv = xdrTxSet.v1TxSet()
-                                      .phases[i]
-                                      .v0Components()
-                                      .back()
-                                      .txsMaybeDiscountedFee()
-                                      .txs.back();
-                    txEnv.v0().tx.operations.emplace_back();
-                    txEnv.v0().tx.operations.back().body.type(
-                        INVOKE_HOST_FUNCTION); // tx->isSoroban() ==
-                                               // true
-                }
-            };
-            SECTION("phase " + std::to_string(i))
+        // When doing XDR conversion we don't verify that transactions belong
+        // to the correct phase, so we can also swap the phase for every
+        // scenario without changing the XDR validity conditions.
+        auto classicScenariosSize = scenarios[0].size();
+        scenarios[0].insert(scenarios[0].end(), scenarios[1].begin(),
+                            scenarios[1].end());
+        scenarios[1].insert(scenarios[1].end(), scenarios[0].begin(),
+                            scenarios[0].begin() + classicScenariosSize);
+#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
+        // Scenarios for the Soroban parallel phase.
+        auto parallelPhase = [&](std::vector<std::vector<int>> shape,
+                                 bool normalize = true,
+                                 std::optional<uint32_t> baseFee =
+                                     std::nullopt) -> TransactionPhase {
+            TransactionPhase phase(1);
+            if (baseFee)
             {
-                SECTION("no transactions")
+                phase.parallelTxsComponent().baseFee.activate() = *baseFee;
+            }
+            for (auto const& stageClusters : shape)
+            {
+                auto& stage =
+                    phase.parallelTxsComponent().executionStages.emplace_back();
+                for (int txCount : stageClusters)
                 {
-                    xdrTxSet.v1TxSet().phases.emplace_back();
-                    xdrTxSet.v1TxSet().phases.emplace_back();
-                    auto txSet = TxSetXDRFrame::makeFromWire(xdrTxSet);
-                    REQUIRE(txSet->prepareForApply(*app) == nullptr);
+                    auto& cluster = stage.emplace_back();
+
+                    for (int i = 0; i < txCount; ++i)
+                    {
+                        auto& txEnv = cluster.emplace_back(
+                            EnvelopeType::ENVELOPE_TYPE_TX);
+                        buildTx(txEnv, true);
+                    }
+
+                    std::sort(cluster.begin(), cluster.end(), compareTxHash);
                 }
-                SECTION("single component")
+            }
+            if (normalize)
+            {
+                testtxset::normalizeParallelPhaseXDR(phase);
+            }
+
+            return phase;
+        };
+
+        auto prevScenariosSize = scenarios[1].size();
+
+        // Valid scenarios
+        scenarios[1].emplace_back(parallelPhase({}), true,
+                                  "parallel Soroban - no txs");
+        scenarios[1].emplace_back(parallelPhase({}, true, 1000), true,
+                                  "parallel Soroban - no txs, fee discount");
+        scenarios[1].emplace_back(parallelPhase({{10}}), true,
+                                  "parallel Soroban - 1 stage, 1 cluster");
+        scenarios[1].emplace_back(
+            parallelPhase({{10, 2, 14, 1, 3}}), true,
+            "parallel Soroban - 1 stage, multiple clusters");
+        scenarios[1].emplace_back(
+            parallelPhase({{1}, {3}, {2}}), true,
+            "parallel Soroban - multiple single-cluster stages");
+
+        auto validMultiStagePhase =
+            parallelPhase({{2, 3, 4, 5}, {3, 2}, {5, 4, 5}, {2, 4}});
+        scenarios[1].emplace_back(
+            validMultiStagePhase, true,
+            "parallel Soroban - multiple multi-cluster stages");
+        scenarios[1].emplace_back(
+            parallelPhase({{1, 2, 3, 4, 5}, {2}, {5, 4, 1}, {1, 1}}, true,
+                          1000),
+            true,
+            "parallel Soroban - multiple multi-cluster stages with fee "
+            "discount");
+
+        // Invalid scenarios
+        scenarios[1].emplace_back(
+            parallelPhase({{0}}, false), false,
+            "parallel Soroban - single stage with empty cluster");
+        scenarios[1].emplace_back(
+            parallelPhase({{2}, {}}, false), false,
+            "parallel Soroban - one of the stages has no clusters");
+        scenarios[1].emplace_back(
+            parallelPhase({{2}, {{0}}, {3, 5}}, false), false,
+            "parallel Soroban - one of the stages has empty cluster");
+        scenarios[1].emplace_back(
+            parallelPhase({{2}, {{0}}}, false), false,
+            "parallel Soroban - one of the stages has empty cluster");
+        scenarios[1].emplace_back(parallelPhase({{}, {}, {}}, false), false,
+                                  "parallel Soroban - multiple empty stages");
+        scenarios[1].emplace_back(
+            parallelPhase({{{}, {0}}, {{0}}, {}}, false), false,
+            "parallel Soroban - multiple empty and empty cluster stages");
+        scenarios[1].emplace_back(
+            parallelPhase({{10, 2, 0, 1, 3}}, false), false,
+            "parallel Soroban - empty cluster among non-empty ones");
+        scenarios[1].emplace_back(parallelPhase({{0, 1, 0, 0, 3}}, false),
+                                  false,
+                                  "parallel Soroban - multiple empty clusters");
+        {
+            auto phase = validMultiStagePhase;
+            std::swap(phase.parallelTxsComponent().executionStages[1],
+                      phase.parallelTxsComponent().executionStages[2]);
+            scenarios[1].emplace_back(
+                phase, false, "parallel Soroban - stages incorrectly ordered");
+        }
+        {
+            auto phase = validMultiStagePhase;
+            std::swap(phase.parallelTxsComponent().executionStages[1][0],
+                      phase.parallelTxsComponent().executionStages[2][1]);
+            scenarios[1].emplace_back(
+                phase, false,
+                "parallel Soroban - clusters incorrectly ordered");
+        }
+        {
+            auto phase = validMultiStagePhase;
+            std::swap(phase.parallelTxsComponent().executionStages[1][1][0],
+                      phase.parallelTxsComponent().executionStages[1][1][1]);
+            scenarios[1].emplace_back(phase, false,
+                                      "parallel Soroban - transactions "
+                                      "incorrectly ordered within cluster");
+        }
+        {
+            auto phase = validMultiStagePhase;
+            TransactionEnvelope tx(EnvelopeType::ENVELOPE_TYPE_TX_V0);
+            tx.v0().tx.operations = phase.parallelTxsComponent()
+                                        .executionStages[2][1][1]
+                                        .v1()
+                                        .tx.operations;
+            phase.parallelTxsComponent().executionStages[2][1][1] = tx;
+            testtxset::normalizeParallelPhaseXDR(phase);
+            scenarios[1].emplace_back(
+                phase, false, "parallel Soroban - v0 envelope for Soroban tx");
+        }
+        {
+            auto phase = validMultiStagePhase;
+            phase.parallelTxsComponent().executionStages[3][0][0].v1().tx.ext.v(
+                0);
+            testtxset::normalizeParallelPhaseXDR(phase);
+            scenarios[1].emplace_back(
+                phase, false,
+                "parallel Soroban - Soroban tx without extension");
+        }
+        {
+            auto phase = validMultiStagePhase;
+            phase.parallelTxsComponent()
+                .executionStages[0][1][1]
+                .v1()
+                .tx.ext.sorobanData()
+                .resourceFee = -1;
+            testtxset::normalizeParallelPhaseXDR(phase);
+
+            scenarios[1].emplace_back(
+                phase, false,
+                "parallel Soroban - Soroban tx with negative resource fee");
+        }
+        // Also add all the parallel Soroban scenarios to the classic phase -
+        // this is never valid as we don't allow parallel component in classic
+        // phase, but some additional coverage wouldn't hurt.
+        for (size_t i = prevScenariosSize; i < scenarios[1].size(); ++i)
+        {
+            scenarios[0].emplace_back(scenarios[1][i]);
+            std::get<1>(scenarios[0].back()) = false;
+        }
+#endif
+        for (auto const& [classicPhase, classicIsValid, classicScenario] :
+             scenarios[0])
+
+        {
+            xdrTxSet.v1TxSet().phases[0] = classicPhase;
+            for (auto const& [sorobanPhase, sorobanIsValid, sorobanScenario] :
+                 scenarios[1])
+            {
+                xdrTxSet.v1TxSet().phases[1] = sorobanPhase;
+                auto txSet = TxSetXDRFrame::makeFromWire(xdrTxSet);
+                INFO("Classic phase: " + classicScenario +
+                     ", Soroban phase: " + sorobanScenario);
+                bool valid = classicIsValid && sorobanIsValid;
+                if (valid)
                 {
-                    xdrTxSet.v1TxSet().phases.emplace_back();
-                    xdrTxSet.v1TxSet().phases.emplace_back();
-                    xdrTxSet.v1TxSet().phases[i].v0Components().emplace_back(
-                        TXSET_COMP_TXS_MAYBE_DISCOUNTED_FEE);
-                    xdrTxSet.v1TxSet()
-                        .phases[i]
-                        .v0Components()
-                        .back()
-                        .txsMaybeDiscountedFee()
-                        .txs.emplace_back();
-                    maybeAddSorobanOp(xdrTxSet);
-                    auto txSet = TxSetXDRFrame::makeFromWire(xdrTxSet);
-                    REQUIRE(txSet->prepareForApply(*app) == nullptr);
+                    REQUIRE(txSet->prepareForApply(*app) != nullptr);
                 }
-                SECTION("multiple components")
+                else
                 {
-                    xdrTxSet.v1TxSet().phases.emplace_back();
-                    xdrTxSet.v1TxSet().phases.emplace_back();
-                    xdrTxSet.v1TxSet().phases[i].v0Components().emplace_back(
-                        TXSET_COMP_TXS_MAYBE_DISCOUNTED_FEE);
-                    xdrTxSet.v1TxSet()
-                        .phases[i]
-                        .v0Components()
-                        .back()
-                        .txsMaybeDiscountedFee()
-                        .txs.emplace_back();
-                    maybeAddSorobanOp(xdrTxSet);
-
-                    xdrTxSet.v1TxSet().phases[i].v0Components().emplace_back(
-                        TXSET_COMP_TXS_MAYBE_DISCOUNTED_FEE);
-                    xdrTxSet.v1TxSet()
-                        .phases[i]
-                        .v0Components()
-                        .back()
-                        .txsMaybeDiscountedFee()
-                        .baseFee.activate() = 1400;
-                    xdrTxSet.v1TxSet()
-                        .phases[i]
-                        .v0Components()
-                        .back()
-                        .txsMaybeDiscountedFee()
-                        .txs.emplace_back();
-                    maybeAddSorobanOp(xdrTxSet);
-
-                    xdrTxSet.v1TxSet().phases[i].v0Components().emplace_back(
-                        TXSET_COMP_TXS_MAYBE_DISCOUNTED_FEE);
-                    xdrTxSet.v1TxSet()
-                        .phases[i]
-                        .v0Components()
-                        .back()
-                        .txsMaybeDiscountedFee()
-                        .baseFee.activate() = 1500;
-                    xdrTxSet.v1TxSet()
-                        .phases[i]
-                        .v0Components()
-                        .back()
-                        .txsMaybeDiscountedFee()
-                        .txs.emplace_back();
-                    maybeAddSorobanOp(xdrTxSet);
-
-                    xdrTxSet.v1TxSet().phases[i].v0Components().emplace_back(
-                        TXSET_COMP_TXS_MAYBE_DISCOUNTED_FEE);
-                    xdrTxSet.v1TxSet()
-                        .phases[i]
-                        .v0Components()
-                        .back()
-                        .txsMaybeDiscountedFee()
-                        .baseFee.activate() = 1600;
-                    xdrTxSet.v1TxSet()
-                        .phases[i]
-                        .v0Components()
-                        .back()
-                        .txsMaybeDiscountedFee()
-                        .txs.emplace_back();
-                    maybeAddSorobanOp(xdrTxSet);
-
-                    auto txSet = TxSetXDRFrame::makeFromWire(xdrTxSet);
                     REQUIRE(txSet->prepareForApply(*app) == nullptr);
                 }
             }
@@ -491,9 +470,10 @@ testGeneralizedTxSetXDRConversion(ProtocolVersion protocolVersion)
         sorobanCfg.mLedgerMaxTxCount = 5;
     });
     auto root = TestAccount::createRoot(*app);
+
     int accountId = 0;
     auto createTxs = [&](int cnt, int fee, bool isSoroban = false) {
-        std::vector<TransactionFrameBasePtr> txs;
+        std::vector<TransactionFrameBaseConstPtr> txs;
         for (int i = 0; i < cnt; ++i)
         {
             auto source =
@@ -519,15 +499,10 @@ testGeneralizedTxSetXDRConversion(ProtocolVersion protocolVersion)
         }
         return txs;
     };
-
     auto checkXdrRoundtrip = [&](GeneralizedTransactionSet const& txSetXdr) {
         auto txSetFrame = TxSetXDRFrame::makeFromWire(txSetXdr);
-        ApplicableTxSetFrameConstPtr applicableFrame;
-        {
-            LedgerTxn ltx(app->getLedgerTxnRoot());
-            applicableFrame = txSetFrame->prepareForApply(*app);
-        }
-
+        ApplicableTxSetFrameConstPtr applicableFrame =
+            txSetFrame->prepareForApply(*app);
         REQUIRE(applicableFrame->checkValid(*app, 0, 0));
         GeneralizedTransactionSet newXdr;
         applicableFrame->toWireTxSetFrame()->toXDR(newXdr);
@@ -536,25 +511,25 @@ testGeneralizedTxSetXDRConversion(ProtocolVersion protocolVersion)
 
     SECTION("empty set")
     {
-        auto [_, ApplicableTxSetFrame] =
+        auto [_, applicableTxSetFrame] =
             testtxset::makeNonValidatedGeneralizedTxSet(
                 {{}, {}}, *app,
                 app->getLedgerManager().getLastClosedLedgerHeader().hash);
 
         GeneralizedTransactionSet txSetXdr;
-        ApplicableTxSetFrame->toWireTxSetFrame()->toXDR(txSetXdr);
+        applicableTxSetFrame->toWireTxSetFrame()->toXDR(txSetXdr);
         REQUIRE(txSetXdr.v1TxSet().phases[0].v0Components().empty());
         checkXdrRoundtrip(txSetXdr);
     }
     SECTION("one discounted component set")
     {
-        auto [_, ApplicableTxSetFrame] =
+        auto [_, applicableTxSetFrame] =
             testtxset::makeNonValidatedGeneralizedTxSet(
                 {{std::make_pair(1234LL, createTxs(5, 1234))}, {}}, *app,
                 app->getLedgerManager().getLastClosedLedgerHeader().hash);
 
         GeneralizedTransactionSet txSetXdr;
-        ApplicableTxSetFrame->toWireTxSetFrame()->toXDR(txSetXdr);
+        applicableTxSetFrame->toWireTxSetFrame()->toXDR(txSetXdr);
         REQUIRE(txSetXdr.v1TxSet().phases[0].v0Components().size() == 1);
         REQUIRE(*txSetXdr.v1TxSet()
                      .phases[0]
@@ -570,13 +545,13 @@ testGeneralizedTxSetXDRConversion(ProtocolVersion protocolVersion)
     }
     SECTION("one non-discounted component set")
     {
-        auto [_, ApplicableTxSetFrame] =
+        auto [_, applicableTxSetFrame] =
             testtxset::makeNonValidatedGeneralizedTxSet(
                 {{std::make_pair(std::nullopt, createTxs(5, 4321))}, {}}, *app,
                 app->getLedgerManager().getLastClosedLedgerHeader().hash);
 
         GeneralizedTransactionSet txSetXdr;
-        ApplicableTxSetFrame->toWireTxSetFrame()->toXDR(txSetXdr);
+        applicableTxSetFrame->toWireTxSetFrame()->toXDR(txSetXdr);
         REQUIRE(txSetXdr.v1TxSet().phases[0].v0Components().size() == 1);
         REQUIRE(!txSetXdr.v1TxSet()
                      .phases[0]
@@ -592,7 +567,7 @@ testGeneralizedTxSetXDRConversion(ProtocolVersion protocolVersion)
     }
     SECTION("multiple component sets")
     {
-        auto [_, ApplicableTxSetFrame] =
+        auto [_, applicableTxSetFrame] =
             testtxset::makeNonValidatedGeneralizedTxSet(
                 {{std::make_pair(12345LL, createTxs(3, 12345)),
                   std::make_pair(123LL, createTxs(1, 123)),
@@ -602,7 +577,7 @@ testGeneralizedTxSetXDRConversion(ProtocolVersion protocolVersion)
                 *app, app->getLedgerManager().getLastClosedLedgerHeader().hash);
 
         GeneralizedTransactionSet txSetXdr;
-        ApplicableTxSetFrame->toWireTxSetFrame()->toXDR(txSetXdr);
+        applicableTxSetFrame->toWireTxSetFrame()->toXDR(txSetXdr);
         auto const& comps = txSetXdr.v1TxSet().phases[0].v0Components();
         REQUIRE(comps.size() == 4);
         REQUIRE(!comps[0].txsMaybeDiscountedFee().baseFee);
@@ -615,6 +590,126 @@ testGeneralizedTxSetXDRConversion(ProtocolVersion protocolVersion)
         REQUIRE(comps[3].txsMaybeDiscountedFee().txs.size() == 3);
         checkXdrRoundtrip(txSetXdr);
     }
+#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
+    if (protocolVersionStartsFrom(static_cast<uint32_t>(protocolVersion),
+                                  PARALLEL_SOROBAN_PHASE_PROTOCOL_VERSION))
+    {
+        SECTION("parallel Soroban phase")
+        {
+            modifySorobanNetworkConfig(
+                *app, [](SorobanNetworkConfig& sorobanCfg) {
+                    sorobanCfg.mLedgerMaxTxCount = 100;
+                    sorobanCfg.mLedgerMaxDependentTxClusters = 5;
+                });
+            testtxset::PhaseComponents classicPhase = {
+                {std::nullopt, createTxs(3, 1000, false)},
+                {500, createTxs(3, 1200, false)},
+                {1500, createTxs(3, 1500, false)}};
+            SECTION("single stage, single cluster")
+            {
+                auto [_, applicableTxSetFrame] =
+                    testtxset::makeNonValidatedGeneralizedTxSet(
+                        classicPhase, 1234, {{createTxs(10, 1234, true)}}, *app,
+                        app->getLedgerManager()
+                            .getLastClosedLedgerHeader()
+                            .hash);
+
+                GeneralizedTransactionSet txSetXdr;
+                applicableTxSetFrame->toWireTxSetFrame()->toXDR(txSetXdr);
+                // Smoke test classic phase
+                REQUIRE(txSetXdr.v1TxSet().phases[0].v() == 0);
+                REQUIRE(txSetXdr.v1TxSet().phases[0].v0Components().size() ==
+                        3);
+                REQUIRE(*txSetXdr.v1TxSet()
+                             .phases[0]
+                             .v0Components()[1]
+                             .txsMaybeDiscountedFee()
+                             .baseFee == 500);
+
+                REQUIRE(txSetXdr.v1TxSet().phases[1].v() == 1);
+                REQUIRE(*txSetXdr.v1TxSet()
+                             .phases[1]
+                             .parallelTxsComponent()
+                             .baseFee == 1234);
+                REQUIRE(txSetXdr.v1TxSet()
+                            .phases[1]
+                            .parallelTxsComponent()
+                            .executionStages.size() == 1);
+                REQUIRE(txSetXdr.v1TxSet()
+                            .phases[1]
+                            .parallelTxsComponent()
+                            .executionStages[0]
+                            .size() == 1);
+                REQUIRE(txSetXdr.v1TxSet()
+                            .phases[1]
+                            .parallelTxsComponent()
+                            .executionStages[0][0]
+                            .size() == 10);
+                checkXdrRoundtrip(txSetXdr);
+            }
+
+            SECTION("single stage, multiple clusters")
+            {
+                auto [_, applicableTxSetFrame] =
+                    testtxset::makeNonValidatedGeneralizedTxSet(
+                        {}, 1234,
+                        {{createTxs(10, 1234, true), createTxs(5, 2000, true),
+                          createTxs(3, 1500, true)}},
+                        *app,
+                        app->getLedgerManager()
+                            .getLastClosedLedgerHeader()
+                            .hash);
+
+                GeneralizedTransactionSet txSetXdr;
+                applicableTxSetFrame->toWireTxSetFrame()->toXDR(txSetXdr);
+                REQUIRE(txSetXdr.v1TxSet().phases[1].v() == 1);
+                REQUIRE(*txSetXdr.v1TxSet()
+                             .phases[1]
+                             .parallelTxsComponent()
+                             .baseFee == 1234);
+                REQUIRE(txSetXdr.v1TxSet()
+                            .phases[1]
+                            .parallelTxsComponent()
+                            .executionStages.size() == 1);
+                REQUIRE(txSetXdr.v1TxSet()
+                            .phases[1]
+                            .parallelTxsComponent()
+                            .executionStages[0]
+                            .size() == 3);
+                checkXdrRoundtrip(txSetXdr);
+            }
+
+            SECTION("multiple stages, multiple clusters")
+            {
+                auto [_, applicableTxSetFrame] =
+                    testtxset::makeNonValidatedGeneralizedTxSet(
+                        classicPhase, std::nullopt,
+                        {{createTxs(1, 1234, true), createTxs(3, 2000, true),
+                          createTxs(5, 1500, true), createTxs(2, 1000, true),
+                          createTxs(7, 3000, true)},
+                         {createTxs(3, 1234, true), createTxs(5, 1300, true)},
+                         {createTxs(2, 4321, true)}},
+                        *app,
+                        app->getLedgerManager()
+                            .getLastClosedLedgerHeader()
+                            .hash);
+
+                GeneralizedTransactionSet txSetXdr;
+                applicableTxSetFrame->toWireTxSetFrame()->toXDR(txSetXdr);
+                REQUIRE(txSetXdr.v1TxSet().phases[1].v() == 1);
+                REQUIRE(!txSetXdr.v1TxSet()
+                             .phases[1]
+                             .parallelTxsComponent()
+                             .baseFee);
+                REQUIRE(txSetXdr.v1TxSet()
+                            .phases[1]
+                            .parallelTxsComponent()
+                            .executionStages.size() == 3);
+                checkXdrRoundtrip(txSetXdr);
+            }
+        }
+    }
+#endif
     SECTION("built from transactions")
     {
         auto const& lclHeader =
@@ -786,7 +881,8 @@ SECTION("parallel soroban protocol version")
 #endif
 }
 
-TEST_CASE("soroban phase version validation", "[txset][soroban]")
+TEST_CASE("applicable txset validation - Soroban phase version is correct",
+          "[txset][soroban]")
 {
     auto runTest = [](uint32_t protocolVersion,
                       bool useParallelSorobanPhase) -> bool {
@@ -838,6 +934,449 @@ TEST_CASE("soroban phase version validation", "[txset][soroban]")
         }
     }
 #endif
+}
+
+TEST_CASE("applicable txset validation - transactions belong to correct phase",
+          "[txset][soroban]")
+{
+    auto runTest = [](uint32_t protocolVersion) {
+        VirtualClock clock;
+        auto cfg = getTestConfig();
+        cfg.LEDGER_PROTOCOL_VERSION = protocolVersion;
+        cfg.TESTING_UPGRADE_LEDGER_PROTOCOL_VERSION = protocolVersion;
+        auto app = createTestApplication(clock, cfg);
+        overrideSorobanNetworkConfigForTest(*app);
+        auto root = TestAccount::createRoot(*app);
+        int accountId = 0;
+        auto createTx = [&](bool isSoroban) {
+            auto source =
+                root.create("source" + std::to_string(accountId++),
+                            app->getLedgerManager().getLastMinBalance(2));
+            TransactionFrameBaseConstPtr tx = nullptr;
+            if (isSoroban)
+            {
+                SorobanResources resources;
+                resources.instructions = 800'000;
+                resources.readBytes = 1000;
+                resources.writeBytes = 1000;
+                tx = createUploadWasmTx(*app, source, 1000, 100'000'000,
+                                        resources);
+            }
+            else
+            {
+                tx = transactionFromOperations(
+                    *app, source.getSecretKey(), source.nextSequenceNumber(),
+                    {createAccount(
+                        getAccount(std::to_string(accountId++)).getPublicKey(),
+                        1)},
+                    2000);
+            }
+            LedgerSnapshot ls(*app);
+            REQUIRE(tx->checkValid(app->getAppConnector(), ls, 0, 0, 0)
+                        ->isSuccess());
+            return tx;
+        };
+
+        auto validateTxSet =
+            [&](std::vector<std::vector<TransactionFrameBaseConstPtr>>
+                    phaseTxs) {
+                std::vector<testtxset::PhaseComponents> phases(2);
+                if (!phaseTxs[0].empty())
+                {
+                    phases[0].emplace_back(100, phaseTxs[0]);
+                }
+                if (!phaseTxs[1].empty())
+                {
+                    phases[1].emplace_back(100, phaseTxs[1]);
+                }
+                auto txSet = testtxset::makeNonValidatedGeneralizedTxSet(
+                                 phases, *app,
+                                 app->getLedgerManager()
+                                     .getLastClosedLedgerHeader()
+                                     .hash)
+                                 .second;
+                REQUIRE(txSet);
+                return txSet->checkValid(*app, 0, 0);
+            };
+        SECTION("empty phases")
+        {
+            REQUIRE(validateTxSet({{}, {}}));
+        }
+        SECTION("non-empty correct phases")
+        {
+            REQUIRE(validateTxSet(
+                {{createTx(false), createTx(false), createTx(false)},
+                 {createTx(true), createTx(true)}}));
+        }
+        SECTION("classic tx in Soroban phase")
+        {
+            REQUIRE(!validateTxSet({{}, {createTx(false)}}));
+            REQUIRE(!validateTxSet(
+                {{createTx(false), createTx(false), createTx(false)},
+                 {createTx(true), createTx(false), createTx(true)}}));
+        }
+        SECTION("Soroban tx in classic phase")
+        {
+            REQUIRE(!validateTxSet({{createTx(true)}, {}}));
+            REQUIRE(!validateTxSet(
+                {{createTx(false), createTx(true), createTx(false)},
+                 {createTx(true), createTx(true), createTx(true)}}));
+        }
+        SECTION("both phases mixed")
+        {
+            REQUIRE(!validateTxSet({{createTx(true)}, {createTx(false)}}));
+            REQUIRE(!validateTxSet(
+                {{createTx(false), createTx(true), createTx(false)},
+                 {createTx(true), createTx(true), createTx(false)}}));
+        }
+    };
+    SECTION("previous protocol")
+    {
+        runTest(Config::CURRENT_LEDGER_PROTOCOL_VERSION - 1);
+    }
+    SECTION("current protocol")
+    {
+        runTest(Config::CURRENT_LEDGER_PROTOCOL_VERSION);
+    }
+}
+
+TEST_CASE("applicable txset validation - Soroban resources", "[txset][soroban]")
+{
+    auto runTest = [](uint32_t protocolVersion) {
+        VirtualClock clock;
+        auto cfg = getTestConfig();
+        cfg.LEDGER_PROTOCOL_VERSION = protocolVersion;
+        cfg.TESTING_UPGRADE_LEDGER_PROTOCOL_VERSION = protocolVersion;
+
+        auto app = createTestApplication(clock, cfg);
+        overrideSorobanNetworkConfigForTest(*app);
+        auto root = TestAccount::createRoot(*app);
+
+        int accountId = 0;
+        int footprintId = 0;
+        auto ledgerKey = [&](int id) {
+            LedgerKey key(LedgerEntryType::CONTRACT_DATA);
+            key.contractData().key.type(SCValType::SCV_I32);
+            key.contractData().key.i32() = id;
+            return key;
+        };
+
+        auto createTx = [&](std::vector<int> addRoFootprint = {},
+                            std::vector<int> addRwFootprint = {}) {
+            auto source = root.create("source" + std::to_string(accountId++),
+                                      1'000'000'000);
+            Operation op;
+            op.body.type(INVOKE_HOST_FUNCTION);
+            op.body.invokeHostFunctionOp().hostFunction.type(
+                HOST_FUNCTION_TYPE_UPLOAD_CONTRACT_WASM);
+            SorobanResources resources;
+            resources.instructions = 1'000'000;
+            resources.readBytes = 5'000;
+            resources.writeBytes = 2'000;
+            for (int i = 0; i < 8; ++i)
+            {
+                resources.footprint.readOnly.push_back(
+                    ledgerKey(footprintId++));
+            }
+            for (int i = 0; i < 2; ++i)
+            {
+                resources.footprint.readWrite.push_back(
+                    ledgerKey(footprintId++));
+            }
+            for (auto id : addRoFootprint)
+            {
+                resources.footprint.readOnly.push_back(
+                    ledgerKey(1'000'000'000 + id));
+            }
+            for (auto id : addRwFootprint)
+            {
+                resources.footprint.readWrite.push_back(
+                    ledgerKey(1'000'000'000 + id));
+            }
+
+            auto tx = sorobanTransactionFrameFromOps(
+                app->getNetworkID(), source, {op}, {}, resources, 2000,
+                100'000'000);
+            LedgerSnapshot ls(*app);
+            REQUIRE(tx->checkValid(app->getAppConnector(), ls, 0, 0, 0)
+                        ->isSuccess());
+            return tx;
+        };
+
+        SECTION("individual ledger resource limits")
+        {
+            auto txSize = xdr::xdr_size(createTx()->getEnvelope());
+            // Update the ledger limits to the minimum values that
+            // accommodate 20 txs created by `createTx()`.
+            modifySorobanNetworkConfig(
+                *app, [&](SorobanNetworkConfig& sorobanCfg) {
+                    sorobanCfg.mLedgerMaxInstructions = 20 * 1'000'000;
+                    sorobanCfg.mLedgerMaxReadBytes = 20 * 5000;
+                    sorobanCfg.mLedgerMaxWriteBytes = 20 * 2000;
+                    sorobanCfg.mLedgerMaxReadLedgerEntries = 20 * 10;
+                    sorobanCfg.mLedgerMaxWriteLedgerEntries = 20 * 2;
+                    sorobanCfg.mLedgerMaxTxCount = 20;
+                    sorobanCfg.mLedgerMaxTransactionsSizeBytes = 20 * txSize;
+
+                    if (protocolVersionStartsFrom(
+                            protocolVersion,
+                            PARALLEL_SOROBAN_PHASE_PROTOCOL_VERSION))
+                    {
+                        sorobanCfg.mLedgerMaxDependentTxClusters = 4;
+                        // Technically we could use /= 4 here, but that
+                        // would make for a less interesting scenario as
+                        // every stage will need to have exactly the same
+                        // clusters.
+                        sorobanCfg.mLedgerMaxInstructions /= 2;
+                    }
+                });
+
+            auto buildAndValidate = [&]() {
+                std::vector<TransactionFrameBaseConstPtr> txs;
+                for (int i = 0; i < 20; ++i)
+                {
+                    txs.push_back(createTx());
+                }
+                ApplicableTxSetFrameConstPtr txSet;
+                if (protocolVersionIsBefore(
+                        protocolVersion,
+                        PARALLEL_SOROBAN_PHASE_PROTOCOL_VERSION))
+                {
+                    txSet = testtxset::makeNonValidatedGeneralizedTxSet(
+                                {{}, {{1000, txs}}}, *app,
+                                app->getLedgerManager()
+                                    .getLastClosedLedgerHeader()
+                                    .hash)
+                                .second;
+                }
+                else
+                {
+#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
+                    auto takeTxs = [&](int from, int to) {
+                        return std::vector<TransactionFrameBaseConstPtr>(
+                            txs.begin() + from, txs.begin() + to);
+                    };
+                    TxStageFrameList txsPerStage = {
+                        // 3 sequential transactions
+                        {
+                            takeTxs(0, 1),
+                            takeTxs(1, 3),
+                            takeTxs(3, 6),
+                            takeTxs(6, 8),
+                        },
+                        // 4 sequential transactions
+                        {
+                            takeTxs(8, 12),
+                            takeTxs(12, 13),
+                            takeTxs(13, 15),
+                        },
+                        // 3 sequential transactions
+                        {
+                            takeTxs(15, 17),
+                            takeTxs(17, 20),
+                        },
+                        // 10 sequential transactions total, accounting for
+                        // a
+                        // half of ledger max instructions.
+                    };
+                    txSet = testtxset::makeNonValidatedGeneralizedTxSet(
+                                {}, 1234, txsPerStage, *app,
+                                app->getLedgerManager()
+                                    .getLastClosedLedgerHeader()
+                                    .hash)
+                                .second;
+#endif
+                }
+                return txSet->checkValid(*app, 0, 0);
+            };
+            SECTION("sufficient resources")
+            {
+                REQUIRE(buildAndValidate());
+            }
+            SECTION("instruction limit exceeded")
+            {
+                modifySorobanNetworkConfig(
+                    *app, [&](SorobanNetworkConfig& sorobanCfg) {
+                        sorobanCfg.mLedgerMaxInstructions -= 1;
+                    });
+                REQUIRE(!buildAndValidate());
+            }
+            SECTION("read bytes limit exceeded")
+            {
+                modifySorobanNetworkConfig(
+                    *app, [&](SorobanNetworkConfig& sorobanCfg) {
+                        sorobanCfg.mLedgerMaxReadBytes -= 1;
+                    });
+                REQUIRE(!buildAndValidate());
+            }
+            SECTION("write bytes limit exceeded")
+            {
+                modifySorobanNetworkConfig(
+                    *app, [&](SorobanNetworkConfig& sorobanCfg) {
+                        sorobanCfg.mLedgerMaxWriteBytes -= 1;
+                    });
+                REQUIRE(!buildAndValidate());
+            }
+            SECTION("read entries limit exceeded")
+            {
+                modifySorobanNetworkConfig(
+                    *app, [&](SorobanNetworkConfig& sorobanCfg) {
+                        sorobanCfg.mLedgerMaxReadLedgerEntries -= 1;
+                    });
+                REQUIRE(!buildAndValidate());
+            }
+            SECTION("write entries limit exceeded")
+            {
+                modifySorobanNetworkConfig(
+                    *app, [&](SorobanNetworkConfig& sorobanCfg) {
+                        sorobanCfg.mLedgerMaxWriteLedgerEntries -= 1;
+                    });
+                REQUIRE(!buildAndValidate());
+            }
+            SECTION("tx size limit exceeded")
+            {
+                modifySorobanNetworkConfig(
+                    *app, [&](SorobanNetworkConfig& sorobanCfg) {
+                        sorobanCfg.mLedgerMaxTransactionsSizeBytes -= 1;
+                    });
+                REQUIRE(!buildAndValidate());
+            }
+            SECTION("tx count limit exceeded")
+            {
+                modifySorobanNetworkConfig(
+                    *app, [&](SorobanNetworkConfig& sorobanCfg) {
+                        sorobanCfg.mLedgerMaxTxCount -= 1;
+                    });
+                REQUIRE(!buildAndValidate());
+            }
+#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
+            if (protocolVersionStartsFrom(
+                    protocolVersion, PARALLEL_SOROBAN_PHASE_PROTOCOL_VERSION))
+            {
+                SECTION("dependent clusters limit exceeded")
+                {
+                    modifySorobanNetworkConfig(
+                        *app, [&](SorobanNetworkConfig& sorobanCfg) {
+                            sorobanCfg.mLedgerMaxDependentTxClusters -= 1;
+                        });
+                    REQUIRE(!buildAndValidate());
+                }
+            }
+#endif
+        }
+#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
+        if (protocolVersionStartsFrom(protocolVersion,
+                                      PARALLEL_SOROBAN_PHASE_PROTOCOL_VERSION))
+        {
+            SECTION("data dependency validation")
+            {
+
+                auto buildAndValidate = [&](TxStageFrameList txsPerStage) {
+                    auto txSet = testtxset::makeNonValidatedGeneralizedTxSet(
+                                     {}, 1234, txsPerStage, *app,
+                                     app->getLedgerManager()
+                                         .getLastClosedLedgerHeader()
+                                         .hash)
+                                     .second;
+                    return txSet->checkValid(*app, 0, 0);
+                };
+
+                // Relax the per-ledger limits to ensure we're not running
+                // into any.
+                modifySorobanNetworkConfig(
+                    *app, [&](SorobanNetworkConfig& sorobanCfg) {
+                        sorobanCfg.mLedgerMaxInstructions =
+                            std::numeric_limits<int64_t>::max();
+                        sorobanCfg.mLedgerMaxReadBytes =
+                            std::numeric_limits<uint32_t>::max();
+                        sorobanCfg.mLedgerMaxWriteBytes =
+                            std::numeric_limits<uint32_t>::max();
+                        sorobanCfg.mLedgerMaxReadLedgerEntries =
+                            std::numeric_limits<uint32_t>::max();
+                        sorobanCfg.mLedgerMaxWriteLedgerEntries =
+                            std::numeric_limits<uint32_t>::max();
+                        sorobanCfg.mLedgerMaxTxCount =
+                            std::numeric_limits<uint32_t>::max();
+                        sorobanCfg.mLedgerMaxTransactionsSizeBytes =
+                            std::numeric_limits<uint32_t>::max();
+                        sorobanCfg.mLedgerMaxDependentTxClusters =
+                            std::numeric_limits<uint32_t>::max();
+                    });
+                TxStageFrameList nonConflictingTxsPerStage = {
+                    {
+                        // Cluster with RO-RW conflict
+                        {createTx({1}, {2}), createTx({2}, {3})},
+                        // Cluster with RW-RW conflict
+                        {createTx({1, 4}, {5}), createTx({1, 6}, {5})},
+                        // Cluster without conflicts
+                        {createTx({1, 4, 7}, {8}), createTx({6, 7}, {9})},
+                    },
+                    {
+                        // Cluster that would conflict with every
+                        // cluster in previous stage
+                        {createTx({}, {1, 2, 3, 4, 5, 6, 7, 8}),
+                         createTx({1, 2, 3}, {4, 5, 6}),
+                         createTx({1, 2}, {3, 4})},
+                        // Cluster without conflicts
+                        {createTx({9}, {10}), createTx({9}, {11}),
+                         createTx({9}, {12, 13})},
+                    }};
+                SECTION("no dependencies between clusters")
+                {
+                    REQUIRE(buildAndValidate(nonConflictingTxsPerStage));
+                }
+                SECTION("RO-RW conflict")
+                {
+                    TxStageFrameList txsPerStage = {{
+                        {createTx({1}, {})},
+                        {createTx({}, {1})},
+                    }};
+                    REQUIRE(!buildAndValidate(txsPerStage));
+                }
+                SECTION("RW-RW conflict")
+                {
+                    TxStageFrameList txsPerStage = {{
+                        {createTx({}, {1})},
+                        {createTx({}, {1})},
+                    }};
+                    REQUIRE(!buildAndValidate(txsPerStage));
+                }
+                SECTION("one stage with a conflict")
+                {
+                    auto txsPerStage = nonConflictingTxsPerStage;
+                    txsPerStage.push_back({
+                        {createTx({1}, {})},
+                        {createTx({}, {1})},
+                    });
+                    REQUIRE(!buildAndValidate(txsPerStage));
+                }
+                SECTION("one cluster conflict among multiple clusters")
+                {
+                    auto txsPerStage = nonConflictingTxsPerStage;
+                    txsPerStage[0][2].push_back(createTx({}, {5}));
+                    REQUIRE(!buildAndValidate(txsPerStage));
+                }
+                SECTION("multiple conflicting clusters")
+                {
+                    auto txsPerStage = nonConflictingTxsPerStage;
+                    txsPerStage[0][2].push_back(createTx({9, 10}, {12, 13, 4}));
+                    txsPerStage[1].emplace_back().push_back(
+                        createTx({9, 10}, {12, 13, 8}));
+                    REQUIRE(!buildAndValidate(txsPerStage));
+                }
+            }
+        }
+#endif
+    };
+
+    SECTION("previous protocol")
+    {
+        runTest(Config::CURRENT_LEDGER_PROTOCOL_VERSION - 1);
+    }
+    SECTION("current protocol")
+    {
+        runTest(Config::CURRENT_LEDGER_PROTOCOL_VERSION);
+    }
 }
 
 TEST_CASE("generalized tx set with multiple txs per source account",
@@ -989,7 +1528,7 @@ TEST_CASE("generalized tx set fees", "[txset][soroban]")
 
     SECTION("valid txset")
     {
-        testtxset::ComponentPhases sorobanTxs;
+        testtxset::PhaseComponents sorobanTxs;
         bool isParallelSoroban =
             protocolVersionStartsFrom(Config::CURRENT_LEDGER_PROTOCOL_VERSION,
                                       PARALLEL_SOROBAN_PHASE_PROTOCOL_VERSION);

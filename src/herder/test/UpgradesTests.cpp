@@ -2373,8 +2373,8 @@ TEST_CASE("parallel Soroban settings upgrade", "[upgrades]")
     }
 
     {
-        LedgerTxn ltx(app->getLedgerTxnRoot());
-        REQUIRE(!ltx.load(getParallelComputeSettingsLedgerKey()));
+        LedgerSnapshot ls(*app);
+        REQUIRE(!ls.load(getParallelComputeSettingsLedgerKey()));
     }
 
     executeUpgrade(*app, makeProtocolVersionUpgrade(static_cast<uint32_t>(
@@ -2382,9 +2382,9 @@ TEST_CASE("parallel Soroban settings upgrade", "[upgrades]")
 
     // Make sure initial value is correct.
     {
-        LedgerTxn ltx(app->getLedgerTxnRoot());
+        LedgerSnapshot ls(*app);
         auto parellelComputeEntry =
-            ltx.load(getParallelComputeSettingsLedgerKey())
+            ls.load(getParallelComputeSettingsLedgerKey())
                 .current()
                 .data.configSetting();
         REQUIRE(parellelComputeEntry.configSettingID() ==
@@ -2409,9 +2409,9 @@ TEST_CASE("parallel Soroban settings upgrade", "[upgrades]")
         executeUpgrade(*app, makeConfigUpgrade(*configUpgradeSet));
     }
 
-    LedgerTxn ltx(app->getLedgerTxnRoot());
+    LedgerSnapshot ls(*app);
 
-    REQUIRE(ltx.load(getParallelComputeSettingsLedgerKey())
+    REQUIRE(ls.load(getParallelComputeSettingsLedgerKey())
                 .current()
                 .data.configSetting()
                 .contractParallelCompute()
