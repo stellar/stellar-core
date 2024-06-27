@@ -5,6 +5,7 @@
 #include "invariant/BucketListIsConsistentWithDatabase.h"
 #include "bucket/Bucket.h"
 #include "bucket/BucketInputIterator.h"
+#include "bucket/BucketList.h"
 #include "bucket/BucketManager.h"
 #include "crypto/Hex.h"
 #include "history/HistoryArchive.h"
@@ -259,6 +260,96 @@ BucketListIsConsistentWithDatabase::checkEntireBucketlist()
 }
 
 std::string
+BucketListIsConsistentWithDatabase::checkAfterAssumeState(uint32_t newestLedger)
+{
+    // If BucketListDB is disabled, we've already enforced the invariant on a
+    // per-Bucket level
+    if (!mApp.getConfig().isUsingBucketListDB())
+    {
+        return {};
+    }
+
+    EntryCounts counts;
+    LedgerKeySet seenKeys;
+
+    auto perBucketCheck = [&](auto bucket, auto& ltx) {
+        for (BucketInputIterator iter(bucket); iter; ++iter)
+        {
+            auto const& e = *iter;
+
+            if (e.type() == LIVEENTRY || e.type() == INITENTRY)
+            {
+                if (e.liveEntry().data.type() != OFFER)
+                {
+                    continue;
+                }
+
+                // If this is the newest version of the key in the BucketList,
+                // check against the db
+                auto key = LedgerEntryKey(e.liveEntry());
+                auto [_, newKey] = seenKeys.emplace(key);
+                if (newKey)
+                {
+                    counts.countLiveEntry(e.liveEntry());
+
+                    auto s = checkAgainstDatabase(ltx, e.liveEntry());
+                    if (!s.empty())
+                    {
+                        return s;
+                    }
+                }
+            }
+            else if (e.type() == DEADENTRY)
+            {
+                if (e.deadEntry().type() != OFFER)
+                {
+                    continue;
+                }
+
+                // If this is the newest version of the key in the BucketList,
+                // check against the db
+                auto [_, newKey] = seenKeys.emplace(e.deadEntry());
+                if (newKey)
+                {
+                    auto s = checkAgainstDatabase(ltx, e.deadEntry());
+                    if (!s.empty())
+                    {
+                        return s;
+                    }
+                }
+            }
+        }
+
+        return std::string{};
+    };
+
+    {
+        LedgerTxn ltx(mApp.getLedgerTxnRoot());
+        auto& bl = mApp.getBucketManager().getBucketList();
+
+        for (uint32_t i = 0; i < BucketList::kNumLevels; ++i)
+        {
+            auto const& level = bl.getLevel(i);
+            for (auto const& bucket : {level.getCurr(), level.getSnap()})
+            {
+                auto s = perBucketCheck(bucket, ltx);
+                if (!s.empty())
+                {
+                    return s;
+                }
+            }
+        }
+    }
+
+    auto range =
+        LedgerRange::inclusive(LedgerManager::GENESIS_LEDGER_SEQ, newestLedger);
+
+    // SQL only stores offers when BucketListDB is enabled
+    return counts.checkDbEntryCounts(
+        mApp, range, [](LedgerEntryType let) { return let == OFFER; });
+}
+
+std::string
 BucketListIsConsistentWithDatabase::checkOnBucketApply(
     std::shared_ptr<Bucket const> bucket, uint32_t oldestLedger,
     uint32_t newestLedger, std::function<bool(LedgerEntryType)> entryTypeFilter)
@@ -306,16 +397,25 @@ BucketListIsConsistentWithDatabase::checkOnBucketApply(
                 if (entryTypeFilter(e.liveEntry().data.type()))
                 {
                     counts.countLiveEntry(e.liveEntry());
-                    auto s = checkAgainstDatabase(ltx, e.liveEntry());
-                    if (!s.empty())
+
+                    // BucketListDB is not compatible with per-Bucket database
+                    // consistency checks
+                    if (!mApp.getConfig().isUsingBucketListDB())
                     {
-                        return s;
+                        auto s = checkAgainstDatabase(ltx, e.liveEntry());
+                        if (!s.empty())
+                        {
+                            return s;
+                        }
                     }
                 }
             }
             else if (e.type() == DEADENTRY)
             {
-                if (entryTypeFilter(e.deadEntry().type()))
+                // BucketListDB is not compatible with per-Bucket database
+                // consistency checks
+                if (entryTypeFilter(e.deadEntry().type()) &&
+                    !mApp.getConfig().isUsingBucketListDB())
                 {
                     auto s = checkAgainstDatabase(ltx, e.deadEntry());
                     if (!s.empty())
@@ -328,6 +428,13 @@ BucketListIsConsistentWithDatabase::checkOnBucketApply(
     }
 
     auto range = LedgerRange::inclusive(oldestLedger, newestLedger);
-    return counts.checkDbEntryCounts(mApp, range, entryTypeFilter);
+
+    // BucketListDB not compatible with per-Bucket database consistency checks
+    if (!mApp.getConfig().isUsingBucketListDB())
+    {
+        return counts.checkDbEntryCounts(mApp, range, entryTypeFilter);
+    }
+
+    return std::string{};
 }
 }
