@@ -797,6 +797,8 @@ class Config : public std::enable_shared_from_this<Config>
     // be enabled
     bool BACKFILL_STELLAR_ASSET_EVENTS;
 
+    uint32_t SOROBAN_PHASE_STAGE_COUNT;
+
 #ifdef BUILD_TESTS
     // If set to true, the application will be aware this run is for a test
     // case.  This is used right now in the signal handler to exit() instead of

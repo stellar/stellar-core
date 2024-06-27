@@ -320,6 +320,10 @@ Config::Config() : NODE_SEED(SecretKey::random())
     EMIT_LEDGER_CLOSE_META_EXT_V1 = false;
 
     FORCE_OLD_STYLE_LEADER_ELECTION = false;
+    // This is not configurable for now. It doesn't need to be a network-wide
+    // setting, but on the other hand there aren't many good values for it and
+    // it's not clear what the right way to configure it would be, if at all.
+    SOROBAN_PHASE_STAGE_COUNT = 1;
 
     EMIT_CLASSIC_EVENTS = false;
     BACKFILL_STELLAR_ASSET_EVENTS = false;

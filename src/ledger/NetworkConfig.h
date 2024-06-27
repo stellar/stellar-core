@@ -49,6 +49,14 @@ struct MinimumSorobanNetworkConfig
     static constexpr uint32_t TX_MAX_CONTRACT_EVENTS_SIZE_BYTES = 200;
 };
 
+// This is a protocol-level limit for the maximum number of dependent
+// transaction clusters per stage (corresponding to
+// `ledgerMaxDependentTxClusters` setting).
+// This limit is not typical, as the remaining settings tend to have only the
+// lower bound. Setting this particular limit to high leads to some
+// implementation issues, so we set it to a reasonably low value.
+constexpr uint32_t MAX_LEDGER_DEPENDENT_TX_CLUSTERS = 128;
+
 // Defines the initial values of the network configuration
 // settings that are applied during the protocol version upgrade.
 // These values should never be changed after the protocol upgrade

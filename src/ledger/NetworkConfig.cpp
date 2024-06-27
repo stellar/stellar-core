@@ -1085,12 +1085,14 @@ SorobanNetworkConfig::isValidConfigSettingEntry(ConfigSettingEntry const& cfg,
         break;
 #ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
     case ConfigSettingID::CONFIG_SETTING_CONTRACT_PARALLEL_COMPUTE_V0:
-        valid = protocolVersionStartsFrom(
-                    ledgerVersion, PARALLEL_SOROBAN_PHASE_PROTOCOL_VERSION) &&
-                cfg.contractParallelCompute().ledgerMaxDependentTxClusters > 0;
+        valid =
+            protocolVersionStartsFrom(
+                ledgerVersion, PARALLEL_SOROBAN_PHASE_PROTOCOL_VERSION) &&
+            cfg.contractParallelCompute().ledgerMaxDependentTxClusters > 0 &&
+            cfg.contractParallelCompute().ledgerMaxDependentTxClusters <
+                MAX_LEDGER_DEPENDENT_TX_CLUSTERS;
         break;
     case ConfigSettingID::CONFIG_SETTING_CONTRACT_LEDGER_COST_EXT_V0:
-        // TODO: Stricter validity checks
         valid =
             protocolVersionStartsFrom(ledgerVersion, ProtocolVersion::V_23) &&
             cfg.contractLedgerCostExt().txMaxInMemoryReadEntries >
