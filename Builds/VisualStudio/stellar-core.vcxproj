@@ -522,6 +522,7 @@ exit /b 0
     <ClCompile Include="..\..\src\herder\HerderSCPDriver.cpp" />
     <ClCompile Include="..\..\src\herder\HerderUtils.cpp" />
     <ClCompile Include="..\..\src\herder\LedgerCloseData.cpp" />
+    <ClCompile Include="..\..\src\herder\ParallelTxSetBuilder.cpp" />
     <ClCompile Include="..\..\src\herder\PendingEnvelopes.cpp" />
     <ClCompile Include="..\..\src\herder\QuorumIntersectionCheckerImpl.cpp" />
     <ClCompile Include="..\..\src\herder\QuorumTracker.cpp" />
@@ -607,6 +608,7 @@ exit /b 0
     <ClCompile Include="..\..\src\ledger\LedgerTxnOfferSQL.cpp" />
     <ClCompile Include="..\..\src\ledger\LedgerTypeUtils.cpp" />
     <ClCompile Include="..\..\src\ledger\NetworkConfig.cpp" />
+    <ClCompile Include="..\..\src\ledger\SharedModuleCacheCompiler.cpp" />
     <ClCompile Include="..\..\src\ledger\test\InMemoryLedgerTxn.cpp" />
     <ClCompile Include="..\..\src\ledger\test\InMemoryLedgerTxnRoot.cpp" />
     <ClCompile Include="..\..\src\ledger\test\LedgerCloseMetaStreamTests.cpp" />
@@ -986,6 +988,7 @@ exit /b 0
     <ClInclude Include="..\..\src\herder\HerderSCPDriver.h" />
     <ClInclude Include="..\..\src\herder\HerderUtils.h" />
     <ClInclude Include="..\..\src\herder\LedgerCloseData.h" />
+    <ClInclude Include="..\..\src\herder\ParallelTxSetBuilder.h" />
     <ClInclude Include="..\..\src\herder\PendingEnvelopes.h" />
     <ClInclude Include="..\..\src\herder\QuorumIntersectionChecker.h" />
     <ClInclude Include="..\..\src\herder\QuorumIntersectionCheckerImpl.h" />
@@ -1061,6 +1064,7 @@ exit /b 0
     <ClInclude Include="..\..\src\ledger\LedgerTypeUtils.h" />
     <ClInclude Include="..\..\src\ledger\NetworkConfig.h" />
     <ClInclude Include="..\..\src\ledger\NonSociRelatedException.h" />
+    <ClInclude Include="..\..\src\ledger\SharedModuleCacheCompiler.h" />
     <ClInclude Include="..\..\src\ledger\test\InMemoryLedgerTxn.h" />
     <ClInclude Include="..\..\src\ledger\test\InMemoryLedgerTxnRoot.h" />
     <ClInclude Include="..\..\src\ledger\test\LedgerTestUtils.h" />
