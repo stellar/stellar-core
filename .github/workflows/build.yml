@@ -136,6 +136,12 @@ jobs:
       - name: install rustup components
         if: steps.cache.outputs.cache-hit != 'true'
         run: rustup component add rustfmt
+      - name: install cargo-cache
+        if: steps.cache.outputs.cache-hit != 'true'
+        run: cargo install --locked cargo-cache --version 0.8.3
+      - name: install cargo-sweep
+        if: steps.cache.outputs.cache-hit != 'true'
+        run: cargo install --locked cargo-sweep --version 0.7.0
       - name: install dependencies
         if: steps.cache.outputs.cache-hit != 'true'
         run: sudo apt-get -y install postgresql git build-essential pkg-config autoconf automake libtool bison flex libpq-dev parallel libunwind-dev sed perl
