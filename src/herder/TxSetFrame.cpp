@@ -136,9 +136,9 @@ bool
 validateTxSetXDRStructure(GeneralizedTransactionSet const& txSet)
 {
 #ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
-    uint32_t const MAX_PHASE = 1;
+    int const MAX_PHASE = 1;
 #else
-    uint32_t const MAX_PHASE = 0;
+    int const MAX_PHASE = 0;
 #endif
     if (txSet.v() != 1)
     {
@@ -751,7 +751,7 @@ makeTxSetFromTransactions(PerPhaseTransactionList const& txPhases,
                   static_cast<size_t>(TxSetPhase::PHASE_COUNT));
 
     std::vector<TxSetPhaseFrame> validatedPhases;
-    for (int i = 0; i < txPhases.size(); ++i)
+    for (size_t i = 0; i < txPhases.size(); ++i)
     {
         auto const& phaseTxs = txPhases[i];
         bool expectSoroban = static_cast<TxSetPhase>(i) == TxSetPhase::SOROBAN;
@@ -842,7 +842,7 @@ makeTxSetFromTransactions(PerPhaseTransactionList const& txPhases,
                  outputApplicableTxSet->numPhases();
     if (valid)
     {
-        for (int i = 0; i < preliminaryApplicableTxSet->numPhases(); ++i)
+        for (size_t i = 0; i < preliminaryApplicableTxSet->numPhases(); ++i)
         {
             valid = valid && preliminaryApplicableTxSet->sizeTx(
                                  static_cast<TxSetPhase>(i)) ==
@@ -945,7 +945,7 @@ makeTxSetFromTransactions(TxFrameList txs, Application& app,
         auto const& resPhases = res.second->getPhases();
         // This only supports non-parallel tx sets for now.
         std::vector<TxSetPhaseFrame> overridePhases;
-        for (auto i = 0; i < resPhases.size(); ++i)
+        for (size_t i = 0; i < resPhases.size(); ++i)
         {
             overridePhases.emplace_back(
                 TxSetPhaseFrame(std::move(perPhaseTxs[i]),
@@ -1950,7 +1950,7 @@ ApplicableTxSetFrame::sizeOpTotal() const
 {
     ZoneScoped;
     size_t total = 0;
-    for (int i = 0; i < mPhases.size(); i++)
+    for (size_t i = 0; i < mPhases.size(); i++)
     {
         total += sizeOp(static_cast<TxSetPhase>(i));
     }
@@ -1968,7 +1968,7 @@ ApplicableTxSetFrame::sizeTxTotal() const
 {
     ZoneScoped;
     size_t total = 0;
-    for (int i = 0; i < mPhases.size(); i++)
+    for (size_t i = 0; i < mPhases.size(); i++)
     {
         total += sizeTx(static_cast<TxSetPhase>(i));
     }
@@ -2094,7 +2094,7 @@ ApplicableTxSetFrame::summary() const
     std::string status;
     releaseAssert(mPhases.size() <=
                   static_cast<size_t>(TxSetPhase::PHASE_COUNT));
-    for (auto i = 0; i != mPhases.size(); i++)
+    for (size_t i = 0; i < mPhases.size(); i++)
     {
         if (!status.empty())
         {

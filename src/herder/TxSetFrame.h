@@ -337,8 +337,8 @@ class TxSetPhaseFrame
     // Returns a copy of this phase with transactions sorted for apply.
     TxSetPhaseFrame sortedForApply(Hash const& txSetHash) const;
 
-    std::shared_ptr<InclusionFeeMap> mInclusionFeeMap;
     std::variant<TxFrameList, TxStageFrameList> mTxs;
+    std::shared_ptr<InclusionFeeMap> mInclusionFeeMap;
 };
 
 // Transaction set that is suitable for being applied to the ledger.
