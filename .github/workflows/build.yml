@@ -4,8 +4,12 @@ on:
   pull_request:
   merge_group:
   push:
-    branches:
-      - auto
+
+  # At 17 minutes past the hour every hour we do a run to prime the cache.
+  # If nothing has changed, the commit SHA will cause a cache-probe hit and
+  # this run will conclude the cache is already primed and exit quickly.
+  schedule:
+    - cron: '17 * * * *'
 
 jobs:
 
@@ -18,6 +22,7 @@ jobs:
       run: exit 1
 
   fmt:
+    if: github.event_name != 'schedule'
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v3
@@ -26,6 +31,7 @@ jobs:
     - run: cargo fmt --all --check
 
   cackle:
+    if: github.event_name != 'schedule'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
@@ -33,6 +39,7 @@ jobs:
       - run: cargo acl -n test
 
   cargo-deny:
+    if: github.event_name != 'schedule'
     runs-on: ubuntu-latest
     strategy:
       matrix:
@@ -51,6 +58,7 @@ jobs:
         arguments:
 
   rust-check-git-rev-deps:
+    if: github.event_name != 'schedule'
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v3
@@ -58,7 +66,14 @@ jobs:
 
   build:
     runs-on: ubuntu-latest
-
+    env:
+      CACHED_PATHS: |
+        ~/.ccache
+        ~/.cargo/registry/index/
+        ~/.cargo/registry/cache/
+        ~/.cargo/git/db/
+        ~/.cargo/target/
+        src/rust/target/
     strategy:
       fail-fast: false
       matrix:
@@ -71,35 +86,46 @@ jobs:
         # high-entropy ASLR in much newer kernels that GitHub runners are
         # using leading to random crashes: https://reviews.llvm.org/D148280
         run: sudo sysctl vm.mmap_rnd_bits=28
-      - name: Compute cache key
-        # this step works around a limitation in actions/cache
-        # that does not allow updating a cache
-        # so what we do here instead is
-        #  1. generate a new id that gets refreshed every hour
-        #   the limit is to reduce the chance of hitting the
-        #   global 5GB limit per repo
-        #  2. use that id as part of the cache identifier
-        #  3. fallback (restore-keys) to the most recent cache
-        id: cache_extra_id
-        run: |
-          echo "id=$(( $(date +'%s') / 60 / 60 ))" >> $GITHUB_OUTPUT
-      - name: Cache
-        uses: actions/cache@v3.3.1
+
+      # We start with as cheap as possible a cache probe to see if we have an exact hit on this
+      # git commit ID (for a given OS/toolchain/protocol). If so we can skip all subsequent
+      # steps: we already tested this exact SHA.
+      #
+      # Unfortunately due to the way github actions control flow works, we have to repeat the
+      # step 'if' condition in each step, and cannot actually "exit early" and skip the job.
+      # There are a lot of duplicate bug reports filed on this aspect of github actions, don't
+      # bother filing another.
+      - name: Probe Cache
+        id: cache
+        uses: actions/cache/restore@v3.3.1
         with:
-          path: |
-            /home/runner/.ccache
-          key: ${{ runner.os }}-${{ matrix.toolchain }}-${{ matrix.protocol }}-cacheID-${{ steps.cache_extra_id.outputs.id }}
+          path: ${{ env.CACHED_PATHS }}
+          key: ${{ runner.os }}-${{ matrix.toolchain }}-${{ matrix.protocol }}-${{ github.sha }}
+          lookup-only: true
+
+      # When we have a cache miss on the exact commit SHA, we restore from the prefix without it.
+      # This will restore the most-recently-written cache (github does this date ordering itself).
+      - name: Restore Cache
+        if: steps.cache.outputs.cache-hit != 'true'
+        uses: actions/cache/restore@v3.3.1
+        with:
+          path: ${{ env.CACHED_PATHS }}
+          key: ${{ steps.cache.outputs.cache-primary-key }}
           restore-keys: |
-            ${{ runner.os }}-${{ matrix.toolchain }}-${{ matrix.protocol }}-cacheID-
+            ${{ runner.os }}-${{ matrix.toolchain }}-${{ matrix.protocol }}
+
       - uses: actions/checkout@v3.5.2
+        if: steps.cache.outputs.cache-hit != 'true'
         with:
            fetch-depth: 200
            submodules: true
       - name: install core packages
+        if: steps.cache.outputs.cache-hit != 'true'
         run: |
           sudo apt-get update
           sudo apt-get -y install --no-install-recommends apt-utils dialog git iproute2 procps lsb-release
       - name: install tool chain
+        if: steps.cache.outputs.cache-hit != 'true'
         run: |
           sudo apt-get -y install libstdc++-10-dev clang-format-12 ccache lldb
           if test "${{ matrix.toolchain }}" = "gcc" ; then
@@ -108,10 +134,13 @@ jobs:
             sudo apt-get -y install clang-12 llvm-12
           fi
       - name: install rustup components
+        if: steps.cache.outputs.cache-hit != 'true'
         run: rustup component add rustfmt
       - name: install dependencies
+        if: steps.cache.outputs.cache-hit != 'true'
         run: sudo apt-get -y install postgresql git build-essential pkg-config autoconf automake libtool bison flex libpq-dev parallel libunwind-dev sed perl
       - name: Build
+        if: steps.cache.outputs.cache-hit != 'true'
         run: |
           if test "${{ matrix.toolchain }}" = "gcc" ; then
             export CC='gcc'
@@ -122,3 +151,11 @@ jobs:
           fi
           echo Build with $CC and $CXX
           ./ci-build.sh --use-temp-db --protocol ${{ matrix.protocol }} ${{ matrix.scenario }}
+
+      # We only _save_ to the cache when we had a cache miss and are running on schedule, which
+      # only happens on the default master branch. No other caches get saved.
+      - uses: actions/cache/save@v3.3.1
+        if: ${{ steps.cache.outputs.cache-hit != 'true' && github.event_name == 'schedule' }}
+        with:
+          path: ${{ env.CACHED_PATHS }}
+          key: ${{ steps.cache.outputs.cache-primary-key }}
