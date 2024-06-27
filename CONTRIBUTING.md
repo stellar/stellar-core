@@ -137,6 +137,11 @@ positives as well (disabling postgres is a good workaround).
 What the configure script does under the cover is use the custom version of your library at link
 time, but still uses the system headers - so make sure that the two don't conflict!
 
+### enable-threadsanitizer
+Build with thread sanitizer (TSan) instrumentation, which detects data races.
+
+See https://clang.llvm.org/docs/ThreadSanitizer.html for more information.
+
 #### Building a custom `libc++`
 
 The steps for building an instrumented version of libc++ can be found on the [memory sanitizer
