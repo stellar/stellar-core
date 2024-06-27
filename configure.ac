@@ -115,6 +115,18 @@ AS_IF([test "x$enable_codecoverage" = "xyes"], [
   CFLAGS="$CFLAGS -fprofile-instr-generate -fcoverage-mapping"
 ])
 
+AC_ARG_ENABLE([threadsanitizer],
+  AS_HELP_STRING([--enable-threadsanitizer],
+        [build with thread-sanitizer (TSan) instrumentation]))
+AS_IF([test "x$enable_threadsanitizer" = "xyes"], [
+  AC_MSG_NOTICE([ enabling thread-sanitizer, see https://clang.llvm.org/docs/ThreadSanitizer.html ])
+
+  AS_IF([test x != "x$sanitizeopts"], [
+    AC_MSG_ERROR(Cannot enable multiple checkers at once)
+  ])
+  sanitizeopts="thread"
+])
+
 AC_ARG_ENABLE([memcheck],
   AS_HELP_STRING([--enable-memcheck],
         [build with memcheck (memory-sanitizer) instrumentation]))
