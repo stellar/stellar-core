@@ -9,6 +9,7 @@
 #include "crypto/Random.h"
 #include "crypto/SHA.h"
 #include "database/Database.h"
+#include "herder/ParallelTxSetBuilder.h"
 #include "herder/SurgePricingUtils.h"
 #include "ledger/LedgerManager.h"
 #include "ledger/LedgerTxn.h"
@@ -487,8 +488,8 @@ computeLaneBaseFee(TxSetPhase phase, LedgerHeader const& ledgerHeader,
     return laneBaseFee;
 }
 
-std::pair<TxFrameList, std::shared_ptr<InclusionFeeMap>>
-applySurgePricing(TxSetPhase phase, TxFrameList const& txs, Application& app)
+std::shared_ptr<SurgePricingLaneConfig>
+createSurgePricingLangeConfig(TxSetPhase phase, Application& app)
 {
     ZoneScoped;
     releaseAssert(threadIsMain());
@@ -524,6 +525,16 @@ applySurgePricing(TxSetPhase phase, TxFrameList const& txs, Application& app)
 
         auto limits = app.getLedgerManager().maxLedgerResources(
             /* isSoroban */ true);
+        // When building Soroban tx sets with parallel execution support,
+        // instructions are accounted for by the build logic, not by the surge
+        // pricing config, so we need to relax the instruction limit in surge
+        // pricing logic.
+        if (protocolVersionStartsFrom(lclHeader.ledgerVersion,
+                                      PARALLEL_SOROBAN_PHASE_PROTOCOL_VERSION))
+        {
+            limits.setVal(Resource::Type::INSTRUCTIONS,
+                          std::numeric_limits<int64_t>::max());
+        }
 
         auto byteLimit =
             std::min(static_cast<int64_t>(MAX_SOROBAN_BYTE_ALLOWANCE),
@@ -533,27 +544,102 @@ applySurgePricing(TxSetPhase phase, TxFrameList const& txs, Application& app)
         surgePricingLaneConfig =
             std::make_shared<SorobanGenericLaneConfig>(limits);
     }
-    auto includedTxs = SurgePricingPriorityQueue::getMostTopTxsWithinLimits(
+    return surgePricingLaneConfig;
+}
+
+TxFrameList
+buildSurgePricedSequentialPhase(
+    TxFrameList const& txs,
+    std::shared_ptr<SurgePricingLaneConfig> surgePricingLaneConfig,
+    std::vector<bool>& hadTxNotFittingLane)
+{
+    ZoneScoped;
+    return SurgePricingPriorityQueue::getMostTopTxsWithinLimits(
         txs, surgePricingLaneConfig, hadTxNotFittingLane);
+}
+
+std::pair<std::variant<TxFrameList, TxStageFrameList>,
+          std::shared_ptr<InclusionFeeMap>>
+applySurgePricing(TxSetPhase phase, TxFrameList const& txs, Application& app)
+{
+    ZoneScoped;
+    auto surgePricingLaneConfig = createSurgePricingLangeConfig(phase, app);
+    std::vector<bool> hadTxNotFittingLane;
+    bool isParallelSoroban =
+        phase == TxSetPhase::SOROBAN &&
+        protocolVersionStartsFrom(app.getLedgerManager()
+                                      .getLastClosedLedgerHeader()
+                                      .header.ledgerVersion,
+                                  PARALLEL_SOROBAN_PHASE_PROTOCOL_VERSION);
+    std::variant<TxFrameList, TxStageFrameList> includedTxs;
+    if (isParallelSoroban)
+    {
+        includedTxs = buildSurgePricedParallelSorobanPhase(
+            txs, app.getConfig(),
+            app.getLedgerManager().getSorobanNetworkConfigReadOnly(),
+            surgePricingLaneConfig, hadTxNotFittingLane);
+    }
+    else
+    {
+        includedTxs = buildSurgePricedSequentialPhase(
+            txs, surgePricingLaneConfig, hadTxNotFittingLane);
+    }
+
+    auto visitIncludedTxs =
+        [&includedTxs](
+            std::function<void(TransactionFrameBaseConstPtr const&)> visitor) {
+            std::visit(
+                [&visitor](auto const& txs) {
+                    using T = std::decay_t<decltype(txs)>;
+                    if constexpr (std::is_same_v<T, TxFrameList>)
+                    {
+                        for (auto const& tx : txs)
+                        {
+                            visitor(tx);
+                        }
+                    }
+                    else if constexpr (std::is_same_v<T, TxStageFrameList>)
+                    {
+                        for (auto const& stage : txs)
+                        {
+                            for (auto const& thread : stage)
+                            {
+                                for (auto const& tx : thread)
+                                {
+                                    visitor(tx);
+                                }
+                            }
+                        }
+                    }
+                    else
+                    {
+                        releaseAssert(false);
+                    }
+                },
+                includedTxs);
+        };
+
+    std::vector<int64_t> lowestLaneFee;
+    auto const& lclHeader =
+        app.getLedgerManager().getLastClosedLedgerHeader().header;
 
     size_t laneCount = surgePricingLaneConfig->getLaneLimits().size();
-    std::vector<int64_t> lowestLaneFee(laneCount,
-                                       std::numeric_limits<int64_t>::max());
-    for (auto const& tx : includedTxs)
-    {
-        size_t lane = surgePricingLaneConfig->getLane(*tx);
-        auto perOpFee = computePerOpFee(*tx, lclHeader.ledgerVersion);
-        lowestLaneFee[lane] = std::min(lowestLaneFee[lane], perOpFee);
-    }
+    lowestLaneFee.resize(laneCount, std::numeric_limits<int64_t>::max());
+    visitIncludedTxs(
+        [&lowestLaneFee, &surgePricingLaneConfig, &lclHeader](auto const& tx) {
+            size_t lane = surgePricingLaneConfig->getLane(*tx);
+            auto perOpFee = computePerOpFee(*tx, lclHeader.ledgerVersion);
+            lowestLaneFee[lane] = std::min(lowestLaneFee[lane], perOpFee);
+        });
     auto laneBaseFee =
         computeLaneBaseFee(phase, lclHeader, *surgePricingLaneConfig,
                            lowestLaneFee, hadTxNotFittingLane);
     auto inclusionFeeMapPtr = std::make_shared<InclusionFeeMap>();
     auto& inclusionFeeMap = *inclusionFeeMapPtr;
-    for (auto const& tx : includedTxs)
-    {
+    visitIncludedTxs([&inclusionFeeMap, &laneBaseFee,
+                      &surgePricingLaneConfig](auto const& tx) {
         inclusionFeeMap[tx] = laneBaseFee[surgePricingLaneConfig->getLane(*tx)];
-    }
+    });
 
     return std::make_pair(includedTxs, inclusionFeeMapPtr);
 }
@@ -738,29 +824,28 @@ makeTxSetFromTransactions(PerPhaseTransactionList const& txPhases,
         }
 #endif
         auto phaseType = static_cast<TxSetPhase>(i);
-        auto [includedTxs, inclusionFeeMap] =
+        auto [includedTxs, inclusionFeeMapBinding] =
             applySurgePricing(phaseType, validatedTxs, app);
-        if (phaseType != TxSetPhase::SOROBAN ||
-            protocolVersionIsBefore(app.getLedgerManager()
-                                        .getLastClosedLedgerHeader()
-                                        .header.ledgerVersion,
-                                    PARALLEL_SOROBAN_PHASE_PROTOCOL_VERSION))
-        {
-            validatedPhases.emplace_back(TxSetPhaseFrame(
-                phaseType, std::move(includedTxs), inclusionFeeMap));
-        }
-        // This is a temporary stub for building a valid parallel tx set
-        // without any parallelization.
-        else
-        {
-            TxStageFrameList stages;
-            if (!includedTxs.empty())
-            {
-                stages.emplace_back().push_back(includedTxs);
-            }
-            validatedPhases.emplace_back(
-                TxSetPhaseFrame(phaseType, std::move(stages), inclusionFeeMap));
-        }
+        auto inclusionFeeMap = inclusionFeeMapBinding;
+        std::visit(
+            [&validatedPhases, phaseType, inclusionFeeMap](auto&& txs) {
+                using T = std::decay_t<decltype(txs)>;
+                if constexpr (std::is_same_v<T, TxFrameList>)
+                {
+                    validatedPhases.emplace_back(
+                        TxSetPhaseFrame(phaseType, txs, inclusionFeeMap));
+                }
+                else if constexpr (std::is_same_v<T, TxStageFrameList>)
+                {
+                    validatedPhases.emplace_back(TxSetPhaseFrame(
+                        phaseType, std::move(txs), inclusionFeeMap));
+                }
+                else
+                {
+                    releaseAssert(false);
+                }
+            },
+            includedTxs);
     }
 
     auto const& lclHeader = app.getLedgerManager().getLastClosedLedgerHeader();

@@ -1365,6 +1365,15 @@
     <ClCompile Include="..\..\src\catchup\LedgerApplyManagerImpl.cpp">
       <Filter>catchup</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\src\herder\ParallelTxSetBuilder.cpp">
+      <Filter>herder</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\simulation\ApplyLoad.cpp">
+      <Filter>simulation</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\simulation\TxGenerator.cpp">
+      <Filter>simulation</Filter>
+    </ClCompile>    
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\..\lib\util\cpptoml.h">
@@ -2359,6 +2368,15 @@
     </ClInclude>
     <ClInclude Include="..\..\src\main\QueryServer.h">
       <Filter>main</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\herder\ParallelTxSetBuilder.h">
+      <Filter>herder</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\simulation\ApplyLoad.h">
+      <Filter>simulation</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\simulation\TxGenerator.h">
+      <Filter>simulation</Filter>
     </ClInclude>
     <ClInclude Include="..\..\src\ledger\LedgerStateSnapshot.h">
       <Filter>ledger</Filter>
