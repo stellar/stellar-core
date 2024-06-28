@@ -684,7 +684,14 @@ LoadGenerator::generateLoad(GeneratedLoadConfig cfg)
                 return;
             }
 
-            uint64_t sourceAccountId = getNextAvailableAccount();
+            std::optional<uint64_t> maybeSourceAccountId =
+                getNextAvailableAccount(ledgerNum);
+            if (!maybeSourceAccountId.has_value())
+            {
+                // Loadgen has failed
+                break;
+            }
+            uint64_t sourceAccountId = maybeSourceAccountId.value();
 
             std::function<
                 std::pair<LoadGenerator::TestAccountPtr, TransactionFramePtr>()>
@@ -903,10 +910,15 @@ LoadGenerator::submitTx(GeneratedLoadConfig const& cfg,
     return true;
 }
 
-uint64_t
-LoadGenerator::getNextAvailableAccount()
+std::optional<uint64_t>
+LoadGenerator::getNextAvailableAccount(uint32_t ledgerNum)
 {
-    releaseAssert(!mAccountsAvailable.empty());
+    if (mAccountsAvailable.empty())
+    {
+        CLOG_WARNING(LoadGen, "No more accounts available");
+        mFailed = true;
+        return std::nullopt;
+    }
 
     auto sourceAccountIdx =
         rand_uniform<uint64_t>(0, mAccountsAvailable.size() - 1);
@@ -915,6 +927,46 @@ LoadGenerator::getNextAvailableAccount()
     uint64_t sourceAccountId = *it;
     mAccountsAvailable.erase(it);
     releaseAssert(mAccountsInUse.insert(sourceAccountId).second);
+
+    if (mApp.getHerder().sourceAccountPending(
+            findAccount(sourceAccountId, ledgerNum)->getPublicKey()))
+    {
+        // Although mAccountsAvailable shouldn't contain pending accounts, it is
+        // possible when the network is overloaded. Consider the following
+        // scenario:
+        // 1. This node generates a transaction `t` using account `a` and
+        //    broadcasts it on. In doing so, loadgen marks `a` as in use,
+        //    removing it from `mAccountsAvailable.
+        // 2. For whatever reason, `t` never makes it out of the queue and this
+        //    node bans it.
+        // 3. After some period of time, this node unbans `t` because bans only
+        //    last for so many ledgers.
+        // 4. Loadgen marks `a` available, moving it back into
+        //    `mAccountsAvailable`.
+        // 5. This node hears about `t` again on the network and (as it is no
+        //    longer banned) adds it back to the queue
+        // 6. getNextAvailableAccount draws `a` from `mAccountsAvailable`.
+        //    However, `a` is no longer available as `t` is in the transaction
+        //    queue!
+        //
+        // In this scenario, returning `a` results in an assertion failure
+        // later. At this point we have two reasonable options:
+        // 1. Mark `a` in-use and resample new accounts until we either find one
+        //    that is available, or run out of accounts
+        // 2. Fail loadgen.
+        // We chose option (2), as this scenario is indicative of an overloaded
+        // network and in practice loadgen is highly likely to fail soon anyway.
+        // Moreover, option (1) provides some false sense of having resolved the
+        // issue as this is a race condition that could still occur between
+        // returning the new account from this function and using it later on.
+        CLOG_WARNING(
+            LoadGen,
+            "mAccountsAvailable contains an account '{}' already in use",
+            sourceAccountId);
+        mFailed = true;
+        return std::nullopt;
+    }
+
     return sourceAccountId;
 }
 
@@ -988,10 +1040,21 @@ std::pair<LoadGenerator::TestAccountPtr, TransactionFramePtr>
 LoadGenerator::creationTransaction(uint64_t startAccount, uint64_t numItems,
                                    uint32_t ledgerNum)
 {
-    TestAccountPtr sourceAcc =
-        mInitialAccountsCreated
-            ? findAccount(getNextAvailableAccount(), ledgerNum)
-            : mRoot;
+    TestAccountPtr sourceAcc = mRoot;
+    if (mInitialAccountsCreated)
+    {
+        std::optional<uint64_t> accountId = getNextAvailableAccount(ledgerNum);
+        if (!accountId.has_value())
+        {
+            // This really shouldn't happen and indicates a misconfiguration
+            // that the checks in `scheduleLoadGeneration` should have caught.
+            throw std::runtime_error(
+                "Failed to get an available account during creation "
+                "transaction generation. Either the number of available "
+                "accounts is too low, or the transaction rate is too high.");
+        }
+        sourceAcc = findAccount(accountId.value(), ledgerNum);
+    }
     vector<Operation> creationOps = createAccounts(
         startAccount, numItems, ledgerNum, !mInitialAccountsCreated);
     mInitialAccountsCreated = true;
