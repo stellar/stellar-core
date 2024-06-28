@@ -12,8 +12,8 @@
 #include <variant>
 #include <vector>
 
-// This is a simple engine for evaluating boolean expresions containing literals
-// and XDR fields.
+// This is a simple engine for evaluating boolean expressions containing
+// literals and XDR fields.
 namespace xdrquery
 {
 // This type represents an optional XDR field that is not set.
@@ -41,16 +41,25 @@ using ResultValueType = std::variant<NullField, bool, int32_t, uint32_t,
 // when an XDR union has an alternative selected that is not in the field path.
 using ResultType = std::optional<ResultValueType>;
 
-// A function that resolves the field path to an actual value.
-using FieldResolver =
-    std::function<ResultType(std::vector<std::string> const&)>;
+// An interface for getting information from XDR structs.
+struct DynamicXDRGetter
+{
+    // Gets a field specified by the provided path.
+    virtual ResultType
+    getField(std::vector<std::string> const& fieldPath) const = 0;
+
+    // Gets the serialized XDR size of the entire struct.
+    virtual uint64_t getSize() const = 0;
+
+    virtual ~DynamicXDRGetter() = default;
+};
 
 std::string resultToString(ResultValueType const& result);
 
 enum class EvalNodeType
 {
     LITERAL,
-    FIELD,
+    COLUMN,
     BOOL_OP,
     COMPARISON_OP
 };
@@ -58,7 +67,7 @@ enum class EvalNodeType
 // Expression node that can be evaluated.
 struct EvalNode
 {
-    virtual ResultType eval(FieldResolver const& fieldResolver) const = 0;
+    virtual ResultType eval(DynamicXDRGetter const& xdrGetter) const = 0;
     virtual EvalNodeType getType() const = 0;
 
     virtual ~EvalNode() = default;
@@ -76,38 +85,57 @@ struct LiteralNode : public EvalNode
 {
     LiteralNode(LiteralNodeType valueType, std::string const& val);
 
-    ResultType eval(FieldResolver const& fieldResolver) const override;
+    ResultType eval(DynamicXDRGetter const& xdrGetter) const override;
 
     EvalNodeType getType() const override;
 
-    // We only resolve integer literals when they're compared to XDR fields and
+    // We only resolve integer literals when they're compared to columns and
     // for simplicity do that lazily via calling this function in eval(). Hence
     // it has to be `const` and `mValue` has to be mutable.
-    void resolveIntType(ResultValueType const& fieldValue,
-                        std::vector<std::string> const& fieldPath) const;
+    void resolveIntType(ResultValueType const& columnValue,
+                        std::string const& columnName) const;
 
     LiteralNodeType mType;
     mutable ResultType mValue;
 };
 
+// Node representing a 'column': a value inferred from an XDR entry,
+// such as a field or the size of the entry.
+struct ColumnNode : public EvalNode
+{
+    virtual std::string getName() const = 0;
+};
+
 // Node representing an XDR field in expression.
-struct FieldNode : public EvalNode
+struct FieldNode : public ColumnNode
 {
     FieldNode(std::string const& initField);
 
-    ResultType eval(FieldResolver const& fieldResolver) const override;
+    ResultType eval(DynamicXDRGetter const& xdrGetter) const override;
 
     EvalNodeType getType() const override;
 
+    virtual std::string getName() const override;
+
     std::vector<std::string> mFieldPath;
+};
+
+// Node representing the size of an XDR entry in expression.
+struct EntrySizeNode : public ColumnNode
+{
+    ResultType eval(DynamicXDRGetter const& xdrGetter) const override;
+
+    EvalNodeType getType() const override;
+
+    virtual std::string getName() const override;
 };
 
 // `EvalNode` that always has a `bool` evaluation result.
 struct BoolEvalNode : public EvalNode
 {
-    ResultType eval(FieldResolver const& fieldResolver) const override;
+    ResultType eval(DynamicXDRGetter const& xdrGetter) const override;
 
-    virtual bool evalBool(FieldResolver const& fieldResolver) const = 0;
+    virtual bool evalBool(DynamicXDRGetter const& xdrGetter) const = 0;
 };
 
 enum class BoolOpNodeType
@@ -122,7 +150,7 @@ struct BoolOpNode : public BoolEvalNode
     BoolOpNode(BoolOpNodeType nodeType, std::shared_ptr<BoolEvalNode> left,
                std::shared_ptr<BoolEvalNode> right);
 
-    bool evalBool(FieldResolver const& fieldResolver) const override;
+    bool evalBool(DynamicXDRGetter const& xdrGetter) const override;
 
     EvalNodeType getType() const override;
 
@@ -148,7 +176,7 @@ struct ComparisonNode : public BoolEvalNode
     ComparisonNode(ComparisonNodeType nodeType, std::shared_ptr<EvalNode> left,
                    std::shared_ptr<EvalNode> right);
 
-    bool evalBool(FieldResolver const& fieldResolver) const override;
+    bool evalBool(DynamicXDRGetter const& xdrGetter) const override;
 
     EvalNodeType getType() const override;
 
@@ -172,9 +200,9 @@ using AccumulatorResultType = std::variant<uint64_t, double>;
 struct Accumulator
 {
     explicit Accumulator(AccumulatorType nodeType);
-    Accumulator(AccumulatorType nodeType, std::shared_ptr<FieldNode> field);
+    Accumulator(AccumulatorType nodeType, std::shared_ptr<ColumnNode> column);
 
-    void addEntry(FieldResolver const& fieldResolver);
+    void addEntry(DynamicXDRGetter const& xdrGetter);
 
     AccumulatorResultType getValue() const;
     std::string getName() const;
@@ -182,7 +210,7 @@ struct Accumulator
   private:
     AccumulatorType mType;
     AccumulatorResultType mValue;
-    std::shared_ptr<FieldNode> mField;
+    std::shared_ptr<ColumnNode> mColumn;
     uint64_t mCount = 0;
 };
 
@@ -192,7 +220,7 @@ struct AccumulatorList
 
     void addAccumulator(std::shared_ptr<Accumulator> accumulator);
 
-    void addEntry(FieldResolver const& fieldResolver) const;
+    void addEntry(DynamicXDRGetter const& xdrGetter) const;
 
     std::vector<std::shared_ptr<Accumulator>> const& getAccumulators() const;
 
@@ -200,20 +228,21 @@ struct AccumulatorList
     std::vector<std::shared_ptr<Accumulator>> mAccumulators;
 };
 
-struct FieldList
+// Node representing a list of columns.
+struct ColumnList
 {
-    explicit FieldList(std::shared_ptr<FieldNode> field);
+    explicit ColumnList(std::shared_ptr<ColumnNode> column);
 
-    void addField(std::shared_ptr<FieldNode> field);
+    void addColumn(std::shared_ptr<ColumnNode> column);
 
-    std::vector<ResultType> getValues(FieldResolver const& fieldResolver) const;
-    std::vector<std::string> getFieldNames() const;
+    std::vector<ResultType> getValues(DynamicXDRGetter const& xdrGetter) const;
+    std::vector<std::string> getColumnNames() const;
 
   private:
-    std::vector<std::shared_ptr<FieldNode>> mFields;
+    std::vector<std::shared_ptr<ColumnNode>> mColumns;
 };
 
 using XDRQueryStatement =
     std::variant<std::shared_ptr<BoolEvalNode>,
-                 std::shared_ptr<AccumulatorList>, std::shared_ptr<FieldList>>;
+                 std::shared_ptr<AccumulatorList>, std::shared_ptr<ColumnList>>;
 } // namespace xdrquery

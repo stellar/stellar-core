@@ -15,9 +15,9 @@ XDRFieldExtractor::XDRFieldExtractor(std::string const& query) : mQuery(query)
 }
 
 std::vector<std::string>
-XDRFieldExtractor::getFieldNames() const
+XDRFieldExtractor::getColumnNames() const
 {
-    return mFieldList->getFieldNames();
+    return mFieldList->getColumnNames();
 }
 
 XDRAccumulator::XDRAccumulator(std::string const& query) : mQuery(query)
