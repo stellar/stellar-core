@@ -507,7 +507,7 @@
       ]
     },
     {
-      "contract_data_key_size_bytes": 200
+      "contract_data_key_size_bytes": 250
     },
     {
       "contract_data_entry_size_bytes": 65536
