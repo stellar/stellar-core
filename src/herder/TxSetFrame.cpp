@@ -118,14 +118,6 @@ validateParallelComponent(ParallelTxsComponent const& component)
                 CLOG_DEBUG(Herder, "Got bad txSet: empty thread");
                 return false;
             }
-            for (auto const& cluster : thread)
-            {
-                if (cluster.empty())
-                {
-                    CLOG_DEBUG(Herder, "Got bad txSet: empty cluster");
-                    return false;
-                }
-            }
         }
     }
     return true;
@@ -326,14 +318,9 @@ parallelPhaseToXdr(TxStageFrameList const& txs,
         {
             auto& xdrThread = xdrStage.emplace_back();
             xdrThread.reserve(thread.size());
-            for (auto const& cluster : thread)
+            for (auto const& tx : thread)
             {
-                auto& xdrCluster = xdrThread.emplace_back();
-                xdrCluster.reserve(cluster.size());
-                for (auto const& tx : cluster)
-                {
-                    xdrCluster.push_back(tx->getEnvelope());
-                }
+                xdrThread.push_back(tx->getEnvelope());
             }
         }
     }
@@ -418,24 +405,18 @@ sortedForApplyParallel(TxStageFrameList const& stages, Hash const& txSetHash)
     {
         for (auto& thread : stage)
         {
-            for (auto& cluster : thread)
-            {
-                std::sort(cluster.begin(), cluster.end(), sorter);
-            }
-            // There is no need to shuffle threads, as they are independent,
-            // so the apply order doesn't matter even if the threads are
-            // being applied sequentially.
+            std::sort(thread.begin(), thread.end(), sorter);
         }
-        std::sort(
-            stage.begin(), stage.end(),
-            [&sorter](
-                std::vector<std::vector<TransactionFrameBasePtr>> const& a,
-                std::vector<std::vector<TransactionFrameBasePtr>> const& b) {
-                releaseAssert(!a.empty() && !b.empty());
-                releaseAssert(!a.front().empty() && !b.front().empty());
-                return sorter(a.front().front(), b.front().front());
-            });
+        // There is no need to shuffle threads in the stage, as they are
+        // independent, so the apply order doesn't matter even if the threads
+        // are being applied sequentially.
     }
+    std::sort(sortedStages.begin(), sortedStages.end(),
+              [&sorter](auto const& a, auto const& b) {
+                  releaseAssert(!a.empty() && !b.empty());
+                  releaseAssert(!a.front().empty() && !b.front().empty());
+                  return sorter(a.front().front(), b.front().front());
+              });
     return stages;
 }
 
@@ -798,7 +779,7 @@ makeTxSetFromTransactions(PerPhaseTransactionList const& txPhases,
             TxStageFrameList stages;
             if (!includedTxs.empty())
             {
-                stages.emplace_back().emplace_back().push_back(includedTxs);
+                stages.emplace_back().push_back(includedTxs);
             }
             validatedPhases.emplace_back(
                 TxSetPhaseFrame(std::move(stages), inclusionFeeMap));
@@ -1091,10 +1072,7 @@ TxSetXDRFrame::sizeTxTotal() const
                 {
                     for (auto const& thread : stage)
                     {
-                        for (auto const& cluster : thread)
-                        {
-                            totalSize += cluster.size();
-                        }
+                        totalSize += thread.size();
                     }
                 }
                 break;
@@ -1157,12 +1135,9 @@ TxSetXDRFrame::sizeOpTotalForLogging() const
                 {
                     for (auto const& thread : stage)
                     {
-                        for (auto const& cluster : thread)
-                        {
-                            totalSize +=
-                                std::accumulate(cluster.begin(), cluster.end(),
-                                                0ull, accumulateTxsFn);
-                        }
+                        totalSize +=
+                            std::accumulate(thread.begin(), thread.end(), 0ull,
+                                            accumulateTxsFn);
                     }
                 }
                 break;
@@ -1211,14 +1186,11 @@ TxSetXDRFrame::createTransactionFrames(Hash const& networkID) const
                 {
                     for (auto const& thread : stage)
                     {
-                        for (auto const& cluster : thread)
+                        for (auto const& tx : thread)
                         {
-                            for (auto const& tx : cluster)
-                            {
-                                txs.emplace_back(
-                                    TransactionFrameBase::
-                                        makeTransactionFromWire(networkID, tx));
-                            }
+                            txs.emplace_back(
+                                TransactionFrameBase::makeTransactionFromWire(
+                                    networkID, tx));
                         }
                     }
                 }
@@ -1303,13 +1275,11 @@ TxSetPhaseFrame::Iterator::operator*() const
             {
                 if (mStageIndex >= txs.size() ||
                     mThreadIndex >= txs[mStageIndex].size() ||
-                    mClusterIndex >= txs[mStageIndex][mThreadIndex].size() ||
-                    mTxIndex >=
-                        txs[mStageIndex][mThreadIndex][mClusterIndex].size())
+                    mTxIndex >= txs[mStageIndex][mThreadIndex].size())
                 {
                     throw std::runtime_error("TxPhase iterator out of bounds");
                 }
-                return txs[mStageIndex][mThreadIndex][mClusterIndex][mTxIndex];
+                return txs[mStageIndex][mThreadIndex][mTxIndex];
             }
             else
             {
@@ -1341,20 +1311,14 @@ TxSetPhaseFrame::Iterator::operator++()
                     throw std::runtime_error("TxPhase iterator out of bounds");
                 }
                 ++mTxIndex;
-                if (mTxIndex >=
-                    txs[mStageIndex][mThreadIndex][mClusterIndex].size())
+                if (mTxIndex >= txs[mStageIndex][mThreadIndex].size())
                 {
                     mTxIndex = 0;
-                    ++mClusterIndex;
-                    if (mClusterIndex >= txs[mStageIndex][mThreadIndex].size())
+                    ++mThreadIndex;
+                    if (mThreadIndex >= txs[mStageIndex].size())
                     {
-                        mClusterIndex = 0;
-                        ++mThreadIndex;
-                        if (mThreadIndex >= txs[mStageIndex].size())
-                        {
-                            mThreadIndex = 0;
-                            ++mStageIndex;
-                        }
+                        mThreadIndex = 0;
+                        ++mStageIndex;
                     }
                 }
             }
@@ -1453,36 +1417,21 @@ TxSetPhaseFrame::makeFromWire(Hash const& networkID,
             {
                 auto& thread = stage.emplace_back();
                 thread.reserve(xdrThread.size());
-                for (auto const& xdrCluster : xdrThread)
+                for (auto const& env : xdrThread)
                 {
-                    auto& cluster = thread.emplace_back();
-                    for (auto const& env : xdrCluster)
-                    {
-                        auto tx = TransactionFrameBase::makeTransactionFromWire(
-                            networkID, env);
-                        if (!tx->XDRProvidesValidFee())
-                        {
-                            CLOG_DEBUG(Herder, "Got bad generalized txSet: "
-                                               "transaction has invalid XDR");
-                            return std::nullopt;
-                        }
-                        cluster.push_back(tx);
-                        inclusionFeeMap[tx] = baseFee;
-                    }
-                    if (!std::is_sorted(cluster.begin(), cluster.end(),
-                                        &TxSetUtils::hashTxSorter))
+                    auto tx = TransactionFrameBase::makeTransactionFromWire(
+                        networkID, env);
+                    if (!tx->XDRProvidesValidFee())
                     {
                         CLOG_DEBUG(Herder, "Got bad generalized txSet: "
-                                           "cluster is not sorted");
+                                           "transaction has invalid XDR");
                         return std::nullopt;
                     }
+                    thread.push_back(tx);
+                    inclusionFeeMap[tx] = baseFee;
                 }
                 if (!std::is_sorted(thread.begin(), thread.end(),
-                                    [](auto const& a, auto const& b) {
-                                        releaseAssert(!a.empty() && !b.empty());
-                                        return TxSetUtils::hashTxSorter(
-                                            a.front(), b.front());
-                                    }))
+                                    &TxSetUtils::hashTxSorter))
                 {
                     CLOG_DEBUG(Herder, "Got bad generalized txSet: "
                                        "thread is not sorted");
@@ -1492,14 +1441,25 @@ TxSetPhaseFrame::makeFromWire(Hash const& networkID,
             if (!std::is_sorted(stage.begin(), stage.end(),
                                 [](auto const& a, auto const& b) {
                                     releaseAssert(!a.empty() && !b.empty());
-                                    return TxSetUtils::hashTxSorter(
-                                        a.front().front(), b.front().front());
+                                    return TxSetUtils::hashTxSorter(a.front(),
+                                                                    b.front());
                                 }))
             {
                 CLOG_DEBUG(Herder, "Got bad generalized txSet: "
                                    "stage is not sorted");
                 return std::nullopt;
             }
+        }
+        if (!std::is_sorted(stages.begin(), stages.end(),
+                            [](auto const& a, auto const& b) {
+                                releaseAssert(!a.empty() && !b.empty());
+                                return TxSetUtils::hashTxSorter(
+                                    a.front().front(), b.front().front());
+                            }))
+        {
+            CLOG_DEBUG(Herder, "Got bad generalized txSet: "
+                               "stages are not sorted");
+            return std::nullopt;
         }
         return TxSetPhaseFrame(std::move(stages), inclusionFeeMapPtr);
     }

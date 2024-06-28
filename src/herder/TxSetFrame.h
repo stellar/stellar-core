@@ -206,7 +206,7 @@ class TxSetXDRFrame : public NonMovableOrCopyable
 //   *different* threads in parallel.
 //
 // This structure mimics the XDR structure of the `ParallelTxsComponent`.
-using TxThreadFrame = std::vector<TxFrameList>;
+using TxThreadFrame = TxFrameList;
 using TxStageFrame = std::vector<TxThreadFrame>;
 using TxStageFrameList = std::vector<TxStageFrame>;
 
@@ -278,7 +278,6 @@ class TxSetPhaseFrame
         std::variant<TxFrameList, TxStageFrameList> const& mTxs;
         size_t mStageIndex = 0;
         size_t mThreadIndex = 0;
-        size_t mClusterIndex = 0;
         size_t mTxIndex = 0;
     };
     Iterator begin() const;

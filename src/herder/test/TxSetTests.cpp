@@ -674,9 +674,6 @@ testGeneralizedTxSetXDRConversion(ProtocolVersion protocolVersion)
                                         .size() == 1);
                             REQUIRE(phase.parallelTxsComponent()
                                         .executionStages[0][0]
-                                        .size() == 1);
-                            REQUIRE(phase.parallelTxsComponent()
-                                        .executionStages[0][0][0]
                                         .size() == 5);
 #else
                             releaseAssert(false);
@@ -731,9 +728,6 @@ testGeneralizedTxSetXDRConversion(ProtocolVersion protocolVersion)
                                         .size() == 1);
                             REQUIRE(phase.parallelTxsComponent()
                                         .executionStages[0][0]
-                                        .size() == 1);
-                            REQUIRE(phase.parallelTxsComponent()
-                                        .executionStages[0][0][0]
                                         .size() == 5);
 #else
                             releaseAssert(false);

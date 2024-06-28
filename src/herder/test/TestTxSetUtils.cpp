@@ -76,12 +76,11 @@ makeGeneralizedTxSetXDR(std::vector<ComponentPhases> const& phases,
                 }
                 if (!txs.empty())
                 {
-                    auto& cluster = component.executionStages.emplace_back()
-                                        .emplace_back()
-                                        .emplace_back();
+                    auto& thread =
+                        component.executionStages.emplace_back().emplace_back();
                     for (auto const& tx : txs)
                     {
-                        cluster.emplace_back(tx->getEnvelope());
+                        thread.emplace_back(tx->getEnvelope());
                     }
                 }
 #else
