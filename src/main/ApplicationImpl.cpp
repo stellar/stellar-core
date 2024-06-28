@@ -95,8 +95,8 @@ ApplicationImpl::ApplicationImpl(VirtualClock& clock, Config const& cfg)
               ? std::make_unique<asio::io_context::work>(*mEvictionIOContext)
               : nullptr)
     , mOverlayIOContext(mConfig.EXPERIMENTAL_BACKGROUND_OVERLAY_PROCESSING
-                            ? std::make_optional<asio::io_context>(1)
-                            : std::nullopt)
+                            ? std::make_unique<asio::io_context>(1)
+                            : nullptr)
     , mOverlayWork(mOverlayIOContext ? std::make_unique<asio::io_context::work>(
                                            *mOverlayIOContext)
                                      : nullptr)

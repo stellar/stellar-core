@@ -9,6 +9,7 @@
 #include "bucket/BucketListSnapshot.h"
 #include "bucket/BucketOutputIterator.h"
 #include "bucket/BucketSnapshotManager.h"
+#include "crypto/BLAKE2.h"
 #include "crypto/Hex.h"
 #include "history/HistoryManager.h"
 #include "historywork/VerifyBucketWork.h"
@@ -1322,14 +1323,13 @@ visitEntriesInBucket(std::shared_ptr<Bucket const> b, std::string const& name,
                      std::optional<int64_t> minLedger,
                      std::function<bool(LedgerEntry const&)> const& filterEntry,
                      std::function<bool(LedgerEntry const&)> const& acceptEntry,
-                     UnorderedSet<LedgerKey>& processedEntries)
+                     UnorderedSet<Hash>& processedEntries)
 {
     ZoneScoped;
 
     using namespace std::chrono;
     medida::Timer timer;
 
-    UnorderedMap<LedgerKey, LedgerEntry> bucketEntries;
     bool stopIteration = false;
     timer.Time([&]() {
         for (BucketInputIterator in(b); in; ++in)
@@ -1337,22 +1337,27 @@ visitEntriesInBucket(std::shared_ptr<Bucket const> b, std::string const& name,
             BucketEntry const& e = *in;
             if (e.type() == LIVEENTRY || e.type() == INITENTRY)
             {
-                if (minLedger &&
-                    e.liveEntry().lastModifiedLedgerSeq < *minLedger)
+                auto const& liveEntry = e.liveEntry();
+                if (minLedger && liveEntry.lastModifiedLedgerSeq < *minLedger)
                 {
                     stopIteration = true;
                     continue;
                 }
-                if (!filterEntry(e.liveEntry()))
+                if (!filterEntry(liveEntry))
                 {
                     continue;
                 }
-                auto key = LedgerEntryKey(e.liveEntry());
-                if (processedEntries.find(key) != processedEntries.end())
+                if (!processedEntries
+                         .insert(xdrBlake2(LedgerEntryKey(liveEntry)))
+                         .second)
                 {
                     continue;
                 }
-                bucketEntries[key] = e.liveEntry();
+                if (!acceptEntry(liveEntry))
+                {
+                    stopIteration = true;
+                    break;
+                }
             }
             else
             {
@@ -1363,17 +1368,7 @@ visitEntriesInBucket(std::shared_ptr<Bucket const> b, std::string const& name,
                     CLOG_ERROR(Bucket, "{}", err);
                     throw std::runtime_error(err);
                 }
-                bucketEntries.erase(e.deadEntry());
-                processedEntries.insert(e.deadEntry());
-            }
-        }
-        for (auto const& [key, entry] : bucketEntries)
-        {
-            processedEntries.insert(key);
-            if (!acceptEntry(entry))
-            {
-                stopIteration = true;
-                break;
+                processedEntries.insert(xdrBlake2(e.deadEntry()));
             }
         }
     });
@@ -1394,7 +1389,7 @@ BucketManagerImpl::visitLedgerEntries(
 {
     ZoneScoped;
 
-    UnorderedSet<LedgerKey> deletedEntries;
+    UnorderedSet<Hash> deletedEntries;
     std::vector<std::pair<Hash, std::string>> hashes;
     for (uint32_t i = 0; i < BucketList::kNumLevels; ++i)
     {
