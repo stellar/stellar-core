@@ -128,11 +128,11 @@ export CCACHE_COMPRESSLEVEL=9
 export CCACHE_MAXSIZE=500M
 export CCACHE_CPP2=true
 
-# purge cache if it's too old
+# periodically check to see if caches are old and purge them if so
 if [ -d "$CCACHE_DIR" ] ; then
     if [ -n "$(find $CCACHE_DIR -mtime +$CACHE_MAX_DAYS -print -quit)" ] ; then
-        echo Purging old cache $CCACHE_DIR
-        rm -rf $CCACHE_DIR
+        echo Purging old cache dirs $CCACHE_DIR $HOME/.cargo ./target
+        rm -rf $CCACHE_DIR $HOME/.cargo ./target
     fi
 fi
 
@@ -163,6 +163,9 @@ date
 time make -j$(($NPROCS + 1))
 
 ccache -s
+### incrementally purge old content from cargo source cache and target directory
+cargo cache trim --limit 100M
+cargo sweep --maxsize 500MB
 
 if [ $WITH_TESTS -eq 0 ] ; then
     echo "Build done, skipping tests"

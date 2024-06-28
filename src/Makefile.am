@@ -77,7 +77,7 @@ stellar_core_SOURCES += rust/RustBridge.h rust/RustBridge.cpp
 
 RUST_BUILD_DIR=$(top_builddir)/src/rust
 RUST_BIN_DIR=$(RUST_BUILD_DIR)/bin
-RUST_TARGET_DIR=$(RUST_BUILD_DIR)/target
+RUST_TARGET_DIR=$(top_builddir)/target
 RUST_CXXBRIDGE=$(RUST_BIN_DIR)/cxxbridge
 RUST_PROFILE=release
 RUST_HOST_DEPFILES=rust/Cargo.toml $(top_srcdir)/Cargo.toml $(top_srcdir)/Cargo.lock rust/src/host-dep-tree-curr.txt rust/src/host-dep-tree-prev.txt
@@ -97,7 +97,7 @@ rust/RustBridge.cpp: rust/src/lib.rs $(SRC_RUST_FILES) Makefile $(RUST_CXXBRIDGE
 	if cmp -s $@.tmp $@; then rm -v $@.tmp; else mv -v $@.tmp $@; fi
 
 $(LIBRUST_STELLAR_CORE): $(RUST_HOST_DEPFILES) $(SRC_RUST_FILES) Makefile
-	cd $(RUST_BUILD_DIR) && CARGO_NET_GIT_FETCH_WITH_CLI=true cargo build --locked --$(RUST_PROFILE) --target-dir $(abspath $(RUST_TARGET_DIR)) $(CARGO_FEATURES)
+	CARGO_NET_GIT_FETCH_WITH_CLI=true cargo build --locked --$(RUST_PROFILE) --target-dir $(abspath $(RUST_TARGET_DIR)) $(CARGO_FEATURES)
 	ranlib $@
 
 $(srcdir)/src.mk: $(top_srcdir)/make-mks

@@ -95,6 +95,7 @@ min-testcases/
 # Rust specific
 /src/rust/bin
 /src/rust/target
+/target
 **/target/
 /ra-target
 /src/rust/RustBridge.cpp
