@@ -5,12 +5,6 @@ on:
   merge_group:
   push:
 
-  # At 17 minutes past the hour every hour we do a run to prime the cache.
-  # If nothing has changed, the commit SHA will cause a cache-probe hit and
-  # this run will conclude the cache is already primed and exit quickly.
-  schedule:
-    - cron: '17 * * * *'
-
 jobs:
 
   complete:
@@ -22,7 +16,6 @@ jobs:
       run: exit 1
 
   fmt:
-    if: github.event_name != 'schedule'
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v3
@@ -31,7 +24,6 @@ jobs:
     - run: cargo fmt --all --check
 
   cackle:
-    if: github.event_name != 'schedule'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
@@ -39,7 +31,6 @@ jobs:
       - run: cargo acl -n test
 
   cargo-deny:
-    if: github.event_name != 'schedule'
     runs-on: ubuntu-latest
     strategy:
       matrix:
@@ -58,7 +49,6 @@ jobs:
         arguments:
 
   rust-check-git-rev-deps:
-    if: github.event_name != 'schedule'
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v3
@@ -69,11 +59,8 @@ jobs:
     env:
       CACHED_PATHS: |
         ~/.ccache
-        ~/.cargo/registry/index/
-        ~/.cargo/registry/cache/
-        ~/.cargo/git/db/
-        ~/.cargo/target/
-        src/rust/target/
+        ~/.cargo
+        target
     strategy:
       fail-fast: false
       matrix:
@@ -158,10 +145,9 @@ jobs:
           echo Build with $CC and $CXX
           ./ci-build.sh --use-temp-db --protocol ${{ matrix.protocol }} ${{ matrix.scenario }}
 
-      # We only _save_ to the cache when we had a cache miss and are running on schedule, which
-      # only happens on the default master branch. No other caches get saved.
+      # We only _save_ to the cache when we had a cache miss, are running on master, and are the non-txmeta scenario.
       - uses: actions/cache/save@v3.3.1
-        if: ${{ steps.cache.outputs.cache-hit != 'true' && github.event_name == 'schedule' }}
+        if: ${{ steps.cache.outputs.cache-hit != 'true' && github.ref_name == 'master' && matrix.scenario == ''}}
         with:
           path: ${{ env.CACHED_PATHS }}
           key: ${{ steps.cache.outputs.cache-primary-key }}
