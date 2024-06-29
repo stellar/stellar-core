@@ -123,11 +123,7 @@ main/StellarCoreVersion.cpp: always
 	@if cmp -s $@~ $@; then rm -f $@~; else \
 	    mv -f $@~ $@ && printf "echo '%s' > $@\n" "$$(cat $@)"; fi
 
-if USE_POSTGRES
-TESTS=test/selftest-pg
-else # !USE_POSTGRES
 TESTS=test/selftest-nopg
-endif # !USE_POSTGRES
 TESTS += test/check-nondet
 
 format: always

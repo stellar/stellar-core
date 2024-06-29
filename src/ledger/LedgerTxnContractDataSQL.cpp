@@ -161,30 +161,6 @@ class BulkLoadContractDataOperation
         sqlite3_bind_int(st, 6, static_cast<int>(mTypes.size()));
         return executeAndFetch(prep.statement());
     }
-
-#ifdef USE_POSTGRES
-    std::vector<LedgerEntry>
-    doPostgresSpecificOperation(soci::postgresql_session_backend* pg) override
-    {
-        std::string strContractIDs, strKeys, strTypes;
-        marshalToPGArray(pg->conn_, strContractIDs, mContractIDs);
-        marshalToPGArray(pg->conn_, strKeys, mKeys);
-        marshalToPGArray(pg->conn_, strTypes, mTypes);
-
-        std::string sql = "WITH r AS (SELECT unnest(:ids::TEXT[]), "
-                          "unnest(:v1::TEXT[]), unnest(:v2::INT[])) "
-                          "SELECT ledgerentry "
-                          "FROM contractdata "
-                          "WHERE (contractid, key, type) IN (SELECT * from r)";
-
-        auto prep = mDb.getPreparedStatement(sql);
-        auto& st = prep.statement();
-        st.exchange(soci::use(strContractIDs));
-        st.exchange(soci::use(strKeys));
-        st.exchange(soci::use(strTypes));
-        return executeAndFetch(st);
-    }
-#endif
 };
 
 UnorderedMap<LedgerKey, std::shared_ptr<LedgerEntry const>>
@@ -258,39 +234,6 @@ class BulkDeleteContractDataOperation
     {
         doSociGenericOperation();
     }
-
-#ifdef USE_POSTGRES
-    void
-    doPostgresSpecificOperation(soci::postgresql_session_backend* pg) override
-    {
-        std::string strContractIDs, strKeys, strTypes;
-        marshalToPGArray(pg->conn_, strContractIDs, mContractIDs);
-        marshalToPGArray(pg->conn_, strKeys, mKeys);
-        marshalToPGArray(pg->conn_, strTypes, mTypes);
-
-        std::string sql = "WITH r AS (SELECT unnest(:ids::TEXT[]), "
-                          "unnest(:v1::TEXT[]), unnest(:v2::INT[])) "
-                          "DELETE FROM contractdata "
-                          "WHERE (contractid, key, type) IN (SELECT * FROM r)";
-
-        auto prep = mDb.getPreparedStatement(sql);
-        auto& st = prep.statement();
-        st.exchange(soci::use(strContractIDs));
-        st.exchange(soci::use(strKeys));
-        st.exchange(soci::use(strTypes));
-        st.define_and_bind();
-        {
-            auto timer = mDb.getDeleteTimer("contractdata");
-            st.execute(true);
-        }
-        if (static_cast<size_t>(st.get_affected_rows()) !=
-                mContractIDs.size() &&
-            mCons == LedgerTxnConsistency::EXACT)
-        {
-            throw std::runtime_error("Could not update data in SQL");
-        }
-    }
-#endif
 };
 
 void
@@ -371,50 +314,6 @@ class BulkUpsertContractDataOperation
     {
         doSociGenericOperation();
     }
-
-#ifdef USE_POSTGRES
-    void
-    doPostgresSpecificOperation(soci::postgresql_session_backend* pg) override
-    {
-        std::string strContractIDs, strKeys, strTypes, strContractDataEntries,
-            strLastModifieds;
-
-        PGconn* conn = pg->conn_;
-        marshalToPGArray(conn, strContractIDs, mContractIDs);
-        marshalToPGArray(conn, strKeys, mKeys);
-        marshalToPGArray(conn, strTypes, mTypes);
-        marshalToPGArray(conn, strContractDataEntries, mContractDataEntries);
-        marshalToPGArray(conn, strLastModifieds, mLastModifieds);
-
-        std::string sql =
-            "WITH r AS "
-            "(SELECT unnest(:ids::TEXT[]), unnest(:v1::TEXT[]), "
-            "unnest(:v2::INT[]), unnest(:v3::TEXT[]), unnest(:v4::INT[])) "
-            "INSERT INTO contractdata "
-            "(contractid, key, type, ledgerentry, lastmodified) "
-            "SELECT * FROM r "
-            "ON CONFLICT (contractid,key,type) DO UPDATE SET "
-            "ledgerentry = excluded.ledgerentry, "
-            "lastmodified = excluded.lastmodified";
-
-        auto prep = mDb.getPreparedStatement(sql);
-        soci::statement& st = prep.statement();
-        st.exchange(soci::use(strContractIDs));
-        st.exchange(soci::use(strKeys));
-        st.exchange(soci::use(strTypes));
-        st.exchange(soci::use(strContractDataEntries));
-        st.exchange(soci::use(strLastModifieds));
-        st.define_and_bind();
-        {
-            auto timer = mDb.getUpsertTimer("contractdata");
-            st.execute(true);
-        }
-        if (static_cast<size_t>(st.get_affected_rows()) != mContractIDs.size())
-        {
-            throw std::runtime_error("Could not update data in SQL");
-        }
-    }
-#endif
 };
 
 void
@@ -436,25 +335,14 @@ LedgerTxnRoot::Impl::dropContractData(bool rebuild)
 
     if (rebuild)
     {
-        std::string coll = mApp.getDatabase().getSimpleCollationClause();
         mApp.getDatabase().getSession()
             << "CREATE TABLE contractdata ("
-            << "contractid   TEXT " << coll << " NOT NULL, "
-            << "key TEXT " << coll << " NOT NULL, "
+            << "contractid   TEXT NOT NULL, "
+            << "key TEXT NOT NULL, "
             << "type INT NOT NULL, "
-            << "ledgerentry  TEXT " << coll << " NOT NULL, "
+            << "ledgerentry  TEXT NOT NULL, "
             << "lastmodified INT NOT NULL, "
             << "PRIMARY KEY  (contractid, key, type));";
-        if (!mApp.getDatabase().isSqlite())
-        {
-            mApp.getDatabase().getSession() << "ALTER TABLE contractdata "
-                                            << "ALTER COLUMN contractid "
-                                            << "TYPE TEXT COLLATE \"C\","
-                                            << "ALTER COLUMN key "
-                                            << "TYPE TEXT COLLATE \"C\","
-                                            << "ALTER COLUMN type "
-                                            << "TYPE INT;";
-        }
     }
 }
 

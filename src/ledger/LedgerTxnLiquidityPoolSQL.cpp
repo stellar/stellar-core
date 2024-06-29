@@ -136,25 +136,6 @@ class BulkLoadLiquidityPoolOperation
         sqlite3_bind_int(st, 2, static_cast<int>(cstrPoolAssets.size()));
         return executeAndFetch(prep.statement());
     }
-
-#ifdef USE_POSTGRES
-    std::vector<LedgerEntry>
-    doPostgresSpecificOperation(soci::postgresql_session_backend* pg) override
-    {
-        std::string strPoolAssets;
-        marshalToPGArray(pg->conn_, strPoolAssets, mPoolAssets);
-
-        std::string sql = "WITH r AS (SELECT unnest(:v1::TEXT[])) "
-                          "SELECT ledgerentry "
-                          "FROM liquiditypool "
-                          "WHERE poolasset IN (SELECT * from r)";
-
-        auto prep = mDb.getPreparedStatement(sql);
-        auto& st = prep.statement();
-        st.exchange(soci::use(strPoolAssets));
-        return executeAndFetch(st);
-    }
-#endif
 };
 
 UnorderedMap<LedgerKey, std::shared_ptr<LedgerEntry const>>
@@ -219,33 +200,6 @@ class BulkDeleteLiquidityPoolOperation
     {
         doSociGenericOperation();
     }
-
-#ifdef USE_POSTGRES
-    void
-    doPostgresSpecificOperation(soci::postgresql_session_backend* pg) override
-    {
-        std::string strPoolAssets;
-        marshalToPGArray(pg->conn_, strPoolAssets, mPoolAssets);
-
-        std::string sql = "WITH r AS (SELECT unnest(:v1::TEXT[])) "
-                          "DELETE FROM liquiditypool "
-                          "WHERE poolasset IN (SELECT * FROM r)";
-
-        auto prep = mDb.getPreparedStatement(sql);
-        auto& st = prep.statement();
-        st.exchange(soci::use(strPoolAssets));
-        st.define_and_bind();
-        {
-            auto timer = mDb.getDeleteTimer("liquiditypool");
-            st.execute(true);
-        }
-        if (static_cast<size_t>(st.get_affected_rows()) != mPoolAssets.size() &&
-            mCons == LedgerTxnConsistency::EXACT)
-        {
-            throw std::runtime_error("Could not update data in SQL");
-        }
-    }
-#endif
 };
 
 void
@@ -330,53 +284,6 @@ class BulkUpsertLiquidityPoolOperation
     {
         doSociGenericOperation();
     }
-
-#ifdef USE_POSTGRES
-    void
-    doPostgresSpecificOperation(soci::postgresql_session_backend* pg) override
-    {
-        std::string strPoolAssets, strAssetAs, strAssetBs,
-            strLiquidityPoolEntry, strLastModifieds;
-
-        PGconn* conn = pg->conn_;
-        marshalToPGArray(conn, strPoolAssets, mPoolAssets);
-        marshalToPGArray(conn, strAssetAs, mAssetAs);
-        marshalToPGArray(conn, strAssetBs, mAssetBs);
-        marshalToPGArray(conn, strLiquidityPoolEntry, mLiquidityPoolEntries);
-        marshalToPGArray(conn, strLastModifieds, mLastModifieds);
-
-        std::string sql =
-            "WITH r AS "
-            "(SELECT unnest(:ids::TEXT[]), unnest(:v1::TEXT[]), "
-            "unnest(:v2::TEXT[]), unnest(:v3::TEXT[]), "
-            "unnest(:v4::INT[])) "
-            "INSERT INTO liquiditypool "
-            "(poolasset, asseta, assetb, ledgerentry, lastmodified) "
-            "SELECT * FROM r "
-            "ON CONFLICT (poolasset) DO UPDATE SET "
-            "asseta = excluded.asseta, "
-            "assetb = excluded.assetb, "
-            "ledgerentry = excluded.ledgerentry, "
-            "lastmodified = excluded.lastmodified";
-
-        auto prep = mDb.getPreparedStatement(sql);
-        soci::statement& st = prep.statement();
-        st.exchange(soci::use(strPoolAssets));
-        st.exchange(soci::use(strAssetAs));
-        st.exchange(soci::use(strAssetBs));
-        st.exchange(soci::use(strLiquidityPoolEntry));
-        st.exchange(soci::use(strLastModifieds));
-        st.define_and_bind();
-        {
-            auto timer = mDb.getUpsertTimer("liquiditypool");
-            st.execute(true);
-        }
-        if (static_cast<size_t>(st.get_affected_rows()) != mPoolAssets.size())
-        {
-            throw std::runtime_error("Could not update data in SQL");
-        }
-    }
-#endif
 };
 
 void
@@ -398,16 +305,15 @@ LedgerTxnRoot::Impl::dropLiquidityPools(bool rebuild)
 
     if (rebuild)
     {
-        std::string coll = mApp.getDatabase().getSimpleCollationClause();
         // The primary key is poolasset (the base-64 opaque TrustLineAsset
         // containing the PoolID) instead of poolid (the base-64 opaque PoolID)
         // so that we can perform the join in load pool share trust lines by
         // account and asset.
         mApp.getDatabase().getSession()
             << "CREATE TABLE liquiditypool ("
-            << "poolasset    TEXT " << coll << " PRIMARY KEY, "
-            << "asseta       TEXT " << coll << " NOT NULL, "
-            << "assetb       TEXT " << coll << " NOT NULL, "
+            << "poolasset    TEXT PRIMARY KEY, "
+            << "asseta       TEXT NOT NULL, "
+            << "assetb       TEXT NOT NULL, "
             << "ledgerentry  TEXT NOT NULL, "
             << "lastmodified INT NOT NULL);";
         mApp.getDatabase().getSession() << "CREATE INDEX liquiditypoolasseta "

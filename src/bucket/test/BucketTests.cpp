@@ -987,10 +987,4 @@ TEST_CASE("bucket apply bench", "[bucketbench][!hide]")
     {
         runtest(Config::TESTDB_ON_DISK_SQLITE);
     }
-#ifdef USE_POSTGRES
-    SECTION("postgresql")
-    {
-        runtest(Config::TESTDB_POSTGRESQL);
-    }
-#endif
 }

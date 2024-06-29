@@ -192,49 +192,6 @@ class BulkUpsertTrustLinesOperation : public DatabaseTypeSpecificOperation<void>
     {
         doSociGenericOperation();
     }
-
-#ifdef USE_POSTGRES
-    void
-    doPostgresSpecificOperation(soci::postgresql_session_backend* pg) override
-    {
-        PGconn* conn = pg->conn_;
-
-        std::string strAccountIDs, strAssets, strTrustLineEntries,
-            strLastModifieds;
-
-        marshalToPGArray(conn, strAccountIDs, mAccountIDs);
-        marshalToPGArray(conn, strAssets, mAssets);
-        marshalToPGArray(conn, strTrustLineEntries, mTrustLineEntries);
-        marshalToPGArray(conn, strLastModifieds, mLastModifieds);
-
-        std::string sql = "WITH r AS (SELECT "
-                          "unnest(:ids::TEXT[]), "
-                          "unnest(:v1::TEXT[]), "
-                          "unnest(:v2::TEXT[]), "
-                          "unnest(:v3::INT[])) "
-                          "INSERT INTO trustlines ( "
-                          "accountid, asset, ledgerEntry, lastmodified"
-                          ") SELECT * from r "
-                          "ON CONFLICT (accountid, asset) DO UPDATE SET "
-                          "ledgerentry = excluded.ledgerentry, "
-                          "lastmodified = excluded.lastmodified";
-        auto prep = mDB.getPreparedStatement(sql);
-        soci::statement& st = prep.statement();
-        st.exchange(soci::use(strAccountIDs));
-        st.exchange(soci::use(strAssets));
-        st.exchange(soci::use(strTrustLineEntries));
-        st.exchange(soci::use(strLastModifieds));
-        st.define_and_bind();
-        {
-            auto timer = mDB.getUpsertTimer("trustline");
-            st.execute(true);
-        }
-        if (static_cast<size_t>(st.get_affected_rows()) != mAccountIDs.size())
-        {
-            throw std::runtime_error("Could not update data in SQL");
-        }
-    }
-#endif
 };
 
 class BulkDeleteTrustLinesOperation : public DatabaseTypeSpecificOperation<void>
@@ -293,37 +250,6 @@ class BulkDeleteTrustLinesOperation : public DatabaseTypeSpecificOperation<void>
     {
         doSociGenericOperation();
     }
-
-#ifdef USE_POSTGRES
-    void
-    doPostgresSpecificOperation(soci::postgresql_session_backend* pg) override
-    {
-        std::string strAccountIDs, strAssets;
-        PGconn* conn = pg->conn_;
-        marshalToPGArray(conn, strAccountIDs, mAccountIDs);
-        marshalToPGArray(conn, strAssets, mAssets);
-        std::string sql = "WITH r AS (SELECT "
-                          "unnest(:ids::TEXT[]), "
-                          "unnest(:v1::TEXT[])"
-                          ") "
-                          "DELETE FROM trustlines WHERE "
-                          "(accountid, asset) IN (SELECT * FROM r)";
-        auto prep = mDB.getPreparedStatement(sql);
-        soci::statement& st = prep.statement();
-        st.exchange(soci::use(strAccountIDs));
-        st.exchange(soci::use(strAssets));
-        st.define_and_bind();
-        {
-            auto timer = mDB.getDeleteTimer("trustline");
-            st.execute(true);
-        }
-        if (static_cast<size_t>(st.get_affected_rows()) != mAccountIDs.size() &&
-            mCons == LedgerTxnConsistency::EXACT)
-        {
-            throw std::runtime_error("Could not update data in SQL");
-        }
-    }
-#endif
 };
 
 void
@@ -359,12 +285,11 @@ LedgerTxnRoot::Impl::dropTrustLines(bool rebuild)
 
     if (rebuild)
     {
-        std::string coll = mApp.getDatabase().getSimpleCollationClause();
         mApp.getDatabase().getSession()
             << "CREATE TABLE trustlines"
             << "("
-            << "accountid    VARCHAR(56) " << coll << " NOT NULL,"
-            << "asset        TEXT " << coll << " NOT NULL,"
+            << "accountid    VARCHAR(56)  NOT NULL,"
+            << "asset        TEXT  NOT NULL,"
             << "ledgerentry  TEXT NOT NULL,"
             << "lastmodified INT  NOT NULL,"
             << "PRIMARY KEY  (accountid, asset));";
@@ -474,31 +399,6 @@ class BulkLoadTrustLinesOperation
         sqlite3_bind_int(st, 4, static_cast<int>(cstrAssets.size()));
         return executeAndFetch(prep.statement());
     }
-
-#ifdef USE_POSTGRES
-    virtual std::vector<LedgerEntry>
-    doPostgresSpecificOperation(soci::postgresql_session_backend* pg) override
-    {
-        releaseAssert(mAccountIDs.size() == mAssets.size());
-
-        std::string strAccountIDs;
-        std::string strAssets;
-        marshalToPGArray(pg->conn_, strAccountIDs, mAccountIDs);
-        marshalToPGArray(pg->conn_, strAssets, mAssets);
-
-        auto prep = mDb.getPreparedStatement(
-            "WITH r AS (SELECT unnest(:v1::TEXT[]), "
-            "unnest(:v2::TEXT[])) SELECT accountid, asset, "
-            "ledgerentry "
-            " FROM trustlines "
-            "WHERE (accountid, asset) IN (SELECT * "
-            "FROM r)");
-        auto& st = prep.statement();
-        st.exchange(soci::use(strAccountIDs));
-        st.exchange(soci::use(strAssets));
-        return executeAndFetch(st);
-    }
-#endif
 };
 
 UnorderedMap<LedgerKey, std::shared_ptr<LedgerEntry const>>

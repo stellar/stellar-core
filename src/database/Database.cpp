@@ -38,9 +38,6 @@
 
 #include <lib/soci/src/backends/sqlite3/soci-sqlite3.h>
 #include <string>
-#ifdef USE_POSTGRES
-#include <lib/soci/src/backends/postgresql/soci-postgresql.h>
-#endif
 #include <sstream>
 #include <stdexcept>
 #include <thread>
@@ -75,31 +72,6 @@ static int const MIN_SQLITE_MINOR_VERSION = 45;
 static int const MIN_SQLITE_VERSION =
     (1000000 * MIN_SQLITE_MAJOR_VERSION) + (1000 * MIN_SQLITE_MINOR_VERSION);
 
-// PostgreSQL pre-10.0 actually used its "minor number" as a major one
-// (meaning: 9.4 and 9.5 were considered different major releases, with
-// compatibility differences and so forth). After 10.0 they started doing
-// what everyone else does, where 10.0 and 10.1 were only "minor". Either
-// way though, we have a minimum minor version.
-static int const MIN_POSTGRESQL_MAJOR_VERSION = 9;
-static int const MIN_POSTGRESQL_MINOR_VERSION = 5;
-static int const MIN_POSTGRESQL_VERSION =
-    (10000 * MIN_POSTGRESQL_MAJOR_VERSION) +
-    (100 * MIN_POSTGRESQL_MINOR_VERSION);
-
-#ifdef USE_POSTGRES
-static std::string
-badPgVersion(int vers)
-{
-    std::ostringstream msg;
-    int maj = (vers / 10000);
-    int min = (vers - (maj * 10000)) / 100;
-    msg << "PostgreSQL version " << maj << '.' << min
-        << " is too old, must use at least " << MIN_POSTGRESQL_MAJOR_VERSION
-        << '.' << MIN_POSTGRESQL_MINOR_VERSION;
-    return msg.str();
-}
-#endif
-
 static std::string
 badSqliteVersion(int vers)
 {
@@ -118,9 +90,6 @@ Database::registerDrivers()
     if (!gDriversRegistered)
     {
         register_factory_sqlite3();
-#ifdef USE_POSTGRES
-        register_factory_postgresql();
-#endif
         gDriversRegistered = true;
     }
 }
@@ -165,20 +134,6 @@ class DatabaseConfigureSessionOp : public DatabaseTypeSpecificOperation<void>
         // Register the sqlite carray() extension we use for bulk operations.
         sqlite3_carray_init(sq->conn_, nullptr, nullptr);
     }
-#ifdef USE_POSTGRES
-    void
-    doPostgresSpecificOperation(soci::postgresql_session_backend* pg) override
-    {
-        int vers = PQserverVersion(pg->conn_);
-        if (vers < MIN_POSTGRESQL_VERSION)
-        {
-            throw std::runtime_error(badPgVersion(vers));
-        }
-        mSession
-            << "SET SESSION CHARACTERISTICS AS TRANSACTION ISOLATION LEVEL "
-               "SERIALIZABLE";
-    }
-#endif
 };
 
 Database::Database(Application& app)
@@ -381,36 +336,11 @@ Database::getUpsertTimer(std::string const& entityName)
         .TimeScope();
 }
 
-void
-Database::setCurrentTransactionReadOnly()
-{
-    if (!isSqlite())
-    {
-        auto prep = getPreparedStatement("SET TRANSACTION READ ONLY");
-        auto& st = prep.statement();
-        st.define_and_bind();
-        st.execute(false);
-    }
-}
-
 bool
 Database::isSqlite() const
 {
     return mApp.getConfig().DATABASE.value.find("sqlite3://") !=
            std::string::npos;
-}
-
-std::string
-Database::getSimpleCollationClause() const
-{
-    if (isSqlite())
-    {
-        return "";
-    }
-    else
-    {
-        return " COLLATE \"C\" ";
-    }
 }
 
 bool

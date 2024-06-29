@@ -120,25 +120,6 @@ class bulkLoadConfigSettingsOperation
         sqlite3_bind_int(st, 2, static_cast<int>(mConfigSettingIDs.size()));
         return executeAndFetch(prep.statement());
     }
-
-#ifdef USE_POSTGRES
-    std::vector<LedgerEntry>
-    doPostgresSpecificOperation(soci::postgresql_session_backend* pg) override
-    {
-        std::string strConfigSettingIDs;
-        marshalToPGArray(pg->conn_, strConfigSettingIDs, mConfigSettingIDs);
-
-        std::string sql = "WITH r AS (SELECT unnest(:v1::INT[])) "
-                          "SELECT ledgerentry "
-                          "FROM configsettings "
-                          "WHERE configsettingid IN (SELECT * from r)";
-
-        auto prep = mDb.getPreparedStatement(sql);
-        auto& st = prep.statement();
-        st.exchange(soci::use(strConfigSettingIDs));
-        return executeAndFetch(st);
-    }
-#endif
 };
 
 UnorderedMap<LedgerKey, std::shared_ptr<LedgerEntry const>>
@@ -222,46 +203,6 @@ class bulkUpsertConfigSettingsOperation
     {
         doSociGenericOperation();
     }
-
-#ifdef USE_POSTGRES
-    void
-    doPostgresSpecificOperation(soci::postgresql_session_backend* pg) override
-    {
-        std::string strConfigSettingIDs, strConfigSettingEntries,
-            strLastModifieds;
-
-        PGconn* conn = pg->conn_;
-        marshalToPGArray(conn, strConfigSettingIDs, mConfigSettingIDs);
-        marshalToPGArray(conn, strConfigSettingEntries, mConfigSettingEntries);
-        marshalToPGArray(conn, strLastModifieds, mLastModifieds);
-
-        std::string sql = "WITH r AS "
-                          "(SELECT unnest(:ids::INT[]), unnest(:v1::TEXT[]), "
-                          "unnest(:v2::INT[])) "
-                          "INSERT INTO configsettings "
-                          "(configsettingid, ledgerentry, lastmodified) "
-                          "SELECT * FROM r "
-                          "ON CONFLICT (configsettingid) DO UPDATE SET "
-                          "ledgerentry = excluded.ledgerentry, "
-                          "lastmodified = excluded.lastmodified";
-
-        auto prep = mDb.getPreparedStatement(sql);
-        soci::statement& st = prep.statement();
-        st.exchange(soci::use(strConfigSettingIDs));
-        st.exchange(soci::use(strConfigSettingEntries));
-        st.exchange(soci::use(strLastModifieds));
-        st.define_and_bind();
-        {
-            auto timer = mDb.getUpsertTimer("configsetting");
-            st.execute(true);
-        }
-        if (static_cast<size_t>(st.get_affected_rows()) !=
-            mConfigSettingIDs.size())
-        {
-            throw std::runtime_error("Could not update data in SQL");
-        }
-    }
-#endif
 };
 
 void
@@ -283,11 +224,10 @@ LedgerTxnRoot::Impl::dropConfigSettings(bool rebuild)
 
     if (rebuild)
     {
-        std::string coll = mApp.getDatabase().getSimpleCollationClause();
         mApp.getDatabase().getSession()
             << "CREATE TABLE configsettings ("
             << "configsettingid INT PRIMARY KEY, "
-            << "ledgerentry  TEXT " << coll << " NOT NULL, "
+            << "ledgerentry  TEXT NOT NULL, "
             << "lastmodified INT NOT NULL);";
     }
 }

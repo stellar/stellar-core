@@ -64,10 +64,9 @@ class StatementContext : NonCopyable
  * Object that owns the database connection(s) that an application
  * uses to store the current ledger and other persistent state in.
  *
- * This may represent an in-memory SQLite instance (for testing), an on-disk
- * SQLite instance (for running a minimal, self-contained server) or a
- * connection to a local Postgresql database, that the node operator must have
- * set up on their own.
+ * This may represent an in-memory SQLite instance (for testing), or an on-disk
+ * SQLite instance (for running a minimal, self-contained server) that the node 
+ * operator must have set up on their own.
  *
  * Database connects, on construction, to the target specified by the
  * application Config object's Config::DATABASE value; this originates from the
@@ -81,8 +80,7 @@ class StatementContext : NonCopyable
  * worker thread.
  *
  * All database connections and transactions are set to snapshot isolation level
- * (SQL isolation level 'SERIALIZABLE' in Postgresql and Sqlite, neither of
- * which provide true serializability).
+ * (unlike SQL isolation level 'SERIALIZABLE' in Sqlite, which does not provides true serializability).
  */
 class Database : NonMovableOrCopyable
 {
@@ -134,20 +132,8 @@ class Database : NonMovableOrCopyable
     medida::TimerContext getUpdateTimer(std::string const& entityName);
     medida::TimerContext getUpsertTimer(std::string const& entityName);
 
-    // If possible (i.e. "on postgres") issue an SQL pragma that marks
-    // the current transaction as read-only. The effects of this last
-    // only as long as the current SQL transaction.
-    void setCurrentTransactionReadOnly();
-
     // Return true if the Database target is SQLite, otherwise false.
     bool isSqlite() const;
-
-    // Return an optional SQL COLLATION clause to use for text-typed columns in
-    // this database, in order to ensure they're compared "simply" using
-    // byte-value comparisons, i.e. in a non-language-sensitive fashion.  For
-    // Postgresql this will be 'COLLATE "C"' and for SQLite, nothing (its
-    // defaults are correct already).
-    std::string getSimpleCollationClause() const;
 
     // Call `op` back with the specific database backend subtype in use.
     template <typename T>
@@ -192,12 +178,6 @@ doDatabaseTypeSpecificOperation(soci::session& session,
     if (auto sq = dynamic_cast<soci::sqlite3_session_backend*>(b))
     {
         return op.doSqliteSpecificOperation(sq);
-#ifdef USE_POSTGRES
-    }
-    else if (auto pg = dynamic_cast<soci::postgresql_session_backend*>(b))
-    {
-        return op.doPostgresSpecificOperation(pg);
-#endif
     }
     else
     {
