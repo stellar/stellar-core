@@ -111,6 +111,58 @@ class BucketIndexTest
         buildBucketList(f);
     }
 
+    void
+    runHistoricalSnapshotTest()
+    {
+        uint32_t ledger = 0;
+        auto canonicalEntry = LedgerTestUtils::generateValidLedgerEntry();
+        canonicalEntry.lastModifiedLedgerSeq = 0;
+
+        do
+        {
+            ++ledger;
+            auto entryCopy = canonicalEntry;
+            entryCopy.lastModifiedLedgerSeq = ledger;
+            mApp->getLedgerManager().setNextLedgerEntryBatchForBucketTesting(
+                {}, {entryCopy}, {});
+            closeLedger(*mApp);
+        } while (ledger < mApp->getConfig().RPC_SNAPSHOT_LEDGERS + 2);
+        ++ledger;
+
+        auto searchableBL = getBM()
+                                .getBucketSnapshotManager()
+                                .getSearchableBucketListSnapshot();
+        auto lk = LedgerEntryKey(canonicalEntry);
+
+        auto currentLoadedEntry = searchableBL->getLedgerEntry(lk);
+        REQUIRE(currentLoadedEntry);
+
+        // Note: The definition of "historical snapshot" ledger is that the
+        // BucketList snapshot for ledger N is the BucketList as it exists at
+        // the beginning of ledger N. This means that the lastModifiedLedgerSeq
+        // is at most N - 1.
+        REQUIRE(currentLoadedEntry->lastModifiedLedgerSeq == ledger - 1);
+
+        for (uint32_t currLedger = ledger; currLedger > 0; --currLedger)
+        {
+            auto [loadedLe, snapshotExists] =
+                searchableBL->getLedgerEntryFromLedger(lk, currLedger);
+
+            // If we query an older snapshot, should return <null, notFound>
+            if (currLedger < ledger - mApp->getConfig().RPC_SNAPSHOT_LEDGERS)
+            {
+                REQUIRE(!snapshotExists);
+                REQUIRE(!loadedLe);
+            }
+            else
+            {
+                REQUIRE(snapshotExists);
+                REQUIRE(loadedLe);
+                REQUIRE(loadedLe->lastModifiedLedgerSeq == currLedger - 1);
+            }
+        }
+    }
+
     virtual void
     buildMultiVersionTest()
     {
@@ -497,6 +549,17 @@ TEST_CASE("do not load outdated values", "[bucket][bucketindex]")
         auto test = BucketIndexTest(cfg);
         test.buildMultiVersionTest();
         test.run();
+    };
+
+    testAllIndexTypes(f);
+}
+
+TEST_CASE("load from historical snapshots", "[bucket][bucketindex]")
+{
+    auto f = [&](Config& cfg) {
+        cfg.RPC_SNAPSHOT_LEDGERS = 5;
+        auto test = BucketIndexTest(cfg);
+        test.runHistoricalSnapshotTest();
     };
 
     testAllIndexTypes(f);

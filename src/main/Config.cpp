@@ -223,6 +223,12 @@ Config::Config() : NODE_SEED(SecretKey::random())
     TESTING_UPGRADE_FLAGS = 0;
 
     HTTP_PORT = DEFAULT_PEER_PORT + 1;
+
+    RPC_THREADS = 4;
+    // TODO: Default to 0
+    RPC_SNAPSHOT_LEDGERS = 5;
+    // TODO: Default to 0
+    RPC_HTTP_PORT = DEFAULT_PEER_PORT + 2;
     PUBLIC_HTTP_PORT = false;
     HTTP_MAX_CLIENT = 128;
     PEER_PORT = DEFAULT_PEER_PORT;
@@ -1047,6 +1053,10 @@ Config::processConfig(std::shared_ptr<cpptoml::table> t)
             {
                 HTTP_PORT = readInt<unsigned short>(item);
             }
+            else if (item.first == "RPC_HTTP_PORT")
+            {
+                RPC_HTTP_PORT = readInt<unsigned short>(item);
+            }
             else if (item.first == "HTTP_MAX_CLIENT")
             {
                 HTTP_MAX_CLIENT = readInt<unsigned short>(item, 0);
@@ -1373,6 +1383,14 @@ Config::processConfig(std::shared_ptr<cpptoml::table> t)
             else if (item.first == "WORKER_THREADS")
             {
                 WORKER_THREADS = readInt<int>(item, 2, 1000);
+            }
+            else if (item.first == "RPC_THREADS")
+            {
+                RPC_THREADS = readInt<int>(item, 1, 1000);
+            }
+            else if (item.first == "RPC_SNAPSHOT_LEDGERS")
+            {
+                RPC_SNAPSHOT_LEDGERS = readInt<uint32_t>(item, 0, 10);
             }
             else if (item.first == "MAX_CONCURRENT_SUBPROCESSES")
             {
@@ -2357,6 +2375,7 @@ Config::setNoListen()
     // prevent opening up a port for other peers
     RUN_STANDALONE = true;
     HTTP_PORT = 0;
+    RPC_HTTP_PORT = 0;
     MANUAL_CLOSE = true;
 }
 
