@@ -684,14 +684,7 @@ LoadGenerator::generateLoad(GeneratedLoadConfig cfg)
                 return;
             }
 
-            std::optional<uint64_t> maybeSourceAccountId =
-                getNextAvailableAccount(ledgerNum);
-            if (!maybeSourceAccountId.has_value())
-            {
-                // Loadgen has failed
-                break;
-            }
-            uint64_t sourceAccountId = maybeSourceAccountId.value();
+            uint64_t sourceAccountId = getNextAvailableAccount(ledgerNum);
 
             std::function<
                 std::pair<LoadGenerator::TestAccountPtr, TransactionFramePtr>()>
@@ -910,27 +903,22 @@ LoadGenerator::submitTx(GeneratedLoadConfig const& cfg,
     return true;
 }
 
-std::optional<uint64_t>
+uint64_t
 LoadGenerator::getNextAvailableAccount(uint32_t ledgerNum)
 {
-    if (mAccountsAvailable.empty())
+    uint64_t sourceAccountId;
+    do
     {
-        CLOG_WARNING(LoadGen, "No more accounts available");
-        mFailed = true;
-        return std::nullopt;
-    }
+        releaseAssert(!mAccountsAvailable.empty());
 
-    auto sourceAccountIdx =
-        rand_uniform<uint64_t>(0, mAccountsAvailable.size() - 1);
-    auto it = mAccountsAvailable.begin();
-    std::advance(it, sourceAccountIdx);
-    uint64_t sourceAccountId = *it;
-    mAccountsAvailable.erase(it);
-    releaseAssert(mAccountsInUse.insert(sourceAccountId).second);
+        auto sourceAccountIdx =
+            rand_uniform<uint64_t>(0, mAccountsAvailable.size() - 1);
+        auto it = mAccountsAvailable.begin();
+        std::advance(it, sourceAccountIdx);
+        sourceAccountId = *it;
+        mAccountsAvailable.erase(it);
+        releaseAssert(mAccountsInUse.insert(sourceAccountId).second);
 
-    if (mApp.getHerder().sourceAccountPending(
-            findAccount(sourceAccountId, ledgerNum)->getPublicKey()))
-    {
         // Although mAccountsAvailable shouldn't contain pending accounts, it is
         // possible when the network is overloaded. Consider the following
         // scenario:
@@ -950,22 +938,10 @@ LoadGenerator::getNextAvailableAccount(uint32_t ledgerNum)
         //    queue!
         //
         // In this scenario, returning `a` results in an assertion failure
-        // later. At this point we have two reasonable options:
-        // 1. Mark `a` in-use and resample new accounts until we either find one
-        //    that is available, or run out of accounts
-        // 2. Fail loadgen.
-        // We chose option (2), as this scenario is indicative of an overloaded
-        // network and in practice loadgen is highly likely to fail soon anyway.
-        // Moreover, option (1) provides some false sense of having resolved the
-        // issue as this is a race condition that could still occur between
-        // returning the new account from this function and using it later on.
-        CLOG_WARNING(
-            LoadGen,
-            "mAccountsAvailable contains an account '{}' already in use",
-            sourceAccountId);
-        mFailed = true;
-        return std::nullopt;
-    }
+        // later. To resolve this, we resample a new account by simply looping
+        // here.
+    } while (mApp.getHerder().sourceAccountPending(
+        findAccount(sourceAccountId, ledgerNum)->getPublicKey()));
 
     return sourceAccountId;
 }
@@ -1040,21 +1016,10 @@ std::pair<LoadGenerator::TestAccountPtr, TransactionFramePtr>
 LoadGenerator::creationTransaction(uint64_t startAccount, uint64_t numItems,
                                    uint32_t ledgerNum)
 {
-    TestAccountPtr sourceAcc = mRoot;
-    if (mInitialAccountsCreated)
-    {
-        std::optional<uint64_t> accountId = getNextAvailableAccount(ledgerNum);
-        if (!accountId.has_value())
-        {
-            // This really shouldn't happen and indicates a misconfiguration
-            // that the checks in `scheduleLoadGeneration` should have caught.
-            throw std::runtime_error(
-                "Failed to get an available account during creation "
-                "transaction generation. Either the number of available "
-                "accounts is too low, or the transaction rate is too high.");
-        }
-        sourceAcc = findAccount(accountId.value(), ledgerNum);
-    }
+    TestAccountPtr sourceAcc =
+        mInitialAccountsCreated
+            ? findAccount(getNextAvailableAccount(ledgerNum), ledgerNum)
+            : mRoot;
     vector<Operation> creationOps = createAccounts(
         startAccount, numItems, ledgerNum, !mInitialAccountsCreated);
     mInitialAccountsCreated = true;
