@@ -8,6 +8,7 @@
 #include "catchup/IndexBucketsWork.h"
 #include "crypto/Hex.h"
 #include "history/HistoryArchive.h"
+#include "invariant/InvariantManager.h"
 #include "work/WorkSequence.h"
 #include "work/WorkWithCallback.h"
 
@@ -79,6 +80,10 @@ AssumeStateWork::doWork()
             // Drop bucket references once assume state complete since buckets
             // now referenced by BucketList
             buckets.clear();
+
+            // Check invariants after state has been assumed
+            app.getInvariantManager().checkAfterAssumeState(has.currentLedger);
+
             return true;
         };
         auto work = std::make_shared<WorkWithCallback>(mApp, "assume-state",

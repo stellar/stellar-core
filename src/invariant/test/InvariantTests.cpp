@@ -62,6 +62,12 @@ class TestInvariant : public Invariant
     }
 
     virtual std::string
+    checkAfterAssumeState(uint32_t newestLedger) override
+    {
+        return mShouldFail ? "fail" : "";
+    }
+
+    virtual std::string
     checkOnOperationApply(Operation const& operation,
                           OperationResult const& result,
                           LedgerTxnDelta const& ltxDelta) override
