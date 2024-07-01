@@ -25,7 +25,6 @@ class ApplyBucketsWork : public Work
     HistoryArchiveState const& mApplyState;
     std::function<bool(LedgerEntryType)> mEntryTypeFilter;
 
-    bool mApplying{false};
     bool mSpawnedAssumeStateWork{false};
     std::shared_ptr<AssumeStateWork> mAssumeStateWork{};
     std::shared_ptr<IndexBucketsWork> mIndexBucketsWork{};
@@ -36,29 +35,24 @@ class ApplyBucketsWork : public Work
     size_t mAppliedSize{0};
     size_t mLastAppliedSizeMb{0};
     size_t mLastPos{0};
+    size_t mBucketToApplyIndex{0};
     uint32_t mLevel{0};
     uint32_t mMaxProtocolVersion{0};
     uint32_t mMinProtocolVersionSeen{UINT32_MAX};
-    std::shared_ptr<Bucket const> mFirstBucket;
-    std::shared_ptr<Bucket const> mSecondBucket;
-    std::unique_ptr<BucketApplicator> mFirstBucketApplicator;
-    std::unique_ptr<BucketApplicator> mSecondBucketApplicator;
     std::unordered_set<LedgerKey> mSeenKeys;
-    std::vector<std::shared_ptr<Bucket>> mBucketsToIndex;
+    std::vector<std::shared_ptr<Bucket>> mBucketsToApply;
+    std::unique_ptr<BucketApplicator> mBucketApplicator;
+    bool mDelayChecked{false};
 
     BucketApplicator::Counters mCounters;
 
     void advance(std::string const& name, BucketApplicator& applicator);
     std::shared_ptr<Bucket> getBucket(std::string const& bucketHash);
-    BucketLevel& getBucketLevel(uint32_t level);
-    void startLevel();
-    bool isLevelComplete();
-
-    bool mDelayChecked{false};
 
     uint32_t startingLevel();
-    uint32_t nextLevel() const;
-    bool appliedAllLevels() const;
+    bool appliedAllBuckets() const;
+    void startBucket();
+    void prepareForNextBucket();
 
   public:
     ApplyBucketsWork(
