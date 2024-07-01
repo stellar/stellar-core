@@ -306,7 +306,9 @@ class LoadGenerator
     // queue (to avoid source account collisions during tx submission)
     std::unordered_set<uint64_t> mAccountsInUse;
     std::unordered_set<uint64_t> mAccountsAvailable;
-    uint64_t getNextAvailableAccount();
+
+    // Get an account ID not currently in use.
+    uint64_t getNextAvailableAccount(uint32_t ledgerNum);
 
     // For account creation only: allocate a few accounts for creation purposes
     // (with sufficient balance to create new accounts) to avoid source account

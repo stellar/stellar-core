@@ -684,7 +684,7 @@ LoadGenerator::generateLoad(GeneratedLoadConfig cfg)
                 return;
             }
 
-            uint64_t sourceAccountId = getNextAvailableAccount();
+            uint64_t sourceAccountId = getNextAvailableAccount(ledgerNum);
 
             std::function<
                 std::pair<LoadGenerator::TestAccountPtr, TransactionFramePtr>()>
@@ -904,17 +904,45 @@ LoadGenerator::submitTx(GeneratedLoadConfig const& cfg,
 }
 
 uint64_t
-LoadGenerator::getNextAvailableAccount()
+LoadGenerator::getNextAvailableAccount(uint32_t ledgerNum)
 {
-    releaseAssert(!mAccountsAvailable.empty());
+    uint64_t sourceAccountId;
+    do
+    {
+        releaseAssert(!mAccountsAvailable.empty());
 
-    auto sourceAccountIdx =
-        rand_uniform<uint64_t>(0, mAccountsAvailable.size() - 1);
-    auto it = mAccountsAvailable.begin();
-    std::advance(it, sourceAccountIdx);
-    uint64_t sourceAccountId = *it;
-    mAccountsAvailable.erase(it);
-    releaseAssert(mAccountsInUse.insert(sourceAccountId).second);
+        auto sourceAccountIdx =
+            rand_uniform<uint64_t>(0, mAccountsAvailable.size() - 1);
+        auto it = mAccountsAvailable.begin();
+        std::advance(it, sourceAccountIdx);
+        sourceAccountId = *it;
+        mAccountsAvailable.erase(it);
+        releaseAssert(mAccountsInUse.insert(sourceAccountId).second);
+
+        // Although mAccountsAvailable shouldn't contain pending accounts, it is
+        // possible when the network is overloaded. Consider the following
+        // scenario:
+        // 1. This node generates a transaction `t` using account `a` and
+        //    broadcasts it on. In doing so, loadgen marks `a` as in use,
+        //    removing it from `mAccountsAvailable.
+        // 2. For whatever reason, `t` never makes it out of the queue and this
+        //    node bans it.
+        // 3. After some period of time, this node unbans `t` because bans only
+        //    last for so many ledgers.
+        // 4. Loadgen marks `a` available, moving it back into
+        //    `mAccountsAvailable`.
+        // 5. This node hears about `t` again on the network and (as it is no
+        //    longer banned) adds it back to the queue
+        // 6. getNextAvailableAccount draws `a` from `mAccountsAvailable`.
+        //    However, `a` is no longer available as `t` is in the transaction
+        //    queue!
+        //
+        // In this scenario, returning `a` results in an assertion failure
+        // later. To resolve this, we resample a new account by simply looping
+        // here.
+    } while (mApp.getHerder().sourceAccountPending(
+        findAccount(sourceAccountId, ledgerNum)->getPublicKey()));
+
     return sourceAccountId;
 }
 
@@ -990,7 +1018,7 @@ LoadGenerator::creationTransaction(uint64_t startAccount, uint64_t numItems,
 {
     TestAccountPtr sourceAcc =
         mInitialAccountsCreated
-            ? findAccount(getNextAvailableAccount(), ledgerNum)
+            ? findAccount(getNextAvailableAccount(ledgerNum), ledgerNum)
             : mRoot;
     vector<Operation> creationOps = createAccounts(
         startAccount, numItems, ledgerNum, !mInitialAccountsCreated);
