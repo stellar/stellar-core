@@ -45,7 +45,7 @@ defaultUploadWasmResourcesWithoutFootprint(RustBuf const& wasm,
 // Creates a valid transaction for uploading provided Wasm.
 // Fills in the valid footprint automatically in case if `uploadResources`
 // doesn't contain it.
-TransactionFrameBasePtr
+TransactionTestFramePtr
 makeSorobanWasmUploadTx(Application& app, TestAccount& source,
                         RustBuf const& wasm, SorobanResources& uploadResources,
                         uint32_t inclusionFee);
@@ -53,7 +53,7 @@ makeSorobanWasmUploadTx(Application& app, TestAccount& source,
 // Creates a valid transaction for creating a contract.
 // Fills in the valid footprint automatically in case if `createResources`
 // doesn't contain it.
-TransactionFrameBasePtr makeSorobanCreateContractTx(
+TransactionTestFramePtr makeSorobanCreateContractTx(
     Application& app, TestAccount& source, ContractIDPreimage const& idPreimage,
     ContractExecutable const& executable, SorobanResources& createResources,
     uint32_t inclusionFee);
@@ -104,7 +104,7 @@ class SorobanInvocationSpec
     SorobanInvocationSpec setInclusionFee(uint32_t fee) const;
 };
 
-TransactionFrameBasePtr sorobanTransactionFrameFromOps(
+TransactionTestFramePtr sorobanTransactionFrameFromOps(
     Hash const& networkID, TestAccount& source,
     std::vector<Operation> const& ops, std::vector<SecretKey> const& opKeys,
     SorobanInvocationSpec const& spec,
@@ -186,7 +186,7 @@ class TestContract
 
         SorobanInvocationSpec getSpec();
 
-        TransactionFrameBasePtr createTx(TestAccount* source = nullptr);
+        TransactionTestFramePtr createTx(TestAccount* source = nullptr);
         bool invoke(TestAccount* source = nullptr);
 
         SCVal getReturnValue() const;
@@ -223,7 +223,7 @@ class SorobanTest
     static int64_t computeFeePerIncrement(int64_t resourceVal, int64_t feeRate,
                                           int64_t increment);
 
-    void invokeArchivalOp(TransactionFrameBasePtr tx,
+    void invokeArchivalOp(TransactionTestFramePtr tx,
                           int64_t expectedRefundableFeeCharged);
 
     Hash uploadWasm(RustBuf const& wasm, SorobanResources& uploadResources);
@@ -266,17 +266,17 @@ class SorobanTest
     uint32_t getLedgerSeq() const;
     uint32_t getLedgerVersion() const;
 
-    TransactionFrameBasePtr createExtendOpTx(SorobanResources const& resources,
+    TransactionTestFramePtr createExtendOpTx(SorobanResources const& resources,
                                              uint32_t extendTo, uint32_t fee,
                                              int64_t refundableFee,
                                              TestAccount* source = nullptr);
-    TransactionFrameBasePtr createRestoreTx(SorobanResources const& resources,
+    TransactionTestFramePtr createRestoreTx(SorobanResources const& resources,
                                             uint32_t fee, int64_t refundableFee,
                                             TestAccount* source = nullptr);
 
-    bool isTxValid(TransactionFrameBasePtr tx);
+    bool isTxValid(TransactionTestFramePtr tx);
 
-    bool invokeTx(TransactionFrameBasePtr tx,
+    bool invokeTx(TransactionTestFramePtr tx,
                   TransactionMetaFrame* txMeta = nullptr);
 
     uint32_t getTTL(LedgerKey const& k);

@@ -14,6 +14,7 @@
 #include "ledger/LedgerTxnHeader.h"
 #include "main/Application.h"
 #include "main/Config.h"
+#include "transactions/MutableTransactionResult.h"
 #include "transactions/TransactionUtils.h"
 #include "util/GlobalChecks.h"
 #include "util/Logging.h"
@@ -189,9 +190,18 @@ TxSetUtils::getInvalidTxList(TxSetTransactions const& txs, Application& app,
             bool minSeqCheckIsInvalid =
                 iter != accountQueue->mTxs.begin() &&
                 (tx->getMinSeqAge() != 0 || tx->getMinSeqLedgerGap() != 0);
-            if (minSeqCheckIsInvalid ||
-                !tx->checkValid(app, ltx, lastSeq, lowerBoundCloseTimeOffset,
-                                upperBoundCloseTimeOffset))
+
+            // Only call checkValid if we passed the seqNum check
+            MutableTxResultPtr txResult{};
+            if (!minSeqCheckIsInvalid)
+            {
+                txResult =
+                    tx->checkValid(app, ltx, lastSeq, lowerBoundCloseTimeOffset,
+                                   upperBoundCloseTimeOffset);
+                releaseAssertOrThrow(txResult);
+            }
+
+            if (minSeqCheckIsInvalid || !txResult->isSuccess())
             {
                 invalidTxs.emplace_back(tx);
                 iter = accountQueue->mTxs.erase(iter);
@@ -214,7 +224,7 @@ TxSetUtils::getInvalidTxList(TxSetTransactions const& txs, Application& app,
                             lastSeq,
                             xdrToCerealString(tx->getEnvelope(),
                                               "TransactionEnvelope"),
-                            tx->getResultCode());
+                            txResult->getResultCode());
                     }
                     return invalidTxs;
                 }

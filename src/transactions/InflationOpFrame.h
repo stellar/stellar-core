@@ -13,19 +13,19 @@ class AbstractLedgerTxn;
 class InflationOpFrame : public OperationFrame
 {
     InflationResult&
-    innerResult()
+    innerResult(OperationResult& res) const
     {
-        return mResult.tr().inflationResult();
+        return res.tr().inflationResult();
     }
 
     ThresholdLevel getThresholdLevel() const override;
 
   public:
-    InflationOpFrame(Operation const& op, OperationResult& res,
-                     TransactionFrame& parentTx);
+    InflationOpFrame(Operation const& op, TransactionFrame const& parentTx);
 
-    bool doApply(AbstractLedgerTxn& ltx) override;
-    bool doCheckValid(uint32_t ledgerVersion) override;
+    bool doApply(AbstractLedgerTxn& ltx, OperationResult& res) const override;
+    bool doCheckValid(uint32_t ledgerVersion,
+                      OperationResult& res) const override;
     bool isOpSupported(LedgerHeader const& header) const override;
 
     static InflationResultCode

@@ -504,12 +504,13 @@ TEST_CASE("manualclose", "[commandhandler]")
                 lastCloseTime() + defaultManualCloseTimeInterval +
                 getUpperBoundCloseTimeOffset(*app, lastCloseTime());
             setMaxTime(txFrame, maxTime);
-            txFrame->getEnvelope().v1().signatures.clear();
+            txFrame->getMutableEnvelope().v1().signatures.clear();
             txFrame->addSignature(root);
 
             {
                 LedgerTxn checkLtx(app->getLedgerTxnRoot());
-                auto valid = txFrame->checkValid(*app, checkLtx, 0, 0, 0);
+                auto valid =
+                    txFrame->checkValidForTesting(*app, checkLtx, 0, 0, 0);
                 REQUIRE(valid);
             }
 

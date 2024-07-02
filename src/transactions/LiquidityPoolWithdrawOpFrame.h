@@ -14,24 +14,25 @@ class AbstractLedgerTxn;
 class LiquidityPoolWithdrawOpFrame : public OperationFrame
 {
     LiquidityPoolWithdrawResult&
-    innerResult()
+    innerResult(OperationResult& res) const
     {
-        return mResult.tr().liquidityPoolWithdrawResult();
+        return res.tr().liquidityPoolWithdrawResult();
     }
     LiquidityPoolWithdrawOp const& mLiquidityPoolWithdraw;
 
-    bool tryAddAssetBalance(AbstractLedgerTxn& ltx,
+    bool tryAddAssetBalance(AbstractLedgerTxn& ltx, OperationResult& res,
                             LedgerTxnHeader const& header, Asset const& asset,
-                            int64_t minAmount, int64_t amount);
+                            int64_t minAmount, int64_t amount) const;
 
   public:
-    LiquidityPoolWithdrawOpFrame(Operation const& op, OperationResult& res,
-                                 TransactionFrame& parentTx);
+    LiquidityPoolWithdrawOpFrame(Operation const& op,
+                                 TransactionFrame const& parentTx);
 
     bool isOpSupported(LedgerHeader const& header) const override;
 
-    bool doApply(AbstractLedgerTxn& ltx) override;
-    bool doCheckValid(uint32_t ledgerVersion) override;
+    bool doApply(AbstractLedgerTxn& ltx, OperationResult& res) const override;
+    bool doCheckValid(uint32_t ledgerVersion,
+                      OperationResult& res) const override;
     void
     insertLedgerKeysToPrefetch(UnorderedSet<LedgerKey>& keys) const override;
 

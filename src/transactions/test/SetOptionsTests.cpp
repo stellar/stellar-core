@@ -358,7 +358,7 @@ TEST_CASE_VERSIONS("set options", "[tx][setoptions]")
                     LedgerTxn ltx(app->getLedgerTxnRoot());
                     TransactionMetaFrame txm(
                         ltx.loadHeader().current().ledgerVersion);
-                    REQUIRE(tx->checkValid(*app, ltx, 0, 0, 0));
+                    REQUIRE(tx->checkValidForTesting(*app, ltx, 0, 0, 0));
                     REQUIRE(tx->apply(*app, ltx, txm));
 
                     checkSponsorship(ltx, acc1.getPublicKey(), 0, nullptr, 2, 2,
@@ -398,7 +398,7 @@ TEST_CASE_VERSIONS("set options", "[tx][setoptions]")
                     LedgerTxn ltx(app->getLedgerTxnRoot());
                     TransactionMetaFrame txm(
                         ltx.loadHeader().current().ledgerVersion);
-                    REQUIRE(tx->checkValid(*app, ltx, 0, 0, 0));
+                    REQUIRE(tx->checkValidForTesting(*app, ltx, 0, 0, 0));
                     REQUIRE(tx->apply(*app, ltx, txm));
 
                     checkSponsorship(ltx, acc1.getPublicKey(), 0, nullptr, 2, 2,
@@ -497,7 +497,7 @@ TEST_CASE_VERSIONS("set options", "[tx][setoptions]")
                 LedgerTxn ltx(app->getLedgerTxnRoot());
                 TransactionMetaFrame txm(
                     ltx.loadHeader().current().ledgerVersion);
-                REQUIRE(tx->checkValid(*app, ltx, 0, 0, 0));
+                REQUIRE(tx->checkValidForTesting(*app, ltx, 0, 0, 0));
                 REQUIRE(tx->apply(*app, ltx, txm));
                 ltx.commit();
 

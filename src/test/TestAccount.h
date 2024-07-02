@@ -6,6 +6,7 @@
 
 #include "crypto/SecretKey.h"
 #include "transactions/TransactionFrame.h"
+#include "transactions/test/TransactionTestFrame.h"
 #include "xdr/Stellar-ledger-entries.h"
 #include "xdr/Stellar-transaction.h"
 
@@ -37,8 +38,8 @@ class TestAccount
         mAccountID = KeyUtils::toStrKey(mSk.getPublicKey());
     }
 
-    TransactionFramePtr tx(std::vector<Operation> const& ops,
-                           SequenceNumber sn = 0);
+    TransactionTestFramePtr tx(std::vector<Operation> const& ops,
+                               SequenceNumber sn = 0);
     Operation op(Operation operation);
 
     TestAccount create(SecretKey const& secretKey, uint64_t initialBalance);
