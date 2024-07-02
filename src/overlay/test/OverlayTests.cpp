@@ -529,26 +529,23 @@ TEST_CASE("flow control byte capacity", "[overlay][flowcontrol]")
     }
 }
 
+// Run a test where flow control is enabled on both nodes, and then run the same
+// test with flow controlled disabled on one of the nodes. `cfgMaybeDisabled`
+// is the config that will be used for the node that may have flow control
+// disabled. `f` is the test function that will be run.
 void
-runWithBothFlowControlModes(std::vector<Config>& cfgs,
-                            std::function<void(bool)> f)
+runWithBothFlowControlModes(Config& cfgMaybeDisabled,
+                            std::function<void(Config, bool)> f)
 {
-    SECTION("bytes")
+    SECTION("bytes enabled on all")
     {
-        for (auto& cfg : cfgs)
-        {
-            REQUIRE(cfg.OVERLAY_PROTOCOL_VERSION >=
-                    Peer::FIRST_VERSION_SUPPORTING_FLOW_CONTROL_IN_BYTES);
-        }
-        f(true);
+        f(cfgMaybeDisabled, true);
     }
-    SECTION("message count")
+    SECTION("bytes disabled on some")
     {
-        for (auto& cfg : cfgs)
-        {
-            cfg.ENABLE_FLOW_CONTROL_BYTES = false;
-        }
-        f(false);
+        cfgMaybeDisabled.OVERLAY_PROTOCOL_VERSION =
+            MANDATORY_FLOW_CONTROL_BYTES_MIN_OVERLAY_VERSION - 1;
+        f(cfgMaybeDisabled, false);
     }
 }
 
@@ -556,31 +553,29 @@ TEST_CASE("loopback peer flow control activation", "[overlay][flowcontrol]")
 {
     VirtualClock clock;
     std::vector<Config> cfgs = {getTestConfig(0), getTestConfig(1)};
-    auto cfg1 = cfgs[0];
+    auto cfg1Base = cfgs[0];
     auto cfg2 = cfgs[1];
-    REQUIRE(cfg1.PEER_FLOOD_READING_CAPACITY !=
-            cfg1.PEER_FLOOD_READING_CAPACITY_BYTES);
+    REQUIRE(cfg1Base.PEER_FLOOD_READING_CAPACITY !=
+            cfg1Base.PEER_FLOOD_READING_CAPACITY_BYTES);
 
-    auto runTest = [&](std::vector<Config> expectedCfgs,
-                       bool sendIllegalSendMore) {
-        auto app1 = createTestApplication(clock, expectedCfgs[0]);
-        auto app2 = createTestApplication(clock, expectedCfgs[1]);
+    auto runTest = [&](bool sendIllegalSendMore, Config cfg1,
+                       bool fcBytesEnabledOnAll) {
+        auto app1 = createTestApplication(clock, cfg1);
+        auto app2 = createTestApplication(clock, cfg2);
+
+        if (!fcBytesEnabledOnAll)
+        {
+            app1->getOverlayManager().disableFlowControlBytesForTesting();
+        }
 
         LoopbackPeerConnection conn(*app1, *app2);
         testutil::crankSome(clock);
-
-        bool const fcInBytes =
-            cfg1.OVERLAY_PROTOCOL_VERSION >=
-                Peer::FIRST_VERSION_SUPPORTING_FLOW_CONTROL_IN_BYTES &&
-            cfg2.OVERLAY_PROTOCOL_VERSION >=
-                Peer::FIRST_VERSION_SUPPORTING_FLOW_CONTROL_IN_BYTES &&
-            cfg2.ENABLE_FLOW_CONTROL_BYTES && cfg1.ENABLE_FLOW_CONTROL_BYTES;
 
         REQUIRE(conn.getInitiator()->isAuthenticatedForTesting());
         REQUIRE(conn.getAcceptor()->isAuthenticatedForTesting());
         REQUIRE(conn.getInitiator()->checkCapacity(conn.getAcceptor()));
         REQUIRE(conn.getAcceptor()->checkCapacity(conn.getInitiator()));
-        if (fcInBytes)
+        if (fcBytesEnabledOnAll)
         {
             REQUIRE(conn.getInitiator()->getFlowControl()->getCapacityBytes());
             REQUIRE(conn.getAcceptor()->getFlowControl()->getCapacityBytes());
@@ -600,7 +595,7 @@ TEST_CASE("loopback peer flow control activation", "[overlay][flowcontrol]")
             {
                 // if flow control is enabled, ensure it can't be disabled,
                 // and the misbehaving peer gets dropped
-                if (fcInBytes)
+                if (fcBytesEnabledOnAll)
                 {
                     conn.getAcceptor()->sendSendMore(0, 0);
                 }
@@ -608,12 +603,13 @@ TEST_CASE("loopback peer flow control activation", "[overlay][flowcontrol]")
                 {
                     conn.getAcceptor()->sendSendMore(0);
                 }
-                dropReason = fcInBytes ? "invalid message SEND_MORE_EXTENDED"
-                                       : "invalid message SEND_MORE";
+                dropReason = fcBytesEnabledOnAll
+                                 ? "invalid message SEND_MORE_EXTENDED"
+                                 : "invalid message SEND_MORE";
             }
             SECTION("invalid message type")
             {
-                if (fcInBytes)
+                if (fcBytesEnabledOnAll)
                 {
                     conn.getAcceptor()->sendSendMore(1);
                 }
@@ -621,7 +617,7 @@ TEST_CASE("loopback peer flow control activation", "[overlay][flowcontrol]")
                 {
                     conn.getAcceptor()->sendSendMore(1, 1);
                 }
-                dropReason = fcInBytes
+                dropReason = fcBytesEnabledOnAll
                                  ? "unexpected message type SEND_MORE"
                                  : "unexpected message type SEND_MORE_EXTENDED";
             }
@@ -635,34 +631,26 @@ TEST_CASE("loopback peer flow control activation", "[overlay][flowcontrol]")
         testutil::shutdownWorkScheduler(*app1);
     };
 
-    auto test = [&](bool fcBytes) {
-        SECTION("both enable")
+    auto test = [&](Config cfg1, bool fcBytesEnabledOnAll) {
+        SECTION("basic")
         {
-            SECTION("basic")
-            {
-                // Successfully enabled flow control
-                runTest({cfg1, cfg2}, false);
-            }
-            SECTION("bad peer")
-            {
-                runTest({cfg1, cfg2}, true);
-            }
-            SECTION("one disables")
-            {
-                cfg1.ENABLE_FLOW_CONTROL_BYTES = false;
-                runTest({cfg1, cfg2}, false);
-            }
+            // Successfully enabled flow control
+            runTest(false, cfg1, fcBytesEnabledOnAll);
+        }
+        SECTION("bad peer")
+        {
+            runTest(true, cfg1, fcBytesEnabledOnAll);
         }
     };
 
-    runWithBothFlowControlModes(cfgs, test);
+    runWithBothFlowControlModes(cfg1Base, test);
 }
 
 TEST_CASE("drop peers that dont respect capacity", "[overlay][flowcontrol]")
 {
     VirtualClock clock;
     std::vector<Config> cfgs = {getTestConfig(0), getTestConfig(1)};
-    auto cfg1 = cfgs[0];
+    auto cfg1Base = cfgs[0];
     auto cfg2 = cfgs[1];
 
     // tx is invalid, but it doesn't matter
@@ -672,8 +660,8 @@ TEST_CASE("drop peers that dont respect capacity", "[overlay][flowcontrol]")
         getOperationGreaterThanMinMaxSizeBytes());
     uint32 txSize = static_cast<uint32>(xdr::xdr_argpack_size(msg));
 
-    auto test = [&](bool fcBytes) {
-        if (fcBytes)
+    auto test = [&](Config cfg1, bool fcBytesEnabledOnAll) {
+        if (fcBytesEnabledOnAll)
         {
             cfg1.PEER_FLOOD_READING_CAPACITY_BYTES =
                 txSize + 1 + Herder::FLOW_CONTROL_BYTES_EXTRA_BUFFER;
@@ -690,8 +678,12 @@ TEST_CASE("drop peers that dont respect capacity", "[overlay][flowcontrol]")
             cfg1.PEER_READING_CAPACITY = 2;
         }
         auto app1 = createTestApplication(clock, cfg1, true, false);
-        if (fcBytes &&
-            appProtocolVersionStartsFrom(*app1, SOROBAN_PROTOCOL_VERSION))
+
+        if (!fcBytesEnabledOnAll)
+        {
+            app1->getOverlayManager().disableFlowControlBytesForTesting();
+        }
+        else if (appProtocolVersionStartsFrom(*app1, SOROBAN_PROTOCOL_VERSION))
         {
             modifySorobanNetworkConfig(*app1,
                                        [txSize](SorobanNetworkConfig& cfg) {
@@ -725,22 +717,22 @@ TEST_CASE("drop peers that dont respect capacity", "[overlay][flowcontrol]")
         testutil::shutdownWorkScheduler(*app1);
     };
 
-    runWithBothFlowControlModes(cfgs, test);
+    runWithBothFlowControlModes(cfg1Base, test);
 }
 
 TEST_CASE("drop idle flow-controlled peers", "[overlay][flowcontrol]")
 {
     VirtualClock clock;
     std::vector<Config> cfgs = {getTestConfig(0), getTestConfig(1)};
-    auto cfg1 = cfgs[0];
+    auto cfg1Base = cfgs[0];
     auto cfg2 = cfgs[1];
 
     StellarMessage msg;
     msg.type(TRANSACTION);
     uint32 txSize = static_cast<uint32>(xdr::xdr_argpack_size(msg));
 
-    auto test = [&](bool fcBytes) {
-        if (fcBytes)
+    auto test = [&](Config cfg1, bool fcBytesEnabledOnAll) {
+        if (fcBytesEnabledOnAll)
         {
             cfg1.PEER_FLOOD_READING_CAPACITY_BYTES = txSize;
             // Incorrectly set batch size, so that the node does not send flood
@@ -758,6 +750,11 @@ TEST_CASE("drop idle flow-controlled peers", "[overlay][flowcontrol]")
         auto app1 = createTestApplication(clock, cfg1);
         auto app2 = createTestApplication(clock, cfg2);
 
+        if (!fcBytesEnabledOnAll)
+        {
+            app1->getOverlayManager().disableFlowControlBytesForTesting();
+        }
+
         LoopbackPeerConnection conn(*app1, *app2);
         testutil::crankSome(clock);
         REQUIRE(conn.getInitiator()->isAuthenticatedForTesting());
@@ -770,7 +767,7 @@ TEST_CASE("drop idle flow-controlled peers", "[overlay][flowcontrol]")
         conn.getAcceptor()->sendMessage(std::make_shared<StellarMessage>(msg),
                                         false);
 
-        if (fcBytes)
+        if (fcBytesEnabledOnAll)
         {
             REQUIRE(conn.getAcceptor()
                         ->getFlowControl()
@@ -797,7 +794,7 @@ TEST_CASE("drop idle flow-controlled peers", "[overlay][flowcontrol]")
         testutil::shutdownWorkScheduler(*app1);
     };
 
-    runWithBothFlowControlModes(cfgs, test);
+    runWithBothFlowControlModes(cfg1Base, test);
 }
 
 TEST_CASE("drop peers that overflow capacity", "[overlay][flowcontrol]")
@@ -2232,17 +2229,24 @@ TEST_CASE("overlay flow control", "[overlay][flowcontrol]")
             Herder::FLOW_CONTROL_BYTES_EXTRA_BUFFER;
         cfg.FLOW_CONTROL_SEND_MORE_BATCH_SIZE_BYTES = 100;
         cfg.TESTING_UPGRADE_MAX_TX_SET_SIZE = 1000;
+        cfg.OVERLAY_PROTOCOL_VERSION =
+            MANDATORY_FLOW_CONTROL_BYTES_MIN_OVERLAY_VERSION - 1;
         configs.push_back(cfg);
     }
 
     Application::pointer node = nullptr;
-    auto setupSimulation = [&]() {
+    auto setupSimulation = [&](bool fcBytesEnabledOnAll) {
         node = simulation->addNode(vNode1SecretKey, qSet, &configs[0]);
         auto a1 = simulation->addNode(vNode2SecretKey, qSet, &configs[1]);
         auto a2 = simulation->addNode(vNode3SecretKey, qSet, &configs[2]);
         node->getHerder().setMaxClassicTxSize(5900);
         a1->getHerder().setMaxClassicTxSize(5900);
         a2->getHerder().setMaxClassicTxSize(5900);
+
+        if (!fcBytesEnabledOnAll)
+        {
+            a2->getOverlayManager().disableFlowControlBytesForTesting();
+        }
 
         simulation->addPendingConnection(vNode1NodeID, vNode2NodeID);
         simulation->addPendingConnection(vNode2NodeID, vNode3NodeID);
@@ -2266,19 +2270,11 @@ TEST_CASE("overlay flow control", "[overlay][flowcontrol]")
     {
         SECTION("flow control in bytes on all")
         {
-            setupSimulation();
+            setupSimulation(true);
         }
         SECTION("one peer disables")
         {
-            configs[2].ENABLE_FLOW_CONTROL_BYTES = false;
-            setupSimulation();
-        }
-        SECTION("all peers disable")
-        {
-            std::for_each(configs.begin(), configs.end(), [](Config& cfg) {
-                cfg.ENABLE_FLOW_CONTROL_BYTES = false;
-            });
-            setupSimulation();
+            setupSimulation(false);
         }
 
         simulation->crankUntil(
@@ -2314,7 +2310,7 @@ TEST_CASE("overlay flow control", "[overlay][flowcontrol]")
         configs[2].PEER_FLOOD_READING_CAPACITY = 0;
         configs[2].PEER_FLOOD_READING_CAPACITY_BYTES = 0;
 
-        setupSimulation();
+        setupSimulation(true);
         REQUIRE_THROWS_AS(
             simulation->crankUntil(
                 [&] { return simulation->haveAllExternalized(2, 1); },

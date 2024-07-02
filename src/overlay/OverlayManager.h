@@ -211,5 +211,12 @@ class OverlayManager
     virtual ~OverlayManager()
     {
     }
+
+#ifdef BUILD_TESTS
+    // These functions enable testing interoperability with older stellar-core
+    // nodes that allow disabling flow control bytes.
+    virtual void disableFlowControlBytesForTesting() = 0;
+    virtual bool isFlowControlBytesDisabledForTesting() const = 0;
+#endif // BUILD_TESTS
 };
 }

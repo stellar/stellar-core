@@ -152,7 +152,7 @@ Config::Config() : NODE_SEED(SecretKey::random())
     LEDGER_PROTOCOL_MIN_VERSION_INTERNAL_ERROR_REPORT = 18;
 
     OVERLAY_PROTOCOL_MIN_VERSION = 32;
-    OVERLAY_PROTOCOL_VERSION = 34;
+    OVERLAY_PROTOCOL_VERSION = 35;
 
     VERSION_STR = STELLAR_CORE_VERSION;
 
@@ -261,7 +261,6 @@ Config::Config() : NODE_SEED(SecretKey::random())
     PEER_FLOOD_READING_CAPACITY_BYTES = 0;
     FLOW_CONTROL_SEND_MORE_BATCH_SIZE_BYTES = 0;
     OUTBOUND_TX_QUEUE_BYTE_LIMIT = 1024 * 1024 * 3;
-    ENABLE_FLOW_CONTROL_BYTES = true;
 
     // WORKER_THREADS: setting this too low risks a form of priority inversion
     // where a long-running background task occupies all worker threads and
@@ -1033,7 +1032,23 @@ Config::processConfig(std::shared_ptr<cpptoml::table> t)
             }
             else if (item.first == "ENABLE_FLOW_CONTROL_BYTES")
             {
-                ENABLE_FLOW_CONTROL_BYTES = readBool(item);
+                if (readBool(item))
+                {
+                    CLOG_WARNING(
+                        Overlay,
+                        "ENABLE_FLOW_CONTROL_BYTES is now mandatory. This "
+                        "config option will be removed in a future release. "
+                        "Please remove the option from your configuration "
+                        "file.");
+                }
+                else
+                {
+                    CLOG_ERROR(Overlay,
+                               "ENABLE_FLOW_CONTROL_BYTES is now mandatory. "
+                               "Overriding to `true`. This config option will "
+                               "be removed in a future release. Please remove "
+                               "the option from your configuration file.");
+                }
             }
             else if (item.first == "OUTBOUND_TX_QUEUE_BYTE_LIMIT")
             {
