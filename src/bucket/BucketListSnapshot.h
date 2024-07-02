@@ -66,7 +66,8 @@ class SearchableBucketListSnapshot : public NonMovableOrCopyable
     void loopAllBuckets(std::function<bool(BucketSnapshot const&)> f) const;
 
     std::vector<LedgerEntry>
-    loadKeysInternal(std::set<LedgerKey, LedgerEntryIdCmp> const& inKeys);
+    loadKeysInternal(std::set<LedgerKey, LedgerEntryIdCmp> const& inKeys,
+                     LedgerKeyMeter* lkMeter);
 
     // Loads bucket entry for LedgerKey k. Returns <LedgerEntry, bloomMiss>,
     // where bloomMiss is true if a bloom miss occurred during the load.
@@ -80,7 +81,8 @@ class SearchableBucketListSnapshot : public NonMovableOrCopyable
 
   public:
     std::vector<LedgerEntry>
-    loadKeys(std::set<LedgerKey, LedgerEntryIdCmp> const& inKeys);
+    loadKeysWithLimits(std::set<LedgerKey, LedgerEntryIdCmp> const& inKeys,
+                       LedgerKeyMeter* lkMeter = nullptr);
 
     std::vector<LedgerEntry>
     loadPoolShareTrustLinesByAccountAndAsset(AccountID const& accountID,

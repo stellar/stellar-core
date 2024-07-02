@@ -172,7 +172,15 @@ InMemoryLedgerTxnRoot::getPrefetchHitRate() const
 }
 
 uint32_t
-InMemoryLedgerTxnRoot::prefetch(UnorderedSet<LedgerKey> const&)
+InMemoryLedgerTxnRoot::prefetchClassic(UnorderedSet<LedgerKey> const&)
+{
+    return 0;
+}
+
+uint32_t
+InMemoryLedgerTxnRoot::prefetchSoroban(UnorderedSet<LedgerKey> const&,
+                                       LedgerKeyMeter*)
+
 {
     return 0;
 }

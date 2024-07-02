@@ -18,6 +18,7 @@ class Bucket;
 class XDRInputFileStream;
 class SearchableBucketListSnapshot;
 struct EvictionResultEntry;
+class LedgerKeyMeter;
 
 // A lightweight wrapper around Bucket for thread safe BucketListDB lookups
 class BucketSnapshot : public NonMovable
@@ -57,8 +58,11 @@ class BucketSnapshot : public NonMovable
 
     // Loads LedgerEntry's for given keys. When a key is found, the
     // entry is added to result and the key is removed from keys.
-    void loadKeys(std::set<LedgerKey, LedgerEntryIdCmp>& keys,
-                  std::vector<LedgerEntry>& result) const;
+    // If a pointer to a LedgerKeyMeter is provided, a key will only be loaded
+    // if the meter has a transaction with sufficient read quota for the key.
+    void loadKeysWithLimits(std::set<LedgerKey, LedgerEntryIdCmp>& keys,
+                            std::vector<LedgerEntry>& result,
+                            LedgerKeyMeter* lkMeter) const;
 
     // Return all PoolIDs that contain the given asset on either side of the
     // pool

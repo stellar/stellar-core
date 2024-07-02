@@ -203,7 +203,8 @@ class BucketIndexTest
                                 .getSearchableBucketListSnapshot();
 
         // Test bulk load lookup
-        auto loadResult = searchableBL->loadKeys(mKeysToSearch);
+        auto loadResult =
+            searchableBL->loadKeysWithLimits(mKeysToSearch, nullptr);
         validateResults(mTestEntries, loadResult);
 
         // Test individual entry lookup
@@ -255,7 +256,8 @@ class BucketIndexTest
                 searchSubset.insert(addKeys.begin(), addKeys.end());
             }
 
-            auto blLoad = searchableBL->loadKeys(searchSubset);
+            auto blLoad =
+                searchableBL->loadKeysWithLimits(searchSubset, nullptr);
             validateResults(testEntriesSubset, blLoad);
         }
     }
@@ -274,7 +276,8 @@ class BucketIndexTest
         LedgerKeySet invalidKeys(keysNotInBL.begin(), keysNotInBL.end());
 
         // Test bulk load
-        REQUIRE(searchableBL->loadKeys(invalidKeys).size() == 0);
+        REQUIRE(searchableBL->loadKeysWithLimits(invalidKeys, nullptr).size() ==
+                0);
 
         // Test individual load
         for (auto const& key : invalidKeys)
