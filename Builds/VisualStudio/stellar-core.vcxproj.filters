@@ -594,9 +594,6 @@
     <ClCompile Include="..\..\src\bucket\MergeKey.cpp">
       <Filter>bucket</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\src\bucket\PublishQueueBuckets.cpp">
-      <Filter>bucket</Filter>
-    </ClCompile>
     <ClCompile Include="..\..\src\catchup\test\CatchupWorkTests.cpp">
       <Filter>catchup\tests</Filter>
     </ClCompile>
@@ -616,9 +613,6 @@
       <Filter>catchup</Filter>
     </ClCompile>
     <ClCompile Include="..\..\src\catchup\CatchupConfiguration.cpp">
-      <Filter>catchup</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\src\catchup\CatchupManagerImpl.cpp">
       <Filter>catchup</Filter>
     </ClCompile>
     <ClCompile Include="..\..\src\catchup\CatchupRange.cpp">
@@ -1368,6 +1362,9 @@
     <ClCompile Include="..\..\src\ledger\test\InMemoryLedgerTxnRoot.cpp">
       <Filter>ledger\tests</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\src\catchup\LedgerApplyManagerImpl.cpp">
+      <Filter>catchup</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\..\lib\util\cpptoml.h">
@@ -1808,9 +1805,6 @@
     <ClInclude Include="..\..\src\bucket\MergeKey.h">
       <Filter>bucket</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\src\bucket\PublishQueueBuckets.h">
-      <Filter>bucket</Filter>
-    </ClInclude>
     <ClInclude Include="..\..\src\catchup\test\CatchupWorkTests.h">
       <Filter>catchup\tests</Filter>
     </ClInclude>
@@ -1833,9 +1827,6 @@
       <Filter>catchup</Filter>
     </ClInclude>
     <ClInclude Include="..\..\src\catchup\CatchupManager.h">
-      <Filter>catchup</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\src\catchup\CatchupManagerImpl.h">
       <Filter>catchup</Filter>
     </ClInclude>
     <ClInclude Include="..\..\src\catchup\CatchupRange.h">
@@ -2412,6 +2403,12 @@
     </ClInclude>
     <ClInclude Include="..\..\src\ledger\test\InMemoryLedgerTxnRoot.h">
       <Filter>ledger\tests</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\catchup\LedgerApplyManager.h">
+      <Filter>catchup</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\catchup\LedgerApplyManagerImpl.h">
+      <Filter>catchup</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>

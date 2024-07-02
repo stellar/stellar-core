@@ -518,6 +518,24 @@ use log::partition::TX;
 // instance of it sees a different soroban. This is a bit of a hack and only
 // works when the soroban versions all have a compatible _enough_ interface to
 // all be called from "the same" contract.rs.
+#[path = "."]
+mod p23 {
+    pub(crate) extern crate soroban_env_host_p23;
+    pub(crate) use soroban_env_host_p23 as soroban_env_host;
+
+    pub(crate) mod contract;
+
+    // An adapter for some API breakage between p21 and p22.
+    pub(crate) const fn get_version_pre_release(v: &soroban_env_host::Version) -> u32 {
+        v.interface.pre_release
+    }
+
+    pub(crate) const fn get_version_protocol(v: &soroban_env_host::Version) -> u32 {
+        // Temporarily hardcode the protocol version until we actually bump it
+        // in the host library.
+        23
+    }
+}
 
 #[path = "."]
 mod p22 {
@@ -674,6 +692,7 @@ macro_rules! proto_versioned_functions_for_module {
 const HOST_MODULES: &'static [HostModule] = &[
     proto_versioned_functions_for_module!(p21),
     proto_versioned_functions_for_module!(p22),
+    proto_versioned_functions_for_module!(p23),
 ];
 
 fn get_host_module_for_protocol(
@@ -705,6 +724,7 @@ fn protocol_dispatches_as_expected() {
     assert_eq!(get_host_module_for_protocol(20, 20).unwrap().max_proto, 21);
     assert_eq!(get_host_module_for_protocol(21, 21).unwrap().max_proto, 21);
     assert_eq!(get_host_module_for_protocol(22, 22).unwrap().max_proto, 22);
+    assert_eq!(get_host_module_for_protocol(23, 23).unwrap().max_proto, 23);
 
     // No protocols past the max known.
     let last_proto = HOST_MODULES.last().unwrap().max_proto;

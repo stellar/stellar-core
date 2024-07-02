@@ -281,6 +281,29 @@ getBucketListSizeWindowKey()
     return windowKey;
 }
 
+#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
+LedgerKey
+getParallelComputeSettingsLedgerKey()
+{
+    LedgerKey maxContractSizeKey(CONFIG_SETTING);
+    maxContractSizeKey.configSetting().configSettingID =
+        CONFIG_SETTING_CONTRACT_PARALLEL_COMPUTE_V0;
+    return maxContractSizeKey;
+}
+
+ConfigUpgradeSetFrameConstPtr
+makeParallelComputeUpdgrade(AbstractLedgerTxn& ltx,
+                            uint32_t maxDependentTxClusters)
+{
+    ConfigUpgradeSet configUpgradeSet;
+    auto& configEntry = configUpgradeSet.updatedEntry.emplace_back();
+    configEntry.configSettingID(CONFIG_SETTING_CONTRACT_PARALLEL_COMPUTE_V0);
+    configEntry.contractParallelCompute().ledgerMaxDependentTxClusters =
+        maxDependentTxClusters;
+    return makeConfigUpgradeSet(ltx, configUpgradeSet);
+}
+#endif
+
 void
 testListUpgrades(VirtualClock::system_time_point preferredUpgradeDatetime,
                  bool shouldListAny)
@@ -822,6 +845,63 @@ TEST_CASE("config upgrade validation", "[upgrades]")
         }
     }
 }
+
+#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
+TEST_CASE("config upgrade validation for protocol 23", "[upgrades]")
+{
+    auto runTest = [&](uint32_t protocolVersion, uint32_t clusterCount) {
+        VirtualClock clock;
+        auto cfg = getTestConfig(0, Config::TESTDB_IN_MEMORY);
+        auto app = createTestApplication(clock, cfg);
+
+        LedgerHeader header;
+        auto headerTime = VirtualClock::to_time_t(genesis(0, 2));
+        header.ledgerVersion = protocolVersion;
+        header.scpValue.closeTime = headerTime;
+
+        ConfigUpgradeSetFrameConstPtr configUpgradeSet;
+
+        {
+            Upgrades::UpgradeParameters scheduledUpgrades;
+            LedgerTxn ltx(app->getLedgerTxnRoot());
+            configUpgradeSet = makeParallelComputeUpdgrade(ltx, clusterCount);
+
+            scheduledUpgrades.mUpgradeTime = genesis(0, 1);
+            scheduledUpgrades.mConfigUpgradeSetKey = configUpgradeSet->getKey();
+            app->getHerder().setUpgrades(scheduledUpgrades);
+            ltx.commit();
+        }
+        LedgerTxn ltx(app->getLedgerTxnRoot());
+        ltx.loadHeader().current() = header;
+        auto ls = LedgerSnapshot(ltx);
+        LedgerUpgrade outUpgrade;
+        return Upgrades::isValidForApply(
+            toUpgradeType(makeConfigUpgrade(*configUpgradeSet)), outUpgrade,
+            *app, ls);
+    };
+
+    SECTION("valid for apply")
+    {
+        REQUIRE(runTest(static_cast<uint32_t>(
+                            PARALLEL_SOROBAN_PHASE_PROTOCOL_VERSION),
+                        10) == Upgrades::UpgradeValidity::VALID);
+    }
+
+    SECTION("unsupported protocol")
+    {
+        REQUIRE(runTest(static_cast<uint32_t>(
+                            PARALLEL_SOROBAN_PHASE_PROTOCOL_VERSION) -
+                            1,
+                        10) == Upgrades::UpgradeValidity::INVALID);
+    }
+    SECTION("0 clusters")
+    {
+        REQUIRE(runTest(static_cast<uint32_t>(
+                            PARALLEL_SOROBAN_PHASE_PROTOCOL_VERSION),
+                        0) == Upgrades::UpgradeValidity::INVALID);
+    }
+}
+#endif
 
 TEST_CASE("config upgrades applied to ledger", "[soroban][upgrades]")
 {
@@ -1670,8 +1750,9 @@ TEST_CASE("upgrade to version 10", "[upgrades]")
                     " offers that do not satisfy thresholds")
             {
                 // Pay txFee to send 4*baseReserve + 3*txFee for net balance
-                // decrease of 4*baseReserve + 4*txFee. This matches the balance
-                // decrease from creating 4 offers as in the next test section.
+                // decrease of 4*baseReserve + 4*txFee. This matches the
+                // balance decrease from creating 4 offers as in the next
+                // test section.
                 a1.pay(root, 4 * lm.getLastReserve() + 3 * txFee);
 
                 std::vector<TestMarketOffer> offers;
@@ -1808,8 +1889,9 @@ TEST_CASE("upgrade to version 10", "[upgrades]")
                     " unauthorized offers")
             {
                 // Pay txFee to send 4*baseReserve + 3*txFee for net balance
-                // decrease of 4*baseReserve + 4*txFee. This matches the balance
-                // decrease from creating 4 offers as in the next test section.
+                // decrease of 4*baseReserve + 4*txFee. This matches the
+                // balance decrease from creating 4 offers as in the next
+                // test section.
                 a1.pay(root, 4 * lm.getLastReserve() + 3 * txFee);
 
                 std::vector<TestMarketOffer> offers;
@@ -2021,8 +2103,8 @@ TEST_CASE("upgrade to version 11", "[upgrades]")
             // Check several subtle characteristics of the post-upgrade
             // environment:
             //   - Old-protocol merges stop happening (there should have
-            //     been 6 before the upgrade, but we re-use a merge we did at
-            //     ledger 1 for ledger 2 spill, so the counter is at 5)
+            //     been 6 before the upgrade, but we re-use a merge we did
+            //     at ledger 1 for ledger 2 spill, so the counter is at 5)
             //   - New-protocol merges start happening.
             //   - At the upgrade (5), we find 1 INITENTRY in lev[0].curr
             //   - The next two (6, 7), propagate INITENTRYs to lev[0].snap
@@ -2135,8 +2217,8 @@ TEST_CASE("upgrade to version 12", "[upgrades]")
                 REQUIRE(getVers(lev1Snap) == oldProto);
                 REQUIRE(mc.mPostShadowRemovalProtocolMerges == 6);
                 // One more old-style merge despite the upgrade
-                // At ledger 8, level 2 spills, and starts an old-style merge,
-                // as level 1 snap is still of old version
+                // At ledger 8, level 2 spills, and starts an old-style
+                // merge, as level 1 snap is still of old version
                 REQUIRE(mc.mPreShadowRemovalProtocolMerges == 6);
                 break;
             case 7:
@@ -2268,6 +2350,77 @@ TEST_CASE("configuration initialized in version upgrade", "[upgrades]")
         REQUIRE(e == blSize);
     }
 }
+
+#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
+TEST_CASE("parallel Soroban settings upgrade", "[upgrades]")
+{
+    VirtualClock clock;
+    auto cfg = getTestConfig(0, Config::TestDbMode::TESTDB_IN_MEMORY);
+    cfg.USE_CONFIG_FOR_GENESIS = false;
+
+    auto app = createTestApplication(clock, cfg);
+
+    executeUpgrade(*app,
+                   makeProtocolVersionUpgrade(
+                       static_cast<uint32_t>(SOROBAN_PROTOCOL_VERSION) - 1));
+
+    for (uint32_t version = static_cast<uint32_t>(SOROBAN_PROTOCOL_VERSION);
+         version <
+         static_cast<uint32_t>(PARALLEL_SOROBAN_PHASE_PROTOCOL_VERSION);
+         ++version)
+    {
+        executeUpgrade(*app, makeProtocolVersionUpgrade(version));
+    }
+
+    {
+        LedgerTxn ltx(app->getLedgerTxnRoot());
+        REQUIRE(!ltx.load(getParallelComputeSettingsLedgerKey()));
+    }
+
+    executeUpgrade(*app, makeProtocolVersionUpgrade(static_cast<uint32_t>(
+                             PARALLEL_SOROBAN_PHASE_PROTOCOL_VERSION)));
+
+    // Make sure initial value is correct.
+    {
+        LedgerTxn ltx(app->getLedgerTxnRoot());
+        auto parellelComputeEntry =
+            ltx.load(getParallelComputeSettingsLedgerKey())
+                .current()
+                .data.configSetting();
+        REQUIRE(parellelComputeEntry.configSettingID() ==
+                CONFIG_SETTING_CONTRACT_PARALLEL_COMPUTE_V0);
+        REQUIRE(parellelComputeEntry.contractParallelCompute()
+                    .ledgerMaxDependentTxClusters ==
+                InitialSorobanNetworkConfig::LEDGER_MAX_DEPENDENT_TX_CLUSTERS);
+
+        // Check that BucketList size window initialized with current BL
+        // size
+        auto const& networkConfig =
+            app->getLedgerManager().getSorobanNetworkConfigReadOnly();
+        REQUIRE(networkConfig.ledgerMaxDependentTxClusters() ==
+                InitialSorobanNetworkConfig::LEDGER_MAX_DEPENDENT_TX_CLUSTERS);
+    }
+
+    // Execute an upgrade.
+    {
+        LedgerTxn ltx(app->getLedgerTxnRoot());
+        auto configUpgradeSet = makeParallelComputeUpdgrade(ltx, 5);
+        ltx.commit();
+        executeUpgrade(*app, makeConfigUpgrade(*configUpgradeSet));
+    }
+
+    LedgerTxn ltx(app->getLedgerTxnRoot());
+
+    REQUIRE(ltx.load(getParallelComputeSettingsLedgerKey())
+                .current()
+                .data.configSetting()
+                .contractParallelCompute()
+                .ledgerMaxDependentTxClusters == 5);
+    REQUIRE(app->getLedgerManager()
+                .getSorobanNetworkConfigReadOnly()
+                .ledgerMaxDependentTxClusters() == 5);
+}
+#endif
 
 TEST_CASE_VERSIONS("upgrade base reserve", "[upgrades]")
 {
@@ -2546,8 +2699,9 @@ TEST_CASE_VERSIONS("upgrade base reserve", "[upgrades]")
                 createOffers(sponsoredAcc, offers, sponsoredAccPullOffers);
                 createOffers(sponsoredAcc2, offers, true);
 
-                // prepare ops to transfer sponsorship of all sponsoredAcc
-                // offers and one offer from sponsoredAcc2 to sponsoringAcc
+                // prepare ops to transfer sponsorship of all
+                // sponsoredAcc offers and one offer from sponsoredAcc2
+                // to sponsoringAcc
                 std::vector<Operation> ops = {
                     sponsoringAcc.op(
                         beginSponsoringFutureReserves(sponsoredAcc)),
@@ -2584,15 +2738,17 @@ TEST_CASE_VERSIONS("upgrade base reserve", "[upgrades]")
 
                 if (sponsoredAccPullOffers)
                 {
-                    // SponsoringAcc is now sponsoring all 12 of sponsoredAcc's
-                    // offers. SponsoredAcc has 4 subentries. It also has enough
-                    // lumens to cover 12 more subentries after the sponsorship
-                    // update. After the upgrade to double the baseReserve, this
-                    // account will need to cover the 4 subEntries, so we only
-                    // need 4 extra baseReserves before the upgrade. Pay out the
-                    // rest (8 reserves) so we can get our orders pulled on
-                    // upgrade. 16(total reserves) - 4(subEntries) -
-                    // 4(base reserve increase) = 8(extra base reserves)
+                    // SponsoringAcc is now sponsoring all 12 of
+                    // sponsoredAcc's offers. SponsoredAcc has 4
+                    // subentries. It also has enough lumens to cover 12
+                    // more subentries after the sponsorship update.
+                    // After the upgrade to double the baseReserve, this
+                    // account will need to cover the 4 subEntries, so
+                    // we only need 4 extra baseReserves before the
+                    // upgrade. Pay out the rest (8 reserves) so we can
+                    // get our orders pulled on upgrade. 16(total
+                    // reserves) - 4(subEntries) - 4(base reserve
+                    // increase) = 8(extra base reserves)
 
                     sponsoredAcc.pay(root, baseReserve * 8);
                 }
@@ -2606,8 +2762,8 @@ TEST_CASE_VERSIONS("upgrade base reserve", "[upgrades]")
                     sponsoringAcc.pay(root, 1);
                 }
 
-                // This account needs to lose a base reserve to get its orders
-                // pulled
+                // This account needs to lose a base reserve to get its
+                // orders pulled
                 sponsoredAcc2.pay(root, baseReserve);
 
                 // execute upgrade
@@ -2676,8 +2832,8 @@ TEST_CASE_VERSIONS("upgrade base reserve", "[upgrades]")
                     root.create(sponsoredSeed,
                                 lm.getLastMinBalance(14) + 3999 + 15 * txFee);
 
-                // This account will have one sponsored offer and will always
-                // have it's offers pulled.
+                // This account will have one sponsored offer and will
+                // always have it's offers pulled.
                 auto sponsored2 = root.create(
                     "C", 2 * lm.getLastMinBalance(13) + 3999 + 15 * txFee);
 
@@ -2705,8 +2861,8 @@ TEST_CASE_VERSIONS("upgrade base reserve", "[upgrades]")
             };
 
             for_versions_from(14, *app, [&] {
-                // Swap the seeds to test that the ordering of accounts doesn't
-                // matter when upgrading
+                // Swap the seeds to test that the ordering of accounts
+                // doesn't matter when upgrading
                 SECTION("account A is sponsored")
                 {
                     sponsorshipTestsBySeed("B", "A");

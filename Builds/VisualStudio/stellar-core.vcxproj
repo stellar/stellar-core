@@ -473,7 +473,6 @@ exit /b 0
     <ClCompile Include="..\..\src\bucket\LiveBucket.cpp" />
     <ClCompile Include="..\..\src\bucket\LiveBucketList.cpp" />
     <ClCompile Include="..\..\src\bucket\MergeKey.cpp" />
-    <ClCompile Include="..\..\src\bucket\PublishQueueBuckets.cpp" />
     <ClCompile Include="..\..\src\bucket\SearchableBucketList.cpp" />
     <ClCompile Include="..\..\src\bucket\test\BucketIndexTests.cpp" />
     <ClCompile Include="..\..\src\bucket\test\BucketListTests.cpp" />
@@ -487,11 +486,11 @@ exit /b 0
     <ClCompile Include="..\..\src\catchup\ApplyLedgerWork.cpp" />
     <ClCompile Include="..\..\src\catchup\AssumeStateWork.cpp" />
     <ClCompile Include="..\..\src\catchup\CatchupConfiguration.cpp" />
-    <ClCompile Include="..\..\src\catchup\CatchupManagerImpl.cpp" />
     <ClCompile Include="..\..\src\catchup\CatchupRange.cpp" />
     <ClCompile Include="..\..\src\catchup\CatchupWork.cpp" />
     <ClCompile Include="..\..\src\catchup\DownloadApplyTxsWork.cpp" />
     <ClCompile Include="..\..\src\catchup\IndexBucketsWork.cpp" />
+    <ClCompile Include="..\..\src\catchup\LedgerApplyManagerImpl.cpp" />
     <ClCompile Include="..\..\src\catchup\ReplayDebugMetaWork.cpp" />
     <ClCompile Include="..\..\src\catchup\test\CatchupWorkTests.cpp" />
     <ClCompile Include="..\..\src\catchup\VerifyLedgerChainWork.cpp" />
@@ -600,7 +599,6 @@ exit /b 0
     <ClCompile Include="..\..\src\ledger\LedgerTxnEntry.cpp" />
     <ClCompile Include="..\..\src\ledger\LedgerTxnHeader.cpp" />
     <ClCompile Include="..\..\src\ledger\LedgerTxnOfferSQL.cpp" />
-    
     <ClCompile Include="..\..\src\ledger\LedgerTypeUtils.cpp" />
     <ClCompile Include="..\..\src\ledger\NetworkConfig.cpp" />
     <ClCompile Include="..\..\src\ledger\test\InMemoryLedgerTxn.cpp" />
@@ -932,7 +930,6 @@ exit /b 0
     <ClInclude Include="..\..\src\bucket\LiveBucket.h" />
     <ClInclude Include="..\..\src\bucket\LiveBucketList.h" />
     <ClInclude Include="..\..\src\bucket\MergeKey.h" />
-    <ClInclude Include="..\..\src\bucket\PublishQueueBuckets.h" />
     <ClInclude Include="..\..\src\bucket\SearchableBucketList.h" />
     <ClInclude Include="..\..\src\bucket\test\BucketTestUtils.h" />
     <ClInclude Include="..\..\src\catchup\ApplyBucketsWork.h" />
@@ -942,11 +939,12 @@ exit /b 0
     <ClInclude Include="..\..\src\catchup\AssumeStateWork.h" />
     <ClInclude Include="..\..\src\catchup\CatchupConfiguration.h" />
     <ClInclude Include="..\..\src\catchup\CatchupManager.h" />
-    <ClInclude Include="..\..\src\catchup\CatchupManagerImpl.h" />
     <ClInclude Include="..\..\src\catchup\CatchupRange.h" />
     <ClInclude Include="..\..\src\catchup\CatchupWork.h" />
     <ClInclude Include="..\..\src\catchup\DownloadApplyTxsWork.h" />
     <ClInclude Include="..\..\src\catchup\IndexBucketsWork.h" />
+    <ClInclude Include="..\..\src\catchup\LedgerApplyManager.h" />
+    <ClInclude Include="..\..\src\catchup\LedgerApplyManagerImpl.h" />
     <ClInclude Include="..\..\src\catchup\ReplayDebugMetaWork.h" />
     <ClInclude Include="..\..\src\catchup\test\CatchupWorkTests.h" />
     <ClInclude Include="..\..\src\catchup\VerifyLedgerChainWork.h" />
