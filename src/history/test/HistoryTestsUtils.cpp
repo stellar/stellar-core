@@ -501,8 +501,8 @@ CatchupSimulation::generateRandomLedger(uint32_t version)
     auto phases = protocolVersionStartsFrom(
                       lm.getLastClosedLedgerHeader().header.ledgerVersion,
                       SOROBAN_PROTOCOL_VERSION)
-                      ? TxSetPhaseTransactions{txs, sorobanTxs}
-                      : TxSetPhaseTransactions{txs};
+                      ? PerPhaseTransactionList{txs, sorobanTxs}
+                      : PerPhaseTransactionList{txs};
     TxSetXDRFrameConstPtr txSet =
         makeTxSetFromTransactions(phases, mApp, 0, 0).first;
 

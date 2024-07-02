@@ -13,44 +13,6 @@
 namespace stellar
 {
 
-class SingleTxStack : public TxStack
-{
-  public:
-    SingleTxStack(TransactionFrameBasePtr tx) : mTx(tx)
-    {
-    }
-
-    TransactionFrameBasePtr
-    getTopTx() const override
-    {
-        releaseAssert(mTx);
-        return mTx;
-    }
-
-    void
-    popTopTx() override
-    {
-        releaseAssert(mTx);
-        mTx = nullptr;
-    }
-
-    bool
-    empty() const override
-    {
-        return mTx == nullptr;
-    }
-
-    Resource
-    getResources() const override
-    {
-        releaseAssert(mTx);
-        return Resource(mTx->getResources(/* useByteLimitInClassic */ false));
-    }
-
-  private:
-    TransactionFrameBasePtr mTx;
-};
-
 class TxQueueLimiter
 {
     // number of ledgers we can pool in memory

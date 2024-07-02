@@ -379,10 +379,14 @@ main(int argc, char* const* argv)
 
     // FIXME: This check is done against the XDR version enabled in the host
     // (curr vs next). At the moment, the host is using curr, but core can be
-    // built with vnext, causing a curr diff against next. This works now
-    // because the xdr is indentical, but the moment that changes this checkk
-    // will fail and will need to be fixed.
+    // built with vnext, causing a curr diff against next.
+    // Eventually, Core should support the third ('vnext') env instance and
+    // we'll be able to enable this check for vnext as well.
+    // At the moment vnext XDR changes only affect Core and not the Soroban
+    // env.
+#ifndef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
     checkXDRFileIdentity();
+#endif
 
     int res = handleCommandLine(argc, argv);
 #ifdef USE_TRACY

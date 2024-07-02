@@ -43,6 +43,48 @@ class TxStack
     virtual ~TxStack() = default;
 };
 
+// A simple stack that holds a single transaction.
+class SingleTxStack : public TxStack
+{
+  public:
+    SingleTxStack(TransactionFrameBasePtr tx,
+                  bool useByteLimitInClassic = false)
+        : mTx(tx), mUseByteLimitInClassic(useByteLimitInClassic)
+    {
+    }
+
+    TransactionFrameBasePtr
+    getTopTx() const override
+    {
+        releaseAssert(mTx);
+        return mTx;
+    }
+
+    void
+    popTopTx() override
+    {
+        releaseAssert(mTx);
+        mTx = nullptr;
+    }
+
+    bool
+    empty() const override
+    {
+        return mTx == nullptr;
+    }
+
+    Resource
+    getResources() const override
+    {
+        releaseAssert(mTx);
+        return Resource(mTx->getResources(mUseByteLimitInClassic));
+    }
+
+  private:
+    TransactionFrameBasePtr mTx;
+    bool mUseByteLimitInClassic = false;
+};
+
 using TxStackPtr = std::shared_ptr<TxStack>;
 
 // Configuration for multi-lane transaction limiting and surge pricing.

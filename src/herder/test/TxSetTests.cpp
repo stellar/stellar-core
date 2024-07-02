@@ -472,14 +472,17 @@ TEST_CASE("generalized tx set XDR validation", "[txset]")
     }
 }
 
-TEST_CASE("generalized tx set XDR conversion", "[txset]")
+void
+testGeneralizedTxSetXDRConversion(ProtocolVersion protocolVersion)
 {
     VirtualClock clock;
     auto cfg = getTestConfig();
-    cfg.LEDGER_PROTOCOL_VERSION =
-        static_cast<uint32_t>(SOROBAN_PROTOCOL_VERSION);
+    cfg.LEDGER_PROTOCOL_VERSION = static_cast<uint32_t>(protocolVersion);
     cfg.TESTING_UPGRADE_LEDGER_PROTOCOL_VERSION =
-        static_cast<uint32_t>(SOROBAN_PROTOCOL_VERSION);
+        static_cast<uint32_t>(protocolVersion);
+    bool isParallelSoroban = protocolVersionStartsFrom(
+        cfg.LEDGER_PROTOCOL_VERSION, PARALLEL_SOROBAN_PHASE_PROTOCOL_VERSION);
+
     Application::pointer app = createTestApplication(clock, cfg);
     overrideSorobanNetworkConfigForTest(*app);
     modifySorobanNetworkConfig(*app, [](SorobanNetworkConfig& sorobanCfg) {
@@ -523,6 +526,7 @@ TEST_CASE("generalized tx set XDR conversion", "[txset]")
                           TransactionMode::READ_ONLY_WITHOUT_SQL_TXN);
             applicableFrame = txSetFrame->prepareForApply(*app);
         }
+
         REQUIRE(applicableFrame->checkValid(*app, 0, 0));
         GeneralizedTransactionSet newXdr;
         applicableFrame->toWireTxSetFrame()->toXDR(newXdr);
@@ -650,17 +654,42 @@ TEST_CASE("generalized tx set XDR conversion", "[txset]")
                     GeneralizedTransactionSet txSetXdr;
                     txSet->toXDR(txSetXdr);
                     REQUIRE(txSetXdr.v1TxSet().phases.size() == 2);
-                    for (auto const& phase : txSetXdr.v1TxSet().phases)
+                    for (auto i = 0; i < txSetXdr.v1TxSet().phases.size(); ++i)
                     {
+                        auto const& phase = txSetXdr.v1TxSet().phases[i];
+
                         // Base inclusion fee is 100 for all phases since no
                         // surge pricing kicked in
-                        REQUIRE(phase.v0Components().size() == 1);
-                        REQUIRE(*phase.v0Components()[0]
-                                     .txsMaybeDiscountedFee()
-                                     .baseFee == lclHeader.header.baseFee);
-                        REQUIRE(phase.v0Components()[0]
-                                    .txsMaybeDiscountedFee()
-                                    .txs.size() == 5);
+                        if (i == static_cast<size_t>(TxSetPhase::SOROBAN) &&
+                            isParallelSoroban)
+                        {
+#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
+                            REQUIRE(phase.v() == 1);
+                            REQUIRE(*phase.parallelTxsComponent().baseFee ==
+                                    lclHeader.header.baseFee);
+                            REQUIRE(phase.parallelTxsComponent()
+                                        .executionStages.size() == 1);
+                            REQUIRE(phase.parallelTxsComponent()
+                                        .executionStages[0]
+                                        .size() == 1);
+                            REQUIRE(phase.parallelTxsComponent()
+                                        .executionStages[0][0]
+                                        .size() == 5);
+#else
+                            releaseAssert(false);
+#endif
+                        }
+                        else
+                        {
+                            REQUIRE(phase.v() == 0);
+                            REQUIRE(phase.v0Components().size() == 1);
+                            REQUIRE(*phase.v0Components()[0]
+                                         .txsMaybeDiscountedFee()
+                                         .baseFee == lclHeader.header.baseFee);
+                            REQUIRE(phase.v0Components()[0]
+                                        .txsMaybeDiscountedFee()
+                                        .txs.size() == 5);
+                        }
                     }
                     checkXdrRoundtrip(txSetXdr);
                 }
@@ -679,19 +708,42 @@ TEST_CASE("generalized tx set XDR conversion", "[txset]")
                     GeneralizedTransactionSet txSetXdr;
                     txSet->toXDR(txSetXdr);
                     REQUIRE(txSetXdr.v1TxSet().phases.size() == 2);
-                    for (int i = 0; i < txSetXdr.v1TxSet().phases.size(); i++)
+                    for (auto i = 0; i < txSetXdr.v1TxSet().phases.size(); ++i)
                     {
                         auto const& phase = txSetXdr.v1TxSet().phases[i];
                         auto expectedBaseFee =
                             i == 0 ? lclHeader.header.baseFee
                                    : higherFeeSorobanTxs[0]->getInclusionFee();
-                        REQUIRE(phase.v0Components().size() == 1);
-                        REQUIRE(*phase.v0Components()[0]
-                                     .txsMaybeDiscountedFee()
-                                     .baseFee == expectedBaseFee);
-                        REQUIRE(phase.v0Components()[0]
-                                    .txsMaybeDiscountedFee()
-                                    .txs.size() == 5);
+                        if (i == static_cast<size_t>(TxSetPhase::SOROBAN) &&
+                            isParallelSoroban)
+                        {
+#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
+                            REQUIRE(phase.v() == 1);
+                            REQUIRE(*phase.parallelTxsComponent().baseFee ==
+                                    expectedBaseFee);
+                            REQUIRE(phase.parallelTxsComponent()
+                                        .executionStages.size() == 1);
+                            REQUIRE(phase.parallelTxsComponent()
+                                        .executionStages[0]
+                                        .size() == 1);
+                            REQUIRE(phase.parallelTxsComponent()
+                                        .executionStages[0][0]
+                                        .size() == 5);
+#else
+                            releaseAssert(false);
+#endif
+                        }
+                        else
+                        {
+                            REQUIRE(phase.v() == 0);
+                            REQUIRE(phase.v0Components().size() == 1);
+                            REQUIRE(*phase.v0Components()[0]
+                                         .txsMaybeDiscountedFee()
+                                         .baseFee == expectedBaseFee);
+                            REQUIRE(phase.v0Components()[0]
+                                        .txsMaybeDiscountedFee()
+                                        .txs.size() == 5);
+                        }
                     }
                     checkXdrRoundtrip(txSetXdr);
                 }
@@ -716,15 +768,31 @@ TEST_CASE("generalized tx set XDR conversion", "[txset]")
     }
 }
 
+TEST_CASE("generalized tx set XDR conversion",
+          "[txset]"){SECTION("soroban protocol version"){
+    testGeneralizedTxSetXDRConversion(SOROBAN_PROTOCOL_VERSION);
+}
+SECTION("current protocol version")
+{
+    testGeneralizedTxSetXDRConversion(
+        static_cast<ProtocolVersion>(Config::CURRENT_LEDGER_PROTOCOL_VERSION));
+}
+#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
+SECTION("parallel soroban protocol version")
+{
+    testGeneralizedTxSetXDRConversion(PARALLEL_SOROBAN_PHASE_PROTOCOL_VERSION);
+}
+#endif
+}
+
 TEST_CASE("generalized tx set with multiple txs per source account",
           "[txset][soroban]")
 {
     VirtualClock clock;
     auto cfg = getTestConfig();
-    cfg.LEDGER_PROTOCOL_VERSION =
-        static_cast<uint32_t>(SOROBAN_PROTOCOL_VERSION);
+    cfg.LEDGER_PROTOCOL_VERSION = Config::CURRENT_LEDGER_PROTOCOL_VERSION;
     cfg.TESTING_UPGRADE_LEDGER_PROTOCOL_VERSION =
-        static_cast<uint32_t>(SOROBAN_PROTOCOL_VERSION);
+        Config::CURRENT_LEDGER_PROTOCOL_VERSION;
     Application::pointer app = createTestApplication(clock, cfg);
     auto root = TestAccount::createRoot(*app);
     int accountId = 1;
@@ -814,10 +882,9 @@ TEST_CASE("generalized tx set fees", "[txset][soroban]")
 {
     VirtualClock clock;
     auto cfg = getTestConfig();
-    cfg.LEDGER_PROTOCOL_VERSION =
-        static_cast<uint32_t>(SOROBAN_PROTOCOL_VERSION);
+    cfg.LEDGER_PROTOCOL_VERSION = Config::CURRENT_LEDGER_PROTOCOL_VERSION;
     cfg.TESTING_UPGRADE_LEDGER_PROTOCOL_VERSION =
-        static_cast<uint32_t>(SOROBAN_PROTOCOL_VERSION);
+        Config::CURRENT_LEDGER_PROTOCOL_VERSION;
 
     Application::pointer app = createTestApplication(clock, cfg);
     overrideSorobanNetworkConfigForTest(*app);
@@ -866,6 +933,35 @@ TEST_CASE("generalized tx set fees", "[txset][soroban]")
 
     SECTION("valid txset")
     {
+        testtxset::ComponentPhases sorobanTxs;
+        bool isParallelSoroban =
+            protocolVersionStartsFrom(Config::CURRENT_LEDGER_PROTOCOL_VERSION,
+                                      PARALLEL_SOROBAN_PHASE_PROTOCOL_VERSION);
+        if (isParallelSoroban)
+        {
+            sorobanTxs = {std::make_pair(
+                1000, std::vector<TransactionFrameBasePtr>{
+                          createTx(1, 1250, /* isSoroban */ true),
+                          createTx(1, 1000, /* isSoroban */ true),
+                          createTx(1, 1200, /* isSoroban */ true)})};
+        }
+        else
+        {
+            sorobanTxs = {
+                std::make_pair(500,
+                               std::vector<TransactionFrameBasePtr>{
+                                   createTx(1, 1000, /* isSoroban */ true),
+                                   createTx(1, 500, /* isSoroban */ true)}),
+                std::make_pair(1000,
+                               std::vector<TransactionFrameBasePtr>{
+                                   createTx(1, 1250, /* isSoroban */ true),
+                                   createTx(1, 1000, /* isSoroban */ true),
+                                   createTx(1, 1200, /* isSoroban */ true)}),
+                std::make_pair(std::nullopt,
+                               std::vector<TransactionFrameBasePtr>{
+                                   createTx(1, 5000, /* isSoroban */ true),
+                                   createTx(1, 20000, /* isSoroban */ true)})};
+        }
         auto txSet =
             testtxset::makeNonValidatedGeneralizedTxSet(
                 {{std::make_pair(500,
@@ -878,20 +974,7 @@ TEST_CASE("generalized tx set fees", "[txset][soroban]")
                   std::make_pair(std::nullopt,
                                  std::vector<TransactionFrameBasePtr>{
                                      createTx(2, 10000), createTx(5, 100000)})},
-                 {std::make_pair(500,
-                                 std::vector<TransactionFrameBasePtr>{
-                                     createTx(1, 1000, /* isSoroban */ true),
-                                     createTx(1, 500, /* isSoroban */ true)}),
-                  std::make_pair(1000,
-                                 std::vector<TransactionFrameBasePtr>{
-                                     createTx(1, 1250, /* isSoroban */ true),
-                                     createTx(1, 1000, /* isSoroban */ true),
-                                     createTx(1, 1200, /* isSoroban */ true)}),
-                  std::make_pair(
-                      std::nullopt,
-                      std::vector<TransactionFrameBasePtr>{
-                          createTx(1, 5000, /* isSoroban */ true),
-                          createTx(1, 20000, /* isSoroban */ true)})}},
+                 sorobanTxs},
                 *app, app->getLedgerManager().getLastClosedLedgerHeader().hash)
                 .second;
 
@@ -899,18 +982,23 @@ TEST_CASE("generalized tx set fees", "[txset][soroban]")
         for (auto i = 0; i < static_cast<size_t>(TxSetPhase::PHASE_COUNT); ++i)
         {
             std::vector<std::optional<int64_t>> fees;
-            for (auto const& tx :
-                 txSet->getTxsForPhase(static_cast<TxSetPhase>(i)))
+            for (auto const& tx : txSet->getPhase(static_cast<TxSetPhase>(i)))
             {
-                fees.push_back(
-                    txSet->getTxBaseFee(tx, app->getLedgerManager()
-                                                .getLastClosedLedgerHeader()
-                                                .header));
+                fees.push_back(txSet->getTxBaseFee(tx));
             }
             std::sort(fees.begin(), fees.end());
-            REQUIRE(fees == std::vector<std::optional<int64_t>>{
-                                std::nullopt, std::nullopt, 500, 500, 1000,
-                                1000, 1000});
+            if (isParallelSoroban &&
+                i == static_cast<size_t>(TxSetPhase::SOROBAN))
+            {
+                REQUIRE(fees ==
+                        std::vector<std::optional<int64_t>>{1000, 1000, 1000});
+            }
+            else
+            {
+                REQUIRE(fees == std::vector<std::optional<int64_t>>{
+                                    std::nullopt, std::nullopt, 500, 500, 1000,
+                                    1000, 1000});
+            }
         }
     }
     SECTION("tx with too low discounted fee")

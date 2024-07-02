@@ -21,7 +21,7 @@ makeNonValidatedGeneralizedTxSet(
 
 std::pair<TxSetXDRFrameConstPtr, ApplicableTxSetFrameConstPtr>
 makeNonValidatedTxSetBasedOnLedgerVersion(
-    uint32_t ledgerVersion, std::vector<TransactionFrameBasePtr> const& txs,
-    Application& app, Hash const& previousLedgerHash);
+    std::vector<TransactionFrameBasePtr> const& txs, Application& app,
+    Hash const& previousLedgerHash);
 } // namespace testtxset
 } // namespace stellar

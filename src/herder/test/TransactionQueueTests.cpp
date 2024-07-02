@@ -198,7 +198,7 @@ class TransactionQueueTest
 
         REQUIRE(fees == expectedFees);
 
-        TxSetTransactions expectedTxs;
+        TxFrameList expectedTxs;
         size_t totOps = 0;
         for (auto const& accountState : state.mAccountStates)
         {

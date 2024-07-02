@@ -162,7 +162,7 @@ SurgePricingPriorityQueue::getMostTopTxsWithinLimits(
     SurgePricingPriorityQueue queue(
         /* isHighestPriority */ true, laneConfig,
         stellar::rand_uniform<size_t>(0, std::numeric_limits<size_t>::max()));
-    for (auto txStack : txStacks)
+    for (auto const& txStack : txStacks)
     {
         queue.add(txStack);
     }
@@ -185,7 +185,7 @@ SurgePricingPriorityQueue::visitTopTxs(
 {
     ZoneScoped;
 
-    for (auto txStack : txStacks)
+    for (auto const& txStack : txStacks)
     {
         add(txStack);
     }
