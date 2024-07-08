@@ -128,15 +128,14 @@ def get_next_peers(topology):
 
 def update_node(graph, node_info, node_key, results, field_names):
     """
-    For each `(info_field, node_field)` pair in `field_names`, if `info_field`
-    is in `node_info`, modify the node in `graph` with key `node_key` to store
-    the value of `info_field` in `node_field`.
+    For each `field_name` in `field_names`, if `field_name` is in `node_info`,
+    modify `graph` and `results` to contain the field.
     """
-    for (info_field, node_field) in field_names:
-        if info_field in node_info:
-            val = node_info[info_field]
-            results[node_field] = val
-            graph.add_node(node_key, **{node_field: val})
+    for field_name in field_names:
+        if field_name in node_info:
+            val = node_info[field_name]
+            results[field_name] = val
+            graph.add_node(node_key, **{field_name: val})
 
 def update_results(graph, parent_info, parent_key, results, is_inbound):
     direction_tag = "inboundPeers" if is_inbound else "outboundPeers"
@@ -157,16 +156,16 @@ def update_results(graph, parent_info, parent_key, results, is_inbound):
             graph.add_edge(parent_key, other_key, **edge_properties)
 
     # Add survey results to parent node (if available)
-    field_names = [("numTotalInboundPeers", "totalInbound"),
-                   ("numTotalOutboundPeers", "totalOutbound"),
-                   ("maxInboundPeerCount", "maxInboundPeerCount"),
-                   ("maxOutboundPeerCount", "maxOutboundPeerCount"),
-                   ("addedAuthenticatedPeers", "addedAuthenticatedPeers"),
-                   ("droppedAuthenticatedPeers", "droppedAuthenticatedPeers"),
-                   ("p75SCPFirstToSelfLatencyMs", "p75SCPFirstToSelfLatencyMs"),
-                   ("p75SCPSelfToOtherLatencyMs", "p75SCPSelfToOtherLatencyMs"),
-                   ("lostSyncCount", "lostSyncCount"),
-                   ("isValidator", "isValidator")]
+    field_names = ["numTotalInboundPeers",
+                   "numTotalOutboundPeers",
+                   "maxInboundPeerCount",
+                   "maxOutboundPeerCount",
+                   "addedAuthenticatedPeers",
+                   "droppedAuthenticatedPeers",
+                   "p75SCPFirstToSelfLatencyMs",
+                   "p75SCPSelfToOtherLatencyMs",
+                   "lostSyncCount",
+                   "isValidator"]
     update_node(graph, parent_info, parent_key, results, field_names)
 
 
@@ -318,8 +317,8 @@ def augment(args):
 def run_survey(args):
     graph = nx.DiGraph()
     merged_results = defaultdict(lambda: {
-        "totalInbound": 0,
-        "totalOutbound": 0,
+        "numTotalInboundPeers": 0,
+        "numTotalOutboundPeers": 0,
         "maxInboundPeerCount": 0,
         "maxOutboundPeerCount": 0,
         "inboundPeers": {},
@@ -394,8 +393,8 @@ def run_survey(args):
     self_name = get_request(url + "/scp", scp_params).json()["you"]
     graph.add_node(self_name,
                    version=get_request(url + "/info").json()["info"]["build"],
-                   totalInbound=len(peers["inbound"] or []),
-                   totalOutbound=len(peers["outbound"] or []))
+                   numTotalInboundPeers=len(peers["inbound"] or []),
+                   numTotalOutboundPeers=len(peers["outbound"] or []))
 
     sent_requests = set()
     heard_from = set()
@@ -473,8 +472,8 @@ def run_survey(args):
             node = merged_results[key]
             have_inbound = len(node["inboundPeers"])
             have_outbound = len(node["outboundPeers"])
-            if (node["totalInbound"] > have_inbound or
-                node["totalOutbound"] > have_outbound):
+            if (node["numTotalInboundPeers"] > have_inbound or
+                node["numTotalOutboundPeers"] > have_outbound):
                 incomplete_responses.add(key)
                 req = util.PendingRequest(key, have_inbound, have_outbound)
                 peer_list.add(req)
