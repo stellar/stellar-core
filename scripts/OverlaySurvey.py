@@ -84,15 +84,14 @@ SIMULATION = None
 # internal limit.
 MAX_COLLECT_DURATION = 30
 
-# Maximum number of consecutive rounds in which the surveyor neither sent
-# requests to nor received responses from any nodes. A round contains a batch of
-# requests sent to select nodes, followed by a wait period of 15 seconds,
-# followed by checking for responses and building up the next batch of requests
-# to send. Therefore, a setting of `8` is roughly 2 minutes of inactivity
-# before the script considers the survey complete. This is necessary because
-# it's very likely that not all surveyed nodes will respond to the survey.
-# Therefore, we need some cutoff after we which we assume those nodes will never
-# respond.
+# Maximum number of consecutive rounds in which the surveyor does not receive
+# responses from any nodes. A round contains a batch of requests sent to select
+# nodes, followed by a wait period of 15 seconds, followed by checking for
+# responses and building up the next batch of requests to send. Therefore, a
+# setting of `8` is roughly 2 minutes of inactivity before the script considers
+# the survey complete. This is necessary because it's very likely that not all
+# surveyed nodes will respond to the survey.  Therefore, we need some cutoff
+# after we which we assume those nodes will never respond.
 MAX_INACTIVE_ROUNDS = 8
 
 def get_request(url, params=None):
@@ -129,15 +128,14 @@ def get_next_peers(topology):
 
 def update_node(graph, node_info, node_key, results, field_names):
     """
-    For each `(info_field, node_field)` pair in `field_names`, if `info_field`
-    is in `node_info`, modify the node in `graph` with key `node_key` to store
-    the value of `info_field` in `node_field`.
+    For each `field_name` in `field_names`, if `field_name` is in `node_info`,
+    modify `graph` and `results` to contain the field.
     """
-    for (info_field, node_field) in field_names:
-        if info_field in node_info:
-            val = node_info[info_field]
-            results[node_field] = val
-            graph.add_node(node_key, **{node_field: val})
+    for field_name in field_names:
+        if field_name in node_info:
+            val = node_info[field_name]
+            results[field_name] = val
+            graph.add_node(node_key, **{field_name: val})
 
 def update_results(graph, parent_info, parent_key, results, is_inbound):
     direction_tag = "inboundPeers" if is_inbound else "outboundPeers"
@@ -158,16 +156,16 @@ def update_results(graph, parent_info, parent_key, results, is_inbound):
             graph.add_edge(parent_key, other_key, **edge_properties)
 
     # Add survey results to parent node (if available)
-    field_names = [("numTotalInboundPeers", "totalInbound"),
-                   ("numTotalOutboundPeers", "totalOutbound"),
-                   ("maxInboundPeerCount", "maxInboundPeerCount"),
-                   ("maxOutboundPeerCount", "maxOutboundPeerCount"),
-                   ("addedAuthenticatedPeers", "addedAuthenticatedPeers"),
-                   ("droppedAuthenticatedPeers", "droppedAuthenticatedPeers"),
-                   ("p75SCPFirstToSelfLatencyMs", "p75SCPFirstToSelfLatencyMs"),
-                   ("p75SCPSelfToOtherLatencyMs", "p75SCPSelfToOtherLatencyMs"),
-                   ("lostSyncCount", "lostSyncCount"),
-                   ("isValidator", "isValidator")]
+    field_names = ["numTotalInboundPeers",
+                   "numTotalOutboundPeers",
+                   "maxInboundPeerCount",
+                   "maxOutboundPeerCount",
+                   "addedAuthenticatedPeers",
+                   "droppedAuthenticatedPeers",
+                   "p75SCPFirstToSelfLatencyMs",
+                   "p75SCPSelfToOtherLatencyMs",
+                   "lostSyncCount",
+                   "isValidator"]
     update_node(graph, parent_info, parent_key, results, field_names)
 
 
@@ -187,8 +185,18 @@ def send_survey_requests(peer_list, url_base):
             util.SURVEY_TOPOLOGY_TIME_SLICED_SUCCESS_START):
             logger.debug("Send request to %s", nodeid)
         else:
-            logger.error("Failed to send survey request to %s: %s",
-                         nodeid, response.text)
+            try:
+                exception = response.json()["exception"]
+                if exception == \
+                   util.SURVEY_TOPOLOGY_TIME_SLICED_ALREADY_IN_BACKLOG_OR_SELF:
+                    logger.debug("Node %s is already in backlog or is self",
+                                 nodeid)
+                else:
+                    logger.error("Failed to send survey request to %s: %s",
+                                nodeid, exception)
+            except (requests.exceptions.JSONDecodeError, KeyError):
+                logger.error("Failed to send survey request to %s: %s",
+                             nodeid, response.text)
 
     logger.info("Done sending survey requests")
 
@@ -309,8 +317,8 @@ def augment(args):
 def run_survey(args):
     graph = nx.DiGraph()
     merged_results = defaultdict(lambda: {
-        "totalInbound": 0,
-        "totalOutbound": 0,
+        "numTotalInboundPeers": 0,
+        "numTotalOutboundPeers": 0,
         "maxInboundPeerCount": 0,
         "maxOutboundPeerCount": 0,
         "inboundPeers": {},
@@ -324,6 +332,7 @@ def run_survey(args):
             logger.critical("%s", e)
             sys.exit(1)
 
+    skip_sleep = args.simulate and args.fast
     url = args.node
 
     peers = url + "/peers"
@@ -339,10 +348,11 @@ def run_survey(args):
         logger.critical("Failed to start survey: %s", response.text)
         sys.exit(1)
 
-    # Sleep for duration of collecting phase
-    logger.info("Sleeping for collecting phase (%i minutes)",
-                args.collect_duration)
-    time.sleep(args.collect_duration * 60)
+    if not skip_sleep:
+        # Sleep for duration of collecting phase
+        logger.info("Sleeping for collecting phase (%i minutes)",
+                    args.collect_duration)
+        time.sleep(args.collect_duration * 60)
 
     # Stop survey recording
     logger.info("Stopping survey collecting")
@@ -351,12 +361,13 @@ def run_survey(args):
         logger.critical("Failed to stop survey: %s", response.text)
         sys.exit(1)
 
-    # Allow time for stop message to propagate
-    sleep_time = 60
-    logger.info(
-        "Waiting %i seconds for 'stop collecting' message to propagate",
-        sleep_time)
-    time.sleep(sleep_time)
+    if not skip_sleep:
+        # Allow time for stop message to propagate
+        sleep_time = 60
+        logger.info(
+            "Waiting %i seconds for 'stop collecting' message to propagate",
+            sleep_time)
+        time.sleep(sleep_time)
 
     peer_list = set()
     if args.nodeList:
@@ -387,16 +398,14 @@ def run_survey(args):
 
     sent_requests = set()
     heard_from = set()
+    incomplete_responses = set()
 
     # Number of consecutive rounds in which surveyor neither sent requests nor
     # received responses
     inactive_rounds = 0
 
     while True:
-        if peer_list:
-            inactive_rounds = 0
-        else:
-            inactive_rounds += 1
+        inactive_rounds += 1
 
         send_survey_requests(peer_list, url)
 
@@ -405,12 +414,13 @@ def run_survey(args):
 
         peer_list = set()
 
-        # allow time for results. Stellar-core sends out a batch of requests
-        # every 15 seconds, so there's not much benefit in checking more
-        # frequently than that
-        sleep_time = 15
-        logger.info("Waiting %i seconds for survey results", sleep_time)
-        time.sleep(sleep_time)
+        if not skip_sleep:
+            # allow time for results. Stellar-core sends out a batch of requests
+            # every 15 seconds, so there's not much benefit in checking more
+            # frequently than that
+            sleep_time = 15
+            logger.info("Waiting %i seconds for survey results", sleep_time)
+            time.sleep(sleep_time)
 
         logger.info("Fetching survey result")
         data = get_request(url=survey_result).json()
@@ -418,12 +428,19 @@ def run_survey(args):
 
         if "topology" in data:
             for key in data["topology"]:
-                if data["topology"][key] is not None:
+                node_data = data["topology"][key]
+                if node_data is not None:
                     if key not in heard_from:
                         # Received a new response!
                         logger.debug("Received response from %s", key)
                         inactive_rounds = 0
                         heard_from.add(key)
+                    elif key in incomplete_responses and len(node_data) > 0:
+                        # Received additional data for a node that previously
+                        # responded
+                        logger.debug("Received additional data for %s", key)
+                        inactive_rounds = 0
+                        incomplete_responses.remove(key)
 
         waiting_to_hear = set()
         for node in sent_requests:
@@ -455,11 +472,11 @@ def run_survey(args):
             node = merged_results[key]
             have_inbound = len(node["inboundPeers"])
             have_outbound = len(node["outboundPeers"])
-            if (node["totalInbound"] > have_inbound or
-                node["totalOutbound"] > have_outbound):
-                peer_list.add(util.PendingRequest(key,
-                                                  have_inbound,
-                                                  have_outbound))
+            if (node["numTotalInboundPeers"] > have_inbound or
+                node["numTotalOutboundPeers"] > have_outbound):
+                incomplete_responses.add(key)
+                req = util.PendingRequest(key, have_inbound, have_outbound)
+                peer_list.add(req)
         logger.info("New nodes: %s  Gathering additional peer data: %s",
               new_peers, len(peer_list)-new_peers)
 
@@ -554,6 +571,10 @@ def main():
                                  "--simRoot",
                                  required=True,
                                  help="node to start simulation from")
+    parser_simulate.add_argument("-f",
+                                 "--fast",
+                                 action="store_true",
+                                 help="Skip sleep calls during simulation.")
     parser_simulate.set_defaults(simulate=True)
 
     parser_analyze = subparsers.add_parser('analyze',

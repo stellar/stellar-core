@@ -63,7 +63,6 @@ def _add_v2_survey_data(node_json):
     for peer in node_json["outboundPeers"]:
         peer["averageLatencyMs"] = random.randint(0, 2**32-1)
 
-
 class SurveySimulation:
     """
     Simulates the HTTP endpoints of stellar-core's overlay survey. Raises
@@ -139,11 +138,25 @@ class SurveySimulation:
         assert params.keys() == {"node",
                                  "inboundpeerindex",
                                  "outboundpeerindex"}
-        if params["node"] != self._root_node:
-            req = util.PendingRequest(params["node"],
-                                      params["inboundpeerindex"],
-                                      params["outboundpeerindex"])
-            self._pending_requests.append(req)
+
+        fail_response = SimulatedResponse(
+            {"exception" :
+                util.SURVEY_TOPOLOGY_TIME_SLICED_ALREADY_IN_BACKLOG_OR_SELF})
+        node = params["node"]
+        inbound_peer_idx = params["inboundpeerindex"]
+        outbound_peer_idx = params["outboundpeerindex"]
+        if node == self._root_node:
+            # Nodes cannot survey themselves (yet)
+            return fail_response
+
+        if ((inbound_peer_idx > 0 or outbound_peer_idx > 0) and
+            random.random() < 0.2):
+            # Randomly indicate that node is already in backlog if it is being
+            # resurveyed. Script should handle this by trying again later.
+            return fail_response
+
+        req = util.PendingRequest(node, inbound_peer_idx, outbound_peer_idx)
+        self._pending_requests.append(req)
         return SimulatedResponse(
             text=util.SURVEY_TOPOLOGY_TIME_SLICED_SUCCESS_TEXT)
 
