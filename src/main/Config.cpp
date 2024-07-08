@@ -1099,7 +1099,7 @@ Config::processConfig(std::shared_ptr<cpptoml::table> t)
             else if (item.first ==
                      "EXPERIMENTAL_BUCKETLIST_DB_INDEX_PAGE_SIZE_EXPONENT")
             {
-                BUCKETLIST_DB_INDEX_CUTOFF = readInt<size_t>(item);
+                BUCKETLIST_DB_INDEX_PAGE_SIZE_EXPONENT = readInt<size_t>(item);
                 CLOG_WARNING(
                     Bucket,
                     "EXPERIMENTAL_BUCKETLIST_DB_INDEX_PAGE_SIZE_EXPONENT is "
