@@ -1675,42 +1675,38 @@ runVersion(CommandLineArgs const&)
                      .curr.c_str()
               << std::endl;
 
-    if (rust_bridge::compiled_with_soroban_prev())
-    {
-        std::cout << "    prev:" << std::endl;
-        std::cout << "        package version: "
-                  << rust_bridge::get_soroban_env_pkg_versions().prev.c_str()
-                  << std::endl;
+    std::cout << "    prev:" << std::endl;
+    std::cout << "        package version: "
+              << rust_bridge::get_soroban_env_pkg_versions().prev.c_str()
+              << std::endl;
 
-        std::cout << "        git version: "
-                  << rust_bridge::get_soroban_env_git_versions().prev.c_str()
-                  << std::endl;
+    std::cout << "        git version: "
+              << rust_bridge::get_soroban_env_git_versions().prev.c_str()
+              << std::endl;
 
-        std::cout
-            << "        ledger protocol version: "
-            << rust_bridge::get_soroban_env_ledger_protocol_versions().prev
-            << std::endl;
+    std::cout << "        ledger protocol version: "
+              << rust_bridge::get_soroban_env_ledger_protocol_versions().prev
+              << std::endl;
 
-        std::cout << "        pre-release version: "
-                  << rust_bridge::get_soroban_env_pre_release_versions().prev
-                  << std::endl;
+    std::cout << "        pre-release version: "
+              << rust_bridge::get_soroban_env_pre_release_versions().prev
+              << std::endl;
 
-        std::cout << "        rs-stellar-xdr:" << std::endl;
+    std::cout << "        rs-stellar-xdr:" << std::endl;
 
-        std::cout
-            << "            package version: "
-            << rust_bridge::get_soroban_xdr_bindings_pkg_versions().prev.c_str()
-            << std::endl;
-        std::cout
-            << "            git version: "
-            << rust_bridge::get_soroban_xdr_bindings_git_versions().prev.c_str()
-            << std::endl;
-        std::cout
-            << "            base XDR git version: "
-            << rust_bridge::get_soroban_xdr_bindings_base_xdr_git_versions()
-                   .prev.c_str()
-            << std::endl;
-    }
+    std::cout
+        << "            package version: "
+        << rust_bridge::get_soroban_xdr_bindings_pkg_versions().prev.c_str()
+        << std::endl;
+    std::cout
+        << "            git version: "
+        << rust_bridge::get_soroban_xdr_bindings_git_versions().prev.c_str()
+        << std::endl;
+    std::cout << "            base XDR git version: "
+              << rust_bridge::get_soroban_xdr_bindings_base_xdr_git_versions()
+                     .prev.c_str()
+              << std::endl;
+
     return 0;
 }
 

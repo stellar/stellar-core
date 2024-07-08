@@ -14,11 +14,6 @@ else # !BUILD_TESTS
 stellar_core_SOURCES = main/StellarCoreVersion.cpp main/XDRFilesSha256.cpp $(SRC_CXX_FILES)
 endif # !BUILD_TESTS
 
-if ENABLE_PROTOCOL_UPGRADE_VIA_SOROBAN_ENV_HOST_PREV
-CARGO_FEATURES = --features soroban-env-host-prev
-else
-CARGO_FEATURES =
-endif
 if USE_TRACY
 CARGO_FEATURES += --features tracy
 endif

@@ -244,9 +244,6 @@ mod rust_bridge {
         // Return the rust XDR bindings' input XDR definitions git versions used to build this binary.
         fn get_soroban_xdr_bindings_base_xdr_git_versions() -> VersionStringPair;
 
-        // Return true if configured with cfg(feature="soroban-env-host-prev")
-        fn compiled_with_soroban_prev() -> bool;
-
         // Computes the resource fee given the transaction resource consumption
         // and network configuration.
         fn compute_transaction_resource_fee(
@@ -483,22 +480,11 @@ mod soroban_curr {
     pub(crate) mod contract;
 }
 
-#[cfg(feature = "soroban-env-host-prev")]
 #[path = "."]
 mod soroban_prev {
     pub(crate) use soroban_env_host_prev as soroban_env_host;
 
     pub(crate) mod contract;
-}
-
-#[cfg(feature = "soroban-env-host-prev")]
-pub fn compiled_with_soroban_prev() -> bool {
-    true
-}
-
-#[cfg(not(feature = "soroban-env-host-prev"))]
-pub fn compiled_with_soroban_prev() -> bool {
-    false
 }
 
 use cargo_lock::{dependency::graph::EdgeDirection, Lockfile};
@@ -635,7 +621,6 @@ pub fn check_lockfile_has_expected_dep_trees(curr_max_protocol_version: u32) {
     static CARGO_LOCK_FILE_CONTENT: &'static str = include_str!("../../../Cargo.lock");
 
     static EXPECTED_HOST_DEP_TREE_CURR: &'static str = include_str!("host-dep-tree-curr.txt");
-    #[cfg(feature = "soroban-env-host-prev")]
     static EXPECTED_HOST_DEP_TREE_PREV: &'static str = include_str!("host-dep-tree-prev.txt");
 
     let lockfile = Lockfile::from_str(CARGO_LOCK_FILE_CONTENT)
@@ -649,7 +634,7 @@ pub fn check_lockfile_has_expected_dep_trees(curr_max_protocol_version: u32) {
         soroban_env_host_curr::VERSION.rev,
         EXPECTED_HOST_DEP_TREE_CURR,
     );
-    #[cfg(feature = "soroban-env-host-prev")]
+
     check_lockfile_has_expected_dep_tree(
         curr_max_protocol_version - 1,
         soroban_env_host_prev::meta::INTERFACE_VERSION,
@@ -670,68 +655,48 @@ fn get_rustc_version() -> String {
 fn get_soroban_env_pkg_versions() -> VersionStringPair {
     VersionStringPair {
         curr: soroban_curr::soroban_env_host::VERSION.pkg.to_string(),
-        #[cfg(feature = "soroban-env-host-prev")]
         prev: soroban_prev::soroban_env_host::VERSION.pkg.to_string(),
-        #[cfg(not(feature = "soroban-env-host-prev"))]
-        prev: "".to_string(),
     }
 }
 
 fn get_soroban_env_git_versions() -> VersionStringPair {
     VersionStringPair {
         curr: soroban_curr::soroban_env_host::VERSION.rev.to_string(),
-        #[cfg(feature = "soroban-env-host-prev")]
         prev: soroban_prev::soroban_env_host::VERSION.rev.to_string(),
-        #[cfg(not(feature = "soroban-env-host-prev"))]
-        prev: "".to_string(),
     }
 }
 
 fn get_soroban_env_ledger_protocol_versions() -> VersionNumPair {
     use curr_host::meta::get_ledger_protocol_version;
     use soroban_curr::soroban_env_host as curr_host;
-    #[cfg(feature = "soroban-env-host-prev")]
     use soroban_prev::soroban_env_host as prev_host;
     VersionNumPair {
         curr: get_ledger_protocol_version(curr_host::VERSION.interface),
-        #[cfg(feature = "soroban-env-host-prev")]
         prev: get_ledger_protocol_version(prev_host::VERSION.interface),
-        #[cfg(not(feature = "soroban-env-host-prev"))]
-        prev: 0,
     }
 }
 
 fn get_soroban_env_pre_release_versions() -> VersionNumPair {
     use curr_host::meta::get_pre_release_version;
     use soroban_curr::soroban_env_host as curr_host;
-    #[cfg(feature = "soroban-env-host-prev")]
     use soroban_prev::soroban_env_host as prev_host;
     VersionNumPair {
         curr: get_pre_release_version(curr_host::VERSION.interface),
-        #[cfg(feature = "soroban-env-host-prev")]
         prev: get_pre_release_version(prev_host::VERSION.interface),
-        #[cfg(not(feature = "soroban-env-host-prev"))]
-        prev: 0,
     }
 }
 
 fn get_soroban_xdr_bindings_pkg_versions() -> VersionStringPair {
     VersionStringPair {
         curr: soroban_curr::soroban_env_host::VERSION.xdr.pkg.to_string(),
-        #[cfg(feature = "soroban-env-host-prev")]
         prev: soroban_prev::soroban_env_host::VERSION.xdr.pkg.to_string(),
-        #[cfg(not(feature = "soroban-env-host-prev"))]
-        prev: "".to_string(),
     }
 }
 
 fn get_soroban_xdr_bindings_git_versions() -> VersionStringPair {
     VersionStringPair {
         curr: soroban_curr::soroban_env_host::VERSION.xdr.rev.to_string(),
-        #[cfg(feature = "soroban-env-host-prev")]
         prev: soroban_prev::soroban_env_host::VERSION.xdr.rev.to_string(),
-        #[cfg(not(feature = "soroban-env-host-prev"))]
-        prev: "".to_string(),
     }
 }
 
@@ -747,7 +712,7 @@ fn get_soroban_xdr_bindings_base_xdr_git_versions() -> VersionStringPair {
             .to_string(),
         _ => "unknown configuration".to_string(),
     };
-    #[cfg(feature = "soroban-env-host-prev")]
+
     let prev = match soroban_prev::soroban_env_host::VERSION.xdr.xdr {
         "next" => soroban_prev::soroban_env_host::VERSION
             .xdr
@@ -759,8 +724,6 @@ fn get_soroban_xdr_bindings_base_xdr_git_versions() -> VersionStringPair {
             .to_string(),
         _ => "unknown configuration".to_string(),
     };
-    #[cfg(not(feature = "soroban-env-host-prev"))]
-    let prev = "".to_string();
     VersionStringPair { curr, prev }
 }
 
@@ -774,10 +737,7 @@ impl std::error::Error for rust_bridge::BridgeError {}
 
 pub(crate) fn get_xdr_hashes() -> XDRHashesPair {
     let curr = soroban_curr::contract::get_xdr_hashes();
-    #[cfg(feature = "soroban-env-host-prev")]
     let prev = soroban_prev::contract::get_xdr_hashes();
-    #[cfg(not(feature = "soroban-env-host-prev"))]
-    let prev = vec![];
     XDRHashesPair { curr, prev }
 }
 
@@ -800,7 +760,6 @@ pub(crate) fn invoke_host_function(
             "unsupported protocol",
         )));
     }
-    #[cfg(feature = "soroban-env-host-prev")]
     {
         if ledger_info.protocol_version == config_max_protocol - 1 {
             return soroban_prev::contract::invoke_host_function(
@@ -844,7 +803,6 @@ pub(crate) fn compute_transaction_resource_fee(
             "unsupported protocol",
         )));
     }
-    #[cfg(feature = "soroban-env-host-prev")]
     {
         if protocol_version == config_max_protocol - 1 {
             return Ok(soroban_prev::contract::compute_transaction_resource_fee(
@@ -871,7 +829,6 @@ pub(crate) fn compute_rent_fee(
             "unsupported protocol",
         )));
     }
-    #[cfg(feature = "soroban-env-host-prev")]
     {
         if protocol_version == config_max_protocol - 1 {
             return Ok(soroban_prev::contract::compute_rent_fee(
@@ -899,7 +856,6 @@ pub(crate) fn compute_write_fee_per_1kb(
             "unsupported protocol",
         )));
     }
-    #[cfg(feature = "soroban-env-host-prev")]
     {
         if protocol_version == config_max_protocol - 1 {
             return Ok(soroban_prev::contract::compute_write_fee_per_1kb(

@@ -38,25 +38,14 @@ git = "https://github.com/stellar/rs-soroban-env"
 package = "soroban-env-host"
 rev = "8d76e4037417b80dc25c979cc44b8e1281e8ad84"
 
-# This copy of the soroban host is _optional_ and only enabled during protocol
-# transitions. When transitioning from protocol N to N+1, the `curr` copy
+# When transitioning from protocol N to N+1, the `curr` copy
 # (above) will bump its version to one that supports protocol N+1, and we will
-# simultaneously enable this `prev` copy by building with
-# `--feature=soroban-env-host-prev` and pointing its version and git rev to the
+# point this `prev` copies version and git rev to the
 # last soroban released to the network that speaks protocol N. When we deploy
 # this to a network running protocol N it will run on `prev` until the upgrade,
-# then switch from `prev` to `curr` at the upgrade, and then in the next release
-# we can turn `prev` off again.
-#
-# A note on `rev` hashes: When `prev` is disabled, the rust-analyzer IDE will
-# still want it to point to some version of soroban just for auto-completion
-# (because it builds with `--all-features`). To make this work, the `rev` spec
-# below has to be different from the `rev` spec in the `curr` copy of soroban
-# above. The easiest way to make this work is to just point to one git rev 
-# before the rev specified for `curr`.
+# then switch from `prev` to `curr` at the upgrade.
 
 [dependencies.soroban-env-host-prev]
-optional = true
 version = "=20.3.0"
 git = "https://github.com/stellar/rs-soroban-env"
 package = "soroban-env-host"
@@ -81,6 +70,5 @@ features = ["dependency-tree"]
 # This feature definition is implied by the optional=true line in the dep, but
 # writing it out in full here cross-checks that nobody _removed_ that line.
 [features]
-soroban-env-host-prev = ["dep:soroban-env-host-prev"]
 tracy = ["dep:tracy-client", "soroban-env-host-curr/tracy"]
 core-vnext = ["soroban-env-host-curr/next"]
