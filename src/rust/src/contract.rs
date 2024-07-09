@@ -326,6 +326,8 @@ fn invoke_host_function_or_maybe_panic(
     let client = tracy_client::Client::start();
     let _span0 = tracy_span!("invoke_host_function_or_maybe_panic");
 
+    let protocol_version = ledger_info.protocol_version;
+
     let budget = Budget::try_from_configs(
         instruction_limit as u64,
         ledger_info.memory_limit as u64,
@@ -446,10 +448,16 @@ fn invoke_host_function_or_maybe_panic(
             },
         })
     }
+    let is_internal_error = if protocol_version < 22 {
+        err.error.is_code(ScErrorCode::InternalError)
+    } else {
+        err.error.is_code(ScErrorCode::InternalError) && !err.error.is_type(ScErrorType::Contract)
+    };
+
     debug!(target: TX, "invocation failed: {}", err);
     return Ok(InvokeHostFunctionOutput {
         success: false,
-        is_internal_error: err.error.is_code(ScErrorCode::InternalError),
+        is_internal_error,
         diagnostic_events: encode_diagnostic_events(&diagnostic_events),
         cpu_insns,
         mem_bytes,
