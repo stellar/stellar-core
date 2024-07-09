@@ -14,6 +14,7 @@ else # !BUILD_TESTS
 stellar_core_SOURCES = main/StellarCoreVersion.cpp main/XDRFilesSha256.cpp $(SRC_CXX_FILES)
 endif # !BUILD_TESTS
 
+CARGO_FEATURES =
 if USE_TRACY
 CARGO_FEATURES += --features tracy
 endif
