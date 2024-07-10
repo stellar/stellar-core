@@ -397,11 +397,9 @@ AC_ARG_ENABLE(next-protocol-version-unsafe-for-production,
 AM_CONDITIONAL(ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION,
     [test x$enable_next_protocol_version_unsafe_for_production = xyes])
 
-AC_ARG_ENABLE(protocol-upgrade-via-soroban-env-host-prev,
-    AS_HELP_STRING([--enable-protocol-upgrade-via-soroban-env-host-prev],
-        [Pass "--feature=soroban-env-host-prev" to "cargo build" to enable protocol upgrades]))
+# Disable the prev host if this is a vnext build
 AM_CONDITIONAL(ENABLE_PROTOCOL_UPGRADE_VIA_SOROBAN_ENV_HOST_PREV,
-    [test x$enable_protocol_upgrade_via_soroban_env_host_prev = xyes])
+    [test x$enable_next_protocol_version_unsafe_for_production != xyes])
 
 AC_ARG_ENABLE(libunwind,
     AS_HELP_STRING([--disable-libunwind],
