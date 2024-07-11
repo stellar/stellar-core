@@ -4,11 +4,8 @@ on:
   pull_request:
   merge_group:
   push:
-    branches:
-      - master
-      - prod
-      - testnet
-      - acceptance-test-pass
+    branches-ignore:
+      - 'gh-readonly-queue/**'
 
 jobs:
 
