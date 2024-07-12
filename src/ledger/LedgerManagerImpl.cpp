@@ -1350,7 +1350,6 @@ LedgerManagerImpl::processFeesSeqNums(
     {
         LedgerTxn ltx(ltxOuter);
         auto header = ltx.loadHeader().current();
-        auto ledgerSeq = header.ledgerSeq;
         std::map<AccountID, SequenceNumber> accToMaxSeq;
 
         bool mergeSeen = false;
@@ -1384,18 +1383,7 @@ LedgerManagerImpl::processFeesSeqNums(
                 ledgerCloseMeta->setLastTxProcessingFeeProcessingChanges(
                     changes);
             }
-            // Note to future: when we eliminate the txhistory and txfeehistory
-            // tables, the following step can be removed.
-            //
-            // Also note: for historical reasons the history tables number
-            // txs counting from 1, not 0. We preserve this for the time being
-            // in case anyone depends on it.
             ++index;
-            if (mApp.getConfig().MODE_STORES_HISTORY_MISC)
-            {
-                storeTransactionFee(mApp.getDatabase(), ledgerSeq, tx, changes,
-                                    index);
-            }
             ltxTx.commit();
         }
 
@@ -1475,7 +1463,7 @@ LedgerManagerImpl::prefetchTransactionData(
             }
             else
             {
-                tx->insertKeysForTxApply(classicKeys, {nullptr});
+                tx->insertKeysForTxApply(classicKeys, nullptr);
             }
         }
         // Prefetch classic and soroban keys separately for greater visibility
@@ -1582,8 +1570,8 @@ LedgerManagerImpl::applyTransactions(
         // Then finally store the results and meta into the txhistory table.
         // if we're running in a mode that has one.
         //
-        // Note to future: when we eliminate the txhistory and txfeehistory
-        // tables, the following step can be removed.
+        // Note to future: when we eliminate the txhistory for archiving, the
+        // next step can be removed.
         //
         // Also note: for historical reasons the history tables number
         // txs counting from 1, not 0. We preserve this for the time being
