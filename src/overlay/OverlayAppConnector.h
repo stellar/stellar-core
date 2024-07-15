@@ -9,6 +9,7 @@ class OverlayManager;
 class LedgerManager;
 class Herder;
 class BanManager;
+struct OverlayMetrics;
 
 // Helper class to isolate access to Application; all function helpers must
 // either be called from main or be thread-sade
@@ -38,5 +39,6 @@ class OverlayAppConnector
     VirtualClock::time_point now() const;
     Config const& getConfig() const;
     bool overlayShuttingDown() const;
+    OverlayMetrics& getOverlayMetrics();
 };
 }

@@ -103,14 +103,14 @@ FlowControl::maybeReleaseCapacity(StellarMessage const& msg)
     }
 }
 
-std::vector<std::shared_ptr<StellarMessage const>>
+std::vector<FlowControl::QueuedOutboundMessage>
 FlowControl::getNextBatchToSend()
 {
     ZoneScoped;
     releaseAssert(!threadIsMain() || !mUseBackgroundThread);
 
     std::lock_guard<std::mutex> guard(mFlowControlMutex);
-    std::vector<std::shared_ptr<StellarMessage const>> batchToSend;
+    std::vector<QueuedOutboundMessage> batchToSend;
 
     int sent = 0;
     for (int i = 0; i < mOutboundQueues.size(); i++)
@@ -135,7 +135,7 @@ FlowControl::getNextBatchToSend()
                 break;
             }
 
-            batchToSend.push_back(front.mMessage);
+            batchToSend.push_back(front);
             ++sent;
             auto& om = mOverlayMetrics;
 
@@ -150,8 +150,6 @@ FlowControl::getNextBatchToSend()
             {
             case TRANSACTION:
             {
-                om.mOutboundQueueDelayTxs.Update(diff);
-                mMetrics.mOutboundQueueDelayTxs.Update(diff);
                 if (mFlowControlBytesCapacity)
                 {
                     size_t s =
@@ -162,15 +160,9 @@ FlowControl::getNextBatchToSend()
             }
             break;
             case SCP_MESSAGE:
-            {
-                om.mOutboundQueueDelaySCP.Update(diff);
-                mMetrics.mOutboundQueueDelaySCP.Update(diff);
-            }
-            break;
+                break;
             case FLOOD_DEMAND:
             {
-                om.mOutboundQueueDelayDemand.Update(diff);
-                mMetrics.mOutboundQueueDelayDemand.Update(diff);
                 size_t s = front.mMessage->floodDemand().txHashes.size();
                 releaseAssert(mDemandQueueTxHashCount >= s);
                 mDemandQueueTxHashCount -= s;
@@ -178,8 +170,6 @@ FlowControl::getNextBatchToSend()
             break;
             case FLOOD_ADVERT:
             {
-                om.mOutboundQueueDelayAdvert.Update(diff);
-                mMetrics.mOutboundQueueDelayAdvert.Update(diff);
                 size_t s = front.mMessage->floodAdvert().txHashes.size();
                 releaseAssert(mAdvertQueueTxHashCount >= s);
                 mAdvertQueueTxHashCount -= s;
@@ -197,6 +187,44 @@ FlowControl::getNextBatchToSend()
                    mAppConnector.getConfig().NODE_SEED.getPublicKey()),
                mAppConnector.getConfig().toShortString(mNodeID), sent);
     return batchToSend;
+}
+
+void
+FlowControl::updateMsgMetrics(std::shared_ptr<StellarMessage const> msg,
+                              VirtualClock::time_point const& timePlaced)
+{
+    // The lock isn't strictly needed here, but is added for consistency and
+    // future-proofing this function
+    std::lock_guard<std::mutex> guard(mFlowControlMutex);
+    auto diff = mAppConnector.now() - timePlaced;
+
+    auto updateQueueDelay = [&](auto& queue, auto& metrics) {
+        queue.Update(diff);
+        metrics.Update(diff);
+    };
+
+    auto& om = mAppConnector.getOverlayMetrics();
+    switch (msg->type())
+    {
+    case TRANSACTION:
+        updateQueueDelay(om.mOutboundQueueDelayTxs,
+                         mMetrics.mOutboundQueueDelayTxs);
+        break;
+    case SCP_MESSAGE:
+        updateQueueDelay(om.mOutboundQueueDelaySCP,
+                         mMetrics.mOutboundQueueDelaySCP);
+        break;
+    case FLOOD_DEMAND:
+        updateQueueDelay(om.mOutboundQueueDelayDemand,
+                         mMetrics.mOutboundQueueDelayDemand);
+        break;
+    case FLOOD_ADVERT:
+        updateQueueDelay(om.mOutboundQueueDelayAdvert,
+                         mMetrics.mOutboundQueueDelayAdvert);
+        break;
+    default:
+        abort();
+    }
 }
 
 void

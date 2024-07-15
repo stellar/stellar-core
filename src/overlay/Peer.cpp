@@ -787,7 +787,7 @@ Peer::sendMessage(std::shared_ptr<StellarMessage const> msg, bool log)
             [](std::shared_ptr<Peer> self) {
                 for (auto const& m : self->mFlowControl->getNextBatchToSend())
                 {
-                    self->sendAuthenticatedMessage(m);
+                    self->sendAuthenticatedMessage(m.mMessage, m.mTimeEmplaced);
                 }
             });
     }
@@ -799,7 +799,9 @@ Peer::sendMessage(std::shared_ptr<StellarMessage const> msg, bool log)
 }
 
 void
-Peer::sendAuthenticatedMessage(std::shared_ptr<StellarMessage const> msg)
+Peer::sendAuthenticatedMessage(
+    std::shared_ptr<StellarMessage const> msg,
+    std::optional<VirtualClock::time_point> timePlaced)
 {
     {
         // No need to hold the lock for the duration of this function:
@@ -814,7 +816,7 @@ Peer::sendAuthenticatedMessage(std::shared_ptr<StellarMessage const> msg)
         }
     }
 
-    auto cb = [msg](std::shared_ptr<Peer> self) {
+    auto cb = [msg, timePlaced](std::shared_ptr<Peer> self) {
         // Construct an authenticated message and place it in the queue
         // _synchronously_ This is important because we assign auth sequence to
         // each message, which must be ordered
@@ -826,6 +828,10 @@ Peer::sendAuthenticatedMessage(std::shared_ptr<StellarMessage const> msg)
             xdrBytes = xdr::xdr_to_msg(amsg);
         }
         self->sendMessage(std::move(xdrBytes));
+        if (timePlaced)
+        {
+            self->mFlowControl->updateMsgMetrics(msg, *timePlaced);
+        }
     };
 
     // If we're already on the background thread (i.e. via flow control), move
@@ -1050,14 +1056,14 @@ Peer::recvSendMore(StellarMessage const& msg)
     releaseAssert(threadIsMain());
     releaseAssert(mFlowControl);
     mFlowControl->maybeReleaseCapacity(msg);
-    maybeExecuteInBackground("Peer::recvSendMore maybeSendNextBatch",
-                             [](std::shared_ptr<Peer> self) {
-                                 for (auto const& m :
-                                      self->mFlowControl->getNextBatchToSend())
-                                 {
-                                     self->sendAuthenticatedMessage(m);
-                                 }
-                             });
+    maybeExecuteInBackground(
+        "Peer::recvSendMore maybeSendNextBatch",
+        [](std::shared_ptr<Peer> self) {
+            for (auto const& m : self->mFlowControl->getNextBatchToSend())
+            {
+                self->sendAuthenticatedMessage(m.mMessage, m.mTimeEmplaced);
+            }
+        });
 }
 
 void

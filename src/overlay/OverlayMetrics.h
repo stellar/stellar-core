@@ -19,6 +19,7 @@ namespace stellar
 
 class Application;
 
+// OverlayMetrics is a thread-safe struct
 struct OverlayMetrics
 {
     OverlayMetrics(Application& app);

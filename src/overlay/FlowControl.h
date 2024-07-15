@@ -102,7 +102,9 @@ class FlowControl
     void addMsgAndMaybeTrimQueue(std::shared_ptr<StellarMessage const> msg);
     // Return next batch of messages to send
     // NOTE: this methods _releases_ capacity and cleans up flow control queues
-    std::vector<std::shared_ptr<StellarMessage const>> getNextBatchToSend();
+    std::vector<QueuedOutboundMessage> getNextBatchToSend();
+    void updateMsgMetrics(std::shared_ptr<StellarMessage const> msg,
+                          VirtualClock::time_point const& timePlaced);
 
 #ifdef BUILD_TESTS
     std::shared_ptr<FlowControlCapacity>
