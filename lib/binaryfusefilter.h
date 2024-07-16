@@ -1,5 +1,6 @@
 #ifndef BINARYFUSEFILTER_H
 #define BINARYFUSEFILTER_H
+#include <cstdint>
 #include <math.h>
 #include <stdbool.h>
 #include <stddef.h>
@@ -10,6 +11,9 @@
 #include <limits>
 #include <type_traits>
 #include <vector>
+
+#include <Tracy.hpp>
+
 #ifndef XOR_MAX_ITERATIONS
 #define XOR_MAX_ITERATIONS \
     100 // probability of success should always be > 0.5 so 100 iterations is
@@ -289,6 +293,7 @@ class binary_fuse_t
     bool
     contain(uint64_t key) const
     {
+        ZoneScoped;
         uint64_t hash = binary_fuse_mix_split(key, _seed);
         T f = binary_fuse_fingerprint(hash);
         binary_hashes_t hashes = hash_batch(hash);
@@ -312,17 +317,18 @@ class binary_fuse_t
     // which point the seed must be rotated. keys will be sorted and duplicates
     // removed if any duplicate keys exist
     [[nodiscard]] bool
-    populate(std::vector<uint64_t>& keys)
+    populate(std::vector<uint64_t>& keys, uint64_t rngSeed)
     {
+        ZoneScoped;
         if (keys.size() > std::numeric_limits<uint32_t>::max())
         {
             throw std::runtime_error("size should be at most 2^32");
         }
 
         uint32_t size = keys.size();
+        ZoneValue(static_cast<int64_t>(size));
 
-        uint64_t rng_counter = 0x726b2b9d438b9d4d;
-        _seed = binary_fuse_rng_splitmix64(&rng_counter);
+        _seed = binary_fuse_rng_splitmix64(&rngSeed);
 
         std::vector<uint64_t> reverseOrder(size + 1);
         uint32_t capacity = _arrayLength;
@@ -416,8 +422,7 @@ class binary_fuse_t
                 std::fill(t2count.begin(), t2count.end(), 0);
                 std::fill(t2hash.begin(), t2hash.end(), 0);
 
-                // TOOD: Actual random
-                _seed = binary_fuse_rng_splitmix64(&rng_counter);
+                _seed = binary_fuse_rng_splitmix64(&rngSeed);
                 continue;
             }
 
@@ -481,7 +486,7 @@ class binary_fuse_t
             std::fill_n(reverseOrder.begin(), size, 0);
             std::fill(t2count.begin(), t2count.end(), 0);
             std::fill(t2hash.begin(), t2hash.end(), 0);
-            _seed = binary_fuse_rng_splitmix64(&rng_counter);
+            _seed = binary_fuse_rng_splitmix64(&rngSeed);
         }
 
         for (uint32_t i = size - 1; i < size; i--)
@@ -500,18 +505,7 @@ class binary_fuse_t
         }
         return true;
     }
+
+    friend class BinaryFuseFilter;
 };
-
-// False postive rate: 1/256
-// Approximate bits per entry: 9
-typedef binary_fuse_t<uint8_t> binary_fuse8_t;
-
-// False postive rate: 1/65536
-// Approximate bits per entry: 18
-typedef binary_fuse_t<uint16_t> binary_fuse16_t;
-
-// False postive rate: 1 / 4 billion
-// Approximate bits per entry: 36
-typedef binary_fuse_t<uint32_t> binary_fuse32_t;
-
 #endif
