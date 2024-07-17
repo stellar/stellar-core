@@ -6,37 +6,43 @@
 
 #include "lib/binaryfusefilter.h"
 #include "util/NonCopyable.h"
+#include "util/types.h"
+#include <sodium.h>
 
 namespace stellar
 {
 
-namespace
-{
+typedef std::array<uint8_t, crypto_shorthash_KEYBYTES> BinaryFuseSeed;
+
+// This class is a wrapper around the binary_fuse_t library that provides
+// serialization for the XDR BinaryFuseFilter type and provides a deterministic
+// LedgerKey interface.
+
+// Only allow uint8_t, uint16_t, and uint32_t
 template <typename T,
-          class = typename std::enable_if_t<std::is_unsigned<T>::value>>
+          typename = std::enable_if_t<std::is_unsigned<T>::value &&
+                                      !std::is_same<T, uint64_t>::value>>
 class BinaryFuseFilter : public NonMovableOrCopyable
 {
   private:
     binary_fuse_t<T> mFilter;
 
+    // Note: as part of filter construction, the internal filter seed might
+    // rotate and no longer be the same as the input seed. The input seed must
+    // be maintained outside of the filter and used to hash input keys to the
+    // contain function to ensure deterministic hashing of input keys
+    // during both populating and querying the filter.
+    BinaryFuseSeed const mInputSeed;
+
   public:
-    BinaryFuseFilter(size_t size) : mFilter(size)
-    {
-    }
+    explicit BinaryFuseFilter(LedgerKeySet const& keys,
+                              BinaryFuseSeed const& seed);
 
-    [[nodiscard]] bool
-    populate(std::vector<size_t>& hashes, size_t rngSeed)
-    {
-        return mFilter.populate(hashes, rngSeed);
-    }
+    bool contain(LedgerKey const& key) const;
 
-    bool
-    contain(size_t hash)
-    {
-        return mFilter.contain(hash);
-    }
+    // template <class Archive> void save(Archive& ar) const;
+    // template <class Archive> void load(Archive& ar);
 };
-}
 
 // False positive rate: 1/256
 // Approximate bits per entry: 9
