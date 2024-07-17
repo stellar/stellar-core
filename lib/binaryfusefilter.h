@@ -8,11 +8,17 @@
 #include <stdint.h>
 
 #include <algorithm>
+#include <array>
 #include <limits>
 #include <type_traits>
 #include <vector>
 
+#include "util/siphash.h"
+
 #include <Tracy.hpp>
+#include <sodium.h>
+
+typedef std::array<uint8_t, crypto_shorthash_KEYBYTES> binary_fuse_seed_t;
 
 #ifndef XOR_MAX_ITERATIONS
 #define XOR_MAX_ITERATIONS \
@@ -24,19 +30,11 @@
  * We start with a few utilities.
  ***/
 static inline uint64_t
-binary_fuse_murmur64(uint64_t h)
+sip_hash24(uint64_t key, binary_fuse_seed_t const& seed)
 {
-    h ^= h >> 33;
-    h *= UINT64_C(0xff51afd7ed558ccd);
-    h ^= h >> 33;
-    h *= UINT64_C(0xc4ceb9fe1a85ec53);
-    h ^= h >> 33;
-    return h;
-}
-static inline uint64_t
-binary_fuse_mix_split(uint64_t key, uint64_t seed)
-{
-    return binary_fuse_murmur64(key + seed);
+    SipHash24 hasher(seed.data());
+    hasher.update(reinterpret_cast<unsigned char*>(&key), sizeof(key));
+    return hasher.digest();
 }
 static inline uint64_t
 binary_fuse_rotl64(uint64_t n, unsigned int c)
@@ -212,7 +210,7 @@ template <typename T,
 class binary_fuse_t
 {
   private:
-    uint64_t _seed;
+    binary_fuse_seed_t _seed;
     uint32_t _segmentLength;
     uint32_t _segmentLengthMask;
     uint32_t _segmentCount;
@@ -294,7 +292,7 @@ class binary_fuse_t
     contain(uint64_t key) const
     {
         ZoneScoped;
-        uint64_t hash = binary_fuse_mix_split(key, _seed);
+        uint64_t hash = sip_hash24(key, _seed);
         T f = binary_fuse_fingerprint(hash);
         binary_hashes_t hashes = hash_batch(hash);
         f ^= _fingerprints[hashes.h0] ^ _fingerprints[hashes.h1] ^
@@ -317,7 +315,7 @@ class binary_fuse_t
     // which point the seed must be rotated. keys will be sorted and duplicates
     // removed if any duplicate keys exist
     [[nodiscard]] bool
-    populate(std::vector<uint64_t>& keys, uint64_t rngSeed)
+    populate(std::vector<uint64_t>& keys, binary_fuse_seed_t rngSeed)
     {
         ZoneScoped;
         if (keys.size() > std::numeric_limits<uint32_t>::max())
@@ -328,7 +326,7 @@ class binary_fuse_t
         uint32_t size = keys.size();
         ZoneValue(static_cast<int64_t>(size));
 
-        _seed = binary_fuse_rng_splitmix64(&rngSeed);
+        _seed = rngSeed;
 
         std::vector<uint64_t> reverseOrder(size + 1);
         uint32_t capacity = _arrayLength;
@@ -369,7 +367,7 @@ class binary_fuse_t
             uint64_t maskblock = block - 1;
             for (uint32_t i = 0; i < size; i++)
             {
-                uint64_t hash = binary_fuse_murmur64(keys[i] + _seed);
+                uint64_t hash = sip_hash24(keys[i], _seed);
                 uint64_t segment_index = hash >> (64 - blockBits);
                 while (reverseOrder[startPos[segment_index]] != 0)
                 {
@@ -422,7 +420,8 @@ class binary_fuse_t
                 std::fill(t2count.begin(), t2count.end(), 0);
                 std::fill(t2hash.begin(), t2hash.end(), 0);
 
-                _seed = binary_fuse_rng_splitmix64(&rngSeed);
+                // Rotate seed deterministically
+                _seed[0]++;
                 continue;
             }
 
@@ -486,7 +485,9 @@ class binary_fuse_t
             std::fill_n(reverseOrder.begin(), size, 0);
             std::fill(t2count.begin(), t2count.end(), 0);
             std::fill(t2hash.begin(), t2hash.end(), 0);
-            _seed = binary_fuse_rng_splitmix64(&rngSeed);
+
+            // Rotate seed deterministically
+            _seed[0]++;
         }
 
         for (uint32_t i = size - 1; i < size; i--)

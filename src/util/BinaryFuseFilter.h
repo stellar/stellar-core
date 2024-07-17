@@ -7,12 +7,9 @@
 #include "lib/binaryfusefilter.h"
 #include "util/NonCopyable.h"
 #include "util/types.h"
-#include <sodium.h>
 
 namespace stellar
 {
-
-typedef std::array<uint8_t, crypto_shorthash_KEYBYTES> BinaryFuseSeed;
 
 // This class is a wrapper around the binary_fuse_t library that provides
 // serialization for the XDR BinaryFuseFilter type and provides a deterministic
@@ -29,14 +26,14 @@ class BinaryFuseFilter : public NonMovableOrCopyable
 
     // Note: as part of filter construction, the internal filter seed might
     // rotate and no longer be the same as the input seed. The input seed must
-    // be maintained outside of the filter and used to hash input keys to the
+    // be maintained outside of the filter and used to hash input keys in the
     // contain function to ensure deterministic hashing of input keys
     // during both populating and querying the filter.
-    BinaryFuseSeed const mInputSeed;
+    binary_fuse_seed_t const mInputSeed;
 
   public:
     explicit BinaryFuseFilter(LedgerKeySet const& keys,
-                              BinaryFuseSeed const& seed);
+                              binary_fuse_seed_t const& seed);
 
     bool contain(LedgerKey const& key) const;
 

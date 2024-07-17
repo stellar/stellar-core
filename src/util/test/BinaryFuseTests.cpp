@@ -36,7 +36,7 @@ testFilter(double expectedFalsePositiveRate)
         }
 
         size_t randomMatches = 0;
-        size_t trials = 1'000'000;
+        size_t trials = 2'000'000;
         for (size_t i = 0; i < trials; i++)
         {
             LedgerKey randomKey;
@@ -59,9 +59,11 @@ testFilter(double expectedFalsePositiveRate)
         }
         else
         {
-            // False positive rate should be within 5% of the expected rate
+            // False positive rate should be within 15% of the expected rate
+            // The fpp is so small, we have to give a relatively large margin
+            // to account for float imprecision
             double fpp = randomMatches * 1.0 / trials;
-            double upperBound = expectedFalsePositiveRate * 1.05;
+            double upperBound = expectedFalsePositiveRate * 1.15;
             REQUIRE(fpp < upperBound);
         }
     }

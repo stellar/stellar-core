@@ -11,7 +11,7 @@ namespace stellar
 
 template <typename T, typename U>
 BinaryFuseFilter<T, U>::BinaryFuseFilter(LedgerKeySet const& keys,
-                                         BinaryFuseSeed const& seed)
+                                         binary_fuse_seed_t const& seed)
     : mFilter(keys.size()), mInputSeed(seed)
 {
     std::vector<size_t> hashes;
@@ -24,20 +24,28 @@ BinaryFuseFilter<T, U>::BinaryFuseFilter(LedgerKeySet const& keys,
         hashes.push_back(hasher.digest());
     }
 
-    for (size_t i = 0;; ++i)
+    // If too many hash collisions occur, population will fail. Retry with
+    // a different seed. This is unlikely to happen once, and is statically
+    // impossible to happen 10 times.
+    bool populated = false;
+    for (size_t i = 0; i < 10; ++i)
     {
-        //     auto filterSeed = mInputSeed;
-        //     filterSeed[0] += i;
-        //     if (mFilter.populate(hashes, filterSeed))
-        //     {
-        //         break;
-        //     }
+        auto filterSeed = mInputSeed;
 
-        // TODO: Seed for SipHash24
-        if (mFilter.populate(hashes, i))
+        // Arbitrary seed rotation if too many hash collisions occur during
+        // population. Library rotates filterSeed[0], so rotate filterSeed[1]
+        filterSeed[1] += i;
+        if (mFilter.populate(hashes, filterSeed))
         {
+            populated = true;
             break;
         }
+    }
+
+    // Not statically possible
+    if (!populated)
+    {
+        throw std::runtime_error("BinaryFuseFilter failed to populate");
     }
 }
 
