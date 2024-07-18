@@ -39,7 +39,7 @@ testFilter(double expectedFalsePositiveRate)
         {
             for (auto const& k : keys)
             {
-                REQUIRE(inMemoryFilter.contain(k));
+                REQUIRE(inMemoryFilter.contains(k));
             }
 
             cereal::BinaryOutputArchive oarchive(ss);
@@ -58,7 +58,7 @@ testFilter(double expectedFalsePositiveRate)
         // Repeat correctness check for deserialized filter
         for (auto const& k : keys)
         {
-            REQUIRE(deserializedFilter.contain(k));
+            REQUIRE(deserializedFilter.contains(k));
         }
 
         size_t randomMatches = 0;
@@ -72,14 +72,14 @@ testFilter(double expectedFalsePositiveRate)
             } while (keys.find(randomKey) != keys.end());
 
             // Make sure both filters have identical behavior
-            if (inMemoryFilter.contain(randomKey))
+            if (inMemoryFilter.contains(randomKey))
             {
-                REQUIRE(deserializedFilter.contain(randomKey));
+                REQUIRE(deserializedFilter.contains(randomKey));
                 ++randomMatches;
             }
             else
             {
-                REQUIRE(!deserializedFilter.contain(randomKey));
+                REQUIRE(!deserializedFilter.contains(randomKey));
             }
         }
 

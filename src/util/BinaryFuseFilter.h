@@ -7,6 +7,7 @@
 #include "lib/binaryfusefilter.h"
 #include "util/NonCopyable.h"
 #include "util/types.h"
+#include "xdr/Stellar-types.h"
 
 #include <cereal/archives/binary.hpp>
 #include <xdrpp/xdrpp/cereal.h>
@@ -39,10 +40,7 @@ class BinaryFuseFilter : public NonMovableOrCopyable
                               binary_fuse_seed_t const& seed);
     explicit BinaryFuseFilter(SerializedBinaryFuseFilter const& xdrFilter);
 
-    // static std::unique_ptr<BinaryFuseFilter<T>>
-    // create(LedgerKeySet const& keys, binary_fuse_seed_t const& seed);
-
-    bool contain(LedgerKey const& key) const;
+    bool contains(LedgerKey const& key) const;
 
     bool operator==(BinaryFuseFilter<T> const& other) const;
 
@@ -56,6 +54,24 @@ class BinaryFuseFilter : public NonMovableOrCopyable
 
         mFilter.copyTo(xdrFilter);
         archive(xdrFilter);
+    }
+
+    template <class Archive>
+    void
+    load(Archive& archive)
+    {
+        SerializedBinaryFuseFilter xdrFilter;
+        archive(xdrFilter);
+    }
+
+    template <class Archive>
+    static void
+    load_and_construct(Archive& ar,
+                       cereal::construct<BinaryFuseFilter<T>>& construct)
+    {
+        SerializedBinaryFuseFilter xdrFilter;
+        ar(xdrFilter);
+        construct(xdrFilter);
     }
 };
 

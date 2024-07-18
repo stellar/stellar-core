@@ -5,15 +5,15 @@
 #include "bucket/BucketIndexImpl.h"
 #include "bucket/Bucket.h"
 #include "bucket/BucketManager.h"
+#include "crypto/Hex.h"
 #include "crypto/ShortHash.h"
 #include "main/Config.h"
+#include "util/BinaryFuseFilter.h"
 #include "util/Fs.h"
 #include "util/LogSlowExecution.h"
 #include "util/Logging.h"
-#include "util/XDRCereal.h"
 #include "util/XDRStream.h"
 
-#include "lib/bloom_filter.hpp"
 #include <Tracy.hpp>
 #include <cereal/archives/binary.hpp>
 #include <cereal/types/memory.hpp>
@@ -22,6 +22,7 @@
 #include <fmt/chrono.h>
 #include <fmt/format.h>
 
+#include <memory>
 #include <thread>
 
 namespace stellar
@@ -77,48 +78,6 @@ BucketIndexImpl<IndexT>::BucketIndexImpl(BucketManager& bm,
         auto timer = LogSlowExecution("Indexing bucket");
         mData.pageSize = pageSize;
 
-        size_t const estimatedLedgerEntrySize =
-            xdr::xdr_traits<BucketEntry>::serial_size(BucketEntry{});
-        auto fileSize = fs::size(filename.string());
-        auto estimatedNumElems = fileSize / estimatedLedgerEntrySize;
-
-        // Initialize bloom filter for range index
-        if constexpr (std::is_same<IndexT, RangeIndex>::value)
-        {
-            ZoneNamedN(bloomInit, "bloomInit", true);
-            bloom_parameters params;
-            params.projected_element_count = estimatedNumElems;
-
-            // Our target false positive rate is 0.1% even though we set the
-            // bloom filter false positive rate to 0.05%. We do this because our
-            // entry count estimation can be an underestimation (we assume every
-            // BucketEntry is an account LiveEntry, but TTL and DEADENTRY are
-            // smaller). If we gave a larger entry count estimate, the size of
-            // our bloom filter would significantly increase. Instead, by
-            // setting the desired false positive rate to 0.05%, the bloom
-            // filter size stays approximately the same and we give ourselves an
-            // additional 10% of wiggle room on the estimation.
-            params.false_positive_probability = 0.0005; // 0.05%
-
-            params.random_seed = shortHash::getShortHashInitKey();
-            params.compute_optimal_parameters();
-            mData.filter = std::make_unique<bloom_filter>(params);
-            auto estimatedIndexEntries = fileSize / mData.pageSize;
-            CLOG_DEBUG(
-                Bucket,
-                "Bloom filter initialized with params: projected element count "
-                "{} false positive probability: {}, number of hashes: {}, "
-                "table size: {}",
-                params.projected_element_count,
-                params.false_positive_probability,
-                params.optimal_parameters.number_of_hashes,
-                params.optimal_parameters.table_size);
-
-            // We don't have a good way of estimating IndividualIndex size, so
-            // only reserve range indexes
-            mData.keysToOffset.reserve(estimatedIndexEntries);
-        }
-
         XDRInputFileStream in;
         in.open(filename.string());
         std::streamoff pos = 0;
@@ -126,6 +85,8 @@ BucketIndexImpl<IndexT>::BucketIndexImpl(BucketManager& bm,
         BucketEntry be;
         size_t iter = 0;
         size_t count = 0;
+
+        LedgerKeySet keys;
         while (in && in.readOne(be))
         {
             // peridocially check if bucket manager is exiting to stop indexing
@@ -173,6 +134,7 @@ BucketIndexImpl<IndexT>::BucketIndexImpl(BucketManager& bm,
 
                 if constexpr (std::is_same<IndexT, RangeIndex>::value)
                 {
+                    keys.emplace(key);
                     if (pos >= pageUpperBound)
                     {
                         pageUpperBound =
@@ -186,9 +148,6 @@ BucketIndexImpl<IndexT>::BucketIndexImpl(BucketManager& bm,
                         releaseAssert(rangeEntry.upperBound < key);
                         rangeEntry.upperBound = key;
                     }
-
-                    auto keybuf = xdr::xdr_to_opaque(key);
-                    mData.filter->insert(keybuf.data(), keybuf.size());
                 }
                 else
                 {
@@ -197,6 +156,16 @@ BucketIndexImpl<IndexT>::BucketIndexImpl(BucketManager& bm,
             }
 
             pos = in.pos();
+        }
+
+        if constexpr (std::is_same<IndexT, RangeIndex>::value)
+        {
+            // Binary Fuse filter requires at least 2 elements
+            if (keys.size() > 1)
+            {
+                mData.filter = std::make_unique<BinaryFuseFilter16>(
+                    keys, shortHash::getShortHashInitKey());
+            }
         }
 
         CLOG_DEBUG(Bucket, "Indexed {} positions in {}",
@@ -433,9 +402,7 @@ BucketIndexImpl<IndexT>::scan(Iterator start, LedgerKey const& k) const
     // If the key is not in the bloom filter or in the lower bounded index
     // entry, return nullopt
     markBloomLookup();
-    auto keybuf = xdr::xdr_to_opaque(k);
-    if ((mData.filter &&
-         !mData.filter->contains(keybuf.data(), keybuf.size())) ||
+    if ((mData.filter && !mData.filter->contains(k)) ||
         keyIter == mData.keysToOffset.end() ||
         keyNotInIndexEntry(k, keyIter->first))
     {
@@ -546,7 +513,7 @@ BucketIndexImpl<IndexT>::operator==(BucketIndex const& inRaw) const
     {
         releaseAssert(mData.filter);
         releaseAssert(in.mData.filter);
-        if (*(mData.filter) != *(in.mData.filter))
+        if (!(*(mData.filter) == *(in.mData.filter)))
         {
             return false;
         }

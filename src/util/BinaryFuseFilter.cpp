@@ -64,7 +64,7 @@ BinaryFuseFilter<T, U>::BinaryFuseFilter(
 
 template <typename T, typename U>
 bool
-BinaryFuseFilter<T, U>::contain(LedgerKey const& key) const
+BinaryFuseFilter<T, U>::contains(LedgerKey const& key) const
 {
     SipHash24 hasher(mInputSeed.data());
     auto keybuf = xdr::xdr_to_opaque(key);

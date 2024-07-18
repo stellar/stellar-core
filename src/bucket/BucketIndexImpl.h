@@ -6,9 +6,12 @@
 
 #include "bucket/BucketIndex.h"
 #include "medida/meter.h"
+#include "util/BinaryFuseFilter.h"
+#include "xdr/Stellar-types.h"
 
 #include <cereal/types/map.hpp>
 #include <map>
+#include <memory>
 
 class bloom_filter;
 
@@ -30,7 +33,7 @@ template <class IndexT> class BucketIndexImpl : public BucketIndex
     {
         IndexT keysToOffset{};
         std::streamoff pageSize{};
-        std::unique_ptr<bloom_filter> filter{};
+        std::unique_ptr<BinaryFuseFilter16> filter{};
         std::map<Asset, std::vector<PoolID>> assetToPoolID{};
 
         template <class Archive>
