@@ -14,17 +14,45 @@
 namespace xdrquery
 {
 
+// Concrete implementation of DynamicXDRGetter for a given XDR message type T.
 template <typename T>
-FieldResolver
-createFieldResolver(T const& xdrMessage, bool validate)
+class TypedDynamicXDRGetterResolver : public DynamicXDRGetter
 {
-    return [&xdrMessage, validate](std::vector<std::string> const& fieldPath) {
-        if (validate)
+  public:
+    TypedDynamicXDRGetterResolver(T const& xdrMessage, bool validate)
+        : mXdrMessage(xdrMessage), mValidate(validate)
+    {
+    }
+
+    ResultType
+    getField(std::vector<std::string> const& fieldPath) const override
+    {
+        if (mValidate)
         {
-            return getXDRFieldValidated(xdrMessage, fieldPath);
+            return getXDRFieldValidated(mXdrMessage, fieldPath);
         }
-        return getXDRField(xdrMessage, fieldPath);
-    };
+        return getXDRField(mXdrMessage, fieldPath);
+    }
+
+    uint64_t
+    getSize() const override
+    {
+        return xdr::xdr_size(mXdrMessage);
+    }
+
+    ~TypedDynamicXDRGetterResolver() override = default;
+
+  private:
+    T const& mXdrMessage;
+    bool mValidate;
+};
+
+template <typename T>
+std::unique_ptr<DynamicXDRGetter>
+createXDRGetter(T const& xdrMessage, bool validate)
+{
+    return std::make_unique<TypedDynamicXDRGetterResolver<T>>(xdrMessage,
+                                                              validate);
 }
 
 // Helper to match multiple XDR messages of the same type using the provided
@@ -57,7 +85,7 @@ class XDRMatcher
             }
             mEvalRoot = std::get<std::shared_ptr<BoolEvalNode>>(statement);
         }
-        return mEvalRoot->evalBool(createFieldResolver(xdrMessage, firstEval));
+        return mEvalRoot->evalBool(*createXDRGetter(xdrMessage, firstEval));
     }
 
   private:
@@ -86,23 +114,22 @@ class XDRFieldExtractor
         {
             firstEval = true;
             auto statement = parseXDRQuery(mQuery);
-            if (!std::holds_alternative<std::shared_ptr<FieldList>>(statement))
+            if (!std::holds_alternative<std::shared_ptr<ColumnList>>(statement))
             {
                 throw XDRQueryError(
                     "The query doesn't evaluate to field list.");
             }
-            mFieldList = std::get<std::shared_ptr<FieldList>>(statement);
+            mFieldList = std::get<std::shared_ptr<ColumnList>>(statement);
         }
-        return mFieldList->getValues(
-            createFieldResolver(xdrMessage, firstEval));
+        return mFieldList->getValues(*createXDRGetter(xdrMessage, firstEval));
     }
 
     // Gets names of the fields from the query.
-    std::vector<std::string> getFieldNames() const;
+    std::vector<std::string> getColumnNames() const;
 
   private:
     std::string mQuery;
-    std::shared_ptr<FieldList> mFieldList;
+    std::shared_ptr<ColumnList> mFieldList;
 };
 
 // Helper that allows aggregating values of fields in multiple XDR messages
@@ -137,7 +164,7 @@ class XDRAccumulator
             mAccumulatorList =
                 std::get<std::shared_ptr<AccumulatorList>>(statement);
         }
-        mAccumulatorList->addEntry(createFieldResolver(xdrMessage, firstEval));
+        mAccumulatorList->addEntry(*createXDRGetter(xdrMessage, firstEval));
     }
 
     // Gets the accumulators with aggregated values of each field.
