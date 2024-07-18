@@ -11,6 +11,11 @@ apt-get install -y wget curl python-six python3-colorama python3-pip postgresql-
 
 pip3 install awscli --upgrade  # for uploading history to s3
 
+# install test dependencies if STELLAR_CORE_VERSION ends with '~buildtests'
+if [[ "$STELLAR_CORE_VERSION" == *~buildtests ]]; then
+  apt-get install -y redis-tools
+fi
+
 # purge stuff we don't directly need
 apt-get purge -y sgml-base ucf gcc g++ xz-utils libpod-latex-perl dbus
 apt-get autoremove -y

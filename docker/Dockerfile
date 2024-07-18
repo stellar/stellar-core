@@ -12,10 +12,10 @@ EXPOSE 11626
 VOLUME /data
 VOLUME /postgresql-unix-sockets
 
+ARG STELLAR_CORE_VERSION
+
 ADD setup /
 RUN /setup
-
-ARG STELLAR_CORE_VERSION
 
 #install stellar-core
 RUN wget -qO - https://apt.stellar.org/SDF.asc | apt-key add -
