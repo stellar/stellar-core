@@ -11,20 +11,10 @@ namespace stellar
 {
 
 template <typename T, typename U>
-BinaryFuseFilter<T, U>::BinaryFuseFilter(LedgerKeySet const& keys,
+BinaryFuseFilter<T, U>::BinaryFuseFilter(std::vector<uint64_t>& keyHashes,
                                          binary_fuse_seed_t const& seed)
-    : mFilter(keys.size()), mInputSeed(seed)
+    : mFilter(keyHashes.size()), mInputSeed(seed)
 {
-    std::vector<size_t> hashes;
-    hashes.reserve(keys.size());
-    for (auto const& key : keys)
-    {
-        SipHash24 hasher(mInputSeed.data());
-        auto keybuf = xdr::xdr_to_opaque(key);
-        hasher.update(keybuf.data(), keybuf.size());
-        hashes.push_back(hasher.digest());
-    }
-
     // If too many hash collisions occur, population will fail. Retry with
     // a different seed. This is unlikely to happen once, and is statically
     // impossible to happen 10 times.
@@ -36,7 +26,7 @@ BinaryFuseFilter<T, U>::BinaryFuseFilter(LedgerKeySet const& keys,
         // Arbitrary seed rotation if too many hash collisions occur during
         // population. Library rotates filterSeed[0], so rotate filterSeed[1]
         filterSeed[1] += i;
-        if (mFilter.populate(hashes, filterSeed))
+        if (mFilter.populate(keyHashes, filterSeed))
         {
             populated = true;
             break;

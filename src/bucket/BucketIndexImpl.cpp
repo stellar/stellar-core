@@ -24,6 +24,7 @@
 
 #include <memory>
 #include <thread>
+#include <xdrpp/marshal.h>
 
 namespace stellar
 {
@@ -78,6 +79,16 @@ BucketIndexImpl<IndexT>::BucketIndexImpl(BucketManager& bm,
         auto timer = LogSlowExecution("Indexing bucket");
         mData.pageSize = pageSize;
 
+        // We don't have a good way of estimating IndividualIndex size since
+        // keys are variable size, so only reserve range indexes since we know
+        // the page size ahead of time
+        if constexpr (std::is_same<IndexT, RangeIndex>::value)
+        {
+            auto fileSize = fs::size(filename);
+            auto estimatedIndexEntries = fileSize / mData.pageSize;
+            mData.keysToOffset.reserve(estimatedIndexEntries);
+        }
+
         XDRInputFileStream in;
         in.open(filename.string());
         std::streamoff pos = 0;
@@ -86,7 +97,9 @@ BucketIndexImpl<IndexT>::BucketIndexImpl(BucketManager& bm,
         size_t iter = 0;
         size_t count = 0;
 
-        LedgerKeySet keys;
+        std::vector<uint64_t> keyHashes;
+        auto seed = shortHash::getShortHashInitKey();
+
         while (in && in.readOne(be))
         {
             // peridocially check if bucket manager is exiting to stop indexing
@@ -134,7 +147,11 @@ BucketIndexImpl<IndexT>::BucketIndexImpl(BucketManager& bm,
 
                 if constexpr (std::is_same<IndexT, RangeIndex>::value)
                 {
-                    keys.emplace(key);
+                    auto keyBuf = xdr::xdr_to_opaque(key);
+                    SipHash24 hasher(seed.data());
+                    hasher.update(keyBuf.data(), keyBuf.size());
+                    keyHashes.emplace_back(hasher.digest());
+
                     if (pos >= pageUpperBound)
                     {
                         pageUpperBound =
@@ -161,10 +178,10 @@ BucketIndexImpl<IndexT>::BucketIndexImpl(BucketManager& bm,
         if constexpr (std::is_same<IndexT, RangeIndex>::value)
         {
             // Binary Fuse filter requires at least 2 elements
-            if (keys.size() > 1)
+            if (keyHashes.size() > 1)
             {
-                mData.filter = std::make_unique<BinaryFuseFilter16>(
-                    keys, shortHash::getShortHashInitKey());
+                mData.filter =
+                    std::make_unique<BinaryFuseFilter16>(keyHashes, seed);
             }
         }
 

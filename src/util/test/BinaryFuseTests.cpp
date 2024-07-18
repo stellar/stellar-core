@@ -8,8 +8,10 @@
 #include "util/types.h"
 #include "xdr/Stellar-types.h"
 #include <cereal/archives/binary.hpp>
+#include <siphash.h>
 #include <sstream>
 #include <xdrpp/autocheck.h>
+#include <xdrpp/marshal.h>
 #include <xdrpp/xdrpp/cereal.h>
 
 using namespace stellar;
@@ -33,9 +35,20 @@ testFilter(double expectedFalsePositiveRate)
 
         auto seed = shortHash::getShortHashInitKey();
 
+        std::vector<uint64_t> hashes;
+        hashes.reserve(keys.size());
+        for (auto const& k : keys)
+        {
+            auto keyBuf = xdr::xdr_to_opaque(k);
+
+            SipHash24 hasher(seed.data());
+            hasher.update(keyBuf.data(), keyBuf.size());
+            hashes.emplace_back(hasher.digest());
+        }
+
         // Test in-memory filter, serialize, deserialize, then test again
         std::stringstream ss;
-        FilterT inMemoryFilter(keys, seed);
+        FilterT inMemoryFilter(hashes, seed);
         {
             for (auto const& k : keys)
             {

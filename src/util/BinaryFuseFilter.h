@@ -6,7 +6,7 @@
 
 #include "lib/binaryfusefilter.h"
 #include "util/NonCopyable.h"
-#include "util/types.h"
+#include "xdr/Stellar-ledger-entries.h"
 #include "xdr/Stellar-types.h"
 
 #include <cereal/archives/binary.hpp>
@@ -36,7 +36,9 @@ class BinaryFuseFilter : public NonMovableOrCopyable
     binary_fuse_seed_t const mInputSeed;
 
   public:
-    explicit BinaryFuseFilter(LedgerKeySet const& keys,
+    // keyHashes is the SipHash24 digest on the keys to insert into the filter.
+    // Seed is the random seed used to initialize the hash function
+    explicit BinaryFuseFilter(std::vector<uint64_t>& keyHashes,
                               binary_fuse_seed_t const& seed);
     explicit BinaryFuseFilter(SerializedBinaryFuseFilter const& xdrFilter);
 
