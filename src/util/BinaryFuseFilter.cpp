@@ -4,6 +4,7 @@
 
 #include "util/BinaryFuseFilter.h"
 #include "util/siphash.h"
+#include <algorithm>
 #include <xdrpp/marshal.h>
 
 namespace stellar
@@ -50,6 +51,18 @@ BinaryFuseFilter<T, U>::BinaryFuseFilter(LedgerKeySet const& keys,
 }
 
 template <typename T, typename U>
+BinaryFuseFilter<T, U>::BinaryFuseFilter(
+    SerializedBinaryFuseFilter const& xdrFilter)
+    : mFilter(xdrFilter), mInputSeed([&] {
+        binary_fuse_seed_t s{};
+        std::copy(xdrFilter.inputHashSeed.seed.begin(),
+                  xdrFilter.inputHashSeed.seed.end(), s.begin());
+        return s;
+    }())
+{
+}
+
+template <typename T, typename U>
 bool
 BinaryFuseFilter<T, U>::contain(LedgerKey const& key) const
 {
@@ -57,6 +70,13 @@ BinaryFuseFilter<T, U>::contain(LedgerKey const& key) const
     auto keybuf = xdr::xdr_to_opaque(key);
     hasher.update(keybuf.data(), keybuf.size());
     return mFilter.contain(hasher.digest());
+}
+
+template <typename T, typename U>
+bool
+BinaryFuseFilter<T, U>::operator==(BinaryFuseFilter<T> const& other) const
+{
+    return mFilter == other.mFilter && mInputSeed == other.mInputSeed;
 }
 
 template class BinaryFuseFilter<uint8_t, void>;

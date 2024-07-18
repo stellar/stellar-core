@@ -8,6 +8,9 @@
 #include "util/NonCopyable.h"
 #include "util/types.h"
 
+#include <cereal/archives/binary.hpp>
+#include <xdrpp/xdrpp/cereal.h>
+
 namespace stellar
 {
 
@@ -34,11 +37,26 @@ class BinaryFuseFilter : public NonMovableOrCopyable
   public:
     explicit BinaryFuseFilter(LedgerKeySet const& keys,
                               binary_fuse_seed_t const& seed);
+    explicit BinaryFuseFilter(SerializedBinaryFuseFilter const& xdrFilter);
+
+    // static std::unique_ptr<BinaryFuseFilter<T>>
+    // create(LedgerKeySet const& keys, binary_fuse_seed_t const& seed);
 
     bool contain(LedgerKey const& key) const;
 
-    // template <class Archive> void save(Archive& ar) const;
-    // template <class Archive> void load(Archive& ar);
+    bool operator==(BinaryFuseFilter<T> const& other) const;
+
+    template <class Archive>
+    void
+    save(Archive& archive) const
+    {
+        SerializedBinaryFuseFilter xdrFilter;
+        std::copy(mInputSeed.begin(), mInputSeed.end(),
+                  xdrFilter.inputHashSeed.seed.begin());
+
+        mFilter.copyTo(xdrFilter);
+        archive(xdrFilter);
+    }
 };
 
 // False positive rate: 1/256

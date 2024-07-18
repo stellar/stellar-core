@@ -6,7 +6,11 @@
 #include "lib/catch.hpp"
 #include "util/BinaryFuseFilter.h"
 #include "util/types.h"
+#include "xdr/Stellar-types.h"
+#include <cereal/archives/binary.hpp>
+#include <sstream>
 #include <xdrpp/autocheck.h>
+#include <xdrpp/xdrpp/cereal.h>
 
 using namespace stellar;
 
@@ -28,11 +32,33 @@ testFilter(double expectedFalsePositiveRate)
         }
 
         auto seed = shortHash::getShortHashInitKey();
-        FilterT filter(keys, seed);
 
+        // Test in-memory filter, serialize, deserialize, then test again
+        std::stringstream ss;
+        FilterT inMemoryFilter(keys, seed);
+        {
+            for (auto const& k : keys)
+            {
+                REQUIRE(inMemoryFilter.contain(k));
+            }
+
+            cereal::BinaryOutputArchive oarchive(ss);
+            oarchive(inMemoryFilter);
+        }
+
+        SerializedBinaryFuseFilter xdrFilter;
+        {
+            cereal::BinaryInputArchive iarchive(ss);
+            iarchive(xdrFilter);
+        }
+
+        FilterT deserializedFilter(xdrFilter);
+        REQUIRE(deserializedFilter == inMemoryFilter);
+
+        // Repeat correctness check for deserialized filter
         for (auto const& k : keys)
         {
-            REQUIRE(filter.contain(k));
+            REQUIRE(deserializedFilter.contain(k));
         }
 
         size_t randomMatches = 0;
@@ -45,9 +71,15 @@ testFilter(double expectedFalsePositiveRate)
                 randomKey = ledgerKeyGenerator();
             } while (keys.find(randomKey) != keys.end());
 
-            if (filter.contain(randomKey))
+            // Make sure both filters have identical behavior
+            if (inMemoryFilter.contain(randomKey))
             {
+                REQUIRE(deserializedFilter.contain(randomKey));
                 ++randomMatches;
+            }
+            else
+            {
+                REQUIRE(!deserializedFilter.contain(randomKey));
             }
         }
 
@@ -90,5 +122,3 @@ TEST_CASE("binary fuse filter", "[BinaryFuseFilter][!hide]")
         testFilter<BinaryFuseFilter32>(0);
     }
 }
-
-// TODO: Add serialization test

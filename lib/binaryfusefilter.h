@@ -1,6 +1,8 @@
 #ifndef BINARYFUSEFILTER_H
 #define BINARYFUSEFILTER_H
 #include <cstdint>
+#include <cstdio>
+#include <iterator>
 #include <math.h>
 #include <stdbool.h>
 #include <stddef.h>
@@ -13,7 +15,9 @@
 #include <type_traits>
 #include <vector>
 
+#include "util/GlobalChecks.h"
 #include "util/siphash.h"
+#include "xdr/Stellar-types.h"
 
 #include <Tracy.hpp>
 #include <sodium.h>
@@ -217,6 +221,7 @@ class binary_fuse_t
     uint32_t _segmentCountLength;
     uint32_t _arrayLength;
     std::vector<T> _fingerprints;
+    bool _populated = false;
 
     struct binary_hashes_t
     {
@@ -287,11 +292,44 @@ class binary_fuse_t
         _fingerprints.resize(_arrayLength);
     }
 
+    explicit binary_fuse_t(stellar::SerializedBinaryFuseFilter const& xdrFilter)
+        : _segmentLength(xdrFilter.segmentLength)
+        , _segmentLengthMask(xdrFilter.segementLengthMask)
+        , _segmentCount(xdrFilter.segmentCount)
+        , _segmentCountLength(xdrFilter.segmentCountLength)
+        , _arrayLength(xdrFilter.fingerprintLength)
+        , _populated(true)
+    {
+        std::copy(xdrFilter.filterSeed.seed.begin(),
+                  xdrFilter.filterSeed.seed.end(), _seed.begin());
+
+        // Convert vector<uint8_t> to vector<T>
+        _fingerprints.reserve(_arrayLength);
+        for (size_t elem = 0; elem < _arrayLength; ++elem)
+        {
+            T value = 0;
+            auto pos = elem * sizeof(T);
+
+            for (auto byte_i = 0; byte_i < sizeof(T); ++byte_i)
+            {
+                value |= static_cast<T>(xdrFilter.fingerprints[pos + byte_i])
+                         << (byte_i * 8);
+            }
+
+            _fingerprints.push_back(value);
+        }
+    }
+
     // Report if the key is in the set, with false positive rate.
     bool
     contain(uint64_t key) const
     {
         ZoneScoped;
+        if (!_populated)
+        {
+            throw std::runtime_error("filter not populated");
+        }
+
         uint64_t hash = sip_hash24(key, _seed);
         T f = binary_fuse_fingerprint(hash);
         binary_hashes_t hashes = hash_batch(hash);
@@ -304,6 +342,11 @@ class binary_fuse_t
     size_t
     size_in_bytes() const
     {
+        if (!_populated)
+        {
+            throw std::runtime_error("filter not populated");
+        }
+
         return _arrayLength * sizeof(T) + sizeof(*this);
     }
 
@@ -321,6 +364,11 @@ class binary_fuse_t
         if (keys.size() > std::numeric_limits<uint32_t>::max())
         {
             throw std::runtime_error("size should be at most 2^32");
+        }
+
+        if (_populated)
+        {
+            throw std::runtime_error("filter already populated");
         }
 
         uint32_t size = keys.size();
@@ -504,9 +552,94 @@ class binary_fuse_t
             _fingerprints[h012[found]] = xor2 ^ _fingerprints[h012[found + 1]] ^
                                          _fingerprints[h012[found + 2]];
         }
+
+        _populated = true;
         return true;
     }
 
-    friend class BinaryFuseFilter;
+    void
+    copyTo(stellar::SerializedBinaryFuseFilter& xdrFilter) const
+    {
+        if (!_populated)
+        {
+            throw std::runtime_error("filter not populated");
+        }
+
+        if constexpr (std::is_same<T, uint8_t>::value)
+        {
+            xdrFilter.type = stellar::BINARY_FUSE_FILTER_8_BIT;
+        }
+        else if constexpr (std::is_same<T, uint16_t>::value)
+        {
+            xdrFilter.type = stellar::BINARY_FUSE_FILTER_16_BIT;
+        }
+        else if constexpr (std::is_same<T, uint32_t>::value)
+        {
+            xdrFilter.type = stellar::BINARY_FUSE_FILTER_32_BIT;
+        }
+        else
+        {
+            static_assert(false, "Invalid BinaryFuseFilter type");
+        }
+
+        std::copy(_seed.begin(), _seed.end(),
+                  xdrFilter.filterSeed.seed.begin());
+        xdrFilter.segmentLength = _segmentLength;
+        xdrFilter.segementLengthMask = _segmentLengthMask;
+        xdrFilter.segmentCount = _segmentCount;
+        xdrFilter.segmentCountLength = _segmentCountLength;
+        xdrFilter.fingerprintLength = _arrayLength;
+
+        // We need to convert the in-memory vector<T> into a vector<uint8_t>
+        xdrFilter.fingerprints.reserve(_arrayLength * sizeof(T));
+        for (T f : _fingerprints)
+        {
+            for (size_t byte_i = 0; byte_i < sizeof(T); ++byte_i)
+            {
+                xdrFilter.fingerprints.push_back((f >> (byte_i * 8)) & 0xFF);
+            }
+        }
+    }
+
+    bool
+    operator==(binary_fuse_t const& other) const
+    {
+        return _segmentLength == other._segmentLength &&
+               _segmentLengthMask == other._segmentLengthMask &&
+               _segmentCount == other._segmentCount &&
+               _segmentCountLength == other._segmentCountLength &&
+               _arrayLength == other._arrayLength &&
+               _populated == other._populated && _seed == other._seed &&
+               _fingerprints == other._fingerprints;
+    }
 };
+
+template <typename T> struct binary_fuse_create_return
+{
+    using type = T;
+};
+
+template <typename T>
+typename binary_fuse_create_return<T>::type
+binary_fuse_create_from_serialized_xdr(
+    stellar::SerializedBinaryFuseFilter const& xdrFilter)
+{
+    if constexpr (std::is_same<T, uint8_t>::value)
+    {
+        return binary_fuse_t<uint8_t>(xdrFilter);
+    }
+    else if constexpr (std::is_same<T, uint16_t>::value)
+    {
+        return binary_fuse_t<uint16_t>(xdrFilter);
+    }
+    else if constexpr (std::is_same<T, uint32_t>::value)
+    {
+        return binary_fuse_t<uint32_t>(xdrFilter);
+    }
+    else
+    {
+        static_assert(false, "Invalid BinaryFuseFilter type");
+    }
+}
+
 #endif
