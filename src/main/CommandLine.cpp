@@ -35,6 +35,7 @@
 #include "util/types.h"
 #include "work/WorkScheduler.h"
 
+#include <catch.hpp>
 #include <cereal/archives/json.hpp>
 #include <cereal/cereal.hpp>
 
@@ -693,6 +694,12 @@ CommandLine::selectCommand(std::string const& commandName)
 void
 CommandLine::writeToStream(std::string const& exeName, std::ostream& os) const
 {
+#ifdef BUILD_TESTS
+    // Printing this line enables automatic test discovery in VSCode, and
+    // it is generally harmless otherwise (only shown in a BUILD_TESTS build).
+    std::cout << "Catch2 v" << CATCH_VERSION_MAJOR << "." << CATCH_VERSION_MINOR
+              << "." << CATCH_VERSION_PATCH << std::endl;
+#endif
     os << "usage:\n"
        << "  " << exeName << " "
        << "COMMAND";
