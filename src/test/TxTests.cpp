@@ -463,7 +463,7 @@ checkLiquidityPool(Application& app, PoolID const& poolID, int64_t reserveA,
     REQUIRE(cp.poolSharesTrustLineCount == poolSharesTrustLineCount);
 }
 
-TxSetResultMeta
+TransactionResultSet
 closeLedgerOn(Application& app, uint32 ledgerSeq, int day, int month, int year,
               std::vector<TransactionFrameBasePtr> const& txs, bool strictOrder)
 {
@@ -471,7 +471,7 @@ closeLedgerOn(Application& app, uint32 ledgerSeq, int day, int month, int year,
                          strictOrder);
 }
 
-TxSetResultMeta
+TransactionResultSet
 closeLedgerOn(Application& app, int day, int month, int year,
               std::vector<TransactionFrameBasePtr> const& txs, bool strictOrder)
 {
@@ -480,7 +480,7 @@ closeLedgerOn(Application& app, int day, int month, int year,
                          strictOrder);
 }
 
-TxSetResultMeta
+TransactionResultSet
 closeLedger(Application& app, std::vector<TransactionFrameBasePtr> const& txs,
             bool strictOrder)
 {
@@ -493,7 +493,7 @@ closeLedger(Application& app, std::vector<TransactionFrameBasePtr> const& txs,
     return closeLedgerOn(app, nextLedgerSeq, lastCloseTime, txs, strictOrder);
 }
 
-TxSetResultMeta
+TransactionResultSet
 closeLedgerOn(Application& app, uint32 ledgerSeq, TimePoint closeTime,
               std::vector<TransactionFrameBasePtr> const& txs, bool strictOrder)
 {
@@ -544,23 +544,11 @@ closeLedgerOn(Application& app, uint32 ledgerSeq, TimePoint closeTime,
     }
     app.getHerder().externalizeValue(txSet.first, ledgerSeq, closeTime,
                                      emptyUpgradeSteps);
-    auto z1 = getTransactionHistoryResults(app.getDatabase(), ledgerSeq);
-    auto z2 = getTransactionFeeMeta(app.getDatabase(), ledgerSeq);
-
     REQUIRE(app.getLedgerManager().getLastClosedLedgerNum() == ledgerSeq);
-
-    TxSetResultMeta res;
-    std::transform(
-        z1.results.begin(), z1.results.end(), z2.begin(),
-        std::back_inserter(res),
-        [](TransactionResultPair const& r1, LedgerEntryChanges const& r2) {
-            return std::make_pair(r1, r2);
-        });
-
-    return res;
+    return getTransactionHistoryResults(app.getDatabase(), ledgerSeq);
 }
 
-TxSetResultMeta
+TransactionResultSet
 closeLedger(Application& app, TxSetXDRFrameConstPtr txSet)
 {
     auto lastCloseTime = app.getLedgerManager()
@@ -570,7 +558,7 @@ closeLedger(Application& app, TxSetXDRFrameConstPtr txSet)
     return closeLedgerOn(app, nextLedgerSeq, lastCloseTime, txSet);
 }
 
-TxSetResultMeta
+TransactionResultSet
 closeLedgerOn(Application& app, uint32 ledgerSeq, time_t closeTime,
               TxSetXDRFrameConstPtr txSet)
 {
@@ -578,19 +566,10 @@ closeLedgerOn(Application& app, uint32 ledgerSeq, time_t closeTime,
                                      emptyUpgradeSteps);
 
     auto z1 = getTransactionHistoryResults(app.getDatabase(), ledgerSeq);
-    auto z2 = getTransactionFeeMeta(app.getDatabase(), ledgerSeq);
 
     REQUIRE(app.getLedgerManager().getLastClosedLedgerNum() == ledgerSeq);
 
-    TxSetResultMeta res;
-    std::transform(
-        z1.results.begin(), z1.results.end(), z2.begin(),
-        std::back_inserter(res),
-        [](TransactionResultPair const& r1, LedgerEntryChanges const& r2) {
-            return std::make_pair(r1, r2);
-        });
-
-    return res;
+    return z1;
 }
 
 SecretKey
@@ -1634,17 +1613,17 @@ getFirstResultCode(TransactionFrame const& tx)
 }
 
 void
-checkTx(int index, TxSetResultMeta& r, TransactionResultCode expected)
+checkTx(int index, TransactionResultSet& r, TransactionResultCode expected)
 {
-    REQUIRE(r[index].first.result.result.code() == expected);
+    REQUIRE(r.results[index].result.result.code() == expected);
 };
 
 void
-checkTx(int index, TxSetResultMeta& r, TransactionResultCode expected,
+checkTx(int index, TransactionResultSet& r, TransactionResultCode expected,
         OperationResultCode code)
 {
     checkTx(index, r, expected);
-    REQUIRE(r[index].first.result.result.results()[0].code() == code);
+    REQUIRE(r.results[index].result.result.results()[0].code() == code);
 };
 
 static void

@@ -21,15 +21,8 @@ void storeTransaction(Database& db, uint32_t ledgerSeq,
 
 void storeTxSet(Database& db, uint32_t ledgerSeq, TxSetXDRFrame const& txSet);
 
-void storeTransactionFee(Database& db, uint32_t ledgerSeq,
-                         TransactionFrameBasePtr const& tx,
-                         LedgerEntryChanges const& changes, uint32_t txIndex);
-
 TransactionResultSet getTransactionHistoryResults(Database& db,
                                                   uint32 ledgerSeq);
-
-std::vector<LedgerEntryChanges> getTransactionFeeMeta(Database& db,
-                                                      uint32 ledgerSeq);
 
 size_t copyTransactionsToStream(Application& app, soci::session& sess,
                                 uint32_t ledgerSeq, uint32_t ledgerCount,
@@ -37,6 +30,8 @@ size_t copyTransactionsToStream(Application& app, soci::session& sess,
                                 XDROutputFileStream& txResultOut);
 
 void createTxSetHistoryTable(Database& db);
+
+void deprecateTransactionFeeHistory(Database& db);
 
 void dropTransactionHistory(Database& db, Config const& cfg);
 

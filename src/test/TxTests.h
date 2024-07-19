@@ -22,9 +22,6 @@ class TestAccount;
 namespace txtest
 {
 
-typedef std::vector<std::pair<TransactionResultPair, LedgerEntryChanges>>
-    TxSetResultMeta;
-
 struct ExpectedOpResult
 {
     OperationResult mOperationResult;
@@ -86,27 +83,28 @@ void checkLiquidityPool(Application& app, PoolID const& poolID,
                         int64_t totalPoolShares,
                         int64_t poolSharesTrustLineCount);
 
-TxSetResultMeta
+TransactionResultSet
 closeLedger(Application& app,
             std::vector<TransactionFrameBasePtr> const& txs = {},
             bool strictOrder = false);
 
-TxSetResultMeta
+TransactionResultSet
 closeLedgerOn(Application& app, int day, int month, int year,
               std::vector<TransactionFrameBasePtr> const& txs = {},
               bool strictOrder = false);
 
-TxSetResultMeta
+TransactionResultSet
 closeLedgerOn(Application& app, uint32 ledgerSeq, TimePoint closeTime,
               std::vector<TransactionFrameBasePtr> const& txs = {},
               bool strictOrder = false);
 
-TxSetResultMeta closeLedger(Application& app, TxSetXDRFrameConstPtr txSet);
+TransactionResultSet closeLedger(Application& app, TxSetXDRFrameConstPtr txSet);
 
-TxSetResultMeta closeLedgerOn(Application& app, uint32 ledgerSeq,
-                              time_t closeTime, TxSetXDRFrameConstPtr txSet);
+TransactionResultSet closeLedgerOn(Application& app, uint32 ledgerSeq,
+                                   time_t closeTime,
+                                   TxSetXDRFrameConstPtr txSet);
 
-TxSetResultMeta
+TransactionResultSet
 closeLedgerOn(Application& app, uint32 ledgerSeq, int day, int month, int year,
               std::vector<TransactionFrameBasePtr> const& txs = {},
               bool strictOrder = false);
@@ -287,9 +285,10 @@ OperationResult const& getFirstResult(TransactionFrame const& tx);
 OperationResultCode getFirstResultCode(TransactionFrame const& tx);
 
 // methods to check results based off meta data
-void checkTx(int index, TxSetResultMeta& r, TransactionResultCode expected);
+void checkTx(int index, TransactionResultSet& r,
+             TransactionResultCode expected);
 
-void checkTx(int index, TxSetResultMeta& r, TransactionResultCode expected,
+void checkTx(int index, TransactionResultSet& r, TransactionResultCode expected,
              OperationResultCode code);
 
 TransactionFrameBasePtr

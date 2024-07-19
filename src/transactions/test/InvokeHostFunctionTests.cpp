@@ -1265,9 +1265,9 @@ TEST_CASE_VERSIONS("refund is sent to fee-bump source",
         auto const feeCharged = afterV20 ? txFeeWithRefund : 1'040'971;
 
         REQUIRE(
-            r.at(0).first.result.result.innerResultPair().result.feeCharged ==
+            r.results.at(0).result.result.innerResultPair().result.feeCharged ==
             feeCharged - 100);
-        REQUIRE(r.at(0).first.result.feeCharged == feeCharged);
+        REQUIRE(r.results.at(0).result.feeCharged == feeCharged);
 
         REQUIRE(feeBumper.getBalance() ==
                 feeBumperStartingBalance - txFeeWithRefund);
