@@ -329,7 +329,9 @@ class Peer : public std::enable_shared_from_this<Peer>,
     void recurrentTimerExpired(asio::error_code const& error);
     std::chrono::seconds getIOTimeout() const;
 
-    void sendAuthenticatedMessage(std::shared_ptr<StellarMessage const> msg);
+    void sendAuthenticatedMessage(
+        std::shared_ptr<StellarMessage const> msg,
+        std::optional<VirtualClock::time_point> timePlaced = std::nullopt);
     void beginMessageProcessing(StellarMessage const& msg);
     void endMessageProcessing(StellarMessage const& msg);
 

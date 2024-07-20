@@ -4,6 +4,7 @@
 #include "main/Application.h"
 #include "overlay/BanManager.h"
 #include "overlay/OverlayManager.h"
+#include "overlay/OverlayMetrics.h"
 #include "util/Timer.h"
 
 namespace stellar
@@ -81,4 +82,12 @@ OverlayAppConnector::shouldYield() const
     releaseAssert(threadIsMain());
     return mApp.getClock().shouldYield();
 }
+
+OverlayMetrics&
+OverlayAppConnector::getOverlayMetrics()
+{
+    // OverlayMetrics class is thread-safe
+    return mApp.getOverlayManager().getOverlayMetrics();
+}
+
 }
