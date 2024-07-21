@@ -1624,10 +1624,10 @@ LedgerManagerImpl::storeCurrentLedger(LedgerHeader const& header,
     mApp.getPersistentState().setState(PersistentState::kLastClosedLedger,
                                        binToHex(hash));
 
-    BucketList bl;
+    LiveBucketList bl;
     if (mApp.getConfig().MODE_ENABLES_BUCKETLIST)
     {
-        bl = mApp.getBucketManager().getBucketList();
+        bl = mApp.getBucketManager().getLiveBucketList();
     }
     // Store the current HAS in the database; this is really just to checkpoint
     // the bucketlist so we can survive a restart and re-attach to the buckets.
@@ -1697,8 +1697,8 @@ LedgerManagerImpl::transferLedgerEntriesToBucketList(
     ltx.getAllEntries(initEntries, liveEntries, deadEntries);
     if (blEnabled)
     {
-        mApp.getBucketManager().addBatch(mApp, lh, initEntries, liveEntries,
-                                         deadEntries);
+        mApp.getBucketManager().addLiveBatch(mApp, lh, initEntries, liveEntries,
+                                             deadEntries);
     }
 }
 

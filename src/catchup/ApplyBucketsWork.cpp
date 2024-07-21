@@ -54,8 +54,9 @@ class TempLedgerVersionSetter : NonMovableOrCopyable
 uint32_t
 ApplyBucketsWork::startingLevel()
 {
-    return mApp.getConfig().isUsingBucketListDB() ? 0
-                                                  : BucketList::kNumLevels - 1;
+    return mApp.getConfig().isUsingBucketListDB()
+               ? 0
+               : BucketListBase::kNumLevels - 1;
 }
 
 ApplyBucketsWork::ApplyBucketsWork(
@@ -150,12 +151,12 @@ ApplyBucketsWork::doReset()
             }
             mBucketsToApply.emplace_back(bucket);
         };
-        // If using bucketlist DB, we iterate through the BucketList in order
-        // (i.e. L0 curr, L0 snap, L1 curr, etc) as we are just applying offers
-        // (and can keep track of all seen keys). Otherwise, we iterate in
-        // reverse order (i.e. L N snap, L N curr, L N-1 snap, etc.) as we are
-        // applying all entry types and cannot keep track of all seen keys as it
-        // would be too large.
+        // If using bucketlist DB, we iterate through the live BucketList in
+        // order (i.e. L0 curr, L0 snap, L1 curr, etc) as we are just applying
+        // offers (and can keep track of all seen keys). Otherwise, we iterate
+        // in reverse order (i.e. L N snap, L N curr, L N-1 snap, etc.) as we
+        // are applying all entry types and cannot keep track of all seen keys
+        // as it would be too large.
         if (mApp.getConfig().isUsingBucketListDB())
         {
             for (auto const& hsb : mApplyState.currentBuckets)
@@ -222,7 +223,7 @@ ApplyBucketsWork::prepareForNextBucket()
     }
 }
 
-// We iterate through the BucketList either in-order (level 0 curr, level 0
+// We iterate through the live BucketList either in-order (level 0 curr, level 0
 // snap, level 1 curr, etc) when only applying offers, or in reverse order
 // (level 9 curr, level 8 snap, level 8 curr, etc) when applying all entry
 // types. When only applying offers, we keep track of the keys we have already

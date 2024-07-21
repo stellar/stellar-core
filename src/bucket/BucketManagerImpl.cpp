@@ -124,7 +124,7 @@ BucketManagerImpl::initialize()
 
     if (mApp.getConfig().MODE_ENABLES_BUCKETLIST)
     {
-        mBucketList = std::make_unique<BucketList>();
+        mBucketList = std::make_unique<LiveBucketList>();
 
         if (mApp.getConfig().isUsingBucketListDB())
         {
@@ -340,8 +340,8 @@ BucketManagerImpl::deleteTmpDirAndUnlockBucketDir()
     }
 }
 
-BucketList&
-BucketManagerImpl::getBucketList()
+LiveBucketList&
+BucketManagerImpl::getLiveBucketList()
 {
     releaseAssertOrThrow(mApp.getConfig().MODE_ENABLES_BUCKETLIST);
     return *mBucketList;
@@ -710,7 +710,7 @@ BucketManagerImpl::getBucketListReferencedBuckets() const
     }
 
     // retain current bucket list
-    for (uint32_t i = 0; i < BucketList::kNumLevels; ++i)
+    for (uint32_t i = 0; i < BucketListBase::kNumLevels; ++i)
     {
         auto const& level = mBucketList->getLevel(i);
         auto rit = referenced.emplace(level.getCurr()->getHash());
@@ -913,10 +913,10 @@ BucketManagerImpl::forgetUnreferencedBuckets()
 }
 
 void
-BucketManagerImpl::addBatch(Application& app, LedgerHeader header,
-                            std::vector<LedgerEntry> const& initEntries,
-                            std::vector<LedgerEntry> const& liveEntries,
-                            std::vector<LedgerKey> const& deadEntries)
+BucketManagerImpl::addLiveBatch(Application& app, LedgerHeader header,
+                                std::vector<LedgerEntry> const& initEntries,
+                                std::vector<LedgerEntry> const& liveEntries,
+                                std::vector<LedgerKey> const& deadEntries)
 {
     ZoneScoped;
     releaseAssertOrThrow(app.getConfig().MODE_ENABLES_BUCKETLIST);
@@ -1178,14 +1178,14 @@ BucketManagerImpl::assumeState(HistoryArchiveState const& has,
     ZoneScoped;
     releaseAssertOrThrow(mApp.getConfig().MODE_ENABLES_BUCKETLIST);
 
-    for (uint32_t i = 0; i < BucketList::kNumLevels; ++i)
+    for (uint32_t i = 0; i < BucketListBase::kNumLevels; ++i)
     {
         auto curr = getBucketByHash(hexToBin256(has.currentBuckets.at(i).curr));
         auto snap = getBucketByHash(hexToBin256(has.currentBuckets.at(i).snap));
         if (!(curr && snap))
         {
             throw std::runtime_error("Missing bucket files while assuming "
-                                     "saved BucketList state");
+                                     "saved live BucketList state");
         }
 
         auto const& nextFuture = has.currentBuckets.at(i).next;
@@ -1196,8 +1196,9 @@ BucketManagerImpl::assumeState(HistoryArchiveState const& has,
                 getBucketByHash(hexToBin256(nextFuture.getOutputHash()));
             if (!nextBucket)
             {
-                throw std::runtime_error("Missing future bucket files while "
-                                         "assuming saved BucketList state");
+                throw std::runtime_error(
+                    "Missing future bucket files while "
+                    "assuming saved live BucketList state");
             }
         }
 
@@ -1294,7 +1295,7 @@ BucketManagerImpl::loadCompleteLedgerState(HistoryArchiveState const& has)
 
     std::map<LedgerKey, LedgerEntry> ledgerMap;
     std::vector<std::pair<Hash, std::string>> hashes;
-    for (uint32_t i = BucketList::kNumLevels; i > 0; --i)
+    for (uint32_t i = BucketListBase::kNumLevels; i > 0; --i)
     {
         HistoryStateBucket const& hsb = has.currentBuckets.at(i - 1);
         hashes.emplace_back(hexToBin256(hsb.snap),
@@ -1471,7 +1472,7 @@ BucketManagerImpl::visitLedgerEntries(
 
     UnorderedSet<Hash> deletedEntries;
     std::vector<std::pair<Hash, std::string>> hashes;
-    for (uint32_t i = 0; i < BucketList::kNumLevels; ++i)
+    for (uint32_t i = 0; i < BucketListBase::kNumLevels; ++i)
     {
         HistoryStateBucket const& hsb = has.currentBuckets.at(i);
         hashes.emplace_back(hexToBin256(hsb.curr),
