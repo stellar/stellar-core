@@ -22,7 +22,7 @@ namespace stellar
 {
 
 class Application;
-class BucketList;
+class LiveBucketList;
 class BucketListSnapshot;
 
 // This class serves as the boundary between non-threadsafe singleton classes
@@ -56,11 +56,11 @@ class BucketSnapshotManager : NonMovableOrCopyable
         std::unique_ptr<BucketListSnapshot const>&& newSnapshot);
 
     friend void
-    BucketManagerImpl::addBatch(Application& app, uint32_t currLedger,
-                                uint32_t currLedgerProtocol,
-                                std::vector<LedgerEntry> const& initEntries,
-                                std::vector<LedgerEntry> const& liveEntries,
-                                std::vector<LedgerKey> const& deadEntries);
+    BucketManagerImpl::addLiveBatch(Application& app, uint32_t currLedger,
+                                    uint32_t currLedgerProtocol,
+                                    std::vector<LedgerEntry> const& initEntries,
+                                    std::vector<LedgerEntry> const& liveEntries,
+                                    std::vector<LedgerKey> const& deadEntries);
     friend void BucketManagerImpl::assumeState(HistoryArchiveState const& has,
                                                uint32_t maxProtocolVersion,
                                                bool restartMerges);

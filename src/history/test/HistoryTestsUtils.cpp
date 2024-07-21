@@ -543,12 +543,12 @@ CatchupSimulation::generateRandomLedger(uint32_t version)
     mLedgerHashes.push_back(lclh.hash);
     mBucketListHashes.push_back(lclh.header.bucketListHash);
     mBucket0Hashes.push_back(mApp.getBucketManager()
-                                 .getBucketList()
+                                 .getLiveBucketList()
                                  .getLevel(0)
                                  .getCurr()
                                  ->getHash());
     mBucket1Hashes.push_back(mApp.getBucketManager()
-                                 .getBucketList()
+                                 .getLiveBucketList()
                                  .getLevel(2)
                                  .getCurr()
                                  ->getHash());
@@ -600,7 +600,7 @@ CatchupSimulation::ensureLedgerAvailable(uint32_t targetLedger)
         if (hm.publishCheckpointOnLedgerClose(lcl))
         {
             mBucketListAtLastPublish =
-                getApp().getBucketManager().getBucketList();
+                getApp().getBucketManager().getLiveBucketList();
         }
     }
 }
@@ -951,12 +951,12 @@ CatchupSimulation::validateCatchup(Application::pointer app)
     auto haveBucketListHash =
         lm.getLastClosedLedgerHeader().header.bucketListHash;
     auto haveBucket0Hash = app->getBucketManager()
-                               .getBucketList()
+                               .getLiveBucketList()
                                .getLevel(0)
                                .getCurr()
                                ->getHash();
     auto haveBucket1Hash = app->getBucketManager()
-                               .getBucketList()
+                               .getLiveBucketList()
                                .getLevel(2)
                                .getCurr()
                                ->getHash();

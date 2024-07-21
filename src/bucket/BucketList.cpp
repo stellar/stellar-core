@@ -79,8 +79,12 @@ BucketLevel::setCurr(std::shared_ptr<Bucket> b)
     mCurr = b;
 }
 
+BucketListBase::~BucketListBase()
+{
+}
+
 bool
-BucketList::shouldMergeWithEmptyCurr(uint32_t ledger, uint32_t level)
+BucketListBase::shouldMergeWithEmptyCurr(uint32_t ledger, uint32_t level)
 {
 
     if (level != 0)
@@ -88,7 +92,7 @@ BucketList::shouldMergeWithEmptyCurr(uint32_t ledger, uint32_t level)
         // Round down the current ledger to when the merge was started, and
         // re-start the merge via prepare, mimicking the logic in `addBatch`
         auto mergeStartLedger =
-            roundDown(ledger, BucketList::levelHalf(level - 1));
+            roundDown(ledger, BucketListBase::levelHalf(level - 1));
 
         // Subtle: We're "preparing the next state" of this level's mCurr, which
         // is *either* mCurr merged with snap, or else just snap (if mCurr is
@@ -167,7 +171,7 @@ BucketLevel::prepare(Application& app, uint32_t currLedger,
     // If more than one absorb is pending at the same time, we have a logic
     // error in our caller (and all hell will break loose).
     releaseAssert(!mNextCurr.isMerging());
-    auto curr = BucketList::shouldMergeWithEmptyCurr(currLedger, mLevel)
+    auto curr = BucketListBase::shouldMergeWithEmptyCurr(currLedger, mLevel)
                     ? std::make_shared<Bucket>()
                     : mCurr;
 
@@ -221,7 +225,7 @@ BucketListDepth::operator uint32_t() const
 // levelSize(9)  = 1048576=0x100000
 // levelSize(10) = 4194304=0x400000
 uint32_t
-BucketList::levelSize(uint32_t level)
+BucketListBase::levelSize(uint32_t level)
 {
     releaseAssert(level < kNumLevels);
     return 1UL << (2 * (level + 1));
@@ -243,13 +247,13 @@ BucketList::levelSize(uint32_t level)
 // levelHalf(9)  =  524288=0x080000
 // levelHalf(10) = 2097152=0x200000
 uint32_t
-BucketList::levelHalf(uint32_t level)
+BucketListBase::levelHalf(uint32_t level)
 {
     return levelSize(level) >> 1;
 }
 
 uint32_t
-BucketList::sizeOfCurr(uint32_t ledger, uint32_t level)
+BucketListBase::sizeOfCurr(uint32_t ledger, uint32_t level)
 {
     releaseAssert(ledger != 0);
     releaseAssert(level < kNumLevels);
@@ -260,7 +264,7 @@ BucketList::sizeOfCurr(uint32_t ledger, uint32_t level)
 
     auto const size = levelSize(level);
     auto const half = levelHalf(level);
-    if (level != BucketList::kNumLevels - 1 && roundDown(ledger, half) != 0)
+    if (level != BucketListBase::kNumLevels - 1 && roundDown(ledger, half) != 0)
     {
         uint32_t const sizeDelta = 1UL << (2 * level - 1);
         if (roundDown(ledger, half) == ledger ||
@@ -297,11 +301,11 @@ BucketList::sizeOfCurr(uint32_t ledger, uint32_t level)
 }
 
 uint32_t
-BucketList::sizeOfSnap(uint32_t ledger, uint32_t level)
+BucketListBase::sizeOfSnap(uint32_t ledger, uint32_t level)
 {
     releaseAssert(ledger != 0);
     releaseAssert(level < kNumLevels);
-    if (level == BucketList::kNumLevels - 1)
+    if (level == BucketListBase::kNumLevels - 1)
     {
         return 0;
     }
@@ -323,7 +327,7 @@ BucketList::sizeOfSnap(uint32_t ledger, uint32_t level)
 }
 
 uint32_t
-BucketList::oldestLedgerInCurr(uint32_t ledger, uint32_t level)
+BucketListBase::oldestLedgerInCurr(uint32_t ledger, uint32_t level)
 {
     releaseAssert(ledger != 0);
     releaseAssert(level < kNumLevels);
@@ -343,7 +347,7 @@ BucketList::oldestLedgerInCurr(uint32_t ledger, uint32_t level)
 }
 
 uint32_t
-BucketList::oldestLedgerInSnap(uint32_t ledger, uint32_t level)
+BucketListBase::oldestLedgerInSnap(uint32_t ledger, uint32_t level)
 {
     releaseAssert(ledger != 0);
     releaseAssert(level < kNumLevels);
@@ -362,7 +366,7 @@ BucketList::oldestLedgerInSnap(uint32_t ledger, uint32_t level)
 }
 
 uint256
-BucketList::getHash() const
+BucketListBase::getHash() const
 {
     ZoneScoped;
     SHA256 hsh;
@@ -393,7 +397,7 @@ BucketList::getHash() const
 // clang-format on
 
 bool
-BucketList::levelShouldSpill(uint32_t ledger, uint32_t level)
+BucketListBase::levelShouldSpill(uint32_t ledger, uint32_t level)
 {
     if (level == kNumLevels - 1)
     {
@@ -411,7 +415,7 @@ BucketList::levelShouldSpill(uint32_t ledger, uint32_t level)
 // incoming_spill_frequency(i) = 2^(2i - 1) for i > 0
 // incoming_spill_frequency(0) = 1
 uint32_t
-BucketList::bucketUpdatePeriod(uint32_t level, bool isCurr)
+BucketListBase::bucketUpdatePeriod(uint32_t level, bool isCurr)
 {
     if (!isCurr)
     {
@@ -429,25 +433,25 @@ BucketList::bucketUpdatePeriod(uint32_t level, bool isCurr)
 }
 
 bool
-BucketList::keepDeadEntries(uint32_t level)
+BucketListBase::keepDeadEntries(uint32_t level)
 {
-    return level < BucketList::kNumLevels - 1;
+    return level < BucketListBase::kNumLevels - 1;
 }
 
 BucketLevel const&
-BucketList::getLevel(uint32_t i) const
+BucketListBase::getLevel(uint32_t i) const
 {
     return mLevels.at(i);
 }
 
 BucketLevel&
-BucketList::getLevel(uint32_t i)
+BucketListBase::getLevel(uint32_t i)
 {
     return mLevels.at(i);
 }
 
 void
-BucketList::resolveAnyReadyFutures()
+BucketListBase::resolveAnyReadyFutures()
 {
     ZoneScoped;
     for (auto& level : mLevels)
@@ -460,7 +464,7 @@ BucketList::resolveAnyReadyFutures()
 }
 
 bool
-BucketList::futuresAllResolved(uint32_t maxLevel) const
+BucketListBase::futuresAllResolved(uint32_t maxLevel) const
 {
     ZoneScoped;
     releaseAssert(maxLevel < mLevels.size());
@@ -476,7 +480,7 @@ BucketList::futuresAllResolved(uint32_t maxLevel) const
 }
 
 uint32_t
-BucketList::getMaxMergeLevel(uint32_t currLedger) const
+BucketListBase::getMaxMergeLevel(uint32_t currLedger) const
 {
     uint32_t i = 0;
     for (; i < static_cast<uint32_t>(mLevels.size()) - 1; ++i)
@@ -490,7 +494,7 @@ BucketList::getMaxMergeLevel(uint32_t currLedger) const
 }
 
 uint64_t
-BucketList::getSize() const
+BucketListBase::getSize() const
 {
     uint64_t sum = 0;
     for (auto const& lev : mLevels)
@@ -510,11 +514,11 @@ BucketList::getSize() const
 }
 
 void
-BucketList::addBatch(Application& app, uint32_t currLedger,
-                     uint32_t currLedgerProtocol,
-                     std::vector<LedgerEntry> const& initEntries,
-                     std::vector<LedgerEntry> const& liveEntries,
-                     std::vector<LedgerKey> const& deadEntries)
+BucketListBase::addBatch(Application& app, uint32_t currLedger,
+                         uint32_t currLedgerProtocol,
+                         std::vector<LedgerEntry> const& initEntries,
+                         std::vector<LedgerEntry> const& liveEntries,
+                         std::vector<LedgerKey> const& deadEntries)
 {
     ZoneScoped;
     releaseAssert(currLedger > 0);
@@ -632,9 +636,9 @@ BucketList::addBatch(Application& app, uint32_t currLedger,
 }
 
 void
-BucketList::updateStartingEvictionIterator(EvictionIterator& iter,
-                                           uint32_t firstScanLevel,
-                                           uint32_t ledgerSeq)
+LiveBucketList::updateStartingEvictionIterator(EvictionIterator& iter,
+                                               uint32_t firstScanLevel,
+                                               uint32_t ledgerSeq)
 {
     // Check if an upgrade has changed the starting scan level to below the
     // current iterator level
@@ -657,8 +661,8 @@ BucketList::updateStartingEvictionIterator(EvictionIterator& iter,
     {
         // Check if bucket received an incoming spill
         releaseAssert(iter.bucketListLevel != 0);
-        if (BucketList::levelShouldSpill(ledgerSeq - 1,
-                                         iter.bucketListLevel - 1))
+        if (BucketListBase::levelShouldSpill(ledgerSeq - 1,
+                                             iter.bucketListLevel - 1))
         {
             // If Bucket changed, reset to start of bucket
             iter.bucketFileOffset = 0;
@@ -666,7 +670,8 @@ BucketList::updateStartingEvictionIterator(EvictionIterator& iter,
     }
     else
     {
-        if (BucketList::levelShouldSpill(ledgerSeq - 1, iter.bucketListLevel))
+        if (BucketListBase::levelShouldSpill(ledgerSeq - 1,
+                                             iter.bucketListLevel))
         {
             // If Bucket changed, reset to start of bucket
             iter.bucketFileOffset = 0;
@@ -675,7 +680,7 @@ BucketList::updateStartingEvictionIterator(EvictionIterator& iter,
 }
 
 bool
-BucketList::updateEvictionIterAndRecordStats(
+LiveBucketList::updateEvictionIterAndRecordStats(
     EvictionIterator& iter, EvictionIterator startIter,
     uint32_t configFirstScanLevel, uint32_t ledgerSeq,
     std::shared_ptr<EvictionStatistics> stats, EvictionCounters& counters)
@@ -718,10 +723,10 @@ BucketList::updateEvictionIterAndRecordStats(
 }
 
 void
-BucketList::checkIfEvictionScanIsStuck(EvictionIterator const& evictionIter,
-                                       uint32_t scanSize,
-                                       std::shared_ptr<Bucket const> b,
-                                       EvictionCounters& counters)
+LiveBucketList::checkIfEvictionScanIsStuck(EvictionIterator const& evictionIter,
+                                           uint32_t scanSize,
+                                           std::shared_ptr<Bucket const> b,
+                                           EvictionCounters& counters)
 {
     // Check to see if we can finish scanning the new bucket before it
     // receives an update
@@ -739,10 +744,10 @@ BucketList::checkIfEvictionScanIsStuck(EvictionIterator const& evictionIter,
 // eviction cycle. If a node joins the network mid cycle, metrics will be
 // nullopt and be initialized at the start of the next cycle.
 void
-BucketList::scanForEvictionLegacy(Application& app, AbstractLedgerTxn& ltx,
-                                  uint32_t ledgerSeq,
-                                  EvictionCounters& counters,
-                                  std::shared_ptr<EvictionStatistics> stats)
+LiveBucketList::scanForEvictionLegacy(Application& app, AbstractLedgerTxn& ltx,
+                                      uint32_t ledgerSeq,
+                                      EvictionCounters& counters,
+                                      std::shared_ptr<EvictionStatistics> stats)
 {
     releaseAssert(stats);
 
@@ -788,8 +793,8 @@ BucketList::scanForEvictionLegacy(Application& app, AbstractLedgerTxn& ltx,
 }
 
 void
-BucketList::restartMerges(Application& app, uint32_t maxProtocolVersion,
-                          uint32_t ledger)
+BucketListBase::restartMerges(Application& app, uint32_t maxProtocolVersion,
+                              uint32_t ledger)
 {
     ZoneScoped;
     for (uint32_t i = 0; i < static_cast<uint32>(mLevels.size()); i++)
@@ -851,7 +856,7 @@ BucketList::restartMerges(Application& app, uint32_t maxProtocolVersion,
             // Round down the current ledger to when the merge was started, and
             // re-start the merge via prepare, mimicking the logic in `addBatch`
             auto mergeStartLedger =
-                roundDown(ledger, BucketList::levelHalf(i - 1));
+                roundDown(ledger, BucketListBase::levelHalf(i - 1));
             level.prepare(
                 app, mergeStartLedger, version, snap, /* shadows= */ {},
                 !app.getConfig().ARTIFICIALLY_REDUCE_MERGE_COUNTS_FOR_TESTING);
@@ -859,9 +864,9 @@ BucketList::restartMerges(Application& app, uint32_t maxProtocolVersion,
     }
 }
 
-BucketListDepth BucketList::kNumLevels = 11;
+BucketListDepth BucketListBase::kNumLevels = 11;
 
-BucketList::BucketList()
+BucketListBase::BucketListBase()
 {
     for (uint32_t i = 0; i < kNumLevels; ++i)
     {

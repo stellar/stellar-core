@@ -59,7 +59,7 @@ closeLedger(Application& app, std::optional<SecretKey> skToSignValue,
     uint32_t ledgerNum = lcl.header.ledgerSeq + 1;
     CLOG_INFO(Bucket, "Artificially closing ledger {} with lcl={}, buckets={}",
               ledgerNum, hexAbbrev(lcl.hash),
-              hexAbbrev(app.getBucketManager().getBucketList().getHash()));
+              hexAbbrev(app.getBucketManager().getLiveBucketList().getHash()));
     app.getHerder().externalizeValue(TxSetXDRFrame::makeEmpty(lcl), ledgerNum,
                                      lcl.header.scpValue.closeTime, upgrades,
                                      skToSignValue);
@@ -184,9 +184,9 @@ LedgerManagerForBucketTests::transferLedgerEntriesToBucketList(
         }
 
         // Use the testing values.
-        mApp.getBucketManager().addBatch(mApp, ledgerSeq, currLedgerVers,
-                                         mTestInitEntries, mTestLiveEntries,
-                                         mTestDeadEntries);
+        mApp.getBucketManager().addLiveBatch(mApp, ledgerSeq, currLedgerVers,
+                                             mTestInitEntries, mTestLiveEntries,
+                                             mTestDeadEntries);
         mUseTestEntries = false;
     }
     else

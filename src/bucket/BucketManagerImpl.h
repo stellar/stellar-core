@@ -29,7 +29,7 @@ class TmpDir;
 class AbstractLedgerTxn;
 class Application;
 class Bucket;
-class BucketList;
+class LiveBucketList;
 class BucketSnapshotManager;
 struct HistoryArchiveState;
 
@@ -38,7 +38,7 @@ class BucketManagerImpl : public BucketManager
     static std::string const kLockFilename;
 
     Application& mApp;
-    std::unique_ptr<BucketList> mBucketList;
+    std::unique_ptr<LiveBucketList> mBucketList;
     std::unique_ptr<BucketSnapshotManager> mSnapshotManager;
     std::unique_ptr<TmpDirManager> mTmpDirManager;
     std::unique_ptr<TmpDir> mWorkDir;
@@ -46,7 +46,7 @@ class BucketManagerImpl : public BucketManager
 
     // Lock for managing raw Bucket files or the bucket directory. This lock is
     // only required for file access, but is not required for logical changes to
-    // the BucketList (i.e. addBatch).
+    // a BucketList (i.e. addLiveBatch).
     mutable std::recursive_mutex mBucketMutex;
     std::unique_ptr<std::string> mLockedBucketDir;
     medida::Meter& mBucketObjectInsertBatch;
@@ -108,7 +108,7 @@ class BucketManagerImpl : public BucketManager
     std::string bucketIndexFilename(Hash const& hash) const override;
     std::string const& getTmpDir() override;
     std::string const& getBucketDir() const override;
-    BucketList& getBucketList() override;
+    LiveBucketList& getLiveBucketList() override;
     BucketSnapshotManager& getBucketSnapshotManager() const override;
     medida::Timer& getMergeTimer() override;
     MergeCounters readMergeCounters() override;
@@ -133,11 +133,11 @@ class BucketManagerImpl : public BucketManager
 #endif
 
     void forgetUnreferencedBuckets() override;
-    void addBatch(Application& app, uint32_t currLedger,
-                  uint32_t currLedgerProtocol,
-                  std::vector<LedgerEntry> const& initEntries,
-                  std::vector<LedgerEntry> const& liveEntries,
-                  std::vector<LedgerKey> const& deadEntries) override;
+    void addLiveBatch(Application& app, uint32_t currLedger,
+                      uint32_t currLedgerProtocol,
+                      std::vector<LedgerEntry> const& initEntries,
+                      std::vector<LedgerEntry> const& liveEntries,
+                      std::vector<LedgerKey> const& deadEntries) override;
     void snapshotLedger(LedgerHeader& currentHeader) override;
     void maybeSetIndex(std::shared_ptr<Bucket> b,
                        std::unique_ptr<BucketIndex const>&& index) override;
@@ -153,7 +153,7 @@ class BucketManagerImpl : public BucketManager
 
 #ifdef BUILD_TESTS
     // Install a fake/assumed ledger version and bucket list hash to use in next
-    // call to addBatch and snapshotLedger. This interface exists only for
+    // call to addLiveBatch and snapshotLedger. This interface exists only for
     // testing in a specific type of history replay.
     void setNextCloseVersionAndHashForTesting(uint32_t protocolVers,
                                               uint256 const& hash) override;

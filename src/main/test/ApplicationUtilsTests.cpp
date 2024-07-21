@@ -120,9 +120,10 @@ checkState(Application& app)
         };
 
         auto& bm = app.getBucketManager();
-        for (uint32_t i = 0; i < bm.getBucketList().kNumLevels && blcOk; ++i)
+        for (uint32_t i = 0; i < bm.getLiveBucketList().kNumLevels && blcOk;
+             ++i)
         {
-            auto& level = bm.getBucketList().getLevel(i);
+            auto& level = bm.getLiveBucketList().getLevel(i);
             checkBucket(level.getCurr());
             checkBucket(level.getSnap());
             auto& nextFuture = level.getNext();
@@ -454,7 +455,7 @@ TEST_CASE("offline self-check works", "[applicationutils][selfcheck]")
         catchupSimulation.catchupOffline(app, l1);
         chkConfig = app->getConfig();
         victimBucketPath = app->getBucketManager()
-                               .getBucketList()
+                               .getLiveBucketList()
                                .getLevel(0)
                                .getCurr()
                                ->getFilename();

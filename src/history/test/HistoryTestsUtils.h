@@ -185,7 +185,7 @@ class CatchupSimulation
     std::vector<Config> mCfgs;
     Application::pointer mAppPtr;
     Application& mApp;
-    BucketList mBucketListAtLastPublish;
+    LiveBucketList mBucketListAtLastPublish;
 
     std::vector<LedgerCloseData> mLedgerCloseDatas;
 

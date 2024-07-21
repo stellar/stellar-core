@@ -34,7 +34,7 @@ class BucketListSnapshot : public NonMovable
     uint32_t mLedgerSeq;
 
   public:
-    BucketListSnapshot(BucketList const& bl, uint32_t ledgerSeq);
+    BucketListSnapshot(LiveBucketList const& bl, uint32_t ledgerSeq);
 
     // Only allow copies via constructor
     BucketListSnapshot(BucketListSnapshot const& snapshot);

@@ -380,7 +380,7 @@ class BucketLevel
 };
 
 // NOTE: The access specifications for this class have been carefully chosen to
-//       make it so BucketList::kNumLevels can only be modified from
+//       make it so BucketListBase::kNumLevels can only be modified from
 //       BucketListDepthModifier -- not even BucketList can modify it. Please
 //       use care when modifying this class.
 class BucketListDepth
@@ -397,11 +397,15 @@ class BucketListDepth
     friend class testutil::BucketListDepthModifier;
 };
 
-class BucketList
+class BucketListBase
 {
+  protected:
     std::vector<BucketLevel> mLevels;
 
   public:
+    // Trivial pure virtual destructor to make this an abstract class
+    virtual ~BucketListBase() = 0;
+
     // Number of bucket levels in the bucketlist. Every bucketlist in the system
     // will have this many levels and it effectively gets wired-in to the
     // protocol. Careful about changing it.
@@ -443,7 +447,7 @@ class BucketList
 
     // Create a new BucketList with every `kNumLevels` levels, each with
     // an empty bucket in `curr` and `snap`.
-    BucketList();
+    BucketListBase();
 
     // Return level `i` of the BucketList.
     BucketLevel const& getLevel(uint32_t i) const;
@@ -455,29 +459,6 @@ class BucketList
     // the concatenation of each level's hash, each of which in turn is the hash
     // of the concatenation of the hashes of the `curr` and `snap` buckets.
     Hash getHash() const;
-
-    // Reset Eviction Iterator position if an incoming spill or upgrade has
-    // invalidated the previous position
-    static void updateStartingEvictionIterator(EvictionIterator& iter,
-                                               uint32_t firstScanLevel,
-                                               uint32_t ledgerSeq);
-
-    // Update eviction iter and record stats after scanning a region in one
-    // bucket. Returns true if scan has looped back to startIter, false
-    // otherwise.
-    static bool updateEvictionIterAndRecordStats(
-        EvictionIterator& iter, EvictionIterator startIter,
-        uint32_t configFirstScanLevel, uint32_t ledgerSeq,
-        std::shared_ptr<EvictionStatistics> stats, EvictionCounters& counters);
-
-    static void checkIfEvictionScanIsStuck(EvictionIterator const& evictionIter,
-                                           uint32_t scanSize,
-                                           std::shared_ptr<Bucket const> b,
-                                           EvictionCounters& counters);
-
-    void scanForEvictionLegacy(Application& app, AbstractLedgerTxn& ltx,
-                               uint32_t ledgerSeq, EvictionCounters& counters,
-                               std::shared_ptr<EvictionStatistics> stats);
 
     // Restart any merges that might be running on background worker threads,
     // merging buckets between levels. This needs to be called after forcing a
@@ -523,5 +504,32 @@ class BucketList
                   std::vector<LedgerEntry> const& initEntries,
                   std::vector<LedgerEntry> const& liveEntries,
                   std::vector<LedgerKey> const& deadEntries);
+};
+
+class LiveBucketList : public BucketListBase
+{
+  public:
+    // Reset Eviction Iterator position if an incoming spill or upgrade has
+    // invalidated the previous position
+    static void updateStartingEvictionIterator(EvictionIterator& iter,
+                                               uint32_t firstScanLevel,
+                                               uint32_t ledgerSeq);
+
+    // Update eviction iter and record stats after scanning a region in one
+    // bucket. Returns true if scan has looped back to startIter, false
+    // otherwise.
+    static bool updateEvictionIterAndRecordStats(
+        EvictionIterator& iter, EvictionIterator startIter,
+        uint32_t configFirstScanLevel, uint32_t ledgerSeq,
+        std::shared_ptr<EvictionStatistics> stats, EvictionCounters& counters);
+
+    static void checkIfEvictionScanIsStuck(EvictionIterator const& evictionIter,
+                                           uint32_t scanSize,
+                                           std::shared_ptr<Bucket const> b,
+                                           EvictionCounters& counters);
+
+    void scanForEvictionLegacy(Application& app, AbstractLedgerTxn& ltx,
+                               uint32_t ledgerSeq, EvictionCounters& counters,
+                               std::shared_ptr<EvictionStatistics> stats);
 };
 }

@@ -67,7 +67,7 @@ highBoundInclusive(uint32_t level, uint32_t ledger)
 }
 
 void
-checkBucketSizeAndBounds(BucketList& bl, uint32_t ledgerSeq, uint32_t level,
+checkBucketSizeAndBounds(LiveBucketList& bl, uint32_t ledgerSeq, uint32_t level,
                          bool isCurr)
 {
     std::shared_ptr<Bucket> bucket;
@@ -76,14 +76,14 @@ checkBucketSizeAndBounds(BucketList& bl, uint32_t ledgerSeq, uint32_t level,
     if (isCurr)
     {
         bucket = bl.getLevel(level).getCurr();
-        sizeOfBucket = BucketList::sizeOfCurr(ledgerSeq, level);
-        oldestLedger = BucketList::oldestLedgerInCurr(ledgerSeq, level);
+        sizeOfBucket = BucketListBase::sizeOfCurr(ledgerSeq, level);
+        oldestLedger = BucketListBase::oldestLedgerInCurr(ledgerSeq, level);
     }
     else
     {
         bucket = bl.getLevel(level).getSnap();
-        sizeOfBucket = BucketList::sizeOfSnap(ledgerSeq, level);
-        oldestLedger = BucketList::oldestLedgerInSnap(ledgerSeq, level);
+        sizeOfBucket = BucketListBase::sizeOfSnap(ledgerSeq, level);
+        oldestLedger = BucketListBase::oldestLedgerInSnap(ledgerSeq, level);
     }
 
     std::set<uint32_t> ledgers;
@@ -137,7 +137,7 @@ TEST_CASE_VERSIONS("bucket list", "[bucket][bucketlist]")
     {
         for_versions_with_differing_bucket_logic(cfg, [&](Config const& cfg) {
             Application::pointer app = createTestApplication(clock, cfg);
-            BucketList bl;
+            LiveBucketList bl;
             CLOG_DEBUG(Bucket, "Adding batches to bucket list");
             for (uint32_t i = 1;
                  !app->getClock().getIOContext().stopped() && i < 130; ++i)
@@ -151,13 +151,13 @@ TEST_CASE_VERSIONS("bucket list", "[bucket][bucketlist]")
                 if (i % 10 == 0)
                     CLOG_DEBUG(Bucket, "Added batch {}, hash={}", i,
                                binToHex(bl.getHash()));
-                for (uint32_t j = 0; j < BucketList::kNumLevels; ++j)
+                for (uint32_t j = 0; j < BucketListBase::kNumLevels; ++j)
                 {
                     auto const& lev = bl.getLevel(j);
                     auto currSz = countEntries(lev.getCurr());
                     auto snapSz = countEntries(lev.getSnap());
-                    CHECK(currSz <= BucketList::levelHalf(j) * 100);
-                    CHECK(snapSz <= BucketList::levelHalf(j) * 100);
+                    CHECK(currSz <= BucketListBase::levelHalf(j) * 100);
+                    CHECK(snapSz <= BucketListBase::levelHalf(j) * 100);
                 }
             }
         });
@@ -174,16 +174,16 @@ TEST_CASE("bucketUpdatePeriod arithmetic", "[bucket][bucketlist]")
 {
     std::map<uint32_t, uint32_t> currCalculatedUpdatePeriods;
     std::map<uint32_t, uint32_t> snapCalculatedUpdatePeriods;
-    for (uint32_t i = 0; i < BucketList::kNumLevels; ++i)
+    for (uint32_t i = 0; i < BucketListBase::kNumLevels; ++i)
     {
         currCalculatedUpdatePeriods.emplace(
-            i, BucketList::bucketUpdatePeriod(i, /*isCurr=*/true));
+            i, BucketListBase::bucketUpdatePeriod(i, /*isCurr=*/true));
 
         // Last level has no snap
-        if (i != BucketList::kNumLevels - 1)
+        if (i != BucketListBase::kNumLevels - 1)
         {
             snapCalculatedUpdatePeriods.emplace(
-                i, BucketList::bucketUpdatePeriod(i, /*isSnap=*/false));
+                i, BucketListBase::bucketUpdatePeriod(i, /*isSnap=*/false));
         }
     }
 
@@ -192,7 +192,7 @@ TEST_CASE("bucketUpdatePeriod arithmetic", "[bucket][bucketlist]")
                                  !snapCalculatedUpdatePeriods.empty();
          ++ledgerSeq)
     {
-        for (uint32_t level = 0; level < BucketList::kNumLevels; ++level)
+        for (uint32_t level = 0; level < BucketListBase::kNumLevels; ++level)
         {
             // Check if curr bucket is updated
             auto currIter = currCalculatedUpdatePeriods.find(level);
@@ -208,7 +208,7 @@ TEST_CASE("bucketUpdatePeriod arithmetic", "[bucket][bucketlist]")
                 {
                     // For all other levels, an update occurs when the level
                     // above spills
-                    if (BucketList::levelShouldSpill(ledgerSeq, level - 1))
+                    if (BucketListBase::levelShouldSpill(ledgerSeq, level - 1))
                     {
                         REQUIRE(currIter->second == ledgerSeq);
                         currCalculatedUpdatePeriods.erase(currIter);
@@ -220,7 +220,7 @@ TEST_CASE("bucketUpdatePeriod arithmetic", "[bucket][bucketlist]")
             auto snapIter = snapCalculatedUpdatePeriods.find(level);
             if (snapIter != snapCalculatedUpdatePeriods.end())
             {
-                if (BucketList::levelShouldSpill(ledgerSeq, level))
+                if (BucketListBase::levelShouldSpill(ledgerSeq, level))
                 {
                     // Check that snap bucket calculation is correct
                     REQUIRE(snapIter->second == ledgerSeq);
@@ -238,7 +238,7 @@ TEST_CASE_VERSIONS("bucket list shadowing pre/post proto 12",
     Config const& cfg = getTestConfig();
     for_versions_with_differing_bucket_logic(cfg, [&](Config const& cfg) {
         Application::pointer app = createTestApplication(clock, cfg);
-        BucketList bl;
+        LiveBucketList bl;
 
         // Alice and Bob change in every iteration.
         auto alice = LedgerTestUtils::generateValidAccountEntry(5);
@@ -295,7 +295,7 @@ TEST_CASE_VERSIONS("bucket list shadowing pre/post proto 12",
 
                 // Alice and Bob should never occur in level 2 .. N because they
                 // were shadowed in level 0 continuously.
-                for (uint32_t j = 2; j < BucketList::kNumLevels; ++j)
+                for (uint32_t j = 2; j < BucketListBase::kNumLevels; ++j)
                 {
                     auto const& lev = bl.getLevel(j);
                     auto curr = lev.getCurr();
@@ -336,11 +336,11 @@ TEST_CASE_VERSIONS("bucket tombstones expire at bottom level",
 
     for_versions_with_differing_bucket_logic(cfg, [&](Config const& cfg) {
         Application::pointer app = createTestApplication(clock, cfg);
-        BucketList bl;
+        LiveBucketList bl;
         BucketManager& bm = app->getBucketManager();
         auto& mergeTimer = bm.getMergeTimer();
         CLOG_INFO(Bucket, "Establishing random bucketlist");
-        for (uint32_t i = 0; i < BucketList::kNumLevels; ++i)
+        for (uint32_t i = 0; i < BucketListBase::kNumLevels; ++i)
         {
             auto& level = bl.getLevel(i);
             level.setCurr(Bucket::fresh(
@@ -359,10 +359,10 @@ TEST_CASE_VERSIONS("bucket tombstones expire at bottom level",
                 /*doFsync=*/true));
         }
 
-        for (uint32_t i = 0; i < BucketList::kNumLevels; ++i)
+        for (uint32_t i = 0; i < BucketListBase::kNumLevels; ++i)
         {
-            std::vector<uint32_t> ledgers = {BucketList::levelHalf(i),
-                                             BucketList::levelSize(i)};
+            std::vector<uint32_t> ledgers = {BucketListBase::levelHalf(i),
+                                             BucketListBase::levelSize(i)};
             for (auto j : ledgers)
             {
                 auto n = mergeTimer.count();
@@ -372,7 +372,7 @@ TEST_CASE_VERSIONS("bucket tombstones expire at bottom level",
                     LedgerTestUtils::generateValidLedgerEntryKeysWithExclusions(
                         {CONFIG_SETTING}, 5));
                 app->getClock().crank(false);
-                for (uint32_t k = 0u; k < BucketList::kNumLevels; ++k)
+                for (uint32_t k = 0u; k < BucketListBase::kNumLevels; ++k)
                 {
                     auto& next = bl.getLevel(k).getNext();
                     if (next.isLive())
@@ -385,13 +385,13 @@ TEST_CASE_VERSIONS("bucket tombstones expire at bottom level",
                           "Added batch at ledger {}, merges provoked: {}", j,
                           n);
                 REQUIRE(n > 0);
-                REQUIRE(n < 2 * BucketList::kNumLevels);
+                REQUIRE(n < 2 * BucketListBase::kNumLevels);
             }
         }
 
-        EntryCounts e0(bl.getLevel(BucketList::kNumLevels - 3).getCurr());
-        EntryCounts e1(bl.getLevel(BucketList::kNumLevels - 2).getCurr());
-        EntryCounts e2(bl.getLevel(BucketList::kNumLevels - 1).getCurr());
+        EntryCounts e0(bl.getLevel(BucketListBase::kNumLevels - 3).getCurr());
+        EntryCounts e1(bl.getLevel(BucketListBase::kNumLevels - 2).getCurr());
+        EntryCounts e2(bl.getLevel(BucketListBase::kNumLevels - 1).getCurr());
         REQUIRE(e0.nDead != 0);
         REQUIRE(e1.nDead != 0);
         REQUIRE(e2.nDead == 0);
@@ -406,7 +406,7 @@ TEST_CASE_VERSIONS("bucket tombstones mutually-annihilate init entries",
 
     for_versions_with_differing_bucket_logic(cfg, [&](Config const& cfg) {
         Application::pointer app = createTestApplication(clock, cfg);
-        BucketList bl;
+        LiveBucketList bl;
         auto vers = getAppLedgerVersion(app);
         autocheck::generator<bool> flip;
         std::deque<LedgerEntry> entriesToModify;
@@ -445,7 +445,7 @@ TEST_CASE_VERSIONS("bucket tombstones mutually-annihilate init entries",
             }
             bl.addBatch(*app, i, vers, initEntries, liveEntries, deadEntries);
             app->getClock().crank(false);
-            for (uint32_t k = 0u; k < BucketList::kNumLevels; ++k)
+            for (uint32_t k = 0u; k < BucketListBase::kNumLevels; ++k)
             {
                 auto& next = bl.getLevel(k).getNext();
                 if (next.isLive())
@@ -454,7 +454,7 @@ TEST_CASE_VERSIONS("bucket tombstones mutually-annihilate init entries",
                 }
             }
         }
-        for (uint32_t k = 0u; k < BucketList::kNumLevels; ++k)
+        for (uint32_t k = 0u; k < BucketListBase::kNumLevels; ++k)
         {
             auto const& lev = bl.getLevel(k);
             auto currSz = countEntries(lev.getCurr());
@@ -482,7 +482,7 @@ TEST_CASE_VERSIONS("single entry bubbling up",
     {
         for_versions_with_differing_bucket_logic(cfg, [&](Config const& cfg) {
             Application::pointer app = createTestApplication(clock, cfg);
-            BucketList bl;
+            LiveBucketList bl;
             std::vector<stellar::LedgerKey> emptySet;
             std::vector<stellar::LedgerEntry> emptySetEntry;
 
@@ -504,7 +504,7 @@ TEST_CASE_VERSIONS("single entry bubbling up",
 
                 CLOG_DEBUG(Bucket, "------- ledger {}", i);
 
-                for (uint32_t j = 0; j <= BucketList::kNumLevels - 1; ++j)
+                for (uint32_t j = 0; j <= BucketListBase::kNumLevels - 1; ++j)
                 {
                     uint32_t lb = lowBoundExclusive(j, i);
                     uint32_t hb = highBoundInclusive(j, i);
@@ -542,27 +542,27 @@ TEST_CASE("BucketList sizeOf and oldestLedgerIn relations",
     stellar::uniform_int_distribution<uint32_t> dist;
     for (uint32_t i = 0; i < 1000; ++i)
     {
-        for (uint32_t level = 0; level < BucketList::kNumLevels; ++level)
+        for (uint32_t level = 0; level < BucketListBase::kNumLevels; ++level)
         {
             uint32_t ledger = dist(gRandomEngine);
-            if (BucketList::sizeOfSnap(ledger, level) > 0)
+            if (BucketListBase::sizeOfSnap(ledger, level) > 0)
             {
                 uint32_t oldestInCurr =
-                    BucketList::oldestLedgerInSnap(ledger, level) +
-                    BucketList::sizeOfSnap(ledger, level);
+                    BucketListBase::oldestLedgerInSnap(ledger, level) +
+                    BucketListBase::sizeOfSnap(ledger, level);
                 REQUIRE(oldestInCurr ==
-                        BucketList::oldestLedgerInCurr(ledger, level));
+                        BucketListBase::oldestLedgerInCurr(ledger, level));
             }
-            if (BucketList::sizeOfCurr(ledger, level) > 0)
+            if (BucketListBase::sizeOfCurr(ledger, level) > 0)
             {
                 uint32_t newestInCurr =
-                    BucketList::oldestLedgerInCurr(ledger, level) +
-                    BucketList::sizeOfCurr(ledger, level) - 1;
-                REQUIRE(newestInCurr == (level == 0
-                                             ? ledger
-                                             : BucketList::oldestLedgerInSnap(
-                                                   ledger, level - 1) -
-                                                   1));
+                    BucketListBase::oldestLedgerInCurr(ledger, level) +
+                    BucketListBase::sizeOfCurr(ledger, level) - 1;
+                REQUIRE(newestInCurr ==
+                        (level == 0 ? ledger
+                                    : BucketListBase::oldestLedgerInSnap(
+                                          ledger, level - 1) -
+                                          1));
             }
         }
     }
@@ -572,9 +572,9 @@ TEST_CASE("BucketList snap reaches steady state", "[bucket][bucketlist][count]")
 {
     // Deliberately exclude deepest level since snap on the deepest level
     // is always empty.
-    for (uint32_t level = 0; level < BucketList::kNumLevels - 1; ++level)
+    for (uint32_t level = 0; level < BucketListBase::kNumLevels - 1; ++level)
     {
-        uint32_t const half = BucketList::levelHalf(level);
+        uint32_t const half = BucketListBase::levelHalf(level);
 
         // Use binary search (assuming that it does reach steady state)
         // to find the ledger where the snap at this level first reaches
@@ -582,7 +582,7 @@ TEST_CASE("BucketList snap reaches steady state", "[bucket][bucketlist][count]")
         uint32_t boundary = binarySearchForLedger(
             1, std::numeric_limits<uint32_t>::max() / 2,
             [level, half](uint32_t ledger) {
-                return (BucketList::sizeOfSnap(ledger, level) == half);
+                return (BucketListBase::sizeOfSnap(ledger, level) == half);
             });
 
         // Generate random ledgers above and below the split to test that
@@ -593,21 +593,21 @@ TEST_CASE("BucketList snap reaches steady state", "[bucket][bucketlist][count]")
         {
             uint32_t low = distLow(gRandomEngine);
             uint32_t high = distHigh(gRandomEngine);
-            REQUIRE(BucketList::sizeOfSnap(low, level) < half);
-            REQUIRE(BucketList::sizeOfSnap(high, level) == half);
+            REQUIRE(BucketListBase::sizeOfSnap(low, level) < half);
+            REQUIRE(BucketListBase::sizeOfSnap(high, level) == half);
         }
     }
 }
 
 TEST_CASE("BucketList deepest curr accumulates", "[bucket][bucketlist][count]")
 {
-    uint32_t const deepest = BucketList::kNumLevels - 1;
+    uint32_t const deepest = BucketListBase::kNumLevels - 1;
     // Use binary search to find the first ledger where the deepest curr
     // first is non-empty.
     uint32_t boundary = binarySearchForLedger(
         1, std::numeric_limits<uint32_t>::max() / 2,
         [deepest](uint32_t ledger) {
-            return (BucketList::sizeOfCurr(ledger, deepest) > 0);
+            return (BucketListBase::sizeOfCurr(ledger, deepest) > 0);
         });
     stellar::uniform_int_distribution<uint32_t> distLow(1, boundary - 1);
     stellar::uniform_int_distribution<uint32_t> distHigh(boundary);
@@ -615,29 +615,29 @@ TEST_CASE("BucketList deepest curr accumulates", "[bucket][bucketlist][count]")
     {
         uint32_t low = distLow(gRandomEngine);
         uint32_t high = distHigh(gRandomEngine);
-        REQUIRE(BucketList::sizeOfCurr(low, deepest) == 0);
-        REQUIRE(BucketList::oldestLedgerInCurr(low, deepest) ==
+        REQUIRE(BucketListBase::sizeOfCurr(low, deepest) == 0);
+        REQUIRE(BucketListBase::oldestLedgerInCurr(low, deepest) ==
                 std::numeric_limits<uint32_t>::max());
-        REQUIRE(BucketList::sizeOfCurr(high, deepest) > 0);
-        REQUIRE(BucketList::oldestLedgerInCurr(high, deepest) == 1);
+        REQUIRE(BucketListBase::sizeOfCurr(high, deepest) > 0);
+        REQUIRE(BucketListBase::oldestLedgerInCurr(high, deepest) == 1);
 
-        REQUIRE(BucketList::sizeOfSnap(low, deepest) == 0);
-        REQUIRE(BucketList::oldestLedgerInSnap(low, deepest) ==
+        REQUIRE(BucketListBase::sizeOfSnap(low, deepest) == 0);
+        REQUIRE(BucketListBase::oldestLedgerInSnap(low, deepest) ==
                 std::numeric_limits<uint32_t>::max());
-        REQUIRE(BucketList::sizeOfSnap(high, deepest) == 0);
-        REQUIRE(BucketList::oldestLedgerInSnap(high, deepest) ==
+        REQUIRE(BucketListBase::sizeOfSnap(high, deepest) == 0);
+        REQUIRE(BucketListBase::oldestLedgerInSnap(high, deepest) ==
                 std::numeric_limits<uint32_t>::max());
     }
 }
 
 TEST_CASE("BucketList sizes at ledger 1", "[bucket][bucketlist][count]")
 {
-    REQUIRE(BucketList::sizeOfCurr(1, 0) == 1);
-    REQUIRE(BucketList::sizeOfSnap(1, 0) == 0);
-    for (uint32_t level = 1; level < BucketList::kNumLevels; ++level)
+    REQUIRE(BucketListBase::sizeOfCurr(1, 0) == 1);
+    REQUIRE(BucketListBase::sizeOfSnap(1, 0) == 0);
+    for (uint32_t level = 1; level < BucketListBase::kNumLevels; ++level)
     {
-        REQUIRE(BucketList::sizeOfCurr(1, level) == 0);
-        REQUIRE(BucketList::sizeOfSnap(1, level) == 0);
+        REQUIRE(BucketListBase::sizeOfCurr(1, level) == 0);
+        REQUIRE(BucketListBase::sizeOfSnap(1, level) == 0);
     }
 }
 
@@ -646,7 +646,7 @@ TEST_CASE("BucketList check bucket sizes", "[bucket][bucketlist][count]")
     VirtualClock clock;
     Config cfg(getTestConfig());
     Application::pointer app = createTestApplication(clock, cfg);
-    BucketList& bl = app->getBucketManager().getBucketList();
+    LiveBucketList& bl = app->getBucketManager().getLiveBucketList();
     std::vector<LedgerKey> emptySet;
     auto ledgers = LedgerTestUtils::generateValidUniqueLedgerEntries(256);
     for (uint32_t ledgerSeq = 1; ledgerSeq <= 256; ++ledgerSeq)
@@ -658,7 +658,7 @@ TEST_CASE("BucketList check bucket sizes", "[bucket][bucketlist][count]")
             bl.addBatch(*app, ledgerSeq, getAppLedgerVersion(app), {},
                         {ledgers[ledgerSeq - 1]}, emptySet);
         }
-        for (uint32_t level = 0; level < BucketList::kNumLevels; ++level)
+        for (uint32_t level = 0; level < BucketListBase::kNumLevels; ++level)
         {
             checkBucketSizeAndBounds(bl, ledgerSeq, level, true);
             checkBucketSizeAndBounds(bl, ledgerSeq, level, false);
@@ -737,7 +737,7 @@ TEST_CASE_VERSIONS("network config snapshots BucketList size", "[bucketlist]")
             {
                 correctWindow.pop_front();
                 correctWindow.push_back(
-                    app->getBucketManager().getBucketList().getSize());
+                    app->getBucketManager().getLiveBucketList().getSize());
             }
 
             lm.setNextLedgerEntryBatchForBucketTesting(
@@ -769,7 +769,7 @@ TEST_CASE_VERSIONS("eviction scan", "[bucketlist]")
         for_versions_from(20, *app, [&] {
             LedgerManagerForBucketTests& lm = app->getLedgerManager();
             auto& bm = app->getBucketManager();
-            auto& bl = bm.getBucketList();
+            auto& bl = bm.getLiveBucketList();
 
             auto& networkCfg = [&]() -> SorobanNetworkConfig& {
                 LedgerTxn ltx(app->getLedgerTxnRoot());
@@ -1164,7 +1164,8 @@ TEST_CASE_VERSIONS("eviction scan", "[bucketlist]")
 
                     // Advance until one ledger before bucket is updated
                     auto ledgersUntilUpdate =
-                        BucketList::bucketUpdatePeriod(levelToTest, isCurr) -
+                        BucketListBase::bucketUpdatePeriod(levelToTest,
+                                                           isCurr) -
                         1; // updateNetworkCfg closes a ledger that we need to
                            // count
                     for (uint32_t i = 0; i < ledgersUntilUpdate - 1; ++i)
@@ -1310,30 +1311,30 @@ formatLedgerList(std::vector<uint32_t> const& ledgers)
 
 TEST_CASE("BucketList number dump", "[bucket][bucketlist][count][!hide]")
 {
-    for (uint32_t level = 0; level < BucketList::kNumLevels; ++level)
+    for (uint32_t level = 0; level < BucketListBase::kNumLevels; ++level)
     {
         CLOG_INFO(Bucket, "levelSize({}) = {} (formally)", level,
-                  formatU32(BucketList::levelSize(level)));
+                  formatU32(BucketListBase::levelSize(level)));
     }
 
-    for (uint32_t level = 0; level < BucketList::kNumLevels; ++level)
+    for (uint32_t level = 0; level < BucketListBase::kNumLevels; ++level)
     {
         CLOG_INFO(Bucket, "levelHalf({}) = {} (formally)", level,
-                  formatU32(BucketList::levelHalf(level)));
+                  formatU32(BucketListBase::levelHalf(level)));
     }
 
     for (uint32_t probe : {0x100, 0x10000, 0x1000000})
     {
-        for (uint32_t level = 0; level < BucketList::kNumLevels; ++level)
+        for (uint32_t level = 0; level < BucketListBase::kNumLevels; ++level)
         {
-            auto sz = formatU32(BucketList::sizeOfCurr(probe, level));
+            auto sz = formatU32(BucketListBase::sizeOfCurr(probe, level));
             CLOG_INFO(Bucket, "sizeOfCurr({:#x}, {}) = {} (precisely)", probe,
                       level, sz);
         }
 
-        for (uint32_t level = 0; level < BucketList::kNumLevels; ++level)
+        for (uint32_t level = 0; level < BucketListBase::kNumLevels; ++level)
         {
-            auto sz = formatU32(BucketList::sizeOfSnap(probe, level));
+            auto sz = formatU32(BucketListBase::sizeOfSnap(probe, level));
             CLOG_INFO(Bucket, "sizeOfSnap({:#x}, {}) = {} (precisely)", probe,
                       level, sz);
         }
@@ -1342,17 +1343,17 @@ TEST_CASE("BucketList number dump", "[bucket][bucketlist][count][!hide]")
     std::vector<std::vector<uint32_t>> spillEvents;
     std::vector<std::vector<uint32_t>> nonMergeCommitEvents;
     std::vector<std::vector<uint32_t>> mergeCommitEvents;
-    for (uint32_t level = 0; level < BucketList::kNumLevels; ++level)
+    for (uint32_t level = 0; level < BucketListBase::kNumLevels; ++level)
     {
         spillEvents.push_back({});
         nonMergeCommitEvents.push_back({});
         mergeCommitEvents.push_back({});
     }
-    for (uint32_t level = 0; level < BucketList::kNumLevels; ++level)
+    for (uint32_t level = 0; level < BucketListBase::kNumLevels; ++level)
     {
         for (uint32_t ledger = 0; ledger < 0x1000000; ++ledger)
         {
-            if (BucketList::levelShouldSpill(ledger, level))
+            if (BucketListBase::levelShouldSpill(ledger, level))
             {
                 spillEvents[level].push_back(ledger);
                 if (spillEvents[level].size() > 5)
@@ -1360,11 +1361,12 @@ TEST_CASE("BucketList number dump", "[bucket][bucketlist][count][!hide]")
                     break;
                 }
             }
-            if (level != 0 && BucketList::levelShouldSpill(ledger, level - 1))
+            if (level != 0 &&
+                BucketListBase::levelShouldSpill(ledger, level - 1))
             {
                 uint32_t nextChangeLedger =
-                    ledger + BucketList::levelHalf(level - 1);
-                if (BucketList::levelShouldSpill(nextChangeLedger, level))
+                    ledger + BucketListBase::levelHalf(level - 1);
+                if (BucketListBase::levelShouldSpill(nextChangeLedger, level))
                 {
                     nonMergeCommitEvents[level].push_back(ledger);
                 }
@@ -1375,17 +1377,17 @@ TEST_CASE("BucketList number dump", "[bucket][bucketlist][count][!hide]")
             }
         }
     }
-    for (uint32_t level = 0; level < BucketList::kNumLevels; ++level)
+    for (uint32_t level = 0; level < BucketListBase::kNumLevels; ++level)
     {
         auto ls = formatLedgerList(spillEvents[level]);
         CLOG_INFO(Bucket, "levelShouldSpill({:#x}) = true @ {}", level, ls);
     }
-    for (uint32_t level = 0; level < BucketList::kNumLevels; ++level)
+    for (uint32_t level = 0; level < BucketListBase::kNumLevels; ++level)
     {
         auto ls = formatLedgerList(mergeCommitEvents[level]);
         CLOG_INFO(Bucket, "mergeCommit({:#x}) @ {}", level, ls);
     }
-    for (uint32_t level = 0; level < BucketList::kNumLevels; ++level)
+    for (uint32_t level = 0; level < BucketListBase::kNumLevels; ++level)
     {
         auto ls = formatLedgerList(nonMergeCommitEvents[level]);
         CLOG_INFO(Bucket, "nonMergeCommit({:#x}) @ {}", level, ls);
@@ -1394,12 +1396,12 @@ TEST_CASE("BucketList number dump", "[bucket][bucketlist][count][!hide]")
     // Print out the full bucketlist at an arbitrarily-chosen probe ledger.
     uint32_t probe = 0x11f9ab;
     CLOG_INFO(Bucket, "BucketList state at {:#x}", probe);
-    for (uint32_t level = 0; level < BucketList::kNumLevels; ++level)
+    for (uint32_t level = 0; level < BucketListBase::kNumLevels; ++level)
     {
-        uint32_t currOld = BucketList::oldestLedgerInCurr(probe, level);
-        uint32_t snapOld = BucketList::oldestLedgerInSnap(probe, level);
-        uint32_t currSz = BucketList::sizeOfCurr(probe, level);
-        uint32_t snapSz = BucketList::sizeOfSnap(probe, level);
+        uint32_t currOld = BucketListBase::oldestLedgerInCurr(probe, level);
+        uint32_t snapOld = BucketListBase::oldestLedgerInSnap(probe, level);
+        uint32_t currSz = BucketListBase::sizeOfCurr(probe, level);
+        uint32_t snapSz = BucketListBase::sizeOfSnap(probe, level);
         uint32_t currNew = currOld + currSz - 1;
         uint32_t snapNew = snapOld + snapSz - 1;
         CLOG_INFO(

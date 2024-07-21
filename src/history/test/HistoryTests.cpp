@@ -1212,7 +1212,7 @@ TEST_CASE_VERSIONS(
             Application::pointer app = createTestApplication(clock, cfg);
             auto& hm = app->getHistoryManager();
             auto& lm = app->getLedgerManager();
-            auto& bl = app->getBucketManager().getBucketList();
+            auto& bl = app->getBucketManager().getLiveBucketList();
 
             while (hm.getPublishQueueCount() != 1)
             {
@@ -1236,7 +1236,7 @@ TEST_CASE_VERSIONS(
 
             // Second, ensure `next` is in the exact same state as when it was
             // queued
-            for (uint32_t i = 0; i < BucketList::kNumLevels; i++)
+            for (uint32_t i = 0; i < BucketListBase::kNumLevels; i++)
             {
                 auto const& currentNext = bl.getLevel(i).getNext();
                 auto const& queuedNext = queuedHAS.currentBuckets[i].next;

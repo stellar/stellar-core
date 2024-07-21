@@ -1623,7 +1623,7 @@ Config::processConfig(std::shared_ptr<cpptoml::table> t)
             else if (item.first == "TESTING_STARTING_EVICTION_SCAN_LEVEL")
             {
                 TESTING_STARTING_EVICTION_SCAN_LEVEL =
-                    readInt<uint32_t>(item, 1, BucketList::kNumLevels - 1);
+                    readInt<uint32_t>(item, 1, BucketListBase::kNumLevels - 1);
             }
             else if (item.first == "TESTING_MAX_ENTRIES_TO_ARCHIVE")
             {

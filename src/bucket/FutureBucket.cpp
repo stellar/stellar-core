@@ -297,7 +297,7 @@ getAvailableTimeForMerge(Application& app, uint32_t level)
     auto closeTime = app.getConfig().getExpectedLedgerCloseTime();
     if (level >= 1)
     {
-        return closeTime * BucketList::levelHalf(level - 1);
+        return closeTime * BucketListBase::levelHalf(level - 1);
     }
     return closeTime;
 }
@@ -334,7 +334,7 @@ FutureBucket::startMerge(Application& app, uint32_t maxProtocolVersion,
     // deserialized. In this case we want to attach to the existing merge, which
     // will have left a std::shared_future behind in a shared cache in the
     // bucket manager.
-    MergeKey mk{BucketList::keepDeadEntries(level), curr, snap, shadows};
+    MergeKey mk{BucketListBase::keepDeadEntries(level), curr, snap, shadows};
     auto f = bm.getMergeFuture(mk);
     if (f.valid())
     {
@@ -364,7 +364,7 @@ FutureBucket::startMerge(Application& app, uint32_t maxProtocolVersion,
 
                 auto res =
                     Bucket::merge(bm, maxProtocolVersion, curr, snap, shadows,
-                                  BucketList::keepDeadEntries(level),
+                                  BucketListBase::keepDeadEntries(level),
                                   countMergeEvents, ctx, doFsync);
 
                 if (res)

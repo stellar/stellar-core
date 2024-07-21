@@ -2634,7 +2634,8 @@ TEST_CASE("LedgerTxnRoot prefetch classic entries", "[ledgertxn]")
         {
             std::vector<LedgerEntry> ledgerVect{entrySet.begin(),
                                                 entrySet.end()};
-            app->getBucketManager().addBatch(*app, 2, 20, {}, ledgerVect, {});
+            app->getBucketManager().addLiveBatch(*app, 2, 20, {}, ledgerVect,
+                                                 {});
         }
         ltx.commit();
 
@@ -2863,7 +2864,8 @@ TEST_CASE("LedgerTxnRoot prefetch soroban entries", "[ledgertxn]")
     std::vector<LedgerEntry> ledgerVect{classicEntry, contractDataEntry,
                                         TTLEntry};
     std::vector<LedgerKey> deadKeyVect{deadKey};
-    app->getBucketManager().addBatch(*app, 2, 20, {}, ledgerVect, deadKeyVect);
+    app->getBucketManager().addLiveBatch(*app, 2, 20, {}, ledgerVect,
+                                         deadKeyVect);
     ltx.commit();
 
     auto addTxn = [&](bool enoughQuota, std::vector<LedgerEntry> entries,
