@@ -167,7 +167,7 @@ BucketApplicator::advance(BucketApplicator::Counters& counters)
                 // The last level can have live entries, but at that point we
                 // know that they are actually init entries because the earliest
                 // state of all entries is init, so we mark them as such here
-                if (mLevel == BucketList::kNumLevels - 1 &&
+                if (mLevel == BucketListBase::kNumLevels - 1 &&
                     e.type() == LIVEENTRY)
                 {
                     ltx->createWithoutLoading(e.liveEntry());

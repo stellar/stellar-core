@@ -11,7 +11,7 @@ namespace stellar
 namespace BucketTestUtils
 {
 
-void addBatchAndUpdateSnapshot(BucketList& bl, Application& app,
+void addBatchAndUpdateSnapshot(LiveBucketList& bl, Application& app,
                                LedgerHeader header,
                                std::vector<LedgerEntry> const& initEntries,
                                std::vector<LedgerEntry> const& liveEntries,

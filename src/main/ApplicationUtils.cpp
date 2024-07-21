@@ -647,7 +647,7 @@ dumpStateArchivalStatistics(Config cfg)
     HistoryArchiveState has = lm.getLastClosedLedgerHAS();
 
     std::vector<Hash> hashes;
-    for (uint32_t i = 0; i < BucketList::kNumLevels; ++i)
+    for (uint32_t i = 0; i < BucketListBase::kNumLevels; ++i)
     {
         HistoryStateBucket const& hsb = has.currentBuckets.at(i);
         hashes.emplace_back(hexToBin256(hsb.curr));
@@ -720,7 +720,7 @@ dumpStateArchivalStatistics(Config cfg)
         }
     }
 
-    CLOG_INFO(Bucket, "BucketList total bytes: {}", blSize);
+    CLOG_INFO(Bucket, "Live BucketList total bytes: {}", blSize);
     CLOG_INFO(Bucket,
               "Live Temporary Entries: Newest bytes {} ({}%), Outdated bytes "
               "{} ({}%)",

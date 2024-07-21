@@ -920,7 +920,7 @@ initialBucketListSizeWindow(Application& app)
     // copies of the current BL size. If the bucketlist is disabled for
     // testing, just fill with ones to avoid triggering asserts.
     auto blSize = app.getConfig().MODE_ENABLES_BUCKETLIST
-                      ? app.getBucketManager().getBucketList().getSize()
+                      ? app.getBucketManager().getLiveBucketList().getSize()
                       : 1;
     for (uint64_t i = 0;
          i < InitialSorobanNetworkConfig::BUCKET_LIST_SIZE_WINDOW_SAMPLE_SIZE;
@@ -1046,7 +1046,7 @@ SorobanNetworkConfig::isValidConfigSettingEntry(ConfigSettingEntry const& cfg,
             cfg.stateArchivalSettings().startingEvictionScanLevel >=
                 MinimumSorobanNetworkConfig::STARTING_EVICTION_LEVEL &&
             cfg.stateArchivalSettings().startingEvictionScanLevel <
-                BucketList::kNumLevels &&
+                BucketListBase::kNumLevels &&
             cfg.stateArchivalSettings().bucketListWindowSamplePeriod >=
                 MinimumSorobanNetworkConfig::BUCKETLIST_WINDOW_SAMPLE_PERIOD;
 
@@ -1704,7 +1704,7 @@ SorobanNetworkConfig::maybeSnapshotBucketListSize(uint32_t currLedger,
         // Update in memory snapshots
         mBucketListSizeSnapshots.pop_front();
         mBucketListSizeSnapshots.push_back(
-            app.getBucketManager().getBucketList().getSize());
+            app.getBucketManager().getLiveBucketList().getSize());
 
         writeBucketListSizeWindow(ltx);
         updateBucketListSizeAverage();
@@ -1872,7 +1872,7 @@ SorobanNetworkConfig::writeAllSettings(AbstractLedgerTxn& ltx,
         auto lcl = app.getLedgerManager().getLastClosedLedgerHeader();
         lcl.header.ledgerSeq += 1;
         BucketTestUtils::addBatchAndUpdateSnapshot(
-            app.getBucketManager().getBucketList(), app, lcl.header, {},
+            app.getBucketManager().getLiveBucketList(), app, lcl.header, {},
             entries, {});
     }
 }

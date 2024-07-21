@@ -246,7 +246,7 @@ HistoryArchiveState::differingBuckets(HistoryArchiveState const& other) const
         inhibit.insert(b.snap);
     }
     std::vector<std::string> ret;
-    for (size_t i = BucketList::kNumLevels; i != 0; --i)
+    for (size_t i = BucketListBase::kNumLevels; i != 0; --i)
     {
         auto s = currentBuckets[i - 1].snap;
         auto n = s;
@@ -322,7 +322,7 @@ HistoryArchiveState::containsValidBuckets(Application& app) const
     };
 
     // Iterate bottom-up, from oldest to newest buckets
-    for (uint32_t j = BucketList::kNumLevels; j != 0; --j)
+    for (uint32_t j = BucketListBase::kNumLevels; j != 0; --j)
     {
         auto i = j - 1;
         auto const& level = currentBuckets[i];
@@ -384,7 +384,7 @@ HistoryArchiveState::prepareForPublish(Application& app)
     // Level 0 future buckets are always clear
     releaseAssert(currentBuckets[0].next.isClear());
 
-    for (uint32_t i = 1; i < BucketList::kNumLevels; i++)
+    for (uint32_t i = 1; i < BucketListBase::kNumLevels; i++)
     {
         auto& level = currentBuckets[i];
         auto& prev = currentBuckets[i - 1];
@@ -423,20 +423,20 @@ HistoryArchiveState::HistoryArchiveState() : server(STELLAR_CORE_VERSION)
     HistoryStateBucket b;
     b.curr = s;
     b.snap = s;
-    while (currentBuckets.size() < BucketList::kNumLevels)
+    while (currentBuckets.size() < BucketListBase::kNumLevels)
     {
         currentBuckets.push_back(b);
     }
 }
 
 HistoryArchiveState::HistoryArchiveState(uint32_t ledgerSeq,
-                                         BucketList const& buckets,
+                                         LiveBucketList const& buckets,
                                          std::string const& passphrase)
     : server(STELLAR_CORE_VERSION)
     , networkPassphrase(passphrase)
     , currentLedger(ledgerSeq)
 {
-    for (uint32_t i = 0; i < BucketList::kNumLevels; ++i)
+    for (uint32_t i = 0; i < BucketListBase::kNumLevels; ++i)
     {
         HistoryStateBucket b;
         auto& level = buckets.getLevel(i);

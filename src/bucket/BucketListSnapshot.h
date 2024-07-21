@@ -34,7 +34,7 @@ class BucketListSnapshot : public NonMovable
     LedgerHeader const mHeader;
 
   public:
-    BucketListSnapshot(BucketList const& bl, LedgerHeader hhe);
+    BucketListSnapshot(LiveBucketList const& bl, LedgerHeader hhe);
 
     // Only allow copies via constructor
     BucketListSnapshot(BucketListSnapshot const& snapshot);

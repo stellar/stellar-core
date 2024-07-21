@@ -26,7 +26,7 @@ AssumeStateWork::AssumeStateWork(Application& app,
     // Maintain reference to all Buckets in HAS to avoid garbage collection,
     // including future buckets that have already finished merging
     auto& bm = mApp.getBucketManager();
-    for (uint32_t i = 0; i < BucketList::kNumLevels; ++i)
+    for (uint32_t i = 0; i < BucketListBase::kNumLevels; ++i)
     {
         auto curr =
             bm.getBucketByHash(hexToBin256(mHas.currentBuckets.at(i).curr));
