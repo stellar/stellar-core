@@ -1984,7 +1984,7 @@ TEST_CASE("upgrade to version 11", "[upgrades]")
             app->getConfig().NODE_SEED);
         lm.closeLedger(LedgerCloseData(ledgerSeq, txSet, sv));
         auto& bm = app->getBucketManager();
-        auto& bl = bm.getBucketList();
+        auto& bl = bm.getLiveBucketList();
         while (!bl.futuresAllResolved())
         {
             std::this_thread::sleep_for(std::chrono::milliseconds(10));
@@ -1998,9 +1998,9 @@ TEST_CASE("upgrade to version 11", "[upgrades]")
                   ledgerSeq, mc.mPreInitEntryProtocolMerges,
                   mc.mPostInitEntryProtocolMerges, mc.mNewInitEntries,
                   mc.mOldInitEntries);
-        for (uint32_t level = 0; level < BucketList::kNumLevels; ++level)
+        for (uint32_t level = 0; level < BucketListBase::kNumLevels; ++level)
         {
-            auto& lev = bm.getBucketList().getLevel(level);
+            auto& lev = bm.getLiveBucketList().getLevel(level);
             BucketTestUtils::EntryCounts currCounts(lev.getCurr());
             BucketTestUtils::EntryCounts snapCounts(lev.getSnap());
             CLOG_INFO(
@@ -2030,8 +2030,8 @@ TEST_CASE("upgrade to version 11", "[upgrades]")
             //   - From 8 on, the INITENTRYs propagate to lev[1].curr
             REQUIRE(mc.mPreInitEntryProtocolMerges == 5);
             REQUIRE(mc.mPostInitEntryProtocolMerges != 0);
-            auto& lev0 = bm.getBucketList().getLevel(0);
-            auto& lev1 = bm.getBucketList().getLevel(1);
+            auto& lev0 = bm.getLiveBucketList().getLevel(0);
+            auto& lev1 = bm.getLiveBucketList().getLevel(1);
             auto lev0Curr = lev0.getCurr();
             auto lev0Snap = lev0.getSnap();
             auto lev1Curr = lev1.getCurr();
@@ -2108,7 +2108,7 @@ TEST_CASE("upgrade to version 12", "[upgrades]")
             app->getConfig().NODE_SEED);
         lm.closeLedger(LedgerCloseData(ledgerSeq, txSet, sv));
         auto& bm = app->getBucketManager();
-        auto& bl = bm.getBucketList();
+        auto& bl = bm.getLiveBucketList();
         while (!bl.futuresAllResolved())
         {
             std::this_thread::sleep_for(std::chrono::milliseconds(10));
@@ -2122,8 +2122,8 @@ TEST_CASE("upgrade to version 12", "[upgrades]")
         }
         else
         {
-            auto& lev0 = bm.getBucketList().getLevel(0);
-            auto& lev1 = bm.getBucketList().getLevel(1);
+            auto& lev0 = bm.getLiveBucketList().getLevel(0);
+            auto& lev1 = bm.getLiveBucketList().getLevel(1);
             auto lev0Curr = lev0.getCurr();
             auto lev0Snap = lev0.getSnap();
             auto lev1Curr = lev1.getCurr();
@@ -2233,7 +2233,7 @@ TEST_CASE("configuration initialized in version upgrade", "[upgrades]")
         REQUIRE(!ltx.load(getMaxContractSizeKey()));
     }
 
-    auto blSize = app->getBucketManager().getBucketList().getSize();
+    auto blSize = app->getBucketManager().getLiveBucketList().getSize();
     executeUpgrade(*app, makeProtocolVersionUpgrade(
                              static_cast<uint32_t>(SOROBAN_PROTOCOL_VERSION)));
 

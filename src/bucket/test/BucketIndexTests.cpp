@@ -69,7 +69,7 @@ class BucketIndexTest
                     {CONFIG_SETTING}, 10);
             f(entries);
             closeLedger(*mApp);
-        } while (!BucketList::levelShouldSpill(ledger, mLevelsToBuild - 1));
+        } while (!BucketListBase::levelShouldSpill(ledger, mLevelsToBuild - 1));
     }
 
   public:

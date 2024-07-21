@@ -41,7 +41,7 @@ StateSnapshot::StateSnapshot(Application& app, HistoryArchiveState const& state)
           mSnapDir, HISTORY_FILE_TYPE_SCP, mLocalState.currentLedger))
 
 {
-    if (mLocalState.currentBuckets.size() != BucketList::kNumLevels)
+    if (mLocalState.currentBuckets.size() != BucketListBase::kNumLevels)
     {
         throw std::runtime_error("Invalid HAS: malformed bucketlist");
     }

@@ -2748,7 +2748,7 @@ TEST_CASE("LedgerTxnRoot prefetch classic entries", "[ledgertxn]")
                                    .header.ledgerVersion;
             lh.ledgerSeq = 2;
             BucketTestUtils::addBatchAndUpdateSnapshot(
-                app->getBucketManager().getBucketList(), *app, lh, {},
+                app->getBucketManager().getLiveBucketList(), *app, lh, {},
                 ledgerVect, {});
         }
         ltx.commit();
@@ -2981,7 +2981,7 @@ TEST_CASE("LedgerTxnRoot prefetch soroban entries", "[ledgertxn]")
                            .header.ledgerVersion;
     lh.ledgerSeq = 2;
     BucketTestUtils::addBatchAndUpdateSnapshot(
-        app->getBucketManager().getBucketList(), *app, lh, {}, ledgerVect,
+        app->getBucketManager().getLiveBucketList(), *app, lh, {}, ledgerVect,
         deadKeyVect);
     ltx.commit();
 

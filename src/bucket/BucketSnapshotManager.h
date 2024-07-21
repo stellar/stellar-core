@@ -23,7 +23,7 @@ namespace stellar
 {
 
 class Application;
-class BucketList;
+class LiveBucketList;
 class BucketListSnapshot;
 
 // This class serves as the boundary between non-threadsafe singleton classes
@@ -63,6 +63,7 @@ class BucketSnapshotManager : NonMovableOrCopyable
     // is updated
     void updateCurrentSnapshot(
         std::unique_ptr<BucketListSnapshot const>&& newSnapshot);
+
     // numHistoricalLedgers is the number of historical snapshots that the
     // snapshot manager will maintain. If numHistoricalLedgers is 5, snapshots
     // will be capable of querying state from ledger [lcl, lcl - 5].

@@ -27,7 +27,7 @@ namespace stellar
 {
 
 class Application;
-class BucketList;
+class LiveBucketList;
 class Bucket;
 
 struct HistoryStateBucket
@@ -70,7 +70,7 @@ struct HistoryArchiveState
 
     HistoryArchiveState();
 
-    HistoryArchiveState(uint32_t ledgerSeq, BucketList const& buckets,
+    HistoryArchiveState(uint32_t ledgerSeq, LiveBucketList const& buckets,
                         std::string const& networkPassphrase);
 
     static std::string baseName();
