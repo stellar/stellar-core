@@ -26,7 +26,7 @@ namespace stellar
 class AbstractLedgerTxn;
 class Application;
 class BasicWork;
-class BucketList;
+class LiveBucketList;
 class BucketSnapshotManager;
 class Config;
 class SearchableBucketListSnapshot;
@@ -192,7 +192,7 @@ class BucketManager : NonMovableOrCopyable
     virtual std::string const& getTmpDir() = 0;
     virtual TmpDirManager& getTmpDirManager() = 0;
     virtual std::string const& getBucketDir() const = 0;
-    virtual BucketList& getBucketList() = 0;
+    virtual LiveBucketList& getLiveBucketList() = 0;
     virtual BucketSnapshotManager& getBucketSnapshotManager() const = 0;
     virtual bool renameBucketDirFile(std::filesystem::path const& src,
                                      std::filesystem::path const& dst) = 0;
@@ -267,10 +267,10 @@ class BucketManager : NonMovableOrCopyable
     // be given separate init (created) and live (updated) entry vectors. The
     // `header` value should be taken from the ledger at which this batch is
     // being added.
-    virtual void addBatch(Application& app, LedgerHeader header,
-                          std::vector<LedgerEntry> const& initEntries,
-                          std::vector<LedgerEntry> const& liveEntries,
-                          std::vector<LedgerKey> const& deadEntries) = 0;
+    virtual void addLiveBatch(Application& app, LedgerHeader header,
+                              std::vector<LedgerEntry> const& initEntries,
+                              std::vector<LedgerEntry> const& liveEntries,
+                              std::vector<LedgerKey> const& deadEntries) = 0;
 
     // Update the given LedgerHeader's bucketListHash to reflect the current
     // state of the bucket list.
@@ -300,7 +300,7 @@ class BucketManager : NonMovableOrCopyable
 
 #ifdef BUILD_TESTS
     // Install a fake/assumed ledger version and bucket list hash to use in next
-    // call to addBatch and snapshotLedger. This interface exists only for
+    // call to addLiveBatch and snapshotLedger. This interface exists only for
     // testing in a specific type of history replay.
     virtual void setNextCloseVersionAndHashForTesting(uint32_t protocolVers,
                                                       uint256 const& hash) = 0;

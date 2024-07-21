@@ -325,9 +325,9 @@ BucketListIsConsistentWithDatabase::checkAfterAssumeState(uint32_t newestLedger)
 
     {
         LedgerTxn ltx(mApp.getLedgerTxnRoot());
-        auto& bl = mApp.getBucketManager().getBucketList();
+        auto& bl = mApp.getBucketManager().getLiveBucketList();
 
-        for (uint32_t i = 0; i < BucketList::kNumLevels; ++i)
+        for (uint32_t i = 0; i < BucketListBase::kNumLevels; ++i)
         {
             auto const& level = bl.getLevel(i);
             for (auto const& bucket : {level.getCurr(), level.getSnap()})

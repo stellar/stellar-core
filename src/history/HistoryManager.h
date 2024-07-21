@@ -180,7 +180,7 @@ namespace stellar
 {
 class Application;
 class Bucket;
-class BucketList;
+class LiveBucketList;
 class Config;
 class Database;
 class HistoryArchive;

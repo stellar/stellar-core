@@ -83,7 +83,7 @@ DownloadApplyTxsWork::yieldMoreWork()
     auto maybeWaitForMerges = [](Application& app) {
         if (app.getConfig().CATCHUP_WAIT_MERGES_TX_APPLY_FOR_TESTING)
         {
-            auto& bl = app.getBucketManager().getBucketList();
+            auto& bl = app.getBucketManager().getLiveBucketList();
             bl.resolveAnyReadyFutures();
             return bl.futuresAllResolved();
         }

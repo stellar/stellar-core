@@ -221,10 +221,10 @@ HistoryManagerImpl::queueCurrentHistory()
     ZoneScoped;
     auto ledger = mApp.getLedgerManager().getLastClosedLedgerNum();
 
-    BucketList bl;
+    LiveBucketList bl;
     if (mApp.getConfig().MODE_ENABLES_BUCKETLIST)
     {
-        bl = mApp.getBucketManager().getBucketList();
+        bl = mApp.getBucketManager().getLiveBucketList();
     }
 
     HistoryArchiveState has(ledger, bl, mApp.getConfig().NETWORK_PASSPHRASE);

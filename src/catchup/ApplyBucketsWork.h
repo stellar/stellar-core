@@ -13,7 +13,7 @@ namespace stellar
 
 class AssumeStateWork;
 class BucketLevel;
-class BucketList;
+class LiveBucketList;
 class Bucket;
 class IndexBucketsWork;
 struct HistoryArchiveState;

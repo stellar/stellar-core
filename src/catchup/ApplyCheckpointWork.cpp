@@ -311,7 +311,7 @@ ApplyCheckpointWork::onRun()
     auto applyLedger = std::make_shared<ApplyLedgerWork>(mApp, *lcd);
 
     auto predicate = [](Application& app) {
-        auto& bl = app.getBucketManager().getBucketList();
+        auto& bl = app.getBucketManager().getLiveBucketList();
         auto& lm = app.getLedgerManager();
         bl.resolveAnyReadyFutures();
         return bl.futuresAllResolved(

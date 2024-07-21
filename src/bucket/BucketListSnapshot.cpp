@@ -4,6 +4,7 @@
 
 #include "bucket/BucketListSnapshot.h"
 #include "bucket/BucketInputIterator.h"
+#include "bucket/BucketList.h"
 #include "crypto/SecretKey.h" // IWYU pragma: keep
 #include "ledger/LedgerTxn.h"
 
@@ -13,13 +14,13 @@
 namespace stellar
 {
 
-BucketListSnapshot::BucketListSnapshot(BucketList const& bl,
+BucketListSnapshot::BucketListSnapshot(LiveBucketList const& bl,
                                        LedgerHeader header)
     : mHeader(std::move(header))
 {
     releaseAssert(threadIsMain());
 
-    for (uint32_t i = 0; i < BucketList::kNumLevels; ++i)
+    for (uint32_t i = 0; i < BucketListBase::kNumLevels; ++i)
     {
         auto const& level = bl.getLevel(i);
         mLevels.emplace_back(BucketLevelSnapshot(level));
@@ -151,7 +152,7 @@ SearchableBucketListSnapshot::scanForEviction(
         return iter.isCurrBucket ? level.curr : level.snap;
     };
 
-    BucketList::updateStartingEvictionIterator(
+    LiveBucketList::updateStartingEvictionIterator(
         evictionIter, sas.startingEvictionScanLevel, ledgerSeq);
 
     EvictionResult result(sas);
@@ -161,7 +162,7 @@ SearchableBucketListSnapshot::scanForEviction(
     for (;;)
     {
         auto const& b = getBucketFromIter(evictionIter);
-        BucketList::checkIfEvictionScanIsStuck(
+        LiveBucketList::checkIfEvictionScanIsStuck(
             evictionIter, sas.evictionScanSize, b.getRawBucket(), counters);
 
         // If we scan scanSize before hitting bucket EOF, exit early
@@ -172,7 +173,7 @@ SearchableBucketListSnapshot::scanForEviction(
         }
 
         // If we return back to the Bucket we started at, exit
-        if (BucketList::updateEvictionIterAndRecordStats(
+        if (LiveBucketList::updateEvictionIterAndRecordStats(
                 evictionIter, startIter, sas.startingEvictionScanLevel,
                 ledgerSeq, stats, counters))
         {
