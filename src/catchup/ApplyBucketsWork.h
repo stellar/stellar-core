@@ -12,7 +12,6 @@ namespace stellar
 {
 
 class AssumeStateWork;
-class BucketLevel;
 class LiveBucketList;
 class Bucket;
 class IndexBucketsWork;
@@ -21,7 +20,7 @@ struct LedgerHeaderHistoryEntry;
 
 class ApplyBucketsWork : public Work
 {
-    std::map<std::string, std::shared_ptr<Bucket>> const& mBuckets;
+    std::map<std::string, std::shared_ptr<LiveBucket>> const& mBuckets;
     HistoryArchiveState const& mApplyState;
     std::function<bool(LedgerEntryType)> mEntryTypeFilter;
 
@@ -40,14 +39,14 @@ class ApplyBucketsWork : public Work
     uint32_t mMaxProtocolVersion{0};
     uint32_t mMinProtocolVersionSeen{UINT32_MAX};
     std::unordered_set<LedgerKey> mSeenKeys;
-    std::vector<std::shared_ptr<Bucket>> mBucketsToApply;
+    std::vector<std::shared_ptr<LiveBucket>> mBucketsToApply;
     std::unique_ptr<BucketApplicator> mBucketApplicator;
     bool mDelayChecked{false};
 
     BucketApplicator::Counters mCounters;
 
     void advance(std::string const& name, BucketApplicator& applicator);
-    std::shared_ptr<Bucket> getBucket(std::string const& bucketHash);
+    std::shared_ptr<LiveBucket> getBucket(std::string const& bucketHash);
 
     uint32_t startingLevel();
     bool appliedAllBuckets() const;
@@ -57,11 +56,11 @@ class ApplyBucketsWork : public Work
   public:
     ApplyBucketsWork(
         Application& app,
-        std::map<std::string, std::shared_ptr<Bucket>> const& buckets,
+        std::map<std::string, std::shared_ptr<LiveBucket>> const& buckets,
         HistoryArchiveState const& applyState, uint32_t maxProtocolVersion);
     ApplyBucketsWork(
         Application& app,
-        std::map<std::string, std::shared_ptr<Bucket>> const& buckets,
+        std::map<std::string, std::shared_ptr<LiveBucket>> const& buckets,
         HistoryArchiveState const& applyState, uint32_t maxProtocolVersion,
         std::function<bool(LedgerEntryType)> onlyApply);
     ~ApplyBucketsWork() = default;

@@ -15,7 +15,7 @@ namespace stellar
 {
 
 BucketSnapshotManager::BucketSnapshotManager(
-    Application& app, std::unique_ptr<BucketListSnapshot const>&& snapshot,
+    Application& app, std::unique_ptr<BucketListSnapshot<LiveBucket> const>&& snapshot,
     uint32_t numHistoricalSnapshots)
     : mApp(app)
     , mCurrentSnapshot(std::move(snapshot))
@@ -31,12 +31,12 @@ BucketSnapshotManager::BucketSnapshotManager(
     releaseAssert(threadIsMain());
 }
 
-std::shared_ptr<SearchableBucketListSnapshot>
+std::shared_ptr<SearchableLiveBucketListSnapshot>
 BucketSnapshotManager::copySearchableBucketListSnapshot() const
 {
     // Can't use std::make_shared due to private constructor
-    return std::shared_ptr<SearchableBucketListSnapshot>(
-        new SearchableBucketListSnapshot(*this));
+    return std::shared_ptr<SearchableLiveBucketListSnapshot>(
+        new SearchableLiveBucketListSnapshot(*this));
 }
 
 medida::Timer&
@@ -65,8 +65,8 @@ BucketSnapshotManager::recordBulkLoadMetrics(std::string const& label,
 
 void
 BucketSnapshotManager::maybeUpdateSnapshot(
-    std::unique_ptr<BucketListSnapshot const>& snapshot,
-    std::map<uint32_t, std::unique_ptr<BucketListSnapshot const>>&
+    std::unique_ptr<BucketListSnapshot<LiveBucket> const>& snapshot,
+    std::map<uint32_t, std::unique_ptr<BucketListSnapshot<LiveBucket> const>>&
         historicalSnapshots) const
 {
     // The canonical snapshot held by the BucketSnapshotManager is not being
@@ -81,7 +81,8 @@ BucketSnapshotManager::maybeUpdateSnapshot(
         // Should only update with a newer snapshot
         releaseAssert(!snapshot || snapshot->getLedgerSeq() <
                                        mCurrentSnapshot->getLedgerSeq());
-        snapshot = std::make_unique<BucketListSnapshot>(*mCurrentSnapshot);
+        snapshot =
+            std::make_unique<BucketListSnapshot<LiveBucket>>(*mCurrentSnapshot);
     }
 
     // Then update historical snapshots (if any exist)
@@ -108,7 +109,7 @@ BucketSnapshotManager::maybeUpdateSnapshot(
 
 void
 BucketSnapshotManager::updateCurrentSnapshot(
-    std::unique_ptr<BucketListSnapshot const>&& newSnapshot)
+    std::unique_ptr<BucketListSnapshot<LiveBucket> const>&& newSnapshot)
 {
     releaseAssert(newSnapshot);
     releaseAssert(threadIsMain());

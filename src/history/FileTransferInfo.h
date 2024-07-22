@@ -38,7 +38,7 @@ class FileTransferInfo
     std::string getLocalDir(TmpDir const& localRoot) const;
 
   public:
-    FileTransferInfo(Bucket const& bucket)
+    FileTransferInfo(LiveBucket const& bucket)
         : mType(FileType::HISTORY_FILE_TYPE_BUCKET)
         , mHexDigits(binToHex(bucket.getHash()))
         , mLocalPath(bucket.getFilename().string())
