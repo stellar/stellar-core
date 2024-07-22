@@ -98,7 +98,7 @@ class RealGenesisTmpDirHistoryConfigurator : public TmpDirHistoryConfigurator
     Config& configure(Config& cfg, bool writable) const override;
 };
 
-class BucketOutputIteratorForTesting : public BucketOutputIterator
+class BucketOutputIteratorForTesting : public LiveBucketOutputIterator
 {
     const size_t NUM_ITEMS_PER_BUCKET = 5;
 

@@ -126,10 +126,48 @@ struct LedgerEntryIdCmp
  * LedgerEntries (ignoring their hashes, as the LedgerEntryIdCmp ignores their
  * bodies).
  */
-struct BucketEntryIdCmp
+template <typename BucketT> struct BucketEntryIdCmp
 {
+    static_assert(std::is_same_v<BucketT, BucketEntry> ||
+                  std::is_same_v<BucketT, HotArchiveBucketEntry>);
+
     bool
-    operator()(BucketEntry const& a, BucketEntry const& b) const
+    compareHotArchive(HotArchiveBucketEntry const& a,
+                      HotArchiveBucketEntry const& b) const
+    {
+        HotArchiveBucketEntryType aty = a.type();
+        HotArchiveBucketEntryType bty = b.type();
+
+        // METAENTRY sorts below all other entries, comes first in buckets.
+        if (aty == HA_METAENTRY || bty == HA_METAENTRY)
+        {
+            return aty < bty;
+        }
+
+        if (aty == HA_ARCHIVED)
+        {
+            if (bty == HA_ARCHIVED)
+            {
+                return LedgerEntryIdCmp{}(a.archivedEntry().data,
+                                          b.archivedEntry().data);
+            }
+            else
+            {
+                if (bty != HA_DELETED || bty != HA_RESTORED)
+                {
+                    throw std::runtime_error("Malformed bucket: unexpected "
+                                             "DELETED/RESTORED key.");
+                }
+                return LedgerEntryIdCmp{}(a.archivedEntry().data, b.key());
+            }
+        }
+        else
+        {
+        }
+    }
+
+    bool
+    compareLive(BucketEntry const& a, BucketEntry const& b) const
     {
         BucketEntryType aty = a.type();
         BucketEntryType bty = b.type();
@@ -177,6 +215,19 @@ struct BucketEntryIdCmp
                 }
                 return LedgerEntryIdCmp{}(a.deadEntry(), b.deadEntry());
             }
+        }
+    }
+
+    bool
+    operator()(BucketT const& a, BucketT const& b) const
+    {
+        if constexpr (std::is_same_v<BucketT, BucketEntry>)
+        {
+            return compareLive(a, b);
+        }
+        else
+        {
+            return compareHotArchive(a, b);
         }
     }
 };
