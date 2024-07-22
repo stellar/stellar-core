@@ -48,12 +48,6 @@ namespace
 {
 // Default distribution settings, largely based on averages seen on testnet
 constexpr unsigned short DEFAULT_OP_COUNT = 1;
-constexpr uint32_t DEFAULT_WASM_BYTES = 35 * 1024;
-constexpr uint32_t DEFAULT_NUM_DATA_ENTRIES = 2;
-constexpr uint32_t DEFAULT_IO_KILOBYTES = 1;
-constexpr uint32_t DEFAULT_TX_SIZE_BYTES = 256;
-constexpr uint64_t DEFAULT_INSTRUCTIONS = 28'000'000;
-
 // Sample from a discrete distribution of `values` with weights `weights`.
 // Returns `defaultValue` if `values` is empty.
 template <typename T>
@@ -93,18 +87,13 @@ const uint32_t LoadGenerator::COMPLETION_TIMEOUT_WITHOUT_CHECKS = 4;
 const uint32_t LoadGenerator::MIN_UNIQUE_ACCOUNT_MULTIPLIER = 3;
 
 LoadGenerator::LoadGenerator(Application& app)
-    : mMinBalance(0)
+    : TxGenerator(app)
     , mLastSecond(0)
-    , mApp(app)
     , mTotalSubmitted(0)
     , mLoadgenComplete(
           mApp.getMetrics().NewMeter({"loadgen", "run", "complete"}, "run"))
     , mLoadgenFail(
           mApp.getMetrics().NewMeter({"loadgen", "run", "failed"}, "run"))
-    , mApplySorobanSuccess(
-          mApp.getMetrics().NewCounter({"ledger", "apply-soroban", "success"}))
-    , mApplySorobanFailure(
-          mApp.getMetrics().NewCounter({"ledger", "apply-soroban", "failure"}))
 {
 }
 
@@ -155,49 +144,6 @@ LoadGenerator::getMode(std::string const& mode)
     {
         throw std::runtime_error(
             fmt::format(FMT_STRING("Unknown loadgen mode: {}"), mode));
-    }
-}
-
-int
-generateFee(std::optional<uint32_t> maxGeneratedFeeRate, Application& app,
-            size_t opsCnt)
-{
-    int fee = 0;
-    auto baseFee = app.getLedgerManager().getLastTxFee();
-
-    if (maxGeneratedFeeRate)
-    {
-        auto feeRateDistr =
-            uniform_int_distribution<uint32_t>(baseFee, *maxGeneratedFeeRate);
-        // Add a bit more fee to get non-integer fee rates, such that
-        // `floor(fee / opsCnt) == feeRate`, but
-        // `fee / opsCnt >= feeRate`.
-        // This is to create a bit more realistic fee structure: in reality not
-        // every transaction would necessarily have the `fee == ops_count *
-        // some_int`. This also would exercise more code paths/logic during the
-        // transaction comparisons.
-        auto fractionalFeeDistr = uniform_int_distribution<uint32_t>(
-            0, static_cast<uint32_t>(opsCnt) - 1);
-        fee = static_cast<uint32_t>(opsCnt) * feeRateDistr(gRandomEngine) +
-              fractionalFeeDistr(gRandomEngine);
-    }
-    else
-    {
-        fee = static_cast<int>(opsCnt * baseFee);
-    }
-
-    return fee;
-}
-
-void
-LoadGenerator::createRootAccount()
-{
-    releaseAssert(!mRoot);
-    auto rootTestAccount = TestAccount::createRoot(mApp);
-    mRoot = make_shared<TestAccount>(rootTestAccount);
-    if (!loadAccount(mRoot, mApp))
-    {
-        CLOG_ERROR(LoadGen, "Could not retrieve root account!");
     }
 }
 
@@ -422,6 +368,65 @@ LoadGenerator::start(GeneratedLoadConfig& cfg)
     mPreLoadgenApplySorobanFailure = mApplySorobanFailure.count();
 
     mStarted = true;
+}
+
+uint64_t
+LoadGenerator::getNextAvailableAccount(uint32_t ledgerNum)
+{
+    uint64_t sourceAccountId;
+    do
+    {
+        releaseAssert(!mAccountsAvailable.empty());
+
+        auto sourceAccountIdx =
+            rand_uniform<uint64_t>(0, mAccountsAvailable.size() - 1);
+        auto it = mAccountsAvailable.begin();
+        std::advance(it, sourceAccountIdx);
+        sourceAccountId = *it;
+        mAccountsAvailable.erase(it);
+        releaseAssert(mAccountsInUse.insert(sourceAccountId).second);
+
+        // Although mAccountsAvailable shouldn't contain pending accounts, it is
+        // possible when the network is overloaded. Consider the following
+        // scenario:
+        // 1. This node generates a transaction `t` using account `a` and
+        //    broadcasts it on. In doing so, loadgen marks `a` as in use,
+        //    removing it from `mAccountsAvailable.
+        // 2. For whatever reason, `t` never makes it out of the queue and this
+        //    node bans it.
+        // 3. After some period of time, this node unbans `t` because bans only
+        //    last for so many ledgers.
+        // 4. Loadgen marks `a` available, moving it back into
+        //    `mAccountsAvailable`.
+        // 5. This node hears about `t` again on the network and (as it is no
+        //    longer banned) adds it back to the queue
+        // 6. getNextAvailableAccount draws `a` from `mAccountsAvailable`.
+        //    However, `a` is no longer available as `t` is in the transaction
+        //    queue!
+        //
+        // In this scenario, returning `a` results in an assertion failure
+        // later. To resolve this, we resample a new account by simply looping
+        // here.
+    } while (mApp.getHerder().sourceAccountPending(
+        findAccount(sourceAccountId, ledgerNum)->getPublicKey()));
+
+    return sourceAccountId;
+}
+
+std::pair<LoadGenerator::TestAccountPtr, TransactionFramePtr>
+LoadGenerator::creationTransaction(uint64_t startAccount, uint64_t numItems,
+                                   uint32_t ledgerNum)
+{
+    TxGenerator::TestAccountPtr sourceAcc =
+        mInitialAccountsCreated
+            ? findAccount(getNextAvailableAccount(ledgerNum), ledgerNum)
+            : mRoot;
+    vector<Operation> creationOps = createAccounts(
+        startAccount, numItems, ledgerNum, !mInitialAccountsCreated);
+    mInitialAccountsCreated = true;
+    return std::make_pair(
+        sourceAcc,
+        createTransactionFramePtr(sourceAcc, creationOps, false, std::nullopt));
 }
 
 // Schedule a callback to generateLoad() STEP_MSECS milliseconds from now.
@@ -687,7 +692,7 @@ LoadGenerator::generateLoad(GeneratedLoadConfig cfg)
 
             uint64_t sourceAccountId = getNextAvailableAccount(ledgerNum);
 
-            std::function<std::pair<LoadGenerator::TestAccountPtr,
+            std::function<std::pair<TxGenerator::TestAccountPtr,
                                     TransactionTestFramePtr>()>
                 generateTx;
 
@@ -739,7 +744,7 @@ LoadGenerator::generateLoad(GeneratedLoadConfig cfg)
                 generateTx = [&]() {
                     return sorobanRandomWasmTransaction(
                         ledgerNum, sourceAccountId,
-                        generateFee(cfg.maxGeneratedFeeRate, mApp,
+                        generateFee(cfg.maxGeneratedFeeRate,
                                     /* opsCnt */ 1));
                 };
             }
@@ -751,27 +756,77 @@ LoadGenerator::generateLoad(GeneratedLoadConfig cfg)
                     if (sorobanCfg.nWasms != 0)
                     {
                         --sorobanCfg.nWasms;
+
+                        auto wasm = cfg.modeSetsUpInvoke()
+                                        ? rust_bridge::get_test_wasm_loadgen()
+                                        : rust_bridge::get_write_bytes();
+                        xdr::opaque_vec<> wasmBytes;
+                        wasmBytes.assign(wasm.data.begin(), wasm.data.end());
+
+                        LedgerKey contractCodeLedgerKey;
+                        contractCodeLedgerKey.type(CONTRACT_CODE);
+                        contractCodeLedgerKey.contractCode().hash =
+                            sha256(wasmBytes);
+
+                        releaseAssert(!mCodeKey);
+                        mCodeKey = contractCodeLedgerKey;
+
+                        // Wasm blob + approximate overhead for contract
+                        // instance and ContractCode LE overhead
+                        mContactOverheadBytes = wasmBytes.size() + 160;
+
                         return createUploadWasmTransaction(
-                            ledgerNum, sourceAccountId, cfg);
+                            ledgerNum, sourceAccountId, wasmBytes, *mCodeKey,
+                            cfg.maxGeneratedFeeRate);
                     }
                     else
                     {
                         --sorobanCfg.nInstances;
-                        return createContractTransaction(ledgerNum,
-                                                         sourceAccountId, cfg);
+
+                        auto salt =
+                            sha256("upgrade" +
+                                   std::to_string(
+                                       ++mNumCreateContractTransactionCalls));
+
+                        auto txPair = createContractTransaction(
+                            ledgerNum, sourceAccountId, *mCodeKey,
+                            mContactOverheadBytes, salt,
+                            cfg.maxGeneratedFeeRate);
+
+                        auto const& instanceLk =
+                            txPair.second->sorobanResources()
+                                .footprint.readWrite.back();
+
+                        CLOG_ERROR(LoadGen, "lklklk {}",
+                                   xdrToCerealString(instanceLk, "instanceLk"));
+                        mContractInstanceKeys.emplace(instanceLk);
+
+                        return txPair;
                     }
                 };
                 break;
             case LoadGenMode::SOROBAN_INVOKE:
                 generateTx = [&]() {
-                    return invokeSorobanLoadTransaction(ledgerNum,
-                                                        sourceAccountId, cfg);
+                    auto instanceIter =
+                        mContractInstances.find(sourceAccountId);
+                    releaseAssert(instanceIter != mContractInstances.end());
+                    auto const& instance = instanceIter->second;
+                    return invokeSorobanLoadTransaction(
+                        ledgerNum, sourceAccountId, instance,
+                        mContactOverheadBytes, cfg.maxGeneratedFeeRate);
                 };
                 break;
             case LoadGenMode::SOROBAN_CREATE_UPGRADE:
                 generateTx = [&]() {
+                    releaseAssert(mCodeKey);
+                    releaseAssert(mContractInstanceKeys.size() == 1);
+
+                    auto upgradeBytes = getConfigUpgradeSetFromLoadConfig(
+                        cfg.getSorobanUpgradeConfig());
                     return invokeSorobanCreateUpgradeTransaction(
-                        ledgerNum, sourceAccountId, cfg);
+                        ledgerNum, sourceAccountId, upgradeBytes, *mCodeKey,
+                        *mContractInstanceKeys.begin(),
+                        cfg.maxGeneratedFeeRate);
                 };
                 break;
             case LoadGenMode::MIXED_CLASSIC_SOROBAN:
@@ -811,6 +866,48 @@ LoadGenerator::generateLoad(GeneratedLoadConfig cfg)
     mLastSecond = now;
     mTotalSubmitted += txPerStep;
     scheduleLoadGeneration(cfg);
+}
+
+std::pair<TxGenerator::TestAccountPtr, TransactionFramePtr>
+LoadGenerator::createMixedClassicSorobanTransaction(
+    uint32_t ledgerNum, uint64_t sourceAccountId,
+    GeneratedLoadConfig const& cfg)
+{
+    auto const& mixCfg = cfg.getMixClassicSorobanConfig();
+    std::discrete_distribution<uint32_t> dist({mixCfg.payWeight,
+                                               mixCfg.sorobanUploadWeight,
+                                               mixCfg.sorobanInvokeWeight});
+    switch (dist(gRandomEngine))
+    {
+    case 0:
+    {
+        // Create a payment transaction
+        mLastMixedMode = LoadGenMode::PAY;
+        return paymentTransaction(cfg.nAccounts, cfg.offset, ledgerNum,
+                                  sourceAccountId, 1, cfg.maxGeneratedFeeRate);
+    }
+    case 1:
+    {
+        // Create a soroban upload transaction
+        mLastMixedMode = LoadGenMode::SOROBAN_UPLOAD;
+        return sorobanRandomWasmTransaction(
+            ledgerNum, sourceAccountId,
+            generateFee(cfg.maxGeneratedFeeRate, /* opsCnt */ 1));
+    }
+    case 2:
+    {
+        // Create a soroban invoke transaction
+        mLastMixedMode = LoadGenMode::SOROBAN_INVOKE;
+
+        auto instanceIter = mContractInstances.find(sourceAccountId);
+        releaseAssert(instanceIter != mContractInstances.end());
+        return invokeSorobanLoadTransaction(
+            ledgerNum, sourceAccountId, instanceIter->second,
+            mContactOverheadBytes, cfg.maxGeneratedFeeRate);
+    }
+    default:
+        releaseAssert(false);
+    }
 }
 
 uint32_t
@@ -902,49 +999,6 @@ LoadGenerator::submitTx(GeneratedLoadConfig const& cfg,
     return true;
 }
 
-uint64_t
-LoadGenerator::getNextAvailableAccount(uint32_t ledgerNum)
-{
-    uint64_t sourceAccountId;
-    do
-    {
-        releaseAssert(!mAccountsAvailable.empty());
-
-        auto sourceAccountIdx =
-            rand_uniform<uint64_t>(0, mAccountsAvailable.size() - 1);
-        auto it = mAccountsAvailable.begin();
-        std::advance(it, sourceAccountIdx);
-        sourceAccountId = *it;
-        mAccountsAvailable.erase(it);
-        releaseAssert(mAccountsInUse.insert(sourceAccountId).second);
-
-        // Although mAccountsAvailable shouldn't contain pending accounts, it is
-        // possible when the network is overloaded. Consider the following
-        // scenario:
-        // 1. This node generates a transaction `t` using account `a` and
-        //    broadcasts it on. In doing so, loadgen marks `a` as in use,
-        //    removing it from `mAccountsAvailable.
-        // 2. For whatever reason, `t` never makes it out of the queue and this
-        //    node bans it.
-        // 3. After some period of time, this node unbans `t` because bans only
-        //    last for so many ledgers.
-        // 4. Loadgen marks `a` available, moving it back into
-        //    `mAccountsAvailable`.
-        // 5. This node hears about `t` again on the network and (as it is no
-        //    longer banned) adds it back to the queue
-        // 6. getNextAvailableAccount draws `a` from `mAccountsAvailable`.
-        //    However, `a` is no longer available as `t` is in the transaction
-        //    queue!
-        //
-        // In this scenario, returning `a` results in an assertion failure
-        // later. To resolve this, we resample a new account by simply looping
-        // here.
-    } while (mApp.getHerder().sourceAccountPending(
-        findAccount(sourceAccountId, ledgerNum)->getPublicKey()));
-
-    return sourceAccountId;
-}
-
 void
 LoadGenerator::logProgress(std::chrono::nanoseconds submitTimer,
                            GeneratedLoadConfig const& cfg) const
@@ -1011,800 +1065,6 @@ LoadGenerator::logProgress(std::chrono::nanoseconds submitTimer,
     txm.report();
 }
 
-std::pair<LoadGenerator::TestAccountPtr, TransactionTestFramePtr>
-LoadGenerator::creationTransaction(uint64_t startAccount, uint64_t numItems,
-                                   uint32_t ledgerNum)
-{
-    TestAccountPtr sourceAcc =
-        mInitialAccountsCreated
-            ? findAccount(getNextAvailableAccount(ledgerNum), ledgerNum)
-            : mRoot;
-    vector<Operation> creationOps = createAccounts(
-        startAccount, numItems, ledgerNum, !mInitialAccountsCreated);
-    mInitialAccountsCreated = true;
-    return std::make_pair(sourceAcc, createTransactionTestFramePtr(
-                                         sourceAcc, creationOps,
-                                         LoadGenMode::CREATE, std::nullopt));
-}
-
-void
-LoadGenerator::updateMinBalance()
-{
-    auto b = mApp.getLedgerManager().getLastMinBalance(0);
-    if (b > mMinBalance)
-    {
-        mMinBalance = b;
-    }
-}
-
-std::vector<Operation>
-LoadGenerator::createAccounts(uint64_t start, uint64_t count,
-                              uint32_t ledgerNum, bool initialAccounts)
-{
-    vector<Operation> ops;
-    SequenceNumber sn = static_cast<SequenceNumber>(ledgerNum) << 32;
-    auto balance = initialAccounts ? mMinBalance * 10000000 : mMinBalance * 100;
-    for (uint64_t i = start; i < start + count; i++)
-    {
-        auto name = "TestAccount-" + to_string(i);
-        auto account = TestAccount{mApp, txtest::getAccount(name.c_str()), sn};
-        ops.push_back(txtest::createAccount(account.getPublicKey(), balance));
-
-        // Cache newly created account
-        auto acc = make_shared<TestAccount>(account);
-        mAccounts.emplace(i, acc);
-        if (initialAccounts)
-        {
-            mCreationSourceAccounts.emplace(i, acc);
-        }
-    }
-    return ops;
-}
-
-bool
-LoadGenerator::loadAccount(TestAccount& account, Application& app)
-{
-    LedgerTxn ltx(app.getLedgerTxnRoot());
-    auto entry = stellar::loadAccount(ltx, account.getPublicKey());
-    if (!entry)
-    {
-        return false;
-    }
-    account.setSequenceNumber(entry.current().data.account().seqNum);
-    return true;
-}
-
-bool
-LoadGenerator::loadAccount(TestAccountPtr acc, Application& app)
-{
-    if (acc)
-    {
-        return loadAccount(*acc, app);
-    }
-    return false;
-}
-
-std::pair<LoadGenerator::TestAccountPtr, LoadGenerator::TestAccountPtr>
-LoadGenerator::pickAccountPair(uint32_t numAccounts, uint32_t offset,
-                               uint32_t ledgerNum, uint64_t sourceAccountId)
-{
-    auto sourceAccount = findAccount(sourceAccountId, ledgerNum);
-    releaseAssert(
-        !mApp.getHerder().sourceAccountPending(sourceAccount->getPublicKey()));
-
-    auto destAccountId = rand_uniform<uint64_t>(0, numAccounts - 1) + offset;
-
-    auto destAccount = findAccount(destAccountId, ledgerNum);
-
-    CLOG_DEBUG(LoadGen, "Generated pair for payment tx - {} and {}",
-               sourceAccountId, destAccountId);
-    return std::pair<TestAccountPtr, TestAccountPtr>(sourceAccount,
-                                                     destAccount);
-}
-
-LoadGenerator::TestAccountPtr
-LoadGenerator::findAccount(uint64_t accountId, uint32_t ledgerNum)
-{
-    // Load account and cache it.
-    TestAccountPtr newAccountPtr;
-
-    auto res = mAccounts.find(accountId);
-    if (res == mAccounts.end())
-    {
-        SequenceNumber sn = static_cast<SequenceNumber>(ledgerNum) << 32;
-        auto name = "TestAccount-" + std::to_string(accountId);
-        newAccountPtr =
-            std::make_shared<TestAccount>(mApp, txtest::getAccount(name), sn);
-
-        if (!loadAccount(newAccountPtr, mApp))
-        {
-            throw std::runtime_error(
-                fmt::format("Account {0} must exist in the DB.", accountId));
-        }
-        mAccounts.insert(
-            std::pair<uint64_t, TestAccountPtr>(accountId, newAccountPtr));
-    }
-    else
-    {
-        newAccountPtr = res->second;
-    }
-
-    return newAccountPtr;
-}
-
-std::pair<LoadGenerator::TestAccountPtr, TransactionTestFramePtr>
-LoadGenerator::paymentTransaction(uint32_t numAccounts, uint32_t offset,
-                                  uint32_t ledgerNum, uint64_t sourceAccount,
-                                  uint32_t opCount,
-                                  std::optional<uint32_t> maxGeneratedFeeRate)
-{
-    TestAccountPtr to, from;
-    uint64_t amount = 1;
-    std::tie(from, to) =
-        pickAccountPair(numAccounts, offset, ledgerNum, sourceAccount);
-    vector<Operation> paymentOps;
-    paymentOps.reserve(opCount);
-    for (uint32_t i = 0; i < opCount; ++i)
-    {
-        paymentOps.emplace_back(txtest::payment(to->getPublicKey(), amount));
-    }
-
-    return std::make_pair(
-        from, createTransactionTestFramePtr(from, paymentOps, LoadGenMode::PAY,
-                                            maxGeneratedFeeRate));
-}
-
-std::pair<LoadGenerator::TestAccountPtr, TransactionTestFramePtr>
-LoadGenerator::manageOfferTransaction(
-    uint32_t ledgerNum, uint64_t accountId, uint32_t opCount,
-    std::optional<uint32_t> maxGeneratedFeeRate)
-{
-    auto account = findAccount(accountId, ledgerNum);
-    Asset selling(ASSET_TYPE_NATIVE);
-    Asset buying(ASSET_TYPE_CREDIT_ALPHANUM4);
-    strToAssetCode(buying.alphaNum4().assetCode, "USD");
-    vector<Operation> ops;
-    for (uint32_t i = 0; i < opCount; ++i)
-    {
-        ops.emplace_back(txtest::manageBuyOffer(
-            rand_uniform<int64_t>(1, 10000000), selling, buying,
-            Price{rand_uniform<int32_t>(1, 100), rand_uniform<int32_t>(1, 100)},
-            100));
-    }
-    return std::make_pair(account, createTransactionTestFramePtr(
-                                       account, ops, LoadGenMode::MIXED_CLASSIC,
-                                       maxGeneratedFeeRate));
-}
-
-static void
-increaseOpSize(Operation& op, uint32_t increaseUpToBytes)
-{
-    if (increaseUpToBytes == 0)
-    {
-        return;
-    }
-
-    SorobanAuthorizationEntry auth;
-    auth.credentials.type(SOROBAN_CREDENTIALS_SOURCE_ACCOUNT);
-    auth.rootInvocation.function.type(
-        SOROBAN_AUTHORIZED_FUNCTION_TYPE_CONTRACT_FN);
-    SCVal val(SCV_BYTES);
-
-    auto const overheadBytes = xdr::xdr_size(auth) + xdr::xdr_size(val);
-    if (overheadBytes > increaseUpToBytes)
-    {
-        increaseUpToBytes = 0;
-    }
-    else
-    {
-        increaseUpToBytes -= overheadBytes;
-    }
-
-    val.bytes().resize(increaseUpToBytes);
-    auth.rootInvocation.function.contractFn().args = {val};
-    op.body.invokeHostFunctionOp().auth = {auth};
-}
-
-std::pair<LoadGenerator::TestAccountPtr, TransactionTestFramePtr>
-LoadGenerator::createUploadWasmTransaction(uint32_t ledgerNum,
-                                           uint64_t accountId,
-                                           GeneratedLoadConfig const& cfg)
-{
-    releaseAssert(cfg.isSorobanSetup());
-    releaseAssert(!mCodeKey);
-    auto wasm = cfg.modeSetsUpInvoke() ? rust_bridge::get_test_wasm_loadgen()
-                                       : rust_bridge::get_write_bytes();
-    auto account = findAccount(accountId, ledgerNum);
-
-    SorobanResources uploadResources{};
-    uploadResources.instructions = 2'500'000;
-    uploadResources.readBytes = wasm.data.size() + 500;
-    uploadResources.writeBytes = wasm.data.size() + 500;
-
-    Operation uploadOp;
-    uploadOp.body.type(INVOKE_HOST_FUNCTION);
-    auto& uploadHF = uploadOp.body.invokeHostFunctionOp().hostFunction;
-    uploadHF.type(HOST_FUNCTION_TYPE_UPLOAD_CONTRACT_WASM);
-    uploadHF.wasm().assign(wasm.data.begin(), wasm.data.end());
-
-    LedgerKey contractCodeLedgerKey;
-    contractCodeLedgerKey.type(CONTRACT_CODE);
-    contractCodeLedgerKey.contractCode().hash = sha256(uploadHF.wasm());
-    uploadResources.footprint.readWrite = {contractCodeLedgerKey};
-
-    int64_t resourceFee =
-        sorobanResourceFee(mApp, uploadResources, 5000 + wasm.data.size(), 100);
-    resourceFee += 1'000'000;
-    auto tx = sorobanTransactionFrameFromOps(
-        mApp.getNetworkID(), *account, {uploadOp}, {}, uploadResources,
-        generateFee(cfg.maxGeneratedFeeRate, mApp,
-                    /* opsCnt */ 1),
-        resourceFee);
-    mCodeKey = contractCodeLedgerKey;
-
-    // Wasm blob + approximate overhead for contract instance and ContractCode
-    // LE overhead
-    mContactOverheadBytes = wasm.data.size() + 160;
-    return std::make_pair(account, tx);
-}
-
-std::pair<LoadGenerator::TestAccountPtr, TransactionTestFramePtr>
-LoadGenerator::createContractTransaction(uint32_t ledgerNum, uint64_t accountId,
-                                         GeneratedLoadConfig const& cfg)
-{
-    releaseAssert(mCodeKey);
-
-    auto account = findAccount(accountId, ledgerNum);
-    SorobanResources createResources{};
-    createResources.instructions = 500'000;
-    createResources.readBytes = mContactOverheadBytes;
-    createResources.writeBytes = 300;
-
-    auto salt = sha256("upgrade" +
-                       std::to_string(++mNumCreateContractTransactionCalls));
-    auto contractIDPreimage = makeContractIDPreimage(*account, salt);
-
-    auto tx = makeSorobanCreateContractTx(
-        mApp, *account, contractIDPreimage,
-        makeWasmExecutable(mCodeKey->contractCode().hash), createResources,
-        generateFee(cfg.maxGeneratedFeeRate, mApp,
-                    /* opsCnt */ 1));
-
-    auto const& instanceLk = createResources.footprint.readWrite.back();
-    mContractInstanceKeys.emplace(instanceLk);
-
-    return std::make_pair(account, tx);
-}
-
-std::pair<LoadGenerator::TestAccountPtr, TransactionTestFramePtr>
-LoadGenerator::invokeSorobanLoadTransaction(uint32_t ledgerNum,
-                                            uint64_t accountId,
-                                            GeneratedLoadConfig const& cfg)
-{
-    auto const& appCfg = mApp.getConfig();
-
-    auto account = findAccount(accountId, ledgerNum);
-    auto instanceIter = mContractInstances.find(accountId);
-    releaseAssert(instanceIter != mContractInstances.end());
-    auto const& instance = instanceIter->second;
-
-    auto const& networkCfg = mApp.getLedgerManager().getSorobanNetworkConfig();
-
-    // Approximate instruction measurements from loadgen contract. While the
-    // guest and host cycle counts are exact, and we can predict the cost of the
-    // guest and host loops correctly, it is difficult to estimate the CPU cost
-    // of storage given that the number and size of keys is variable.
-    // baseInstructionCount is a rough estimate for storage cost, but might be
-    // too small if a given invocation writes many or large entries.  This means
-    // some TXs will fail due to exceeding resource limitations.  However these
-    // should fail at apply time, so will still generate siginificant load
-    uint64_t const baseInstructionCount = 3'000'000;
-    uint64_t const instructionsPerGuestCycle = 80;
-    uint64_t const instructionsPerHostCycle = 5030;
-
-    // Pick random number of cycles between bounds
-    uint64_t targetInstructions =
-        sampleDiscrete(appCfg.LOADGEN_INSTRUCTIONS_FOR_TESTING,
-                       appCfg.LOADGEN_INSTRUCTIONS_DISTRIBUTION_FOR_TESTING,
-                       DEFAULT_INSTRUCTIONS);
-
-    // Factor in instructions for storage
-    targetInstructions = baseInstructionCount >= targetInstructions
-                             ? 0
-                             : targetInstructions - baseInstructionCount;
-
-    // Randomly select a number of guest cycles
-    uint64_t guestCyclesMax = targetInstructions / instructionsPerGuestCycle;
-    uint64_t guestCycles = rand_uniform<uint64_t>(0, guestCyclesMax);
-
-    // Rest of instructions consumed by host cycles
-    targetInstructions -= guestCycles * instructionsPerGuestCycle;
-    uint64_t hostCycles = targetInstructions / instructionsPerHostCycle;
-
-    SorobanResources resources;
-    resources.footprint.readOnly = instance.readOnlyKeys;
-
-    auto numEntries =
-        sampleDiscrete(appCfg.LOADGEN_NUM_DATA_ENTRIES_FOR_TESTING,
-                       appCfg.LOADGEN_NUM_DATA_ENTRIES_DISTRIBUTION_FOR_TESTING,
-                       DEFAULT_NUM_DATA_ENTRIES);
-    for (uint32_t i = 0; i < numEntries; ++i)
-    {
-        auto lk = contractDataKey(instance.contractID, makeU32(i),
-                                  ContractDataDurability::PERSISTENT);
-        resources.footprint.readWrite.emplace_back(lk);
-    }
-
-    std::vector<uint32_t> const& ioKilobytesValues =
-        appCfg.LOADGEN_IO_KILOBYTES_FOR_TESTING;
-    auto totalWriteBytes =
-        sampleDiscrete(ioKilobytesValues,
-                       appCfg.LOADGEN_IO_KILOBYTES_DISTRIBUTION_FOR_TESTING,
-                       DEFAULT_IO_KILOBYTES) *
-        1024;
-
-    if (totalWriteBytes < mContactOverheadBytes)
-    {
-        totalWriteBytes = mContactOverheadBytes;
-        numEntries = 0;
-    }
-
-    uint32_t kiloBytesPerEntry = 0;
-    if (numEntries > 0)
-    {
-        kiloBytesPerEntry =
-            (totalWriteBytes - mContactOverheadBytes) / numEntries / 1024;
-
-        // If numEntries > 0, we can't write a 0 byte entry
-        if (kiloBytesPerEntry == 0)
-        {
-            kiloBytesPerEntry = 1;
-        }
-    }
-
-    auto guestCyclesU64 = makeU64(guestCycles);
-    auto hostCyclesU64 = makeU64(hostCycles);
-    auto numEntriesU32 = makeU32(numEntries);
-    auto kiloBytesPerEntryU32 = makeU32(kiloBytesPerEntry);
-
-    Operation op;
-    op.body.type(INVOKE_HOST_FUNCTION);
-    auto& ihf = op.body.invokeHostFunctionOp().hostFunction;
-    ihf.type(HOST_FUNCTION_TYPE_INVOKE_CONTRACT);
-    ihf.invokeContract().contractAddress = instance.contractID;
-    ihf.invokeContract().functionName = "do_work";
-    ihf.invokeContract().args = {guestCyclesU64, hostCyclesU64, numEntriesU32,
-                                 kiloBytesPerEntryU32};
-
-    // baseInstructionCount is a very rough estimate and may be a significant
-    // underestimation based on the IO load used, so use max instructions
-    resources.instructions = networkCfg.mTxMaxInstructions;
-
-    // We don't have a good way of knowing how many bytes we will need to read
-    // since the previous invocation writes a random number of bytes, so use
-    // upper bound
-    uint32_t const maxReadKilobytes =
-        ioKilobytesValues.empty() ? DEFAULT_IO_KILOBYTES
-                                  : *std::max_element(ioKilobytesValues.begin(),
-                                                      ioKilobytesValues.end());
-    resources.readBytes = maxReadKilobytes * 1024;
-    resources.writeBytes = totalWriteBytes;
-
-    // Approximate TX size before padding and footprint, slightly over estimated
-    // by `baselineTxOverheadBytes` so we stay below limits, plus footprint size
-    uint32_t constexpr baselineTxOverheadBytes = 260;
-    uint32_t const txOverheadBytes =
-        baselineTxOverheadBytes + xdr::xdr_size(resources);
-    uint32_t desiredTxBytes =
-        sampleDiscrete(appCfg.LOADGEN_TX_SIZE_BYTES_FOR_TESTING,
-                       appCfg.LOADGEN_TX_SIZE_BYTES_DISTRIBUTION_FOR_TESTING,
-                       DEFAULT_TX_SIZE_BYTES);
-    auto paddingBytes =
-        txOverheadBytes > desiredTxBytes ? 0 : desiredTxBytes - txOverheadBytes;
-    increaseOpSize(op, paddingBytes);
-
-    auto resourceFee =
-        sorobanResourceFee(mApp, resources, txOverheadBytes + paddingBytes, 40);
-    resourceFee += 1'000'000;
-
-    auto tx = sorobanTransactionFrameFromOps(
-        mApp.getNetworkID(), *account, {op}, {}, resources,
-        generateFee(cfg.maxGeneratedFeeRate, mApp,
-                    /* opsCnt */ 1),
-        resourceFee);
-
-    return std::make_pair(account, tx);
-}
-
-ConfigUpgradeSetKey
-LoadGenerator::getConfigUpgradeSetKey(GeneratedLoadConfig const& cfg) const
-{
-    releaseAssertOrThrow(mCodeKey.has_value());
-    releaseAssertOrThrow(mContractInstanceKeys.size() == 1);
-    auto const& instanceLK = *mContractInstanceKeys.begin();
-
-    SCBytes upgradeBytes = getConfigUpgradeSetFromLoadConfig(cfg);
-    auto upgradeHash = sha256(upgradeBytes);
-
-    ConfigUpgradeSetKey upgradeSetKey;
-    upgradeSetKey.contentHash = upgradeHash;
-    upgradeSetKey.contractID = instanceLK.contractData().contract.contractId();
-    return upgradeSetKey;
-}
-
-SCBytes
-LoadGenerator::getConfigUpgradeSetFromLoadConfig(
-    GeneratedLoadConfig const& cfg) const
-{
-    xdr::xvector<ConfigSettingEntry> updatedEntries;
-    auto const& upgradeCfg = cfg.getSorobanUpgradeConfig();
-
-    LedgerTxn ltx(mApp.getLedgerTxnRoot());
-    for (uint32_t i = 0;
-         i < static_cast<uint32_t>(CONFIG_SETTING_BUCKETLIST_SIZE_WINDOW); ++i)
-    {
-        auto entry =
-            ltx.load(configSettingKey(static_cast<ConfigSettingID>(i)));
-        auto& setting = entry.current().data.configSetting();
-        switch (static_cast<ConfigSettingID>(i))
-        {
-        case CONFIG_SETTING_CONTRACT_MAX_SIZE_BYTES:
-            if (upgradeCfg.maxContractSizeBytes > 0)
-            {
-                setting.contractMaxSizeBytes() =
-                    upgradeCfg.maxContractSizeBytes;
-            }
-            break;
-        case CONFIG_SETTING_CONTRACT_COMPUTE_V0:
-            if (upgradeCfg.ledgerMaxInstructions > 0)
-            {
-                setting.contractCompute().ledgerMaxInstructions =
-                    upgradeCfg.ledgerMaxInstructions;
-            }
-
-            if (upgradeCfg.txMaxInstructions > 0)
-            {
-                setting.contractCompute().txMaxInstructions =
-                    upgradeCfg.txMaxInstructions;
-            }
-
-            if (upgradeCfg.txMemoryLimit > 0)
-            {
-                setting.contractCompute().txMemoryLimit =
-                    upgradeCfg.txMemoryLimit;
-            }
-            break;
-        case CONFIG_SETTING_CONTRACT_LEDGER_COST_V0:
-            if (upgradeCfg.ledgerMaxReadLedgerEntries > 0)
-            {
-                setting.contractLedgerCost().ledgerMaxReadLedgerEntries =
-                    upgradeCfg.ledgerMaxReadLedgerEntries;
-            }
-
-            if (upgradeCfg.ledgerMaxReadBytes > 0)
-            {
-                setting.contractLedgerCost().ledgerMaxReadBytes =
-                    upgradeCfg.ledgerMaxReadBytes;
-            }
-
-            if (upgradeCfg.ledgerMaxWriteLedgerEntries > 0)
-            {
-                setting.contractLedgerCost().ledgerMaxWriteLedgerEntries =
-                    upgradeCfg.ledgerMaxWriteLedgerEntries;
-            }
-
-            if (upgradeCfg.ledgerMaxWriteBytes > 0)
-            {
-                setting.contractLedgerCost().ledgerMaxWriteBytes =
-                    upgradeCfg.ledgerMaxWriteBytes;
-            }
-
-            if (upgradeCfg.txMaxReadLedgerEntries > 0)
-            {
-                setting.contractLedgerCost().txMaxReadLedgerEntries =
-                    upgradeCfg.txMaxReadLedgerEntries;
-            }
-
-            if (upgradeCfg.txMaxReadBytes > 0)
-            {
-                setting.contractLedgerCost().txMaxReadBytes =
-                    upgradeCfg.txMaxReadBytes;
-            }
-
-            if (upgradeCfg.txMaxWriteLedgerEntries > 0)
-            {
-                setting.contractLedgerCost().txMaxWriteLedgerEntries =
-                    upgradeCfg.txMaxWriteLedgerEntries;
-            }
-
-            if (upgradeCfg.txMaxWriteBytes > 0)
-            {
-                setting.contractLedgerCost().txMaxWriteBytes =
-                    upgradeCfg.txMaxWriteBytes;
-            }
-            break;
-        case CONFIG_SETTING_CONTRACT_HISTORICAL_DATA_V0:
-            break;
-        case CONFIG_SETTING_CONTRACT_EVENTS_V0:
-            if (upgradeCfg.txMaxContractEventsSizeBytes > 0)
-            {
-                setting.contractEvents().txMaxContractEventsSizeBytes =
-                    upgradeCfg.txMaxContractEventsSizeBytes;
-            }
-            break;
-        case CONFIG_SETTING_CONTRACT_BANDWIDTH_V0:
-            if (upgradeCfg.ledgerMaxTransactionsSizeBytes > 0)
-            {
-                setting.contractBandwidth().ledgerMaxTxsSizeBytes =
-                    upgradeCfg.ledgerMaxTransactionsSizeBytes;
-            }
-
-            if (upgradeCfg.txMaxSizeBytes > 0)
-            {
-                setting.contractBandwidth().txMaxSizeBytes =
-                    upgradeCfg.txMaxSizeBytes;
-            }
-            break;
-        case CONFIG_SETTING_CONTRACT_COST_PARAMS_CPU_INSTRUCTIONS:
-        case CONFIG_SETTING_CONTRACT_COST_PARAMS_MEMORY_BYTES:
-            break;
-        case CONFIG_SETTING_CONTRACT_DATA_KEY_SIZE_BYTES:
-            if (upgradeCfg.maxContractDataKeySizeBytes > 0)
-            {
-                setting.contractDataKeySizeBytes() =
-                    upgradeCfg.maxContractDataKeySizeBytes;
-            }
-            break;
-        case CONFIG_SETTING_CONTRACT_DATA_ENTRY_SIZE_BYTES:
-            if (upgradeCfg.maxContractDataEntrySizeBytes > 0)
-            {
-                setting.contractDataEntrySizeBytes() =
-                    upgradeCfg.maxContractDataEntrySizeBytes;
-            }
-            break;
-        case CONFIG_SETTING_STATE_ARCHIVAL:
-        {
-            auto& ses = setting.stateArchivalSettings();
-            if (upgradeCfg.bucketListSizeWindowSampleSize > 0)
-            {
-                ses.bucketListSizeWindowSampleSize =
-                    upgradeCfg.bucketListSizeWindowSampleSize;
-            }
-
-            if (upgradeCfg.evictionScanSize > 0)
-            {
-                ses.evictionScanSize = upgradeCfg.evictionScanSize;
-            }
-
-            if (upgradeCfg.startingEvictionScanLevel > 0)
-            {
-                ses.startingEvictionScanLevel =
-                    upgradeCfg.startingEvictionScanLevel;
-            }
-        }
-        break;
-        case CONFIG_SETTING_CONTRACT_EXECUTION_LANES:
-            if (upgradeCfg.ledgerMaxTxCount > 0)
-            {
-                setting.contractExecutionLanes().ledgerMaxTxCount =
-                    upgradeCfg.ledgerMaxTxCount;
-            }
-            break;
-        default:
-            releaseAssert(false);
-            break;
-        }
-
-        // These two definitely aren't changing, and including both will hit the
-        // contractDataEntrySizeBytes limit
-        if (entry.current().data.configSetting().configSettingID() !=
-                CONFIG_SETTING_CONTRACT_COST_PARAMS_CPU_INSTRUCTIONS &&
-            entry.current().data.configSetting().configSettingID() !=
-                CONFIG_SETTING_CONTRACT_COST_PARAMS_MEMORY_BYTES)
-        {
-            updatedEntries.emplace_back(entry.current().data.configSetting());
-        }
-    }
-
-    ConfigUpgradeSet upgradeSet;
-    upgradeSet.updatedEntry = updatedEntries;
-
-    return xdr::xdr_to_opaque(upgradeSet);
-}
-
-std::pair<LoadGenerator::TestAccountPtr, TransactionTestFramePtr>
-LoadGenerator::invokeSorobanCreateUpgradeTransaction(
-    uint32_t ledgerNum, uint64_t accountId, GeneratedLoadConfig const& cfg)
-{
-    releaseAssert(mCodeKey);
-    releaseAssert(mContractInstanceKeys.size() == 1);
-
-    auto account = findAccount(accountId, ledgerNum);
-    auto const& instanceLK = *mContractInstanceKeys.begin();
-    auto const& contractID = instanceLK.contractData().contract;
-
-    SCBytes upgradeBytes = getConfigUpgradeSetFromLoadConfig(cfg);
-
-    LedgerKey upgradeLK(CONTRACT_DATA);
-    upgradeLK.contractData().durability = TEMPORARY;
-    upgradeLK.contractData().contract = contractID;
-
-    SCVal upgradeHashBytes(SCV_BYTES);
-    auto upgradeHash = sha256(upgradeBytes);
-    upgradeHashBytes.bytes() = xdr::xdr_to_opaque(upgradeHash);
-    upgradeLK.contractData().key = upgradeHashBytes;
-
-    ConfigUpgradeSetKey upgradeSetKey;
-    upgradeSetKey.contentHash = upgradeHash;
-    upgradeSetKey.contractID = contractID.contractId();
-
-    SorobanResources resources;
-    resources.footprint.readOnly = {instanceLK, *mCodeKey};
-    resources.footprint.readWrite = {upgradeLK};
-    resources.instructions = 2'500'000;
-    resources.readBytes = 3'100;
-    resources.writeBytes = 3'100;
-
-    SCVal b(SCV_BYTES);
-    b.bytes() = upgradeBytes;
-
-    Operation op;
-    op.body.type(INVOKE_HOST_FUNCTION);
-    auto& ihf = op.body.invokeHostFunctionOp().hostFunction;
-    ihf.type(HOST_FUNCTION_TYPE_INVOKE_CONTRACT);
-    ihf.invokeContract().contractAddress = contractID;
-    ihf.invokeContract().functionName = "write";
-    ihf.invokeContract().args.emplace_back(b);
-
-    auto resourceFee = sorobanResourceFee(mApp, resources, 1'000, 40);
-    resourceFee += 1'000'000;
-
-    auto tx = sorobanTransactionFrameFromOps(
-        mApp.getNetworkID(), *account, {op}, {}, resources,
-        generateFee(cfg.maxGeneratedFeeRate, mApp,
-                    /* opsCnt */ 1),
-        resourceFee);
-
-    return std::make_pair(account, tx);
-}
-
-std::pair<LoadGenerator::TestAccountPtr, TransactionTestFramePtr>
-LoadGenerator::sorobanRandomWasmTransaction(uint32_t ledgerNum,
-                                            uint64_t accountId,
-                                            uint32_t inclusionFee)
-{
-    auto [resources, wasmSize] = sorobanRandomUploadResources();
-
-    auto account = findAccount(accountId, ledgerNum);
-    Operation uploadOp = createUploadWasmOperation(wasmSize);
-    LedgerKey contractCodeLedgerKey;
-    contractCodeLedgerKey.type(CONTRACT_CODE);
-    contractCodeLedgerKey.contractCode().hash =
-        sha256(uploadOp.body.invokeHostFunctionOp().hostFunction.wasm());
-    resources.footprint.readWrite.push_back(contractCodeLedgerKey);
-
-    int64_t resourceFee = sorobanResourceFee(
-        mApp, resources, 5000 + static_cast<size_t>(wasmSize), 100);
-    // Roughly cover the rent fee.
-    resourceFee += 100000;
-    auto tx = sorobanTransactionFrameFromOps(mApp.getNetworkID(), *account,
-                                             {uploadOp}, {}, resources,
-                                             inclusionFee, resourceFee);
-    return std::make_pair(account, tx);
-}
-
-std::pair<SorobanResources, uint32_t>
-LoadGenerator::sorobanRandomUploadResources()
-{
-    auto const& cfg = mApp.getConfig();
-    SorobanResources resources{};
-
-    // Sample a random Wasm size
-    uint32_t wasmSize = sampleDiscrete(
-        cfg.LOADGEN_WASM_BYTES_FOR_TESTING,
-        cfg.LOADGEN_WASM_BYTES_DISTRIBUTION_FOR_TESTING, DEFAULT_WASM_BYTES);
-
-    // Estimate VM instantiation cost, with some additional buffer to increase
-    // the chance that this instruction count is sufficient.
-    ContractCostParamEntry const& vmInstantiationCosts =
-        mApp.getLedgerManager()
-            .getSorobanNetworkConfig()
-            .cpuCostParams()[VmInstantiation];
-    // Amount to right shift `vmInstantiationCosts.linearTerm * wasmSize` by
-    uint32_t constexpr vmShiftTerm = 7;
-    // Additional buffer per byte to increase the chance that this instruction
-    // count is sufficient
-    uint32_t constexpr vmBufferPerByte = 100;
-    // Perform multiplication as int64_t to avoid overflow
-    uint32_t linearResult = static_cast<uint32_t>(
-        (vmInstantiationCosts.linearTerm * static_cast<int64_t>(wasmSize)) >>
-        vmShiftTerm);
-    resources.instructions = vmInstantiationCosts.constTerm + linearResult +
-                             (vmBufferPerByte * wasmSize);
-
-    // Double instruction estimate because wasm parse price is charged twice (as
-    // of protocol 21).
-    resources.instructions *= 2;
-
-    // Allocate enough write bytes to write the whole Wasm plus the 40 bytes of
-    // the key with some additional buffer to increase the chance that this
-    // write size is sufficient
-    uint32_t constexpr keyOverhead = 40;
-    uint32_t constexpr writeBuffer = 128;
-    resources.writeBytes = wasmSize + keyOverhead + writeBuffer;
-
-    return {resources, wasmSize};
-}
-
-std::pair<LoadGenerator::TestAccountPtr, TransactionTestFramePtr>
-LoadGenerator::pretendTransaction(uint32_t numAccounts, uint32_t offset,
-                                  uint32_t ledgerNum, uint64_t sourceAccount,
-                                  uint32_t opCount,
-                                  std::optional<uint32_t> maxGeneratedFeeRate)
-{
-    vector<Operation> ops;
-    ops.reserve(opCount);
-    auto acc = findAccount(sourceAccount, ledgerNum);
-    for (uint32 i = 0; i < opCount; i++)
-    {
-        auto args = SetOptionsArguments{};
-
-        // We make SetOptionsOps such that we end up
-        // with a n-op transaction that is exactly 100n + 240 bytes.
-        args.inflationDest = std::make_optional<AccountID>(acc->getPublicKey());
-        args.homeDomain = std::make_optional<std::string>(std::string(16, '*'));
-        if (i == 0)
-        {
-            // The first operation needs to be bigger to achieve
-            // 100n + 240 bytes.
-            args.homeDomain->append(std::string(8, '*'));
-            args.signer = std::make_optional<Signer>(Signer{});
-        }
-        ops.push_back(txtest::setOptions(args));
-    }
-    return std::make_pair(
-        acc, createTransactionTestFramePtr(acc, ops, LoadGenMode::PRETEND,
-                                           maxGeneratedFeeRate));
-}
-
-std::pair<LoadGenerator::TestAccountPtr, TransactionTestFramePtr>
-LoadGenerator::createMixedClassicSorobanTransaction(
-    uint32_t ledgerNum, uint64_t sourceAccountId,
-    GeneratedLoadConfig const& cfg)
-{
-    auto const& mixCfg = cfg.getMixClassicSorobanConfig();
-    std::discrete_distribution<uint32_t> dist({mixCfg.payWeight,
-                                               mixCfg.sorobanUploadWeight,
-                                               mixCfg.sorobanInvokeWeight});
-    switch (dist(gRandomEngine))
-    {
-    case 0:
-    {
-        // Create a payment transaction
-        mLastMixedMode = LoadGenMode::PAY;
-        return paymentTransaction(cfg.nAccounts, cfg.offset, ledgerNum,
-                                  sourceAccountId, 1, cfg.maxGeneratedFeeRate);
-    }
-    case 1:
-    {
-        // Create a soroban upload transaction
-        mLastMixedMode = LoadGenMode::SOROBAN_UPLOAD;
-        return sorobanRandomWasmTransaction(ledgerNum, sourceAccountId,
-                                            generateFee(cfg.maxGeneratedFeeRate,
-                                                        mApp,
-                                                        /* opsCnt */ 1));
-    }
-    case 2:
-    {
-        // Create a soroban invoke transaction
-        mLastMixedMode = LoadGenMode::SOROBAN_INVOKE;
-        return invokeSorobanLoadTransaction(ledgerNum, sourceAccountId, cfg);
-    }
-    default:
-        releaseAssert(false);
-    }
-}
-
 void
 LoadGenerator::maybeHandleFailedTx(TransactionTestFramePtr tx,
                                    TestAccountPtr sourceAccount,
@@ -1864,7 +1124,7 @@ LoadGenerator::checkSorobanStateSynced(Application& app,
     return result;
 }
 
-std::vector<LoadGenerator::TestAccountPtr>
+std::vector<TxGenerator::TestAccountPtr>
 LoadGenerator::checkAccountSynced(Application& app, bool isCreate)
 {
     std::vector<TestAccountPtr> result;
@@ -2082,31 +1342,7 @@ LoadGenerator::TxMetrics::report()
                mSorobanCreateUpgradeTxs.one_minute_rate());
 }
 
-TransactionTestFramePtr
-LoadGenerator::createTransactionTestFramePtr(
-    TestAccountPtr from, std::vector<Operation> ops, LoadGenMode mode,
-    std::optional<uint32_t> maxGeneratedFeeRate)
-{
-
-    auto txf = transactionFromOperations(
-        mApp, from->getSecretKey(), from->nextSequenceNumber(), ops,
-        generateFee(maxGeneratedFeeRate, mApp, ops.size()));
-    if (mode == LoadGenMode::PRETEND)
-    {
-        Memo memo(MEMO_TEXT);
-        memo.text() = std::string(28, ' ');
-        txbridge::setMemo(txf, memo);
-
-        txbridge::setMinTime(txf, 0);
-        txbridge::setMaxTime(txf, UINT64_MAX);
-    }
-
-    txbridge::getSignatures(txf).clear();
-    txf->addSignature(from->getSecretKey());
-    return txf;
-}
-
-TransactionQueue::AddResultCode
+TransactionQueue::AddResult
 LoadGenerator::execute(TransactionTestFramePtr& txf, LoadGenMode mode,
                        TransactionResultCode& code)
 {
@@ -2265,14 +1501,14 @@ GeneratedLoadConfig::getSorobanConfig() const
     return sorobanConfig;
 }
 
-GeneratedLoadConfig::SorobanUpgradeConfig&
+SorobanUpgradeConfig&
 GeneratedLoadConfig::getMutSorobanUpgradeConfig()
 {
     releaseAssert(mode == LoadGenMode::SOROBAN_CREATE_UPGRADE);
     return sorobanUpgradeConfig;
 }
 
-GeneratedLoadConfig::SorobanUpgradeConfig const&
+SorobanUpgradeConfig const&
 GeneratedLoadConfig::getSorobanUpgradeConfig() const
 {
     releaseAssert(mode == LoadGenMode::SOROBAN_CREATE_UPGRADE);
