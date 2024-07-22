@@ -89,7 +89,7 @@ checkBucketSizeAndBounds(LiveBucketList& bl, uint32_t ledgerSeq, uint32_t level,
     std::set<uint32_t> ledgers;
     uint32_t lbound = std::numeric_limits<uint32_t>::max();
     uint32_t ubound = 0;
-    for (BucketInputIterator iter(bucket); iter; ++iter)
+    for (LiveBucketInputIterator iter(bucket); iter; ++iter)
     {
         auto lastModified = (*iter).liveEntry().lastModifiedLedgerSeq;
         ledgers.insert(lastModified);
@@ -991,7 +991,7 @@ TEST_CASE_VERSIONS("eviction scan", "[bucketlist]")
                     LedgerKey entryToEvict;
                     std::optional<uint64_t> expectedEndIterPosition{};
 
-                    for (BucketInputIterator in(
+                    for (LiveBucketInputIterator in(
                              bl.getLevel(levelToScan).getCurr());
                          in; ++in)
                     {
@@ -1046,7 +1046,7 @@ TEST_CASE_VERSIONS("eviction scan", "[bucketlist]")
 
             auto constexpr xdrOverheadBytes = 4;
 
-            BucketInputIterator metaIn(bl.getLevel(0).getCurr());
+            LiveBucketInputIterator metaIn(bl.getLevel(0).getCurr());
             BucketEntry be(METAENTRY);
             be.metaEntry() = metaIn.getMetadata();
             auto const metadataSize = xdr::xdr_size(be) + xdrOverheadBytes;
@@ -1069,7 +1069,8 @@ TEST_CASE_VERSIONS("eviction scan", "[bucketlist]")
 
                 size_t prevOff = evictionIter.bucketFileOffset;
                 // Check that each scan only reads one entry
-                for (BucketInputIterator in(bl.getLevel(levelToScan).getCurr());
+                for (LiveBucketInputIterator in(
+                         bl.getLevel(levelToScan).getCurr());
                      in; ++in)
                 {
                     auto startingOffset = evictionIter.bucketFileOffset;
@@ -1195,7 +1196,7 @@ TEST_CASE_VERSIONS("eviction scan", "[bucketlist]")
                     closeLedger(*app);
                     ++ledgerSeq;
 
-                    BucketInputIterator in(bucket());
+                    LiveBucketInputIterator in(bucket());
 
                     // Check that iterator has reset to beginning of bucket and
                     // read meta entry + one additional entry

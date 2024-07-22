@@ -261,7 +261,7 @@ SearchableBucketListSnapshot::loadInflationWinners(size_t maxWinners,
     UnorderedSet<AccountID> seen;
 
     auto countVotesInBucket = [&](BucketSnapshot const& b) {
-        for (BucketInputIterator in(b.getRawBucket()); in; ++in)
+        for (LiveBucketInputIterator in(b.getRawBucket()); in; ++in)
         {
             BucketEntry const& be = *in;
             if (be.type() == DEADENTRY)

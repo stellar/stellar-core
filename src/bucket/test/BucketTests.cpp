@@ -446,8 +446,8 @@ TEST_CASE("bucket output iterator rejects wrong-version entries",
     metaEntry.type(METAENTRY);
     metaEntry.metaEntry() = meta;
     MergeCounters mc;
-    BucketOutputIterator out(bm.getTmpDir(), true, meta, mc,
-                             clock.getIOContext(), /*doFsync=*/true);
+    LiveBucketOutputIterator out(bm.getTmpDir(), true, meta, mc,
+                                 clock.getIOContext(), /*doFsync=*/true);
     REQUIRE_THROWS_AS(out.put(initEntry), std::runtime_error);
     REQUIRE_THROWS_AS(out.put(metaEntry), std::runtime_error);
 }

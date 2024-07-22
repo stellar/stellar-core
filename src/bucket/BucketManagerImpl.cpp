@@ -1296,7 +1296,7 @@ loadEntriesFromBucket(std::shared_ptr<Bucket> b, std::string const& name,
 
     using namespace std::chrono;
     medida::Timer timer;
-    BucketInputIterator in(b);
+    LiveBucketInputIterator in(b);
     timer.Time([&]() {
         while (in)
         {
@@ -1377,8 +1377,8 @@ BucketManagerImpl::mergeBuckets(HistoryArchiveState const& has)
     MergeCounters mc;
     auto& ctx = mApp.getClock().getIOContext();
     meta.ledgerVersion = mApp.getConfig().LEDGER_PROTOCOL_VERSION;
-    BucketOutputIterator out(getTmpDir(), /*keepDeadEntries=*/false, meta, mc,
-                             ctx, /*doFsync=*/true);
+    LiveBucketOutputIterator out(getTmpDir(), /*keepDeadEntries=*/false, meta,
+                                 mc, ctx, /*doFsync=*/true);
     for (auto const& pair : ledgerMap)
     {
         BucketEntry be;
@@ -1404,7 +1404,7 @@ visitLiveEntriesInBucket(
 
     bool stopIteration = false;
     timer.Time([&]() {
-        for (BucketInputIterator in(b); in; ++in)
+        for (LiveBucketInputIterator in(b); in; ++in)
         {
             BucketEntry const& e = *in;
             if (e.type() == LIVEENTRY || e.type() == INITENTRY)
@@ -1467,7 +1467,7 @@ visitAllEntriesInBucket(
 
     bool stopIteration = false;
     timer.Time([&]() {
-        for (BucketInputIterator in(b); in; ++in)
+        for (LiveBucketInputIterator in(b); in; ++in)
         {
             BucketEntry const& e = *in;
             if (e.type() == LIVEENTRY || e.type() == INITENTRY)

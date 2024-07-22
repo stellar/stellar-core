@@ -24,7 +24,7 @@ class BucketApplicator
     uint32_t mMaxProtocolVersion;
     uint32_t mMinProtocolVersionSeen;
     uint32_t mLevel;
-    BucketInputIterator mBucketIter;
+    LiveBucketInputIterator mBucketIter;
     size_t mCount{0};
     std::function<bool(LedgerEntryType)> mEntryTypeFilter;
     std::unordered_set<LedgerKey>& mSeenKeys;

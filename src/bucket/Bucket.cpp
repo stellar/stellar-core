@@ -99,8 +99,8 @@ Bucket::getSize() const
 bool
 Bucket::containsBucketIdentity(BucketEntry const& id) const
 {
-    BucketEntryIdCmp cmp;
-    BucketInputIterator iter(shared_from_this());
+    BucketEntryIdCmp<BucketEntry> cmp;
+    LiveBucketInputIterator iter(shared_from_this());
     while (iter)
     {
         if (!(cmp(*iter, id) || cmp(id, *iter)))
@@ -182,7 +182,7 @@ Bucket::convertToBucketEntry(bool useInit,
         bucket.push_back(ce);
     }
 
-    BucketEntryIdCmp cmp;
+    BucketEntryIdCmp<BucketEntry> cmp;
     std::sort(bucket.begin(), bucket.end(), cmp);
     releaseAssert(std::adjacent_find(
                       bucket.begin(), bucket.end(),
@@ -240,8 +240,8 @@ Bucket::fresh(BucketManager& bucketManager, uint32_t protocolVersion,
         convertToBucketEntry(useInit, initEntries, liveEntries, deadEntries);
 
     MergeCounters mc;
-    BucketOutputIterator out(bucketManager.getTmpDir(), true, meta, mc, ctx,
-                             doFsync);
+    LiveBucketOutputIterator out(bucketManager.getTmpDir(), true, meta, mc, ctx,
+                                 doFsync);
     for (auto const& e : entries)
     {
         out.put(e);
@@ -292,8 +292,8 @@ Bucket::checkProtocolLegality(BucketEntry const& entry,
 }
 
 inline void
-maybePut(BucketOutputIterator& out, BucketEntry const& entry,
-         std::vector<BucketInputIterator>& shadowIterators,
+maybePut(LiveBucketOutputIterator& out, BucketEntry const& entry,
+         std::vector<LiveBucketInputIterator>& shadowIterators,
          bool keepShadowedLifecycleEntries, MergeCounters& mc)
 {
     // In ledgers before protocol 11, keepShadowedLifecycleEntries will be
@@ -331,8 +331,8 @@ maybePut(BucketOutputIterator& out, BucketEntry const& entry,
     // Note that this decision only controls whether to elide dead entries due
     // to _shadows_. There is a secondary elision of dead entries at the _oldest
     // level_ of the bucketlist that is accomplished through filtering at the
-    // BucketOutputIterator level, and happens independent of ledger protocol
-    // version.
+    // LiveBucketOutputIterator level, and happens independent of ledger
+    // protocol version.
 
     if (keepShadowedLifecycleEntries &&
         (entry.type() == INITENTRY || entry.type() == DEADENTRY))
@@ -342,7 +342,7 @@ maybePut(BucketOutputIterator& out, BucketEntry const& entry,
         return;
     }
 
-    BucketEntryIdCmp cmp;
+    BucketEntryIdCmp<BucketEntry> cmp;
     for (auto& si : shadowIterators)
     {
         // Advance the shadowIterator while it's less than the candidate
@@ -441,8 +441,8 @@ countNewEntryType(MergeCounters& mc, BucketEntry const& e)
 static void
 calculateMergeProtocolVersion(
     MergeCounters& mc, uint32_t maxProtocolVersion,
-    BucketInputIterator const& oi, BucketInputIterator const& ni,
-    std::vector<BucketInputIterator> const& shadowIterators,
+    LiveBucketInputIterator const& oi, LiveBucketInputIterator const& ni,
+    std::vector<LiveBucketInputIterator> const& shadowIterators,
     uint32& protocolVersion, bool& keepShadowedLifecycleEntries)
 {
     protocolVersion = std::max(oi.getMetadata().ledgerVersion,
@@ -512,10 +512,11 @@ calculateMergeProtocolVersion(
 // not scrutinizing the entry type further.
 static bool
 mergeCasesWithDefaultAcceptance(
-    BucketEntryIdCmp const& cmp, MergeCounters& mc, BucketInputIterator& oi,
-    BucketInputIterator& ni, BucketOutputIterator& out,
-    std::vector<BucketInputIterator>& shadowIterators, uint32_t protocolVersion,
-    bool keepShadowedLifecycleEntries)
+    BucketEntryIdCmp<BucketEntry> const& cmp, MergeCounters& mc,
+    LiveBucketInputIterator& oi, LiveBucketInputIterator& ni,
+    LiveBucketOutputIterator& out,
+    std::vector<LiveBucketInputIterator>& shadowIterators,
+    uint32_t protocolVersion, bool keepShadowedLifecycleEntries)
 {
     if (!ni || (oi && ni && cmp(*oi, *ni)))
     {
@@ -553,9 +554,10 @@ mergeCasesWithDefaultAcceptance(
 // The remaining cases happen when keys are equal and we have to reason
 // through the relationships of their bucket lifecycle states. Trickier.
 static void
-mergeCasesWithEqualKeys(MergeCounters& mc, BucketInputIterator& oi,
-                        BucketInputIterator& ni, BucketOutputIterator& out,
-                        std::vector<BucketInputIterator>& shadowIterators,
+mergeCasesWithEqualKeys(MergeCounters& mc, LiveBucketInputIterator& oi,
+                        LiveBucketInputIterator& ni,
+                        LiveBucketOutputIterator& out,
+                        std::vector<LiveBucketInputIterator>& shadowIterators,
                         uint32_t protocolVersion,
                         bool keepShadowedLifecycleEntries)
 {
@@ -785,10 +787,10 @@ Bucket::merge(BucketManager& bucketManager, uint32_t maxProtocolVersion,
     releaseAssert(newBucket);
 
     MergeCounters mc;
-    BucketInputIterator oi(oldBucket);
-    BucketInputIterator ni(newBucket);
-    std::vector<BucketInputIterator> shadowIterators(shadows.begin(),
-                                                     shadows.end());
+    LiveBucketInputIterator oi(oldBucket);
+    LiveBucketInputIterator ni(newBucket);
+    std::vector<LiveBucketInputIterator> shadowIterators(shadows.begin(),
+                                                         shadows.end());
 
     uint32_t protocolVersion;
     bool keepShadowedLifecycleEntries;
@@ -799,10 +801,10 @@ Bucket::merge(BucketManager& bucketManager, uint32_t maxProtocolVersion,
     auto timer = bucketManager.getMergeTimer().TimeScope();
     BucketMetadata meta;
     meta.ledgerVersion = protocolVersion;
-    BucketOutputIterator out(bucketManager.getTmpDir(), keepDeadEntries, meta,
-                             mc, ctx, doFsync);
+    LiveBucketOutputIterator out(bucketManager.getTmpDir(), keepDeadEntries,
+                                 meta, mc, ctx, doFsync);
 
-    BucketEntryIdCmp cmp;
+    BucketEntryIdCmp<BucketEntry> cmp;
     size_t iter = 0;
 
     while (oi || ni)
@@ -843,7 +845,7 @@ uint32_t
 Bucket::getBucketVersion(std::shared_ptr<Bucket> const& bucket)
 {
     releaseAssert(bucket);
-    BucketInputIterator it(bucket);
+    LiveBucketInputIterator it(bucket);
     return it.getMetadata().ledgerVersion;
 }
 
@@ -851,7 +853,7 @@ uint32_t
 Bucket::getBucketVersion(std::shared_ptr<Bucket const> const& bucket)
 {
     releaseAssert(bucket);
-    BucketInputIterator it(bucket);
+    LiveBucketInputIterator it(bucket);
     return it.getMetadata().ledgerVersion;
 }
 }
