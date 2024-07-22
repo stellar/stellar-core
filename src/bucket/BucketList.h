@@ -532,4 +532,15 @@ class LiveBucketList : public BucketListBase
                                uint32_t ledgerSeq, EvictionCounters& counters,
                                std::shared_ptr<EvictionStatistics> stats);
 };
+
+class HotArchiveBucketList : public BucketListBase
+{
+  private:
+    // For now, this class is identical to LiveBucketList. Later PRs will add
+    // additional functionality.
+
+    // Merge result future
+    // This should be the result of merging this entire list into a single file.
+    // The MerkleBucketList is then initalized with this result
+};
 }

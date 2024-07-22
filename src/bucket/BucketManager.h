@@ -27,6 +27,7 @@ class AbstractLedgerTxn;
 class Application;
 class BasicWork;
 class LiveBucketList;
+class HotArchiveBucketList;
 class BucketSnapshotManager;
 class Config;
 class SearchableBucketListSnapshot;
@@ -193,6 +194,7 @@ class BucketManager : NonMovableOrCopyable
     virtual TmpDirManager& getTmpDirManager() = 0;
     virtual std::string const& getBucketDir() const = 0;
     virtual LiveBucketList& getLiveBucketList() = 0;
+    virtual HotArchiveBucketList& getHotArchiveBucketList() = 0;
     virtual BucketSnapshotManager& getBucketSnapshotManager() const = 0;
     virtual bool renameBucketDirFile(std::filesystem::path const& src,
                                      std::filesystem::path const& dst) = 0;
@@ -272,6 +274,11 @@ class BucketManager : NonMovableOrCopyable
                               std::vector<LedgerEntry> const& initEntries,
                               std::vector<LedgerEntry> const& liveEntries,
                               std::vector<LedgerKey> const& deadEntries) = 0;
+    virtual void
+    addArchivalBatch(Application& app, uint32_t currLedger,
+                     uint32_t currLedgerProtocol,
+                     std::vector<LedgerEntry> const& initEntries,
+                     std::vector<LedgerKey> const& deadEntries) = 0;
 
     // Update the given LedgerHeader's bucketListHash to reflect the current
     // state of the bucket list.
