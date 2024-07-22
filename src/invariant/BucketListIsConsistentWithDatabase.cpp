@@ -273,7 +273,7 @@ BucketListIsConsistentWithDatabase::checkAfterAssumeState(uint32_t newestLedger)
     LedgerKeySet seenKeys;
 
     auto perBucketCheck = [&](auto bucket, auto& ltx) {
-        for (BucketInputIterator iter(bucket); iter; ++iter)
+        for (LiveBucketInputIterator iter(bucket); iter; ++iter)
         {
             auto const& e = *iter;
 
@@ -360,10 +360,11 @@ BucketListIsConsistentWithDatabase::checkOnBucketApply(
 
         bool hasPreviousEntry = false;
         BucketEntry previousEntry;
-        for (BucketInputIterator iter(bucket); iter; ++iter)
+        for (LiveBucketInputIterator iter(bucket); iter; ++iter)
         {
             auto const& e = *iter;
-            if (hasPreviousEntry && !BucketEntryIdCmp{}(previousEntry, e))
+            if (hasPreviousEntry &&
+                !BucketEntryIdCmp<BucketEntry>{}(previousEntry, e))
             {
                 std::string s = "Bucket has out of order entries: ";
                 s += xdrToCerealString(previousEntry, "previous");

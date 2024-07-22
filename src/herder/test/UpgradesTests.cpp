@@ -2040,7 +2040,7 @@ TEST_CASE("upgrade to version 11", "[upgrades]")
             BucketTestUtils::EntryCounts lev0SnapCounts(lev0Snap);
             BucketTestUtils::EntryCounts lev1CurrCounts(lev1Curr);
             auto getVers = [](std::shared_ptr<Bucket> b) -> uint32_t {
-                return BucketInputIterator(b).getMetadata().ledgerVersion;
+                return LiveBucketInputIterator(b).getMetadata().ledgerVersion;
             };
             switch (ledgerSeq)
             {
@@ -2129,7 +2129,7 @@ TEST_CASE("upgrade to version 12", "[upgrades]")
             auto lev1Curr = lev1.getCurr();
             auto lev1Snap = lev1.getSnap();
             auto getVers = [](std::shared_ptr<Bucket> b) -> uint32_t {
-                return BucketInputIterator(b).getMetadata().ledgerVersion;
+                return LiveBucketInputIterator(b).getMetadata().ledgerVersion;
             };
             switch (ledgerSeq)
             {

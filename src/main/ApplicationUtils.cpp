@@ -578,7 +578,7 @@ processArchivalMetrics(
     UnorderedMap<LedgerKey, StateArchivalMetric>& ledgerEntries,
     UnorderedMap<LedgerKey, std::pair<StateArchivalMetric, uint32_t>>& ttls)
 {
-    for (BucketInputIterator in(b); in; ++in)
+    for (LiveBucketInputIterator in(b); in; ++in)
     {
         auto const& be = *in;
         bool isDead = be.type() == DEADENTRY;

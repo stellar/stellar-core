@@ -90,7 +90,7 @@ closeLedger(Application& app)
 
 EntryCounts::EntryCounts(std::shared_ptr<Bucket> bucket)
 {
-    BucketInputIterator iter(bucket);
+    LiveBucketInputIterator iter(bucket);
     if (iter.seenMetadata())
     {
         ++nMeta;

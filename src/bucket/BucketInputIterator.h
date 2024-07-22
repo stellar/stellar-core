@@ -8,6 +8,7 @@
 #include "xdr/Stellar-ledger.h"
 
 #include <memory>
+#include <type_traits>
 
 namespace stellar
 {
@@ -15,16 +16,19 @@ namespace stellar
 class Bucket;
 
 // Helper class that reads through the entries in a bucket.
-class BucketInputIterator
+template <typename BucketT> class BucketInputIterator
 {
+    static_assert(std::is_same_v<BucketT, BucketEntry> ||
+                  std::is_same_v<BucketT, HotArchiveBucketEntry>);
+
     std::shared_ptr<Bucket const> mBucket;
 
     // Validity and current-value of the iterator is funneled into a
     // pointer. If
     // non-null, it points to mEntry.
-    BucketEntry const* mEntryPtr{nullptr};
+    BucketT const* mEntryPtr{nullptr};
     XDRInputFileStream mIn;
-    BucketEntry mEntry;
+    BucketT mEntry;
     bool mSeenMetadata{false};
     bool mSeenOtherEntries{false};
     BucketMetadata mMetadata;
@@ -43,7 +47,7 @@ class BucketInputIterator
     bool seenMetadata() const;
     BucketMetadata const& getMetadata() const;
 
-    BucketEntry const& operator*();
+    BucketT const& operator*();
 
     BucketInputIterator(std::shared_ptr<Bucket const> bucket);
 
@@ -55,4 +59,6 @@ class BucketInputIterator
     size_t size() const;
     void seek(std::streamoff offset);
 };
+
+typedef BucketInputIterator<BucketEntry> LiveBucketInputIterator;
 }
