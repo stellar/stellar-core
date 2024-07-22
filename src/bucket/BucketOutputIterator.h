@@ -20,13 +20,16 @@ class BucketManager;
 
 // Helper class that writes new elements to a file and returns a bucket
 // when finished.
-class BucketOutputIterator
+template <typename BucketT> class BucketOutputIterator
 {
+    static_assert(std::is_same_v<BucketT, BucketEntry> ||
+                  std::is_same_v<BucketT, HotArchiveBucketEntry>);
+
   protected:
     std::filesystem::path mFilename;
     XDROutputFileStream mOut;
-    BucketEntryIdCmp mCmp;
-    std::unique_ptr<BucketEntry> mBuf;
+    BucketEntryIdCmp<BucketT> mCmp;
+    std::unique_ptr<BucketT> mBuf;
     SHA256 mHasher;
     size_t mBytesPut{0};
     size_t mObjectsPut{0};
@@ -47,10 +50,12 @@ class BucketOutputIterator
                          BucketMetadata const& meta, MergeCounters& mc,
                          asio::io_context& ctx, bool doFsync);
 
-    void put(BucketEntry const& e);
+    void put(BucketT const& e);
 
     std::shared_ptr<Bucket> getBucket(BucketManager& bucketManager,
                                       bool shouldSynchronouslyIndex,
                                       MergeKey* mergeKey = nullptr);
 };
+
+typedef BucketOutputIterator<BucketEntry> LiveBucketOutputIterator;
 }

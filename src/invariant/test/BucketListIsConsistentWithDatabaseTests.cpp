@@ -217,10 +217,11 @@ struct BucketListGenerator
             auto keepDead = BucketListBase::keepDeadEntries(i);
 
             auto writeBucketFile = [&](auto b) {
-                BucketOutputIterator out(bmApply.getTmpDir(), keepDead, meta,
-                                         mergeCounters, mClock.getIOContext(),
-                                         /*doFsync=*/true);
-                for (BucketInputIterator in(b); in; ++in)
+                LiveBucketOutputIterator out(bmApply.getTmpDir(), keepDead,
+                                             meta, mergeCounters,
+                                             mClock.getIOContext(),
+                                             /*doFsync=*/true);
+                for (LiveBucketInputIterator in(b); in; ++in)
                 {
                     out.put(*in);
                 }
@@ -248,7 +249,7 @@ struct BucketListGenerator
 bool
 doesBucketContain(std::shared_ptr<Bucket const> bucket, const BucketEntry& be)
 {
-    for (BucketInputIterator iter(bucket); iter; ++iter)
+    for (LiveBucketInputIterator iter(bucket); iter; ++iter)
     {
         if (*iter == be)
         {
