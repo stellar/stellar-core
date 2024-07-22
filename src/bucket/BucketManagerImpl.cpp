@@ -12,6 +12,7 @@
 #include "bucket/BucketSnapshotManager.h"
 #include "crypto/BLAKE2.h"
 #include "crypto/Hex.h"
+#include "crypto/SHA.h"
 #include "history/HistoryManager.h"
 #include "historywork/VerifyBucketWork.h"
 #include "ledger/LedgerManager.h"
@@ -23,6 +24,7 @@
 #include "util/GlobalChecks.h"
 #include "util/LogSlowExecution.h"
 #include "util/Logging.h"
+#include "util/ProtocolVersion.h"
 #include "util/TmpDir.h"
 #include "util/types.h"
 #include "xdr/Stellar-ledger.h"
@@ -124,13 +126,15 @@ BucketManagerImpl::initialize()
 
     if (mApp.getConfig().MODE_ENABLES_BUCKETLIST)
     {
-        mBucketList = std::make_unique<LiveBucketList>();
+        mLiveBucketList = std::make_unique<LiveBucketList>();
+        mHotArchiveBucketList = std::make_unique<HotArchiveBucketList>();
 
         if (mApp.getConfig().isUsingBucketListDB())
         {
+            // TODO: Archival BucketList snapshot
             mSnapshotManager = std::make_unique<BucketSnapshotManager>(
                 mApp,
-                std::make_unique<BucketListSnapshot>(*mBucketList,
+                std::make_unique<BucketListSnapshot>(*mLiveBucketList,
                                                      LedgerHeader()),
                 mApp.getConfig().QUERY_SNAPSHOT_LEDGERS);
         }
@@ -178,14 +182,20 @@ EvictionCounters::EvictionCounters(Application& app)
 
 BucketManagerImpl::BucketManagerImpl(Application& app)
     : mApp(app)
-    , mBucketList(nullptr)
+    , mLiveBucketList(nullptr)
+    , mHotArchiveBucketList(nullptr)
     , mSnapshotManager(nullptr)
     , mTmpDirManager(nullptr)
     , mWorkDir(nullptr)
     , mLockedBucketDir(nullptr)
-    , mBucketObjectInsertBatch(app.getMetrics().NewMeter(
+    , mBucketLiveObjectInsertBatch(app.getMetrics().NewMeter(
           {"bucket", "batch", "objectsadded"}, "object"))
-    , mBucketAddBatch(app.getMetrics().NewTimer({"bucket", "batch", "addtime"}))
+    , mBucketArchiveObjectInsertBatch(app.getMetrics().NewMeter(
+          {"bucket", "batch-archive", "objectsadded"}, "object"))
+    , mBucketAddLiveBatch(
+          app.getMetrics().NewTimer({"bucket", "batch", "addtime"}))
+    , mBucketAddArchiveBatch(
+          app.getMetrics().NewTimer({"bucket", "batch-archive", "addtime"}))
     , mBucketSnapMerge(app.getMetrics().NewTimer({"bucket", "snap", "merge"}))
     , mSharedBucketsSize(
           app.getMetrics().NewCounter({"bucket", "memory", "shared"}))
@@ -193,8 +203,10 @@ BucketManagerImpl::BucketManagerImpl(Application& app)
           {"bucketlistDB", "bloom", "misses"}, "bloom"))
     , mBucketListDBBloomLookups(app.getMetrics().NewMeter(
           {"bucketlistDB", "bloom", "lookups"}, "bloom"))
-    , mBucketListSizeCounter(
+    , mLiveBucketListSizeCounter(
           app.getMetrics().NewCounter({"bucketlist", "size", "bytes"}))
+    , mArchiveBucketListSizeCounter(
+          app.getMetrics().NewCounter({"bucketlist-archive", "size", "bytes"}))
     , mBucketListEvictionCounters(app)
     , mEvictionStatistics(std::make_shared<EvictionStatistics>())
     // Minimal DB is stored in the buckets dir, so delete it only when
@@ -344,7 +356,14 @@ LiveBucketList&
 BucketManagerImpl::getLiveBucketList()
 {
     releaseAssertOrThrow(mApp.getConfig().MODE_ENABLES_BUCKETLIST);
-    return *mBucketList;
+    return *mLiveBucketList;
+}
+
+HotArchiveBucketList&
+BucketManagerImpl::getHotArchiveBucketList()
+{
+    releaseAssertOrThrow(mApp.getConfig().MODE_ENABLES_BUCKETLIST);
+    return *mHotArchiveBucketList;
 }
 
 BucketSnapshotManager&
@@ -709,31 +728,36 @@ BucketManagerImpl::getBucketListReferencedBuckets() const
         return referenced;
     }
 
-    // retain current bucket list
-    for (uint32_t i = 0; i < BucketListBase::kNumLevels; ++i)
-    {
-        auto const& level = mBucketList->getLevel(i);
-        auto rit = referenced.emplace(level.getCurr()->getHash());
-        if (rit.second)
+    auto processBucketList = [&](auto const& bl) {
+        // retain current bucket list
+        for (uint32_t i = 0; i < BucketListBase::kNumLevels; ++i)
         {
-            CLOG_TRACE(Bucket, "{} referenced by bucket list",
-                       binToHex(*rit.first));
-        }
-        rit = referenced.emplace(level.getSnap()->getHash());
-        if (rit.second)
-        {
-            CLOG_TRACE(Bucket, "{} referenced by bucket list",
-                       binToHex(*rit.first));
-        }
-        for (auto const& h : level.getNext().getHashes())
-        {
-            rit = referenced.emplace(hexToBin256(h));
+            auto const& level = bl->getLevel(i);
+            auto rit = referenced.emplace(level.getCurr()->getHash());
             if (rit.second)
             {
-                CLOG_TRACE(Bucket, "{} referenced by bucket list", h);
+                CLOG_TRACE(Bucket, "{} referenced by bucket list",
+                           binToHex(*rit.first));
+            }
+            rit = referenced.emplace(level.getSnap()->getHash());
+            if (rit.second)
+            {
+                CLOG_TRACE(Bucket, "{} referenced by bucket list",
+                           binToHex(*rit.first));
+            }
+            for (auto const& h : level.getNext().getHashes())
+            {
+                rit = referenced.emplace(hexToBin256(h));
+                if (rit.second)
+                {
+                    CLOG_TRACE(Bucket, "{} referenced by bucket list", h);
+                }
             }
         }
-    }
+    };
+
+    processBucketList(mLiveBucketList);
+    processBucketList(mHotArchiveBucketList);
 
     return referenced;
 }
@@ -926,17 +950,44 @@ BucketManagerImpl::addLiveBatch(Application& app, LedgerHeader header,
         header.ledgerVersion = mFakeTestProtocolVersion;
     }
 #endif
-    auto timer = mBucketAddBatch.TimeScope();
-    mBucketObjectInsertBatch.Mark(initEntries.size() + liveEntries.size() +
+    auto timer = mBucketAddLiveBatch.TimeScope();
+    mBucketLiveObjectInsertBatch.Mark(initEntries.size() + liveEntries.size() +
                                   deadEntries.size());
-    mBucketList->addBatch(app, header.ledgerSeq, header.ledgerVersion,
+    mLiveBucketList->addBatch(app, header.ledgerSeq, header.ledgerVersion,
                           initEntries, liveEntries, deadEntries);
-    mBucketListSizeCounter.set_count(mBucketList->getSize());
+
+    mLiveBucketListSizeCounter.set_count(mLiveBucketList->getSize());
 
     if (app.getConfig().isUsingBucketListDB())
     {
         reportBucketEntryCountMetrics();
     }
+}
+
+// TODO: Fix interface to match addLiveBatch
+void
+BucketManagerImpl::addArchivalBatch(Application& app, uint32_t currLedger,
+                                    uint32_t currLedgerProtocol,
+                                    std::vector<LedgerEntry> const& initEntries,
+                                    std::vector<LedgerKey> const& deadEntries)
+{
+    ZoneScoped;
+    releaseAssertOrThrow(app.getConfig().MODE_ENABLES_BUCKETLIST);
+#ifdef BUILD_TESTS
+    if (mUseFakeTestValuesForNextClose)
+    {
+        currLedgerProtocol = mFakeTestProtocolVersion;
+    }
+#endif
+    auto timer = mBucketAddArchiveBatch.TimeScope();
+    mBucketArchiveObjectInsertBatch.Mark(initEntries.size() +
+                                         deadEntries.size());
+
+    // Hot archive should never modify an existing entry, so there are never
+    // live entries
+    mHotArchiveBucketList->addBatch(app, currLedger, currLedgerProtocol,
+                                    initEntries, {}, deadEntries);
+    mArchiveBucketListSizeCounter.set_count(mHotArchiveBucketList->getSize());
 }
 
 #ifdef BUILD_TESTS
@@ -976,7 +1027,18 @@ BucketManagerImpl::snapshotLedger(LedgerHeader& currentHeader)
     Hash hash;
     if (mApp.getConfig().MODE_ENABLES_BUCKETLIST)
     {
-        hash = mBucketList->getHash();
+        if (protocolVersionStartsFrom(currentHeader.ledgerVersion,
+                                      ProtocolVersion::V_21))
+        {
+            SHA256 hasher;
+            hasher.add(mLiveBucketList->getHash());
+            hasher.add(mHotArchiveBucketList->getHash());
+            hash = hasher.finish();
+        }
+        else
+        {
+            hash = mLiveBucketList->getHash();
+        }
     }
 
     currentHeader.bucketListHash = hash;
@@ -1010,7 +1072,7 @@ BucketManagerImpl::scanForEvictionLegacy(AbstractLedgerTxn& ltx,
     ZoneScoped;
     releaseAssert(protocolVersionStartsFrom(ltx.getHeader().ledgerVersion,
                                             SOROBAN_PROTOCOL_VERSION));
-    mBucketList->scanForEvictionLegacy(
+    mLiveBucketList->scanForEvictionLegacy(
         mApp, ltx, ledgerSeq, mBucketListEvictionCounters, mEvictionStatistics);
 }
 
@@ -1214,14 +1276,15 @@ BucketManagerImpl::assumeState(HistoryArchiveState const& has,
             }
         }
 
-        mBucketList->getLevel(i).setCurr(curr);
-        mBucketList->getLevel(i).setSnap(snap);
-        mBucketList->getLevel(i).setNext(nextFuture);
+        mLiveBucketList->getLevel(i).setCurr(curr);
+        mLiveBucketList->getLevel(i).setSnap(snap);
+        mLiveBucketList->getLevel(i).setNext(nextFuture);
     }
 
     if (restartMerges)
     {
-        mBucketList->restartMerges(mApp, maxProtocolVersion, has.currentLedger);
+        mLiveBucketList->restartMerges(mApp, maxProtocolVersion,
+                                       has.currentLedger);
     }
     cleanupStaleFiles();
 }
