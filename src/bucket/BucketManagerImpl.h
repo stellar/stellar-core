@@ -41,7 +41,8 @@ class BucketManagerImpl : public BucketManager
     static std::string const kLockFilename;
 
     Application& mApp;
-    std::unique_ptr<LiveBucketList> mBucketList;
+    std::unique_ptr<LiveBucketList> mLiveBucketList;
+    std::unique_ptr<HotArchiveBucketList> mHotArchiveBucketList;
     std::unique_ptr<BucketSnapshotManager> mSnapshotManager;
     std::unique_ptr<TmpDirManager> mTmpDirManager;
     std::unique_ptr<TmpDir> mWorkDir;
@@ -54,13 +55,16 @@ class BucketManagerImpl : public BucketManager
     // a BucketList (i.e. addLiveBatch).
     mutable std::recursive_mutex mBucketMutex;
     std::unique_ptr<std::string> mLockedBucketDir;
-    medida::Meter& mBucketObjectInsertBatch;
-    medida::Timer& mBucketAddBatch;
+    medida::Meter& mBucketLiveObjectInsertBatch;
+    medida::Meter& mBucketArchiveObjectInsertBatch;
+    medida::Timer& mBucketAddLiveBatch;
+    medida::Timer& mBucketAddArchiveBatch;
     medida::Timer& mBucketSnapMerge;
     medida::Counter& mSharedBucketsSize;
     medida::Meter& mBucketListDBBloomMisses;
     medida::Meter& mBucketListDBBloomLookups;
-    medida::Counter& mBucketListSizeCounter;
+    medida::Counter& mLiveBucketListSizeCounter;
+    medida::Counter& mArchiveBucketListSizeCounter;
     EvictionCounters mBucketListEvictionCounters;
     MergeCounters mMergeCounters;
     std::shared_ptr<EvictionStatistics> mEvictionStatistics{};
@@ -118,6 +122,7 @@ class BucketManagerImpl : public BucketManager
     std::string const& getTmpDir() override;
     std::string const& getBucketDir() const override;
     LiveBucketList& getLiveBucketList() override;
+    HotArchiveBucketList& getHotArchiveBucketList() override;
     BucketSnapshotManager& getBucketSnapshotManager() const override;
     medida::Timer& getMergeTimer() override;
     MergeCounters readMergeCounters() override;
@@ -146,6 +151,10 @@ class BucketManagerImpl : public BucketManager
                       std::vector<LedgerEntry> const& initEntries,
                       std::vector<LedgerEntry> const& liveEntries,
                       std::vector<LedgerKey> const& deadEntries) override;
+    void addArchivalBatch(Application& app, uint32_t currLedger,
+                          uint32_t currLedgerProtocol,
+                          std::vector<LedgerEntry> const& initEntries,
+                          std::vector<LedgerKey> const& deadEntries) override;
     void snapshotLedger(LedgerHeader& currentHeader) override;
     void maybeSetIndex(std::shared_ptr<Bucket> b,
                        std::unique_ptr<BucketIndex const>&& index) override;
