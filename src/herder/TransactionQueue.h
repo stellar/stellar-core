@@ -200,9 +200,9 @@ class TransactionQueue
         BROADCAST_STATUS_SKIPPED
     };
     BroadcastStatus broadcastTx(TimestampedTx& tx);
-    AddResult canAdd(TransactionFrameBasePtr tx,
-                     AccountStates::iterator& stateIter,
-                     std::vector<std::pair<TxStackPtr, bool>>& txsToEvict);
+    AddResult
+    canAdd(TransactionFrameBasePtr tx, AccountStates::iterator& stateIter,
+           std::vector<std::pair<TransactionFrameBasePtr, bool>>& txsToEvict);
 
     void releaseFeeMaybeEraseAccountState(TransactionFrameBasePtr tx);
 

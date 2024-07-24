@@ -298,50 +298,43 @@ testTxSet(uint32 protocolVersion)
     cfg.TESTING_UPGRADE_LEDGER_PROTOCOL_VERSION = protocolVersion;
     VirtualClock clock;
     Application::pointer app = createTestApplication(clock, cfg);
-    bool uniqueAccounts =
-        protocolVersion >= static_cast<uint32_t>(SOROBAN_PROTOCOL_VERSION);
 
     // set up world
     auto root = TestAccount::createRoot(*app);
 
     const int nbAccounts = 3;
-    // Post protocol 20, multiple transactions per accounts aren't allowed
-    const int nbTransactions = uniqueAccounts ? 1 : 5;
 
-    auto accounts = std::vector<TestAccount>{};
+    std::vector<TestAccount> accounts;
 
     const int64_t minBalance0 = app->getLedgerManager().getLastMinBalance(0);
 
-    // amount only allows up to nbTransactions
-    int64_t amountPop =
-        nbTransactions * app->getLedgerManager().getLastTxFee() + minBalance0;
+    int64_t accountBalance =
+        app->getLedgerManager().getLastTxFee() + minBalance0;
 
     std::vector<TransactionFrameBasePtr> txs;
-    auto genTx = [&](int nbTxs) {
+    auto genTx = [&]() {
         std::string accountName = fmt::format("A{}", accounts.size());
-        accounts.push_back(root.create(accountName.c_str(), amountPop));
+        accounts.push_back(root.create(accountName.c_str(), accountBalance));
         auto& account = accounts.back();
-        for (int j = 0; j < nbTxs; j++)
-        {
-            // payment to self
-            txs.push_back(account.tx({payment(account.getPublicKey(), 10000)}));
-        }
+
+        // payment to self
+        txs.push_back(account.tx({payment(account.getPublicKey(), 10000)}));
     };
     for (size_t i = 0; i < nbAccounts; i++)
     {
-        genTx(nbTransactions);
+        genTx();
     }
     SECTION("valid set")
     {
         auto txSet = makeTxSetFromTransactions(txs, *app, 0, 0).second;
-        REQUIRE(txSet->sizeTxTotal() == (nbAccounts * nbTransactions));
+        REQUIRE(txSet->sizeTxTotal() == nbAccounts);
     }
 
     SECTION("too many txs")
     {
         while (txs.size() <= cfg.TESTING_UPGRADE_MAX_TX_SET_SIZE * 2)
         {
-            genTx(1);
+            genTx();
         }
         auto txSet = makeTxSetFromTransactions(txs, *app, 0, 0).second;
         REQUIRE(txSet->sizeTxTotal() == cfg.TESTING_UPGRADE_MAX_TX_SET_SIZE);
@@ -356,69 +349,30 @@ testTxSet(uint32 protocolVersion)
             auto txSet =
                 makeTxSetFromTransactions(txs, *app, 0, 0, removed).second;
             REQUIRE(removed.size() == 1);
-            REQUIRE(txSet->sizeTxTotal() == (nbAccounts * nbTransactions));
+            REQUIRE(txSet->sizeTxTotal() == nbAccounts);
         }
         SECTION("sequence gap")
         {
-            SECTION("gap after")
-            {
-                auto tx = accounts[0].tx({payment(accounts[0], 1)});
-                setSeqNum(tx, tx->getSeqNum() + 5);
-                txs.push_back(tx);
-
-                TxSetTransactions removed;
-                auto txSet =
-                    makeTxSetFromTransactions(txs, *app, 0, 0, removed).second;
-                REQUIRE(removed.size() == 1);
-                REQUIRE(txSet->sizeTxTotal() == (nbAccounts * nbTransactions));
-            }
-            SECTION("gap begin")
-            {
-                txs.erase(txs.begin());
-
-                TxSetTransactions removed;
-                auto txSet =
-                    makeTxSetFromTransactions(txs, *app, 0, 0, removed).second;
-
-                // one of the account lost all its transactions
-                REQUIRE(removed.size() == (nbTransactions - 1));
-                REQUIRE(txSet->sizeTxTotal() ==
-                        nbTransactions * (nbAccounts - 1));
-            }
-            SECTION("gap middle")
-            {
-                // Gap in the middle only makes sense if we allow multiple txs
-                // per account
-                if (!uniqueAccounts)
-                {
-                    int remIdx = 2; // 3rd transaction from the first account
-                    txs.erase(txs.begin() + remIdx);
-
-                    TxSetTransactions removed;
-                    auto txSet =
-                        makeTxSetFromTransactions(txs, *app, 0, 0, removed)
-                            .second;
-
-                    // one account has all its transactions,
-                    // the other, we removed transactions after remIdx
-                    auto expectedRemoved = nbTransactions - remIdx - 1;
-                    REQUIRE(removed.size() == expectedRemoved);
-                    REQUIRE(
-                        txSet->sizeTxTotal() ==
-                        (nbTransactions * nbAccounts - expectedRemoved - 1));
-                }
-            }
-        }
-        SECTION("insufficient balance")
-        {
-            // extra transaction would push the account below the reserve
-            txs.push_back(accounts[0].tx({payment(accounts[0], 10)}));
+            setSeqNum(std::static_pointer_cast<TransactionFrame>(txs[0]),
+                      txs[0]->getSeqNum() + 5);
 
             TxSetTransactions removed;
             auto txSet =
                 makeTxSetFromTransactions(txs, *app, 0, 0, removed).second;
-            REQUIRE(removed.size() == (nbTransactions + 1));
-            REQUIRE(txSet->sizeTxTotal() == nbTransactions * (nbAccounts - 1));
+            REQUIRE(removed.size() == 1);
+            REQUIRE(txSet->sizeTxTotal() == nbAccounts - 1);
+        }
+        SECTION("insufficient balance")
+        {
+            accounts.push_back(root.create("insufficient", accountBalance - 1));
+            txs.back() = accounts.back().tx(
+                {payment(accounts.back().getPublicKey(), 10000)});
+
+            TxSetTransactions removed;
+            auto txSet =
+                makeTxSetFromTransactions(txs, *app, 0, 0, removed).second;
+            REQUIRE(removed.size() == 1);
+            REQUIRE(txSet->sizeTxTotal() == nbAccounts - 1);
         }
         SECTION("bad signature")
         {
@@ -428,8 +382,8 @@ testTxSet(uint32 protocolVersion)
             TxSetTransactions removed;
             auto txSet =
                 makeTxSetFromTransactions(txs, *app, 0, 0, removed).second;
-            REQUIRE(removed.size() == nbTransactions);
-            REQUIRE(txSet->sizeTxTotal() == nbTransactions * (nbAccounts - 1));
+            REQUIRE(removed.size() == 1);
+            REQUIRE(txSet->sizeTxTotal() == nbAccounts - 1);
         }
     }
 }
@@ -467,84 +421,6 @@ testTxSetWithFeeBumps(uint32 protocolVersion)
         std::sort(expectedNormalized.begin(), expectedNormalized.end());
         REQUIRE(actualNormalized == expectedNormalized);
     };
-
-    SECTION("insufficient balance")
-    {
-        SECTION("two fee bumps with same sources, second insufficient")
-        {
-            auto tx1 = transaction(*app, account1, 1, 1, 100);
-            auto fb1 = feeBump(*app, account2, tx1, 200);
-            auto tx2 = transaction(*app, account1, 2, 1, 100);
-            auto fb2 =
-                feeBump(*app, account2, tx2, minBalance2 - minBalance0 - 199);
-            TxSetTransactions invalidTxs;
-            auto txSet =
-                makeTxSetFromTransactions({fb1, fb2}, *app, 0, 0, invalidTxs);
-            compareTxs(invalidTxs, {fb1, fb2});
-        }
-
-        SECTION("three fee bumps, one with different fee source, "
-                "different first")
-        {
-            auto tx1 = transaction(*app, account1, 1, 1, 100);
-            auto fb1 = feeBump(*app, account3, tx1, 200);
-            auto tx2 = transaction(*app, account1, 2, 1, 100);
-            auto fb2 = feeBump(*app, account2, tx2, 200);
-            auto tx3 = transaction(*app, account1, 3, 1, 100);
-            auto fb3 =
-                feeBump(*app, account2, tx3, minBalance2 - minBalance0 - 199);
-            TxSetTransactions invalidTxs;
-            auto txSet = makeTxSetFromTransactions({fb1, fb2, fb3}, *app, 0, 0,
-                                                   invalidTxs);
-            compareTxs(invalidTxs, {fb2, fb3});
-        }
-
-        SECTION("three fee bumps, one with different fee source, "
-                "different second")
-        {
-            auto tx1 = transaction(*app, account1, 1, 1, 100);
-            auto fb1 = feeBump(*app, account2, tx1, 200);
-            auto tx2 = transaction(*app, account1, 2, 1, 100);
-            auto fb2 = feeBump(*app, account3, tx2, 200);
-            auto tx3 = transaction(*app, account1, 3, 1, 100);
-            auto fb3 =
-                feeBump(*app, account2, tx3, minBalance2 - minBalance0 - 199);
-
-            TxSetTransactions invalidTxs;
-            auto txSet = makeTxSetFromTransactions({fb1, fb2, fb3}, *app, 0, 0,
-                                                   invalidTxs);
-            compareTxs(invalidTxs, {fb1, fb2, fb3});
-        }
-
-        SECTION("three fee bumps, one with different fee source, "
-                "different third")
-        {
-            auto tx1 = transaction(*app, account1, 1, 1, 100);
-            auto fb1 = feeBump(*app, account2, tx1, 200);
-            auto tx2 = transaction(*app, account1, 2, 1, 100);
-            auto fb2 =
-                feeBump(*app, account2, tx2, minBalance2 - minBalance0 - 199);
-            auto tx3 = transaction(*app, account1, 3, 1, 100);
-            auto fb3 = feeBump(*app, account3, tx3, 200);
-            TxSetTransactions invalidTxs;
-            auto txSet = makeTxSetFromTransactions({fb1, fb2, fb3}, *app, 0, 0,
-                                                   invalidTxs);
-            compareTxs(invalidTxs, {fb1, fb2, fb3});
-        }
-
-        SECTION("two fee bumps with same fee source but different source")
-        {
-            auto tx1 = transaction(*app, account1, 1, 1, 100);
-            auto fb1 = feeBump(*app, account2, tx1, 200);
-            auto tx2 = transaction(*app, account2, 1, 1, 100);
-            auto fb2 =
-                feeBump(*app, account2, tx2, minBalance2 - minBalance0 - 199);
-            TxSetTransactions invalidTxs;
-            auto txSet =
-                makeTxSetFromTransactions({fb1, fb2}, *app, 0, 0, invalidTxs);
-            compareTxs(invalidTxs, {fb1, fb2});
-        }
-    }
 
     SECTION("invalid transaction")
     {
@@ -647,10 +523,6 @@ testTxSetWithFeeBumps(uint32 protocolVersion)
 
 TEST_CASE("txset", "[herder][txset]")
 {
-    SECTION("protocol 13")
-    {
-        testTxSet(13);
-    }
     SECTION("generalized tx set protocol")
     {
         testTxSet(static_cast<uint32>(SOROBAN_PROTOCOL_VERSION));
@@ -662,7 +534,7 @@ TEST_CASE("txset", "[herder][txset]")
     }
 }
 
-TEST_CASE_VERSIONS("txset with PreconditionsV2", "[herder][txset]")
+TEST_CASE("txset with PreconditionsV2", "[herder][txset]")
 {
     Config cfg(getTestConfig());
     VirtualClock clock;
@@ -671,437 +543,256 @@ TEST_CASE_VERSIONS("txset with PreconditionsV2", "[herder][txset]")
     auto const minBalance2 = app->getLedgerManager().getLastMinBalance(2);
     auto root = TestAccount::createRoot(*app);
     auto a1 = root.create("a1", minBalance2);
+    auto a2 = root.create("a2", minBalance2);
 
-    for_versions_to(18, *app, [&] {
-        auto checkTxSupport = [&](PreconditionsV2 const& c) {
-            auto tx = transactionWithV2Precondition(*app, a1, 1, 100, c);
-            TxSetTransactions invalidTxs;
-            auto txSet =
-                makeTxSetFromTransactions({tx}, *app, 0, 0, invalidTxs);
-            REQUIRE(invalidTxs.size() == 1);
-            REQUIRE(tx->getResultCode() == txNOT_SUPPORTED);
+    // Move close time past 0
+    closeLedgerOn(*app, 1, 1, 2022);
+
+    SECTION("minSeqAge")
+    {
+        auto minSeqAgeCond = [](Duration minSeqAge) {
+            PreconditionsV2 cond;
+            cond.minSeqAge = minSeqAge;
+            return cond;
         };
 
-        SECTION("empty V2 precondition")
-        {
-            PreconditionsV2 cond;
-            checkTxSupport(cond);
-        }
-        SECTION("ledgerBounds")
-        {
-            PreconditionsV2 cond;
-            LedgerBounds b;
-            cond.ledgerBounds.activate() = b;
-            checkTxSupport(cond);
-        }
-        SECTION("minSeqNum")
-        {
-            PreconditionsV2 cond;
-            cond.minSeqNum.activate() = 0;
-            checkTxSupport(cond);
-        }
-        SECTION("minSeqLedgerGap")
-        {
-            PreconditionsV2 cond;
-            cond.minSeqLedgerGap = 1;
-            checkTxSupport(cond);
-        }
-        SECTION("minSeqAge")
-        {
-            PreconditionsV2 cond;
-            cond.minSeqAge = 1;
-            checkTxSupport(cond);
-        }
-        SECTION("extraSigners")
-        {
-            SignerKey rootSigner;
-            rootSigner.type(SIGNER_KEY_TYPE_ED25519);
-            rootSigner.ed25519() = root.getPublicKey().ed25519();
-
-            PreconditionsV2 cond;
-            cond.extraSigners.emplace_back(rootSigner);
-            checkTxSupport(cond);
-        }
-    });
-
-    for_versions_from(19, *app, [&] {
-        // Move close time past 0
-        closeLedgerOn(*app, 1, 1, 2022);
-
-        SECTION("minSeqNum gap")
-        {
+        auto test = [&](bool v3ExtIsSet, bool minSeqNumTxIsFeeBump) {
+            Duration minGap;
+            if (v3ExtIsSet)
             {
-                LedgerTxn ltx(app->getLedgerTxnRoot());
-                if (ltx.loadHeader().current().ledgerVersion >=
-                    static_cast<uint32_t>(SOROBAN_PROTOCOL_VERSION))
-                {
-                    return;
-                }
+                // run a v19 op so a1's seqLedger is set
+                a1.bumpSequence(0);
+                closeLedgerOn(
+                    *app, app->getLedgerManager().getLastClosedLedgerNum() + 1,
+                    app->getLedgerManager()
+                            .getLastClosedLedgerHeader()
+                            .header.scpValue.closeTime +
+                        1);
+                minGap = 1;
             }
-            auto minSeqNumCond = [](SequenceNumber seqNum) {
-                PreconditionsV2 cond;
-                cond.minSeqNum.activate() = seqNum;
-                return cond;
-            };
+            else
+            {
+                minGap = app->getLedgerManager()
+                             .getLastClosedLedgerHeader()
+                             .header.scpValue.closeTime;
+            }
 
-            auto tx1 = transaction(*app, a1, 1, 1, 100);
-            auto tx2InvalidGap = transactionWithV2Precondition(
-                *app, a1, 5, 100,
-                minSeqNumCond(a1.getLastSequenceNumber() + 2));
+            auto txInvalid = transactionWithV2Precondition(
+                *app, a1, 1, 100, minSeqAgeCond(minGap + 1));
             TxSetTransactions removed;
-            auto txSet = makeTxSetFromTransactions({tx1, tx2InvalidGap}, *app,
-                                                   0, 0, removed);
-            REQUIRE(removed.back() == tx2InvalidGap);
+            auto txSet =
+                makeTxSetFromTransactions({txInvalid}, *app, 0, 0, removed)
+                    .second;
+            REQUIRE(removed.back() == txInvalid);
+            REQUIRE(txSet->sizeTxTotal() == 0);
 
-            auto tx2 = transactionWithV2Precondition(
-                *app, a1, 5, 100,
-                minSeqNumCond(a1.getLastSequenceNumber() + 1));
-            auto tx3 = transaction(*app, a1, 6, 1, 100);
+            auto tx1 = transactionWithV2Precondition(*app, a1, 1, 100,
+                                                     minSeqAgeCond(minGap));
+
+            // only the first tx can have minSeqAge set
+            auto tx2Invalid = transactionWithV2Precondition(
+                *app, a2, 2, 100, minSeqAgeCond(minGap));
+
+            auto fb1 = feeBump(*app, a1, tx1, 200);
+            auto fb2Invalid = feeBump(*app, a2, tx2Invalid, 200);
+
             removed.clear();
-            txSet =
-                makeTxSetFromTransactions({tx1, tx2, tx3}, *app, 0, 0, removed);
+            if (minSeqNumTxIsFeeBump)
+            {
+                txSet = makeTxSetFromTransactions({fb1, fb2Invalid}, *app, 0, 0,
+                                                  removed)
+                            .second;
+            }
+            else
+            {
+                txSet = makeTxSetFromTransactions({tx1, tx2Invalid}, *app, 0, 0,
+                                                  removed)
+                            .second;
+            }
 
+            REQUIRE(removed.size() == 1);
+            REQUIRE(removed.back() ==
+                    (minSeqNumTxIsFeeBump ? fb2Invalid : tx2Invalid));
+
+            REQUIRE(txSet->checkValid(*app, 0, 0));
+        };
+        SECTION("before v3 ext is set")
+        {
+            test(false, false);
+        }
+        SECTION("after v3 ext is set")
+        {
+            test(true, false);
+        }
+        SECTION("after v3 ext is set - fee bump")
+        {
+            test(true, true);
+        }
+    }
+    SECTION("ledgerBounds")
+    {
+        auto ledgerBoundsCond = [](uint32_t minLedger, uint32_t maxLedger) {
+            LedgerBounds bounds;
+            bounds.minLedger = minLedger;
+            bounds.maxLedger = maxLedger;
+
+            PreconditionsV2 cond;
+            cond.ledgerBounds.activate() = bounds;
+            return cond;
+        };
+
+        auto lclNum = app->getLedgerManager().getLastClosedLedgerNum();
+
+        auto tx1 = transaction(*app, a1, 1, 1, 100);
+
+        SECTION("minLedger")
+        {
+            auto txInvalid = transactionWithV2Precondition(
+                *app, a2, 1, 100, ledgerBoundsCond(lclNum + 2, 0));
+            TxSetTransactions removed;
+            auto txSet = makeTxSetFromTransactions({tx1, txInvalid}, *app, 0, 0,
+                                                   removed);
+            REQUIRE(removed.back() == txInvalid);
+
+            // the highest minLedger can be is lcl + 1 because
+            // validation is done against the next ledger
+            auto tx2 = transactionWithV2Precondition(
+                *app, a2, 1, 100, ledgerBoundsCond(lclNum + 1, 0));
+            removed.clear();
+            txSet = makeTxSetFromTransactions({tx1, tx2}, *app, 0, 0, removed);
             REQUIRE(removed.empty());
         }
-        SECTION("minSeqLedgerGap")
+        SECTION("maxLedger")
         {
-            {
-                LedgerTxn ltx(app->getLedgerTxnRoot());
-                if (ltx.loadHeader().current().ledgerVersion >=
-                    static_cast<uint32_t>(SOROBAN_PROTOCOL_VERSION))
-                {
-                    return;
-                }
-            }
-            auto minSeqLedgerGapCond = [](uint32_t minSeqLedgerGap) {
-                PreconditionsV2 cond;
-                cond.minSeqLedgerGap = minSeqLedgerGap;
-                return cond;
-            };
+            auto txInvalid = transactionWithV2Precondition(
+                *app, a2, 1, 100, ledgerBoundsCond(0, lclNum));
+            TxSetTransactions removed;
+            auto txSet = makeTxSetFromTransactions({tx1, txInvalid}, *app, 0, 0,
+                                                   removed);
+            REQUIRE(removed.back() == txInvalid);
 
-            auto test = [&](bool v3ExtIsSet, bool minSeqNumTxIsFeeBump) {
-                // gap between a1's seqLedger and lcl
-                uint32_t minGap;
-                if (v3ExtIsSet)
-                {
-                    // run a v19 op so a1's seqLedger is set
-                    a1.bumpSequence(0);
-                    closeLedger(*app);
-                    closeLedger(*app);
-                    minGap = 2;
-                }
-                else
-                {
-                    // a1 seqLedger is 0 because it has not done a
-                    // v19 tx yet
-                    minGap = app->getLedgerManager().getLastClosedLedgerNum();
-                }
-
-                auto txInvalid = transactionWithV2Precondition(
-                    *app, a1, 1, 100, minSeqLedgerGapCond(minGap + 2));
-                TxSetTransactions removed;
-                auto txSet =
-                    makeTxSetFromTransactions({txInvalid}, *app, 0, 0, removed)
-                        .second;
-
-                REQUIRE(removed.back() == txInvalid);
-                REQUIRE(txSet->sizeTxTotal() == 0);
-
-                // we use minGap lcl + 1 because validation is done against
-                // the next ledger
-                auto tx1 = transactionWithV2Precondition(
-                    *app, a1, 1, 100, minSeqLedgerGapCond(minGap + 1));
-
-                // only the first tx can have minSeqLedgerGap set
-                auto tx2Invalid = transactionWithV2Precondition(
-                    *app, a1, 2, 100, minSeqLedgerGapCond(minGap + 1));
-
-                auto fb1 = feeBump(*app, a1, tx1, 200);
-                auto fb2Invalid = feeBump(*app, a1, tx2Invalid, 200);
-                removed.clear();
-                if (minSeqNumTxIsFeeBump)
-                {
-                    txSet = makeTxSetFromTransactions({fb1, fb2Invalid}, *app,
-                                                      0, 0, removed)
-                                .second;
-                }
-                else
-                {
-                    txSet = makeTxSetFromTransactions({tx1, tx2Invalid}, *app,
-                                                      0, 0, removed)
-                                .second;
-                }
-
-                REQUIRE(removed.size() == 1);
-                REQUIRE(removed.back() ==
-                        (minSeqNumTxIsFeeBump ? fb2Invalid : tx2Invalid));
-            };
-
-            SECTION("before v3 ext is set")
-            {
-                test(false, false);
-            }
-            SECTION("after v3 ext is set")
-            {
-                test(true, false);
-            }
-            SECTION("after v3 ext is set - fee bump")
-            {
-                test(true, true);
-            }
+            // the lower maxLedger can be is lcl + 2, as the current
+            // ledger is lcl + 1 and maxLedger bound is exclusive.
+            auto tx2 = transactionWithV2Precondition(
+                *app, a2, 1, 100, ledgerBoundsCond(0, lclNum + 2));
+            removed.clear();
+            txSet = makeTxSetFromTransactions({tx1, tx2}, *app, 0, 0, removed);
+            REQUIRE(removed.empty());
         }
-        SECTION("minSeqAge")
+    }
+    SECTION("extraSigners")
+    {
+        SignerKey rootSigner;
+        rootSigner.type(SIGNER_KEY_TYPE_ED25519);
+        rootSigner.ed25519() = root.getPublicKey().ed25519();
+
+        PreconditionsV2 cond;
+        cond.extraSigners.emplace_back(rootSigner);
+
+        SECTION("one extra signer")
         {
-            auto minSeqAgeCond = [](Duration minSeqAge) {
-                PreconditionsV2 cond;
-                cond.minSeqAge = minSeqAge;
-                return cond;
-            };
-
-            auto test = [&](bool v3ExtIsSet, bool minSeqNumTxIsFeeBump) {
-                Duration minGap;
-                if (v3ExtIsSet)
-                {
-                    // run a v19 op so a1's seqLedger is set
-                    a1.bumpSequence(0);
-                    closeLedgerOn(
-                        *app,
-                        app->getLedgerManager().getLastClosedLedgerNum() + 1,
-                        app->getLedgerManager()
-                                .getLastClosedLedgerHeader()
-                                .header.scpValue.closeTime +
-                            1);
-                    minGap = 1;
-                }
-                else
-                {
-                    minGap = app->getLedgerManager()
-                                 .getLastClosedLedgerHeader()
-                                 .header.scpValue.closeTime;
-                }
-
-                auto txInvalid = transactionWithV2Precondition(
-                    *app, a1, 1, 100, minSeqAgeCond(minGap + 1));
-                TxSetTransactions removed;
-                auto txSet =
-                    makeTxSetFromTransactions({txInvalid}, *app, 0, 0, removed)
-                        .second;
-                REQUIRE(removed.back() == txInvalid);
-                REQUIRE(txSet->sizeTxTotal() == 0);
-
-                auto tx1 = transactionWithV2Precondition(*app, a1, 1, 100,
-                                                         minSeqAgeCond(minGap));
-
-                // only the first tx can have minSeqAge set
-                auto tx2Invalid = transactionWithV2Precondition(
-                    *app, a1, 2, 100, minSeqAgeCond(minGap));
-
-                auto fb1 = feeBump(*app, a1, tx1, 200);
-                auto fb2Invalid = feeBump(*app, a1, tx2Invalid, 200);
-
-                removed.clear();
-                if (minSeqNumTxIsFeeBump)
-                {
-                    txSet = makeTxSetFromTransactions({fb1, fb2Invalid}, *app,
-                                                      0, 0, removed)
-                                .second;
-                }
-                else
-                {
-                    txSet = makeTxSetFromTransactions({tx1, tx2Invalid}, *app,
-                                                      0, 0, removed)
-                                .second;
-                }
-
-                REQUIRE(removed.size() == 1);
-                REQUIRE(removed.back() ==
-                        (minSeqNumTxIsFeeBump ? fb2Invalid : tx2Invalid));
-
-                REQUIRE(txSet->checkValid(*app, 0, 0));
-            };
-            SECTION("before v3 ext is set")
+            auto tx = transactionWithV2Precondition(*app, a1, 1, 100, cond);
+            SECTION("success")
             {
-                test(false, false);
-            }
-            SECTION("after v3 ext is set")
-            {
-                test(true, false);
-            }
-            SECTION("after v3 ext is set - fee bump")
-            {
-                test(true, true);
-            }
-        }
-        SECTION("ledgerBounds")
-        {
-            auto ledgerBoundsCond = [](uint32_t minLedger, uint32_t maxLedger) {
-                LedgerBounds bounds;
-                bounds.minLedger = minLedger;
-                bounds.maxLedger = maxLedger;
-
-                PreconditionsV2 cond;
-                cond.ledgerBounds.activate() = bounds;
-                return cond;
-            };
-
-            auto lclNum = app->getLedgerManager().getLastClosedLedgerNum();
-
-            auto tx1 = transaction(*app, a1, 1, 1, 100);
-
-            SECTION("minLedger")
-            {
-                auto txInvalid = transactionWithV2Precondition(
-                    *app, a1, 2, 100, ledgerBoundsCond(lclNum + 2, 0));
-                TxSetTransactions removed;
-                auto txSet = makeTxSetFromTransactions({tx1, txInvalid}, *app,
-                                                       0, 0, removed);
-                REQUIRE(removed.back() == txInvalid);
-
-                // the highest minLedger can be is lcl + 1 because
-                // validation is done against the next ledger
-                auto tx2 = transactionWithV2Precondition(
-                    *app, a1, 2, 100, ledgerBoundsCond(lclNum + 1, 0));
-                removed.clear();
-                txSet =
-                    makeTxSetFromTransactions({tx1, tx2}, *app, 0, 0, removed);
-                REQUIRE(removed.empty());
-            }
-            SECTION("maxLedger")
-            {
-                auto txInvalid = transactionWithV2Precondition(
-                    *app, a1, 2, 100, ledgerBoundsCond(0, lclNum));
-                TxSetTransactions removed;
-                auto txSet = makeTxSetFromTransactions({tx1, txInvalid}, *app,
-                                                       0, 0, removed);
-                REQUIRE(removed.back() == txInvalid);
-
-                // the lower maxLedger can be is lcl + 2, as the current
-                // ledger is lcl + 1 and maxLedger bound is exclusive.
-                auto tx2 = transactionWithV2Precondition(
-                    *app, a1, 2, 100, ledgerBoundsCond(0, lclNum + 2));
-                removed.clear();
-                txSet =
-                    makeTxSetFromTransactions({tx1, tx2}, *app, 0, 0, removed);
-                REQUIRE(removed.empty());
-            }
-        }
-        SECTION("extraSigners")
-        {
-            SignerKey rootSigner;
-            rootSigner.type(SIGNER_KEY_TYPE_ED25519);
-            rootSigner.ed25519() = root.getPublicKey().ed25519();
-
-            PreconditionsV2 cond;
-            cond.extraSigners.emplace_back(rootSigner);
-
-            SECTION("one extra signer")
-            {
-                auto tx = transactionWithV2Precondition(*app, a1, 1, 100, cond);
-                SECTION("success")
-                {
-                    tx->addSignature(root.getSecretKey());
-                    TxSetTransactions removed;
-                    auto txSet =
-                        makeTxSetFromTransactions({tx}, *app, 0, 0, removed);
-                    REQUIRE(removed.empty());
-                }
-                SECTION("fail")
-                {
-                    TxSetTransactions removed;
-                    auto txSet =
-                        makeTxSetFromTransactions({tx}, *app, 0, 0, removed);
-                    REQUIRE(removed.back() == tx);
-                }
-            }
-            SECTION("two extra signers")
-            {
-                auto a2 = root.create("a2", minBalance2);
-
-                SignerKey a2Signer;
-                a2Signer.type(SIGNER_KEY_TYPE_ED25519);
-                a2Signer.ed25519() = a2.getPublicKey().ed25519();
-
-                cond.extraSigners.emplace_back(a2Signer);
-                auto tx = transactionWithV2Precondition(*app, a1, 1, 100, cond);
                 tx->addSignature(root.getSecretKey());
-
-                SECTION("success")
-                {
-                    tx->addSignature(a2.getSecretKey());
-                    TxSetTransactions removed;
-                    auto txSet =
-                        makeTxSetFromTransactions({tx}, *app, 0, 0, removed);
-                    REQUIRE(removed.empty());
-                }
-                SECTION("fail")
-                {
-                    TxSetTransactions removed;
-                    auto txSet =
-                        makeTxSetFromTransactions({tx}, *app, 0, 0, removed);
-                    REQUIRE(removed.back() == tx);
-                }
-            }
-            SECTION("duplicate extra signers")
-            {
-                cond.extraSigners.emplace_back(rootSigner);
-                auto txDupeSigner =
-                    transactionWithV2Precondition(*app, a1, 1, 100, cond);
-                txDupeSigner->addSignature(root.getSecretKey());
-                TxSetTransactions removed;
-                auto txSet = makeTxSetFromTransactions({txDupeSigner}, *app, 0,
-                                                       0, removed);
-                REQUIRE(removed.back() == txDupeSigner);
-                REQUIRE(txDupeSigner->getResultCode() == txMALFORMED);
-            }
-            SECTION("signer overlap with default account signer")
-            {
-                auto rootTx =
-                    transactionWithV2Precondition(*app, root, 1, 100, cond);
                 TxSetTransactions removed;
                 auto txSet =
-                    makeTxSetFromTransactions({rootTx}, *app, 0, 0, removed);
+                    makeTxSetFromTransactions({tx}, *app, 0, 0, removed);
                 REQUIRE(removed.empty());
             }
-            SECTION("signer overlap with added account signer")
+            SECTION("fail")
             {
-                auto sk1 = makeSigner(root, 100);
-                a1.setOptions(setSigner(sk1));
-
-                auto tx = transactionWithV2Precondition(*app, a1, 1, 100, cond);
-                SECTION("signature present")
-                {
-                    tx->addSignature(root.getSecretKey());
-
-                    TxSetTransactions removed;
-                    auto txSet =
-                        makeTxSetFromTransactions({tx}, *app, 0, 0, removed);
-                    REQUIRE(removed.empty());
-                }
-                SECTION("signature missing")
-                {
-                    TxSetTransactions removed;
-                    auto txSet =
-                        makeTxSetFromTransactions({tx}, *app, 0, 0, removed);
-                    REQUIRE(removed.back() == tx);
-                }
+                TxSetTransactions removed;
+                auto txSet =
+                    makeTxSetFromTransactions({tx}, *app, 0, 0, removed);
+                REQUIRE(removed.back() == tx);
             }
-            SECTION("signer overlap with added account signer - both "
-                    "signers used")
-            {
-                auto sk1 = makeSigner(root, 100);
-                a1.setOptions(setSigner(sk1));
+        }
+        SECTION("two extra signers")
+        {
+            SignerKey a2Signer;
+            a2Signer.type(SIGNER_KEY_TYPE_ED25519);
+            a2Signer.ed25519() = a2.getPublicKey().ed25519();
 
-                auto tx = transactionFrameFromOps(app->getNetworkID(), a1,
-                                                  {root.op(payment(a1, 1))},
-                                                  {root}, cond);
+            cond.extraSigners.emplace_back(a2Signer);
+            auto tx = transactionWithV2Precondition(*app, a1, 1, 100, cond);
+            tx->addSignature(root.getSecretKey());
+
+            SECTION("success")
+            {
+                tx->addSignature(a2.getSecretKey());
+                TxSetTransactions removed;
+                auto txSet =
+                    makeTxSetFromTransactions({tx}, *app, 0, 0, removed);
+                REQUIRE(removed.empty());
+            }
+            SECTION("fail")
+            {
+                TxSetTransactions removed;
+                auto txSet =
+                    makeTxSetFromTransactions({tx}, *app, 0, 0, removed);
+                REQUIRE(removed.back() == tx);
+            }
+        }
+        SECTION("duplicate extra signers")
+        {
+            cond.extraSigners.emplace_back(rootSigner);
+            auto txDupeSigner =
+                transactionWithV2Precondition(*app, a1, 1, 100, cond);
+            txDupeSigner->addSignature(root.getSecretKey());
+            TxSetTransactions removed;
+            auto txSet =
+                makeTxSetFromTransactions({txDupeSigner}, *app, 0, 0, removed);
+            REQUIRE(removed.back() == txDupeSigner);
+            REQUIRE(txDupeSigner->getResultCode() == txMALFORMED);
+        }
+        SECTION("signer overlap with default account signer")
+        {
+            auto rootTx =
+                transactionWithV2Precondition(*app, root, 1, 100, cond);
+            TxSetTransactions removed;
+            auto txSet =
+                makeTxSetFromTransactions({rootTx}, *app, 0, 0, removed);
+            REQUIRE(removed.empty());
+        }
+        SECTION("signer overlap with added account signer")
+        {
+            auto sk1 = makeSigner(root, 100);
+            a1.setOptions(setSigner(sk1));
+
+            auto tx = transactionWithV2Precondition(*app, a1, 1, 100, cond);
+            SECTION("signature present")
+            {
+                tx->addSignature(root.getSecretKey());
 
                 TxSetTransactions removed;
                 auto txSet =
                     makeTxSetFromTransactions({tx}, *app, 0, 0, removed);
                 REQUIRE(removed.empty());
             }
+            SECTION("signature missing")
+            {
+                TxSetTransactions removed;
+                auto txSet =
+                    makeTxSetFromTransactions({tx}, *app, 0, 0, removed);
+                REQUIRE(removed.back() == tx);
+            }
         }
-    });
+        SECTION("signer overlap with added account signer - both "
+                "signers used")
+        {
+            auto sk1 = makeSigner(root, 100);
+            a1.setOptions(setSigner(sk1));
+
+            auto tx = transactionFrameFromOps(app->getNetworkID(), a1,
+                                              {root.op(payment(a1, 1))}, {root},
+                                              cond);
+
+            TxSetTransactions removed;
+            auto txSet = makeTxSetFromTransactions({tx}, *app, 0, 0, removed);
+            REQUIRE(removed.empty());
+        }
+    }
 }
 
 TEST_CASE("txset base fee", "[herder][txset]")
@@ -1197,59 +888,29 @@ TEST_CASE("txset base fee", "[herder][txset]")
     //   1 op, fee bid = baseFee*10 = 1000
     // extra tx
     //   2 ops, fee bid = 20000+i
-    // to reach 112
-    //    protocol 10 adds 104 tx (208 ops)
-    //    protocol 11 adds 52 tx (104 ops)
+    //    should add 52 tx (104 ops)
 
-    // v11: surge threshold is 112-100=12 ops
-    //     no surge pricing @ 10 (only 1 extra tx)
+    //  surge threshold is 112-100=12 ops
     //     surge pricing @ 12 (2 extra tx)
 
     uint32 const baseCount = 8;
-    uint32 const v10ExtraTx = 104;
-    uint32 const v11ExtraTx = 52;
-    uint32 const v10NewCount = 112;
-    uint32 const v11NewCount = 56; // 112/2
+    uint32 const extraTx = 52;
+    uint32 const newCount = 56; // 112/2
     SECTION("surged")
     {
         SECTION("mixed")
         {
-            SECTION("protocol 10")
-            {
-                // low = base tx
-                // high = last extra tx
-                testBaseFee(10, baseCount, v10ExtraTx, maxTxSetSize, 1000,
-                            20104);
-            }
-            SECTION("protocol before generalized tx set")
-            {
-                // low = 10*base tx = baseFee = 1000
-                // high = 2*base (surge)
-                SECTION("maxed out surged")
-                {
-                    testBaseFee(
-                        static_cast<uint32_t>(SOROBAN_PROTOCOL_VERSION) - 1,
-                        baseCount, v11ExtraTx, maxTxSetSize, 1000, 2000);
-                }
-                SECTION("smallest surged")
-                {
-                    testBaseFee(
-                        static_cast<uint32_t>(SOROBAN_PROTOCOL_VERSION) - 1,
-                        baseCount + 1, v11ExtraTx - 50, maxTxSetSize - 100 + 1,
-                        1000, 2000);
-                }
-            }
             SECTION("generalized tx set protocol")
             {
                 SECTION("fitting exactly into capacity does not cause surge")
                 {
                     testBaseFee(static_cast<uint32_t>(SOROBAN_PROTOCOL_VERSION),
-                                baseCount, v11ExtraTx, maxTxSetSize, 100, 200);
+                                baseCount, extraTx, maxTxSetSize, 100, 200);
                 }
                 SECTION("evicting one tx causes surge")
                 {
                     testBaseFee(static_cast<uint32_t>(SOROBAN_PROTOCOL_VERSION),
-                                baseCount + 1, v11ExtraTx, maxTxSetSize, 1000,
+                                baseCount + 1, extraTx, maxTxSetSize, 1000,
                                 2000, 1);
                 }
             }
@@ -1264,13 +925,13 @@ TEST_CASE("txset base fee", "[herder][txset]")
                     {
                         testBaseFee(
                             static_cast<uint32_t>(SOROBAN_PROTOCOL_VERSION),
-                            baseCount, v11ExtraTx, maxTxSetSize, 100, 200);
+                            baseCount, extraTx, maxTxSetSize, 100, 200);
                     }
                     SECTION("evicting one tx causes surge")
                     {
                         testBaseFee(
                             static_cast<uint32_t>(SOROBAN_PROTOCOL_VERSION),
-                            baseCount + 1, v11ExtraTx, maxTxSetSize, 1000, 2000,
+                            baseCount + 1, extraTx, maxTxSetSize, 1000, 2000,
                             1);
                     }
                 }
@@ -1280,45 +941,31 @@ TEST_CASE("txset base fee", "[herder][txset]")
                     {
                         testBaseFee(
                             static_cast<uint32_t>(SOROBAN_PROTOCOL_VERSION) - 1,
-                            baseCount, v11ExtraTx, maxTxSetSize, 1000, 2000);
+                            baseCount, extraTx, maxTxSetSize, 1000, 2000);
                     }
                     SECTION("smallest surged")
                     {
                         testBaseFee(
                             static_cast<uint32_t>(SOROBAN_PROTOCOL_VERSION) - 1,
-                            baseCount + 1, v11ExtraTx - 50,
-                            maxTxSetSize - 100 + 1, 1000, 2000);
+                            baseCount + 1, extraTx - 50, maxTxSetSize - 100 + 1,
+                            1000, 2000);
                     }
                 }
             }
         }
         SECTION("newOnly")
         {
-            SECTION("protocol 10")
-            {
-                // low = 20000+1
-                // high = 20000+112
-                testBaseFee(10, 0, v10NewCount, maxTxSetSize, 20001, 20112);
-            }
-            SECTION("protocol before generalized tx set")
-            {
-                // low = 20000+1 -> baseFee = 20001/2+ = 10001
-                // high = 10001*2
-                testBaseFee(static_cast<uint32_t>(SOROBAN_PROTOCOL_VERSION) - 1,
-                            0, v11NewCount, maxTxSetSize, 20001, 20002);
-            }
             SECTION("generalized tx set protocol")
             {
                 SECTION("fitting exactly into capacity does not cause surge")
                 {
                     testBaseFee(static_cast<uint32_t>(SOROBAN_PROTOCOL_VERSION),
-                                0, v11NewCount, maxTxSetSize, 200, 200);
+                                0, newCount, maxTxSetSize, 200, 200);
                 }
                 SECTION("evicting one tx causes surge")
                 {
                     testBaseFee(static_cast<uint32_t>(SOROBAN_PROTOCOL_VERSION),
-                                0, v11NewCount + 1, maxTxSetSize, 20002, 20002,
-                                1);
+                                0, newCount + 1, maxTxSetSize, 20002, 20002, 1);
                 }
             }
             SECTION("protocol current")
@@ -1331,12 +978,12 @@ TEST_CASE("txset base fee", "[herder][txset]")
                         "fitting exactly into capacity does not cause surge")
                     {
                         testBaseFee(Config::CURRENT_LEDGER_PROTOCOL_VERSION, 0,
-                                    v11NewCount, maxTxSetSize, 200, 200);
+                                    newCount, maxTxSetSize, 200, 200);
                     }
                     SECTION("evicting one tx causes surge")
                     {
                         testBaseFee(Config::CURRENT_LEDGER_PROTOCOL_VERSION, 0,
-                                    v11NewCount + 1, maxTxSetSize, 20002, 20002,
+                                    newCount + 1, maxTxSetSize, 20002, 20002,
                                     1);
                     }
                 }
@@ -1344,7 +991,7 @@ TEST_CASE("txset base fee", "[herder][txset]")
                 {
                     testBaseFee(
                         static_cast<uint32_t>(SOROBAN_PROTOCOL_VERSION) - 1, 0,
-                        v11NewCount, maxTxSetSize, 20001, 20002);
+                        newCount, maxTxSetSize, 20001, 20002);
                 }
             }
         }
@@ -1353,36 +1000,24 @@ TEST_CASE("txset base fee", "[herder][txset]")
     {
         SECTION("mixed")
         {
-            SECTION("protocol 10")
-            {
-                // low = 1000
-                // high = 20000+4
-                testBaseFee(10, baseCount, 4, baseCount + 4, 1000, 20004);
-            }
             SECTION("protocol current")
             {
                 // baseFee = minFee = 100
                 // high = 2*minFee
                 // highest number of ops not surged is max-100
                 testBaseFee(Config::CURRENT_LEDGER_PROTOCOL_VERSION, baseCount,
-                            v11ExtraTx - 50, maxTxSetSize - 100, 100, 200);
+                            extraTx - 50, maxTxSetSize - 100, 100, 200);
             }
         }
         SECTION("newOnly")
         {
-            SECTION("protocol 10")
-            {
-                // low = 20000+1
-                // high = 20000+12
-                testBaseFee(10, 0, 12, 12, 20001, 20012);
-            }
             SECTION("protocol current")
             {
                 // low = minFee = 100
                 // high = 2*minFee
                 // highest number of ops not surged is max-100
                 testBaseFee(Config::CURRENT_LEDGER_PROTOCOL_VERSION, 0,
-                            v11NewCount - 50, maxTxSetSize - 100, 200, 200);
+                            newCount - 50, maxTxSetSize - 100, 200, 200);
             }
         }
     }
@@ -1639,11 +1274,6 @@ TEST_CASE("tx set hits overlay byte limit during construction",
 
 TEST_CASE("surge pricing", "[herder][txset][soroban]")
 {
-    SECTION("protocol 19")
-    {
-        // (1+..+4) + (1+2) = 10+3 = 13
-        surgeTest(19, 5, 15, 13);
-    }
     SECTION("max 0 ops per ledger")
     {
         Config cfg(getTestConfig());

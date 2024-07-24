@@ -72,16 +72,6 @@ AccountTransactionQueue::AccountTransactionQueue(
     {
         mNumOperations += tx->getNumOperations();
     }
-
-    if (mTxs[0]->isSoroban())
-    {
-        releaseAssert(mTxs.size() == 1);
-        mIsSoroban = true;
-    }
-    else
-    {
-        mIsSoroban = false;
-    }
 }
 
 TransactionFrameBasePtr
@@ -103,15 +93,6 @@ AccountTransactionQueue::popTopTx()
     releaseAssert(!mTxs.empty());
     mNumOperations -= mTxs.front()->getNumOperations();
     mTxs.pop_front();
-}
-
-Resource
-AccountTransactionQueue::getResources() const
-{
-    return empty() ? Resource::makeEmpty(mIsSoroban
-                                             ? NUM_SOROBAN_TX_RESOURCES
-                                             : NUM_CLASSIC_TX_BYTES_RESOURCES)
-                   : getTopTx()->getResources(true);
 }
 
 bool
@@ -138,7 +119,7 @@ TxSetUtils::buildAccountTxQueues(TxSetTransactions const& txs)
     ZoneScoped;
     UnorderedMap<AccountID, std::vector<TransactionFrameBasePtr>> actTxMap;
 
-    for (auto& tx : txs)
+    for (auto const& tx : txs)
     {
         auto id = tx->getSourceID();
         auto it =
@@ -157,114 +138,33 @@ TxSetUtils::buildAccountTxQueues(TxSetTransactions const& txs)
 TxSetTransactions
 TxSetUtils::getInvalidTxList(TxSetTransactions const& txs, Application& app,
                              uint64_t lowerBoundCloseTimeOffset,
-                             uint64_t upperBoundCloseTimeOffset,
-                             bool returnEarlyOnFirstInvalidTx)
+                             uint64_t upperBoundCloseTimeOffset)
 {
     ZoneScoped;
     LedgerTxn ltx(app.getLedgerTxnRoot(), /* shouldUpdateLastModified */ true,
                   TransactionMode::READ_ONLY_WITHOUT_SQL_TXN);
-    if (protocolVersionStartsFrom(ltx.loadHeader().current().ledgerVersion,
-                                  ProtocolVersion::V_19))
+#ifdef BUILD_TESTS
+    if (protocolVersionIsBefore(ltx.loadHeader().current().ledgerVersion,
+                                ProtocolVersion::V_20))
     {
-        // This is done so minSeqLedgerGap is validated against the next
-        // ledgerSeq, which is what will be used at apply time
-        ltx.loadHeader().current().ledgerSeq =
-            app.getLedgerManager().getLastClosedLedgerNum() + 1;
+        return {};
     }
+#endif
+    releaseAssert(protocolVersionStartsFrom(
+        ltx.loadHeader().current().ledgerVersion, ProtocolVersion::V_20));
+    // This is done so minSeqLedgerGap is validated against the next
+    // ledgerSeq, which is what will be used at apply time
+    ltx.loadHeader().current().ledgerSeq =
+        app.getLedgerManager().getLastClosedLedgerNum() + 1;
 
-    UnorderedMap<AccountID, int64_t> accountFeeMap;
     TxSetTransactions invalidTxs;
 
-    auto accountTxQueues = buildAccountTxQueues(txs);
-    for (auto& accountQueue : accountTxQueues)
+    for (auto const& tx : txs)
     {
-        int64_t lastSeq = 0;
-        auto iter = accountQueue->mTxs.begin();
-        while (iter != accountQueue->mTxs.end())
+        if (!tx->checkValid(app, ltx, 0, lowerBoundCloseTimeOffset,
+                            upperBoundCloseTimeOffset))
         {
-            auto tx = *iter;
-            // In addition to checkValid, we also want to make sure that all but
-            // the transaction with the lowest seqNum on a given sourceAccount
-            // do not have minSeqAge and minSeqLedgerGap set
-            bool minSeqCheckIsInvalid =
-                iter != accountQueue->mTxs.begin() &&
-                (tx->getMinSeqAge() != 0 || tx->getMinSeqLedgerGap() != 0);
-            if (minSeqCheckIsInvalid ||
-                !tx->checkValid(app, ltx, lastSeq, lowerBoundCloseTimeOffset,
-                                upperBoundCloseTimeOffset))
-            {
-                invalidTxs.emplace_back(tx);
-                iter = accountQueue->mTxs.erase(iter);
-                if (returnEarlyOnFirstInvalidTx)
-                {
-                    if (minSeqCheckIsInvalid)
-                    {
-                        CLOG_DEBUG(Herder,
-                                   "minSeqAge or minSeqLedgerGap set on tx "
-                                   "without lowest seqNum. tx: {}",
-                                   xdrToCerealString(tx->getEnvelope(),
-                                                     "TransactionEnvelope"));
-                    }
-                    else
-                    {
-                        CLOG_DEBUG(
-                            Herder,
-                            "Got bad txSet: tx invalid lastSeq:{} tx: {} "
-                            "result: {}",
-                            lastSeq,
-                            xdrToCerealString(tx->getEnvelope(),
-                                              "TransactionEnvelope"),
-                            tx->getResultCode());
-                    }
-                    return invalidTxs;
-                }
-            }
-            else // update the account fee map
-            {
-                lastSeq = tx->getSeqNum();
-                int64_t& accFee = accountFeeMap[tx->getFeeSourceID()];
-                if (INT64_MAX - accFee < tx->getFullFee())
-                {
-                    accFee = INT64_MAX;
-                }
-                else
-                {
-                    accFee += tx->getFullFee();
-                }
-                ++iter;
-            }
-        }
-    }
-
-    auto header = ltx.loadHeader();
-    for (auto& accountQueue : accountTxQueues)
-    {
-        auto iter = accountQueue->mTxs.begin();
-        while (iter != accountQueue->mTxs.end())
-        {
-            auto tx = *iter;
-            auto feeSource = stellar::loadAccount(ltx, tx->getFeeSourceID());
-            auto totFee = accountFeeMap[tx->getFeeSourceID()];
-            if (getAvailableBalance(header, feeSource) < totFee)
-            {
-                while (iter != accountQueue->mTxs.end())
-                {
-                    invalidTxs.emplace_back(*iter);
-                    ++iter;
-                }
-                if (returnEarlyOnFirstInvalidTx)
-                {
-                    CLOG_DEBUG(Herder,
-                               "Got bad txSet: account can't pay fee tx: {}",
-                               xdrToCerealString(tx->getEnvelope(),
-                                                 "TransactionEnvelope"));
-                    return invalidTxs;
-                }
-            }
-            else
-            {
-                ++iter;
-            }
+            invalidTxs.emplace_back(tx);
         }
     }
 
@@ -278,7 +178,7 @@ TxSetUtils::trimInvalid(TxSetTransactions const& txs, Application& app,
                         TxSetTransactions& invalidTxs)
 {
     invalidTxs = getInvalidTxList(txs, app, lowerBoundCloseTimeOffset,
-                                  upperBoundCloseTimeOffset, false);
+                                  upperBoundCloseTimeOffset);
     return removeTxs(txs, invalidTxs);
 }
 

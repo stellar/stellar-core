@@ -264,7 +264,7 @@ TEST_CASE_VERSIONS("payment", "[tx][payment]")
             auto tx1 = b1.tx({payment(root, paymentAmount)});
             auto tx2 = b1.tx({payment(root, 6)});
 
-            auto r = closeLedger(*app, {tx1, tx2});
+            auto r = closeLedger(*app, {tx1, tx2}, true);
             checkTx(0, r, txSUCCESS);
             checkTx(1, r, txINSUFFICIENT_BALANCE);
 
