@@ -352,7 +352,7 @@ struct InflationWinner;
 
 namespace testutil
 {
-class BucketListDepthModifier;
+template <class BucketT> class BucketListDepthModifier;
 }
 
 template <class BucketT> class BucketLevel
@@ -398,9 +398,15 @@ class BucketListDepth
 
     operator uint32_t() const;
 
-    friend class testutil::BucketListDepthModifier;
+    template <class BucketT> friend class testutil::BucketListDepthModifier;
 };
 
+// While every BucketList shares the same high level structure wrt to spill
+// schedules, merges at the bucket level, etc, each BucketList type hold
+// different types of entries and has different merge logic at the individual
+// entry level. This pure virtual base class defines the shared structure of all
+// BucketLists. It must be extended for each specific BucketList type, where the
+// template parameter BucketT refers to the underlying Bucket type.
 template <class BucketT> class BucketListBase
 {
     static_assert(std::is_same_v<BucketT, LiveBucket> ||
@@ -446,8 +452,11 @@ template <class BucketT> class BucketListBase
     // should spill curr->snap and start merging snap into its next level.
     static bool levelShouldSpill(uint32_t ledger, uint32_t level);
 
-    // Returns true if at given `level` dead entries should be kept.
-    static bool keepDeadEntries(uint32_t level);
+    // Returns true if at given `level` tombstone entries should be kept. A
+    // "tombstone" entry is the entry type that represents null in the given
+    // BucketList. For LiveBucketList, this is DEADENTRY. For
+    // HotArchiveBucketList, HOT_ARCHIVE_LIVE.
+    static bool keepTombstoneEntries(uint32_t level);
 
     // Number of ledgers it takes a bucket to spill/receive an incoming spill
     static uint32_t bucketUpdatePeriod(uint32_t level, bool isCurr);
@@ -504,22 +513,13 @@ template <class BucketT> class BucketListBase
     // Returns the total size of the BucketList, in bytes, excluding all
     // FutureBuckets
     uint64_t getSize() const;
-
-    // Add a batch of initial (created), live (updated) and dead entries to the
-    // bucketlist, representing the entries effected by closing
-    // `currLedger`. The bucketlist will incorporate these into the smallest
-    // (0th) level, as well as commit or prepare merges for any levels that
-    // should have spilled due to passing through `currLedger`. The `currLedger`
-    // and `currProtocolVersion` values should be taken from the ledger at which
-    // this batch is being added.
-    void addBatch(Application& app, uint32_t currLedger,
-                  uint32_t currLedgerProtocol,
-                  std::vector<LedgerEntry> const& initEntries,
-                  std::vector<LedgerEntry> const& liveEntries,
-                  std::vector<LedgerKey> const& deadEntries);
-    BucketEntryCounters sumBucketEntryCounters() const;
 };
 
+// The LiveBucketList stores the current canonical state of the ledger. It is
+// made up of LiveBucket buckets, which in turn store individual entries of type
+// BucketEntry. When an entry is "evicted" from the ledger, it is removed from
+// the LiveBucketList. Depending on the evicted entry type, it may then be added
+// to the HotArchiveBucketList.
 class LiveBucketList : public BucketListBase<LiveBucket>
 {
   public:
@@ -545,8 +545,26 @@ class LiveBucketList : public BucketListBase<LiveBucket>
     void scanForEvictionLegacy(Application& app, AbstractLedgerTxn& ltx,
                                uint32_t ledgerSeq, EvictionCounters& counters,
                                std::shared_ptr<EvictionStatistics> stats);
+
+    // Add a batch of initial (created), live (updated) and dead entries to the
+    // bucketlist, representing the entries effected by closing
+    // `currLedger`. The bucketlist will incorporate these into the smallest
+    // (0th) level, as well as commit or prepare merges for any levels that
+    // should have spilled due to passing through `currLedger`. The `currLedger`
+    // and `currProtocolVersion` values should be taken from the ledger at which
+    // this batch is being added.
+    void addBatch(Application& app, uint32_t currLedger,
+                  uint32_t currLedgerProtocol,
+                  std::vector<LedgerEntry> const& initEntries,
+                  std::vector<LedgerEntry> const& liveEntries,
+                  std::vector<LedgerKey> const& deadEntries);
+
+    BucketEntryCounters sumBucketEntryCounters() const;
 };
 
+// The HotArchiveBucketList stores recently evicted entries. It contains Buckets
+// of type HotArchiveBucket, which store individual entries of type
+// HotArchiveBucketEntry.
 class HotArchiveBucketList : public BucketListBase<HotArchiveBucket>
 {
   private:
@@ -556,5 +574,11 @@ class HotArchiveBucketList : public BucketListBase<HotArchiveBucket>
     // Merge result future
     // This should be the result of merging this entire list into a single file.
     // The MerkleBucketList is then initalized with this result
+  public:
+    void addBatch(Application& app, uint32_t currLedger,
+                  uint32_t currLedgerProtocol,
+                  std::vector<LedgerEntry> const& archiveEntries,
+                  std::vector<LedgerKey> const& restoredEntries,
+                  std::vector<LedgerKey> const& deletedEntries);
 };
 }

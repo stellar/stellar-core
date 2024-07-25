@@ -3,6 +3,7 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "BucketTestUtils.h"
+#include "bucket/Bucket.h"
 #include "bucket/BucketInputIterator.h"
 #include "bucket/BucketManager.h"
 #include "crypto/Hex.h"
@@ -10,6 +11,8 @@
 #include "ledger/LedgerTxn.h"
 #include "main/Application.h"
 #include "test/test.h"
+#include "xdr/Stellar-ledger.h"
+#include <memory>
 
 namespace stellar
 {
@@ -30,18 +33,47 @@ getAppLedgerVersion(Application::pointer app)
 }
 
 void
-addBatchAndUpdateSnapshot(LiveBucketList& bl, Application& app,
-                          LedgerHeader header,
-                          std::vector<LedgerEntry> const& initEntries,
-                          std::vector<LedgerEntry> const& liveEntries,
-                          std::vector<LedgerKey> const& deadEntries)
+addLiveBatchAndUpdateSnapshot(Application& app, LedgerHeader header,
+                              std::vector<LedgerEntry> const& initEntries,
+                              std::vector<LedgerEntry> const& liveEntries,
+                              std::vector<LedgerKey> const& deadEntries)
 {
-    bl.addBatch(app, header.ledgerSeq, header.ledgerVersion, initEntries,
-                liveEntries, deadEntries);
+    auto& liveBl = app.getBucketManager().getLiveBucketList();
+    liveBl.addBatch(app, header.ledgerSeq, header.ledgerVersion, initEntries,
+                    liveEntries, deadEntries);
     if (app.getConfig().isUsingBucketListDB())
     {
+        auto liveSnapshot =
+            std::make_unique<BucketListSnapshot<LiveBucket>>(liveBl, header);
+        auto hotArchiveSnapshot =
+            std::make_unique<BucketListSnapshot<HotArchiveBucket>>(
+                app.getBucketManager().getHotArchiveBucketList(), header);
+
         app.getBucketManager().getBucketSnapshotManager().updateCurrentSnapshot(
-            std::make_unique<BucketListSnapshot>(bl, header));
+            std::move(liveSnapshot), std::move(hotArchiveSnapshot));
+    }
+}
+
+void
+addHotArchiveBatchAndUpdateSnapshot(
+    Application& app, LedgerHeader header,
+    std::vector<LedgerEntry> const& archiveEntries,
+    std::vector<LedgerKey> const& restoredEntries,
+    std::vector<LedgerKey> const& deletedEntries)
+{
+    auto& hotArchiveBl = app.getBucketManager().getHotArchiveBucketList();
+    hotArchiveBl.addBatch(app, header.ledgerSeq, header.ledgerVersion,
+                          archiveEntries, restoredEntries, deletedEntries);
+    if (app.getConfig().isUsingBucketListDB())
+    {
+        auto liveSnapshot = std::make_unique<BucketListSnapshot<LiveBucket>>(
+            app.getBucketManager().getLiveBucketList(), header);
+        auto hotArchiveSnapshot =
+            std::make_unique<BucketListSnapshot<HotArchiveBucket>>(hotArchiveBl,
+                                                                   header);
+
+        app.getBucketManager().getBucketSnapshotManager().updateCurrentSnapshot(
+            std::move(liveSnapshot), std::move(hotArchiveSnapshot));
     }
 }
 
@@ -57,13 +89,6 @@ for_versions_with_differing_bucket_logic(
              LiveBucket::FIRST_PROTOCOL_SUPPORTING_INITENTRY_AND_METAENTRY),
          static_cast<uint32_t>(LiveBucket::FIRST_PROTOCOL_SHADOWS_REMOVED)},
         cfg, f);
-}
-
-size_t
-countEntries(std::shared_ptr<LiveBucket> bucket)
-{
-    EntryCounts e(bucket);
-    return e.sum();
 }
 
 Hash
@@ -88,7 +113,8 @@ closeLedger(Application& app)
     return closeLedger(app, std::nullopt);
 }
 
-EntryCounts::EntryCounts(std::shared_ptr<LiveBucket> bucket)
+template <>
+EntryCounts<LiveBucket>::EntryCounts(std::shared_ptr<LiveBucket> bucket)
 {
     LiveBucketInputIterator iter(bucket);
     if (iter.seenMetadata())
@@ -100,7 +126,7 @@ EntryCounts::EntryCounts(std::shared_ptr<LiveBucket> bucket)
         switch ((*iter).type())
         {
         case INITENTRY:
-            ++nInit;
+            ++nInitOrArchived;
             break;
         case LIVEENTRY:
             ++nLive;
@@ -116,6 +142,48 @@ EntryCounts::EntryCounts(std::shared_ptr<LiveBucket> bucket)
         ++iter;
     }
 }
+
+template <>
+EntryCounts<HotArchiveBucket>::EntryCounts(
+    std::shared_ptr<HotArchiveBucket> bucket)
+{
+    HotArchiveBucketInputIterator iter(bucket);
+    if (iter.seenMetadata())
+    {
+        ++nMeta;
+    }
+    while (iter)
+    {
+        switch ((*iter).type())
+        {
+        case HOT_ARCHIVE_ARCHIVED:
+            ++nInitOrArchived;
+            break;
+        case HOT_ARCHIVE_LIVE:
+            ++nLive;
+            break;
+        case HOT_ARCHIVE_DELETED:
+            ++nDead;
+            break;
+        case HOT_ARCHIVE_METAENTRY:
+            // This should never happen: only the first record can be METAENTRY
+            // and it is counted above.
+            abort();
+        }
+        ++iter;
+    }
+}
+
+template <class BucketT>
+size_t
+countEntries(std::shared_ptr<BucketT> bucket)
+{
+    EntryCounts e(bucket);
+    return e.sum();
+}
+
+template size_t countEntries(std::shared_ptr<LiveBucket> bucket);
+template size_t countEntries(std::shared_ptr<HotArchiveBucket> bucket);
 
 void
 LedgerManagerForBucketTests::transferLedgerEntriesToBucketList(

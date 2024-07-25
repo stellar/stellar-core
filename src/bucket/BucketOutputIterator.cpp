@@ -6,6 +6,7 @@
 #include "bucket/Bucket.h"
 #include "bucket/BucketIndex.h"
 #include "bucket/BucketManager.h"
+#include "ledger/LedgerTypeUtils.h"
 #include "util/GlobalChecks.h"
 #include "util/ProtocolVersion.h"
 #include "xdr/Stellar-ledger.h"
@@ -20,14 +21,17 @@ namespace stellar
  * hashes them while writing to either destination. Produces a Bucket when done.
  */
 template <typename BucketT>
-BucketOutputIterator<BucketT>::BucketOutputIterator(
-    std::string const& tmpDir, bool keepDeadEntries, BucketMetadata const& meta,
-    MergeCounters& mc, asio::io_context& ctx, bool doFsync)
+BucketOutputIterator<BucketT>::BucketOutputIterator(std::string const& tmpDir,
+                                                    bool keepTombstoneEntries,
+                                                    BucketMetadata const& meta,
+                                                    MergeCounters& mc,
+                                                    asio::io_context& ctx,
+                                                    bool doFsync)
     : mFilename(Bucket::randomBucketName(tmpDir))
     , mOut(ctx, doFsync)
     , mCtx(ctx)
     , mBuf(nullptr)
-    , mKeepDeadEntries(keepDeadEntries)
+    , mKeepTombstoneEntries(keepTombstoneEntries)
     , mMeta(meta)
     , mMergeCounters(mc)
 {
@@ -52,10 +56,11 @@ BucketOutputIterator<BucketT>::BucketOutputIterator(
         else
         {
             releaseAssertOrThrow(protocolVersionStartsFrom(
-                meta.ledgerVersion, ProtocolVersion::V_22));
+                meta.ledgerVersion,
+                Bucket::FIRST_PROTOCOL_SUPPORTING_PERSISTENT_EVICTION));
 
             HotArchiveBucketEntry bme;
-            bme.type(HA_METAENTRY);
+            bme.type(HOT_ARCHIVE_METAENTRY);
             bme.metaEntry() = mMeta;
             put(bme);
         }
@@ -82,7 +87,7 @@ BucketOutputIterator<BucketT>::put(BucketEntryT const& e)
             }
         }
 
-        if (!mKeepDeadEntries && e.type() == DEADENTRY)
+        if (!mKeepTombstoneEntries && BucketT::isTombstoneEntry(e))
         {
             ++mMergeCounters.mOutputIteratorTombstoneElisions;
             return;
@@ -90,7 +95,7 @@ BucketOutputIterator<BucketT>::put(BucketEntryT const& e)
     }
     else
     {
-        if (e.type() == HA_METAENTRY)
+        if (e.type() == HOT_ARCHIVE_METAENTRY)
         {
             if (mPutMeta)
             {
@@ -98,10 +103,29 @@ BucketOutputIterator<BucketT>::put(BucketEntryT const& e)
                     "putting META entry in bucket after initial entry");
             }
         }
+        else
+        {
+            if (e.type() == HOT_ARCHIVE_ARCHIVED)
+            {
+                if (!isSorobanEntry(e.archivedEntry().data))
+                {
+                    throw std::runtime_error(
+                        "putting non-soroban entry in hot archive bucket");
+                }
+            }
+            else
+            {
+                if (!isSorobanEntry(e.key()))
+                {
+                    throw std::runtime_error(
+                        "putting non-soroban entry in hot archive bucket");
+                }
+            }
+        }
 
-        // RESTORED entries are dropped in the last bucket level (similar to
-        // DEADENTRY) on live BucketLists
-        if (!mKeepDeadEntries && e.type() == HA_RESTORED)
+        // HOT_ARCHIVE_LIVE entries are dropped in the last bucket level
+        // (similar to DEADENTRY) on live BucketLists
+        if (!mKeepTombstoneEntries && BucketT::isTombstoneEntry(e))
         {
             ++mMergeCounters.mOutputIteratorTombstoneElisions;
             return;
@@ -173,9 +197,8 @@ BucketOutputIterator<BucketT>::getBucket(BucketManager& bucketManager,
         if (auto b = bucketManager.getBucketIfExists(hash);
             !b || !b->isIndexed())
         {
-            index =
-                BucketIndex::createIndex(bucketManager, mFilename, hash, mCtx);
-            releaseAssertOrThrow(index);
+            index = BucketIndex::createIndex<BucketEntryT>(
+                bucketManager, mFilename, hash, mCtx);
         }
     }
 
@@ -186,9 +209,9 @@ BucketOutputIterator<BucketT>::getBucket(BucketManager& bucketManager,
     }
     else
     {
-        // TODO:
-        releaseAssert(false);
-        return std::shared_ptr<HotArchiveBucket>();
+
+        return bucketManager.adoptFileAsHotArchiveBucket(
+            mFilename.string(), hash, mergeKey, std::move(index));
     }
 }
 

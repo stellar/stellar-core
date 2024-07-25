@@ -1871,9 +1871,8 @@ SorobanNetworkConfig::writeAllSettings(AbstractLedgerTxn& ltx,
     {
         auto lcl = app.getLedgerManager().getLastClosedLedgerHeader();
         lcl.header.ledgerSeq += 1;
-        BucketTestUtils::addBatchAndUpdateSnapshot(
-            app.getBucketManager().getLiveBucketList(), app, lcl.header, {},
-            entries, {});
+        BucketTestUtils::addLiveBatchAndUpdateSnapshot(app, lcl.header, {},
+                                                       entries, {});
     }
 }
 #endif

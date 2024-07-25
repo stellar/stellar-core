@@ -365,8 +365,8 @@ TEST_CASE_VERSIONS("bucketmanager reattach to finished merge",
             auto lh =
                 app->getLedgerManager().getLastClosedLedgerHeader().header;
             lh.ledgerSeq = ledger;
-            addBatchAndUpdateSnapshot(
-                bl, *app, lh, {},
+            addLiveBatchAndUpdateSnapshot(
+                *app, lh, {},
                 LedgerTestUtils::generateValidLedgerEntriesWithExclusions(
                     {CONFIG_SETTING}, 10),
                 {});
@@ -396,7 +396,7 @@ TEST_CASE_VERSIONS("bucketmanager reattach to finished merge",
 
         // Reattach to _finished_ merge future on level.
         has2.currentBuckets[level].next.makeLive(
-            *app, vers, LiveBucketList::keepDeadEntries(level));
+            *app, vers, LiveBucketList::keepTombstoneEntries(level));
         REQUIRE(has2.currentBuckets[level].next.isMerging());
 
         // Resolve reattached future.
@@ -454,8 +454,8 @@ TEST_CASE_VERSIONS("bucketmanager reattach to running merge",
             auto lh =
                 app->getLedgerManager().getLastClosedLedgerHeader().header;
             lh.ledgerSeq = ledger;
-            addBatchAndUpdateSnapshot(
-                bl, *app, lh, {},
+            addLiveBatchAndUpdateSnapshot(
+                *app, lh, {},
                 LedgerTestUtils::generateValidUniqueLedgerEntriesWithExclusions(
                     {CONFIG_SETTING}, 100),
                 {});
@@ -479,7 +479,8 @@ TEST_CASE_VERSIONS("bucketmanager reattach to running merge",
                 if (has2.currentBuckets[level].next.hasHashes())
                 {
                     has2.currentBuckets[level].next.makeLive(
-                        *app, vers, LiveBucketList::keepDeadEntries(level));
+                        *app, vers,
+                        LiveBucketList::keepTombstoneEntries(level));
                 }
             }
         }
@@ -579,7 +580,6 @@ TEST_CASE_VERSIONS(
         auto vers = getAppLedgerVersion(app);
         auto& hm = app->getHistoryManager();
         auto& bm = app->getBucketManager();
-        auto& bl = bm.getLiveBucketList();
         hm.setPublicationEnabled(false);
         app->getHistoryArchiveManager().initializeHistoryArchive(
             tcfg.getArchiveDirName());
@@ -595,8 +595,8 @@ TEST_CASE_VERSIONS(
             auto lh =
                 app->getLedgerManager().getLastClosedLedgerHeader().header;
             lh.ledgerSeq++;
-            addBatchAndUpdateSnapshot(
-                bl, *app, lh, {},
+            addLiveBatchAndUpdateSnapshot(
+                *app, lh, {},
                 LedgerTestUtils::generateValidUniqueLedgerEntriesWithExclusions(
                     {CONFIG_SETTING}, 100),
                 {});

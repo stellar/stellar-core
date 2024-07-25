@@ -6,6 +6,7 @@
 #include "bucket/Bucket.h"
 #include "xdr/Stellar-ledger.h"
 #include <Tracy.hpp>
+#include <type_traits>
 
 namespace stellar
 {
@@ -22,13 +23,13 @@ BucketInputIterator<T>::loadEntry()
     {
         mEntryPtr = &mEntry;
         bool isMeta;
-        if constexpr (std::is_same<T, BucketEntry>::value)
+        if constexpr (std::is_same_v<BucketEntryT, BucketEntry>)
         {
             isMeta = mEntry.type() == METAENTRY;
         }
         else
         {
-            isMeta = mEntry.type() == HA_METAENTRY;
+            isMeta = mEntry.type() == HOT_ARCHIVE_METAENTRY;
         }
 
         if (isMeta)

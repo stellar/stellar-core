@@ -86,9 +86,10 @@ IndexBucketsWork::IndexWork::postWork()
 
             if (!self->mIndex)
             {
-                self->mIndex =
-                    BucketIndex::createIndex(bm, self->mBucket->getFilename(),
-                                             self->mBucket->getHash(), ctx);
+                // TODO: Fix this when archive BucketLists assume state
+                self->mIndex = BucketIndex::createIndex<BucketEntry>(
+                    bm, self->mBucket->getFilename(), self->mBucket->getHash(),
+                    ctx);
             }
 
             app.postOnMainThread(

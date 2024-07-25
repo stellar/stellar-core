@@ -29,8 +29,11 @@ std::vector<Asset> getInvalidAssets(SecretKey const& issuer);
 
 int32_t computeMultiplier(LedgerEntry const& le);
 
-class BucketListDepthModifier
+template <class BucketT> class BucketListDepthModifier
 {
+    static_assert(std::is_same_v<BucketT, LiveBucket> ||
+                  std::is_same_v<BucketT, HotArchiveBucket>);
+
     uint32_t const mPrevDepth;
 
   public:
@@ -44,6 +47,14 @@ testBucketMetadata(uint32_t protocolVersion)
 {
     BucketMetadata meta;
     meta.ledgerVersion = protocolVersion;
+    if (protocolVersionStartsFrom(
+            protocolVersion,
+            Bucket::FIRST_PROTOCOL_SUPPORTING_PERSISTENT_EVICTION))
+    {
+        meta.ext.v(1);
+        meta.ext.bucketListType() = BucketListType::LIVE;
+    }
+
     return meta;
 }
 }

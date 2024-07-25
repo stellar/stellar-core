@@ -2,6 +2,7 @@
 // under the Apache License, Version 2.0. See the COPYING file at the root
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
+#include "bucket/Bucket.h"
 #include "bucket/BucketInputIterator.h"
 #include "bucket/BucketManager.h"
 #include "bucket/BucketOutputIterator.h"
@@ -145,8 +146,7 @@ struct BucketListGenerator
         auto header = ltx.loadHeader().current();
         ltx.getAllEntries(initEntries, liveEntries, deadEntries);
         BucketTestUtils::addLiveBatchAndUpdateSnapshot(
-            *app, header, initEntries,
-            liveEntries, deadEntries);
+            *app, header, initEntries, liveEntries, deadEntries);
         ltx.commit();
     }
 
@@ -214,7 +214,7 @@ struct BucketListGenerator
         {
             auto& level = blGenerate.getLevel(i);
             auto meta = testutil::testBucketMetadata(vers);
-            auto keepDead = LiveBucketList::keepDeadEntries(i);
+            auto keepDead = LiveBucketList::keepTombstoneEntries(i);
 
             auto writeBucketFile = [&](auto b) {
                 LiveBucketOutputIterator out(bmApply.getTmpDir(), keepDead,
@@ -944,7 +944,7 @@ TEST_CASE("BucketListIsConsistentWithDatabase merged LIVEENTRY and DEADENTRY",
     cfg.OVERRIDE_EVICTION_PARAMS_FOR_TESTING = true;
     cfg.TESTING_STARTING_EVICTION_SCAN_LEVEL = 1;
 
-    testutil::BucketListDepthModifier bldm(3);
+    testutil::BucketListDepthModifier<LiveBucket> bldm(3);
     for (auto t : xdr::xdr_traits<LedgerEntryType>::enum_values())
     {
         if (t == CONFIG_SETTING)

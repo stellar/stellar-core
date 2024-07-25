@@ -37,6 +37,14 @@ namespace stellar
  * Two buckets can be merged together efficiently (in a single pass): elements
  * from the newer bucket overwrite elements from the older bucket, the rest are
  * merged in sorted order, and all elements are hashed while being added.
+ *
+ * Different types of BucketList vary on the type of entries they contain and by
+ * extension the merge logic of those entries. Additionally, some types of
+ * BucketList may have special operations only relevant to that specific type.
+ * This pure virtual base class provides the core functionality of a BucketList
+ * container and must be extened for each specific BucketList type. In
+ * particular, the fresh and merge functions must be defined for the specific
+ * type, while other functionality can be shared.
  */
 
 class AbstractLedgerTxn;
@@ -45,6 +53,8 @@ class BucketManager;
 struct EvictionResultEntry;
 class EvictionStatistics;
 struct BucketEntryCounters;
+template <class BucketT> class SearchableBucketListSnapshot;
+enum class LedgerEntryTypeAndDurability : uint32_t;
 
 class Bucket : public NonMovableOrCopyable
 {
@@ -62,6 +72,9 @@ class Bucket : public NonMovableOrCopyable
                                       std::string ext);
 
   public:
+    static constexpr ProtocolVersion
+        FIRST_PROTOCOL_SUPPORTING_PERSISTENT_EVICTION = ProtocolVersion::V_23;
+
     // Create an empty bucket. The empty bucket has hash '000000...' and its
     // filename is the empty string.
     Bucket();
@@ -109,8 +122,8 @@ class Bucket : public NonMovableOrCopyable
           std::shared_ptr<BucketT> const& oldBucket,
           std::shared_ptr<BucketT> const& newBucket,
           std::vector<std::shared_ptr<BucketT>> const& shadows,
-          bool keepDeadEntries, bool countMergeEvents, asio::io_context& ctx,
-          bool doFsync);
+          bool keepTombstoneEntries, bool countMergeEvents,
+          asio::io_context& ctx, bool doFsync);
 
     static std::string randomBucketName(std::string const& tmpDir);
     static std::string randomBucketIndexName(std::string const& tmpDir);
@@ -129,12 +142,18 @@ class Bucket : public NonMovableOrCopyable
     template <class BucketT> friend class BucketSnapshotBase;
 };
 
-template <class BucketT> class SearchableBucketListSnapshot;
+/*
+ * Live Buckets are used by the LiveBucketList to store the current canonical
+ * state of the ledger. They contain entries of type BucketEntry.
+ */
 class LiveBucket : public Bucket,
                    public std::enable_shared_from_this<LiveBucket>
 {
   public:
     LiveBucket();
+    virtual ~LiveBucket()
+    {
+    }
     LiveBucket(std::string const& filename, Hash const& hash,
                std::unique_ptr<BucketIndex const>&& index);
 
@@ -153,14 +172,13 @@ class LiveBucket : public Bucket,
     static void checkProtocolLegality(BucketEntry const& entry,
                                       uint32_t protocolVersion);
 
-#ifdef BUILD_TESTS
-
     static std::vector<BucketEntry>
     convertToBucketEntry(bool useInit,
                          std::vector<LedgerEntry> const& initEntries,
                          std::vector<LedgerEntry> const& liveEntries,
                          std::vector<LedgerKey> const& deadEntries);
 
+#ifdef BUILD_TESTS
     // "Applies" the bucket to the database. For each entry in the bucket,
     // if the entry is init or live, creates or updates the corresponding
     // entry in the database (respectively; if the entry is dead (a
@@ -196,6 +214,10 @@ class LiveBucket : public Bucket,
           std::vector<LedgerKey> const& deadEntries, bool countMergeEvents,
           asio::io_context& ctx, bool doFsync);
 
+    // Returns true if the given BucketEntry should be dropped in the bottom
+    // level bucket (i.e. DEADENTRY)
+    static bool isTombstoneEntry(BucketEntry const& e);
+
     uint32_t getBucketVersion() const override;
 
     BucketEntryCounters const& getBucketEntryCounters() const;
@@ -203,27 +225,41 @@ class LiveBucket : public Bucket,
     friend class LiveBucketSnapshot;
 };
 
+/*
+ * Hot Archive Buckets are used by the HotBucketList to store recently evicted
+ * entries. They contain entries of type HotArchiveBucketEntry.
+ */
 class HotArchiveBucket : public Bucket,
                          public std::enable_shared_from_this<HotArchiveBucket>
 {
+    static std::vector<HotArchiveBucketEntry>
+    convertToBucketEntry(std::vector<LedgerEntry> const& archivedEntries,
+                         std::vector<LedgerKey> const& restoredEntries,
+                         std::vector<LedgerKey> const& deletedEntries);
+
   public:
     HotArchiveBucket();
+    virtual ~HotArchiveBucket()
+    {
+    }
     HotArchiveBucket(std::string const& filename, Hash const& hash,
                      std::unique_ptr<BucketIndex const>&& index);
     uint32_t getBucketVersion() const override;
 
-    // TOOD: Change params for HotArchiveBucket
     static std::shared_ptr<HotArchiveBucket>
     fresh(BucketManager& bucketManager, uint32_t protocolVersion,
-          std::vector<LedgerEntry> const& initEntries,
-          std::vector<LedgerEntry> const& liveEntries,
-          std::vector<LedgerKey> const& deadEntries, bool countMergeEvents,
+          std::vector<LedgerEntry> const& archivedEntries,
+          std::vector<LedgerKey> const& restoredEntries,
+          std::vector<LedgerKey> const& deletedEntries, bool countMergeEvents,
           asio::io_context& ctx, bool doFsync);
+
+    // Returns true if the given BucketEntry should be dropped in the bottom
+    // level bucket (i.e. HOT_ARCHIVE_LIVE)
+    static bool isTombstoneEntry(HotArchiveBucketEntry const& e);
 
     friend class HotArchiveBucketSnapshot;
 };
 
-enum class LedgerEntryTypeAndDurability : uint32_t;
 struct BucketEntryCounters
 {
     std::map<LedgerEntryTypeAndDurability, size_t> entryTypeCounts;

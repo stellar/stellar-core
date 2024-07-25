@@ -8,6 +8,7 @@
 #include "util/asio.h" // IWYU pragma: keep
 #include "bucket/Bucket.h"
 #include "bucket/BucketApplicator.h"
+#include "bucket/BucketInputIterator.h"
 #include "bucket/BucketList.h"
 #include "bucket/BucketListSnapshot.h"
 #include "bucket/BucketManager.h"
@@ -24,6 +25,7 @@
 #include "util/Fs.h"
 #include "util/GlobalChecks.h"
 #include "util/Logging.h"
+#include "util/ProtocolVersion.h"
 #include "util/XDRStream.h"
 #include "util/types.h"
 #include <Tracy.hpp>
@@ -161,6 +163,7 @@ LiveBucket::apply(Application& app) const
     }
     counters.logInfo("direct", 0, app.getClock().now());
 }
+#endif // BUILD_TESTS
 
 std::vector<BucketEntry>
 LiveBucket::convertToBucketEntry(bool useInit,
@@ -200,7 +203,6 @@ LiveBucket::convertToBucketEntry(bool useInit,
                       }) == bucket.end());
     return bucket;
 }
-#endif // BUILD_TESTS
 
 std::string
 Bucket::randomFileName(std::string const& tmpDir, std::string ext)
@@ -230,17 +232,76 @@ Bucket::randomBucketIndexName(std::string const& tmpDir)
     return randomFileName(tmpDir, ".index");
 }
 
+std::vector<HotArchiveBucketEntry>
+HotArchiveBucket::convertToBucketEntry(
+    std::vector<LedgerEntry> const& archivedEntries,
+    std::vector<LedgerKey> const& restoredEntries,
+    std::vector<LedgerKey> const& deletedEntries)
+{
+    std::vector<HotArchiveBucketEntry> bucket;
+    for (auto const& e : archivedEntries)
+    {
+        HotArchiveBucketEntry be;
+        be.type(HOT_ARCHIVE_ARCHIVED);
+        be.archivedEntry() = e;
+        bucket.push_back(be);
+    }
+    for (auto const& k : restoredEntries)
+    {
+        HotArchiveBucketEntry be;
+        be.type(HOT_ARCHIVE_LIVE);
+        be.key() = k;
+        bucket.push_back(be);
+    }
+    for (auto const& k : deletedEntries)
+    {
+        HotArchiveBucketEntry be;
+        be.type(HOT_ARCHIVE_DELETED);
+        be.key() = k;
+        bucket.push_back(be);
+    }
+
+    BucketEntryIdCmp<HotArchiveBucket> cmp;
+    std::sort(bucket.begin(), bucket.end(), cmp);
+    releaseAssert(std::adjacent_find(bucket.begin(), bucket.end(),
+                                     [&cmp](HotArchiveBucketEntry const& lhs,
+                                            HotArchiveBucketEntry const& rhs) {
+                                         return !cmp(lhs, rhs);
+                                     }) == bucket.end());
+    return bucket;
+}
+
 std::shared_ptr<HotArchiveBucket>
 HotArchiveBucket::fresh(BucketManager& bucketManager, uint32_t protocolVersion,
-                        std::vector<LedgerEntry> const& initEntries,
-                        std::vector<LedgerEntry> const& liveEntries,
-                        std::vector<LedgerKey> const& deadEntries,
+                        std::vector<LedgerEntry> const& archivedEntries,
+                        std::vector<LedgerKey> const& restoredEntries,
+                        std::vector<LedgerKey> const& deletedEntries,
                         bool countMergeEvents, asio::io_context& ctx,
                         bool doFsync)
 {
-    // TODO:
-    releaseAssert(false);
-    return nullptr;
+    ZoneScoped;
+    BucketMetadata meta;
+    meta.ledgerVersion = protocolVersion;
+    meta.ext.v(1);
+    meta.ext.bucketListType() = BucketListType::HOT_ARCHIVE;
+    auto entries =
+        convertToBucketEntry(archivedEntries, restoredEntries, deletedEntries);
+
+    MergeCounters mc;
+    HotArchiveBucketOutputIterator out(bucketManager.getTmpDir(), true, meta,
+                                       mc, ctx, doFsync);
+    for (auto const& e : entries)
+    {
+        out.put(e);
+    }
+
+    if (countMergeEvents)
+    {
+        bucketManager.incrMergeCounters(mc);
+    }
+
+    return out.getBucket(bucketManager,
+                         bucketManager.getConfig().isUsingBucketListDB());
 }
 
 std::shared_ptr<LiveBucket>
@@ -259,6 +320,15 @@ LiveBucket::fresh(BucketManager& bucketManager, uint32_t protocolVersion,
 
     BucketMetadata meta;
     meta.ledgerVersion = protocolVersion;
+
+    if (protocolVersionStartsFrom(
+            protocolVersion,
+            Bucket::FIRST_PROTOCOL_SUPPORTING_PERSISTENT_EVICTION))
+    {
+        meta.ext.v(1);
+        meta.ext.bucketListType() = BucketListType::LIVE;
+    }
+
     auto entries =
         convertToBucketEntry(useInit, initEntries, liveEntries, deadEntries);
 
@@ -277,13 +347,6 @@ LiveBucket::fresh(BucketManager& bucketManager, uint32_t protocolVersion,
 
     return out.getBucket(bucketManager,
                          bucketManager.getConfig().isUsingBucketListDB());
-}
-
-static void
-countShadowedEntryType(MergeCounters& mc, HotArchiveBucketEntry const& e)
-{
-    // TODO:
-    releaseAssert(false);
 }
 
 static void
@@ -321,18 +384,22 @@ LiveBucket::checkProtocolLegality(BucketEntry const& entry,
     }
 }
 
-template <class BucketT, class BucketEntryT>
 inline void
-maybePut(BucketOutputIterator<BucketT>& out, BucketEntryT const& entry,
-         std::vector<BucketInputIterator<BucketT>>& shadowIterators,
+maybePut(HotArchiveBucketOutputIterator& out,
+         HotArchiveBucketEntry const& entry,
+         std::vector<HotArchiveBucketInputIterator>& shadowIterators,
          bool keepShadowedLifecycleEntries, MergeCounters& mc)
 {
-    static_assert(std::is_same_v<BucketT, LiveBucket> ||
-                  std::is_same_v<BucketT, HotArchiveBucket>);
+    // Archived BucketList is only present after protocol 21, so shadows are
+    // never supported
+    out.put(entry);
+}
 
-    static_assert(std::is_same_v<BucketEntryT, BucketEntry> ||
-                  std::is_same_v<BucketEntryT, HotArchiveBucketEntry>);
-
+inline void
+maybePut(LiveBucketOutputIterator& out, BucketEntry const& entry,
+         std::vector<LiveBucketInputIterator>& shadowIterators,
+         bool keepShadowedLifecycleEntries, MergeCounters& mc)
+{
     // In ledgers before protocol 11, keepShadowedLifecycleEntries will be
     // `false` and we will drop all shadowed entries here.
     //
@@ -371,13 +438,6 @@ maybePut(BucketOutputIterator<BucketT>& out, BucketEntryT const& entry,
     // LiveBucketOutputIterator level, and happens independent of ledger
     // protocol version.
 
-    // TODO: Shadows
-    if constexpr (std::is_same_v<BucketT, HotArchiveBucket>)
-    {
-        releaseAssert(false);
-        return;
-    }
-
     if (keepShadowedLifecycleEntries &&
         (entry.type() == INITENTRY || entry.type() == DEADENTRY))
     {
@@ -386,7 +446,7 @@ maybePut(BucketOutputIterator<BucketT>& out, BucketEntryT const& entry,
         return;
     }
 
-    BucketEntryIdCmp<BucketT> cmp;
+    BucketEntryIdCmp<LiveBucket> cmp;
     for (auto& si : shadowIterators)
     {
         // Advance the shadowIterator while it's less than the candidate
@@ -524,8 +584,14 @@ calculateMergeProtocolVersion(
     // we switch shadowing-behaviour to a more conservative mode, in order to
     // support annihilation of INITENTRY and DEADENTRY pairs. See commentary
     // above in `maybePut`.
-    // TODO: Clean up metrics for archive buckets
     keepShadowedLifecycleEntries = true;
+
+    // Don't count shadow metrics for Hot Archive BucketList
+    if constexpr (std::is_same_v<BucketT, HotArchiveBucket>)
+    {
+        return;
+    }
+
     if (protocolVersionIsBefore(
             protocolVersion,
             LiveBucket::FIRST_PROTOCOL_SUPPORTING_INITENTRY_AND_METAENTRY))
@@ -568,10 +634,6 @@ mergeCasesWithDefaultAcceptance(
 {
     static_assert(std::is_same_v<BucketT, LiveBucket> ||
                   std::is_same_v<BucketT, HotArchiveBucket>);
-    // using BucketEntryT = std::conditional_t<std::is_same_v<BucketT,
-    // LiveBucket>,
-    //                                         BucketEntry,
-    //                                         HotArchiveBucketEntry>;
 
     if (!ni || (oi && ni && cmp(*oi, *ni)))
     {
@@ -621,8 +683,20 @@ mergeCasesWithEqualKeys(
     std::vector<HotArchiveBucketInputIterator>& shadowIterators,
     uint32_t protocolVersion, bool keepShadowedLifecycleEntries)
 {
-    // TODO:
-    releaseAssert(false);
+    // If two identical keys have the same type, throw an error. Otherwise,
+    // take the newer key.
+    HotArchiveBucketEntry const& oldEntry = *oi;
+    HotArchiveBucketEntry const& newEntry = *ni;
+    if (oldEntry.type() == newEntry.type())
+    {
+        throw std::runtime_error(
+            "Malformed Hot Archive bucket: two identical keys with "
+            "the same type.");
+    }
+
+    out.put(newEntry);
+    ++ni;
+    ++oi;
 }
 
 static void
@@ -846,7 +920,7 @@ Bucket::merge(BucketManager& bucketManager, uint32_t maxProtocolVersion,
               std::shared_ptr<BucketT> const& oldBucket,
               std::shared_ptr<BucketT> const& newBucket,
               std::vector<std::shared_ptr<BucketT>> const& shadows,
-              bool keepDeadEntries, bool countMergeEvents,
+              bool keepTombstoneEntries, bool countMergeEvents,
               asio::io_context& ctx, bool doFsync)
 {
     static_assert(std::is_same_v<BucketT, LiveBucket> ||
@@ -875,8 +949,27 @@ Bucket::merge(BucketManager& bucketManager, uint32_t maxProtocolVersion,
     auto timer = bucketManager.getMergeTimer().TimeScope();
     BucketMetadata meta;
     meta.ledgerVersion = protocolVersion;
+
+    // If any inputs use the new extension of BucketMeta, the output should as
+    // well
+    if (ni.getMetadata().ext.v() == 1)
+    {
+        releaseAssertOrThrow(protocolVersionStartsFrom(
+            maxProtocolVersion,
+            Bucket::FIRST_PROTOCOL_SUPPORTING_PERSISTENT_EVICTION));
+        meta.ext = ni.getMetadata().ext;
+    }
+    else if (oi.getMetadata().ext.v() == 1)
+    {
+        releaseAssertOrThrow(protocolVersionStartsFrom(
+            maxProtocolVersion,
+            Bucket::FIRST_PROTOCOL_SUPPORTING_PERSISTENT_EVICTION));
+        meta.ext = oi.getMetadata().ext;
+    }
+
     BucketOutputIterator<BucketT> out(bucketManager.getTmpDir(),
-                                      keepDeadEntries, meta, mc, ctx, doFsync);
+                                      keepTombstoneEntries, meta, mc, ctx,
+                                      doFsync);
 
     BucketEntryIdCmp<BucketT> cmp;
     size_t iter = 0;
@@ -918,8 +1011,8 @@ Bucket::merge(BucketManager& bucketManager, uint32_t maxProtocolVersion,
         shadowHashes.push_back(s->getHash());
     }
 
-    MergeKey mk{keepDeadEntries, oldBucket->getHash(), newBucket->getHash(),
-                shadowHashes};
+    MergeKey mk{keepTombstoneEntries, oldBucket->getHash(),
+                newBucket->getHash(), shadowHashes};
     return out.getBucket(bucketManager,
                          bucketManager.getConfig().isUsingBucketListDB(), &mk);
 }
@@ -966,21 +1059,16 @@ HotArchiveBucket::HotArchiveBucket() : Bucket()
 {
 }
 
-template std::shared_ptr<LiveBucket> Bucket::merge<LiveBucket>(
-    BucketManager& bucketManager, uint32_t maxProtocolVersion,
-    std::shared_ptr<LiveBucket> const& oldBucket,
-    std::shared_ptr<LiveBucket> const& newBucket,
-    std::vector<std::shared_ptr<LiveBucket>> const& shadows,
-    bool keepDeadEntries, bool countMergeEvents, asio::io_context& ctx,
-    bool doFsync);
+bool
+LiveBucket::isTombstoneEntry(BucketEntry const& e)
+{
+    return e.type() == DEADENTRY;
+}
 
-template std::shared_ptr<HotArchiveBucket> Bucket::merge<HotArchiveBucket>(
-    BucketManager& bucketManager, uint32_t maxProtocolVersion,
-    std::shared_ptr<HotArchiveBucket> const& oldBucket,
-    std::shared_ptr<HotArchiveBucket> const& newBucket,
-    std::vector<std::shared_ptr<HotArchiveBucket>> const& shadows,
-    bool keepDeadEntries, bool countMergeEvents, asio::io_context& ctx,
-    bool doFsync);
+bool
+HotArchiveBucket::isTombstoneEntry(HotArchiveBucketEntry const& e)
+{
+    return e.type() == HOT_ARCHIVE_LIVE;
 }
 
 BucketEntryCounters&
@@ -1009,4 +1097,20 @@ BucketEntryCounters::operator!=(BucketEntryCounters const& other) const
 {
     return !(*this == other);
 }
+
+template std::shared_ptr<LiveBucket> Bucket::merge<LiveBucket>(
+    BucketManager& bucketManager, uint32_t maxProtocolVersion,
+    std::shared_ptr<LiveBucket> const& oldBucket,
+    std::shared_ptr<LiveBucket> const& newBucket,
+    std::vector<std::shared_ptr<LiveBucket>> const& shadows,
+    bool keepTombstoneEntries, bool countMergeEvents, asio::io_context& ctx,
+    bool doFsync);
+
+template std::shared_ptr<HotArchiveBucket> Bucket::merge<HotArchiveBucket>(
+    BucketManager& bucketManager, uint32_t maxProtocolVersion,
+    std::shared_ptr<HotArchiveBucket> const& oldBucket,
+    std::shared_ptr<HotArchiveBucket> const& newBucket,
+    std::vector<std::shared_ptr<HotArchiveBucket>> const& shadows,
+    bool keepTombstoneEntries, bool countMergeEvents, asio::io_context& ctx,
+    bool doFsync);
 }
