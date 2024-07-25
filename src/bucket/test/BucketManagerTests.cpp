@@ -396,7 +396,7 @@ TEST_CASE_VERSIONS("bucketmanager reattach to finished merge",
 
         // Reattach to _finished_ merge future on level.
         has2.currentBuckets[level].next.makeLive(
-            *app, vers, LiveBucketList::keepDeadEntries(level));
+            *app, vers, LiveBucketList::keepTombstoneEntries(level));
         REQUIRE(has2.currentBuckets[level].next.isMerging());
 
         // Resolve reattached future.
@@ -479,7 +479,8 @@ TEST_CASE_VERSIONS("bucketmanager reattach to running merge",
                 if (has2.currentBuckets[level].next.hasHashes())
                 {
                     has2.currentBuckets[level].next.makeLive(
-                        *app, vers, LiveBucketList::keepDeadEntries(level));
+                        *app, vers,
+                        LiveBucketList::keepTombstoneEntries(level));
                 }
             }
         }

@@ -372,7 +372,7 @@ FutureBucket<BucketT>::startMerge(Application& app, uint32_t maxProtocolVersion,
     // deserialized. In this case we want to attach to the existing merge, which
     // will have left a std::shared_future behind in a shared cache in the
     // bucket manager.
-    MergeKey mk{BucketListBase<BucketT>::keepDeadEntries(level),
+    MergeKey mk{BucketListBase<BucketT>::keepTombstoneEntries(level),
                 curr->getHash(), snap->getHash(), shadowHashes};
 
     std::shared_future<std::shared_ptr<BucketT>> f;
@@ -414,7 +414,7 @@ FutureBucket<BucketT>::startMerge(Application& app, uint32_t maxProtocolVersion,
 
                 auto res = Bucket::merge(
                     bm, maxProtocolVersion, curr, snap, shadows,
-                    BucketListBase<BucketT>::keepDeadEntries(level),
+                    BucketListBase<BucketT>::keepTombstoneEntries(level),
                     countMergeEvents, ctx, doFsync);
 
                 if (res)

@@ -6,6 +6,7 @@
 #include "bucket/Bucket.h"
 #include "bucket/BucketIndex.h"
 #include "bucket/BucketManager.h"
+#include "ledger/LedgerTypeUtils.h"
 #include "util/GlobalChecks.h"
 #include "util/ProtocolVersion.h"
 #include "xdr/Stellar-ledger.h"
@@ -20,13 +21,16 @@ namespace stellar
  * hashes them while writing to either destination. Produces a Bucket when done.
  */
 template <typename BucketT>
-BucketOutputIterator<BucketT>::BucketOutputIterator(
-    std::string const& tmpDir, bool keepDeadEntries, BucketMetadata const& meta,
-    MergeCounters& mc, asio::io_context& ctx, bool doFsync)
+BucketOutputIterator<BucketT>::BucketOutputIterator(std::string const& tmpDir,
+                                                    bool keepTombstoneEntries,
+                                                    BucketMetadata const& meta,
+                                                    MergeCounters& mc,
+                                                    asio::io_context& ctx,
+                                                    bool doFsync)
     : mFilename(Bucket::randomBucketName(tmpDir))
     , mOut(ctx, doFsync)
     , mBuf(nullptr)
-    , mKeepDeadEntries(keepDeadEntries)
+    , mKeepTombstoneEntries(keepTombstoneEntries)
     , mMeta(meta)
     , mMergeCounters(mc)
 {
@@ -81,7 +85,7 @@ BucketOutputIterator<BucketT>::put(BucketEntryT const& e)
             }
         }
 
-        if (!mKeepDeadEntries && e.type() == DEADENTRY)
+        if (!mKeepTombstoneEntries && BucketT::isTombstoneEntry(e))
         {
             ++mMergeCounters.mOutputIteratorTombstoneElisions;
             return;
@@ -97,10 +101,29 @@ BucketOutputIterator<BucketT>::put(BucketEntryT const& e)
                     "putting META entry in bucket after initial entry");
             }
         }
+        else
+        {
+            if (e.type() == HA_ARCHIVED)
+            {
+                if (!isSorobanEntry(e.archivedEntry().data))
+                {
+                    throw std::runtime_error(
+                        "putting non-soroban entry in hot archive bucket");
+                }
+            }
+            else
+            {
+                if (!isSorobanEntry(e.key()))
+                {
+                    throw std::runtime_error(
+                        "putting non-soroban entry in hot archive bucket");
+                }
+            }
+        }
 
-        // RESTORED entries are dropped in the last bucket level (similar to
+        // HA_LIVE entries are dropped in the last bucket level (similar to
         // DEADENTRY) on live BucketLists
-        if (!mKeepDeadEntries && e.type() == HA_RESTORED)
+        if (!mKeepTombstoneEntries && BucketT::isTombstoneEntry(e))
         {
             ++mMergeCounters.mOutputIteratorTombstoneElisions;
             return;
@@ -183,9 +206,9 @@ BucketOutputIterator<BucketT>::getBucket(BucketManager& bucketManager,
     }
     else
     {
-        // TODO:
-        releaseAssert(false);
-        return std::shared_ptr<HotArchiveBucket>();
+
+        return bucketManager.adoptFileAsHotArchiveBucket(
+            mFilename.string(), hash, mergeKey, std::move(index));
     }
 }
 
