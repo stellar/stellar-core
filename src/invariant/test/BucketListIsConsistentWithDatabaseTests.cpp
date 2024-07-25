@@ -200,7 +200,7 @@ struct BucketListGenerator
         {
             auto& level = blGenerate.getLevel(i);
             auto meta = testutil::testBucketMetadata(vers);
-            auto keepDead = LiveBucketList::keepDeadEntries(i);
+            auto keepDead = LiveBucketList::keepTombstoneEntries(i);
 
             auto writeBucketFile = [&](auto b) {
                 LiveBucketOutputIterator out(bmApply.getTmpDir(), keepDead,

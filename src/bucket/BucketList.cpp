@@ -197,19 +197,16 @@ BucketLevel<BucketT>::prepare(
                 LiveBucket::FIRST_PROTOCOL_SHADOWS_REMOVED)
                 ? std::vector<std::shared_ptr<LiveBucket>>()
                 : shadows;
-
         mNextCurr =
             FutureBucket<BucketT>(app, curr, snap, shadowsBasedOnProtocol,
                                   currLedgerProtocol, countMergeEvents, mLevel);
     }
     else
     {
-        // TODO: Constructor with no shadows
-        // mNextCurr =
-        //     FutureBucket<BucketT>(app, curr, snap, shadowsBasedOnProtocol,
-        //                           currLedgerProtocol, countMergeEvents,
-        //                           mLevel);
-        releaseAssert(false);
+        // HotArchive only exists for protocol > 21, should never have shadows
+        mNextCurr =
+            FutureBucket<BucketT>(app, curr, snap, /*shadows=*/{},
+                                  currLedgerProtocol, countMergeEvents, mLevel);
     }
 
     releaseAssert(mNextCurr.isMerging());
@@ -475,7 +472,7 @@ BucketListBase<BucketT>::bucketUpdatePeriod(uint32_t level, bool isCurr)
 
 template <typename BucketT>
 bool
-BucketListBase<BucketT>::keepDeadEntries(uint32_t level)
+BucketListBase<BucketT>::keepTombstoneEntries(uint32_t level)
 {
     return level < BucketListBase<BucketT>::kNumLevels - 1;
 }
@@ -561,18 +558,99 @@ BucketListBase<BucketT>::getSize() const
     return sum;
 }
 
-template <typename BucketT>
 void
-BucketListBase<BucketT>::addBatch(Application& app, uint32_t currLedger,
-                                  uint32_t currLedgerProtocol,
-                                  std::vector<LedgerEntry> const& initEntries,
-                                  std::vector<LedgerEntry> const& liveEntries,
-                                  std::vector<LedgerKey> const& deadEntries)
+HotArchiveBucketList::addBatch(Application& app, uint32_t currLedger,
+                               uint32_t currLedgerProtocol,
+                               std::vector<LedgerEntry> const& archiveEntries,
+                               std::vector<LedgerKey> const& restoredEntries,
+                               std::vector<LedgerKey> const& deletedEntries)
 {
     ZoneScoped;
     releaseAssert(currLedger > 0);
 
-    std::vector<std::shared_ptr<BucketT>> shadows;
+    for (uint32_t i = static_cast<uint32>(mLevels.size()) - 1; i != 0; --i)
+    {
+        /*
+        CLOG_DEBUG(Bucket, "curr={}, half(i-1)={}, size(i-1)={},
+        roundDown(curr,half)={}, roundDown(curr,size)={}", currLedger,
+        levelHalf(i-1), levelSize(i-1), roundDown(currLedger, levelHalf(i-1)),
+        roundDown(currLedger, levelSize(i-1)));
+        */
+        if (levelShouldSpill(currLedger, i - 1))
+        {
+            /**
+             * At every ledger, level[0] prepares the new batch and commits
+             * it.
+             *
+             * At ledger multiples of 2, level[0] snaps, level[1] commits
+             * existing (promotes next to curr) and "prepares" by starting a
+             * merge of that new level[1] curr with the new level[0] snap. This
+             * is "level 0 spilling".
+             *
+             * At ledger multiples of 8, level[1] snaps, level[2] commits
+             * existing (promotes next to curr) and "prepares" by starting a
+             * merge of that new level[2] curr with the new level[1] snap. This
+             * is "level 1 spilling".
+             *
+             * At ledger multiples of 32, level[2] snaps, level[3] commits
+             * existing (promotes next to curr) and "prepares" by starting a
+             * merge of that new level[3] curr with the new level[2] snap. This
+             * is "level 2 spilling".
+             *
+             * All these have to be done in _reverse_ order (counting down
+             * levels) because we want a 'curr' to be pulled out of the way into
+             * a 'snap' the moment it's half-a-level full, not have anything
+             * else spilled/added to it.
+             */
+
+            auto snap = mLevels[i - 1].snap();
+            mLevels[i].commit();
+            mLevels[i].prepare(app, currLedger, currLedgerProtocol, snap,
+                               /*shadows=*/{},
+                               /*countMergeEvents=*/true);
+        }
+    }
+
+    // In some testing scenarios, we want to inhibit counting level 0 merges
+    // because they are not repeated when restarting merges on app startup,
+    // and we are checking for an expected number of merge events on restart.
+    bool countMergeEvents =
+        !app.getConfig().ARTIFICIALLY_REDUCE_MERGE_COUNTS_FOR_TESTING;
+    bool doFsync = !app.getConfig().DISABLE_XDR_FSYNC;
+    mLevels[0].prepare(
+        app, currLedger, currLedgerProtocol,
+        HotArchiveBucket::fresh(app.getBucketManager(), currLedgerProtocol,
+                                archiveEntries, restoredEntries, deletedEntries,
+                                countMergeEvents, app.getClock().getIOContext(),
+                                doFsync),
+        /*shadows=*/{}, countMergeEvents);
+    mLevels[0].commit();
+
+    // We almost always want to try to resolve completed merges to single
+    // buckets, as it makes restarts less fragile: fewer saved/restored shadows,
+    // fewer buckets for the user to accidentally delete from their buckets
+    // dir. Also makes publication less likely to redo a merge that was already
+    // complete (but not resolved) when the snapshot gets taken.
+    //
+    // But we support the option of not-doing so, only for the sake of
+    // testing. Note: this is nonblocking in any case.
+    if (!app.getConfig().ARTIFICIALLY_PESSIMIZE_MERGES_FOR_TESTING)
+    {
+        resolveAnyReadyFutures();
+    }
+}
+
+void
+LiveBucketList::addBatch(Application& app, uint32_t currLedger,
+                         uint32_t currLedgerProtocol,
+                         std::vector<LedgerEntry> const& initEntries,
+                         std::vector<LedgerEntry> const& liveEntries,
+                         std::vector<LedgerKey> const& deadEntries)
+{
+    ZoneScoped;
+    releaseAssert(currLedger > 0);
+
+    std::vector<std::shared_ptr<LiveBucket>> shadows;
     for (auto& level : mLevels)
     {
         shadows.push_back(level.getCurr());
@@ -664,9 +742,10 @@ BucketListBase<BucketT>::addBatch(Application& app, uint32_t currLedger,
     releaseAssert(shadows.size() == 0);
     mLevels[0].prepare(
         app, currLedger, currLedgerProtocol,
-        BucketT::fresh(app.getBucketManager(), currLedgerProtocol, initEntries,
-                       liveEntries, deadEntries, countMergeEvents,
-                       app.getClock().getIOContext(), doFsync),
+        LiveBucket::fresh(app.getBucketManager(), currLedgerProtocol,
+                          initEntries, liveEntries, deadEntries,
+                          countMergeEvents, app.getClock().getIOContext(),
+                          doFsync),
         shadows, countMergeEvents);
     mLevels[0].commit();
 

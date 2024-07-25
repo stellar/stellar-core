@@ -89,7 +89,7 @@ TEST_CASE_VERSIONS("file backed buckets", "[bucket][bucketbench]")
                                       clock.getIOContext(),
                                       /*doFsync=*/true),
                     /*shadows=*/{},
-                    /*keepDeadEntries=*/true,
+                    /*keepTombstoneEntries=*/true,
                     /*countMergeEvents=*/true, clock.getIOContext(),
                     /*doFsync=*/true);
             }
@@ -170,7 +170,7 @@ TEST_CASE_VERSIONS("merging bucket entries", "[bucket]")
                                                clock.getIOContext(),
                                                /*doFsync=*/true);
                 auto b1 = Bucket::merge(bm, vers, bLive, bDead, /*shadows=*/{},
-                                        /*keepDeadEntries=*/true,
+                                        /*keepTombstoneEntries=*/true,
                                         /*countMergeEvents=*/true,
                                         clock.getIOContext(),
                                         /*doFsync=*/true);
@@ -210,7 +210,7 @@ TEST_CASE_VERSIONS("merging bucket entries", "[bucket]")
                                            /*doFsync=*/true);
             auto b1 =
                 Bucket::merge(bm, vers, bLive, bDead, /*shadows=*/{},
-                              /*keepDeadEntries=*/true,
+                              /*keepTombstoneEntries=*/true,
                               /*countMergeEvents=*/true, clock.getIOContext(),
                               /*doFsync=*/true);
             EntryCounts e(b1);
@@ -264,10 +264,103 @@ TEST_CASE_VERSIONS("merging bucket entries", "[bucket]")
             std::shared_ptr<LiveBucket> b3 =
                 Bucket::merge(app->getBucketManager(),
                               app->getConfig().LEDGER_PROTOCOL_VERSION, b1, b2,
-                              /*shadows=*/{}, /*keepDeadEntries=*/true,
+                              /*shadows=*/{}, /*keepTombstoneEntries=*/true,
                               /*countMergeEvents=*/true, clock.getIOContext(),
                               /*doFsync=*/true);
             CHECK(countEntries(b3) == liveCount);
+        }
+    });
+}
+
+TEST_CASE_VERSIONS("merging hot archive bucket entries", "[bucket][archival]")
+{
+    VirtualClock clock;
+    Config const& cfg = getTestConfig();
+
+    auto app = createTestApplication(clock, cfg);
+    for_versions_from(22, *app, [&] {
+        auto& bm = app->getBucketManager();
+        auto vers = getAppLedgerVersion(app);
+
+        SECTION("new annihilates old")
+        {
+            auto e1 =
+                LedgerTestUtils::generateValidLedgerEntryOfType(CONTRACT_CODE);
+            auto e2 =
+                LedgerTestUtils::generateValidLedgerEntryOfType(CONTRACT_CODE);
+            auto e3 =
+                LedgerTestUtils::generateValidLedgerEntryOfType(CONTRACT_DATA);
+            auto e4 =
+                LedgerTestUtils::generateValidLedgerEntryOfType(CONTRACT_DATA);
+
+            // Old bucket:
+            // e1 -> ARCHIVED
+            // e2 -> LIVE
+            // e3 -> DELETED
+            // e4 -> DELETED
+            auto b1 = HotArchiveBucket::fresh(
+                bm, vers, {e1}, {LedgerEntryKey(e2)},
+                {LedgerEntryKey(e3), LedgerEntryKey(e4)},
+                /*countMergeEvents=*/true, clock.getIOContext(),
+                /*doFsync=*/true);
+
+            // New bucket:
+            // e1 -> DELETED
+            // e2 -> ARCHIVED
+            // e3 -> LIVE
+            auto b2 = HotArchiveBucket::fresh(
+                bm, vers, {e2}, {LedgerEntryKey(e3)}, {LedgerEntryKey(e1)},
+                /*countMergeEvents=*/true, clock.getIOContext(),
+                /*doFsync=*/true);
+
+            // Expected result:
+            // e1 -> DELETED
+            // e2 -> ARCHIVED
+            // e3 -> LIVE
+            // e4 -> DELETED
+            auto merged =
+                Bucket::merge(bm, vers, b1, b2, /*shadows=*/{},
+                              /*keepTombstoneEntries=*/true,
+                              /*countMergeEvents=*/true, clock.getIOContext(),
+                              /*doFsync=*/true);
+
+            bool seen1 = false;
+            bool seen4 = false;
+            auto count = 0;
+            for (HotArchiveBucketInputIterator iter(merged); iter; ++iter)
+            {
+                ++count;
+                auto const& e = *iter;
+                if (e.type() == HA_ARCHIVED)
+                {
+                    REQUIRE(e.archivedEntry() == e2);
+                }
+                else if (e.type() == HA_LIVE)
+                {
+                    REQUIRE(e.key() == LedgerEntryKey(e3));
+                }
+                else if (e.type() == HA_DELETED)
+                {
+                    if (e.key() == LedgerEntryKey(e1))
+                    {
+                        REQUIRE(!seen1);
+                        seen1 = true;
+                    }
+                    else if (e.key() == LedgerEntryKey(e4))
+                    {
+                        REQUIRE(!seen4);
+                        seen4 = true;
+                    }
+                }
+                else
+                {
+                    FAIL();
+                }
+            }
+
+            REQUIRE(seen1);
+            REQUIRE(seen4);
+            REQUIRE(count == 4);
         }
     });
 }
@@ -370,7 +463,7 @@ TEST_CASE("merges proceed old-style despite newer shadows",
         auto bucket =
             Bucket::merge(bm, v12, b11first, b11second,
                           /*shadows=*/{b12first},
-                          /*keepDeadEntries=*/true,
+                          /*keepTombstoneEntries=*/true,
                           /*countMergeEvents=*/true, clock.getIOContext(),
                           /*doFsync=*/true);
         REQUIRE(bucket->getBucketVersion() == v11);
@@ -382,7 +475,7 @@ TEST_CASE("merges proceed old-style despite newer shadows",
         auto bucket =
             Bucket::merge(bm, v12, b10first, b10second,
                           /*shadows=*/{b12first, b11second},
-                          /*keepDeadEntries=*/true,
+                          /*keepTombstoneEntries=*/true,
                           /*countMergeEvents=*/true, clock.getIOContext(),
                           /*doFsync=*/true);
         REQUIRE(bucket->getBucketVersion() == v11);
@@ -391,7 +484,7 @@ TEST_CASE("merges proceed old-style despite newer shadows",
     {
         REQUIRE_THROWS_AS(Bucket::merge(bm, v12, b12first, b12second,
                                         /*shadows=*/{b12first},
-                                        /*keepDeadEntries=*/true,
+                                        /*keepTombstoneEntries=*/true,
                                         /*countMergeEvents=*/true,
                                         clock.getIOContext(),
                                         /*doFsync=*/true),
@@ -427,7 +520,7 @@ TEST_CASE("merges refuse to exceed max protocol version",
                           /*doFsync=*/true);
     REQUIRE_THROWS_AS(Bucket::merge(bm, vers - 1, bnew1, bnew2,
                                     /*shadows=*/{},
-                                    /*keepDeadEntries=*/true,
+                                    /*keepTombstoneEntries=*/true,
                                     /*countMergeEvents=*/true,
                                     clock.getIOContext(),
                                     /*doFsync=*/true),
@@ -503,7 +596,7 @@ TEST_CASE_VERSIONS("merging bucket entries with initentry",
                                            /*doFsync=*/true);
             auto b1 = Bucket::merge(
                 bm, cfg.LEDGER_PROTOCOL_VERSION, bInit, bDead, /*shadows=*/{},
-                /*keepDeadEntries=*/true,
+                /*keepTombstoneEntries=*/true,
                 /*countMergeEvents=*/true, clock.getIOContext(),
                 /*doFsync=*/true);
             // In initEra, the INIT will make it through fresh() to the bucket,
@@ -543,12 +636,12 @@ TEST_CASE_VERSIONS("merging bucket entries with initentry",
                                            /*doFsync=*/true);
             auto bmerge1 = Bucket::merge(
                 bm, cfg.LEDGER_PROTOCOL_VERSION, bInit, bLive, /*shadows=*/{},
-                /*keepDeadEntries=*/true,
+                /*keepTombstoneEntries=*/true,
                 /*countMergeEvents=*/true, clock.getIOContext(),
                 /*doFsync=*/true);
             auto b1 = Bucket::merge(
                 bm, cfg.LEDGER_PROTOCOL_VERSION, bmerge1, bDead, /*shadows=*/{},
-                /*keepDeadEntries=*/true,
+                /*keepTombstoneEntries=*/true,
                 /*countMergeEvents=*/true, clock.getIOContext(),
                 /*doFsync=*/true);
             // The same thing should happen here as above, except that the INIT
@@ -613,12 +706,12 @@ TEST_CASE_VERSIONS("merging bucket entries with initentry",
 
             auto bmerge1 = Bucket::merge(
                 bm, cfg.LEDGER_PROTOCOL_VERSION, bold, bmed, /*shadows=*/{},
-                /*keepDeadEntries=*/true,
+                /*keepTombstoneEntries=*/true,
                 /*countMergeEvents=*/true, clock.getIOContext(),
                 /*doFsync=*/true);
             auto bmerge2 = Bucket::merge(
                 bm, cfg.LEDGER_PROTOCOL_VERSION, bmerge1, bnew, /*shadows=*/{},
-                /*keepDeadEntries=*/true,
+                /*keepTombstoneEntries=*/true,
                 /*countMergeEvents=*/true, clock.getIOContext(),
                 /*doFsync=*/true);
             EntryCounts emerge1(bmerge1), emerge2(bmerge2);
@@ -701,7 +794,7 @@ TEST_CASE_VERSIONS("merging bucket entries with initentry with shadows",
             auto merged =
                 Bucket::merge(bm, cfg.LEDGER_PROTOCOL_VERSION, b1, b2,
                               /*shadows=*/{shadow},
-                              /*keepDeadEntries=*/true,
+                              /*keepTombstoneEntries=*/true,
                               /*countMergeEvents=*/true, clock.getIOContext(),
                               /*doFsync=*/true);
             EntryCounts e(merged);
@@ -756,7 +849,7 @@ TEST_CASE_VERSIONS("merging bucket entries with initentry with shadows",
             auto merge43 =
                 Bucket::merge(bm, cfg.LEDGER_PROTOCOL_VERSION, level4, level3,
                               /*shadows=*/{level2, level1},
-                              /*keepDeadEntries=*/true,
+                              /*keepTombstoneEntries=*/true,
                               /*countMergeEvents=*/true, clock.getIOContext(),
                               /*doFsync=*/true);
             EntryCounts e43(merge43);
@@ -782,7 +875,7 @@ TEST_CASE_VERSIONS("merging bucket entries with initentry with shadows",
             auto merge21 =
                 Bucket::merge(bm, cfg.LEDGER_PROTOCOL_VERSION, level2, level1,
                               /*shadows=*/{},
-                              /*keepDeadEntries=*/true,
+                              /*keepTombstoneEntries=*/true,
                               /*countMergeEvents=*/true, clock.getIOContext(),
                               /*doFsync=*/true);
             EntryCounts e21(merge21);
@@ -808,13 +901,13 @@ TEST_CASE_VERSIONS("merging bucket entries with initentry with shadows",
             auto merge4321 =
                 Bucket::merge(bm, cfg.LEDGER_PROTOCOL_VERSION, merge43, merge21,
                               /*shadows=*/{},
-                              /*keepDeadEntries=*/true,
+                              /*keepTombstoneEntries=*/true,
                               /*countMergeEvents=*/true, clock.getIOContext(),
                               /*doFsync=*/true);
             auto merge54321 = Bucket::merge(
                 bm, cfg.LEDGER_PROTOCOL_VERSION, level5, merge4321,
                 /*shadows=*/{},
-                /*keepDeadEntries=*/true,
+                /*keepTombstoneEntries=*/true,
                 /*countMergeEvents=*/true, clock.getIOContext(),
                 /*doFsync=*/true);
             EntryCounts e54321(merge21);
@@ -865,7 +958,7 @@ TEST_CASE_VERSIONS("merging bucket entries with initentry with shadows",
             auto merge32 =
                 Bucket::merge(bm, cfg.LEDGER_PROTOCOL_VERSION, level3, level2,
                               /*shadows=*/{level1},
-                              /*keepDeadEntries=*/true,
+                              /*keepTombstoneEntries=*/true,
                               /*countMergeEvents=*/true, clock.getIOContext(),
                               /*doFsync=*/true);
             EntryCounts e32(merge32);
@@ -892,7 +985,7 @@ TEST_CASE_VERSIONS("merging bucket entries with initentry with shadows",
             auto merge321 =
                 Bucket::merge(bm, cfg.LEDGER_PROTOCOL_VERSION, merge32, level1,
                               /*shadows=*/{},
-                              /*keepDeadEntries=*/true,
+                              /*keepTombstoneEntries=*/true,
                               /*countMergeEvents=*/true, clock.getIOContext(),
                               /*doFsync=*/true);
             EntryCounts e321(merge321);

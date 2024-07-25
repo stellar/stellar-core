@@ -1461,8 +1461,8 @@ BucketManagerImpl::mergeBuckets(HistoryArchiveState const& has)
     MergeCounters mc;
     auto& ctx = mApp.getClock().getIOContext();
     meta.ledgerVersion = mApp.getConfig().LEDGER_PROTOCOL_VERSION;
-    LiveBucketOutputIterator out(getTmpDir(), /*keepDeadEntries=*/false, meta,
-                                 mc, ctx, /*doFsync=*/true);
+    LiveBucketOutputIterator out(getTmpDir(), /*keepTombstoneEntries=*/false,
+                                 meta, mc, ctx, /*doFsync=*/true);
     for (auto const& pair : ledgerMap)
     {
         BucketEntry be;

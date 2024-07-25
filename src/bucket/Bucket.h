@@ -107,8 +107,8 @@ class Bucket : public NonMovableOrCopyable
           std::shared_ptr<BucketT> const& oldBucket,
           std::shared_ptr<BucketT> const& newBucket,
           std::vector<std::shared_ptr<BucketT>> const& shadows,
-          bool keepDeadEntries, bool countMergeEvents, asio::io_context& ctx,
-          bool doFsync);
+          bool keepTombstoneEntries, bool countMergeEvents,
+          asio::io_context& ctx, bool doFsync);
 
     static std::string randomBucketName(std::string const& tmpDir);
     static std::string randomBucketIndexName(std::string const& tmpDir);
@@ -151,14 +151,13 @@ class LiveBucket : public Bucket,
     static void checkProtocolLegality(BucketEntry const& entry,
                                       uint32_t protocolVersion);
 
-#ifdef BUILD_TESTS
-
     static std::vector<BucketEntry>
     convertToBucketEntry(bool useInit,
                          std::vector<LedgerEntry> const& initEntries,
                          std::vector<LedgerEntry> const& liveEntries,
                          std::vector<LedgerKey> const& deadEntries);
 
+#ifdef BUILD_TESTS
     // "Applies" the bucket to the database. For each entry in the bucket,
     // if the entry is init or live, creates or updates the corresponding
     // entry in the database (respectively; if the entry is dead (a
@@ -194,6 +193,10 @@ class LiveBucket : public Bucket,
           std::vector<LedgerKey> const& deadEntries, bool countMergeEvents,
           asio::io_context& ctx, bool doFsync);
 
+    // Returns true if the given BucketEntry should be dropped in the bottom
+    // level bucket (i.e. DEADENTRY)
+    static bool isTombstoneEntry(BucketEntry const& e);
+
     uint32_t getBucketVersion() const override;
 
     friend class LiveBucketSnapshot;
@@ -202,19 +205,27 @@ class LiveBucket : public Bucket,
 class HotArchiveBucket : public Bucket,
                          public std::enable_shared_from_this<HotArchiveBucket>
 {
+    static std::vector<HotArchiveBucketEntry>
+    convertToBucketEntry(std::vector<LedgerEntry> const& archivedEntries,
+                         std::vector<LedgerKey> const& restoredEntries,
+                         std::vector<LedgerKey> const& deletedEntries);
+
   public:
     HotArchiveBucket();
     HotArchiveBucket(std::string const& filename, Hash const& hash,
                      std::unique_ptr<BucketIndex const>&& index);
     uint32_t getBucketVersion() const override;
 
-    // TOOD: Change params for HotArchiveBucket
     static std::shared_ptr<HotArchiveBucket>
     fresh(BucketManager& bucketManager, uint32_t protocolVersion,
-          std::vector<LedgerEntry> const& initEntries,
-          std::vector<LedgerEntry> const& liveEntries,
-          std::vector<LedgerKey> const& deadEntries, bool countMergeEvents,
+          std::vector<LedgerEntry> const& archivedEntries,
+          std::vector<LedgerKey> const& restoredEntries,
+          std::vector<LedgerKey> const& deletedEntries, bool countMergeEvents,
           asio::io_context& ctx, bool doFsync);
+
+    // Returns true if the given BucketEntry should be dropped in the bottom
+    // level bucket (i.e. HA_LIVE)
+    static bool isTombstoneEntry(HotArchiveBucketEntry const& e);
 
     friend class HotArchiveBucketSnapshot;
 };
