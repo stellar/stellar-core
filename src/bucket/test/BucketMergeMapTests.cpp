@@ -22,7 +22,7 @@ TEST_CASE("bucket merge map", "[bucket][bucketmergemap]")
         std::vector<LedgerEntry> live =
             LedgerTestUtils::generateValidUniqueLedgerEntriesWithExclusions(
                 {CONFIG_SETTING}, numEntries);
-        std::shared_ptr<Bucket> b1 = Bucket::fresh(
+        std::shared_ptr<LiveBucket> b1 = LiveBucket::fresh(
             app->getBucketManager(), BucketTestUtils::getAppLedgerVersion(app),
             {}, live, {},
             /*countMergeEvents=*/true, clock.getIOContext(),
@@ -30,41 +30,44 @@ TEST_CASE("bucket merge map", "[bucket][bucketmergemap]")
         return b1;
     };
 
-    std::shared_ptr<Bucket> in1a = getValidBucket();
-    std::shared_ptr<Bucket> in1b = getValidBucket();
-    std::shared_ptr<Bucket> in1c = getValidBucket();
+    std::shared_ptr<LiveBucket> in1a = getValidBucket();
+    std::shared_ptr<LiveBucket> in1b = getValidBucket();
+    std::shared_ptr<LiveBucket> in1c = getValidBucket();
 
-    std::shared_ptr<Bucket> in2a = getValidBucket();
-    std::shared_ptr<Bucket> in2b = getValidBucket();
-    std::shared_ptr<Bucket> in2c = getValidBucket();
+    std::shared_ptr<LiveBucket> in2a = getValidBucket();
+    std::shared_ptr<LiveBucket> in2b = getValidBucket();
+    std::shared_ptr<LiveBucket> in2c = getValidBucket();
 
-    std::shared_ptr<Bucket> in3a = getValidBucket();
-    std::shared_ptr<Bucket> in3b = getValidBucket();
-    std::shared_ptr<Bucket> in3c = getValidBucket();
-    std::shared_ptr<Bucket> in3d = getValidBucket();
+    std::shared_ptr<LiveBucket> in3a = getValidBucket();
+    std::shared_ptr<LiveBucket> in3b = getValidBucket();
+    std::shared_ptr<LiveBucket> in3c = getValidBucket();
+    std::shared_ptr<LiveBucket> in3d = getValidBucket();
 
-    std::shared_ptr<Bucket> in4a = getValidBucket();
-    std::shared_ptr<Bucket> in4b = getValidBucket();
+    std::shared_ptr<LiveBucket> in4a = getValidBucket();
+    std::shared_ptr<LiveBucket> in4b = getValidBucket();
 
-    std::shared_ptr<Bucket> in5a = getValidBucket();
-    std::shared_ptr<Bucket> in5b = getValidBucket();
+    std::shared_ptr<LiveBucket> in5a = getValidBucket();
+    std::shared_ptr<LiveBucket> in5b = getValidBucket();
 
-    std::shared_ptr<Bucket> in6a = getValidBucket();
-    std::shared_ptr<Bucket> in6b = getValidBucket();
+    std::shared_ptr<LiveBucket> in6a = getValidBucket();
+    std::shared_ptr<LiveBucket> in6b = getValidBucket();
 
-    std::shared_ptr<Bucket> out1 = getValidBucket();
-    std::shared_ptr<Bucket> out2 = getValidBucket();
-    std::shared_ptr<Bucket> out4 = getValidBucket();
-    std::shared_ptr<Bucket> out6 = getValidBucket();
+    std::shared_ptr<LiveBucket> out1 = getValidBucket();
+    std::shared_ptr<LiveBucket> out2 = getValidBucket();
+    std::shared_ptr<LiveBucket> out4 = getValidBucket();
+    std::shared_ptr<LiveBucket> out6 = getValidBucket();
 
     BucketMergeMap bmm;
 
-    MergeKey m1{true, in1a, in1b, {in1c}};
-    MergeKey m2{true, in2a, in2b, {in2c}};
-    MergeKey m3{true, in3a, in3b, {in3c, in3d}};
-    MergeKey m4{true, in4a, in4b, {}};
-    MergeKey m5{true, in5a, in5b, {}};
-    MergeKey m6{true, in6a, in6b, {in1a}};
+    MergeKey m1{true, in1a->getHash(), in1b->getHash(), {in1c->getHash()}};
+    MergeKey m2{true, in2a->getHash(), in2b->getHash(), {in2c->getHash()}};
+    MergeKey m3{true,
+                in3a->getHash(),
+                in3b->getHash(),
+                {in3c->getHash(), in3d->getHash()}};
+    MergeKey m4{true, in4a->getHash(), in4b->getHash(), {}};
+    MergeKey m5{true, in5a->getHash(), in5b->getHash(), {}};
+    MergeKey m6{true, in6a->getHash(), in6b->getHash(), {in1a->getHash()}};
 
     bmm.recordMerge(m1, out1->getHash());
     bmm.recordMerge(m2, out2->getHash());

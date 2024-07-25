@@ -10,19 +10,13 @@
 namespace stellar
 {
 
-MergeKey::MergeKey(bool keepDeadEntries,
-                   std::shared_ptr<Bucket> const& inputCurr,
-                   std::shared_ptr<Bucket> const& inputSnap,
-                   std::vector<std::shared_ptr<Bucket>> const& inputShadows)
+MergeKey::MergeKey(bool keepDeadEntries, Hash const& currHash,
+                   Hash const& snapHash, std::vector<Hash> const& shadowHashes)
     : mKeepDeadEntries(keepDeadEntries)
-    , mInputCurrBucket(inputCurr->getHash())
-    , mInputSnapBucket(inputSnap->getHash())
+    , mInputCurrBucket(currHash)
+    , mInputSnapBucket(snapHash)
+    , mInputShadowBuckets(shadowHashes)
 {
-    mInputShadowBuckets.reserve(inputShadows.size());
-    for (auto const& s : inputShadows)
-    {
-        mInputShadowBuckets.emplace_back(s->getHash());
-    }
 }
 
 bool

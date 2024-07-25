@@ -42,8 +42,8 @@ class InvariantManagerImpl : public InvariantManager
                                        LedgerTxnDelta const& ltxDelta) override;
 
     virtual void checkOnBucketApply(
-        std::shared_ptr<Bucket const> bucket, uint32_t ledger, uint32_t level,
-        bool isCurr,
+        std::shared_ptr<LiveBucket const> bucket, uint32_t ledger,
+        uint32_t level, bool isCurr,
         std::function<bool(LedgerEntryType)> entryTypeFilter) override;
 
     virtual void checkAfterAssumeState(uint32_t newestLedger) override;

@@ -15,7 +15,7 @@
 namespace stellar
 {
 IndexBucketsWork::IndexWork::IndexWork(Application& app,
-                                       std::shared_ptr<Bucket> b)
+                                       std::shared_ptr<LiveBucket> b)
     : BasicWork(app, "index-work", BasicWork::RETRY_NEVER), mBucket(b)
 {
 }
@@ -104,7 +104,7 @@ IndexBucketsWork::IndexWork::postWork()
 }
 
 IndexBucketsWork::IndexBucketsWork(
-    Application& app, std::vector<std::shared_ptr<Bucket>> const& buckets)
+    Application& app, std::vector<std::shared_ptr<LiveBucket>> const& buckets)
     : Work(app, "index-bucketList", BasicWork::RETRY_NEVER), mBuckets(buckets)
 {
 }
@@ -130,7 +130,7 @@ void
 IndexBucketsWork::spawnWork()
 {
     UnorderedSet<Hash> indexedBuckets;
-    auto spawnIndexWork = [&](std::shared_ptr<Bucket> const& b) {
+    auto spawnIndexWork = [&](std::shared_ptr<LiveBucket> const& b) {
         // Don't index empty bucket or buckets that are already being
         // indexed. Sometimes one level's snap bucket may be another
         // level's future bucket. The indexing job may have started but

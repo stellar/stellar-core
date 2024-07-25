@@ -17,7 +17,8 @@ namespace stellar
 {
 
 DownloadBucketsWork::DownloadBucketsWork(
-    Application& app, std::map<std::string, std::shared_ptr<Bucket>>& buckets,
+    Application& app,
+    std::map<std::string, std::shared_ptr<LiveBucket>>& buckets,
     std::vector<std::string> hashes, TmpDir const& downloadDir,
     std::shared_ptr<HistoryArchive> archive)
     : BatchWork{app, "download-verify-buckets"}
@@ -94,7 +95,7 @@ DownloadBucketsWork::yieldMoreWork()
         if (self)
         {
             auto bucketPath = ft.localPath_nogz();
-            auto b = app.getBucketManager().adoptFileAsBucket(
+            auto b = app.getBucketManager().adoptFileAsLiveBucket(
                 bucketPath, hexToBin256(hash),
                 /*mergeKey=*/nullptr,
                 /*index=*/nullptr);

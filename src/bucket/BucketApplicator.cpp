@@ -20,7 +20,7 @@ BucketApplicator::BucketApplicator(Application& app,
                                    uint32_t maxProtocolVersion,
                                    uint32_t minProtocolVersionSeen,
                                    uint32_t level,
-                                   std::shared_ptr<Bucket const> bucket,
+                                   std::shared_ptr<LiveBucket const> bucket,
                                    std::function<bool(LedgerEntryType)> filter,
                                    std::unordered_set<LedgerKey>& seenKeys)
     : mApp(app)
@@ -135,7 +135,7 @@ BucketApplicator::advance(BucketApplicator::Counters& counters)
         }
 
         BucketEntry const& e = *mBucketIter;
-        Bucket::checkProtocolLegality(e, mMaxProtocolVersion);
+        LiveBucket::checkProtocolLegality(e, mMaxProtocolVersion);
 
         if (shouldApplyEntry(mEntryTypeFilter, e))
         {
@@ -167,7 +167,7 @@ BucketApplicator::advance(BucketApplicator::Counters& counters)
                 // The last level can have live entries, but at that point we
                 // know that they are actually init entries because the earliest
                 // state of all entries is init, so we mark them as such here
-                if (mLevel == BucketListBase::kNumLevels - 1 &&
+                if (mLevel == LiveBucketList::kNumLevels - 1 &&
                     e.type() == LIVEENTRY)
                 {
                     ltx->createWithoutLoading(e.liveEntry());
@@ -175,7 +175,7 @@ BucketApplicator::advance(BucketApplicator::Counters& counters)
                 else if (
                     protocolVersionIsBefore(
                         mMinProtocolVersionSeen,
-                        Bucket::
+                        LiveBucket::
                             FIRST_PROTOCOL_SUPPORTING_INITENTRY_AND_METAENTRY))
                 {
                     // Prior to protocol 11, INITENTRY didn't exist, so we need
@@ -207,7 +207,7 @@ BucketApplicator::advance(BucketApplicator::Counters& counters)
                 releaseAssertOrThrow(!isUsingBucketListDB);
                 if (protocolVersionIsBefore(
                         mMinProtocolVersionSeen,
-                        Bucket::
+                        LiveBucket::
                             FIRST_PROTOCOL_SUPPORTING_INITENTRY_AND_METAENTRY))
                 {
                     // Prior to protocol 11, DEAD entries could exist

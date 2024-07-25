@@ -4,6 +4,7 @@
 // under the Apache License, Version 2.0. See the COPYING file at the root
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
+#include "bucket/Bucket.h"
 #include "bucket/BucketManager.h"
 #include "bucket/LedgerCmp.h"
 #include "util/XDRStream.h"
@@ -22,14 +23,17 @@ class BucketManager;
 // when finished.
 template <typename BucketT> class BucketOutputIterator
 {
-    static_assert(std::is_same_v<BucketT, BucketEntry> ||
-                  std::is_same_v<BucketT, HotArchiveBucketEntry>);
+    static_assert(std::is_same_v<BucketT, LiveBucket> ||
+                  std::is_same_v<BucketT, HotArchiveBucket>);
+
+    using BucketEntryT = std::conditional_t<std::is_same_v<BucketT, LiveBucket>,
+                                            BucketEntry, HotArchiveBucketEntry>;
 
   protected:
     std::filesystem::path mFilename;
     XDROutputFileStream mOut;
     BucketEntryIdCmp<BucketT> mCmp;
-    std::unique_ptr<BucketT> mBuf;
+    std::unique_ptr<BucketEntryT> mBuf;
     SHA256 mHasher;
     size_t mBytesPut{0};
     size_t mObjectsPut{0};
@@ -50,12 +54,13 @@ template <typename BucketT> class BucketOutputIterator
                          BucketMetadata const& meta, MergeCounters& mc,
                          asio::io_context& ctx, bool doFsync);
 
-    void put(BucketT const& e);
+    void put(BucketEntryT const& e);
 
-    std::shared_ptr<Bucket> getBucket(BucketManager& bucketManager,
-                                      bool shouldSynchronouslyIndex,
-                                      MergeKey* mergeKey = nullptr);
+    std::shared_ptr<BucketT> getBucket(BucketManager& bucketManager,
+                                       bool shouldSynchronouslyIndex,
+                                       MergeKey* mergeKey = nullptr);
 };
 
-typedef BucketOutputIterator<BucketEntry> LiveBucketOutputIterator;
+typedef BucketOutputIterator<LiveBucket> LiveBucketOutputIterator;
+typedef BucketOutputIterator<HotArchiveBucket> HotArchiveBucketOutputIterator;
 }

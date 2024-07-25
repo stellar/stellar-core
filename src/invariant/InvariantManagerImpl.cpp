@@ -71,16 +71,16 @@ InvariantManagerImpl::getEnabledInvariants() const
 
 void
 InvariantManagerImpl::checkOnBucketApply(
-    std::shared_ptr<Bucket const> bucket, uint32_t ledger, uint32_t level,
+    std::shared_ptr<LiveBucket const> bucket, uint32_t ledger, uint32_t level,
     bool isCurr, std::function<bool(LedgerEntryType)> entryTypeFilter)
 {
     uint32_t oldestLedger =
-        isCurr ? BucketListBase::oldestLedgerInCurr(ledger, level)
-               : BucketListBase::oldestLedgerInSnap(ledger, level);
+        isCurr ? LiveBucketList::oldestLedgerInCurr(ledger, level)
+               : LiveBucketList::oldestLedgerInSnap(ledger, level);
     uint32_t newestLedger =
         oldestLedger - 1 +
-        (isCurr ? BucketListBase::sizeOfCurr(ledger, level)
-                : BucketListBase::sizeOfSnap(ledger, level));
+        (isCurr ? LiveBucketList::sizeOfCurr(ledger, level)
+                : LiveBucketList::sizeOfSnap(ledger, level));
     for (auto invariant : mEnabled)
     {
         auto result = invariant->checkOnBucketApply(

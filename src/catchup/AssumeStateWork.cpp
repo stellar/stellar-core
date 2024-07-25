@@ -26,12 +26,12 @@ AssumeStateWork::AssumeStateWork(Application& app,
     // Maintain reference to all Buckets in HAS to avoid garbage collection,
     // including future buckets that have already finished merging
     auto& bm = mApp.getBucketManager();
-    for (uint32_t i = 0; i < BucketListBase::kNumLevels; ++i)
+    for (uint32_t i = 0; i < LiveBucketList::kNumLevels; ++i)
     {
         auto curr =
-            bm.getBucketByHash(hexToBin256(mHas.currentBuckets.at(i).curr));
+            bm.getLiveBucketByHash(hexToBin256(mHas.currentBuckets.at(i).curr));
         auto snap =
-            bm.getBucketByHash(hexToBin256(mHas.currentBuckets.at(i).snap));
+            bm.getLiveBucketByHash(hexToBin256(mHas.currentBuckets.at(i).snap));
         if (!(curr && snap))
         {
             throw std::runtime_error("Missing bucket files while "
@@ -44,7 +44,7 @@ AssumeStateWork::AssumeStateWork(Application& app,
         if (nextFuture.hasOutputHash())
         {
             auto nextBucket =
-                bm.getBucketByHash(hexToBin256(nextFuture.getOutputHash()));
+                bm.getLiveBucketByHash(hexToBin256(nextFuture.getOutputHash()));
             if (!nextBucket)
             {
                 throw std::runtime_error("Missing future bucket files while "
