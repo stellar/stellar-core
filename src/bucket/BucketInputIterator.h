@@ -14,21 +14,26 @@ namespace stellar
 {
 
 class Bucket;
+class LiveBucket;
+class HotArchiveBucket;
 
 // Helper class that reads through the entries in a bucket.
 template <typename BucketT> class BucketInputIterator
 {
-    static_assert(std::is_same_v<BucketT, BucketEntry> ||
-                  std::is_same_v<BucketT, HotArchiveBucketEntry>);
+    static_assert(std::is_same_v<BucketT, LiveBucket> ||
+                  std::is_same_v<BucketT, HotArchiveBucket>);
 
-    std::shared_ptr<Bucket const> mBucket;
+    using BucketEntryT = std::conditional_t<std::is_same_v<BucketT, LiveBucket>,
+                                            BucketEntry, HotArchiveBucketEntry>;
+
+    std::shared_ptr<BucketT const> mBucket;
 
     // Validity and current-value of the iterator is funneled into a
     // pointer. If
     // non-null, it points to mEntry.
-    BucketT const* mEntryPtr{nullptr};
+    BucketEntryT const* mEntryPtr{nullptr};
     XDRInputFileStream mIn;
-    BucketT mEntry;
+    BucketEntryT mEntry;
     bool mSeenMetadata{false};
     bool mSeenOtherEntries{false};
     BucketMetadata mMetadata;
@@ -47,9 +52,9 @@ template <typename BucketT> class BucketInputIterator
     bool seenMetadata() const;
     BucketMetadata const& getMetadata() const;
 
-    BucketT const& operator*();
+    BucketEntryT const& operator*();
 
-    BucketInputIterator(std::shared_ptr<Bucket const> bucket);
+    BucketInputIterator(std::shared_ptr<BucketT const> bucket);
 
     ~BucketInputIterator();
 
@@ -60,5 +65,6 @@ template <typename BucketT> class BucketInputIterator
     void seek(std::streamoff offset);
 };
 
-typedef BucketInputIterator<BucketEntry> LiveBucketInputIterator;
+typedef BucketInputIterator<LiveBucket> LiveBucketInputIterator;
+typedef BucketInputIterator<HotArchiveBucket> HotArchiveBucketInputIterator;
 }

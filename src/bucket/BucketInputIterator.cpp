@@ -66,7 +66,11 @@ BucketInputIterator<T>::loadEntry()
             mSeenOtherEntries = true;
             if (mSeenMetadata)
             {
-                Bucket::checkProtocolLegality(mEntry, mMetadata.ledgerVersion);
+                if constexpr (std::is_same_v<T, LiveBucket>)
+                {
+                    LiveBucket::checkProtocolLegality(mEntry,
+                                                      mMetadata.ledgerVersion);
+                }
             }
         }
     }
@@ -96,7 +100,7 @@ template <typename T> BucketInputIterator<T>::operator bool() const
 }
 
 template <typename T>
-T const&
+typename BucketInputIterator<T>::BucketEntryT const&
 BucketInputIterator<T>::operator*()
 {
     return *mEntryPtr;
@@ -117,8 +121,7 @@ BucketInputIterator<T>::getMetadata() const
 }
 
 template <typename T>
-BucketInputIterator<T>::BucketInputIterator(
-    std::shared_ptr<Bucket const> bucket)
+BucketInputIterator<T>::BucketInputIterator(std::shared_ptr<T const> bucket)
     : mBucket(bucket), mEntryPtr(nullptr), mSeenMetadata(false)
 {
     // In absence of metadata, we treat every bucket as though it is from ledger
@@ -165,5 +168,6 @@ BucketInputIterator<T>::seek(std::streamoff offset)
     loadEntry();
 }
 
-template class BucketInputIterator<BucketEntry>;
+template class BucketInputIterator<LiveBucket>;
+template class BucketInputIterator<HotArchiveBucket>;
 }

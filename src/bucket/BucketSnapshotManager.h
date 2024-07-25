@@ -24,7 +24,8 @@ namespace stellar
 
 class Application;
 class LiveBucketList;
-class BucketListSnapshot;
+template <class BucketT> class BucketListSnapshot;
+class SearchableLiveBucketListSnapshot;
 
 // This class serves as the boundary between non-threadsafe singleton classes
 // (BucketManager, BucketList, Metrics, etc) and threadsafe, parallel BucketList
@@ -37,10 +38,10 @@ class BucketSnapshotManager : NonMovableOrCopyable
     // Snapshot that is maintained and periodically updated by BucketManager on
     // the main thread. When background threads need to generate or refresh a
     // snapshot, they will copy this snapshot.
-    std::unique_ptr<BucketListSnapshot const> mCurrentSnapshot{};
+    std::unique_ptr<BucketListSnapshot<LiveBucket> const> mCurrentSnapshot{};
 
     // ledgerSeq that the snapshot is based on -> snapshot
-    std::map<uint32_t, std::unique_ptr<BucketListSnapshot const>>
+    std::map<uint32_t, std::unique_ptr<BucketListSnapshot<LiveBucket> const>>
         mHistoricalSnapshots;
 
     uint32_t const mNumHistoricalSnapshots;
@@ -62,23 +63,23 @@ class BucketSnapshotManager : NonMovableOrCopyable
     // Called by main thread to update mCurrentSnapshot whenever the BucketList
     // is updated
     void updateCurrentSnapshot(
-        std::unique_ptr<BucketListSnapshot const>&& newSnapshot);
+        std::unique_ptr<BucketListSnapshot<LiveBucket> const>&& newSnapshot);
 
     // numHistoricalLedgers is the number of historical snapshots that the
     // snapshot manager will maintain. If numHistoricalLedgers is 5, snapshots
     // will be capable of querying state from ledger [lcl, lcl - 5].
     BucketSnapshotManager(Application& app,
-                          std::unique_ptr<BucketListSnapshot const>&& snapshot,
+                          std::unique_ptr<BucketListSnapshot<LiveBucket> const>&& snapshot,
                           uint32_t numHistoricalLedgers);
 
-    std::shared_ptr<SearchableBucketListSnapshot>
+    std::shared_ptr<SearchableLiveBucketListSnapshot>
     copySearchableBucketListSnapshot() const;
 
     // Checks if snapshot is out of date with mCurrentSnapshot and updates
     // it accordingly
     void maybeUpdateSnapshot(
-        std::unique_ptr<BucketListSnapshot const>& snapshot,
-        std::map<uint32_t, std::unique_ptr<BucketListSnapshot const>>&
+        std::unique_ptr<BucketListSnapshot<LiveBucket> const>& snapshot,
+        std::map<uint32_t, std::unique_ptr<BucketListSnapshot<LiveBucket> const>>&
             historicalSnapshots) const;
 
     // All metric recording functions must only be called by the main thread

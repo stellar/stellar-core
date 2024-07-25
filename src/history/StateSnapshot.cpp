@@ -41,7 +41,7 @@ StateSnapshot::StateSnapshot(Application& app, HistoryArchiveState const& state)
           mSnapDir, HISTORY_FILE_TYPE_SCP, mLocalState.currentLedger))
 
 {
-    if (mLocalState.currentBuckets.size() != BucketListBase::kNumLevels)
+    if (mLocalState.currentBuckets.size() != LiveBucketList::kNumLevels)
     {
         throw std::runtime_error("Invalid HAS: malformed bucketlist");
     }
@@ -147,7 +147,7 @@ StateSnapshot::differingHASFiles(HistoryArchiveState const& other)
 
     for (auto const& hash : mLocalState.differingBuckets(other))
     {
-        auto b = mApp.getBucketManager().getBucketByHash(hexToBin256(hash));
+        auto b = mApp.getBucketManager().getLiveBucketByHash(hexToBin256(hash));
         releaseAssert(b);
         addIfExists(std::make_shared<FileTransferInfo>(*b));
     }

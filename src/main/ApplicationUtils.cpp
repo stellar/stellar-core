@@ -237,11 +237,11 @@ setupApp(Config& cfg, VirtualClock& clock, uint32_t startAtLedger,
 
             // Collect bucket references to pass to catchup _before_ starting
             // the app, which may trigger garbage collection
-            std::set<std::shared_ptr<Bucket>> retained;
+            std::set<std::shared_ptr<LiveBucket>> retained;
             for (auto const& b : has.allBuckets())
             {
                 auto bPtr =
-                    app->getBucketManager().getBucketByHash(hexToBin256(b));
+                    app->getBucketManager().getLiveBucketByHash(hexToBin256(b));
                 releaseAssert(bPtr);
                 retained.insert(bPtr);
             }
@@ -329,7 +329,7 @@ applyBucketsForLCL(Application& app,
         maxProtocolVersion = currentLedger->ledgerVersion;
     }
 
-    std::map<std::string, std::shared_ptr<Bucket>> buckets;
+    std::map<std::string, std::shared_ptr<LiveBucket>> buckets;
     auto work = app.getWorkScheduler().scheduleWork<ApplyBucketsWork>(
         buckets, has, maxProtocolVersion, onlyApply);
 
@@ -574,7 +574,7 @@ struct StateArchivalMetric
 
 static void
 processArchivalMetrics(
-    std::shared_ptr<Bucket const> const b,
+    std::shared_ptr<LiveBucket const> const b,
     UnorderedMap<LedgerKey, StateArchivalMetric>& ledgerEntries,
     UnorderedMap<LedgerKey, std::pair<StateArchivalMetric, uint32_t>>& ttls)
 {
@@ -647,7 +647,7 @@ dumpStateArchivalStatistics(Config cfg)
     HistoryArchiveState has = lm.getLastClosedLedgerHAS();
 
     std::vector<Hash> hashes;
-    for (uint32_t i = 0; i < BucketListBase::kNumLevels; ++i)
+    for (uint32_t i = 0; i < LiveBucketList::kNumLevels; ++i)
     {
         HistoryStateBucket const& hsb = has.currentBuckets.at(i);
         hashes.emplace_back(hexToBin256(hsb.curr));
@@ -665,7 +665,7 @@ dumpStateArchivalStatistics(Config cfg)
         {
             continue;
         }
-        auto b = bm.getBucketByHash(hash);
+        auto b = bm.getLiveBucketByHash(hash);
         if (!b)
         {
             throw std::runtime_error(std::string("missing bucket: ") +
@@ -929,7 +929,7 @@ loadXdr(Config cfg, std::string const& bucketFile)
     Application::pointer app = Application::create(clock, cfg, false);
 
     uint256 zero;
-    Bucket bucket(bucketFile, zero, nullptr);
+    LiveBucket bucket(bucketFile, zero, nullptr);
     bucket.apply(*app);
 }
 

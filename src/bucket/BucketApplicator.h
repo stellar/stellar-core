@@ -72,7 +72,7 @@ class BucketApplicator
     // When this flag is set, each offer key read is added to seenKeys
     BucketApplicator(Application& app, uint32_t maxProtocolVersion,
                      uint32_t minProtocolVersionSeen, uint32_t level,
-                     std::shared_ptr<Bucket const> bucket,
+                     std::shared_ptr<LiveBucket const> bucket,
                      std::function<bool(LedgerEntryType)> filter,
                      std::unordered_set<LedgerKey>& seenKeys);
     operator bool() const;
