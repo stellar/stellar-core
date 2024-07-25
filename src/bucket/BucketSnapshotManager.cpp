@@ -14,7 +14,8 @@ namespace stellar
 {
 
 BucketSnapshotManager::BucketSnapshotManager(
-    Application& app, std::unique_ptr<BucketListSnapshot const>&& snapshot)
+    Application& app,
+    std::unique_ptr<BucketListSnapshot<LiveBucket> const>&& snapshot)
     : mApp(app)
     , mCurrentSnapshot(std::move(snapshot))
     , mBulkLoadMeter(app.getMetrics().NewMeter(
@@ -27,12 +28,12 @@ BucketSnapshotManager::BucketSnapshotManager(
     releaseAssert(threadIsMain());
 }
 
-std::shared_ptr<SearchableBucketListSnapshot>
+std::shared_ptr<SearchableLiveBucketListSnapshot>
 BucketSnapshotManager::getSearchableBucketListSnapshot() const
 {
     // Can't use std::make_shared due to private constructor
-    return std::shared_ptr<SearchableBucketListSnapshot>(
-        new SearchableBucketListSnapshot(*this));
+    return std::shared_ptr<SearchableLiveBucketListSnapshot>(
+        new SearchableLiveBucketListSnapshot(*this));
 }
 
 medida::Timer&
@@ -61,7 +62,7 @@ BucketSnapshotManager::recordBulkLoadMetrics(std::string const& label,
 
 void
 BucketSnapshotManager::maybeUpdateSnapshot(
-    std::unique_ptr<BucketListSnapshot const>& snapshot) const
+    std::unique_ptr<BucketListSnapshot<LiveBucket> const>& snapshot) const
 {
     std::lock_guard<std::recursive_mutex> lock(mSnapshotMutex);
     if (!snapshot ||
@@ -70,13 +71,14 @@ BucketSnapshotManager::maybeUpdateSnapshot(
         // Should only update with a newer snapshot
         releaseAssert(!snapshot || snapshot->getLedgerSeq() <
                                        mCurrentSnapshot->getLedgerSeq());
-        snapshot = std::make_unique<BucketListSnapshot>(*mCurrentSnapshot);
+        snapshot =
+            std::make_unique<BucketListSnapshot<LiveBucket>>(*mCurrentSnapshot);
     }
 }
 
 void
 BucketSnapshotManager::updateCurrentSnapshot(
-    std::unique_ptr<BucketListSnapshot const>&& newSnapshot)
+    std::unique_ptr<BucketListSnapshot<LiveBucket> const>&& newSnapshot)
 {
     releaseAssert(newSnapshot);
     releaseAssert(threadIsMain());

@@ -170,7 +170,7 @@ class LedgerManager
     virtual void
     startCatchup(CatchupConfiguration configuration,
                  std::shared_ptr<HistoryArchive> archive,
-                 std::set<std::shared_ptr<Bucket>> bucketsToRetain) = 0;
+                 std::set<std::shared_ptr<LiveBucket>> bucketsToRetain) = 0;
 
     // Forcibly close the current ledger, applying `ledgerData` as the consensus
     // changes.  This is normally done automatically as part of

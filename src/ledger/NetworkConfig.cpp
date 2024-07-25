@@ -815,7 +815,7 @@ SorobanNetworkConfig::isValidConfigSettingEntry(ConfigSettingEntry const& cfg,
             cfg.stateArchivalSettings().startingEvictionScanLevel >=
                 MinimumSorobanNetworkConfig::STARTING_EVICTION_LEVEL &&
             cfg.stateArchivalSettings().startingEvictionScanLevel <
-                BucketListBase::kNumLevels &&
+                LiveBucketList::kNumLevels &&
             cfg.stateArchivalSettings().bucketListWindowSamplePeriod >=
                 MinimumSorobanNetworkConfig::BUCKETLIST_WINDOW_SAMPLE_PERIOD;
 

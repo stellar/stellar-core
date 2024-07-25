@@ -3488,7 +3488,7 @@ LedgerTxnRoot::Impl::areEntriesMissingInCacheForOffer(OfferEntry const& oe)
     return false;
 }
 
-SearchableBucketListSnapshot&
+SearchableLiveBucketListSnapshot&
 LedgerTxnRoot::Impl::getSearchableBucketListSnapshot() const
 {
     releaseAssert(mApp.getConfig().isUsingBucketListDB());

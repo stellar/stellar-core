@@ -33,7 +33,9 @@ class Bucket;
 struct HistoryStateBucket
 {
     std::string curr;
-    FutureBucket next;
+
+    // TODO: Add archival buckets to history
+    FutureBucket<LiveBucket> next;
     std::string snap;
 
     template <class Archive>

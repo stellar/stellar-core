@@ -1986,7 +1986,7 @@ TEST_CASE("upgrade to version 11", "[upgrades]")
                   ledgerSeq, mc.mPreInitEntryProtocolMerges,
                   mc.mPostInitEntryProtocolMerges, mc.mNewInitEntries,
                   mc.mOldInitEntries);
-        for (uint32_t level = 0; level < BucketListBase::kNumLevels; ++level)
+        for (uint32_t level = 0; level < LiveBucketList::kNumLevels; ++level)
         {
             auto& lev = bm.getLiveBucketList().getLevel(level);
             BucketTestUtils::EntryCounts currCounts(lev.getCurr());
@@ -2027,7 +2027,7 @@ TEST_CASE("upgrade to version 11", "[upgrades]")
             BucketTestUtils::EntryCounts lev0CurrCounts(lev0Curr);
             BucketTestUtils::EntryCounts lev0SnapCounts(lev0Snap);
             BucketTestUtils::EntryCounts lev1CurrCounts(lev1Curr);
-            auto getVers = [](std::shared_ptr<Bucket> b) -> uint32_t {
+            auto getVers = [](std::shared_ptr<LiveBucket> b) -> uint32_t {
                 return LiveBucketInputIterator(b).getMetadata().ledgerVersion;
             };
             switch (ledgerSeq)
@@ -2116,7 +2116,7 @@ TEST_CASE("upgrade to version 12", "[upgrades]")
             auto lev0Snap = lev0.getSnap();
             auto lev1Curr = lev1.getCurr();
             auto lev1Snap = lev1.getSnap();
-            auto getVers = [](std::shared_ptr<Bucket> b) -> uint32_t {
+            auto getVers = [](std::shared_ptr<LiveBucket> b) -> uint32_t {
                 return LiveBucketInputIterator(b).getMetadata().ledgerVersion;
             };
             switch (ledgerSeq)

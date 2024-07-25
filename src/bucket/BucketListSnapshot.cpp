@@ -3,56 +3,67 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "bucket/BucketListSnapshot.h"
+#include "bucket/Bucket.h"
 #include "bucket/BucketInputIterator.h"
 #include "bucket/BucketList.h"
+#include "bucket/BucketSnapshot.h"
 #include "crypto/SecretKey.h" // IWYU pragma: keep
 #include "ledger/LedgerTxn.h"
 
 #include "medida/timer.h"
+#include "util/GlobalChecks.h"
+#include "xdr/Stellar-ledger-entries.h"
+#include "xdr/Stellar-ledger.h"
+#include <memory>
 
 namespace stellar
 {
-
-BucketListSnapshot::BucketListSnapshot(LiveBucketList const& bl,
-                                       uint32_t ledgerSeq)
+template <class BucketT>
+BucketListSnapshot<BucketT>::BucketListSnapshot(
+    BucketListBase<BucketT> const& bl, uint32_t ledgerSeq)
     : mLedgerSeq(ledgerSeq)
 {
     releaseAssert(threadIsMain());
 
-    for (uint32_t i = 0; i < BucketListBase::kNumLevels; ++i)
+    for (uint32_t i = 0; i < BucketListBase<BucketT>::kNumLevels; ++i)
     {
         auto const& level = bl.getLevel(i);
-        mLevels.emplace_back(BucketLevelSnapshot(level));
+        mLevels.emplace_back(BucketLevelSnapshot<BucketT>(level));
     }
 }
 
-BucketListSnapshot::BucketListSnapshot(BucketListSnapshot const& snapshot)
+template <class BucketT>
+BucketListSnapshot<BucketT>::BucketListSnapshot(
+    BucketListSnapshot const& snapshot)
     : mLevels(snapshot.mLevels), mLedgerSeq(snapshot.mLedgerSeq)
 {
 }
 
-std::vector<BucketLevelSnapshot> const&
-BucketListSnapshot::getLevels() const
+template <class BucketT>
+std::vector<BucketLevelSnapshot<BucketT>> const&
+BucketListSnapshot<BucketT>::getLevels() const
 {
     return mLevels;
 }
 
+template <class BucketT>
 uint32_t
-BucketListSnapshot::getLedgerSeq() const
+BucketListSnapshot<BucketT>::getLedgerSeq() const
 {
     return mLedgerSeq;
 }
 
+template <class BucketT>
 void
-SearchableBucketListSnapshot::loopAllBuckets(
-    std::function<bool(BucketSnapshot const&)> f) const
+SearchableBucketListSnapshotBase<BucketT>::loopAllBuckets(
+    std::function<bool(BucketSnapshotT const&)> f) const
 {
     releaseAssert(mSnapshot);
 
     for (auto const& lev : mSnapshot->getLevels())
     {
         // Return true if we should exit loop early
-        auto processBucket = [f](BucketSnapshot const& b) {
+        auto processBucket = [f](BucketSnapshotT const& b) {
             if (b.isEmpty())
             {
                 return false;
@@ -69,7 +80,7 @@ SearchableBucketListSnapshot::loopAllBuckets(
 }
 
 EvictionResult
-SearchableBucketListSnapshot::scanForEviction(
+SearchableLiveBucketListSnapshot::scanForEviction(
     uint32_t ledgerSeq, EvictionCounters& counters,
     EvictionIterator evictionIter, std::shared_ptr<EvictionStatistics> stats,
     StateArchivalSettings const& sas)
@@ -79,7 +90,7 @@ SearchableBucketListSnapshot::scanForEviction(
 
     auto getBucketFromIter =
         [&levels = mSnapshot->getLevels()](
-            EvictionIterator const& iter) -> BucketSnapshot const& {
+            EvictionIterator const& iter) -> LiveBucketSnapshot const& {
         auto& level = levels.at(iter.bucketListLevel);
         return iter.isCurrBucket ? level.curr : level.snap;
     };
@@ -118,11 +129,20 @@ SearchableBucketListSnapshot::scanForEviction(
     return result;
 }
 
+template <class BucketT>
 std::shared_ptr<LedgerEntry>
-SearchableBucketListSnapshot::getLedgerEntry(LedgerKey const& k)
+SearchableBucketListSnapshotBase<BucketT>::getLedgerEntry(LedgerKey const& k)
 {
     ZoneScoped;
-    mSnapshotManager.maybeUpdateSnapshot(mSnapshot);
+    if constexpr (std::is_same_v<BucketT, LiveBucket>)
+    {
+        mSnapshotManager.maybeUpdateSnapshot(mSnapshot);
+    }
+    else
+    {
+        // TODO::
+        releaseAssert(false);
+    }
 
     if (threadIsMain())
     {
@@ -138,22 +158,33 @@ SearchableBucketListSnapshot::getLedgerEntry(LedgerKey const& k)
     }
 }
 
+template <class BucketT>
 std::pair<std::shared_ptr<LedgerEntry>, bool>
-SearchableBucketListSnapshot::getLedgerEntryInternal(LedgerKey const& k)
+SearchableBucketListSnapshotBase<BucketT>::getLedgerEntryInternal(
+    LedgerKey const& k)
 {
     std::shared_ptr<LedgerEntry> result{};
     auto sawBloomMiss = false;
 
-    auto f = [&](BucketSnapshot const& b) {
+    auto f = [&](BucketSnapshotT const& b) {
         auto [be, bloomMiss] = b.getBucketEntry(k);
         sawBloomMiss = sawBloomMiss || bloomMiss;
 
         if (be.has_value())
         {
-            result =
-                be.value().type() == DEADENTRY
-                    ? nullptr
-                    : std::make_shared<LedgerEntry>(be.value().liveEntry());
+            if constexpr (std::is_same_v<BucketT, LiveBucket>)
+            {
+                result =
+                    be.value().type() == DEADENTRY
+                        ? nullptr
+                        : std::make_shared<LedgerEntry>(be.value().liveEntry());
+            }
+            else
+            {
+                releaseAssert(false);
+                // TODO::W
+            }
+
             return true;
         }
         else
@@ -166,8 +197,9 @@ SearchableBucketListSnapshot::getLedgerEntryInternal(LedgerKey const& k)
     return {result, sawBloomMiss};
 }
 
+template <class BucketT>
 std::vector<LedgerEntry>
-SearchableBucketListSnapshot::loadKeysInternal(
+SearchableBucketListSnapshotBase<BucketT>::loadKeysInternal(
     std::set<LedgerKey, LedgerEntryIdCmp> const& inKeys,
     LedgerKeyMeter* lkMeter)
 {
@@ -175,7 +207,7 @@ SearchableBucketListSnapshot::loadKeysInternal(
 
     // Make a copy of the key set, this loop is destructive
     auto keys = inKeys;
-    auto f = [&](BucketSnapshot const& b) {
+    auto f = [&](BucketSnapshotT const& b) {
         b.loadKeysWithLimits(keys, entries, lkMeter);
         return keys.empty();
     };
@@ -185,7 +217,7 @@ SearchableBucketListSnapshot::loadKeysInternal(
 }
 
 std::vector<LedgerEntry>
-SearchableBucketListSnapshot::loadKeysWithLimits(
+SearchableLiveBucketListSnapshot::loadKeysWithLimits(
     std::set<LedgerKey, LedgerEntryIdCmp> const& inKeys,
     LedgerKeyMeter* lkMeter)
 {
@@ -211,7 +243,7 @@ SearchableBucketListSnapshot::loadKeysWithLimits(
 //  2. Perform a bulk lookup for all possible trustline keys, that is, all
 //     trustlines with the given accountID and poolID from step 1
 std::vector<LedgerEntry>
-SearchableBucketListSnapshot::loadPoolShareTrustLinesByAccountAndAsset(
+SearchableLiveBucketListSnapshot::loadPoolShareTrustLinesByAccountAndAsset(
     AccountID const& accountID, Asset const& asset)
 {
     ZoneScoped;
@@ -222,7 +254,8 @@ SearchableBucketListSnapshot::loadPoolShareTrustLinesByAccountAndAsset(
 
     LedgerKeySet trustlinesToLoad;
 
-    auto trustLineLoop = [&](BucketSnapshot const& b) {
+    auto trustLineLoop = [&](auto const& rawB) {
+        auto const& b = static_cast<LiveBucketSnapshot const&>(rawB);
         for (auto const& poolID : b.getPoolIDsByAsset(asset))
         {
             LedgerKey trustlineKey(TRUSTLINE);
@@ -245,8 +278,8 @@ SearchableBucketListSnapshot::loadPoolShareTrustLinesByAccountAndAsset(
 }
 
 std::vector<InflationWinner>
-SearchableBucketListSnapshot::loadInflationWinners(size_t maxWinners,
-                                                   int64_t minBalance)
+SearchableLiveBucketListSnapshot::loadInflationWinners(size_t maxWinners,
+                                                       int64_t minBalance)
 {
     ZoneScoped;
     mSnapshotManager.maybeUpdateSnapshot(mSnapshot);
@@ -260,7 +293,7 @@ SearchableBucketListSnapshot::loadInflationWinners(size_t maxWinners,
     UnorderedMap<AccountID, int64_t> voteCount;
     UnorderedSet<AccountID> seen;
 
-    auto countVotesInBucket = [&](BucketSnapshot const& b) {
+    auto countVotesInBucket = [&](LiveBucketSnapshot const& b) {
         for (LiveBucketInputIterator in(b.getRawBucket()); in; ++in)
         {
             BucketEntry const& be = *in;
@@ -336,16 +369,45 @@ SearchableBucketListSnapshot::loadInflationWinners(size_t maxWinners,
     return winners;
 }
 
-BucketLevelSnapshot::BucketLevelSnapshot(BucketLevel const& level)
+template <class BucketT>
+BucketLevelSnapshot<BucketT>::BucketLevelSnapshot(
+    BucketLevel<BucketT> const& level)
     : curr(level.getCurr()), snap(level.getSnap())
 {
 }
 
-SearchableBucketListSnapshot::SearchableBucketListSnapshot(
+template <class BucketT>
+SearchableBucketListSnapshotBase<BucketT>::SearchableBucketListSnapshotBase(
     BucketSnapshotManager const& snapshotManager)
     : mSnapshotManager(snapshotManager)
 {
     // Initialize snapshot from SnapshotManager
-    mSnapshotManager.maybeUpdateSnapshot(mSnapshot);
+    if constexpr (std::is_same_v<BucketT, LiveBucket>)
+    {
+        mSnapshotManager.maybeUpdateSnapshot(mSnapshot);
+    }
+    else
+    {
+        // TODO:
+        releaseAssert(false);
+    }
 }
+
+template <class BucketT>
+SearchableBucketListSnapshotBase<BucketT>::~SearchableBucketListSnapshotBase()
+{
+}
+
+SearchableLiveBucketListSnapshot::SearchableLiveBucketListSnapshot(
+    BucketSnapshotManager const& snapshotManager)
+    : SearchableBucketListSnapshotBase<LiveBucket>(snapshotManager)
+{
+}
+
+template struct BucketLevelSnapshot<LiveBucket>;
+template struct BucketLevelSnapshot<HotArchiveBucket>;
+template class BucketListSnapshot<LiveBucket>;
+template class BucketListSnapshot<HotArchiveBucket>;
+template class SearchableBucketListSnapshotBase<LiveBucket>;
+template class SearchableBucketListSnapshotBase<HotArchiveBucket>;
 }

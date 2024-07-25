@@ -139,7 +139,7 @@ BucketOutputIteratorForTesting::writeTmpTestBucket()
     auto ledgerEntries =
         LedgerTestUtils::generateValidUniqueLedgerEntries(NUM_ITEMS_PER_BUCKET);
     auto bucketEntries =
-        Bucket::convertToBucketEntry(false, {}, ledgerEntries, {});
+        LiveBucket::convertToBucketEntry(false, {}, ledgerEntries, {});
     for (auto const& bucketEntry : bucketEntries)
     {
         put(bucketEntry);
@@ -987,8 +987,8 @@ CatchupSimulation::validateCatchup(Application::pointer app)
     CHECK(wantBucketListHash == haveBucketListHash);
     CHECK(wantHash == haveHash);
 
-    CHECK(app->getBucketManager().getBucketByHash(wantBucket0Hash));
-    CHECK(app->getBucketManager().getBucketByHash(wantBucket1Hash));
+    CHECK(app->getBucketManager().getLiveBucketByHash(wantBucket0Hash));
+    CHECK(app->getBucketManager().getLiveBucketByHash(wantBucket1Hash));
     CHECK(wantBucket0Hash == haveBucket0Hash);
     CHECK(wantBucket1Hash == haveBucket1Hash);
 

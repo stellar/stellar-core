@@ -24,15 +24,17 @@
 namespace stellar
 {
 
-BucketLevel::BucketLevel(uint32_t i)
+template <typename BucketT>
+BucketLevel<BucketT>::BucketLevel(uint32_t i)
     : mLevel(i)
-    , mCurr(std::make_shared<Bucket>())
-    , mSnap(std::make_shared<Bucket>())
+    , mCurr(std::make_shared<BucketT>())
+    , mSnap(std::make_shared<BucketT>())
 {
 }
 
+template <typename BucketT>
 uint256
-BucketLevel::getHash() const
+BucketLevel<BucketT>::getHash() const
 {
     SHA256 hsh;
     hsh.add(mCurr->getHash());
@@ -40,51 +42,59 @@ BucketLevel::getHash() const
     return hsh.finish();
 }
 
-FutureBucket const&
-BucketLevel::getNext() const
+template <typename BucketT>
+FutureBucket<BucketT> const&
+BucketLevel<BucketT>::getNext() const
 {
     return mNextCurr;
 }
 
-FutureBucket&
-BucketLevel::getNext()
+template <typename BucketT>
+FutureBucket<BucketT>&
+BucketLevel<BucketT>::getNext()
 {
     return mNextCurr;
 }
 
+template <typename BucketT>
 void
-BucketLevel::setNext(FutureBucket const& fb)
+BucketLevel<BucketT>::setNext(FutureBucket<BucketT> const& fb)
 {
     releaseAssert(threadIsMain());
     mNextCurr = fb;
 }
 
-std::shared_ptr<Bucket>
-BucketLevel::getCurr() const
+template <typename BucketT>
+std::shared_ptr<BucketT>
+BucketLevel<BucketT>::getCurr() const
 {
     return mCurr;
 }
 
-std::shared_ptr<Bucket>
-BucketLevel::getSnap() const
+template <typename BucketT>
+std::shared_ptr<BucketT>
+BucketLevel<BucketT>::getSnap() const
 {
     return mSnap;
 }
 
+template <typename BucketT>
 void
-BucketLevel::setCurr(std::shared_ptr<Bucket> b)
+BucketLevel<BucketT>::setCurr(std::shared_ptr<BucketT> b)
 {
     releaseAssert(threadIsMain());
     mNextCurr.clear();
     mCurr = b;
 }
 
-BucketListBase::~BucketListBase()
+template <typename BucketT> BucketListBase<BucketT>::~BucketListBase()
 {
 }
 
+template <typename BucketT>
 bool
-BucketListBase::shouldMergeWithEmptyCurr(uint32_t ledger, uint32_t level)
+BucketListBase<BucketT>::shouldMergeWithEmptyCurr(uint32_t ledger,
+                                                  uint32_t level)
 {
 
     if (level != 0)
@@ -92,7 +102,7 @@ BucketListBase::shouldMergeWithEmptyCurr(uint32_t ledger, uint32_t level)
         // Round down the current ledger to when the merge was started, and
         // re-start the merge via prepare, mimicking the logic in `addBatch`
         auto mergeStartLedger =
-            roundDown(ledger, BucketListBase::levelHalf(level - 1));
+            roundDown(ledger, BucketListBase<BucketT>::levelHalf(level - 1));
 
         // Subtle: We're "preparing the next state" of this level's mCurr, which
         // is *either* mCurr merged with snap, or else just snap (if mCurr is
@@ -110,15 +120,17 @@ BucketListBase::shouldMergeWithEmptyCurr(uint32_t ledger, uint32_t level)
     return false;
 }
 
+template <typename BucketT>
 void
-BucketLevel::setSnap(std::shared_ptr<Bucket> b)
+BucketLevel<BucketT>::setSnap(std::shared_ptr<BucketT> b)
 {
     releaseAssert(threadIsMain());
     mSnap = b;
 }
 
+template <typename BucketT>
 void
-BucketLevel::commit()
+BucketLevel<BucketT>::commit()
 {
     if (mNextCurr.isLive())
     {
@@ -161,35 +173,54 @@ BucketLevel::commit()
 // ----------------------------------------------------------------------------------------
 // ...
 // clang-format on
+template <typename BucketT>
 void
-BucketLevel::prepare(Application& app, uint32_t currLedger,
-                     uint32_t currLedgerProtocol, std::shared_ptr<Bucket> snap,
-                     std::vector<std::shared_ptr<Bucket>> const& shadows,
-                     bool countMergeEvents)
+BucketLevel<BucketT>::prepare(
+    Application& app, uint32_t currLedger, uint32_t currLedgerProtocol,
+    std::shared_ptr<BucketT> snap,
+    std::vector<std::shared_ptr<BucketT>> const& shadows, bool countMergeEvents)
 {
     ZoneScoped;
     // If more than one absorb is pending at the same time, we have a logic
     // error in our caller (and all hell will break loose).
     releaseAssert(!mNextCurr.isMerging());
-    auto curr = BucketListBase::shouldMergeWithEmptyCurr(currLedger, mLevel)
-                    ? std::make_shared<Bucket>()
-                    : mCurr;
+    auto curr =
+        BucketListBase<BucketT>::shouldMergeWithEmptyCurr(currLedger, mLevel)
+            ? std::make_shared<BucketT>()
+            : mCurr;
 
-    auto shadowsBasedOnProtocol =
-        protocolVersionStartsFrom(Bucket::getBucketVersion(snap),
-                                  Bucket::FIRST_PROTOCOL_SHADOWS_REMOVED)
-            ? std::vector<std::shared_ptr<Bucket>>()
-            : shadows;
-    mNextCurr = FutureBucket(app, curr, snap, shadowsBasedOnProtocol,
-                             currLedgerProtocol, countMergeEvents, mLevel);
+    if constexpr (std::is_same_v<BucketT, LiveBucket>)
+    {
+        auto shadowsBasedOnProtocol =
+            protocolVersionStartsFrom(
+                snap->getBucketVersion(),
+                LiveBucket::FIRST_PROTOCOL_SHADOWS_REMOVED)
+                ? std::vector<std::shared_ptr<LiveBucket>>()
+                : shadows;
+
+        mNextCurr =
+            FutureBucket<BucketT>(app, curr, snap, shadowsBasedOnProtocol,
+                                  currLedgerProtocol, countMergeEvents, mLevel);
+    }
+    else
+    {
+        // TODO: Constructor with no shadows
+        // mNextCurr =
+        //     FutureBucket<BucketT>(app, curr, snap, shadowsBasedOnProtocol,
+        //                           currLedgerProtocol, countMergeEvents,
+        //                           mLevel);
+        releaseAssert(false);
+    }
+
     releaseAssert(mNextCurr.isMerging());
 }
 
-std::shared_ptr<Bucket>
-BucketLevel::snap()
+template <typename BucketT>
+std::shared_ptr<BucketT>
+BucketLevel<BucketT>::snap()
 {
     mSnap = mCurr;
-    mCurr = std::make_shared<Bucket>();
+    mCurr = std::make_shared<BucketT>();
     return mSnap;
 }
 
@@ -224,8 +255,9 @@ BucketListDepth::operator uint32_t() const
 // levelSize(8)  =  262144=0x040000
 // levelSize(9)  = 1048576=0x100000
 // levelSize(10) = 4194304=0x400000
+template <typename BucketT>
 uint32_t
-BucketListBase::levelSize(uint32_t level)
+BucketListBase<BucketT>::levelSize(uint32_t level)
 {
     releaseAssert(level < kNumLevels);
     return 1UL << (2 * (level + 1));
@@ -246,14 +278,16 @@ BucketListBase::levelSize(uint32_t level)
 // levelHalf(8)  =  131072=0x020000
 // levelHalf(9)  =  524288=0x080000
 // levelHalf(10) = 2097152=0x200000
+template <typename BucketT>
 uint32_t
-BucketListBase::levelHalf(uint32_t level)
+BucketListBase<BucketT>::levelHalf(uint32_t level)
 {
     return levelSize(level) >> 1;
 }
 
+template <typename BucketT>
 uint32_t
-BucketListBase::sizeOfCurr(uint32_t ledger, uint32_t level)
+BucketListBase<BucketT>::sizeOfCurr(uint32_t ledger, uint32_t level)
 {
     releaseAssert(ledger != 0);
     releaseAssert(level < kNumLevels);
@@ -264,7 +298,8 @@ BucketListBase::sizeOfCurr(uint32_t ledger, uint32_t level)
 
     auto const size = levelSize(level);
     auto const half = levelHalf(level);
-    if (level != BucketListBase::kNumLevels - 1 && roundDown(ledger, half) != 0)
+    if (level != BucketListBase<BucketT>::kNumLevels - 1 &&
+        roundDown(ledger, half) != 0)
     {
         uint32_t const sizeDelta = 1UL << (2 * level - 1);
         if (roundDown(ledger, half) == ledger ||
@@ -300,12 +335,13 @@ BucketListBase::sizeOfCurr(uint32_t ledger, uint32_t level)
     }
 }
 
+template <typename BucketT>
 uint32_t
-BucketListBase::sizeOfSnap(uint32_t ledger, uint32_t level)
+BucketListBase<BucketT>::sizeOfSnap(uint32_t ledger, uint32_t level)
 {
     releaseAssert(ledger != 0);
     releaseAssert(level < kNumLevels);
-    if (level == BucketListBase::kNumLevels - 1)
+    if (level == BucketListBase<BucketT>::kNumLevels - 1)
     {
         return 0;
     }
@@ -326,8 +362,9 @@ BucketListBase::sizeOfSnap(uint32_t ledger, uint32_t level)
     }
 }
 
+template <typename BucketT>
 uint32_t
-BucketListBase::oldestLedgerInCurr(uint32_t ledger, uint32_t level)
+BucketListBase<BucketT>::oldestLedgerInCurr(uint32_t ledger, uint32_t level)
 {
     releaseAssert(ledger != 0);
     releaseAssert(level < kNumLevels);
@@ -346,8 +383,9 @@ BucketListBase::oldestLedgerInCurr(uint32_t ledger, uint32_t level)
     return count + 1;
 }
 
+template <typename BucketT>
 uint32_t
-BucketListBase::oldestLedgerInSnap(uint32_t ledger, uint32_t level)
+BucketListBase<BucketT>::oldestLedgerInSnap(uint32_t ledger, uint32_t level)
 {
     releaseAssert(ledger != 0);
     releaseAssert(level < kNumLevels);
@@ -365,8 +403,9 @@ BucketListBase::oldestLedgerInSnap(uint32_t ledger, uint32_t level)
     return count + 1;
 }
 
+template <typename BucketT>
 uint256
-BucketListBase::getHash() const
+BucketListBase<BucketT>::getHash() const
 {
     ZoneScoped;
     SHA256 hsh;
@@ -396,8 +435,9 @@ BucketListBase::getHash() const
 //
 // clang-format on
 
+template <typename BucketT>
 bool
-BucketListBase::levelShouldSpill(uint32_t ledger, uint32_t level)
+BucketListBase<BucketT>::levelShouldSpill(uint32_t ledger, uint32_t level)
 {
     if (level == kNumLevels - 1)
     {
@@ -414,8 +454,9 @@ BucketListBase::levelShouldSpill(uint32_t ledger, uint32_t level)
 // spill frequency of the level below.
 // incoming_spill_frequency(i) = 2^(2i - 1) for i > 0
 // incoming_spill_frequency(0) = 1
+template <typename BucketT>
 uint32_t
-BucketListBase::bucketUpdatePeriod(uint32_t level, bool isCurr)
+BucketListBase<BucketT>::bucketUpdatePeriod(uint32_t level, bool isCurr)
 {
     if (!isCurr)
     {
@@ -432,26 +473,30 @@ BucketListBase::bucketUpdatePeriod(uint32_t level, bool isCurr)
     return 1u << (2 * level - 1);
 }
 
+template <typename BucketT>
 bool
-BucketListBase::keepDeadEntries(uint32_t level)
+BucketListBase<BucketT>::keepDeadEntries(uint32_t level)
 {
-    return level < BucketListBase::kNumLevels - 1;
+    return level < BucketListBase<BucketT>::kNumLevels - 1;
 }
 
-BucketLevel const&
-BucketListBase::getLevel(uint32_t i) const
-{
-    return mLevels.at(i);
-}
-
-BucketLevel&
-BucketListBase::getLevel(uint32_t i)
+template <typename BucketT>
+BucketLevel<BucketT> const&
+BucketListBase<BucketT>::getLevel(uint32_t i) const
 {
     return mLevels.at(i);
 }
 
+template <typename BucketT>
+BucketLevel<BucketT>&
+BucketListBase<BucketT>::getLevel(uint32_t i)
+{
+    return mLevels.at(i);
+}
+
+template <typename BucketT>
 void
-BucketListBase::resolveAnyReadyFutures()
+BucketListBase<BucketT>::resolveAnyReadyFutures()
 {
     ZoneScoped;
     for (auto& level : mLevels)
@@ -463,8 +508,9 @@ BucketListBase::resolveAnyReadyFutures()
     }
 }
 
+template <typename BucketT>
 bool
-BucketListBase::futuresAllResolved(uint32_t maxLevel) const
+BucketListBase<BucketT>::futuresAllResolved(uint32_t maxLevel) const
 {
     ZoneScoped;
     releaseAssert(maxLevel < mLevels.size());
@@ -479,8 +525,9 @@ BucketListBase::futuresAllResolved(uint32_t maxLevel) const
     return true;
 }
 
+template <typename BucketT>
 uint32_t
-BucketListBase::getMaxMergeLevel(uint32_t currLedger) const
+BucketListBase<BucketT>::getMaxMergeLevel(uint32_t currLedger) const
 {
     uint32_t i = 0;
     for (; i < static_cast<uint32_t>(mLevels.size()) - 1; ++i)
@@ -493,14 +540,15 @@ BucketListBase::getMaxMergeLevel(uint32_t currLedger) const
     return i;
 }
 
+template <typename BucketT>
 uint64_t
-BucketListBase::getSize() const
+BucketListBase<BucketT>::getSize() const
 {
     uint64_t sum = 0;
     for (auto const& lev : mLevels)
     {
-        std::array<std::shared_ptr<Bucket>, 2> buckets = {lev.getCurr(),
-                                                          lev.getSnap()};
+        std::array<std::shared_ptr<BucketT>, 2> buckets = {lev.getCurr(),
+                                                           lev.getSnap()};
         for (auto const& b : buckets)
         {
             if (b)
@@ -513,17 +561,18 @@ BucketListBase::getSize() const
     return sum;
 }
 
+template <typename BucketT>
 void
-BucketListBase::addBatch(Application& app, uint32_t currLedger,
-                         uint32_t currLedgerProtocol,
-                         std::vector<LedgerEntry> const& initEntries,
-                         std::vector<LedgerEntry> const& liveEntries,
-                         std::vector<LedgerKey> const& deadEntries)
+BucketListBase<BucketT>::addBatch(Application& app, uint32_t currLedger,
+                                  uint32_t currLedgerProtocol,
+                                  std::vector<LedgerEntry> const& initEntries,
+                                  std::vector<LedgerEntry> const& liveEntries,
+                                  std::vector<LedgerKey> const& deadEntries)
 {
     ZoneScoped;
     releaseAssert(currLedger > 0);
 
-    std::vector<std::shared_ptr<Bucket>> shadows;
+    std::vector<std::shared_ptr<BucketT>> shadows;
     for (auto& level : mLevels)
     {
         shadows.push_back(level.getCurr());
@@ -613,12 +662,12 @@ BucketListBase::addBatch(Application& app, uint32_t currLedger,
         !app.getConfig().ARTIFICIALLY_REDUCE_MERGE_COUNTS_FOR_TESTING;
     bool doFsync = !app.getConfig().DISABLE_XDR_FSYNC;
     releaseAssert(shadows.size() == 0);
-    mLevels[0].prepare(app, currLedger, currLedgerProtocol,
-                       Bucket::fresh(app.getBucketManager(), currLedgerProtocol,
-                                     initEntries, liveEntries, deadEntries,
-                                     countMergeEvents,
-                                     app.getClock().getIOContext(), doFsync),
-                       shadows, countMergeEvents);
+    mLevels[0].prepare(
+        app, currLedger, currLedgerProtocol,
+        BucketT::fresh(app.getBucketManager(), currLedgerProtocol, initEntries,
+                       liveEntries, deadEntries, countMergeEvents,
+                       app.getClock().getIOContext(), doFsync),
+        shadows, countMergeEvents);
     mLevels[0].commit();
 
     // We almost always want to try to resolve completed merges to single
@@ -725,7 +774,7 @@ LiveBucketList::updateEvictionIterAndRecordStats(
 void
 LiveBucketList::checkIfEvictionScanIsStuck(EvictionIterator const& evictionIter,
                                            uint32_t scanSize,
-                                           std::shared_ptr<Bucket const> b,
+                                           std::shared_ptr<LiveBucket const> b,
                                            EvictionCounters& counters)
 {
     // Check to see if we can finish scanning the new bucket before it
@@ -792,9 +841,11 @@ LiveBucketList::scanForEvictionLegacy(Application& app, AbstractLedgerTxn& ltx,
     networkConfig.updateEvictionIterator(ltx, evictionIter);
 }
 
+template <typename BucketT>
 void
-BucketListBase::restartMerges(Application& app, uint32_t maxProtocolVersion,
-                              uint32_t ledger)
+BucketListBase<BucketT>::restartMerges(Application& app,
+                                       uint32_t maxProtocolVersion,
+                                       uint32_t ledger)
 {
     ZoneScoped;
     for (uint32_t i = 0; i < static_cast<uint32>(mLevels.size()); i++)
@@ -842,9 +893,9 @@ BucketListBase::restartMerges(Application& app, uint32_t maxProtocolVersion,
                 return;
             }
 
-            auto version = Bucket::getBucketVersion(snap);
-            if (protocolVersionIsBefore(version,
-                                        Bucket::FIRST_PROTOCOL_SHADOWS_REMOVED))
+            auto version = snap->getBucketVersion();
+            if (protocolVersionIsBefore(
+                    version, LiveBucket::FIRST_PROTOCOL_SHADOWS_REMOVED))
             {
                 auto msg = fmt::format(
                     FMT_STRING("Invalid state: bucketlist level {:d} has clear "
@@ -864,13 +915,20 @@ BucketListBase::restartMerges(Application& app, uint32_t maxProtocolVersion,
     }
 }
 
-BucketListDepth BucketListBase::kNumLevels = 11;
+// TODO: Different depths for different types?
+template <class BucketT>
+BucketListDepth BucketListBase<BucketT>::kNumLevels = 11;
 
-BucketListBase::BucketListBase()
+template <typename BucketT> BucketListBase<BucketT>::BucketListBase()
 {
     for (uint32_t i = 0; i < kNumLevels; ++i)
     {
-        mLevels.push_back(BucketLevel(i));
+        mLevels.push_back(BucketLevel<BucketT>(i));
     }
 }
+
+template class BucketListBase<LiveBucket>;
+template class BucketListBase<HotArchiveBucket>;
+template class BucketLevel<LiveBucket>;
+template class BucketLevel<HotArchiveBucket>;
 }

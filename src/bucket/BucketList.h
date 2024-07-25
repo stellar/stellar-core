@@ -354,33 +354,36 @@ namespace testutil
 class BucketListDepthModifier;
 }
 
-class BucketLevel
+template <class BucketT> class BucketLevel
 {
+    static_assert(std::is_same_v<BucketT, LiveBucket> ||
+                  std::is_same_v<BucketT, HotArchiveBucket>);
+
     uint32_t mLevel;
-    FutureBucket mNextCurr;
-    std::shared_ptr<Bucket> mCurr;
-    std::shared_ptr<Bucket> mSnap;
+    FutureBucket<BucketT> mNextCurr;
+    std::shared_ptr<BucketT> mCurr;
+    std::shared_ptr<BucketT> mSnap;
 
   public:
     BucketLevel(uint32_t i);
     uint256 getHash() const;
-    FutureBucket const& getNext() const;
-    FutureBucket& getNext();
-    std::shared_ptr<Bucket> getCurr() const;
-    std::shared_ptr<Bucket> getSnap() const;
-    void setNext(FutureBucket const& fb);
-    void setCurr(std::shared_ptr<Bucket>);
-    void setSnap(std::shared_ptr<Bucket>);
+    FutureBucket<BucketT> const& getNext() const;
+    FutureBucket<BucketT>& getNext();
+    std::shared_ptr<BucketT> getCurr() const;
+    std::shared_ptr<BucketT> getSnap() const;
+    void setNext(FutureBucket<BucketT> const& fb);
+    void setCurr(std::shared_ptr<BucketT>);
+    void setSnap(std::shared_ptr<BucketT>);
     void commit();
     void prepare(Application& app, uint32_t currLedger,
-                 uint32_t currLedgerProtocol, std::shared_ptr<Bucket> snap,
-                 std::vector<std::shared_ptr<Bucket>> const& shadows,
+                 uint32_t currLedgerProtocol, std::shared_ptr<BucketT> snap,
+                 std::vector<std::shared_ptr<BucketT>> const& shadows,
                  bool countMergeEvents);
-    std::shared_ptr<Bucket> snap();
+    std::shared_ptr<BucketT> snap();
 };
 
 // NOTE: The access specifications for this class have been carefully chosen to
-//       make it so BucketListBase::kNumLevels can only be modified from
+//       make it so LiveBucketList::kNumLevels can only be modified from
 //       BucketListDepthModifier -- not even BucketList can modify it. Please
 //       use care when modifying this class.
 class BucketListDepth
@@ -397,10 +400,13 @@ class BucketListDepth
     friend class testutil::BucketListDepthModifier;
 };
 
-class BucketListBase
+template <class BucketT> class BucketListBase
 {
+    static_assert(std::is_same_v<BucketT, LiveBucket> ||
+                  std::is_same_v<BucketT, HotArchiveBucket>);
+
   protected:
-    std::vector<BucketLevel> mLevels;
+    std::vector<BucketLevel<BucketT>> mLevels;
 
   public:
     // Trivial pure virtual destructor to make this an abstract class
@@ -450,10 +456,10 @@ class BucketListBase
     BucketListBase();
 
     // Return level `i` of the BucketList.
-    BucketLevel const& getLevel(uint32_t i) const;
+    BucketLevel<BucketT> const& getLevel(uint32_t i) const;
 
     // Return level `i` of the BucketList.
-    BucketLevel& getLevel(uint32_t i);
+    BucketLevel<BucketT>& getLevel(uint32_t i);
 
     // Return a cumulative hash of the entire bucketlist; this is the hash of
     // the concatenation of each level's hash, each of which in turn is the hash
@@ -506,7 +512,7 @@ class BucketListBase
                   std::vector<LedgerKey> const& deadEntries);
 };
 
-class LiveBucketList : public BucketListBase
+class LiveBucketList : public BucketListBase<LiveBucket>
 {
   public:
     // Reset Eviction Iterator position if an incoming spill or upgrade has
@@ -525,7 +531,7 @@ class LiveBucketList : public BucketListBase
 
     static void checkIfEvictionScanIsStuck(EvictionIterator const& evictionIter,
                                            uint32_t scanSize,
-                                           std::shared_ptr<Bucket const> b,
+                                           std::shared_ptr<LiveBucket const> b,
                                            EvictionCounters& counters);
 
     void scanForEvictionLegacy(Application& app, AbstractLedgerTxn& ltx,
@@ -533,7 +539,7 @@ class LiveBucketList : public BucketListBase
                                std::shared_ptr<EvictionStatistics> stats);
 };
 
-class HotArchiveBucketList : public BucketListBase
+class HotArchiveBucketList : public BucketListBase<HotArchiveBucket>
 {
   private:
     // For now, this class is identical to LiveBucketList. Later PRs will add

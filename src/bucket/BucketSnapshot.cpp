@@ -11,28 +11,36 @@
 
 namespace stellar
 {
-BucketSnapshot::BucketSnapshot(std::shared_ptr<Bucket const> const b)
+template <class BucketT>
+BucketSnapshotBase<BucketT>::BucketSnapshotBase(
+    std::shared_ptr<BucketT const> const b)
     : mBucket(b)
 {
     releaseAssert(mBucket);
 }
 
-BucketSnapshot::BucketSnapshot(BucketSnapshot const& b)
+template <class BucketT>
+BucketSnapshotBase<BucketT>::BucketSnapshotBase(
+    BucketSnapshotBase<BucketT> const& b)
     : mBucket(b.mBucket), mStream(nullptr)
 {
     releaseAssert(mBucket);
 }
 
+template <class BucketT>
 bool
-BucketSnapshot::isEmpty() const
+BucketSnapshotBase<BucketT>::isEmpty() const
 {
     releaseAssert(mBucket);
     return mBucket->isEmpty();
 }
 
-std::pair<std::optional<BucketEntry>, bool>
-BucketSnapshot::getEntryAtOffset(LedgerKey const& k, std::streamoff pos,
-                                 size_t pageSize) const
+template <class BucketT>
+std::pair<std::optional<typename BucketSnapshotBase<BucketT>::BucketEntryT>,
+          bool>
+BucketSnapshotBase<BucketT>::getEntryAtOffset(LedgerKey const& k,
+                                              std::streamoff pos,
+                                              size_t pageSize) const
 {
     ZoneScoped;
     if (isEmpty())
@@ -43,7 +51,7 @@ BucketSnapshot::getEntryAtOffset(LedgerKey const& k, std::streamoff pos,
     auto& stream = getStream();
     stream.seek(pos);
 
-    BucketEntry be;
+    BucketEntryT be;
     if (pageSize == 0)
     {
         if (stream.readOne(be))
@@ -61,8 +69,10 @@ BucketSnapshot::getEntryAtOffset(LedgerKey const& k, std::streamoff pos,
     return {std::nullopt, true};
 }
 
-std::pair<std::optional<BucketEntry>, bool>
-BucketSnapshot::getBucketEntry(LedgerKey const& k) const
+template <class BucketT>
+std::pair<std::optional<typename BucketSnapshotBase<BucketT>::BucketEntryT>,
+          bool>
+BucketSnapshotBase<BucketT>::getBucketEntry(LedgerKey const& k) const
 {
     ZoneScoped;
     if (isEmpty())
@@ -85,10 +95,11 @@ BucketSnapshot::getBucketEntry(LedgerKey const& k) const
 // If we find the entry, we remove the found key from keys so that later buckets
 // do not load shadowed entries. If we don't find the entry, we do not remove it
 // from keys so that it will be searched for again at a lower level.
+template <class BucketT>
 void
-BucketSnapshot::loadKeysWithLimits(std::set<LedgerKey, LedgerEntryIdCmp>& keys,
-                                   std::vector<LedgerEntry>& result,
-                                   LedgerKeyMeter* lkMeter) const
+BucketSnapshotBase<BucketT>::loadKeysWithLimits(
+    std::set<LedgerKey, LedgerEntryIdCmp>& keys,
+    std::vector<LedgerEntry>& result, LedgerKeyMeter* lkMeter) const
 {
     ZoneScoped;
     if (isEmpty())
@@ -127,22 +138,29 @@ BucketSnapshot::loadKeysWithLimits(std::set<LedgerKey, LedgerEntryIdCmp>& keys,
                 *currKeyIt, *offOp, mBucket->getIndex().getPageSize());
             if (entryOp)
             {
-                if (entryOp->type() != DEADENTRY)
+                // Only live bucket loads can be metered:
+                // TODO: Refactor metering to only LiveBucket
+                if constexpr (std::is_same_v<BucketT, LiveBucket>)
                 {
-                    bool addEntry = true;
-                    if (lkMeter)
+                    if (entryOp->type() != DEADENTRY)
                     {
-                        // Here, we are metering after the entry has been
-                        // loaded. This is because we need to know the size of
-                        // the entry to meter it. Future work will add metering
-                        // at the xdr level.
-                        auto entrySize = xdr::xdr_size(entryOp->liveEntry());
-                        addEntry = lkMeter->canLoad(*currKeyIt, entrySize);
-                        lkMeter->updateReadQuotasForKey(*currKeyIt, entrySize);
-                    }
-                    if (addEntry)
-                    {
-                        result.push_back(entryOp->liveEntry());
+                        bool addEntry = true;
+                        if (lkMeter)
+                        {
+                            // Here, we are metering after the entry has been
+                            // loaded. This is because we need to know the size
+                            // of the entry to meter it. Future work will add
+                            // metering at the xdr level.
+                            auto entrySize =
+                                xdr::xdr_size(entryOp->liveEntry());
+                            addEntry = lkMeter->canLoad(*currKeyIt, entrySize);
+                            lkMeter->updateReadQuotasForKey(*currKeyIt,
+                                                            entrySize);
+                        }
+                        if (addEntry)
+                        {
+                            result.push_back(entryOp->liveEntry());
+                        }
                     }
                 }
                 currKeyIt = keys.erase(currKeyIt);
@@ -155,7 +173,7 @@ BucketSnapshot::loadKeysWithLimits(std::set<LedgerKey, LedgerEntryIdCmp>& keys,
 }
 
 std::vector<PoolID> const&
-BucketSnapshot::getPoolIDsByAsset(Asset const& asset) const
+LiveBucketSnapshot::getPoolIDsByAsset(Asset const& asset) const
 {
     static std::vector<PoolID> const emptyVec = {};
     if (isEmpty())
@@ -167,13 +185,13 @@ BucketSnapshot::getPoolIDsByAsset(Asset const& asset) const
 }
 
 bool
-BucketSnapshot::scanForEviction(EvictionIterator& iter, uint32_t& bytesToScan,
-                                uint32_t ledgerSeq,
-                                std::list<EvictionResultEntry>& evictableKeys,
-                                SearchableBucketListSnapshot& bl) const
+LiveBucketSnapshot::scanForEviction(
+    EvictionIterator& iter, uint32_t& bytesToScan, uint32_t ledgerSeq,
+    std::list<EvictionResultEntry>& evictableKeys,
+    SearchableLiveBucketListSnapshot& bl) const
 {
     ZoneScoped;
-    if (isEmpty() || protocolVersionIsBefore(Bucket::getBucketVersion(mBucket),
+    if (isEmpty() || protocolVersionIsBefore(mBucket->getBucketVersion(),
                                              SOROBAN_PROTOCOL_VERSION))
     {
         // EOF, skip to next bucket
@@ -258,8 +276,9 @@ BucketSnapshot::scanForEviction(EvictionIterator& iter, uint32_t& bytesToScan,
     return false;
 }
 
+template <class BucketT>
 XDRInputFileStream&
-BucketSnapshot::getStream() const
+BucketSnapshotBase<BucketT>::getStream() const
 {
     releaseAssertOrThrow(!isEmpty());
     if (!mStream)
@@ -270,9 +289,36 @@ BucketSnapshot::getStream() const
     return *mStream;
 }
 
-std::shared_ptr<Bucket const>
-BucketSnapshot::getRawBucket() const
+template <class BucketT>
+std::shared_ptr<BucketT const>
+BucketSnapshotBase<BucketT>::getRawBucket() const
 {
     return mBucket;
 }
+
+HotArchiveBucketSnapshot::HotArchiveBucketSnapshot(
+    std::shared_ptr<HotArchiveBucket const> const b)
+    : BucketSnapshotBase<HotArchiveBucket>(b)
+{
+}
+
+LiveBucketSnapshot::LiveBucketSnapshot(
+    std::shared_ptr<LiveBucket const> const b)
+    : BucketSnapshotBase<LiveBucket>(b)
+{
+}
+
+HotArchiveBucketSnapshot::HotArchiveBucketSnapshot(
+    HotArchiveBucketSnapshot const& b)
+    : BucketSnapshotBase<HotArchiveBucket>(b)
+{
+}
+
+LiveBucketSnapshot::LiveBucketSnapshot(LiveBucketSnapshot const& b)
+    : BucketSnapshotBase<LiveBucket>(b)
+{
+}
+
+template class BucketSnapshotBase<LiveBucket>;
+template class BucketSnapshotBase<HotArchiveBucket>;
 }

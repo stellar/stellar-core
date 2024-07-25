@@ -128,14 +128,14 @@ computeMultiplier(LedgerEntry const& le)
 }
 
 BucketListDepthModifier::BucketListDepthModifier(uint32_t newDepth)
-    : mPrevDepth(BucketListBase::kNumLevels)
+    : mPrevDepth(LiveBucketList::kNumLevels)
 {
-    BucketListBase::kNumLevels = newDepth;
+    LiveBucketList::kNumLevels = newDepth;
 }
 
 BucketListDepthModifier::~BucketListDepthModifier()
 {
-    BucketListBase::kNumLevels = mPrevDepth;
+    LiveBucketList::kNumLevels = mPrevDepth;
 }
 }
 

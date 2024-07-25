@@ -8,7 +8,6 @@
 #include "bucket/BucketManager.h"
 #include "util/GlobalChecks.h"
 #include "util/ProtocolVersion.h"
-#include "xdr/Stellar-ledger-entries.h"
 #include "xdr/Stellar-ledger.h"
 #include <Tracy.hpp>
 #include <filesystem>
@@ -39,10 +38,10 @@ BucketOutputIterator<BucketT>::BucketOutputIterator(
 
     if (protocolVersionStartsFrom(
             meta.ledgerVersion,
-            Bucket::FIRST_PROTOCOL_SUPPORTING_INITENTRY_AND_METAENTRY))
+            LiveBucket::FIRST_PROTOCOL_SUPPORTING_INITENTRY_AND_METAENTRY))
     {
 
-        if constexpr (std::is_same_v<BucketT, BucketEntry>)
+        if constexpr (std::is_same_v<BucketT, LiveBucket>)
         {
             BucketEntry bme;
             bme.type(METAENTRY);
@@ -52,7 +51,7 @@ BucketOutputIterator<BucketT>::BucketOutputIterator(
         else
         {
             releaseAssertOrThrow(protocolVersionStartsFrom(
-                meta.ledgerVersion, ProtocolVersion::V_21));
+                meta.ledgerVersion, ProtocolVersion::V_22));
 
             HotArchiveBucketEntry bme;
             bme.type(HA_METAENTRY);
@@ -66,13 +65,13 @@ BucketOutputIterator<BucketT>::BucketOutputIterator(
 
 template <typename BucketT>
 void
-BucketOutputIterator<BucketT>::put(BucketT const& e)
+BucketOutputIterator<BucketT>::put(BucketEntryT const& e)
 {
     ZoneScoped;
-    Bucket::checkProtocolLegality(e, mMeta.ledgerVersion);
 
-    if constexpr (std::is_same_v<BucketT, BucketEntry>)
+    if constexpr (std::is_same_v<BucketT, LiveBucket>)
     {
+        LiveBucket::checkProtocolLegality(e, mMeta.ledgerVersion);
         if (e.type() == METAENTRY)
         {
             if (mPutMeta)
@@ -126,7 +125,7 @@ BucketOutputIterator<BucketT>::put(BucketT const& e)
     }
     else
     {
-        mBuf = std::make_unique<BucketT>();
+        mBuf = std::make_unique<BucketEntryT>();
     }
 
     // In any case, replace *mBuf with e.
@@ -135,7 +134,7 @@ BucketOutputIterator<BucketT>::put(BucketT const& e)
 }
 
 template <typename BucketT>
-std::shared_ptr<Bucket>
+std::shared_ptr<BucketT>
 BucketOutputIterator<BucketT>::getBucket(BucketManager& bucketManager,
                                          bool shouldSynchronouslyIndex,
                                          MergeKey* mergeKey)
@@ -159,7 +158,7 @@ BucketOutputIterator<BucketT>::getBucket(BucketManager& bucketManager,
         {
             bucketManager.noteEmptyMergeOutput(*mergeKey);
         }
-        return std::make_shared<Bucket>();
+        return std::make_shared<BucketT>();
     }
 
     auto hash = mHasher.finish();
@@ -177,9 +176,19 @@ BucketOutputIterator<BucketT>::getBucket(BucketManager& bucketManager,
         }
     }
 
-    return bucketManager.adoptFileAsBucket(mFilename.string(), hash, mergeKey,
-                                           std::move(index));
+    if constexpr (std::is_same_v<BucketT, LiveBucket>)
+    {
+        return bucketManager.adoptFileAsLiveBucket(mFilename.string(), hash,
+                                                   mergeKey, std::move(index));
+    }
+    else
+    {
+        // TODO:
+        releaseAssert(false);
+        return std::shared_ptr<HotArchiveBucket>();
+    }
 }
 
-template class BucketOutputIterator<BucketEntry>;
+template class BucketOutputIterator<LiveBucket>;
+template class BucketOutputIterator<HotArchiveBucket>;
 }

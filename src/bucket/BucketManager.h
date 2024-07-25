@@ -30,7 +30,6 @@ class LiveBucketList;
 class HotArchiveBucketList;
 class BucketSnapshotManager;
 class Config;
-class SearchableBucketListSnapshot;
 class TmpDirManager;
 struct HistoryArchiveState;
 struct InflationWinner;
@@ -217,12 +216,16 @@ class BucketManager : NonMovableOrCopyable
     // This method is mostly-threadsafe -- assuming you don't destruct the
     // BucketManager mid-call -- and is intended to be called from both main and
     // worker threads. Very carefully.
-    virtual std::shared_ptr<Bucket>
-    adoptFileAsBucket(std::string const& filename, uint256 const& hash,
-                      MergeKey* mergeKey,
-                      std::unique_ptr<BucketIndex const> index) = 0;
+    virtual std::shared_ptr<LiveBucket>
+    adoptFileAsLiveBucket(std::string const& filename, uint256 const& hash,
+                          MergeKey* mergeKey,
+                          std::unique_ptr<BucketIndex const> index) = 0;
+    virtual std::shared_ptr<HotArchiveBucket>
+    adoptFileAsHotArchiveBucket(std::string const& filename,
+                                uint256 const& hash, MergeKey* mergeKey,
+                                std::unique_ptr<BucketIndex const> index) = 0;
 
-    // Companion method to `adoptFileAsBucket` also called from the
+    // Companion method to `adoptFileAsLiveBucket` also called from the
     // `BucketOutputIterator::getBucket` merge-completion path. This method
     // however should be called when the output bucket is _empty_ and thereby
     // doesn't correspond to a file on disk; the method forgets about the
@@ -235,15 +238,20 @@ class BucketManager : NonMovableOrCopyable
     virtual std::shared_ptr<Bucket> getBucketIfExists(uint256 const& hash) = 0;
 
     // Return a bucket by hash if we have it, else return nullptr.
-    virtual std::shared_ptr<Bucket> getBucketByHash(uint256 const& hash) = 0;
+    virtual std::shared_ptr<LiveBucket>
+    getLiveBucketByHash(uint256 const& hash) = 0;
+    virtual std::shared_ptr<HotArchiveBucket>
+    getHotArchiveBucketByHash(uint256 const& hash) = 0;
 
     // Get a reference to a merge-future that's either running (or finished
     // somewhat recently) from either a map of the std::shared_futures doing the
     // merges and/or a set of records mapping merge inputs to outputs and the
     // set of outputs held in the BucketManager. Returns an invalid future if no
     // such future can be found or synthesized.
-    virtual std::shared_future<std::shared_ptr<Bucket>>
-    getMergeFuture(MergeKey const& key) = 0;
+    virtual std::shared_future<std::shared_ptr<LiveBucket>>
+    getLiveMergeFuture(MergeKey const& key) = 0;
+    virtual std::shared_future<std::shared_ptr<HotArchiveBucket>>
+    getHotArchiveMergeFuture(MergeKey const& key) = 0;
 
     // Add a reference to a merge _in progress_ (not yet adopted as a file) to
     // the BucketManager's internal map of std::shared_futures doing merges.
@@ -251,8 +259,11 @@ class BucketManager : NonMovableOrCopyable
     // be removed from the map when the merge completes and the output file is
     // adopted.
     virtual void
-    putMergeFuture(MergeKey const& key,
-                   std::shared_future<std::shared_ptr<Bucket>>) = 0;
+    putLiveMergeFuture(MergeKey const& key,
+                       std::shared_future<std::shared_ptr<LiveBucket>>) = 0;
+    virtual void putHotArchiveMergeFuture(
+        MergeKey const& key,
+        std::shared_future<std::shared_ptr<HotArchiveBucket>>) = 0;
 
 #ifdef BUILD_TESTS
     // Drop all references to merge futures in progress.
@@ -357,7 +368,7 @@ class BucketManager : NonMovableOrCopyable
 
     // Merge the bucket list of the provided HAS into a single "super bucket"
     // consisting of only live entries, and return it.
-    virtual std::shared_ptr<Bucket>
+    virtual std::shared_ptr<LiveBucket>
     mergeBuckets(HistoryArchiveState const& has) = 0;
 
     // Visits all the active ledger entries or subset thereof.

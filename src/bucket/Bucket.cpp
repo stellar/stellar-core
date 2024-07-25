@@ -29,6 +29,7 @@
 #include <Tracy.hpp>
 
 #include "medida/counter.h"
+#include "xdr/Stellar-ledger.h"
 
 namespace stellar
 {
@@ -97,9 +98,9 @@ Bucket::getSize() const
 }
 
 bool
-Bucket::containsBucketIdentity(BucketEntry const& id) const
+LiveBucket::containsBucketIdentity(BucketEntry const& id) const
 {
-    BucketEntryIdCmp<BucketEntry> cmp;
+    BucketEntryIdCmp<LiveBucket> cmp;
     LiveBucketInputIterator iter(shared_from_this());
     while (iter)
     {
@@ -132,7 +133,7 @@ Bucket::freeIndex()
 
 #ifdef BUILD_TESTS
 void
-Bucket::apply(Application& app) const
+LiveBucket::apply(Application& app) const
 {
     ZoneScoped;
 
@@ -151,13 +152,12 @@ Bucket::apply(Application& app) const
     }
     counters.logInfo("direct", 0, app.getClock().now());
 }
-#endif // BUILD_TESTS
 
 std::vector<BucketEntry>
-Bucket::convertToBucketEntry(bool useInit,
-                             std::vector<LedgerEntry> const& initEntries,
-                             std::vector<LedgerEntry> const& liveEntries,
-                             std::vector<LedgerKey> const& deadEntries)
+LiveBucket::convertToBucketEntry(bool useInit,
+                                 std::vector<LedgerEntry> const& initEntries,
+                                 std::vector<LedgerEntry> const& liveEntries,
+                                 std::vector<LedgerKey> const& deadEntries)
 {
     std::vector<BucketEntry> bucket;
     for (auto const& e : initEntries)
@@ -182,7 +182,7 @@ Bucket::convertToBucketEntry(bool useInit,
         bucket.push_back(ce);
     }
 
-    BucketEntryIdCmp<BucketEntry> cmp;
+    BucketEntryIdCmp<LiveBucket> cmp;
     std::sort(bucket.begin(), bucket.end(), cmp);
     releaseAssert(std::adjacent_find(
                       bucket.begin(), bucket.end(),
@@ -191,6 +191,7 @@ Bucket::convertToBucketEntry(bool useInit,
                       }) == bucket.end());
     return bucket;
 }
+#endif // BUILD_TESTS
 
 std::string
 Bucket::randomFileName(std::string const& tmpDir, std::string ext)
@@ -220,12 +221,25 @@ Bucket::randomBucketIndexName(std::string const& tmpDir)
     return randomFileName(tmpDir, ".index");
 }
 
-std::shared_ptr<Bucket>
-Bucket::fresh(BucketManager& bucketManager, uint32_t protocolVersion,
-              std::vector<LedgerEntry> const& initEntries,
-              std::vector<LedgerEntry> const& liveEntries,
-              std::vector<LedgerKey> const& deadEntries, bool countMergeEvents,
-              asio::io_context& ctx, bool doFsync)
+std::shared_ptr<HotArchiveBucket>
+HotArchiveBucket::fresh(BucketManager& bucketManager, uint32_t protocolVersion,
+                        std::vector<LedgerEntry> const& initEntries,
+                        std::vector<LedgerEntry> const& liveEntries,
+                        std::vector<LedgerKey> const& deadEntries,
+                        bool countMergeEvents, asio::io_context& ctx,
+                        bool doFsync)
+{
+    // TODO:
+    releaseAssert(false);
+    return nullptr;
+}
+
+std::shared_ptr<LiveBucket>
+LiveBucket::fresh(BucketManager& bucketManager, uint32_t protocolVersion,
+                  std::vector<LedgerEntry> const& initEntries,
+                  std::vector<LedgerEntry> const& liveEntries,
+                  std::vector<LedgerKey> const& deadEntries,
+                  bool countMergeEvents, asio::io_context& ctx, bool doFsync)
 {
     ZoneScoped;
     // When building fresh buckets after protocol version 10 (i.e. version
@@ -257,6 +271,13 @@ Bucket::fresh(BucketManager& bucketManager, uint32_t protocolVersion,
 }
 
 static void
+countShadowedEntryType(MergeCounters& mc, HotArchiveBucketEntry const& e)
+{
+    // TODO:
+    releaseAssert(false);
+}
+
+static void
 countShadowedEntryType(MergeCounters& mc, BucketEntry const& e)
 {
     switch (e.type())
@@ -277,8 +298,8 @@ countShadowedEntryType(MergeCounters& mc, BucketEntry const& e)
 }
 
 void
-Bucket::checkProtocolLegality(BucketEntry const& entry,
-                              uint32_t protocolVersion)
+LiveBucket::checkProtocolLegality(BucketEntry const& entry,
+                                  uint32_t protocolVersion)
 {
     if (protocolVersionIsBefore(
             protocolVersion,
@@ -291,11 +312,18 @@ Bucket::checkProtocolLegality(BucketEntry const& entry,
     }
 }
 
+template <class BucketT, class BucketEntryT>
 inline void
-maybePut(LiveBucketOutputIterator& out, BucketEntry const& entry,
-         std::vector<LiveBucketInputIterator>& shadowIterators,
+maybePut(BucketOutputIterator<BucketT>& out, BucketEntryT const& entry,
+         std::vector<BucketInputIterator<BucketT>>& shadowIterators,
          bool keepShadowedLifecycleEntries, MergeCounters& mc)
 {
+    static_assert(std::is_same_v<BucketT, LiveBucket> ||
+                  std::is_same_v<BucketT, HotArchiveBucket>);
+
+    static_assert(std::is_same_v<BucketEntryT, BucketEntry> ||
+                  std::is_same_v<BucketEntryT, HotArchiveBucketEntry>);
+
     // In ledgers before protocol 11, keepShadowedLifecycleEntries will be
     // `false` and we will drop all shadowed entries here.
     //
@@ -334,6 +362,13 @@ maybePut(LiveBucketOutputIterator& out, BucketEntry const& entry,
     // LiveBucketOutputIterator level, and happens independent of ledger
     // protocol version.
 
+    // TODO: Shadows
+    if constexpr (std::is_same_v<BucketT, HotArchiveBucket>)
+    {
+        releaseAssert(false);
+        return;
+    }
+
     if (keepShadowedLifecycleEntries &&
         (entry.type() == INITENTRY || entry.type() == DEADENTRY))
     {
@@ -342,7 +377,7 @@ maybePut(LiveBucketOutputIterator& out, BucketEntry const& entry,
         return;
     }
 
-    BucketEntryIdCmp<BucketEntry> cmp;
+    BucketEntryIdCmp<BucketT> cmp;
     for (auto& si : shadowIterators)
     {
         // Advance the shadowIterator while it's less than the candidate
@@ -438,11 +473,13 @@ countNewEntryType(MergeCounters& mc, BucketEntry const& e)
 // and shadowing protocol simultaneously, the moment the first new-protocol
 // bucket enters the youngest level. At least one new bucket is in every merge's
 // shadows from then on in, so they all upgrade (and preserve lifecycle events).
+template <class BucketT>
 static void
 calculateMergeProtocolVersion(
     MergeCounters& mc, uint32_t maxProtocolVersion,
-    LiveBucketInputIterator const& oi, LiveBucketInputIterator const& ni,
-    std::vector<LiveBucketInputIterator> const& shadowIterators,
+    BucketInputIterator<BucketT> const& oi,
+    BucketInputIterator<BucketT> const& ni,
+    std::vector<BucketInputIterator<BucketT>> const& shadowIterators,
     uint32& protocolVersion, bool& keepShadowedLifecycleEntries)
 {
     protocolVersion = std::max(oi.getMetadata().ledgerVersion,
@@ -457,7 +494,7 @@ calculateMergeProtocolVersion(
     {
         auto version = si.getMetadata().ledgerVersion;
         if (protocolVersionIsBefore(version,
-                                    Bucket::FIRST_PROTOCOL_SHADOWS_REMOVED))
+                                    LiveBucket::FIRST_PROTOCOL_SHADOWS_REMOVED))
         {
             protocolVersion = std::max(version, protocolVersion);
         }
@@ -478,10 +515,11 @@ calculateMergeProtocolVersion(
     // we switch shadowing-behaviour to a more conservative mode, in order to
     // support annihilation of INITENTRY and DEADENTRY pairs. See commentary
     // above in `maybePut`.
+    // TODO: Clean up metrics for archive buckets
     keepShadowedLifecycleEntries = true;
     if (protocolVersionIsBefore(
             protocolVersion,
-            Bucket::FIRST_PROTOCOL_SUPPORTING_INITENTRY_AND_METAENTRY))
+            LiveBucket::FIRST_PROTOCOL_SUPPORTING_INITENTRY_AND_METAENTRY))
     {
         ++mc.mPreInitEntryProtocolMerges;
         keepShadowedLifecycleEntries = false;
@@ -492,7 +530,7 @@ calculateMergeProtocolVersion(
     }
 
     if (protocolVersionIsBefore(protocolVersion,
-                                Bucket::FIRST_PROTOCOL_SHADOWS_REMOVED))
+                                LiveBucket::FIRST_PROTOCOL_SHADOWS_REMOVED))
     {
         ++mc.mPreShadowRemovalProtocolMerges;
     }
@@ -510,14 +548,22 @@ calculateMergeProtocolVersion(
 // side, or entries that compare non-equal. In all these cases we just
 // take the lesser (or existing) entry and advance only one iterator,
 // not scrutinizing the entry type further.
+template <class BucketT>
 static bool
 mergeCasesWithDefaultAcceptance(
-    BucketEntryIdCmp<BucketEntry> const& cmp, MergeCounters& mc,
-    LiveBucketInputIterator& oi, LiveBucketInputIterator& ni,
-    LiveBucketOutputIterator& out,
-    std::vector<LiveBucketInputIterator>& shadowIterators,
+    BucketEntryIdCmp<BucketT> const& cmp, MergeCounters& mc,
+    BucketInputIterator<BucketT>& oi, BucketInputIterator<BucketT>& ni,
+    BucketOutputIterator<BucketT>& out,
+    std::vector<BucketInputIterator<BucketT>>& shadowIterators,
     uint32_t protocolVersion, bool keepShadowedLifecycleEntries)
 {
+    static_assert(std::is_same_v<BucketT, LiveBucket> ||
+                  std::is_same_v<BucketT, HotArchiveBucket>);
+    // using BucketEntryT = std::conditional_t<std::is_same_v<BucketT,
+    // LiveBucket>,
+    //                                         BucketEntry,
+    //                                         HotArchiveBucketEntry>;
+
     if (!ni || (oi && ni && cmp(*oi, *ni)))
     {
         // Either of:
@@ -527,8 +573,11 @@ mergeCasesWithDefaultAcceptance(
         //
         // In both cases: take old entry.
         ++mc.mOldEntriesDefaultAccepted;
-        Bucket::checkProtocolLegality(*oi, protocolVersion);
-        countOldEntryType(mc, *oi);
+        if constexpr (std::is_same_v<BucketT, LiveBucket>)
+        {
+            LiveBucket::checkProtocolLegality(*oi, protocolVersion);
+            countOldEntryType(mc, *oi);
+        }
         maybePut(out, *oi, shadowIterators, keepShadowedLifecycleEntries, mc);
         ++oi;
         return true;
@@ -542,8 +591,11 @@ mergeCasesWithDefaultAcceptance(
         //
         // In both cases: take new entry.
         ++mc.mNewEntriesDefaultAccepted;
-        Bucket::checkProtocolLegality(*ni, protocolVersion);
-        countNewEntryType(mc, *ni);
+        if constexpr (std::is_same_v<BucketT, LiveBucket>)
+        {
+            LiveBucket::checkProtocolLegality(*ni, protocolVersion);
+            countNewEntryType(mc, *ni);
+        }
         maybePut(out, *ni, shadowIterators, keepShadowedLifecycleEntries, mc);
         ++ni;
         return true;
@@ -553,6 +605,17 @@ mergeCasesWithDefaultAcceptance(
 
 // The remaining cases happen when keys are equal and we have to reason
 // through the relationships of their bucket lifecycle states. Trickier.
+static void
+mergeCasesWithEqualKeys(
+    MergeCounters& mc, HotArchiveBucketInputIterator& oi,
+    HotArchiveBucketInputIterator& ni, HotArchiveBucketOutputIterator& out,
+    std::vector<HotArchiveBucketInputIterator>& shadowIterators,
+    uint32_t protocolVersion, bool keepShadowedLifecycleEntries)
+{
+    // TODO:
+    releaseAssert(false);
+}
+
 static void
 mergeCasesWithEqualKeys(MergeCounters& mc, LiveBucketInputIterator& oi,
                         LiveBucketInputIterator& ni,
@@ -626,8 +689,8 @@ mergeCasesWithEqualKeys(MergeCounters& mc, LiveBucketInputIterator& oi,
 
     BucketEntry const& oldEntry = *oi;
     BucketEntry const& newEntry = *ni;
-    Bucket::checkProtocolLegality(oldEntry, protocolVersion);
-    Bucket::checkProtocolLegality(newEntry, protocolVersion);
+    LiveBucket::checkProtocolLegality(oldEntry, protocolVersion);
+    LiveBucket::checkProtocolLegality(newEntry, protocolVersion);
     countOldEntryType(mc, oldEntry);
     countNewEntryType(mc, newEntry);
 
@@ -678,20 +741,18 @@ mergeCasesWithEqualKeys(MergeCounters& mc, LiveBucketInputIterator& oi,
 }
 
 bool
-Bucket::scanForEvictionLegacy(AbstractLedgerTxn& ltx, EvictionIterator& iter,
-                              uint32_t& bytesToScan,
-                              uint32_t& remainingEntriesToEvict,
-                              uint32_t ledgerSeq,
-                              medida::Counter& entriesEvictedCounter,
-                              medida::Counter& bytesScannedForEvictionCounter,
-                              std::shared_ptr<EvictionStatistics> stats) const
+LiveBucket::scanForEvictionLegacy(
+    AbstractLedgerTxn& ltx, EvictionIterator& iter, uint32_t& bytesToScan,
+    uint32_t& remainingEntriesToEvict, uint32_t ledgerSeq,
+    medida::Counter& entriesEvictedCounter,
+    medida::Counter& bytesScannedForEvictionCounter,
+    std::shared_ptr<EvictionStatistics> stats) const
 {
     ZoneScoped;
     releaseAssert(stats);
 
     if (isEmpty() ||
-        protocolVersionIsBefore(getBucketVersion(shared_from_this()),
-                                SOROBAN_PROTOCOL_VERSION))
+        protocolVersionIsBefore(getBucketVersion(), SOROBAN_PROTOCOL_VERSION))
     {
         // EOF, skip to next bucket
         return false;
@@ -770,14 +831,18 @@ Bucket::scanForEvictionLegacy(AbstractLedgerTxn& ltx, EvictionIterator& iter,
     return false;
 }
 
-std::shared_ptr<Bucket>
+template <class BucketT>
+std::shared_ptr<BucketT>
 Bucket::merge(BucketManager& bucketManager, uint32_t maxProtocolVersion,
-              std::shared_ptr<Bucket> const& oldBucket,
-              std::shared_ptr<Bucket> const& newBucket,
-              std::vector<std::shared_ptr<Bucket>> const& shadows,
+              std::shared_ptr<BucketT> const& oldBucket,
+              std::shared_ptr<BucketT> const& newBucket,
+              std::vector<std::shared_ptr<BucketT>> const& shadows,
               bool keepDeadEntries, bool countMergeEvents,
               asio::io_context& ctx, bool doFsync)
 {
+    static_assert(std::is_same_v<BucketT, LiveBucket> ||
+                  std::is_same_v<BucketT, HotArchiveBucket>);
+
     ZoneScoped;
     // This is the key operation in the scheme: merging two (read-only)
     // buckets together into a new 3rd bucket, while calculating its hash,
@@ -787,24 +852,24 @@ Bucket::merge(BucketManager& bucketManager, uint32_t maxProtocolVersion,
     releaseAssert(newBucket);
 
     MergeCounters mc;
-    LiveBucketInputIterator oi(oldBucket);
-    LiveBucketInputIterator ni(newBucket);
-    std::vector<LiveBucketInputIterator> shadowIterators(shadows.begin(),
-                                                         shadows.end());
+    BucketInputIterator<BucketT> oi(oldBucket);
+    BucketInputIterator<BucketT> ni(newBucket);
+    std::vector<BucketInputIterator<BucketT>> shadowIterators(shadows.begin(),
+                                                              shadows.end());
 
     uint32_t protocolVersion;
     bool keepShadowedLifecycleEntries;
-    calculateMergeProtocolVersion(mc, maxProtocolVersion, oi, ni,
-                                  shadowIterators, protocolVersion,
-                                  keepShadowedLifecycleEntries);
+    calculateMergeProtocolVersion<BucketT>(mc, maxProtocolVersion, oi, ni,
+                                           shadowIterators, protocolVersion,
+                                           keepShadowedLifecycleEntries);
 
     auto timer = bucketManager.getMergeTimer().TimeScope();
     BucketMetadata meta;
     meta.ledgerVersion = protocolVersion;
-    LiveBucketOutputIterator out(bucketManager.getTmpDir(), keepDeadEntries,
-                                 meta, mc, ctx, doFsync);
+    BucketOutputIterator<BucketT> out(bucketManager.getTmpDir(),
+                                      keepDeadEntries, meta, mc, ctx, doFsync);
 
-    BucketEntryIdCmp<BucketEntry> cmp;
+    BucketEntryIdCmp<BucketT> cmp;
     size_t iter = 0;
 
     while (oi || ni)
@@ -836,24 +901,68 @@ Bucket::merge(BucketManager& bucketManager, uint32_t maxProtocolVersion,
     {
         bucketManager.incrMergeCounters(mc);
     }
-    MergeKey mk{keepDeadEntries, oldBucket, newBucket, shadows};
+
+    std::vector<Hash> shadowHashes;
+    shadowHashes.reserve(shadows.size());
+    for (auto const& s : shadows)
+    {
+        shadowHashes.push_back(s->getHash());
+    }
+
+    MergeKey mk{keepDeadEntries, oldBucket->getHash(), newBucket->getHash(),
+                shadowHashes};
     return out.getBucket(bucketManager,
                          bucketManager.getConfig().isUsingBucketListDB(), &mk);
 }
 
-uint32_t
-Bucket::getBucketVersion(std::shared_ptr<Bucket> const& bucket)
+LiveBucket::LiveBucket(std::string const& filename, Hash const& hash,
+                       std::unique_ptr<BucketIndex const>&& index)
+    : Bucket(filename, hash, std::move(index))
 {
-    releaseAssert(bucket);
-    LiveBucketInputIterator it(bucket);
+}
+
+LiveBucket::LiveBucket() : Bucket()
+{
+}
+
+uint32_t
+LiveBucket::getBucketVersion() const
+{
+    LiveBucketInputIterator it(shared_from_this());
     return it.getMetadata().ledgerVersion;
 }
 
 uint32_t
-Bucket::getBucketVersion(std::shared_ptr<Bucket const> const& bucket)
+HotArchiveBucket::getBucketVersion() const
 {
-    releaseAssert(bucket);
-    LiveBucketInputIterator it(bucket);
+    HotArchiveBucketInputIterator it(shared_from_this());
     return it.getMetadata().ledgerVersion;
 }
+
+HotArchiveBucket::HotArchiveBucket(std::string const& filename,
+                                   Hash const& hash,
+                                   std::unique_ptr<BucketIndex const>&& index)
+    : Bucket(filename, hash, std::move(index))
+{
+}
+
+HotArchiveBucket::HotArchiveBucket() : Bucket()
+{
+}
+
+template std::shared_ptr<LiveBucket> Bucket::merge<LiveBucket>(
+    BucketManager& bucketManager, uint32_t maxProtocolVersion,
+    std::shared_ptr<LiveBucket> const& oldBucket,
+    std::shared_ptr<LiveBucket> const& newBucket,
+    std::vector<std::shared_ptr<LiveBucket>> const& shadows,
+    bool keepDeadEntries, bool countMergeEvents, asio::io_context& ctx,
+    bool doFsync);
+
+template std::shared_ptr<HotArchiveBucket> Bucket::merge<HotArchiveBucket>(
+    BucketManager& bucketManager, uint32_t maxProtocolVersion,
+    std::shared_ptr<HotArchiveBucket> const& oldBucket,
+    std::shared_ptr<HotArchiveBucket> const& newBucket,
+    std::vector<std::shared_ptr<HotArchiveBucket>> const& shadows,
+    bool keepDeadEntries, bool countMergeEvents, asio::io_context& ctx,
+    bool doFsync);
 }

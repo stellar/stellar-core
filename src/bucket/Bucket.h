@@ -5,6 +5,7 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "bucket/BucketIndex.h"
+#include "bucket/BucketSnapshot.h"
 #include "util/NonCopyable.h"
 #include "util/ProtocolVersion.h"
 #include "xdr/Stellar-ledger.h"
@@ -40,13 +41,12 @@ namespace stellar
 class AbstractLedgerTxn;
 class Application;
 class BucketManager;
-class SearchableBucketListSnapshot;
 struct EvictionResultEntry;
 class EvictionStatistics;
 
-class Bucket : public std::enable_shared_from_this<Bucket>,
-               public NonMovableOrCopyable
+class Bucket : public NonMovableOrCopyable
 {
+  protected:
     std::filesystem::path const mFilename;
     Hash const mHash;
     size_t mSize{0};
@@ -74,10 +74,6 @@ class Bucket : public std::enable_shared_from_this<Bucket>,
     std::filesystem::path const& getFilename() const;
     size_t getSize() const;
 
-    // Returns true if a BucketEntry that is key-wise identical to the given
-    // BucketEntry exists in the bucket. For testing.
-    bool containsBucketIdentity(BucketEntry const& id) const;
-
     bool isEmpty() const;
 
     // Delete index and close file stream
@@ -94,6 +90,56 @@ class Bucket : public std::enable_shared_from_this<Bucket>,
     // Sets index, throws if index is already set
     void setIndex(std::unique_ptr<BucketIndex const>&& index);
 
+    // Merge two buckets together, producing a fresh one. Entries in `oldBucket`
+    // are overridden in the fresh bucket by keywise-equal entries in
+    // `newBucket`. Entries are inhibited from the fresh bucket by keywise-equal
+    // entries in any of the buckets in the provided `shadows` vector.
+    //
+    // Each bucket is self-describing in terms of the ledger protocol version it
+    // was constructed under, and the merge algorithm adjusts to the maximum of
+    // the versions attached to each input or shadow bucket. The provided
+    // `maxProtocolVersion` bounds this (for error checking) and should usually
+    // be the protocol of the ledger header at which the merge is starting. An
+    // exception will be thrown if any provided bucket versions exceed it.
+    template <class BucketT>
+    static std::shared_ptr<BucketT>
+    merge(BucketManager& bucketManager, uint32_t maxProtocolVersion,
+          std::shared_ptr<BucketT> const& oldBucket,
+          std::shared_ptr<BucketT> const& newBucket,
+          std::vector<std::shared_ptr<BucketT>> const& shadows,
+          bool keepDeadEntries, bool countMergeEvents, asio::io_context& ctx,
+          bool doFsync);
+
+    static std::string randomBucketName(std::string const& tmpDir);
+    static std::string randomBucketIndexName(std::string const& tmpDir);
+
+#ifdef BUILD_TESTS
+    BucketIndex const&
+    getIndexForTesting() const
+    {
+        return getIndex();
+    }
+
+#endif // BUILD_TESTS
+
+    virtual uint32_t getBucketVersion() const = 0;
+
+    template <class BucketT> friend class BucketSnapshotBase;
+};
+
+template <class BucketT> class SearchableBucketListSnapshot;
+class LiveBucket : public Bucket,
+                   public std::enable_shared_from_this<LiveBucket>
+{
+  public:
+    LiveBucket();
+    LiveBucket(std::string const& filename, Hash const& hash,
+               std::unique_ptr<BucketIndex const>&& index);
+
+    // Returns true if a BucketEntry that is key-wise identical to the given
+    // BucketEntry exists in the bucket. For testing.
+    bool containsBucketIdentity(BucketEntry const& id) const;
+
     // At version 11, we added support for INITENTRY and METAENTRY. Before this
     // we were only supporting LIVEENTRY and DEADENTRY.
     static constexpr ProtocolVersion
@@ -105,29 +151,20 @@ class Bucket : public std::enable_shared_from_this<Bucket>,
     static void checkProtocolLegality(BucketEntry const& entry,
                                       uint32_t protocolVersion);
 
+#ifdef BUILD_TESTS
+
     static std::vector<BucketEntry>
     convertToBucketEntry(bool useInit,
                          std::vector<LedgerEntry> const& initEntries,
                          std::vector<LedgerEntry> const& liveEntries,
                          std::vector<LedgerKey> const& deadEntries);
 
-    static std::string randomBucketName(std::string const& tmpDir);
-    static std::string randomBucketIndexName(std::string const& tmpDir);
-
-#ifdef BUILD_TESTS
     // "Applies" the bucket to the database. For each entry in the bucket,
     // if the entry is init or live, creates or updates the corresponding
     // entry in the database (respectively; if the entry is dead (a
     // tombstone), deletes the corresponding entry in the database.
     void apply(Application& app) const;
-
-    BucketIndex const&
-    getIndexForTesting() const
-    {
-        return getIndex();
-    }
-
-#endif // BUILD_TESTS
+#endif
 
     // Returns false if eof reached, true otherwise. Modifies iter as the bucket
     // is scanned. Also modifies bytesToScan and maxEntriesToEvict such that
@@ -145,41 +182,40 @@ class Bucket : public std::enable_shared_from_this<Bucket>,
     bool scanForEviction(EvictionIterator& iter, uint32_t& bytesToScan,
                          uint32_t ledgerSeq,
                          std::list<EvictionResultEntry>& evictableKeys,
-                         SearchableBucketListSnapshot& bl) const;
+                         SearchableBucketListSnapshot<LiveBucket>& bl) const;
 
     // Create a fresh bucket from given vectors of init (created) and live
     // (updated) LedgerEntries, and dead LedgerEntryKeys. The bucket will
     // be sorted, hashed, and adopted in the provided BucketManager.
-    static std::shared_ptr<Bucket>
+    static std::shared_ptr<LiveBucket>
     fresh(BucketManager& bucketManager, uint32_t protocolVersion,
           std::vector<LedgerEntry> const& initEntries,
           std::vector<LedgerEntry> const& liveEntries,
           std::vector<LedgerKey> const& deadEntries, bool countMergeEvents,
           asio::io_context& ctx, bool doFsync);
 
-    // Merge two buckets together, producing a fresh one. Entries in `oldBucket`
-    // are overridden in the fresh bucket by keywise-equal entries in
-    // `newBucket`. Entries are inhibited from the fresh bucket by keywise-equal
-    // entries in any of the buckets in the provided `shadows` vector.
-    //
-    // Each bucket is self-describing in terms of the ledger protocol version it
-    // was constructed under, and the merge algorithm adjusts to the maximum of
-    // the versions attached to each input or shadow bucket. The provided
-    // `maxProtocolVersion` bounds this (for error checking) and should usually
-    // be the protocol of the ledger header at which the merge is starting. An
-    // exception will be thrown if any provided bucket versions exceed it.
-    static std::shared_ptr<Bucket>
-    merge(BucketManager& bucketManager, uint32_t maxProtocolVersion,
-          std::shared_ptr<Bucket> const& oldBucket,
-          std::shared_ptr<Bucket> const& newBucket,
-          std::vector<std::shared_ptr<Bucket>> const& shadows,
-          bool keepDeadEntries, bool countMergeEvents, asio::io_context& ctx,
-          bool doFsync);
+    uint32_t getBucketVersion() const override;
 
-    static uint32_t getBucketVersion(std::shared_ptr<Bucket> const& bucket);
-    static uint32_t
-    getBucketVersion(std::shared_ptr<Bucket const> const& bucket);
+    friend class LiveBucketSnapshot;
+};
 
-    friend class BucketSnapshot;
+class HotArchiveBucket : public Bucket,
+                         public std::enable_shared_from_this<HotArchiveBucket>
+{
+  public:
+    HotArchiveBucket();
+    HotArchiveBucket(std::string const& filename, Hash const& hash,
+                     std::unique_ptr<BucketIndex const>&& index);
+    uint32_t getBucketVersion() const override;
+
+    // TOOD: Change params for HotArchiveBucket
+    static std::shared_ptr<HotArchiveBucket>
+    fresh(BucketManager& bucketManager, uint32_t protocolVersion,
+          std::vector<LedgerEntry> const& initEntries,
+          std::vector<LedgerEntry> const& liveEntries,
+          std::vector<LedgerKey> const& deadEntries, bool countMergeEvents,
+          asio::io_context& ctx, bool doFsync);
+
+    friend class HotArchiveBucketSnapshot;
 };
 }

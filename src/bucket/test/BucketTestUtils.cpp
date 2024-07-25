@@ -35,16 +35,16 @@ for_versions_with_differing_bucket_logic(
 {
     for_versions(
         {static_cast<uint32_t>(
-             Bucket::FIRST_PROTOCOL_SUPPORTING_INITENTRY_AND_METAENTRY) -
+             LiveBucket::FIRST_PROTOCOL_SUPPORTING_INITENTRY_AND_METAENTRY) -
              1,
          static_cast<uint32_t>(
-             Bucket::FIRST_PROTOCOL_SUPPORTING_INITENTRY_AND_METAENTRY),
-         static_cast<uint32_t>(Bucket::FIRST_PROTOCOL_SHADOWS_REMOVED)},
+             LiveBucket::FIRST_PROTOCOL_SUPPORTING_INITENTRY_AND_METAENTRY),
+         static_cast<uint32_t>(LiveBucket::FIRST_PROTOCOL_SHADOWS_REMOVED)},
         cfg, f);
 }
 
 size_t
-countEntries(std::shared_ptr<Bucket> bucket)
+countEntries(std::shared_ptr<LiveBucket> bucket)
 {
     EntryCounts e(bucket);
     return e.sum();
@@ -72,7 +72,7 @@ closeLedger(Application& app)
     return closeLedger(app, std::nullopt);
 }
 
-EntryCounts::EntryCounts(std::shared_ptr<Bucket> bucket)
+EntryCounts::EntryCounts(std::shared_ptr<LiveBucket> bucket)
 {
     LiveBucketInputIterator iter(bucket);
     if (iter.seenMetadata())

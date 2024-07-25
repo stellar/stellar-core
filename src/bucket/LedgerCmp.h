@@ -13,6 +13,9 @@
 namespace stellar
 {
 
+class LiveBucket;
+class HotArchiveBucket;
+
 template <typename T>
 bool
 lexCompare(T&& lhs1, T&& rhs1)
@@ -128,8 +131,11 @@ struct LedgerEntryIdCmp
  */
 template <typename BucketT> struct BucketEntryIdCmp
 {
-    static_assert(std::is_same_v<BucketT, BucketEntry> ||
-                  std::is_same_v<BucketT, HotArchiveBucketEntry>);
+    static_assert(std::is_same_v<BucketT, LiveBucket> ||
+                  std::is_same_v<BucketT, HotArchiveBucket>);
+
+    using BucketEntryT = std::conditional_t<std::is_same_v<BucketT, LiveBucket>,
+                                            BucketEntry, HotArchiveBucketEntry>;
 
     bool
     compareHotArchive(HotArchiveBucketEntry const& a,
@@ -163,6 +169,25 @@ template <typename BucketT> struct BucketEntryIdCmp
         }
         else
         {
+            if (aty != HA_DELETED || aty != HA_RESTORED)
+            {
+                throw std::runtime_error(
+                    "Malformed bucket: unexpected DELETED/RESTORED key.");
+            }
+
+            if (bty == HA_ARCHIVED)
+            {
+                return LedgerEntryIdCmp{}(a.key(), b.archivedEntry().data);
+            }
+            else
+            {
+                if (bty != HA_DELETED || bty != HA_RESTORED)
+                {
+                    throw std::runtime_error("Malformed bucket: unexpected "
+                                             "DELETED/RESTORED key.");
+                }
+                return LedgerEntryIdCmp{}(a.key(), b.key());
+            }
         }
     }
 
@@ -219,9 +244,9 @@ template <typename BucketT> struct BucketEntryIdCmp
     }
 
     bool
-    operator()(BucketT const& a, BucketT const& b) const
+    operator()(BucketEntryT const& a, BucketEntryT const& b) const
     {
-        if constexpr (std::is_same_v<BucketT, BucketEntry>)
+        if constexpr (std::is_same_v<BucketT, LiveBucket>)
         {
             return compareLive(a, b);
         }

@@ -43,7 +43,7 @@ clearFutures(Application::pointer app, LiveBucketList& bl)
 {
 
     // First go through the BL and mop up all the FutureBuckets.
-    for (uint32_t i = 0; i < BucketListBase::kNumLevels; ++i)
+    for (uint32_t i = 0; i < LiveBucketList::kNumLevels; ++i)
     {
         bl.getLevel(i).getNext().clear();
     }
@@ -206,10 +206,10 @@ TEST_CASE_VERSIONS("bucketmanager ownership", "[bucket][bucketmanager]")
                 LedgerTestUtils::generateValidUniqueLedgerEntries(10));
             std::vector<LedgerKey> dead{};
 
-            std::shared_ptr<Bucket> b1;
+            std::shared_ptr<LiveBucket> b1;
 
             {
-                std::shared_ptr<Bucket> b2 = Bucket::fresh(
+                std::shared_ptr<LiveBucket> b2 = LiveBucket::fresh(
                     app->getBucketManager(), getAppLedgerVersion(app), {}, live,
                     dead, /*countMergeEvents=*/true, clock.getIOContext(),
                     /*doFsync=*/true);
@@ -218,11 +218,11 @@ TEST_CASE_VERSIONS("bucketmanager ownership", "[bucket][bucketmanager]")
                 // Bucket is referenced by b1, b2 and the BucketManager.
                 CHECK(b1.use_count() == 3);
 
-                std::shared_ptr<Bucket> b3 = Bucket::fresh(
+                std::shared_ptr<LiveBucket> b3 = LiveBucket::fresh(
                     app->getBucketManager(), getAppLedgerVersion(app), {}, live,
                     dead, /*countMergeEvents=*/true, clock.getIOContext(),
                     /*doFsync=*/true);
-                std::shared_ptr<Bucket> b4 = Bucket::fresh(
+                std::shared_ptr<LiveBucket> b4 = LiveBucket::fresh(
                     app->getBucketManager(), getAppLedgerVersion(app), {}, live,
                     dead, /*countMergeEvents=*/true, clock.getIOContext(),
                     /*doFsync=*/true);
@@ -231,7 +231,7 @@ TEST_CASE_VERSIONS("bucketmanager ownership", "[bucket][bucketmanager]")
             }
 
             // Take pointer by reference to not mess up use_count()
-            auto dropBucket = [&](std::shared_ptr<Bucket>& b) {
+            auto dropBucket = [&](std::shared_ptr<LiveBucket>& b) {
                 std::string filename = b->getFilename().string();
                 std::string indexFilename =
                     app->getBucketManager().bucketIndexFilename(b->getHash());
@@ -310,7 +310,7 @@ TEST_CASE("bucketmanager missing buckets fail", "[bucket][bucketmanager]")
             lm.setNextLedgerEntryBatchForBucketTesting(
                 {}, LedgerTestUtils::generateValidUniqueLedgerEntries(10), {});
             closeLedger(*app);
-        } while (!BucketListBase::levelShouldSpill(ledger, level - 1));
+        } while (!LiveBucketList::levelShouldSpill(ledger, level - 1));
         auto someBucket = bl.getLevel(1).getCurr();
         someBucketFileName = someBucket->getFilename().string();
     }
@@ -352,7 +352,7 @@ TEST_CASE_VERSIONS("bucketmanager reattach to finished merge",
                         LedgerTestUtils::generateValidUniqueLedgerEntries(10),
                         {});
             bm.forgetUnreferencedBuckets();
-        } while (!BucketListBase::levelShouldSpill(ledger, level - 1));
+        } while (!LiveBucketList::levelShouldSpill(ledger, level - 1));
 
         // Check that the merge on level isn't committed (we're in
         // ARTIFICIALLY_PESSIMIZE_MERGES_FOR_TESTING mode that does not resolve
@@ -377,7 +377,7 @@ TEST_CASE_VERSIONS("bucketmanager reattach to finished merge",
 
         // Reattach to _finished_ merge future on level.
         has2.currentBuckets[level].next.makeLive(
-            *app, vers, BucketListBase::keepDeadEntries(level));
+            *app, vers, LiveBucketList::keepDeadEntries(level));
         REQUIRE(has2.currentBuckets[level].next.isMerging());
 
         // Resolve reattached future.
@@ -449,13 +449,13 @@ TEST_CASE_VERSIONS("bucketmanager reattach to running merge",
             // win quite shortly).
             HistoryArchiveState has2;
             has2.fromString(serialHas);
-            for (uint32_t level = 0; level < BucketListBase::kNumLevels;
+            for (uint32_t level = 0; level < LiveBucketList::kNumLevels;
                  ++level)
             {
                 if (has2.currentBuckets[level].next.hasHashes())
                 {
                     has2.currentBuckets[level].next.makeLive(
-                        *app, vers, BucketListBase::keepDeadEntries(level));
+                        *app, vers, LiveBucketList::keepDeadEntries(level));
                 }
             }
         }
@@ -479,7 +479,7 @@ TEST_CASE("bucketmanager do not leak empty-merge futures",
     cfg.ARTIFICIALLY_PESSIMIZE_MERGES_FOR_TESTING = true;
     cfg.TESTING_UPGRADE_LEDGER_PROTOCOL_VERSION =
         static_cast<uint32_t>(
-            Bucket::FIRST_PROTOCOL_SUPPORTING_INITENTRY_AND_METAENTRY) -
+            LiveBucket::FIRST_PROTOCOL_SUPPORTING_INITENTRY_AND_METAENTRY) -
         1;
 
     auto app = createTestApplication<BucketTestApplication>(clock, cfg);
@@ -590,7 +590,7 @@ TEST_CASE_VERSIONS(
 
         auto ra = bm.readMergeCounters().mFinishedMergeReattachments;
         if (protocolVersionIsBefore(vers,
-                                    Bucket::FIRST_PROTOCOL_SHADOWS_REMOVED))
+                                    LiveBucket::FIRST_PROTOCOL_SHADOWS_REMOVED))
         {
             // Versions prior to FIRST_PROTOCOL_SHADOWS_REMOVED re-attach to
             // finished merges
@@ -655,7 +655,7 @@ class StopAndRestartBucketMergesTest
     static void
     resolveAllMerges(LiveBucketList& bl)
     {
-        for (uint32 i = 0; i < BucketListBase::kNumLevels; ++i)
+        for (uint32 i = 0; i < LiveBucketList::kNumLevels; ++i)
         {
             auto& level = bl.getLevel(i);
             auto& next = level.getNext();
@@ -741,8 +741,8 @@ class StopAndRestartBucketMergesTest
         checkSensiblePostInitEntryMergeCounters(uint32_t protocol) const
         {
             CHECK(mMergeCounters.mPostInitEntryProtocolMerges != 0);
-            if (protocolVersionIsBefore(protocol,
-                                        Bucket::FIRST_PROTOCOL_SHADOWS_REMOVED))
+            if (protocolVersionIsBefore(
+                    protocol, LiveBucket::FIRST_PROTOCOL_SHADOWS_REMOVED))
             {
                 CHECK(mMergeCounters.mPostShadowRemovalProtocolMerges == 0);
             }
@@ -768,8 +768,8 @@ class StopAndRestartBucketMergesTest
             CHECK(mMergeCounters.mOldInitEntriesMergedWithNewDead != 0);
             CHECK(mMergeCounters.mNewEntriesMergedWithOldNeitherInit != 0);
 
-            if (protocolVersionIsBefore(protocol,
-                                        Bucket::FIRST_PROTOCOL_SHADOWS_REMOVED))
+            if (protocolVersionIsBefore(
+                    protocol, LiveBucket::FIRST_PROTOCOL_SHADOWS_REMOVED))
             {
                 CHECK(mMergeCounters.mShadowScanSteps != 0);
                 CHECK(mMergeCounters.mLiveEntryShadowElisions != 0);
@@ -911,7 +911,7 @@ class StopAndRestartBucketMergesTest
             mMergeCounters = bm.readMergeCounters();
             mLedgerHeaderHash = lm.getLastClosedLedgerHeader().hash;
             mBucketListHash = bl.getHash();
-            BucketLevel& blv = bl.getLevel(level);
+            BucketLevel<LiveBucket>& blv = bl.getLevel(level);
             mCurrBucketHash = blv.getCurr()->getHash();
             mSnapBucketHash = blv.getSnap()->getHash();
         }
@@ -931,9 +931,9 @@ class StopAndRestartBucketMergesTest
                          std::map<LedgerKey, LedgerEntry>& entries)
     {
         auto bl = app.getBucketManager().getLiveBucketList();
-        for (uint32_t i = BucketListBase::kNumLevels; i > 0; --i)
+        for (uint32_t i = LiveBucketList::kNumLevels; i > 0; --i)
         {
-            BucketLevel const& level = bl.getLevel(i - 1);
+            BucketLevel<LiveBucket> const& level = bl.getLevel(i - 1);
             for (auto bucket : {level.getSnap(), level.getCurr()})
             {
                 for (LiveBucketInputIterator bi(bucket); bi; ++bi)
@@ -979,11 +979,11 @@ class StopAndRestartBucketMergesTest
     void
     calculateDesignatedLedgers()
     {
-        uint32_t spillFreq = BucketListBase::levelHalf(mDesignatedLevel);
+        uint32_t spillFreq = LiveBucketList::levelHalf(mDesignatedLevel);
         uint32_t prepFreq =
             (mDesignatedLevel == 0
                  ? 1
-                 : BucketListBase::levelHalf(mDesignatedLevel - 1));
+                 : LiveBucketList::levelHalf(mDesignatedLevel - 1));
 
         uint32_t const SPILLCOUNT = 5;
         uint32_t const PREPCOUNT = 5;
@@ -1214,14 +1214,15 @@ class StopAndRestartBucketMergesTest
             auto j = mControlSurveys.find(i);
             if (j != mControlSurveys.end())
             {
-                if (BucketListBase::levelShouldSpill(i, mDesignatedLevel - 1))
+                if (LiveBucketList::levelShouldSpill(i, mDesignatedLevel - 1))
                 {
                     // Confirm that there's a merge-in-progress at this level
                     // (closing ledger i should have provoked a spill from
                     // mDesignatedLevel-1 to mDesignatedLevel)
                     LiveBucketList& bl =
                         app->getBucketManager().getLiveBucketList();
-                    BucketLevel& blv = bl.getLevel(mDesignatedLevel);
+                    BucketLevel<LiveBucket>& blv =
+                        bl.getLevel(mDesignatedLevel);
                     REQUIRE(blv.getNext().isMerging());
                 }
 
@@ -1249,12 +1250,13 @@ class StopAndRestartBucketMergesTest
                 clock = std::make_unique<VirtualClock>();
                 app = createTestApplication<BucketTestApplication>(*clock, cfg,
                                                                    false);
-                if (BucketListBase::levelShouldSpill(i, mDesignatedLevel - 1))
+                if (LiveBucketList::levelShouldSpill(i, mDesignatedLevel - 1))
                 {
                     // Confirm that the merge-in-progress was restarted.
                     LiveBucketList& bl =
                         app->getBucketManager().getLiveBucketList();
-                    BucketLevel& blv = bl.getLevel(mDesignatedLevel);
+                    BucketLevel<LiveBucket>& blv =
+                        bl.getLevel(mDesignatedLevel);
                     REQUIRE(blv.getNext().isMerging());
                 }
 
@@ -1288,7 +1290,7 @@ class StopAndRestartBucketMergesTest
         assert(!mControlSurveys.empty());
         if (protocolVersionStartsFrom(
                 mProtocol,
-                Bucket::FIRST_PROTOCOL_SUPPORTING_INITENTRY_AND_METAENTRY))
+                LiveBucket::FIRST_PROTOCOL_SUPPORTING_INITENTRY_AND_METAENTRY))
         {
             mControlSurveys.rbegin()->second.dumpMergeCounters(
                 "control, Post-INITENTRY", mDesignatedLevel);
@@ -1312,11 +1314,11 @@ TEST_CASE("bucket persistence over app restart with initentry",
 {
     for (uint32_t protocol :
          {static_cast<uint32_t>(
-              Bucket::FIRST_PROTOCOL_SUPPORTING_INITENTRY_AND_METAENTRY) -
+              LiveBucket::FIRST_PROTOCOL_SUPPORTING_INITENTRY_AND_METAENTRY) -
               1,
           static_cast<uint32_t>(
-              Bucket::FIRST_PROTOCOL_SUPPORTING_INITENTRY_AND_METAENTRY),
-          static_cast<uint32_t>(Bucket::FIRST_PROTOCOL_SHADOWS_REMOVED)})
+              LiveBucket::FIRST_PROTOCOL_SUPPORTING_INITENTRY_AND_METAENTRY),
+          static_cast<uint32_t>(LiveBucket::FIRST_PROTOCOL_SHADOWS_REMOVED)})
     {
         for (uint32_t level : {2, 3})
         {
@@ -1332,11 +1334,11 @@ TEST_CASE("bucket persistence over app restart with initentry - extended",
 {
     for (uint32_t protocol :
          {static_cast<uint32_t>(
-              Bucket::FIRST_PROTOCOL_SUPPORTING_INITENTRY_AND_METAENTRY) -
+              LiveBucket::FIRST_PROTOCOL_SUPPORTING_INITENTRY_AND_METAENTRY) -
               1,
           static_cast<uint32_t>(
-              Bucket::FIRST_PROTOCOL_SUPPORTING_INITENTRY_AND_METAENTRY),
-          static_cast<uint32_t>(Bucket::FIRST_PROTOCOL_SHADOWS_REMOVED)})
+              LiveBucket::FIRST_PROTOCOL_SUPPORTING_INITENTRY_AND_METAENTRY),
+          static_cast<uint32_t>(LiveBucket::FIRST_PROTOCOL_SHADOWS_REMOVED)})
     {
         for (uint32_t level : {2, 3, 4, 5})
         {
