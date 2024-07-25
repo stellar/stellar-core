@@ -20,7 +20,7 @@
 namespace stellar
 {
 
-class SearchableBucketListSnapshot;
+class SearchableLiveBucketListSnapshot;
 
 class EntryIterator::AbstractImpl
 {
@@ -737,7 +737,7 @@ class LedgerTxnRoot::Impl
     mutable BestOffers mBestOffers;
     mutable uint64_t mPrefetchHits{0};
     mutable uint64_t mPrefetchMisses{0};
-    mutable std::shared_ptr<SearchableBucketListSnapshot>
+    mutable std::shared_ptr<SearchableLiveBucketListSnapshot>
         mSearchableBucketListSnapshot{};
 
     size_t mBulkLoadBatchSize;
@@ -871,7 +871,7 @@ class LedgerTxnRoot::Impl
 
     bool areEntriesMissingInCacheForOffer(OfferEntry const& oe);
 
-    SearchableBucketListSnapshot& getSearchableBucketListSnapshot() const;
+    SearchableLiveBucketListSnapshot& getSearchableBucketListSnapshot() const;
 
     uint32_t prefetchInternal(UnorderedSet<LedgerKey> const& keys,
                               LedgerKeyMeter* lkMeter = nullptr);

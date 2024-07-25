@@ -11,6 +11,7 @@ namespace stellar
 
 class Bucket;
 struct HistoryArchiveState;
+class LiveBucket;
 
 class AssumeStateWork : public Work
 {
@@ -21,7 +22,7 @@ class AssumeStateWork : public Work
 
     // Keep strong reference to buckets in HAS so they are not garbage
     // collected during indexing
-    std::vector<std::shared_ptr<Bucket>> mBuckets{};
+    std::vector<std::shared_ptr<LiveBucket>> mBuckets{};
 
   public:
     AssumeStateWork(Application& app, HistoryArchiveState const& has,

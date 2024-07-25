@@ -327,7 +327,7 @@ BucketListIsConsistentWithDatabase::checkAfterAssumeState(uint32_t newestLedger)
         LedgerTxn ltx(mApp.getLedgerTxnRoot());
         auto& bl = mApp.getBucketManager().getLiveBucketList();
 
-        for (uint32_t i = 0; i < BucketListBase::kNumLevels; ++i)
+        for (uint32_t i = 0; i < LiveBucketList::kNumLevels; ++i)
         {
             auto const& level = bl.getLevel(i);
             for (auto const& bucket : {level.getCurr(), level.getSnap()})
@@ -351,7 +351,7 @@ BucketListIsConsistentWithDatabase::checkAfterAssumeState(uint32_t newestLedger)
 
 std::string
 BucketListIsConsistentWithDatabase::checkOnBucketApply(
-    std::shared_ptr<Bucket const> bucket, uint32_t oldestLedger,
+    std::shared_ptr<LiveBucket const> bucket, uint32_t oldestLedger,
     uint32_t newestLedger, std::function<bool(LedgerEntryType)> entryTypeFilter)
 {
     EntryCounts counts;
@@ -364,7 +364,7 @@ BucketListIsConsistentWithDatabase::checkOnBucketApply(
         {
             auto const& e = *iter;
             if (hasPreviousEntry &&
-                !BucketEntryIdCmp<BucketEntry>{}(previousEntry, e))
+                !BucketEntryIdCmp<LiveBucket>{}(previousEntry, e))
             {
                 std::string s = "Bucket has out of order entries: ";
                 s += xdrToCerealString(previousEntry, "previous");
