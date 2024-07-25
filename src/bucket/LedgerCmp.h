@@ -159,20 +159,20 @@ template <typename BucketT> struct BucketEntryIdCmp
             }
             else
             {
-                if (bty != HA_DELETED || bty != HA_RESTORED)
+                if (bty != HA_DELETED && bty != HA_LIVE)
                 {
-                    throw std::runtime_error("Malformed bucket: unexpected "
-                                             "DELETED/RESTORED key.");
+                    throw std::runtime_error("Malformed bucket: expected "
+                                             "DELETED/LIVE key.");
                 }
                 return LedgerEntryIdCmp{}(a.archivedEntry().data, b.key());
             }
         }
         else
         {
-            if (aty != HA_DELETED || aty != HA_RESTORED)
+            if (aty != HA_DELETED && aty != HA_LIVE)
             {
                 throw std::runtime_error(
-                    "Malformed bucket: unexpected DELETED/RESTORED key.");
+                    "Malformed bucket: expected DELETED/RESTORED key.");
             }
 
             if (bty == HA_ARCHIVED)
@@ -181,9 +181,9 @@ template <typename BucketT> struct BucketEntryIdCmp
             }
             else
             {
-                if (bty != HA_DELETED || bty != HA_RESTORED)
+                if (bty != HA_DELETED && bty != HA_LIVE)
                 {
-                    throw std::runtime_error("Malformed bucket: unexpected "
+                    throw std::runtime_error("Malformed bucket: expected "
                                              "DELETED/RESTORED key.");
                 }
                 return LedgerEntryIdCmp{}(a.key(), b.key());

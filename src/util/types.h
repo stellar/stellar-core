@@ -133,7 +133,7 @@ getBucketLedgerKey(HotArchiveBucketEntry const& be)
 {
     switch (be.type())
     {
-    case HA_RESTORED:
+    case HA_LIVE:
     case HA_DELETED:
         return be.key();
     case HA_ARCHIVED:
