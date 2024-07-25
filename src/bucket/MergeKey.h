@@ -17,10 +17,10 @@ namespace stellar
 // pre-resolved std::shared_future containing that output.
 struct MergeKey
 {
-    MergeKey(bool keepDeadEntries, Hash const& currHash, Hash const& snapHash,
-             std::vector<Hash> const& shadowHashes);
+    MergeKey(bool keepTombstoneEntries, Hash const& currHash,
+             Hash const& snapHash, std::vector<Hash> const& shadowHashes);
 
-    bool mKeepDeadEntries;
+    bool mKeepTombstoneEntries;
     Hash mInputCurrBucket;
     Hash mInputSnapBucket;
     std::vector<Hash> mInputShadowBuckets;
