@@ -2618,14 +2618,9 @@ testSCPDriver(uint32 protocolVersion, uint32_t maxTxSetSize, size_t expectedOps)
 
 TEST_CASE("SCP Driver", "[herder][acceptance]")
 {
-    SECTION("before generalized tx set protocol")
+    SECTION("previous protocol")
     {
-        testSCPDriver(static_cast<uint32>(SOROBAN_PROTOCOL_VERSION) - 1, 1000,
-                      15);
-    }
-    SECTION("generalized tx set protocol")
-    {
-        testSCPDriver(static_cast<uint32>(SOROBAN_PROTOCOL_VERSION), 1000, 15);
+        testSCPDriver(Config::CURRENT_LEDGER_PROTOCOL_VERSION - 1, 1000, 15);
     }
     SECTION("protocol current")
     {
