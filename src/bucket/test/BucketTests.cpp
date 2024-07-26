@@ -606,7 +606,7 @@ TEST_CASE_VERSIONS("merging bucket entries with initentry",
             // fresh(), and that will be killed by the DEAD, leaving 1
             // (tombstone) entry.
             EntryCounts e(b1);
-            CHECK(e.nInit == 0);
+            CHECK(e.nInitOrArchived == 0);
             CHECK(e.nLive == 0);
             if (initEra)
             {
@@ -648,7 +648,7 @@ TEST_CASE_VERSIONS("merging bucket entries with initentry",
             // The same thing should happen here as above, except that the INIT
             // will merge-over the LIVE during fresh().
             EntryCounts e(b1);
-            CHECK(e.nInit == 0);
+            CHECK(e.nInitOrArchived == 0);
             CHECK(e.nLive == 0);
             if (initEra)
             {
@@ -683,7 +683,7 @@ TEST_CASE_VERSIONS("merging bucket entries with initentry",
                 CHECK(eold.nMeta == 1);
                 CHECK(emed.nMeta == 1);
                 CHECK(enew.nMeta == 1);
-                CHECK(eold.nInit == 1);
+                CHECK(eold.nInitOrArchived == 1);
                 CHECK(eold.nLive == 0);
             }
             else
@@ -691,17 +691,17 @@ TEST_CASE_VERSIONS("merging bucket entries with initentry",
                 CHECK(eold.nMeta == 0);
                 CHECK(emed.nMeta == 0);
                 CHECK(enew.nMeta == 0);
-                CHECK(eold.nInit == 0);
+                CHECK(eold.nInitOrArchived == 0);
                 CHECK(eold.nLive == 1);
             }
 
             CHECK(eold.nDead == 0);
 
-            CHECK(emed.nInit == 0);
+            CHECK(emed.nInitOrArchived == 0);
             CHECK(emed.nLive == 4);
             CHECK(emed.nDead == 0);
 
-            CHECK(enew.nInit == 0);
+            CHECK(enew.nInitOrArchived == 0);
             CHECK(enew.nLive == 0);
             CHECK(enew.nDead == 1);
 
@@ -719,7 +719,7 @@ TEST_CASE_VERSIONS("merging bucket entries with initentry",
             if (initEra)
             {
                 CHECK(emerge1.nMeta == 1);
-                CHECK(emerge1.nInit == 1);
+                CHECK(emerge1.nInitOrArchived == 1);
                 CHECK(emerge1.nLive == 3);
 
                 CHECK(emerge2.nMeta == 1);
@@ -728,14 +728,14 @@ TEST_CASE_VERSIONS("merging bucket entries with initentry",
             else
             {
                 CHECK(emerge1.nMeta == 0);
-                CHECK(emerge1.nInit == 0);
+                CHECK(emerge1.nInitOrArchived == 0);
                 CHECK(emerge1.nLive == 4);
 
                 CHECK(emerge2.nMeta == 0);
                 CHECK(emerge2.nDead == 1);
             }
             CHECK(emerge1.nDead == 0);
-            CHECK(emerge2.nInit == 0);
+            CHECK(emerge2.nInitOrArchived == 0);
             CHECK(emerge2.nLive == 3);
         }
     });
@@ -802,14 +802,14 @@ TEST_CASE_VERSIONS("merging bucket entries with initentry with shadows",
             if (initEra)
             {
                 CHECK(e.nMeta == 1);
-                CHECK(e.nInit == 2);
+                CHECK(e.nInitOrArchived == 2);
                 CHECK(e.nLive == 0);
                 CHECK(e.nDead == 0);
             }
             else
             {
                 CHECK(e.nMeta == 0);
-                CHECK(e.nInit == 0);
+                CHECK(e.nInitOrArchived == 0);
                 CHECK(e.nLive == 1);
                 CHECK(e.nDead == 0);
             }
@@ -858,7 +858,7 @@ TEST_CASE_VERSIONS("merging bucket entries with initentry with shadows",
             {
                 // New-style, we preserve the dead entry.
                 CHECK(e43.nMeta == 1);
-                CHECK(e43.nInit == 0);
+                CHECK(e43.nInitOrArchived == 0);
                 CHECK(e43.nLive == 0);
                 CHECK(e43.nDead == 1);
             }
@@ -866,7 +866,7 @@ TEST_CASE_VERSIONS("merging bucket entries with initentry with shadows",
             {
                 // Old-style, we shadowed-out the dead entry.
                 CHECK(e43.nMeta == 0);
-                CHECK(e43.nInit == 0);
+                CHECK(e43.nInitOrArchived == 0);
                 CHECK(e43.nLive == 0);
                 CHECK(e43.nDead == 0);
             }
@@ -884,7 +884,7 @@ TEST_CASE_VERSIONS("merging bucket entries with initentry with shadows",
             {
                 // New-style, they mutually annihilate.
                 CHECK(e21.nMeta == 1);
-                CHECK(e21.nInit == 0);
+                CHECK(e21.nInitOrArchived == 0);
                 CHECK(e21.nLive == 0);
                 CHECK(e21.nDead == 0);
             }
@@ -892,7 +892,7 @@ TEST_CASE_VERSIONS("merging bucket entries with initentry with shadows",
             {
                 // Old-style, we keep the tombstone around.
                 CHECK(e21.nMeta == 0);
-                CHECK(e21.nInit == 0);
+                CHECK(e21.nInitOrArchived == 0);
                 CHECK(e21.nLive == 0);
                 CHECK(e21.nDead == 1);
             }
@@ -916,7 +916,7 @@ TEST_CASE_VERSIONS("merging bucket entries with initentry with shadows",
             {
                 // New-style, we should get a second mutual annihilation.
                 CHECK(e54321.nMeta == 1);
-                CHECK(e54321.nInit == 0);
+                CHECK(e54321.nInitOrArchived == 0);
                 CHECK(e54321.nLive == 0);
                 CHECK(e54321.nDead == 0);
             }
@@ -924,7 +924,7 @@ TEST_CASE_VERSIONS("merging bucket entries with initentry with shadows",
             {
                 // Old-style, the tombstone should clobber the live entry.
                 CHECK(e54321.nMeta == 0);
-                CHECK(e54321.nInit == 0);
+                CHECK(e54321.nInitOrArchived == 0);
                 CHECK(e54321.nLive == 0);
                 CHECK(e54321.nDead == 1);
             }
@@ -967,7 +967,7 @@ TEST_CASE_VERSIONS("merging bucket entries with initentry with shadows",
             {
                 // New-style, we preserve the init entry.
                 CHECK(e32.nMeta == 1);
-                CHECK(e32.nInit == 1);
+                CHECK(e32.nInitOrArchived == 1);
                 CHECK(e32.nLive == 0);
                 CHECK(e32.nDead == 0);
             }
@@ -975,7 +975,7 @@ TEST_CASE_VERSIONS("merging bucket entries with initentry with shadows",
             {
                 // Old-style, we shadowed-out the live and init entries.
                 CHECK(e32.nMeta == 0);
-                CHECK(e32.nInit == 0);
+                CHECK(e32.nInitOrArchived == 0);
                 CHECK(e32.nLive == 0);
                 CHECK(e32.nDead == 0);
             }
@@ -994,7 +994,7 @@ TEST_CASE_VERSIONS("merging bucket entries with initentry with shadows",
             {
                 // New-style, init meets dead and they annihilate.
                 CHECK(e321.nMeta == 1);
-                CHECK(e321.nInit == 0);
+                CHECK(e321.nInitOrArchived == 0);
                 CHECK(e321.nLive == 0);
                 CHECK(e321.nDead == 0);
             }
@@ -1003,7 +1003,7 @@ TEST_CASE_VERSIONS("merging bucket entries with initentry with shadows",
                 // Old-style, init was already shadowed-out, so dead
                 // accumulates.
                 CHECK(e321.nMeta == 0);
-                CHECK(e321.nInit == 0);
+                CHECK(e321.nInitOrArchived == 0);
                 CHECK(e321.nLive == 0);
                 CHECK(e321.nDead == 1);
             }
