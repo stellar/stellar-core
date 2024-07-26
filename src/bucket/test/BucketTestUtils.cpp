@@ -3,6 +3,7 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "BucketTestUtils.h"
+#include "bucket/Bucket.h"
 #include "bucket/BucketInputIterator.h"
 #include "bucket/BucketManager.h"
 #include "crypto/Hex.h"
@@ -10,6 +11,7 @@
 #include "ledger/LedgerTxn.h"
 #include "main/Application.h"
 #include "test/test.h"
+#include "xdr/Stellar-ledger.h"
 
 namespace stellar
 {
@@ -43,13 +45,6 @@ for_versions_with_differing_bucket_logic(
         cfg, f);
 }
 
-size_t
-countEntries(std::shared_ptr<LiveBucket> bucket)
-{
-    EntryCounts e(bucket);
-    return e.sum();
-}
-
 Hash
 closeLedger(Application& app, std::optional<SecretKey> skToSignValue,
             xdr::xvector<UpgradeType, 6> upgrades)
@@ -72,7 +67,8 @@ closeLedger(Application& app)
     return closeLedger(app, std::nullopt);
 }
 
-EntryCounts::EntryCounts(std::shared_ptr<LiveBucket> bucket)
+template <>
+EntryCounts<LiveBucket>::EntryCounts(std::shared_ptr<LiveBucket> bucket)
 {
     LiveBucketInputIterator iter(bucket);
     if (iter.seenMetadata())
@@ -84,7 +80,7 @@ EntryCounts::EntryCounts(std::shared_ptr<LiveBucket> bucket)
         switch ((*iter).type())
         {
         case INITENTRY:
-            ++nInit;
+            ++nInitOrArchived;
             break;
         case LIVEENTRY:
             ++nLive;
@@ -100,6 +96,48 @@ EntryCounts::EntryCounts(std::shared_ptr<LiveBucket> bucket)
         ++iter;
     }
 }
+
+template <>
+EntryCounts<HotArchiveBucket>::EntryCounts(
+    std::shared_ptr<HotArchiveBucket> bucket)
+{
+    HotArchiveBucketInputIterator iter(bucket);
+    if (iter.seenMetadata())
+    {
+        ++nMeta;
+    }
+    while (iter)
+    {
+        switch ((*iter).type())
+        {
+        case HA_ARCHIVED:
+            ++nInitOrArchived;
+            break;
+        case HA_LIVE:
+            ++nLive;
+            break;
+        case HA_DELETED:
+            ++nDead;
+            break;
+        case HA_METAENTRY:
+            // This should never happen: only the first record can be METAENTRY
+            // and it is counted above.
+            abort();
+        }
+        ++iter;
+    }
+}
+
+template <class BucketT>
+size_t
+countEntries(std::shared_ptr<BucketT> bucket)
+{
+    EntryCounts e(bucket);
+    return e.sum();
+}
+
+template size_t countEntries(std::shared_ptr<LiveBucket> bucket);
+template size_t countEntries(std::shared_ptr<HotArchiveBucket> bucket);
 
 void
 LedgerManagerForBucketTests::transferLedgerEntriesToBucketList(

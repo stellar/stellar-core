@@ -3,6 +3,7 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "TestUtils.h"
+#include "bucket/BucketList.h"
 #include "overlay/test/LoopbackPeer.h"
 #include "test/TxTests.h"
 #include "test/test.h"
@@ -127,16 +128,21 @@ computeMultiplier(LedgerEntry const& le)
     }
 }
 
-BucketListDepthModifier::BucketListDepthModifier(uint32_t newDepth)
-    : mPrevDepth(LiveBucketList::kNumLevels)
+template <class BucketT>
+BucketListDepthModifier<BucketT>::BucketListDepthModifier(uint32_t newDepth)
+    : mPrevDepth(BucketListBase<BucketT>::kNumLevels)
 {
-    LiveBucketList::kNumLevels = newDepth;
+    BucketListBase<BucketT>::kNumLevels = newDepth;
 }
 
-BucketListDepthModifier::~BucketListDepthModifier()
+template <class BucketT>
+BucketListDepthModifier<BucketT>::~BucketListDepthModifier()
 {
-    LiveBucketList::kNumLevels = mPrevDepth;
+    BucketListBase<BucketT>::kNumLevels = mPrevDepth;
 }
+
+template class BucketListDepthModifier<LiveBucket>;
+template class BucketListDepthModifier<HotArchiveBucket>;
 }
 
 TestInvariantManager::TestInvariantManager(medida::MetricsRegistry& registry)

@@ -24,6 +24,12 @@
 namespace stellar
 {
 
+template <> BucketListDepth BucketListBase<LiveBucket>::kNumLevels = 11;
+
+// TODO: I made this number up, do some analysis and pick a better value or
+// make this a configurable network config.
+template <> BucketListDepth BucketListBase<HotArchiveBucket>::kNumLevels = 9;
+
 template <typename BucketT>
 BucketLevel<BucketT>::BucketLevel(uint32_t i)
     : mLevel(i)
@@ -993,10 +999,6 @@ BucketListBase<BucketT>::restartMerges(Application& app,
         }
     }
 }
-
-// TODO: Different depths for different types?
-template <class BucketT>
-BucketListDepth BucketListBase<BucketT>::kNumLevels = 11;
 
 template <typename BucketT> BucketListBase<BucketT>::BucketListBase()
 {

@@ -2,6 +2,7 @@
 // under the Apache License, Version 2.0. See the COPYING file at the root
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
+#include "bucket/Bucket.h"
 #include "bucket/BucketInputIterator.h"
 #include "bucket/BucketManager.h"
 #include "bucket/BucketOutputIterator.h"
@@ -930,7 +931,7 @@ TEST_CASE("BucketListIsConsistentWithDatabase merged LIVEENTRY and DEADENTRY",
     cfg.OVERRIDE_EVICTION_PARAMS_FOR_TESTING = true;
     cfg.TESTING_STARTING_EVICTION_SCAN_LEVEL = 1;
 
-    testutil::BucketListDepthModifier bldm(3);
+    testutil::BucketListDepthModifier<LiveBucket> bldm(3);
     for (auto t : xdr::xdr_traits<LedgerEntryType>::enum_values())
     {
         if (t == CONFIG_SETTING)

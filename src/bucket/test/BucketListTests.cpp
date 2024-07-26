@@ -29,6 +29,8 @@
 #include "util/Math.h"
 #include "util/ProtocolVersion.h"
 #include "util/Timer.h"
+#include "util/UnorderedSet.h"
+#include "xdr/Stellar-ledger.h"
 #include "xdrpp/autocheck.h"
 
 #include <deque>
@@ -129,7 +131,9 @@ binarySearchForLedger(uint32_t lbound, uint32_t ubound,
 
 using namespace BucketListTests;
 
-TEST_CASE_VERSIONS("bucket list", "[bucket][bucketlist]")
+template <class BucketListT>
+static void
+basicBucketListTest()
 {
     VirtualClock clock;
     Config const& cfg = getTestConfig();
@@ -137,27 +141,43 @@ TEST_CASE_VERSIONS("bucket list", "[bucket][bucketlist]")
     {
         for_versions_with_differing_bucket_logic(cfg, [&](Config const& cfg) {
             Application::pointer app = createTestApplication(clock, cfg);
-            LiveBucketList bl;
+            BucketListT bl;
             CLOG_DEBUG(Bucket, "Adding batches to bucket list");
+
+            UnorderedSet<LedgerKey> seenKeys;
             for (uint32_t i = 1;
                  !app->getClock().getIOContext().stopped() && i < 130; ++i)
             {
                 app->getClock().crank(false);
-                bl.addBatch(
-                    *app, i, getAppLedgerVersion(app), {},
-                    LedgerTestUtils::generateValidUniqueLedgerEntries(8),
-                    LedgerTestUtils::generateValidLedgerEntryKeysWithExclusions(
-                        {CONFIG_SETTING}, 5));
+                if constexpr (std::is_same_v<BucketListT, LiveBucketList>)
+                {
+                    bl.addBatch(
+                        *app, i, getAppLedgerVersion(app), {},
+                        LedgerTestUtils::generateValidUniqueLedgerEntries(8),
+                        LedgerTestUtils::
+                            generateValidLedgerEntryKeysWithExclusions(
+                                {CONFIG_SETTING}, 5));
+                }
+                else
+                {
+                    bl.addBatch(
+                        *app, i, getAppLedgerVersion(app), {},
+                        LedgerTestUtils::generateValidUniqueLedgerKeysWithTypes(
+                            {CONTRACT_CODE, CONTRACT_DATA}, 8, seenKeys),
+                        LedgerTestUtils::generateValidUniqueLedgerKeysWithTypes(
+                            {CONTRACT_CODE, CONTRACT_DATA}, 5, seenKeys));
+                }
+
                 if (i % 10 == 0)
                     CLOG_DEBUG(Bucket, "Added batch {}, hash={}", i,
                                binToHex(bl.getHash()));
-                for (uint32_t j = 0; j < LiveBucketList::kNumLevels; ++j)
+                for (uint32_t j = 0; j < BucketListT::kNumLevels; ++j)
                 {
                     auto const& lev = bl.getLevel(j);
                     auto currSz = countEntries(lev.getCurr());
                     auto snapSz = countEntries(lev.getSnap());
-                    CHECK(currSz <= LiveBucketList::levelHalf(j) * 100);
-                    CHECK(snapSz <= LiveBucketList::levelHalf(j) * 100);
+                    CHECK(currSz <= BucketListT::levelHalf(j) * 100);
+                    CHECK(snapSz <= BucketListT::levelHalf(j) * 100);
                 }
             }
         });
@@ -170,20 +190,35 @@ TEST_CASE_VERSIONS("bucket list", "[bucket][bucketlist]")
     }
 }
 
-TEST_CASE("bucketUpdatePeriod arithmetic", "[bucket][bucketlist]")
+TEST_CASE_VERSIONS("bucket list", "[bucket][bucketlist]")
+{
+    SECTION("live bl")
+    {
+        basicBucketListTest<LiveBucketList>();
+    }
+
+    SECTION("hot archive bl")
+    {
+        basicBucketListTest<HotArchiveBucketList>();
+    }
+}
+
+template <class BucketListT>
+static void
+updatePeriodTest()
 {
     std::map<uint32_t, uint32_t> currCalculatedUpdatePeriods;
     std::map<uint32_t, uint32_t> snapCalculatedUpdatePeriods;
-    for (uint32_t i = 0; i < LiveBucketList::kNumLevels; ++i)
+    for (uint32_t i = 0; i < BucketListT::kNumLevels; ++i)
     {
         currCalculatedUpdatePeriods.emplace(
-            i, LiveBucketList::bucketUpdatePeriod(i, /*isCurr=*/true));
+            i, BucketListT::bucketUpdatePeriod(i, /*isCurr=*/true));
 
         // Last level has no snap
-        if (i != LiveBucketList::kNumLevels - 1)
+        if (i != BucketListT::kNumLevels - 1)
         {
             snapCalculatedUpdatePeriods.emplace(
-                i, LiveBucketList::bucketUpdatePeriod(i, /*isSnap=*/false));
+                i, BucketListT::bucketUpdatePeriod(i, /*isSnap=*/false));
         }
     }
 
@@ -192,7 +227,7 @@ TEST_CASE("bucketUpdatePeriod arithmetic", "[bucket][bucketlist]")
                                  !snapCalculatedUpdatePeriods.empty();
          ++ledgerSeq)
     {
-        for (uint32_t level = 0; level < LiveBucketList::kNumLevels; ++level)
+        for (uint32_t level = 0; level < BucketListT::kNumLevels; ++level)
         {
             // Check if curr bucket is updated
             auto currIter = currCalculatedUpdatePeriods.find(level);
@@ -208,7 +243,7 @@ TEST_CASE("bucketUpdatePeriod arithmetic", "[bucket][bucketlist]")
                 {
                     // For all other levels, an update occurs when the level
                     // above spills
-                    if (LiveBucketList::levelShouldSpill(ledgerSeq, level - 1))
+                    if (BucketListT::levelShouldSpill(ledgerSeq, level - 1))
                     {
                         REQUIRE(currIter->second == ledgerSeq);
                         currCalculatedUpdatePeriods.erase(currIter);
@@ -220,7 +255,7 @@ TEST_CASE("bucketUpdatePeriod arithmetic", "[bucket][bucketlist]")
             auto snapIter = snapCalculatedUpdatePeriods.find(level);
             if (snapIter != snapCalculatedUpdatePeriods.end())
             {
-                if (LiveBucketList::levelShouldSpill(ledgerSeq, level))
+                if (BucketListT::levelShouldSpill(ledgerSeq, level))
                 {
                     // Check that snap bucket calculation is correct
                     REQUIRE(snapIter->second == ledgerSeq);
@@ -228,6 +263,19 @@ TEST_CASE("bucketUpdatePeriod arithmetic", "[bucket][bucketlist]")
                 }
             }
         }
+    }
+}
+
+TEST_CASE("bucketUpdatePeriod arithmetic", "[bucket][bucketlist]")
+{
+    SECTION("live bl")
+    {
+        updatePeriodTest<LiveBucketList>();
+    }
+
+    SECTION("hot archive bl")
+    {
+        updatePeriodTest<HotArchiveBucketList>();
     }
 }
 
@@ -328,7 +376,74 @@ TEST_CASE_VERSIONS("bucket list shadowing pre/post proto 12",
     });
 }
 
-TEST_CASE_VERSIONS("bucket tombstones expire at bottom level",
+TEST_CASE_VERSIONS("hot archive bucket tombstones expire at bottom level",
+                   "[bucket][bucketlist][tombstones]")
+{
+    VirtualClock clock;
+    Config const& cfg = getTestConfig();
+
+    testutil::BucketListDepthModifier<HotArchiveBucket> bldm(5);
+    auto app = createTestApplication(clock, cfg);
+    for_versions_from(22, *app, [&] {
+        HotArchiveBucketList bl;
+
+        auto lastSnapSize = [&] {
+            auto& level = bl.getLevel(HotArchiveBucketList::kNumLevels - 2);
+            return countEntries(level.getSnap());
+        };
+
+        auto countNonBottomLevelEntries = [&] {
+            auto size = 0;
+            for (uint32_t i = 0; i < HotArchiveBucketList::kNumLevels - 1; ++i)
+            {
+                auto& level = bl.getLevel(i);
+                size += countEntries(level.getCurr());
+                size += countEntries(level.getSnap());
+            }
+            return size;
+        };
+
+        // Populate a BucketList so everything but the bottom level is full.
+        UnorderedSet<LedgerKey> keys;
+        auto numExpectedEntries = 0;
+        auto ledger = 1;
+        while (lastSnapSize() == 0)
+        {
+            bl.addBatch(*app, ledger, getAppLedgerVersion(app), {},
+                        LedgerTestUtils::generateValidUniqueLedgerKeysWithTypes(
+                            {CONTRACT_CODE, CONTRACT_DATA}, 5, keys),
+                        LedgerTestUtils::generateValidUniqueLedgerKeysWithTypes(
+                            {CONTRACT_CODE, CONTRACT_DATA}, 5, keys));
+
+            // Once all entries merge to the bottom level, only deleted entries
+            // should remain
+            numExpectedEntries += 5;
+
+            ++ledger;
+        }
+
+        // Close ledgers until all entries have merged into the bottom level
+        // bucket
+        while (countNonBottomLevelEntries() != 0)
+        {
+            bl.addBatch(*app, ledger, getAppLedgerVersion(app), {}, {}, {});
+            ++ledger;
+        }
+
+        auto bottomCurr =
+            bl.getLevel(HotArchiveBucketList::kNumLevels - 1).getCurr();
+        REQUIRE(countEntries(bottomCurr) == numExpectedEntries);
+
+        for (HotArchiveBucketInputIterator iter(bottomCurr); iter; ++iter)
+        {
+            auto be = *iter;
+            REQUIRE(be.type() == HA_DELETED);
+            REQUIRE(keys.find(be.key()) != keys.end());
+        }
+    });
+}
+
+TEST_CASE_VERSIONS("live bucket tombstones expire at bottom level",
                    "[bucket][bucketlist][tombstones]")
 {
     VirtualClock clock;
@@ -537,45 +652,62 @@ TEST_CASE_VERSIONS("single entry bubbling up",
     }
 }
 
-TEST_CASE("BucketList sizeOf and oldestLedgerIn relations",
-          "[bucket][bucketlist][count]")
+template <class BucketListT>
+static void
+sizeOfTests()
 {
     stellar::uniform_int_distribution<uint32_t> dist;
     for (uint32_t i = 0; i < 1000; ++i)
     {
-        for (uint32_t level = 0; level < LiveBucketList::kNumLevels; ++level)
+        for (uint32_t level = 0; level < BucketListT::kNumLevels; ++level)
         {
             uint32_t ledger = dist(gRandomEngine);
-            if (LiveBucketList::sizeOfSnap(ledger, level) > 0)
+            if (BucketListT::sizeOfSnap(ledger, level) > 0)
             {
                 uint32_t oldestInCurr =
-                    LiveBucketList::oldestLedgerInSnap(ledger, level) +
-                    LiveBucketList::sizeOfSnap(ledger, level);
+                    BucketListT::oldestLedgerInSnap(ledger, level) +
+                    BucketListT::sizeOfSnap(ledger, level);
                 REQUIRE(oldestInCurr ==
-                        LiveBucketList::oldestLedgerInCurr(ledger, level));
+                        BucketListT::oldestLedgerInCurr(ledger, level));
             }
-            if (LiveBucketList::sizeOfCurr(ledger, level) > 0)
+            if (BucketListT::sizeOfCurr(ledger, level) > 0)
             {
                 uint32_t newestInCurr =
-                    LiveBucketList::oldestLedgerInCurr(ledger, level) +
-                    LiveBucketList::sizeOfCurr(ledger, level) - 1;
-                REQUIRE(newestInCurr ==
-                        (level == 0 ? ledger
-                                    : LiveBucketList::oldestLedgerInSnap(
-                                          ledger, level - 1) -
-                                          1));
+                    BucketListT::oldestLedgerInCurr(ledger, level) +
+                    BucketListT::sizeOfCurr(ledger, level) - 1;
+                REQUIRE(newestInCurr == (level == 0
+                                             ? ledger
+                                             : BucketListT::oldestLedgerInSnap(
+                                                   ledger, level - 1) -
+                                                   1));
             }
         }
     }
 }
 
-TEST_CASE("BucketList snap reaches steady state", "[bucket][bucketlist][count]")
+TEST_CASE("BucketList sizeOf and oldestLedgerIn relations",
+          "[bucket][bucketlist][count]")
+{
+    SECTION("live bl")
+    {
+        sizeOfTests<LiveBucketList>();
+    }
+
+    SECTION("hot archive bl")
+    {
+        sizeOfTests<HotArchiveBucketList>();
+    }
+}
+
+template <class BucketListT>
+static void
+snapSteadyStateTest()
 {
     // Deliberately exclude deepest level since snap on the deepest level
     // is always empty.
-    for (uint32_t level = 0; level < LiveBucketList::kNumLevels - 1; ++level)
+    for (uint32_t level = 0; level < BucketListT::kNumLevels - 1; ++level)
     {
-        uint32_t const half = LiveBucketList::levelHalf(level);
+        uint32_t const half = BucketListT::levelHalf(level);
 
         // Use binary search (assuming that it does reach steady state)
         // to find the ledger where the snap at this level first reaches
@@ -583,7 +715,7 @@ TEST_CASE("BucketList snap reaches steady state", "[bucket][bucketlist][count]")
         uint32_t boundary = binarySearchForLedger(
             1, std::numeric_limits<uint32_t>::max() / 2,
             [level, half](uint32_t ledger) {
-                return (LiveBucketList::sizeOfSnap(ledger, level) == half);
+                return (BucketListT::sizeOfSnap(ledger, level) == half);
             });
 
         // Generate random ledgers above and below the split to test that
@@ -594,51 +726,93 @@ TEST_CASE("BucketList snap reaches steady state", "[bucket][bucketlist][count]")
         {
             uint32_t low = distLow(gRandomEngine);
             uint32_t high = distHigh(gRandomEngine);
-            REQUIRE(LiveBucketList::sizeOfSnap(low, level) < half);
-            REQUIRE(LiveBucketList::sizeOfSnap(high, level) == half);
+            REQUIRE(BucketListT::sizeOfSnap(low, level) < half);
+            REQUIRE(BucketListT::sizeOfSnap(high, level) == half);
         }
+    }
+}
+
+TEST_CASE("BucketList snap reaches steady state", "[bucket][bucketlist][count]")
+{
+    SECTION("live bl")
+    {
+        snapSteadyStateTest<LiveBucketList>();
+    }
+
+    SECTION("hot archive bl")
+    {
+        snapSteadyStateTest<HotArchiveBucketList>();
+    }
+}
+
+template <class BucketListT>
+static void
+deepestCurrTest()
+{
+    uint32_t const deepest = BucketListT::kNumLevels - 1;
+    // Use binary search to find the first ledger where the deepest curr
+    // first is non-empty.
+  uint32_t boundary = binarySearchForLedger(
+      1, std::numeric_limits<uint32_t>::max() / 2, [deepest](uint32_t ledger) {
+          return (BucketListT::sizeOfCurr(ledger, deepest) > 0);
+      });
+  stellar::uniform_int_distribution<uint32_t> distLow(1, boundary - 1);
+  stellar::uniform_int_distribution<uint32_t> distHigh(boundary);
+  for (uint32_t i = 0; i < 1000; ++i)
+  {
+      uint32_t low = distLow(gRandomEngine);
+      uint32_t high = distHigh(gRandomEngine);
+      REQUIRE(BucketListT::sizeOfCurr(low, deepest) == 0);
+      REQUIRE(BucketListT::oldestLedgerInCurr(low, deepest) ==
+              std::numeric_limits<uint32_t>::max());
+      REQUIRE(BucketListT::sizeOfCurr(high, deepest) > 0);
+      REQUIRE(BucketListT::oldestLedgerInCurr(high, deepest) == 1);
+
+      REQUIRE(BucketListT::sizeOfSnap(low, deepest) == 0);
+      REQUIRE(BucketListT::oldestLedgerInSnap(low, deepest) ==
+              std::numeric_limits<uint32_t>::max());
+      REQUIRE(BucketListT::sizeOfSnap(high, deepest) == 0);
+      REQUIRE(BucketListT::oldestLedgerInSnap(high, deepest) ==
+              std::numeric_limits<uint32_t>::max());
     }
 }
 
 TEST_CASE("BucketList deepest curr accumulates", "[bucket][bucketlist][count]")
 {
-    uint32_t const deepest = LiveBucketList::kNumLevels - 1;
-    // Use binary search to find the first ledger where the deepest curr
-    // first is non-empty.
-    uint32_t boundary = binarySearchForLedger(
-        1, std::numeric_limits<uint32_t>::max() / 2,
-        [deepest](uint32_t ledger) {
-            return (LiveBucketList::sizeOfCurr(ledger, deepest) > 0);
-        });
-    stellar::uniform_int_distribution<uint32_t> distLow(1, boundary - 1);
-    stellar::uniform_int_distribution<uint32_t> distHigh(boundary);
-    for (uint32_t i = 0; i < 1000; ++i)
+    SECTION("live bl")
     {
-        uint32_t low = distLow(gRandomEngine);
-        uint32_t high = distHigh(gRandomEngine);
-        REQUIRE(LiveBucketList::sizeOfCurr(low, deepest) == 0);
-        REQUIRE(LiveBucketList::oldestLedgerInCurr(low, deepest) ==
-                std::numeric_limits<uint32_t>::max());
-        REQUIRE(LiveBucketList::sizeOfCurr(high, deepest) > 0);
-        REQUIRE(LiveBucketList::oldestLedgerInCurr(high, deepest) == 1);
+        deepestCurrTest<LiveBucketList>();
+    }
 
-        REQUIRE(LiveBucketList::sizeOfSnap(low, deepest) == 0);
-        REQUIRE(LiveBucketList::oldestLedgerInSnap(low, deepest) ==
-                std::numeric_limits<uint32_t>::max());
-        REQUIRE(LiveBucketList::sizeOfSnap(high, deepest) == 0);
-        REQUIRE(LiveBucketList::oldestLedgerInSnap(high, deepest) ==
-                std::numeric_limits<uint32_t>::max());
+    SECTION("hot archive bl")
+    {
+        deepestCurrTest<HotArchiveBucketList>();
+    }
+}
+
+template <class BucketListT>
+static void
+blSizesAtLedger1Test()
+{
+    REQUIRE(BucketListT::sizeOfCurr(1, 0) == 1);
+    REQUIRE(BucketListT::sizeOfSnap(1, 0) == 0);
+    for (uint32_t level = 1; level < BucketListT::kNumLevels; ++level)
+    {
+        REQUIRE(BucketListT::sizeOfCurr(1, level) == 0);
+        REQUIRE(BucketListT::sizeOfSnap(1, level) == 0);
     }
 }
 
 TEST_CASE("BucketList sizes at ledger 1", "[bucket][bucketlist][count]")
 {
-    REQUIRE(LiveBucketList::sizeOfCurr(1, 0) == 1);
-    REQUIRE(LiveBucketList::sizeOfSnap(1, 0) == 0);
-    for (uint32_t level = 1; level < LiveBucketList::kNumLevels; ++level)
+    SECTION("live bl")
     {
-        REQUIRE(LiveBucketList::sizeOfCurr(1, level) == 0);
-        REQUIRE(LiveBucketList::sizeOfSnap(1, level) == 0);
+        blSizesAtLedger1Test<LiveBucketList>();
+    }
+
+    SECTION("hot archive bl")
+    {
+        blSizesAtLedger1Test<HotArchiveBucketList>();
     }
 }
 

@@ -1995,7 +1995,8 @@ TEST_CASE("upgrade to version 11", "[upgrades]")
                 Bucket,
                 "post-ledger {} close, init counts: level {}, {} in curr, "
                 "{} in snap",
-                ledgerSeq, level, currCounts.nInit, snapCounts.nInit);
+                ledgerSeq, level, currCounts.nInitOrArchived,
+                snapCounts.nInitOrArchived);
         }
         if (ledgerSeq < 5)
         {
@@ -2035,14 +2036,14 @@ TEST_CASE("upgrade to version 11", "[upgrades]")
             default:
             case 8:
                 REQUIRE(getVers(lev1Curr) == newProto);
-                REQUIRE(lev1CurrCounts.nInit != 0);
+                REQUIRE(lev1CurrCounts.nInitOrArchived != 0);
             case 7:
             case 6:
                 REQUIRE(getVers(lev0Snap) == newProto);
-                REQUIRE(lev0SnapCounts.nInit != 0);
+                REQUIRE(lev0SnapCounts.nInitOrArchived != 0);
             case 5:
                 REQUIRE(getVers(lev0Curr) == newProto);
-                REQUIRE(lev0CurrCounts.nInit != 0);
+                REQUIRE(lev0CurrCounts.nInitOrArchived != 0);
             }
         }
     }

@@ -5,6 +5,7 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "test/TestUtils.h"
+#include "xdr/Stellar-ledger.h"
 
 namespace stellar
 {
@@ -18,27 +19,30 @@ uint32_t getAppLedgerVersion(std::shared_ptr<Application> app);
 void for_versions_with_differing_bucket_logic(
     Config const& cfg, std::function<void(Config const&)> const& f);
 
-struct EntryCounts
+template <class BucketT> struct EntryCounts
 {
+    static_assert(std::is_same_v<BucketT, LiveBucket> ||
+                  std::is_same_v<BucketT, HotArchiveBucket>);
+
     size_t nMeta{0};
-    size_t nInit{0};
+    size_t nInitOrArchived{0};
     size_t nLive{0};
     size_t nDead{0};
     size_t
     sum() const
     {
-        return nLive + nInit + nDead;
+        return nLive + nInitOrArchived + nDead;
     }
     size_t
     sumIncludingMeta() const
     {
-        return nLive + nInit + nDead + nMeta;
+        return nLive + nInitOrArchived + nDead + nMeta;
     }
 
-    EntryCounts(std::shared_ptr<stellar::LiveBucket> bucket);
+    EntryCounts(std::shared_ptr<BucketT> bucket);
 };
 
-size_t countEntries(std::shared_ptr<stellar::LiveBucket> bucket);
+template <class BucketT> size_t countEntries(std::shared_ptr<BucketT> bucket);
 
 Hash closeLedger(Application& app, std::optional<SecretKey> skToSignValue,
                  xdr::xvector<UpgradeType, 6> upgrades = emptyUpgradeSteps);

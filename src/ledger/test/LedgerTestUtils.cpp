@@ -15,6 +15,7 @@
 #include "util/types.h"
 #include "xdr/Stellar-contract.h"
 #include "xdr/Stellar-ledger-entries.h"
+#include "xdr/Stellar-types.h"
 #include <autocheck/generator.hpp>
 #include <locale>
 #include <string>
@@ -726,6 +727,29 @@ generateValidLedgerEntryWithTypes(
             return entry;
         }
     }
+}
+
+std::vector<LedgerKey>
+generateValidUniqueLedgerKeysWithTypes(
+    std::unordered_set<LedgerEntryType> const& types, size_t n,
+    UnorderedSet<LedgerKey>& seenKeys)
+{
+    std::vector<LedgerKey> res;
+    res.reserve(n);
+    while (res.size() < n)
+    {
+
+        auto entry = generateValidLedgerEntryWithTypes(types);
+        auto key = LedgerEntryKey(entry);
+        if (seenKeys.find(key) != seenKeys.end())
+        {
+            continue;
+        }
+
+        seenKeys.insert(key);
+        res.emplace_back(key);
+    }
+    return res;
 }
 
 std::vector<LedgerEntry>

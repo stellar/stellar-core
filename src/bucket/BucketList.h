@@ -351,7 +351,7 @@ struct InflationWinner;
 
 namespace testutil
 {
-class BucketListDepthModifier;
+template <class BucketT> class BucketListDepthModifier;
 }
 
 template <class BucketT> class BucketLevel
@@ -397,7 +397,7 @@ class BucketListDepth
 
     operator uint32_t() const;
 
-    friend class testutil::BucketListDepthModifier;
+    template <class BucketT> friend class testutil::BucketListDepthModifier;
 };
 
 template <class BucketT> class BucketListBase
