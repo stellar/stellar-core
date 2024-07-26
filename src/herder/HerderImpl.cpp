@@ -52,6 +52,11 @@ using namespace std;
 namespace stellar
 {
 
+// Roughly ~10 minutes of consensus
+constexpr uint32 const CLOSE_TIME_DRIFT_LEDGER_WINDOW_SIZE = 120;
+// 10 seconds of drift threshold
+constexpr uint32 const CLOSE_TIME_DRIFT_SECONDS_THRESHOLD = 10;
+
 constexpr uint32 const TRANSACTION_QUEUE_TIMEOUT_LEDGERS = 4;
 constexpr uint32 const TRANSACTION_QUEUE_BAN_LEDGERS = 10;
 constexpr uint32 const TRANSACTION_QUEUE_SIZE_MULTIPLIER = 2;
@@ -400,11 +405,47 @@ HerderImpl::writeDebugTxSet(LedgerCloseData const& lcd)
 }
 
 void
+recordExternalizeAndCheckCloseTimeDrift(
+    uint64 slotIndex, StellarValue const& value,
+    std::map<uint32_t, std::pair<uint64_t, std::optional<uint64_t>>>& ctMap)
+{
+    auto it = ctMap.find(slotIndex);
+    if (it != ctMap.end())
+    {
+        it->second.second = value.closeTime;
+    }
+
+    if (ctMap.size() >= CLOSE_TIME_DRIFT_LEDGER_WINDOW_SIZE)
+    {
+        medida::Histogram h(medida::SamplingInterface::SampleType::kSliding);
+        for (auto const& [ledgerSeq, closeTimePair] : ctMap)
+        {
+            auto const& [localCT, externalizedCT] = closeTimePair;
+            if (externalizedCT)
+            {
+                h.Update(*externalizedCT - localCT);
+            }
+        }
+        auto drift = static_cast<int>(h.GetSnapshot().get75thPercentile());
+        if (std::abs(drift) > CLOSE_TIME_DRIFT_SECONDS_THRESHOLD)
+        {
+            CLOG_WARNING(Herder, POSSIBLY_BAD_LOCAL_CLOCK);
+            CLOG_WARNING(Herder, "Close time local drift is: {}", drift);
+        }
+
+        ctMap.clear();
+    }
+}
+
+void
 HerderImpl::valueExternalized(uint64 slotIndex, StellarValue const& value,
                               bool isLatestSlot)
 {
     ZoneScoped;
     const int DUMP_SCP_TIMEOUT_SECONDS = 20;
+
+    recordExternalizeAndCheckCloseTimeDrift(slotIndex, value,
+                                            mDriftCTSlidingWindow);
 
     if (isLatestSlot)
     {
@@ -1321,6 +1362,29 @@ HerderImpl::triggerNextLedger(uint32_t ledgerSeqToTrigger,
     // so this is the most appropriate value to use as closeTime.
     uint64_t nextCloseTime =
         VirtualClock::to_time_t(mApp.getClock().system_now());
+    if (ledgerSeqToTrigger == lcl.header.ledgerSeq + 1)
+    {
+        auto it = mDriftCTSlidingWindow.find(ledgerSeqToTrigger);
+        if (it == mDriftCTSlidingWindow.end())
+        {
+            // Record local close time _before_ it gets adjusted to be valid
+            // below
+            mDriftCTSlidingWindow[ledgerSeqToTrigger] =
+                std::make_pair(nextCloseTime, std::nullopt);
+            while (mDriftCTSlidingWindow.size() >
+                   CLOSE_TIME_DRIFT_LEDGER_WINDOW_SIZE)
+            {
+                mDriftCTSlidingWindow.erase(mDriftCTSlidingWindow.begin());
+            }
+        }
+        else
+        {
+            CLOG_WARNING(Herder,
+                         "Herder::triggerNextLedger called twice on ledger {}",
+                         ledgerSeqToTrigger);
+        }
+    }
+
     if (nextCloseTime <= lcl.header.scpValue.closeTime)
     {
         nextCloseTime = lcl.header.scpValue.closeTime + 1;

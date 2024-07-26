@@ -23,4 +23,7 @@ constexpr auto const POSSIBLY_CORRUPTED_QUORUM_SET =
     "Check your QUORUM_SET for corrupted nodes";
 constexpr auto const UPGRADE_STELLAR_CORE =
     "Upgrade this stellar-core installation to newest version";
+constexpr auto const POSSIBLY_BAD_LOCAL_CLOCK =
+    "It is possible the clock on the local node has drifted. Run NTP "
+    "periodically to avoid this.";
 }
