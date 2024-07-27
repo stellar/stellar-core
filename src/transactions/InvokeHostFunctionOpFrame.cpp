@@ -497,6 +497,14 @@ InvokeHostFunctionOpFrame::doApply(Application& app, AbstractLedgerTxn& ltx,
         metrics.mCpuInsnExclVm = out.cpu_insns_excluding_vm_instantiation;
         metrics.mInvokeTimeNsecsExclVm =
             out.time_nsecs_excluding_vm_instantiation;
+
+        CLOG_TRACE(Tx, "invokeTimeNsecs: {}, cpuInsn: {}, ratio: {}",
+                   metrics.mInvokeTimeNsecs, metrics.mCpuInsn,
+                   (float)metrics.mInvokeTimeNsecs / (float)metrics.mCpuInsn);
+        CLOG_TRACE(Tx, "(excl VM) invokeTimeNsecs: {}, cpuInsn: {}, ratio: {}",
+                   metrics.mInvokeTimeNsecsExclVm, metrics.mCpuInsnExclVm,
+                   (float)metrics.mInvokeTimeNsecsExclVm /
+                       (float)metrics.mCpuInsnExclVm);
         if (!out.success)
         {
             maybePopulateDiagnosticEvents(appConfig, out, metrics);
