@@ -4,6 +4,7 @@
 // under the Apache License, Version 2.0. See the COPYING file at the root
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
+#include "bucket/Bucket.h"
 #include "bucket/BucketList.h"
 #include "bucket/BucketManagerImpl.h"
 #include "bucket/BucketSnapshot.h"
@@ -108,6 +109,8 @@ class SearchableLiveBucketListSnapshot
         BucketSnapshotManager const& snapshotManager);
 
   public:
+    std::shared_ptr<LedgerEntry> getLedgerEntry(LedgerKey const& k);
+
     std::vector<LedgerEntry>
     loadKeysWithLimits(std::set<LedgerKey, LedgerEntryIdCmp> const& inKeys,
                        LedgerKeyMeter* lkMeter = nullptr);
@@ -139,5 +142,21 @@ class SearchableLiveBucketListSnapshot
 
     uint32_t getLedgerSeq() const;
     LedgerHeader const& getLedgerHeader();
+};
+
+class SearchableHotArchiveBucketListSnapshot
+    : public SearchableBucketListSnapshotBase<HotArchiveBucket>
+{
+    SearchableHotArchiveBucketListSnapshot(
+        BucketSnapshotManager const& snapshotManager);
+
+  public:
+    std::shared_ptr<HotArchiveBucketEntry> getArchiveEntry(LedgerKey const& k);
+
+    std::vector<HotArchiveBucketEntry>
+    loadKeys(std::set<LedgerKey, LedgerEntryIdCmp> const& inKeys);
+
+    friend std::shared_ptr<SearchableHotArchiveBucketListSnapshot>
+    BucketSnapshotManager::getSearchableHotArchiveBucketListSnapshot() const;
 };
 }
