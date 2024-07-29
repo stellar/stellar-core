@@ -132,12 +132,12 @@ BucketManagerImpl::initialize()
 
         if (mApp.getConfig().isUsingBucketListDB())
         {
-            // TODO: Archival BucketList snapshot
             mSnapshotManager = std::make_unique<BucketSnapshotManager>(
                 mApp,
-                std::make_unique<BucketListSnapshot<LiveBucket>>(*mLiveBucketList,
-                                                     LedgerHeader()),
-                mApp.getConfig().QUERY_SNAPSHOT_LEDGERS);
+                std::make_unique<BucketListSnapshot<LiveBucket>>(
+                    *mLiveBucketList,  LedgerHeader()),
+                std::make_unique<BucketListSnapshot<HotArchiveBucket>>(
+                    *mHotArchiveBucketList,  LedgerHeader()), mApp.getConfig().QUERY_SNAPSHOT_LEDGERS);
         }
     }
 
@@ -1041,13 +1041,15 @@ BucketManagerImpl::addLiveBatch(Application& app, LedgerHeader header,
 
 // TODO: Fix interface to match addLiveBatch
 void
-BucketManagerImpl::addArchivalBatch(Application& app, uint32_t currLedger,
-                                    uint32_t currLedgerProtocol,
-                                    std::vector<LedgerEntry> const& initEntries,
-                                    std::vector<LedgerKey> const& deadEntries)
+BucketManagerImpl::addHotArchiveBatch(
+    Application& app, uint32_t currLedger, uint32_t currLedgerProtocol,
+    std::vector<LedgerEntry> const& initEntries,
+    std::vector<LedgerKey> const& deadEntries)
 {
     ZoneScoped;
     releaseAssertOrThrow(app.getConfig().MODE_ENABLES_BUCKETLIST);
+    releaseAssertOrThrow(
+        protocolVersionStartsFrom(currLedgerProtocol, ProtocolVersion::V_22));
 #ifdef BUILD_TESTS
     if (mUseFakeTestValuesForNextClose)
     {
