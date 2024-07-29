@@ -27,9 +27,11 @@
 #include "main/SettingsUpgradeUtils.h"
 #include "main/StellarCoreVersion.h"
 #include "main/dumpxdr.h"
+#include "medida/metrics_registry.h"
 #include "overlay/OverlayManager.h"
 #include "rust/RustBridge.h"
 #include "scp/QuorumSetUtils.h"
+#include "simulation/ApplyLoad.h"
 #include "transactions/TransactionUtils.h"
 #include "util/Logging.h"
 #include "util/types.h"
@@ -1835,6 +1837,45 @@ runGenFuzz(CommandLineArgs const& args)
             return 0;
         });
 }
+
+int
+runApplyLoad(CommandLineArgs const& args)
+{
+    CommandLine::ConfigOption configOption;
+
+    return runWithHelp(args, {configurationParser(configOption)}, [&] {
+        auto config = configOption.getConfig();
+        config.RUN_STANDALONE = true;
+
+        VirtualClock clock(VirtualClock::REAL_TIME);
+        int result;
+        auto appPtr = Application::create(clock, config);
+
+        auto& app = *appPtr;
+        {
+            auto& lm = app.getLedgerManager();
+            app.start();
+            ApplyLoad al(app);
+
+            auto& ledgerClose =
+                app.getMetrics().NewTimer({"ledger", "ledger", "close"});
+            ledgerClose.Clear();
+
+            // TODO: Make this configurable
+            for (size_t i = 0; i < 20; ++i)
+            {
+                al.benchmark();
+            }
+
+            CLOG_INFO(Perf, "Max ledger close: {} milliseconds",
+                      ledgerClose.max());
+            CLOG_INFO(Perf, "Mean ledger close:  {} milliseconds",
+                      ledgerClose.mean());
+        }
+
+        return result;
+    });
+}
 #endif
 
 int
@@ -1907,6 +1948,7 @@ handleCommandLine(int argc, char* const* argv)
          {"fuzz", "run a single fuzz input and exit", runFuzz},
          {"gen-fuzz", "generate a random fuzzer input file", runGenFuzz},
          {"test", "execute test suite", runTest},
+         {"apply-load", "run apply time load test", runApplyLoad},
 #endif
          {"version", "print version information", runVersion}}};
 

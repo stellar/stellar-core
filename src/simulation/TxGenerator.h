@@ -135,6 +135,9 @@ class TxGenerator
 
     int generateFee(std::optional<uint32_t> maxGeneratedFeeRate, size_t opsCnt);
 
+    // Calculates total size we'll need to read for all specified keys
+    uint64_t bytesToRead(xdr::xvector<stellar::LedgerKey> const& keys);
+
     Application& mApp;
     TestAccountPtr mRoot;
 

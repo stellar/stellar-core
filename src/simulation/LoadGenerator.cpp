@@ -797,8 +797,6 @@ LoadGenerator::generateLoad(GeneratedLoadConfig cfg)
                             txPair.second->sorobanResources()
                                 .footprint.readWrite.back();
 
-                        CLOG_ERROR(LoadGen, "lklklk {}",
-                                   xdrToCerealString(instanceLk, "instanceLk"));
                         mContractInstanceKeys.emplace(instanceLk);
 
                         return txPair;

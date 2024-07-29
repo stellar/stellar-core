@@ -101,6 +101,23 @@ TxGenerator::generateFee(std::optional<uint32_t> maxGeneratedFeeRate,
     return fee;
 }
 
+uint64_t
+TxGenerator::bytesToRead(xdr::xvector<stellar::LedgerKey> const& keys)
+{
+    LedgerTxn ltx(mApp.getLedgerTxnRoot());
+    uint64_t total = 0;
+    for (auto const& key : keys)
+    {
+        auto ltxe = ltx.loadWithoutRecord(key);
+        if (ltxe)
+        {
+            total += xdr::xdr_size(key);
+            total += xdr::xdr_size(ltxe.current());
+        }
+    }
+    return total;
+}
+
 bool
 TxGenerator::loadAccount(TestAccount& account, Application& app)
 {
@@ -370,10 +387,20 @@ TxGenerator::invokeSorobanLoadTransaction(
     // baseInstructionCount is a rough estimate for storage cost, but might be
     // too small if a given invocation writes many or large entries.  This means
     // some TXs will fail due to exceeding resource limitations.  However these
-    // should fail at apply time, so will still generate siginificant load
-    uint64_t const baseInstructionCount = 3'000'000;
+    // should fail at apply time, so will still generate significant load
+    uint64_t const baseInstructionCount = 2'500'000;
     uint64_t const instructionsPerGuestCycle = 80;
     uint64_t const instructionsPerHostCycle = 5030;
+
+    // Very rough estimates.
+    uint64_t const instructionsPerKbWritten = 9000;
+
+    // This is arbitrary... trying to charge for setting up storage.
+    uint64_t const instructionsPerKbRead = 30000;
+
+    // instructionsPerPaddingByte is just a value we know works. We use an auth
+    // payload as padding, so it consumes instructions on the host side.
+    uint64_t const instructionsPerPaddingByte = 100;
 
     // Pick random number of cycles between bounds
     uint64_t targetInstructions =
@@ -410,19 +437,28 @@ TxGenerator::invokeSorobanLoadTransaction(
 
     std::vector<uint32_t> const& ioKilobytesValues =
         appCfg.LOADGEN_IO_KILOBYTES_FOR_TESTING;
-    auto totalWriteBytes =
-        sampleDiscrete(ioKilobytesValues,
-                       appCfg.LOADGEN_IO_KILOBYTES_DISTRIBUTION_FOR_TESTING,
-                       DEFAULT_IO_KILOBYTES) *
-        1024;
+    auto totalKbWriteBytes = sampleDiscrete(
+        ioKilobytesValues, appCfg.LOADGEN_IO_KILOBYTES_DISTRIBUTION_FOR_TESTING,
+        DEFAULT_IO_KILOBYTES);
 
-    if (totalWriteBytes < contractOverheadBytes)
+    // Make sure write bytes is sufficient for number of entries written
+    if (totalKbWriteBytes < numEntries)
     {
-        totalWriteBytes = contractOverheadBytes;
+        totalKbWriteBytes = numEntries;
+    }
+
+    auto totalWriteBytes = totalKbWriteBytes * 1024;
+
+    totalWriteBytes += numEntries * 100 /*Entry overhead*/;
+
+    if (numEntries == 0)
+    {
+        totalWriteBytes = 0;
         numEntries = 0;
     }
 
     uint32_t kiloBytesPerEntry = 0;
+
     if (numEntries > 0)
     {
         kiloBytesPerEntry =
@@ -449,18 +485,8 @@ TxGenerator::invokeSorobanLoadTransaction(
     ihf.invokeContract().args = {guestCyclesU64, hostCyclesU64, numEntriesU32,
                                  kiloBytesPerEntryU32};
 
-    // baseInstructionCount is a very rough estimate and may be a significant
-    // underestimation based on the IO load used, so use max instructions
-    resources.instructions = networkCfg.mTxMaxInstructions;
-
-    // We don't have a good way of knowing how many bytes we will need to read
-    // since the previous invocation writes a random number of bytes, so use
-    // upper bound
-    uint32_t const maxReadKilobytes =
-        ioKilobytesValues.empty() ? DEFAULT_IO_KILOBYTES
-                                  : *std::max_element(ioKilobytesValues.begin(),
-                                                      ioKilobytesValues.end());
-    resources.readBytes = maxReadKilobytes * 1024;
+    resources.readBytes = bytesToRead(resources.footprint.readOnly) +
+                          bytesToRead(resources.footprint.readWrite);
     resources.writeBytes = totalWriteBytes;
 
     // Approximate TX size before padding and footprint, slightly over estimated
@@ -476,9 +502,24 @@ TxGenerator::invokeSorobanLoadTransaction(
         txOverheadBytes > desiredTxBytes ? 0 : desiredTxBytes - txOverheadBytes;
     increaseOpSize(op, paddingBytes);
 
+    int64_t instructionCount =
+        baseInstructionCount + hostCycles * instructionsPerHostCycle +
+        guestCycles * instructionsPerGuestCycle +
+        ((numEntries + kiloBytesPerEntry) * instructionsPerKbWritten) +
+        (resources.readBytes / 1024 * instructionsPerKbRead) +
+        instructionsPerPaddingByte * paddingBytes;
+    // baseInstructionCount is a very rough estimate and may be a significant
+    // underestimation based on the IO load used, so use max instructions
+    resources.instructions = instructionCount;
+
     auto resourceFee =
         sorobanResourceFee(mApp, resources, txOverheadBytes + paddingBytes, 40);
     resourceFee += 1'000'000;
+
+    // A tx created using this method may be discarded when creating the txSet,
+    // so we need to refresh the TestAccount sequence number to avoid a
+    // txBAD_SEQ.
+    account->loadSequenceNumber();
 
     auto tx = std::dynamic_pointer_cast<TransactionFrame>(
         sorobanTransactionFrameFromOps(mApp.getNetworkID(), *account, {op}, {},
@@ -837,76 +878,5 @@ TxGenerator::pretendTransaction(uint32_t numAccounts, uint32_t offset,
     return std::make_pair(
         acc, createTransactionFramePtr(acc, ops, true, maxGeneratedFeeRate));
 }
-
-/*
-TxGeneratorConfig::SorobanConfig&
-TxGeneratorConfig::getMutSorobanConfig()
-{
-    return sorobanConfig;
-}
-
-TxGeneratorConfig::SorobanConfig const&
-TxGeneratorConfig::getSorobanConfig() const
-{
-    return sorobanConfig;
-}
-
-TxGeneratorConfig::SorobanUpgradeConfig&
-TxGeneratorConfig::getMutSorobanUpgradeConfig()
-{
-    return sorobanUpgradeConfig;
-}
-
-TxGeneratorConfig::SorobanUpgradeConfig const&
-TxGeneratorConfig::getSorobanUpgradeConfig() const
-{
-    return sorobanUpgradeConfig;
-}
-
-TxGeneratorConfig::MixClassicSorobanConfig&
-TxGeneratorConfig::getMutMixClassicSorobanConfig()
-{
-    releaseAssert(mode == LoadGenMode::MIXED_CLASSIC_SOROBAN);
-    return mixClassicSorobanConfig;
-}
-
-TxGeneratorConfig::MixClassicSorobanConfig const&
-TxGeneratorConfig::getMixClassicSorobanConfig() const
-{
-    releaseAssert(mode == LoadGenMode::MIXED_CLASSIC_SOROBAN);
-    return mixClassicSorobanConfig;
-}
-
-uint32_t&
-TxGeneratorConfig::getMutDexTxPercent()
-{
-    releaseAssert(mode == LoadGenMode::MIXED_CLASSIC);
-    return dexTxPercent;
-}
-
-uint32_t const&
-TxGeneratorConfig::getDexTxPercent() const
-{
-    releaseAssert(mode == LoadGenMode::MIXED_CLASSIC);
-    return dexTxPercent;
-}
-
-uint32_t
-TxGeneratorConfig::getMinSorobanPercentSuccess() const
-{
-    releaseAssert(isSoroban());
-    return mMinSorobanPercentSuccess;
-}
-
-void
-TxGeneratorConfig::setMinSorobanPercentSuccess(uint32_t percent)
-{
-    releaseAssert(isSoroban());
-    if (percent > 100)
-    {
-        throw std::invalid_argument("percent must be <= 100");
-    }
-    mMinSorobanPercentSuccess = percent;
-} */
 
 }
