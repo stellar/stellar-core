@@ -5,6 +5,7 @@
 #include "bucket/BucketSnapshotManager.h"
 #include "bucket/BucketListSnapshot.h"
 #include "main/Application.h"
+#include "util/GlobalChecks.h"
 #include "util/XDRStream.h" // IWYU pragma: keep
 
 #include "medida/meter.h"
@@ -15,9 +16,12 @@ namespace stellar
 
 BucketSnapshotManager::BucketSnapshotManager(
     Application& app,
-    std::unique_ptr<BucketListSnapshot<LiveBucket> const>&& snapshot)
+    std::unique_ptr<BucketListSnapshot<LiveBucket> const>&& snapshot,
+    std::unique_ptr<BucketListSnapshot<HotArchiveBucket> const>&&
+        hotArchiveSnapshot)
     : mApp(app)
     , mCurrentSnapshot(std::move(snapshot))
+    , mCurrentHotArchiveSnapshot(std::move(hotArchiveSnapshot))
     , mBulkLoadMeter(app.getMetrics().NewMeter(
           {"bucketlistDB", "query", "loads"}, "query"))
     , mBloomMisses(app.getMetrics().NewMeter(
@@ -26,6 +30,8 @@ BucketSnapshotManager::BucketSnapshotManager(
           {"bucketlistDB", "bloom", "lookups"}, "bloom"))
 {
     releaseAssert(threadIsMain());
+    releaseAssert(mCurrentSnapshot);
+    releaseAssert(mCurrentHotArchiveSnapshot);
 }
 
 std::shared_ptr<SearchableLiveBucketListSnapshot>
@@ -34,6 +40,15 @@ BucketSnapshotManager::getSearchableBucketListSnapshot() const
     // Can't use std::make_shared due to private constructor
     return std::shared_ptr<SearchableLiveBucketListSnapshot>(
         new SearchableLiveBucketListSnapshot(*this));
+}
+
+std::shared_ptr<SearchableHotArchiveBucketListSnapshot>
+BucketSnapshotManager::getSearchableHotArchiveBucketListSnapshot() const
+{
+    releaseAssert(mCurrentHotArchiveSnapshot);
+    // Can't use std::make_shared due to private constructor
+    return std::shared_ptr<SearchableHotArchiveBucketListSnapshot>(
+        new SearchableHotArchiveBucketListSnapshot(*this));
 }
 
 medida::Timer&
@@ -77,6 +92,23 @@ BucketSnapshotManager::maybeUpdateSnapshot(
 }
 
 void
+BucketSnapshotManager::maybeUpdateHotArchiveSnapshot(
+    std::unique_ptr<BucketListSnapshot<HotArchiveBucket> const>& snapshot) const
+{
+    std::lock_guard<std::recursive_mutex> lock(mSnapshotMutex);
+    if (!snapshot ||
+        snapshot->getLedgerSeq() != mCurrentHotArchiveSnapshot->getLedgerSeq())
+    {
+        // Should only update with a newer snapshot
+        releaseAssert(!snapshot ||
+                      snapshot->getLedgerSeq() <
+                          mCurrentHotArchiveSnapshot->getLedgerSeq());
+        snapshot = std::make_unique<BucketListSnapshot<HotArchiveBucket>>(
+            *mCurrentHotArchiveSnapshot);
+    }
+}
+
+void
 BucketSnapshotManager::updateCurrentSnapshot(
     std::unique_ptr<BucketListSnapshot<LiveBucket> const>&& newSnapshot)
 {
@@ -86,6 +118,19 @@ BucketSnapshotManager::updateCurrentSnapshot(
     releaseAssert(!mCurrentSnapshot || newSnapshot->getLedgerSeq() >=
                                            mCurrentSnapshot->getLedgerSeq());
     mCurrentSnapshot.swap(newSnapshot);
+}
+
+void
+BucketSnapshotManager::updateCurrentHotArchiveSnapshot(
+    std::unique_ptr<BucketListSnapshot<HotArchiveBucket> const>&& newSnapshot)
+{
+    releaseAssert(newSnapshot);
+    releaseAssert(threadIsMain());
+    std::lock_guard<std::recursive_mutex> lock(mSnapshotMutex);
+    releaseAssert(!mCurrentHotArchiveSnapshot ||
+                  newSnapshot->getLedgerSeq() >=
+                      mCurrentHotArchiveSnapshot->getLedgerSeq());
+    mCurrentHotArchiveSnapshot.swap(newSnapshot);
 }
 
 void

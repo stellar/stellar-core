@@ -4,6 +4,7 @@
 // under the Apache License, Version 2.0. See the COPYING file at the root
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
+#include "bucket/Bucket.h"
 #include "bucket/BucketList.h"
 #include "bucket/BucketManagerImpl.h"
 #include "bucket/BucketSnapshot.h"
@@ -89,20 +90,8 @@ class SearchableBucketListSnapshotBase : public NonMovableOrCopyable
     // returns true
     void loopAllBuckets(std::function<bool(BucketSnapshotT const&)> f) const;
 
-    std::vector<LedgerEntry>
-    loadKeysInternal(std::set<LedgerKey, LedgerEntryIdCmp> const& inKeys,
-                     LedgerKeyMeter* lkMeter);
-
-    // Loads bucket entry for LedgerKey k. Returns <LedgerEntry, bloomMiss>,
-    // where bloomMiss is true if a bloom miss occurred during the load.
-    std::pair<std::shared_ptr<LedgerEntry>, bool>
-    getLedgerEntryInternal(LedgerKey const& k);
-
     SearchableBucketListSnapshotBase(
         BucketSnapshotManager const& snapshotManager);
-
-  public:
-    std::shared_ptr<LedgerEntry> getLedgerEntry(LedgerKey const& k);
 };
 
 class SearchableLiveBucketListSnapshot
@@ -112,6 +101,8 @@ class SearchableLiveBucketListSnapshot
         BucketSnapshotManager const& snapshotManager);
 
   public:
+    std::shared_ptr<LedgerEntry> getLedgerEntry(LedgerKey const& k);
+
     std::vector<LedgerEntry>
     loadKeysWithLimits(std::set<LedgerKey, LedgerEntryIdCmp> const& inKeys,
                        LedgerKeyMeter* lkMeter = nullptr);
@@ -131,5 +122,21 @@ class SearchableLiveBucketListSnapshot
 
     friend std::shared_ptr<SearchableLiveBucketListSnapshot>
     BucketSnapshotManager::getSearchableBucketListSnapshot() const;
+};
+
+class SearchableHotArchiveBucketListSnapshot
+    : public SearchableBucketListSnapshotBase<HotArchiveBucket>
+{
+    SearchableHotArchiveBucketListSnapshot(
+        BucketSnapshotManager const& snapshotManager);
+
+  public:
+    std::shared_ptr<HotArchiveBucketEntry> getArchiveEntry(LedgerKey const& k);
+
+    std::vector<HotArchiveBucketEntry>
+    loadKeys(std::set<LedgerKey, LedgerEntryIdCmp> const& inKeys);
+
+    friend std::shared_ptr<SearchableHotArchiveBucketListSnapshot>
+    BucketSnapshotManager::getSearchableHotArchiveBucketListSnapshot() const;
 };
 }

@@ -286,10 +286,10 @@ class BucketManager : NonMovableOrCopyable
                               std::vector<LedgerEntry> const& liveEntries,
                               std::vector<LedgerKey> const& deadEntries) = 0;
     virtual void
-    addArchivalBatch(Application& app, uint32_t currLedger,
-                     uint32_t currLedgerProtocol,
-                     std::vector<LedgerEntry> const& initEntries,
-                     std::vector<LedgerKey> const& deadEntries) = 0;
+    addHotArchiveBatch(Application& app, uint32_t currLedger,
+                       uint32_t currLedgerProtocol,
+                       std::vector<LedgerEntry> const& initEntries,
+                       std::vector<LedgerKey> const& deadEntries) = 0;
 
     // Update the given LedgerHeader's bucketListHash to reflect the current
     // state of the bucket list.

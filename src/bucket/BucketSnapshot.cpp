@@ -8,6 +8,7 @@
 #include "ledger/LedgerTxn.h"
 #include "ledger/LedgerTypeUtils.h"
 #include "util/XDRStream.h"
+#include <type_traits>
 
 namespace stellar
 {
@@ -36,7 +37,7 @@ BucketSnapshotBase<BucketT>::isEmpty() const
 }
 
 template <class BucketT>
-std::pair<std::optional<typename BucketSnapshotBase<BucketT>::BucketEntryT>,
+std::pair<std::shared_ptr<typename BucketSnapshotBase<BucketT>::BucketEntryT>,
           bool>
 BucketSnapshotBase<BucketT>::getEntryAtOffset(LedgerKey const& k,
                                               std::streamoff pos,
@@ -45,7 +46,7 @@ BucketSnapshotBase<BucketT>::getEntryAtOffset(LedgerKey const& k,
     ZoneScoped;
     if (isEmpty())
     {
-        return {std::nullopt, false};
+        return {nullptr, false};
     }
 
     auto& stream = getStream();
@@ -56,28 +57,28 @@ BucketSnapshotBase<BucketT>::getEntryAtOffset(LedgerKey const& k,
     {
         if (stream.readOne(be))
         {
-            return {std::make_optional(be), false};
+            return {std::make_shared<BucketEntryT>(be), false};
         }
     }
     else if (stream.readPage(be, k, pageSize))
     {
-        return {std::make_optional(be), false};
+        return {std::make_shared<BucketEntryT>(be), false};
     }
 
     // Mark entry miss for metrics
     mBucket->getIndex().markBloomMiss();
-    return {std::nullopt, true};
+    return {nullptr, true};
 }
 
 template <class BucketT>
-std::pair<std::optional<typename BucketSnapshotBase<BucketT>::BucketEntryT>,
+std::pair<std::shared_ptr<typename BucketSnapshotBase<BucketT>::BucketEntryT>,
           bool>
 BucketSnapshotBase<BucketT>::getBucketEntry(LedgerKey const& k) const
 {
     ZoneScoped;
     if (isEmpty())
     {
-        return {std::nullopt, false};
+        return {nullptr, false};
     }
 
     auto pos = mBucket->getIndex().lookup(k);
@@ -87,7 +88,7 @@ BucketSnapshotBase<BucketT>::getBucketEntry(LedgerKey const& k) const
                                 mBucket->getIndex().getPageSize());
     }
 
-    return {std::nullopt, false};
+    return {nullptr, false};
 }
 
 // When searching for an entry, BucketList calls this function on every bucket.
@@ -97,9 +98,9 @@ BucketSnapshotBase<BucketT>::getBucketEntry(LedgerKey const& k) const
 // from keys so that it will be searched for again at a lower level.
 template <class BucketT>
 void
-BucketSnapshotBase<BucketT>::loadKeysWithLimits(
+BucketSnapshotBase<BucketT>::loadKeys(
     std::set<LedgerKey, LedgerEntryIdCmp>& keys,
-    std::vector<LedgerEntry>& result, LedgerKeyMeter* lkMeter) const
+    std::vector<BulkLoadReturnT>& result, LedgerKeyMeter* lkMeter) const
 {
     ZoneScoped;
     if (isEmpty())
@@ -112,7 +113,8 @@ BucketSnapshotBase<BucketT>::loadKeysWithLimits(
     auto indexIter = index.begin();
     while (currKeyIt != keys.end() && indexIter != index.end())
     {
-        if (lkMeter)
+        // lkMeter only supported for LiveBucketList
+        if (std::is_same_v<BucketT, LiveBucket> && lkMeter)
         {
             auto keySize = xdr::xdr_size(*currKeyIt);
             if (!lkMeter->canLoad(*currKeyIt, keySize))
@@ -138,11 +140,12 @@ BucketSnapshotBase<BucketT>::loadKeysWithLimits(
                 *currKeyIt, *offOp, mBucket->getIndex().getPageSize());
             if (entryOp)
             {
-                // Only live bucket loads can be metered:
-                // TODO: Refactor metering to only LiveBucket
+                // Only live bucket loads can be metered
                 if constexpr (std::is_same_v<BucketT, LiveBucket>)
                 {
-                    if (entryOp->type() != DEADENTRY)
+                    // Don't meter tombstone entries, as these do not exist wrt
+                    // ledger state
+                    if (!LiveBucket::isTombstoneEntry(*entryOp))
                     {
                         bool addEntry = true;
                         if (lkMeter)
@@ -163,6 +166,11 @@ BucketSnapshotBase<BucketT>::loadKeysWithLimits(
                         }
                     }
                 }
+                else
+                {
+                    result.push_back(*entryOp);
+                }
+
                 currKeyIt = keys.erase(currKeyIt);
                 continue;
             }

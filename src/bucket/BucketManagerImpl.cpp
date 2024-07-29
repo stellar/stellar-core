@@ -130,10 +130,12 @@ BucketManagerImpl::initialize()
 
         if (mApp.getConfig().isUsingBucketListDB())
         {
-            // TODO: Archival BucketList snapshot
             mSnapshotManager = std::make_unique<BucketSnapshotManager>(
-                mApp, std::make_unique<BucketListSnapshot<LiveBucket>>(
-                          *mLiveBucketList, 0));
+                mApp,
+                std::make_unique<BucketListSnapshot<LiveBucket>>(
+                    *mLiveBucketList, 0),
+                std::make_unique<BucketListSnapshot<HotArchiveBucket>>(
+                    *mHotArchiveBucketList, 0));
         }
     }
 }
@@ -1013,13 +1015,15 @@ BucketManagerImpl::addLiveBatch(Application& app, uint32_t currLedger,
 }
 
 void
-BucketManagerImpl::addArchivalBatch(Application& app, uint32_t currLedger,
-                                    uint32_t currLedgerProtocol,
-                                    std::vector<LedgerEntry> const& initEntries,
-                                    std::vector<LedgerKey> const& deadEntries)
+BucketManagerImpl::addHotArchiveBatch(
+    Application& app, uint32_t currLedger, uint32_t currLedgerProtocol,
+    std::vector<LedgerEntry> const& initEntries,
+    std::vector<LedgerKey> const& deadEntries)
 {
     ZoneScoped;
     releaseAssertOrThrow(app.getConfig().MODE_ENABLES_BUCKETLIST);
+    releaseAssertOrThrow(
+        protocolVersionStartsFrom(currLedgerProtocol, ProtocolVersion::V_22));
 #ifdef BUILD_TESTS
     if (mUseFakeTestValuesForNextClose)
     {
@@ -1038,10 +1042,9 @@ BucketManagerImpl::addArchivalBatch(Application& app, uint32_t currLedger,
 
     if (app.getConfig().isUsingBucketListDB())
     {
-        // TODO: This
-        // mSnapshotManager->updateCurrentArchivalSnapshot(
-        //     std::make_unique<BucketListSnapshot>(*mLiveBucketList,
-        //     currLedger));
+        mSnapshotManager->updateCurrentHotArchiveSnapshot(
+            std::make_unique<BucketListSnapshot<HotArchiveBucket>>(
+                *mHotArchiveBucketList, currLedger));
     }
 }
 
