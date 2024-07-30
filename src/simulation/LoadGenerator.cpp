@@ -199,7 +199,7 @@ LoadGenerator::cleanupAccounts()
     for (auto it = mCreationSourceAccounts.begin();
          it != mCreationSourceAccounts.end();)
     {
-        if (loadAccount(it->second, mApp))
+        if (loadAccount(it->second))
         {
             mAccountsAvailable.insert(it->first);
             it = mCreationSourceAccounts.erase(it);
@@ -1086,7 +1086,7 @@ LoadGenerator::maybeHandleFailedTx(TransactionTestFramePtr tx,
             sourceAccount->setSequenceNumber(*txQueueSeqNum);
             return;
         }
-        if (!loadAccount(sourceAccount, mApp))
+        if (!loadAccount(sourceAccount))
         {
             CLOG_ERROR(LoadGen, "Unable to reload account {}",
                        sourceAccount->getAccountId());
@@ -1131,7 +1131,7 @@ LoadGenerator::checkAccountSynced(Application& app, bool isCreate)
         TestAccountPtr account = acc.second;
         auto accountFromDB = *account;
 
-        auto reloadRes = loadAccount(accountFromDB, app);
+        auto reloadRes = loadAccount(accountFromDB);
         // For account creation, reload accounts from the DB
         // For payments, ensure that the sequence number matches expected
         // seqnum. Timeout after 20 ledgers.

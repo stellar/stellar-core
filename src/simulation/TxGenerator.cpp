@@ -54,7 +54,7 @@ TxGenerator::createRootAccount()
     releaseAssert(!mRoot);
     auto rootTestAccount = TestAccount::createRoot(mApp);
     mRoot = make_shared<TestAccount>(rootTestAccount);
-    if (!loadAccount(mRoot, mApp))
+    if (!loadAccount(mRoot))
     {
         CLOG_ERROR(LoadGen, "Could not retrieve root account!");
     }
@@ -119,9 +119,9 @@ TxGenerator::bytesToRead(xdr::xvector<stellar::LedgerKey> const& keys)
 }
 
 bool
-TxGenerator::loadAccount(TestAccount& account, Application& app)
+TxGenerator::loadAccount(TestAccount& account)
 {
-    LedgerTxn ltx(app.getLedgerTxnRoot());
+    LedgerTxn ltx(mApp.getLedgerTxnRoot());
     auto entry = stellar::loadAccount(ltx, account.getPublicKey());
     if (!entry)
     {
@@ -132,11 +132,11 @@ TxGenerator::loadAccount(TestAccount& account, Application& app)
 }
 
 bool
-TxGenerator::loadAccount(TxGenerator::TestAccountPtr acc, Application& app)
+TxGenerator::loadAccount(TxGenerator::TestAccountPtr acc)
 {
     if (acc)
     {
-        return loadAccount(*acc, app);
+        return loadAccount(*acc);
     }
     return false;
 }
@@ -173,7 +173,7 @@ TxGenerator::findAccount(uint64_t accountId, uint32_t ledgerNum)
         newAccountPtr =
             std::make_shared<TestAccount>(mApp, txtest::getAccount(name), sn);
 
-        if (!loadAccount(newAccountPtr, mApp))
+        if (!loadAccount(newAccountPtr))
         {
             throw std::runtime_error(
                 fmt::format("Account {0} must exist in the DB.", accountId));

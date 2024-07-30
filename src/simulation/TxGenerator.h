@@ -63,8 +63,8 @@ class TxGenerator
     void createRootAccount();
     void updateMinBalance();
 
-    bool loadAccount(TestAccount& account, Application& app);
-    bool loadAccount(TestAccountPtr account, Application& app);
+    bool loadAccount(TestAccount& account);
+    bool loadAccount(TestAccountPtr account);
 
     TestAccountPtr findAccount(uint64_t accountId, uint32_t ledgerNum);
 
