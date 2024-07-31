@@ -448,7 +448,7 @@ template <class BucketT> class BucketListBase
     // Returns true if at given `level` tombstone entries should be kept. A
     // "tombstone" entry is the entry type that represents null in the given
     // BucketList. For LiveBucketList, this is DEADENTRY. For
-    // HotArchiveBucketList, HA_LIVE.
+    // HotArchiveBucketList, HOT_ARCHIVE_LIVE.
     static bool keepTombstoneEntries(uint32_t level);
 
     // Number of ledgers it takes a bucket to spill/receive an incoming spill

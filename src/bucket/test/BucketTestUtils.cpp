@@ -110,16 +110,16 @@ EntryCounts<HotArchiveBucket>::EntryCounts(
     {
         switch ((*iter).type())
         {
-        case HA_ARCHIVED:
+        case HOT_ARCHIVE_ARCHIVED:
             ++nInitOrArchived;
             break;
-        case HA_LIVE:
+        case HOT_ARCHIVE_LIVE:
             ++nLive;
             break;
-        case HA_DELETED:
+        case HOT_ARCHIVE_DELETED:
             ++nDead;
             break;
-        case HA_METAENTRY:
+        case HOT_ARCHIVE_METAENTRY:
             // This should never happen: only the first record can be METAENTRY
             // and it is counted above.
             abort();

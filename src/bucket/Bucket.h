@@ -224,7 +224,7 @@ class HotArchiveBucket : public Bucket,
           asio::io_context& ctx, bool doFsync);
 
     // Returns true if the given BucketEntry should be dropped in the bottom
-    // level bucket (i.e. HA_LIVE)
+    // level bucket (i.e. HOT_ARCHIVE_LIVE)
     static bool isTombstoneEntry(HotArchiveBucketEntry const& e);
 
     friend class HotArchiveBucketSnapshot;

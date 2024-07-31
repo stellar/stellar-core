@@ -232,21 +232,21 @@ HotArchiveBucket::convertToBucketEntry(
     for (auto const& e : archivedEntries)
     {
         HotArchiveBucketEntry be;
-        be.type(HA_ARCHIVED);
+        be.type(HOT_ARCHIVE_ARCHIVED);
         be.archivedEntry() = e;
         bucket.push_back(be);
     }
     for (auto const& k : restoredEntries)
     {
         HotArchiveBucketEntry be;
-        be.type(HA_LIVE);
+        be.type(HOT_ARCHIVE_LIVE);
         be.key() = k;
         bucket.push_back(be);
     }
     for (auto const& k : deletedEntries)
     {
         HotArchiveBucketEntry be;
-        be.type(HA_DELETED);
+        be.type(HOT_ARCHIVE_DELETED);
         be.key() = k;
         bucket.push_back(be);
     }
@@ -310,6 +310,9 @@ LiveBucket::fresh(BucketManager& bucketManager, uint32_t protocolVersion,
 
     BucketMetadata meta;
     meta.ledgerVersion = protocolVersion;
+    meta.ext.v(1);
+    meta.ext.bucketListType() = BucketListType::LIVE;
+
     auto entries =
         convertToBucketEntry(useInit, initEntries, liveEntries, deadEntries);
 
@@ -1024,7 +1027,7 @@ LiveBucket::isTombstoneEntry(BucketEntry const& e)
 bool
 HotArchiveBucket::isTombstoneEntry(HotArchiveBucketEntry const& e)
 {
-    return e.type() == HA_LIVE;
+    return e.type() == HOT_ARCHIVE_LIVE;
 }
 
 template std::shared_ptr<LiveBucket> Bucket::merge<LiveBucket>(

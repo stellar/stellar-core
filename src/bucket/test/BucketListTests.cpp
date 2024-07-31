@@ -437,7 +437,7 @@ TEST_CASE_VERSIONS("hot archive bucket tombstones expire at bottom level",
         for (HotArchiveBucketInputIterator iter(bottomCurr); iter; ++iter)
         {
             auto be = *iter;
-            REQUIRE(be.type() == HA_DELETED);
+            REQUIRE(be.type() == HOT_ARCHIVE_DELETED);
             REQUIRE(keys.find(be.key()) != keys.end());
         }
     });

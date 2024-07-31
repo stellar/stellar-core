@@ -331,15 +331,15 @@ TEST_CASE_VERSIONS("merging hot archive bucket entries", "[bucket][archival]")
             {
                 ++count;
                 auto const& e = *iter;
-                if (e.type() == HA_ARCHIVED)
+                if (e.type() == HOT_ARCHIVE_ARCHIVED)
                 {
                     REQUIRE(e.archivedEntry() == e2);
                 }
-                else if (e.type() == HA_LIVE)
+                else if (e.type() == HOT_ARCHIVE_LIVE)
                 {
                     REQUIRE(e.key() == LedgerEntryKey(e3));
                 }
-                else if (e.type() == HA_DELETED)
+                else if (e.type() == HOT_ARCHIVE_DELETED)
                 {
                     if (e.key() == LedgerEntryKey(e1))
                     {
