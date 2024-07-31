@@ -119,8 +119,8 @@ export CCACHE_CPP2=true
 # periodically check to see if caches are old and purge them if so
 if [ -d "$CCACHE_DIR" ] ; then
     if [ -n "$(find $CCACHE_DIR -mtime +$CACHE_MAX_DAYS -print -quit)" ] ; then
-        echo Purging old cache dirs $CCACHE_DIR $HOME/.cargo ./target
-        rm -rf $CCACHE_DIR $HOME/.cargo ./target
+        echo Purging old cache dirs $CCACHE_DIR ./target
+        rm -rf $CCACHE_DIR ./target
     fi
 fi
 
