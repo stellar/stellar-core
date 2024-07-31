@@ -7,8 +7,16 @@ namespace stellar
 class ApplyLoad : public TxGenerator
 {
   public:
-    ApplyLoad(Application& app);
+    ApplyLoad(Application& app, uint32_t numAccounts,
+              uint64_t ledgerMaxInstructions,
+              uint64_t ledgerMaxReadLedgerEntries, uint64_t ledgerMaxReadBytes,
+              uint64_t ledgerMaxWriteLedgerEntries,
+              uint64_t ledgerMaxWriteBytes, uint64_t ledgerMaxTxCount,
+              uint64_t ledgerMaxTransactionsSizeBytes);
+
     void benchmark();
+
+    double successRate();
 
   private:
     void closeLedger(std::vector<TransactionFrameBasePtr> const& txs,
@@ -28,6 +36,8 @@ class ApplyLoad : public TxGenerator
     UnorderedMap<uint64_t, ContractInstance> mLoadInstances;
 
     SorobanUpgradeConfig mUpgradeConfig;
+
+    uint32_t mNumAccounts;
 };
 
 }

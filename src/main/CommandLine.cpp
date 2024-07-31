@@ -1843,38 +1843,131 @@ runApplyLoad(CommandLineArgs const& args)
 {
     CommandLine::ConfigOption configOption;
 
-    return runWithHelp(args, {configurationParser(configOption)}, [&] {
-        auto config = configOption.getConfig();
-        config.RUN_STANDALONE = true;
+    uint32_t numAccounts = 0;
 
-        VirtualClock clock(VirtualClock::REAL_TIME);
-        int result;
-        auto appPtr = Application::create(clock, config);
+    uint64_t ledgerMaxInstructions = 0;
+    uint64_t ledgerMaxReadLedgerEntries = 0;
+    uint64_t ledgerMaxReadBytes = 0;
+    uint64_t ledgerMaxWriteLedgerEntries = 0;
+    uint64_t ledgerMaxWriteBytes = 0;
+    uint64_t ledgerMaxTxCount = 0;
+    uint64_t ledgerMaxTransactionsSizeBytes = 0;
 
-        auto& app = *appPtr;
-        {
-            auto& lm = app.getLedgerManager();
-            app.start();
-            ApplyLoad al(app);
+    ParserWithValidation numAccountsParser{
+        clara::Arg(numAccounts, "NumAccounts").required(),
+        [&] { return numAccounts > 0 ? "" : "NumAccounts must be > 0"; }};
 
-            auto& ledgerClose =
-                app.getMetrics().NewTimer({"ledger", "ledger", "close"});
-            ledgerClose.Clear();
+    ParserWithValidation ledgerMaxInstructionsParser{
+        clara::Opt(ledgerMaxInstructions,
+                   "LedgerMaxInstructions")["--ledger-max-instructions"]
+            .required(),
+        [&] {
+            return ledgerMaxInstructions > 0
+                       ? ""
+                       : "ledgerMaxInstructions must be > 0";
+        }};
 
-            // TODO: Make this configurable
-            for (size_t i = 0; i < 20; ++i)
+    ParserWithValidation ledgerMaxReadLedgerEntriesParser{
+        clara::Opt(ledgerMaxReadLedgerEntries,
+                   "LedgerMaxReadLedgerEntries")["--ledger-max-read-entries"]
+            .required(),
+        [&] {
+            return ledgerMaxReadLedgerEntries > 0
+                       ? ""
+                       : "ledgerMaxReadLedgerEntries must be > 0";
+        }};
+
+    ParserWithValidation ledgerMaxReadBytesParser{
+        clara::Opt(ledgerMaxReadBytes,
+                   "LedgerMaxReadBytes")["--ledger-max-read-bytes"]
+            .required(),
+        [&] {
+            return ledgerMaxReadBytes > 0 ? ""
+                                          : "ledgerMaxReadBytes must be > 0";
+        }};
+
+    ParserWithValidation ledgerMaxWriteLedgerEntriesParser{
+        clara::Opt(ledgerMaxWriteLedgerEntries,
+                   "LedgerMaxWriteLedgerEntries")["--ledger-max-write-entries"]
+            .required(),
+        [&] {
+            return ledgerMaxWriteLedgerEntries > 0
+                       ? ""
+                       : "ledgerMaxWriteLedgerEntries must be > 0";
+        }};
+
+    ParserWithValidation ledgerMaxWriteBytesParser{
+        clara::Opt(ledgerMaxWriteBytes,
+                   "LedgerMaxWriteBytes")["--ledger-max-write-bytes"]
+            .required(),
+        [&] {
+            return ledgerMaxWriteBytes > 0 ? ""
+                                           : "ledgerMaxWriteBytes must be > 0";
+        }};
+
+    ParserWithValidation ledgerMaxTxCountParser{
+        clara::Opt(ledgerMaxTxCount,
+                   "LedgerMaxTxCount")["--ledger-max-tx-count"]
+            .required(),
+        [&] {
+            return ledgerMaxTxCount > 0 ? "" : "ledgerMaxTxCount must be > 0";
+        }};
+
+    ParserWithValidation ledgerMaxTransactionsSizeBytesParser{
+        clara::Opt(ledgerMaxTransactionsSizeBytes,
+                   "LedgerMaxTransactionsSizeBytes")["--ledger-max-tx-size"]
+            .required(),
+        [&] {
+            return ledgerMaxTransactionsSizeBytes > 0
+                       ? ""
+                       : "ledgerMaxTransactionsSizeBytes must be > 0";
+        }};
+
+    return runWithHelp(
+        args,
+        {configurationParser(configOption), numAccountsParser,
+         ledgerMaxInstructionsParser, ledgerMaxReadLedgerEntriesParser,
+         ledgerMaxReadBytesParser, ledgerMaxWriteLedgerEntriesParser,
+         ledgerMaxWriteBytesParser, ledgerMaxTxCountParser,
+         ledgerMaxTransactionsSizeBytesParser},
+        [&] {
+            auto config = configOption.getConfig();
+            config.RUN_STANDALONE = true;
+
+            VirtualClock clock(VirtualClock::REAL_TIME);
+            int result;
+            auto appPtr = Application::create(clock, config);
+
+            auto& app = *appPtr;
             {
-                al.benchmark();
+                auto& lm = app.getLedgerManager();
+                app.start();
+
+                ApplyLoad al(app, numAccounts, ledgerMaxInstructions,
+                             ledgerMaxReadLedgerEntries, ledgerMaxReadBytes,
+                             ledgerMaxWriteLedgerEntries, ledgerMaxWriteBytes,
+                             ledgerMaxTxCount, ledgerMaxTransactionsSizeBytes);
+
+                auto& ledgerClose =
+                    app.getMetrics().NewTimer({"ledger", "ledger", "close"});
+                ledgerClose.Clear();
+
+                for (size_t i = 0; i < 20; ++i)
+                {
+                    al.benchmark();
+                }
+
+                CLOG_INFO(Perf, "Max ledger close: {} milliseconds",
+                          ledgerClose.max());
+                CLOG_INFO(Perf, "Mean ledger close:  {} milliseconds",
+                          ledgerClose.mean());
+
+                CLOG_INFO(Perf, "Tx Success Rate: {:f}%",
+                          al.successRate() * 100);
             }
 
-            CLOG_INFO(Perf, "Max ledger close: {} milliseconds",
-                      ledgerClose.max());
-            CLOG_INFO(Perf, "Mean ledger close:  {} milliseconds",
-                      ledgerClose.mean());
-        }
-
-        return result;
-    });
+            return result;
+        });
 }
 #endif
 

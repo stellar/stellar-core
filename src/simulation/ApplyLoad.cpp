@@ -14,28 +14,33 @@
 namespace stellar
 {
 
-uint64_t NUM_ACCOUNTS = 400;
-
-ApplyLoad::ApplyLoad(Application& app) : TxGenerator(app)
+ApplyLoad::ApplyLoad(Application& app, uint32_t numAccounts,
+                     uint64_t ledgerMaxInstructions,
+                     uint64_t ledgerMaxReadLedgerEntries,
+                     uint64_t ledgerMaxReadBytes,
+                     uint64_t ledgerMaxWriteLedgerEntries,
+                     uint64_t ledgerMaxWriteBytes, uint64_t ledgerMaxTxCount,
+                     uint64_t ledgerMaxTransactionsSizeBytes)
+    : TxGenerator(app), mNumAccounts(numAccounts)
 {
-    // TODO: add command line options to set these values?
     mUpgradeConfig.maxContractSizeBytes = 65536;
     mUpgradeConfig.maxContractDataKeySizeBytes = 250;
     mUpgradeConfig.maxContractDataEntrySizeBytes = 65536;
-    mUpgradeConfig.ledgerMaxInstructions = 500000000;
+    mUpgradeConfig.ledgerMaxInstructions = ledgerMaxInstructions;
     mUpgradeConfig.txMaxInstructions = 100000000;
     mUpgradeConfig.txMemoryLimit = 41943040;
-    mUpgradeConfig.ledgerMaxReadLedgerEntries = 200;
-    mUpgradeConfig.ledgerMaxReadBytes = 500000;
-    mUpgradeConfig.ledgerMaxWriteLedgerEntries = 125;
-    mUpgradeConfig.ledgerMaxWriteBytes = 70000;
-    mUpgradeConfig.ledgerMaxTxCount = 100;
+    mUpgradeConfig.ledgerMaxReadLedgerEntries = ledgerMaxReadLedgerEntries;
+    mUpgradeConfig.ledgerMaxReadBytes = ledgerMaxReadBytes;
+    mUpgradeConfig.ledgerMaxWriteLedgerEntries = ledgerMaxWriteLedgerEntries;
+    mUpgradeConfig.ledgerMaxWriteBytes = ledgerMaxWriteBytes;
+    mUpgradeConfig.ledgerMaxTxCount = ledgerMaxTxCount;
     mUpgradeConfig.txMaxReadLedgerEntries = 40;
     mUpgradeConfig.txMaxReadBytes = 200000;
     mUpgradeConfig.txMaxWriteLedgerEntries = 25;
     mUpgradeConfig.txMaxWriteBytes = 66560;
     mUpgradeConfig.txMaxContractEventsSizeBytes = 8198;
-    mUpgradeConfig.ledgerMaxTransactionsSizeBytes = 71680;
+    mUpgradeConfig.ledgerMaxTransactionsSizeBytes =
+        ledgerMaxTransactionsSizeBytes;
     mUpgradeConfig.txMaxSizeBytes = 71680;
     mUpgradeConfig.bucketListSizeWindowSampleSize = 30;
     mUpgradeConfig.evictionScanSize = 100000;
@@ -55,7 +60,7 @@ ApplyLoad::ApplyLoad(Application& app) : TxGenerator(app)
     setupLoadContracts();
 
     // One contract per account
-    releaseAssert(mApplySorobanSuccess.count() == NUM_ACCOUNTS + 4);
+    releaseAssert(mApplySorobanSuccess.count() == numAccounts + 4);
     releaseAssert(mApplySorobanFailure.count() == 0);
 }
 
@@ -78,8 +83,10 @@ void
 ApplyLoad::setupAccountsAndUpgradeProtocol()
 {
     auto const& lm = mApp.getLedgerManager();
+    // pass in false for initialAccounts so we fund new account with a lower
+    // balance, allowing the creation of more accounts.
     std::vector<Operation> creationOps =
-        createAccounts(0, NUM_ACCOUNTS, lm.getLastClosedLedgerNum() + 1, true);
+        createAccounts(0, mNumAccounts, lm.getLastClosedLedgerNum() + 1, false);
 
     auto initTx =
         createTransactionFramePtr(mRoot, creationOps, false, std::nullopt);
@@ -223,6 +230,18 @@ ApplyLoad::benchmark()
         }
         else
         {
+            for (size_t i = static_cast<size_t>(Resource::Type::OPERATIONS);
+                 i <= static_cast<size_t>(Resource::Type::WRITE_LEDGER_ENTRIES);
+                 ++i)
+            {
+                auto type = static_cast<Resource::Type>(i);
+                if (tx.second->getResources(false).getVal(type) >
+                    resources.getVal(type))
+                {
+                    CLOG_INFO(Perf, "Ledger {} limit hit during tx generation",
+                              Resource::getStringFromType(type));
+                }
+            }
             break;
         }
 
@@ -230,11 +249,13 @@ ApplyLoad::benchmark()
     }
 
     closeLedger(txs);
+}
 
-    CLOG_INFO(Perf, "mApplySorobanSuccess count {}",
-              mApplySorobanSuccess.count());
-    CLOG_INFO(Perf, "mApplySorobanFailure count {}",
-              mApplySorobanFailure.count());
+double
+ApplyLoad::successRate()
+{
+    return mApplySorobanSuccess.count() * 1.0 /
+           (mApplySorobanSuccess.count() + mApplySorobanFailure.count());
 }
 
 }

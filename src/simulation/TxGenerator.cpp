@@ -383,43 +383,23 @@ TxGenerator::invokeSorobanLoadTransaction(
     // Approximate instruction measurements from loadgen contract. While the
     // guest and host cycle counts are exact, and we can predict the cost of the
     // guest and host loops correctly, it is difficult to estimate the CPU cost
-    // of storage given that the number and size of keys is variable.
-    // baseInstructionCount is a rough estimate for storage cost, but might be
-    // too small if a given invocation writes many or large entries.  This means
-    // some TXs will fail due to exceeding resource limitations.  However these
-    // should fail at apply time, so will still generate significant load
-    uint64_t const baseInstructionCount = 2'500'000;
+    // of storage given that the number and size of keys is variable. We have
+    // rough estimates for storage and padding (because it uses an auth
+    // payload). baseInstructionCount is for vm instantiation and additional
+    // cushion to make sure transactions will succeed, but this means that the
+    // instruction count is not perfect. Some TXs will fail due to exceeding
+    // resource limitations.  However these should fail at apply time, so will
+    // still generate significant load
+    uint64_t const baseInstructionCount = 1'500'000;
     uint64_t const instructionsPerGuestCycle = 80;
     uint64_t const instructionsPerHostCycle = 5030;
 
     // Very rough estimates.
-    uint64_t const instructionsPerKbWritten = 9000;
-
-    // This is arbitrary... trying to charge for setting up storage.
-    uint64_t const instructionsPerKbRead = 30000;
+    uint64_t const instructionsPerKbWritten = 8000;
 
     // instructionsPerPaddingByte is just a value we know works. We use an auth
     // payload as padding, so it consumes instructions on the host side.
     uint64_t const instructionsPerPaddingByte = 100;
-
-    // Pick random number of cycles between bounds
-    uint64_t targetInstructions =
-        sampleDiscrete(appCfg.LOADGEN_INSTRUCTIONS_FOR_TESTING,
-                       appCfg.LOADGEN_INSTRUCTIONS_DISTRIBUTION_FOR_TESTING,
-                       DEFAULT_INSTRUCTIONS);
-
-    // Factor in instructions for storage
-    targetInstructions = baseInstructionCount >= targetInstructions
-                             ? 0
-                             : targetInstructions - baseInstructionCount;
-
-    // Randomly select a number of guest cycles
-    uint64_t guestCyclesMax = targetInstructions / instructionsPerGuestCycle;
-    uint64_t guestCycles = rand_uniform<uint64_t>(0, guestCyclesMax);
-
-    // Rest of instructions consumed by host cycles
-    targetInstructions -= guestCycles * instructionsPerGuestCycle;
-    uint64_t hostCycles = targetInstructions / instructionsPerHostCycle;
 
     SorobanResources resources;
     resources.footprint.readOnly = instance.readOnlyKeys;
@@ -471,6 +451,43 @@ TxGenerator::invokeSorobanLoadTransaction(
         }
     }
 
+    // Approximate TX size before padding and footprint, slightly over estimated
+    // by `baselineTxOverheadBytes` so we stay below limits, plus footprint size
+    uint32_t constexpr baselineTxOverheadBytes = 260;
+    uint32_t const txOverheadBytes =
+        baselineTxOverheadBytes + xdr::xdr_size(resources);
+    uint32_t desiredTxBytes =
+        sampleDiscrete(appCfg.LOADGEN_TX_SIZE_BYTES_FOR_TESTING,
+                       appCfg.LOADGEN_TX_SIZE_BYTES_DISTRIBUTION_FOR_TESTING,
+                       DEFAULT_TX_SIZE_BYTES);
+    auto paddingBytes =
+        txOverheadBytes > desiredTxBytes ? 0 : desiredTxBytes - txOverheadBytes;
+
+    auto instructionsForStorageAndAuth =
+        ((numEntries + kiloBytesPerEntry) * instructionsPerKbWritten) +
+        instructionsPerPaddingByte * paddingBytes;
+
+    // Pick random number of cycles between bounds
+    uint64_t targetInstructions =
+        sampleDiscrete(appCfg.LOADGEN_INSTRUCTIONS_FOR_TESTING,
+                       appCfg.LOADGEN_INSTRUCTIONS_DISTRIBUTION_FOR_TESTING,
+                       DEFAULT_INSTRUCTIONS);
+
+    // Factor in instructions for storage
+    targetInstructions = baseInstructionCount + instructionsForStorageAndAuth >=
+                                 targetInstructions
+                             ? 0
+                             : targetInstructions - baseInstructionCount -
+                                   instructionsForStorageAndAuth;
+
+    // Randomly select a number of guest cycles
+    uint64_t guestCyclesMax = targetInstructions / instructionsPerGuestCycle;
+    uint64_t guestCycles = rand_uniform<uint64_t>(0, guestCyclesMax);
+
+    // Rest of instructions consumed by host cycles
+    targetInstructions -= guestCycles * instructionsPerGuestCycle;
+    uint64_t hostCycles = targetInstructions / instructionsPerHostCycle;
+
     auto guestCyclesU64 = makeU64(guestCycles);
     auto hostCyclesU64 = makeU64(hostCycles);
     auto numEntriesU32 = makeU32(numEntries);
@@ -489,27 +506,11 @@ TxGenerator::invokeSorobanLoadTransaction(
                           bytesToRead(resources.footprint.readWrite);
     resources.writeBytes = totalWriteBytes;
 
-    // Approximate TX size before padding and footprint, slightly over estimated
-    // by `baselineTxOverheadBytes` so we stay below limits, plus footprint size
-    uint32_t constexpr baselineTxOverheadBytes = 260;
-    uint32_t const txOverheadBytes =
-        baselineTxOverheadBytes + xdr::xdr_size(resources);
-    uint32_t desiredTxBytes =
-        sampleDiscrete(appCfg.LOADGEN_TX_SIZE_BYTES_FOR_TESTING,
-                       appCfg.LOADGEN_TX_SIZE_BYTES_DISTRIBUTION_FOR_TESTING,
-                       DEFAULT_TX_SIZE_BYTES);
-    auto paddingBytes =
-        txOverheadBytes > desiredTxBytes ? 0 : desiredTxBytes - txOverheadBytes;
     increaseOpSize(op, paddingBytes);
 
     int64_t instructionCount =
         baseInstructionCount + hostCycles * instructionsPerHostCycle +
-        guestCycles * instructionsPerGuestCycle +
-        ((numEntries + kiloBytesPerEntry) * instructionsPerKbWritten) +
-        (resources.readBytes / 1024 * instructionsPerKbRead) +
-        instructionsPerPaddingByte * paddingBytes;
-    // baseInstructionCount is a very rough estimate and may be a significant
-    // underestimation based on the IO load used, so use max instructions
+        guestCycles * instructionsPerGuestCycle + instructionsForStorageAndAuth;
     resources.instructions = instructionCount;
 
     auto resourceFee =
