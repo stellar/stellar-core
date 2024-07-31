@@ -29,7 +29,7 @@ BucketInputIterator<T>::loadEntry()
         }
         else
         {
-            isMeta = mEntry.type() == HA_METAENTRY;
+            isMeta = mEntry.type() == HOT_ARCHIVE_METAENTRY;
         }
 
         if (isMeta)

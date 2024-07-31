@@ -145,21 +145,21 @@ template <typename BucketT> struct BucketEntryIdCmp
         HotArchiveBucketEntryType bty = b.type();
 
         // METAENTRY sorts below all other entries, comes first in buckets.
-        if (aty == HA_METAENTRY || bty == HA_METAENTRY)
+        if (aty == HOT_ARCHIVE_METAENTRY || bty == HOT_ARCHIVE_METAENTRY)
         {
             return aty < bty;
         }
 
-        if (aty == HA_ARCHIVED)
+        if (aty == HOT_ARCHIVE_ARCHIVED)
         {
-            if (bty == HA_ARCHIVED)
+            if (bty == HOT_ARCHIVE_ARCHIVED)
             {
                 return LedgerEntryIdCmp{}(a.archivedEntry().data,
                                           b.archivedEntry().data);
             }
             else
             {
-                if (bty != HA_DELETED && bty != HA_LIVE)
+                if (bty != HOT_ARCHIVE_DELETED && bty != HOT_ARCHIVE_LIVE)
                 {
                     throw std::runtime_error("Malformed bucket: expected "
                                              "DELETED/LIVE key.");
@@ -169,19 +169,19 @@ template <typename BucketT> struct BucketEntryIdCmp
         }
         else
         {
-            if (aty != HA_DELETED && aty != HA_LIVE)
+            if (aty != HOT_ARCHIVE_DELETED && aty != HOT_ARCHIVE_LIVE)
             {
                 throw std::runtime_error(
                     "Malformed bucket: expected DELETED/RESTORED key.");
             }
 
-            if (bty == HA_ARCHIVED)
+            if (bty == HOT_ARCHIVE_ARCHIVED)
             {
                 return LedgerEntryIdCmp{}(a.key(), b.archivedEntry().data);
             }
             else
             {
-                if (bty != HA_DELETED && bty != HA_LIVE)
+                if (bty != HOT_ARCHIVE_DELETED && bty != HOT_ARCHIVE_LIVE)
                 {
                     throw std::runtime_error("Malformed bucket: expected "
                                              "DELETED/RESTORED key.");

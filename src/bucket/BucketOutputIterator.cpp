@@ -58,7 +58,7 @@ BucketOutputIterator<BucketT>::BucketOutputIterator(std::string const& tmpDir,
                 meta.ledgerVersion, ProtocolVersion::V_22));
 
             HotArchiveBucketEntry bme;
-            bme.type(HA_METAENTRY);
+            bme.type(HOT_ARCHIVE_METAENTRY);
             bme.metaEntry() = mMeta;
             put(bme);
         }
@@ -93,7 +93,7 @@ BucketOutputIterator<BucketT>::put(BucketEntryT const& e)
     }
     else
     {
-        if (e.type() == HA_METAENTRY)
+        if (e.type() == HOT_ARCHIVE_METAENTRY)
         {
             if (mPutMeta)
             {
@@ -103,7 +103,7 @@ BucketOutputIterator<BucketT>::put(BucketEntryT const& e)
         }
         else
         {
-            if (e.type() == HA_ARCHIVED)
+            if (e.type() == HOT_ARCHIVE_ARCHIVED)
             {
                 if (!isSorobanEntry(e.archivedEntry().data))
                 {
@@ -121,8 +121,8 @@ BucketOutputIterator<BucketT>::put(BucketEntryT const& e)
             }
         }
 
-        // HA_LIVE entries are dropped in the last bucket level (similar to
-        // DEADENTRY) on live BucketLists
+        // HOT_ARCHIVE_LIVE entries are dropped in the last bucket level
+        // (similar to DEADENTRY) on live BucketLists
         if (!mKeepTombstoneEntries && BucketT::isTombstoneEntry(e))
         {
             ++mMergeCounters.mOutputIteratorTombstoneElisions;
