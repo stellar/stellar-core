@@ -133,12 +133,12 @@ getBucketLedgerKey(HotArchiveBucketEntry const& be)
 {
     switch (be.type())
     {
-    case HA_LIVE:
-    case HA_DELETED:
+    case HOT_ARCHIVE_LIVE:
+    case HOT_ARCHIVE_DELETED:
         return be.key();
-    case HA_ARCHIVED:
+    case HOT_ARCHIVE_ARCHIVED:
         return LedgerEntryKey(be.archivedEntry());
-    case HA_METAENTRY:
+    case HOT_ARCHIVE_METAENTRY:
     default:
         throw std::invalid_argument("Tried to get key for METAENTRY");
     }
