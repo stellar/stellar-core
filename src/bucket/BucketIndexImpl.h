@@ -13,8 +13,6 @@
 #include <map>
 #include <memory>
 
-class bloom_filter;
-
 namespace stellar
 {
 

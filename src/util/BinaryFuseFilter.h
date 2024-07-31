@@ -18,22 +18,22 @@ namespace stellar
 // This class is a wrapper around the binary_fuse_t library that provides
 // serialization for the XDR BinaryFuseFilter type and provides a deterministic
 // LedgerKey interface.
-
-// Only allow uint8_t, uint16_t, and uint32_t
-template <typename T,
-          typename = std::enable_if_t<std::is_unsigned<T>::value &&
-                                      !std::is_same<T, uint64_t>::value>>
-class BinaryFuseFilter : public NonMovableOrCopyable
+template <typename T> class BinaryFuseFilter : public NonMovableOrCopyable
 {
-  private:
-    binary_fuse_t<T> mFilter;
+    static_assert(std::is_same_v<T, uint8_t> || std::is_same_v<T, uint16_t> ||
+                      std::is_same_v<T, uint32_t>,
+                  "Binary Fuse Filter only supports 8, 16, or 32 bit width");
 
-    // Note: as part of filter construction, the internal filter seed might
-    // rotate and no longer be the same as the input seed. The input seed must
-    // be maintained outside of the filter and used to hash input keys in the
-    // contain function to ensure deterministic hashing of input keys
-    // during both populating and querying the filter.
-    binary_fuse_seed_t const mInputSeed;
+  private:
+    binary_fuse_t<T> const mFilter;
+
+    // Note: This is the seed used to hash keys going into the filter, and we
+    // need to preserve it
+    // to hash keys we're looking up in the filter. The filter also has its own
+    // seed determining its overall structure, which _starts_ with this seed,
+    // but which may be rotated a bit in during repeated attempts to
+    // successfully populate the filter. So we have to keep both seeds.
+    binary_fuse_seed_t const mHashSeed;
 
   public:
     // keyHashes is the SipHash24 digest on the keys to insert into the filter.
@@ -51,7 +51,7 @@ class BinaryFuseFilter : public NonMovableOrCopyable
     save(Archive& archive) const
     {
         SerializedBinaryFuseFilter xdrFilter;
-        std::copy(mInputSeed.begin(), mInputSeed.end(),
+        std::copy(mHashSeed.begin(), mHashSeed.end(),
                   xdrFilter.inputHashSeed.seed.begin());
 
         mFilter.copyTo(xdrFilter);

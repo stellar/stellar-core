@@ -46,15 +46,6 @@ lib/binaryfusefilter.h:
   Licensed under the Apache License, Version 2.0
   (<https://www.apache.org/licenses/LICENSE-2.0>)
 
-lib/bloom_filter.hpp:
-
-  The C++ Open Bloom Filter Library,
-  Copyright 2000 Arash Partow
-  (arash at partow dot net)
-  (https://www.partow.net/programming/bloomfilter/index.html)
-  Licensed under the MIT license
-  (http://opensource.org/licenses/MIT)
-
 lib/catch.hpp:
 
   The Catch library,
