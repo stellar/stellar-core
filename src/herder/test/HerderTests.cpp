@@ -3797,8 +3797,10 @@ setupUpgradeAtNextLedger(Application& app)
         ConfigUpgradeSetFrameConstPtr configUpgradeSet;
         ConfigUpgradeSet configUpgradeSetXdr;
         auto& configEntry = configUpgradeSetXdr.updatedEntry.emplace_back();
-        configEntry.configSettingID(CONFIG_SETTING_CONTRACT_HISTORICAL_DATA_V0);
-        configEntry.contractHistoricalData().feeHistorical1KB = 1234;
+        configEntry.configSettingID(CONFIG_SETTING_CONTRACT_BANDWIDTH_V0);
+        configEntry.contractBandwidth().ledgerMaxTxsSizeBytes = 1'000'000;
+        configEntry.contractBandwidth().txMaxSizeBytes = 500'000;
+
         configUpgradeSet = makeConfigUpgradeSet(ltx, configUpgradeSetXdr);
 
         scheduledUpgrades.mConfigUpgradeSetKey = configUpgradeSet->getKey();
@@ -4016,6 +4018,14 @@ herderExternalizesValuesWithProtocol(uint32_t version)
         // Ensure C processes future tx set and its fees correctly (even though
         // its own ledger state isn't upgraded yet)
         receiveLedger(fourth, herderC);
+        if (protocolVersionStartsFrom(version, SOROBAN_PROTOCOL_VERSION))
+        {
+            REQUIRE(herderA.getMaxTxSize() ==
+                    500'000 + herderA.getFlowControlExtraBuffer());
+            REQUIRE(herderB.getMaxTxSize() ==
+                    500'000 + herderB.getFlowControlExtraBuffer());
+            REQUIRE(herderC.getMaxTxSize() < herderA.getMaxTxSize());
+        }
 
         // Wait until C goes out of sync, and processes future slots
         simulation->crankUntil([&]() { return !lmC.isSynced(); },
@@ -4073,6 +4083,13 @@ herderExternalizesValuesWithProtocol(uint32_t version)
         // each other
         auto lcl = lmC.getLastClosedLedgerNum();
         REQUIRE(lcl == herderC.trackingConsensusLedgerIndex());
+
+        // C properly upgraded max tx size despite externalizing out-of-order
+        if (protocolVersionStartsFrom(version, SOROBAN_PROTOCOL_VERSION))
+        {
+            REQUIRE(herderC.getMaxTxSize() ==
+                    500'000 + herderC.getFlowControlExtraBuffer());
+        }
 
         // Ensure that C sent out a nomination message for the next consensus
         // round
