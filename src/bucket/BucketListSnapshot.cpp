@@ -231,7 +231,7 @@ SearchableBucketListSnapshot::loadKeysFromLedger(
 
     if (ledgerSeq == mSnapshot->getLedgerSeq())
     {
-        auto result = loadKeysInternal(inKeys, mSnapshot);
+        auto result = loadKeysInternal(inKeys, mSnapshot, /*lkMeter=*/nullptr);
         return {result, true};
     }
 
@@ -241,7 +241,7 @@ SearchableBucketListSnapshot::loadKeysFromLedger(
         return {{}, false};
     }
 
-    auto result = loadKeysInternal(inKeys, iter->second);
+    auto result = loadKeysInternal(inKeys, iter->second, /*lkMeter=*/nullptr);
     return {result, true};
 }
 

@@ -1184,7 +1184,8 @@ CommandHandler::getLedgerEntryBatch(std::string const& params,
         // Otherwise default to current ledger
         else
         {
-            loadedKeys = bl->loadKeys(orderedKeys);
+            loadedKeys =
+                bl->loadKeysWithLimits(orderedKeys, /*lkMeter=*/nullptr);
             root["ledger"] = bl->getLedgerSeq();
         }
 
