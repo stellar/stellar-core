@@ -178,10 +178,12 @@ class BucketManagerImpl : public BucketManager
                       std::vector<LedgerEntry> const& initEntries,
                       std::vector<LedgerEntry> const& liveEntries,
                       std::vector<LedgerKey> const& deadEntries) override;
-    void addHotArchiveBatch(Application& app, uint32_t currLedger,
-                            uint32_t currLedgerProtocol,
-                            std::vector<LedgerEntry> const& initEntries,
-                            std::vector<LedgerKey> const& deadEntries) override;
+    void
+    addHotArchiveBatch(Application& app, uint32_t currLedger,
+                       uint32_t currLedgerProtocol,
+                       std::vector<LedgerEntry> const& archivedEntries,
+                       std::vector<LedgerKey> const& restoredEntries,
+                       std::vector<LedgerKey> const& deletedEntries) override;
     void snapshotLedger(LedgerHeader& currentHeader) override;
     void maybeSetIndex(std::shared_ptr<Bucket> b,
                        std::unique_ptr<BucketIndex const>&& index) override;

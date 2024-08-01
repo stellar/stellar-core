@@ -67,8 +67,9 @@ class BucketSnapshotManager : NonMovableOrCopyable
 
     friend void BucketManagerImpl::addHotArchiveBatch(
         Application& app, uint32_t currLedger, uint32_t currLedgerProtocol,
-        std::vector<LedgerEntry> const& initEntries,
-        std::vector<LedgerKey> const& deadEntries);
+        std::vector<LedgerEntry> const& archivedEntries,
+        std::vector<LedgerKey> const& restoredEntries,
+        std::vector<LedgerKey> const& deletedEntries);
     friend void
     BucketManagerImpl::addLiveBatch(Application& app, uint32_t currLedger,
                                     uint32_t currLedgerProtocol,

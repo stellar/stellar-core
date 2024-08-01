@@ -83,6 +83,7 @@ class BucketIndex : public NonMovableOrCopyable
     // the largest buckets) and should only be called once. If pageSize == 0 or
     // if file size is less than the cutoff, individual key index is used.
     // Otherwise range index is used, with the range defined by pageSize.
+    template <class BucketEntryT>
     static std::unique_ptr<BucketIndex const>
     createIndex(BucketManager& bm, std::filesystem::path const& filename,
                 Hash const& hash);

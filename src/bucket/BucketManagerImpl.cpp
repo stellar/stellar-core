@@ -1017,8 +1017,9 @@ BucketManagerImpl::addLiveBatch(Application& app, uint32_t currLedger,
 void
 BucketManagerImpl::addHotArchiveBatch(
     Application& app, uint32_t currLedger, uint32_t currLedgerProtocol,
-    std::vector<LedgerEntry> const& initEntries,
-    std::vector<LedgerKey> const& deadEntries)
+    std::vector<LedgerEntry> const& archivedEntries,
+    std::vector<LedgerKey> const& restoredEntries,
+    std::vector<LedgerKey> const& deletedEntries)
 {
     ZoneScoped;
     releaseAssertOrThrow(app.getConfig().MODE_ENABLES_BUCKETLIST);
@@ -1031,13 +1032,15 @@ BucketManagerImpl::addHotArchiveBatch(
     }
 #endif
     auto timer = mBucketAddArchiveBatch.TimeScope();
-    mBucketArchiveObjectInsertBatch.Mark(initEntries.size() +
-                                         deadEntries.size());
+    mBucketArchiveObjectInsertBatch.Mark(archivedEntries.size() +
+                                         restoredEntries.size() +
+                                         deletedEntries.size());
 
     // Hot archive should never modify an existing entry, so there are never
     // live entries
     mHotArchiveBucketList->addBatch(app, currLedger, currLedgerProtocol,
-                                    initEntries, {}, deadEntries);
+                                    archivedEntries, restoredEntries,
+                                    deletedEntries);
     mArchiveBucketListSizeCounter.set_count(mHotArchiveBucketList->getSize());
 
     if (app.getConfig().isUsingBucketListDB())
