@@ -94,6 +94,12 @@ MAX_COLLECT_DURATION = 30
 # after we which we assume those nodes will never respond.
 MAX_INACTIVE_ROUNDS = 8
 
+# Maximum number of nodes to request survey data from in a single batch.
+MAX_BATCH_SIZE = 5
+
+# Length of time stellar-core waits between sending out batches of requests.
+BATCH_DURATION_SECONDS = 15
+
 def get_request(url, params=None):
     """ Make a GET request, or simulate one if running in simulation mode. """
     logger.debug("Sending GET request for %s with params %s", url, params)
@@ -169,18 +175,26 @@ def update_results(graph, parent_info, parent_key, results, is_inbound):
     update_node(graph, parent_info, parent_key, results, field_names)
 
 
-def send_survey_requests(peer_list, url_base):
+def send_survey_requests(peer_list, url_base, skip_sleep):
     """
     Request survey data from a list of peers. `url_base` is the root HTTP
     endpoint to send requests to.
     """
     request_url = url_base + "/surveytopologytimesliced"
     logger.info("Requesting survey data from %s peers", len(peer_list))
+    num_sent = 0
     for (nodeid, inbound_peer_index, outbound_peer_index) in peer_list:
+        if num_sent != 0 and num_sent % MAX_BATCH_SIZE == 0:
+            logger.info("Sent %i/%i requests", num_sent, len(peer_list))
+            if not skip_sleep:
+                logger.info("Waiting %i seconds before sending next batch",
+                            BATCH_DURATION_SECONDS)
+                time.sleep(BATCH_DURATION_SECONDS)
         params = { "node": nodeid,
                    "inboundpeerindex": inbound_peer_index,
                    "outboundpeerindex": outbound_peer_index }
         response = get_request(url=request_url, params=params)
+        num_sent += 1
         if response.text.startswith(
             util.SURVEY_TOPOLOGY_TIME_SLICED_SUCCESS_START):
             logger.debug("Send request to %s", nodeid)
@@ -223,15 +237,18 @@ def check_results(data, graph, merged_results):
 
 
 def write_graph_stats(graph, output_file):
-    stats = {}
-    stats[
-        "average_shortest_path_length"
-    ] = nx.average_shortest_path_length(graph)
-    stats["average_clustering"] = nx.average_clustering(graph)
-    stats["clustering"] = nx.clustering(graph)
-    stats["degree"] = dict(nx.degree(graph))
-    with open(output_file, 'w') as outfile:
-        json.dump(stats, outfile)
+    try:
+        stats = {}
+        stats[
+            "average_shortest_path_length"
+        ] = nx.average_shortest_path_length(graph)
+        stats["average_clustering"] = nx.average_clustering(graph)
+        stats["clustering"] = nx.clustering(graph)
+        stats["degree"] = dict(nx.degree(graph))
+        with open(output_file, 'w') as outfile:
+            json.dump(stats, outfile)
+    except nx.NetworkXException as e:
+        logger.error("Error calculating graph stats: %s", e)
 
 
 def analyze(args):
@@ -313,34 +330,21 @@ def augment(args):
     nx.write_graphml(graph, args.graphmlOutput)
     sys.exit(0)
 
+def start_survey_collecting(url, skip_sleep, collect_duration):
+    """
+    Start the survey collecting phase. This function blocks for the duration of
+    the collecting phase. It occasionally pings the surveyor to keep any SSH
+    tunnel alive.
 
-def run_survey(args):
-    graph = nx.DiGraph()
-    merged_results = defaultdict(lambda: {
-        "numTotalInboundPeers": 0,
-        "numTotalOutboundPeers": 0,
-        "maxInboundPeerCount": 0,
-        "maxOutboundPeerCount": 0,
-        "inboundPeers": {},
-        "outboundPeers": {}
-    })
-    if args.simulate:
-        global SIMULATION
-        try:
-            SIMULATION = sim.SurveySimulation(args.simGraph, args.simRoot)
-        except sim.SimulationError as e:
-            logger.critical("%s", e)
-            sys.exit(1)
+    Arguments:
+        url -- the base URL of the surveyor node
+        skip_sleep -- if True, skip the sleep period. Should only be used when
+                      simulating.
+        collect_duration -- duration of the collecting phase in minutes
+    """
 
-    skip_sleep = args.simulate and args.fast
-    url = args.node
-
-    peers = url + "/peers"
     start_collecting = url + "/startsurveycollecting"
-    stop_collecting = url + "/stopsurveycollecting"
-    survey_result = url + "/getsurveyresult"
-
-    # start survey recording
+    info = url + "/info"
     nonce = random.randint(0, 2**32-1)
     logger.info("Starting survey with nonce %s", nonce)
     response = get_request(url=start_collecting, params={'nonce': nonce})
@@ -348,13 +352,23 @@ def run_survey(args):
         logger.critical("Failed to start survey: %s", response.text)
         sys.exit(1)
 
-    if not skip_sleep:
-        # Sleep for duration of collecting phase
-        logger.info("Sleeping for collecting phase (%i minutes)",
-                    args.collect_duration)
-        time.sleep(args.collect_duration * 60)
+    for i in range(collect_duration, 0, -1):
+        logger.info("%i minutes remaining in collecting phase", i)
+        if not skip_sleep:
+            time.sleep(60)
+        # Keep the SSH tunnel alive by hitting surveyor's /info endpoint
+        get_request(url=info)
 
-    # Stop survey recording
+def stop_survey_collecting(url, skip_sleep):
+    """
+    Stop the survey collecting phase.
+
+    Arguments:
+        url -- the base URL of the surveyor node
+        skip_sleep -- if True, skip the sleep period. Should only be used when
+                      simulating.
+    """
+    stop_collecting = url + "/stopsurveycollecting"
     logger.info("Stopping survey collecting")
     response = get_request(url=stop_collecting)
     if response.text != util.STOP_SURVEY_COLLECTING_SUCCESS_TEXT:
@@ -368,6 +382,46 @@ def run_survey(args):
             "Waiting %i seconds for 'stop collecting' message to propagate",
             sleep_time)
         time.sleep(sleep_time)
+
+def run_survey(args):
+    if args.simulate:
+        global SIMULATION
+        try:
+            SIMULATION = sim.SurveySimulation(args.simGraph, args.simRoot)
+        except sim.SimulationError as e:
+            logger.critical("%s", e)
+            sys.exit(1)
+
+    skip_sleep = args.simulate and args.fast
+    url = args.node
+
+    if args.startPhase == "startCollecting":
+        start_survey_collecting(url, skip_sleep, args.collectDuration)
+
+    if (args.startPhase == "startCollecting" or
+        args.startPhase == "stopCollecting"):
+        stop_survey_collecting(url, skip_sleep)
+
+    if args.startPhase == "surveyResults":
+        # Script is being run partway through an existing survey. To keep
+        # everything in sync, clear survey results cache before surveying nodes.
+        response = get_request(url + "/stopsurvey")
+        if response.text != util.STOP_SURVEY_SUCCESS_TEXT:
+            logger.critical("Failed to clear survey cache: %s", response.text)
+            sys.exit(1)
+
+    graph = nx.DiGraph()
+    merged_results = defaultdict(lambda: {
+        "numTotalInboundPeers": 0,
+        "numTotalOutboundPeers": 0,
+        "maxInboundPeerCount": 0,
+        "maxOutboundPeerCount": 0,
+        "inboundPeers": {},
+        "outboundPeers": {}
+    })
+
+    peers = url + "/peers"
+    survey_result = url + "/getsurveyresult"
 
     peer_list = set()
     if args.nodeList:
@@ -407,7 +461,7 @@ def run_survey(args):
     while True:
         inactive_rounds += 1
 
-        send_survey_requests(peer_list, url)
+        send_survey_requests(peer_list, url, skip_sleep)
 
         for peer in peer_list:
             sent_requests.add(peer.node)
@@ -416,11 +470,11 @@ def run_survey(args):
 
         if not skip_sleep:
             # allow time for results. Stellar-core sends out a batch of requests
-            # every 15 seconds, so there's not much benefit in checking more
-            # frequently than that
-            sleep_time = 15
-            logger.info("Waiting %i seconds for survey results", sleep_time)
-            time.sleep(sleep_time)
+            # every BATCH_DURATION_SECONDS seconds, so there's not much benefit
+            # in checking more frequently than that
+            logger.info("Waiting %i seconds for survey results",
+                        BATCH_DURATION_SECONDS)
+            time.sleep(BATCH_DURATION_SECONDS)
 
         logger.info("Fetching survey result")
         data = get_request(url=survey_result).json()
@@ -480,6 +534,11 @@ def run_survey(args):
         logger.info("New nodes: %s  Gathering additional peer data: %s",
               new_peers, len(peer_list)-new_peers)
 
+    nx.write_graphml(graph, args.graphmlWrite)
+
+    with open(args.surveyResult, 'w') as outfile:
+        json.dump(merged_results, outfile)
+
     # sanity check that simulation produced a graph isomorphic to the input
     assert (not args.simulate or
             nx.is_isomorphic(graph, nx.read_graphml(args.simGraph))), \
@@ -492,11 +551,6 @@ def run_survey(args):
 
     if args.graphStats is not None:
         write_graph_stats(graph, args.graphStats)
-
-    nx.write_graphml(graph, args.graphmlWrite)
-
-    with open(args.surveyResult, 'w') as outfile:
-        json.dump(merged_results, outfile)
 
 
 def flatten(args):
@@ -522,7 +576,7 @@ def init_parser_survey(parser_survey):
                                required=True,
                                help="address of initial survey node")
     parser_survey.add_argument("-c",
-                               "--collect-duration",
+                               "--collectDuration",
                                required=True,
                                type=int,
                                choices=range(1, MAX_COLLECT_DURATION + 1),
@@ -538,6 +592,14 @@ def init_parser_survey(parser_survey):
     parser_survey.add_argument("-nl",
                                "--nodeList",
                                help="optional list of seed nodes")
+    parser_survey.add_argument("-p",
+                               "--startPhase",
+                               help="Survey phase to start from. "
+                                    "Defaults to 'startCollecting'.",
+                               choices=["startCollecting",
+                                        "stopCollecting",
+                                        "surveyResults"],
+                               default="startCollecting")
     parser_survey.set_defaults(func=run_survey)
 
 def main():

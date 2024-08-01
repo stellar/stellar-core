@@ -35,3 +35,7 @@ SURVEY_TOPOLOGY_TIME_SLICED_ALREADY_IN_BACKLOG_OR_SELF = (
         "addPeerToBacklog failed: Peer is already in the backlog, or peer "
         "is self."
         )
+
+# Response from the stopsurvey endpoint. This is the response regardless of
+# whether or not a survey was running prior to calling this endpoint.
+STOP_SURVEY_SUCCESS_TEXT = "survey stopped"
