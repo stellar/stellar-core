@@ -138,14 +138,15 @@ BucketSnapshotBase<BucketT>::loadKeys(
         {
             auto [entryOp, bloomMiss] = getEntryAtOffset(
                 *currKeyIt, *offOp, mBucket->getIndex().getPageSize());
+
             if (entryOp)
             {
-                // Only live bucket loads can be metered
-                if constexpr (std::is_same_v<BucketT, LiveBucket>)
+                // Don't return tombstone entries, as these do not exist wrt
+                // ledger state
+                if (!BucketT::isTombstoneEntry(*entryOp))
                 {
-                    // Don't meter tombstone entries, as these do not exist wrt
-                    // ledger state
-                    if (!LiveBucket::isTombstoneEntry(*entryOp))
+                    // Only live bucket loads can be metered
+                    if constexpr (std::is_same_v<BucketT, LiveBucket>)
                     {
                         bool addEntry = true;
                         if (lkMeter)
@@ -165,10 +166,10 @@ BucketSnapshotBase<BucketT>::loadKeys(
                             result.push_back(entryOp->liveEntry());
                         }
                     }
-                }
-                else
-                {
-                    result.push_back(*entryOp);
+                    else
+                    {
+                        result.push_back(*entryOp);
+                    }
                 }
 
                 currKeyIt = keys.erase(currKeyIt);

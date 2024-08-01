@@ -16,6 +16,12 @@
 #include "main/Config.h"
 #include "test/test.h"
 
+#include "util/ProtocolVersion.h"
+#include "util/UnorderedMap.h"
+#include "util/UnorderedSet.h"
+#include "util/XDRCereal.h"
+#include "util/types.h"
+
 using namespace stellar;
 using namespace BucketTestUtils;
 
@@ -681,5 +687,200 @@ TEST_CASE("serialize bucket indexes", "[bucket][bucketindex]")
             BucketIndex::load(test.getBM(), indexFilename, b->getSize());
         REQUIRE((inMemoryIndex == *onDiskIndex));
     }
+}
+
+// The majority of BucketListDB functionality is shared by all bucketlist types.
+// This test is a simple sanity check and tests the interface differences
+// between the live bucketlist and the hot archive bucketlist.
+TEST_CASE("hot archive bucket lookups", "[bucket][bucketindex][archive]")
+{
+    auto f = [&](Config& cfg) {
+        auto clock = VirtualClock();
+        auto app = createTestApplication<BucketTestApplication>(clock, cfg);
+
+        UnorderedMap<LedgerKey, LedgerEntry> expectedArchiveEntries;
+        UnorderedSet<LedgerKey> expectedDeletedEntries;
+        UnorderedSet<LedgerKey> expectedRestoredEntries;
+        UnorderedSet<LedgerKey> keysToSearch;
+
+        auto ledger = 1;
+
+        // Use snapshot across ledger to test update behavior
+        auto searchableBL = app->getBucketManager()
+                                .getBucketSnapshotManager()
+                                .getSearchableHotArchiveBucketListSnapshot();
+
+        auto checkLoad = [&](LedgerKey const& k,
+                             std::shared_ptr<HotArchiveBucketEntry> entryPtr) {
+            // Restored entries should be null
+            if (expectedRestoredEntries.find(k) !=
+                expectedRestoredEntries.end())
+            {
+                REQUIRE(!entryPtr);
+            }
+
+            // Deleted entries should be HotArchiveBucketEntry of type
+            // DELETED
+            else if (expectedDeletedEntries.find(k) !=
+                     expectedDeletedEntries.end())
+            {
+                REQUIRE(entryPtr);
+                REQUIRE(entryPtr->type() ==
+                        HotArchiveBucketEntryType::HOT_ARCHIVE_DELETED);
+                REQUIRE(entryPtr->key() == k);
+            }
+
+            // Archived entries should contain full LedgerEntry
+            else
+            {
+                auto expectedIter = expectedArchiveEntries.find(k);
+                REQUIRE(expectedIter != expectedArchiveEntries.end());
+                REQUIRE(entryPtr);
+                REQUIRE(entryPtr->type() ==
+                        HotArchiveBucketEntryType::HOT_ARCHIVE_ARCHIVED);
+                REQUIRE(entryPtr->archivedEntry() == expectedIter->second);
+            }
+        };
+
+        auto checkResult = [&] {
+            LedgerKeySet bulkLoadKeys;
+            for (auto const& k : keysToSearch)
+            {
+                auto entryPtr = searchableBL->getArchiveEntry(k);
+                checkLoad(k, entryPtr);
+                bulkLoadKeys.emplace(k);
+            }
+
+            auto bulkLoadResult = searchableBL->loadKeys(bulkLoadKeys);
+            for (auto entry : bulkLoadResult)
+            {
+                if (entry.type() == HOT_ARCHIVE_DELETED)
+                {
+                    auto k = entry.key();
+                    auto iter = expectedDeletedEntries.find(k);
+                    REQUIRE(iter != expectedDeletedEntries.end());
+                    expectedDeletedEntries.erase(iter);
+                }
+                else
+                {
+                    REQUIRE(entry.type() == HOT_ARCHIVE_ARCHIVED);
+                    auto le = entry.archivedEntry();
+                    auto k = LedgerEntryKey(le);
+                    auto iter = expectedArchiveEntries.find(k);
+                    REQUIRE(iter != expectedArchiveEntries.end());
+                    REQUIRE(iter->second == le);
+                    expectedArchiveEntries.erase(iter);
+                }
+            }
+
+            REQUIRE(expectedDeletedEntries.empty());
+            REQUIRE(expectedArchiveEntries.empty());
+        };
+
+        auto archivedEntries =
+            LedgerTestUtils::generateValidUniqueLedgerEntriesWithTypes(
+                {CONTRACT_DATA, CONTRACT_CODE}, 10);
+        for (auto const& e : archivedEntries)
+        {
+            auto k = LedgerEntryKey(e);
+            expectedArchiveEntries.emplace(k, e);
+            keysToSearch.emplace(k);
+        }
+
+        // Note: keys to search automatically populated by these functions
+        auto deletedEntries =
+            LedgerTestUtils::generateValidUniqueLedgerKeysWithTypes(
+                {CONTRACT_DATA, CONTRACT_CODE}, 10, keysToSearch);
+        for (auto const& k : deletedEntries)
+        {
+            expectedDeletedEntries.emplace(k);
+        }
+
+        auto restoredEntries =
+            LedgerTestUtils::generateValidUniqueLedgerKeysWithTypes(
+                {CONTRACT_DATA, CONTRACT_CODE}, 10, keysToSearch);
+        for (auto const& k : restoredEntries)
+        {
+            expectedRestoredEntries.emplace(k);
+        }
+
+        app->getBucketManager().addHotArchiveBatch(
+            *app, ledger++, static_cast<uint32_t>(ProtocolVersion::V_22),
+            archivedEntries, restoredEntries, deletedEntries);
+        checkResult();
+
+        // Add a few batches so that entries are no longer in the top bucket
+        for (auto i = 0; i < 100; ++i)
+        {
+            app->getBucketManager().addHotArchiveBatch(
+                *app, 1, static_cast<uint32_t>(ProtocolVersion::V_22), {}, {},
+                {});
+        }
+
+        // Shadow entries via liveEntry
+        auto liveShadow1 = LedgerEntryKey(archivedEntries[0]);
+        auto liveShadow2 = deletedEntries[1];
+
+        app->getBucketManager().addHotArchiveBatch(
+            *app, ledger++, static_cast<uint32_t>(ProtocolVersion::V_22), {},
+            {liveShadow1, liveShadow2}, {});
+
+        // Point load
+        for (auto const& k : {liveShadow1, liveShadow2})
+        {
+            auto entryPtr = searchableBL->getArchiveEntry(k);
+            REQUIRE(!entryPtr);
+        }
+
+        // Bulk load
+        auto bulkLoadResult =
+            searchableBL->loadKeys({liveShadow1, liveShadow2});
+        REQUIRE(bulkLoadResult.size() == 0);
+
+        // Shadow via deletedEntry
+        auto deletedShadow = LedgerEntryKey(archivedEntries[1]);
+        app->getBucketManager().addHotArchiveBatch(
+            *app, ledger++, static_cast<uint32_t>(ProtocolVersion::V_22), {},
+            {}, {deletedShadow});
+
+        // Point load
+        auto entryPtr = searchableBL->getArchiveEntry(deletedShadow);
+        REQUIRE(entryPtr);
+        REQUIRE(entryPtr->type() ==
+                HotArchiveBucketEntryType::HOT_ARCHIVE_DELETED);
+        REQUIRE(entryPtr->key() == deletedShadow);
+
+        // Bulk load
+        auto bulkLoadResult2 = searchableBL->loadKeys({deletedShadow});
+        REQUIRE(bulkLoadResult2.size() == 1);
+        REQUIRE(bulkLoadResult2[0].type() == HOT_ARCHIVE_DELETED);
+        REQUIRE(bulkLoadResult2[0].key() == deletedShadow);
+
+        // Shadow via archivedEntry
+        auto archivedShadow = archivedEntries[3];
+        archivedShadow.lastModifiedLedgerSeq = ledger;
+
+        app->getBucketManager().addHotArchiveBatch(
+            *app, ledger++, static_cast<uint32_t>(ProtocolVersion::V_22),
+            {archivedShadow}, {}, {});
+
+        // Point load
+        entryPtr =
+            searchableBL->getArchiveEntry(LedgerEntryKey(archivedShadow));
+        REQUIRE(entryPtr);
+        REQUIRE(entryPtr->type() ==
+                HotArchiveBucketEntryType::HOT_ARCHIVE_ARCHIVED);
+        REQUIRE(entryPtr->archivedEntry() == archivedShadow);
+
+        // Bulk load
+        auto bulkLoadResult3 =
+            searchableBL->loadKeys({LedgerEntryKey(archivedShadow)});
+        REQUIRE(bulkLoadResult3.size() == 1);
+        REQUIRE(bulkLoadResult3[0].type() == HOT_ARCHIVE_ARCHIVED);
+        REQUIRE(bulkLoadResult3[0].archivedEntry() == archivedShadow);
+
+    };
+
+    testAllIndexTypes(f);
 }
 }
