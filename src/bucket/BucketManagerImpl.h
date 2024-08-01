@@ -29,7 +29,7 @@ class TmpDir;
 class AbstractLedgerTxn;
 class Application;
 class Bucket;
-class BucketList;
+class LiveBucketList;
 class BucketSnapshotManager;
 struct HistoryArchiveState;
 
@@ -38,7 +38,8 @@ class BucketManagerImpl : public BucketManager
     static std::string const kLockFilename;
 
     Application& mApp;
-    std::unique_ptr<BucketList> mBucketList;
+    std::unique_ptr<LiveBucketList> mLiveBucketList;
+    std::unique_ptr<HotArchiveBucketList> mHotArchiveBucketList;
     std::unique_ptr<BucketSnapshotManager> mSnapshotManager;
     std::unique_ptr<TmpDirManager> mTmpDirManager;
     std::unique_ptr<TmpDir> mWorkDir;
@@ -46,16 +47,19 @@ class BucketManagerImpl : public BucketManager
 
     // Lock for managing raw Bucket files or the bucket directory. This lock is
     // only required for file access, but is not required for logical changes to
-    // the BucketList (i.e. addBatch).
+    // a BucketList (i.e. addLiveBatch).
     mutable std::recursive_mutex mBucketMutex;
     std::unique_ptr<std::string> mLockedBucketDir;
-    medida::Meter& mBucketObjectInsertBatch;
-    medida::Timer& mBucketAddBatch;
+    medida::Meter& mBucketLiveObjectInsertBatch;
+    medida::Meter& mBucketArchiveObjectInsertBatch;
+    medida::Timer& mBucketAddLiveBatch;
+    medida::Timer& mBucketAddArchiveBatch;
     medida::Timer& mBucketSnapMerge;
     medida::Counter& mSharedBucketsSize;
     medida::Meter& mBucketListDBBloomMisses;
     medida::Meter& mBucketListDBBloomLookups;
-    medida::Counter& mBucketListSizeCounter;
+    medida::Counter& mLiveBucketListSizeCounter;
+    medida::Counter& mArchiveBucketListSizeCounter;
     EvictionCounters mBucketListEvictionCounters;
     MergeCounters mMergeCounters;
     std::shared_ptr<EvictionStatistics> mEvictionStatistics{};
@@ -69,8 +73,14 @@ class BucketManagerImpl : public BucketManager
     // FutureBucket being resolved). Entries in this map will be cleared when
     // the FutureBucket is _cleared_ (typically when the owning BucketList level
     // is committed).
-    UnorderedMap<MergeKey, std::shared_future<std::shared_ptr<Bucket>>>
-        mLiveFutures;
+
+    using LiveBucketFutureT = std::shared_future<std::shared_ptr<LiveBucket>>;
+    using HotArchiveBucketFutureT =
+        std::shared_future<std::shared_ptr<HotArchiveBucket>>;
+    using BucketFutureT =
+        std::variant<LiveBucketFutureT, HotArchiveBucketFutureT>;
+
+    UnorderedMap<MergeKey, BucketFutureT> mLiveFutures;
 
     // Records bucket-merges that are _finished_, i.e. have been adopted as
     // (possibly redundant) bucket files. This is a "weak" (bi-multi-)map of
@@ -88,6 +98,23 @@ class BucketManagerImpl : public BucketManager
     medida::Timer& recordBulkLoadMetrics(std::string const& label,
                                          size_t numEntries) const;
     medida::Timer& getPointLoadTimer(LedgerEntryType t) const;
+
+    template <class BucketT>
+    std::shared_ptr<BucketT>
+    adoptFileAsBucket(std::string const& filename, uint256 const& hash,
+                      MergeKey* mergeKey,
+                      std::unique_ptr<BucketIndex const> index);
+
+    template <class BucketT>
+    std::shared_ptr<BucketT> getBucketByHash(uint256 const& hash);
+
+    template <class BucketT>
+    std::shared_future<std::shared_ptr<BucketT>>
+    getMergeFuture(MergeKey const& key);
+
+    template <class BucketT>
+    void putMergeFuture(MergeKey const& key,
+                        std::shared_future<std::shared_ptr<BucketT>>);
 
 #ifdef BUILD_TESTS
     bool mUseFakeTestValuesForNextClose{false};
@@ -108,7 +135,8 @@ class BucketManagerImpl : public BucketManager
     std::string bucketIndexFilename(Hash const& hash) const override;
     std::string const& getTmpDir() override;
     std::string const& getBucketDir() const override;
-    BucketList& getBucketList() override;
+    LiveBucketList& getLiveBucketList() override;
+    HotArchiveBucketList& getHotArchiveBucketList() override;
     BucketSnapshotManager& getBucketSnapshotManager() const override;
     medida::Timer& getMergeTimer() override;
     MergeCounters readMergeCounters() override;
@@ -116,28 +144,46 @@ class BucketManagerImpl : public BucketManager
     TmpDirManager& getTmpDirManager() override;
     bool renameBucketDirFile(std::filesystem::path const& src,
                              std::filesystem::path const& dst) override;
-    std::shared_ptr<Bucket>
-    adoptFileAsBucket(std::string const& filename, uint256 const& hash,
-                      MergeKey* mergeKey,
-                      std::unique_ptr<BucketIndex const> index) override;
+    std::shared_ptr<LiveBucket>
+    adoptFileAsLiveBucket(std::string const& filename, uint256 const& hash,
+                          MergeKey* mergeKey,
+                          std::unique_ptr<BucketIndex const> index) override;
+    std::shared_ptr<HotArchiveBucket> adoptFileAsHotArchiveBucket(
+        std::string const& filename, uint256 const& hash, MergeKey* mergeKey,
+        std::unique_ptr<BucketIndex const> index) override;
     void noteEmptyMergeOutput(MergeKey const& mergeKey) override;
     std::shared_ptr<Bucket> getBucketIfExists(uint256 const& hash) override;
-    std::shared_ptr<Bucket> getBucketByHash(uint256 const& hash) override;
+    std::shared_ptr<LiveBucket>
+    getLiveBucketByHash(uint256 const& hash) override;
+    std::shared_ptr<HotArchiveBucket>
+    getHotArchiveBucketByHash(uint256 const& hash) override;
 
-    std::shared_future<std::shared_ptr<Bucket>>
-    getMergeFuture(MergeKey const& key) override;
-    void putMergeFuture(MergeKey const& key,
-                        std::shared_future<std::shared_ptr<Bucket>>) override;
+    std::shared_future<std::shared_ptr<LiveBucket>>
+    getLiveMergeFuture(MergeKey const& key) override;
+    std::shared_future<std::shared_ptr<HotArchiveBucket>>
+    getHotArchiveMergeFuture(MergeKey const& key) override;
+    void putLiveMergeFuture(
+        MergeKey const& key,
+        std::shared_future<std::shared_ptr<LiveBucket>>) override;
+    void putHotArchiveMergeFuture(
+        MergeKey const& key,
+        std::shared_future<std::shared_ptr<HotArchiveBucket>>) override;
 #ifdef BUILD_TESTS
     void clearMergeFuturesForTesting() override;
 #endif
 
     void forgetUnreferencedBuckets() override;
-    void addBatch(Application& app, uint32_t currLedger,
-                  uint32_t currLedgerProtocol,
-                  std::vector<LedgerEntry> const& initEntries,
-                  std::vector<LedgerEntry> const& liveEntries,
-                  std::vector<LedgerKey> const& deadEntries) override;
+    void addLiveBatch(Application& app, uint32_t currLedger,
+                      uint32_t currLedgerProtocol,
+                      std::vector<LedgerEntry> const& initEntries,
+                      std::vector<LedgerEntry> const& liveEntries,
+                      std::vector<LedgerKey> const& deadEntries) override;
+    void
+    addHotArchiveBatch(Application& app, uint32_t currLedger,
+                       uint32_t currLedgerProtocol,
+                       std::vector<LedgerEntry> const& archivedEntries,
+                       std::vector<LedgerKey> const& restoredEntries,
+                       std::vector<LedgerKey> const& deletedEntries) override;
     void snapshotLedger(LedgerHeader& currentHeader) override;
     void maybeSetIndex(std::shared_ptr<Bucket> b,
                        std::unique_ptr<BucketIndex const>&& index) override;
@@ -153,7 +199,7 @@ class BucketManagerImpl : public BucketManager
 
 #ifdef BUILD_TESTS
     // Install a fake/assumed ledger version and bucket list hash to use in next
-    // call to addBatch and snapshotLedger. This interface exists only for
+    // call to addLiveBatch and snapshotLedger. This interface exists only for
     // testing in a specific type of history replay.
     void setNextCloseVersionAndHashForTesting(uint32_t protocolVers,
                                               uint256 const& hash) override;
@@ -176,7 +222,7 @@ class BucketManagerImpl : public BucketManager
     std::map<LedgerKey, LedgerEntry>
     loadCompleteLedgerState(HistoryArchiveState const& has) override;
 
-    std::shared_ptr<Bucket>
+    std::shared_ptr<LiveBucket>
     mergeBuckets(HistoryArchiveState const& has) override;
 
     void visitLedgerEntries(

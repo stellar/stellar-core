@@ -4,26 +4,38 @@
 // under the Apache License, Version 2.0. See the COPYING file at the root
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
+#include "bucket/Bucket.h"
 #include "bucket/LedgerCmp.h"
 #include "util/NonCopyable.h"
+#include "xdr/Stellar-ledger-entries.h"
 #include <list>
 #include <set>
-
-#include <optional>
 
 namespace stellar
 {
 
-class Bucket;
 class XDRInputFileStream;
-class SearchableBucketListSnapshot;
 struct EvictionResultEntry;
 class LedgerKeyMeter;
+class SearchableLiveBucketListSnapshot;
 
 // A lightweight wrapper around Bucket for thread safe BucketListDB lookups
-class BucketSnapshot : public NonMovable
+template <class BucketT> class BucketSnapshotBase : public NonMovable
 {
-    std::shared_ptr<Bucket const> const mBucket;
+    static_assert(std::is_same_v<BucketT, LiveBucket> ||
+                  std::is_same_v<BucketT, HotArchiveBucket>);
+
+  protected:
+    using BucketEntryT = std::conditional_t<std::is_same_v<BucketT, LiveBucket>,
+                                            BucketEntry, HotArchiveBucketEntry>;
+
+    // LiveBucket returns LedgerEntry vector on call to loadKeys,
+    // HotArchiveBucket returns HotArchiveBucketEntry
+    using BulkLoadReturnT =
+        std::conditional_t<std::is_same_v<BucketT, LiveBucket>, LedgerEntry,
+                           HotArchiveBucketEntry>;
+
+    std::shared_ptr<BucketT const> const mBucket;
 
     // Lazily-constructed and retained for read path.
     mutable std::unique_ptr<XDRInputFileStream> mStream{};
@@ -37,32 +49,44 @@ class BucketSnapshot : public NonMovable
     // reads until key is found or the end of the page. Returns <BucketEntry,
     // bloomMiss>, where bloomMiss is true if a bloomMiss occurred during the
     // load.
-    std::pair<std::optional<BucketEntry>, bool>
+    std::pair<std::shared_ptr<BucketEntryT>, bool>
     getEntryAtOffset(LedgerKey const& k, std::streamoff pos,
                      size_t pageSize) const;
 
-    BucketSnapshot(std::shared_ptr<Bucket const> const b);
+    BucketSnapshotBase(std::shared_ptr<BucketT const> const b);
 
     // Only allow copy constructor, is threadsafe
-    BucketSnapshot(BucketSnapshot const& b);
-    BucketSnapshot& operator=(BucketSnapshot const&) = delete;
+    BucketSnapshotBase(BucketSnapshotBase const& b);
+    BucketSnapshotBase& operator=(BucketSnapshotBase const&) = delete;
 
   public:
     bool isEmpty() const;
-    std::shared_ptr<Bucket const> getRawBucket() const;
+    std::shared_ptr<BucketT const> getRawBucket() const;
 
     // Loads bucket entry for LedgerKey k. Returns <BucketEntry, bloomMiss>,
     // where bloomMiss is true if a bloomMiss occurred during the load.
-    std::pair<std::optional<BucketEntry>, bool>
+    std::pair<std::shared_ptr<BucketEntryT>, bool>
     getBucketEntry(LedgerKey const& k) const;
 
     // Loads LedgerEntry's for given keys. When a key is found, the
     // entry is added to result and the key is removed from keys.
     // If a pointer to a LedgerKeyMeter is provided, a key will only be loaded
     // if the meter has a transaction with sufficient read quota for the key.
-    void loadKeysWithLimits(std::set<LedgerKey, LedgerEntryIdCmp>& keys,
-                            std::vector<LedgerEntry>& result,
-                            LedgerKeyMeter* lkMeter) const;
+    // If Bucket is not of type LiveBucket, lkMeter is ignored.
+    void loadKeys(std::set<LedgerKey, LedgerEntryIdCmp>& keys,
+                  std::vector<BulkLoadReturnT>& result,
+                  LedgerKeyMeter* lkMeter) const;
+
+    // friend struct BucketLevelSnapshot<BucketT>;
+};
+
+class LiveBucketSnapshot : public BucketSnapshotBase<LiveBucket>
+{
+  public:
+    LiveBucketSnapshot(std::shared_ptr<LiveBucket const> const b);
+
+    // Only allow copy constructors, is threadsafe
+    LiveBucketSnapshot(LiveBucketSnapshot const& b);
 
     // Return all PoolIDs that contain the given asset on either side of the
     // pool
@@ -71,8 +95,15 @@ class BucketSnapshot : public NonMovable
     bool scanForEviction(EvictionIterator& iter, uint32_t& bytesToScan,
                          uint32_t ledgerSeq,
                          std::list<EvictionResultEntry>& evictableKeys,
-                         SearchableBucketListSnapshot& bl) const;
+                         SearchableLiveBucketListSnapshot& bl) const;
+};
 
-    friend struct BucketLevelSnapshot;
+class HotArchiveBucketSnapshot : public BucketSnapshotBase<HotArchiveBucket>
+{
+  public:
+    HotArchiveBucketSnapshot(std::shared_ptr<HotArchiveBucket const> const b);
+
+    // Only allow copy constructors, is threadsafe
+    HotArchiveBucketSnapshot(HotArchiveBucketSnapshot const& b);
 };
 }

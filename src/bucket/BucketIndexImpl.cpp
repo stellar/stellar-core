@@ -14,6 +14,7 @@
 #include "util/XDRStream.h"
 
 #include "lib/bloom_filter.hpp"
+#include "xdr/Stellar-ledger.h"
 #include <Tracy.hpp>
 #include <cereal/archives/binary.hpp>
 #include <cereal/types/memory.hpp>
@@ -23,6 +24,7 @@
 #include <fmt/format.h>
 
 #include <thread>
+#include <type_traits>
 
 namespace stellar
 {
@@ -63,13 +65,18 @@ BucketIndex::typeNotSupported(LedgerEntryType t)
 }
 
 template <class IndexT>
+template <class BucketEntryT>
 BucketIndexImpl<IndexT>::BucketIndexImpl(BucketManager& bm,
                                          std::filesystem::path const& filename,
                                          std::streamoff pageSize,
-                                         Hash const& hash)
+                                         Hash const& hash,
+                                         BucketEntryT const& typeTag)
     : mBloomMissMeter(bm.getBloomMissMeter())
     , mBloomLookupMeter(bm.getBloomLookupMeter())
 {
+    static_assert(std::is_same_v<BucketEntryT, BucketEntry> ||
+                  std::is_same_v<BucketEntryT, HotArchiveBucketEntry>);
+
     ZoneScoped;
     releaseAssert(!filename.empty());
 
@@ -123,7 +130,7 @@ BucketIndexImpl<IndexT>::BucketIndexImpl(BucketManager& bm,
         in.open(filename.string());
         std::streamoff pos = 0;
         std::streamoff pageUpperBound = 0;
-        BucketEntry be;
+        BucketEntryT be;
         size_t iter = 0;
         size_t count = 0;
         while (in && in.readOne(be))
@@ -140,35 +147,51 @@ BucketIndexImpl<IndexT>::BucketIndexImpl(BucketManager& bm,
                 }
             }
 
-            if (be.type() != METAENTRY)
+            auto isMeta = [](auto const& be) {
+                if constexpr (std::is_same<BucketEntryT, BucketEntry>::value)
+                {
+                    return be.type() == METAENTRY;
+                }
+                else
+                {
+                    return be.type() == HOT_ARCHIVE_METAENTRY;
+                }
+            };
+
+            if (!isMeta(be))
             {
                 ++count;
                 LedgerKey key = getBucketLedgerKey(be);
 
-                // We need an asset to poolID mapping for
-                // loadPoolshareTrustlineByAccountAndAsset queries. For this
-                // query, we only need to index INIT entries because:
-                // 1. PoolID is the hash of the Assets it refers to, so this
-                //    index cannot be invalidated by newer LIVEENTRY updates
-                // 2. We do a join over all bucket indexes so we avoid storing
-                //    multiple redundant index entries (i.e. LIVEENTRY updates)
-                // 3. We only use this index to collect the possible set of
-                //    Trustline keys, then we load those keys. This means that
-                //    we don't need to keep track of DEADENTRY. Even if a given
-                //    INITENTRY has been deleted by a newer DEADENTRY, the
-                //    trustline load will not return deleted trustlines, so the
-                //    load result is still correct even if the index has a few
-                //    deleted mappings.
-                if (be.type() == INITENTRY && key.type() == LIQUIDITY_POOL)
+                if constexpr (std::is_same_v<BucketEntryT, BucketEntry>)
                 {
-                    auto const& poolParams = be.liveEntry()
-                                                 .data.liquidityPool()
-                                                 .body.constantProduct()
-                                                 .params;
-                    mData.assetToPoolID[poolParams.assetA].emplace_back(
-                        key.liquidityPool().liquidityPoolID);
-                    mData.assetToPoolID[poolParams.assetB].emplace_back(
-                        key.liquidityPool().liquidityPoolID);
+                    // We need an asset to poolID mapping for
+                    // loadPoolshareTrustlineByAccountAndAsset queries. For this
+                    // query, we only need to index INIT entries because:
+                    // 1. PoolID is the hash of the Assets it refers to, so this
+                    //    index cannot be invalidated by newer LIVEENTRY updates
+                    // 2. We do a join over all bucket indexes so we avoid
+                    // storing
+                    //    multiple redundant index entries (i.e. LIVEENTRY
+                    //    updates)
+                    // 3. We only use this index to collect the possible set of
+                    //    Trustline keys, then we load those keys. This means
+                    //    that we don't need to keep track of DEADENTRY. Even if
+                    //    a given INITENTRY has been deleted by a newer
+                    //    DEADENTRY, the trustline load will not return deleted
+                    //    trustlines, so the load result is still correct even
+                    //    if the index has a few deleted mappings.
+                    if (be.type() == INITENTRY && key.type() == LIQUIDITY_POOL)
+                    {
+                        auto const& poolParams = be.liveEntry()
+                                                     .data.liquidityPool()
+                                                     .body.constantProduct()
+                                                     .params;
+                        mData.assetToPoolID[poolParams.assetA].emplace_back(
+                            key.liquidityPool().liquidityPoolID);
+                        mData.assetToPoolID[poolParams.assetB].emplace_back(
+                            key.liquidityPool().liquidityPoolID);
+                    }
                 }
 
                 if constexpr (std::is_same<IndexT, RangeIndex>::value)
@@ -329,11 +352,15 @@ upper_bound_pred(LedgerKey const& key, IndexEntryT const& indexEntry)
     }
 }
 
+template <class BucketEntryT>
 std::unique_ptr<BucketIndex const>
 BucketIndex::createIndex(BucketManager& bm,
                          std::filesystem::path const& filename,
                          Hash const& hash)
 {
+    static_assert(std::is_same_v<BucketEntryT, BucketEntry> ||
+                  std::is_same_v<BucketEntryT, HotArchiveBucketEntry>);
+
     ZoneScoped;
     auto const& cfg = bm.getConfig();
     releaseAssertOrThrow(cfg.isUsingBucketListDB());
@@ -349,7 +376,8 @@ BucketIndex::createIndex(BucketManager& bm,
                        "bucket {}",
                        filename);
             return std::unique_ptr<BucketIndexImpl<IndividualIndex> const>(
-                new BucketIndexImpl<IndividualIndex>(bm, filename, 0, hash));
+                new BucketIndexImpl<IndividualIndex>(bm, filename, 0, hash,
+                                                     BucketEntryT{}));
         }
         else
         {
@@ -359,7 +387,8 @@ BucketIndex::createIndex(BucketManager& bm,
                        "{} in bucket {}",
                        pageSize, filename);
             return std::unique_ptr<BucketIndexImpl<RangeIndex> const>(
-                new BucketIndexImpl<RangeIndex>(bm, filename, pageSize, hash));
+                new BucketIndexImpl<RangeIndex>(bm, filename, pageSize, hash,
+                                                BucketEntryT{}));
         }
     }
     // BucketIndexImpl throws if BucketManager shuts down before index finishes,
@@ -596,4 +625,12 @@ BucketIndexImpl<BucketIndex::RangeIndex>::markBloomLookup() const
 {
     mBloomLookupMeter.Mark();
 }
+
+template std::unique_ptr<BucketIndex const>
+BucketIndex::createIndex<BucketEntry>(BucketManager& bm,
+                                      std::filesystem::path const& filename,
+                                      Hash const& hash);
+template std::unique_ptr<BucketIndex const>
+BucketIndex::createIndex<HotArchiveBucketEntry>(
+    BucketManager& bm, std::filesystem::path const& filename, Hash const& hash);
 }

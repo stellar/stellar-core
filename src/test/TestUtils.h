@@ -31,8 +31,11 @@ std::vector<Asset> getInvalidAssets(SecretKey const& issuer);
 
 int32_t computeMultiplier(LedgerEntry const& le);
 
-class BucketListDepthModifier
+template <class BucketT> class BucketListDepthModifier
 {
+    static_assert(std::is_same_v<BucketT, LiveBucket> ||
+                  std::is_same_v<BucketT, HotArchiveBucket>);
+
     uint32_t const mPrevDepth;
 
   public:

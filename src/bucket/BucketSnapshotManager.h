@@ -4,6 +4,8 @@
 // under the Apache License, Version 2.0. See the COPYING file at the root
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
+#include "bucket/Bucket.h"
+#include "bucket/BucketList.h"
 #include "bucket/BucketManagerImpl.h"
 #include "util/NonCopyable.h"
 #include "util/UnorderedMap.h"
@@ -22,8 +24,10 @@ namespace stellar
 {
 
 class Application;
-class BucketList;
-class BucketListSnapshot;
+class LiveBucketList;
+template <class BucketT> class BucketListSnapshot;
+class SearchableLiveBucketListSnapshot;
+class SearchableHotArchiveBucketListSnapshot;
 
 // This class serves as the boundary between non-threadsafe singleton classes
 // (BucketManager, BucketList, Metrics, etc) and threadsafe, parallel BucketList
@@ -36,7 +40,9 @@ class BucketSnapshotManager : NonMovableOrCopyable
     // Snapshot that is maintained and periodically updated by BucketManager on
     // the main thread. When background threads need to generate or refresh a
     // snapshot, they will copy this snapshot.
-    std::unique_ptr<BucketListSnapshot const> mCurrentSnapshot{};
+    std::unique_ptr<BucketListSnapshot<LiveBucket> const> mCurrentSnapshot{};
+    std::unique_ptr<BucketListSnapshot<HotArchiveBucket> const>
+        mCurrentHotArchiveSnapshot{};
 
     // Lock must be held when accessing mCurrentSnapshot
     mutable std::recursive_mutex mSnapshotMutex;
@@ -53,29 +59,48 @@ class BucketSnapshotManager : NonMovableOrCopyable
     // Called by main thread to update mCurrentSnapshot whenever the BucketList
     // is updated
     void updateCurrentSnapshot(
-        std::unique_ptr<BucketListSnapshot const>&& newSnapshot);
+        std::unique_ptr<BucketListSnapshot<LiveBucket> const>&& newSnapshot);
 
+    void updateCurrentHotArchiveSnapshot(
+        std::unique_ptr<BucketListSnapshot<HotArchiveBucket> const>&&
+            newSnapshot);
+
+    friend void BucketManagerImpl::addHotArchiveBatch(
+        Application& app, uint32_t currLedger, uint32_t currLedgerProtocol,
+        std::vector<LedgerEntry> const& archivedEntries,
+        std::vector<LedgerKey> const& restoredEntries,
+        std::vector<LedgerKey> const& deletedEntries);
     friend void
-    BucketManagerImpl::addBatch(Application& app, uint32_t currLedger,
-                                uint32_t currLedgerProtocol,
-                                std::vector<LedgerEntry> const& initEntries,
-                                std::vector<LedgerEntry> const& liveEntries,
-                                std::vector<LedgerKey> const& deadEntries);
+    BucketManagerImpl::addLiveBatch(Application& app, uint32_t currLedger,
+                                    uint32_t currLedgerProtocol,
+                                    std::vector<LedgerEntry> const& initEntries,
+                                    std::vector<LedgerEntry> const& liveEntries,
+                                    std::vector<LedgerKey> const& deadEntries);
     friend void BucketManagerImpl::assumeState(HistoryArchiveState const& has,
                                                uint32_t maxProtocolVersion,
                                                bool restartMerges);
 
   public:
-    BucketSnapshotManager(Application& app,
-                          std::unique_ptr<BucketListSnapshot const>&& snapshot);
+    BucketSnapshotManager(
+        Application& app,
+        std::unique_ptr<BucketListSnapshot<LiveBucket> const>&& snapshot,
+        std::unique_ptr<BucketListSnapshot<HotArchiveBucket> const>&&
+            hotArchiveSnapshot);
 
-    std::shared_ptr<SearchableBucketListSnapshot>
+    std::shared_ptr<SearchableLiveBucketListSnapshot>
     getSearchableBucketListSnapshot() const;
+
+    std::shared_ptr<SearchableHotArchiveBucketListSnapshot>
+    getSearchableHotArchiveBucketListSnapshot() const;
 
     // Checks if snapshot is out of date with mCurrentSnapshot and updates
     // it accordingly
     void maybeUpdateSnapshot(
-        std::unique_ptr<BucketListSnapshot const>& snapshot) const;
+        std::unique_ptr<BucketListSnapshot<LiveBucket> const>& snapshot) const;
+
+    void maybeUpdateHotArchiveSnapshot(
+        std::unique_ptr<BucketListSnapshot<HotArchiveBucket> const>& snapshot)
+        const;
 
     // All metric recording functions must only be called by the main thread
     void startPointLoadTimer() const;

@@ -682,7 +682,7 @@ TEST_CASE("Bucket list entries vs write throughput", "[scalability][!hide]")
          !app->getClock().getIOContext().stopped() && i < 0x200000; ++i)
     {
         app->getClock().crank(false);
-        app->getBucketManager().addBatch(
+        app->getBucketManager().addLiveBatch(
             *app, i, Config::CURRENT_LEDGER_PROTOCOL_VERSION,
             LedgerTestUtils::generateValidLedgerEntries(100),
             LedgerTestUtils::generateValidLedgerEntries(20),
