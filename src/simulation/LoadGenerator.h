@@ -148,7 +148,7 @@ struct GeneratedLoadConfig
     uint32_t mMinSorobanPercentSuccess = 0;
 };
 
-class LoadGenerator : public TxGenerator
+class LoadGenerator
 {
   public:
     LoadGenerator(Application& app);
@@ -174,10 +174,14 @@ class LoadGenerator : public TxGenerator
     // with the remainder.
     void generateLoad(GeneratedLoadConfig cfg);
 
+    ConfigUpgradeSetKey
+    getConfigUpgradeSetKey(SorobanUpgradeConfig const& upgradeCfg,
+                           Hash const& contractId) const;
+
     // Verify cached accounts are properly reflected in the database
     // return any accounts that are inconsistent.
-    std::vector<TestAccountPtr> checkAccountSynced(Application& app,
-                                                   bool isCreate);
+    std::vector<TxGenerator::TestAccountPtr>
+    checkAccountSynced(Application& app, bool isCreate);
     std::vector<LedgerKey>
     checkSorobanStateSynced(Application& app, GeneratedLoadConfig const& cfg);
 
@@ -239,6 +243,9 @@ class LoadGenerator : public TxGenerator
     static const uint32_t COMPLETION_TIMEOUT_WITHOUT_CHECKS;
     static const uint32_t MIN_UNIQUE_ACCOUNT_MULTIPLIER;
 
+    TxGenerator mTxGenerator;
+    Application& mApp;
+
     std::unique_ptr<VirtualTimer> mLoadTimer;
     uint64_t mLastSecond;
     int64_t mTotalSubmitted;
@@ -257,6 +264,12 @@ class LoadGenerator : public TxGenerator
     // ensure unique preimages for all `SOROBAN_UPGRADE_SETUP` runs.
     uint32_t mNumCreateContractTransactionCalls = 0;
 
+    // For account creation only: allocate a few accounts for creation purposes
+    // (with sufficient balance to create new accounts) to avoid source account
+    // collisions.
+    std::unordered_map<uint64_t, TxGenerator::TestAccountPtr>
+        mCreationSourceAccounts;
+
     // Internal loadgen state gets reset after each run, but it is impossible to
     // regenerate contract instance keys for DB lookup. Due to this we maintain
     // a static list of instances and the wasm entry which we use to rebuild
@@ -267,7 +280,7 @@ class LoadGenerator : public TxGenerator
 
     // Maps account ID to it's contract instance, where each account has a
     // unique instance
-    UnorderedMap<uint64_t, ContractInstance> mContractInstances;
+    UnorderedMap<uint64_t, TxGenerator::ContractInstance> mContractInstances;
 
     medida::Meter& mLoadgenComplete;
     medida::Meter& mLoadgenFail;
@@ -296,7 +309,7 @@ class LoadGenerator : public TxGenerator
     void scheduleLoadGeneration(GeneratedLoadConfig cfg);
 
     // Create a transaction in MIXED_CLASSIC_SOROBAN mode
-    std::pair<LoadGenerator::TestAccountPtr, TransactionTestFramePtr>
+    std::pair<TxGenerator::TestAccountPtr, TransactionTestFramePtr>
     createMixedClassicSorobanTransaction(uint32_t ledgerNum,
                                          uint64_t sourceAccountId,
                                          GeneratedLoadConfig const& cfg);
@@ -305,10 +318,10 @@ class LoadGenerator : public TxGenerator
     // wasm of that size as well as the size itself.
     std::pair<SorobanResources, uint32_t> sorobanRandomUploadResources();
     void maybeHandleFailedTx(TransactionTestFramePtr tx,
-                             TestAccountPtr sourceAccount,
+                             TxGenerator::TestAccountPtr sourceAccount,
                              TransactionQueue::AddResultCode status,
                              TransactionResultCode code);
-    std::pair<TestAccountPtr, TransactionTestFramePtr>
+    std::pair<TxGenerator::TestAccountPtr, TransactionTestFramePtr>
     creationTransaction(uint64_t startAccount, uint64_t numItems,
                         uint32_t ledgerNum);
     void logProgress(std::chrono::nanoseconds submitTimer,
@@ -317,7 +330,7 @@ class LoadGenerator : public TxGenerator
     uint32_t submitCreationTx(uint32_t nAccounts, uint32_t offset,
                               uint32_t ledgerNum);
     bool submitTx(GeneratedLoadConfig const& cfg,
-                  std::function<std::pair<LoadGenerator::TestAccountPtr,
+                  std::function<std::pair<TxGenerator::TestAccountPtr,
                                           TransactionTestFramePtr>()>
                       generateTx);
     void waitTillComplete(GeneratedLoadConfig cfg);

@@ -21,7 +21,7 @@ ApplyLoad::ApplyLoad(Application& app, uint32_t numAccounts,
                      uint64_t ledgerMaxWriteLedgerEntries,
                      uint64_t ledgerMaxWriteBytes, uint64_t ledgerMaxTxCount,
                      uint64_t ledgerMaxTransactionsSizeBytes)
-    : TxGenerator(app), mNumAccounts(numAccounts)
+    : mTxGenerator(app), mApp(app), mNumAccounts(numAccounts)
 {
     mUpgradeConfig.maxContractSizeBytes = 65536;
     mUpgradeConfig.maxContractDataKeySizeBytes = 250;
@@ -46,11 +46,6 @@ ApplyLoad::ApplyLoad(Application& app, uint32_t numAccounts,
     mUpgradeConfig.evictionScanSize = 100000;
     mUpgradeConfig.startingEvictionScanLevel = 7;
 
-    createRootAccount();
-    updateMinBalance();
-
-    releaseAssert(mRoot);
-
     setupAccountsAndUpgradeProtocol();
 
     setupUpgradeContract();
@@ -60,8 +55,9 @@ ApplyLoad::ApplyLoad(Application& app, uint32_t numAccounts,
     setupLoadContracts();
 
     // One contract per account
-    releaseAssert(mApplySorobanSuccess.count() == numAccounts + 4);
-    releaseAssert(mApplySorobanFailure.count() == 0);
+    releaseAssert(mTxGenerator.GetApplySorobanSuccess().count() ==
+                  numAccounts + 4);
+    releaseAssert(mTxGenerator.GetApplySorobanFailure().count() == 0);
 }
 
 void
@@ -85,11 +81,11 @@ ApplyLoad::setupAccountsAndUpgradeProtocol()
     auto const& lm = mApp.getLedgerManager();
     // pass in false for initialAccounts so we fund new account with a lower
     // balance, allowing the creation of more accounts.
-    std::vector<Operation> creationOps =
-        createAccounts(0, mNumAccounts, lm.getLastClosedLedgerNum() + 1, false);
+    std::vector<Operation> creationOps = mTxGenerator.createAccounts(
+        0, mNumAccounts, lm.getLastClosedLedgerNum() + 1, false);
 
-    auto initTx =
-        createTransactionFramePtr(mRoot, creationOps, false, std::nullopt);
+    auto initTx = mTxGenerator.createTransactionFramePtr(
+        mTxGenerator.getRoot(), creationOps, false, std::nullopt);
 
     // Upgrade to latest protocol as well
     auto upgrade = xdr::xvector<UpgradeType, 6>{};
@@ -115,7 +111,7 @@ ApplyLoad::setupUpgradeContract()
     mUpgradeCodeKey = contractCodeLedgerKey;
 
     auto const& lm = mApp.getLedgerManager();
-    auto uploadTx = createUploadWasmTransaction(
+    auto uploadTx = mTxGenerator.createUploadWasmTransaction(
         lm.getLastClosedLedgerNum() + 1, 0, wasmBytes, contractCodeLedgerKey,
         std::nullopt);
 
@@ -123,7 +119,7 @@ ApplyLoad::setupUpgradeContract()
 
     auto salt = sha256("upgrade contract salt preimage");
 
-    auto createTx = createContractTransaction(
+    auto createTx = mTxGenerator.createContractTransaction(
         lm.getLastClosedLedgerNum() + 1, 0, contractCodeLedgerKey,
         wasmBytes.size() + 160, salt, std::nullopt);
     closeLedger({createTx.second});
@@ -138,13 +134,14 @@ void
 ApplyLoad::upgradeSettings()
 {
     auto const& lm = mApp.getLedgerManager();
-    auto upgradeBytes = getConfigUpgradeSetFromLoadConfig(mUpgradeConfig);
+    auto upgradeBytes =
+        mTxGenerator.getConfigUpgradeSetFromLoadConfig(mUpgradeConfig);
 
-    auto invokeTx = invokeSorobanCreateUpgradeTransaction(
+    auto invokeTx = mTxGenerator.invokeSorobanCreateUpgradeTransaction(
         lm.getLastClosedLedgerNum() + 1, 0, upgradeBytes, mUpgradeCodeKey,
         mUpgradeInstanceKey, std::nullopt);
 
-    auto upgradeSetKey = getConfigUpgradeSetKey(
+    auto upgradeSetKey = mTxGenerator.getConfigUpgradeSetKey(
         mUpgradeConfig,
         mUpgradeInstanceKey.contractData().contract.contractId());
 
@@ -171,17 +168,17 @@ ApplyLoad::setupLoadContracts()
     mLoadCodeKey = contractCodeLedgerKey;
 
     auto const& lm = mApp.getLedgerManager();
-    auto uploadTx = createUploadWasmTransaction(
+    auto uploadTx = mTxGenerator.createUploadWasmTransaction(
         lm.getLastClosedLedgerNum() + 1, 0, wasmBytes, contractCodeLedgerKey,
         std::nullopt);
 
     closeLedger({uploadTx.second});
 
-    for (auto kvp : mAccounts)
+    for (auto kvp : mTxGenerator.getAccounts())
     {
         auto salt = sha256("Load contract " + std::to_string(kvp.first));
 
-        auto createTx = createContractTransaction(
+        auto createTx = mTxGenerator.createContractTransaction(
             lm.getLastClosedLedgerNum() + 1, 0, contractCodeLedgerKey,
             wasmBytes.size() + 160, salt, std::nullopt);
         closeLedger({createTx.second});
@@ -189,7 +186,7 @@ ApplyLoad::setupLoadContracts()
         auto instanceKey =
             createTx.second->sorobanResources().footprint.readWrite.back();
 
-        ContractInstance instance;
+        TxGenerator::ContractInstance instance;
         instance.readOnlyKeys.emplace_back(mLoadCodeKey);
         instance.readOnlyKeys.emplace_back(instanceKey);
         instance.contractID = instanceKey.contractData().contract;
@@ -207,20 +204,21 @@ ApplyLoad::benchmark()
         multiplyByDouble(lm.maxLedgerResources(true),
                          2 /*TODO: use TRANSACTION_QUEUE_SIZE_MULTIPLIER*/);
 
-    std::vector<uint64_t> shuffledAccounts(mAccounts.size());
+    auto const& accounts = mTxGenerator.getAccounts();
+    std::vector<uint64_t> shuffledAccounts(accounts.size());
     std::iota(shuffledAccounts.begin(), shuffledAccounts.end(), 0);
     stellar::shuffle(std::begin(shuffledAccounts), std::end(shuffledAccounts),
                      gRandomEngine);
 
     for (auto accountIndex : shuffledAccounts)
     {
-        auto it = mAccounts.find(accountIndex);
-        releaseAssert(it != mAccounts.end());
+        auto it = accounts.find(accountIndex);
+        releaseAssert(it != accounts.end());
 
         auto instanceIter = mLoadInstances.find(it->first);
         releaseAssert(instanceIter != mLoadInstances.end());
         auto const& instance = instanceIter->second;
-        auto tx = invokeSorobanLoadTransaction(
+        auto tx = mTxGenerator.invokeSorobanLoadTransaction(
             lm.getLastClosedLedgerNum() + 1, it->first, instance,
             rust_bridge::get_write_bytes().data.size() + 160, std::nullopt);
 
@@ -254,8 +252,9 @@ ApplyLoad::benchmark()
 double
 ApplyLoad::successRate()
 {
-    return mApplySorobanSuccess.count() * 1.0 /
-           (mApplySorobanSuccess.count() + mApplySorobanFailure.count());
+    return mTxGenerator.GetApplySorobanSuccess().count() * 1.0 /
+           (mTxGenerator.GetApplySorobanSuccess().count() +
+            mTxGenerator.GetApplySorobanFailure().count());
 }
 
 }

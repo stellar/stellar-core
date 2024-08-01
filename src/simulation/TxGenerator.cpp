@@ -46,18 +46,14 @@ TxGenerator::TxGenerator(Application& app)
     , mApplySorobanFailure(
           mApp.getMetrics().NewCounter({"ledger", "apply-soroban", "failure"}))
 {
-}
-
-void
-TxGenerator::createRootAccount()
-{
-    releaseAssert(!mRoot);
     auto rootTestAccount = TestAccount::createRoot(mApp);
     mRoot = make_shared<TestAccount>(rootTestAccount);
     if (!loadAccount(mRoot))
     {
         CLOG_ERROR(LoadGen, "Could not retrieve root account!");
     }
+
+    updateMinBalance();
 }
 
 void
@@ -205,10 +201,6 @@ TxGenerator::createAccounts(uint64_t start, uint64_t count, uint32_t ledgerNum,
         // Cache newly created account
         auto acc = make_shared<TestAccount>(account);
         mAccounts.emplace(i, acc);
-        if (initialAccounts)
-        {
-            mCreationSourceAccounts.emplace(i, acc);
-        }
     }
     return ops;
 }
@@ -530,6 +522,37 @@ TxGenerator::invokeSorobanLoadTransaction(
                                        resourceFee));
 
     return std::make_pair(account, tx);
+}
+
+std::map<uint64_t, TxGenerator::TestAccountPtr> const&
+TxGenerator::getAccounts()
+{
+    return mAccounts;
+}
+
+TxGenerator::TestAccountPtr
+TxGenerator::getRoot()
+{
+    return mRoot;
+}
+
+medida::Counter const&
+TxGenerator::GetApplySorobanSuccess()
+{
+    return mApplySorobanSuccess;
+}
+
+medida::Counter const&
+TxGenerator::GetApplySorobanFailure()
+{
+    return mApplySorobanFailure;
+}
+
+void
+TxGenerator::reset()
+{
+    mAccounts.clear();
+    mRoot.reset();
 }
 
 ConfigUpgradeSetKey

@@ -60,9 +60,6 @@ class TxGenerator
     using TestAccountPtr = std::shared_ptr<TestAccount>;
     TxGenerator(Application& app);
 
-    void createRootAccount();
-    void updateMinBalance();
-
     bool loadAccount(TestAccount& account);
     bool loadAccount(TestAccountPtr account);
 
@@ -118,7 +115,7 @@ class TxGenerator
                        uint32_t opCount,
                        std::optional<uint32_t> maxGeneratedFeeRate);
 
-    uint64_t getNextAvailableAccount(uint32_t ledgerNum);
+    int generateFee(std::optional<uint32_t> maxGeneratedFeeRate, size_t opsCnt);
 
     std::pair<TestAccountPtr, TestAccountPtr>
     pickAccountPair(uint32_t numAccounts, uint32_t offset, uint32_t ledgerNum,
@@ -128,15 +125,24 @@ class TxGenerator
     getConfigUpgradeSetKey(SorobanUpgradeConfig const& upgradeCfg,
                            Hash const& contractId) const;
 
-  protected:
     SCBytes getConfigUpgradeSetFromLoadConfig(
         SorobanUpgradeConfig const& upgradeCfg) const;
-    std::pair<SorobanResources, uint32_t> sorobanRandomUploadResources();
 
-    int generateFee(std::optional<uint32_t> maxGeneratedFeeRate, size_t opsCnt);
+    std::map<uint64_t, TestAccountPtr> const& getAccounts();
+    TestAccountPtr getRoot();
+
+    medida::Counter const& GetApplySorobanSuccess();
+    medida::Counter const& GetApplySorobanFailure();
+
+    void reset();
+
+  private:
+    std::pair<SorobanResources, uint32_t> sorobanRandomUploadResources();
 
     // Calculates total size we'll need to read for all specified keys
     uint64_t bytesToRead(xdr::xvector<stellar::LedgerKey> const& keys);
+
+    void updateMinBalance();
 
     Application& mApp;
     TestAccountPtr mRoot;
@@ -145,11 +151,6 @@ class TxGenerator
     std::map<uint64_t, TestAccountPtr> mAccounts;
 
     int64 mMinBalance;
-
-    // For account creation only: allocate a few accounts for creation purposes
-    // (with sufficient balance to create new accounts) to avoid source account
-    // collisions.
-    std::unordered_map<uint64_t, TestAccountPtr> mCreationSourceAccounts;
 
     // Counts of soroban transactions that succeeded or failed at apply time
     medida::Counter const& mApplySorobanSuccess;

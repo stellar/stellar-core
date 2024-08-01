@@ -4,7 +4,7 @@
 
 namespace stellar
 {
-class ApplyLoad : public TxGenerator
+class ApplyLoad
 {
   public:
     ApplyLoad(Application& app, uint32_t numAccounts,
@@ -33,9 +33,12 @@ class ApplyLoad : public TxGenerator
     LedgerKey mUpgradeInstanceKey;
 
     LedgerKey mLoadCodeKey;
-    UnorderedMap<uint64_t, ContractInstance> mLoadInstances;
+    UnorderedMap<uint64_t, TxGenerator::ContractInstance> mLoadInstances;
 
     SorobanUpgradeConfig mUpgradeConfig;
+
+    TxGenerator mTxGenerator;
+    Application& mApp;
 
     uint32_t mNumAccounts;
 };
