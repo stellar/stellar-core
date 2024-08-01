@@ -22,10 +22,9 @@ static const uint32 allAccountAuthFlags =
     (AUTH_REQUIRED_FLAG | AUTH_REVOCABLE_FLAG | AUTH_IMMUTABLE_FLAG |
      AUTH_CLAWBACK_ENABLED_FLAG);
 
-SetOptionsOpFrame::SetOptionsOpFrame(Operation const& op, OperationResult& res,
-                                     TransactionFrame& parentTx)
-    : OperationFrame(op, res, parentTx)
-    , mSetOptions(mOperation.body.setOptionsOp())
+SetOptionsOpFrame::SetOptionsOpFrame(Operation const& op,
+                                     TransactionFrame const& parentTx)
+    : OperationFrame(op, parentTx), mSetOptions(mOperation.body.setOptionsOp())
 {
 }
 
@@ -43,7 +42,8 @@ SetOptionsOpFrame::getThresholdLevel() const
 }
 
 bool
-SetOptionsOpFrame::addOrChangeSigner(AbstractLedgerTxn& ltx)
+SetOptionsOpFrame::addOrChangeSigner(AbstractLedgerTxn& ltx,
+                                     OperationResult& res) const
 {
     auto header = ltx.loadHeader();
     auto sourceAccount = loadSourceAccount(ltx, header);
@@ -63,7 +63,7 @@ SetOptionsOpFrame::addOrChangeSigner(AbstractLedgerTxn& ltx)
     // Add signer
     if (signers.size() == signers.max_size())
     {
-        innerResult().code(SET_OPTIONS_TOO_MANY_SIGNERS);
+        innerResult(res).code(SET_OPTIONS_TOO_MANY_SIGNERS);
         return false;
     }
 
@@ -85,13 +85,13 @@ SetOptionsOpFrame::addOrChangeSigner(AbstractLedgerTxn& ltx)
     case SponsorshipResult::SUCCESS:
         break;
     case SponsorshipResult::LOW_RESERVE:
-        innerResult().code(SET_OPTIONS_LOW_RESERVE);
+        innerResult(res).code(SET_OPTIONS_LOW_RESERVE);
         return false;
     case SponsorshipResult::TOO_MANY_SUBENTRIES:
-        mResult.code(opTOO_MANY_SUBENTRIES);
+        res.code(opTOO_MANY_SUBENTRIES);
         return false;
     case SponsorshipResult::TOO_MANY_SPONSORING:
-        mResult.code(opTOO_MANY_SPONSORING);
+        res.code(opTOO_MANY_SPONSORING);
         return false;
     case SponsorshipResult::TOO_MANY_SPONSORED:
         // This is impossible right now because there is a limit on sub
@@ -106,7 +106,7 @@ SetOptionsOpFrame::addOrChangeSigner(AbstractLedgerTxn& ltx)
 void
 SetOptionsOpFrame::deleteSigner(AbstractLedgerTxn& ltx,
                                 LedgerTxnHeader const& header,
-                                LedgerTxnEntry& sourceAccount)
+                                LedgerTxnEntry& sourceAccount) const
 {
     auto& account = sourceAccount.current().data.account();
     auto& signers = account.signers;
@@ -121,7 +121,10 @@ SetOptionsOpFrame::deleteSigner(AbstractLedgerTxn& ltx,
 }
 
 bool
-SetOptionsOpFrame::doApply(AbstractLedgerTxn& ltx)
+SetOptionsOpFrame::doApply(Application& app, AbstractLedgerTxn& ltx,
+                           Hash const& sorobanBasePrngSeed,
+                           OperationResult& res,
+                           std::shared_ptr<SorobanTxData> sorobanData) const
 {
     ZoneNamedN(applyZone, "SetOptionsOp apply", true);
 
@@ -135,7 +138,7 @@ SetOptionsOpFrame::doApply(AbstractLedgerTxn& ltx)
         {
             if (!stellar::loadAccountWithoutRecord(ltx, inflationID))
             {
-                innerResult().code(SET_OPTIONS_INVALID_INFLATION);
+                innerResult(res).code(SET_OPTIONS_INVALID_INFLATION);
                 return false;
             }
         }
@@ -147,7 +150,7 @@ SetOptionsOpFrame::doApply(AbstractLedgerTxn& ltx)
         if ((*mSetOptions.clearFlags & allAccountAuthFlags) &&
             isImmutableAuth(sourceAccount))
         {
-            innerResult().code(SET_OPTIONS_CANT_CHANGE);
+            innerResult(res).code(SET_OPTIONS_CANT_CHANGE);
             return false;
         }
         account.flags = account.flags & ~*mSetOptions.clearFlags;
@@ -158,7 +161,7 @@ SetOptionsOpFrame::doApply(AbstractLedgerTxn& ltx)
         if ((*mSetOptions.setFlags & allAccountAuthFlags) &&
             isImmutableAuth(sourceAccount))
         {
-            innerResult().code(SET_OPTIONS_CANT_CHANGE);
+            innerResult(res).code(SET_OPTIONS_CANT_CHANGE);
             return false;
         }
         account.flags = account.flags | *mSetOptions.setFlags;
@@ -170,7 +173,7 @@ SetOptionsOpFrame::doApply(AbstractLedgerTxn& ltx)
         if (!accountFlagClawbackIsValid(account.flags,
                                         header.current().ledgerVersion))
         {
-            innerResult().code(SET_OPTIONS_AUTH_REVOCABLE_REQUIRED);
+            innerResult(res).code(SET_OPTIONS_AUTH_REVOCABLE_REQUIRED);
             return false;
         }
     }
@@ -209,7 +212,7 @@ SetOptionsOpFrame::doApply(AbstractLedgerTxn& ltx)
         if (mSetOptions.signer->weight)
         {
             LedgerTxn ltxInner(ltx);
-            if (!addOrChangeSigner(ltxInner))
+            if (!addOrChangeSigner(ltxInner, res))
             {
                 return false;
             }
@@ -221,19 +224,20 @@ SetOptionsOpFrame::doApply(AbstractLedgerTxn& ltx)
         }
     }
 
-    innerResult().code(SET_OPTIONS_SUCCESS);
+    innerResult(res).code(SET_OPTIONS_SUCCESS);
     return true;
 }
 
 bool
-SetOptionsOpFrame::doCheckValid(uint32_t ledgerVersion)
+SetOptionsOpFrame::doCheckValid(uint32_t ledgerVersion,
+                                OperationResult& res) const
 {
     if ((mSetOptions.setFlags &&
          !accountFlagMaskCheckIsValid(*mSetOptions.setFlags, ledgerVersion)) ||
         (mSetOptions.clearFlags &&
          !accountFlagMaskCheckIsValid(*mSetOptions.clearFlags, ledgerVersion)))
     {
-        innerResult().code(SET_OPTIONS_UNKNOWN_FLAG);
+        innerResult(res).code(SET_OPTIONS_UNKNOWN_FLAG);
         return false;
     }
 
@@ -241,7 +245,7 @@ SetOptionsOpFrame::doCheckValid(uint32_t ledgerVersion)
     {
         if ((*mSetOptions.setFlags & *mSetOptions.clearFlags) != 0)
         {
-            innerResult().code(SET_OPTIONS_BAD_FLAGS);
+            innerResult(res).code(SET_OPTIONS_BAD_FLAGS);
             return false;
         }
     }
@@ -250,7 +254,7 @@ SetOptionsOpFrame::doCheckValid(uint32_t ledgerVersion)
     {
         if (*mSetOptions.masterWeight > UINT8_MAX)
         {
-            innerResult().code(SET_OPTIONS_THRESHOLD_OUT_OF_RANGE);
+            innerResult(res).code(SET_OPTIONS_THRESHOLD_OUT_OF_RANGE);
             return false;
         }
     }
@@ -259,7 +263,7 @@ SetOptionsOpFrame::doCheckValid(uint32_t ledgerVersion)
     {
         if (*mSetOptions.lowThreshold > UINT8_MAX)
         {
-            innerResult().code(SET_OPTIONS_THRESHOLD_OUT_OF_RANGE);
+            innerResult(res).code(SET_OPTIONS_THRESHOLD_OUT_OF_RANGE);
             return false;
         }
     }
@@ -268,7 +272,7 @@ SetOptionsOpFrame::doCheckValid(uint32_t ledgerVersion)
     {
         if (*mSetOptions.medThreshold > UINT8_MAX)
         {
-            innerResult().code(SET_OPTIONS_THRESHOLD_OUT_OF_RANGE);
+            innerResult(res).code(SET_OPTIONS_THRESHOLD_OUT_OF_RANGE);
             return false;
         }
     }
@@ -277,7 +281,7 @@ SetOptionsOpFrame::doCheckValid(uint32_t ledgerVersion)
     {
         if (*mSetOptions.highThreshold > UINT8_MAX)
         {
-            innerResult().code(SET_OPTIONS_THRESHOLD_OUT_OF_RANGE);
+            innerResult(res).code(SET_OPTIONS_THRESHOLD_OUT_OF_RANGE);
             return false;
         }
     }
@@ -292,13 +296,13 @@ SetOptionsOpFrame::doCheckValid(uint32_t ledgerVersion)
             (!isPublicKey &&
              protocolVersionIsBefore(ledgerVersion, ProtocolVersion::V_3)))
         {
-            innerResult().code(SET_OPTIONS_BAD_SIGNER);
+            innerResult(res).code(SET_OPTIONS_BAD_SIGNER);
             return false;
         }
         if (mSetOptions.signer->weight > UINT8_MAX &&
             protocolVersionStartsFrom(ledgerVersion, ProtocolVersion::V_10))
         {
-            innerResult().code(SET_OPTIONS_BAD_SIGNER);
+            innerResult(res).code(SET_OPTIONS_BAD_SIGNER);
             return false;
         }
 
@@ -307,7 +311,7 @@ SetOptionsOpFrame::doCheckValid(uint32_t ledgerVersion)
             (protocolVersionIsBefore(ledgerVersion, ProtocolVersion::V_19) ||
              mSetOptions.signer->key.ed25519SignedPayload().payload.empty()))
         {
-            innerResult().code(SET_OPTIONS_BAD_SIGNER);
+            innerResult(res).code(SET_OPTIONS_BAD_SIGNER);
             return false;
         }
     }
@@ -316,7 +320,7 @@ SetOptionsOpFrame::doCheckValid(uint32_t ledgerVersion)
     {
         if (!isStringValid(*mSetOptions.homeDomain))
         {
-            innerResult().code(SET_OPTIONS_INVALID_HOME_DOMAIN);
+            innerResult(res).code(SET_OPTIONS_INVALID_HOME_DOMAIN);
             return false;
         }
     }

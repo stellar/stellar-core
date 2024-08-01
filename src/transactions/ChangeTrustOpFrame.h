@@ -11,26 +11,30 @@ namespace stellar
 class ChangeTrustOpFrame : public OperationFrame
 {
     ChangeTrustResult&
-    innerResult()
+    innerResult(OperationResult& res) const
     {
-        return mResult.tr().changeTrustResult();
+        return res.tr().changeTrustResult();
     }
     ChangeTrustOp const& mChangeTrust;
 
-    bool tryIncrementPoolUseCount(AbstractLedgerTxn& ltx, Asset const& asset);
+    bool tryIncrementPoolUseCount(AbstractLedgerTxn& ltx, Asset const& asset,
+                                  OperationResult& res) const;
 
     bool tryManagePoolOnNewTrustLine(AbstractLedgerTxn& ltx,
-                                     TrustLineAsset const& tlAsset);
+                                     TrustLineAsset const& tlAsset,
+                                     OperationResult& res) const;
 
     void managePoolOnDeletedTrustLine(AbstractLedgerTxn& ltx,
-                                      TrustLineAsset const& tlAsset);
+                                      TrustLineAsset const& tlAsset) const;
 
   public:
-    ChangeTrustOpFrame(Operation const& op, OperationResult& res,
-                       TransactionFrame& parentTx);
+    ChangeTrustOpFrame(Operation const& op, TransactionFrame const& parentTx);
 
-    bool doApply(AbstractLedgerTxn& ltx) override;
-    bool doCheckValid(uint32_t ledgerVersion) override;
+    bool doApply(Application& app, AbstractLedgerTxn& ltx,
+                 Hash const& sorobanBasePrngSeed, OperationResult& res,
+                 std::shared_ptr<SorobanTxData> sorobanData) const override;
+    bool doCheckValid(uint32_t ledgerVersion,
+                      OperationResult& res) const override;
 
     static ChangeTrustResultCode
     getInnerCode(OperationResult const& res)

@@ -846,7 +846,7 @@ TEST_CASE("generalized tx set fees", "[txset][soroban]")
             LedgerTxn ltx(app->getLedgerTxnRoot());
             if (validateTx)
             {
-                REQUIRE(tx->checkValid(*app, ltx, 0, 0, 0));
+                REQUIRE(tx->checkValidForTesting(*app, ltx, 0, 0, 0));
             }
             return tx;
         }

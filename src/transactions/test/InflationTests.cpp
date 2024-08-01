@@ -239,7 +239,7 @@ doInflation(Application& app, int ledgerVersion, int nbAccounts,
 
     // verify balances
     InflationResult const& infResult =
-        getFirstResult(*txFrame).tr().inflationResult();
+        getFirstResult(txFrame).tr().inflationResult();
     auto const& payouts = infResult.payouts();
     size_t actualChanges = 0;
 
@@ -337,8 +337,8 @@ TEST_CASE_VERSIONS("inflation total coins", "[tx][inflation]")
     auto rootBalance = root.getBalance();
 
     auto voter1tx = root.tx({createAccount(voter1, rootBalance / 6)});
-    voter1tx->getEnvelope().v0().tx.fee = 999999999;
-    voter1tx->getEnvelope().v0().signatures.clear();
+    voter1tx->getMutableEnvelope().v0().tx.fee = 999999999;
+    voter1tx->getMutableEnvelope().v0().signatures.clear();
     voter1tx->addSignature(root.getSecretKey());
     auto voter2tx = root.tx({createAccount(voter2, rootBalance / 3)});
     auto target1tx = root.tx({createAccount(target1, minBalance)});

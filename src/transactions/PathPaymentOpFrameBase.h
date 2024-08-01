@@ -17,22 +17,24 @@ class PathPaymentOpFrameBase : public OperationFrame
     bool convert(AbstractLedgerTxn& ltx, int64_t maxOffersToCross,
                  Asset const& sendAsset, int64_t maxSend, int64_t& amountSend,
                  Asset const& recvAsset, int64_t maxRecv, int64_t& amountRecv,
-                 RoundingType round, std::vector<ClaimAtom>& offerTrail);
+                 RoundingType round, std::vector<ClaimAtom>& offerTrail,
+                 OperationResult& res) const;
 
     bool shouldBypassIssuerCheck(std::vector<Asset> const& path) const;
 
-    bool updateSourceBalance(AbstractLedgerTxn& ltx, int64_t amount,
-                             bool bypassIssuerCheck,
-                             bool doesSourceAccountExist);
+    bool updateSourceBalance(AbstractLedgerTxn& ltx, OperationResult& res,
+                             int64_t amount, bool bypassIssuerCheck,
+                             bool doesSourceAccountExist) const;
 
     bool updateDestBalance(AbstractLedgerTxn& ltx, int64_t amount,
-                           bool bypassIssuerCheck);
+                           bool bypassIssuerCheck, OperationResult& res) const;
 
-    bool checkIssuer(AbstractLedgerTxn& ltx, Asset const& asset);
+    bool checkIssuer(AbstractLedgerTxn& ltx, Asset const& asset,
+                     OperationResult& res) const;
 
   public:
-    PathPaymentOpFrameBase(Operation const& op, OperationResult& res,
-                           TransactionFrame& parentTx);
+    PathPaymentOpFrameBase(Operation const& op,
+                           TransactionFrame const& parentTx);
 
     void
     insertLedgerKeysToPrefetch(UnorderedSet<LedgerKey>& keys) const override;
@@ -48,18 +50,19 @@ class PathPaymentOpFrameBase : public OperationFrame
     virtual MuxedAccount const& getDestMuxedAccount() const = 0;
     virtual xdr::xvector<Asset, 5> const& getPath() const = 0;
 
-    virtual void setResultSuccess() = 0;
-    virtual void setResultMalformed() = 0;
-    virtual void setResultUnderfunded() = 0;
-    virtual void setResultSourceNoTrust() = 0;
-    virtual void setResultSourceNotAuthorized() = 0;
-    virtual void setResultNoDest() = 0;
-    virtual void setResultDestNoTrust() = 0;
-    virtual void setResultDestNotAuthorized() = 0;
-    virtual void setResultLineFull() = 0;
-    virtual void setResultNoIssuer(Asset const& asset) = 0;
-    virtual void setResultTooFewOffers() = 0;
-    virtual void setResultOfferCrossSelf() = 0;
-    virtual void setResultConstraintNotMet() = 0;
+    virtual void setResultSuccess(OperationResult& res) const = 0;
+    virtual void setResultMalformed(OperationResult& res) const = 0;
+    virtual void setResultUnderfunded(OperationResult& res) const = 0;
+    virtual void setResultSourceNoTrust(OperationResult& res) const = 0;
+    virtual void setResultSourceNotAuthorized(OperationResult& res) const = 0;
+    virtual void setResultNoDest(OperationResult& res) const = 0;
+    virtual void setResultDestNoTrust(OperationResult& res) const = 0;
+    virtual void setResultDestNotAuthorized(OperationResult& res) const = 0;
+    virtual void setResultLineFull(OperationResult& res) const = 0;
+    virtual void setResultNoIssuer(Asset const& asset,
+                                   OperationResult& res) const = 0;
+    virtual void setResultTooFewOffers(OperationResult& res) const = 0;
+    virtual void setResultOfferCrossSelf(OperationResult& res) const = 0;
+    virtual void setResultConstraintNotMet(OperationResult& res) const = 0;
 };
 }

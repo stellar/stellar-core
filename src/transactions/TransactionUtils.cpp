@@ -10,6 +10,7 @@
 #include "ledger/LedgerTxnEntry.h"
 #include "ledger/LedgerTxnHeader.h"
 #include "ledger/TrustLineWrapper.h"
+#include "transactions/MutableTransactionResult.h"
 #include "transactions/OfferExchange.h"
 #include "transactions/SponsorshipUtils.h"
 #include "util/ProtocolVersion.h"
@@ -1834,12 +1835,14 @@ getMinInclusionFee(TransactionFrameBase const& tx, LedgerHeader const& header,
 bool
 validateContractLedgerEntry(LedgerKey const& lk, size_t entrySize,
                             SorobanNetworkConfig const& config,
-                            Config const& appConfig, TransactionFrame& parentTx)
+                            Config const& appConfig,
+                            TransactionFrame const& parentTx,
+                            SorobanTxData& sorobanData)
 {
     // check contract code size limit
     if (lk.type() == CONTRACT_CODE && config.maxContractSizeBytes() < entrySize)
     {
-        parentTx.pushApplyTimeDiagnosticError(
+        sorobanData.pushApplyTimeDiagnosticError(
             appConfig, SCE_BUDGET, SCEC_EXCEEDED_LIMIT,
             "Wasm size exceeds network config maximum contract size",
             {makeU64SCVal(entrySize),
@@ -1850,7 +1853,7 @@ validateContractLedgerEntry(LedgerKey const& lk, size_t entrySize,
     if (lk.type() == CONTRACT_DATA &&
         config.maxContractDataEntrySizeBytes() < entrySize)
     {
-        parentTx.pushApplyTimeDiagnosticError(
+        sorobanData.pushApplyTimeDiagnosticError(
             appConfig, SCE_BUDGET, SCEC_EXCEEDED_LIMIT,
             "ContractData size exceeds network config maximum size",
             {makeU64SCVal(entrySize),

@@ -34,6 +34,7 @@
 #include "transactions/TransactionBridge.h"
 #include "transactions/TransactionFrame.h"
 #include "transactions/TransactionUtils.h"
+#include "transactions/test/TransactionTestFrame.h"
 #include "util/Math.h"
 #include "util/ProtocolVersion.h"
 
@@ -45,6 +46,7 @@
 #include "xdrpp/marshal.h"
 #include <algorithm>
 #include <fmt/format.h>
+#include <memory>
 #include <numeric>
 #include <optional>
 
@@ -86,9 +88,9 @@ TEST_CASE_VERSIONS("standalone", "[herder][acceptance]")
         {
             VirtualTimer setupTimer(*app);
 
-            auto feedTx = [&](TransactionFramePtr& tx,
-                              TransactionQueue::AddResult expectedRes) {
-                REQUIRE(app->getHerder().recvTransaction(tx, false) ==
+            auto feedTx = [&](TransactionTestFramePtr tx,
+                              TransactionQueue::AddResultCode expectedRes) {
+                REQUIRE(app->getHerder().recvTransaction(tx, false).code ==
                         expectedRes);
             };
 
@@ -122,7 +124,7 @@ TEST_CASE_VERSIONS("standalone", "[herder][acceptance]")
                                         createAccount(c1, startingBalance)});
 
                 feedTx(txFrame,
-                       TransactionQueue::AddResult::ADD_STATUS_PENDING);
+                       TransactionQueue::AddResultCode::ADD_STATUS_PENDING);
             };
 
             setupTimer.expires_from_now(std::chrono::seconds(0));
@@ -145,7 +147,7 @@ TEST_CASE_VERSIONS("standalone", "[herder][acceptance]")
                         ProtocolVersion::V_10);
                 }
 
-                std::vector<TransactionFramePtr> txAs, txBs, txCs;
+                std::vector<TransactionTestFramePtr> txAs, txBs, txCs;
                 txAs.emplace_back(a1.tx({payment(root, paymentAmount)}));
                 txAs.emplace_back(b1.tx({payment(root, paymentAmount)}));
                 if (hasC)
@@ -155,7 +157,8 @@ TEST_CASE_VERSIONS("standalone", "[herder][acceptance]")
 
                 for (auto a : txAs)
                 {
-                    feedTx(a, TransactionQueue::AddResult::ADD_STATUS_PENDING);
+                    feedTx(a,
+                           TransactionQueue::AddResultCode::ADD_STATUS_PENDING);
                 }
                 waitForExternalize();
 
@@ -169,7 +172,8 @@ TEST_CASE_VERSIONS("standalone", "[herder][acceptance]")
 
                 for (auto b : txBs)
                 {
-                    feedTx(b, TransactionQueue::AddResult::ADD_STATUS_PENDING);
+                    feedTx(b,
+                           TransactionQueue::AddResultCode::ADD_STATUS_PENDING);
                 }
                 waitForExternalize();
 
@@ -178,12 +182,13 @@ TEST_CASE_VERSIONS("standalone", "[herder][acceptance]")
                 txCs.emplace_back(c1.tx({payment(root, paymentAmount)}));
 
                 feedTx(txCs[0],
-                       TransactionQueue::AddResult::ADD_STATUS_PENDING);
-                feedTx(txCs[1], TransactionQueue::AddResult::ADD_STATUS_ERROR);
+                       TransactionQueue::AddResultCode::ADD_STATUS_PENDING);
+                feedTx(txCs[1],
+                       TransactionQueue::AddResultCode::ADD_STATUS_ERROR);
                 if (hasC)
                 {
                     feedTx(txCs[2],
-                           TransactionQueue::AddResult::ADD_STATUS_ERROR);
+                           TransactionQueue::AddResultCode::ADD_STATUS_ERROR);
                 }
 
                 waitForExternalize();
@@ -257,7 +262,7 @@ TEST_CASE_VERSIONS("standalone", "[herder][acceptance]")
     });
 }
 
-static TransactionFramePtr
+static TransactionTestFramePtr
 makeMultiPayment(stellar::TestAccount& destAccount, stellar::TestAccount& src,
                  int nbOps, int64 paymentBase, uint32 extraFee, uint32 feeMult)
 {
@@ -274,7 +279,7 @@ makeMultiPayment(stellar::TestAccount& destAccount, stellar::TestAccount& src,
     return tx;
 }
 
-static TransactionFramePtr
+static TransactionTestFramePtr
 makeSelfPayment(stellar::TestAccount& account, int nbOps, uint32_t fee)
 {
     std::vector<stellar::Operation> ops;
@@ -353,7 +358,8 @@ testTxSet(uint32 protocolVersion)
         }
         SECTION("sequence gap")
         {
-            setSeqNum(std::static_pointer_cast<TransactionFrame>(txs[0]),
+            auto txPtr = std::const_pointer_cast<TransactionFrameBase>(txs[0]);
+            setSeqNum(std::static_pointer_cast<TransactionTestFrame>(txPtr),
                       txs[0]->getSeqNum() + 5);
 
             TxSetTransactions removed;
@@ -376,7 +382,8 @@ testTxSet(uint32 protocolVersion)
         }
         SECTION("bad signature")
         {
-            auto tx = std::static_pointer_cast<TransactionFrame>(txs[0]);
+            auto tx =
+                std::static_pointer_cast<TransactionTestFrame const>(txs[0]);
             setMaxTime(tx, UINT64_MAX);
             tx->clearCached();
             TxSetTransactions removed;
@@ -388,7 +395,7 @@ testTxSet(uint32 protocolVersion)
     }
 }
 
-static TransactionFrameBasePtr
+static TransactionTestFramePtr
 transaction(Application& app, TestAccount& account, int64_t sequenceDelta,
             int64_t amount, uint32_t fee)
 {
@@ -1414,7 +1421,7 @@ TEST_CASE("surge pricing", "[herder][txset][soroban]")
 
         SECTION("invalid soroban is rejected")
         {
-            TransactionFramePtr invalidSoroban;
+            TransactionTestFramePtr invalidSoroban;
             SECTION("invalid fee")
             {
                 // Fee too small
@@ -2345,9 +2352,9 @@ testSCPDriver(uint32 protocolVersion, uint32_t maxTxSetSize, size_t expectedOps)
             auto tx = makeMultiPayment(root, root, 10, 1000, 0, 100);
             setMinTime(tx, minTime);
             setMaxTime(tx, maxTime);
-            auto& sig = tx->getEnvelope().type() == ENVELOPE_TYPE_TX_V0
-                            ? tx->getEnvelope().v0().signatures
-                            : tx->getEnvelope().v1().signatures;
+            auto& sig = tx->getMutableEnvelope().type() == ENVELOPE_TYPE_TX_V0
+                            ? tx->getMutableEnvelope().v0().signatures
+                            : tx->getMutableEnvelope().v1().signatures;
             sig.clear();
             tx->addSignature(root.getSecretKey());
             auto [txSet, applicableTxSet] =
@@ -3127,12 +3134,12 @@ TEST_CASE("tx queue source account limit", "[herder][transactionqueue]")
     auto [root, a1, b1, tx1, tx2] = makeTxs(app);
 
     // Submit txs for the same account, should be good
-    REQUIRE(app->getHerder().recvTransaction(tx1, true) ==
-            TransactionQueue::AddResult::ADD_STATUS_PENDING);
+    REQUIRE(app->getHerder().recvTransaction(tx1, true).code ==
+            TransactionQueue::AddResultCode::ADD_STATUS_PENDING);
 
     // Second tx is rejected due to limit
-    REQUIRE(app->getHerder().recvTransaction(tx2, true) ==
-            TransactionQueue::AddResult::ADD_STATUS_TRY_AGAIN_LATER);
+    REQUIRE(app->getHerder().recvTransaction(tx2, true).code ==
+            TransactionQueue::AddResultCode::ADD_STATUS_TRY_AGAIN_LATER);
 
     uint32_t lcl = app->getLedgerManager().getLastClosedLedgerNum();
     simulation->crankUntil(
@@ -3158,8 +3165,8 @@ TEST_CASE("tx queue source account limit", "[herder][transactionqueue]")
 
     // Now submit the second tx (which was rejected earlier) and make sure
     // it ends up in the ledger
-    REQUIRE(app->getHerder().recvTransaction(tx2, true) ==
-            TransactionQueue::AddResult::ADD_STATUS_PENDING);
+    REQUIRE(app->getHerder().recvTransaction(tx2, true).code ==
+            TransactionQueue::AddResultCode::ADD_STATUS_PENDING);
 
     lcl = app->getLedgerManager().getLastClosedLedgerNum();
     simulation->crankUntil(
@@ -3914,8 +3921,9 @@ herderExternalizesValuesWithProtocol(uint32_t version)
                     SorobanResources resources;
                     auto sorobanTx = createUploadWasmTx(
                         *A, root, 100, DEFAULT_TEST_RESOURCE_FEE, resources);
-                    REQUIRE(herderA.recvTransaction(sorobanTx, true) ==
-                            TransactionQueue::AddResult::ADD_STATUS_PENDING);
+                    REQUIRE(
+                        herderA.recvTransaction(sorobanTx, true).code ==
+                        TransactionQueue::AddResultCode::ADD_STATUS_PENDING);
                     submitted = true;
                 }
                 return currentALedger() >= destinationLedger &&
@@ -4716,8 +4724,8 @@ TEST_CASE("do not flood too many soroban transactions",
 
         auto tx = createUploadWasmTx(*app, source, inclusionFee, 10'000'000,
                                      resources);
-        REQUIRE(herder.recvTransaction(tx, false) ==
-                TransactionQueue::AddResult::ADD_STATUS_PENDING);
+        REQUIRE(herder.recvTransaction(tx, false).code ==
+                TransactionQueue::AddResultCode::ADD_STATUS_PENDING);
         return tx;
     };
 
@@ -4889,8 +4897,8 @@ TEST_CASE("do not flood too many transactions", "[herder][transactionqueue]")
                 curFeeOffset--;
             }
 
-            REQUIRE(herder.recvTransaction(tx, false) ==
-                    TransactionQueue::AddResult::ADD_STATUS_PENDING);
+            REQUIRE(herder.recvTransaction(tx, false).code ==
+                    TransactionQueue::AddResultCode::ADD_STATUS_PENDING);
             return tx;
         };
 
@@ -5099,8 +5107,8 @@ TEST_CASE("do not flood too many transactions with DEX separation",
                 curFeeOffset--;
             }
 
-            REQUIRE(herder.recvTransaction(tx, false) ==
-                    TransactionQueue::AddResult::ADD_STATUS_PENDING);
+            REQUIRE(herder.recvTransaction(tx, false).code ==
+                    TransactionQueue::AddResultCode::ADD_STATUS_PENDING);
             return tx;
         };
 
@@ -5527,8 +5535,8 @@ TEST_CASE("exclude transactions by operation type", "[herder]")
         auto acc = getAccount("acc");
         auto tx = root.tx({createAccount(acc.getPublicKey(), 1)});
 
-        REQUIRE(app->getHerder().recvTransaction(tx, false) ==
-                TransactionQueue::AddResult::ADD_STATUS_PENDING);
+        REQUIRE(app->getHerder().recvTransaction(tx, false).code ==
+                TransactionQueue::AddResultCode::ADD_STATUS_PENDING);
     }
 
     SECTION("filter excludes transaction containing specified operation")
@@ -5542,8 +5550,8 @@ TEST_CASE("exclude transactions by operation type", "[herder]")
         auto acc = getAccount("acc");
         auto tx = root.tx({createAccount(acc.getPublicKey(), 1)});
 
-        REQUIRE(app->getHerder().recvTransaction(tx, false) ==
-                TransactionQueue::AddResult::ADD_STATUS_FILTERED);
+        REQUIRE(app->getHerder().recvTransaction(tx, false).code ==
+                TransactionQueue::AddResultCode::ADD_STATUS_FILTERED);
     }
 
     SECTION("filter does not exclude transaction containing non-specified "
@@ -5558,8 +5566,8 @@ TEST_CASE("exclude transactions by operation type", "[herder]")
         auto acc = getAccount("acc");
         auto tx = root.tx({createAccount(acc.getPublicKey(), 1)});
 
-        REQUIRE(app->getHerder().recvTransaction(tx, false) ==
-                TransactionQueue::AddResult::ADD_STATUS_PENDING);
+        REQUIRE(app->getHerder().recvTransaction(tx, false).code ==
+                TransactionQueue::AddResultCode::ADD_STATUS_PENDING);
     }
 }
 
