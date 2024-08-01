@@ -360,9 +360,6 @@ HerderImpl::processExternalized(uint64 slotIndex, StellarValue const& value,
     }
 
     mLedgerManager.valueExternalized(ledgerData);
-
-    // Ensure potential upgrades are handled in overlay
-    maybeHandleUpgrade();
 }
 
 void
@@ -1139,6 +1136,9 @@ HerderImpl::lastClosedLedgerIncreased(bool latest)
 {
     maybeSetupSorobanQueue(
         mLedgerManager.getLastClosedLedgerHeader().header.ledgerVersion);
+
+    // Ensure potential upgrades are handled in overlay
+    maybeHandleUpgrade();
 
     if (latest)
     {
