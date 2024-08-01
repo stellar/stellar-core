@@ -268,6 +268,11 @@ class HerderImpl : public Herder
     // restores SCP state based on the last messages saved on disk
     void restoreSCPState();
 
+    // Map SCP slots to local time of nomination and the time slot was
+    // externalized by the network
+    std::map<uint32_t, std::pair<uint64_t, std::optional<uint64_t>>>
+        mDriftCTSlidingWindow;
+
     // saves upgrade parameters
     void persistUpgrades();
     void restoreUpgrades();
