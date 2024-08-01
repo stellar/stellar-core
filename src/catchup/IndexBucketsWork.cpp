@@ -80,7 +80,8 @@ IndexBucketsWork::IndexWork::postWork()
 
             if (!self->mIndex)
             {
-                self->mIndex = BucketIndex::createIndex(
+                // TODO: Fix this when archive BucketLists assume state
+                self->mIndex = BucketIndex::createIndex<BucketEntry>(
                     bm, self->mBucket->getFilename(), self->mBucket->getHash());
             }
 
