@@ -5,6 +5,8 @@
 #include "transactions/TransactionBridge.h"
 #include "transactions/TransactionUtils.h"
 
+#include "herder/HerderImpl.h"
+
 #include "medida/meter.h"
 #include "medida/metrics_registry.h"
 
@@ -200,9 +202,8 @@ ApplyLoad::benchmark()
     auto& lm = mApp.getLedgerManager();
     std::vector<TransactionFrameBasePtr> txs;
 
-    auto resources =
-        multiplyByDouble(lm.maxLedgerResources(true),
-                         2 /*TODO: use TRANSACTION_QUEUE_SIZE_MULTIPLIER*/);
+    auto resources = multiplyByDouble(lm.maxLedgerResources(true),
+                                      TRANSACTION_QUEUE_SIZE_MULTIPLIER);
 
     auto const& accounts = mTxGenerator.getAccounts();
     std::vector<uint64_t> shuffledAccounts(accounts.size());
