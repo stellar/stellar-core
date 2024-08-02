@@ -372,14 +372,28 @@ FutureBucket::startMerge(Application& app, uint32_t maxProtocolVersion,
                     CLOG_TRACE(
                         Bucket, "Worker finished merging curr={} with snap={}",
                         hexAbbrev(curr->getHash()), hexAbbrev(snap->getHash()));
-
-                    std::chrono::duration<double> time(timeScope.Stop());
-                    double timePct = time.count() / availableTime.count() * 100;
-                    CLOG_DEBUG(
-                        Perf,
-                        "Bucket merge on level {} finished in {} seconds "
-                        "({}% of available time)",
-                        level, time.count(), timePct);
+                    auto time = timeScope.Stop();
+                    std::chrono::duration<double> doubleTime(time);
+                    double timePct =
+                        doubleTime.count() / availableTime.count() * 100;
+                    auto timeSec =
+                        std::chrono::duration_cast<std::chrono::seconds>(time);
+                    if (time > std::chrono::seconds(50))
+                    {
+                        CLOG_WARNING(
+                            Bucket,
+                            "Bucket merge on level {} finished in {} seconds "
+                            "({}% of available time)",
+                            level, timeSec.count(), timePct);
+                    }
+                    else
+                    {
+                        CLOG_DEBUG(
+                            Perf,
+                            "Bucket merge on level {} finished in {} seconds "
+                            "({}% of available time)",
+                            level, timeSec.count(), timePct);
+                    }
                 }
 
                 return res;
