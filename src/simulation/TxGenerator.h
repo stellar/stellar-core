@@ -69,47 +69,49 @@ class TxGenerator
                                           uint32_t ledgerNum,
                                           bool initialAccounts);
 
-    TransactionFramePtr
-    createTransactionFramePtr(TestAccountPtr from, std::vector<Operation> ops,
-                              bool pretend,
-                              std::optional<uint32_t> maxGeneratedFeeRate);
+    TransactionTestFramePtr
+    createTransactionTestFramePtr(TestAccountPtr from,
+                                  std::vector<Operation> ops, bool pretend,
+                                  std::optional<uint32_t> maxGeneratedFeeRate);
 
-    std::pair<TestAccountPtr, TransactionFramePtr>
+    std::pair<TestAccountPtr, TransactionTestFramePtr>
     paymentTransaction(uint32_t numAccounts, uint32_t offset,
                        uint32_t ledgerNum, uint64_t sourceAccount,
                        uint32_t opCount,
                        std::optional<uint32_t> maxGeneratedFeeRate);
 
-    std::pair<TestAccountPtr, TransactionFramePtr>
+    std::pair<TestAccountPtr, TransactionTestFramePtr>
     manageOfferTransaction(uint32_t ledgerNum, uint64_t accountId,
                            uint32_t opCount,
                            std::optional<uint32_t> maxGeneratedFeeRate);
 
-    std::pair<TestAccountPtr, TransactionFramePtr>
+    std::pair<TestAccountPtr, TransactionTestFramePtr>
     createUploadWasmTransaction(uint32_t ledgerNum, uint64_t accountId,
                                 xdr::opaque_vec<> const& wasm,
                                 LedgerKey const& contractCodeLedgerKey,
                                 std::optional<uint32_t> maxGeneratedFeeRate);
-    std::pair<TestAccountPtr, TransactionFramePtr> createContractTransaction(
-        uint32_t ledgerNum, uint64_t accountId, LedgerKey const& codeKey,
-        uint64_t contractOverheadBytes, uint256 const& salt,
-        std::optional<uint32_t> maxGeneratedFeeRate);
+    std::pair<TestAccountPtr, TransactionTestFramePtr>
+    createContractTransaction(uint32_t ledgerNum, uint64_t accountId,
+                              LedgerKey const& codeKey,
+                              uint64_t contractOverheadBytes,
+                              uint256 const& salt,
+                              std::optional<uint32_t> maxGeneratedFeeRate);
 
-    std::pair<TestAccountPtr, TransactionFramePtr>
+    std::pair<TestAccountPtr, TransactionTestFramePtr>
     invokeSorobanLoadTransaction(uint32_t ledgerNum, uint64_t accountId,
                                  TxGenerator::ContractInstance const& instance,
                                  uint64_t contractOverheadBytes,
                                  std::optional<uint32_t> maxGeneratedFeeRate);
-    std::pair<TestAccountPtr, TransactionFramePtr>
+    std::pair<TestAccountPtr, TransactionTestFramePtr>
     invokeSorobanCreateUpgradeTransaction(
         uint32_t ledgerNum, uint64_t accountId, SCBytes const& upgradeBytes,
         LedgerKey const& codeKey, LedgerKey const& instanceKey,
         std::optional<uint32_t> maxGeneratedFeeRate);
-    std::pair<TestAccountPtr, TransactionFramePtr>
+    std::pair<TestAccountPtr, TransactionTestFramePtr>
     sorobanRandomWasmTransaction(uint32_t ledgerNum, uint64_t accountId,
                                  uint32_t inclusionFee);
 
-    std::pair<TestAccountPtr, TransactionFramePtr>
+    std::pair<TestAccountPtr, TransactionTestFramePtr>
     pretendTransaction(uint32_t numAccounts, uint32_t offset,
                        uint32_t ledgerNum, uint64_t sourceAccount,
                        uint32_t opCount,

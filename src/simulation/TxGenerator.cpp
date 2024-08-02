@@ -205,8 +205,8 @@ TxGenerator::createAccounts(uint64_t start, uint64_t count, uint32_t ledgerNum,
     return ops;
 }
 
-TransactionFramePtr
-TxGenerator::createTransactionFramePtr(
+TransactionTestFramePtr
+TxGenerator::createTransactionTestFramePtr(
     TxGenerator::TestAccountPtr from, std::vector<Operation> ops, bool pretend,
     std::optional<uint32_t> maxGeneratedFeeRate)
 {
@@ -229,7 +229,7 @@ TxGenerator::createTransactionFramePtr(
     return txf;
 }
 
-std::pair<TxGenerator::TestAccountPtr, TransactionFramePtr>
+std::pair<TxGenerator::TestAccountPtr, TransactionTestFramePtr>
 TxGenerator::paymentTransaction(uint32_t numAccounts, uint32_t offset,
                                 uint32_t ledgerNum, uint64_t sourceAccount,
                                 uint32_t opCount,
@@ -247,11 +247,11 @@ TxGenerator::paymentTransaction(uint32_t numAccounts, uint32_t offset,
     }
 
     return std::make_pair(from,
-                          createTransactionFramePtr(from, paymentOps, false,
-                                                    maxGeneratedFeeRate));
+                          createTransactionTestFramePtr(from, paymentOps, false,
+                                                        maxGeneratedFeeRate));
 }
 
-std::pair<TxGenerator::TestAccountPtr, TransactionFramePtr>
+std::pair<TxGenerator::TestAccountPtr, TransactionTestFramePtr>
 TxGenerator::manageOfferTransaction(uint32_t ledgerNum, uint64_t accountId,
                                     uint32_t opCount,
                                     std::optional<uint32_t> maxGeneratedFeeRate)
@@ -268,13 +268,13 @@ TxGenerator::manageOfferTransaction(uint32_t ledgerNum, uint64_t accountId,
             Price{rand_uniform<int32_t>(1, 100), rand_uniform<int32_t>(1, 100)},
             100));
     }
-    return std::make_pair(
-        account,
-        createTransactionFramePtr(account, ops, false, maxGeneratedFeeRate));
+    return std::make_pair(account,
+                          createTransactionTestFramePtr(account, ops, false,
+                                                        maxGeneratedFeeRate));
 }
 
 // TODO:: passing in wasm and maxGeneratedFeeRate?
-std::pair<TxGenerator::TestAccountPtr, TransactionFramePtr>
+std::pair<TxGenerator::TestAccountPtr, TransactionTestFramePtr>
 TxGenerator::createUploadWasmTransaction(
     uint32_t ledgerNum, uint64_t accountId, xdr::opaque_vec<> const& wasm,
     LedgerKey const& contractCodeLedgerKey,
@@ -298,17 +298,16 @@ TxGenerator::createUploadWasmTransaction(
     int64_t resourceFee =
         sorobanResourceFee(mApp, uploadResources, 5000 + wasm.size(), 100);
     resourceFee += 1'000'000;
-    auto tx = std::dynamic_pointer_cast<TransactionFrame>(
-        sorobanTransactionFrameFromOps(mApp.getNetworkID(), *account,
-                                       {uploadOp}, {}, uploadResources,
-                                       generateFee(maxGeneratedFeeRate,
-                                                   /* opsCnt */ 1),
-                                       resourceFee));
+    auto tx = sorobanTransactionFrameFromOps(mApp.getNetworkID(), *account,
+                                             {uploadOp}, {}, uploadResources,
+                                             generateFee(maxGeneratedFeeRate,
+                                                         /* opsCnt */ 1),
+                                             resourceFee);
 
     return std::make_pair(account, tx);
 }
 
-std::pair<TxGenerator::TestAccountPtr, TransactionFramePtr>
+std::pair<TxGenerator::TestAccountPtr, TransactionTestFramePtr>
 TxGenerator::createContractTransaction(
     uint32_t ledgerNum, uint64_t accountId, LedgerKey const& codeKey,
     uint64_t contractOverheadBytes, uint256 const& salt,
@@ -322,12 +321,11 @@ TxGenerator::createContractTransaction(
 
     auto contractIDPreimage = makeContractIDPreimage(*account, salt);
 
-    auto tx =
-        std::dynamic_pointer_cast<TransactionFrame>(makeSorobanCreateContractTx(
-            mApp, *account, contractIDPreimage,
-            makeWasmExecutable(codeKey.contractCode().hash), createResources,
-            generateFee(maxGeneratedFeeRate,
-                        /* opsCnt */ 1)));
+    auto tx = makeSorobanCreateContractTx(
+        mApp, *account, contractIDPreimage,
+        makeWasmExecutable(codeKey.contractCode().hash), createResources,
+        generateFee(maxGeneratedFeeRate,
+                    /* opsCnt */ 1));
 
     return std::make_pair(account, tx);
 }
@@ -361,7 +359,7 @@ increaseOpSize(Operation& op, uint32_t increaseUpToBytes)
     op.body.invokeHostFunctionOp().auth = {auth};
 }
 
-std::pair<TxGenerator::TestAccountPtr, TransactionFramePtr>
+std::pair<TxGenerator::TestAccountPtr, TransactionTestFramePtr>
 TxGenerator::invokeSorobanLoadTransaction(
     uint32_t ledgerNum, uint64_t accountId, ContractInstance const& instance,
     uint64_t contractOverheadBytes, std::optional<uint32_t> maxGeneratedFeeRate)
@@ -514,12 +512,11 @@ TxGenerator::invokeSorobanLoadTransaction(
     // txBAD_SEQ.
     account->loadSequenceNumber();
 
-    auto tx = std::dynamic_pointer_cast<TransactionFrame>(
-        sorobanTransactionFrameFromOps(mApp.getNetworkID(), *account, {op}, {},
-                                       resources,
-                                       generateFee(maxGeneratedFeeRate,
-                                                   /* opsCnt */ 1),
-                                       resourceFee));
+    auto tx = sorobanTransactionFrameFromOps(mApp.getNetworkID(), *account,
+                                             {op}, {}, resources,
+                                             generateFee(maxGeneratedFeeRate,
+                                                         /* opsCnt */ 1),
+                                             resourceFee);
 
     return std::make_pair(account, tx);
 }
@@ -747,7 +744,7 @@ TxGenerator::getConfigUpgradeSetFromLoadConfig(
     return xdr::xdr_to_opaque(upgradeSet);
 }
 
-std::pair<TxGenerator::TestAccountPtr, TransactionFramePtr>
+std::pair<TxGenerator::TestAccountPtr, TransactionTestFramePtr>
 TxGenerator::invokeSorobanCreateUpgradeTransaction(
     uint32_t ledgerNum, uint64_t accountId, SCBytes const& upgradeBytes,
     LedgerKey const& codeKey, LedgerKey const& instanceKey,
@@ -794,17 +791,16 @@ TxGenerator::invokeSorobanCreateUpgradeTransaction(
     auto resourceFee = sorobanResourceFee(mApp, resources, 1'000, 40);
     resourceFee += 1'000'000;
 
-    auto tx = std::dynamic_pointer_cast<TransactionFrame>(
-        sorobanTransactionFrameFromOps(mApp.getNetworkID(), *account, {op}, {},
-                                       resources,
-                                       generateFee(maxGeneratedFeeRate,
-                                                   /* opsCnt */ 1),
-                                       resourceFee));
+    auto tx = sorobanTransactionFrameFromOps(mApp.getNetworkID(), *account,
+                                             {op}, {}, resources,
+                                             generateFee(maxGeneratedFeeRate,
+                                                         /* opsCnt */ 1),
+                                             resourceFee);
 
     return std::make_pair(account, tx);
 }
 
-std::pair<TxGenerator::TestAccountPtr, TransactionFramePtr>
+std::pair<TxGenerator::TestAccountPtr, TransactionTestFramePtr>
 TxGenerator::sorobanRandomWasmTransaction(uint32_t ledgerNum,
                                           uint64_t accountId,
                                           uint32_t inclusionFee)
@@ -823,10 +819,9 @@ TxGenerator::sorobanRandomWasmTransaction(uint32_t ledgerNum,
         mApp, resources, 5000 + static_cast<size_t>(wasmSize), 100);
     // Roughly cover the rent fee.
     resourceFee += 100000;
-    auto tx = std::dynamic_pointer_cast<TransactionFrame>(
-        sorobanTransactionFrameFromOps(mApp.getNetworkID(), *account,
-                                       {uploadOp}, {}, resources, inclusionFee,
-                                       resourceFee));
+    auto tx = sorobanTransactionFrameFromOps(mApp.getNetworkID(), *account,
+                                             {uploadOp}, {}, resources,
+                                             inclusionFee, resourceFee);
     return std::make_pair(account, tx);
 }
 
@@ -873,7 +868,7 @@ TxGenerator::sorobanRandomUploadResources()
     return {resources, wasmSize};
 }
 
-std::pair<TxGenerator::TestAccountPtr, TransactionFramePtr>
+std::pair<TxGenerator::TestAccountPtr, TransactionTestFramePtr>
 TxGenerator::pretendTransaction(uint32_t numAccounts, uint32_t offset,
                                 uint32_t ledgerNum, uint64_t sourceAccount,
                                 uint32_t opCount,
@@ -899,8 +894,8 @@ TxGenerator::pretendTransaction(uint32_t numAccounts, uint32_t offset,
         }
         ops.push_back(txtest::setOptions(args));
     }
-    return std::make_pair(
-        acc, createTransactionFramePtr(acc, ops, true, maxGeneratedFeeRate));
+    return std::make_pair(acc, createTransactionTestFramePtr(
+                                   acc, ops, true, maxGeneratedFeeRate));
 }
 
 }

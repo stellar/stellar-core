@@ -413,7 +413,7 @@ LoadGenerator::getNextAvailableAccount(uint32_t ledgerNum)
     return sourceAccountId;
 }
 
-std::pair<TxGenerator::TestAccountPtr, TransactionFramePtr>
+std::pair<TxGenerator::TestAccountPtr, TransactionTestFramePtr>
 LoadGenerator::creationTransaction(uint64_t startAccount, uint64_t numItems,
                                    uint32_t ledgerNum)
 {
@@ -434,7 +434,7 @@ LoadGenerator::creationTransaction(uint64_t startAccount, uint64_t numItems,
     }
     mInitialAccountsCreated = true;
     return std::make_pair(sourceAcc,
-                          mTxGenerator.createTransactionFramePtr(
+                          mTxGenerator.createTransactionTestFramePtr(
                               sourceAcc, creationOps, false, std::nullopt));
 }
 
@@ -881,7 +881,7 @@ LoadGenerator::generateLoad(GeneratedLoadConfig cfg)
     scheduleLoadGeneration(cfg);
 }
 
-std::pair<TxGenerator::TestAccountPtr, TransactionFramePtr>
+std::pair<TxGenerator::TestAccountPtr, TransactionTestFramePtr>
 LoadGenerator::createMixedClassicSorobanTransaction(
     uint32_t ledgerNum, uint64_t sourceAccountId,
     GeneratedLoadConfig const& cfg)
@@ -930,8 +930,8 @@ LoadGenerator::submitCreationTx(uint32_t nAccounts, uint32_t offset,
 {
     uint32_t numToProcess =
         nAccounts < MAX_OPS_PER_TX ? nAccounts : MAX_OPS_PER_TX;
-    auto [from, tx] =
-        creationTransaction(mTxGenerator.getAccounts().size() + offset, numToProcess, ledgerNum);
+    auto [from, tx] = creationTransaction(
+        mTxGenerator.getAccounts().size() + offset, numToProcess, ledgerNum);
     TransactionResultCode code;
     TransactionQueue::AddResultCode status;
     bool createDuplicate = false;
@@ -969,7 +969,7 @@ LoadGenerator::submitCreationTx(uint32_t nAccounts, uint32_t offset,
 
 bool
 LoadGenerator::submitTx(GeneratedLoadConfig const& cfg,
-                        std::function<std::pair<LoadGenerator::TestAccountPtr,
+                        std::function<std::pair<TxGenerator::TestAccountPtr,
                                                 TransactionTestFramePtr>()>
                             generateTx)
 {
@@ -1357,7 +1357,7 @@ LoadGenerator::TxMetrics::report()
                mSorobanCreateUpgradeTxs.one_minute_rate());
 }
 
-TransactionQueue::AddResult
+TransactionQueue::AddResultCode
 LoadGenerator::execute(TransactionTestFramePtr& txf, LoadGenMode mode,
                        TransactionResultCode& code)
 {

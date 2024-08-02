@@ -86,7 +86,7 @@ ApplyLoad::setupAccountsAndUpgradeProtocol()
     std::vector<Operation> creationOps = mTxGenerator.createAccounts(
         0, mNumAccounts, lm.getLastClosedLedgerNum() + 1, false);
 
-    auto initTx = mTxGenerator.createTransactionFramePtr(
+    auto initTx = mTxGenerator.createTransactionTestFramePtr(
         mTxGenerator.getRoot(), creationOps, false, std::nullopt);
 
     // Upgrade to latest protocol as well
