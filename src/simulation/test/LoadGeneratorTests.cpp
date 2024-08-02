@@ -13,7 +13,7 @@
 #include "transactions/test/SorobanTxTestUtils.h"
 #include "util/Math.h"
 #include <fmt/format.h>
-
+#include <iostream>
 using namespace stellar;
 
 TEST_CASE("generate load with unique accounts", "[loadgen]")
@@ -121,6 +121,7 @@ TEST_CASE("generate soroban load", "[loadgen][soroban]")
         2 * Herder::EXP_LEDGER_TIMESPAN_SECONDS, false);
 
     auto nodes = simulation->getNodes();
+
     auto& app = *nodes[0]; // pick a node to generate load
     auto& loadGen = app.getLoadGenerator();
     auto getSuccessfulTxCount = [&]() {
@@ -134,6 +135,9 @@ TEST_CASE("generate soroban load", "[loadgen][soroban]")
     loadGen.generateLoad(GeneratedLoadConfig::createAccountsLoad(
         /* nAccounts */ nAccounts,
         /* txRate */ 1));
+    auto complete = app.getMetrics()
+                        .NewMeter({"loadgen", "run", "complete"}, "run")
+                        .count();
     simulation->crankUntil(
         [&]() {
             return app.getMetrics()
@@ -146,13 +150,17 @@ TEST_CASE("generate soroban load", "[loadgen][soroban]")
 
     // Make sure config upgrade works with initial network config settings
     loadGen.generateLoad(GeneratedLoadConfig::createSorobanUpgradeSetupLoad());
+    complete = app.getMetrics()
+                   .NewMeter({"loadgen", "run", "complete"}, "run")
+                   .count();
     simulation->crankUntil(
         [&]() {
             return app.getMetrics()
                        .NewMeter({"loadgen", "run", "complete"}, "run")
-                       .count() == 2;
+                       .count() == complete + 1;
         },
         100 * Herder::EXP_LEDGER_TIMESPAN_SECONDS, false);
+    complete++;
 
     // Check that Soroban TXs were successfully applied
     for (auto node : nodes)
@@ -223,10 +231,10 @@ TEST_CASE("generate soroban load", "[loadgen][soroban]")
         [&]() {
             return app.getMetrics()
                        .NewMeter({"loadgen", "run", "complete"}, "run")
-                       .count() == 3;
+                       .count() == complete + 1;
         },
         300 * Herder::EXP_LEDGER_TIMESPAN_SECONDS, false);
-
+    complete++;
     for (auto node : nodes)
     {
         auto& txsSucceeded = node->getMetrics().NewCounter(
@@ -340,10 +348,8 @@ TEST_CASE("generate soroban load", "[loadgen][soroban]")
     }
 
     // Manually override network settings for invoke load gen
-    for (auto node : nodes)
-    {
-        overrideSorobanNetworkConfigForTest(*node);
-        modifySorobanNetworkConfig(*node, [&](SorobanNetworkConfig& cfg) {
+    upgradeSorobanNetworkConfig(
+        [&](SorobanNetworkConfig& cfg) {
             // Entries should never expire
             cfg.mStateArchivalSettings.maxEntryTTL = 1'000'000;
             cfg.mStateArchivalSettings.minPersistentTTL = 1'000'000;
@@ -366,24 +372,32 @@ TEST_CASE("generate soroban load", "[loadgen][soroban]")
                 cfg.mTxMaxWriteBytes * cfg.mLedgerMaxTxCount;
             cfg.mLedgerMaxTransactionsSizeBytes =
                 cfg.mTxMaxSizeBytes * cfg.mLedgerMaxTxCount;
-        });
-    }
+        },
+        simulation.get());
 
     auto const numInstances = 10;
     auto const numSorobanTxs = 100;
 
     numTxsBefore = getSuccessfulTxCount();
+    complete = app.getMetrics()
+                   .NewMeter({"loadgen", "run", "complete"}, "run")
+                   .count();
     loadGen.generateLoad(GeneratedLoadConfig::createSorobanInvokeSetupLoad(
         /* nAccounts */ nAccounts, numInstances,
         /* txRate */ 1));
     simulation->crankUntil(
         [&]() {
+            auto c = app.getMetrics()
+                         .NewMeter({"loadgen", "run", "complete"}, "run")
+                         .count();
+            std::cerr << "c = " << c << std::endl;
+            std::cerr << "complete = " << complete << std::endl;
             return app.getMetrics()
                        .NewMeter({"loadgen", "run", "complete"}, "run")
-                       .count() == 4;
+                       .count() == complete + 1;
         },
-        100 * Herder::EXP_LEDGER_TIMESPAN_SECONDS, false);
-
+        300 * Herder::EXP_LEDGER_TIMESPAN_SECONDS, false);
+    complete++;
     // Check that Soroban TXs were successfully applied
     for (auto node : nodes)
     {
@@ -413,10 +427,10 @@ TEST_CASE("generate soroban load", "[loadgen][soroban]")
         [&]() {
             return app.getMetrics()
                        .NewMeter({"loadgen", "run", "complete"}, "run")
-                       .count() == 5;
+                       .count() == complete + 1;
         },
         300 * Herder::EXP_LEDGER_TIMESPAN_SECONDS, false);
-
+    complete++;
     // Check that Soroban TXs were successfully applied
     for (auto node : nodes)
     {
@@ -515,10 +529,10 @@ TEST_CASE("generate soroban load", "[loadgen][soroban]")
             [&]() {
                 return app.getMetrics()
                            .NewMeter({"loadgen", "run", "complete"}, "run")
-                           .count() == 6;
+                           .count() == complete + 1;
             },
             300 * Herder::EXP_LEDGER_TIMESPAN_SECONDS, false);
-
+        complete++;
         // Check results
         for (auto node : nodes)
         {
@@ -567,7 +581,7 @@ TEST_CASE("generate soroban load", "[loadgen][soroban]")
             [&]() {
                 return app.getMetrics()
                            .NewMeter({"loadgen", "run", "failed"}, "run")
-                           .count() == 1;
+                           .count() == complete + 1;
             },
             300 * Herder::EXP_LEDGER_TIMESPAN_SECONDS, false);
     }

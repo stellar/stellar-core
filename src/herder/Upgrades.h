@@ -159,6 +159,8 @@ class ConfigUpgradeSetFrame
     static ConfigUpgradeSetFrameConstPtr
     makeFromKey(AbstractLedgerTxn& ltx, ConfigUpgradeSetKey const& key);
 
+    static LedgerKey getLedgerKey(ConfigUpgradeSetKey const& upgradeKey);
+
     ConfigUpgradeSet const& toXDR() const;
 
     ConfigUpgradeSetKey const& getKey() const;
@@ -181,8 +183,6 @@ class ConfigUpgradeSetFrame
     ConfigUpgradeSetFrame(ConfigUpgradeSet const& upgradeSetXDR,
                           ConfigUpgradeSetKey const& key,
                           uint32_t ledgerVersion);
-
-    static LedgerKey getLedgerKey(ConfigUpgradeSetKey const& upgradeKey);
 
     bool isValidXDR(ConfigUpgradeSet const& upgradeSetXDR,
                     ConfigUpgradeSetKey const& key) const;

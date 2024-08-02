@@ -107,6 +107,9 @@ struct GeneratedLoadConfig
         double sorobanInvokeWeight = 0;
     };
 
+    static void copySorobanNetworkConfigToUpgradeConfig(
+        SorobanNetworkConfig const& cfg, SorobanUpgradeConfig& upgradeConfig);
+
     static GeneratedLoadConfig createAccountsLoad(uint32_t nAccounts,
                                                   uint32_t txRate);
 
