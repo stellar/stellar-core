@@ -203,7 +203,7 @@ genesis(int minute, int second)
         getTestDateTime(1, 7, 2014, 0, minute, second));
 }
 
-void
+ConfigUpgradeSetKey
 upgradeSorobanNetworkConfig(std::function<void(SorobanNetworkConfig&)> modifyFn,
                             Simulation* simulation)
 {
@@ -239,7 +239,7 @@ upgradeSorobanNetworkConfig(std::function<void(SorobanNetworkConfig&)> modifyFn,
 
     auto createUpgradeLoadGenConfig = GeneratedLoadConfig::txLoad(
         LoadGenMode::SOROBAN_CREATE_UPGRADE, 1, 1, 1);
-    auto upgradeCfg = createUpgradeLoadGenConfig.getMutSorobanUpgradeConfig();
+    auto& upgradeCfg = createUpgradeLoadGenConfig.getMutSorobanUpgradeConfig();
     SorobanNetworkConfig cfg;
     modifyFn(cfg);
     GeneratedLoadConfig::copySorobanNetworkConfigToUpgradeConfig(cfg,
@@ -254,13 +254,19 @@ upgradeSorobanNetworkConfig(std::function<void(SorobanNetworkConfig&)> modifyFn,
         },
         300 * Herder::EXP_LEDGER_TIMESPAN_SECONDS, false);
     complete++;
+    ConfigUpgradeSet upgrades;
     {
         LedgerTxn ltx(app.getLedgerTxnRoot());
         auto lk = ConfigUpgradeSetFrame::getLedgerKey(upgradeSetKey);
         auto upgradeSet = ltx.load(lk);
-        CLOG_TRACE(LoadGen, "READ upgrade set from ltx");
         REQUIRE(upgradeSet);
+        xdr::xdr_from_opaque(upgradeSet.current().data.contractData().val.bytes(),
+                             upgrades);
+       
+        CLOG_TRACE(LoadGen, "READ upgrade set from ltx");
     }
+
+    CLOG_TRACE(LoadGen, "upgrades = {} ", xdr::xdr_to_string(upgrades));
     // Arm for upgrade.
     for (auto app : nodes)
     {
@@ -288,6 +294,7 @@ upgradeSorobanNetworkConfig(std::function<void(SorobanNetworkConfig&)> modifyFn,
             return status.empty();
         },
         300 * Herder::EXP_LEDGER_TIMESPAN_SECONDS, false);
+    return upgradeSetKey;
 }
 
 void

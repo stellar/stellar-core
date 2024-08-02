@@ -14,6 +14,7 @@
 #include "util/Math.h"
 #include <fmt/format.h>
 #include <iostream>
+#include "xdrpp/printer.h"
 using namespace stellar;
 
 TEST_CASE("generate load with unique accounts", "[loadgen]")
@@ -88,6 +89,67 @@ TEST_CASE("generate load with unique accounts", "[loadgen]")
                            .count() == 1;
             },
             10 * Herder::EXP_LEDGER_TIMESPAN_SECONDS, false);
+    }
+}
+
+TEST_CASE("modify soroban network config", "[loadgen][soroban]") 
+{
+    uint32_t const numDataEntries = 5;
+    uint32_t const ioKiloBytes = 15;
+
+    Hash networkID = sha256(getTestConfig().NETWORK_PASSPHRASE);
+    Simulation::pointer simulation =
+        Topologies::pair(Simulation::OVER_LOOPBACK, networkID, [&](int i) {
+            auto cfg = getTestConfig(i);
+            cfg.TESTING_UPGRADE_MAX_TX_SET_SIZE = 5000;
+            // Use tight bounds to we can verify storage works properly
+            cfg.LOADGEN_NUM_DATA_ENTRIES_FOR_TESTING = {numDataEntries};
+            cfg.LOADGEN_NUM_DATA_ENTRIES_DISTRIBUTION_FOR_TESTING = {1};
+            cfg.LOADGEN_IO_KILOBYTES_FOR_TESTING = {ioKiloBytes};
+            cfg.LOADGEN_IO_KILOBYTES_DISTRIBUTION_FOR_TESTING = {1};
+
+            cfg.LOADGEN_TX_SIZE_BYTES_FOR_TESTING = {20'000, 50'000, 80'000};
+            cfg.LOADGEN_TX_SIZE_BYTES_DISTRIBUTION_FOR_TESTING = {1, 2, 1};
+            cfg.LOADGEN_INSTRUCTIONS_FOR_TESTING = {1'000'000, 5'000'000,
+                                                    10'000'000};
+            cfg.LOADGEN_INSTRUCTIONS_DISTRIBUTION_FOR_TESTING = {1, 2, 3};
+            return cfg;
+        });
+
+    simulation->startAllNodes();
+    simulation->crankUntil(
+        [&]() { return simulation->haveAllExternalized(3, 1); },
+        2 * Herder::EXP_LEDGER_TIMESPAN_SECONDS, false);
+    auto nodes = simulation->getNodes();
+    auto& app = *nodes[0]; // pick a node to generate load
+
+    // Manually override network settings for invoke load gen
+    auto upgradeSetKey = upgradeSorobanNetworkConfig(
+        [&](SorobanNetworkConfig& cfg) {
+            cfg.mLedgerMaxTxCount =
+                42;
+        },
+        simulation.get());
+     ConfigUpgradeSet upgrades;
+    {
+        LedgerTxn ltx(app.getLedgerTxnRoot());
+        auto lk = ConfigUpgradeSetFrame::getLedgerKey(upgradeSetKey);
+        auto upgradeSet = ltx.load(lk);
+        REQUIRE(upgradeSet);
+        xdr::xdr_from_opaque(upgradeSet.current().data.contractData().val.bytes(),
+                             upgrades);
+        CLOG_TRACE(Ledger, "Loaded upgrade set: {}", xdr::xdr_to_string(upgrades));
+    }
+
+    for (auto const& setting : upgrades.updatedEntry)
+    {
+        switch (setting.configSettingID())
+        {
+        case CONFIG_SETTING_CONTRACT_EXECUTION_LANES:
+            REQUIRE(setting.contractExecutionLanes().ledgerMaxTxCount ==
+                    42);
+            break;
+        }
     }
 }
 
