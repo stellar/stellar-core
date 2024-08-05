@@ -864,6 +864,7 @@ getFuzzConfig(int instanceNumber)
     Config cfg = getTestConfig(instanceNumber);
     cfg.MANUAL_CLOSE = true;
     cfg.CATCHUP_COMPLETE = false;
+    cfg.BACKGROUND_EVICTION_SCAN = false;
     cfg.CATCHUP_RECENT = 0;
     cfg.ARTIFICIALLY_GENERATE_LOAD_FOR_TESTING = false;
     cfg.ARTIFICIALLY_SET_CLOSE_TIME_FOR_TESTING = UINT32_MAX;

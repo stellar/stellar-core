@@ -148,7 +148,7 @@ LedgerManagerForBucketTests::transferLedgerEntriesToBucketList(
                 }
 
                 LedgerTxn ltxEvictions(ltx);
-                if (mApp.getConfig().EXPERIMENTAL_BACKGROUND_EVICTION_SCAN)
+                if (mApp.getConfig().isUsingBackgroundEviction())
                 {
                     mApp.getBucketManager().resolveBackgroundEvictionScan(
                         ltxEvictions, ledgerSeq, keys);
@@ -175,7 +175,9 @@ LedgerManagerForBucketTests::transferLedgerEntriesToBucketList(
 
         // Add dead entries from ltx to entries that will be added to BucketList
         // so we can test background eviction properly
-        if (mApp.getConfig().EXPERIMENTAL_BACKGROUND_EVICTION_SCAN)
+        if (protocolVersionStartsFrom(initialLedgerVers,
+                                      SOROBAN_PROTOCOL_VERSION) &&
+            mApp.getConfig().isUsingBackgroundEviction())
         {
             for (auto const& k : dead)
             {

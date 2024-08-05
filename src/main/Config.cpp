@@ -167,7 +167,7 @@ Config::Config() : NODE_SEED(SecretKey::random())
     BUCKETLIST_DB_INDEX_PAGE_SIZE_EXPONENT = 14; // 2^14 == 16 kb
     BUCKETLIST_DB_INDEX_CUTOFF = 20;             // 20 mb
     BUCKETLIST_DB_PERSIST_INDEX = true;
-    EXPERIMENTAL_BACKGROUND_EVICTION_SCAN = false;
+    BACKGROUND_EVICTION_SCAN = true;
     PUBLISH_TO_ARCHIVE_DELAY = std::chrono::seconds{0};
     // automatic maintenance settings:
     // short and prime with 1 hour which will cause automatic maintenance to
@@ -1082,9 +1082,17 @@ Config::processConfig(std::shared_ptr<cpptoml::table> t)
             {
                 EXPERIMENTAL_BACKGROUND_OVERLAY_PROCESSING = readBool(item);
             }
+            else if (item.first == "BACKGROUND_EVICTION_SCAN")
+            {
+                BACKGROUND_EVICTION_SCAN = readBool(item);
+            }
+            // TODO: Flag is no longer supported, remove in next release.
             else if (item.first == "EXPERIMENTAL_BACKGROUND_EVICTION_SCAN")
             {
-                EXPERIMENTAL_BACKGROUND_EVICTION_SCAN = readBool(item);
+                CLOG_WARNING(
+                    Bucket,
+                    "EXPERIMENTAL_BACKGROUND_EVICTION_SCAN is deprecated and "
+                    "is ignored. Use BACKGROUND_EVICTION_SCAN instead");
             }
             else if (item.first == "DEPRECATED_SQL_LEDGER_STATE")
             {
@@ -1803,6 +1811,14 @@ Config::processConfig(std::shared_ptr<cpptoml::table> t)
             throw std::runtime_error(msg);
         }
 
+        // If DEPRECATED_SQL_LEDGER_STATE is set to false and
+        // BACKGROUND_EVICTION_SCAN is not set, override default value to false
+        // so that nodes still running SQL ledger don't crash on startup
+        if (!isUsingBucketListDB() && !t->contains("BACKGROUND_EVICTION_SCAN"))
+        {
+            BACKGROUND_EVICTION_SCAN = false;
+        }
+
         // process elements that potentially depend on others
         if (t->contains("VALIDATORS"))
         {
@@ -2336,6 +2352,12 @@ Config::isUsingBucketListDB() const
 {
     return !DEPRECATED_SQL_LEDGER_STATE && !MODE_USES_IN_MEMORY_LEDGER &&
            MODE_ENABLES_BUCKETLIST;
+}
+
+bool
+Config::isUsingBackgroundEviction() const
+{
+    return isUsingBucketListDB() && BACKGROUND_EVICTION_SCAN;
 }
 
 bool

@@ -2512,7 +2512,7 @@ TEST_CASE("temp entry eviction", "[tx][soroban]")
 
         cfg.METADATA_OUTPUT_STREAM = metaPath;
         cfg.DEPRECATED_SQL_LEDGER_STATE = !enableBucketListDB;
-        cfg.EXPERIMENTAL_BACKGROUND_EVICTION_SCAN = backgroundEviction;
+        cfg.BACKGROUND_EVICTION_SCAN = backgroundEviction;
 
         // overrideSorobanNetworkConfigForTest commits directly to the database,
         // will not work if BucketListDB is enabled so we must use the cfg
