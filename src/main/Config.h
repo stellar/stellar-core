@@ -371,7 +371,7 @@ class Config : public std::enable_shared_from_this<Config>
 
     // When set to true, eviction scans occur on the background thread,
     // increasing performance. Requires EXPERIMENTAL_BUCKETLIST_DB.
-    bool EXPERIMENTAL_BACKGROUND_EVICTION_SCAN;
+    bool BACKGROUND_EVICTION_SCAN;
 
     // A config parameter that stores historical data, such as transactions,
     // fees, and scp history in the database
@@ -667,6 +667,7 @@ class Config : public std::enable_shared_from_this<Config>
     bool isInMemoryMode() const;
     bool isInMemoryModeWithoutMinimalDB() const;
     bool isUsingBucketListDB() const;
+    bool isUsingBackgroundEviction() const;
     bool isPersistingBucketListDBIndexes() const;
     bool modeStoresAllHistory() const;
     bool modeStoresAnyHistory() const;
