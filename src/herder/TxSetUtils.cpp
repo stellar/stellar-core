@@ -144,15 +144,6 @@ TxSetUtils::getInvalidTxList(TxSetTransactions const& txs, Application& app,
     ZoneScoped;
     LedgerTxn ltx(app.getLedgerTxnRoot(), /* shouldUpdateLastModified */ true,
                   TransactionMode::READ_ONLY_WITHOUT_SQL_TXN);
-#ifdef BUILD_TESTS
-    if (protocolVersionIsBefore(ltx.loadHeader().current().ledgerVersion,
-                                ProtocolVersion::V_20))
-    {
-        return {};
-    }
-#endif
-    releaseAssert(protocolVersionStartsFrom(
-        ltx.loadHeader().current().ledgerVersion, ProtocolVersion::V_20));
     // This is done so minSeqLedgerGap is validated against the next
     // ledgerSeq, which is what will be used at apply time
     ltx.loadHeader().current().ledgerSeq =
