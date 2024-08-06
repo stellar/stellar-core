@@ -144,11 +144,11 @@ Command options can only by placed after command.
 * **run**: Runs stellar-core service.<br>
   Option **--wait-for-consensus** lets validators wait to hear from the network
   before participating in consensus.<br>
-  Option **--in-memory** stores the current ledger in memory rather than a
+  (deprecated) Option **--in-memory** stores the current ledger in memory rather than a
   database.<br>
-  Option **--start-at-ledger <N>** starts **--in-memory** mode with a catchup to
+  (deprecated) Option **--start-at-ledger <N>** starts **--in-memory** mode with a catchup to
   ledger **N** then replays to the current state of the network.<br>
-  Option **--start-at-hash <HASH>** provides a (mandatory) hash for the ledger
+  (deprecated) Option **--start-at-hash <HASH>** provides a (mandatory) hash for the ledger
   **N** specified by the **--start-at-ledger** option.
 * **sec-to-pub**:  Reads a secret key on standard input and outputs the
   corresponding public key.  Both keys are in Stellar's standard
@@ -228,16 +228,18 @@ Most commands return their results in JSON format.
   `droppeer?node=NODE_ID[&ban=D]`<br>
   Drops peer identified by NODE_ID, when D is 1 the peer is also banned.
 
+* **unban**
+  `unban?node=NODE_ID[&ban=D]`<br>
+  Unban banned peer identified by NODE_ID.
+
 * **info[?compact=true]**
   Returns information about the server in JSON format (sync state, connected
   peers, etc). When `compact` is set to `false`, adds additional information
 
 * **ll**
   `ll?level=L[&partition=P]`<br>
-  Adjust the log level for partition P where P is one of Bucket, Database, Fs,
-  Herder, History, Ledger, Overlay, Process, SCP, Tx (or all if no partition is
-  specified). Level is one of FATAL, ERROR, WARNING, INFO, DEBUG, VERBOSE,
-  TRACE.
+  Adjust the log level for partition P where P is one of Fs, SCP, Bucket, Database, History, Process, Ledger, Overlay, Herder, Tx, LoadGen, Work, Invariant, Perf (or all if no partition is
+  specified). Level is one of FATAL, ERROR, WARNING, INFO, DEBUG, TRACE.
 
 * **logrotate**
   Rotate log files.
