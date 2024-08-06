@@ -390,8 +390,7 @@ TransactionQueue::canAdd(
             return result;
         }
         return AddResult(
-            TransactionQueue::AddResultCode::ADD_STATUS_TRY_AGAIN_LATER,
-            nullptr);
+            TransactionQueue::AddResultCode::ADD_STATUS_TRY_AGAIN_LATER);
     }
 
     auto closeTime = mApp.getLedgerManager()
