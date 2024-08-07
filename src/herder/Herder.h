@@ -153,6 +153,7 @@ class Herder
 
     virtual VirtualTimer const& getTriggerTimer() const = 0;
     virtual void setMaxClassicTxSize(uint32 bytes) = 0;
+    virtual void setMaxTxSize(uint32 bytes) = 0;
     virtual void setFlowControlExtraBufferSize(uint32 bytes) = 0;
 
     virtual ClassicTransactionQueue& getTransactionQueue() = 0;

@@ -139,7 +139,7 @@ class LoopbackPeer : public Peer
     uint64_t
     getOutboundCapacity()
     {
-        return getFlowControl()->getCapacity()->getOutboundCapacity();
+        return getFlowControl()->getCapacity().getOutboundCapacity();
     }
 
     Config const&
