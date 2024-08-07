@@ -70,7 +70,7 @@ TransactionQueue::AddResult::AddResult(AddResultCode addCode,
     : code(addCode), txResult(tx->createSuccessResult())
 {
     releaseAssert(txErrorCode != txSUCCESS);
-    txResult.value()->setResultCode(txErrorCode);
+    txResult->setResultCode(txErrorCode);
 }
 
 TransactionQueue::TransactionQueue(Application& app, uint32 pendingDepth,
@@ -358,7 +358,7 @@ TransactionQueue::canAdd(
                     AddResult result(
                         TransactionQueue::AddResultCode::ADD_STATUS_ERROR, tx,
                         txINSUFFICIENT_FEE);
-                    result.txResult.value()->getResult().feeCharged = minFee;
+                    result.txResult->getResult().feeCharged = minFee;
                     return result;
                 }
 
@@ -386,12 +386,11 @@ TransactionQueue::canAdd(
         {
             AddResult result(TransactionQueue::AddResultCode::ADD_STATUS_ERROR,
                              tx, txINSUFFICIENT_FEE);
-            result.txResult.value()->getResult().feeCharged = canAddRes.second;
+            result.txResult->getResult().feeCharged = canAddRes.second;
             return result;
         }
         return AddResult(
-            TransactionQueue::AddResultCode::ADD_STATUS_TRY_AGAIN_LATER,
-            nullptr);
+            TransactionQueue::AddResultCode::ADD_STATUS_TRY_AGAIN_LATER);
     }
 
     auto closeTime = mApp.getLedgerManager()

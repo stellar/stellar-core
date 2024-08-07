@@ -1026,7 +1026,7 @@ CommandHandler::tx(std::string const& params, std::string& retStr)
                 std::string resultBase64;
                 releaseAssertOrThrow(addResult.txResult);
 
-                auto const& payload = addResult.txResult.value();
+                auto const& payload = addResult.txResult;
                 auto resultBin = xdr::xdr_to_opaque(payload->getResult());
                 resultBase64.reserve(decoder::encoded_size64(resultBin.size()) +
                                      1);
@@ -1550,9 +1550,8 @@ CommandHandler::testTx(std::string const& params, std::string& retStr)
         if (addResult.code == TransactionQueue::AddResultCode::ADD_STATUS_ERROR)
         {
             releaseAssert(addResult.txResult);
-            root["detail"] =
-                xdrToCerealString(addResult.txResult.value()->getResultCode(),
-                                  "TransactionResultCode");
+            root["detail"] = xdrToCerealString(
+                addResult.txResult->getResultCode(), "TransactionResultCode");
         }
     }
     else
