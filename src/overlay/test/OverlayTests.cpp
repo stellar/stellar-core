@@ -2325,12 +2325,13 @@ TEST_CASE("peer is purged from database after few failures",
     REQUIRE(!peerManager.load(localhost(cfg2.PEER_PORT)).second);
 }
 
-TEST_CASE("disconnected topology recovery")
+TEST_CASE("disconnected topology recovery", "[overlay][simulation]")
 {
+    auto initCfg = getTestConfig();
     auto cfgs = std::vector<Config>{};
     auto peers = std::vector<std::string>{};
 
-    for (int i = 0; i < 8; ++i)
+    for (int i = 0; i < 7; ++i)
     {
         auto cfg = getTestConfig(i + 1);
         cfgs.push_back(cfg);
@@ -2340,8 +2341,12 @@ TEST_CASE("disconnected topology recovery")
     auto doTest = [&](bool usePreferred) {
         auto simulation = Topologies::separate(
             7, 0.5, Simulation::OVER_LOOPBACK,
-            sha256(getTestConfig().NETWORK_PASSPHRASE), 0, [&](int i) {
-                auto cfg = cfgs[i];
+            sha256(initCfg.NETWORK_PASSPHRASE), 0, [&](int i) {
+                if (i == 0)
+                {
+                    return initCfg;
+                }
+                auto cfg = cfgs[i - 1];
                 cfg.TARGET_PEER_CONNECTIONS = 1;
                 if (usePreferred)
                 {
