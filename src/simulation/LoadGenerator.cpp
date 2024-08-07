@@ -2181,7 +2181,7 @@ LoadGenerator::execute(TransactionTestFramePtr& txf, LoadGenMode mode,
 
         auto resultStr =
             addResult.txResult
-                ? xdrToCerealString(addResult.txResult.value()->getResult(),
+                ? xdrToCerealString(addResult.txResult->getResult(),
                                     "TransactionResult")
                 : "";
         CLOG_INFO(LoadGen, "tx rejected '{}': ===> {}, {}",
@@ -2193,7 +2193,7 @@ LoadGenerator::execute(TransactionTestFramePtr& txf, LoadGenMode mode,
         if (addResult.code == TransactionQueue::AddResultCode::ADD_STATUS_ERROR)
         {
             releaseAssert(addResult.txResult);
-            code = addResult.txResult.value()->getResultCode();
+            code = addResult.txResult->getResultCode();
         }
         txm.mTxnRejected.Mark();
     }

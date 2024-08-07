@@ -75,7 +75,7 @@ class TransactionQueue
     struct AddResult
     {
         TransactionQueue::AddResultCode code;
-        std::optional<MutableTxResultPtr> txResult;
+        MutableTxResultPtr txResult;
 
         // AddResult with no txResult
         explicit AddResult(TransactionQueue::AddResultCode addCode);
