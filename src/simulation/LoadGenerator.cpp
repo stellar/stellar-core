@@ -3,6 +3,7 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "simulation/LoadGenerator.h"
+#include "database/Database.h"
 #include "herder/Herder.h"
 #include "ledger/LedgerManager.h"
 #include "ledger/LedgerTxn.h"
@@ -22,8 +23,7 @@
 #include "util/XDRCereal.h"
 #include "util/numeric.h"
 #include "util/types.h"
-
-#include "database/Database.h"
+#include "xdrpp/printer.h"
 
 #include "xdrpp/marshal.h"
 
@@ -839,6 +839,8 @@ LoadGenerator::submitCreationTx(uint32_t nAccounts, uint32_t offset,
         if (++numTries >= TX_SUBMIT_MAX_TRIES ||
             status != TransactionQueue::AddResultCode::ADD_STATUS_ERROR)
         {
+            CLOG_TRACE(LoadGen, "Failed to submit creation tx: {}",
+                       xdr::xdr_to_string(tx->getEnvelope()));
             // Failed to submit the step of load
             mFailed = true;
             return 0;
@@ -2203,6 +2205,33 @@ LoadGenerator::execute(TransactionTestFramePtr& txf, LoadGenMode mode,
     }
 
     return addResult.code;
+}
+void
+GeneratedLoadConfig::copySorobanNetworkConfigToUpgradeConfig(
+    SorobanNetworkConfig const& cfg, SorobanUpgradeConfig& upgradeCfg)
+{
+
+    upgradeCfg.maxContractSizeBytes = cfg.maxContractSizeBytes();
+    upgradeCfg.maxContractDataKeySizeBytes = cfg.maxContractDataKeySizeBytes();
+    upgradeCfg.maxContractDataEntrySizeBytes =
+        cfg.maxContractDataEntrySizeBytes();
+    upgradeCfg.ledgerMaxInstructions = cfg.ledgerMaxInstructions();
+    upgradeCfg.txMaxInstructions = cfg.txMaxInstructions();
+    upgradeCfg.txMemoryLimit = cfg.txMemoryLimit();
+    upgradeCfg.ledgerMaxReadLedgerEntries = cfg.ledgerMaxReadLedgerEntries();
+    upgradeCfg.ledgerMaxReadBytes = cfg.ledgerMaxReadBytes();
+    upgradeCfg.ledgerMaxWriteLedgerEntries = cfg.ledgerMaxWriteLedgerEntries();
+    upgradeCfg.ledgerMaxWriteBytes = cfg.ledgerMaxWriteBytes();
+    upgradeCfg.ledgerMaxTxCount = cfg.ledgerMaxTxCount();
+    upgradeCfg.txMaxReadLedgerEntries = cfg.txMaxReadLedgerEntries();
+    upgradeCfg.txMaxReadBytes = cfg.txMaxReadBytes();
+    upgradeCfg.txMaxWriteLedgerEntries = cfg.txMaxWriteLedgerEntries();
+    upgradeCfg.txMaxWriteBytes = cfg.txMaxWriteBytes();
+    upgradeCfg.txMaxContractEventsSizeBytes =
+        cfg.txMaxContractEventsSizeBytes();
+    upgradeCfg.ledgerMaxTransactionsSizeBytes =
+        cfg.ledgerMaxTransactionSizesBytes();
+    upgradeCfg.txMaxSizeBytes = cfg.txMaxSizeBytes();
 }
 
 GeneratedLoadConfig

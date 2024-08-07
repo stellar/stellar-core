@@ -1459,6 +1459,7 @@ HerderImpl::triggerNextLedger(uint32_t ledgerSeqToTrigger,
     {
         LedgerTxn ltx(mApp.getLedgerTxnRoot());
         upgrades = mUpgrades.createUpgradesFor(lcl.header, ltx);
+        CLOG_TRACE(Herder, "Upgrades: count {}", upgrades.size());
     }
     for (auto const& upgrade : upgrades)
     {
@@ -1485,6 +1486,15 @@ HerderImpl::triggerNextLedger(uint32_t ledgerSeqToTrigger,
     {
         CLOG_DEBUG(Herder, "Non-validating node, skipping nomination (SCP).");
         return;
+    }
+    if (newUpgrades.size() > 0)
+    {
+        CLOG_TRACE(Herder, "New upgrades available for nomination: {}",
+                   mUpgrades.toString());
+    }
+    else
+    {
+        CLOG_TRACE(Herder, "No new upgrades available for nomination.");
     }
 
     StellarValue newProposedValue = makeStellarValue(

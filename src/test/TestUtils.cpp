@@ -3,12 +3,21 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "TestUtils.h"
+#include "ledger/LedgerTxn.h"
 #include "overlay/test/LoopbackPeer.h"
+#include "simulation/LoadGenerator.h"
+#include "simulation/Simulation.h"
+#include "src/transactions/test/SorobanTxTestUtils.h"
 #include "test/TxTests.h"
 #include "test/test.h"
+#include "util/StatusManager.h"
 #include "work/WorkScheduler.h"
 #include "xdr/Stellar-ledger-entries.h"
-
+#include "xdr/Stellar-ledger.h"
+#include "xdr/Stellar-transaction.h"
+#include "xdrpp/printer.h"
+#include <iostream>
+#include <lib/catch.hpp>
 namespace stellar
 {
 
@@ -192,6 +201,100 @@ genesis(int minute, int second)
 {
     return VirtualClock::tmToSystemPoint(
         getTestDateTime(1, 7, 2014, 0, minute, second));
+}
+
+ConfigUpgradeSetKey
+upgradeSorobanNetworkConfig(std::function<void(SorobanNetworkConfig&)> modifyFn,
+                            Simulation* simulation)
+{
+    auto nodes = simulation->getNodes();
+    auto& lg = nodes[0]->getLoadGenerator();
+    auto& app = *nodes[0];
+
+    lg.generateLoad(GeneratedLoadConfig::createAccountsLoad(1, 1));
+    auto complete = app.getMetrics()
+                        .NewMeter({"loadgen", "run", "complete"}, "run")
+                        .count();
+    simulation->crankUntil(
+        [&]() {
+            return app.getMetrics()
+                       .NewMeter({"loadgen", "run", "complete"}, "run")
+                       .count() == complete + 1;
+        },
+        300 * Herder::EXP_LEDGER_TIMESPAN_SECONDS, false);
+    complete++;
+
+    auto lgcfg = GeneratedLoadConfig::createSorobanUpgradeSetupLoad();
+    releaseAssert(lgcfg.getSorobanConfig().nInstances == 1);
+    // Create upload wasm transaction
+    lg.generateLoad(lgcfg);
+    simulation->crankUntil(
+        [&]() {
+            return app.getMetrics()
+                       .NewMeter({"loadgen", "run", "complete"}, "run")
+                       .count() == complete + 1;
+        },
+        300 * Herder::EXP_LEDGER_TIMESPAN_SECONDS, false);
+    complete++;
+
+    auto createUpgradeLoadGenConfig = GeneratedLoadConfig::txLoad(
+        LoadGenMode::SOROBAN_CREATE_UPGRADE, 1, 1, 1);
+    auto& upgradeCfg = createUpgradeLoadGenConfig.getMutSorobanUpgradeConfig();
+    SorobanNetworkConfig cfg;
+    modifyFn(cfg);
+    GeneratedLoadConfig::copySorobanNetworkConfigToUpgradeConfig(cfg,
+                                                                 upgradeCfg);
+    auto upgradeSetKey = lg.getConfigUpgradeSetKey(createUpgradeLoadGenConfig);
+    lg.generateLoad(createUpgradeLoadGenConfig);
+    simulation->crankUntil(
+        [&]() {
+            return app.getMetrics()
+                       .NewMeter({"loadgen", "run", "complete"}, "run")
+                       .count() == complete + 1;
+        },
+        300 * Herder::EXP_LEDGER_TIMESPAN_SECONDS, false);
+    complete++;
+    ConfigUpgradeSet upgrades;
+    {
+        LedgerTxn ltx(app.getLedgerTxnRoot());
+        auto lk = ConfigUpgradeSetFrame::getLedgerKey(upgradeSetKey);
+        auto upgradeSet = ltx.load(lk);
+        REQUIRE(upgradeSet);
+        xdr::xdr_from_opaque(upgradeSet.current().data.contractData().val.bytes(),
+                             upgrades);
+       
+        CLOG_TRACE(LoadGen, "READ upgrade set from ltx");
+    }
+
+    CLOG_TRACE(LoadGen, "upgrades = {} ", xdr::xdr_to_string(upgrades));
+    // Arm for upgrade.
+    for (auto app : nodes)
+    {
+        Upgrades::UpgradeParameters scheduledUpgrades;
+        auto lclHeader =
+            app->getLedgerManager().getLastClosedLedgerHeader().header;
+        scheduledUpgrades.mUpgradeTime =
+            VirtualClock::from_time_t(lclHeader.scpValue.closeTime);
+        // scheduledUpgrades.mUpgradeTime = app->getClock().system_now() +
+        // std::chrono::seconds(1);
+        CLOG_TRACE(LoadGen, "mUpgradeTime {}",
+                   scheduledUpgrades.mUpgradeTime.time_since_epoch().count());
+        CLOG_TRACE(LoadGen, "curr time {}",
+                   app->getClock().now().time_since_epoch().count());
+
+        scheduledUpgrades.mConfigUpgradeSetKey = upgradeSetKey;
+        app->getHerder().setUpgrades(scheduledUpgrades);
+    }
+    // Wait for upgrade to be applied
+    simulation->crankUntil(
+        [&]() {
+            auto status = app.getStatusManager().getStatusMessage(
+                StatusCategory::REQUIRES_UPGRADES);
+            CLOG_TRACE(LoadGen, "status {}", status);
+            return status.empty();
+        },
+        300 * Herder::EXP_LEDGER_TIMESPAN_SECONDS, false);
+    return upgradeSetKey;
 }
 
 void

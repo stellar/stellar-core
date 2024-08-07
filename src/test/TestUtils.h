@@ -16,6 +16,7 @@ namespace stellar
 {
 
 class LoopbackPeerConnection;
+class Simulation;
 
 namespace testutil
 {
@@ -98,6 +99,9 @@ VirtualClock::system_time_point genesis(int minute, int second);
 // for most of the unit tests (unless the test is meant to exercise the
 // configuration limits).
 void overrideSorobanNetworkConfigForTest(Application& app);
+ConfigUpgradeSetKey
+upgradeSorobanNetworkConfig(std::function<void(SorobanNetworkConfig&)> modifyFn,
+                            Simulation* simulation = nullptr);
 void
 modifySorobanNetworkConfig(Application& app,
                            std::function<void(SorobanNetworkConfig&)> modifyFn);
