@@ -327,6 +327,10 @@ class LoadGenerator
     int64_t mPreLoadgenApplySorobanSuccess = 0;
     int64_t mPreLoadgenApplySorobanFailure = 0;
 
+    // Number of times `createContractTransaction` has been called. Used to
+    // ensure unique preimages for all `SOROBAN_UPGRADE_SETUP` runs.
+    uint32_t mNumCreateContractTransactionCalls = 0;
+
     bool mFailed{false};
     bool mStarted{false};
     bool mInitialAccountsCreated{false};
