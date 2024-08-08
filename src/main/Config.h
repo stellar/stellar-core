@@ -505,8 +505,10 @@ class Config : public std::enable_shared_from_this<Config>
     uint32_t TESTING_UPGRADE_FLAGS;
 
     unsigned short HTTP_PORT; // what port to listen for commands
-    bool PUBLIC_HTTP_PORT;    // if you accept commands from not localhost
-    int HTTP_MAX_CLIENT;      // maximum number of http clients, i.e backlog
+    unsigned short
+        RPC_HTTP_PORT;     // what port to listen for RPC related commands
+    bool PUBLIC_HTTP_PORT; // if you accept commands from not localhost
+    int HTTP_MAX_CLIENT;   // maximum number of http clients, i.e backlog
     std::string NETWORK_PASSPHRASE; // identifier for the network
 
     // overlay config
@@ -549,6 +551,9 @@ class Config : public std::enable_shared_from_this<Config>
 
     // thread-management config
     int WORKER_THREADS;
+
+    int RPC_THREADS;
+    uint32_t RPC_SNAPSHOT_LEDGERS;
 
     // process-management config
     size_t MAX_CONCURRENT_SUBPROCESSES;

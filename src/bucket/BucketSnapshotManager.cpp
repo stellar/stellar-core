@@ -14,9 +14,12 @@ namespace stellar
 {
 
 BucketSnapshotManager::BucketSnapshotManager(
-    Application& app, std::unique_ptr<BucketListSnapshot const>&& snapshot)
+    Application& app, std::unique_ptr<BucketListSnapshot const>&& snapshot,
+    uint32_t numHistoricalSnapshots)
     : mApp(app)
     , mCurrentSnapshot(std::move(snapshot))
+    , mHistoricalSnapshots()
+    , mNumHistoricalSnapshots(numHistoricalSnapshots)
     , mBulkLoadMeter(app.getMetrics().NewMeter(
           {"bucketlistDB", "query", "loads"}, "query"))
     , mBloomMisses(app.getMetrics().NewMeter(
@@ -61,9 +64,13 @@ BucketSnapshotManager::recordBulkLoadMetrics(std::string const& label,
 
 void
 BucketSnapshotManager::maybeUpdateSnapshot(
-    std::unique_ptr<BucketListSnapshot const>& snapshot) const
+    std::unique_ptr<BucketListSnapshot const>& snapshot,
+    std::map<uint32_t, std::unique_ptr<BucketListSnapshot const>>&
+        historicalSnapshots) const
 {
     std::lock_guard<std::recursive_mutex> lock(mSnapshotMutex);
+
+    // First update current snapshot
     if (!snapshot ||
         snapshot->getLedgerSeq() != mCurrentSnapshot->getLedgerSeq())
     {
@@ -71,6 +78,27 @@ BucketSnapshotManager::maybeUpdateSnapshot(
         releaseAssert(!snapshot || snapshot->getLedgerSeq() <
                                        mCurrentSnapshot->getLedgerSeq());
         snapshot = std::make_unique<BucketListSnapshot>(*mCurrentSnapshot);
+    }
+
+    // Then update historical snapshots (if any exist)
+    if (mHistoricalSnapshots.empty())
+    {
+        return;
+    }
+
+    // If size of manager's history map is different, or if the oldest snapshot
+    // ledger seq is different, we need to update.
+    if (mHistoricalSnapshots.size() != historicalSnapshots.size() ||
+        mHistoricalSnapshots.begin()->first !=
+            historicalSnapshots.begin()->first)
+    {
+        // Copy current snapshot map into historicalSnapshots
+        historicalSnapshots.clear();
+        for (auto const& [ledgerSeq, snapshot] : mHistoricalSnapshots)
+        {
+            historicalSnapshots.emplace(
+                ledgerSeq, std::make_unique<BucketListSnapshot>(*snapshot));
+        }
     }
 }
 
@@ -83,6 +111,21 @@ BucketSnapshotManager::updateCurrentSnapshot(
     std::lock_guard<std::recursive_mutex> lock(mSnapshotMutex);
     releaseAssert(!mCurrentSnapshot || newSnapshot->getLedgerSeq() >=
                                            mCurrentSnapshot->getLedgerSeq());
+
+    // First update historical snapshots
+    if (mNumHistoricalSnapshots != 0)
+    {
+        // If historical snapshots are full, delete the oldest one
+        if (mHistoricalSnapshots.size() == mNumHistoricalSnapshots)
+        {
+            mHistoricalSnapshots.erase(mHistoricalSnapshots.begin());
+        }
+
+        mHistoricalSnapshots.emplace(mCurrentSnapshot->getLedgerSeq(),
+                                     std::move(mCurrentSnapshot));
+        mCurrentSnapshot = nullptr;
+    }
+
     mCurrentSnapshot.swap(newSnapshot);
 }
 
