@@ -148,6 +148,18 @@ LoadGenerator::getMode(std::string const& mode)
     }
 }
 
+void
+LoadGenerator::createRootAccount()
+{
+    releaseAssert(!mRoot);
+    auto rootTestAccount = TestAccount::createRoot(mApp);
+    mRoot = make_shared<TestAccount>(rootTestAccount);
+    if (!mTxGenerator.loadAccount(mRoot))
+    {
+        CLOG_ERROR(LoadGen, "Could not retrieve root account!");
+    }
+}
+
 unsigned short
 LoadGenerator::chooseOpCount(Config const& cfg) const
 {
@@ -237,8 +249,10 @@ LoadGenerator::reset()
     mTxGenerator.reset();
     mAccountsInUse.clear();
     mAccountsAvailable.clear();
+    mCreationSourceAccounts.clear();
     mContractInstances.clear();
     mLoadTimer.reset();
+    mRoot.reset();
     mStartTime.reset();
     mTotalSubmitted = 0;
     mWaitTillCompleteForLedgers = 0;
@@ -266,6 +280,8 @@ LoadGenerator::start(GeneratedLoadConfig& cfg)
     {
         return;
     }
+
+    createRootAccount();
 
     if (cfg.txRate == 0)
     {
@@ -421,7 +437,7 @@ LoadGenerator::creationTransaction(uint64_t startAccount, uint64_t numItems,
         mInitialAccountsCreated
             ? mTxGenerator.findAccount(getNextAvailableAccount(ledgerNum),
                                        ledgerNum)
-            : mTxGenerator.getRoot();
+            : mRoot;
     vector<Operation> creationOps = mTxGenerator.createAccounts(
         startAccount, numItems, ledgerNum, !mInitialAccountsCreated);
     if (!mInitialAccountsCreated)

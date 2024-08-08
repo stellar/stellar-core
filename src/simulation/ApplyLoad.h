@@ -39,6 +39,7 @@ class ApplyLoad
 
     TxGenerator mTxGenerator;
     Application& mApp;
+    TxGenerator::TestAccountPtr mRoot;
 
     uint32_t mNumAccounts;
 };

@@ -25,6 +25,11 @@ ApplyLoad::ApplyLoad(Application& app, uint32_t numAccounts,
                      uint64_t ledgerMaxTransactionsSizeBytes)
     : mTxGenerator(app), mApp(app), mNumAccounts(numAccounts)
 {
+
+    auto rootTestAccount = TestAccount::createRoot(mApp);
+    mRoot = std::make_shared<TestAccount>(rootTestAccount);
+    releaseAssert(mTxGenerator.loadAccount(mRoot));
+
     mUpgradeConfig.maxContractSizeBytes = 65536;
     mUpgradeConfig.maxContractDataKeySizeBytes = 250;
     mUpgradeConfig.maxContractDataEntrySizeBytes = 65536;
@@ -87,7 +92,7 @@ ApplyLoad::setupAccountsAndUpgradeProtocol()
         0, mNumAccounts, lm.getLastClosedLedgerNum() + 1, false);
 
     auto initTx = mTxGenerator.createTransactionTestFramePtr(
-        mTxGenerator.getRoot(), creationOps, false, std::nullopt);
+        mRoot, creationOps, false, std::nullopt);
 
     // Upgrade to latest protocol as well
     auto upgrade = xdr::xvector<UpgradeType, 6>{};

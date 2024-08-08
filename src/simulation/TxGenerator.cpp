@@ -46,13 +46,6 @@ TxGenerator::TxGenerator(Application& app)
     , mApplySorobanFailure(
           mApp.getMetrics().NewCounter({"ledger", "apply-soroban", "failure"}))
 {
-    auto rootTestAccount = TestAccount::createRoot(mApp);
-    mRoot = make_shared<TestAccount>(rootTestAccount);
-    if (!loadAccount(mRoot))
-    {
-        CLOG_ERROR(LoadGen, "Could not retrieve root account!");
-    }
-
     updateMinBalance();
 }
 
@@ -210,7 +203,6 @@ TxGenerator::createTransactionTestFramePtr(
     TxGenerator::TestAccountPtr from, std::vector<Operation> ops, bool pretend,
     std::optional<uint32_t> maxGeneratedFeeRate)
 {
-
     auto txf = transactionFromOperations(
         mApp, from->getSecretKey(), from->nextSequenceNumber(), ops,
         generateFee(maxGeneratedFeeRate, ops.size()));
@@ -527,12 +519,6 @@ TxGenerator::getAccounts()
     return mAccounts;
 }
 
-TxGenerator::TestAccountPtr
-TxGenerator::getRoot()
-{
-    return mRoot;
-}
-
 medida::Counter const&
 TxGenerator::GetApplySorobanSuccess()
 {
@@ -549,7 +535,6 @@ void
 TxGenerator::reset()
 {
     mAccounts.clear();
-    mRoot.reset();
 }
 
 ConfigUpgradeSetKey

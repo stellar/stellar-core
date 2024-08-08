@@ -131,7 +131,6 @@ class TxGenerator
         SorobanUpgradeConfig const& upgradeCfg) const;
 
     std::map<uint64_t, TestAccountPtr> const& getAccounts();
-    TestAccountPtr getRoot();
 
     medida::Counter const& GetApplySorobanSuccess();
     medida::Counter const& GetApplySorobanFailure();
@@ -147,7 +146,6 @@ class TxGenerator
     void updateMinBalance();
 
     Application& mApp;
-    TestAccountPtr mRoot;
 
     // Accounts cache
     std::map<uint64_t, TestAccountPtr> mAccounts;

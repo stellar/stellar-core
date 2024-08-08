@@ -282,6 +282,8 @@ class LoadGenerator
     // unique instance
     UnorderedMap<uint64_t, TxGenerator::ContractInstance> mContractInstances;
 
+    TxGenerator::TestAccountPtr mRoot;
+
     medida::Meter& mLoadgenComplete;
     medida::Meter& mLoadgenFail;
 
@@ -299,6 +301,8 @@ class LoadGenerator
 
     // Mode used for last mixed transaction in MIX_CLASSIC_SOROBAN mode
     LoadGenMode mLastMixedMode;
+
+    void createRootAccount();
 
     void reset();
     void resetSorobanState();
