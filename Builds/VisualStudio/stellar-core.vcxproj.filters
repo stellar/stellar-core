@@ -1347,6 +1347,12 @@
     <ClCompile Include="..\..\src\overlay\Hmac.cpp">
       <Filter>overlay</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\src\transactions\test\TransactionTestFrame.cpp">
+      <Filter>transactions\tests</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\transactions\MutableTransactionResult.cpp">
+      <Filter>transactions</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\..\lib\util\cpptoml.h">
@@ -2344,6 +2350,12 @@
     </ClInclude>
     <ClInclude Include="..\..\src\overlay\Hmac.h">
       <Filter>overlay</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\transactions\test\TransactionTestFrame.h">
+      <Filter>transactions\tests</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\transactions\MutableTransactionResult.h">
+      <Filter>transactions</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
