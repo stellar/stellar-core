@@ -83,10 +83,10 @@ ApplicationImpl::ApplicationImpl(VirtualClock& clock, Config const& cfg)
     : mVirtualClock(clock)
     , mConfig(cfg)
     // Allocate one worker to eviction when background eviction enabled
-    , mWorkerIOContext(mConfig.EXPERIMENTAL_BACKGROUND_EVICTION_SCAN
+    , mWorkerIOContext(mConfig.isUsingBackgroundEviction()
                            ? mConfig.WORKER_THREADS - 1
                            : mConfig.WORKER_THREADS)
-    , mEvictionIOContext(mConfig.EXPERIMENTAL_BACKGROUND_EVICTION_SCAN
+    , mEvictionIOContext(mConfig.isUsingBackgroundEviction()
                              ? std::make_unique<asio::io_context>(1)
                              : nullptr)
     , mWork(std::make_unique<asio::io_context::work>(mWorkerIOContext))
@@ -156,7 +156,7 @@ ApplicationImpl::ApplicationImpl(VirtualClock& clock, Config const& cfg)
     auto t = mConfig.WORKER_THREADS;
     LOG_DEBUG(DEFAULT_LOG, "Application constructing (worker threads: {})", t);
 
-    if (mConfig.EXPERIMENTAL_BACKGROUND_EVICTION_SCAN)
+    if (mConfig.isUsingBackgroundEviction())
     {
         releaseAssert(mConfig.WORKER_THREADS > 0);
         releaseAssert(mEvictionIOContext);
@@ -829,20 +829,20 @@ ApplicationImpl::validateAndLogConfig()
         }
     }
 
-    if (mConfig.EXPERIMENTAL_BACKGROUND_EVICTION_SCAN)
+    if (mConfig.BACKGROUND_EVICTION_SCAN)
     {
         if (!mConfig.isUsingBucketListDB())
         {
-            throw std::invalid_argument(
-                "DEPRECATED_SQL_LEDGER_STATE must be false to use "
-                "EXPERIMENTAL_BACKGROUND_EVICTION_SCAN");
+            CLOG_WARNING(Bucket,
+                         "BACKGROUND_EVICTION_SCAN set to true but background "
+                         "eviction is disabled. DEPRECATED_SQL_LEDGER_STATE "
+                         "must be set to false to enable background eviction.");
         }
 
         if (mConfig.WORKER_THREADS < 2)
         {
-            throw std::invalid_argument(
-                "EXPERIMENTAL_BACKGROUND_EVICTION_SCAN requires "
-                "WORKER_THREADS > 1");
+            throw std::invalid_argument("BACKGROUND_EVICTION_SCAN requires "
+                                        "WORKER_THREADS > 1");
         }
     }
 

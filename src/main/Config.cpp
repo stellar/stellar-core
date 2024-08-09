@@ -167,7 +167,7 @@ Config::Config() : NODE_SEED(SecretKey::random())
     BUCKETLIST_DB_INDEX_PAGE_SIZE_EXPONENT = 14; // 2^14 == 16 kb
     BUCKETLIST_DB_INDEX_CUTOFF = 20;             // 20 mb
     BUCKETLIST_DB_PERSIST_INDEX = true;
-    EXPERIMENTAL_BACKGROUND_EVICTION_SCAN = false;
+    BACKGROUND_EVICTION_SCAN = true;
     PUBLISH_TO_ARCHIVE_DELAY = std::chrono::seconds{0};
     // automatic maintenance settings:
     // short and prime with 1 hour which will cause automatic maintenance to
@@ -1074,9 +1074,9 @@ Config::processConfig(std::shared_ptr<cpptoml::table> t)
             {
                 EXPERIMENTAL_BACKGROUND_OVERLAY_PROCESSING = readBool(item);
             }
-            else if (item.first == "EXPERIMENTAL_BACKGROUND_EVICTION_SCAN")
+            else if (item.first == "BACKGROUND_EVICTION_SCAN")
             {
-                EXPERIMENTAL_BACKGROUND_EVICTION_SCAN = readBool(item);
+                BACKGROUND_EVICTION_SCAN = readBool(item);
             }
             else if (item.first == "DEPRECATED_SQL_LEDGER_STATE")
             {
@@ -2320,6 +2320,12 @@ Config::isUsingBucketListDB() const
 {
     return !DEPRECATED_SQL_LEDGER_STATE && !MODE_USES_IN_MEMORY_LEDGER &&
            MODE_ENABLES_BUCKETLIST;
+}
+
+bool
+Config::isUsingBackgroundEviction() const
+{
+    return isUsingBucketListDB() && BACKGROUND_EVICTION_SCAN;
 }
 
 bool
