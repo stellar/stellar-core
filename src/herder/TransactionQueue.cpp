@@ -12,8 +12,8 @@
 #include "ledger/LedgerTxn.h"
 #include "main/Application.h"
 #include "overlay/OverlayManager.h"
-#include "test/TxTests.h"
 #include "transactions/FeeBumpTransactionFrame.h"
+#include "transactions/MutableTransactionResult.h"
 #include "transactions/OperationFrame.h"
 #include "transactions/TransactionBridge.h"
 #include "transactions/TransactionUtils.h"
@@ -38,14 +38,40 @@
 #include <optional>
 #include <random>
 
+#ifdef BUILD_TESTS
+#include "test/TxTests.h"
+#include "transactions/test/TransactionTestFrame.h"
+#endif
+
 namespace stellar
 {
 const uint64_t TransactionQueue::FEE_MULTIPLIER = 10;
 
 std::array<const char*,
-           static_cast<int>(TransactionQueue::AddResult::ADD_STATUS_COUNT)>
+           static_cast<int>(TransactionQueue::AddResultCode::ADD_STATUS_COUNT)>
     TX_STATUS_STRING = std::array{"PENDING", "DUPLICATE", "ERROR",
                                   "TRY_AGAIN_LATER", "FILTERED"};
+
+TransactionQueue::AddResult::AddResult(AddResultCode addCode)
+    : code(addCode), txResult()
+{
+}
+
+TransactionQueue::AddResult::AddResult(AddResultCode addCode,
+                                       MutableTxResultPtr payload)
+    : code(addCode), txResult(payload)
+{
+    releaseAssert(txResult);
+}
+
+TransactionQueue::AddResult::AddResult(AddResultCode addCode,
+                                       TransactionFrameBasePtr tx,
+                                       TransactionResultCode txErrorCode)
+    : code(addCode), txResult(tx->createSuccessResult())
+{
+    releaseAssert(txErrorCode != txSUCCESS);
+    txResult->setResultCode(txErrorCode);
+}
 
 TransactionQueue::TransactionQueue(Application& app, uint32 pendingDepth,
                                    uint32 banDepth, uint32 poolLedgerMultiplier,
@@ -218,9 +244,21 @@ isDuplicateTx(TransactionFrameBasePtr oldTx, TransactionFrameBasePtr newTx)
     }
     else if (oldEnv.type() == ENVELOPE_TYPE_TX_FEE_BUMP)
     {
-        auto oldFeeBump =
-            std::static_pointer_cast<FeeBumpTransactionFrame>(oldTx);
-        return oldFeeBump->getInnerFullHash() == newTx->getFullHash();
+        std::shared_ptr<FeeBumpTransactionFrame const> feeBumpPtr{};
+#ifdef BUILD_TESTS
+        if (oldTx->isTestTx())
+        {
+            auto testFrame =
+                std::static_pointer_cast<TransactionTestFrame const>(oldTx);
+            feeBumpPtr =
+                std::static_pointer_cast<FeeBumpTransactionFrame const>(
+                    testFrame->getTxFramePtr());
+        }
+        else
+#endif
+            feeBumpPtr =
+                std::static_pointer_cast<FeeBumpTransactionFrame const>(oldTx);
+        return feeBumpPtr->getInnerFullHash() == newTx->getFullHash();
     }
     return false;
 }
@@ -239,18 +277,19 @@ TransactionQueue::canAdd(
     ZoneScoped;
     if (isBanned(tx->getFullHash()))
     {
-        return TransactionQueue::AddResult::ADD_STATUS_TRY_AGAIN_LATER;
+        return AddResult(
+            TransactionQueue::AddResultCode::ADD_STATUS_TRY_AGAIN_LATER);
     }
     if (isFiltered(tx))
     {
-        return TransactionQueue::AddResult::ADD_STATUS_FILTERED;
+        return AddResult(TransactionQueue::AddResultCode::ADD_STATUS_FILTERED);
     }
 
     int64_t newFullFee = tx->getFullFee();
     if (newFullFee < 0 || tx->getInclusionFee() < 0)
     {
-        tx->getResult().result.code(txMALFORMED);
-        return TransactionQueue::AddResult::ADD_STATUS_ERROR;
+        return AddResult(TransactionQueue::AddResultCode::ADD_STATUS_ERROR, tx,
+                         txMALFORMED);
     }
 
     stateIter = mAccountStates.find(tx->getSourceID());
@@ -266,7 +305,8 @@ TransactionQueue::canAdd(
             // Check if the tx is a duplicate
             if (isDuplicateTx(currentTx, tx))
             {
-                return TransactionQueue::AddResult::ADD_STATUS_DUPLICATE;
+                return AddResult(
+                    TransactionQueue::AddResultCode::ADD_STATUS_DUPLICATE);
             }
 
             // Any transaction older than the current one is invalid
@@ -274,8 +314,9 @@ TransactionQueue::canAdd(
             {
                 // If the transaction is older than the one in the queue, we
                 // reject it
-                tx->getResult().result.code(txBAD_SEQ);
-                return TransactionQueue::AddResult::ADD_STATUS_ERROR;
+                return AddResult(
+                    TransactionQueue::AddResultCode::ADD_STATUS_ERROR, tx,
+                    txBAD_SEQ);
             }
 
             // Before rejecting Soroban transactions due to source account
@@ -283,12 +324,15 @@ TransactionQueue::canAdd(
             // appropriate error message
             if (tx->isSoroban())
             {
+                auto txResult = tx->createSuccessResult();
                 if (!tx->checkSorobanResourceAndSetError(
-                        mApp, mApp.getLedgerManager()
-                                  .getLastClosedLedgerHeader()
-                                  .header.ledgerVersion))
+                        mApp,
+                        mApp.getLedgerManager()
+                            .getLastClosedLedgerHeader()
+                            .header.ledgerVersion,
+                        txResult))
                 {
-                    return TransactionQueue::AddResult::ADD_STATUS_ERROR;
+                    return AddResult(AddResultCode::ADD_STATUS_ERROR, txResult);
                 }
             }
 
@@ -296,23 +340,26 @@ TransactionQueue::canAdd(
             {
                 // If there's already a transaction in the queue, we reject
                 // any new transaction
-                return TransactionQueue::AddResult::ADD_STATUS_TRY_AGAIN_LATER;
+                return AddResult(TransactionQueue::AddResultCode::
+                                     ADD_STATUS_TRY_AGAIN_LATER);
             }
             else
             {
                 if (tx->getSeqNum() != currentTx->getSeqNum())
                 {
                     // New fee-bump transaction is rejected
-                    return TransactionQueue::AddResult::
-                        ADD_STATUS_TRY_AGAIN_LATER;
+                    return AddResult(TransactionQueue::AddResultCode::
+                                         ADD_STATUS_TRY_AGAIN_LATER);
                 }
 
                 int64_t minFee;
                 if (!canReplaceByFee(tx, currentTx, minFee))
                 {
-                    tx->getResult().result.code(txINSUFFICIENT_FEE);
-                    tx->getResult().feeCharged = minFee;
-                    return TransactionQueue::AddResult::ADD_STATUS_ERROR;
+                    AddResult result(
+                        TransactionQueue::AddResultCode::ADD_STATUS_ERROR, tx,
+                        txINSUFFICIENT_FEE);
+                    result.txResult->getResult().feeCharged = minFee;
+                    return result;
                 }
 
                 if (currentTx->getFeeSourceID() == tx->getFeeSourceID())
@@ -337,11 +384,13 @@ TransactionQueue::canAdd(
         ban({tx});
         if (canAddRes.second != 0)
         {
-            tx->getResult().result.code(txINSUFFICIENT_FEE);
-            tx->getResult().feeCharged = canAddRes.second;
-            return TransactionQueue::AddResult::ADD_STATUS_ERROR;
+            AddResult result(TransactionQueue::AddResultCode::ADD_STATUS_ERROR,
+                             tx, txINSUFFICIENT_FEE);
+            result.txResult->getResult().feeCharged = canAddRes.second;
+            return result;
         }
-        return TransactionQueue::AddResult::ADD_STATUS_TRY_AGAIN_LATER;
+        return AddResult(
+            TransactionQueue::AddResultCode::ADD_STATUS_TRY_AGAIN_LATER);
     }
 
     auto closeTime = mApp.getLedgerManager()
@@ -355,10 +404,12 @@ TransactionQueue::canAdd(
             mApp.getLedgerManager().getLastClosedLedgerNum() + 1;
     }
 
-    if (!tx->checkValid(mApp, ltx, 0, 0,
-                        getUpperBoundCloseTimeOffset(mApp, closeTime)))
+    auto txResult = tx->checkValid(
+        mApp, ltx, 0, 0, getUpperBoundCloseTimeOffset(mApp, closeTime));
+    if (!txResult->isSuccess())
     {
-        return TransactionQueue::AddResult::ADD_STATUS_ERROR;
+        return AddResult(TransactionQueue::AddResultCode::ADD_STATUS_ERROR,
+                         txResult);
     }
 
     // Note: stateIter corresponds to getSourceID() which is not necessarily
@@ -371,11 +422,13 @@ TransactionQueue::canAdd(
     if (getAvailableBalance(ltx.loadHeader(), feeSource) - newFullFee <
         totalFees)
     {
-        tx->getResult().result.code(txINSUFFICIENT_BALANCE);
-        return TransactionQueue::AddResult::ADD_STATUS_ERROR;
+        txResult->setResultCode(txINSUFFICIENT_BALANCE);
+        return AddResult(TransactionQueue::AddResultCode::ADD_STATUS_ERROR,
+                         txResult);
     }
 
-    return TransactionQueue::AddResult::ADD_STATUS_PENDING;
+    return AddResult(TransactionQueue::AddResultCode::ADD_STATUS_PENDING,
+                     txResult);
 }
 
 void
@@ -529,15 +582,15 @@ TransactionQueue::tryAdd(TransactionFrameBasePtr tx, bool submittedFromSelf)
     // fast fail when Soroban tx is malformed
     if ((tx->isSoroban() != (c1 || c2)) || !tx->XDRProvidesValidFee())
     {
-        tx->getResult().result.code(txMALFORMED);
-        return TransactionQueue::AddResult::ADD_STATUS_ERROR;
+        return AddResult(TransactionQueue::AddResultCode::ADD_STATUS_ERROR, tx,
+                         txMALFORMED);
     }
 
     AccountStates::iterator stateIter;
 
     std::vector<std::pair<TransactionFrameBasePtr, bool>> txsToEvict;
     auto const res = canAdd(tx, stateIter, txsToEvict);
-    if (res != TransactionQueue::AddResult::ADD_STATUS_PENDING)
+    if (res.code != TransactionQueue::AddResultCode::ADD_STATUS_PENDING)
     {
         return res;
     }

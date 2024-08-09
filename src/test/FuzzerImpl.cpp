@@ -16,6 +16,7 @@
 #include "test/TxTests.h"
 #include "test/fuzz.h"
 #include "test/test.h"
+#include "transactions/MutableTransactionResult.h"
 #include "transactions/OperationFrame.h"
 #include "transactions/SignatureChecker.h"
 #include "transactions/TransactionMetaFrame.h"
@@ -894,24 +895,28 @@ resetTxInternalState(Application& app)
 // ledger state and deterministically attempting application of transactions.
 class FuzzTransactionFrame : public TransactionFrame
 {
+  private:
+    MutableTxResultPtr mTxResult;
+
   public:
     FuzzTransactionFrame(Hash const& networkID,
                          TransactionEnvelope const& envelope)
-        : TransactionFrame(networkID, envelope){};
+        : TransactionFrame(networkID, envelope)
+        , mTxResult(createSuccessResult()){};
 
     void
     attemptApplication(Application& app, AbstractLedgerTxn& ltx)
     {
         // No soroban ops allowed
-        if (std::any_of(mOperations.begin(), mOperations.end(),
+        if (std::any_of(getOperations().begin(), getOperations().end(),
                         [](auto const& x) { return x->isSoroban(); }))
         {
-            markResultFailed();
+            mTxResult->setResultCode(txFAILED);
             return;
         }
 
         // reset results of operations
-        resetResults(ltx.getHeader(), 0, true);
+        mTxResult = createSuccessResultWithFeeCharged(ltx.getHeader(), 0, true);
 
         // attempt application of transaction without processing the fee or
         // committing the LedgerTxn
@@ -919,26 +924,46 @@ class FuzzTransactionFrame : public TransactionFrame
             ltx.loadHeader().current().ledgerVersion, getContentsHash(),
             mEnvelope.v1().signatures};
         // if any ill-formed Operations, do not attempt transaction application
-        auto isInvalidOperation = [&](auto const& op) {
-            return !op->checkValid(app, signatureChecker, ltx, false);
+        auto isInvalidOperation = [&](auto const& op, auto& opResult) {
+            return !op->checkValid(app, signatureChecker, ltx, false, opResult,
+                                   mTxResult->getSorobanData());
         };
-        if (std::any_of(mOperations.begin(), mOperations.end(),
-                        isInvalidOperation))
+
+        auto const& ops = getOperations();
+        for (size_t i = 0; i < ops.size(); ++i)
         {
-            markResultFailed();
-            return;
+            auto const& op = ops[i];
+            auto& opResult = mTxResult->getOpResultAt(i);
+            if (isInvalidOperation(op, opResult))
+            {
+                mTxResult->setResultCode(txFAILED);
+                return;
+            }
         }
+
         // while the following method's result is not captured, regardless, for
         // protocols < 8, this triggered buggy caching, and potentially may do
         // so in the future
         loadSourceAccount(ltx, ltx.loadHeader());
         processSeqNum(ltx);
         TransactionMetaFrame tm(2);
-        applyOperations(signatureChecker, app, ltx, tm, Hash{});
-        if (getResultCode() == txINTERNAL_ERROR)
+        applyOperations(signatureChecker, app, ltx, tm, *mTxResult, Hash{});
+        if (mTxResult->getResultCode() == txINTERNAL_ERROR)
         {
             throw std::runtime_error("Internal error while fuzzing");
         }
+    }
+
+    TransactionResult&
+    getResult()
+    {
+        return mTxResult->getResult();
+    }
+
+    TransactionResultCode
+    getResultCode() const
+    {
+        return mTxResult->getResultCode();
     }
 };
 
@@ -1010,10 +1035,14 @@ applySetupOperations(LedgerTxn& ltx, PublicKey const& sourceAccount,
             throw std::runtime_error(msg);
         }
 
-        for (auto const& opFrame : txFramePtr->getOperations())
+        auto const& ops = txFramePtr->getOperations();
+        for (size_t i = 0; i < ops.size(); ++i)
         {
+            auto const& opFrame = ops.at(i);
+            auto& opResult = txFramePtr->getResult().result.results().at(i);
+
             auto const& op = opFrame->getOperation();
-            auto const& tr = opFrame->getResult().tr();
+            auto const& tr = opResult.tr();
             auto const opType = op.body.type();
 
             if ((opType == MANAGE_BUY_OFFER &&

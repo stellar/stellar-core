@@ -25,6 +25,7 @@
 #include "overlay/OverlayManager.h"
 #include "scp/LocalNode.h"
 #include "scp/Slot.h"
+#include "transactions/MutableTransactionResult.h"
 #include "transactions/TransactionUtils.h"
 #include "util/DebugMetaUtils.h"
 #include "util/LogSlowExecution.h"
@@ -360,9 +361,6 @@ HerderImpl::processExternalized(uint64 slotIndex, StellarValue const& value,
     }
 
     mLedgerManager.valueExternalized(ledgerData);
-
-    // Ensure potential upgrades are handled in overlay
-    maybeHandleUpgrade();
 }
 
 void
@@ -587,7 +585,8 @@ TransactionQueue::AddResult
 HerderImpl::recvTransaction(TransactionFrameBasePtr tx, bool submittedFromSelf)
 {
     ZoneScoped;
-    TransactionQueue::AddResult result;
+    TransactionQueue::AddResult result(
+        TransactionQueue::AddResultCode::ADD_STATUS_COUNT);
 
     // Allow txs of the same kind to reach the tx queue in case it can be
     // replaced by fee
@@ -605,7 +604,8 @@ HerderImpl::recvTransaction(TransactionFrameBasePtr tx, bool submittedFromSelf)
                    "account per ledger limit",
                    hexAbbrev(tx->getFullHash()),
                    KeyUtils::toShortString(tx->getSourceID()));
-        result = TransactionQueue::AddResult::ADD_STATUS_TRY_AGAIN_LATER;
+        result.code =
+            TransactionQueue::AddResultCode::ADD_STATUS_TRY_AGAIN_LATER;
     }
     else if (!tx->isSoroban())
     {
@@ -619,10 +619,12 @@ HerderImpl::recvTransaction(TransactionFrameBasePtr tx, bool submittedFromSelf)
     {
         // Received Soroban transaction before protocol 20; since this
         // transaction isn't supported yet, return ERROR
-        result = TransactionQueue::AddResult::ADD_STATUS_ERROR;
+        result = TransactionQueue::AddResult(
+            TransactionQueue::AddResultCode::ADD_STATUS_ERROR, tx,
+            txNOT_SUPPORTED);
     }
 
-    if (result == TransactionQueue::AddResult::ADD_STATUS_PENDING)
+    if (result.code == TransactionQueue::AddResultCode::ADD_STATUS_PENDING)
     {
         CLOG_TRACE(Herder, "recv transaction {} for {}",
                    hexAbbrev(tx->getFullHash()),
@@ -1139,6 +1141,9 @@ HerderImpl::lastClosedLedgerIncreased(bool latest)
 {
     maybeSetupSorobanQueue(
         mLedgerManager.getLastClosedLedgerHeader().header.ledgerVersion);
+
+    // Ensure potential upgrades are handled in overlay
+    maybeHandleUpgrade();
 
     if (latest)
     {

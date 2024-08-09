@@ -17,9 +17,10 @@
 namespace stellar
 {
 
-AllowTrustOpFrame::AllowTrustOpFrame(Operation const& op, OperationResult& res,
-                                     TransactionFrame& parentTx, uint32_t index)
-    : TrustFlagsOpFrameBase(op, res, parentTx)
+AllowTrustOpFrame::AllowTrustOpFrame(Operation const& op,
+                                     TransactionFrame const& parentTx,
+                                     uint32_t index)
+    : TrustFlagsOpFrameBase(op, parentTx)
     , mAllowTrust(mOperation.body.allowTrustOp())
     , mAsset(getAsset(getSourceID(), mAllowTrust.asset))
     , mOpIndex(index)
@@ -27,27 +28,27 @@ AllowTrustOpFrame::AllowTrustOpFrame(Operation const& op, OperationResult& res,
 }
 
 void
-AllowTrustOpFrame::setResultSelfNotAllowed()
+AllowTrustOpFrame::setResultSelfNotAllowed(OperationResult& res) const
 {
-    innerResult().code(ALLOW_TRUST_SELF_NOT_ALLOWED);
+    innerResult(res).code(ALLOW_TRUST_SELF_NOT_ALLOWED);
 }
 
 void
-AllowTrustOpFrame::setResultNoTrustLine()
+AllowTrustOpFrame::setResultNoTrustLine(OperationResult& res) const
 {
-    innerResult().code(ALLOW_TRUST_NO_TRUST_LINE);
+    innerResult(res).code(ALLOW_TRUST_NO_TRUST_LINE);
 }
 
 void
-AllowTrustOpFrame::setResultLowReserve()
+AllowTrustOpFrame::setResultLowReserve(OperationResult& res) const
 {
-    innerResult().code(ALLOW_TRUST_LOW_RESERVE);
+    innerResult(res).code(ALLOW_TRUST_LOW_RESERVE);
 }
 
 void
-AllowTrustOpFrame::setResultSuccess()
+AllowTrustOpFrame::setResultSuccess(OperationResult& res) const
 {
-    innerResult().code(ALLOW_TRUST_SUCCESS);
+    innerResult(res).code(ALLOW_TRUST_SUCCESS);
 }
 
 AccountID const&
@@ -70,7 +71,8 @@ AllowTrustOpFrame::getOpIndex() const
 
 bool
 AllowTrustOpFrame::calcExpectedFlagValue(LedgerTxnEntry const& trust,
-                                         uint32_t& expectedVal)
+                                         uint32_t& expectedVal,
+                                         OperationResult& res) const
 {
     expectedVal = trust.current().data.trustLine().flags;
     expectedVal &= ~TRUSTLINE_AUTH_FLAGS;
@@ -80,7 +82,7 @@ AllowTrustOpFrame::calcExpectedFlagValue(LedgerTxnEntry const& trust,
 
 void
 AllowTrustOpFrame::setFlagValue(AbstractLedgerTxn& ltx, LedgerKey const& key,
-                                uint32_t flagVal)
+                                uint32_t flagVal) const
 {
     if (!trustLineFlagIsValid(mAllowTrust.authorize, ltx.loadHeader()))
     {
@@ -99,7 +101,8 @@ AllowTrustOpFrame::setFlagValue(AbstractLedgerTxn& ltx, LedgerKey const& key,
 
 bool
 AllowTrustOpFrame::isAuthRevocationValid(AbstractLedgerTxn& ltx,
-                                         bool& authRevocable)
+                                         bool& authRevocable,
+                                         OperationResult& res) const
 {
     // Load the source account
     LedgerTxn ltxSource(ltx); // ltxSource will be rolled back
@@ -113,7 +116,7 @@ AllowTrustOpFrame::isAuthRevocationValid(AbstractLedgerTxn& ltx,
                                 ProtocolVersion::V_16) &&
         !(sourceAccount.flags & AUTH_REQUIRED_FLAG))
     {
-        innerResult().code(ALLOW_TRUST_TRUST_NOT_REQUIRED);
+        innerResult(res).code(ALLOW_TRUST_TRUST_NOT_REQUIRED);
         return false;
     }
 
@@ -121,7 +124,7 @@ AllowTrustOpFrame::isAuthRevocationValid(AbstractLedgerTxn& ltx,
     authRevocable = sourceAccount.flags & AUTH_REVOCABLE_FLAG;
     if (!authRevocable && mAllowTrust.authorize == 0)
     {
-        innerResult().code(ALLOW_TRUST_CANT_REVOKE);
+        innerResult(res).code(ALLOW_TRUST_CANT_REVOKE);
         return false;
     }
 
@@ -130,7 +133,8 @@ AllowTrustOpFrame::isAuthRevocationValid(AbstractLedgerTxn& ltx,
 
 bool
 AllowTrustOpFrame::isRevocationToMaintainLiabilitiesValid(
-    bool authRevocable, LedgerTxnEntry const& trust, uint32_t flags)
+    bool authRevocable, LedgerTxnEntry const& trust, uint32_t flags,
+    OperationResult& res) const
 {
     // There are two cases where we set the result to
     // ALLOW_TRUST_CANT_REVOKE -
@@ -142,43 +146,44 @@ AllowTrustOpFrame::isRevocationToMaintainLiabilitiesValid(
     if (!authRevocable && (isAuthorized(trust) &&
                            (flags & AUTHORIZED_TO_MAINTAIN_LIABILITIES_FLAG)))
     {
-        innerResult().code(ALLOW_TRUST_CANT_REVOKE);
+        innerResult(res).code(ALLOW_TRUST_CANT_REVOKE);
         return false;
     }
     return true;
 }
 
 bool
-AllowTrustOpFrame::doCheckValid(uint32_t ledgerVersion)
+AllowTrustOpFrame::doCheckValid(uint32_t ledgerVersion,
+                                OperationResult& res) const
 {
     if (mAllowTrust.asset.type() == ASSET_TYPE_NATIVE)
     {
-        innerResult().code(ALLOW_TRUST_MALFORMED);
+        innerResult(res).code(ALLOW_TRUST_MALFORMED);
         return false;
     }
 
     if (mAllowTrust.authorize > AUTHORIZED_TO_MAINTAIN_LIABILITIES_FLAG)
     {
-        innerResult().code(ALLOW_TRUST_MALFORMED);
+        innerResult(res).code(ALLOW_TRUST_MALFORMED);
         return false;
     }
 
     if (!trustLineFlagIsValid(mAllowTrust.authorize, ledgerVersion))
     {
-        innerResult().code(ALLOW_TRUST_MALFORMED);
+        innerResult(res).code(ALLOW_TRUST_MALFORMED);
         return false;
     }
 
     if (!isAssetValid(mAsset, ledgerVersion))
     {
-        innerResult().code(ALLOW_TRUST_MALFORMED);
+        innerResult(res).code(ALLOW_TRUST_MALFORMED);
         return false;
     }
 
     if (protocolVersionStartsFrom(ledgerVersion, ProtocolVersion::V_16) &&
         mAllowTrust.trustor == getSourceID())
     {
-        innerResult().code(ALLOW_TRUST_MALFORMED);
+        innerResult(res).code(ALLOW_TRUST_MALFORMED);
         return false;
     }
 

@@ -15,21 +15,24 @@ class ClaimClaimableBalanceOpFrame : public OperationFrame
 {
     ThresholdLevel getThresholdLevel() const override;
     ClaimClaimableBalanceResult&
-    innerResult()
+    innerResult(OperationResult& res) const
     {
-        return mResult.tr().claimClaimableBalanceResult();
+        return res.tr().claimClaimableBalanceResult();
     }
 
     ClaimClaimableBalanceOp const& mClaimClaimableBalance;
 
   public:
-    ClaimClaimableBalanceOpFrame(Operation const& op, OperationResult& res,
-                                 TransactionFrame& parentTx);
+    ClaimClaimableBalanceOpFrame(Operation const& op,
+                                 TransactionFrame const& parentTx);
 
     bool isOpSupported(LedgerHeader const& header) const override;
 
-    bool doApply(AbstractLedgerTxn& ltx) override;
-    bool doCheckValid(uint32_t ledgerVersion) override;
+    bool doApply(Application& app, AbstractLedgerTxn& ltx,
+                 Hash const& sorobanBasePrngSeed, OperationResult& res,
+                 std::shared_ptr<SorobanTxData> sorobanData) const override;
+    bool doCheckValid(uint32_t ledgerVersion,
+                      OperationResult& res) const override;
     void
     insertLedgerKeysToPrefetch(UnorderedSet<LedgerKey>& keys) const override;
 

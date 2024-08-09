@@ -146,7 +146,6 @@ Simulation::addNode(SecretKey nodeKey, SCPQuorumSet qSet, Config const* cfg2,
 
     mPeerMap.emplace(app->getConfig().PEER_PORT,
                      std::weak_ptr<Application>(app));
-
     return app;
 }
 

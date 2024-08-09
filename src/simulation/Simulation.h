@@ -47,6 +47,8 @@ class Simulation
     void setCurrentVirtualTime(VirtualClock::time_point t);
     void setCurrentVirtualTime(VirtualClock::system_time_point t);
 
+    // Add new node to the simulation. This function does not start the node.
+    // Callers are expected to call `start` or `startAllNodes` manually.
     Application::pointer addNode(SecretKey nodeKey, SCPQuorumSet qSet,
                                  Config const* cfg = nullptr, bool newDB = true,
                                  uint32_t startAtLedger = 0,
@@ -55,6 +57,9 @@ class Simulation
     std::vector<Application::pointer> getNodes();
     std::vector<NodeID> getNodeIDs();
 
+    // Add a pending connection to an unstarted node. Typically called after
+    // `addNode`, but before `startAllNodes`. No-op if the simulation is already
+    // started.
     void addPendingConnection(NodeID const& initiator, NodeID const& acceptor);
     // Returns LoopbackPeerConnection given initiator, acceptor pair or nullptr
     std::shared_ptr<LoopbackPeerConnection>
@@ -80,6 +85,8 @@ class Simulation
     void crankUntil(VirtualClock::system_time_point timePoint, bool finalCrank);
     std::string metricsSummary(std::string domain = "");
 
+    // Add a real (not pending) connection to the simulation. Works even if the
+    // simulation has started.
     void addConnection(NodeID initiator, NodeID acceptor);
     void dropConnection(NodeID initiator, NodeID acceptor);
     Config newConfig(); // generates a new config

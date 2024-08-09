@@ -2613,6 +2613,9 @@ TEST_CASE("LedgerTxnRoot prefetch classic entries", "[ledgertxn]")
 
         UnorderedSet<LedgerKey> keysToPrefetch;
         auto app = createTestApplication(clock, cfg);
+        auto ledgerVers = app->getLedgerManager()
+                              .getLastClosedLedgerHeader()
+                              .header.ledgerVersion;
 
         auto& root = app->getLedgerTxnRoot();
 
@@ -2634,7 +2637,8 @@ TEST_CASE("LedgerTxnRoot prefetch classic entries", "[ledgertxn]")
         {
             std::vector<LedgerEntry> ledgerVect{entrySet.begin(),
                                                 entrySet.end()};
-            app->getBucketManager().addBatch(*app, 2, 20, {}, ledgerVect, {});
+            app->getBucketManager().addBatch(*app, 2, ledgerVers, {},
+                                             ledgerVect, {});
         }
         ltx.commit();
 
@@ -2860,10 +2864,14 @@ TEST_CASE("LedgerTxnRoot prefetch soroban entries", "[ledgertxn]")
     ltx.eraseWithoutLoading(deadKey);
 
     // Insert all entries into the database.
+    auto ledgerVers = app->getLedgerManager()
+                          .getLastClosedLedgerHeader()
+                          .header.ledgerVersion;
     std::vector<LedgerEntry> ledgerVect{classicEntry, contractDataEntry,
                                         TTLEntry};
     std::vector<LedgerKey> deadKeyVect{deadKey};
-    app->getBucketManager().addBatch(*app, 2, 20, {}, ledgerVect, deadKeyVect);
+    app->getBucketManager().addBatch(*app, 2, ledgerVers, {}, ledgerVect,
+                                     deadKeyVect);
     ltx.commit();
 
     auto addTxn = [&](bool enoughQuota, std::vector<LedgerEntry> entries,

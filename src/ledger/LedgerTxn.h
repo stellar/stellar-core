@@ -350,14 +350,11 @@ class LedgerKeyMeter : public NonMovableOrCopyable
   private:
     // Returns the maximum read quota across all transactions with this key.
     uint32_t maxReadQuotaForKey(LedgerKey const& key) const;
-
-    // Stores the read quota for each transaction.
-    std::vector<uint32_t> mTxReadBytes{};
-    // Stores the keys that each transaction will read. i.e.
-    // mLedgerKeyToTxs[key] is a vector containing  the indices of
-    // mTxReadBytes corresponding to the transactions which have
-    // the key in their footprint.
-    UnorderedMap<LedgerKey, std::vector<size_t>> mLedgerKeyToTxs{};
+    using TxReadBytesPtr = std::shared_ptr<uint32_t>;
+    // Stores a mapping from keys to a vector of pointers to the read bytes
+    // of the transactions that will read the keys.
+    UnorderedMap<LedgerKey, std::vector<TxReadBytesPtr>>
+        mLedgerKeyToTxReadBytes{};
     // Stores the keys that were not loaded due to insufficient read quota.
     LedgerKeySet mNotLoadedKeys{};
 };

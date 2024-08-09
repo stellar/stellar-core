@@ -33,8 +33,10 @@ FlowControl::getOutboundQueueByteLimit(
 
 FlowControl::FlowControl(OverlayAppConnector& connector,
                          bool useBackgroundThread)
-    : mFlowControlCapacity(std::make_shared<FlowControlMessageCapacity>(
-          connector.getConfig(), mNodeID))
+    : mFlowControlCapacity(connector.getConfig(), mNodeID)
+    , mFlowControlBytesCapacity(
+          connector.getConfig(), mNodeID,
+          connector.getOverlayManager().getFlowControlBytesConfig().mTotal)
     , mOverlayMetrics(connector.getOverlayManager().getOverlayMetrics())
     , mAppConnector(connector)
     , mUseBackgroundThread(useBackgroundThread)
@@ -49,24 +51,16 @@ FlowControl::hasOutboundCapacity(StellarMessage const& msg,
                                  std::lock_guard<std::mutex>& lockGuard) const
 {
     releaseAssert(!threadIsMain() || !mUseBackgroundThread);
-    releaseAssert(mFlowControlCapacity);
-    return mFlowControlCapacity->hasOutboundCapacity(msg) &&
-           (!mFlowControlBytesCapacity ||
-            mFlowControlBytesCapacity->hasOutboundCapacity(msg));
+    return mFlowControlCapacity.hasOutboundCapacity(msg) &&
+           mFlowControlBytesCapacity.hasOutboundCapacity(msg);
 }
 
 void
-FlowControl::start(NodeID const& peerID, std::optional<uint32_t> enableFCBytes)
+FlowControl::setPeerID(NodeID const& peerID)
 {
     releaseAssert(threadIsMain());
     std::lock_guard<std::mutex> guard(mFlowControlMutex);
     mNodeID = peerID;
-
-    if (enableFCBytes)
-    {
-        mFlowControlBytesCapacity = std::make_shared<FlowControlByteCapacity>(
-            mAppConnector.getConfig(), mNodeID, *enableFCBytes);
-    }
 }
 
 void
@@ -76,7 +70,7 @@ FlowControl::maybeReleaseCapacity(StellarMessage const& msg)
     releaseAssert(threadIsMain());
     std::lock_guard<std::mutex> guard(mFlowControlMutex);
 
-    if (msg.type() == SEND_MORE || msg.type() == SEND_MORE_EXTENDED)
+    if (msg.type() == SEND_MORE_EXTENDED)
     {
         if (mNoOutboundCapacity)
         {
@@ -85,11 +79,8 @@ FlowControl::maybeReleaseCapacity(StellarMessage const& msg)
         }
         mNoOutboundCapacity.reset();
 
-        mFlowControlCapacity->releaseOutboundCapacity(msg);
-        if (mFlowControlBytesCapacity)
-        {
-            mFlowControlBytesCapacity->releaseOutboundCapacity(msg);
-        }
+        mFlowControlCapacity.releaseOutboundCapacity(msg);
+        mFlowControlBytesCapacity.releaseOutboundCapacity(msg);
 
         CLOG_TRACE(Overlay, "{}: Peer {} sent {} ({} messages, {} bytes)",
                    mAppConnector.getConfig().toShortString(
@@ -97,9 +88,7 @@ FlowControl::maybeReleaseCapacity(StellarMessage const& msg)
                    mAppConnector.getConfig().toShortString(mNodeID),
                    xdr::xdr_traits<MessageType>::enum_name(msg.type()),
                    getNumMessages(msg),
-                   mFlowControlBytesCapacity
-                       ? std::to_string(msg.sendMoreExtendedMessage().numBytes)
-                       : "N/A");
+                   std::to_string(msg.sendMoreExtendedMessage().numBytes));
     }
 }
 
@@ -137,26 +126,17 @@ FlowControl::getNextBatchToSend()
 
             batchToSend.push_back(front);
             ++sent;
-            auto& om = mOverlayMetrics;
 
-            auto const& diff = mAppConnector.now() - front.mTimeEmplaced;
-            mFlowControlCapacity->lockOutboundCapacity(msg);
-            if (mFlowControlBytesCapacity)
-            {
-                mFlowControlBytesCapacity->lockOutboundCapacity(msg);
-            }
+            mFlowControlCapacity.lockOutboundCapacity(msg);
+            mFlowControlBytesCapacity.lockOutboundCapacity(msg);
 
             switch (front.mMessage->type())
             {
             case TRANSACTION:
             {
-                if (mFlowControlBytesCapacity)
-                {
-                    size_t s =
-                        mFlowControlBytesCapacity->getMsgResourceCount(msg);
-                    releaseAssert(mTxQueueByteCount >= s);
-                    mTxQueueByteCount -= s;
-                }
+                size_t s = mFlowControlBytesCapacity.getMsgResourceCount(msg);
+                releaseAssert(mTxQueueByteCount >= s);
+                mTxQueueByteCount -= s;
             }
             break;
             case SCP_MESSAGE:
@@ -233,12 +213,9 @@ FlowControl::handleTxSizeIncrease(uint32_t increase)
     ZoneScoped;
     releaseAssert(threadIsMain());
     std::lock_guard<std::mutex> guard(mFlowControlMutex);
-    if (mFlowControlBytesCapacity)
-    {
-        releaseAssert(increase > 0);
-        // Bump flood capacity to accommodate the upgrade
-        mFlowControlBytesCapacity->handleTxSizeIncrease(increase);
-    }
+    releaseAssert(increase > 0);
+    // Bump flood capacity to accommodate the upgrade
+    mFlowControlBytesCapacity.handleTxSizeIncrease(increase);
 }
 
 bool
@@ -248,9 +225,8 @@ FlowControl::beginMessageProcessing(StellarMessage const& msg)
     releaseAssert(!threadIsMain() || !mUseBackgroundThread);
     std::lock_guard<std::mutex> guard(mFlowControlMutex);
 
-    return mFlowControlCapacity->lockLocalCapacity(msg) &&
-           (!mFlowControlBytesCapacity ||
-            mFlowControlBytesCapacity->lockLocalCapacity(msg));
+    return mFlowControlCapacity.lockLocalCapacity(msg) &&
+           mFlowControlBytesCapacity.lockLocalCapacity(msg);
 }
 
 SendMoreCapacity
@@ -260,36 +236,27 @@ FlowControl::endMessageProcessing(StellarMessage const& msg)
     releaseAssert(threadIsMain());
     std::lock_guard<std::mutex> guard(mFlowControlMutex);
 
-    mFloodDataProcessed += mFlowControlCapacity->releaseLocalCapacity(msg);
-    if (mFlowControlBytesCapacity)
-    {
-        mFloodDataProcessedBytes +=
-            mFlowControlBytesCapacity->releaseLocalCapacity(msg);
-    }
+    mFloodDataProcessed += mFlowControlCapacity.releaseLocalCapacity(msg);
+    mFloodDataProcessedBytes +=
+        mFlowControlBytesCapacity.releaseLocalCapacity(msg);
 
     releaseAssert(mFloodDataProcessed <=
                   mAppConnector.getConfig().FLOW_CONTROL_SEND_MORE_BATCH_SIZE);
     bool shouldSendMore =
         mFloodDataProcessed ==
         mAppConnector.getConfig().FLOW_CONTROL_SEND_MORE_BATCH_SIZE;
-    if (mFlowControlBytesCapacity)
-    {
-        auto const byteBatchSize = mAppConnector.getOverlayManager()
-                                       .getFlowControlBytesConfig()
-                                       .mBatchSize;
-        shouldSendMore =
-            shouldSendMore || mFloodDataProcessedBytes >= byteBatchSize;
-    }
+    auto const byteBatchSize = mAppConnector.getOverlayManager()
+                                   .getFlowControlBytesConfig()
+                                   .mBatchSize;
+    shouldSendMore =
+        shouldSendMore || mFloodDataProcessedBytes >= byteBatchSize;
 
-    SendMoreCapacity res{0, std::nullopt};
+    SendMoreCapacity res{0, 0};
     if (shouldSendMore)
     {
         // First save result to return
         res.first = mFloodDataProcessed;
-        if (mFlowControlBytesCapacity)
-        {
-            res.second = mFloodDataProcessedBytes;
-        }
+        res.second = mFloodDataProcessedBytes;
 
         // Reset counters
         mFloodDataProcessed = 0;
@@ -302,9 +269,8 @@ FlowControl::endMessageProcessing(StellarMessage const& msg)
 bool
 FlowControl::canRead(std::lock_guard<std::mutex> const& guard) const
 {
-    bool canReadBytes =
-        !mFlowControlBytesCapacity || mFlowControlBytesCapacity->canRead();
-    return canReadBytes && mFlowControlCapacity->canRead();
+    return mFlowControlBytesCapacity.canRead() &&
+           mFlowControlCapacity.canRead();
 }
 
 bool
@@ -317,8 +283,8 @@ FlowControl::canRead() const
 uint32_t
 FlowControl::getNumMessages(StellarMessage const& msg)
 {
-    return msg.type() == SEND_MORE ? msg.sendMoreMessage().numMessages
-                                   : msg.sendMoreExtendedMessage().numMessages;
+    releaseAssert(msg.type() == SEND_MORE_EXTENDED);
+    return msg.sendMoreExtendedMessage().numMessages;
 }
 
 bool
@@ -328,11 +294,7 @@ FlowControl::isSendMoreValid(StellarMessage const& msg,
     releaseAssert(threadIsMain());
     std::lock_guard<std::mutex> guard(mFlowControlMutex);
 
-    bool sendMoreExtendedType =
-        mFlowControlBytesCapacity && msg.type() == SEND_MORE_EXTENDED;
-    bool sendMoreType = !mFlowControlBytesCapacity && msg.type() == SEND_MORE;
-
-    if (!sendMoreExtendedType && !sendMoreType)
+    if (msg.type() != SEND_MORE_EXTENDED)
     {
         errorMsg =
             fmt::format("unexpected message type {}",
@@ -343,9 +305,7 @@ FlowControl::isSendMoreValid(StellarMessage const& msg,
     // If flow control in bytes isn't enabled, SEND_MORE must have non-zero
     // messages. If flow control in bytes is enabled, SEND_MORE_EXTENDED must
     // have non-zero bytes, but _can_ have 0 messages to support upgrades
-    if ((!mFlowControlBytesCapacity && getNumMessages(msg) == 0) ||
-        (mFlowControlBytesCapacity &&
-         msg.sendMoreExtendedMessage().numBytes == 0))
+    if (msg.sendMoreExtendedMessage().numBytes == 0)
     {
         errorMsg =
             fmt::format("invalid message {}",
@@ -353,15 +313,11 @@ FlowControl::isSendMoreValid(StellarMessage const& msg,
         return false;
     }
 
-    auto overflow = getNumMessages(msg) >
-                    (UINT64_MAX - mFlowControlCapacity->getOutboundCapacity());
-    if (mFlowControlBytesCapacity)
-    {
-        overflow =
-            overflow ||
-            (msg.sendMoreExtendedMessage().numBytes >
-             (UINT64_MAX - mFlowControlBytesCapacity->getOutboundCapacity()));
-    }
+    auto overflow =
+        getNumMessages(msg) >
+            (UINT64_MAX - mFlowControlCapacity.getOutboundCapacity()) ||
+        msg.sendMoreExtendedMessage().numBytes >
+            (UINT64_MAX - mFlowControlBytesCapacity.getOutboundCapacity());
     if (overflow)
     {
         errorMsg = "Peer capacity overflow";
@@ -402,17 +358,14 @@ FlowControl::addMsgAndMaybeTrimQueue(std::shared_ptr<StellarMessage const> msg)
     case TRANSACTION:
     {
         msgQInd = 1;
-        if (mFlowControlBytesCapacity)
+        auto bytes = mFlowControlBytesCapacity.getMsgResourceCount(*msg);
+        // Don't accept transactions that are over allowed byte limit: those
+        // won't be properly flooded anyways
+        if (bytes > mAppConnector.getHerder().getMaxTxSize())
         {
-            auto bytes = mFlowControlBytesCapacity->getMsgResourceCount(*msg);
-            // Don't accept transactions that are over allowed byte limit: those
-            // won't be properly flooded anyways
-            if (bytes > mAppConnector.getHerder().getMaxTxSize())
-            {
-                return;
-            }
-            mTxQueueByteCount += bytes;
+            return;
         }
+        mTxQueueByteCount += bytes;
     }
     break;
     case FLOOD_DEMAND:
@@ -444,12 +397,9 @@ FlowControl::addMsgAndMaybeTrimQueue(std::shared_ptr<StellarMessage const> msg)
     if (type == TRANSACTION)
     {
         auto isOverLimit = [&](auto const& queue) {
-            bool overLimit = queue.size() > limit;
-            if (mFlowControlBytesCapacity)
-            {
-                overLimit = overLimit || mTxQueueByteCount >
-                                             getOutboundQueueByteLimit(guard);
-            }
+            bool overLimit =
+                queue.size() > limit ||
+                mTxQueueByteCount > getOutboundQueueByteLimit(guard);
             // Time-based purge
             overLimit =
                 overLimit ||
@@ -461,13 +411,10 @@ FlowControl::addMsgAndMaybeTrimQueue(std::shared_ptr<StellarMessage const> msg)
         while (isOverLimit(queue))
         {
             dropped++;
-            if (mFlowControlBytesCapacity)
-            {
-                size_t s = mFlowControlBytesCapacity->getMsgResourceCount(
-                    *(queue.front().mMessage));
-                releaseAssert(mTxQueueByteCount >= s);
-                mTxQueueByteCount -= s;
-            }
+            size_t s = mFlowControlBytesCapacity.getMsgResourceCount(
+                *(queue.front().mMessage));
+            releaseAssert(mTxQueueByteCount >= s);
+            mTxQueueByteCount -= s;
             om.mOutboundQueueDropTxs.Mark(dropped);
             queue.pop_front();
         }
@@ -552,27 +499,24 @@ FlowControl::getFlowControlJsonInfo(bool compact) const
     std::lock_guard<std::mutex> guard(mFlowControlMutex);
 
     Json::Value res;
-    if (mFlowControlCapacity->getCapacity().mTotalCapacity)
+    if (mFlowControlCapacity.getCapacity().mTotalCapacity)
     {
         res["local_capacity"]["reading"] = static_cast<Json::UInt64>(
-            *(mFlowControlCapacity->getCapacity().mTotalCapacity));
+            *(mFlowControlCapacity.getCapacity().mTotalCapacity));
     }
     res["local_capacity"]["flood"] = static_cast<Json::UInt64>(
-        mFlowControlCapacity->getCapacity().mFloodCapacity);
+        mFlowControlCapacity.getCapacity().mFloodCapacity);
     res["peer_capacity"] =
-        static_cast<Json::UInt64>(mFlowControlCapacity->getOutboundCapacity());
-    if (mFlowControlBytesCapacity)
+        static_cast<Json::UInt64>(mFlowControlCapacity.getOutboundCapacity());
+    if (mFlowControlBytesCapacity.getCapacity().mTotalCapacity)
     {
-        if (mFlowControlBytesCapacity->getCapacity().mTotalCapacity)
-        {
-            res["local_capacity_bytes"]["reading"] = static_cast<Json::UInt64>(
-                *(mFlowControlBytesCapacity->getCapacity().mTotalCapacity));
-        }
-        res["local_capacity_bytes"]["flood"] = static_cast<Json::UInt64>(
-            mFlowControlBytesCapacity->getCapacity().mFloodCapacity);
-        res["peer_capacity_bytes"] = static_cast<Json::UInt64>(
-            mFlowControlBytesCapacity->getOutboundCapacity());
+        res["local_capacity_bytes"]["reading"] = static_cast<Json::UInt64>(
+            *(mFlowControlBytesCapacity.getCapacity().mTotalCapacity));
     }
+    res["local_capacity_bytes"]["flood"] = static_cast<Json::UInt64>(
+        mFlowControlBytesCapacity.getCapacity().mFloodCapacity);
+    res["peer_capacity_bytes"] = static_cast<Json::UInt64>(
+        mFlowControlBytesCapacity.getOutboundCapacity());
 
     if (!compact)
     {

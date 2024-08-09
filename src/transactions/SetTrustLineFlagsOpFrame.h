@@ -13,43 +13,45 @@ class AbstractLedgerTxn;
 class SetTrustLineFlagsOpFrame : public TrustFlagsOpFrameBase
 {
     SetTrustLineFlagsResult&
-    innerResult()
+    innerResult(OperationResult& res) const
     {
-        return mResult.tr().setTrustLineFlagsResult();
+        return res.tr().setTrustLineFlagsResult();
     }
 
     SetTrustLineFlagsOp const& mSetTrustLineFlags;
 
     uint32_t mOpIndex;
 
-    void setResultSelfNotAllowed() override;
-    void setResultNoTrustLine() override;
-    void setResultLowReserve() override;
-    void setResultSuccess() override;
+    void setResultSelfNotAllowed(OperationResult& res) const override;
+    void setResultNoTrustLine(OperationResult& res) const override;
+    void setResultLowReserve(OperationResult& res) const override;
+    void setResultSuccess(OperationResult& res) const override;
 
-    bool isAuthRevocationValid(AbstractLedgerTxn& ltx,
-                               bool& authRevocable) override;
-    bool isRevocationToMaintainLiabilitiesValid(bool authRevocable,
-                                                LedgerTxnEntry const& trust,
-                                                uint32_t flags) override;
+    bool isAuthRevocationValid(AbstractLedgerTxn& ltx, bool& authRevocable,
+                               OperationResult& res) const override;
+    bool isRevocationToMaintainLiabilitiesValid(
+        bool authRevocable, LedgerTxnEntry const& trust, uint32_t flags,
+        OperationResult& res) const override;
 
     AccountID const& getOpTrustor() const override;
     Asset const& getOpAsset() const override;
     uint32_t getOpIndex() const override;
 
     bool calcExpectedFlagValue(LedgerTxnEntry const& trust,
-                               uint32_t& expectedVal) override;
+                               uint32_t& expectedVal,
+                               OperationResult& res) const override;
 
     void setFlagValue(AbstractLedgerTxn& ltx, LedgerKey const& key,
-                      uint32_t flagVal) override;
+                      uint32_t flagVal) const override;
 
   public:
-    SetTrustLineFlagsOpFrame(Operation const& op, OperationResult& res,
-                             TransactionFrame& parentTx, uint32_t index);
+    SetTrustLineFlagsOpFrame(Operation const& op,
+                             TransactionFrame const& parentTx, uint32_t index);
 
     bool isOpSupported(LedgerHeader const& header) const override;
 
-    bool doCheckValid(uint32_t ledgerVersion) override;
+    bool doCheckValid(uint32_t ledgerVersion,
+                      OperationResult& res) const override;
     void
     insertLedgerKeysToPrefetch(UnorderedSet<LedgerKey>& keys) const override;
 

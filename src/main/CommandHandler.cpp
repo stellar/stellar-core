@@ -22,6 +22,7 @@
 #include "overlay/OverlayManager.h"
 #include "overlay/SurveyManager.h"
 #include "transactions/InvokeHostFunctionOpFrame.h"
+#include "transactions/MutableTransactionResult.h"
 #include "transactions/TransactionBridge.h"
 #include "transactions/TransactionUtils.h"
 #include "util/Logging.h"
@@ -1015,24 +1016,28 @@ CommandHandler::tx(std::string const& params, std::string& retStr)
         if (transaction)
         {
             // Add it to our current set and make sure it is valid.
-            TransactionQueue::AddResult status =
+            auto addResult =
                 mApp.getHerder().recvTransaction(transaction, true);
 
-            root["status"] = TX_STATUS_STRING[static_cast<int>(status)];
-            if (status == TransactionQueue::AddResult::ADD_STATUS_ERROR)
+            root["status"] = TX_STATUS_STRING[static_cast<int>(addResult.code)];
+            if (addResult.code ==
+                TransactionQueue::AddResultCode::ADD_STATUS_ERROR)
             {
                 std::string resultBase64;
-                auto resultBin = xdr::xdr_to_opaque(transaction->getResult());
+                releaseAssertOrThrow(addResult.txResult);
+
+                auto const& payload = addResult.txResult;
+                auto resultBin = xdr::xdr_to_opaque(payload->getResult());
                 resultBase64.reserve(decoder::encoded_size64(resultBin.size()) +
                                      1);
                 resultBase64 = decoder::encode_b64(resultBin);
                 root["error"] = resultBase64;
                 if (mApp.getConfig().ENABLE_DIAGNOSTICS_FOR_TX_SUBMISSION &&
                     transaction->isSoroban() &&
-                    !transaction->getDiagnosticEvents().empty())
+                    !payload->getDiagnosticEvents().empty())
                 {
                     auto diagsBin =
-                        xdr::xdr_to_opaque(transaction->getDiagnosticEvents());
+                        xdr::xdr_to_opaque(payload->getDiagnosticEvents());
                     auto diagsBase64 = decoder::encode_b64(diagsBin);
                     root["diagnostic_events"] = diagsBase64;
                 }
@@ -1530,7 +1535,7 @@ CommandHandler::testTx(std::string const& params, std::string& retStr)
         root["to_id"] = KeyUtils::toStrKey(toAccount.getPublicKey());
         root["amount"] = (Json::UInt64)paymentAmount;
 
-        TransactionFramePtr txFrame;
+        TransactionTestFramePtr txFrame;
         if (create != retMap.end() && create->second == "true")
         {
             txFrame = fromAccount.tx({createAccount(toAccount, paymentAmount)});
@@ -1540,12 +1545,13 @@ CommandHandler::testTx(std::string const& params, std::string& retStr)
             txFrame = fromAccount.tx({payment(toAccount, paymentAmount)});
         }
 
-        auto status = mApp.getHerder().recvTransaction(txFrame, true);
-        root["status"] = TX_STATUS_STRING[static_cast<int>(status)];
-        if (status == TransactionQueue::AddResult::ADD_STATUS_ERROR)
+        auto addResult = mApp.getHerder().recvTransaction(txFrame, true);
+        root["status"] = TX_STATUS_STRING[static_cast<int>(addResult.code)];
+        if (addResult.code == TransactionQueue::AddResultCode::ADD_STATUS_ERROR)
         {
+            releaseAssert(addResult.txResult);
             root["detail"] = xdrToCerealString(
-                txFrame->getResult().result.code(), "TransactionResultCode");
+                addResult.txResult->getResultCode(), "TransactionResultCode");
         }
     }
     else

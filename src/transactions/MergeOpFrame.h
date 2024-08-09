@@ -14,26 +14,28 @@ class LedgerTxnHeader;
 class MergeOpFrame : public OperationFrame
 {
     AccountMergeResult&
-    innerResult()
+    innerResult(OperationResult& res) const
     {
-        return mResult.tr().accountMergeResult();
+        return res.tr().accountMergeResult();
     }
 
-    bool doApplyBeforeV16(AbstractLedgerTxn& ltx);
-    bool doApplyFromV16(AbstractLedgerTxn& ltx);
+    bool doApplyBeforeV16(AbstractLedgerTxn& ltx, OperationResult& res) const;
+    bool doApplyFromV16(AbstractLedgerTxn& ltx, OperationResult& res) const;
 
     ThresholdLevel getThresholdLevel() const override;
 
     virtual bool isSeqnumTooFar(AbstractLedgerTxn& ltx,
                                 LedgerTxnHeader const& header,
-                                AccountEntry const& sourceAccount);
+                                AccountEntry const& sourceAccount) const;
 
   public:
-    MergeOpFrame(Operation const& op, OperationResult& res,
-                 TransactionFrame& parentTx);
+    MergeOpFrame(Operation const& op, TransactionFrame const& parentTx);
 
-    bool doApply(AbstractLedgerTxn& ltx) override;
-    bool doCheckValid(uint32_t ledgerVersion) override;
+    bool doApply(Application& app, AbstractLedgerTxn& ltx,
+                 Hash const& sorobanBasePrngSeed, OperationResult& res,
+                 std::shared_ptr<SorobanTxData> sorobanData) const override;
+    bool doCheckValid(uint32_t ledgerVersion,
+                      OperationResult& res) const override;
 
     static AccountMergeResultCode
     getInnerCode(OperationResult const& res)

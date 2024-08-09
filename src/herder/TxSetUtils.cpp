@@ -14,6 +14,7 @@
 #include "ledger/LedgerTxnHeader.h"
 #include "main/Application.h"
 #include "main/Config.h"
+#include "transactions/MutableTransactionResult.h"
 #include "transactions/TransactionUtils.h"
 #include "util/GlobalChecks.h"
 #include "util/Logging.h"
@@ -143,15 +144,6 @@ TxSetUtils::getInvalidTxList(TxSetTransactions const& txs, Application& app,
     ZoneScoped;
     LedgerTxn ltx(app.getLedgerTxnRoot(), /* shouldUpdateLastModified */ true,
                   TransactionMode::READ_ONLY_WITHOUT_SQL_TXN);
-#ifdef BUILD_TESTS
-    if (protocolVersionIsBefore(ltx.loadHeader().current().ledgerVersion,
-                                ProtocolVersion::V_20))
-    {
-        return {};
-    }
-#endif
-    releaseAssert(protocolVersionStartsFrom(
-        ltx.loadHeader().current().ledgerVersion, ProtocolVersion::V_20));
     // This is done so minSeqLedgerGap is validated against the next
     // ledgerSeq, which is what will be used at apply time
     ltx.loadHeader().current().ledgerSeq =
@@ -161,8 +153,9 @@ TxSetUtils::getInvalidTxList(TxSetTransactions const& txs, Application& app,
 
     for (auto const& tx : txs)
     {
-        if (!tx->checkValid(app, ltx, 0, lowerBoundCloseTimeOffset,
-                            upperBoundCloseTimeOffset))
+        auto txResult = tx->checkValid(app, ltx, 0, lowerBoundCloseTimeOffset,
+                                       upperBoundCloseTimeOffset);
+        if (!txResult->isSuccess())
         {
             invalidTxs.emplace_back(tx);
         }

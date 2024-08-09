@@ -126,6 +126,11 @@ class HerderImpl : public Herder
     {
         mMaxClassicTxSize = std::make_optional<uint32_t>(bytes);
     }
+    void
+    setMaxTxSize(uint32 bytes) override
+    {
+        mMaxTxSize = bytes;
+    }
     std::optional<uint32_t> mFlowControlExtraBuffer;
     void
     setFlowControlExtraBufferSize(uint32 bytes) override

@@ -109,10 +109,10 @@ setupStaticNetworkTopology(std::vector<Config>& configList,
     }
 
     // D->A->B->C B->E
-    simulation->addConnection(keyList[D], keyList[A]);
-    simulation->addConnection(keyList[A], keyList[B]);
-    simulation->addConnection(keyList[B], keyList[C]);
-    simulation->addConnection(keyList[B], keyList[E]);
+    simulation->addPendingConnection(keyList[D], keyList[A]);
+    simulation->addPendingConnection(keyList[A], keyList[B]);
+    simulation->addPendingConnection(keyList[B], keyList[C]);
+    simulation->addPendingConnection(keyList[B], keyList[E]);
 
     simulation->startAllNodes();
 
@@ -402,7 +402,7 @@ TEST_CASE("survey request process order", "[overlay][survey][topology]")
     {
         for (int j = i + 1; j < numberOfNodes; j++)
         {
-            simulation->addConnection(keyList[i], keyList[j]);
+            simulation->addPendingConnection(keyList[i], keyList[j]);
         }
     }
 
@@ -731,10 +731,10 @@ TEST_CASE("Time sliced dynamic topology survey", "[overlay][survey][topology]")
     }
 
     // D->A->B->C B->E (F not connected)
-    simulation->addConnection(keyList[D], keyList[A]);
-    simulation->addConnection(keyList[A], keyList[B]);
-    simulation->addConnection(keyList[B], keyList[C]);
-    simulation->addConnection(keyList[B], keyList[E]);
+    simulation->addPendingConnection(keyList[D], keyList[A]);
+    simulation->addPendingConnection(keyList[A], keyList[B]);
+    simulation->addPendingConnection(keyList[B], keyList[C]);
+    simulation->addPendingConnection(keyList[B], keyList[E]);
 
     simulation->startAllNodes();
 
@@ -785,9 +785,12 @@ TEST_CASE("Time sliced dynamic topology survey", "[overlay][survey][topology]")
     checkSurveyState(nonce, /*isReporting*/ false, {A, B, C, D, E});
 
     // Add F to the simulation and connect to B
-    simulation->addNode(configList.at(F).NODE_SEED, qSet, &configList.at(F));
-    simulation->getNode(keyList[F])->start();
+    simulation->addNode(configList.at(F).NODE_SEED, qSet, &configList.at(F))
+        ->start();
     simulation->addConnection(keyList[F], keyList[B]);
+
+    // Let survey run for a bit to establish connection
+    crankForSurvey();
 
     // Disconnect E from B
     simulation->dropConnection(keyList[B], keyList[E]);

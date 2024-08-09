@@ -716,3 +716,48 @@ TEST_CASE("Multi-op mixed transactions are valid", "[loadgen]")
     REQUIRE(dexOps > 0);
     REQUIRE(dexOps + nonDexOps == 3 * 100);
 }
+
+TEST_CASE("Upgrade setup with metrics reset", "[loadgen]")
+{
+    // Create a simulation with two nodes
+    Simulation::pointer sim = Topologies::pair(
+        Simulation::OVER_LOOPBACK, sha256(getTestConfig().NETWORK_PASSPHRASE));
+    sim->startAllNodes();
+    sim->crankUntil([&]() { return sim->haveAllExternalized(3, 1); },
+                    2 * Herder::EXP_LEDGER_TIMESPAN_SECONDS, false);
+
+    Application::pointer app = sim->getNodes().front();
+    LoadGenerator& loadgen = app->getLoadGenerator();
+    medida::Meter& runsComplete =
+        app->getMetrics().NewMeter({"loadgen", "run", "complete"}, "run");
+    medida::Meter& runsFailed =
+        app->getMetrics().NewMeter({"loadgen", "run", "failed"}, "run");
+
+    // Add an account
+    loadgen.generateLoad(GeneratedLoadConfig::createAccountsLoad(
+        /* nAccounts */ 1, /* txRate */ 1));
+    sim->crankUntil([&]() { return runsComplete.count() == 1; },
+                    5 * Herder::EXP_LEDGER_TIMESPAN_SECONDS, false);
+
+    // Clear metrics to reset run count
+    app->clearMetrics("");
+
+    // Setup a soroban limit upgrade that must succeed
+    GeneratedLoadConfig upgradeSetupCfg =
+        GeneratedLoadConfig::createSorobanUpgradeSetupLoad();
+    upgradeSetupCfg.setMinSorobanPercentSuccess(100);
+    loadgen.generateLoad(upgradeSetupCfg);
+    sim->crankUntil([&]() { return runsComplete.count() == 1; },
+                    5 * Herder::EXP_LEDGER_TIMESPAN_SECONDS, false);
+    REQUIRE(runsFailed.count() == 0);
+
+    // Clear metrics again to reset run count
+    app->clearMetrics("");
+
+    // Setup again. This should succeed even though it's the same account with
+    // the same `runsComplete` value performing the setup
+    loadgen.generateLoad(upgradeSetupCfg);
+    sim->crankUntil([&]() { return runsComplete.count() == 1; },
+                    5 * Herder::EXP_LEDGER_TIMESPAN_SECONDS, false);
+    REQUIRE(runsFailed.count() == 0);
+}

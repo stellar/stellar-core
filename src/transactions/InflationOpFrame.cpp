@@ -22,14 +22,16 @@ const time_t INFLATION_START_TIME = (1404172800LL); // 1-jul-2014 (unix epoch)
 
 namespace stellar
 {
-InflationOpFrame::InflationOpFrame(Operation const& op, OperationResult& res,
-                                   TransactionFrame& parentTx)
-    : OperationFrame(op, res, parentTx)
+InflationOpFrame::InflationOpFrame(Operation const& op,
+                                   TransactionFrame const& parentTx)
+    : OperationFrame(op, parentTx)
 {
 }
 
 bool
-InflationOpFrame::doApply(AbstractLedgerTxn& ltx)
+InflationOpFrame::doApply(Application& app, AbstractLedgerTxn& ltx,
+                          Hash const& sorobanBasePrngSeed, OperationResult& res,
+                          std::shared_ptr<SorobanTxData> sorobanData) const
 {
     auto header = ltx.loadHeader();
     auto& lh = header.current();
@@ -39,7 +41,7 @@ InflationOpFrame::doApply(AbstractLedgerTxn& ltx)
     time_t inflationTime = (INFLATION_START_TIME + seq * INFLATION_FREQUENCY);
     if (closeTime < inflationTime)
     {
-        innerResult().code(INFLATION_NOT_TIME);
+        innerResult(res).code(INFLATION_NOT_TIME);
         return false;
     }
 
@@ -66,8 +68,8 @@ InflationOpFrame::doApply(AbstractLedgerTxn& ltx)
     lh.inflationSeq++;
 
     // now credit each account
-    innerResult().code(INFLATION_SUCCESS);
-    auto& payouts = innerResult().payouts();
+    innerResult(res).code(INFLATION_SUCCESS);
+    auto& payouts = innerResult(res).payouts();
 
     int64 leftAfterDole = amountToDole;
 
@@ -118,7 +120,8 @@ InflationOpFrame::doApply(AbstractLedgerTxn& ltx)
 }
 
 bool
-InflationOpFrame::doCheckValid(uint32_t ledgerVersion)
+InflationOpFrame::doCheckValid(uint32_t ledgerVersion,
+                               OperationResult& res) const
 {
     return true;
 }
