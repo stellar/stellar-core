@@ -873,7 +873,6 @@ exit /b 0
     <ClCompile Include="src\$(Configuration)\generated\xdr\XDRFilesSha256.cpp" />
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="..\..\lib\bloom_filter.hpp" />
     <ClInclude Include="..\..\lib\catch.hpp" />
     <ClInclude Include="..\..\lib\clara.hpp" />
     <ClInclude Include="..\..\lib\util\finally.h" />

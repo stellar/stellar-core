@@ -1754,9 +1754,6 @@
     <ClInclude Include="..\..\src\util\xdrquery\XDRQueryParser.h">
       <Filter>util\xdrquery</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\lib\bloom_filter.hpp">
-      <Filter>lib</Filter>
-    </ClInclude>
     <ClInclude Include="..\..\lib\clara.hpp">
       <Filter>lib</Filter>
     </ClInclude>

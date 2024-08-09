@@ -5,20 +5,16 @@
 // This file contains tests for the BucketIndex and higher-level operations
 // concerning key-value lookup based on the BucketList.
 
-#include "bucket/BucketIndexImpl.h"
 #include "bucket/BucketList.h"
 #include "bucket/BucketListSnapshot.h"
 #include "bucket/BucketManager.h"
+#include "bucket/BucketSnapshotManager.h"
 #include "bucket/test/BucketTestUtils.h"
 #include "ledger/test/LedgerTestUtils.h"
 #include "lib/catch.hpp"
 #include "main/Application.h"
 #include "main/Config.h"
 #include "test/test.h"
-
-#include "lib/bloom_filter.hpp"
-
-#include "util/XDRCereal.h"
 
 using namespace stellar;
 using namespace BucketTestUtils;
@@ -541,7 +537,7 @@ TEST_CASE("ContractData key with same ScVal", "[bucket][bucketindex]")
     testAllIndexTypes(f);
 }
 
-TEST_CASE("serialize bucket indexes", "[bucket][bucketindex][!hide]")
+TEST_CASE("serialize bucket indexes", "[bucket][bucketindex]")
 {
     Config cfg(getTestConfig(0, Config::TESTDB_ON_DISK_SQLITE));
 
@@ -549,12 +545,13 @@ TEST_CASE("serialize bucket indexes", "[bucket][bucketindex][!hide]")
     cfg.BUCKETLIST_DB_INDEX_CUTOFF = 0;
     cfg.DEPRECATED_SQL_LEDGER_STATE = false;
     cfg.BUCKETLIST_DB_PERSIST_INDEX = true;
+    cfg.INVARIANT_CHECKS = {};
 
     // Node is not a validator, so indexes will persist
     cfg.NODE_IS_VALIDATOR = false;
     cfg.FORCE_SCP = false;
 
-    auto test = BucketIndexTest(cfg);
+    auto test = BucketIndexTest(cfg, /*levels=*/3);
     test.buildGeneralTest();
 
     auto buckets = test.getBM().getBucketListReferencedBuckets();
