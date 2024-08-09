@@ -47,40 +47,33 @@ We follow this process for protocol upgrades:
      and a new stellar-core `(N+1).0.0`, and the stellar-core will set its
      `Config::CURRENT_LEDGER_PROTOCOL_VERSION` to `N+1`.
 
-  3. We configure the build of stellar-core v(N+1).0.0 as a "transitionary
-     build" that has _both_ versions of soroban in it. In the `Cargo.toml` of
-     stellar-core, we copy the `N.x.y` version number and git hash from the
-     existing dependency named `soroban-env-host-curr` to the optional
+  3. In the `Cargo.toml` of stellar-core, we copy the `N.x.y` version number and
+     git hash from the existing dependency named `soroban-env-host-curr` to the
      dependency named `soroban-env-host-prev`, then set `soroban-env-host-curr`
-     to `(N+1).0.0` and the appropriate git hash, and configure stellar-core
-     with `--enable-protocol-upgrade-via-soroban-env-host-prev`, which will
-     cause the rust build phase to use `--feature=soroban-env-host-prev`.
-     We will also have to update both pinned dependency tree files as
-     described below in "Pinned soroban dependency trees".
+     to `(N+1).0.0` and the appropriate git hash. We will also have to update
+     both pinned dependency tree files as described below in "Pinned soroban
+     dependency trees".
 
-  4. We deploy this dual-version "transitionary build" to the network. This must
-     be the first version with support for `N+1`, and since it was built with
-     support for `soroban-env-host-prev` it will continue to run ledgers marked
-     as protocol `N` on the previous soroban version `N.x.y`, but run all _other_
-     ledgers -- both older and newer than protocol `N` -- on the new soroban
-     version `(N+1).0.0`. This allows early testing of `(N+1).0.0` by replaying
-     it against all of history _before_ protocol `N`.
+  4. This build must be the first version with support for `N+1`, and it will
+     continue to run ledgers marked as protocol `N` on the previous soroban
+     version `N.x.y`, but run all _other_ ledgers -- both older and newer than
+     protocol `N` -- on the new soroban version `(N+1).0.0`. This allows early
+     testing of `(N+1).0.0` by replaying it against all of history _before_
+     protocol `N`. On the protocol upgrade, core will cut over instantaneously
+     from using old soroban `N.x.y` to new soroban `(N+1).0.0`.
 
-  5. We do the consensus protocol upgrade on this "transitionary build"
-     version. We define the validity condition for a protocol upgrade such that
-     stellar-core is only _willing_ to vote for a soroban-era protocol upgrade
-     when configured with two versions of soroban built-in, and such a
-     configuration will cut over instantaneously from old soroban `N.x.y` to new
-     soroban `(N+1).0.0` on upgrade.
-
-  6. Once the upgrade is complete, we prepare the _next_ version of stellar-core
-     _without_ the transitionary version. That is, we build without
-     `--feature=soroban-env-host-prev`. In order to be sure that it is safe to
-     expire that version, we first replay all ledgers from `N` and before on
-     the current soroban `(N+1).0.0` and see if they replay correctly. If they
-     do not, we add backward compatibility code to soroban and do a point
-     release like `(N+1).0.1` that can replay correctly, and bump the version
-     in stellar-core's `Cargo.toml` to `(N+1).0.1`.
+  5. Once the upgrade to protocol `N+1` is complete, replay of protocol `N`
+     ledgers will still use the `N.x.y` `soroban-env-host-prev` build. That
+     `N.x.y` version will be expired when we create the `(N+2).0.0` build. We
+     will replay all ledgers from `N` and before on the next soroban `N+2` build
+     before it is released, and see if they replay correctly. If they do not, we
+     add backward compatibility code to soroban and then do the `(N+2).0.0`
+     release so that it can replay correctly, and bump the version in
+     stellar-core's `Cargo.toml` to `(N+2).0.0`. Note that we don't need to wait
+     until the `N+2` build to bump `soroban-env-host-prev`. We can bump it
+     anytime after the protocol upgrade to `N+1`, with the caveat that
+     `soroban-env-host-prev` and `soroban-env-host-curr` git revs are not the
+     same (cargo will complain).
 
 ## Pinned soroban dependency trees
 
