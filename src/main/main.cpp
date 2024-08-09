@@ -299,7 +299,7 @@ tracyEnabled(std::lock_guard<std::mutex> const& _guard)
 #endif
 #endif
 
-#ifndef ASAN_ENABLED
+#if 0
 void*
 operator new(std::size_t count)
 {
@@ -345,7 +345,7 @@ operator delete[](void* ptr) noexcept
     }
     free(ptr);
 }
-#endif // ASAN_ENABLED
+#endif // if 0
 #endif // USE_TRACY
 
 int
