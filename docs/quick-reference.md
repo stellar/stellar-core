@@ -50,7 +50,7 @@ want to get a clean reading (post setup) of certain metrics.
 
 ### Overlay network
 
-You can get information from the overlay network:
+You can get information about the overlay network:
  * locally with the `peers` endpoint
  * globally using the [survey](docs/../software/admin.md#overlay-topology-survey) commands
 
