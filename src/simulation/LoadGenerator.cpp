@@ -3,6 +3,7 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "simulation/LoadGenerator.h"
+#include "database/Database.h"
 #include "herder/Herder.h"
 #include "ledger/LedgerManager.h"
 #include "ledger/LedgerTxn.h"
@@ -22,8 +23,6 @@
 #include "util/XDRCereal.h"
 #include "util/numeric.h"
 #include "util/types.h"
-
-#include "database/Database.h"
 
 #include "xdrpp/marshal.h"
 
@@ -1565,10 +1564,48 @@ LoadGenerator::getConfigUpgradeSetFromLoadConfig(
         case CONFIG_SETTING_STATE_ARCHIVAL:
         {
             auto& ses = setting.stateArchivalSettings();
+            if (upgradeCfg.maxEntryTTL > 0)
+            {
+                ses.maxEntryTTL = upgradeCfg.maxEntryTTL;
+            }
+
+            if (upgradeCfg.minTemporaryTTL > 0)
+            {
+                ses.minTemporaryTTL = upgradeCfg.minTemporaryTTL;
+            }
+
+            if (upgradeCfg.minPersistentTTL > 0)
+            {
+                ses.minPersistentTTL = upgradeCfg.minPersistentTTL;
+            }
+
+            if (upgradeCfg.persistentRentRateDenominator > 0)
+            {
+                ses.persistentRentRateDenominator =
+                    upgradeCfg.persistentRentRateDenominator;
+            }
+
+            if (upgradeCfg.tempRentRateDenominator > 0)
+            {
+                ses.tempRentRateDenominator =
+                    upgradeCfg.tempRentRateDenominator;
+            }
+
+            if (upgradeCfg.maxEntriesToArchive > 0)
+            {
+                ses.maxEntriesToArchive = upgradeCfg.maxEntriesToArchive;
+            }
+
             if (upgradeCfg.bucketListSizeWindowSampleSize > 0)
             {
                 ses.bucketListSizeWindowSampleSize =
                     upgradeCfg.bucketListSizeWindowSampleSize;
+            }
+
+            if (upgradeCfg.bucketListWindowSamplePeriod > 0)
+            {
+                ses.bucketListWindowSamplePeriod =
+                    upgradeCfg.bucketListWindowSamplePeriod;
             }
 
             if (upgradeCfg.evictionScanSize > 0)
@@ -2200,6 +2237,57 @@ LoadGenerator::execute(TransactionTestFramePtr& txf, LoadGenMode mode,
     }
 
     return addResult.code;
+}
+
+void
+GeneratedLoadConfig::copySorobanNetworkConfigToUpgradeConfig(
+    SorobanNetworkConfig const& cfg)
+{
+    releaseAssert(mode == LoadGenMode::SOROBAN_CREATE_UPGRADE);
+    auto& upgradeCfg = getMutSorobanUpgradeConfig();
+
+    upgradeCfg.maxContractSizeBytes = cfg.maxContractSizeBytes();
+    upgradeCfg.maxContractDataKeySizeBytes = cfg.maxContractDataKeySizeBytes();
+    upgradeCfg.maxContractDataEntrySizeBytes =
+        cfg.maxContractDataEntrySizeBytes();
+
+    upgradeCfg.ledgerMaxInstructions = cfg.ledgerMaxInstructions();
+    upgradeCfg.txMaxInstructions = cfg.txMaxInstructions();
+    upgradeCfg.txMemoryLimit = cfg.txMemoryLimit();
+
+    upgradeCfg.ledgerMaxReadLedgerEntries = cfg.ledgerMaxReadLedgerEntries();
+    upgradeCfg.ledgerMaxReadBytes = cfg.ledgerMaxReadBytes();
+    upgradeCfg.ledgerMaxWriteLedgerEntries = cfg.ledgerMaxWriteLedgerEntries();
+    upgradeCfg.ledgerMaxWriteBytes = cfg.ledgerMaxWriteBytes();
+    upgradeCfg.ledgerMaxTxCount = cfg.ledgerMaxTxCount();
+    upgradeCfg.txMaxReadLedgerEntries = cfg.txMaxReadLedgerEntries();
+    upgradeCfg.txMaxReadBytes = cfg.txMaxReadBytes();
+    upgradeCfg.txMaxWriteLedgerEntries = cfg.txMaxWriteLedgerEntries();
+    upgradeCfg.txMaxWriteBytes = cfg.txMaxWriteBytes();
+
+    upgradeCfg.txMaxContractEventsSizeBytes =
+        cfg.txMaxContractEventsSizeBytes();
+
+    upgradeCfg.ledgerMaxTransactionsSizeBytes =
+        cfg.ledgerMaxTransactionSizesBytes();
+    upgradeCfg.txMaxSizeBytes = cfg.txMaxSizeBytes();
+
+    upgradeCfg.maxEntryTTL = cfg.stateArchivalSettings().maxEntryTTL;
+    upgradeCfg.minTemporaryTTL = cfg.stateArchivalSettings().minTemporaryTTL;
+    upgradeCfg.minPersistentTTL = cfg.stateArchivalSettings().minPersistentTTL;
+    upgradeCfg.persistentRentRateDenominator =
+        cfg.stateArchivalSettings().persistentRentRateDenominator;
+    upgradeCfg.tempRentRateDenominator =
+        cfg.stateArchivalSettings().tempRentRateDenominator;
+    upgradeCfg.maxEntriesToArchive =
+        cfg.stateArchivalSettings().maxEntriesToArchive;
+    upgradeCfg.bucketListSizeWindowSampleSize =
+        cfg.stateArchivalSettings().bucketListSizeWindowSampleSize;
+    upgradeCfg.bucketListWindowSamplePeriod =
+        cfg.stateArchivalSettings().bucketListWindowSamplePeriod;
+    upgradeCfg.evictionScanSize = cfg.stateArchivalSettings().evictionScanSize;
+    upgradeCfg.startingEvictionScanLevel =
+        cfg.stateArchivalSettings().startingEvictionScanLevel;
 }
 
 GeneratedLoadConfig

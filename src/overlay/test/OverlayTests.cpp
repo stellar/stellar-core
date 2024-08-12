@@ -2141,27 +2141,23 @@ TEST_CASE("overlay flow control", "[overlay][flowcontrol]")
         simulation->addPendingConnection(vNode2NodeID, vNode3NodeID);
         simulation->addPendingConnection(vNode3NodeID, vNode1NodeID);
 
-        for (auto& node2 : simulation->getNodes())
-        {
-            if (appProtocolVersionStartsFrom(*node2, SOROBAN_PROTOCOL_VERSION))
-            {
-                modifySorobanNetworkConfig(
-                    *node2, [](SorobanNetworkConfig& cfg) {
-                        cfg.mTxMaxSizeBytes =
-                            MinimumSorobanNetworkConfig::TX_MAX_SIZE_BYTES;
-                    });
-            }
-        }
         simulation->startAllNodes();
+        if (appProtocolVersionStartsFrom(*simulation->getNodes()[0],
+                                         SOROBAN_PROTOCOL_VERSION))
+        {
+            upgradeSorobanNetworkConfig(
+                [](SorobanNetworkConfig& cfg) {
+                    cfg.mTxMaxSizeBytes =
+                        MinimumSorobanNetworkConfig::TX_MAX_SIZE_BYTES;
+                },
+                simulation);
+        }
     };
 
     SECTION("enabled")
     {
         setupSimulation();
 
-        simulation->crankUntil(
-            [&] { return simulation->haveAllExternalized(2, 1); },
-            3 * Herder::EXP_LEDGER_TIMESPAN_SECONDS, false);
         // Generate a bit of load to flood transactions, make sure nodes can
         // close ledgers properly
         auto& loadGen = node->getLoadGenerator();
@@ -2191,13 +2187,7 @@ TEST_CASE("overlay flow control", "[overlay][flowcontrol]")
     {
         configs[2].PEER_FLOOD_READING_CAPACITY = 0;
         configs[2].PEER_FLOOD_READING_CAPACITY_BYTES = 0;
-
-        setupSimulation();
-        REQUIRE_THROWS_AS(
-            simulation->crankUntil(
-                [&] { return simulation->haveAllExternalized(2, 1); },
-                3 * Herder::EXP_LEDGER_TIMESPAN_SECONDS, false),
-            std::runtime_error);
+        REQUIRE_THROWS_AS(setupSimulation(), std::runtime_error);
     }
 }
 

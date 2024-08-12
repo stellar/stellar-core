@@ -111,7 +111,9 @@ class BucketIndexTest
     runHistoricalSnapshotTest()
     {
         uint32_t ledger = 0;
-        auto canonicalEntry = LedgerTestUtils::generateValidLedgerEntry();
+        auto canonicalEntry =
+            LedgerTestUtils::generateValidLedgerEntryWithExclusions(
+                {LedgerEntryType::CONFIG_SETTING});
         canonicalEntry.lastModifiedLedgerSeq = 0;
 
         do
