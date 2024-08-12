@@ -101,24 +101,6 @@ BucketSnapshot::loadKeysWithLimits(std::set<LedgerKey, LedgerEntryIdCmp>& keys,
     auto indexIter = index.begin();
     while (currKeyIt != keys.end() && indexIter != index.end())
     {
-        if (lkMeter)
-        {
-            auto keySize = xdr::xdr_size(*currKeyIt);
-            if (!lkMeter->canLoad(*currKeyIt, keySize))
-            {
-                // If the transactions containing this key have a remaining
-                // quota less than the size of the key, we cannot load the
-                // entry, as xdr_size(key) <= xdr_size(entry). Here we consume
-                // keySize bytes from the quotas of transactions containing the
-                // key so that they will have zero remaining quota and
-                // additional entries belonging to only those same transactions
-                // will not be loaded even if they would fit in the remaining
-                // quota before this update.
-                lkMeter->updateReadQuotasForKey(*currKeyIt, keySize);
-                currKeyIt = keys.erase(currKeyIt);
-                continue;
-            }
-        }
         auto [offOp, newIndexIter] = index.scan(indexIter, *currKeyIt);
         indexIter = newIndexIter;
         if (offOp)
