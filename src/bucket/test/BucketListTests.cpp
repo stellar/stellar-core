@@ -137,9 +137,10 @@ basicBucketListTest()
 {
     VirtualClock clock;
     Config const& cfg = getTestConfig();
-    try
-    {
-        for_versions_with_differing_bucket_logic(cfg, [&](Config const& cfg) {
+
+    auto test = [&](Config const& cfg) {
+        try
+        {
             Application::pointer app = createTestApplication(clock, cfg);
             BucketListT bl;
             CLOG_DEBUG(Bucket, "Adding batches to bucket list");
@@ -193,13 +194,22 @@ basicBucketListTest()
                     CHECK(snapSz <= BucketListT::levelHalf(j) * 100);
                 }
             }
-        });
-    }
-    catch (std::future_error& e)
+        }
+        catch (std::future_error& e)
+        {
+            CLOG_DEBUG(Bucket, "Test caught std::future_error {}: {}",
+                       e.code().value(), e.what());
+            REQUIRE(false);
+        }
+    };
+
+    if constexpr (std::is_same_v<BucketListT, LiveBucketList>)
     {
-        CLOG_DEBUG(Bucket, "Test caught std::future_error {}: {}",
-                   e.code().value(), e.what());
-        REQUIRE(false);
+        for_versions_with_differing_bucket_logic(cfg, test);
+    }
+    else
+    {
+        for_versions_from(22, cfg, test);
     }
 }
 
@@ -785,28 +795,29 @@ deepestCurrTest()
     uint32_t const deepest = BucketListT::kNumLevels - 1;
     // Use binary search to find the first ledger where the deepest curr
     // first is non-empty.
-  uint32_t boundary = binarySearchForLedger(
-      1, std::numeric_limits<uint32_t>::max() / 2, [deepest](uint32_t ledger) {
-          return (BucketListT::sizeOfCurr(ledger, deepest) > 0);
-      });
-  stellar::uniform_int_distribution<uint32_t> distLow(1, boundary - 1);
-  stellar::uniform_int_distribution<uint32_t> distHigh(boundary);
-  for (uint32_t i = 0; i < 1000; ++i)
-  {
-      uint32_t low = distLow(gRandomEngine);
-      uint32_t high = distHigh(gRandomEngine);
-      REQUIRE(BucketListT::sizeOfCurr(low, deepest) == 0);
-      REQUIRE(BucketListT::oldestLedgerInCurr(low, deepest) ==
-              std::numeric_limits<uint32_t>::max());
-      REQUIRE(BucketListT::sizeOfCurr(high, deepest) > 0);
-      REQUIRE(BucketListT::oldestLedgerInCurr(high, deepest) == 1);
+    uint32_t boundary = binarySearchForLedger(
+        1, std::numeric_limits<uint32_t>::max() / 2,
+        [deepest](uint32_t ledger) {
+            return (BucketListT::sizeOfCurr(ledger, deepest) > 0);
+        });
+    stellar::uniform_int_distribution<uint32_t> distLow(1, boundary - 1);
+    stellar::uniform_int_distribution<uint32_t> distHigh(boundary);
+    for (uint32_t i = 0; i < 1000; ++i)
+    {
+        uint32_t low = distLow(gRandomEngine);
+        uint32_t high = distHigh(gRandomEngine);
+        REQUIRE(BucketListT::sizeOfCurr(low, deepest) == 0);
+        REQUIRE(BucketListT::oldestLedgerInCurr(low, deepest) ==
+                std::numeric_limits<uint32_t>::max());
+        REQUIRE(BucketListT::sizeOfCurr(high, deepest) > 0);
+        REQUIRE(BucketListT::oldestLedgerInCurr(high, deepest) == 1);
 
-      REQUIRE(BucketListT::sizeOfSnap(low, deepest) == 0);
-      REQUIRE(BucketListT::oldestLedgerInSnap(low, deepest) ==
-              std::numeric_limits<uint32_t>::max());
-      REQUIRE(BucketListT::sizeOfSnap(high, deepest) == 0);
-      REQUIRE(BucketListT::oldestLedgerInSnap(high, deepest) ==
-              std::numeric_limits<uint32_t>::max());
+        REQUIRE(BucketListT::sizeOfSnap(low, deepest) == 0);
+        REQUIRE(BucketListT::oldestLedgerInSnap(low, deepest) ==
+                std::numeric_limits<uint32_t>::max());
+        REQUIRE(BucketListT::sizeOfSnap(high, deepest) == 0);
+        REQUIRE(BucketListT::oldestLedgerInSnap(high, deepest) ==
+                std::numeric_limits<uint32_t>::max());
     }
 }
 

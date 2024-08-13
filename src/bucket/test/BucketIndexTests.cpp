@@ -878,7 +878,6 @@ TEST_CASE("hot archive bucket lookups", "[bucket][bucketindex][archive]")
         REQUIRE(bulkLoadResult3.size() == 1);
         REQUIRE(bulkLoadResult3[0].type() == HOT_ARCHIVE_ARCHIVED);
         REQUIRE(bulkLoadResult3[0].archivedEntry() == archivedShadow);
-
     };
 
     testAllIndexTypes(f);

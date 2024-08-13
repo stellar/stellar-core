@@ -25,8 +25,8 @@
 
 #include <memory>
 #include <thread>
-#include <xdrpp/marshal.h>
 #include <type_traits>
+#include <xdrpp/marshal.h>
 
 namespace stellar
 {
