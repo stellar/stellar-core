@@ -60,7 +60,6 @@ constexpr uint32 const CLOSE_TIME_DRIFT_SECONDS_THRESHOLD = 10;
 
 constexpr uint32 const TRANSACTION_QUEUE_TIMEOUT_LEDGERS = 4;
 constexpr uint32 const TRANSACTION_QUEUE_BAN_LEDGERS = 10;
-constexpr uint32 const TRANSACTION_QUEUE_SIZE_MULTIPLIER = 2;
 constexpr uint32 const SOROBAN_TRANSACTION_QUEUE_SIZE_MULTIPLIER = 2;
 
 std::unique_ptr<Herder>
