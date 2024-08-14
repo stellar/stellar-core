@@ -127,7 +127,9 @@ BucketManagerImpl::initialize()
         if (mApp.getConfig().isUsingBucketListDB())
         {
             mSnapshotManager = std::make_unique<BucketSnapshotManager>(
-                mApp, std::make_unique<BucketListSnapshot>(*mBucketList, 0),
+                mApp,
+                std::make_unique<BucketListSnapshot>(*mBucketList,
+                                                     LedgerHeader()),
                 mApp.getConfig().QUERY_SNAPSHOT_LEDGERS);
         }
     }
@@ -884,8 +886,7 @@ BucketManagerImpl::forgetUnreferencedBuckets()
 }
 
 void
-BucketManagerImpl::addBatch(Application& app, uint32_t currLedger,
-                            uint32_t currLedgerProtocol,
+BucketManagerImpl::addBatch(Application& app, LedgerHeader header,
                             std::vector<LedgerEntry> const& initEntries,
                             std::vector<LedgerEntry> const& liveEntries,
                             std::vector<LedgerKey> const& deadEntries)
@@ -895,21 +896,15 @@ BucketManagerImpl::addBatch(Application& app, uint32_t currLedger,
 #ifdef BUILD_TESTS
     if (mUseFakeTestValuesForNextClose)
     {
-        currLedgerProtocol = mFakeTestProtocolVersion;
+        header.ledgerVersion = mFakeTestProtocolVersion;
     }
 #endif
     auto timer = mBucketAddBatch.TimeScope();
     mBucketObjectInsertBatch.Mark(initEntries.size() + liveEntries.size() +
                                   deadEntries.size());
-    mBucketList->addBatch(app, currLedger, currLedgerProtocol, initEntries,
-                          liveEntries, deadEntries);
+    mBucketList->addBatch(app, header.ledgerSeq, header.ledgerVersion,
+                          initEntries, liveEntries, deadEntries);
     mBucketListSizeCounter.set_count(mBucketList->getSize());
-
-    if (app.getConfig().isUsingBucketListDB())
-    {
-        mSnapshotManager->updateCurrentSnapshot(
-            std::make_unique<BucketListSnapshot>(*mBucketList, currLedger));
-    }
 }
 
 #ifdef BUILD_TESTS
@@ -1194,13 +1189,6 @@ BucketManagerImpl::assumeState(HistoryArchiveState const& has,
     if (restartMerges)
     {
         mBucketList->restartMerges(mApp, maxProtocolVersion, has.currentLedger);
-    }
-
-    if (mApp.getConfig().isUsingBucketListDB())
-    {
-        mSnapshotManager->updateCurrentSnapshot(
-            std::make_unique<BucketListSnapshot>(*mBucketList,
-                                                 has.currentLedger));
     }
     cleanupStaleFiles();
 }

@@ -1262,7 +1262,7 @@ TEST_CASE_VERSIONS("Searchable BucketListDB snapshots", "[bucketlist]")
         closeLedger(*app);
 
         // Snapshot should automatically update with latest version
-        auto loadedEntry = searchableBL->getLedgerEntry(LedgerEntryKey(entry));
+        auto loadedEntry = searchableBL->load(LedgerEntryKey(entry));
         REQUIRE((loadedEntry && *loadedEntry == entry));
     }
 }

@@ -1137,6 +1137,9 @@ LedgerManagerImpl::setLastClosedLedger(
 
     mRebuildInMemoryState = false;
     advanceLedgerPointers(lastClosed.header);
+    mApp.getBucketManager().getBucketSnapshotManager().updateCurrentSnapshot(
+        std::make_unique<BucketListSnapshot>(
+            mApp.getBucketManager().getBucketList(), lastClosed.header));
     LedgerTxn ltx2(mApp.getLedgerTxnRoot(), false,
                    TransactionMode::READ_ONLY_WITHOUT_SQL_TXN);
     if (protocolVersionStartsFrom(ltx2.loadHeader().current().ledgerVersion,
@@ -1668,7 +1671,7 @@ void
 LedgerManagerImpl::transferLedgerEntriesToBucketList(
     AbstractLedgerTxn& ltx,
     std::unique_ptr<LedgerCloseMetaFrame> const& ledgerCloseMeta,
-    uint32_t ledgerSeq, uint32_t currLedgerVers, uint32_t initialLedgerVers)
+    LedgerHeader const& lh, uint32_t initialLedgerVers)
 {
     ZoneScoped;
     std::vector<LedgerEntry> initEntries, liveEntries;
@@ -1690,12 +1693,12 @@ LedgerManagerImpl::transferLedgerEntriesToBucketList(
             if (mApp.getConfig().isUsingBackgroundEviction())
             {
                 mApp.getBucketManager().resolveBackgroundEvictionScan(
-                    ltxEvictions, ledgerSeq, keys);
+                    ltxEvictions, lh.ledgerSeq, keys);
             }
             else
             {
                 mApp.getBucketManager().scanForEvictionLegacy(ltxEvictions,
-                                                              ledgerSeq);
+                                                              lh.ledgerSeq);
             }
 
             if (ledgerCloseMeta)
@@ -1707,14 +1710,14 @@ LedgerManagerImpl::transferLedgerEntriesToBucketList(
         }
 
         getSorobanNetworkConfigInternal().maybeSnapshotBucketListSize(
-            ledgerSeq, ltx, mApp);
+            lh.ledgerSeq, ltx, mApp);
     }
 
     ltx.getAllEntries(initEntries, liveEntries, deadEntries);
     if (blEnabled)
     {
-        mApp.getBucketManager().addBatch(mApp, ledgerSeq, currLedgerVers,
-                                         initEntries, liveEntries, deadEntries);
+        mApp.getBucketManager().addBatch(mApp, lh, initEntries, liveEntries,
+                                         deadEntries);
     }
 }
 
@@ -1750,8 +1753,8 @@ LedgerManagerImpl::ledgerClosed(
     // Due to this, we must check the initial protocol version of ledger instead
     // of the ledger version of the current ltx header, which may have been
     // modified via an upgrade.
-    transferLedgerEntriesToBucketList(ltx, ledgerCloseMeta, ledgerSeq,
-                                      currLedgerVers, initialLedgerVers);
+    transferLedgerEntriesToBucketList(
+        ltx, ledgerCloseMeta, ltx.loadHeader().current(), initialLedgerVers);
     if (ledgerCloseMeta &&
         protocolVersionStartsFrom(initialLedgerVers, SOROBAN_PROTOCOL_VERSION))
     {

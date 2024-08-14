@@ -125,8 +125,7 @@ class LedgerManagerImpl : public LedgerManager
     virtual void transferLedgerEntriesToBucketList(
         AbstractLedgerTxn& ltx,
         std::unique_ptr<LedgerCloseMetaFrame> const& ledgerCloseMeta,
-        uint32_t ledgerSeq, uint32_t currLedgerVers,
-        uint32_t initialLedgerVers);
+        LedgerHeader const& lh, uint32_t initialLedgerVers);
 
     void advanceLedgerPointers(LedgerHeader const& header,
                                bool debugLog = true);

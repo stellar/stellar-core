@@ -142,9 +142,10 @@ struct BucketListGenerator
 
         std::vector<LedgerEntry> initEntries, liveEntries;
         std::vector<LedgerKey> deadEntries;
+        auto header = ltx.loadHeader().current();
         ltx.getAllEntries(initEntries, liveEntries, deadEntries);
-        app->getBucketManager().addBatch(*app, mLedgerSeq, vers, initEntries,
-                                         liveEntries, deadEntries);
+        app->getBucketManager().addBatch(*app, header, initEntries, liveEntries,
+                                         deadEntries);
         ltx.commit();
     }
 

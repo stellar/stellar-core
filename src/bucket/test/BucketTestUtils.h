@@ -56,8 +56,7 @@ class LedgerManagerForBucketTests : public LedgerManagerImpl
     void transferLedgerEntriesToBucketList(
         AbstractLedgerTxn& ltx,
         std::unique_ptr<LedgerCloseMetaFrame> const& ledgerCloseMeta,
-        uint32_t ledgerSeq, uint32_t currLedgerVers,
-        uint32_t initialLedgerVers) override;
+        LedgerHeader lh, uint32_t initialLedgerVers) override;
 
   public:
     void

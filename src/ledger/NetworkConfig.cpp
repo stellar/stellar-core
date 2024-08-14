@@ -1483,9 +1483,9 @@ writeConfigSettingEntry(ConfigSettingEntry const& configSetting,
     // BucketList
     if (app.getConfig().isUsingBucketListDB())
     {
-        auto const& lcl = app.getLedgerManager().getLastClosedLedgerHeader();
-        app.getBucketManager().addBatch(app, lcl.header.ledgerSeq + 1,
-                                        lcl.header.ledgerVersion, {}, {e}, {});
+        auto lcl = app.getLedgerManager().getLastClosedLedgerHeader();
+        lcl.header.ledgerSeq += 1;
+        app.getBucketManager().addBatch(app, lcl.header, {}, {e}, {});
     }
 
     LedgerTxn ltx(ltxRoot);

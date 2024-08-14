@@ -3754,7 +3754,7 @@ LedgerTxnRoot::Impl::getNewestVersion(InternalLedgerKey const& gkey) const
     {
         if (mApp.getConfig().isUsingBucketListDB() && key.type() != OFFER)
         {
-            entry = getSearchableBucketListSnapshot().getLedgerEntry(key);
+            entry = getSearchableBucketListSnapshot().load(key);
         }
         else
         {

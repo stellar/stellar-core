@@ -105,7 +105,7 @@ void
 LedgerManagerForBucketTests::transferLedgerEntriesToBucketList(
     AbstractLedgerTxn& ltx,
     std::unique_ptr<LedgerCloseMetaFrame> const& ledgerCloseMeta,
-    uint32_t ledgerSeq, uint32_t currLedgerVers, uint32_t initialLedgerVers)
+    LedgerHeader lh, uint32_t initialLedgerVers)
 {
     if (mUseTestEntries)
     {
@@ -151,12 +151,12 @@ LedgerManagerForBucketTests::transferLedgerEntriesToBucketList(
                 if (mApp.getConfig().isUsingBackgroundEviction())
                 {
                     mApp.getBucketManager().resolveBackgroundEvictionScan(
-                        ltxEvictions, ledgerSeq, keys);
+                        ltxEvictions, lh.ledgerSeq, keys);
                 }
                 else
                 {
                     mApp.getBucketManager().scanForEvictionLegacy(ltxEvictions,
-                                                                  ledgerSeq);
+                                                                  lh.ledgerSeq);
                 }
 
                 if (ledgerCloseMeta)
@@ -168,7 +168,7 @@ LedgerManagerForBucketTests::transferLedgerEntriesToBucketList(
             }
             mApp.getLedgerManager()
                 .getMutableSorobanNetworkConfig()
-                .maybeSnapshotBucketListSize(ledgerSeq, ltx, mApp);
+                .maybeSnapshotBucketListSize(lh.ledgerSeq, ltx, mApp);
         }
 
         ltx.getAllEntries(init, live, dead);
@@ -186,15 +186,14 @@ LedgerManagerForBucketTests::transferLedgerEntriesToBucketList(
         }
 
         // Use the testing values.
-        mApp.getBucketManager().addBatch(mApp, ledgerSeq, currLedgerVers,
-                                         mTestInitEntries, mTestLiveEntries,
-                                         mTestDeadEntries);
+        mApp.getBucketManager().addBatch(mApp, lh, mTestInitEntries,
+                                         mTestLiveEntries, mTestDeadEntries);
         mUseTestEntries = false;
     }
     else
     {
         LedgerManagerImpl::transferLedgerEntriesToBucketList(
-            ltx, ledgerCloseMeta, ledgerSeq, currLedgerVers, initialLedgerVers);
+            ltx, ledgerCloseMeta, lh, initialLedgerVers);
     }
 }
 

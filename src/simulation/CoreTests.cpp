@@ -682,9 +682,11 @@ TEST_CASE("Bucket list entries vs write throughput", "[scalability][!hide]")
          !app->getClock().getIOContext().stopped() && i < 0x200000; ++i)
     {
         app->getClock().crank(false);
+        LedgerHeader lh;
+        lh.ledgerVersion = Config::CURRENT_LEDGER_PROTOCOL_VERSION;
+        lh.ledgerSeq = i;
         app->getBucketManager().addBatch(
-            *app, i, Config::CURRENT_LEDGER_PROTOCOL_VERSION,
-            LedgerTestUtils::generateValidLedgerEntries(100),
+            *app, lh, LedgerTestUtils::generateValidLedgerEntries(100),
             LedgerTestUtils::generateValidLedgerEntries(20),
             LedgerTestUtils::generateValidLedgerEntryKeysWithExclusions(
                 {CONFIG_SETTING}, 5));
