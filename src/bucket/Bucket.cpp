@@ -25,6 +25,7 @@
 #include "util/Fs.h"
 #include "util/GlobalChecks.h"
 #include "util/Logging.h"
+#include "util/ProtocolVersion.h"
 #include "util/XDRStream.h"
 #include "util/types.h"
 #include <Tracy.hpp>
@@ -319,8 +320,12 @@ LiveBucket::fresh(BucketManager& bucketManager, uint32_t protocolVersion,
 
     BucketMetadata meta;
     meta.ledgerVersion = protocolVersion;
-    meta.ext.v(1);
-    meta.ext.bucketListType() = BucketListType::LIVE;
+
+    if (protocolVersionStartsFrom(protocolVersion, ProtocolVersion::V_22))
+    {
+        meta.ext.v(1);
+        meta.ext.bucketListType() = BucketListType::LIVE;
+    }
 
     auto entries =
         convertToBucketEntry(useInit, initEntries, liveEntries, deadEntries);
@@ -942,6 +947,22 @@ Bucket::merge(BucketManager& bucketManager, uint32_t maxProtocolVersion,
     auto timer = bucketManager.getMergeTimer().TimeScope();
     BucketMetadata meta;
     meta.ledgerVersion = protocolVersion;
+
+    // If any inputs use the new extension of BucketMeta, the output should as
+    // well
+    if (ni.getMetadata().ext.v() == 1)
+    {
+        releaseAssertOrThrow(protocolVersionStartsFrom(maxProtocolVersion,
+                                                       ProtocolVersion::V_22));
+        meta.ext = oi.getMetadata().ext;
+    }
+    else if (oi.getMetadata().ext.v() == 1)
+    {
+        releaseAssertOrThrow(protocolVersionStartsFrom(maxProtocolVersion,
+                                                       ProtocolVersion::V_22));
+        meta.ext = oi.getMetadata().ext;
+    }
+
     BucketOutputIterator<BucketT> out(bucketManager.getTmpDir(),
                                       keepTombstoneEntries, meta, mc, ctx,
                                       doFsync);
