@@ -84,7 +84,7 @@ BucketIndexImpl<IndexT>::BucketIndexImpl(BucketManager& bm,
         // the page size ahead of time
         if constexpr (std::is_same<IndexT, RangeIndex>::value)
         {
-            auto fileSize = fs::size(filename);
+            auto fileSize = std::filesystem::file_size(filename);
             auto estimatedIndexEntries = fileSize / mData.pageSize;
             mData.keysToOffset.reserve(estimatedIndexEntries);
         }

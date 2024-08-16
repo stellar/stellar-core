@@ -996,6 +996,17 @@ Config::processConfig(std::shared_ptr<cpptoml::table> t)
         }
         std::vector<ValidatorEntry> validators;
         UnorderedMap<std::string, ValidatorQuality> domainQualityMap;
+        UnorderedMap<std::string, uint32_t*> uint32WithMax1Flags = {
+            {"PEER_READING_CAPACITY", &PEER_READING_CAPACITY},
+            {"PEER_FLOOD_READING_CAPACITY", &PEER_FLOOD_READING_CAPACITY},
+            {"FLOW_CONTROL_SEND_MORE_BATCH_SIZE",
+             &FLOW_CONTROL_SEND_MORE_BATCH_SIZE},
+            {"PEER_FLOOD_READING_CAPACITY_BYTES",
+             &PEER_FLOOD_READING_CAPACITY_BYTES},
+            {"FLOW_CONTROL_SEND_MORE_BATCH_SIZE_BYTES",
+             &FLOW_CONTROL_SEND_MORE_BATCH_SIZE_BYTES},
+            {"OUTBOUND_TX_QUEUE_BYTE_LIMIT", &OUTBOUND_TX_QUEUE_BYTE_LIMIT},
+        };
 
         // cpptoml returns the items in non-deterministic order
         // so we need to process items that are potential dependencies first
@@ -1012,33 +1023,14 @@ Config::processConfig(std::shared_ptr<cpptoml::table> t)
                 logIfSet(item,
                          "node may not function properly with most networks");
             }
+            auto uint32WithMax1It = uint32WithMax1Flags.find(item.first);
+            if (uint32WithMax1It != uint32WithMax1Flags.end())
+            {
+                *uint32WithMax1It->second = readInt<uint32_t>(item, 1);
+                continue;
+            }
 
-            if (item.first == "PEER_READING_CAPACITY")
-            {
-                PEER_READING_CAPACITY = readInt<uint32_t>(item, 1);
-            }
-            else if (item.first == "PEER_FLOOD_READING_CAPACITY")
-            {
-                PEER_FLOOD_READING_CAPACITY = readInt<uint32_t>(item, 1);
-            }
-            else if (item.first == "FLOW_CONTROL_SEND_MORE_BATCH_SIZE")
-            {
-                FLOW_CONTROL_SEND_MORE_BATCH_SIZE = readInt<uint32_t>(item, 1);
-            }
-            else if (item.first == "PEER_FLOOD_READING_CAPACITY_BYTES")
-            {
-                PEER_FLOOD_READING_CAPACITY_BYTES = readInt<uint32_t>(item, 1);
-            }
-            else if (item.first == "FLOW_CONTROL_SEND_MORE_BATCH_SIZE_BYTES")
-            {
-                FLOW_CONTROL_SEND_MORE_BATCH_SIZE_BYTES =
-                    readInt<uint32_t>(item, 1);
-            }
-            else if (item.first == "OUTBOUND_TX_QUEUE_BYTE_LIMIT")
-            {
-                OUTBOUND_TX_QUEUE_BYTE_LIMIT = readInt<uint32_t>(item, 1);
-            }
-            else if (item.first == "PEER_PORT")
+            if (item.first == "PEER_PORT")
             {
                 PEER_PORT = readInt<unsigned short>(item, 1);
             }

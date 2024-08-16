@@ -178,6 +178,9 @@
     <Filter Include="generated">
       <UniqueIdentifier>{f421dda1-de1d-43af-b5b8-138a24c87cd2}</UniqueIdentifier>
     </Filter>
+    <Filter Include="lib\httpthreaded">
+      <UniqueIdentifier>{feb33c2b-4955-4db8-b62d-72cbc3129a44}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="..\..\lib\util\getopt_long.c">
@@ -1347,6 +1350,33 @@
     <ClCompile Include="..\..\src\overlay\Hmac.cpp">
       <Filter>overlay</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\src\transactions\test\TransactionTestFrame.cpp">
+      <Filter>transactions\tests</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\util\BinaryFuseFilter.cpp">
+      <Filter>util</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\util\test\BinaryFuseTests.cpp">
+      <Filter>util\tests</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\transactions\MutableTransactionResult.cpp">
+      <Filter>transactions</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\lib\httpthreaded\connection.cpp">
+      <Filter>lib\httpthreaded</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\lib\httpthreaded\reply.cpp">
+      <Filter>lib\httpthreaded</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\lib\httpthreaded\request_parser.cpp">
+      <Filter>lib\httpthreaded</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\lib\httpthreaded\server.cpp">
+      <Filter>lib\httpthreaded</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\main\QueryServer.cpp">
+      <Filter>main</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\..\lib\util\cpptoml.h">
@@ -2341,6 +2371,36 @@
     </ClInclude>
     <ClInclude Include="..\..\src\overlay\Hmac.h">
       <Filter>overlay</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\transactions\test\TransactionTestFrame.h">
+      <Filter>transactions\tests</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\util\BinaryFuseFilter.h">
+      <Filter>util</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\transactions\MutableTransactionResult.h">
+      <Filter>transactions</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\lib\httpthreaded\connection.hpp">
+      <Filter>lib\httpthreaded</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\lib\httpthreaded\header.hpp">
+      <Filter>lib\httpthreaded</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\lib\httpthreaded\reply.hpp">
+      <Filter>lib\httpthreaded</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\lib\httpthreaded\request.hpp">
+      <Filter>lib\httpthreaded</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\lib\httpthreaded\request_parser.hpp">
+      <Filter>lib\httpthreaded</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\lib\httpthreaded\server.hpp">
+      <Filter>lib\httpthreaded</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\main\QueryServer.h">
+      <Filter>main</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>

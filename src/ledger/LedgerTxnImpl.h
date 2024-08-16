@@ -737,7 +737,7 @@ class LedgerTxnRoot::Impl
     mutable BestOffers mBestOffers;
     mutable uint64_t mPrefetchHits{0};
     mutable uint64_t mPrefetchMisses{0};
-    mutable std::unique_ptr<SearchableBucketListSnapshot>
+    mutable std::shared_ptr<SearchableBucketListSnapshot>
         mSearchableBucketListSnapshot{};
 
     size_t mBulkLoadBatchSize;

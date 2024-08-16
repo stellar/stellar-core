@@ -204,9 +204,9 @@ pub fn get_soroban_version_info(core_max_proto: u32) -> SorobanVersionInfo {
             }
             if core_max_proto != env_max_proto {
                 warn!(
-                    "soroban version {} XDR module built with 'next' feature, \
+                    "soroban version {} XDR module for env version {} built with 'next' feature, \
                        even though this is not the newest core protocol ({})",
-                    VERSION.pkg, core_max_proto
+                    VERSION.pkg, env_max_proto, core_max_proto
                 );
                 warn!(
                     "this can happen if multiple soroban crates depend on the \

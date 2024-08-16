@@ -1000,6 +1000,8 @@ BucketManagerImpl::startBackgroundEvictionScan(uint32_t ledgerSeq)
     auto const& sas = cfg.stateArchivalSettings();
 
     using task_t = std::packaged_task<EvictionResult()>;
+    // MSVC gotcha: searchableBL has to be shared_ptr because MSVC wants to
+    // copy this lambda, otherwise we could use unique_ptr.
     auto task = std::make_shared<task_t>(
         [bl = std::move(searchableBL), iter = cfg.evictionIterator(), ledgerSeq,
          sas, &counters = mBucketListEvictionCounters,
