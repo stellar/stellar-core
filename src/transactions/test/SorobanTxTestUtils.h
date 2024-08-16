@@ -50,9 +50,29 @@ makeSorobanWasmUploadTx(Application& app, TestAccount& source,
                         RustBuf const& wasm, SorobanResources& uploadResources,
                         uint32_t inclusionFee);
 
+struct ConstructorParams
+{
+    enum class HostFnVersion
+    {
+        V1,
+        V2,
+    };
+
+    xdr::xvector<SCVal> constructorArgs;
+    std::optional<SorobanResources> additionalResources;
+    xdr::xvector<SorobanAuthorizedInvocation> additionalAuthInvocations;
+    std::optional<HostFnVersion> forceHostFnVersion;
+    std::optional<HostFnVersion> forceAuthHostFnVersion;
+};
+
 // Creates a valid transaction for creating a contract.
 // Fills in the valid footprint automatically in case if `createResources`
 // doesn't contain it.
+TransactionTestFramePtr makeSorobanCreateContractTx(
+    Application& app, TestAccount& source, ContractIDPreimage const& idPreimage,
+    ContractExecutable const& executable, SorobanResources& createResources,
+    uint32_t inclusionFee, ConstructorParams const& constructorParams);
+
 TransactionTestFramePtr makeSorobanCreateContractTx(
     Application& app, TestAccount& source, ContractIDPreimage const& idPreimage,
     ContractExecutable const& executable, SorobanResources& createResources,
@@ -227,9 +247,11 @@ class SorobanTest
                           int64_t expectedRefundableFeeCharged);
 
     Hash uploadWasm(RustBuf const& wasm, SorobanResources& uploadResources);
+
     SCAddress createContract(ContractIDPreimage const& idPreimage,
                              ContractExecutable const& executable,
-                             SorobanResources& createResources);
+                             SorobanResources& createResources,
+                             ConstructorParams const& constructorParams);
 
     int64_t getRentFeeForExtension(xdr::xvector<LedgerKey> const& keys,
                                    uint32_t newLifetime);
@@ -258,6 +280,13 @@ class SorobanTest
         RustBuf const& wasm,
         std::optional<SorobanResources> uploadResources = std::nullopt,
         std::optional<SorobanResources> createResources = std::nullopt);
+    TestContract& deployWasmContract(
+        RustBuf const& wasm, ConstructorParams const& constructorParams,
+        std::optional<SorobanResources> uploadResources = std::nullopt,
+        std::optional<SorobanResources> createResources = std::nullopt);
+
+    SCAddress nextContractID();
+
     TestContract& deployAssetContract(Asset const& asset);
 
     TestAccount& getRoot();

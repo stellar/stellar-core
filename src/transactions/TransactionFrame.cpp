@@ -1460,6 +1460,16 @@ TransactionFrame::checkValid(Application& app, AbstractLedgerTxn& ltxOuter,
                              uint64_t lowerBoundCloseTimeOffset,
                              uint64_t upperBoundCloseTimeOffset) const
 {
+    // Subtle: this check has to happen in `checkValid` and not
+    // `checkValidWithOptionallyChargedFee` in order to not validate the
+    // envelope XDR twice for the fee bump transactions (they use
+    // `checkValidWithOptionallyChargedFee` for the inner tx).
+    if (!isTransactionXDRValidForCurrentProtocol(app, mEnvelope))
+    {
+        auto txResult = createSuccessResult();
+        txResult->setResultCode(txMALFORMED);
+        return txResult;
+    }
     return checkValidWithOptionallyChargedFee(app, ltxOuter, current, true,
                                               lowerBoundCloseTimeOffset,
                                               upperBoundCloseTimeOffset);

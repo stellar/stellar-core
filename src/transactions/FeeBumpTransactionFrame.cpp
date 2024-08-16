@@ -160,7 +160,8 @@ FeeBumpTransactionFrame::checkValid(Application& app,
                                     uint64_t lowerBoundCloseTimeOffset,
                                     uint64_t upperBoundCloseTimeOffset) const
 {
-    if (!XDRProvidesValidFee())
+    if (!isTransactionXDRValidForCurrentProtocol(app, mEnvelope) ||
+        !XDRProvidesValidFee())
     {
         auto txResult = createSuccessResult();
         txResult->setResultCode(txMALFORMED);

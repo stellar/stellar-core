@@ -58,7 +58,8 @@ itertools = "=0.11.0"
 version = "=22.0.0"
 git = "https://github.com/stellar/rs-soroban-env"
 package = "soroban-env-host"
-rev = "81a4239f3e1ab5e4030140310faa64aba28dfdcb"
+rev = "5ed156b7fb5dd3e46635aa0f818d5db33dfd6b6a"
+#path = "../../../rs-soroban-env/soroban-env-host"
 
 [dependencies.soroban-env-host-p21]
 version = "=21.2.0"
@@ -72,12 +73,14 @@ rev = "8809852dcf8489f99407a5ceac12625ee3d14693"
 [dependencies.soroban-test-wasms]
 version = "=22.0.0"
 git = "https://github.com/stellar/rs-soroban-env"
-rev = "81a4239f3e1ab5e4030140310faa64aba28dfdcb"
+rev = "5ed156b7fb5dd3e46635aa0f818d5db33dfd6b6a"
+#path = "../../../rs-soroban-env/soroban-test-wasms"
 
 [dependencies.soroban-synth-wasm]
 version = "=22.0.0"
 git = "https://github.com/stellar/rs-soroban-env"
-rev = "81a4239f3e1ab5e4030140310faa64aba28dfdcb"
+rev = "5ed156b7fb5dd3e46635aa0f818d5db33dfd6b6a"
+#path = "../../../rs-soroban-env/soroban-synth-wasm"
 
 [dependencies.cargo-lock]
 version = "=9.0.0"

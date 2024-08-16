@@ -1295,6 +1295,14 @@
 	],
 	"complex contract|diagnostics disabled" : [ "bKDF6V5IzTo=" ],
 	"complex contract|diagnostics enabled" : [ "bKDF6V5IzTo=" ],
+	"contract constructor support" : 
+	[
+		"bKDF6V5IzTo=",
+		"bKDF6V5IzTo=",
+		"bKDF6V5IzTo=",
+		"bKDF6V5IzTo=",
+		"bKDF6V5IzTo="
+	],
 	"contract errors cause transaction to fail" : 
 	[
 		"bKDF6V5IzTo=",

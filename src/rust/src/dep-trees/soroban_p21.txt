@@ -114,7 +114,7 @@ soroban-env-host 21.2.0 git+https://github.com/stellar/rs-soroban-env?rev=880985
 ├── soroban-env-common 21.2.0 git+https://github.com/stellar/rs-soroban-env?rev=8809852dcf8489f99407a5ceac12625ee3d14693#8809852dcf8489f99407a5ceac12625ee3d14693
 │   ├── wasmparser 0.116.1 checksum:a58e28b80dd8340cb07b8242ae654756161f6fc8d0038123d679b7b99964fa50
 │   ├── tracy-client 0.16.4 checksum:82da0d50d9df1106619b1e5b118f39de779f7d8b9c3504485b291cb16fabd20f
-│   ├── stellar-xdr 21.2.0 git+https://github.com/stellar/rs-stellar-xdr?rev=ae805d0f8c28ca86327a834eea9ce7d29b0a63bb#ae805d0f8c28ca86327a834eea9ce7d29b0a63bb
+│   ├── stellar-xdr 21.2.0 checksum:2675a71212ed39a806e415b0dbf4702879ff288ec7f5ee996dda42a135512b50
 │   │   ├── stellar-strkey 0.0.8 checksum:12d2bf45e114117ea91d820a846fd1afbe3ba7d717988fee094ce8227a3bf8bd
 │   │   ├── hex 0.4.3 checksum:7f24254aa9a54b5c858eaee2f5bccdb46aaf0e486a595ed5fd8f86ba55232a70
 │   │   ├── escape-bytes 0.1.1 checksum:2bfcf67fea2815c2fc3b90873fae90957be12ff417335dfadc7f52927feb03b2
@@ -124,7 +124,7 @@ soroban-env-host 21.2.0 git+https://github.com/stellar/rs-soroban-env?rev=880985
 │   ├── soroban-wasmi 0.31.1-soroban.20.0.1 git+https://github.com/stellar/wasmi?rev=0ed3f3dee30dc41ebe21972399e0a73a41944aa0#0ed3f3dee30dc41ebe21972399e0a73a41944aa0
 │   ├── soroban-env-macros 21.2.0 git+https://github.com/stellar/rs-soroban-env?rev=8809852dcf8489f99407a5ceac12625ee3d14693#8809852dcf8489f99407a5ceac12625ee3d14693
 │   │   ├── syn 2.0.39 checksum:23e78b90f2fcf45d3e842032ce32e3f2d1545ba6636271dcbf24fa306d87be7a
-│   │   ├── stellar-xdr 21.2.0 git+https://github.com/stellar/rs-stellar-xdr?rev=ae805d0f8c28ca86327a834eea9ce7d29b0a63bb#ae805d0f8c28ca86327a834eea9ce7d29b0a63bb
+│   │   ├── stellar-xdr 21.2.0 checksum:2675a71212ed39a806e415b0dbf4702879ff288ec7f5ee996dda42a135512b50
 │   │   ├── serde_json 1.0.108 checksum:3d1c7e3eac408d115102c4c24ad393e0821bb3a5df4d506a80f85f7a742a526b
 │   │   ├── serde 1.0.192 checksum:bca2a08484b285dcb282d0f67b26cadc0df8b19f8c12502c13d966bf9482f001
 │   │   ├── quote 1.0.33 checksum:5267fca4496028628a95160fc423a33e8b2e6af8a5302579e322e4b520293cae

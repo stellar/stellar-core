@@ -4293,3 +4293,106 @@ TEST_CASE("Vm instantiation tightening", "[tx][soroban]")
         REQUIRE(inputs.nDataSegmentBytes == 0);
     }
 }
+
+#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
+TEST_CASE("contract constructor support", "[tx][soroban]")
+{
+    Config cfg = getTestConfig();
+    cfg.ENABLE_SOROBAN_DIAGNOSTIC_EVENTS = true;
+    SorobanTest test(cfg);
+    auto defaultSpec =
+        SorobanInvocationSpec()
+            .setInstructions(test.getNetworkCfg().txMaxInstructions())
+            .setReadBytes(test.getNetworkCfg().txMaxReadBytes())
+            .setWriteBytes(test.getNetworkCfg().txMaxWriteBytes());
+    auto constructorDefaultSpec = [&]() {
+        auto contractAddress = test.nextContractID();
+        return SorobanInvocationSpec().setReadWriteFootprint(
+            {contractDataKey(contractAddress, makeSymbolSCVal("key"),
+                             ContractDataDurability::PERSISTENT),
+             contractDataKey(contractAddress, makeSymbolSCVal("key"),
+                             ContractDataDurability::TEMPORARY)});
+    };
+
+    SECTION("constructor with no arguments")
+    {
+
+        auto testNoArgConstructor =
+            [&](ConstructorParams::HostFnVersion hostFnVersion,
+                ConstructorParams::HostFnVersion authFnVersion) {
+                ConstructorParams params;
+                params.additionalResources =
+                    std::make_optional(constructorDefaultSpec().getResources());
+                params.forceHostFnVersion = hostFnVersion;
+                params.forceAuthHostFnVersion = authFnVersion;
+                auto& contract = test.deployWasmContract(
+                    rust_bridge::get_no_arg_constructor_wasm(), params);
+                auto invocation = contract.prepareInvocation(
+                    "get_data", {makeSymbolSCVal("key")},
+                    defaultSpec.setReadOnlyFootprint(
+                        params.additionalResources->footprint.readWrite));
+                REQUIRE(invocation.invoke());
+                REQUIRE(invocation.getReturnValue().u32() == 6);
+            };
+        SECTION("v1 host function, v1 auth")
+        {
+            testNoArgConstructor(ConstructorParams::HostFnVersion::V1,
+                                 ConstructorParams::HostFnVersion::V1);
+        }
+        SECTION("v1 host function, v2 auth")
+        {
+            testNoArgConstructor(ConstructorParams::HostFnVersion::V1,
+                                 ConstructorParams::HostFnVersion::V2);
+        }
+        SECTION("v2 host function, v1 auth")
+        {
+            testNoArgConstructor(ConstructorParams::HostFnVersion::V2,
+                                 ConstructorParams::HostFnVersion::V1);
+        }
+        SECTION("v2 host function, v2 auth")
+        {
+            testNoArgConstructor(ConstructorParams::HostFnVersion::V2,
+                                 ConstructorParams::HostFnVersion::V2);
+        }
+    }
+
+    SECTION("constructor with arguments and auth")
+    {
+        auto authContract =
+            test.deployWasmContract(rust_bridge::get_auth_wasm());
+
+        auto sourceAccountVal =
+            makeAddressSCVal(makeAccountAddress(test.getRoot().getPublicKey()));
+        ConstructorParams params;
+        params.constructorArgs = {sourceAccountVal, makeSymbolSCVal("key"),
+                                  makeU32(100),
+                                  makeAddressSCVal(authContract.getAddress())};
+        params.additionalResources =
+            constructorDefaultSpec()
+                .setReadOnlyFootprint(authContract.getKeys())
+                .setReadBytes(rust_bridge::get_auth_wasm().data.size() + 100)
+                .getResources();
+
+        auto& subInvocation = params.additionalAuthInvocations.emplace_back();
+        auto& constructorInvocation = subInvocation.function.contractFn();
+        constructorInvocation.contractAddress = test.nextContractID();
+        constructorInvocation.functionName = makeSymbol("__constructor");
+        constructorInvocation.args = params.constructorArgs;
+
+        auto& authInvocation =
+            subInvocation.subInvocations.emplace_back().function.contractFn();
+        authInvocation.contractAddress = authContract.getAddress();
+        authInvocation.functionName = makeSymbol("do_auth");
+        authInvocation.args = {sourceAccountVal, makeU32(100)};
+
+        auto& contract = test.deployWasmContract(
+            rust_bridge::get_constructor_with_args_p22_wasm(), params);
+        auto invocation = contract.prepareInvocation(
+            "get_data", {makeSymbolSCVal("key")},
+            defaultSpec.setReadOnlyFootprint(
+                params.additionalResources->footprint.readWrite));
+        REQUIRE(invocation.invoke());
+        REQUIRE(invocation.getReturnValue().u32() == 303);
+    }
+}
+#endif

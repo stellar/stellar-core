@@ -1975,6 +1975,28 @@ hasMuxedAccount(TransactionEnvelope const& e)
     return c.mHasMuxedAccount;
 }
 
+bool
+isTransactionXDRValidForCurrentProtocol(Application& app,
+                                        TransactionEnvelope const& envelope)
+{
+    uint32_t maxProtocol = app.getConfig().CURRENT_LEDGER_PROTOCOL_VERSION;
+    uint32_t currProtocol =
+        app.getLedgerManager().getLastClosedLedgerHeader().header.ledgerVersion;
+    // If we could parse the XDR when ledger is using the maximum supported
+    // protocol version, then XDR has to be valid.
+    // This check also is pointless before protocol 21 as Soroban environment
+    // doesn't support XDR versions before 21.
+    if (maxProtocol == currProtocol ||
+        protocolVersionIsBefore(currProtocol, ProtocolVersion::V_21))
+    {
+        return true;
+    }
+    auto cxxBuf = CxxBuf{
+        std::make_unique<std::vector<uint8_t>>(xdr::xdr_to_opaque(envelope))};
+    return rust_bridge::can_parse_transaction(maxProtocol, currProtocol, cxxBuf,
+                                              xdr::marshaling_stack_limit);
+}
+
 ClaimAtom
 makeClaimAtom(uint32_t ledgerVersion, AccountID const& accountID,
               int64_t offerID, Asset const& wheat, int64_t numWheatReceived,
