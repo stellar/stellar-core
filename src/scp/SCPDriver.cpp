@@ -10,10 +10,27 @@
 #include "crypto/KeyUtils.h"
 #include "crypto/SecretKey.h"
 #include "util/GlobalChecks.h"
+#include "util/numeric.h"
 #include "xdrpp/marshal.h"
 
 namespace stellar
 {
+
+namespace
+{
+uint64
+computeWeight(uint64 m, uint64 total, uint64 threshold)
+{
+    uint64 res;
+    releaseAssert(threshold <= total);
+    // Since threshold <= total, calculating res=m*threshold/total will always
+    // produce res <= m, and we do not need to handle the possibility of this
+    // call returning false (indicating overflow).
+    bool noOverflow = bigDivideUnsigned(res, m, threshold, total, ROUND_UP);
+    releaseAssert(noOverflow);
+    return res;
+}
+} // namespace
 
 bool
 WrappedValuePtrComparator::operator()(ValueWrapperPtr const& l,
@@ -145,4 +162,43 @@ SCPDriver::computeTimeout(uint32 roundNumber)
     }
     return std::chrono::seconds(timeoutInSeconds);
 }
+
+// if a validator is repeated multiple times its weight is only the
+// weight of the first occurrence
+uint64
+SCPDriver::getNodeWeight(NodeID const& nodeID, SCPQuorumSet const& qset,
+                         bool isLocalNode) const
+{
+    if (isLocalNode)
+    {
+        // local node is in all quorum sets
+        return UINT64_MAX;
+    }
+
+    uint64 n = qset.threshold;
+    uint64 d = qset.innerSets.size() + qset.validators.size();
+    uint64 res;
+
+    for (auto const& qsetNode : qset.validators)
+    {
+        if (qsetNode == nodeID)
+        {
+            res = computeWeight(UINT64_MAX, d, n);
+            return res;
+        }
+    }
+
+    for (auto const& q : qset.innerSets)
+    {
+        uint64 leafW = SCPDriver::getNodeWeight(nodeID, q, isLocalNode);
+        if (leafW)
+        {
+            res = computeWeight(leafW, d, n);
+            return res;
+        }
+    }
+
+    return 0;
+}
+
 }

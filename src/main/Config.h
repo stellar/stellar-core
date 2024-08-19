@@ -37,24 +37,39 @@ enum class ValidationThresholdLevels : int
     ALL_REQUIRED = 2
 };
 
+enum class ValidatorQuality : int
+{
+    VALIDATOR_LOW_QUALITY = 0,
+    VALIDATOR_MED_QUALITY = 1,
+    VALIDATOR_HIGH_QUALITY = 2,
+    VALIDATOR_CRITICAL_QUALITY = 3
+};
+
+struct ValidatorEntry
+{
+    std::string mName;
+    std::string mHomeDomain;
+    ValidatorQuality mQuality;
+    PublicKey mKey;
+    bool mHasHistory;
+};
+
+// This struct holds information necessary to compute the weight of a validator
+// for leader election
+struct ValidatorWeightConfig
+{
+    // Mapping from node ids to info about each validator
+    UnorderedMap<NodeID, ValidatorEntry> mValidatorEntries;
+
+    // Mapping from org names to the number of validators in that org
+    UnorderedMap<std::string, uint64> mHomeDomainSizes;
+
+    // Weights for each quality level
+    UnorderedMap<ValidatorQuality, uint64> mQualityWeights;
+};
+
 class Config : public std::enable_shared_from_this<Config>
 {
-    enum class ValidatorQuality : int
-    {
-        VALIDATOR_LOW_QUALITY = 0,
-        VALIDATOR_MED_QUALITY = 1,
-        VALIDATOR_HIGH_QUALITY = 2,
-        VALIDATOR_CRITICAL_QUALITY = 3
-    };
-
-    struct ValidatorEntry
-    {
-        std::string mName;
-        std::string mHomeDomain;
-        ValidatorQuality mQuality;
-        PublicKey mKey;
-        bool mHasHistory;
-    };
 
     void validateConfig(ValidationThresholdLevels thresholdLevel);
     void loadQset(std::shared_ptr<cpptoml::table> group, SCPQuorumSet& qset,
@@ -110,6 +125,11 @@ class Config : public std::enable_shared_from_this<Config>
                                    std::vector<uint32_t> const& distribution,
                                    std::string const& valuesName,
                                    std::string const& distributionName);
+
+    // Sets VALIDATOR_WEIGHT_CONFIG based on the content of `validators`. No-op
+    // if this node is not a validator.
+    void
+    setValidatorWeightConfig(std::vector<ValidatorEntry> const& validators);
 
   public:
     static const uint32 CURRENT_LEDGER_PROTOCOL_VERSION;
@@ -602,6 +622,15 @@ class Config : public std::enable_shared_from_this<Config>
 
     std::map<std::string, std::string> VALIDATOR_NAMES;
 
+    // Information necessary to compute the weight of a validator for leader
+    // election. Nullopt if this node is not a validator, or if this node is
+    // using manual quorum set configuration.
+    std::optional<ValidatorWeightConfig> VALIDATOR_WEIGHT_CONFIG;
+
+    // Revert to the old, application-agnostic nomination weight function for
+    // SCP leader election.
+    bool FORCE_OLD_STYLE_LEADER_ELECTION;
+
     // History config
     std::map<std::string, HistoryArchiveConfiguration> HISTORY;
 
@@ -668,6 +697,11 @@ class Config : public std::enable_shared_from_this<Config>
     // case.  This is used right now in the signal handler to exit() instead of
     // doing a graceful shutdown
     bool TEST_CASES_ENABLED;
+
+    // Set QUORUM_SET using automatic quorum set configuration based on
+    // `validators`.
+    void
+    generateQuorumSetForTesting(std::vector<ValidatorEntry> const& validators);
 #endif
 
 #ifdef BEST_OFFER_DEBUGGING
