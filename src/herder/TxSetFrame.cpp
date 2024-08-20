@@ -1439,15 +1439,10 @@ ApplicableTxSetFrame::applySurgePricing(Application& app)
             }
             else
             {
-#ifdef BUILD_TESTS
-                // We should only build non-generalized tx sets in tests.
                 computeTxFeesForNonGeneralizedSet(
                     lclHeader,
                     lowestLaneFee[SurgePricingPriorityQueue::GENERIC_LANE],
                     /* enableLogging */ true);
-#else
-                releaseAssert(false);
-#endif
             }
         }
         else
