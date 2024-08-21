@@ -59,25 +59,13 @@ class SearchableBucketListSnapshot : public NonMovableOrCopyable
 
     // Snapshot managed by SnapshotManager
     std::unique_ptr<BucketListSnapshot const> mSnapshot{};
-
-    // Loops through all buckets, starting with curr at level 0, then snap at
-    // level 0, etc. Calls f on each bucket. Exits early if function
-    // returns true
-    void loopAllBuckets(std::function<bool(BucketSnapshot const&)> f) const;
-
-    std::vector<LedgerEntry>
-    loadKeysInternal(std::set<LedgerKey, LedgerEntryIdCmp> const& inKeys,
-                     LedgerKeyMeter* lkMeter);
-
-    // Loads bucket entry for LedgerKey k. Returns <LedgerEntry, bloomMiss>,
-    // where bloomMiss is true if a bloom miss occurred during the load.
-    std::pair<std::shared_ptr<LedgerEntry>, bool>
-    getLedgerEntryInternal(LedgerKey const& k);
+    std::map<uint32_t, std::unique_ptr<BucketListSnapshot const>>
+        mHistoricalSnapshots;
 
     SearchableBucketListSnapshot(BucketSnapshotManager const& snapshotManager);
 
-    friend std::shared_ptr<SearchableBucketListSnapshot>
-    BucketSnapshotManager::getSearchableBucketListSnapshot() const;
+    friend std::unique_ptr<SearchableBucketListSnapshot>
+    BucketSnapshotManager::copySearchableBucketListSnapshot() const;
 
   public:
     std::vector<LedgerEntry>
@@ -93,10 +81,21 @@ class SearchableBucketListSnapshot : public NonMovableOrCopyable
 
     std::shared_ptr<LedgerEntry> getLedgerEntry(LedgerKey const& k);
 
+    // Loads inKeys from the specified historical snapshot. Returns
+    // <load_result_vec, true> if the snapshot for the given ledger is
+    // available,  <empty_vec, false> otherwise. Note that ledgerSeq is defined
+    // as the state of the BucketList at the beginning of the ledger. This means
+    // that for ledger N, the maximum lastModifiedLedgerSeq of any LedgerEntry
+    // in the BucketList is N - 1.
+    std::pair<std::vector<LedgerEntry>, bool>
+    loadKeysFromLedger(std::set<LedgerKey, LedgerEntryIdCmp> const& inKeys,
+                       uint32_t ledgerSeq);
+
     EvictionResult scanForEviction(uint32_t ledgerSeq,
                                    EvictionCounters& counters,
                                    EvictionIterator evictionIter,
                                    std::shared_ptr<EvictionStatistics> stats,
                                    StateArchivalSettings const& sas);
+    uint32_t getLedgerSeq() const;
 };
 }

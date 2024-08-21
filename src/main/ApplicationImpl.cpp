@@ -15,6 +15,7 @@
 // else.
 #include "util/asio.h"
 #include "bucket/Bucket.h"
+#include "bucket/BucketListSnapshot.h"
 #include "bucket/BucketManager.h"
 #include "catchup/ApplyBucketsWork.h"
 #include "crypto/Hex.h"
@@ -843,6 +844,35 @@ ApplicationImpl::validateAndLogConfig()
             throw std::invalid_argument(
                 "EXPERIMENTAL_BACKGROUND_EVICTION_SCAN requires "
                 "WORKER_THREADS > 1");
+        }
+    }
+
+    if (mConfig.HTTP_QUERY_PORT != 0)
+    {
+        if (isNetworkedValidator)
+        {
+            throw std::invalid_argument("HTTP_QUERY_PORT is non-zero, "
+                                        "NODE_IS_VALIDATOR is set, and "
+                                        "RUN_STANDALONE is not set");
+        }
+
+        if (mConfig.HTTP_QUERY_PORT == mConfig.HTTP_PORT)
+        {
+            throw std::invalid_argument(
+                "HTTP_QUERY_PORT must be different from HTTP_PORT");
+        }
+
+        if (!mConfig.isUsingBucketListDB())
+        {
+            throw std::invalid_argument(
+                "HTTP_QUERY_PORT requires DEPRECATED_SQL_LEDGER_STATE to be "
+                "false");
+        }
+
+        if (mConfig.QUERY_THREAD_POOL_SIZE == 0)
+        {
+            throw std::invalid_argument(
+                "HTTP_QUERY_PORT requires QUERY_THREAD_POOL_SIZE > 0");
         }
     }
 

@@ -8,8 +8,9 @@
 #include "util/NonCopyable.h"
 #include "util/UnorderedMap.h"
 
+#include <map>
 #include <memory>
-#include <mutex>
+#include <shared_mutex>
 
 namespace medida
 {
@@ -38,8 +39,15 @@ class BucketSnapshotManager : NonMovableOrCopyable
     // snapshot, they will copy this snapshot.
     std::unique_ptr<BucketListSnapshot const> mCurrentSnapshot{};
 
-    // Lock must be held when accessing mCurrentSnapshot
-    mutable std::recursive_mutex mSnapshotMutex;
+    // ledgerSeq that the snapshot is based on -> snapshot
+    std::map<uint32_t, std::unique_ptr<BucketListSnapshot const>>
+        mHistoricalSnapshots;
+
+    uint32_t const mNumHistoricalSnapshots;
+
+    // Lock must be held when accessing mCurrentSnapshot and
+    // mHistoricalSnapshots
+    mutable std::shared_mutex mSnapshotMutex;
 
     mutable UnorderedMap<LedgerEntryType, medida::Timer&> mPointTimers{};
     mutable UnorderedMap<std::string, medida::Timer&> mBulkTimers{};
@@ -66,16 +74,22 @@ class BucketSnapshotManager : NonMovableOrCopyable
                                                bool restartMerges);
 
   public:
+    // numHistoricalLedgers is the number of historical snapshots that the
+    // snapshot manager will maintain. If numHistoricalLedgers is 5, snapshots
+    // will be capable of querying state from ledger [lcl, lcl - 5].
     BucketSnapshotManager(Application& app,
-                          std::unique_ptr<BucketListSnapshot const>&& snapshot);
+                          std::unique_ptr<BucketListSnapshot const>&& snapshot,
+                          uint32_t numHistoricalLedgers);
 
-    std::shared_ptr<SearchableBucketListSnapshot>
-    getSearchableBucketListSnapshot() const;
+    std::unique_ptr<SearchableBucketListSnapshot>
+    copySearchableBucketListSnapshot() const;
 
     // Checks if snapshot is out of date with mCurrentSnapshot and updates
     // it accordingly
     void maybeUpdateSnapshot(
-        std::unique_ptr<BucketListSnapshot const>& snapshot) const;
+        std::unique_ptr<BucketListSnapshot const>& snapshot,
+        std::map<uint32_t, std::unique_ptr<BucketListSnapshot const>>&
+            historicalSnapshots) const;
 
     // All metric recording functions must only be called by the main thread
     void startPointLoadTimer() const;

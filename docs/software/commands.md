@@ -198,10 +198,13 @@ Command options can only by placed after command.
 * **version**: Print version info and then exit.
 
 ## HTTP Commands
-By default stellar-core listens for connections from localhost on port 11626. 
-You can send commands to stellar-core via a web browser, curl, or using the --c 
-command line option (see above). Most commands return their results in JSON
-format.
+Stellar-core maintains two HTTP servers, a command server and a query server.
+The command endpoint listens for operator commands listed below, while the query
+server is appropriate for high throughput queries regarding current ledger state.
+By default the stellar-core command endpoint listens for connections from localhost
+on port 11626. By default the query endpoint is disabled. You can send commands to
+stellar-core via a web browser, curl, or using the --c command line option (see above).
+Most commands return their results in JSON format.
 
 * **self-check**: Perform history-related sanity checks, and it is planned
   to support other kinds of sanity checks in the future.
@@ -229,7 +232,7 @@ format.
   Returns information about the server in JSON format (sync state, connected
   peers, etc). When `compact` is set to `false`, adds additional information
 
-* **ll**  
+* **ll**
   `ll?level=L[&partition=P]`<br>
   Adjust the log level for partition P where P is one of Bucket, Database, Fs,
   Herder, History, Ledger, Overlay, Process, SCP, Tx (or all if no partition is
@@ -558,3 +561,64 @@ sampled and `LOADGEN_X_DISTRIBUTION_FOR_TESTING` holds the weights of each
 value.  The probability that `LOADGEN_X_FOR_TESTING[i]` is sampled is
 `LOADGEN_X_DISTRIBUTION_FOR_TESTING[i]/sum(LOADGEN_X_DISTRIBUTION_FOR_TESTING)`
 for each `i`.
+
+## HTTP Query Server
+
+The query server is appropriate for high throughput queries regarding current
+ledger state. By default the stellar-core command endpoint listens for connections
+from localhost on port 11626. By default the query endpoint is disabled, but can be
+enabled by specifying a port via the HTTP_QUERY_PORT config setting.
+
+### Operator Config Settings
+
+* **HTTP_QUERY_PORT**<br>
+  The port on which stellar-core will listen for query requests. By default, this
+  port is set to 0, which disables the query server.
+* **QUERY_THREAD_POOL_SIZE**<br>
+  Specifies the number of threads to dedicate to servicing queries. This is dependent
+  on what hardwarde stellar-core is running on, as well as the latency and throughput
+  requirements of downstream systems using this endpoint.
+* **QUERY_SNAPSHOT_LEDGERS**<br>
+  The `getledgerentryraw` endpoint is capable of returning state based on historical
+  ledger snapshots. In particular, the query server will retain ledger snapshots from
+  `[currLedgerSeq - QUERY_SNAPSHOT_LEDGERS, currLedgerSeq]`. Note that storing many
+  snapshots will lead to decreased performance and increased memory usage. Additionally,
+  these snapshots are "best effort" and not persisted on restart. If a downstream system
+  requires large ammounts of historical state, or requires persistent historical state,
+  it is recommended that a Horizon instance is used instead.
+
+### Query Commands
+
+* **`getledgerentryraw`**<br>
+  A POST request with the following body:<br>
+
+  ```
+  ledgerSeq=NUM&key=Base64&key=Base64...
+  ```
+
+  * `ledgerSeq`: An optional parameter, specifying the ledger snapshot to base the query on.
+  If the specified ledger in not available, a 404 error will be returned. If this parameter
+  is not set, the current ledger is used.
+  * `key`: A series of Base64 encoded XDR strings specifying the `LedgerKey` to query.
+
+  A JSON payload is returned as follows:
+
+  ```
+  {
+    "entries": [
+      {"le": "Base64-LedgerEntry"},
+      {"le": "Base64-LedgerEntry"},
+      ...
+    ],
+    "ledgerSeq": ledgerSeq
+  }
+  ```
+
+  For each `LedgerKey` that exists in the current ledger, the corresponding `LedgerEntry` Base64
+  XDR string is returned ("le"). If a given `LedgerKey` does not exist in the BucketList, it is
+  omitted from the return body. Note that this is a "raw" ledger interface that does not reason about
+  State Archival. In order to determine if a given entry is live or archived, it is necessary to
+  load both the `CONTRACT_DATA` entry as well as it's associated `TTL` entry, then compare the
+  value of the `TTL` entry to the current ledger sequence number.
+
+  `ledgerSeq` gives the ledger number on which the query was performed.

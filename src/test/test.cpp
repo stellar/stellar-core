@@ -312,6 +312,10 @@ getTestConfig(int instanceNumber, Config::TestDbMode mode)
         // Tests default to using SQL for ledger state
         thisConfig.DEPRECATED_SQL_LEDGER_STATE = true;
 
+        // Disable RPC endpoint in tests
+        thisConfig.HTTP_QUERY_PORT = 0;
+        thisConfig.QUERY_SNAPSHOT_LEDGERS = 0;
+
 #ifdef BEST_OFFER_DEBUGGING
         thisConfig.BEST_OFFER_DEBUGGING_ENABLED = true;
 #endif
