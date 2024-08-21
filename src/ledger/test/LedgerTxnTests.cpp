@@ -2975,6 +2975,19 @@ TEST_CASE("LedgerTxnRoot prefetch soroban entries", "[ledgertxn]")
         expectedSuccessKeys.emplace(LedgerEntryKey(classicEntry));
         checkPrefetch(expectedSuccessKeys);
     }
+    SECTION("non existent entries should not affect quota")
+    {
+        // Prefetch an entry which has not been added to the database.
+        auto nonExistentEntry =
+            LedgerTestUtils::generateValidLedgerEntryOfType(CONTRACT_DATA);
+        // Both should succeed, as the non-existent entry is not metered and
+        // should result in a null entry in the cache.
+        addTxn(false /* not enough */, {contractDataEntry, nonExistentEntry});
+        std::set<LedgerKey> expectedSuccessKeys{
+            LedgerEntryKey(contractDataEntry),
+            LedgerEntryKey(nonExistentEntry)};
+        checkPrefetch(expectedSuccessKeys);
+    }
 }
 
 TEST_CASE("LedgerKeyMeter tests")
