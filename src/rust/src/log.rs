@@ -7,7 +7,36 @@ use itertools::Itertools;
 use log::{Level, LevelFilter, Metadata, Record, SetLoggerError};
 use std::sync::atomic::{AtomicBool, Ordering};
 
-use crate::rust_bridge::{shim_isLogLevelAtLeast, shim_logAtPartitionAndLevel, LogLevel};
+use crate::rust_bridge::LogLevel;
+
+// The following functions are implemented in the C++ side of the bridge.
+// When running tests, the rust runner doesn't have the C++ logging subsystem
+// available, so we provide a simple implementation that just logs to stdout.
+#[cfg(not(test))]
+use crate::rust_bridge::{shim_isLogLevelAtLeast, shim_logAtPartitionAndLevel};
+#[cfg(test)]
+fn shim_isLogLevelAtLeast(
+    _partition: &std::pin::Pin<&mut cxx::CxxString>,
+    _level: LogLevel,
+) -> bool {
+    true
+}
+#[cfg(test)]
+fn shim_logAtPartitionAndLevel(
+    partition: &std::pin::Pin<&mut cxx::CxxString>,
+    level: LogLevel,
+    msg: &std::pin::Pin<&mut cxx::CxxString>,
+) {
+    let lvl = match level {
+        LogLevel::LVL_ERROR => "ERROR",
+        LogLevel::LVL_WARNING => "WARNING",
+        LogLevel::LVL_INFO => "INFO",
+        LogLevel::LVL_DEBUG => "DEBUG",
+        LogLevel::LVL_TRACE => "TRACE",
+        _ => "UNKNOWN",
+    };
+    println!("{} ({}): {}", partition, lvl, msg);
+}
 
 // This is a simple implementation of Rust's standard logging API that routes
 // log messages over to the stellar-core logging system, which uses spdlog.

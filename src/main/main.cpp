@@ -170,7 +170,12 @@ void
 checkXDRFileIdentity()
 {
     using namespace stellar::rust_bridge;
-    rust::Vec<XDRFileHash> rustHashes = get_xdr_hashes().curr;
+
+    rust::Vec<SorobanVersionInfo> rustVersions = get_soroban_version_info(
+        stellar::Config::CURRENT_LEDGER_PROTOCOL_VERSION);
+    rust::Vec<XDRFileHash> const& rustHashes =
+        rustVersions.back().xdr_file_hashes;
+
     for (auto const& cpp : stellar::XDR_FILES_SHA256)
     {
         if (cpp.first.empty())

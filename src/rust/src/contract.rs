@@ -7,7 +7,7 @@ use crate::{
     rust_bridge::{
         CxxBuf, CxxFeeConfiguration, CxxLedgerEntryRentChange, CxxLedgerInfo,
         CxxRentFeeConfiguration, CxxTransactionResources, CxxWriteFeeConfiguration, FeePair,
-        InvokeHostFunctionOutput, RustBuf, XDRFileHash,
+        InvokeHostFunctionOutput, RustBuf, SorobanVersionInfo, XDRFileHash,
     },
 };
 use log::{debug, trace};
@@ -26,13 +26,14 @@ use super::soroban_env_host::{
         compute_write_fee_per_1kb as host_compute_write_fee_per_1kb, FeeConfiguration,
         LedgerEntryRentChange, RentFeeConfiguration, TransactionResources, WriteFeeConfiguration,
     },
+    meta,
     xdr::{
         self, ContractCostParams, ContractEvent, ContractEventBody, ContractEventType,
         ContractEventV0, DiagnosticEvent, ExtensionPoint, LedgerEntry, LedgerEntryData,
         LedgerEntryExt, Limits, ReadXdr, ScError, ScErrorCode, ScErrorType, ScSymbol, ScVal,
         TtlEntry, WriteXdr, XDR_FILES_SHA256,
     },
-    HostError, LedgerInfo,
+    HostError, LedgerInfo, VERSION,
 };
 use std::error::Error;
 
@@ -182,6 +183,28 @@ pub fn get_xdr_hashes() -> Vec<XDRFileHash> {
             hash: (*hash).into(),
         })
         .collect()
+}
+
+pub const fn get_max_proto() -> u32 {
+    meta::get_ledger_protocol_version(VERSION.interface)
+}
+
+pub fn get_soroban_version_info(core_max_proto: u32) -> SorobanVersionInfo {
+    use meta::{get_ledger_protocol_version, get_pre_release_version};
+    SorobanVersionInfo {
+        env_max_proto: get_ledger_protocol_version(VERSION.interface),
+        env_pkg_ver: VERSION.pkg.to_string(),
+        env_git_rev: VERSION.rev.to_string(),
+        env_pre_release_ver: get_pre_release_version(VERSION.interface),
+        xdr_pkg_ver: VERSION.xdr.pkg.to_string(),
+        xdr_git_rev: VERSION.xdr.rev.to_string(),
+        xdr_base_git_rev: match VERSION.xdr.xdr {
+            "next" => VERSION.xdr.xdr_next.to_string(),
+            "curr" => VERSION.xdr.xdr_curr.to_string(),
+            _ => "unknown configuration".to_string(),
+        },
+        xdr_file_hashes: get_xdr_hashes(),
+    }
 }
 
 fn log_diagnostic_events(events: &Vec<DiagnosticEvent>) {
