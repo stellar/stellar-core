@@ -89,10 +89,6 @@ db-urls = ["https://github.com/rustsec/advisory-db"]
 # output a note when they are encountered.
 ignore = [
     #"RUSTSEC-0000-0000",
-
-    # Very low-severity TTY error we will never hit: code that's not compiled
-    # into production, only on windows, and only with a custom allocator.
-    "RUSTSEC-2021-0145"
 ]
 # Threshold for security vulnerabilities, any vulnerability with a CVSS score
 # lower than the range specified will be ignored. Note that ignored advisories
@@ -243,7 +239,11 @@ skip = [
 # dependencies starting at the specified crate, up to a certain depth, which is
 # by default infinite.
 skip-tree = [
-   { name = "soroban-wasmi" }
+   { name = "soroban-wasmi" },
+   { name = "soroban-env-common" },
+   { name = "soroban-env-host" },
+   { name = "soroban-env-macros" },
+   { name = "soroban-builtin-sdk-macros" },
  ]
 
 # This section is considered when running `cargo deny check sources`.
@@ -260,7 +260,9 @@ unknown-git = "deny"
 # if not specified. If it is specified but empty, no registries are allowed.
 allow-registry = ["https://github.com/rust-lang/crates.io-index"]
 # List of URLs for allowed Git repositories
-allow-git = []
+allow-git = [
+    "git://github.com/rustsec/rustsec"
+]
 
 [sources.allow-org]
 # 1 or more github.com organizations to allow git sources for
