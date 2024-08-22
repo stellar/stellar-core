@@ -383,7 +383,7 @@ main(int argc, char* const* argv)
     xdr::marshaling_stack_limit = 1000;
 
     checkStellarCoreMajorVersionProtocolIdentity();
-    rust_bridge::check_lockfile_has_expected_dep_trees();
+    rust_bridge::check_lockfile_has_expected_dep_trees(Config::CURRENT_LEDGER_PROTOCOL_VERSION);
     checkXDRFileIdentity();
 
     int res = handleCommandLine(argc, argv);

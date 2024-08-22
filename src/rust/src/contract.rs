@@ -10,7 +10,7 @@ use crate::{
         InvokeHostFunctionOutput, RustBuf, SorobanVersionInfo, XDRFileHash,
     },
 };
-use log::{debug, trace};
+use log::{debug, trace, warn};
 use std::{fmt::Display, io::Cursor, panic, rc::Rc, time::Instant};
 
 // This module (contract) is bound to _two separate locations_ in the module
@@ -190,20 +190,42 @@ pub const fn get_max_proto() -> u32 {
     meta::get_ledger_protocol_version(VERSION.interface)
 }
 
-pub fn get_soroban_version_info() -> SorobanVersionInfo {
-    use meta::{get_ledger_protocol_version, get_pre_release_version};
+pub fn get_soroban_version_info(core_max_proto: u32) -> SorobanVersionInfo {
+    let env_max_proto = get_max_proto();
+    let xdr_base_git_rev = match VERSION.xdr.xdr {
+        "curr" => VERSION.xdr.xdr_curr.to_string(),
+        "next" | "curr,next" => {
+            if !cfg!(feature = "core-vnext") {
+                warn!(
+                    "soroban version {} XDR module built with 'next' feature,
+                       but core built without 'core-vnext' feature",
+                    VERSION.pkg
+                );
+            }
+            if core_max_proto != env_max_proto {
+                warn!(
+                    "soroban version {} XDR module built with 'next' feature, \
+                       even though this is not the newest core protocol ({})",
+                    VERSION.pkg, core_max_proto
+                );
+                warn!(
+                    "this can happen if multiple soroban crates depend on the \
+                       same XDR crate which then gets feature-unified"
+                )
+            }
+            VERSION.xdr.xdr_next.to_string()
+        }
+        other => format!("unknown XDR module configuration: '{other}'"),
+    };
+
     SorobanVersionInfo {
-        env_max_proto: get_ledger_protocol_version(VERSION.interface),
+        env_max_proto,
         env_pkg_ver: VERSION.pkg.to_string(),
         env_git_rev: VERSION.rev.to_string(),
-        env_pre_release_ver: get_pre_release_version(VERSION.interface),
+        env_pre_release_ver: meta::get_pre_release_version(VERSION.interface),
         xdr_pkg_ver: VERSION.xdr.pkg.to_string(),
         xdr_git_rev: VERSION.xdr.rev.to_string(),
-        xdr_base_git_rev: match VERSION.xdr.xdr {
-            "next" => VERSION.xdr.xdr_next.to_string(),
-            "curr" => VERSION.xdr.xdr_curr.to_string(),
-            _ => "unknown configuration".to_string(),
-        },
+        xdr_base_git_rev,
         xdr_file_hashes: get_xdr_hashes(),
     }
 }

@@ -179,7 +179,7 @@ mod rust_bridge {
         fn start_tracy();
         fn to_base64(b: &CxxVector<u8>, mut s: Pin<&mut CxxString>);
         fn from_base64(s: &CxxString, mut b: Pin<&mut CxxVector<u8>>);
-        fn check_lockfile_has_expected_dep_trees();
+        fn check_lockfile_has_expected_dep_trees(core_max_proto: u32);
         fn invoke_host_function(
             config_max_protocol: u32,
             enable_diagnostics: bool,
@@ -505,9 +505,10 @@ fn package_matches_hash(pkg: &cargo_lock::Package, hash: &str) -> bool {
 impl HostModule {
     fn check_lockfile_has_expected_dep_tree(
         &self,
+        core_max_proto: u32,
         lockfile: &Lockfile,
     ) {
-        let ver_info = (self.get_soroban_version_info)();
+        let ver_info = (self.get_soroban_version_info)(core_max_proto);
         let pkg = lockfile
             .packages
             .iter()
@@ -583,13 +584,13 @@ impl HostModule {
 //
 // The check additionally checks that the major version number of soroban that
 // is compiled-in matches its max supported protocol number.
-pub fn check_lockfile_has_expected_dep_trees() {
+pub fn check_lockfile_has_expected_dep_trees(core_max_proto: u32) {
     static CARGO_LOCK_FILE_CONTENT: &'static str = include_str!("../../../Cargo.lock");
     let lockfile = Lockfile::from_str(CARGO_LOCK_FILE_CONTENT)
         .expect("parsing compiled-in Cargo.lock file content");
 
     for hm in HOST_MODULES.iter() {
-        hm.check_lockfile_has_expected_dep_tree(&lockfile);
+        hm.check_lockfile_has_expected_dep_tree(core_max_proto, &lockfile);
     }
 }
 
@@ -603,7 +604,7 @@ fn get_rustc_version() -> String {
 fn get_soroban_version_info(core_max_proto: u32) -> Vec<SorobanVersionInfo> {
     let infos: Vec<SorobanVersionInfo> = HOST_MODULES
         .iter()
-        .map(|f| (f.get_soroban_version_info)())
+        .map(|f| (f.get_soroban_version_info)(core_max_proto))
         .collect();
     // This check should be safe to keep. The feature soroban-vnext is passed
     // through to soroban-env-host-p{NN}/next and so should enable protocol
@@ -641,7 +642,7 @@ struct HostModule {
     max_proto: u32,
     name: &'static str,
     dep_tree: &'static str,
-    get_soroban_version_info: fn() -> SorobanVersionInfo,
+    get_soroban_version_info: fn(u32) -> SorobanVersionInfo,
     invoke_host_function: fn(
         enable_diagnostics: bool,
         instruction_limit: u32,
