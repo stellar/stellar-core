@@ -503,11 +503,7 @@ fn package_matches_hash(pkg: &cargo_lock::Package, hash: &str) -> bool {
 }
 
 impl HostModule {
-    fn check_lockfile_has_expected_dep_tree(
-        &self,
-        core_max_proto: u32,
-        lockfile: &Lockfile,
-    ) {
+    fn check_lockfile_has_expected_dep_tree(&self, core_max_proto: u32, lockfile: &Lockfile) {
         let ver_info = (self.get_soroban_version_info)(core_max_proto);
         let pkg = lockfile
             .packages
@@ -611,7 +607,11 @@ fn get_soroban_version_info(core_max_proto: u32) -> Vec<SorobanVersionInfo> {
     // support for the next version simultaneously in core and soroban; and we
     // should really never otherwise have core compiled with a protocol version
     // that soroban doesn't support.
-    if infos.iter().find(|i| i.env_max_proto >= core_max_proto).is_none() {
+    if infos
+        .iter()
+        .find(|i| i.env_max_proto >= core_max_proto)
+        .is_none()
+    {
         panic!(
             "no soroban host found supporting stellar-core protocol {}",
             core_max_proto
