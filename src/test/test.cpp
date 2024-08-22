@@ -301,7 +301,7 @@ getTestConfig(int instanceNumber, Config::TestDbMode mode)
         // disable self-check
         thisConfig.AUTOMATIC_SELF_CHECK_PERIOD = std::chrono::seconds(0);
         // only spin up a small number of worker threads
-        thisConfig.WORKER_THREADS = 2;
+        thisConfig.WORKER_THREADS = 3;
         thisConfig.QUORUM_INTERSECTION_CHECKER = false;
         thisConfig.METADATA_DEBUG_LEDGERS = 0;
 
@@ -315,6 +315,10 @@ getTestConfig(int instanceNumber, Config::TestDbMode mode)
         // Disable RPC endpoint in tests
         thisConfig.HTTP_QUERY_PORT = 0;
         thisConfig.QUERY_SNAPSHOT_LEDGERS = 0;
+
+        // TODO: Change this to true when DEPRECATED_SQL_LEDGER_STATE is changed
+        // to default false in test configs
+        thisConfig.BACKGROUND_EVICTION_SCAN = false;
 
 #ifdef BEST_OFFER_DEBUGGING
         thisConfig.BEST_OFFER_DEBUGGING_ENABLED = true;
