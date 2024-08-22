@@ -11,6 +11,7 @@
 
 # Root options
 
+[graph]
 # If 1 or more target triples (and optionally, target_features) are specified,
 # only the specified targets will be checked when running `cargo deny check`.
 # This means, if a particular package is only ever used as a target specific
@@ -52,15 +53,14 @@ exclude = [
    # subsystems also winds up pulling in conflicts, but again, just
    # dev-deps or non-produciton configs.
    "tracking-allocator",
-   # Temporary exclusion due to signing-related vulnerability (this doesn't
-   # affect Core as Core doesn't use this for signing)
+   # Temporary
    "curve25519-dalek"
 ]
 
 # If true, metadata will be collected with `--all-features`. Note that this can't
 # be toggled off if true, if you want to conditionally enable `--all-features` it
 # is recommended to pass `--all-features` on the cmd line instead
-all-features = false
+all-features = true
 # If true, metadata will be collected with `--no-default-features`. The same
 # caveat with `all-features` applies
 no-default-features = false
@@ -78,24 +78,21 @@ no-default-features = false
 # More documentation for the advisories section can be found here:
 # https://embarkstudios.github.io/cargo-deny/checks/advisories/cfg.html
 [advisories]
+# as of version 2, all advisories are errors and one must ignore
+# any you want to ignore.
+version = 2
 # The path where the advisory database is cloned/fetched into
 db-path = "~/.cargo/advisory-db"
 # The url(s) of the advisory databases to use
 db-urls = ["https://github.com/rustsec/advisory-db"]
-# The lint level for security vulnerabilities
-vulnerability = "deny"
-# The lint level for unmaintained crates
-unmaintained = "warn"
-# The lint level for crates that have been yanked from their source registry
-yanked = "warn"
-# The lint level for crates with security notices. Note that as of
-# 2019-12-17 there are no security notice advisories in
-# https://github.com/rustsec/advisory-db
-notice = "warn"
 # A list of advisory IDs to ignore. Note that ignored advisories will still
 # output a note when they are encountered.
 ignore = [
     #"RUSTSEC-0000-0000",
+
+    # Very low-severity TTY error we will never hit: code that's not compiled
+    # into production, only on windows, and only with a custom allocator.
+    "RUSTSEC-2021-0145"
 ]
 # Threshold for security vulnerabilities, any vulnerability with a CVSS score
 # lower than the range specified will be ignored. Note that ignored advisories
@@ -117,8 +114,8 @@ ignore = [
 # More documentation for the licenses section can be found here:
 # https://embarkstudios.github.io/cargo-deny/checks/licenses/cfg.html
 [licenses]
-# The lint level for crates which do not have a detectable license
-unlicensed = "deny"
+# As of version 2 all not-explicitly-allowed cases are denied.
+version = 2
 # List of explicitly allowed licenses
 # See https://spdx.org/licenses/ for list of possible licenses
 # [possible values: any SPDX 3.11 short identifier (+ optional exception)].
@@ -130,26 +127,6 @@ allow = [
     "Unicode-DFS-2016",
     # "MPL-2.0"
 ]
-# List of explicitly disallowed licenses
-# See https://spdx.org/licenses/ for list of possible licenses
-# [possible values: any SPDX 3.11 short identifier (+ optional exception)].
-deny = [
-    #"Nokia",
-]
-# Lint level for licenses considered copyleft
-copyleft = "deny"
-# Blanket approval or denial for OSI-approved or FSF Free/Libre licenses
-# * both - The license will be approved if it is both OSI-approved *AND* FSF
-# * either - The license will be approved if it is either OSI-approved *OR* FSF
-# * osi-only - The license will be approved if is OSI-approved *AND NOT* FSF
-# * fsf-only - The license will be approved if is FSF *AND NOT* OSI-approved
-# * neither - This predicate is ignored and the default lint level is used
-allow-osi-fsf-free = "neither"
-# Lint level used when no other predicates are matched
-# 1. License isn't in the allow or deny lists
-# 2. License isn't copyleft
-# 3. License isn't OSI/FSF, or allow-osi-fsf-free = "neither"
-default = "deny"
 # The confidence threshold for detecting a license from license text.
 # The higher the value, the more closely the license text must be to the
 # canonical license text of a valid SPDX license file.
@@ -266,7 +243,8 @@ skip = [
 # dependencies starting at the specified crate, up to a certain depth, which is
 # by default infinite.
 skip-tree = [
-]
+   { name = "soroban-wasmi" }
+ ]
 
 # This section is considered when running `cargo deny check sources`.
 # More documentation about the 'sources' section can be found here:
@@ -282,9 +260,7 @@ unknown-git = "deny"
 # if not specified. If it is specified but empty, no registries are allowed.
 allow-registry = ["https://github.com/rust-lang/crates.io-index"]
 # List of URLs for allowed Git repositories
-allow-git = [
-    "https://github.com/rustsec/rustsec"
-]
+allow-git = []
 
 [sources.allow-org]
 # 1 or more github.com organizations to allow git sources for
