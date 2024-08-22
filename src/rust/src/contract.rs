@@ -119,6 +119,7 @@ impl From<CxxWriteFeeConfiguration> for WriteFeeConfiguration {
 // Currently they are just two same-valued constants.
 const MARSHALLING_STACK_LIMIT: u32 = 1000;
 
+#[allow(dead_code)]
 #[derive(Debug)]
 pub(crate) enum CoreHostError {
     Host(HostError),
@@ -189,7 +190,7 @@ pub const fn get_max_proto() -> u32 {
     meta::get_ledger_protocol_version(VERSION.interface)
 }
 
-pub fn get_soroban_version_info(core_max_proto: u32) -> SorobanVersionInfo {
+pub fn get_soroban_version_info() -> SorobanVersionInfo {
     use meta::{get_ledger_protocol_version, get_pre_release_version};
     SorobanVersionInfo {
         env_max_proto: get_ledger_protocol_version(VERSION.interface),

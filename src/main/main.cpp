@@ -171,6 +171,10 @@ checkXDRFileIdentity()
 {
     using namespace stellar::rust_bridge;
 
+    // This will panic if soroban does not support the current ledger protocol
+    // version. It should even work if configured with "next": the next feature
+    // should enable the next feature on the most recent soroban host, and to
+    // select the next xdr module from the xdr crate linked to that host.
     rust::Vec<SorobanVersionInfo> rustVersions = get_soroban_version_info(
         stellar::Config::CURRENT_LEDGER_PROTOCOL_VERSION);
     rust::Vec<XDRFileHash> const& rustHashes =
@@ -379,14 +383,7 @@ main(int argc, char* const* argv)
     xdr::marshaling_stack_limit = 1000;
 
     checkStellarCoreMajorVersionProtocolIdentity();
-    rust_bridge::check_lockfile_has_expected_dep_trees(
-        Config::CURRENT_LEDGER_PROTOCOL_VERSION);
-
-    // FIXME: This check is done against the XDR version enabled in the host
-    // (curr vs next). At the moment, the host is using curr, but core can be
-    // built with vnext, causing a curr diff against next. This works now
-    // because the xdr is indentical, but the moment that changes this checkk
-    // will fail and will need to be fixed.
+    rust_bridge::check_lockfile_has_expected_dep_trees();
     checkXDRFileIdentity();
 
     int res = handleCommandLine(argc, argv);

@@ -179,7 +179,7 @@ mod rust_bridge {
         fn start_tracy();
         fn to_base64(b: &CxxVector<u8>, mut s: Pin<&mut CxxString>);
         fn from_base64(s: &CxxString, mut b: Pin<&mut CxxVector<u8>>);
-        fn check_lockfile_has_expected_dep_trees(curr_max_protocol_version: u32);
+        fn check_lockfile_has_expected_dep_trees();
         fn invoke_host_function(
             config_max_protocol: u32,
             enable_diagnostics: bool,
@@ -220,7 +220,8 @@ mod rust_bridge {
         // Return the rustc version used to build this binary.
         fn get_rustc_version() -> String;
 
-        // Return the soroban versions linked into this binary.
+        // Return the soroban versions linked into this binary. Panics
+        // if the protocol version is not supported.
         fn get_soroban_version_info(core_max_proto: u32) -> Vec<SorobanVersionInfo>;
 
         // Return true if configured with cfg(feature="soroban-env-host-prev")
@@ -475,7 +476,6 @@ mod soroban_p21 {
 
 // We alias the latest soroban as soroban_curr to help reduce churn in code
 // that's just always supposed to use the latest.
-use soroban_curr::soroban_env_host as soroban_env_host_curr;
 use soroban_p22 as soroban_curr;
 
 pub fn compiled_with_soroban_prev() -> bool {
@@ -505,10 +505,9 @@ fn package_matches_hash(pkg: &cargo_lock::Package, hash: &str) -> bool {
 impl HostModule {
     fn check_lockfile_has_expected_dep_tree(
         &self,
-        curr_max_protocol_version: u32,
         lockfile: &Lockfile,
     ) {
-        let ver_info = (self.get_version_info)(curr_max_protocol_version);
+        let ver_info = (self.get_soroban_version_info)();
         let pkg = lockfile
             .packages
             .iter()
@@ -584,13 +583,13 @@ impl HostModule {
 //
 // The check additionally checks that the major version number of soroban that
 // is compiled-in matches its max supported protocol number.
-pub fn check_lockfile_has_expected_dep_trees(curr_max_protocol_version: u32) {
+pub fn check_lockfile_has_expected_dep_trees() {
     static CARGO_LOCK_FILE_CONTENT: &'static str = include_str!("../../../Cargo.lock");
     let lockfile = Lockfile::from_str(CARGO_LOCK_FILE_CONTENT)
         .expect("parsing compiled-in Cargo.lock file content");
 
     for hm in HOST_MODULES.iter() {
-        hm.check_lockfile_has_expected_dep_tree(curr_max_protocol_version, &lockfile);
+        hm.check_lockfile_has_expected_dep_tree(&lockfile);
     }
 }
 
@@ -602,10 +601,22 @@ fn get_rustc_version() -> String {
 }
 
 fn get_soroban_version_info(core_max_proto: u32) -> Vec<SorobanVersionInfo> {
-    HOST_MODULES
+    let infos: Vec<SorobanVersionInfo> = HOST_MODULES
         .iter()
-        .map(|f| (f.get_version_info)(core_max_proto))
-        .collect()
+        .map(|f| (f.get_soroban_version_info)())
+        .collect();
+    // This check should be safe to keep. The feature soroban-vnext is passed
+    // through to soroban-env-host-p{NN}/next and so should enable protocol
+    // support for the next version simultaneously in core and soroban; and we
+    // should really never otherwise have core compiled with a protocol version
+    // that soroban doesn't support.
+    if infos.iter().find(|i| i.env_max_proto >= core_max_proto).is_none() {
+        panic!(
+            "no soroban host found supporting stellar-core protocol {}",
+            core_max_proto
+        );
+    }
+    infos
 }
 
 impl std::fmt::Display for rust_bridge::BridgeError {
@@ -630,7 +641,7 @@ struct HostModule {
     max_proto: u32,
     name: &'static str,
     dep_tree: &'static str,
-    get_version_info: fn(u32) -> SorobanVersionInfo,
+    get_soroban_version_info: fn() -> SorobanVersionInfo,
     invoke_host_function: fn(
         enable_diagnostics: bool,
         instruction_limit: u32,
@@ -661,7 +672,7 @@ macro_rules! proto_versioned_functions_for_module {
             max_proto: $module::contract::get_max_proto(),
             dep_tree: include_str!(concat!("dep-trees/", stringify!($module), ".txt")),
             name: stringify!($module),
-            get_version_info: $module::contract::get_soroban_version_info,
+            get_soroban_version_info: $module::contract::get_soroban_version_info,
             invoke_host_function: $module::contract::invoke_host_function,
             compute_transaction_resource_fee: $module::contract::compute_transaction_resource_fee,
             compute_rent_fee: $module::contract::compute_rent_fee,
