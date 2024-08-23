@@ -15,6 +15,7 @@
 // else.
 #include "util/asio.h"
 #include "bucket/Bucket.h"
+#include "bucket/BucketListSnapshot.h"
 #include "bucket/BucketManager.h"
 #include "catchup/ApplyBucketsWork.h"
 #include "crypto/Hex.h"
@@ -83,10 +84,10 @@ ApplicationImpl::ApplicationImpl(VirtualClock& clock, Config const& cfg)
     : mVirtualClock(clock)
     , mConfig(cfg)
     // Allocate one worker to eviction when background eviction enabled
-    , mWorkerIOContext(mConfig.EXPERIMENTAL_BACKGROUND_EVICTION_SCAN
+    , mWorkerIOContext(mConfig.isUsingBackgroundEviction()
                            ? mConfig.WORKER_THREADS - 1
                            : mConfig.WORKER_THREADS)
-    , mEvictionIOContext(mConfig.EXPERIMENTAL_BACKGROUND_EVICTION_SCAN
+    , mEvictionIOContext(mConfig.isUsingBackgroundEviction()
                              ? std::make_unique<asio::io_context>(1)
                              : nullptr)
     , mWork(std::make_unique<asio::io_context::work>(mWorkerIOContext))
@@ -156,7 +157,7 @@ ApplicationImpl::ApplicationImpl(VirtualClock& clock, Config const& cfg)
     auto t = mConfig.WORKER_THREADS;
     LOG_DEBUG(DEFAULT_LOG, "Application constructing (worker threads: {})", t);
 
-    if (mConfig.EXPERIMENTAL_BACKGROUND_EVICTION_SCAN)
+    if (mConfig.isUsingBackgroundEviction())
     {
         releaseAssert(mConfig.WORKER_THREADS > 0);
         releaseAssert(mEvictionIOContext);
@@ -829,20 +830,50 @@ ApplicationImpl::validateAndLogConfig()
         }
     }
 
-    if (mConfig.EXPERIMENTAL_BACKGROUND_EVICTION_SCAN)
+    if (mConfig.BACKGROUND_EVICTION_SCAN)
     {
         if (!mConfig.isUsingBucketListDB())
         {
             throw std::invalid_argument(
-                "DEPRECATED_SQL_LEDGER_STATE must be false to use "
-                "EXPERIMENTAL_BACKGROUND_EVICTION_SCAN");
+                "BACKGROUND_EVICTION_SCAN set to true but "
+                "DEPRECATED_SQL_LEDGER_STATE is set to true. "
+                "DEPRECATED_SQL_LEDGER_STATE must be set to false to enable "
+                "background eviction.");
         }
 
         if (mConfig.WORKER_THREADS < 2)
         {
+            throw std::invalid_argument("BACKGROUND_EVICTION_SCAN requires "
+                                        "WORKER_THREADS > 1");
+        }
+    }
+
+    if (mConfig.HTTP_QUERY_PORT != 0)
+    {
+        if (isNetworkedValidator)
+        {
+            throw std::invalid_argument("HTTP_QUERY_PORT is non-zero, "
+                                        "NODE_IS_VALIDATOR is set, and "
+                                        "RUN_STANDALONE is not set");
+        }
+
+        if (mConfig.HTTP_QUERY_PORT == mConfig.HTTP_PORT)
+        {
             throw std::invalid_argument(
-                "EXPERIMENTAL_BACKGROUND_EVICTION_SCAN requires "
-                "WORKER_THREADS > 1");
+                "HTTP_QUERY_PORT must be different from HTTP_PORT");
+        }
+
+        if (!mConfig.isUsingBucketListDB())
+        {
+            throw std::invalid_argument(
+                "HTTP_QUERY_PORT requires DEPRECATED_SQL_LEDGER_STATE to be "
+                "false");
+        }
+
+        if (mConfig.QUERY_THREAD_POOL_SIZE == 0)
+        {
+            throw std::invalid_argument(
+                "HTTP_QUERY_PORT requires QUERY_THREAD_POOL_SIZE > 0");
         }
     }
 

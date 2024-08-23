@@ -27,6 +27,7 @@
 #include "main/Config.h"
 #include "main/ErrorMessages.h"
 #include "overlay/OverlayManager.h"
+#include "transactions/MutableTransactionResult.h"
 #include "transactions/OperationFrame.h"
 #include "transactions/TransactionFrameBase.h"
 #include "transactions/TransactionMetaFrame.h"
@@ -899,11 +900,13 @@ LedgerManagerImpl::closeLedger(LedgerCloseData const& ledgerData)
 
     // first, prefetch source accounts for txset, then charge fees
     prefetchTxSourceIds(txs);
-    processFeesSeqNums(txs, ltx, *applicableTxSet, ledgerCloseMeta);
+    auto const mutableTxResults =
+        processFeesSeqNums(txs, ltx, *applicableTxSet, ledgerCloseMeta);
 
     TransactionResultSet txResultSet;
     txResultSet.results.reserve(txs.size());
-    applyTransactions(*applicableTxSet, txs, ltx, txResultSet, ledgerCloseMeta);
+    applyTransactions(*applicableTxSet, txs, mutableTxResults, ltx, txResultSet,
+                      ledgerCloseMeta);
     if (mApp.getConfig().MODE_STORES_HISTORY_MISC)
     {
         storeTxSet(mApp.getDatabase(), ltx.loadHeader().current().ledgerSeq,
@@ -1036,7 +1039,7 @@ LedgerManagerImpl::closeLedger(LedgerCloseData const& ledgerData)
     // step 3
     if (protocolVersionStartsFrom(initialLedgerVers,
                                   SOROBAN_PROTOCOL_VERSION) &&
-        mApp.getConfig().EXPERIMENTAL_BACKGROUND_EVICTION_SCAN)
+        mApp.getConfig().isUsingBackgroundEviction())
     {
         mApp.getBucketManager().startBackgroundEvictionScan(ledgerSeq + 1);
     }
@@ -1337,27 +1340,30 @@ mergeOpInTx(std::vector<Operation> const& ops)
     return false;
 }
 
-void
+std::vector<MutableTxResultPtr>
 LedgerManagerImpl::processFeesSeqNums(
     std::vector<TransactionFrameBasePtr> const& txs,
     AbstractLedgerTxn& ltxOuter, ApplicableTxSetFrame const& txSet,
     std::unique_ptr<LedgerCloseMetaFrame> const& ledgerCloseMeta)
 {
     ZoneScoped;
+    std::vector<MutableTxResultPtr> txResults;
+    txResults.reserve(txs.size());
     CLOG_DEBUG(Ledger, "processing fees and sequence numbers");
     int index = 0;
     try
     {
         LedgerTxn ltx(ltxOuter);
         auto header = ltx.loadHeader().current();
-        auto ledgerSeq = header.ledgerSeq;
         std::map<AccountID, SequenceNumber> accToMaxSeq;
 
         bool mergeSeen = false;
         for (auto tx : txs)
         {
             LedgerTxn ltxTx(ltx);
-            tx->processFeeSeqNum(ltxTx, txSet.getTxBaseFee(tx, header));
+
+            txResults.push_back(
+                tx->processFeeSeqNum(ltxTx, txSet.getTxBaseFee(tx, header)));
 
             if (protocolVersionStartsFrom(
                     ltxTx.loadHeader().current().ledgerVersion,
@@ -1384,18 +1390,7 @@ LedgerManagerImpl::processFeesSeqNums(
                 ledgerCloseMeta->setLastTxProcessingFeeProcessingChanges(
                     changes);
             }
-            // Note to future: when we eliminate the txhistory and txfeehistory
-            // tables, the following step can be removed.
-            //
-            // Also note: for historical reasons the history tables number
-            // txs counting from 1, not 0. We preserve this for the time being
-            // in case anyone depends on it.
             ++index;
-            if (mApp.getConfig().MODE_STORES_HISTORY_MISC)
-            {
-                storeTransactionFee(mApp.getDatabase(), ledgerSeq, tx, changes,
-                                    index);
-            }
             ltxTx.commit();
         }
 
@@ -1436,6 +1431,8 @@ LedgerManagerImpl::processFeesSeqNums(
         CLOG_FATAL(Ledger, "{}", REPORT_INTERNAL_BUG);
         throw;
     }
+
+    return txResults;
 }
 
 void
@@ -1475,7 +1472,7 @@ LedgerManagerImpl::prefetchTransactionData(
             }
             else
             {
-                tx->insertKeysForTxApply(classicKeys, {nullptr});
+                tx->insertKeysForTxApply(classicKeys, nullptr);
             }
         }
         // Prefetch classic and soroban keys separately for greater visibility
@@ -1495,11 +1492,13 @@ LedgerManagerImpl::prefetchTransactionData(
 void
 LedgerManagerImpl::applyTransactions(
     ApplicableTxSetFrame const& txSet,
-    std::vector<TransactionFrameBasePtr> const& txs, AbstractLedgerTxn& ltx,
-    TransactionResultSet& txResultSet,
+    std::vector<TransactionFrameBasePtr> const& txs,
+    std::vector<MutableTxResultPtr> const& mutableTxResults,
+    AbstractLedgerTxn& ltx, TransactionResultSet& txResultSet,
     std::unique_ptr<LedgerCloseMetaFrame> const& ledgerCloseMeta)
 {
     ZoneNamedN(txsZone, "applyTransactions", true);
+    releaseAssert(txs.size() == mutableTxResults.size());
     int index = 0;
 
     // Record counts
@@ -1524,9 +1523,12 @@ LedgerManagerImpl::applyTransactions(
     uint64_t txFailed{0};
     uint64_t sorobanTxSucceeded{0};
     uint64_t sorobanTxFailed{0};
-    for (auto tx : txs)
+    for (size_t i = 0; i < txs.size(); ++i)
     {
         ZoneNamedN(txZone, "applyTransaction", true);
+        auto tx = txs.at(i);
+        auto mutableTxResult = mutableTxResults.at(i);
+
         auto txTime = mTransactionApply.TimeScope();
         TransactionMetaFrame tm(ltx.loadHeader().current().ledgerVersion);
         CLOG_DEBUG(Tx, " tx#{} = {} ops={} txseq={} (@ {})", index,
@@ -1545,11 +1547,11 @@ LedgerManagerImpl::applyTransactions(
         }
         ++txNum;
 
-        tx->apply(mApp, ltx, tm, subSeed);
-        tx->processPostApply(mApp, ltx, tm);
+        tx->apply(mApp, ltx, tm, mutableTxResult, subSeed);
+        tx->processPostApply(mApp, ltx, tm, mutableTxResult);
         TransactionResultPair results;
         results.transactionHash = tx->getContentsHash();
-        results.result = tx->getResult();
+        results.result = mutableTxResult->getResult();
         if (results.result.result.code() == TransactionResultCode::txSUCCESS)
         {
             if (tx->isSoroban())
@@ -1582,8 +1584,8 @@ LedgerManagerImpl::applyTransactions(
         // Then finally store the results and meta into the txhistory table.
         // if we're running in a mode that has one.
         //
-        // Note to future: when we eliminate the txhistory and txfeehistory
-        // tables, the following step can be removed.
+        // Note to future: when we eliminate the txhistory for archiving, the
+        // next step can be removed.
         //
         // Also note: for historical reasons the history tables number
         // txs counting from 1, not 0. We preserve this for the time being
@@ -1673,7 +1675,7 @@ LedgerManagerImpl::transferLedgerEntriesToBucketList(
             auto keys = ltx.getAllTTLKeysWithoutSealing();
             LedgerTxn ltxEvictions(ltx);
 
-            if (mApp.getConfig().EXPERIMENTAL_BACKGROUND_EVICTION_SCAN)
+            if (mApp.getConfig().isUsingBackgroundEviction())
             {
                 mApp.getBucketManager().resolveBackgroundEvictionScan(
                     ltxEvictions, ledgerSeq, keys);

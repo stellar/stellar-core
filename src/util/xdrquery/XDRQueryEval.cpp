@@ -55,7 +55,7 @@ LiteralNode::LiteralNode(LiteralNodeType valueType, std::string const& val)
 }
 
 ResultType
-LiteralNode::eval(FieldResolver const& fieldResolver) const
+LiteralNode::eval(DynamicXDRGetter const& xdrGetter) const
 {
     return mValue;
 }
@@ -67,15 +67,15 @@ LiteralNode::getType() const
 }
 
 void
-LiteralNode::resolveIntType(ResultValueType const& fieldValue,
-                            std::vector<std::string> const& fieldPath) const
+LiteralNode::resolveIntType(ResultValueType const& columnValue,
+                            std::string const& columnName) const
 {
-    if (std::holds_alternative<std::string>(fieldValue))
+    if (std::holds_alternative<std::string>(columnValue))
     {
         std::string valueStr = resultToString(*mValue);
         throw XDRQueryError(fmt::format(
-            FMT_STRING("String field '{}' is compared with int value: {}."),
-            fmt::join(fieldPath, "."), valueStr));
+            FMT_STRING("String column '{}' is compared with int value: {}."),
+            columnName, valueStr));
     }
     std::string valueStr = std::get<std::string>(*mValue);
     try
@@ -111,16 +111,16 @@ LiteralNode::resolveIntType(ResultValueType const& fieldValue,
                         std::in_place_type<uint64_t>, std::stoull(valueStr));
                 else
                 {
-                    throw std::runtime_error("Unexpected field type.");
+                    throw std::runtime_error("Unexpected column type.");
                 }
             },
-            fieldValue);
+            columnValue);
     }
     catch (std::out_of_range&)
     {
         throw XDRQueryError(fmt::format(
-            FMT_STRING("Value for field '{}' is out of type range: {}."),
-            fmt::join(fieldPath, "."), valueStr));
+            FMT_STRING("Value for column '{}' is out of type range: {}."),
+            columnName, valueStr));
     }
 }
 
@@ -130,21 +130,45 @@ FieldNode::FieldNode(std::string const& initField)
 }
 
 ResultType
-FieldNode::eval(FieldResolver const& fieldResolver) const
+FieldNode::eval(DynamicXDRGetter const& xdrGetter) const
 {
-    return fieldResolver(mFieldPath);
+    return xdrGetter.getField(mFieldPath);
 }
 
 EvalNodeType
 FieldNode::getType() const
 {
-    return EvalNodeType::FIELD;
+    return EvalNodeType::COLUMN;
+}
+
+std::string
+FieldNode::getName() const
+{
+    return fmt::to_string(fmt::join(mFieldPath, "."));
 }
 
 ResultType
-BoolEvalNode::eval(FieldResolver const& fieldResolver) const
+EntrySizeNode::eval(DynamicXDRGetter const& xdrGetter) const
 {
-    return evalBool(fieldResolver);
+    return xdrGetter.getSize();
+}
+
+EvalNodeType
+EntrySizeNode::getType() const
+{
+    return EvalNodeType::COLUMN;
+}
+
+std::string
+EntrySizeNode::getName() const
+{
+    return "entry_size";
+}
+
+ResultType
+BoolEvalNode::eval(DynamicXDRGetter const& xdrGetter) const
+{
+    return evalBool(xdrGetter);
 }
 
 BoolOpNode::BoolOpNode(BoolOpNodeType nodeType,
@@ -155,16 +179,14 @@ BoolOpNode::BoolOpNode(BoolOpNodeType nodeType,
 }
 
 bool
-BoolOpNode::evalBool(FieldResolver const& fieldResolver) const
+BoolOpNode::evalBool(DynamicXDRGetter const& xdrGetter) const
 {
     switch (mType)
     {
     case BoolOpNodeType::AND:
-        return mLeft->evalBool(fieldResolver) &&
-               mRight->evalBool(fieldResolver);
+        return mLeft->evalBool(xdrGetter) && mRight->evalBool(xdrGetter);
     case BoolOpNodeType::OR:
-        return mLeft->evalBool(fieldResolver) ||
-               mRight->evalBool(fieldResolver);
+        return mLeft->evalBool(xdrGetter) || mRight->evalBool(xdrGetter);
     }
 }
 
@@ -179,9 +201,9 @@ ComparisonNode::ComparisonNode(ComparisonNodeType nodeType,
                                std::shared_ptr<EvalNode> right)
     : mType(nodeType), mLeft(std::move(left)), mRight(std::move(right))
 {
-    // Keep the field as the left argument for simplicity of type check during
+    // Keep the column as the left argument for simplicity of type check during
     // evaluation.
-    if (mRight->getType() == EvalNodeType::FIELD)
+    if (mRight->getType() == EvalNodeType::COLUMN)
     {
         std::swap(mLeft, mRight);
         // Invert the operation as we have swapped operands.
@@ -206,10 +228,10 @@ ComparisonNode::ComparisonNode(ComparisonNodeType nodeType,
 }
 
 bool
-ComparisonNode::evalBool(FieldResolver const& fieldResolver) const
+ComparisonNode::evalBool(DynamicXDRGetter const& xdrGetter) const
 {
     auto leftType = mLeft->getType();
-    auto leftVal = mLeft->eval(fieldResolver);
+    auto leftVal = mLeft->eval(xdrGetter);
 
     if (!leftVal)
     {
@@ -217,20 +239,20 @@ ComparisonNode::evalBool(FieldResolver const& fieldResolver) const
     }
 
     auto rightType = mRight->getType();
-    if (leftType == EvalNodeType::FIELD && rightType == EvalNodeType::LITERAL)
+    if (leftType == EvalNodeType::COLUMN && rightType == EvalNodeType::LITERAL)
     {
-        // Lazily resolve the type of the int literal using the field type.
+        // Lazily resolve the type of the int literal using the column type.
         // This allows to correctly check the literal range and simplifies the
         // comparisons.
         auto* lit = static_cast<LiteralNode const*>(mRight.get());
         if (lit->mType == LiteralNodeType::INT &&
             std::holds_alternative<std::string>(*lit->mValue))
         {
-            auto* field = static_cast<FieldNode const*>(mLeft.get());
-            lit->resolveIntType(*leftVal, field->mFieldPath);
+            auto* column = static_cast<ColumnNode const*>(mLeft.get());
+            lit->resolveIntType(*leftVal, column->getName());
         }
     }
-    auto rightVal = mRight->eval(fieldResolver);
+    auto rightVal = mRight->eval(xdrGetter);
     if (!rightVal)
     {
         return false;
@@ -297,8 +319,8 @@ Accumulator::Accumulator(AccumulatorType nodeType)
 }
 
 Accumulator::Accumulator(AccumulatorType nodeType,
-                         std::shared_ptr<FieldNode> field)
-    : mType(nodeType), mField(field)
+                         std::shared_ptr<ColumnNode> column)
+    : mType(nodeType), mColumn(column)
 {
     switch (mType)
     {
@@ -313,13 +335,13 @@ Accumulator::Accumulator(AccumulatorType nodeType,
 }
 
 void
-Accumulator::addEntry(FieldResolver const& fieldResolver)
+Accumulator::addEntry(DynamicXDRGetter const& xdrGetter)
 {
-    ResultType fieldValue;
+    ResultType columnValue;
     if (mType != AccumulatorType::COUNT)
     {
-        fieldValue = mField->eval(fieldResolver);
-        if (!fieldValue)
+        columnValue = mColumn->eval(xdrGetter);
+        if (!columnValue)
         {
             return;
         }
@@ -338,10 +360,10 @@ Accumulator::addEntry(FieldResolver const& fieldResolver)
                 }
                 else
                 {
-                    throw XDRQueryError("Encountered non-aggregatable field.");
+                    throw XDRQueryError("Encountered non-aggregatable column.");
                 }
             },
-            *fieldValue);
+            *columnValue);
     }
     break;
     case AccumulatorType::SUM:
@@ -354,10 +376,10 @@ Accumulator::addEntry(FieldResolver const& fieldResolver)
                 }
                 else
                 {
-                    throw XDRQueryError("Encountered non-aggregatable field.");
+                    throw XDRQueryError("Encountered non-aggregatable column.");
                 }
             },
-            *fieldValue);
+            *columnValue);
         break;
     case AccumulatorType::COUNT:
         break;
@@ -388,11 +410,9 @@ Accumulator::getName() const
     switch (mType)
     {
     case AccumulatorType::AVERAGE:
-        return fmt::format(FMT_STRING("avg({})"),
-                           fmt::join(mField->mFieldPath, "."));
+        return fmt::format(FMT_STRING("avg({})"), mColumn->getName());
     case AccumulatorType::SUM:
-        return fmt::format(FMT_STRING("sum({})"),
-                           fmt::join(mField->mFieldPath, "."));
+        return fmt::format(FMT_STRING("sum({})"), mColumn->getName());
     case AccumulatorType::COUNT:
         return "count";
     }
@@ -410,11 +430,11 @@ AccumulatorList::addAccumulator(std::shared_ptr<Accumulator> accumulator)
 }
 
 void
-AccumulatorList::addEntry(FieldResolver const& fieldResolver) const
+AccumulatorList::addEntry(DynamicXDRGetter const& xdrGetter) const
 {
     for (auto const& accumulator : mAccumulators)
     {
-        accumulator->addEntry(fieldResolver);
+        accumulator->addEntry(xdrGetter);
     }
 }
 
@@ -424,37 +444,37 @@ AccumulatorList::getAccumulators() const
     return mAccumulators;
 }
 
-FieldList::FieldList(std::shared_ptr<FieldNode> field)
+ColumnList::ColumnList(std::shared_ptr<ColumnNode> column)
 {
-    mFields.emplace_back(field);
+    mColumns.emplace_back(column);
 }
 
 void
-FieldList::addField(std::shared_ptr<FieldNode> field)
+ColumnList::addColumn(std::shared_ptr<ColumnNode> column)
 {
-    mFields.emplace_back(field);
+    mColumns.emplace_back(column);
 }
 
 std::vector<ResultType>
-FieldList::getValues(FieldResolver const& fieldResolver) const
+ColumnList::getValues(DynamicXDRGetter const& xdrGetter) const
 {
     std::vector<ResultType> res;
-    res.reserve(mFields.size());
-    for (auto const& field : mFields)
+    res.reserve(mColumns.size());
+    for (auto const& column : mColumns)
     {
-        res.emplace_back(field->eval(fieldResolver));
+        res.emplace_back(column->eval(xdrGetter));
     }
     return res;
 }
 
 std::vector<std::string>
-FieldList::getFieldNames() const
+ColumnList::getColumnNames() const
 {
     std::vector<std::string> names;
-    names.reserve(mFields.size());
-    for (auto const& field : mFields)
+    names.reserve(mColumns.size());
+    for (auto const& column : mColumns)
     {
-        names.emplace_back(fmt::to_string(fmt::join(field->mFieldPath, ".")));
+        names.emplace_back(column->getName());
     }
     return names;
 }

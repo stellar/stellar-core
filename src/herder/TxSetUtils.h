@@ -13,22 +13,19 @@
 namespace stellar
 {
 
-class AccountTransactionQueue : public TxStack
+class AccountTransactionQueue
 {
   public:
     AccountTransactionQueue(
         std::vector<TransactionFrameBasePtr> const& accountTxs);
 
-    TransactionFrameBasePtr getTopTx() const override;
-    bool empty() const override;
-    void popTopTx() override;
-    Resource getResources() const override;
-
-    std::deque<TransactionFrameBasePtr> mTxs;
+    TransactionFrameBasePtr getTopTx() const;
+    bool empty() const;
+    void popTopTx();
 
   private:
+    std::deque<TransactionFrameBasePtr> mTxs;
     uint32_t mNumOperations = 0;
-    bool mIsSoroban;
 };
 
 class TxSetUtils
@@ -50,8 +47,7 @@ class TxSetUtils
     static TxSetTransactions
     getInvalidTxList(TxSetTransactions const& txs, Application& app,
                      uint64_t lowerBoundCloseTimeOffset,
-                     uint64_t upperBoundCloseTimeOffset,
-                     bool returnEarlyOnFirstInvalidTx);
+                     uint64_t upperBoundCloseTimeOffset);
 
     static TxSetTransactions trimInvalid(TxSetTransactions const& txs,
                                          Application& app,

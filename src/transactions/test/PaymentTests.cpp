@@ -264,7 +264,7 @@ TEST_CASE_VERSIONS("payment", "[tx][payment]")
             auto tx1 = b1.tx({payment(root, paymentAmount)});
             auto tx2 = b1.tx({payment(root, 6)});
 
-            auto r = closeLedger(*app, {tx1, tx2});
+            auto r = closeLedger(*app, {tx1, tx2}, true);
             checkTx(0, r, txSUCCESS);
             checkTx(1, r, txINSUFFICIENT_BALANCE);
 
@@ -288,7 +288,8 @@ TEST_CASE_VERSIONS("payment", "[tx][payment]")
             auto r = closeLedger(*app, {tx1, tx2}, /* strictOrder */ true);
             checkTx(0, r, txSUCCESS);
             checkTx(1, r, txFAILED);
-            REQUIRE(r[1].first.result.result.results()[0]
+            REQUIRE(r.results[1]
+                        .result.result.results()[0]
                         .tr()
                         .paymentResult()
                         .code() == PAYMENT_UNDERFUNDED);

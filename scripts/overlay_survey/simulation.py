@@ -14,12 +14,6 @@ PEER_LIST_SIZE = 25
 
 logger = logging.getLogger(__name__)
 
-class SurveyPhase(Enum):
-    """The phase of the simulated survey"""
-    COLLECTING = 1
-    REPORTING = 2
-    INACTIVE = 3
-
 class SimulationError(Exception):
     """An error that occurs during simulation"""
 
@@ -80,8 +74,6 @@ class SurveySimulation:
         self._pending_requests = []
         # The results of the simulation
         self._results = {"topology" : {}}
-        # Phase of simulated survey
-        self._phase = SurveyPhase.INACTIVE
         logger.info("simulating from %s", root_node)
 
     def _info(self, params):
@@ -118,8 +110,6 @@ class SurveySimulation:
         Simulate the startsurveycollecting endpoint.
         """
         assert params.keys() == {"nonce"}
-        assert self._phase == SurveyPhase.INACTIVE
-        self._phase = SurveyPhase.COLLECTING
         return SimulatedResponse(util.START_SURVEY_COLLECTING_SUCCESS_TEXT)
 
     def _stopsurveycollecting(self, params):
@@ -127,8 +117,6 @@ class SurveySimulation:
         Simulate the stopsurveycollecting endpoint.
         """
         assert not params
-        assert self._phase == SurveyPhase.COLLECTING
-        self._phase = SurveyPhase.REPORTING
         return SimulatedResponse(text=util.STOP_SURVEY_COLLECTING_SUCCESS_TEXT)
 
     def _surveytopologytimesliced(self, params):
@@ -269,5 +257,10 @@ class SurveySimulation:
             return self._surveytopologytimesliced(params)
         if endpoint == "getsurveyresult":
             return self._getsurveyresult(params)
+        if endpoint == "stopsurvey":
+            # In stellar-core this has the effect of clearing the survey results
+            # cache. No such thing exists in the simulator, so this is a no-op.
+            return SimulatedResponse(text=util.STOP_SURVEY_SUCCESS_TEXT)
+
         raise SimulationError("Received GET request for unknown endpoint "
                               f"'{endpoint}' with params '{params}'")

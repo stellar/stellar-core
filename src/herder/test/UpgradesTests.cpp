@@ -2154,58 +2154,6 @@ TEST_CASE("upgrade to version 12", "[upgrades]")
         }
     }
 }
-
-TEST_CASE("upgrade to version 13", "[upgrades]")
-{
-    VirtualClock clock;
-    auto cfg = getTestConfig(0);
-    cfg.USE_CONFIG_FOR_GENESIS = false;
-
-    auto app = createTestApplication(clock, cfg);
-
-    executeUpgrade(*app, makeProtocolVersionUpgrade(12));
-
-    auto& lm = app->getLedgerManager();
-    auto& herder = static_cast<HerderImpl&>(app->getHerder());
-
-    auto root = TestAccount::createRoot(*app);
-    auto acc = root.create("A", lm.getLastMinBalance(2));
-
-    herder.recvTransaction(root.tx({payment(root, 1)}), false);
-    herder.recvTransaction(root.tx({payment(root, 2)}), false);
-    herder.recvTransaction(acc.tx({payment(acc, 1)}), false);
-    herder.recvTransaction(acc.tx({payment(acc, 2)}), false);
-
-    auto queueTxs = herder.getTransactionQueue().getTransactions({});
-    for (auto const& tx : queueTxs)
-    {
-        REQUIRE(tx->getEnvelope().type() == ENVELOPE_TYPE_TX_V0);
-    }
-
-    {
-        auto const& lcl = lm.getLastClosedLedgerHeader();
-        auto ledgerSeq = lcl.header.ledgerSeq + 1;
-
-        auto emptyTxSet = TxSetXDRFrame::makeEmpty(lcl);
-        herder.getPendingEnvelopes().putTxSet(emptyTxSet->getContentsHash(),
-                                              ledgerSeq, emptyTxSet);
-
-        auto upgrade = toUpgradeType(makeProtocolVersionUpgrade(13));
-        StellarValue sv =
-            herder.makeStellarValue(emptyTxSet->getContentsHash(), 2,
-                                    xdr::xvector<UpgradeType, 6>({upgrade}),
-                                    app->getConfig().NODE_SEED);
-        herder.getHerderSCPDriver().valueExternalized(ledgerSeq,
-                                                      xdr::xdr_to_opaque(sv));
-    }
-
-    queueTxs = herder.getTransactionQueue().getTransactions({});
-    for (auto const& tx : queueTxs)
-    {
-        REQUIRE(tx->getEnvelope().type() == ENVELOPE_TYPE_TX);
-    }
-}
-
 // There is a subtle inconsistency where for a ledger that upgrades from
 // protocol vN to vN+1 that also changed LedgerCloseMeta version, the ledger
 // header will be protocol vN+1, but the meta emitted for that ledger will be
@@ -2470,10 +2418,10 @@ TEST_CASE_VERSIONS("upgrade base reserve", "[upgrades]")
                                   std::bind(executeUpgrade, 2 * baseReserve));
         });
 
-        auto submitTx = [&](TransactionFrameBasePtr tx) {
+        auto submitTx = [&](TransactionTestFramePtr tx) {
             LedgerTxn ltx(app->getLedgerTxnRoot());
             TransactionMetaFrame txm(ltx.loadHeader().current().ledgerVersion);
-            REQUIRE(tx->checkValid(*app, ltx, 0, 0, 0));
+            REQUIRE(tx->checkValidForTesting(*app, ltx, 0, 0, 0));
             REQUIRE(tx->apply(*app, ltx, txm));
             ltx.commit();
 
@@ -3193,151 +3141,4 @@ TEST_CASE_VERSIONS("upgrade flags", "[upgrades][liquiditypool]")
         REQUIRE_THROWS_AS(root.pay(a1, cur1, 2, native, 1, {}),
                           ex_PATH_PAYMENT_STRICT_RECEIVE_TOO_FEW_OFFERS);
     });
-}
-
-TEST_CASE("upgrade to generalized tx set changes TxSetFrame format",
-          "[upgrades]")
-{
-    if (protocolVersionIsBefore(Config::CURRENT_LEDGER_PROTOCOL_VERSION,
-                                SOROBAN_PROTOCOL_VERSION))
-    {
-        return;
-    }
-    VirtualClock clock;
-    auto cfg = getTestConfig(0);
-    cfg.USE_CONFIG_FOR_GENESIS = false;
-
-    auto app = createTestApplication(clock, cfg);
-
-    executeUpgrade(*app, makeProtocolVersionUpgrade(
-                             static_cast<int>(SOROBAN_PROTOCOL_VERSION) - 1));
-
-    auto root = TestAccount::createRoot(*app);
-    TxSetTransactions txs = {root.tx({payment(root, 1)})};
-    auto [txSet, applicableTxSet] = makeTxSetFromTransactions(txs, *app, 0, 0);
-    REQUIRE(!txSet->isGeneralizedTxSet());
-    REQUIRE(!applicableTxSet->isGeneralizedTxSet());
-
-    executeUpgrade(*app, makeProtocolVersionUpgrade(
-                             static_cast<int>(SOROBAN_PROTOCOL_VERSION)));
-
-    auto [newTxSet, newApplicableTxSet] =
-        makeTxSetFromTransactions(txs, *app, 0, 0);
-    REQUIRE(newTxSet->isGeneralizedTxSet());
-    REQUIRE(newApplicableTxSet->isGeneralizedTxSet());
-}
-
-TEST_CASE("upgrade to generalized tx set in network", "[upgrades][overlay]")
-{
-    if (protocolVersionIsBefore(Config::CURRENT_LEDGER_PROTOCOL_VERSION,
-                                SOROBAN_PROTOCOL_VERSION))
-    {
-        return;
-    }
-    auto networkID = sha256(getTestConfig().NETWORK_PASSPHRASE);
-    auto simulation = Topologies::core(
-        4, 0.75, Simulation::OVER_LOOPBACK, networkID, [](int i) {
-            auto cfg = getTestConfig(i, Config::TESTDB_ON_DISK_SQLITE);
-            cfg.MAX_SLOTS_TO_REMEMBER = 12;
-            cfg.TESTING_UPGRADE_LEDGER_PROTOCOL_VERSION =
-                static_cast<uint32_t>(SOROBAN_PROTOCOL_VERSION) - 1;
-            // Set max tx size to accommodate loadgen
-            cfg.TESTING_UPGRADE_MAX_TX_SET_SIZE = 1000;
-            return cfg;
-        });
-
-    simulation->startAllNodes();
-
-    // Wait for 3 ledgers in order to get to stable closing schedule (every 5s).
-    simulation->crankUntil(
-        [&]() { return simulation->haveAllExternalized(3, 1); },
-        Herder::EXP_LEDGER_TIMESPAN_SECONDS * 2, false);
-    auto nodes = simulation->getNodes();
-    auto lclCloseTime =
-        VirtualClock::from_time_t(nodes[0]
-                                      ->getLedgerManager()
-                                      .getLastClosedLedgerHeader()
-                                      .header.scpValue.closeTime);
-
-    for (auto node : nodes)
-    {
-        Upgrades::UpgradeParameters upgrades;
-        upgrades.mProtocolVersion = std::make_optional<uint32>(
-            static_cast<uint32>(SOROBAN_PROTOCOL_VERSION));
-        // Upgrade to generalized tx set in 3 ledgers (4 ledgers before update
-        // is applied).
-        upgrades.mUpgradeTime =
-            lclCloseTime + Herder::EXP_LEDGER_TIMESPAN_SECONDS * 3;
-        node->getHerder().setUpgrades(upgrades);
-    }
-
-    auto& loadGen = nodes[0]->getLoadGenerator();
-    // Generate 8 ledgers worth of txs (500 * 8 = 4000 accounts).
-    loadGen.generateLoad(GeneratedLoadConfig::createAccountsLoad(
-        /* nAccounts */ 4000, /* txRate */ 1));
-    auto& loadGenDone =
-        nodes[0]->getMetrics().NewMeter({"loadgen", "run", "complete"}, "run");
-    auto currLoadGenCount = loadGenDone.count();
-    std::optional<uint32_t> upgradeLedger;
-    simulation->crankUntil(
-        [&]() {
-            if (!upgradeLedger &&
-                nodes[0]->getLedgerManager()
-                        .getLastClosedLedgerHeader()
-                        .header.ledgerVersion ==
-                    static_cast<uint32_t>(SOROBAN_PROTOCOL_VERSION))
-            {
-                upgradeLedger =
-                    nodes[0]->getLedgerManager().getLastClosedLedgerNum();
-            }
-            return loadGenDone.count() > currLoadGenCount;
-        },
-        11 * Herder::EXP_LEDGER_TIMESPAN_SECONDS, false);
-
-    // Make sure upgrade has happened.
-    REQUIRE(upgradeLedger);
-    REQUIRE(*upgradeLedger < 11);
-
-    // Add a node and let it catchup.
-    auto addedKey = SecretKey::fromSeed(sha256("ADD_NODE"));
-    auto addedNode =
-        simulation->addNode(addedKey, nodes.back()->getConfig().QUORUM_SET);
-    addedNode->start();
-    for (auto const& nodeID : simulation->getNodeIDs())
-    {
-        simulation->addConnection(addedKey.getPublicKey(), nodeID);
-    }
-    // Let the network to externalize 1 more ledger.
-    simulation->crankUntil(
-        [&]() { return simulation->haveAllExternalized(12, 12); },
-        Herder::EXP_LEDGER_TIMESPAN_SECONDS * 2, false);
-
-    auto getLedgerTxSet = [](Application& node, uint32_t ledger) {
-        auto& herder = *static_cast<HerderImpl*>(&node.getHerder());
-        for (auto const& env : herder.getSCP().getLatestMessagesSend(ledger))
-        {
-            if (env.statement.pledges.type() == SCP_ST_EXTERNALIZE)
-            {
-                StellarValue sv;
-                auto& pe = herder.getPendingEnvelopes();
-                herder.getHerderSCPDriver().toStellarValue(
-                    env.statement.pledges.externalize().commit.value, sv);
-                return pe.getTxSet(sv.txSetHash);
-            }
-        }
-        return TxSetXDRFrameConstPtr{};
-    };
-
-    // Make sure tx set format switches to generalized after upgrade.
-    for (uint32_t ledger = 4; ledger <= 11; ++ledger)
-    {
-        for (auto const& node : simulation->getNodes())
-        {
-            auto txSet = getLedgerTxSet(*node, ledger);
-            REQUIRE(txSet);
-            REQUIRE(txSet->sizeTxTotal() > 0);
-            bool isGeneralized = ledger > *upgradeLedger;
-            REQUIRE(txSet->isGeneralizedTxSet() == isGeneralized);
-        }
-    }
 }

@@ -763,7 +763,7 @@ TEST_CASE_VERSIONS("eviction scan", "[bucketlist]")
         // BucketTestApplication writes directly to BL and circumvents LedgerTxn
         // interface, so we have to use BucketListDB for lookups
         cfg.DEPRECATED_SQL_LEDGER_STATE = false;
-        cfg.EXPERIMENTAL_BACKGROUND_EVICTION_SCAN = backgroundScan;
+        cfg.BACKGROUND_EVICTION_SCAN = backgroundScan;
 
         auto app = createTestApplication<BucketTestApplication>(clock, cfg);
         for_versions_from(20, *app, [&] {
@@ -1243,7 +1243,7 @@ TEST_CASE_VERSIONS("Searchable BucketListDB snapshots", "[bucketlist]")
     entry.data.claimableBalance().amount = 0;
 
     auto searchableBL =
-        bm.getBucketSnapshotManager().getSearchableBucketListSnapshot();
+        bm.getBucketSnapshotManager().copySearchableBucketListSnapshot();
 
     // Update entry every 5 ledgers so we can see bucket merge events
     for (auto ledgerSeq = 1; ledgerSeq < 101; ++ledgerSeq)

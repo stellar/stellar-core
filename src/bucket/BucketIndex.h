@@ -74,7 +74,7 @@ class BucketIndex : public NonMovableOrCopyable
                                   IndividualIndex::const_iterator>;
 
     inline static const std::string DB_BACKEND_STATE = "bl";
-    inline static const uint32_t BUCKET_INDEX_VERSION = 2;
+    inline static const uint32_t BUCKET_INDEX_VERSION = 3;
 
     // Returns true if LedgerEntryType not supported by BucketListDB
     static bool typeNotSupported(LedgerEntryType t);

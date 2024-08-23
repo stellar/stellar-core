@@ -25,8 +25,10 @@
 #include "xdr/Stellar-ledger-entries.h"
 #include "xdrpp/marshal.h"
 #include <Tracy.hpp>
-#include <algorithm>
 #include <soci.h>
+
+#include <algorithm>
+#include <numeric>
 
 namespace stellar
 {
@@ -180,10 +182,10 @@ LedgerKeyMeter::canLoad(LedgerKey const& key, size_t entrySizeBytes) const
 void
 LedgerKeyMeter::addTxn(SorobanResources const& resources)
 {
-    mTxReadBytes.push_back(resources.readBytes);
-    auto txId = mTxReadBytes.size() - 1;
+    TxReadBytesPtr txReadBytesPtr =
+        std::make_shared<uint32_t>(resources.readBytes);
     auto addKeyToTxnMap = [&](auto const& key) {
-        mLedgerKeyToTxs[key].emplace_back(txId);
+        mLedgerKeyToTxReadBytes[key].emplace_back(txReadBytesPtr);
     };
     std::for_each(resources.footprint.readOnly.begin(),
                   resources.footprint.readOnly.end(), addKeyToTxnMap);
@@ -195,8 +197,8 @@ void
 LedgerKeyMeter::updateReadQuotasForKey(LedgerKey const& key,
                                        size_t entrySizeBytes)
 {
-    auto iter = mLedgerKeyToTxs.find(key);
-    if (iter == mLedgerKeyToTxs.end())
+    auto iter = mLedgerKeyToTxReadBytes.find(key);
+    if (iter == mLedgerKeyToTxReadBytes.end())
     {
         // Key does not belong to the footprint of any transaction.
         // Ensure this is not a soroban key as they should always be metered.
@@ -206,17 +208,16 @@ LedgerKeyMeter::updateReadQuotasForKey(LedgerKey const& key,
     }
     // Update the read quota for every transaction containing this key.
     bool exceedsQuotaForAllTxns = true;
-    for (auto txn : iter->second)
+    for (TxReadBytesPtr txReadBytesPtr : iter->second)
     {
-        auto& quota = mTxReadBytes.at(txn);
-        if (quota < entrySizeBytes)
+        if (*txReadBytesPtr < entrySizeBytes)
         {
-            quota = 0;
+            *txReadBytesPtr = 0;
         }
         else
         {
             exceedsQuotaForAllTxns = false;
-            quota -= entrySizeBytes;
+            *txReadBytesPtr -= entrySizeBytes;
         }
     }
     if (exceedsQuotaForAllTxns)
@@ -228,8 +229,8 @@ LedgerKeyMeter::updateReadQuotasForKey(LedgerKey const& key,
 uint32_t
 LedgerKeyMeter::maxReadQuotaForKey(LedgerKey const& key) const
 {
-    auto iter = mLedgerKeyToTxs.find(key);
-    if (iter == mLedgerKeyToTxs.end())
+    auto iter = mLedgerKeyToTxReadBytes.find(key);
+    if (iter == mLedgerKeyToTxReadBytes.end())
     {
         // Key does not belong to the footprint of any transaction,
         // therefore it is not quota-limited.
@@ -238,10 +239,9 @@ LedgerKeyMeter::maxReadQuotaForKey(LedgerKey const& key) const
                       key.type() != CONTRACT_DATA);
         return std::numeric_limits<uint32_t>::max();
     }
-    return std::reduce(iter->second.begin(), iter->second.end(), 0,
-                       [&](uint32_t maxReadQuota, size_t const txn) {
-                           return std::max(maxReadQuota, mTxReadBytes.at(txn));
-                       });
+    return **std::max_element(
+        iter->second.begin(), iter->second.end(),
+        [&](TxReadBytesPtr a, TxReadBytesPtr b) { return *a < *b; });
 }
 
 bool
@@ -3494,7 +3494,7 @@ LedgerTxnRoot::Impl::getSearchableBucketListSnapshot() const
     {
         mSearchableBucketListSnapshot = mApp.getBucketManager()
                                             .getBucketSnapshotManager()
-                                            .getSearchableBucketListSnapshot();
+                                            .copySearchableBucketListSnapshot();
     }
 
     return *mSearchableBucketListSnapshot;

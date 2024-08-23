@@ -10,30 +10,33 @@
 namespace stellar
 {
 class AbstractLedgerTxn;
+class MutableTransactionResultBase;
 
 class ExtendFootprintTTLOpFrame : public OperationFrame
 {
     ExtendFootprintTTLResult&
-    innerResult()
+    innerResult(OperationResult& res) const
     {
-        return mResult.tr().extendFootprintTTLResult();
+        return res.tr().extendFootprintTTLResult();
     }
 
     ExtendFootprintTTLOp const& mExtendFootprintTTLOp;
 
   public:
-    ExtendFootprintTTLOpFrame(Operation const& op, OperationResult& res,
-                              TransactionFrame& parentTx);
+    ExtendFootprintTTLOpFrame(Operation const& op,
+                              TransactionFrame const& parentTx);
 
     bool isOpSupported(LedgerHeader const& header) const override;
 
-    bool doApply(AbstractLedgerTxn& ltx) override;
     bool doApply(Application& app, AbstractLedgerTxn& ltx,
-                 Hash const& sorobanBasePrngSeed) override;
-
-    bool doCheckValid(SorobanNetworkConfig const& networkConfig,
-                      Config const& appConfig, uint32_t ledgerVersion) override;
-    bool doCheckValid(uint32_t ledgerVersion) override;
+                 Hash const& sorobanBasePrngSeed, OperationResult& res,
+                 std::shared_ptr<SorobanTxData> sorobanData) const override;
+    bool doCheckValidForSoroban(SorobanNetworkConfig const& networkConfig,
+                                Config const& appConfig, uint32_t ledgerVersion,
+                                OperationResult& res,
+                                SorobanTxData& sorobanData) const override;
+    bool doCheckValid(uint32_t ledgerVersion,
+                      OperationResult& res) const override;
 
     void
     insertLedgerKeysToPrefetch(UnorderedSet<LedgerKey>& keys) const override;

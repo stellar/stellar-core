@@ -17,6 +17,7 @@
 #include "main/Application.h"
 #include "main/Config.h"
 #include "overlay/Peer.h"
+#include "transactions/MutableTransactionResult.h"
 #include "transactions/TransactionUtils.h"
 #include "util/GlobalChecks.h"
 #include "util/Logging.h"
@@ -221,6 +222,39 @@ transactionsToGeneralizedTransactionSetXDR(
                 tx->getEnvelope());
         }
     }
+}
+
+// This assumes that the phase validation has already been done,
+// specifically that there are no transactions that belong to the same
+// source account, and that the ledger sequence corresponds to the
+bool
+phaseTxsAreValid(TxSetTransactions const& phase, Application& app,
+                 uint64_t lowerBoundCloseTimeOffset,
+                 uint64_t upperBoundCloseTimeOffset)
+{
+    ZoneScoped;
+    LedgerTxn ltx(app.getLedgerTxnRoot(),
+                  /* shouldUpdateLastModified */ false,
+                  TransactionMode::READ_ONLY_WITHOUT_SQL_TXN);
+    // This is done so minSeqLedgerGap is validated against the next
+    // ledgerSeq, which is what will be used at apply time
+    ltx.loadHeader().current().ledgerSeq =
+        app.getLedgerManager().getLastClosedLedgerNum() + 1;
+    for (auto const& tx : phase)
+    {
+        auto txResult = tx->checkValid(app, ltx, 0, lowerBoundCloseTimeOffset,
+                                       upperBoundCloseTimeOffset);
+        if (!txResult->isSuccess())
+        {
+
+            CLOG_DEBUG(
+                Herder, "Got bad txSet: tx invalid tx: {} result: {}",
+                xdrToCerealString(tx->getEnvelope(), "TransactionEnvelope"),
+                txResult->getResultCode());
+            return false;
+        }
+    }
+    return true;
 }
 } // namespace
 
@@ -514,11 +548,6 @@ TxSetXDRFrame::prepareForApply(Application& app) const
 
         txSet = std::unique_ptr<ApplicableTxSetFrame>(new ApplicableTxSetFrame(
             app, true, previousLedgerHash(), defaultPhases, mHash));
-        // Mark fees as already computed as we read them from the XDR.
-        for (int i = 0; i < txSet->mFeesComputed.size(); i++)
-        {
-            txSet->mFeesComputed[i] = true;
-        }
 
         releaseAssert(phases.size() <=
                       static_cast<size_t>(TxSetPhase::PHASE_COUNT));
@@ -565,6 +594,8 @@ TxSetXDRFrame::prepareForApply(Application& app) const
                        "or contain invalid phase transactions");
             return nullptr;
         }
+        txSet->computeTxFeesForNonGeneralizedSet(
+            app.getLedgerManager().getLastClosedLedgerHeader().header);
     }
     return txSet;
 }
@@ -739,7 +770,6 @@ ApplicableTxSetFrame::ApplicableTxSetFrame(Application& app, bool isGeneralized,
     : mIsGeneralized(isGeneralized)
     , mPreviousLedgerHash(previousLedgerHash)
     , mTxPhases(txs)
-    , mFeesComputed(mTxPhases.size(), false)
     , mPhaseInclusionFeeMap(mTxPhases.size())
     , mContentsHash(contentsHash)
 {
@@ -866,8 +896,6 @@ ApplicableTxSetFrame::checkValid(Application& app,
 
     if (isGeneralizedTxSet())
     {
-        releaseAssert(std::all_of(mFeesComputed.begin(), mFeesComputed.end(),
-                                  [](bool comp) { return comp; }));
         auto checkFeeMap = [&](auto const& feeMap) {
             for (auto const& [tx, fee] : feeMap)
             {
@@ -963,9 +991,8 @@ ApplicableTxSetFrame::checkValid(Application& app,
     bool allValid = true;
     for (auto const& txs : mTxPhases)
     {
-        if (!TxSetUtils::getInvalidTxList(txs, app, lowerBoundCloseTimeOffset,
-                                          upperBoundCloseTimeOffset, true)
-                 .empty())
+        if (!phaseTxsAreValid(txs, app, lowerBoundCloseTimeOffset,
+                              upperBoundCloseTimeOffset))
         {
             allValid = false;
             break;
@@ -1036,13 +1063,13 @@ ApplicableTxSetFrame::sizeTxTotal() const
 
 void
 ApplicableTxSetFrame::computeTxFeesForNonGeneralizedSet(
-    LedgerHeader const& lclHeader) const
+    LedgerHeader const& lclHeader)
 {
     ZoneScoped;
     auto ledgerVersion = lclHeader.ledgerVersion;
     int64_t lowBaseFee = std::numeric_limits<int64_t>::max();
     releaseAssert(mTxPhases.size() == 1);
-    for (auto& txPtr : mTxPhases[0])
+    for (auto const& txPtr : mTxPhases[0])
     {
         int64_t txBaseFee = computePerOpFee(*txPtr, ledgerVersion);
         lowBaseFee = std::min(lowBaseFee, txBaseFee);
@@ -1053,12 +1080,9 @@ ApplicableTxSetFrame::computeTxFeesForNonGeneralizedSet(
 
 void
 ApplicableTxSetFrame::computeTxFeesForNonGeneralizedSet(
-    LedgerHeader const& lclHeader, int64_t lowestBaseFee,
-    bool enableLogging) const
+    LedgerHeader const& lclHeader, int64_t lowestBaseFee, bool enableLogging)
 {
     ZoneScoped;
-    releaseAssert(std::none_of(mFeesComputed.begin(), mFeesComputed.end(),
-                               [](bool comp) { return comp; }));
     int64_t baseFee = lclHeader.baseFee;
 
     if (protocolVersionStartsFrom(lclHeader.ledgerVersion,
@@ -1083,12 +1107,11 @@ ApplicableTxSetFrame::computeTxFeesForNonGeneralizedSet(
     releaseAssert(mTxPhases.size() == 1);
     releaseAssert(mPhaseInclusionFeeMap.size() == 1);
     auto const& phase = mTxPhases[static_cast<size_t>(TxSetPhase::CLASSIC)];
-    auto& feeMap = getInclusionFeeMap(TxSetPhase::CLASSIC);
+    auto& feeMap = getInclusionFeeMapMut(TxSetPhase::CLASSIC);
     for (auto const& tx : phase)
     {
         feeMap[tx] = baseFee;
     }
-    mFeesComputed[0] = true;
 }
 
 void
@@ -1096,9 +1119,8 @@ ApplicableTxSetFrame::computeTxFees(
     TxSetPhase phase, LedgerHeader const& ledgerHeader,
     SurgePricingLaneConfig const& surgePricingConfig,
     std::vector<int64_t> const& lowestLaneFee,
-    std::vector<bool> const& hadTxNotFittingLane) const
+    std::vector<bool> const& hadTxNotFittingLane)
 {
-    releaseAssert(!mFeesComputed[static_cast<size_t>(phase)]);
     releaseAssert(isGeneralizedTxSet());
     releaseAssert(lowestLaneFee.size() == hadTxNotFittingLane.size());
     std::vector<int64_t> laneBaseFee(lowestLaneFee.size(),
@@ -1136,24 +1158,17 @@ ApplicableTxSetFrame::computeTxFees(
     }
 
     auto const& txs = mTxPhases.at(static_cast<size_t>(phase));
-    auto& feeMap = getInclusionFeeMap(phase);
+    auto& feeMap = getInclusionFeeMapMut(phase);
     for (auto const& tx : txs)
     {
         feeMap[tx] = laneBaseFee[surgePricingConfig.getLane(*tx)];
     }
-    mFeesComputed[static_cast<size_t>(phase)] = true;
 }
 
 std::optional<int64_t>
 ApplicableTxSetFrame::getTxBaseFee(TransactionFrameBaseConstPtr const& tx,
                                    LedgerHeader const& lclHeader) const
 {
-    if (std::any_of(mFeesComputed.begin(), mFeesComputed.end(),
-                    [](bool comp) { return !comp; }))
-    {
-        releaseAssert(!isGeneralizedTxSet());
-        computeTxFeesForNonGeneralizedSet(lclHeader);
-    }
     for (auto const& phaseMap : mPhaseInclusionFeeMap)
     {
         if (auto it = phaseMap.find(tx); it != phaseMap.end())
@@ -1301,8 +1316,6 @@ ApplicableTxSetFrame::toXDR(GeneralizedTransactionSet& generalizedTxSet) const
 {
     ZoneScoped;
     releaseAssert(isGeneralizedTxSet());
-    releaseAssert(std::all_of(mFeesComputed.begin(), mFeesComputed.end(),
-                              [](bool comp) { return comp; }));
     releaseAssert(mTxPhases.size() <=
                   static_cast<size_t>(TxSetPhase::PHASE_COUNT));
     transactionsToGeneralizedTransactionSetXDR(mTxPhases, mPhaseInclusionFeeMap,
@@ -1343,7 +1356,7 @@ ApplicableTxSetFrame::addTxsFromXdr(
     auto& phaseTxs = mTxPhases.at(static_cast<int>(phase));
     size_t oldSize = phaseTxs.size();
     phaseTxs.reserve(oldSize + txs.size());
-
+    auto& inclusionFeeMap = getInclusionFeeMapMut(phase);
     for (auto const& env : txs)
     {
         auto tx = TransactionFrameBase::makeTransactionFromWire(networkID, env);
@@ -1361,7 +1374,7 @@ ApplicableTxSetFrame::addTxsFromXdr(
         phaseTxs.push_back(tx);
         if (useBaseFee)
         {
-            getInclusionFeeMap(phase)[tx] = baseFee;
+            inclusionFeeMap[tx] = baseFee;
         }
     }
     return std::is_sorted(phaseTxs.begin() + oldSize, phaseTxs.end(),
@@ -1372,27 +1385,14 @@ void
 ApplicableTxSetFrame::applySurgePricing(Application& app)
 {
     ZoneScoped;
-
-    if (empty())
-    {
-        for (int i = 0; i < mFeesComputed.size(); ++i)
-        {
-            mFeesComputed[i] = true;
-        }
-        return;
-    }
-
-    auto const& lclHeader =
-        app.getLedgerManager().getLastClosedLedgerHeader().header;
-
     releaseAssert(mTxPhases.size() <=
                   static_cast<int>(TxSetPhase::PHASE_COUNT));
+    auto const& lclHeader =
+        app.getLedgerManager().getLastClosedLedgerHeader().header;
     for (int i = 0; i < mTxPhases.size(); i++)
     {
         TxSetPhase phaseType = static_cast<TxSetPhase>(i);
         auto& phase = mTxPhases[i];
-        auto actTxQueues = TxSetUtils::buildAccountTxQueues(phase);
-
         if (phaseType == TxSetPhase::CLASSIC)
         {
             auto maxOps =
@@ -1415,11 +1415,10 @@ ApplicableTxSetFrame::applySurgePricing(Application& app)
                 std::make_shared<DexLimitingLaneConfig>(maxOps, dexOpsLimit);
 
             std::vector<bool> hadTxNotFittingLane;
+
             auto includedTxs =
                 SurgePricingPriorityQueue::getMostTopTxsWithinLimits(
-                    std::vector<TxStackPtr>(actTxQueues.begin(),
-                                            actTxQueues.end()),
-                    surgePricingLaneConfig, hadTxNotFittingLane);
+                    phase, surgePricingLaneConfig, hadTxNotFittingLane);
 
             size_t laneCount = surgePricingLaneConfig->getLaneLimits().size();
             std::vector<int64_t> lowestLaneFee(
@@ -1465,9 +1464,7 @@ ApplicableTxSetFrame::applySurgePricing(Application& app)
             std::vector<bool> hadTxNotFittingLane;
             auto includedTxs =
                 SurgePricingPriorityQueue::getMostTopTxsWithinLimits(
-                    std::vector<TxStackPtr>(actTxQueues.begin(),
-                                            actTxQueues.end()),
-                    surgePricingLaneConfig, hadTxNotFittingLane);
+                    phase, surgePricingLaneConfig, hadTxNotFittingLane);
 
             size_t laneCount = surgePricingLaneConfig->getLaneLimits().size();
             std::vector<int64_t> lowestLaneFee(
@@ -1483,13 +1480,19 @@ ApplicableTxSetFrame::applySurgePricing(Application& app)
             computeTxFees(phaseType, lclHeader, *surgePricingLaneConfig,
                           lowestLaneFee, hadTxNotFittingLane);
         }
-
-        releaseAssert(mFeesComputed[i]);
     }
 }
 
-std::unordered_map<TransactionFrameBaseConstPtr, std::optional<int64_t>>&
+std::unordered_map<TransactionFrameBaseConstPtr, std::optional<int64_t>> const&
 ApplicableTxSetFrame::getInclusionFeeMap(TxSetPhase phase) const
+{
+    size_t phaseId = static_cast<size_t>(phase);
+    releaseAssert(phaseId < mPhaseInclusionFeeMap.size());
+    return mPhaseInclusionFeeMap[phaseId];
+}
+
+std::unordered_map<TransactionFrameBaseConstPtr, std::optional<int64_t>>&
+ApplicableTxSetFrame::getInclusionFeeMapMut(TxSetPhase phase)
 {
     size_t phaseId = static_cast<size_t>(phase);
     releaseAssert(phaseId < mPhaseInclusionFeeMap.size());

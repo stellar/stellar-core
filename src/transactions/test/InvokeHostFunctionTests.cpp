@@ -405,8 +405,7 @@ TEST_CASE("basic contract invocation", "[tx][soroban]")
         int64_t initBalance = test.getRoot().getBalance();
         auto invocation = contract.prepareInvocation(functionName, args, spec,
                                                      addContractKeys);
-        auto tx =
-            std::dynamic_pointer_cast<TransactionFrame>(invocation.createTx());
+        auto tx = invocation.createTx();
 
         REQUIRE(test.isTxValid(tx));
 
@@ -685,8 +684,7 @@ TEST_CASE("version test", "[tx][soroban]")
                       SorobanInvocationSpec const& spec) {
         auto invocation =
             contract.prepareInvocation(functionName, args, spec, true);
-        auto tx =
-            std::dynamic_pointer_cast<TransactionFrame>(invocation.createTx());
+        auto tx = invocation.createTx();
 
         REQUIRE(test.isTxValid(tx));
 
@@ -998,13 +996,12 @@ TEST_CASE("Soroban non-refundable resource fees are stable", "[tx][soroban]")
         auto& app = test.getApp();
         // Sanity check the tx fee computation logic.
         auto actualFeePair =
-            std::dynamic_pointer_cast<TransactionFrame>(validTx)
-                ->computePreApplySorobanResourceFee(
-                    app.getLedgerManager()
-                        .getLastClosedLedgerHeader()
-                        .header.ledgerVersion,
-                    app.getLedgerManager().getSorobanNetworkConfig(),
-                    app.getConfig());
+            validTx->getRawTransactionFrame().computePreApplySorobanResourceFee(
+                app.getLedgerManager()
+                    .getLastClosedLedgerHeader()
+                    .header.ledgerVersion,
+                app.getLedgerManager().getSorobanNetworkConfig(),
+                app.getConfig());
         REQUIRE(expectedNonRefundableFee == actualFeePair.non_refundable_fee);
 
         REQUIRE(test.isTxValid(validTx));
@@ -1265,9 +1262,9 @@ TEST_CASE_VERSIONS("refund is sent to fee-bump source",
         auto const feeCharged = afterV20 ? txFeeWithRefund : 1'040'971;
 
         REQUIRE(
-            r.at(0).first.result.result.innerResultPair().result.feeCharged ==
+            r.results.at(0).result.result.innerResultPair().result.feeCharged ==
             feeCharged - 100);
-        REQUIRE(r.at(0).first.result.feeCharged == feeCharged);
+        REQUIRE(r.results.at(0).result.feeCharged == feeCharged);
 
         REQUIRE(feeBumper.getBalance() ==
                 feeBumperStartingBalance - txFeeWithRefund);
@@ -1414,11 +1411,11 @@ TEST_CASE("transaction validation diagnostics", "[tx][soroban]")
     auto scMax = makeI32(INT32_MAX);
     auto invocationSpec =
         SorobanInvocationSpec().setInstructions(2'000'000).setReadBytes(2000);
-    auto tx = std::dynamic_pointer_cast<TransactionFrame>(
+    auto tx =
         addContract
             .prepareInvocation(fnName, {sc7, scMax},
                                invocationSpec.setInstructions(2'000'000'000))
-            .createTx());
+            .createTx();
     REQUIRE(!test.isTxValid(tx));
 
     auto const& diagEvents = tx->getDiagnosticEvents();
@@ -2515,7 +2512,7 @@ TEST_CASE("temp entry eviction", "[tx][soroban]")
 
         cfg.METADATA_OUTPUT_STREAM = metaPath;
         cfg.DEPRECATED_SQL_LEDGER_STATE = !enableBucketListDB;
-        cfg.EXPERIMENTAL_BACKGROUND_EVICTION_SCAN = backgroundEviction;
+        cfg.BACKGROUND_EVICTION_SCAN = backgroundEviction;
 
         // overrideSorobanNetworkConfigForTest commits directly to the database,
         // will not work if BucketListDB is enabled so we must use the cfg
@@ -3109,11 +3106,12 @@ TEST_CASE("settings upgrade command line utils", "[tx][soroban][upgrades]")
             sha256(xdr::xdr_to_opaque(app->getNetworkID(), ENVELOPE_TYPE_TX,
                                       txEnv.v1().tx))));
 
-        auto const& tx = TransactionFrameBase::makeTransactionFromWire(
+        auto const& rawTx = TransactionFrameBase::makeTransactionFromWire(
             app->getNetworkID(), txEnv);
+        auto tx = TransactionTestFrame::fromTxFrame(rawTx);
         LedgerTxn ltx(app->getLedgerTxnRoot());
         TransactionMetaFrame txm(ltx.loadHeader().current().ledgerVersion);
-        REQUIRE(tx->checkValid(*app, ltx, 0, 0, 0));
+        REQUIRE(tx->checkValidForTesting(*app, ltx, 0, 0, 0));
         REQUIRE(tx->apply(*app, ltx, txm));
         ltx.commit();
     }
@@ -3175,12 +3173,12 @@ TEST_CASE("settings upgrade command line utils", "[tx][soroban][upgrades]")
             sha256(xdr::xdr_to_opaque(app->getNetworkID(), ENVELOPE_TYPE_TX,
                                       invokeRes2.first.v1().tx))));
 
-        auto const& txRevertSettings =
-            TransactionFrameBase::makeTransactionFromWire(app->getNetworkID(),
-                                                          invokeRes2.first);
+        auto const& txRaw = TransactionFrameBase::makeTransactionFromWire(
+            app->getNetworkID(), invokeRes2.first);
+        auto txRevertSettings = TransactionTestFrame::fromTxFrame(txRaw);
         LedgerTxn ltx(app->getLedgerTxnRoot());
         TransactionMetaFrame txm(ltx.loadHeader().current().ledgerVersion);
-        REQUIRE(txRevertSettings->checkValid(*app, ltx, 0, 0, 0));
+        REQUIRE(txRevertSettings->checkValidForTesting(*app, ltx, 0, 0, 0));
         REQUIRE(txRevertSettings->apply(*app, ltx, txm));
         ltx.commit();
 
@@ -4166,8 +4164,7 @@ TEST_CASE("Module cache", "[tx][soroban]")
         auto invocation = sumContract.prepareInvocation(
             fnName, {makeAddressSCVal(addContract.getAddress()), scVec}, spec,
             expectedRefund);
-        auto tx =
-            std::dynamic_pointer_cast<TransactionFrame>(invocation.createTx());
+        auto tx = invocation.createTx();
         return test.invokeTx(tx);
     };
 
@@ -4226,8 +4223,7 @@ TEST_CASE("Vm instantiation tightening", "[tx][soroban]")
 
         auto invocation = addContract.prepareInvocation(fnName, {sc7, sc16},
                                                         spec, expectedRefund);
-        auto tx =
-            std::dynamic_pointer_cast<TransactionFrame>(invocation.createTx());
+        auto tx = invocation.createTx();
         return test.invokeTx(tx);
     };
 

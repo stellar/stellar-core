@@ -42,9 +42,6 @@ TxQueueLimiter::TxQueueLimiter(uint32 multiplier, Application& app,
         mMaxDexOperations =
             std::make_optional<Resource>(*maxDexOps * multiplier);
     }
-
-    mEnforceSingleAccounts =
-        std::make_optional<std::unordered_set<AccountID>>();
 }
 
 TxQueueLimiter::~TxQueueLimiter()
@@ -71,54 +68,20 @@ void
 TxQueueLimiter::addTransaction(TransactionFrameBasePtr const& tx)
 {
     releaseAssert(tx->isSoroban() == mIsSoroban);
-    // First check invariance
-    if (mEnforceSingleAccounts)
-    {
-        auto& accts = *mEnforceSingleAccounts;
-        auto res = accts.emplace(tx->getSourceID());
-        // Must be first time insertion
-        if (!res.second)
-        {
-            throw std::logic_error(
-                "invalid state (duplicate account) while adding tx in "
-                "TxQueueLimiter");
-        }
-    }
-    auto txStack = std::make_shared<SingleTxStack>(tx);
-    mStackForTx[tx] = txStack;
-    mTxs->add(txStack);
+    mTxs->add(tx);
 }
 
 void
 TxQueueLimiter::removeTransaction(TransactionFrameBasePtr const& tx)
 {
-    auto txStackIt = mStackForTx.find(tx);
-    if (txStackIt == mStackForTx.end())
-    {
-        throw std::logic_error(
-            "invalid state (missing tx) while removing tx in TxQueueLimiter");
-    }
-    mTxs->erase(txStackIt->second);
-    mStackForTx.erase(txStackIt);
-    if (mEnforceSingleAccounts)
-    {
-        auto& accts = *mEnforceSingleAccounts;
-        auto res = accts.erase(tx->getSourceID());
-        // Must be present
-        if (res == 0)
-        {
-            throw std::logic_error(
-                "invalid state (missing account) while removing tx in "
-                "TxQueueLimiter");
-        }
-    }
+    mTxs->erase(tx);
 }
 
 #ifdef BUILD_TESTS
 std::pair<bool, int64>
-TxQueueLimiter::canAddTx(TransactionFrameBasePtr const& newTx,
-                         TransactionFrameBasePtr const& oldTx,
-                         std::vector<std::pair<TxStackPtr, bool>>& txsToEvict)
+TxQueueLimiter::canAddTx(
+    TransactionFrameBasePtr const& newTx, TransactionFrameBasePtr const& oldTx,
+    std::vector<std::pair<TransactionFrameBasePtr, bool>>& txsToEvict)
 {
 
     LedgerTxn ltx(mApp.getLedgerTxnRoot(), /* shouldUpdateLastModified */ true,
@@ -129,10 +92,10 @@ TxQueueLimiter::canAddTx(TransactionFrameBasePtr const& newTx,
 #endif
 
 std::pair<bool, int64>
-TxQueueLimiter::canAddTx(TransactionFrameBasePtr const& newTx,
-                         TransactionFrameBasePtr const& oldTx,
-                         std::vector<std::pair<TxStackPtr, bool>>& txsToEvict,
-                         uint32_t ledgerVersion)
+TxQueueLimiter::canAddTx(
+    TransactionFrameBasePtr const& newTx, TransactionFrameBasePtr const& oldTx,
+    std::vector<std::pair<TransactionFrameBasePtr, bool>>& txsToEvict,
+    uint32_t ledgerVersion)
 {
     releaseAssert(newTx);
     releaseAssert(newTx->isSoroban() == mIsSoroban);
@@ -188,7 +151,7 @@ TxQueueLimiter::canAddTx(TransactionFrameBasePtr const& newTx,
 
 void
 TxQueueLimiter::evictTransactions(
-    std::vector<std::pair<TxStackPtr, bool>> const& txsToEvict,
+    std::vector<std::pair<TransactionFrameBasePtr, bool>> const& txsToEvict,
     TransactionFrameBase const& txToFit,
     std::function<void(TransactionFrameBasePtr const&)> evict)
 {
@@ -199,9 +162,8 @@ TxQueueLimiter::evictTransactions(
 
     auto maxLimits = maxScaledLedgerResources(txToFit.isSoroban());
 
-    for (auto const& [evictedStack, evictedDueToLaneLimit] : txsToEvict)
+    for (auto const& [tx, evictedDueToLaneLimit] : txsToEvict)
     {
-        auto tx = evictedStack->getTopTx();
         if (evictedDueToLaneLimit)
         {
             // If tx has been evicted due to lane limit, then all the following
@@ -272,11 +234,6 @@ TxQueueLimiter::reset(uint32_t ledgerVersion)
                                           std::numeric_limits<size_t>::max()));
     }
 
-    mStackForTx.clear();
-    if (mEnforceSingleAccounts)
-    {
-        mEnforceSingleAccounts->clear();
-    }
     resetEvictionState();
 }
 

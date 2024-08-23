@@ -37,14 +37,14 @@ lib/asio:
   Licensed under the Boost Software License 1.0
   (http://www.boost.org/LICENSE_1_0.txt)
 
-lib/bloom_filter.hpp:
+lib/binaryfusefilter.h:
 
-  The C++ Open Bloom Filter Library,
-  Copyright 2000 Arash Partow
-  (arash at partow dot net)
-  (https://www.partow.net/programming/bloomfilter/index.html)
-  Licensed under the MIT license
-  (http://opensource.org/licenses/MIT)
+  The FastFilter library,
+  Copyright 2023 Daniel Lemire
+  (daniel at lemire dot me)
+  (<https://github.com/FastFilter/xor_singleheader>)
+  Licensed under the Apache License, Version 2.0
+  (<https://www.apache.org/licenses/LICENSE-2.0>)
 
 lib/catch.hpp:
 

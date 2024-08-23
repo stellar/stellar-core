@@ -17,18 +17,20 @@ class BumpSequenceOpFrame : public OperationFrame
     bool isOpSupported(LedgerHeader const& header) const override;
 
     BumpSequenceResult&
-    innerResult()
+    innerResult(OperationResult& res) const
     {
-        return mResult.tr().bumpSeqResult();
+        return res.tr().bumpSeqResult();
     }
     BumpSequenceOp const& mBumpSequenceOp;
 
   public:
-    BumpSequenceOpFrame(Operation const& op, OperationResult& res,
-                        TransactionFrame& parentTx);
+    BumpSequenceOpFrame(Operation const& op, TransactionFrame const& parentTx);
 
-    bool doApply(AbstractLedgerTxn& ltx) override;
-    bool doCheckValid(uint32_t ledgerVersion) override;
+    bool doApply(Application& app, AbstractLedgerTxn& ltx,
+                 Hash const& sorobanBasePrngSeed, OperationResult& res,
+                 std::shared_ptr<SorobanTxData> sorobanData) const override;
+    bool doCheckValid(uint32_t ledgerVersion,
+                      OperationResult& res) const override;
 
     static BumpSequenceResultCode
     getInnerCode(OperationResult const& res)

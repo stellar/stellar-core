@@ -126,6 +126,11 @@ class HerderImpl : public Herder
     {
         mMaxClassicTxSize = std::make_optional<uint32_t>(bytes);
     }
+    void
+    setMaxTxSize(uint32 bytes) override
+    {
+        mMaxTxSize = bytes;
+    }
     std::optional<uint32_t> mFlowControlExtraBuffer;
     void
     setFlowControlExtraBufferSize(uint32 bytes) override
@@ -267,6 +272,11 @@ class HerderImpl : public Herder
     void persistSCPState(uint64 slot);
     // restores SCP state based on the last messages saved on disk
     void restoreSCPState();
+
+    // Map SCP slots to local time of nomination and the time slot was
+    // externalized by the network
+    std::map<uint32_t, std::pair<uint64_t, std::optional<uint64_t>>>
+        mDriftCTSlidingWindow;
 
     // saves upgrade parameters
     void persistUpgrades();

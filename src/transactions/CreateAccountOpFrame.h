@@ -14,25 +14,24 @@ class AbstractLedgerTxn;
 class CreateAccountOpFrame : public OperationFrame
 {
     CreateAccountResult&
-    innerResult()
+    innerResult(OperationResult& res) const
     {
-        return mResult.tr().createAccountResult();
+        return res.tr().createAccountResult();
     }
     CreateAccountOp const& mCreateAccount;
 
-    bool doApplyBeforeV14(AbstractLedgerTxn& ltx);
-    bool doApplyFromV14(AbstractLedgerTxn& ltxOuter);
-
-    bool checkLowReserve(AbstractLedgerTxn& ltx);
-    bool deductStartingBalance(AbstractLedgerTxn& ltx);
-    void createAccount(AbstractLedgerTxn& ltx);
+    bool doApplyBeforeV14(AbstractLedgerTxn& ltx, OperationResult& res) const;
+    bool doApplyFromV14(AbstractLedgerTxn& ltxOuter,
+                        OperationResult& res) const;
 
   public:
-    CreateAccountOpFrame(Operation const& op, OperationResult& res,
-                         TransactionFrame& parentTx);
+    CreateAccountOpFrame(Operation const& op, TransactionFrame const& parentTx);
 
-    bool doApply(AbstractLedgerTxn& ltx) override;
-    bool doCheckValid(uint32_t ledgerVersion) override;
+    bool doApply(Application& app, AbstractLedgerTxn& ltx,
+                 Hash const& sorobanBasePrngSeed, OperationResult& res,
+                 std::shared_ptr<SorobanTxData> sorobanData) const override;
+    bool doCheckValid(uint32_t ledgerVersion,
+                      OperationResult& res) const override;
     void
     insertLedgerKeysToPrefetch(UnorderedSet<LedgerKey>& keys) const override;
 

@@ -324,11 +324,6 @@ class Config : public std::enable_shared_from_this<Config>
     uint32_t PEER_FLOOD_READING_CAPACITY_BYTES;
     uint32_t FLOW_CONTROL_SEND_MORE_BATCH_SIZE_BYTES;
 
-    // Enable flow control in bytes. This config allows core to process large
-    // transactions on the network more efficiently and apply back pressure if
-    // needed.
-    bool ENABLE_FLOW_CONTROL_BYTES;
-
     // Byte limit for outbound transaction queue.
     uint32_t OUTBOUND_TX_QUEUE_BYTE_LIMIT;
 
@@ -376,7 +371,7 @@ class Config : public std::enable_shared_from_this<Config>
 
     // When set to true, eviction scans occur on the background thread,
     // increasing performance. Requires EXPERIMENTAL_BUCKETLIST_DB.
-    bool EXPERIMENTAL_BACKGROUND_EVICTION_SCAN;
+    bool BACKGROUND_EVICTION_SCAN;
 
     // A config parameter that stores historical data, such as transactions,
     // fees, and scp history in the database
@@ -510,8 +505,10 @@ class Config : public std::enable_shared_from_this<Config>
     uint32_t TESTING_UPGRADE_FLAGS;
 
     unsigned short HTTP_PORT; // what port to listen for commands
-    bool PUBLIC_HTTP_PORT;    // if you accept commands from not localhost
-    int HTTP_MAX_CLIENT;      // maximum number of http clients, i.e backlog
+    unsigned short
+        HTTP_QUERY_PORT;   // what port to listen for RPC related commands
+    bool PUBLIC_HTTP_PORT; // if you accept commands from not localhost
+    int HTTP_MAX_CLIENT;   // maximum number of http clients, i.e backlog
     std::string NETWORK_PASSPHRASE; // identifier for the network
 
     // overlay config
@@ -554,6 +551,12 @@ class Config : public std::enable_shared_from_this<Config>
 
     // thread-management config
     int WORKER_THREADS;
+
+    // Number of threads to serve query commands
+    int QUERY_THREAD_POOL_SIZE;
+
+    // Number of ledger snapshots to maintain for querying
+    uint32_t QUERY_SNAPSHOT_LEDGERS;
 
     // process-management config
     size_t MAX_CONCURRENT_SUBPROCESSES;
@@ -672,6 +675,7 @@ class Config : public std::enable_shared_from_this<Config>
     bool isInMemoryMode() const;
     bool isInMemoryModeWithoutMinimalDB() const;
     bool isUsingBucketListDB() const;
+    bool isUsingBackgroundEviction() const;
     bool isPersistingBucketListDBIndexes() const;
     bool modeStoresAllHistory() const;
     bool modeStoresAnyHistory() const;

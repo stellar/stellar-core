@@ -25,6 +25,7 @@
 #include "overlay/OverlayManager.h"
 #include "scp/LocalNode.h"
 #include "scp/Slot.h"
+#include "transactions/MutableTransactionResult.h"
 #include "transactions/TransactionUtils.h"
 #include "util/DebugMetaUtils.h"
 #include "util/LogSlowExecution.h"
@@ -51,6 +52,11 @@
 using namespace std;
 namespace stellar
 {
+
+// Roughly ~10 minutes of consensus
+constexpr uint32 const CLOSE_TIME_DRIFT_LEDGER_WINDOW_SIZE = 120;
+// 10 seconds of drift threshold
+constexpr uint32 const CLOSE_TIME_DRIFT_SECONDS_THRESHOLD = 10;
 
 constexpr uint32 const TRANSACTION_QUEUE_TIMEOUT_LEDGERS = 4;
 constexpr uint32 const TRANSACTION_QUEUE_BAN_LEDGERS = 10;
@@ -355,9 +361,6 @@ HerderImpl::processExternalized(uint64 slotIndex, StellarValue const& value,
     }
 
     mLedgerManager.valueExternalized(ledgerData);
-
-    // Ensure potential upgrades are handled in overlay
-    maybeHandleUpgrade();
 }
 
 void
@@ -400,11 +403,47 @@ HerderImpl::writeDebugTxSet(LedgerCloseData const& lcd)
 }
 
 void
+recordExternalizeAndCheckCloseTimeDrift(
+    uint64 slotIndex, StellarValue const& value,
+    std::map<uint32_t, std::pair<uint64_t, std::optional<uint64_t>>>& ctMap)
+{
+    auto it = ctMap.find(slotIndex);
+    if (it != ctMap.end())
+    {
+        it->second.second = value.closeTime;
+    }
+
+    if (ctMap.size() >= CLOSE_TIME_DRIFT_LEDGER_WINDOW_SIZE)
+    {
+        medida::Histogram h(medida::SamplingInterface::SampleType::kSliding);
+        for (auto const& [ledgerSeq, closeTimePair] : ctMap)
+        {
+            auto const& [localCT, externalizedCT] = closeTimePair;
+            if (externalizedCT)
+            {
+                h.Update(*externalizedCT - localCT);
+            }
+        }
+        auto drift = static_cast<int>(h.GetSnapshot().get75thPercentile());
+        if (std::abs(drift) > CLOSE_TIME_DRIFT_SECONDS_THRESHOLD)
+        {
+            CLOG_WARNING(Herder, POSSIBLY_BAD_LOCAL_CLOCK);
+            CLOG_WARNING(Herder, "Close time local drift is: {}", drift);
+        }
+
+        ctMap.clear();
+    }
+}
+
+void
 HerderImpl::valueExternalized(uint64 slotIndex, StellarValue const& value,
                               bool isLatestSlot)
 {
     ZoneScoped;
     const int DUMP_SCP_TIMEOUT_SECONDS = 20;
+
+    recordExternalizeAndCheckCloseTimeDrift(slotIndex, value,
+                                            mDriftCTSlidingWindow);
 
     if (isLatestSlot)
     {
@@ -546,7 +585,8 @@ TransactionQueue::AddResult
 HerderImpl::recvTransaction(TransactionFrameBasePtr tx, bool submittedFromSelf)
 {
     ZoneScoped;
-    TransactionQueue::AddResult result;
+    TransactionQueue::AddResult result(
+        TransactionQueue::AddResultCode::ADD_STATUS_COUNT);
 
     // Allow txs of the same kind to reach the tx queue in case it can be
     // replaced by fee
@@ -564,7 +604,8 @@ HerderImpl::recvTransaction(TransactionFrameBasePtr tx, bool submittedFromSelf)
                    "account per ledger limit",
                    hexAbbrev(tx->getFullHash()),
                    KeyUtils::toShortString(tx->getSourceID()));
-        result = TransactionQueue::AddResult::ADD_STATUS_TRY_AGAIN_LATER;
+        result.code =
+            TransactionQueue::AddResultCode::ADD_STATUS_TRY_AGAIN_LATER;
     }
     else if (!tx->isSoroban())
     {
@@ -578,10 +619,12 @@ HerderImpl::recvTransaction(TransactionFrameBasePtr tx, bool submittedFromSelf)
     {
         // Received Soroban transaction before protocol 20; since this
         // transaction isn't supported yet, return ERROR
-        result = TransactionQueue::AddResult::ADD_STATUS_ERROR;
+        result = TransactionQueue::AddResult(
+            TransactionQueue::AddResultCode::ADD_STATUS_ERROR, tx,
+            txNOT_SUPPORTED);
     }
 
-    if (result == TransactionQueue::AddResult::ADD_STATUS_PENDING)
+    if (result.code == TransactionQueue::AddResultCode::ADD_STATUS_PENDING)
     {
         CLOG_TRACE(Herder, "recv transaction {} for {}",
                    hexAbbrev(tx->getFullHash()),
@@ -1099,6 +1142,9 @@ HerderImpl::lastClosedLedgerIncreased(bool latest)
     maybeSetupSorobanQueue(
         mLedgerManager.getLastClosedLedgerHeader().header.ledgerVersion);
 
+    // Ensure potential upgrades are handled in overlay
+    maybeHandleUpgrade();
+
     if (latest)
     {
         releaseAssert(isTracking());
@@ -1321,6 +1367,29 @@ HerderImpl::triggerNextLedger(uint32_t ledgerSeqToTrigger,
     // so this is the most appropriate value to use as closeTime.
     uint64_t nextCloseTime =
         VirtualClock::to_time_t(mApp.getClock().system_now());
+    if (ledgerSeqToTrigger == lcl.header.ledgerSeq + 1)
+    {
+        auto it = mDriftCTSlidingWindow.find(ledgerSeqToTrigger);
+        if (it == mDriftCTSlidingWindow.end())
+        {
+            // Record local close time _before_ it gets adjusted to be valid
+            // below
+            mDriftCTSlidingWindow[ledgerSeqToTrigger] =
+                std::make_pair(nextCloseTime, std::nullopt);
+            while (mDriftCTSlidingWindow.size() >
+                   CLOSE_TIME_DRIFT_LEDGER_WINDOW_SIZE)
+            {
+                mDriftCTSlidingWindow.erase(mDriftCTSlidingWindow.begin());
+            }
+        }
+        else
+        {
+            CLOG_WARNING(Herder,
+                         "Herder::triggerNextLedger called twice on ledger {}",
+                         ledgerSeqToTrigger);
+        }
+    }
+
     if (nextCloseTime <= lcl.header.scpValue.closeTime)
     {
         nextCloseTime = lcl.header.scpValue.closeTime + 1;
@@ -2230,8 +2299,7 @@ HerderImpl::updateTransactionQueue(TxSetXDRFrameConstPtr externalizedTxSet)
 
         auto invalidTxs = TxSetUtils::getInvalidTxList(
             txs, mApp, 0,
-            getUpperBoundCloseTimeOffset(mApp, lhhe.header.scpValue.closeTime),
-            false);
+            getUpperBoundCloseTimeOffset(mApp, lhhe.header.scpValue.closeTime));
         queue.ban(invalidTxs);
 
         queue.rebroadcast();

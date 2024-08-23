@@ -156,14 +156,10 @@ Peer::endMessageProcessing(StellarMessage const& msg)
     // We may release reading capacity, which gets taken by the background
     // thread immediately, so we can't assert `canRead` here
     auto res = mFlowControl->endMessageProcessing(msg);
-    if (res.second)
+    if (res.first > 0 || res.second > 0)
     {
         sendSendMore(static_cast<uint32>(res.first),
-                     static_cast<uint32>(*res.second));
-    }
-    else if (res.first > 0)
-    {
-        sendSendMore(static_cast<uint32>(res.first));
+                     static_cast<uint32>(res.second));
     }
 
     // Now that we've released some capacity, maybe schedule more reads
@@ -389,10 +385,7 @@ Peer::sendAuth()
     ZoneScoped;
     StellarMessage msg;
     msg.type(AUTH);
-    if (mAppConnector.getConfig().ENABLE_FLOW_CONTROL_BYTES)
-    {
-        msg.auth().flags = AUTH_MSG_FLAG_FLOW_CONTROL_BYTES_REQUESTED;
-    }
+    msg.auth().flags = AUTH_MSG_FLAG_FLOW_CONTROL_BYTES_REQUESTED;
     auto msgPtr = std::make_shared<StellarMessage const>(msg);
     sendMessage(msgPtr);
 }
@@ -594,18 +587,6 @@ Peer::sendErrorAndDrop(ErrorCode error, std::string const& message)
 }
 
 void
-Peer::sendSendMore(uint32_t numMessages)
-{
-    ZoneScoped;
-    releaseAssert(threadIsMain());
-
-    auto m = std::make_shared<StellarMessage>();
-    m->type(SEND_MORE);
-    m->sendMoreMessage().numMessages = numMessages;
-    sendMessage(m);
-}
-
-void
 Peer::sendSendMore(uint32_t numMessages, uint32_t numBytes)
 {
     ZoneScoped;
@@ -787,7 +768,7 @@ Peer::sendMessage(std::shared_ptr<StellarMessage const> msg, bool log)
             [](std::shared_ptr<Peer> self) {
                 for (auto const& m : self->mFlowControl->getNextBatchToSend())
                 {
-                    self->sendAuthenticatedMessage(m);
+                    self->sendAuthenticatedMessage(m.mMessage, m.mTimeEmplaced);
                 }
             });
     }
@@ -799,7 +780,9 @@ Peer::sendMessage(std::shared_ptr<StellarMessage const> msg, bool log)
 }
 
 void
-Peer::sendAuthenticatedMessage(std::shared_ptr<StellarMessage const> msg)
+Peer::sendAuthenticatedMessage(
+    std::shared_ptr<StellarMessage const> msg,
+    std::optional<VirtualClock::time_point> timePlaced)
 {
     {
         // No need to hold the lock for the duration of this function:
@@ -814,7 +797,7 @@ Peer::sendAuthenticatedMessage(std::shared_ptr<StellarMessage const> msg)
         }
     }
 
-    auto cb = [msg](std::shared_ptr<Peer> self) {
+    auto cb = [msg, timePlaced](std::shared_ptr<Peer> self) {
         // Construct an authenticated message and place it in the queue
         // _synchronously_ This is important because we assign auth sequence to
         // each message, which must be ordered
@@ -826,6 +809,10 @@ Peer::sendAuthenticatedMessage(std::shared_ptr<StellarMessage const> msg)
             xdrBytes = xdr::xdr_to_msg(amsg);
         }
         self->sendMessage(std::move(xdrBytes));
+        if (timePlaced)
+        {
+            self->mFlowControl->updateMsgMetrics(msg, *timePlaced);
+        }
     };
 
     // If we're already on the background thread (i.e. via flow control), move
@@ -1050,14 +1037,14 @@ Peer::recvSendMore(StellarMessage const& msg)
     releaseAssert(threadIsMain());
     releaseAssert(mFlowControl);
     mFlowControl->maybeReleaseCapacity(msg);
-    maybeExecuteInBackground("Peer::recvSendMore maybeSendNextBatch",
-                             [](std::shared_ptr<Peer> self) {
-                                 for (auto const& m :
-                                      self->mFlowControl->getNextBatchToSend())
-                                 {
-                                     self->sendAuthenticatedMessage(m);
-                                 }
-                             });
+    maybeExecuteInBackground(
+        "Peer::recvSendMore maybeSendNextBatch",
+        [](std::shared_ptr<Peer> self) {
+            for (auto const& m : self->mFlowControl->getNextBatchToSend())
+            {
+                self->sendAuthenticatedMessage(m.mMessage, m.mTimeEmplaced);
+            }
+        });
 }
 
 void
@@ -1591,6 +1578,7 @@ Peer::recvHello(Hello const& elo)
     mRemoteOverlayVersion = elo.overlayVersion;
     mRemoteVersion = elo.versionStr;
     mPeerID = elo.peerID;
+    mFlowControl->setPeerID(mPeerID);
     mRecvNonce = elo.nonce;
     mHmac.setSendMackey(peerAuth.getSendingMacKey(elo.cert.pubkey, mSendNonce,
                                                   mRecvNonce, mRole));
@@ -1740,35 +1728,19 @@ Peer::recvAuth(StellarMessage const& msg)
         return;
     }
 
-    bool enableBytes =
-        (mAppConnector.getConfig().OVERLAY_PROTOCOL_VERSION >=
-             Peer::FIRST_VERSION_SUPPORTING_FLOW_CONTROL_IN_BYTES &&
-         getRemoteOverlayVersion() >=
-             Peer::FIRST_VERSION_SUPPORTING_FLOW_CONTROL_IN_BYTES);
-    bool bothWantBytes =
-        enableBytes &&
-        msg.auth().flags == AUTH_MSG_FLAG_FLOW_CONTROL_BYTES_REQUESTED &&
-        mAppConnector.getConfig().ENABLE_FLOW_CONTROL_BYTES;
+    if (msg.auth().flags != AUTH_MSG_FLAG_FLOW_CONTROL_BYTES_REQUESTED)
+    {
+        sendErrorAndDrop(ERR_CONF, "flow control bytes disabled");
+        return;
+    }
 
-    std::optional<uint32_t> fcBytes =
-        bothWantBytes
-            ? std::optional<uint32_t>(mAppConnector.getOverlayManager()
-                                          .getFlowControlBytesConfig()
-                                          .mTotal)
-            : std::nullopt;
-    mFlowControl->start(mPeerID, fcBytes);
+    uint32_t fcBytes =
+        mAppConnector.getOverlayManager().getFlowControlBytesConfig().mTotal;
 
     // Subtle: after successful auth, must send sendMore message first to
     // tell the other peer about the local node's reading capacity.
-    if (fcBytes)
-    {
-        sendSendMore(mAppConnector.getConfig().PEER_FLOOD_READING_CAPACITY,
-                     *fcBytes);
-    }
-    else
-    {
-        sendSendMore(mAppConnector.getConfig().PEER_FLOOD_READING_CAPACITY);
-    }
+    sendSendMore(mAppConnector.getConfig().PEER_FLOOD_READING_CAPACITY,
+                 fcBytes);
 
     auto weakSelf = std::weak_ptr<Peer>(shared_from_this());
     mTxAdverts->start([weakSelf](std::shared_ptr<StellarMessage const> msg) {

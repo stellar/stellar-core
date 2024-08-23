@@ -22,15 +22,17 @@ namespace stellar
 
 using namespace std;
 
-ManageDataOpFrame::ManageDataOpFrame(Operation const& op, OperationResult& res,
-                                     TransactionFrame& parentTx)
-    : OperationFrame(op, res, parentTx)
-    , mManageData(mOperation.body.manageDataOp())
+ManageDataOpFrame::ManageDataOpFrame(Operation const& op,
+                                     TransactionFrame const& parentTx)
+    : OperationFrame(op, parentTx), mManageData(mOperation.body.manageDataOp())
 {
 }
 
 bool
-ManageDataOpFrame::doApply(AbstractLedgerTxn& ltx)
+ManageDataOpFrame::doApply(Application& app, AbstractLedgerTxn& ltx,
+                           Hash const& sorobanBasePrngSeed,
+                           OperationResult& res,
+                           std::shared_ptr<SorobanTxData> sorobanData) const
 {
     ZoneNamedN(applyZone, "ManageDataOp apply", true);
     auto header = ltx.loadHeader();
@@ -60,13 +62,13 @@ ManageDataOpFrame::doApply(AbstractLedgerTxn& ltx)
             case SponsorshipResult::SUCCESS:
                 break;
             case SponsorshipResult::LOW_RESERVE:
-                innerResult().code(MANAGE_DATA_LOW_RESERVE);
+                innerResult(res).code(MANAGE_DATA_LOW_RESERVE);
                 return false;
             case SponsorshipResult::TOO_MANY_SUBENTRIES:
-                mResult.code(opTOO_MANY_SUBENTRIES);
+                res.code(opTOO_MANY_SUBENTRIES);
                 return false;
             case SponsorshipResult::TOO_MANY_SPONSORING:
-                mResult.code(opTOO_MANY_SPONSORING);
+                res.code(opTOO_MANY_SPONSORING);
                 return false;
             case SponsorshipResult::TOO_MANY_SPONSORED:
                 // This is impossible right now because there is a limit on sub
@@ -86,7 +88,7 @@ ManageDataOpFrame::doApply(AbstractLedgerTxn& ltx)
     { // delete an existing piece of data
         if (!data)
         {
-            innerResult().code(MANAGE_DATA_NAME_NOT_FOUND);
+            innerResult(res).code(MANAGE_DATA_NAME_NOT_FOUND);
             return false;
         }
 
@@ -96,23 +98,24 @@ ManageDataOpFrame::doApply(AbstractLedgerTxn& ltx)
         data.erase();
     }
 
-    innerResult().code(MANAGE_DATA_SUCCESS);
+    innerResult(res).code(MANAGE_DATA_SUCCESS);
     return true;
 }
 
 bool
-ManageDataOpFrame::doCheckValid(uint32_t ledgerVersion)
+ManageDataOpFrame::doCheckValid(uint32_t ledgerVersion,
+                                OperationResult& res) const
 {
     if (protocolVersionIsBefore(ledgerVersion, ProtocolVersion::V_2))
     {
-        innerResult().code(MANAGE_DATA_NOT_SUPPORTED_YET);
+        innerResult(res).code(MANAGE_DATA_NOT_SUPPORTED_YET);
         return false;
     }
 
     if ((mManageData.dataName.size() < 1) ||
         (!isStringValid(mManageData.dataName)))
     {
-        innerResult().code(MANAGE_DATA_INVALID_NAME);
+        innerResult(res).code(MANAGE_DATA_INVALID_NAME);
         return false;
     }
 

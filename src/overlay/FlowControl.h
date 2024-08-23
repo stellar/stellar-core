@@ -16,8 +16,8 @@ namespace stellar
 class OverlayAppConnector;
 struct OverlayMetrics;
 
-// num messages, optional bytes if enabled
-using SendMoreCapacity = std::pair<uint64_t, std::optional<uint64_t>>;
+// num messages, bytes
+using SendMoreCapacity = std::pair<uint64_t, uint64_t>;
 
 // The FlowControl class allows core to throttle flood traffic among its
 // connections. If a connections wants to use flow control, it should maintain
@@ -62,8 +62,8 @@ class FlowControl
     std::optional<VirtualClock::time_point> mLastThrottle;
 
     NodeID mNodeID;
-    std::shared_ptr<FlowControlCapacity> mFlowControlCapacity;
-    std::shared_ptr<FlowControlByteCapacity> mFlowControlBytesCapacity;
+    FlowControlMessageCapacity mFlowControlCapacity;
+    FlowControlByteCapacity mFlowControlBytesCapacity;
 
     OverlayMetrics& mOverlayMetrics;
     OverlayAppConnector& mAppConnector;
@@ -102,17 +102,19 @@ class FlowControl
     void addMsgAndMaybeTrimQueue(std::shared_ptr<StellarMessage const> msg);
     // Return next batch of messages to send
     // NOTE: this methods _releases_ capacity and cleans up flow control queues
-    std::vector<std::shared_ptr<StellarMessage const>> getNextBatchToSend();
+    std::vector<QueuedOutboundMessage> getNextBatchToSend();
+    void updateMsgMetrics(std::shared_ptr<StellarMessage const> msg,
+                          VirtualClock::time_point const& timePlaced);
 
 #ifdef BUILD_TESTS
-    std::shared_ptr<FlowControlCapacity>
-    getCapacity() const
+    FlowControlCapacity&
+    getCapacity()
     {
         return mFlowControlCapacity;
     }
 
-    std::shared_ptr<FlowControlCapacity>
-    getCapacityBytes() const
+    FlowControlCapacity&
+    getCapacityBytes()
     {
         return mFlowControlBytesCapacity;
     }
@@ -173,7 +175,8 @@ class FlowControl
 
     Json::Value getFlowControlJsonInfo(bool compact) const;
 
-    void start(NodeID const& peerID, std::optional<uint32_t> enableFCBytes);
+    // Stores `peerID` to produce more useful log messages.
+    void setPeerID(NodeID const& peerID);
 
     // Stop reading from this peer until capacity is released
     bool maybeThrottleRead();

@@ -35,6 +35,7 @@
 #include "util/types.h"
 #include "work/WorkScheduler.h"
 
+#include <catch.hpp>
 #include <cereal/archives/json.hpp>
 #include <cereal/cereal.hpp>
 
@@ -458,6 +459,13 @@ limitParser(std::optional<std::uint64_t>& limit)
         "process only this many recent ledger entries (not *most* recent)");
 }
 
+clara::Opt
+includeAllStatesParser(bool& include)
+{
+    return clara::Opt{include}["--include-all-states"](
+        "include all non-dead states of the entry into query results");
+}
+
 int
 runWithHelp(CommandLineArgs const& args,
             std::vector<ParserWithValidation> parsers, std::function<int()> f)
@@ -686,6 +694,12 @@ CommandLine::selectCommand(std::string const& commandName)
 void
 CommandLine::writeToStream(std::string const& exeName, std::ostream& os) const
 {
+#ifdef BUILD_TESTS
+    // Printing this line enables automatic test discovery in VSCode, and
+    // it is generally harmless otherwise (only shown in a BUILD_TESTS build).
+    std::cout << "Catch2 v" << CATCH_VERSION_MAJOR << "." << CATCH_VERSION_MINOR
+              << "." << CATCH_VERSION_PATCH << std::endl;
+#endif
     os << "usage:\n"
        << "  " << exeName << " "
        << "COMMAND";
@@ -1188,19 +1202,20 @@ runDumpLedger(CommandLineArgs const& args)
     std::optional<uint64_t> limit;
     std::optional<std::string> groupBy;
     std::optional<std::string> aggregate;
-    return runWithHelp(args,
-                       {configurationParser(configOption),
-                        outputFileParser(outputFile).required(),
-                        filterQueryParser(filterQuery),
-                        lastModifiedLedgerCountParser(lastModifiedLedgerCount),
-                        limitParser(limit), groupByParser(groupBy),
-                        aggregateParser(aggregate)},
-                       [&] {
-                           return dumpLedger(configOption.getConfig(),
-                                             outputFile, filterQuery,
-                                             lastModifiedLedgerCount, limit,
-                                             groupBy, aggregate);
-                       });
+    bool includeAllStates = false;
+    return runWithHelp(
+        args,
+        {configurationParser(configOption),
+         outputFileParser(outputFile).required(),
+         filterQueryParser(filterQuery),
+         lastModifiedLedgerCountParser(lastModifiedLedgerCount),
+         limitParser(limit), groupByParser(groupBy), aggregateParser(aggregate),
+         includeAllStatesParser(includeAllStates)},
+        [&] {
+            return dumpLedger(configOption.getConfig(), outputFile, filterQuery,
+                              lastModifiedLedgerCount, limit, groupBy,
+                              aggregate, includeAllStates);
+        });
 }
 
 int
@@ -1635,81 +1650,43 @@ runSignTransaction(CommandLineArgs const& args)
 int
 runVersion(CommandLineArgs const&)
 {
+    rust::Vec<SorobanVersionInfo> rustVersions =
+        rust_bridge::get_soroban_version_info(
+            Config::CURRENT_LEDGER_PROTOCOL_VERSION);
+
     std::cout << STELLAR_CORE_VERSION << std::endl;
     std::cout << "ledger protocol version: "
               << Config::CURRENT_LEDGER_PROTOCOL_VERSION << std::endl;
     std::cout << "rust version: " << rust_bridge::get_rustc_version().c_str()
               << std::endl;
 
-    std::cout << "soroban-env-host: " << std::endl;
+    std::cout << "soroban-env-host versions: " << std::endl;
 
-    std::cout << "    curr:" << std::endl;
-    std::cout << "        package version: "
-              << rust_bridge::get_soroban_env_pkg_versions().curr.c_str()
-              << std::endl;
-
-    std::cout << "        git version: "
-              << rust_bridge::get_soroban_env_git_versions().curr.c_str()
-              << std::endl;
-
-    std::cout << "        ledger protocol version: "
-              << rust_bridge::get_soroban_env_ledger_protocol_versions().curr
-              << std::endl;
-
-    std::cout << "        pre-release version: "
-              << rust_bridge::get_soroban_env_pre_release_versions().curr
-              << std::endl;
-
-    std::cout << "        rs-stellar-xdr:" << std::endl;
-
-    std::cout
-        << "            package version: "
-        << rust_bridge::get_soroban_xdr_bindings_pkg_versions().curr.c_str()
-        << std::endl;
-    std::cout
-        << "            git version: "
-        << rust_bridge::get_soroban_xdr_bindings_git_versions().curr.c_str()
-        << std::endl;
-    std::cout << "            base XDR git version: "
-              << rust_bridge::get_soroban_xdr_bindings_base_xdr_git_versions()
-                     .curr.c_str()
-              << std::endl;
-
-    if (rust_bridge::compiled_with_soroban_prev())
+    size_t i = 0;
+    for (auto& host : rustVersions)
     {
-        std::cout << "    prev:" << std::endl;
-        std::cout << "        package version: "
-                  << rust_bridge::get_soroban_env_pkg_versions().prev.c_str()
+        std::cout << "    host[" << i << "]:" << std::endl;
+        std::cout << "        package version: " << host.env_pkg_ver.c_str()
                   << std::endl;
 
-        std::cout << "        git version: "
-                  << rust_bridge::get_soroban_env_git_versions().prev.c_str()
+        std::cout << "        git version: " << host.env_git_rev.c_str()
                   << std::endl;
 
-        std::cout
-            << "        ledger protocol version: "
-            << rust_bridge::get_soroban_env_ledger_protocol_versions().prev
-            << std::endl;
+        std::cout << "        ledger protocol version: " << host.env_max_proto
+                  << std::endl;
 
-        std::cout << "        pre-release version: "
-                  << rust_bridge::get_soroban_env_pre_release_versions().prev
+        std::cout << "        pre-release version: " << host.env_pre_release_ver
                   << std::endl;
 
         std::cout << "        rs-stellar-xdr:" << std::endl;
 
-        std::cout
-            << "            package version: "
-            << rust_bridge::get_soroban_xdr_bindings_pkg_versions().prev.c_str()
-            << std::endl;
-        std::cout
-            << "            git version: "
-            << rust_bridge::get_soroban_xdr_bindings_git_versions().prev.c_str()
-            << std::endl;
-        std::cout
-            << "            base XDR git version: "
-            << rust_bridge::get_soroban_xdr_bindings_base_xdr_git_versions()
-                   .prev.c_str()
-            << std::endl;
+        std::cout << "            package version: " << host.xdr_pkg_ver.c_str()
+                  << std::endl;
+        std::cout << "            git version: " << host.xdr_git_rev.c_str()
+                  << std::endl;
+        std::cout << "            base XDR git version: "
+                  << host.xdr_base_git_rev.c_str() << std::endl;
+        ++i;
     }
     return 0;
 }

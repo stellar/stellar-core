@@ -127,7 +127,8 @@ BucketManagerImpl::initialize()
         if (mApp.getConfig().isUsingBucketListDB())
         {
             mSnapshotManager = std::make_unique<BucketSnapshotManager>(
-                mApp, std::make_unique<BucketListSnapshot>(*mBucketList, 0));
+                mApp, std::make_unique<BucketListSnapshot>(*mBucketList, 0),
+                mApp.getConfig().QUERY_SNAPSHOT_LEDGERS);
         }
     }
 }
@@ -994,7 +995,7 @@ BucketManagerImpl::startBackgroundEvictionScan(uint32_t ledgerSeq)
     releaseAssert(!mEvictionFuture.valid());
     releaseAssert(mEvictionStatistics);
 
-    auto searchableBL = mSnapshotManager->getSearchableBucketListSnapshot();
+    auto searchableBL = mSnapshotManager->copySearchableBucketListSnapshot();
     auto const& cfg = mApp.getLedgerManager().getSorobanNetworkConfig();
     auto const& sas = cfg.stateArchivalSettings();
 
@@ -1319,11 +1320,12 @@ BucketManagerImpl::mergeBuckets(HistoryArchiveState const& has)
 }
 
 static bool
-visitEntriesInBucket(std::shared_ptr<Bucket const> b, std::string const& name,
-                     std::optional<int64_t> minLedger,
-                     std::function<bool(LedgerEntry const&)> const& filterEntry,
-                     std::function<bool(LedgerEntry const&)> const& acceptEntry,
-                     UnorderedSet<Hash>& processedEntries)
+visitLiveEntriesInBucket(
+    std::shared_ptr<Bucket const> b, std::string const& name,
+    std::optional<int64_t> minLedger,
+    std::function<bool(LedgerEntry const&)> const& filterEntry,
+    std::function<bool(LedgerEntry const&)> const& acceptEntry,
+    UnorderedSet<Hash>& processedEntries)
 {
     ZoneScoped;
 
@@ -1381,11 +1383,67 @@ visitEntriesInBucket(std::shared_ptr<Bucket const> b, std::string const& name,
     return !stopIteration;
 }
 
+static bool
+visitAllEntriesInBucket(
+    std::shared_ptr<Bucket const> b, std::string const& name,
+    std::optional<int64_t> minLedger,
+    std::function<bool(LedgerEntry const&)> const& filterEntry,
+    std::function<bool(LedgerEntry const&)> const& acceptEntry)
+{
+    ZoneScoped;
+
+    using namespace std::chrono;
+    medida::Timer timer;
+
+    bool stopIteration = false;
+    timer.Time([&]() {
+        for (BucketInputIterator in(b); in; ++in)
+        {
+            BucketEntry const& e = *in;
+            if (e.type() == LIVEENTRY || e.type() == INITENTRY)
+            {
+                auto const& liveEntry = e.liveEntry();
+                if (minLedger && liveEntry.lastModifiedLedgerSeq < *minLedger)
+                {
+                    stopIteration = true;
+                    continue;
+                }
+                if (filterEntry(e.liveEntry()))
+                {
+                    if (!acceptEntry(e.liveEntry()))
+                    {
+                        stopIteration = true;
+                        break;
+                    }
+                }
+            }
+            else
+            {
+                if (e.type() != DEADENTRY)
+                {
+                    std::string err = "Malformed bucket: unexpected "
+                                      "non-INIT/LIVE/DEAD entry.";
+                    CLOG_ERROR(Bucket, "{}", err);
+                    throw std::runtime_error(err);
+                }
+            }
+        }
+    });
+    nanoseconds ns =
+        timer.duration_unit() * static_cast<nanoseconds::rep>(timer.max());
+    milliseconds ms = duration_cast<milliseconds>(ns);
+    size_t bytesPerSec = (b->getSize() * 1000 / (1 + ms.count()));
+    CLOG_INFO(Bucket, "Processed {}-byte bucket file '{}' in {} ({}/s)",
+              b->getSize(), name, ms, formatSize(bytesPerSec));
+    return !stopIteration;
+}
+
 void
 BucketManagerImpl::visitLedgerEntries(
     HistoryArchiveState const& has, std::optional<int64_t> minLedger,
     std::function<bool(LedgerEntry const&)> const& filterEntry,
-    std::function<bool(LedgerEntry const&)> const& acceptEntry)
+    std::function<bool(LedgerEntry const&)> const& acceptEntry,
+    bool includeAllStates)
 {
     ZoneScoped;
 
@@ -1413,8 +1471,14 @@ BucketManagerImpl::visitLedgerEntries(
                 throw std::runtime_error(std::string("missing bucket: ") +
                                          binToHex(pair.first));
             }
-            if (!visitEntriesInBucket(b, pair.second, minLedger, filterEntry,
-                                      acceptEntry, deletedEntries))
+            bool continueIteration =
+                includeAllStates
+                    ? visitAllEntriesInBucket(b, pair.second, minLedger,
+                                              filterEntry, acceptEntry)
+                    : visitLiveEntriesInBucket(b, pair.second, minLedger,
+                                               filterEntry, acceptEntry,
+                                               deletedEntries);
+            if (!continueIteration)
             {
                 break;
             }

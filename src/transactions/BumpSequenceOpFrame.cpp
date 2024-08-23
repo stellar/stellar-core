@@ -15,9 +15,8 @@
 namespace stellar
 {
 BumpSequenceOpFrame::BumpSequenceOpFrame(Operation const& op,
-                                         OperationResult& res,
-                                         TransactionFrame& parentTx)
-    : OperationFrame(op, res, parentTx)
+                                         TransactionFrame const& parentTx)
+    : OperationFrame(op, parentTx)
     , mBumpSequenceOp(mOperation.body.bumpSequenceOp())
 {
 }
@@ -37,7 +36,10 @@ BumpSequenceOpFrame::isOpSupported(LedgerHeader const& header) const
 }
 
 bool
-BumpSequenceOpFrame::doApply(AbstractLedgerTxn& ltx)
+BumpSequenceOpFrame::doApply(Application& app, AbstractLedgerTxn& ltx,
+                             Hash const& sorobanBasePrngSeed,
+                             OperationResult& res,
+                             std::shared_ptr<SorobanTxData> sorobanData) const
 {
     ZoneNamedN(applyZone, "BumpSequenceOp apply", true);
     LedgerTxn ltxInner(ltx);
@@ -63,16 +65,17 @@ BumpSequenceOpFrame::doApply(AbstractLedgerTxn& ltx)
     }
 
     // Return successful results
-    innerResult().code(BUMP_SEQUENCE_SUCCESS);
+    innerResult(res).code(BUMP_SEQUENCE_SUCCESS);
     return true;
 }
 
 bool
-BumpSequenceOpFrame::doCheckValid(uint32_t ledgerVersion)
+BumpSequenceOpFrame::doCheckValid(uint32_t ledgerVersion,
+                                  OperationResult& res) const
 {
     if (mBumpSequenceOp.bumpTo < 0)
     {
-        innerResult().code(BUMP_SEQUENCE_BAD_SEQ);
+        innerResult(res).code(BUMP_SEQUENCE_BAD_SEQ);
         return false;
     }
     return true;

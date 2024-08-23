@@ -71,8 +71,6 @@ class Peer : public std::enable_shared_from_this<Peer>,
         std::chrono::milliseconds(1);
     static constexpr std::chrono::nanoseconds PEER_METRICS_RATE_UNIT =
         std::chrono::seconds(1);
-    static constexpr uint32_t FIRST_VERSION_SUPPORTING_FLOW_CONTROL_IN_BYTES =
-        28;
     static constexpr uint32_t FIRST_VERSION_REQUIRED_FOR_PROTOCOL_20 = 32;
 
     // The reporting will be based on the previous
@@ -329,7 +327,9 @@ class Peer : public std::enable_shared_from_this<Peer>,
     void recurrentTimerExpired(asio::error_code const& error);
     std::chrono::seconds getIOTimeout() const;
 
-    void sendAuthenticatedMessage(std::shared_ptr<StellarMessage const> msg);
+    void sendAuthenticatedMessage(
+        std::shared_ptr<StellarMessage const> msg,
+        std::optional<VirtualClock::time_point> timePlaced = std::nullopt);
     void beginMessageProcessing(StellarMessage const& msg);
     void endMessageProcessing(StellarMessage const& msg);
 
@@ -350,7 +350,6 @@ class Peer : public std::enable_shared_from_this<Peer>,
     // Queue up an advert to send, return true if the advert was queued, and
     // false otherwise (if advert is a duplicate, for example)
     bool sendAdvert(Hash const& txHash);
-    void sendSendMore(uint32_t numMessages);
     void sendSendMore(uint32_t numMessages, uint32_t numBytes);
 
     virtual void sendMessage(std::shared_ptr<StellarMessage const> msg,

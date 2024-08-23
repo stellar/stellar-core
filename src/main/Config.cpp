@@ -151,8 +151,8 @@ Config::Config() : NODE_SEED(SecretKey::random())
     LEDGER_PROTOCOL_VERSION = CURRENT_LEDGER_PROTOCOL_VERSION;
     LEDGER_PROTOCOL_MIN_VERSION_INTERNAL_ERROR_REPORT = 18;
 
-    OVERLAY_PROTOCOL_MIN_VERSION = 32;
-    OVERLAY_PROTOCOL_VERSION = 34;
+    OVERLAY_PROTOCOL_MIN_VERSION = 33;
+    OVERLAY_PROTOCOL_VERSION = 35;
 
     VERSION_STR = STELLAR_CORE_VERSION;
 
@@ -167,7 +167,7 @@ Config::Config() : NODE_SEED(SecretKey::random())
     BUCKETLIST_DB_INDEX_PAGE_SIZE_EXPONENT = 14; // 2^14 == 16 kb
     BUCKETLIST_DB_INDEX_CUTOFF = 20;             // 20 mb
     BUCKETLIST_DB_PERSIST_INDEX = true;
-    EXPERIMENTAL_BACKGROUND_EVICTION_SCAN = false;
+    BACKGROUND_EVICTION_SCAN = true;
     PUBLISH_TO_ARCHIVE_DELAY = std::chrono::seconds{0};
     // automatic maintenance settings:
     // short and prime with 1 hour which will cause automatic maintenance to
@@ -223,6 +223,10 @@ Config::Config() : NODE_SEED(SecretKey::random())
     TESTING_UPGRADE_FLAGS = 0;
 
     HTTP_PORT = DEFAULT_PEER_PORT + 1;
+
+    QUERY_THREAD_POOL_SIZE = 4;
+    QUERY_SNAPSHOT_LEDGERS = 5;
+    HTTP_QUERY_PORT = 0;
     PUBLIC_HTTP_PORT = false;
     HTTP_MAX_CLIENT = 128;
     PEER_PORT = DEFAULT_PEER_PORT;
@@ -261,7 +265,6 @@ Config::Config() : NODE_SEED(SecretKey::random())
     PEER_FLOOD_READING_CAPACITY_BYTES = 0;
     FLOW_CONTROL_SEND_MORE_BATCH_SIZE_BYTES = 0;
     OUTBOUND_TX_QUEUE_BYTE_LIMIT = 1024 * 1024 * 3;
-    ENABLE_FLOW_CONTROL_BYTES = true;
 
     // WORKER_THREADS: setting this too low risks a form of priority inversion
     // where a long-running background task occupies all worker threads and
@@ -1031,10 +1034,6 @@ Config::processConfig(std::shared_ptr<cpptoml::table> t)
                 FLOW_CONTROL_SEND_MORE_BATCH_SIZE_BYTES =
                     readInt<uint32_t>(item, 1);
             }
-            else if (item.first == "ENABLE_FLOW_CONTROL_BYTES")
-            {
-                ENABLE_FLOW_CONTROL_BYTES = readBool(item);
-            }
             else if (item.first == "OUTBOUND_TX_QUEUE_BYTE_LIMIT")
             {
                 OUTBOUND_TX_QUEUE_BYTE_LIMIT = readInt<uint32_t>(item, 1);
@@ -1046,6 +1045,10 @@ Config::processConfig(std::shared_ptr<cpptoml::table> t)
             else if (item.first == "HTTP_PORT")
             {
                 HTTP_PORT = readInt<unsigned short>(item);
+            }
+            else if (item.first == "HTTP_QUERY_PORT")
+            {
+                HTTP_QUERY_PORT = readInt<unsigned short>(item);
             }
             else if (item.first == "HTTP_MAX_CLIENT")
             {
@@ -1079,9 +1082,17 @@ Config::processConfig(std::shared_ptr<cpptoml::table> t)
             {
                 EXPERIMENTAL_BACKGROUND_OVERLAY_PROCESSING = readBool(item);
             }
+            else if (item.first == "BACKGROUND_EVICTION_SCAN")
+            {
+                BACKGROUND_EVICTION_SCAN = readBool(item);
+            }
+            // TODO: Flag is no longer supported, remove in next release.
             else if (item.first == "EXPERIMENTAL_BACKGROUND_EVICTION_SCAN")
             {
-                EXPERIMENTAL_BACKGROUND_EVICTION_SCAN = readBool(item);
+                CLOG_WARNING(
+                    Bucket,
+                    "EXPERIMENTAL_BACKGROUND_EVICTION_SCAN is deprecated and "
+                    "is ignored. Use BACKGROUND_EVICTION_SCAN instead");
             }
             else if (item.first == "DEPRECATED_SQL_LEDGER_STATE")
             {
@@ -1373,6 +1384,14 @@ Config::processConfig(std::shared_ptr<cpptoml::table> t)
             else if (item.first == "WORKER_THREADS")
             {
                 WORKER_THREADS = readInt<int>(item, 2, 1000);
+            }
+            else if (item.first == "QUERY_THREAD_POOL_SIZE")
+            {
+                QUERY_THREAD_POOL_SIZE = readInt<int>(item, 1, 1000);
+            }
+            else if (item.first == "QUERY_SNAPSHOT_LEDGERS")
+            {
+                QUERY_SNAPSHOT_LEDGERS = readInt<uint32_t>(item, 0, 10);
             }
             else if (item.first == "MAX_CONCURRENT_SUBPROCESSES")
             {
@@ -1790,6 +1809,14 @@ Config::processConfig(std::shared_ptr<cpptoml::table> t)
                 "EXPERIMENTAL_BUCKETLIST_DB_INDEX_CUTOFF is deprecated, use "
                 "BUCKETLIST_DB_INDEX_CUTOFF only.";
             throw std::runtime_error(msg);
+        }
+
+        // If DEPRECATED_SQL_LEDGER_STATE is set to false and
+        // BACKGROUND_EVICTION_SCAN is not set, override default value to false
+        // so that nodes still running SQL ledger don't crash on startup
+        if (!isUsingBucketListDB() && !t->contains("BACKGROUND_EVICTION_SCAN"))
+        {
+            BACKGROUND_EVICTION_SCAN = false;
         }
 
         // process elements that potentially depend on others
@@ -2328,6 +2355,12 @@ Config::isUsingBucketListDB() const
 }
 
 bool
+Config::isUsingBackgroundEviction() const
+{
+    return isUsingBucketListDB() && BACKGROUND_EVICTION_SCAN;
+}
+
+bool
 Config::isPersistingBucketListDBIndexes() const
 {
     return isUsingBucketListDB() && BUCKETLIST_DB_PERSIST_INDEX;
@@ -2357,6 +2390,7 @@ Config::setNoListen()
     // prevent opening up a port for other peers
     RUN_STANDALONE = true;
     HTTP_PORT = 0;
+    HTTP_QUERY_PORT = 0;
     MANUAL_CLOSE = true;
 }
 

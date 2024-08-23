@@ -12,6 +12,7 @@
 #include "ledger/LedgerTxnEntry.h"
 #include "ledger/LedgerTxnHeader.h"
 #include "main/Application.h"
+#include "transactions/MutableTransactionResult.h"
 #include "transactions/SignatureChecker.h"
 #include "transactions/SignatureUtils.h"
 #include "transactions/SponsorshipUtils.h"
@@ -53,12 +54,6 @@ FeeBumpTransactionFrame::sorobanResources() const
     return mInnerTx->sorobanResources();
 }
 
-xdr::xvector<DiagnosticEvent> const&
-FeeBumpTransactionFrame::getDiagnosticEvents() const
-{
-    return mInnerTx->getDiagnosticEvents();
-}
-
 FeeBumpTransactionFrame::FeeBumpTransactionFrame(
     Hash const& networkID, TransactionEnvelope const& envelope)
     : mEnvelope(envelope)
@@ -77,40 +72,11 @@ FeeBumpTransactionFrame::FeeBumpTransactionFrame(
 }
 #endif
 
-static void
-updateResult(TransactionResult& outerRes, TransactionFrameBasePtr innerTx)
-{
-    if (innerTx->getResultCode() == txSUCCESS)
-    {
-        outerRes.result.code(txFEE_BUMP_INNER_SUCCESS);
-    }
-    else
-    {
-        outerRes.result.code(txFEE_BUMP_INNER_FAILED);
-    }
-
-    auto& irp = outerRes.result.innerResultPair();
-    irp.transactionHash = innerTx->getContentsHash();
-
-    auto const& res = innerTx->getResult();
-    auto& innerRes = irp.result;
-    innerRes.feeCharged = res.feeCharged;
-    innerRes.result.code(res.result.code());
-    switch (innerRes.result.code())
-    {
-    case txSUCCESS:
-    case txFAILED:
-        innerRes.result.results() = res.result.results();
-        break;
-    default:
-        break;
-    }
-}
-
 bool
 FeeBumpTransactionFrame::apply(Application& app, AbstractLedgerTxn& ltx,
                                TransactionMetaFrame& meta,
-                               Hash const& sorobanBasePrngSeed)
+                               MutableTxResultPtr txResult,
+                               Hash const& sorobanBasePrngSeed) const
 {
     try
     {
@@ -133,13 +99,14 @@ FeeBumpTransactionFrame::apply(Application& app, AbstractLedgerTxn& ltx,
 
     try
     {
-        bool res = mInnerTx->apply(app, ltx, meta, false, sorobanBasePrngSeed);
         // If this throws, then we may not have the correct TransactionResult so
         // we must crash.
         // Note that even after updateResult is called here, feeCharged will not
         // be accurate for Soroban transactions until
         // FeeBumpTransactionFrame::processPostApply is called.
-        updateResult(getResult(), mInnerTx);
+        bool res = mInnerTx->apply(app, ltx, meta, txResult, false,
+                                   sorobanBasePrngSeed);
+        FeeBumpMutableTransactionResult::updateResult(mInnerTx, *txResult);
         return res;
     }
     catch (std::exception& e)
@@ -157,37 +124,22 @@ FeeBumpTransactionFrame::apply(Application& app, AbstractLedgerTxn& ltx,
 void
 FeeBumpTransactionFrame::processPostApply(Application& app,
                                           AbstractLedgerTxn& ltx,
-                                          TransactionMetaFrame& meta)
+                                          TransactionMetaFrame& meta,
+                                          MutableTxResultPtr txResult) const
 {
     // We must forward the Fee-bump source so the refund is applied to the
     // correct account
     // Note that we are not calling TransactionFrame::processPostApply, so if
     // any logic is added there, we would have to reason through if that logic
     // should also be reflected here.
-    int64_t refund = mInnerTx->processRefund(app, ltx, meta, getFeeSourceID());
-
-    // The result codes and a feeCharged without the refund are set in
-    // updateResult in FeeBumpTransactionFrame::apply. At this point, feeCharged
-    // is set correctly on the inner transaction, so update the feeBump result.
-    if (protocolVersionStartsFrom(ltx.loadHeader().current().ledgerVersion,
-                                  ProtocolVersion::V_21) &&
-        isSoroban())
-    {
-        // First update feeCharged of the inner result on the feeBump using
-        // mInnerTx
-        auto& irp = mResult.result.innerResultPair();
-        auto& innerRes = irp.result;
-        innerRes.feeCharged = mInnerTx->getResult().feeCharged;
-
-        // Now set the updated feeCharged on the fee bump.
-        mResult.feeCharged -= refund;
-    }
+    int64_t refund =
+        mInnerTx->processRefund(app, ltx, meta, getFeeSourceID(), *txResult);
 }
 
 bool
 FeeBumpTransactionFrame::checkSignature(SignatureChecker& signatureChecker,
                                         LedgerTxnEntry const& account,
-                                        int32_t neededWeight)
+                                        int32_t neededWeight) const
 {
     auto& acc = account.current().data.account();
     std::vector<Signer> signers;
@@ -201,52 +153,60 @@ FeeBumpTransactionFrame::checkSignature(SignatureChecker& signatureChecker,
     return signatureChecker.checkSignature(signers, neededWeight);
 }
 
-bool
+MutableTxResultPtr
 FeeBumpTransactionFrame::checkValid(Application& app,
                                     AbstractLedgerTxn& ltxOuter,
                                     SequenceNumber current,
                                     uint64_t lowerBoundCloseTimeOffset,
-                                    uint64_t upperBoundCloseTimeOffset)
+                                    uint64_t upperBoundCloseTimeOffset) const
 {
     if (!XDRProvidesValidFee())
     {
-        getResult().result.code(txMALFORMED);
-        return false;
+        auto txResult = createSuccessResult();
+        txResult->setResultCode(txMALFORMED);
+        return txResult;
     }
+
     LedgerTxn ltx(ltxOuter);
     int64_t minBaseFee = ltx.loadHeader().current().baseFee;
-    resetResults(ltx.loadHeader().current(), minBaseFee, false);
+    auto txResult = createSuccessResultWithFeeCharged(
+        ltx.loadHeader().current(), minBaseFee, false);
 
     SignatureChecker signatureChecker{ltx.loadHeader().current().ledgerVersion,
                                       getContentsHash(),
                                       mEnvelope.feeBump().signatures};
-    if (commonValid(signatureChecker, ltx, false) !=
+    if (commonValid(signatureChecker, ltx, false, *txResult) !=
         ValidationType::kFullyValid)
     {
-        return false;
+        return txResult;
     }
+
     if (!signatureChecker.checkAllSignaturesUsed())
     {
-        getResult().result.code(txBAD_AUTH_EXTRA);
-        return false;
+        txResult->setResultCode(txBAD_AUTH_EXTRA);
+        return txResult;
     }
 
-    bool res = mInnerTx->checkValidWithOptionallyChargedFee(
+    auto innerTxResult = mInnerTx->checkValidWithOptionallyChargedFee(
         app, ltx, current, false, lowerBoundCloseTimeOffset,
         upperBoundCloseTimeOffset);
-    updateResult(getResult(), mInnerTx);
-    return res;
+    auto finalTxResult = createSuccessResultWithNewInnerTx(
+        std::move(txResult), std::move(innerTxResult), mInnerTx);
+
+    return finalTxResult;
 }
 
 bool
-FeeBumpTransactionFrame::checkSorobanResourceAndSetError(Application& app,
-                                                         uint32_t ledgerVersion)
+FeeBumpTransactionFrame::checkSorobanResourceAndSetError(
+    Application& app, uint32_t ledgerVersion, MutableTxResultPtr txResult) const
 {
-    return mInnerTx->checkSorobanResourceAndSetError(app, ledgerVersion);
+    return mInnerTx->checkSorobanResourceAndSetError(app, ledgerVersion,
+                                                     txResult);
 }
 
 bool
-FeeBumpTransactionFrame::commonValidPreSeqNum(AbstractLedgerTxn& ltx)
+FeeBumpTransactionFrame::commonValidPreSeqNum(
+    AbstractLedgerTxn& ltx, MutableTransactionResultBase& txResult) const
 {
     // this function does validations that are independent of the account state
     //    (stay true regardless of other side effects)
@@ -255,14 +215,14 @@ FeeBumpTransactionFrame::commonValidPreSeqNum(AbstractLedgerTxn& ltx)
     if (protocolVersionIsBefore(header.current().ledgerVersion,
                                 ProtocolVersion::V_13))
     {
-        getResult().result.code(txNOT_SUPPORTED);
+        txResult.setResultCode(txNOT_SUPPORTED);
         return false;
     }
     auto inclusionFee = getInclusionFee();
     auto minInclusionFee = getMinInclusionFee(*this, header.current());
     if (inclusionFee < minInclusionFee)
     {
-        getResult().result.code(txINSUFFICIENT_FEE);
+        txResult.setResultCode(txINSUFFICIENT_FEE);
         return false;
     }
     // While in theory it should be possible to bump a Soroban
@@ -272,7 +232,7 @@ FeeBumpTransactionFrame::commonValidPreSeqNum(AbstractLedgerTxn& ltx)
     // in order to have `bigMultiply` below not crash.
     if (mInnerTx->getInclusionFee() < 0)
     {
-        getResult().result.code(txFEE_BUMP_INNER_FAILED);
+        txResult.setResultCode(txFEE_BUMP_INNER_FAILED);
         return false;
     }
     auto const& lh = header.current();
@@ -285,19 +245,19 @@ FeeBumpTransactionFrame::commonValidPreSeqNum(AbstractLedgerTxn& ltx)
         bigMultiply(mInnerTx->getInclusionFee(), getMinInclusionFee(*this, lh));
     if (v1 < v2)
     {
-        if (!bigDivide128(getResult().feeCharged, v2,
+        if (!bigDivide128(txResult.getResult().feeCharged, v2,
                           getMinInclusionFee(*mInnerTx, lh),
                           Rounding::ROUND_UP))
         {
-            getResult().feeCharged = INT64_MAX;
+            txResult.getResult().feeCharged = INT64_MAX;
         }
-        getResult().result.code(txINSUFFICIENT_FEE);
+        txResult.setResultCode(txINSUFFICIENT_FEE);
         return false;
     }
 
     if (!stellar::loadAccount(ltx, getFeeSourceID()))
     {
-        getResult().result.code(txNO_ACCOUNT);
+        txResult.setResultCode(txNO_ACCOUNT);
         return false;
     }
 
@@ -305,13 +265,14 @@ FeeBumpTransactionFrame::commonValidPreSeqNum(AbstractLedgerTxn& ltx)
 }
 
 FeeBumpTransactionFrame::ValidationType
-FeeBumpTransactionFrame::commonValid(SignatureChecker& signatureChecker,
-                                     AbstractLedgerTxn& ltxOuter, bool applying)
+FeeBumpTransactionFrame::commonValid(
+    SignatureChecker& signatureChecker, AbstractLedgerTxn& ltxOuter,
+    bool applying, MutableTransactionResultBase& txResult) const
 {
     LedgerTxn ltx(ltxOuter);
     ValidationType res = ValidationType::kInvalid;
 
-    if (!commonValidPreSeqNum(ltx))
+    if (!commonValidPreSeqNum(ltx, txResult))
     {
         return res;
     }
@@ -321,7 +282,7 @@ FeeBumpTransactionFrame::commonValid(SignatureChecker& signatureChecker,
             signatureChecker, feeSource,
             feeSource.current().data.account().thresholds[THRESHOLD_LOW]))
     {
-        getResult().result.code(txBAD_AUTH);
+        txResult.setResultCode(txBAD_AUTH);
         return res;
     }
 
@@ -336,7 +297,7 @@ FeeBumpTransactionFrame::commonValid(SignatureChecker& signatureChecker,
     // liabilities
     if (getAvailableBalance(header, feeSource) < feeToPay)
     {
-        getResult().result.code(txINSUFFICIENT_BALANCE);
+        txResult.setResultCode(txINSUFFICIENT_BALANCE);
         return res;
     }
 
@@ -348,6 +309,23 @@ FeeBumpTransactionFrame::getEnvelope() const
 {
     return mEnvelope;
 }
+
+#ifdef BUILD_TESTS
+TransactionEnvelope&
+FeeBumpTransactionFrame::getMutableEnvelope() const
+{
+    return mEnvelope;
+}
+
+void
+FeeBumpTransactionFrame::clearCached() const
+{
+    Hash zero;
+    mContentsHash = zero;
+    mFullHash = zero;
+    mInnerTx->clearCached();
+}
+#endif
 
 int64_t
 FeeBumpTransactionFrame::getFullFee() const
@@ -453,18 +431,6 @@ FeeBumpTransactionFrame::getRawOperations() const
     return mInnerTx->getRawOperations();
 }
 
-TransactionResult&
-FeeBumpTransactionFrame::getResult()
-{
-    return mResult;
-}
-
-TransactionResultCode
-FeeBumpTransactionFrame::getResultCode() const
-{
-    return mResult.result.code();
-}
-
 SequenceNumber
 FeeBumpTransactionFrame::getSeqNum() const
 {
@@ -516,11 +482,13 @@ FeeBumpTransactionFrame::insertKeysForTxApply(UnorderedSet<LedgerKey>& keys,
     mInnerTx->insertKeysForTxApply(keys, lkMeter);
 }
 
-void
+MutableTxResultPtr
 FeeBumpTransactionFrame::processFeeSeqNum(AbstractLedgerTxn& ltx,
-                                          std::optional<int64_t> baseFee)
+                                          std::optional<int64_t> baseFee) const
 {
-    resetResults(ltx.loadHeader().current(), baseFee, true);
+    auto txResult = createSuccessResultWithFeeCharged(
+        ltx.loadHeader().current(), baseFee, true);
+    releaseAssert(txResult);
 
     auto feeSource = stellar::loadAccount(ltx, getFeeSourceID());
     if (!feeSource)
@@ -530,7 +498,8 @@ FeeBumpTransactionFrame::processFeeSeqNum(AbstractLedgerTxn& ltx,
     auto& acc = feeSource.current().data.account();
 
     auto header = ltx.loadHeader();
-    int64_t& fee = getResult().feeCharged;
+
+    int64_t& fee = txResult->getResult().feeCharged;
     if (fee > 0)
     {
         fee = std::min(acc.balance, fee);
@@ -540,6 +509,8 @@ FeeBumpTransactionFrame::processFeeSeqNum(AbstractLedgerTxn& ltx,
         stellar::addBalance(acc.balance, -fee);
         header.current().feePool += fee;
     }
+
+    return txResult;
 }
 
 void
@@ -563,17 +534,39 @@ FeeBumpTransactionFrame::removeOneTimeSignerKeyFromFeeSource(
     }
 }
 
-void
-FeeBumpTransactionFrame::resetResults(LedgerHeader const& header,
-                                      std::optional<int64_t> baseFee,
-                                      bool applying)
+MutableTxResultPtr
+FeeBumpTransactionFrame::createSuccessResultWithFeeCharged(
+    LedgerHeader const& header, std::optional<int64_t> baseFee,
+    bool applying) const
 {
-    mInnerTx->resetResults(header, baseFee, applying);
-    mResult.result.code(txFEE_BUMP_INNER_SUCCESS);
+    auto innerTxResult =
+        mInnerTx->createSuccessResultWithFeeCharged(header, baseFee, applying);
 
     // feeCharged is updated accordingly to represent the cost of the
     // transaction regardless of the failure modes.
-    mResult.feeCharged = getFee(header, baseFee, applying);
+    auto feeCharged = getFee(header, baseFee, applying);
+    std::shared_ptr<FeeBumpMutableTransactionResult> txResult(
+        new FeeBumpMutableTransactionResult(innerTxResult));
+    txResult->setResultCode(txFEE_BUMP_INNER_SUCCESS);
+    txResult->getResult().feeCharged = feeCharged;
+
+    return txResult;
+}
+
+MutableTxResultPtr
+FeeBumpTransactionFrame::createSuccessResult() const
+{
+    return MutableTxResultPtr(
+        new FeeBumpMutableTransactionResult(mInnerTx->createSuccessResult()));
+}
+
+MutableTxResultPtr
+FeeBumpTransactionFrame::createSuccessResultWithNewInnerTx(
+    MutableTxResultPtr&& outerResult, MutableTxResultPtr&& innerResult,
+    TransactionFrameBasePtr innerTx) const
+{
+    return MutableTxResultPtr(new FeeBumpMutableTransactionResult(
+        std::move(outerResult), std::move(innerResult), innerTx));
 }
 
 std::shared_ptr<StellarMessage const>

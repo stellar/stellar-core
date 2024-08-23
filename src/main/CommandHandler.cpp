@@ -3,6 +3,9 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "main/CommandHandler.h"
+#include "bucket/BucketListSnapshot.h"
+#include "bucket/BucketManager.h"
+#include "bucket/BucketSnapshotManager.h"
 #include "crypto/Hex.h"
 #include "crypto/KeyUtils.h"
 #include "herder/Herder.h"
@@ -18,12 +21,15 @@
 #include "main/Application.h"
 #include "main/Config.h"
 #include "main/Maintainer.h"
+#include "main/QueryServer.h"
 #include "overlay/BanManager.h"
 #include "overlay/OverlayManager.h"
 #include "overlay/SurveyManager.h"
 #include "transactions/InvokeHostFunctionOpFrame.h"
+#include "transactions/MutableTransactionResult.h"
 #include "transactions/TransactionBridge.h"
 #include "transactions/TransactionUtils.h"
+#include "util/GlobalChecks.h"
 #include "util/Logging.h"
 #include "util/StatusManager.h"
 #include <Tracy.hpp>
@@ -33,6 +39,7 @@
 #include "util/Decoder.h"
 #include "util/XDRCereal.h"
 #include "util/XDROperators.h"
+#include "util/XDRStream.h" // IWYU pragma: keep
 #include "xdr/Stellar-ledger-entries.h"
 #include "xdr/Stellar-transaction.h"
 #include "xdrpp/marshal.h"
@@ -74,6 +81,15 @@ CommandHandler::CommandHandler(Application& app) : mApp(app)
         mServer = std::make_unique<http::server::server>(
             app.getClock().getIOContext(), ipStr, mApp.getConfig().HTTP_PORT,
             httpMaxClient);
+
+        if (mApp.getConfig().HTTP_QUERY_PORT &&
+            mApp.getConfig().isUsingBucketListDB())
+        {
+            mQueryServer = std::make_unique<QueryServer>(
+                ipStr, mApp.getConfig().HTTP_QUERY_PORT, httpMaxClient,
+                mApp.getConfig().QUERY_THREAD_POOL_SIZE,
+                mApp.getBucketManager().getBucketSnapshotManager());
+        }
     }
     else
     {
@@ -82,7 +98,6 @@ CommandHandler::CommandHandler(Application& app) : mApp(app)
     }
 
     mServer->add404(std::bind(&CommandHandler::fileNotFound, this, _1, _2));
-
     if (mApp.getConfig().modeStoresAnyHistory())
     {
         addRoute("dropcursor", &CommandHandler::dropcursor);
@@ -119,7 +134,6 @@ CommandHandler::CommandHandler(Application& app) : mApp(app)
     addRoute("manualclose", &CommandHandler::manualClose);
     addRoute("metrics", &CommandHandler::metrics);
     addRoute("tx", &CommandHandler::tx);
-    addRoute("getledgerentry", &CommandHandler::getLedgerEntry);
     addRoute("upgrades", &CommandHandler::upgrades);
     addRoute("dumpproposedsettings", &CommandHandler::dumpProposedSettings);
     addRoute("self-check", &CommandHandler::selfCheck);
@@ -141,6 +155,7 @@ CommandHandler::CommandHandler(Application& app) : mApp(app)
 void
 CommandHandler::addRoute(std::string const& name, HandlerRoute route)
 {
+
     mServer->addRoute(
         name, std::bind(&CommandHandler::safeRouter, this, route, _1, _2));
 }
@@ -947,44 +962,6 @@ CommandHandler::ll(std::string const& params, std::string& retStr)
 }
 
 void
-CommandHandler::getLedgerEntry(std::string const& params, std::string& retStr)
-{
-    ZoneScoped;
-    Json::Value root;
-
-    std::map<std::string, std::string> paramMap;
-    http::server::server::parseParams(params, paramMap);
-    std::string key = paramMap["key"];
-    if (!key.empty())
-    {
-        LedgerTxn ltx(mApp.getLedgerTxnRoot(),
-                      /* shouldUpdateLastModified */ false,
-                      TransactionMode::READ_ONLY_WITHOUT_SQL_TXN);
-        root["ledger"] = ltx.loadHeader().current().ledgerSeq;
-
-        LedgerKey k;
-        fromOpaqueBase64(k, key);
-        auto le = ltx.loadWithoutRecord(k);
-        if (le)
-        {
-            root["state"] = "live";
-            root["entry"] = toOpaqueBase64(le.current());
-        }
-        else
-        {
-            root["state"] = "dead";
-        }
-    }
-    else
-    {
-        throw std::invalid_argument(
-            "Must specify ledger key: getLedgerEntry?key=<LedgerKey in base64 "
-            "XDR format>");
-    }
-    retStr = Json::FastWriter().write(root);
-}
-
-void
 CommandHandler::tx(std::string const& params, std::string& retStr)
 {
     ZoneScoped;
@@ -1015,24 +992,28 @@ CommandHandler::tx(std::string const& params, std::string& retStr)
         if (transaction)
         {
             // Add it to our current set and make sure it is valid.
-            TransactionQueue::AddResult status =
+            auto addResult =
                 mApp.getHerder().recvTransaction(transaction, true);
 
-            root["status"] = TX_STATUS_STRING[static_cast<int>(status)];
-            if (status == TransactionQueue::AddResult::ADD_STATUS_ERROR)
+            root["status"] = TX_STATUS_STRING[static_cast<int>(addResult.code)];
+            if (addResult.code ==
+                TransactionQueue::AddResultCode::ADD_STATUS_ERROR)
             {
                 std::string resultBase64;
-                auto resultBin = xdr::xdr_to_opaque(transaction->getResult());
+                releaseAssertOrThrow(addResult.txResult);
+
+                auto const& payload = addResult.txResult;
+                auto resultBin = xdr::xdr_to_opaque(payload->getResult());
                 resultBase64.reserve(decoder::encoded_size64(resultBin.size()) +
                                      1);
                 resultBase64 = decoder::encode_b64(resultBin);
                 root["error"] = resultBase64;
                 if (mApp.getConfig().ENABLE_DIAGNOSTICS_FOR_TX_SUBMISSION &&
                     transaction->isSoroban() &&
-                    !transaction->getDiagnosticEvents().empty())
+                    !payload->getDiagnosticEvents().empty())
                 {
                     auto diagsBin =
-                        xdr::xdr_to_opaque(transaction->getDiagnosticEvents());
+                        xdr::xdr_to_opaque(payload->getDiagnosticEvents());
                     auto diagsBase64 = decoder::encode_b64(diagsBin);
                     root["diagnostic_events"] = diagsBase64;
                 }
@@ -1530,7 +1511,7 @@ CommandHandler::testTx(std::string const& params, std::string& retStr)
         root["to_id"] = KeyUtils::toStrKey(toAccount.getPublicKey());
         root["amount"] = (Json::UInt64)paymentAmount;
 
-        TransactionFramePtr txFrame;
+        TransactionTestFramePtr txFrame;
         if (create != retMap.end() && create->second == "true")
         {
             txFrame = fromAccount.tx({createAccount(toAccount, paymentAmount)});
@@ -1540,12 +1521,13 @@ CommandHandler::testTx(std::string const& params, std::string& retStr)
             txFrame = fromAccount.tx({payment(toAccount, paymentAmount)});
         }
 
-        auto status = mApp.getHerder().recvTransaction(txFrame, true);
-        root["status"] = TX_STATUS_STRING[static_cast<int>(status)];
-        if (status == TransactionQueue::AddResult::ADD_STATUS_ERROR)
+        auto addResult = mApp.getHerder().recvTransaction(txFrame, true);
+        root["status"] = TX_STATUS_STRING[static_cast<int>(addResult.code)];
+        if (addResult.code == TransactionQueue::AddResultCode::ADD_STATUS_ERROR)
         {
+            releaseAssert(addResult.txResult);
             root["detail"] = xdrToCerealString(
-                txFrame->getResult().result.code(), "TransactionResultCode");
+                addResult.txResult->getResultCode(), "TransactionResultCode");
         }
     }
     else
