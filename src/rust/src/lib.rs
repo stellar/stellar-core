@@ -476,10 +476,6 @@ mod soroban_p21 {
 // that's just always supposed to use the latest.
 use soroban_p22 as soroban_curr;
 
-pub fn compiled_with_soroban_prev() -> bool {
-    true
-}
-
 use cargo_lock::{dependency::graph::EdgeDirection, Lockfile};
 
 fn package_matches_hash(pkg: &cargo_lock::Package, hash: &str) -> bool {
