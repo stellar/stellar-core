@@ -4,6 +4,7 @@
 
 #include "bucket/BucketManagerImpl.h"
 #include "bucket/Bucket.h"
+#include "bucket/BucketIndexImpl.h"
 #include "bucket/BucketInputIterator.h"
 #include "bucket/BucketList.h"
 #include "bucket/BucketListSnapshot.h"
@@ -189,6 +190,20 @@ BucketManagerImpl::BucketManagerImpl(Application& app)
     , mDeleteEntireBucketDirInDtor(
           app.getConfig().isInMemoryModeWithoutMinimalDB())
 {
+    for (uint32_t t =
+             static_cast<uint32_t>(LedgerEntryTypeAndDurability::ACCOUNT);
+         t < static_cast<uint32_t>(LedgerEntryTypeAndDurability::NUM_TYPES);
+         ++t)
+    {
+        auto type = static_cast<LedgerEntryTypeAndDurability>(t);
+        auto typeString = toString(type);
+        mBucketListEntryCountCounters.emplace(
+            type, app.getMetrics().NewCounter(
+                      {"bucketlist", "entryCounts", typeString}));
+        mBucketListEntrySizeCounters.emplace(
+            type, app.getMetrics().NewCounter(
+                      {"bucketlist", "entrySizes", typeString}));
+    }
 }
 
 const std::string BucketManagerImpl::kLockFilename = "stellar-core.lock";
@@ -905,6 +920,11 @@ BucketManagerImpl::addBatch(Application& app, LedgerHeader header,
     mBucketList->addBatch(app, header.ledgerSeq, header.ledgerVersion,
                           initEntries, liveEntries, deadEntries);
     mBucketListSizeCounter.set_count(mBucketList->getSize());
+
+    if (app.getConfig().isUsingBucketListDB())
+    {
+        reportBucketEntryCountMetrics();
+    }
 }
 
 #ifdef BUILD_TESTS
@@ -1523,5 +1543,44 @@ BucketManagerImpl::getSearchableBucketListSnapshot()
     }
 
     return mSearchableBucketListSnapshot;
+}
+
+void
+BucketManagerImpl::reportBucketEntryCountMetrics()
+{
+    if (!mApp.getConfig().isUsingBucketListDB())
+    {
+        return;
+    }
+    auto bucketEntryCounters = mBucketList->sumBucketEntryCounters();
+    for (auto [type, count] : bucketEntryCounters.entryTypeCounts)
+    {
+        auto countCounter = mBucketListEntryCountCounters.find(type);
+        if (countCounter == mBucketListEntryCountCounters.end())
+        {
+            auto typeString = toString(type);
+            countCounter =
+                mBucketListEntryCountCounters
+                    .emplace(type,
+                             mApp.getMetrics().NewCounter(
+                                 {"bucketlist", "entryCounts", typeString}))
+                    .first;
+        }
+        countCounter->second.set_count(count);
+
+        auto sizeCounter = mBucketListEntrySizeCounters.find(type);
+        if (sizeCounter == mBucketListEntrySizeCounters.end())
+        {
+            auto typeString = toString(type);
+            sizeCounter =
+                mBucketListEntrySizeCounters
+                    .emplace(type,
+                             mApp.getMetrics().NewCounter(
+                                 {"bucketlist", "entrySizes", typeString}))
+                    .first;
+        }
+        sizeCounter->second.set_count(
+            bucketEntryCounters.entryTypeSizes.at(type));
+    }
 }
 }

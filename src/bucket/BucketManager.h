@@ -385,5 +385,6 @@ class BucketManager : NonMovableOrCopyable
     // Get bucketlist snapshot
     virtual std::shared_ptr<SearchableBucketListSnapshot>
     getSearchableBucketListSnapshot() = 0;
+    virtual void reportBucketEntryCountMetrics() = 0;
 };
 }

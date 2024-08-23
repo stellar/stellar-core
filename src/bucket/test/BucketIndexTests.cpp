@@ -663,6 +663,17 @@ TEST_CASE("serialize bucket indexes", "[bucket][bucketindex]")
 
         auto& inMemoryIndex = b->getIndexForTesting();
         REQUIRE(inMemoryIndex.getPageSize() == (1UL << 10));
+        auto inMemoryCoutners = inMemoryIndex.getBucketEntryCounters();
+        // Ensure the inMemoryIndex has some non-zero counters.
+        REQUIRE(!inMemoryCoutners.entryTypeCounts.empty());
+        REQUIRE(!inMemoryCoutners.entryTypeSizes.empty());
+        bool allZero = true;
+        for (auto const& [k, v] : inMemoryCoutners.entryTypeCounts)
+        {
+            allZero = allZero && (v == 0);
+            allZero = allZero && (inMemoryCoutners.entryTypeSizes.at(k) == 0);
+        }
+        REQUIRE(!allZero);
 
         // Check if on-disk index rewritten with correct config params
         auto indexFilename = test.getBM().bucketIndexFilename(bucketHash);

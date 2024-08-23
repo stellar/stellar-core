@@ -345,6 +345,7 @@ namespace stellar
 class AbstractLedgerTxn;
 class Application;
 class Bucket;
+struct BucketEntryCounters;
 class Config;
 struct EvictionCounters;
 struct InflationWinner;
@@ -523,5 +524,6 @@ class BucketList
                   std::vector<LedgerEntry> const& initEntries,
                   std::vector<LedgerEntry> const& liveEntries,
                   std::vector<LedgerKey> const& deadEntries);
+    BucketEntryCounters sumBucketEntryCounters() const;
 };
 }
