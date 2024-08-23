@@ -105,6 +105,10 @@ allow_unsafe = true
 build.allow_apis = [
     "env",
 ]
+from.test.allow_apis = [
+    "hash",
+    "time",
+]
 
 [pkg.unicode-ident]
 allow_unsafe = true
@@ -322,6 +326,7 @@ allow_unsafe = true
 [pkg.syn]
 allow_unsafe = true
 allow_apis = [
+    "hash",
     "thread",
 ]
 
@@ -343,6 +348,9 @@ from.build.allow_apis = [
 
 [pkg.soroban-env-common]
 allow_unsafe = true
+from.test.allow_apis = [
+    "hash",
+]
 
 [pkg.derive_arbitrary]
 allow_proc_macro = true
@@ -401,4 +409,34 @@ allow_unsafe = true
 allow_unsafe = true
 test.allow_apis = [
     "rand",
+    "time",
+]
+
+[pkg.zerocopy-derive]
+allow_proc_macro = true
+
+[pkg.multi-stash]
+allow_unsafe = true
+
+[pkg.zerocopy]
+allow_unsafe = true
+
+[pkg.arrayvec]
+allow_unsafe = true
+
+[pkg.ahash]
+build.allow_apis = [
+    "env",
+]
+allow_unsafe = true
+
+[pkg.string-interner]
+allow_unsafe = true
+
+[pkg.wasmi_collections]
+allow_unsafe = true
+
+[pkg.stellar-xdr]
+from.test.allow_apis = [
+    "hash",
 ]
