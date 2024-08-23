@@ -179,7 +179,7 @@ mod rust_bridge {
         fn start_tracy();
         fn to_base64(b: &CxxVector<u8>, mut s: Pin<&mut CxxString>);
         fn from_base64(s: &CxxString, mut b: Pin<&mut CxxVector<u8>>);
-        fn check_lockfile_has_expected_dep_trees(core_max_proto: u32);
+        fn check_sensible_soroban_config_for_protocol(core_max_proto: u32);
         fn invoke_host_function(
             config_max_protocol: u32,
             enable_diagnostics: bool,
@@ -223,9 +223,6 @@ mod rust_bridge {
         // Return the soroban versions linked into this binary. Panics
         // if the protocol version is not supported.
         fn get_soroban_version_info(core_max_proto: u32) -> Vec<SorobanVersionInfo>;
-
-        // Return true if configured with cfg(feature="soroban-env-host-prev")
-        fn compiled_with_soroban_prev() -> bool;
 
         // Computes the resource fee given the transaction resource consumption
         // and network configuration.
@@ -287,6 +284,7 @@ impl AsRef<[u8]> for CxxBuf {
 // Then we import various implementations to this module, for export through the bridge.
 mod b64;
 
+use core::panic;
 use std::str::FromStr;
 
 use b64::{from_base64, to_base64};
@@ -580,7 +578,7 @@ impl HostModule {
 //
 // The check additionally checks that the major version number of soroban that
 // is compiled-in matches its max supported protocol number.
-pub fn check_lockfile_has_expected_dep_trees(core_max_proto: u32) {
+fn check_lockfile_has_expected_dep_trees(core_max_proto: u32) {
     static CARGO_LOCK_FILE_CONTENT: &'static str = include_str!("../../../Cargo.lock");
     let lockfile = Lockfile::from_str(CARGO_LOCK_FILE_CONTENT)
         .expect("parsing compiled-in Cargo.lock file content");
@@ -588,6 +586,19 @@ pub fn check_lockfile_has_expected_dep_trees(core_max_proto: u32) {
     for hm in HOST_MODULES.iter() {
         hm.check_lockfile_has_expected_dep_tree(core_max_proto, &lockfile);
     }
+}
+
+// This is called on startup and does any initial internal dynamic checks.
+pub fn check_sensible_soroban_config_for_protocol(core_max_proto: u32) {
+    use itertools::Itertools;
+    check_lockfile_has_expected_dep_trees(core_max_proto);
+    for (lo, hi) in HOST_MODULES.iter().tuple_windows() {
+        assert!(
+            lo.max_proto < hi.max_proto,
+            "host modules are not in ascending order"
+        );
+    }
+    assert!(HOST_MODULES.last().unwrap().max_proto >= core_max_proto);
 }
 
 // The remainder of the file is implementations of functions
