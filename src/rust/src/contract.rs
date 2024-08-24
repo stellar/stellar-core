@@ -37,18 +37,23 @@ use super::soroban_env_host::{
 };
 use std::error::Error;
 
-impl From<CxxLedgerInfo> for LedgerInfo {
-    fn from(c: CxxLedgerInfo) -> Self {
-        Self {
+impl TryFrom<&CxxLedgerInfo> for LedgerInfo {
+    type Error = Box<dyn Error>;
+    fn try_from(c: &CxxLedgerInfo) -> Result<Self, Self::Error> {
+        Ok(Self {
             protocol_version: c.protocol_version,
             sequence_number: c.sequence_number,
             timestamp: c.timestamp,
-            network_id: c.network_id.try_into().unwrap(),
+            network_id: c
+                .network_id
+                .clone()
+                .try_into()
+                .map_err(|_| Box::new(CoreHostError::General("network ID has wrong size")))?,
             base_reserve: c.base_reserve,
             min_temp_entry_ttl: c.min_temp_entry_ttl,
             min_persistent_entry_ttl: c.min_persistent_entry_ttl,
             max_entry_ttl: c.max_entry_ttl,
-        }
+        })
     }
 }
 
@@ -93,8 +98,8 @@ impl From<&CxxLedgerEntryRentChange> for LedgerEntryRentChange {
     }
 }
 
-impl From<CxxRentFeeConfiguration> for RentFeeConfiguration {
-    fn from(value: CxxRentFeeConfiguration) -> Self {
+impl From<&CxxRentFeeConfiguration> for RentFeeConfiguration {
+    fn from(value: &CxxRentFeeConfiguration) -> Self {
         Self {
             fee_per_write_1kb: value.fee_per_write_1kb,
             fee_per_write_entry: value.fee_per_write_entry,
@@ -305,11 +310,11 @@ pub(crate) fn invoke_host_function(
     resources_buf: &CxxBuf,
     source_account_buf: &CxxBuf,
     auth_entries: &Vec<CxxBuf>,
-    ledger_info: CxxLedgerInfo,
+    ledger_info: &CxxLedgerInfo,
     ledger_entries: &Vec<CxxBuf>,
     ttl_entries: &Vec<CxxBuf>,
     base_prng_seed: &CxxBuf,
-    rent_fee_configuration: CxxRentFeeConfiguration,
+    rent_fee_configuration: &CxxRentFeeConfiguration,
 ) -> Result<InvokeHostFunctionOutput, Box<dyn Error>> {
     let res = panic::catch_unwind(panic::AssertUnwindSafe(|| {
         invoke_host_function_or_maybe_panic(
@@ -362,11 +367,11 @@ fn invoke_host_function_or_maybe_panic(
     resources_buf: &CxxBuf,
     source_account_buf: &CxxBuf,
     auth_entries: &Vec<CxxBuf>,
-    ledger_info: CxxLedgerInfo,
+    ledger_info: &CxxLedgerInfo,
     ledger_entries: &Vec<CxxBuf>,
     ttl_entries: &Vec<CxxBuf>,
     base_prng_seed: &CxxBuf,
-    rent_fee_configuration: CxxRentFeeConfiguration,
+    rent_fee_configuration: &CxxRentFeeConfiguration,
 ) -> Result<InvokeHostFunctionOutput, Box<dyn Error>> {
     #[cfg(feature = "tracy")]
     let client = tracy_client::Client::start();
@@ -401,7 +406,7 @@ fn invoke_host_function_or_maybe_panic(
             resources_buf,
             source_account_buf,
             auth_entries.iter(),
-            ledger_info.into(),
+            ledger_info.try_into()?,
             ledger_entries.iter(),
             ttl_entries.iter(),
             base_prng_seed,
@@ -518,6 +523,34 @@ fn invoke_host_function_or_maybe_panic(
     });
 }
 
+pub(crate) fn rustbuf_containing_scval_to_string(buf: &RustBuf) -> String {
+    if let Ok(val) = ScVal::read_xdr(&mut xdr::Limited::new(
+        Cursor::new(buf.data.as_slice()),
+        Limits {
+            depth: MARSHALLING_STACK_LIMIT,
+            len: buf.data.len(),
+        },
+    )) {
+        format!("{:?}", val)
+    } else {
+        "<bad ScVal>".to_string()
+    }
+}
+
+pub(crate) fn rustbuf_containing_diagnostic_event_to_string(buf: &RustBuf) -> String {
+    if let Ok(val) = DiagnosticEvent::read_xdr(&mut xdr::Limited::new(
+        Cursor::new(buf.data.as_slice()),
+        Limits {
+            depth: MARSHALLING_STACK_LIMIT,
+            len: buf.data.len(),
+        },
+    )) {
+        format!("{:?}", val)
+    } else {
+        "<bad DiagnosticEvent>".to_string()
+    }
+}
+
 pub(crate) fn compute_transaction_resource_fee(
     tx_resources: CxxTransactionResources,
     fee_config: CxxFeeConfiguration,
@@ -536,7 +569,11 @@ pub(crate) fn compute_rent_fee(
     current_ledger_seq: u32,
 ) -> i64 {
     let changed_entries: Vec<_> = changed_entries.iter().map(|e| e.into()).collect();
-    host_compute_rent_fee(&changed_entries, &fee_config.into(), current_ledger_seq)
+    host_compute_rent_fee(
+        &changed_entries,
+        &((&fee_config).into()),
+        current_ledger_seq,
+    )
 }
 
 pub(crate) fn compute_write_fee_per_1kb(

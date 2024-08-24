@@ -298,6 +298,7 @@ impl AsRef<[u8]> for CxxBuf {
 mod b64;
 
 use core::panic;
+use std::hash::Hasher;
 use std::str::FromStr;
 
 use b64::{from_base64, to_base64};
@@ -486,8 +487,8 @@ use rust_bridge::RustBuf;
 use rust_bridge::SorobanVersionInfo;
 
 mod log;
-
-use crate::log::init_logging;
+use ::log::{info, warn};
+use log::{init_logging, partition::TX};
 
 // We have multiple copies of soroban linked into stellar-core here. This is
 // accomplished using an adaptor module -- contract.rs -- mounted multiple times
@@ -697,11 +698,11 @@ struct HostModule {
         resources_buf: &CxxBuf,
         source_account_buf: &CxxBuf,
         auth_entries: &Vec<CxxBuf>,
-        ledger_info: CxxLedgerInfo,
+        ledger_info: &CxxLedgerInfo,
         ledger_entries: &Vec<CxxBuf>,
         ttl_entries: &Vec<CxxBuf>,
         base_prng_seed: &CxxBuf,
-        rent_fee_configuration: CxxRentFeeConfiguration,
+        rent_fee_configuration: &CxxRentFeeConfiguration,
     ) -> Result<InvokeHostFunctionOutput, Box<dyn std::error::Error>>,
     compute_transaction_resource_fee:
         fn(tx_resources: CxxTransactionResources, fee_config: CxxFeeConfiguration) -> FeePair,
@@ -713,6 +714,8 @@ struct HostModule {
     compute_write_fee_per_1kb:
         fn(bucket_list_size: i64, fee_config: CxxWriteFeeConfiguration) -> i64,
     can_parse_transaction: fn(&CxxBuf, depth_limit: u32) -> bool,
+    rustbuf_containing_scval_to_string: fn(&RustBuf) -> String,
+    rustbuf_containing_diagnostic_event_to_string: fn(&RustBuf) -> String,
 }
 
 macro_rules! proto_versioned_functions_for_module {
@@ -727,6 +730,10 @@ macro_rules! proto_versioned_functions_for_module {
             compute_rent_fee: $module::contract::compute_rent_fee,
             compute_write_fee_per_1kb: $module::contract::compute_write_fee_per_1kb,
             can_parse_transaction: $module::contract::can_parse_transaction,
+            rustbuf_containing_scval_to_string:
+                $module::contract::rustbuf_containing_scval_to_string,
+            rustbuf_containing_diagnostic_event_to_string:
+                $module::contract::rustbuf_containing_diagnostic_event_to_string,
         }
     };
 }
@@ -784,26 +791,124 @@ pub(crate) fn invoke_host_function(
     resources_buf: &CxxBuf,
     source_account_buf: &CxxBuf,
     auth_entries: &Vec<CxxBuf>,
-    ledger_info: CxxLedgerInfo,
+    mut ledger_info: CxxLedgerInfo,
     ledger_entries: &Vec<CxxBuf>,
     ttl_entries: &Vec<CxxBuf>,
     base_prng_seed: &CxxBuf,
     rent_fee_configuration: CxxRentFeeConfiguration,
 ) -> Result<InvokeHostFunctionOutput, Box<dyn std::error::Error>> {
     let hm = get_host_module_for_protocol(config_max_protocol, ledger_info.protocol_version)?;
-    (hm.invoke_host_function)(
+    let res = (hm.invoke_host_function)(
         enable_diagnostics,
         instruction_limit,
         hf_buf,
         resources_buf,
         source_account_buf,
         auth_entries,
-        ledger_info,
+        &ledger_info,
         ledger_entries,
         ttl_entries,
         base_prng_seed,
-        rent_fee_configuration,
-    )
+        &rent_fee_configuration,
+    );
+
+    // The rest of this is for divergence / comparison testing between protocols
+    if let Ok(extra) = std::env::var("SOROBAN_TEST_EXTRA_PROTOCOL") {
+        if let Ok(proto) = u32::from_str(&extra) {
+            info!(target: TX, "comparing soroban host for protocol {} with {}", ledger_info.protocol_version, proto);
+            if let Ok(hm2) = get_host_module_for_protocol(proto, proto) {
+                ledger_info.protocol_version = proto;
+                let res2 = (hm2.invoke_host_function)(
+                    /*enable_diagnostics=*/ true,
+                    instruction_limit,
+                    hf_buf,
+                    resources_buf,
+                    source_account_buf,
+                    auth_entries,
+                    &ledger_info,
+                    ledger_entries,
+                    ttl_entries,
+                    base_prng_seed,
+                    &rent_fee_configuration,
+                );
+                fn hash_rustbuf(buf: &RustBuf) -> u16 {
+                    use std::hash::Hash;
+                    let mut hasher = std::hash::DefaultHasher::new();
+                    buf.data.hash(&mut hasher);
+                    hasher.finish() as u16
+                }
+                fn hash_rustbufs(bufs: &Vec<RustBuf>) -> u16 {
+                    use std::hash::Hash;
+                    let mut hasher = std::hash::DefaultHasher::new();
+                    for buf in bufs.iter() {
+                        buf.data.hash(&mut hasher);
+                    }
+                    hasher.finish() as u16
+                }
+                fn mostly_the_same(
+                    res: &Result<InvokeHostFunctionOutput, Box<dyn std::error::Error>>,
+                    res2: &Result<InvokeHostFunctionOutput, Box<dyn std::error::Error>>,
+                ) -> bool {
+                    match (res, res2) {
+                        (Ok(res), Ok(res2)) => {
+                            res.success == res2.success
+                                && hash_rustbuf(&res.result_value)
+                                    == hash_rustbuf(&res2.result_value)
+                                && hash_rustbufs(&res.contract_events)
+                                    == hash_rustbufs(&res2.contract_events)
+                                && hash_rustbufs(&res.modified_ledger_entries)
+                                    == hash_rustbufs(&res2.modified_ledger_entries)
+                                && res.rent_fee == res2.rent_fee
+                        }
+                        (Err(e), Err(e2)) => format!("{:?}", e) == format!("{:?}", e2),
+                        _ => false,
+                    }
+                }
+                fn summarize(
+                    hm: &HostModule,
+                    res: &Result<InvokeHostFunctionOutput, Box<dyn std::error::Error>>,
+                ) -> String {
+                    match res {
+                        Ok(res) if res.success => format!(
+                            "proto={}, ok/succ, res={:x}/{}, events={:x}, entries={:x}, rent={}, cpu={}, mem={}, nsec={}",
+                            hm.max_proto,
+                            hash_rustbuf(&res.result_value),
+                            (hm.rustbuf_containing_scval_to_string)(&res.result_value),
+                            hash_rustbufs(&res.contract_events),
+                            hash_rustbufs(&res.modified_ledger_entries),
+                            res.rent_fee,
+                            res.cpu_insns,
+                            res.mem_bytes,
+                            res.time_nsecs
+                        ),
+                        Ok(res) => format!(
+                            "proto={}, ok/fail, cpu={}, mem={}, nsec={}, diag={:?}",
+                            hm.max_proto,
+                            res.cpu_insns,
+                            res.mem_bytes,
+                            res.time_nsecs,
+                            res.diagnostic_events.iter().map(|d|
+                                (hm.rustbuf_containing_diagnostic_event_to_string)(d)).collect::<Vec<String>>()
+                        ),
+                        Err(e) => format!("proto={}, error={:?}", hm.max_proto, e),
+                    }
+                }
+                if mostly_the_same(&res, &res2) {
+                    info!(target: TX, "{}", summarize(hm, &res));
+                    info!(target: TX, "{}", summarize(hm2, &res2));
+                } else {
+                    warn!(target: TX, "{}", summarize(hm, &res));
+                    warn!(target: TX, "{}", summarize(hm2, &res2));
+                }
+            } else {
+                warn!(target: TX, "SOROBAN_TEST_EXTRA_PROTOCOL={} not supported", proto);
+            }
+        } else {
+            warn!(target: TX, "invalid protocol number in SOROBAN_TEST_EXTRA_PROTOCOL");
+        }
+    }
+
+    res
 }
 
 pub(crate) fn compute_transaction_resource_fee(
