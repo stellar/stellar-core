@@ -60,6 +60,18 @@ struct BucketListGenerator
             // on those entries.
             for (auto t : xdr::xdr_traits<ConfigSettingID>::enum_values())
             {
+#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
+                // This setting has been introduced in the vnext xdr, but it's
+                // not used in code yet. This check can be replaced with a
+                // runtime protocol check once we create the setting in the
+                // upgrade path.
+                if (static_cast<ConfigSettingID>(t) ==
+                    ConfigSettingID::
+                        CONFIG_SETTING_CONTRACT_PARALLEL_COMPUTE_V0)
+                {
+                    continue;
+                }
+#endif
                 LedgerKey ckey(CONFIG_SETTING);
                 ckey.configSetting().configSettingID =
                     static_cast<ConfigSettingID>(t);
