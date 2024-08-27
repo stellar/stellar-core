@@ -26,7 +26,7 @@ class QueryServer
     httpThreaded::server::server mServer;
 
     std::unordered_map<std::thread::id,
-                       std::unique_ptr<SearchableBucketListSnapshot>>
+                       std::shared_ptr<SearchableBucketListSnapshot>>
         mBucketListSnapshots;
 
     bool safeRouter(HandlerRoute route, std::string const& params,

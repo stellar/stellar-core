@@ -81,7 +81,7 @@ class BucketSnapshotManager : NonMovableOrCopyable
                           std::unique_ptr<BucketListSnapshot const>&& snapshot,
                           uint32_t numHistoricalLedgers);
 
-    std::unique_ptr<SearchableBucketListSnapshot>
+    std::shared_ptr<SearchableBucketListSnapshot>
     copySearchableBucketListSnapshot() const;
 
     // Checks if snapshot is out of date with mCurrentSnapshot and updates
