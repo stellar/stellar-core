@@ -8,7 +8,7 @@
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
 //
 
-#include "reply.hpp"
+#include "reply_mt.hpp"
 #include <string>
 
 namespace httpThreaded

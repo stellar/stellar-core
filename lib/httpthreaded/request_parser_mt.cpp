@@ -8,8 +8,8 @@
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
 //
 
-#include "request_parser.hpp"
-#include "request.hpp"
+#include "request_parser_mt.hpp"
+#include "request_mt.hpp"
 
 namespace httpThreaded
 {

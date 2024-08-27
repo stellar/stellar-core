@@ -15,7 +15,7 @@
 // else.
 #include "util/asio.h"
 
-#include "connection.hpp"
+#include "connection_mt.hpp"
 #include <functional>
 #include <map>
 #include <string>

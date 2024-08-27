@@ -11,7 +11,7 @@
 #ifndef HTTP_THREADED_REQUEST_HPP
 #define HTTP_THREADED_REQUEST_HPP
 
-#include "header.hpp"
+#include "header_mt.hpp"
 #include <string>
 #include <vector>
 

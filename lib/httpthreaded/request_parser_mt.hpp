@@ -11,7 +11,7 @@
 #ifndef HTTP_THREADED_REQUEST_PARSER_HPP
 #define HTTP_THREADED_REQUEST_PARSER_HPP
 
-#include "lib/httpthreaded/request.hpp"
+#include "request_mt.hpp"
 #include <tuple>
 
 namespace httpThreaded

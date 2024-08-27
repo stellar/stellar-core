@@ -8,8 +8,8 @@
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
 //
 
-#include "connection.hpp"
-#include "server.hpp"
+#include "connection_mt.hpp"
+#include "server_mt.hpp"
 #include <utility>
 #include <vector>
 

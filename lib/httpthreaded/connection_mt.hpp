@@ -15,9 +15,9 @@
 // else.
 #include "util/asio.h"
 
-#include "reply.hpp"
-#include "request.hpp"
-#include "request_parser.hpp"
+#include "reply_mt.hpp"
+#include "request_mt.hpp"
+#include "request_parser_mt.hpp"
 #include <array>
 #include <memory>
 
