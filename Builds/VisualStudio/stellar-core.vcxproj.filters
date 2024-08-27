@@ -1347,6 +1347,9 @@
     <ClCompile Include="..\..\src\overlay\Hmac.cpp">
       <Filter>overlay</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\src\util\BinaryFuseFilter.cpp">
+      <Filter>util</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\..\lib\util\cpptoml.h">
@@ -2341,6 +2344,12 @@
     </ClInclude>
     <ClInclude Include="..\..\src\overlay\Hmac.h">
       <Filter>overlay</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\lib\binaryfusefilter.h">
+      <Filter>lib</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\util\BinaryFuseFilter.h">
+      <Filter>util</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>

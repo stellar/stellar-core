@@ -709,6 +709,7 @@ exit /b 0
     <ClCompile Include="..\..\src\transactions\TransactionUtils.cpp" />
     <ClCompile Include="..\..\src\transactions\TrustFlagsOpFrameBase.cpp" />
     <ClCompile Include="..\..\src\util\Backtrace.cpp" />
+    <ClCompile Include="..\..\src\util\BinaryFuseFilter.cpp" />
     <ClCompile Include="..\..\src\util\DebugMetaUtils.cpp" />
     <ClCompile Include="..\..\src\util\FileSystemException.cpp" />
     <ClCompile Include="..\..\src\util\ProtocolVersion.cpp" />
@@ -873,6 +874,7 @@ exit /b 0
     <ClCompile Include="src\$(Configuration)\generated\xdr\XDRFilesSha256.cpp" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="..\..\lib\binaryfusefilter.h" />
     <ClInclude Include="..\..\lib\catch.hpp" />
     <ClInclude Include="..\..\lib\clara.hpp" />
     <ClInclude Include="..\..\lib\util\finally.h" />
@@ -1089,6 +1091,7 @@ exit /b 0
     <ClInclude Include="..\..\src\transactions\TransactionUtils.h" />
     <ClInclude Include="..\..\src\transactions\TrustFlagsOpFrameBase.h" />
     <ClInclude Include="..\..\src\util\Backtrace.h" />
+    <ClInclude Include="..\..\src\util\BinaryFuseFilter.h" />
     <ClInclude Include="..\..\src\util\DebugMetaUtils.h" />
     <ClInclude Include="..\..\src\util\Decoder.h" />
     <ClInclude Include="..\..\src\util\ProtocolVersion.h" />
@@ -1584,8 +1587,8 @@ exit /b 0
     <None Include="..\..\src\rust\Cargo.toml" />
     <CustomBuild Include="..\..\src\rust\src\lib.rs">
       <FileType>Document</FileType>
-      <Command>$(OutDir)\bin\cxxbridge.exe ..\..\src\rust\src\lib.rs --header --output src\$(Configuration)\generated\rust\RustBridge.h
-$(OutDir)\bin\cxxbridge.exe ..\..\src\rust\src\lib.rs --output src\$(Configuration)\generated\rust\RustBridge.cpp</Command>
+      <Command>$(OutDir)\bin\cxxbridge.exe --cfg test=false ..\..\src\rust\src\lib.rs --header --output src\$(Configuration)\generated\rust\RustBridge.h
+$(OutDir)\bin\cxxbridge.exe --cfg test=false ..\..\src\rust\src\lib.rs --output src\$(Configuration)\generated\rust\RustBridge.cpp</Command>
       <Message>running cxxbridge to generate RustBridge.h and RustBridge.cpp</Message>
       <Outputs>src\$(Configuration)\generated\rust\RustBridge.h;src\$(Configuration)\generated\rust\RustBridge.cpp</Outputs>
       <OutputItemType>ClInclude</OutputItemType>
