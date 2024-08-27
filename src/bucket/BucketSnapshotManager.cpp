@@ -98,10 +98,10 @@ BucketSnapshotManager::maybeUpdateSnapshot(
     {
         // Copy current snapshot map into historicalSnapshots
         historicalSnapshots.clear();
-        for (auto const& [ledgerSeq, snapshot] : mHistoricalSnapshots)
+        for (auto const& [ledgerSeq, snap] : mHistoricalSnapshots)
         {
             historicalSnapshots.emplace(
-                ledgerSeq, std::make_unique<BucketListSnapshot>(*snapshot));
+                ledgerSeq, std::make_unique<BucketListSnapshot>(*snap));
         }
     }
 }
