@@ -41,7 +41,8 @@ sip_hash24(uint64_t key, binary_fuse_seed_t const& seed)
 static inline uint64_t
 binary_fuse_rotl64(uint64_t n, unsigned int c)
 {
-    return (n << (c & 63)) | (n >> ((-c) & 63));
+    unsigned int bc = (c & 63);
+    return (n << bc) | (n >> (64 - bc));
 }
 static inline uint32_t
 binary_fuse_reduce(uint32_t hash, uint32_t n)
