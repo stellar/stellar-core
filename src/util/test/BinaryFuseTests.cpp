@@ -5,10 +5,10 @@
 #include "crypto/ShortHash.h"
 #include "lib/catch.hpp"
 #include "util/BinaryFuseFilter.h"
+#include "util/siphash.h"
 #include "util/types.h"
 #include "xdr/Stellar-types.h"
 #include <cereal/archives/binary.hpp>
-#include <siphash.h>
 #include <sstream>
 #include <xdrpp/autocheck.h>
 #include <xdrpp/marshal.h>
