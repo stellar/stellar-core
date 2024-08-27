@@ -1000,10 +1000,14 @@ BucketManagerImpl::startBackgroundEvictionScan(uint32_t ledgerSeq)
     auto const& sas = cfg.stateArchivalSettings();
 
     using task_t = std::packaged_task<EvictionResult()>;
+
     auto task = std::make_shared<task_t>(
-        [bl = std::move(searchableBL), iter = cfg.evictionIterator(), ledgerSeq,
-         sas, &counters = mBucketListEvictionCounters,
-         stats = mEvictionStatistics] {
+        // take owership as a shared_ptr as to allow moves (safe as this is not
+        // shared between threads)
+        [bl = std::shared_ptr<SearchableBucketListSnapshot>(
+             searchableBL.release()),
+         iter = cfg.evictionIterator(), ledgerSeq, sas,
+         &counters = mBucketListEvictionCounters, stats = mEvictionStatistics] {
             return bl->scanForEviction(ledgerSeq, counters, iter, stats, sas);
         });
 
