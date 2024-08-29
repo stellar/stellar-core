@@ -4885,7 +4885,6 @@ TEST_CASE_VERSIONS("path payment uses all offers in a loop",
     auto cur1 = makeAsset(gateway, "CUR1");
     auto cur2 = makeAsset(gateway, "CUR2");
     auto cur3 = makeAsset(gateway2, "CUR3");
-    auto cur4 = makeAsset(gateway2, "CUR4");
 
     auto useAllOffersInLoop = [&](TestAccount* issuerToDelete) {
         for_all_versions(*app, [&] {
@@ -4894,25 +4893,21 @@ TEST_CASE_VERSIONS("path payment uses all offers in a loop",
             auto destination = root.create("destination", minBalance1);
             auto mm12 = root.create("mm12", minBalance3);
             auto mm23 = root.create("mm23", minBalance3);
-            auto mm34 = root.create("mm34", minBalance3);
-            auto mm41 = root.create("mm41", minBalance3);
+            auto mm31 = root.create("mm31", minBalance3);
 
             source.changeTrust(cur1, 16000);
             mm12.changeTrust(cur1, 16000);
             mm12.changeTrust(cur2, 16000);
             mm23.changeTrust(cur2, 16000);
             mm23.changeTrust(cur3, 16000);
-            mm34.changeTrust(cur3, 16000);
-            mm34.changeTrust(cur4, 16000);
-            mm41.changeTrust(cur4, 16000);
-            mm41.changeTrust(cur1, 16000);
-            destination.changeTrust(cur4, 16000);
+            mm31.changeTrust(cur3, 16000);
+            mm31.changeTrust(cur1, 16000);
+            destination.changeTrust(cur2, 16000);
 
             gateway.pay(source, cur1, 8000);
             gateway.pay(mm12, cur2, 8000);
             gateway2.pay(mm23, cur3, 8000);
-            gateway2.pay(mm34, cur4, 8000);
-            gateway.pay(mm41, cur1, 8000);
+            gateway.pay(mm31, cur1, 8000);
 
             auto o1 = market.requireChangesWithOffer({}, [&] {
                 return market.addOffer(mm12, {cur2, cur1, Price{2, 1}, 1000});
@@ -4921,10 +4916,7 @@ TEST_CASE_VERSIONS("path payment uses all offers in a loop",
                 return market.addOffer(mm23, {cur3, cur2, Price{2, 1}, 1000});
             });
             auto o3 = market.requireChangesWithOffer({}, [&] {
-                return market.addOffer(mm34, {cur4, cur3, Price{2, 1}, 1000});
-            });
-            auto o4 = market.requireChangesWithOffer({}, [&] {
-                return market.addOffer(mm41, {cur1, cur4, Price{2, 1}, 1000});
+                return market.addOffer(mm31, {cur1, cur3, Price{2, 1}, 1000});
             });
 
             auto ledgerVersion = getLclProtocolVersion(*app);
@@ -4938,32 +4930,27 @@ TEST_CASE_VERSIONS("path payment uses all offers in a loop",
 
             std::vector<ClaimAtom> actual;
             market.requireChanges(
-                {{o1.key, {cur2, cur1, Price{2, 1}, 320}},
-                 {o2.key, {cur3, cur2, Price{2, 1}, 660}},
-                 {o3.key, {cur4, cur3, Price{2, 1}, 830}},
-                 {o4.key, {cur1, cur4, Price{2, 1}, 920}}},
+                {{o1.key, {cur2, cur1, Price{2, 1}, 910}},
+                 {o2.key, {cur3, cur2, Price{2, 1}, 960}},
+                 {o3.key, {cur1, cur3, Price{2, 1}, 980}}},
                 [&] {
                     actual = source
-                                 .pay(destination, cur1, 2000, cur4, 10,
-                                      {cur1, cur2, cur3, cur4, cur1, cur2, cur3,
-                                       cur4})
+                                 .pay(destination, cur1, 2000, cur2, 10,
+                                      {cur1, cur2, cur3, cur1, cur2})
                                  .success()
                                  .offers;
                 });
             std::vector<ClaimAtom> expected(
-                {exchanged(o1, 640, 1280), exchanged(o2, 320, 640),
-                 exchanged(o3, 160, 320), exchanged(o4, 80, 160),
-                 exchanged(o1, 40, 80), exchanged(o2, 20, 40),
-                 exchanged(o3, 10, 20)});
+                {exchanged(o1, 80, 160), exchanged(o2, 40, 80),
+                 exchanged(o3, 20, 40), exchanged(o1, 10, 20)});
             REQUIRE(actual == expected);
             // clang-format off
             market.requireBalances(
-                {{source, {{xlm, minBalance4 - 2 * txfee}, {cur1, 6720}, {cur2, 0}, {cur3, 0}, {cur4, 0}}},
-                {mm12, {{xlm, minBalance3 - 3 * txfee}, {cur1, 1360}, {cur2, 7320}, {cur3, 0}, {cur4, 0}}},
-                {mm23, {{xlm, minBalance3 - 3 * txfee}, {cur1, 0}, {cur2, 680}, {cur3, 7660}, {cur4, 0}}},
-                {mm34, {{xlm, minBalance3 - 3 * txfee}, {cur1, 0}, {cur2, 0}, {cur3, 340}, {cur4, 7830}}},
-                {mm41, {{xlm, minBalance3 - 3 * txfee}, {cur1, 7920}, {cur2, 0}, {cur3, 0}, {cur4, 160}}},
-                {destination, {{xlm, minBalance1 - txfee}, {cur1, 0}, {cur2, 0}, {cur3, 0}, {cur4, 10}}}});
+                {{source, {{xlm, minBalance4 - 2 * txfee}, {cur1, 7840}, {cur2, 0}, {cur3, 0}}},
+                {mm12, {{xlm, minBalance3 - 3 * txfee}, {cur1, 180}, {cur2, 7910}, {cur3, 0}}},
+                {mm23, {{xlm, minBalance3 - 3 * txfee}, {cur1, 0}, {cur2, 80}, {cur3, 7960}}},
+                {mm31, {{xlm, minBalance3 - 3 * txfee}, {cur1, 7980}, {cur2, 0}, {cur3, 40}}},
+                {destination, {{xlm, minBalance1 - txfee}, {cur1, 0}, {cur2, 10}, {cur3, 0}}}});
             // clang-format on
         });
     };
