@@ -358,7 +358,7 @@ TEST_CASE("Ledger chain verification", "[ledgerheaderverification]")
     {
         std::tie(lcl, last) = ledgerChainGenerator.makeLedgerChainFiles(
             HistoryManager::VERIFY_STATUS_OK);
-        FileTransferInfo ft(tmpDir, HISTORY_FILE_TYPE_LEDGER,
+        FileTransferInfo ft(tmpDir, FileType::HISTORY_FILE_TYPE_LEDGER,
                             last.header.ledgerSeq);
         std::remove(ft.localPath_nogz().c_str());
 
@@ -382,7 +382,7 @@ TEST_CASE("Tx results verification", "[batching][resultsverification]")
                           catchupSimulation.getApp().getHistoryManager()};
 
     auto verifyHeadersWork = wm.executeWork<BatchDownloadWork>(
-        range, HISTORY_FILE_TYPE_LEDGER, tmpDir);
+        range, FileType::HISTORY_FILE_TYPE_LEDGER, tmpDir);
     REQUIRE(verifyHeadersWork->getState() == BasicWork::State::WORK_SUCCESS);
     SECTION("basic")
     {
@@ -392,7 +392,8 @@ TEST_CASE("Tx results verification", "[batching][resultsverification]")
     }
     SECTION("header file missing")
     {
-        FileTransferInfo ft(tmpDir, HISTORY_FILE_TYPE_LEDGER, range.last());
+        FileTransferInfo ft(tmpDir, FileType::HISTORY_FILE_TYPE_LEDGER,
+                            range.last());
         std::remove(ft.localPath_nogz().c_str());
         auto verify =
             wm.executeWork<DownloadVerifyTxResultsWork>(range, tmpDir);
@@ -400,7 +401,8 @@ TEST_CASE("Tx results verification", "[batching][resultsverification]")
     }
     SECTION("hash mismatch")
     {
-        FileTransferInfo ft(tmpDir, HISTORY_FILE_TYPE_LEDGER, range.last());
+        FileTransferInfo ft(tmpDir, FileType::HISTORY_FILE_TYPE_LEDGER,
+                            range.last());
         XDRInputFileStream res;
         res.open(ft.localPath_nogz());
         std::vector<LedgerHeaderHistoryEntry> entries;
@@ -431,10 +433,11 @@ TEST_CASE("Tx results verification", "[batching][resultsverification]")
     SECTION("invalid result entries")
     {
         auto getResults = wm.executeWork<BatchDownloadWork>(
-            range, HISTORY_FILE_TYPE_RESULTS, tmpDir);
+            range, FileType::HISTORY_FILE_TYPE_RESULTS, tmpDir);
         REQUIRE(getResults->getState() == BasicWork::State::WORK_SUCCESS);
 
-        FileTransferInfo ft(tmpDir, HISTORY_FILE_TYPE_RESULTS, range.last());
+        FileTransferInfo ft(tmpDir, FileType::HISTORY_FILE_TYPE_RESULTS,
+                            range.last());
         XDRInputFileStream res;
         res.open(ft.localPath_nogz());
         std::vector<TransactionHistoryResultEntry> entries;

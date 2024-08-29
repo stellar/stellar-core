@@ -187,8 +187,8 @@ TestBucketGenerator::generateBucket(TestBucketState state)
 
     // Upload generated bucket to the archive
     {
-        FileTransferInfo ft{mTmpDir->getName(), HISTORY_FILE_TYPE_BUCKET,
-                            binToHex(hash)};
+        FileTransferInfo ft{mTmpDir->getName(),
+                            FileType::HISTORY_FILE_TYPE_BUCKET, binToHex(hash)};
         auto& wm = mApp.getWorkScheduler();
         auto put = std::make_shared<PutRemoteFileWork>(
             mApp, filename + ".gz", ft.remoteName(), mArchive);
@@ -235,7 +235,8 @@ TestLedgerChainGenerator::createHistoryFiles(
     LedgerHeaderHistoryEntry& first, LedgerHeaderHistoryEntry& last,
     uint32_t checkpoint)
 {
-    FileTransferInfo ft{mTmpDir, HISTORY_FILE_TYPE_LEDGER, checkpoint};
+    FileTransferInfo ft{mTmpDir, FileType::HISTORY_FILE_TYPE_LEDGER,
+                        checkpoint};
     XDROutputFileStream ledgerOut(mApp.getClock().getIOContext(),
                                   /*doFsync=*/true);
     ledgerOut.open(ft.localPath_nogz());

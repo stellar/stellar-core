@@ -29,16 +29,19 @@ StateSnapshot::StateSnapshot(Application& app, HistoryArchiveState const& state)
     , mLocalState(state)
     , mSnapDir(app.getTmpDirManager().tmpDir("snapshot"))
     , mLedgerSnapFile(std::make_shared<FileTransferInfo>(
-          mSnapDir, HISTORY_FILE_TYPE_LEDGER, mLocalState.currentLedger))
+          FileType::HISTORY_FILE_TYPE_LEDGER, mLocalState.currentLedger,
+          mApp.getConfig()))
 
     , mTransactionSnapFile(std::make_shared<FileTransferInfo>(
-          mSnapDir, HISTORY_FILE_TYPE_TRANSACTIONS, mLocalState.currentLedger))
+          FileType::HISTORY_FILE_TYPE_TRANSACTIONS, mLocalState.currentLedger,
+          mApp.getConfig()))
 
     , mTransactionResultSnapFile(std::make_shared<FileTransferInfo>(
-          mSnapDir, HISTORY_FILE_TYPE_RESULTS, mLocalState.currentLedger))
+          FileType::HISTORY_FILE_TYPE_RESULTS, mLocalState.currentLedger,
+          mApp.getConfig()))
 
     , mSCPHistorySnapFile(std::make_shared<FileTransferInfo>(
-          mSnapDir, HISTORY_FILE_TYPE_SCP, mLocalState.currentLedger))
+          mSnapDir, FileType::HISTORY_FILE_TYPE_SCP, mLocalState.currentLedger))
 
 {
     if (mLocalState.currentBuckets.size() != BucketList::kNumLevels)

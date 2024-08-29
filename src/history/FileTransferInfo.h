@@ -6,6 +6,7 @@
 
 #include "bucket/Bucket.h"
 #include "crypto/Hex.h"
+#include "main/Config.h"
 #include "util/Fs.h"
 #include "util/Logging.h"
 #include "util/TmpDir.h"
@@ -14,28 +15,37 @@
 namespace stellar
 {
 
-extern char const* HISTORY_FILE_TYPE_BUCKET;
-extern char const* HISTORY_FILE_TYPE_LEDGER;
-extern char const* HISTORY_FILE_TYPE_TRANSACTIONS;
-extern char const* HISTORY_FILE_TYPE_RESULTS;
-extern char const* HISTORY_FILE_TYPE_SCP;
+std::string const HISTORY_LOCAL_DIR_NAME = "history";
+enum class FileType
+{
+    HISTORY_FILE_TYPE_BUCKET,
+    HISTORY_FILE_TYPE_LEDGER,
+    HISTORY_FILE_TYPE_TRANSACTIONS,
+    HISTORY_FILE_TYPE_RESULTS,
+    HISTORY_FILE_TYPE_SCP
+};
+
+std::string typeString(FileType type);
+void createPath(std::filesystem::path path);
+std::filesystem::path createPublishDir(FileType type, Config const& cfg);
+std::filesystem::path getPublishHistoryDir(FileType type, Config const& cfg);
 
 class FileTransferInfo
 {
-    std::string mType;
+    FileType mType;
     std::string mHexDigits;
     std::string mLocalPath;
     std::string getLocalDir(TmpDir const& localRoot) const;
 
   public:
     FileTransferInfo(Bucket const& bucket)
-        : mType(HISTORY_FILE_TYPE_BUCKET)
+        : mType(FileType::HISTORY_FILE_TYPE_BUCKET)
         , mHexDigits(binToHex(bucket.getHash()))
         , mLocalPath(bucket.getFilename().string())
     {
     }
 
-    FileTransferInfo(TmpDir const& snapDir, std::string const& snapType,
+    FileTransferInfo(TmpDir const& snapDir, FileType const& snapType,
                      uint32_t checkpointLedger)
         : mType(snapType)
         , mHexDigits(fs::hexStr(checkpointLedger))
@@ -43,7 +53,16 @@ class FileTransferInfo
     {
     }
 
-    FileTransferInfo(TmpDir const& snapDir, std::string const& snapType,
+    FileTransferInfo(FileType const& snapType, uint32_t checkpointLedger,
+                     Config const& cfg)
+        : mType(snapType)
+        , mHexDigits(fs::hexStr(checkpointLedger))
+        , mLocalPath(createPublishDir(snapType, cfg).string() + "/" +
+                     baseName_nogz())
+    {
+    }
+
+    FileTransferInfo(TmpDir const& snapDir, FileType const& snapType,
                      std::string const& hexDigits)
         : mType(snapType)
         , mHexDigits(hexDigits)
@@ -51,10 +70,16 @@ class FileTransferInfo
     {
     }
 
-    std::string
+    FileType
     getType() const
     {
         return mType;
+    }
+
+    std::string
+    getTypeString() const
+    {
+        return typeString(mType);
     }
 
     std::string
@@ -62,6 +87,13 @@ class FileTransferInfo
     {
         return mLocalPath;
     }
+
+    std::string
+    localPath_nogz_dirty() const
+    {
+        return mLocalPath + ".dirty";
+    }
+
     std::string
     localPath_gz() const
     {
@@ -76,7 +108,7 @@ class FileTransferInfo
     std::string
     baseName_nogz() const
     {
-        return fs::baseName(mType, mHexDigits, "xdr");
+        return fs::baseName(getTypeString(), mHexDigits, "xdr");
     }
     std::string
     baseName_gz() const
@@ -92,12 +124,12 @@ class FileTransferInfo
     std::string
     remoteDir() const
     {
-        return fs::remoteDir(mType, mHexDigits);
+        return fs::remoteDir(getTypeString(), mHexDigits);
     }
     std::string
     remoteName() const
     {
-        return fs::remoteName(mType, mHexDigits, "xdr.gz");
+        return fs::remoteName(getTypeString(), mHexDigits, "xdr.gz");
     }
 };
 }
