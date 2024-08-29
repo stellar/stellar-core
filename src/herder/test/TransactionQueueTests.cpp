@@ -19,6 +19,7 @@
 #include "transactions/SignatureUtils.h"
 #include "transactions/TransactionBridge.h"
 #include "transactions/TransactionUtils.h"
+#include "transactions/test/SorobanTxTestUtils.h"
 #include "util/Timer.h"
 #include "util/numeric128.h"
 #include "xdr/Stellar-transaction.h"
@@ -1140,6 +1141,101 @@ TEST_CASE("Soroban TransactionQueue pre-protocol-20",
     REQUIRE(app->getHerder().recvTransaction(tx, false).code ==
             TransactionQueue::AddResultCode::ADD_STATUS_ERROR);
     REQUIRE(app->getHerder().getTx(tx->getFullHash()) == nullptr);
+}
+
+TEST_CASE("Soroban tx and memos", "[soroban][transactionqueue]")
+{
+    Config cfg = getTestConfig();
+    VirtualClock clock;
+    auto app = createTestApplication(clock, cfg);
+
+    const int64_t startingBalance =
+        app->getLedgerManager().getLastMinBalance(50);
+
+    auto root = TestAccount::createRoot(*app);
+    auto a1 = root.create("A", startingBalance);
+
+    auto wasm = rust_bridge::get_test_wasm_add_i32();
+    auto resources = defaultUploadWasmResourcesWithoutFootprint(
+        wasm, getLclProtocolVersion(*app));
+    resources.instructions = 0;
+
+    Operation uploadOp;
+    uploadOp.body.type(INVOKE_HOST_FUNCTION);
+    auto& uploadHF = uploadOp.body.invokeHostFunctionOp().hostFunction;
+    uploadHF.type(HOST_FUNCTION_TYPE_UPLOAD_CONTRACT_WASM);
+    uploadHF.wasm().assign(wasm.data.begin(), wasm.data.end());
+
+    SorobanAuthorizationEntry sae;
+    SorobanCredentials sc(SOROBAN_CREDENTIALS_ADDRESS);
+    sae.credentials = sc;
+
+    if (resources.footprint.readWrite.empty())
+    {
+        resources.footprint.readWrite = {
+            contractCodeKey(sha256(uploadHF.wasm()))};
+    }
+    auto uploadResourceFee =
+        sorobanResourceFee(*app, resources, 1000 + wasm.data.size(), 40) +
+        DEFAULT_TEST_RESOURCE_FEE;
+
+    SECTION("source auth with memo")
+    {
+        auto txWithMemo = sorobanTransactionFrameFromOpsWithTotalFee(
+            app->getNetworkID(), a1, {uploadOp}, {}, resources,
+            uploadResourceFee + 100, uploadResourceFee, "memo");
+
+        REQUIRE(app->getHerder().recvTransaction(txWithMemo, false).code ==
+                TransactionQueue::AddResultCode::ADD_STATUS_PENDING);
+    }
+
+    SECTION("non-source auth tx with memo")
+    {
+        SorobanAuthorizationEntry sae2;
+        SorobanCredentials sourcec(SOROBAN_CREDENTIALS_SOURCE_ACCOUNT);
+        sae2.credentials = sourcec;
+
+        uploadOp.body.invokeHostFunctionOp().auth.emplace_back(sae2);
+        uploadOp.body.invokeHostFunctionOp().auth.emplace_back(sae);
+
+        auto txWithMemo = sorobanTransactionFrameFromOpsWithTotalFee(
+            app->getNetworkID(), a1, {uploadOp}, {}, resources,
+            uploadResourceFee + 100, uploadResourceFee, "memo");
+
+        REQUIRE(app->getHerder().recvTransaction(txWithMemo, false).code ==
+                TransactionQueue::AddResultCode::ADD_STATUS_ERROR);
+    }
+
+    SECTION("non-source auth tx with muxed tx source")
+    {
+        uploadOp.body.invokeHostFunctionOp().auth.emplace_back(sae);
+
+        auto txWithMuxedTxSource = sorobanTransactionFrameFromOpsWithTotalFee(
+            app->getNetworkID(), a1, {uploadOp}, {}, resources,
+            uploadResourceFee + 100, uploadResourceFee, std::nullopt,
+            1 /*muxedData*/);
+
+        REQUIRE(
+            app->getHerder().recvTransaction(txWithMuxedTxSource, false).code ==
+            TransactionQueue::AddResultCode::ADD_STATUS_ERROR);
+    }
+
+    SECTION("non-source auth tx with muxed op source")
+    {
+        uploadOp.body.invokeHostFunctionOp().auth.emplace_back(sae);
+
+        MuxedAccount muxedAccount(CryptoKeyType::KEY_TYPE_MUXED_ED25519);
+        muxedAccount.med25519().ed25519 = a1.getPublicKey().ed25519();
+        muxedAccount.med25519().id = 1;
+        uploadOp.sourceAccount.activate() = muxedAccount;
+        auto txWithMuxedOpSource = sorobanTransactionFrameFromOpsWithTotalFee(
+            app->getNetworkID(), a1, {uploadOp}, {}, resources,
+            uploadResourceFee + 100, uploadResourceFee);
+
+        REQUIRE(
+            app->getHerder().recvTransaction(txWithMuxedOpSource, false).code ==
+            TransactionQueue::AddResultCode::ADD_STATUS_ERROR);
+    }
 }
 
 TEST_CASE("Soroban TransactionQueue limits",

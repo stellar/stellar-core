@@ -1674,10 +1674,21 @@ sorobanEnvelopeFromOps(Hash const& networkID, TestAccount& source,
                        std::vector<SecretKey> const& opKeys,
                        SorobanResources const& resources, uint32_t totalFee,
                        int64_t resourceFee, std::optional<std::string> memo,
-                       std::optional<SequenceNumber> seq)
+                       std::optional<SequenceNumber> seq,
+                       std::optional<uint64_t> muxedData)
 {
     TransactionEnvelope tx(ENVELOPE_TYPE_TX);
-    tx.v1().tx.sourceAccount = toMuxedAccount(source);
+    if (muxedData)
+    {
+        MuxedAccount acc(CryptoKeyType::KEY_TYPE_MUXED_ED25519);
+        acc.med25519().ed25519 = source.getPublicKey().ed25519();
+        acc.med25519().id = *muxedData;
+        tx.v1().tx.sourceAccount = acc;
+    }
+    else
+    {
+        tx.v1().tx.sourceAccount = toMuxedAccount(source);
+    }
     tx.v1().tx.fee = totalFee;
     tx.v1().tx.seqNum = seq ? *seq : source.nextSequenceNumber();
     tx.v1().tx.ext.v(1);
@@ -1724,9 +1735,10 @@ sorobanTransactionFrameFromOps(Hash const& networkID, TestAccount& source,
     totalFee += resourceFee;
     releaseAssert(totalFee >= 0 && totalFee <= UINT32_MAX);
     auto tx = TransactionFrameBase::makeTransactionFromWire(
-        networkID, sorobanEnvelopeFromOps(
-                       networkID, source, ops, opKeys, resources,
-                       static_cast<uint32>(totalFee), resourceFee, memo, seq));
+        networkID,
+        sorobanEnvelopeFromOps(networkID, source, ops, opKeys, resources,
+                               static_cast<uint32>(totalFee), resourceFee, memo,
+                               seq, std::nullopt));
     return TransactionTestFrame::fromTxFrame(tx);
 }
 
@@ -1735,12 +1747,12 @@ sorobanTransactionFrameFromOpsWithTotalFee(
     Hash const& networkID, TestAccount& source,
     std::vector<Operation> const& ops, std::vector<SecretKey> const& opKeys,
     SorobanResources const& resources, uint32_t totalFee, int64_t resourceFee,
-    std::optional<std::string> memo)
+    std::optional<std::string> memo, std::optional<uint64> muxedData)
 {
     auto tx = TransactionFrameBase::makeTransactionFromWire(
-        networkID,
-        sorobanEnvelopeFromOps(networkID, source, ops, opKeys, resources,
-                               totalFee, resourceFee, memo, std::nullopt));
+        networkID, sorobanEnvelopeFromOps(networkID, source, ops, opKeys,
+                                          resources, totalFee, resourceFee,
+                                          memo, std::nullopt, muxedData));
     return TransactionTestFrame::fromTxFrame(tx);
 }
 
