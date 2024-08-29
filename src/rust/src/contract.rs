@@ -17,7 +17,7 @@ use std::{fmt::Display, io::Cursor, panic, rc::Rc, time::Instant};
 // tree: crate::lo::contract and crate::hi::contract, each of which has a (lo or
 // hi) version-specific definition of stellar_env_host. We therefore
 // import it from our _parent_ module rather than from the crate root.
-use super::soroban_env_host::{
+pub(crate) use super::soroban_env_host::{
     budget::Budget,
     e2e_invoke::{self, extract_rent_changes, LedgerEntryChange},
     fees::{
@@ -164,7 +164,7 @@ fn non_metered_xdr_from_cxx_buf<T: ReadXdr>(buf: &CxxBuf) -> Result<T, HostError
     .map_err(|_| (ScErrorType::Value, ScErrorCode::InternalError))?)
 }
 
-fn non_metered_xdr_to_rust_buf<T: WriteXdr>(t: &T) -> Result<RustBuf, HostError> {
+fn non_metered_xdr_to_vec<T: WriteXdr>(t: &T) -> Result<Vec<u8>, HostError> {
     let mut vec: Vec<u8> = Vec::new();
     t.write_xdr(&mut xdr::Limited::new(
         Cursor::new(&mut vec),
@@ -174,7 +174,28 @@ fn non_metered_xdr_to_rust_buf<T: WriteXdr>(t: &T) -> Result<RustBuf, HostError>
         },
     ))
     .map_err(|_| (ScErrorType::Value, ScErrorCode::InvalidInput))?;
-    Ok(vec.into())
+    Ok(vec)
+}
+
+fn non_metered_xdr_to_rust_buf<T: WriteXdr>(t: &T) -> Result<RustBuf, HostError> {
+    Ok(RustBuf {
+        data: non_metered_xdr_to_vec(t)?,
+    })
+}
+
+// This is just a helper for modifying some data that is encoded in a CxxBuf. It
+// decodes the data, modifies it, and then re-encodes it back into the CxxBuf.
+// It's intended for use when modifying the cost parameters of the CxxLedgerInfo
+// when invoking a contract twice with different protocols.
+#[allow(dead_code)]
+pub(crate) fn inplace_modify_cxxbuf_encoded_type<T: ReadXdr + WriteXdr>(
+    buf: &mut CxxBuf,
+    modify: impl FnOnce(&mut T) -> Result<(), Box<dyn Error>>,
+) -> Result<(), Box<dyn Error>> {
+    let mut tmp = non_metered_xdr_from_cxx_buf::<T>(buf)?;
+    modify(&mut tmp)?;
+    let vec = non_metered_xdr_to_vec::<T>(&tmp)?;
+    buf.replace_data_with(vec.as_slice())
 }
 
 /// Returns a vec of [`XDRFileHash`] structs each representing one .x file
@@ -360,6 +381,16 @@ fn make_trace_hook_fn<'a>() -> super::soroban_env_host::TraceHook {
     })
 }
 
+#[allow(dead_code)]
+fn decode_contract_cost_params(buf: &CxxBuf) -> Result<ContractCostParams, Box<dyn Error>> {
+    Ok(non_metered_xdr_from_cxx_buf::<ContractCostParams>(buf)?)
+}
+
+#[allow(dead_code)]
+fn encode_contract_cost_params(params: &ContractCostParams) -> Result<RustBuf, Box<dyn Error>> {
+    Ok(non_metered_xdr_to_rust_buf(params)?)
+}
+
 fn invoke_host_function_or_maybe_panic(
     enable_diagnostics: bool,
     instruction_limit: u32,
@@ -523,6 +554,7 @@ fn invoke_host_function_or_maybe_panic(
     });
 }
 
+#[allow(dead_code)]
 pub(crate) fn rustbuf_containing_scval_to_string(buf: &RustBuf) -> String {
     if let Ok(val) = ScVal::read_xdr(&mut xdr::Limited::new(
         Cursor::new(buf.data.as_slice()),
@@ -537,6 +569,7 @@ pub(crate) fn rustbuf_containing_scval_to_string(buf: &RustBuf) -> String {
     }
 }
 
+#[allow(dead_code)]
 pub(crate) fn rustbuf_containing_diagnostic_event_to_string(buf: &RustBuf) -> String {
     if let Ok(val) = DiagnosticEvent::read_xdr(&mut xdr::Limited::new(
         Cursor::new(buf.data.as_slice()),
