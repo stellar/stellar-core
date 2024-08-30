@@ -16,6 +16,7 @@ namespace stellar
 {
 
 class LoopbackPeerConnection;
+class Simulation;
 
 namespace testutil
 {
@@ -94,10 +95,17 @@ std::tm getTestDateTime(int day, int month, int year, int hour, int minute,
 
 VirtualClock::system_time_point genesis(int minute, int second);
 
+// Assigns values to the SorobanNetworkConfig fields that are suitable for
+// most of the unit tests.
+void setSorobanNetworkConfigForTest(SorobanNetworkConfig& cfg);
+
 // Override Soroban network config defaults with generous settings suitable
 // for most of the unit tests (unless the test is meant to exercise the
 // configuration limits).
 void overrideSorobanNetworkConfigForTest(Application& app);
+void
+upgradeSorobanNetworkConfig(std::function<void(SorobanNetworkConfig&)> modifyFn,
+                            std::shared_ptr<Simulation> simulation);
 void
 modifySorobanNetworkConfig(Application& app,
                            std::function<void(SorobanNetworkConfig&)> modifyFn);

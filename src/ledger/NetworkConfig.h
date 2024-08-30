@@ -270,6 +270,9 @@ class SorobanNetworkConfig
     int64_t feeWrite1KB() const;
     // Bucket list target size (in bytes)
     int64_t bucketListTargetSizeBytes() const;
+    int64_t writeFee1KBBucketListLow() const;
+    int64_t writeFee1KBBucketListHigh() const;
+    uint32_t bucketListWriteFeeGrowthFactor() const;
 
     // Historical data (pushed to core archives) settings for contracts.
     // Fee for storing 1KB in archives
@@ -328,6 +331,7 @@ class SorobanNetworkConfig
     StateArchivalSettings& stateArchivalSettings();
     EvictionIterator& evictionIterator();
 #endif
+    bool operator==(SorobanNetworkConfig const& other) const;
 
   private:
     void loadMaxContractSize(AbstractLedgerTxn& ltx);

@@ -259,6 +259,14 @@ class SorobanTransactionQueue : public TransactionQueue
     }
 
     size_t getMaxQueueSizeOps() const override;
+#ifdef BUILD_TESTS
+    void
+    clearBroadcastCarryover()
+    {
+        mBroadcastOpCarryover.clear();
+        mBroadcastOpCarryover.resize(1, Resource::makeEmptySoroban());
+    }
+#endif
 
   private:
     virtual std::pair<Resource, std::optional<Resource>>

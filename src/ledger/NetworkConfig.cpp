@@ -1330,6 +1330,22 @@ SorobanNetworkConfig::bucketListTargetSizeBytes() const
     return mBucketListTargetSizeBytes;
 }
 
+int64_t
+SorobanNetworkConfig::writeFee1KBBucketListLow() const
+{
+    return mWriteFee1KBBucketListLow;
+}
+int64_t
+SorobanNetworkConfig::writeFee1KBBucketListHigh() const
+{
+    return mWriteFee1KBBucketListHigh;
+}
+uint32_t
+SorobanNetworkConfig::bucketListWriteFeeGrowthFactor() const
+{
+    return mBucketListWriteFeeGrowthFactor;
+}
+
 // Historical data (pushed to core archives) settings for contracts.
 int64_t
 SorobanNetworkConfig::feeHistorical1KB() const
@@ -1712,4 +1728,59 @@ SorobanNetworkConfig::computeWriteFee(uint32_t configMaxProtocol,
     mFeeWrite1KB = rust_bridge::compute_write_fee_per_1kb(
         configMaxProtocol, protocolVersion, mAverageBucketListSize, feeConfig);
 }
+
+bool
+SorobanNetworkConfig::operator==(SorobanNetworkConfig const& other) const
+{
+    return mMaxContractSizeBytes == other.maxContractSizeBytes() &&
+           mMaxContractDataKeySizeBytes ==
+               other.maxContractDataKeySizeBytes() &&
+           mMaxContractDataEntrySizeBytes ==
+               other.maxContractDataEntrySizeBytes() &&
+
+           mLedgerMaxInstructions == other.ledgerMaxInstructions() &&
+           mTxMaxInstructions == other.txMaxInstructions() &&
+           mFeeRatePerInstructionsIncrement ==
+               other.feeRatePerInstructionsIncrement() &&
+           mTxMemoryLimit == other.txMemoryLimit() &&
+
+           mLedgerMaxReadLedgerEntries == other.ledgerMaxReadLedgerEntries() &&
+           mLedgerMaxReadBytes == other.ledgerMaxReadBytes() &&
+           mLedgerMaxWriteLedgerEntries ==
+               other.ledgerMaxWriteLedgerEntries() &&
+           mLedgerMaxWriteBytes == other.ledgerMaxWriteBytes() &&
+           mLedgerMaxTxCount == other.ledgerMaxTxCount() &&
+
+           mTxMaxReadLedgerEntries == other.txMaxReadLedgerEntries() &&
+           mTxMaxReadBytes == other.txMaxReadBytes() &&
+           mTxMaxWriteLedgerEntries == other.txMaxWriteLedgerEntries() &&
+           mTxMaxWriteBytes == other.txMaxWriteBytes() &&
+           mFeeReadLedgerEntry == other.feeReadLedgerEntry() &&
+           mFeeWriteLedgerEntry == other.feeWriteLedgerEntry() &&
+           mFeeRead1KB == other.feeRead1KB() &&
+           mBucketListTargetSizeBytes == other.bucketListTargetSizeBytes() &&
+
+           mWriteFee1KBBucketListLow == other.writeFee1KBBucketListLow() &&
+           mWriteFee1KBBucketListHigh == other.writeFee1KBBucketListHigh() &&
+           mBucketListWriteFeeGrowthFactor ==
+               other.bucketListWriteFeeGrowthFactor() &&
+
+           mFeeHistorical1KB == other.feeHistorical1KB() &&
+
+           mTxMaxContractEventsSizeBytes ==
+               other.txMaxContractEventsSizeBytes() &&
+           mFeeContractEvents1KB == other.feeContractEventsSize1KB() &&
+
+           mLedgerMaxTransactionsSizeBytes ==
+               other.ledgerMaxTransactionSizesBytes() &&
+           mTxMaxSizeBytes == other.txMaxSizeBytes() &&
+           mFeeTransactionSize1KB == other.feeTransactionSize1KB() &&
+
+           mCpuCostParams == other.cpuCostParams() &&
+           mMemCostParams == other.memCostParams() &&
+
+           mStateArchivalSettings == other.stateArchivalSettings() &&
+           mEvictionIterator == other.evictionIterator();
+}
+
 } // namespace stellar

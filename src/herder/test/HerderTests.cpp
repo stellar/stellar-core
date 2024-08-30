@@ -3213,24 +3213,22 @@ TEST_CASE("soroban txs each parameter surge priced", "[soroban][herder]")
                 });
             simulation->startAllNodes();
             auto nodes = simulation->getNodes();
-            for (auto& node : nodes)
-            {
-                overrideSorobanNetworkConfigForTest(*node);
-                modifySorobanNetworkConfig(
-                    *node, [&tweakSorobanConfig](SorobanNetworkConfig& cfg) {
-                        auto mx = std::numeric_limits<uint32_t>::max();
-                        // Set all Soroban resources to maximum initially; each
-                        // section will adjust the config as desired
-                        cfg.mLedgerMaxTxCount = mx;
-                        cfg.mLedgerMaxInstructions = mx;
-                        cfg.mLedgerMaxTransactionsSizeBytes = mx;
-                        cfg.mLedgerMaxReadLedgerEntries = mx;
-                        cfg.mLedgerMaxReadBytes = mx;
-                        cfg.mLedgerMaxWriteLedgerEntries = mx;
-                        cfg.mLedgerMaxWriteBytes = mx;
-                        tweakSorobanConfig(cfg);
-                    });
-            }
+            upgradeSorobanNetworkConfig(
+                [&tweakSorobanConfig](SorobanNetworkConfig& cfg) {
+                    setSorobanNetworkConfigForTest(cfg);
+                    auto mx = std::numeric_limits<uint32_t>::max();
+                    // Set all Soroban resources to maximum initially; each
+                    // section will adjust the config as desired
+                    cfg.mLedgerMaxTxCount = mx;
+                    cfg.mLedgerMaxInstructions = mx;
+                    cfg.mLedgerMaxTransactionsSizeBytes = mx;
+                    cfg.mLedgerMaxReadLedgerEntries = mx;
+                    cfg.mLedgerMaxReadBytes = mx;
+                    cfg.mLedgerMaxWriteLedgerEntries = mx;
+                    cfg.mLedgerMaxWriteBytes = mx;
+                    tweakSorobanConfig(cfg);
+                },
+                simulation);
             auto& loadGen = nodes[0]->getLoadGenerator();
 
             // Generate some accounts
@@ -3513,20 +3511,19 @@ TEST_CASE("overlay parallel processing")
     uint32_t desiredTxRate = 1;
     uint32_t ledgerWideLimit = static_cast<uint32>(
         desiredTxRate * Herder::EXP_LEDGER_TIMESPAN_SECONDS.count() * 2);
-    uint32_t const numAccounts = 100;
-    for (auto& node : nodes)
-    {
-        overrideSorobanNetworkConfigForTest(*node);
-        modifySorobanNetworkConfig(*node, [&](SorobanNetworkConfig& cfg) {
+    upgradeSorobanNetworkConfig(
+        [&](SorobanNetworkConfig& cfg) {
+            setSorobanNetworkConfigForTest(cfg);
             cfg.mLedgerMaxTxCount = ledgerWideLimit;
-        });
-    }
+        },
+        simulation);
     auto& loadGen = nodes[0]->getLoadGenerator();
 
     // Generate some accounts
     auto& loadGenDone =
         nodes[0]->getMetrics().NewMeter({"loadgen", "run", "complete"}, "run");
     auto currLoadGenCount = loadGenDone.count();
+    uint32_t const numAccounts = 100;
     loadGen.generateLoad(
         GeneratedLoadConfig::createAccountsLoad(numAccounts, desiredTxRate));
     simulation->crankUntil(
@@ -3583,13 +3580,13 @@ TEST_CASE("soroban txs accepted by the network",
     uint32_t ledgerWideLimit = static_cast<uint32>(
         desiredTxRate * Herder::EXP_LEDGER_TIMESPAN_SECONDS.count() * 2);
     uint32_t const numAccounts = 100;
-    for (auto& node : nodes)
-    {
-        overrideSorobanNetworkConfigForTest(*node);
-        modifySorobanNetworkConfig(*node, [&](SorobanNetworkConfig& cfg) {
+    upgradeSorobanNetworkConfig(
+        [&](SorobanNetworkConfig& cfg) {
+            setSorobanNetworkConfigForTest(cfg);
             cfg.mLedgerMaxTxCount = ledgerWideLimit;
-        });
-    }
+        },
+        simulation);
+
     auto& loadGen = nodes[0]->getLoadGenerator();
     auto& txsSucceeded =
         nodes[0]->getMetrics().NewCounter({"ledger", "apply", "success"});
@@ -3610,6 +3607,7 @@ TEST_CASE("soroban txs accepted by the network",
         [&]() { return loadGenDone.count() > currLoadGenCount; },
         10 * Herder::EXP_LEDGER_TIMESPAN_SECONDS, false);
 
+    uint64_t lastSorobanSucceeded = sorobanTxsSucceeded.count();
     uint64_t lastSucceeded = txsSucceeded.count();
     REQUIRE(lastSucceeded > 0);
     REQUIRE(txsFailed.count() == 0);
@@ -3749,8 +3747,9 @@ TEST_CASE("soroban txs accepted by the network",
         REQUIRE(secondLoadGenFailed.count() == 0);
         // Check all classic txs got applied
         REQUIRE(txsSucceeded.count() - lastSucceeded -
-                    sorobanTxsSucceeded.count() ==
-                classicTxCount);
+                    sorobanTxsSucceeded.count() +
+                    lastSorobanSucceeded /* to prevent double counting */
+                == classicTxCount);
         REQUIRE(txsFailed.count() == sorobanTxsFailed.count());
     }
 }
@@ -3862,16 +3861,15 @@ herderExternalizesValuesWithProtocol(uint32_t version)
     REQUIRE(getC()->getHerder().getState() ==
             Herder::State::HERDER_BOOTING_STATE);
 
+    simulation->startAllNodes();
     if (protocolVersionStartsFrom(version, SOROBAN_PROTOCOL_VERSION))
     {
-        for (auto const& node : simulation->getNodes())
-        {
-            modifySorobanNetworkConfig(*node, [&](SorobanNetworkConfig& cfg) {
+        upgradeSorobanNetworkConfig(
+            [&](SorobanNetworkConfig& cfg) {
                 cfg.mStateArchivalSettings.bucketListWindowSamplePeriod = 1;
-            });
-        }
+            },
+            simulation);
     }
-    simulation->startAllNodes();
 
     // After SCP is restored, Herder is tracking
     REQUIRE(getC()->getHerder().getState() ==
@@ -3933,7 +3931,7 @@ herderExternalizesValuesWithProtocol(uint32_t version)
         return currentALedger();
     };
 
-    uint32_t currentLedger = 1;
+    uint32_t currentLedger = currentBLedger();
     REQUIRE(currentALedger() == currentLedger);
     REQUIRE(currentCLedger() == currentLedger);
 
@@ -4192,12 +4190,6 @@ herderExternalizesValuesWithProtocol(uint32_t version)
         simulation->removeNode(validatorCKey.getPublicKey());
         configC.MAX_SLOTS_TO_REMEMBER += 5;
         auto newC = simulation->addNode(validatorCKey, qset, &configC, false);
-        if (protocolVersionStartsFrom(version, SOROBAN_PROTOCOL_VERSION))
-        {
-            modifySorobanNetworkConfig(*newC, [&](SorobanNetworkConfig& cfg) {
-                cfg.mStateArchivalSettings.bucketListWindowSamplePeriod = 1;
-            });
-        }
         newC->start();
         HerderImpl& newHerderC = *static_cast<HerderImpl*>(&newC->getHerder());
 
@@ -4208,7 +4200,6 @@ herderExternalizesValuesWithProtocol(uint32_t version)
         SECTION("tracking")
         {
             receiveLedger(destinationLedger, newHerderC);
-
             checkHerder(*newC, newHerderC,
                         Herder::State::HERDER_TRACKING_NETWORK_STATE,
                         currentlyTracking);
@@ -4641,8 +4632,8 @@ TEST_CASE("do not flood too many soroban transactions",
         Simulation::OVER_LOOPBACK, networkID, [&](int i) {
             auto cfg = getTestConfig(i);
             cfg.TESTING_UPGRADE_MAX_TX_SET_SIZE = 1000;
-            cfg.NODE_IS_VALIDATOR = false;
-            cfg.FORCE_SCP = false;
+            cfg.NODE_IS_VALIDATOR = true;
+            cfg.FORCE_SCP = true;
             cfg.FLOOD_TX_PERIOD_MS = 100;
             cfg.FLOOD_OP_RATE_PER_LEDGER = 2.0;
             cfg.FLOOD_SOROBAN_TX_PERIOD_MS = 50;
@@ -4654,31 +4645,29 @@ TEST_CASE("do not flood too many soroban transactions",
     auto otherKey = SecretKey::fromSeed(sha256("other"));
 
     SCPQuorumSet qset;
-    qset.threshold = 1;
+    qset.threshold = 2;
     qset.validators.push_back(mainKey.getPublicKey());
+    qset.validators.push_back(otherKey.getPublicKey());
 
     simulation->addNode(mainKey, qset);
     simulation->addNode(otherKey, qset);
 
-    auto updateSorobanConfig = [](Application& app) {
-        overrideSorobanNetworkConfigForTest(app);
-        modifySorobanNetworkConfig(app, [](SorobanNetworkConfig& cfg) {
-            // Update read entries to allow flooding at most 1 tx per broadcast
-            // interval.
-            cfg.mLedgerMaxReadLedgerEntries = 40;
-            cfg.mLedgerMaxReadBytes = cfg.mTxMaxReadBytes;
-        });
-    };
-
     auto app = simulation->getNode(mainKey.getPublicKey());
-
-    updateSorobanConfig(*app);
-    updateSorobanConfig(*simulation->getNode(otherKey.getPublicKey()));
 
     simulation->addPendingConnection(mainKey.getPublicKey(),
                                      otherKey.getPublicKey());
     simulation->startAllNodes();
     simulation->crankForAtLeast(std::chrono::seconds(1), false);
+
+    upgradeSorobanNetworkConfig(
+        [&](SorobanNetworkConfig& cfg) {
+            setSorobanNetworkConfigForTest(cfg);
+            // Update read entries to allow flooding at most 1 tx per broadcast
+            // interval.
+            cfg.mLedgerMaxReadLedgerEntries = 40;
+            cfg.mLedgerMaxReadBytes = cfg.mTxMaxReadBytes;
+        },
+        simulation);
 
     auto const& cfg = app->getConfig();
     auto& lm = app->getLedgerManager();
@@ -4769,6 +4758,8 @@ TEST_CASE("do not flood too many soroban transactions",
     {
         // no broadcast right away
         REQUIRE(numBroadcast == 0);
+        tq.clearBroadcastCarryover();
+
         // wait for a bit more than a broadcast period
         // rate per period is 100 ms
         auto broadcastPeriod =

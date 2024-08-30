@@ -92,7 +92,14 @@ struct GeneratedLoadConfig
         uint32_t txMaxSizeBytes{};
 
         // State Archival Settings
+        uint32_t maxEntryTTL{};
+        uint32_t minTemporaryTTL{};
+        uint32_t minPersistentTTL{};
+        int64_t persistentRentRateDenominator{};
+        int64_t tempRentRateDenominator{};
+        uint32_t maxEntriesToArchive{};
         uint32_t bucketListSizeWindowSampleSize{};
+        uint32_t bucketListWindowSamplePeriod{};
         uint32_t evictionScanSize{};
         uint32_t startingEvictionScanLevel{};
     };
@@ -106,6 +113,9 @@ struct GeneratedLoadConfig
         double sorobanUploadWeight = 0;
         double sorobanInvokeWeight = 0;
     };
+
+    void
+    copySorobanNetworkConfigToUpgradeConfig(SorobanNetworkConfig const& cfg);
 
     static GeneratedLoadConfig createAccountsLoad(uint32_t nAccounts,
                                                   uint32_t txRate);
