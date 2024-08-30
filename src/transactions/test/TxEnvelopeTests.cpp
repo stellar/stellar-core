@@ -2493,6 +2493,40 @@ TEST_CASE("soroban txs not allowed before protocol upgrade",
     REQUIRE(tx->getResult().result.code() == txMALFORMED);
 }
 
+#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
+TEST_CASE("XDR protocol compatibility validation", "[tx][envelope]")
+{
+    auto validateTx = [](ProtocolVersion protocolVersion) {
+        VirtualClock clock;
+        auto cfg = getTestConfig();
+        cfg.TESTING_UPGRADE_LEDGER_PROTOCOL_VERSION =
+            static_cast<uint32_t>(protocolVersion);
+        auto app = createTestApplication(clock, cfg);
+        auto root = TestAccount::createRoot(*app);
+        Operation op;
+        op.body.type(INVOKE_HOST_FUNCTION);
+        op.body.invokeHostFunctionOp().hostFunction.type(
+            HOST_FUNCTION_TYPE_CREATE_CONTRACT_V2);
+
+        auto tx =
+            sorobanTransactionFrameFromOps(app->getNetworkID(), root, {op}, {},
+                                           SorobanResources(), 1000, 1'000'000);
+        LedgerTxn ltx(app->getLedgerTxnRoot());
+        return tx->checkValid(*app, ltx, 0, 0, 0);
+    };
+    SECTION("XDR not valid in protocol 21")
+    {
+        auto res = validateTx(ProtocolVersion::V_21);
+        REQUIRE(res->getResult().result.code() == txMALFORMED);
+    }
+    SECTION("XDR is valid in protocol 22")
+    {
+        auto res = validateTx(ProtocolVersion::V_22);
+        REQUIRE(res->isSuccess());
+    }
+}
+#endif
+
 TEST_CASE_VERSIONS("Soroban extension for non-Soroban tx",
                    "[tx][envelope][soroban]")
 {

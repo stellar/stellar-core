@@ -978,7 +978,7 @@ pathPayment(PublicKey const& to, Asset const& sendCur, int64_t sendMax,
     ppop.destAsset = destCur;
     ppop.destAmount = destAmount;
     ppop.destination = toMuxedAccount(to);
-    std::copy(std::begin(path), std::end(path), std::back_inserter(ppop.path));
+    ppop.path.assign(path.begin(), path.end());
 
     return op;
 }

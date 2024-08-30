@@ -31,7 +31,7 @@ use super::soroban_env_host::{
         self, ContractCostParams, ContractEvent, ContractEventBody, ContractEventType,
         ContractEventV0, DiagnosticEvent, ExtensionPoint, LedgerEntry, LedgerEntryData,
         LedgerEntryExt, Limits, ReadXdr, ScError, ScErrorCode, ScErrorType, ScSymbol, ScVal,
-        TtlEntry, WriteXdr, XDR_FILES_SHA256,
+        TransactionEnvelope, TtlEntry, WriteXdr, XDR_FILES_SHA256,
     },
     HostError, LedgerInfo, VERSION,
 };
@@ -544,4 +544,15 @@ pub(crate) fn compute_write_fee_per_1kb(
     fee_config: CxxWriteFeeConfiguration,
 ) -> i64 {
     host_compute_write_fee_per_1kb(bucket_list_size, &fee_config.into())
+}
+
+pub(crate) fn can_parse_transaction(xdr: &CxxBuf, depth_limit: u32) -> bool {
+    let res = TransactionEnvelope::read_xdr(&mut xdr::Limited::new(
+        Cursor::new(xdr.data.as_slice()),
+        Limits {
+            depth: depth_limit,
+            len: xdr.data.len(),
+        },
+    ));
+    res.is_ok()
 }

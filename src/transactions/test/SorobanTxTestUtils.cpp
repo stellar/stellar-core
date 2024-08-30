@@ -262,8 +262,21 @@ makeSorobanCreateContractTx(Application& app, TestAccount& source,
                             ContractIDPreimage const& idPreimage,
                             ContractExecutable const& executable,
                             SorobanResources& createResources,
-                            uint32_t inclusionFee)
+                            uint32_t inclusionFee,
+                            ConstructorParams const& constructorParams)
 {
+    // Default to V1 function when constructor has no arguments. This is just
+    // to have some coverage after the protocol bump - constructor tests should
+    // force the version explicitly.
+    auto hostFnVersion = constructorParams.constructorArgs.empty()
+                             ? ConstructorParams::HostFnVersion::V1
+                             : ConstructorParams::HostFnVersion::V2;
+    if (constructorParams.forceHostFnVersion)
+    {
+        hostFnVersion = *constructorParams.forceHostFnVersion;
+    }
+    releaseAssert(constructorParams.constructorArgs.empty() ||
+                  hostFnVersion == ConstructorParams::HostFnVersion::V2);
     if (createResources.footprint.readWrite.empty())
     {
         releaseAssert(createResources.footprint.readOnly.empty());
@@ -278,27 +291,85 @@ makeSorobanCreateContractTx(Application& app, TestAccount& source,
         createResources.footprint.readWrite = {
             makeContractInstanceKey(makeContractAddress(contractID))};
     }
+    if (constructorParams.additionalResources)
+    {
+        auto const& additionalResources =
+            *constructorParams.additionalResources;
+        createResources.footprint.readOnly.insert(
+            createResources.footprint.readOnly.end(),
+            additionalResources.footprint.readOnly.begin(),
+            additionalResources.footprint.readOnly.end());
+        createResources.footprint.readWrite.insert(
+            createResources.footprint.readWrite.end(),
+            additionalResources.footprint.readWrite.begin(),
+            additionalResources.footprint.readWrite.end());
+        createResources.instructions += additionalResources.instructions;
+        createResources.readBytes += additionalResources.readBytes;
+        createResources.writeBytes += additionalResources.writeBytes;
+    }
 
     Operation createOp;
     createOp.body.type(INVOKE_HOST_FUNCTION);
     auto& createHF = createOp.body.invokeHostFunctionOp().hostFunction;
-    createHF.type(HOST_FUNCTION_TYPE_CREATE_CONTRACT);
-    auto& createContractArgs = createHF.createContract();
-    createContractArgs.contractIDPreimage = idPreimage;
-    createContractArgs.executable = executable;
+
+    if (hostFnVersion == ConstructorParams::HostFnVersion::V2)
+    {
+        createHF.type(HOST_FUNCTION_TYPE_CREATE_CONTRACT_V2);
+        auto& createContractArgs = createHF.createContractV2();
+        createContractArgs.contractIDPreimage = idPreimage;
+        createContractArgs.executable = executable;
+        createContractArgs.constructorArgs.assign(
+            constructorParams.constructorArgs.begin(),
+            constructorParams.constructorArgs.end());
+    }
+    else
+    {
+        createHF.type(HOST_FUNCTION_TYPE_CREATE_CONTRACT);
+        auto& createContractArgs = createHF.createContract();
+        createContractArgs.contractIDPreimage = idPreimage;
+        createContractArgs.executable = executable;
+    }
 
     if (executable.type() !=
         ContractExecutableType::CONTRACT_EXECUTABLE_STELLAR_ASSET)
     {
         SorobanAuthorizationEntry auth;
         auth.credentials.type(SOROBAN_CREDENTIALS_SOURCE_ACCOUNT);
-        auth.rootInvocation.function.type(
-            SOROBAN_AUTHORIZED_FUNCTION_TYPE_CREATE_CONTRACT_HOST_FN);
-        auth.rootInvocation.function.createContractHostFn().contractIDPreimage =
-            idPreimage;
+        auto authHostFnVersion =
+            protocolVersionStartsFrom(app.getLedgerManager()
+                                          .getLastClosedLedgerHeader()
+                                          .header.ledgerVersion,
+                                      ProtocolVersion::V_22)
+                ? ConstructorParams::HostFnVersion::V2
+                : ConstructorParams::HostFnVersion::V1;
+        if (constructorParams.forceAuthHostFnVersion)
+        {
+            authHostFnVersion = *constructorParams.forceAuthHostFnVersion;
+        }
+        if (authHostFnVersion == ConstructorParams::HostFnVersion::V2)
+        {
+            auth.rootInvocation.function.type(
+                SOROBAN_AUTHORIZED_FUNCTION_TYPE_CREATE_CONTRACT_V2_HOST_FN);
+            auto& invocationFn =
+                auth.rootInvocation.function.createContractV2HostFn();
+            invocationFn.contractIDPreimage = idPreimage;
+            invocationFn.executable = executable;
+            invocationFn.constructorArgs.assign(
+                constructorParams.constructorArgs.begin(),
+                constructorParams.constructorArgs.end());
+            auth.rootInvocation.subInvocations =
+                constructorParams.additionalAuthInvocations;
+        }
+        else
+        {
+            auth.rootInvocation.function.type(
+                SOROBAN_AUTHORIZED_FUNCTION_TYPE_CREATE_CONTRACT_HOST_FN);
+            auth.rootInvocation.function.createContractHostFn()
+                .contractIDPreimage = idPreimage;
+            auth.rootInvocation.function.createContractHostFn().executable =
+                executable;
+        }
 
-        auth.rootInvocation.function.createContractHostFn().executable =
-            executable;
         createOp.body.invokeHostFunctionOp().auth = {auth};
     }
 
@@ -308,6 +379,17 @@ makeSorobanCreateContractTx(Application& app, TestAccount& source,
     return sorobanTransactionFrameFromOps(app.getNetworkID(), source,
                                           {createOp}, {}, createResources,
                                           inclusionFee, createResourceFee);
+}
+
+TransactionTestFramePtr
+makeSorobanCreateContractTx(Application& app, TestAccount& source,
+                            ContractIDPreimage const& idPreimage,
+                            ContractExecutable const& executable,
+                            SorobanResources& createResources,
+                            uint32_t inclusionFee)
+{
+    return makeSorobanCreateContractTx(app, source, idPreimage, executable,
+                                       createResources, inclusionFee, {});
 }
 
 TransactionTestFramePtr
@@ -814,10 +896,12 @@ SorobanTest::uploadWasm(RustBuf const& wasm, SorobanResources& uploadResources)
 SCAddress
 SorobanTest::createContract(ContractIDPreimage const& idPreimage,
                             ContractExecutable const& executable,
-                            SorobanResources& createResources)
+                            SorobanResources& createResources,
+                            ConstructorParams const& constructorParams)
 {
-    auto tx = makeSorobanCreateContractTx(getApp(), mRoot, idPreimage,
-                                          executable, createResources, 1000);
+    auto tx =
+        makeSorobanCreateContractTx(getApp(), mRoot, idPreimage, executable,
+                                    createResources, 1000, constructorParams);
     REQUIRE(invokeTx(tx));
     Hash contractID = xdrSha256(
         makeFullContractIdPreimage(getApp().getNetworkID(), idPreimage));
@@ -881,6 +965,15 @@ SorobanTest::deployWasmContract(RustBuf const& wasm,
                                 std::optional<SorobanResources> uploadResources,
                                 std::optional<SorobanResources> createResources)
 {
+    return deployWasmContract(wasm, {}, uploadResources, createResources);
+}
+
+TestContract&
+SorobanTest::deployWasmContract(RustBuf const& wasm,
+                                ConstructorParams const& constructorParams,
+                                std::optional<SorobanResources> uploadResources,
+                                std::optional<SorobanResources> createResources)
+{
     if (!uploadResources)
     {
         uploadResources = defaultUploadWasmResourcesWithoutFootprint(
@@ -896,15 +989,25 @@ SorobanTest::deployWasmContract(RustBuf const& wasm,
         createResources->writeBytes = 1000;
     }
     Hash wasmHash = uploadWasm(wasm, *uploadResources);
-    SCAddress contractAddress =
-        createContract(makeContractIDPreimage(
-                           mRoot, sha256(std::to_string(mContracts.size()))),
-                       makeWasmExecutable(wasmHash), *createResources);
+    SCAddress contractAddress = createContract(
+        makeContractIDPreimage(mRoot,
+                               sha256(std::to_string(mContracts.size()))),
+        makeWasmExecutable(wasmHash), *createResources, constructorParams);
     xdr::xvector<LedgerKey> contractKeys = {
         contractCodeKey(wasmHash), makeContractInstanceKey(contractAddress)};
     mContracts.emplace_back(
         std::make_unique<TestContract>(*this, contractAddress, contractKeys));
     return *mContracts.back();
+}
+
+SCAddress
+SorobanTest::nextContractID()
+{
+    auto idPreimage = makeContractIDPreimage(
+        mRoot, sha256(std::to_string(mContracts.size())));
+    auto contractID = xdrSha256(
+        makeFullContractIdPreimage(getApp().getNetworkID(), idPreimage));
+    return makeContractAddress(contractID);
 }
 
 TestContract&
@@ -917,7 +1020,7 @@ SorobanTest::deployAssetContract(Asset const& asset)
 
     SCAddress contractAddress =
         createContract(makeContractIDPreimage(asset),
-                       makeAssetExecutable(asset), createResources);
+                       makeAssetExecutable(asset), createResources, {});
     xdr::xvector<LedgerKey> contractKeys = {
         makeContractInstanceKey(contractAddress)};
     mContracts.emplace_back(
@@ -1003,8 +1106,6 @@ SorobanTest::invokeTx(TransactionTestFramePtr tx, TransactionMetaFrame* txMeta)
         txMeta = &dummyMeta;
     }
 
-    // When BucketListDB is enabled, we can only apply TXs by closing a ledger,
-    // so just invoke the TX and return without any additional checks
     if (mApp->getConfig().isUsingBucketListDB())
     {
         closeLedger(*mApp, {tx});

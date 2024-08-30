@@ -172,7 +172,7 @@ getCreateTx(PublicKey const& publicKey, LedgerKey const& contractCodeLedgerKey,
     SorobanResources uploadResources;
     uploadResources.footprint.readOnly = {contractCodeLedgerKey};
     uploadResources.footprint.readWrite = {contractSourceRefLedgerKey};
-    uploadResources.instructions = 450'000;
+    uploadResources.instructions = 2'000'000;
     uploadResources.readBytes = 2000;
     uploadResources.writeBytes = 120;
 

@@ -212,6 +212,10 @@ mod rust_bridge {
 
         fn get_auth_wasm() -> Result<RustBuf>;
 
+        fn get_no_arg_constructor_wasm() -> Result<RustBuf>;
+        fn get_constructor_with_args_p21_wasm() -> Result<RustBuf>;
+        fn get_constructor_with_args_p22_wasm() -> Result<RustBuf>;
+
         fn get_custom_account_wasm() -> Result<RustBuf>;
 
         // Utility functions for generating wasms using soroban-synth-wasm.
@@ -251,6 +255,15 @@ mod rust_bridge {
             fee_config: CxxRentFeeConfiguration,
             current_ledger_seq: u32,
         ) -> Result<i64>;
+
+        // Checks if a provided `TransactionEnvelope` XDR can be parsed in the
+        // provided `protocol_version`.
+        fn can_parse_transaction(
+            config_max_protocol: u32,
+            protocol_version: u32,
+            xdr: &CxxBuf,
+            depth_limit: u32,
+        ) -> Result<bool>;
     }
 
     // And the extern "C++" block declares C++ stuff we're going to import to
@@ -356,6 +369,33 @@ pub(crate) fn get_hostile_large_val_wasm() -> Result<RustBuf, Box<dyn std::error
 pub(crate) fn get_auth_wasm() -> Result<RustBuf, Box<dyn std::error::Error>> {
     Ok(RustBuf {
         data: soroban_test_wasms::AUTH_TEST_CONTRACT
+            .iter()
+            .cloned()
+            .collect(),
+    })
+}
+
+fn get_no_arg_constructor_wasm() -> Result<RustBuf, Box<dyn std::error::Error>> {
+    Ok(RustBuf {
+        data: soroban_test_wasms::NO_ARGUMENT_CONSTRUCTOR_TEST_CONTRACT_P22
+            .iter()
+            .cloned()
+            .collect(),
+    })
+}
+
+fn get_constructor_with_args_p21_wasm() -> Result<RustBuf, Box<dyn std::error::Error>> {
+    Ok(RustBuf {
+        data: soroban_test_wasms::CONSTRUCTOR_TEST_CONTRACT_P21
+            .iter()
+            .cloned()
+            .collect(),
+    })
+}
+
+fn get_constructor_with_args_p22_wasm() -> Result<RustBuf, Box<dyn std::error::Error>> {
+    Ok(RustBuf {
+        data: soroban_test_wasms::CONSTRUCTOR_TEST_CONTRACT_P22
             .iter()
             .cloned()
             .collect(),
@@ -672,6 +712,7 @@ struct HostModule {
     ) -> i64,
     compute_write_fee_per_1kb:
         fn(bucket_list_size: i64, fee_config: CxxWriteFeeConfiguration) -> i64,
+    can_parse_transaction: fn(&CxxBuf, depth_limit: u32) -> bool,
 }
 
 macro_rules! proto_versioned_functions_for_module {
@@ -685,6 +726,7 @@ macro_rules! proto_versioned_functions_for_module {
             compute_transaction_resource_fee: $module::contract::compute_transaction_resource_fee,
             compute_rent_fee: $module::contract::compute_rent_fee,
             compute_write_fee_per_1kb: $module::contract::compute_write_fee_per_1kb,
+            can_parse_transaction: $module::contract::can_parse_transaction,
         }
     };
 }
@@ -775,6 +817,16 @@ pub(crate) fn compute_transaction_resource_fee(
         tx_resources,
         fee_config,
     ))
+}
+
+pub(crate) fn can_parse_transaction(
+    config_max_protocol: u32,
+    protocol_version: u32,
+    xdr: &CxxBuf,
+    depth_limit: u32,
+) -> Result<bool, Box<dyn std::error::Error>> {
+    let hm = get_host_module_for_protocol(config_max_protocol, protocol_version)?;
+    Ok((hm.can_parse_transaction)(xdr, depth_limit))
 }
 
 pub(crate) fn compute_rent_fee(
