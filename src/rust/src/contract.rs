@@ -188,6 +188,7 @@ fn non_metered_xdr_to_rust_buf<T: WriteXdr>(t: &T) -> Result<RustBuf, HostError>
 // It's intended for use when modifying the cost parameters of the CxxLedgerInfo
 // when invoking a contract twice with different protocols.
 #[allow(dead_code)]
+#[cfg(feature = "testutils")]
 pub(crate) fn inplace_modify_cxxbuf_encoded_type<T: ReadXdr + WriteXdr>(
     buf: &mut CxxBuf,
     modify: impl FnOnce(&mut T) -> Result<(), Box<dyn Error>>,
@@ -382,11 +383,13 @@ fn make_trace_hook_fn<'a>() -> super::soroban_env_host::TraceHook {
 }
 
 #[allow(dead_code)]
+#[cfg(feature = "testutils")]
 fn decode_contract_cost_params(buf: &CxxBuf) -> Result<ContractCostParams, Box<dyn Error>> {
     Ok(non_metered_xdr_from_cxx_buf::<ContractCostParams>(buf)?)
 }
 
 #[allow(dead_code)]
+#[cfg(feature = "testutils")]
 fn encode_contract_cost_params(params: &ContractCostParams) -> Result<RustBuf, Box<dyn Error>> {
     Ok(non_metered_xdr_to_rust_buf(params)?)
 }
@@ -555,6 +558,7 @@ fn invoke_host_function_or_maybe_panic(
 }
 
 #[allow(dead_code)]
+#[cfg(feature = "testutils")]
 pub(crate) fn rustbuf_containing_scval_to_string(buf: &RustBuf) -> String {
     if let Ok(val) = ScVal::read_xdr(&mut xdr::Limited::new(
         Cursor::new(buf.data.as_slice()),
@@ -570,6 +574,7 @@ pub(crate) fn rustbuf_containing_scval_to_string(buf: &RustBuf) -> String {
 }
 
 #[allow(dead_code)]
+#[cfg(feature = "testutils")]
 pub(crate) fn rustbuf_containing_diagnostic_event_to_string(buf: &RustBuf) -> String {
     if let Ok(val) = DiagnosticEvent::read_xdr(&mut xdr::Limited::new(
         Cursor::new(buf.data.as_slice()),
