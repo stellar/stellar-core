@@ -333,5 +333,7 @@ int64_t getBalance(Application& app, AccountID const& accountID,
 
 uint32_t getLclProtocolVersion(Application& app);
 
+bool isSuccessResult(TransactionResult const& res);
+
 } // end txtest namespace
 }

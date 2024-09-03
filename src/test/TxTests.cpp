@@ -906,12 +906,9 @@ sorobanResourceFee(Application& app, SorobanResources const& resources,
                    size_t txSize, uint32_t eventsSize)
 {
     releaseAssert(txSize <= INT32_MAX);
-    LedgerTxn ltx(app.getLedgerTxnRoot(),
-                  /* shouldUpdateLastModified */ true,
-                  TransactionMode::READ_ONLY_WITHOUT_SQL_TXN);
     auto feePair = TransactionFrame::computeSorobanResourceFee(
-        ltx.loadHeader().current().ledgerVersion, resources,
-        static_cast<uint32>(txSize), eventsSize,
+        app.getLedgerManager().getLastClosedLedgerHeader().header.ledgerVersion,
+        resources, static_cast<uint32>(txSize), eventsSize,
         app.getLedgerManager().getSorobanNetworkConfig(), app.getConfig());
     return feePair.non_refundable_fee + feePair.refundable_fee;
 }
@@ -1926,5 +1923,11 @@ getLclProtocolVersion(Application& app)
     return lcl.header.ledgerVersion;
 }
 
+bool
+isSuccessResult(TransactionResult const& res)
+{
+    return res.result.code() == txSUCCESS;
 }
-}
+
+} // namespace txtest
+} // namespace stellar

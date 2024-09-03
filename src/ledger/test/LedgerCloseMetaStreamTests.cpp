@@ -525,7 +525,7 @@ TEST_CASE_VERSIONS("meta stream contains reasonable meta", "[ledgerclosemeta]")
                                 ContractDataDurability::PERSISTENT);
 
             uint32_t liveUntilLedger =
-                test.getLedgerSeq() +
+                test.getLCLSeq() +
                 test.getNetworkCfg().stateArchivalSettings().minPersistentTTL -
                 1;
 
@@ -546,7 +546,7 @@ TEST_CASE_VERSIONS("meta stream contains reasonable meta", "[ledgerclosemeta]")
             {
                 closeLedgerOn(test.getApp(), i, 2, 1, 2016);
             }
-            REQUIRE(!test.isEntryLive(archivedLk, test.getLedgerSeq()));
+            REQUIRE(!test.isEntryLive(archivedLk, test.getLCLSeq()));
 
             // Restore archived entry
             SorobanResources restoreResources;
@@ -605,7 +605,7 @@ TEST_CASE_VERSIONS("meta stream contains reasonable meta", "[ledgerclosemeta]")
                 createResources, 1000);
 
             closeLedger(test.getApp(), {tx1, tx2, tx3, tx4, tx5});
-            targetSeq = 23;
+            targetSeq = 27;
         }
         else
         {

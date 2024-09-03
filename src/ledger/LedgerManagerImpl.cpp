@@ -573,6 +573,11 @@ LedgerManagerImpl::getMutableSorobanNetworkConfig()
 {
     return getSorobanNetworkConfigInternal();
 }
+std::vector<TransactionMetaFrame> const&
+LedgerManagerImpl::getLastClosedLedgerTxMeta()
+{
+    return mLastLedgerTxMeta;
+}
 #endif
 
 SorobanMetrics&
@@ -791,6 +796,9 @@ during replays.
 void
 LedgerManagerImpl::closeLedger(LedgerCloseData const& ledgerData)
 {
+#ifdef BUILD_TESTS
+    mLastLedgerTxMeta.clear();
+#endif
     ZoneScoped;
     auto ledgerTime = mLedgerClose.TimeScope();
     LogSlowExecution closeLedgerTime{"closeLedger",
@@ -1572,6 +1580,10 @@ LedgerManagerImpl::applyTransactions(
         // First gather the TransactionResultPair into the TxResultSet for
         // hashing into the ledger header.
         txResultSet.results.emplace_back(results);
+
+#ifdef BUILD_TESTS
+        mLastLedgerTxMeta.push_back(tm);
+#endif
 
         // Then potentially add that TRP and its associated TransactionMeta
         // into the associated slot of any LedgerCloseMeta we're collecting.

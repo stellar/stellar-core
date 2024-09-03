@@ -687,7 +687,7 @@ LoadGenerator::generateLoad(GeneratedLoadConfig cfg)
             uint64_t sourceAccountId = getNextAvailableAccount(ledgerNum);
 
             std::function<std::pair<LoadGenerator::TestAccountPtr,
-                                    TransactionTestFramePtr>()>
+                                    TransactionFrameBaseConstPtr>()>
                 generateTx;
 
             switch (cfg.mode)
@@ -858,7 +858,7 @@ LoadGenerator::submitCreationTx(uint32_t nAccounts, uint32_t offset,
 bool
 LoadGenerator::submitTx(GeneratedLoadConfig const& cfg,
                         std::function<std::pair<LoadGenerator::TestAccountPtr,
-                                                TransactionTestFramePtr>()>
+                                                TransactionFrameBaseConstPtr>()>
                             generateTx)
 {
     auto [from, tx] = generateTx();
@@ -1010,7 +1010,7 @@ LoadGenerator::logProgress(std::chrono::nanoseconds submitTimer,
     txm.report();
 }
 
-std::pair<LoadGenerator::TestAccountPtr, TransactionTestFramePtr>
+std::pair<LoadGenerator::TestAccountPtr, TransactionFrameBaseConstPtr>
 LoadGenerator::creationTransaction(uint64_t startAccount, uint64_t numItems,
                                    uint32_t ledgerNum)
 {
@@ -1021,9 +1021,9 @@ LoadGenerator::creationTransaction(uint64_t startAccount, uint64_t numItems,
     vector<Operation> creationOps = createAccounts(
         startAccount, numItems, ledgerNum, !mInitialAccountsCreated);
     mInitialAccountsCreated = true;
-    return std::make_pair(sourceAcc, createTransactionTestFramePtr(
-                                         sourceAcc, creationOps,
-                                         LoadGenMode::CREATE, std::nullopt));
+    return std::make_pair(
+        sourceAcc, createTransactionFrame(sourceAcc, creationOps,
+                                          LoadGenMode::CREATE, std::nullopt));
 }
 
 void
@@ -1131,7 +1131,7 @@ LoadGenerator::findAccount(uint64_t accountId, uint32_t ledgerNum)
     return newAccountPtr;
 }
 
-std::pair<LoadGenerator::TestAccountPtr, TransactionTestFramePtr>
+std::pair<LoadGenerator::TestAccountPtr, TransactionFrameBaseConstPtr>
 LoadGenerator::paymentTransaction(uint32_t numAccounts, uint32_t offset,
                                   uint32_t ledgerNum, uint64_t sourceAccount,
                                   uint32_t opCount,
@@ -1148,12 +1148,12 @@ LoadGenerator::paymentTransaction(uint32_t numAccounts, uint32_t offset,
         paymentOps.emplace_back(txtest::payment(to->getPublicKey(), amount));
     }
 
-    return std::make_pair(
-        from, createTransactionTestFramePtr(from, paymentOps, LoadGenMode::PAY,
-                                            maxGeneratedFeeRate));
+    return std::make_pair(from, createTransactionFrame(from, paymentOps,
+                                                       LoadGenMode::PAY,
+                                                       maxGeneratedFeeRate));
 }
 
-std::pair<LoadGenerator::TestAccountPtr, TransactionTestFramePtr>
+std::pair<LoadGenerator::TestAccountPtr, TransactionFrameBaseConstPtr>
 LoadGenerator::manageOfferTransaction(
     uint32_t ledgerNum, uint64_t accountId, uint32_t opCount,
     std::optional<uint32_t> maxGeneratedFeeRate)
@@ -1170,7 +1170,7 @@ LoadGenerator::manageOfferTransaction(
             Price{rand_uniform<int32_t>(1, 100), rand_uniform<int32_t>(1, 100)},
             100));
     }
-    return std::make_pair(account, createTransactionTestFramePtr(
+    return std::make_pair(account, createTransactionFrame(
                                        account, ops, LoadGenMode::MIXED_CLASSIC,
                                        maxGeneratedFeeRate));
 }
@@ -1204,7 +1204,7 @@ increaseOpSize(Operation& op, uint32_t increaseUpToBytes)
     op.body.invokeHostFunctionOp().auth = {auth};
 }
 
-std::pair<LoadGenerator::TestAccountPtr, TransactionTestFramePtr>
+std::pair<LoadGenerator::TestAccountPtr, TransactionFrameBaseConstPtr>
 LoadGenerator::createUploadWasmTransaction(uint32_t ledgerNum,
                                            uint64_t accountId,
                                            GeneratedLoadConfig const& cfg)
@@ -1247,7 +1247,7 @@ LoadGenerator::createUploadWasmTransaction(uint32_t ledgerNum,
     return std::make_pair(account, tx);
 }
 
-std::pair<LoadGenerator::TestAccountPtr, TransactionTestFramePtr>
+std::pair<LoadGenerator::TestAccountPtr, TransactionFrameBaseConstPtr>
 LoadGenerator::createContractTransaction(uint32_t ledgerNum, uint64_t accountId,
                                          GeneratedLoadConfig const& cfg)
 {
@@ -1275,7 +1275,7 @@ LoadGenerator::createContractTransaction(uint32_t ledgerNum, uint64_t accountId,
     return std::make_pair(account, tx);
 }
 
-std::pair<LoadGenerator::TestAccountPtr, TransactionTestFramePtr>
+std::pair<LoadGenerator::TestAccountPtr, TransactionFrameBaseConstPtr>
 LoadGenerator::invokeSorobanLoadTransaction(uint32_t ledgerNum,
                                             uint64_t accountId,
                                             GeneratedLoadConfig const& cfg)
@@ -1649,7 +1649,7 @@ LoadGenerator::getConfigUpgradeSetFromLoadConfig(
     return xdr::xdr_to_opaque(upgradeSet);
 }
 
-std::pair<LoadGenerator::TestAccountPtr, TransactionTestFramePtr>
+std::pair<LoadGenerator::TestAccountPtr, TransactionFrameBaseConstPtr>
 LoadGenerator::invokeSorobanCreateUpgradeTransaction(
     uint32_t ledgerNum, uint64_t accountId, GeneratedLoadConfig const& cfg)
 {
@@ -1705,7 +1705,7 @@ LoadGenerator::invokeSorobanCreateUpgradeTransaction(
     return std::make_pair(account, tx);
 }
 
-std::pair<LoadGenerator::TestAccountPtr, TransactionTestFramePtr>
+std::pair<LoadGenerator::TestAccountPtr, TransactionFrameBaseConstPtr>
 LoadGenerator::sorobanRandomWasmTransaction(uint32_t ledgerNum,
                                             uint64_t accountId,
                                             uint32_t inclusionFee)
@@ -1773,7 +1773,7 @@ LoadGenerator::sorobanRandomUploadResources()
     return {resources, wasmSize};
 }
 
-std::pair<LoadGenerator::TestAccountPtr, TransactionTestFramePtr>
+std::pair<LoadGenerator::TestAccountPtr, TransactionFrameBaseConstPtr>
 LoadGenerator::pretendTransaction(uint32_t numAccounts, uint32_t offset,
                                   uint32_t ledgerNum, uint64_t sourceAccount,
                                   uint32_t opCount,
@@ -1799,12 +1799,12 @@ LoadGenerator::pretendTransaction(uint32_t numAccounts, uint32_t offset,
         }
         ops.push_back(txtest::setOptions(args));
     }
-    return std::make_pair(
-        acc, createTransactionTestFramePtr(acc, ops, LoadGenMode::PRETEND,
-                                           maxGeneratedFeeRate));
+    return std::make_pair(acc,
+                          createTransactionFrame(acc, ops, LoadGenMode::PRETEND,
+                                                 maxGeneratedFeeRate));
 }
 
-std::pair<LoadGenerator::TestAccountPtr, TransactionTestFramePtr>
+std::pair<LoadGenerator::TestAccountPtr, TransactionFrameBaseConstPtr>
 LoadGenerator::createMixedClassicSorobanTransaction(
     uint32_t ledgerNum, uint64_t sourceAccountId,
     GeneratedLoadConfig const& cfg)
@@ -1843,7 +1843,7 @@ LoadGenerator::createMixedClassicSorobanTransaction(
 }
 
 void
-LoadGenerator::maybeHandleFailedTx(TransactionTestFramePtr tx,
+LoadGenerator::maybeHandleFailedTx(TransactionFrameBaseConstPtr tx,
                                    TestAccountPtr sourceAccount,
                                    TransactionQueue::AddResultCode status,
                                    TransactionResultCode code)
@@ -2119,8 +2119,8 @@ LoadGenerator::TxMetrics::report()
                mSorobanCreateUpgradeTxs.one_minute_rate());
 }
 
-TransactionTestFramePtr
-LoadGenerator::createTransactionTestFramePtr(
+TransactionFrameBaseConstPtr
+LoadGenerator::createTransactionFrame(
     TestAccountPtr from, std::vector<Operation> ops, LoadGenMode mode,
     std::optional<uint32_t> maxGeneratedFeeRate)
 {
@@ -2144,7 +2144,7 @@ LoadGenerator::createTransactionTestFramePtr(
 }
 
 TransactionQueue::AddResultCode
-LoadGenerator::execute(TransactionTestFramePtr& txf, LoadGenMode mode,
+LoadGenerator::execute(TransactionFrameBasePtr txf, LoadGenMode mode,
                        TransactionResultCode& code)
 {
     TxMetrics txm(mApp.getMetrics());

@@ -201,7 +201,7 @@ makeContractInstanceKey(SCAddress const& contractAddress)
                            CONTRACT_INSTANCE_ENTRY_DURABILITY);
 }
 
-TransactionTestFramePtr
+TransactionFrameBaseConstPtr
 makeSorobanWasmUploadTx(Application& app, TestAccount& source,
                         RustBuf const& wasm, SorobanResources& uploadResources,
                         uint32_t inclusionFee)
@@ -257,7 +257,7 @@ defaultCreateWasmContractResources(RustBuf const& wasm)
     return SorobanResources();
 }
 
-TransactionTestFramePtr
+TransactionFrameBaseConstPtr
 makeSorobanCreateContractTx(Application& app, TestAccount& source,
                             ContractIDPreimage const& idPreimage,
                             ContractExecutable const& executable,
@@ -381,7 +381,7 @@ makeSorobanCreateContractTx(Application& app, TestAccount& source,
                                           inclusionFee, createResourceFee);
 }
 
-TransactionTestFramePtr
+TransactionFrameBaseConstPtr
 makeSorobanCreateContractTx(Application& app, TestAccount& source,
                             ContractIDPreimage const& idPreimage,
                             ContractExecutable const& executable,
@@ -392,7 +392,7 @@ makeSorobanCreateContractTx(Application& app, TestAccount& source,
                                        createResources, inclusionFee, {});
 }
 
-TransactionTestFramePtr
+TransactionFrameBaseConstPtr
 sorobanTransactionFrameFromOps(Hash const& networkID, TestAccount& source,
                                std::vector<Operation> const& ops,
                                std::vector<SecretKey> const& opKeys,
@@ -681,7 +681,7 @@ TestContract::Invocation::getSpec()
     return mSpec;
 }
 
-TransactionTestFramePtr
+TransactionFrameBaseConstPtr
 TestContract::Invocation::createTx(TestAccount* source)
 {
     if (mDeduplicateFootprint)
@@ -719,21 +719,18 @@ TestContract::Invocation::invoke(TestAccount* source)
     auto tx = createTx(source);
     CLOG_INFO(Tx, "invoke tx {}", xdr::xdr_to_string(tx->getEnvelope()));
     mTxMeta.emplace(mTest.getLedgerVersion());
-    bool success = mTest.invokeTx(tx, &*mTxMeta);
-    if (tx->getResult().result.code() == txFAILED ||
-        tx->getResult().result.code() == txSUCCESS)
+    auto result = mTest.invokeTx(tx, &mTxMeta.value());
+    mFeeCharged = result.feeCharged;
+    if (result.result.code() == txFAILED || result.result.code() == txSUCCESS)
     {
-        mResultCode = tx->getResult()
-                          .result.results()[0]
-                          .tr()
-                          .invokeHostFunctionResult()
-                          .code();
+        mResultCode =
+            result.result.results()[0].tr().invokeHostFunctionResult().code();
     }
     else
     {
         mResultCode = std::nullopt;
     }
-    return success;
+    return isSuccessResult(result);
 }
 
 SCVal
@@ -754,6 +751,12 @@ std::optional<InvokeHostFunctionResultCode>
 TestContract::Invocation::getResultCode() const
 {
     return mResultCode;
+}
+
+int64_t
+TestContract::Invocation::getFeeCharged() const
+{
+    return mFeeCharged;
 }
 
 void
@@ -812,84 +815,89 @@ SorobanTest::computeFeePerIncrement(int64_t resourceVal, int64_t feeRate,
 };
 
 void
-SorobanTest::invokeArchivalOp(TransactionTestFramePtr tx,
+SorobanTest::invokeArchivalOp(TransactionFrameBaseConstPtr tx,
                               int64_t expectedRefundableFeeCharged)
 {
-    // When BucketListDB is enabled, we can only apply TXs by closing a ledger,
-    // so just invoke the TX and return without any additional checks
-    if (mApp->getConfig().isUsingBucketListDB())
+    MutableTxResultPtr result;
     {
-        invokeTx(tx);
-        return;
+        LedgerTxn ltx(getApp().getLedgerTxnRoot());
+        result = tx->checkValid(getApp(), ltx, 0, 0, 0);
     }
-
-    REQUIRE(isTxValid(tx));
+    REQUIRE(result->isSuccess());
     int64_t initBalance = getRoot().getBalance();
 
-    // Initially we store in result the charge for resources plus
-    // minimum inclusion  fee bid (currently equivalent to the network
-    // `baseFee` of 100).
-    int64_t baseCharged = (tx->getFullFee() - tx->getInclusionFee()) + 100;
-    REQUIRE(tx->getResult().feeCharged == baseCharged);
-    // Charge the fee.
-    {
-        LedgerTxn ltx(getApp().getLedgerTxnRoot());
-        // Imitate surge pricing by charging at a higher rate than base
-        // fee.
-        tx->processFeeSeqNum(ltx, 300);
-        ltx.commit();
-    }
-    // The resource and the base fee are charged, with additional
-    // surge pricing fee.
-    int64_t balanceAfterFeeCharged = getRoot().getBalance();
-    auto actuallyCharged = baseCharged + /* surge pricing additional fee */ 200;
-    REQUIRE(initBalance - balanceAfterFeeCharged == actuallyCharged);
-    auto nonRefundableResourceFee = sorobanResourceFee(
-        getApp(), tx->sorobanResources(), xdr::xdr_size(tx->getEnvelope()), 0);
-    auto expectedChargedAfterRefund =
-        nonRefundableResourceFee + expectedRefundableFeeCharged + 300;
+    int64_t baseFee = 100;
+    int64_t chargedBeforeRefund =
+        (tx->getFullFee() - tx->getInclusionFee()) + baseFee;
+    REQUIRE(result->getResult().feeCharged == chargedBeforeRefund);
 
     TransactionMetaFrame txm(getLedgerVersion());
-    REQUIRE(invokeTx(tx, &txm));
-    {
-        LedgerTxn ltx(getApp().getLedgerTxnRoot());
-        tx->processPostApply(getApp(), ltx, txm);
-        ltx.commit();
-    }
+    REQUIRE(isSuccessResult(invokeTx(tx, &txm)));
+
+    int64_t balanceAfterFeeCharged = getRoot().getBalance();
 
     auto changesAfter = txm.getChangesAfter();
     REQUIRE(changesAfter.size() == 2);
+    int64_t nonRefundableResourceFee = sorobanResourceFee(
+        getApp(), tx->sorobanResources(), xdr::xdr_size(tx->getEnvelope()), 0);
+    int64_t expectedFeeCharged =
+        nonRefundableResourceFee + expectedRefundableFeeCharged + baseFee;
+    int64_t actualFeeCharged = initBalance - balanceAfterFeeCharged;
+    REQUIRE(actualFeeCharged == expectedFeeCharged);
+
+    // Meta should contain the refund in `changesAfter`.
     REQUIRE(changesAfter[1].updated().data.account().balance -
                 changesAfter[0].state().data.account().balance ==
-            actuallyCharged - expectedChargedAfterRefund);
-
-    // The account should receive a refund for unspent refundable fee.
-    REQUIRE(getRoot().getBalance() - balanceAfterFeeCharged ==
-            actuallyCharged - expectedChargedAfterRefund);
+            chargedBeforeRefund - expectedFeeCharged);
 }
 
 Hash
 SorobanTest::uploadWasm(RustBuf const& wasm, SorobanResources& uploadResources)
 {
-    auto tx =
-        makeSorobanWasmUploadTx(getApp(), mRoot, wasm, uploadResources, 1000);
-    REQUIRE(invokeTx(tx));
-
-    // Verify the uploaded contract code is correct.
     SCBytes expectedWasm(wasm.data.begin(), wasm.data.end());
     Hash expectedWasmHash = sha256(expectedWasm);
     auto contractCodeLedgerKey = contractCodeKey(expectedWasmHash);
+
+    bool wasUploaded = false;
+    {
+        LedgerTxn ltx(getApp().getLedgerTxnRoot());
+        auto ltxe = ltx.loadWithoutRecord(contractCodeLedgerKey);
+        if (ltxe)
+        {
+            wasUploaded = true;
+        }
+    }
+    std::optional<uint32_t> previousLiveUntilLedger;
+    if (wasUploaded)
+    {
+        // If Wasm has already been uploaded, we don't expect the TTL to
+        // change, but otherwise run the transaction just as a smoke test.
+        previousLiveUntilLedger = getTTL(contractCodeLedgerKey);
+    }
+
+    auto tx =
+        makeSorobanWasmUploadTx(getApp(), mRoot, wasm, uploadResources, 1000);
+    REQUIRE(isSuccessResult(invokeTx(tx)));
+
+    // Verify the uploaded contract code is correct.
     {
         LedgerTxn ltx(getApp().getLedgerTxnRoot());
         auto ltxe = ltx.loadWithoutRecord(contractCodeLedgerKey);
         REQUIRE(ltxe);
         REQUIRE(ltxe.current().data.contractCode().code == expectedWasm);
     }
-    // Check TTLs for contract code
-    auto expectedLiveUntilLedger =
-        getNetworkCfg().stateArchivalSettings().minPersistentTTL +
-        getLedgerSeq() - 1;
-    REQUIRE(getTTL(contractCodeLedgerKey) == expectedLiveUntilLedger);
+    if (!previousLiveUntilLedger)
+    {
+        // Check TTLs for contract code
+        auto expectedLiveUntilLedger =
+            getNetworkCfg().stateArchivalSettings().minPersistentTTL +
+            getLCLSeq() - 1;
+        REQUIRE(getTTL(contractCodeLedgerKey) == expectedLiveUntilLedger);
+    }
+    else
+    {
+        REQUIRE(getTTL(contractCodeLedgerKey) == *previousLiveUntilLedger);
+    }
     return expectedWasmHash;
 }
 
@@ -902,7 +910,7 @@ SorobanTest::createContract(ContractIDPreimage const& idPreimage,
     auto tx =
         makeSorobanCreateContractTx(getApp(), mRoot, idPreimage, executable,
                                     createResources, 1000, constructorParams);
-    REQUIRE(invokeTx(tx));
+    REQUIRE(isSuccessResult(invokeTx(tx)));
     Hash contractID = xdrSha256(
         makeFullContractIdPreimage(getApp().getNetworkID(), idPreimage));
     SCAddress contractAddress = makeContractAddress(contractID);
@@ -920,7 +928,7 @@ SorobanTest::createContract(ContractIDPreimage const& idPreimage,
 
     // Check TTLs for the contract instance.
     auto const& ses = getNetworkCfg().stateArchivalSettings();
-    auto expectedLiveUntilLedger = ses.minPersistentTTL + getLedgerSeq() - 1;
+    auto expectedLiveUntilLedger = ses.minPersistentTTL + getLCLSeq() - 1;
     REQUIRE(getTTL(contractInstanceKey) == expectedLiveUntilLedger);
     return contractAddress;
 }
@@ -946,12 +954,12 @@ SorobanTest::getRentFeeForExtension(xdr::xvector<LedgerKey> const& keys,
         REQUIRE(ttlLtxe);
         rustChange.old_live_until_ledger =
             ttlLtxe.current().data.ttl().liveUntilLedgerSeq;
-        rustChange.new_live_until_ledger = getLedgerSeq() + newLifetime;
+        rustChange.new_live_until_ledger = getLCLSeq() + 1 + newLifetime;
     }
     return rust_bridge::compute_rent_fee(
         getApp().getConfig().CURRENT_LEDGER_PROTOCOL_VERSION,
         getLedgerVersion(), rustEntryRentChanges,
-        getNetworkCfg().rustBridgeRentFeeConfiguration(), getLedgerSeq());
+        getNetworkCfg().rustBridgeRentFeeConfiguration(), getLCLSeq());
 }
 
 Application&
@@ -1060,12 +1068,12 @@ SorobanTest::getLedgerVersion() const
 }
 
 uint32_t
-SorobanTest::getLedgerSeq() const
+SorobanTest::getLCLSeq() const
 {
     return getApp().getLedgerManager().getLastClosedLedgerNum();
 }
 
-TransactionTestFramePtr
+TransactionFrameBaseConstPtr
 SorobanTest::createExtendOpTx(SorobanResources const& resources,
                               uint32_t extendTo, uint32_t fee,
                               int64_t refundableFee, TestAccount* source)
@@ -1078,7 +1086,7 @@ SorobanTest::createExtendOpTx(SorobanResources const& resources,
                                           {}, resources, fee, refundableFee);
 }
 
-TransactionTestFramePtr
+TransactionFrameBaseConstPtr
 SorobanTest::createRestoreTx(SorobanResources const& resources, uint32_t fee,
                              int64_t refundableFee, TestAccount* source)
 {
@@ -1090,35 +1098,32 @@ SorobanTest::createRestoreTx(SorobanResources const& resources, uint32_t fee,
 }
 
 bool
-SorobanTest::isTxValid(TransactionTestFramePtr tx)
+SorobanTest::isTxValid(TransactionFrameBaseConstPtr tx)
 {
     LedgerTxn ltx(getApp().getLedgerTxnRoot());
-    auto ret = tx->checkValidForTesting(getApp(), ltx, 0, 0, 0);
-    return ret;
+    auto ret = tx->checkValid(getApp(), ltx, 0, 0, 0);
+    return ret->isSuccess();
 }
 
-bool
-SorobanTest::invokeTx(TransactionTestFramePtr tx, TransactionMetaFrame* txMeta)
+TransactionResult
+SorobanTest::invokeTx(TransactionFrameBaseConstPtr tx,
+                      TransactionMetaFrame* txMeta)
 {
-    TransactionMetaFrame dummyMeta(getLedgerVersion());
-    if (txMeta == nullptr)
-    {
-        txMeta = &dummyMeta;
-    }
-
-    if (mApp->getConfig().isUsingBucketListDB())
-    {
-        closeLedger(*mApp, {tx});
-        return true;
-    }
-    else
     {
         LedgerTxn ltx(getApp().getLedgerTxnRoot());
-        REQUIRE(tx->checkValidForTesting(getApp(), ltx, 0, 0, 0));
-        bool res = tx->apply(getApp(), ltx, *txMeta);
-        ltx.commit();
-        return res;
+        REQUIRE(tx->checkValid(getApp(), ltx, 0, 0, 0)->isSuccess());
     }
+
+    auto resultSet = closeLedger(*mApp, {tx});
+    REQUIRE(resultSet.results.size() == 1);
+    if (txMeta != nullptr)
+    {
+        auto const& lclMeta =
+            getApp().getLedgerManager().getLastClosedLedgerTxMeta();
+        REQUIRE(lclMeta.size() == 1);
+        *txMeta = lclMeta[0];
+    }
+    return resultSet.results[0].result;
 }
 
 uint32_t
@@ -1360,6 +1365,7 @@ AssetContractTestClient::transfer(TestAccount& fromAcc, SCAddress const& toAddr,
                                spec)
             .withAuthorizedTopCall();
     bool success = invocation.invoke(&fromAcc);
+
     auto postTransferFromBalance = mAsset.type() == ASSET_TYPE_NATIVE
                                        ? fromAcc.getBalance()
                                        : fromAcc.getTrustlineBalance(mAsset);
@@ -1367,10 +1373,21 @@ AssetContractTestClient::transfer(TestAccount& fromAcc, SCAddress const& toAddr,
     auto postTransferToBalance = getBalance(toAddr);
     if (success)
     {
-        REQUIRE((fromIsIssuer ||
-                 postTransferFromBalance == preTransferFromBalance - amount));
-        REQUIRE((toIsIssuer ||
-                 postTransferToBalance - amount == preTransferToBalance));
+
+        if (!fromIsIssuer)
+        {
+            int64_t expectedBalance = preTransferFromBalance - amount;
+            if (mAsset.type() == ASSET_TYPE_NATIVE)
+            {
+                expectedBalance -= invocation.getFeeCharged();
+            }
+
+            REQUIRE(postTransferFromBalance == expectedBalance);
+        }
+        if (!toIsIssuer)
+        {
+            REQUIRE(postTransferToBalance - amount == preTransferToBalance);
+        }
 
         {
             // From is an account so it should never have a contract data
@@ -1404,8 +1421,13 @@ AssetContractTestClient::transfer(TestAccount& fromAcc, SCAddress const& toAddr,
             REQUIRE(topics.type() == SCV_ERROR);
             REQUIRE(topics.error().type() == SCE_CONTRACT);
         }
+        int64_t expectedFromBalance = preTransferFromBalance;
+        if (mAsset.type() == ASSET_TYPE_NATIVE)
+        {
+            expectedFromBalance -= invocation.getFeeCharged();
+        }
 
-        REQUIRE(postTransferFromBalance == preTransferFromBalance);
+        REQUIRE(postTransferFromBalance == expectedFromBalance);
         REQUIRE(postTransferToBalance == preTransferToBalance);
     }
     return success;
@@ -1731,7 +1753,7 @@ SorobanSigner::sign(SorobanAuthorizedInvocation const& invocation) const
         SorobanCredentialsType::SOROBAN_CREDENTIALS_ADDRESS);
     auto& credentials = fullCredentials.address();
     credentials.nonce = uniform_int_distribution<int64_t>()(Catch::rng());
-    credentials.signatureExpirationLedger = mTest.getLedgerSeq() + 10'000;
+    credentials.signatureExpirationLedger = mTest.getLCLSeq() + 10'000;
     credentials.address = mAddress;
 
     HashIDPreimage signaturePreimage(
