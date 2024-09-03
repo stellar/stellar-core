@@ -133,7 +133,7 @@ BucketLevel::commit()
 // The "only previous level's snap" cases happen once every 4 `prepare`s: when
 // we're one incoming-spill away from snapshotting mCurr ourselves. In other
 // words, when the `currLedger` plus N is considered a spill event for this
-// level, where N is the the previous level's spill-size. This is a bit subtle
+// level, where N is the previous level's spill-size. This is a bit subtle
 // so we spell out the first 8 ledger numbers where it happens here for each of
 // levels 1-4: merge(Lev) is a list of ledger numbers where Lev gets a full
 // mCurr+prevSnap merge, snap(Lev) is a list of ledger numbers where Lev just
