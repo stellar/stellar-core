@@ -398,21 +398,23 @@ clara::Opt
 inMemoryParser(bool& inMemory)
 {
     return clara::Opt{inMemory}["--in-memory"](
-        "store working ledger in memory rather than database");
+        "(DEPRECATED) store working ledger in memory rather than database");
 }
 
 clara::Opt
 startAtLedgerParser(uint32_t& startAtLedger)
 {
     return clara::Opt{startAtLedger, "LEDGER"}["--start-at-ledger"](
-        "start in-memory run with replay from historical ledger number");
+        "(DEPRECATED) start in-memory run with replay from historical ledger "
+        "number");
 }
 
 clara::Opt
 startAtHashParser(std::string& startAtHash)
 {
     return clara::Opt{startAtHash, "HASH"}["--start-at-hash"](
-        "start in-memory run with replay from historical ledger hash");
+        "(DEPRECATED) start in-memory run with replay from historical ledger "
+        "hash");
 }
 
 clara::Opt
