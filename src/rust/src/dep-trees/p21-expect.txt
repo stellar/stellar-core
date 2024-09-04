@@ -1,0 +1,191 @@
+soroban-env-host v21.2.1 (src/rust/soroban/p21/soroban-env-host)
+├── curve25519-dalek v4.1.1
+│   ├── cfg-if v1.0.0
+│   ├── cpufeatures v0.2.8
+│   ├── curve25519-dalek-derive v0.1.0 (proc-macro)
+│   │   ├── proc-macro2 v1.0.69
+│   │   │   └── unicode-ident v1.0.9
+│   │   ├── quote v1.0.33
+│   │   │   └── proc-macro2 v1.0.69 (*)
+│   │   └── syn v2.0.39
+│   │       ├── proc-macro2 v1.0.69 (*)
+│   │       ├── quote v1.0.33 (*)
+│   │       └── unicode-ident v1.0.9
+│   ├── digest v0.10.7
+│   │   ├── block-buffer v0.10.4
+│   │   │   └── generic-array v0.14.7
+│   │   │       ├── typenum v1.16.0
+│   │   │       └── zeroize v1.6.0
+│   │   │       [build-dependencies]
+│   │   │       └── version_check v0.9.4
+│   │   ├── const-oid v0.9.2
+│   │   ├── crypto-common v0.1.6
+│   │   │   ├── generic-array v0.14.7 (*)
+│   │   │   └── typenum v1.16.0
+│   │   └── subtle v2.5.0
+│   ├── subtle v2.5.0
+│   └── zeroize v1.6.0
+│   [build-dependencies]
+│   ├── platforms v3.0.2
+│   └── rustc_version v0.4.0
+│       └── semver v1.0.17
+├── ecdsa v0.16.7
+│   ├── der v0.7.6
+│   │   ├── const-oid v0.9.2
+│   │   └── zeroize v1.6.0
+│   ├── digest v0.10.7 (*)
+│   ├── elliptic-curve v0.13.5
+│   │   ├── base16ct v0.2.0
+│   │   ├── crypto-bigint v0.5.2
+│   │   │   ├── generic-array v0.14.7 (*)
+│   │   │   ├── rand_core v0.6.4
+│   │   │   │   └── getrandom v0.2.11
+│   │   │   │       ├── cfg-if v1.0.0
+│   │   │   │       └── libc v0.2.150
+│   │   │   ├── subtle v2.5.0
+│   │   │   └── zeroize v1.6.0
+│   │   ├── digest v0.10.7 (*)
+│   │   ├── ff v0.13.0
+│   │   │   ├── rand_core v0.6.4 (*)
+│   │   │   └── subtle v2.5.0
+│   │   ├── generic-array v0.14.7 (*)
+│   │   ├── group v0.13.0
+│   │   │   ├── ff v0.13.0 (*)
+│   │   │   ├── rand_core v0.6.4 (*)
+│   │   │   └── subtle v2.5.0
+│   │   ├── rand_core v0.6.4 (*)
+│   │   ├── sec1 v0.7.2
+│   │   │   ├── base16ct v0.2.0
+│   │   │   ├── der v0.7.6 (*)
+│   │   │   ├── generic-array v0.14.7 (*)
+│   │   │   ├── subtle v2.5.0
+│   │   │   └── zeroize v1.6.0
+│   │   ├── subtle v2.5.0
+│   │   └── zeroize v1.6.0
+│   ├── rfc6979 v0.4.0
+│   │   ├── hmac v0.12.1
+│   │   │   └── digest v0.10.7 (*)
+│   │   └── subtle v2.5.0
+│   └── signature v2.1.0
+│       ├── digest v0.10.7 (*)
+│       └── rand_core v0.6.4 (*)
+├── ed25519-dalek v2.0.0
+│   ├── curve25519-dalek v4.1.1 (*)
+│   ├── ed25519 v2.2.2
+│   │   └── signature v2.1.0 (*)
+│   ├── rand_core v0.6.4 (*)
+│   ├── sha2 v0.10.8
+│   │   ├── cfg-if v1.0.0
+│   │   ├── cpufeatures v0.2.8
+│   │   └── digest v0.10.7 (*)
+│   └── zeroize v1.6.0
+├── elliptic-curve v0.13.5 (*)
+├── generic-array v0.14.7 (*)
+├── getrandom v0.2.11 (*)
+├── hex-literal v0.4.1
+├── hmac v0.12.1 (*)
+├── k256 v0.13.1
+│   ├── cfg-if v1.0.0
+│   ├── ecdsa v0.16.7 (*)
+│   ├── elliptic-curve v0.13.5 (*)
+│   └── sha2 v0.10.8 (*)
+├── num-derive v0.4.1 (proc-macro)
+│   ├── proc-macro2 v1.0.69 (*)
+│   ├── quote v1.0.33 (*)
+│   └── syn v2.0.39 (*)
+├── num-integer v0.1.45
+│   └── num-traits v0.2.17
+│       [build-dependencies]
+│       └── autocfg v1.1.0
+│   [build-dependencies]
+│   └── autocfg v1.1.0
+├── num-traits v0.2.17 (*)
+├── p256 v0.13.2
+│   ├── ecdsa v0.16.7 (*)
+│   ├── elliptic-curve v0.13.5 (*)
+│   ├── primeorder v0.13.3
+│   │   └── elliptic-curve v0.13.5 (*)
+│   └── sha2 v0.10.8 (*)
+├── rand v0.8.5
+│   ├── libc v0.2.150
+│   ├── rand_chacha v0.3.1
+│   │   ├── ppv-lite86 v0.2.17
+│   │   └── rand_core v0.6.4 (*)
+│   └── rand_core v0.6.4 (*)
+├── rand_chacha v0.3.1 (*)
+├── sec1 v0.7.2 (*)
+├── sha2 v0.10.8 (*)
+├── sha3 v0.10.8
+│   ├── digest v0.10.7 (*)
+│   └── keccak v0.1.4
+├── soroban-builtin-sdk-macros v21.2.1 (proc-macro) (src/rust/soroban/p21/soroban-builtin-sdk-macros)
+│   ├── itertools v0.11.0
+│   │   └── either v1.8.1
+│   ├── proc-macro2 v1.0.69 (*)
+│   ├── quote v1.0.33 (*)
+│   └── syn v2.0.39 (*)
+├── soroban-env-common v21.2.1 (src/rust/soroban/p21/soroban-env-common)
+│   ├── ethnum v1.5.0
+│   ├── num-derive v0.4.1 (proc-macro) (*)
+│   ├── num-traits v0.2.17 (*)
+│   ├── soroban-env-macros v21.2.1 (proc-macro) (src/rust/soroban/p21/soroban-env-macros)
+│   │   ├── itertools v0.11.0 (*)
+│   │   ├── proc-macro2 v1.0.69 (*)
+│   │   ├── quote v1.0.33 (*)
+│   │   ├── serde v1.0.192
+│   │   │   └── serde_derive v1.0.192 (proc-macro)
+│   │   │       ├── proc-macro2 v1.0.69 (*)
+│   │   │       ├── quote v1.0.33 (*)
+│   │   │       └── syn v2.0.39 (*)
+│   │   ├── serde_json v1.0.108
+│   │   │   ├── itoa v1.0.6
+│   │   │   ├── ryu v1.0.13
+│   │   │   └── serde v1.0.192 (*)
+│   │   ├── stellar-xdr v21.2.0
+│   │   │   ├── escape-bytes v0.1.1
+│   │   │   ├── hex v0.4.3
+│   │   │   └── stellar-strkey v0.0.8
+│   │   │       ├── base32 v0.4.0
+│   │   │       └── thiserror v1.0.40
+│   │   │           └── thiserror-impl v1.0.40 (proc-macro)
+│   │   │               ├── proc-macro2 v1.0.69 (*)
+│   │   │               ├── quote v1.0.33 (*)
+│   │   │               └── syn v2.0.39 (*)
+│   │   │       [build-dependencies]
+│   │   │       └── crate-git-revision v0.0.6
+│   │   │           ├── serde v1.0.192 (*)
+│   │   │           ├── serde_derive v1.0.192 (proc-macro) (*)
+│   │   │           └── serde_json v1.0.108 (*)
+│   │   │   [build-dependencies]
+│   │   │   └── crate-git-revision v0.0.6 (*)
+│   │   └── syn v2.0.39 (*)
+│   ├── soroban-wasmi v0.31.1-soroban.20.0.1 (https://github.com/stellar/wasmi?rev=0ed3f3dee30dc41ebe21972399e0a73a41944aa0#0ed3f3de)
+│   │   ├── smallvec v1.10.0
+│   │   ├── spin v0.9.8
+│   │   ├── wasmi_arena v0.4.0 (https://github.com/stellar/wasmi?rev=0ed3f3dee30dc41ebe21972399e0a73a41944aa0#0ed3f3de)
+│   │   ├── wasmi_core v0.13.0 (https://github.com/stellar/wasmi?rev=0ed3f3dee30dc41ebe21972399e0a73a41944aa0#0ed3f3de)
+│   │   │   ├── downcast-rs v1.2.0
+│   │   │   ├── libm v0.2.7
+│   │   │   ├── num-traits v0.2.17 (*)
+│   │   │   └── paste v1.0.12 (proc-macro)
+│   │   └── wasmparser-nostd v0.100.1
+│   │       └── indexmap-nostd v0.4.0
+│   ├── static_assertions v1.1.0
+│   ├── stellar-xdr v21.2.0
+│   │   ├── base64 v0.13.1
+│   │   ├── escape-bytes v0.1.1
+│   │   ├── hex v0.4.3
+│   │   └── stellar-strkey v0.0.8 (*)
+│   │   [build-dependencies]
+│   │   └── crate-git-revision v0.0.6 (*)
+│   └── wasmparser v0.116.1
+│       ├── indexmap v2.0.2
+│       │   ├── equivalent v1.0.1
+│       │   └── hashbrown v0.14.1
+│       └── semver v1.0.17
+│   [build-dependencies]
+│   └── crate-git-revision v0.0.6 (*)
+├── soroban-wasmi v0.31.1-soroban.20.0.1 (https://github.com/stellar/wasmi?rev=0ed3f3dee30dc41ebe21972399e0a73a41944aa0#0ed3f3de) (*)
+├── static_assertions v1.1.0
+├── stellar-strkey v0.0.8 (*)
+└── wasmparser v0.116.1 (*)

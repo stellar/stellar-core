@@ -1,8 +1,6 @@
-This directory contains explicit dependency trees for the different soroban
-hosts linked into stellar-core. To add a new one, install cargo-lock and run
-something like:
-
-  $ cargo lock tree --exact soroban-env-host@22.0.0 > soroban_p22.txt
-  $ git add soroban_p22.txt
-
-With whatever version you want to support in place of "22".
+This directory contains expected dependency trees for the different soroban
+hosts linked into stellar-core. During a build the makefile will extract
+the actual dependency tree of the configured soroban-env-host from their
+submodule lockfiles and compare them. If they differ you need to decide
+how to fix it: either update the expectation, or roll back the change
+in the submodule.

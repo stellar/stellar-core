@@ -140,10 +140,14 @@
     </ClCompile>
     <Link>
       <GenerateDebugInformation>DebugFastLink</GenerateDebugInformation>
-      <AdditionalDependencies>kernel32.lib;user32.lib;gdi32.lib;winspool.lib;comdlg32.lib;advapi32.lib;shell32.lib;ole32.lib;oleaut32.lib;uuid.lib;odbc32.lib;odbccp32.lib;psapi.lib;Credui.lib;userenv.lib;bcrypt.lib;ntdll.lib;$(OutDir)\rust\target\release\rust_stellar_core.lib;C:\Program Files\PostgreSQL\15\lib\libpq.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>kernel32.lib;user32.lib;gdi32.lib;winspool.lib;comdlg32.lib;advapi32.lib;shell32.lib;ole32.lib;oleaut32.lib;uuid.lib;odbc32.lib;odbccp32.lib;psapi.lib;Credui.lib;userenv.lib;bcrypt.lib;ntdll.lib;$(OutDir)\rust\target\debug\rust_stellar_core.lib;C:\Program Files\PostgreSQL\15\lib\libpq.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
     <PreBuildEvent>
-      <Command>(set CFLAGS=-MDd) &amp; (set CXXFLAGS=-MDd) &amp; cargo build --release --target-dir $(OutDir)\rust\target --features tracy --features core-vnext</Command>
+      <Command>
+	(set CFLAGS=-MDd) &amp; (set CXXFLAGS=-MDd) &amp; cd $(MSBuildProjectDirectory)\..\..\src\rust\soroban\p21 &amp; (set RUSTFLAGS=-Cmetadata=p21) &amp; cargo build --package soroban-env-host --locked --target-dir $(OutDir)\rust\soroban-p21-target
+	(set CFLAGS=-MDd) &amp; (set CXXFLAGS=-MDd) &amp; cd $(MSBuildProjectDirectory)\..\..\src\rust\soroban\p22 &amp; (set RUSTFLAGS=-Cmetadata=p22) &amp; cargo build --package soroban-env-host --locked --features next --target-dir $(OutDir)\rust\soroban-p22-target
+        (set CFLAGS=-MDd) &amp; (set CXXFLAGS=-MDd) &amp; cd $(MSBuildProjectDirectory)\..\..\ &amp; cargo rustc --package stellar-core --locked --features next --target-dir $(OutDir)\rust\target -- --extern soroban_env_host_p21=$(OutDir)\rust\soroban-p21-target\debug\libsoroban_env_host.rlib --extern soroban_env_host_p22=$(OutDir)\rust\soroban-p22-target\debug\libsoroban_env_host.rlib -L dependency=$(OutDir)\rust\soroban-p21-target\debug\deps -L dependency=$(OutDir)\rust\soroban-p22-target\debug\deps
+      </Command>
     </PreBuildEvent>
     <PreBuildEvent>
       <Message>Rust</Message>
@@ -201,10 +205,14 @@ exit /b 0
     </ClCompile>
     <Link>
       <GenerateDebugInformation>DebugFastLink</GenerateDebugInformation>
-      <AdditionalDependencies>kernel32.lib;user32.lib;gdi32.lib;winspool.lib;comdlg32.lib;advapi32.lib;shell32.lib;ole32.lib;oleaut32.lib;uuid.lib;odbc32.lib;odbccp32.lib;psapi.lib;Credui.lib;userenv.lib;bcrypt.lib;ntdll.lib;$(OutDir)\rust\target\release\rust_stellar_core.lib;C:\Program Files\PostgreSQL\15\lib\libpq.lib;%(AdditionalDependencies);</AdditionalDependencies>
+      <AdditionalDependencies>kernel32.lib;user32.lib;gdi32.lib;winspool.lib;comdlg32.lib;advapi32.lib;shell32.lib;ole32.lib;oleaut32.lib;uuid.lib;odbc32.lib;odbccp32.lib;psapi.lib;Credui.lib;userenv.lib;bcrypt.lib;ntdll.lib;$(OutDir)\rust\target\debug\rust_stellar_core.lib;C:\Program Files\PostgreSQL\15\lib\libpq.lib;%(AdditionalDependencies);</AdditionalDependencies>
     </Link>
     <PreBuildEvent>
-      <Command>(set CFLAGS=-MDd) &amp; (set CXXFLAGS=-MDd) &amp; cargo build --release --target-dir $(OutDir)\rust\target --features tracy</Command>
+      <Command>
+	(set CFLAGS=-MDd) &amp; (set CXXFLAGS=-MDd) &amp; cd $(MSBuildProjectDirectory)\..\..\src\rust\soroban\p21 &amp; (set RUSTFLAGS=-Cmetadata=p21) &amp; cargo build --package soroban-env-host --locked --target-dir $(OutDir)\rust\soroban-p21-target
+	(set CFLAGS=-MDd) &amp; (set CXXFLAGS=-MDd) &amp; cd $(MSBuildProjectDirectory)\..\..\src\rust\soroban\p22 &amp; (set RUSTFLAGS=-Cmetadata=p22) &amp; cargo build --package soroban-env-host --locked --target-dir $(OutDir)\rust\soroban-p22-target
+        (set CFLAGS=-MDd) &amp; (set CXXFLAGS=-MDd) &amp; cd $(MSBuildProjectDirectory)\..\..\ &amp; cargo rustc --package stellar-core --locked --target-dir $(OutDir)\rust\target -- --extern soroban_env_host_p21=$(OutDir)\rust\soroban-p21-target\debug\libsoroban_env_host.rlib --extern soroban_env_host_p22=$(OutDir)\rust\soroban-p22-target\debug\libsoroban_env_host.rlib -L dependency=$(OutDir)\rust\soroban-p21-target\debug\deps -L dependency=$(OutDir)\rust\soroban-p22-target\debug\deps
+      </Command>
     </PreBuildEvent>
     <PreBuildEvent>
       <Message>Rust</Message>
@@ -263,12 +271,16 @@ exit /b 0
     </ClCompile>
     <Link>
       <GenerateDebugInformation>DebugFastLink</GenerateDebugInformation>
-      <AdditionalDependencies>kernel32.lib;user32.lib;gdi32.lib;winspool.lib;comdlg32.lib;advapi32.lib;shell32.lib;ole32.lib;oleaut32.lib;uuid.lib;odbc32.lib;odbccp32.lib;psapi.lib;Credui.lib;userenv.lib;bcrypt.lib;ntdll.lib;$(OutDir)\rust\target\release\rust_stellar_core.lib</AdditionalDependencies>
+      <AdditionalDependencies>kernel32.lib;user32.lib;gdi32.lib;winspool.lib;comdlg32.lib;advapi32.lib;shell32.lib;ole32.lib;oleaut32.lib;uuid.lib;odbc32.lib;odbccp32.lib;psapi.lib;Credui.lib;userenv.lib;bcrypt.lib;ntdll.lib;$(OutDir)\rust\target\debug\rust_stellar_core.lib</AdditionalDependencies>
       <IgnoreSpecificDefaultLibraries>
       </IgnoreSpecificDefaultLibraries>
     </Link>
     <PreBuildEvent>
-      <Command>(set CFLAGS=-MDd) &amp; (set CXXFLAGS=-MDd) &amp; cargo build --release --target-dir $(OutDir)\rust\target --features tracy --features core-vnext</Command>
+      <Command>
+	(set CFLAGS=-MDd) &amp; (set CXXFLAGS=-MDd) &amp; cd $(MSBuildProjectDirectory)\..\..\src\rust\soroban\p21 &amp; (set RUSTFLAGS=-Cmetadata=p21) &amp; cargo build --package soroban-env-host --locked --target-dir $(OutDir)\rust\soroban-p21-target
+	(set CFLAGS=-MDd) &amp; (set CXXFLAGS=-MDd) &amp; cd $(MSBuildProjectDirectory)\..\..\src\rust\soroban\p22 &amp; (set RUSTFLAGS=-Cmetadata=p22) &amp; cargo build --package soroban-env-host --locked --features next --target-dir $(OutDir)\rust\soroban-p22-target
+        (set CFLAGS=-MDd) &amp; (set CXXFLAGS=-MDd) &amp; cd $(MSBuildProjectDirectory)\..\..\ &amp; cargo rustc --package stellar-core --locked --features next --target-dir $(OutDir)\rust\target -- --extern soroban_env_host_p21=$(OutDir)\rust\soroban-p21-target\debug\libsoroban_env_host.rlib --extern soroban_env_host_p22=$(OutDir)\rust\soroban-p22-target\debug\libsoroban_env_host.rlib -L dependency=$(OutDir)\rust\soroban-p21-target\debug\deps -L dependency=$(OutDir)\rust\soroban-p22-target\debug\deps
+      </Command>
     </PreBuildEvent>
     <PreBuildEvent>
       <Message>Rust</Message>
@@ -330,7 +342,11 @@ exit /b 0
       <AdditionalDependencies>kernel32.lib;user32.lib;gdi32.lib;winspool.lib;comdlg32.lib;advapi32.lib;shell32.lib;ole32.lib;oleaut32.lib;uuid.lib;odbc32.lib;odbccp32.lib;psapi.lib;Credui.lib;userenv.lib;bcrypt.lib;ntdll.lib;$(OutDir)\rust\target\release\rust_stellar_core.lib;C:\Program Files\PostgreSQL\15\lib\libpq.lib;%(AdditionalDependencies);</AdditionalDependencies>
     </Link>
     <PreBuildEvent>
-      <Command>cargo build --release --target-dir $(OutDir)\rust\target --features tracy --features core-vnext</Command>
+      <Command>
+	cd $(MSBuildProjectDirectory)\..\..\src\rust\soroban\p21 &amp; (set RUSTFLAGS=-Cmetadata=p21) &amp; cargo build --release --package soroban-env-host --locked --target-dir $(OutDir)\rust\soroban-p21-target
+	cd $(MSBuildProjectDirectory)\..\..\src\rust\soroban\p22 &amp; (set RUSTFLAGS=-Cmetadata=p22) &amp; cargo build --release --package soroban-env-host --locked --features tracy --features next --target-dir $(OutDir)\rust\soroban-p22-target
+	cd $(MSBuildProjectDirectory)\..\..\ &amp; cargo rustc --release --package stellar-core --locked --features tracy --features next --target-dir $(OutDir)\rust\target -- --extern soroban_env_host_p21=$(OutDir)\rust\soroban-p21-target\release\libsoroban_env_host.rlib --extern soroban_env_host_p22=$(OutDir)\rust\soroban-p22-target\release\libsoroban_env_host.rlib -L dependency=$(OutDir)\rust\soroban-p21-target\release\deps -L dependency=$(OutDir)\rust\soroban-p22-target\release\deps
+      </Command>
     </PreBuildEvent>
     <PreBuildEvent>
       <Message>Rust</Message>
@@ -391,7 +407,11 @@ exit /b 0
       <AdditionalDependencies>kernel32.lib;user32.lib;gdi32.lib;winspool.lib;comdlg32.lib;advapi32.lib;shell32.lib;ole32.lib;oleaut32.lib;uuid.lib;odbc32.lib;odbccp32.lib;psapi.lib;Credui.lib;userenv.lib;bcrypt.lib;ntdll.lib;$(OutDir)\rust\target\release\rust_stellar_core.lib;C:\Program Files\PostgreSQL\15\lib\libpq.lib;%(AdditionalDependencies);</AdditionalDependencies>
     </Link>
     <PreBuildEvent>
-      <Command>cargo build --release --target-dir $(OutDir)\rust\target --features tracy</Command>
+      <Command>
+	cd $(MSBuildProjectDirectory)\..\..\src\rust\soroban\p21 &amp; (set RUSTFLAGS=-Cmetadata=p21) &amp; cargo build --release --package soroban-env-host --locked --target-dir $(OutDir)\rust\soroban-p21-target
+	cd $(MSBuildProjectDirectory)\..\..\src\rust\soroban\p22 &amp; (set RUSTFLAGS=-Cmetadata=p22) &amp; cargo build --release --package soroban-env-host --locked --features tracy --target-dir $(OutDir)\rust\soroban-p22-target
+        cd $(MSBuildProjectDirectory)\..\..\ &amp; cargo rustc --release --package stellar-core --locked --features tracy --target-dir $(OutDir)\rust\target -- --extern soroban_env_host_p21=$(OutDir)\rust\soroban-p21-target\release\libsoroban_env_host.rlib --extern soroban_env_host_p22=$(OutDir)\rust\soroban-p22-target\release\libsoroban_env_host.rlib -L dependency=$(OutDir)\rust\soroban-p21-target\release\deps -L dependency=$(OutDir)\rust\soroban-p22-target\release\deps
+      </Command>
     </PreBuildEvent>
     <PreBuildEvent>
       <Message>Rust</Message>

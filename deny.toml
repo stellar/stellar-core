@@ -239,11 +239,7 @@ skip = [
 # dependencies starting at the specified crate, up to a certain depth, which is
 # by default infinite.
 skip-tree = [
-   { name = "soroban-wasmi" },
-   { name = "soroban-env-common" },
-   { name = "soroban-env-host" },
-   { name = "soroban-env-macros" },
-   { name = "soroban-builtin-sdk-macros" },
+   # { name = "" },
  ]
 
 # This section is considered when running `cargo deny check sources`.
@@ -261,7 +257,6 @@ unknown-git = "deny"
 allow-registry = ["https://github.com/rust-lang/crates.io-index"]
 # List of URLs for allowed Git repositories
 allow-git = [
-    "git://github.com/rustsec/rustsec"
 ]
 
 [sources.allow-org]

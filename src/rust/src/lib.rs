@@ -318,7 +318,6 @@ impl CxxBuf {
 mod b64;
 
 use core::panic;
-use std::str::FromStr;
 
 use b64::{from_base64, to_base64};
 
@@ -522,135 +521,46 @@ use log::partition::TX;
 // all be called from "the same" contract.rs.
 
 #[path = "."]
-mod soroban_p22 {
+mod p22 {
+    pub(crate) extern crate soroban_env_host_p22;
     pub(crate) use soroban_env_host_p22 as soroban_env_host;
 
     pub(crate) mod contract;
+
+    // An adapter for some API breakage between p21 and p22.
+    pub(crate) const fn get_version_pre_release(v: &soroban_env_host::Version) -> u32 {
+        v.interface.pre_release
+    }
+
+    pub(crate) const fn get_version_protocol(v: &soroban_env_host::Version) -> u32 {
+        v.interface.protocol
+    }
 }
 
 #[path = "."]
-mod soroban_p21 {
+mod p21 {
+    pub(crate) extern crate soroban_env_host_p21;
     pub(crate) use soroban_env_host_p21 as soroban_env_host;
 
     pub(crate) mod contract;
+
+    // An adapter for some API breakage between p21 and p22.
+    pub(crate) const fn get_version_pre_release(v: &soroban_env_host::Version) -> u32 {
+        soroban_env_host::meta::get_pre_release_version(v.interface)
+    }
+
+    pub(crate) const fn get_version_protocol(v: &soroban_env_host::Version) -> u32 {
+        soroban_env_host::meta::get_ledger_protocol_version(v.interface)
+    }
 }
 
 // We alias the latest soroban as soroban_curr to help reduce churn in code
 // that's just always supposed to use the latest.
-use soroban_p22 as soroban_curr;
-
-use cargo_lock::{dependency::graph::EdgeDirection, Lockfile};
-
-fn package_matches_hash(pkg: &cargo_lock::Package, hash: &str) -> bool {
-    // Try comparing hash to hashes in either the package checksum or the source
-    // precise field
-    if let Some(cksum) = &pkg.checksum {
-        if cksum.to_string() == hash {
-            return true;
-        }
-    }
-    if let Some(src) = &pkg.source {
-        if let Some(precise) = src.precise() {
-            if precise == hash {
-                return true;
-            }
-        }
-    }
-    false
-}
-
-impl HostModule {
-    fn check_lockfile_has_expected_dep_tree(&self, core_max_proto: u32, lockfile: &Lockfile) {
-        let ver_info = (self.get_soroban_version_info)(core_max_proto);
-        let pkg = lockfile
-            .packages
-            .iter()
-            .find(|p| {
-                p.name.as_str() == "soroban-env-host"
-                    && package_matches_hash(p, &ver_info.env_git_rev)
-            })
-            .expect("locating host package in Cargo.lock");
-
-        if !cfg!(feature = "core-vnext") {
-            if ver_info.env_pre_release_ver != 0 && pkg.version.pre.is_empty() {
-                panic!("soroban interface version indicates pre-release {} but package version is {}, with empty prerelease component",
-                    ver_info.env_pre_release_ver, pkg.version)
-            }
-
-            if pkg.version.major == 0 || !pkg.version.pre.is_empty() {
-                eprintln!(
-                    "Warning: soroban-env-host-{} is running a pre-release version {}",
-                    ver_info.env_max_proto, pkg.version
-                );
-            } else if pkg.version.major != ver_info.env_max_proto as u64 {
-                panic!(
-                "soroban-env-host-{} version {} major version {} does not match expected protocol version {}",
-                ver_info.env_max_proto, pkg.version, pkg.version.major, ver_info.env_max_proto
-            )
-            }
-        }
-
-        let tree = lockfile
-            .dependency_tree()
-            .expect("calculating global dep tree of Cargo.lock");
-
-        let node = tree.nodes()[&pkg.into()];
-
-        let mut tree_buf = Vec::new();
-        tree.render(&mut tree_buf, node, EdgeDirection::Outgoing, true)
-            .expect("rendering dep tree");
-
-        let tree_str = String::from_utf8_lossy(&tree_buf);
-        // Normalize line endings to support Windows builds.
-        if tree_str.replace("\r\n", "\n") != self.dep_tree.replace("\r\n", "\n") {
-            eprintln!(
-                "Expected 'soroban-env-host@{}' host dependency tree (in dep-trees/{}.txt):",
-                ver_info.env_git_rev, self.name
-            );
-            eprintln!("---\n{}---", self.dep_tree);
-            eprintln!(
-                "Found 'soroban-env-host@{}' host dependency tree (in Cargo.lock):",
-                ver_info.env_git_rev
-            );
-            eprintln!("---\n{}---", tree_str);
-            panic!(
-                "Unexpected '{}' / 'soroban-env-host@{}' host dependency tree",
-                self.name, ver_info.env_git_rev
-            );
-        }
-    }
-}
-
-// This function performs a crude dynamic check that the contents of Cargo.lock
-// against-which the current binary was compiled specified _exactly_ the same
-// host dep trees that are stored (redundantly, graphically) in the files
-// dep-trees/soroban_p{NN}.txt.
-//
-// The contents of all these files are compiled-in to the binary as static
-// strings. Any discrepancy between the logical content of Cargo.lock and the
-// derived dep tree(s) will cause the program to abort on startup.
-//
-// The point of this check is twofold: to catch cases where the developer
-// accidentally bumps dependencies (which cargo does fairly easily), and also to
-// make crystal clear when doing a commit that intentionally bumps dependencies
-// which of the _dependency tree(s)_ is being affected, and how.
-//
-// The check additionally checks that the major version number of soroban that
-// is compiled-in matches its max supported protocol number.
-fn check_lockfile_has_expected_dep_trees(core_max_proto: u32) {
-    static CARGO_LOCK_FILE_CONTENT: &'static str = include_str!("../../../Cargo.lock");
-    let lockfile = Lockfile::from_str(CARGO_LOCK_FILE_CONTENT)
-        .expect("parsing compiled-in Cargo.lock file content");
-
-    for hm in HOST_MODULES.iter() {
-        hm.check_lockfile_has_expected_dep_tree(core_max_proto, &lockfile);
-    }
-}
+use p22 as soroban_curr;
 
 // This is called on startup and does any initial internal dynamic checks.
 pub fn check_sensible_soroban_config_for_protocol(core_max_proto: u32) {
     use itertools::Itertools;
-    check_lockfile_has_expected_dep_trees(core_max_proto);
     for (lo, hi) in HOST_MODULES.iter().tuple_windows() {
         assert!(
             lo.max_proto < hi.max_proto,
@@ -710,8 +620,6 @@ struct HostModule {
     // dispatch. The struct returned from `get_version_info` contains a bunch of
     // dynamic strings, which is necessary due to cxx limitations.
     max_proto: u32,
-    name: &'static str,
-    dep_tree: &'static str,
     get_soroban_version_info: fn(u32) -> SorobanVersionInfo,
     invoke_host_function: fn(
         enable_diagnostics: bool,
@@ -746,8 +654,6 @@ macro_rules! proto_versioned_functions_for_module {
     ($module:ident) => {
         HostModule {
             max_proto: $module::contract::get_max_proto(),
-            dep_tree: include_str!(concat!("dep-trees/", stringify!($module), ".txt")),
-            name: stringify!($module),
             get_soroban_version_info: $module::contract::get_soroban_version_info,
             invoke_host_function: $module::contract::invoke_host_function,
             compute_transaction_resource_fee: $module::contract::compute_transaction_resource_fee,
@@ -767,8 +673,8 @@ macro_rules! proto_versioned_functions_for_module {
 // NB: this list should be in ascending order. Out of order will cause
 // an assert to fail in the by-protocol-number lookup function below.
 const HOST_MODULES: &'static [HostModule] = &[
-    proto_versioned_functions_for_module!(soroban_p21),
-    proto_versioned_functions_for_module!(soroban_p22),
+    proto_versioned_functions_for_module!(p21),
+    proto_versioned_functions_for_module!(p22),
 ];
 
 fn get_host_module_for_protocol(

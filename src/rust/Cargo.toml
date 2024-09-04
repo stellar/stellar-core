@@ -2,7 +2,7 @@
 name = "stellar-core"
 version = "0.1.0"
 edition = "2021"
-rust-version = "1.79.0"
+rust-version = "1.81.0"
 publish = false
 
 [lib]
@@ -11,7 +11,6 @@ crate-type = ["staticlib"]
 
 [dependencies]
 log = "=0.4.19"
-tracy-client = { version = "=0.16.4", features = ["enable"], default-features = false, optional = true}
 cxx = "=1.0.97"
 base64 = "=0.13.1"
 rustc-simple-version = "=0.1.0"
@@ -19,9 +18,30 @@ rustc-simple-version = "=0.1.0"
 # will complain if it does not match)
 rand = "=0.8.5"
 
-petgraph = "=0.6.4"
-toml = "=0.7.8"
 itertools = "=0.11.0"
+
+# NB: tracy is quite particular about version compatibility. There must only be
+# one _implementation_ of the C++ tracy symbols in the final binary (brought in
+# by the tracy-client-sys crate) and the version and all feature flags must
+# match between the tracy-client rust crate and any C++ code built to talk to it
+# (both on the C++ side of stellar-core and in the GUI network client built to
+# talk to it).
+#
+# There is a table on the README for https://crates.io/crates/tracy-client that
+# maps versions of tracy-client to C++ tracy releases. The lib/tracy submodule
+# of this repo should be pinned out to a matched C++ tracy release version.
+tracy-client = { version = "=0.17.0", features = [
+    "enable",
+    "ondemand",
+    "delayed-init",
+    "manual-lifetime",
+    "system-tracing",
+    "sampling",
+    "code-transfer",
+    "timer-fallback",
+    "only-localhost",
+    "only-ipv4",
+], default-features = false, optional = true }
 
 # Stellar-core supports multiple versions of the Soroban host linked in
 # simultaneously. Each host is labeled with the _maximum_ protocol that it
@@ -54,18 +74,17 @@ itertools = "=0.11.0"
 # to keep the number of hosts down when and if it's easy to, but having the
 # number grow gradually is also not the end of the world.
 
-[dependencies.soroban-env-host-p22]
-version = "=22.0.0"
-git = "https://github.com/stellar/rs-soroban-env"
-package = "soroban-env-host"
-rev = "5ed156b7fb5dd3e46635aa0f818d5db33dfd6b6a"
-#path = "../../../rs-soroban-env/soroban-env-host"
+# [dependencies.soroban-env-host-p22]
+# version = "=22.0.0"
+# git = "https://github.com/stellar/rs-soroban-env"
+# package = "soroban-env-host"
+# rev = "5ed156b7fb5dd3e46635aa0f818d5db33dfd6b6a"
 
-[dependencies.soroban-env-host-p21]
-version = "=21.2.0"
-git = "https://github.com/stellar/rs-soroban-env"
-package = "soroban-env-host"
-rev = "8809852dcf8489f99407a5ceac12625ee3d14693"
+# [dependencies.soroban-env-host-p21]
+# version = "=21.2.0"
+# git = "https://github.com/stellar/rs-soroban-env"
+# package = "soroban-env-host"
+# rev = "8809852dcf8489f99407a5ceac12625ee3d14693"
 
 # The test wasms and synth-wasm crate should usually be taken from the highest
 # supported host, since test material usually just grows over time.
@@ -82,22 +101,15 @@ git = "https://github.com/stellar/rs-soroban-env"
 rev = "5ed156b7fb5dd3e46635aa0f818d5db33dfd6b6a"
 #path = "../../../rs-soroban-env/soroban-synth-wasm"
 
-[dependencies.cargo-lock]
-version = "=9.0.0"
-git = "https://github.com/rustsec/rustsec"
-rev = "a5c69fc6e4b6068b43d7143f3a2f68c3f3de37d8"
-features = ["dependency-tree"]
-
 [features]
 
-# The tracy feature should enable the tracy features of all supported hosts.
-tracy = ["dep:tracy-client", "soroban-env-host-p21/tracy", "soroban-env-host-p22/tracy"]
+tracy = ["dep:tracy-client"]
 
-# The "vnext" feature enables not-yet-released features that (a) break protocol
+# The "next" feature enables not-yet-released features that (a) break protocol
 # but (b) are still under development, in between protocol releases. This
 # feature is not enabled by default, and is only intended for temporary use when
 # staging work across intra-protocol releases.
-core-vnext = ["soroban-env-host-p22/next"]
+next = []
 
 # the testutils feature turns on stuff that should only be available in a core
 # BUILD_TESTS build, such as the code to support transaction re-execution on

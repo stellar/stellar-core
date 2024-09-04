@@ -14,7 +14,7 @@ jobs:
 
   complete:
     if: always()
-    needs: [fmt, cackle, cargo-deny, rust-check-git-rev-deps, build]
+    needs: [fmt, cargo-deny, rust-check-git-rev-deps, build]
     runs-on: ubuntu-latest
     steps:
     - if: contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled')
@@ -27,13 +27,6 @@ jobs:
     - run: rustup component add rustfmt
     - run: rustup update
     - run: cargo fmt --all --check
-
-  cackle:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v3
-      - uses: cackle-rs/cackle-action@997327f77e59d9cda7b0b6217f0fbdbd3f3ca904
-      - run: cargo acl -n test
 
   cargo-deny:
     runs-on: ubuntu-latest

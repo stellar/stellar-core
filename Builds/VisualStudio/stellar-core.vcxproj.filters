@@ -1305,9 +1305,6 @@
     <ClCompile Include="..\..\src\transactions\RestoreFootprintOpFrame.cpp">
       <Filter>transactions</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\lib\tracy\public\TracyClient.cpp">
-      <Filter>lib\tracy</Filter>
-    </ClCompile>
     <ClCompile Include="..\..\src\ledger\LedgerTxnTTLSQL.cpp">
       <Filter>ledger</Filter>
     </ClCompile>
