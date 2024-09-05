@@ -291,9 +291,8 @@ Peer::recurrentTimerExpired(asio::error_code const& error)
             mOverlayMetrics.mTimeoutIdle.Mark();
             drop("idle timeout", Peer::DropDirection::WE_DROPPED_REMOTE);
         }
-        else if (mFlowControl && mFlowControl->getOutboundCapacityTimestamp() &&
-                 (now - *(mFlowControl->getOutboundCapacityTimestamp())) >=
-                     Peer::PEER_SEND_MODE_IDLE_TIMEOUT)
+        else if (mFlowControl && mFlowControl->noOutboundCapacityTimeout(
+                                     now, Peer::PEER_SEND_MODE_IDLE_TIMEOUT))
         {
             drop("idle timeout (no new flood requests)",
                  Peer::DropDirection::WE_DROPPED_REMOTE);

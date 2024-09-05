@@ -164,14 +164,10 @@ class FlowControl
     SendMoreCapacity endMessageProcessing(StellarMessage const& msg);
     bool canRead() const;
 
-    // This method return last timestamp (if any) when peer had no available
-    // outbound capacity (useful to diagnose if the connection is stuck for any
-    // reason)
-    std::optional<VirtualClock::time_point>
-    getOutboundCapacityTimestamp() const
-    {
-        return mNoOutboundCapacity;
-    }
+    // This method checks whether a peer has not requested new data within a
+    // `timeout` (useful to diagnose if the connection is stuck for any reason)
+    bool noOutboundCapacityTimeout(VirtualClock::time_point now,
+                                   std::chrono::seconds timeout) const;
 
     Json::Value getFlowControlJsonInfo(bool compact) const;
 
