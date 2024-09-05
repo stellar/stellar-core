@@ -247,6 +247,8 @@ class Peer : public std::enable_shared_from_this<Peer>,
     // with methods running on background threads might access this
     // unsynchronized state. All methods that access this private state should
     // assert that they are running on the main
+    // IOW, all methods using these private variables and functions below must
+    // synchronize access manually
   private:
     PeerState mState;
     NodeID mPeerID;

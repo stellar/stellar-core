@@ -28,7 +28,7 @@ class BucketApplicator
     size_t mCount{0};
     std::function<bool(LedgerEntryType)> mEntryTypeFilter;
     std::unordered_set<LedgerKey>& mSeenKeys;
-    std::streamoff mUpperBoundOffset;
+    std::streamoff mUpperBoundOffset{0};
     bool mOffersRemaining{true};
 
   public:
