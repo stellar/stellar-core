@@ -82,7 +82,7 @@ template <int V> struct TestStub
         TrustFlagOp flagOp = V == 0 ? TrustFlagOp::ALLOW_TRUST
                                     : TrustFlagOp::SET_TRUST_LINE_FLAGS;
 
-        auto const& cfg = getTestConfig();
+        auto const& cfg = getTestConfig(0, Config::TESTDB_IN_MEMORY);
 
         VirtualClock clock;
         auto app = createTestApplication(clock, cfg);
@@ -377,7 +377,7 @@ template <int V> struct TestStub
         TrustFlagOp flagOp = V == 0 ? TrustFlagOp::ALLOW_TRUST
                                     : TrustFlagOp::SET_TRUST_LINE_FLAGS;
 
-        auto const& cfg = getTestConfig();
+        auto const& cfg = getTestConfig(0, Config::TESTDB_IN_MEMORY);
 
         VirtualClock clock;
         auto app = createTestApplication(clock, cfg);

@@ -283,6 +283,7 @@ modifySorobanNetworkConfig(Application& app,
     ltx.commit();
 
     // Need to close a ledger following call to `addBatch` from config upgrade
+    // to refresh cached state
     if (app.getConfig().isUsingBucketListDB())
     {
         txtest::closeLedger(app);
@@ -323,34 +324,7 @@ setSorobanNetworkConfigForTest(SorobanNetworkConfig& cfg)
 void
 overrideSorobanNetworkConfigForTest(Application& app)
 {
-    modifySorobanNetworkConfig(app, [](SorobanNetworkConfig& cfg) {
-        cfg.mMaxContractSizeBytes = 64 * 1024;
-        cfg.mMaxContractDataEntrySizeBytes = 64 * 1024;
-
-        cfg.mTxMaxSizeBytes = 100 * 1024;
-        cfg.mLedgerMaxTransactionsSizeBytes = cfg.mTxMaxSizeBytes * 10;
-
-        cfg.mTxMaxInstructions = 100'000'000;
-        cfg.mLedgerMaxInstructions = cfg.mTxMaxInstructions * 10;
-        cfg.mTxMemoryLimit = 100 * 1024 * 1024;
-
-        cfg.mTxMaxReadLedgerEntries = 40;
-        cfg.mTxMaxReadBytes = 200 * 1024;
-
-        cfg.mTxMaxWriteLedgerEntries = 20;
-        cfg.mTxMaxWriteBytes = 100 * 1024;
-
-        cfg.mLedgerMaxReadLedgerEntries = cfg.mTxMaxReadLedgerEntries * 10;
-        cfg.mLedgerMaxReadBytes = cfg.mTxMaxReadBytes * 10;
-        cfg.mLedgerMaxWriteLedgerEntries = cfg.mTxMaxWriteLedgerEntries * 10;
-        cfg.mLedgerMaxWriteBytes = cfg.mTxMaxWriteBytes * 10;
-
-        cfg.mStateArchivalSettings.minPersistentTTL = 20;
-        cfg.mStateArchivalSettings.maxEntryTTL = 6'312'000;
-        cfg.mLedgerMaxTxCount = 100;
-
-        cfg.mTxMaxContractEventsSizeBytes = 10'000;
-    });
+    modifySorobanNetworkConfig(app, setSorobanNetworkConfigForTest);
 }
 
 bool

@@ -977,6 +977,7 @@ TEST_CASE("Soroban footprint validation", "[tx][soroban]")
     }
 }
 
+// TODO: Fix
 TEST_CASE("Soroban non-refundable resource fees are stable", "[tx][soroban]")
 {
     auto cfgModifyFn = [](SorobanNetworkConfig& cfg) {
@@ -997,7 +998,7 @@ TEST_CASE("Soroban non-refundable resource fees are stable", "[tx][soroban]")
     int64_t const baseTxFee = baseHistoricalFee + baseSizeFee;
     uint32_t const minInclusionFee = 100;
 
-    SorobanTest test(getTestConfig(),
+    SorobanTest test(getTestConfig(0, Config::TESTDB_IN_MEMORY),
                      /*useTestLimits=*/true, cfgModifyFn);
     auto makeTx = [&test](SorobanResources const& resources,
                           uint32_t inclusionFee, int64_t resourceFee) {
@@ -1881,9 +1882,6 @@ TEST_CASE("ledger entry size limit enforced", "[tx][soroban]")
                                    [](SorobanNetworkConfig& cfg) {
                                        cfg.mMaxContractSizeBytes = 2000;
                                    });
-
-        // Refresh cached settings
-        closeLedgerOn(test.getApp(), test.getLCLSeq() + 1, 2, 1, 2016);
 
         // Check that client invocation now fails
         REQUIRE(client.has("key", ContractDataDurability::PERSISTENT,
@@ -2835,7 +2833,7 @@ TEST_CASE("state archival operation errors", "[tx][soroban]")
 TEST_CASE("settings upgrade command line utils", "[tx][soroban][upgrades]")
 {
     VirtualClock clock;
-    auto cfg = getTestConfig();
+    auto cfg = getTestConfig(0, Config::TESTDB_IN_MEMORY);
     cfg.ENABLE_SOROBAN_DIAGNOSTIC_EVENTS = true;
     auto app = createTestApplication(clock, cfg);
     auto root = TestAccount::createRoot(*app);

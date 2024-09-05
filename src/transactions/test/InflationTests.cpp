@@ -285,7 +285,7 @@ doInflation(Application& app, int ledgerVersion, int nbAccounts,
 
 TEST_CASE_VERSIONS("inflation total coins", "[tx][inflation]")
 {
-    Config cfg = getTestConfig(0);
+    Config cfg = getTestConfig();
     if (protocolVersionStartsFrom(cfg.TESTING_UPGRADE_LEDGER_PROTOCOL_VERSION,
                                   ProtocolVersion::V_12))
     {
@@ -432,7 +432,7 @@ TEST_CASE_VERSIONS("inflation total coins", "[tx][inflation]")
 
 TEST_CASE_VERSIONS("inflation", "[tx][inflation]")
 {
-    Config cfg = getTestConfig(0);
+    Config cfg = getTestConfig(0, Config::TESTDB_IN_MEMORY);
 
     VirtualClock::system_time_point inflationStart;
     // inflation starts on 1-jul-2014

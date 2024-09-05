@@ -153,7 +153,7 @@ TEST_CASE("Fee pool change without inflation",
 TEST_CASE("Account balances changed without inflation",
           "[invariant][conservationoflumens]")
 {
-    Config cfg = getTestConfig(0);
+    Config cfg = getTestConfig(0, Config::TESTDB_IN_MEMORY);
     cfg.INVARIANT_CHECKS = {"ConservationOfLumens"};
 
     uint32_t const N = 10;
@@ -187,7 +187,7 @@ TEST_CASE("Account balances changed without inflation",
 TEST_CASE("Account balances unchanged without inflation",
           "[invariant][conservationoflumens]")
 {
-    Config cfg = getTestConfig(0);
+    Config cfg = getTestConfig(0, Config::TESTDB_IN_MEMORY);
     cfg.INVARIANT_CHECKS = {"ConservationOfLumens"};
 
     uint32_t const N = 10;
@@ -228,7 +228,7 @@ TEST_CASE("Account balances unchanged without inflation",
 TEST_CASE("Inflation changes are consistent",
           "[invariant][conservationoflumens]")
 {
-    Config cfg = getTestConfig(0);
+    Config cfg = getTestConfig(0, Config::TESTDB_IN_MEMORY);
     cfg.INVARIANT_CHECKS = {"ConservationOfLumens"};
     stellar::uniform_int_distribution<uint32_t> payoutsDist(1, 100);
     stellar::uniform_int_distribution<int64_t> amountDist(1, 100000);

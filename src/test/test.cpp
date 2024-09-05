@@ -196,9 +196,10 @@ getTestConfig(int instanceNumber, Config::TestDbMode mode)
     {
         // by default, tests should be run with in memory SQLITE as it's faster
         // you can change this by enabling the appropriate line below
-        mode = Config::TESTDB_IN_MEMORY_SQLITE;
+        // mode = Config::TESTDB_IN_MEMORY_SQLITE;
         // mode = Config::TESTDB_ON_DISK_SQLITE;
         // mode = Config::TESTDB_POSTGRESQL;
+        mode = Config::TESTDB_BUCKET_DB;
     }
     auto& cfgs = gTestCfg[mode];
     if (cfgs.size() <= static_cast<size_t>(instanceNumber))
@@ -290,11 +291,32 @@ getTestConfig(int instanceNumber, Config::TestDbMode mode)
         case Config::TESTDB_POSTGRESQL:
             dbname << "postgresql://dbname=test" << instanceNumber;
             break;
+        case Config::TESTDB_IN_MEMORY:
+            thisConfig.MODE_USES_IN_MEMORY_LEDGER = true;
+
+            // When we're running on an in-memory we're
+            // probably not concerned with bucket durability.
+            thisConfig.DISABLE_XDR_FSYNC = true;
+            break;
+        case Config::TESTDB_BUCKET_DB:
+            thisConfig.DEPRECATED_SQL_LEDGER_STATE = false;
+            thisConfig.BACKGROUND_EVICTION_SCAN = true;
+            dbname << "sqlite3://:memory:";
+
+            // When we're running on an in-memory we're
+            // probably not concerned with bucket durability.
+            thisConfig.DISABLE_XDR_FSYNC = true;
+            break;
 #endif
         default:
             abort();
         }
-        thisConfig.DATABASE = SecretValue{dbname.str()};
+
+        if (mode != Config::TESTDB_IN_MEMORY)
+        {
+            thisConfig.DATABASE = SecretValue{dbname.str()};
+        }
+
         thisConfig.REPORT_METRICS = gTestMetrics;
         // disable maintenance
         thisConfig.AUTOMATIC_MAINTENANCE_COUNT = 0;
@@ -309,16 +331,15 @@ getTestConfig(int instanceNumber, Config::TestDbMode mode)
         thisConfig.PEER_FLOOD_READING_CAPACITY = 20;
         thisConfig.FLOW_CONTROL_SEND_MORE_BATCH_SIZE = 10;
 
-        // Tests default to using SQL for ledger state
-        thisConfig.DEPRECATED_SQL_LEDGER_STATE = true;
+        if (mode != Config::TESTDB_BUCKET_DB)
+        {
+            thisConfig.DEPRECATED_SQL_LEDGER_STATE = true;
+            thisConfig.BACKGROUND_EVICTION_SCAN = false;
+        }
 
         // Disable RPC endpoint in tests
         thisConfig.HTTP_QUERY_PORT = 0;
         thisConfig.QUERY_SNAPSHOT_LEDGERS = 0;
-
-        // TODO: Change this to true when DEPRECATED_SQL_LEDGER_STATE is changed
-        // to default false in test configs
-        thisConfig.BACKGROUND_EVICTION_SCAN = false;
 
 #ifdef BEST_OFFER_DEBUGGING
         thisConfig.BEST_OFFER_DEBUGGING_ENABLED = true;

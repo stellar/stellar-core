@@ -20,7 +20,7 @@ using namespace stellar::txtest;
 
 TEST_CASE("PendingEnvelopes recvSCPEnvelope", "[herder]")
 {
-    Config cfg(getTestConfig(0, Config::TESTDB_DEFAULT));
+    Config cfg(getTestConfig());
     cfg.MANUAL_CLOSE = false;
 
     VirtualClock clock;

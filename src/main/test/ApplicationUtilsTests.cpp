@@ -401,10 +401,9 @@ TEST_CASE("verify checkpoints command - wait condition", "[applicationutils]")
     qSet.validators.push_back(vNode1NodeID);
 
     Config cfg1 = getTestConfig(1);
-    Config cfg2 = getTestConfig(2);
+    Config cfg2 = getTestConfig(2, Config::TESTDB_IN_MEMORY);
     cfg2.FORCE_SCP = false;
     cfg2.NODE_IS_VALIDATOR = false;
-    cfg2.setInMemoryMode();
     cfg2.MODE_DOES_CATCHUP = false;
 
     auto validator = simulation->addNode(vNode1SecretKey, qSet, &cfg1);
@@ -627,8 +626,7 @@ TEST_CASE("application setup", "[applicationutils]")
     SECTION("in memory mode")
     {
         Config cfg1 = getTestConfig(1);
-        Config cfg2 = getTestConfig(2);
-        cfg2.setInMemoryMode();
+        Config cfg2 = getTestConfig(2, Config::TESTDB_IN_MEMORY);
         cfg2.DATABASE = SecretValue{minimalDBForInMemoryMode(cfg2)};
         testInMemoryMode(cfg1, cfg2);
     }

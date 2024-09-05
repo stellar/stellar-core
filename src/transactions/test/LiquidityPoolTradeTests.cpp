@@ -982,7 +982,8 @@ testLiquidityPoolTrading(Application& app, Asset const& cur1, Asset const& cur2)
 TEST_CASE_VERSIONS("liquidity pool trade", "[tx][liquiditypool]")
 {
     VirtualClock clock;
-    auto app = createTestApplication(clock, getTestConfig());
+    auto app = createTestApplication(
+        clock, getTestConfig(0, Config::TESTDB_IN_MEMORY));
 
     // set up world
     auto minBal = [&](int32_t n) {

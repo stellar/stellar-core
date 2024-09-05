@@ -116,6 +116,21 @@ class Config : public std::enable_shared_from_this<Config>
 
     typedef std::shared_ptr<Config> pointer;
 
+    // These test modes should be used in the following contexts:
+    // 1. TESTDB_DEFAULT / TESTDB_BUCKETDB: provides the most comprehensive
+    //    end-to-end test, but does not allow arbitrary ledger state writes.
+    //    If this mode can be used, it should be.
+    // 2. TESTDB_IN_MEMORY: allows arbitrary ledger state writes, but does not
+    //    test the offers table. Suitable for tests that required arbitrary
+    //    writes and do not test offers.
+    // 3. TESTDB_IN_MEMORY_SQLITE: allows arbitrary ledger state writes and
+    //    tests
+    //    the offers table. Suitable for tests that require arbitrary writes and
+    //    test offers.
+    // 4. TESTDB_ON_DISK_SQLITE: Should only be used to test SQLITE specific
+    //    database operations.
+    // 5. TESTDB_POSTGRESQL: Should only be used to test POSTGRESQL specific
+    //    database operations.
     enum TestDbMode
     {
         TESTDB_DEFAULT,
@@ -124,6 +139,8 @@ class Config : public std::enable_shared_from_this<Config>
 #ifdef USE_POSTGRES
         TESTDB_POSTGRESQL,
 #endif
+        TESTDB_IN_MEMORY,
+        TESTDB_BUCKET_DB,
         TESTDB_MODES
     };
 

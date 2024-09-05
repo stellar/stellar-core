@@ -25,7 +25,7 @@ using namespace stellar::txtest;
 
 TEST_CASE_VERSIONS("bump sequence", "[tx][bumpsequence]")
 {
-    Config const& cfg = getTestConfig();
+    Config const& cfg = getTestConfig(0, Config::TESTDB_IN_MEMORY);
 
     VirtualClock clock;
     auto app = createTestApplication(clock, cfg);

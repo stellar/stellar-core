@@ -59,7 +59,7 @@ TEST_CASE_VERSIONS("standalone", "[herder][acceptance]")
 {
     SIMULATION_CREATE_NODE(0);
 
-    Config cfg(getTestConfig(0, Config::TESTDB_DEFAULT));
+    Config cfg(getTestConfig());
 
     cfg.MANUAL_CLOSE = false;
     cfg.NODE_SEED = v0SecretKey;
@@ -1133,7 +1133,7 @@ TEST_CASE("surge pricing", "[herder][txset][soroban]")
 {
     SECTION("max 0 ops per ledger")
     {
-        Config cfg(getTestConfig());
+        Config cfg(getTestConfig(0, Config::TESTDB_IN_MEMORY));
         cfg.TESTING_UPGRADE_MAX_TX_SET_SIZE = 0;
 
         VirtualClock clock;
@@ -2566,6 +2566,8 @@ TEST_CASE("SCP State", "[herder]")
         {
             configure(Config::TestDbMode::TESTDB_ON_DISK_SQLITE);
         }
+
+        // TODO: Persist BucketList
 #ifdef USE_POSTGRES
         SECTION("postgres")
         {

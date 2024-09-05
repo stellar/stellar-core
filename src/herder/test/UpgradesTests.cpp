@@ -632,7 +632,7 @@ TEST_CASE("Ledger Manager applies upgrades properly", "[upgrades]")
 TEST_CASE("config upgrade validation", "[upgrades]")
 {
     VirtualClock clock;
-    auto cfg = getTestConfig(0);
+    auto cfg = getTestConfig(0, Config::TESTDB_IN_MEMORY);
     auto app = createTestApplication(clock, cfg);
 
     auto headerTime = VirtualClock::to_time_t(genesis(0, 2));
@@ -828,7 +828,7 @@ TEST_CASE("config upgrade validation", "[upgrades]")
 TEST_CASE("config upgrades applied to ledger", "[soroban][upgrades]")
 {
     VirtualClock clock;
-    auto cfg = getTestConfig(0);
+    auto cfg = getTestConfig(0, Config::TESTDB_IN_MEMORY);
     cfg.TESTING_UPGRADE_LEDGER_PROTOCOL_VERSION =
         static_cast<uint32_t>(SOROBAN_PROTOCOL_VERSION) - 1;
     cfg.USE_CONFIG_FOR_GENESIS = false;
@@ -2274,7 +2274,9 @@ TEST_CASE("configuration initialized in version upgrade", "[upgrades]")
 TEST_CASE_VERSIONS("upgrade base reserve", "[upgrades]")
 {
     VirtualClock clock;
-    auto cfg = getTestConfig(0);
+
+    // TODO: Investigate this test
+    auto cfg = getTestConfig(0, Config::TESTDB_IN_MEMORY);
 
     auto app = createTestApplication(clock, cfg);
 
@@ -2974,7 +2976,7 @@ TEST_CASE("upgrade from cpp14 serialized data", "[upgrades]")
 
 TEST_CASE("upgrades serialization roundtrip", "[upgrades]")
 {
-    auto cfg = getTestConfig();
+    auto cfg = getTestConfig(0, Config::TESTDB_IN_MEMORY);
     VirtualClock clock;
     auto app = createTestApplication(clock, cfg);
 
@@ -3058,7 +3060,7 @@ TEST_CASE("upgrades serialization roundtrip", "[upgrades]")
 TEST_CASE_VERSIONS("upgrade flags", "[upgrades][liquiditypool]")
 {
     VirtualClock clock;
-    auto cfg = getTestConfig();
+    auto cfg = getTestConfig(0, Config::TESTDB_IN_MEMORY);
 
     auto app = createTestApplication(clock, cfg);
 

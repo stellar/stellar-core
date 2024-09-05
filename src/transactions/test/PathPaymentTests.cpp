@@ -70,7 +70,7 @@ assetPathToString(const std::deque<Asset>& assets)
 
 TEST_CASE_VERSIONS("pathpayment", "[tx][pathpayment]")
 {
-    auto const& cfg = getTestConfig();
+    auto const& cfg = getTestConfig(0, Config::TESTDB_IN_MEMORY_SQLITE);
 
     VirtualClock clock;
     auto app = createTestApplication(clock, cfg);

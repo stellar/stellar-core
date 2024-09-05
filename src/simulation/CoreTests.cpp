@@ -253,6 +253,7 @@ TEST_CASE("resilience tests", "[resilience][simulation][!hide]")
 
     auto confGen = [](int configNum) -> Config {
         // we have to have persistent nodes as we want to simulate a restart
+        // TODO: Change modes once we have in-memory vs on-disk BucketList
         auto c = getTestConfig(configNum, Config::TESTDB_ON_DISK_SQLITE);
         return c;
     };

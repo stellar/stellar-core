@@ -19,7 +19,7 @@ using namespace stellar::InvariantTestUtils;
 TEST_CASE("Trigger validity check for each entry type",
           "[invariant][ledgerentryisvalid]")
 {
-    Config cfg = getTestConfig(0);
+    Config cfg = getTestConfig(0, Config::TESTDB_IN_MEMORY);
     cfg.INVARIANT_CHECKS = {"LedgerEntryIsValid"};
 
     VirtualClock clock;
@@ -67,7 +67,7 @@ TEST_CASE("Trigger validity check for each entry type",
 TEST_CASE("Modify ClaimableBalanceEntry",
           "[invariant][ledgerentryisvalid][claimablebalance]")
 {
-    Config cfg = getTestConfig(0);
+    Config cfg = getTestConfig(0, Config::TESTDB_IN_MEMORY);
     cfg.INVARIANT_CHECKS = {"LedgerEntryIsValid"};
 
     VirtualClock clock;

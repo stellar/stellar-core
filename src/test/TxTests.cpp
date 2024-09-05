@@ -34,6 +34,8 @@
 
 #include <lib/catch.hpp>
 
+#include "util/XDRCereal.h"
+
 using namespace stellar;
 using namespace stellar::txtest;
 
@@ -389,14 +391,22 @@ applyTx(TransactionTestFramePtr const& tx, Application& app, bool checkSeqNum)
     // ledger with the TX instead
     if (app.getConfig().isUsingBucketListDB())
     {
-        closeLedger(app, {tx});
+        auto resultSet = closeLedger(app, {tx});
+
+        // When going through the normal ledgerClose path, TransactionFrame
+        // objects are reconstructed from raw XDR before being applied, meaning
+        // the TestTransactionFrame does not have it's internal cached state
+        // updated during apply. We manually update the result here.
+        REQUIRE(resultSet.results.size() == 1);
+        tx->getResult() = resultSet.results.at(0).result;
     }
     else
     {
         applyCheck(tx, app, checkSeqNum);
-        throwIf(tx->getResult());
-        checkTransaction(*tx, app);
     }
+
+    throwIf(tx->getResult());
+    checkTransaction(*tx, app);
 
     LedgerTxn ltx(app.getLedgerTxnRoot());
     auto account = stellar::loadAccount(ltx, tx->getSourceID());

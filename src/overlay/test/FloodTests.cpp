@@ -2,6 +2,7 @@
 // under the Apache License, Version 2.0. See the COPYING file at the root
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
+#include "bucket/BucketManager.h"
 #include "herder/Herder.h"
 #include "herder/HerderImpl.h"
 #include "ledger/LedgerManager.h"
@@ -68,9 +69,12 @@ TEST_CASE("Flooding", "[flood][overlay][acceptance]")
                 // need to create on all nodes
                 for (auto n : nodes)
                 {
-                    LedgerTxn ltx(n->getLedgerTxnRoot(), false);
-                    ltx.create(gen);
-                    ltx.commit();
+                    auto const& header = n->getLedgerManager()
+                                             .getLastClosedLedgerHeader()
+                                             .header;
+                    n->getBucketManager().addBatch(*n, header.ledgerSeq + 1,
+                                                   header.ledgerVersion, {},
+                                                   {gen}, {});
                 }
             }
         }

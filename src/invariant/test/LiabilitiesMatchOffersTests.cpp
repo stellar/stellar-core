@@ -12,6 +12,7 @@
 #include "lib/catch.hpp"
 #include "lib/util/stdrandom.h"
 #include "main/Application.h"
+#include "main/Config.h"
 #include "test/TestUtils.h"
 #include "test/test.h"
 #include "transactions/TransactionUtils.h"
@@ -57,7 +58,7 @@ updateAccountWithRandomBalance(LedgerEntry le, Application& app,
 TEST_CASE("Create account above minimum balance",
           "[invariant][liabilitiesmatchoffers]")
 {
-    Config cfg = getTestConfig(0);
+    Config cfg = getTestConfig(0, Config::TESTDB_IN_MEMORY_SQLITE);
     cfg.INVARIANT_CHECKS = {"LiabilitiesMatchOffers"};
 
     for (uint32_t i = 0; i < 10; ++i)
@@ -74,7 +75,7 @@ TEST_CASE("Create account above minimum balance",
 TEST_CASE("Create account below minimum balance",
           "[invariant][liabilitiesmatchoffers]")
 {
-    Config cfg = getTestConfig(0);
+    Config cfg = getTestConfig(0, Config::TESTDB_IN_MEMORY_SQLITE);
     cfg.INVARIANT_CHECKS = {"LiabilitiesMatchOffers"};
 
     for (uint32_t i = 0; i < 10; ++i)
@@ -91,7 +92,7 @@ TEST_CASE("Create account below minimum balance",
 TEST_CASE("Create account then decrease balance below minimum",
           "[invariant][liabilitiesmatchoffers]")
 {
-    Config cfg = getTestConfig(0);
+    Config cfg = getTestConfig(0, Config::TESTDB_IN_MEMORY_SQLITE);
     cfg.INVARIANT_CHECKS = {"LiabilitiesMatchOffers"};
 
     for (uint32_t i = 0; i < 10; ++i)
@@ -110,7 +111,7 @@ TEST_CASE("Create account then decrease balance below minimum",
 TEST_CASE("Account below minimum balance increases but stays below minimum",
           "[invariant][liabilitiesmatchoffers]")
 {
-    Config cfg = getTestConfig(0);
+    Config cfg = getTestConfig(0, Config::TESTDB_IN_MEMORY_SQLITE);
     cfg.INVARIANT_CHECKS = {"LiabilitiesMatchOffers"};
 
     for (uint32_t i = 0; i < 10; ++i)
@@ -129,7 +130,7 @@ TEST_CASE("Account below minimum balance increases but stays below minimum",
 TEST_CASE("Account below minimum balance decreases",
           "[invariant][liabilitiesmatchoffers]")
 {
-    Config cfg = getTestConfig(0);
+    Config cfg = getTestConfig(0, Config::TESTDB_IN_MEMORY_SQLITE);
     cfg.INVARIANT_CHECKS = {"LiabilitiesMatchOffers"};
 
     for (uint32_t i = 0; i < 10; ++i)
@@ -249,7 +250,7 @@ generateBuyingLiabilities(Application& app, LedgerEntry offer, bool excess,
 TEST_CASE("Create account then increase liabilities without changing balance",
           "[invariant][liabilitiesmatchoffers]")
 {
-    Config cfg = getTestConfig(0);
+    Config cfg = getTestConfig(0, Config::TESTDB_IN_MEMORY_SQLITE);
     cfg.INVARIANT_CHECKS = {"LiabilitiesMatchOffers"};
 
     VirtualClock clock;
@@ -288,7 +289,7 @@ TEST_CASE("Create account then increase liabilities without changing balance",
 
 TEST_CASE("Invariant for liabilities", "[invariant][liabilitiesmatchoffers]")
 {
-    Config cfg = getTestConfig(0);
+    Config cfg = getTestConfig(0, Config::TESTDB_IN_MEMORY_SQLITE);
     cfg.INVARIANT_CHECKS = {"LiabilitiesMatchOffers"};
 
     VirtualClock clock;

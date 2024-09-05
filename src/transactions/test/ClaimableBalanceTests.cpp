@@ -298,7 +298,7 @@ validateBalancesOnCreateAndClaim(TestAccount& createAcc, TestAccount& claimAcc,
 
 TEST_CASE_VERSIONS("claimableBalance", "[tx][claimablebalance]")
 {
-    Config cfg = getTestConfig();
+    Config cfg = getTestConfig(0, Config::TESTDB_IN_MEMORY);
 
     VirtualClock clock;
     auto app = createTestApplication(clock, cfg);

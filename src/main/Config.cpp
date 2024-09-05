@@ -2264,6 +2264,7 @@ Config::setInMemoryMode()
     MODE_STORES_HISTORY_MISC = false;
     MODE_STORES_HISTORY_LEDGERHEADERS = false;
     MODE_ENABLES_BUCKETLIST = true;
+    BACKGROUND_EVICTION_SCAN = false;
 }
 
 bool
