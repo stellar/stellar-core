@@ -248,7 +248,7 @@ template <typename T> class binary_fuse_t
         uint64_t h = binary_fuse_mulhi(hash, SegmentCountLength);
         h += index * SegmentLength;
         // keep the lower 36 bits
-        uint64_t hh = hash & ((1UL << 36) - 1);
+        uint64_t hh = hash & ((1ULL << 36) - 1);
         // index 0: right shift by 36; index 1: right shift by 18; index 2: no
         // shift
         h ^= (size_t)((hh >> (36 - 18 * index)) & SegmentLengthMask);
@@ -289,9 +289,9 @@ template <typename T> class binary_fuse_t
         {
             blockBits += 1;
         }
-        uint32_t block = ((uint32_t)1 << blockBits);
+        uint32_t block = (1ul << blockBits);
 
-        std::vector<uint32_t> startPos(1 << blockBits);
+        std::vector<uint32_t> startPos(block);
         uint32_t h012[5];
 
         reverseOrder[size] = 1;
