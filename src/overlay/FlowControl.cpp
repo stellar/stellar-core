@@ -55,6 +55,14 @@ FlowControl::hasOutboundCapacity(StellarMessage const& msg,
            mFlowControlBytesCapacity.hasOutboundCapacity(msg);
 }
 
+bool
+FlowControl::noOutboundCapacityTimeout(VirtualClock::time_point now,
+                                       std::chrono::seconds timeout) const
+{
+    std::lock_guard<std::mutex> guard(mFlowControlMutex);
+    return mNoOutboundCapacity && now - *mNoOutboundCapacity >= timeout;
+}
+
 void
 FlowControl::setPeerID(NodeID const& peerID)
 {
