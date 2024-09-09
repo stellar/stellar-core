@@ -204,7 +204,7 @@ HistoryManagerImpl::maybeQueueHistoryCheckpoint()
         return false;
     }
 
-    if (!mApp.getHistoryArchiveManager().hasAnyWritableHistoryArchive())
+    if (!mApp.getHistoryArchiveManager().publishEnabled())
     {
         CLOG_DEBUG(History,
                    "Skipping checkpoint, no writable history archives");
