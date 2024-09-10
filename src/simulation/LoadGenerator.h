@@ -348,6 +348,12 @@ class LoadGenerator
     uint32_t mWaitTillCompleteForLedgers{0};
     uint32_t mSorobanWasmWaitTillLedgers{0};
 
+    medida::Timer& mStepTimer;
+    medida::Meter& mStepMeter;
+    mutable TxMetrics mTxMetrics;
+    medida::Timer& mApplyTxTimer;
+    medida::Timer& mApplyOpTimer;
+
     // Internal loadgen state gets reset after each run, but it is impossible to
     // regenerate contract instance keys for DB lookup. Due to this we maintain
     // a static list of instances and the wasm entry which we use to rebuild

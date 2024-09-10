@@ -6,8 +6,6 @@
 #include "database/Database.h"
 #include "herder/Herder.h"
 #include "ledger/LedgerManager.h"
-#include "ledger/LedgerTxn.h"
-#include "ledger/LedgerTxnEntry.h"
 #include "main/Config.h"
 #include "overlay/OverlayManager.h"
 #include "test/TestAccount.h"
@@ -104,6 +102,14 @@ LoadGenerator::LoadGenerator(Application& app)
           mApp.getMetrics().NewCounter({"ledger", "apply-soroban", "success"}))
     , mApplySorobanFailure(
           mApp.getMetrics().NewCounter({"ledger", "apply-soroban", "failure"}))
+    , mStepTimer(mApp.getMetrics().NewTimer({"loadgen", "step", "submit"}))
+    , mStepMeter(
+          mApp.getMetrics().NewMeter({"loadgen", "step", "count"}, "step"))
+    , mTxMetrics(app.getMetrics())
+    , mApplyTxTimer(
+          mApp.getMetrics().NewTimer({"ledger", "transaction", "apply"}))
+    , mApplyOpTimer(
+          mApp.getMetrics().NewTimer({"ledger", "operation", "apply"}))
 {
 }
 
@@ -217,9 +223,7 @@ LoadGenerator::getTxPerStep(uint32_t txRate, std::chrono::seconds spikeInterval,
         throw std::runtime_error("Load generation start time must be set");
     }
 
-    auto& stepMeter =
-        mApp.getMetrics().NewMeter({"loadgen", "step", "count"}, "step");
-    stepMeter.Mark();
+    mStepMeter.Mark();
 
     auto now = mApp.getClock().now();
     auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(
@@ -651,9 +655,7 @@ LoadGenerator::generateLoad(GeneratedLoadConfig cfg)
             mInitialAccountsCreated ? mAccountsAvailable.size() : 1;
         txPerStep = std::min<int64_t>(txPerStep, expectedSize);
     }
-    auto& submitTimer =
-        mApp.getMetrics().NewTimer({"loadgen", "step", "submit"});
-    auto submitScope = submitTimer.TimeScope();
+    auto submitScope = mStepTimer.TimeScope();
 
     uint64_t now = mApp.timeNow();
     // Cleaning up accounts every second, so we don't call potentially expensive
@@ -950,9 +952,8 @@ LoadGenerator::logProgress(std::chrono::nanoseconds submitTimer,
 {
     using namespace std::chrono;
 
-    auto& m = mApp.getMetrics();
-    auto& applyTx = m.NewTimer({"ledger", "transaction", "apply"});
-    auto& applyOp = m.NewTimer({"ledger", "operation", "apply"});
+    auto& applyTx = mApplyTxTimer;
+    auto& applyOp = mApplyOpTimer;
 
     auto submitSteps = duration_cast<milliseconds>(submitTimer).count();
 
@@ -1006,8 +1007,7 @@ LoadGenerator::logProgress(std::chrono::nanoseconds submitTimer,
 
     CLOG_DEBUG(LoadGen, "Step timing: {}ms submit.", submitSteps);
 
-    TxMetrics txm(mApp.getMetrics());
-    txm.report();
+    mTxMetrics.report();
 }
 
 std::pair<LoadGenerator::TestAccountPtr, TransactionFrameBaseConstPtr>
@@ -1063,8 +1063,8 @@ LoadGenerator::createAccounts(uint64_t start, uint64_t count,
 bool
 LoadGenerator::loadAccount(TestAccount& account, Application& app)
 {
-    LedgerTxn ltx(app.getLedgerTxnRoot());
-    auto entry = stellar::loadAccount(ltx, account.getPublicKey());
+    LedgerSnapshot lsg(mApp);
+    auto const entry = lsg.getAccount(account.getPublicKey());
     if (!entry)
     {
         return false;
@@ -1438,13 +1438,15 @@ LoadGenerator::getConfigUpgradeSetFromLoadConfig(
     xdr::xvector<ConfigSettingEntry> updatedEntries;
     auto const& upgradeCfg = cfg.getSorobanUpgradeConfig();
 
-    LedgerTxn ltx(mApp.getLedgerTxnRoot());
+    LedgerSnapshot lsg(mApp);
+
     for (uint32_t i = 0;
          i < static_cast<uint32_t>(CONFIG_SETTING_BUCKETLIST_SIZE_WINDOW); ++i)
     {
-        auto entry =
-            ltx.load(configSettingKey(static_cast<ConfigSettingID>(i)));
-        auto& setting = entry.current().data.configSetting();
+        auto entry = lsg.load(configSettingKey(static_cast<ConfigSettingID>(i)))
+                         .current();
+
+        auto& setting = entry.data.configSetting();
         switch (static_cast<ConfigSettingID>(i))
         {
         case CONFIG_SETTING_CONTRACT_MAX_SIZE_BYTES:
@@ -1634,12 +1636,12 @@ LoadGenerator::getConfigUpgradeSetFromLoadConfig(
 
         // These two definitely aren't changing, and including both will hit the
         // contractDataEntrySizeBytes limit
-        if (entry.current().data.configSetting().configSettingID() !=
+        if (entry.data.configSetting().configSettingID() !=
                 CONFIG_SETTING_CONTRACT_COST_PARAMS_CPU_INSTRUCTIONS &&
-            entry.current().data.configSetting().configSettingID() !=
+            entry.data.configSetting().configSettingID() !=
                 CONFIG_SETTING_CONTRACT_COST_PARAMS_MEMORY_BYTES)
         {
-            updatedEntries.emplace_back(entry.current().data.configSetting());
+            updatedEntries.emplace_back(entry.data.configSetting());
         }
     }
 
@@ -1884,16 +1886,16 @@ LoadGenerator::checkSorobanStateSynced(Application& app,
     }
 
     std::vector<LedgerKey> result;
-    LedgerTxn ltx(app.getLedgerTxnRoot());
+    LedgerSnapshot lsg(mApp);
     for (auto const& lk : mContractInstanceKeys)
     {
-        if (!ltx.loadWithoutRecord(lk))
+        if (!lsg.load(lk))
         {
             result.emplace_back(lk);
         }
     }
 
-    if (mCodeKey && !ltx.loadWithoutRecord(*mCodeKey))
+    if (mCodeKey && !lsg.load(*mCodeKey))
     {
         result.emplace_back(*mCodeKey);
     }
