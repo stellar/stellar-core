@@ -20,6 +20,7 @@ class Config;
 class Database;
 struct LedgerHeader;
 struct LedgerUpgrade;
+class LedgerSnapshot;
 
 class ConfigUpgradeSetFrame;
 using ConfigUpgradeSetFrameConstPtr =
@@ -61,7 +62,7 @@ class Upgrades
 
         std::string toJson() const;
         void fromJson(std::string const& s);
-        std::string toDebugJson(stellar::AbstractLedgerTxn& ltx) const;
+        std::string toDebugJson(LedgerSnapshot const& ls) const;
     };
 
     Upgrades()
@@ -74,8 +75,9 @@ class Upgrades
     UpgradeParameters const& getParameters() const;
 
     // create upgrades for given ledger
-    std::vector<LedgerUpgrade> createUpgradesFor(LedgerHeader const& lclHeader,
-                                                 AbstractLedgerTxn& ltx) const;
+    std::vector<LedgerUpgrade>
+    createUpgradesFor(LedgerHeader const& lclHeader,
+                      LedgerSnapshot const& ls) const;
 
     // apply upgrade to ledger header
     static void applyTo(LedgerUpgrade const& upgrade, Application& app,
@@ -99,7 +101,7 @@ class Upgrades
     static UpgradeValidity isValidForApply(UpgradeType const& upgrade,
                                            LedgerUpgrade& lupgrade,
                                            Application& app,
-                                           AbstractLedgerTxn& ltx,
+                                           LedgerSnapshot const& ls,
                                            LedgerHeader const& header);
 
     // returns true if upgrade is a valid upgrade step
@@ -136,7 +138,7 @@ class Upgrades
     // returns true if upgrade is a valid upgrade step
     // in which case it also sets lupgrade
     bool isValidForNomination(LedgerUpgrade const& upgrade,
-                              AbstractLedgerTxn& ltx,
+                              LedgerSnapshot const& ls,
                               LedgerHeader const& header) const;
 
     static void applyVersionUpgrade(Application& app, AbstractLedgerTxn& ltx,
@@ -157,7 +159,7 @@ class ConfigUpgradeSetFrame
 {
   public:
     static ConfigUpgradeSetFrameConstPtr
-    makeFromKey(AbstractLedgerTxn& ltx, ConfigUpgradeSetKey const& key);
+    makeFromKey(LedgerSnapshot const& ls, ConfigUpgradeSetKey const& key);
 
     static LedgerKey getLedgerKey(ConfigUpgradeSetKey const& upgradeKey);
 
@@ -165,8 +167,7 @@ class ConfigUpgradeSetFrame
 
     ConfigUpgradeSetKey const& getKey() const;
 
-    bool upgradeNeeded(AbstractLedgerTxn& ltx,
-                       LedgerHeader const& lclHeader) const;
+    bool upgradeNeeded(LedgerSnapshot const& ls) const;
 
     void applyTo(AbstractLedgerTxn& ltx) const;
 
