@@ -625,11 +625,9 @@ CommandHandler::upgrades(std::string const& params, std::string& retStr)
             decoder::decode_b64(configXdrIter->second, buffer);
             ConfigUpgradeSetKey key;
             xdr::xdr_from_opaque(buffer, key);
-            LedgerTxn ltx(mApp.getLedgerTxnRoot(),
-                          /* shouldUpdateLastModified */ false,
-                          TransactionMode::READ_ONLY_WITHOUT_SQL_TXN);
+            auto ls = LedgerSnapshot(mApp);
 
-            auto ptr = ConfigUpgradeSetFrame::makeFromKey(ltx, key);
+            auto ptr = ConfigUpgradeSetFrame::makeFromKey(ls, key);
 
             if (!ptr ||
                 ptr->isValidForApply() != Upgrades::UpgradeValidity::VALID)
@@ -673,11 +671,9 @@ CommandHandler::dumpProposedSettings(std::string const& params,
         decoder::decode_b64(blob, buffer);
         ConfigUpgradeSetKey key;
         xdr::xdr_from_opaque(buffer, key);
-        LedgerTxn ltx(mApp.getLedgerTxnRoot(),
-                      /* shouldUpdateLastModified */ false,
-                      TransactionMode::READ_ONLY_WITHOUT_SQL_TXN);
+        auto ls = LedgerSnapshot(mApp);
 
-        auto ptr = ConfigUpgradeSetFrame::makeFromKey(ltx, key);
+        auto ptr = ConfigUpgradeSetFrame::makeFromKey(ls, key);
 
         if (!ptr || ptr->isValidForApply() != Upgrades::UpgradeValidity::VALID)
         {
@@ -877,14 +873,12 @@ CommandHandler::sorobanInfo(std::string const& params, std::string& retStr)
         }
         else if (format == "detailed")
         {
-            LedgerTxn ltx(mApp.getLedgerTxnRoot(),
-                          /* shouldUpdateLastModified */ false,
-                          TransactionMode::READ_ONLY_WITHOUT_SQL_TXN);
+            LedgerSnapshot lsg(mApp);
             xdr::xvector<ConfigSettingEntry> entries;
             for (auto c : xdr::xdr_traits<ConfigSettingID>::enum_values())
             {
                 auto entry =
-                    ltx.load(configSettingKey(static_cast<ConfigSettingID>(c)));
+                    lsg.load(configSettingKey(static_cast<ConfigSettingID>(c)));
                 entries.emplace_back(entry.current().data.configSetting());
             }
 
@@ -892,9 +886,7 @@ CommandHandler::sorobanInfo(std::string const& params, std::string& retStr)
         }
         else if (format == "upgrade_xdr")
         {
-            LedgerTxn ltx(mApp.getLedgerTxnRoot(),
-                          /* shouldUpdateLastModified */ false,
-                          TransactionMode::READ_ONLY_WITHOUT_SQL_TXN);
+            LedgerSnapshot lsg(mApp);
 
             ConfigUpgradeSet upgradeSet;
             for (auto c : xdr::xdr_traits<ConfigSettingID>::enum_values())
@@ -905,7 +897,7 @@ CommandHandler::sorobanInfo(std::string const& params, std::string& retStr)
                 {
                     continue;
                 }
-                auto entry = ltx.load(configSettingKey(configSettingID));
+                auto entry = lsg.load(configSettingKey(configSettingID));
                 upgradeSet.updatedEntry.emplace_back(
                     entry.current().data.configSetting());
             }
@@ -1455,11 +1447,8 @@ CommandHandler::testAcc(std::string const& params, std::string& retStr)
             key = getAccount(accName->second.c_str());
         }
 
-        LedgerTxn ltx(mApp.getLedgerTxnRoot(),
-                      /* shouldUpdateLastModified */ false,
-                      TransactionMode::READ_ONLY_WITHOUT_SQL_TXN);
-
-        auto acc = stellar::loadAccount(ltx, key.getPublicKey());
+        LedgerSnapshot lsg(mApp);
+        auto acc = lsg.load(accountKey(key.getPublicKey()));
         if (acc)
         {
             auto const& ae = acc.current().data.account();

@@ -233,16 +233,17 @@ phaseTxsAreValid(TxSetTransactions const& phase, Application& app,
                  uint64_t upperBoundCloseTimeOffset)
 {
     ZoneScoped;
-    LedgerTxn ltx(app.getLedgerTxnRoot(),
-                  /* shouldUpdateLastModified */ false,
-                  TransactionMode::READ_ONLY_WITHOUT_SQL_TXN);
     // This is done so minSeqLedgerGap is validated against the next
     // ledgerSeq, which is what will be used at apply time
-    ltx.loadHeader().current().ledgerSeq =
+
+    // Grab read-only latest ledger state; This is only used to validate tx sets
+    // for LCL+1
+    LedgerSnapshot ls(app);
+    ls.getLedgerHeader().currentToModify().ledgerSeq =
         app.getLedgerManager().getLastClosedLedgerNum() + 1;
     for (auto const& tx : phase)
     {
-        auto txResult = tx->checkValid(app, ltx, 0, lowerBoundCloseTimeOffset,
+        auto txResult = tx->checkValid(app, ls, 0, lowerBoundCloseTimeOffset,
                                        upperBoundCloseTimeOffset);
         if (!txResult->isSuccess())
         {
@@ -974,7 +975,6 @@ ApplicableTxSetFrame::checkValid(Application& app,
         }
 
         {
-            LedgerTxn ltx(app.getLedgerTxnRoot());
             auto limits = app.getLedgerManager().maxLedgerResources(
                 /* isSoroban */ true);
             if (anyGreater(*totalTxSetRes, limits))

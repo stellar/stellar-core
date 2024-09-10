@@ -929,8 +929,9 @@ LedgerManagerImpl::closeLedger(LedgerCloseData const& ledgerData)
     for (size_t i = 0; i < sv.upgrades.size(); i++)
     {
         LedgerUpgrade lupgrade;
+        LedgerSnapshot ls(ltx);
         auto valid = Upgrades::isValidForApply(sv.upgrades[i], lupgrade, mApp,
-                                               ltx, ltx.loadHeader().current());
+                                               ls, ltx.loadHeader().current());
         switch (valid)
         {
         case Upgrades::UpgradeValidity::VALID:
@@ -1137,9 +1138,6 @@ LedgerManagerImpl::setLastClosedLedger(
 
     mRebuildInMemoryState = false;
     advanceLedgerPointers(lastClosed.header);
-    mApp.getBucketManager().getBucketSnapshotManager().updateCurrentSnapshot(
-        std::make_unique<BucketListSnapshot>(
-            mApp.getBucketManager().getBucketList(), lastClosed.header));
     LedgerTxn ltx2(mApp.getLedgerTxnRoot(), false,
                    TransactionMode::READ_ONLY_WITHOUT_SQL_TXN);
     if (protocolVersionStartsFrom(ltx2.loadHeader().current().ledgerVersion,
@@ -1304,8 +1302,18 @@ LedgerManagerImpl::advanceLedgerPointers(LedgerHeader const& header,
                    ledgerAbbrev(header, ledgerHash));
     }
 
+    auto prevLedgerSeq = mLastClosedLedger.header.ledgerSeq;
     mLastClosedLedger.hash = ledgerHash;
     mLastClosedLedger.header = header;
+
+    if (mApp.getConfig().isUsingBucketListDB() &&
+        header.ledgerSeq != prevLedgerSeq)
+    {
+        mApp.getBucketManager()
+            .getBucketSnapshotManager()
+            .updateCurrentSnapshot(std::make_unique<BucketListSnapshot>(
+                mApp.getBucketManager().getBucketList(), header));
+    }
 }
 
 void
@@ -1671,7 +1679,7 @@ void
 LedgerManagerImpl::transferLedgerEntriesToBucketList(
     AbstractLedgerTxn& ltx,
     std::unique_ptr<LedgerCloseMetaFrame> const& ledgerCloseMeta,
-    LedgerHeader const& lh, uint32_t initialLedgerVers)
+    LedgerHeader lh, uint32_t initialLedgerVers)
 {
     ZoneScoped;
     std::vector<LedgerEntry> initEntries, liveEntries;

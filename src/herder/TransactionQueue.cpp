@@ -369,10 +369,9 @@ TransactionQueue::canAdd(
             }
         }
     }
-    LedgerTxn ltx(mApp.getLedgerTxnRoot(),
-                  /* shouldUpdateLastModified */ true,
-                  TransactionMode::READ_ONLY_WITHOUT_SQL_TXN);
-    uint32_t ledgerVersion = ltx.loadHeader().current().ledgerVersion;
+
+    LedgerSnapshot ls(mApp);
+    uint32_t ledgerVersion = ls.getLedgerHeader().current().ledgerVersion;
     // Subtle: transactions are rejected based on the source account limit
     // prior to this point. This is safe because we can't evict transactions
     // from the same source account, so a newer transaction won't replace an
@@ -400,12 +399,12 @@ TransactionQueue::canAdd(
     {
         // This is done so minSeqLedgerGap is validated against the next
         // ledgerSeq, which is what will be used at apply time
-        ltx.loadHeader().current().ledgerSeq =
+        ls.getLedgerHeader().currentToModify().ledgerSeq =
             mApp.getLedgerManager().getLastClosedLedgerNum() + 1;
     }
 
     auto txResult = tx->checkValid(
-        mApp, ltx, 0, 0, getUpperBoundCloseTimeOffset(mApp, closeTime));
+        mApp, ls, 0, 0, getUpperBoundCloseTimeOffset(mApp, closeTime));
     if (!txResult->isSuccess())
     {
         return AddResult(TransactionQueue::AddResultCode::ADD_STATUS_ERROR,
@@ -414,12 +413,14 @@ TransactionQueue::canAdd(
 
     // Note: stateIter corresponds to getSourceID() which is not necessarily
     // the same as getFeeSourceID()
-    auto feeSource = stellar::loadAccount(ltx, tx->getFeeSourceID());
+    auto const feeSource = ls.getAccount(tx->getFeeSourceID());
     auto feeStateIter = mAccountStates.find(tx->getFeeSourceID());
     int64_t totalFees = feeStateIter == mAccountStates.end()
                             ? 0
                             : feeStateIter->second.mTotalFees;
-    if (getAvailableBalance(ltx.loadHeader(), feeSource) - newFullFee <
+    if (getAvailableBalance(ls.getLedgerHeader().current(),
+                            feeSource.current()) -
+            newFullFee <
         totalFees)
     {
         txResult->setResultCode(txINSUFFICIENT_BALANCE);
@@ -902,21 +903,6 @@ TransactionQueue::getTx(Hash const& hash) const
     }
 }
 
-void
-TransactionQueue::clearAll()
-{
-    mAccountStates.clear();
-    for (auto& b : mBannedTransactions)
-    {
-        b.clear();
-    }
-    LedgerTxn ltx(mApp.getLedgerTxnRoot(),
-                  /* shouldUpdateLastModified */ true,
-                  TransactionMode::READ_ONLY_WITHOUT_SQL_TXN);
-    mTxQueueLimiter->reset(ltx.loadHeader().current().ledgerVersion);
-    mKnownTxHashes.clear();
-}
-
 std::pair<Resource, std::optional<Resource>>
 ClassicTransactionQueue::getMaxResourcesToFloodThisPeriod() const
 {
@@ -1109,10 +1095,9 @@ SorobanTransactionQueue::broadcastSome()
 size_t
 SorobanTransactionQueue::getMaxQueueSizeOps() const
 {
-    LedgerTxn ltx(mApp.getLedgerTxnRoot(),
-                  /* shouldUpdateLastModified */ true,
-                  TransactionMode::READ_ONLY_WITHOUT_SQL_TXN);
-    if (protocolVersionStartsFrom(ltx.loadHeader().current().ledgerVersion,
+    if (protocolVersionStartsFrom(mApp.getLedgerManager()
+                                      .getLastClosedLedgerHeader()
+                                      .header.ledgerVersion,
                                   SOROBAN_PROTOCOL_VERSION))
     {
         auto res = mTxQueueLimiter->maxScaledLedgerResources(true);

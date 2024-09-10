@@ -228,8 +228,6 @@ class TransactionQueue
     void prepareDropTransaction(AccountState& as);
     void dropTransaction(AccountStates::iterator stateIter);
 
-    void clearAll();
-
     bool isFiltered(TransactionFrameBasePtr tx) const;
 
     std::unique_ptr<TxQueueLimiter> mTxQueueLimiter;
