@@ -276,9 +276,13 @@ mod rust_bridge {
         // shared type declared above.
         type LogLevel;
         #[cfg(not(test))]
-        fn shim_isLogLevelAtLeast(partition: &CxxString, level: LogLevel) -> bool;
+        fn shim_isLogLevelAtLeast(partition: &CxxString, level: LogLevel) -> Result<bool>;
         #[cfg(not(test))]
-        fn shim_logAtPartitionAndLevel(partition: &CxxString, level: LogLevel, msg: &CxxString);
+        fn shim_logAtPartitionAndLevel(
+            partition: &CxxString,
+            level: LogLevel,
+            msg: &CxxString,
+        ) -> Result<()>;
     }
 }
 
