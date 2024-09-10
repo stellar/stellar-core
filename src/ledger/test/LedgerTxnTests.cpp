@@ -2442,8 +2442,7 @@ testOffersByAccountAndAsset(
     if (updates.size() > 1)
     {
         VirtualClock clock;
-        auto app = createTestApplication(
-            clock, getTestConfig(0, Config::TESTDB_IN_MEMORY_SQLITE));
+        auto app = createTestApplication(clock, getTestConfig());
 
         testAtRoot(*app);
     }
@@ -2452,7 +2451,7 @@ testOffersByAccountAndAsset(
     if (updates.size() > 1)
     {
         VirtualClock clock;
-        auto cfg = getTestConfig(0, Config::TESTDB_IN_MEMORY_SQLITE);
+        auto cfg = getTestConfig();
         cfg.ENTRY_CACHE_SIZE = 0;
         auto app = createTestApplication(clock, cfg);
 
@@ -2462,8 +2461,7 @@ testOffersByAccountAndAsset(
     // first changes are in child of LedgerTxnRoot
     {
         VirtualClock clock;
-        auto app = createTestApplication(
-            clock, getTestConfig(0, Config::TESTDB_IN_MEMORY_SQLITE));
+        auto app = createTestApplication(clock, getTestConfig());
 
         testOffersByAccountAndAsset(app->getLedgerTxnRoot(), accountID, asset,
                                     expected, updates.cbegin(), updates.cend());
@@ -2485,8 +2483,7 @@ TEST_CASE("LedgerTxn loadOffersByAccountAndAsset", "[ledgertxn]")
     SECTION("fails with children")
     {
         VirtualClock clock;
-        auto app = createTestApplication(
-            clock, getTestConfig(0, Config::TESTDB_IN_MEMORY_SQLITE));
+        auto app = createTestApplication(clock, getTestConfig());
 
         LedgerTxn ltx1(app->getLedgerTxnRoot());
         LedgerTxn ltx2(ltx1);
@@ -2497,8 +2494,7 @@ TEST_CASE("LedgerTxn loadOffersByAccountAndAsset", "[ledgertxn]")
     SECTION("fails if sealed")
     {
         VirtualClock clock;
-        auto app = createTestApplication(
-            clock, getTestConfig(0, Config::TESTDB_IN_MEMORY_SQLITE));
+        auto app = createTestApplication(clock, getTestConfig());
 
         LedgerTxn ltx1(app->getLedgerTxnRoot());
         ltx1.getDelta();
@@ -4131,7 +4127,7 @@ TEST_CASE("Access deactivated entry", "[ledgertxn]")
 
     SECTION("in-memory")
     {
-        runTest(Config::TESTDB_IN_MEMORY_SQLITE);
+        runTest(Config::TESTDB_IN_MEMORY);
     }
 
 #ifdef USE_POSTGRES

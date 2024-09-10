@@ -199,7 +199,7 @@ getTestConfig(int instanceNumber, Config::TestDbMode mode)
         // mode = Config::TESTDB_IN_MEMORY_SQLITE;
         // mode = Config::TESTDB_ON_DISK_SQLITE;
         // mode = Config::TESTDB_POSTGRESQL;
-        mode = Config::TESTDB_BUCKET_DB;
+        mode = Config::TESTDB_BUCKET_DB_VOLATILE;
     }
     auto& cfgs = gTestCfg[mode];
     if (cfgs.size() <= static_cast<size_t>(instanceNumber))
@@ -273,43 +273,47 @@ getTestConfig(int instanceNumber, Config::TestDbMode mode)
         thisConfig.QUORUM_SET.threshold = 1;
         thisConfig.UNSAFE_QUORUM = true;
 
+        // Bucket durability significantly slows down tests and is not necessary
+        // in most cases.
+        thisConfig.DISABLE_XDR_FSYNC = true;
+
         thisConfig.NETWORK_PASSPHRASE = "(V) (;,,;) (V)";
 
         std::ostringstream dbname;
         switch (mode)
         {
+        case Config::TESTDB_BUCKET_DB_VOLATILE:
         case Config::TESTDB_IN_MEMORY_SQLITE:
             dbname << "sqlite3://:memory:";
-            // When we're running on an in-memory sqlite we're
-            // probably not concerned with bucket durability.
-            thisConfig.DISABLE_XDR_FSYNC = true;
             break;
+        case Config::TESTDB_BUCKET_DB_PERSISTENT:
         case Config::TESTDB_ON_DISK_SQLITE:
             dbname << "sqlite3://" << rootDir << "test.db";
+            thisConfig.DISABLE_XDR_FSYNC = false;
             break;
 #ifdef USE_POSTGRES
         case Config::TESTDB_POSTGRESQL:
             dbname << "postgresql://dbname=test" << instanceNumber;
+            thisConfig.DISABLE_XDR_FSYNC = false;
             break;
         case Config::TESTDB_IN_MEMORY:
             thisConfig.MODE_USES_IN_MEMORY_LEDGER = true;
-
-            // When we're running on an in-memory we're
-            // probably not concerned with bucket durability.
-            thisConfig.DISABLE_XDR_FSYNC = true;
-            break;
-        case Config::TESTDB_BUCKET_DB:
-            thisConfig.DEPRECATED_SQL_LEDGER_STATE = false;
-            thisConfig.BACKGROUND_EVICTION_SCAN = true;
-            dbname << "sqlite3://:memory:";
-
-            // When we're running on an in-memory we're
-            // probably not concerned with bucket durability.
-            thisConfig.DISABLE_XDR_FSYNC = true;
             break;
 #endif
         default:
             abort();
+        }
+
+        if (mode == Config::TESTDB_BUCKET_DB_VOLATILE ||
+            mode == Config::TESTDB_BUCKET_DB_PERSISTENT)
+        {
+            thisConfig.DEPRECATED_SQL_LEDGER_STATE = false;
+            thisConfig.BACKGROUND_EVICTION_SCAN = true;
+        }
+        else
+        {
+            thisConfig.DEPRECATED_SQL_LEDGER_STATE = true;
+            thisConfig.BACKGROUND_EVICTION_SCAN = false;
         }
 
         if (mode != Config::TESTDB_IN_MEMORY)
@@ -330,12 +334,6 @@ getTestConfig(int instanceNumber, Config::TestDbMode mode)
         thisConfig.PEER_READING_CAPACITY = 20;
         thisConfig.PEER_FLOOD_READING_CAPACITY = 20;
         thisConfig.FLOW_CONTROL_SEND_MORE_BATCH_SIZE = 10;
-
-        if (mode != Config::TESTDB_BUCKET_DB)
-        {
-            thisConfig.DEPRECATED_SQL_LEDGER_STATE = true;
-            thisConfig.BACKGROUND_EVICTION_SCAN = false;
-        }
 
         // Disable RPC endpoint in tests
         thisConfig.HTTP_QUERY_PORT = 0;

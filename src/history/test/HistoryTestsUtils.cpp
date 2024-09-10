@@ -710,7 +710,7 @@ CatchupSimulation::crankUntil(Application::pointer app,
 Application::pointer
 CatchupSimulation::createCatchupApplication(
     uint32_t count, Config::TestDbMode dbMode, std::string const& appName,
-    bool publish, bool useBucketListDB, std::optional<uint32_t> ledgerVersion)
+    bool publish, std::optional<uint32_t> ledgerVersion)
 {
     CLOG_INFO(History, "****");
     CLOG_INFO(History, "**** Create app for catchup: '{}'", appName);
@@ -721,7 +721,6 @@ CatchupSimulation::createCatchupApplication(
     mCfgs.back().CATCHUP_COMPLETE =
         count == std::numeric_limits<uint32_t>::max();
     mCfgs.back().CATCHUP_RECENT = count;
-    mCfgs.back().DEPRECATED_SQL_LEDGER_STATE = !useBucketListDB;
     if (ledgerVersion)
     {
         mCfgs.back().TESTING_UPGRADE_LEDGER_PROTOCOL_VERSION = *ledgerVersion;

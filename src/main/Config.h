@@ -117,9 +117,10 @@ class Config : public std::enable_shared_from_this<Config>
     typedef std::shared_ptr<Config> pointer;
 
     // These test modes should be used in the following contexts:
-    // 1. TESTDB_DEFAULT / TESTDB_BUCKETDB: provides the most comprehensive
-    //    end-to-end test, but does not allow arbitrary ledger state writes.
-    //    If this mode can be used, it should be.
+    // 1. TESTDB_DEFAULT / TESTDB_BUCKET_DB_VOLATILE: provides the most
+    //    comprehensive end-to-end test, but does not allow arbitrary ledger
+    //    state writes. BucketList state is not preserved over restarts. If this
+    //    mode can be used, it should be.
     // 2. TESTDB_IN_MEMORY: allows arbitrary ledger state writes, but does not
     //    test the offers table. Suitable for tests that required arbitrary
     //    writes and do not test offers.
@@ -131,6 +132,7 @@ class Config : public std::enable_shared_from_this<Config>
     //    database operations.
     // 5. TESTDB_POSTGRESQL: Should only be used to test POSTGRESQL specific
     //    database operations.
+    // 6. TESTDB_BUCKET_DB_PERSISTENT: Persists BucketListDB over restarts.
     enum TestDbMode
     {
         TESTDB_DEFAULT,
@@ -140,7 +142,8 @@ class Config : public std::enable_shared_from_this<Config>
         TESTDB_POSTGRESQL,
 #endif
         TESTDB_IN_MEMORY,
-        TESTDB_BUCKET_DB,
+        TESTDB_BUCKET_DB_VOLATILE,
+        TESTDB_BUCKET_DB_PERSISTENT,
         TESTDB_MODES
     };
 

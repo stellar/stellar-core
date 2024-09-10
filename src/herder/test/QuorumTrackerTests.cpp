@@ -17,7 +17,7 @@ using namespace stellar;
 void
 testQuorumTracker()
 {
-    Config cfg(getTestConfig(0, Config::TESTDB_ON_DISK_SQLITE));
+    Config cfg(getTestConfig(0, Config::TESTDB_BUCKET_DB_PERSISTENT));
     cfg.MANUAL_CLOSE = false;
 
     std::vector<SecretKey> otherKeys;
@@ -185,7 +185,7 @@ TEST_CASE("quorum tracker", "[quorum][herder]")
 
 TEST_CASE("quorum tracker closest validators", "[quorum][herder]")
 {
-    Config cfg(getTestConfig(0, Config::TESTDB_IN_MEMORY_SQLITE));
+    Config cfg(getTestConfig(0, Config::TESTDB_DEFAULT));
 
     std::vector<PublicKey> otherKeys;
     int const kKeysCount = 7;

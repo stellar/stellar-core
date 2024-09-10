@@ -768,7 +768,7 @@ TEST_CASE("outbound queue filtering", "[overlay][connections]")
     auto networkID = sha256(getTestConfig().NETWORK_PASSPHRASE);
     auto simulation = std::make_shared<Simulation>(
         Simulation::OVER_LOOPBACK, networkID, [](int i) {
-            auto cfg = getTestConfig(i, Config::TESTDB_ON_DISK_SQLITE);
+            auto cfg = getTestConfig(i, Config::TESTDB_BUCKET_DB_PERSISTENT);
             cfg.MAX_SLOTS_TO_REMEMBER = 3;
             return cfg;
         });
@@ -2095,7 +2095,7 @@ TEST_CASE("flow control when out of sync", "[overlay][flowcontrol]")
     REQUIRE(conn->getAcceptor()->isConnectedForTesting());
 }
 
-TEST_CASE("overlay flow control", "[overlay][flowcontrol]")
+TEST_CASE("overlay flow control", "[overlay][flowcontrol][acceptance]")
 {
     auto networkID = sha256(getTestConfig().NETWORK_PASSPHRASE);
     auto simulation =

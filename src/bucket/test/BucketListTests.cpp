@@ -688,7 +688,7 @@ TEST_CASE("BucketList check bucket sizes", "[bucket][bucketlist][count]")
 TEST_CASE_VERSIONS("network config snapshots BucketList size", "[bucketlist]")
 {
     VirtualClock clock;
-    Config cfg(getTestConfig(0, Config::TESTDB_IN_MEMORY_SQLITE));
+    Config cfg(getTestConfig(0, Config::TESTDB_IN_MEMORY));
     cfg.USE_CONFIG_FOR_GENESIS = true;
 
     auto app = createTestApplication<BucketTestApplication>(clock, cfg);
@@ -775,7 +775,7 @@ TEST_CASE_VERSIONS("network config snapshots BucketList size", "[bucketlist]")
 TEST_CASE_VERSIONS("eviction scan", "[bucketlist]")
 {
     VirtualClock clock;
-    Config cfg(getTestConfig(0, Config::TESTDB_IN_MEMORY_SQLITE));
+    Config cfg(getTestConfig());
     cfg.USE_CONFIG_FOR_GENESIS = true;
 
     auto test = [&](bool backgroundScan) {
@@ -1250,7 +1250,7 @@ TEST_CASE_VERSIONS("eviction scan", "[bucketlist]")
 TEST_CASE_VERSIONS("Searchable BucketListDB snapshots", "[bucketlist]")
 {
     VirtualClock clock;
-    Config cfg(getTestConfig(0, Config::TESTDB_IN_MEMORY_SQLITE));
+    Config cfg(getTestConfig());
     cfg.DEPRECATED_SQL_LEDGER_STATE = false;
 
     auto app = createTestApplication<BucketTestApplication>(clock, cfg);

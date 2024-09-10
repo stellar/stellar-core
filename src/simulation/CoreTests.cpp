@@ -253,8 +253,7 @@ TEST_CASE("resilience tests", "[resilience][simulation][!hide]")
 
     auto confGen = [](int configNum) -> Config {
         // we have to have persistent nodes as we want to simulate a restart
-        // TODO: Change modes once we have in-memory vs on-disk BucketList
-        auto c = getTestConfig(configNum, Config::TESTDB_ON_DISK_SQLITE);
+        auto c = getTestConfig(configNum, Config::TESTDB_BUCKET_DB_PERSISTENT);
         return c;
     };
 
@@ -436,7 +435,7 @@ newLoadTestApp(VirtualClock& clock)
 #ifdef USE_POSTGRES
         !force_sqlite ? getTestConfig(0, Config::TESTDB_POSTGRESQL) :
 #endif
-                      getTestConfig(0, Config::TESTDB_ON_DISK_SQLITE);
+                      getTestConfig(0, Config::TESTDB_BUCKET_DB_PERSISTENT);
     cfg.RUN_STANDALONE = false;
     // force maxTxSetSize to avoid throwing txSets on the floor during the first
     // ledger close

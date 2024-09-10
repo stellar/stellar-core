@@ -48,8 +48,7 @@ TEST_CASE("XDROutputFileStream fsync bench", "[!hide][xdrstream][bench]")
 {
     VirtualClock clock;
 
-    // TODO: Switch to persistent bucketdb test mode
-    Config const& cfg = getTestConfig(0, Config::TESTDB_ON_DISK_SQLITE);
+    Config const& cfg = getTestConfig(0, Config::TESTDB_BUCKET_DB_PERSISTENT);
 
     SHA256 hasher;
     auto ledgerEntries = LedgerTestUtils::generateValidLedgerEntries(10000000);

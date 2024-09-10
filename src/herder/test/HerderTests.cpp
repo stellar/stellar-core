@@ -2567,7 +2567,11 @@ TEST_CASE("SCP State", "[herder]")
             configure(Config::TestDbMode::TESTDB_ON_DISK_SQLITE);
         }
 
-        // TODO: Persist BucketList
+        SECTION("bucketlistDB")
+        {
+            configure(Config::TestDbMode::TESTDB_BUCKET_DB_PERSISTENT);
+        }
+
 #ifdef USE_POSTGRES
         SECTION("postgres")
         {
@@ -2932,7 +2936,7 @@ TEST_CASE("tx queue source account limit", "[herder][transactionqueue]")
         auto networkID = sha256(getTestConfig().NETWORK_PASSPHRASE);
         simulation = std::make_shared<Simulation>(
             Simulation::OVER_LOOPBACK, networkID, [](int i) {
-                auto cfg = getTestConfig(i, Config::TESTDB_ON_DISK_SQLITE);
+                auto cfg = getTestConfig(i, Config::TESTDB_DEFAULT);
                 return cfg;
             });
 
@@ -3049,7 +3053,7 @@ TEST_CASE("soroban txs each parameter surge priced", "[soroban][herder]")
             std::function<void(Config & appCfg)> tweakAppCfg) {
             auto simulation = Topologies::core(
                 4, 1, Simulation::OVER_LOOPBACK, networkID, [&](int i) {
-                    auto cfg = getTestConfig(i, Config::TESTDB_ON_DISK_SQLITE);
+                    auto cfg = getTestConfig(i, Config::TESTDB_DEFAULT);
                     auto mid = std::numeric_limits<uint32_t>::max() / 2;
                     cfg.LOADGEN_INSTRUCTIONS_FOR_TESTING = {mid};
                     cfg.LOADGEN_INSTRUCTIONS_FOR_TESTING = {1};
@@ -3422,7 +3426,7 @@ TEST_CASE("soroban txs accepted by the network",
     // Set threshold to 1 so all have to vote
     auto simulation =
         Topologies::core(4, 1, Simulation::OVER_LOOPBACK, networkID, [](int i) {
-            auto cfg = getTestConfig(i, Config::TESTDB_ON_DISK_SQLITE);
+            auto cfg = getTestConfig(i, Config::TESTDB_DEFAULT);
             cfg.TESTING_UPGRADE_MAX_TX_SET_SIZE = 100;
             return cfg;
         });
@@ -4284,7 +4288,7 @@ TEST_CASE("In quorum filtering", "[quorum][herder][acceptance]")
     auto networkID = sha256(getTestConfig().NETWORK_PASSPHRASE);
 
     auto sim = Topologies::core(4, 0.75, mode, networkID, [](int i) {
-        return getTestConfig(i, Config::TESTDB_ON_DISK_SQLITE);
+        return getTestConfig(i, Config::TESTDB_DEFAULT);
     });
 
     sim->startAllNodes();

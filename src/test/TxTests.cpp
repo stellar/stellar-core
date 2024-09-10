@@ -399,6 +399,10 @@ applyTx(TransactionTestFramePtr const& tx, Application& app, bool checkSeqNum)
         // updated during apply. We manually update the result here.
         REQUIRE(resultSet.results.size() == 1);
         tx->getResult() = resultSet.results.at(0).result;
+
+        auto meta = app.getLedgerManager().getLastClosedLedgerTxMeta();
+        REQUIRE(meta.size() == 1);
+        recordOrCheckGlobalTestTxMetadata(meta.back().getXDR());
     }
     else
     {
