@@ -45,7 +45,7 @@ defaultUploadWasmResourcesWithoutFootprint(RustBuf const& wasm,
 // Creates a valid transaction for uploading provided Wasm.
 // Fills in the valid footprint automatically in case if `uploadResources`
 // doesn't contain it.
-TransactionTestFramePtr
+TransactionFrameBaseConstPtr
 makeSorobanWasmUploadTx(Application& app, TestAccount& source,
                         RustBuf const& wasm, SorobanResources& uploadResources,
                         uint32_t inclusionFee);
@@ -68,12 +68,12 @@ struct ConstructorParams
 // Creates a valid transaction for creating a contract.
 // Fills in the valid footprint automatically in case if `createResources`
 // doesn't contain it.
-TransactionTestFramePtr makeSorobanCreateContractTx(
+TransactionFrameBaseConstPtr makeSorobanCreateContractTx(
     Application& app, TestAccount& source, ContractIDPreimage const& idPreimage,
     ContractExecutable const& executable, SorobanResources& createResources,
     uint32_t inclusionFee, ConstructorParams const& constructorParams);
 
-TransactionTestFramePtr makeSorobanCreateContractTx(
+TransactionFrameBaseConstPtr makeSorobanCreateContractTx(
     Application& app, TestAccount& source, ContractIDPreimage const& idPreimage,
     ContractExecutable const& executable, SorobanResources& createResources,
     uint32_t inclusionFee);
@@ -124,7 +124,7 @@ class SorobanInvocationSpec
     SorobanInvocationSpec setInclusionFee(uint32_t fee) const;
 };
 
-TransactionTestFramePtr sorobanTransactionFrameFromOps(
+TransactionFrameBaseConstPtr sorobanTransactionFrameFromOps(
     Hash const& networkID, TestAccount& source,
     std::vector<Operation> const& ops, std::vector<SecretKey> const& opKeys,
     SorobanInvocationSpec const& spec,
@@ -176,6 +176,7 @@ class TestContract
         Operation mOp;
 
         std::optional<InvokeHostFunctionResultCode> mResultCode;
+        int64_t mFeeCharged = 0;
         std::optional<TransactionMetaFrame> mTxMeta;
         bool mDeduplicateFootprint = false;
 
@@ -206,12 +207,13 @@ class TestContract
 
         SorobanInvocationSpec getSpec();
 
-        TransactionTestFramePtr createTx(TestAccount* source = nullptr);
+        TransactionFrameBaseConstPtr createTx(TestAccount* source = nullptr);
         bool invoke(TestAccount* source = nullptr);
 
         SCVal getReturnValue() const;
         TransactionMetaFrame const& getTxMeta() const;
         std::optional<InvokeHostFunctionResultCode> getResultCode() const;
+        int64_t getFeeCharged() const;
     };
 
     TestContract(SorobanTest& test, SCAddress const& address,
@@ -243,7 +245,7 @@ class SorobanTest
     static int64_t computeFeePerIncrement(int64_t resourceVal, int64_t feeRate,
                                           int64_t increment);
 
-    void invokeArchivalOp(TransactionTestFramePtr tx,
+    void invokeArchivalOp(TransactionFrameBaseConstPtr tx,
                           int64_t expectedRefundableFeeCharged);
 
     Hash uploadWasm(RustBuf const& wasm, SorobanResources& uploadResources);
@@ -292,21 +294,21 @@ class SorobanTest
     TestAccount& getRoot();
     TestAccount& getDummyAccount();
     SorobanNetworkConfig const& getNetworkCfg();
-    uint32_t getLedgerSeq() const;
+    uint32_t getLCLSeq() const;
     uint32_t getLedgerVersion() const;
 
-    TransactionTestFramePtr createExtendOpTx(SorobanResources const& resources,
-                                             uint32_t extendTo, uint32_t fee,
-                                             int64_t refundableFee,
-                                             TestAccount* source = nullptr);
-    TransactionTestFramePtr createRestoreTx(SorobanResources const& resources,
-                                            uint32_t fee, int64_t refundableFee,
-                                            TestAccount* source = nullptr);
+    TransactionFrameBaseConstPtr
+    createExtendOpTx(SorobanResources const& resources, uint32_t extendTo,
+                     uint32_t fee, int64_t refundableFee,
+                     TestAccount* source = nullptr);
+    TransactionFrameBaseConstPtr
+    createRestoreTx(SorobanResources const& resources, uint32_t fee,
+                    int64_t refundableFee, TestAccount* source = nullptr);
 
-    bool isTxValid(TransactionTestFramePtr tx);
+    bool isTxValid(TransactionFrameBaseConstPtr tx);
 
-    bool invokeTx(TransactionTestFramePtr tx,
-                  TransactionMetaFrame* txMeta = nullptr);
+    TransactionResult invokeTx(TransactionFrameBaseConstPtr tx,
+                               TransactionMetaFrame* txMeta = nullptr);
 
     uint32_t getTTL(LedgerKey const& k);
     bool isEntryLive(LedgerKey const& k, uint32_t ledgerSeq);
