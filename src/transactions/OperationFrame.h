@@ -10,13 +10,7 @@
 #include "overlay/StellarXDR.h"
 #include "transactions/MutableTransactionResult.h"
 #include "util/types.h"
-#include <medida/metrics_registry.h>
 #include <memory>
-
-namespace medida
-{
-class MetricsRegistry;
-}
 
 namespace stellar
 {
@@ -73,13 +67,13 @@ class OperationFrame
     virtual ~OperationFrame() = default;
 
     bool checkSignature(SignatureChecker& signatureChecker,
-                        AbstractLedgerTxn& ltx, OperationResult& res,
+                        LedgerSnapshot const& ls, OperationResult& res,
                         bool forApply) const;
 
     AccountID getSourceID() const;
 
     bool checkValid(Application& app, SignatureChecker& signatureChecker,
-                    AbstractLedgerTxn& ltxOuter, bool forApply,
+                    LedgerSnapshot const& ls, bool forApply,
                     OperationResult& res,
                     std::shared_ptr<SorobanTxData> sorobanData) const;
 

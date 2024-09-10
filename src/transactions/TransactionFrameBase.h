@@ -7,6 +7,7 @@
 #include <optional>
 
 #include "ledger/LedgerHashUtils.h"
+#include "ledger/LedgerStateSnapshot.h"
 #include "ledger/NetworkConfig.h"
 #include "main/Config.h"
 #include "overlay/StellarXDR.h"
@@ -43,9 +44,8 @@ class TransactionFrameBase
     virtual bool apply(Application& app, AbstractLedgerTxn& ltx,
                        TransactionMetaFrame& meta, MutableTxResultPtr txResult,
                        Hash const& sorobanBasePrngSeed = Hash{}) const = 0;
-
     virtual MutableTxResultPtr
-    checkValid(Application& app, AbstractLedgerTxn& ltxOuter,
+    checkValid(Application& app, LedgerSnapshot const& ls,
                SequenceNumber current, uint64_t lowerBoundCloseTimeOffset,
                uint64_t upperBoundCloseTimeOffset) const = 0;
     virtual bool

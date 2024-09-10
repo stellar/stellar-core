@@ -37,7 +37,6 @@
 #include "util/ProtocolVersion.h"
 #include "util/XDRCereal.h"
 #include <Tracy.hpp>
-#include <medida/metrics_registry.h>
 
 namespace stellar
 {
@@ -45,7 +44,8 @@ namespace stellar
 using namespace std;
 
 static int32_t
-getNeededThreshold(LedgerTxnEntry const& account, ThresholdLevel const level)
+getNeededThreshold(LedgerEntryWrapper const& account,
+                   ThresholdLevel const level)
 {
     auto const& acc = account.current().data.account();
     switch (level)
@@ -142,8 +142,10 @@ OperationFrame::apply(Application& app, SignatureChecker& signatureChecker,
 {
     ZoneScoped;
     CLOG_TRACE(Tx, "{}", xdrToCerealString(mOperation, "Operation"));
+
+    LedgerSnapshot ltxState(ltx);
     bool applyRes =
-        checkValid(app, signatureChecker, ltx, true, res, sorobanData);
+        checkValid(app, signatureChecker, ltxState, true, res, sorobanData);
     if (applyRes)
     {
         applyRes = doApply(app, ltx, sorobanBasePrngSeed, res, sorobanData);
@@ -167,12 +169,12 @@ OperationFrame::isOpSupported(LedgerHeader const&) const
 
 bool
 OperationFrame::checkSignature(SignatureChecker& signatureChecker,
-                               AbstractLedgerTxn& ltx, OperationResult& res,
+                               LedgerSnapshot const& ls, OperationResult& res,
                                bool forApply) const
 {
     ZoneScoped;
-    auto header = ltx.loadHeader();
-    auto sourceAccount = loadSourceAccount(ltx, header);
+    auto header = ls.getLedgerHeader();
+    auto sourceAccount = ls.getAccount(header, mParentTx, getSourceID());
     if (sourceAccount)
     {
         auto neededThreshold =
@@ -216,53 +218,77 @@ OperationFrame::getSourceID() const
 // verifies that the operation is well formed (operation specific)
 bool
 OperationFrame::checkValid(Application& app, SignatureChecker& signatureChecker,
-                           AbstractLedgerTxn& ltxOuter, bool forApply,
+                           LedgerSnapshot const& ls, bool forApply,
                            OperationResult& res,
                            std::shared_ptr<SorobanTxData> sorobanData) const
 {
     ZoneScoped;
-    // Note: ltx is always rolled back so checkValid never modifies the ledger
-    LedgerTxn ltx(ltxOuter);
-    if (!isOpSupported(ltx.loadHeader().current()))
-    {
-        res.code(opNOT_SUPPORTED);
-        return false;
-    }
-
-    auto ledgerVersion = ltx.loadHeader().current().ledgerVersion;
-    if (!forApply ||
-        protocolVersionIsBefore(ledgerVersion, ProtocolVersion::V_10))
-    {
-        if (!checkSignature(signatureChecker, ltx, res, forApply))
+    bool validationResult = false;
+    auto validate = [this, &res, forApply, &signatureChecker, &app,
+                     &sorobanData,
+                     &validationResult](LedgerSnapshot const& ls) {
+        if (!isOpSupported(ls.getLedgerHeader().current()))
         {
-            return false;
+            res.code(opNOT_SUPPORTED);
+            validationResult = false;
+            return;
         }
+
+        auto ledgerVersion = ls.getLedgerHeader().current().ledgerVersion;
+        if (!forApply ||
+            protocolVersionIsBefore(ledgerVersion, ProtocolVersion::V_10))
+        {
+            if (!checkSignature(signatureChecker, ls, res, forApply))
+            {
+                validationResult = false;
+                return;
+            }
+        }
+        else
+        {
+            // for ledger versions >= 10 we need to load account here, as for
+            // previous versions it is done in checkSignature call
+            if (!ls.getAccount(ls.getLedgerHeader(), mParentTx, getSourceID()))
+            {
+                res.code(opNO_ACCOUNT);
+                validationResult = false;
+                return;
+            }
+        }
+
+        if (protocolVersionStartsFrom(ledgerVersion,
+                                      SOROBAN_PROTOCOL_VERSION) &&
+            isSoroban())
+        {
+            releaseAssertOrThrow(sorobanData);
+            auto const& sorobanConfig =
+                app.getLedgerManager().getSorobanNetworkConfig();
+
+            validationResult =
+                doCheckValidForSoroban(sorobanConfig, app.getConfig(),
+                                       ledgerVersion, res, *sorobanData);
+        }
+        else
+        {
+            validationResult = doCheckValid(ledgerVersion, res);
+        }
+    };
+
+    // Older protocol versions contain buggy account loading code,
+    // so preserve nested LedgerTxn to avoid writing to the ledger
+    if (protocolVersionIsBefore(ls.getLedgerHeader().current().ledgerVersion,
+                                ProtocolVersion::V_8) &&
+        forApply)
+    {
+        ls.executeWithMaybeInnerSnapshot(validate);
     }
     else
     {
-        // for ledger versions >= 10 we need to load account here, as for
-        // previous versions it is done in checkSignature call
-        if (!loadSourceAccount(ltx, ltx.loadHeader()))
-        {
-            res.code(opNO_ACCOUNT);
-            return false;
-        }
+        // Validate using read-only snapshot
+        validate(ls);
     }
 
-    if (protocolVersionStartsFrom(ledgerVersion, SOROBAN_PROTOCOL_VERSION) &&
-        isSoroban())
-    {
-        releaseAssertOrThrow(sorobanData);
-        auto const& sorobanConfig =
-            app.getLedgerManager().getSorobanNetworkConfig();
-
-        return doCheckValidForSoroban(sorobanConfig, app.getConfig(),
-                                      ledgerVersion, res, *sorobanData);
-    }
-    else
-    {
-        return doCheckValid(ledgerVersion, res);
-    }
+    return validationResult;
 }
 
 bool

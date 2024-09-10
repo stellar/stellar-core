@@ -3,6 +3,7 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "transactions/TransactionUtils.h"
+#include "bucket/BucketListSnapshot.h"
 #include "crypto/SHA.h"
 #include "crypto/SecretKey.h"
 #include "ledger/InternalLedgerEntry.h"
@@ -993,6 +994,12 @@ SequenceNumber
 getStartingSequenceNumber(LedgerTxnHeader const& header)
 {
     return getStartingSequenceNumber(header.current().ledgerSeq);
+}
+
+SequenceNumber
+getStartingSequenceNumber(LedgerHeader const& header)
+{
+    return getStartingSequenceNumber(header.ledgerSeq);
 }
 
 bool

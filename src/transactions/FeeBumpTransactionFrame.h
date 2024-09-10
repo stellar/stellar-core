@@ -28,10 +28,10 @@ class FeeBumpTransactionFrame : public TransactionFrameBase
     mutable Hash mFullHash;
 
     bool checkSignature(SignatureChecker& signatureChecker,
-                        LedgerTxnEntry const& account,
+                        LedgerEntryWrapper const& account,
                         int32_t neededWeight) const;
 
-    bool commonValidPreSeqNum(AbstractLedgerTxn& ltx,
+    bool commonValidPreSeqNum(LedgerSnapshot const& ls,
                               MutableTransactionResultBase& txResult) const;
 
     enum ValidationType
@@ -43,7 +43,7 @@ class FeeBumpTransactionFrame : public TransactionFrameBase
     };
 
     ValidationType commonValid(SignatureChecker& signatureChecker,
-                               AbstractLedgerTxn& ltxOuter, bool applying,
+                               LedgerSnapshot const& ls, bool applying,
                                MutableTransactionResultBase& txResult) const;
 
     void removeOneTimeSignerKeyFromFeeSource(AbstractLedgerTxn& ltx) const;
@@ -77,7 +77,7 @@ class FeeBumpTransactionFrame : public TransactionFrameBase
                           MutableTxResultPtr txResult) const override;
 
     MutableTxResultPtr
-    checkValid(Application& app, AbstractLedgerTxn& ltxOuter,
+    checkValid(Application& app, LedgerSnapshot const& ls,
                SequenceNumber current, uint64_t lowerBoundCloseTimeOffset,
                uint64_t upperBoundCloseTimeOffset) const override;
     bool
