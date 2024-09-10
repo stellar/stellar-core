@@ -5,6 +5,7 @@
 #include "ledger/NetworkConfig.h"
 #include "bucket/BucketList.h"
 #include "bucket/BucketManager.h"
+#include "bucket/test/BucketTestUtils.h"
 #include "main/Application.h"
 #include "util/ProtocolVersion.h"
 #include <Tracy.hpp>
@@ -1485,7 +1486,9 @@ writeConfigSettingEntry(ConfigSettingEntry const& configSetting,
     {
         auto lcl = app.getLedgerManager().getLastClosedLedgerHeader();
         lcl.header.ledgerSeq += 1;
-        app.getBucketManager().addBatch(app, lcl.header, {}, {e}, {});
+        BucketTestUtils::addBatchAndUpdateSnapshot(
+            app.getBucketManager().getBucketList(), app, lcl.header, {}, {e},
+            {});
     }
 
     LedgerTxn ltx(ltxRoot);

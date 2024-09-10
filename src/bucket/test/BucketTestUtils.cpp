@@ -30,6 +30,21 @@ getAppLedgerVersion(Application::pointer app)
 }
 
 void
+addBatchAndUpdateSnapshot(BucketList& bl, Application& app, LedgerHeader header,
+                          std::vector<LedgerEntry> const& initEntries,
+                          std::vector<LedgerEntry> const& liveEntries,
+                          std::vector<LedgerKey> const& deadEntries)
+{
+    bl.addBatch(app, header.ledgerSeq, header.ledgerVersion, initEntries,
+                liveEntries, deadEntries);
+    if (app.getConfig().isUsingBucketListDB())
+    {
+        app.getBucketManager().getBucketSnapshotManager().updateCurrentSnapshot(
+            std::make_unique<BucketListSnapshot>(bl, header));
+    }
+}
+
+void
 for_versions_with_differing_bucket_logic(
     Config const& cfg, std::function<void(Config const&)> const& f)
 {

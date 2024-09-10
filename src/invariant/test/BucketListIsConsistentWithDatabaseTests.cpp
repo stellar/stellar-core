@@ -112,7 +112,6 @@ struct BucketListGenerator
         LedgerTxn ltx(app->getLedgerTxnRoot(), false);
         REQUIRE(mLedgerSeq == ltx.loadHeader().current().ledgerSeq);
         mLedgerSeq = ++ltx.loadHeader().current().ledgerSeq;
-        auto vers = ltx.loadHeader().current().ledgerVersion;
 
         auto dead = generateDeadEntries(ltx);
         assert(dead.size() <= mLiveKeys.size());

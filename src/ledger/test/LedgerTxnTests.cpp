@@ -3,6 +3,7 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "bucket/BucketManager.h"
+#include "bucket/test/BucketTestUtils.h"
 #include "ledger/LedgerTxn.h"
 #include "ledger/LedgerTxnEntry.h"
 #include "ledger/LedgerTxnHeader.h"
@@ -2633,8 +2634,14 @@ TEST_CASE("LedgerTxnRoot prefetch classic entries", "[ledgertxn]")
         {
             std::vector<LedgerEntry> ledgerVect{entrySet.begin(),
                                                 entrySet.end()};
-            app->getBucketManager().addBatch(*app, ltx.loadHeader().current(),
-                                             {}, ledgerVect, {});
+            LedgerHeader lh;
+            lh.ledgerVersion = app->getLedgerManager()
+                                   .getLastClosedLedgerHeader()
+                                   .header.ledgerVersion;
+            lh.ledgerSeq = 2;
+            BucketTestUtils::addBatchAndUpdateSnapshot(
+                app->getBucketManager().getBucketList(), *app, lh, {},
+                ledgerVect, {});
         }
         ltx.commit();
 
@@ -2863,8 +2870,14 @@ TEST_CASE("LedgerTxnRoot prefetch soroban entries", "[ledgertxn]")
     std::vector<LedgerEntry> ledgerVect{classicEntry, contractDataEntry,
                                         TTLEntry};
     std::vector<LedgerKey> deadKeyVect{deadKey};
-    app->getBucketManager().addBatch(*app, ltx.loadHeader().current(), {},
-                                     ledgerVect, deadKeyVect);
+    LedgerHeader lh;
+    lh.ledgerVersion = app->getLedgerManager()
+                           .getLastClosedLedgerHeader()
+                           .header.ledgerVersion;
+    lh.ledgerSeq = 2;
+    BucketTestUtils::addBatchAndUpdateSnapshot(
+        app->getBucketManager().getBucketList(), *app, lh, {}, ledgerVect,
+        deadKeyVect);
     ltx.commit();
 
     auto addTxn = [&](bool enoughQuota, std::vector<LedgerEntry> entries,

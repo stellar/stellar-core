@@ -16,6 +16,39 @@
 
 using namespace stellar;
 
+TEST_CASE("generate load in protocol 1")
+{
+    Hash networkID = sha256(getTestConfig().NETWORK_PASSPHRASE);
+    Simulation::pointer simulation =
+        Topologies::pair(Simulation::OVER_LOOPBACK, networkID, [](int i) {
+            auto cfg = getTestConfig(i);
+            cfg.TESTING_UPGRADE_MAX_TX_SET_SIZE = 5000;
+            cfg.TESTING_UPGRADE_LEDGER_PROTOCOL_VERSION = 1;
+            cfg.DEPRECATED_SQL_LEDGER_STATE = false;
+            return cfg;
+        });
+
+    simulation->startAllNodes();
+    simulation->crankUntil(
+        [&]() { return simulation->haveAllExternalized(3, 1); },
+        2 * Herder::EXP_LEDGER_TIMESPAN_SECONDS, false);
+
+    auto nodes = simulation->getNodes();
+    auto& app = *nodes[0]; // pick a node to generate load
+
+    auto& loadGen = app.getLoadGenerator();
+    loadGen.generateLoad(GeneratedLoadConfig::createAccountsLoad(
+        /* nAccounts */ 10000,
+        /* txRate */ 1));
+    simulation->crankUntil(
+        [&]() {
+            return app.getMetrics()
+                       .NewMeter({"loadgen", "run", "complete"}, "run")
+                       .count() == 1;
+        },
+        100 * Herder::EXP_LEDGER_TIMESPAN_SECONDS, false);
+}
+
 TEST_CASE("generate load with unique accounts", "[loadgen]")
 {
     Hash networkID = sha256(getTestConfig().NETWORK_PASSPHRASE);

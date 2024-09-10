@@ -11,6 +11,12 @@ namespace stellar
 namespace BucketTestUtils
 {
 
+void addBatchAndUpdateSnapshot(BucketList& bl, Application& app,
+                               LedgerHeader header,
+                               std::vector<LedgerEntry> const& initEntries,
+                               std::vector<LedgerEntry> const& liveEntries,
+                               std::vector<LedgerKey> const& deadEntries);
+
 uint32_t getAppLedgerVersion(Application& app);
 
 uint32_t getAppLedgerVersion(std::shared_ptr<Application> app);

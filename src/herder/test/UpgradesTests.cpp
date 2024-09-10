@@ -311,11 +311,12 @@ testListUpgrades(VirtualClock::system_time_point preferredUpgradeDatetime,
         makeTxCountUpgrade(cfg.TESTING_UPGRADE_MAX_TX_SET_SIZE);
     auto baseReserveUpgrade =
         makeBaseReserveUpgrade(cfg.TESTING_UPGRADE_RESERVE);
-    LedgerTxn ltx(app->getLedgerTxnRoot());
+    auto ls = LedgerSnapshot(*app);
+
     SECTION("protocol version upgrade needed")
     {
         header.ledgerVersion--;
-        auto upgrades = Upgrades{cfg}.createUpgradesFor(header, ltx);
+        auto upgrades = Upgrades{cfg}.createUpgradesFor(header, ls);
         auto expected = shouldListAny
                             ? std::vector<LedgerUpgrade>{protocolVersionUpgrade}
                             : std::vector<LedgerUpgrade>{};
@@ -325,7 +326,7 @@ testListUpgrades(VirtualClock::system_time_point preferredUpgradeDatetime,
     SECTION("base fee upgrade needed")
     {
         header.baseFee /= 2;
-        auto upgrades = Upgrades{cfg}.createUpgradesFor(header, ltx);
+        auto upgrades = Upgrades{cfg}.createUpgradesFor(header, ls);
         auto expected = shouldListAny
                             ? std::vector<LedgerUpgrade>{baseFeeUpgrade}
                             : std::vector<LedgerUpgrade>{};
@@ -335,7 +336,7 @@ testListUpgrades(VirtualClock::system_time_point preferredUpgradeDatetime,
     SECTION("tx count upgrade needed")
     {
         header.maxTxSetSize /= 2;
-        auto upgrades = Upgrades{cfg}.createUpgradesFor(header, ltx);
+        auto upgrades = Upgrades{cfg}.createUpgradesFor(header, ls);
         auto expected = shouldListAny
                             ? std::vector<LedgerUpgrade>{txCountUpgrade}
                             : std::vector<LedgerUpgrade>{};
@@ -345,7 +346,7 @@ testListUpgrades(VirtualClock::system_time_point preferredUpgradeDatetime,
     SECTION("base reserve upgrade needed")
     {
         header.baseReserve /= 2;
-        auto upgrades = Upgrades{cfg}.createUpgradesFor(header, ltx);
+        auto upgrades = Upgrades{cfg}.createUpgradesFor(header, ls);
         auto expected = shouldListAny
                             ? std::vector<LedgerUpgrade>{baseReserveUpgrade}
                             : std::vector<LedgerUpgrade>{};
@@ -358,7 +359,7 @@ testListUpgrades(VirtualClock::system_time_point preferredUpgradeDatetime,
         header.baseFee /= 2;
         header.maxTxSetSize /= 2;
         header.baseReserve /= 2;
-        auto upgrades = Upgrades{cfg}.createUpgradesFor(header, ltx);
+        auto upgrades = Upgrades{cfg}.createUpgradesFor(header, ls);
         auto expected =
             shouldListAny
                 ? std::vector<LedgerUpgrade>{protocolVersionUpgrade,
@@ -672,12 +673,13 @@ TEST_CASE("config upgrade validation", "[upgrades]")
     SECTION("validate for apply")
     {
         LedgerTxn ltx(app->getLedgerTxnRoot());
+        auto ls = LedgerSnapshot(ltx);
         LedgerUpgrade outUpgrade;
         SECTION("valid")
         {
             REQUIRE(Upgrades::isValidForApply(
                         toUpgradeType(makeConfigUpgrade(*configUpgradeSet)),
-                        outUpgrade, *app, ltx,
+                        outUpgrade, *app, ls,
                         header) == Upgrades::UpgradeValidity::VALID);
             REQUIRE(outUpgrade.newConfig() == configUpgradeSet->getKey());
         }
@@ -690,7 +692,7 @@ TEST_CASE("config upgrade validation", "[upgrades]")
                 ConfigUpgradeSetKey{contractID, upgradeHash};
 
             REQUIRE(Upgrades::isValidForApply(toUpgradeType(ledgerUpgrade),
-                                              outUpgrade, *app, ltx, header) ==
+                                              outUpgrade, *app, ls, header) ==
                     Upgrades::UpgradeValidity::INVALID);
         }
         SECTION("not valid")
@@ -706,7 +708,7 @@ TEST_CASE("config upgrade validation", "[upgrades]")
                     REQUIRE(Upgrades::isValidForApply(
                                 toUpgradeType(
                                     makeConfigUpgrade(*configUpgradeSetFrame)),
-                                outUpgrade, *app, ltx, header) ==
+                                outUpgrade, *app, ls, header) ==
                             Upgrades::UpgradeValidity::XDR_INVALID);
                 };
                 SECTION("no updated entries")
@@ -761,7 +763,7 @@ TEST_CASE("config upgrade validation", "[upgrades]")
                     upgrade.newConfig() = upgradeKey;
 
                     REQUIRE(Upgrades::isValidForApply(
-                                toUpgradeType(upgrade), outUpgrade, *app, ltx,
+                                toUpgradeType(upgrade), outUpgrade, *app, ls,
                                 header) == Upgrades::UpgradeValidity::INVALID);
                 }
             }
@@ -771,7 +773,7 @@ TEST_CASE("config upgrade validation", "[upgrades]")
             REQUIRE(Upgrades::isValidForApply(
                         toUpgradeType(makeConfigUpgrade(
                             *makeMaxContractSizeBytesTestUpgrade(ltx, 0))),
-                        outUpgrade, *app, ltx,
+                        outUpgrade, *app, ls,
                         header) == Upgrades::UpgradeValidity::INVALID);
         }
     }
