@@ -596,6 +596,7 @@ exit /b 0
     <ClCompile Include="..\..\src\ledger\LedgerHeaderUtils.cpp" />
     <ClCompile Include="..\..\src\ledger\LedgerManagerImpl.cpp" />
     <ClCompile Include="..\..\src\ledger\LedgerRange.cpp" />
+    <ClCompile Include="..\..\src\ledger\LedgerStateSnapshot.cpp" />
     <ClCompile Include="..\..\src\ledger\LedgerTxn.cpp" />
     <ClCompile Include="..\..\src\ledger\LedgerTxnAccountSQL.cpp" />
     <ClCompile Include="..\..\src\ledger\LedgerTxnClaimableBalanceSQL.cpp" />
@@ -1041,6 +1042,7 @@ exit /b 0
     <ClInclude Include="..\..\src\ledger\LedgerManager.h" />
     <ClInclude Include="..\..\src\ledger\LedgerManagerImpl.h" />
     <ClInclude Include="..\..\src\ledger\LedgerRange.h" />
+    <ClInclude Include="..\..\src\ledger\LedgerStateSnapshot.h" />
     <ClInclude Include="..\..\src\ledger\LedgerTxn.h" />
     <ClInclude Include="..\..\src\ledger\LedgerTxnEntry.h" />
     <ClInclude Include="..\..\src\ledger\LedgerTxnHeader.h" />

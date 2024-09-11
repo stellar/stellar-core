@@ -4331,7 +4331,6 @@ TEST_CASE("Vm instantiation tightening", "[tx][soroban]")
     }
 }
 
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
 TEST_CASE("contract constructor support", "[tx][soroban]")
 {
     Config cfg = getTestConfig();
@@ -4432,4 +4431,3 @@ TEST_CASE("contract constructor support", "[tx][soroban]")
         REQUIRE(invocation.getReturnValue().u32() == 303);
     }
 }
-#endif

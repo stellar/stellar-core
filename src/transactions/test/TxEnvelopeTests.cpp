@@ -2493,7 +2493,6 @@ TEST_CASE("soroban txs not allowed before protocol upgrade",
     REQUIRE(tx->getResult().result.code() == txMALFORMED);
 }
 
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
 TEST_CASE("XDR protocol compatibility validation", "[tx][envelope]")
 {
     auto validateTx = [](ProtocolVersion protocolVersion) {
@@ -2525,7 +2524,6 @@ TEST_CASE("XDR protocol compatibility validation", "[tx][envelope]")
         REQUIRE(res->isSuccess());
     }
 }
-#endif
 
 TEST_CASE_VERSIONS("Soroban extension for non-Soroban tx",
                    "[tx][envelope][soroban]")

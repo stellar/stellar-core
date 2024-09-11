@@ -1377,6 +1377,9 @@
     <ClCompile Include="..\..\src\main\QueryServer.cpp">
       <Filter>main</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\src\ledger\LedgerStateSnapshot.cpp">
+      <Filter>ledger</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\..\lib\util\cpptoml.h">
@@ -2401,6 +2404,9 @@
     </ClInclude>
     <ClInclude Include="..\..\src\main\QueryServer.h">
       <Filter>main</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\ledger\LedgerStateSnapshot.h">
+      <Filter>ledger</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
