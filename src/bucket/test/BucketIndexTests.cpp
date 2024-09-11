@@ -132,7 +132,7 @@ class BucketIndexTest
                                 .copySearchableBucketListSnapshot();
         auto lk = LedgerEntryKey(canonicalEntry);
 
-        auto currentLoadedEntry = searchableBL->getLedgerEntry(lk);
+        auto currentLoadedEntry = searchableBL->load(lk);
         REQUIRE(currentLoadedEntry);
 
         // Note: The definition of "historical snapshot" ledger is that the
@@ -261,7 +261,7 @@ class BucketIndexTest
         loadResult.clear();
         for (auto const& key : mKeysToSearch)
         {
-            auto entryPtr = searchableBL->getLedgerEntry(key);
+            auto entryPtr = searchableBL->load(key);
             if (entryPtr)
             {
                 loadResult.emplace_back(*entryPtr);
@@ -332,7 +332,7 @@ class BucketIndexTest
         // Test individual load
         for (auto const& key : invalidKeys)
         {
-            auto entryPtr = searchableBL->getLedgerEntry(key);
+            auto entryPtr = searchableBL->load(key);
             REQUIRE(!entryPtr);
         }
     }

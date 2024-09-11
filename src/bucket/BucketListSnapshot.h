@@ -30,11 +30,11 @@ class BucketListSnapshot : public NonMovable
   private:
     std::vector<BucketLevelSnapshot> mLevels;
 
-    // ledgerSeq that this BucketList snapshot is based off of
-    uint32_t mLedgerSeq;
+    // LedgerHeader associated with this ledger state snapshot
+    LedgerHeader const mHeader;
 
   public:
-    BucketListSnapshot(BucketList const& bl, uint32_t ledgerSeq);
+    BucketListSnapshot(BucketList const& bl, LedgerHeader hhe);
 
     // Only allow copies via constructor
     BucketListSnapshot(BucketListSnapshot const& snapshot);
@@ -42,6 +42,11 @@ class BucketListSnapshot : public NonMovable
 
     std::vector<BucketLevelSnapshot> const& getLevels() const;
     uint32_t getLedgerSeq() const;
+    LedgerHeader const&
+    getLedgerHeader() const
+    {
+        return mHeader;
+    }
 };
 
 // A lightweight wrapper around BucketListSnapshot for thread safe BucketListDB
@@ -79,7 +84,7 @@ class SearchableBucketListSnapshot : public NonMovableOrCopyable
     std::vector<InflationWinner> loadInflationWinners(size_t maxWinners,
                                                       int64_t minBalance);
 
-    std::shared_ptr<LedgerEntry> getLedgerEntry(LedgerKey const& k);
+    std::shared_ptr<LedgerEntry> load(LedgerKey const& k);
 
     // Loads inKeys from the specified historical snapshot. Returns
     // <load_result_vec, true> if the snapshot for the given ledger is
@@ -97,5 +102,10 @@ class SearchableBucketListSnapshot : public NonMovableOrCopyable
                                    std::shared_ptr<EvictionStatistics> stats,
                                    StateArchivalSettings const& sas);
     uint32_t getLedgerSeq() const;
+    LedgerHeader const&
+    getLedgerHeader() const
+    {
+        return mSnapshot->getLedgerHeader();
+    }
 };
 }

@@ -214,6 +214,7 @@ int64_t getSellingLiabilities(LedgerTxnHeader const& header,
 
 SequenceNumber getStartingSequenceNumber(uint32_t ledgerSeq);
 SequenceNumber getStartingSequenceNumber(LedgerTxnHeader const& header);
+SequenceNumber getStartingSequenceNumber(LedgerHeader const& header);
 
 bool isAuthorized(LedgerEntry const& le);
 bool isAuthorized(LedgerTxnEntry const& entry);

@@ -94,9 +94,21 @@ TransactionTestFrame::checkValid(Application& app, AbstractLedgerTxn& ltxOuter,
                                  uint64_t lowerBoundCloseTimeOffset,
                                  uint64_t upperBoundCloseTimeOffset) const
 {
+    LedgerTxn ltx(ltxOuter);
+    auto ls = LedgerSnapshot(ltx);
     mTransactionTxResult = mTransactionFrame->checkValid(
-        app, ltxOuter, current, lowerBoundCloseTimeOffset,
-        upperBoundCloseTimeOffset);
+        app, ls, current, lowerBoundCloseTimeOffset, upperBoundCloseTimeOffset);
+    return mTransactionTxResult;
+}
+
+MutableTxResultPtr
+TransactionTestFrame::checkValid(Application& app, LedgerSnapshot const& ls,
+                                 SequenceNumber current,
+                                 uint64_t lowerBoundCloseTimeOffset,
+                                 uint64_t upperBoundCloseTimeOffset) const
+{
+    mTransactionTxResult = mTransactionFrame->checkValid(
+        app, ls, current, lowerBoundCloseTimeOffset, upperBoundCloseTimeOffset);
     return mTransactionTxResult;
 }
 

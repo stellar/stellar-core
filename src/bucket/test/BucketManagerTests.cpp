@@ -358,9 +358,12 @@ TEST_CASE_VERSIONS("bucketmanager reattach to finished merge",
         do
         {
             ++ledger;
-            bl.addBatch(*app, ledger, vers, {},
-                        LedgerTestUtils::generateValidUniqueLedgerEntries(10),
-                        {});
+            auto lh =
+                app->getLedgerManager().getLastClosedLedgerHeader().header;
+            lh.ledgerSeq = ledger;
+            addBatchAndUpdateSnapshot(
+                bl, *app, lh, {},
+                LedgerTestUtils::generateValidUniqueLedgerEntries(10), {});
             bm.forgetUnreferencedBuckets();
         } while (!BucketList::levelShouldSpill(ledger, level - 1));
 
@@ -442,9 +445,12 @@ TEST_CASE_VERSIONS("bucketmanager reattach to running merge",
             // Merges will start on one or more levels here, starting a race
             // between the main thread here and the background workers doing
             // the merges.
-            bl.addBatch(*app, ledger, vers, {},
-                        LedgerTestUtils::generateValidUniqueLedgerEntries(100),
-                        {});
+            auto lh =
+                app->getLedgerManager().getLastClosedLedgerHeader().header;
+            lh.ledgerSeq = ledger;
+            addBatchAndUpdateSnapshot(
+                bl, *app, lh, {},
+                LedgerTestUtils::generateValidUniqueLedgerEntries(100), {});
 
             bm.forgetUnreferencedBuckets();
 
@@ -577,9 +583,12 @@ TEST_CASE_VERSIONS(
             auto ra = bm.readMergeCounters().mFinishedMergeReattachments;
             CLOG_INFO(Bucket, "finished-merge reattachments while queueing: {}",
                       ra);
-            bl.addBatch(*app, lm.getLastClosedLedgerNum() + 1, vers, {},
-                        LedgerTestUtils::generateValidUniqueLedgerEntries(100),
-                        {});
+            auto lh =
+                app->getLedgerManager().getLastClosedLedgerHeader().header;
+            lh.ledgerSeq++;
+            addBatchAndUpdateSnapshot(
+                bl, *app, lh, {},
+                LedgerTestUtils::generateValidUniqueLedgerEntries(100), {});
             clock.crank(false);
             bm.forgetUnreferencedBuckets();
         }

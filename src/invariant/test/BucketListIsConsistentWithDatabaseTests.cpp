@@ -112,7 +112,6 @@ struct BucketListGenerator
         LedgerTxn ltx(app->getLedgerTxnRoot(), false);
         REQUIRE(mLedgerSeq == ltx.loadHeader().current().ledgerSeq);
         mLedgerSeq = ++ltx.loadHeader().current().ledgerSeq;
-        auto vers = ltx.loadHeader().current().ledgerVersion;
 
         auto dead = generateDeadEntries(ltx);
         assert(dead.size() <= mLiveKeys.size());
@@ -142,9 +141,10 @@ struct BucketListGenerator
 
         std::vector<LedgerEntry> initEntries, liveEntries;
         std::vector<LedgerKey> deadEntries;
+        auto header = ltx.loadHeader().current();
         ltx.getAllEntries(initEntries, liveEntries, deadEntries);
-        app->getBucketManager().addBatch(*app, mLedgerSeq, vers, initEntries,
-                                         liveEntries, deadEntries);
+        app->getBucketManager().addBatch(*app, header, initEntries, liveEntries,
+                                         deadEntries);
         ltx.commit();
     }
 

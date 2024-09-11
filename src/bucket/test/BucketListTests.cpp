@@ -143,8 +143,11 @@ TEST_CASE_VERSIONS("bucket list", "[bucket][bucketlist]")
                  !app->getClock().getIOContext().stopped() && i < 130; ++i)
             {
                 app->getClock().crank(false);
-                bl.addBatch(
-                    *app, i, getAppLedgerVersion(app), {},
+                auto lh =
+                    app->getLedgerManager().getLastClosedLedgerHeader().header;
+                lh.ledgerSeq = i;
+                addBatchAndUpdateSnapshot(
+                    bl, *app, lh, {},
                     LedgerTestUtils::generateValidUniqueLedgerEntries(8),
                     LedgerTestUtils::generateValidLedgerEntryKeysWithExclusions(
                         {CONFIG_SETTING}, 5));
@@ -268,8 +271,11 @@ TEST_CASE_VERSIONS("bucket list shadowing pre/post proto 12",
             BucketEntryBob.liveEntry().data.account() = bob;
             liveBatch.push_back(BucketEntryBob.liveEntry());
 
-            bl.addBatch(
-                *app, i, getAppLedgerVersion(app), {}, liveBatch,
+            auto lh =
+                app->getLedgerManager().getLastClosedLedgerHeader().header;
+            lh.ledgerSeq = i;
+            addBatchAndUpdateSnapshot(
+                bl, *app, lh, {}, liveBatch,
                 LedgerTestUtils::generateValidLedgerEntryKeysWithExclusions(
                     {CONFIG_SETTING}, 5));
             if (i % 100 == 0)
@@ -366,8 +372,11 @@ TEST_CASE_VERSIONS("bucket tombstones expire at bottom level",
             for (auto j : ledgers)
             {
                 auto n = mergeTimer.count();
-                bl.addBatch(
-                    *app, j, getAppLedgerVersion(app), {},
+                auto lh =
+                    app->getLedgerManager().getLastClosedLedgerHeader().header;
+                lh.ledgerSeq = j;
+                addBatchAndUpdateSnapshot(
+                    bl, *app, lh, {},
                     LedgerTestUtils::generateValidUniqueLedgerEntries(8),
                     LedgerTestUtils::generateValidLedgerEntryKeysWithExclusions(
                         {CONFIG_SETTING}, 5));
@@ -407,7 +416,6 @@ TEST_CASE_VERSIONS("bucket tombstones mutually-annihilate init entries",
     for_versions_with_differing_bucket_logic(cfg, [&](Config const& cfg) {
         Application::pointer app = createTestApplication(clock, cfg);
         BucketList bl;
-        auto vers = getAppLedgerVersion(app);
         autocheck::generator<bool> flip;
         std::deque<LedgerEntry> entriesToModify;
         for (uint32_t i = 1; i < 512; ++i)
@@ -443,7 +451,11 @@ TEST_CASE_VERSIONS("bucket tombstones mutually-annihilate init entries",
                     deadEntries.push_back(LedgerEntryKey(e));
                 }
             }
-            bl.addBatch(*app, i, vers, initEntries, liveEntries, deadEntries);
+            auto lh =
+                app->getLedgerManager().getLastClosedLedgerHeader().header;
+            lh.ledgerSeq = i;
+            addBatchAndUpdateSnapshot(bl, *app, lh, initEntries, liveEntries,
+                                      deadEntries);
             app->getClock().crank(false);
             for (uint32_t k = 0u; k < BucketList::kNumLevels; ++k)
             {
@@ -487,17 +499,21 @@ TEST_CASE_VERSIONS("single entry bubbling up",
             std::vector<stellar::LedgerEntry> emptySetEntry;
 
             CLOG_DEBUG(Bucket, "Adding single entry in lowest level");
-            bl.addBatch(*app, 1, getAppLedgerVersion(app), {},
-                        LedgerTestUtils::generateValidLedgerEntries(1),
-                        emptySet);
+            addBatchAndUpdateSnapshot(
+                bl, *app,
+                app->getLedgerManager().getLastClosedLedgerHeader().header, {},
+                LedgerTestUtils::generateValidLedgerEntries(1), emptySet);
 
             CLOG_DEBUG(Bucket, "Adding empty batches to bucket list");
             for (uint32_t i = 2;
                  !app->getClock().getIOContext().stopped() && i < 300; ++i)
             {
                 app->getClock().crank(false);
-                bl.addBatch(*app, i, getAppLedgerVersion(app), {},
-                            emptySetEntry, emptySet);
+                auto lh =
+                    app->getLedgerManager().getLastClosedLedgerHeader().header;
+                lh.ledgerSeq = i;
+                addBatchAndUpdateSnapshot(bl, *app, lh, {}, emptySetEntry,
+                                          emptySet);
                 if (i % 10 == 0)
                     CLOG_DEBUG(Bucket, "Added batch {}, hash={}", i,
                                binToHex(bl.getHash()));
@@ -655,8 +671,11 @@ TEST_CASE("BucketList check bucket sizes", "[bucket][bucketlist][count]")
         {
             app->getClock().crank(false);
             ledgers[ledgerSeq - 1].lastModifiedLedgerSeq = ledgerSeq;
-            bl.addBatch(*app, ledgerSeq, getAppLedgerVersion(app), {},
-                        {ledgers[ledgerSeq - 1]}, emptySet);
+            auto lh =
+                app->getLedgerManager().getLastClosedLedgerHeader().header;
+            lh.ledgerSeq = ledgerSeq;
+            addBatchAndUpdateSnapshot(bl, *app, lh, {},
+                                      {ledgers[ledgerSeq - 1]}, emptySet);
         }
         for (uint32_t level = 0; level < BucketList::kNumLevels; ++level)
         {
@@ -1262,7 +1281,7 @@ TEST_CASE_VERSIONS("Searchable BucketListDB snapshots", "[bucketlist]")
         closeLedger(*app);
 
         // Snapshot should automatically update with latest version
-        auto loadedEntry = searchableBL->getLedgerEntry(LedgerEntryKey(entry));
+        auto loadedEntry = searchableBL->load(LedgerEntryKey(entry));
         REQUIRE((loadedEntry && *loadedEntry == entry));
     }
 }

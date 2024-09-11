@@ -61,8 +61,12 @@ class TransactionTestFrame : public TransactionFrameBase
                TransactionMetaFrame& meta, MutableTxResultPtr txResult,
                Hash const& sorobanBasePrngSeed = Hash{}) const override;
 
+    MutableTxResultPtr checkValid(Application& app, AbstractLedgerTxn& ltxOuter,
+                                  SequenceNumber current,
+                                  uint64_t lowerBoundCloseTimeOffset,
+                                  uint64_t upperBoundCloseTimeOffset) const;
     MutableTxResultPtr
-    checkValid(Application& app, AbstractLedgerTxn& ltxOuter,
+    checkValid(Application& app, LedgerSnapshot const& ls,
                SequenceNumber current, uint64_t lowerBoundCloseTimeOffset,
                uint64_t upperBoundCloseTimeOffset) const override;
     bool

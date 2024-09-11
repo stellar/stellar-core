@@ -122,11 +122,13 @@ class LedgerManagerImpl : public LedgerManager
     // values are the same except on the ledger in which a protocol upgrade from
     // vN to vN + 1 occurs. initialLedgerVers must be vN and currLedgerVers must
     // be vN + 1.
+
+    // NB: LedgerHeader is a copy here to prevent footguns in case ltx
+    // invalidates any header references
     virtual void transferLedgerEntriesToBucketList(
         AbstractLedgerTxn& ltx,
         std::unique_ptr<LedgerCloseMetaFrame> const& ledgerCloseMeta,
-        uint32_t ledgerSeq, uint32_t currLedgerVers,
-        uint32_t initialLedgerVers);
+        LedgerHeader lh, uint32_t initialLedgerVers);
 
     void advanceLedgerPointers(LedgerHeader const& header,
                                bool debugLog = true);

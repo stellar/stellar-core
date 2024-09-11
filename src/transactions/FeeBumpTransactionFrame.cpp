@@ -138,7 +138,7 @@ FeeBumpTransactionFrame::processPostApply(Application& app,
 
 bool
 FeeBumpTransactionFrame::checkSignature(SignatureChecker& signatureChecker,
-                                        LedgerTxnEntry const& account,
+                                        LedgerEntryWrapper const& account,
                                         int32_t neededWeight) const
 {
     auto& acc = account.current().data.account();
@@ -154,8 +154,7 @@ FeeBumpTransactionFrame::checkSignature(SignatureChecker& signatureChecker,
 }
 
 MutableTxResultPtr
-FeeBumpTransactionFrame::checkValid(Application& app,
-                                    AbstractLedgerTxn& ltxOuter,
+FeeBumpTransactionFrame::checkValid(Application& app, LedgerSnapshot const& ls,
                                     SequenceNumber current,
                                     uint64_t lowerBoundCloseTimeOffset,
                                     uint64_t upperBoundCloseTimeOffset) const
@@ -168,15 +167,14 @@ FeeBumpTransactionFrame::checkValid(Application& app,
         return txResult;
     }
 
-    LedgerTxn ltx(ltxOuter);
-    int64_t minBaseFee = ltx.loadHeader().current().baseFee;
+    int64_t minBaseFee = ls.getLedgerHeader().current().baseFee;
     auto txResult = createSuccessResultWithFeeCharged(
-        ltx.loadHeader().current(), minBaseFee, false);
+        ls.getLedgerHeader().current(), minBaseFee, false);
 
-    SignatureChecker signatureChecker{ltx.loadHeader().current().ledgerVersion,
-                                      getContentsHash(),
-                                      mEnvelope.feeBump().signatures};
-    if (commonValid(signatureChecker, ltx, false, *txResult) !=
+    SignatureChecker signatureChecker{
+        ls.getLedgerHeader().current().ledgerVersion, getContentsHash(),
+        mEnvelope.feeBump().signatures};
+    if (commonValid(signatureChecker, ls, false, *txResult) !=
         ValidationType::kFullyValid)
     {
         return txResult;
@@ -189,7 +187,7 @@ FeeBumpTransactionFrame::checkValid(Application& app,
     }
 
     auto innerTxResult = mInnerTx->checkValidWithOptionallyChargedFee(
-        app, ltx, current, false, lowerBoundCloseTimeOffset,
+        app, ls, current, false, lowerBoundCloseTimeOffset,
         upperBoundCloseTimeOffset);
     auto finalTxResult = createSuccessResultWithNewInnerTx(
         std::move(txResult), std::move(innerTxResult), mInnerTx);
@@ -207,12 +205,12 @@ FeeBumpTransactionFrame::checkSorobanResourceAndSetError(
 
 bool
 FeeBumpTransactionFrame::commonValidPreSeqNum(
-    AbstractLedgerTxn& ltx, MutableTransactionResultBase& txResult) const
+    LedgerSnapshot const& ls, MutableTransactionResultBase& txResult) const
 {
     // this function does validations that are independent of the account state
     //    (stay true regardless of other side effects)
 
-    auto header = ltx.loadHeader();
+    auto header = ls.getLedgerHeader();
     if (protocolVersionIsBefore(header.current().ledgerVersion,
                                 ProtocolVersion::V_13))
     {
@@ -256,7 +254,7 @@ FeeBumpTransactionFrame::commonValidPreSeqNum(
         return false;
     }
 
-    if (!stellar::loadAccount(ltx, getFeeSourceID()))
+    if (!ls.getAccount(getFeeSourceID()))
     {
         txResult.setResultCode(txNO_ACCOUNT);
         return false;
@@ -267,18 +265,17 @@ FeeBumpTransactionFrame::commonValidPreSeqNum(
 
 FeeBumpTransactionFrame::ValidationType
 FeeBumpTransactionFrame::commonValid(
-    SignatureChecker& signatureChecker, AbstractLedgerTxn& ltxOuter,
-    bool applying, MutableTransactionResultBase& txResult) const
+    SignatureChecker& signatureChecker, LedgerSnapshot const& ls, bool applying,
+    MutableTransactionResultBase& txResult) const
 {
-    LedgerTxn ltx(ltxOuter);
     ValidationType res = ValidationType::kInvalid;
 
-    if (!commonValidPreSeqNum(ltx, txResult))
+    if (!commonValidPreSeqNum(ls, txResult))
     {
         return res;
     }
 
-    auto feeSource = stellar::loadAccount(ltx, getFeeSourceID());
+    auto const feeSource = ls.getAccount(getFeeSourceID());
     if (!checkSignature(
             signatureChecker, feeSource,
             feeSource.current().data.account().thresholds[THRESHOLD_LOW]))
@@ -289,14 +286,14 @@ FeeBumpTransactionFrame::commonValid(
 
     res = ValidationType::kInvalidPostAuth;
 
-    auto header = ltx.loadHeader();
+    auto header = ls.getLedgerHeader();
     // if we are in applying mode fee was already deduced from signing account
     // balance, if not, we need to check if after that deduction this account
     // will still have minimum balance
     int64_t feeToPay = applying ? 0 : getFullFee();
     // don't let the account go below the reserve after accounting for
     // liabilities
-    if (getAvailableBalance(header, feeSource) < feeToPay)
+    if (getAvailableBalance(header.current(), feeSource.current()) < feeToPay)
     {
         txResult.setResultCode(txINSUFFICIENT_BALANCE);
         return res;

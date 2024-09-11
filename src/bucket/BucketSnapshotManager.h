@@ -58,22 +58,11 @@ class BucketSnapshotManager : NonMovableOrCopyable
 
     mutable std::optional<VirtualClock::time_point> mTimerStart;
 
+  public:
     // Called by main thread to update mCurrentSnapshot whenever the BucketList
     // is updated
     void updateCurrentSnapshot(
         std::unique_ptr<BucketListSnapshot const>&& newSnapshot);
-
-    friend void
-    BucketManagerImpl::addBatch(Application& app, uint32_t currLedger,
-                                uint32_t currLedgerProtocol,
-                                std::vector<LedgerEntry> const& initEntries,
-                                std::vector<LedgerEntry> const& liveEntries,
-                                std::vector<LedgerKey> const& deadEntries);
-    friend void BucketManagerImpl::assumeState(HistoryArchiveState const& has,
-                                               uint32_t maxProtocolVersion,
-                                               bool restartMerges);
-
-  public:
     // numHistoricalLedgers is the number of historical snapshots that the
     // snapshot manager will maintain. If numHistoricalLedgers is 5, snapshots
     // will be capable of querying state from ledger [lcl, lcl - 5].

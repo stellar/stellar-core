@@ -369,7 +369,7 @@ HerderSCPDriver::validateValue(uint64_t slotIndex, Value const& value,
         {
             LedgerUpgradeType thisUpgradeType;
             if (!mUpgrades.isValid(b.upgrades[i], thisUpgradeType, nomination,
-                                   mApp, lcl.header))
+                                   mApp))
             {
                 CLOG_TRACE(Herder,
                            "HerderSCPDriver::validateValue invalid step at "
@@ -424,8 +424,7 @@ HerderSCPDriver::extractValidValue(uint64_t slotIndex, Value const& value)
         LedgerUpgradeType thisUpgradeType;
         for (auto it = b.upgrades.begin(); it != b.upgrades.end();)
         {
-            if (!mUpgrades.isValid(*it, thisUpgradeType, true, mApp,
-                                   lcl.header))
+            if (!mUpgrades.isValid(*it, thisUpgradeType, true, mApp))
             {
                 it = b.upgrades.erase(it);
             }

@@ -142,18 +142,18 @@ TxSetUtils::getInvalidTxList(TxSetTransactions const& txs, Application& app,
                              uint64_t upperBoundCloseTimeOffset)
 {
     ZoneScoped;
-    LedgerTxn ltx(app.getLedgerTxnRoot(), /* shouldUpdateLastModified */ true,
-                  TransactionMode::READ_ONLY_WITHOUT_SQL_TXN);
+    releaseAssert(threadIsMain());
+    LedgerSnapshot ls(app);
     // This is done so minSeqLedgerGap is validated against the next
     // ledgerSeq, which is what will be used at apply time
-    ltx.loadHeader().current().ledgerSeq =
+    ls.getLedgerHeader().currentToModify().ledgerSeq =
         app.getLedgerManager().getLastClosedLedgerNum() + 1;
 
     TxSetTransactions invalidTxs;
 
     for (auto const& tx : txs)
     {
-        auto txResult = tx->checkValid(app, ltx, 0, lowerBoundCloseTimeOffset,
+        auto txResult = tx->checkValid(app, ls, 0, lowerBoundCloseTimeOffset,
                                        upperBoundCloseTimeOffset);
         if (!txResult->isSuccess())
         {

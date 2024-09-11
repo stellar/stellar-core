@@ -13,8 +13,9 @@
 namespace stellar
 {
 
-BucketListSnapshot::BucketListSnapshot(BucketList const& bl, uint32_t ledgerSeq)
-    : mLedgerSeq(ledgerSeq)
+BucketListSnapshot::BucketListSnapshot(BucketList const& bl,
+                                       LedgerHeader header)
+    : mHeader(std::move(header))
 {
     releaseAssert(threadIsMain());
 
@@ -26,7 +27,7 @@ BucketListSnapshot::BucketListSnapshot(BucketList const& bl, uint32_t ledgerSeq)
 }
 
 BucketListSnapshot::BucketListSnapshot(BucketListSnapshot const& snapshot)
-    : mLevels(snapshot.mLevels), mLedgerSeq(snapshot.mLedgerSeq)
+    : mLevels(snapshot.mLevels), mHeader(snapshot.mHeader)
 {
 }
 
@@ -39,7 +40,7 @@ BucketListSnapshot::getLevels() const
 uint32_t
 BucketListSnapshot::getLedgerSeq() const
 {
-    return mLedgerSeq;
+    return mHeader.ledgerSeq;
 }
 
 // Loops through all buckets in the given snapshot, starting with curr at level
@@ -177,7 +178,7 @@ SearchableBucketListSnapshot::scanForEviction(
 }
 
 std::shared_ptr<LedgerEntry>
-SearchableBucketListSnapshot::getLedgerEntry(LedgerKey const& k)
+SearchableBucketListSnapshot::load(LedgerKey const& k)
 {
     ZoneScoped;
     mSnapshotManager.maybeUpdateSnapshot(mSnapshot, mHistoricalSnapshots);
@@ -389,4 +390,5 @@ SearchableBucketListSnapshot::SearchableBucketListSnapshot(
     // Initialize snapshot from SnapshotManager
     mSnapshotManager.maybeUpdateSnapshot(mSnapshot, mHistoricalSnapshots);
 }
+
 }

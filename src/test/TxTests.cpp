@@ -1810,7 +1810,8 @@ makeConfigUpgradeSet(AbstractLedgerTxn& ltx, ConfigUpgradeSet configUpgradeSet,
     ltx.create(InternalLedgerEntry(ttl));
 
     auto upgradeKey = ConfigUpgradeSetKey{contractID, hashOfUpgradeSet};
-    return ConfigUpgradeSetFrame::makeFromKey(ltx, upgradeKey);
+    LedgerSnapshot lsg(ltx);
+    return ConfigUpgradeSetFrame::makeFromKey(lsg, upgradeKey);
 }
 
 LedgerUpgrade

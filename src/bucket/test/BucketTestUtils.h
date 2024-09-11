@@ -11,6 +11,12 @@ namespace stellar
 namespace BucketTestUtils
 {
 
+void addBatchAndUpdateSnapshot(BucketList& bl, Application& app,
+                               LedgerHeader header,
+                               std::vector<LedgerEntry> const& initEntries,
+                               std::vector<LedgerEntry> const& liveEntries,
+                               std::vector<LedgerKey> const& deadEntries);
+
 uint32_t getAppLedgerVersion(Application& app);
 
 uint32_t getAppLedgerVersion(std::shared_ptr<Application> app);
@@ -56,8 +62,7 @@ class LedgerManagerForBucketTests : public LedgerManagerImpl
     void transferLedgerEntriesToBucketList(
         AbstractLedgerTxn& ltx,
         std::unique_ptr<LedgerCloseMetaFrame> const& ledgerCloseMeta,
-        uint32_t ledgerSeq, uint32_t currLedgerVers,
-        uint32_t initialLedgerVers) override;
+        LedgerHeader lh, uint32_t initialLedgerVers) override;
 
   public:
     void

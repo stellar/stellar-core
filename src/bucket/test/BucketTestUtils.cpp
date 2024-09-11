@@ -30,6 +30,21 @@ getAppLedgerVersion(Application::pointer app)
 }
 
 void
+addBatchAndUpdateSnapshot(BucketList& bl, Application& app, LedgerHeader header,
+                          std::vector<LedgerEntry> const& initEntries,
+                          std::vector<LedgerEntry> const& liveEntries,
+                          std::vector<LedgerKey> const& deadEntries)
+{
+    bl.addBatch(app, header.ledgerSeq, header.ledgerVersion, initEntries,
+                liveEntries, deadEntries);
+    if (app.getConfig().isUsingBucketListDB())
+    {
+        app.getBucketManager().getBucketSnapshotManager().updateCurrentSnapshot(
+            std::make_unique<BucketListSnapshot>(bl, header));
+    }
+}
+
+void
 for_versions_with_differing_bucket_logic(
     Config const& cfg, std::function<void(Config const&)> const& f)
 {
@@ -105,7 +120,7 @@ void
 LedgerManagerForBucketTests::transferLedgerEntriesToBucketList(
     AbstractLedgerTxn& ltx,
     std::unique_ptr<LedgerCloseMetaFrame> const& ledgerCloseMeta,
-    uint32_t ledgerSeq, uint32_t currLedgerVers, uint32_t initialLedgerVers)
+    LedgerHeader lh, uint32_t initialLedgerVers)
 {
     if (mUseTestEntries)
     {
@@ -151,12 +166,12 @@ LedgerManagerForBucketTests::transferLedgerEntriesToBucketList(
                 if (mApp.getConfig().isUsingBackgroundEviction())
                 {
                     mApp.getBucketManager().resolveBackgroundEvictionScan(
-                        ltxEvictions, ledgerSeq, keys);
+                        ltxEvictions, lh.ledgerSeq, keys);
                 }
                 else
                 {
                     mApp.getBucketManager().scanForEvictionLegacy(ltxEvictions,
-                                                                  ledgerSeq);
+                                                                  lh.ledgerSeq);
                 }
 
                 if (ledgerCloseMeta)
@@ -168,7 +183,7 @@ LedgerManagerForBucketTests::transferLedgerEntriesToBucketList(
             }
             mApp.getLedgerManager()
                 .getMutableSorobanNetworkConfig()
-                .maybeSnapshotBucketListSize(ledgerSeq, ltx, mApp);
+                .maybeSnapshotBucketListSize(lh.ledgerSeq, ltx, mApp);
         }
 
         ltx.getAllEntries(init, live, dead);
@@ -186,15 +201,14 @@ LedgerManagerForBucketTests::transferLedgerEntriesToBucketList(
         }
 
         // Use the testing values.
-        mApp.getBucketManager().addBatch(mApp, ledgerSeq, currLedgerVers,
-                                         mTestInitEntries, mTestLiveEntries,
-                                         mTestDeadEntries);
+        mApp.getBucketManager().addBatch(mApp, lh, mTestInitEntries,
+                                         mTestLiveEntries, mTestDeadEntries);
         mUseTestEntries = false;
     }
     else
     {
         LedgerManagerImpl::transferLedgerEntriesToBucketList(
-            ltx, ledgerCloseMeta, ledgerSeq, currLedgerVers, initialLedgerVers);
+            ltx, ledgerCloseMeta, lh, initialLedgerVers);
     }
 }
 

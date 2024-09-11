@@ -913,6 +913,7 @@ LedgerManagerImpl::closeLedger(LedgerCloseData const& ledgerData)
 
     TransactionResultSet txResultSet;
     txResultSet.results.reserve(txs.size());
+    // Subtle: after this call, `header` is invalidated, and is not safe to use
     applyTransactions(*applicableTxSet, txs, mutableTxResults, ltx, txResultSet,
                       ledgerCloseMeta);
     if (mApp.getConfig().MODE_STORES_HISTORY_MISC)
@@ -929,8 +930,9 @@ LedgerManagerImpl::closeLedger(LedgerCloseData const& ledgerData)
     for (size_t i = 0; i < sv.upgrades.size(); i++)
     {
         LedgerUpgrade lupgrade;
-        auto valid = Upgrades::isValidForApply(sv.upgrades[i], lupgrade, mApp,
-                                               ltx, ltx.loadHeader().current());
+        LedgerSnapshot ls(ltx);
+        auto valid =
+            Upgrades::isValidForApply(sv.upgrades[i], lupgrade, mApp, ls);
         switch (valid)
         {
         case Upgrades::UpgradeValidity::VALID:
@@ -1301,8 +1303,18 @@ LedgerManagerImpl::advanceLedgerPointers(LedgerHeader const& header,
                    ledgerAbbrev(header, ledgerHash));
     }
 
+    auto prevLedgerSeq = mLastClosedLedger.header.ledgerSeq;
     mLastClosedLedger.hash = ledgerHash;
     mLastClosedLedger.header = header;
+
+    if (mApp.getConfig().isUsingBucketListDB() &&
+        header.ledgerSeq != prevLedgerSeq)
+    {
+        mApp.getBucketManager()
+            .getBucketSnapshotManager()
+            .updateCurrentSnapshot(std::make_unique<BucketListSnapshot>(
+                mApp.getBucketManager().getBucketList(), header));
+    }
 }
 
 void
@@ -1668,7 +1680,7 @@ void
 LedgerManagerImpl::transferLedgerEntriesToBucketList(
     AbstractLedgerTxn& ltx,
     std::unique_ptr<LedgerCloseMetaFrame> const& ledgerCloseMeta,
-    uint32_t ledgerSeq, uint32_t currLedgerVers, uint32_t initialLedgerVers)
+    LedgerHeader lh, uint32_t initialLedgerVers)
 {
     ZoneScoped;
     std::vector<LedgerEntry> initEntries, liveEntries;
@@ -1690,12 +1702,12 @@ LedgerManagerImpl::transferLedgerEntriesToBucketList(
             if (mApp.getConfig().isUsingBackgroundEviction())
             {
                 mApp.getBucketManager().resolveBackgroundEvictionScan(
-                    ltxEvictions, ledgerSeq, keys);
+                    ltxEvictions, lh.ledgerSeq, keys);
             }
             else
             {
                 mApp.getBucketManager().scanForEvictionLegacy(ltxEvictions,
-                                                              ledgerSeq);
+                                                              lh.ledgerSeq);
             }
 
             if (ledgerCloseMeta)
@@ -1707,14 +1719,14 @@ LedgerManagerImpl::transferLedgerEntriesToBucketList(
         }
 
         getSorobanNetworkConfigInternal().maybeSnapshotBucketListSize(
-            ledgerSeq, ltx, mApp);
+            lh.ledgerSeq, ltx, mApp);
     }
 
     ltx.getAllEntries(initEntries, liveEntries, deadEntries);
     if (blEnabled)
     {
-        mApp.getBucketManager().addBatch(mApp, ledgerSeq, currLedgerVers,
-                                         initEntries, liveEntries, deadEntries);
+        mApp.getBucketManager().addBatch(mApp, lh, initEntries, liveEntries,
+                                         deadEntries);
     }
 }
 
@@ -1750,8 +1762,8 @@ LedgerManagerImpl::ledgerClosed(
     // Due to this, we must check the initial protocol version of ledger instead
     // of the ledger version of the current ltx header, which may have been
     // modified via an upgrade.
-    transferLedgerEntriesToBucketList(ltx, ledgerCloseMeta, ledgerSeq,
-                                      currLedgerVers, initialLedgerVers);
+    transferLedgerEntriesToBucketList(
+        ltx, ledgerCloseMeta, ltx.loadHeader().current(), initialLedgerVers);
     if (ledgerCloseMeta &&
         protocolVersionStartsFrom(initialLedgerVers, SOROBAN_PROTOCOL_VERSION))
     {

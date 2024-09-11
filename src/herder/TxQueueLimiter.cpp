@@ -83,11 +83,10 @@ TxQueueLimiter::canAddTx(
     TransactionFrameBasePtr const& newTx, TransactionFrameBasePtr const& oldTx,
     std::vector<std::pair<TransactionFrameBasePtr, bool>>& txsToEvict)
 {
-
-    LedgerTxn ltx(mApp.getLedgerTxnRoot(), /* shouldUpdateLastModified */ true,
-                  TransactionMode::READ_ONLY_WITHOUT_SQL_TXN);
     return canAddTx(newTx, oldTx, txsToEvict,
-                    ltx.loadHeader().current().ledgerVersion);
+                    mApp.getLedgerManager()
+                        .getLastClosedLedgerHeader()
+                        .header.ledgerVersion);
 }
 #endif
 
