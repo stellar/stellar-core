@@ -3,6 +3,7 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "bucket/BucketManager.h"
+#include "bucket/test/BucketTestUtils.h"
 #include "herder/Herder.h"
 #include "herder/HerderImpl.h"
 #include "ledger/LedgerManager.h"
@@ -72,9 +73,9 @@ TEST_CASE("Flooding", "[flood][overlay][acceptance]")
                     auto const& header = n->getLedgerManager()
                                              .getLastClosedLedgerHeader()
                                              .header;
-                    n->getBucketManager().addBatch(*n, header.ledgerSeq + 1,
-                                                   header.ledgerVersion, {},
-                                                   {gen}, {});
+                    BucketTestUtils::addBatchAndUpdateSnapshot(
+                        n->getBucketManager().getBucketList(), *n, header, {},
+                        {gen}, {});
                 }
             }
         }

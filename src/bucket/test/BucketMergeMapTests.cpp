@@ -20,7 +20,8 @@ TEST_CASE("bucket merge map", "[bucket][bucketmergemap]")
 
     auto getValidBucket = [&](int numEntries = 10) {
         std::vector<LedgerEntry> live =
-            LedgerTestUtils::generateValidUniqueLedgerEntries(numEntries);
+            LedgerTestUtils::generateValidUniqueLedgerEntriesWithExclusions(
+                {CONFIG_SETTING}, numEntries);
         std::shared_ptr<Bucket> b1 = Bucket::fresh(
             app->getBucketManager(), BucketTestUtils::getAppLedgerVersion(app),
             {}, live, {},

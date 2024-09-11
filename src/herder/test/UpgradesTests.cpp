@@ -374,7 +374,7 @@ void
 testValidateUpgrades(VirtualClock::system_time_point preferredUpgradeDatetime,
                      bool canBeValid)
 {
-    auto cfg = getTestConfig();
+    auto cfg = getTestConfig(0, Config::TESTDB_IN_MEMORY);
     cfg.TESTING_UPGRADE_LEDGER_PROTOCOL_VERSION = 10;
     cfg.TESTING_UPGRADE_DESIRED_FEE = 100;
     cfg.TESTING_UPGRADE_MAX_TX_SET_SIZE = 50;
@@ -2275,9 +2275,7 @@ TEST_CASE_VERSIONS("upgrade base reserve", "[upgrades]")
 {
     VirtualClock clock;
 
-    // TODO: Investigate this test
     auto cfg = getTestConfig(0, Config::TESTDB_IN_MEMORY);
-
     auto app = createTestApplication(clock, cfg);
 
     auto& lm = app->getLedgerManager();

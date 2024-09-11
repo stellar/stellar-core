@@ -636,6 +636,13 @@ std::vector<LedgerEntry>
 generateValidLedgerEntriesWithExclusions(
     std::unordered_set<LedgerEntryType> const& excludedTypes, size_t n)
 {
+
+    if (n > 1000)
+    {
+        throw "generateValidLedgerEntryWithExclusions: must generate <= 1000 "
+              "entries";
+    }
+
     std::vector<LedgerEntry> res;
     res.reserve(n);
     for (int i = 0; i < n; ++i)
@@ -649,6 +656,12 @@ std::vector<LedgerKey>
 generateValidLedgerEntryKeysWithExclusions(
     std::unordered_set<LedgerEntryType> const& excludedTypes, size_t n)
 {
+    if (n > 1000)
+    {
+        throw "generateValidLedgerEntryKeysWithExclusions: must generate <= "
+              "1000 entries";
+    }
+
     auto entries = LedgerTestUtils::generateValidLedgerEntriesWithExclusions(
         excludedTypes, n);
     std::vector<LedgerKey> keys;

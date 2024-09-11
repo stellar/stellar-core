@@ -223,7 +223,8 @@ TEST_CASE_VERSIONS("merging bucket entries", "[bucket]")
         SECTION("random live entries overwrite live entries in any order")
         {
             std::vector<LedgerEntry> live =
-                LedgerTestUtils::generateValidUniqueLedgerEntries(100);
+                LedgerTestUtils::generateValidUniqueLedgerEntriesWithExclusions(
+                    {CONFIG_SETTING}, 100);
             std::vector<LedgerKey> dead;
             std::shared_ptr<Bucket> b1 = Bucket::fresh(
                 app->getBucketManager(), getAppLedgerVersion(app), {}, live,

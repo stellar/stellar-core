@@ -1510,7 +1510,6 @@ TEST_CASE_VERSIONS("payment", "[tx][payment]")
 
             // Since a1 has a trustline, and there is only 1 trustline, we know
             // that gateway has no trustlines.
-            // TODO: Count objects not compatible with in memory mode
             REQUIRE(app->getLedgerTxnRoot().countObjects(TRUSTLINE) == 1);
         });
     }

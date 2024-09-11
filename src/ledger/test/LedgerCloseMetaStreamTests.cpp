@@ -89,7 +89,9 @@ TEST_CASE("LedgerCloseMetaStream file descriptor - LIVE_NODE",
         Config const& cfg2 = getTestConfig(2);
         Config const& cfg3 = getTestConfig(3);
         Config cfg4 = getTestConfig(4);
-        Config cfg5 = getTestConfig(5);
+        Config cfg5 = getTestConfig(
+            5, Config::TESTDB_IN_MEMORY); // needed by
+                                          // EXPERIMENTAL_PRECAUTION_DELAY_META
 
         // Step 2: open writable files and pass them to configs 4 and 5
         // (watchers).
@@ -111,7 +113,6 @@ TEST_CASE("LedgerCloseMetaStream file descriptor - LIVE_NODE",
 
         cfg4.EXPERIMENTAL_PRECAUTION_DELAY_META = false;
         cfg5.EXPERIMENTAL_PRECAUTION_DELAY_META = true;
-        cfg5.setInMemoryMode(); // needed by EXPERIMENTAL_PRECAUTION_DELAY_META
 
         // Step 3: Run simulation a few steps to stream metadata.
         auto app1 = simulation->addNode(vNode1SecretKey, qSet, &cfg1);

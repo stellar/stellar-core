@@ -1615,14 +1615,15 @@ SorobanNetworkConfig::writeAllSettings(AbstractLedgerTxn& ltx,
     releaseAssert(iterTxle);
     entries.push_back(iterTxle.current());
 
-    // If testing with BucketListDB, we need to commit directly to the BucketList
+    // If testing with BucketListDB, we need to commit directly to the
+    // BucketList
     if (app.getConfig().isUsingBucketListDB())
     {
         auto lcl = app.getLedgerManager().getLastClosedLedgerHeader();
         lcl.header.ledgerSeq += 1;
         BucketTestUtils::addBatchAndUpdateSnapshot(
-            app.getBucketManager().getBucketList(), app, lcl.header, {}, entries,
-            {});
+            app.getBucketManager().getBucketList(), app, lcl.header, {},
+            entries, {});
     }
 }
 #endif

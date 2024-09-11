@@ -213,7 +213,8 @@ TEST_CASE_VERSIONS("bucketmanager ownership", "[bucket][bucketmanager]")
             Application::pointer app = createTestApplication(clock, cfg);
 
             std::vector<LedgerEntry> live(
-                LedgerTestUtils::generateValidUniqueLedgerEntries(10));
+                LedgerTestUtils::generateValidUniqueLedgerEntriesWithExclusions(
+                    {CONFIG_SETTING}, 10));
             std::vector<LedgerKey> dead{};
 
             std::shared_ptr<Bucket> b1;
@@ -366,7 +367,9 @@ TEST_CASE_VERSIONS("bucketmanager reattach to finished merge",
             lh.ledgerSeq = ledger;
             addBatchAndUpdateSnapshot(
                 bl, *app, lh, {},
-                LedgerTestUtils::generateValidUniqueLedgerEntries(10), {});
+                LedgerTestUtils::generateValidLedgerEntriesWithExclusions(
+                    {CONFIG_SETTING}, 10),
+                {});
             bm.forgetUnreferencedBuckets();
         } while (!BucketList::levelShouldSpill(ledger, level - 1));
 
@@ -453,7 +456,9 @@ TEST_CASE_VERSIONS("bucketmanager reattach to running merge",
             lh.ledgerSeq = ledger;
             addBatchAndUpdateSnapshot(
                 bl, *app, lh, {},
-                LedgerTestUtils::generateValidUniqueLedgerEntries(100), {});
+                LedgerTestUtils::generateValidUniqueLedgerEntriesWithExclusions(
+                    {CONFIG_SETTING}, 100),
+                {});
 
             bm.forgetUnreferencedBuckets();
 
@@ -592,7 +597,9 @@ TEST_CASE_VERSIONS(
             lh.ledgerSeq++;
             addBatchAndUpdateSnapshot(
                 bl, *app, lh, {},
-                LedgerTestUtils::generateValidUniqueLedgerEntries(100), {});
+                LedgerTestUtils::generateValidUniqueLedgerEntriesWithExclusions(
+                    {CONFIG_SETTING}, 100),
+                {});
             clock.crank(false);
             bm.forgetUnreferencedBuckets();
         }
@@ -1183,6 +1190,7 @@ class StopAndRestartBucketMergesTest
         cfg.ARTIFICIALLY_PESSIMIZE_MERGES_FOR_TESTING = true;
         cfg.ARTIFICIALLY_REDUCE_MERGE_COUNTS_FOR_TESTING = true;
         cfg.TESTING_UPGRADE_LEDGER_PROTOCOL_VERSION = firstProtocol;
+        cfg.INVARIANT_CHECKS = {};
         assert(!mDesignatedLedgers.empty());
         uint32_t finalLedger = (*mDesignatedLedgers.rbegin()) + 1;
         uint32_t currProtocol = firstProtocol;
@@ -1381,7 +1389,8 @@ TEST_CASE_VERSIONS("bucket persistence over app restart",
         cfg1.ARTIFICIALLY_PESSIMIZE_MERGES_FOR_TESTING = true;
 
         auto batch_entries =
-            LedgerTestUtils::generateValidUniqueLedgerEntries(111);
+            LedgerTestUtils::generateValidUniqueLedgerEntriesWithExclusions(
+                {CONFIG_SETTING, OFFER}, 111);
         auto alice = batch_entries.back();
         batch_entries.pop_back();
         std::vector<std::vector<LedgerEntry>> batches;
