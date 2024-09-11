@@ -76,8 +76,6 @@ template <class BucketT> class BucketSnapshotBase : public NonMovable
     void loadKeys(std::set<LedgerKey, LedgerEntryIdCmp>& keys,
                   std::vector<BulkLoadReturnT>& result,
                   LedgerKeyMeter* lkMeter) const;
-
-    // friend struct BucketLevelSnapshot<BucketT>;
 };
 
 class LiveBucketSnapshot : public BucketSnapshotBase<LiveBucket>

@@ -1037,8 +1037,9 @@ BucketManagerImpl::addHotArchiveBatch(
 {
     ZoneScoped;
     releaseAssertOrThrow(app.getConfig().MODE_ENABLES_BUCKETLIST);
-    releaseAssertOrThrow(
-        protocolVersionStartsFrom(currLedgerProtocol, ProtocolVersion::V_22));
+    releaseAssertOrThrow(protocolVersionStartsFrom(
+        currLedgerProtocol,
+        Bucket::FIRST_PROTOCOL_SUPPORTING_PERSISTENT_EVICTION));
 #ifdef BUILD_TESTS
     if (mUseFakeTestValuesForNextClose)
     {
@@ -1095,8 +1096,9 @@ BucketManagerImpl::snapshotLedger(LedgerHeader& currentHeader)
     Hash hash;
     if (mApp.getConfig().MODE_ENABLES_BUCKETLIST)
     {
-        if (protocolVersionStartsFrom(currentHeader.ledgerVersion,
-                                      ProtocolVersion::V_22))
+        if (protocolVersionStartsFrom(
+                currentHeader.ledgerVersion,
+                Bucket::FIRST_PROTOCOL_SUPPORTING_PERSISTENT_EVICTION))
         {
             // TODO: Hash Archive Bucket
             // Holding off on this until buckets are written to history

@@ -321,7 +321,9 @@ LiveBucket::fresh(BucketManager& bucketManager, uint32_t protocolVersion,
     BucketMetadata meta;
     meta.ledgerVersion = protocolVersion;
 
-    if (protocolVersionStartsFrom(protocolVersion, ProtocolVersion::V_22))
+    if (protocolVersionStartsFrom(
+            protocolVersion,
+            Bucket::FIRST_PROTOCOL_SUPPORTING_PERSISTENT_EVICTION))
     {
         meta.ext.v(1);
         meta.ext.bucketListType() = BucketListType::LIVE;
@@ -952,14 +954,16 @@ Bucket::merge(BucketManager& bucketManager, uint32_t maxProtocolVersion,
     // well
     if (ni.getMetadata().ext.v() == 1)
     {
-        releaseAssertOrThrow(protocolVersionStartsFrom(maxProtocolVersion,
-                                                       ProtocolVersion::V_22));
+        releaseAssertOrThrow(protocolVersionStartsFrom(
+            maxProtocolVersion,
+            Bucket::FIRST_PROTOCOL_SUPPORTING_PERSISTENT_EVICTION));
         meta.ext = oi.getMetadata().ext;
     }
     else if (oi.getMetadata().ext.v() == 1)
     {
-        releaseAssertOrThrow(protocolVersionStartsFrom(maxProtocolVersion,
-                                                       ProtocolVersion::V_22));
+        releaseAssertOrThrow(protocolVersionStartsFrom(
+            maxProtocolVersion,
+            Bucket::FIRST_PROTOCOL_SUPPORTING_PERSISTENT_EVICTION));
         meta.ext = oi.getMetadata().ext;
     }
 

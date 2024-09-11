@@ -55,7 +55,8 @@ BucketOutputIterator<BucketT>::BucketOutputIterator(std::string const& tmpDir,
         else
         {
             releaseAssertOrThrow(protocolVersionStartsFrom(
-                meta.ledgerVersion, ProtocolVersion::V_22));
+                meta.ledgerVersion,
+                Bucket::FIRST_PROTOCOL_SUPPORTING_PERSISTENT_EVICTION));
 
             HotArchiveBucketEntry bme;
             bme.type(HOT_ARCHIVE_METAENTRY);

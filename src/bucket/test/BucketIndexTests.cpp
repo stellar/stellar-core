@@ -805,7 +805,9 @@ TEST_CASE("hot archive bucket lookups", "[bucket][bucketindex][archive]")
         }
 
         app->getBucketManager().addHotArchiveBatch(
-            *app, ledger++, static_cast<uint32_t>(ProtocolVersion::V_22),
+            *app, ledger++,
+            static_cast<uint32_t>(
+                Bucket::FIRST_PROTOCOL_SUPPORTING_PERSISTENT_EVICTION),
             archivedEntries, restoredEntries, deletedEntries);
         checkResult();
 
@@ -813,8 +815,10 @@ TEST_CASE("hot archive bucket lookups", "[bucket][bucketindex][archive]")
         for (auto i = 0; i < 100; ++i)
         {
             app->getBucketManager().addHotArchiveBatch(
-                *app, 1, static_cast<uint32_t>(ProtocolVersion::V_22), {}, {},
-                {});
+                *app, 1,
+                static_cast<uint32_t>(
+                    Bucket::FIRST_PROTOCOL_SUPPORTING_PERSISTENT_EVICTION),
+                {}, {}, {});
         }
 
         // Shadow entries via liveEntry
@@ -822,8 +826,10 @@ TEST_CASE("hot archive bucket lookups", "[bucket][bucketindex][archive]")
         auto liveShadow2 = deletedEntries[1];
 
         app->getBucketManager().addHotArchiveBatch(
-            *app, ledger++, static_cast<uint32_t>(ProtocolVersion::V_22), {},
-            {liveShadow1, liveShadow2}, {});
+            *app, ledger++,
+            static_cast<uint32_t>(
+                Bucket::FIRST_PROTOCOL_SUPPORTING_PERSISTENT_EVICTION),
+            {}, {liveShadow1, liveShadow2}, {});
 
         // Point load
         for (auto const& k : {liveShadow1, liveShadow2})
@@ -840,8 +846,10 @@ TEST_CASE("hot archive bucket lookups", "[bucket][bucketindex][archive]")
         // Shadow via deletedEntry
         auto deletedShadow = LedgerEntryKey(archivedEntries[1]);
         app->getBucketManager().addHotArchiveBatch(
-            *app, ledger++, static_cast<uint32_t>(ProtocolVersion::V_22), {},
-            {}, {deletedShadow});
+            *app, ledger++,
+            static_cast<uint32_t>(
+                Bucket::FIRST_PROTOCOL_SUPPORTING_PERSISTENT_EVICTION),
+            {}, {}, {deletedShadow});
 
         // Point load
         auto entryPtr = searchableBL->getArchiveEntry(deletedShadow);
@@ -861,7 +869,9 @@ TEST_CASE("hot archive bucket lookups", "[bucket][bucketindex][archive]")
         archivedShadow.lastModifiedLedgerSeq = ledger;
 
         app->getBucketManager().addHotArchiveBatch(
-            *app, ledger++, static_cast<uint32_t>(ProtocolVersion::V_22),
+            *app, ledger++,
+            static_cast<uint32_t>(
+                Bucket::FIRST_PROTOCOL_SUPPORTING_PERSISTENT_EVICTION),
             {archivedShadow}, {}, {});
 
         // Point load
