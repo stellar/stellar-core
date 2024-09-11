@@ -4,6 +4,7 @@
 
 #include "crypto/Random.h"
 #include "history/HistoryArchiveManager.h"
+#include "history/HistoryManagerImpl.h"
 #include "history/test/HistoryTestsUtils.h"
 #include "invariant/BucketListIsConsistentWithDatabase.h"
 #include "ledger/LedgerTxn.h"
@@ -148,7 +149,6 @@ class SimulationHelper
     Config& mTestCfg;
     PublicKey mMainNodeID;
     PublicKey mTestNodeID;
-    SecretKey mTestNodeSecretKey;
     SCPQuorumSet mQuorum;
     TmpDirHistoryConfigurator mHistCfg;
 
@@ -161,14 +161,10 @@ class SimulationHelper
             std::make_shared<Simulation>(Simulation::OVER_LOOPBACK, networkID);
 
         // Main node never shuts down, publishes checkpoints for test node
-        const Hash mainNodeSeed = sha256("NODE_SEED_MAIN");
-        const SecretKey mainNodeSecretKey = SecretKey::fromSeed(mainNodeSeed);
-        mMainNodeID = mainNodeSecretKey.getPublicKey();
+        mMainNodeID = mMainCfg.NODE_SEED.getPublicKey();
 
         // Test node may shutdown, lose sync, etc.
-        const Hash testNodeSeed = sha256("NODE_SEED_SECONDARY");
-        mTestNodeSecretKey = SecretKey::fromSeed(testNodeSeed);
-        mTestNodeID = mTestNodeSecretKey.getPublicKey();
+        mTestNodeID = testCfg.NODE_SEED.getPublicKey();
 
         mQuorum.threshold = 1;
         mQuorum.validators.push_back(mMainNodeID);
@@ -193,11 +189,12 @@ class SimulationHelper
         // main validator
         mTestCfg = mHistCfg.configure(mTestCfg, /* writable */ false);
 
-        mMainNode = mSimulation->addNode(mainNodeSecretKey, mQuorum, &mMainCfg);
+        mMainNode =
+            mSimulation->addNode(mMainCfg.NODE_SEED, mQuorum, &mMainCfg);
         mMainNode->getHistoryArchiveManager().initializeHistoryArchive(
             mHistCfg.getArchiveDirName());
 
-        mSimulation->addNode(mTestNodeSecretKey, mQuorum, &mTestCfg);
+        mSimulation->addNode(testCfg.NODE_SEED, mQuorum, &mTestCfg);
         mSimulation->addPendingConnection(mMainNodeID, mTestNodeID);
         mSimulation->startAllNodes();
 
@@ -333,7 +330,7 @@ class SimulationHelper
             std::chrono::seconds(delayBuckets);
 
         // Start test app
-        auto app = mSimulation->addNode(mTestNodeSecretKey, mQuorum, &mTestCfg,
+        auto app = mSimulation->addNode(mTestCfg.NODE_SEED, mQuorum, &mTestCfg,
                                         false, startFromLedger, startFromHash);
         mSimulation->addPendingConnection(mMainNodeID, mTestNodeID);
         REQUIRE(app);
@@ -478,8 +475,8 @@ TEST_CASE("offline self-check works", "[applicationutils][selfcheck]")
     {
         // Damage the target ledger in the archive.
         auto path = archPath;
-        path /=
-            fs::remoteName(HISTORY_FILE_TYPE_LEDGER, fs::hexStr(l1), "xdr.gz");
+        path /= fs::remoteName(typeString(FileType::HISTORY_FILE_TYPE_LEDGER),
+                               fs::hexStr(l1), "xdr.gz");
         TemporaryFileDamager damage(path);
         damage.damageVictim();
         REQUIRE(selfCheck(chkConfig) == 1);

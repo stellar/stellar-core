@@ -564,7 +564,8 @@ closeLedgerOn(Application& app, uint32 ledgerSeq, TimePoint closeTime,
     app.getHerder().externalizeValue(txSet.first, ledgerSeq, closeTime,
                                      emptyUpgradeSteps);
     REQUIRE(app.getLedgerManager().getLastClosedLedgerNum() == ledgerSeq);
-    return getTransactionHistoryResults(app.getDatabase(), ledgerSeq);
+    auto& lm = static_cast<LedgerManagerImpl&>(app.getLedgerManager());
+    return lm.mLatestTxResultSet;
 }
 
 TransactionResultSet
@@ -584,7 +585,8 @@ closeLedgerOn(Application& app, uint32 ledgerSeq, time_t closeTime,
     app.getHerder().externalizeValue(txSet, ledgerSeq, closeTime,
                                      emptyUpgradeSteps);
 
-    auto z1 = getTransactionHistoryResults(app.getDatabase(), ledgerSeq);
+    auto& lm = static_cast<LedgerManagerImpl&>(app.getLedgerManager());
+    auto z1 = lm.mLatestTxResultSet;
 
     REQUIRE(app.getLedgerManager().getLastClosedLedgerNum() == ledgerSeq);
 

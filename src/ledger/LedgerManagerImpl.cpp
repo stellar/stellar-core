@@ -1046,6 +1046,10 @@ LedgerManagerImpl::closeLedger(LedgerCloseData const& ledgerData)
     // step 2
     ltx.commit();
 
+#ifdef BUILD_TESTS
+    mLatestTxResultSet = txResultSet;
+#endif
+
     // step 3
     if (protocolVersionStartsFrom(initialLedgerVers,
                                   SOROBAN_PROTOCOL_VERSION) &&

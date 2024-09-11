@@ -163,6 +163,7 @@ class LedgerManagerImpl : public LedgerManager
     SorobanNetworkConfig& getMutableSorobanNetworkConfig() override;
     std::vector<TransactionMetaFrame> const&
     getLastClosedLedgerTxMeta() override;
+    TransactionResultSet mLatestTxResultSet{};
 #endif
 
     uint64_t secondsSinceLastLedgerClose() const override;
