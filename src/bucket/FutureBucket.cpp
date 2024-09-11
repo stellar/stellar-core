@@ -62,8 +62,9 @@ FutureBucket<BucketT>::FutureBucket(
 
     if constexpr (!std::is_same_v<BucketT, LiveBucket>)
     {
-        if (protocolVersionIsBefore(snap->getBucketVersion(),
-                                    ProtocolVersion::V_22))
+        if (protocolVersionIsBefore(
+                snap->getBucketVersion(),
+                Bucket::FIRST_PROTOCOL_SUPPORTING_PERSISTENT_EVICTION))
         {
             throw std::runtime_error(
                 "Invalid ArchivalFutureBucket: ledger version doesn't support "
