@@ -101,14 +101,12 @@ class Upgrades
     static UpgradeValidity isValidForApply(UpgradeType const& upgrade,
                                            LedgerUpgrade& lupgrade,
                                            Application& app,
-                                           LedgerSnapshot const& ls,
-                                           LedgerHeader const& header);
+                                           LedgerSnapshot const& ls);
 
     // returns true if upgrade is a valid upgrade step
     // in which case it also sets upgradeType
     bool isValid(UpgradeType const& upgrade, LedgerUpgradeType& upgradeType,
-                 bool nomination, Application& app,
-                 LedgerHeader const& header) const;
+                 bool nomination, Application& app) const;
 
     // constructs a human readable string that represents
     // the pending upgrades
@@ -138,8 +136,7 @@ class Upgrades
     // returns true if upgrade is a valid upgrade step
     // in which case it also sets lupgrade
     bool isValidForNomination(LedgerUpgrade const& upgrade,
-                              LedgerSnapshot const& ls,
-                              LedgerHeader const& header) const;
+                              LedgerSnapshot const& ls) const;
 
     static void applyVersionUpgrade(Application& app, AbstractLedgerTxn& ltx,
                                     uint32_t newVersion);

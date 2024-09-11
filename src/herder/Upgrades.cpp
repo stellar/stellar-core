@@ -542,7 +542,7 @@ Upgrades::removeUpgrades(std::vector<UpgradeType>::const_iterator beginUpdates,
 Upgrades::UpgradeValidity
 Upgrades::isValidForApply(UpgradeType const& opaqueUpgrade,
                           LedgerUpgrade& upgrade, Application& app,
-                          LedgerSnapshot const& ls, LedgerHeader const& header)
+                          LedgerSnapshot const& ls)
 {
     try
     {
@@ -554,6 +554,7 @@ Upgrades::isValidForApply(UpgradeType const& opaqueUpgrade,
     }
 
     bool res = true;
+    auto version = ls.getLedgerHeader().current().ledgerVersion;
     switch (upgrade.type())
     {
     case LEDGER_UPGRADE_VERSION:
@@ -562,7 +563,7 @@ Upgrades::isValidForApply(UpgradeType const& opaqueUpgrade,
         // only allow upgrades to a supported version of the protocol
         res = res && (newVersion <= app.getConfig().LEDGER_PROTOCOL_VERSION);
         // and enforce versions to be strictly monotonic
-        res = res && (newVersion > header.ledgerVersion);
+        res = res && (newVersion > version);
     }
     break;
     case LEDGER_UPGRADE_BASE_FEE:
@@ -576,14 +577,12 @@ Upgrades::isValidForApply(UpgradeType const& opaqueUpgrade,
         break;
     case LEDGER_UPGRADE_FLAGS:
         res = res &&
-              protocolVersionStartsFrom(header.ledgerVersion,
-                                        ProtocolVersion::V_18) &&
+              protocolVersionStartsFrom(version, ProtocolVersion::V_18) &&
               (upgrade.newFlags() & ~MASK_LEDGER_HEADER_FLAGS) == 0;
         break;
     case LEDGER_UPGRADE_CONFIG:
     {
-        if (protocolVersionIsBefore(header.ledgerVersion,
-                                    SOROBAN_PROTOCOL_VERSION))
+        if (protocolVersionIsBefore(version, SOROBAN_PROTOCOL_VERSION))
         {
             return UpgradeValidity::INVALID;
         }
@@ -602,8 +601,7 @@ Upgrades::isValidForApply(UpgradeType const& opaqueUpgrade,
         break;
     }
     case LEDGER_UPGRADE_MAX_SOROBAN_TX_SET_SIZE:
-        if (protocolVersionIsBefore(header.ledgerVersion,
-                                    SOROBAN_PROTOCOL_VERSION))
+        if (protocolVersionIsBefore(version, SOROBAN_PROTOCOL_VERSION))
         {
             return UpgradeValidity::INVALID;
         }
@@ -618,10 +616,9 @@ Upgrades::isValidForApply(UpgradeType const& opaqueUpgrade,
 
 bool
 Upgrades::isValidForNomination(LedgerUpgrade const& upgrade,
-                               LedgerSnapshot const& ls,
-                               LedgerHeader const& header) const
+                               LedgerSnapshot const& ls) const
 {
-    if (!timeForUpgrade(header.scpValue.closeTime))
+    if (!timeForUpgrade(ls.getLedgerHeader().current().scpValue.closeTime))
     {
         return false;
     }
@@ -665,17 +662,16 @@ Upgrades::isValidForNomination(LedgerUpgrade const& upgrade,
 
 bool
 Upgrades::isValid(UpgradeType const& upgrade, LedgerUpgradeType& upgradeType,
-                  bool nomination, Application& app,
-                  LedgerHeader const& header) const
+                  bool nomination, Application& app) const
 {
     LedgerUpgrade lupgrade;
     auto ls = LedgerSnapshot(app);
-    bool res = isValidForApply(upgrade, lupgrade, app, ls, header) ==
-               UpgradeValidity::VALID;
+    bool res =
+        isValidForApply(upgrade, lupgrade, app, ls) == UpgradeValidity::VALID;
 
     if (nomination)
     {
-        res = res && isValidForNomination(lupgrade, ls, header);
+        res = res && isValidForNomination(lupgrade, ls);
     }
 
     if (res)
@@ -1282,8 +1278,7 @@ ConfigUpgradeSetFrame::makeFromKey(LedgerSnapshot const& ls,
 
     auto ttlLtxe = ls.load(getTTLKey(lk));
     releaseAssert(ttlLtxe);
-    if (!isLive(ttlLtxe.current(),
-                ls.getLedgerHeaderUnsafe().current().ledgerSeq))
+    if (!isLive(ttlLtxe.current(), ls.getLedgerHeader().current().ledgerSeq))
     {
         return nullptr;
     }
@@ -1307,7 +1302,7 @@ ConfigUpgradeSetFrame::makeFromKey(LedgerSnapshot const& ls,
     }
 
     return std::shared_ptr<ConfigUpgradeSetFrame>(new ConfigUpgradeSetFrame(
-        upgradeSet, key, ls.getLedgerHeaderUnsafe().current().ledgerVersion));
+        upgradeSet, key, ls.getLedgerHeader().current().ledgerVersion));
 }
 
 ConfigUpgradeSetFrame::ConfigUpgradeSetFrame(

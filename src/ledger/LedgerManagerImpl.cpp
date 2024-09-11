@@ -913,6 +913,7 @@ LedgerManagerImpl::closeLedger(LedgerCloseData const& ledgerData)
 
     TransactionResultSet txResultSet;
     txResultSet.results.reserve(txs.size());
+    // Subtle: after this call, `header` is invalidated, and is not safe to use
     applyTransactions(*applicableTxSet, txs, mutableTxResults, ltx, txResultSet,
                       ledgerCloseMeta);
     if (mApp.getConfig().MODE_STORES_HISTORY_MISC)
@@ -930,8 +931,8 @@ LedgerManagerImpl::closeLedger(LedgerCloseData const& ledgerData)
     {
         LedgerUpgrade lupgrade;
         LedgerSnapshot ls(ltx);
-        auto valid = Upgrades::isValidForApply(sv.upgrades[i], lupgrade, mApp,
-                                               ls, ltx.loadHeader().current());
+        auto valid =
+            Upgrades::isValidForApply(sv.upgrades[i], lupgrade, mApp, ls);
         switch (valid)
         {
         case Upgrades::UpgradeValidity::VALID:

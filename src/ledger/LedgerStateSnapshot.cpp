@@ -61,11 +61,6 @@ LedgerEntryWrapper::operator bool() const
     }
 }
 
-LedgerHeaderWrapper::LedgerHeaderWrapper(LedgerHeader const& header)
-    : mHeader(std::make_shared<LedgerHeader>(header))
-{
-}
-
 LedgerHeaderWrapper::LedgerHeaderWrapper(LedgerTxnHeader&& header)
     : mHeader(std::move(header))
 {
@@ -118,12 +113,6 @@ LedgerTxnReadOnly::getLedgerHeader() const
     return LedgerHeaderWrapper(mLedgerTxn.loadHeader());
 }
 
-LedgerHeaderWrapper
-LedgerTxnReadOnly::getLedgerHeaderUnsafe() const
-{
-    return LedgerHeaderWrapper(mLedgerTxn.getHeader());
-}
-
 LedgerEntryWrapper
 LedgerTxnReadOnly::getAccount(AccountID const& account) const
 {
@@ -137,7 +126,8 @@ LedgerTxnReadOnly::getAccount(LedgerHeaderWrapper const& header,
     if (protocolVersionIsBefore(header.current().ledgerVersion,
                                 ProtocolVersion::V_8))
     {
-        return tx.loadSourceAccount(mLedgerTxn, header.getLedgerTxnHeader());
+        return LedgerEntryWrapper(
+            tx.loadSourceAccount(mLedgerTxn, header.getLedgerTxnHeader()));
     }
 
     return getAccount(tx.getSourceID());
@@ -151,7 +141,8 @@ LedgerTxnReadOnly::getAccount(LedgerHeaderWrapper const& header,
     if (protocolVersionIsBefore(header.current().ledgerVersion,
                                 ProtocolVersion::V_8))
     {
-        return tx.loadAccount(mLedgerTxn, header.getLedgerTxnHeader(), account);
+        return LedgerEntryWrapper(
+            tx.loadAccount(mLedgerTxn, header.getLedgerTxnHeader(), account));
     }
 
     return getAccount(account);
@@ -184,13 +175,8 @@ BucketSnapshotState::~BucketSnapshotState()
 LedgerHeaderWrapper
 BucketSnapshotState::getLedgerHeader() const
 {
-    return LedgerHeaderWrapper(mSnapshot->getLedgerHeader());
-}
-
-LedgerHeaderWrapper
-BucketSnapshotState::getLedgerHeaderUnsafe() const
-{
-    return LedgerHeaderWrapper(mSnapshot->getLedgerHeader());
+    return LedgerHeaderWrapper(
+        std::make_shared<LedgerHeader>(mSnapshot->getLedgerHeader()));
 }
 
 LedgerEntryWrapper
@@ -249,12 +235,6 @@ LedgerSnapshot::LedgerSnapshot(Application& app)
         mGetter = std::make_unique<BucketSnapshotState>(
             app.getBucketManager().getBucketSnapshotManager());
     }
-}
-
-LedgerHeaderWrapper
-LedgerSnapshot::getLedgerHeaderUnsafe() const
-{
-    return mGetter->getLedgerHeaderUnsafe();
 }
 
 LedgerHeaderWrapper

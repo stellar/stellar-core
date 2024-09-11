@@ -30,9 +30,9 @@ class LedgerEntryWrapper
         mEntry;
 
   public:
-    LedgerEntryWrapper(ConstLedgerTxnEntry&& entry);
-    LedgerEntryWrapper(LedgerTxnEntry&& entry);
-    LedgerEntryWrapper(std::shared_ptr<LedgerEntry> entry);
+    explicit LedgerEntryWrapper(ConstLedgerTxnEntry&& entry);
+    explicit LedgerEntryWrapper(LedgerTxnEntry&& entry);
+    explicit LedgerEntryWrapper(std::shared_ptr<LedgerEntry> entry);
     LedgerEntry const& current() const;
     operator bool() const;
 };
@@ -45,9 +45,8 @@ class LedgerHeaderWrapper
     std::variant<LedgerTxnHeader, std::shared_ptr<LedgerHeader>> mHeader;
 
   public:
-    LedgerHeaderWrapper(LedgerTxnHeader&& header);
-    LedgerHeaderWrapper(LedgerHeader const& header);
-    LedgerHeaderWrapper(std::shared_ptr<LedgerHeader> header);
+    explicit LedgerHeaderWrapper(LedgerTxnHeader&& header);
+    explicit LedgerHeaderWrapper(std::shared_ptr<LedgerHeader> header);
     LedgerHeader& currentToModify();
     LedgerHeader const& current() const;
     LedgerTxnHeader const&
@@ -65,10 +64,6 @@ class AbstractLedgerStateSnapshot
   public:
     virtual ~AbstractLedgerStateSnapshot() = default;
     virtual LedgerHeaderWrapper getLedgerHeader() const = 0;
-    // Get ledger header associated with this snapshot. This is not always safe
-    // to do, as this method does not do any validation, if a nested snapshot
-    // exists (which invalidates the header).
-    virtual LedgerHeaderWrapper getLedgerHeaderUnsafe() const = 0;
     virtual LedgerEntryWrapper getAccount(AccountID const& account) const = 0;
     virtual LedgerEntryWrapper getAccount(LedgerHeaderWrapper const& header,
                                           TransactionFrame const& tx) const = 0;
@@ -95,7 +90,6 @@ class LedgerTxnReadOnly : public AbstractLedgerStateSnapshot
     LedgerTxnReadOnly(AbstractLedgerTxn& ltx);
     ~LedgerTxnReadOnly() override;
     LedgerHeaderWrapper getLedgerHeader() const override;
-    LedgerHeaderWrapper getLedgerHeaderUnsafe() const override;
     LedgerEntryWrapper getAccount(AccountID const& account) const override;
     LedgerEntryWrapper getAccount(LedgerHeaderWrapper const& header,
                                   TransactionFrame const& tx) const override;
@@ -117,7 +111,6 @@ class BucketSnapshotState : public AbstractLedgerStateSnapshot
     ~BucketSnapshotState() override;
 
     LedgerHeaderWrapper getLedgerHeader() const override;
-    LedgerHeaderWrapper getLedgerHeaderUnsafe() const override;
     LedgerEntryWrapper getAccount(AccountID const& account) const override;
     LedgerEntryWrapper getAccount(LedgerHeaderWrapper const& header,
                                   TransactionFrame const& tx) const override;
@@ -140,7 +133,6 @@ class LedgerSnapshot : public NonMovableOrCopyable
   public:
     LedgerSnapshot(AbstractLedgerTxn& ltx);
     LedgerSnapshot(Application& app);
-    LedgerHeaderWrapper getLedgerHeaderUnsafe() const;
     LedgerHeaderWrapper getLedgerHeader() const;
     LedgerEntryWrapper getAccount(AccountID const& account) const;
     LedgerEntryWrapper
