@@ -2,6 +2,7 @@
 #include "herder/Herder.h"
 #include "ledger/LedgerManager.h"
 #include "test/TxTests.h"
+#include "transactions/MutableTransactionResult.h"
 #include "transactions/TransactionBridge.h"
 #include "transactions/TransactionUtils.h"
 
@@ -16,14 +17,16 @@
 namespace stellar
 {
 
-ApplyLoad::ApplyLoad(Application& app, uint32_t numAccounts,
-                     uint64_t ledgerMaxInstructions,
+ApplyLoad::ApplyLoad(Application& app, uint64_t ledgerMaxInstructions,
                      uint64_t ledgerMaxReadLedgerEntries,
                      uint64_t ledgerMaxReadBytes,
                      uint64_t ledgerMaxWriteLedgerEntries,
                      uint64_t ledgerMaxWriteBytes, uint64_t ledgerMaxTxCount,
                      uint64_t ledgerMaxTransactionsSizeBytes)
-    : mTxGenerator(app), mApp(app), mNumAccounts(numAccounts)
+    : mTxGenerator(app)
+    , mApp(app)
+    , mNumAccounts(
+          ledgerMaxTxCount * SOROBAN_TRANSACTION_QUEUE_SIZE_MULTIPLIER + 1)
 {
 
     auto rootTestAccount = TestAccount::createRoot(mApp);
@@ -62,9 +65,9 @@ ApplyLoad::ApplyLoad(Application& app, uint32_t numAccounts,
     setupLoadContracts();
 
     // One contract per account
-    releaseAssert(mTxGenerator.GetApplySorobanSuccess().count() ==
-                  numAccounts + 4);
-    releaseAssert(mTxGenerator.GetApplySorobanFailure().count() == 0);
+    releaseAssert(mTxGenerator.getApplySorobanSuccess().count() ==
+                  mNumAccounts + 4);
+    releaseAssert(mTxGenerator.getApplySorobanFailure().count() == 0);
 }
 
 void
@@ -181,7 +184,7 @@ ApplyLoad::setupLoadContracts()
 
     closeLedger({uploadTx.second});
 
-    for (auto kvp : mTxGenerator.getAccounts())
+    for (auto const& kvp : mTxGenerator.getAccounts())
     {
         auto salt = sha256("Load contract " + std::to_string(kvp.first));
 
@@ -207,8 +210,8 @@ ApplyLoad::benchmark()
     auto& lm = mApp.getLedgerManager();
     std::vector<TransactionFrameBasePtr> txs;
 
-    auto resources = multiplyByDouble(lm.maxLedgerResources(true),
-                                      TRANSACTION_QUEUE_SIZE_MULTIPLIER);
+    auto resources = multiplyByDouble(
+        lm.maxLedgerResources(true), SOROBAN_TRANSACTION_QUEUE_SIZE_MULTIPLIER);
 
     auto const& accounts = mTxGenerator.getAccounts();
     std::vector<uint64_t> shuffledAccounts(accounts.size());
@@ -228,15 +231,20 @@ ApplyLoad::benchmark()
             lm.getLastClosedLedgerNum() + 1, it->first, instance,
             rust_bridge::get_write_bytes().data.size() + 160, std::nullopt);
 
+        {
+            LedgerTxn ltx(mApp.getLedgerTxnRoot());
+            auto res = tx.second->checkValid(mApp, ltx, 0, 0, UINT64_MAX);
+            releaseAssert((res && res->isSuccess()));
+        }
+
         if (!anyGreater(tx.second->getResources(false), resources))
         {
             resources -= tx.second->getResources(false);
         }
         else
         {
-            for (size_t i = static_cast<size_t>(Resource::Type::OPERATIONS);
-                 i <= static_cast<size_t>(Resource::Type::WRITE_LEDGER_ENTRIES);
-                 ++i)
+            bool limitHit = false;
+            for (size_t i = 0; i < resources.size(); ++i)
             {
                 auto type = static_cast<Resource::Type>(i);
                 if (tx.second->getResources(false).getVal(type) >
@@ -244,8 +252,13 @@ ApplyLoad::benchmark()
                 {
                     CLOG_INFO(Perf, "Ledger {} limit hit during tx generation",
                               Resource::getStringFromType(type));
+                    limitHit = true;
                 }
             }
+
+            // If this assert fails, it most likely means that we ran out of
+            // accounts, which should not happen.
+            releaseAssert(limitHit);
             break;
         }
 
@@ -258,9 +271,9 @@ ApplyLoad::benchmark()
 double
 ApplyLoad::successRate()
 {
-    return mTxGenerator.GetApplySorobanSuccess().count() * 1.0 /
-           (mTxGenerator.GetApplySorobanSuccess().count() +
-            mTxGenerator.GetApplySorobanFailure().count());
+    return mTxGenerator.getApplySorobanSuccess().count() * 1.0 /
+           (mTxGenerator.getApplySorobanSuccess().count() +
+            mTxGenerator.getApplySorobanFailure().count());
 }
 
 }

@@ -382,9 +382,9 @@ LoadGenerator::start(GeneratedLoadConfig& cfg)
     releaseAssert(mPreLoadgenApplySorobanSuccess == 0);
     releaseAssert(mPreLoadgenApplySorobanFailure == 0);
     mPreLoadgenApplySorobanSuccess =
-        mTxGenerator.GetApplySorobanSuccess().count();
+        mTxGenerator.getApplySorobanSuccess().count();
     mPreLoadgenApplySorobanFailure =
-        mTxGenerator.GetApplySorobanFailure().count();
+        mTxGenerator.getApplySorobanFailure().count();
 
     mStarted = true;
 }
@@ -719,50 +719,14 @@ LoadGenerator::generateLoad(GeneratedLoadConfig cfg)
                     if (sorobanCfg.nWasms != 0)
                     {
                         --sorobanCfg.nWasms;
-
-                        auto wasm = cfg.modeSetsUpInvoke()
-                                        ? rust_bridge::get_test_wasm_loadgen()
-                                        : rust_bridge::get_write_bytes();
-                        xdr::opaque_vec<> wasmBytes;
-                        wasmBytes.assign(wasm.data.begin(), wasm.data.end());
-
-                        LedgerKey contractCodeLedgerKey;
-                        contractCodeLedgerKey.type(CONTRACT_CODE);
-                        contractCodeLedgerKey.contractCode().hash =
-                            sha256(wasmBytes);
-
-                        releaseAssert(!mCodeKey);
-                        mCodeKey = contractCodeLedgerKey;
-
-                        // Wasm blob + approximate overhead for contract
-                        // instance and ContractCode LE overhead
-                        mContactOverheadBytes = wasmBytes.size() + 160;
-
-                        return mTxGenerator.createUploadWasmTransaction(
-                            ledgerNum, sourceAccountId, wasmBytes, *mCodeKey,
-                            cfg.maxGeneratedFeeRate);
+                        return createUploadWasmTransaction(cfg, ledgerNum,
+                                                           sourceAccountId);
                     }
                     else
                     {
                         --sorobanCfg.nInstances;
-
-                        auto salt =
-                            sha256("upgrade" +
-                                   std::to_string(
-                                       ++mNumCreateContractTransactionCalls));
-
-                        auto txPair = mTxGenerator.createContractTransaction(
-                            ledgerNum, sourceAccountId, *mCodeKey,
-                            mContactOverheadBytes, salt,
-                            cfg.maxGeneratedFeeRate);
-
-                        auto const& instanceLk =
-                            txPair.second->sorobanResources()
-                                .footprint.readWrite.back();
-
-                        mContractInstanceKeys.emplace(instanceLk);
-
-                        return txPair;
+                        return createInstanceTransaction(cfg, ledgerNum,
+                                                         sourceAccountId);
                     }
                 };
                 break;
@@ -1094,6 +1058,52 @@ LoadGenerator::createMixedClassicSorobanTransaction(
     }
 }
 
+std::pair<TxGenerator::TestAccountPtr, TransactionTestFramePtr>
+LoadGenerator::createUploadWasmTransaction(GeneratedLoadConfig const& cfg,
+                                           uint32_t ledgerNum,
+                                           uint64_t sourceAccountId)
+{
+    auto wasm = cfg.modeSetsUpInvoke() ? rust_bridge::get_test_wasm_loadgen()
+                                       : rust_bridge::get_write_bytes();
+    xdr::opaque_vec<> wasmBytes;
+    wasmBytes.assign(wasm.data.begin(), wasm.data.end());
+
+    LedgerKey contractCodeLedgerKey;
+    contractCodeLedgerKey.type(CONTRACT_CODE);
+    contractCodeLedgerKey.contractCode().hash = sha256(wasmBytes);
+
+    releaseAssert(!mCodeKey);
+    mCodeKey = contractCodeLedgerKey;
+
+    // Wasm blob + approximate overhead for contract
+    // instance and ContractCode LE overhead
+    mContactOverheadBytes = wasmBytes.size() + 160;
+
+    return mTxGenerator.createUploadWasmTransaction(ledgerNum, sourceAccountId,
+                                                    wasmBytes, *mCodeKey,
+                                                    cfg.maxGeneratedFeeRate);
+}
+
+std::pair<TxGenerator::TestAccountPtr, TransactionTestFramePtr>
+LoadGenerator::createInstanceTransaction(GeneratedLoadConfig const& cfg,
+                                         uint32_t ledgerNum,
+                                         uint64_t sourceAccountId)
+{
+    auto salt = sha256("upgrade" +
+                       std::to_string(++mNumCreateContractTransactionCalls));
+
+    auto txPair = mTxGenerator.createContractTransaction(
+        ledgerNum, sourceAccountId, *mCodeKey, mContactOverheadBytes, salt,
+        cfg.maxGeneratedFeeRate);
+
+    auto const& instanceLk =
+        txPair.second->sorobanResources().footprint.readWrite.back();
+
+    mContractInstanceKeys.emplace(instanceLk);
+
+    return txPair;
+}
+
 void
 LoadGenerator::maybeHandleFailedTx(TransactionFrameBaseConstPtr tx,
                                    TxGenerator::TestAccountPtr sourceAccount,
@@ -1206,8 +1216,8 @@ LoadGenerator::checkMinimumSorobanSuccess(GeneratedLoadConfig const& cfg)
         return true;
     }
 
-    int64_t nTxns = mTxGenerator.GetApplySorobanSuccess().count() +
-                    mTxGenerator.GetApplySorobanFailure().count() -
+    int64_t nTxns = mTxGenerator.getApplySorobanSuccess().count() +
+                    mTxGenerator.getApplySorobanFailure().count() -
                     mPreLoadgenApplySorobanSuccess -
                     mPreLoadgenApplySorobanFailure;
 
@@ -1217,7 +1227,7 @@ LoadGenerator::checkMinimumSorobanSuccess(GeneratedLoadConfig const& cfg)
         return true;
     }
 
-    int64_t nSuccessful = mTxGenerator.GetApplySorobanSuccess().count() -
+    int64_t nSuccessful = mTxGenerator.getApplySorobanSuccess().count() -
                           mPreLoadgenApplySorobanSuccess;
     return (nSuccessful * 100) / nTxns >= cfg.getMinSorobanPercentSuccess();
 }

@@ -326,6 +326,15 @@ class LoadGenerator
     createMixedClassicSorobanTransaction(uint32_t ledgerNum,
                                          uint64_t sourceAccountId,
                                          GeneratedLoadConfig const& cfg);
+
+    std::pair<TxGenerator::TestAccountPtr, TransactionTestFramePtr>
+    createUploadWasmTransaction(GeneratedLoadConfig const& cfg,
+                                uint32_t ledgerNum, uint64_t sourceAccountId);
+
+    std::pair<TxGenerator::TestAccountPtr, TransactionTestFramePtr>
+    createInstanceTransaction(GeneratedLoadConfig const& cfg,
+                              uint32_t ledgerNum, uint64_t sourceAccountId);
+
     // Samples a random wasm size from the `LOADGEN_WASM_BYTES_FOR_TESTING`
     // distribution. Returns a pair containing the appropriate resources for a
     // wasm of that size as well as the size itself.

@@ -139,8 +139,8 @@ class TxGenerator
 
     std::map<uint64_t, TestAccountPtr> const& getAccounts();
 
-    medida::Counter const& GetApplySorobanSuccess();
-    medida::Counter const& GetApplySorobanFailure();
+    medida::Counter const& getApplySorobanSuccess();
+    medida::Counter const& getApplySorobanFailure();
 
     void reset();
 

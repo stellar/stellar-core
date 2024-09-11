@@ -100,7 +100,6 @@ TxGenerator::bytesToRead(xdr::xvector<stellar::LedgerKey> const& keys)
         auto ltxe = ltx.loadWithoutRecord(key);
         if (ltxe)
         {
-            total += xdr::xdr_size(key);
             total += xdr::xdr_size(ltxe.current());
         }
     }
@@ -265,7 +264,6 @@ TxGenerator::manageOfferTransaction(uint32_t ledgerNum, uint64_t accountId,
                                                         maxGeneratedFeeRate));
 }
 
-// TODO:: passing in wasm and maxGeneratedFeeRate?
 std::pair<TxGenerator::TestAccountPtr, TransactionTestFramePtr>
 TxGenerator::createUploadWasmTransaction(
     uint32_t ledgerNum, uint64_t accountId, xdr::opaque_vec<> const& wasm,
@@ -360,8 +358,6 @@ TxGenerator::invokeSorobanLoadTransaction(
 
     auto account = findAccount(accountId, ledgerNum);
 
-    auto const& networkCfg = mApp.getLedgerManager().getSorobanNetworkConfig();
-
     // Approximate instruction measurements from loadgen contract. While the
     // guest and host cycle counts are exact, and we can predict the cost of the
     // guest and host loops correctly, it is difficult to estimate the CPU cost
@@ -370,8 +366,8 @@ TxGenerator::invokeSorobanLoadTransaction(
     // payload). baseInstructionCount is for vm instantiation and additional
     // cushion to make sure transactions will succeed, but this means that the
     // instruction count is not perfect. Some TXs will fail due to exceeding
-    // resource limitations.  However these should fail at apply time, so will
-    // still generate significant load
+    // resource limitations, but failures will be rare and those failures
+    // will happen at apply time, so they will still generate significant load.
     uint64_t const baseInstructionCount = 1'500'000;
     uint64_t const instructionsPerGuestCycle = 80;
     uint64_t const instructionsPerHostCycle = 5030;
@@ -520,13 +516,13 @@ TxGenerator::getAccounts()
 }
 
 medida::Counter const&
-TxGenerator::GetApplySorobanSuccess()
+TxGenerator::getApplySorobanSuccess()
 {
     return mApplySorobanSuccess;
 }
 
 medida::Counter const&
-TxGenerator::GetApplySorobanFailure()
+TxGenerator::getApplySorobanFailure()
 {
     return mApplySorobanFailure;
 }
@@ -737,10 +733,6 @@ TxGenerator::invokeSorobanCreateUpgradeTransaction(
 {
     auto account = findAccount(accountId, ledgerNum);
     auto const& contractID = instanceKey.contractData().contract;
-
-    // TODO: Change this method to take SorobanUpgradeConfig as a parameter
-    // instead of upgradeBytes. SCBytes upgradeBytes =
-    // getConfigUpgradeSetFromLoadConfig(cfg);
 
     LedgerKey upgradeLK(CONTRACT_DATA);
     upgradeLK.contractData().durability = TEMPORARY;

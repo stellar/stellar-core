@@ -1807,8 +1807,6 @@ runApplyLoad(CommandLineArgs const& args)
 {
     CommandLine::ConfigOption configOption;
 
-    uint32_t numAccounts = 0;
-
     uint64_t ledgerMaxInstructions = 0;
     uint64_t ledgerMaxReadLedgerEntries = 0;
     uint64_t ledgerMaxReadBytes = 0;
@@ -1816,10 +1814,6 @@ runApplyLoad(CommandLineArgs const& args)
     uint64_t ledgerMaxWriteBytes = 0;
     uint64_t ledgerMaxTxCount = 0;
     uint64_t ledgerMaxTransactionsSizeBytes = 0;
-
-    ParserWithValidation numAccountsParser{
-        clara::Arg(numAccounts, "NumAccounts").required(),
-        [&] { return numAccounts > 0 ? "" : "NumAccounts must be > 0"; }};
 
     ParserWithValidation ledgerMaxInstructionsParser{
         clara::Opt(ledgerMaxInstructions,
@@ -1889,17 +1883,15 @@ runApplyLoad(CommandLineArgs const& args)
 
     return runWithHelp(
         args,
-        {configurationParser(configOption), numAccountsParser,
-         ledgerMaxInstructionsParser, ledgerMaxReadLedgerEntriesParser,
-         ledgerMaxReadBytesParser, ledgerMaxWriteLedgerEntriesParser,
-         ledgerMaxWriteBytesParser, ledgerMaxTxCountParser,
-         ledgerMaxTransactionsSizeBytesParser},
+        {configurationParser(configOption), ledgerMaxInstructionsParser,
+         ledgerMaxReadLedgerEntriesParser, ledgerMaxReadBytesParser,
+         ledgerMaxWriteLedgerEntriesParser, ledgerMaxWriteBytesParser,
+         ledgerMaxTxCountParser, ledgerMaxTransactionsSizeBytesParser},
         [&] {
             auto config = configOption.getConfig();
             config.RUN_STANDALONE = true;
 
             VirtualClock clock(VirtualClock::REAL_TIME);
-            int result;
             auto appPtr = Application::create(clock, config);
 
             auto& app = *appPtr;
@@ -1907,7 +1899,7 @@ runApplyLoad(CommandLineArgs const& args)
                 auto& lm = app.getLedgerManager();
                 app.start();
 
-                ApplyLoad al(app, numAccounts, ledgerMaxInstructions,
+                ApplyLoad al(app, ledgerMaxInstructions,
                              ledgerMaxReadLedgerEntries, ledgerMaxReadBytes,
                              ledgerMaxWriteLedgerEntries, ledgerMaxWriteBytes,
                              ledgerMaxTxCount, ledgerMaxTransactionsSizeBytes);
@@ -1916,6 +1908,16 @@ runApplyLoad(CommandLineArgs const& args)
                     app.getMetrics().NewTimer({"ledger", "ledger", "close"});
                 ledgerClose.Clear();
 
+                auto& cpuInsRatio = app.getMetrics().NewHistogram(
+                    {"soroban", "host-fn-op",
+                     "invoke-time-fsecs-cpu-insn-ratio"});
+                cpuInsRatio.Clear();
+
+                auto& cpuInsRatioExclVm = app.getMetrics().NewHistogram(
+                    {"soroban", "host-fn-op",
+                     "invoke-time-fsecs-cpu-insn-ratio-excl-vm"});
+                cpuInsRatioExclVm.Clear();
+
                 for (size_t i = 0; i < 20; ++i)
                 {
                     al.benchmark();
@@ -1923,14 +1925,26 @@ runApplyLoad(CommandLineArgs const& args)
 
                 CLOG_INFO(Perf, "Max ledger close: {} milliseconds",
                           ledgerClose.max());
+                CLOG_INFO(Perf, "Min ledger close: {} milliseconds",
+                          ledgerClose.min());
                 CLOG_INFO(Perf, "Mean ledger close:  {} milliseconds",
                           ledgerClose.mean());
+
+                CLOG_INFO(Perf, "Max CPU ins ratio: {}",
+                          cpuInsRatio.max() / 1000000);
+                CLOG_INFO(Perf, "Mean CPU ins ratio:  {}",
+                          cpuInsRatio.mean() / 1000000);
+
+                CLOG_INFO(Perf, "Max CPU ins ratio excl VM: {}",
+                          cpuInsRatioExclVm.max() / 1000000);
+                CLOG_INFO(Perf, "Mean CPU ins ratio excl VM:  {}",
+                          cpuInsRatioExclVm.mean() / 1000000);
 
                 CLOG_INFO(Perf, "Tx Success Rate: {:f}%",
                           al.successRate() * 100);
             }
 
-            return result;
+            return 0;
         });
 }
 #endif
