@@ -62,6 +62,9 @@ class Bucket : public NonMovableOrCopyable
                                       std::string ext);
 
   public:
+    static constexpr ProtocolVersion
+        FIRST_PROTOCOL_SUPPORTING_PERSISTENT_EVICTION = ProtocolVersion::V_23;
+
     // Create an empty bucket. The empty bucket has hash '000000...' and its
     // filename is the empty string.
     Bucket();
