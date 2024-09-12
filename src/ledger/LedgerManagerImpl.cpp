@@ -5,6 +5,7 @@
 #include "ledger/LedgerManagerImpl.h"
 #include "bucket/BucketList.h"
 #include "bucket/BucketManager.h"
+#include "bucket/test/BucketTestUtils.h"
 #include "catchup/AssumeStateWork.h"
 #include "crypto/Hex.h"
 #include "crypto/KeyUtils.h"
@@ -1725,8 +1726,9 @@ LedgerManagerImpl::transferLedgerEntriesToBucketList(
     ltx.getAllEntries(initEntries, liveEntries, deadEntries);
     if (blEnabled)
     {
-        mApp.getBucketManager().addBatch(mApp, lh, initEntries, liveEntries,
-                                         deadEntries);
+        BucketTestUtils::addBatchAndUpdateSnapshot(
+            mApp.getBucketManager().getBucketList(), mApp, lh, initEntries,
+            liveEntries, deadEntries);
     }
 }
 

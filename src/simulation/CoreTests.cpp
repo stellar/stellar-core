@@ -7,6 +7,7 @@
 #include "bucket/BucketManager.h"
 #include "bucket/BucketManagerImpl.h"
 #include "bucket/LedgerCmp.h"
+#include "bucket/test/BucketTestUtils.h"
 #include "crypto/SHA.h"
 #include "herder/HerderImpl.h"
 #include "herder/LedgerCloseData.h"
@@ -685,8 +686,9 @@ TEST_CASE("Bucket list entries vs write throughput", "[scalability][!hide]")
         LedgerHeader lh;
         lh.ledgerVersion = Config::CURRENT_LEDGER_PROTOCOL_VERSION;
         lh.ledgerSeq = i;
-        app->getBucketManager().addBatch(
-            *app, lh, LedgerTestUtils::generateValidLedgerEntries(100),
+        BucketTestUtils::addBatchAndUpdateSnapshot(
+            app->getBucketManager().getBucketList(), *app, lh,
+            LedgerTestUtils::generateValidLedgerEntries(100),
             LedgerTestUtils::generateValidLedgerEntries(20),
             LedgerTestUtils::generateValidLedgerEntryKeysWithExclusions(
                 {CONFIG_SETTING}, 5));

@@ -5,6 +5,7 @@
 #include "bucket/BucketInputIterator.h"
 #include "bucket/BucketManager.h"
 #include "bucket/BucketOutputIterator.h"
+#include "bucket/test/BucketTestUtils.h"
 #include "catchup/ApplyBucketsWork.h"
 #include "ledger/LedgerHashUtils.h"
 #include "ledger/LedgerTxn.h"
@@ -143,8 +144,9 @@ struct BucketListGenerator
         std::vector<LedgerKey> deadEntries;
         auto header = ltx.loadHeader().current();
         ltx.getAllEntries(initEntries, liveEntries, deadEntries);
-        app->getBucketManager().addBatch(*app, header, initEntries, liveEntries,
-                                         deadEntries);
+        BucketTestUtils::addBatchAndUpdateSnapshot(
+            app->getBucketManager().getBucketList(), *app, header, initEntries,
+            liveEntries, deadEntries);
         ltx.commit();
     }
 
