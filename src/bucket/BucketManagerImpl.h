@@ -43,6 +43,8 @@ class BucketManagerImpl : public BucketManager
     std::unique_ptr<TmpDirManager> mTmpDirManager;
     std::unique_ptr<TmpDir> mWorkDir;
     std::map<Hash, std::shared_ptr<Bucket>> mSharedBuckets;
+    std::shared_ptr<SearchableBucketListSnapshot>
+        mSearchableBucketListSnapshot{};
 
     // Lock for managing raw Bucket files or the bucket directory. This lock is
     // only required for file access, but is not required for logical changes to
@@ -187,6 +189,9 @@ class BucketManagerImpl : public BucketManager
     std::shared_ptr<BasicWork> scheduleVerifyReferencedBucketsWork() override;
 
     Config const& getConfig() const override;
+
+    std::shared_ptr<SearchableBucketListSnapshot>
+    getSearchableBucketListSnapshot() override;
 };
 
 #define SKIP_1 50

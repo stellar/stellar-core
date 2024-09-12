@@ -112,7 +112,7 @@ class BucketSnapshotState : public AbstractLedgerStateSnapshot
     LedgerHeaderWrapper mLedgerHeader;
 
   public:
-    BucketSnapshotState(BucketSnapshotManager& bsm);
+    BucketSnapshotState(BucketManager& bm);
     ~BucketSnapshotState() override;
 
     LedgerHeaderWrapper getLedgerHeader() const override;

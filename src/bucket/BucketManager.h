@@ -381,5 +381,9 @@ class BucketManager : NonMovableOrCopyable
     scheduleVerifyReferencedBucketsWork() = 0;
 
     virtual Config const& getConfig() const = 0;
+
+    // Get bucketlist snapshot
+    virtual std::shared_ptr<SearchableBucketListSnapshot>
+    getSearchableBucketListSnapshot() = 0;
 };
 }

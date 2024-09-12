@@ -163,8 +163,8 @@ LedgerTxnReadOnly::executeWithMaybeInnerSnapshot(
     return f(lsg);
 }
 
-BucketSnapshotState::BucketSnapshotState(BucketSnapshotManager& bsm)
-    : mSnapshot(bsm.copySearchableBucketListSnapshot())
+BucketSnapshotState::BucketSnapshotState(BucketManager& bm)
+    : mSnapshot(bm.getSearchableBucketListSnapshot())
     , mLedgerHeader(LedgerHeaderWrapper(
           std::make_shared<LedgerHeader>(mSnapshot->getLedgerHeader())))
 {
@@ -233,8 +233,7 @@ LedgerSnapshot::LedgerSnapshot(Application& app)
     }
     else
     {
-        mGetter = std::make_unique<BucketSnapshotState>(
-            app.getBucketManager().getBucketSnapshotManager());
+        mGetter = std::make_unique<BucketSnapshotState>(app.getBucketManager());
     }
 }
 
