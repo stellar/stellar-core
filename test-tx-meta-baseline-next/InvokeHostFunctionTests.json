@@ -1,6 +1,6 @@
 
 {
-	"!cfg protocol version" : 22,
+	"!cfg protocol version" : 23,
 	"!rng seed" : 12345,
 	"!test all versions" : true,
 	"!versions to test" : 
@@ -27,7 +27,8 @@
 		19,
 		20,
 		21,
-		22
+		22,
+		23
 	],
 	"Module cache" : [ "MR6BJ3xmn2c=" ],
 	"Native stellar asset contract" : [ "bKDF6V5IzTo=", "iasg+Zj14uo=" ],
@@ -1343,12 +1344,15 @@
 	"refund is sent to fee-bump source|protocol version 20" : [ "bKDF6V5IzTo=", "JRiUwIP1h2Q=", "LyDINL0VaLk=" ],
 	"refund is sent to fee-bump source|protocol version 21" : [ "bKDF6V5IzTo=", "JRiUwIP1h2Q=", "LyDINL0VaLk=" ],
 	"refund is sent to fee-bump source|protocol version 22" : [ "bKDF6V5IzTo=", "JRiUwIP1h2Q=", "LyDINL0VaLk=" ],
+	"refund is sent to fee-bump source|protocol version 23" : [ "bKDF6V5IzTo=", "JRiUwIP1h2Q=", "LyDINL0VaLk=" ],
 	"refund still happens on bad auth|protocol version 20" : [ "bKDF6V5IzTo=", "JRiUwIP1h2Q=", "LyDINL0VaLk=" ],
 	"refund still happens on bad auth|protocol version 21" : [ "bKDF6V5IzTo=", "JRiUwIP1h2Q=", "LyDINL0VaLk=" ],
 	"refund still happens on bad auth|protocol version 22" : [ "bKDF6V5IzTo=", "JRiUwIP1h2Q=", "LyDINL0VaLk=" ],
+	"refund still happens on bad auth|protocol version 23" : [ "bKDF6V5IzTo=", "JRiUwIP1h2Q=", "LyDINL0VaLk=" ],
 	"refund test with closeLedger|protocol version 20" : [ "bKDF6V5IzTo=", "JRiUwIP1h2Q=" ],
 	"refund test with closeLedger|protocol version 21" : [ "bKDF6V5IzTo=", "JRiUwIP1h2Q=" ],
 	"refund test with closeLedger|protocol version 22" : [ "bKDF6V5IzTo=", "JRiUwIP1h2Q=" ],
+	"refund test with closeLedger|protocol version 23" : [ "bKDF6V5IzTo=", "JRiUwIP1h2Q=" ],
 	"settings upgrade" : [ "bKDF6V5IzTo=", "bKDF6V5IzTo=" ],
 	"settings upgrade command line utils" : 
 	[

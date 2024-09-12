@@ -1,6 +1,6 @@
 
 {
-	"!cfg protocol version" : 21,
+	"!cfg protocol version" : 22,
 	"!rng seed" : 12345,
 	"!test all versions" : true,
 	"!versions to test" : 
@@ -26,7 +26,8 @@
 		18,
 		19,
 		20,
-		21
+		21,
+		22
 	],
 	"inflation|protocol version 10|inflation scenarios|50/50 split" : 
 	[
@@ -7376,6 +7377,7 @@
 	],
 	"inflation|protocol version 20|not supported" : [ "5oGt1iMFSw4=" ],
 	"inflation|protocol version 21|not supported" : [ "5oGt1iMFSw4=" ],
+	"inflation|protocol version 22|not supported" : [ "5oGt1iMFSw4=" ],
 	"inflation|protocol version 2|inflation scenarios|50/50 split" : 
 	[
 		"kLAIaEj7I2M=",
