@@ -165,6 +165,8 @@ LedgerTxnReadOnly::executeWithMaybeInnerSnapshot(
 
 BucketSnapshotState::BucketSnapshotState(BucketSnapshotManager& bsm)
     : mSnapshot(bsm.copySearchableBucketListSnapshot())
+    , mLedgerHeader(LedgerHeaderWrapper(
+          std::make_shared<LedgerHeader>(mSnapshot->getLedgerHeader())))
 {
 }
 
@@ -175,8 +177,7 @@ BucketSnapshotState::~BucketSnapshotState()
 LedgerHeaderWrapper
 BucketSnapshotState::getLedgerHeader() const
 {
-    return LedgerHeaderWrapper(
-        std::make_shared<LedgerHeader>(mSnapshot->getLedgerHeader()));
+    return LedgerHeaderWrapper(std::get<1>(mLedgerHeader.mHeader));
 }
 
 LedgerEntryWrapper
