@@ -40,7 +40,7 @@ TEST_CASE_VERSIONS("update sponsorship", "[tx][sponsorship]")
 {
     VirtualClock clock;
     auto app = createTestApplication(
-        clock, getTestConfig(0, Config::TESTDB_IN_MEMORY));
+        clock, getTestConfig(0, Config::TESTDB_IN_MEMORY_NO_OFFERS));
 
     auto minBal = [&](uint32_t n) {
         return app->getLedgerManager().getLastMinBalance(n);

@@ -914,7 +914,7 @@ TEST_CASE_VERSIONS("merging bucket entries with initentry with shadows",
 TEST_CASE_VERSIONS("legacy bucket apply", "[bucket]")
 {
     VirtualClock clock;
-    Config cfg(getTestConfig(0, Config::TESTDB_IN_MEMORY_SQLITE));
+    Config cfg(getTestConfig(0, Config::TESTDB_IN_MEMORY_OFFERS));
     for_versions_with_differing_bucket_logic(cfg, [&](Config const& cfg) {
         Application::pointer app = createTestApplication(clock, cfg);
 

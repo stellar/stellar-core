@@ -19,7 +19,7 @@ using namespace stellar::txtest;
 TEST_CASE_VERSIONS("clawbackClaimableBalance",
                    "[tx][clawback][claimablebalance]")
 {
-    Config const& cfg = getTestConfig(0, Config::TESTDB_IN_MEMORY);
+    Config const& cfg = getTestConfig(0, Config::TESTDB_IN_MEMORY_NO_OFFERS);
 
     VirtualClock clock;
     auto app = createTestApplication(clock, cfg);

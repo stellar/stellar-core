@@ -374,7 +374,7 @@ void
 testValidateUpgrades(VirtualClock::system_time_point preferredUpgradeDatetime,
                      bool canBeValid)
 {
-    auto cfg = getTestConfig(0, Config::TESTDB_IN_MEMORY);
+    auto cfg = getTestConfig(0, Config::TESTDB_IN_MEMORY_NO_OFFERS);
     cfg.TESTING_UPGRADE_LEDGER_PROTOCOL_VERSION = 10;
     cfg.TESTING_UPGRADE_DESIRED_FEE = 100;
     cfg.TESTING_UPGRADE_MAX_TX_SET_SIZE = 50;
@@ -632,7 +632,7 @@ TEST_CASE("Ledger Manager applies upgrades properly", "[upgrades]")
 TEST_CASE("config upgrade validation", "[upgrades]")
 {
     VirtualClock clock;
-    auto cfg = getTestConfig(0, Config::TESTDB_IN_MEMORY);
+    auto cfg = getTestConfig(0, Config::TESTDB_IN_MEMORY_NO_OFFERS);
     auto app = createTestApplication(clock, cfg);
 
     auto headerTime = VirtualClock::to_time_t(genesis(0, 2));
@@ -828,7 +828,7 @@ TEST_CASE("config upgrade validation", "[upgrades]")
 TEST_CASE("config upgrades applied to ledger", "[soroban][upgrades]")
 {
     VirtualClock clock;
-    auto cfg = getTestConfig(0, Config::TESTDB_IN_MEMORY);
+    auto cfg = getTestConfig(0, Config::TESTDB_IN_MEMORY_NO_OFFERS);
     cfg.TESTING_UPGRADE_LEDGER_PROTOCOL_VERSION =
         static_cast<uint32_t>(SOROBAN_PROTOCOL_VERSION) - 1;
     cfg.USE_CONFIG_FOR_GENESIS = false;
@@ -2275,7 +2275,7 @@ TEST_CASE_VERSIONS("upgrade base reserve", "[upgrades]")
 {
     VirtualClock clock;
 
-    auto cfg = getTestConfig(0, Config::TESTDB_IN_MEMORY);
+    auto cfg = getTestConfig(0, Config::TESTDB_IN_MEMORY_NO_OFFERS);
     auto app = createTestApplication(clock, cfg);
 
     auto& lm = app->getLedgerManager();
@@ -2974,7 +2974,7 @@ TEST_CASE("upgrade from cpp14 serialized data", "[upgrades]")
 
 TEST_CASE("upgrades serialization roundtrip", "[upgrades]")
 {
-    auto cfg = getTestConfig(0, Config::TESTDB_IN_MEMORY);
+    auto cfg = getTestConfig(0, Config::TESTDB_IN_MEMORY_NO_OFFERS);
     VirtualClock clock;
     auto app = createTestApplication(clock, cfg);
 
@@ -3058,7 +3058,7 @@ TEST_CASE("upgrades serialization roundtrip", "[upgrades]")
 TEST_CASE_VERSIONS("upgrade flags", "[upgrades][liquiditypool]")
 {
     VirtualClock clock;
-    auto cfg = getTestConfig(0, Config::TESTDB_IN_MEMORY);
+    auto cfg = getTestConfig(0, Config::TESTDB_IN_MEMORY_NO_OFFERS);
 
     auto app = createTestApplication(clock, cfg);
 

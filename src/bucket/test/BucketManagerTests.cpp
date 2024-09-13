@@ -499,7 +499,7 @@ TEST_CASE("bucketmanager do not leak empty-merge futures",
     // are thereby not leaking. Disable BucketListDB so that snapshots do not
     // hold persist buckets, complicating bucket counting.
     VirtualClock clock;
-    Config cfg(getTestConfig(0, Config::TESTDB_IN_MEMORY));
+    Config cfg(getTestConfig(0, Config::TESTDB_IN_MEMORY_NO_OFFERS));
     cfg.ARTIFICIALLY_PESSIMIZE_MERGES_FOR_TESTING = true;
     cfg.TESTING_UPGRADE_LEDGER_PROTOCOL_VERSION =
         static_cast<uint32_t>(

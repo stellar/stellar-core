@@ -469,9 +469,10 @@ TEST_CASE("LedgerTxn round trip", "[ledgertxn]")
                 VirtualClock clock;
                 // BucketListDB incompatible with direct root commits
                 auto app = createTestApplication(
-                    clock, getTestConfig(0, mode == Config::TESTDB_DEFAULT
-                                                ? Config::TESTDB_IN_MEMORY
-                                                : mode));
+                    clock,
+                    getTestConfig(0, mode == Config::TESTDB_DEFAULT
+                                         ? Config::TESTDB_IN_MEMORY_NO_OFFERS
+                                         : mode));
 
                 runTest(app->getLedgerTxnRoot());
             }
@@ -481,9 +482,10 @@ TEST_CASE("LedgerTxn round trip", "[ledgertxn]")
                 VirtualClock clock;
 
                 // BucketListDB incompatible with direct root commits
-                auto cfg = getTestConfig(0, mode == Config::TESTDB_DEFAULT
-                                                ? Config::TESTDB_IN_MEMORY
-                                                : mode);
+                auto cfg =
+                    getTestConfig(0, mode == Config::TESTDB_DEFAULT
+                                         ? Config::TESTDB_IN_MEMORY_NO_OFFERS
+                                         : mode);
                 cfg.ENTRY_CACHE_SIZE = 0;
                 auto app = createTestApplication(clock, cfg);
 
@@ -504,7 +506,7 @@ TEST_CASE("LedgerTxn round trip", "[ledgertxn]")
 
     SECTION("in-memory")
     {
-        runTestWithDbMode(Config::TESTDB_IN_MEMORY);
+        runTestWithDbMode(Config::TESTDB_IN_MEMORY_NO_OFFERS);
     }
 
 #ifdef USE_POSTGRES
@@ -723,7 +725,7 @@ TEST_CASE("LedgerTxn createWithoutLoading and updateWithoutLoading",
 
     SECTION("in-memory")
     {
-        runTest(Config::TESTDB_IN_MEMORY);
+        runTest(Config::TESTDB_IN_MEMORY_NO_OFFERS);
     }
 
 #ifdef USE_POSTGRES
@@ -823,7 +825,7 @@ TEST_CASE("LedgerTxn erase", "[ledgertxn]")
 
     SECTION("in-memory")
     {
-        runTest(Config::TESTDB_IN_MEMORY);
+        runTest(Config::TESTDB_IN_MEMORY_NO_OFFERS);
     }
 
 #ifdef USE_POSTGRES
@@ -928,7 +930,7 @@ TEST_CASE("LedgerTxn eraseWithoutLoading", "[ledgertxn]")
 
     SECTION("in-memory")
     {
-        runTest(Config::TESTDB_IN_MEMORY);
+        runTest(Config::TESTDB_IN_MEMORY_NO_OFFERS);
     }
 
 #ifdef USE_POSTGRES
@@ -1033,7 +1035,7 @@ testInflationWinners(
     {
         VirtualClock clock;
         auto app = createTestApplication(
-            clock, getTestConfig(0, Config::TESTDB_IN_MEMORY));
+            clock, getTestConfig(0, Config::TESTDB_IN_MEMORY_NO_OFFERS));
 
         testAtRoot(*app);
     }
@@ -1042,7 +1044,7 @@ testInflationWinners(
     if (updates.size() > 1)
     {
         VirtualClock clock;
-        auto cfg = getTestConfig(0, Config::TESTDB_IN_MEMORY);
+        auto cfg = getTestConfig(0, Config::TESTDB_IN_MEMORY_NO_OFFERS);
         cfg.ENTRY_CACHE_SIZE = 0;
         auto app = createTestApplication(clock, cfg);
 
@@ -1053,7 +1055,7 @@ testInflationWinners(
     {
         VirtualClock clock;
         auto app = createTestApplication(
-            clock, getTestConfig(0, Config::TESTDB_IN_MEMORY));
+            clock, getTestConfig(0, Config::TESTDB_IN_MEMORY_NO_OFFERS));
 
         testInflationWinners(app->getLedgerTxnRoot(), maxWinners, minBalance,
                              expected, updates.cbegin(), updates.cend());
@@ -1394,7 +1396,7 @@ TEST_CASE("LedgerTxn loadHeader", "[ledgertxn]")
 
     SECTION("in-memory")
     {
-        runTest(Config::TESTDB_IN_MEMORY);
+        runTest(Config::TESTDB_IN_MEMORY_NO_OFFERS);
     }
 
 #ifdef USE_POSTGRES
@@ -1510,7 +1512,7 @@ TEST_CASE_VERSIONS("LedgerTxn load", "[ledgertxn]")
                         // Invariant not supported in BucketListDB and in-memory
                         // mode
                         if (mode != Config::TESTDB_DEFAULT &&
-                            mode != Config::TESTDB_IN_MEMORY)
+                            mode != Config::TESTDB_IN_MEMORY_NO_OFFERS)
                         {
                             REQUIRE_THROWS_AS(ltx1.load(trustlineKey(
                                                   acc.getPublicKey(), native)),
@@ -1525,7 +1527,7 @@ TEST_CASE_VERSIONS("LedgerTxn load", "[ledgertxn]")
                         // Invariant not supported in BucketListDB and in-memory
                         // mode
                         if (mode != Config::TESTDB_DEFAULT &&
-                            mode != Config::TESTDB_IN_MEMORY)
+                            mode != Config::TESTDB_IN_MEMORY_NO_OFFERS)
                         {
                             REQUIRE_THROWS_AS(ltx1.load(trustlineKey(
                                                   acc.getPublicKey(), usd)),
@@ -1543,7 +1545,7 @@ TEST_CASE_VERSIONS("LedgerTxn load", "[ledgertxn]")
                             // Invariant not supported in BucketListDB and
                             // in-memory mode
                             if (mode != Config::TESTDB_DEFAULT &&
-                                mode != Config::TESTDB_IN_MEMORY)
+                                mode != Config::TESTDB_IN_MEMORY_NO_OFFERS)
                             {
                                 REQUIRE_THROWS_AS(ltx1.load(key),
                                                   NonSociRelatedException);
@@ -1588,7 +1590,7 @@ TEST_CASE_VERSIONS("LedgerTxn load", "[ledgertxn]")
 
     SECTION("in-memory")
     {
-        runTest(Config::TESTDB_IN_MEMORY);
+        runTest(Config::TESTDB_IN_MEMORY_NO_OFFERS);
     }
 
 #ifdef USE_POSTGRES
@@ -1943,7 +1945,7 @@ TEST_CASE("LedgerTxn loadAllOffers", "[ledgertxn]")
 
     SECTION("in-memory")
     {
-        runTest(Config::TESTDB_IN_MEMORY);
+        runTest(Config::TESTDB_IN_MEMORY_NO_OFFERS);
     }
 
 #ifdef USE_POSTGRES
@@ -4127,7 +4129,7 @@ TEST_CASE("Access deactivated entry", "[ledgertxn]")
 
     SECTION("in-memory")
     {
-        runTest(Config::TESTDB_IN_MEMORY);
+        runTest(Config::TESTDB_IN_MEMORY_NO_OFFERS);
     }
 
 #ifdef USE_POSTGRES
@@ -4183,7 +4185,7 @@ TEST_CASE("LedgerTxn generalized ledger entries", "[ledgertxn]")
 TEST_CASE("LedgerTxn best offers cache eviction", "[ledgertxn]")
 {
     VirtualClock clock;
-    auto cfg = getTestConfig(0, Config::TESTDB_IN_MEMORY_SQLITE);
+    auto cfg = getTestConfig(0, Config::TESTDB_IN_MEMORY_OFFERS);
     auto app = createTestApplication(clock, cfg);
 
     auto buying = autocheck::generator<Asset>()(UINT32_MAX);
@@ -4400,7 +4402,7 @@ testPoolShareTrustLinesByAccountAndAsset(
     {
         VirtualClock clock;
         auto app = createTestApplication(
-            clock, getTestConfig(0, Config::TESTDB_IN_MEMORY_SQLITE));
+            clock, getTestConfig(0, Config::TESTDB_IN_MEMORY_OFFERS));
 
         for_versions_from(18, *app, [&] { testAtRoot(*app); });
     }
@@ -4409,7 +4411,7 @@ testPoolShareTrustLinesByAccountAndAsset(
     if (updates.size() > 1)
     {
         VirtualClock clock;
-        auto cfg = getTestConfig(0, Config::TESTDB_IN_MEMORY_SQLITE);
+        auto cfg = getTestConfig(0, Config::TESTDB_IN_MEMORY_OFFERS);
         cfg.ENTRY_CACHE_SIZE = 0;
         auto app = createTestApplication(clock, cfg);
 
@@ -4420,7 +4422,7 @@ testPoolShareTrustLinesByAccountAndAsset(
     {
         VirtualClock clock;
         auto app = createTestApplication(
-            clock, getTestConfig(0, Config::TESTDB_IN_MEMORY_SQLITE));
+            clock, getTestConfig(0, Config::TESTDB_IN_MEMORY_OFFERS));
 
         for_versions_from(18, *app, [&] {
             testPoolShareTrustLinesByAccountAndAsset(
@@ -4448,7 +4450,7 @@ TEST_CASE_VERSIONS("LedgerTxn loadPoolShareTrustLinesByAccountAndAsset",
     {
         VirtualClock clock;
         auto app = createTestApplication(
-            clock, getTestConfig(0, Config::TESTDB_IN_MEMORY_SQLITE));
+            clock, getTestConfig(0, Config::TESTDB_IN_MEMORY_OFFERS));
 
         LedgerTxn ltx1(app->getLedgerTxnRoot());
         LedgerTxn ltx2(ltx1);
@@ -4461,7 +4463,7 @@ TEST_CASE_VERSIONS("LedgerTxn loadPoolShareTrustLinesByAccountAndAsset",
     {
         VirtualClock clock;
         auto app = createTestApplication(
-            clock, getTestConfig(0, Config::TESTDB_IN_MEMORY_SQLITE));
+            clock, getTestConfig(0, Config::TESTDB_IN_MEMORY_OFFERS));
 
         LedgerTxn ltx1(app->getLedgerTxnRoot());
         ltx1.getDelta();
@@ -4532,7 +4534,7 @@ TEST_CASE_VERSIONS("LedgerTxn loadPoolShareTrustLinesByAccountAndAsset",
 TEST_CASE("InMemoryLedgerTxn simulate buckets", "[ledgertxn]")
 {
     VirtualClock clock;
-    Config cfg = getTestConfig(0, Config::TESTDB_IN_MEMORY);
+    Config cfg = getTestConfig(0, Config::TESTDB_IN_MEMORY_NO_OFFERS);
 
     auto app = createTestApplication(clock, cfg);
 
@@ -4574,7 +4576,7 @@ TEST_CASE("InMemoryLedgerTxn simulate buckets", "[ledgertxn]")
 TEST_CASE("InMemoryLedgerTxn getOffersByAccountAndAsset", "[ledgertxn]")
 {
     VirtualClock clock;
-    Config cfg = getTestConfig(0, Config::TESTDB_IN_MEMORY);
+    Config cfg = getTestConfig(0, Config::TESTDB_IN_MEMORY_NO_OFFERS);
 
     auto app = createTestApplication(clock, cfg);
 
@@ -4618,7 +4620,7 @@ TEST_CASE("InMemoryLedgerTxn getPoolShareTrustLinesByAccountAndAsset",
           "[ledgertxn]")
 {
     VirtualClock clock;
-    Config cfg = getTestConfig(0, Config::TESTDB_IN_MEMORY);
+    Config cfg = getTestConfig(0, Config::TESTDB_IN_MEMORY_NO_OFFERS);
 
     auto app = createTestApplication(clock, cfg);
 
@@ -4667,7 +4669,7 @@ TEST_CASE_VERSIONS("InMemoryLedgerTxn close multiple ledgers with merges",
                    "[ledgertxn]")
 {
     VirtualClock clock;
-    Config cfg = getTestConfig(0, Config::TESTDB_IN_MEMORY);
+    Config cfg = getTestConfig(0, Config::TESTDB_IN_MEMORY_NO_OFFERS);
 
     auto app = createTestApplication(clock, cfg);
 
@@ -4691,7 +4693,7 @@ TEST_CASE_VERSIONS("InMemoryLedgerTxn close multiple ledgers with merges",
 TEST_CASE("InMemoryLedgerTxn filtering", "[ledgertxn]")
 {
     VirtualClock clock;
-    Config cfg = getTestConfig(0, Config::TESTDB_IN_MEMORY);
+    Config cfg = getTestConfig(0, Config::TESTDB_IN_MEMORY_NO_OFFERS);
 
     auto app = createTestApplication(clock, cfg);
     auto root = TestAccount::createRoot(*app);

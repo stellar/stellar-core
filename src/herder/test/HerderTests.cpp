@@ -1133,7 +1133,7 @@ TEST_CASE("surge pricing", "[herder][txset][soroban]")
 {
     SECTION("max 0 ops per ledger")
     {
-        Config cfg(getTestConfig(0, Config::TESTDB_IN_MEMORY));
+        Config cfg(getTestConfig(0, Config::TESTDB_IN_MEMORY_NO_OFFERS));
         cfg.TESTING_UPGRADE_MAX_TX_SET_SIZE = 0;
 
         VirtualClock clock;

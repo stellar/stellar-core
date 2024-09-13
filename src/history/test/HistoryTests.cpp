@@ -613,8 +613,8 @@ dbModeName(Config::TestDbMode mode)
 {
     switch (mode)
     {
-    case Config::TESTDB_IN_MEMORY_SQLITE:
-        return "TESTDB_IN_MEMORY_SQLITE";
+    case Config::TESTDB_IN_MEMORY_OFFERS:
+        return "TESTDB_IN_MEMORY_OFFERS";
     case Config::TESTDB_ON_DISK_SQLITE:
         return "TESTDB_ON_DISK_SQLITE";
 #ifdef USE_POSTGRES

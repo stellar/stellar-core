@@ -26,7 +26,7 @@ using namespace stellar::txtest;
 // add too much data
 TEST_CASE_VERSIONS("manage data", "[tx][managedata]")
 {
-    Config const& cfg = getTestConfig(0, Config::TESTDB_IN_MEMORY);
+    Config const& cfg = getTestConfig(0, Config::TESTDB_IN_MEMORY_NO_OFFERS);
 
     VirtualClock clock;
     auto app = createTestApplication(clock, cfg);

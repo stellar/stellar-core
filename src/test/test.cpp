@@ -196,7 +196,7 @@ getTestConfig(int instanceNumber, Config::TestDbMode mode)
     {
         // by default, tests should be run with in memory SQLITE as it's faster
         // you can change this by enabling the appropriate line below
-        // mode = Config::TESTDB_IN_MEMORY_SQLITE;
+        // mode = Config::TESTDB_IN_MEMORY_OFFERS;
         // mode = Config::TESTDB_ON_DISK_SQLITE;
         // mode = Config::TESTDB_POSTGRESQL;
         mode = Config::TESTDB_BUCKET_DB_VOLATILE;
@@ -283,7 +283,7 @@ getTestConfig(int instanceNumber, Config::TestDbMode mode)
         switch (mode)
         {
         case Config::TESTDB_BUCKET_DB_VOLATILE:
-        case Config::TESTDB_IN_MEMORY_SQLITE:
+        case Config::TESTDB_IN_MEMORY_OFFERS:
             dbname << "sqlite3://:memory:";
             break;
         case Config::TESTDB_BUCKET_DB_PERSISTENT:
@@ -296,7 +296,7 @@ getTestConfig(int instanceNumber, Config::TestDbMode mode)
             dbname << "postgresql://dbname=test" << instanceNumber;
             thisConfig.DISABLE_XDR_FSYNC = false;
             break;
-        case Config::TESTDB_IN_MEMORY:
+        case Config::TESTDB_IN_MEMORY_NO_OFFERS:
             thisConfig.MODE_USES_IN_MEMORY_LEDGER = true;
             break;
 #endif
@@ -316,7 +316,7 @@ getTestConfig(int instanceNumber, Config::TestDbMode mode)
             thisConfig.BACKGROUND_EVICTION_SCAN = false;
         }
 
-        if (mode != Config::TESTDB_IN_MEMORY)
+        if (mode != Config::TESTDB_IN_MEMORY_NO_OFFERS)
         {
             thisConfig.DATABASE = SecretValue{dbname.str()};
         }

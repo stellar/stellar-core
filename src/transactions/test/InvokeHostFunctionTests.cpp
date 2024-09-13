@@ -2839,7 +2839,7 @@ TEST_CASE("state archival operation errors", "[tx][soroban]")
 TEST_CASE("settings upgrade command line utils", "[tx][soroban][upgrades]")
 {
     VirtualClock clock;
-    auto cfg = getTestConfig(0, Config::TESTDB_IN_MEMORY);
+    auto cfg = getTestConfig(0, Config::TESTDB_IN_MEMORY_NO_OFFERS);
     cfg.ENABLE_SOROBAN_DIAGNOSTIC_EVENTS = true;
     auto app = createTestApplication(clock, cfg);
     auto root = TestAccount::createRoot(*app);

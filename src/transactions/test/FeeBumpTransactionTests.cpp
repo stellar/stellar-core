@@ -66,7 +66,7 @@ TEST_CASE_VERSIONS("fee bump transactions", "[tx][feebump]")
 {
     VirtualClock clock;
     auto app = createTestApplication(
-        clock, getTestConfig(0, Config::TESTDB_IN_MEMORY));
+        clock, getTestConfig(0, Config::TESTDB_IN_MEMORY_NO_OFFERS));
 
     auto& lm = app->getLedgerManager();
     auto fee = lm.getLastClosedLedgerHeader().header.baseFee;

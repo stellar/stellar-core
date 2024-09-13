@@ -34,7 +34,7 @@ TEST_CASE_VERSIONS("confirm and clear sponsor", "[tx][sponsorship]")
 {
     VirtualClock clock;
     auto app = createTestApplication(
-        clock, getTestConfig(0, Config::TESTDB_IN_MEMORY));
+        clock, getTestConfig(0, Config::TESTDB_IN_MEMORY_NO_OFFERS));
 
     auto root = TestAccount::createRoot(*app);
     int64_t minBalance = app->getLedgerManager().getLastMinBalance(0);

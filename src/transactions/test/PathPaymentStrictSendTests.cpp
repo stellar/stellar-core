@@ -178,7 +178,7 @@ TEST_CASE_VERSIONS("pathpayment strict send", "[tx][pathpayment]")
 {
     VirtualClock clock;
     auto app = createTestApplication(
-        clock, getTestConfig(0, Config::TESTDB_IN_MEMORY_SQLITE));
+        clock, getTestConfig(0, Config::TESTDB_IN_MEMORY_OFFERS));
 
     auto exchanged = [&](TestMarketOffer const& o, int64_t sold,
                          int64_t bought) {
@@ -2406,7 +2406,7 @@ TEST_CASE_VERSIONS("pathpayment strict send", "[tx][pathpayment]")
 TEST_CASE_VERSIONS("pathpayment strict send uses all offers in a loop",
                    "[tx][pathpayment]")
 {
-    Config cfg = getTestConfig(0, Config::TESTDB_IN_MEMORY_SQLITE);
+    Config cfg = getTestConfig(0, Config::TESTDB_IN_MEMORY_OFFERS);
     VirtualClock clock;
     auto app = createTestApplication(clock, cfg);
 

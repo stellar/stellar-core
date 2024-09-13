@@ -1726,9 +1726,8 @@ LedgerManagerImpl::transferLedgerEntriesToBucketList(
     ltx.getAllEntries(initEntries, liveEntries, deadEntries);
     if (blEnabled)
     {
-        BucketTestUtils::addBatchAndUpdateSnapshot(
-            mApp.getBucketManager().getBucketList(), mApp, lh, initEntries,
-            liveEntries, deadEntries);
+        mApp.getBucketManager().addBatch(mApp, lh, initEntries, liveEntries,
+                                         deadEntries);
     }
 }
 
