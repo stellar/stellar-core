@@ -1509,4 +1509,19 @@ BucketManagerImpl::getConfig() const
 {
     return mApp.getConfig();
 }
+
+std::shared_ptr<SearchableBucketListSnapshot>
+BucketManagerImpl::getSearchableBucketListSnapshot()
+{
+    releaseAssert(mApp.getConfig().isUsingBucketListDB());
+    // Any other threads must maintain their own snapshot
+    releaseAssert(threadIsMain());
+    if (!mSearchableBucketListSnapshot)
+    {
+        mSearchableBucketListSnapshot =
+            mSnapshotManager->copySearchableBucketListSnapshot();
+    }
+
+    return mSearchableBucketListSnapshot;
+}
 }

@@ -43,6 +43,7 @@ class LedgerEntryWrapper
 class LedgerHeaderWrapper
 {
     std::variant<LedgerTxnHeader, std::shared_ptr<LedgerHeader>> mHeader;
+    friend class BucketSnapshotState;
 
   public:
     explicit LedgerHeaderWrapper(LedgerTxnHeader&& header);
@@ -105,9 +106,13 @@ class LedgerTxnReadOnly : public AbstractLedgerStateSnapshot
 class BucketSnapshotState : public AbstractLedgerStateSnapshot
 {
     std::shared_ptr<SearchableBucketListSnapshot> mSnapshot;
+    // Store a copy of the header from mSnapshot. This is needed for
+    // validation flow where for certain validation scenarios the header needs
+    // to be modified
+    LedgerHeaderWrapper mLedgerHeader;
 
   public:
-    BucketSnapshotState(BucketSnapshotManager& bsm);
+    BucketSnapshotState(BucketManager& bm);
     ~BucketSnapshotState() override;
 
     LedgerHeaderWrapper getLedgerHeader() const override;
