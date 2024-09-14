@@ -1405,7 +1405,8 @@ CommandHandler::generateLoad(std::string const& params, std::string& retStr)
         if (cfg.mode == LoadGenMode::SOROBAN_CREATE_UPGRADE)
         {
             auto configUpgradeKey =
-                mApp.getLoadGenerator().getConfigUpgradeSetKey(cfg);
+                mApp.getLoadGenerator().getConfigUpgradeSetKey(
+                    cfg.getSorobanUpgradeConfig());
             auto configUpgradeKeyStr = stellar::decoder::encode_b64(
                 xdr::xdr_to_opaque(configUpgradeKey));
             res["config_upgrade_set_key"] = configUpgradeKeyStr;
