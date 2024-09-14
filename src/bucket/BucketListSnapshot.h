@@ -102,10 +102,6 @@ class SearchableBucketListSnapshot : public NonMovableOrCopyable
                                    std::shared_ptr<EvictionStatistics> stats,
                                    StateArchivalSettings const& sas);
     uint32_t getLedgerSeq() const;
-    LedgerHeader const&
-    getLedgerHeader() const
-    {
-        return mSnapshot->getLedgerHeader();
-    }
+    LedgerHeader const& getLedgerHeader();
 };
 }

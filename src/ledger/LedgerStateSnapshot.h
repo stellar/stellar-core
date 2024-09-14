@@ -130,6 +130,10 @@ class BucketSnapshotState : public AbstractLedgerStateSnapshot
 // A helper class to create and query read-only snapshots
 // Automatically decides whether to create a BucketList (recommended), or SQL
 // snapshot (deprecated, but currently supported)
+// NOTE: LedgerSnapshot is meant to be short-lived, and should not be persisted
+// across _different_ ledgers, as the state under the hood might change. Users
+// are expected to construct a new LedgerSnapshot each time they want to query
+// ledger state.
 class LedgerSnapshot : public NonMovableOrCopyable
 {
     std::unique_ptr<AbstractLedgerStateSnapshot const> mGetter;
