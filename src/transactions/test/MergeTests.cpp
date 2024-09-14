@@ -34,7 +34,7 @@ using namespace stellar::txtest;
 // Merge when you have outstanding data entries
 TEST_CASE_VERSIONS("merge", "[tx][merge]")
 {
-    Config cfg(getTestConfig());
+    Config cfg(getTestConfig(0, Config::TESTDB_IN_MEMORY_NO_OFFERS));
 
     VirtualClock clock;
     auto app = createTestApplication(clock, cfg);

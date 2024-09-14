@@ -30,7 +30,8 @@ getCreateAccountResultCode(TransactionTestFramePtr tx, size_t i)
 TEST_CASE_VERSIONS("create account", "[tx][createaccount]")
 {
     VirtualClock clock;
-    auto app = createTestApplication(clock, getTestConfig());
+    auto app = createTestApplication(
+        clock, getTestConfig(0, Config::TESTDB_IN_MEMORY_NO_OFFERS));
 
     // set up world
     auto root = TestAccount::createRoot(*app);

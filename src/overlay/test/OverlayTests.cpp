@@ -139,8 +139,9 @@ TEST_CASE("loopback peer send auth before hello", "[overlay][connections]")
 TEST_CASE("flow control byte capacity", "[overlay][flowcontrol]")
 {
     VirtualClock clock;
-    auto cfg1 = getTestConfig(0);
-    auto cfg2 = getTestConfig(1);
+
+    auto cfg1 = getTestConfig(0, Config::TESTDB_IN_MEMORY_NO_OFFERS);
+    auto cfg2 = getTestConfig(1, Config::TESTDB_IN_MEMORY_NO_OFFERS);
     REQUIRE(cfg1.PEER_FLOOD_READING_CAPACITY !=
             cfg1.PEER_FLOOD_READING_CAPACITY_BYTES);
 
@@ -613,6 +614,10 @@ TEST_CASE("drop peers that dont respect capacity", "[overlay][flowcontrol]")
     cfg1.FLOW_CONTROL_SEND_MORE_BATCH_SIZE_BYTES = 1;
 
     auto app1 = createTestApplication(clock, cfg1, true, false);
+    auto app2 = createTestApplication(clock, cfg2, true, false);
+    app1->getHerder().setMaxClassicTxSize(txSize);
+    app2->getHerder().setMaxClassicTxSize(txSize);
+    app1->start();
     if (appProtocolVersionStartsFrom(*app1, SOROBAN_PROTOCOL_VERSION))
     {
         modifySorobanNetworkConfig(*app1, [txSize](SorobanNetworkConfig& cfg) {
@@ -620,10 +625,6 @@ TEST_CASE("drop peers that dont respect capacity", "[overlay][flowcontrol]")
         });
     }
 
-    auto app2 = createTestApplication(clock, cfg2, true, false);
-    app1->getHerder().setMaxClassicTxSize(txSize);
-    app2->getHerder().setMaxClassicTxSize(txSize);
-    app1->start();
     app2->start();
 
     LoopbackPeerConnection conn(*app1, *app2);
@@ -767,7 +768,7 @@ TEST_CASE("outbound queue filtering", "[overlay][connections]")
     auto networkID = sha256(getTestConfig().NETWORK_PASSPHRASE);
     auto simulation = std::make_shared<Simulation>(
         Simulation::OVER_LOOPBACK, networkID, [](int i) {
-            auto cfg = getTestConfig(i, Config::TESTDB_ON_DISK_SQLITE);
+            auto cfg = getTestConfig(i, Config::TESTDB_BUCKET_DB_PERSISTENT);
             cfg.MAX_SLOTS_TO_REMEMBER = 3;
             return cfg;
         });
@@ -2094,7 +2095,7 @@ TEST_CASE("flow control when out of sync", "[overlay][flowcontrol]")
     REQUIRE(conn->getAcceptor()->isConnectedForTesting());
 }
 
-TEST_CASE("overlay flow control", "[overlay][flowcontrol]")
+TEST_CASE("overlay flow control", "[overlay][flowcontrol][acceptance]")
 {
     auto networkID = sha256(getTestConfig().NETWORK_PASSPHRASE);
     auto simulation =

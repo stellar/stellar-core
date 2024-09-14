@@ -15,7 +15,7 @@ using namespace stellar;
 TEST_CASE("cannot close ledger with unsupported ledger version", "[ledger]")
 {
     VirtualClock clock;
-    Application::pointer app = Application::create(clock, getTestConfig(0));
+    Application::pointer app = Application::create(clock, getTestConfig());
     app->start();
 
     auto applyEmptyLedger = [&]() {

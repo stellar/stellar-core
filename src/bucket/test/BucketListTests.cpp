@@ -148,7 +148,9 @@ TEST_CASE_VERSIONS("bucket list", "[bucket][bucketlist]")
                 lh.ledgerSeq = i;
                 addBatchAndUpdateSnapshot(
                     bl, *app, lh, {},
-                    LedgerTestUtils::generateValidUniqueLedgerEntries(8),
+                    LedgerTestUtils::
+                        generateValidUniqueLedgerEntriesWithExclusions(
+                            {CONFIG_SETTING}, 8),
                     LedgerTestUtils::generateValidLedgerEntryKeysWithExclusions(
                         {CONFIG_SETTING}, 5));
                 if (i % 10 == 0)
@@ -256,7 +258,8 @@ TEST_CASE_VERSIONS("bucket list shadowing pre/post proto 12",
         {
             app->getClock().crank(false);
             auto liveBatch =
-                LedgerTestUtils::generateValidUniqueLedgerEntries(5);
+                LedgerTestUtils::generateValidUniqueLedgerEntriesWithExclusions(
+                    {CONFIG_SETTING}, 5);
 
             BucketEntry BucketEntryAlice, BucketEntryBob;
             alice.balance++;
@@ -351,14 +354,16 @@ TEST_CASE_VERSIONS("bucket tombstones expire at bottom level",
             auto& level = bl.getLevel(i);
             level.setCurr(Bucket::fresh(
                 bm, getAppLedgerVersion(app), {},
-                LedgerTestUtils::generateValidUniqueLedgerEntries(8),
+                LedgerTestUtils::generateValidUniqueLedgerEntriesWithExclusions(
+                    {CONFIG_SETTING}, 8),
                 LedgerTestUtils::generateValidLedgerEntryKeysWithExclusions(
                     {CONFIG_SETTING}, 5),
                 /*countMergeEvents=*/true, clock.getIOContext(),
                 /*doFsync=*/true));
             level.setSnap(Bucket::fresh(
                 bm, getAppLedgerVersion(app), {},
-                LedgerTestUtils::generateValidUniqueLedgerEntries(8),
+                LedgerTestUtils::generateValidUniqueLedgerEntriesWithExclusions(
+                    {CONFIG_SETTING}, 8),
                 LedgerTestUtils::generateValidLedgerEntryKeysWithExclusions(
                     {CONFIG_SETTING}, 5),
                 /*countMergeEvents=*/true, clock.getIOContext(),
@@ -377,7 +382,9 @@ TEST_CASE_VERSIONS("bucket tombstones expire at bottom level",
                 lh.ledgerSeq = j;
                 addBatchAndUpdateSnapshot(
                     bl, *app, lh, {},
-                    LedgerTestUtils::generateValidUniqueLedgerEntries(8),
+                    LedgerTestUtils::
+                        generateValidUniqueLedgerEntriesWithExclusions(
+                            {CONFIG_SETTING}, 8),
                     LedgerTestUtils::generateValidLedgerEntryKeysWithExclusions(
                         {CONFIG_SETTING}, 5));
                 app->getClock().crank(false);
@@ -502,7 +509,9 @@ TEST_CASE_VERSIONS("single entry bubbling up",
             addBatchAndUpdateSnapshot(
                 bl, *app,
                 app->getLedgerManager().getLastClosedLedgerHeader().header, {},
-                LedgerTestUtils::generateValidLedgerEntries(1), emptySet);
+                LedgerTestUtils::generateValidLedgerEntriesWithExclusions(
+                    {CONFIG_SETTING}, 1),
+                emptySet);
 
             CLOG_DEBUG(Bucket, "Adding empty batches to bucket list");
             for (uint32_t i = 2;
@@ -664,7 +673,9 @@ TEST_CASE("BucketList check bucket sizes", "[bucket][bucketlist][count]")
     Application::pointer app = createTestApplication(clock, cfg);
     BucketList& bl = app->getBucketManager().getBucketList();
     std::vector<LedgerKey> emptySet;
-    auto ledgers = LedgerTestUtils::generateValidUniqueLedgerEntries(256);
+    auto ledgers =
+        LedgerTestUtils::generateValidUniqueLedgerEntriesWithExclusions(
+            {CONFIG_SETTING}, 256);
     for (uint32_t ledgerSeq = 1; ledgerSeq <= 256; ++ledgerSeq)
     {
         if (ledgerSeq >= 2)
@@ -688,7 +699,7 @@ TEST_CASE("BucketList check bucket sizes", "[bucket][bucketlist][count]")
 TEST_CASE_VERSIONS("network config snapshots BucketList size", "[bucketlist]")
 {
     VirtualClock clock;
-    Config cfg(getTestConfig(0, Config::TESTDB_IN_MEMORY_SQLITE));
+    Config cfg(getTestConfig(0, Config::TESTDB_IN_MEMORY_NO_OFFERS));
     cfg.USE_CONFIG_FOR_GENESIS = true;
 
     auto app = createTestApplication<BucketTestApplication>(clock, cfg);
@@ -760,7 +771,10 @@ TEST_CASE_VERSIONS("network config snapshots BucketList size", "[bucketlist]")
             }
 
             lm.setNextLedgerEntryBatchForBucketTesting(
-                {}, LedgerTestUtils::generateValidUniqueLedgerEntries(10), {});
+                {},
+                LedgerTestUtils::generateValidUniqueLedgerEntriesWithExclusions(
+                    {CONFIG_SETTING}, 10),
+                {});
             closeLedger(*app);
             if ((ledger + 1) % networkConfig.stateArchivalSettings()
                                    .bucketListWindowSamplePeriod ==
@@ -775,7 +789,7 @@ TEST_CASE_VERSIONS("network config snapshots BucketList size", "[bucketlist]")
 TEST_CASE_VERSIONS("eviction scan", "[bucketlist]")
 {
     VirtualClock clock;
-    Config cfg(getTestConfig(0, Config::TESTDB_IN_MEMORY_SQLITE));
+    Config cfg(getTestConfig());
     cfg.USE_CONFIG_FOR_GENESIS = true;
 
     auto test = [&](bool backgroundScan) {
@@ -1250,7 +1264,7 @@ TEST_CASE_VERSIONS("eviction scan", "[bucketlist]")
 TEST_CASE_VERSIONS("Searchable BucketListDB snapshots", "[bucketlist]")
 {
     VirtualClock clock;
-    Config cfg(getTestConfig(0, Config::TESTDB_IN_MEMORY_SQLITE));
+    Config cfg(getTestConfig());
     cfg.DEPRECATED_SQL_LEDGER_STATE = false;
 
     auto app = createTestApplication<BucketTestApplication>(clock, cfg);

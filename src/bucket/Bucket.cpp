@@ -136,6 +136,15 @@ Bucket::apply(Application& app) const
 {
     ZoneScoped;
 
+    auto filter = [&](LedgerEntryType t) {
+        if (app.getConfig().isUsingBucketListDB())
+        {
+            return t == OFFER;
+        }
+
+        return true;
+    };
+
     std::unordered_set<LedgerKey> emptySet;
     BucketApplicator applicator(
         app, app.getConfig().LEDGER_PROTOCOL_VERSION,
@@ -143,7 +152,7 @@ Bucket::apply(Application& app) const
         0 /*set to a level that's not the bottom so we don't treat live entries
              as init*/
         ,
-        shared_from_this(), [](LedgerEntryType) { return true; }, emptySet);
+        shared_from_this(), filter, emptySet);
     BucketApplicator::Counters counters(app.getClock().now());
     while (applicator)
     {

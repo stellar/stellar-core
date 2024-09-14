@@ -116,14 +116,40 @@ class Config : public std::enable_shared_from_this<Config>
 
     typedef std::shared_ptr<Config> pointer;
 
+    // These test modes should be used in the following contexts:
+    // 1. TESTDB_DEFAULT / TESTDB_BUCKET_DB_VOLATILE: provides the most
+    //    comprehensive end-to-end test, but does not support arbitrary ledger
+    //    state writes via ltx root commits. All ledger state changes must occur
+    //    via applying valid TXs or manually adding entries to the BucketList.
+    //    BucketList state is not preserved over restarts. If this mode can be
+    //    used, it should be.
+    // 2. TESTDB_IN_MEMORY_NO_OFFERS: allows arbitrary ledger state writes via
+    //    ltx root commits, but does not test the offers table. Suitable for
+    //    tests that required writes to the ledger state that cannot be achieved
+    //    via valid TX application, such as testing invalid TX error codes or
+    //    low level op testing.
+    // 3. TESTDB_IN_MEMORY_OFFERS: The same as TESTDB_IN_MEMORY_NO_OFFERS, but
+    //    tests the offers table. Suitable for testing ops that interact with
+    //    offers.
+    // 4. TESTDB_ON_DISK_SQLITE: Should only be used to test SQLITE specific
+    //    database operations.
+    // 5. TESTDB_POSTGRESQL: Should only be used to test POSTGRESQL specific
+    //    database operations.
+    // 6. TESTDB_BUCKET_DB_PERSISTENT: Same as TESTDB_BUCKET_DB_VOLATILE, but
+    //    persists the BucketList over restart. This mode is very slow and
+    //    should only be used for testing restart behavior or some low level
+    //    BucketList features.
     enum TestDbMode
     {
         TESTDB_DEFAULT,
-        TESTDB_IN_MEMORY_SQLITE,
+        TESTDB_IN_MEMORY_OFFERS,
         TESTDB_ON_DISK_SQLITE,
 #ifdef USE_POSTGRES
         TESTDB_POSTGRESQL,
 #endif
+        TESTDB_IN_MEMORY_NO_OFFERS,
+        TESTDB_BUCKET_DB_VOLATILE,
+        TESTDB_BUCKET_DB_PERSISTENT,
         TESTDB_MODES
     };
 

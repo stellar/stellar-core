@@ -60,7 +60,7 @@ TEST_CASE("genesisledger", "[ledger]")
 
 TEST_CASE("ledgerheader", "[ledger]")
 {
-    Config cfg(getTestConfig(0, Config::TESTDB_ON_DISK_SQLITE));
+    Config cfg(getTestConfig(0, Config::TESTDB_BUCKET_DB_PERSISTENT));
 
     Hash saved;
     {

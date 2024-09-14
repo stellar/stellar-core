@@ -127,6 +127,14 @@ SearchableBucketListSnapshot::getLedgerSeq() const
     return mSnapshot->getLedgerSeq();
 }
 
+LedgerHeader const&
+SearchableBucketListSnapshot::getLedgerHeader()
+{
+    releaseAssert(mSnapshot);
+    mSnapshotManager.maybeUpdateSnapshot(mSnapshot, mHistoricalSnapshots);
+    return mSnapshot->getLedgerHeader();
+}
+
 EvictionResult
 SearchableBucketListSnapshot::scanForEviction(
     uint32_t ledgerSeq, EvictionCounters& counters,

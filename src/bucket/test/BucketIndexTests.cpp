@@ -604,7 +604,7 @@ TEST_CASE("ContractData key with same ScVal", "[bucket][bucketindex]")
 
 TEST_CASE("serialize bucket indexes", "[bucket][bucketindex]")
 {
-    Config cfg(getTestConfig(0, Config::TESTDB_ON_DISK_SQLITE));
+    Config cfg(getTestConfig(0, Config::TESTDB_BUCKET_DB_PERSISTENT));
 
     // All levels use range config
     cfg.BUCKETLIST_DB_INDEX_CUTOFF = 0;

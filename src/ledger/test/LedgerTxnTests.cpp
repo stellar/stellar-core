@@ -13,6 +13,7 @@
 #include "lib/catch.hpp"
 #include "lib/util/stdrandom.h"
 #include "main/Application.h"
+#include "main/Config.h"
 #include "test/TestAccount.h"
 #include "test/TestUtils.h"
 #include "test/TxTests.h"
@@ -466,7 +467,12 @@ TEST_CASE("LedgerTxn round trip", "[ledgertxn]")
             SECTION("with normal caching")
             {
                 VirtualClock clock;
-                auto app = createTestApplication(clock, getTestConfig(0, mode));
+                // BucketListDB incompatible with direct root commits
+                auto app = createTestApplication(
+                    clock,
+                    getTestConfig(0, mode == Config::TESTDB_DEFAULT
+                                         ? Config::TESTDB_IN_MEMORY_NO_OFFERS
+                                         : mode));
 
                 runTest(app->getLedgerTxnRoot());
             }
@@ -474,7 +480,12 @@ TEST_CASE("LedgerTxn round trip", "[ledgertxn]")
             SECTION("with no cache")
             {
                 VirtualClock clock;
-                auto cfg = getTestConfig(0, mode);
+
+                // BucketListDB incompatible with direct root commits
+                auto cfg =
+                    getTestConfig(0, mode == Config::TESTDB_DEFAULT
+                                         ? Config::TESTDB_IN_MEMORY_NO_OFFERS
+                                         : mode);
                 cfg.ENTRY_CACHE_SIZE = 0;
                 auto app = createTestApplication(clock, cfg);
 
@@ -486,6 +497,16 @@ TEST_CASE("LedgerTxn round trip", "[ledgertxn]")
     SECTION("default")
     {
         runTestWithDbMode(Config::TESTDB_DEFAULT);
+    }
+
+    SECTION("sqlite")
+    {
+        runTestWithDbMode(Config::TESTDB_ON_DISK_SQLITE);
+    }
+
+    SECTION("in-memory")
+    {
+        runTestWithDbMode(Config::TESTDB_IN_MEMORY_NO_OFFERS);
     }
 
 #ifdef USE_POSTGRES
@@ -697,6 +718,16 @@ TEST_CASE("LedgerTxn createWithoutLoading and updateWithoutLoading",
         runTest(Config::TESTDB_DEFAULT);
     }
 
+    SECTION("sqlite")
+    {
+        runTest(Config::TESTDB_ON_DISK_SQLITE);
+    }
+
+    SECTION("in-memory")
+    {
+        runTest(Config::TESTDB_IN_MEMORY_NO_OFFERS);
+    }
+
 #ifdef USE_POSTGRES
     SECTION("postgresql")
     {
@@ -785,6 +816,16 @@ TEST_CASE("LedgerTxn erase", "[ledgertxn]")
     SECTION("default")
     {
         runTest(Config::TESTDB_DEFAULT);
+    }
+
+    SECTION("sqlite")
+    {
+        runTest(Config::TESTDB_ON_DISK_SQLITE);
+    }
+
+    SECTION("in-memory")
+    {
+        runTest(Config::TESTDB_IN_MEMORY_NO_OFFERS);
     }
 
 #ifdef USE_POSTGRES
@@ -880,6 +921,16 @@ TEST_CASE("LedgerTxn eraseWithoutLoading", "[ledgertxn]")
     SECTION("default")
     {
         runTest(Config::TESTDB_DEFAULT);
+    }
+
+    SECTION("sqlite")
+    {
+        runTest(Config::TESTDB_ON_DISK_SQLITE);
+    }
+
+    SECTION("in-memory")
+    {
+        runTest(Config::TESTDB_IN_MEMORY_NO_OFFERS);
     }
 
 #ifdef USE_POSTGRES
@@ -983,7 +1034,8 @@ testInflationWinners(
     if (updates.size() > 1)
     {
         VirtualClock clock;
-        auto app = createTestApplication(clock, getTestConfig());
+        auto app = createTestApplication(
+            clock, getTestConfig(0, Config::TESTDB_IN_MEMORY_NO_OFFERS));
 
         testAtRoot(*app);
     }
@@ -992,7 +1044,7 @@ testInflationWinners(
     if (updates.size() > 1)
     {
         VirtualClock clock;
-        auto cfg = getTestConfig();
+        auto cfg = getTestConfig(0, Config::TESTDB_IN_MEMORY_NO_OFFERS);
         cfg.ENTRY_CACHE_SIZE = 0;
         auto app = createTestApplication(clock, cfg);
 
@@ -1002,7 +1054,8 @@ testInflationWinners(
     // first changes are in child of LedgerTxnRoot
     {
         VirtualClock clock;
-        auto app = createTestApplication(clock, getTestConfig());
+        auto app = createTestApplication(
+            clock, getTestConfig(0, Config::TESTDB_IN_MEMORY_NO_OFFERS));
 
         testInflationWinners(app->getLedgerTxnRoot(), maxWinners, minBalance,
                              expected, updates.cbegin(), updates.cend());
@@ -1336,6 +1389,16 @@ TEST_CASE("LedgerTxn loadHeader", "[ledgertxn]")
         runTest(Config::TESTDB_DEFAULT);
     }
 
+    SECTION("sqlite")
+    {
+        runTest(Config::TESTDB_ON_DISK_SQLITE);
+    }
+
+    SECTION("in-memory")
+    {
+        runTest(Config::TESTDB_IN_MEMORY_NO_OFFERS);
+    }
+
 #ifdef USE_POSTGRES
     SECTION("postgresql")
     {
@@ -1445,17 +1508,31 @@ TEST_CASE_VERSIONS("LedgerTxn load", "[ledgertxn]")
                     {
                         auto native = txtest::makeNativeAsset();
                         UNSCOPED_INFO("native asset on trustline key");
-                        REQUIRE_THROWS_AS(
-                            ltx1.load(trustlineKey(acc.getPublicKey(), native)),
-                            NonSociRelatedException);
+
+                        // Invariant not supported in BucketListDB and in-memory
+                        // mode
+                        if (mode != Config::TESTDB_DEFAULT &&
+                            mode != Config::TESTDB_IN_MEMORY_NO_OFFERS)
+                        {
+                            REQUIRE_THROWS_AS(ltx1.load(trustlineKey(
+                                                  acc.getPublicKey(), native)),
+                                              NonSociRelatedException);
+                        }
                     }
 
                     {
                         auto usd = txtest::makeAsset(acc, "usd");
                         UNSCOPED_INFO("issuer on trustline key");
-                        REQUIRE_THROWS_AS(
-                            ltx1.load(trustlineKey(acc.getPublicKey(), usd)),
-                            NonSociRelatedException);
+
+                        // Invariant not supported in BucketListDB and in-memory
+                        // mode
+                        if (mode != Config::TESTDB_DEFAULT &&
+                            mode != Config::TESTDB_IN_MEMORY_NO_OFFERS)
+                        {
+                            REQUIRE_THROWS_AS(ltx1.load(trustlineKey(
+                                                  acc.getPublicKey(), usd)),
+                                              NonSociRelatedException);
+                        }
                     }
 
                     {
@@ -1465,8 +1542,14 @@ TEST_CASE_VERSIONS("LedgerTxn load", "[ledgertxn]")
                         {
                             auto key = trustlineKey(acc2.getPublicKey(), asset);
 
-                            REQUIRE_THROWS_AS(ltx1.load(key),
-                                              NonSociRelatedException);
+                            // Invariant not supported in BucketListDB and
+                            // in-memory mode
+                            if (mode != Config::TESTDB_DEFAULT &&
+                                mode != Config::TESTDB_IN_MEMORY_NO_OFFERS)
+                            {
+                                REQUIRE_THROWS_AS(ltx1.load(key),
+                                                  NonSociRelatedException);
+                            }
                         }
                     }
 
@@ -1498,6 +1581,16 @@ TEST_CASE_VERSIONS("LedgerTxn load", "[ledgertxn]")
     SECTION("default")
     {
         runTest(Config::TESTDB_DEFAULT);
+    }
+
+    SECTION("sqlite")
+    {
+        runTest(Config::TESTDB_ON_DISK_SQLITE);
+    }
+
+    SECTION("in-memory")
+    {
+        runTest(Config::TESTDB_IN_MEMORY_NO_OFFERS);
     }
 
 #ifdef USE_POSTGRES
@@ -1843,6 +1936,16 @@ TEST_CASE("LedgerTxn loadAllOffers", "[ledgertxn]")
     SECTION("default")
     {
         runTest(Config::TESTDB_DEFAULT);
+    }
+
+    SECTION("sqlite")
+    {
+        runTest(Config::TESTDB_ON_DISK_SQLITE);
+    }
+
+    SECTION("in-memory")
+    {
+        runTest(Config::TESTDB_IN_MEMORY_NO_OFFERS);
     }
 
 #ifdef USE_POSTGRES
@@ -2262,6 +2365,11 @@ TEST_CASE("LedgerTxn loadBestOffer", "[ledgertxn]")
     SECTION("default")
     {
         runTest(Config::TESTDB_DEFAULT);
+    }
+
+    SECTION("sqlite")
+    {
+        runTest(Config::TESTDB_ON_DISK_SQLITE);
     }
 
 #ifdef USE_POSTGRES
@@ -2684,15 +2792,12 @@ TEST_CASE("LedgerTxnRoot prefetch classic entries", "[ledgertxn]")
 
     SECTION("default")
     {
-        auto cfg = getTestConfig();
-        cfg.DEPRECATED_SQL_LEDGER_STATE = false;
-        runTest(cfg);
+        runTest(getTestConfig());
     }
-    SECTION("bucketlistdb")
+
+    SECTION("sqlite")
     {
-        auto cfg = getTestConfig();
-        cfg.DEPRECATED_SQL_LEDGER_STATE = false;
-        runTest(cfg);
+        runTest(getTestConfig(0, Config::TESTDB_ON_DISK_SQLITE));
     }
 
 #ifdef USE_POSTGRES
@@ -3838,6 +3943,11 @@ TEST_CASE("LedgerTxn in memory order book", "[ledgertxn]")
         runTest(Config::TESTDB_DEFAULT);
     }
 
+    SECTION("sqlite")
+    {
+        runTest(Config::TESTDB_ON_DISK_SQLITE);
+    }
+
 #ifdef USE_POSTGRES
     SECTION("postgresql")
     {
@@ -3874,9 +3984,9 @@ TEST_CASE_VERSIONS("LedgerTxn bulk-load offers", "[ledgertxn]")
         });
     };
 
-    SECTION("default")
+    SECTION("sqlite")
     {
-        runTest(Config::TESTDB_DEFAULT);
+        runTest(Config::TESTDB_ON_DISK_SQLITE);
     }
 
 #ifdef USE_POSTGRES
@@ -4012,9 +4122,14 @@ TEST_CASE("Access deactivated entry", "[ledgertxn]")
         }
     };
 
-    SECTION("default")
+    SECTION("sqlite")
     {
-        runTest(Config::TESTDB_DEFAULT);
+        runTest(Config::TESTDB_ON_DISK_SQLITE);
+    }
+
+    SECTION("in-memory")
+    {
+        runTest(Config::TESTDB_IN_MEMORY_NO_OFFERS);
     }
 
 #ifdef USE_POSTGRES
@@ -4070,7 +4185,7 @@ TEST_CASE("LedgerTxn generalized ledger entries", "[ledgertxn]")
 TEST_CASE("LedgerTxn best offers cache eviction", "[ledgertxn]")
 {
     VirtualClock clock;
-    auto cfg = getTestConfig(0);
+    auto cfg = getTestConfig(0, Config::TESTDB_IN_MEMORY_OFFERS);
     auto app = createTestApplication(clock, cfg);
 
     auto buying = autocheck::generator<Asset>()(UINT32_MAX);
@@ -4286,7 +4401,8 @@ testPoolShareTrustLinesByAccountAndAsset(
     if (updates.size() > 1)
     {
         VirtualClock clock;
-        auto app = createTestApplication(clock, getTestConfig());
+        auto app = createTestApplication(
+            clock, getTestConfig(0, Config::TESTDB_IN_MEMORY_OFFERS));
 
         for_versions_from(18, *app, [&] { testAtRoot(*app); });
     }
@@ -4295,7 +4411,7 @@ testPoolShareTrustLinesByAccountAndAsset(
     if (updates.size() > 1)
     {
         VirtualClock clock;
-        auto cfg = getTestConfig();
+        auto cfg = getTestConfig(0, Config::TESTDB_IN_MEMORY_OFFERS);
         cfg.ENTRY_CACHE_SIZE = 0;
         auto app = createTestApplication(clock, cfg);
 
@@ -4305,7 +4421,8 @@ testPoolShareTrustLinesByAccountAndAsset(
     // first changes are in child of LedgerTxnRoot
     {
         VirtualClock clock;
-        auto app = createTestApplication(clock, getTestConfig());
+        auto app = createTestApplication(
+            clock, getTestConfig(0, Config::TESTDB_IN_MEMORY_OFFERS));
 
         for_versions_from(18, *app, [&] {
             testPoolShareTrustLinesByAccountAndAsset(
@@ -4332,7 +4449,8 @@ TEST_CASE_VERSIONS("LedgerTxn loadPoolShareTrustLinesByAccountAndAsset",
     SECTION("fails with children")
     {
         VirtualClock clock;
-        auto app = createTestApplication(clock, getTestConfig());
+        auto app = createTestApplication(
+            clock, getTestConfig(0, Config::TESTDB_IN_MEMORY_OFFERS));
 
         LedgerTxn ltx1(app->getLedgerTxnRoot());
         LedgerTxn ltx2(ltx1);
@@ -4344,7 +4462,8 @@ TEST_CASE_VERSIONS("LedgerTxn loadPoolShareTrustLinesByAccountAndAsset",
     SECTION("fails if sealed")
     {
         VirtualClock clock;
-        auto app = createTestApplication(clock, getTestConfig());
+        auto app = createTestApplication(
+            clock, getTestConfig(0, Config::TESTDB_IN_MEMORY_OFFERS));
 
         LedgerTxn ltx1(app->getLedgerTxnRoot());
         ltx1.getDelta();
@@ -4415,8 +4534,7 @@ TEST_CASE_VERSIONS("LedgerTxn loadPoolShareTrustLinesByAccountAndAsset",
 TEST_CASE("InMemoryLedgerTxn simulate buckets", "[ledgertxn]")
 {
     VirtualClock clock;
-    Config cfg = getTestConfig();
-    cfg.MODE_USES_IN_MEMORY_LEDGER = true;
+    Config cfg = getTestConfig(0, Config::TESTDB_IN_MEMORY_NO_OFFERS);
 
     auto app = createTestApplication(clock, cfg);
 
@@ -4458,8 +4576,7 @@ TEST_CASE("InMemoryLedgerTxn simulate buckets", "[ledgertxn]")
 TEST_CASE("InMemoryLedgerTxn getOffersByAccountAndAsset", "[ledgertxn]")
 {
     VirtualClock clock;
-    Config cfg = getTestConfig();
-    cfg.MODE_USES_IN_MEMORY_LEDGER = true;
+    Config cfg = getTestConfig(0, Config::TESTDB_IN_MEMORY_NO_OFFERS);
 
     auto app = createTestApplication(clock, cfg);
 
@@ -4503,8 +4620,7 @@ TEST_CASE("InMemoryLedgerTxn getPoolShareTrustLinesByAccountAndAsset",
           "[ledgertxn]")
 {
     VirtualClock clock;
-    Config cfg = getTestConfig();
-    cfg.MODE_USES_IN_MEMORY_LEDGER = true;
+    Config cfg = getTestConfig(0, Config::TESTDB_IN_MEMORY_NO_OFFERS);
 
     auto app = createTestApplication(clock, cfg);
 
@@ -4553,8 +4669,7 @@ TEST_CASE_VERSIONS("InMemoryLedgerTxn close multiple ledgers with merges",
                    "[ledgertxn]")
 {
     VirtualClock clock;
-    Config cfg = getTestConfig();
-    cfg.MODE_USES_IN_MEMORY_LEDGER = true;
+    Config cfg = getTestConfig(0, Config::TESTDB_IN_MEMORY_NO_OFFERS);
 
     auto app = createTestApplication(clock, cfg);
 
@@ -4578,8 +4693,7 @@ TEST_CASE_VERSIONS("InMemoryLedgerTxn close multiple ledgers with merges",
 TEST_CASE("InMemoryLedgerTxn filtering", "[ledgertxn]")
 {
     VirtualClock clock;
-    Config cfg = getTestConfig();
-    cfg.MODE_USES_IN_MEMORY_LEDGER = true;
+    Config cfg = getTestConfig(0, Config::TESTDB_IN_MEMORY_NO_OFFERS);
 
     auto app = createTestApplication(clock, cfg);
     auto root = TestAccount::createRoot(*app);

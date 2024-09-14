@@ -213,7 +213,8 @@ TEST_CASE_VERSIONS("bucketmanager ownership", "[bucket][bucketmanager]")
             Application::pointer app = createTestApplication(clock, cfg);
 
             std::vector<LedgerEntry> live(
-                LedgerTestUtils::generateValidUniqueLedgerEntries(10));
+                LedgerTestUtils::generateValidUniqueLedgerEntriesWithExclusions(
+                    {CONFIG_SETTING}, 10));
             std::vector<LedgerKey> dead{};
 
             std::shared_ptr<Bucket> b1;
@@ -303,7 +304,7 @@ TEST_CASE_VERSIONS("bucketmanager ownership", "[bucket][bucketmanager]")
 
 TEST_CASE("bucketmanager missing buckets fail", "[bucket][bucketmanager]")
 {
-    Config cfg(getTestConfig(0, Config::TESTDB_ON_DISK_SQLITE));
+    Config cfg(getTestConfig(0, Config::TESTDB_BUCKET_DB_PERSISTENT));
     std::string someBucketFileName;
     {
         VirtualClock clock;
@@ -318,7 +319,10 @@ TEST_CASE("bucketmanager missing buckets fail", "[bucket][bucketmanager]")
         {
             ++ledger;
             lm.setNextLedgerEntryBatchForBucketTesting(
-                {}, LedgerTestUtils::generateValidUniqueLedgerEntries(10), {});
+                {},
+                LedgerTestUtils::generateValidUniqueLedgerEntriesWithExclusions(
+                    {CONFIG_SETTING}, 10),
+                {});
             closeLedger(*app);
         } while (!BucketList::levelShouldSpill(ledger, level - 1));
         auto someBucket = bl.getLevel(1).getCurr();
@@ -341,7 +345,7 @@ TEST_CASE_VERSIONS("bucketmanager reattach to finished merge",
                    "[bucket][bucketmanager]")
 {
     VirtualClock clock;
-    Config cfg(getTestConfig(0, Config::TESTDB_IN_MEMORY_SQLITE));
+    Config cfg(getTestConfig());
     cfg.ARTIFICIALLY_PESSIMIZE_MERGES_FOR_TESTING = true;
     cfg.MANUAL_CLOSE = false;
 
@@ -363,7 +367,9 @@ TEST_CASE_VERSIONS("bucketmanager reattach to finished merge",
             lh.ledgerSeq = ledger;
             addBatchAndUpdateSnapshot(
                 bl, *app, lh, {},
-                LedgerTestUtils::generateValidUniqueLedgerEntries(10), {});
+                LedgerTestUtils::generateValidLedgerEntriesWithExclusions(
+                    {CONFIG_SETTING}, 10),
+                {});
             bm.forgetUnreferencedBuckets();
         } while (!BucketList::levelShouldSpill(ledger, level - 1));
 
@@ -406,7 +412,7 @@ TEST_CASE_VERSIONS("bucketmanager reattach to running merge",
                    "[bucket][bucketmanager]")
 {
     VirtualClock clock;
-    Config cfg(getTestConfig(0, Config::TESTDB_IN_MEMORY_SQLITE));
+    Config cfg(getTestConfig(0, Config::TESTDB_BUCKET_DB_PERSISTENT));
     cfg.ARTIFICIALLY_PESSIMIZE_MERGES_FOR_TESTING = true;
     cfg.MANUAL_CLOSE = false;
 
@@ -450,7 +456,9 @@ TEST_CASE_VERSIONS("bucketmanager reattach to running merge",
             lh.ledgerSeq = ledger;
             addBatchAndUpdateSnapshot(
                 bl, *app, lh, {},
-                LedgerTestUtils::generateValidUniqueLedgerEntries(100), {});
+                LedgerTestUtils::generateValidUniqueLedgerEntriesWithExclusions(
+                    {CONFIG_SETTING}, 100),
+                {});
 
             bm.forgetUnreferencedBuckets();
 
@@ -488,9 +496,10 @@ TEST_CASE("bucketmanager do not leak empty-merge futures",
     // The point of this test is to confirm that
     // BucketManager::noteEmptyMergeOutput is being called properly from merges
     // that produce empty outputs, and that the input buckets to those merges
-    // are thereby not leaking.
+    // are thereby not leaking. Disable BucketListDB so that snapshots do not
+    // hold persist buckets, complicating bucket counting.
     VirtualClock clock;
-    Config cfg(getTestConfig(0, Config::TESTDB_IN_MEMORY_SQLITE));
+    Config cfg(getTestConfig(0, Config::TESTDB_IN_MEMORY_NO_OFFERS));
     cfg.ARTIFICIALLY_PESSIMIZE_MERGES_FOR_TESTING = true;
     cfg.TESTING_UPGRADE_LEDGER_PROTOCOL_VERSION =
         static_cast<uint32_t>(
@@ -588,7 +597,9 @@ TEST_CASE_VERSIONS(
             lh.ledgerSeq++;
             addBatchAndUpdateSnapshot(
                 bl, *app, lh, {},
-                LedgerTestUtils::generateValidUniqueLedgerEntries(100), {});
+                LedgerTestUtils::generateValidUniqueLedgerEntriesWithExclusions(
+                    {CONFIG_SETTING}, 100),
+                {});
             clock.crank(false);
             bm.forgetUnreferencedBuckets();
         }
@@ -1064,7 +1075,7 @@ class StopAndRestartBucketMergesTest
     collectControlSurveys()
     {
         VirtualClock clock;
-        Config cfg(getTestConfig(0, Config::TESTDB_IN_MEMORY_SQLITE));
+        Config cfg(getTestConfig(0, Config::TESTDB_BUCKET_DB_PERSISTENT));
         cfg.ARTIFICIALLY_PESSIMIZE_MERGES_FOR_TESTING = true;
         cfg.ARTIFICIALLY_REDUCE_MERGE_COUNTS_FOR_TESTING = true;
         cfg.TESTING_UPGRADE_LEDGER_PROTOCOL_VERSION = mProtocol;
@@ -1175,10 +1186,11 @@ class StopAndRestartBucketMergesTest
     runStopAndRestartTest(uint32_t firstProtocol, uint32_t secondProtocol)
     {
         std::unique_ptr<VirtualClock> clock = std::make_unique<VirtualClock>();
-        Config cfg(getTestConfig(0, Config::TESTDB_ON_DISK_SQLITE));
+        Config cfg(getTestConfig(0, Config::TESTDB_BUCKET_DB_PERSISTENT));
         cfg.ARTIFICIALLY_PESSIMIZE_MERGES_FOR_TESTING = true;
         cfg.ARTIFICIALLY_REDUCE_MERGE_COUNTS_FOR_TESTING = true;
         cfg.TESTING_UPGRADE_LEDGER_PROTOCOL_VERSION = firstProtocol;
+        cfg.INVARIANT_CHECKS = {};
         assert(!mDesignatedLedgers.empty());
         uint32_t finalLedger = (*mDesignatedLedgers.rbegin()) + 1;
         uint32_t currProtocol = firstProtocol;
@@ -1367,17 +1379,18 @@ TEST_CASE_VERSIONS("bucket persistence over app restart",
     std::vector<stellar::LedgerKey> emptySet;
     std::vector<stellar::LedgerEntry> emptySetEntry;
 
-    Config cfg0(getTestConfig(0, Config::TESTDB_ON_DISK_SQLITE));
+    Config cfg0(getTestConfig(0, Config::TESTDB_BUCKET_DB_PERSISTENT));
     cfg0.MANUAL_CLOSE = false;
 
     for_versions_with_differing_bucket_logic(cfg0, [&](Config const& cfg0) {
-        Config cfg1(getTestConfig(1, Config::TESTDB_ON_DISK_SQLITE));
+        Config cfg1(getTestConfig(1, Config::TESTDB_BUCKET_DB_PERSISTENT));
         cfg1.TESTING_UPGRADE_LEDGER_PROTOCOL_VERSION =
             cfg0.TESTING_UPGRADE_LEDGER_PROTOCOL_VERSION;
         cfg1.ARTIFICIALLY_PESSIMIZE_MERGES_FOR_TESTING = true;
 
         auto batch_entries =
-            LedgerTestUtils::generateValidUniqueLedgerEntries(111);
+            LedgerTestUtils::generateValidUniqueLedgerEntriesWithExclusions(
+                {CONFIG_SETTING, OFFER}, 111);
         auto alice = batch_entries.back();
         batch_entries.pop_back();
         std::vector<std::vector<LedgerEntry>> batches;

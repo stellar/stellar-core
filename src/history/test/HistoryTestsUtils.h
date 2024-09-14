@@ -259,7 +259,7 @@ class CatchupSimulation
 
     Application::pointer createCatchupApplication(
         uint32_t count, Config::TestDbMode dbMode, std::string const& appName,
-        bool publish = false, bool useBucketListDB = false,
+        bool publish = false,
         std::optional<uint32_t> ledgerVersion = std::nullopt);
     bool catchupOffline(Application::pointer app, uint32_t toLedger,
                         bool extraValidation = false);

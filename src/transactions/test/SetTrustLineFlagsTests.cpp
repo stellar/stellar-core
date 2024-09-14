@@ -105,7 +105,7 @@ getNumOffers(Application& app, TestAccount const& account, Asset const& asset)
 
 TEST_CASE_VERSIONS("set trustline flags", "[tx][settrustlineflags]")
 {
-    auto const& cfg = getTestConfig();
+    auto const& cfg = getTestConfig(0, Config::TESTDB_IN_MEMORY_NO_OFFERS);
 
     VirtualClock clock;
     auto app = createTestApplication(clock, cfg);
@@ -379,7 +379,8 @@ TEST_CASE_VERSIONS("revoke from pool",
                    "[tx][settrustlineflags][allowtrust][liquiditypool]")
 {
     VirtualClock clock;
-    auto app = createTestApplication(clock, getTestConfig());
+    auto app = createTestApplication(
+        clock, getTestConfig(0, Config::TESTDB_IN_MEMORY_NO_OFFERS));
 
     // set up world
     auto root = TestAccount::createRoot(*app);

@@ -223,7 +223,8 @@ TEST_CASE_VERSIONS("merging bucket entries", "[bucket]")
         SECTION("random live entries overwrite live entries in any order")
         {
             std::vector<LedgerEntry> live =
-                LedgerTestUtils::generateValidUniqueLedgerEntries(100);
+                LedgerTestUtils::generateValidUniqueLedgerEntriesWithExclusions(
+                    {CONFIG_SETTING}, 100);
             std::vector<LedgerKey> dead;
             std::shared_ptr<Bucket> b1 = Bucket::fresh(
                 app->getBucketManager(), getAppLedgerVersion(app), {}, live,
@@ -910,10 +911,10 @@ TEST_CASE_VERSIONS("merging bucket entries with initentry with shadows",
     });
 }
 
-TEST_CASE_VERSIONS("bucket apply", "[bucket]")
+TEST_CASE_VERSIONS("legacy bucket apply", "[bucket]")
 {
     VirtualClock clock;
-    Config cfg(getTestConfig());
+    Config cfg(getTestConfig(0, Config::TESTDB_IN_MEMORY_OFFERS));
     for_versions_with_differing_bucket_logic(cfg, [&](Config const& cfg) {
         Application::pointer app = createTestApplication(clock, cfg);
 
@@ -983,14 +984,5 @@ TEST_CASE("bucket apply bench", "[bucketbench][!hide]")
         birth->apply(*app);
     };
 
-    SECTION("sqlite")
-    {
-        runtest(Config::TESTDB_ON_DISK_SQLITE);
-    }
-#ifdef USE_POSTGRES
-    SECTION("postgresql")
-    {
-        runtest(Config::TESTDB_POSTGRESQL);
-    }
-#endif
+    runtest(Config::TESTDB_BUCKET_DB_PERSISTENT);
 }

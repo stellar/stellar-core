@@ -984,7 +984,6 @@ TEST_CASE("Soroban non-refundable resource fees are stable", "[tx][soroban]")
         cfg.mFeeReadLedgerEntry = 2000;
         cfg.mFeeWriteLedgerEntry = 3000;
         cfg.mFeeRead1KB = 4000;
-        cfg.mFeeWrite1KB = 5000;
         cfg.mFeeHistorical1KB = 6000;
         cfg.mFeeTransactionSize1KB = 8000;
     };
@@ -1107,6 +1106,14 @@ TEST_CASE("Soroban non-refundable resource fees are stable", "[tx][soroban]")
                                      additionalTxSizeFee);
         }
     }
+
+    // Since mFeeWrite1KB is based on the BucketList size sliding window, we
+    // must explicitly override the in-memory cached value after initializing
+    // the test.
+    test.getApp()
+        .getLedgerManager()
+        .getMutableSorobanNetworkConfig()
+        .mFeeWrite1KB = 5000;
 
     SECTION("readBytes fee")
     {
@@ -1881,9 +1888,6 @@ TEST_CASE("ledger entry size limit enforced", "[tx][soroban]")
                                    [](SorobanNetworkConfig& cfg) {
                                        cfg.mMaxContractSizeBytes = 2000;
                                    });
-
-        // Refresh cached settings
-        closeLedgerOn(test.getApp(), test.getLCLSeq() + 1, 2, 1, 2016);
 
         // Check that client invocation now fails
         REQUIRE(client.has("key", ContractDataDurability::PERSISTENT,
@@ -2835,7 +2839,7 @@ TEST_CASE("state archival operation errors", "[tx][soroban]")
 TEST_CASE("settings upgrade command line utils", "[tx][soroban][upgrades]")
 {
     VirtualClock clock;
-    auto cfg = getTestConfig();
+    auto cfg = getTestConfig(0, Config::TESTDB_IN_MEMORY_NO_OFFERS);
     cfg.ENABLE_SOROBAN_DIAGNOSTIC_EVENTS = true;
     auto app = createTestApplication(clock, cfg);
     auto root = TestAccount::createRoot(*app);
