@@ -390,9 +390,13 @@ LoadGenerator::start(GeneratedLoadConfig& cfg)
 }
 
 ConfigUpgradeSetKey
-LoadGenerator::getConfigUpgradeSetKey(SorobanUpgradeConfig const& upgradeCfg,
-                                      Hash const& contractId) const
+LoadGenerator::getConfigUpgradeSetKey(
+    SorobanUpgradeConfig const& upgradeCfg) const
 {
+    auto testingKeys = getContractInstanceKeysForTesting();
+    releaseAssert(testingKeys.size() == 1);
+    auto contractId = testingKeys.begin()->contractData().contract.contractId();
+
     return mTxGenerator.getConfigUpgradeSetKey(upgradeCfg, contractId);
 }
 
@@ -1011,11 +1015,11 @@ LoadGenerator::creationTransaction(uint64_t startAccount, uint64_t numItems,
     }
     mInitialAccountsCreated = true;
     return std::make_pair(sourceAcc,
-                          mTxGenerator.createTransactionTestFramePtr(
+                          mTxGenerator.createTransactionFramePtr(
                               sourceAcc, creationOps, false, std::nullopt));
 }
 
-std::pair<TxGenerator::TestAccountPtr, TransactionTestFramePtr>
+std::pair<TxGenerator::TestAccountPtr, TransactionFrameBaseConstPtr>
 LoadGenerator::createMixedClassicSorobanTransaction(
     uint32_t ledgerNum, uint64_t sourceAccountId,
     GeneratedLoadConfig const& cfg)
@@ -1058,7 +1062,7 @@ LoadGenerator::createMixedClassicSorobanTransaction(
     }
 }
 
-std::pair<TxGenerator::TestAccountPtr, TransactionTestFramePtr>
+std::pair<TxGenerator::TestAccountPtr, TransactionFrameBaseConstPtr>
 LoadGenerator::createUploadWasmTransaction(GeneratedLoadConfig const& cfg,
                                            uint32_t ledgerNum,
                                            uint64_t sourceAccountId)
@@ -1084,7 +1088,7 @@ LoadGenerator::createUploadWasmTransaction(GeneratedLoadConfig const& cfg,
                                                     cfg.maxGeneratedFeeRate);
 }
 
-std::pair<TxGenerator::TestAccountPtr, TransactionTestFramePtr>
+std::pair<TxGenerator::TestAccountPtr, TransactionFrameBaseConstPtr>
 LoadGenerator::createInstanceTransaction(GeneratedLoadConfig const& cfg,
                                          uint32_t ledgerNum,
                                          uint64_t sourceAccountId)

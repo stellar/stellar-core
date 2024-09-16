@@ -178,8 +178,7 @@ class LoadGenerator
     void generateLoad(GeneratedLoadConfig cfg);
 
     ConfigUpgradeSetKey
-    getConfigUpgradeSetKey(SorobanUpgradeConfig const& upgradeCfg,
-                           Hash const& contractId) const;
+    getConfigUpgradeSetKey(SorobanUpgradeConfig const& upgradeCfg) const;
 
     // Verify cached accounts are properly reflected in the database
     // return any accounts that are inconsistent.
@@ -327,11 +326,11 @@ class LoadGenerator
                                          uint64_t sourceAccountId,
                                          GeneratedLoadConfig const& cfg);
 
-    std::pair<TxGenerator::TestAccountPtr, TransactionTestFramePtr>
+    std::pair<TxGenerator::TestAccountPtr, TransactionFrameBaseConstPtr>
     createUploadWasmTransaction(GeneratedLoadConfig const& cfg,
                                 uint32_t ledgerNum, uint64_t sourceAccountId);
 
-    std::pair<TxGenerator::TestAccountPtr, TransactionTestFramePtr>
+    std::pair<TxGenerator::TestAccountPtr, TransactionFrameBaseConstPtr>
     createInstanceTransaction(GeneratedLoadConfig const& cfg,
                               uint32_t ledgerNum, uint64_t sourceAccountId);
 

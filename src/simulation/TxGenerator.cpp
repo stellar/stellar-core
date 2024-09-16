@@ -93,14 +93,14 @@ TxGenerator::generateFee(std::optional<uint32_t> maxGeneratedFeeRate,
 uint64_t
 TxGenerator::bytesToRead(xdr::xvector<stellar::LedgerKey> const& keys)
 {
-    LedgerTxn ltx(mApp.getLedgerTxnRoot());
+    LedgerSnapshot lsg(mApp);
     uint64_t total = 0;
     for (auto const& key : keys)
     {
-        auto ltxe = ltx.loadWithoutRecord(key);
-        if (ltxe)
+        auto entry = lsg.load(key);
+        if (entry)
         {
-            total += xdr::xdr_size(ltxe.current());
+            total += xdr::xdr_size(entry.current());
         }
     }
     return total;
@@ -109,8 +109,8 @@ TxGenerator::bytesToRead(xdr::xvector<stellar::LedgerKey> const& keys)
 bool
 TxGenerator::loadAccount(TestAccount& account)
 {
-    LedgerTxn ltx(mApp.getLedgerTxnRoot());
-    auto entry = stellar::loadAccount(ltx, account.getPublicKey());
+    LedgerSnapshot lsg(mApp);
+    auto const entry = lsg.getAccount(account.getPublicKey());
     if (!entry)
     {
         return false;
@@ -197,8 +197,8 @@ TxGenerator::createAccounts(uint64_t start, uint64_t count, uint32_t ledgerNum,
     return ops;
 }
 
-TransactionTestFramePtr
-TxGenerator::createTransactionTestFramePtr(
+TransactionFrameBasePtr
+TxGenerator::createTransactionFramePtr(
     TxGenerator::TestAccountPtr from, std::vector<Operation> ops, bool pretend,
     std::optional<uint32_t> maxGeneratedFeeRate)
 {
@@ -220,7 +220,7 @@ TxGenerator::createTransactionTestFramePtr(
     return txf;
 }
 
-std::pair<TxGenerator::TestAccountPtr, TransactionTestFramePtr>
+std::pair<TxGenerator::TestAccountPtr, TransactionFrameBasePtr>
 TxGenerator::paymentTransaction(uint32_t numAccounts, uint32_t offset,
                                 uint32_t ledgerNum, uint64_t sourceAccount,
                                 uint32_t opCount,
@@ -238,11 +238,11 @@ TxGenerator::paymentTransaction(uint32_t numAccounts, uint32_t offset,
     }
 
     return std::make_pair(from,
-                          createTransactionTestFramePtr(from, paymentOps, false,
-                                                        maxGeneratedFeeRate));
+                          createTransactionFramePtr(from, paymentOps, false,
+                                                    maxGeneratedFeeRate));
 }
 
-std::pair<TxGenerator::TestAccountPtr, TransactionTestFramePtr>
+std::pair<TxGenerator::TestAccountPtr, TransactionFrameBasePtr>
 TxGenerator::manageOfferTransaction(uint32_t ledgerNum, uint64_t accountId,
                                     uint32_t opCount,
                                     std::optional<uint32_t> maxGeneratedFeeRate)
@@ -259,12 +259,12 @@ TxGenerator::manageOfferTransaction(uint32_t ledgerNum, uint64_t accountId,
             Price{rand_uniform<int32_t>(1, 100), rand_uniform<int32_t>(1, 100)},
             100));
     }
-    return std::make_pair(account,
-                          createTransactionTestFramePtr(account, ops, false,
-                                                        maxGeneratedFeeRate));
+    return std::make_pair(
+        account,
+        createTransactionFramePtr(account, ops, false, maxGeneratedFeeRate));
 }
 
-std::pair<TxGenerator::TestAccountPtr, TransactionTestFramePtr>
+std::pair<TxGenerator::TestAccountPtr, TransactionFrameBaseConstPtr>
 TxGenerator::createUploadWasmTransaction(
     uint32_t ledgerNum, uint64_t accountId, xdr::opaque_vec<> const& wasm,
     LedgerKey const& contractCodeLedgerKey,
@@ -297,7 +297,7 @@ TxGenerator::createUploadWasmTransaction(
     return std::make_pair(account, tx);
 }
 
-std::pair<TxGenerator::TestAccountPtr, TransactionTestFramePtr>
+std::pair<TxGenerator::TestAccountPtr, TransactionFrameBaseConstPtr>
 TxGenerator::createContractTransaction(
     uint32_t ledgerNum, uint64_t accountId, LedgerKey const& codeKey,
     uint64_t contractOverheadBytes, uint256 const& salt,
@@ -349,7 +349,7 @@ increaseOpSize(Operation& op, uint32_t increaseUpToBytes)
     op.body.invokeHostFunctionOp().auth = {auth};
 }
 
-std::pair<TxGenerator::TestAccountPtr, TransactionTestFramePtr>
+std::pair<TxGenerator::TestAccountPtr, TransactionFrameBaseConstPtr>
 TxGenerator::invokeSorobanLoadTransaction(
     uint32_t ledgerNum, uint64_t accountId, ContractInstance const& instance,
     uint64_t contractOverheadBytes, std::optional<uint32_t> maxGeneratedFeeRate)
@@ -552,13 +552,13 @@ TxGenerator::getConfigUpgradeSetFromLoadConfig(
 {
     xdr::xvector<ConfigSettingEntry> updatedEntries;
 
-    LedgerTxn ltx(mApp.getLedgerTxnRoot());
+    LedgerSnapshot lsg(mApp);
     for (uint32_t i = 0;
          i < static_cast<uint32_t>(CONFIG_SETTING_BUCKETLIST_SIZE_WINDOW); ++i)
     {
-        auto entry =
-            ltx.load(configSettingKey(static_cast<ConfigSettingID>(i)));
-        auto& setting = entry.current().data.configSetting();
+        auto entry = lsg.load(configSettingKey(static_cast<ConfigSettingID>(i)))
+                         .current();
+        auto& setting = entry.data.configSetting();
         switch (static_cast<ConfigSettingID>(i))
         {
         case CONFIG_SETTING_CONTRACT_MAX_SIZE_BYTES:
@@ -678,10 +678,48 @@ TxGenerator::getConfigUpgradeSetFromLoadConfig(
         case CONFIG_SETTING_STATE_ARCHIVAL:
         {
             auto& ses = setting.stateArchivalSettings();
+            if (upgradeCfg.maxEntryTTL > 0)
+            {
+                ses.maxEntryTTL = upgradeCfg.maxEntryTTL;
+            }
+
+            if (upgradeCfg.minTemporaryTTL > 0)
+            {
+                ses.minTemporaryTTL = upgradeCfg.minTemporaryTTL;
+            }
+
+            if (upgradeCfg.minPersistentTTL > 0)
+            {
+                ses.minPersistentTTL = upgradeCfg.minPersistentTTL;
+            }
+
+            if (upgradeCfg.persistentRentRateDenominator > 0)
+            {
+                ses.persistentRentRateDenominator =
+                    upgradeCfg.persistentRentRateDenominator;
+            }
+
+            if (upgradeCfg.tempRentRateDenominator > 0)
+            {
+                ses.tempRentRateDenominator =
+                    upgradeCfg.tempRentRateDenominator;
+            }
+
+            if (upgradeCfg.maxEntriesToArchive > 0)
+            {
+                ses.maxEntriesToArchive = upgradeCfg.maxEntriesToArchive;
+            }
+
             if (upgradeCfg.bucketListSizeWindowSampleSize > 0)
             {
                 ses.bucketListSizeWindowSampleSize =
                     upgradeCfg.bucketListSizeWindowSampleSize;
+            }
+
+            if (upgradeCfg.bucketListWindowSamplePeriod > 0)
+            {
+                ses.bucketListWindowSamplePeriod =
+                    upgradeCfg.bucketListWindowSamplePeriod;
             }
 
             if (upgradeCfg.evictionScanSize > 0)
@@ -710,12 +748,12 @@ TxGenerator::getConfigUpgradeSetFromLoadConfig(
 
         // These two definitely aren't changing, and including both will hit the
         // contractDataEntrySizeBytes limit
-        if (entry.current().data.configSetting().configSettingID() !=
+        if (entry.data.configSetting().configSettingID() !=
                 CONFIG_SETTING_CONTRACT_COST_PARAMS_CPU_INSTRUCTIONS &&
-            entry.current().data.configSetting().configSettingID() !=
+            entry.data.configSetting().configSettingID() !=
                 CONFIG_SETTING_CONTRACT_COST_PARAMS_MEMORY_BYTES)
         {
-            updatedEntries.emplace_back(entry.current().data.configSetting());
+            updatedEntries.emplace_back(entry.data.configSetting());
         }
     }
 
@@ -725,7 +763,7 @@ TxGenerator::getConfigUpgradeSetFromLoadConfig(
     return xdr::xdr_to_opaque(upgradeSet);
 }
 
-std::pair<TxGenerator::TestAccountPtr, TransactionTestFramePtr>
+std::pair<TxGenerator::TestAccountPtr, TransactionFrameBasePtr>
 TxGenerator::invokeSorobanCreateUpgradeTransaction(
     uint32_t ledgerNum, uint64_t accountId, SCBytes const& upgradeBytes,
     LedgerKey const& codeKey, LedgerKey const& instanceKey,
@@ -777,7 +815,7 @@ TxGenerator::invokeSorobanCreateUpgradeTransaction(
     return std::make_pair(account, tx);
 }
 
-std::pair<TxGenerator::TestAccountPtr, TransactionTestFramePtr>
+std::pair<TxGenerator::TestAccountPtr, TransactionFrameBaseConstPtr>
 TxGenerator::sorobanRandomWasmTransaction(uint32_t ledgerNum,
                                           uint64_t accountId,
                                           uint32_t inclusionFee)
@@ -845,7 +883,7 @@ TxGenerator::sorobanRandomUploadResources()
     return {resources, wasmSize};
 }
 
-std::pair<TxGenerator::TestAccountPtr, TransactionTestFramePtr>
+std::pair<TxGenerator::TestAccountPtr, TransactionFrameBaseConstPtr>
 TxGenerator::pretendTransaction(uint32_t numAccounts, uint32_t offset,
                                 uint32_t ledgerNum, uint64_t sourceAccount,
                                 uint32_t opCount,
@@ -871,8 +909,8 @@ TxGenerator::pretendTransaction(uint32_t numAccounts, uint32_t offset,
         }
         ops.push_back(txtest::setOptions(args));
     }
-    return std::make_pair(acc, createTransactionTestFramePtr(
-                                   acc, ops, true, maxGeneratedFeeRate));
+    return std::make_pair(
+        acc, createTransactionFramePtr(acc, ops, true, maxGeneratedFeeRate));
 }
 
 }
