@@ -42,7 +42,7 @@ struct BucketListGenerator
   public:
     BucketListGenerator() : mLedgerSeq(1)
     {
-        auto cfg = getTestConfig(0);
+        auto cfg = getTestConfig(0, Config::TESTDB_IN_MEMORY_OFFERS);
         cfg.OVERRIDE_EVICTION_PARAMS_FOR_TESTING = true;
         cfg.TESTING_STARTING_EVICTION_SCAN_LEVEL = 1;
         mAppGenerate = createTestApplication(mClock, cfg);
@@ -101,8 +101,8 @@ struct BucketListGenerator
     applyBuckets(Args&&... args)
     {
         VirtualClock clock;
-        Application::pointer app =
-            createTestApplication(clock, getTestConfig(1));
+        Application::pointer app = createTestApplication(
+            clock, getTestConfig(1, Config::TESTDB_IN_MEMORY_OFFERS));
         applyBuckets<T, Args...>(app, std::forward<Args>(args)...);
     }
 
@@ -937,7 +937,7 @@ TEST_CASE("BucketListIsConsistentWithDatabase merged LIVEENTRY and DEADENTRY",
         return (bool)ltx.load(LedgerEntryKey(le));
     };
 
-    auto cfg = getTestConfig(1);
+    auto cfg = getTestConfig(1, Config::TESTDB_IN_MEMORY_OFFERS);
     cfg.OVERRIDE_EVICTION_PARAMS_FOR_TESTING = true;
     cfg.TESTING_STARTING_EVICTION_SCAN_LEVEL = 1;
 
