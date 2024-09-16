@@ -2747,9 +2747,8 @@ TEST_CASE("LedgerTxnRoot prefetch classic entries", "[ledgertxn]")
                                    .getLastClosedLedgerHeader()
                                    .header.ledgerVersion;
             lh.ledgerSeq = 2;
-            BucketTestUtils::addBatchAndUpdateSnapshot(
-                app->getBucketManager().getLiveBucketList(), *app, lh, {},
-                ledgerVect, {});
+            BucketTestUtils::addLiveBatchAndUpdateSnapshot(*app, lh, {},
+                                                           ledgerVect, {});
         }
         ltx.commit();
 
@@ -2980,9 +2979,8 @@ TEST_CASE("LedgerTxnRoot prefetch soroban entries", "[ledgertxn]")
                            .getLastClosedLedgerHeader()
                            .header.ledgerVersion;
     lh.ledgerSeq = 2;
-    BucketTestUtils::addBatchAndUpdateSnapshot(
-        app->getBucketManager().getLiveBucketList(), *app, lh, {}, ledgerVect,
-        deadKeyVect);
+    BucketTestUtils::addLiveBatchAndUpdateSnapshot(*app, lh, {}, ledgerVect,
+                                                   deadKeyVect);
     ltx.commit();
 
     auto addTxn = [&](bool enoughQuota, std::vector<LedgerEntry> entries,

@@ -37,6 +37,14 @@ namespace stellar
  * Two buckets can be merged together efficiently (in a single pass): elements
  * from the newer bucket overwrite elements from the older bucket, the rest are
  * merged in sorted order, and all elements are hashed while being added.
+ *
+ * Different types of BucketList vary on the type of entries they contain and by
+ * extension the merge logic of those entries. Additionally, some types of
+ * BucketList may have special operations only relevant to that specific type.
+ * This pure virtual base class provides the core functionality of a BucketList
+ * container and must be extened for each specific BucketList type. In
+ * particular, the fresh and merge functions must be defined for the specific
+ * type, while other functionality can be shared.
  */
 
 class AbstractLedgerTxn;
@@ -45,6 +53,8 @@ class BucketManager;
 struct EvictionResultEntry;
 class EvictionStatistics;
 struct BucketEntryCounters;
+template <class BucketT> class SearchableBucketListSnapshot;
+enum class LedgerEntryTypeAndDurability : uint32_t;
 
 class Bucket : public NonMovableOrCopyable
 {
@@ -132,12 +142,18 @@ class Bucket : public NonMovableOrCopyable
     template <class BucketT> friend class BucketSnapshotBase;
 };
 
-template <class BucketT> class SearchableBucketListSnapshot;
+/*
+ * Live Buckets are used by the LiveBucketList to store the current canonical
+ * state of the ledger. They contain entries of type BucketEntry.
+ */
 class LiveBucket : public Bucket,
                    public std::enable_shared_from_this<LiveBucket>
 {
   public:
     LiveBucket();
+    virtual ~LiveBucket()
+    {
+    }
     LiveBucket(std::string const& filename, Hash const& hash,
                std::unique_ptr<BucketIndex const>&& index);
 
@@ -209,6 +225,10 @@ class LiveBucket : public Bucket,
     friend class LiveBucketSnapshot;
 };
 
+/*
+ * Hot Archive Buckets are used by the HotBucketList to store recently evicted
+ * entries. They contain entries of type HotArchiveBucketEntry.
+ */
 class HotArchiveBucket : public Bucket,
                          public std::enable_shared_from_this<HotArchiveBucket>
 {
@@ -219,6 +239,9 @@ class HotArchiveBucket : public Bucket,
 
   public:
     HotArchiveBucket();
+    virtual ~HotArchiveBucket()
+    {
+    }
     HotArchiveBucket(std::string const& filename, Hash const& hash,
                      std::unique_ptr<BucketIndex const>&& index);
     uint32_t getBucketVersion() const override;
@@ -237,7 +260,6 @@ class HotArchiveBucket : public Bucket,
     friend class HotArchiveBucketSnapshot;
 };
 
-enum class LedgerEntryTypeAndDurability : uint32_t;
 struct BucketEntryCounters
 {
     std::map<LedgerEntryTypeAndDurability, size_t> entryTypeCounts;

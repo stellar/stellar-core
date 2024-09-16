@@ -285,8 +285,7 @@ class BucketManager : NonMovableOrCopyable
                               std::vector<LedgerEntry> const& liveEntries,
                               std::vector<LedgerKey> const& deadEntries) = 0;
     virtual void
-    addHotArchiveBatch(Application& app, uint32_t currLedger,
-                       uint32_t currLedgerProtocol,
+    addHotArchiveBatch(Application& app, LedgerHeader header,
                        std::vector<LedgerEntry> const& archivedEntries,
                        std::vector<LedgerKey> const& restoredEntries,
                        std::vector<LedgerKey> const& deletedEntries) = 0;
@@ -402,8 +401,9 @@ class BucketManager : NonMovableOrCopyable
     virtual Config const& getConfig() const = 0;
 
     // Get bucketlist snapshot
-    virtual std::shared_ptr<SearchableBucketListSnapshot>
-    getSearchableBucketListSnapshot() = 0;
+    virtual std::shared_ptr<SearchableLiveBucketListSnapshot>
+    getSearchableLiveBucketListSnapshot() = 0;
+
     virtual void reportBucketEntryCountMetrics() = 0;
 };
 }

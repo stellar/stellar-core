@@ -146,8 +146,7 @@ struct BucketListGenerator
         auto header = ltx.loadHeader().current();
         ltx.getAllEntries(initEntries, liveEntries, deadEntries);
         BucketTestUtils::addLiveBatchAndUpdateSnapshot(
-            *app, header, initEntries,
-            liveEntries, deadEntries);
+            *app, header, initEntries, liveEntries, deadEntries);
         ltx.commit();
     }
 

@@ -73,9 +73,8 @@ TEST_CASE("Flooding", "[flood][overlay][acceptance]")
                     auto const& header = n->getLedgerManager()
                                              .getLastClosedLedgerHeader()
                                              .header;
-                    BucketTestUtils::addBatchAndUpdateSnapshot(
-                        n->getBucketManager().getBucketList(), *n, header, {},
-                        {gen}, {});
+                    BucketTestUtils::addLiveBatchAndUpdateSnapshot(
+                        *n, header, {}, {gen}, {});
                 }
             }
         }

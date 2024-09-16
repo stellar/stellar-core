@@ -687,8 +687,7 @@ TEST_CASE("Bucket list entries vs write throughput", "[scalability][!hide]")
         lh.ledgerVersion = Config::CURRENT_LEDGER_PROTOCOL_VERSION;
         lh.ledgerSeq = i;
         BucketTestUtils::addLiveBatchAndUpdateSnapshot(
-        *app, lh,
-            LedgerTestUtils::generateValidLedgerEntries(100),
+            *app, lh, LedgerTestUtils::generateValidLedgerEntries(100),
             LedgerTestUtils::generateValidLedgerEntries(20),
             LedgerTestUtils::generateValidLedgerEntryKeysWithExclusions(
                 {CONFIG_SETTING}, 5));
