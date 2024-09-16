@@ -401,6 +401,12 @@ class BucketListDepth
     template <class BucketT> friend class testutil::BucketListDepthModifier;
 };
 
+// While every BucketList shares the same high level structure wrt to spill
+// schedules, merges at the bucket level, etc, each BucketList type hold
+// different types of entries and has different merge logic at the individual
+// entry level. This pure virtual base class defines the shared structure of all
+// BucketLists. It must be extended for each specific BucketList type, where the
+// template parameter BucketT refers to the underlying Bucket type.
 template <class BucketT> class BucketListBase
 {
     static_assert(std::is_same_v<BucketT, LiveBucket> ||
@@ -503,6 +509,11 @@ template <class BucketT> class BucketListBase
     uint64_t getSize() const;
 };
 
+// The LiveBucketList stores the current canonical state of the ledger. It is
+// made up of LiveBucket buckets, which in turn store individual entries of type
+// BucketEntry. When an entry is "evicted" from the ledger, it is removed from
+// the LiveBucketList. Depending on the evicted entry type, it may then be added
+// to the HotArchiveBucketList.
 class LiveBucketList : public BucketListBase<LiveBucket>
 {
   public:
@@ -545,6 +556,9 @@ class LiveBucketList : public BucketListBase<LiveBucket>
     BucketEntryCounters sumBucketEntryCounters() const;
 };
 
+// The HotArchiveBucketList stores recently evicted entries. It contains Buckets
+// of type HotArchiveBucket, which store individual entries of type
+// HotArchiveBucketEntry.
 class HotArchiveBucketList : public BucketListBase<HotArchiveBucket>
 {
   private:

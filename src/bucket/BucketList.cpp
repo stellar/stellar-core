@@ -27,8 +27,8 @@ namespace stellar
 
 template <> BucketListDepth BucketListBase<LiveBucket>::kNumLevels = 11;
 
-// TODO: I made this number up, do some analysis and pick a better value or
-// make this a configurable network config.
+// TODO: This is an arbitrary number. Do some analysis and pick a better value
+// or make this a configurable network config.
 template <> BucketListDepth BucketListBase<HotArchiveBucket>::kNumLevels = 9;
 
 template <typename BucketT>
@@ -577,12 +577,6 @@ HotArchiveBucketList::addBatch(Application& app, uint32_t currLedger,
 
     for (uint32_t i = static_cast<uint32>(mLevels.size()) - 1; i != 0; --i)
     {
-        /*
-        CLOG_DEBUG(Bucket, "curr={}, half(i-1)={}, size(i-1)={},
-        roundDown(curr,half)={}, roundDown(curr,size)={}", currLedger,
-        levelHalf(i-1), levelSize(i-1), roundDown(currLedger, levelHalf(i-1)),
-        roundDown(currLedger, levelSize(i-1)));
-        */
         if (levelShouldSpill(currLedger, i - 1))
         {
             /**
@@ -771,7 +765,7 @@ LiveBucketList::addBatch(Application& app, uint32_t currLedger,
 }
 
 BucketEntryCounters
-BucketList::sumBucketEntryCounters() const
+LiveBucketList::sumBucketEntryCounters() const
 {
     BucketEntryCounters counters;
     for (auto const& lev : mLevels)

@@ -279,7 +279,7 @@ TEST_CASE_VERSIONS("merging hot archive bucket entries", "[bucket][archival]")
     Config const& cfg = getTestConfig();
 
     auto app = createTestApplication(clock, cfg);
-    for_versions_from(22, *app, [&] {
+    for_versions_from(23, *app, [&] {
         auto& bm = app->getBucketManager();
         auto vers = getAppLedgerVersion(app);
 

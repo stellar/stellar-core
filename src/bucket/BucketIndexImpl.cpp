@@ -204,7 +204,11 @@ BucketIndexImpl<IndexT>::BucketIndexImpl(BucketManager& bm,
                 {
                     mData.keysToOffset.emplace_back(key, pos);
                 }
-                countEntry(be);
+
+                if constexpr (std::is_same<BucketEntryT, BucketEntry>::value)
+                {
+                    countEntry(be);
+                }
             }
 
             pos = in.pos();

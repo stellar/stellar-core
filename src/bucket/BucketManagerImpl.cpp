@@ -134,9 +134,10 @@ BucketManagerImpl::initialize()
             mSnapshotManager = std::make_unique<BucketSnapshotManager>(
                 mApp,
                 std::make_unique<BucketListSnapshot<LiveBucket>>(
-                    *mLiveBucketList,  LedgerHeader()),
+                    *mLiveBucketList, LedgerHeader()),
                 std::make_unique<BucketListSnapshot<HotArchiveBucket>>(
-                    *mHotArchiveBucketList,  LedgerHeader()), mApp.getConfig().QUERY_SNAPSHOT_LEDGERS);
+                    *mHotArchiveBucketList, LedgerHeader()),
+                mApp.getConfig().QUERY_SNAPSHOT_LEDGERS);
         }
     }
 }
@@ -1015,10 +1016,9 @@ BucketManagerImpl::addLiveBatch(Application& app, LedgerHeader header,
 #endif
     auto timer = mBucketAddLiveBatch.TimeScope();
     mBucketLiveObjectInsertBatch.Mark(initEntries.size() + liveEntries.size() +
-                                  deadEntries.size());
+                                      deadEntries.size());
     mLiveBucketList->addBatch(app, header.ledgerSeq, header.ledgerVersion,
-                          initEntries, liveEntries, deadEntries);
-
+                              initEntries, liveEntries, deadEntries);
     mLiveBucketListSizeCounter.set_count(mLiveBucketList->getSize());
 
     if (app.getConfig().isUsingBucketListDB())
@@ -1027,10 +1027,9 @@ BucketManagerImpl::addLiveBatch(Application& app, LedgerHeader header,
     }
 }
 
-// TODO: Fix interface to match addLiveBatch
 void
 BucketManagerImpl::addHotArchiveBatch(
-    Application& app, uint32_t currLedger, uint32_t currLedgerProtocol,
+    Application& app, LedgerHeader header,
     std::vector<LedgerEntry> const& archivedEntries,
     std::vector<LedgerKey> const& restoredEntries,
     std::vector<LedgerKey> const& deletedEntries)
@@ -1038,12 +1037,12 @@ BucketManagerImpl::addHotArchiveBatch(
     ZoneScoped;
     releaseAssertOrThrow(app.getConfig().MODE_ENABLES_BUCKETLIST);
     releaseAssertOrThrow(protocolVersionStartsFrom(
-        currLedgerProtocol,
+        header.ledgerVersion,
         Bucket::FIRST_PROTOCOL_SUPPORTING_PERSISTENT_EVICTION));
 #ifdef BUILD_TESTS
     if (mUseFakeTestValuesForNextClose)
     {
-        currLedgerProtocol = mFakeTestProtocolVersion;
+        header.ledgerVersion = mFakeTestProtocolVersion;
     }
 #endif
     auto timer = mBucketAddArchiveBatch.TimeScope();
@@ -1053,7 +1052,7 @@ BucketManagerImpl::addHotArchiveBatch(
 
     // Hot archive should never modify an existing entry, so there are never
     // live entries
-    mHotArchiveBucketList->addBatch(app, currLedger, currLedgerProtocol,
+    mHotArchiveBucketList->addBatch(app, header.ledgerSeq, header.ledgerVersion,
                                     archivedEntries, restoredEntries,
                                     deletedEntries);
     mArchiveBucketListSizeCounter.set_count(mHotArchiveBucketList->getSize());
@@ -1101,12 +1100,7 @@ BucketManagerImpl::snapshotLedger(LedgerHeader& currentHeader)
                 Bucket::FIRST_PROTOCOL_SUPPORTING_PERSISTENT_EVICTION))
         {
             // TODO: Hash Archive Bucket
-            // Holding off on this until buckets are written to history
-
-            // SHA256 hasher;
-            // hasher.add(mLiveBucketList->getHash());
-            // hasher.add(mHotArchiveBucketList->getHash());
-            // hash = hasher.finish();
+            // Dependency: HAS supports Hot Archive BucketList
 
             hash = mLiveBucketList->getHash();
         }
@@ -1159,7 +1153,8 @@ BucketManagerImpl::startBackgroundEvictionScan(uint32_t ledgerSeq)
     releaseAssert(!mEvictionFuture.valid());
     releaseAssert(mEvictionStatistics);
 
-    auto searchableBL = mSnapshotManager->copySearchableBucketListSnapshot();
+    auto searchableBL =
+        mSnapshotManager->copySearchableLiveBucketListSnapshot();
     auto const& cfg = mApp.getLedgerManager().getSorobanNetworkConfig();
     auto const& sas = cfg.stateArchivalSettings();
 
@@ -1176,7 +1171,7 @@ BucketManagerImpl::startBackgroundEvictionScan(uint32_t ledgerSeq)
     mEvictionFuture = task->get_future();
     mApp.postOnEvictionBackgroundThread(
         bind(&task_t::operator(), task),
-        "SearchableBucketListSnapshot: eviction scan");
+        "SearchableLiveBucketListSnapshot: eviction scan");
 }
 
 void
@@ -1316,6 +1311,7 @@ BucketManagerImpl::assumeState(HistoryArchiveState const& has,
     releaseAssertOrThrow(mApp.getConfig().MODE_ENABLES_BUCKETLIST);
 
     // TODO: Assume archival bucket state
+    // Dependency: HAS supports Hot Archive BucketList
     for (uint32_t i = 0; i < LiveBucketList::kNumLevels; ++i)
     {
         auto curr =
@@ -1667,6 +1663,7 @@ BucketManagerImpl::scheduleVerifyReferencedBucketsWork()
         }
 
         // TODO: Update verify to for ArchiveBucket
+        // Dependency: HAS supports Hot Archive BucketList
         auto b = getBucketByHash<LiveBucket>(h);
         if (!b)
         {
@@ -1686,8 +1683,8 @@ BucketManagerImpl::getConfig() const
     return mApp.getConfig();
 }
 
-std::shared_ptr<SearchableBucketListSnapshot>
-BucketManagerImpl::getSearchableBucketListSnapshot()
+std::shared_ptr<SearchableLiveBucketListSnapshot>
+BucketManagerImpl::getSearchableLiveBucketListSnapshot()
 {
     releaseAssert(mApp.getConfig().isUsingBucketListDB());
     // Any other threads must maintain their own snapshot
@@ -1695,7 +1692,7 @@ BucketManagerImpl::getSearchableBucketListSnapshot()
     if (!mSearchableBucketListSnapshot)
     {
         mSearchableBucketListSnapshot =
-            mSnapshotManager->copySearchableBucketListSnapshot();
+            mSnapshotManager->copySearchableLiveBucketListSnapshot();
     }
 
     return mSearchableBucketListSnapshot;
@@ -1708,7 +1705,7 @@ BucketManagerImpl::reportBucketEntryCountMetrics()
     {
         return;
     }
-    auto bucketEntryCounters = mBucketList->sumBucketEntryCounters();
+    auto bucketEntryCounters = mLiveBucketList->sumBucketEntryCounters();
     for (auto [type, count] : bucketEntryCounters.entryTypeCounts)
     {
         auto countCounter = mBucketListEntryCountCounters.find(type);
