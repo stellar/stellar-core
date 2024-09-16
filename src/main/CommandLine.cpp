@@ -1940,6 +1940,21 @@ runApplyLoad(CommandLineArgs const& args)
                 CLOG_INFO(Perf, "Mean CPU ins ratio excl VM:  {}",
                           cpuInsRatioExclVm.mean() / 1000000);
 
+                CLOG_INFO(Perf, "Tx count utilization {}%",
+                          al.getTxCountUtilization().mean() / 1000.0);
+                CLOG_INFO(Perf, "Instruction utilization {}%",
+                          al.getInstructionUtilization().mean() / 1000.0);
+                CLOG_INFO(Perf, "Tx size utilization {}%",
+                          al.getTxSizeUtilization().mean() / 1000.0);
+                CLOG_INFO(Perf, "Read bytes utilization {}%",
+                          al.getReadByteUtilization().mean() / 1000.0);
+                CLOG_INFO(Perf, "Write bytes utilization {}%",
+                          al.getWriteByteUtilization().mean() / 1000.0);
+                CLOG_INFO(Perf, "Read entry utilization {}%",
+                          al.getReadEntryUtilization().mean() / 1000.0);
+                CLOG_INFO(Perf, "Write entry utilization {}%",
+                          al.getWriteEntryUtilization().mean() / 1000.0);
+
                 CLOG_INFO(Perf, "Tx Success Rate: {:f}%",
                           al.successRate() * 100);
             }

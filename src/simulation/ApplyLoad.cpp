@@ -27,6 +27,20 @@ ApplyLoad::ApplyLoad(Application& app, uint64_t ledgerMaxInstructions,
     , mApp(app)
     , mNumAccounts(
           ledgerMaxTxCount * SOROBAN_TRANSACTION_QUEUE_SIZE_MULTIPLIER + 1)
+    , mTxCountUtilization(
+          mApp.getMetrics().NewHistogram({"soroban", "benchmark", "tx-count"}))
+    , mInstructionUtilization(
+          mApp.getMetrics().NewHistogram({"soroban", "benchmark", "ins"}))
+    , mTxSizeUtilization(
+          mApp.getMetrics().NewHistogram({"soroban", "benchmark", "tx-size"}))
+    , mReadByteUtilization(
+          mApp.getMetrics().NewHistogram({"soroban", "benchmark", "read-byte"}))
+    , mWriteByteUtilization(mApp.getMetrics().NewHistogram(
+          {"soroban", "benchmark", "write-byte"}))
+    , mReadEntryUtilization(mApp.getMetrics().NewHistogram(
+          {"soroban", "benchmark", "read-entry"}))
+    , mWriteEntryUtilization(mApp.getMetrics().NewHistogram(
+          {"soroban", "benchmark", "write-entry"}))
 {
 
     auto rootTestAccount = TestAccount::createRoot(mApp);
@@ -213,12 +227,16 @@ ApplyLoad::benchmark()
     auto resources = multiplyByDouble(
         lm.maxLedgerResources(true), SOROBAN_TRANSACTION_QUEUE_SIZE_MULTIPLIER);
 
+    // Save a snapshot so we can calculate what % we used up.
+    auto const resourcesSnapshot = resources;
+
     auto const& accounts = mTxGenerator.getAccounts();
     std::vector<uint64_t> shuffledAccounts(accounts.size());
     std::iota(shuffledAccounts.begin(), shuffledAccounts.end(), 0);
     stellar::shuffle(std::begin(shuffledAccounts), std::end(shuffledAccounts),
                      gRandomEngine);
 
+    bool limitHit = false;
     for (auto accountIndex : shuffledAccounts)
     {
         auto it = accounts.find(accountIndex);
@@ -243,7 +261,6 @@ ApplyLoad::benchmark()
         }
         else
         {
-            bool limitHit = false;
             for (size_t i = 0; i < resources.size(); ++i)
             {
                 auto type = static_cast<Resource::Type>(i);
@@ -256,14 +273,46 @@ ApplyLoad::benchmark()
                 }
             }
 
-            // If this assert fails, it most likely means that we ran out of
-            // accounts, which should not happen.
-            releaseAssert(limitHit);
             break;
         }
 
         txs.emplace_back(tx.second);
     }
+
+    // If this assert fails, it most likely means that we ran out of
+    // accounts, which should not happen.
+    releaseAssert(limitHit);
+
+    mTxCountUtilization.Update(
+        (1.0 - (resources.getVal(Resource::Type::OPERATIONS) * 1.0 /
+                resourcesSnapshot.getVal(Resource::Type::OPERATIONS))) *
+        100000.0);
+    mInstructionUtilization.Update(
+        (1.0 - (resources.getVal(Resource::Type::INSTRUCTIONS) * 1.0 /
+                resourcesSnapshot.getVal(Resource::Type::INSTRUCTIONS))) *
+        100000.0);
+    mTxSizeUtilization.Update(
+        (1.0 - (resources.getVal(Resource::Type::TX_BYTE_SIZE) * 1.0 /
+                resourcesSnapshot.getVal(Resource::Type::TX_BYTE_SIZE))) *
+        100000.0);
+    mReadByteUtilization.Update(
+        (1.0 - (resources.getVal(Resource::Type::READ_BYTES) * 1.0 /
+                resourcesSnapshot.getVal(Resource::Type::READ_BYTES))) *
+        100000.0);
+    mWriteByteUtilization.Update(
+        (1.0 - (resources.getVal(Resource::Type::WRITE_BYTES) * 1.0 /
+                resourcesSnapshot.getVal(Resource::Type::WRITE_BYTES))) *
+        100000.0);
+    mReadEntryUtilization.Update(
+        (1.0 -
+         (resources.getVal(Resource::Type::READ_LEDGER_ENTRIES) * 1.0 /
+          resourcesSnapshot.getVal(Resource::Type::READ_LEDGER_ENTRIES))) *
+        100000.0);
+    mWriteEntryUtilization.Update(
+        (1.0 -
+         (resources.getVal(Resource::Type::WRITE_LEDGER_ENTRIES) * 1.0 /
+          resourcesSnapshot.getVal(Resource::Type::WRITE_LEDGER_ENTRIES))) *
+        100000.0);
 
     closeLedger(txs);
 }
@@ -274,6 +323,42 @@ ApplyLoad::successRate()
     return mTxGenerator.getApplySorobanSuccess().count() * 1.0 /
            (mTxGenerator.getApplySorobanSuccess().count() +
             mTxGenerator.getApplySorobanFailure().count());
+}
+
+medida::Histogram const&
+ApplyLoad::getTxCountUtilization()
+{
+    return mTxCountUtilization;
+}
+medida::Histogram const&
+ApplyLoad::getInstructionUtilization()
+{
+    return mInstructionUtilization;
+}
+medida::Histogram const&
+ApplyLoad::getTxSizeUtilization()
+{
+    return mTxSizeUtilization;
+}
+medida::Histogram const&
+ApplyLoad::getReadByteUtilization()
+{
+    return mReadByteUtilization;
+}
+medida::Histogram const&
+ApplyLoad::getWriteByteUtilization()
+{
+    return mWriteByteUtilization;
+}
+medida::Histogram const&
+ApplyLoad::getReadEntryUtilization()
+{
+    return mReadEntryUtilization;
+}
+medida::Histogram const&
+ApplyLoad::getWriteEntryUtilization()
+{
+    return mWriteEntryUtilization;
 }
 
 }
