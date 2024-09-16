@@ -871,7 +871,8 @@ class LedgerTxnRoot::Impl
 
     bool areEntriesMissingInCacheForOffer(OfferEntry const& oe);
 
-    SearchableLiveBucketListSnapshot& getSearchableBucketListSnapshot() const;
+    SearchableLiveBucketListSnapshot&
+    getSearchableLiveBucketListSnapshot() const;
 
     uint32_t prefetchInternal(UnorderedSet<LedgerKey> const& keys,
                               LedgerKeyMeter* lkMeter = nullptr);

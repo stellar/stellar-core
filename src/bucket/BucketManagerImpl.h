@@ -47,7 +47,7 @@ class BucketManagerImpl : public BucketManager
     std::unique_ptr<TmpDirManager> mTmpDirManager;
     std::unique_ptr<TmpDir> mWorkDir;
     std::map<Hash, std::shared_ptr<Bucket>> mSharedBuckets;
-    std::shared_ptr<SearchableBucketListSnapshot>
+    std::shared_ptr<SearchableLiveBucketListSnapshot>
         mSearchableBucketListSnapshot{};
 
     // Lock for managing raw Bucket files or the bucket directory. This lock is
@@ -187,8 +187,7 @@ class BucketManagerImpl : public BucketManager
                       std::vector<LedgerEntry> const& liveEntries,
                       std::vector<LedgerKey> const& deadEntries) override;
     void
-    addHotArchiveBatch(Application& app, uint32_t currLedger,
-                       uint32_t currLedgerProtocol,
+    addHotArchiveBatch(Application& app, LedgerHeader header,
                        std::vector<LedgerEntry> const& archivedEntries,
                        std::vector<LedgerKey> const& restoredEntries,
                        std::vector<LedgerKey> const& deletedEntries) override;
@@ -243,8 +242,9 @@ class BucketManagerImpl : public BucketManager
 
     Config const& getConfig() const override;
 
-    std::shared_ptr<SearchableBucketListSnapshot>
-    getSearchableBucketListSnapshot() override;
+    std::shared_ptr<SearchableLiveBucketListSnapshot>
+    getSearchableLiveBucketListSnapshot() override;
+
     void reportBucketEntryCountMetrics() override;
 };
 

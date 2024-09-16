@@ -1211,8 +1211,8 @@ TEST_CASE_VERSIONS(
             {
                 auto lcl = lm.getLastClosedLedgerHeader();
                 lcl.header.ledgerSeq += 1;
-                BucketTestUtils::addBatchAndUpdateSnapshot(
-                    bl, *app, lcl.header, {},
+                BucketTestUtils::addLiveBatchAndUpdateSnapshot(
+                    *app, lcl.header, {},
                     LedgerTestUtils::generateValidUniqueLedgerEntries(8), {});
                 clock.crank(true);
             }

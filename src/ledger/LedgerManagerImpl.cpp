@@ -1310,10 +1310,14 @@ LedgerManagerImpl::advanceLedgerPointers(LedgerHeader const& header,
     if (mApp.getConfig().isUsingBucketListDB() &&
         header.ledgerSeq != prevLedgerSeq)
     {
-        mApp.getBucketManager()
-            .getBucketSnapshotManager()
-            .updateCurrentSnapshot(std::make_unique<BucketListSnapshot>(
-                mApp.getBucketManager().getBucketList(), header));
+        auto& bm = mApp.getBucketManager();
+        auto liveSnapshot = std::make_unique<BucketListSnapshot<LiveBucket>>(
+            bm.getLiveBucketList(), header);
+        auto hotArchiveSnapshot =
+            std::make_unique<BucketListSnapshot<HotArchiveBucket>>(
+                bm.getHotArchiveBucketList(), header);
+        bm.getBucketSnapshotManager().updateCurrentSnapshot(
+            std::move(liveSnapshot), std::move(hotArchiveSnapshot));
     }
 }
 

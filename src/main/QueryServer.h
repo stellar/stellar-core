@@ -14,7 +14,7 @@
 
 namespace stellar
 {
-class SearchableBucketListSnapshot;
+class SearchableLiveBucketListSnapshot;
 class BucketSnapshotManager;
 
 class QueryServer
@@ -26,7 +26,7 @@ class QueryServer
     httpThreaded::server::server mServer;
 
     std::unordered_map<std::thread::id,
-                       std::shared_ptr<SearchableBucketListSnapshot>>
+                       std::shared_ptr<SearchableLiveBucketListSnapshot>>
         mBucketListSnapshots;
 
     bool safeRouter(HandlerRoute route, std::string const& params,

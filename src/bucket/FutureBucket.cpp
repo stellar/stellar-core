@@ -62,7 +62,8 @@ FutureBucket<BucketT>::FutureBucket(
 
     if constexpr (!std::is_same_v<BucketT, LiveBucket>)
     {
-        if (protocolVersionIsBefore(
+        if (!snap->isEmpty() &&
+            protocolVersionIsBefore(
                 snap->getBucketVersion(),
                 Bucket::FIRST_PROTOCOL_SUPPORTING_PERSISTENT_EVICTION))
         {

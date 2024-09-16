@@ -1071,23 +1071,6 @@ HotArchiveBucket::isTombstoneEntry(HotArchiveBucketEntry const& e)
     return e.type() == HOT_ARCHIVE_LIVE;
 }
 
-template std::shared_ptr<LiveBucket> Bucket::merge<LiveBucket>(
-    BucketManager& bucketManager, uint32_t maxProtocolVersion,
-    std::shared_ptr<LiveBucket> const& oldBucket,
-    std::shared_ptr<LiveBucket> const& newBucket,
-    std::vector<std::shared_ptr<LiveBucket>> const& shadows,
-    bool keepTombstoneEntries, bool countMergeEvents, asio::io_context& ctx,
-    bool doFsync);
-
-template std::shared_ptr<HotArchiveBucket> Bucket::merge<HotArchiveBucket>(
-    BucketManager& bucketManager, uint32_t maxProtocolVersion,
-    std::shared_ptr<HotArchiveBucket> const& oldBucket,
-    std::shared_ptr<HotArchiveBucket> const& newBucket,
-    std::vector<std::shared_ptr<HotArchiveBucket>> const& shadows,
-    bool keepTombstoneEntries, bool countMergeEvents, asio::io_context& ctx,
-    bool doFsync);
-}
-
 BucketEntryCounters&
 BucketEntryCounters::operator+=(BucketEntryCounters const& other)
 {
@@ -1114,4 +1097,20 @@ BucketEntryCounters::operator!=(BucketEntryCounters const& other) const
 {
     return !(*this == other);
 }
+
+template std::shared_ptr<LiveBucket> Bucket::merge<LiveBucket>(
+    BucketManager& bucketManager, uint32_t maxProtocolVersion,
+    std::shared_ptr<LiveBucket> const& oldBucket,
+    std::shared_ptr<LiveBucket> const& newBucket,
+    std::vector<std::shared_ptr<LiveBucket>> const& shadows,
+    bool keepTombstoneEntries, bool countMergeEvents, asio::io_context& ctx,
+    bool doFsync);
+
+template std::shared_ptr<HotArchiveBucket> Bucket::merge<HotArchiveBucket>(
+    BucketManager& bucketManager, uint32_t maxProtocolVersion,
+    std::shared_ptr<HotArchiveBucket> const& oldBucket,
+    std::shared_ptr<HotArchiveBucket> const& newBucket,
+    std::vector<std::shared_ptr<HotArchiveBucket>> const& shadows,
+    bool keepTombstoneEntries, bool countMergeEvents, asio::io_context& ctx,
+    bool doFsync);
 }

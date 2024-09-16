@@ -172,7 +172,7 @@ template <typename BucketT> struct BucketEntryIdCmp
             if (aty != HOT_ARCHIVE_DELETED && aty != HOT_ARCHIVE_LIVE)
             {
                 throw std::runtime_error(
-                    "Malformed bucket: expected DELETED/RESTORED key.");
+                    "Malformed bucket: expected DELETED/LIVE key.");
             }
 
             if (bty == HOT_ARCHIVE_ARCHIVED)

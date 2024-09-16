@@ -3103,7 +3103,7 @@ LedgerTxnRoot::Impl::prefetchInternal(UnorderedSet<LedgerKey> const& keys,
         {
             insertIfNotLoaded(keysToSearch, key);
         }
-        auto blLoad = getSearchableBucketListSnapshot().loadKeysWithLimits(
+        auto blLoad = getSearchableLiveBucketListSnapshot().loadKeysWithLimits(
             keysToSearch, lkMeter);
         cacheResult(populateLoadedEntries(keysToSearch, blLoad, lkMeter));
     }
@@ -3487,14 +3487,15 @@ LedgerTxnRoot::Impl::areEntriesMissingInCacheForOffer(OfferEntry const& oe)
 }
 
 SearchableLiveBucketListSnapshot&
-LedgerTxnRoot::Impl::getSearchableBucketListSnapshot() const
+LedgerTxnRoot::Impl::getSearchableLiveBucketListSnapshot() const
 {
     releaseAssert(mApp.getConfig().isUsingBucketListDB());
     if (!mSearchableBucketListSnapshot)
     {
-        mSearchableBucketListSnapshot = mApp.getBucketManager()
-                                            .getBucketSnapshotManager()
-                                            .copySearchableBucketListSnapshot();
+        mSearchableBucketListSnapshot =
+            mApp.getBucketManager()
+                .getBucketSnapshotManager()
+                .copySearchableLiveBucketListSnapshot();
     }
 
     return *mSearchableBucketListSnapshot;
@@ -3635,7 +3636,7 @@ LedgerTxnRoot::Impl::getPoolShareTrustLinesByAccountAndAsset(
         if (mApp.getConfig().isUsingBucketListDB())
         {
             trustLines =
-                getSearchableBucketListSnapshot()
+                getSearchableLiveBucketListSnapshot()
                     .loadPoolShareTrustLinesByAccountAndAsset(account, asset);
         }
         else
@@ -3698,7 +3699,7 @@ LedgerTxnRoot::Impl::getInflationWinners(size_t maxWinners, int64_t minVotes)
     {
         if (mApp.getConfig().isUsingBucketListDB())
         {
-            return getSearchableBucketListSnapshot().loadInflationWinners(
+            return getSearchableLiveBucketListSnapshot().loadInflationWinners(
                 maxWinners, minVotes);
         }
         else
@@ -3754,7 +3755,7 @@ LedgerTxnRoot::Impl::getNewestVersion(InternalLedgerKey const& gkey) const
     {
         if (mApp.getConfig().isUsingBucketListDB() && key.type() != OFFER)
         {
-            entry = getSearchableBucketListSnapshot().load(key);
+            entry = getSearchableLiveBucketListSnapshot().load(key);
         }
         else
         {
