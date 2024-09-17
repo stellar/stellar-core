@@ -305,7 +305,7 @@ TxGenerator::createContractTransaction(
 {
     auto account = findAccount(accountId, ledgerNum);
     SorobanResources createResources{};
-    createResources.instructions = 500'000;
+    createResources.instructions = 1'000'000;
     createResources.readBytes = contractOverheadBytes;
     createResources.writeBytes = 300;
 
