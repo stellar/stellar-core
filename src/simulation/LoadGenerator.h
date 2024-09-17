@@ -7,8 +7,10 @@
 #include "crypto/SecretKey.h"
 #include "herder/Herder.h"
 #include "main/Application.h"
+#include "simulation/TxGenerator.h"
 #include "test/TestAccount.h"
 #include "test/TxTests.h"
+#include "util/NonCopyable.h"
 #include "xdr/Stellar-types.h"
 #include <vector>
 
@@ -54,54 +56,9 @@ struct GeneratedLoadConfig
     struct SorobanConfig
     {
         uint32_t nInstances = 0;
-
         // For now, this value is automatically set to one. A future update will
         // enable multiple Wasm entries
         uint32_t nWasms = 0;
-    };
-
-    // Config settings for SOROBAN_CREATE_UPGRADE
-    struct SorobanUpgradeConfig
-    {
-        // Network Upgrade Parameters
-        uint32_t maxContractSizeBytes{};
-        uint32_t maxContractDataKeySizeBytes{};
-        uint32_t maxContractDataEntrySizeBytes{};
-
-        // Compute settings for contracts (instructions and memory).
-        int64_t ledgerMaxInstructions{};
-        int64_t txMaxInstructions{};
-        uint32_t txMemoryLimit{};
-
-        // Ledger access settings for contracts.
-        uint32_t ledgerMaxReadLedgerEntries{};
-        uint32_t ledgerMaxReadBytes{};
-        uint32_t ledgerMaxWriteLedgerEntries{};
-        uint32_t ledgerMaxWriteBytes{};
-        uint32_t ledgerMaxTxCount{};
-        uint32_t txMaxReadLedgerEntries{};
-        uint32_t txMaxReadBytes{};
-        uint32_t txMaxWriteLedgerEntries{};
-        uint32_t txMaxWriteBytes{};
-
-        // Contract events settings.
-        uint32_t txMaxContractEventsSizeBytes{};
-
-        // Bandwidth related data settings for contracts
-        uint32_t ledgerMaxTransactionsSizeBytes{};
-        uint32_t txMaxSizeBytes{};
-
-        // State Archival Settings
-        uint32_t maxEntryTTL{};
-        uint32_t minTemporaryTTL{};
-        uint32_t minPersistentTTL{};
-        int64_t persistentRentRateDenominator{};
-        int64_t tempRentRateDenominator{};
-        uint32_t maxEntriesToArchive{};
-        uint32_t bucketListSizeWindowSampleSize{};
-        uint32_t bucketListWindowSamplePeriod{};
-        uint32_t evictionScanSize{};
-        uint32_t startingEvictionScanLevel{};
     };
 
     // Config settings for MIXED_CLASSIC_SOROBAN
@@ -197,7 +154,6 @@ struct GeneratedLoadConfig
 class LoadGenerator
 {
   public:
-    using TestAccountPtr = std::shared_ptr<TestAccount>;
     LoadGenerator(Application& app);
 
     static LoadGenMode getMode(std::string const& mode);
@@ -222,21 +178,14 @@ class LoadGenerator
     void generateLoad(GeneratedLoadConfig cfg);
 
     ConfigUpgradeSetKey
-    getConfigUpgradeSetKey(GeneratedLoadConfig const& cfg) const;
+    getConfigUpgradeSetKey(SorobanUpgradeConfig const& upgradeCfg) const;
 
     // Verify cached accounts are properly reflected in the database
     // return any accounts that are inconsistent.
-    std::vector<TestAccountPtr> checkAccountSynced(Application& app,
-                                                   bool isCreate);
+    std::vector<TxGenerator::TestAccountPtr>
+    checkAccountSynced(Application& app, bool isCreate);
     std::vector<LedgerKey>
     checkSorobanStateSynced(Application& app, GeneratedLoadConfig const& cfg);
-
-    struct ContractInstance
-    {
-        // [wasm, instance]
-        xdr::xvector<LedgerKey> readOnlyKeys;
-        SCAddress contractID;
-    };
 
     UnorderedSet<LedgerKey> const&
     getContractInstanceKeysForTesting() const
@@ -289,10 +238,6 @@ class LoadGenerator
     TransactionQueue::AddResultCode execute(TransactionFrameBasePtr txf,
                                             LoadGenMode mode,
                                             TransactionResultCode& code);
-    TransactionFrameBaseConstPtr
-    createTransactionFrame(TestAccountPtr from, std::vector<Operation> ops,
-                           LoadGenMode mode,
-                           std::optional<uint32_t> maxGeneratedFeeRate);
 
     static const uint32_t STEP_MSECS;
     static const uint32_t TX_SUBMIT_MAX_TRIES;
@@ -300,17 +245,14 @@ class LoadGenerator
     static const uint32_t COMPLETION_TIMEOUT_WITHOUT_CHECKS;
     static const uint32_t MIN_UNIQUE_ACCOUNT_MULTIPLIER;
 
-    std::unique_ptr<VirtualTimer> mLoadTimer;
-    int64 mMinBalance;
-    uint64_t mLastSecond;
+    TxGenerator mTxGenerator;
     Application& mApp;
+
+    std::unique_ptr<VirtualTimer> mLoadTimer;
+    uint64_t mLastSecond;
     int64_t mTotalSubmitted;
     // Set when load generation actually begins
     std::unique_ptr<VirtualClock::time_point> mStartTime;
-
-    TestAccountPtr mRoot;
-    // Accounts cache
-    std::map<uint64_t, TestAccountPtr> mAccounts;
 
     // Track account IDs that are currently being referenced by the transaction
     // queue (to avoid source account collisions during tx submission)
@@ -320,33 +262,15 @@ class LoadGenerator
     // Get an account ID not currently in use.
     uint64_t getNextAvailableAccount(uint32_t ledgerNum);
 
-    // For account creation only: allocate a few accounts for creation purposes
-    // (with sufficient balance to create new accounts) to avoid source account
-    // collisions.
-    std::unordered_map<uint64_t, TestAccountPtr> mCreationSourceAccounts;
-
-    medida::Meter& mLoadgenComplete;
-    medida::Meter& mLoadgenFail;
-
-    // Counts of soroban transactions that succeeded or failed at apply time
-    medida::Counter const& mApplySorobanSuccess;
-    medida::Counter const& mApplySorobanFailure;
-
-    // Counts of successful and failed soroban transactions prior to running
-    // loadgen
-    int64_t mPreLoadgenApplySorobanSuccess = 0;
-    int64_t mPreLoadgenApplySorobanFailure = 0;
-
     // Number of times `createContractTransaction` has been called. Used to
     // ensure unique preimages for all `SOROBAN_UPGRADE_SETUP` runs.
     uint32_t mNumCreateContractTransactionCalls = 0;
 
-    bool mFailed{false};
-    bool mStarted{false};
-    bool mInitialAccountsCreated{false};
-
-    uint32_t mWaitTillCompleteForLedgers{0};
-    uint32_t mSorobanWasmWaitTillLedgers{0};
+    // For account creation only: allocate a few accounts for creation purposes
+    // (with sufficient balance to create new accounts) to avoid source account
+    // collisions.
+    std::unordered_map<uint64_t, TxGenerator::TestAccountPtr>
+        mCreationSourceAccounts;
 
     medida::Timer& mStepTimer;
     medida::Meter& mStepMeter;
@@ -364,79 +288,61 @@ class LoadGenerator
 
     // Maps account ID to it's contract instance, where each account has a
     // unique instance
-    UnorderedMap<uint64_t, ContractInstance> mContractInstances;
+    UnorderedMap<uint64_t, TxGenerator::ContractInstance> mContractInstances;
+
+    TxGenerator::TestAccountPtr mRoot;
+
+    medida::Meter& mLoadgenComplete;
+    medida::Meter& mLoadgenFail;
+
+    // Counts of successful and failed soroban transactions prior to running
+    // loadgen
+    int64_t mPreLoadgenApplySorobanSuccess = 0;
+    int64_t mPreLoadgenApplySorobanFailure = 0;
+
+    bool mFailed{false};
+    bool mStarted{false};
+    bool mInitialAccountsCreated{false};
+
+    uint32_t mWaitTillCompleteForLedgers{0};
+    uint32_t mSorobanWasmWaitTillLedgers{0};
 
     // Mode used for last mixed transaction in MIX_CLASSIC_SOROBAN mode
     LoadGenMode mLastMixedMode;
 
+    void createRootAccount();
+
     void reset();
     void resetSorobanState();
-    void createRootAccount();
     int64_t getTxPerStep(uint32_t txRate, std::chrono::seconds spikeInterval,
                          uint32_t spikeSize);
 
     // Schedule a callback to generateLoad() STEP_MSECS milliseconds from now.
     void scheduleLoadGeneration(GeneratedLoadConfig cfg);
 
-    std::vector<Operation> createAccounts(uint64_t i, uint64_t batchSize,
-                                          uint32_t ledgerNum,
-                                          bool initialAccounts);
-    bool loadAccount(TestAccount& account, Application& app);
-    bool loadAccount(TestAccountPtr account, Application& app);
-
-    SCBytes
-    getConfigUpgradeSetFromLoadConfig(GeneratedLoadConfig const& cfg) const;
-
-    std::pair<TestAccountPtr, TestAccountPtr>
-    pickAccountPair(uint32_t numAccounts, uint32_t offset, uint32_t ledgerNum,
-                    uint64_t sourceAccountId);
-    TestAccountPtr findAccount(uint64_t accountId, uint32_t ledgerNum);
-
-    std::pair<TestAccountPtr, TransactionFrameBaseConstPtr>
-    paymentTransaction(uint32_t numAccounts, uint32_t offset,
-                       uint32_t ledgerNum, uint64_t sourceAccount,
-                       uint32_t opCount,
-                       std::optional<uint32_t> maxGeneratedFeeRate);
-    std::pair<TestAccountPtr, TransactionFrameBaseConstPtr>
-    pretendTransaction(uint32_t numAccounts, uint32_t offset,
-                       uint32_t ledgerNum, uint64_t sourceAccount,
-                       uint32_t opCount,
-                       std::optional<uint32_t> maxGeneratedFeeRate);
-    std::pair<LoadGenerator::TestAccountPtr, TransactionFrameBaseConstPtr>
-    manageOfferTransaction(uint32_t ledgerNum, uint64_t accountId,
-                           uint32_t opCount,
-                           std::optional<uint32_t> maxGeneratedFeeRate);
-    std::pair<LoadGenerator::TestAccountPtr, TransactionFrameBaseConstPtr>
-    createUploadWasmTransaction(uint32_t ledgerNum, uint64_t accountId,
-                                GeneratedLoadConfig const& cfg);
-    std::pair<LoadGenerator::TestAccountPtr, TransactionFrameBaseConstPtr>
-    createContractTransaction(uint32_t ledgerNum, uint64_t accountId,
-                              GeneratedLoadConfig const& cfg);
-    std::pair<LoadGenerator::TestAccountPtr, TransactionFrameBaseConstPtr>
-    invokeSorobanLoadTransaction(uint32_t ledgerNum, uint64_t accountId,
-                                 GeneratedLoadConfig const& cfg);
-    std::pair<LoadGenerator::TestAccountPtr, TransactionFrameBaseConstPtr>
-    invokeSorobanCreateUpgradeTransaction(uint32_t ledgerNum,
-                                          uint64_t accountId,
-                                          GeneratedLoadConfig const& cfg);
-    std::pair<LoadGenerator::TestAccountPtr, TransactionFrameBaseConstPtr>
-    sorobanRandomWasmTransaction(uint32_t ledgerNum, uint64_t accountId,
-                                 uint32_t inclusionFee);
-
     // Create a transaction in MIXED_CLASSIC_SOROBAN mode
-    std::pair<LoadGenerator::TestAccountPtr, TransactionFrameBaseConstPtr>
+    std::pair<TxGenerator::TestAccountPtr, TransactionFrameBaseConstPtr>
     createMixedClassicSorobanTransaction(uint32_t ledgerNum,
                                          uint64_t sourceAccountId,
                                          GeneratedLoadConfig const& cfg);
+
+    std::pair<TxGenerator::TestAccountPtr, TransactionFrameBaseConstPtr>
+    createUploadWasmTransaction(GeneratedLoadConfig const& cfg,
+                                uint32_t ledgerNum, uint64_t sourceAccountId);
+
+    std::pair<TxGenerator::TestAccountPtr, TransactionFrameBaseConstPtr>
+    createInstanceTransaction(GeneratedLoadConfig const& cfg,
+                              uint32_t ledgerNum, uint64_t sourceAccountId);
+
     // Samples a random wasm size from the `LOADGEN_WASM_BYTES_FOR_TESTING`
     // distribution. Returns a pair containing the appropriate resources for a
     // wasm of that size as well as the size itself.
     std::pair<SorobanResources, uint32_t> sorobanRandomUploadResources();
     void maybeHandleFailedTx(TransactionFrameBaseConstPtr tx,
-                             TestAccountPtr sourceAccount,
+                             TxGenerator::TestAccountPtr sourceAccount,
                              TransactionQueue::AddResultCode status,
                              TransactionResultCode code);
-    std::pair<TestAccountPtr, TransactionFrameBaseConstPtr>
+    std::pair<TxGenerator::TestAccountPtr, TransactionFrameBaseConstPtr>
     creationTransaction(uint64_t startAccount, uint64_t numItems,
                         uint32_t ledgerNum);
     void logProgress(std::chrono::nanoseconds submitTimer,
@@ -445,13 +351,11 @@ class LoadGenerator
     uint32_t submitCreationTx(uint32_t nAccounts, uint32_t offset,
                               uint32_t ledgerNum);
     bool submitTx(GeneratedLoadConfig const& cfg,
-                  std::function<std::pair<LoadGenerator::TestAccountPtr,
+                  std::function<std::pair<TxGenerator::TestAccountPtr,
                                           TransactionFrameBaseConstPtr>()>
                       generateTx);
     void waitTillComplete(GeneratedLoadConfig cfg);
     void waitTillCompleteWithoutChecks();
-
-    void updateMinBalance();
 
     unsigned short chooseOpCount(Config const& cfg) const;
 

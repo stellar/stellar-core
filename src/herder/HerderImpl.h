@@ -25,6 +25,8 @@ class Timer;
 
 namespace stellar
 {
+constexpr uint32 const SOROBAN_TRANSACTION_QUEUE_SIZE_MULTIPLIER = 2;
+
 class Application;
 class LedgerManager;
 class HerderSCPDriver;

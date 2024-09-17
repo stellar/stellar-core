@@ -240,7 +240,8 @@ upgradeSorobanNetworkConfig(std::function<void(SorobanNetworkConfig&)> modifyFn,
     auto cfg = nodes[0]->getLedgerManager().getSorobanNetworkConfig();
     modifyFn(cfg);
     createUpgradeLoadGenConfig.copySorobanNetworkConfigToUpgradeConfig(cfg);
-    auto upgradeSetKey = lg.getConfigUpgradeSetKey(createUpgradeLoadGenConfig);
+    auto upgradeSetKey = lg.getConfigUpgradeSetKey(
+        createUpgradeLoadGenConfig.getSorobanUpgradeConfig());
     lg.generateLoad(createUpgradeLoadGenConfig);
     completeCount = complete.count();
     simulation->crankUntil(

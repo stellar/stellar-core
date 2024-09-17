@@ -27,9 +27,11 @@
 #include "main/SettingsUpgradeUtils.h"
 #include "main/StellarCoreVersion.h"
 #include "main/dumpxdr.h"
+#include "medida/metrics_registry.h"
 #include "overlay/OverlayManager.h"
 #include "rust/RustBridge.h"
 #include "scp/QuorumSetUtils.h"
+#include "simulation/ApplyLoad.h"
 #include "transactions/TransactionUtils.h"
 #include "util/Logging.h"
 #include "util/types.h"
@@ -1799,6 +1801,167 @@ runGenFuzz(CommandLineArgs const& args)
             return 0;
         });
 }
+
+int
+runApplyLoad(CommandLineArgs const& args)
+{
+    CommandLine::ConfigOption configOption;
+
+    uint64_t ledgerMaxInstructions = 0;
+    uint64_t ledgerMaxReadLedgerEntries = 0;
+    uint64_t ledgerMaxReadBytes = 0;
+    uint64_t ledgerMaxWriteLedgerEntries = 0;
+    uint64_t ledgerMaxWriteBytes = 0;
+    uint64_t ledgerMaxTxCount = 0;
+    uint64_t ledgerMaxTransactionsSizeBytes = 0;
+
+    ParserWithValidation ledgerMaxInstructionsParser{
+        clara::Opt(ledgerMaxInstructions,
+                   "LedgerMaxInstructions")["--ledger-max-instructions"]
+            .required(),
+        [&] {
+            return ledgerMaxInstructions > 0
+                       ? ""
+                       : "ledgerMaxInstructions must be > 0";
+        }};
+
+    ParserWithValidation ledgerMaxReadLedgerEntriesParser{
+        clara::Opt(ledgerMaxReadLedgerEntries,
+                   "LedgerMaxReadLedgerEntries")["--ledger-max-read-entries"]
+            .required(),
+        [&] {
+            return ledgerMaxReadLedgerEntries > 0
+                       ? ""
+                       : "ledgerMaxReadLedgerEntries must be > 0";
+        }};
+
+    ParserWithValidation ledgerMaxReadBytesParser{
+        clara::Opt(ledgerMaxReadBytes,
+                   "LedgerMaxReadBytes")["--ledger-max-read-bytes"]
+            .required(),
+        [&] {
+            return ledgerMaxReadBytes > 0 ? ""
+                                          : "ledgerMaxReadBytes must be > 0";
+        }};
+
+    ParserWithValidation ledgerMaxWriteLedgerEntriesParser{
+        clara::Opt(ledgerMaxWriteLedgerEntries,
+                   "LedgerMaxWriteLedgerEntries")["--ledger-max-write-entries"]
+            .required(),
+        [&] {
+            return ledgerMaxWriteLedgerEntries > 0
+                       ? ""
+                       : "ledgerMaxWriteLedgerEntries must be > 0";
+        }};
+
+    ParserWithValidation ledgerMaxWriteBytesParser{
+        clara::Opt(ledgerMaxWriteBytes,
+                   "LedgerMaxWriteBytes")["--ledger-max-write-bytes"]
+            .required(),
+        [&] {
+            return ledgerMaxWriteBytes > 0 ? ""
+                                           : "ledgerMaxWriteBytes must be > 0";
+        }};
+
+    ParserWithValidation ledgerMaxTxCountParser{
+        clara::Opt(ledgerMaxTxCount,
+                   "LedgerMaxTxCount")["--ledger-max-tx-count"]
+            .required(),
+        [&] {
+            return ledgerMaxTxCount > 0 ? "" : "ledgerMaxTxCount must be > 0";
+        }};
+
+    ParserWithValidation ledgerMaxTransactionsSizeBytesParser{
+        clara::Opt(ledgerMaxTransactionsSizeBytes,
+                   "LedgerMaxTransactionsSizeBytes")["--ledger-max-tx-size"]
+            .required(),
+        [&] {
+            return ledgerMaxTransactionsSizeBytes > 0
+                       ? ""
+                       : "ledgerMaxTransactionsSizeBytes must be > 0";
+        }};
+
+    return runWithHelp(
+        args,
+        {configurationParser(configOption), ledgerMaxInstructionsParser,
+         ledgerMaxReadLedgerEntriesParser, ledgerMaxReadBytesParser,
+         ledgerMaxWriteLedgerEntriesParser, ledgerMaxWriteBytesParser,
+         ledgerMaxTxCountParser, ledgerMaxTransactionsSizeBytesParser},
+        [&] {
+            auto config = configOption.getConfig();
+            config.RUN_STANDALONE = true;
+
+            VirtualClock clock(VirtualClock::REAL_TIME);
+            auto appPtr = Application::create(clock, config);
+
+            auto& app = *appPtr;
+            {
+                auto& lm = app.getLedgerManager();
+                app.start();
+
+                ApplyLoad al(app, ledgerMaxInstructions,
+                             ledgerMaxReadLedgerEntries, ledgerMaxReadBytes,
+                             ledgerMaxWriteLedgerEntries, ledgerMaxWriteBytes,
+                             ledgerMaxTxCount, ledgerMaxTransactionsSizeBytes);
+
+                auto& ledgerClose =
+                    app.getMetrics().NewTimer({"ledger", "ledger", "close"});
+                ledgerClose.Clear();
+
+                auto& cpuInsRatio = app.getMetrics().NewHistogram(
+                    {"soroban", "host-fn-op",
+                     "invoke-time-fsecs-cpu-insn-ratio"});
+                cpuInsRatio.Clear();
+
+                auto& cpuInsRatioExclVm = app.getMetrics().NewHistogram(
+                    {"soroban", "host-fn-op",
+                     "invoke-time-fsecs-cpu-insn-ratio-excl-vm"});
+                cpuInsRatioExclVm.Clear();
+
+                for (size_t i = 0; i < 20; ++i)
+                {
+                    al.benchmark();
+                }
+
+                CLOG_INFO(Perf, "Max ledger close: {} milliseconds",
+                          ledgerClose.max());
+                CLOG_INFO(Perf, "Min ledger close: {} milliseconds",
+                          ledgerClose.min());
+                CLOG_INFO(Perf, "Mean ledger close:  {} milliseconds",
+                          ledgerClose.mean());
+
+                CLOG_INFO(Perf, "Max CPU ins ratio: {}",
+                          cpuInsRatio.max() / 1000000);
+                CLOG_INFO(Perf, "Mean CPU ins ratio:  {}",
+                          cpuInsRatio.mean() / 1000000);
+
+                CLOG_INFO(Perf, "Max CPU ins ratio excl VM: {}",
+                          cpuInsRatioExclVm.max() / 1000000);
+                CLOG_INFO(Perf, "Mean CPU ins ratio excl VM:  {}",
+                          cpuInsRatioExclVm.mean() / 1000000);
+
+                CLOG_INFO(Perf, "Tx count utilization {}%",
+                          al.getTxCountUtilization().mean() / 1000.0);
+                CLOG_INFO(Perf, "Instruction utilization {}%",
+                          al.getInstructionUtilization().mean() / 1000.0);
+                CLOG_INFO(Perf, "Tx size utilization {}%",
+                          al.getTxSizeUtilization().mean() / 1000.0);
+                CLOG_INFO(Perf, "Read bytes utilization {}%",
+                          al.getReadByteUtilization().mean() / 1000.0);
+                CLOG_INFO(Perf, "Write bytes utilization {}%",
+                          al.getWriteByteUtilization().mean() / 1000.0);
+                CLOG_INFO(Perf, "Read entry utilization {}%",
+                          al.getReadEntryUtilization().mean() / 1000.0);
+                CLOG_INFO(Perf, "Write entry utilization {}%",
+                          al.getWriteEntryUtilization().mean() / 1000.0);
+
+                CLOG_INFO(Perf, "Tx Success Rate: {:f}%",
+                          al.successRate() * 100);
+            }
+
+            return 0;
+        });
+}
 #endif
 
 int
@@ -1871,6 +2034,7 @@ handleCommandLine(int argc, char* const* argv)
          {"fuzz", "run a single fuzz input and exit", runFuzz},
          {"gen-fuzz", "generate a random fuzzer input file", runGenFuzz},
          {"test", "execute test suite", runTest},
+         {"apply-load", "run apply time load test", runApplyLoad},
 #endif
          {"version", "print version information", runVersion}}};
 

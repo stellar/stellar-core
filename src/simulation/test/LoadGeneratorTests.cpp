@@ -287,8 +287,8 @@ TEST_CASE("generate soroban load", "[loadgen][soroban]")
         rand_uniform<int64_t>(INT64_MAX - 10'000, INT64_MAX);
     upgradeCfg.startingEvictionScanLevel = rand_uniform<uint32_t>(4, 8);
 
-    auto upgradeSetKey =
-        loadGen.getConfigUpgradeSetKey(createUpgradeLoadGenConfig);
+    auto upgradeSetKey = loadGen.getConfigUpgradeSetKey(
+        createUpgradeLoadGenConfig.getSorobanUpgradeConfig());
 
     numTxsBefore = getSuccessfulTxCount();
     loadGen.generateLoad(createUpgradeLoadGenConfig);
