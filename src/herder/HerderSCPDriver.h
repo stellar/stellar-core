@@ -9,6 +9,7 @@
 #include "herder/TxSetUtils.h"
 #include "medida/timer.h"
 #include "scp/SCPDriver.h"
+#include "util/ProtocolVersion.h"
 #include "util/RandomEvictionCache.h"
 #include "xdr/Stellar-ledger.h"
 #include <optional>
@@ -31,6 +32,11 @@ class Upgrades;
 class VirtualTimer;
 struct StellarValue;
 struct SCPEnvelope;
+
+// First protocol version supporting the application-specific weight function
+// for SCP leader election.
+ProtocolVersion constexpr APPLICATION_SPECIFIC_NOMINATION_LEADER_ELECTION_PROTOCOL_VERSION =
+    ProtocolVersion::V_22;
 
 class HerderSCPDriver : public SCPDriver
 {
@@ -128,6 +134,14 @@ class HerderSCPDriver : public SCPDriver
     double getExternalizeLag(NodeID const& id) const;
 
     Json::Value getQsetLagInfo(bool summary, bool fullKeys);
+
+    // Application-specific weight function. This function uses the quality
+    // levels from automatic quorum set generation to determine the weight of a
+    // validator. It is designed to ensure that:
+    // 1. Orgs of equal quality have equal chances of winning leader election.
+    // 2. Higher quality orgs win more frequently than lower quality orgs.
+    uint64 getNodeWeight(NodeID const& nodeID, SCPQuorumSet const& qset,
+                         bool isLocalNode) const override;
 
   private:
     Application& mApp;
