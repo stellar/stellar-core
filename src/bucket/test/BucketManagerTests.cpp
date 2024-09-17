@@ -119,71 +119,80 @@ TEST_CASE("skip list", "[bucket][bucketmanager]")
             Hash h6 = HashUtils::pseudoRandomForTesting();
             Hash h7 = HashUtils::pseudoRandomForTesting();
 
-            // up first entry
-            LedgerHeader header;
-            header.ledgerSeq = 5;
-            header.bucketListHash = h1;
-            calculateSkipValues(header);
-            REQUIRE(header.skipList[0] == h0);
-            REQUIRE(header.skipList[1] == h0);
-            REQUIRE(header.skipList[2] == h0);
-            REQUIRE(header.skipList[3] == h0);
+            for (size_t i = 21; i <= 22; ++i)
+            {
+                // up first entry
+                LedgerHeader header;
+                header.ledgerSeq = 5;
+                header.ledgerVersion = i;
+                auto& hashFieldToUse =
+                    protocolVersionIsBefore(header.ledgerVersion,
+                                            ProtocolVersion::V_22)
+                        ? header.bucketListHash
+                        : header.previousLedgerHash;
 
-            header.ledgerSeq = SKIP_1;
-            header.bucketListHash = h2;
-            calculateSkipValues(header);
-            REQUIRE(header.skipList[0] == h2);
-            REQUIRE(header.skipList[1] == h0);
-            REQUIRE(header.skipList[2] == h0);
-            REQUIRE(header.skipList[3] == h0);
+                calculateSkipValues(header);
+                REQUIRE(header.skipList[0] == h0);
+                REQUIRE(header.skipList[1] == h0);
+                REQUIRE(header.skipList[2] == h0);
+                REQUIRE(header.skipList[3] == h0);
 
-            header.ledgerSeq = SKIP_1 * 2;
-            header.bucketListHash = h3;
-            calculateSkipValues(header);
-            REQUIRE(header.skipList[0] == h3);
-            REQUIRE(header.skipList[1] == h0);
-            REQUIRE(header.skipList[2] == h0);
-            REQUIRE(header.skipList[3] == h0);
+                header.ledgerSeq = SKIP_1;
+                hashFieldToUse = h2;
+                calculateSkipValues(header);
+                REQUIRE(header.skipList[0] == h2);
+                REQUIRE(header.skipList[1] == h0);
+                REQUIRE(header.skipList[2] == h0);
+                REQUIRE(header.skipList[3] == h0);
 
-            header.ledgerSeq = SKIP_1 * 2 + 1;
-            header.bucketListHash = h2;
-            calculateSkipValues(header);
-            REQUIRE(header.skipList[0] == h3);
-            REQUIRE(header.skipList[1] == h0);
-            REQUIRE(header.skipList[2] == h0);
-            REQUIRE(header.skipList[3] == h0);
+                header.ledgerSeq = SKIP_1 * 2;
+                hashFieldToUse = h3;
+                calculateSkipValues(header);
+                REQUIRE(header.skipList[0] == h3);
+                REQUIRE(header.skipList[1] == h0);
+                REQUIRE(header.skipList[2] == h0);
+                REQUIRE(header.skipList[3] == h0);
 
-            header.ledgerSeq = SKIP_2;
-            header.bucketListHash = h4;
-            calculateSkipValues(header);
-            REQUIRE(header.skipList[0] == h4);
-            REQUIRE(header.skipList[1] == h0);
-            REQUIRE(header.skipList[2] == h0);
-            REQUIRE(header.skipList[3] == h0);
+                header.ledgerSeq = SKIP_1 * 2 + 1;
+                hashFieldToUse = h2;
+                calculateSkipValues(header);
+                REQUIRE(header.skipList[0] == h3);
+                REQUIRE(header.skipList[1] == h0);
+                REQUIRE(header.skipList[2] == h0);
+                REQUIRE(header.skipList[3] == h0);
 
-            header.ledgerSeq = SKIP_2 + SKIP_1;
-            header.bucketListHash = h5;
-            calculateSkipValues(header);
-            REQUIRE(header.skipList[0] == h5);
-            REQUIRE(header.skipList[1] == h4);
-            REQUIRE(header.skipList[2] == h0);
-            REQUIRE(header.skipList[3] == h0);
+                header.ledgerSeq = SKIP_2;
+                hashFieldToUse = h4;
+                calculateSkipValues(header);
+                REQUIRE(header.skipList[0] == h4);
+                REQUIRE(header.skipList[1] == h0);
+                REQUIRE(header.skipList[2] == h0);
+                REQUIRE(header.skipList[3] == h0);
 
-            header.ledgerSeq = SKIP_3 + SKIP_2;
-            header.bucketListHash = h6;
-            calculateSkipValues(header);
-            REQUIRE(header.skipList[0] == h6);
-            REQUIRE(header.skipList[1] == h4);
-            REQUIRE(header.skipList[2] == h0);
-            REQUIRE(header.skipList[3] == h0);
+                header.ledgerSeq = SKIP_2 + SKIP_1;
+                hashFieldToUse = h5;
+                calculateSkipValues(header);
+                REQUIRE(header.skipList[0] == h5);
+                REQUIRE(header.skipList[1] == h4);
+                REQUIRE(header.skipList[2] == h0);
+                REQUIRE(header.skipList[3] == h0);
 
-            header.ledgerSeq = SKIP_3 + SKIP_2 + SKIP_1;
-            header.bucketListHash = h7;
-            calculateSkipValues(header);
-            REQUIRE(header.skipList[0] == h7);
-            REQUIRE(header.skipList[1] == h6);
-            REQUIRE(header.skipList[2] == h4);
-            REQUIRE(header.skipList[3] == h0);
+                header.ledgerSeq = SKIP_3 + SKIP_2;
+                hashFieldToUse = h6;
+                calculateSkipValues(header);
+                REQUIRE(header.skipList[0] == h6);
+                REQUIRE(header.skipList[1] == h4);
+                REQUIRE(header.skipList[2] == h0);
+                REQUIRE(header.skipList[3] == h0);
+
+                header.ledgerSeq = SKIP_3 + SKIP_2 + SKIP_1;
+                hashFieldToUse = h7;
+                calculateSkipValues(header);
+                REQUIRE(header.skipList[0] == h7);
+                REQUIRE(header.skipList[1] == h6);
+                REQUIRE(header.skipList[2] == h4);
+                REQUIRE(header.skipList[3] == h0);
+            }
         }
     };
 

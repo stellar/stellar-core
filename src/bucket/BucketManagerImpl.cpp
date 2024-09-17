@@ -1120,7 +1120,16 @@ BucketManagerImpl::calculateSkipValues(LedgerHeader& currentHeader)
             }
             currentHeader.skipList[1] = currentHeader.skipList[0];
         }
-        currentHeader.skipList[0] = currentHeader.bucketListHash;
+
+        if (protocolVersionStartsFrom(currentHeader.ledgerVersion,
+                                      ProtocolVersion::V_22))
+        {
+            currentHeader.skipList[0] = currentHeader.previousLedgerHash;
+        }
+        else
+        {
+            currentHeader.skipList[0] = currentHeader.bucketListHash;
+        }
     }
 }
 
