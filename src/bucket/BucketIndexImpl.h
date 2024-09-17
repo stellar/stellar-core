@@ -4,6 +4,7 @@
 // under the Apache License, Version 2.0. See the COPYING file at the root
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
+#include "bucket/Bucket.h"
 #include "bucket/BucketIndex.h"
 #include "medida/meter.h"
 #include "util/BinaryFuseFilter.h"
@@ -15,7 +16,6 @@
 
 namespace stellar
 {
-
 // Index maps either individual keys or a key range of BucketEntry's to the
 // associated offset within the bucket file. Index stored as vector of pairs:
 // First: LedgerKey/Key ranges sorted in the same scheme as LedgerEntryCmp
@@ -33,13 +33,15 @@ template <class IndexT> class BucketIndexImpl : public BucketIndex
         std::streamoff pageSize{};
         std::unique_ptr<BinaryFuseFilter16> filter{};
         std::map<Asset, std::vector<PoolID>> assetToPoolID{};
+        BucketEntryCounters counters{};
 
         template <class Archive>
         void
         save(Archive& ar) const
         {
             auto version = BUCKET_INDEX_VERSION;
-            ar(version, pageSize, assetToPoolID, keysToOffset, filter);
+            ar(version, pageSize, assetToPoolID, keysToOffset, filter,
+               counters);
         }
 
         // Note: version and pageSize must be loaded before this function is
@@ -50,7 +52,7 @@ template <class IndexT> class BucketIndexImpl : public BucketIndex
         void
         load(Archive& ar)
         {
-            ar(assetToPoolID, keysToOffset, filter);
+            ar(assetToPoolID, keysToOffset, filter, counters);
         }
     } mData;
 
@@ -111,6 +113,7 @@ template <class IndexT> class BucketIndexImpl : public BucketIndex
 
     virtual void markBloomMiss() const override;
     virtual void markBloomLookup() const override;
+    virtual BucketEntryCounters const& getBucketEntryCounters() const override;
 
 #ifdef BUILD_TESTS
     virtual bool operator==(BucketIndex const& inRaw) const override;

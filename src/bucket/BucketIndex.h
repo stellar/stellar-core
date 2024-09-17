@@ -33,6 +33,7 @@ namespace stellar
  */
 
 class BucketManager;
+struct BucketEntryCounters;
 
 // BucketIndex abstract interface
 class BucketIndex : public NonMovableOrCopyable
@@ -74,7 +75,7 @@ class BucketIndex : public NonMovableOrCopyable
                                   IndividualIndex::const_iterator>;
 
     inline static const std::string DB_BACKEND_STATE = "bl";
-    inline static const uint32_t BUCKET_INDEX_VERSION = 3;
+    inline static const uint32_t BUCKET_INDEX_VERSION = 4;
 
     // Returns true if LedgerEntryType not supported by BucketListDB
     static bool typeNotSupported(LedgerEntryType t);
@@ -132,7 +133,7 @@ class BucketIndex : public NonMovableOrCopyable
 
     virtual void markBloomMiss() const = 0;
     virtual void markBloomLookup() const = 0;
-
+    virtual BucketEntryCounters const& getBucketEntryCounters() const = 0;
 #ifdef BUILD_TESTS
     virtual bool operator==(BucketIndex const& inRaw) const = 0;
 #endif

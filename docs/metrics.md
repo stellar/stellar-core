@@ -32,6 +32,8 @@ bucket.memory.shared                      | counter   | number of buckets refere
 bucket.merge-time.level-<X>               | timer     | time to merge two buckets on level <X>
 bucket.snap.merge                         | timer     | time to merge two buckets
 bucketlist.size.bytes                     | counter   | total size of the BucketList in bytes
+bucketlist.entryCounts.-<X>               | counter   | number of entries of type <X> in the BucketList
+bucketlist.entrySizes.-<X>                | counter   | size of entries of type <X> in the BucketList
 bucketlistDB.bloom.lookups                | meter     | number of bloom filter lookups
 bucketlistDB.bloom.misses                 | meter     | number of bloom filter false positives
 bucketlistDB.bulk.loads                   | meter     | number of entries BucketListDB queried to prefetch

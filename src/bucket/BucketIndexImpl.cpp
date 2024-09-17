@@ -7,6 +7,7 @@
 #include "bucket/BucketManager.h"
 #include "crypto/Hex.h"
 #include "crypto/ShortHash.h"
+#include "ledger/LedgerTypeUtils.h"
 #include "main/Config.h"
 #include "util/BinaryFuseFilter.h"
 #include "util/Fs.h"
@@ -100,6 +101,17 @@ BucketIndexImpl<IndexT>::BucketIndexImpl(BucketManager& bm,
         std::vector<uint64_t> keyHashes;
         auto seed = shortHash::getShortHashInitKey();
 
+        auto countEntry = [&](BucketEntry const& be) {
+            if (be.type() == METAENTRY)
+            {
+                // Do not count meta entries.
+                return;
+            }
+            auto ledt = bucketEntryToLedgerEntryAndDurabilityType(be);
+            mData.counters.entryTypeCounts[ledt]++;
+            mData.counters.entryTypeSizes[ledt] += xdr::xdr_size(be);
+        };
+
         while (in && in.readOne(be))
         {
             // peridocially check if bucket manager is exiting to stop indexing
@@ -170,6 +182,7 @@ BucketIndexImpl<IndexT>::BucketIndexImpl(BucketManager& bm,
                 {
                     mData.keysToOffset.emplace_back(key, pos);
                 }
+                countEntry(be);
             }
 
             pos = in.pos();
@@ -551,6 +564,11 @@ BucketIndexImpl<IndexT>::operator==(BucketIndex const& inRaw) const
         }
     }
 
+    if (mData.counters != in.mData.counters)
+    {
+        return false;
+    }
+
     return true;
 }
 #endif
@@ -579,5 +597,12 @@ void
 BucketIndexImpl<BucketIndex::RangeIndex>::markBloomLookup() const
 {
     mBloomLookupMeter.Mark();
+}
+
+template <class IndexT>
+BucketEntryCounters const&
+BucketIndexImpl<IndexT>::getBucketEntryCounters() const
+{
+    return mData.counters;
 }
 }
