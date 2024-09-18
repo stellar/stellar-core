@@ -4,6 +4,7 @@
 
 #include "historywork/WriteVerifiedCheckpointHashesWork.h"
 #include "catchup/VerifyLedgerChainWork.h"
+#include "crypto/Hex.h"
 #include "history/HistoryManager.h"
 #include "historywork/BatchDownloadWork.h"
 #include "ledger/LedgerManager.h"
@@ -14,10 +15,44 @@
 #include "work/ConditionalWork.h"
 #include <Tracy.hpp>
 #include <algorithm>
+#include <filesystem>
 #include <fmt/format.h>
 
 namespace stellar
 {
+std::optional<LedgerNumHashPair>
+WriteVerifiedCheckpointHashesWork::loadLatestHashPairFromJsonOutput(
+    std::string const& filename)
+{
+    if (!std::filesystem::exists(filename))
+    {
+        return std::nullopt;
+    }
+
+    std::ifstream in(filename);
+    Json::Value root;
+    Json::Reader rdr;
+    if (!rdr.parse(in, root))
+    {
+        throw std::runtime_error("failed to parse JSON input " + filename);
+    }
+    if (!root.isArray())
+    {
+        throw std::runtime_error("expected top-level array in " + filename);
+    }
+    if (root.size() < 1)
+    {
+        return std::nullopt;
+    }
+    // Latest hash is the first element in the array.
+    auto const& jpair = root[0];
+    if (!jpair.isArray() || (jpair.size() != 2))
+    {
+        throw std::runtime_error("expecting 2-element sub-array in " +
+                                 filename);
+    }
+    return {{jpair[0].asUInt(), hexToBin256(jpair[1].asString())}};
+}
 
 Hash
 WriteVerifiedCheckpointHashesWork::loadHashFromJsonOutput(
@@ -55,7 +90,9 @@ WriteVerifiedCheckpointHashesWork::loadHashFromJsonOutput(
 
 WriteVerifiedCheckpointHashesWork::WriteVerifiedCheckpointHashesWork(
     Application& app, LedgerNumHashPair rangeEnd, std::string const& outputFile,
-    uint32_t nestedBatchSize, std::shared_ptr<HistoryArchive> archive)
+    std::optional<std::string> const& trustedHashFile,
+    std::optional<uint32_t> const& fromLedger, uint32_t nestedBatchSize,
+    std::shared_ptr<HistoryArchive> archive)
     : BatchWork(app, "write-verified-checkpoint-hashes")
     , mNestedBatchSize(nestedBatchSize)
     , mRangeEnd(rangeEnd)
@@ -63,7 +100,9 @@ WriteVerifiedCheckpointHashesWork::WriteVerifiedCheckpointHashesWork(
     , mRangeEndFuture(mRangeEndPromise.get_future().share())
     , mCurrCheckpoint(rangeEnd.first)
     , mArchive(archive)
+    , mTrustedHashFileName(trustedHashFile)
     , mOutputFileName(outputFile)
+    , mFromLedger(fromLedger)
 {
     mRangeEndPromise.set_value(mRangeEnd);
     if (mArchive)
@@ -71,6 +110,7 @@ WriteVerifiedCheckpointHashesWork::WriteVerifiedCheckpointHashesWork(
         CLOG_INFO(History, "selected archive {}", mArchive->getName());
     }
     startOutputFile();
+    maybeParseTrustedHashFile();
 }
 
 WriteVerifiedCheckpointHashesWork::~WriteVerifiedCheckpointHashesWork()
@@ -81,6 +121,14 @@ WriteVerifiedCheckpointHashesWork::~WriteVerifiedCheckpointHashesWork()
 bool
 WriteVerifiedCheckpointHashesWork::hasNext() const
 {
+    if (mFromLedger)
+    {
+        return mCurrCheckpoint > *mFromLedger;
+    }
+    else if (mLatestTrustedHashPair)
+    {
+        return mCurrCheckpoint > mLatestTrustedHashPair->first;
+    }
     return mCurrCheckpoint != LedgerManager::GENESIS_LEDGER_SEQ;
 }
 
@@ -101,9 +149,19 @@ WriteVerifiedCheckpointHashesWork::yieldMoreWork()
                                 std::make_optional<Hash>(lclHe.hash));
     uint32_t const span = mNestedBatchSize * freq;
     uint32_t const last = mCurrCheckpoint;
-    uint32_t const first =
-        last <= span ? LedgerManager::GENESIS_LEDGER_SEQ
-                     : hm.firstLedgerInCheckpointContaining(last - span);
+    uint32_t first = last <= span
+                         ? LedgerManager::GENESIS_LEDGER_SEQ
+                         : hm.firstLedgerInCheckpointContaining(last - span);
+    // If the latest trusted ledger or mFromLedger is greater than the first
+    // ledger in the range then the range should start at the trusted ledger.
+    if (mFromLedger && first < *mFromLedger)
+    {
+        first = *mFromLedger;
+    }
+    else if (mLatestTrustedHashPair && first < mLatestTrustedHashPair->first)
+    {
+        first = mLatestTrustedHashPair->first;
+    }
 
     LedgerRange const ledgerRange = LedgerRange::inclusive(first, last);
     CheckpointRange const checkpointRange(ledgerRange, hm);
@@ -138,8 +196,8 @@ WriteVerifiedCheckpointHashesWork::yieldMoreWork()
                          : mRangeEndFuture);
 
     auto currWork = std::make_shared<VerifyLedgerChainWork>(
-        mApp, *tmpDir, ledgerRange, lcl, prevTrusted, std::promise<bool>(),
-        mOutputFile);
+        mApp, *tmpDir, ledgerRange, lcl, mLatestTrustedHashPair, prevTrusted,
+        std::promise<bool>(), mOutputFile);
     auto prevWork = mPrevVerifyWork;
     auto predicate = [prevWork](Application&) {
         if (!prevWork)
@@ -178,15 +236,56 @@ WriteVerifiedCheckpointHashesWork::startOutputFile()
 }
 
 void
+WriteVerifiedCheckpointHashesWork::maybeParseTrustedHashFile()
+{
+    if (mFromLedger || !mTrustedHashFileName)
+    {
+        return;
+    }
+    mLatestTrustedHashPair =
+        loadLatestHashPairFromJsonOutput(*mTrustedHashFileName);
+    CLOG_INFO(History, "trusted hash from {}: {}", *mTrustedHashFileName,
+              hexAbbrev(*mLatestTrustedHashPair->second));
+}
+
+void
 WriteVerifiedCheckpointHashesWork::endOutputFile()
 {
     if (mOutputFile && mOutputFile->is_open())
     {
-        // Each line of output made by a VerifyLedgerChainWork has a trailing
-        // comma, and trailing commas are not a valid end of a JSON array; so we
-        // terminate the array here with an entry that does _not_ have a
-        // trailing comma (and identifies an invalid ledger number anyways).
-        (*mOutputFile) << "\n[0, \"\"]\n]\n";
+        if (mTrustedHashFileName &&
+            std::filesystem::exists(*mTrustedHashFileName))
+        {
+            // Append everything except the first line of mTrustedHashFile to
+            // mOutputFile.
+            std::ifstream trustedHashFile(*mTrustedHashFileName);
+            if (trustedHashFile)
+            {
+                std::string line;
+                // Ignore the first line ("["")
+                std::getline(trustedHashFile, line);
+                // Append the rest of the lines to mOutputFile.
+                while (std::getline(trustedHashFile, line))
+                {
+                    (*mOutputFile) << "\n" << line;
+                }
+                trustedHashFile.close();
+            }
+            else
+            {
+                CLOG_WARNING(History, "failed to open trusted hash file {}",
+                             *mTrustedHashFileName);
+            }
+        }
+        else
+        {
+            // Each line of output made by a VerifyLedgerChainWork has a
+            // trailing comma, and trailing commas are not a valid end of a JSON
+            // array; so we terminate the array here with an entry that does
+            // _not_ have a trailing comma (and identifies an invalid ledger
+            // number anyways).
+            (*mOutputFile) << "\n[0, \"\"]\n]\n";
+        }
         mOutputFile->close();
         mOutputFile.reset();
     }

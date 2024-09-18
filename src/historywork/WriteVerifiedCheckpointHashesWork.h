@@ -28,6 +28,8 @@ class WriteVerifiedCheckpointHashesWork : public BatchWork
     WriteVerifiedCheckpointHashesWork(
         Application& app, LedgerNumHashPair rangeEnd,
         std::string const& outputFile,
+        std::optional<std::string> const& trustedHashFile,
+        std::optional<uint32_t> const& fromLedger,
         uint32_t nestedBatchSize = NESTED_DOWNLOAD_BATCH_SIZE,
         std::shared_ptr<HistoryArchive> archive = nullptr);
     ~WriteVerifiedCheckpointHashesWork();
@@ -35,10 +37,15 @@ class WriteVerifiedCheckpointHashesWork : public BatchWork
     // Helper to load a hash back from a file produced by this class.
     static Hash loadHashFromJsonOutput(uint32_t seq,
                                        std::string const& filename);
+    // Helper to load the latest hash back from a file produced by this class.
+    // If the file does not exist, returns std::nullopt.
+    static std::optional<LedgerNumHashPair>
+    loadLatestHashPairFromJsonOutput(std::string const& filename);
 
     void onSuccess() override;
 
   private:
+    void maybeParseTrustedHashFile();
     // This class is a batch work, but it also creates a conditional dependency
     // chain among its batch elements (for trusted ledger propagation): this
     // dependency chain can in turn cause the BatchWork logic to stall, failing
@@ -78,6 +85,9 @@ class WriteVerifiedCheckpointHashesWork : public BatchWork
     void startOutputFile();
     void endOutputFile();
     std::shared_ptr<std::ofstream> mOutputFile;
-    std::string mOutputFileName;
+    std::optional<std::string> const mTrustedHashFileName;
+    std::string const mOutputFileName;
+    std::optional<LedgerNumHashPair> mLatestTrustedHashPair;
+    std::optional<uint32_t> const& mFromLedger;
 };
 }

@@ -177,7 +177,7 @@ CatchupWork::downloadVerifyLedgerChain(CatchupRange const& catchupRange,
 
     mVerifyLedgers = std::make_shared<VerifyLedgerChainWork>(
         mApp, *mDownloadDir, verifyRange, mLastClosedLedgerHashPair,
-        mRangeEndFuture, std::move(fatalFailurePromise));
+        std::nullopt, mRangeEndFuture, std::move(fatalFailurePromise));
 
     // Never retry the sequence: downloads already have retries, and there's no
     // point retrying verification
