@@ -5556,7 +5556,7 @@ TEST_CASE("SCP message capture from previous ledger", "[herder]")
     simulation->addConnection(validatorCKey.getPublicKey(),
                               validatorBKey.getPublicKey());
     simulation->crankUntil(
-        [&]() { return C->getLedgerManager().getLastClosedLedgerNum() == 3; },
+        [&]() { return C->getLedgerManager().getLastClosedLedgerNum() >= 3; },
         4 * Herder::EXP_LEDGER_TIMESPAN_SECONDS, false);
 
     // C should have 3 EXTERNALIZEs in its scphistory table for ledger 2. This
