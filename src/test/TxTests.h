@@ -307,7 +307,8 @@ TransactionTestFramePtr sorobanTransactionFrameFromOpsWithTotalFee(
     Hash const& networkID, TestAccount& source,
     std::vector<Operation> const& ops, std::vector<SecretKey> const& opKeys,
     SorobanResources const& resources, uint32_t totalFee, int64_t resourceFee,
-    std::optional<std::string> memo = std::nullopt);
+    std::optional<std::string> memo = std::nullopt,
+    std::optional<uint64> muxedData = std::nullopt);
 
 ConfigUpgradeSetFrameConstPtr makeConfigUpgradeSet(
     AbstractLedgerTxn& ltx, ConfigUpgradeSet configUpgradeSet,

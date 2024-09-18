@@ -269,6 +269,60 @@ TransactionQueue::sourceAccountPending(AccountID const& accountID) const
     return mAccountStates.find(accountID) != mAccountStates.end();
 }
 
+bool
+validateSorobanMemo(TransactionFrameBasePtr tx)
+{
+    if (tx->getEnvelope().type() != ENVELOPE_TYPE_TX)
+    {
+        return true;
+    }
+
+    auto const& txEnv = tx->getEnvelope().v1();
+    if (txEnv.tx.operations.size() != 1)
+    {
+        return true;
+    }
+    auto const& op = txEnv.tx.operations.at(0);
+    if (op.body.type() != INVOKE_HOST_FUNCTION)
+    {
+        return true;
+    }
+
+    bool isSourceAccountAuthOnly = true;
+
+    auto const& auth = op.body.invokeHostFunctionOp().auth;
+    for (auto const& authEntry : auth)
+    {
+        if (authEntry.credentials.type() !=
+            SorobanCredentialsType::SOROBAN_CREDENTIALS_SOURCE_ACCOUNT)
+        {
+            isSourceAccountAuthOnly = false;
+            break;
+        }
+    }
+
+    if (isSourceAccountAuthOnly)
+    {
+        return true;
+    }
+
+    // If tx has a memo or the source account is muxed
+    if (txEnv.tx.memo.type() != MemoType::MEMO_NONE ||
+        txEnv.tx.sourceAccount.type() == CryptoKeyType::KEY_TYPE_MUXED_ED25519)
+    {
+        return false;
+    }
+
+    // If op source account is muxed
+    if (op.sourceAccount &&
+        op.sourceAccount->type() == CryptoKeyType::KEY_TYPE_MUXED_ED25519)
+    {
+        return false;
+    }
+
+    return true;
+}
+
 TransactionQueue::AddResult
 TransactionQueue::canAdd(
     TransactionFrameBasePtr tx, AccountStates::iterator& stateIter,
@@ -424,6 +478,21 @@ TransactionQueue::canAdd(
         totalFees)
     {
         txResult->setResultCode(txINSUFFICIENT_BALANCE);
+        return AddResult(TransactionQueue::AddResultCode::ADD_STATUS_ERROR,
+                         txResult);
+    }
+
+    if (!validateSorobanMemo(tx))
+    {
+        txResult->setInnermostResultCode(txSOROBAN_INVALID);
+
+        auto sorobanTxData = txResult->getSorobanData();
+        releaseAssertOrThrow(sorobanTxData);
+
+        sorobanTxData->pushValidationTimeDiagnosticError(
+            mApp.getConfig(), SCE_CONTEXT, SCEC_INVALID_INPUT,
+            "non-source auth Soroban tx uses memo or muxed source account");
+
         return AddResult(TransactionQueue::AddResultCode::ADD_STATUS_ERROR,
                          txResult);
     }
