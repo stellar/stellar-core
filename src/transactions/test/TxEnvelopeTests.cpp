@@ -2517,7 +2517,7 @@ TEST_CASE("XDR protocol compatibility validation", "[tx][envelope]")
             sorobanTransactionFrameFromOps(app->getNetworkID(), root, {op}, {},
                                            SorobanResources(), 1000, 1'000'000);
         LedgerTxn ltx(app->getLedgerTxnRoot());
-        return tx->checkValid(*app, ltx, 0, 0, 0);
+        return tx->checkValid(app->getAppConnector(), ltx, 0, 0, 0);
     };
     SECTION("XDR not valid in protocol 21")
     {
