@@ -98,3 +98,9 @@ tracy = ["dep:tracy-client", "soroban-env-host-p21/tracy", "soroban-env-host-p22
 # feature is not enabled by default, and is only intended for temporary use when
 # staging work across intra-protocol releases.
 core-vnext = ["soroban-env-host-p22/next"]
+
+# the testutils feature turns on stuff that should only be available in a core
+# BUILD_TESTS build, such as the code to support transaction re-execution on
+# a secondary host. If necessary it can also turn on "testutils" features in
+# any of the hosts.
+testutils = []
