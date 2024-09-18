@@ -519,8 +519,7 @@ TEST_CASE("generalized tx set XDR conversion", "[txset]")
         auto txSetFrame = TxSetXDRFrame::makeFromWire(txSetXdr);
         ApplicableTxSetFrameConstPtr applicableFrame;
         {
-            LedgerTxn ltx(app->getLedgerTxnRoot(), false,
-                          TransactionMode::READ_ONLY_WITHOUT_SQL_TXN);
+            LedgerTxn ltx(app->getLedgerTxnRoot());
             applicableFrame = txSetFrame->prepareForApply(*app);
         }
         REQUIRE(applicableFrame->checkValid(*app, 0, 0));
