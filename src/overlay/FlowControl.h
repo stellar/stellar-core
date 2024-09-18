@@ -13,7 +13,7 @@
 namespace stellar
 {
 
-class OverlayAppConnector;
+class AppConnector;
 struct OverlayMetrics;
 
 // num messages, bytes
@@ -66,7 +66,7 @@ class FlowControl
     FlowControlByteCapacity mFlowControlBytesCapacity;
 
     OverlayMetrics& mOverlayMetrics;
-    OverlayAppConnector& mAppConnector;
+    AppConnector& mAppConnector;
     bool const mUseBackgroundThread;
 
     // Outbound queues indexes by priority
@@ -92,7 +92,7 @@ class FlowControl
     bool canRead(std::lock_guard<std::mutex> const& lockGuard) const;
 
   public:
-    FlowControl(OverlayAppConnector& connector, bool useBackgoundThread);
+    FlowControl(AppConnector& connector, bool useBackgoundThread);
     virtual ~FlowControl() = default;
 
     void maybeReleaseCapacity(StellarMessage const& msg);

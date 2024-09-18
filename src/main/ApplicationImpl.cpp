@@ -40,6 +40,7 @@
 #include "ledger/LedgerHeaderUtils.h"
 #include "ledger/LedgerManager.h"
 #include "ledger/LedgerTxn.h"
+#include "main/AppConnector.h"
 #include "main/ApplicationUtils.h"
 #include "main/CommandHandler.h"
 #include "main/ExternalQueue.h"
@@ -330,6 +331,7 @@ ApplicationImpl::initialize(bool createNewDB, bool forceRebuild)
     mWorkScheduler = WorkScheduler::create(*this);
     mBanManager = BanManager::create(*this);
     mStatusManager = std::make_unique<StatusManager>();
+    mAppConnector = std::make_unique<AppConnector>(*this);
 
     if (getConfig().MODE_USES_IN_MEMORY_LEDGER)
     {
@@ -1634,5 +1636,11 @@ ApplicationImpl::getLedgerTxnRoot()
     releaseAssert(threadIsMain());
     return mConfig.MODE_USES_IN_MEMORY_LEDGER ? *mNeverCommittingLedgerTxn
                                               : *mLedgerTxnRoot;
+}
+
+AppConnector&
+ApplicationImpl::getAppConnector()
+{
+    return *mAppConnector;
 }
 }
