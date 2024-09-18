@@ -358,8 +358,9 @@ TEST_CASE_VERSIONS("set options", "[tx][setoptions]")
                     LedgerTxn ltx(app->getLedgerTxnRoot());
                     TransactionMetaFrame txm(
                         ltx.loadHeader().current().ledgerVersion);
-                    REQUIRE(tx->checkValidForTesting(*app, ltx, 0, 0, 0));
-                    REQUIRE(tx->apply(*app, ltx, txm));
+                    REQUIRE(tx->checkValidForTesting(app->getAppConnector(),
+                                                     ltx, 0, 0, 0));
+                    REQUIRE(tx->apply(app->getAppConnector(), ltx, txm));
 
                     checkSponsorship(ltx, acc1.getPublicKey(), 0, nullptr, 2, 2,
                                      0, 1);
@@ -398,8 +399,9 @@ TEST_CASE_VERSIONS("set options", "[tx][setoptions]")
                     LedgerTxn ltx(app->getLedgerTxnRoot());
                     TransactionMetaFrame txm(
                         ltx.loadHeader().current().ledgerVersion);
-                    REQUIRE(tx->checkValidForTesting(*app, ltx, 0, 0, 0));
-                    REQUIRE(tx->apply(*app, ltx, txm));
+                    REQUIRE(tx->checkValidForTesting(app->getAppConnector(),
+                                                     ltx, 0, 0, 0));
+                    REQUIRE(tx->apply(app->getAppConnector(), ltx, txm));
 
                     checkSponsorship(ltx, acc1.getPublicKey(), 0, nullptr, 2, 2,
                                      0, 1);
@@ -497,8 +499,9 @@ TEST_CASE_VERSIONS("set options", "[tx][setoptions]")
                 LedgerTxn ltx(app->getLedgerTxnRoot());
                 TransactionMetaFrame txm(
                     ltx.loadHeader().current().ledgerVersion);
-                REQUIRE(tx->checkValidForTesting(*app, ltx, 0, 0, 0));
-                REQUIRE(tx->apply(*app, ltx, txm));
+                REQUIRE(tx->checkValidForTesting(app->getAppConnector(), ltx, 0,
+                                                 0, 0));
+                REQUIRE(tx->apply(app->getAppConnector(), ltx, txm));
                 ltx.commit();
 
                 checkSigners();

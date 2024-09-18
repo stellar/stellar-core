@@ -20,6 +20,7 @@
 #include "ledger/LedgerTxnHeader.h"
 #include "ledger/LedgerTypeUtils.h"
 #include "ledger/SorobanMetrics.h"
+#include "main/AppConnector.h"
 #include "main/Application.h"
 #include "transactions/MutableTransactionResult.h"
 #include "transactions/SignatureChecker.h"
@@ -701,10 +702,10 @@ TransactionFrame::refundSorobanFee(AbstractLedgerTxn& ltxOuter,
 }
 
 void
-TransactionFrame::updateSorobanMetrics(Application& app) const
+TransactionFrame::updateSorobanMetrics(AppConnector& app) const
 {
     releaseAssertOrThrow(isSoroban());
-    SorobanMetrics& metrics = app.getLedgerManager().getSorobanMetrics();
+    SorobanMetrics& metrics = app.getSorobanMetrics();
     auto txSize = static_cast<int64_t>(this->getSize());
     auto r = sorobanResources();
     // update the tx metrics
@@ -874,7 +875,7 @@ TransactionFrame::isTooEarlyForAccount(LedgerHeaderWrapper const& header,
 
 bool
 TransactionFrame::commonValidPreSeqNum(
-    Application& app, LedgerSnapshot const& ls, bool chargeFee,
+    AppConnector& app, LedgerSnapshot const& ls, bool chargeFee,
     uint64_t lowerBoundCloseTimeOffset, uint64_t upperBoundCloseTimeOffset,
     std::optional<FeePair> sorobanResourceFee,
     MutableTxResultPtr txResult) const
@@ -1179,7 +1180,7 @@ TransactionFrame::isBadSeq(LedgerHeaderWrapper const& header,
 }
 
 TransactionFrame::ValidationType
-TransactionFrame::commonValid(Application& app,
+TransactionFrame::commonValid(AppConnector& app,
                               SignatureChecker& signatureChecker,
                               LedgerSnapshot const& ls, SequenceNumber current,
                               bool applying, bool chargeFee,
@@ -1410,7 +1411,7 @@ TransactionFrame::removeAccountSigner(AbstractLedgerTxn& ltxOuter,
 
 MutableTxResultPtr
 TransactionFrame::checkValidWithOptionallyChargedFee(
-    Application& app, LedgerSnapshot const& ls, SequenceNumber current,
+    AppConnector& app, LedgerSnapshot const& ls, SequenceNumber current,
     bool chargeFee, uint64_t lowerBoundCloseTimeOffset,
     uint64_t upperBoundCloseTimeOffset) const
 {
@@ -1478,7 +1479,7 @@ TransactionFrame::checkValidWithOptionallyChargedFee(
 }
 
 MutableTxResultPtr
-TransactionFrame::checkValid(Application& app, LedgerSnapshot const& ls,
+TransactionFrame::checkValid(AppConnector& app, LedgerSnapshot const& ls,
                              SequenceNumber current,
                              uint64_t lowerBoundCloseTimeOffset,
                              uint64_t upperBoundCloseTimeOffset) const
@@ -1500,7 +1501,8 @@ TransactionFrame::checkValid(Application& app, LedgerSnapshot const& ls,
 
 bool
 TransactionFrame::checkSorobanResourceAndSetError(
-    Application& app, uint32_t ledgerVersion, MutableTxResultPtr txResult) const
+    AppConnector& app, uint32_t ledgerVersion,
+    MutableTxResultPtr txResult) const
 {
     auto const& sorobanConfig =
         app.getLedgerManager().getSorobanNetworkConfig();
@@ -1556,7 +1558,7 @@ TransactionFrame::insertKeysForTxApply(UnorderedSet<LedgerKey>& keys,
 }
 
 bool
-TransactionFrame::apply(Application& app, AbstractLedgerTxn& ltx,
+TransactionFrame::apply(AppConnector& app, AbstractLedgerTxn& ltx,
                         MutableTxResultPtr txResult,
                         Hash const& sorobanBasePrngSeed) const
 {
@@ -1566,7 +1568,7 @@ TransactionFrame::apply(Application& app, AbstractLedgerTxn& ltx,
 
 bool
 TransactionFrame::applyOperations(SignatureChecker& signatureChecker,
-                                  Application& app, AbstractLedgerTxn& ltx,
+                                  AppConnector& app, AbstractLedgerTxn& ltx,
                                   TransactionMetaFrame& outerMeta,
                                   MutableTransactionResultBase& txResult,
                                   Hash const& sorobanBasePrngSeed) const
@@ -1623,8 +1625,8 @@ TransactionFrame::applyOperations(SignatureChecker& signatureChecker,
             }
             if (success)
             {
-                app.getInvariantManager().checkOnOperationApply(
-                    op->getOperation(), opResult, ltxOp.getDelta());
+                app.checkOnOperationApply(op->getOperation(), opResult,
+                                          ltxOp.getDelta());
 
                 // The operation meta will be empty if the transaction
                 // doesn't succeed so we may as well not do any work in that
@@ -1774,7 +1776,7 @@ TransactionFrame::applyOperations(SignatureChecker& signatureChecker,
 }
 
 bool
-TransactionFrame::apply(Application& app, AbstractLedgerTxn& ltx,
+TransactionFrame::apply(AppConnector& app, AbstractLedgerTxn& ltx,
                         TransactionMetaFrame& meta, MutableTxResultPtr txResult,
                         bool chargeFee, Hash const& sorobanBasePrngSeed) const
 {
@@ -1862,7 +1864,7 @@ TransactionFrame::apply(Application& app, AbstractLedgerTxn& ltx,
 }
 
 bool
-TransactionFrame::apply(Application& app, AbstractLedgerTxn& ltx,
+TransactionFrame::apply(AppConnector& app, AbstractLedgerTxn& ltx,
                         TransactionMetaFrame& meta, MutableTxResultPtr txResult,
                         Hash const& sorobanBasePrngSeed) const
 {
@@ -1870,7 +1872,7 @@ TransactionFrame::apply(Application& app, AbstractLedgerTxn& ltx,
 }
 
 void
-TransactionFrame::processPostApply(Application& app,
+TransactionFrame::processPostApply(AppConnector& app,
                                    AbstractLedgerTxn& ltxOuter,
                                    TransactionMetaFrame& meta,
                                    MutableTxResultPtr txResult) const
@@ -1882,7 +1884,7 @@ TransactionFrame::processPostApply(Application& app,
 // This is a TransactionFrame specific function that should only be used by
 // FeeBumpTransactionFrame to forward a different account for the refund.
 int64_t
-TransactionFrame::processRefund(Application& app, AbstractLedgerTxn& ltxOuter,
+TransactionFrame::processRefund(AppConnector& app, AbstractLedgerTxn& ltxOuter,
                                 TransactionMetaFrame& meta,
                                 AccountID const& feeSource,
                                 MutableTransactionResultBase& txResult) const

@@ -63,7 +63,7 @@ BeginSponsoringFutureReservesOpFrame::createSponsorshipCounter(
 
 bool
 BeginSponsoringFutureReservesOpFrame::doApply(
-    Application& app, AbstractLedgerTxn& ltx, Hash const& sorobanBasePrngSeed,
+    AppConnector& app, AbstractLedgerTxn& ltx, Hash const& sorobanBasePrngSeed,
     OperationResult& res, std::shared_ptr<SorobanTxData> sorobanData) const
 {
     ZoneNamedN(applyZone, "BeginSponsoringFutureReservesOpFrame apply", true);

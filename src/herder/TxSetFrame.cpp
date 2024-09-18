@@ -243,7 +243,8 @@ phaseTxsAreValid(TxSetTransactions const& phase, Application& app,
         app.getLedgerManager().getLastClosedLedgerNum() + 1;
     for (auto const& tx : phase)
     {
-        auto txResult = tx->checkValid(app, ls, 0, lowerBoundCloseTimeOffset,
+        auto txResult = tx->checkValid(app.getAppConnector(), ls, 0,
+                                       lowerBoundCloseTimeOffset,
                                        upperBoundCloseTimeOffset);
         if (!txResult->isSuccess())
         {

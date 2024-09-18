@@ -29,7 +29,7 @@ ManageDataOpFrame::ManageDataOpFrame(Operation const& op,
 }
 
 bool
-ManageDataOpFrame::doApply(Application& app, AbstractLedgerTxn& ltx,
+ManageDataOpFrame::doApply(AppConnector& app, AbstractLedgerTxn& ltx,
                            Hash const& sorobanBasePrngSeed,
                            OperationResult& res,
                            std::shared_ptr<SorobanTxData> sorobanData) const

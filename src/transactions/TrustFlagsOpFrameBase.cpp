@@ -51,7 +51,7 @@ TrustFlagsOpFrameBase::removeOffers(AbstractLedgerTxn& ltx,
 }
 
 bool
-TrustFlagsOpFrameBase::doApply(Application& app, AbstractLedgerTxn& ltx,
+TrustFlagsOpFrameBase::doApply(AppConnector& app, AbstractLedgerTxn& ltx,
                                Hash const& sorobanBasePrngSeed,
                                OperationResult& res,
                                std::shared_ptr<SorobanTxData> sorobanData) const

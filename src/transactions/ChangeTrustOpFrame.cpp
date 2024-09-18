@@ -141,7 +141,7 @@ ChangeTrustOpFrame::ChangeTrustOpFrame(Operation const& op,
 }
 
 bool
-ChangeTrustOpFrame::doApply(Application& app, AbstractLedgerTxn& ltx,
+ChangeTrustOpFrame::doApply(AppConnector& app, AbstractLedgerTxn& ltx,
                             Hash const& sorobanBasePrngSeed,
                             OperationResult& res,
                             std::shared_ptr<SorobanTxData> sorobanData) const

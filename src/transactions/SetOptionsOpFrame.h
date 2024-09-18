@@ -27,7 +27,7 @@ class SetOptionsOpFrame : public OperationFrame
   public:
     SetOptionsOpFrame(Operation const& op, TransactionFrame const& parentTx);
 
-    bool doApply(Application& app, AbstractLedgerTxn& ltx,
+    bool doApply(AppConnector& app, AbstractLedgerTxn& ltx,
                  Hash const& sorobanBasePrngSeed, OperationResult& res,
                  std::shared_ptr<SorobanTxData> sorobanData) const override;
     bool doCheckValid(uint32_t ledgerVersion,
