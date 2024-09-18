@@ -31,7 +31,6 @@
 #include "overlay/OverlayManager.h"
 #include "rust/RustBridge.h"
 #include "scp/QuorumSetUtils.h"
-#include "simulation/ApplyLoad.h"
 #include "transactions/TransactionUtils.h"
 #include "util/Logging.h"
 #include "util/types.h"
@@ -42,6 +41,7 @@
 #include <cereal/cereal.hpp>
 
 #ifdef BUILD_TESTS
+#include "simulation/ApplyLoad.h"
 #include "test/Fuzzer.h"
 #include "test/fuzz.h"
 #include "test/test.h"
