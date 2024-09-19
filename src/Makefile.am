@@ -152,7 +152,7 @@ $(RUST_DEP_TREE_STAMP): $(ALL_RUST_EXPECT_DEPTREES) $(ALL_RUST_ACTUAL_DEPTREES) 
 $(ALL_RUST_ACTUAL_DEPTREES) &: $(wildcard rust/soroban/*/Cargo.*) Makefile
 	for proto in $(ALL_SOROBAN_PROTOCOLS); \
 	do \
-		cargo tree --manifest-path rust/soroban/$$proto/Cargo.toml --locked --package soroban-env-host --edges no-dev --target all --no-dedupe \
+		cargo tree --manifest-path rust/soroban/$$proto/Cargo.toml --locked --package soroban-env-host --edges no-dev --target all \
 		| sed -e "s@$(abspath $(top_srcdir))/@@g" > $(RUST_BUILD_DIR)/src/dep-trees/$$proto-actual.txt ;\
 	done
 
