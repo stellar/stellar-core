@@ -26,7 +26,6 @@ pub(crate) use super::soroban_env_host::{
         compute_write_fee_per_1kb as host_compute_write_fee_per_1kb, FeeConfiguration,
         LedgerEntryRentChange, RentFeeConfiguration, TransactionResources, WriteFeeConfiguration,
     },
-    meta,
     xdr::{
         self, ContractCostParams, ContractEvent, ContractEventBody, ContractEventType,
         ContractEventV0, DiagnosticEvent, ExtensionPoint, LedgerEntry, LedgerEntryData,
@@ -214,7 +213,7 @@ pub fn get_xdr_hashes() -> Vec<XDRFileHash> {
 }
 
 pub const fn get_max_proto() -> u32 {
-    meta::get_ledger_protocol_version(VERSION.interface)
+    super::get_version_protocol(&VERSION)
 }
 
 pub fn get_soroban_version_info(core_max_proto: u32) -> SorobanVersionInfo {
@@ -222,10 +221,10 @@ pub fn get_soroban_version_info(core_max_proto: u32) -> SorobanVersionInfo {
     let xdr_base_git_rev = match VERSION.xdr.xdr {
         "curr" => VERSION.xdr.xdr_curr.to_string(),
         "next" | "curr,next" => {
-            if !cfg!(feature = "core-vnext") {
+            if !cfg!(feature = "next") {
                 warn!(
                     "soroban version {} XDR module built with 'next' feature,
-                       but core built without 'core-vnext' feature",
+                       but core built without 'vnext' feature",
                     VERSION.pkg
                 );
             }
@@ -249,7 +248,7 @@ pub fn get_soroban_version_info(core_max_proto: u32) -> SorobanVersionInfo {
         env_max_proto,
         env_pkg_ver: VERSION.pkg.to_string(),
         env_git_rev: VERSION.rev.to_string(),
-        env_pre_release_ver: meta::get_pre_release_version(VERSION.interface),
+        env_pre_release_ver: super::get_version_pre_release(&VERSION),
         xdr_pkg_ver: VERSION.xdr.pkg.to_string(),
         xdr_git_rev: VERSION.xdr.rev.to_string(),
         xdr_base_git_rev,

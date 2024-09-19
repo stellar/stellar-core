@@ -27,9 +27,6 @@ if USE_SPDLOG
 lib3rdparty_a_SOURCES += $(SPDLOG_FILES)
 endif # !USE_SPDLOG
 
-if USE_TRACY
-lib3rdparty_a_SOURCES += $(TRACY_CXX_FILES)
-endif # USE_TRACY
 noinst_HEADERS = $(MISC_H_FILES) $(ASIO_H_FILES)
 
 # Suppress any installation of SUBDIRS, which may be distributed separately

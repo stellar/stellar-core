@@ -1,9 +1,6 @@
 [workspace]
 resolver = "2"
-members = ["src/rust", "lib/tracy-client-sys"]
-
-[patch.crates-io]
-tracy-client-sys = { path = "lib/tracy-client-sys" }
+members = ["src/rust"]
 
 [profile.release]
 codegen-units = 1
