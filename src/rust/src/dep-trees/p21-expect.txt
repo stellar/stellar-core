@@ -2,6 +2,7 @@ soroban-env-host v21.2.1 (src/rust/soroban/p21/soroban-env-host)
 ├── curve25519-dalek v4.1.1
 │   ├── cfg-if v1.0.0
 │   ├── cpufeatures v0.2.8
+│   │   └── libc v0.2.150
 │   ├── curve25519-dalek-derive v0.1.0 (proc-macro)
 │   │   ├── proc-macro2 v1.0.69
 │   │   │   └── unicode-ident v1.0.9
@@ -23,6 +24,7 @@ soroban-env-host v21.2.1 (src/rust/soroban/p21/soroban-env-host)
 │   │   │   ├── generic-array v0.14.7 (*)
 │   │   │   └── typenum v1.16.0
 │   │   └── subtle v2.5.0
+│   ├── fiat-crypto v0.2.5
 │   ├── subtle v2.5.0
 │   └── zeroize v1.6.0
 │   [build-dependencies]
@@ -41,7 +43,27 @@ soroban-env-host v21.2.1 (src/rust/soroban/p21/soroban-env-host)
 │   │   │   ├── rand_core v0.6.4
 │   │   │   │   └── getrandom v0.2.11
 │   │   │   │       ├── cfg-if v1.0.0
-│   │   │   │       └── libc v0.2.150
+│   │   │   │       ├── js-sys v0.3.64
+│   │   │   │       │   └── wasm-bindgen v0.2.87
+│   │   │   │       │       ├── cfg-if v1.0.0
+│   │   │   │       │       └── wasm-bindgen-macro v0.2.87 (proc-macro)
+│   │   │   │       │           ├── quote v1.0.33 (*)
+│   │   │   │       │           └── wasm-bindgen-macro-support v0.2.87
+│   │   │   │       │               ├── proc-macro2 v1.0.69 (*)
+│   │   │   │       │               ├── quote v1.0.33 (*)
+│   │   │   │       │               ├── syn v2.0.39 (*)
+│   │   │   │       │               ├── wasm-bindgen-backend v0.2.87
+│   │   │   │       │               │   ├── bumpalo v3.13.0
+│   │   │   │       │               │   ├── log v0.4.19
+│   │   │   │       │               │   ├── once_cell v1.18.0
+│   │   │   │       │               │   ├── proc-macro2 v1.0.69 (*)
+│   │   │   │       │               │   ├── quote v1.0.33 (*)
+│   │   │   │       │               │   ├── syn v2.0.39 (*)
+│   │   │   │       │               │   └── wasm-bindgen-shared v0.2.87
+│   │   │   │       │               └── wasm-bindgen-shared v0.2.87
+│   │   │   │       ├── libc v0.2.150
+│   │   │   │       ├── wasi v0.11.0+wasi-snapshot-preview1
+│   │   │   │       └── wasm-bindgen v0.2.87 (*)
 │   │   │   ├── subtle v2.5.0
 │   │   │   └── zeroize v1.6.0
 │   │   ├── digest v0.10.7 (*)
@@ -76,7 +98,7 @@ soroban-env-host v21.2.1 (src/rust/soroban/p21/soroban-env-host)
 │   ├── rand_core v0.6.4 (*)
 │   ├── sha2 v0.10.8
 │   │   ├── cfg-if v1.0.0
-│   │   ├── cpufeatures v0.2.8
+│   │   ├── cpufeatures v0.2.8 (*)
 │   │   └── digest v0.10.7 (*)
 │   └── zeroize v1.6.0
 ├── elliptic-curve v0.13.5 (*)
@@ -118,6 +140,7 @@ soroban-env-host v21.2.1 (src/rust/soroban/p21/soroban-env-host)
 ├── sha3 v0.10.8
 │   ├── digest v0.10.7 (*)
 │   └── keccak v0.1.4
+│       └── cpufeatures v0.2.8 (*)
 ├── soroban-builtin-sdk-macros v21.2.1 (proc-macro) (src/rust/soroban/p21/soroban-builtin-sdk-macros)
 │   ├── itertools v0.11.0
 │   │   └── either v1.8.1
