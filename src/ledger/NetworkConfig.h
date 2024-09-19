@@ -216,6 +216,11 @@ class SorobanNetworkConfig
     // upgrade.
     static void createCostTypesForV21(AbstractLedgerTxn& ltx, Application& app);
 
+    // Creates the new cost types introduced in v22.
+    // This should happen once during the correspondent protocol version
+    // upgrade.
+    static void createCostTypesForV22(AbstractLedgerTxn& ltx, Application& app);
+
     // Test-only function that initializes contract network configuration
     // bypassing the normal upgrade process (i.e. when genesis ledger starts not
     // at v1)

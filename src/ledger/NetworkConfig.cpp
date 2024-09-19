@@ -433,6 +433,183 @@ updateCpuCostParamsEntryForV21(AbstractLedgerTxn& ltxRoot)
     ltx.commit();
 }
 
+void
+updateCpuCostParamsEntryForV22(AbstractLedgerTxn& ltxRoot)
+{
+    LedgerTxn ltx(ltxRoot);
+
+    LedgerKey key(CONFIG_SETTING);
+    key.configSetting().configSettingID =
+        ConfigSettingID::CONFIG_SETTING_CONTRACT_COST_PARAMS_CPU_INSTRUCTIONS;
+
+    auto& params = ltx.load(key)
+                       .current()
+                       .data.configSetting()
+                       .contractCostParamsCpuInsns();
+
+    auto const& vals = xdr::xdr_traits<ContractCostType>::enum_values();
+    params.resize(static_cast<uint32>(vals.size()));
+
+    // While we loop over the full ContractCostType enum, we only set the
+    // entries that have either been updated, or newly created in p22
+    for (auto val : vals)
+    {
+        switch (val)
+        {
+        // updating existing parameters changed in p22
+        case VmInstantiation:
+            params[val] =
+                ContractCostParamEntry(ExtensionPoint{0}, 31271, 57504);
+            break;
+        case VmCachedInstantiation:
+            params[val] = ContractCostParamEntry(ExtensionPoint{0}, 40828, 680);
+            break;
+        case InvokeVmFunction:
+            params[val] = ContractCostParamEntry(ExtensionPoint{0}, 2149, 0);
+            break;
+        case ParseWasmInstructions:
+            params[val] = ContractCostParamEntry(ExtensionPoint{0}, 37421, 32);
+            break;
+        case ParseWasmFunctions:
+            params[val] = ContractCostParamEntry(ExtensionPoint{0}, 0, 84156);
+            break;
+        case ParseWasmGlobals:
+            params[val] = ContractCostParamEntry(ExtensionPoint{0}, 0, 163415);
+            break;
+        case ParseWasmTableEntries:
+            params[val] = ContractCostParamEntry(ExtensionPoint{0}, 0, 29644);
+            break;
+        case ParseWasmTypes:
+            params[val] = ContractCostParamEntry(ExtensionPoint{0}, 0, 893113);
+            break;
+        case ParseWasmDataSegments:
+            params[val] = ContractCostParamEntry(ExtensionPoint{0}, 0, 184921);
+            break;
+        case ParseWasmElemSegments:
+            params[val] = ContractCostParamEntry(ExtensionPoint{0}, 0, 312369);
+            break;
+        case ParseWasmImports:
+            params[val] = ContractCostParamEntry(ExtensionPoint{0}, 0, 529255);
+            break;
+        case ParseWasmExports:
+            params[val] = ContractCostParamEntry(ExtensionPoint{0}, 0, 361665);
+            break;
+        case ParseWasmDataSegmentBytes:
+            params[val] = ContractCostParamEntry(ExtensionPoint{0}, 0, 14);
+            break;
+        case InstantiateWasmInstructions:
+            params[val] = ContractCostParamEntry(ExtensionPoint{0}, 43208, 0);
+            break;
+        case InstantiateWasmFunctions:
+            params[val] = ContractCostParamEntry(ExtensionPoint{0}, 0, 8050);
+            break;
+        case InstantiateWasmGlobals:
+            params[val] = ContractCostParamEntry(ExtensionPoint{0}, 0, 10647);
+            break;
+        case InstantiateWasmTableEntries:
+            params[val] = ContractCostParamEntry(ExtensionPoint{0}, 0, 1933);
+            break;
+        case InstantiateWasmDataSegments:
+            params[val] = ContractCostParamEntry(ExtensionPoint{0}, 0, 17164);
+            break;
+        case InstantiateWasmElemSegments:
+            params[val] = ContractCostParamEntry(ExtensionPoint{0}, 0, 34261);
+            break;
+        case InstantiateWasmImports:
+            params[val] = ContractCostParamEntry(ExtensionPoint{0}, 0, 746142);
+            break;
+        case InstantiateWasmExports:
+            params[val] = ContractCostParamEntry(ExtensionPoint{0}, 0, 296177);
+            break;
+
+        // adding new cost types introduced in p22
+        case Bls12381EncodeFp:
+            params[val] = ContractCostParamEntry(ExtensionPoint{0}, 661, 0);
+            break;
+        case Bls12381DecodeFp:
+            params[val] = ContractCostParamEntry(ExtensionPoint{0}, 985, 0);
+            break;
+        case Bls12381G1CheckPointOnCurve:
+            params[val] = ContractCostParamEntry(ExtensionPoint{0}, 1934, 0);
+            break;
+        case Bls12381G1CheckPointInSubgroup:
+            params[val] = ContractCostParamEntry(ExtensionPoint{0}, 730510, 0);
+            break;
+        case Bls12381G2CheckPointOnCurve:
+            params[val] = ContractCostParamEntry(ExtensionPoint{0}, 5921, 0);
+            break;
+        case Bls12381G2CheckPointInSubgroup:
+            params[val] = ContractCostParamEntry(ExtensionPoint{0}, 1057822, 0);
+            break;
+        case Bls12381G1ProjectiveToAffine:
+            params[val] = ContractCostParamEntry(ExtensionPoint{0}, 92642, 0);
+            break;
+        case Bls12381G2ProjectiveToAffine:
+            params[val] = ContractCostParamEntry(ExtensionPoint{0}, 100742, 0);
+            break;
+        case Bls12381G1Add:
+            params[val] = ContractCostParamEntry(ExtensionPoint{0}, 7689, 0);
+            break;
+        case Bls12381G1Mul:
+            params[val] = ContractCostParamEntry(ExtensionPoint{0}, 2458985, 0);
+            break;
+        case Bls12381G1Msm:
+            params[val] =
+                ContractCostParamEntry(ExtensionPoint{0}, 2426722, 96397671);
+            break;
+        case Bls12381MapFpToG1:
+            params[val] = ContractCostParamEntry(ExtensionPoint{0}, 1541554, 0);
+            break;
+        case Bls12381HashToG1:
+            params[val] =
+                ContractCostParamEntry(ExtensionPoint{0}, 3211191, 6713);
+            break;
+        case Bls12381G2Add:
+            params[val] = ContractCostParamEntry(ExtensionPoint{0}, 25207, 0);
+            break;
+        case Bls12381G2Mul:
+            params[val] = ContractCostParamEntry(ExtensionPoint{0}, 7873219, 0);
+            break;
+        case Bls12381G2Msm:
+            params[val] =
+                ContractCostParamEntry(ExtensionPoint{0}, 8035968, 309667335);
+            break;
+        case Bls12381MapFp2ToG2:
+            params[val] = ContractCostParamEntry(ExtensionPoint{0}, 2420202, 0);
+            break;
+        case Bls12381HashToG2:
+            params[val] =
+                ContractCostParamEntry(ExtensionPoint{0}, 7050564, 6797);
+            break;
+        case Bls12381Pairing:
+            params[val] =
+                ContractCostParamEntry(ExtensionPoint{0}, 10558948, 632860943);
+            break;
+        case Bls12381FrFromU256:
+            params[val] = ContractCostParamEntry(ExtensionPoint{0}, 1994, 0);
+            break;
+        case Bls12381FrToU256:
+            params[val] = ContractCostParamEntry(ExtensionPoint{0}, 1155, 0);
+            break;
+        case Bls12381FrAddSub:
+            params[val] = ContractCostParamEntry(ExtensionPoint{0}, 74, 0);
+            break;
+        case Bls12381FrMul:
+            params[val] = ContractCostParamEntry(ExtensionPoint{0}, 332, 0);
+            break;
+        case Bls12381FrPow:
+            params[val] = ContractCostParamEntry(ExtensionPoint{0}, 691, 74558);
+            break;
+        case Bls12381FrInv:
+            params[val] = ContractCostParamEntry(ExtensionPoint{0}, 35421, 0);
+            break;
+        default:
+            break;
+        }
+    }
+    ltx.commit();
+}
+
 ConfigSettingEntry
 initialStateArchivalSettings(Config const& cfg)
 {
@@ -681,6 +858,163 @@ updateMemCostParamsEntryForV21(AbstractLedgerTxn& ltxRoot)
     ltx.commit();
 }
 
+void
+updateMemCostParamsEntryForV22(AbstractLedgerTxn& ltxRoot)
+{
+    LedgerTxn ltx(ltxRoot);
+
+    LedgerKey key(CONFIG_SETTING);
+    key.configSetting().configSettingID =
+        ConfigSettingID::CONFIG_SETTING_CONTRACT_COST_PARAMS_MEMORY_BYTES;
+
+    auto& params = ltx.load(key)
+                       .current()
+                       .data.configSetting()
+                       .contractCostParamsMemBytes();
+
+    auto const& vals = xdr::xdr_traits<ContractCostType>::enum_values();
+    params.resize(static_cast<uint32>(vals.size()));
+
+    for (auto val : vals)
+    {
+        switch (val)
+        {
+        // updating existing parameters changed in p22
+        case VmCachedInstantiation:
+            params[val] =
+                ContractCostParamEntry{ExtensionPoint{0}, 69472, 1478};
+            break;
+        case InvokeVmFunction:
+            params[val] = ContractCostParamEntry{ExtensionPoint{0}, 15, 0};
+            break;
+        case ParseWasmInstructions:
+            params[val] = ContractCostParamEntry{ExtensionPoint{0}, 13980, 215};
+            break;
+        case ParseWasmFunctions:
+            params[val] = ContractCostParamEntry{ExtensionPoint{0}, 0, 23056};
+            break;
+        case ParseWasmGlobals:
+            params[val] = ContractCostParamEntry{ExtensionPoint{0}, 0, 11924};
+            break;
+        case ParseWasmTableEntries:
+            params[val] = ContractCostParamEntry{ExtensionPoint{0}, 0, 6121};
+            break;
+        case ParseWasmTypes:
+            params[val] = ContractCostParamEntry{ExtensionPoint{0}, 0, 49554};
+            break;
+        case ParseWasmDataSegments:
+            params[val] = ContractCostParamEntry{ExtensionPoint{0}, 0, 5525};
+            break;
+        case ParseWasmElemSegments:
+            params[val] = ContractCostParamEntry{ExtensionPoint{0}, 0, 47034};
+            break;
+        case ParseWasmImports:
+            params[val] = ContractCostParamEntry{ExtensionPoint{0}, 0, 101762};
+            break;
+        case ParseWasmExports:
+            params[val] = ContractCostParamEntry{ExtensionPoint{0}, 0, 35491};
+            break;
+        case ParseWasmDataSegmentBytes:
+            params[val] = ContractCostParamEntry{ExtensionPoint{0}, 0, 129};
+            break;
+        case InstantiateWasmInstructions:
+            params[val] = ContractCostParamEntry{ExtensionPoint{0}, 70792, 0};
+            break;
+        case InstantiateWasmFunctions:
+            params[val] = ContractCostParamEntry{ExtensionPoint{0}, 0, 17749};
+            break;
+        case InstantiateWasmImports:
+            params[val] = ContractCostParamEntry{ExtensionPoint{0}, 0, 98578};
+            break;
+
+        // adding new cost types introduced in p22
+        case Bls12381EncodeFp:
+            params[val] = ContractCostParamEntry{ExtensionPoint{0}, 0, 0};
+            break;
+        case Bls12381DecodeFp:
+            params[val] = ContractCostParamEntry{ExtensionPoint{0}, 0, 0};
+            break;
+        case Bls12381G1CheckPointOnCurve:
+            params[val] = ContractCostParamEntry{ExtensionPoint{0}, 0, 0};
+            break;
+        case Bls12381G1CheckPointInSubgroup:
+            params[val] = ContractCostParamEntry{ExtensionPoint{0}, 0, 0};
+            break;
+        case Bls12381G2CheckPointOnCurve:
+            params[val] = ContractCostParamEntry{ExtensionPoint{0}, 0, 0};
+            break;
+        case Bls12381G2CheckPointInSubgroup:
+            params[val] = ContractCostParamEntry{ExtensionPoint{0}, 0, 0};
+            break;
+        case Bls12381G1ProjectiveToAffine:
+            params[val] = ContractCostParamEntry{ExtensionPoint{0}, 0, 0};
+            break;
+        case Bls12381G2ProjectiveToAffine:
+            params[val] = ContractCostParamEntry{ExtensionPoint{0}, 0, 0};
+            break;
+        case Bls12381G1Add:
+            params[val] = ContractCostParamEntry{ExtensionPoint{0}, 0, 0};
+            break;
+        case Bls12381G1Mul:
+            params[val] = ContractCostParamEntry{ExtensionPoint{0}, 0, 0};
+            break;
+        case Bls12381G1Msm:
+            params[val] =
+                ContractCostParamEntry{ExtensionPoint{0}, 109494, 354667};
+            break;
+        case Bls12381MapFpToG1:
+            params[val] = ContractCostParamEntry{ExtensionPoint{0}, 5552, 0};
+            break;
+        case Bls12381HashToG1:
+            params[val] = ContractCostParamEntry{ExtensionPoint{0}, 9424, 0};
+            break;
+        case Bls12381G2Add:
+            params[val] = ContractCostParamEntry{ExtensionPoint{0}, 0, 0};
+            break;
+        case Bls12381G2Mul:
+            params[val] = ContractCostParamEntry{ExtensionPoint{0}, 0, 0};
+            break;
+        case Bls12381G2Msm:
+            params[val] =
+                ContractCostParamEntry{ExtensionPoint{0}, 219654, 354667};
+            break;
+        case Bls12381MapFp2ToG2:
+            params[val] = ContractCostParamEntry{ExtensionPoint{0}, 3344, 0};
+            break;
+        case Bls12381HashToG2:
+            params[val] = ContractCostParamEntry{ExtensionPoint{0}, 6816, 0};
+            break;
+        case Bls12381Pairing:
+            params[val] =
+                ContractCostParamEntry{ExtensionPoint{0}, 2204, 9340474};
+            break;
+        case Bls12381FrFromU256:
+            params[val] = ContractCostParamEntry{ExtensionPoint{0}, 0, 0};
+            break;
+        case Bls12381FrToU256:
+            params[val] = ContractCostParamEntry{ExtensionPoint{0}, 248, 0};
+            break;
+        case Bls12381FrAddSub:
+            params[val] = ContractCostParamEntry{ExtensionPoint{0}, 0, 0};
+            break;
+        case Bls12381FrMul:
+            params[val] = ContractCostParamEntry{ExtensionPoint{0}, 0, 0};
+            break;
+        case Bls12381FrPow:
+            params[val] = ContractCostParamEntry{ExtensionPoint{0}, 0, 128};
+            break;
+        case Bls12381FrInv:
+            params[val] = ContractCostParamEntry{ExtensionPoint{0}, 0, 0};
+            break;
+
+        default:
+            break;
+        }
+    }
+
+    ltx.commit();
+}
+
 ConfigSettingEntry
 initialBucketListSizeWindow(Application& app)
 {
@@ -905,6 +1239,15 @@ SorobanNetworkConfig::createCostTypesForV21(AbstractLedgerTxn& ltx,
 }
 
 void
+SorobanNetworkConfig::createCostTypesForV22(AbstractLedgerTxn& ltx,
+                                            Application& app)
+{
+    ZoneScoped;
+    updateCpuCostParamsEntryForV22(ltx);
+    updateMemCostParamsEntryForV22(ltx);
+}
+
+void
 SorobanNetworkConfig::initializeGenesisLedgerForTesting(
     uint32_t genesisLedgerProtocol, AbstractLedgerTxn& ltx, Application& app)
 {
@@ -923,6 +1266,11 @@ SorobanNetworkConfig::initializeGenesisLedgerForTesting(
     if (protocolVersionStartsFrom(genesisLedgerProtocol, ProtocolVersion::V_21))
     {
         SorobanNetworkConfig::createCostTypesForV21(ltx, app);
+    }
+
+    if (protocolVersionStartsFrom(genesisLedgerProtocol, ProtocolVersion::V_22))
+    {
+        SorobanNetworkConfig::createCostTypesForV22(ltx, app);
     }
 }
 

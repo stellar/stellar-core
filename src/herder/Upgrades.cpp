@@ -1248,6 +1248,10 @@ Upgrades::applyVersionUpgrade(Application& app, AbstractLedgerTxn& ltx,
     {
         SorobanNetworkConfig::createCostTypesForV21(ltx, app);
     }
+    if (needUpgradeToVersion(ProtocolVersion::V_22, prevVersion, newVersion))
+    {
+        SorobanNetworkConfig::createCostTypesForV22(ltx, app);
+    }
 }
 
 void
