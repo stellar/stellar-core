@@ -18,7 +18,7 @@ rustc-simple-version = "=0.1.0"
 # will complain if it does not match)
 rand = "=0.8.5"
 
-itertools = "=0.11.0"
+itertools = "=0.10.5"
 
 # NB: tracy is quite particular about version compatibility. There must only be
 # one _implementation_ of the C++ tracy symbols in the final binary (brought in
