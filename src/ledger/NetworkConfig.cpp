@@ -346,8 +346,11 @@ updateCpuCostParamsEntryForV21(AbstractLedgerTxn& ltxRoot)
                        .data.configSetting()
                        .contractCostParamsCpuInsns();
 
+    // Resize to fit the last cost type added in v21
+    params.resize(
+        static_cast<uint32>(ContractCostType::VerifyEcdsaSecp256r1Sig) + 1);
+
     auto const& vals = xdr::xdr_traits<ContractCostType>::enum_values();
-    params.resize(static_cast<uint32>(vals.size()));
 
     // While we loop over the full ContractCostType enum, we only set the range
     for (auto val : vals)
@@ -448,7 +451,9 @@ updateCpuCostParamsEntryForV22(AbstractLedgerTxn& ltxRoot)
                        .contractCostParamsCpuInsns();
 
     auto const& vals = xdr::xdr_traits<ContractCostType>::enum_values();
-    params.resize(static_cast<uint32>(vals.size()));
+
+    // Resize to fit the last cost type added in v22
+    params.resize(static_cast<uint32>(ContractCostType::Bls12381FrInv) + 1);
 
     // While we loop over the full ContractCostType enum, we only set the
     // entries that have either been updated, or newly created in p22
@@ -770,8 +775,11 @@ updateMemCostParamsEntryForV21(AbstractLedgerTxn& ltxRoot)
                        .data.configSetting()
                        .contractCostParamsMemBytes();
 
+    // Resize to fit the last cost type added in v21
+    params.resize(
+        static_cast<uint32>(ContractCostType::VerifyEcdsaSecp256r1Sig) + 1);
+
     auto const& vals = xdr::xdr_traits<ContractCostType>::enum_values();
-    params.resize(static_cast<uint32>(vals.size()));
 
     for (auto val : vals)
     {
@@ -873,7 +881,9 @@ updateMemCostParamsEntryForV22(AbstractLedgerTxn& ltxRoot)
                        .contractCostParamsMemBytes();
 
     auto const& vals = xdr::xdr_traits<ContractCostType>::enum_values();
-    params.resize(static_cast<uint32>(vals.size()));
+
+    // Resize to fit the last cost type added in v22
+    params.resize(static_cast<uint32>(ContractCostType::Bls12381FrInv) + 1);
 
     for (auto val : vals)
     {
