@@ -18,7 +18,7 @@ rustc-simple-version = "=0.1.0"
 # will complain if it does not match)
 rand = "=0.8.5"
 
-itertools = "=0.11.0"
+itertools = "=0.10.5"
 
 # NB: tracy is quite particular about version compatibility. There must only be
 # one _implementation_ of the C++ tracy symbols in the final binary (brought in
@@ -78,7 +78,7 @@ tracy-client = { version = "=0.17.0", features = [
 # version = "=22.0.0"
 # git = "https://github.com/stellar/rs-soroban-env"
 # package = "soroban-env-host"
-# rev = "5ed156b7fb5dd3e46635aa0f818d5db33dfd6b6a"
+# rev = "0497816694bef2b103494c8c61b7c8a06a72c7d3"
 
 # [dependencies.soroban-env-host-p21]
 # version = "=21.2.0"
@@ -92,13 +92,13 @@ tracy-client = { version = "=0.17.0", features = [
 [dependencies.soroban-test-wasms]
 version = "=22.0.0"
 git = "https://github.com/stellar/rs-soroban-env"
-rev = "5ed156b7fb5dd3e46635aa0f818d5db33dfd6b6a"
+rev = "0497816694bef2b103494c8c61b7c8a06a72c7d3"
 #path = "../../../rs-soroban-env/soroban-test-wasms"
 
 [dependencies.soroban-synth-wasm]
 version = "=22.0.0"
 git = "https://github.com/stellar/rs-soroban-env"
-rev = "5ed156b7fb5dd3e46635aa0f818d5db33dfd6b6a"
+rev = "0497816694bef2b103494c8c61b7c8a06a72c7d3"
 #path = "../../../rs-soroban-env/soroban-synth-wasm"
 
 [features]

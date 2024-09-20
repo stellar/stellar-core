@@ -2849,8 +2849,8 @@ TEST_CASE("settings upgrade command line utils", "[tx][soroban][upgrades]")
     // mAverageBucketListSize
     modifySorobanNetworkConfig(*app, [](SorobanNetworkConfig& cfg) {
         cfg.mStateArchivalSettings.bucketListWindowSamplePeriod = 1;
-        // This is required to allow for an upgrade of all settings at once.
-        cfg.mMaxContractDataEntrySizeBytes = 3000;
+        // These are required to allow for an upgrade of all settings at once.
+        cfg.mMaxContractDataEntrySizeBytes = 3200;
     });
 
     const int64_t startingBalance =
