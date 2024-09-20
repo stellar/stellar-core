@@ -150,6 +150,24 @@ clang-format --version
 ### Windows
 See [INSTALL-Windows.md](INSTALL-Windows.md)
 
+### Ubuntu 24.04 and Newer Linux Versions
+
+Some newer Linux distros no longer package clang-format-12, and newer clang-format versions are
+not backwards compatible. To build from source, you'll need to do the following:
+
+```zsh
+sudo apt-get install ninja-build cmake
+git clone --depth 1 --branch llvmorg-12.0.1 https://github.com/llvm/llvm-project.git
+cd llvm-project
+sed -i "17i #include <stdint.h>" llvm/include/llvm/Support/Signals.h
+CC=clang CXX=clang++ cmake -S llvm -B build -G Ninja -DLLVM_ENABLE_PROJECTS="clang" -DCMAKE_BUILD_TYPE=Release
+cd build
+ninja clang-format
+sudo cp bin/clang-format /usr/bin/clang-format-12
+cd ../..
+rm -rf llvm-project/
+```
+
 ## Basic Installation
 
 - `git clone https://github.com/stellar/stellar-core.git`
