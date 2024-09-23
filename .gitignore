@@ -21,6 +21,9 @@
 *.trs
 *.db
 
+# build stamps
+*.stamp
+
 # sourcetrail
 compile_commands.json
 *.srctrlbm
