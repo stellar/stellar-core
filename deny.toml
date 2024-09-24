@@ -53,8 +53,6 @@ exclude = [
    # subsystems also winds up pulling in conflicts, but again, just
    # dev-deps or non-produciton configs.
    "tracking-allocator",
-   # Temporary
-   "curve25519-dalek"
 ]
 
 # If true, metadata will be collected with `--all-features`. Note that this can't
