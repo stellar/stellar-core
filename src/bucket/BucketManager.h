@@ -31,6 +31,8 @@ class HotArchiveBucketList;
 class BucketSnapshotManager;
 class Config;
 class TmpDirManager;
+class SearchableHotArchiveBucketListSnapshot;
+class SearchableLiveBucketListSnapshot;
 struct HistoryArchiveState;
 struct InflationWinner;
 struct LedgerHeader;
@@ -405,9 +407,11 @@ class BucketManager : NonMovableOrCopyable
 
     virtual Config const& getConfig() const = 0;
 
-    // Get bucketlist snapshot
+    // Get main thread's bucketlist snapshot
     virtual std::shared_ptr<SearchableLiveBucketListSnapshot>
     getSearchableLiveBucketListSnapshot() = 0;
+    virtual std::shared_ptr<SearchableHotArchiveBucketListSnapshot>
+    getSearchableHotArchiveBucketListSnapshot() = 0;
 
     virtual void reportBucketEntryCountMetrics() = 0;
 };

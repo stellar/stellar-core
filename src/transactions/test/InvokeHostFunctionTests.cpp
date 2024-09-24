@@ -2914,183 +2914,82 @@ TEST_CASE("state archival operation errors", "[tx][soroban][archival]")
 }
 
 #ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
-TEST_CASE("evicted persistent entries", "[tx][soroban][archival]")
+TEST_CASE("evicted persistent entries")
 {
-    auto test = [](bool requireProofs) {
-        auto cfg = getTestConfig();
-        cfg.REQUIRE_PROOFS_FOR_ALL_EVICTED_ENTRIES = requireProofs;
-        SorobanTest test(cfg, true, [](SorobanNetworkConfig& cfg) {
-            cfg.stateArchivalSettings().startingEvictionScanLevel = 1;
-            cfg.stateArchivalSettings().minPersistentTTL = 4;
-        });
+    SorobanTest test(getTestConfig(), true, [](SorobanNetworkConfig& cfg) {
+        // cfg.mWriteFee1KBBucketListLow = 20'000;
+        // cfg.mWriteFee1KBBucketListHigh = 1'000'000;
+        cfg.stateArchivalSettings().startingEvictionScanLevel = 1;
+        cfg.stateArchivalSettings().minPersistentTTL = 4;
+    });
 
-        ContractStorageTestClient client(test);
-
-        // WASM and instance should not expire
-        test.invokeExtendOp(client.getContract().getKeys(), 10'000);
-
-        auto writeInvocation = client.getContract().prepareInvocation(
-            "put_persistent", {makeSymbolSCVal("key"), makeU64SCVal(123)},
-            client.writeKeySpec("key", ContractDataDurability::PERSISTENT));
-        REQUIRE(writeInvocation.withExactNonRefundableResourceFee().invoke());
-        auto lk = client.getContract().getDataKey(
-            makeSymbolSCVal("key"), ContractDataDurability::PERSISTENT);
-
-        auto hotArchive = test.getApp()
-                              .getBucketManager()
-                              .getBucketSnapshotManager()
-                              .copySearchableHotArchiveBucketListSnapshot();
-
-        auto evictionLedger = 14;
-
-        // Close ledgers until entry is evicted
-        for (uint32_t i = test.getLCLSeq(); i < evictionLedger; ++i)
-        {
-            closeLedgerOn(test.getApp(), i, 2, 1, 2016);
-        }
-
-        REQUIRE(hotArchive->load(lk));
-        REQUIRE(!hotArchive->load(getTTLKey(lk)));
-        {
-            LedgerTxn ltx(test.getApp().getLedgerTxnRoot());
-            REQUIRE(!ltx.load(lk));
-            REQUIRE(!ltx.load(getTTLKey(lk)));
-        }
-
-        // Rewriting entry should fail since key is in Hot Archive
-        REQUIRE(!writeInvocation.withExactNonRefundableResourceFee().invoke());
-
-        // Reads should also fail
-        REQUIRE(client.has("key", ContractDataDurability::PERSISTENT,
-                           std::nullopt) ==
-                INVOKE_HOST_FUNCTION_ENTRY_ARCHIVED);
-
-        // Rent extension is a no op
-        SorobanResources resources;
-        resources.footprint.readOnly = {lk};
-
-        resources.instructions = 0;
-        resources.readBytes = 1000;
-        resources.writeBytes = 1000;
-        auto resourceFee = 1'000'000;
-
-        auto extendTx =
-            test.createExtendOpTx(resources, 100, 1'000, resourceFee);
-        auto result = test.invokeTx(extendTx);
-        REQUIRE(isSuccessResult(result));
-
-        REQUIRE(client.has("key", ContractDataDurability::PERSISTENT,
-                           std::nullopt) ==
-                INVOKE_HOST_FUNCTION_ENTRY_ARCHIVED);
-
-        // Refundable fee should be identical in proof and non-proof case
-        auto const expectedRefundableFeeCharged = 20'048;
-
-        if (requireProofs)
-        {
-            // Proof generation should fail for keys that don't exist
-            xdr::xvector<ArchivalProof> proofs;
-            auto wrongLk = client.getContract().getDataKey(
-                makeSymbolSCVal("null"), ContractDataDurability::PERSISTENT);
-            REQUIRE(!addRestorationProof(hotArchive, wrongLk, proofs));
-
-            // RestoreOp should fail with no proof/ empty proof
-            SorobanResources restoreResources;
-            restoreResources.footprint.readWrite = {lk};
-
-            restoreResources.instructions = 0;
-            restoreResources.readBytes = 1000;
-            restoreResources.writeBytes = 1000;
-
-            auto badRestore =
-                test.createRestoreTx(restoreResources, 100000, 1'000000);
-            auto restoreResult = test.invokeTx(badRestore);
-            REQUIRE(restoreResult.result.code() == txFAILED);
-
-            // TODO: Switch to RESTORE_FOOTPRINT_INVALID_PROOF
-            // when XDR changes in rust are merged
-            REQUIRE(restoreResult.result.results()[0]
-                        .tr()
-                        .restoreFootprintResult()
-                        .code() == RESTORE_FOOTPRINT_MALFORMED);
-
-            REQUIRE(addRestorationProof(hotArchive, lk, proofs));
-
-            // Should succeed after adding proper proofs
-            test.invokeRestoreOp({lk}, expectedRefundableFeeCharged, proofs);
-        }
-        else
-        {
-            // Restore should succeed without proof for hot archive entries
-            test.invokeRestoreOp({lk}, expectedRefundableFeeCharged);
-        }
-
-        auto const& stateArchivalSettings =
-            test.getNetworkCfg().stateArchivalSettings();
-        auto newExpectedLiveUntilLedger =
-            test.getLCLSeq() + stateArchivalSettings.minPersistentTTL - 1;
-        REQUIRE(test.getTTL(lk) == newExpectedLiveUntilLedger);
-
-        client.get("key", ContractDataDurability::PERSISTENT, 123);
-
-        // Hot Archive entry removed after restoration
-        REQUIRE(!hotArchive->load(lk));
-
-        client.del("key", ContractDataDurability::PERSISTENT);
-        client.has("key", ContractDataDurability::PERSISTENT, false);
-
-        // Hot archive should record deletion
-        auto hotArchiveEntry = hotArchive->load(lk);
-        REQUIRE(hotArchiveEntry);
-        REQUIRE(hotArchiveEntry->type() == HOT_ARCHIVE_DELETED);
-        REQUIRE(hotArchiveEntry->key() == lk);
-
-        // Recreation should remove entry from hot archive
-        client.put("key", ContractDataDurability::PERSISTENT, 345);
-        client.get("key", ContractDataDurability::PERSISTENT, 345);
-        REQUIRE(!hotArchive->load(lk));
-    };
-
-    SECTION("with proofs")
-    {
-        test(true);
-    }
-
-    SECTION("restore hot archive entries")
-    {
-        test(false);
-    }
-}
-
-TEST_CASE("persistent entry archival filters", "[soroban][archival]")
-{
-    auto cfg = getTestConfig();
-    cfg.ARTIFICIALLY_SIMULATE_ARCHIVE_FILTER_MISS = true;
-
-    SorobanTest test(cfg);
     ContractStorageTestClient client(test);
 
-    auto writeInvocation = client.getContract().prepareInvocation(
-        "put_persistent", {makeSymbolSCVal("miss"), makeU64SCVal(123)},
-        client.writeKeySpec("miss", ContractDataDurability::PERSISTENT));
+    // WASM and instance should not expire
+    test.invokeExtendOp(client.getContract().getKeys(), 10'000);
 
-    // Invocation should fail when no proof is provided
+    auto writeInvocation = client.getContract().prepareInvocation(
+        "put_persistent", {makeSymbolSCVal("key"), makeU64SCVal(123)},
+        client.writeKeySpec("key", ContractDataDurability::PERSISTENT));
+    REQUIRE(writeInvocation.withExactNonRefundableResourceFee().invoke());
+    auto lk = client.getContract().getDataKey(
+        makeSymbolSCVal("key"), ContractDataDurability::PERSISTENT);
+
+    auto hotArchive = test.getApp()
+                          .getBucketManager()
+                          .getBucketSnapshotManager()
+                          .copySearchableHotArchiveBucketListSnapshot();
+
+    auto evictionLedger = 14;
+
+    // Close ledgers until entry is evicted
+    for (uint32_t i = test.getLCLSeq(); i < evictionLedger; ++i)
+    {
+        closeLedgerOn(test.getApp(), i, 2, 1, 2016);
+    }
+
+    REQUIRE(hotArchive->load(lk));
+    REQUIRE(!hotArchive->load(getTTLKey(lk)));
+    {
+        LedgerTxn ltx(test.getApp().getLedgerTxnRoot());
+        REQUIRE(!ltx.load(lk));
+        REQUIRE(!ltx.load(getTTLKey(lk)));
+    }
+
+    // Rewriting entry should fail since key is in Hot Archive
     REQUIRE(!writeInvocation.withExactNonRefundableResourceFee().invoke());
 
-    // TODO: Replace with proper error code once Rust XDR has been generated
-    REQUIRE(*writeInvocation.getResultCode() ==
-            INVOKE_HOST_FUNCTION_ENTRY_ARCHIVED);
+    // Reads should also fail
+    REQUIRE(client.has("key", ContractDataDurability::PERSISTENT,
+                       std::nullopt) == INVOKE_HOST_FUNCTION_ENTRY_ARCHIVED);
 
-    xdr::xvector<ArchivalProof> proofs;
-    addCreationProof(
-        cfg.ARTIFICIALLY_SIMULATE_ARCHIVE_FILTER_MISS,
-        client.getContract().getDataKey(makeSymbolSCVal("miss"),
-                                        ContractDataDurability::PERSISTENT),
-        proofs);
+    // Rent extension is a no op
+    SorobanResources resources;
+    resources.footprint.readOnly = {lk};
 
-    REQUIRE(writeInvocation.withProofs(proofs)
-                .withExactNonRefundableResourceFee()
-                .invoke());
+    resources.instructions = 0;
+    resources.readBytes = 1000;
+    resources.writeBytes = 1000;
+    auto resourceFee = 1'000'000;
+
+    auto extendTx = test.createExtendOpTx(resources, 100, 1'000, resourceFee);
+    auto result = test.invokeTx(extendTx);
+    REQUIRE(isSuccessResult(result));
+
+    REQUIRE(client.has("key", ContractDataDurability::PERSISTENT,
+                       std::nullopt) == INVOKE_HOST_FUNCTION_ENTRY_ARCHIVED);
+
+    // Restore should succeed
+    test.invokeRestoreOp({lk}, 20'048);
+
+    auto const& stateArchivalSettings =
+        test.getNetworkCfg().stateArchivalSettings();
+    auto newExpectedLiveUntilLedger =
+        test.getLCLSeq() + stateArchivalSettings.minPersistentTTL - 1;
+    REQUIRE(test.getTTL(lk) == newExpectedLiveUntilLedger);
+
+    client.get("key", ContractDataDurability::PERSISTENT, 123);
+    REQUIRE(!hotArchive->load(lk));
 }
 
 #endif

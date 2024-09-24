@@ -1680,6 +1680,21 @@ BucketManagerImpl::getSearchableLiveBucketListSnapshot()
     return mSearchableBucketListSnapshot;
 }
 
+std::shared_ptr<SearchableHotArchiveBucketListSnapshot>
+BucketManagerImpl::getSearchableHotArchiveBucketListSnapshot()
+{
+    releaseAssert(mApp.getConfig().isUsingBucketListDB());
+    // Any other threads must maintain their own snapshot
+    releaseAssert(threadIsMain());
+    if (!mSearchableHotArchiveBucketListSnapshot)
+    {
+        mSearchableHotArchiveBucketListSnapshot =
+            mSnapshotManager->copySearchableHotArchiveBucketListSnapshot();
+    }
+
+    return mSearchableHotArchiveBucketListSnapshot;
+}
+
 void
 BucketManagerImpl::reportBucketEntryCountMetrics()
 {

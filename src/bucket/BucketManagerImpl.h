@@ -49,6 +49,8 @@ class BucketManagerImpl : public BucketManager
     std::map<Hash, std::shared_ptr<Bucket>> mSharedBuckets;
     std::shared_ptr<SearchableLiveBucketListSnapshot>
         mSearchableBucketListSnapshot{};
+    std::shared_ptr<SearchableHotArchiveBucketListSnapshot>
+        mSearchableHotArchiveBucketListSnapshot{};
 
     // Lock for managing raw Bucket files or the bucket directory. This lock is
     // only required for file access, but is not required for logical changes to
@@ -242,6 +244,9 @@ class BucketManagerImpl : public BucketManager
 
     std::shared_ptr<SearchableLiveBucketListSnapshot>
     getSearchableLiveBucketListSnapshot() override;
+
+    std::shared_ptr<SearchableHotArchiveBucketListSnapshot>
+    getSearchableHotArchiveBucketListSnapshot() override;
 
     void reportBucketEntryCountMetrics() override;
 };
