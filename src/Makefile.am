@@ -88,6 +88,7 @@ RUST_TARGET_DIR=$(top_builddir)/target
 RUST_CXXBRIDGE=$(RUST_BIN_DIR)/cxxbridge
 RUST_PROFILE=release
 RUST_DEP_TREE_STAMP=$(RUST_BUILD_DIR)/src/dep-trees/equal-trees.stamp
+SOROBAN_LIBS_STAMP=$(RUST_BUILD_DIR)/soroban/soroban-libs.stamp
 RUST_HOST_DEPFILES=rust/Cargo.toml $(top_srcdir)/Cargo.toml $(top_srcdir)/Cargo.lock $(RUST_DEP_TREE_STAMP)
 LIBRUST_STELLAR_CORE=$(RUST_TARGET_DIR)/$(RUST_PROFILE)/librust_stellar_core.a
 stellar_core_LDADD += $(LIBRUST_STELLAR_CORE) -ldl
@@ -132,13 +133,12 @@ rust/RustBridge.cpp: rust/src/lib.rs $(SRC_RUST_FILES) Makefile $(RUST_CXXBRIDGE
 # check in to this repo as a secondary check on the lockfiles in the soroban
 # submodules. You should still carefully inspect them if they change!
 
-ALL_RUST_EXPECT_DEPTREES=$(foreach proto,$(ALL_SOROBAN_PROTOCOLS),rust/src/dep-trees/$(proto)-expect.txt)
-ALL_RUST_ACTUAL_DEPTREES=$(foreach proto,$(ALL_SOROBAN_PROTOCOLS),$(RUST_BUILD_DIR)/src/dep-trees/$(proto)-actual.txt)
-
-$(RUST_DEP_TREE_STAMP): $(ALL_RUST_EXPECT_DEPTREES) $(ALL_RUST_ACTUAL_DEPTREES) Makefile
+$(RUST_DEP_TREE_STAMP): $(wildcard rust/soroban/*/Cargo.*) Makefile
 	rm -f $@
 	for proto in $(ALL_SOROBAN_PROTOCOLS); \
 	do \
+		cargo tree --manifest-path rust/soroban/$${proto}/Cargo.toml --locked --package soroban-env-host --edges no-dev --target all \
+		| sed -e "s@$(abspath $(top_srcdir))/@@g" > $(RUST_BUILD_DIR)/src/dep-trees/$${proto}-actual.txt ; \
 		if ! diff -u rust/src/dep-trees/$${proto}-expect.txt $(RUST_BUILD_DIR)/src/dep-trees/$${proto}-actual.txt; \
 		then \
 			echo "dep trees differ, please update $${proto}-expect.txt or roll back submodule"; \
@@ -146,15 +146,6 @@ $(RUST_DEP_TREE_STAMP): $(ALL_RUST_EXPECT_DEPTREES) $(ALL_RUST_ACTUAL_DEPTREES) 
 		fi; \
 	done
 	touch $@
-
-# We sequentialize these calculations to avoid running two rustups at once.
-# We also use a group-target here (&:) to avoid running the rule once-for-each-target.
-$(ALL_RUST_ACTUAL_DEPTREES) &: $(wildcard rust/soroban/*/Cargo.*) Makefile
-	for proto in $(ALL_SOROBAN_PROTOCOLS); \
-	do \
-		cargo tree --manifest-path rust/soroban/$$proto/Cargo.toml --locked --package soroban-env-host --edges no-dev --target all \
-		| sed -e "s@$(abspath $(top_srcdir))/@@g" > $(RUST_BUILD_DIR)/src/dep-trees/$$proto-actual.txt ;\
-	done
 
 # This next build command looks a little weird but it's necessary. We have to
 # provide an auxiliary metadata string (using RUSTFLAGS=-Cmetadata=$*)
@@ -189,9 +180,8 @@ $(ALL_RUST_ACTUAL_DEPTREES) &: $(wildcard rust/soroban/*/Cargo.*) Makefile
 #
 # We also have to sequentialize the builds of the sorobans after the
 # dep-tree-stamp files and before the stellar-core build, because rustup
-# gets invoked and it is not concurrency-safe. We also use a group-target
-# here (&:) to avoid running the rule once-for-each-target.
-$(ALL_SOROBAN_LIBS) &: $(wildcard rust/soroban/p*/Cargo.lock) Makefile $(RUST_DEP_TREE_STAMP)
+# gets invoked and it is not concurrency-safe.
+$(SOROBAN_LIBS_STAMP): $(wildcard rust/soroban/p*/Cargo.lock) Makefile $(RUST_DEP_TREE_STAMP) $(SRC_RUST_FILES)
 	for proto in $(ALL_SOROBAN_PROTOCOLS) ; \
 	do \
 		FEATURE_FLAGS="" ; \
@@ -215,6 +205,7 @@ $(ALL_SOROBAN_LIBS) &: $(wildcard rust/soroban/p*/Cargo.lock) Makefile $(RUST_DE
 			$$FEATURE_FLAGS \
 		|| exit 1; \
 	done
+	touch $@
 
 # This one is also a bit challenging, though it's _less_ weird. What we're doing
 # here is supplying multiple separate .rlibs -- one for each soroban linked into
@@ -229,7 +220,7 @@ $(ALL_SOROBAN_LIBS) &: $(wildcard rust/soroban/p*/Cargo.lock) Makefile $(RUST_DE
 # them in as separate `--extern` arguments to a slightly-more-manual `cargo
 # rustc` invocation, along with `-L dependency=...` flags to tell cargo where to
 # find indirect deps of those .rlibs.
-$(LIBRUST_STELLAR_CORE): $(RUST_HOST_DEPFILES) $(SRC_RUST_FILES) Makefile $(ALL_SOROBAN_LIBS)
+$(LIBRUST_STELLAR_CORE): $(RUST_HOST_DEPFILES) $(SRC_RUST_FILES) Makefile $(SOROBAN_LIBS_STAMP)
 	CARGO_NET_GIT_FETCH_WITH_CLI=true cargo rustc \
 		--package stellar-core \
 		--$(RUST_PROFILE) \
