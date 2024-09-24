@@ -145,7 +145,8 @@ class SearchableLiveBucketListSnapshot
                                    EvictionCounters& counters,
                                    EvictionIterator evictionIter,
                                    std::shared_ptr<EvictionStatistics> stats,
-                                   StateArchivalSettings const& sas);
+                                   StateArchivalSettings const& sas,
+                                   uint32_t ledgerVers);
 
     friend std::shared_ptr<SearchableLiveBucketListSnapshot>
     BucketSnapshotManager::copySearchableLiveBucketListSnapshot() const;

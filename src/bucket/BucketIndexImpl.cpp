@@ -572,9 +572,18 @@ BucketIndexImpl<IndexT>::operator==(BucketIndex const& inRaw) const
 
     if constexpr (std::is_same<IndexT, RangeIndex>::value)
     {
-        releaseAssert(mData.filter);
-        releaseAssert(in.mData.filter);
-        if (!(*(mData.filter) == *(in.mData.filter)))
+        if (!mData.filter)
+        {
+            if (in.mData.filter)
+            {
+                return false;
+            }
+        }
+        else if (!in.mData.filter)
+        {
+            return false;
+        }
+        else if (!(*(mData.filter) == *(in.mData.filter)))
         {
             return false;
         }

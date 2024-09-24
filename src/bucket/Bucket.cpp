@@ -855,7 +855,7 @@ Bucket::merge(BucketManager& bucketManager, uint32_t maxProtocolVersion,
         releaseAssertOrThrow(protocolVersionStartsFrom(
             maxProtocolVersion,
             Bucket::FIRST_PROTOCOL_SUPPORTING_PERSISTENT_EVICTION));
-        meta.ext = oi.getMetadata().ext;
+        meta.ext = ni.getMetadata().ext;
     }
     else if (oi.getMetadata().ext.v() == 1)
     {

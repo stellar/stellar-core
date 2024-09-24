@@ -1043,7 +1043,8 @@ LedgerManagerImpl::closeLedger(LedgerCloseData const& ledgerData)
     // step 3
     if (protocolVersionStartsFrom(initialLedgerVers, SOROBAN_PROTOCOL_VERSION))
     {
-        mApp.getBucketManager().startBackgroundEvictionScan(ledgerSeq + 1);
+        mApp.getBucketManager().startBackgroundEvictionScan(ledgerSeq + 1,
+                                                            initialLedgerVers);
     }
 
     // step 4
@@ -1687,14 +1688,24 @@ LedgerManagerImpl::transferLedgerEntriesToBucketList(
         {
             auto keys = ltx.getAllTTLKeysWithoutSealing();
             LedgerTxn ltxEvictions(ltx);
-            mApp.getBucketManager().resolveBackgroundEvictionScan(
-                ltxEvictions, lh.ledgerSeq, keys);
+
+            auto evictedEntries =
+                mApp.getBucketManager().resolveBackgroundEvictionScan(
+                    ltxEvictions, lh.ledgerSeq, keys, initialLedgerVers);
+
+            if (protocolVersionStartsFrom(
+                    initialLedgerVers,
+                    Bucket::FIRST_PROTOCOL_SUPPORTING_PERSISTENT_EVICTION))
+            {
+                mApp.getBucketManager().addHotArchiveBatch(
+                    mApp, lh, evictedEntries.second, {}, {});
+            }
 
             if (ledgerCloseMeta)
             {
-                ledgerCloseMeta->populateEvictedEntries(
-                    ltxEvictions.getChanges());
+                ledgerCloseMeta->populateEvictedEntries(evictedEntries);
             }
+
             ltxEvictions.commit();
         }
 

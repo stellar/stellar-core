@@ -11,6 +11,7 @@
 #include "ledger/LedgerTxn.h"
 #include "main/Application.h"
 #include "test/test.h"
+#include "util/ProtocolVersion.h"
 #include "xdr/Stellar-ledger.h"
 #include <memory>
 
@@ -227,14 +228,23 @@ LedgerManagerForBucketTests::transferLedgerEntriesToBucketList(
                 }
 
                 LedgerTxn ltxEvictions(ltx);
-                mApp.getBucketManager().resolveBackgroundEvictionScan(
-                    ltxEvictions, lh.ledgerSeq, keys);
 
+                auto evictedEntries =
+                    mApp.getBucketManager().resolveBackgroundEvictionScan(
+                        ltxEvictions, lh.ledgerSeq, keys, initialLedgerVers);
+
+                if (protocolVersionStartsFrom(
+                        initialLedgerVers,
+                        Bucket::FIRST_PROTOCOL_SUPPORTING_PERSISTENT_EVICTION))
+                {
+                    mApp.getBucketManager().addHotArchiveBatch(
+                        mApp, lh, evictedEntries.second, {}, {});
+                }
                 if (ledgerCloseMeta)
                 {
-                    ledgerCloseMeta->populateEvictedEntries(
-                        ltxEvictions.getChanges());
+                    ledgerCloseMeta->populateEvictedEntries(evictedEntries);
                 }
+
                 ltxEvictions.commit();
             }
             mApp.getLedgerManager()

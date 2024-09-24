@@ -574,6 +574,9 @@ HotArchiveBucketList::addBatch(Application& app, uint32_t currLedger,
 {
     ZoneScoped;
     releaseAssert(currLedger > 0);
+    releaseAssertOrThrow(protocolVersionStartsFrom(
+        currLedgerProtocol,
+        Bucket::FIRST_PROTOCOL_SUPPORTING_PERSISTENT_EVICTION));
 
     for (uint32_t i = static_cast<uint32>(mLevels.size()) - 1; i != 0; --i)
     {

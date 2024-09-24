@@ -21,6 +21,7 @@
 #include "util/UnorderedSet.h"
 #include "util/XDRCereal.h"
 #include "util/types.h"
+#include <memory>
 
 using namespace stellar;
 using namespace BucketTestUtils;
@@ -619,6 +620,7 @@ TEST_CASE("serialize bucket indexes", "[bucket][bucketindex]")
     auto test = BucketIndexTest(cfg, /*levels=*/3);
     test.buildGeneralTest();
 
+    std::set<Hash> liveBuckets;
     auto buckets = test.getBM().getBucketListReferencedBuckets();
     for (auto const& bucketHash : buckets)
     {
@@ -631,7 +633,13 @@ TEST_CASE("serialize bucket indexes", "[bucket][bucketindex]")
         auto indexFilename = test.getBM().bucketIndexFilename(bucketHash);
         REQUIRE(fs::exists(indexFilename));
 
-        auto b = test.getBM().getLiveBucketByHash(bucketHash);
+        auto b = test.getBM().getBucketIfExists(bucketHash);
+        if (std::dynamic_pointer_cast<LiveBucket>(b))
+        {
+            liveBuckets.emplace(bucketHash);
+        }
+
+        REQUIRE(b);
         REQUIRE(b->isIndexed());
 
         auto onDiskIndex =
@@ -657,8 +665,19 @@ TEST_CASE("serialize bucket indexes", "[bucket][bucketindex]")
         }
 
         // Check if in-memory index has correct params
-        auto b = test.getBM().getLiveBucketByHash(bucketHash);
-        REQUIRE(!b->isEmpty());
+        std::shared_ptr<Bucket> b = nullptr;
+        if (liveBuckets.find(bucketHash) != liveBuckets.end())
+        {
+            b = test.getBM().getLiveBucketByHash(bucketHash);
+
+            REQUIRE(b);
+            REQUIRE(!b->isEmpty());
+        }
+        else
+        {
+            continue;
+        }
+
         REQUIRE(b->isIndexed());
 
         auto& inMemoryIndex = b->getIndexForTesting();

@@ -2,7 +2,10 @@
 // under the Apache License, Version 2.0. See the COPYING file at the root
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
+#include "test/test.h"
 #include "util/Logging.h"
+#include "util/ProtocolVersion.h"
+#include "util/UnorderedSet.h"
 #include "xdr/Stellar-transaction.h"
 #include <iterator>
 #include <stdexcept>
@@ -28,6 +31,7 @@
 #include "transactions/TransactionUtils.h"
 #include "transactions/test/SorobanTxTestUtils.h"
 #include "transactions/test/SponsorshipTestUtils.h"
+#include "util/ArchivalProofs.h"
 #include "util/Decoder.h"
 #include "util/TmpDir.h"
 #include "util/XDRCereal.h"
@@ -1912,7 +1916,7 @@ TEST_CASE("ledger entry size limit enforced", "[tx][soroban]")
     }
 }
 
-TEST_CASE("contract storage", "[tx][soroban]")
+TEST_CASE("contract storage", "[tx][soroban][archival]")
 {
     auto modifyCfg = [](SorobanNetworkConfig& cfg) {
         // Increase write fee so the fee will be greater than 1
@@ -2070,7 +2074,7 @@ TEST_CASE("contract storage", "[tx][soroban]")
     }
 }
 
-TEST_CASE("state archival", "[tx][soroban]")
+TEST_CASE("state archival", "[tx][soroban][archival]")
 {
     SorobanTest test(getTestConfig(), true, [](SorobanNetworkConfig& cfg) {
         cfg.mWriteFee1KBBucketListLow = 20'000;
@@ -2551,120 +2555,234 @@ TEST_CASE("charge rent fees for storage resize", "[tx][soroban]")
     }
 }
 
-TEST_CASE("temp entry eviction", "[tx][soroban]")
+TEST_CASE_VERSIONS("entry eviction", "[tx][soroban][archival]")
 {
+    auto test = [](UnorderedSet<uint32_t> versionsToTest) {
+        // Currently, SorobanTest does not support for_versions, so we test all
+        // versions and return early if the version is not in versionsToTest. We
+        // should fix this at some point, but the refactor is non-trivial
+        Config cfg = getTestConfig();
 
-    Config cfg = getTestConfig();
-    TmpDirManager tdm(std::string("soroban-storage-meta-") +
-                      binToHex(randomBytes(8)));
-    TmpDir td = tdm.tmpDir("soroban-meta-ok");
-    std::string metaPath = td.getName() + "/stream.xdr";
-
-    cfg.METADATA_OUTPUT_STREAM = metaPath;
-
-    SorobanTest test(cfg);
-    ContractStorageTestClient client(test);
-    auto const& contractKeys = client.getContract().getKeys();
-
-    // Extend Wasm and instance
-    test.invokeExtendOp(contractKeys, 10'000);
-
-    auto invocation = client.getContract().prepareInvocation(
-        "put_temporary", {makeSymbolSCVal("key"), makeU64SCVal(123)},
-        client.writeKeySpec("key", ContractDataDurability::TEMPORARY));
-    REQUIRE(invocation.withExactNonRefundableResourceFee().invoke());
-    auto lk = client.getContract().getDataKey(
-        makeSymbolSCVal("key"), ContractDataDurability::TEMPORARY);
-
-    auto expectedLiveUntilLedger =
-        test.getLCLSeq() +
-        test.getNetworkCfg().stateArchivalSettings().minTemporaryTTL - 1;
-    REQUIRE(test.getTTL(lk) == expectedLiveUntilLedger);
-    auto const evictionLedger = 4097;
-
-    // Close ledgers until temp entry is evicted
-    for (uint32_t i = test.getLCLSeq(); i < evictionLedger - 2; ++i)
-    {
-        closeLedgerOn(test.getApp(), i, 2, 1, 2016);
-    }
-
-    REQUIRE(test.getTTL(lk) == expectedLiveUntilLedger);
-
-    // This should be a noop
-    test.invokeExtendOp({lk}, 10'000, 0);
-    REQUIRE(test.getTTL(lk) == expectedLiveUntilLedger);
-
-    // This will fail because the entry is expired
-    REQUIRE(client.extend("key", ContractDataDurability::TEMPORARY, 10'000,
-                          10'000) == INVOKE_HOST_FUNCTION_TRAPPED);
-    REQUIRE(test.getTTL(lk) == expectedLiveUntilLedger);
-
-    REQUIRE(!test.isEntryLive(lk, test.getLCLSeq()));
-
-    SECTION("eviction")
-    {
-        // close one more ledger to trigger the eviction
-        closeLedgerOn(test.getApp(), evictionLedger, 2, 1, 2016);
-
+        if (versionsToTest.find(cfg.TESTING_UPGRADE_LEDGER_PROTOCOL_VERSION) ==
+            versionsToTest.end())
         {
-            LedgerTxn ltx(test.getApp().getLedgerTxnRoot());
-            REQUIRE(!ltx.load(lk));
+            return;
         }
 
-        XDRInputFileStream in;
-        in.open(metaPath);
-        LedgerCloseMeta lcm;
-        bool evicted = false;
-        while (in.readOne(lcm))
+        TmpDirManager tdm(std::string("soroban-storage-meta-") +
+                          binToHex(randomBytes(8)));
+        TmpDir td = tdm.tmpDir("soroban-meta-ok");
+        std::string metaPath = td.getName() + "/stream.xdr";
+
+        cfg.METADATA_OUTPUT_STREAM = metaPath;
+
+        SorobanTest test(cfg);
+        ContractStorageTestClient client(test);
+        auto const& contractKeys = client.getContract().getKeys();
+
+        // Extend Wasm and instance
+        test.invokeExtendOp(contractKeys, 10'000);
+
+        auto invocation = client.getContract().prepareInvocation(
+            "put_temporary", {makeSymbolSCVal("key"), makeU64SCVal(123)},
+            client.writeKeySpec("key", ContractDataDurability::TEMPORARY));
+        REQUIRE(invocation.withExactNonRefundableResourceFee().invoke());
+        auto lk = client.getContract().getDataKey(
+            makeSymbolSCVal("key"), ContractDataDurability::TEMPORARY);
+
+        auto expectedLiveUntilLedger =
+            test.getLCLSeq() +
+            test.getNetworkCfg().stateArchivalSettings().minTemporaryTTL - 1;
+        REQUIRE(test.getTTL(lk) == expectedLiveUntilLedger);
+        auto const evictionLedger = 4097;
+
+        // Close ledgers until temp entry is evicted
+        for (uint32_t i = test.getLCLSeq(); i < evictionLedger - 2; ++i)
         {
-            REQUIRE(lcm.v() == 1);
-            if (lcm.v1().ledgerHeader.header.ledgerSeq == evictionLedger)
+            closeLedgerOn(test.getApp(), i, 2, 1, 2016);
+        }
+
+        REQUIRE(test.getTTL(lk) == expectedLiveUntilLedger);
+
+        // This should be a noop
+        test.invokeExtendOp({lk}, 10'000, 0);
+        REQUIRE(test.getTTL(lk) == expectedLiveUntilLedger);
+
+        // This will fail because the entry is expired
+        REQUIRE(client.extend("key", ContractDataDurability::TEMPORARY, 10'000,
+                              10'000) == INVOKE_HOST_FUNCTION_TRAPPED);
+        REQUIRE(test.getTTL(lk) == expectedLiveUntilLedger);
+
+        REQUIRE(!test.isEntryLive(lk, test.getLCLSeq()));
+
+        SECTION("temp entry meta")
+        {
+            // close one more ledger to trigger the eviction
+            closeLedgerOn(test.getApp(), evictionLedger, 2, 1, 2016);
+
             {
-                REQUIRE(lcm.v1().evictedTemporaryLedgerKeys.size() == 2);
-                auto sortedKeys = lcm.v1().evictedTemporaryLedgerKeys;
-                std::sort(sortedKeys.begin(), sortedKeys.end());
-                REQUIRE(sortedKeys[0] == lk);
-                REQUIRE(sortedKeys[1] == getTTLKey(lk));
-                evicted = true;
+                LedgerTxn ltx(test.getApp().getLedgerTxnRoot());
+                REQUIRE(!ltx.load(lk));
+            }
+
+            XDRInputFileStream in;
+            in.open(metaPath);
+            LedgerCloseMeta lcm;
+            bool evicted = false;
+            while (in.readOne(lcm))
+            {
+                REQUIRE(lcm.v() == 1);
+                if (lcm.v1().ledgerHeader.header.ledgerSeq == evictionLedger)
+                {
+                    REQUIRE(lcm.v1().evictedTemporaryLedgerKeys.size() == 2);
+                    auto sortedKeys = lcm.v1().evictedTemporaryLedgerKeys;
+                    std::sort(sortedKeys.begin(), sortedKeys.end());
+                    REQUIRE(sortedKeys[0] == lk);
+                    REQUIRE(sortedKeys[1] == getTTLKey(lk));
+                    evicted = true;
+                }
+                else
+                {
+                    REQUIRE(lcm.v1().evictedTemporaryLedgerKeys.empty());
+                }
+            }
+
+            REQUIRE(evicted);
+        }
+
+        SECTION("persistent entry meta")
+        {
+            if (protocolVersionIsBefore(
+                    cfg.TESTING_UPGRADE_LEDGER_PROTOCOL_VERSION,
+                    Bucket::FIRST_PROTOCOL_SUPPORTING_PERSISTENT_EVICTION))
+            {
+                return;
+            }
+
+            auto persistentInvocation = client.getContract().prepareInvocation(
+                "put_persistent", {makeSymbolSCVal("key"), makeU64SCVal(123)},
+                client.writeKeySpec("key", ContractDataDurability::PERSISTENT));
+            REQUIRE(persistentInvocation.withExactNonRefundableResourceFee()
+                        .invoke());
+
+            auto persistentKey = client.getContract().getDataKey(
+                makeSymbolSCVal("key"), ContractDataDurability::PERSISTENT);
+
+            LedgerEntry persistentLE;
+            {
+                LedgerTxn ltx(test.getApp().getLedgerTxnRoot());
+                auto ltxe = ltx.load(persistentKey);
+                REQUIRE(ltxe);
+                persistentLE = ltxe.current();
+            }
+
+            // Entry must merge down the BucketList until it is in the first
+            // scan level
+            auto evictionLedger = 8193;
+
+            // Close ledgers until entry is evicted
+            for (uint32_t i = test.getLCLSeq(); i <= evictionLedger; ++i)
+            {
+                closeLedgerOn(test.getApp(), i, 2, 1, 2016);
+            }
+
+            {
+                LedgerTxn ltx(test.getApp().getLedgerTxnRoot());
+                REQUIRE(!ltx.load(persistentKey));
+            }
+
+            XDRInputFileStream in;
+            in.open(metaPath);
+            LedgerCloseMeta lcm;
+            bool evicted = false;
+            while (in.readOne(lcm))
+            {
+                REQUIRE(lcm.v() == 1);
+                if (lcm.v1().ledgerHeader.header.ledgerSeq == evictionLedger)
+                {
+                    // Only support persistent eviction meta >= p23
+                    if (protocolVersionStartsFrom(
+                            cfg.TESTING_UPGRADE_LEDGER_PROTOCOL_VERSION,
+                            Bucket::
+                                FIRST_PROTOCOL_SUPPORTING_PERSISTENT_EVICTION))
+                    {
+                        // TLL should be in "deleted" key section (called
+                        // evictedTemporaryLedgerKeys for legacy reasons).
+                        REQUIRE(lcm.v1().evictedTemporaryLedgerKeys.size() ==
+                                1);
+                        REQUIRE(lcm.v1().evictedTemporaryLedgerKeys.front() ==
+                                getTTLKey(persistentKey));
+
+                        REQUIRE(
+                            lcm.v1().evictedPersistentLedgerEntries.size() ==
+                            1);
+                        REQUIRE(
+                            lcm.v1().evictedPersistentLedgerEntries.front() ==
+                            persistentLE);
+                        evicted = true;
+                    }
+                    else
+                    {
+                        REQUIRE(lcm.v1().evictedTemporaryLedgerKeys.empty());
+                        REQUIRE(
+                            lcm.v1().evictedPersistentLedgerEntries.empty());
+                        evicted = false;
+                    }
+
+                    break;
+                }
+            }
+
+            if (protocolVersionStartsFrom(
+                    cfg.TESTING_UPGRADE_LEDGER_PROTOCOL_VERSION,
+                    Bucket::FIRST_PROTOCOL_SUPPORTING_PERSISTENT_EVICTION))
+            {
+                REQUIRE(evicted);
             }
             else
+            {
+                REQUIRE(!evicted);
+            }
+        }
+
+        SECTION(
+            "Create temp entry with same key as an expired entry on eviction "
+            "ledger")
+        {
+            REQUIRE(client.put("key", ContractDataDurability::TEMPORARY, 234) ==
+                    INVOKE_HOST_FUNCTION_SUCCESS);
+            {
+                LedgerTxn ltx(test.getApp().getLedgerTxnRoot());
+                REQUIRE(ltx.load(lk));
+            }
+
+            // Verify that we're on the ledger where the entry would get evicted
+            // it wasn't recreated.
+            REQUIRE(test.getLCLSeq() == evictionLedger);
+
+            // Entry is live again
+            REQUIRE(test.isEntryLive(lk, test.getLCLSeq()));
+
+            // Verify that we didn't emit an eviction
+            XDRInputFileStream in;
+            in.open(metaPath);
+            LedgerCloseMeta lcm;
+            while (in.readOne(lcm))
             {
                 REQUIRE(lcm.v1().evictedTemporaryLedgerKeys.empty());
             }
         }
+    };
 
-        REQUIRE(evicted);
-    }
-
-    SECTION("Create temp entry with same key as an expired entry on eviction "
-            "ledger")
-    {
-        REQUIRE(client.put("key", ContractDataDurability::TEMPORARY, 234) ==
-                INVOKE_HOST_FUNCTION_SUCCESS);
-        {
-            LedgerTxn ltx(test.getApp().getLedgerTxnRoot());
-            REQUIRE(ltx.load(lk));
-        }
-
-        // Verify that we're on the ledger where the entry would get evicted
-        // it wasn't recreated.
-        REQUIRE(test.getLCLSeq() == evictionLedger);
-
-        // Entry is live again
-        REQUIRE(test.isEntryLive(lk, test.getLCLSeq()));
-
-        // Verify that we didn't emit an eviction
-        XDRInputFileStream in;
-        in.open(metaPath);
-        LedgerCloseMeta lcm;
-        while (in.readOne(lcm))
-        {
-            REQUIRE(lcm.v1().evictedTemporaryLedgerKeys.empty());
-        }
-    }
+    test({20, 21, 22
+#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
+          ,
+          23
+#endif
+    });
 }
 
-TEST_CASE("state archival operation errors", "[tx][soroban]")
+TEST_CASE("state archival operation errors", "[tx][soroban][archival]")
 {
     SorobanTest test;
     ContractStorageTestClient client(test);
@@ -2795,6 +2913,188 @@ TEST_CASE("state archival operation errors", "[tx][soroban]")
     }
 }
 
+#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
+TEST_CASE("evicted persistent entries", "[tx][soroban][archival]")
+{
+    auto test = [](bool requireProofs) {
+        auto cfg = getTestConfig();
+        cfg.REQUIRE_PROOFS_FOR_ALL_EVICTED_ENTRIES = requireProofs;
+        SorobanTest test(cfg, true, [](SorobanNetworkConfig& cfg) {
+            cfg.stateArchivalSettings().startingEvictionScanLevel = 1;
+            cfg.stateArchivalSettings().minPersistentTTL = 4;
+        });
+
+        ContractStorageTestClient client(test);
+
+        // WASM and instance should not expire
+        test.invokeExtendOp(client.getContract().getKeys(), 10'000);
+
+        auto writeInvocation = client.getContract().prepareInvocation(
+            "put_persistent", {makeSymbolSCVal("key"), makeU64SCVal(123)},
+            client.writeKeySpec("key", ContractDataDurability::PERSISTENT));
+        REQUIRE(writeInvocation.withExactNonRefundableResourceFee().invoke());
+        auto lk = client.getContract().getDataKey(
+            makeSymbolSCVal("key"), ContractDataDurability::PERSISTENT);
+
+        auto hotArchive = test.getApp()
+                              .getBucketManager()
+                              .getBucketSnapshotManager()
+                              .copySearchableHotArchiveBucketListSnapshot();
+
+        auto evictionLedger = 14;
+
+        // Close ledgers until entry is evicted
+        for (uint32_t i = test.getLCLSeq(); i < evictionLedger; ++i)
+        {
+            closeLedgerOn(test.getApp(), i, 2, 1, 2016);
+        }
+
+        REQUIRE(hotArchive->load(lk));
+        REQUIRE(!hotArchive->load(getTTLKey(lk)));
+        {
+            LedgerTxn ltx(test.getApp().getLedgerTxnRoot());
+            REQUIRE(!ltx.load(lk));
+            REQUIRE(!ltx.load(getTTLKey(lk)));
+        }
+
+        // Rewriting entry should fail since key is in Hot Archive
+        REQUIRE(!writeInvocation.withExactNonRefundableResourceFee().invoke());
+
+        // Reads should also fail
+        REQUIRE(client.has("key", ContractDataDurability::PERSISTENT,
+                           std::nullopt) ==
+                INVOKE_HOST_FUNCTION_ENTRY_ARCHIVED);
+
+        // Rent extension is a no op
+        SorobanResources resources;
+        resources.footprint.readOnly = {lk};
+
+        resources.instructions = 0;
+        resources.readBytes = 1000;
+        resources.writeBytes = 1000;
+        auto resourceFee = 1'000'000;
+
+        auto extendTx =
+            test.createExtendOpTx(resources, 100, 1'000, resourceFee);
+        auto result = test.invokeTx(extendTx);
+        REQUIRE(isSuccessResult(result));
+
+        REQUIRE(client.has("key", ContractDataDurability::PERSISTENT,
+                           std::nullopt) ==
+                INVOKE_HOST_FUNCTION_ENTRY_ARCHIVED);
+
+        // Refundable fee should be identical in proof and non-proof case
+        auto const expectedRefundableFeeCharged = 20'048;
+
+        if (requireProofs)
+        {
+            // Proof generation should fail for keys that don't exist
+            xdr::xvector<ArchivalProof> proofs;
+            auto wrongLk = client.getContract().getDataKey(
+                makeSymbolSCVal("null"), ContractDataDurability::PERSISTENT);
+            REQUIRE(!addRestorationProof(hotArchive, wrongLk, proofs));
+
+            // RestoreOp should fail with no proof/ empty proof
+            SorobanResources restoreResources;
+            restoreResources.footprint.readWrite = {lk};
+
+            restoreResources.instructions = 0;
+            restoreResources.readBytes = 1000;
+            restoreResources.writeBytes = 1000;
+
+            auto badRestore =
+                test.createRestoreTx(restoreResources, 100000, 1'000000);
+            auto restoreResult = test.invokeTx(badRestore);
+            REQUIRE(restoreResult.result.code() == txFAILED);
+
+            // TODO: Switch to RESTORE_FOOTPRINT_INVALID_PROOF
+            // when XDR changes in rust are merged
+            REQUIRE(restoreResult.result.results()[0]
+                        .tr()
+                        .restoreFootprintResult()
+                        .code() == RESTORE_FOOTPRINT_MALFORMED);
+
+            REQUIRE(addRestorationProof(hotArchive, lk, proofs));
+
+            // Should succeed after adding proper proofs
+            test.invokeRestoreOp({lk}, expectedRefundableFeeCharged, proofs);
+        }
+        else
+        {
+            // Restore should succeed without proof for hot archive entries
+            test.invokeRestoreOp({lk}, expectedRefundableFeeCharged);
+        }
+
+        auto const& stateArchivalSettings =
+            test.getNetworkCfg().stateArchivalSettings();
+        auto newExpectedLiveUntilLedger =
+            test.getLCLSeq() + stateArchivalSettings.minPersistentTTL - 1;
+        REQUIRE(test.getTTL(lk) == newExpectedLiveUntilLedger);
+
+        client.get("key", ContractDataDurability::PERSISTENT, 123);
+
+        // Hot Archive entry removed after restoration
+        REQUIRE(!hotArchive->load(lk));
+
+        client.del("key", ContractDataDurability::PERSISTENT);
+        client.has("key", ContractDataDurability::PERSISTENT, false);
+
+        // Hot archive should record deletion
+        auto hotArchiveEntry = hotArchive->load(lk);
+        REQUIRE(hotArchiveEntry);
+        REQUIRE(hotArchiveEntry->type() == HOT_ARCHIVE_DELETED);
+        REQUIRE(hotArchiveEntry->key() == lk);
+
+        // Recreation should remove entry from hot archive
+        client.put("key", ContractDataDurability::PERSISTENT, 345);
+        client.get("key", ContractDataDurability::PERSISTENT, 345);
+        REQUIRE(!hotArchive->load(lk));
+    };
+
+    SECTION("with proofs")
+    {
+        test(true);
+    }
+
+    SECTION("restore hot archive entries")
+    {
+        test(false);
+    }
+}
+
+TEST_CASE("persistent entry archival filters", "[soroban][archival]")
+{
+    auto cfg = getTestConfig();
+    cfg.ARTIFICIALLY_SIMULATE_ARCHIVE_FILTER_MISS = true;
+
+    SorobanTest test(cfg);
+    ContractStorageTestClient client(test);
+
+    auto writeInvocation = client.getContract().prepareInvocation(
+        "put_persistent", {makeSymbolSCVal("miss"), makeU64SCVal(123)},
+        client.writeKeySpec("miss", ContractDataDurability::PERSISTENT));
+
+    // Invocation should fail when no proof is provided
+    REQUIRE(!writeInvocation.withExactNonRefundableResourceFee().invoke());
+
+    // TODO: Replace with proper error code once Rust XDR has been generated
+    REQUIRE(*writeInvocation.getResultCode() ==
+            INVOKE_HOST_FUNCTION_ENTRY_ARCHIVED);
+
+    xdr::xvector<ArchivalProof> proofs;
+    addCreationProof(
+        cfg.ARTIFICIALLY_SIMULATE_ARCHIVE_FILTER_MISS,
+        client.getContract().getDataKey(makeSymbolSCVal("miss"),
+                                        ContractDataDurability::PERSISTENT),
+        proofs);
+
+    REQUIRE(writeInvocation.withProofs(proofs)
+                .withExactNonRefundableResourceFee()
+                .invoke());
+}
+
+#endif
+
 /*
  This test uses the same utils (SettingsUpgradeUtils.h) as the
  get-settings-upgrade-txs command to make sure the transactions have the
@@ -2803,7 +3103,7 @@ TEST_CASE("state archival operation errors", "[tx][soroban]")
 TEST_CASE("settings upgrade command line utils", "[tx][soroban][upgrades]")
 {
     VirtualClock clock;
-    auto cfg = getTestConfig(0, Config::TESTDB_IN_MEMORY);
+    auto cfg = getTestConfig(0, Config::TESTDB_IN_MEMORY_NO_OFFERS);
     cfg.ENABLE_SOROBAN_DIAGNOSTIC_EVENTS = true;
     auto app = createTestApplication(clock, cfg);
     auto root = TestAccount::createRoot(*app);

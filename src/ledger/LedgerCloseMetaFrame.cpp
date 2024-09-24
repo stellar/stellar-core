@@ -8,6 +8,7 @@
 #include "transactions/TransactionMetaFrame.h"
 #include "util/GlobalChecks.h"
 #include "util/ProtocolVersion.h"
+#include "xdr/Stellar-ledger.h"
 
 namespace stellar
 {
@@ -144,7 +145,7 @@ LedgerCloseMetaFrame::populateTxSet(TxSetXDRFrame const& txSet)
 }
 
 void
-LedgerCloseMetaFrame::populateEvictedEntries(
+LedgerCloseMetaFrame::populateEvictedEntriesLegacy(
     LedgerEntryChanges const& evictionChanges)
 {
     releaseAssert(mVersion == 1);
@@ -153,6 +154,9 @@ LedgerCloseMetaFrame::populateEvictedEntries(
         switch (change.type())
         {
         case LEDGER_ENTRY_CREATED:
+#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
+        case LEDGER_ENTRY_RESTORED:
+#endif
             throw std::runtime_error("unexpected create in eviction meta");
         case LEDGER_ENTRY_STATE:
             continue;
@@ -167,6 +171,25 @@ LedgerCloseMetaFrame::populateEvictedEntries(
             mLedgerCloseMeta.v1().evictedTemporaryLedgerKeys.push_back(key);
             break;
         }
+    }
+}
+
+void
+LedgerCloseMetaFrame::populateEvictedEntries(
+    std::pair<std::vector<LedgerKey>, std::vector<LedgerEntry>> const&
+        evictedEntries)
+{
+    releaseAssert(mVersion == 1);
+    for (auto const& key : evictedEntries.first)
+    {
+        releaseAssertOrThrow(isTemporaryEntry(key) || key.type() == TTL);
+        mLedgerCloseMeta.v1().evictedTemporaryLedgerKeys.emplace_back(key);
+    }
+    for (auto const& entry : evictedEntries.second)
+    {
+        releaseAssertOrThrow(isPersistentEntry(entry.data));
+        mLedgerCloseMeta.v1().evictedPersistentLedgerEntries.emplace_back(
+            entry);
     }
 }
 

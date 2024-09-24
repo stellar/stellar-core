@@ -7,6 +7,7 @@
 #include "bucket/BucketListSnapshot.h"
 #include "ledger/LedgerTxn.h"
 #include "ledger/LedgerTypeUtils.h"
+#include "util/ProtocolVersion.h"
 #include "util/XDRStream.h"
 #include <type_traits>
 
@@ -197,7 +198,7 @@ bool
 LiveBucketSnapshot::scanForEviction(
     EvictionIterator& iter, uint32_t& bytesToScan, uint32_t ledgerSeq,
     std::list<EvictionResultEntry>& evictableKeys,
-    SearchableLiveBucketListSnapshot& bl) const
+    SearchableLiveBucketListSnapshot& bl, uint32_t ledgerVers) const
 {
     ZoneScoped;
     if (isEmpty() || protocolVersionIsBefore(mBucket->getBucketVersion(),
@@ -222,7 +223,7 @@ LiveBucketSnapshot::scanForEviction(
         for (auto& e : maybeEvictQueue)
         {
             // If TTL entry has not yet been deleted
-            if (auto ttl = loadResult.find(getTTLKey(e.key))->second;
+            if (auto ttl = loadResult.find(getTTLKey(e.entry))->second;
                 ttl != nullptr)
             {
                 // If TTL of entry is expired
@@ -234,6 +235,20 @@ LiveBucketSnapshot::scanForEviction(
                     evictableKeys.emplace_back(e);
                 }
             }
+        }
+    };
+
+    // Start evicting persistent entries in p23
+    auto isEvictableType = [ledgerVers](auto const& le) {
+        if (protocolVersionIsBefore(
+                ledgerVers,
+                Bucket::FIRST_PROTOCOL_SUPPORTING_PERSISTENT_EVICTION))
+        {
+            return isTemporaryEntry(le);
+        }
+        else
+        {
+            return isSorobanEntry(le);
         }
     };
 
@@ -258,14 +273,13 @@ LiveBucketSnapshot::scanForEviction(
         if (be.type() == INITENTRY || be.type() == LIVEENTRY)
         {
             auto const& le = be.liveEntry();
-            if (isTemporaryEntry(le.data))
+            if (isEvictableType(le.data))
             {
                 keysToSearch.emplace(getTTLKey(le));
 
                 // Set lifetime to 0 as default, will be updated after TTL keys
                 // loaded
-                maybeEvictQueue.emplace_back(
-                    EvictionResultEntry(LedgerEntryKey(le), iter, 0));
+                maybeEvictQueue.emplace_back(EvictionResultEntry(le, iter, 0));
             }
         }
 

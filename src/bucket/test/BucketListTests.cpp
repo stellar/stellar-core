@@ -953,8 +953,13 @@ TEST_CASE_VERSIONS("eviction scan", "[bucketlist]")
     Config cfg(getTestConfig());
     cfg.USE_CONFIG_FOR_GENESIS = true;
 
-    auto app = createTestApplication<BucketTestApplication>(clock, cfg);
-    for_versions_from(20, *app, [&] {
+    auto test = [&](Config& cfg) {
+        auto app = createTestApplication<BucketTestApplication>(clock, cfg);
+
+        bool tempOnly = protocolVersionIsBefore(
+            cfg.TESTING_UPGRADE_LEDGER_PROTOCOL_VERSION,
+            Bucket::FIRST_PROTOCOL_SUPPORTING_PERSISTENT_EVICTION);
+
         LedgerManagerForBucketTests& lm = app->getLedgerManager();
         auto& bm = app->getBucketManager();
         auto& bl = bm.getLiveBucketList();
@@ -1019,12 +1024,19 @@ TEST_CASE_VERSIONS("eviction scan", "[bucketlist]")
         std::set<LedgerKey> tempEntries;
         std::set<LedgerKey> persistentEntries;
         std::vector<LedgerEntry> entries;
+
         for (auto& e :
              LedgerTestUtils::generateValidUniqueLedgerEntriesWithTypes(
-                 {CONTRACT_DATA}, 50))
+                 {CONTRACT_DATA, CONTRACT_CODE}, 50))
         {
-            // Set half of the entries to be persistent, half temporary
-            if (tempEntries.empty() || rand_flip())
+            if (e.data.type() == CONTRACT_CODE)
+            {
+                persistentEntries.emplace(LedgerEntryKey(e));
+            }
+
+            // Set half of the contact data entries to be persistent, half
+            // temporary
+            else if (tempEntries.empty() || rand_flip())
             {
                 e.data.contractData().durability = TEMPORARY;
                 tempEntries.emplace(LedgerEntryKey(e));
@@ -1058,6 +1070,53 @@ TEST_CASE_VERSIONS("eviction scan", "[bucketlist]")
             closeLedger(*app);
         }
 
+        auto expectedEvictions = tempEntries.size();
+
+        if (!tempOnly)
+        {
+            expectedEvictions += persistentEntries.size();
+        }
+
+        auto checkArchivedBucketList = [&] {
+            if (!tempOnly)
+            {
+                auto archiveSnapshot =
+                    bm.getBucketSnapshotManager()
+                        .copySearchableHotArchiveBucketListSnapshot();
+
+                // Check that persisted entries have been inserted into
+                // HotArchive
+                for (auto const& k : persistentEntries)
+                {
+                    auto archivedEntry = archiveSnapshot->load(k);
+                    REQUIRE(archivedEntry);
+
+                    auto seen = false;
+                    for (auto const& e : entries)
+                    {
+                        if (e == archivedEntry->archivedEntry())
+                        {
+                            seen = true;
+                            break;
+                        }
+                    }
+                    REQUIRE(seen);
+
+                    // Make sure TTL keys are not archived
+                    auto ttl = getTTLKey(k);
+                    auto archivedTTL = archiveSnapshot->load(ttl);
+                    REQUIRE(!archivedTTL);
+                }
+
+                // Temp entries should not be archived
+                for (auto const& k : tempEntries)
+                {
+                    auto archivedEntry = archiveSnapshot->load(k);
+                    REQUIRE(!archivedEntry);
+                }
+            }
+        };
+
         SECTION("basic eviction test")
         {
             // Set eviction to start at level where the entries
@@ -1069,10 +1128,12 @@ TEST_CASE_VERSIONS("eviction scan", "[bucketlist]")
             closeLedger(*app);
             ++ledgerSeq;
             checkIfEntryExists(tempEntries, false);
-            checkIfEntryExists(persistentEntries, true);
+            checkIfEntryExists(persistentEntries, tempOnly);
 
             auto& entriesEvictedCounter = bm.getEntriesEvictedCounter();
-            REQUIRE(entriesEvictedCounter.count() == tempEntries.size());
+
+            REQUIRE(entriesEvictedCounter.count() == expectedEvictions);
+            checkArchivedBucketList();
 
             // Close ledgers until evicted DEADENTRYs merge with
             // original INITENTRYs. This checks that BucketList
@@ -1086,7 +1147,7 @@ TEST_CASE_VERSIONS("eviction scan", "[bucketlist]")
                 closeLedger(*app);
             }
 
-            REQUIRE(entriesEvictedCounter.count() == tempEntries.size());
+            REQUIRE(entriesEvictedCounter.count() == expectedEvictions);
         }
 
         SECTION("shadowed entries not evicted")
@@ -1127,7 +1188,7 @@ TEST_CASE_VERSIONS("eviction scan", "[bucketlist]")
             auto& entriesEvictedCounter = bm.getEntriesEvictedCounter();
             auto prevIter = evictionIter;
             for (auto prevCount = entriesEvictedCounter.count();
-                 prevCount < tempEntries.size();)
+                 prevCount < expectedEvictions;)
             {
                 closeLedger(*app);
 
@@ -1150,12 +1211,12 @@ TEST_CASE_VERSIONS("eviction scan", "[bucketlist]")
 
             // All entries should have been evicted
             checkIfEntryExists(tempEntries, false);
-            checkIfEntryExists(persistentEntries, true);
+            checkIfEntryExists(persistentEntries, tempOnly);
+            checkArchivedBucketList();
         }
 
         SECTION("maxEntriesToArchive with entry modified on eviction ledger")
         {
-
             // This test is for an edge case in background eviction.
             // We want to test that if entry n should be the last entry
             // evicted due to maxEntriesToArchive, but that entry is
@@ -1172,17 +1233,25 @@ TEST_CASE_VERSIONS("eviction scan", "[bucketlist]")
             LedgerKey entryToEvict;
             std::optional<uint64_t> expectedEndIterPosition{};
 
+            auto willBeEvicited = [&](LedgerEntry const& le) {
+                if (tempOnly)
+                {
+                    return isTemporaryEntry(le.data);
+                }
+                else
+                {
+                    return isSorobanEntry(le.data);
+                }
+            };
+
             for (LiveBucketInputIterator in(bl.getLevel(levelToScan).getCurr());
                  in; ++in)
             {
-                // Temp entries should be sorted before persistent in
-                // the Bucket
                 auto be = *in;
                 if (be.type() == INITENTRY || be.type() == LIVEENTRY)
                 {
                     auto le = be.liveEntry();
-                    if (le.data.type() == CONTRACT_DATA &&
-                        le.data.contractData().durability == TEMPORARY)
+                    if (willBeEvicited(le))
                     {
                         if (!entryToUpdate)
                         {
@@ -1388,7 +1457,9 @@ TEST_CASE_VERSIONS("eviction scan", "[bucketlist]")
                 testIterReset(false);
             }
         }
-    });
+    };
+
+    for_versions(20, Config::CURRENT_LEDGER_PROTOCOL_VERSION, cfg, test);
 }
 
 TEST_CASE_VERSIONS("Searchable BucketListDB snapshots", "[bucketlist]")

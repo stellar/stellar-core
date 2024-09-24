@@ -90,7 +90,7 @@ EvictionResult
 SearchableLiveBucketListSnapshot::scanForEviction(
     uint32_t ledgerSeq, EvictionCounters& counters,
     EvictionIterator evictionIter, std::shared_ptr<EvictionStatistics> stats,
-    StateArchivalSettings const& sas)
+    StateArchivalSettings const& sas, uint32_t ledgerVers)
 {
     releaseAssert(mSnapshot);
     releaseAssert(stats);
@@ -117,7 +117,7 @@ SearchableLiveBucketListSnapshot::scanForEviction(
 
         // If we scan scanSize before hitting bucket EOF, exit early
         if (b.scanForEviction(evictionIter, scanSize, ledgerSeq,
-                              result.eligibleKeys, *this))
+                              result.eligibleEntries, *this, ledgerVers))
         {
             break;
         }

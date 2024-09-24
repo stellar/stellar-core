@@ -84,22 +84,22 @@ struct MergeCounters
 // iterator as if that key was the last entry evicted
 struct EvictionResultEntry
 {
-    LedgerKey key;
+    LedgerEntry entry;
     EvictionIterator iter;
     uint32_t liveUntilLedger;
 
-    EvictionResultEntry(LedgerKey const& key, EvictionIterator const& iter,
+    EvictionResultEntry(LedgerEntry const& entry, EvictionIterator const& iter,
                         uint32_t liveUntilLedger)
-        : key(key), iter(iter), liveUntilLedger(liveUntilLedger)
+        : entry(entry), iter(iter), liveUntilLedger(liveUntilLedger)
     {
     }
 };
 
 struct EvictionResult
 {
-    // List of keys eligible for eviction in the order in which they occur in
+    // List of entries eligible for eviction in the order in which they occur in
     // the bucket
-    std::list<EvictionResultEntry> eligibleKeys{};
+    std::list<EvictionResultEntry> eligibleEntries{};
 
     // Eviction iterator at the end of the scan region
     EvictionIterator endOfRegionIterator;
@@ -305,10 +305,18 @@ class BucketManager : NonMovableOrCopyable
     // Scans BucketList for non-live entries to evict starting at the entry
     // pointed to by EvictionIterator. Scans until `maxEntriesToEvict` entries
     // have been evicted or maxEvictionScanSize bytes have been scanned.
-    virtual void startBackgroundEvictionScan(uint32_t ledgerSeq) = 0;
-    virtual void
+    virtual void startBackgroundEvictionScan(uint32_t ledgerSeq,
+                                             uint32_t ledgerVers) = 0;
+
+    // Returns a pair of vectors representing entries evicted this ledger, where
+    // the first vector constains all deleted keys (TTL and temporary), and
+    // the second vector contains all archived keys (persistent and
+    // ContractCode). Note that when an entry is archived, its TTL key will be
+    // included in the deleted keys vector.
+    virtual std::pair<std::vector<LedgerKey>, std::vector<LedgerEntry>>
     resolveBackgroundEvictionScan(AbstractLedgerTxn& ltx, uint32_t ledgerSeq,
-                                  LedgerKeySet const& modifiedKeys) = 0;
+                                  LedgerKeySet const& modifiedKeys,
+                                  uint32_t ledgerVers) = 0;
 
     virtual medida::Meter& getBloomMissMeter() const = 0;
     virtual medida::Meter& getBloomLookupMeter() const = 0;
