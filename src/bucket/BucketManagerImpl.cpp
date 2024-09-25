@@ -1101,16 +1101,19 @@ BucketManagerImpl::getBloomLookupMeter() const
 void
 BucketManagerImpl::calculateSkipValues(LedgerHeader& currentHeader)
 {
+    bool startsFromV22 = protocolVersionStartsFrom(currentHeader.ledgerVersion,
+                                                   ProtocolVersion::V_22);
+    auto skip1 = startsFromV22 ? SKIP_1_V22 : SKIP_1;
 
-    if ((currentHeader.ledgerSeq % SKIP_1) == 0)
+    if ((currentHeader.ledgerSeq % skip1) == 0)
     {
-        int v = currentHeader.ledgerSeq - SKIP_1;
+        int v = currentHeader.ledgerSeq - skip1;
         if (v > 0 && (v % SKIP_2) == 0)
         {
-            v = currentHeader.ledgerSeq - SKIP_2 - SKIP_1;
+            v = currentHeader.ledgerSeq - SKIP_2 - skip1;
             if (v > 0 && (v % SKIP_3) == 0)
             {
-                v = currentHeader.ledgerSeq - SKIP_3 - SKIP_2 - SKIP_1;
+                v = currentHeader.ledgerSeq - SKIP_3 - SKIP_2 - skip1;
                 if (v > 0 && (v % SKIP_4) == 0)
                 {
 
@@ -1121,8 +1124,7 @@ BucketManagerImpl::calculateSkipValues(LedgerHeader& currentHeader)
             currentHeader.skipList[1] = currentHeader.skipList[0];
         }
 
-        if (protocolVersionStartsFrom(currentHeader.ledgerVersion,
-                                      ProtocolVersion::V_22))
+        if (startsFromV22)
         {
             currentHeader.skipList[0] = currentHeader.previousLedgerHash;
         }

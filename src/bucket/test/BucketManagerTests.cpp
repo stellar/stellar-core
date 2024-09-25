@@ -125,11 +125,12 @@ TEST_CASE("skip list", "[bucket][bucketmanager]")
                 LedgerHeader header;
                 header.ledgerSeq = 5;
                 header.ledgerVersion = i;
-                auto& hashFieldToUse =
-                    protocolVersionIsBefore(header.ledgerVersion,
-                                            ProtocolVersion::V_22)
-                        ? header.bucketListHash
-                        : header.previousLedgerHash;
+
+                bool isBeforeV22 = protocolVersionIsBefore(
+                    header.ledgerVersion, ProtocolVersion::V_22);
+
+                auto& hashFieldToUse = isBeforeV22 ? header.bucketListHash
+                                                   : header.previousLedgerHash;
 
                 calculateSkipValues(header);
                 REQUIRE(header.skipList[0] == h0);
@@ -137,7 +138,9 @@ TEST_CASE("skip list", "[bucket][bucketmanager]")
                 REQUIRE(header.skipList[2] == h0);
                 REQUIRE(header.skipList[3] == h0);
 
-                header.ledgerSeq = SKIP_1;
+                auto skip1 = isBeforeV22 ? SKIP_1 : SKIP_1_V22;
+
+                header.ledgerSeq = skip1;
                 hashFieldToUse = h2;
                 calculateSkipValues(header);
                 REQUIRE(header.skipList[0] == h2);
@@ -145,7 +148,7 @@ TEST_CASE("skip list", "[bucket][bucketmanager]")
                 REQUIRE(header.skipList[2] == h0);
                 REQUIRE(header.skipList[3] == h0);
 
-                header.ledgerSeq = SKIP_1 * 2;
+                header.ledgerSeq = skip1 * 2;
                 hashFieldToUse = h3;
                 calculateSkipValues(header);
                 REQUIRE(header.skipList[0] == h3);
@@ -153,7 +156,7 @@ TEST_CASE("skip list", "[bucket][bucketmanager]")
                 REQUIRE(header.skipList[2] == h0);
                 REQUIRE(header.skipList[3] == h0);
 
-                header.ledgerSeq = SKIP_1 * 2 + 1;
+                header.ledgerSeq = skip1 * 2 + 1;
                 hashFieldToUse = h2;
                 calculateSkipValues(header);
                 REQUIRE(header.skipList[0] == h3);
@@ -169,7 +172,7 @@ TEST_CASE("skip list", "[bucket][bucketmanager]")
                 REQUIRE(header.skipList[2] == h0);
                 REQUIRE(header.skipList[3] == h0);
 
-                header.ledgerSeq = SKIP_2 + SKIP_1;
+                header.ledgerSeq = SKIP_2 + skip1;
                 hashFieldToUse = h5;
                 calculateSkipValues(header);
                 REQUIRE(header.skipList[0] == h5);
@@ -185,7 +188,7 @@ TEST_CASE("skip list", "[bucket][bucketmanager]")
                 REQUIRE(header.skipList[2] == h0);
                 REQUIRE(header.skipList[3] == h0);
 
-                header.ledgerSeq = SKIP_3 + SKIP_2 + SKIP_1;
+                header.ledgerSeq = SKIP_3 + SKIP_2 + skip1;
                 hashFieldToUse = h7;
                 calculateSkipValues(header);
                 REQUIRE(header.skipList[0] == h7);
