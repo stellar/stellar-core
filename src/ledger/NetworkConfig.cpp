@@ -2047,11 +2047,25 @@ bool
 SorobanNetworkConfig::isValidCostParams(ContractCostParams const& params,
                                         uint32_t ledgerVersion)
 {
-    auto numberOfCostTypes =
-        protocolVersionIsBefore(ledgerVersion, ProtocolVersion::V_21)
-            ? static_cast<uint32_t>(ContractCostType::ChaCha20DrawBytes) + 1
-            : xdr::xdr_traits<ContractCostType>::enum_values().size();
-    if (params.size() != numberOfCostTypes)
+    auto getNumCostTypes = [](uint32_t ledgerVersion) -> uint32_t {
+        if (protocolVersionIsBefore(ledgerVersion, ProtocolVersion::V_21))
+        {
+            return static_cast<uint32_t>(ContractCostType::ChaCha20DrawBytes) +
+                   1;
+        }
+        else if (protocolVersionIsBefore(ledgerVersion, ProtocolVersion::V_22))
+        {
+            return static_cast<uint32_t>(
+                       ContractCostType::VerifyEcdsaSecp256r1Sig) +
+                   1;
+        }
+        else
+        {
+            return static_cast<uint32_t>(ContractCostType::Bls12381FrInv) + 1;
+        }
+    };
+
+    if (params.size() != getNumCostTypes(ledgerVersion))
     {
         return false;
     }
