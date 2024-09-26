@@ -682,6 +682,10 @@ class Config : public std::enable_shared_from_this<Config>
     // Should only be used for testing.
     bool MODE_USES_IN_MEMORY_LEDGER;
 
+    // When set, any CONTRACT_DATA entry with the key "miss" will act as if an
+    // archival filter miss has ocurred.
+    bool ARTIFICIALLY_SIMULATE_ARCHIVE_FILTER_MISS{false};
+
     // Set QUORUM_SET using automatic quorum set configuration based on
     // `validators`.
     void

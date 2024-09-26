@@ -302,7 +302,8 @@ TransactionTestFramePtr sorobanTransactionFrameFromOps(
     std::vector<Operation> const& ops, std::vector<SecretKey> const& opKeys,
     SorobanResources const& resources, uint32_t inclusionFee,
     int64_t resourceFee, std::optional<std::string> memo = std::nullopt,
-    std::optional<SequenceNumber> seq = std::nullopt);
+    std::optional<SequenceNumber> seq = std::nullopt,
+    std::optional<xdr::xvector<ArchivalProof>> proofs = std::nullopt);
 TransactionTestFramePtr sorobanTransactionFrameFromOpsWithTotalFee(
     Hash const& networkID, TestAccount& source,
     std::vector<Operation> const& ops, std::vector<SecretKey> const& opKeys,

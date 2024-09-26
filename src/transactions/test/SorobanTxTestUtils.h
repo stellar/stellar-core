@@ -178,6 +178,7 @@ class TestContract
         std::optional<InvokeHostFunctionResultCode> mResultCode;
         int64_t mFeeCharged = 0;
         std::optional<TransactionMetaFrame> mTxMeta;
+        std::optional<xdr::xvector<ArchivalProof>> mProofs;
         bool mDeduplicateFootprint = false;
 
         void deduplicateFootprint();
@@ -204,6 +205,8 @@ class TestContract
         Invocation& withDeduplicatedFootprint();
 
         Invocation& withSpec(SorobanInvocationSpec const& spec);
+
+        Invocation& withProofs(xdr::xvector<ArchivalProof> const& proofs);
 
         SorobanInvocationSpec getSpec();
 

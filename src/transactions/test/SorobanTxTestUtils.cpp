@@ -393,16 +393,16 @@ makeSorobanCreateContractTx(Application& app, TestAccount& source,
 }
 
 TransactionFrameBaseConstPtr
-sorobanTransactionFrameFromOps(Hash const& networkID, TestAccount& source,
-                               std::vector<Operation> const& ops,
-                               std::vector<SecretKey> const& opKeys,
-                               SorobanInvocationSpec const& spec,
-                               std::optional<std::string> memo,
-                               std::optional<SequenceNumber> seq)
+sorobanTransactionFrameFromOps(
+    Hash const& networkID, TestAccount& source,
+    std::vector<Operation> const& ops, std::vector<SecretKey> const& opKeys,
+    SorobanInvocationSpec const& spec, std::optional<std::string> memo,
+    std::optional<SequenceNumber> seq,
+    std::optional<xdr::xvector<ArchivalProof>> proofs)
 {
     return sorobanTransactionFrameFromOps(
         networkID, source, ops, opKeys, spec.getResources(),
-        spec.getInclusionFee(), spec.getResourceFee());
+        spec.getInclusionFee(), spec.getResourceFee(), memo, seq, proofs);
 }
 
 SorobanInvocationSpec::SorobanInvocationSpec(SorobanResources const& resources,
@@ -675,6 +675,13 @@ TestContract::Invocation::withSpec(SorobanInvocationSpec const& spec)
     return *this;
 }
 
+TestContract::Invocation&
+TestContract::Invocation::withProofs(xdr::xvector<ArchivalProof> const& proofs)
+{
+    mProofs = proofs;
+    return *this;
+}
+
 SorobanInvocationSpec
 TestContract::Invocation::getSpec()
 {
@@ -691,7 +698,7 @@ TestContract::Invocation::createTx(TestAccount* source)
     auto& acc = source ? *source : mTest.getRoot();
 
     return sorobanTransactionFrameFromOps(mTest.getApp().getNetworkID(), acc,
-                                          {mOp}, {}, mSpec);
+                                          {mOp}, {}, mSpec, {}, {}, mProofs);
 }
 
 TestContract::Invocation&
@@ -702,9 +709,9 @@ TestContract::Invocation::withExactNonRefundableResourceFee()
     // enable tests that rely on the exact refundable fee value.
     // Note, that we don't use the root account here in order to not mess up
     // the sequence numbers.
-    auto dummyTx = sorobanTransactionFrameFromOps(mTest.getApp().getNetworkID(),
-                                                  mTest.getDummyAccount(),
-                                                  {mOp}, {}, mSpec);
+    auto dummyTx = sorobanTransactionFrameFromOps(
+        mTest.getApp().getNetworkID(), mTest.getDummyAccount(), {mOp}, {},
+        mSpec, {}, {}, mProofs);
     auto txSize = xdr::xdr_size(dummyTx->getEnvelope());
     auto fee =
         sorobanResourceFee(mTest.getApp(), mSpec.getResources(), txSize, 0);

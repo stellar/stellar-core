@@ -13,6 +13,7 @@
 #include <medida/metrics_registry.h>
 #include <xdrpp/types.h>
 #include "xdr/Stellar-contract.h"
+#include "util/ArchivalProofs.h"
 #include "rust/RustVecXdrMarshal.h"
 // clang-format on
 
@@ -343,9 +344,9 @@ InvokeHostFunctionOpFrame::doApply(
     ledgerEntryCxxBufs.reserve(footprintLength);
     ttlEntryCxxBufs.reserve(footprintLength);
 
-    auto addReads = [&ledgerEntryCxxBufs, &ttlEntryCxxBufs, &ltx, &metrics,
-                     &resources, &sorobanConfig, &appConfig, sorobanData, &res,
-                     &bm, this](auto const& keys) -> bool {
+    auto addReads = [&app, &ledgerEntryCxxBufs, &ttlEntryCxxBufs, &ltx,
+                     &metrics, &resources, &sorobanConfig, &appConfig,
+                     sorobanData, &res, &bm, this](auto const& keys) -> bool {
         for (auto const& lk : keys)
         {
             uint32_t keySize = static_cast<uint32_t>(xdr::xdr_size(lk));
@@ -400,6 +401,8 @@ InvokeHostFunctionOpFrame::doApply(
                 }
                 // If ttlLtxe doesn't exist, this is a new Soroban entry
 #ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
+
+                // First check Hot Archive
                 if (isPersistentEntry(lk) &&
                     protocolVersionStartsFrom(
                         ltx.getHeader().ledgerVersion,
@@ -435,7 +438,20 @@ InvokeHostFunctionOpFrame::doApply(
                         return false;
                     }
 
-                    // TODO: Proof enforcement here
+                    if (!checkCreationProof(app, lk, mParentTx.sorobanProofs()))
+                    {
+                        sorobanData->pushApplyTimeDiagnosticError(
+                            appConfig, SCE_VALUE, SCEC_INVALID_INPUT,
+                            "invalid creation proof for new contract data "
+                            "entry",
+                            {makeAddressSCVal(lk.contractData().contract),
+                             lk.contractData().key});
+
+                        // TODO: Switch to new code once Rust XDR is updated
+                        this->innerResult(res).code(
+                            INVOKE_HOST_FUNCTION_ENTRY_ARCHIVED);
+                        return false;
+                    }
                 }
 #endif
             }

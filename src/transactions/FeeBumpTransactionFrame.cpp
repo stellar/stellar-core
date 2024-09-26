@@ -54,6 +54,12 @@ FeeBumpTransactionFrame::sorobanResources() const
     return mInnerTx->sorobanResources();
 }
 
+xdr::xvector<ArchivalProof> const&
+FeeBumpTransactionFrame::sorobanProofs() const
+{
+    return mInnerTx->sorobanProofs();
+}
+
 FeeBumpTransactionFrame::FeeBumpTransactionFrame(
     Hash const& networkID, TransactionEnvelope const& envelope)
     : mEnvelope(envelope)

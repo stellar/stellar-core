@@ -111,9 +111,9 @@ RestoreFootprintOpFrame::doApply(
                     hotArchiveEntry = hotArchive->load(lk);
                     if (!hotArchiveEntry)
                     {
-                        // TODO: No proof error code with diagnostic event
-                        innerResult(res).code(
-                            RESTORE_FOOTPRINT_RESOURCE_LIMIT_EXCEEDED);
+                        // if (!valid proof provided)
+                        // TODO: diagnostic event
+                        innerResult(res).code(RESTORE_FOOTPRINT_INVALID_PROOF);
                         return false;
                     }
                 }

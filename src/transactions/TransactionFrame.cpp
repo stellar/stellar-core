@@ -401,6 +401,15 @@ TransactionFrame::sorobanResources() const
     return mEnvelope.v1().tx.ext.sorobanData().resources;
 }
 
+#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
+xdr::xvector<ArchivalProof> const&
+TransactionFrame::sorobanProofs() const
+{
+    releaseAssertOrThrow(isSoroban());
+    return mEnvelope.v1().tx.ext.sorobanData().ext.proofs();
+}
+#endif
+
 MutableTxResultPtr
 TransactionFrame::createSuccessResultWithFeeCharged(
     LedgerHeader const& header, std::optional<int64_t> baseFee,

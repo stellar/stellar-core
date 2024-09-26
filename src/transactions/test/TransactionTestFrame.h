@@ -140,5 +140,9 @@ class TransactionTestFrame : public TransactionFrameBase
     {
         return true;
     }
+
+#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
+    xdr::xvector<ArchivalProof> const& sorobanProofs() const override;
+#endif
 };
 }

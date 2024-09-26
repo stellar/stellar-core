@@ -2992,6 +2992,37 @@ TEST_CASE("evicted persistent entries")
     REQUIRE(!hotArchive->load(lk));
 }
 
+TEST_CASE("persistent entry archival filters")
+{
+    auto cfg = getTestConfig();
+    cfg.ARTIFICIALLY_SIMULATE_ARCHIVE_FILTER_MISS = true;
+
+    SorobanTest test(cfg);
+    ContractStorageTestClient client(test);
+
+    auto writeInvocation = client.getContract().prepareInvocation(
+        "put_persistent", {makeSymbolSCVal("miss"), makeU64SCVal(123)},
+        client.writeKeySpec("miss", ContractDataDurability::PERSISTENT));
+
+    // Invocation should fail when no proof is provided
+    REQUIRE(!writeInvocation.withExactNonRefundableResourceFee().invoke());
+
+    // TODO: Replace with proper error code once Rust XDR has been generated
+    REQUIRE(*writeInvocation.getResultCode() ==
+            INVOKE_HOST_FUNCTION_ENTRY_ARCHIVED);
+
+    xdr::xvector<ArchivalProof> proofs;
+    addCreationProof(
+        test.getApp(),
+        client.getContract().getDataKey(makeSymbolSCVal("miss"),
+                                        ContractDataDurability::PERSISTENT),
+        proofs);
+
+    REQUIRE(writeInvocation.withProofs(proofs)
+                .withExactNonRefundableResourceFee()
+                .invoke());
+}
+
 #endif
 
 /*
