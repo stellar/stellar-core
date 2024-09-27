@@ -438,7 +438,7 @@ InvokeHostFunctionOpFrame::doApply(
                         return false;
                     }
 
-                    if (!checkCreationProof(app, lk, mParentTx.sorobanProofs()))
+                    if (!isCreatedKeyProven(app, lk, mParentTx.sorobanProofs()))
                     {
                         sorobanData->pushApplyTimeDiagnosticError(
                             appConfig, SCE_VALUE, SCEC_INVALID_INPUT,
@@ -775,6 +775,22 @@ InvokeHostFunctionOpFrame::doCheckValidForSoroban(
             return false;
         }
     }
+
+#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
+    if (protocolVersionStartsFrom(
+            ledgerVersion,
+            Bucket::FIRST_PROTOCOL_SUPPORTING_PERSISTENT_EVICTION))
+    {
+        if (!checkCreationProofValidity(mParentTx.sorobanProofs()))
+        {
+            sorobanData.pushValidationTimeDiagnosticError(
+                appConfig, SCE_VALUE, SCEC_INVALID_INPUT,
+                "invalid creation proof");
+            return false;
+        }
+    }
+#endif
+
     return true;
 }
 

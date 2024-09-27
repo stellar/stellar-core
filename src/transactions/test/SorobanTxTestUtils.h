@@ -304,9 +304,10 @@ class SorobanTest
     createExtendOpTx(SorobanResources const& resources, uint32_t extendTo,
                      uint32_t fee, int64_t refundableFee,
                      TestAccount* source = nullptr);
-    TransactionFrameBaseConstPtr
-    createRestoreTx(SorobanResources const& resources, uint32_t fee,
-                    int64_t refundableFee, TestAccount* source = nullptr);
+    TransactionFrameBaseConstPtr createRestoreTx(
+        SorobanResources const& resources, uint32_t fee, int64_t refundableFee,
+        TestAccount* source = nullptr,
+        std::optional<xdr::xvector<ArchivalProof>> proofs = std::nullopt);
 
     bool isTxValid(TransactionFrameBaseConstPtr tx);
 
@@ -316,8 +317,10 @@ class SorobanTest
     uint32_t getTTL(LedgerKey const& k);
     bool isEntryLive(LedgerKey const& k, uint32_t ledgerSeq);
 
-    void invokeRestoreOp(xdr::xvector<LedgerKey> const& readWrite,
-                         int64_t expectedRefundableFeeCharged);
+    void invokeRestoreOp(
+        xdr::xvector<LedgerKey> const& readWrite,
+        int64_t expectedRefundableFeeCharged,
+        std::optional<xdr::xvector<ArchivalProof>> proofs = std::nullopt);
     void invokeExtendOp(
         xdr::xvector<LedgerKey> const& readOnly, uint32_t extendTo,
         std::optional<int64_t> expectedRefundableFeeCharged = std::nullopt);

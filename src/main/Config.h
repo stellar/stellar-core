@@ -686,6 +686,11 @@ class Config : public std::enable_shared_from_this<Config>
     // archival filter miss has ocurred.
     bool ARTIFICIALLY_SIMULATE_ARCHIVE_FILTER_MISS{false};
 
+    // When set, persistent entries require proofs immediately after eviction.
+    // Note that proofs are still not required if an entry is just expired but
+    // not yet evicted
+    bool REQUIRE_PROOFS_FOR_ALL_EVICTED_ENTRIES{false};
+
     // Set QUORUM_SET using automatic quorum set configuration based on
     // `validators`.
     void

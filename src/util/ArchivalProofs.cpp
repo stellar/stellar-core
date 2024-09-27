@@ -3,16 +3,64 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "util/ArchivalProofs.h"
+#include "bucket/BucketListSnapshot.h"
+#include "bucket/BucketManager.h"
+#include "ledger/LedgerTypeUtils.h"
 #include "main/Application.h"
 #include "main/Config.h"
 #include "util/GlobalChecks.h"
+#include "util/UnorderedSet.h"
 #include "xdr/Stellar-ledger-entries.h"
 #include "xdr/Stellar-transaction.h"
 
 namespace stellar
 {
+
 bool
-checkCreationProof(Application& app, LedgerKey const& lk,
+checkCreationProofValidity(xdr::xvector<ArchivalProof> const& proofs)
+{
+    if (proofs.size() > 1)
+    {
+        return false;
+    }
+    else if (proofs.empty())
+    {
+        return true;
+    }
+
+    auto const& proof = proofs[0];
+    if (proof.body.t() != NONEXISTENCE)
+    {
+        return false;
+    }
+
+    auto numProvenKeys = proof.body.nonexistenceProof().keysToProve.size();
+    if (numProvenKeys == 0)
+    {
+        return false;
+    }
+
+    // Require unique keys
+    UnorderedSet<LedgerKey> keys(numProvenKeys);
+    for (auto const& key : proof.body.nonexistenceProof().keysToProve)
+    {
+        if (key.type() != CONTRACT_DATA ||
+            key.contractData().durability != PERSISTENT)
+        {
+            return false;
+        }
+
+        if (!keys.insert(key).second)
+        {
+            return false;
+        }
+    }
+
+    return true;
+}
+
+bool
+isCreatedKeyProven(Application& app, LedgerKey const& lk,
                    xdr::xvector<ArchivalProof> const& proofs)
 {
     // Only persistent contract data entries need creation proofs
@@ -31,14 +79,10 @@ checkCreationProof(Application& app, LedgerKey const& lk,
                     return false;
                 }
 
-                auto const& proof = proofs[0];
-                if (proof.body.t() != NONEXISTENCE)
-                {
-                    return false;
-                }
-
+                releaseAssert(proofs.size() == 1);
+                releaseAssert(proofs[0].body.t() == NONEXISTENCE);
                 for (auto const& key :
-                     proof.body.nonexistenceProof().keysToProve)
+                     proofs[0].body.nonexistenceProof().keysToProve)
                 {
                     if (key == lk)
                     {
@@ -93,6 +137,152 @@ addCreationProof(Application& app, LedgerKey const& lk,
     auto& nonexistenceProof = proofs.back();
     nonexistenceProof.body.t(NONEXISTENCE);
     nonexistenceProof.body.nonexistenceProof().keysToProve.push_back(lk);
+#endif
+
+    return true;
+}
+
+bool
+checkRestorationProofValidity(xdr::xvector<ArchivalProof> const& proofs)
+{
+    if (proofs.size() > 1)
+    {
+        return false;
+    }
+    else if (proofs.empty())
+    {
+        return true;
+    }
+
+    auto const& proof = proofs[0];
+    if (proof.body.t() != EXISTENCE)
+    {
+        return false;
+    }
+
+    auto numProvenEntries = proof.body.existenceProof().entriesToProve.size();
+    if (numProvenEntries == 0)
+    {
+        return false;
+    }
+
+    // Require unique keys
+    UnorderedSet<LedgerKey> keys(numProvenEntries);
+    for (auto const& be : proof.body.existenceProof().entriesToProve)
+    {
+        // All entries proven must be Archived BucketEntries
+        if (be.type() != COLD_ARCHIVE_ARCHIVED_LEAF)
+        {
+            return false;
+        }
+
+        auto key = LedgerEntryKey(be.archivedLeaf().archivedEntry);
+        if (!isPersistentEntry(key))
+        {
+            return false;
+        }
+
+        if (!keys.insert(key).second)
+        {
+            return false;
+        }
+    }
+
+    return true;
+}
+
+std::shared_ptr<LedgerEntry>
+getRestoredEntryFromProof(Application& app, LedgerKey const& lk,
+                          xdr::xvector<ArchivalProof> const& proofs)
+{
+    releaseAssertOrThrow(isPersistentEntry(lk));
+    auto hotArchive =
+        app.getBucketManager().getSearchableHotArchiveBucketListSnapshot();
+    auto entry = hotArchive->load(lk);
+#ifdef BUILD_TESTS
+    if (app.getConfig().REQUIRE_PROOFS_FOR_ALL_EVICTED_ENTRIES)
+    {
+        if (proofs.size() != 1)
+        {
+            return nullptr;
+        }
+
+        // Should have been checked already by checkRestorationProofValidity
+        releaseAssertOrThrow(proofs[0].body.t() == EXISTENCE);
+        for (auto const& be : proofs[0].body.existenceProof().entriesToProve)
+        {
+            if (LedgerEntryKey(be.archivedLeaf().archivedEntry) == lk)
+            {
+                if (entry &&
+                    entry->archivedEntry() == be.archivedLeaf().archivedEntry)
+                {
+                    return std::make_shared<LedgerEntry>(
+                        entry->archivedEntry());
+                }
+
+                return nullptr;
+            }
+        }
+
+        return nullptr;
+    }
+#endif
+
+    if (entry &&
+        entry->type() == HotArchiveBucketEntryType::HOT_ARCHIVE_ARCHIVED)
+    {
+        return std::make_shared<LedgerEntry>(entry->archivedEntry());
+    }
+
+    return nullptr;
+}
+
+bool
+addRestorationProof(Application& app, LedgerKey const& lk,
+                    xdr::xvector<ArchivalProof>& proofs)
+{
+#ifdef BUILD_TESTS
+    // For now only support proof generation for testing
+    releaseAssertOrThrow(
+        app.getConfig().REQUIRE_PROOFS_FOR_ALL_EVICTED_ENTRIES);
+    releaseAssertOrThrow(isPersistentEntry(lk));
+
+    auto hotBL =
+        app.getBucketManager().getSearchableHotArchiveBucketListSnapshot();
+    auto entry = hotBL->load(lk);
+    if (!entry ||
+        entry->type() != HotArchiveBucketEntryType::HOT_ARCHIVE_ARCHIVED)
+    {
+        return false;
+    }
+
+    ColdArchiveBucketEntry be;
+    be.type(COLD_ARCHIVE_ARCHIVED_LEAF);
+    be.archivedLeaf().archivedEntry = entry->archivedEntry();
+
+    for (auto& proof : proofs)
+    {
+        if (proof.body.t() == EXISTENCE)
+        {
+            for (auto const& be : proof.body.existenceProof().entriesToProve)
+            {
+                if (LedgerEntryKey(be.archivedLeaf().archivedEntry) == lk)
+                {
+                    // Proof already exists
+                    return true;
+                }
+            }
+
+            proof.body.existenceProof().entriesToProve.push_back(be);
+            return true;
+        }
+    }
+
+    proofs.emplace_back();
+    auto& existenceProof = proofs.back();
+    existenceProof.body.t(EXISTENCE);
+    existenceProof.body.existenceProof().entriesToProve.push_back(be);
+
 #endif
 
     return true;

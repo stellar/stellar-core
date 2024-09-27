@@ -1095,13 +1095,15 @@ SorobanTest::createExtendOpTx(SorobanResources const& resources,
 
 TransactionFrameBaseConstPtr
 SorobanTest::createRestoreTx(SorobanResources const& resources, uint32_t fee,
-                             int64_t refundableFee, TestAccount* source)
+                             int64_t refundableFee, TestAccount* source,
+                             std::optional<xdr::xvector<ArchivalProof>> proofs)
 {
     Operation op;
     op.body.type(RESTORE_FOOTPRINT);
     auto& acc = source ? *source : getRoot();
     return sorobanTransactionFrameFromOps(getApp().getNetworkID(), acc, {op},
-                                          {}, resources, fee, refundableFee);
+                                          {}, resources, fee, refundableFee, {},
+                                          {}, proofs);
 }
 
 bool
@@ -1158,7 +1160,8 @@ SorobanTest::isEntryLive(LedgerKey const& k, uint32_t ledgerSeq)
 
 void
 SorobanTest::invokeRestoreOp(xdr::xvector<LedgerKey> const& readWrite,
-                             int64_t expectedRefundableFeeCharged)
+                             int64_t expectedRefundableFeeCharged,
+                             std::optional<xdr::xvector<ArchivalProof>> proofs)
 {
     SorobanResources resources;
     resources.footprint.readWrite = readWrite;
@@ -1167,7 +1170,7 @@ SorobanTest::invokeRestoreOp(xdr::xvector<LedgerKey> const& readWrite,
     resources.writeBytes = 10'000;
 
     auto resourceFee = 300'000 + 40'000 * readWrite.size();
-    auto tx = createRestoreTx(resources, 1'000, resourceFee);
+    auto tx = createRestoreTx(resources, 1'000, resourceFee, nullptr, proofs);
     invokeArchivalOp(tx, expectedRefundableFeeCharged);
 }
 
