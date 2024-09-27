@@ -8,12 +8,6 @@ include $(srcdir)/src.mk
 
 noinst_HEADERS = $(SRC_H_FILES)
 
-if BUILD_TESTS
-stellar_core_SOURCES = main/StellarCoreVersion.cpp main/XDRFilesSha256.cpp $(SRC_CXX_FILES) $(SRC_TEST_CXX_FILES)
-else # !BUILD_TESTS
-stellar_core_SOURCES = main/StellarCoreVersion.cpp main/XDRFilesSha256.cpp $(SRC_CXX_FILES)
-endif # !BUILD_TESTS
-
 if USE_TRACY
 CARGO_FEATURE_TRACY = --features tracy
 else
@@ -187,13 +181,13 @@ $(SOROBAN_LIBS_STAMP): $(wildcard rust/soroban/p*/Cargo.lock) Makefile $(RUST_DE
 		FEATURE_FLAGS="" ; \
 		case "$$proto" in \
 			p21) \
-				FEATURE_FLAGS="$(CARGO_FEATURE_TESTUTILS)" \
+				FEATURE_FLAGS="" \
 			;; \
 			$(SOROBAN_MAX_PROTOCOL)) \
-				FEATURE_FLAGS="$(CARGO_FEATURE_TRACY) $(CARGO_FEATURE_NEXT) $(CARGO_FEATURE_TESTUTILS)" \
+				FEATURE_FLAGS="$(CARGO_FEATURE_TRACY) $(CARGO_FEATURE_NEXT)" \
 			;; \
 			*) \
-				FEATURE_FLAGS="$(CARGO_FEATURE_TRACY) $(CARGO_FEATURE_TESTUTILS)" \
+				FEATURE_FLAGS="$(CARGO_FEATURE_TRACY)" \
 			;; \
 		esac ; \
 		cd $(abspath $(RUST_BUILD_DIR))/soroban/$$proto && \
@@ -226,7 +220,7 @@ $(LIBRUST_STELLAR_CORE): $(RUST_HOST_DEPFILES) $(SRC_RUST_FILES) Makefile $(SORO
 		--$(RUST_PROFILE) \
 		--locked \
 		--target-dir $(abspath $(RUST_TARGET_DIR)) \
-		$(CARGO_FEATURE_TRACY) $(CARGO_FEATURE_NEXT) \
+		$(CARGO_FEATURE_TRACY) $(CARGO_FEATURE_NEXT) $(CARGO_FEATURE_TESTUTILS) \
 		-- \
 		$(ALL_SOROBAN_EXTERN_ARGS) \
 		$(ALL_SOROBAN_DEPEND_ARGS)

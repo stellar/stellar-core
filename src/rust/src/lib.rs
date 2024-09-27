@@ -513,9 +513,9 @@ use log::partition::TX;
 
 // We have multiple copies of soroban linked into stellar-core here. This is
 // accomplished using an adaptor module -- contract.rs -- mounted multiple times
-// into the same outer crate, inside different modules soroban_p21, soroban_p22,
-// etc. each with its own local binding for the external crate soroban_env_host.
-// The contract.rs module imports soroban_env_host from `super` which means each
+// into the same outer crate, inside different modules p21, p22, etc. each with
+// its own local binding for the external crate soroban_env_host. The
+// contract.rs module imports soroban_env_host from `super` which means each
 // instance of it sees a different soroban. This is a bit of a hack and only
 // works when the soroban versions all have a compatible _enough_ interface to
 // all be called from "the same" contract.rs.
@@ -774,6 +774,7 @@ mod test_extra_protocol {
 
     use super::*;
     use std::hash::Hasher;
+    use std::str::FromStr;
 
     pub(super) fn maybe_invoke_host_function_again_and_compare_outputs(
         res1: &Result<InvokeHostFunctionOutput, Box<dyn std::error::Error>>,
@@ -845,9 +846,7 @@ mod test_extra_protocol {
     ) -> Result<(), Box<dyn std::error::Error>> {
         match new_protocol {
             22 => {
-                use soroban_p22::contract::{
-                    inplace_modify_cxxbuf_encoded_type, xdr::SorobanResources,
-                };
+                use p22::contract::{inplace_modify_cxxbuf_encoded_type, xdr::SorobanResources};
                 if let Ok(extra) = std::env::var("SOROBAN_TEST_CPU_BUDGET_FACTOR") {
                     if let Ok(factor) = u32::from_str(&extra) {
                         inplace_modify_cxxbuf_encoded_type::<SorobanResources>(
@@ -884,7 +883,7 @@ mod test_extra_protocol {
 
         match new_protocol {
             22 => {
-                use soroban_p22::contract::{
+                use p22::contract::{
                     inplace_modify_cxxbuf_encoded_type, xdr::ContractCostParams,
                     xdr::ContractCostType as CT,
                 };
