@@ -181,13 +181,13 @@ $(SOROBAN_LIBS_STAMP): $(wildcard rust/soroban/p*/Cargo.lock) Makefile $(RUST_DE
 		FEATURE_FLAGS="" ; \
 		case "$$proto" in \
 			p21) \
-				FEATURE_FLAGS="$(CARGO_FEATURE_TESTUTILS)" \
+				FEATURE_FLAGS="" \
 			;; \
 			$(SOROBAN_MAX_PROTOCOL)) \
-				FEATURE_FLAGS="$(CARGO_FEATURE_TRACY) $(CARGO_FEATURE_NEXT) $(CARGO_FEATURE_TESTUTILS)" \
+				FEATURE_FLAGS="$(CARGO_FEATURE_TRACY) $(CARGO_FEATURE_NEXT)" \
 			;; \
 			*) \
-				FEATURE_FLAGS="$(CARGO_FEATURE_TRACY) $(CARGO_FEATURE_TESTUTILS)" \
+				FEATURE_FLAGS="$(CARGO_FEATURE_TRACY)" \
 			;; \
 		esac ; \
 		cd $(abspath $(RUST_BUILD_DIR))/soroban/$$proto && \
