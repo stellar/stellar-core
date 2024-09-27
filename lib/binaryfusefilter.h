@@ -73,6 +73,7 @@ binary_fuse_mulhi(uint64_t a, uint64_t b)
     return ((__uint128_t)a * b) >> 64;
 }
 #elif defined(_M_X64) || defined(_MARM64) // MSVC
+#include <intrin.h>
 static inline uint64_t
 binary_fuse_mulhi(uint64_t a, uint64_t b)
 {

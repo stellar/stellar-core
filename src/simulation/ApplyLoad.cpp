@@ -1,4 +1,7 @@
 #include "simulation/ApplyLoad.h"
+
+#include <numeric>
+
 #include "herder/Herder.h"
 #include "ledger/LedgerManager.h"
 #include "test/TxTests.h"

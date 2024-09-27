@@ -124,7 +124,7 @@
       <WarningLevel>Level4</WarningLevel>
       <Optimization>Disabled</Optimization>
       <SDLCheck>true</SDLCheck>
-      <PreprocessorDefinitions>CEREAL_THREAD_SAFE;USE_POSTGRES;ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION=1;USE_SPDLOG;FMT_HEADER_ONLY=1;BUILD_TESTS;WIN32_LEAN_AND_MEAN;NOMINMAX;ASIO_STANDALONE;_WINSOCK_DEPRECATED_NO_WARNINGS;SODIUM_STATIC;ASIO_SEPARATE_COMPILATION;ASIO_ERROR_CATEGORY_NOEXCEPT=noexcept;TRACY_ENABLE;TRACY_ON_DEMAND;TRACY_NO_BROADCAST;TRACY_ONLY_LOCALHOST;TRACY_DELAYED_INIT;TRACY_MANUAL_LIFETIME;USE_TRACY;_CRT_SECURE_NO_WARNINGS;_WIN32_WINNT=0x0601;WIN32;_MBCS;_CRT_NONSTDC_NO_DEPRECATE;YY_NO_UNISTD_H;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>CEREAL_THREAD_SAFE;USE_POSTGRES;ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION=1;USE_SPDLOG;FMT_HEADER_ONLY=1;BUILD_TESTS;WIN32_LEAN_AND_MEAN;NOMINMAX;ASIO_STANDALONE;_WINSOCK_DEPRECATED_NO_WARNINGS;SODIUM_STATIC;ASIO_SEPARATE_COMPILATION;ASIO_ERROR_CATEGORY_NOEXCEPT=noexcept;_CRT_SECURE_NO_WARNINGS;_WIN32_WINNT=0x0601;WIN32;_MBCS;_CRT_NONSTDC_NO_DEPRECATE;YY_NO_UNISTD_H;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <AdditionalIncludeDirectories>src;../../src;../../lib;../../lib/tracy/public/tracy;../../lib/spdlog/include;../../lib/libmedida/src;../../lib/soci/src/core;../../lib/autocheck/include;../../lib/cereal/include;../../lib/asio/asio/include;../../lib/xdrpp;../../lib/libsodium/src/libsodium/include;../../lib/fmt/include;../../lib/util;../..;src/$(Configuration)/generated;../../lib/sqlite;c:\Program Files\PostgreSQL\15\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <MultiProcessorCompilation>true</MultiProcessorCompilation>
       <MinimalRebuild>false</MinimalRebuild>
@@ -189,7 +189,7 @@ exit /b 0
       <WarningLevel>Level4</WarningLevel>
       <Optimization>Disabled</Optimization>
       <SDLCheck>true</SDLCheck>
-      <PreprocessorDefinitions>CEREAL_THREAD_SAFE;USE_POSTGRES;USE_SPDLOG;FMT_HEADER_ONLY=1;BUILD_TESTS;WIN32_LEAN_AND_MEAN;NOMINMAX;ASIO_STANDALONE;_WINSOCK_DEPRECATED_NO_WARNINGS;SODIUM_STATIC;ASIO_SEPARATE_COMPILATION;ASIO_ERROR_CATEGORY_NOEXCEPT=noexcept;TRACY_ENABLE;TRACY_ON_DEMAND;TRACY_NO_BROADCAST;TRACY_ONLY_LOCALHOST;TRACY_DELAYED_INIT;TRACY_MANUAL_LIFETIME;USE_TRACY;_CRT_SECURE_NO_WARNINGS;_WIN32_WINNT=0x0601;WIN32;_MBCS;_CRT_NONSTDC_NO_DEPRECATE;YY_NO_UNISTD_H;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>CEREAL_THREAD_SAFE;USE_POSTGRES;USE_SPDLOG;FMT_HEADER_ONLY=1;BUILD_TESTS;WIN32_LEAN_AND_MEAN;NOMINMAX;ASIO_STANDALONE;_WINSOCK_DEPRECATED_NO_WARNINGS;SODIUM_STATIC;ASIO_SEPARATE_COMPILATION;ASIO_ERROR_CATEGORY_NOEXCEPT=noexcept;_CRT_SECURE_NO_WARNINGS;_WIN32_WINNT=0x0601;WIN32;_MBCS;_CRT_NONSTDC_NO_DEPRECATE;YY_NO_UNISTD_H;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <AdditionalIncludeDirectories>src;../../src;../../lib;../../lib/tracy/public/tracy;../../lib/spdlog/include;../../lib/libmedida/src;../../lib/soci/src/core;../../lib/autocheck/include;../../lib/cereal/include;../../lib/asio/asio/include;../../lib/xdrpp;../../lib/libsodium/src/libsodium/include;../../lib/fmt/include;../../lib/util;../..;src/$(Configuration)/generated;../../lib/sqlite;c:\Program Files\PostgreSQL\15\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <MultiProcessorCompilation>true</MultiProcessorCompilation>
       <MinimalRebuild>false</MinimalRebuild>
@@ -255,7 +255,7 @@ exit /b 0
       <WarningLevel>Level4</WarningLevel>
       <Optimization>Disabled</Optimization>
       <SDLCheck>true</SDLCheck>
-      <PreprocessorDefinitions>CEREAL_THREAD_SAFE;ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION=1;USE_SPDLOG;FMT_HEADER_ONLY=1;BUILD_TESTS;WIN32_LEAN_AND_MEAN;NOMINMAX;ASIO_STANDALONE;_WINSOCK_DEPRECATED_NO_WARNINGS;SODIUM_STATIC;ASIO_SEPARATE_COMPILATION;ASIO_ERROR_CATEGORY_NOEXCEPT=noexcept;TRACY_ENABLE;TRACY_ON_DEMAND;TRACY_NO_BROADCAST;TRACY_ONLY_LOCALHOST;TRACY_DELAYED_INIT;TRACY_MANUAL_LIFETIME;USE_TRACY;_CRT_SECURE_NO_WARNINGS;_WIN32_WINNT=0x0601;WIN32;_MBCS;_CRT_NONSTDC_NO_DEPRECATE;YY_NO_UNISTD_H;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>CEREAL_THREAD_SAFE;ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION=1;USE_SPDLOG;FMT_HEADER_ONLY=1;BUILD_TESTS;WIN32_LEAN_AND_MEAN;NOMINMAX;ASIO_STANDALONE;_WINSOCK_DEPRECATED_NO_WARNINGS;SODIUM_STATIC;ASIO_SEPARATE_COMPILATION;ASIO_ERROR_CATEGORY_NOEXCEPT=noexcept;_CRT_SECURE_NO_WARNINGS;_WIN32_WINNT=0x0601;WIN32;_MBCS;_CRT_NONSTDC_NO_DEPRECATE;YY_NO_UNISTD_H;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <AdditionalIncludeDirectories>src;../../src;../../lib;../../lib/tracy/public/tracy;../../lib/spdlog/include;../../lib/libmedida/src;../../lib/soci/src/core;../../lib/autocheck/include;../../lib/cereal/include;../../lib/asio/asio/include;../../lib/xdrpp;../../lib/libsodium/src/libsodium/include;../../lib/fmt/include;../../lib/util;../..;src/$(Configuration)/generated;../../lib/sqlite;c:\Program Files\PostgreSQL\15\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <MultiProcessorCompilation>true</MultiProcessorCompilation>
       <MinimalRebuild>false</MinimalRebuild>
@@ -343,9 +343,9 @@ exit /b 0
     </Link>
     <PreBuildEvent>
       <Command>
-	      (set CFLAGS=-MDd) &amp; (set CXXFLAGS=-MDd) &amp; cd $(MSBuildProjectDirectory)\..\..\src\rust\soroban\p21 &amp; (set RUSTFLAGS=-Cmetadata=p21) &amp; cargo build --release --package soroban-env-host --locked --target-dir $(OutDir)\rust\soroban-p21-target
-	      (set CFLAGS=-MDd) &amp; (set CXXFLAGS=-MDd) &amp; cd $(MSBuildProjectDirectory)\..\..\src\rust\soroban\p22 &amp; (set RUSTFLAGS=-Cmetadata=p22) &amp; cargo build --release --package soroban-env-host --locked --features tracy --features next --target-dir $(OutDir)\rust\soroban-p22-target
-	      (set CFLAGS=-MDd) &amp; (set CXXFLAGS=-MDd) &amp; cd $(MSBuildProjectDirectory)\..\..\ &amp; cargo rustc --release --package stellar-core --locked --features tracy --features next --target-dir $(OutDir)\rust\target -- --extern soroban_env_host_p21=$(OutDir)\rust\soroban-p21-target\release\libsoroban_env_host.rlib --extern soroban_env_host_p22=$(OutDir)\rust\soroban-p22-target\release\libsoroban_env_host.rlib -L dependency=$(OutDir)\rust\soroban-p21-target\release\deps -L dependency=$(OutDir)\rust\soroban-p22-target\release\deps
+	      cd $(MSBuildProjectDirectory)\..\..\src\rust\soroban\p21 &amp; (set RUSTFLAGS=-Cmetadata=p21) &amp; cargo build --release --package soroban-env-host --locked --target-dir $(OutDir)\rust\soroban-p21-target
+	      cd $(MSBuildProjectDirectory)\..\..\src\rust\soroban\p22 &amp; (set RUSTFLAGS=-Cmetadata=p22) &amp; cargo build --release --package soroban-env-host --locked --features tracy --features next --target-dir $(OutDir)\rust\soroban-p22-target
+	      cd $(MSBuildProjectDirectory)\..\..\ &amp; cargo rustc --release --package stellar-core --locked --features tracy --features next --target-dir $(OutDir)\rust\target -- --extern soroban_env_host_p21=$(OutDir)\rust\soroban-p21-target\release\libsoroban_env_host.rlib --extern soroban_env_host_p22=$(OutDir)\rust\soroban-p22-target\release\libsoroban_env_host.rlib -L dependency=$(OutDir)\rust\soroban-p21-target\release\deps -L dependency=$(OutDir)\rust\soroban-p22-target\release\deps
       </Command>
     </PreBuildEvent>
     <PreBuildEvent>
@@ -408,9 +408,9 @@ exit /b 0
     </Link>
     <PreBuildEvent>
       <Command>
-	      (set CFLAGS=-MDd) &amp; (set CXXFLAGS=-MDd) &amp; cd $(MSBuildProjectDirectory)\..\..\src\rust\soroban\p21 &amp; (set RUSTFLAGS=-Cmetadata=p21) &amp; cargo build --release --package soroban-env-host --locked --target-dir $(OutDir)\rust\soroban-p21-target
-	      (set CFLAGS=-MDd) &amp; (set CXXFLAGS=-MDd) &amp; cd $(MSBuildProjectDirectory)\..\..\src\rust\soroban\p22 &amp; (set RUSTFLAGS=-Cmetadata=p22) &amp; cargo build --release --package soroban-env-host --locked --features tracy --target-dir $(OutDir)\rust\soroban-p22-target
-        (set CFLAGS=-MDd) &amp; (set CXXFLAGS=-MDd) &amp; cd $(MSBuildProjectDirectory)\..\..\ &amp; cargo rustc --release --package stellar-core --locked --features tracy --target-dir $(OutDir)\rust\target -- --extern soroban_env_host_p21=$(OutDir)\rust\soroban-p21-target\release\libsoroban_env_host.rlib --extern soroban_env_host_p22=$(OutDir)\rust\soroban-p22-target\release\libsoroban_env_host.rlib -L dependency=$(OutDir)\rust\soroban-p21-target\release\deps -L dependency=$(OutDir)\rust\soroban-p22-target\release\deps
+	      cd $(MSBuildProjectDirectory)\..\..\src\rust\soroban\p21 &amp; (set RUSTFLAGS=-Cmetadata=p21) &amp; cargo build --release --package soroban-env-host --locked --target-dir $(OutDir)\rust\soroban-p21-target
+	      cd $(MSBuildProjectDirectory)\..\..\src\rust\soroban\p22 &amp; (set RUSTFLAGS=-Cmetadata=p22) &amp; cargo build --release --package soroban-env-host --locked --features tracy --target-dir $(OutDir)\rust\soroban-p22-target
+        cd $(MSBuildProjectDirectory)\..\..\ &amp; cargo rustc --release --package stellar-core --locked --features tracy --target-dir $(OutDir)\rust\target -- --extern soroban_env_host_p21=$(OutDir)\rust\soroban-p21-target\release\libsoroban_env_host.rlib --extern soroban_env_host_p22=$(OutDir)\rust\soroban-p22-target\release\libsoroban_env_host.rlib -L dependency=$(OutDir)\rust\soroban-p21-target\release\deps -L dependency=$(OutDir)\rust\soroban-p22-target\release\deps
       </Command>
     </PreBuildEvent>
     <PreBuildEvent>
@@ -684,6 +684,8 @@ exit /b 0
     <ClCompile Include="..\..\src\overlay\Tracker.cpp" />
     <ClCompile Include="..\..\src\overlay\TxAdverts.cpp" />
     <ClCompile Include="..\..\src\overlay\TxDemandsManager.cpp" />
+    <ClCompile Include="..\..\src\simulation\ApplyLoad.cpp" />
+    <ClCompile Include="..\..\src\simulation\TxGenerator.cpp" />
     <ClCompile Include="..\..\src\test\FuzzerImpl.cpp" />
     <ClCompile Include="..\..\src\transactions\AllowTrustOpFrame.cpp" />
     <ClCompile Include="..\..\src\transactions\BeginSponsoringFutureReservesOpFrame.cpp" />
@@ -1104,6 +1106,8 @@ exit /b 0
     <ClInclude Include="..\..\src\overlay\Tracker.h" />
     <ClInclude Include="..\..\src\overlay\TxAdverts.h" />
     <ClInclude Include="..\..\src\overlay\TxDemandsManager.h" />
+    <ClInclude Include="..\..\src\simulation\ApplyLoad.h" />
+    <ClInclude Include="..\..\src\simulation\TxGenerator.h" />
     <ClInclude Include="..\..\src\test\Fuzzer.h" />
     <ClInclude Include="..\..\src\test\FuzzerImpl.h" />
     <ClInclude Include="..\..\src\transactions\AllowTrustOpFrame.h" />
