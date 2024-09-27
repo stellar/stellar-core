@@ -382,7 +382,7 @@ Most commands return their results in JSON format.
       and dump it as base64 xdr. This can be used along with the `stellar-xdr` command line tool
       to dump the current settings in the same format as the JSON file we use for upgrades. This
       is helpful if you want to make settings changes off of the current settings.
-      Ex. `curl -s "127.0.0.1:11626/sorobaninfo?format=upgrade_xdr" | stellar-xdr decode --type ConfigUpgradeSet`
+      Ex. `curl -s "127.0.0.1:11626/sorobaninfo?format=upgrade_xdr" | stellar-xdr decode --type ConfigUpgradeSet --output json-formatted`
 
 * **dumpproposedsettings**
   `dumpproposedsettings?blob=Base64`<br>

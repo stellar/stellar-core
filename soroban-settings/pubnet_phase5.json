@@ -1,0 +1,363 @@
+{
+    "updated_entry": [
+        {
+            "contract_max_size_bytes": 131072
+          },
+       {
+          "contract_ledger_cost_v0": {
+            "ledger_max_read_ledger_entries": 200,
+            "ledger_max_read_bytes": 500000,
+            "ledger_max_write_ledger_entries": 125,
+            "ledger_max_write_bytes": 143360,
+            "tx_max_read_ledger_entries": 40,
+            "tx_max_read_bytes": 200000,
+            "tx_max_write_ledger_entries": 25,
+            "tx_max_write_bytes": 132096,
+            "fee_read_ledger_entry": 6250,
+            "fee_write_ledger_entry": 10000,
+            "fee_read1_kb": 1786,
+            "bucket_list_target_size_bytes": 12500000000,
+            "write_fee1_kb_bucket_list_low": 8510,
+            "write_fee1_kb_bucket_list_high": 12116,
+            "bucket_list_write_fee_growth_factor": 5000
+          }
+        },
+        {
+            "contract_bandwidth_v0": {
+              "ledger_max_txs_size_bytes": 133120,
+              "tx_max_size_bytes": 132096,
+              "fee_tx_size1_kb": 1624
+            }
+          },        
+          {
+            "state_archival": {
+                "max_entry_ttl": 3110400,
+                "min_temporary_ttl": 17280,
+                "min_persistent_ttl": 2073600,
+                "persistent_rent_rate_denominator": 2103,
+                "temp_rent_rate_denominator": 4206,
+                "max_entries_to_archive": 1000,
+                "bucket_list_size_window_sample_size": 30,
+                "bucket_list_window_sample_period": 64,
+                "eviction_scan_size": 500000,
+                "starting_eviction_scan_level": 7
+            }
+          }
+    ]
+  }
+
+
+  {
+    "updated_entry": [
+      {
+        "contract_max_size_bytes": 2000
+      },
+      {
+        "contract_compute_v0": {
+          "ledger_max_instructions": 2500000,
+          "tx_max_instructions": 2500000,
+          "fee_rate_per_instructions_increment": 100,
+          "tx_memory_limit": 2000000
+        }
+      },
+      {
+        "contract_ledger_cost_v0": {
+          "ledger_max_read_ledger_entries": 3,
+          "ledger_max_read_bytes": 3200,
+          "ledger_max_write_ledger_entries": 2,
+          "ledger_max_write_bytes": 3200,
+          "tx_max_read_ledger_entries": 3,
+          "tx_max_read_bytes": 3200,
+          "tx_max_write_ledger_entries": 2,
+          "tx_max_write_bytes": 3200,
+          "fee_read_ledger_entry": 5000,
+          "fee_write_ledger_entry": 20000,
+          "fee_read1_kb": 1000,
+          "bucket_list_target_size_bytes": 32212254720,
+          "write_fee1_kb_bucket_list_low": 1000,
+          "write_fee1_kb_bucket_list_high": 10000,
+          "bucket_list_write_fee_growth_factor": 1
+        }
+      },
+      {
+        "contract_historical_data_v0": {
+          "fee_historical1_kb": 100
+        }
+      },
+      {
+        "contract_events_v0": {
+          "tx_max_contract_events_size_bytes": 200,
+          "fee_contract_events1_kb": 200
+        }
+      },
+      {
+        "contract_bandwidth_v0": {
+          "ledger_max_txs_size_bytes": 10000,
+          "tx_max_size_bytes": 10000,
+          "fee_tx_size1_kb": 2000
+        }
+      },
+      {
+        "contract_cost_params_cpu_instructions": [
+          {
+            "ext": "v0",
+            "const_term": 4,
+            "linear_term": 0
+          },
+          {
+            "ext": "v0",
+            "const_term": 434,
+            "linear_term": 16
+          },
+          {
+            "ext": "v0",
+            "const_term": 42,
+            "linear_term": 16
+          },
+          {
+            "ext": "v0",
+            "const_term": 44,
+            "linear_term": 16
+          },
+          {
+            "ext": "v0",
+            "const_term": 310,
+            "linear_term": 0
+          },
+          {
+            "ext": "v0",
+            "const_term": 61,
+            "linear_term": 0
+          },
+          {
+            "ext": "v0",
+            "const_term": 230,
+            "linear_term": 29
+          },
+          {
+            "ext": "v0",
+            "const_term": 59052,
+            "linear_term": 4001
+          },
+          {
+            "ext": "v0",
+            "const_term": 3738,
+            "linear_term": 7012
+          },
+          {
+            "ext": "v0",
+            "const_term": 40253,
+            "linear_term": 0
+          },
+          {
+            "ext": "v0",
+            "const_term": 377524,
+            "linear_term": 4068
+          },
+          {
+            "ext": "v0",
+            "const_term": 451626,
+            "linear_term": 45405
+          },
+          {
+            "ext": "v0",
+            "const_term": 451626,
+            "linear_term": 45405
+          },
+          {
+            "ext": "v0",
+            "const_term": 1948,
+            "linear_term": 0
+          },
+          {
+            "ext": "v0",
+            "const_term": 3766,
+            "linear_term": 5969
+          },
+          {
+            "ext": "v0",
+            "const_term": 710,
+            "linear_term": 0
+          },
+          {
+            "ext": "v0",
+            "const_term": 2315295,
+            "linear_term": 0
+          },
+          {
+            "ext": "v0",
+            "const_term": 4404,
+            "linear_term": 0
+          },
+          {
+            "ext": "v0",
+            "const_term": 4947,
+            "linear_term": 0
+          },
+          {
+            "ext": "v0",
+            "const_term": 4911,
+            "linear_term": 0
+          },
+          {
+            "ext": "v0",
+            "const_term": 4286,
+            "linear_term": 0
+          },
+          {
+            "ext": "v0",
+            "const_term": 913,
+            "linear_term": 0
+          },
+          {
+            "ext": "v0",
+            "const_term": 1058,
+            "linear_term": 501
+          }
+        ]
+      },
+      {
+        "contract_cost_params_memory_bytes": [
+          {
+            "ext": "v0",
+            "const_term": 0,
+            "linear_term": 0
+          },
+          {
+            "ext": "v0",
+            "const_term": 16,
+            "linear_term": 128
+          },
+          {
+            "ext": "v0",
+            "const_term": 0,
+            "linear_term": 0
+          },
+          {
+            "ext": "v0",
+            "const_term": 0,
+            "linear_term": 0
+          },
+          {
+            "ext": "v0",
+            "const_term": 0,
+            "linear_term": 0
+          },
+          {
+            "ext": "v0",
+            "const_term": 0,
+            "linear_term": 0
+          },
+          {
+            "ext": "v0",
+            "const_term": 242,
+            "linear_term": 384
+          },
+          {
+            "ext": "v0",
+            "const_term": 0,
+            "linear_term": 384
+          },
+          {
+            "ext": "v0",
+            "const_term": 0,
+            "linear_term": 0
+          },
+          {
+            "ext": "v0",
+            "const_term": 0,
+            "linear_term": 0
+          },
+          {
+            "ext": "v0",
+            "const_term": 0,
+            "linear_term": 0
+          },
+          {
+            "ext": "v0",
+            "const_term": 130065,
+            "linear_term": 5064
+          },
+          {
+            "ext": "v0",
+            "const_term": 130065,
+            "linear_term": 5064
+          },
+          {
+            "ext": "v0",
+            "const_term": 14,
+            "linear_term": 0
+          },
+          {
+            "ext": "v0",
+            "const_term": 0,
+            "linear_term": 0
+          },
+          {
+            "ext": "v0",
+            "const_term": 0,
+            "linear_term": 0
+          },
+          {
+            "ext": "v0",
+            "const_term": 181,
+            "linear_term": 0
+          },
+          {
+            "ext": "v0",
+            "const_term": 99,
+            "linear_term": 0
+          },
+          {
+            "ext": "v0",
+            "const_term": 99,
+            "linear_term": 0
+          },
+          {
+            "ext": "v0",
+            "const_term": 99,
+            "linear_term": 0
+          },
+          {
+            "ext": "v0",
+            "const_term": 99,
+            "linear_term": 0
+          },
+          {
+            "ext": "v0",
+            "const_term": 99,
+            "linear_term": 0
+          },
+          {
+            "ext": "v0",
+            "const_term": 0,
+            "linear_term": 0
+          }
+        ]
+      },
+      {
+        "contract_data_key_size_bytes": 200
+      },
+      {
+        "contract_data_entry_size_bytes": 2000
+      },
+      {
+        "state_archival": {
+          "max_entry_ttl": 1054080,
+          "min_temporary_ttl": 16,
+          "min_persistent_ttl": 4096,
+          "persistent_rent_rate_denominator": 252480,
+          "temp_rent_rate_denominator": 2524800,
+          "max_entries_to_archive": 100,
+          "bucket_list_size_window_sample_size": 30,
+          "eviction_scan_size": 274878006944,
+          "starting_eviction_scan_level": 6
+        }
+      },
+      {
+        "contract_execution_lanes": {
+          "ledger_max_tx_count": 1
+        }
+      }
+    ]
+  }
