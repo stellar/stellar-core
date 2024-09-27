@@ -846,9 +846,7 @@ mod test_extra_protocol {
     ) -> Result<(), Box<dyn std::error::Error>> {
         match new_protocol {
             22 => {
-                use p22::contract::{
-                    inplace_modify_cxxbuf_encoded_type, xdr::SorobanResources,
-                };
+                use p22::contract::{inplace_modify_cxxbuf_encoded_type, xdr::SorobanResources};
                 if let Ok(extra) = std::env::var("SOROBAN_TEST_CPU_BUDGET_FACTOR") {
                     if let Ok(factor) = u32::from_str(&extra) {
                         inplace_modify_cxxbuf_encoded_type::<SorobanResources>(
