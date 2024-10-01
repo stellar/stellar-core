@@ -209,6 +209,12 @@ apply.
   hash for a checkpoint ledger, and then verifies the entire earlier history
   of an archive that ends in that ledger hash, writing the output to a reference
   list of trusted checkpoint hashes.
+  * Option **--history-hash <HASH>** is optional and specifies the hash of the ledger
+  at the end of the verification range. When provided, `stellar-core` will use the history
+  hash to verify the range, rather than the latest checkpoint hash obtained from consensus.
+  Used in conjunction with `--history-ledger`.
+  * Option **--history-ledger <LEDGER-NUMBER>** is optional and specifies the ledger
+  number to end the verification at.  Used in conjunction with `--history-hash`.
   * Option **--output-filename <FILE-NAME>** is mandatory and specifies the file
   to write the trusted checkpoint hashes to. The file will contain a JSON array 
   of arrays, where each inner array contains the ledger number and the corresponding
@@ -219,13 +225,6 @@ apply.
   number to start the verification from.
 
 > Note: It is an error to provide both the `--trusted-checkpoint-hashes` and `--from-ledger` options.
-
-  * Option **--history-hash <HASH>** is optional and specifies the hash of the ledger
-  at the end of the verification range. When provided, `stellar-core` will use the history
-  hash to verify the range, rather than the latest checkpoint hash obtained from consensus.
-  Used in conjunction with `--history-ledger`.
-  * Option **--history-ledger <LEDGER-NUMBER>** is optional and specifies the ledger
-  number to end the verification at.  Used in conjunction with `--history-hash`.
 
 * **version**: Print version info and then exit.
 
