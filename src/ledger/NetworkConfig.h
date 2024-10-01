@@ -335,6 +335,8 @@ class SorobanNetworkConfig
 #ifdef BUILD_TESTS
     StateArchivalSettings& stateArchivalSettings();
     EvictionIterator& evictionIterator();
+
+    static void updateRecalibratedCostTypesForV20(AbstractLedgerTxn& ltx);
 #endif
     bool operator==(SorobanNetworkConfig const& other) const;
 

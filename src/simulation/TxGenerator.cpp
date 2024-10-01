@@ -268,14 +268,18 @@ std::pair<TxGenerator::TestAccountPtr, TransactionFrameBaseConstPtr>
 TxGenerator::createUploadWasmTransaction(
     uint32_t ledgerNum, uint64_t accountId, xdr::opaque_vec<> const& wasm,
     LedgerKey const& contractCodeLedgerKey,
-    std::optional<uint32_t> maxGeneratedFeeRate)
+    std::optional<uint32_t> maxGeneratedFeeRate,
+    std::optional<SorobanResources> uploadResources)
 {
     auto account = findAccount(accountId, ledgerNum);
 
-    SorobanResources uploadResources{};
-    uploadResources.instructions = 2'500'000;
-    uploadResources.readBytes = wasm.size() + 500;
-    uploadResources.writeBytes = wasm.size() + 500;
+    if (!uploadResources)
+    {
+        uploadResources = SorobanResources{};
+        uploadResources->instructions = 2'500'000;
+        uploadResources->readBytes = wasm.size() + 500;
+        uploadResources->writeBytes = wasm.size() + 500;
+    }
 
     Operation uploadOp;
     uploadOp.body.type(INVOKE_HOST_FUNCTION);
@@ -283,13 +287,13 @@ TxGenerator::createUploadWasmTransaction(
     uploadHF.type(HOST_FUNCTION_TYPE_UPLOAD_CONTRACT_WASM);
     uploadHF.wasm() = wasm;
 
-    uploadResources.footprint.readWrite = {contractCodeLedgerKey};
+    uploadResources->footprint.readWrite = {contractCodeLedgerKey};
 
     int64_t resourceFee =
-        sorobanResourceFee(mApp, uploadResources, 5000 + wasm.size(), 100);
+        sorobanResourceFee(mApp, *uploadResources, 5000 + wasm.size(), 100);
     resourceFee += 1'000'000;
     auto tx = sorobanTransactionFrameFromOps(mApp.getNetworkID(), *account,
-                                             {uploadOp}, {}, uploadResources,
+                                             {uploadOp}, {}, *uploadResources,
                                              generateFee(maxGeneratedFeeRate,
                                                          /* opsCnt */ 1),
                                              resourceFee);
@@ -373,7 +377,7 @@ TxGenerator::invokeSorobanLoadTransaction(
     uint64_t const instructionsPerHostCycle = 5030;
 
     // Very rough estimates.
-    uint64_t const instructionsPerKbWritten = 8000;
+    uint64_t const instructionsPerKbWritten = 50000;
 
     // instructionsPerPaddingByte is just a value we know works. We use an auth
     // payload as padding, so it consumes instructions on the host side.
@@ -767,7 +771,8 @@ std::pair<TxGenerator::TestAccountPtr, TransactionFrameBasePtr>
 TxGenerator::invokeSorobanCreateUpgradeTransaction(
     uint32_t ledgerNum, uint64_t accountId, SCBytes const& upgradeBytes,
     LedgerKey const& codeKey, LedgerKey const& instanceKey,
-    std::optional<uint32_t> maxGeneratedFeeRate)
+    std::optional<uint32_t> maxGeneratedFeeRate,
+    std::optional<SorobanResources> resources)
 {
     auto account = findAccount(accountId, ledgerNum);
     auto const& contractID = instanceKey.contractData().contract;
@@ -785,12 +790,16 @@ TxGenerator::invokeSorobanCreateUpgradeTransaction(
     upgradeSetKey.contentHash = upgradeHash;
     upgradeSetKey.contractID = contractID.contractId();
 
-    SorobanResources resources;
-    resources.footprint.readOnly = {instanceKey, codeKey};
-    resources.footprint.readWrite = {upgradeLK};
-    resources.instructions = 2'500'000;
-    resources.readBytes = 3'100;
-    resources.writeBytes = 3'100;
+    if (!resources)
+    {
+        resources = SorobanResources{};
+        resources->instructions = 2'500'000;
+        resources->readBytes = 3'100;
+        resources->writeBytes = 3'100;
+    }
+
+    resources->footprint.readOnly = {instanceKey, codeKey};
+    resources->footprint.readWrite = {upgradeLK};
 
     SCVal b(SCV_BYTES);
     b.bytes() = upgradeBytes;
@@ -803,11 +812,11 @@ TxGenerator::invokeSorobanCreateUpgradeTransaction(
     ihf.invokeContract().functionName = "write";
     ihf.invokeContract().args.emplace_back(b);
 
-    auto resourceFee = sorobanResourceFee(mApp, resources, 1'000, 40);
+    auto resourceFee = sorobanResourceFee(mApp, *resources, 1'000, 40);
     resourceFee += 1'000'000;
 
     auto tx = sorobanTransactionFrameFromOps(mApp.getNetworkID(), *account,
-                                             {op}, {}, resources,
+                                             {op}, {}, *resources,
                                              generateFee(maxGeneratedFeeRate,
                                                          /* opsCnt */ 1),
                                              resourceFee);

@@ -128,7 +128,21 @@ SorobanMetrics::SorobanMetrics(medida::MetricsRegistry& metrics)
           {"soroban", "config", "bucket-list-target-size-byte"}))
     , mConfigFeeWrite1KB(
           metrics.NewCounter({"soroban", "config", "fee-write-1kb"}))
+    , mLedgerHostFnCpuInsnsRatio(metrics.NewHistogram(
+          {"soroban", "host-fn-op", "ledger-cpu-insns-ratio"}))
+    , mLedgerHostFnCpuInsnsRatioExclVm(metrics.NewHistogram(
+          {"soroban", "host-fn-op", "ledger-cpu-insns-ratio-excl-vm"}))
 {
+}
+
+void
+SorobanMetrics::accumulateModelledCpuInsns(uint64_t insnsCount,
+                                           uint64_t insnsExclVmCount,
+                                           uint64_t hostFnExecTimeNsecs)
+{
+    mLedgerInsnsCount += insnsCount;
+    mLedgerInsnsExclVmCount += insnsExclVmCount;
+    mLedgerHostFnExecTimeNsecs += hostFnExecTimeNsecs;
 }
 
 void
@@ -177,6 +191,11 @@ SorobanMetrics::publishAndResetLedgerWideMetrics()
     mLedgerReadLedgerByte.Update(mCounterLedgerReadByte);
     mLedgerWriteEntry.Update(mCounterLedgerWriteEntry);
     mLedgerWriteLedgerByte.Update(mCounterLedgerWriteByte);
+    mLedgerHostFnCpuInsnsRatio.Update(mLedgerHostFnExecTimeNsecs * 1000000 /
+                                      std::max(mLedgerInsnsCount, uint64_t(1)));
+    mLedgerHostFnCpuInsnsRatioExclVm.Update(
+        mLedgerHostFnExecTimeNsecs * 1000000 /
+        std::max(mLedgerInsnsExclVmCount, uint64_t(1)));
 
     mCounterLedgerTxCount = 0;
     mCounterLedgerCpuInsn = 0;
@@ -185,5 +204,8 @@ SorobanMetrics::publishAndResetLedgerWideMetrics()
     mCounterLedgerReadByte = 0;
     mCounterLedgerWriteEntry = 0;
     mCounterLedgerWriteByte = 0;
+    mLedgerHostFnExecTimeNsecs = 0;
+    mLedgerInsnsCount = 0;
+    mLedgerInsnsExclVmCount = 0;
 }
 }

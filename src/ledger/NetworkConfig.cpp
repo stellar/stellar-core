@@ -1156,6 +1156,7 @@ SorobanNetworkConfig::initializeGenesisLedgerForTesting(
         ltx.loadHeader().current().ledgerVersion =
             static_cast<uint32_t>(SOROBAN_PROTOCOL_VERSION);
         SorobanNetworkConfig::createLedgerEntriesForV20(ltx, app);
+        updateRecalibratedCostTypesForV20(ltx);
         ltx.loadHeader().current().ledgerVersion = genesisLedgerProtocol;
     }
 
@@ -1926,6 +1927,124 @@ EvictionIterator&
 SorobanNetworkConfig::evictionIterator()
 {
     return mEvictionIterator;
+}
+
+void
+SorobanNetworkConfig::updateRecalibratedCostTypesForV20(
+    AbstractLedgerTxn& ltxRoot)
+{
+    LedgerTxn ltx(ltxRoot);
+
+    LedgerKey key(CONFIG_SETTING);
+    key.configSetting().configSettingID =
+        ConfigSettingID::CONFIG_SETTING_CONTRACT_COST_PARAMS_CPU_INSTRUCTIONS;
+
+    auto& cpuParams = ltx.load(key)
+                          .current()
+                          .data.configSetting()
+                          .contractCostParamsCpuInsns();
+
+    for (size_t val = 0; val < cpuParams.size(); ++val)
+    {
+        switch (val)
+        {
+        case DispatchHostFunction:
+            cpuParams[val] = ContractCostParamEntry{ExtensionPoint{0}, 295, 0};
+            break;
+        case VisitObject:
+            cpuParams[val] = ContractCostParamEntry{ExtensionPoint{0}, 60, 0};
+            break;
+        case ValSer:
+            cpuParams[val] = ContractCostParamEntry{ExtensionPoint{0}, 221, 26};
+            break;
+        case ValDeser:
+            cpuParams[val] =
+                ContractCostParamEntry{ExtensionPoint{0}, 331, 4369};
+            break;
+        case ComputeSha256Hash:
+            cpuParams[val] =
+                ContractCostParamEntry{ExtensionPoint{0}, 3636, 7013};
+            break;
+        case ComputeEd25519PubKey:
+            cpuParams[val] =
+                ContractCostParamEntry{ExtensionPoint{0}, 40256, 0};
+            break;
+        case VerifyEd25519Sig:
+            cpuParams[val] =
+                ContractCostParamEntry{ExtensionPoint{0}, 377551, 4059};
+            break;
+        case VmInstantiation:
+            cpuParams[val] =
+                ContractCostParamEntry{ExtensionPoint{0}, 417482, 45712};
+            break;
+        case VmCachedInstantiation:
+            cpuParams[val] =
+                ContractCostParamEntry{ExtensionPoint{0}, 417482, 45712};
+            break;
+        case InvokeVmFunction:
+            cpuParams[val] = ContractCostParamEntry{ExtensionPoint{0}, 1945, 0};
+            break;
+        case ComputeKeccak256Hash:
+            cpuParams[val] =
+                ContractCostParamEntry{ExtensionPoint{0}, 6481, 5943};
+            break;
+        case DecodeEcdsaCurve256Sig:
+            cpuParams[val] = ContractCostParamEntry{ExtensionPoint{0}, 711, 0};
+            break;
+        case RecoverEcdsaSecp256k1Key:
+            cpuParams[val] =
+                ContractCostParamEntry{ExtensionPoint{0}, 2314804, 0};
+            break;
+        case Int256AddSub:
+            cpuParams[val] = ContractCostParamEntry{ExtensionPoint{0}, 4176, 0};
+            break;
+        case Int256Mul:
+            cpuParams[val] = ContractCostParamEntry{ExtensionPoint{0}, 4716, 0};
+            break;
+        case Int256Div:
+            cpuParams[val] = ContractCostParamEntry{ExtensionPoint{0}, 4680, 0};
+            break;
+        case Int256Pow:
+            cpuParams[val] = ContractCostParamEntry{ExtensionPoint{0}, 4256, 0};
+            break;
+        case Int256Shift:
+            cpuParams[val] = ContractCostParamEntry{ExtensionPoint{0}, 884, 0};
+            break;
+        case ChaCha20DrawBytes:
+            cpuParams[val] =
+                ContractCostParamEntry{ExtensionPoint{0}, 1059, 502};
+            break;
+        default:
+            break;
+        }
+    }
+
+    LedgerKey memKey(CONFIG_SETTING);
+    memKey.configSetting().configSettingID =
+        ConfigSettingID::CONFIG_SETTING_CONTRACT_COST_PARAMS_MEMORY_BYTES;
+
+    auto& memParams = ltx.load(memKey)
+                          .current()
+                          .data.configSetting()
+                          .contractCostParamsMemBytes();
+    for (size_t val = 0; val < memParams.size(); ++val)
+    {
+        switch (val)
+        {
+        case VmInstantiation:
+            memParams[val] =
+                ContractCostParamEntry{ExtensionPoint{0}, 132773, 4903};
+            break;
+        case VmCachedInstantiation:
+            memParams[val] =
+                ContractCostParamEntry{ExtensionPoint{0}, 132773, 4903};
+            break;
+        default:
+            break;
+        }
+    }
+
+    ltx.commit();
 }
 #endif
 
