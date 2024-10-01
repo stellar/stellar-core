@@ -69,7 +69,8 @@ BucketOutputIterator::put(BucketEntry const& e)
     std::optional<BucketEntry> maybeInitEntry;
     if (!mKeepDeadEntries && e.type() == LIVEENTRY &&
         protocolVersionStartsFrom(
-            mMeta.ledgerVersion, Bucket::FIRST_PROTOCOL_SUPPORTING_INITENTRY_AND_METAENTRY))
+            mMeta.ledgerVersion,
+            Bucket::FIRST_PROTOCOL_SUPPORTING_INITENTRY_AND_METAENTRY))
     {
         // If mKeepDeadEntries is false (lowest level),
         // we also want to convert the LIVEENTRY to an INITENTRY.
