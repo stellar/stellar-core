@@ -409,21 +409,22 @@ TEST_CASE("lowest level merge converts live to init", "[bucket][bucketinit]")
 
     LedgerEntry entry = generateAccount();
     auto b1 = Bucket::fresh(bm, vers, {}, {entry}, {},
-                               /*countMergeEvents=*/true, clock.getIOContext(),
-                               /*doFsync=*/true);
+                            /*countMergeEvents=*/true, clock.getIOContext(),
+                            /*doFsync=*/true);
     EntryCounts e1(b1);
     CHECK(e1.nInit == 0);
     CHECK(e1.nLive == 1);
     auto b2 = Bucket::fresh(bm, vers, {}, {}, {},
-                               /*countMergeEvents=*/true, clock.getIOContext(),
-                               /*doFsync=*/true);
+                            /*countMergeEvents=*/true, clock.getIOContext(),
+                            /*doFsync=*/true);
 
     // Merge b1 and b2 into a new, lowest-level bucket.
     // keepDeadEntries = false signfies the lowest level of the bucket list
-    auto bMerged = Bucket::merge(bm, vers, b1, b2, /*shadows=*/{},
-                            /*keepDeadEntries=*/false,
-                            /*countMergeEvents=*/true, clock.getIOContext(),
-                            /*doFsync=*/true);
+    auto bMerged =
+        Bucket::merge(bm, vers, b1, b2, /*shadows=*/{},
+                      /*keepDeadEntries=*/false,
+                      /*countMergeEvents=*/true, clock.getIOContext(),
+                      /*doFsync=*/true);
     EntryCounts e2(bMerged);
     CHECK(e2.nInit == 1);
     CHECK(e2.nLive == 0);
