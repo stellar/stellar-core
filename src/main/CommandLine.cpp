@@ -1047,6 +1047,7 @@ runWriteVerifiedCheckpointHashes(CommandLineArgs const& args)
             {
                 LOG_ERROR(DEFAULT_LOG, "Cannot specify both --from-ledger and "
                                        "--trusted-hash-file");
+                return 1;
             }
             VirtualClock clock(VirtualClock::REAL_TIME);
             auto cfg = configOption.getConfig();

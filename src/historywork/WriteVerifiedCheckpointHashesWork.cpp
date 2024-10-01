@@ -123,7 +123,7 @@ WriteVerifiedCheckpointHashesWork::hasNext() const
 {
     if (mFromLedger)
     {
-        return mCurrCheckpoint > *mFromLedger;
+        return mCurrCheckpoint >= *mFromLedger;
     }
     else if (mLatestTrustedHashPair)
     {
@@ -152,15 +152,27 @@ WriteVerifiedCheckpointHashesWork::yieldMoreWork()
     uint32_t first = last <= span
                          ? LedgerManager::GENESIS_LEDGER_SEQ
                          : hm.firstLedgerInCheckpointContaining(last - span);
-    // If the latest trusted ledger or mFromLedger is greater than the first
-    // ledger in the range then the range should start at the trusted ledger.
+    // If the first ledger in the range is less than mFromLedger then the
+    // range should be constrained to start at mFromLedger, or the checkpoint
+    // immediately before it if mFromLedger is not a checkpoint boundary.
     if (mFromLedger && first < *mFromLedger)
     {
-        first = *mFromLedger;
+        if (hm.isLastLedgerInCheckpoint(*mFromLedger))
+        {
+            first = *mFromLedger;
+        }
+        else
+        {
+            first = hm.lastLedgerBeforeCheckpointContaining(*mFromLedger);
+        }
+        releaseAssert(first <= *mFromLedger);
     }
+    // If the latest trusted ledger is greater than the first
+    // ledger in the range then the range should start at the trusted ledger.
     else if (mLatestTrustedHashPair && first < mLatestTrustedHashPair->first)
     {
         first = mLatestTrustedHashPair->first;
+        releaseAssert(hm.isLastLedgerInCheckpoint(first));
     }
 
     LedgerRange const ledgerRange = LedgerRange::inclusive(first, last);
