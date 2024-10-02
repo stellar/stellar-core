@@ -408,10 +408,19 @@ InvokeHostFunctionOpFrame::doApply(
                         ltx.getHeader().ledgerVersion,
                         Bucket::FIRST_PROTOCOL_SUPPORTING_PERSISTENT_EVICTION))
                 {
-                    auto hotArchive =
-                        bm.getSearchableHotArchiveBucketListSnapshot();
-                    auto hotArchiveLtxe = hotArchive->load(lk);
-                    if (hotArchiveLtxe)
+
+                    std::shared_ptr<HotArchiveBucketEntry> hotArchiveEntry =
+                        nullptr;
+#ifdef BUILD_TESTS
+                    if (appConfig.isUsingBucketListDB())
+#endif
+                    {
+                        auto hotArchive =
+                            bm.getSearchableHotArchiveBucketListSnapshot();
+                        hotArchiveEntry = hotArchive->load(lk);
+                    }
+
+                    if (hotArchiveEntry)
                     {
                         if (lk.type() == CONTRACT_CODE)
                         {

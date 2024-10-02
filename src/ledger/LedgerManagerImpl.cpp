@@ -1699,11 +1699,19 @@ LedgerManagerImpl::transferLedgerEntriesToBucketList(
             {
                 mApp.getBucketManager().addHotArchiveBatch(
                     mApp, lh, evictedEntries.second, {}, {});
+                if (ledgerCloseMeta)
+                {
+                    ledgerCloseMeta->populateEvictedEntries(evictedEntries);
+                }
             }
-
-            if (ledgerCloseMeta)
+            else
             {
-                ledgerCloseMeta->populateEvictedEntries(evictedEntries);
+
+                if (ledgerCloseMeta)
+                {
+                    ledgerCloseMeta->populateEvictedEntriesLegacy(
+                        ltxEvictions.getChanges());
+                }
             }
 
             ltxEvictions.commit();

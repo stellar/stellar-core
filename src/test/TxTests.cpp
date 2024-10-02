@@ -1760,9 +1760,10 @@ sorobanTransactionFrameFromOpsWithTotalFee(
     std::optional<std::string> memo, std::optional<uint64> muxedData)
 {
     auto tx = TransactionFrameBase::makeTransactionFromWire(
-        networkID, sorobanEnvelopeFromOps(networkID, source, ops, opKeys,
-                                          resources, totalFee, resourceFee,
-                                          memo, std::nullopt, muxedData, std::nullopt));
+        networkID,
+        sorobanEnvelopeFromOps(networkID, source, ops, opKeys, resources,
+                               totalFee, resourceFee, memo, std::nullopt,
+                               muxedData, std::nullopt));
     return TransactionTestFrame::fromTxFrame(tx);
 }
 
