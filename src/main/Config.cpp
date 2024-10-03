@@ -1617,6 +1617,16 @@ Config::processConfig(std::shared_ptr<cpptoml::table> t)
                  [&]() {
                      EMIT_SOROBAN_TRANSACTION_META_EXT_V1 = readBool(item);
                  }},
+#ifdef BUILD_TESTS
+                {"ARTIFICIALLY_SIMULATE_ARCHIVE_FILTER_MISS",
+                 [&]() {
+                     ARTIFICIALLY_SIMULATE_ARCHIVE_FILTER_MISS = readBool(item);
+                 }},
+                {"REQUIRE_PROOFS_FOR_ALL_EVICTED_ENTRIES",
+                 [&]() {
+                     REQUIRE_PROOFS_FOR_ALL_EVICTED_ENTRIES = readBool(item);
+                 }},
+#endif
                 {"EMIT_LEDGER_CLOSE_META_EXT_V1",
                  [&]() { EMIT_LEDGER_CLOSE_META_EXT_V1 = readBool(item); }}};
 

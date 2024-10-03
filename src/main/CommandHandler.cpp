@@ -87,7 +87,12 @@ CommandHandler::CommandHandler(Application& app) : mApp(app)
             mQueryServer = std::make_unique<QueryServer>(
                 ipStr, mApp.getConfig().HTTP_QUERY_PORT, httpMaxClient,
                 mApp.getConfig().QUERY_THREAD_POOL_SIZE,
-                mApp.getBucketManager().getBucketSnapshotManager());
+                mApp.getBucketManager().getBucketSnapshotManager()
+#ifdef BUILD_TESTS
+                    ,
+                mApp.getConfig()
+#endif
+            );
         }
     }
     else
