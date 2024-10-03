@@ -1653,8 +1653,9 @@ ContractStorageTestClient::get(std::string const& key,
     auto invocation =
         mContract.prepareInvocation(funcStr, {makeSymbolSCVal(key)}, *spec);
     bool isSuccess = invocation.withExactNonRefundableResourceFee().invoke();
-    if (isSuccess && expectValue)
+    if (expectValue)
     {
+        REQUIRE(isSuccess);
         REQUIRE(*expectValue == invocation.getReturnValue().u64());
     }
     return *invocation.getResultCode();

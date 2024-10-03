@@ -613,6 +613,12 @@ class AbstractLedgerTxn : public AbstractLedgerTxnParent
     // modified.
     virtual LedgerKeySet getAllTTLKeysWithoutSealing() const = 0;
 
+    virtual LedgerKeySet
+    getAllDeletedPersistentContractDataKeysWithoutSealing() const = 0;
+
+    virtual LedgerKeySet
+    getAllCreatedPersistentContractDataKeysWithoutSealing() const = 0;
+
     // forAllWorstBestOffers allows a parent AbstractLedgerTxn to process the
     // worst best offers (an offer is a worst best offer if every better offer
     // in any parent AbstractLedgerTxn has already been loaded). This function
@@ -739,6 +745,10 @@ class LedgerTxn : public AbstractLedgerTxn
                        std::vector<LedgerEntry>& liveEntries,
                        std::vector<LedgerKey>& deadEntries) override;
     LedgerKeySet getAllTTLKeysWithoutSealing() const override;
+    LedgerKeySet
+    getAllDeletedPersistentContractDataKeysWithoutSealing() const override;
+    LedgerKeySet
+    getAllCreatedPersistentContractDataKeysWithoutSealing() const override;
 
     std::shared_ptr<InternalLedgerEntry const>
     getNewestVersion(InternalLedgerKey const& key) const override;

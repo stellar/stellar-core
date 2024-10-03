@@ -392,7 +392,6 @@ class LedgerTxn::Impl
     //   modified
     // - the entry cache may be, but is not guaranteed to be, cleared.
     LedgerTxnDelta getDelta();
-
     // getOffersByAccountAndAsset has the basic exception safety guarantee. If
     // it throws an exception, then
     // - the prepared statement cache may be, but is not guaranteed to be,
@@ -432,6 +431,8 @@ class LedgerTxn::Impl
                        std::vector<LedgerKey>& deadEntries);
 
     LedgerKeySet getAllTTLKeysWithoutSealing() const;
+    LedgerKeySet getAllDeletedPersistentContractDataKeysWithoutSealing() const;
+    LedgerKeySet getAllCreatedPersistentContractDataKeysWithoutSealing() const;
 
     // getNewestVersion has the basic exception safety guarantee. If it throws
     // an exception, then

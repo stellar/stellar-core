@@ -1485,6 +1485,18 @@ LedgerTxn::getAllTTLKeysWithoutSealing() const
 }
 
 LedgerKeySet
+LedgerTxn::getAllDeletedPersistentContractDataKeysWithoutSealing() const
+{
+    return getImpl()->getAllDeletedPersistentContractDataKeysWithoutSealing();
+}
+
+LedgerKeySet
+LedgerTxn::getAllCreatedPersistentContractDataKeysWithoutSealing() const
+{
+    return getImpl()->getAllCreatedPersistentContractDataKeysWithoutSealing();
+}
+
+LedgerKeySet
 LedgerTxn::Impl::getAllTTLKeysWithoutSealing() const
 {
     throwIfNotExactConsistency();
@@ -1493,6 +1505,43 @@ LedgerTxn::Impl::getAllTTLKeysWithoutSealing() const
     {
         if (k.type() == InternalLedgerEntryType::LEDGER_ENTRY &&
             k.ledgerKey().type() == TTL)
+        {
+            result.emplace(k.ledgerKey());
+        }
+    }
+
+    return result;
+}
+
+LedgerKeySet
+LedgerTxn::Impl::getAllDeletedPersistentContractDataKeysWithoutSealing() const
+{
+    throwIfNotExactConsistency();
+    LedgerKeySet result;
+    for (auto const& [k, v] : mEntry)
+    {
+        if (k.type() == InternalLedgerEntryType::LEDGER_ENTRY &&
+            k.ledgerKey().type() == CONTRACT_DATA &&
+            k.ledgerKey().contractData().durability == PERSISTENT &&
+            v.isDeleted())
+        {
+            result.emplace(k.ledgerKey());
+        }
+    }
+
+    return result;
+}
+
+LedgerKeySet
+LedgerTxn::Impl::getAllCreatedPersistentContractDataKeysWithoutSealing() const
+{
+    throwIfNotExactConsistency();
+    LedgerKeySet result;
+    for (auto const& [k, v] : mEntry)
+    {
+        if (k.type() == InternalLedgerEntryType::LEDGER_ENTRY &&
+            k.ledgerKey().type() == CONTRACT_DATA &&
+            k.ledgerKey().contractData().durability == PERSISTENT && v.isInit())
         {
             result.emplace(k.ledgerKey());
         }

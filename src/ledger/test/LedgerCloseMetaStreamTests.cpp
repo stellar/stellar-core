@@ -336,7 +336,8 @@ TEST_CASE("METADATA_DEBUG_LEDGERS works", "[metadebug]")
     }
 }
 
-TEST_CASE_VERSIONS("meta stream contains reasonable meta", "[ledgerclosemeta]")
+TEST_CASE_VERSIONS("meta stream contains reasonable meta",
+                   "[ledgerclosemeta][archival]")
 {
     auto test = [&](Config cfg, bool isSoroban) {
         using namespace stellar::txtest;

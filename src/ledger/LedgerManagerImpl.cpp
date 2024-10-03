@@ -1686,7 +1686,10 @@ LedgerManagerImpl::transferLedgerEntriesToBucketList(
         protocolVersionStartsFrom(initialLedgerVers, SOROBAN_PROTOCOL_VERSION))
     {
         {
-            auto keys = ltx.getAllTTLKeysWithoutSealing();
+            auto deletedPersistentDataKeys =
+                ltx.getAllDeletedPersistentContractDataKeysWithoutSealing();
+            auto createdPersistentDataKeys =
+                ltx.getAllCreatedPersistentContractDataKeysWithoutSealing();
             LedgerTxn ltxEvictions(ltx);
 
             auto evictedEntries =
@@ -1697,8 +1700,17 @@ LedgerManagerImpl::transferLedgerEntriesToBucketList(
                     initialLedgerVers,
                     Bucket::FIRST_PROTOCOL_SUPPORTING_PERSISTENT_EVICTION))
             {
-                mApp.getBucketManager().addHotArchiveBatch(
-                    mApp, lh, evictedEntries.second, {}, {});
+                    auto createdVec = std::vector<LedgerKey>(
+                        createdPersistentDataKeys.begin(),
+                        createdPersistentDataKeys.end());
+                    auto deletedVec = std::vector<LedgerKey>(
+                        deletedPersistentDataKeys.begin(),
+                        deletedPersistentDataKeys.end());
+                    mApp.getBucketManager().addHotArchiveBatch(
+                        mApp, lh, evictedEntries.second, createdVec,
+                        deletedVec);
+                }
+
                 if (ledgerCloseMeta)
                 {
                     ledgerCloseMeta->populateEvictedEntries(evictedEntries);

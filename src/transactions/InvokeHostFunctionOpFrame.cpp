@@ -420,7 +420,10 @@ InvokeHostFunctionOpFrame::doApply(
                         hotArchiveEntry = hotArchive->load(lk);
                     }
 
-                    if (hotArchiveEntry)
+                    // Entries require proofs only if an ARCHIVED entry exists
+                    // in the hot archive
+                    if (hotArchiveEntry &&
+                        hotArchiveEntry->type() != HOT_ARCHIVE_DELETED)
                     {
                         if (lk.type() == CONTRACT_CODE)
                         {

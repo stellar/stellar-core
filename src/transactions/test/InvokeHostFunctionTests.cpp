@@ -2914,7 +2914,8 @@ TEST_CASE("state archival operation errors", "[tx][soroban][archival]")
 }
 
 #ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
-TEST_CASE("evicted persistent entries")
+TEST_CASE("evicted persistent entries"
+          "[tx][soroban][archival]")
 {
     auto test = [](bool requireProofs) {
         auto cfg = getTestConfig();
@@ -3023,18 +3024,32 @@ TEST_CASE("evicted persistent entries")
         {
             // Restore should succeed without proof for hot archive entries
             test.invokeRestoreOp({lk}, expectedRefundableFeeCharged);
-
-            auto const& stateArchivalSettings =
-                test.getNetworkCfg().stateArchivalSettings();
-            auto newExpectedLiveUntilLedger =
-                test.getLCLSeq() + stateArchivalSettings.minPersistentTTL - 1;
-            REQUIRE(test.getTTL(lk) == newExpectedLiveUntilLedger);
-
-            client.get("key", ContractDataDurability::PERSISTENT, 123);
         }
 
-        // TODO Update hot archive on restore to remove entries
-        // REQUIRE(!hotArchive->load(lk));
+        auto const& stateArchivalSettings =
+            test.getNetworkCfg().stateArchivalSettings();
+        auto newExpectedLiveUntilLedger =
+            test.getLCLSeq() + stateArchivalSettings.minPersistentTTL - 1;
+        REQUIRE(test.getTTL(lk) == newExpectedLiveUntilLedger);
+
+        client.get("key", ContractDataDurability::PERSISTENT, 123);
+
+        // Hot Archive entry removed after restoration
+        REQUIRE(!hotArchive->load(lk));
+
+        client.del("key", ContractDataDurability::PERSISTENT);
+        client.has("key", ContractDataDurability::PERSISTENT, false);
+
+        // Hot archive should record deletion
+        auto hotArchiveEntry = hotArchive->load(lk);
+        REQUIRE(hotArchiveEntry);
+        REQUIRE(hotArchiveEntry->type() == HOT_ARCHIVE_DELETED);
+        REQUIRE(hotArchiveEntry->key() == lk);
+
+        // Recreation should remove entry from hot archive
+        client.put("key", ContractDataDurability::PERSISTENT, 345);
+        client.get("key", ContractDataDurability::PERSISTENT, 345);
+        REQUIRE(!hotArchive->load(lk));
     };
 
     SECTION("with proofs")
@@ -3048,7 +3063,7 @@ TEST_CASE("evicted persistent entries")
     }
 }
 
-TEST_CASE("persistent entry archival filters")
+TEST_CASE("persistent entry archival filters", "[soroban][archival]")
 {
     auto cfg = getTestConfig();
     cfg.ARTIFICIALLY_SIMULATE_ARCHIVE_FILTER_MISS = true;

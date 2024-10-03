@@ -947,7 +947,7 @@ TEST_CASE_VERSIONS("network config snapshots BucketList size", "[bucketlist]")
     });
 }
 
-TEST_CASE_VERSIONS("eviction scan", "[bucketlist]")
+TEST_CASE_VERSIONS("eviction scan", "[bucketlist][archival]")
 {
     VirtualClock clock;
     Config cfg(getTestConfig());
