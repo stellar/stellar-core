@@ -8,6 +8,7 @@
 #include "work/BatchWork.h"
 #include <future>
 #include <iosfwd>
+#include <filesystem>
 
 namespace stellar
 {
