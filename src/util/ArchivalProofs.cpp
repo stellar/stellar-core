@@ -12,6 +12,9 @@
 #include "util/UnorderedSet.h"
 #include "xdr/Stellar-ledger-entries.h"
 #include "xdr/Stellar-transaction.h"
+#include <memory>
+#include <optional>
+#include <stdexcept>
 
 namespace stellar
 {
@@ -100,43 +103,43 @@ isCreatedKeyProven(Application& app, LedgerKey const& lk,
 }
 
 bool
-addCreationProof(Application& app, LedgerKey const& lk,
+addCreationProof(bool simulateBloomMiss, LedgerKey const& lk,
                  xdr::xvector<ArchivalProof>& proofs)
 {
 #ifdef BUILD_TESTS
-    // For now only support proof generation for testing
-    releaseAssertOrThrow(
-        app.getConfig().ARTIFICIALLY_SIMULATE_ARCHIVE_FILTER_MISS);
-
-    // Only persistent contract data entries need creation proofs
-    if (lk.type() != CONTRACT_DATA ||
-        lk.contractData().durability != PERSISTENT)
+    if (simulateBloomMiss)
     {
-        return true;
-    }
-
-    for (auto& proof : proofs)
-    {
-        if (proof.body.t() == NONEXISTENCE)
+        // Only persistent contract data entries need creation proofs
+        if (lk.type() != CONTRACT_DATA ||
+            lk.contractData().durability != PERSISTENT)
         {
-            for (auto const& key : proof.body.nonexistenceProof().keysToProve)
-            {
-                if (key == lk)
-                {
-                    // Proof already exists
-                    return true;
-                }
-            }
-
-            proof.body.nonexistenceProof().keysToProve.push_back(lk);
             return true;
         }
-    }
 
-    proofs.emplace_back();
-    auto& nonexistenceProof = proofs.back();
-    nonexistenceProof.body.t(NONEXISTENCE);
-    nonexistenceProof.body.nonexistenceProof().keysToProve.push_back(lk);
+        for (auto& proof : proofs)
+        {
+            if (proof.body.t() == NONEXISTENCE)
+            {
+                for (auto const& key :
+                     proof.body.nonexistenceProof().keysToProve)
+                {
+                    if (key == lk)
+                    {
+                        // Proof already exists
+                        return true;
+                    }
+                }
+
+                proof.body.nonexistenceProof().keysToProve.push_back(lk);
+                return true;
+            }
+        }
+
+        proofs.emplace_back();
+        auto& nonexistenceProof = proofs.back();
+        nonexistenceProof.body.t(NONEXISTENCE);
+        nonexistenceProof.body.nonexistenceProof().keysToProve.push_back(lk);
+    }
 #endif
 
     return true;
@@ -238,18 +241,32 @@ getRestoredEntryFromProof(Application& app, LedgerKey const& lk,
 }
 
 bool
-addRestorationProof(Application& app, LedgerKey const& lk,
-                    xdr::xvector<ArchivalProof>& proofs)
+addRestorationProof(
+    std::shared_ptr<SearchableHotArchiveBucketListSnapshot> hotArchive,
+    LedgerKey const& lk, xdr::xvector<ArchivalProof>& proofs,
+    std::optional<uint32_t> ledgerSeq)
 {
 #ifdef BUILD_TESTS
     // For now only support proof generation for testing
-    releaseAssertOrThrow(
-        app.getConfig().REQUIRE_PROOFS_FOR_ALL_EVICTED_ENTRIES);
     releaseAssertOrThrow(isPersistentEntry(lk));
 
-    auto hotBL =
-        app.getBucketManager().getSearchableHotArchiveBucketListSnapshot();
-    auto entry = hotBL->load(lk);
+    std::shared_ptr<HotArchiveBucketEntry> entry = nullptr;
+    if (ledgerSeq)
+    {
+        auto entryOp = hotArchive->loadKeysFromLedger({lk}, *ledgerSeq);
+        if (!entryOp)
+        {
+            throw std::invalid_argument("LedgerSeq not found");
+        }
+
+        entry =
+            std::make_shared<HotArchiveBucketEntry>(std::move(entryOp->at(0)));
+    }
+    else
+    {
+        entry = hotArchive->load(lk);
+    }
+
     if (!entry ||
         entry->type() != HotArchiveBucketEntryType::HOT_ARCHIVE_ARCHIVED)
     {

@@ -59,6 +59,15 @@ class QueryServer
     bool getLedgerEntry(std::string const& params, std::string const& body,
                         std::string& retStr);
 
+    // Returns restoration/creation proofs for the given set of keys.
+    bool getRestoreProof(std::string const& params, std::string const& body,
+                         std::string& retStr);
+
+    // Test string for artificial miss:
+    // AAAABgAAAAEBuCkP1Jtb0TMPDqcYvepnKTIGIPZc4adjZXxXY4xYCwAAAA8AAAAEbWlzcwAAAAE=
+    bool getCreationProof(std::string const& params, std::string const& body,
+                          std::string& retStr);
+
   public:
     QueryServer(const std::string& address, unsigned short port, int maxClient,
                 size_t threadPoolSize,

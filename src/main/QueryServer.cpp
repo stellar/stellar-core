@@ -8,6 +8,7 @@
 #include "ledger/LedgerTxnImpl.h"
 #include "ledger/LedgerTypeUtils.h"
 #include "main/Config.h"
+#include "util/ArchivalProofs.h"
 #include "util/Logging.h"
 #include "util/UnorderedSet.h"
 #include "util/XDRStream.h" // IWYU pragma: keep
@@ -77,6 +78,8 @@ QueryServer::QueryServer(const std::string& address, unsigned short port,
     mServer.add404(std::bind(&QueryServer::notFound, this, _1, _2, _3));
     addRoute("getledgerentryraw", &QueryServer::getLedgerEntryRaw);
     addRoute("getledgerentry", &QueryServer::getLedgerEntry);
+    addRoute("getrestoreproof", &QueryServer::getRestoreProof);
+    addRoute("getcreationproof", &QueryServer::getCreationProof);
 
     auto workerPids = mServer.start();
     for (auto pid : workerPids)
@@ -408,6 +411,94 @@ QueryServer::getLedgerEntry(std::string const& params, std::string const& body,
 
         root["entries"].append(entry);
     }
+
+    retStr = Json::FastWriter().write(root);
+    return true;
+}
+
+bool
+QueryServer::getRestoreProof(std::string const& params, std::string const& body,
+                             std::string& retStr)
+{
+    ZoneScoped;
+    Json::Value root;
+
+    std::map<std::string, std::vector<std::string>> paramMap;
+    httpThreaded::server::server::parsePostParams(body, paramMap);
+
+    auto keys = paramMap["key"];
+    auto snapshotLedger = parseOptionalParam<uint32_t>(paramMap, "ledgerSeq");
+    if (keys.empty())
+    {
+        throw std::invalid_argument(
+            "Must specify ledger key in POST body: key=<LedgerKey in base64 "
+            "XDR format>");
+    }
+
+    xdr::xvector<ArchivalProof> proof;
+    auto& hotBL = mHotArchiveBucketListSnapshots.at(std::this_thread::get_id());
+    for (auto const& key : keys)
+    {
+        LedgerKey lk;
+        fromOpaqueBase64(lk, key);
+        if (!isPersistentEntry(lk))
+        {
+            throw std::invalid_argument(
+                "Only persistent entries require restoration proofs");
+        }
+
+        if (!addRestorationProof(hotBL, lk, proof, snapshotLedger))
+        {
+            throw std::invalid_argument("No valid proof exists for key");
+        }
+    }
+
+    root["ledger"] = hotBL->getLedgerSeq();
+    root["proof"] = toOpaqueBase64(proof);
+
+    retStr = Json::FastWriter().write(root);
+    return true;
+}
+
+bool
+QueryServer::getCreationProof(std::string const& params,
+                              std::string const& body, std::string& retStr)
+{
+    ZoneScoped;
+    Json::Value root;
+
+    std::map<std::string, std::vector<std::string>> paramMap;
+    httpThreaded::server::server::parsePostParams(body, paramMap);
+
+    auto keys = paramMap["key"];
+    auto snapshotLedger = parseOptionalParam<uint32_t>(paramMap, "ledgerSeq");
+    if (keys.empty())
+    {
+        throw std::invalid_argument(
+            "Must specify ledger key in POST body: key=<LedgerKey in base64 "
+            "XDR format>");
+    }
+
+    auto& hotBL = mHotArchiveBucketListSnapshots.at(std::this_thread::get_id());
+    xdr::xvector<ArchivalProof> proof;
+    for (auto const& key : keys)
+    {
+        LedgerKey lk;
+        fromOpaqueBase64(lk, key);
+        if (!isPersistentEntry(lk) || lk.type() != CONTRACT_DATA)
+        {
+            throw std::invalid_argument("Only persistent contract data entries "
+                                        "require creation proofs");
+        }
+
+        if (!addCreationProof(mSimulateFilterMiss, lk, proof))
+        {
+            throw std::invalid_argument("No valid proof exists for key");
+        }
+    }
+
+    root["ledger"] = snapshotLedger ? *snapshotLedger : hotBL->getLedgerSeq();
+    root["proof"] = toOpaqueBase64(proof);
 
     retStr = Json::FastWriter().write(root);
     return true;

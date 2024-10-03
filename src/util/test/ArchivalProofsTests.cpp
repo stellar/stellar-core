@@ -51,7 +51,9 @@ TEST_CASE("creation proofs", "[archival][soroban]")
         // Empty proof fails
         REQUIRE(checkCreationProofValidity(proofs));
         REQUIRE(!isCreatedKeyProven(*app, LedgerEntryKey(entries[0]), proofs));
-        REQUIRE(addCreationProof(*app, LedgerEntryKey(entries[0]), proofs));
+        REQUIRE(addCreationProof(
+            app->getConfig().ARTIFICIALLY_SIMULATE_ARCHIVE_FILTER_MISS,
+            LedgerEntryKey(entries[0]), proofs));
         REQUIRE(checkCreationProofValidity(proofs));
         REQUIRE(isCreatedKeyProven(*app, LedgerEntryKey(entries[0]), proofs));
 
@@ -63,7 +65,9 @@ TEST_CASE("creation proofs", "[archival][soroban]")
         REQUIRE(!isCreatedKeyProven(*app, LedgerEntryKey(entries[1]), proofs));
 
         // Proofs work for multiple keys
-        REQUIRE(addCreationProof(*app, LedgerEntryKey(entries[1]), proofs));
+        REQUIRE(addCreationProof(
+            app->getConfig().ARTIFICIALLY_SIMULATE_ARCHIVE_FILTER_MISS,
+            LedgerEntryKey(entries[1]), proofs));
         REQUIRE(checkCreationProofValidity(proofs));
         REQUIRE(isCreatedKeyProven(*app, LedgerEntryKey(entries[1]), proofs));
         REQUIRE(isCreatedKeyProven(*app, LedgerEntryKey(entries[0]), proofs));
@@ -84,12 +88,16 @@ TEST_CASE("creation proofs", "[archival][soroban]")
 
         REQUIRE(checkCreationProofValidity(proofs));
         REQUIRE(isCreatedKeyProven(*app, LedgerEntryKey(temp), proofs));
-        REQUIRE(addCreationProof(*app, LedgerEntryKey(temp), proofs));
+        REQUIRE(addCreationProof(
+            app->getConfig().ARTIFICIALLY_SIMULATE_ARCHIVE_FILTER_MISS,
+            LedgerEntryKey(temp), proofs));
         REQUIRE(checkCreationProofValidity(proofs));
         REQUIRE(proofs.size() == 0);
 
         REQUIRE(isCreatedKeyProven(*app, LedgerEntryKey(code), proofs));
-        REQUIRE(addCreationProof(*app, LedgerEntryKey(code), proofs));
+        REQUIRE(addCreationProof(
+            app->getConfig().ARTIFICIALLY_SIMULATE_ARCHIVE_FILTER_MISS,
+            LedgerEntryKey(code), proofs));
         REQUIRE(checkCreationProofValidity(proofs));
         REQUIRE(proofs.size() == 0);
     }

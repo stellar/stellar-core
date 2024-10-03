@@ -7,10 +7,13 @@
 #include "xdr/Stellar-transaction.h"
 #include <xdrpp/types.h>
 
+#include <optional>
+
 namespace stellar
 {
 
 class Application;
+class SearchableHotArchiveBucketListSnapshot;
 
 // Returns true if the proof structure is valid. This function does not check
 // the validity of the proof itself, just that the structure is correct (i.e. no
@@ -26,7 +29,7 @@ bool isCreatedKeyProven(Application& app, LedgerKey const& lk,
 
 // Adds a creation proof for lk to proofs. Returns true if a proof was added or
 // is not necessary. Returns false if no valid proof exists.
-bool addCreationProof(Application& app, LedgerKey const& lk,
+bool addCreationProof(bool simulateBloomMiss, LedgerKey const& lk,
                       xdr::xvector<ArchivalProof>& proofs);
 
 // Returns true if the proof structure is valid. This function does not check
@@ -47,6 +50,11 @@ getRestoredEntryFromProof(Application& app, LedgerKey const& lk,
 
 // Adds a restoration proof for lk to proofs. Returns true if a proof was added
 // or is not necessary. Returns false if no valid proof exists.
-bool addRestorationProof(Application& app, LedgerKey const& lk,
-                         xdr::xvector<ArchivalProof>& proofs);
+// If ledgerSeq is specified, the entry will be restored based on the snapshot
+// at that ledger. TODO: Fix race condition when ledgerSeq is populated by
+// loading keys in batches.
+bool addRestorationProof(
+    std::shared_ptr<SearchableHotArchiveBucketListSnapshot> hotArchive,
+    LedgerKey const& lk, xdr::xvector<ArchivalProof>& proofs,
+    std::optional<uint32_t> ledgerSeq = std::nullopt);
 }

@@ -2993,7 +2993,7 @@ TEST_CASE("evicted persistent entries"
             xdr::xvector<ArchivalProof> proofs;
             auto wrongLk = client.getContract().getDataKey(
                 makeSymbolSCVal("null"), ContractDataDurability::PERSISTENT);
-            REQUIRE(!addRestorationProof(test.getApp(), wrongLk, proofs));
+            REQUIRE(!addRestorationProof(hotArchive, wrongLk, proofs));
 
             // RestoreOp should fail with no proof/ empty proof
             SorobanResources restoreResources;
@@ -3015,7 +3015,7 @@ TEST_CASE("evicted persistent entries"
                         .restoreFootprintResult()
                         .code() == RESTORE_FOOTPRINT_MALFORMED);
 
-            REQUIRE(addRestorationProof(test.getApp(), lk, proofs));
+            REQUIRE(addRestorationProof(hotArchive, lk, proofs));
 
             // Should succeed after adding proper proofs
             test.invokeRestoreOp({lk}, expectedRefundableFeeCharged, proofs);
@@ -3084,7 +3084,7 @@ TEST_CASE("persistent entry archival filters", "[soroban][archival]")
 
     xdr::xvector<ArchivalProof> proofs;
     addCreationProof(
-        test.getApp(),
+        cfg.ARTIFICIALLY_SIMULATE_ARCHIVE_FILTER_MISS,
         client.getContract().getDataKey(makeSymbolSCVal("miss"),
                                         ContractDataDurability::PERSISTENT),
         proofs);
