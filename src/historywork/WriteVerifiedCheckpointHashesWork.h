@@ -27,8 +27,8 @@ class WriteVerifiedCheckpointHashesWork : public BatchWork
   public:
     WriteVerifiedCheckpointHashesWork(
         Application& app, LedgerNumHashPair rangeEnd,
-        std::string const& outputFile,
-        std::optional<std::string> const& trustedHashFile,
+        std::filesystem::path const& outputFile,
+        std::optional<std::filesystem::path> const& trustedHashFile,
         std::optional<uint32_t> const& fromLedger,
         uint32_t nestedBatchSize = NESTED_DOWNLOAD_BATCH_SIZE,
         std::shared_ptr<HistoryArchive> archive = nullptr);
@@ -36,11 +36,11 @@ class WriteVerifiedCheckpointHashesWork : public BatchWork
 
     // Helper to load a hash back from a file produced by this class.
     static Hash loadHashFromJsonOutput(uint32_t seq,
-                                       std::string const& filename);
+                                       std::filesystem::path const& path);
     // Helper to load the latest hash back from a file produced by this class.
     // If the file does not exist, returns std::nullopt.
     static std::optional<LedgerNumHashPair>
-    loadLatestHashPairFromJsonOutput(std::string const& filename);
+    loadLatestHashPairFromJsonOutput(std::filesystem::path const& path);
 
     void onSuccess() override;
 
@@ -85,9 +85,13 @@ class WriteVerifiedCheckpointHashesWork : public BatchWork
     void startOutputFile();
     void endOutputFile();
     std::shared_ptr<std::ofstream> mOutputFile;
-    std::optional<std::string> const mTrustedHashFileName;
-    std::string const mOutputFileName;
+    std::optional<std::filesystem::path> const mTrustedHashPath;
+    std::filesystem::path mOutputPath;
+    // If true, mOutputPath == mTrustedHashPath, and output
+    // will be written to a temporary file before being renamed to
+    // mOutputPath when verificaiton is complete.
+    bool mAppendToFile = false;
     std::optional<LedgerNumHashPair> mLatestTrustedHashPair;
-    std::optional<uint32_t> const& mFromLedger;
+    std::optional<uint32_t> const mFromLedger;
 };
 }
