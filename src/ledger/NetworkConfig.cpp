@@ -461,72 +461,6 @@ updateCpuCostParamsEntryForV22(AbstractLedgerTxn& ltxRoot)
     {
         switch (val)
         {
-        // updating existing parameters changed in p22
-        case VmInstantiation:
-            params[val] =
-                ContractCostParamEntry(ExtensionPoint{0}, 31271, 57504);
-            break;
-        case VmCachedInstantiation:
-            params[val] = ContractCostParamEntry(ExtensionPoint{0}, 40828, 680);
-            break;
-        case InvokeVmFunction:
-            params[val] = ContractCostParamEntry(ExtensionPoint{0}, 2149, 0);
-            break;
-        case ParseWasmInstructions:
-            params[val] = ContractCostParamEntry(ExtensionPoint{0}, 37421, 32);
-            break;
-        case ParseWasmFunctions:
-            params[val] = ContractCostParamEntry(ExtensionPoint{0}, 0, 84156);
-            break;
-        case ParseWasmGlobals:
-            params[val] = ContractCostParamEntry(ExtensionPoint{0}, 0, 163415);
-            break;
-        case ParseWasmTableEntries:
-            params[val] = ContractCostParamEntry(ExtensionPoint{0}, 0, 29644);
-            break;
-        case ParseWasmTypes:
-            params[val] = ContractCostParamEntry(ExtensionPoint{0}, 0, 893113);
-            break;
-        case ParseWasmDataSegments:
-            params[val] = ContractCostParamEntry(ExtensionPoint{0}, 0, 184921);
-            break;
-        case ParseWasmElemSegments:
-            params[val] = ContractCostParamEntry(ExtensionPoint{0}, 0, 312369);
-            break;
-        case ParseWasmImports:
-            params[val] = ContractCostParamEntry(ExtensionPoint{0}, 0, 529255);
-            break;
-        case ParseWasmExports:
-            params[val] = ContractCostParamEntry(ExtensionPoint{0}, 0, 361665);
-            break;
-        case ParseWasmDataSegmentBytes:
-            params[val] = ContractCostParamEntry(ExtensionPoint{0}, 0, 14);
-            break;
-        case InstantiateWasmInstructions:
-            params[val] = ContractCostParamEntry(ExtensionPoint{0}, 43208, 0);
-            break;
-        case InstantiateWasmFunctions:
-            params[val] = ContractCostParamEntry(ExtensionPoint{0}, 0, 8050);
-            break;
-        case InstantiateWasmGlobals:
-            params[val] = ContractCostParamEntry(ExtensionPoint{0}, 0, 10647);
-            break;
-        case InstantiateWasmTableEntries:
-            params[val] = ContractCostParamEntry(ExtensionPoint{0}, 0, 1933);
-            break;
-        case InstantiateWasmDataSegments:
-            params[val] = ContractCostParamEntry(ExtensionPoint{0}, 0, 17164);
-            break;
-        case InstantiateWasmElemSegments:
-            params[val] = ContractCostParamEntry(ExtensionPoint{0}, 0, 34261);
-            break;
-        case InstantiateWasmImports:
-            params[val] = ContractCostParamEntry(ExtensionPoint{0}, 0, 746142);
-            break;
-        case InstantiateWasmExports:
-            params[val] = ContractCostParamEntry(ExtensionPoint{0}, 0, 296177);
-            break;
-
         // adding new cost types introduced in p22
         case Bls12381EncodeFp:
             params[val] = ContractCostParamEntry(ExtensionPoint{0}, 661, 0);
@@ -889,54 +823,6 @@ updateMemCostParamsEntryForV22(AbstractLedgerTxn& ltxRoot)
     {
         switch (val)
         {
-        // updating existing parameters changed in p22
-        case VmCachedInstantiation:
-            params[val] =
-                ContractCostParamEntry{ExtensionPoint{0}, 69472, 1478};
-            break;
-        case InvokeVmFunction:
-            params[val] = ContractCostParamEntry{ExtensionPoint{0}, 15, 0};
-            break;
-        case ParseWasmInstructions:
-            params[val] = ContractCostParamEntry{ExtensionPoint{0}, 13980, 215};
-            break;
-        case ParseWasmFunctions:
-            params[val] = ContractCostParamEntry{ExtensionPoint{0}, 0, 23056};
-            break;
-        case ParseWasmGlobals:
-            params[val] = ContractCostParamEntry{ExtensionPoint{0}, 0, 11924};
-            break;
-        case ParseWasmTableEntries:
-            params[val] = ContractCostParamEntry{ExtensionPoint{0}, 0, 6121};
-            break;
-        case ParseWasmTypes:
-            params[val] = ContractCostParamEntry{ExtensionPoint{0}, 0, 49554};
-            break;
-        case ParseWasmDataSegments:
-            params[val] = ContractCostParamEntry{ExtensionPoint{0}, 0, 5525};
-            break;
-        case ParseWasmElemSegments:
-            params[val] = ContractCostParamEntry{ExtensionPoint{0}, 0, 47034};
-            break;
-        case ParseWasmImports:
-            params[val] = ContractCostParamEntry{ExtensionPoint{0}, 0, 101762};
-            break;
-        case ParseWasmExports:
-            params[val] = ContractCostParamEntry{ExtensionPoint{0}, 0, 35491};
-            break;
-        case ParseWasmDataSegmentBytes:
-            params[val] = ContractCostParamEntry{ExtensionPoint{0}, 0, 129};
-            break;
-        case InstantiateWasmInstructions:
-            params[val] = ContractCostParamEntry{ExtensionPoint{0}, 70792, 0};
-            break;
-        case InstantiateWasmFunctions:
-            params[val] = ContractCostParamEntry{ExtensionPoint{0}, 0, 17749};
-            break;
-        case InstantiateWasmImports:
-            params[val] = ContractCostParamEntry{ExtensionPoint{0}, 0, 98578};
-            break;
-
         // adding new cost types introduced in p22
         case Bls12381EncodeFp:
             params[val] = ContractCostParamEntry{ExtensionPoint{0}, 0, 0};
