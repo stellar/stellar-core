@@ -290,7 +290,7 @@ distclean-local: fuzz-clean
 endif # USE_AFL_FUZZ
 
 clean-local:
-	rm -rf $(top_builddir)/target $(top_builddir)/src/rust/soroban/*/target
+	rm -rf $(top_builddir)/target $(top_builddir)/src/rust/soroban/*/target $(RUST_DEP_TREE_STAMP) $(SOROBAN_LIBS_STAMP)
 
 CLEANFILES = $(BUILT_SOURCES) *~ */*~ stellar*.log
 MAINTAINERCLEANFILES = $(srcdir)/Makefile.in $(srcdir)/*~ $(srcdir)/*/*~
