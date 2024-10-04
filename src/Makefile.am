@@ -8,6 +8,15 @@ include $(srcdir)/src.mk
 
 noinst_HEADERS = $(SRC_H_FILES)
 
+# We sometimes specify a CXXFLAGS setting like -stdlib=libc++ that causes the
+# stdlib to change. When this makes it way down to Rust code building C++ code
+# for one of its libraries (specifically tracy-client-sys) this needs to be
+# accompanied by an _explicit_ instruction to invoke the linker with -lc++. This
+# is done by setting the CXXSTDLIB flag, which Rust's C++-building machinery is
+# sensitive to. Rust passes-on, but does not look inside, CXXFLAGS itself to
+# realize that it needs this setting.
+CXXSTDLIB := $(if $(findstring -stdlib=libc++,$(CXXFLAGS)),c++,$(if $(findstring -stdlib=libstdc++,$(CXXFLAGS)),stdc++,))
+
 if USE_TRACY
 CARGO_FEATURE_TRACY = --features tracy
 else
@@ -167,14 +176,22 @@ $(RUST_DEP_TREE_STAMP): $(wildcard rust/soroban/*/Cargo.*) Makefile
 # them back together. Or something. Anyways it works and is the only portable
 # and robust solution we've found to preventing the StableCrateId collision.
 #
-# We also have to be somewhat selective about the versions we pass the
-# `next` feature to (only the most recent soroban) and the versions we
-# pass the `tracy` feature to (only those post-p22 versions that support
-# the tracy delayed-init feature).
+# We also have to be somewhat selective about the versions we pass the `next`
+# feature to (only the most recent soroban) and the versions we pass the `tracy`
+# features to (only those post-p22 versions that support the tracy delayed-init
+# feature).
 #
 # We also have to sequentialize the builds of the sorobans after the
-# dep-tree-stamp files and before the stellar-core build, because rustup
-# gets invoked and it is not concurrency-safe.
+# dep-tree-stamp files and before the stellar-core build, because rustup gets
+# invoked and it is not concurrency-safe.
+#
+# We also have to set pass all the CC, CXX, CFLAGS and CXXFLAGS we were called
+# with explicitly, because make does not implicitly export them to its rules,
+# but cargo needs them to build C++ files in build.rs files.
+#
+# We also have to pass CXXSTDLIB to those build.rs files, because they are
+# sensitive to CXXFLAGS but also don't inspect them to see if they're setting
+# -stdlib=libc++ or -stdlib=libstdc++
 $(SOROBAN_LIBS_STAMP): $(wildcard rust/soroban/p*/Cargo.lock) Makefile $(RUST_DEP_TREE_STAMP) $(SRC_RUST_FILES)
 	for proto in $(ALL_SOROBAN_PROTOCOLS) ; \
 	do \
@@ -191,7 +208,8 @@ $(SOROBAN_LIBS_STAMP): $(wildcard rust/soroban/p*/Cargo.lock) Makefile $(RUST_DE
 			;; \
 		esac ; \
 		cd $(abspath $(RUST_BUILD_DIR))/soroban/$$proto && \
-		RUSTFLAGS=-Cmetadata=$$proto \
+		CC="$(CC)" CXX="$(CXX)" CFLAGS="$(CFLAGS)" CXXFLAGS="$(CXXFLAGS)" CXXSTDLIB="$(CXXSTDLIB)" \
+		RUSTFLAGS="-Cmetadata=$$proto" \
 		CARGO_NET_GIT_FETCH_WITH_CLI=true cargo build \
 			--package soroban-env-host \
 			--$(RUST_PROFILE) \
@@ -215,6 +233,7 @@ $(SOROBAN_LIBS_STAMP): $(wildcard rust/soroban/p*/Cargo.lock) Makefile $(RUST_DE
 # rustc` invocation, along with `-L dependency=...` flags to tell cargo where to
 # find indirect deps of those .rlibs.
 $(LIBRUST_STELLAR_CORE): $(RUST_HOST_DEPFILES) $(SRC_RUST_FILES) Makefile $(SOROBAN_LIBS_STAMP)
+	CC="$(CC)" CXX="$(CXX)" CFLAGS="$(CFLAGS)" CXXFLAGS="$(CXXFLAGS)" CXXSTDLIB="$(CXXSTDLIB)" \
 	CARGO_NET_GIT_FETCH_WITH_CLI=true cargo rustc \
 		--package stellar-core \
 		--$(RUST_PROFILE) \
