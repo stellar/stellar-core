@@ -1,0 +1,47 @@
+{
+    "updated_entry": [
+        {
+            "contract_max_size_bytes": 131072
+        },
+       {
+          "contract_ledger_cost_v0": {
+            "ledger_max_read_ledger_entries": 200,
+            "ledger_max_read_bytes": 500000,
+            "ledger_max_write_ledger_entries": 125,
+            "ledger_max_write_bytes": 143360,
+            "tx_max_read_ledger_entries": 40,
+            "tx_max_read_bytes": 200000,
+            "tx_max_write_ledger_entries": 25,
+            "tx_max_write_bytes": 132096,
+            "fee_read_ledger_entry": 6250,
+            "fee_write_ledger_entry": 10000,
+            "fee_read1_kb": 1786,
+            "bucket_list_target_size_bytes": 14500000000,
+            "write_fee1_kb_bucket_list_low": 8510,
+            "write_fee1_kb_bucket_list_high": 12116,
+            "bucket_list_write_fee_growth_factor": 5000
+          }
+        },
+        {
+            "contract_bandwidth_v0": {
+              "ledger_max_txs_size_bytes": 133120,
+              "tx_max_size_bytes": 132096,
+              "fee_tx_size1_kb": 1624
+            }
+          },        
+          {
+            "state_archival": {
+                "max_entry_ttl": 3110400,
+                "min_temporary_ttl": 17280,
+                "min_persistent_ttl": 2073600,
+                "persistent_rent_rate_denominator": 2103,
+                "temp_rent_rate_denominator": 4206,
+                "max_entries_to_archive": 1000,
+                "bucket_list_size_window_sample_size": 30,
+                "bucket_list_window_sample_period": 64,
+                "eviction_scan_size": 500000,
+                "starting_eviction_scan_level": 7
+            }
+          }
+    ]
+  }
