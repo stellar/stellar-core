@@ -176,7 +176,6 @@ mod rust_bridge {
     // The extern "Rust" block declares rust stuff we're going to export to C++.
     #[namespace = "stellar::rust_bridge"]
     extern "Rust" {
-        fn start_tracy();
         fn to_base64(b: &CxxVector<u8>, mut s: Pin<&mut CxxString>);
         fn from_base64(s: &CxxString, mut b: Pin<&mut CxxVector<u8>>);
         fn check_sensible_soroban_config_for_protocol(core_max_proto: u32);
@@ -1054,11 +1053,4 @@ pub(crate) fn compute_write_fee_per_1kb(
 ) -> Result<i64, Box<dyn std::error::Error>> {
     let hm = get_host_module_for_protocol(config_max_protocol, protocol_version)?;
     Ok((hm.compute_write_fee_per_1kb)(bucket_list_size, fee_config))
-}
-
-fn start_tracy() {
-    #[cfg(feature = "tracy")]
-    tracy_client::Client::start();
-    #[cfg(not(feature = "tracy"))]
-    panic!("called start_tracy from non-cfg(feature=\"tracy\") build")
 }

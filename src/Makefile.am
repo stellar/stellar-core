@@ -18,7 +18,37 @@ noinst_HEADERS = $(SRC_H_FILES)
 CXXSTDLIB := $(if $(findstring -stdlib=libc++,$(CXXFLAGS)),c++,$(if $(findstring -stdlib=libstdc++,$(CXXFLAGS)),stdc++,))
 
 if USE_TRACY
+# NB: this unfortunately long list has to be provided here and kept in sync with
+# the list of features for tracy-client in src/rust/Cargo.toml.  This is because
+# the soroban sub-crates are built independently and know nothing about
+# src/rust/Cargo.toml
+#
+# NB also: this list does _not_ and should not include the manual-lifetime
+# feature. Versions of the rust tracy-client crate before 0.17 (eg. version
+# 0.16.4 which we shipped in soroban 21.x) always used the C++ tracy code in
+# manual-lifetime mode, and thus required careful coordination with
+# stellar-core's C++ code to start and stop tracy correctly. However this became
+# intractable when we started building multiple soroban libraries as .rlibs with
+# separate copies of tracy-client simultaneously, as they would each have their
+# own rust-metadata-hash-qualified copy of a rust global variable tracking the
+# initialization state of tracy (and of course tracy's C++ code itself cannot be
+# started multiple times idempotently in manual-lifetime mode, that would be too
+# easy). So we have now disabled tracy-client (0.16.4) in soroban 21.x and only
+# enabled it in soroban 22.x (and later), which has tracy-client 0.17, which
+# finally supports _turning off_ manual-lifetime mode. Once off, tracy's C++
+# code initializes itself on its own, and everything works fine. There is only
+# one copy of tracy in the final linked executable and it has a single atomic
+# pointer controlling its initialization state.
 CARGO_FEATURE_TRACY = --features tracy
+CARGO_FEATURE_TRACY += --features tracy-client/enable
+CARGO_FEATURE_TRACY += --features tracy-client/ondemand
+CARGO_FEATURE_TRACY += --features tracy-client/delayed-init
+CARGO_FEATURE_TRACY += --features tracy-client/system-tracing
+CARGO_FEATURE_TRACY += --features tracy-client/sampling
+CARGO_FEATURE_TRACY += --features tracy-client/code-transfer
+CARGO_FEATURE_TRACY += --features tracy-client/timer-fallback
+CARGO_FEATURE_TRACY += --features tracy-client/only-localhost
+CARGO_FEATURE_TRACY += --features tracy-client/only-ipv4
 else
 CARGO_FEATURE_TRACY =
 endif
