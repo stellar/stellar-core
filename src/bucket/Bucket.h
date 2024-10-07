@@ -191,14 +191,6 @@ class LiveBucket : public Bucket,
     // after this function returns:
     // bytesToScan -= amount_bytes_scanned
     // maxEntriesToEvict -= entries_evicted
-    bool scanForEvictionLegacy(AbstractLedgerTxn& ltx, EvictionIterator& iter,
-                               uint32_t& bytesToScan,
-                               uint32_t& remainingEntriesToEvict,
-                               uint32_t ledgerSeq,
-                               medida::Counter& entriesEvictedCounter,
-                               medida::Counter& bytesScannedForEvictionCounter,
-                               std::shared_ptr<EvictionStatistics> stats) const;
-
     bool scanForEviction(EvictionIterator& iter, uint32_t& bytesToScan,
                          uint32_t ledgerSeq,
                          std::list<EvictionResultEntry>& evictableKeys,

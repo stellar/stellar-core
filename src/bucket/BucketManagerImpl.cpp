@@ -1135,17 +1135,6 @@ BucketManagerImpl::maybeSetIndex(std::shared_ptr<Bucket> b,
 }
 
 void
-BucketManagerImpl::scanForEvictionLegacy(AbstractLedgerTxn& ltx,
-                                         uint32_t ledgerSeq)
-{
-    ZoneScoped;
-    releaseAssert(protocolVersionStartsFrom(ltx.getHeader().ledgerVersion,
-                                            SOROBAN_PROTOCOL_VERSION));
-    mLiveBucketList->scanForEvictionLegacy(
-        mApp, ltx, ledgerSeq, mBucketListEvictionCounters, mEvictionStatistics);
-}
-
-void
 BucketManagerImpl::startBackgroundEvictionScan(uint32_t ledgerSeq)
 {
     releaseAssert(mApp.getConfig().isUsingBucketListDB());

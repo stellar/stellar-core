@@ -54,13 +54,9 @@ clearFutures(Application::pointer app, LiveBucketList& bl)
 
     size_t n = static_cast<size_t>(app->getConfig().WORKER_THREADS);
 
-    // If background eviction is enabled, we have one fewer worker thread for
-    // bucket merges
-    if (app->getConfig().isUsingBackgroundEviction())
-    {
-        releaseAssert(n != 0);
-        --n;
-    }
+    // Background eviction takes up one worker thread.
+    releaseAssert(n != 0);
+    --n;
 
     std::mutex mutex;
     std::condition_variable cv, cv2;

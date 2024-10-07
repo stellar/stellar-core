@@ -536,10 +536,6 @@ class LiveBucketList : public BucketListBase<LiveBucket>
                                            std::shared_ptr<LiveBucket const> b,
                                            EvictionCounters& counters);
 
-    void scanForEvictionLegacy(Application& app, AbstractLedgerTxn& ltx,
-                               uint32_t ledgerSeq, EvictionCounters& counters,
-                               std::shared_ptr<EvictionStatistics> stats);
-
     // Add a batch of initial (created), live (updated) and dead entries to the
     // bucketlist, representing the entries effected by closing
     // `currLedger`. The bucketlist will incorporate these into the smallest

@@ -308,12 +308,10 @@ getTestConfig(int instanceNumber, Config::TestDbMode mode)
             mode == Config::TESTDB_BUCKET_DB_PERSISTENT)
         {
             thisConfig.DEPRECATED_SQL_LEDGER_STATE = false;
-            thisConfig.BACKGROUND_EVICTION_SCAN = true;
         }
         else
         {
             thisConfig.DEPRECATED_SQL_LEDGER_STATE = true;
-            thisConfig.BACKGROUND_EVICTION_SCAN = false;
         }
 
         if (mode != Config::TESTDB_IN_MEMORY_NO_OFFERS)

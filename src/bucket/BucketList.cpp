@@ -887,58 +887,6 @@ LiveBucketList::checkIfEvictionScanIsStuck(EvictionIterator const& evictionIter,
     }
 }
 
-// To avoid noisy data, only count metrics that encompass a complete
-// eviction cycle. If a node joins the network mid cycle, metrics will be
-// nullopt and be initialized at the start of the next cycle.
-void
-LiveBucketList::scanForEvictionLegacy(Application& app, AbstractLedgerTxn& ltx,
-                                      uint32_t ledgerSeq,
-                                      EvictionCounters& counters,
-                                      std::shared_ptr<EvictionStatistics> stats)
-{
-    releaseAssert(stats);
-
-    auto getBucketFromIter = [&levels = mLevels](EvictionIterator const& iter) {
-        auto& level = levels.at(iter.bucketListLevel);
-        return iter.isCurrBucket ? level.getCurr() : level.getSnap();
-    };
-
-    auto const& networkConfig =
-        app.getLedgerManager().getSorobanNetworkConfig();
-    auto const firstScanLevel =
-        networkConfig.stateArchivalSettings().startingEvictionScanLevel;
-    auto evictionIter = networkConfig.evictionIterator();
-    auto scanSize = networkConfig.stateArchivalSettings().evictionScanSize;
-    auto maxEntriesToEvict =
-        networkConfig.stateArchivalSettings().maxEntriesToArchive;
-
-    updateStartingEvictionIterator(evictionIter, firstScanLevel, ledgerSeq);
-
-    auto startIter = evictionIter;
-    auto b = getBucketFromIter(evictionIter);
-
-    while (!b->scanForEvictionLegacy(
-        ltx, evictionIter, scanSize, maxEntriesToEvict, ledgerSeq,
-        counters.entriesEvicted, counters.bytesScannedForEviction, stats))
-    {
-
-        if (updateEvictionIterAndRecordStats(evictionIter, startIter,
-                                             firstScanLevel, ledgerSeq, stats,
-                                             counters))
-        {
-            break;
-        }
-
-        b = getBucketFromIter(evictionIter);
-        checkIfEvictionScanIsStuck(
-            evictionIter,
-            networkConfig.stateArchivalSettings().evictionScanSize, b,
-            counters);
-    }
-
-    networkConfig.updateEvictionIterator(ltx, evictionIter);
-}
-
 template <typename BucketT>
 void
 BucketListBase<BucketT>::restartMerges(Application& app,
