@@ -94,7 +94,7 @@ class WriteVerifiedCheckpointHashesWork : public BatchWork
     std::filesystem::path mTmpOutputPath;
     // If true, mOutputPath == mTrustedHashPath, and output
     // will be written to a temporary file before being renamed to
-    // mOutputPath when verificaiton is complete.
+    // mOutputPath when verification is complete.
     bool mAppendToFile = false;
     std::optional<LedgerNumHashPair> mLatestTrustedHashPair;
     std::optional<uint32_t> const mFromLedger;
