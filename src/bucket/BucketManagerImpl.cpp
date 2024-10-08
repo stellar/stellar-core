@@ -128,17 +128,13 @@ BucketManagerImpl::initialize()
     {
         mLiveBucketList = std::make_unique<LiveBucketList>();
         mHotArchiveBucketList = std::make_unique<HotArchiveBucketList>();
-
-        if (mApp.getConfig().isUsingBucketListDB())
-        {
-            mSnapshotManager = std::make_unique<BucketSnapshotManager>(
-                mApp,
-                std::make_unique<BucketListSnapshot<LiveBucket>>(
-                    *mLiveBucketList, LedgerHeader()),
-                std::make_unique<BucketListSnapshot<HotArchiveBucket>>(
-                    *mHotArchiveBucketList, LedgerHeader()),
-                mApp.getConfig().QUERY_SNAPSHOT_LEDGERS);
-        }
+        mSnapshotManager = std::make_unique<BucketSnapshotManager>(
+            mApp,
+            std::make_unique<BucketListSnapshot<LiveBucket>>(*mLiveBucketList,
+                                                             LedgerHeader()),
+            std::make_unique<BucketListSnapshot<HotArchiveBucket>>(
+                *mHotArchiveBucketList, LedgerHeader()),
+            mApp.getConfig().QUERY_SNAPSHOT_LEDGERS);
     }
 }
 
@@ -359,7 +355,6 @@ BucketManagerImpl::getHotArchiveBucketList()
 BucketSnapshotManager&
 BucketManagerImpl::getBucketSnapshotManager() const
 {
-    releaseAssertOrThrow(mApp.getConfig().isUsingBucketListDB());
     releaseAssert(mSnapshotManager);
     return *mSnapshotManager;
 }
@@ -1020,11 +1015,7 @@ BucketManagerImpl::addLiveBatch(Application& app, LedgerHeader header,
     mLiveBucketList->addBatch(app, header.ledgerSeq, header.ledgerVersion,
                               initEntries, liveEntries, deadEntries);
     mLiveBucketListSizeCounter.set_count(mLiveBucketList->getSize());
-
-    if (app.getConfig().isUsingBucketListDB())
-    {
-        reportBucketEntryCountMetrics();
-    }
+    reportBucketEntryCountMetrics();
 }
 
 void
@@ -1137,7 +1128,6 @@ BucketManagerImpl::maybeSetIndex(std::shared_ptr<Bucket> b,
 void
 BucketManagerImpl::startBackgroundEvictionScan(uint32_t ledgerSeq)
 {
-    releaseAssert(mApp.getConfig().isUsingBucketListDB());
     releaseAssert(mSnapshotManager);
     releaseAssert(!mEvictionFuture.valid());
     releaseAssert(mEvictionStatistics);
@@ -1327,16 +1317,12 @@ BucketManagerImpl::assumeState(HistoryArchiveState const& has,
             }
         }
 
-        // Buckets on the BucketList should always be indexed when
-        // BucketListDB enabled
-        if (mApp.getConfig().isUsingBucketListDB())
+        // Buckets on the BucketList should always be indexed
+        releaseAssert(curr->isEmpty() || curr->isIndexed());
+        releaseAssert(snap->isEmpty() || snap->isIndexed());
+        if (nextBucket)
         {
-            releaseAssert(curr->isEmpty() || curr->isIndexed());
-            releaseAssert(snap->isEmpty() || snap->isIndexed());
-            if (nextBucket)
-            {
-                releaseAssert(nextBucket->isEmpty() || nextBucket->isIndexed());
-            }
+            releaseAssert(nextBucket->isEmpty() || nextBucket->isIndexed());
         }
 
         mLiveBucketList->getLevel(i).setCurr(curr);
@@ -1465,7 +1451,7 @@ BucketManagerImpl::mergeBuckets(HistoryArchiveState const& has)
         be.liveEntry() = pair.second;
         out.put(be);
     }
-    return out.getBucket(*this, /*shouldSynchronouslyIndex=*/false);
+    return out.getBucket(*this);
 }
 
 static bool
@@ -1675,7 +1661,6 @@ BucketManagerImpl::getConfig() const
 std::shared_ptr<SearchableLiveBucketListSnapshot>
 BucketManagerImpl::getSearchableLiveBucketListSnapshot()
 {
-    releaseAssert(mApp.getConfig().isUsingBucketListDB());
     // Any other threads must maintain their own snapshot
     releaseAssert(threadIsMain());
     if (!mSearchableBucketListSnapshot)
@@ -1690,10 +1675,6 @@ BucketManagerImpl::getSearchableLiveBucketListSnapshot()
 void
 BucketManagerImpl::reportBucketEntryCountMetrics()
 {
-    if (!mApp.getConfig().isUsingBucketListDB())
-    {
-        return;
-    }
     auto bucketEntryCounters = mLiveBucketList->sumBucketEntryCounters();
     for (auto [type, count] : bucketEntryCounters.entryTypeCounts)
     {

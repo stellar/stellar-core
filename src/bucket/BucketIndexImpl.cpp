@@ -229,7 +229,7 @@ BucketIndexImpl<IndexT>::BucketIndexImpl(BucketManager& bm,
         ZoneValue(static_cast<int64_t>(count));
     }
 
-    if (bm.getConfig().isPersistingBucketListDBIndexes())
+    if (bm.getConfig().BUCKETLIST_DB_PERSIST_INDEX)
     {
         saveToDisk(bm, hash);
     }
@@ -250,7 +250,7 @@ BucketIndexImpl<BucketIndex::RangeIndex>::saveToDisk(BucketManager& bm,
                                                      Hash const& hash) const
 {
     ZoneScoped;
-    releaseAssert(bm.getConfig().isPersistingBucketListDBIndexes());
+    releaseAssert(bm.getConfig().BUCKETLIST_DB_PERSIST_INDEX);
     auto timer =
         LogSlowExecution("Saving index", LogSlowExecution::Mode::AUTOMATIC_RAII,
                          "took", std::chrono::milliseconds(100));
@@ -365,7 +365,6 @@ BucketIndex::createIndex(BucketManager& bm,
 
     ZoneScoped;
     auto const& cfg = bm.getConfig();
-    releaseAssertOrThrow(cfg.isUsingBucketListDB());
     releaseAssertOrThrow(!filename.empty());
     auto pageSize = effectivePageSize(cfg, fs::size(filename.string()));
 

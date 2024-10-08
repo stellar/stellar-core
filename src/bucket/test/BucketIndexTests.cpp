@@ -512,7 +512,6 @@ testAllIndexTypes(std::function<void(Config&)> f)
     SECTION("individual index only")
     {
         Config cfg(getTestConfig());
-        cfg.DEPRECATED_SQL_LEDGER_STATE = false;
         cfg.BUCKETLIST_DB_INDEX_PAGE_SIZE_EXPONENT = 0;
         f(cfg);
     }
@@ -520,7 +519,6 @@ testAllIndexTypes(std::function<void(Config&)> f)
     SECTION("individual and range index")
     {
         Config cfg(getTestConfig());
-        cfg.DEPRECATED_SQL_LEDGER_STATE = false;
 
         // First 3 levels individual, last 3 range index
         cfg.BUCKETLIST_DB_INDEX_CUTOFF = 1;
@@ -530,7 +528,6 @@ testAllIndexTypes(std::function<void(Config&)> f)
     SECTION("range index only")
     {
         Config cfg(getTestConfig());
-        cfg.DEPRECATED_SQL_LEDGER_STATE = false;
         cfg.BUCKETLIST_DB_INDEX_CUTOFF = 0;
         f(cfg);
     }
@@ -612,7 +609,6 @@ TEST_CASE("serialize bucket indexes", "[bucket][bucketindex]")
 
     // All levels use range config
     cfg.BUCKETLIST_DB_INDEX_CUTOFF = 0;
-    cfg.DEPRECATED_SQL_LEDGER_STATE = false;
     cfg.BUCKETLIST_DB_PERSIST_INDEX = true;
     cfg.INVARIANT_CHECKS = {};
 

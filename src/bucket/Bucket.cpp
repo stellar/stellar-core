@@ -139,15 +139,6 @@ LiveBucket::apply(Application& app) const
 {
     ZoneScoped;
 
-    auto filter = [&](LedgerEntryType t) {
-        if (app.getConfig().isUsingBucketListDB())
-        {
-            return t == OFFER;
-        }
-
-        return true;
-    };
-
     std::unordered_set<LedgerKey> emptySet;
     BucketApplicator applicator(
         app, app.getConfig().LEDGER_PROTOCOL_VERSION,
@@ -155,7 +146,7 @@ LiveBucket::apply(Application& app) const
         0 /*set to a level that's not the bottom so we don't treat live entries
              as init*/
         ,
-        shared_from_this(), filter, emptySet);
+        shared_from_this(), emptySet);
     BucketApplicator::Counters counters(app.getClock().now());
     while (applicator)
     {
@@ -300,8 +291,7 @@ HotArchiveBucket::fresh(BucketManager& bucketManager, uint32_t protocolVersion,
         bucketManager.incrMergeCounters(mc);
     }
 
-    return out.getBucket(bucketManager,
-                         bucketManager.getConfig().isUsingBucketListDB());
+    return out.getBucket(bucketManager);
 }
 
 std::shared_ptr<LiveBucket>
@@ -345,8 +335,7 @@ LiveBucket::fresh(BucketManager& bucketManager, uint32_t protocolVersion,
         bucketManager.incrMergeCounters(mc);
     }
 
-    return out.getBucket(bucketManager,
-                         bucketManager.getConfig().isUsingBucketListDB());
+    return out.getBucket(bucketManager);
 }
 
 static void
@@ -922,8 +911,7 @@ Bucket::merge(BucketManager& bucketManager, uint32_t maxProtocolVersion,
 
     MergeKey mk{keepTombstoneEntries, oldBucket->getHash(),
                 newBucket->getHash(), shadowHashes};
-    return out.getBucket(bucketManager,
-                         bucketManager.getConfig().isUsingBucketListDB(), &mk);
+    return out.getBucket(bucketManager, &mk);
 }
 
 LiveBucket::LiveBucket(std::string const& filename, Hash const& hash,

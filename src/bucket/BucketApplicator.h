@@ -26,7 +26,6 @@ class BucketApplicator
     uint32_t mLevel;
     LiveBucketInputIterator mBucketIter;
     size_t mCount{0};
-    std::function<bool(LedgerEntryType)> mEntryTypeFilter;
     std::unordered_set<LedgerKey>& mSeenKeys;
     std::streamoff mUpperBoundOffset{0};
     bool mOffersRemaining{true};
@@ -73,7 +72,6 @@ class BucketApplicator
     BucketApplicator(Application& app, uint32_t maxProtocolVersion,
                      uint32_t minProtocolVersionSeen, uint32_t level,
                      std::shared_ptr<LiveBucket const> bucket,
-                     std::function<bool(LedgerEntryType)> filter,
                      std::unordered_set<LedgerKey>& seenKeys);
     operator bool() const;
     size_t advance(Counters& counters);

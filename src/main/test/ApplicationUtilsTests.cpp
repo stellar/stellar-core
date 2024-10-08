@@ -107,7 +107,7 @@ checkState(Application& app)
         blcOk = false;
     }
 
-    if (app.getConfig().isUsingBucketListDB())
+    if (!app.getConfig().MODE_USES_IN_MEMORY_LEDGER)
     {
         auto checkBucket = [&blcOk](auto b) {
             if (!b->isEmpty() && !b->isIndexed())

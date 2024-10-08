@@ -223,7 +223,8 @@ LedgerSnapshot::LedgerSnapshot(AbstractLedgerTxn& ltx)
 
 LedgerSnapshot::LedgerSnapshot(Application& app)
 {
-    if (app.getConfig().DEPRECATED_SQL_LEDGER_STATE)
+#ifdef BUILD_TESTS
+    if (app.getConfig().MODE_USES_IN_MEMORY_LEDGER)
     {
         // Legacy read-only SQL transaction
         mLegacyLedgerTxn = std::make_unique<LedgerTxn>(
@@ -232,9 +233,8 @@ LedgerSnapshot::LedgerSnapshot(Application& app)
         mGetter = std::make_unique<LedgerTxnReadOnly>(*mLegacyLedgerTxn);
     }
     else
-    {
+#endif
         mGetter = std::make_unique<BucketSnapshotState>(app.getBucketManager());
-    }
 }
 
 LedgerHeaderWrapper

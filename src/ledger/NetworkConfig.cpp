@@ -1861,7 +1861,7 @@ SorobanNetworkConfig::writeAllSettings(AbstractLedgerTxn& ltx,
 
     // If testing with BucketListDB, we need to commit directly to the
     // BucketList
-    if (app.getConfig().isUsingBucketListDB())
+    if (!app.getConfig().MODE_USES_IN_MEMORY_LEDGER)
     {
         auto lcl = app.getLedgerManager().getLastClosedLedgerHeader();
         lcl.header.ledgerSeq += 1;

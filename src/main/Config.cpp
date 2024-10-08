@@ -2282,19 +2282,6 @@ Config::isInMemoryMode() const
 }
 
 bool
-Config::isUsingBucketListDB() const
-{
-    return !DEPRECATED_SQL_LEDGER_STATE && !MODE_USES_IN_MEMORY_LEDGER &&
-           MODE_ENABLES_BUCKETLIST;
-}
-
-bool
-Config::isPersistingBucketListDBIndexes() const
-{
-    return isUsingBucketListDB() && BUCKETLIST_DB_PERSIST_INDEX;
-}
-
-bool
 Config::isInMemoryModeWithoutMinimalDB() const
 {
     return MODE_USES_IN_MEMORY_LEDGER && !MODE_STORES_HISTORY_LEDGERHEADERS;

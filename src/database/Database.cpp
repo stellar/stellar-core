@@ -248,13 +248,8 @@ Database::upgradeToCurrentSchema()
         putSchemaVersion(vers);
     }
 
-    // While not really a schema upgrade, we need to upgrade the DB when
-    // BucketListDB is enabled.
-    if (mApp.getConfig().isUsingBucketListDB())
-    {
-        // Tx meta column no longer supported in BucketListDB
-        dropTxMetaIfExists();
-    }
+    // Tx meta column no longer supported
+    dropTxMetaIfExists();
 
     CLOG_INFO(Database, "DB schema is in current version");
     releaseAssert(vers == SCHEMA_VERSION);

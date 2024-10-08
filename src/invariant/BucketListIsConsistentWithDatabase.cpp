@@ -196,9 +196,9 @@ BucketListIsConsistentWithDatabase::checkEntireBucketlist()
         LedgerTxn ltx(mApp.getLedgerTxnRoot());
         for (auto const& pair : bucketLedgerMap)
         {
-            // Don't check entry types in BucketListDB when enabled
-            if (mApp.getConfig().isUsingBucketListDB() &&
-                !BucketIndex::typeNotSupported(pair.first.type()))
+            // Don't check entry types supported by BucketListDB, since they
+            // won't exist in SQL
+            if (!BucketIndex::typeNotSupported(pair.first.type()))
             {
                 continue;
             }
@@ -231,44 +231,26 @@ BucketListIsConsistentWithDatabase::checkEntireBucketlist()
         auto range = LedgerRange::inclusive(LedgerManager::GENESIS_LEDGER_SEQ,
                                             has.currentLedger);
 
-        // If BucketListDB enabled, only types not supported by BucketListDB
-        // should be in SQL DB
-        std::function<bool(LedgerEntryType)> filter;
-        if (mApp.getConfig().isUsingBucketListDB())
-        {
-            filter = BucketIndex::typeNotSupported;
-        }
-        else
-        {
-            filter = [](LedgerEntryType) { return true; };
-        }
-
-        auto s = counts.checkDbEntryCounts(mApp, range, filter);
+        auto s = counts.checkDbEntryCounts(mApp, range,
+                                           BucketIndex::typeNotSupported);
         if (!s.empty())
         {
             throw std::runtime_error(s);
         }
     }
 
-    if (mApp.getConfig().isUsingBucketListDB() &&
-        mApp.getPersistentState().getState(PersistentState::kDBBackend) !=
-            BucketIndex::DB_BACKEND_STATE)
+    if (mApp.getPersistentState().getState(PersistentState::kDBBackend) !=
+        BucketIndex::DB_BACKEND_STATE)
     {
-        throw std::runtime_error("BucketListDB enabled but BucketListDB flag "
-                                 "not set in PersistentState.");
+        throw std::runtime_error(
+            "Corrupt DB: BucketListDB flag "
+            "not set in PersistentState. Please run new-db");
     }
 }
 
 std::string
 BucketListIsConsistentWithDatabase::checkAfterAssumeState(uint32_t newestLedger)
 {
-    // If BucketListDB is disabled, we've already enforced the invariant on a
-    // per-Bucket level
-    if (!mApp.getConfig().isUsingBucketListDB())
-    {
-        return {};
-    }
-
     EntryCounts counts;
     LedgerKeySet seenKeys;
 
@@ -398,44 +380,12 @@ BucketListIsConsistentWithDatabase::checkOnBucketApply(
                 if (entryTypeFilter(e.liveEntry().data.type()))
                 {
                     counts.countLiveEntry(e.liveEntry());
-
-                    // BucketListDB is not compatible with per-Bucket database
-                    // consistency checks
-                    if (!mApp.getConfig().isUsingBucketListDB())
-                    {
-                        auto s = checkAgainstDatabase(ltx, e.liveEntry());
-                        if (!s.empty())
-                        {
-                            return s;
-                        }
-                    }
-                }
-            }
-            else if (e.type() == DEADENTRY)
-            {
-                // BucketListDB is not compatible with per-Bucket database
-                // consistency checks
-                if (entryTypeFilter(e.deadEntry().type()) &&
-                    !mApp.getConfig().isUsingBucketListDB())
-                {
-                    auto s = checkAgainstDatabase(ltx, e.deadEntry());
-                    if (!s.empty())
-                    {
-                        return s;
-                    }
                 }
             }
         }
     }
 
     auto range = LedgerRange::inclusive(oldestLedger, newestLedger);
-
-    // BucketListDB not compatible with per-Bucket database consistency checks
-    if (!mApp.getConfig().isUsingBucketListDB())
-    {
-        return counts.checkDbEntryCounts(mApp, range, entryTypeFilter);
-    }
-
     return std::string{};
 }
 }
