@@ -17,6 +17,13 @@ noinst_HEADERS = $(SRC_H_FILES)
 # realize that it needs this setting.
 CXXSTDLIB := $(if $(findstring -stdlib=libc++,$(CXXFLAGS)),c++,$(if $(findstring -stdlib=libstdc++,$(CXXFLAGS)),stdc++,))
 
+# If we are building with -fsanitize=address, any build.rs-built C++ code will
+# depend on asan, so we need to tell rustc to link with in the asan runtime as
+# well. Interestingly, passing -Clink-arg=-fsanitize=address to rustc does not
+# work, despite being the recommended approach, it seems rustc passes some other
+# flags to the linker that conflict with -fsanitize=address.
+RUSTFLAGS_ASAN := $(if $(findstring -fsanitize=address,$(CXXFLAGS)),-Clink-arg=-lasan,)
+
 if USE_TRACY
 # NB: this unfortunately long list has to be provided here and kept in sync with
 # the list of features for tracy-client in src/rust/Cargo.toml.  This is because
@@ -238,8 +245,8 @@ $(SOROBAN_LIBS_STAMP): $(wildcard rust/soroban/p*/Cargo.lock) Makefile $(RUST_DE
 			;; \
 		esac ; \
 		cd $(abspath $(RUST_BUILD_DIR))/soroban/$$proto && \
-		CC="$(CC)" CXX="$(CXX)" CFLAGS="$(CFLAGS)" CXXFLAGS="$(CXXFLAGS)" CXXSTDLIB="$(CXXSTDLIB)" \
-		RUSTFLAGS="-Cmetadata=$$proto" \
+		CC="$(CC)" CXX="$(CXX)" LD="$(LD)" CFLAGS="$(CFLAGS)" CXXFLAGS="$(CXXFLAGS)" CXXSTDLIB="$(CXXSTDLIB)" LDFLAGS="$(LDFLAGS)" \
+		RUSTFLAGS="-Cmetadata=$$proto $(RUSTFLAGS_ASAN)" \
 		CARGO_NET_GIT_FETCH_WITH_CLI=true cargo build \
 			--package soroban-env-host \
 			--$(RUST_PROFILE) \
@@ -263,7 +270,8 @@ $(SOROBAN_LIBS_STAMP): $(wildcard rust/soroban/p*/Cargo.lock) Makefile $(RUST_DE
 # rustc` invocation, along with `-L dependency=...` flags to tell cargo where to
 # find indirect deps of those .rlibs.
 $(LIBRUST_STELLAR_CORE): $(RUST_HOST_DEPFILES) $(SRC_RUST_FILES) Makefile $(SOROBAN_LIBS_STAMP)
-	CC="$(CC)" CXX="$(CXX)" CFLAGS="$(CFLAGS)" CXXFLAGS="$(CXXFLAGS)" CXXSTDLIB="$(CXXSTDLIB)" \
+	CC="$(CC)" CXX="$(CXX)" LD="$(LD)" CFLAGS="$(CFLAGS)" CXXFLAGS="$(CXXFLAGS)" CXXSTDLIB="$(CXXSTDLIB)" LDFLAGS="$(LDFLAGS)" \
+	RUSTFLAGS="$(RUSTFLAGS_ASAN)" \
 	CARGO_NET_GIT_FETCH_WITH_CLI=true cargo rustc \
 		--package stellar-core \
 		--$(RUST_PROFILE) \
