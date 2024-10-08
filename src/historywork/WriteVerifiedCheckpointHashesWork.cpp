@@ -10,6 +10,7 @@
 #include "ledger/LedgerManager.h"
 #include "ledger/LedgerRange.h"
 #include "main/Application.h"
+#include "util/Fs.h"
 #include "util/GlobalChecks.h"
 #include "util/Logging.h"
 #include "work/ConditionalWork.h"
@@ -20,11 +21,11 @@
 
 namespace stellar
 {
-std::optional<LedgerNumHashPair>
+LedgerNumHashPair
 WriteVerifiedCheckpointHashesWork::loadLatestHashPairFromJsonOutput(
     std::filesystem::path const& path)
 {
-    if (!std::filesystem::exists(path))
+    if (!fs::exists(path.string()))
     {
         throw std::runtime_error("file not found: " + path.string());
     }
@@ -54,7 +55,7 @@ WriteVerifiedCheckpointHashesWork::loadLatestHashPairFromJsonOutput(
         throw std::runtime_error("expecting 2-element sub-array in " +
                                  path.string());
     }
-    return {{jpair[0].asUInt(), hexToBin256(jpair[1].asString())}};
+    return {jpair[0].asUInt(), hexToBin256(jpair[1].asString())};
 }
 
 Hash
@@ -96,6 +97,7 @@ WriteVerifiedCheckpointHashesWork::WriteVerifiedCheckpointHashesWork(
     Application& app, LedgerNumHashPair rangeEnd,
     std::filesystem::path const& outputFile,
     std::optional<std::filesystem::path> const& trustedHashFile,
+    std::optional<LedgerNumHashPair> const& latestTrustedHashPair,
     std::optional<uint32_t> const& fromLedger, uint32_t nestedBatchSize,
     std::shared_ptr<HistoryArchive> archive)
     : BatchWork(app, "write-verified-checkpoint-hashes")
@@ -107,6 +109,10 @@ WriteVerifiedCheckpointHashesWork::WriteVerifiedCheckpointHashesWork(
     , mArchive(archive)
     , mTrustedHashPath(trustedHashFile)
     , mOutputPath(outputFile)
+    , mTmpDir("verify-checkpoints")
+    , mTmpOutputPath(std::filesystem::path(mTmpDir.getName()) /
+                     outputFile.filename())
+    , mLatestTrustedHashPair(latestTrustedHashPair)
     , mFromLedger(fromLedger)
 {
     mRangeEndPromise.set_value(mRangeEnd);
@@ -115,7 +121,6 @@ WriteVerifiedCheckpointHashesWork::WriteVerifiedCheckpointHashesWork(
         CLOG_INFO(History, "selected archive {}", mArchive->getName());
     }
     startOutputFile();
-    maybeParseTrustedHashFile();
 }
 
 WriteVerifiedCheckpointHashesWork::~WriteVerifiedCheckpointHashesWork()
@@ -170,14 +175,14 @@ WriteVerifiedCheckpointHashesWork::yieldMoreWork()
         {
             first = hm.lastLedgerBeforeCheckpointContaining(*mFromLedger);
         }
-        releaseAssert(first <= *mFromLedger);
+        releaseAssertOrThrow(first <= *mFromLedger);
     }
     // If the latest trusted ledger is greater than the first
     // ledger in the range then the range should start at the trusted ledger.
     else if (mLatestTrustedHashPair && first < mLatestTrustedHashPair->first)
     {
         first = mLatestTrustedHashPair->first;
-        releaseAssert(hm.isLastLedgerInCheckpoint(first));
+        releaseAssertOrThrow(hm.isLastLedgerInCheckpoint(first));
     }
 
     LedgerRange const ledgerRange = LedgerRange::inclusive(first, last);
@@ -243,36 +248,13 @@ WriteVerifiedCheckpointHashesWork::startOutputFile()
 {
     releaseAssert(!mOutputFile);
     auto mode = std::ios::out | std::ios::trunc;
-    // If the output file is the same as the trusted hash file, write to a
-    // temporary file first.
-    // In endOutputFile we will rename the temporary file to the trusted hash
-    // file name.
-    if (mTrustedHashPath && mOutputPath == *mTrustedHashPath)
-    {
-        mAppendToFile = true;
-        mOutputPath += ".tmp";
-    }
-    mOutputFile = std::make_shared<std::ofstream>(mOutputPath, mode);
+    mOutputFile = std::make_shared<std::ofstream>(mTmpOutputPath, mode);
     if (!*mOutputFile)
     {
         throw std::runtime_error("error opening output file " +
-                                 mOutputPath.string());
+                                 mTmpOutputPath.string());
     }
     (*mOutputFile) << "[";
-}
-
-void
-WriteVerifiedCheckpointHashesWork::maybeParseTrustedHashFile()
-{
-    if (mFromLedger || !mTrustedHashPath)
-    {
-        return;
-    }
-    mLatestTrustedHashPair =
-        loadLatestHashPairFromJsonOutput(*mTrustedHashPath);
-    CLOG_INFO(History, "trusted hash from {}. Ledger Seq: {} Hash: {}",
-              *mTrustedHashPath, mLatestTrustedHashPair->first,
-              hexAbbrev(*mLatestTrustedHashPair->second));
 }
 
 void
@@ -280,7 +262,7 @@ WriteVerifiedCheckpointHashesWork::endOutputFile()
 {
     if (mOutputFile && mOutputFile->is_open())
     {
-        if (mTrustedHashPath && std::filesystem::exists(*mTrustedHashPath))
+        if (mTrustedHashPath && fs::exists(mTrustedHashPath->string()))
         {
             // Append everything except the first line of mTrustedHashFile to
             // mOutputFile.
@@ -314,24 +296,17 @@ WriteVerifiedCheckpointHashesWork::endOutputFile()
         }
         mOutputFile->close();
         mOutputFile.reset();
-        if (mAppendToFile)
+
+        if (!fs::exists(mTmpOutputPath.string()))
         {
-            if (!std::filesystem::exists(*mTrustedHashPath))
-            {
-                CLOG_ERROR(History, "trusted hash file {} does not exist",
-                           *mTrustedHashPath);
-                return;
-            }
-            if (!std::filesystem::exists(mOutputPath))
-            {
-                CLOG_ERROR(History, "output file {} does not exist",
-                           mOutputPath);
-                return;
-            }
-            // The output file was written to a temporary file, so rename it to
-            // the trusted hash file name.
-            std::filesystem::rename(mOutputPath, *mTrustedHashPath);
+            CLOG_ERROR(History, "temporary output file {} does not exist",
+                       mTmpOutputPath);
+            return;
         }
+        // The output file was written to a temporary file, so rename it to
+        // the output path provided by the user.
+        fs::durableRename(mTmpOutputPath.string(), mOutputPath.string(),
+                          mOutputPath.relative_path().string());
     }
 }
 

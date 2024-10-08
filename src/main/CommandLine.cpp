@@ -1054,6 +1054,7 @@ runWriteVerifiedCheckpointHashes(CommandLineArgs const& args)
                                        "--trusted-hash-file");
                 return 1;
             }
+            std::optional<LedgerNumHashPair> latestTrustedHashPair;
             if (trustedHashFile)
             {
                 if (!std::filesystem::exists(*trustedHashFile))
@@ -1063,6 +1064,12 @@ runWriteVerifiedCheckpointHashes(CommandLineArgs const& args)
                               *trustedHashFile);
                     return 1;
                 }
+                // Pasrse the latest hash from the trusted hash file before
+                // starting the application and connecting to the network so
+                // that we can exit early if there is malformed input.
+                latestTrustedHashPair.emplace(
+                    WriteVerifiedCheckpointHashesWork::
+                        loadLatestHashPairFromJsonOutput(*trustedHashFile));
             }
             VirtualClock clock(VirtualClock::REAL_TIME);
             auto cfg = configOption.getConfig();
@@ -1090,7 +1097,8 @@ runWriteVerifiedCheckpointHashes(CommandLineArgs const& args)
                 app->getHerder().shutdown();
                 app->getWorkScheduler()
                     .executeWork<WriteVerifiedCheckpointHashesWork>(
-                        authPair, outputFile, trustedHashFile, fromLedger);
+                        authPair, outputFile, trustedHashFile,
+                        latestTrustedHashPair, fromLedger);
                 app->gracefulStop();
                 return 0;
             }

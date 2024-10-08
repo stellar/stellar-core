@@ -37,14 +37,15 @@ TEST_CASE("write verified checkpoint hashes", "[historywork]")
     auto& wm = catchupSimulation.getApp().getWorkScheduler();
     std::optional<std::uint32_t> noFromLedger = std::nullopt;
     std::optional<std::string> noVerifiedLedgerFile = std::nullopt;
+    std::optional<LedgerNumHashPair> noLatestTrustedHashPair = std::nullopt;
 
     size_t startingPairIdx = 0;
     {
         SECTION("from genesis")
         {
             auto w = wm.executeWork<WriteVerifiedCheckpointHashesWork>(
-                pair, file, noVerifiedLedgerFile, noFromLedger,
-                nestedBatchSize);
+                pair, file, noVerifiedLedgerFile, noLatestTrustedHashPair,
+                noFromLedger, nestedBatchSize);
             REQUIRE(w->getState() == BasicWork::State::WORK_SUCCESS);
         }
         SECTION("from specified ledger")
@@ -53,7 +54,8 @@ TEST_CASE("write verified checkpoint hashes", "[historywork]")
             std::optional<std::uint32_t> fromLedger =
                 pairs[startingPairIdx].first;
             auto w = wm.executeWork<WriteVerifiedCheckpointHashesWork>(
-                pair, file, noVerifiedLedgerFile, fromLedger, nestedBatchSize);
+                pair, file, noVerifiedLedgerFile, noLatestTrustedHashPair,
+                fromLedger, nestedBatchSize);
             REQUIRE(w->getState() == BasicWork::State::WORK_SUCCESS);
         }
     }
@@ -83,7 +85,7 @@ TEST_CASE("write verified checkpoint hashes", "[historywork]")
         auto latest =
             WriteVerifiedCheckpointHashesWork::loadLatestHashPairFromJsonOutput(
                 file);
-        REQUIRE(latest->first == pairs.back().first);
+        REQUIRE(latest.first == pairs.back().first);
     };
 
     checkFileContents(pairs, startingPairIdx, file);
@@ -96,11 +98,15 @@ TEST_CASE("write verified checkpoint hashes", "[historywork]")
     pairs = catchupSimulation.getAllPublishedCheckpoints();
 
     std::optional<std::string> trustedHashFile = file;
+    std::optional<LedgerNumHashPair> latestTrustedHashPair =
+        WriteVerifiedCheckpointHashesWork::loadLatestHashPairFromJsonOutput(
+            file);
     file += ".new";
     // Run work again with existing file.
     {
         auto w = wm.executeWork<WriteVerifiedCheckpointHashesWork>(
-            pairs.back(), file, trustedHashFile, noFromLedger, nestedBatchSize);
+            pairs.back(), file, trustedHashFile, latestTrustedHashPair,
+            noFromLedger, nestedBatchSize);
         REQUIRE(w->getState() == BasicWork::State::WORK_SUCCESS);
     }
 

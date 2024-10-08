@@ -5,6 +5,7 @@
 #pragma once
 
 #include "ledger/LedgerRange.h"
+#include "util/TmpDir.h"
 #include "work/BatchWork.h"
 #include <filesystem>
 #include <future>
@@ -30,6 +31,7 @@ class WriteVerifiedCheckpointHashesWork : public BatchWork
         Application& app, LedgerNumHashPair rangeEnd,
         std::filesystem::path const& outputFile,
         std::optional<std::filesystem::path> const& trustedHashFile,
+        std::optional<LedgerNumHashPair> const& latestTrustedHashPair,
         std::optional<uint32_t> const& fromLedger,
         uint32_t nestedBatchSize = NESTED_DOWNLOAD_BATCH_SIZE,
         std::shared_ptr<HistoryArchive> archive = nullptr);
@@ -40,7 +42,7 @@ class WriteVerifiedCheckpointHashesWork : public BatchWork
                                        std::filesystem::path const& path);
     // Helper to load the latest hash back from a file produced by this class.
     // If the file does not exist, returns std::nullopt.
-    static std::optional<LedgerNumHashPair>
+    static LedgerNumHashPair
     loadLatestHashPairFromJsonOutput(std::filesystem::path const& path);
 
     void onSuccess() override;
@@ -88,6 +90,8 @@ class WriteVerifiedCheckpointHashesWork : public BatchWork
     std::shared_ptr<std::ofstream> mOutputFile;
     std::optional<std::filesystem::path> const mTrustedHashPath;
     std::filesystem::path mOutputPath;
+    TmpDir mTmpDir;
+    std::filesystem::path mTmpOutputPath;
     // If true, mOutputPath == mTrustedHashPath, and output
     // will be written to a temporary file before being renamed to
     // mOutputPath when verificaiton is complete.
