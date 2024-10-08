@@ -9,6 +9,7 @@
 #include "ledger/LedgerTxn.h"
 #include "ledger/LedgerTxnEntry.h"
 #include "main/Application.h"
+#include "util/GlobalChecks.h"
 #include "util/Logging.h"
 #include "util/types.h"
 #include <fmt/format.h>
@@ -21,14 +22,12 @@ BucketApplicator::BucketApplicator(Application& app,
                                    uint32_t minProtocolVersionSeen,
                                    uint32_t level,
                                    std::shared_ptr<LiveBucket const> bucket,
-                                   std::function<bool(LedgerEntryType)> filter,
                                    std::unordered_set<LedgerKey>& seenKeys)
     : mApp(app)
     , mMaxProtocolVersion(maxProtocolVersion)
     , mMinProtocolVersionSeen(minProtocolVersionSeen)
     , mLevel(level)
     , mBucketIter(bucket)
-    , mEntryTypeFilter(filter)
     , mSeenKeys(seenKeys)
 {
     auto protocolVersion = mBucketIter.getMetadata().ledgerVersion;
@@ -40,8 +39,8 @@ BucketApplicator::BucketApplicator(Application& app,
             protocolVersion, mMaxProtocolVersion));
     }
 
-    // Only apply offers if BucketListDB is enabled
-    if (mApp.getConfig().isUsingBucketListDB() && !bucket->isEmpty())
+    // Only apply offers
+    if (!bucket->isEmpty())
     {
         auto offsetOp = bucket->getOfferRange();
         if (offsetOp)
@@ -62,10 +61,8 @@ BucketApplicator::operator bool() const
 {
     // There is more work to do (i.e. (bool) *this == true) iff:
     // 1. The underlying bucket iterator is not EOF and
-    // 2. Either BucketListDB is not enabled (so we must apply all entry types)
-    //    or BucketListDB is enabled and we have offers still remaining.
-    return static_cast<bool>(mBucketIter) &&
-           (!mApp.getConfig().isUsingBucketListDB() || mOffersRemaining);
+    // 2. We have offers still remaining.
+    return static_cast<bool>(mBucketIter) && mOffersRemaining;
 }
 
 size_t
@@ -81,12 +78,11 @@ BucketApplicator::size() const
 }
 
 static bool
-shouldApplyEntry(std::function<bool(LedgerEntryType)> const& filter,
-                 BucketEntry const& e)
+shouldApplyEntry(BucketEntry const& e)
 {
     if (e.type() == LIVEENTRY || e.type() == INITENTRY)
     {
-        return filter(e.liveEntry().data.type());
+        return BucketIndex::typeNotSupported(e.liveEntry().data.type());
     }
 
     if (e.type() != DEADENTRY)
@@ -94,7 +90,7 @@ shouldApplyEntry(std::function<bool(LedgerEntryType)> const& filter,
         throw std::runtime_error(
             "Malformed bucket: unexpected non-INIT/LIVE/DEAD entry.");
     }
-    return filter(e.deadEntry().type());
+    return BucketIndex::typeNotSupported(e.deadEntry().type());
 }
 
 size_t
@@ -110,11 +106,13 @@ BucketApplicator::advance(BucketApplicator::Counters& counters)
     // directly instead of creating a temporary inner LedgerTxn
     // as "advance" commits changes during each step this does not introduce any
     // new failure mode
+#ifdef BUILD_TESTS
     if (mApp.getConfig().MODE_USES_IN_MEMORY_LEDGER)
     {
         ltx = static_cast<AbstractLedgerTxn*>(&root);
     }
     else
+#endif
     {
         innerLtx = std::make_unique<LedgerTxn>(root, false);
         ltx = innerLtx.get();
@@ -127,8 +125,7 @@ BucketApplicator::advance(BucketApplicator::Counters& counters)
         // returns the file offset at the end of the currently loaded entry.
         // This means we must read until pos is strictly greater than the upper
         // bound so that we don't skip the last offer in the range.
-        auto isUsingBucketListDB = mApp.getConfig().isUsingBucketListDB();
-        if (isUsingBucketListDB && mBucketIter.pos() > mUpperBoundOffset)
+        if (mBucketIter.pos() > mUpperBoundOffset)
         {
             mOffersRemaining = false;
             break;
@@ -137,89 +134,64 @@ BucketApplicator::advance(BucketApplicator::Counters& counters)
         BucketEntry const& e = *mBucketIter;
         LiveBucket::checkProtocolLegality(e, mMaxProtocolVersion);
 
-        if (shouldApplyEntry(mEntryTypeFilter, e))
+        if (shouldApplyEntry(e))
         {
-            if (isUsingBucketListDB)
-            {
-                if (e.type() == LIVEENTRY || e.type() == INITENTRY)
-                {
-                    auto [_, wasInserted] =
-                        mSeenKeys.emplace(LedgerEntryKey(e.liveEntry()));
-
-                    // Skip seen keys
-                    if (!wasInserted)
-                    {
-                        continue;
-                    }
-                }
-                else
-                {
-                    // Only apply INIT and LIVE entries
-                    mSeenKeys.emplace(e.deadEntry());
-                    continue;
-                }
-            }
-
-            counters.mark(e);
-
             if (e.type() == LIVEENTRY || e.type() == INITENTRY)
             {
-                // The last level can have live entries, but at that point we
-                // know that they are actually init entries because the earliest
-                // state of all entries is init, so we mark them as such here
-                if (mLevel == LiveBucketList::kNumLevels - 1 &&
-                    e.type() == LIVEENTRY)
+                auto [_, wasInserted] =
+                    mSeenKeys.emplace(LedgerEntryKey(e.liveEntry()));
+
+                // Skip seen keys
+                if (!wasInserted)
                 {
-                    ltx->createWithoutLoading(e.liveEntry());
-                }
-                else if (
-                    protocolVersionIsBefore(
-                        mMinProtocolVersionSeen,
-                        LiveBucket::
-                            FIRST_PROTOCOL_SUPPORTING_INITENTRY_AND_METAENTRY))
-                {
-                    // Prior to protocol 11, INITENTRY didn't exist, so we need
-                    // to check ltx to see if this is an update or a create
-                    auto key = InternalLedgerEntry(e.liveEntry()).toKey();
-                    if (ltx->getNewestVersion(key))
-                    {
-                        ltx->updateWithoutLoading(e.liveEntry());
-                    }
-                    else
-                    {
-                        ltx->createWithoutLoading(e.liveEntry());
-                    }
-                }
-                else
-                {
-                    if (e.type() == LIVEENTRY)
-                    {
-                        ltx->updateWithoutLoading(e.liveEntry());
-                    }
-                    else
-                    {
-                        ltx->createWithoutLoading(e.liveEntry());
-                    }
+                    continue;
                 }
             }
             else
             {
-                releaseAssertOrThrow(!isUsingBucketListDB);
-                if (protocolVersionIsBefore(
-                        mMinProtocolVersionSeen,
-                        LiveBucket::
-                            FIRST_PROTOCOL_SUPPORTING_INITENTRY_AND_METAENTRY))
+                // Only apply INIT and LIVE entries
+                mSeenKeys.emplace(e.deadEntry());
+                continue;
+            }
+
+            counters.mark(e);
+
+            // DEAD and META entries skipped
+            releaseAssert(e.type() == LIVEENTRY || e.type() == INITENTRY);
+            // The last level can have live entries, but at that point we
+            // know that they are actually init entries because the earliest
+            // state of all entries is init, so we mark them as such here
+            if (mLevel == LiveBucketList::kNumLevels - 1 &&
+                e.type() == LIVEENTRY)
+            {
+                ltx->createWithoutLoading(e.liveEntry());
+            }
+            else if (protocolVersionIsBefore(
+                         mMinProtocolVersionSeen,
+                         LiveBucket::
+                             FIRST_PROTOCOL_SUPPORTING_INITENTRY_AND_METAENTRY))
+            {
+                // Prior to protocol 11, INITENTRY didn't exist, so we need
+                // to check ltx to see if this is an update or a create
+                auto key = InternalLedgerEntry(e.liveEntry()).toKey();
+                if (ltx->getNewestVersion(key))
                 {
-                    // Prior to protocol 11, DEAD entries could exist
-                    // without LIVE entries in between
-                    if (ltx->getNewestVersion(e.deadEntry()))
-                    {
-                        ltx->eraseWithoutLoading(e.deadEntry());
-                    }
+                    ltx->updateWithoutLoading(e.liveEntry());
                 }
                 else
                 {
-                    ltx->eraseWithoutLoading(e.deadEntry());
+                    ltx->createWithoutLoading(e.liveEntry());
+                }
+            }
+            else
+            {
+                if (e.type() == LIVEENTRY)
+                {
+                    ltx->updateWithoutLoading(e.liveEntry());
+                }
+                else
+                {
+                    ltx->createWithoutLoading(e.liveEntry());
                 }
             }
 

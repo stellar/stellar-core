@@ -51,36 +51,17 @@ class TempLedgerVersionSetter : NonMovableOrCopyable
     }
 };
 
-uint32_t
-ApplyBucketsWork::startingLevel()
-{
-    return mApp.getConfig().isUsingBucketListDB()
-               ? 0
-               : LiveBucketList::kNumLevels - 1;
-}
-
-ApplyBucketsWork::ApplyBucketsWork(
-    Application& app,
-    std::map<std::string, std::shared_ptr<LiveBucket>> const& buckets,
-    HistoryArchiveState const& applyState, uint32_t maxProtocolVersion,
-    std::function<bool(LedgerEntryType)> onlyApply)
-    : Work(app, "apply-buckets", BasicWork::RETRY_NEVER)
-    , mBuckets(buckets)
-    , mApplyState(applyState)
-    , mEntryTypeFilter(onlyApply)
-    , mTotalSize(0)
-    , mLevel(startingLevel())
-    , mMaxProtocolVersion(maxProtocolVersion)
-    , mCounters(app.getClock().now())
-{
-}
-
 ApplyBucketsWork::ApplyBucketsWork(
     Application& app,
     std::map<std::string, std::shared_ptr<LiveBucket>> const& buckets,
     HistoryArchiveState const& applyState, uint32_t maxProtocolVersion)
-    : ApplyBucketsWork(app, buckets, applyState, maxProtocolVersion,
-                       [](LedgerEntryType) { return true; })
+    : Work(app, "apply-buckets", BasicWork::RETRY_NEVER)
+    , mBuckets(buckets)
+    , mApplyState(applyState)
+    , mTotalSize(0)
+    , mLevel(0)
+    , mMaxProtocolVersion(maxProtocolVersion)
+    , mCounters(app.getClock().now())
 {
 }
 
@@ -117,32 +98,10 @@ ApplyBucketsWork::doReset()
 
     if (!isAborting())
     {
-        if (mApp.getConfig().isUsingBucketListDB())
-        {
-            // The current size of this set is 1.6 million during BucketApply
-            // (as of 12/20/23). There's not a great way to estimate this, so
-            // reserving with some extra wiggle room
-            mSeenKeys.reserve(2'000'000);
-        }
-
-        // When applying buckets with accounts, we have to make sure that the
-        // root account has been removed. This comes into play, for example,
-        // when applying buckets from genesis the root account already exists.
-        if (mEntryTypeFilter(ACCOUNT))
-        {
-            TempLedgerVersionSetter tlvs(mApp, mMaxProtocolVersion);
-            {
-                SecretKey skey = SecretKey::fromSeed(mApp.getNetworkID());
-
-                LedgerTxn ltx(mApp.getLedgerTxnRoot());
-                auto rootAcc = loadAccount(ltx, skey.getPublicKey());
-                if (rootAcc)
-                {
-                    rootAcc.erase();
-                }
-                ltx.commit();
-            }
-        }
+        // The current size of this set is 1.6 million during BucketApply
+        // (as of 12/20/23). There's not a great way to estimate this, so
+        // reserving with some extra wiggle room
+        mSeenKeys.reserve(2'000'000);
 
         auto addBucket = [this](std::shared_ptr<LiveBucket> const& bucket) {
             if (bucket->getSize() > 0)
@@ -152,30 +111,16 @@ ApplyBucketsWork::doReset()
             }
             mBucketsToApply.emplace_back(bucket);
         };
-        // If using bucketlist DB, we iterate through the live BucketList in
+
+        // We iterate through the live BucketList in
         // order (i.e. L0 curr, L0 snap, L1 curr, etc) as we are just applying
-        // offers (and can keep track of all seen keys). Otherwise, we iterate
-        // in reverse order (i.e. L N snap, L N curr, L N-1 snap, etc.) as we
-        // are applying all entry types and cannot keep track of all seen keys
-        // as it would be too large.
-        if (mApp.getConfig().isUsingBucketListDB())
+        // offers (and can keep track of all seen keys).
+        for (auto const& hsb : mApplyState.currentBuckets)
         {
-            for (auto const& hsb : mApplyState.currentBuckets)
-            {
-                addBucket(getBucket(hsb.curr));
-                addBucket(getBucket(hsb.snap));
-            }
+            addBucket(getBucket(hsb.curr));
+            addBucket(getBucket(hsb.snap));
         }
-        else
-        {
-            for (auto iter = mApplyState.currentBuckets.rbegin();
-                 iter != mApplyState.currentBuckets.rend(); ++iter)
-            {
-                auto const& hsb = *iter;
-                addBucket(getBucket(hsb.snap));
-                addBucket(getBucket(hsb.curr));
-            }
-        }
+
         // estimate the number of ledger entries contained in those buckets
         // use accounts as a rough approximator as to overestimate a bit
         // (default BucketEntry contains a default AccountEntry)
@@ -204,7 +149,7 @@ ApplyBucketsWork::startBucket()
     // Create a new applicator for the bucket.
     mBucketApplicator = std::make_unique<BucketApplicator>(
         mApp, mMaxProtocolVersion, mMinProtocolVersionSeen, mLevel, bucket,
-        mEntryTypeFilter, mSeenKeys);
+        mSeenKeys);
 }
 
 void
@@ -215,54 +160,36 @@ ApplyBucketsWork::prepareForNextBucket()
     mApp.getCatchupManager().bucketsApplied();
     mBucketToApplyIndex++;
     // If mBucketToApplyIndex is even, we are progressing to the next
-    // level, if we are using BucketListDB, this is the next greater
-    // level, otherwise it's the next lower level.
+    // level
     if (mBucketToApplyIndex % 2 == 0)
     {
-        mLevel =
-            mApp.getConfig().isUsingBucketListDB() ? mLevel + 1 : mLevel - 1;
+        ++mLevel;
     }
 }
 
 // We iterate through the live BucketList either in-order (level 0 curr, level 0
-// snap, level 1 curr, etc) when only applying offers, or in reverse order
-// (level 9 curr, level 8 snap, level 8 curr, etc) when applying all entry
-// types. When only applying offers, we keep track of the keys we have already
+// snap, level 1 curr, etc). We keep track of the keys we have already
 // seen, and only apply an entry to the DB if it has not been seen before. This
 // allows us to perform a single write to the DB and ensure that only the newest
 // version is written.
 //
-// When applying all entry types, this seen keys set would be too large. Since
-// there can be no seen keys set, if we were to apply every entry in order, we
-// would overwrite the newest version of an entry with an older version as we
-// iterate through the BucketList. Due to this, we iterate in reverse order such
-// that the newest version of a key is written last, overwriting the older
-// versions. This is much slower due to DB churn.
-
 BasicWork::State
 ApplyBucketsWork::doWork()
 {
     ZoneScoped;
 
     // Step 1: index buckets. Step 2: apply buckets. Step 3: assume state
-    bool isUsingBucketListDB = mApp.getConfig().isUsingBucketListDB();
-    if (isUsingBucketListDB)
+    if (!mIndexBucketsWork)
     {
-        // Step 1: index buckets.
-        if (!mIndexBucketsWork)
-        {
-            // Spawn indexing work for the first time
-            mIndexBucketsWork = addWork<IndexBucketsWork>(mBucketsToApply);
-            return State::WORK_RUNNING;
-        }
-        else if (mIndexBucketsWork->getState() !=
-                 BasicWork::State::WORK_SUCCESS)
-        {
-            // Exit early if indexing work is still running, or failed
-            return mIndexBucketsWork->getState();
-        }
+        // Spawn indexing work for the first time
+        mIndexBucketsWork = addWork<IndexBucketsWork>(mBucketsToApply);
+        return State::WORK_RUNNING;
+    }
 
-        // Otherwise, continue with next steps
+    else if (mIndexBucketsWork->getState() != BasicWork::State::WORK_SUCCESS)
+    {
+        // Exit early if indexing work is still running, or failed
+        return mIndexBucketsWork->getState();
     }
 
     if (!mAssumeStateWork)
@@ -282,8 +209,7 @@ ApplyBucketsWork::doWork()
             }
         }
 
-        auto isCurr = isUsingBucketListDB ? mBucketToApplyIndex % 2 == 0
-                                          : mBucketToApplyIndex % 2 == 1;
+        auto isCurr = mBucketToApplyIndex % 2 == 0;
         if (mBucketApplicator)
         {
             TempLedgerVersionSetter tlvs(mApp, mMaxProtocolVersion);
@@ -297,7 +223,7 @@ ApplyBucketsWork::doWork()
             // bucket.
             mApp.getInvariantManager().checkOnBucketApply(
                 mBucketsToApply.at(mBucketToApplyIndex),
-                mApplyState.currentLedger, mLevel, isCurr, mEntryTypeFilter);
+                mApplyState.currentLedger, mLevel, isCurr);
             prepareForNextBucket();
         }
         if (!appliedAllBuckets())
@@ -367,8 +293,7 @@ ApplyBucketsWork::getStatus() const
 {
     // This status string only applies to step 2 when we actually apply the
     // buckets.
-    bool doneIndexing = !mApp.getConfig().isUsingBucketListDB() ||
-                        (mIndexBucketsWork && mIndexBucketsWork->isDone());
+    bool doneIndexing = mIndexBucketsWork && mIndexBucketsWork->isDone();
     if (doneIndexing && !mSpawnedAssumeStateWork)
     {
         auto size = mTotalSize == 0 ? 0 : (100 * mAppliedSize / mTotalSize);

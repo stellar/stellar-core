@@ -53,52 +53,10 @@ class EntryIterator::AbstractImpl
 // reorganizing the relevant parts of soci.
 class BulkLedgerEntryChangeAccumulator
 {
-
-    std::vector<EntryIterator> mAccountsToUpsert;
-    std::vector<EntryIterator> mAccountsToDelete;
-    std::vector<EntryIterator> mAccountDataToUpsert;
-    std::vector<EntryIterator> mAccountDataToDelete;
-    std::vector<EntryIterator> mClaimableBalanceToUpsert;
-    std::vector<EntryIterator> mClaimableBalanceToDelete;
     std::vector<EntryIterator> mOffersToUpsert;
     std::vector<EntryIterator> mOffersToDelete;
-    std::vector<EntryIterator> mTrustLinesToUpsert;
-    std::vector<EntryIterator> mTrustLinesToDelete;
-    std::vector<EntryIterator> mLiquidityPoolToUpsert;
-    std::vector<EntryIterator> mLiquidityPoolToDelete;
-    std::vector<EntryIterator> mContractDataToUpsert;
-    std::vector<EntryIterator> mContractDataToDelete;
-    std::vector<EntryIterator> mContractCodeToUpsert;
-    std::vector<EntryIterator> mContractCodeToDelete;
-    std::vector<EntryIterator> mConfigSettingsToUpsert;
-    std::vector<EntryIterator> mTTLToUpsert;
-    std::vector<EntryIterator> mTTLToDelete;
 
   public:
-    std::vector<EntryIterator>&
-    getAccountsToUpsert()
-    {
-        return mAccountsToUpsert;
-    }
-
-    std::vector<EntryIterator>&
-    getAccountsToDelete()
-    {
-        return mAccountsToDelete;
-    }
-
-    std::vector<EntryIterator>&
-    getTrustLinesToUpsert()
-    {
-        return mTrustLinesToUpsert;
-    }
-
-    std::vector<EntryIterator>&
-    getTrustLinesToDelete()
-    {
-        return mTrustLinesToDelete;
-    }
-
     std::vector<EntryIterator>&
     getOffersToUpsert()
     {
@@ -111,85 +69,7 @@ class BulkLedgerEntryChangeAccumulator
         return mOffersToDelete;
     }
 
-    std::vector<EntryIterator>&
-    getAccountDataToUpsert()
-    {
-        return mAccountDataToUpsert;
-    }
-
-    std::vector<EntryIterator>&
-    getAccountDataToDelete()
-    {
-        return mAccountDataToDelete;
-    }
-
-    std::vector<EntryIterator>&
-    getClaimableBalanceToUpsert()
-    {
-        return mClaimableBalanceToUpsert;
-    }
-
-    std::vector<EntryIterator>&
-    getClaimableBalanceToDelete()
-    {
-        return mClaimableBalanceToDelete;
-    }
-
-    std::vector<EntryIterator>&
-    getLiquidityPoolToUpsert()
-    {
-        return mLiquidityPoolToUpsert;
-    }
-
-    std::vector<EntryIterator>&
-    getLiquidityPoolToDelete()
-    {
-        return mLiquidityPoolToDelete;
-    }
-
-    std::vector<EntryIterator>&
-    getConfigSettingsToUpsert()
-    {
-        return mConfigSettingsToUpsert;
-    }
-
-    std::vector<EntryIterator>&
-    getContractDataToUpsert()
-    {
-        return mContractDataToUpsert;
-    }
-
-    std::vector<EntryIterator>&
-    getContractDataToDelete()
-    {
-        return mContractDataToDelete;
-    }
-
-    std::vector<EntryIterator>&
-    getContractCodeToUpsert()
-    {
-        return mContractCodeToUpsert;
-    }
-
-    std::vector<EntryIterator>&
-    getContractCodeToDelete()
-    {
-        return mContractCodeToDelete;
-    }
-
-    std::vector<EntryIterator>&
-    getTTLToUpsert()
-    {
-        return mTTLToUpsert;
-    }
-
-    std::vector<EntryIterator>&
-    getTTLToDelete()
-    {
-        return mTTLToDelete;
-    }
-
-    bool accumulate(EntryIterator const& iter, bool bucketListDBEnabled);
+    bool accumulate(EntryIterator const& iter);
 };
 
 // Many functions in LedgerTxn::Impl provide a basic exception safety

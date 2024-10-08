@@ -953,10 +953,6 @@ TEST_CASE_VERSIONS("eviction scan", "[bucketlist]")
     Config cfg(getTestConfig());
     cfg.USE_CONFIG_FOR_GENESIS = true;
 
-    // BucketTestApplication writes directly to BL and circumvents LedgerTxn
-    // interface, so we have to use BucketListDB for lookups
-    cfg.DEPRECATED_SQL_LEDGER_STATE = false;
-
     auto app = createTestApplication<BucketTestApplication>(clock, cfg);
     for_versions_from(20, *app, [&] {
         LedgerManagerForBucketTests& lm = app->getLedgerManager();

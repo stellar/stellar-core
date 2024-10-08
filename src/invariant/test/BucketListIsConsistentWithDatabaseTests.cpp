@@ -226,8 +226,7 @@ struct BucketListGenerator
                     out.put(*in);
                 }
 
-                auto bucket =
-                    out.getBucket(bmApply, /*shouldSynchronouslyIndex=*/false);
+                auto bucket = out.getBucket(bmApply);
             };
             writeBucketFile(level.getCurr());
             writeBucketFile(level.getSnap());

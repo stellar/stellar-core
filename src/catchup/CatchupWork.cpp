@@ -212,10 +212,7 @@ CatchupWork::downloadApplyBuckets()
     // the database. This guarantees that we clear that state the next time
     // the application starts.
     auto& ps = mApp.getPersistentState();
-    for (auto let : xdr::xdr_traits<LedgerEntryType>::enum_values())
-    {
-        ps.setRebuildForType(static_cast<LedgerEntryType>(let));
-    }
+    ps.setRebuildForOfferTable();
 
     std::vector<std::shared_ptr<BasicWork>> seq;
     auto version = mApp.getConfig().LEDGER_PROTOCOL_VERSION;
@@ -243,20 +240,8 @@ CatchupWork::downloadApplyBuckets()
         version = mVerifiedLedgerRangeStart.header.ledgerVersion;
     }
 
-    std::shared_ptr<ApplyBucketsWork> applyBuckets;
-    if (mApp.getConfig().isUsingBucketListDB())
-    {
-        // Only apply unsupported BucketListDB types to SQL DB when BucketList
-        // lookup is enabled
-        applyBuckets = std::make_shared<ApplyBucketsWork>(
-            mApp, mBuckets, *mBucketHAS, version,
-            BucketIndex::typeNotSupported);
-    }
-    else
-    {
-        applyBuckets = std::make_shared<ApplyBucketsWork>(mApp, mBuckets,
-                                                          *mBucketHAS, version);
-    }
+    auto applyBuckets = std::make_shared<ApplyBucketsWork>(
+        mApp, mBuckets, *mBucketHAS, version);
     seq.push_back(applyBuckets);
     return std::make_shared<WorkSequence>(mApp, "download-verify-apply-buckets",
                                           seq, RETRY_NEVER);
@@ -529,10 +514,7 @@ CatchupWork::runCatchupStep()
                 // persistently available locally so it will return us to the
                 // correct state.
                 auto& ps = mApp.getPersistentState();
-                for (auto let : xdr::xdr_traits<LedgerEntryType>::enum_values())
-                {
-                    ps.clearRebuildForType(static_cast<LedgerEntryType>(let));
-                }
+                ps.clearRebuildForOfferTable();
             }
         }
         else if (mTransactionsVerifyApplySeq)

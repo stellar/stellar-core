@@ -273,7 +273,7 @@ modifySorobanNetworkConfig(Application& app,
 
     // Need to close a ledger following call to `addBatch` from config upgrade
     // to refresh cached state
-    if (app.getConfig().isUsingBucketListDB())
+    if (!app.getConfig().MODE_USES_IN_MEMORY_LEDGER)
     {
         txtest::closeLedger(app);
     }

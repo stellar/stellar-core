@@ -2738,7 +2738,7 @@ TEST_CASE("LedgerTxnRoot prefetch classic entries", "[ledgertxn]")
             e.lastModifiedLedgerSeq = 1;
             entrySet.emplace(e);
         }
-        if (cfg.isUsingBucketListDB())
+        if (!cfg.MODE_USES_IN_MEMORY_LEDGER)
         {
             std::vector<LedgerEntry> ledgerVect{entrySet.begin(),
                                                 entrySet.end()};
@@ -2941,7 +2941,6 @@ TEST_CASE("LedgerTxnRoot prefetch soroban entries", "[ledgertxn]")
 
     // Test setup.
     VirtualClock clock;
-    cfg.DEPRECATED_SQL_LEDGER_STATE = false;
     Application::pointer app = createTestApplication(clock, cfg);
     UnorderedSet<LedgerKey> keysToPrefetch;
     auto& root = app->getLedgerTxnRoot();

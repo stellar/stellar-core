@@ -72,8 +72,7 @@ CommandHandler::CommandHandler(Application& app) : mApp(app)
             app.getClock().getIOContext(), ipStr, mApp.getConfig().HTTP_PORT,
             httpMaxClient);
 
-        if (mApp.getConfig().HTTP_QUERY_PORT &&
-            mApp.getConfig().isUsingBucketListDB())
+        if (mApp.getConfig().HTTP_QUERY_PORT)
         {
             mQueryServer = std::make_unique<QueryServer>(
                 ipStr, mApp.getConfig().HTTP_QUERY_PORT, httpMaxClient,
