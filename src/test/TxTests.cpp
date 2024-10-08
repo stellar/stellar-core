@@ -389,9 +389,13 @@ checkTransaction(TransactionTestFrame& txFrame, Application& app)
 void
 applyTx(TransactionTestFramePtr const& tx, Application& app, bool checkSeqNum)
 {
+    if (app.getConfig().MODE_USES_IN_MEMORY_LEDGER)
+    {
+        applyCheck(tx, app, checkSeqNum);
+    }
     // We cannot commit directly to the DB if running BucketListDB, so close a
     // ledger with the TX instead
-    if (app.getConfig().isUsingBucketListDB())
+    else
     {
         auto resultSet = closeLedger(app, {tx});
 
@@ -405,10 +409,6 @@ applyTx(TransactionTestFramePtr const& tx, Application& app, bool checkSeqNum)
         auto meta = app.getLedgerManager().getLastClosedLedgerTxMeta();
         REQUIRE(meta.size() == 1);
         recordOrCheckGlobalTestTxMetadata(meta.back().getXDR());
-    }
-    else
-    {
-        applyCheck(tx, app, checkSeqNum);
     }
 
     throwIf(tx->getResult());

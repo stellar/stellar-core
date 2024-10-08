@@ -97,17 +97,13 @@ BucketManager::initialize()
     {
         mLiveBucketList = std::make_unique<LiveBucketList>();
         mHotArchiveBucketList = std::make_unique<HotArchiveBucketList>();
-
-        if (mConfig.isUsingBucketListDB())
-        {
-            mSnapshotManager = std::make_unique<BucketSnapshotManager>(
-                mApp,
-                std::make_unique<BucketListSnapshot<LiveBucket>>(
-                    *mLiveBucketList, LedgerHeader()),
-                std::make_unique<BucketListSnapshot<HotArchiveBucket>>(
-                    *mHotArchiveBucketList, LedgerHeader()),
-                mConfig.QUERY_SNAPSHOT_LEDGERS);
-        }
+        mSnapshotManager = std::make_unique<BucketSnapshotManager>(
+            mApp,
+            std::make_unique<BucketListSnapshot<LiveBucket>>(*mLiveBucketList,
+                                                             LedgerHeader()),
+            std::make_unique<BucketListSnapshot<HotArchiveBucket>>(
+                *mHotArchiveBucketList, LedgerHeader()),
+            mConfig.QUERY_SNAPSHOT_LEDGERS);
     }
 
     // Create persistent publish directories
@@ -321,7 +317,6 @@ BucketManager::getHotArchiveBucketList()
 BucketSnapshotManager&
 BucketManager::getBucketSnapshotManager() const
 {
-    releaseAssertOrThrow(mConfig.isUsingBucketListDB());
     releaseAssert(mSnapshotManager);
     return *mSnapshotManager;
 }
@@ -942,11 +937,7 @@ BucketManager::addLiveBatch(Application& app, LedgerHeader header,
     mLiveBucketList->addBatch(app, header.ledgerSeq, header.ledgerVersion,
                               initEntries, liveEntries, deadEntries);
     mLiveBucketListSizeCounter.set_count(mLiveBucketList->getSize());
-
-    if (app.getConfig().isUsingBucketListDB())
-    {
-        reportBucketEntryCountMetrics();
-    }
+    reportBucketEntryCountMetrics();
 }
 
 void
@@ -1059,7 +1050,6 @@ BucketManager::maybeSetIndex(std::shared_ptr<BucketBase> b,
 void
 BucketManager::startBackgroundEvictionScan(uint32_t ledgerSeq)
 {
-    releaseAssert(mConfig.isUsingBucketListDB());
     releaseAssert(mSnapshotManager);
     releaseAssert(!mEvictionFuture.valid());
     releaseAssert(mEvictionStatistics);
@@ -1249,16 +1239,12 @@ BucketManager::assumeState(HistoryArchiveState const& has,
             }
         }
 
-        // Buckets on the BucketList should always be indexed when
-        // BucketListDB enabled
-        if (mConfig.isUsingBucketListDB())
+        // Buckets on the BucketList should always be indexed
+        releaseAssert(curr->isEmpty() || curr->isIndexed());
+        releaseAssert(snap->isEmpty() || snap->isIndexed());
+        if (nextBucket)
         {
-            releaseAssert(curr->isEmpty() || curr->isIndexed());
-            releaseAssert(snap->isEmpty() || snap->isIndexed());
-            if (nextBucket)
-            {
-                releaseAssert(nextBucket->isEmpty() || nextBucket->isIndexed());
-            }
+            releaseAssert(nextBucket->isEmpty() || nextBucket->isIndexed());
         }
 
         mLiveBucketList->getLevel(i).setCurr(curr);
@@ -1387,7 +1373,7 @@ BucketManager::mergeBuckets(HistoryArchiveState const& has)
         be.liveEntry() = pair.second;
         out.put(be);
     }
-    return out.getBucket(*this, /*shouldSynchronouslyIndex=*/false);
+    return out.getBucket(*this);
 }
 
 static bool
@@ -1597,7 +1583,6 @@ BucketManager::getConfig() const
 std::shared_ptr<SearchableLiveBucketListSnapshot>
 BucketManager::getSearchableLiveBucketListSnapshot()
 {
-    releaseAssert(mConfig.isUsingBucketListDB());
     // Any other threads must maintain their own snapshot
     releaseAssert(threadIsMain());
     if (!mSearchableBucketListSnapshot)
@@ -1612,10 +1597,6 @@ BucketManager::getSearchableLiveBucketListSnapshot()
 void
 BucketManager::reportBucketEntryCountMetrics()
 {
-    if (!mConfig.isUsingBucketListDB())
-    {
-        return;
-    }
     auto bucketEntryCounters = mLiveBucketList->sumBucketEntryCounters();
     for (auto [type, count] : bucketEntryCounters.entryTypeCounts)
     {

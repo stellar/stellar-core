@@ -53,7 +53,6 @@ template <typename BucketT> class BucketOutputIterator
     void put(typename BucketT::EntryT const& e);
 
     std::shared_ptr<BucketT> getBucket(BucketManager& bucketManager,
-                                       bool shouldSynchronouslyIndex,
                                        MergeKey* mergeKey = nullptr);
 };
 }

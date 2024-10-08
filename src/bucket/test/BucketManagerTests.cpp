@@ -200,7 +200,6 @@ TEST_CASE_VERSIONS("bucketmanager ownership", "[bucket][bucketmanager]")
         if (bucketListDB)
         {
             // Enable BucketListDB with persistent indexes
-            cfg.DEPRECATED_SQL_LEDGER_STATE = false;
             cfg.NODE_IS_VALIDATOR = false;
             cfg.FORCE_SCP = false;
         }

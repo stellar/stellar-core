@@ -179,122 +179,34 @@ ApplicationImpl::ApplicationImpl(VirtualClock& clock, Config const& cfg)
 static void
 maybeRebuildLedger(Application& app, bool applyBuckets)
 {
-    std::set<LedgerEntryType> toDrop;
-    std::set<LedgerEntryType> toRebuild;
     auto& ps = app.getPersistentState();
-    auto bucketListDBEnabled = app.getConfig().isUsingBucketListDB();
+    if (ps.shouldRebuildForOfferTable())
+    {
+        app.getDatabase().clearPreparedStatementCache();
+        soci::transaction tx(app.getDatabase().getSession());
+        LOG_INFO(DEFAULT_LOG, "Dropping offers");
+        app.getLedgerTxnRoot().dropOffers(/*rebuild=*/true);
 
-#ifdef BUILD_TESTS
-    if (app.getConfig().MODE_USES_IN_MEMORY_LEDGER)
-    {
-        // in-memory mode must always rebuild SQL table
-        toRebuild.emplace(OFFER);
-    }
-    else
-#endif
-    {
-        for (auto let : xdr::xdr_traits<LedgerEntryType>::enum_values())
+        tx.commit();
+
+        // No transaction is needed. ApplyBucketsWork breaks the apply into many
+        // small chunks, each of which has its own transaction. If it fails at
+        // some point in the middle, then rebuildledger will not be cleared so
+        // this will run again on next start up.
+        if (applyBuckets)
         {
-            // If BucketListDB is enabled, drop all tables except for offers
-            LedgerEntryType t = static_cast<LedgerEntryType>(let);
-            if (let != OFFER && bucketListDBEnabled)
+            LOG_INFO(DEFAULT_LOG,
+                     "Rebuilding ledger tables by applying buckets");
+            if (!applyBucketsForLCL(app))
             {
-                toDrop.emplace(t);
-                continue;
+                throw std::runtime_error("Could not rebuild ledger tables");
             }
-
-            if (ps.shouldRebuildForType(t))
-            {
-                toRebuild.emplace(t);
-            }
-        }
-    }
-
-    app.getDatabase().clearPreparedStatementCache();
-    soci::transaction tx(app.getDatabase().getSession());
-
-    auto loopEntries = [&](auto const& entryTypeSet, bool shouldRebuild) {
-        for (auto let : entryTypeSet)
-        {
-            switch (let)
-            {
-            case ACCOUNT:
-                LOG_INFO(DEFAULT_LOG, "Dropping accounts");
-                app.getLedgerTxnRoot().dropAccounts(shouldRebuild);
-                break;
-            case TRUSTLINE:
-                LOG_INFO(DEFAULT_LOG, "Dropping trustlines");
-                app.getLedgerTxnRoot().dropTrustLines(shouldRebuild);
-                break;
-            case OFFER:
-                LOG_INFO(DEFAULT_LOG, "Dropping offers");
-                app.getLedgerTxnRoot().dropOffers(shouldRebuild);
-                break;
-            case DATA:
-                LOG_INFO(DEFAULT_LOG, "Dropping accountdata");
-                app.getLedgerTxnRoot().dropData(shouldRebuild);
-                break;
-            case CLAIMABLE_BALANCE:
-                LOG_INFO(DEFAULT_LOG, "Dropping claimablebalances");
-                app.getLedgerTxnRoot().dropClaimableBalances(shouldRebuild);
-                break;
-            case LIQUIDITY_POOL:
-                LOG_INFO(DEFAULT_LOG, "Dropping liquiditypools");
-                app.getLedgerTxnRoot().dropLiquidityPools(shouldRebuild);
-                break;
-            case CONTRACT_DATA:
-                LOG_INFO(DEFAULT_LOG, "Dropping contractdata");
-                app.getLedgerTxnRoot().dropContractData(shouldRebuild);
-                break;
-            case CONTRACT_CODE:
-                LOG_INFO(DEFAULT_LOG, "Dropping contractcode");
-                app.getLedgerTxnRoot().dropContractCode(shouldRebuild);
-                break;
-            case CONFIG_SETTING:
-                LOG_INFO(DEFAULT_LOG, "Dropping configsettings");
-                app.getLedgerTxnRoot().dropConfigSettings(shouldRebuild);
-                break;
-            case TTL:
-                LOG_INFO(DEFAULT_LOG, "Dropping ttl");
-                app.getLedgerTxnRoot().dropTTL(shouldRebuild);
-                break;
-            default:
-                abort();
-            }
-        }
-    };
-
-    loopEntries(toRebuild, true);
-    loopEntries(toDrop, false);
-    tx.commit();
-
-    // Nothing to apply, exit early
-    if (toRebuild.empty())
-    {
-        return;
-    }
-
-    // No transaction is needed. ApplyBucketsWork breaks the apply into many
-    // small chunks, each of which has its own transaction. If it fails at
-    // some point in the middle, then rebuildledger will not be cleared so
-    // this will run again on next start up.
-    if (applyBuckets)
-    {
-        LOG_INFO(DEFAULT_LOG, "Rebuilding ledger tables by applying buckets");
-        auto filter = [&toRebuild](LedgerEntryType t) {
-            return toRebuild.find(t) != toRebuild.end();
-        };
-        if (!applyBucketsForLCL(app, filter))
-        {
-            throw std::runtime_error("Could not rebuild ledger tables");
+            LOG_INFO(DEFAULT_LOG, "Successfully rebuilt ledger tables");
         }
         LOG_INFO(DEFAULT_LOG, "Successfully rebuilt ledger tables");
     }
 
-    for (auto let : toRebuild)
-    {
-        ps.clearRebuildForType(let);
-    }
+    ps.clearRebuildForOfferTable();
 }
 
 void
@@ -351,7 +263,6 @@ ApplicationImpl::initialize(bool createNewDB, bool forceRebuild)
 #endif
 
     BucketListIsConsistentWithDatabase::registerInvariant(*this);
-
     AccountSubEntriesCountIsValid::registerInvariant(*this);
     ConservationOfLumens::registerInvariant(*this);
     LedgerEntryIsValid::registerInvariant(*this);
@@ -399,7 +310,7 @@ ApplicationImpl::resetLedgerState()
 #endif
     {
         auto& lsRoot = getLedgerTxnRoot();
-        lsRoot.deleteObjectsModifiedOnOrAfterLedger(0);
+        lsRoot.deleteOffersModifiedOnOrAfterLedger(0);
     }
 }
 
@@ -418,10 +329,7 @@ ApplicationImpl::upgradeToCurrentSchemaAndMaybeRebuildLedger(bool applyBuckets,
     if (forceRebuild)
     {
         auto& ps = getPersistentState();
-        for (auto let : xdr::xdr_traits<LedgerEntryType>::enum_values())
-        {
-            ps.setRebuildForType(static_cast<LedgerEntryType>(let));
-        }
+        ps.setRebuildForOfferTable();
     }
 
     mDatabase->upgradeToCurrentSchema();
@@ -734,66 +642,34 @@ ApplicationImpl::validateAndLogConfig()
                      "release. Please use sqlite3 for non-ledger state data.");
     }
 
-    if (mConfig.DEPRECATED_SQL_LEDGER_STATE)
+    auto pageSizeExp = mConfig.BUCKETLIST_DB_INDEX_PAGE_SIZE_EXPONENT;
+    if (pageSizeExp != 0)
     {
-        if (mPersistentState->getState(PersistentState::kDBBackend) ==
-            BucketIndex::DB_BACKEND_STATE)
+        // If the page size is less than 256 bytes, it is essentially
+        // indexing individual keys, so page size should be set to 0
+        // instead.
+        if (pageSizeExp < 8)
         {
             throw std::invalid_argument(
-                "To downgrade to DEPRECATED_SQL_LEDGER_STATE, run "
-                "stellar-core new-db.");
+                "BUCKETLIST_DB_INDEX_PAGE_SIZE_EXPONENT "
+                "must be at least 8 or set to 0 for individual entry "
+                "indexing");
         }
 
-        CLOG_WARNING(
-            Bucket,
-            "SQL for ledger state is enabled. This feature is deprecated! Node "
-            "may see performance degredation and lose sync with the network.");
-    }
-    else
-    {
-        if (mConfig.isUsingBucketListDB())
+        // Check if pageSize will cause overflow
+        if (pageSizeExp > 31)
         {
-            mPersistentState->setState(PersistentState::kDBBackend,
-                                       BucketIndex::DB_BACKEND_STATE);
-            auto pageSizeExp = mConfig.BUCKETLIST_DB_INDEX_PAGE_SIZE_EXPONENT;
-            if (pageSizeExp != 0)
-            {
-                // If the page size is less than 256 bytes, it is essentially
-                // indexing individual keys, so page size should be set to 0
-                // instead.
-                if (pageSizeExp < 8)
-                {
-                    throw std::invalid_argument(
-                        "BUCKETLIST_DB_INDEX_PAGE_SIZE_EXPONENT "
-                        "must be at least 8 or set to 0 for individual entry "
-                        "indexing");
-                }
-
-                // Check if pageSize will cause overflow
-                if (pageSizeExp > 31)
-                {
-                    throw std::invalid_argument(
-                        "BUCKETLIST_DB_INDEX_PAGE_SIZE_EXPONENT "
-                        "must be less than 32");
-                }
-            }
-
-            CLOG_INFO(Bucket,
-                      "BucketListDB enabled: pageSizeExponent: {} indexCutOff: "
-                      "{}MB, persist indexes: {}",
-                      pageSizeExp, mConfig.BUCKETLIST_DB_INDEX_CUTOFF,
-                      mConfig.isPersistingBucketListDBIndexes());
-        }
-        else
-        {
-            CLOG_WARNING(
-                Bucket,
-                "DEPRECATED_SQL_LEDGER_STATE set to false but "
-                "deprecated SQL ledger state is active. To disable deprecated "
-                "SQL ledger state, "
-                "MODE_ENABLES_BUCKETLIST must be set.");
+            throw std::invalid_argument(
+                "BUCKETLIST_DB_INDEX_PAGE_SIZE_EXPONENT "
+                "must be less than 32");
         }
     }
+
+    CLOG_INFO(Bucket,
+              "BucketListDB enabled: pageSizeExponent: {} indexCutOff: "
+              "{}MB, persist indexes: {}",
+              pageSizeExp, mConfig.BUCKETLIST_DB_INDEX_CUTOFF,
+              mConfig.BUCKETLIST_DB_PERSIST_INDEX);
 
     if (mConfig.HTTP_QUERY_PORT != 0)
     {
@@ -808,13 +684,6 @@ ApplicationImpl::validateAndLogConfig()
         {
             throw std::invalid_argument(
                 "HTTP_QUERY_PORT must be different from HTTP_PORT");
-        }
-
-        if (!mConfig.isUsingBucketListDB())
-        {
-            throw std::invalid_argument(
-                "HTTP_QUERY_PORT requires DEPRECATED_SQL_LEDGER_STATE to be "
-                "false");
         }
 
         if (mConfig.QUERY_THREAD_POOL_SIZE == 0)

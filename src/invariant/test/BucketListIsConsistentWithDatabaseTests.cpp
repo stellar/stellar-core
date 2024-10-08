@@ -188,7 +188,7 @@ struct BucketListGenerator
                     out.put(*in);
                 }
 
-                auto bucket = out.getBucket(bmApply, false);
+                auto bucket = out.getBucket(bmApply);
             };
             writeBucketFile(level.getCurr());
             writeBucketFile(level.getSnap());
@@ -329,8 +329,8 @@ class ApplyBucketsWorkAddEntry : public ApplyBucketsWork
             uint32_t maxLedger = std::numeric_limits<int32_t>::max() - 1;
             auto& ltxRoot = mApp.getLedgerTxnRoot();
 
-            auto count = ltxRoot.countObjects(
-                OFFER, LedgerRange::inclusive(minLedger, maxLedger));
+            auto count = ltxRoot.countOffers(
+                LedgerRange::inclusive(minLedger, maxLedger));
 
             if (count > 0)
             {

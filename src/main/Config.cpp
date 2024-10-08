@@ -157,7 +157,6 @@ Config::Config() : NODE_SEED(SecretKey::random())
     CATCHUP_COMPLETE = false;
     CATCHUP_RECENT = 0;
     BACKGROUND_OVERLAY_PROCESSING = true;
-    DEPRECATED_SQL_LEDGER_STATE = false;
     BUCKETLIST_DB_INDEX_PAGE_SIZE_EXPONENT = 14; // 2^14 == 16 kb
     BUCKETLIST_DB_INDEX_CUTOFF = 20;             // 20 mb
     BUCKETLIST_DB_PERSIST_INDEX = true;
@@ -1082,16 +1081,20 @@ Config::processConfig(std::shared_ptr<cpptoml::table> t)
                          "is ignored. Please remove from config");
                  }},
                 {"DEPRECATED_SQL_LEDGER_STATE",
-                 [&]() { DEPRECATED_SQL_LEDGER_STATE = readBool(item); }},
+                 [&]() {
+                     CLOG_WARNING(
+                         Bucket,
+                         "DEPRECATED_SQL_LEDGER_STATE is deprecated and "
+                         "ignored. Please remove from config");
+                 }},
                 // Still support EXPERIMENTAL_BUCKETLIST_DB* flags for
                 // captive-core for 21.0 release, remove in 21.1 release
                 {"EXPERIMENTAL_BUCKETLIST_DB",
                  [&]() {
-                     DEPRECATED_SQL_LEDGER_STATE = !readBool(item);
                      CLOG_WARNING(
                          Bucket,
-                         "EXPERIMENTAL_BUCKETLIST_DB flag is deprecated, "
-                         "use DEPRECATED_SQL_LEDGER_STATE=false instead.");
+                         "EXPERIMENTAL_BUCKETLIST_DB flag is deprecated. "
+                         "please remove from config");
                  }},
                 {"EXPERIMENTAL_BUCKETLIST_DB_INDEX_PAGE_SIZE_EXPONENT",
                  [&]() {
@@ -1812,33 +1815,11 @@ Config::processConfig(std::shared_ptr<cpptoml::table> t)
         // Validators default to starting the network from local state
         FORCE_SCP = NODE_IS_VALIDATOR;
 
-        // Require either DEPRECATED_SQL_LEDGER_STATE or
-        // EXPERIMENTAL_BUCKETLIST_DB to be backwards compatible with horizon
-        // and RPC, but do not allow both.
-        if (!t->contains("DEPRECATED_SQL_LEDGER_STATE") &&
-            !t->contains("EXPERIMENTAL_BUCKETLIST_DB"))
-        {
-            std::string msg =
-                "Invalid configuration: "
-                "DEPRECATED_SQL_LEDGER_STATE not set. Default setting is FALSE "
-                "and is appropriate for most nodes.";
-            throw std::runtime_error(msg);
-        }
         // Only allow one version of all BucketListDB flags, either the
         // deprecated flag or new flag, but not both.
-        else if (t->contains("DEPRECATED_SQL_LEDGER_STATE") &&
-                 t->contains("EXPERIMENTAL_BUCKETLIST_DB"))
-        {
-            std::string msg =
-                "Invalid configuration: EXPERIMENTAL_BUCKETLIST_DB and "
-                "DEPRECATED_SQL_LEDGER_STATE must not both be set. "
-                "EXPERIMENTAL_BUCKETLIST_DB is deprecated, use "
-                "DEPRECATED_SQL_LEDGER_STATE only.";
-            throw std::runtime_error(msg);
-        }
-        else if (t->contains(
-                     "EXPERIMENTAL_BUCKETLIST_DB_INDEX_PAGE_SIZE_EXPONENT") &&
-                 t->contains("BUCKETLIST_DB_INDEX_PAGE_SIZE_EXPONENT"))
+        if (t->contains(
+                "EXPERIMENTAL_BUCKETLIST_DB_INDEX_PAGE_SIZE_EXPONENT") &&
+            t->contains("BUCKETLIST_DB_INDEX_PAGE_SIZE_EXPONENT"))
         {
             std::string msg =
                 "Invalid configuration: "
@@ -2382,22 +2363,6 @@ bool
 Config::modeDoesCatchupWithBucketList() const
 {
     return MODE_DOES_CATCHUP && MODE_ENABLES_BUCKETLIST;
-}
-
-bool
-Config::isUsingBucketListDB() const
-{
-    return !DEPRECATED_SQL_LEDGER_STATE
-#ifdef BUILD_TESTS
-           && !MODE_USES_IN_MEMORY_LEDGER
-#endif
-           && MODE_ENABLES_BUCKETLIST;
-}
-
-bool
-Config::isPersistingBucketListDBIndexes() const
-{
-    return isUsingBucketListDB() && BUCKETLIST_DB_PERSIST_INDEX;
 }
 
 bool

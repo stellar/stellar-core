@@ -16,7 +16,6 @@
 #include "main/Application.h"
 #include "main/PersistentState.h"
 #include "medida/timer.h"
-#include "util/GlobalChecks.h"
 #include "util/XDRCereal.h"
 #include <chrono>
 #include <fmt/chrono.h>
@@ -73,7 +72,7 @@ checkDbEntryCounts(Application& app, LedgerRange const& range,
 {
     std::string msg;
     auto& ltxRoot = app.getLedgerTxnRoot();
-    uint64_t numInDb = ltxRoot.countObjects(OFFER, range);
+    uint64_t numInDb = ltxRoot.countOffers(range);
     if (numInDb != expectedOfferCount)
     {
         msg = fmt::format(

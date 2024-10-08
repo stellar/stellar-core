@@ -397,8 +397,7 @@ BucketBase::merge(BucketManager& bucketManager, uint32_t maxProtocolVersion,
 
     MergeKey mk{keepTombstoneEntries, oldBucket->getHash(),
                 newBucket->getHash(), shadowHashes};
-    return out.getBucket(bucketManager,
-                         bucketManager.getConfig().isUsingBucketListDB(), &mk);
+    return out.getBucket(bucketManager, &mk);
 }
 
 template std::shared_ptr<LiveBucket> BucketBase::merge<LiveBucket>(

@@ -1177,8 +1177,9 @@ runNewDB(CommandLineArgs const& args)
     };
 
     return runWithHelp(args,
-                       {configurationParser(configOption),
-                        minimalDBParser(minimalForInMemoryMode)},
+                       {
+                           configurationParser(configOption),
+                       },
                        [&] {
                            auto cfg = configOption.getConfig();
                            initializeDatabase(cfg);
@@ -1485,9 +1486,8 @@ run(CommandLineArgs const& args)
         args,
         {configurationParser(configOption),
          disableBucketGCParser(disableBucketGC),
-         metadataOutputStreamParser(stream), inMemoryParser(inMemory),
-         waitForConsensusParser(waitForConsensus),
-         startAtLedgerParser(startAtLedger), startAtHashParser(startAtHash)},
+         metadataOutputStreamParser(stream),
+         waitForConsensusParser(waitForConsensus)},
         [&] {
             Config cfg;
             std::shared_ptr<VirtualClock> clock;

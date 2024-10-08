@@ -347,41 +347,35 @@ LedgerManagerImpl::loadLastKnownLedger(bool restoreBucketlist)
 
     releaseAssert(latestLedgerHeader.has_value());
 
-    // Step 3. Restore BucketList if we're doing a full core startup
-    // (startServices=true), OR when using BucketListDB
-    if (restoreBucketlist || mApp.getConfig().isUsingBucketListDB())
+    HistoryArchiveState has = getLastClosedLedgerHAS();
+    auto missing = mApp.getBucketManager().checkForMissingBucketsFiles(has);
+    auto pubmissing =
+        mApp.getHistoryManager().getMissingBucketsReferencedByPublishQueue();
+    missing.insert(missing.end(), pubmissing.begin(), pubmissing.end());
+    if (!missing.empty())
     {
-        HistoryArchiveState has = getLastClosedLedgerHAS();
-        auto missing = mApp.getBucketManager().checkForMissingBucketsFiles(has);
-        auto pubmissing = mApp.getHistoryManager()
-                              .getMissingBucketsReferencedByPublishQueue();
-        missing.insert(missing.end(), pubmissing.begin(), pubmissing.end());
-        if (!missing.empty())
-        {
-            CLOG_ERROR(Ledger,
-                       "{} buckets are missing from bucket directory '{}'",
-                       missing.size(), mApp.getBucketManager().getBucketDir());
-            throw std::runtime_error("Bucket directory is corrupt");
-        }
+        CLOG_ERROR(Ledger, "{} buckets are missing from bucket directory '{}'",
+                   missing.size(), mApp.getBucketManager().getBucketDir());
+        throw std::runtime_error("Bucket directory is corrupt");
+    }
 
-        if (mApp.getConfig().MODE_ENABLES_BUCKETLIST)
+    if (mApp.getConfig().MODE_ENABLES_BUCKETLIST)
+    {
+        // Only restart merges in full startup mode. Many modes in core
+        // (standalone offline commands, in-memory setup) do not need to
+        // spin up expensive merge processes.
+        auto assumeStateWork =
+            mApp.getWorkScheduler().executeWork<AssumeStateWork>(
+                has, latestLedgerHeader->ledgerVersion, restoreBucketlist);
+        if (assumeStateWork->getState() == BasicWork::State::WORK_SUCCESS)
         {
-            // Only restart merges in full startup mode. Many modes in core
-            // (standalone offline commands, in-memory setup) do not need to
-            // spin up expensive merge processes.
-            auto assumeStateWork =
-                mApp.getWorkScheduler().executeWork<AssumeStateWork>(
-                    has, latestLedgerHeader->ledgerVersion, restoreBucketlist);
-            if (assumeStateWork->getState() == BasicWork::State::WORK_SUCCESS)
-            {
-                CLOG_INFO(Ledger, "Assumed bucket-state for LCL: {}",
-                          ledgerAbbrev(*latestLedgerHeader));
-            }
-            else
-            {
-                // Work should only fail during graceful shutdown
-                releaseAssertOrThrow(mApp.isStopping());
-            }
+            CLOG_INFO(Ledger, "Assumed bucket-state for LCL: {}",
+                      ledgerAbbrev(*latestLedgerHeader));
+        }
+        else
+        {
+            // Work should only fail during graceful shutdown
+            releaseAssertOrThrow(mApp.isStopping());
         }
     }
 
@@ -1043,8 +1037,7 @@ LedgerManagerImpl::closeLedger(LedgerCloseData const& ledgerData)
     hm.logAndUpdatePublishStatus();
 
     // step 5
-    if (protocolVersionStartsFrom(initialLedgerVers,
-                                  SOROBAN_PROTOCOL_VERSION))
+    if (protocolVersionStartsFrom(initialLedgerVers, SOROBAN_PROTOCOL_VERSION))
     {
         mApp.getBucketManager().startBackgroundEvictionScan(ledgerSeq + 1);
     }
@@ -1277,8 +1270,7 @@ LedgerManagerImpl::advanceLedgerPointers(LedgerHeader const& header,
     mLastClosedLedger.hash = ledgerHash;
     mLastClosedLedger.header = header;
 
-    if (mApp.getConfig().isUsingBucketListDB() &&
-        header.ledgerSeq != prevLedgerSeq)
+    if (header.ledgerSeq != prevLedgerSeq)
     {
         auto& bm = mApp.getBucketManager();
         auto liveSnapshot = std::make_unique<BucketListSnapshot<LiveBucket>>(
@@ -1481,10 +1473,7 @@ LedgerManagerImpl::prefetchTransactionData(
         {
             if (tx->isSoroban())
             {
-                if (mApp.getConfig().isUsingBucketListDB())
-                {
-                    tx->insertKeysForTxApply(sorobanKeys, lkMeter.get());
-                }
+                tx->insertKeysForTxApply(sorobanKeys, lkMeter.get());
             }
             else
             {
@@ -1493,14 +1482,11 @@ LedgerManagerImpl::prefetchTransactionData(
         }
         // Prefetch classic and soroban keys separately for greater visibility
         // into the performance of each mode.
-        if (mApp.getConfig().isUsingBucketListDB())
+        if (!sorobanKeys.empty())
         {
-            if (!sorobanKeys.empty())
-            {
-                mApp.getLedgerTxnRoot().prefetchSoroban(sorobanKeys,
-                                                        lkMeter.get());
-            }
+            mApp.getLedgerTxnRoot().prefetchSoroban(sorobanKeys, lkMeter.get());
         }
+
         mApp.getLedgerTxnRoot().prefetchClassic(classicKeys);
     }
 }

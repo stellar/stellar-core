@@ -22,7 +22,6 @@ class ApplyBucketsWork : public Work
 {
     std::map<std::string, std::shared_ptr<LiveBucket>> const& mBuckets;
     HistoryArchiveState const& mApplyState;
-    std::function<bool(LedgerEntryType)> mEntryTypeFilter;
 
     bool mSpawnedAssumeStateWork{false};
     std::shared_ptr<AssumeStateWork> mAssumeStateWork{};
@@ -50,7 +49,6 @@ class ApplyBucketsWork : public Work
     void advance(std::string const& name, BucketApplicator& applicator);
     std::shared_ptr<LiveBucket> getBucket(std::string const& bucketHash);
 
-    uint32_t startingLevel();
     bool appliedAllBuckets() const;
     void startBucket();
     void prepareForNextBucket();
@@ -60,11 +58,6 @@ class ApplyBucketsWork : public Work
         Application& app,
         std::map<std::string, std::shared_ptr<LiveBucket>> const& buckets,
         HistoryArchiveState const& applyState, uint32_t maxProtocolVersion);
-    ApplyBucketsWork(
-        Application& app,
-        std::map<std::string, std::shared_ptr<LiveBucket>> const& buckets,
-        HistoryArchiveState const& applyState, uint32_t maxProtocolVersion,
-        std::function<bool(LedgerEntryType)> onlyApply);
     ~ApplyBucketsWork() = default;
 
     std::string getStatus() const override;

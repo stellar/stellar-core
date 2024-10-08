@@ -64,10 +64,7 @@ AssumeStateWork::doWork()
         std::vector<std::shared_ptr<BasicWork>> seq;
 
         // Index Bucket files
-        if (mApp.getConfig().isUsingBucketListDB())
-        {
-            seq.push_back(std::make_shared<IndexBucketsWork>(mApp, mBuckets));
-        }
+        seq.push_back(std::make_shared<IndexBucketsWork>(mApp, mBuckets));
 
         // Add bucket files to BucketList and restart merges
         auto assumeStateCB = [&has = mHas,

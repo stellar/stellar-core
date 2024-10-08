@@ -165,7 +165,6 @@ BucketOutputIterator<BucketT>::put(typename BucketT::EntryT const& e)
 template <typename BucketT>
 std::shared_ptr<BucketT>
 BucketOutputIterator<BucketT>::getBucket(BucketManager& bucketManager,
-                                         bool shouldSynchronouslyIndex,
                                          MergeKey* mergeKey)
 {
     ZoneScoped;
@@ -193,17 +192,13 @@ BucketOutputIterator<BucketT>::getBucket(BucketManager& bucketManager,
     auto hash = mHasher.finish();
     std::unique_ptr<BucketIndex const> index{};
 
-    // If this bucket needs to be indexed and is not already indexed
-    if (shouldSynchronouslyIndex)
+    // either it's a new bucket or we just reconstructed a bucket
+    // we already have, in any case ensure we have an index
+    if (auto b = bucketManager.getBucketIfExists<BucketT>(hash);
+        !b || !b->isIndexed())
     {
-        // either it's a new bucket or we just reconstructed a bucket
-        // we already have, in any case ensure we have an index
-        if (auto b = bucketManager.getBucketIfExists<BucketT>(hash);
-            !b || !b->isIndexed())
-        {
-            index = BucketIndex::createIndex<BucketT>(bucketManager, mFilename,
-                                                      hash, mCtx);
-        }
+        index = BucketIndex::createIndex<BucketT>(bucketManager, mFilename,
+                                                  hash, mCtx);
     }
 
     return bucketManager.adoptFileAsBucket<BucketT>(mFilename.string(), hash,
