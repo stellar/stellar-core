@@ -772,13 +772,12 @@ class LedgerTxnRoot::Impl
 
     void commitChild(EntryIterator iter, LedgerTxnConsistency cons) noexcept;
 
-    // countObjects has the strong exception safety guarantee.
-    uint64_t countObjects(LedgerEntryType let) const;
-    uint64_t countObjects(LedgerEntryType let,
-                          LedgerRange const& ledgers) const;
+    // countOffers has the strong exception safety guarantee.
+    uint64_t countOffers() const;
+    uint64_t countOffers(LedgerRange const& ledgers) const;
 
-    // deleteObjectsModifiedOnOrAfterLedger has no exception safety guarantees.
-    void deleteObjectsModifiedOnOrAfterLedger(uint32_t ledger) const;
+    // deleteOffersModifiedOnOrAfterLedger has no exception safety guarantees.
+    void deleteOffersModifiedOnOrAfterLedger(uint32_t ledger) const;
 
     // dropAccounts, dropData, dropOffers, and dropTrustLines have no exception
     // safety guarantees.
