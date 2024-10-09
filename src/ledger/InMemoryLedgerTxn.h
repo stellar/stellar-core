@@ -44,6 +44,12 @@ class InMemoryLedgerTxn : public LedgerTxn
     Database& mDb;
     std::unique_ptr<soci::transaction> mTransaction;
 
+    // For some tests, we need to bypass ledger close and commit directly to the
+    // in-memory ltx. However, we still want to test SQL backed offers. The
+    // "never" committing root sets this flag to true such that offer-related
+    // calls get based to the real SQL backed root
+    AbstractLedgerTxnParent* const mRealRootForOffers;
+
     UnorderedMap<AccountID, UnorderedSet<InternalLedgerKey>>
         mOffersAndPoolShareTrustlineKeys;
 
@@ -75,7 +81,8 @@ class InMemoryLedgerTxn : public LedgerTxn
     EntryIterator getFilteredEntryIterator(EntryIterator const& iter);
 
   public:
-    InMemoryLedgerTxn(InMemoryLedgerTxnRoot& parent, Database& db);
+    InMemoryLedgerTxn(InMemoryLedgerTxnRoot& parent, Database& db,
+                      AbstractLedgerTxnParent* realRoot = nullptr);
     virtual ~InMemoryLedgerTxn();
 
     void addChild(AbstractLedgerTxn& child, TransactionMode mode) override;
@@ -100,6 +107,19 @@ class InMemoryLedgerTxn : public LedgerTxn
     UnorderedMap<LedgerKey, LedgerEntry>
     getPoolShareTrustLinesByAccountAndAsset(AccountID const& account,
                                             Asset const& asset) override;
+
+    // These functions call into the real LedgerTxn root to test offer SQL
+    // related functionality
+    UnorderedMap<LedgerKey, LedgerEntry> getAllOffers() override;
+    std::shared_ptr<LedgerEntry const>
+    getBestOffer(Asset const& buying, Asset const& selling) override;
+    std::shared_ptr<LedgerEntry const>
+    getBestOffer(Asset const& buying, Asset const& selling,
+                 OfferDescriptor const& worseThan) override;
+
+    void dropOffers(bool rebuild) override;
+    uint64_t countOffers(LedgerRange const& ledgers) const override;
+    void deleteOffersModifiedOnOrAfterLedger(uint32_t ledger) const override;
 };
 
 }

@@ -2010,22 +2010,22 @@ LedgerTxn::Impl::unsealHeader(LedgerTxn& self,
 }
 
 uint64_t
-LedgerTxn::countObjects(LedgerEntryType let) const
+LedgerTxn::countOffers() const
 {
-    throw std::runtime_error("called countObjects on non-root LedgerTxn");
+    throw std::runtime_error("called countOffers on non-root LedgerTxn");
 }
 
 uint64_t
-LedgerTxn::countObjects(LedgerEntryType let, LedgerRange const& ledgers) const
+LedgerTxn::countOffers(LedgerRange const& ledgers) const
 {
-    throw std::runtime_error("called countObjects on non-root LedgerTxn");
+    throw std::runtime_error("called countOffers on non-root LedgerTxn");
 }
 
 void
-LedgerTxn::deleteObjectsModifiedOnOrAfterLedger(uint32_t ledger) const
+LedgerTxn::deleteOffersModifiedOnOrAfterLedger(uint32_t ledger) const
 {
     throw std::runtime_error(
-        "called deleteObjectsModifiedOnOrAfterLedger on non-root LedgerTxn");
+        "called deleteOffersModifiedOnOrAfterLedger on non-root LedgerTxn");
 }
 
 void
@@ -2762,40 +2762,36 @@ LedgerTxnRoot::Impl::tableFromLedgerEntryType(LedgerEntryType let)
 }
 
 uint64_t
-LedgerTxnRoot::countObjects(LedgerEntryType let) const
+LedgerTxnRoot::countOffers() const
 {
-    return mImpl->countObjects(let);
+    return mImpl->countOffers();
 }
 
 uint64_t
-LedgerTxnRoot::Impl::countObjects(LedgerEntryType let) const
+LedgerTxnRoot::Impl::countOffers() const
 {
     using namespace soci;
     throwIfChild();
 
-    std::string query =
-        "SELECT COUNT(*) FROM " + tableFromLedgerEntryType(let) + ";";
+    std::string query = "SELECT COUNT(*) FROM offers;";
     uint64_t count = 0;
     mApp.getDatabase().getSession() << query, into(count);
     return count;
 }
 
 uint64_t
-LedgerTxnRoot::countObjects(LedgerEntryType let,
-                            LedgerRange const& ledgers) const
+LedgerTxnRoot::countOffers(LedgerRange const& ledgers) const
 {
-    return mImpl->countObjects(let, ledgers);
+    return mImpl->countOffers(ledgers);
 }
 
 uint64_t
-LedgerTxnRoot::Impl::countObjects(LedgerEntryType let,
-                                  LedgerRange const& ledgers) const
+LedgerTxnRoot::Impl::countOffers(LedgerRange const& ledgers) const
 {
     using namespace soci;
     throwIfChild();
 
-    std::string query = "SELECT COUNT(*) FROM " +
-                        tableFromLedgerEntryType(let) +
+    std::string query = "SELECT COUNT(*) FROM offers"
                         " WHERE lastmodified >= :v1 AND lastmodified < :v2;";
     uint64_t count = 0;
     int first = static_cast<int>(ledgers.mFirst);
@@ -2806,26 +2802,22 @@ LedgerTxnRoot::Impl::countObjects(LedgerEntryType let,
 }
 
 void
-LedgerTxnRoot::deleteObjectsModifiedOnOrAfterLedger(uint32_t ledger) const
+LedgerTxnRoot::deleteOffersModifiedOnOrAfterLedger(uint32_t ledger) const
 {
-    return mImpl->deleteObjectsModifiedOnOrAfterLedger(ledger);
+    return mImpl->deleteOffersModifiedOnOrAfterLedger(ledger);
 }
 
 void
-LedgerTxnRoot::Impl::deleteObjectsModifiedOnOrAfterLedger(uint32_t ledger) const
+LedgerTxnRoot::Impl::deleteOffersModifiedOnOrAfterLedger(uint32_t ledger) const
 {
     using namespace soci;
     throwIfChild();
     mEntryCache.clear();
     mBestOffers.clear();
 
-    for (auto let : xdr::xdr_traits<LedgerEntryType>::enum_values())
-    {
-        LedgerEntryType t = static_cast<LedgerEntryType>(let);
-        std::string query = "DELETE FROM " + tableFromLedgerEntryType(t) +
-                            " WHERE lastmodified >= :v1";
-        mApp.getDatabase().getSession() << query, use(ledger);
-    }
+    std::string query = "DELETE FROM " + tableFromLedgerEntryType(OFFER) +
+                        " WHERE lastmodified >= :v1";
+    mApp.getDatabase().getSession() << query, use(ledger);
 }
 
 void

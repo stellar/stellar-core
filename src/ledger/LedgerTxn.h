@@ -463,20 +463,18 @@ class AbstractLedgerTxnParent
     virtual std::shared_ptr<InternalLedgerEntry const>
     getNewestVersion(InternalLedgerKey const& key) const = 0;
 
-    // Return the count of the number of ledger objects of type `let`. Will
+    // Return the count of the number of offer objects of type `let`. Will
     // throw when called on anything other than a (real or stub) root LedgerTxn.
-    virtual uint64_t countObjects(LedgerEntryType let) const = 0;
+    virtual uint64_t countOffers() const = 0;
 
-    // Return the count of the number of ledger objects of type `let` within
+    // Return the count of the number of ofer objects of type `let` within
     // range of ledgers `ledgers`. Will throw when called on anything other than
     // a (real or stub) root LedgerTxn.
-    virtual uint64_t countObjects(LedgerEntryType let,
-                                  LedgerRange const& ledgers) const = 0;
+    virtual uint64_t countOffers(LedgerRange const& ledgers) const = 0;
 
     // Delete all ledger entries modified on-or-after `ledger`. Will throw
     // when called on anything other than a (real or stub) root LedgerTxn.
-    virtual void
-    deleteObjectsModifiedOnOrAfterLedger(uint32_t ledger) const = 0;
+    virtual void deleteOffersModifiedOnOrAfterLedger(uint32_t ledger) const = 0;
 
     // Delete all account ledger entries in the database. Will throw when called
     // on anything other than a (real or stub) root LedgerTxn.
@@ -815,10 +813,9 @@ class LedgerTxn : public AbstractLedgerTxn
 
     void unsealHeader(std::function<void(LedgerHeader&)> f) override;
 
-    uint64_t countObjects(LedgerEntryType let) const override;
-    uint64_t countObjects(LedgerEntryType let,
-                          LedgerRange const& ledgers) const override;
-    void deleteObjectsModifiedOnOrAfterLedger(uint32_t ledger) const override;
+    uint64_t countOffers() const override;
+    uint64_t countOffers(LedgerRange const& ledgers) const override;
+    void deleteOffersModifiedOnOrAfterLedger(uint32_t ledger) const override;
     void dropAccounts(bool rebuild) override;
     void dropData(bool rebuild) override;
     void dropOffers(bool rebuild) override;
@@ -879,11 +876,10 @@ class LedgerTxnRoot : public AbstractLedgerTxnParent
     void commitChild(EntryIterator iter,
                      LedgerTxnConsistency cons) noexcept override;
 
-    uint64_t countObjects(LedgerEntryType let) const override;
-    uint64_t countObjects(LedgerEntryType let,
-                          LedgerRange const& ledgers) const override;
+    uint64_t countOffers() const override;
+    uint64_t countOffers(LedgerRange const& ledgers) const override;
 
-    void deleteObjectsModifiedOnOrAfterLedger(uint32_t ledger) const override;
+    void deleteOffersModifiedOnOrAfterLedger(uint32_t ledger) const override;
 
     void dropAccounts(bool rebuild) override;
     void dropData(bool rebuild) override;

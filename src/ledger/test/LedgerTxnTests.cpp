@@ -339,13 +339,18 @@ TEST_CASE("LedgerTxn round trip", "[ledgertxn]")
     std::bernoulli_distribution shouldCommitDist;
 
     auto generateNew = [](AbstractLedgerTxn& ltx,
-                          UnorderedMap<LedgerKey, LedgerEntry>& entries) {
+                          UnorderedMap<LedgerKey, LedgerEntry>& entries,
+                          bool offerOnly) {
         size_t const NEW_ENTRIES = 100;
         UnorderedMap<LedgerKey, LedgerEntry> newBatch;
         while (newBatch.size() < NEW_ENTRIES)
         {
-            auto le = LedgerTestUtils::generateValidLedgerEntryWithExclusions(
-                {CONFIG_SETTING});
+            auto le =
+                offerOnly
+                    ? LedgerTestUtils::generateValidLedgerEntryOfType(OFFER)
+                    : LedgerTestUtils::generateValidLedgerEntryWithExclusions(
+                          {CONFIG_SETTING});
+
             auto key = LedgerEntryKey(le);
             if (entries.find(LedgerEntryKey(le)) == entries.end())
             {
@@ -428,7 +433,7 @@ TEST_CASE("LedgerTxn round trip", "[ledgertxn]")
         }
     };
 
-    auto runTest = [&](AbstractLedgerTxnParent& ltxParent) {
+    auto runTest = [&](AbstractLedgerTxnParent& ltxParent, bool offerOnly) {
         UnorderedMap<LedgerKey, LedgerEntry> entries;
         UnorderedSet<LedgerKey> dead;
         size_t const NUM_BATCHES = 10;
@@ -439,7 +444,7 @@ TEST_CASE("LedgerTxn round trip", "[ledgertxn]")
             UnorderedMap<LedgerKey, LedgerEntry> updatedEntries = entries;
             UnorderedSet<LedgerKey> updatedDead = dead;
             LedgerTxn ltx1(ltxParent);
-            generateNew(ltx1, updatedEntries);
+            generateNew(ltx1, updatedEntries, offerOnly);
             generateModify(ltx1, updatedEntries);
             generateErase(ltx1, updatedEntries, updatedDead);
 
@@ -459,7 +464,7 @@ TEST_CASE("LedgerTxn round trip", "[ledgertxn]")
             auto app = createTestApplication(clock, getTestConfig(0, mode));
 
             LedgerTxn ltx1(app->getLedgerTxnRoot());
-            runTest(ltx1);
+            runTest(ltx1, false);
         }
 
         SECTION("round trip to LedgerTxnRoot")
@@ -468,13 +473,9 @@ TEST_CASE("LedgerTxn round trip", "[ledgertxn]")
             {
                 VirtualClock clock;
                 // BucketListDB incompatible with direct root commits
-                auto app = createTestApplication(
-                    clock,
-                    getTestConfig(0, mode == Config::TESTDB_DEFAULT
-                                         ? Config::TESTDB_IN_MEMORY_NO_OFFERS
-                                         : mode));
+                auto app = createTestApplication(clock, getTestConfig(0, mode));
 
-                runTest(app->getLedgerTxnRoot());
+                runTest(app->getLedgerTxnRoot(), true);
             }
 
             SECTION("with no cache")
@@ -482,14 +483,11 @@ TEST_CASE("LedgerTxn round trip", "[ledgertxn]")
                 VirtualClock clock;
 
                 // BucketListDB incompatible with direct root commits
-                auto cfg =
-                    getTestConfig(0, mode == Config::TESTDB_DEFAULT
-                                         ? Config::TESTDB_IN_MEMORY_NO_OFFERS
-                                         : mode);
+                auto cfg = getTestConfig(0, mode);
                 cfg.ENTRY_CACHE_SIZE = 0;
                 auto app = createTestApplication(clock, cfg);
 
-                runTest(app->getLedgerTxnRoot());
+                runTest(app->getLedgerTxnRoot(), true);
             }
         }
     };
@@ -1494,88 +1492,6 @@ TEST_CASE_VERSIONS("LedgerTxn load", "[ledgertxn]")
                 }
             });
         }
-
-        SECTION("load tests for all versions")
-        {
-            for_all_versions(*app, [&]() {
-                SECTION("invalid keys")
-                {
-                    LedgerTxn ltx1(app->getLedgerTxnRoot());
-
-                    auto acc = txtest::getAccount("acc");
-                    auto acc2 = txtest::getAccount("acc2");
-
-                    {
-                        auto native = txtest::makeNativeAsset();
-                        UNSCOPED_INFO("native asset on trustline key");
-
-                        // Invariant not supported in BucketListDB and in-memory
-                        // mode
-                        if (mode != Config::TESTDB_DEFAULT &&
-                            mode != Config::TESTDB_IN_MEMORY_NO_OFFERS)
-                        {
-                            REQUIRE_THROWS_AS(ltx1.load(trustlineKey(
-                                                  acc.getPublicKey(), native)),
-                                              NonSociRelatedException);
-                        }
-                    }
-
-                    {
-                        auto usd = txtest::makeAsset(acc, "usd");
-                        UNSCOPED_INFO("issuer on trustline key");
-
-                        // Invariant not supported in BucketListDB and in-memory
-                        // mode
-                        if (mode != Config::TESTDB_DEFAULT &&
-                            mode != Config::TESTDB_IN_MEMORY_NO_OFFERS)
-                        {
-                            REQUIRE_THROWS_AS(ltx1.load(trustlineKey(
-                                                  acc.getPublicKey(), usd)),
-                                              NonSociRelatedException);
-                        }
-                    }
-
-                    {
-                        std::string accountIDStr, issuerStr, assetCodeStr;
-                        auto invalidAssets = testutil::getInvalidAssets(acc);
-                        for (auto const& asset : invalidAssets)
-                        {
-                            auto key = trustlineKey(acc2.getPublicKey(), asset);
-
-                            // Invariant not supported in BucketListDB and
-                            // in-memory mode
-                            if (mode != Config::TESTDB_DEFAULT &&
-                                mode != Config::TESTDB_IN_MEMORY_NO_OFFERS)
-                            {
-                                REQUIRE_THROWS_AS(ltx1.load(key),
-                                                  NonSociRelatedException);
-                            }
-                        }
-                    }
-
-                    SECTION("load generated keys")
-                    {
-                        for (int i = 0; i < 1000; ++i)
-                        {
-                            LedgerKey lk = autocheck::generator<LedgerKey>()(5);
-
-                            try
-                            {
-                                ltx1.load(lk);
-                            }
-                            catch (NonSociRelatedException&)
-                            {
-                                // this is fine
-                            }
-                            catch (std::exception&)
-                            {
-                                REQUIRE(false);
-                            }
-                        }
-                    }
-                }
-            });
-        }
     };
 
     SECTION("default")
@@ -2334,14 +2250,19 @@ TEST_CASE("LedgerTxn loadBestOffer", "[ledgertxn]")
                     loadAccount(ltx2, account.accountID);
                 }
 
-                // Note that we can't prefetch for more than 1000 offers
-                double expectedPrefetchHitRate =
-                    std::min(numOffers - offerID,
-                             static_cast<int64_t>(getMaxOffersToCross())) /
-                    static_cast<double>(accounts.size());
-                REQUIRE(fabs(expectedPrefetchHitRate -
-                             ltx2.getPrefetchHitRate()) < .000001);
-                REQUIRE(preLoadPrefetchHitRate < ltx2.getPrefetchHitRate());
+                // Prefetch doesn't work in in-memory mode, but this is for
+                // testing only so we only care about accuracy
+                if (mode != Config::TESTDB_IN_MEMORY_NO_OFFERS)
+                {
+                    // Note that we can't prefetch for more than 1000 offers
+                    double expectedPrefetchHitRate =
+                        std::min(numOffers - offerID,
+                                 static_cast<int64_t>(getMaxOffersToCross())) /
+                        static_cast<double>(accounts.size());
+                    REQUIRE(fabs(expectedPrefetchHitRate -
+                                 ltx2.getPrefetchHitRate()) < .000001);
+                    REQUIRE(preLoadPrefetchHitRate < ltx2.getPrefetchHitRate());
+                }
             };
 
             SECTION("prefetch for all worse remaining offers")
@@ -2370,6 +2291,13 @@ TEST_CASE("LedgerTxn loadBestOffer", "[ledgertxn]")
     SECTION("sqlite")
     {
         runTest(Config::TESTDB_ON_DISK_SQLITE);
+    }
+
+    // This mode is only used in testing, but we should still make sure it works
+    // for other tests that leverage it
+    SECTION("in-memory")
+    {
+        runTest(Config::TESTDB_IN_MEMORY_NO_OFFERS);
     }
 
 #ifdef USE_POSTGRES
@@ -3953,7 +3881,7 @@ TEST_CASE("LedgerTxn in memory order book", "[ledgertxn]")
 #endif
 }
 
-TEST_CASE_VERSIONS("LedgerTxn bulk-load offers", "[ledgertxn]")
+TEST_CASE("Access deactivated entry", "[ledgertxn]")
 {
     auto runTest = [&](Config::TestDbMode mode) {
         VirtualClock clock;
@@ -3962,47 +3890,6 @@ TEST_CASE_VERSIONS("LedgerTxn bulk-load offers", "[ledgertxn]")
         LedgerEntry le1;
         le1.data.type(OFFER);
         le1.data.offer() = LedgerTestUtils::generateValidOfferEntry();
-
-        LedgerKey lk1 = LedgerEntryKey(le1);
-        auto lk2 = lk1;
-        lk2.offer().sellerID =
-            LedgerTestUtils::generateValidOfferEntry().sellerID;
-
-        {
-            LedgerTxn ltx(app->getLedgerTxnRoot());
-            ltx.create(le1);
-            ltx.commit();
-        }
-
-        for_all_versions(*app, [&]() {
-            app->getLedgerTxnRoot().prefetchClassic({lk1, lk2});
-            LedgerTxn ltx(app->getLedgerTxnRoot());
-            REQUIRE(ltx.load(lk1));
-        });
-    };
-
-    SECTION("sqlite")
-    {
-        runTest(Config::TESTDB_ON_DISK_SQLITE);
-    }
-
-#ifdef USE_POSTGRES
-    SECTION("postgresql")
-    {
-        runTest(Config::TESTDB_POSTGRESQL);
-    }
-#endif
-}
-
-TEST_CASE("Access deactivated entry", "[ledgertxn]")
-{
-    auto runTest = [&](Config::TestDbMode mode) {
-        VirtualClock clock;
-        auto app = createTestApplication(clock, getTestConfig(0, mode));
-
-        LedgerEntry le1;
-        le1.data.type(DATA);
-        le1.data.data() = LedgerTestUtils::generateValidDataEntry();
 
         LedgerKey lk1 = LedgerEntryKey(le1);
 

@@ -310,7 +310,7 @@ ApplicationImpl::resetLedgerState()
     else
     {
         auto& lsRoot = getLedgerTxnRoot();
-        lsRoot.deleteObjectsModifiedOnOrAfterLedger(0);
+        lsRoot.deleteOffersModifiedOnOrAfterLedger(0);
     }
 }
 
