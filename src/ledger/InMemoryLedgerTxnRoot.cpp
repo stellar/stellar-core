@@ -97,12 +97,6 @@ InMemoryLedgerTxnRoot::getNewestVersion(InternalLedgerKey const& key) const
 }
 
 uint64_t
-InMemoryLedgerTxnRoot::countOffers() const
-{
-    return 0;
-}
-
-uint64_t
 InMemoryLedgerTxnRoot::countOffers(LedgerRange const& ledgers) const
 {
     return 0;

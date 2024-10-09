@@ -2010,12 +2010,6 @@ LedgerTxn::Impl::unsealHeader(LedgerTxn& self,
 }
 
 uint64_t
-LedgerTxn::countOffers() const
-{
-    throw std::runtime_error("called countOffers on non-root LedgerTxn");
-}
-
-uint64_t
 LedgerTxn::countOffers(LedgerRange const& ledgers) const
 {
     throw std::runtime_error("called countOffers on non-root LedgerTxn");
@@ -2759,24 +2753,6 @@ LedgerTxnRoot::Impl::tableFromLedgerEntryType(LedgerEntryType let)
     default:
         throw std::runtime_error("Unknown ledger entry type");
     }
-}
-
-uint64_t
-LedgerTxnRoot::countOffers() const
-{
-    return mImpl->countOffers();
-}
-
-uint64_t
-LedgerTxnRoot::Impl::countOffers() const
-{
-    using namespace soci;
-    throwIfChild();
-
-    std::string query = "SELECT COUNT(*) FROM offers;";
-    uint64_t count = 0;
-    mApp.getDatabase().getSession() << query, into(count);
-    return count;
 }
 
 uint64_t

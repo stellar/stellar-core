@@ -463,11 +463,7 @@ class AbstractLedgerTxnParent
     virtual std::shared_ptr<InternalLedgerEntry const>
     getNewestVersion(InternalLedgerKey const& key) const = 0;
 
-    // Return the count of the number of offer objects of type `let`. Will
-    // throw when called on anything other than a (real or stub) root LedgerTxn.
-    virtual uint64_t countOffers() const = 0;
-
-    // Return the count of the number of ofer objects of type `let` within
+    // Return the count of the number of offer objects of type `let` within
     // range of ledgers `ledgers`. Will throw when called on anything other than
     // a (real or stub) root LedgerTxn.
     virtual uint64_t countOffers(LedgerRange const& ledgers) const = 0;
@@ -813,7 +809,6 @@ class LedgerTxn : public AbstractLedgerTxn
 
     void unsealHeader(std::function<void(LedgerHeader&)> f) override;
 
-    uint64_t countOffers() const override;
     uint64_t countOffers(LedgerRange const& ledgers) const override;
     void deleteOffersModifiedOnOrAfterLedger(uint32_t ledger) const override;
     void dropAccounts(bool rebuild) override;
@@ -876,7 +871,6 @@ class LedgerTxnRoot : public AbstractLedgerTxnParent
     void commitChild(EntryIterator iter,
                      LedgerTxnConsistency cons) noexcept override;
 
-    uint64_t countOffers() const override;
     uint64_t countOffers(LedgerRange const& ledgers) const override;
 
     void deleteOffersModifiedOnOrAfterLedger(uint32_t ledger) const override;
