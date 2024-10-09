@@ -16,6 +16,7 @@
 #include "main/Application.h"
 #include "main/PersistentState.h"
 #include "medida/timer.h"
+#include "util/GlobalChecks.h"
 #include "util/XDRCereal.h"
 #include <chrono>
 #include <fmt/chrono.h>
@@ -25,7 +26,9 @@
 namespace stellar
 {
 
-static std::string
+namespace
+{
+std::string
 checkAgainstDatabase(AbstractLedgerTxn& ltx, LedgerEntry const& entry)
 {
     auto fromDb = ltx.loadWithoutRecord(LedgerEntryKey(entry));
@@ -50,7 +53,7 @@ checkAgainstDatabase(AbstractLedgerTxn& ltx, LedgerEntry const& entry)
     }
 }
 
-static std::string
+std::string
 checkAgainstDatabase(AbstractLedgerTxn& ltx, LedgerKey const& key)
 {
     auto fromDb = ltx.loadWithoutRecord(key);
@@ -62,6 +65,25 @@ checkAgainstDatabase(AbstractLedgerTxn& ltx, LedgerKey const& key)
     std::string s = "Entry with type DEADENTRY found in database ";
     s += xdrToCerealString(fromDb.current(), "db");
     return s;
+}
+
+std::string
+checkDbEntryCounts(Application& app, LedgerRange const& range,
+                   uint64_t expectedOfferCount)
+{
+    std::string msg;
+    auto& ltxRoot = app.getLedgerTxnRoot();
+    uint64_t numInDb = ltxRoot.countOffers(range);
+    if (numInDb != expectedOfferCount)
+    {
+        msg = fmt::format(
+            FMT_STRING("Incorrect OFFER count: Bucket = {:d} Database "
+                       "= {:d}"),
+            expectedOfferCount, numInDb);
+    }
+
+    return msg;
+}
 }
 
 std::shared_ptr<Invariant>
@@ -83,103 +105,6 @@ BucketListIsConsistentWithDatabase::getName() const
     return "BucketListIsConsistentWithDatabase";
 }
 
-struct EntryCounts
-{
-    uint64_t mAccounts{0};
-    uint64_t mTrustLines{0};
-    uint64_t mOffers{0};
-    uint64_t mData{0};
-    uint64_t mClaimableBalance{0};
-    uint64_t mLiquidityPool{0};
-    uint64_t mContractData{0};
-    uint64_t mContractCode{0};
-    uint64_t mConfigSettings{0};
-    uint64_t mTTL{0};
-
-    uint64_t
-    totalEntries() const
-    {
-        return mAccounts + mTrustLines + mOffers + mData + mClaimableBalance +
-               mLiquidityPool + mContractData + mConfigSettings + mTTL;
-    }
-
-    void
-    countLiveEntry(LedgerEntry const& e)
-    {
-        switch (e.data.type())
-        {
-        case ACCOUNT:
-            ++mAccounts;
-            break;
-        case TRUSTLINE:
-            ++mTrustLines;
-            break;
-        case OFFER:
-            ++mOffers;
-            break;
-        case DATA:
-            ++mData;
-            break;
-        case CLAIMABLE_BALANCE:
-            ++mClaimableBalance;
-            break;
-        case LIQUIDITY_POOL:
-            ++mLiquidityPool;
-            break;
-        case CONTRACT_DATA:
-            ++mContractData;
-            break;
-        case CONTRACT_CODE:
-            ++mContractCode;
-            break;
-        case CONFIG_SETTING:
-            ++mConfigSettings;
-            break;
-        case TTL:
-            ++mTTL;
-            break;
-        default:
-            throw std::runtime_error(
-                fmt::format(FMT_STRING("unknown ledger entry type: {:d}"),
-                            static_cast<uint32_t>(e.data.type())));
-        }
-    }
-
-    std::string
-    checkDbEntryCounts(Application& app, LedgerRange const& range,
-                       std::function<bool(LedgerEntryType)> entryTypeFilter)
-    {
-        std::string msg;
-        auto check = [&](LedgerEntryType let, uint64_t numInBucket) {
-            if (entryTypeFilter(let))
-            {
-                auto& ltxRoot = app.getLedgerTxnRoot();
-                uint64_t numInDb = ltxRoot.countObjects(let, range);
-                if (numInDb != numInBucket)
-                {
-                    msg = fmt::format(
-                        FMT_STRING("Incorrect {} count: Bucket = {:d} Database "
-                                   "= {:d}"),
-                        xdr::xdr_traits<LedgerEntryType>::enum_name(let),
-                        numInBucket, numInDb);
-                    return false;
-                }
-            }
-            return true;
-        };
-
-        // Uses short-circuiting to make this compact
-        check(ACCOUNT, mAccounts) && check(TRUSTLINE, mTrustLines) &&
-            check(OFFER, mOffers) && check(DATA, mData) &&
-            check(CLAIMABLE_BALANCE, mClaimableBalance) &&
-            check(LIQUIDITY_POOL, mLiquidityPool) &&
-            check(CONTRACT_DATA, mContractData) &&
-            check(CONTRACT_CODE, mContractCode) &&
-            check(CONFIG_SETTING, mConfigSettings) && check(TTL, mTTL);
-        return msg;
-    }
-};
-
 void
 BucketListIsConsistentWithDatabase::checkEntireBucketlist()
 {
@@ -188,7 +113,7 @@ BucketListIsConsistentWithDatabase::checkEntireBucketlist()
     HistoryArchiveState has = lm.getLastClosedLedgerHAS();
     std::map<LedgerKey, LedgerEntry> bucketLedgerMap =
         bm.loadCompleteLedgerState(has);
-    EntryCounts counts;
+    uint64_t offerCount = 0;
     medida::Timer timer(std::chrono::microseconds(1));
 
     {
@@ -202,15 +127,15 @@ BucketListIsConsistentWithDatabase::checkEntireBucketlist()
                 continue;
             }
 
-            counts.countLiveEntry(pair.second);
+            ++offerCount;
             std::string s;
             timer.Time([&]() { s = checkAgainstDatabase(ltx, pair.second); });
             if (!s.empty())
             {
                 throw std::runtime_error(s);
             }
-            auto i = counts.totalEntries();
-            if ((i & 0x7ffff) == 0)
+
+            if ((offerCount & 0x7ffff) == 0)
             {
                 using namespace std::chrono;
                 nanoseconds ns = timer.duration_unit() *
@@ -219,23 +144,18 @@ BucketListIsConsistentWithDatabase::checkEntireBucketlist()
                 CLOG_INFO(Ledger,
                           "Checked bucket-vs-DB consistency for "
                           "{} entries (mean {}/entry)",
-                          i, us);
+                          offerCount, us);
             }
         }
     }
 
-    // Count functionality does not support in-memory LedgerTxn
-    if (!mApp.getConfig().isInMemoryMode())
-    {
-        auto range = LedgerRange::inclusive(LedgerManager::GENESIS_LEDGER_SEQ,
-                                            has.currentLedger);
+    auto range = LedgerRange::inclusive(LedgerManager::GENESIS_LEDGER_SEQ,
+                                        has.currentLedger);
 
-        auto s = counts.checkDbEntryCounts(mApp, range,
-                                           BucketIndex::typeNotSupported);
-        if (!s.empty())
-        {
-            throw std::runtime_error(s);
-        }
+    auto s = checkDbEntryCounts(mApp, range, offerCount);
+    if (!s.empty())
+    {
+        throw std::runtime_error(s);
     }
 
     if (mApp.getPersistentState().getState(PersistentState::kDBBackend) !=
@@ -250,7 +170,7 @@ BucketListIsConsistentWithDatabase::checkEntireBucketlist()
 std::string
 BucketListIsConsistentWithDatabase::checkAfterAssumeState(uint32_t newestLedger)
 {
-    EntryCounts counts;
+    uint64_t offerCount = 0;
     LedgerKeySet seenKeys;
 
     auto perBucketCheck = [&](auto bucket, auto& ltx) {
@@ -271,8 +191,7 @@ BucketListIsConsistentWithDatabase::checkAfterAssumeState(uint32_t newestLedger)
                 auto [_, newKey] = seenKeys.emplace(key);
                 if (newKey)
                 {
-                    counts.countLiveEntry(e.liveEntry());
-
+                    ++offerCount;
                     auto s = checkAgainstDatabase(ltx, e.liveEntry());
                     if (!s.empty())
                     {
@@ -325,17 +244,15 @@ BucketListIsConsistentWithDatabase::checkAfterAssumeState(uint32_t newestLedger)
     auto range =
         LedgerRange::inclusive(LedgerManager::GENESIS_LEDGER_SEQ, newestLedger);
 
-    // SQL only stores offers when BucketListDB is enabled
-    return counts.checkDbEntryCounts(
-        mApp, range, [](LedgerEntryType let) { return let == OFFER; });
+    return checkDbEntryCounts(mApp, range, offerCount);
 }
 
 std::string
 BucketListIsConsistentWithDatabase::checkOnBucketApply(
     std::shared_ptr<LiveBucket const> bucket, uint32_t oldestLedger,
-    uint32_t newestLedger, std::function<bool(LedgerEntryType)> entryTypeFilter)
+    uint32_t newestLedger, std::unordered_set<LedgerKey> const& shadowedKeys)
 {
-    EntryCounts counts;
+    uint64_t offerCount = 0;
     {
         LedgerTxn ltx(mApp.getLedgerTxnRoot());
 
@@ -376,15 +293,37 @@ BucketListIsConsistentWithDatabase::checkOnBucketApply(
                     return s;
                 }
 
-                if (entryTypeFilter(e.liveEntry().data.type()))
+                // Don't check DB against keys shadowed by earlier Buckets
+                if (BucketIndex::typeNotSupported(e.liveEntry().data.type()) &&
+                    shadowedKeys.find(LedgerEntryKey(e.liveEntry())) ==
+                        shadowedKeys.end())
                 {
-                    counts.countLiveEntry(e.liveEntry());
+                    ++offerCount;
+                    auto s = checkAgainstDatabase(ltx, e.liveEntry());
+                    if (!s.empty())
+                    {
+                        return s;
+                    }
+                }
+            }
+            else
+            {
+                // Only check for OFFER keys that are not shadowed by an earlier
+                // bucket
+                if (BucketIndex::typeNotSupported(e.deadEntry().type()) &&
+                    shadowedKeys.find(e.deadEntry()) == shadowedKeys.end())
+                {
+                    auto s = checkAgainstDatabase(ltx, e.deadEntry());
+                    if (!s.empty())
+                    {
+                        return s;
+                    }
                 }
             }
         }
     }
 
     auto range = LedgerRange::inclusive(oldestLedger, newestLedger);
-    return std::string{};
+    return checkDbEntryCounts(mApp, range, offerCount);
 }
 }

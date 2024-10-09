@@ -36,7 +36,7 @@ class BucketListIsConsistentWithDatabase : public Invariant
     virtual std::string checkOnBucketApply(
         std::shared_ptr<LiveBucket const> bucket, uint32_t oldestLedger,
         uint32_t newestLedger,
-        std::function<bool(LedgerEntryType)> entryTypeFilter) override;
+        std::unordered_set<LedgerKey> const& shadowedKeys) override;
 
     virtual std::string checkAfterAssumeState(uint32_t newestLedger) override;
 

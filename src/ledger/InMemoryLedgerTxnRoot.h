@@ -64,7 +64,6 @@ class InMemoryLedgerTxnRoot : public AbstractLedgerTxnParent
     std::shared_ptr<InternalLedgerEntry const>
     getNewestVersion(InternalLedgerKey const& key) const override;
 
-    uint64_t countOffers() const override;
     uint64_t countOffers(LedgerRange const& ledgers) const override;
 
     void deleteOffersModifiedOnOrAfterLedger(uint32_t ledger) const override;
