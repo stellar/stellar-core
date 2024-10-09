@@ -1135,7 +1135,7 @@ TEST_CASE("surge pricing", "[herder][txset][soroban]")
 {
     SECTION("max 0 ops per ledger")
     {
-        Config cfg(getTestConfig(0, Config::TESTDB_IN_MEMORY_NO_OFFERS));
+        Config cfg(getTestConfig(0, Config::TESTDB_IN_MEMORY));
         cfg.TESTING_UPGRADE_MAX_TX_SET_SIZE = 0;
 
         VirtualClock clock;
@@ -2564,11 +2564,6 @@ TEST_CASE("SCP State", "[herder]")
         };
 
     auto doTest = [&](bool forceSCP) {
-        SECTION("sqlite")
-        {
-            configure(Config::TestDbMode::TESTDB_ON_DISK_SQLITE);
-        }
-
         SECTION("bucketlistDB")
         {
             configure(Config::TestDbMode::TESTDB_BUCKET_DB_PERSISTENT);
@@ -3258,7 +3253,7 @@ TEST_CASE("accept soroban txs after network upgrade", "[soroban][herder]")
 
     auto simulation =
         Topologies::core(4, 1, Simulation::OVER_LOOPBACK, networkID, [](int i) {
-            auto cfg = getTestConfig(i, Config::TESTDB_ON_DISK_SQLITE);
+            auto cfg = getTestConfig(i, Config::TESTDB_IN_MEMORY);
             cfg.TESTING_UPGRADE_MAX_TX_SET_SIZE = 100;
             cfg.TESTING_UPGRADE_LEDGER_PROTOCOL_VERSION =
                 static_cast<uint32_t>(SOROBAN_PROTOCOL_VERSION) - 1;
@@ -3687,7 +3682,7 @@ herderExternalizesValuesWithProtocol(uint32_t version)
     auto networkID = sha256(getTestConfig().NETWORK_PASSPHRASE);
     auto simulation = std::make_shared<Simulation>(
         Simulation::OVER_LOOPBACK, networkID, [version](int i) {
-            auto cfg = getTestConfig(i, Config::TESTDB_ON_DISK_SQLITE);
+            auto cfg = getTestConfig(i, Config::TESTDB_BUCKET_DB_PERSISTENT);
             cfg.TESTING_UPGRADE_LEDGER_PROTOCOL_VERSION = version;
             return cfg;
         });

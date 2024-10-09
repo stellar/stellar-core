@@ -86,7 +86,7 @@ TEST_CASE("txset - correct apply order", "[tx][envelope]")
 
 TEST_CASE_VERSIONS("txenvelope", "[tx][envelope]")
 {
-    Config cfg = getTestConfig(0, Config::TESTDB_IN_MEMORY_NO_OFFERS);
+    Config cfg = getTestConfig(0, Config::TESTDB_IN_MEMORY);
 
     VirtualClock clock;
     auto app = createTestApplication(clock, cfg);

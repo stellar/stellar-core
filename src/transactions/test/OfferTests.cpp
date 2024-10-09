@@ -36,7 +36,7 @@ using namespace stellar::txtest;
 
 TEST_CASE_VERSIONS("create offer", "[tx][offers]")
 {
-    Config const& cfg = getTestConfig(0, Config::TESTDB_IN_MEMORY_OFFERS);
+    Config const& cfg = getTestConfig(0, Config::TESTDB_IN_MEMORY);
 
     VirtualClock clock;
     auto app = createTestApplication(clock, cfg);
