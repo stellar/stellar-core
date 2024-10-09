@@ -90,9 +90,8 @@ TEST_CASE("LedgerCloseMetaStream file descriptor - LIVE_NODE",
         Config cfg4 = getTestConfig(4);
         Config cfg5 = getTestConfig(
             5,
-            Config::
-                TESTDB_IN_MEMORY_NO_OFFERS); // needed by
-                                             // EXPERIMENTAL_PRECAUTION_DELAY_META
+            Config::TESTDB_IN_MEMORY); // needed by
+                                       // EXPERIMENTAL_PRECAUTION_DELAY_META
 
         // Step 2: open writable files and pass them to configs 4 and 5
         // (watchers).

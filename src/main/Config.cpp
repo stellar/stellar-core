@@ -159,8 +159,6 @@ Config::Config() : NODE_SEED(SecretKey::random())
     CATCHUP_RECENT = 0;
     EXPERIMENTAL_PRECAUTION_DELAY_META = false;
     BACKGROUND_OVERLAY_PROCESSING = true;
-    DEPRECATED_SQL_LEDGER_STATE = false;
-    BUCKETLIST_DB_INDEX_PAGE_SIZE_EXPONENT = 14; // 2^14 == 16 kb
     BUCKETLIST_DB_INDEX_CUTOFF = 20;             // 20 mb
     BUCKETLIST_DB_PERSIST_INDEX = true;
     PUBLISH_TO_ARCHIVE_DELAY = std::chrono::seconds{0};
@@ -1086,16 +1084,20 @@ Config::processConfig(std::shared_ptr<cpptoml::table> t)
                          "is ignored. Please remove from config");
                  }},
                 {"DEPRECATED_SQL_LEDGER_STATE",
-                 [&]() { DEPRECATED_SQL_LEDGER_STATE = readBool(item); }},
+                 [&]() {
+                     CLOG_WARNING(
+                         Bucket,
+                         "DEPRECATED_SQL_LEDGER_STATE is deprecated and "
+                         "ignored. Please remove from config");
+                 }},
                 // Still support EXPERIMENTAL_BUCKETLIST_DB* flags for
                 // captive-core for 21.0 release, remove in 21.1 release
                 {"EXPERIMENTAL_BUCKETLIST_DB",
                  [&]() {
-                     DEPRECATED_SQL_LEDGER_STATE = !readBool(item);
                      CLOG_WARNING(
                          Bucket,
-                         "EXPERIMENTAL_BUCKETLIST_DB flag is deprecated, "
-                         "use DEPRECATED_SQL_LEDGER_STATE=false instead.");
+                         "EXPERIMENTAL_BUCKETLIST_DB flag is deprecated. "
+                         "please remove from config");
                  }},
                 {"EXPERIMENTAL_BUCKETLIST_DB_INDEX_PAGE_SIZE_EXPONENT",
                  [&]() {

@@ -200,7 +200,6 @@ TEST_CASE_VERSIONS("bucketmanager ownership", "[bucket][bucketmanager]")
         if (bucketListDB)
         {
             // Enable BucketListDB with persistent indexes
-            cfg.DEPRECATED_SQL_LEDGER_STATE = false;
             cfg.NODE_IS_VALIDATOR = false;
             cfg.FORCE_SCP = false;
         }
@@ -497,7 +496,7 @@ TEST_CASE("bucketmanager do not leak empty-merge futures",
     // are thereby not leaking. Disable BucketListDB so that snapshots do not
     // hold persist buckets, complicating bucket counting.
     VirtualClock clock;
-    Config cfg(getTestConfig(0, Config::TESTDB_IN_MEMORY_NO_OFFERS));
+    Config cfg(getTestConfig(0, Config::TESTDB_IN_MEMORY));
     cfg.ARTIFICIALLY_PESSIMIZE_MERGES_FOR_TESTING = true;
     cfg.TESTING_UPGRADE_LEDGER_PROTOCOL_VERSION =
         static_cast<uint32_t>(

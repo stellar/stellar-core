@@ -23,7 +23,7 @@ using namespace stellar::txtest;
 
 TEST_CASE_VERSIONS("change trust", "[tx][changetrust]")
 {
-    Config const& cfg = getTestConfig(0, Config::TESTDB_IN_MEMORY_NO_OFFERS);
+    Config const& cfg = getTestConfig(0, Config::TESTDB_IN_MEMORY);
 
     VirtualClock clock;
     auto app = createTestApplication(clock, cfg);
@@ -304,7 +304,7 @@ TEST_CASE_VERSIONS("change trust", "[tx][changetrust]")
 TEST_CASE_VERSIONS("change trust pool share trustline",
                    "[tx][changetrust][liquiditypool]")
 {
-    Config const& cfg = getTestConfig(0, Config::TESTDB_IN_MEMORY_NO_OFFERS);
+    Config const& cfg = getTestConfig(0, Config::TESTDB_IN_MEMORY);
 
     VirtualClock clock;
     auto app = createTestApplication(clock, cfg);

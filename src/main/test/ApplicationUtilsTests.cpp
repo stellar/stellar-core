@@ -399,7 +399,7 @@ TEST_CASE("verify checkpoints command - wait condition", "[applicationutils]")
     qSet.validators.push_back(vNode1NodeID);
 
     Config cfg1 = getTestConfig(1);
-    Config cfg2 = getTestConfig(2, Config::TESTDB_IN_MEMORY_NO_OFFERS);
+    Config cfg2 = getTestConfig(2, Config::TESTDB_IN_MEMORY);
     cfg2.FORCE_SCP = false;
     cfg2.NODE_IS_VALIDATOR = false;
     cfg2.MODE_DOES_CATCHUP = false;
