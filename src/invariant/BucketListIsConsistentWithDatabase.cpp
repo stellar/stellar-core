@@ -163,7 +163,7 @@ BucketListIsConsistentWithDatabase::checkEntireBucketlist()
     {
         throw std::runtime_error(
             "Corrupt DB: BucketListDB flag "
-            "not set in PersistentState. Please run new-db");
+            "not set in PersistentState. Please run new-db or upgrade-db");
     }
 }
 
