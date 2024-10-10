@@ -189,112 +189,90 @@ TEST_CASE("skip list", "[bucket][bucketmanager]")
 
 TEST_CASE_VERSIONS("bucketmanager ownership", "[bucket][bucketmanager]")
 {
-    auto test = [&](bool bucketListDB) {
-        VirtualClock clock;
-        Config cfg = getTestConfig();
+    VirtualClock clock;
+    Config cfg = getTestConfig();
 
-        // Make sure all Buckets serialize indexes to disk for test
-        cfg.BUCKETLIST_DB_INDEX_CUTOFF = 0;
-        cfg.MANUAL_CLOSE = false;
+    // Make sure all Buckets serialize indexes to disk for test
+    cfg.BUCKETLIST_DB_INDEX_CUTOFF = 0;
+    cfg.MANUAL_CLOSE = false;
 
-        if (bucketListDB)
+    for_versions_with_differing_bucket_logic(cfg, [&](Config const& cfg) {
+        Application::pointer app = createTestApplication(clock, cfg);
+
+        std::vector<LedgerEntry> live(
+            LedgerTestUtils::generateValidUniqueLedgerEntriesWithExclusions(
+                {CONFIG_SETTING}, 10));
+        std::vector<LedgerKey> dead{};
+
+        std::shared_ptr<LiveBucket> b1;
+
         {
-            // Enable BucketListDB with persistent indexes
-            cfg.NODE_IS_VALIDATOR = false;
-            cfg.FORCE_SCP = false;
+            std::shared_ptr<LiveBucket> b2 = LiveBucket::fresh(
+                app->getBucketManager(), getAppLedgerVersion(app), {}, live,
+                dead, /*countMergeEvents=*/true, clock.getIOContext(),
+                /*doFsync=*/true);
+            b1 = b2;
+
+            // Bucket is referenced by b1, b2 and the BucketManager.
+            CHECK(b1.use_count() == 3);
+
+            std::shared_ptr<LiveBucket> b3 = LiveBucket::fresh(
+                app->getBucketManager(), getAppLedgerVersion(app), {}, live,
+                dead, /*countMergeEvents=*/true, clock.getIOContext(),
+                /*doFsync=*/true);
+            std::shared_ptr<LiveBucket> b4 = LiveBucket::fresh(
+                app->getBucketManager(), getAppLedgerVersion(app), {}, live,
+                dead, /*countMergeEvents=*/true, clock.getIOContext(),
+                /*doFsync=*/true);
+            // Bucket is referenced by b1, b2, b3, b4 and the BucketManager.
+            CHECK(b1.use_count() == 5);
         }
 
-        for_versions_with_differing_bucket_logic(cfg, [&](Config const& cfg) {
-            Application::pointer app = createTestApplication(clock, cfg);
+        // Take pointer by reference to not mess up use_count()
+        auto dropBucket = [&](std::shared_ptr<LiveBucket>& b) {
+            std::string filename = b->getFilename().string();
+            std::string indexFilename =
+                app->getBucketManager().bucketIndexFilename(b->getHash());
+            CHECK(fs::exists(filename));
+            CHECK(fs::exists(indexFilename));
 
-            std::vector<LedgerEntry> live(
-                LedgerTestUtils::generateValidUniqueLedgerEntriesWithExclusions(
-                    {CONFIG_SETTING}, 10));
-            std::vector<LedgerKey> dead{};
-
-            std::shared_ptr<LiveBucket> b1;
-
-            {
-                std::shared_ptr<LiveBucket> b2 = LiveBucket::fresh(
-                    app->getBucketManager(), getAppLedgerVersion(app), {}, live,
-                    dead, /*countMergeEvents=*/true, clock.getIOContext(),
-                    /*doFsync=*/true);
-                b1 = b2;
-
-                // Bucket is referenced by b1, b2 and the BucketManager.
-                CHECK(b1.use_count() == 3);
-
-                std::shared_ptr<LiveBucket> b3 = LiveBucket::fresh(
-                    app->getBucketManager(), getAppLedgerVersion(app), {}, live,
-                    dead, /*countMergeEvents=*/true, clock.getIOContext(),
-                    /*doFsync=*/true);
-                std::shared_ptr<LiveBucket> b4 = LiveBucket::fresh(
-                    app->getBucketManager(), getAppLedgerVersion(app), {}, live,
-                    dead, /*countMergeEvents=*/true, clock.getIOContext(),
-                    /*doFsync=*/true);
-                // Bucket is referenced by b1, b2, b3, b4 and the BucketManager.
-                CHECK(b1.use_count() == 5);
-            }
-
-            // Take pointer by reference to not mess up use_count()
-            auto dropBucket = [&](std::shared_ptr<LiveBucket>& b) {
-                std::string filename = b->getFilename().string();
-                std::string indexFilename =
-                    app->getBucketManager().bucketIndexFilename(b->getHash());
-                CHECK(fs::exists(filename));
-                if (bucketListDB)
-                {
-                    CHECK(fs::exists(indexFilename));
-                }
-
-                b.reset();
-                app->getBucketManager().forgetUnreferencedBuckets();
-                CHECK(!fs::exists(filename));
-                CHECK(!fs::exists(indexFilename));
-            };
-
-            // Bucket is now only referenced by b1 and the BucketManager.
-            CHECK(b1.use_count() == 2);
-
-            // Drop bucket ourselves then purge bucketManager.
-            dropBucket(b1);
-
-            // Try adding a bucket to the BucketManager's bucketlist
-            auto& bl = app->getBucketManager().getLiveBucketList();
-            bl.addBatch(*app, 1, getAppLedgerVersion(app), {}, live, dead);
-            clearFutures(app, bl);
-            b1 = bl.getLevel(0).getCurr();
-
-            // Bucket should be referenced by bucketlist itself, BucketManager
-            // cache and b1.
-            CHECK(b1.use_count() == 3);
-
-            // This shouldn't change if we forget unreferenced buckets since
-            // it's referenced by bucketlist.
+            b.reset();
             app->getBucketManager().forgetUnreferencedBuckets();
-            CHECK(b1.use_count() == 3);
+            CHECK(!fs::exists(filename));
+            CHECK(!fs::exists(indexFilename));
+        };
 
-            // But if we mutate the curr bucket of the bucketlist, it should.
-            live[0] = LedgerTestUtils::generateValidLedgerEntryWithExclusions(
-                {CONFIG_SETTING});
-            bl.addBatch(*app, 1, getAppLedgerVersion(app), {}, live, dead);
-            clearFutures(app, bl);
-            CHECK(b1.use_count() == 2);
+        // Bucket is now only referenced by b1 and the BucketManager.
+        CHECK(b1.use_count() == 2);
 
-            // Drop it again.
-            dropBucket(b1);
-        });
-    };
+        // Drop bucket ourselves then purge bucketManager.
+        dropBucket(b1);
 
-    SECTION("BucketListDB")
-    {
-        test(true);
-    }
+        // Try adding a bucket to the BucketManager's bucketlist
+        auto& bl = app->getBucketManager().getLiveBucketList();
+        bl.addBatch(*app, 1, getAppLedgerVersion(app), {}, live, dead);
+        clearFutures(app, bl);
+        b1 = bl.getLevel(0).getCurr();
 
-    SECTION("SQL")
-    {
-        test(false);
-    }
+        // Bucket should be referenced by bucketlist itself, BucketManager
+        // cache and b1.
+        CHECK(b1.use_count() == 3);
+
+        // This shouldn't change if we forget unreferenced buckets since
+        // it's referenced by bucketlist.
+        app->getBucketManager().forgetUnreferencedBuckets();
+        CHECK(b1.use_count() == 3);
+
+        // But if we mutate the curr bucket of the bucketlist, it should.
+        live[0] = LedgerTestUtils::generateValidLedgerEntryWithExclusions(
+            {CONFIG_SETTING});
+        bl.addBatch(*app, 1, getAppLedgerVersion(app), {}, live, dead);
+        clearFutures(app, bl);
+        CHECK(b1.use_count() == 2);
+
+        // Drop it again.
+        dropBucket(b1);
+    });
 }
 
 TEST_CASE("bucketmanager missing buckets fail", "[bucket][bucketmanager]")
