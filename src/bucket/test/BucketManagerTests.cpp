@@ -189,22 +189,15 @@ TEST_CASE("skip list", "[bucket][bucketmanager]")
 
 TEST_CASE_VERSIONS("bucketmanager ownership", "[bucket][bucketmanager]")
 {
-    auto test = [&](bool bucketListDB) {
-        VirtualClock clock;
-        Config cfg = getTestConfig();
+    VirtualClock clock;
+    Config cfg = getTestConfig();
 
-        // Make sure all Buckets serialize indexes to disk for test
-        cfg.BUCKETLIST_DB_INDEX_CUTOFF = 0;
-        cfg.MANUAL_CLOSE = false;
+    // Make sure all Buckets serialize indexes to disk for test
+    cfg.BUCKETLIST_DB_INDEX_CUTOFF = 0;
+    cfg.MANUAL_CLOSE = false;
 
-        if (bucketListDB)
-        {
-            // Enable BucketListDB with persistent indexes
-            cfg.NODE_IS_VALIDATOR = false;
-            cfg.FORCE_SCP = false;
-        }
-
-        for_versions_with_differing_bucket_logic(cfg, [&](Config const& cfg) {
+    for_versions_with_differing_bucket_logic(
+        cfg, [&](Config const& cfg) {
             Application::pointer app = createTestApplication(clock, cfg);
 
             std::vector<LedgerEntry> live(
@@ -242,10 +235,7 @@ TEST_CASE_VERSIONS("bucketmanager ownership", "[bucket][bucketmanager]")
                 std::string indexFilename =
                     app->getBucketManager().bucketIndexFilename(b->getHash());
                 CHECK(fs::exists(filename));
-                if (bucketListDB)
-                {
-                    CHECK(fs::exists(indexFilename));
-                }
+                CHECK(fs::exists(indexFilename));
 
                 b.reset();
                 app->getBucketManager().forgetUnreferencedBuckets();
@@ -284,17 +274,6 @@ TEST_CASE_VERSIONS("bucketmanager ownership", "[bucket][bucketmanager]")
             // Drop it again.
             dropBucket(b1);
         });
-    };
-
-    SECTION("BucketListDB")
-    {
-        test(true);
-    }
-
-    SECTION("SQL")
-    {
-        test(false);
-    }
 }
 
 TEST_CASE("bucketmanager missing buckets fail", "[bucket][bucketmanager]")
