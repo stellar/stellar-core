@@ -75,8 +75,6 @@ class BucketManagerImpl : public BucketManager
 
     std::future<EvictionResult> mEvictionFuture{};
 
-    bool const mDeleteEntireBucketDirInDtor;
-
     // Records bucket-merges that are currently _live_ in some FutureBucket, in
     // the sense of either running, or finished (with or without the
     // FutureBucket being resolved). Entries in this map will be cleared when

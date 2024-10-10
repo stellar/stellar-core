@@ -189,8 +189,10 @@ class ApplicationImpl : public Application
     // is held in the never-committing LedgerTxn in its entirety -- so if it
     // ever grows beyond RAM-size you need to use a mode with some sort of
     // database on secondary storage.
+#ifdef BUILD_TESTS
     std::unique_ptr<InMemoryLedgerTxnRoot> mInMemoryLedgerTxnRoot;
     std::unique_ptr<InMemoryLedgerTxn> mNeverCommittingLedgerTxn;
+#endif
 
     std::unique_ptr<CommandHandler> mCommandHandler;
 

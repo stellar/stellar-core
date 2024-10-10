@@ -195,10 +195,6 @@ BucketManagerImpl::BucketManagerImpl(Application& app)
           app.getMetrics().NewCounter({"bucketlist-archive", "size", "bytes"}))
     , mBucketListEvictionCounters(app)
     , mEvictionStatistics(std::make_shared<EvictionStatistics>())
-    // Minimal DB is stored in the buckets dir, so delete it only when
-    // mode does not use minimal DB
-    , mDeleteEntireBucketDirInDtor(
-          app.getConfig().isInMemoryModeWithoutMinimalDB())
 {
     for (uint32_t t =
              static_cast<uint32_t>(LedgerEntryTypeAndDurability::ACCOUNT);
@@ -283,14 +279,7 @@ BucketManagerImpl::getBucketDir() const
 BucketManagerImpl::~BucketManagerImpl()
 {
     ZoneScoped;
-    if (mDeleteEntireBucketDirInDtor)
-    {
-        deleteEntireBucketDir();
-    }
-    else
-    {
-        deleteTmpDirAndUnlockBucketDir();
-    }
+    deleteTmpDirAndUnlockBucketDir();
 }
 
 void

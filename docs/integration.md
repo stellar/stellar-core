@@ -19,7 +19,7 @@ stellar-core generates several types of data that can be used by applications, d
 
 Full [Ledger](ledger.md) snapshots are available in both:
   * [history archives](history.md) (checkpoints, every 64 ledgers, updated every 5 minutes)
-  * in the case of captive-core (enabled via the `--in-memory` command line option) the ledger is maintained within the stellar-core process and ledger-state need to be tracked as it changes via "meta" updates.
+* in the case of captive-core the ledger is maintained within the stellar-core process and ledger-state need to be tracked as it changes via "meta" updates.
 
 ## Ledger State transition information (transactions, etc)
 
