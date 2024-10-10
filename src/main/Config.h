@@ -370,12 +370,6 @@ class Config : public std::enable_shared_from_this<Config>
     // be set to `false` only for testing purposes.
     bool MODE_ENABLES_BUCKETLIST;
 
-    // A config parameter that uses a never-committing ledger. This means that
-    // all ledger entries will be kept in memory, and not persisted to DB
-    // (relevant tables won't even be created). This should not be set for
-    // production validators.
-    bool MODE_USES_IN_MEMORY_LEDGER;
-
     // A config parameter that can be set to true (in a captive-core
     // configuration) to delay emitting metadata by one ledger.
     bool EXPERIMENTAL_PRECAUTION_DELAY_META;
@@ -683,6 +677,11 @@ class Config : public std::enable_shared_from_this<Config>
     // doing a graceful shutdown
     bool TEST_CASES_ENABLED;
 
+    // A config parameter that uses a never-committing ledger. This means that
+    // all ledger entries will be kept in memory, and not persisted to DB.
+    // Should only be used for testing.
+    bool MODE_USES_IN_MEMORY_LEDGER;
+
     // Set QUORUM_SET using automatic quorum set configuration based on
     // `validators`.
     void
@@ -715,12 +714,7 @@ class Config : public std::enable_shared_from_this<Config>
 
     std::chrono::seconds getExpectedLedgerCloseTime() const;
 
-    void setInMemoryMode();
     bool modeDoesCatchupWithBucketList() const;
-    bool isInMemoryMode() const;
-    bool isInMemoryModeWithoutMinimalDB() const;
-    bool isUsingBucketListDB() const;
-    bool isUsingBackgroundEviction() const;
     bool isPersistingBucketListDBIndexes() const;
     bool modeStoresAllHistory() const;
     bool modeStoresAnyHistory() const;

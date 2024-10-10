@@ -106,7 +106,6 @@ class BucketManager : NonMovableOrCopyable
 
     std::future<EvictionResult> mEvictionFuture{};
 
-    bool const mDeleteEntireBucketDirInDtor;
     // Copy app's config for thread-safe access
     Config const mConfig;
 

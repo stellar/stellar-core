@@ -520,7 +520,7 @@ TEST_CASE("History publish with restart", "[history][publish]")
     auto catchupSimulation =
         CatchupSimulation(VirtualClock::VIRTUAL_TIME,
                           std::make_shared<TmpDirHistoryConfigurator>(), true,
-                          Config::TESTDB_ON_DISK_SQLITE);
+                          Config::TESTDB_BUCKET_DB_PERSISTENT);
     auto checkpointLedger = catchupSimulation.getLastCheckpointLedger(2);
 
     // Restart at various points in the checkpoint, core should continue
@@ -570,7 +570,7 @@ TEST_CASE("History publish with restart", "[history][publish]")
             // Now catchup to ensure published checkpoints are valid
             auto app = catchupSimulation.createCatchupApplication(
                 std::numeric_limits<uint32_t>::max(),
-                Config::TESTDB_ON_DISK_SQLITE, "app");
+                Config::TESTDB_BUCKET_DB_PERSISTENT, "app");
             REQUIRE(catchupSimulation.catchupOffline(app, checkpointLedger));
         }
     }
@@ -1724,7 +1724,7 @@ TEST_CASE("Externalize gap while catchup work is running", "[history][catchup]")
 TEST_CASE("CheckpointBuilder", "[history][publish]")
 {
     VirtualClock clock;
-    auto cfg = getTestConfig(0, Config::TESTDB_ON_DISK_SQLITE);
+    auto cfg = getTestConfig(0, Config::TESTDB_BUCKET_DB_PERSISTENT);
     TmpDirHistoryConfigurator().configure(cfg, true);
 
     auto app = createTestApplication(clock, cfg);

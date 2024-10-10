@@ -255,10 +255,12 @@ ApplicationImpl::initialize(bool createNewDB, bool forceRebuild)
 #endif
     );
 
+#ifdef BUILD_TESTS
     if (getConfig().MODE_USES_IN_MEMORY_LEDGER)
     {
         resetLedgerState();
     }
+#endif
 
     BucketListIsConsistentWithDatabase::registerInvariant(*this);
 
@@ -293,6 +295,7 @@ ApplicationImpl::initialize(bool createNewDB, bool forceRebuild)
 void
 ApplicationImpl::resetLedgerState()
 {
+#ifdef BUILD_TESTS
     if (getConfig().MODE_USES_IN_MEMORY_LEDGER)
     {
         mNeverCommittingLedgerTxn.reset();
@@ -305,6 +308,7 @@ ApplicationImpl::resetLedgerState()
             *mInMemoryLedgerTxnRoot, getDatabase(), mLedgerTxnRoot.get());
     }
     else
+#endif
     {
         auto& lsRoot = getLedgerTxnRoot();
         lsRoot.deleteOffersModifiedOnOrAfterLedger(0);
@@ -644,26 +648,13 @@ ApplicationImpl::validateAndLogConfig()
             "RUN_STANDALONE is not set");
     }
 
-    // EXPERIMENTAL_PRECAUTION_DELAY_META is only meaningful when there's a
-    // METADATA_OUTPUT_STREAM.  We only allow EXPERIMENTAL_PRECAUTION_DELAY_META
-    // on a captive core, without a persistent database; old-style ingestion
-    // which reads from the core database could do the delaying itself.
-    if (mConfig.METADATA_OUTPUT_STREAM != "" &&
-        mConfig.EXPERIMENTAL_PRECAUTION_DELAY_META && !mConfig.isInMemoryMode())
+    if (mConfig.METADATA_OUTPUT_STREAM == "" &&
+        mConfig.EXPERIMENTAL_PRECAUTION_DELAY_META)
     {
-        throw std::invalid_argument(
-            "Using a METADATA_OUTPUT_STREAM with "
-            "EXPERIMENTAL_PRECAUTION_DELAY_META set to true "
-            "requires --in-memory");
+        CLOG_WARNING(Tx, "EXPERIMENTAL_PRECAUTION_DELAY_META is ignored "
+                         "because METADATA_OUTPUT_STREAM is not set");
     }
 
-    if (mConfig.isInMemoryMode())
-    {
-        CLOG_WARNING(
-            Bucket,
-            "in-memory mode is enabled. This feature is deprecated! Node "
-            "may see performance degredation and lose sync with the network.");
-    }
     if (!mDatabase->isSqlite())
     {
         CLOG_WARNING(Database,
@@ -721,13 +712,6 @@ ApplicationImpl::validateAndLogConfig()
             throw std::invalid_argument(
                 "HTTP_QUERY_PORT requires QUERY_THREAD_POOL_SIZE > 0");
         }
-    }
-
-    if (isNetworkedValidator && mConfig.isInMemoryMode())
-    {
-        throw std::invalid_argument(
-            "In-memory mode is set, NODE_IS_VALIDATOR is set, "
-            "and RUN_STANDALONE is not set");
     }
 
     if (getHistoryArchiveManager().publishEnabled())
@@ -1483,8 +1467,15 @@ AbstractLedgerTxnParent&
 ApplicationImpl::getLedgerTxnRoot()
 {
     releaseAssert(threadIsMain());
-    return mConfig.MODE_USES_IN_MEMORY_LEDGER ? *mNeverCommittingLedgerTxn
-                                              : *mLedgerTxnRoot;
+
+#ifdef BUILD_TESTS
+    if (mConfig.MODE_USES_IN_MEMORY_LEDGER)
+    {
+        return *mNeverCommittingLedgerTxn;
+    }
+#endif
+
+    return *mLedgerTxnRoot;
 }
 
 AppConnector&

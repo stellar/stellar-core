@@ -838,8 +838,6 @@ TEST_CASE("apply load", "[loadgen][applyload]")
     cfg.LOADGEN_INSTRUCTIONS_FOR_TESTING = {10'000'000, 50'000'000};
     cfg.LOADGEN_INSTRUCTIONS_DISTRIBUTION_FOR_TESTING = {5, 1};
 
-    REQUIRE(cfg.isUsingBucketListDB());
-
     VirtualClock clock(VirtualClock::REAL_TIME);
     auto app = createTestApplication(clock, cfg);
 

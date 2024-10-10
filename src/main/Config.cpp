@@ -117,7 +117,6 @@ Config::Config() : NODE_SEED(SecretKey::random())
 
     // non configurable
     MODE_ENABLES_BUCKETLIST = true;
-    MODE_USES_IN_MEMORY_LEDGER = false;
     MODE_STORES_HISTORY_MISC = true;
     MODE_STORES_HISTORY_LEDGERHEADERS = true;
     MODE_DOES_CATCHUP = true;
@@ -159,6 +158,7 @@ Config::Config() : NODE_SEED(SecretKey::random())
     CATCHUP_RECENT = 0;
     EXPERIMENTAL_PRECAUTION_DELAY_META = false;
     BACKGROUND_OVERLAY_PROCESSING = true;
+    BUCKETLIST_DB_INDEX_PAGE_SIZE_EXPONENT = 14; // 2^14 == 16 kb
     BUCKETLIST_DB_INDEX_CUTOFF = 20;             // 20 mb
     BUCKETLIST_DB_PERSIST_INDEX = true;
     PUBLISH_TO_ARCHIVE_DELAY = std::chrono::seconds{0};
@@ -303,6 +303,7 @@ Config::Config() : NODE_SEED(SecretKey::random())
 
 #ifdef BUILD_TESTS
     TEST_CASES_ENABLED = false;
+    MODE_USES_IN_MEMORY_LEDGER = false;
 #endif
 
 #ifdef BEST_OFFER_DEBUGGING
@@ -2240,32 +2241,10 @@ Config::getExpectedLedgerCloseTime() const
     return Herder::EXP_LEDGER_TIMESPAN_SECONDS;
 }
 
-void
-Config::setInMemoryMode()
-{
-    MODE_USES_IN_MEMORY_LEDGER = true;
-    DATABASE = SecretValue{"sqlite3://:memory:"};
-    MODE_STORES_HISTORY_MISC = false;
-    MODE_STORES_HISTORY_LEDGERHEADERS = false;
-    MODE_ENABLES_BUCKETLIST = true;
-}
-
 bool
 Config::modeDoesCatchupWithBucketList() const
 {
     return MODE_DOES_CATCHUP && MODE_ENABLES_BUCKETLIST;
-}
-
-bool
-Config::isInMemoryMode() const
-{
-    return MODE_USES_IN_MEMORY_LEDGER;
-}
-
-bool
-Config::isInMemoryModeWithoutMinimalDB() const
-{
-    return MODE_USES_IN_MEMORY_LEDGER && !MODE_STORES_HISTORY_LEDGERHEADERS;
 }
 
 bool
