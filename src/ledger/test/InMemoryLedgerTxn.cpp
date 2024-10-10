@@ -360,9 +360,9 @@ InMemoryLedgerTxn::getPoolShareTrustLinesByAccountAndAsset(
 }
 
 void
-InMemoryLedgerTxn::dropOffers(bool rebuild)
+InMemoryLedgerTxn::dropOffers()
 {
-    mRealRootForOffers.dropOffers(rebuild);
+    mRealRootForOffers.dropOffers();
 }
 
 uint64_t

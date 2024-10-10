@@ -104,7 +104,8 @@ ApplyBucketsWork::doReset()
         // The current size of this set is 1.6 million during BucketApply
         // (as of 12/20/23). There's not a great way to estimate this, so
         // reserving with some extra wiggle room
-        mSeenKeys.reserve(2'000'000);
+        static const size_t estimatedOfferKeyCount = 2'000'000;
+        mSeenKeys.reserve(estimatedOfferKeyCount);
 
         auto addBucket = [this](std::shared_ptr<LiveBucket> const& bucket) {
             if (bucket->getSize() > 0)

@@ -1064,7 +1064,7 @@ Config::processConfig(std::shared_ptr<cpptoml::table> t)
                  }},
                 {"BACKGROUND_OVERLAY_PROCESSING",
                  [&]() { BACKGROUND_OVERLAY_PROCESSING = readBool(item); }},
-                // TODO: Flags are no longer supported, remove in next release.
+                // https://github.com/stellar/stellar-core/issues/4581
                 {"BACKGROUND_EVICTION_SCAN",
                  [&]() {
                      CLOG_WARNING(
@@ -1087,8 +1087,7 @@ Config::processConfig(std::shared_ptr<cpptoml::table> t)
                          "DEPRECATED_SQL_LEDGER_STATE is deprecated and "
                          "ignored. Please remove from config");
                  }},
-                // Still support EXPERIMENTAL_BUCKETLIST_DB* flags for
-                // captive-core for 21.0 release, remove in 21.1 release
+                // https://github.com/stellar/stellar-core/issues/4581
                 {"EXPERIMENTAL_BUCKETLIST_DB",
                  [&]() {
                      CLOG_WARNING(

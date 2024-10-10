@@ -28,6 +28,7 @@ class PersistentState
         kRebuildLedger,
         kLastSCPDataXDR,
         kTxSet,
+        // https://github.com/stellar/stellar-core/issues/4582
         kDBBackend,
         kLastEntry,
     };

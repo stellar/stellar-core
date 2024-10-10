@@ -252,46 +252,10 @@ Database::upgradeToCurrentSchema()
         putSchemaVersion(vers);
     }
 
-    // Tx meta column no longer supported
-    dropTxMetaIfExists();
     maybeUpgradeToBucketListDB();
 
     CLOG_INFO(Database, "DB schema is in current version");
     releaseAssert(vers == SCHEMA_VERSION);
-}
-
-void
-Database::dropTxMetaIfExists()
-{
-    int txMetaExists{};
-    std::string selectStr;
-    if (isSqlite())
-    {
-        selectStr = "SELECT EXISTS ("
-                    "SELECT 1 "
-                    "FROM pragma_table_info('txhistory') "
-                    "WHERE name = 'txmeta');";
-    }
-    else
-    {
-        selectStr = "SELECT EXISTS ("
-                    "SELECT 1 "
-                    "FROM information_schema.columns "
-                    "WHERE "
-                    "table_name = 'txhistory' AND "
-                    "column_name = 'txmeta');";
-    }
-
-    auto& st = getPreparedStatement(selectStr).statement();
-    st.exchange(soci::into(txMetaExists));
-    st.define_and_bind();
-    st.execute(true);
-
-    if (txMetaExists)
-    {
-        CLOG_INFO(Database, "Dropping txmeta column from txhistory table");
-        getSession() << "ALTER TABLE txhistory DROP COLUMN txmeta;";
-    }
 }
 
 void

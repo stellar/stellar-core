@@ -185,8 +185,7 @@ maybeRebuildLedger(Application& app, bool applyBuckets)
         app.getDatabase().clearPreparedStatementCache();
         soci::transaction tx(app.getDatabase().getSession());
         LOG_INFO(DEFAULT_LOG, "Dropping offers");
-        app.getLedgerTxnRoot().dropOffers(/*rebuild=*/true);
-
+        app.getLedgerTxnRoot().dropOffers();
         tx.commit();
 
         // No transaction is needed. ApplyBucketsWork breaks the apply into many
@@ -643,12 +642,18 @@ ApplicationImpl::validateAndLogConfig()
     }
 
     auto pageSizeExp = mConfig.BUCKETLIST_DB_INDEX_PAGE_SIZE_EXPONENT;
+
+    // If the page size is less than 256 bytes, it is essentially
+    // indexing individual keys, so page size should be set to 0
+    // instead.
+    static auto const pageSizeMinExponent = 8;
+
+    // Any exponent above 31 will cause overflow
+    static auto const pageSizeMaxExponent = 31;
+
     if (pageSizeExp != 0)
     {
-        // If the page size is less than 256 bytes, it is essentially
-        // indexing individual keys, so page size should be set to 0
-        // instead.
-        if (pageSizeExp < 8)
+        if (pageSizeExp < pageSizeMinExponent)
         {
             throw std::invalid_argument(
                 "BUCKETLIST_DB_INDEX_PAGE_SIZE_EXPONENT "
@@ -656,8 +661,7 @@ ApplicationImpl::validateAndLogConfig()
                 "indexing");
         }
 
-        // Check if pageSize will cause overflow
-        if (pageSizeExp > 31)
+        if (pageSizeExp > pageSizeMaxExponent)
         {
             throw std::invalid_argument(
                 "BUCKETLIST_DB_INDEX_PAGE_SIZE_EXPONENT "

@@ -2015,64 +2015,9 @@ LedgerTxn::deleteOffersModifiedOnOrAfterLedger(uint32_t ledger) const
 }
 
 void
-LedgerTxn::dropAccounts(bool rebuild)
-{
-    throw std::runtime_error("called dropAccounts on non-root LedgerTxn");
-}
-
-void
-LedgerTxn::dropData(bool rebuild)
-{
-    throw std::runtime_error("called dropData on non-root LedgerTxn");
-}
-
-void
-LedgerTxn::dropOffers(bool rebuild)
+LedgerTxn::dropOffers()
 {
     throw std::runtime_error("called dropOffers on non-root LedgerTxn");
-}
-
-void
-LedgerTxn::dropTrustLines(bool rebuild)
-{
-    throw std::runtime_error("called dropTrustLines on non-root LedgerTxn");
-}
-
-void
-LedgerTxn::dropClaimableBalances(bool rebuild)
-{
-    throw std::runtime_error(
-        "called dropClaimableBalances on non-root LedgerTxn");
-}
-
-void
-LedgerTxn::dropLiquidityPools(bool rebuild)
-{
-    throw std::runtime_error("called dropLiquidityPools on non-root LedgerTxn");
-}
-
-void
-LedgerTxn::dropContractData(bool rebuild)
-{
-    throw std::runtime_error("called dropContractData on non-root LedgerTxn");
-}
-
-void
-LedgerTxn::dropContractCode(bool rebuild)
-{
-    throw std::runtime_error("called dropContractCode on non-root LedgerTxn");
-}
-
-void
-LedgerTxn::dropConfigSettings(bool rebuild)
-{
-    throw std::runtime_error("called dropConfigSettings on non-root LedgerTxn");
-}
-
-void
-LedgerTxn::dropTTL(bool rebuild)
-{
-    throw std::runtime_error("called dropTTL on non-root LedgerTxn");
 }
 
 double
@@ -2717,36 +2662,6 @@ LedgerTxnRoot::Impl::commitChild(EntryIterator iter,
     mPrefetchMisses = 0;
 }
 
-std::string
-LedgerTxnRoot::Impl::tableFromLedgerEntryType(LedgerEntryType let)
-{
-    switch (let)
-    {
-    case ACCOUNT:
-        return "accounts";
-    case DATA:
-        return "accountdata";
-    case OFFER:
-        return "offers";
-    case TRUSTLINE:
-        return "trustlines";
-    case CLAIMABLE_BALANCE:
-        return "claimablebalance";
-    case LIQUIDITY_POOL:
-        return "liquiditypool";
-    case CONTRACT_DATA:
-        return "contractdata";
-    case CONTRACT_CODE:
-        return "contractcode";
-    case CONFIG_SETTING:
-        return "configsettings";
-    case TTL:
-        return "ttl";
-    default:
-        throw std::runtime_error("Unknown ledger entry type");
-    }
-}
-
 uint64_t
 LedgerTxnRoot::countOffers(LedgerRange const& ledgers) const
 {
@@ -2783,69 +2698,14 @@ LedgerTxnRoot::Impl::deleteOffersModifiedOnOrAfterLedger(uint32_t ledger) const
     mEntryCache.clear();
     mBestOffers.clear();
 
-    std::string query = "DELETE FROM " + tableFromLedgerEntryType(OFFER) +
-                        " WHERE lastmodified >= :v1";
+    std::string query = "DELETE FROM offers WHERE lastmodified >= :v1";
     mApp.getDatabase().getSession() << query, use(ledger);
 }
 
 void
-LedgerTxnRoot::dropAccounts(bool rebuild)
+LedgerTxnRoot::dropOffers()
 {
-    mImpl->dropAccounts(rebuild);
-}
-
-void
-LedgerTxnRoot::dropData(bool rebuild)
-{
-    mImpl->dropData(rebuild);
-}
-
-void
-LedgerTxnRoot::dropOffers(bool rebuild)
-{
-    mImpl->dropOffers(rebuild);
-}
-
-void
-LedgerTxnRoot::dropTrustLines(bool rebuild)
-{
-    mImpl->dropTrustLines(rebuild);
-}
-
-void
-LedgerTxnRoot::dropClaimableBalances(bool rebuild)
-{
-    mImpl->dropClaimableBalances(rebuild);
-}
-
-void
-LedgerTxnRoot::dropLiquidityPools(bool rebuild)
-{
-    mImpl->dropLiquidityPools(rebuild);
-}
-
-void
-LedgerTxnRoot::dropContractData(bool rebuild)
-{
-    mImpl->dropContractData(rebuild);
-}
-
-void
-LedgerTxnRoot::dropContractCode(bool rebuild)
-{
-    mImpl->dropContractCode(rebuild);
-}
-
-void
-LedgerTxnRoot::dropConfigSettings(bool rebuild)
-{
-    mImpl->dropConfigSettings(rebuild);
-}
-
-void
-LedgerTxnRoot::dropTTL(bool rebuild)
-{
-    mImpl->dropTTL(rebuild);
+    mImpl->dropOffers();
 }
 
 uint32_t

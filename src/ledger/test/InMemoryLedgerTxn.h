@@ -133,7 +133,7 @@ class InMemoryLedgerTxn : public LedgerTxn
     getBestOffer(Asset const& buying, Asset const& selling,
                  OfferDescriptor const& worseThan) override;
 
-    void dropOffers(bool rebuild) override;
+    void dropOffers() override;
     uint64_t countOffers(LedgerRange const& ledgers) const override;
     void deleteOffersModifiedOnOrAfterLedger(uint32_t ledger) const override;
 
