@@ -254,6 +254,7 @@ Database::upgradeToCurrentSchema()
 
     // Tx meta column no longer supported
     dropTxMetaIfExists();
+    maybeUpgradeToBucketListDB();
 
     CLOG_INFO(Database, "DB schema is in current version");
     releaseAssert(vers == SCHEMA_VERSION);
@@ -290,6 +291,50 @@ Database::dropTxMetaIfExists()
     {
         CLOG_INFO(Database, "Dropping txmeta column from txhistory table");
         getSession() << "ALTER TABLE txhistory DROP COLUMN txmeta;";
+    }
+}
+
+void
+Database::maybeUpgradeToBucketListDB()
+{
+    if (mApp.getPersistentState().getState(PersistentState::kDBBackend) !=
+        BucketIndex::DB_BACKEND_STATE)
+    {
+        CLOG_INFO(Database, "Upgrading to BucketListDB");
+
+        // Drop all LedgerEntry tables except for offers
+        CLOG_INFO(Database, "Dropping table accounts");
+        getSession() << "DROP TABLE IF EXISTS accounts;";
+
+        CLOG_INFO(Database, "Dropping table signers");
+        getSession() << "DROP TABLE IF EXISTS signers;";
+
+        CLOG_INFO(Database, "Dropping table claimablebalance");
+        getSession() << "DROP TABLE IF EXISTS claimablebalance;";
+
+        CLOG_INFO(Database, "Dropping table configsettings");
+        getSession() << "DROP TABLE IF EXISTS configsettings;";
+
+        CLOG_INFO(Database, "Dropping table contractcode");
+        getSession() << "DROP TABLE IF EXISTS contractcode;";
+
+        CLOG_INFO(Database, "Dropping table contractdata");
+        getSession() << "DROP TABLE IF EXISTS contractdata;";
+
+        CLOG_INFO(Database, "Dropping table accountdata");
+        getSession() << "DROP TABLE IF EXISTS accountdata;";
+
+        CLOG_INFO(Database, "Dropping table liquiditypool");
+        getSession() << "DROP TABLE IF EXISTS liquiditypool;";
+
+        CLOG_INFO(Database, "Dropping table trustlines");
+        getSession() << "DROP TABLE IF EXISTS trustlines;";
+
+        CLOG_INFO(Database, "Dropping table ttl");
+        getSession() << "DROP TABLE IF EXISTS ttl;";
+
+        mApp.getPersistentState().setState(PersistentState::kDBBackend,
+                                           BucketIndex::DB_BACKEND_STATE);
     }
 }
 
