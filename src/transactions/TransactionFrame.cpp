@@ -56,6 +56,32 @@ namespace
 // Limit to the maximum resource fee allowed for transaction,
 // roughly 112 million lumens.
 int64_t const MAX_RESOURCE_FEE = 1LL << 50;
+
+// Starting in protocol 23, some operation meta needs to be modified
+// to be consumed by downstream systems. In particular, restoration is
+// logically a new entry creation from the perspective of ltx and stellar-core
+// as a whole, but this change type is reclassified to LEDGER_ENTRY_RESTORED
+// for easier consumption downstream.
+void
+processOpLedgerEntryChanges(std::shared_ptr<OperationFrame const> op,
+                            LedgerEntryChanges& changes)
+{
+    if (op->getOperation().body.type() != RESTORE_FOOTPRINT)
+    {
+        return;
+    }
+
+    for (auto& change : changes)
+    {
+        if (change.type() == LEDGER_ENTRY_CREATED)
+        {
+            auto le = change.created();
+            change.type(LEDGER_ENTRY_RESTORED);
+            change.restored() = le;
+        }
+    }
+}
+
 } // namespace
 
 using namespace std;
@@ -1638,6 +1664,14 @@ TransactionFrame::applyOperations(SignatureChecker& signatureChecker,
                 // The operation meta will be empty if the transaction
                 // doesn't succeed so we may as well not do any work in that
                 // case
+                auto changes = ltxOp.getChanges();
+
+                if (protocolVersionStartsFrom(
+                        ledgerVersion,
+                        Bucket::FIRST_PROTOCOL_SUPPORTING_PERSISTENT_EVICTION))
+                {
+                    processOpLedgerEntryChanges(op, changes);
+                }
                 operationMetas.emplace_back(ltxOp.getChanges());
             }
 

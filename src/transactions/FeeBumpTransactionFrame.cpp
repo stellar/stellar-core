@@ -54,11 +54,13 @@ FeeBumpTransactionFrame::sorobanResources() const
     return mInnerTx->sorobanResources();
 }
 
+#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
 xdr::xvector<ArchivalProof> const&
 FeeBumpTransactionFrame::sorobanProofs() const
 {
     return mInnerTx->sorobanProofs();
 }
+#endif
 
 FeeBumpTransactionFrame::FeeBumpTransactionFrame(
     Hash const& networkID, TransactionEnvelope const& envelope)

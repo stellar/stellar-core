@@ -2914,8 +2914,7 @@ TEST_CASE("state archival operation errors", "[tx][soroban][archival]")
 }
 
 #ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
-TEST_CASE("evicted persistent entries"
-          "[tx][soroban][archival]")
+TEST_CASE("evicted persistent entries", "[tx][soroban][archival]")
 {
     auto test = [](bool requireProofs) {
         auto cfg = getTestConfig();
