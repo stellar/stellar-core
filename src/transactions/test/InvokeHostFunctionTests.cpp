@@ -1196,15 +1196,27 @@ TEST_CASE_VERSIONS("refund still happens on bad auth", "[tx][soroban]")
 
         auto a1PostTxBalance = a1.getBalance();
 
-        bool afterV20 = protocolVersionStartsFrom(
-            getLclProtocolVersion(test.getApp()), ProtocolVersion::V_21);
-
-        auto fee = afterV20 ? 62697 : 39288;
+        uint64_t txFeeWithRefund = 0;
+        if (protocolVersionStartsFrom(getLclProtocolVersion(test.getApp()),
+                                      ProtocolVersion::V_23))
+        {
+            // Slightly larger TX size due to proofs
+            txFeeWithRefund = 62'706;
+        }
+        else if (protocolVersionStartsFrom(getLclProtocolVersion(test.getApp()),
+                                           ProtocolVersion::V_21))
+        {
+            txFeeWithRefund = 62'697;
+        }
+        else
+        {
+            txFeeWithRefund = 39'288;
+        }
 
         // The initial fee charge is based on DEFAULT_TEST_RESOURCE_FEE, which
         // is 1'000'000, so the difference would be much higher if the refund
         // did not happen.
-        REQUIRE(a1PreTxBalance - a1PostTxBalance == fee);
+        REQUIRE(a1PreTxBalance - a1PostTxBalance == txFeeWithRefund);
     });
 }
 
@@ -1233,10 +1245,23 @@ TEST_CASE_VERSIONS("refund test with closeLedger", "[tx][soroban][feebump]")
         auto r = closeLedger(test.getApp(), {tx});
         checkTx(0, r, txSUCCESS);
 
-        bool afterV20 = protocolVersionStartsFrom(
-            getLclProtocolVersion(test.getApp()), ProtocolVersion::V_21);
+        uint64_t txFeeWithRefund = 0;
+        if (protocolVersionStartsFrom(getLclProtocolVersion(test.getApp()),
+                                      ProtocolVersion::V_23))
+        {
+            // Slightly larger TX size due to proofs
+            txFeeWithRefund = 82'762;
+        }
+        else if (protocolVersionStartsFrom(getLclProtocolVersion(test.getApp()),
+                                           ProtocolVersion::V_21))
+        {
+            txFeeWithRefund = 82'753;
+        }
+        else
+        {
+            txFeeWithRefund = 59'344;
+        }
 
-        auto txFeeWithRefund = afterV20 ? 82'753 : 59'344;
         REQUIRE(a1.getBalance() == a1StartingBalance - txFeeWithRefund);
 
         // DEFAULT_TEST_RESOURCE_FEE is added onto the calculated soroban
@@ -1291,7 +1316,23 @@ TEST_CASE_VERSIONS("refund is sent to fee-bump source",
         bool afterV20 = protocolVersionStartsFrom(
             getLclProtocolVersion(test.getApp()), ProtocolVersion::V_21);
 
-        auto const txFeeWithRefund = afterV20 ? 82'853 : 59'444;
+        uint64_t txFeeWithRefund = 0;
+        if (protocolVersionStartsFrom(getLclProtocolVersion(test.getApp()),
+                                      ProtocolVersion::V_23))
+        {
+            // Slightly larger TX size due to proofs
+            txFeeWithRefund = 82'862;
+        }
+        else if (protocolVersionStartsFrom(getLclProtocolVersion(test.getApp()),
+                                           ProtocolVersion::V_21))
+        {
+            txFeeWithRefund = 82'853;
+        }
+        else
+        {
+            txFeeWithRefund = 59'444;
+        }
+
         auto const feeCharged = afterV20 ? txFeeWithRefund : 1'040'971;
 
         REQUIRE(
@@ -2650,15 +2691,9 @@ TEST_CASE_VERSIONS("entry eviction", "[tx][soroban][archival]")
             REQUIRE(evicted);
         }
 
+#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
         SECTION("persistent entry meta")
         {
-            if (protocolVersionIsBefore(
-                    cfg.TESTING_UPGRADE_LEDGER_PROTOCOL_VERSION,
-                    Bucket::FIRST_PROTOCOL_SUPPORTING_PERSISTENT_EVICTION))
-            {
-                return;
-            }
-
             auto persistentInvocation = client.getContract().prepareInvocation(
                 "put_persistent", {makeSymbolSCVal("key"), makeU64SCVal(123)},
                 client.writeKeySpec("key", ContractDataDurability::PERSISTENT));
@@ -2686,64 +2721,164 @@ TEST_CASE_VERSIONS("entry eviction", "[tx][soroban][archival]")
                 closeLedgerOn(test.getApp(), i, 2, 1, 2016);
             }
 
+            if (protocolVersionStartsFrom(
+                    cfg.TESTING_UPGRADE_LEDGER_PROTOCOL_VERSION,
+                    Bucket::FIRST_PROTOCOL_SUPPORTING_PERSISTENT_EVICTION))
             {
                 LedgerTxn ltx(test.getApp().getLedgerTxnRoot());
                 REQUIRE(!ltx.load(persistentKey));
             }
 
-            XDRInputFileStream in;
-            in.open(metaPath);
-            LedgerCloseMeta lcm;
-            bool evicted = false;
-            while (in.readOne(lcm))
+            SECTION("eviction meta")
             {
-                REQUIRE(lcm.v() == 1);
-                if (lcm.v1().ledgerHeader.header.ledgerSeq == evictionLedger)
+                XDRInputFileStream in;
+                in.open(metaPath);
+                LedgerCloseMeta lcm;
+                bool evicted = false;
+                while (in.readOne(lcm))
                 {
-                    // Only support persistent eviction meta >= p23
-                    if (protocolVersionStartsFrom(
-                            cfg.TESTING_UPGRADE_LEDGER_PROTOCOL_VERSION,
-                            Bucket::
-                                FIRST_PROTOCOL_SUPPORTING_PERSISTENT_EVICTION))
+                    REQUIRE(lcm.v() == 1);
+                    if (lcm.v1().ledgerHeader.header.ledgerSeq ==
+                        evictionLedger)
                     {
-                        // TLL should be in "deleted" key section (called
-                        // evictedTemporaryLedgerKeys for legacy reasons).
-                        REQUIRE(lcm.v1().evictedTemporaryLedgerKeys.size() ==
+                        // Only support persistent eviction meta >= p23
+                        if (protocolVersionStartsFrom(
+                                cfg.TESTING_UPGRADE_LEDGER_PROTOCOL_VERSION,
+                                Bucket::
+                                    FIRST_PROTOCOL_SUPPORTING_PERSISTENT_EVICTION))
+                        {
+                            // TLL should be in "deleted" key section (called
+                            // evictedTemporaryLedgerKeys for legacy reasons).
+                            REQUIRE(
+                                lcm.v1().evictedTemporaryLedgerKeys.size() ==
                                 1);
-                        REQUIRE(lcm.v1().evictedTemporaryLedgerKeys.front() ==
+                            REQUIRE(
+                                lcm.v1().evictedTemporaryLedgerKeys.front() ==
                                 getTTLKey(persistentKey));
 
-                        REQUIRE(
-                            lcm.v1().evictedPersistentLedgerEntries.size() ==
-                            1);
-                        REQUIRE(
-                            lcm.v1().evictedPersistentLedgerEntries.front() ==
-                            persistentLE);
-                        evicted = true;
+                            REQUIRE(
+                                lcm.v1()
+                                    .evictedPersistentLedgerEntries.size() ==
+                                1);
+                            REQUIRE(
+                                lcm.v1()
+                                    .evictedPersistentLedgerEntries.front() ==
+                                persistentLE);
+                            evicted = true;
+                        }
+                        else
+                        {
+                            REQUIRE(
+                                lcm.v1().evictedTemporaryLedgerKeys.empty());
+                            REQUIRE(
+                                lcm.v1()
+                                    .evictedPersistentLedgerEntries.empty());
+                            evicted = false;
+                        }
+
+                        break;
                     }
-                    else
+                }
+
+                if (protocolVersionStartsFrom(
+                        cfg.TESTING_UPGRADE_LEDGER_PROTOCOL_VERSION,
+                        Bucket::FIRST_PROTOCOL_SUPPORTING_PERSISTENT_EVICTION))
+                {
+                    REQUIRE(evicted);
+                }
+                else
+                {
+                    REQUIRE(!evicted);
+                }
+            }
+
+            SECTION("Restoration Meta")
+            {
+                test.invokeRestoreOp({persistentKey}, 20'048);
+                auto targetRestorationLedger = test.getLCLSeq();
+
+                XDRInputFileStream in;
+                in.open(metaPath);
+                LedgerCloseMeta lcm;
+                bool restoreMeta = false;
+
+                LedgerKeySet keysToRestore = {persistentKey,
+                                              getTTLKey(persistentKey)};
+                while (in.readOne(lcm))
+                {
+                    REQUIRE(lcm.v() == 1);
+                    if (lcm.v1().ledgerHeader.header.ledgerSeq ==
+                        targetRestorationLedger)
                     {
                         REQUIRE(lcm.v1().evictedTemporaryLedgerKeys.empty());
                         REQUIRE(
                             lcm.v1().evictedPersistentLedgerEntries.empty());
-                        evicted = false;
+
+                        REQUIRE(lcm.v1().txProcessing.size() == 1);
+                        auto txMeta = lcm.v1().txProcessing.front();
+                        REQUIRE(
+                            txMeta.txApplyProcessing.v3().operations.size() ==
+                            1);
+
+                        REQUIRE(txMeta.txApplyProcessing.v3()
+                                    .operations[0]
+                                    .changes.size() == 2);
+                        for (auto const& change : txMeta.txApplyProcessing.v3()
+                                                      .operations[0]
+                                                      .changes)
+                        {
+
+                            // Only support persistent eviction meta >= p23
+                            LedgerKey lk;
+                            if (protocolVersionStartsFrom(
+                                    cfg.TESTING_UPGRADE_LEDGER_PROTOCOL_VERSION,
+                                    Bucket::
+                                        FIRST_PROTOCOL_SUPPORTING_PERSISTENT_EVICTION))
+                            {
+                                REQUIRE(change.type() ==
+                                        LedgerEntryChangeType::
+                                            LEDGER_ENTRY_RESTORED);
+                                lk = LedgerEntryKey(change.restored());
+                                REQUIRE(keysToRestore.find(lk) !=
+                                        keysToRestore.end());
+                                keysToRestore.erase(lk);
+                            }
+                            else
+                            {
+                                if (change.type() ==
+                                    LedgerEntryChangeType::LEDGER_ENTRY_STATE)
+                                {
+                                    lk = LedgerEntryKey(change.state());
+                                    REQUIRE(lk == getTTLKey(persistentKey));
+                                    keysToRestore.erase(lk);
+                                }
+                                else
+                                {
+                                    REQUIRE(change.type() ==
+                                            LedgerEntryChangeType::
+                                                LEDGER_ENTRY_UPDATED);
+                                    lk = LedgerEntryKey(change.updated());
+                                    REQUIRE(lk == getTTLKey(persistentKey));
+
+                                    // While we will see the TTL key twice,
+                                    // remove the TTL key in the path above and
+                                    // the persistent key here to make the check
+                                    // easier
+                                    keysToRestore.erase(persistentKey);
+                                }
+                            }
+                        }
+
+                        restoreMeta = true;
+                        break;
                     }
-
-                    break;
                 }
-            }
 
-            if (protocolVersionStartsFrom(
-                    cfg.TESTING_UPGRADE_LEDGER_PROTOCOL_VERSION,
-                    Bucket::FIRST_PROTOCOL_SUPPORTING_PERSISTENT_EVICTION))
-            {
-                REQUIRE(evicted);
-            }
-            else
-            {
-                REQUIRE(!evicted);
+                REQUIRE(restoreMeta);
+                REQUIRE(keysToRestore.empty());
             }
         }
+#endif
 
         SECTION(
             "Create temp entry with same key as an expired entry on eviction "
@@ -2774,7 +2909,7 @@ TEST_CASE_VERSIONS("entry eviction", "[tx][soroban][archival]")
         }
     };
 
-    test({20, 21, 22
+    test({22
 #ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
           ,
           23
@@ -3103,7 +3238,7 @@ TEST_CASE("persistent entry archival filters", "[soroban][archival]")
 TEST_CASE("settings upgrade command line utils", "[tx][soroban][upgrades]")
 {
     VirtualClock clock;
-    auto cfg = getTestConfig(0, Config::TESTDB_IN_MEMORY_NO_OFFERS);
+    auto cfg = getTestConfig(0, Config::TESTDB_IN_MEMORY);
     cfg.ENABLE_SOROBAN_DIAGNOSTIC_EVENTS = true;
     auto app = createTestApplication(clock, cfg);
     auto root = TestAccount::createRoot(*app);
@@ -3406,6 +3541,10 @@ TEST_CASE("settings upgrade command line utils", "[tx][soroban][upgrades]")
             a1.getSecretKey(),
             sha256(xdr::xdr_to_opaque(app->getNetworkID(), ENVELOPE_TYPE_TX,
                                       txEnv.v1().tx))));
+
+#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
+        txEnv.v1().tx.ext.sorobanData().ext.v(1);
+#endif
 
         auto const& rawTx = TransactionFrameBase::makeTransactionFromWire(
             app->getNetworkID(), txEnv);

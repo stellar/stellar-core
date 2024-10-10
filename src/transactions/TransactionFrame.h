@@ -288,6 +288,7 @@ class TransactionFrame : public TransactionFrameBase
     virtual bool XDRProvidesValidFee() const override;
 
 #ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
+    bool hasSorobanProofs() const override;
     xdr::xvector<ArchivalProof> const& sorobanProofs() const override;
 #endif
 

@@ -428,10 +428,16 @@ TransactionFrame::sorobanResources() const
 }
 
 #ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
+bool
+TransactionFrame::hasSorobanProofs() const
+{
+    return isSoroban() && mEnvelope.v1().tx.ext.sorobanData().ext.v() == 1;
+}
+
 xdr::xvector<ArchivalProof> const&
 TransactionFrame::sorobanProofs() const
 {
-    releaseAssertOrThrow(isSoroban());
+    releaseAssertOrThrow(hasSorobanProofs());
     return mEnvelope.v1().tx.ext.sorobanData().ext.proofs();
 }
 #endif
@@ -1672,7 +1678,7 @@ TransactionFrame::applyOperations(SignatureChecker& signatureChecker,
                 {
                     processOpLedgerEntryChanges(op, changes);
                 }
-                operationMetas.emplace_back(ltxOp.getChanges());
+                operationMetas.emplace_back(changes);
             }
 
             if (txRes ||

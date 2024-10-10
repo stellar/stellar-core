@@ -408,20 +408,12 @@ InvokeHostFunctionOpFrame::doApply(
                         ltx.getHeader().ledgerVersion,
                         Bucket::FIRST_PROTOCOL_SUPPORTING_PERSISTENT_EVICTION))
                 {
+                    auto hotArchive =
+                        bm.getSearchableHotArchiveBucketListSnapshot();
+                    auto hotArchiveEntry = hotArchive->load(lk);
 
-                    std::shared_ptr<HotArchiveBucketEntry> hotArchiveEntry =
-                        nullptr;
-#ifdef BUILD_TESTS
-                    if (appConfig.isUsingBucketListDB())
-#endif
-                    {
-                        auto hotArchive =
-                            bm.getSearchableHotArchiveBucketListSnapshot();
-                        hotArchiveEntry = hotArchive->load(lk);
-                    }
-
-                    // Entries require proofs only if an ARCHIVED entry exists
-                    // in the hot archive
+                    // Entries require proofs only if an ARCHIVED entry
+                    // exists in the hot archive
                     if (hotArchiveEntry &&
                         hotArchiveEntry->type() != HOT_ARCHIVE_DELETED)
                     {
@@ -793,7 +785,8 @@ InvokeHostFunctionOpFrame::doCheckValidForSoroban(
             ledgerVersion,
             Bucket::FIRST_PROTOCOL_SUPPORTING_PERSISTENT_EVICTION))
     {
-        if (!checkCreationProofValidity(mParentTx.sorobanProofs()))
+        if (!mParentTx.hasSorobanProofs() ||
+            !checkCreationProofValidity(mParentTx.sorobanProofs()))
         {
             sorobanData.pushValidationTimeDiagnosticError(
                 appConfig, SCE_VALUE, SCEC_INVALID_INPUT,

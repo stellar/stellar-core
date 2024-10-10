@@ -13,6 +13,10 @@ getWasmRestoreTx(PublicKey const& publicKey, SequenceNumber seqNum)
     TransactionEnvelope txEnv;
     txEnv.type(ENVELOPE_TYPE_TX);
 
+#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
+    txEnv.v1().tx.ext.sorobanData().ext.v(1);
+#endif
+
     auto& tx = txEnv.v1().tx;
     tx.sourceAccount = toMuxedAccount(publicKey);
     tx.fee = 100'000'000;
@@ -48,6 +52,10 @@ getWasmRestoreTx(PublicKey const& publicKey, SequenceNumber seqNum)
     tx.ext.v(1);
     tx.ext.sorobanData().resources = restoreResources;
     tx.ext.sorobanData().resourceFee = 55'000'000;
+
+#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
+    tx.ext.sorobanData().ext.v(1);
+#endif
 
     return {txEnv, contractCodeLedgerKey};
 }
@@ -95,6 +103,10 @@ getUploadTx(PublicKey const& publicKey, SequenceNumber seqNum)
     tx.ext.v(1);
     tx.ext.sorobanData().resources = uploadResources;
     tx.ext.sorobanData().resourceFee = 55'000'000;
+
+#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
+    tx.ext.sorobanData().ext.v(1);
+#endif
 
     return {txEnv, contractCodeLedgerKey};
 }
@@ -179,6 +191,10 @@ getCreateTx(PublicKey const& publicKey, LedgerKey const& contractCodeLedgerKey,
     tx.ext.v(1);
     tx.ext.sorobanData().resources = uploadResources;
     tx.ext.sorobanData().resourceFee = 15'000'000;
+
+#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
+    tx.ext.sorobanData().ext.v(1);
+#endif
 
     return {txEnv, contractSourceRefLedgerKey, contractID};
 }
@@ -273,6 +289,10 @@ getInvokeTx(PublicKey const& publicKey, LedgerKey const& contractCodeLedgerKey,
     tx.ext.v(1);
     tx.ext.sorobanData().resources = invokeResources;
     tx.ext.sorobanData().resourceFee = 65'000'000;
+
+#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
+    tx.ext.sorobanData().ext.v(1);
+#endif
 
     ConfigUpgradeSetKey key;
     key.contentHash = upgradeHash;

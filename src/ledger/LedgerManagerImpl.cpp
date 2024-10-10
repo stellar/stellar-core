@@ -1685,49 +1685,46 @@ LedgerManagerImpl::transferLedgerEntriesToBucketList(
     if (blEnabled &&
         protocolVersionStartsFrom(initialLedgerVers, SOROBAN_PROTOCOL_VERSION))
     {
+        auto ttlKeys = ltx.getAllTTLKeysWithoutSealing();
+        auto deletedPersistentDataKeys =
+            ltx.getAllDeletedPersistentContractDataKeysWithoutSealing();
+        auto createdPersistentDataKeys =
+            ltx.getAllCreatedPersistentContractDataKeysWithoutSealing();
+        LedgerTxn ltxEvictions(ltx);
+
+        auto evictedEntries =
+            mApp.getBucketManager().resolveBackgroundEvictionScan(
+                ltxEvictions, lh.ledgerSeq, ttlKeys, initialLedgerVers);
+
+        if (protocolVersionStartsFrom(
+                initialLedgerVers,
+                Bucket::FIRST_PROTOCOL_SUPPORTING_PERSISTENT_EVICTION))
         {
-            auto deletedPersistentDataKeys =
-                ltx.getAllDeletedPersistentContractDataKeysWithoutSealing();
-            auto createdPersistentDataKeys =
-                ltx.getAllCreatedPersistentContractDataKeysWithoutSealing();
-            LedgerTxn ltxEvictions(ltx);
+            auto createdVec =
+                std::vector<LedgerKey>(createdPersistentDataKeys.begin(),
+                                       createdPersistentDataKeys.end());
+            auto deletedVec =
+                std::vector<LedgerKey>(deletedPersistentDataKeys.begin(),
+                                       deletedPersistentDataKeys.end());
+            mApp.getBucketManager().addHotArchiveBatch(
+                mApp, lh, evictedEntries.second, createdVec, deletedVec);
 
-            auto evictedEntries =
-                mApp.getBucketManager().resolveBackgroundEvictionScan(
-                    ltxEvictions, lh.ledgerSeq, keys, initialLedgerVers);
-
-            if (protocolVersionStartsFrom(
-                    initialLedgerVers,
-                    Bucket::FIRST_PROTOCOL_SUPPORTING_PERSISTENT_EVICTION))
+            if (ledgerCloseMeta)
             {
-                    auto createdVec = std::vector<LedgerKey>(
-                        createdPersistentDataKeys.begin(),
-                        createdPersistentDataKeys.end());
-                    auto deletedVec = std::vector<LedgerKey>(
-                        deletedPersistentDataKeys.begin(),
-                        deletedPersistentDataKeys.end());
-                    mApp.getBucketManager().addHotArchiveBatch(
-                        mApp, lh, evictedEntries.second, createdVec,
-                        deletedVec);
-                }
-
-                if (ledgerCloseMeta)
-                {
-                    ledgerCloseMeta->populateEvictedEntries(evictedEntries);
-                }
+                ledgerCloseMeta->populateEvictedEntries(evictedEntries);
             }
-            else
-            {
-
-                if (ledgerCloseMeta)
-                {
-                    ledgerCloseMeta->populateEvictedEntriesLegacy(
-                        ltxEvictions.getChanges());
-                }
-            }
-
-            ltxEvictions.commit();
         }
+        else
+        {
+
+            if (ledgerCloseMeta)
+            {
+                ledgerCloseMeta->populateEvictedEntriesLegacy(
+                    ltxEvictions.getChanges());
+            }
+        }
+
+        ltxEvictions.commit();
 
         getSorobanNetworkConfigInternal().maybeSnapshotBucketListSize(
             lh.ledgerSeq, ltx, mApp);

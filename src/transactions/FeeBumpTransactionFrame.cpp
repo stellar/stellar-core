@@ -55,6 +55,12 @@ FeeBumpTransactionFrame::sorobanResources() const
 }
 
 #ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
+bool
+FeeBumpTransactionFrame::hasSorobanProofs() const
+{
+    return mInnerTx->hasSorobanProofs();
+}
+
 xdr::xvector<ArchivalProof> const&
 FeeBumpTransactionFrame::sorobanProofs() const
 {

@@ -281,7 +281,8 @@ RestoreFootprintOpFrame::doCheckValidForSoroban(
             ledgerVersion,
             Bucket::FIRST_PROTOCOL_SUPPORTING_PERSISTENT_EVICTION))
     {
-        if (!checkRestorationProofValidity(mParentTx.sorobanProofs()))
+        if (!mParentTx.hasSorobanProofs() ||
+            !checkRestorationProofValidity(mParentTx.sorobanProofs()))
         {
             sorobanData.pushValidationTimeDiagnosticError(
                 appConfig, SCE_VALUE, SCEC_INVALID_INPUT,
