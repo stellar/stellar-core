@@ -260,50 +260,48 @@ WriteVerifiedCheckpointHashesWork::startOutputFile()
 void
 WriteVerifiedCheckpointHashesWork::endOutputFile()
 {
-    if (!mOutputFile || !mOutputFile->is_open())
+    if (mOutputFile && mOutputFile->is_open())
     {
-        throw std::runtime_error("could not write to output file " +
-                                 mTmpOutputPath.string());
-    }
-    if (mTrustedHashPath)
-    {
-        if (!fs::exists(mTrustedHashPath->string()))
+        if (mTrustedHashPath)
         {
-            throw std::runtime_error("failed to open trusted hash file " +
-                                     mTrustedHashPath->string());
-        }
-        // Append everything except the first line of mTrustedHashFile to
-        // mOutputFile.
-        std::ifstream trustedHashFile(*mTrustedHashPath);
-        if (trustedHashFile)
-        {
-            std::string line;
-            // Ignore the first line ("["")
-            std::getline(trustedHashFile, line);
-            // Append the rest of the lines to mOutputFile.
-            while (std::getline(trustedHashFile, line))
+            if (!fs::exists(mTrustedHashPath->string()))
             {
-                (*mOutputFile) << "\n" << line;
+                throw std::runtime_error("failed to open trusted hash file " +
+                                         mTrustedHashPath->string());
             }
-            trustedHashFile.close();
+            // Append everything except the first line of mTrustedHashFile to
+            // mOutputFile.
+            std::ifstream trustedHashFile(*mTrustedHashPath);
+            if (trustedHashFile)
+            {
+                std::string line;
+                // Ignore the first line ("["")
+                std::getline(trustedHashFile, line);
+                // Append the rest of the lines to mOutputFile.
+                while (std::getline(trustedHashFile, line))
+                {
+                    (*mOutputFile) << "\n" << line;
+                }
+                trustedHashFile.close();
+            }
         }
-    }
-    else
-    {
-        // Each line of output made by a VerifyLedgerChainWork has a
-        // trailing comma, and trailing commas are not a valid end of a JSON
-        // array; so we terminate the array here with an entry that does
-        // _not_ have a trailing comma (and identifies an invalid ledger
-        // number anyways).
-        (*mOutputFile) << "\n[0, \"\"]\n]\n";
-    }
-    mOutputFile->close();
-    mOutputFile.reset();
+        else
+        {
+            // Each line of output made by a VerifyLedgerChainWork has a
+            // trailing comma, and trailing commas are not a valid end of a JSON
+            // array; so we terminate the array here with an entry that does
+            // _not_ have a trailing comma (and identifies an invalid ledger
+            // number anyways).
+            (*mOutputFile) << "\n[0, \"\"]\n]\n";
+        }
+        mOutputFile->close();
+        mOutputFile.reset();
 
-    // The output file was written to a temporary file, so rename it to
-    // the output path provided by the user.
-    fs::durableRename(mTmpOutputPath.string(), mOutputPath.string(),
-                      mOutputPath.relative_path().string());
+        // The output file was written to a temporary file, so rename it to
+        // the output path provided by the user.
+        fs::durableRename(mTmpOutputPath.string(), mOutputPath.string(),
+                          mOutputPath.relative_path().string());
+    }
 }
 
 void

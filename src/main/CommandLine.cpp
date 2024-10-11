@@ -1057,13 +1057,6 @@ runWriteVerifiedCheckpointHashes(CommandLineArgs const& args)
             std::optional<LedgerNumHashPair> latestTrustedHashPair;
             if (trustedHashFile)
             {
-                if (!std::filesystem::exists(*trustedHashFile))
-                {
-                    LOG_ERROR(DEFAULT_LOG,
-                              "--trusted-hash-file {} does not exist",
-                              *trustedHashFile);
-                    return 1;
-                }
                 // Pasrse the latest hash from the trusted hash file before
                 // starting the application and connecting to the network so
                 // that we can exit early if there is malformed input.
