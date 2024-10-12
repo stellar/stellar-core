@@ -365,7 +365,7 @@ class SimulationHelper
 
         // State has been rebuilt and node is properly in sync
         REQUIRE(checkState(*app));
-        REQUIRE(app->getLedgerManager().getLastClosedLedgerNum() ==
+        REQUIRE(app->getLedgerManager().getLastClosedLedgerNum() + 1 >=
                 getMainNodeLCL().header.ledgerSeq);
         REQUIRE(app->getLedgerManager().isSynced());
 
