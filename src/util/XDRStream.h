@@ -379,6 +379,16 @@ class XDROutputFileStream
 
     template <typename T>
     void
+    durableWriteOne(T const& t, SHA256* hasher = nullptr,
+                    size_t* bytesPut = nullptr)
+    {
+        writeOne(t, hasher, bytesPut);
+        flush();
+        fs::flushFileChanges(getHandle());
+    }
+
+    template <typename T>
+    void
     writeOne(T const& t, SHA256* hasher = nullptr, size_t* bytesPut = nullptr)
     {
         ZoneScoped;

@@ -94,7 +94,8 @@ class LedgerManagerImpl : public LedgerManager
                  std::unique_ptr<LedgerCloseMetaFrame> const& ledgerCloseMeta,
                  uint32_t initialLedgerVers);
 
-    void storeCurrentLedger(LedgerHeader const& header, bool storeHeader);
+    void storeCurrentLedger(LedgerHeader const& header, bool storeHeader,
+                            bool appendToCheckpoint);
     void
     prefetchTransactionData(std::vector<TransactionFrameBasePtr> const& txs);
     void prefetchTxSourceIds(std::vector<TransactionFrameBasePtr> const& txs);
@@ -190,8 +191,6 @@ class LedgerManagerImpl : public LedgerManager
     void closeLedger(LedgerCloseData const& ledgerData) override;
     void deleteOldEntries(Database& db, uint32_t ledgerSeq,
                           uint32_t count) override;
-
-    void deleteNewerEntries(Database& db, uint32_t ledgerSeq) override;
 
     void setLastClosedLedger(LedgerHeaderHistoryEntry const& lastClosed,
                              bool storeInDB) override;

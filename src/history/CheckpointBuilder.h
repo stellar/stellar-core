@@ -24,14 +24,20 @@ class CheckpointBuilder
     bool mOpen{false};
     bool mStartupValidationComplete{false};
 
-    void maybeOpen(uint32_t ledgerSeq);
+    void ensureOpen(uint32_t ledgerSeq);
 
   public:
     CheckpointBuilder(Application& app);
     void appendTransactionSet(uint32_t ledgerSeq,
                               TxSetXDRFrameConstPtr const& txSet,
-                              TransactionResultSet const& resultSet);
-    void appendLedgerHeader(LedgerHeader const& header);
+                              TransactionResultSet const& resultSet,
+                              bool skipStartupCheck = false);
+    void appendTransactionSet(uint32_t ledgerSeq,
+                              TransactionHistoryEntry const& txSet,
+                              TransactionResultSet const& resultSet,
+                              bool skipStartupCheck = false);
+    void appendLedgerHeader(LedgerHeader const& header,
+                            bool skipStartupCheck = false);
 
     // Cleanup publish files according to the latest LCL.
     // Publish files might contain dirty data if a crash occurred after append

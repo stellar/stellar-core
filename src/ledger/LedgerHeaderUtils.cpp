@@ -7,6 +7,7 @@
 #include "crypto/SHA.h"
 #include "database/Database.h"
 #include "database/DatabaseUtils.h"
+#include "history/CheckpointBuilder.h"
 #include "util/Decoder.h"
 #include "util/GlobalChecks.h"
 #include "util/Logging.h"
@@ -137,6 +138,25 @@ loadByHash(Database& db, Hash const& hash)
     return lhPtr;
 }
 
+uint32_t
+loadMaxLedgerSeq(Database& db)
+{
+    ZoneScoped;
+    uint32_t seq = 0;
+    soci::indicator maxIndicator;
+    auto prep =
+        db.getPreparedStatement("SELECT MAX(ledgerseq) FROM ledgerheaders");
+    auto& st = prep.statement();
+    st.exchange(soci::into(seq, maxIndicator));
+    st.define_and_bind();
+    st.execute(true);
+    if (maxIndicator == soci::indicator::i_ok)
+    {
+        return seq;
+    }
+    return 0;
+}
+
 std::shared_ptr<LedgerHeader>
 loadBySequence(Database& db, soci::session& sess, uint32_t seq)
 {
@@ -175,17 +195,9 @@ deleteOldEntries(Database& db, uint32_t ledgerSeq, uint32_t count)
                                           "ledgerheaders", "ledgerseq");
 }
 
-void
-deleteNewerEntries(Database& db, uint32_t ledgerSeq)
-{
-    ZoneScoped;
-    DatabaseUtils::deleteNewerEntriesHelper(db.getSession(), ledgerSeq,
-                                            "ledgerheaders", "ledgerseq");
-}
-
 size_t
 copyToStream(Database& db, soci::session& sess, uint32_t ledgerSeq,
-             uint32_t ledgerCount, XDROutputFileStream& headersOut)
+             uint32_t ledgerCount, CheckpointBuilder& checkpointBuilder)
 {
     ZoneNamedN(selectLedgerHeadersZone, "select ledgerheaders history", true);
     uint32_t begin = ledgerSeq, end = ledgerSeq + ledgerCount;
@@ -207,7 +219,8 @@ copyToStream(Database& db, soci::session& sess, uint32_t ledgerSeq,
         lhe.header = decodeFromData(headerEncoded);
         lhe.hash = xdrSha256(lhe.header);
         CLOG_DEBUG(Ledger, "Streaming ledger-header {}", lhe.header.ledgerSeq);
-        headersOut.writeOne(lhe);
+        checkpointBuilder.appendLedgerHeader(lhe.header,
+                                             /* skipStartupCheck */ true);
         ++n;
         st.fetch();
     }

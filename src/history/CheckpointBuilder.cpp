@@ -8,7 +8,7 @@
 namespace stellar
 {
 void
-CheckpointBuilder::maybeOpen(uint32_t ledgerSeq)
+CheckpointBuilder::ensureOpen(uint32_t ledgerSeq)
 {
     ZoneScoped;
     releaseAssert(mApp.getHistoryArchiveManager().publishEnabled());
@@ -92,15 +92,38 @@ CheckpointBuilder::CheckpointBuilder(Application& app) : mApp(app)
 void
 CheckpointBuilder::appendTransactionSet(uint32_t ledgerSeq,
                                         TxSetXDRFrameConstPtr const& txSet,
-                                        TransactionResultSet const& resultSet)
+                                        TransactionResultSet const& resultSet,
+                                        bool skipStartupCheck)
+{
+    ZoneScoped;
+    TransactionHistoryEntry txs;
+    txs.ledgerSeq = ledgerSeq;
+
+    if (txSet->isGeneralizedTxSet())
+    {
+        txs.ext.v(1);
+        txSet->toXDR(txs.ext.generalizedTxSet());
+    }
+    else
+    {
+        txSet->toXDR(txs.txSet);
+    }
+    appendTransactionSet(ledgerSeq, txs, resultSet);
+}
+
+void
+CheckpointBuilder::appendTransactionSet(uint32_t ledgerSeq,
+                                        TransactionHistoryEntry const& txSet,
+                                        TransactionResultSet const& resultSet,
+                                        bool skipStartupCheck)
 {
     ZoneScoped;
     if (!mStartupValidationComplete &&
-        ledgerSeq != LedgerManager::GENESIS_LEDGER_SEQ)
+        ledgerSeq != LedgerManager::GENESIS_LEDGER_SEQ && !skipStartupCheck)
     {
         throw std::runtime_error("Startup validation not performed");
     }
-    maybeOpen(ledgerSeq);
+    ensureOpen(ledgerSeq);
 
     if (!resultSet.results.empty())
     {
@@ -108,36 +131,22 @@ CheckpointBuilder::appendTransactionSet(uint32_t ledgerSeq,
         results.ledgerSeq = ledgerSeq;
         results.txResultSet = resultSet;
         mTxResults->durableWriteOne(results);
-    }
-
-    if (txSet->sizeTxTotal() > 0)
-    {
-        TransactionHistoryEntry txs;
-        txs.ledgerSeq = ledgerSeq;
-
-        if (txSet->isGeneralizedTxSet())
-        {
-            txs.ext.v(1);
-            txSet->toXDR(txs.ext.generalizedTxSet());
-        }
-        else
-        {
-            txSet->toXDR(txs.txSet);
-        }
-        mTxs->durableWriteOne(txs);
+        mTxs->durableWriteOne(txSet);
     }
 }
 
 void
-CheckpointBuilder::appendLedgerHeader(LedgerHeader const& header)
+CheckpointBuilder::appendLedgerHeader(LedgerHeader const& header,
+                                      bool skipStartupCheck)
 {
     ZoneScoped;
     if (!mStartupValidationComplete &&
-        header.ledgerSeq != LedgerManager::GENESIS_LEDGER_SEQ)
+        header.ledgerSeq != LedgerManager::GENESIS_LEDGER_SEQ &&
+        !skipStartupCheck)
     {
         throw std::runtime_error("Startup validation not performed");
     }
-    maybeOpen(header.ledgerSeq);
+    ensureOpen(header.ledgerSeq);
 
     LedgerHeaderHistoryEntry lhe;
     lhe.header = header;
@@ -176,51 +185,80 @@ CheckpointBuilder::cleanup(uint32_t lcl)
     mTxs.reset();
     mLedgerHeaders.reset();
     mOpen = false;
+    auto const& cfg = mApp.getConfig();
 
     auto checkpoint = mApp.getHistoryManager().checkpointContainingLedger(lcl);
-    auto res = FileTransferInfo(FileType::HISTORY_FILE_TYPE_RESULTS, checkpoint,
-                                mApp.getConfig());
+    auto res =
+        FileTransferInfo(FileType::HISTORY_FILE_TYPE_RESULTS, checkpoint, cfg);
     auto txs = FileTransferInfo(FileType::HISTORY_FILE_TYPE_TRANSACTIONS,
-                                checkpoint, mApp.getConfig());
-    auto ledger = FileTransferInfo(FileType::HISTORY_FILE_TYPE_LEDGER,
-                                   checkpoint, mApp.getConfig());
+                                checkpoint, cfg);
+    auto ledger =
+        FileTransferInfo(FileType::HISTORY_FILE_TYPE_LEDGER, checkpoint, cfg);
 
     auto tmpDir =
         mApp.getBucketManager().getTmpDirManager().tmpDir("truncated");
 
-    auto truncate = [&](FileTransferInfo const& ft, auto entry) {
+    auto recover = [&](FileTransferInfo const& ft, auto entry,
+                       uint32_t enforceLCL) {
         if (fs::exists(ft.localPath_nogz()))
         {
-            CLOG_INFO(History, "File {} already exists, nothing to do",
-                      ft.localPath_nogz());
+            // Make sure any new checkpoints are deleted
+            auto next = FileTransferInfo(
+                ft.getType(),
+                mApp.getHistoryManager().checkpointContainingLedger(checkpoint +
+                                                                    1),
+                cfg);
+            CLOG_INFO(History, "Deleting next checkpoint files {}",
+                      next.localPath_nogz_dirty());
+            // This may fail if no files were created before core restarted
+            // (which is a valid behavior)
+            if (std::remove(next.localPath_nogz_dirty().c_str()) &&
+                errno != ENOENT)
+            {
+                throw std::runtime_error(
+                    fmt::format("Failed to delete next checkpoint file {}",
+                                next.localPath_nogz_dirty()));
+            }
             return;
         }
 
         // Find a tmp file; any potentially invalid files _must_ be tmp files,
         // because checkpoint files are finalized (renamed) only after ledger is
         // committed.
-        auto tmpFile = tmpDir.getName() + "/" + ft.baseName_nogz();
+        std::filesystem::path dir = tmpDir.getName();
+        std::filesystem::path tmpFile = dir / ft.baseName_nogz();
         {
             auto out = XDROutputFileStream(mApp.getClock().getIOContext(),
                                            /* fsync*/ true);
             out.open(tmpFile);
             XDRInputFileStream in;
             in.open(ft.localPath_nogz_dirty());
+            uint32_t lastReadLedgerSeq = 0;
             while (in)
             {
                 try
                 {
                     if (!in.readOne(entry))
                     {
+                        // If file doesn't end on LCL, it's corrupt
+                        if (enforceLCL && lastReadLedgerSeq != lcl)
+                        {
+                            throw std::runtime_error(
+                                fmt::format("Corrupt checkpoint file {}, ends "
+                                            "on ledger {}, LCL is {}",
+                                            ft.localPath_nogz_dirty(),
+                                            getLedgerSeq(entry), lcl));
+                        }
                         break;
                     }
-                    if (getLedgerSeq(entry) > lcl)
+                    lastReadLedgerSeq = getLedgerSeq(entry);
+                    if (lastReadLedgerSeq > lcl)
                     {
                         CLOG_INFO(History, "Truncating {} at ledger {}",
                                   ft.localPath_nogz_dirty(), lcl);
                         break;
                     }
-                    out.durableWriteOne(entry);
+                    out.writeOne(entry);
                 }
                 catch (xdr::xdr_runtime_error const& e)
                 {
@@ -242,9 +280,11 @@ CheckpointBuilder::cleanup(uint32_t lcl)
         }
     };
 
-    truncate(res, TransactionHistoryResultEntry{});
-    truncate(txs, TransactionHistoryEntry{});
-    truncate(ledger, LedgerHeaderHistoryEntry{});
+    // We can only require ledger header to be at LCL; transactions and results
+    // can have gaps (if there were empty ledgers)
+    recover(res, TransactionHistoryResultEntry{}, /* enforceLCL */ false);
+    recover(txs, TransactionHistoryEntry{}, /* enforceLCL */ false);
+    recover(ledger, LedgerHeaderHistoryEntry{}, /* enforceLCL */ true);
     mStartupValidationComplete = true;
 }
 }

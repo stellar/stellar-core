@@ -185,6 +185,8 @@ VerifyLedgerChainWork::verifyHistoryOfSingleCheckpoint()
     CLOG_DEBUG(History, "Verifying ledger headers from {} for checkpoint {}",
                ft.localPath_nogz(), mCurrCheckpoint);
 
+    auto const& hm = mApp.getHistoryManager();
+
     while (hdrIn)
     {
         try
@@ -243,6 +245,15 @@ VerifyLedgerChainWork::verifyHistoryOfSingleCheckpoint()
 
         if (beginCheckpoint)
         {
+            if (!hm.isFirstLedgerInCheckpoint(curr.header.ledgerSeq))
+            {
+                CLOG_ERROR(
+                    History, "Checkpoint did not start with {} - got {}",
+                    hm.firstLedgerInCheckpointContaining(curr.header.ledgerSeq),
+                    curr.header.ledgerSeq);
+                return HistoryManager::VERIFY_STATUS_ERR_MISSING_ENTRIES;
+            }
+
             // At the beginning of checkpoint, we can't verify the link with
             // previous ledger, so at least verify that header content hashes to
             // correct value

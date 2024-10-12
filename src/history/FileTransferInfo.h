@@ -57,7 +57,7 @@ class FileTransferInfo
                      Config const& cfg)
         : mType(snapType)
         , mHexDigits(fs::hexStr(checkpointLedger))
-        , mLocalPath(createPublishDir(snapType, cfg).string() + "/" +
+        , mLocalPath(getPublishHistoryDir(snapType, cfg).string() + "/" +
                      baseName_nogz())
     {
     }

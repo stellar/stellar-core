@@ -4,6 +4,7 @@
 // under the Apache License, Version 2.0. See the COPYING file at the root
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
+#include "herder/TxSetFrame.h"
 #include "history/HistoryArchive.h"
 #include "overlay/StellarXDR.h"
 #include "util/GlobalChecks.h"
@@ -208,6 +209,8 @@ class HistoryManager
 
     // Initialize DB table for persistent publishing queue.
     static void dropAll(Database& db);
+    static std::filesystem::path publishQueuePath(Config const& cfg);
+    static void createPublishQueueDir(Config const& cfg);
 
     // Checkpoints are made every getCheckpointFrequency() ledgers.
     // This should normally be a constant (64) but in testing cases
@@ -331,6 +334,13 @@ class HistoryManager
     // Returns the number of publishes initiated.
     virtual size_t publishQueuedHistory() = 0;
 
+    // Prepare checkpoint files for publishing
+    virtual void maybeCheckpointComplete() = 0;
+
+    // Migrate SQL-based publish queue to the new file format
+    // (one-time call during database schema upgrade path)
+    virtual void dropSQLBasedPublish() = 0;
+
     // Return the set of buckets referenced by the persistent (DB) publish
     // queue that are not present in the BucketManager. These need to be
     // fetched from somewhere before publishing can begin again.
@@ -355,8 +365,18 @@ class HistoryManager
                      std::vector<std::string> const& originalBuckets,
                      bool success) = 0;
 
-    // clear the publish queue for any ledgers more recent than ledgerSeq
-    virtual void deleteCheckpointsNewerThan(uint32_t ledgerSeq) = 0;
+    virtual void
+    appendTransactionSet(uint32_t ledgerSeq, TxSetXDRFrameConstPtr const& txSet,
+                         TransactionResultSet const& resultSet) = 0;
+    virtual void appendLedgerHeader(LedgerHeader const& header) = 0;
+
+    // On startup, restore checkpoint files based on the last committed LCL
+    virtual void restoreCheckpoint(uint32_t lcl) = 0;
+
+    // Cleanup published files. If core is reset to genesis, any unpublished
+    // files will be cleaned by removal of the buckets directory.
+    virtual void deletePublishedFiles(uint32_t ledgerSeq,
+                                      Config const& cfg) = 0;
 
     // Return the name of the HistoryManager's tmpdir (used for storing files in
     // transit).
