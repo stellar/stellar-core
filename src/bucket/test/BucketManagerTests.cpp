@@ -579,7 +579,6 @@ TEST_CASE_VERSIONS(
         auto& hm = app->getHistoryManager();
         auto& bm = app->getBucketManager();
         auto& bl = bm.getBucketList();
-        auto& lm = app->getLedgerManager();
         hm.setPublicationEnabled(false);
         app->getHistoryArchiveManager().initializeHistoryArchive(
             tcfg.getArchiveDirName());
