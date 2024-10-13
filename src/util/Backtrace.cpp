@@ -149,13 +149,60 @@ printCurrentBacktrace()
 }
 
 #else
+
+#ifdef _WIN32
+static size_t
+backtrace(void**, size_t)
+{
+    return 0;
+}
+
+static char**
+backtrace_symbols(void** v, size_t n)
+{
+    return nullptr;
+}
+
+#else
+#include <execinfo.h>
+#endif
+
 namespace stellar
 {
+
+static constexpr int MAX_SIZE = 1024;
 
 void
 printCurrentBacktrace()
 {
-    fprintf(stderr, "backtrace unavailable\n");
+    if (!threadIsMain())
+    {
+        return;
+    }
+
+    if (getenv("STELLAR_NO_BACKTRACE") != nullptr)
+    {
+        return;
+    }
+
+    void* array[MAX_SIZE];
+    size_t size = backtrace(array, MAX_SIZE);
+    char** strings = backtrace_symbols(array, size);
+    if (!strings)
+    {
+        fprintf(stderr, "backtrace unavailable\n");
+        return;
+    }
+
+    fprintf(stderr, "Cannot provide readable stack trace. Use ParseDump.py to "
+                    "translate stack.\n");
+
+    for (size_t i = 0; i < size; ++i)
+    {
+        fprintf(stderr, "%s\n", strings[i]);
+    }
+
+    free(strings);
     fflush(stderr);
 }
 }

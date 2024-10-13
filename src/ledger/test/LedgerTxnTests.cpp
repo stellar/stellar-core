@@ -2,20 +2,26 @@
 // under the Apache License, Version 2.0. See the COPYING file at the root
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
+#include "bucket/BucketManager.h"
+#include "bucket/test/BucketTestUtils.h"
 #include "ledger/LedgerTxn.h"
 #include "ledger/LedgerTxnEntry.h"
 #include "ledger/LedgerTxnHeader.h"
+#include "ledger/LedgerTypeUtils.h"
 #include "ledger/NonSociRelatedException.h"
 #include "ledger/test/LedgerTestUtils.h"
 #include "lib/catch.hpp"
 #include "lib/util/stdrandom.h"
 #include "main/Application.h"
+#include "main/Config.h"
 #include "test/TestAccount.h"
 #include "test/TestUtils.h"
 #include "test/TxTests.h"
 #include "test/test.h"
 #include "transactions/TransactionUtils.h"
 #include "util/Math.h"
+#include "util/UnorderedMap.h"
+#include "util/UnorderedSet.h"
 #include "util/XDROperators.h"
 #include <algorithm>
 #include <fmt/format.h>
@@ -461,7 +467,12 @@ TEST_CASE("LedgerTxn round trip", "[ledgertxn]")
             SECTION("with normal caching")
             {
                 VirtualClock clock;
-                auto app = createTestApplication(clock, getTestConfig(0, mode));
+                // BucketListDB incompatible with direct root commits
+                auto app = createTestApplication(
+                    clock,
+                    getTestConfig(0, mode == Config::TESTDB_DEFAULT
+                                         ? Config::TESTDB_IN_MEMORY_NO_OFFERS
+                                         : mode));
 
                 runTest(app->getLedgerTxnRoot());
             }
@@ -469,7 +480,12 @@ TEST_CASE("LedgerTxn round trip", "[ledgertxn]")
             SECTION("with no cache")
             {
                 VirtualClock clock;
-                auto cfg = getTestConfig(0, mode);
+
+                // BucketListDB incompatible with direct root commits
+                auto cfg =
+                    getTestConfig(0, mode == Config::TESTDB_DEFAULT
+                                         ? Config::TESTDB_IN_MEMORY_NO_OFFERS
+                                         : mode);
                 cfg.ENTRY_CACHE_SIZE = 0;
                 auto app = createTestApplication(clock, cfg);
 
@@ -481,6 +497,16 @@ TEST_CASE("LedgerTxn round trip", "[ledgertxn]")
     SECTION("default")
     {
         runTestWithDbMode(Config::TESTDB_DEFAULT);
+    }
+
+    SECTION("sqlite")
+    {
+        runTestWithDbMode(Config::TESTDB_ON_DISK_SQLITE);
+    }
+
+    SECTION("in-memory")
+    {
+        runTestWithDbMode(Config::TESTDB_IN_MEMORY_NO_OFFERS);
     }
 
 #ifdef USE_POSTGRES
@@ -692,6 +718,16 @@ TEST_CASE("LedgerTxn createWithoutLoading and updateWithoutLoading",
         runTest(Config::TESTDB_DEFAULT);
     }
 
+    SECTION("sqlite")
+    {
+        runTest(Config::TESTDB_ON_DISK_SQLITE);
+    }
+
+    SECTION("in-memory")
+    {
+        runTest(Config::TESTDB_IN_MEMORY_NO_OFFERS);
+    }
+
 #ifdef USE_POSTGRES
     SECTION("postgresql")
     {
@@ -780,6 +816,16 @@ TEST_CASE("LedgerTxn erase", "[ledgertxn]")
     SECTION("default")
     {
         runTest(Config::TESTDB_DEFAULT);
+    }
+
+    SECTION("sqlite")
+    {
+        runTest(Config::TESTDB_ON_DISK_SQLITE);
+    }
+
+    SECTION("in-memory")
+    {
+        runTest(Config::TESTDB_IN_MEMORY_NO_OFFERS);
     }
 
 #ifdef USE_POSTGRES
@@ -875,6 +921,16 @@ TEST_CASE("LedgerTxn eraseWithoutLoading", "[ledgertxn]")
     SECTION("default")
     {
         runTest(Config::TESTDB_DEFAULT);
+    }
+
+    SECTION("sqlite")
+    {
+        runTest(Config::TESTDB_ON_DISK_SQLITE);
+    }
+
+    SECTION("in-memory")
+    {
+        runTest(Config::TESTDB_IN_MEMORY_NO_OFFERS);
     }
 
 #ifdef USE_POSTGRES
@@ -978,7 +1034,8 @@ testInflationWinners(
     if (updates.size() > 1)
     {
         VirtualClock clock;
-        auto app = createTestApplication(clock, getTestConfig());
+        auto app = createTestApplication(
+            clock, getTestConfig(0, Config::TESTDB_IN_MEMORY_NO_OFFERS));
 
         testAtRoot(*app);
     }
@@ -987,7 +1044,7 @@ testInflationWinners(
     if (updates.size() > 1)
     {
         VirtualClock clock;
-        auto cfg = getTestConfig();
+        auto cfg = getTestConfig(0, Config::TESTDB_IN_MEMORY_NO_OFFERS);
         cfg.ENTRY_CACHE_SIZE = 0;
         auto app = createTestApplication(clock, cfg);
 
@@ -997,7 +1054,8 @@ testInflationWinners(
     // first changes are in child of LedgerTxnRoot
     {
         VirtualClock clock;
-        auto app = createTestApplication(clock, getTestConfig());
+        auto app = createTestApplication(
+            clock, getTestConfig(0, Config::TESTDB_IN_MEMORY_NO_OFFERS));
 
         testInflationWinners(app->getLedgerTxnRoot(), maxWinners, minBalance,
                              expected, updates.cbegin(), updates.cend());
@@ -1331,6 +1389,16 @@ TEST_CASE("LedgerTxn loadHeader", "[ledgertxn]")
         runTest(Config::TESTDB_DEFAULT);
     }
 
+    SECTION("sqlite")
+    {
+        runTest(Config::TESTDB_ON_DISK_SQLITE);
+    }
+
+    SECTION("in-memory")
+    {
+        runTest(Config::TESTDB_IN_MEMORY_NO_OFFERS);
+    }
+
 #ifdef USE_POSTGRES
     SECTION("postgresql")
     {
@@ -1440,17 +1508,31 @@ TEST_CASE_VERSIONS("LedgerTxn load", "[ledgertxn]")
                     {
                         auto native = txtest::makeNativeAsset();
                         UNSCOPED_INFO("native asset on trustline key");
-                        REQUIRE_THROWS_AS(
-                            ltx1.load(trustlineKey(acc.getPublicKey(), native)),
-                            NonSociRelatedException);
+
+                        // Invariant not supported in BucketListDB and in-memory
+                        // mode
+                        if (mode != Config::TESTDB_DEFAULT &&
+                            mode != Config::TESTDB_IN_MEMORY_NO_OFFERS)
+                        {
+                            REQUIRE_THROWS_AS(ltx1.load(trustlineKey(
+                                                  acc.getPublicKey(), native)),
+                                              NonSociRelatedException);
+                        }
                     }
 
                     {
                         auto usd = txtest::makeAsset(acc, "usd");
                         UNSCOPED_INFO("issuer on trustline key");
-                        REQUIRE_THROWS_AS(
-                            ltx1.load(trustlineKey(acc.getPublicKey(), usd)),
-                            NonSociRelatedException);
+
+                        // Invariant not supported in BucketListDB and in-memory
+                        // mode
+                        if (mode != Config::TESTDB_DEFAULT &&
+                            mode != Config::TESTDB_IN_MEMORY_NO_OFFERS)
+                        {
+                            REQUIRE_THROWS_AS(ltx1.load(trustlineKey(
+                                                  acc.getPublicKey(), usd)),
+                                              NonSociRelatedException);
+                        }
                     }
 
                     {
@@ -1460,8 +1542,14 @@ TEST_CASE_VERSIONS("LedgerTxn load", "[ledgertxn]")
                         {
                             auto key = trustlineKey(acc2.getPublicKey(), asset);
 
-                            REQUIRE_THROWS_AS(ltx1.load(key),
-                                              NonSociRelatedException);
+                            // Invariant not supported in BucketListDB and
+                            // in-memory mode
+                            if (mode != Config::TESTDB_DEFAULT &&
+                                mode != Config::TESTDB_IN_MEMORY_NO_OFFERS)
+                            {
+                                REQUIRE_THROWS_AS(ltx1.load(key),
+                                                  NonSociRelatedException);
+                            }
                         }
                     }
 
@@ -1493,6 +1581,16 @@ TEST_CASE_VERSIONS("LedgerTxn load", "[ledgertxn]")
     SECTION("default")
     {
         runTest(Config::TESTDB_DEFAULT);
+    }
+
+    SECTION("sqlite")
+    {
+        runTest(Config::TESTDB_ON_DISK_SQLITE);
+    }
+
+    SECTION("in-memory")
+    {
+        runTest(Config::TESTDB_IN_MEMORY_NO_OFFERS);
     }
 
 #ifdef USE_POSTGRES
@@ -1838,6 +1936,16 @@ TEST_CASE("LedgerTxn loadAllOffers", "[ledgertxn]")
     SECTION("default")
     {
         runTest(Config::TESTDB_DEFAULT);
+    }
+
+    SECTION("sqlite")
+    {
+        runTest(Config::TESTDB_ON_DISK_SQLITE);
+    }
+
+    SECTION("in-memory")
+    {
+        runTest(Config::TESTDB_IN_MEMORY_NO_OFFERS);
     }
 
 #ifdef USE_POSTGRES
@@ -2259,6 +2367,11 @@ TEST_CASE("LedgerTxn loadBestOffer", "[ledgertxn]")
         runTest(Config::TESTDB_DEFAULT);
     }
 
+    SECTION("sqlite")
+    {
+        runTest(Config::TESTDB_ON_DISK_SQLITE);
+    }
+
 #ifdef USE_POSTGRES
     SECTION("postgresql")
     {
@@ -2600,20 +2713,18 @@ TEST_CASE("LedgerTxnEntry and LedgerTxnHeader move assignment", "[ledgertxn]")
     }
 }
 
-TEST_CASE("LedgerTxnRoot prefetch", "[ledgertxn]")
+TEST_CASE("LedgerTxnRoot prefetch classic entries", "[ledgertxn]")
 {
-    auto runTest = [&](Config::TestDbMode mode) {
+    auto runTest = [&](Config cfg) {
         VirtualClock clock;
-        auto cfg = getTestConfig(0, mode);
         cfg.ENTRY_CACHE_SIZE = 1000;
         cfg.PREFETCH_BATCH_SIZE = cfg.ENTRY_CACHE_SIZE / 10;
 
         UnorderedSet<LedgerKey> keysToPrefetch;
         auto app = createTestApplication(clock, cfg);
-
         auto& root = app->getLedgerTxnRoot();
 
-        auto entries = LedgerTestUtils::generateValidLedgerEntries(
+        auto entries = LedgerTestUtils::generateValidUniqueLedgerEntries(
             cfg.ENTRY_CACHE_SIZE + 1);
         std::set<LedgerEntry> entrySet;
         LedgerTxn ltx(root);
@@ -2626,6 +2737,19 @@ TEST_CASE("LedgerTxnRoot prefetch", "[ledgertxn]")
             // we can check prefetch results later
             e.lastModifiedLedgerSeq = 1;
             entrySet.emplace(e);
+        }
+        if (cfg.isUsingBucketListDB())
+        {
+            std::vector<LedgerEntry> ledgerVect{entrySet.begin(),
+                                                entrySet.end()};
+            LedgerHeader lh;
+            lh.ledgerVersion = app->getLedgerManager()
+                                   .getLastClosedLedgerHeader()
+                                   .header.ledgerVersion;
+            lh.ledgerSeq = 2;
+            BucketTestUtils::addBatchAndUpdateSnapshot(
+                app->getBucketManager().getBucketList(), *app, lh, {},
+                ledgerVect, {});
         }
         ltx.commit();
 
@@ -2642,7 +2766,7 @@ TEST_CASE("LedgerTxnRoot prefetch", "[ledgertxn]")
                 }
             }
 
-            REQUIRE(root.prefetch(smallSet) == smallSet.size());
+            REQUIRE(root.prefetchClassic(smallSet) == smallSet.size());
 
             // Check that prefetch results are actually correct
             for (auto const& k : smallSet)
@@ -2653,26 +2777,33 @@ TEST_CASE("LedgerTxnRoot prefetch", "[ledgertxn]")
             }
 
             // 100% hit rate but make it floating point
-            REQUIRE(fabs(ltx2.getPrefetchHitRate() - 1.0f) < 0.0001f);
+            REQUIRE(fabs(ltx2.getPrefetchHitRate() - 1.0f) <
+                    std::numeric_limits<float>::epsilon());
             ltx2.commit();
         }
         SECTION("prefetch more than ENTRY_CACHE_SIZE entries")
         {
             LedgerTxn ltx2(root);
-            REQUIRE(root.prefetch(keysToPrefetch) == keysToPrefetch.size());
+            REQUIRE(root.prefetchClassic(keysToPrefetch) ==
+                    keysToPrefetch.size());
             ltx2.commit();
         }
     };
 
     SECTION("default")
     {
-        runTest(Config::TESTDB_DEFAULT);
+        runTest(getTestConfig());
+    }
+
+    SECTION("sqlite")
+    {
+        runTest(getTestConfig(0, Config::TESTDB_ON_DISK_SQLITE));
     }
 
 #ifdef USE_POSTGRES
     SECTION("postgresql")
     {
-        runTest(Config::TESTDB_POSTGRESQL);
+        runTest(getTestConfig(0, Config::TESTDB_POSTGRESQL));
     }
 #endif
 }
@@ -2804,6 +2935,221 @@ TEST_CASE("Erase performance benchmark", "[!hide][erasebench]")
 #endif
 }
 
+TEST_CASE("LedgerTxnRoot prefetch soroban entries", "[ledgertxn]")
+{
+    Config cfg = getTestConfig();
+    cfg.ENTRY_CACHE_SIZE = 10;
+
+    // Test setup.
+    VirtualClock clock;
+    cfg.DEPRECATED_SQL_LEDGER_STATE = false;
+    Application::pointer app = createTestApplication(clock, cfg);
+    UnorderedSet<LedgerKey> keysToPrefetch;
+    auto& root = app->getLedgerTxnRoot();
+    LedgerTxn ltx(root);
+
+    auto lkMeterCold = std::make_unique<LedgerKeyMeter>();
+    auto lkMeterHot = std::make_unique<LedgerKeyMeter>();
+
+    auto contractDataEntry =
+        LedgerTestUtils::generateValidLedgerEntryOfType(CONTRACT_DATA);
+    contractDataEntry.lastModifiedLedgerSeq = 1;
+    ltx.createWithoutLoading(contractDataEntry);
+
+    auto classicEntry = LedgerTestUtils::generateValidLedgerEntryOfType(OFFER);
+    classicEntry.lastModifiedLedgerSeq = 1;
+    ltx.createWithoutLoading(classicEntry);
+
+    LedgerEntry TTLEntry;
+    TTLEntry.data.type(TTL);
+    TTLEntry.data.ttl().keyHash = getTTLKey(contractDataEntry).ttl().keyHash;
+    TTLEntry.data.ttl().liveUntilLedgerSeq =
+        contractDataEntry.lastModifiedLedgerSeq + 1;
+
+    auto deadEntry =
+        LedgerTestUtils::generateValidLedgerEntryOfType(CONTRACT_DATA);
+    auto deadKey = LedgerEntryKey(deadEntry);
+    ltx.eraseWithoutLoading(deadKey);
+
+    // Insert all entries into the database.
+    std::vector<LedgerEntry> ledgerVect{classicEntry, contractDataEntry,
+                                        TTLEntry};
+    std::vector<LedgerKey> deadKeyVect{deadKey};
+    LedgerHeader lh;
+    lh.ledgerVersion = app->getLedgerManager()
+                           .getLastClosedLedgerHeader()
+                           .header.ledgerVersion;
+    lh.ledgerSeq = 2;
+    BucketTestUtils::addBatchAndUpdateSnapshot(
+        app->getBucketManager().getBucketList(), *app, lh, {}, ledgerVect,
+        deadKeyVect);
+    ltx.commit();
+
+    auto addTxn = [&](bool enoughQuota, std::vector<LedgerEntry> entries,
+                      std::vector<LedgerKey> deadKeys = {}) {
+        SorobanResources resources;
+
+        for (auto const& e : entries)
+        {
+            auto k = LedgerEntryKey(e);
+            keysToPrefetch.emplace(k);
+            if (k.type() != TTL)
+            {
+                resources.readBytes += xdr::xdr_size(e);
+                // Randomly add the key to either the read or write set.
+                if (stellar::rand_flip())
+                {
+                    resources.footprint.readOnly.emplace_back(k);
+                }
+                else
+                {
+                    resources.footprint.readWrite.emplace_back(k);
+                }
+            }
+        }
+        if (!enoughQuota)
+        {
+            resources.readBytes -= 1;
+        }
+
+        for (auto& k : deadKeys)
+        {
+            resources.footprint.readOnly.emplace_back(k);
+        }
+
+        lkMeterHot->addTxn(resources);
+        lkMeterCold->addTxn(resources);
+    };
+
+    auto checkPrefetch = [&](std::set<LedgerKey> const& expectedSuccessKeys) {
+        LedgerTxn ltx2(root);
+        auto numLoadedCold =
+            root.prefetchSoroban(keysToPrefetch, lkMeterCold.get());
+        REQUIRE(numLoadedCold == expectedSuccessKeys.size());
+
+        auto preLoadPrefetchHitRate = root.getPrefetchHitRate();
+        REQUIRE(preLoadPrefetchHitRate == 0);
+        for (auto const& k : expectedSuccessKeys)
+        {
+            ltx2.load(k);
+        }
+
+        auto numLoadedHot =
+            root.prefetchSoroban(keysToPrefetch, lkMeterHot.get());
+        REQUIRE(numLoadedHot == 0);
+        // 100% hit rate but make it floating point
+        REQUIRE(fabs(ltx2.getPrefetchHitRate() - 1.0f) <
+                std::numeric_limits<float>::epsilon());
+    };
+
+    SECTION("all keys have quota")
+    {
+        auto tx1Entries =
+            std::vector<LedgerEntry>{classicEntry, contractDataEntry, TTLEntry};
+        auto tx2Entries =
+            std::vector<LedgerEntry>{classicEntry, contractDataEntry, TTLEntry};
+        addTxn(true /* enough quota */, tx1Entries);
+        addTxn(false, tx2Entries);
+        std::set<LedgerKey> expectedSuccessKeys;
+        for (auto const& e : tx1Entries)
+        {
+            expectedSuccessKeys.emplace(LedgerEntryKey(e));
+        }
+        checkPrefetch(expectedSuccessKeys);
+    }
+
+    SECTION("dead keys don't affect quota")
+    {
+        auto deadKeys = std::vector<LedgerKey>{deadKey};
+        auto tx1Entries =
+            std::vector<LedgerEntry>{classicEntry, contractDataEntry, TTLEntry};
+        addTxn(true /* enough quota */, tx1Entries, deadKeys);
+        std::set<LedgerKey> expectedSuccessKeys;
+        for (auto const& e : tx1Entries)
+        {
+            expectedSuccessKeys.emplace(LedgerEntryKey(e));
+        }
+        checkPrefetch(expectedSuccessKeys);
+    }
+
+    SECTION("don't load entries without quota")
+    {
+        auto tx1Entries =
+            std::vector<LedgerEntry>{classicEntry, contractDataEntry, TTLEntry};
+        addTxn(false /* enough quota */, tx1Entries);
+        std::set<LedgerKey> expectedSuccessKeys;
+        expectedSuccessKeys.emplace(LedgerEntryKey(TTLEntry));
+        // Keys are loaded according to the iteration order of the set.
+        // Whichever entry is loaded first will succeed. The other will fail.
+        // Classic entries are strictly less than soroban entries, so we expect
+        // classicEntry will be loaded and contractDataEntry will not.
+        expectedSuccessKeys.emplace(LedgerEntryKey(classicEntry));
+        checkPrefetch(expectedSuccessKeys);
+    }
+    SECTION("non existent entries should not affect quota")
+    {
+        // Prefetch an entry which has not been added to the database.
+        auto nonExistentEntry =
+            LedgerTestUtils::generateValidLedgerEntryOfType(CONTRACT_DATA);
+        // Both should succeed, as the non-existent entry is not metered and
+        // should result in a null entry in the cache.
+        addTxn(false /* not enough */, {contractDataEntry, nonExistentEntry});
+        std::set<LedgerKey> expectedSuccessKeys{
+            LedgerEntryKey(contractDataEntry),
+            LedgerEntryKey(nonExistentEntry)};
+        checkPrefetch(expectedSuccessKeys);
+    }
+}
+
+TEST_CASE("LedgerKeyMeter tests")
+{
+    LedgerKeyMeter lkMeter{};
+    auto entry = LedgerTestUtils::generateValidLedgerEntryWithTypes(
+        {CONTRACT_CODE, CONTRACT_DATA}, 1);
+    auto key = LedgerEntryKey(entry);
+    auto entrySize = xdr::xdr_size(entry);
+    UnorderedSet<LedgerKey> keys;
+    keys.emplace(key);
+    SorobanResources resources;
+    resources.readBytes = entrySize;
+    resources.footprint.readOnly = {key};
+    lkMeter.addTxn(resources);
+
+    REQUIRE(lkMeter.canLoad(key, entrySize));
+    REQUIRE(!lkMeter.canLoad(key, entrySize + 1));
+    REQUIRE(lkMeter.canLoad(key, entrySize - 1));
+    REQUIRE(lkMeter.canLoad(key, 0));
+
+    // Adding another txn with less readQuota should not change the
+    // fact the key can be loaded.
+    resources.readBytes = 0;
+    resources.footprint.readOnly = {key};
+    lkMeter.addTxn(resources);
+    REQUIRE(lkMeter.canLoad(key, entrySize));
+    // Consume size(entry) of the read quota of each transaction which
+    // contains key.
+    lkMeter.updateReadQuotasForKey(key, entrySize);
+    // After updating, the read quota for the key should be zero.
+    REQUIRE(!lkMeter.canLoad(key, 1));
+    // Add another transaction with the same key and 2 * entrySize read quota.
+    resources.readBytes = 2 * entrySize;
+    resources.footprint.readOnly = {key};
+    lkMeter.addTxn(resources);
+    REQUIRE(lkMeter.canLoad(key, 2 * entrySize));
+    lkMeter.updateReadQuotasForKey(key, entrySize);
+    // After updating, the read quota should be equal the entry size (as
+    // the original quota was double)
+    REQUIRE(lkMeter.canLoad(key, entrySize));
+    // TTL keys are not part of the footprint and therefore not metered (i.e.
+    // always loadable).
+    auto ttlKey = getTTLKey(key);
+    REQUIRE(lkMeter.canLoad(ttlKey, std::numeric_limits<uint32_t>::max()));
+    // The ttlKey is not metered, so this should not have any effect.
+    lkMeter.updateReadQuotasForKey(ttlKey,
+                                   std::numeric_limits<uint32_t>::max());
+    REQUIRE(lkMeter.canLoad(ttlKey, std::numeric_limits<std::uint32_t>::max()));
+}
+
 TEST_CASE("Bulk load batch size benchmark", "[!hide][bulkbatchsizebench]")
 {
     size_t floor = 1000;
@@ -2837,7 +3183,7 @@ TEST_CASE("Bulk load batch size benchmark", "[!hide][bulkbatchsizebench]")
             LedgerTxn ltx2(root);
             {
                 m.TimeScope();
-                root.prefetch(keys);
+                root.prefetchClassic(keys);
             }
             ltx2.commit();
 
@@ -3597,6 +3943,11 @@ TEST_CASE("LedgerTxn in memory order book", "[ledgertxn]")
         runTest(Config::TESTDB_DEFAULT);
     }
 
+    SECTION("sqlite")
+    {
+        runTest(Config::TESTDB_ON_DISK_SQLITE);
+    }
+
 #ifdef USE_POSTGRES
     SECTION("postgresql")
     {
@@ -3627,15 +3978,15 @@ TEST_CASE_VERSIONS("LedgerTxn bulk-load offers", "[ledgertxn]")
         }
 
         for_all_versions(*app, [&]() {
-            app->getLedgerTxnRoot().prefetch({lk1, lk2});
+            app->getLedgerTxnRoot().prefetchClassic({lk1, lk2});
             LedgerTxn ltx(app->getLedgerTxnRoot());
             REQUIRE(ltx.load(lk1));
         });
     };
 
-    SECTION("default")
+    SECTION("sqlite")
     {
-        runTest(Config::TESTDB_DEFAULT);
+        runTest(Config::TESTDB_ON_DISK_SQLITE);
     }
 
 #ifdef USE_POSTGRES
@@ -3771,9 +4122,14 @@ TEST_CASE("Access deactivated entry", "[ledgertxn]")
         }
     };
 
-    SECTION("default")
+    SECTION("sqlite")
     {
-        runTest(Config::TESTDB_DEFAULT);
+        runTest(Config::TESTDB_ON_DISK_SQLITE);
+    }
+
+    SECTION("in-memory")
+    {
+        runTest(Config::TESTDB_IN_MEMORY_NO_OFFERS);
     }
 
 #ifdef USE_POSTGRES
@@ -3829,7 +4185,7 @@ TEST_CASE("LedgerTxn generalized ledger entries", "[ledgertxn]")
 TEST_CASE("LedgerTxn best offers cache eviction", "[ledgertxn]")
 {
     VirtualClock clock;
-    auto cfg = getTestConfig(0);
+    auto cfg = getTestConfig(0, Config::TESTDB_IN_MEMORY_OFFERS);
     auto app = createTestApplication(clock, cfg);
 
     auto buying = autocheck::generator<Asset>()(UINT32_MAX);
@@ -4045,7 +4401,8 @@ testPoolShareTrustLinesByAccountAndAsset(
     if (updates.size() > 1)
     {
         VirtualClock clock;
-        auto app = createTestApplication(clock, getTestConfig());
+        auto app = createTestApplication(
+            clock, getTestConfig(0, Config::TESTDB_IN_MEMORY_OFFERS));
 
         for_versions_from(18, *app, [&] { testAtRoot(*app); });
     }
@@ -4054,7 +4411,7 @@ testPoolShareTrustLinesByAccountAndAsset(
     if (updates.size() > 1)
     {
         VirtualClock clock;
-        auto cfg = getTestConfig();
+        auto cfg = getTestConfig(0, Config::TESTDB_IN_MEMORY_OFFERS);
         cfg.ENTRY_CACHE_SIZE = 0;
         auto app = createTestApplication(clock, cfg);
 
@@ -4064,7 +4421,8 @@ testPoolShareTrustLinesByAccountAndAsset(
     // first changes are in child of LedgerTxnRoot
     {
         VirtualClock clock;
-        auto app = createTestApplication(clock, getTestConfig());
+        auto app = createTestApplication(
+            clock, getTestConfig(0, Config::TESTDB_IN_MEMORY_OFFERS));
 
         for_versions_from(18, *app, [&] {
             testPoolShareTrustLinesByAccountAndAsset(
@@ -4091,7 +4449,8 @@ TEST_CASE_VERSIONS("LedgerTxn loadPoolShareTrustLinesByAccountAndAsset",
     SECTION("fails with children")
     {
         VirtualClock clock;
-        auto app = createTestApplication(clock, getTestConfig());
+        auto app = createTestApplication(
+            clock, getTestConfig(0, Config::TESTDB_IN_MEMORY_OFFERS));
 
         LedgerTxn ltx1(app->getLedgerTxnRoot());
         LedgerTxn ltx2(ltx1);
@@ -4103,7 +4462,8 @@ TEST_CASE_VERSIONS("LedgerTxn loadPoolShareTrustLinesByAccountAndAsset",
     SECTION("fails if sealed")
     {
         VirtualClock clock;
-        auto app = createTestApplication(clock, getTestConfig());
+        auto app = createTestApplication(
+            clock, getTestConfig(0, Config::TESTDB_IN_MEMORY_OFFERS));
 
         LedgerTxn ltx1(app->getLedgerTxnRoot());
         ltx1.getDelta();
@@ -4174,8 +4534,7 @@ TEST_CASE_VERSIONS("LedgerTxn loadPoolShareTrustLinesByAccountAndAsset",
 TEST_CASE("InMemoryLedgerTxn simulate buckets", "[ledgertxn]")
 {
     VirtualClock clock;
-    Config cfg = getTestConfig();
-    cfg.MODE_USES_IN_MEMORY_LEDGER = true;
+    Config cfg = getTestConfig(0, Config::TESTDB_IN_MEMORY_NO_OFFERS);
 
     auto app = createTestApplication(clock, cfg);
 
@@ -4217,8 +4576,7 @@ TEST_CASE("InMemoryLedgerTxn simulate buckets", "[ledgertxn]")
 TEST_CASE("InMemoryLedgerTxn getOffersByAccountAndAsset", "[ledgertxn]")
 {
     VirtualClock clock;
-    Config cfg = getTestConfig();
-    cfg.MODE_USES_IN_MEMORY_LEDGER = true;
+    Config cfg = getTestConfig(0, Config::TESTDB_IN_MEMORY_NO_OFFERS);
 
     auto app = createTestApplication(clock, cfg);
 
@@ -4262,8 +4620,7 @@ TEST_CASE("InMemoryLedgerTxn getPoolShareTrustLinesByAccountAndAsset",
           "[ledgertxn]")
 {
     VirtualClock clock;
-    Config cfg = getTestConfig();
-    cfg.MODE_USES_IN_MEMORY_LEDGER = true;
+    Config cfg = getTestConfig(0, Config::TESTDB_IN_MEMORY_NO_OFFERS);
 
     auto app = createTestApplication(clock, cfg);
 
@@ -4312,8 +4669,7 @@ TEST_CASE_VERSIONS("InMemoryLedgerTxn close multiple ledgers with merges",
                    "[ledgertxn]")
 {
     VirtualClock clock;
-    Config cfg = getTestConfig();
-    cfg.MODE_USES_IN_MEMORY_LEDGER = true;
+    Config cfg = getTestConfig(0, Config::TESTDB_IN_MEMORY_NO_OFFERS);
 
     auto app = createTestApplication(clock, cfg);
 
@@ -4337,8 +4693,7 @@ TEST_CASE_VERSIONS("InMemoryLedgerTxn close multiple ledgers with merges",
 TEST_CASE("InMemoryLedgerTxn filtering", "[ledgertxn]")
 {
     VirtualClock clock;
-    Config cfg = getTestConfig();
-    cfg.MODE_USES_IN_MEMORY_LEDGER = true;
+    Config cfg = getTestConfig(0, Config::TESTDB_IN_MEMORY_NO_OFFERS);
 
     auto app = createTestApplication(clock, cfg);
     auto root = TestAccount::createRoot(*app);

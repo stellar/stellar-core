@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/bin/bash
 #
 # This file generates a C++ file which contains (filename, hash) pairs for XDR
 # files included in the build. These are included in the stellar-core build to
@@ -7,6 +7,9 @@
 #
 # The goal is to detect the (unfortunately easy) condition of C++ and Rust code
 # communicating with each other using different XDR definitions.
+
+set -o errexit
+set -o pipefail
 
 if [ ! -d $1/xdr ]; then
     echo "usage: $0 XDR_PROTOCOL_DIR"
@@ -22,7 +25,11 @@ namespace stellar {
 extern const std::vector<std::pair<std::filesystem::path, std::string>> XDR_FILES_SHA256 = {
 EOF
 
-sha256sum -b $1/xdr/*.x | grep -v Stellar-internal | perl -pe 's/([a-f0-9]+)[ \*]+(.*)/{"$2", "$1"},/'
+# Hashes to ignore
+IGNORE="Stellar-internal\|Stellar-overlay\|Stellar-contract-spec\|Stellar-contract-meta\|Stellar-contract-env-meta"
 
-echo '{"", ""}};'
+sha256sum -b $1/xdr/*.x | grep -v "${IGNORE}" | perl -pe 's/([a-f0-9]+)[ \*]+(.*)/{"$2", "$1"},/'
+
+# Add empty entries for the 5 skipped files
+echo '{"", ""}, {"", ""}, {"", ""}, {"", ""}, {"", ""}};'
 echo '}'

@@ -8,14 +8,9 @@
 #include "ledger/LedgerManager.h"
 #include "ledger/NetworkConfig.h"
 #include "overlay/StellarXDR.h"
+#include "transactions/MutableTransactionResult.h"
 #include "util/types.h"
-#include <medida/metrics_registry.h>
 #include <memory>
-
-namespace medida
-{
-class MetricsRegistry;
-}
 
 namespace stellar
 {
@@ -26,6 +21,7 @@ class LedgerTxnHeader;
 
 class SignatureChecker;
 class TransactionFrame;
+class MutableTransactionResultBase;
 
 enum class ThresholdLevel
 {
@@ -38,16 +34,18 @@ class OperationFrame
 {
   protected:
     Operation const& mOperation;
-    TransactionFrame& mParentTx;
-    OperationResult& mResult;
+    TransactionFrame const& mParentTx;
 
-    virtual bool doCheckValid(SorobanNetworkConfig const& config,
-                              uint32_t ledgerVersion);
-    virtual bool doCheckValid(uint32_t ledgerVersion) = 0;
-
+    virtual bool
+    doCheckValidForSoroban(SorobanNetworkConfig const& networkConfig,
+                           Config const& appConfig, uint32_t ledgerVersion,
+                           OperationResult& res,
+                           SorobanTxData& sorobanData) const;
+    virtual bool doCheckValid(uint32_t ledgerVersion,
+                              OperationResult& res) const = 0;
     virtual bool doApply(Application& app, AbstractLedgerTxn& ltx,
-                         Hash const& sorobanBasePrngSeed);
-    virtual bool doApply(AbstractLedgerTxn& ltx) = 0;
+                         Hash const& sorobanBasePrngSeed, OperationResult& res,
+                         std::shared_ptr<SorobanTxData> sorobanData) const = 0;
 
     // returns the threshold this operation requires
     virtual ThresholdLevel getThresholdLevel() const;
@@ -57,39 +55,32 @@ class OperationFrame
     virtual bool isOpSupported(LedgerHeader const& header) const;
 
     LedgerTxnEntry loadSourceAccount(AbstractLedgerTxn& ltx,
-                                     LedgerTxnHeader const& header);
-
-    // given an operation, gives a default value representing "success" for the
-    // result
-    void resetResultSuccess();
+                                     LedgerTxnHeader const& header) const;
 
   public:
     static std::shared_ptr<OperationFrame>
-    makeHelper(Operation const& op, OperationResult& res,
-               TransactionFrame& parentTx, uint32_t index);
+    makeHelper(Operation const& op, TransactionFrame const& parentTx,
+               uint32_t index);
 
-    OperationFrame(Operation const& op, OperationResult& res,
-                   TransactionFrame& parentTx);
+    OperationFrame(Operation const& op, TransactionFrame const& parentTx);
     OperationFrame(OperationFrame const&) = delete;
     virtual ~OperationFrame() = default;
 
     bool checkSignature(SignatureChecker& signatureChecker,
-                        AbstractLedgerTxn& ltx, bool forApply);
+                        LedgerSnapshot const& ls, OperationResult& res,
+                        bool forApply) const;
 
     AccountID getSourceID() const;
 
-    OperationResult&
-    getResult() const
-    {
-        return mResult;
-    }
-    OperationResultCode getResultCode() const;
-
     bool checkValid(Application& app, SignatureChecker& signatureChecker,
-                    AbstractLedgerTxn& ltxOuter, bool forApply);
+                    LedgerSnapshot const& ls, bool forApply,
+                    OperationResult& res,
+                    std::shared_ptr<SorobanTxData> sorobanData) const;
 
     bool apply(Application& app, SignatureChecker& signatureChecker,
-               AbstractLedgerTxn& ltx, Hash const& sorobanBasePrngSeed);
+               AbstractLedgerTxn& ltx, Hash const& sorobanBasePrngSeed,
+               OperationResult& res,
+               std::shared_ptr<SorobanTxData> sorobanData) const;
 
     Operation const&
     getOperation() const

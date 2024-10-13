@@ -6,7 +6,9 @@
 #include "bucket/BucketList.h"
 #include "bucket/BucketManager.h"
 #include "catchup/IndexBucketsWork.h"
+#include "crypto/Hex.h"
 #include "history/HistoryArchive.h"
+#include "invariant/InvariantManager.h"
 #include "work/WorkSequence.h"
 #include "work/WorkWithCallback.h"
 
@@ -14,10 +16,12 @@ namespace stellar
 {
 AssumeStateWork::AssumeStateWork(Application& app,
                                  HistoryArchiveState const& has,
-                                 uint32_t maxProtocolVersion)
+                                 uint32_t maxProtocolVersion,
+                                 bool restartMerges)
     : Work(app, "assume-state", BasicWork::RETRY_NEVER)
     , mHas(has)
     , mMaxProtocolVersion(maxProtocolVersion)
+    , mRestartMerges(restartMerges)
 {
     // Maintain reference to all Buckets in HAS to avoid garbage collection,
     // including future buckets that have already finished merging
@@ -68,12 +72,18 @@ AssumeStateWork::doWork()
         // Add bucket files to BucketList and restart merges
         auto assumeStateCB = [&has = mHas,
                               maxProtocolVersion = mMaxProtocolVersion,
+                              restartMerges = mRestartMerges,
                               &buckets = mBuckets](Application& app) {
-            app.getBucketManager().assumeState(has, maxProtocolVersion);
+            app.getBucketManager().assumeState(has, maxProtocolVersion,
+                                               restartMerges);
 
             // Drop bucket references once assume state complete since buckets
             // now referenced by BucketList
             buckets.clear();
+
+            // Check invariants after state has been assumed
+            app.getInvariantManager().checkAfterAssumeState(has.currentLedger);
+
             return true;
         };
         auto work = std::make_shared<WorkWithCallback>(mApp, "assume-state",

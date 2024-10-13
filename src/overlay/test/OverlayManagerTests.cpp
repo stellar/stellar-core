@@ -12,6 +12,7 @@
 #include "overlay/FlowControlCapacity.h"
 #include "overlay/OverlayManager.h"
 #include "overlay/OverlayManagerImpl.h"
+#include "overlay/TxAdverts.h"
 #include "test/TestAccount.h"
 #include "test/TestUtils.h"
 #include "test/TxTests.h"
@@ -29,44 +30,20 @@ using namespace txtest;
 namespace stellar
 {
 
-class FlowControlStub : public FlowControl
-{
-  public:
-    int mSent = 0;
-
-    FlowControlStub(Application& app) : FlowControl(app)
-    {
-    }
-    virtual ~FlowControlStub() = default;
-
-    virtual bool
-    maybeSendMessage(std::shared_ptr<StellarMessage const> msg) override
-    {
-        // mock flow control
-        mSent++;
-        return true;
-    }
-};
-
 class PeerStub : public Peer
 {
   public:
+    int mSent = 0;
     PeerStub(Application& app, PeerBareAddress const& address)
         : Peer(app, WE_CALLED_REMOTE)
     {
         mPeerID = SecretKey::pseudoRandomForTesting().getPublicKey();
         mState = GOT_AUTH;
         mAddress = address;
-        mFlowControl = std::make_shared<FlowControlStub>(app);
-    }
-    virtual std::string
-    getIP() const override
-    {
-        REQUIRE(false); // should not be called
-        return {};
+        mRemoteOverlayVersion = app.getConfig().OVERLAY_PROTOCOL_VERSION;
     }
     virtual void
-    drop(std::string const&, DropDirection, DropMode) override
+    drop(std::string const&, DropDirection) override
     {
     }
     virtual void
@@ -74,8 +51,28 @@ class PeerStub : public Peer
     {
     }
     virtual void
+    sendMessage(std::shared_ptr<StellarMessage const> msg,
+                bool log = true) override
+    {
+        mSent += static_cast<int>(OverlayManager::isFloodMessage(*msg));
+    }
+    virtual void
     scheduleRead() override
     {
+    }
+
+    void
+    setPullMode()
+    {
+        auto weakSelf = std::weak_ptr<Peer>(shared_from_this());
+        mTxAdverts->start(
+            [weakSelf](std::shared_ptr<StellarMessage const> msg) {
+                auto self = weakSelf.lock();
+                if (self)
+                {
+                    self->sendMessage(msg);
+                }
+            });
     }
 };
 
@@ -97,6 +94,7 @@ class OverlayManagerStub : public OverlayManagerImpl
         getPeerManager().update(address, PeerManager::BackOffUpdate::INCREASE);
 
         auto peerStub = std::make_shared<PeerStub>(mApp, address);
+        peerStub->setPullMode();
         REQUIRE(addOutboundConnection(peerStub));
         return acceptAuthenticatedPeer(peerStub);
     }
@@ -244,9 +242,7 @@ class OverlayManagerTests
     {
         auto getSent = [](Peer::pointer p) {
             auto peer = static_pointer_cast<PeerStub>(p);
-            auto fc =
-                static_pointer_cast<FlowControlStub>(peer->getFlowControl());
-            return fc->mSent;
+            return peer->mSent;
         };
         std::vector<int> result;
         for (auto p : pm.mInboundPeers.mAuthenticated)
@@ -285,17 +281,17 @@ class OverlayManagerTests
         auto c = TestAccount{*app, getAccount("c")};
         auto d = TestAccount{*app, getAccount("d")};
 
-        StellarMessage AtoB = a.tx({payment(b, 10)})->toStellarMessage();
+        auto AtoB = a.tx({payment(b, 10)})->toStellarMessage();
         auto i = 0;
         for (auto p : pm.mOutboundPeers.mAuthenticated)
         {
             if (i++ == 2)
             {
-                pm.recvFloodedMsg(AtoB, p.second);
+                pm.recvFloodedMsg(*AtoB, p.second);
             }
         }
         auto broadcastTxnMsg = [&](auto msg) {
-            pm.broadcastMessage(msg, false, xdrSha256(msg.transaction()));
+            pm.broadcastMessage(msg, xdrSha256(msg->transaction()));
         };
         broadcastTxnMsg(AtoB);
         crank(10);
@@ -304,7 +300,7 @@ class OverlayManagerTests
         broadcastTxnMsg(AtoB);
         crank(10);
         REQUIRE(sentCounts(pm) == expected);
-        StellarMessage CtoD = c.tx({payment(d, 10)})->toStellarMessage();
+        auto CtoD = c.tx({payment(d, 10)})->toStellarMessage();
         broadcastTxnMsg(CtoD);
         crank(10);
         std::vector<int> expectedFinal{2, 2, 1, 2, 2};

@@ -5,6 +5,7 @@
 #include "bucket/BucketInputIterator.h"
 #include "bucket/BucketManager.h"
 #include "bucket/BucketOutputIterator.h"
+#include "bucket/test/BucketTestUtils.h"
 #include "catchup/ApplyBucketsWork.h"
 #include "ledger/LedgerHashUtils.h"
 #include "ledger/LedgerTxn.h"
@@ -41,7 +42,7 @@ struct BucketListGenerator
   public:
     BucketListGenerator() : mLedgerSeq(1)
     {
-        auto cfg = getTestConfig(0);
+        auto cfg = getTestConfig(0, Config::TESTDB_IN_MEMORY_OFFERS);
         cfg.OVERRIDE_EVICTION_PARAMS_FOR_TESTING = true;
         cfg.TESTING_STARTING_EVICTION_SCAN_LEVEL = 1;
         mAppGenerate = createTestApplication(mClock, cfg);
@@ -60,6 +61,18 @@ struct BucketListGenerator
             // on those entries.
             for (auto t : xdr::xdr_traits<ConfigSettingID>::enum_values())
             {
+#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
+                // This setting has been introduced in the vnext xdr, but it's
+                // not used in code yet. This check can be replaced with a
+                // runtime protocol check once we create the setting in the
+                // upgrade path.
+                if (static_cast<ConfigSettingID>(t) ==
+                    ConfigSettingID::
+                        CONFIG_SETTING_CONTRACT_PARALLEL_COMPUTE_V0)
+                {
+                    continue;
+                }
+#endif
                 LedgerKey ckey(CONFIG_SETTING);
                 ckey.configSetting().configSettingID =
                     static_cast<ConfigSettingID>(t);
@@ -88,8 +101,8 @@ struct BucketListGenerator
     applyBuckets(Args&&... args)
     {
         VirtualClock clock;
-        Application::pointer app =
-            createTestApplication(clock, getTestConfig(1));
+        Application::pointer app = createTestApplication(
+            clock, getTestConfig(1, Config::TESTDB_IN_MEMORY_OFFERS));
         applyBuckets<T, Args...>(app, std::forward<Args>(args)...);
     }
 
@@ -100,7 +113,6 @@ struct BucketListGenerator
         LedgerTxn ltx(app->getLedgerTxnRoot(), false);
         REQUIRE(mLedgerSeq == ltx.loadHeader().current().ledgerSeq);
         mLedgerSeq = ++ltx.loadHeader().current().ledgerSeq;
-        auto vers = ltx.loadHeader().current().ledgerVersion;
 
         auto dead = generateDeadEntries(ltx);
         assert(dead.size() <= mLiveKeys.size());
@@ -130,9 +142,11 @@ struct BucketListGenerator
 
         std::vector<LedgerEntry> initEntries, liveEntries;
         std::vector<LedgerKey> deadEntries;
+        auto header = ltx.loadHeader().current();
         ltx.getAllEntries(initEntries, liveEntries, deadEntries);
-        app->getBucketManager().addBatch(*app, mLedgerSeq, vers, initEntries,
-                                         liveEntries, deadEntries);
+        BucketTestUtils::addBatchAndUpdateSnapshot(
+            app->getBucketManager().getBucketList(), *app, header, initEntries,
+            liveEntries, deadEntries);
         ltx.commit();
     }
 
@@ -163,11 +177,10 @@ struct BucketListGenerator
     generateDeadEntries(AbstractLedgerTxn& ltx)
     {
         UnorderedSet<LedgerKey> liveDeletable(mLiveKeys.size());
-        std::copy_if(mLiveKeys.begin(), mLiveKeys.end(),
-                     std::inserter(liveDeletable, liveDeletable.end()),
-                     [this](LedgerKey const& key) {
-                         return key.type() != CONFIG_SETTING;
-                     });
+        std::copy_if(
+            mLiveKeys.begin(), mLiveKeys.end(),
+            std::inserter(liveDeletable, liveDeletable.end()),
+            [](LedgerKey const& key) { return key.type() != CONFIG_SETTING; });
 
         std::vector<LedgerKey> dead;
         while (dead.size() < 2 && !liveDeletable.empty())
@@ -318,7 +331,7 @@ struct SelectBucketListGenerator : public BucketListGenerator
 class ApplyBucketsWorkAddEntry : public ApplyBucketsWork
 {
   private:
-    LedgerEntry mEntry;
+    LedgerEntry const mEntry;
     bool mAdded;
 
   public:
@@ -371,8 +384,8 @@ class ApplyBucketsWorkAddEntry : public ApplyBucketsWork
 class ApplyBucketsWorkDeleteEntry : public ApplyBucketsWork
 {
   private:
-    LedgerKey mKey;
-    LedgerEntry mEntry;
+    LedgerKey const mKey;
+    LedgerEntry const mEntry;
     bool mDeleted;
 
   public:
@@ -414,8 +427,8 @@ class ApplyBucketsWorkDeleteEntry : public ApplyBucketsWork
 class ApplyBucketsWorkModifyEntry : public ApplyBucketsWork
 {
   private:
-    LedgerKey mKey;
-    LedgerEntry mEntry;
+    LedgerKey const mKey;
+    LedgerEntry const mEntry;
     bool mModified;
 
     void
@@ -552,7 +565,7 @@ class ApplyBucketsWorkModifyEntry : public ApplyBucketsWork
         {
             LedgerTxn ltx(mApp.getLedgerTxnRoot(), false);
             auto entry = ltx.load(mKey);
-            if (entry && entry.current() == mEntry)
+            while (entry && entry.current() == mEntry)
             {
                 switch (mEntry.data.type())
                 {
@@ -589,8 +602,12 @@ class ApplyBucketsWorkModifyEntry : public ApplyBucketsWork
                 default:
                     REQUIRE(false);
                 }
-                ltx.commit();
                 mModified = true;
+            }
+
+            if (mModified)
+            {
+                ltx.commit();
             }
         }
         auto r = ApplyBucketsWork::doWork();
@@ -920,7 +937,7 @@ TEST_CASE("BucketListIsConsistentWithDatabase merged LIVEENTRY and DEADENTRY",
         return (bool)ltx.load(LedgerEntryKey(le));
     };
 
-    auto cfg = getTestConfig(1);
+    auto cfg = getTestConfig(1, Config::TESTDB_IN_MEMORY_OFFERS);
     cfg.OVERRIDE_EVICTION_PARAMS_FOR_TESTING = true;
     cfg.TESTING_STARTING_EVICTION_SCAN_LEVEL = 1;
 

@@ -81,7 +81,10 @@ class InMemoryLedgerTxnRoot : public AbstractLedgerTxnParent
     void dropConfigSettings(bool rebuild) override;
     void dropTTL(bool rebuild) override;
     double getPrefetchHitRate() const override;
-    uint32_t prefetch(UnorderedSet<LedgerKey> const& keys) override;
+    uint32_t prefetchClassic(UnorderedSet<LedgerKey> const& keys) override;
+    uint32_t prefetchSoroban(UnorderedSet<LedgerKey> const& keys,
+                             LedgerKeyMeter* lkMeter) override;
+
     void prepareNewObjects(size_t s) override;
 
 #ifdef BUILD_TESTS

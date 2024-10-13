@@ -31,33 +31,41 @@ bucket.batch.objectsadded                 | meter     | number of objects added 
 bucket.memory.shared                      | counter   | number of buckets referenced (excluding publish queue)
 bucket.merge-time.level-<X>               | timer     | time to merge two buckets on level <X>
 bucket.snap.merge                         | timer     | time to merge two buckets
+bucketlist.size.bytes                     | counter   | total size of the BucketList in bytes
+bucketlist.entryCounts.-<X>               | counter   | number of entries of type <X> in the BucketList
+bucketlist.entrySizes.-<X>                | counter   | size of entries of type <X> in the BucketList
 bucketlistDB.bloom.lookups                | meter     | number of bloom filter lookups
 bucketlistDB.bloom.misses                 | meter     | number of bloom filter false positives
-bucketlistDB.query.loads                  | meter     | number of BucketListDB load queries
+bucketlistDB.bulk.loads                   | meter     | number of entries BucketListDB queried to prefetch
 bucketlistDB.bulk.inflationWinners        | timer     | time to load inflation winners
 bucketlistDB.bulk.poolshareTrustlines     | timer     | time to load poolshare trustlines by accountID and assetID
 bucketlistDB.bulk.prefetch                | timer     | time to prefetch
-bucketlistDB.point.<X>                    | timer     | time to load single entry of type <X>
-herder.pending-txs.age0                   | counter   | number of gen0 pending transactions
-herder.pending-txs.age1                   | counter   | number of gen1 pending transactions
-herder.pending-txs.age2                   | counter   | number of gen2 pending transactions
-herder.pending-txs.age3                   | counter   | number of gen3 pending transactions
-herder.pending-txs.banned                 | counter   | number of transactions that got banned
-herder.pending-txs.delay                  | timer     | time for transactions to be included in a ledger
-herder.pending-txs.self-delay             | timer     | time for transactions submitted from this node to be included in a ledger
+bucketlistDB.point.<X>                    | timer     | time to load single entry of type <X> (if no bloom miss occurred)
+herder.pending[-soroban]-txs.age0         | counter   | number of gen0 pending transactions
+herder.pending[-soroban]-txs.age1         | counter   | number of gen1 pending transactions
+herder.pending[-soroban]-txs.age2         | counter   | number of gen2 pending transactions
+herder.pending[-soroban]-txs.age3         | counter   | number of gen3 pending transactions
+herder.pending[-soroban]-txs.banned       | counter   | number of transactions that got banned
+herder.pending[-soroban]-txs.delay        | timer     | time for transactions to be included in a ledger
+herder.pending[-soroban]-txs.self-delay   | timer     | time for transactions submitted from this node to be included in a ledger
 history.check.failure                     | meter     | history archive status checks failed
 history.check.success                     | meter     | history archive status checks succeeded
 history.publish.failure                   | meter     | published failed
 history.publish.success                   | meter     | published completed successfully
 history.publish.time                      | timer     | time to successfully publish history
+history.get.throughput                    | meter     | bytes per second of history archive retrieval
+history.get.failure                       | meter     | history archive downloads failed
 ledger.age.closed                         | bucket    | time between ledgers
 ledger.age.current-seconds                | counter   | gap between last close ledger time and current time
 ledger.apply.success                      | counter   | count of successfully applied transactions
 ledger.apply.failure                      | counter   | count of failed applied transactions
+ledger.apply-soroban.success              | counter   | count of successfully applied soroban transactions
+ledger.apply-soroban.failure              | counter   | count of failed applied soroban transactions
 ledger.catchup.duration                   | timer     | time between entering LM_CATCHING_UP_STATE and entering LM_SYNCED_STATE
 ledger.invariant.failure                  | counter   | number of times invariants failed
 ledger.ledger.close                       | timer     | time to close a ledger (excluding consensus)
 ledger.memory.queued-ledgers              | counter   | number of ledgers queued in memory for replay
+ledger.metastream.bytes                   | meter     | number of bytes written per ledger into meta-stream
 ledger.metastream.write                   | timer     | time spent writing data into meta-stream
 ledger.operation.apply                    | timer     | time applying an operation
 ledger.operation.count                    | histogram | number of operations per ledger
@@ -68,8 +76,13 @@ loadgen.account.created                   | meter     | loadgenerator: account c
 loadgen.payment.native                    | meter     | loadgenerator: native payment submitted
 loadgen.pretend.submitted                 | meter     | loadgenerator: pretend ops submitted
 loadgen.run.complete                      | meter     | loadgenerator: run complete
+loadgen.soroban.create_upgrade            | meter     | loadgenerator: soroban create upgrade TXs submitted
+loadgen.soroban.invoke                    | meter     | loadgenerator: soroban invoke TXs submitted
+loadgen.soroban.setup_invoke              | meter     | loadgenerator: soroban setup invoke TXs submitted
+loadgen.soroban.setup_upgrade             | meter     | loadgenerator: soroban setup upgrades TXs submitted
+loadgen.soroban.upload                    | meter     | loadgenerator: soroban upload TXs submitted
 loadgen.step.count                        | meter     | loadgenerator: generated some transactions
-loadgen.step.submit                       | timer     | loadgenerator: time spent submiting transactions per step
+loadgen.step.submit                       | timer     | loadgenerator: time spent submitting transactions per step
 loadgen.txn.attempted                     | meter     | loadgenerator: transaction submitted
 loadgen.txn.bytes                         | meter     | loadgenerator: size of transactions submitted
 loadgen.txn.rejected                      | meter     | loadgenerator: transaction rejected
@@ -80,6 +93,8 @@ overlay.async.write                       | meter     | number of async write re
 overlay.connection.authenticated          | counter   | number of authenticated peers
 overlay.connection.latency                | timer     | estimated latency between peers
 overlay.connection.pending                | counter   | number of pending connections
+overlay.connection.read-throttle          | timer     | throttle time for reading incoming traffic from peers
+overlay.connection.flood-throttle         | timer     | throttle time for sending flood traffic to peers
 overlay.delay.async-write                 | timer     | time between each message's async write issue and completion
 overlay.delay.write-queue                 | timer     | time between each message's entry and exit from peer write queue
 overlay.error.read                        | meter     | error while receiving a message
@@ -120,8 +135,12 @@ overlay.outbound.establish                | meter     | outbound connection esta
 overlay.recv.<X>                          | timer     | received message <X>
 overlay.send.<X>                          | meter     | sent message <X>
 overlay.timeout.idle                      | meter     | idle peer timeout
+overlay.recv.start-survey-collecting      | timer     | time spent in processing request to start survey collecting phase
+overlay.recv.stop-survey-collecting       | timer     | time spent in processing request to stop survey collecting phase
 overlay.recv.survey-request               | timer     | time spent in processing survey request
 overlay.recv.survey-response              | timer     | time spent in processing survey response
+overlay.send.start-survey-collecting      | timer     | sent request to start survey collecting phase
+overlay.send.stop-survey-collecting       | timer     | sent request to stop survey collecting phase
 overlay.send.survey-request               | meter     | sent survey request
 overlay.send.survey-response              | meter     | sent survey response
 process.action.queue                      | counter   | number of items waiting in internal action-queue
@@ -148,6 +167,66 @@ scp.timing.self-to-others-externalize-lag | timer     | delay between local node
 scp.value.invalid                         | meter     | SCP value is invalid
 scp.value.valid                           | meter     | SCP value is valid
 scp.slot.values-referenced                | histogram | number of values referenced per consensus round
-state-archival.eviction.bytes-scanned   | counter   | number of bytes that eviction scan has read
-state-archival.eviction.entries-evicted | meter     | number of entries that have been evicted
-state-archival.eviction.incomplete-scan | counter   | number of buckets that were too large to be fully scanned for eviction
+state-archival.eviction.age               | counter   | the average of the delta between an entry's liveUntilLedger and the ledger when it is evicted
+state-archival.eviction.bytes-scanned     | counter   | number of bytes that eviction scan has read
+state-archival.eviction.entries-evicted   | counter   | number of entries that have been evicted
+state-archival.eviction.incomplete-scan   | counter   | number of buckets that were too large to be fully scanned for eviction
+state-archival.eviction.period            | counter   | number of ledgers to complete an eviction scan
+soroban.host-fn-op.read-entry                | meter     | number of entries accessed (read or modified) during the `InvokeHostFunctionOp`
+soroban.host-fn-op.write-entry               | meter     | number of entries modified during the `InvokeHostFunctionOp`
+soroban.host-fn-op.read-key-byte             | meter     | number of `LedgerKey` bytes in entries accessed (read or modified) during the `InvokeHostFunctionOp`
+soroban.host-fn-op.write-key-byte            | meter     | number of `LedgerKey` bytes in entries modified during the `InvokeHostFunctionOp`
+soroban.host-fn-op.read-ledger-byte          | meter     | number of `LedgerEntry` bytes accessed (read or modified) during the `InvokeHostFunctionOp`
+soroban.host-fn-op.read-data-byte            | meter     | number of `ContractDataEntry` bytes accessed (read or modified) during the `InvokeHostFunctionOp`
+soroban.host-fn-op.read-code-byte            | meter     | number of `ContractCodeEntry` bytes accessed (read or modified) during the `InvokeHostFunctionOp`
+soroban.host-fn-op.write-ledger-byte         | meter     | number of `LedgerEntry` bytes modified during the `InvokeHostFunctionOp`
+soroban.host-fn-op.write-data-byte           | meter     | number of `ContractDataEntry` bytes modified during the `InvokeHostFunctionOp`
+soroban.host-fn-op.write-code-byte           | meter     | number of `ContractCodeEntry` bytes modified during the `InvokeHostFunctionOp`
+soroban.host-fn-op.emit-event                | meter     | number of events emitted during the `InvokeHostFunctionOp`
+soroban.host-fn-op.emit-event-byte           | meter     | number of event bytes emitted during the `InvokeHostFunctionOp`
+soroban.host-fn-op.cpu-insn                  | meter     | number of metered cpu instructions during the `InvokeHostFunctionOp`
+soroban.host-fn-op.mem-byte                  | meter     | number of metered memory bytes during the `InvokeHostFunctionOp`
+soroban.host-fn-op.invoke-time-nsecs         | timer     | time spent on the soroban host invocation. Note: this is **not** the total time of the operation, which is tracked under "soroban.host-fn-op.exec".
+soroban.host-fn-op.cpu-insn-excl-vm          | meter     | number of metered cpu instructions excluding VM instantiation during the `InvokeHostFunctionOp`
+soroban.host-fn-op.invoke-time-nsecs-excl-vm | timer     | time spent in soroban host invocation excluding VM instantiation
+soroban.host-fn-op.invoke-time-fsecs-cpu-insn-ratio         | histogram | ratio between soroban host invocation time (femto-seconds) and metered cpu instructions
+soroban.host-fn-op.invoke-time-fsecs-cpu-insn-ratio-excl-vm | histogram | ratio between soroban host invocation time (femto-seconds) and metered cpu instructions, excluding VM instantiation
+soroban.host-fn-op.max-rw-key-byte           | meter     | size of the largest `LedgerKey` (in bytes) among all entires accessed (read or modified) during the `InvokeHostFunctionOp`
+soroban.host-fn-op.max-rw-data-byte          | meter     | size of the largest `ContractDataEntry` (in bytes) among all entires accessed (read or modified) during the `InvokeHostFunctionOp`
+soroban.host-fn-op.max-rw-code-byte          | meter     | size of the largest `ContractCodeEntry` (in bytes) among all entires accessed (read or modified) during the `InvokeHostFunctionOp`
+soroban.host-fn-op.max-emit-event-byte       | meter     | size of the largest event emitted during the `InvokeHostFunctionOp`
+soroban.host-fn-op.success                   | meter     | number of successful `InvokeHostFunctionOp` operations
+soroban.host-fn-op.failure                   | meter     | number of failed `InvokeHostFunctionOp` operations
+soroban.host-fn-op.exec                      | timer     | total time spent during the `InvokeHostFunctionOp`
+soroban.restore-fprint-op.read-ledger-byte   | meter     | number of `LedgerEntry` bytes accessed (read or modified) during the `RestoreFootprintOp`
+soroban.restore-fprint-op.write-ledger-byte  | meter     | number of `LedgerEntry` bytes modified during the `RestoreFootprintOp`
+soroban.restore-fprint-op.exec               | timer     | total time spent during the `RestoreFootprintOp`
+soroban.ext-fprint-ttl-op.read-ledger-byte   | meter     | number of `LedgerEntry` bytes accessed (read or modified) during the `ExtendFootprintTTLOp`
+soroban.ext-fprint-ttl-op.exec               | timer     | total time spent during the `ExtendFootprintTTLOp`
+soroban.ledger.tx-count                      | histogram | number of soroban transactions per ledger
+soroban.ledger.cpu-insn                      | histogram | total cpu instructions declared by soroban transactions per ledger
+soroban.ledger.txs-size-byte                 | histogram | total size (in bytes) of soroban transactions per ledger
+soroban.ledger.read-entry                    | histogram | number of accessed (read or modified) entries declared by soroban transactions per ledger
+soroban.ledger.read-ledger-byte              | histogram | number of accessed (read or modified) `LedgerEntry` bytes declared by soroban transactions per ledger
+soroban.ledger.write-entry                   | histogram | number of modified entries declared by soroban transactions per ledger
+soroban.ledger.write-ledger-byte             | histogram | number of modified `LedgerEntry` bytes declared by soroban transactions per ledger
+soroban.tx.size-byte                         | histogram | size (in bytes) of a soroban transaction
+soroban.config.contract-max-rw-key-byte      | counter   | soroban config setting `contract_data_key_size_bytes`
+soroban.config.contract-max-rw-data-byte     | counter   | soroban config setting `contract_data_entry_size_bytes`
+soroban.config.contract-max-rw-code-byte     | counter   | soroban config setting `contract_max_size_bytes`
+soroban.config.tx-max-size-byte              | counter   | soroban config setting `tx_max_size_bytes`
+soroban.config.tx-max-cpu-insn               | counter   | soroban config setting `tx_max_instructions`
+soroban.config.tx-max-mem-byte               | counter   | soroban config setting `tx_memory_limit`
+soroban.config.tx-max-read-entry             | counter   | soroban config setting `tx_max_read_ledger_entries`
+soroban.config.tx-max-read-ledger-byte       | counter   | soroban config setting `tx_max_read_bytes`
+soroban.config.tx-max-write-entry            | counter   | soroban config setting `tx_max_write_ledger_entries`
+soroban.config.tx-max-write-ledger-byte      | counter   | soroban config setting `tx_max_write_bytes`
+soroban.config.tx-max-emit-event-byte        | counter   | soroban config setting `tx_max_contract_events_size_bytes`
+soroban.config.ledger-max-tx-count           | counter   | soroban config setting `ledger_max_tx_count`
+soroban.config.ledger-max-cpu-insn           | counter   | soroban config setting `ledger_max_instructions`
+soroban.config.ledger-max-txs-size-byte      | counter   | soroban config setting `ledger_max_txs_size_bytes`
+soroban.config.ledger-max-read-entry         | counter   | soroban config setting `ledger_max_read_ledger_entries`
+soroban.config.ledger-max-read-ledger-byte   | counter   | soroban config setting `ledger_max_read_bytes`
+soroban.config.ledger-max-write-entry        | counter   | soroban config setting `ledger_max_write_ledger_entries`
+soroban.config.ledger-max-write-ledger-byte  | counter   | soroban config setting `ledger_max_write_bytes`
+soroban.config.bucket-list-target-size-byte  | counter   | soroban config setting `bucket_list_target_size_bytes`

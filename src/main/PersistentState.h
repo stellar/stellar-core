@@ -33,7 +33,6 @@ class PersistentState
     };
 
     static void dropAll(Database& db);
-    static void upgradeSizeLimit(Database& db);
 
     std::string getState(Entry stateName);
     void setState(Entry stateName, std::string const& value);
@@ -50,11 +49,6 @@ class PersistentState
     bool shouldRebuildForType(LedgerEntryType let);
     void clearRebuildForType(LedgerEntryType let);
     void setRebuildForType(LedgerEntryType let);
-
-    // Upgrades storage from kLastSCPData to kLastSCPDataXDR entry format.
-    // Should only be called during the respective database schema upgrade.
-    void upgradeSCPDataFormat();
-    void upgradeSCPDataV1Format();
 
     bool hasTxSet(Hash const& txSetHash);
     void deleteTxSets(std::unordered_set<Hash> hashesToDelete);

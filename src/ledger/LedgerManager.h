@@ -14,6 +14,7 @@ namespace stellar
 
 class LedgerCloseData;
 class Database;
+class SorobanMetrics;
 
 /**
  * LedgerManager maintains, in memory, a logical pair of ledgers:
@@ -120,21 +121,20 @@ class LedgerManager
     // ledger expressed in number of operations
     virtual uint32_t getLastMaxTxSetSizeOps() const = 0;
 
-    virtual Resource maxLedgerResources(bool isSoroban,
-                                        AbstractLedgerTxn& ltxOuter) = 0;
-    virtual Resource
-    maxSorobanTransactionResources(AbstractLedgerTxn& ltxOuter) = 0;
-
+    virtual Resource maxLedgerResources(bool isSoroban) = 0;
+    virtual Resource maxSorobanTransactionResources() = 0;
+    virtual void updateNetworkConfig(AbstractLedgerTxn& ltx) = 0;
     // Return the network config for Soroban.
     // The config is automatically refreshed on protocol upgrades.
     // Ledger txn here is needed for the sake of lazy load; it won't be
     // used most of the time.
-    virtual SorobanNetworkConfig const&
-    getSorobanNetworkConfig(AbstractLedgerTxn& ltx) = 0;
+    virtual SorobanNetworkConfig const& getSorobanNetworkConfig() = 0;
+    virtual bool hasSorobanNetworkConfig() const = 0;
 
 #ifdef BUILD_TESTS
-    virtual SorobanNetworkConfig&
-    getMutableSorobanNetworkConfig(AbstractLedgerTxn& ltx) = 0;
+    virtual SorobanNetworkConfig& getMutableSorobanNetworkConfig() = 0;
+    virtual std::vector<TransactionMetaFrame> const&
+    getLastClosedLedgerTxMeta() = 0;
 #endif
 
     // Return the (changing) number of seconds since the LCL closed.
@@ -149,9 +149,14 @@ class LedgerManager
     // Called by application lifecycle events, system startup.
     virtual void startNewLedger() = 0;
 
-    // loads the last ledger information from the database
-    // if handler is set, also loads bucket information and invokes handler.
-    virtual void loadLastKnownLedger(std::function<void()> handler) = 0;
+    // loads the last ledger information from the database with the following
+    // parameters:
+    //  * restoreBucketlist indicates whether to restore the bucket list fully,
+    //  and restart merges
+    //  * isLedgerStateReady indicates whether the ledger state is ready or is
+    //  still being rebuilt (in which case we can't yet load ledger entries)
+    virtual void loadLastKnownLedger(bool restoreBucketlist,
+                                     bool isLedgerStateReady) = 0;
 
     // Return true if core is currently rebuilding in-memory state via local
     // catchup
@@ -189,6 +194,8 @@ class LedgerManager
                                      bool storeInDB) = 0;
 
     virtual void manuallyAdvanceLedgerHeader(LedgerHeader const& header) = 0;
+
+    virtual SorobanMetrics& getSorobanMetrics() = 0;
 
     virtual ~LedgerManager()
     {

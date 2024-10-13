@@ -4,12 +4,14 @@
 
 #include "main/ApplicationUtils.h"
 #include "bucket/Bucket.h"
+#include "bucket/BucketList.h"
 #include "bucket/BucketManager.h"
 #include "catchup/ApplyBucketsWork.h"
 #include "catchup/CatchupConfiguration.h"
 #include "crypto/Hex.h"
 #include "database/Database.h"
 #include "herder/Herder.h"
+#include "herder/QuorumIntersectionChecker.h"
 #include "history/HistoryArchive.h"
 #include "history/HistoryArchiveManager.h"
 #include "history/HistoryArchiveReportWork.h"
@@ -17,12 +19,14 @@
 #include "invariant/BucketListIsConsistentWithDatabase.h"
 #include "ledger/LedgerHeaderUtils.h"
 #include "ledger/LedgerManager.h"
+#include "ledger/LedgerTypeUtils.h"
 #include "main/ErrorMessages.h"
 #include "main/ExternalQueue.h"
 #include "main/Maintainer.h"
 #include "main/PersistentState.h"
 #include "main/StellarCoreVersion.h"
 #include "overlay/OverlayManager.h"
+#include "scp/LocalNode.h"
 #include "util/GlobalChecks.h"
 #include "util/Logging.h"
 #include "util/XDRCereal.h"
@@ -51,7 +55,7 @@ writeLedgerAggregationTable(
     std::vector<std::string> keyFields;
     if (groupByExtractor)
     {
-        keyFields = groupByExtractor->getFieldNames();
+        keyFields = groupByExtractor->getColumnNames();
         for (auto const& keyField : keyFields)
         {
             ofs << keyField << ",";
@@ -160,7 +164,9 @@ setupMinimalDBForInMemoryMode(Config const& cfg, uint32_t startAtLedger)
 
         if (!rebuildDB)
         {
-            app->getLedgerManager().loadLastKnownLedger(nullptr);
+            // Ledger state is not yet ready during this setup step
+            app->getLedgerManager().loadLastKnownLedger(
+                /* restoreBucketlist */ false, /* isLedgerStateReady */ false);
             auto lcl = app->getLedgerManager().getLastClosedLedgerNum();
             LOG_INFO(DEFAULT_LOG, "Current in-memory state, got LCL: {}", lcl);
             rebuildDB =
@@ -193,7 +199,10 @@ setupApp(Config& cfg, VirtualClock& clock, uint32_t startAtLedger,
         return nullptr;
     }
 
-    app->getLedgerManager().loadLastKnownLedger(nullptr);
+    // With in-memory mode, ledger state is not yet ready during this setup step
+    app->getLedgerManager().loadLastKnownLedger(
+        /* restoreBucketlist */ false,
+        /* isLedgerStateReady */ !cfg.isInMemoryMode());
     auto lcl = app->getLedgerManager().getLastClosedLedgerHeader();
 
     if (cfg.isInMemoryMode() &&
@@ -445,7 +454,8 @@ selfCheck(Config cfg)
 
     // We run self-checks from a "loaded but dormant" state where the
     // application is not started, but the LM has loaded the LCL.
-    app->getLedgerManager().loadLastKnownLedger(nullptr);
+    app->getLedgerManager().loadLastKnownLedger(/* restoreBucketlist */ false,
+                                                /* isLedgerStateReady */ true);
 
     // First we schedule the cheap, asynchronous "online" checks that get run by
     // the HTTP "self-check" endpoint, and crank until they're done.
@@ -523,9 +533,11 @@ mergeBucketList(Config cfg, std::string const& outputDir)
     VirtualClock clock;
     cfg.setNoListen();
     Application::pointer app = Application::create(clock, cfg, false);
-    app->getLedgerManager().loadLastKnownLedger(nullptr);
     auto& lm = app->getLedgerManager();
     auto& bm = app->getBucketManager();
+
+    lm.loadLastKnownLedger(/* restoreBucketlist */ false,
+                           /* isLedgerStateReady */ true);
     HistoryArchiveState has = lm.getLastClosedLedgerHAS();
     auto bucket = bm.mergeBuckets(has);
 
@@ -545,12 +557,192 @@ mergeBucketList(Config cfg, std::string const& outputDir)
     }
 }
 
+// Per-LedgerKey metrics used for dumping archival state
+struct StateArchivalMetric
+{
+    // True if the newest version of the entry is a DEADENTRY
+    bool isDead{};
+
+    // Number of bytes that the newest version of the entry occupies in the
+    // BucketList
+    uint64_t newestBytes{};
+
+    // Number of bytes that all outdated versions of the entry occupy in the
+    // BucketList
+    uint64_t outdatedBytes{};
+};
+
+static void
+processArchivalMetrics(
+    std::shared_ptr<Bucket const> const b,
+    UnorderedMap<LedgerKey, StateArchivalMetric>& ledgerEntries,
+    UnorderedMap<LedgerKey, std::pair<StateArchivalMetric, uint32_t>>& ttls)
+{
+    for (BucketInputIterator in(b); in; ++in)
+    {
+        auto const& be = *in;
+        bool isDead = be.type() == DEADENTRY;
+        LedgerKey k = isDead ? be.deadEntry() : LedgerEntryKey(be.liveEntry());
+        bool isTTL = k.type() == TTL;
+
+        if (!isTemporaryEntry(k) && !isTTL)
+        {
+            continue;
+        }
+
+        if (isTTL)
+        {
+            auto iter = ttls.find(k);
+            if (iter == ttls.end())
+            {
+                StateArchivalMetric metric;
+                metric.isDead = isDead;
+                metric.newestBytes = xdr::xdr_size(be);
+                if (isDead)
+                {
+                    ttls.emplace(k, std::make_pair(metric, 0));
+                }
+                else
+                {
+                    ttls.emplace(
+                        k, std::make_pair(
+                               metric,
+                               be.liveEntry().data.ttl().liveUntilLedgerSeq));
+                }
+            }
+            else
+            {
+                iter->second.first.outdatedBytes += xdr::xdr_size(be);
+            }
+        }
+        else
+        {
+            auto iter = ledgerEntries.find(k);
+            if (iter == ledgerEntries.end())
+            {
+                StateArchivalMetric metric;
+                metric.isDead = isDead;
+                metric.newestBytes = xdr::xdr_size(be);
+                ledgerEntries.emplace(k, metric);
+            }
+            else
+            {
+                iter->second.outdatedBytes += xdr::xdr_size(be);
+            }
+        }
+    }
+}
+
+int
+dumpStateArchivalStatistics(Config cfg)
+{
+    ZoneScoped;
+    VirtualClock clock;
+    cfg.setNoListen();
+    Application::pointer app = Application::create(clock, cfg, false);
+    app->getLedgerManager().loadLastKnownLedger(/* restoreBucketlist */ false,
+                                                /* isLedgerStateReady */ true);
+    auto& lm = app->getLedgerManager();
+    auto& bm = app->getBucketManager();
+    HistoryArchiveState has = lm.getLastClosedLedgerHAS();
+
+    std::vector<Hash> hashes;
+    for (uint32_t i = 0; i < BucketList::kNumLevels; ++i)
+    {
+        HistoryStateBucket const& hsb = has.currentBuckets.at(i);
+        hashes.emplace_back(hexToBin256(hsb.curr));
+        hashes.emplace_back(hexToBin256(hsb.snap));
+    }
+
+    UnorderedMap<LedgerKey, StateArchivalMetric> ledgerEntries;
+
+    // key -> (metric, liveUntilLedger)
+    UnorderedMap<LedgerKey, std::pair<StateArchivalMetric, uint32_t>> ttls;
+    float blSize = 0;
+    for (auto const& hash : hashes)
+    {
+        if (isZero(hash))
+        {
+            continue;
+        }
+        auto b = bm.getBucketByHash(hash);
+        if (!b)
+        {
+            throw std::runtime_error(std::string("missing bucket: ") +
+                                     binToHex(hash));
+        }
+        processArchivalMetrics(b, ledgerEntries, ttls);
+        blSize += b->getSize();
+    }
+
+    // *BytesNewest == bytes consumed only by newest version of BucketEntry
+    // *BytesOutdated == bytes consumed only by outdated version of BucketEntry
+    // live -> liveUntilLedger >= ledgerSeq
+    // expired -> liveUntilLedger < ledgerSeq, but not yet evicted
+    uint64_t liveBytesNewest{};
+    uint64_t liveBytesOutdated{};
+    uint64_t expiredBytesNewest{};
+    uint64_t expiredBytesOutdated{};
+    uint64_t evictedBytes{}; // All evicted bytes considered "outdated"
+
+    for (auto const& [k, leMetric] : ledgerEntries)
+    {
+        auto ttlIter = ttls.find(getTTLKey(k));
+        releaseAssertOrThrow(ttlIter != ttls.end());
+        auto const& [ttlMetric, liveUntilLedger] = ttlIter->second;
+
+        auto newestBytes = ttlMetric.newestBytes + leMetric.newestBytes;
+        auto outdatedBytes = ttlMetric.outdatedBytes + leMetric.outdatedBytes;
+
+        if (ttlMetric.isDead)
+        {
+            releaseAssertOrThrow(leMetric.isDead);
+
+            // All bytes considered outdated for evicted entries
+            evictedBytes += newestBytes + outdatedBytes;
+        }
+        else
+        {
+            releaseAssertOrThrow(!leMetric.isDead);
+
+            // If entry is live
+            if (liveUntilLedger >=
+                app->getLedgerManager().getLastClosedLedgerNum())
+            {
+                liveBytesNewest += newestBytes;
+                liveBytesOutdated += outdatedBytes;
+            }
+            else
+            {
+                expiredBytesNewest += newestBytes;
+                expiredBytesOutdated += outdatedBytes;
+            }
+        }
+    }
+
+    CLOG_INFO(Bucket, "BucketList total bytes: {}", blSize);
+    CLOG_INFO(Bucket,
+              "Live Temporary Entries: Newest bytes {} ({}%), Outdated bytes "
+              "{} ({}%)",
+              liveBytesNewest, (liveBytesNewest / blSize) * 100,
+              liveBytesOutdated, (liveBytesOutdated / blSize) * 100);
+    CLOG_INFO(Bucket,
+              "Expired but not evicted Temporary: Newest bytes {} ({}%), "
+              "Outdated bytes {} ({}%)",
+              expiredBytesNewest, (expiredBytesNewest / blSize) * 100,
+              expiredBytesOutdated, (expiredBytesOutdated / blSize) * 100);
+    CLOG_INFO(Bucket, "Evicted Temporary Entries: Outdated bytes {} ({}%)",
+              evictedBytes, (evictedBytes / blSize) * 100);
+
+    return 0;
+}
+
 int
 dumpLedger(Config cfg, std::string const& outputFile,
            std::optional<std::string> filterQuery,
            std::optional<uint32_t> lastModifiedLedgerCount,
            std::optional<uint64_t> limit, std::optional<std::string> groupBy,
-           std::optional<std::string> aggregate)
+           std::optional<std::string> aggregate, bool includeAllStates)
 {
     if (groupBy && !aggregate)
     {
@@ -560,8 +752,10 @@ dumpLedger(Config cfg, std::string const& outputFile,
     VirtualClock clock;
     cfg.setNoListen();
     Application::pointer app = Application::create(clock, cfg, false);
-    app->getLedgerManager().loadLastKnownLedger(nullptr);
     auto& lm = app->getLedgerManager();
+
+    lm.loadLastKnownLedger(/* restoreBucketlist */ false,
+                           /* isLedgerStateReady */ true);
     HistoryArchiveState has = lm.getLastClosedLedgerHAS();
     std::optional<uint32_t> minLedger;
     if (lastModifiedLedgerCount)
@@ -622,11 +816,12 @@ dumpLedger(Config cfg, std::string const& outputFile,
                 }
                 else
                 {
-                    ofs << xdr_to_string(entry, "entry", true) << std::endl;
+                    ofs << xdrToCerealString(entry, "entry", true) << std::endl;
                 }
                 ++entryCount;
                 return !limit || entryCount < *limit;
-            });
+            },
+            includeAllStates);
     }
     catch (xdrquery::XDRQueryError& e)
     {
@@ -677,48 +872,52 @@ showOfflineInfo(Config cfg, bool verbose)
     app->reportInfo(verbose);
 }
 
-void
-closeLedgersOffline(Config cfg, bool verbose, size_t nLedgers)
+bool
+checkQuorumIntersectionFromJson(std::string const& jsonPath,
+                                std::optional<Config> const& cfg)
 {
-    VirtualClock clock(VirtualClock::REAL_TIME);
-    cfg.setNoListen();
-    cfg.AUTOMATIC_MAINTENANCE_PERIOD = std::chrono::seconds(0);
-    cfg.AUTOMATIC_SELF_CHECK_PERIOD = std::chrono::seconds(0);
-    Application::pointer app = Application::create(clock, cfg, false);
-    app->start();
-    size_t lclSeq = app->getLedgerManager().getLastClosedLedgerNum();
-    size_t targetSeq = lclSeq + nLedgers;
-    while (!app->isStopping() && lclSeq < targetSeq)
+    std::ifstream in(jsonPath);
+    if (!in)
     {
-        auto lcl = app->getLedgerManager().getLastClosedLedgerHeader();
-        uint32_t nextSeq = lcl.header.ledgerSeq + 1;
-        auto txset = TxSetFrame::makeEmpty(lcl);
-        auto sv = app->getHerder().makeStellarValue(
-            txset->getContentsHash(),
-            VirtualClock::to_time_t(clock.system_now()), {}, cfg.NODE_SEED);
-        LedgerCloseData lcd{nextSeq, txset, sv};
-        LOG_INFO(DEFAULT_LOG, "Closing empty ledger {} offline", nextSeq);
-        ;
-        app->getLedgerManager().closeLedger(lcd);
-        do
+        throw std::runtime_error("Could not open file '" + jsonPath + "'");
+    }
+    Json::Reader rdr;
+    Json::Value quorumJson;
+    if (!rdr.parse(in, quorumJson) || !quorumJson.isObject())
+    {
+        throw std::runtime_error("Failed to parse '" + jsonPath +
+                                 "' as a JSON object");
+    }
+
+    Json::Value const& nodesJson = quorumJson["nodes"];
+    if (!nodesJson.isArray())
+    {
+        throw std::runtime_error("JSON field 'nodes' must be an array");
+    }
+
+    QuorumIntersectionChecker::QuorumSetMap qmap;
+    for (Json::Value const& nodeJson : nodesJson)
+    {
+        if (!nodeJson["node"].isString())
         {
-            lclSeq = app->getLedgerManager().getLastClosedLedgerNum();
-            clock.crank(false);
-        } while (
-            !app->isStopping() &&
-            (lclSeq < nextSeq || !app->getWorkScheduler().allChildrenDone()));
+            throw std::runtime_error("JSON field 'node' must be a string");
+        }
+        NodeID id = KeyUtils::fromStrKey<NodeID>(nodeJson["node"].asString());
+        auto elemPair =
+            qmap.try_emplace(id, std::make_shared<SCPQuorumSet>(
+                                     LocalNode::fromJson(nodeJson["qset"])));
+        if (!elemPair.second)
+        {
+            throw std::runtime_error(
+                "JSON contains multiple nodes with the same 'node' value");
+        }
     }
-    if (nLedgers > 0)
-    {
-        LOG_WARNING(DEFAULT_LOG,
-                    "Closed {} empty ledgers offline and published {} history "
-                    "checkpoints",
-                    nLedgers,
-                    app->getHistoryManager().getPublishSuccessCount());
-        LOG_WARNING(DEFAULT_LOG,
-                    "Database and history archive are no longer in "
-                    "consensus with any other validators");
-    }
+
+    std::atomic<bool> interrupt(false);
+    auto qicPtr =
+        QuorumIntersectionChecker::create(qmap, cfg, interrupt, false);
+
+    return qicPtr->networkEnjoysQuorumIntersection();
 }
 
 #ifdef BUILD_TESTS

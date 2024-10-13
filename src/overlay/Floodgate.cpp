@@ -12,8 +12,6 @@
 #include "overlay/OverlayManager.h"
 #include "util/GlobalChecks.h"
 #include "util/Logging.h"
-#include "util/XDROperators.h"
-#include "xdrpp/marshal.h"
 #include <Tracy.hpp>
 #include <fmt/format.h>
 
@@ -85,24 +83,25 @@ Floodgate::addRecord(StellarMessage const& msg, Peer::pointer peer, Hash& index)
 
 // send message to anyone you haven't gotten it from
 bool
-Floodgate::broadcast(StellarMessage const& msg, bool force,
-                     std::optional<Hash> const& hash)
+Floodgate::broadcast(std::shared_ptr<StellarMessage const> msg,
+                     std::optional<Hash> const& hash,
+                     uint32_t minOverlayVersion)
 {
     ZoneScoped;
     if (mShuttingDown)
     {
         return false;
     }
-    if (msg.type() == TRANSACTION)
+    if (msg->type() == TRANSACTION)
     {
         // Must pass a hash when broadcasting transactions.
         releaseAssert(hash.has_value());
     }
-    Hash index = xdrBlake2(msg);
+    Hash index = xdrBlake2(*msg);
 
     FloodRecord::pointer fr;
     auto result = mFloodMap.find(index);
-    if (result == mFloodMap.end() || force)
+    if (result == mFloodMap.end())
     { // no one has sent us this message / start from scratch
         fr = std::make_shared<FloodRecord>(
             mApp.getHerder().trackingConsensusLedgerIndex(), Peer::pointer());
@@ -120,31 +119,43 @@ Floodgate::broadcast(StellarMessage const& msg, bool force,
     auto peers = mApp.getOverlayManager().getAuthenticatedPeers();
 
     bool broadcasted = false;
-    auto smsg = std::make_shared<StellarMessage const>(msg);
     for (auto peer : peers)
     {
-        releaseAssert(peer.second->isAuthenticated());
-        bool pullMode = msg.type() == TRANSACTION;
-        bool hasAdvert = pullMode && peer.second->peerKnowsHash(hash.value());
+        // Assert must hold since only main thread is allowed to modify
+        // authenticated peers and peer state during drop
+        peer.second->assertAuthenticated();
+        if (peer.second->getRemoteOverlayVersion() < minOverlayVersion)
+        {
+            // Skip peers running overlay versions that are older than
+            // `minOverlayVersion`.
+            continue;
+        }
 
-        if (peersTold.insert(peer.second->toString()).second && !hasAdvert)
+        bool pullMode = msg->type() == TRANSACTION;
+
+        if (peersTold.insert(peer.second->toString()).second)
         {
             if (pullMode)
             {
-                mMessagesAdvertised.Mark();
-                peer.second->queueTxHashToAdvertise(hash.value());
+                if (peer.second->sendAdvert(hash.value()))
+                {
+                    mMessagesAdvertised.Mark();
+                }
             }
             else
             {
                 mSendFromBroadcast.Mark();
                 std::weak_ptr<Peer> weak(
                     std::static_pointer_cast<Peer>(peer.second));
+                // This is an async operation, and peer might get dropped by the
+                // time we actually try to send the message. This is fine, as
+                // sendMessage will just be a no-op in that case
                 mApp.postOnMainThread(
-                    [smsg, weak, log = !broadcasted]() {
+                    [msg, weak, log = !broadcasted]() {
                         auto strong = weak.lock();
                         if (strong)
                         {
-                            strong->sendMessage(smsg, log);
+                            strong->sendMessage(msg, log);
                         }
                     },
                     fmt::format(FMT_STRING("broadcast to {}"),

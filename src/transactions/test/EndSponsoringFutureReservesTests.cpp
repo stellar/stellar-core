@@ -17,14 +17,14 @@ using namespace stellar;
 using namespace stellar::txtest;
 
 static OperationResultCode
-getOperationResultCode(TransactionFrameBasePtr& tx, size_t i)
+getOperationResultCode(TransactionTestFramePtr& tx, size_t i)
 {
     auto const& opRes = tx->getResult().result.results()[i];
     return opRes.code();
 }
 
 static EndSponsoringFutureReservesResultCode
-getEndSponsoringFutureReservesResultCode(TransactionFrameBasePtr& tx, size_t i)
+getEndSponsoringFutureReservesResultCode(TransactionTestFramePtr tx, size_t i)
 {
     auto const& opRes = tx->getResult().result.results()[i];
     return opRes.tr().endSponsoringFutureReservesResult().code();
@@ -33,7 +33,8 @@ getEndSponsoringFutureReservesResultCode(TransactionFrameBasePtr& tx, size_t i)
 TEST_CASE_VERSIONS("confirm and clear sponsor", "[tx][sponsorship]")
 {
     VirtualClock clock;
-    auto app = createTestApplication(clock, getTestConfig());
+    auto app = createTestApplication(
+        clock, getTestConfig(0, Config::TESTDB_IN_MEMORY_NO_OFFERS));
 
     auto root = TestAccount::createRoot(*app);
     int64_t minBalance = app->getLedgerManager().getLastMinBalance(0);
@@ -47,7 +48,7 @@ TEST_CASE_VERSIONS("confirm and clear sponsor", "[tx][sponsorship]")
                 {root.op(endSponsoringFutureReserves())}, {});
 
             LedgerTxn ltx(app->getLedgerTxnRoot());
-            REQUIRE(!tx->checkValid(*app, ltx, 0, 0, 0));
+            REQUIRE(!tx->checkValidForTesting(*app, ltx, 0, 0, 0));
 
             REQUIRE(getOperationResultCode(tx, 0) == opNOT_SUPPORTED);
         });
@@ -63,7 +64,7 @@ TEST_CASE_VERSIONS("confirm and clear sponsor", "[tx][sponsorship]")
 
             LedgerTxn ltx(app->getLedgerTxnRoot());
             TransactionMetaFrame txm(ltx.loadHeader().current().ledgerVersion);
-            REQUIRE(tx->checkValid(*app, ltx, 0, 0, 0));
+            REQUIRE(tx->checkValidForTesting(*app, ltx, 0, 0, 0));
             REQUIRE(!tx->apply(*app, ltx, txm));
 
             REQUIRE(tx->getResult().result.code() == txFAILED);

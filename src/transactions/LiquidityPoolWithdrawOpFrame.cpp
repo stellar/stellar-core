@@ -8,13 +8,14 @@
 #include "ledger/TrustLineWrapper.h"
 #include "transactions/TransactionUtils.h"
 #include "util/ProtocolVersion.h"
+#include <Tracy.hpp>
 
 namespace stellar
 {
 
 LiquidityPoolWithdrawOpFrame::LiquidityPoolWithdrawOpFrame(
-    Operation const& op, OperationResult& res, TransactionFrame& parentTx)
-    : OperationFrame(op, res, parentTx)
+    Operation const& op, TransactionFrame const& parentTx)
+    : OperationFrame(op, parentTx)
     , mLiquidityPoolWithdraw(mOperation.body.liquidityPoolWithdrawOp())
 {
 }
@@ -28,20 +29,24 @@ LiquidityPoolWithdrawOpFrame::isOpSupported(LedgerHeader const& header) const
 }
 
 bool
-LiquidityPoolWithdrawOpFrame::doApply(AbstractLedgerTxn& ltx)
+LiquidityPoolWithdrawOpFrame::doApply(
+    Application& app, AbstractLedgerTxn& ltx, Hash const& sorobanBasePrngSeed,
+    OperationResult& res, std::shared_ptr<SorobanTxData> sorobanData) const
 {
+    ZoneNamedN(applyZone, "LiquidityPoolWithdrawOpFrame apply", true);
+
     auto tlPool = loadPoolShareTrustLine(
         ltx, getSourceID(), mLiquidityPoolWithdraw.liquidityPoolID);
     if (!tlPool)
     {
-        innerResult().code(LIQUIDITY_POOL_WITHDRAW_NO_TRUST);
+        innerResult(res).code(LIQUIDITY_POOL_WITHDRAW_NO_TRUST);
         return false;
     }
 
     auto header = ltx.loadHeader();
     if (getAvailableBalance(header, tlPool) < mLiquidityPoolWithdraw.amount)
     {
-        innerResult().code(LIQUIDITY_POOL_WITHDRAW_UNDERFUNDED);
+        innerResult(res).code(LIQUIDITY_POOL_WITHDRAW_UNDERFUNDED);
         return false;
     }
 
@@ -59,7 +64,7 @@ LiquidityPoolWithdrawOpFrame::doApply(AbstractLedgerTxn& ltx)
     auto amountA = getPoolWithdrawalAmount(mLiquidityPoolWithdraw.amount,
                                            constantProduct().totalPoolShares,
                                            constantProduct().reserveA);
-    if (!tryAddAssetBalance(ltx, header, constantProduct().params.assetA,
+    if (!tryAddAssetBalance(ltx, res, header, constantProduct().params.assetA,
                             mLiquidityPoolWithdraw.minAmountA, amountA))
     {
         return false;
@@ -68,7 +73,7 @@ LiquidityPoolWithdrawOpFrame::doApply(AbstractLedgerTxn& ltx)
     auto amountB = getPoolWithdrawalAmount(mLiquidityPoolWithdraw.amount,
                                            constantProduct().totalPoolShares,
                                            constantProduct().reserveB);
-    if (!tryAddAssetBalance(ltx, header, constantProduct().params.assetB,
+    if (!tryAddAssetBalance(ltx, res, header, constantProduct().params.assetB,
                             mLiquidityPoolWithdraw.minAmountB, amountB))
     {
         return false;
@@ -95,18 +100,19 @@ LiquidityPoolWithdrawOpFrame::doApply(AbstractLedgerTxn& ltx)
         throw std::runtime_error("insufficient reserveB");
     }
 
-    innerResult().code(LIQUIDITY_POOL_WITHDRAW_SUCCESS);
+    innerResult(res).code(LIQUIDITY_POOL_WITHDRAW_SUCCESS);
     return true;
 }
 
 bool
-LiquidityPoolWithdrawOpFrame::doCheckValid(uint32_t ledgerVersion)
+LiquidityPoolWithdrawOpFrame::doCheckValid(uint32_t ledgerVersion,
+                                           OperationResult& res) const
 {
     if (mLiquidityPoolWithdraw.amount <= 0 ||
         mLiquidityPoolWithdraw.minAmountA < 0 ||
         mLiquidityPoolWithdraw.minAmountB < 0)
     {
-        innerResult().code(LIQUIDITY_POOL_WITHDRAW_MALFORMED);
+        innerResult(res).code(LIQUIDITY_POOL_WITHDRAW_MALFORMED);
         return false;
     }
     return true;
@@ -122,15 +128,13 @@ LiquidityPoolWithdrawOpFrame::insertLedgerKeysToPrefetch(
 }
 
 bool
-LiquidityPoolWithdrawOpFrame::tryAddAssetBalance(AbstractLedgerTxn& ltx,
-                                                 LedgerTxnHeader const& header,
-                                                 Asset const& asset,
-                                                 int64_t minAmount,
-                                                 int64_t amount)
+LiquidityPoolWithdrawOpFrame::tryAddAssetBalance(
+    AbstractLedgerTxn& ltx, OperationResult& res, LedgerTxnHeader const& header,
+    Asset const& asset, int64_t minAmount, int64_t amount) const
 {
     if (amount < minAmount)
     {
-        innerResult().code(LIQUIDITY_POOL_WITHDRAW_UNDER_MINIMUM);
+        innerResult(res).code(LIQUIDITY_POOL_WITHDRAW_UNDER_MINIMUM);
         return false;
     }
 
@@ -139,7 +143,7 @@ LiquidityPoolWithdrawOpFrame::tryAddAssetBalance(AbstractLedgerTxn& ltx,
         auto sourceAccount = loadSourceAccount(ltx, header);
         if (!addBalance(header, sourceAccount, amount))
         {
-            innerResult().code(LIQUIDITY_POOL_WITHDRAW_LINE_FULL);
+            innerResult(res).code(LIQUIDITY_POOL_WITHDRAW_LINE_FULL);
             return false;
         }
     }
@@ -152,7 +156,7 @@ LiquidityPoolWithdrawOpFrame::tryAddAssetBalance(AbstractLedgerTxn& ltx,
         // liquidity pool pulled
         if (!trustline.addBalance(header, amount))
         {
-            innerResult().code(LIQUIDITY_POOL_WITHDRAW_LINE_FULL);
+            innerResult(res).code(LIQUIDITY_POOL_WITHDRAW_LINE_FULL);
             return false;
         }
     }

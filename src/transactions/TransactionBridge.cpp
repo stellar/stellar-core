@@ -6,6 +6,10 @@
 #include "transactions/TransactionFrame.h"
 #include "util/GlobalChecks.h"
 
+#ifdef BUILD_TESTS
+#include "transactions/test/TransactionTestFrame.h"
+#endif
+
 namespace stellar
 {
 namespace txbridge
@@ -40,6 +44,22 @@ convertForV13(TransactionEnvelope const& input)
     }
 
     return res;
+}
+
+xdr::xvector<DecoratedSignature, 20> const&
+getSignatures(TransactionEnvelope const& env)
+{
+    switch (env.type())
+    {
+    case ENVELOPE_TYPE_TX_V0:
+        return env.v0().signatures;
+    case ENVELOPE_TYPE_TX:
+        return env.v1().signatures;
+    case ENVELOPE_TYPE_TX_FEE_BUMP:
+        return env.feeBump().signatures;
+    default:
+        abort();
+    }
 }
 
 xdr::xvector<DecoratedSignature, 20>&
@@ -93,42 +113,51 @@ getOperations(TransactionEnvelope& env)
 
 #ifdef BUILD_TESTS
 xdr::xvector<DecoratedSignature, 20>&
-getSignatures(TransactionFramePtr tx)
+getSignatures(TransactionTestFramePtr tx)
 {
-    return getSignatures(tx->getEnvelope());
+    return getSignatures(tx->getMutableEnvelope());
 }
 
 void
-setSeqNum(TransactionFramePtr tx, int64_t seq)
+setSeqNum(TransactionTestFramePtr tx, int64_t seq)
 {
-    auto& env = tx->getEnvelope();
+    auto& env = tx->getMutableEnvelope();
     int64_t& s = env.type() == ENVELOPE_TYPE_TX_V0 ? env.v0().tx.seqNum
                                                    : env.v1().tx.seqNum;
     s = seq;
 }
 
 void
-setFee(TransactionFramePtr tx, uint32_t fee)
+setFullFee(TransactionTestFramePtr tx, uint32_t totalFee)
 {
-    auto& env = tx->getEnvelope();
+    auto& env = tx->getMutableEnvelope();
     uint32_t& f =
         env.type() == ENVELOPE_TYPE_TX_V0 ? env.v0().tx.fee : env.v1().tx.fee;
-    f = fee;
+    f = totalFee;
 }
 
 void
-setMemo(TransactionFramePtr tx, Memo memo)
+setSorobanFees(TransactionTestFramePtr tx, uint32_t totalFee, int64 resourceFee)
 {
-    auto& env = tx->getEnvelope();
+    setFullFee(tx, totalFee);
+    auto& env = tx->getMutableEnvelope();
+    auto& sorobanData = env.v1().tx.ext.sorobanData();
+    sorobanData.resourceFee = resourceFee;
+}
+
+void
+setMemo(TransactionTestFramePtr tx, Memo memo)
+{
+    auto& env = tx->getMutableEnvelope();
     Memo& m =
         env.type() == ENVELOPE_TYPE_TX_V0 ? env.v0().tx.memo : env.v1().tx.memo;
     m = memo;
 }
 
 void
-setMinTime(TransactionFramePtr tx, TimePoint minTime)
+setMinTime(TransactionTestFramePtr tx, TimePoint minTime)
 {
-    auto& env = tx->getEnvelope();
+    auto& env = tx->getMutableEnvelope();
     if (env.type() == ENVELOPE_TYPE_TX_V0)
     {
         env.v0().tx.timeBounds.activate().minTime = minTime;
@@ -151,9 +180,9 @@ setMinTime(TransactionFramePtr tx, TimePoint minTime)
 }
 
 void
-setMaxTime(TransactionFramePtr tx, TimePoint maxTime)
+setMaxTime(std::shared_ptr<TransactionTestFrame const> tx, TimePoint maxTime)
 {
-    auto& env = tx->getEnvelope();
+    auto& env = tx->getMutableEnvelope();
     if (env.type() == ENVELOPE_TYPE_TX_V0)
     {
         env.v0().tx.timeBounds.activate().maxTime = maxTime;

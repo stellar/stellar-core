@@ -7,6 +7,7 @@
 #include <optional>
 
 #include "ledger/LedgerHashUtils.h"
+#include "ledger/LedgerStateSnapshot.h"
 #include "ledger/NetworkConfig.h"
 #include "main/Config.h"
 #include "overlay/StellarXDR.h"
@@ -22,9 +23,14 @@ class AbstractLedgerTxn;
 class Application;
 class Database;
 class OperationFrame;
+class TransactionFrame;
+class FeeBumpTransactionFrame;
+
+class MutableTransactionResultBase;
+using MutableTxResultPtr = std::shared_ptr<MutableTransactionResultBase>;
 
 class TransactionFrameBase;
-using TransactionFrameBasePtr = std::shared_ptr<TransactionFrameBase>;
+using TransactionFrameBasePtr = std::shared_ptr<TransactionFrameBase const>;
 using TransactionFrameBaseConstPtr =
     std::shared_ptr<TransactionFrameBase const>;
 
@@ -36,15 +42,30 @@ class TransactionFrameBase
                             TransactionEnvelope const& env);
 
     virtual bool apply(Application& app, AbstractLedgerTxn& ltx,
-                       TransactionMetaFrame& meta,
-                       Hash const& sorobanBasePrngSeed = Hash{}) = 0;
+                       TransactionMetaFrame& meta, MutableTxResultPtr txResult,
+                       Hash const& sorobanBasePrngSeed = Hash{}) const = 0;
+    virtual MutableTxResultPtr
+    checkValid(Application& app, LedgerSnapshot const& ls,
+               SequenceNumber current, uint64_t lowerBoundCloseTimeOffset,
+               uint64_t upperBoundCloseTimeOffset) const = 0;
+    virtual bool
+    checkSorobanResourceAndSetError(Application& app, uint32_t ledgerVersion,
+                                    MutableTxResultPtr txResult) const = 0;
 
-    virtual bool checkValid(Application& app, AbstractLedgerTxn& ltxOuter,
-                            SequenceNumber current,
-                            uint64_t lowerBoundCloseTimeOffset,
-                            uint64_t upperBoundCloseTimeOffset) = 0;
+    virtual MutableTxResultPtr createSuccessResult() const = 0;
+
+    virtual MutableTxResultPtr
+    createSuccessResultWithFeeCharged(LedgerHeader const& header,
+                                      std::optional<int64_t> baseFee,
+                                      bool applying) const = 0;
 
     virtual TransactionEnvelope const& getEnvelope() const = 0;
+
+#ifdef BUILD_TESTS
+    virtual TransactionEnvelope& getMutableEnvelope() const = 0;
+    virtual void clearCached() const = 0;
+    virtual bool isTestTx() const = 0;
+#endif
 
     // Returns the total fee of this transaction, including the 'flat',
     // non-market part.
@@ -64,9 +85,6 @@ class TransactionFrameBase
 
     virtual std::vector<Operation> const& getRawOperations() const = 0;
 
-    virtual TransactionResult& getResult() = 0;
-    virtual TransactionResultCode getResultCode() const = 0;
-
     virtual SequenceNumber getSeqNum() const = 0;
     virtual AccountID getFeeSourceID() const = 0;
     virtual AccountID getSourceID() const = 0;
@@ -76,25 +94,24 @@ class TransactionFrameBase
 
     virtual void
     insertKeysForFeeProcessing(UnorderedSet<LedgerKey>& keys) const = 0;
-    virtual void insertKeysForTxApply(UnorderedSet<LedgerKey>& keys) const = 0;
+    virtual void insertKeysForTxApply(UnorderedSet<LedgerKey>& keys,
+                                      LedgerKeyMeter* lkMeter) const = 0;
 
-    virtual void processFeeSeqNum(AbstractLedgerTxn& ltx,
-                                  std::optional<int64_t> baseFee) = 0;
+    virtual MutableTxResultPtr
+    processFeeSeqNum(AbstractLedgerTxn& ltx,
+                     std::optional<int64_t> baseFee) const = 0;
 
     virtual void processPostApply(Application& app, AbstractLedgerTxn& ltx,
-                                  TransactionMetaFrame& meta) = 0;
+                                  TransactionMetaFrame& meta,
+                                  MutableTxResultPtr txResult) const = 0;
 
-    virtual StellarMessage toStellarMessage() const = 0;
+    virtual std::shared_ptr<StellarMessage const> toStellarMessage() const = 0;
 
     virtual bool hasDexOperations() const = 0;
 
     virtual bool isSoroban() const = 0;
     virtual SorobanResources const& sorobanResources() const = 0;
-    virtual xdr::xvector<DiagnosticEvent> const&
-    getDiagnosticEvents() const = 0;
-    virtual void
-    maybeComputeSorobanResourceFee(uint32_t protocolVersion,
-                                   SorobanNetworkConfig const& sorobanConfig,
-                                   Config const& cfg) = 0;
+    virtual int64 declaredSorobanResourceFee() const = 0;
+    virtual bool XDRProvidesValidFee() const = 0;
 };
 }

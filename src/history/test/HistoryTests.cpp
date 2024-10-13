@@ -310,7 +310,7 @@ TEST_CASE("Ledger chain verification", "[ledgerheaderverification]")
     {
         std::tie(lcl, last) = ledgerChainGenerator.makeLedgerChainFiles(
             HistoryManager::VERIFY_STATUS_OK);
-        lcl.hash = HashUtils::random();
+        lcl.hash = HashUtils::pseudoRandomForTesting();
         auto w =
             checkExpectedBehavior(BasicWork::State::WORK_FAILURE, lcl, last);
         REQUIRE(w);
@@ -319,7 +319,7 @@ TEST_CASE("Ledger chain verification", "[ledgerheaderverification]")
     {
         std::tie(lcl, last) = ledgerChainGenerator.makeLedgerChainFiles(
             HistoryManager::VERIFY_STATUS_OK);
-        lcl.hash = HashUtils::random();
+        lcl.hash = HashUtils::pseudoRandomForTesting();
         auto w = checkExpectedBehavior(BasicWork::State::WORK_FAILURE, lcl,
                                        last, false);
         REQUIRE(!w);
@@ -330,7 +330,7 @@ TEST_CASE("Ledger chain verification", "[ledgerheaderverification]")
             HistoryManager::VERIFY_STATUS_OK);
         lcl.header.ledgerSeq +=
             app->getHistoryManager().getCheckpointFrequency() - 1;
-        lcl.hash = HashUtils::random();
+        lcl.hash = HashUtils::pseudoRandomForTesting();
         auto w =
             checkExpectedBehavior(BasicWork::State::WORK_FAILURE, lcl, last);
         REQUIRE(w);
@@ -340,7 +340,7 @@ TEST_CASE("Ledger chain verification", "[ledgerheaderverification]")
         std::tie(lcl, last) = ledgerChainGenerator.makeLedgerChainFiles(
             HistoryManager::VERIFY_STATUS_OK);
         lcl.header.ledgerSeq -= 1;
-        lcl.hash = HashUtils::random();
+        lcl.hash = HashUtils::pseudoRandomForTesting();
         auto w =
             checkExpectedBehavior(BasicWork::State::WORK_FAILURE, lcl, last);
         REQUIRE(w);
@@ -349,7 +349,7 @@ TEST_CASE("Ledger chain verification", "[ledgerheaderverification]")
     {
         std::tie(lcl, last) = ledgerChainGenerator.makeLedgerChainFiles(
             HistoryManager::VERIFY_STATUS_OK);
-        last.hash = HashUtils::random();
+        last.hash = HashUtils::pseudoRandomForTesting();
         auto w =
             checkExpectedBehavior(BasicWork::State::WORK_FAILURE, lcl, last);
         REQUIRE(!w);
@@ -412,7 +412,7 @@ TEST_CASE("Tx results verification", "[batching][resultsverification]")
         res.close();
         REQUIRE_FALSE(entries.empty());
         auto& lastEntry = entries.at(entries.size() - 1);
-        lastEntry.header.txSetResultHash = HashUtils::random();
+        lastEntry.header.txSetResultHash = HashUtils::pseudoRandomForTesting();
         std::remove(ft.localPath_nogz().c_str());
 
         XDROutputFileStream out(
@@ -489,7 +489,7 @@ TEST_CASE("History publish to multiple archives", "[history]")
     catchupSimulation.ensureOfflineCatchupPossible(checkpointLedger);
 
     auto catchupApp = catchupSimulation.createCatchupApplication(
-        64, Config::TESTDB_ON_DISK_SQLITE, "app");
+        64, Config::TESTDB_BUCKET_DB_PERSISTENT, "app");
 
     // Actually perform catchup and make sure everything is correct
     REQUIRE(catchupSimulation.catchupOffline(catchupApp, checkpointLedger));
@@ -502,8 +502,8 @@ TEST_CASE("History catchup with extra validation", "[history][publish]")
     catchupSimulation.ensureOfflineCatchupPossible(checkpointLedger);
 
     auto app = catchupSimulation.createCatchupApplication(
-        std::numeric_limits<uint32_t>::max(), Config::TESTDB_ON_DISK_SQLITE,
-        "app");
+        std::numeric_limits<uint32_t>::max(),
+        Config::TESTDB_BUCKET_DB_PERSISTENT, "app");
     REQUIRE(catchupSimulation.catchupOffline(app, checkpointLedger, true));
 }
 
@@ -613,14 +613,20 @@ dbModeName(Config::TestDbMode mode)
 {
     switch (mode)
     {
-    case Config::TESTDB_IN_MEMORY_SQLITE:
-        return "TESTDB_IN_MEMORY_SQLITE";
+    case Config::TESTDB_IN_MEMORY_OFFERS:
+        return "TESTDB_IN_MEMORY_OFFERS";
     case Config::TESTDB_ON_DISK_SQLITE:
         return "TESTDB_ON_DISK_SQLITE";
 #ifdef USE_POSTGRES
     case Config::TESTDB_POSTGRESQL:
         return "TESTDB_POSTGRESQL";
 #endif
+    case Config::TESTDB_BUCKET_DB_PERSISTENT:
+        return "TESTDB_BUCKET_DB_PERSISTENT";
+    case Config::TESTDB_BUCKET_DB_VOLATILE:
+        return "TESTDB_BUCKET_DB_VOLATILE";
+    case Config::TESTDB_DEFAULT:
+        return "TESTDB_DEFAULT";
     default:
         abort();
     }
@@ -634,8 +640,8 @@ TEST_CASE("History catchup", "[history][catchup][acceptance]")
     CatchupSimulation catchupSimulation{VirtualClock::REAL_TIME};
     auto checkpointLedger = catchupSimulation.getLastCheckpointLedger(3);
     auto app = catchupSimulation.createCatchupApplication(
-        std::numeric_limits<uint32_t>::max(), Config::TESTDB_ON_DISK_SQLITE,
-        "app");
+        std::numeric_limits<uint32_t>::max(),
+        Config::TESTDB_BUCKET_DB_PERSISTENT, "app");
 
     auto offlineNonCheckpointDestinationLedger =
         checkpointLedger -
@@ -724,8 +730,8 @@ TEST_CASE("Publish throttles catchup", "[history][catchup][acceptance]")
     catchupSimulation.ensureLedgerAvailable(checkpointLedger + 1);
     catchupSimulation.ensurePublishesComplete();
     auto app = catchupSimulation.createCatchupApplication(
-        std::numeric_limits<uint32_t>::max(), Config::TESTDB_IN_MEMORY_SQLITE,
-        "app", /* publish */ true);
+        std::numeric_limits<uint32_t>::max(), Config::TESTDB_DEFAULT, "app",
+        /* publish */ true);
     REQUIRE(catchupSimulation.catchupOffline(app, checkpointLedger));
 }
 
@@ -742,8 +748,8 @@ TEST_CASE("History catchup with different modes",
     std::vector<uint32_t> counts = {0, std::numeric_limits<uint32_t>::max(),
                                     60};
 
-    std::vector<Config::TestDbMode> dbModes = {Config::TESTDB_IN_MEMORY_SQLITE,
-                                               Config::TESTDB_ON_DISK_SQLITE};
+    std::vector<Config::TestDbMode> dbModes = {
+        Config::TESTDB_ON_DISK_SQLITE, Config::TESTDB_BUCKET_DB_PERSISTENT};
 #ifdef USE_POSTGRES
     if (!force_sqlite)
         dbModes.push_back(Config::TESTDB_POSTGRESQL);
@@ -761,18 +767,6 @@ TEST_CASE("History catchup with different modes",
             apps.push_back(a);
         }
     }
-}
-
-TEST_CASE("History catchup with BucketListDB enabled",
-          "[history][catchup][bucketindex]")
-{
-    CatchupSimulation catchupSimulation{};
-    auto checkpointLedger = catchupSimulation.getLastCheckpointLedger(3);
-    catchupSimulation.ensureOfflineCatchupPossible(checkpointLedger);
-    auto app = catchupSimulation.createCatchupApplication(
-        64, Config::TESTDB_ON_DISK_SQLITE, "app", /*publish=*/false,
-        /*useBucketListDB=*/true);
-    REQUIRE(catchupSimulation.catchupOffline(app, checkpointLedger));
 }
 
 TEST_CASE("Retriggering catchups after trimming mSyncingLedgers",
@@ -796,7 +790,7 @@ TEST_CASE("Retriggering catchups after trimming mSyncingLedgers",
     catchupSimulation.ensureOnlineCatchupPossible(checkpointLedger);
 
     auto app = catchupSimulation.createCatchupApplication(
-        std::numeric_limits<uint32_t>::max(), Config::TESTDB_IN_MEMORY_SQLITE,
+        std::numeric_limits<uint32_t>::max(), Config::TESTDB_DEFAULT,
         std::string("Retriggering catchups after trimming mSyncingLedgers"));
     auto& lm = app->getLedgerManager();
 
@@ -917,7 +911,7 @@ TEST_CASE("History prefix catchup", "[history][catchup]")
     catchupSimulation.ensureOnlineCatchupPossible(checkpointLedger, 5);
 
     auto a = catchupSimulation.createCatchupApplication(
-        std::numeric_limits<uint32_t>::max(), Config::TESTDB_IN_MEMORY_SQLITE,
+        std::numeric_limits<uint32_t>::max(), Config::TESTDB_DEFAULT,
         std::string("Catchup to prefix of published history"));
     // Try to catchup to ledger 10, which is part of first checkpoint (ending
     // at 63), witch 5 buffered ledgers. It will succeed (as 3 checkpoints are
@@ -938,7 +932,7 @@ TEST_CASE("History prefix catchup", "[history][catchup]")
     // simulate 5 buffered ledgers and at last we need one closing ledger to
     // get us into synced state.
     auto b = catchupSimulation.createCatchupApplication(
-        std::numeric_limits<uint32_t>::max(), Config::TESTDB_IN_MEMORY_SQLITE,
+        std::numeric_limits<uint32_t>::max(), Config::TESTDB_DEFAULT,
         std::string("Catchup to second prefix of published history"));
     REQUIRE(catchupSimulation.catchupOnline(b, freq + 10, 5));
     REQUIRE(b->getLedgerManager().getLastClosedLedgerNum() == 2 * freq + 7);
@@ -953,7 +947,10 @@ TEST_CASE("Catchup with protocol upgrade", "[catchup][history]")
             std::make_shared<RealGenesisTmpDirHistoryConfigurator>();
         CatchupSimulation catchupSimulation{VirtualClock::VIRTUAL_TIME,
                                             configurator};
-
+        REQUIRE(catchupSimulation.getApp()
+                    .getLedgerManager()
+                    .getLastClosedLedgerHeader()
+                    .header.ledgerVersion == 0);
         catchupSimulation.generateRandomLedger(oldVersion);
         std::vector<uint32_t> catchupLedgers = {
             0, std::numeric_limits<uint32_t>::max(), 32, 60};
@@ -966,10 +963,12 @@ TEST_CASE("Catchup with protocol upgrade", "[catchup][history]")
             for (auto count : catchupLedgers)
             {
                 auto a = catchupSimulation.createCatchupApplication(
-                    count, Config::TESTDB_IN_MEMORY_SQLITE,
+                    count, Config::TESTDB_DEFAULT,
                     std::string("full, ") + resumeModeName(count) + ", " +
-                        dbModeName(Config::TESTDB_IN_MEMORY_SQLITE));
-
+                        dbModeName(Config::TESTDB_DEFAULT));
+                REQUIRE(a->getLedgerManager()
+                            .getLastClosedLedgerHeader()
+                            .header.ledgerVersion == 0);
                 REQUIRE(catchupSimulation.catchupOnline(a, checkpointLedger));
             }
         };
@@ -993,15 +992,10 @@ TEST_CASE("Catchup with protocol upgrade", "[catchup][history]")
             executeUpgrade(127);
         }
     };
-    SECTION("post-shadow-removal upgrade")
-    {
-        testUpgrade(Bucket::FIRST_PROTOCOL_SHADOWS_REMOVED);
-    }
     SECTION("generalized tx set upgrade")
     {
-
-        if (protocolVersionStartsFrom(Config::CURRENT_LEDGER_PROTOCOL_VERSION,
-                                      SOROBAN_PROTOCOL_VERSION))
+        if (protocolVersionEquals(Config::CURRENT_LEDGER_PROTOCOL_VERSION,
+                                  SOROBAN_PROTOCOL_VERSION))
         {
             testUpgrade(SOROBAN_PROTOCOL_VERSION);
         }
@@ -1016,8 +1010,8 @@ TEST_CASE("Catchup fatal failure", "[catchup][history]")
     catchupSimulation.ensureOnlineCatchupPossible(checkpointLedger, 5);
 
     auto a = catchupSimulation.createCatchupApplication(
-        std::numeric_limits<uint32_t>::max(), Config::TESTDB_IN_MEMORY_SQLITE,
-        std::string("Catchup retry"), false, false,
+        std::numeric_limits<uint32_t>::max(), Config::TESTDB_DEFAULT,
+        std::string("Catchup retry"), false,
         catchupSimulation.getApp().getConfig().LEDGER_PROTOCOL_VERSION - 1);
 
     REQUIRE(!catchupSimulation.catchupOnline(a, 10, 5));
@@ -1056,9 +1050,9 @@ TEST_CASE("Catchup non-initentry buckets to initentry-supporting works",
     for (auto count : counts)
     {
         auto a = catchupSimulation.createCatchupApplication(
-            count, Config::TESTDB_IN_MEMORY_SQLITE,
+            count, Config::TESTDB_DEFAULT,
             std::string("full, ") + resumeModeName(count) + ", " +
-                dbModeName(Config::TESTDB_IN_MEMORY_SQLITE));
+                dbModeName(Config::TESTDB_DEFAULT));
         REQUIRE(catchupSimulation.catchupOnline(a, checkpointLedger - 2));
 
         // Check that during catchup/replay, we did not use any INITENTRY code,
@@ -1080,8 +1074,8 @@ TEST_CASE("Catchup non-initentry buckets to initentry-supporting works",
             uint64_t big = minBalance + ledgerSeq;
             uint64_t closeTime = 60 * 5 * ledgerSeq;
 
-            TxSetFrameConstPtr txSet = TxSetFrame::makeFromTransactions(
-                TxSetFrame::Transactions{
+            auto [txSet, applicableTxSet] = makeTxSetFromTransactions(
+                TxSetTransactions{
                     root.tx({txtest::createAccount(stranger, big)})},
                 *a, 0, 0);
 
@@ -1097,7 +1091,8 @@ TEST_CASE("Catchup non-initentry buckets to initentry-supporting works",
             }
             CLOG_DEBUG(
                 History, "Closing synthetic ledger {} with {} txs (txhash:{})",
-                ledgerSeq, txSet->size(lm.getLastClosedLedgerHeader().header),
+                ledgerSeq,
+                applicableTxSet->size(lm.getLastClosedLedgerHeader().header),
                 hexAbbrev(txSet->getContentsHash()));
             StellarValue sv = a->getHerder().makeStellarValue(
                 txSet->getContentsHash(), closeTime, upgrades,
@@ -1130,10 +1125,10 @@ TEST_CASE("Publish catchup alternation with stall",
     catchupSimulation.ensureOnlineCatchupPossible(checkpointLedger, 5);
 
     auto completeApp = catchupSimulation.createCatchupApplication(
-        std::numeric_limits<uint32_t>::max(), Config::TESTDB_IN_MEMORY_SQLITE,
+        std::numeric_limits<uint32_t>::max(), Config::TESTDB_DEFAULT,
         std::string("completeApp"));
     auto minimalApp = catchupSimulation.createCatchupApplication(
-        0, Config::TESTDB_IN_MEMORY_SQLITE, std::string("minimalApp"));
+        0, Config::TESTDB_DEFAULT, std::string("minimalApp"));
 
     REQUIRE(catchupSimulation.catchupOnline(completeApp, checkpointLedger, 5));
     REQUIRE(catchupSimulation.catchupOnline(minimalApp, checkpointLedger, 5));
@@ -1181,8 +1176,7 @@ TEST_CASE("Publish catchup via s3", "[!hide][s3]")
     catchupSimulation.ensureOfflineCatchupPossible(checkpointLedger);
 
     auto app = catchupSimulation.createCatchupApplication(
-        std::numeric_limits<uint32_t>::max(), Config::TESTDB_IN_MEMORY_SQLITE,
-        "s3");
+        std::numeric_limits<uint32_t>::max(), Config::TESTDB_DEFAULT, "s3");
     REQUIRE(catchupSimulation.catchupOnline(app, checkpointLedger, 5));
 }
 
@@ -1215,9 +1209,10 @@ TEST_CASE_VERSIONS(
 
             while (hm.getPublishQueueCount() != 1)
             {
-                uint32_t ledger = lm.getLastClosedLedgerNum() + 1;
-                bl.addBatch(
-                    *app, ledger, cfg.LEDGER_PROTOCOL_VERSION, {},
+                auto lcl = lm.getLastClosedLedgerHeader();
+                lcl.header.ledgerSeq += 1;
+                BucketTestUtils::addBatchAndUpdateSnapshot(
+                    bl, *app, lcl.header, {},
                     LedgerTestUtils::generateValidUniqueLedgerEntries(8), {});
                 clock.crank(true);
             }
@@ -1253,7 +1248,7 @@ TEST_CASE_VERSIONS(
 
 TEST_CASE("persist publish queue", "[history][publish][acceptance]")
 {
-    Config cfg(getTestConfig(0, Config::TESTDB_ON_DISK_SQLITE));
+    Config cfg(getTestConfig(0, Config::TESTDB_BUCKET_DB_PERSISTENT));
 
     cfg.MANUAL_CLOSE = false;
     cfg.MAX_CONCURRENT_SUBPROCESSES = 0;
@@ -1318,8 +1313,7 @@ TEST_CASE("catchup with a gap", "[history][catchup][acceptance]")
 
     // Catch up successfully the first time
     auto app = catchupSimulation.createCatchupApplication(
-        std::numeric_limits<uint32_t>::max(), Config::TESTDB_IN_MEMORY_SQLITE,
-        "app2");
+        std::numeric_limits<uint32_t>::max(), Config::TESTDB_DEFAULT, "app2");
     REQUIRE(catchupSimulation.catchupOnline(app, checkpointLedger, 5));
 
     // Now generate a little more history
@@ -1356,7 +1350,7 @@ TEST_CASE("Catchup recent", "[history][catchup][acceptance]")
     auto checkpointLedger = catchupSimulation.getLastCheckpointLedger(3);
     catchupSimulation.ensureOnlineCatchupPossible(checkpointLedger, 5);
 
-    auto dbMode = Config::TESTDB_IN_MEMORY_SQLITE;
+    auto dbMode = Config::TESTDB_DEFAULT;
     std::vector<Application::pointer> apps;
 
     // Network has published 0x3f (63), 0x7f (127) and 0xbf (191)
@@ -1405,7 +1399,7 @@ TEST_CASE("Catchup manual", "[history][catchup][acceptance]")
     CatchupSimulation catchupSimulation{};
     auto checkpointLedger = catchupSimulation.getLastCheckpointLedger(6);
     catchupSimulation.ensureOfflineCatchupPossible(checkpointLedger);
-    auto dbMode = Config::TESTDB_IN_MEMORY_SQLITE;
+    auto dbMode = Config::TESTDB_DEFAULT;
 
     // Test every 10th scenario
     for (size_t i = 0; i < stellar::gCatchupRangeCases.size(); i += 10)
@@ -1427,7 +1421,7 @@ TEST_CASE("Catchup manual", "[history][catchup][acceptance]")
 // Check that initializing a history store that already exists, fails.
 TEST_CASE("initialize existing history store fails", "[history]")
 {
-    Config cfg(getTestConfig(0, Config::TESTDB_ON_DISK_SQLITE));
+    Config cfg(getTestConfig(0, Config::TESTDB_BUCKET_DB_PERSISTENT));
     TmpDirHistoryConfigurator tcfg;
     cfg = tcfg.configure(cfg, true);
 
@@ -1455,8 +1449,7 @@ TEST_CASE("Catchup failure recovery with buffered checkpoint",
 
     // Catch up successfully the first time
     auto app = catchupSimulation.createCatchupApplication(
-        std::numeric_limits<uint32_t>::max(), Config::TESTDB_IN_MEMORY_SQLITE,
-        "app2");
+        std::numeric_limits<uint32_t>::max(), Config::TESTDB_DEFAULT, "app2");
     REQUIRE(catchupSimulation.catchupOnline(app, checkpointLedger, 5));
 
     auto init = app->getLedgerManager().getLastClosedLedgerNum() + 2;
@@ -1492,8 +1485,7 @@ TEST_CASE("Change ordering of buffered ledgers", "[history][catchup]")
     CatchupSimulation catchupSimulation{};
 
     auto app = catchupSimulation.createCatchupApplication(
-        std::numeric_limits<uint32_t>::max(), Config::TESTDB_IN_MEMORY_SQLITE,
-        "app2");
+        std::numeric_limits<uint32_t>::max(), Config::TESTDB_DEFAULT, "app2");
 
     auto checkpointLedger = catchupSimulation.getLastCheckpointLedger(1);
     catchupSimulation.ensureOnlineCatchupPossible(checkpointLedger, 15);
@@ -1531,8 +1523,7 @@ TEST_CASE("Introduce and fix gap without starting catchup",
     CatchupSimulation catchupSimulation{};
 
     auto app = catchupSimulation.createCatchupApplication(
-        std::numeric_limits<uint32_t>::max(), Config::TESTDB_IN_MEMORY_SQLITE,
-        "app2");
+        std::numeric_limits<uint32_t>::max(), Config::TESTDB_DEFAULT, "app2");
 
     auto checkpointLedger = catchupSimulation.getLastCheckpointLedger(1);
     catchupSimulation.ensureOnlineCatchupPossible(checkpointLedger, 15);
@@ -1573,8 +1564,7 @@ TEST_CASE("Receive trigger and checkpoint ledger out of order",
     CatchupSimulation catchupSimulation{};
 
     auto app = catchupSimulation.createCatchupApplication(
-        std::numeric_limits<uint32_t>::max(), Config::TESTDB_IN_MEMORY_SQLITE,
-        "app2");
+        std::numeric_limits<uint32_t>::max(), Config::TESTDB_DEFAULT, "app2");
 
     auto& lm = app->getLedgerManager();
     auto& cm = app->getCatchupManager();
@@ -1607,8 +1597,7 @@ TEST_CASE("Externalize gap while catchup work is running", "[history][catchup]")
     CatchupSimulation catchupSimulation{};
 
     auto app = catchupSimulation.createCatchupApplication(
-        std::numeric_limits<uint32_t>::max(), Config::TESTDB_IN_MEMORY_SQLITE,
-        "app2");
+        std::numeric_limits<uint32_t>::max(), Config::TESTDB_DEFAULT, "app2");
 
     auto checkpointLedger = catchupSimulation.getLastCheckpointLedger(1);
     catchupSimulation.ensureOnlineCatchupPossible(checkpointLedger, 60);

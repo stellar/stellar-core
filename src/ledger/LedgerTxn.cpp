@@ -4,6 +4,7 @@
 
 #include "ledger/LedgerTxn.h"
 #include "bucket/BucketList.h"
+#include "bucket/BucketListSnapshot.h"
 #include "bucket/BucketManager.h"
 #include "crypto/Hex.h"
 #include "crypto/KeyUtils.h"
@@ -13,16 +14,21 @@
 #include "ledger/LedgerTxnEntry.h"
 #include "ledger/LedgerTxnHeader.h"
 #include "ledger/LedgerTxnImpl.h"
+#include "ledger/LedgerTypeUtils.h"
 #include "ledger/NonSociRelatedException.h"
 #include "main/Application.h"
 #include "transactions/TransactionUtils.h"
 #include "util/GlobalChecks.h"
 #include "util/XDROperators.h"
+#include "util/XDRStream.h"
 #include "util/types.h"
 #include "xdr/Stellar-ledger-entries.h"
 #include "xdrpp/marshal.h"
 #include <Tracy.hpp>
 #include <soci.h>
+
+#include <algorithm>
+#include <numeric>
 
 namespace stellar
 {
@@ -167,45 +173,86 @@ LedgerEntryPtr::isDeleted() const
 {
     return mState == EntryPtrState::DELETED;
 }
-
-template <typename KeySetT>
-UnorderedMap<LedgerKey, std::shared_ptr<LedgerEntry const>>
-populateLoadedEntries(KeySetT const& keys,
-                      std::vector<LedgerEntry> const& entries)
+bool
+LedgerKeyMeter::canLoad(LedgerKey const& key, size_t entrySizeBytes) const
 {
-    UnorderedMap<LedgerKey, std::shared_ptr<LedgerEntry const>> res;
-
-    for (auto const& le : entries)
-    {
-        auto key = LedgerEntryKey(le);
-
-        // Abort if two entries for the same key appear.
-        releaseAssert(res.find(key) == res.end());
-
-        // Only return entries for keys that were actually requested.
-        if (keys.find(key) != keys.end())
-        {
-            res.emplace(key, std::make_shared<LedgerEntry const>(le));
-        }
-    }
-
-    for (auto const& key : keys)
-    {
-        if (res.find(key) == res.end())
-        {
-            res.emplace(key, nullptr);
-        }
-    }
-    return res;
+    return maxReadQuotaForKey(key) >= entrySizeBytes;
 }
 
-template UnorderedMap<LedgerKey, std::shared_ptr<LedgerEntry const>>
-populateLoadedEntries(LedgerKeySet const& keys,
-                      std::vector<LedgerEntry> const& entries);
+void
+LedgerKeyMeter::addTxn(SorobanResources const& resources)
+{
+    TxReadBytesPtr txReadBytesPtr =
+        std::make_shared<uint32_t>(resources.readBytes);
+    auto addKeyToTxnMap = [&](auto const& key) {
+        mLedgerKeyToTxReadBytes[key].emplace_back(txReadBytesPtr);
+    };
+    std::for_each(resources.footprint.readOnly.begin(),
+                  resources.footprint.readOnly.end(), addKeyToTxnMap);
+    std::for_each(resources.footprint.readWrite.begin(),
+                  resources.footprint.readWrite.end(), addKeyToTxnMap);
+}
 
-template UnorderedMap<LedgerKey, std::shared_ptr<LedgerEntry const>>
-populateLoadedEntries(UnorderedSet<LedgerKey> const& keys,
-                      std::vector<LedgerEntry> const& entries);
+void
+LedgerKeyMeter::updateReadQuotasForKey(LedgerKey const& key,
+                                       size_t entrySizeBytes)
+{
+    auto iter = mLedgerKeyToTxReadBytes.find(key);
+    if (iter == mLedgerKeyToTxReadBytes.end())
+    {
+        // Key does not belong to the footprint of any transaction.
+        // Ensure this is not a soroban key as they should always be metered.
+        releaseAssert(key.type() != CONTRACT_CODE &&
+                      key.type() != CONTRACT_DATA);
+        return;
+    }
+    // Update the read quota for every transaction containing this key.
+    bool exceedsQuotaForAllTxns = true;
+    for (TxReadBytesPtr txReadBytesPtr : iter->second)
+    {
+        if (*txReadBytesPtr < entrySizeBytes)
+        {
+            *txReadBytesPtr = 0;
+        }
+        else
+        {
+            exceedsQuotaForAllTxns = false;
+            *txReadBytesPtr -= entrySizeBytes;
+        }
+    }
+    if (exceedsQuotaForAllTxns)
+    {
+        mNotLoadedKeys.insert(key);
+    }
+}
+
+uint32_t
+LedgerKeyMeter::maxReadQuotaForKey(LedgerKey const& key) const
+{
+    auto iter = mLedgerKeyToTxReadBytes.find(key);
+    if (iter == mLedgerKeyToTxReadBytes.end())
+    {
+        // Key does not belong to the footprint of any transaction,
+        // therefore it is not quota-limited.
+        // Ensure this is not a soroban key as they should always be metered.
+        releaseAssert(key.type() != CONTRACT_CODE &&
+                      key.type() != CONTRACT_DATA);
+        return std::numeric_limits<uint32_t>::max();
+    }
+    return **std::max_element(
+        iter->second.begin(), iter->second.end(),
+        [&](TxReadBytesPtr a, TxReadBytesPtr b) { return *a < *b; });
+}
+
+bool
+LedgerKeyMeter::loadFailed(LedgerKey const& key) const
+{
+    if (mNotLoadedKeys.find(key) != mNotLoadedKeys.end())
+    {
+        return true;
+    }
+    return false;
+}
 
 bool
 operator==(OfferDescriptor const& lhs, OfferDescriptor const& rhs)
@@ -1430,6 +1477,29 @@ LedgerTxn::Impl::getAllEntries(std::vector<LedgerEntry>& initEntries,
     deadEntries.swap(resDead);
 }
 
+LedgerKeySet
+LedgerTxn::getAllTTLKeysWithoutSealing() const
+{
+    return getImpl()->getAllTTLKeysWithoutSealing();
+}
+
+LedgerKeySet
+LedgerTxn::Impl::getAllTTLKeysWithoutSealing() const
+{
+    throwIfNotExactConsistency();
+    LedgerKeySet result;
+    for (auto const& [k, v] : mEntry)
+    {
+        if (k.type() == InternalLedgerEntryType::LEDGER_ENTRY &&
+            k.ledgerKey().type() == TTL)
+        {
+            result.emplace(k.ledgerKey());
+        }
+    }
+
+    return result;
+}
+
 std::shared_ptr<InternalLedgerEntry const>
 LedgerTxn::getNewestVersion(InternalLedgerKey const& key) const
 {
@@ -2039,15 +2109,28 @@ LedgerTxn::Impl::getPrefetchHitRate() const
 }
 
 uint32_t
-LedgerTxn::prefetch(UnorderedSet<LedgerKey> const& keys)
+LedgerTxn::prefetchClassic(UnorderedSet<LedgerKey> const& keys)
 {
-    return getImpl()->prefetch(keys);
+    return getImpl()->prefetchClassic(keys);
+}
+uint32_t
+LedgerTxn::prefetchSoroban(UnorderedSet<LedgerKey> const& keys,
+                           LedgerKeyMeter* lkMeter)
+{
+    return getImpl()->prefetchSoroban(keys, lkMeter);
 }
 
 uint32_t
-LedgerTxn::Impl::prefetch(UnorderedSet<LedgerKey> const& keys)
+LedgerTxn::Impl::prefetchClassic(UnorderedSet<LedgerKey> const& keys)
 {
-    return mParent.prefetch(keys);
+    return mParent.prefetchClassic(keys);
+}
+
+uint32_t
+LedgerTxn::Impl::prefetchSoroban(UnorderedSet<LedgerKey> const& keys,
+                                 LedgerKeyMeter* lkMeter)
+{
+    return mParent.prefetchSoroban(keys, lkMeter);
 }
 
 void
@@ -2500,7 +2583,7 @@ LedgerTxnRoot::Impl::addChild(AbstractLedgerTxn& child, TransactionMode mode)
     {
         // Read-only transactions are only allowed on the main thread to ensure
         // we're not competing with writes
-        assertThreadIsMain();
+        releaseAssert(threadIsMain());
     }
 
     mChild = &child;
@@ -2951,13 +3034,36 @@ LedgerTxnRoot::dropTTL(bool rebuild)
 }
 
 uint32_t
-LedgerTxnRoot::prefetch(UnorderedSet<LedgerKey> const& keys)
+LedgerTxnRoot::prefetchClassic(UnorderedSet<LedgerKey> const& keys)
 {
-    return mImpl->prefetch(keys);
+    return mImpl->prefetchClassic(keys);
 }
 
 uint32_t
-LedgerTxnRoot::Impl::prefetch(UnorderedSet<LedgerKey> const& keys)
+LedgerTxnRoot::prefetchSoroban(UnorderedSet<LedgerKey> const& keys,
+                               LedgerKeyMeter* lkMeter)
+
+{
+    releaseAssert(lkMeter);
+    return mImpl->prefetchSoroban(keys, lkMeter);
+}
+
+uint32_t
+LedgerTxnRoot::Impl::prefetchSoroban(UnorderedSet<LedgerKey> const& keys,
+                                     LedgerKeyMeter* lkMeter)
+{
+    ZoneScoped;
+    return prefetchInternal(keys, lkMeter);
+}
+uint32_t
+LedgerTxnRoot::Impl::prefetchClassic(UnorderedSet<LedgerKey> const& keys)
+{
+    ZoneScoped;
+    return prefetchInternal(keys);
+}
+uint32_t
+LedgerTxnRoot::Impl::prefetchInternal(UnorderedSet<LedgerKey> const& keys,
+                                      LedgerKeyMeter* lkMeter)
 {
     ZoneScoped;
     uint32_t total = 0;
@@ -2977,6 +3083,17 @@ LedgerTxnRoot::Impl::prefetch(UnorderedSet<LedgerKey> const& keys)
         {
             keys.insert(key);
         }
+        else if (lkMeter)
+        {
+            auto const& mEntry = mEntryCache.get(key);
+            if (mEntry.entry)
+            {
+                // If the key is already in the cache, it still contributes to
+                // metering.
+                lkMeter->updateReadQuotasForKey(key,
+                                                xdr::xdr_size(*mEntry.entry));
+            }
+        }
     };
 
     if (mApp.getConfig().isUsingBucketListDB())
@@ -2986,9 +3103,9 @@ LedgerTxnRoot::Impl::prefetch(UnorderedSet<LedgerKey> const& keys)
         {
             insertIfNotLoaded(keysToSearch, key);
         }
-
-        auto blLoad = mApp.getBucketManager().loadKeys(keysToSearch);
-        cacheResult(populateLoadedEntries(keysToSearch, blLoad));
+        auto blLoad = getSearchableBucketListSnapshot().loadKeysWithLimits(
+            keysToSearch, lkMeter);
+        cacheResult(populateLoadedEntries(keysToSearch, blLoad, lkMeter));
     }
     else
     {
@@ -3341,7 +3458,7 @@ LedgerTxnRoot::Impl::populateEntryCacheFromBestOffers(
             toPrefetch.emplace(trustlineKey(oe.sellerID, oe.selling));
         }
     }
-    prefetch(toPrefetch);
+    prefetchClassic(toPrefetch);
 }
 
 bool
@@ -3367,6 +3484,20 @@ LedgerTxnRoot::Impl::areEntriesMissingInCacheForOffer(OfferEntry const& oe)
     }
 
     return false;
+}
+
+SearchableBucketListSnapshot&
+LedgerTxnRoot::Impl::getSearchableBucketListSnapshot() const
+{
+    releaseAssert(mApp.getConfig().isUsingBucketListDB());
+    if (!mSearchableBucketListSnapshot)
+    {
+        mSearchableBucketListSnapshot = mApp.getBucketManager()
+                                            .getBucketSnapshotManager()
+                                            .copySearchableBucketListSnapshot();
+    }
+
+    return *mSearchableBucketListSnapshot;
 }
 
 std::shared_ptr<LedgerEntry const>
@@ -3482,8 +3613,7 @@ LedgerTxnRoot::Impl::getOffersByAccountAndAsset(AccountID const& account,
             toPrefetch.emplace(trustlineKey(oe.sellerID, oe.selling));
         }
     }
-    prefetch(toPrefetch);
-
+    prefetchClassic(toPrefetch);
     return res;
 }
 
@@ -3505,7 +3635,7 @@ LedgerTxnRoot::Impl::getPoolShareTrustLinesByAccountAndAsset(
         if (mApp.getConfig().isUsingBucketListDB())
         {
             trustLines =
-                mApp.getBucketManager()
+                getSearchableBucketListSnapshot()
                     .loadPoolShareTrustLinesByAccountAndAsset(account, asset);
         }
         else
@@ -3568,8 +3698,8 @@ LedgerTxnRoot::Impl::getInflationWinners(size_t maxWinners, int64_t minVotes)
     {
         if (mApp.getConfig().isUsingBucketListDB())
         {
-            return mApp.getBucketManager().loadInflationWinners(maxWinners,
-                                                                minVotes);
+            return getSearchableBucketListSnapshot().loadInflationWinners(
+                maxWinners, minVotes);
         }
         else
         {
@@ -3624,7 +3754,7 @@ LedgerTxnRoot::Impl::getNewestVersion(InternalLedgerKey const& gkey) const
     {
         if (mApp.getConfig().isUsingBucketListDB() && key.type() != OFFER)
         {
-            entry = mApp.getBucketManager().getLedgerEntry(key);
+            entry = getSearchableBucketListSnapshot().load(key);
         }
         else
         {

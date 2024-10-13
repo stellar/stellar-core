@@ -80,6 +80,11 @@ RUN apt-get -y install postgresql
 RUN sed -i -e 's/# en_US.UTF-8 UTF-8/en_US.UTF-8 UTF-8/' /etc/locale.gen \
     && locale-gen
 
+# Asan in llvm provided in ubuntu 22.04 is incompatible with
+# high-entropy ASLR in much newer kernels that GitHub runners are
+# using leading to random crashes: https://reviews.llvm.org/D148280
+RUN sysctl vm.mmap_rnd_bits=28
+
 ENV LANG en_US.UTF-8
 ENV LANGUAGE en_US:en
 ENV LC_ALL en_US.UTF-8

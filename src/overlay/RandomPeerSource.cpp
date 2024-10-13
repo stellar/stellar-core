@@ -3,20 +3,6 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "overlay/RandomPeerSource.h"
-#include "crypto/Random.h"
-#include "database/Database.h"
-#include "main/Application.h"
-#include "overlay/StellarXDR.h"
-#include "util/GlobalChecks.h"
-#include "util/Logging.h"
-#include "util/Math.h"
-#include "util/must_use.h"
-
-#include <algorithm>
-#include <cmath>
-#include <fmt/format.h>
-#include <regex>
-#include <soci.h>
 #include <vector>
 
 namespace stellar

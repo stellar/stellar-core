@@ -21,30 +21,6 @@ int feeRate3WayCompare(int64_t lFeeBid, uint32_t lNbOps, int64_t rFeeBid,
 int64_t computeBetterFee(TransactionFrameBase const& tx, int64_t refFeeBid,
                          uint32_t refNbOps);
 
-// Interface for a stack-like container holding transactions.
-// This needs to be implemented by any user of `SurgePricingPriorityQueue`, as
-// it operates on stacks and not bare transactions.
-//
-// This interface is not strictly a stack as it just defines the 'pop' operation
-// and leaves the element additions up to the implementer. So the naming here is
-// mostly to be in contrast with `SurgePricingPriorityQueue`.
-class TxStack
-{
-  public:
-    // Gets the transaction on top of the stack.
-    virtual TransactionFrameBasePtr getTopTx() const = 0;
-    // Pops the transaction from top of the stack.
-    virtual void popTopTx() = 0;
-    // Returns the total number of resources in the stack.
-    virtual Resource getResources() const = 0;
-    // Returns whether this stack is empty.
-    virtual bool empty() const = 0;
-
-    virtual ~TxStack() = default;
-};
-
-using TxStackPtr = std::shared_ptr<TxStack>;
-
 // Configuration for multi-lane transaction limiting and surge pricing.
 //
 // This configuration defines how many 'lanes' are there to compare and limit
@@ -124,10 +100,6 @@ class SorobanGenericLaneConfig : public SurgePricingLaneConfig
 // Priority queue-like data structure that allows to store transactions ordered
 // by fee rate and perform operations that respect the lane limits specified by
 // `SurgePricingLaneConfig`.
-//
-// The queue operates on transaction stacks and only the top transactions of the
-// stacks are compared. This allows to e.g. order transactions while preserving
-// the seq num order.
 class SurgePricingPriorityQueue
 {
   public:
@@ -135,54 +107,50 @@ class SurgePricingPriorityQueue
     static constexpr size_t GENERIC_LANE = 0;
 
     // Helper that uses `SurgePricingPriorityQueue` to greedily select the
-    // maximum subset of transactions from `txStacks` with maximum fee ratios
+    // maximum subset of transactions from `txs` with maximum fee ratios
     // within the limits specified by `laneConfig`.
     // The greedy ordering optimizes for the maximal fee ratio first, then for
     // the output resource count.
-    // Transactions will be popped from the input `txStacks`, so after this call
-    // `txStacks` will contain all the remaining transactions.
     // `hadTxNotFittingLane` is an output parameter that for every lane will
     // identify whether there was a transaction that didn't fit into that lane's
     // limit.
     static std::vector<TransactionFrameBasePtr> getMostTopTxsWithinLimits(
-        std::vector<TxStackPtr> const& txStacks,
+        std::vector<TransactionFrameBasePtr> const& txs,
         std::shared_ptr<SurgePricingLaneConfig> laneConfig,
         std::vector<bool>& hadTxNotFittingLane);
 
-    // Returns total number of resources in all the stacks in this queue.
+    // Returns total amount of resources in all the transactions in this queue.
     Resource totalResources() const;
 
-    // Returns total number of resources in the provided lane of the queue.
+    // Returns total amount of resources in the provided lane of the queue.
     Resource laneResources(size_t lane) const;
 
-    // Result of visiting the transaction stack in the `visitTopTxs`.
+    // Result of visiting a transaction in the `visitTopTxs`.
     // This serves as a callback output to let the queue know how to process the
-    // visited stack.
-    enum class VisitTxStackResult
+    // visited transaction.
+    enum class VisitTxResult
     {
-        // Top transaction of the stack should be popped, but not counted
-        // towards the lane limits.
-        TX_SKIPPED,
-        // Top transaction of the stack should be popped and counted towards the
+        // Transaction should be skipped and not counted towards the lane
+        // limits.
+        SKIPPED,
+        // Transaction has been processed and should be counted towards the
         // lane limits.
-        TX_PROCESSED,
-        // The whole stack should be skipped (no transactions are popped or
-        // counted towards the lane limits).
-        TX_STACK_SKIPPED
+        PROCESSED
     };
 
     // Helper that uses `SurgePricingPriorityQueue` to visit the top (by fee
-    // rate) transactions in the `txStacks` until `laneConfig` limits are
+    // rate) transactions in the `txs` until `laneConfig` limits are
     // reached. The visiting process will end for a lane as soon as there is a
     // transaction that causes the limit to be exceeded.
     // `comparisonSeed` is used to break the comparison ties.
-    // `visitor` should process the `TxStack` and provide an action to do with
-    // that stack.
+    // `visitor` should process the transaction and return whether it has been
+    // processed.
     // `laneResourcesLeftUntilLimit` is an output parameter that for each lane
     // will contain the number of resources left until lane's limit is reached.
     void visitTopTxs(
-        std::vector<TxStackPtr> const& txStacks,
-        std::function<VisitTxStackResult(TxStack const&)> const& visitor,
+        std::vector<TransactionFrameBasePtr> const& txs,
+        std::function<VisitTxResult(TransactionFrameBasePtr const&)> const&
+            visitor,
         std::vector<Resource>& laneResourcesLeftUntilLimit);
 
     // Creates a `SurgePricingPriorityQueue` for the provided lane
@@ -195,35 +163,35 @@ class SurgePricingPriorityQueue
         std::shared_ptr<SurgePricingLaneConfig> laneConfig,
         size_t comparisonSeed);
 
-    // Adds a `TxStack` to this queue. The queue has ownership of the stack and
-    // may pop transactions from it.
-    void add(TxStackPtr txStack);
-    // Erases a `TxStack` from this queue.
-    void erase(TxStackPtr txStack);
+    // Adds a transaction to this queue.
+    void add(TransactionFrameBasePtr tx);
+    // Erases a transaction from this queue.
+    void erase(TransactionFrameBasePtr tx);
 
     // Checks whether a provided transaction could fit into this queue without
     // violating the `laneConfig` limits while evicting some lower fee rate
-    // `TxStacks` from the queue.
+    // transactions from the queue.
     // Returns whether transaction can be fit and if not, returns the minimum
     // required fee to possibly fit.
     // `txDiscount` is a number of resources to subtract from tx's
     // resources when estimating the total resource counts.
-    // `txStacksToEvict` is an output parameter that will contain all the stacks
-    // that need to be evicted in order to fit `tx`. The `bool` argument
-    // indicates whether this `TxStack` has been evicted due to lane's limit (as
-    // opposed to 'generic' lane's limit).
+    // `txsToEvict` is an output parameter that will contain all the
+    // transactions that need to be evicted in order to fit `tx`. The `bool`
+    // argument indicates whether a transaction has been evicted due to lane's
+    // limit (as opposed to 'generic' lane's limit).
     std::pair<bool, int64_t> canFitWithEviction(
         TransactionFrameBase const& tx, std::optional<Resource> txDiscount,
-        std::vector<std::pair<TxStackPtr, bool>>& txStacksToEvict) const;
+        std::vector<std::pair<TransactionFrameBasePtr, bool>>& txsToEvict)
+        const;
 
   private:
-    class TxStackComparator
+    class TxComparator
     {
       public:
-        TxStackComparator(bool isGreater, size_t seed);
+        TxComparator(bool isGreater, size_t seed);
 
-        bool operator()(TxStackPtr const& txStack1,
-                        TxStackPtr const& txStack2) const;
+        bool operator()(TransactionFrameBasePtr const& tx1,
+                        TransactionFrameBasePtr const& tx2) const;
 
         bool compareFeeOnly(TransactionFrameBase const& tx1,
                             TransactionFrameBase const& tx2) const;
@@ -232,19 +200,15 @@ class SurgePricingPriorityQueue
         bool isGreater() const;
 
       private:
-        bool txStackLessThan(TxStack const& txStack1,
-                             TxStack const& txStack2) const;
-
-        bool txLessThan(TransactionFrameBaseConstPtr const& tx1,
-                        TransactionFrameBaseConstPtr const& tx2,
-                        bool breakTiesWithHash) const;
+        bool txLessThan(TransactionFrameBasePtr const& tx1,
+                        TransactionFrameBasePtr const& tx2) const;
 
         bool const mIsGreater;
         size_t mSeed;
     };
 
-    using TxStackSet = std::set<TxStackPtr, TxStackComparator>;
-    using LaneIter = std::pair<size_t, TxStackSet::iterator>;
+    using TxSortedSet = std::set<TransactionFrameBasePtr, TxComparator>;
+    using LaneIter = std::pair<size_t, TxSortedSet::iterator>;
 
     // Iterator for walking the queue from top to bottom, possibly restricted
     // only to some lanes. The actual ordering is defined by
@@ -255,8 +219,8 @@ class SurgePricingPriorityQueue
         Iterator(SurgePricingPriorityQueue const& parent,
                  std::vector<LaneIter> const& iters);
 
-        TxStackPtr operator*() const;
-        // Gets the iterator of the `TxStackSet` corresponding to the current
+        TransactionFrameBasePtr operator*() const;
+        // Gets the iterator of the `TxSet` corresponding to the current
         // value.
         LaneIter getInnerIter() const;
         bool isEnd() const;
@@ -274,28 +238,28 @@ class SurgePricingPriorityQueue
 
     // Generalized method for visiting and popping the top transactions in the
     // queue until the lane limits are reached.
-    // This leaves the queue empty (when `allowGaps` is `true`) and hence is
-    // only used from the helper methods that don't expose the queue at all.
-    void
-    popTopTxs(bool allowGaps,
-              std::function<VisitTxStackResult(TxStack const&)> const& visitor,
-              std::vector<Resource>& laneResourcesLeftUntilLimit,
-              std::vector<bool>& hadTxNotFittingLane);
+    // This is a destructive method that removes all or most of the queue
+    // elements and thus should be used with care.
+    void popTopTxs(
+        bool allowGaps,
+        std::function<VisitTxResult(TransactionFrameBasePtr const&)> const&
+            visitor,
+        std::vector<Resource>& laneResourcesLeftUntilLimit,
+        std::vector<bool>& hadTxNotFittingLane);
 
     void erase(Iterator const& it);
     void erase(size_t lane,
-               SurgePricingPriorityQueue::TxStackSet::iterator iter);
-    void popTopTx(Iterator iter);
+               SurgePricingPriorityQueue::TxSortedSet::iterator iter);
 
     Iterator getTop() const;
 
-    TxStackComparator const mComparator;
+    TxComparator const mComparator;
     std::shared_ptr<SurgePricingLaneConfig> mLaneConfig;
     std::vector<Resource> const& mLaneLimits;
 
     std::vector<Resource> mLaneCurrentCount;
 
-    std::vector<TxStackSet> mTxStackSets;
+    std::vector<TxSortedSet> mTxSortedSets;
 };
 
 } // namespace stellar

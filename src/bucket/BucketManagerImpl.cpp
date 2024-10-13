@@ -4,27 +4,31 @@
 
 #include "bucket/BucketManagerImpl.h"
 #include "bucket/Bucket.h"
+#include "bucket/BucketIndexImpl.h"
 #include "bucket/BucketInputIterator.h"
 #include "bucket/BucketList.h"
+#include "bucket/BucketListSnapshot.h"
 #include "bucket/BucketOutputIterator.h"
+#include "bucket/BucketSnapshotManager.h"
+#include "crypto/BLAKE2.h"
 #include "crypto/Hex.h"
 #include "history/HistoryManager.h"
 #include "historywork/VerifyBucketWork.h"
 #include "ledger/LedgerManager.h"
 #include "ledger/LedgerTxn.h"
+#include "ledger/LedgerTypeUtils.h"
 #include "main/Application.h"
 #include "main/Config.h"
-#include "overlay/StellarXDR.h"
 #include "util/Fs.h"
 #include "util/GlobalChecks.h"
 #include "util/LogSlowExecution.h"
 #include "util/Logging.h"
 #include "util/TmpDir.h"
 #include "util/types.h"
+#include "xdr/Stellar-ledger.h"
 #include <filesystem>
 #include <fmt/chrono.h>
 #include <fmt/format.h>
-#include <fstream>
 #include <map>
 #include <regex>
 #include <set>
@@ -40,6 +44,39 @@
 
 namespace stellar
 {
+
+void
+EvictionStatistics::recordEvictedEntry(uint64_t age)
+{
+    std::lock_guard l(mLock);
+    ++mNumEntriesEvicted;
+    mEvictedEntriesAgeSum += age;
+}
+
+void
+EvictionStatistics::submitMetricsAndRestartCycle(uint32_t currLedgerSeq,
+                                                 EvictionCounters& counters)
+{
+    std::lock_guard l(mLock);
+
+    // Only record metrics if we've seen a complete cycle to avoid noise
+    if (mCompleteCycle)
+    {
+        counters.evictionCyclePeriod.set_count(currLedgerSeq -
+                                               mEvictionCycleStartLedger);
+
+        auto averageAge = mNumEntriesEvicted == 0
+                              ? 0
+                              : mEvictedEntriesAgeSum / mNumEntriesEvicted;
+        counters.averageEvictedEntryAge.set_count(averageAge);
+    }
+
+    // Reset to start new cycle
+    mCompleteCycle = true;
+    mEvictedEntriesAgeSum = 0;
+    mNumEntriesEvicted = 0;
+    mEvictionCycleStartLedger = currLedgerSeq;
+}
 
 std::unique_ptr<BucketManager>
 BucketManager::create(Application& app)
@@ -87,6 +124,15 @@ BucketManagerImpl::initialize()
     if (mApp.getConfig().MODE_ENABLES_BUCKETLIST)
     {
         mBucketList = std::make_unique<BucketList>();
+
+        if (mApp.getConfig().isUsingBucketListDB())
+        {
+            mSnapshotManager = std::make_unique<BucketSnapshotManager>(
+                mApp,
+                std::make_unique<BucketListSnapshot>(*mBucketList,
+                                                     LedgerHeader()),
+                mApp.getConfig().QUERY_SNAPSHOT_LEDGERS);
+        }
     }
 }
 
@@ -104,9 +150,24 @@ BucketManagerImpl::getTmpDirManager()
     return *mTmpDirManager;
 }
 
+EvictionCounters::EvictionCounters(Application& app)
+    : entriesEvicted(app.getMetrics().NewCounter(
+          {"state-archival", "eviction", "entries-evicted"}))
+    , bytesScannedForEviction(app.getMetrics().NewCounter(
+          {"state-archival", "eviction", "bytes-scanned"}))
+    , incompleteBucketScan(app.getMetrics().NewCounter(
+          {"state-archival", "eviction", "incomplete-scan"}))
+    , evictionCyclePeriod(
+          app.getMetrics().NewCounter({"state-archival", "eviction", "period"}))
+    , averageEvictedEntryAge(
+          app.getMetrics().NewCounter({"state-archival", "eviction", "age"}))
+{
+}
+
 BucketManagerImpl::BucketManagerImpl(Application& app)
     : mApp(app)
     , mBucketList(nullptr)
+    , mSnapshotManager(nullptr)
     , mTmpDirManager(nullptr)
     , mWorkDir(nullptr)
     , mLockedBucketDir(nullptr)
@@ -116,23 +177,33 @@ BucketManagerImpl::BucketManagerImpl(Application& app)
     , mBucketSnapMerge(app.getMetrics().NewTimer({"bucket", "snap", "merge"}))
     , mSharedBucketsSize(
           app.getMetrics().NewCounter({"bucket", "memory", "shared"}))
-    , mBucketListDBQueryMeter(app.getMetrics().NewMeter(
-          {"bucketlistDB", "query", "loads"}, "query"))
     , mBucketListDBBloomMisses(app.getMetrics().NewMeter(
           {"bucketlistDB", "bloom", "misses"}, "bloom"))
     , mBucketListDBBloomLookups(app.getMetrics().NewMeter(
           {"bucketlistDB", "bloom", "lookups"}, "bloom"))
-    , mEntriesEvicted(app.getMetrics().NewMeter(
-          {"state-archival", "eviction", "entries-evicted"}, "eviction"))
-    , mBytesScannedForEviction(app.getMetrics().NewCounter(
-          {"state-archival", "eviction", "bytes-scanned"}))
-    , mIncompleteBucketScans(app.getMetrics().NewCounter(
-          {"state-archival", "eviction", "incomplete-scan"}))
+    , mBucketListSizeCounter(
+          app.getMetrics().NewCounter({"bucketlist", "size", "bytes"}))
+    , mBucketListEvictionCounters(app)
+    , mEvictionStatistics(std::make_shared<EvictionStatistics>())
     // Minimal DB is stored in the buckets dir, so delete it only when
     // mode does not use minimal DB
     , mDeleteEntireBucketDirInDtor(
           app.getConfig().isInMemoryModeWithoutMinimalDB())
 {
+    for (uint32_t t =
+             static_cast<uint32_t>(LedgerEntryTypeAndDurability::ACCOUNT);
+         t < static_cast<uint32_t>(LedgerEntryTypeAndDurability::NUM_TYPES);
+         ++t)
+    {
+        auto type = static_cast<LedgerEntryTypeAndDurability>(t);
+        auto typeString = toString(type);
+        mBucketListEntryCountCounters.emplace(
+            type, app.getMetrics().NewCounter(
+                      {"bucketlist", "entryCounts", typeString}));
+        mBucketListEntrySizeCounters.emplace(
+            type, app.getMetrics().NewCounter(
+                      {"bucketlist", "entrySizes", typeString}));
+    }
 }
 
 const std::string BucketManagerImpl::kLockFilename = "stellar-core.lock";
@@ -264,6 +335,14 @@ BucketManagerImpl::getBucketList()
     return *mBucketList;
 }
 
+BucketSnapshotManager&
+BucketManagerImpl::getBucketSnapshotManager() const
+{
+    releaseAssertOrThrow(mApp.getConfig().isUsingBucketListDB());
+    releaseAssert(mSnapshotManager);
+    return *mSnapshotManager;
+}
+
 medida::Timer&
 BucketManagerImpl::getMergeTimer()
 {
@@ -275,6 +354,19 @@ BucketManagerImpl::readMergeCounters()
 {
     std::lock_guard<std::recursive_mutex> lock(mBucketMutex);
     return mMergeCounters;
+}
+
+// Check that eviction scan is based off of current ledger snapshot and that
+// archival settings have not changed
+bool
+EvictionResult::isValid(uint32_t currLedger,
+                        StateArchivalSettings const& currSas) const
+{
+    return initialLedger == currLedger &&
+           initialSas.maxEntriesToArchive == currSas.maxEntriesToArchive &&
+           initialSas.evictionScanSize == currSas.evictionScanSize &&
+           initialSas.startingEvictionScanLevel ==
+               currSas.startingEvictionScanLevel;
 }
 
 MergeCounters&
@@ -809,8 +901,7 @@ BucketManagerImpl::forgetUnreferencedBuckets()
 }
 
 void
-BucketManagerImpl::addBatch(Application& app, uint32_t currLedger,
-                            uint32_t currLedgerProtocol,
+BucketManagerImpl::addBatch(Application& app, LedgerHeader header,
                             std::vector<LedgerEntry> const& initEntries,
                             std::vector<LedgerEntry> const& liveEntries,
                             std::vector<LedgerKey> const& deadEntries)
@@ -820,14 +911,20 @@ BucketManagerImpl::addBatch(Application& app, uint32_t currLedger,
 #ifdef BUILD_TESTS
     if (mUseFakeTestValuesForNextClose)
     {
-        currLedgerProtocol = mFakeTestProtocolVersion;
+        header.ledgerVersion = mFakeTestProtocolVersion;
     }
 #endif
     auto timer = mBucketAddBatch.TimeScope();
     mBucketObjectInsertBatch.Mark(initEntries.size() + liveEntries.size() +
                                   deadEntries.size());
-    mBucketList->addBatch(app, currLedger, currLedgerProtocol, initEntries,
-                          liveEntries, deadEntries);
+    mBucketList->addBatch(app, header.ledgerSeq, header.ledgerVersion,
+                          initEntries, liveEntries, deadEntries);
+    mBucketListSizeCounter.set_count(mBucketList->getSize());
+
+    if (app.getConfig().isUsingBucketListDB())
+    {
+        reportBucketEntryCountMetrics();
+    }
 }
 
 #ifdef BUILD_TESTS
@@ -851,10 +948,10 @@ BucketManagerImpl::getBucketHashesInBucketDirForTesting() const
     return hashes;
 }
 
-medida::Meter&
-BucketManagerImpl::getEntriesEvictedMeter() const
+medida::Counter&
+BucketManagerImpl::getEntriesEvictedCounter() const
 {
-    return mEntriesEvicted;
+    return mBucketListEvictionCounters.entriesEvicted;
 }
 #endif
 
@@ -886,6 +983,8 @@ void
 BucketManagerImpl::maybeSetIndex(std::shared_ptr<Bucket> b,
                                  std::unique_ptr<BucketIndex const>&& index)
 {
+    ZoneScoped;
+
     if (!isShutdown() && index && !b->isIndexed())
     {
         b->setIndex(std::move(index));
@@ -893,83 +992,118 @@ BucketManagerImpl::maybeSetIndex(std::shared_ptr<Bucket> b,
 }
 
 void
-BucketManagerImpl::scanForEviction(AbstractLedgerTxn& ltx, uint32_t ledgerSeq)
+BucketManagerImpl::scanForEvictionLegacy(AbstractLedgerTxn& ltx,
+                                         uint32_t ledgerSeq)
 {
     ZoneScoped;
-    if (protocolVersionStartsFrom(ltx.getHeader().ledgerVersion,
-                                  SOROBAN_PROTOCOL_VERSION))
+    releaseAssert(protocolVersionStartsFrom(ltx.getHeader().ledgerVersion,
+                                            SOROBAN_PROTOCOL_VERSION));
+    mBucketList->scanForEvictionLegacy(
+        mApp, ltx, ledgerSeq, mBucketListEvictionCounters, mEvictionStatistics);
+}
+
+void
+BucketManagerImpl::startBackgroundEvictionScan(uint32_t ledgerSeq)
+{
+    releaseAssert(mApp.getConfig().isUsingBucketListDB());
+    releaseAssert(mSnapshotManager);
+    releaseAssert(!mEvictionFuture.valid());
+    releaseAssert(mEvictionStatistics);
+
+    auto searchableBL = mSnapshotManager->copySearchableBucketListSnapshot();
+    auto const& cfg = mApp.getLedgerManager().getSorobanNetworkConfig();
+    auto const& sas = cfg.stateArchivalSettings();
+
+    using task_t = std::packaged_task<EvictionResult()>;
+    // MSVC gotcha: searchableBL has to be shared_ptr because MSVC wants to
+    // copy this lambda, otherwise we could use unique_ptr.
+    auto task = std::make_shared<task_t>(
+        [bl = std::move(searchableBL), iter = cfg.evictionIterator(), ledgerSeq,
+         sas, &counters = mBucketListEvictionCounters,
+         stats = mEvictionStatistics] {
+            return bl->scanForEviction(ledgerSeq, counters, iter, stats, sas);
+        });
+
+    mEvictionFuture = task->get_future();
+    mApp.postOnEvictionBackgroundThread(
+        bind(&task_t::operator(), task),
+        "SearchableBucketListSnapshot: eviction scan");
+}
+
+void
+BucketManagerImpl::resolveBackgroundEvictionScan(
+    AbstractLedgerTxn& ltx, uint32_t ledgerSeq,
+    LedgerKeySet const& modifiedKeys)
+{
+    ZoneScoped;
+    releaseAssert(threadIsMain());
+    releaseAssert(mEvictionStatistics);
+
+    if (!mEvictionFuture.valid())
     {
-        mBucketList->scanForEviction(mApp, ltx, ledgerSeq, mEntriesEvicted,
-                                     mBytesScannedForEviction,
-                                     mIncompleteBucketScans);
+        startBackgroundEvictionScan(ledgerSeq);
     }
-}
 
-medida::Timer&
-BucketManagerImpl::getBulkLoadTimer(std::string const& label) const
-{
-    mBucketListDBQueryMeter.Mark();
-    auto iter = mBucketListDBBulkTimers.find(label);
-    if (iter == mBucketListDBBulkTimers.end())
+    auto evictionCandidates = mEvictionFuture.get();
+
+    auto const& networkConfig =
+        mApp.getLedgerManager().getSorobanNetworkConfig();
+
+    // If eviction related settings changed during the ledger, we have to
+    // restart the scan
+    if (!evictionCandidates.isValid(ledgerSeq,
+                                    networkConfig.stateArchivalSettings()))
     {
-        auto& metric =
-            mApp.getMetrics().NewTimer({"bucketlistDB", "bulk", label});
-        iter = mBucketListDBBulkTimers.emplace(label, metric).first;
+        startBackgroundEvictionScan(ledgerSeq);
+        evictionCandidates = mEvictionFuture.get();
     }
 
-    return iter->second;
-}
+    auto& eligibleKeys = evictionCandidates.eligibleKeys;
 
-medida::Timer&
-BucketManagerImpl::getPointLoadTimer(LedgerEntryType t) const
-{
-    mBucketListDBQueryMeter.Mark();
-    auto iter = mBucketListDBPointTimers.find(t);
-    if (iter == mBucketListDBPointTimers.end())
+    for (auto iter = eligibleKeys.begin(); iter != eligibleKeys.end();)
     {
-        auto const& label = xdr::xdr_traits<LedgerEntryType>::enum_name(t);
-        auto& metric =
-            mApp.getMetrics().NewTimer({"bucketlistDB", "point", label});
-        iter = mBucketListDBPointTimers.emplace(t, metric).first;
+        // If the TTL has not been modified this ledger, we can evict the entry
+        if (modifiedKeys.find(getTTLKey(iter->key)) == modifiedKeys.end())
+        {
+            ++iter;
+        }
+        else
+        {
+            iter = eligibleKeys.erase(iter);
+        }
     }
 
-    return iter->second;
-}
+    auto remainingEntriesToEvict =
+        networkConfig.stateArchivalSettings().maxEntriesToArchive;
+    auto entryToEvictIter = eligibleKeys.begin();
+    auto newEvictionIterator = evictionCandidates.endOfRegionIterator;
 
-std::shared_ptr<LedgerEntry>
-BucketManagerImpl::getLedgerEntry(LedgerKey const& k) const
-{
-    releaseAssertOrThrow(getConfig().isUsingBucketListDB());
-    auto timer = getPointLoadTimer(k.type()).TimeScope();
-    return mBucketList->getLedgerEntry(k);
-}
+    // Only actually evict up to maxEntriesToArchive of the eligible entries
+    while (remainingEntriesToEvict > 0 &&
+           entryToEvictIter != eligibleKeys.end())
+    {
+        ltx.erase(entryToEvictIter->key);
+        ltx.erase(getTTLKey(entryToEvictIter->key));
+        --remainingEntriesToEvict;
 
-std::vector<LedgerEntry>
-BucketManagerImpl::loadKeys(
-    std::set<LedgerKey, LedgerEntryIdCmp> const& keys) const
-{
-    releaseAssertOrThrow(getConfig().isUsingBucketListDB());
-    auto timer = getBulkLoadTimer("prefetch").TimeScope();
-    return mBucketList->loadKeys(keys);
-}
+        auto age = ledgerSeq - entryToEvictIter->liveUntilLedger;
+        mEvictionStatistics->recordEvictedEntry(age);
+        mBucketListEvictionCounters.entriesEvicted.inc();
 
-std::vector<LedgerEntry>
-BucketManagerImpl::loadPoolShareTrustLinesByAccountAndAsset(
-    AccountID const& accountID, Asset const& asset) const
-{
-    releaseAssertOrThrow(getConfig().isUsingBucketListDB());
-    auto timer = getBulkLoadTimer("poolshareTrustlines").TimeScope();
-    return mBucketList->loadPoolShareTrustLinesByAccountAndAsset(
-        accountID, asset, getConfig());
-}
+        newEvictionIterator = entryToEvictIter->iter;
+        entryToEvictIter = eligibleKeys.erase(entryToEvictIter);
+    }
 
-std::vector<InflationWinner>
-BucketManagerImpl::loadInflationWinners(size_t maxWinners,
-                                        int64_t minBalance) const
-{
-    releaseAssertOrThrow(getConfig().isUsingBucketListDB());
-    auto timer = getBulkLoadTimer("inflationWinners").TimeScope();
-    return mBucketList->loadInflationWinners(maxWinners, minBalance);
+    // If remainingEntriesToEvict == 0, that means we could not evict the entire
+    // scan region, so the new eviction iterator should be after the last entry
+    // evicted. Otherwise, eviction iterator should be at the end of the scan
+    // region
+    if (remainingEntriesToEvict != 0)
+    {
+        newEvictionIterator = evictionCandidates.endOfRegionIterator;
+    }
+
+    networkConfig.updateEvictionIterator(ltx, newEvictionIterator);
 }
 
 medida::Meter&
@@ -1027,7 +1161,7 @@ BucketManagerImpl::checkForMissingBucketsFiles(HistoryArchiveState const& has)
 
 void
 BucketManagerImpl::assumeState(HistoryArchiveState const& has,
-                               uint32_t maxProtocolVersion)
+                               uint32_t maxProtocolVersion, bool restartMerges)
 {
     ZoneScoped;
     releaseAssertOrThrow(mApp.getConfig().MODE_ENABLES_BUCKETLIST);
@@ -1038,8 +1172,8 @@ BucketManagerImpl::assumeState(HistoryArchiveState const& has,
         auto snap = getBucketByHash(hexToBin256(has.currentBuckets.at(i).snap));
         if (!(curr && snap))
         {
-            throw std::runtime_error(
-                "Missing bucket files while assuming saved BucketList state");
+            throw std::runtime_error("Missing bucket files while assuming "
+                                     "saved BucketList state");
         }
 
         auto const& nextFuture = has.currentBuckets.at(i).next;
@@ -1055,8 +1189,8 @@ BucketManagerImpl::assumeState(HistoryArchiveState const& has,
             }
         }
 
-        // Buckets on the BucketList should always be indexed when BucketListDB
-        // enabled
+        // Buckets on the BucketList should always be indexed when
+        // BucketListDB enabled
         if (mApp.getConfig().isUsingBucketListDB())
         {
             releaseAssert(curr->isEmpty() || curr->isIndexed());
@@ -1072,7 +1206,10 @@ BucketManagerImpl::assumeState(HistoryArchiveState const& has,
         mBucketList->getLevel(i).setNext(nextFuture);
     }
 
-    mBucketList->restartMerges(mApp, maxProtocolVersion, has.currentLedger);
+    if (restartMerges)
+    {
+        mBucketList->restartMerges(mApp, maxProtocolVersion, has.currentLedger);
+    }
     cleanupStaleFiles();
 }
 
@@ -1095,6 +1232,8 @@ static void
 loadEntriesFromBucket(std::shared_ptr<Bucket> b, std::string const& name,
                       std::map<LedgerKey, LedgerEntry>& map)
 {
+    ZoneScoped;
+
     using namespace std::chrono;
     medida::Timer timer;
     BucketInputIterator in(b);
@@ -1139,6 +1278,8 @@ loadEntriesFromBucket(std::shared_ptr<Bucket> b, std::string const& name,
 std::map<LedgerKey, LedgerEntry>
 BucketManagerImpl::loadCompleteLedgerState(HistoryArchiveState const& has)
 {
+    ZoneScoped;
+
     std::map<LedgerKey, LedgerEntry> ledgerMap;
     std::vector<std::pair<Hash, std::string>> hashes;
     for (uint32_t i = BucketList::kNumLevels; i > 0; --i)
@@ -1169,6 +1310,8 @@ BucketManagerImpl::loadCompleteLedgerState(HistoryArchiveState const& has)
 std::shared_ptr<Bucket>
 BucketManagerImpl::mergeBuckets(HistoryArchiveState const& has)
 {
+    ZoneScoped;
+
     std::map<LedgerKey, LedgerEntry> ledgerMap = loadCompleteLedgerState(has);
     BucketMetadata meta;
     MergeCounters mc;
@@ -1187,16 +1330,18 @@ BucketManagerImpl::mergeBuckets(HistoryArchiveState const& has)
 }
 
 static bool
-visitEntriesInBucket(std::shared_ptr<Bucket const> b, std::string const& name,
-                     std::optional<int64_t> minLedger,
-                     std::function<bool(LedgerEntry const&)> const& filterEntry,
-                     std::function<bool(LedgerEntry const&)> const& acceptEntry,
-                     UnorderedSet<LedgerKey>& processedEntries)
+visitLiveEntriesInBucket(
+    std::shared_ptr<Bucket const> b, std::string const& name,
+    std::optional<int64_t> minLedger,
+    std::function<bool(LedgerEntry const&)> const& filterEntry,
+    std::function<bool(LedgerEntry const&)> const& acceptEntry,
+    UnorderedSet<Hash>& processedEntries)
 {
+    ZoneScoped;
+
     using namespace std::chrono;
     medida::Timer timer;
 
-    UnorderedMap<LedgerKey, LedgerEntry> bucketEntries;
     bool stopIteration = false;
     timer.Time([&]() {
         for (BucketInputIterator in(b); in; ++in)
@@ -1204,22 +1349,27 @@ visitEntriesInBucket(std::shared_ptr<Bucket const> b, std::string const& name,
             BucketEntry const& e = *in;
             if (e.type() == LIVEENTRY || e.type() == INITENTRY)
             {
-                if (minLedger &&
-                    e.liveEntry().lastModifiedLedgerSeq < *minLedger)
+                auto const& liveEntry = e.liveEntry();
+                if (minLedger && liveEntry.lastModifiedLedgerSeq < *minLedger)
                 {
                     stopIteration = true;
                     continue;
                 }
-                if (!filterEntry(e.liveEntry()))
+                if (!filterEntry(liveEntry))
                 {
                     continue;
                 }
-                auto key = LedgerEntryKey(e.liveEntry());
-                if (processedEntries.find(key) != processedEntries.end())
+                if (!processedEntries
+                         .insert(xdrBlake2(LedgerEntryKey(liveEntry)))
+                         .second)
                 {
                     continue;
                 }
-                bucketEntries[key] = e.liveEntry();
+                if (!acceptEntry(liveEntry))
+                {
+                    stopIteration = true;
+                    break;
+                }
             }
             else
             {
@@ -1230,17 +1380,62 @@ visitEntriesInBucket(std::shared_ptr<Bucket const> b, std::string const& name,
                     CLOG_ERROR(Bucket, "{}", err);
                     throw std::runtime_error(err);
                 }
-                bucketEntries.erase(e.deadEntry());
-                processedEntries.insert(e.deadEntry());
+                processedEntries.insert(xdrBlake2(e.deadEntry()));
             }
         }
-        for (auto const& [key, entry] : bucketEntries)
+    });
+    nanoseconds ns =
+        timer.duration_unit() * static_cast<nanoseconds::rep>(timer.max());
+    milliseconds ms = duration_cast<milliseconds>(ns);
+    size_t bytesPerSec = (b->getSize() * 1000 / (1 + ms.count()));
+    CLOG_INFO(Bucket, "Processed {}-byte bucket file '{}' in {} ({}/s)",
+              b->getSize(), name, ms, formatSize(bytesPerSec));
+    return !stopIteration;
+}
+
+static bool
+visitAllEntriesInBucket(
+    std::shared_ptr<Bucket const> b, std::string const& name,
+    std::optional<int64_t> minLedger,
+    std::function<bool(LedgerEntry const&)> const& filterEntry,
+    std::function<bool(LedgerEntry const&)> const& acceptEntry)
+{
+    ZoneScoped;
+
+    using namespace std::chrono;
+    medida::Timer timer;
+
+    bool stopIteration = false;
+    timer.Time([&]() {
+        for (BucketInputIterator in(b); in; ++in)
         {
-            processedEntries.insert(key);
-            if (!acceptEntry(entry))
+            BucketEntry const& e = *in;
+            if (e.type() == LIVEENTRY || e.type() == INITENTRY)
             {
-                stopIteration = true;
-                break;
+                auto const& liveEntry = e.liveEntry();
+                if (minLedger && liveEntry.lastModifiedLedgerSeq < *minLedger)
+                {
+                    stopIteration = true;
+                    continue;
+                }
+                if (filterEntry(e.liveEntry()))
+                {
+                    if (!acceptEntry(e.liveEntry()))
+                    {
+                        stopIteration = true;
+                        break;
+                    }
+                }
+            }
+            else
+            {
+                if (e.type() != DEADENTRY)
+                {
+                    std::string err = "Malformed bucket: unexpected "
+                                      "non-INIT/LIVE/DEAD entry.";
+                    CLOG_ERROR(Bucket, "{}", err);
+                    throw std::runtime_error(err);
+                }
             }
         }
     });
@@ -1257,9 +1452,12 @@ void
 BucketManagerImpl::visitLedgerEntries(
     HistoryArchiveState const& has, std::optional<int64_t> minLedger,
     std::function<bool(LedgerEntry const&)> const& filterEntry,
-    std::function<bool(LedgerEntry const&)> const& acceptEntry)
+    std::function<bool(LedgerEntry const&)> const& acceptEntry,
+    bool includeAllStates)
 {
-    UnorderedSet<LedgerKey> deletedEntries;
+    ZoneScoped;
+
+    UnorderedSet<Hash> deletedEntries;
     std::vector<std::pair<Hash, std::string>> hashes;
     for (uint32_t i = 0; i < BucketList::kNumLevels; ++i)
     {
@@ -1283,8 +1481,14 @@ BucketManagerImpl::visitLedgerEntries(
                 throw std::runtime_error(std::string("missing bucket: ") +
                                          binToHex(pair.first));
             }
-            if (!visitEntriesInBucket(b, pair.second, minLedger, filterEntry,
-                                      acceptEntry, deletedEntries))
+            bool continueIteration =
+                includeAllStates
+                    ? visitAllEntriesInBucket(b, pair.second, minLedger,
+                                              filterEntry, acceptEntry)
+                    : visitLiveEntriesInBucket(b, pair.second, minLedger,
+                                               filterEntry, acceptEntry,
+                                               deletedEntries);
+            if (!continueIteration)
             {
                 break;
             }
@@ -1324,5 +1528,59 @@ Config const&
 BucketManagerImpl::getConfig() const
 {
     return mApp.getConfig();
+}
+
+std::shared_ptr<SearchableBucketListSnapshot>
+BucketManagerImpl::getSearchableBucketListSnapshot()
+{
+    releaseAssert(mApp.getConfig().isUsingBucketListDB());
+    // Any other threads must maintain their own snapshot
+    releaseAssert(threadIsMain());
+    if (!mSearchableBucketListSnapshot)
+    {
+        mSearchableBucketListSnapshot =
+            mSnapshotManager->copySearchableBucketListSnapshot();
+    }
+
+    return mSearchableBucketListSnapshot;
+}
+
+void
+BucketManagerImpl::reportBucketEntryCountMetrics()
+{
+    if (!mApp.getConfig().isUsingBucketListDB())
+    {
+        return;
+    }
+    auto bucketEntryCounters = mBucketList->sumBucketEntryCounters();
+    for (auto [type, count] : bucketEntryCounters.entryTypeCounts)
+    {
+        auto countCounter = mBucketListEntryCountCounters.find(type);
+        if (countCounter == mBucketListEntryCountCounters.end())
+        {
+            auto typeString = toString(type);
+            countCounter =
+                mBucketListEntryCountCounters
+                    .emplace(type,
+                             mApp.getMetrics().NewCounter(
+                                 {"bucketlist", "entryCounts", typeString}))
+                    .first;
+        }
+        countCounter->second.set_count(count);
+
+        auto sizeCounter = mBucketListEntrySizeCounters.find(type);
+        if (sizeCounter == mBucketListEntrySizeCounters.end())
+        {
+            auto typeString = toString(type);
+            sizeCounter =
+                mBucketListEntrySizeCounters
+                    .emplace(type,
+                             mApp.getMetrics().NewCounter(
+                                 {"bucketlist", "entrySizes", typeString}))
+                    .first;
+        }
+        sizeCounter->second.set_count(
+            bucketEntryCounters.entryTypeSizes.at(type));
+    }
 }
 }

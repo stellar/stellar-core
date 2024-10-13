@@ -8,26 +8,27 @@ include $(srcdir)/src.mk
 
 noinst_HEADERS = $(SRC_H_FILES)
 
+if USE_TRACY
+CARGO_FEATURE_TRACY = --features tracy
+else
+CARGO_FEATURE_TRACY =
+endif
+
 if BUILD_TESTS
 stellar_core_SOURCES = main/StellarCoreVersion.cpp main/XDRFilesSha256.cpp $(SRC_CXX_FILES) $(SRC_TEST_CXX_FILES)
+CARGO_FEATURE_TESTUTILS = --features testutils
 else # !BUILD_TESTS
 stellar_core_SOURCES = main/StellarCoreVersion.cpp main/XDRFilesSha256.cpp $(SRC_CXX_FILES)
+CARGO_FEATURE_TESTUTILS =
 endif # !BUILD_TESTS
 
-if ENABLE_PROTOCOL_UPGRADE_VIA_SOROBAN_ENV_HOST_PREV
-CARGO_FEATURES = --features soroban-env-host-prev
-else
-CARGO_FEATURES =
-endif
-if USE_TRACY
-CARGO_FEATURES += --features tracy
-endif
 
 if ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
-CARGO_FEATURES += --features core-vnext
+CARGO_FEATURE_NEXT = --features next
 main/XDRFilesSha256.cpp: $(SRC_X_FILES) Makefile $(top_srcdir)/hash-xdrs.sh
 	$(top_srcdir)/hash-xdrs.sh protocol-next >$@
 else
+CARGO_FEATURE_NEXT =
 main/XDRFilesSha256.cpp: $(SRC_X_FILES) Makefile $(top_srcdir)/hash-xdrs.sh
 	$(top_srcdir)/hash-xdrs.sh protocol-curr >$@
 endif
@@ -77,27 +78,152 @@ stellar_core_SOURCES += rust/RustBridge.h rust/RustBridge.cpp
 
 RUST_BUILD_DIR=$(top_builddir)/src/rust
 RUST_BIN_DIR=$(RUST_BUILD_DIR)/bin
-RUST_TARGET_DIR=$(RUST_BUILD_DIR)/target
+RUST_TARGET_DIR=$(top_builddir)/target
 RUST_CXXBRIDGE=$(RUST_BIN_DIR)/cxxbridge
 RUST_PROFILE=release
-RUST_HOST_DEPFILES=rust/Cargo.toml $(top_srcdir)/Cargo.toml $(top_srcdir)/Cargo.lock rust/src/host-dep-tree-curr.txt rust/src/host-dep-tree-prev.txt
+RUST_DEP_TREE_STAMP=$(RUST_BUILD_DIR)/src/dep-trees/equal-trees.stamp
+SOROBAN_LIBS_STAMP=$(RUST_BUILD_DIR)/soroban/soroban-libs.stamp
+RUST_HOST_DEPFILES=rust/Cargo.toml $(top_srcdir)/Cargo.toml $(top_srcdir)/Cargo.lock $(RUST_DEP_TREE_STAMP)
 LIBRUST_STELLAR_CORE=$(RUST_TARGET_DIR)/$(RUST_PROFILE)/librust_stellar_core.a
 stellar_core_LDADD += $(LIBRUST_STELLAR_CORE) -ldl
 
+SOROBAN_BUILD_DIR=$(abspath $(RUST_BUILD_DIR))/soroban
+ALL_SOROBAN_PROTOCOLS=$(notdir $(wildcard rust/soroban/p*))
+SOROBAN_MAX_PROTOCOL=$(lastword $(sort $(ALL_SOROBAN_PROTOCOLS)))
+
+define soroban_lib_dir
+$(shell printf '$(SOROBAN_BUILD_DIR)/%s/target/$(RUST_PROFILE)' $(1))
+endef
+
+define soroban_rlib
+$(shell printf -- '%s/libsoroban_env_host.rlib' $(call soroban_lib_dir,$(1)))
+endef
+
+define soroban_extern_flag
+$(shell printf -- '--extern soroban_env_host_%s=%s' $(1) $(call soroban_rlib,$(1)))
+endef
+
+define soroban_depend_flag
+$(shell printf -- '-L dependency=%s/deps' $(call soroban_lib_dir,$(1)))
+endef
+
+ALL_SOROBAN_LIBS=$(foreach proto,$(ALL_SOROBAN_PROTOCOLS),$(call soroban_rlib,$(proto)))
+ALL_SOROBAN_EXTERN_ARGS=$(foreach proto,$(ALL_SOROBAN_PROTOCOLS),$(call soroban_extern_flag,$(proto)))
+ALL_SOROBAN_DEPEND_ARGS=$(foreach proto,$(ALL_SOROBAN_PROTOCOLS),$(call soroban_depend_flag,$(proto)))
+
 $(RUST_CXXBRIDGE):
 	mkdir -p $(RUST_BIN_DIR)
-	CARGO_HTTP_MULTIPLEXING=false $(CARGO) install --root $(RUST_BUILD_DIR) cxxbridge-cmd --version 1.0.68
+	CARGO_HTTP_MULTIPLEXING=false $(CARGO) install --locked --root $(RUST_BUILD_DIR) cxxbridge-cmd --version 1.0.68
 
 rust/RustBridge.h: rust/src/lib.rs $(SRC_RUST_FILES) Makefile $(RUST_CXXBRIDGE)
-	$(RUST_CXXBRIDGE) $< --header --output $@.tmp
+	$(RUST_CXXBRIDGE) $< --cfg test=false --header --output $@.tmp
 	if cmp -s $@.tmp $@; then rm -v $@.tmp; else mv -v $@.tmp $@; fi
 
 rust/RustBridge.cpp: rust/src/lib.rs $(SRC_RUST_FILES) Makefile $(RUST_CXXBRIDGE)
-	$(RUST_CXXBRIDGE) $< --output $@.tmp
+	$(RUST_CXXBRIDGE) $< --cfg test=false --output $@.tmp
 	if cmp -s $@.tmp $@; then rm -v $@.tmp; else mv -v $@.tmp $@; fi
 
-$(LIBRUST_STELLAR_CORE): $(RUST_HOST_DEPFILES) $(SRC_RUST_FILES) Makefile
-	cd $(RUST_BUILD_DIR) && cargo build --$(RUST_PROFILE) --target-dir $(abspath $(RUST_TARGET_DIR)) $(CARGO_FEATURES)
+# This is just a convenience target for rebuilding the explicit depfiles we
+# check in to this repo as a secondary check on the lockfiles in the soroban
+# submodules. You should still carefully inspect them if they change!
+
+$(RUST_DEP_TREE_STAMP): $(wildcard rust/soroban/*/Cargo.*) Makefile
+	rm -f $@
+	for proto in $(ALL_SOROBAN_PROTOCOLS); \
+	do \
+		cargo tree --manifest-path rust/soroban/$${proto}/Cargo.toml --locked --package soroban-env-host --edges no-dev --target all \
+		| sed -e "s@$(abspath $(top_srcdir))/@@g" > $(RUST_BUILD_DIR)/src/dep-trees/$${proto}-actual.txt ; \
+		if ! diff -u rust/src/dep-trees/$${proto}-expect.txt $(RUST_BUILD_DIR)/src/dep-trees/$${proto}-actual.txt; \
+		then \
+			echo "dep trees differ, please update $${proto}-expect.txt or roll back submodule"; \
+			exit 1; \
+		fi; \
+	done
+	touch $@
+
+# This next build command looks a little weird but it's necessary. We have to
+# provide an auxiliary metadata string (using RUSTFLAGS=-Cmetadata=$*)
+# essentially manually marking-as-different the separate dependency trees
+# associated with each copy of soroban. If we don't do this, then for various
+# indirect dependencies of soroban -- dependencies that more-or-less _don't_
+# differ between soroban versions -- we will wind up with two copies of the
+# dependency's rlib with the same `StableCrateId` (a hash that rust uses to
+# identify crates-and-versions) but with non-bit-identical content (due to
+# various minor non-reproducible-build idiosyncrasies). And this "multiple
+# StableCrateIds with bit-different content" situation in turn is considered a
+# fatal error when trying to load that `StableCrateId` into the resulting
+# binary, as we will be doing when we link multiple sorobans together. Rustc
+# just crashes with a "StableCrateId collision" error.
+#
+# So to avoid that we make sure that _every_ time we compile a soroban, its
+# indirect deps are always marked as _more different_ than they actually are.
+# I.e. if the same version of the same dependency appears in soroban p21 and
+# p22, they _would_ normally get called the same StableCrateId, but we pass
+# RUSTFLAGS=-Cmetadata=p21 for one of them and RUSTFLAGS=-Cmetadata=p22 for the
+# other, and that causes their "identities" to be considered distinct.
+#
+# Interestingly this does not appear to cause the final binary to get any
+# bigger, so I guess LTO somehow identifies the duplicate symbols and merges
+# them back together. Or something. Anyways it works and is the only portable
+# and robust solution we've found to preventing the StableCrateId collision.
+#
+# We also have to be somewhat selective about the versions we pass the
+# `next` feature to (only the most recent soroban) and the versions we
+# pass the `tracy` feature to (only those post-p22 versions that support
+# the tracy delayed-init feature).
+#
+# We also have to sequentialize the builds of the sorobans after the
+# dep-tree-stamp files and before the stellar-core build, because rustup
+# gets invoked and it is not concurrency-safe.
+$(SOROBAN_LIBS_STAMP): $(wildcard rust/soroban/p*/Cargo.lock) Makefile $(RUST_DEP_TREE_STAMP) $(SRC_RUST_FILES)
+	for proto in $(ALL_SOROBAN_PROTOCOLS) ; \
+	do \
+		FEATURE_FLAGS="" ; \
+		case "$$proto" in \
+			p21) \
+				FEATURE_FLAGS="" \
+			;; \
+			$(SOROBAN_MAX_PROTOCOL)) \
+				FEATURE_FLAGS="$(CARGO_FEATURE_TRACY) $(CARGO_FEATURE_NEXT)" \
+			;; \
+			*) \
+				FEATURE_FLAGS="$(CARGO_FEATURE_TRACY)" \
+			;; \
+		esac ; \
+		cd $(abspath $(RUST_BUILD_DIR))/soroban/$$proto && \
+		RUSTFLAGS=-Cmetadata=$$proto \
+		CARGO_NET_GIT_FETCH_WITH_CLI=true cargo build \
+			--package soroban-env-host \
+			--$(RUST_PROFILE) \
+			--locked \
+			$$FEATURE_FLAGS \
+		|| exit 1; \
+	done
+	touch $@
+
+# This one is also a bit challenging, though it's _less_ weird. What we're doing
+# here is supplying multiple separate .rlibs -- one for each soroban linked into
+# the binary -- to the crate build for the `stellar-core` crate. This is
+# necessary because we want to use the _exact_ versions locked into each
+# soroban, and we want to avoid any possibility of cargo/rustc trying to merge
+# dependencies between the sorobans (which it frequently does in ways we
+# otherwise can't stop, eg. merging minor versions of indirect dependencies).
+#
+# We want to treat them as strictly separate and strictly fixed dependency
+# graphs, so we compile them separately into .rlibs (see above) and then pass
+# them in as separate `--extern` arguments to a slightly-more-manual `cargo
+# rustc` invocation, along with `-L dependency=...` flags to tell cargo where to
+# find indirect deps of those .rlibs.
+$(LIBRUST_STELLAR_CORE): $(RUST_HOST_DEPFILES) $(SRC_RUST_FILES) Makefile $(SOROBAN_LIBS_STAMP)
+	CARGO_NET_GIT_FETCH_WITH_CLI=true cargo rustc \
+		--package stellar-core \
+		--$(RUST_PROFILE) \
+		--locked \
+		--target-dir $(abspath $(RUST_TARGET_DIR)) \
+		$(CARGO_FEATURE_TRACY) $(CARGO_FEATURE_NEXT) $(CARGO_FEATURE_TESTUTILS) \
+		-- \
+		$(ALL_SOROBAN_EXTERN_ARGS) \
+		$(ALL_SOROBAN_DEPEND_ARGS)
 	ranlib $@
 
 $(srcdir)/src.mk: $(top_srcdir)/make-mks
@@ -130,10 +256,11 @@ TESTS=test/selftest-nopg
 endif # !USE_POSTGRES
 TESTS += test/check-nondet
 
-if USE_CLANG_FORMAT
 format: always
+if USE_CLANG_FORMAT
 	cd $(srcdir) && $(CLANG_FORMAT) -style=file -i $(SRC_CXX_FILES) $(SRC_H_FILES) $(SRC_TEST_CXX_FILES) $(SRC_TEST_H_FILES)
 endif # USE_CLANG_FORMAT
+	cd $(srcdir) && $(CARGO) fmt --all
 
 if USE_AFL_FUZZ
 FUZZER_MODE ?= overlay
@@ -161,6 +288,9 @@ fuzz-clean: always
 
 distclean-local: fuzz-clean
 endif # USE_AFL_FUZZ
+
+clean-local:
+	rm -rf $(top_builddir)/target $(top_builddir)/src/rust/soroban/*/target
 
 CLEANFILES = $(BUILT_SOURCES) *~ */*~ stellar*.log
 MAINTAINERCLEANFILES = $(srcdir)/Makefile.in $(srcdir)/*~ $(srcdir)/*/*~

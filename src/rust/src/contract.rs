@@ -7,17 +7,17 @@ use crate::{
     rust_bridge::{
         CxxBuf, CxxFeeConfiguration, CxxLedgerEntryRentChange, CxxLedgerInfo,
         CxxRentFeeConfiguration, CxxTransactionResources, CxxWriteFeeConfiguration, FeePair,
-        InvokeHostFunctionOutput, RustBuf, XDRFileHash,
+        InvokeHostFunctionOutput, RustBuf, SorobanVersionInfo, XDRFileHash,
     },
 };
-use log::debug;
-use std::{fmt::Display, io::Cursor, panic, time::Instant};
+use log::{debug, trace, warn};
+use std::{fmt::Display, io::Cursor, panic, rc::Rc, time::Instant};
 
 // This module (contract) is bound to _two separate locations_ in the module
 // tree: crate::lo::contract and crate::hi::contract, each of which has a (lo or
 // hi) version-specific definition of stellar_env_host. We therefore
 // import it from our _parent_ module rather than from the crate root.
-use super::soroban_env_host::{
+pub(crate) use super::soroban_env_host::{
     budget::Budget,
     e2e_invoke::{self, extract_rent_changes, LedgerEntryChange},
     fees::{
@@ -29,25 +29,30 @@ use super::soroban_env_host::{
     xdr::{
         self, ContractCostParams, ContractEvent, ContractEventBody, ContractEventType,
         ContractEventV0, DiagnosticEvent, ExtensionPoint, LedgerEntry, LedgerEntryData,
-        LedgerEntryExt, ReadXdr, ScError, ScErrorCode, ScErrorType, ScSymbol, ScVal, TtlEntry,
-        WriteXdr, XDR_FILES_SHA256,
+        LedgerEntryExt, Limits, ReadXdr, ScError, ScErrorCode, ScErrorType, ScSymbol, ScVal,
+        TransactionEnvelope, TtlEntry, WriteXdr, XDR_FILES_SHA256,
     },
-    HostError, LedgerInfo,
+    HostError, LedgerInfo, VERSION,
 };
 use std::error::Error;
 
-impl From<CxxLedgerInfo> for LedgerInfo {
-    fn from(c: CxxLedgerInfo) -> Self {
-        Self {
+impl TryFrom<&CxxLedgerInfo> for LedgerInfo {
+    type Error = Box<dyn Error>;
+    fn try_from(c: &CxxLedgerInfo) -> Result<Self, Self::Error> {
+        Ok(Self {
             protocol_version: c.protocol_version,
             sequence_number: c.sequence_number,
             timestamp: c.timestamp,
-            network_id: c.network_id.try_into().unwrap(),
+            network_id: c
+                .network_id
+                .clone()
+                .try_into()
+                .map_err(|_| Box::new(CoreHostError::General("network ID has wrong size")))?,
             base_reserve: c.base_reserve,
             min_temp_entry_ttl: c.min_temp_entry_ttl,
             min_persistent_entry_ttl: c.min_persistent_entry_ttl,
             max_entry_ttl: c.max_entry_ttl,
-        }
+        })
     }
 }
 
@@ -92,8 +97,8 @@ impl From<&CxxLedgerEntryRentChange> for LedgerEntryRentChange {
     }
 }
 
-impl From<CxxRentFeeConfiguration> for RentFeeConfiguration {
-    fn from(value: CxxRentFeeConfiguration) -> Self {
+impl From<&CxxRentFeeConfiguration> for RentFeeConfiguration {
+    fn from(value: &CxxRentFeeConfiguration) -> Self {
         Self {
             fee_per_write_1kb: value.fee_per_write_1kb,
             fee_per_write_entry: value.fee_per_write_entry,
@@ -114,22 +119,11 @@ impl From<CxxWriteFeeConfiguration> for WriteFeeConfiguration {
     }
 }
 
-impl From<Vec<u8>> for RustBuf {
-    fn from(value: Vec<u8>) -> Self {
-        Self { data: value }
-    }
-}
-
-impl AsRef<[u8]> for CxxBuf {
-    fn as_ref(&self) -> &[u8] {
-        self.data.as_slice()
-    }
-}
-
 // FIXME: plumb this through from the limit xdrpp uses.
 // Currently they are just two same-valued constants.
 const MARSHALLING_STACK_LIMIT: u32 = 1000;
 
+#[allow(dead_code)]
 #[derive(Debug)]
 pub(crate) enum CoreHostError {
     Host(HostError),
@@ -157,23 +151,51 @@ impl From<xdr::Error> for CoreHostError {
 impl std::error::Error for CoreHostError {}
 
 fn non_metered_xdr_from_cxx_buf<T: ReadXdr>(buf: &CxxBuf) -> Result<T, HostError> {
-    Ok(T::read_xdr(&mut xdr::DepthLimitedRead::new(
+    Ok(T::read_xdr(&mut xdr::Limited::new(
         Cursor::new(buf.data.as_slice()),
-        MARSHALLING_STACK_LIMIT,
+        Limits {
+            depth: MARSHALLING_STACK_LIMIT,
+            len: buf.data.len(),
+        },
     ))
     // We only expect this to be called for safe, internal conversions, so this
     // should never happen.
     .map_err(|_| (ScErrorType::Value, ScErrorCode::InternalError))?)
 }
 
-fn non_metered_xdr_to_rust_buf<T: WriteXdr>(t: &T) -> Result<RustBuf, HostError> {
+fn non_metered_xdr_to_vec<T: WriteXdr>(t: &T) -> Result<Vec<u8>, HostError> {
     let mut vec: Vec<u8> = Vec::new();
-    t.write_xdr(&mut xdr::DepthLimitedWrite::new(
+    t.write_xdr(&mut xdr::Limited::new(
         Cursor::new(&mut vec),
-        MARSHALLING_STACK_LIMIT,
+        Limits {
+            depth: MARSHALLING_STACK_LIMIT,
+            len: 5 * 1024 * 1024, /* 5MB */
+        },
     ))
     .map_err(|_| (ScErrorType::Value, ScErrorCode::InvalidInput))?;
-    Ok(vec.into())
+    Ok(vec)
+}
+
+fn non_metered_xdr_to_rust_buf<T: WriteXdr>(t: &T) -> Result<RustBuf, HostError> {
+    Ok(RustBuf {
+        data: non_metered_xdr_to_vec(t)?,
+    })
+}
+
+// This is just a helper for modifying some data that is encoded in a CxxBuf. It
+// decodes the data, modifies it, and then re-encodes it back into the CxxBuf.
+// It's intended for use when modifying the cost parameters of the CxxLedgerInfo
+// when invoking a contract twice with different protocols.
+#[allow(dead_code)]
+#[cfg(feature = "testutils")]
+pub(crate) fn inplace_modify_cxxbuf_encoded_type<T: ReadXdr + WriteXdr>(
+    buf: &mut CxxBuf,
+    modify: impl FnOnce(&mut T) -> Result<(), Box<dyn Error>>,
+) -> Result<(), Box<dyn Error>> {
+    let mut tmp = non_metered_xdr_from_cxx_buf::<T>(buf)?;
+    modify(&mut tmp)?;
+    let vec = non_metered_xdr_to_vec::<T>(&tmp)?;
+    buf.replace_data_with(vec.as_slice())
 }
 
 /// Returns a vec of [`XDRFileHash`] structs each representing one .x file
@@ -188,6 +210,50 @@ pub fn get_xdr_hashes() -> Vec<XDRFileHash> {
             hash: (*hash).into(),
         })
         .collect()
+}
+
+pub const fn get_max_proto() -> u32 {
+    super::get_version_protocol(&VERSION)
+}
+
+pub fn get_soroban_version_info(core_max_proto: u32) -> SorobanVersionInfo {
+    let env_max_proto = get_max_proto();
+    let xdr_base_git_rev = match VERSION.xdr.xdr {
+        "curr" => VERSION.xdr.xdr_curr.to_string(),
+        "next" | "curr,next" => {
+            if !cfg!(feature = "next") {
+                warn!(
+                    "soroban version {} XDR module built with 'next' feature,
+                       but core built without 'vnext' feature",
+                    VERSION.pkg
+                );
+            }
+            if core_max_proto != env_max_proto {
+                warn!(
+                    "soroban version {} XDR module for env version {} built with 'next' feature, \
+                       even though this is not the newest core protocol ({})",
+                    VERSION.pkg, env_max_proto, core_max_proto
+                );
+                warn!(
+                    "this can happen if multiple soroban crates depend on the \
+                       same XDR crate which then gets feature-unified"
+                )
+            }
+            VERSION.xdr.xdr_next.to_string()
+        }
+        other => format!("unknown XDR module configuration: '{other}'"),
+    };
+
+    SorobanVersionInfo {
+        env_max_proto,
+        env_pkg_ver: VERSION.pkg.to_string(),
+        env_git_rev: VERSION.rev.to_string(),
+        env_pre_release_ver: super::get_version_pre_release(&VERSION),
+        xdr_pkg_ver: VERSION.xdr.pkg.to_string(),
+        xdr_git_rev: VERSION.xdr.rev.to_string(),
+        xdr_base_git_rev,
+        xdr_file_hashes: get_xdr_hashes(),
+    }
 }
 
 fn log_diagnostic_events(events: &Vec<DiagnosticEvent>) {
@@ -265,11 +331,11 @@ pub(crate) fn invoke_host_function(
     resources_buf: &CxxBuf,
     source_account_buf: &CxxBuf,
     auth_entries: &Vec<CxxBuf>,
-    ledger_info: CxxLedgerInfo,
+    ledger_info: &CxxLedgerInfo,
     ledger_entries: &Vec<CxxBuf>,
     ttl_entries: &Vec<CxxBuf>,
     base_prng_seed: &CxxBuf,
-    rent_fee_configuration: CxxRentFeeConfiguration,
+    rent_fee_configuration: &CxxRentFeeConfiguration,
 ) -> Result<InvokeHostFunctionOutput, Box<dyn Error>> {
     let res = panic::catch_unwind(panic::AssertUnwindSafe(|| {
         invoke_host_function_or_maybe_panic(
@@ -292,6 +358,41 @@ pub(crate) fn invoke_host_function(
     }
 }
 
+fn make_trace_hook_fn<'a>() -> super::soroban_env_host::TraceHook {
+    let prev_state = std::cell::RefCell::new(String::new());
+    Rc::new(move |host, traceevent| {
+        if traceevent.is_begin() || traceevent.is_end() {
+            prev_state.replace(String::new());
+        }
+        match super::soroban_env_host::TraceRecord::new(host, traceevent) {
+            Ok(tr) => {
+                let state_str = format!("{}", tr.state);
+                if prev_state.borrow().is_empty() {
+                    trace!(target: TX, "{}: {}", tr.event, state_str);
+                } else {
+                    let diff = crate::log::diff_line(&prev_state.borrow(), &state_str);
+                    trace!(target: TX, "{}: {}", tr.event, diff);
+                }
+                prev_state.replace(state_str);
+            }
+            Err(e) => trace!(target: TX, "{}", e),
+        }
+        Ok(())
+    })
+}
+
+#[allow(dead_code)]
+#[cfg(feature = "testutils")]
+fn decode_contract_cost_params(buf: &CxxBuf) -> Result<ContractCostParams, Box<dyn Error>> {
+    Ok(non_metered_xdr_from_cxx_buf::<ContractCostParams>(buf)?)
+}
+
+#[allow(dead_code)]
+#[cfg(feature = "testutils")]
+fn encode_contract_cost_params(params: &ContractCostParams) -> Result<RustBuf, Box<dyn Error>> {
+    Ok(non_metered_xdr_to_rust_buf(params)?)
+}
+
 fn invoke_host_function_or_maybe_panic(
     enable_diagnostics: bool,
     instruction_limit: u32,
@@ -299,15 +400,17 @@ fn invoke_host_function_or_maybe_panic(
     resources_buf: &CxxBuf,
     source_account_buf: &CxxBuf,
     auth_entries: &Vec<CxxBuf>,
-    ledger_info: CxxLedgerInfo,
+    ledger_info: &CxxLedgerInfo,
     ledger_entries: &Vec<CxxBuf>,
     ttl_entries: &Vec<CxxBuf>,
     base_prng_seed: &CxxBuf,
-    rent_fee_configuration: CxxRentFeeConfiguration,
+    rent_fee_configuration: &CxxRentFeeConfiguration,
 ) -> Result<InvokeHostFunctionOutput, Box<dyn Error>> {
     #[cfg(feature = "tracy")]
     let client = tracy_client::Client::start();
     let _span0 = tracy_span!("invoke_host_function_or_maybe_panic");
+
+    let protocol_version = ledger_info.protocol_version;
 
     let budget = Budget::try_from_configs(
         instruction_limit as u64,
@@ -320,21 +423,28 @@ fn invoke_host_function_or_maybe_panic(
     )?;
     let mut diagnostic_events = vec![];
     let ledger_seq_num = ledger_info.sequence_number;
+    let trace_hook: Option<super::soroban_env_host::TraceHook> =
+        if crate::log::is_tx_tracing_enabled() {
+            Some(make_trace_hook_fn())
+        } else {
+            None
+        };
     let (res, time_nsecs) = {
         let _span1 = tracy_span!("e2e_invoke::invoke_function");
         let start_time = Instant::now();
-        let res = e2e_invoke::invoke_host_function(
+        let res = e2e_invoke::invoke_host_function_with_trace_hook(
             &budget,
             enable_diagnostics,
             hf_buf,
             resources_buf,
             source_account_buf,
             auth_entries.iter(),
-            ledger_info.into(),
+            ledger_info.try_into()?,
             ledger_entries.iter(),
             ttl_entries.iter(),
             base_prng_seed,
             &mut diagnostic_events,
+            trace_hook,
         );
         let stop_time = Instant::now();
         let time_nsecs = stop_time.duration_since(start_time).as_nanos() as u64;
@@ -347,6 +457,13 @@ fn invoke_host_function_or_maybe_panic(
 
     let cpu_insns = budget.get_cpu_insns_consumed()?;
     let mem_bytes = budget.get_mem_bytes_consumed()?;
+    let cpu_insns_excluding_vm_instantiation = cpu_insns.saturating_sub(
+        budget
+            .get_tracker(xdr::ContractCostType::VmInstantiation)?
+            .cpu,
+    );
+    let time_nsecs_excluding_vm_instantiation =
+        time_nsecs.saturating_sub(budget.get_time(xdr::ContractCostType::VmInstantiation)?);
     #[cfg(feature = "tracy")]
     {
         client.plot(
@@ -370,10 +487,13 @@ fn invoke_host_function_or_maybe_panic(
                 let modified_ledger_entries = extract_ledger_effects(res.ledger_changes)?;
                 return Ok(InvokeHostFunctionOutput {
                     success: true,
+                    is_internal_error: false,
                     diagnostic_events: encode_diagnostic_events(&diagnostic_events),
                     cpu_insns,
                     mem_bytes,
                     time_nsecs,
+                    cpu_insns_excluding_vm_instantiation,
+                    time_nsecs_excluding_vm_instantiation,
 
                     result_value: result_value.into(),
                     modified_ledger_entries,
@@ -412,19 +532,60 @@ fn invoke_host_function_or_maybe_panic(
             },
         })
     }
+    let is_internal_error = if protocol_version < 22 {
+        err.error.is_code(ScErrorCode::InternalError)
+    } else {
+        err.error.is_code(ScErrorCode::InternalError) && !err.error.is_type(ScErrorType::Contract)
+    };
+
     debug!(target: TX, "invocation failed: {}", err);
     return Ok(InvokeHostFunctionOutput {
         success: false,
+        is_internal_error,
         diagnostic_events: encode_diagnostic_events(&diagnostic_events),
         cpu_insns,
         mem_bytes,
         time_nsecs,
+        cpu_insns_excluding_vm_instantiation,
+        time_nsecs_excluding_vm_instantiation,
 
         result_value: vec![].into(),
         modified_ledger_entries: vec![],
         contract_events: vec![],
         rent_fee: 0,
     });
+}
+
+#[allow(dead_code)]
+#[cfg(feature = "testutils")]
+pub(crate) fn rustbuf_containing_scval_to_string(buf: &RustBuf) -> String {
+    if let Ok(val) = ScVal::read_xdr(&mut xdr::Limited::new(
+        Cursor::new(buf.data.as_slice()),
+        Limits {
+            depth: MARSHALLING_STACK_LIMIT,
+            len: buf.data.len(),
+        },
+    )) {
+        format!("{:?}", val)
+    } else {
+        "<bad ScVal>".to_string()
+    }
+}
+
+#[allow(dead_code)]
+#[cfg(feature = "testutils")]
+pub(crate) fn rustbuf_containing_diagnostic_event_to_string(buf: &RustBuf) -> String {
+    if let Ok(val) = DiagnosticEvent::read_xdr(&mut xdr::Limited::new(
+        Cursor::new(buf.data.as_slice()),
+        Limits {
+            depth: MARSHALLING_STACK_LIMIT,
+            len: buf.data.len(),
+        },
+    )) {
+        format!("{:?}", val)
+    } else {
+        "<bad DiagnosticEvent>".to_string()
+    }
 }
 
 pub(crate) fn compute_transaction_resource_fee(
@@ -444,8 +605,12 @@ pub(crate) fn compute_rent_fee(
     fee_config: CxxRentFeeConfiguration,
     current_ledger_seq: u32,
 ) -> i64 {
-    let changed_entries = changed_entries.iter().map(|e| e.into()).collect();
-    host_compute_rent_fee(&changed_entries, &fee_config.into(), current_ledger_seq)
+    let changed_entries: Vec<_> = changed_entries.iter().map(|e| e.into()).collect();
+    host_compute_rent_fee(
+        &changed_entries,
+        &((&fee_config).into()),
+        current_ledger_seq,
+    )
 }
 
 pub(crate) fn compute_write_fee_per_1kb(
@@ -453,4 +618,15 @@ pub(crate) fn compute_write_fee_per_1kb(
     fee_config: CxxWriteFeeConfiguration,
 ) -> i64 {
     host_compute_write_fee_per_1kb(bucket_list_size, &fee_config.into())
+}
+
+pub(crate) fn can_parse_transaction(xdr: &CxxBuf, depth_limit: u32) -> bool {
+    let res = TransactionEnvelope::read_xdr(&mut xdr::Limited::new(
+        Cursor::new(xdr.data.as_slice()),
+        Limits {
+            depth: depth_limit,
+            len: xdr.data.len(),
+        },
+    ));
+    res.is_ok()
 }

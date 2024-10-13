@@ -19,6 +19,7 @@ namespace stellar
 
 class Application;
 
+// OverlayMetrics is a thread-safe struct
 struct OverlayMetrics
 {
     OverlayMetrics(Application& app);
@@ -34,6 +35,8 @@ struct OverlayMetrics
     medida::Meter& mTimeoutIdle;
     medida::Meter& mTimeoutStraggler;
     medida::Timer& mConnectionLatencyTimer;
+    medida::Timer& mConnectionReadThrottle;
+    medida::Timer& mConnectionFloodThrottle;
 
     medida::Meter& mItemFetcherNextPeer;
 
@@ -59,6 +62,8 @@ struct OverlayMetrics
 
     medida::Timer& mRecvSurveyRequestTimer;
     medida::Timer& mRecvSurveyResponseTimer;
+    medida::Timer& mRecvStartSurveyCollectingTimer;
+    medida::Timer& mRecvStopSurveyCollectingTimer;
 
     medida::Timer& mRecvFloodAdvertTimer;
     medida::Timer& mRecvFloodDemandTimer;
@@ -92,6 +97,8 @@ struct OverlayMetrics
 
     medida::Meter& mSendSurveyRequestMeter;
     medida::Meter& mSendSurveyResponseMeter;
+    medida::Meter& mSendStartSurveyCollectingMeter;
+    medida::Meter& mSendStopSurveyCollectingMeter;
 
     medida::Meter& mSendFloodAdvertMeter;
     medida::Meter& mSendFloodDemandMeter;

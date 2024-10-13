@@ -42,7 +42,8 @@ namespace stellar
 // has no effect on correctness.
 
 static std::mutex gVerifySigCacheMutex;
-static RandomEvictionCache<Hash, bool> gVerifySigCache(0xffff);
+static RandomEvictionCache<Hash, bool> gVerifySigCache(0xffff,
+                                                       /* separatePRNG */ true);
 static uint64_t gVerifyCacheHit = 0;
 static uint64_t gVerifyCacheMiss = 0;
 
@@ -321,6 +322,13 @@ PubKeyUtils::clearVerifySigCache()
 }
 
 void
+PubKeyUtils::maybeSeedVerifySigCache(unsigned int seed)
+{
+    std::lock_guard<std::mutex> guard(gVerifySigCacheMutex);
+    gVerifySigCache.maybeSeed(seed);
+}
+
+void
 PubKeyUtils::flushVerifySigCacheCounts(uint64_t& hits, uint64_t& misses)
 {
     std::lock_guard<std::mutex> guard(gVerifySigCacheMutex);
@@ -496,22 +504,6 @@ logSecretKey(std::ostream& s, SecretKey const& sk)
 void
 StrKeyUtils::logKey(std::ostream& s, std::string const& key)
 {
-    // if it's a hex string, display it in all forms
-    try
-    {
-        uint256 data = hexToBin256(key);
-        PublicKey pk;
-        pk.type(PUBLIC_KEY_TYPE_ED25519);
-        pk.ed25519() = data;
-        logPublicKey(s, pk);
-
-        SecretKey sk(SecretKey::fromSeed(data));
-        logSecretKey(s, sk);
-        return;
-    }
-    catch (...)
-    {
-    }
 
     // see if it's a public key
     try
@@ -534,6 +526,82 @@ StrKeyUtils::logKey(std::ostream& s, std::string const& key)
     catch (...)
     {
     }
+
+    // if it's a hex string, display it in all forms
+    try
+    {
+        uint256 data = hexToBin256(key);
+        PublicKey pk;
+        pk.type(PUBLIC_KEY_TYPE_ED25519);
+        pk.ed25519() = data;
+        s << "Interpreted as ";
+        logPublicKey(s, pk);
+
+        s << std::endl;
+        SecretKey sk(SecretKey::fromSeed(data));
+        s << "Interpreted as ";
+        logSecretKey(s, sk);
+
+        s << std::endl;
+        s << "Other interpretations:" << std::endl;
+        s << "  STRKEY_PRE_AUTH_TX: "
+          << strKey::toStrKey(strKey::STRKEY_PRE_AUTH_TX, data).value
+          << std::endl;
+        s << "  STRKEY_HASH_X: "
+          << strKey::toStrKey(strKey::STRKEY_HASH_X, data).value << std::endl;
+        s << "  STRKEY_SIGNED_PAYLOAD: "
+          << strKey::toStrKey(strKey::STRKEY_SIGNED_PAYLOAD_ED25519, data).value
+          << std::endl;
+        s << "  STRKEY_MUXED_ACCOUNT_ED25519: "
+          << strKey::toStrKey(strKey::STRKEY_MUXED_ACCOUNT_ED25519, data).value
+          << std::endl;
+        s << "  STRKEY_CONTRACT: "
+          << strKey::toStrKey(strKey::STRKEY_CONTRACT, data).value << std::endl;
+        return;
+    }
+    catch (...)
+    {
+    }
+
+    // Try generic strkey decoding for other strkey types
+
+    uint8_t outVersion;
+    std::vector<uint8_t> decoded;
+    if (strKey::fromStrKey(key, outVersion, decoded))
+    {
+        s << "StrKey:" << std::endl;
+        switch (outVersion)
+        {
+        case strKey::STRKEY_PUBKEY_ED25519:
+            s << "  type: STRKEY_PUBKEY_ED25519" << std::endl;
+            break;
+        case strKey::STRKEY_SIGNED_PAYLOAD_ED25519:
+            s << "  type: STRKEY_SIGNED_PAYLOAD_ED25519" << std::endl;
+            break;
+        case strKey::STRKEY_SEED_ED25519:
+            s << "  type: STRKEY_SEED_ED25519" << std::endl;
+            break;
+        case strKey::STRKEY_PRE_AUTH_TX:
+            s << "  type: STRKEY_PRE_AUTH_TX" << std::endl;
+            break;
+        case strKey::STRKEY_HASH_X:
+            s << "  type: STRKEY_HASH_X" << std::endl;
+            break;
+        case strKey::STRKEY_MUXED_ACCOUNT_ED25519:
+            throw std::runtime_error(
+                "unexpected StrKey type STRKEY_MUXED_ACCOUNT_ED25519");
+            break;
+        case strKey::STRKEY_CONTRACT:
+            s << "  type: STRKEY_CONTRACT" << std::endl;
+            break;
+        default:
+            s << "  type: unknown" << std::endl;
+            break;
+        }
+        s << "  hex: " << binToHex(decoded) << std::endl;
+        return;
+    }
+
     s << "Unknown key type" << std::endl;
 }
 

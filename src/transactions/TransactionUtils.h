@@ -17,6 +17,7 @@ namespace stellar
 {
 
 class Application;
+class Config;
 class ConstLedgerTxnEntry;
 class ConstTrustLineWrapper;
 class AbstractLedgerTxn;
@@ -24,7 +25,10 @@ class LedgerTxnEntry;
 class LedgerTxnHeader;
 class TrustLineWrapper;
 class InternalLedgerKey;
+class SorobanNetworkConfig;
+class TransactionFrame;
 class TransactionFrameBase;
+class SorobanTxData;
 struct ClaimAtom;
 struct LedgerHeader;
 struct LedgerKey;
@@ -210,6 +214,7 @@ int64_t getSellingLiabilities(LedgerTxnHeader const& header,
 
 SequenceNumber getStartingSequenceNumber(uint32_t ledgerSeq);
 SequenceNumber getStartingSequenceNumber(LedgerTxnHeader const& header);
+SequenceNumber getStartingSequenceNumber(LedgerHeader const& header);
 
 bool isAuthorized(LedgerEntry const& le);
 bool isAuthorized(LedgerTxnEntry const& entry);
@@ -254,6 +259,10 @@ bool accountFlagClawbackIsValid(uint32_t flag, uint32_t ledgerVersion);
 bool accountFlagMaskCheckIsValid(uint32_t flag, uint32_t ledgerVersion);
 
 bool hasMuxedAccount(TransactionEnvelope const& e);
+
+bool
+isTransactionXDRValidForCurrentProtocol(Application& app,
+                                        TransactionEnvelope const& envelope);
 
 uint64_t getUpperBoundCloseTimeOffset(Application& app, uint64_t lastCloseTime);
 
@@ -302,16 +311,31 @@ int64_t getMinInclusionFee(TransactionFrameBase const& tx,
                            LedgerHeader const& header,
                            std::optional<int64_t> baseFee = std::nullopt);
 
+bool validateContractLedgerEntry(LedgerKey const& lk, size_t entrySize,
+                                 SorobanNetworkConfig const& config,
+                                 Config const& appConfig,
+                                 TransactionFrame const& parentTx,
+                                 SorobanTxData& sorobanData);
+
 struct LumenContractInfo
 {
     Hash mLumenContractID;
     SCVal mBalanceSymbol;
     SCVal mAmountSymbol;
 };
-LumenContractInfo getLumenContractInfo(std::string networkPassphrase);
+LumenContractInfo getLumenContractInfo(Hash const& networkID);
 
 SCVal makeSymbolSCVal(std::string&& str);
 SCVal makeSymbolSCVal(std::string const& str);
 SCVal makeStringSCVal(std::string&& str);
 SCVal makeU64SCVal(uint64_t u);
+template <typename T>
+SCVal
+makeBytesSCVal(T const& bytes)
+{
+    SCVal val(SCV_BYTES);
+    val.bytes().assign(bytes.begin(), bytes.end());
+    return val;
+}
+SCVal makeAddressSCVal(SCAddress const& address);
 }

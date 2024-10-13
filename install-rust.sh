@@ -17,7 +17,12 @@ set -x
 # version) that we want to install. This value will change relatively often, as
 # new Rust _compilers_ are released, but you should only have to change it in
 # rust-toolchain.toml. This file will pick it up automatically.
-RUST_VERSION=$(perl -ne 'if (/channel\s+=\s+"(\d+\.\d+)"/) { print $1 }' rust-toolchain.toml)
+RUST_VERSION=$(perl -ne 'if (/channel\s+=\s+"(\d+(?:\.\d+)+)"/) { print $1 }' rust-toolchain.toml)
+
+if [ -z "$RUST_VERSION" ]; then
+    echo "RUST_VERSION is empty"
+    exit 1;
+fi
 
 # A specific version of rustup is selected for checksum stability. This install
 # script is intended to continue to work even after new versions of rustup are

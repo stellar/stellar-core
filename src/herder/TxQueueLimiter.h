@@ -13,51 +13,11 @@
 namespace stellar
 {
 
-class SingleTxStack : public TxStack
-{
-  public:
-    SingleTxStack(TransactionFrameBasePtr tx) : mTx(tx)
-    {
-    }
-
-    TransactionFrameBasePtr
-    getTopTx() const override
-    {
-        releaseAssert(mTx);
-        return mTx;
-    }
-
-    void
-    popTopTx() override
-    {
-        releaseAssert(mTx);
-        mTx = nullptr;
-    }
-
-    bool
-    empty() const override
-    {
-        return mTx == nullptr;
-    }
-
-    Resource
-    getResources() const override
-    {
-        releaseAssert(mTx);
-        return Resource(mTx->getResources(/* useByteLimitInClassic */ false));
-    }
-
-  private:
-    TransactionFrameBasePtr mTx;
-};
-
 class TxQueueLimiter
 {
     // number of ledgers we can pool in memory
     uint32 const mPoolLedgerMultiplier;
     LedgerManager& mLedgerManager;
-
-    UnorderedMap<TransactionFrameBasePtr, TxStackPtr> mStackForTx;
 
     // all known transactions
     std::unique_ptr<SurgePricingPriorityQueue> mTxs;
@@ -73,10 +33,6 @@ class TxQueueLimiter
     // limits.
     std::shared_ptr<SurgePricingLaneConfig> mSurgePricingLaneConfig;
 
-    // Quick lookup of relevant account IDs, needed temporary to maintain
-    // 1-tx-per-account invariance. When tx stacks are removed, we can remove
-    // this logic as well.
-    std::optional<std::unordered_set<AccountID>> mEnforceSingleAccounts;
     Application& mApp;
     bool const mIsSoroban;
 
@@ -88,15 +44,18 @@ class TxQueueLimiter
     void removeTransaction(TransactionFrameBasePtr const& tx);
 #ifdef BUILD_TESTS
     size_t size() const;
+    std::pair<bool, int64>
+    canAddTx(TransactionFrameBasePtr const& tx,
+             TransactionFrameBasePtr const& oldTx,
+             std::vector<std::pair<TransactionFrameBasePtr, bool>>& txsToEvict);
 #endif
-    Resource maxScaledLedgerResources(bool isSoroban,
-                                      AbstractLedgerTxn& ltxOuter) const;
+    Resource maxScaledLedgerResources(bool isSoroban) const;
 
     // Evict `txsToEvict` from the limiter by calling `evict`.
     // `txsToEvict` should be provided by the `canAddTx` call.
     // Note that evict must call `removeTransaction` as to make space.
     void evictTransactions(
-        std::vector<std::pair<TxStackPtr, bool>> const& txsToEvict,
+        std::vector<std::pair<TransactionFrameBasePtr, bool>> const& txsToEvict,
         TransactionFrameBase const& txToFit,
         std::function<void(TransactionFrameBasePtr const&)> evict);
 
@@ -113,17 +72,13 @@ class TxQueueLimiter
     std::pair<bool, int64>
     canAddTx(TransactionFrameBasePtr const& tx,
              TransactionFrameBasePtr const& oldTx,
-             std::vector<std::pair<TxStackPtr, bool>>& txsToEvict,
-             AbstractLedgerTxn& ltxOuter);
-    std::pair<bool, int64>
-    canAddTx(TransactionFrameBasePtr const& tx,
-             TransactionFrameBasePtr const& oldTx,
-             std::vector<std::pair<TxStackPtr, bool>>& txsToEvict);
+             std::vector<std::pair<TransactionFrameBasePtr, bool>>& txsToEvict,
+             uint32_t ledgerVersion);
 
     // Resets the state related to evictions (maximum evicted bid).
     void resetEvictionState();
 
     // Resets the internal transaction container and the eviction state.
-    void reset(AbstractLedgerTxn& ltxOuter);
+    void reset(uint32_t ledgerVersion);
 };
 }

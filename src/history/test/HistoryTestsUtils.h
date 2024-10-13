@@ -199,11 +199,15 @@ class CatchupSimulation
     std::vector<int64_t> aliceBalances;
     std::vector<int64_t> bobBalances;
     std::vector<int64_t> carolBalances;
+    std::vector<int64_t> eveBalances;
+    std::vector<int64_t> stroopyBalances;
 
     std::vector<SequenceNumber> rootSeqs;
     std::vector<SequenceNumber> aliceSeqs;
     std::vector<SequenceNumber> bobSeqs;
     std::vector<SequenceNumber> carolSeqs;
+    std::vector<SequenceNumber> eveSeqs;
+    std::vector<SequenceNumber> stroopySeqs;
 
     uint32_t mUpgradeLedgerSeq{0};
     ProtocolVersion mUpgradeProtocolVersion;
@@ -255,7 +259,7 @@ class CatchupSimulation
 
     Application::pointer createCatchupApplication(
         uint32_t count, Config::TestDbMode dbMode, std::string const& appName,
-        bool publish = false, bool useBucketListDB = false,
+        bool publish = false,
         std::optional<uint32_t> ledgerVersion = std::nullopt);
     bool catchupOffline(Application::pointer app, uint32_t toLedger,
                         bool extraValidation = false);

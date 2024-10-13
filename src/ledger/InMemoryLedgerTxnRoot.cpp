@@ -6,6 +6,7 @@
 #include "ledger/LedgerRange.h"
 #include "ledger/LedgerTxn.h"
 #include "util/XDROperators.h"
+#include "util/XDRStream.h"
 #include "util/types.h"
 #include "xdr/Stellar-ledger-entries.h"
 #include "xdrpp/marshal.h"
@@ -171,7 +172,15 @@ InMemoryLedgerTxnRoot::getPrefetchHitRate() const
 }
 
 uint32_t
-InMemoryLedgerTxnRoot::prefetch(UnorderedSet<LedgerKey> const&)
+InMemoryLedgerTxnRoot::prefetchClassic(UnorderedSet<LedgerKey> const&)
+{
+    return 0;
+}
+
+uint32_t
+InMemoryLedgerTxnRoot::prefetchSoroban(UnorderedSet<LedgerKey> const&,
+                                       LedgerKeyMeter*)
+
 {
     return 0;
 }

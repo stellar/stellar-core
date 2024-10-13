@@ -33,7 +33,7 @@
 
 namespace stellar
 {
-const uint32 Config::CURRENT_LEDGER_PROTOCOL_VERSION = 20
+const uint32 Config::CURRENT_LEDGER_PROTOCOL_VERSION = 22
 #ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
                                                        + 1
 #endif
@@ -53,7 +53,18 @@ static const std::unordered_set<std::string> TESTING_ONLY_OPTIONS = {
     "OP_APPLY_SLEEP_TIME_WEIGHT_FOR_TESTING",
     "LOADGEN_OP_COUNT_FOR_TESTING",
     "LOADGEN_OP_COUNT_DISTRIBUTION_FOR_TESTING",
+    "LOADGEN_WASM_BYTES_FOR_TESTING",
+    "LOADGEN_WASM_BYTES_DISTRIBUTION_FOR_TESTING"
+    "LOADGEN_NUM_DATA_ENTRIES_FOR_TESTING",
+    "LOADGEN_NUM_DATA_ENTRIES_DISTRIBUTION_FOR_TESTING"
+    "LOADGEN_IO_KILOBYTES_FOR_TESTING",
+    "LOADGEN_IO_KILOBYTES_DISTRIBUTION_FOR_TESTING"
+    "LOADGEN_TX_SIZE_BYTES_FOR_TESTING",
+    "LOADGEN_TX_SIZE_BYTES_DISTRIBUTION_FOR_TESTING"
+    "LOADGEN_INSTRUCTIONS_FOR_TESTING",
+    "LOADGEN_INSTRUCTIONS_DISTRIBUTION_FOR_TESTING"
     "CATCHUP_WAIT_MERGES_TX_APPLY_FOR_TESTING",
+    "ARTIFICIALLY_SET_SURVEY_PHASE_DURATION_FOR_TESTING",
     "ARTIFICIALLY_DELAY_BUCKET_APPLICATION_FOR_TESTING",
     "ARTIFICIALLY_SLEEP_MAIN_THREAD_FOR_TESTING",
     "ARTIFICIALLY_SKIP_CONNECTION_ADJUSTMENT_FOR_TESTING"};
@@ -120,7 +131,19 @@ Config::Config() : NODE_SEED(SecretKey::random())
     OP_APPLY_SLEEP_TIME_WEIGHT_FOR_TESTING = std::vector<uint32>();
     LOADGEN_OP_COUNT_FOR_TESTING = {};
     LOADGEN_OP_COUNT_DISTRIBUTION_FOR_TESTING = {};
+    LOADGEN_WASM_BYTES_FOR_TESTING = {};
+    LOADGEN_WASM_BYTES_DISTRIBUTION_FOR_TESTING = {};
+    LOADGEN_NUM_DATA_ENTRIES_FOR_TESTING = {};
+    LOADGEN_NUM_DATA_ENTRIES_DISTRIBUTION_FOR_TESTING = {};
+    LOADGEN_IO_KILOBYTES_FOR_TESTING = {};
+    LOADGEN_IO_KILOBYTES_DISTRIBUTION_FOR_TESTING = {};
+    LOADGEN_TX_SIZE_BYTES_FOR_TESTING = {};
+    LOADGEN_TX_SIZE_BYTES_DISTRIBUTION_FOR_TESTING = {};
+    LOADGEN_INSTRUCTIONS_FOR_TESTING = {};
+    LOADGEN_INSTRUCTIONS_DISTRIBUTION_FOR_TESTING = {};
     CATCHUP_WAIT_MERGES_TX_APPLY_FOR_TESTING = false;
+    ARTIFICIALLY_SET_SURVEY_PHASE_DURATION_FOR_TESTING =
+        std::chrono::minutes::zero();
     ARTIFICIALLY_SLEEP_MAIN_THREAD_FOR_TESTING =
         std::chrono::microseconds::zero();
 
@@ -128,8 +151,8 @@ Config::Config() : NODE_SEED(SecretKey::random())
     LEDGER_PROTOCOL_VERSION = CURRENT_LEDGER_PROTOCOL_VERSION;
     LEDGER_PROTOCOL_MIN_VERSION_INTERNAL_ERROR_REPORT = 18;
 
-    OVERLAY_PROTOCOL_MIN_VERSION = 27;
-    OVERLAY_PROTOCOL_VERSION = 30;
+    OVERLAY_PROTOCOL_MIN_VERSION = 33;
+    OVERLAY_PROTOCOL_VERSION = 35;
 
     VERSION_STR = STELLAR_CORE_VERSION;
 
@@ -139,10 +162,12 @@ Config::Config() : NODE_SEED(SecretKey::random())
     CATCHUP_COMPLETE = false;
     CATCHUP_RECENT = 0;
     EXPERIMENTAL_PRECAUTION_DELAY_META = false;
-    EXPERIMENTAL_BUCKETLIST_DB = false;
-    EXPERIMENTAL_BUCKETLIST_DB_INDEX_PAGE_SIZE_EXPONENT = 14; // 2^14 == 16 kb
-    EXPERIMENTAL_BUCKETLIST_DB_INDEX_CUTOFF = 20;             // 20 mb
-    EXPERIMENTAL_BUCKETLIST_DB_PERSIST_INDEX = true;
+    EXPERIMENTAL_BACKGROUND_OVERLAY_PROCESSING = false;
+    DEPRECATED_SQL_LEDGER_STATE = false;
+    BUCKETLIST_DB_INDEX_PAGE_SIZE_EXPONENT = 14; // 2^14 == 16 kb
+    BUCKETLIST_DB_INDEX_CUTOFF = 20;             // 20 mb
+    BUCKETLIST_DB_PERSIST_INDEX = true;
+    BACKGROUND_EVICTION_SCAN = true;
     PUBLISH_TO_ARCHIVE_DELAY = std::chrono::seconds{0};
     // automatic maintenance settings:
     // short and prime with 1 hour which will cause automatic maintenance to
@@ -198,6 +223,10 @@ Config::Config() : NODE_SEED(SecretKey::random())
     TESTING_UPGRADE_FLAGS = 0;
 
     HTTP_PORT = DEFAULT_PEER_PORT + 1;
+
+    QUERY_THREAD_POOL_SIZE = 4;
+    QUERY_SNAPSHOT_LEDGERS = 5;
+    HTTP_QUERY_PORT = 0;
     PUBLIC_HTTP_PORT = false;
     HTTP_MAX_CLIENT = 128;
     PEER_PORT = DEFAULT_PEER_PORT;
@@ -236,7 +265,6 @@ Config::Config() : NODE_SEED(SecretKey::random())
     PEER_FLOOD_READING_CAPACITY_BYTES = 0;
     FLOW_CONTROL_SEND_MORE_BATCH_SIZE_BYTES = 0;
     OUTBOUND_TX_QUEUE_BYTE_LIMIT = 1024 * 1024 * 3;
-    ENABLE_FLOW_CONTROL_BYTES = true;
 
     // WORKER_THREADS: setting this too low risks a form of priority inversion
     // where a long-running background task occupies all worker threads and
@@ -264,6 +292,7 @@ Config::Config() : NODE_SEED(SecretKey::random())
     MAX_DEX_TX_OPERATIONS_IN_TX_SET = std::nullopt;
 
     ENABLE_SOROBAN_DIAGNOSTIC_EVENTS = false;
+    ENABLE_DIAGNOSTICS_FOR_TX_SUBMISSION = false;
     TESTING_MINIMUM_PERSISTENT_ENTRY_LIFETIME = 0;
     TESTING_SOROBAN_HIGH_LIMIT_OVERRIDE = false;
     OVERRIDE_EVICTION_PARAMS_FOR_TESTING = false;
@@ -273,6 +302,11 @@ Config::Config() : NODE_SEED(SecretKey::random())
         InitialSorobanNetworkConfig::MAX_ENTRIES_TO_ARCHIVE;
     TESTING_STARTING_EVICTION_SCAN_LEVEL =
         InitialSorobanNetworkConfig::STARTING_EVICTION_SCAN_LEVEL;
+
+    EMIT_SOROBAN_TRANSACTION_META_EXT_V1 = false;
+    EMIT_LEDGER_CLOSE_META_EXT_V1 = false;
+
+    FORCE_OLD_STYLE_LEADER_ELECTION = false;
 
 #ifdef BUILD_TESTS
     TEST_CASES_ENABLED = false;
@@ -540,7 +574,7 @@ Config::toString(ValidatorQuality q) const
     return kQualities[static_cast<int>(q)];
 }
 
-Config::ValidatorQuality
+ValidatorQuality
 Config::parseQuality(std::string const& q) const
 {
     auto it = std::find(kQualities.begin(), kQualities.end(), q);
@@ -549,7 +583,7 @@ Config::parseQuality(std::string const& q) const
 
     if (it != kQualities.end())
     {
-        res = static_cast<Config::ValidatorQuality>(
+        res = static_cast<ValidatorQuality>(
             std::distance(kQualities.begin(), it));
     }
     else
@@ -560,7 +594,7 @@ Config::parseQuality(std::string const& q) const
     return res;
 }
 
-std::vector<Config::ValidatorEntry>
+std::vector<ValidatorEntry>
 Config::parseValidators(
     std::shared_ptr<cpptoml::base> validators,
     UnorderedMap<std::string, ValidatorQuality> const& domainQualityMap)
@@ -683,7 +717,7 @@ Config::parseValidators(
     return res;
 }
 
-UnorderedMap<std::string, Config::ValidatorQuality>
+UnorderedMap<std::string, ValidatorQuality>
 Config::parseDomainsQuality(std::shared_ptr<cpptoml::base> domainsQuality)
 {
     UnorderedMap<std::string, ValidatorQuality> res;
@@ -844,39 +878,51 @@ Config::verifyHistoryValidatorsBlocking(
     }
 }
 
+template <typename T>
 void
-Config::verifyLoadGenOpCountForTestingConfigs()
+Config::verifyLoadGenDistribution(std::vector<T> const& values,
+                                  std::vector<uint32_t> const& distribution,
+                                  std::string const& valuesName,
+                                  std::string const& distributionName)
 {
-    if (LOADGEN_OP_COUNT_FOR_TESTING.size() !=
-        LOADGEN_OP_COUNT_DISTRIBUTION_FOR_TESTING.size())
+    if (values.size() != distribution.size())
     {
-        throw std::invalid_argument("LOADGEN_OP_COUNT_FOR_TESTING and "
-                                    "LOADGEN_OP_COUNT_DISTRIBUTION_FOR_TESTING "
-                                    "must be defined together and "
-                                    "must have the exact same size.");
+        throw std::invalid_argument(
+            fmt::format(FMT_STRING("{} and {} must be defined together and "
+                                   "must have the exact same size."),
+                        valuesName, distributionName));
     }
 
-    if (LOADGEN_OP_COUNT_FOR_TESTING.empty())
+    if (values.empty())
     {
         return;
     }
 
     if (!ARTIFICIALLY_GENERATE_LOAD_FOR_TESTING)
     {
-        throw std::invalid_argument(
-            "When LOADGEN_OP_COUNT_FOR_TESTING and "
-            "LOADGEN_OP_COUNT_DISTRIBUTION_FOR_TESTING are defined "
-            "ARTIFICIALLY_GENERATE_LOAD_FOR_TESTING must be set true");
+        throw std::invalid_argument(fmt::format(
+            FMT_STRING(
+                "When {} and {} are defined "
+                "ARTIFICIALLY_GENERATE_LOAD_FOR_TESTING must be set true"),
+            valuesName, distributionName));
     }
 
-    if (std::any_of(LOADGEN_OP_COUNT_DISTRIBUTION_FOR_TESTING.begin(),
-                    LOADGEN_OP_COUNT_DISTRIBUTION_FOR_TESTING.end(),
-                    [](uint32 i) { return i == 0; }))
+    if (std::any_of(distribution.begin(), distribution.end(),
+                    [](uint32_t i) { return i == 0; }))
     {
-        throw std::invalid_argument(
-            "All elements in LOADGEN_OP_COUNT_DISTRIBUTION_FOR_TESTING must be "
-            "positive integers");
+        throw std::invalid_argument(fmt::format(
+            FMT_STRING("All elements in {} must be positive integers"),
+            distributionName));
     }
+}
+
+void
+Config::verifyLoadGenOpCountForTestingConfigs()
+{
+    verifyLoadGenDistribution(LOADGEN_OP_COUNT_FOR_TESTING,
+                              LOADGEN_OP_COUNT_DISTRIBUTION_FOR_TESTING,
+                              "LOADGEN_OP_COUNT_FOR_TESTING",
+                              "LOADGEN_OP_COUNT_DISTRIBUTION_FOR_TESTING");
 
     if (!std::all_of(LOADGEN_OP_COUNT_FOR_TESTING.begin(),
                      LOADGEN_OP_COUNT_FOR_TESTING.end(),
@@ -969,551 +1015,612 @@ Config::processConfig(std::shared_ptr<cpptoml::table> t)
                          "node may not function properly with most networks");
             }
 
-            if (item.first == "PEER_READING_CAPACITY")
-            {
-                PEER_READING_CAPACITY = readInt<uint32_t>(item, 1);
-            }
-            else if (item.first == "PEER_FLOOD_READING_CAPACITY")
-            {
-                PEER_FLOOD_READING_CAPACITY = readInt<uint32_t>(item, 1);
-            }
-            else if (item.first == "FLOW_CONTROL_SEND_MORE_BATCH_SIZE")
-            {
-                FLOW_CONTROL_SEND_MORE_BATCH_SIZE = readInt<uint32_t>(item, 1);
-            }
-            else if (item.first == "PEER_FLOOD_READING_CAPACITY_BYTES")
-            {
-                PEER_FLOOD_READING_CAPACITY_BYTES = readInt<uint32_t>(item, 1);
-            }
-            else if (item.first == "FLOW_CONTROL_SEND_MORE_BATCH_SIZE_BYTES")
-            {
-                FLOW_CONTROL_SEND_MORE_BATCH_SIZE_BYTES =
-                    readInt<uint32_t>(item, 1);
-            }
-            else if (item.first == "ENABLE_FLOW_CONTROL_BYTES")
-            {
-                ENABLE_FLOW_CONTROL_BYTES = readBool(item);
-            }
-            else if (item.first == "OUTBOUND_TX_QUEUE_BYTE_LIMIT")
-            {
-                OUTBOUND_TX_QUEUE_BYTE_LIMIT = readInt<uint32_t>(item, 1);
-            }
-            else if (item.first == "PEER_PORT")
-            {
-                PEER_PORT = readInt<unsigned short>(item, 1);
-            }
-            else if (item.first == "HTTP_PORT")
-            {
-                HTTP_PORT = readInt<unsigned short>(item);
-            }
-            else if (item.first == "HTTP_MAX_CLIENT")
-            {
-                HTTP_MAX_CLIENT = readInt<unsigned short>(item, 0);
-            }
-            else if (item.first == "PUBLIC_HTTP_PORT")
-            {
-                PUBLIC_HTTP_PORT = readBool(item);
-            }
-            else if (item.first == "FAILURE_SAFETY")
-            {
-                FAILURE_SAFETY = readInt<int32_t>(item, -1, INT32_MAX - 1);
-            }
-            else if (item.first == "UNSAFE_QUORUM")
-            {
-                UNSAFE_QUORUM = readBool(item);
-            }
-            else if (item.first == "DISABLE_XDR_FSYNC")
-            {
-                DISABLE_XDR_FSYNC = readBool(item);
-            }
-            else if (item.first == "METADATA_OUTPUT_STREAM")
-            {
-                METADATA_OUTPUT_STREAM = readString(item);
-            }
-            else if (item.first == "EXPERIMENTAL_PRECAUTION_DELAY_META")
-            {
-                EXPERIMENTAL_PRECAUTION_DELAY_META = readBool(item);
-            }
-            else if (item.first == "EXPERIMENTAL_BUCKETLIST_DB")
-            {
-                EXPERIMENTAL_BUCKETLIST_DB = readBool(item);
-            }
-            else if (item.first ==
-                     "EXPERIMENTAL_BUCKETLIST_DB_INDEX_PAGE_SIZE_EXPONENT")
-            {
-                EXPERIMENTAL_BUCKETLIST_DB_INDEX_PAGE_SIZE_EXPONENT =
-                    readInt<size_t>(item);
-            }
-            else if (item.first == "EXPERIMENTAL_BUCKETLIST_DB_INDEX_CUTOFF")
-            {
-                EXPERIMENTAL_BUCKETLIST_DB_INDEX_CUTOFF = readInt<size_t>(item);
-            }
-            else if (item.first == "EXPERIMENTAL_BUCKETLIST_DB_PERSIST_INDEX")
-            {
-                EXPERIMENTAL_BUCKETLIST_DB_PERSIST_INDEX = readBool(item);
-            }
-            else if (item.first == "METADATA_DEBUG_LEDGERS")
-            {
-                METADATA_DEBUG_LEDGERS = readInt<uint32_t>(item);
-            }
-            else if (item.first == "KNOWN_CURSORS")
-            {
-                KNOWN_CURSORS = readArray<std::string>(item);
-                for (auto const& c : KNOWN_CURSORS)
-                {
-                    if (!ExternalQueue::validateResourceID(c))
-                    {
-                        throw std::invalid_argument(fmt::format(
-                            FMT_STRING("invalid cursor: \"{}\""), c));
-                    }
-                }
-            }
-            else if (item.first == "RUN_STANDALONE")
-            {
-                RUN_STANDALONE = readBool(item);
-            }
-            else if (item.first == "CATCHUP_COMPLETE")
-            {
-                CATCHUP_COMPLETE = readBool(item);
-            }
-            else if (item.first == "CATCHUP_RECENT")
-            {
-                CATCHUP_RECENT = readInt<uint32_t>(item, 0, UINT32_MAX - 1);
-            }
-            else if (item.first == "ARTIFICIALLY_GENERATE_LOAD_FOR_TESTING")
-            {
-                ARTIFICIALLY_GENERATE_LOAD_FOR_TESTING = readBool(item);
-            }
-            else if (item.first == "ARTIFICIALLY_ACCELERATE_TIME_FOR_TESTING")
-            {
-                ARTIFICIALLY_ACCELERATE_TIME_FOR_TESTING = readBool(item);
-            }
-            else if (item.first == "ARTIFICIALLY_SET_CLOSE_TIME_FOR_TESTING")
-            {
-                ARTIFICIALLY_SET_CLOSE_TIME_FOR_TESTING =
-                    readInt<uint32_t>(item, 0, UINT32_MAX - 1);
-            }
-            else if (item.first == "MAX_SLOTS_TO_REMEMBER")
-            {
-                MAX_SLOTS_TO_REMEMBER = readInt<uint32>(item);
-            }
-            else if (item.first ==
-                     "ARTIFICIALLY_REPLAY_WITH_NEWEST_BUCKET_LOGIC_FOR_TESTING")
-            {
-                ARTIFICIALLY_REPLAY_WITH_NEWEST_BUCKET_LOGIC_FOR_TESTING =
-                    readBool(item);
-            }
-            else if (item.first ==
-                     "ARTIFICIALLY_DELAY_BUCKET_APPLICATION_FOR_TESTING")
-            {
-                ARTIFICIALLY_DELAY_BUCKET_APPLICATION_FOR_TESTING =
-                    std::chrono::seconds(readInt<uint32_t>(item));
-            }
-            else if (item.first == "ALLOW_LOCALHOST_FOR_TESTING")
-            {
-                ALLOW_LOCALHOST_FOR_TESTING = readBool(item);
-            }
-            else if (item.first == "PUBLISH_TO_ARCHIVE_DELAY")
-            {
-                PUBLISH_TO_ARCHIVE_DELAY =
-                    std::chrono::seconds(readInt<uint32_t>(item));
-            }
-            else if (item.first == "AUTOMATIC_MAINTENANCE_PERIOD")
-            {
-                AUTOMATIC_MAINTENANCE_PERIOD =
-                    std::chrono::seconds{readInt<uint32_t>(item)};
-            }
-            else if (item.first == "AUTOMATIC_MAINTENANCE_COUNT")
-            {
-                AUTOMATIC_MAINTENANCE_COUNT = readInt<uint32_t>(item);
-            }
-            else if (item.first == "AUTOMATIC_SELF_CHECK_PERIOD")
-            {
-                AUTOMATIC_SELF_CHECK_PERIOD =
-                    std::chrono::seconds{readInt<uint32_t>(item)};
-            }
-            else if (item.first == "MANUAL_CLOSE")
-            {
-                MANUAL_CLOSE = readBool(item);
-            }
-            else if (item.first == "LOG_FILE_PATH")
-            {
-                LOG_FILE_PATH = readString(item);
-            }
-            else if (item.first == "LOG_COLOR")
-            {
-                LOG_COLOR = readBool(item);
-            }
-            else if (item.first == "BUCKET_DIR_PATH")
-            {
-                BUCKET_DIR_PATH = readString(item);
-            }
-            else if (item.first == "NODE_NAMES")
-            {
-                auto names = readArray<std::string>(item);
-                for (auto v : names)
-                {
-                    PublicKey nodeID;
-                    parseNodeID(v, nodeID);
-                }
-            }
-            else if (item.first == "NODE_SEED")
-            {
-                PublicKey nodeID;
-                parseNodeID(readString(item), nodeID, NODE_SEED, true);
-            }
-            else if (item.first == "NODE_IS_VALIDATOR")
-            {
-                NODE_IS_VALIDATOR = readBool(item);
-            }
-            else if (item.first == "NODE_HOME_DOMAIN")
-            {
-                NODE_HOME_DOMAIN = readString(item);
-            }
-            else if (item.first == "TARGET_PEER_CONNECTIONS")
-            {
-                TARGET_PEER_CONNECTIONS = readInt<unsigned short>(item, 1);
-            }
-            else if (item.first == "MAX_ADDITIONAL_PEER_CONNECTIONS")
-            {
-                MAX_ADDITIONAL_PEER_CONNECTIONS = readInt<int>(
-                    item, -1, std::numeric_limits<unsigned short>::max());
-            }
-            else if (item.first == "MAX_PENDING_CONNECTIONS")
-            {
-                MAX_PENDING_CONNECTIONS = readInt<unsigned short>(
-                    item, 1, std::numeric_limits<unsigned short>::max());
-            }
-            else if (item.first == "PEER_AUTHENTICATION_TIMEOUT")
-            {
-                PEER_AUTHENTICATION_TIMEOUT = readInt<unsigned short>(
-                    item, 1, std::numeric_limits<unsigned short>::max());
-            }
-            else if (item.first == "PEER_TIMEOUT")
-            {
-                PEER_TIMEOUT = readInt<unsigned short>(
-                    item, 1, std::numeric_limits<unsigned short>::max());
-            }
-            else if (item.first == "PEER_STRAGGLER_TIMEOUT")
-            {
-                PEER_STRAGGLER_TIMEOUT = readInt<unsigned short>(
-                    item, 1, std::numeric_limits<unsigned short>::max());
-            }
-            else if (item.first == "MAX_BATCH_WRITE_COUNT")
-            {
-                MAX_BATCH_WRITE_COUNT = readInt<int>(item, 1);
-            }
-            else if (item.first == "MAX_BATCH_WRITE_BYTES")
-            {
-                MAX_BATCH_WRITE_BYTES = readInt<int>(item, 1);
-            }
-            else if (item.first == "FLOOD_OP_RATE_PER_LEDGER")
-            {
-                FLOOD_OP_RATE_PER_LEDGER = readDouble(item);
-                if (FLOOD_OP_RATE_PER_LEDGER <= 0.0)
-                {
-                    throw std::invalid_argument(
-                        "bad value for FLOOD_OP_RATE_PER_LEDGER");
-                }
-            }
-            else if (item.first == "FLOOD_TX_PERIOD_MS")
-            {
-                FLOOD_TX_PERIOD_MS = readInt<int>(item, 1);
-            }
-            else if (item.first == "FLOOD_SOROBAN_RATE_PER_LEDGER")
-            {
-                FLOOD_SOROBAN_RATE_PER_LEDGER = readDouble(item);
-                if (FLOOD_SOROBAN_RATE_PER_LEDGER <= 0.0)
-                {
-                    throw std::invalid_argument(
-                        "bad value for FLOOD_SOROBAN_RATE_PER_LEDGER");
-                }
-            }
-            else if (item.first == "FLOOD_SOROBAN_TX_PERIOD_MS")
-            {
-                FLOOD_SOROBAN_TX_PERIOD_MS = readInt<int>(item, 1);
-            }
-            else if (item.first == "FLOOD_DEMAND_PERIOD_MS")
-            {
-                FLOOD_DEMAND_PERIOD_MS =
-                    std::chrono::milliseconds(readInt<int>(item, 1));
-            }
-            else if (item.first == "FLOOD_ADVERT_PERIOD_MS")
-            {
-                FLOOD_ADVERT_PERIOD_MS =
-                    std::chrono::milliseconds(readInt<int>(item, 1));
-            }
-            else if (item.first == "FLOOD_DEMAND_BACKOFF_DELAY_MS")
-            {
-                FLOOD_DEMAND_BACKOFF_DELAY_MS =
-                    std::chrono::milliseconds(readInt<int>(item, 1));
-            }
-            else if (item.first == "FLOOD_ARB_TX_BASE_ALLOWANCE")
-            {
-                FLOOD_ARB_TX_BASE_ALLOWANCE = readInt<int32_t>(item, -1);
-            }
-            else if (item.first == "FLOOD_ARB_TX_DAMPING_FACTOR")
-            {
-                FLOOD_ARB_TX_DAMPING_FACTOR = readDouble(item);
-                if (FLOOD_ARB_TX_DAMPING_FACTOR <= 0.0 ||
-                    FLOOD_ARB_TX_DAMPING_FACTOR > 1.0)
-                {
-                    throw std::invalid_argument(
-                        "bad value for FLOOD_ARB_TX_DAMPING_FACTOR");
-                }
-            }
-            else if (item.first == "PREFERRED_PEERS")
-            {
-                PREFERRED_PEERS = readArray<std::string>(item);
-            }
-            else if (item.first == "PREFERRED_PEER_KEYS")
-            {
-                // handled below
-            }
-            else if (item.first == "PREFERRED_PEERS_ONLY")
-            {
-                PREFERRED_PEERS_ONLY = readBool(item);
-            }
-            else if (item.first == "KNOWN_PEERS")
-            {
-                auto peers = readArray<std::string>(item);
-                KNOWN_PEERS.insert(KNOWN_PEERS.begin(), peers.begin(),
-                                   peers.end());
-            }
-            else if (item.first == "QUORUM_SET")
-            {
-                // processing performed after this loop
-            }
-            else if (item.first == "COMMANDS")
-            {
-                COMMANDS = readArray<std::string>(item);
-            }
-            else if (item.first == "WORKER_THREADS")
-            {
-                WORKER_THREADS = readInt<int>(item, 1, 1000);
-            }
-            else if (item.first == "MAX_CONCURRENT_SUBPROCESSES")
-            {
-                MAX_CONCURRENT_SUBPROCESSES = readInt<size_t>(item, 1);
-            }
-            else if (item.first == "QUORUM_INTERSECTION_CHECKER")
-            {
-                QUORUM_INTERSECTION_CHECKER = readBool(item);
-            }
-            else if (item.first == "HISTORY")
-            {
-                auto hist = item.second->as_table();
-                if (hist)
-                {
-                    for (auto const& archive : *hist)
-                    {
-                        LOG_DEBUG(DEFAULT_LOG, "History archive: {}",
-                                  archive.first);
-                        auto tab = archive.second->as_table();
-                        if (!tab)
-                        {
-                            throw std::invalid_argument(
-                                "malformed HISTORY config block");
-                        }
-                        std::string get, put, mkdir;
-                        for (auto const& c : *tab)
-                        {
-                            if (c.first == "get")
-                            {
-                                get = c.second->as<std::string>()->get();
-                            }
-                            else if (c.first == "put")
-                            {
-                                put = c.second->as<std::string>()->get();
-                            }
-                            else if (c.first == "mkdir")
-                            {
-                                mkdir = c.second->as<std::string>()->get();
-                            }
-                            else
-                            {
-                                std::string err(
-                                    "Unknown HISTORY-table entry: '");
-                                err += c.first;
-                                err +=
-                                    "', within [HISTORY." + archive.first + "]";
-                                throw std::invalid_argument(err);
-                            }
-                        }
-                        addHistoryArchive(archive.first, get, put, mkdir);
-                    }
-                }
-                else
-                {
-                    throw std::invalid_argument("incomplete HISTORY block");
-                }
-            }
-            else if (item.first == "DATABASE")
-            {
-                DATABASE = SecretValue{readString(item)};
-            }
-            else if (item.first == "NETWORK_PASSPHRASE")
-            {
-                NETWORK_PASSPHRASE = readString(item);
-            }
-            else if (item.first == "INVARIANT_CHECKS")
-            {
-                INVARIANT_CHECKS = readArray<std::string>(item);
-            }
-            else if (item.first == "ENTRY_CACHE_SIZE")
-            {
-                ENTRY_CACHE_SIZE = readInt<uint32_t>(item);
-            }
-            else if (item.first == "PREFETCH_BATCH_SIZE")
-            {
-                PREFETCH_BATCH_SIZE = readInt<uint32_t>(item);
-            }
-            else if (item.first == "MAXIMUM_LEDGER_CLOSETIME_DRIFT")
-            {
-                MAXIMUM_LEDGER_CLOSETIME_DRIFT = readInt<int64_t>(item, 0);
-            }
-            else if (item.first == "VALIDATORS")
-            {
-                // processed later (may depend on HOME_DOMAINS)
-            }
-            else if (item.first == "HOME_DOMAINS")
-            {
-                domainQualityMap = parseDomainsQuality(item.second);
-            }
-            else if (item.first == "SURVEYOR_KEYS")
-            {
-                // processed later (may depend on previously defined public
-                // keys)
-            }
-            else if (item.first ==
-                     "EXCLUDE_TRANSACTIONS_CONTAINING_OPERATION_TYPE")
-            {
-                EXCLUDE_TRANSACTIONS_CONTAINING_OPERATION_TYPE =
-                    readXdrEnumArray<OperationType>(item);
-            }
-            else if (item.first == "OP_APPLY_SLEEP_TIME_DURATION_FOR_TESTING")
-            {
-                // Since it doesn't make sense to sleep for a negative amount of
-                // time, we use an unsigned integer type.
-                auto input = readIntArray<uint32>(item);
-                OP_APPLY_SLEEP_TIME_DURATION_FOR_TESTING.reserve(input.size());
-                // Convert uint32 to std::chrono::microseconds
-                std::transform(
-                    input.begin(), input.end(),
-                    std::back_inserter(
-                        OP_APPLY_SLEEP_TIME_DURATION_FOR_TESTING),
-                    [](uint32 x) { return std::chrono::microseconds(x); });
-            }
-            else if (item.first == "OP_APPLY_SLEEP_TIME_WEIGHT_FOR_TESTING")
-            {
-                OP_APPLY_SLEEP_TIME_WEIGHT_FOR_TESTING =
-                    readIntArray<uint32>(item);
-            }
-            else if (item.first == "LOADGEN_OP_COUNT_FOR_TESTING")
-            {
-                LOADGEN_OP_COUNT_FOR_TESTING =
-                    readIntArray<unsigned short>(item);
-            }
-            else if (item.first == "LOADGEN_OP_COUNT_DISTRIBUTION_FOR_TESTING")
-            {
-                LOADGEN_OP_COUNT_DISTRIBUTION_FOR_TESTING =
-                    readIntArray<uint32>(item);
-            }
-            else if (item.first == "CATCHUP_WAIT_MERGES_TX_APPLY_FOR_TESTING")
-            {
-                CATCHUP_WAIT_MERGES_TX_APPLY_FOR_TESTING = readBool(item);
-            }
-            else if (item.first == "HISTOGRAM_WINDOW_SIZE")
-            {
-                auto const s = readInt<uint32_t>(item);
-                // 5 minutes is hardcoded in many places in prometheus.
-                // Thus the window size should divide it evenly.
-                if (300 % s != 0)
-                {
-                    throw std::invalid_argument(
-                        "HISTOGRAM_WINDOW_SIZE must divide 300 evenly");
-                }
-                HISTOGRAM_WINDOW_SIZE = std::chrono::seconds(s);
-            }
-            else if (item.first == "HALT_ON_INTERNAL_TRANSACTION_ERROR")
-            {
-                HALT_ON_INTERNAL_TRANSACTION_ERROR = readBool(item);
-            }
-            else if (item.first == "ENABLE_SOROBAN_DIAGNOSTIC_EVENTS")
-            {
-                ENABLE_SOROBAN_DIAGNOSTIC_EVENTS = readBool(item);
-            }
-            else if (item.first == "TESTING_MINIMUM_PERSISTENT_ENTRY_LIFETIME")
-            {
-                TESTING_MINIMUM_PERSISTENT_ENTRY_LIFETIME =
-                    readInt<uint32_t>(item);
-                if (TESTING_MINIMUM_PERSISTENT_ENTRY_LIFETIME == 0)
-                {
-                    throw std::invalid_argument(
-                        "TESTING_MINIMUM_PERSISTENT_ENTRY_LIFETIME must be "
-                        "positive");
-                }
+            std::map<std::string, std::function<void()>> confProcessor = {
+                {"PEER_READING_CAPACITY",
+                 [&]() { PEER_READING_CAPACITY = readInt<uint32_t>(item, 1); }},
+                {"PEER_FLOOD_READING_CAPACITY",
+                 [&]() {
+                     PEER_FLOOD_READING_CAPACITY = readInt<uint32_t>(item, 1);
+                 }},
+                {"FLOW_CONTROL_SEND_MORE_BATCH_SIZE",
+                 [&]() {
+                     FLOW_CONTROL_SEND_MORE_BATCH_SIZE =
+                         readInt<uint32_t>(item, 1);
+                 }},
+                {"PEER_FLOOD_READING_CAPACITY_BYTES",
+                 [&]() {
+                     PEER_FLOOD_READING_CAPACITY_BYTES =
+                         readInt<uint32_t>(item, 1);
+                 }},
+                {"FLOW_CONTROL_SEND_MORE_BATCH_SIZE_BYTES",
+                 [&]() {
+                     FLOW_CONTROL_SEND_MORE_BATCH_SIZE_BYTES =
+                         readInt<uint32_t>(item, 1);
+                 }},
+                {"OUTBOUND_TX_QUEUE_BYTE_LIMIT",
+                 [&]() {
+                     OUTBOUND_TX_QUEUE_BYTE_LIMIT = readInt<uint32_t>(item, 1);
+                 }},
+                {"PEER_PORT",
+                 [&]() { PEER_PORT = readInt<unsigned short>(item, 1); }},
+                {"HTTP_PORT",
+                 [&]() { HTTP_PORT = readInt<unsigned short>(item); }},
+                {"HTTP_QUERY_PORT",
+                 [&]() { HTTP_QUERY_PORT = readInt<unsigned short>(item); }},
+                {"HTTP_MAX_CLIENT",
+                 [&]() { HTTP_MAX_CLIENT = readInt<unsigned short>(item, 0); }},
+                {"PUBLIC_HTTP_PORT",
+                 [&]() { PUBLIC_HTTP_PORT = readBool(item); }},
+                {"FAILURE_SAFETY",
+                 [&]() {
+                     FAILURE_SAFETY = readInt<int32_t>(item, -1, INT32_MAX - 1);
+                 }},
+                {"UNSAFE_QUORUM", [&]() { UNSAFE_QUORUM = readBool(item); }},
+                {"DISABLE_XDR_FSYNC",
+                 [&]() { DISABLE_XDR_FSYNC = readBool(item); }},
+                {"METADATA_OUTPUT_STREAM",
+                 [&]() { METADATA_OUTPUT_STREAM = readString(item); }},
+                {"EXPERIMENTAL_PRECAUTION_DELAY_META",
+                 [&]() {
+                     EXPERIMENTAL_PRECAUTION_DELAY_META = readBool(item);
+                 }},
+                {"EXPERIMENTAL_BACKGROUND_OVERLAY_PROCESSING",
+                 [&]() {
+                     EXPERIMENTAL_BACKGROUND_OVERLAY_PROCESSING =
+                         readBool(item);
+                 }},
+                {"BACKGROUND_EVICTION_SCAN",
+                 [&]() { BACKGROUND_EVICTION_SCAN = readBool(item); }},
+                // TODO: Flag is no longer supported, remove in next release.
+                {"EXPERIMENTAL_BACKGROUND_EVICTION_SCAN",
+                 [&]() {
+                     CLOG_WARNING(
+                         Bucket,
+                         "EXPERIMENTAL_BACKGROUND_EVICTION_SCAN is deprecated "
+                         "and "
+                         "is ignored. Use BACKGROUND_EVICTION_SCAN instead");
+                 }},
+                {"DEPRECATED_SQL_LEDGER_STATE",
+                 [&]() { DEPRECATED_SQL_LEDGER_STATE = readBool(item); }},
+                // Still support EXPERIMENTAL_BUCKETLIST_DB* flags for
+                // captive-core for 21.0 release, remove in 21.1 release
+                {"EXPERIMENTAL_BUCKETLIST_DB",
+                 [&]() {
+                     DEPRECATED_SQL_LEDGER_STATE = !readBool(item);
+                     CLOG_WARNING(
+                         Bucket,
+                         "EXPERIMENTAL_BUCKETLIST_DB flag is deprecated, "
+                         "use DEPRECATED_SQL_LEDGER_STATE=false instead.");
+                 }},
+                {"EXPERIMENTAL_BUCKETLIST_DB_INDEX_PAGE_SIZE_EXPONENT",
+                 [&]() {
+                     BUCKETLIST_DB_INDEX_PAGE_SIZE_EXPONENT =
+                         readInt<size_t>(item);
+                     CLOG_WARNING(
+                         Bucket,
+                         "EXPERIMENTAL_BUCKETLIST_DB_INDEX_PAGE_SIZE_EXPONENT "
+                         "is "
+                         "deprecated, "
+                         "use BUCKETLIST_DB_INDEX_PAGE_SIZE_EXPONENT instead.");
+                 }},
+                {"EXPERIMENTAL_BUCKETLIST_DB_INDEX_CUTOFF",
+                 [&]() {
+                     BUCKETLIST_DB_INDEX_CUTOFF = readInt<size_t>(item);
+                     CLOG_WARNING(Bucket,
+                                  "EXPERIMENTAL_BUCKETLIST_DB_INDEX_CUTOFF is "
+                                  "deprecated, "
+                                  "use BUCKETLIST_DB_INDEX_CUTOFF instead.");
+                 }},
+                {"EXPERIMENTAL_BUCKETLIST_DB_PERSIST_INDEX",
+                 [&]() {
+                     BUCKETLIST_DB_PERSIST_INDEX = readBool(item);
+                     CLOG_WARNING(Bucket,
+                                  "EXPERIMENTAL_BUCKETLIST_DB_PERSIST_INDEX is "
+                                  "deprecated, "
+                                  "use BUCKETLIST_DB_PERSIST_INDEX instead.");
+                 }},
+                {"BUCKETLIST_DB_INDEX_PAGE_SIZE_EXPONENT",
+                 [&]() {
+                     BUCKETLIST_DB_INDEX_PAGE_SIZE_EXPONENT =
+                         readInt<size_t>(item);
+                 }},
+                {"BUCKETLIST_DB_INDEX_CUTOFF",
+                 [&]() { BUCKETLIST_DB_INDEX_CUTOFF = readInt<size_t>(item); }},
+                {"BUCKETLIST_DB_PERSIST_INDEX",
+                 [&]() { BUCKETLIST_DB_PERSIST_INDEX = readBool(item); }},
+                {"METADATA_DEBUG_LEDGERS",
+                 [&]() { METADATA_DEBUG_LEDGERS = readInt<uint32_t>(item); }},
+                {"KNOWN_CURSORS",
+                 [&]() {
+                     KNOWN_CURSORS = readArray<std::string>(item);
+                     for (auto const& c : KNOWN_CURSORS)
+                     {
+                         if (!ExternalQueue::validateResourceID(c))
+                         {
+                             throw std::invalid_argument(fmt::format(
+                                 FMT_STRING("invalid cursor: \"{}\""), c));
+                         }
+                     }
+                 }},
+                {"RUN_STANDALONE", [&]() { RUN_STANDALONE = readBool(item); }},
+                {"CATCHUP_COMPLETE",
+                 [&]() { CATCHUP_COMPLETE = readBool(item); }},
+                {"CATCHUP_RECENT",
+                 [&]() {
+                     CATCHUP_RECENT =
+                         readInt<uint32_t>(item, 0, UINT32_MAX - 1);
+                 }},
+                {"ARTIFICIALLY_GENERATE_LOAD_FOR_TESTING",
+                 [&]() {
+                     ARTIFICIALLY_GENERATE_LOAD_FOR_TESTING = readBool(item);
+                 }},
+                {"ARTIFICIALLY_ACCELERATE_TIME_FOR_TESTING",
+                 [&]() {
+                     ARTIFICIALLY_ACCELERATE_TIME_FOR_TESTING = readBool(item);
+                 }},
+                {"ARTIFICIALLY_SET_CLOSE_TIME_FOR_TESTING",
+                 [&]() {
+                     ARTIFICIALLY_SET_CLOSE_TIME_FOR_TESTING =
+                         readInt<uint32_t>(item, 0, UINT32_MAX - 1);
+                 }},
+                {"MAX_SLOTS_TO_REMEMBER",
+                 [&]() { MAX_SLOTS_TO_REMEMBER = readInt<uint32>(item); }},
+                {"ARTIFICIALLY_REPLAY_WITH_NEWEST_BUCKET_LOGIC_FOR_TESTING",
+                 [&]() {
+                     ARTIFICIALLY_REPLAY_WITH_NEWEST_BUCKET_LOGIC_FOR_TESTING =
+                         readBool(item);
+                 }},
+                {"ARTIFICIALLY_DELAY_BUCKET_APPLICATION_FOR_TESTING",
+                 [&]() {
+                     ARTIFICIALLY_DELAY_BUCKET_APPLICATION_FOR_TESTING =
+                         std::chrono::seconds(readInt<uint32_t>(item));
+                 }},
+                {"ALLOW_LOCALHOST_FOR_TESTING",
+                 [&]() { ALLOW_LOCALHOST_FOR_TESTING = readBool(item); }},
+                {"PUBLISH_TO_ARCHIVE_DELAY",
+                 [&]() {
+                     PUBLISH_TO_ARCHIVE_DELAY =
+                         std::chrono::seconds(readInt<uint32_t>(item));
+                 }},
+                {"AUTOMATIC_MAINTENANCE_PERIOD",
+                 [&]() {
+                     AUTOMATIC_MAINTENANCE_PERIOD =
+                         std::chrono::seconds{readInt<uint32_t>(item)};
+                 }},
+                {"AUTOMATIC_MAINTENANCE_COUNT",
+                 [&]() {
+                     AUTOMATIC_MAINTENANCE_COUNT = readInt<uint32_t>(item);
+                 }},
+                {"AUTOMATIC_SELF_CHECK_PERIOD",
+                 [&]() {
+                     AUTOMATIC_SELF_CHECK_PERIOD =
+                         std::chrono::seconds{readInt<uint32_t>(item)};
+                 }},
+                {"MANUAL_CLOSE", [&]() { MANUAL_CLOSE = readBool(item); }},
+                {"LOG_FILE_PATH", [&]() { LOG_FILE_PATH = readString(item); }},
+                {"LOG_COLOR", [&]() { LOG_COLOR = readBool(item); }},
+                {"BUCKET_DIR_PATH",
+                 [&]() { BUCKET_DIR_PATH = readString(item); }},
+                {"NODE_NAMES",
+                 [&]() {
+                     auto names = readArray<std::string>(item);
+                     for (auto v : names)
+                     {
+                         PublicKey nodeID;
+                         parseNodeID(v, nodeID);
+                     }
+                 }},
+                {"NODE_SEED",
+                 [&]() {
+                     PublicKey nodeID;
+                     parseNodeID(readString(item), nodeID, NODE_SEED, true);
+                 }},
+                {"NODE_IS_VALIDATOR",
+                 [&]() { NODE_IS_VALIDATOR = readBool(item); }},
+                {"NODE_HOME_DOMAIN",
+                 [&]() { NODE_HOME_DOMAIN = readString(item); }},
+                {"TARGET_PEER_CONNECTIONS",
+                 [&]() {
+                     TARGET_PEER_CONNECTIONS = readInt<unsigned short>(item, 1);
+                 }},
+                {"MAX_ADDITIONAL_PEER_CONNECTIONS",
+                 [&]() {
+                     MAX_ADDITIONAL_PEER_CONNECTIONS = readInt<int>(
+                         item, -1, std::numeric_limits<unsigned short>::max());
+                 }},
+                {"MAX_PENDING_CONNECTIONS",
+                 [&]() {
+                     MAX_PENDING_CONNECTIONS = readInt<unsigned short>(
+                         item, 1, std::numeric_limits<unsigned short>::max());
+                 }},
+                {"PEER_AUTHENTICATION_TIMEOUT",
+                 [&]() {
+                     PEER_AUTHENTICATION_TIMEOUT = readInt<unsigned short>(
+                         item, 1, std::numeric_limits<unsigned short>::max());
+                 }},
+                {"PEER_TIMEOUT",
+                 [&]() {
+                     PEER_TIMEOUT = readInt<unsigned short>(
+                         item, 1, std::numeric_limits<unsigned short>::max());
+                 }},
+                {"PEER_STRAGGLER_TIMEOUT",
+                 [&]() {
+                     PEER_STRAGGLER_TIMEOUT = readInt<unsigned short>(
+                         item, 1, std::numeric_limits<unsigned short>::max());
+                 }},
+                {"MAX_BATCH_WRITE_COUNT",
+                 [&]() { MAX_BATCH_WRITE_COUNT = readInt<int>(item, 1); }},
+                {"MAX_BATCH_WRITE_BYTES",
+                 [&]() { MAX_BATCH_WRITE_BYTES = readInt<int>(item, 1); }},
+                {"FLOOD_OP_RATE_PER_LEDGER",
+                 [&]() {
+                     FLOOD_OP_RATE_PER_LEDGER = readDouble(item);
+                     if (FLOOD_OP_RATE_PER_LEDGER <= 0.0)
+                     {
+                         throw std::invalid_argument(
+                             "bad value for FLOOD_OP_RATE_PER_LEDGER");
+                     }
+                 }},
+                {"FLOOD_TX_PERIOD_MS",
+                 [&]() { FLOOD_TX_PERIOD_MS = readInt<int>(item, 1); }},
+                {"FLOOD_SOROBAN_RATE_PER_LEDGER",
+                 [&]() {
+                     FLOOD_SOROBAN_RATE_PER_LEDGER = readDouble(item);
+                     if (FLOOD_SOROBAN_RATE_PER_LEDGER <= 0.0)
+                     {
+                         throw std::invalid_argument(
+                             "bad value for FLOOD_SOROBAN_RATE_PER_LEDGER");
+                     }
+                 }},
+                {"FLOOD_SOROBAN_TX_PERIOD_MS",
+                 [&]() { FLOOD_SOROBAN_TX_PERIOD_MS = readInt<int>(item, 1); }},
+                {"FLOOD_DEMAND_PERIOD_MS",
+                 [&]() {
+                     FLOOD_DEMAND_PERIOD_MS =
+                         std::chrono::milliseconds(readInt<int>(item, 1));
+                 }},
+                {"FLOOD_ADVERT_PERIOD_MS",
+                 [&]() {
+                     FLOOD_ADVERT_PERIOD_MS =
+                         std::chrono::milliseconds(readInt<int>(item, 1));
+                 }},
+                {"FLOOD_DEMAND_BACKOFF_DELAY_MS",
+                 [&]() {
+                     FLOOD_DEMAND_BACKOFF_DELAY_MS =
+                         std::chrono::milliseconds(readInt<int>(item, 1));
+                 }},
+                {"FLOOD_ARB_TX_BASE_ALLOWANCE",
+                 [&]() {
+                     FLOOD_ARB_TX_BASE_ALLOWANCE = readInt<int32_t>(item, -1);
+                 }},
+                {"FLOOD_ARB_TX_DAMPING_FACTOR",
+                 [&]() {
+                     FLOOD_ARB_TX_DAMPING_FACTOR = readDouble(item);
+                     if (FLOOD_ARB_TX_DAMPING_FACTOR <= 0.0 ||
+                         FLOOD_ARB_TX_DAMPING_FACTOR > 1.0)
+                     {
+                         throw std::invalid_argument(
+                             "bad value for FLOOD_ARB_TX_DAMPING_FACTOR");
+                     }
+                 }},
+                {"PREFERRED_PEERS",
+                 [&]() { PREFERRED_PEERS = readArray<std::string>(item); }},
+                {"PREFERRED_PEER_KEYS",
+                 [&]() {
+                     // handled below
+                 }},
+                {"PREFERRED_PEERS_ONLY",
+                 [&]() { PREFERRED_PEERS_ONLY = readBool(item); }},
+                {"KNOWN_PEERS",
+                 [&]() {
+                     auto peers = readArray<std::string>(item);
+                     KNOWN_PEERS.insert(KNOWN_PEERS.begin(), peers.begin(),
+                                        peers.end());
+                 }},
+                {"QUORUM_SET",
+                 [&]() {
+                     // processing performed after this loop
+                 }},
+                {"COMMANDS",
+                 [&]() { COMMANDS = readArray<std::string>(item); }},
+                {"WORKER_THREADS",
+                 [&]() { WORKER_THREADS = readInt<int>(item, 2, 1000); }},
+                {"QUERY_THREAD_POOL_SIZE",
+                 [&]() {
+                     QUERY_THREAD_POOL_SIZE = readInt<int>(item, 1, 1000);
+                 }},
+                {"QUERY_SNAPSHOT_LEDGERS",
+                 [&]() {
+                     QUERY_SNAPSHOT_LEDGERS = readInt<uint32_t>(item, 0, 10);
+                 }},
+                {"MAX_CONCURRENT_SUBPROCESSES",
+                 [&]() {
+                     MAX_CONCURRENT_SUBPROCESSES = readInt<size_t>(item, 1);
+                 }},
+                {"QUORUM_INTERSECTION_CHECKER",
+                 [&]() { QUORUM_INTERSECTION_CHECKER = readBool(item); }},
+                {"HISTORY",
+                 [&]() {
+                     auto hist = item.second->as_table();
+                     if (hist)
+                     {
+                         for (auto const& archive : *hist)
+                         {
+                             LOG_DEBUG(DEFAULT_LOG, "History archive: {}",
+                                       archive.first);
+                             auto tab = archive.second->as_table();
+                             if (!tab)
+                             {
+                                 throw std::invalid_argument(
+                                     "malformed HISTORY config block");
+                             }
+                             std::string get, put, mkdir;
+                             for (auto const& c : *tab)
+                             {
+                                 if (c.first == "get")
+                                 {
+                                     get = c.second->as<std::string>()->get();
+                                 }
+                                 else if (c.first == "put")
+                                 {
+                                     put = c.second->as<std::string>()->get();
+                                 }
+                                 else if (c.first == "mkdir")
+                                 {
+                                     mkdir = c.second->as<std::string>()->get();
+                                 }
+                                 else
+                                 {
+                                     std::string err(
+                                         "Unknown HISTORY-table entry: '");
+                                     err += c.first;
+                                     err += "', within [HISTORY." +
+                                            archive.first + "]";
+                                     throw std::invalid_argument(err);
+                                 }
+                             }
+                             addHistoryArchive(archive.first, get, put, mkdir);
+                         }
+                     }
+                     else
+                     {
+                         throw std::invalid_argument(
+                             "incomplete HISTORY block");
+                     }
+                 }},
+                {"DATABASE",
+                 [&]() { DATABASE = SecretValue{readString(item)}; }},
+                {"NETWORK_PASSPHRASE",
+                 [&]() { NETWORK_PASSPHRASE = readString(item); }},
+                {"INVARIANT_CHECKS",
+                 [&]() { INVARIANT_CHECKS = readArray<std::string>(item); }},
+                {"ENTRY_CACHE_SIZE",
+                 [&]() { ENTRY_CACHE_SIZE = readInt<uint32_t>(item); }},
+                {"PREFETCH_BATCH_SIZE",
+                 [&]() { PREFETCH_BATCH_SIZE = readInt<uint32_t>(item); }},
+                {"MAXIMUM_LEDGER_CLOSETIME_DRIFT",
+                 [&]() {
+                     MAXIMUM_LEDGER_CLOSETIME_DRIFT = readInt<int64_t>(item, 0);
+                 }},
+                {"VALIDATORS",
+                 [&]() {
+                     // processed later (may depend on HOME_DOMAINS)
+                 }},
+                {"HOME_DOMAINS",
+                 [&]() {
+                     domainQualityMap = parseDomainsQuality(item.second);
+                 }},
+                {"SURVEYOR_KEYS",
+                 [&]() {
+                     // processed later (may depend on previously defined public
+                     // keys)
+                 }},
+                {"EXCLUDE_TRANSACTIONS_CONTAINING_OPERATION_TYPE",
+                 [&]() {
+                     EXCLUDE_TRANSACTIONS_CONTAINING_OPERATION_TYPE =
+                         readXdrEnumArray<OperationType>(item);
+                 }},
+                {"OP_APPLY_SLEEP_TIME_DURATION_FOR_TESTING",
+                 [&]() {
+                     // Since it doesn't make sense to sleep for a negative
+                     // amount of time, we use an unsigned integer type.
+                     auto input = readIntArray<uint32>(item);
+                     OP_APPLY_SLEEP_TIME_DURATION_FOR_TESTING.reserve(
+                         input.size());
+                     // Convert uint32 to std::chrono::microseconds
+                     std::transform(
+                         input.begin(), input.end(),
+                         std::back_inserter(
+                             OP_APPLY_SLEEP_TIME_DURATION_FOR_TESTING),
+                         [](uint32 x) { return std::chrono::microseconds(x); });
+                 }},
+                {"OP_APPLY_SLEEP_TIME_WEIGHT_FOR_TESTING",
+                 [&]() {
+                     OP_APPLY_SLEEP_TIME_WEIGHT_FOR_TESTING =
+                         readIntArray<uint32>(item);
+                 }},
+                {"LOADGEN_OP_COUNT_FOR_TESTING",
+                 [&]() {
+                     LOADGEN_OP_COUNT_FOR_TESTING =
+                         readIntArray<unsigned short>(item);
+                 }},
+                {"LOADGEN_OP_COUNT_DISTRIBUTION_FOR_TESTING",
+                 [&]() {
+                     LOADGEN_OP_COUNT_DISTRIBUTION_FOR_TESTING =
+                         readIntArray<uint32>(item);
+                 }},
+                {"LOADGEN_WASM_BYTES_FOR_TESTING",
+                 [&]() {
+                     LOADGEN_WASM_BYTES_FOR_TESTING =
+                         readIntArray<uint32>(item);
+                 }},
+                {"LOADGEN_WASM_BYTES_DISTRIBUTION_FOR_TESTING",
+                 [&]() {
+                     LOADGEN_WASM_BYTES_DISTRIBUTION_FOR_TESTING =
+                         readIntArray<uint32>(item);
+                 }},
+                {"LOADGEN_NUM_DATA_ENTRIES_FOR_TESTING",
+                 [&]() {
+                     LOADGEN_NUM_DATA_ENTRIES_FOR_TESTING =
+                         readIntArray<uint32>(item);
+                 }},
+                {"LOADGEN_NUM_DATA_ENTRIES_DISTRIBUTION_FOR_TESTING",
+                 [&]() {
+                     LOADGEN_NUM_DATA_ENTRIES_DISTRIBUTION_FOR_TESTING =
+                         readIntArray<uint32>(item);
+                 }},
+                {"LOADGEN_IO_KILOBYTES_FOR_TESTING",
+                 [&]() {
+                     LOADGEN_IO_KILOBYTES_FOR_TESTING =
+                         readIntArray<uint32>(item);
+                 }},
+                {"LOADGEN_IO_KILOBYTES_DISTRIBUTION_FOR_TESTING",
+                 [&]() {
+                     LOADGEN_IO_KILOBYTES_DISTRIBUTION_FOR_TESTING =
+                         readIntArray<uint32>(item);
+                 }},
+                {"LOADGEN_TX_SIZE_BYTES_FOR_TESTING",
+                 [&]() {
+                     LOADGEN_TX_SIZE_BYTES_FOR_TESTING =
+                         readIntArray<uint32>(item);
+                 }},
+                {"LOADGEN_TX_SIZE_BYTES_DISTRIBUTION_FOR_TESTING",
+                 [&]() {
+                     LOADGEN_TX_SIZE_BYTES_DISTRIBUTION_FOR_TESTING =
+                         readIntArray<uint32>(item);
+                 }},
+                {"LOADGEN_INSTRUCTIONS_FOR_TESTING",
+                 [&]() {
+                     LOADGEN_INSTRUCTIONS_FOR_TESTING =
+                         readIntArray<uint64>(item);
+                 }},
+                {"LOADGEN_INSTRUCTIONS_DISTRIBUTION_FOR_TESTING",
+                 [&]() {
+                     LOADGEN_INSTRUCTIONS_DISTRIBUTION_FOR_TESTING =
+                         readIntArray<uint32>(item);
+                 }},
+                {"CATCHUP_WAIT_MERGES_TX_APPLY_FOR_TESTING",
+                 [&]() {
+                     CATCHUP_WAIT_MERGES_TX_APPLY_FOR_TESTING = readBool(item);
+                 }},
+                {"ARTIFICIALLY_SET_SURVEY_PHASE_DURATION_FOR_TESTING",
+                 [&]() {
+                     ARTIFICIALLY_SET_SURVEY_PHASE_DURATION_FOR_TESTING =
+                         std::chrono::minutes(readInt<uint32_t>(item));
+                 }},
+                {"HISTOGRAM_WINDOW_SIZE",
+                 [&]() {
+                     auto const s = readInt<uint32_t>(item);
+                     // 5 minutes is hardcoded in many places in prometheus.
+                     // Thus the window size should divide it evenly.
+                     if (300 % s != 0)
+                     {
+                         throw std::invalid_argument(
+                             "HISTOGRAM_WINDOW_SIZE must divide 300 evenly");
+                     }
+                     HISTOGRAM_WINDOW_SIZE = std::chrono::seconds(s);
+                 }},
+                {"HALT_ON_INTERNAL_TRANSACTION_ERROR",
+                 [&]() {
+                     HALT_ON_INTERNAL_TRANSACTION_ERROR = readBool(item);
+                 }},
+                {"ENABLE_SOROBAN_DIAGNOSTIC_EVENTS",
+                 [&]() { ENABLE_SOROBAN_DIAGNOSTIC_EVENTS = readBool(item); }},
+                {"ENABLE_DIAGNOSTICS_FOR_TX_SUBMISSION",
+                 [&]() {
+                     ENABLE_DIAGNOSTICS_FOR_TX_SUBMISSION = readBool(item);
+                 }},
+                {"TESTING_MINIMUM_PERSISTENT_ENTRY_LIFETIME",
+                 [&]() {
+                     TESTING_MINIMUM_PERSISTENT_ENTRY_LIFETIME =
+                         readInt<uint32_t>(item);
+                     if (TESTING_MINIMUM_PERSISTENT_ENTRY_LIFETIME == 0)
+                     {
+                         throw std::invalid_argument(
+                             "TESTING_MINIMUM_PERSISTENT_ENTRY_LIFETIME must "
+                             "be "
+                             "positive");
+                     }
 
-                if (TESTING_MINIMUM_PERSISTENT_ENTRY_LIFETIME <
-                    MinimumSorobanNetworkConfig::
-                        MINIMUM_PERSISTENT_ENTRY_LIFETIME)
-                {
-                    throw std::invalid_argument(
-                        "TESTING_MINIMUM_PERSISTENT_ENTRY_LIFETIME < "
-                        "MinimumSorobanNetworkConfig::MINIMUM_PERSISTENT_ENTRY_"
-                        "LIFETIME");
-                }
+                     if (TESTING_MINIMUM_PERSISTENT_ENTRY_LIFETIME <
+                         MinimumSorobanNetworkConfig::
+                             MINIMUM_PERSISTENT_ENTRY_LIFETIME)
+                     {
+                         throw std::invalid_argument(
+                             "TESTING_MINIMUM_PERSISTENT_ENTRY_LIFETIME < "
+                             "MinimumSorobanNetworkConfig::MINIMUM_PERSISTENT_"
+                             "ENTRY_"
+                             "LIFETIME");
+                     }
 
-                LOG_WARNING(
-                    DEFAULT_LOG,
-                    "Overriding MINIMUM_PERSISTENT_ENTRY_LIFETIME to {}",
-                    TESTING_MINIMUM_PERSISTENT_ENTRY_LIFETIME);
-            }
-            else if (item.first == "OVERRIDE_EVICTION_PARAMS_FOR_TESTING")
-            {
-                OVERRIDE_EVICTION_PARAMS_FOR_TESTING = readBool(item);
-            }
-            else if (item.first == "TESTING_EVICTION_SCAN_SIZE")
-            {
-                TESTING_EVICTION_SCAN_SIZE = readInt<uint32_t>(item);
-            }
-            else if (item.first == "TESTING_STARTING_EVICTION_SCAN_LEVEL")
-            {
-                TESTING_STARTING_EVICTION_SCAN_LEVEL =
-                    readInt<uint32_t>(item, 1, BucketList::kNumLevels - 1);
-            }
-            else if (item.first == "TESTING_MAX_ENTRIES_TO_ARCHIVE")
-            {
-                TESTING_MAX_ENTRIES_TO_ARCHIVE = readInt<uint32_t>(item);
-            }
-            else if (item.first == "TESTING_SOROBAN_HIGH_LIMIT_OVERRIDE")
-            {
-                TESTING_SOROBAN_HIGH_LIMIT_OVERRIDE = readBool(item);
+                     LOG_WARNING(
+                         DEFAULT_LOG,
+                         "Overriding MINIMUM_PERSISTENT_ENTRY_LIFETIME to {}",
+                         TESTING_MINIMUM_PERSISTENT_ENTRY_LIFETIME);
+                 }},
+                {"OVERRIDE_EVICTION_PARAMS_FOR_TESTING",
+                 [&]() {
+                     OVERRIDE_EVICTION_PARAMS_FOR_TESTING = readBool(item);
+                 }},
+                {"TESTING_EVICTION_SCAN_SIZE",
+                 [&]() {
+                     TESTING_EVICTION_SCAN_SIZE = readInt<uint32_t>(item);
+                 }},
+                {"TESTING_STARTING_EVICTION_SCAN_LEVEL",
+                 [&]() {
+                     TESTING_STARTING_EVICTION_SCAN_LEVEL =
+                         readInt<uint32_t>(item, 1, BucketList::kNumLevels - 1);
+                 }},
+                {"TESTING_MAX_ENTRIES_TO_ARCHIVE",
+                 [&]() {
+                     TESTING_MAX_ENTRIES_TO_ARCHIVE = readInt<uint32_t>(item);
+                 }},
+                {"TESTING_SOROBAN_HIGH_LIMIT_OVERRIDE",
+                 [&]() {
+                     TESTING_SOROBAN_HIGH_LIMIT_OVERRIDE = readBool(item);
 
-                if (TESTING_SOROBAN_HIGH_LIMIT_OVERRIDE)
-                {
-                    LOG_WARNING(DEFAULT_LOG,
-                                "Overriding Soroban limits with "
-                                "TESTING_SOROBAN_HIGH_LIMIT_OVERRIDE");
-                }
-            }
-            else if (item.first == "ARTIFICIALLY_SLEEP_MAIN_THREAD_FOR_TESTING")
+                     if (TESTING_SOROBAN_HIGH_LIMIT_OVERRIDE)
+                     {
+                         LOG_WARNING(DEFAULT_LOG,
+                                     "Overriding Soroban limits with "
+                                     "TESTING_SOROBAN_HIGH_LIMIT_OVERRIDE");
+                     }
+                 }},
+                {"ARTIFICIALLY_SLEEP_MAIN_THREAD_FOR_TESTING",
+                 [&]() {
+                     ARTIFICIALLY_SLEEP_MAIN_THREAD_FOR_TESTING =
+                         std::chrono::microseconds(readInt<uint32_t>(item));
+                 }},
+                {"MAX_DEX_TX_OPERATIONS_IN_TX_SET",
+                 [&]() {
+                     auto value = readInt<uint32_t>(item);
+                     if (value > 0 && value < MAX_OPS_PER_TX + 2)
+                     {
+                         throw std::invalid_argument(
+                             fmt::format("MAX_DEX_TX_OPERATIONS_IN_TX_SET must "
+                                         "be either 0 or "
+                                         "at least {} in order to not drop any "
+                                         "transactions.",
+                                         MAX_OPS_PER_TX + 2));
+                     }
+                     MAX_DEX_TX_OPERATIONS_IN_TX_SET =
+                         value == 0 ? std::nullopt : std::make_optional(value);
+                 }},
+                {"EMIT_SOROBAN_TRANSACTION_META_EXT_V1",
+                 [&]() {
+                     EMIT_SOROBAN_TRANSACTION_META_EXT_V1 = readBool(item);
+                 }},
+                {"EMIT_LEDGER_CLOSE_META_EXT_V1",
+                 [&]() { EMIT_LEDGER_CLOSE_META_EXT_V1 = readBool(item); }}};
+
+            auto it = confProcessor.find(item.first);
+            if (it != confProcessor.end())
             {
-                ARTIFICIALLY_SLEEP_MAIN_THREAD_FOR_TESTING =
-                    std::chrono::microseconds(readInt<uint32_t>(item));
+                it->second();
             }
-            else if (item.first == "MAX_DEX_TX_OPERATIONS_IN_TX_SET")
+            else if (item.first == "FORCE_OLD_STYLE_LEADER_ELECTION")
             {
-                auto value = readInt<uint32_t>(item);
-                if (value > 0 && value < MAX_OPS_PER_TX + 2)
-                {
-                    throw std::invalid_argument(fmt::format(
-                        "MAX_DEX_TX_OPERATIONS_IN_TX_SET must be either 0 or "
-                        "at least {} in order to not drop any transactions.",
-                        MAX_OPS_PER_TX + 2));
-                }
-                MAX_DEX_TX_OPERATIONS_IN_TX_SET =
-                    value == 0 ? std::nullopt : std::make_optional(value);
+                FORCE_OLD_STYLE_LEADER_ELECTION = readBool(item);
             }
             else
             {
@@ -1548,13 +1655,106 @@ Config::processConfig(std::shared_ptr<cpptoml::table> t)
             throw std::runtime_error(msg);
         }
 
+        // Check all loadgen distributions
         verifyLoadGenOpCountForTestingConfigs();
+        verifyLoadGenDistribution(
+            LOADGEN_WASM_BYTES_FOR_TESTING,
+            LOADGEN_WASM_BYTES_DISTRIBUTION_FOR_TESTING,
+            "LOADGEN_WASM_BYTES_FOR_TESTING",
+            "LOADGEN_WASM_BYTES_DISTRIBUTION_FOR_TESTING");
+        verifyLoadGenDistribution(
+            LOADGEN_NUM_DATA_ENTRIES_FOR_TESTING,
+            LOADGEN_NUM_DATA_ENTRIES_DISTRIBUTION_FOR_TESTING,
+            "LOADGEN_NUM_DATA_ENTRIES_FOR_TESTING",
+            "LOADGEN_NUM_DATA_ENTRIES_DISTRIBUTION_FOR_TESTING");
+        verifyLoadGenDistribution(
+            LOADGEN_IO_KILOBYTES_FOR_TESTING,
+            LOADGEN_IO_KILOBYTES_DISTRIBUTION_FOR_TESTING,
+            "LOADGEN_IO_KILOBYTES_FOR_TESTING",
+            "LOADGEN_IO_KILOBYTES_DISTRIBUTION_FOR_TESTING");
+        verifyLoadGenDistribution(
+            LOADGEN_TX_SIZE_BYTES_FOR_TESTING,
+            LOADGEN_TX_SIZE_BYTES_DISTRIBUTION_FOR_TESTING,
+            "LOADGEN_TX_SIZE_BYTES_FOR_TESTING",
+            "LOADGEN_TX_SIZE_BYTES_DISTRIBUTION_FOR_TESTING");
+        verifyLoadGenDistribution(
+            LOADGEN_INSTRUCTIONS_FOR_TESTING,
+            LOADGEN_INSTRUCTIONS_DISTRIBUTION_FOR_TESTING,
+            "LOADGEN_INSTRUCTIONS_FOR_TESTING",
+            "LOADGEN_INSTRUCTIONS_DISTRIBUTION_FOR_TESTING");
 
         gIsProductionNetwork = NETWORK_PASSPHRASE ==
                                "Public Global Stellar Network ; September 2015";
 
         // Validators default to starting the network from local state
         FORCE_SCP = NODE_IS_VALIDATOR;
+
+        // Require either DEPRECATED_SQL_LEDGER_STATE or
+        // EXPERIMENTAL_BUCKETLIST_DB to be backwards compatible with horizon
+        // and RPC, but do not allow both.
+        if (!t->contains("DEPRECATED_SQL_LEDGER_STATE") &&
+            !t->contains("EXPERIMENTAL_BUCKETLIST_DB"))
+        {
+            std::string msg =
+                "Invalid configuration: "
+                "DEPRECATED_SQL_LEDGER_STATE not set. Default setting is FALSE "
+                "and is appropriate for most nodes.";
+            throw std::runtime_error(msg);
+        }
+        // Only allow one version of all BucketListDB flags, either the
+        // deprecated flag or new flag, but not both.
+        else if (t->contains("DEPRECATED_SQL_LEDGER_STATE") &&
+                 t->contains("EXPERIMENTAL_BUCKETLIST_DB"))
+        {
+            std::string msg =
+                "Invalid configuration: EXPERIMENTAL_BUCKETLIST_DB and "
+                "DEPRECATED_SQL_LEDGER_STATE must not both be set. "
+                "EXPERIMENTAL_BUCKETLIST_DB is deprecated, use "
+                "DEPRECATED_SQL_LEDGER_STATE only.";
+            throw std::runtime_error(msg);
+        }
+        else if (t->contains(
+                     "EXPERIMENTAL_BUCKETLIST_DB_INDEX_PAGE_SIZE_EXPONENT") &&
+                 t->contains("BUCKETLIST_DB_INDEX_PAGE_SIZE_EXPONENT"))
+        {
+            std::string msg =
+                "Invalid configuration: "
+                "EXPERIMENTAL_BUCKETLIST_DB_INDEX_PAGE_SIZE_EXPONENT and "
+                "BUCKETLIST_DB_INDEX_PAGE_SIZE_EXPONENT must not both be set. "
+                "EXPERIMENTAL_BUCKETLIST_DB_INDEX_PAGE_SIZE_EXPONENT is "
+                "deprecated, use BUCKETLIST_DB_INDEX_PAGE_SIZE_EXPONENT only.";
+            throw std::runtime_error(msg);
+        }
+        else if (t->contains("EXPERIMENTAL_BUCKETLIST_DB_PERSIST_INDEX") &&
+                 t->contains("BUCKETLIST_DB_PERSIST_INDEX"))
+        {
+            std::string msg =
+                "Invalid configuration: "
+                "EXPERIMENTAL_BUCKETLIST_DB_PERSIST_INDEX and "
+                "BUCKETLIST_DB_PERSIST_INDEX must not both be set. "
+                "EXPERIMENTAL_BUCKETLIST_DB_PERSIST_INDEX is deprecated, use "
+                "BUCKETLIST_DB_PERSIST_INDEX only.";
+            throw std::runtime_error(msg);
+        }
+        else if (t->contains("EXPERIMENTAL_BUCKETLIST_DB_INDEX_CUTOFF") &&
+                 t->contains("BUCKETLIST_DB_INDEX_CUTOFF"))
+        {
+            std::string msg =
+                "Invalid configuration: "
+                "EXPERIMENTAL_BUCKETLIST_DB_INDEX_CUTOFF and "
+                "BUCKETLIST_DB_INDEX_CUTOFF must not both be set. "
+                "EXPERIMENTAL_BUCKETLIST_DB_INDEX_CUTOFF is deprecated, use "
+                "BUCKETLIST_DB_INDEX_CUTOFF only.";
+            throw std::runtime_error(msg);
+        }
+
+        // If DEPRECATED_SQL_LEDGER_STATE is set to false and
+        // BACKGROUND_EVICTION_SCAN is not set, override default value to false
+        // so that nodes still running SQL ledger don't crash on startup
+        if (!isUsingBucketListDB() && !t->contains("BACKGROUND_EVICTION_SCAN"))
+        {
+            BACKGROUND_EVICTION_SCAN = false;
+        }
 
         // process elements that potentially depend on others
         if (t->contains("VALIDATORS"))
@@ -1612,6 +1812,7 @@ Config::processConfig(std::shared_ptr<cpptoml::table> t)
             LOG_INFO(DEFAULT_LOG, "Generated QUORUM_SET: {}", autoQSetStr);
             QUORUM_SET = autoQSet;
             verifyHistoryValidatorsBlocking(validators);
+            setValidatorWeightConfig(validators);
             // count the number of domains
             UnorderedSet<std::string> domains;
             for (auto const& v : validators)
@@ -1782,6 +1983,10 @@ Config::logBasicInfo()
              MAX_OUTBOUND_PENDING_CONNECTIONS);
     LOG_INFO(DEFAULT_LOG, "MAX_INBOUND_PENDING_CONNECTIONS: {}",
              MAX_INBOUND_PENDING_CONNECTIONS);
+    LOG_INFO(DEFAULT_LOG,
+             "EXPERIMENTAL_BACKGROUND_OVERLAY_PROCESSING="
+             "{}",
+             EXPERIMENTAL_BACKGROUND_OVERLAY_PROCESSING ? "true" : "false");
 }
 
 void
@@ -2066,6 +2271,7 @@ Config::setInMemoryMode()
     MODE_STORES_HISTORY_MISC = false;
     MODE_STORES_HISTORY_LEDGERHEADERS = false;
     MODE_ENABLES_BUCKETLIST = true;
+    BACKGROUND_EVICTION_SCAN = false;
 }
 
 bool
@@ -2083,15 +2289,20 @@ Config::isInMemoryMode() const
 bool
 Config::isUsingBucketListDB() const
 {
-    return EXPERIMENTAL_BUCKETLIST_DB && !MODE_USES_IN_MEMORY_LEDGER &&
+    return !DEPRECATED_SQL_LEDGER_STATE && !MODE_USES_IN_MEMORY_LEDGER &&
            MODE_ENABLES_BUCKETLIST;
+}
+
+bool
+Config::isUsingBackgroundEviction() const
+{
+    return isUsingBucketListDB() && BACKGROUND_EVICTION_SCAN;
 }
 
 bool
 Config::isPersistingBucketListDBIndexes() const
 {
-    return isUsingBucketListDB() && EXPERIMENTAL_BUCKETLIST_DB_PERSIST_INDEX &&
-           !NODE_IS_VALIDATOR;
+    return isUsingBucketListDB() && BUCKETLIST_DB_PERSIST_INDEX;
 }
 
 bool
@@ -2118,6 +2329,7 @@ Config::setNoListen()
     // prevent opening up a port for other peers
     RUN_STANDALONE = true;
     HTTP_PORT = 0;
+    HTTP_QUERY_PORT = 0;
     MANUAL_CLOSE = true;
 }
 
@@ -2222,6 +2434,75 @@ Config::toString(SCPQuorumSet const& qset)
     Json::StyledWriter fw;
     return fw.write(json);
 }
+
+void
+Config::setValidatorWeightConfig(std::vector<ValidatorEntry> const& validators)
+{
+    releaseAssert(!VALIDATOR_WEIGHT_CONFIG.has_value());
+
+    if (!NODE_IS_VALIDATOR)
+    {
+        // There is no reason to populate VALIDATOR_WEIGHT_CONFIG if the node is
+        // not a validator.
+        return;
+    }
+
+    ValidatorWeightConfig& vwc = VALIDATOR_WEIGHT_CONFIG.emplace();
+    ValidatorQuality highestQuality = ValidatorQuality::VALIDATOR_LOW_QUALITY;
+    ValidatorQuality lowestQuality =
+        ValidatorQuality::VALIDATOR_CRITICAL_QUALITY;
+    UnorderedMap<ValidatorQuality, UnorderedSet<std::string>>
+        homeDomainsByQuality;
+    for (auto const& v : validators)
+    {
+        if (!vwc.mValidatorEntries.try_emplace(v.mKey, v).second)
+        {
+            throw std::invalid_argument(
+                fmt::format(FMT_STRING("Duplicate validator entry for '{}'"),
+                            KeyUtils::toStrKey(v.mKey)));
+        }
+        ++vwc.mHomeDomainSizes[v.mHomeDomain];
+        highestQuality = std::max(highestQuality, v.mQuality);
+        lowestQuality = std::min(lowestQuality, v.mQuality);
+        homeDomainsByQuality[v.mQuality].insert(v.mHomeDomain);
+    }
+
+    // Highest quality level has weight UINT64_MAX
+    vwc.mQualityWeights[highestQuality] = UINT64_MAX;
+
+    // Assign weights to the remaining quality levels
+    for (int q = static_cast<int>(highestQuality) - 1;
+         q >= static_cast<int>(lowestQuality); --q)
+    {
+        // Next higher quality level
+        ValidatorQuality higherQuality = static_cast<ValidatorQuality>(q + 1);
+
+        // Get weight of next higher quality level
+        uint64 higherWeight = vwc.mQualityWeights.at(higherQuality);
+
+        // Get number of orgs at next higher quality level. Add 1 for the
+        // virtual org containing this quality level.
+        uint64 higherOrgs = homeDomainsByQuality[higherQuality].size() + 1;
+
+        // The weight of this quality level is the higher quality weight divided
+        // by the number of orgs at that quality level multiplied by 10
+        vwc.mQualityWeights[static_cast<ValidatorQuality>(q)] =
+            higherWeight / (higherOrgs * 10);
+    }
+
+    // Special case: LOW quality level has weight 0
+    vwc.mQualityWeights[ValidatorQuality::VALIDATOR_LOW_QUALITY] = 0;
+}
+
+#ifdef BUILD_TESTS
+void
+Config::generateQuorumSetForTesting(
+    std::vector<ValidatorEntry> const& validators)
+{
+    QUORUM_SET = generateQuorumSet(validators);
+    setValidatorWeightConfig(validators);
+}
+#endif // BUILD_TESTS
 
 std::string const Config::STDIN_SPECIAL_NAME = "stdin";
 }

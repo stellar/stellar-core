@@ -31,6 +31,9 @@ class TransactionMetaFrame
     void pushContractEvents(xdr::xvector<ContractEvent>&& events);
     void pushDiagnosticEvents(xdr::xvector<DiagnosticEvent>&& events);
     void setReturnValue(SCVal&& returnValue);
+    void setSorobanFeeInfo(int64_t nonRefundableFeeSpent,
+                           int64_t totalRefundableFeeSpent,
+                           int64_t rentFeeCharged);
 
   private:
     TransactionMeta mTransactionMeta;

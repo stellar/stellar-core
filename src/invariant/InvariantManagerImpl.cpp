@@ -99,6 +99,25 @@ InvariantManagerImpl::checkOnBucketApply(
 }
 
 void
+InvariantManagerImpl::checkAfterAssumeState(uint32_t newestLedger)
+{
+    for (auto invariant : mEnabled)
+    {
+        auto result = invariant->checkAfterAssumeState(newestLedger);
+        if (result.empty())
+        {
+            continue;
+        }
+
+        auto message = fmt::format(
+            FMT_STRING(
+                R"(invariant "{}" does not hold after assume state: {})"),
+            invariant->getName(), result);
+        onInvariantFailure(invariant, message, 0);
+    }
+}
+
+void
 InvariantManagerImpl::checkOnOperationApply(Operation const& operation,
                                             OperationResult const& opres,
                                             LedgerTxnDelta const& ltxDelta)
@@ -121,7 +140,7 @@ InvariantManagerImpl::checkOnOperationApply(Operation const& operation,
         auto message = fmt::format(
             FMT_STRING(R"(Invariant "{}" does not hold on operation: {}{}{})"),
             invariant->getName(), result, "\n",
-            xdr_to_string(operation, "Operation"));
+            xdrToCerealString(operation, "Operation"));
         onInvariantFailure(invariant, message,
                            ltxDelta.header.current.ledgerSeq);
     }

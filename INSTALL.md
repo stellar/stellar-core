@@ -67,6 +67,17 @@ To install Postgresql, follow instructions from the [Postgresql download page](h
 - `clang-format-12` (for `make format` to work)
 - `sed` and `perl`
 - `libunwind-dev`
+- Rust toolchain (see [Installing Rust](#installing-rust) subsection)
+  - `cargo` >= 1.74
+  - `rust` >= 1.74
+
+### Installing Rust
+
+Building the Rust components requires the `cargo` package manager and build system, as well as the `rustc` compiler, both version 1.74 or later.
+
+We recommend installing Rust using the Rust project's `rustup` installer, which can be found on [rustup.rs](https://rustup.rs).
+
+We also include a script in the repository `install-rust.sh` that downloads and runs a known version of `rustup` on x64-linux hosts, such as those used for CI and packaging.
 
 ### Ubuntu
 
@@ -107,8 +118,8 @@ In order to install the llvm (clang) toolchain, you may have to follow instructi
 
     sudo apt-get install clang-format-12
 
-### OS X
-When building on OSX, here's some dependencies you'll need:
+### MacOS 
+When building on MacOS, here's some dependencies you'll need:
 - Install xcode
 - Install [homebrew](https://brew.sh)
 - `brew install libsodium libtool autoconf automake pkg-config libpq openssl parallel ccache bison gnu-sed perl coreutils`
@@ -119,9 +130,43 @@ export PKG_CONFIG_PATH="$PKG_CONFIG_PATH:$(brew --prefix)/opt/libpq/lib/pkgconfi
 export PKG_CONFIG_PATH="$PKG_CONFIG_PATH:$(brew --prefix)/opt/openssl@3/lib/pkgconfig"
 export PATH="$(brew --prefix bison)/bin:$PATH"
 ```
+- Install `clang-format-12` 
+> Note: `brew` does not contain a cask for `clang-format-12`, and other versions of `clang-format`  have different formatting behavior.
+
+To install `clang-format-12`, run the commands listed below.
+```
+# Download clang+llvm 12.0.0 for x86_64 apple darwin.
+curl -OL https://github.com/llvm/llvm-project/releases/download/llvmorg-12.0.0/clang+llvm-12.0.0-x86_64-apple-darwin.tar.xz 
+# Unarchive the download.
+tar -xf clang+llvm-12.0.0-x86_64-apple-darwin.tar.xz 
+# Copy the contents of bin/clang-format to /usr/local/bin.
+sudo cp -R clang+llvm-12.0.0-x86_64-apple-darwin/bin/clang-format /usr/local/bin
+# Ensure "clang-format version 12.0.0" is printed.
+clang-format --version
+```
+
+> Note: macOS will block the execution for security purposes, open System Preferences > Security & Privacy and allow `clang-format` to run.
 
 ### Windows
 See [INSTALL-Windows.md](INSTALL-Windows.md)
+
+### Ubuntu 24.04 and Newer Linux Versions
+
+Some newer Linux distros no longer package clang-format-12, and newer clang-format versions are
+not backwards compatible. To build from source, you'll need to do the following:
+
+```zsh
+sudo apt-get install ninja-build cmake
+git clone --depth 1 --branch llvmorg-12.0.1 https://github.com/llvm/llvm-project.git
+cd llvm-project
+sed -i "17i #include <stdint.h>" llvm/include/llvm/Support/Signals.h
+CC=clang CXX=clang++ cmake -S llvm -B build -G Ninja -DLLVM_ENABLE_PROJECTS="clang" -DCMAKE_BUILD_TYPE=Release
+cd build
+ninja clang-format
+sudo cp bin/clang-format /usr/bin/clang-format-12
+cd ../..
+rm -rf llvm-project/
+```
 
 ## Basic Installation
 
@@ -156,13 +201,27 @@ Here are sample steps to achieve this:
     cd stellar-core/
     ./autogen.sh && ./configure && make -j6
 
+## Building for ARM Linux (i.e. Raspberry Pi)
+
+`stellar-core` is lightweight and can run on many edge devices such as a Raspberry Pi. However, there is currently a
+[linker bug](https://bugs.llvm.org/show_bug.cgi?id=16404) in the default ARM `libgcc` runtime, so `compiler-rt` must be used instead.
+Here are sample steps to achieve this:
+
+    export CC=clang-12
+    export CXX=clang++-12
+    export CFLAGS="-O3 -g1 -fno-omit-frame-pointer --rtlib=compiler-rt"
+    export CXXFLAGS="$CFLAGS -stdlib=libc++"
+    git clone https://github.com/stellar/stellar-core.git
+    cd stellar-core/
+    ./autogen.sh && ./configure && make -j4
+
 ## Building with Tracing
 
 Configuring with `--enable-tracy` will build and embed the client component of the [Tracy](https://github.com/wolfpld/tracy) high-resolution tracing system in the `stellar-core` binary.
 
 The tracing client will activate automatically when stellar-core is running, and will listen for connections from Tracy servers (a command-line capture utility, or a cross-platform GUI).
 
-The Tracy server components can also be compiled by configuring with `--enable-tracy-gui` or `--enable-tracy-capture`.
+You do not need to download the tracy server, and will likely run into versioning issues if you do. Instead, the Tracy server components can also be compiled by configuring with `--enable-tracy-gui` or `--enable-tracy-capture`. Once compiled, the tracy server can be started with `./tracy-gui` or `./tracy`, respectively.
 
 The GUI depends on the `capstone`, `freetype` and `glfw` libraries and their headers, and on linux or BSD the `GTK-2.0` libraries and headers. On Windows and MacOS, native toolkits are used instead.
 
@@ -172,13 +231,3 @@ The GUI depends on the `capstone`, `freetype` and `glfw` libraries and their hea
 
     # On MacOS
     $ brew install capstone freetype2 glfw
-
-## Building with Rust
-
-Configuring with `--enable-next-protocol-version-unsafe-for-production` will build and embed components written in the [Rust](https://rust-lang.org) programming language. These components are currently only enabled when building the "next" protocol, not the "current" one.
-
-Building the Rust components requires the `cargo` package manager and build system, as well as the `rustc` compiler, both version 1.63 or later.
-
-Currently we recommend installing Rust using the Rust project's `rustup` installer, which can be found on [rustup.rs](https://rustup.rs).
-
-We also include a script in the repository `install-rust.sh` that downloads and runs a known version of `rustup` on x64-linux hosts, such as those used for CI and packaging.

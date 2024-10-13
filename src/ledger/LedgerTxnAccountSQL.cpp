@@ -8,6 +8,7 @@
 #include "database/Database.h"
 #include "database/DatabaseTypeSpecificOperation.h"
 #include "ledger/LedgerTxnImpl.h"
+#include "ledger/LedgerTypeUtils.h"
 #include "main/Application.h"
 #include "util/Decoder.h"
 #include "util/GlobalChecks.h"

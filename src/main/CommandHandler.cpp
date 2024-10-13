@@ -3,6 +3,9 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "main/CommandHandler.h"
+#include "bucket/BucketListSnapshot.h"
+#include "bucket/BucketManager.h"
+#include "bucket/BucketSnapshotManager.h"
 #include "crypto/Hex.h"
 #include "crypto/KeyUtils.h"
 #include "herder/Herder.h"
@@ -12,19 +15,22 @@
 #include "ledger/LedgerTxn.h"
 #include "ledger/LedgerTxnEntry.h"
 #include "ledger/LedgerTxnImpl.h"
+#include "ledger/NetworkConfig.h"
 #include "lib/http/server.hpp"
 #include "lib/json/json.h"
 #include "main/Application.h"
 #include "main/Config.h"
 #include "main/Maintainer.h"
+#include "main/QueryServer.h"
 #include "overlay/BanManager.h"
 #include "overlay/OverlayManager.h"
 #include "overlay/SurveyManager.h"
 #include "transactions/InvokeHostFunctionOpFrame.h"
+#include "transactions/MutableTransactionResult.h"
 #include "transactions/TransactionBridge.h"
 #include "transactions/TransactionUtils.h"
+#include "util/GlobalChecks.h"
 #include "util/Logging.h"
-#include "util/ProtocolVersion.h"
 #include "util/StatusManager.h"
 #include <Tracy.hpp>
 #include <fmt/format.h>
@@ -33,6 +39,7 @@
 #include "util/Decoder.h"
 #include "util/XDRCereal.h"
 #include "util/XDROperators.h"
+#include "util/XDRStream.h" // IWYU pragma: keep
 #include "xdr/Stellar-ledger-entries.h"
 #include "xdr/Stellar-transaction.h"
 #include "xdrpp/marshal.h"
@@ -44,6 +51,7 @@
 #include "test/TestAccount.h"
 #include "test/TxTests.h"
 #endif
+#include <iterator>
 #include <optional>
 #include <regex>
 
@@ -73,6 +81,15 @@ CommandHandler::CommandHandler(Application& app) : mApp(app)
         mServer = std::make_unique<http::server::server>(
             app.getClock().getIOContext(), ipStr, mApp.getConfig().HTTP_PORT,
             httpMaxClient);
+
+        if (mApp.getConfig().HTTP_QUERY_PORT &&
+            mApp.getConfig().isUsingBucketListDB())
+        {
+            mQueryServer = std::make_unique<QueryServer>(
+                ipStr, mApp.getConfig().HTTP_QUERY_PORT, httpMaxClient,
+                mApp.getConfig().QUERY_THREAD_POOL_SIZE,
+                mApp.getBucketManager().getBucketSnapshotManager());
+        }
     }
     else
     {
@@ -81,7 +98,6 @@ CommandHandler::CommandHandler(Application& app) : mApp(app)
     }
 
     mServer->add404(std::bind(&CommandHandler::fileNotFound, this, _1, _2));
-
     if (mApp.getConfig().modeStoresAnyHistory())
     {
         addRoute("dropcursor", &CommandHandler::dropcursor);
@@ -102,6 +118,11 @@ CommandHandler::CommandHandler(Application& app) : mApp(app)
 #ifndef BUILD_TESTS
         addRoute("getsurveyresult", &CommandHandler::getSurveyResult);
         addRoute("surveytopology", &CommandHandler::surveyTopology);
+        addRoute("startsurveycollecting",
+                 &CommandHandler::startSurveyCollecting);
+        addRoute("stopsurveycollecting", &CommandHandler::stopSurveyCollecting);
+        addRoute("surveytopologytimesliced",
+                 &CommandHandler::surveyTopologyTimeSliced);
 #endif
         addRoute("unban", &CommandHandler::unban);
     }
@@ -113,9 +134,10 @@ CommandHandler::CommandHandler(Application& app) : mApp(app)
     addRoute("manualclose", &CommandHandler::manualClose);
     addRoute("metrics", &CommandHandler::metrics);
     addRoute("tx", &CommandHandler::tx);
-    addRoute("getledgerentry", &CommandHandler::getLedgerEntry);
     addRoute("upgrades", &CommandHandler::upgrades);
+    addRoute("dumpproposedsettings", &CommandHandler::dumpProposedSettings);
     addRoute("self-check", &CommandHandler::selfCheck);
+    addRoute("sorobaninfo", &CommandHandler::sorobanInfo);
 
 #ifdef BUILD_TESTS
     addRoute("generateload", &CommandHandler::generateLoad);
@@ -123,12 +145,17 @@ CommandHandler::CommandHandler(Application& app) : mApp(app)
     addRoute("testtx", &CommandHandler::testTx);
     addRoute("getsurveyresult", &CommandHandler::getSurveyResult);
     addRoute("surveytopology", &CommandHandler::surveyTopology);
+    addRoute("startsurveycollecting", &CommandHandler::startSurveyCollecting);
+    addRoute("stopsurveycollecting", &CommandHandler::stopSurveyCollecting);
+    addRoute("surveytopologytimesliced",
+             &CommandHandler::surveyTopologyTimeSliced);
 #endif
 }
 
 void
 CommandHandler::addRoute(std::string const& name, HandlerRoute route)
 {
+
     mServer->addRoute(
         name, std::bind(&CommandHandler::safeRouter, this, route, _1, _2));
 }
@@ -149,6 +176,33 @@ CommandHandler::safeRouter(CommandHandler::HandlerRoute route,
     catch (...)
     {
         retStr = R"({"exception": "generic"})";
+    }
+}
+
+void
+CommandHandler::ensureProtocolVersion(
+    std::map<std::string, std::string> const& args, std::string const& argName,
+    ProtocolVersion minVer)
+{
+    auto it = args.find(argName);
+    if (it == args.end())
+    {
+        return;
+    }
+    ensureProtocolVersion(argName, minVer);
+}
+
+void
+CommandHandler::ensureProtocolVersion(std::string const& errString,
+                                      ProtocolVersion minVer)
+{
+    auto lhhe = mApp.getLedgerManager().getLastClosedLedgerHeader();
+    if (protocolVersionIsBefore(lhhe.header.ledgerVersion, minVer))
+    {
+        throw std::invalid_argument(
+            fmt::format("{} cannot be used before protocol v{}", errString,
+                        static_cast<uint32>(minVer)));
+        return;
     }
 }
 
@@ -445,9 +499,7 @@ CommandHandler::dropPeer(std::string const& params, std::string& retStr)
             auto peer = peers.find(n);
             if (peer != peers.end())
             {
-                peer->second->sendErrorAndDrop(
-                    ERR_MISC, "dropped by user",
-                    Peer::DropMode::IGNORE_WRITE_QUEUE);
+                peer->second->sendErrorAndDrop(ERR_MISC, "dropped by user");
                 if (ban != retMap.end() && ban->second == "1")
                 {
                     retStr = "Drop and ban peer: ";
@@ -566,21 +618,16 @@ CommandHandler::upgrades(std::string const& params, std::string& retStr)
         auto configXdrIter = retMap.find("configupgradesetkey");
         if (configXdrIter != retMap.end())
         {
-            auto lhhe = mApp.getLedgerManager().getLastClosedLedgerHeader();
-            if (protocolVersionIsBefore(lhhe.header.ledgerVersion,
-                                        SOROBAN_PROTOCOL_VERSION))
-            {
-                retStr = "configupgradesetkey specified before v20";
-                return;
-            }
+            ensureProtocolVersion(retMap, "configupgradesetkey",
+                                  SOROBAN_PROTOCOL_VERSION);
 
             std::vector<uint8_t> buffer;
             decoder::decode_b64(configXdrIter->second, buffer);
             ConfigUpgradeSetKey key;
             xdr::xdr_from_opaque(buffer, key);
-            LedgerTxn ltx(mApp.getLedgerTxnRoot());
+            auto ls = LedgerSnapshot(mApp);
 
-            auto ptr = ConfigUpgradeSetFrame::makeFromKey(ltx, key);
+            auto ptr = ConfigUpgradeSetFrame::makeFromKey(ls, key);
 
             if (!ptr ||
                 ptr->isValidForApply() != Upgrades::UpgradeValidity::VALID)
@@ -591,6 +638,8 @@ CommandHandler::upgrades(std::string const& params, std::string& retStr)
 
             p.mConfigUpgradeSetKey = key;
         }
+        ensureProtocolVersion(retMap, "maxsorobantxsetsize",
+                              SOROBAN_PROTOCOL_VERSION);
         p.mMaxSorobanTxSetSize =
             parseOptionalParam<uint32>(retMap, "maxsorobantxsetsize");
         mApp.getHerder().setUpgrades(p);
@@ -603,6 +652,44 @@ CommandHandler::upgrades(std::string const& params, std::string& retStr)
     else
     {
         retStr = fmt::format(FMT_STRING("Unknown mode: {}"), s);
+    }
+}
+
+void
+CommandHandler::dumpProposedSettings(std::string const& params,
+                                     std::string& retStr)
+{
+    ZoneScoped;
+    std::map<std::string, std::string> retMap;
+    http::server::server::parseParams(params, retMap);
+    auto blob = retMap["blob"];
+    if (!blob.empty())
+    {
+        ensureProtocolVersion("dumpproposedsettings", SOROBAN_PROTOCOL_VERSION);
+
+        std::vector<uint8_t> buffer;
+        decoder::decode_b64(blob, buffer);
+        ConfigUpgradeSetKey key;
+        xdr::xdr_from_opaque(buffer, key);
+        auto ls = LedgerSnapshot(mApp);
+
+        auto ptr = ConfigUpgradeSetFrame::makeFromKey(ls, key);
+
+        if (!ptr || ptr->isValidForApply() != Upgrades::UpgradeValidity::VALID)
+        {
+            retStr = "configUpgradeSet is missing or invalid";
+            return;
+        }
+
+        retStr = xdrToCerealString(ptr->toXDR().updatedEntry,
+                                   "ConfigSettingsEntries");
+    }
+    else
+    {
+        throw std::invalid_argument(
+            "Must specify a ConfigUpgradeSetKey blob: "
+            "dumpproposedsettings?blob=<ConfigUpgradeSetKey in "
+            "xdr format>");
     }
 }
 
@@ -667,6 +754,167 @@ CommandHandler::scpInfo(std::string const& params, std::string& retStr)
     retStr = root.toStyledString();
 }
 
+void
+CommandHandler::sorobanInfo(std::string const& params, std::string& retStr)
+{
+    ZoneScoped;
+    auto& lm = mApp.getLedgerManager();
+
+    if (lm.hasSorobanNetworkConfig())
+    {
+        std::map<std::string, std::string> retMap;
+        http::server::server::parseParams(params, retMap);
+
+        // Format is the only acceptable param, but it is optional
+        if (retMap.count("format") != retMap.size())
+        {
+            retStr = "Invalid param";
+            return;
+        }
+
+        auto format =
+            parseOptionalParamOrDefault<std::string>(retMap, "format", "basic");
+        if (format == "basic")
+        {
+            Json::Value res;
+            auto const& conf = lm.getSorobanNetworkConfig();
+
+            // Contract size
+            res["max_contract_size"] = conf.maxContractSizeBytes();
+
+            // Contract data
+            res["max_contract_data_key_size"] =
+                conf.maxContractDataKeySizeBytes();
+            res["max_contract_data_entry_size"] =
+                conf.maxContractDataEntrySizeBytes();
+
+            // Compute settings
+            res["tx"]["max_instructions"] =
+                static_cast<Json::Int64>(conf.txMaxInstructions());
+            res["ledger"]["max_instructions"] =
+                static_cast<Json::Int64>(conf.ledgerMaxInstructions());
+            res["fee_rate_per_instructions_increment"] =
+                static_cast<Json::Int64>(
+                    conf.feeRatePerInstructionsIncrement());
+            res["tx"]["memory_limit"] = conf.txMemoryLimit();
+
+            // Ledger access settings
+            res["ledger"]["max_read_ledger_entries"] =
+                conf.ledgerMaxReadLedgerEntries();
+            res["ledger"]["max_read_bytes"] = conf.ledgerMaxReadBytes();
+            res["ledger"]["max_write_ledger_entries"] =
+                conf.ledgerMaxWriteLedgerEntries();
+            res["ledger"]["max_write_bytes"] = conf.ledgerMaxWriteBytes();
+            res["tx"]["max_read_ledger_entries"] =
+                conf.txMaxReadLedgerEntries();
+            res["tx"]["max_read_bytes"] = conf.txMaxReadBytes();
+            res["tx"]["max_write_ledger_entries"] =
+                conf.txMaxWriteLedgerEntries();
+            res["tx"]["max_write_bytes"] = conf.txMaxWriteBytes();
+
+            // Fees
+            res["fee_read_ledger_entry"] =
+                static_cast<Json::Int64>(conf.feeReadLedgerEntry());
+            res["fee_write_ledger_entry"] =
+                static_cast<Json::Int64>(conf.feeWriteLedgerEntry());
+            res["fee_read_1kb"] = static_cast<Json::Int64>(conf.feeRead1KB());
+            res["fee_write_1kb"] = static_cast<Json::Int64>(conf.feeWrite1KB());
+            res["fee_historical_1kb"] =
+                static_cast<Json::Int64>(conf.feeHistorical1KB());
+
+            // Contract events settings
+            res["tx"]["max_contract_events_size_bytes"] =
+                conf.txMaxContractEventsSizeBytes();
+            res["fee_contract_events_size_1kb"] =
+                static_cast<Json::Int64>(conf.feeContractEventsSize1KB());
+
+            // Bandwidth related data settings
+            res["ledger"]["max_tx_size_bytes"] =
+                conf.ledgerMaxTransactionSizesBytes();
+            res["tx"]["max_size_bytes"] = conf.txMaxSizeBytes();
+            res["fee_transaction_size_1kb"] =
+                static_cast<Json::Int64>(conf.feeTransactionSize1KB());
+
+            // General execution ledger settings
+            res["ledger"]["max_tx_count"] = conf.ledgerMaxTxCount();
+
+            // State archival settings
+            auto& archivalInfo = res["state_archival"];
+            auto const& stateArchivalSettings = conf.stateArchivalSettings();
+            archivalInfo["max_entry_ttl"] = stateArchivalSettings.maxEntryTTL;
+            archivalInfo["min_temporary_ttl"] =
+                stateArchivalSettings.minTemporaryTTL;
+            archivalInfo["min_persistent_ttl"] =
+                stateArchivalSettings.minPersistentTTL;
+
+            archivalInfo["persistent_rent_rate_denominator"] =
+                static_cast<Json::Int64>(
+                    stateArchivalSettings.persistentRentRateDenominator);
+            archivalInfo["temp_rent_rate_denominator"] =
+                static_cast<Json::Int64>(
+                    stateArchivalSettings.tempRentRateDenominator);
+
+            archivalInfo["max_entries_to_archive"] =
+                stateArchivalSettings.maxEntriesToArchive;
+            archivalInfo["bucketlist_size_window_sample_size"] =
+                stateArchivalSettings.bucketListSizeWindowSampleSize;
+
+            archivalInfo["eviction_scan_size"] = static_cast<Json::UInt64>(
+                stateArchivalSettings.evictionScanSize);
+            archivalInfo["starting_eviction_scan_level"] =
+                stateArchivalSettings.startingEvictionScanLevel;
+            archivalInfo["bucket_list_size_snapshot_period"] =
+                stateArchivalSettings.bucketListSizeWindowSampleSize;
+
+            // non-configurable settings
+            archivalInfo["average_bucket_list_size"] =
+                static_cast<Json::UInt64>(conf.getAverageBucketListSize());
+            retStr = res.toStyledString();
+        }
+        else if (format == "detailed")
+        {
+            LedgerSnapshot lsg(mApp);
+            xdr::xvector<ConfigSettingEntry> entries;
+            for (auto c : xdr::xdr_traits<ConfigSettingID>::enum_values())
+            {
+                auto entry =
+                    lsg.load(configSettingKey(static_cast<ConfigSettingID>(c)));
+                entries.emplace_back(entry.current().data.configSetting());
+            }
+
+            retStr = xdrToCerealString(entries, "ConfigSettingsEntries");
+        }
+        else if (format == "upgrade_xdr")
+        {
+            LedgerSnapshot lsg(mApp);
+
+            ConfigUpgradeSet upgradeSet;
+            for (auto c : xdr::xdr_traits<ConfigSettingID>::enum_values())
+            {
+                auto configSettingID = static_cast<ConfigSettingID>(c);
+                if (SorobanNetworkConfig::isNonUpgradeableConfigSettingEntry(
+                        configSettingID))
+                {
+                    continue;
+                }
+                auto entry = lsg.load(configSettingKey(configSettingID));
+                upgradeSet.updatedEntry.emplace_back(
+                    entry.current().data.configSetting());
+            }
+
+            retStr = decoder::encode_b64(xdr::xdr_to_opaque(upgradeSet));
+        }
+        else
+        {
+            retStr = "Invalid format option";
+        }
+    }
+    else
+    {
+        retStr = "Soroban is not active in current ledger version";
+    }
+}
+
 // "Must specify a log level: ll?level=<level>&partition=<name>";
 void
 CommandHandler::ll(std::string const& params, std::string& retStr)
@@ -706,42 +954,6 @@ CommandHandler::ll(std::string const& params, std::string& retStr)
 }
 
 void
-CommandHandler::getLedgerEntry(std::string const& params, std::string& retStr)
-{
-    ZoneScoped;
-    Json::Value root;
-
-    std::map<std::string, std::string> paramMap;
-    http::server::server::parseParams(params, paramMap);
-    std::string key = paramMap["key"];
-    if (!key.empty())
-    {
-        LedgerTxn ltx(mApp.getLedgerTxnRoot());
-        root["ledger"] = ltx.loadHeader().current().ledgerSeq;
-
-        LedgerKey k;
-        fromOpaqueBase64(k, key);
-        auto le = ltx.loadWithoutRecord(k);
-        if (le)
-        {
-            root["state"] = "live";
-            root["entry"] = toOpaqueBase64(le.current());
-        }
-        else
-        {
-            root["state"] = "dead";
-        }
-    }
-    else
-    {
-        throw std::invalid_argument(
-            "Must specify ledger key: getLedgerEntry?key=<LedgerKey in base64 "
-            "XDR format>");
-    }
-    retStr = Json::FastWriter().write(root);
-}
-
-void
 CommandHandler::tx(std::string const& params, std::string& retStr)
 {
     ZoneScoped;
@@ -772,23 +984,28 @@ CommandHandler::tx(std::string const& params, std::string& retStr)
         if (transaction)
         {
             // Add it to our current set and make sure it is valid.
-            TransactionQueue::AddResult status =
+            auto addResult =
                 mApp.getHerder().recvTransaction(transaction, true);
 
-            root["status"] = TX_STATUS_STRING[static_cast<int>(status)];
-            if (status == TransactionQueue::AddResult::ADD_STATUS_ERROR)
+            root["status"] = TX_STATUS_STRING[static_cast<int>(addResult.code)];
+            if (addResult.code ==
+                TransactionQueue::AddResultCode::ADD_STATUS_ERROR)
             {
                 std::string resultBase64;
-                auto resultBin = xdr::xdr_to_opaque(transaction->getResult());
+                releaseAssertOrThrow(addResult.txResult);
+
+                auto const& payload = addResult.txResult;
+                auto resultBin = xdr::xdr_to_opaque(payload->getResult());
                 resultBase64.reserve(decoder::encoded_size64(resultBin.size()) +
                                      1);
                 resultBase64 = decoder::encode_b64(resultBin);
                 root["error"] = resultBase64;
-                if (transaction->getResultCode() == txSOROBAN_INVALID &&
-                    mApp.getConfig().ENABLE_SOROBAN_DIAGNOSTIC_EVENTS)
+                if (mApp.getConfig().ENABLE_DIAGNOSTICS_FOR_TX_SUBMISSION &&
+                    transaction->isSoroban() &&
+                    !payload->getDiagnosticEvents().empty())
                 {
                     auto diagsBin =
-                        xdr::xdr_to_opaque(transaction->getDiagnosticEvents());
+                        xdr::xdr_to_opaque(payload->getDiagnosticEvents());
                     auto diagsBase64 = decoder::encode_b64(diagsBin);
                     root["diagnostic_events"] = diagsBase64;
                 }
@@ -911,16 +1128,27 @@ CommandHandler::clearMetrics(std::string const& params, std::string& retStr)
 }
 
 void
-CommandHandler::surveyTopology(std::string const& params, std::string& retStr)
+CommandHandler::checkBooted() const
 {
-    ZoneScoped;
-
     if (mApp.getState() == Application::APP_CREATED_STATE ||
         mApp.getHerder().getState() == Herder::HERDER_BOOTING_STATE)
     {
         throw std::runtime_error(
             "Application is not fully booted, try again later");
     }
+}
+
+void
+CommandHandler::surveyTopology(std::string const& params, std::string& retStr)
+{
+    ZoneScoped;
+
+    CLOG_WARNING(
+        Overlay,
+        "`surveytopology` is deprecated and will be removed in a future "
+        "release.  Please use the new time sliced survey interface.");
+
+    checkBooted();
 
     std::map<std::string, std::string> map;
     http::server::server::parseParams(params, map);
@@ -928,15 +1156,16 @@ CommandHandler::surveyTopology(std::string const& params, std::string& retStr)
     auto duration =
         std::chrono::seconds(parseRequiredParam<uint32>(map, "duration"));
     auto idString = parseRequiredParam<std::string>(map, "node");
-    NodeID id = KeyUtils::fromStrKey<PublicKey>(idString);
+    NodeID id = KeyUtils::fromStrKey<NodeID>(idString);
 
     auto& surveyManager = mApp.getOverlayManager().getSurveyManager();
 
-    bool success = surveyManager.startSurvey(
+    bool success = surveyManager.startSurveyReporting(
         SurveyMessageCommandType::SURVEY_TOPOLOGY, duration);
 
     surveyManager.addNodeToRunningSurveyBacklog(
-        SurveyMessageCommandType::SURVEY_TOPOLOGY, duration, id);
+        SurveyMessageCommandType::SURVEY_TOPOLOGY, duration, id, std::nullopt,
+        std::nullopt);
     retStr = "Adding node.";
 
     retStr += success ? "Survey started " : "Survey already running!";
@@ -946,8 +1175,11 @@ void
 CommandHandler::stopSurvey(std::string const&, std::string& retStr)
 {
     ZoneScoped;
+    CLOG_WARNING(Overlay,
+                 "`stopsurvey` is deprecated and will be removed in a future "
+                 "release.  Please use the new time sliced survey interface.");
     auto& surveyManager = mApp.getOverlayManager().getSurveyManager();
-    surveyManager.stopSurvey();
+    surveyManager.stopSurveyReporting();
     retStr = "survey stopped";
 }
 
@@ -957,6 +1189,79 @@ CommandHandler::getSurveyResult(std::string const&, std::string& retStr)
     ZoneScoped;
     auto& surveyManager = mApp.getOverlayManager().getSurveyManager();
     retStr = surveyManager.getJsonResults().toStyledString();
+}
+
+void
+CommandHandler::startSurveyCollecting(std::string const& params,
+                                      std::string& retStr)
+{
+    ZoneScoped;
+    checkBooted();
+
+    std::map<std::string, std::string> map;
+    http::server::server::parseParams(params, map);
+
+    uint32_t const nonce = parseRequiredParam<uint32_t>(map, "nonce");
+
+    auto& surveyManager = mApp.getOverlayManager().getSurveyManager();
+    if (surveyManager.broadcastStartSurveyCollecting(nonce))
+    {
+        retStr = "Requested network to start survey collecting.";
+    }
+    else
+    {
+        retStr = "Failed to start survey collecting. Another survey is active "
+                 "on the network.";
+    }
+}
+
+void
+CommandHandler::stopSurveyCollecting(std::string const&, std::string& retStr)
+{
+    ZoneScoped;
+    checkBooted();
+
+    auto& surveyManager = mApp.getOverlayManager().getSurveyManager();
+    if (surveyManager.broadcastStopSurveyCollecting())
+    {
+        retStr = "Requested network to stop survey collecting.";
+    }
+    else
+    {
+        retStr = "Failed to stop survey collecting. No survey is active on the "
+                 "network.";
+    }
+}
+
+void
+CommandHandler::surveyTopologyTimeSliced(std::string const& params,
+                                         std::string& retStr)
+{
+    ZoneScoped;
+    checkBooted();
+
+    std::map<std::string, std::string> map;
+    http::server::server::parseParams(params, map);
+
+    auto idString = parseRequiredParam<std::string>(map, "node");
+    NodeID id = KeyUtils::fromStrKey<NodeID>(idString);
+    auto inboundPeerIndex = parseRequiredParam<uint32>(map, "inboundpeerindex");
+    auto outboundPeerIndex =
+        parseRequiredParam<uint32>(map, "outboundpeerindex");
+
+    auto& surveyManager = mApp.getOverlayManager().getSurveyManager();
+
+    bool success = surveyManager.startSurveyReporting(
+        SurveyMessageCommandType::TIME_SLICED_SURVEY_TOPOLOGY,
+        /*surveyDuration*/ std::nullopt);
+
+    surveyManager.addNodeToRunningSurveyBacklog(
+        SurveyMessageCommandType::TIME_SLICED_SURVEY_TOPOLOGY,
+        /*surveyDuration*/ std::nullopt, id, inboundPeerIndex,
+        outboundPeerIndex);
+    retStr = "Adding node.";
+
+    retStr += success ? "Survey started " : "Survey already running!";
 }
 
 #ifdef BUILD_TESTS
@@ -971,7 +1276,6 @@ CommandHandler::generateLoad(std::string const& params, std::string& retStr)
         GeneratedLoadConfig cfg;
         cfg.mode = LoadGenerator::getMode(
             parseOptionalParamOrDefault<std::string>(map, "mode", "create"));
-        bool isCreate = cfg.mode == LoadGenMode::CREATE;
 
         cfg.nAccounts =
             parseOptionalParamOrDefault<uint32_t>(map, "accounts", 1000);
@@ -996,9 +1300,92 @@ CommandHandler::generateLoad(std::string const& params, std::string& retStr)
             parseOptionalParam<uint32_t>(map, "maxfeerate");
         cfg.skipLowFeeTxs =
             parseOptionalParamOrDefault<bool>(map, "skiplowfeetxs", false);
-        // Only for MIXED_TX mode; fraction of DEX transactions.
-        cfg.dexTxPercent =
-            parseOptionalParamOrDefault<uint32_t>(map, "dextxpercent", 0);
+
+        if (cfg.mode == LoadGenMode::MIXED_CLASSIC)
+        {
+            cfg.getMutDexTxPercent() =
+                parseOptionalParamOrDefault<uint32_t>(map, "dextxpercent", 0);
+        }
+
+        if (cfg.isSoroban())
+        {
+            uint32_t minPercentSuccess = parseOptionalParamOrDefault<uint32_t>(
+                map, "minpercentsuccess", 0);
+            cfg.setMinSorobanPercentSuccess(minPercentSuccess);
+            if (cfg.mode != LoadGenMode::SOROBAN_UPLOAD)
+            {
+
+                auto& sorobanCfg = cfg.getMutSorobanConfig();
+                sorobanCfg.nInstances =
+                    parseOptionalParamOrDefault<uint32_t>(map, "instances", 0);
+                sorobanCfg.nWasms =
+                    parseOptionalParamOrDefault<uint32_t>(map, "wasms", 0);
+            }
+        }
+
+        if (cfg.mode == LoadGenMode::SOROBAN_CREATE_UPGRADE)
+        {
+            auto& upgradeCfg = cfg.getMutSorobanUpgradeConfig();
+            upgradeCfg.maxContractSizeBytes =
+                parseOptionalParamOrDefault<uint32_t>(map, "mxcntrctsz", 0);
+            upgradeCfg.maxContractDataKeySizeBytes =
+                parseOptionalParamOrDefault<uint32_t>(map, "mxcntrctkeysz", 0);
+            upgradeCfg.maxContractDataEntrySizeBytes =
+                parseOptionalParamOrDefault<uint32_t>(map, "mxcntrctdatasz", 0);
+            upgradeCfg.ledgerMaxInstructions =
+                parseOptionalParamOrDefault<uint64_t>(map, "ldgrmxinstrc", 0);
+            upgradeCfg.txMaxInstructions =
+                parseOptionalParamOrDefault<uint64_t>(map, "txmxinstrc", 0);
+            upgradeCfg.txMemoryLimit =
+                parseOptionalParamOrDefault<uint64_t>(map, "txmemlim", 0);
+            upgradeCfg.ledgerMaxReadLedgerEntries =
+                parseOptionalParamOrDefault<uint32_t>(map, "ldgrmxrdntry", 0);
+            upgradeCfg.ledgerMaxReadBytes =
+                parseOptionalParamOrDefault<uint32_t>(map, "ldgrmxrdbyt", 0);
+            upgradeCfg.ledgerMaxWriteLedgerEntries =
+                parseOptionalParamOrDefault<uint32_t>(map, "ldgrmxwrntry", 0);
+            upgradeCfg.ledgerMaxWriteBytes =
+                parseOptionalParamOrDefault<uint32_t>(map, "ldgrmxwrbyt", 0);
+            upgradeCfg.ledgerMaxTxCount =
+                parseOptionalParamOrDefault<uint32_t>(map, "ldgrmxtxcnt", 0);
+            upgradeCfg.txMaxReadLedgerEntries =
+                parseOptionalParamOrDefault<uint32_t>(map, "txmxrdntry", 0);
+            upgradeCfg.txMaxReadBytes =
+                parseOptionalParamOrDefault<uint32_t>(map, "txmxrdbyt", 0);
+            upgradeCfg.txMaxWriteLedgerEntries =
+                parseOptionalParamOrDefault<uint32_t>(map, "txmxwrntry", 0);
+            upgradeCfg.txMaxWriteBytes =
+                parseOptionalParamOrDefault<uint32_t>(map, "txmxwrbyt", 0);
+            upgradeCfg.txMaxContractEventsSizeBytes =
+                parseOptionalParamOrDefault<uint32_t>(map, "txmxevntsz", 0);
+            upgradeCfg.ledgerMaxTransactionsSizeBytes =
+                parseOptionalParamOrDefault<uint32_t>(map, "ldgrmxtxsz", 0);
+            upgradeCfg.txMaxSizeBytes =
+                parseOptionalParamOrDefault<uint32_t>(map, "txmxsz", 0);
+            upgradeCfg.bucketListSizeWindowSampleSize =
+                parseOptionalParamOrDefault<uint32_t>(map, "wndowsz", 0);
+            upgradeCfg.evictionScanSize =
+                parseOptionalParamOrDefault<uint64_t>(map, "evctsz", 0);
+            upgradeCfg.startingEvictionScanLevel =
+                parseOptionalParamOrDefault<uint32_t>(map, "evctlvl", 0);
+        }
+
+        if (cfg.mode == LoadGenMode::MIXED_CLASSIC_SOROBAN)
+        {
+            auto& mixCfg = cfg.getMutMixClassicSorobanConfig();
+            mixCfg.payWeight =
+                parseOptionalParamOrDefault<uint32_t>(map, "payweight", 0);
+            mixCfg.sorobanUploadWeight = parseOptionalParamOrDefault<uint32_t>(
+                map, "sorobanuploadweight", 0);
+            mixCfg.sorobanInvokeWeight = parseOptionalParamOrDefault<uint32_t>(
+                map, "sorobaninvokeweight", 0);
+            if (!(mixCfg.payWeight || mixCfg.sorobanUploadWeight ||
+                  mixCfg.sorobanInvokeWeight))
+            {
+                retStr = "At least one mix weight must be non-zero";
+                return;
+            }
+        }
 
         if (cfg.maxGeneratedFeeRate)
         {
@@ -1011,13 +1398,21 @@ CommandHandler::generateLoad(std::string const& params, std::string& retStr)
             }
         }
 
-        uint32_t numItems = isCreate ? cfg.nAccounts : cfg.nTxs;
-        std::string itemType = isCreate ? "accounts" : "txs";
-
-        retStr +=
-            fmt::format(FMT_STRING(" Generating load: {:d} {:s}, {:d} tx/s"),
-                        numItems, itemType, cfg.txRate);
+        Json::Value res;
+        res["status"] = cfg.getStatus();
         mApp.generateLoad(cfg);
+
+        if (cfg.mode == LoadGenMode::SOROBAN_CREATE_UPGRADE)
+        {
+            auto configUpgradeKey =
+                mApp.getLoadGenerator().getConfigUpgradeSetKey(
+                    cfg.getSorobanUpgradeConfig());
+            auto configUpgradeKeyStr = stellar::decoder::encode_b64(
+                xdr::xdr_to_opaque(configUpgradeKey));
+            res["config_upgrade_set_key"] = configUpgradeKeyStr;
+        }
+
+        retStr = res.toStyledString();
     }
     else
     {
@@ -1053,8 +1448,8 @@ CommandHandler::testAcc(std::string const& params, std::string& retStr)
             key = getAccount(accName->second.c_str());
         }
 
-        LedgerTxn ltx(mApp.getLedgerTxnRoot());
-        auto acc = stellar::loadAccount(ltx, key.getPublicKey());
+        LedgerSnapshot lsg(mApp);
+        auto acc = lsg.load(accountKey(key.getPublicKey()));
         if (acc)
         {
             auto const& ae = acc.current().data.account();
@@ -1106,7 +1501,7 @@ CommandHandler::testTx(std::string const& params, std::string& retStr)
         root["to_id"] = KeyUtils::toStrKey(toAccount.getPublicKey());
         root["amount"] = (Json::UInt64)paymentAmount;
 
-        TransactionFramePtr txFrame;
+        TransactionTestFramePtr txFrame;
         if (create != retMap.end() && create->second == "true")
         {
             txFrame = fromAccount.tx({createAccount(toAccount, paymentAmount)});
@@ -1116,12 +1511,13 @@ CommandHandler::testTx(std::string const& params, std::string& retStr)
             txFrame = fromAccount.tx({payment(toAccount, paymentAmount)});
         }
 
-        auto status = mApp.getHerder().recvTransaction(txFrame, true);
-        root["status"] = TX_STATUS_STRING[static_cast<int>(status)];
-        if (status == TransactionQueue::AddResult::ADD_STATUS_ERROR)
+        auto addResult = mApp.getHerder().recvTransaction(txFrame, true);
+        root["status"] = TX_STATUS_STRING[static_cast<int>(addResult.code)];
+        if (addResult.code == TransactionQueue::AddResultCode::ADD_STATUS_ERROR)
         {
-            root["detail"] = xdr_to_string(txFrame->getResult().result.code(),
-                                           "TransactionResultCode");
+            releaseAssert(addResult.txResult);
+            root["detail"] = xdrToCerealString(
+                addResult.txResult->getResultCode(), "TransactionResultCode");
         }
     }
     else

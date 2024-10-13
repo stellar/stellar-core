@@ -7,6 +7,7 @@
 #include "bucket/BucketManager.h"
 #include "util/HashOfHash.h"
 #include "util/UnorderedSet.h"
+#include "util/XDRStream.h"
 #include "util/types.h"
 #include "work/WorkWithCallback.h"
 #include <Tracy.hpp>
@@ -63,11 +64,12 @@ IndexBucketsWork::IndexWork::postWork()
                                                  self->mBucket->getSize());
 
                 // If we could not load the index from the file, file is out of
-                // date and will be overwritten when we create a new index
+                // date. Delete and create a new index.
                 if (!self->mIndex)
                 {
                     CLOG_WARNING(Bucket, "Outdated index file: {}",
                                  indexFilename);
+                    std::remove(indexFilename.c_str());
                 }
                 else
                 {

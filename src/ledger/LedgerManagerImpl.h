@@ -9,6 +9,7 @@
 #include "ledger/LedgerCloseMetaFrame.h"
 #include "ledger/LedgerManager.h"
 #include "ledger/NetworkConfig.h"
+#include "ledger/SorobanMetrics.h"
 #include "main/PersistentState.h"
 #include "transactions/TransactionFrame.h"
 #include "util/XDRStream.h"
@@ -51,6 +52,7 @@ class LedgerManagerImpl : public LedgerManager
     LedgerHeaderHistoryEntry mLastClosedLedger;
     std::optional<SorobanNetworkConfig> mSorobanNetworkConfig;
 
+    SorobanMetrics mSorobanMetrics;
     medida::Timer& mTransactionApply;
     medida::Histogram& mTransactionCount;
     medida::Histogram& mOperationCount;
@@ -60,6 +62,9 @@ class LedgerManagerImpl : public LedgerManager
     medida::Counter& mLedgerAge;
     medida::Counter& mTransactionApplySucceeded;
     medida::Counter& mTransactionApplyFailed;
+    medida::Counter& mSorobanTransactionApplySucceeded;
+    medida::Counter& mSorobanTransactionApplyFailed;
+    medida::Meter& mMetaStreamBytes;
     medida::Timer& mMetaStreamWriteTime;
     VirtualClock::time_point mLastClose;
     bool mRebuildInMemoryState{false};
@@ -69,15 +74,16 @@ class LedgerManagerImpl : public LedgerManager
 
     std::unique_ptr<LedgerCloseMetaFrame> mNextMetaToEmit;
 
-    void processFeesSeqNums(
+    std::vector<MutableTxResultPtr> processFeesSeqNums(
         std::vector<TransactionFrameBasePtr> const& txs,
-        AbstractLedgerTxn& ltxOuter, TxSetFrame const& txSet,
+        AbstractLedgerTxn& ltxOuter, ApplicableTxSetFrame const& txSet,
         std::unique_ptr<LedgerCloseMetaFrame> const& ledgerCloseMeta);
 
     void applyTransactions(
-        TxSetFrame const& txSet,
-        std::vector<TransactionFrameBasePtr> const& txs, AbstractLedgerTxn& ltx,
-        TransactionResultSet& txResultSet,
+        ApplicableTxSetFrame const& txSet,
+        std::vector<TransactionFrameBasePtr> const& txs,
+        std::vector<MutableTxResultPtr> const& mutableTxResults,
+        AbstractLedgerTxn& ltx, TransactionResultSet& txResultSet,
         std::unique_ptr<LedgerCloseMetaFrame> const& ledgerCloseMeta);
 
     // initialLedgerVers must be the ledger version at the start of the ledger.
@@ -95,12 +101,20 @@ class LedgerManagerImpl : public LedgerManager
     void closeLedgerIf(LedgerCloseData const& ledgerData);
 
     State mState;
+
+#ifdef BUILD_TESTS
+    std::vector<TransactionMetaFrame> mLastLedgerTxMeta;
+#endif
+
     void setState(State s);
 
     void emitNextMeta();
 
-    SorobanNetworkConfig&
-    getSorobanNetworkConfigInternal(AbstractLedgerTxn& ltx);
+    SorobanNetworkConfig& getSorobanNetworkConfigInternal();
+
+    // Publishes soroban metrics, including select network config limits as well
+    // as the actual ledger usage.
+    void publishSorobanMetrics();
 
   protected:
     // initialLedgerVers must be the ledger version at the start of the ledger
@@ -108,25 +122,26 @@ class LedgerManagerImpl : public LedgerManager
     // values are the same except on the ledger in which a protocol upgrade from
     // vN to vN + 1 occurs. initialLedgerVers must be vN and currLedgerVers must
     // be vN + 1.
+
+    // NB: LedgerHeader is a copy here to prevent footguns in case ltx
+    // invalidates any header references
     virtual void transferLedgerEntriesToBucketList(
         AbstractLedgerTxn& ltx,
         std::unique_ptr<LedgerCloseMetaFrame> const& ledgerCloseMeta,
-        uint32_t ledgerSeq, uint32_t currLedgerVers,
-        uint32_t initialLedgerVers);
+        LedgerHeader lh, uint32_t initialLedgerVers);
 
     void advanceLedgerPointers(LedgerHeader const& header,
                                bool debugLog = true);
-    // Reloads the network configuration from the ledger.
-    // This needs to be called after the protocol upgrades or once
-    // during the catchups/test setup etc.
-    // This call is read-only and hence `ltx` can be read-only.
-    void updateNetworkConfig(AbstractLedgerTxn& ltx);
     void logTxApplyMetrics(AbstractLedgerTxn& ltx, size_t numTxs,
                            size_t numOps);
 
   public:
     LedgerManagerImpl(Application& app);
 
+    // Reloads the network configuration from the ledger.
+    // This needs to be called every time a ledger is closed.
+    // This call is read-only and hence `ltx` can be read-only.
+    void updateNetworkConfig(AbstractLedgerTxn& ltx) override;
     void moveToSynced() override;
     State getState() const override;
     std::string getStateHuman() const override;
@@ -135,20 +150,19 @@ class LedgerManagerImpl : public LedgerManager
 
     uint32_t getLastMaxTxSetSize() const override;
     uint32_t getLastMaxTxSetSizeOps() const override;
-    Resource maxLedgerResources(bool isSoroban,
-                                AbstractLedgerTxn& ltxOuter) override;
-    Resource
-    maxSorobanTransactionResources(AbstractLedgerTxn& ltxOuter) override;
+    Resource maxLedgerResources(bool isSoroban) override;
+    Resource maxSorobanTransactionResources() override;
     int64_t getLastMinBalance(uint32_t ownerCount) const override;
     uint32_t getLastReserve() const override;
     uint32_t getLastTxFee() const override;
     uint32_t getLastClosedLedgerNum() const override;
-    SorobanNetworkConfig const&
-    getSorobanNetworkConfig(AbstractLedgerTxn& ltx) override;
+    SorobanNetworkConfig const& getSorobanNetworkConfig() override;
+    bool hasSorobanNetworkConfig() const override;
 
 #ifdef BUILD_TESTS
-    SorobanNetworkConfig&
-    getMutableSorobanNetworkConfig(AbstractLedgerTxn& ltx) override;
+    SorobanNetworkConfig& getMutableSorobanNetworkConfig() override;
+    std::vector<TransactionMetaFrame> const&
+    getLastClosedLedgerTxMeta() override;
 #endif
 
     uint64_t secondsSinceLastLedgerClose() const override;
@@ -156,7 +170,8 @@ class LedgerManagerImpl : public LedgerManager
 
     void startNewLedger(LedgerHeader const& genesisLedger);
     void startNewLedger() override;
-    void loadLastKnownLedger(std::function<void()> handler) override;
+    void loadLastKnownLedger(bool restoreBucketlist,
+                             bool isLedgerStateReady) override;
     virtual bool rebuildingInMemoryState() override;
     virtual void setupInMemoryStateRebuild() override;
 
@@ -184,5 +199,7 @@ class LedgerManagerImpl : public LedgerManager
 
     void setupLedgerCloseMetaStream();
     void maybeResetLedgerCloseMetaDebugStream(uint32_t ledgerSeq);
+
+    SorobanMetrics& getSorobanMetrics() override;
 };
 }

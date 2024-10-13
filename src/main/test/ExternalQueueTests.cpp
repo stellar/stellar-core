@@ -16,7 +16,7 @@ using namespace stellar;
 TEST_CASE("cursors", "[externalqueue]")
 {
     VirtualClock clock;
-    Config const& cfg = getTestConfig();
+    Config const& cfg = getTestConfig(0, Config::TESTDB_ON_DISK_SQLITE);
     Application::pointer app = createTestApplication(clock, cfg);
 
     ExternalQueue ps(*app);

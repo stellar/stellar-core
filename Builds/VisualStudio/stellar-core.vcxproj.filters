@@ -175,6 +175,12 @@
     <Filter Include="util\xdrquery\tests">
       <UniqueIdentifier>{60ef25c4-d908-4795-83cf-a348673fe4c4}</UniqueIdentifier>
     </Filter>
+    <Filter Include="generated">
+      <UniqueIdentifier>{f421dda1-de1d-43af-b5b8-138a24c87cd2}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="lib\httpthreaded">
+      <UniqueIdentifier>{feb33c2b-4955-4db8-b62d-72cbc3129a44}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="..\..\lib\util\getopt_long.c">
@@ -552,7 +558,6 @@
     <ClCompile Include="..\..\src\util\xdrquery\test\XDRQueryTests.cpp">
       <Filter>util\xdrquery\tests</Filter>
     </ClCompile>
-    <ClCompile Include="src\$(Configuration)\generated\xdr\XDRFilesSha256.cpp" />
     <ClCompile Include="..\..\src\bucket\test\BucketIndexTests.cpp">
       <Filter>bucket\tests</Filter>
     </ClCompile>
@@ -964,6 +969,9 @@
     <ClCompile Include="..\..\src\ledger\NetworkConfig.cpp">
       <Filter>ledger</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\src\ledger\SorobanMetrics.cpp">
+      <Filter>ledger</Filter>
+    </ClCompile>
     <ClCompile Include="..\..\src\ledger\TrustLineWrapper.cpp">
       <Filter>ledger</Filter>
     </ClCompile>
@@ -1018,9 +1026,6 @@
     <ClCompile Include="..\..\src\overlay\test\TrackerTests.cpp">
       <Filter>overlay\tests</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\src\overlay\test\TxAdvertQueueTests.cpp">
-      <Filter>overlay\tests</Filter>
-    </ClCompile>
     <ClCompile Include="..\..\src\overlay\BanManagerImpl.cpp">
       <Filter>overlay</Filter>
     </ClCompile>
@@ -1063,6 +1068,9 @@
     <ClCompile Include="..\..\src\overlay\RandomPeerSource.cpp">
       <Filter>overlay</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\src\overlay\SurveyDataManager.cpp">
+      <Filter>overlay</Filter>
+    </ClCompile>
     <ClCompile Include="..\..\src\overlay\SurveyManager.cpp">
       <Filter>overlay</Filter>
     </ClCompile>
@@ -1073,9 +1081,6 @@
       <Filter>overlay</Filter>
     </ClCompile>
     <ClCompile Include="..\..\src\overlay\Tracker.cpp">
-      <Filter>overlay</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\src\overlay\TxAdvertQueue.cpp">
       <Filter>overlay</Filter>
     </ClCompile>
     <ClCompile Include="..\..\src\transactions\test\AllowTrustTests.cpp">
@@ -1300,9 +1305,6 @@
     <ClCompile Include="..\..\src\transactions\RestoreFootprintOpFrame.cpp">
       <Filter>transactions</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\lib\tracy\public\TracyClient.cpp">
-      <Filter>lib\tracy</Filter>
-    </ClCompile>
     <ClCompile Include="..\..\src\ledger\LedgerTxnTTLSQL.cpp">
       <Filter>ledger</Filter>
     </ClCompile>
@@ -1311,6 +1313,69 @@
     </ClCompile>
     <ClCompile Include="..\..\src\catchup\ReplayDebugMetaWork.cpp">
       <Filter>catchup</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\transactions\test\SorobanTxTestUtils.cpp">
+      <Filter>transactions\tests</Filter>
+    </ClCompile>
+    <ClCompile Include="src\$(Configuration)\generated\xdr\XDRFilesSha256.cpp">
+      <Filter>generated</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\main\SettingsUpgradeUtils.cpp">
+      <Filter>main</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\bucket\BucketListSnapshot.cpp">
+      <Filter>bucket</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\bucket\BucketSnapshot.cpp">
+      <Filter>bucket</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\bucket\BucketSnapshotManager.cpp">
+      <Filter>bucket</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\overlay\test\TxAdvertsTests.cpp">
+      <Filter>overlay\tests</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\overlay\TxAdverts.cpp">
+      <Filter>overlay</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\overlay\OverlayAppConnector.cpp">
+      <Filter>overlay</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\overlay\TxDemandsManager.cpp">
+      <Filter>overlay</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\overlay\Hmac.cpp">
+      <Filter>overlay</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\transactions\test\TransactionTestFrame.cpp">
+      <Filter>transactions\tests</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\util\BinaryFuseFilter.cpp">
+      <Filter>util</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\util\test\BinaryFuseTests.cpp">
+      <Filter>util\tests</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\transactions\MutableTransactionResult.cpp">
+      <Filter>transactions</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\lib\httpthreaded\connection.cpp">
+      <Filter>lib\httpthreaded</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\lib\httpthreaded\reply.cpp">
+      <Filter>lib\httpthreaded</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\lib\httpthreaded\request_parser.cpp">
+      <Filter>lib\httpthreaded</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\lib\httpthreaded\server.cpp">
+      <Filter>lib\httpthreaded</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\main\QueryServer.cpp">
+      <Filter>main</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\ledger\LedgerStateSnapshot.cpp">
+      <Filter>ledger</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
@@ -1719,13 +1784,9 @@
     <ClInclude Include="..\..\src\util\xdrquery\XDRQueryParser.h">
       <Filter>util\xdrquery</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\lib\bloom_filter.hpp">
-      <Filter>lib</Filter>
-    </ClInclude>
     <ClInclude Include="..\..\lib\clara.hpp">
       <Filter>lib</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\src\overlay\test\TxAdvertQueue.h" />
     <ClInclude Include="..\..\src\bucket\test\BucketTestUtils.h">
       <Filter>bucket\tests</Filter>
     </ClInclude>
@@ -2065,6 +2126,9 @@
     <ClInclude Include="..\..\src\ledger\NonSociRelatedException.h">
       <Filter>ledger</Filter>
     </ClInclude>
+    <ClInclude Include="..\..\src\ledger\SorobanMetrics.h">
+      <Filter>ledger</Filter>
+    </ClInclude>
     <ClInclude Include="..\..\src\ledger\TrustLineWrapper.h">
       <Filter>ledger</Filter>
     </ClInclude>
@@ -2125,6 +2189,9 @@
     <ClInclude Include="..\..\src\overlay\StellarXDR.h">
       <Filter>overlay</Filter>
     </ClInclude>
+    <ClInclude Include="..\..\src\overlay\SurveyDataManager.h">
+      <Filter>overlay</Filter>
+    </ClInclude>
     <ClInclude Include="..\..\src\overlay\SurveyManager.h">
       <Filter>overlay</Filter>
     </ClInclude>
@@ -2135,9 +2202,6 @@
       <Filter>overlay</Filter>
     </ClInclude>
     <ClInclude Include="..\..\src\overlay\Tracker.h">
-      <Filter>overlay</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\src\overlay\TxAdvertQueue.h">
       <Filter>overlay</Filter>
     </ClInclude>
     <ClInclude Include="..\..\src\transactions\test\SponsorshipTestUtils.h">
@@ -2280,6 +2344,66 @@
     </ClInclude>
     <ClInclude Include="..\..\src\catchup\ReplayDebugMetaWork.h">
       <Filter>catchup</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\transactions\test\SorobanTxTestUtils.h">
+      <Filter>transactions\tests</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\main\SettingsUpgradeUtils.h">
+      <Filter>main</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\bucket\BucketListSnapshot.h">
+      <Filter>bucket</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\bucket\BucketSnapshot.h">
+      <Filter>bucket</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\bucket\BucketSnapshotManager.h">
+      <Filter>bucket</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\overlay\TxAdverts.h">
+      <Filter>overlay</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\overlay\OverlayAppConnector.h">
+      <Filter>overlay</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\overlay\TxDemandsManager.h">
+      <Filter>overlay</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\overlay\Hmac.h">
+      <Filter>overlay</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\transactions\test\TransactionTestFrame.h">
+      <Filter>transactions\tests</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\util\BinaryFuseFilter.h">
+      <Filter>util</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\transactions\MutableTransactionResult.h">
+      <Filter>transactions</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\lib\httpthreaded\connection.hpp">
+      <Filter>lib\httpthreaded</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\lib\httpthreaded\header.hpp">
+      <Filter>lib\httpthreaded</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\lib\httpthreaded\reply.hpp">
+      <Filter>lib\httpthreaded</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\lib\httpthreaded\request.hpp">
+      <Filter>lib\httpthreaded</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\lib\httpthreaded\request_parser.hpp">
+      <Filter>lib\httpthreaded</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\lib\httpthreaded\server.hpp">
+      <Filter>lib\httpthreaded</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\main\QueryServer.h">
+      <Filter>main</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\ledger\LedgerStateSnapshot.h">
+      <Filter>ledger</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>

@@ -12,40 +12,42 @@
 namespace stellar
 {
 class AbstractLedgerTxn;
+class MutableTransactionResultBase;
 
-static constexpr ContractDataDurability CONTRACT_INSTANCE_CONTRACT_DURABILITY =
+static constexpr ContractDataDurability CONTRACT_INSTANCE_ENTRY_DURABILITY =
     ContractDataDurability::PERSISTENT;
 
 class InvokeHostFunctionOpFrame : public OperationFrame
 {
     InvokeHostFunctionResult&
-    innerResult()
+    innerResult(OperationResult& res) const
     {
-        return mResult.tr().invokeHostFunctionResult();
+        return res.tr().invokeHostFunctionResult();
     }
 
     void maybePopulateDiagnosticEvents(Config const& cfg,
                                        InvokeHostFunctionOutput const& output,
-                                       HostFunctionMetrics const& metrics);
-
-    bool validateContractLedgerEntry(LedgerEntry const& le, size_t entrySize,
-                                     SorobanNetworkConfig const& config);
+                                       HostFunctionMetrics const& metrics,
+                                       SorobanTxData& sorobanData) const;
 
     InvokeHostFunctionOp const& mInvokeHostFunction;
 
   public:
-    InvokeHostFunctionOpFrame(Operation const& op, OperationResult& res,
-                              TransactionFrame& parentTx);
+    InvokeHostFunctionOpFrame(Operation const& op,
+                              TransactionFrame const& parentTx);
 
     bool isOpSupported(LedgerHeader const& header) const override;
 
-    bool doApply(AbstractLedgerTxn& ltx) override;
     bool doApply(Application& app, AbstractLedgerTxn& ltx,
-                 Hash const& sorobanBasePrngSeed) override;
+                 Hash const& sorobanBasePrngSeed, OperationResult& res,
+                 std::shared_ptr<SorobanTxData> sorobanData) const override;
 
-    bool doCheckValid(SorobanNetworkConfig const& config,
-                      uint32_t ledgerVersion) override;
-    bool doCheckValid(uint32_t ledgerVersion) override;
+    bool doCheckValidForSoroban(SorobanNetworkConfig const& networkConfig,
+                                Config const& appConfig, uint32_t ledgerVersion,
+                                OperationResult& res,
+                                SorobanTxData& sorobanData) const override;
+    bool doCheckValid(uint32_t ledgerVersion,
+                      OperationResult& res) const override;
 
     void
     insertLedgerKeysToPrefetch(UnorderedSet<LedgerKey>& keys) const override;

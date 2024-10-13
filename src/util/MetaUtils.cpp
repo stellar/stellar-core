@@ -105,4 +105,41 @@ normalizeMeta(TransactionMeta& m)
     }
 }
 
+void
+normalizeMeta(LedgerCloseMeta& lcm)
+{
+    switch (lcm.v())
+    {
+    case 0:
+    {
+        auto& v0 = lcm.v0();
+        for (auto& u : v0.upgradesProcessing)
+        {
+            sortChanges(u.changes);
+        }
+        for (auto& tx : v0.txProcessing)
+        {
+            sortChanges(tx.feeProcessing);
+            normalizeMeta(tx.txApplyProcessing);
+        }
+        break;
+    }
+    case 1:
+    {
+        auto& v1 = lcm.v1();
+        for (auto& u : v1.upgradesProcessing)
+        {
+            sortChanges(u.changes);
+        }
+        for (auto& tx : v1.txProcessing)
+        {
+            sortChanges(tx.feeProcessing);
+            normalizeMeta(tx.txApplyProcessing);
+        }
+        break;
+    }
+    default:
+        abort();
+    }
+}
 }

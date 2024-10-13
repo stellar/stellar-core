@@ -46,7 +46,8 @@ for_current_and_previous_version_from(size_t minVersion, Application& app,
 TEST_CASE_VERSIONS("manage buy offer failure modes", "[tx][offers]")
 {
     VirtualClock clock;
-    auto app = createTestApplication(clock, getTestConfig());
+    auto app = createTestApplication(
+        clock, getTestConfig(0, Config::TESTDB_IN_MEMORY_OFFERS));
 
     int64_t const txfee = app->getLedgerManager().getLastTxFee();
     int64_t const minBalancePlusFees =
@@ -146,11 +147,7 @@ TEST_CASE_VERSIONS("manage buy offer failure modes", "[tx][offers]")
 
         SECTION("check offer valid")
         {
-            uint32_t ledgerVersion;
-            {
-                LedgerTxn ltx(app->getLedgerTxnRoot());
-                ledgerVersion = ltx.loadHeader().current().ledgerVersion;
-            }
+            auto ledgerVersion = getLclProtocolVersion(*app);
 
             SECTION("no issuer")
             {
@@ -356,7 +353,8 @@ TEST_CASE_VERSIONS("manage buy offer failure modes", "[tx][offers]")
 TEST_CASE_VERSIONS("manage buy offer liabilities", "[tx][offers]")
 {
     VirtualClock clock;
-    auto app = createTestApplication(clock, getTestConfig());
+    auto app = createTestApplication(
+        clock, getTestConfig(0, Config::TESTDB_IN_MEMORY_OFFERS));
 
     auto checkLiabilities = [&](std::string const& section, int64_t buyAmount,
                                 Price const& price, int64_t expectedBuying,
@@ -376,11 +374,11 @@ TEST_CASE_VERSIONS("manage buy offer liabilities", "[tx][offers]")
 
             {
                 LedgerTxn ltx(app->getLedgerTxnRoot());
-                tx->checkValid(*app, ltx, 0, 0, 0);
+                tx->checkValidForTesting(*app, ltx, 0, 0, 0);
             }
 
-            auto buyOp = std::static_pointer_cast<ManageBuyOfferOpFrame>(
-                tx->getOperations().front());
+            auto buyOp = std::static_pointer_cast<ManageBuyOfferOpFrame const>(
+                tx->getRawTransactionFrame().getOperations().front());
             REQUIRE(expectedBuying == buyOp->getOfferBuyingLiabilities());
             REQUIRE(expectedSelling == buyOp->getOfferSellingLiabilities());
         }
@@ -439,7 +437,8 @@ TEST_CASE_VERSIONS("manage buy offer exactly crosses existing offers",
                    "[tx][offers]")
 {
     VirtualClock clock;
-    auto app = createTestApplication(clock, getTestConfig());
+    auto app = createTestApplication(
+        clock, getTestConfig(0, Config::TESTDB_IN_MEMORY_OFFERS));
 
     int64_t const txfee = app->getLedgerManager().getLastTxFee();
     int64_t const minBalancePlusFees =
@@ -491,7 +490,8 @@ TEST_CASE_VERSIONS(
     "[tx][offers]")
 {
     VirtualClock clock;
-    auto app = createTestApplication(clock, getTestConfig());
+    auto app = createTestApplication(
+        clock, getTestConfig(0, Config::TESTDB_IN_MEMORY_OFFERS));
 
     int64_t const txfee = app->getLedgerManager().getLastTxFee();
     int64_t const minBalancePlusFees =
@@ -618,7 +618,8 @@ TEST_CASE_VERSIONS(
     "[tx][offers]")
 {
     VirtualClock clock;
-    auto app = createTestApplication(clock, getTestConfig());
+    auto app = createTestApplication(
+        clock, getTestConfig(0, Config::TESTDB_IN_MEMORY_OFFERS));
 
     int64_t const txfee = app->getLedgerManager().getLastTxFee();
     int64_t const minBalancePlusFees =
@@ -772,7 +773,8 @@ TEST_CASE_VERSIONS(
     "[tx][offers]")
 {
     VirtualClock clock;
-    auto app = createTestApplication(clock, getTestConfig());
+    auto app = createTestApplication(
+        clock, getTestConfig(0, Config::TESTDB_IN_MEMORY_OFFERS));
 
     int64_t const txfee = app->getLedgerManager().getLastTxFee();
     int64_t const minBalancePlusFees =
@@ -924,7 +926,8 @@ TEST_CASE_VERSIONS(
 TEST_CASE_VERSIONS("manage buy offer with zero liabilities", "[tx][offers]")
 {
     VirtualClock clock;
-    auto app = createTestApplication(clock, getTestConfig());
+    auto app = createTestApplication(
+        clock, getTestConfig(0, Config::TESTDB_IN_MEMORY_OFFERS));
 
     int64_t const txfee = app->getLedgerManager().getLastTxFee();
     int64_t const minBalancePlusFees =
@@ -979,7 +982,8 @@ TEST_CASE_VERSIONS("manage buy offer releases liabilities before modify",
                    "[tx][offers]")
 {
     VirtualClock clock;
-    auto app = createTestApplication(clock, getTestConfig());
+    auto app = createTestApplication(
+        clock, getTestConfig(0, Config::TESTDB_IN_MEMORY_OFFERS));
 
     int64_t const txfee = app->getLedgerManager().getLastTxFee();
     int64_t const minBalancePlusFees =

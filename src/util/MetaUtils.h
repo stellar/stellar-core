@@ -8,4 +8,8 @@ namespace stellar
 {
 struct TransactionMeta;
 void normalizeMeta(TransactionMeta& m);
+
+struct LedgerCloseMeta;
+
+void normalizeMeta(LedgerCloseMeta& lcm);
 }

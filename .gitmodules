@@ -31,3 +31,9 @@
 	path = src/protocol-curr/xdr
 	url = https://github.com/stellar/stellar-xdr
 	branch = curr
+[submodule "src/rust/soroban/p21"]
+	path = src/rust/soroban/p21
+	url = https://github.com/stellar/rs-soroban-env
+[submodule "src/rust/soroban/p22"]
+	path = src/rust/soroban/p22
+	url = https://github.com/stellar/rs-soroban-env

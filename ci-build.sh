@@ -68,18 +68,6 @@ NPROCS=$(getconf _NPROCESSORS_ONLN)
 echo "Found $NPROCS processors"
 date
 
-# Short-circuit transient 'auto-initialization' builds
-git fetch origin master
-MASTER=$(git describe --always FETCH_HEAD)
-HEAD=$(git describe --always HEAD)
-echo $MASTER
-echo $HEAD
-if [ $HEAD == $MASTER ]
-then
-    echo "HEAD SHA1 equals master; probably just establishing merge, exiting build early"
-    exit 1
-fi
-
 # Try to ensure we're using the real g++ and clang++ versions we want
 mkdir bin
 
@@ -128,11 +116,11 @@ export CCACHE_COMPRESSLEVEL=9
 export CCACHE_MAXSIZE=500M
 export CCACHE_CPP2=true
 
-# purge cache if it's too old
+# periodically check to see if caches are old and purge them if so
 if [ -d "$CCACHE_DIR" ] ; then
     if [ -n "$(find $CCACHE_DIR -mtime +$CACHE_MAX_DAYS -print -quit)" ] ; then
-        echo Purging old cache $CCACHE_DIR
-        rm -rf $CCACHE_DIR
+        echo Purging old cache dirs $CCACHE_DIR ./target $HOME/.cargo/registry $HOME/.cargo/git
+        rm -rf $CCACHE_DIR ./target $HOME/.cargo/registry $HOME/.cargo/git
     fi
 fi
 
@@ -163,6 +151,9 @@ date
 time make -j$(($NPROCS + 1))
 
 ccache -s
+### incrementally purge old content from cargo source cache and target directory
+cargo cache trim --limit 100M
+cargo sweep --maxsize 500MB
 
 if [ $WITH_TESTS -eq 0 ] ; then
     echo "Build done, skipping tests"

@@ -358,6 +358,7 @@
 #include "xdr/Stellar-SCP.h"
 #include "xdr/Stellar-types.h"
 #include <functional>
+#include <optional>
 
 namespace
 {
@@ -426,7 +427,8 @@ class MinQuorumEnumerator
     QuorumIntersectionCheckerImpl const& mQic;
 
     // Select the next node in mRemaining to split recursive cases between.
-    size_t pickSplitNode() const;
+    size_t
+    pickSplitNode(stellar::stellar_default_random_engine& randEngine) const;
 
     // Size limit for mCommitted beyond which we should stop scanning.
     size_t maxCommit() const;
@@ -441,13 +443,14 @@ class MinQuorumEnumerator
 };
 
 // Quorum intersection checking is done by establishing a root
-// QuorumIntersectionChecker on a given QuorumMap. The QuorumIntersectionChecker
-// builds a QGraph of the nodes, uses TarjanSCCCalculator to calculate its SCCs,
-// and then runs a MinQuorumEnumerator to recursively scan the powerset.
+// QuorumIntersectionChecker on a given QuorumSetMap. The
+// QuorumIntersectionChecker builds a QGraph of the nodes, uses
+// TarjanSCCCalculator to calculate its SCCs, and then runs a
+// MinQuorumEnumerator to recursively scan the powerset.
 class QuorumIntersectionCheckerImpl : public stellar::QuorumIntersectionChecker
 {
 
-    stellar::Config const& mCfg;
+    std::optional<stellar::Config> const mCfg;
 
     struct Stats
     {
@@ -506,7 +509,8 @@ class QuorumIntersectionCheckerImpl : public stellar::QuorumIntersectionChecker
     std::atomic<bool>& mInterruptFlag;
 
     QBitSet convertSCPQuorumSet(stellar::SCPQuorumSet const& sqs);
-    void buildGraph(stellar::QuorumTracker::QuorumMap const& qmap);
+    void
+    buildGraph(stellar::QuorumIntersectionChecker::QuorumSetMap const& qmap);
     void buildSCCs();
 
     bool containsQuorumSlice(BitSet const& bs, QBitSet const& qbs) const;
@@ -524,11 +528,15 @@ class QuorumIntersectionCheckerImpl : public stellar::QuorumIntersectionChecker
 
     friend class MinQuorumEnumerator;
 
+    mutable stellar::stellar_default_random_engine mRand;
+
   public:
-    QuorumIntersectionCheckerImpl(stellar::QuorumTracker::QuorumMap const& qmap,
-                                  stellar::Config const& cfg,
-                                  std::atomic<bool>& interruptFlag,
-                                  bool quiet = false);
+    QuorumIntersectionCheckerImpl(
+        stellar::QuorumIntersectionChecker::QuorumSetMap const& qmap,
+        std::optional<stellar::Config> const& cfg,
+        std::atomic<bool>& interruptFlag,
+        stellar::stellar_default_random_engine::result_type seed,
+        bool quiet = false);
     bool networkEnjoysQuorumIntersection() const override;
 
     std::pair<std::vector<stellar::NodeID>, std::vector<stellar::NodeID>>

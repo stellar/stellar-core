@@ -6,6 +6,7 @@
 #include "bucket/BucketList.h"
 #include "bucket/BucketManager.h"
 #include "catchup/ApplyLedgerWork.h"
+#include "crypto/Hex.h"
 #include "ledger/LedgerManager.h"
 #include "main/Application.h"
 #include <Tracy.hpp>
@@ -47,13 +48,13 @@ ApplyBufferedLedgersWork::onRun()
     }
     auto const& lcd = maybeLcd.value();
 
-    CLOG_INFO(History,
-              "Scheduling buffered ledger-close: [seq={}, prev={}, txs={}, "
-              "ops={}, sv: {}]",
-              lcd.getLedgerSeq(),
-              hexAbbrev(lcd.getTxSet()->previousLedgerHash()),
-              lcd.getTxSet()->sizeTxTotal(), lcd.getTxSet()->sizeOpTotal(),
-              stellarValueToString(mApp.getConfig(), lcd.getValue()));
+    CLOG_INFO(
+        History,
+        "Scheduling buffered ledger-close: [seq={}, prev={}, txs={}, "
+        "ops={}, sv: {}]",
+        lcd.getLedgerSeq(), hexAbbrev(lcd.getTxSet()->previousLedgerHash()),
+        lcd.getTxSet()->sizeTxTotal(), lcd.getTxSet()->sizeOpTotalForLogging(),
+        stellarValueToString(mApp.getConfig(), lcd.getValue()));
 
     auto applyLedger = std::make_shared<ApplyLedgerWork>(mApp, lcd);
 

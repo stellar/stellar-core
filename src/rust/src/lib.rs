@@ -29,7 +29,6 @@ macro_rules! tracy_span {
 // interpreted by cxx.rs.
 #[cxx::bridge]
 mod rust_bridge {
-
     // When we want to pass owned data _from_ C++, we typically want to pass it
     // as a C++-allocated std::vector<uint8_t>, because that's most-compatible
     // with all the C++ functions we're likely to be using to build it.
@@ -60,12 +59,20 @@ mod rust_bridge {
     // and metering data will be populated, but result value and effects won't
     // be populated.
     struct InvokeHostFunctionOutput {
-        // Diagnostic information concerning the host function execution.
         success: bool,
+        // In case if `success` is `false` indicates whether the host has
+        // failed with an internal error.
+        // We don't otherwise observe the error codes, but internal errors are
+        // something that should never happen, so it's important to be able
+        // to act on them in Core.
+        is_internal_error: bool,
+        // Diagnostic information concerning the host function execution.
         diagnostic_events: Vec<RustBuf>,
         cpu_insns: u64,
         mem_bytes: u64,
         time_nsecs: u64,
+        cpu_insns_excluding_vm_instantiation: u64,
+        time_nsecs_excluding_vm_instantiation: u64,
 
         // Effects of the invocation that are only populated in case of success.
         result_value: RustBuf,
@@ -106,19 +113,16 @@ mod rust_bridge {
         VersionNotYetSupported,
     }
 
-    struct VersionStringPair {
-        curr: String,
-        prev: String,
-    }
+    struct SorobanVersionInfo {
+        pub env_max_proto: u32,
+        pub env_pkg_ver: String,
+        pub env_git_rev: String,
+        pub env_pre_release_ver: u32,
 
-    struct VersionNumPair {
-        curr: u32,
-        prev: u32,
-    }
-
-    struct XDRHashesPair {
-        curr: Vec<XDRFileHash>,
-        prev: Vec<XDRFileHash>,
+        pub xdr_pkg_ver: String,
+        pub xdr_git_rev: String,
+        pub xdr_base_git_rev: String,
+        pub xdr_file_hashes: Vec<XDRFileHash>,
     }
 
     struct CxxTransactionResources {
@@ -175,14 +179,13 @@ mod rust_bridge {
         fn start_tracy();
         fn to_base64(b: &CxxVector<u8>, mut s: Pin<&mut CxxString>);
         fn from_base64(s: &CxxString, mut b: Pin<&mut CxxVector<u8>>);
-        fn get_xdr_hashes() -> XDRHashesPair;
-        fn check_lockfile_has_expected_dep_trees(curr_max_protocol_version: u32);
+        fn check_sensible_soroban_config_for_protocol(core_max_proto: u32);
         fn invoke_host_function(
             config_max_protocol: u32,
             enable_diagnostics: bool,
             instruction_limit: u32,
             hf_buf: &CxxBuf,
-            resources: &CxxBuf,
+            resources: CxxBuf,
             source_account: &CxxBuf,
             auth_entries: &Vec<CxxBuf>,
             ledger_info: CxxLedgerInfo,
@@ -191,14 +194,29 @@ mod rust_bridge {
             base_prng_seed: &CxxBuf,
             rent_fee_configuration: CxxRentFeeConfiguration,
         ) -> Result<InvokeHostFunctionOutput>;
+
         fn init_logging(maxLevel: LogLevel) -> Result<()>;
 
         // Accessors for test wasms, compiled into soroban-test-wasms crate.
         fn get_test_wasm_add_i32() -> Result<RustBuf>;
+        fn get_test_wasm_sum_i32() -> Result<RustBuf>;
         fn get_test_wasm_contract_data() -> Result<RustBuf>;
         fn get_test_wasm_complex() -> Result<RustBuf>;
+        fn get_test_wasm_loadgen() -> Result<RustBuf>;
         fn get_test_wasm_err() -> Result<RustBuf>;
+        fn get_test_contract_sac_transfer() -> Result<RustBuf>;
         fn get_write_bytes() -> Result<RustBuf>;
+        fn get_invoke_contract_wasm() -> Result<RustBuf>;
+
+        fn get_hostile_large_val_wasm() -> Result<RustBuf>;
+
+        fn get_auth_wasm() -> Result<RustBuf>;
+
+        fn get_no_arg_constructor_wasm() -> Result<RustBuf>;
+        fn get_constructor_with_args_p21_wasm() -> Result<RustBuf>;
+        fn get_constructor_with_args_p22_wasm() -> Result<RustBuf>;
+
+        fn get_custom_account_wasm() -> Result<RustBuf>;
 
         // Utility functions for generating wasms using soroban-synth-wasm.
         fn get_random_wasm(size: usize, seed: u64) -> Result<RustBuf>;
@@ -206,29 +224,9 @@ mod rust_bridge {
         // Return the rustc version used to build this binary.
         fn get_rustc_version() -> String;
 
-        // Return the env cargo package versions used to build this binary.
-        fn get_soroban_env_pkg_versions() -> VersionStringPair;
-
-        // Return the env git versions used to build this binary.
-        fn get_soroban_env_git_versions() -> VersionStringPair;
-
-        // Return the env protocol versions used to build this binary.
-        fn get_soroban_env_ledger_protocol_versions() -> VersionNumPair;
-
-        // Return the env pre-release versions used to build this binary.
-        fn get_soroban_env_pre_release_versions() -> VersionNumPair;
-
-        // Return the rust XDR bindings cargo package versions used to build this binary.
-        fn get_soroban_xdr_bindings_pkg_versions() -> VersionStringPair;
-
-        // Return the rust XDR bindings git versions used to build this binary.
-        fn get_soroban_xdr_bindings_git_versions() -> VersionStringPair;
-
-        // Return the rust XDR bindings' input XDR definitions git versions used to build this binary.
-        fn get_soroban_xdr_bindings_base_xdr_git_versions() -> VersionStringPair;
-
-        // Return true if configured with cfg(feature="soroban-env-host-prev")
-        fn compiled_with_soroban_prev() -> bool;
+        // Return the soroban versions linked into this binary. Panics
+        // if the protocol version is not supported.
+        fn get_soroban_version_info(core_max_proto: u32) -> Vec<SorobanVersionInfo>;
 
         // Computes the resource fee given the transaction resource consumption
         // and network configuration.
@@ -257,6 +255,15 @@ mod rust_bridge {
             fee_config: CxxRentFeeConfiguration,
             current_ledger_seq: u32,
         ) -> Result<i64>;
+
+        // Checks if a provided `TransactionEnvelope` XDR can be parsed in the
+        // provided `protocol_version`.
+        fn can_parse_transaction(
+            config_max_protocol: u32,
+            protocol_version: u32,
+            xdr: &CxxBuf,
+            depth_limit: u32,
+        ) -> Result<bool>;
     }
 
     // And the extern "C++" block declares C++ stuff we're going to import to
@@ -268,14 +275,49 @@ mod rust_bridge {
         // stellar::LogLevel must match (in size and discriminant values) the
         // shared type declared above.
         type LogLevel;
-        fn shim_isLogLevelAtLeast(partition: &CxxString, level: LogLevel) -> bool;
-        fn shim_logAtPartitionAndLevel(partition: &CxxString, level: LogLevel, msg: &CxxString);
+        #[cfg(not(test))]
+        fn shim_isLogLevelAtLeast(partition: &CxxString, level: LogLevel) -> Result<bool>;
+        #[cfg(not(test))]
+        fn shim_logAtPartitionAndLevel(
+            partition: &CxxString,
+            level: LogLevel,
+            msg: &CxxString,
+        ) -> Result<()>;
+    }
+}
+
+impl From<Vec<u8>> for RustBuf {
+    fn from(value: Vec<u8>) -> Self {
+        Self { data: value }
+    }
+}
+
+impl AsRef<[u8]> for CxxBuf {
+    fn as_ref(&self) -> &[u8] {
+        self.data.as_slice()
+    }
+}
+
+impl CxxBuf {
+    #[cfg(feature = "testutils")]
+    fn replace_data_with(&mut self, slice: &[u8]) -> Result<(), Box<dyn std::error::Error>> {
+        if self.data.is_null() {
+            return Err("CxxBuf::replace_data_with: data is null".into());
+        }
+        while self.data.len() > 0 {
+            self.data.pin_mut().pop();
+        }
+        for byte in slice {
+            self.data.pin_mut().push(*byte);
+        }
+        Ok(())
     }
 }
 
 // Then we import various implementations to this module, for export through the bridge.
 mod b64;
-use std::str::FromStr;
+
+use core::panic;
 
 use b64::{from_base64, to_base64};
 
@@ -285,6 +327,13 @@ pub(crate) fn get_test_wasm_add_i32() -> Result<RustBuf, Box<dyn std::error::Err
         data: soroban_test_wasms::ADD_I32.iter().cloned().collect(),
     })
 }
+
+pub(crate) fn get_test_wasm_sum_i32() -> Result<RustBuf, Box<dyn std::error::Error>> {
+    Ok(RustBuf {
+        data: soroban_test_wasms::SUM_I32.iter().cloned().collect(),
+    })
+}
+
 pub(crate) fn get_test_wasm_contract_data() -> Result<RustBuf, Box<dyn std::error::Error>> {
     Ok(RustBuf {
         data: soroban_test_wasms::CONTRACT_STORAGE
@@ -306,16 +355,94 @@ pub(crate) fn get_test_wasm_err() -> Result<RustBuf, Box<dyn std::error::Error>>
     })
 }
 
+pub(crate) fn get_test_wasm_loadgen() -> Result<RustBuf, Box<dyn std::error::Error>> {
+    Ok(RustBuf {
+        data: soroban_test_wasms::LOADGEN.iter().cloned().collect(),
+    })
+}
+
+pub(crate) fn get_test_contract_sac_transfer() -> Result<RustBuf, Box<dyn std::error::Error>> {
+    Ok(RustBuf {
+        data: soroban_test_wasms::CONTRACT_SAC_TRANSFER_CONTRACT
+            .iter()
+            .cloned()
+            .collect(),
+    })
+}
+
 pub(crate) fn get_write_bytes() -> Result<RustBuf, Box<dyn std::error::Error>> {
     Ok(RustBuf {
         data: soroban_test_wasms::WRITE_BYTES.iter().cloned().collect(),
     })
 }
 
+pub(crate) fn get_hostile_large_val_wasm() -> Result<RustBuf, Box<dyn std::error::Error>> {
+    Ok(RustBuf {
+        data: soroban_test_wasms::HOSTILE_LARGE_VALUE
+            .iter()
+            .cloned()
+            .collect(),
+    })
+}
+
+pub(crate) fn get_auth_wasm() -> Result<RustBuf, Box<dyn std::error::Error>> {
+    Ok(RustBuf {
+        data: soroban_test_wasms::AUTH_TEST_CONTRACT
+            .iter()
+            .cloned()
+            .collect(),
+    })
+}
+
+fn get_no_arg_constructor_wasm() -> Result<RustBuf, Box<dyn std::error::Error>> {
+    Ok(RustBuf {
+        data: soroban_test_wasms::NO_ARGUMENT_CONSTRUCTOR_TEST_CONTRACT_P22
+            .iter()
+            .cloned()
+            .collect(),
+    })
+}
+
+fn get_constructor_with_args_p21_wasm() -> Result<RustBuf, Box<dyn std::error::Error>> {
+    Ok(RustBuf {
+        data: soroban_test_wasms::CONSTRUCTOR_TEST_CONTRACT_P21
+            .iter()
+            .cloned()
+            .collect(),
+    })
+}
+
+fn get_constructor_with_args_p22_wasm() -> Result<RustBuf, Box<dyn std::error::Error>> {
+    Ok(RustBuf {
+        data: soroban_test_wasms::CONSTRUCTOR_TEST_CONTRACT_P22
+            .iter()
+            .cloned()
+            .collect(),
+    })
+}
+
+pub(crate) fn get_custom_account_wasm() -> Result<RustBuf, Box<dyn std::error::Error>> {
+    Ok(RustBuf {
+        data: soroban_test_wasms::SIMPLE_ACCOUNT_CONTRACT
+            .iter()
+            .cloned()
+            .collect(),
+    })
+}
+
+pub(crate) fn get_invoke_contract_wasm() -> Result<RustBuf, Box<dyn std::error::Error>> {
+    Ok(RustBuf {
+        data: soroban_test_wasms::INVOKE_CONTRACT
+            .iter()
+            .cloned()
+            .collect(),
+    })
+}
+
 fn get_random_wasm(size: usize, seed: u64) -> Result<RustBuf, Box<dyn std::error::Error>> {
     use rand::{rngs::StdRng, RngCore, SeedableRng};
     use soroban_synth_wasm::*;
-    let mut fe = ModEmitter::new().func(Arity(0), 0);
+    let mut fe = ModEmitter::default().func(Arity(0), 0);
 
     // Generate a very exciting wasm that pushes and drops random numbers.
     //
@@ -353,12 +480,14 @@ fn get_random_wasm(size: usize, seed: u64) -> Result<RustBuf, Box<dyn std::error
 
 #[test]
 fn test_get_random_wasm() {
-    // The header will grow to 96 bytes when the body is larger than 16k bytes
-    // but the first 10 sizes will all have a 94 byte header.
-    const HEADERSZ: usize = 94;
+    // HEADERSZ varies a bit as we fiddle with the definition of the wasm
+    // synthesis system we want to check that it hasn't grown unreasonable and
+    // we're _basically_ building something of the requested size, or at least
+    // right order of magnitude.
+    const HEADERSZ: usize = 150;
     for i in 1..10 {
         let wasm = get_random_wasm(1000 * i, i as u64).unwrap();
-        assert_eq!(wasm.data.len(), 1000 * i + HEADERSZ);
+        assert!(wasm.data.len() < 1000 * i + HEADERSZ);
     }
 }
 
@@ -367,207 +496,78 @@ use rust_bridge::CxxFeeConfiguration;
 use rust_bridge::CxxLedgerEntryRentChange;
 use rust_bridge::CxxLedgerInfo;
 use rust_bridge::CxxRentFeeConfiguration;
+
 use rust_bridge::CxxTransactionResources;
 use rust_bridge::CxxWriteFeeConfiguration;
 use rust_bridge::FeePair;
 use rust_bridge::InvokeHostFunctionOutput;
 use rust_bridge::RustBuf;
-use rust_bridge::VersionNumPair;
-use rust_bridge::VersionStringPair;
-use rust_bridge::XDRHashesPair;
+use rust_bridge::SorobanVersionInfo;
 
 mod log;
-use crate::log::init_logging;
+#[cfg(feature = "testutils")]
+use ::log::{info, warn};
+use log::init_logging;
+#[cfg(feature = "testutils")]
+use log::partition::TX;
 
-// We have at least one, but possibly two, copies of soroban compiled
-// in to stellar-core. If we have two, ledgers that are exactly one
-// protocol _before_ the current (max-supported) protocol will run on
-// the `prev` copy of soroban. All others will run on the `curr` copy.
-// See `invoke_host_function` below.
+// We have multiple copies of soroban linked into stellar-core here. This is
+// accomplished using an adaptor module -- contract.rs -- mounted multiple times
+// into the same outer crate, inside different modules p21, p22, etc. each with
+// its own local binding for the external crate soroban_env_host. The
+// contract.rs module imports soroban_env_host from `super` which means each
+// instance of it sees a different soroban. This is a bit of a hack and only
+// works when the soroban versions all have a compatible _enough_ interface to
+// all be called from "the same" contract.rs.
 
 #[path = "."]
-mod soroban_curr {
-    pub(crate) use soroban_env_host_curr as soroban_env_host;
+mod p22 {
+    pub(crate) extern crate soroban_env_host_p22;
+    pub(crate) use soroban_env_host_p22 as soroban_env_host;
+
     pub(crate) mod contract;
+
+    // An adapter for some API breakage between p21 and p22.
+    pub(crate) const fn get_version_pre_release(v: &soroban_env_host::Version) -> u32 {
+        v.interface.pre_release
+    }
+
+    pub(crate) const fn get_version_protocol(v: &soroban_env_host::Version) -> u32 {
+        v.interface.protocol
+    }
 }
 
-#[cfg(feature = "soroban-env-host-prev")]
 #[path = "."]
-mod soroban_prev {
-    pub(crate) use soroban_env_host_prev as soroban_env_host;
+mod p21 {
+    pub(crate) extern crate soroban_env_host_p21;
+    pub(crate) use soroban_env_host_p21 as soroban_env_host;
+
     pub(crate) mod contract;
-}
 
-#[cfg(feature = "soroban-env-host-prev")]
-pub fn compiled_with_soroban_prev() -> bool {
-    true
-}
-
-#[cfg(not(feature = "soroban-env-host-prev"))]
-pub fn compiled_with_soroban_prev() -> bool {
-    false
-}
-
-use cargo_lock::{dependency::graph::EdgeDirection, Lockfile};
-
-fn package_matches_hash(pkg: &cargo_lock::Package, hash: &str) -> bool {
-    // Try comparing hash to hashes in either the package checksum or the source
-    // precise field
-    if let Some(cksum) = &pkg.checksum {
-        if cksum.to_string() == hash {
-            return true;
-        }
-    }
-    if let Some(src) = &pkg.source {
-        if let Some(precise) = src.precise() {
-            if precise == hash {
-                return true;
-            }
-        }
-    }
-    false
-}
-fn check_lockfile_has_expected_dep_tree(
-    stellar_core_proto_version: u32,
-    soroban_host_interface_version: u64,
-    lockfile: &Lockfile,
-    curr_or_prev: &str,
-    package_hash: &str,
-    expected: &str,
-) {
-    use soroban_curr::soroban_env_host::meta::{
-        get_ledger_protocol_version, get_pre_release_version,
-    };
-    let soroban_host_proto_version = get_ledger_protocol_version(soroban_host_interface_version);
-    let soroban_host_pre_release_version = get_pre_release_version(soroban_host_interface_version);
-
-    if cfg!(feature = "core-vnext") {
-        // In a stellar-core "vnext" build, core's protocol is set to 1 more
-        // than the network's current max-supported version, to prototype new
-        // work that we don't want to get released to the network by accident,
-        // during a point release.
-        //
-        // Soroban has no corresponding concept of a "vnext build" so we just
-        // use a weak version check here, and let core's protocol get ahead of
-        // soroban's in this type of build.
-        if stellar_core_proto_version < soroban_host_proto_version {
-            panic!(
-                "stellar-core \"{}\" protocol is {}, does not match soroban host \"{}\" protocol {}",
-                curr_or_prev, stellar_core_proto_version, curr_or_prev, soroban_host_proto_version
-            );
-        }
-    } else {
-        // In non-vnext core builds, we're more strict about the versions
-        // matching.
-        //
-        // FIXME: this is fairly harmless, but old versions of soroban didn't
-        // encode a protocol version in their interface version at all, so will
-        // report zero here. For now we ignore this, but should tighten the test
-        // up before final.
-        if soroban_host_proto_version != 0
-            && stellar_core_proto_version != soroban_host_proto_version
-        {
-            panic!(
-                "stellar-core \"{}\" protocol is {}, does not match soroban host \"{}\" protocol {}",
-                curr_or_prev, stellar_core_proto_version, curr_or_prev, soroban_host_proto_version
-            );
-        }
+    // An adapter for some API breakage between p21 and p22.
+    pub(crate) const fn get_version_pre_release(v: &soroban_env_host::Version) -> u32 {
+        soroban_env_host::meta::get_pre_release_version(v.interface)
     }
 
-    let pkg = lockfile
-        .packages
-        .iter()
-        .find(|p| p.name.as_str() == "soroban-env-host" && package_matches_hash(p, package_hash))
-        .expect("locating host package in Cargo.lock");
-
-    if soroban_host_pre_release_version != 0 && pkg.version.pre.is_empty() {
-        panic!("soroban interface version indicates pre-release {} but package version is {}, with empty prerelease component",
-                soroban_host_pre_release_version, pkg.version)
+    pub(crate) const fn get_version_protocol(v: &soroban_env_host::Version) -> u32 {
+        soroban_env_host::meta::get_ledger_protocol_version(v.interface)
     }
+}
 
-    if pkg.version.major == 0 || !pkg.version.pre.is_empty() {
-        eprintln!(
-            "Warning: soroban-env-host-{} is running a pre-release version {}",
-            curr_or_prev, pkg.version
+// We alias the latest soroban as soroban_curr to help reduce churn in code
+// that's just always supposed to use the latest.
+use p22 as soroban_curr;
+
+// This is called on startup and does any initial internal dynamic checks.
+pub fn check_sensible_soroban_config_for_protocol(core_max_proto: u32) {
+    use itertools::Itertools;
+    for (lo, hi) in HOST_MODULES.iter().tuple_windows() {
+        assert!(
+            lo.max_proto < hi.max_proto,
+            "host modules are not in ascending order"
         );
-    } else if pkg.version.major != stellar_core_proto_version as u64 {
-        panic!(
-            "soroban-env-host-{} version {} major version {} does not match expected protocol version {}",
-            curr_or_prev, pkg.version, pkg.version.major, stellar_core_proto_version
-        )
     }
-
-    let tree = lockfile
-        .dependency_tree()
-        .expect("calculating global dep tree of Cargo.lock");
-
-    let node = tree.nodes()[&pkg.into()];
-
-    let mut tree_buf = Vec::new();
-    tree.render(&mut tree_buf, node, EdgeDirection::Outgoing, true)
-        .expect("rendering dep tree");
-
-    let tree_str = String::from_utf8_lossy(&tree_buf);
-    // Normalize line endings to support Windows builds.
-    if tree_str.replace("\r\n", "\n") != expected.replace("\r\n", "\n") {
-        eprintln!(
-            "Expected '{}' host dependency tree (in host-dep-tree-{}.txt):",
-            curr_or_prev, curr_or_prev
-        );
-        eprintln!("---\n{}---", expected);
-        eprintln!(
-            "Found '{}' host dependency tree (in Cargo.lock):",
-            curr_or_prev
-        );
-        eprintln!("---\n{}---", tree_str);
-        panic!("Unexpected '{}' host dependency tree", curr_or_prev);
-    }
-}
-
-// This function performs a crude dynamic check that the contents of Cargo.lock
-// against-which the current binary was compiled specified _exactly_ the same
-// host dep trees that are stored (redundantly, graphically) in the files
-// host-dep-tree-curr.txt and (if applicable) host-dep-tree-prev.txt.
-//
-// The contents of all these files are compiled-in to the binary as static
-// strings. Any discrepancy between the logical content of Cargo.lock and the
-// derived dep tree(s) will cause the program to abort on startup.
-//
-// The point of this check is twofold: to catch cases where the developer
-// accidentally bumps dependencies (which cargo does fairly easily), and also to
-// make crystal clear when doing a commit that intentionally bumps dependencies
-// which of the _dependency tree(s)_ is being affected, and how.
-//
-// The check additionally checks that the major version number of soroban that
-// is compiled-in matches its max supported protocol number and that that
-// is the same as stellar-core's max supported protocol number.
-pub fn check_lockfile_has_expected_dep_trees(curr_max_protocol_version: u32) {
-    static CARGO_LOCK_FILE_CONTENT: &'static str = include_str!("../../../Cargo.lock");
-
-    static EXPECTED_HOST_DEP_TREE_CURR: &'static str = include_str!("host-dep-tree-curr.txt");
-    #[cfg(feature = "soroban-env-host-prev")]
-    static EXPECTED_HOST_DEP_TREE_PREV: &'static str = include_str!("host-dep-tree-prev.txt");
-
-    let lockfile = Lockfile::from_str(CARGO_LOCK_FILE_CONTENT)
-        .expect("parsing compiled-in Cargo.lock file content");
-
-    check_lockfile_has_expected_dep_tree(
-        curr_max_protocol_version,
-        soroban_env_host_curr::meta::INTERFACE_VERSION,
-        &lockfile,
-        "curr",
-        soroban_env_host_curr::VERSION.rev,
-        EXPECTED_HOST_DEP_TREE_CURR,
-    );
-    #[cfg(feature = "soroban-env-host-prev")]
-    check_lockfile_has_expected_dep_tree(
-        curr_max_protocol_version - 1,
-        soroban_env_host_prev::meta::INTERFACE_VERSION,
-        &lockfile,
-        "prev",
-        soroban_env_host_prev::VERSION.rev,
-        EXPECTED_HOST_DEP_TREE_PREV,
-    );
+    assert!(HOST_MODULES.last().unwrap().max_proto >= core_max_proto);
 }
 
 // The remainder of the file is implementations of functions
@@ -577,101 +577,27 @@ fn get_rustc_version() -> String {
     rustc_simple_version::RUSTC_VERSION.to_string()
 }
 
-fn get_soroban_env_pkg_versions() -> VersionStringPair {
-    VersionStringPair {
-        curr: soroban_curr::soroban_env_host::VERSION.pkg.to_string(),
-        #[cfg(feature = "soroban-env-host-prev")]
-        prev: soroban_prev::soroban_env_host::VERSION.pkg.to_string(),
-        #[cfg(not(feature = "soroban-env-host-prev"))]
-        prev: "".to_string(),
+fn get_soroban_version_info(core_max_proto: u32) -> Vec<SorobanVersionInfo> {
+    let infos: Vec<SorobanVersionInfo> = HOST_MODULES
+        .iter()
+        .map(|f| (f.get_soroban_version_info)(core_max_proto))
+        .collect();
+    // This check should be safe to keep. The feature soroban-vnext is passed
+    // through to soroban-env-host-p{NN}/next and so should enable protocol
+    // support for the next version simultaneously in core and soroban; and we
+    // should really never otherwise have core compiled with a protocol version
+    // that soroban doesn't support.
+    if infos
+        .iter()
+        .find(|i| i.env_max_proto >= core_max_proto)
+        .is_none()
+    {
+        panic!(
+            "no soroban host found supporting stellar-core protocol {}",
+            core_max_proto
+        );
     }
-}
-
-fn get_soroban_env_git_versions() -> VersionStringPair {
-    VersionStringPair {
-        curr: soroban_curr::soroban_env_host::VERSION.rev.to_string(),
-        #[cfg(feature = "soroban-env-host-prev")]
-        prev: soroban_prev::soroban_env_host::VERSION.rev.to_string(),
-        #[cfg(not(feature = "soroban-env-host-prev"))]
-        prev: "".to_string(),
-    }
-}
-
-fn get_soroban_env_ledger_protocol_versions() -> VersionNumPair {
-    use curr_host::meta::get_ledger_protocol_version;
-    use soroban_curr::soroban_env_host as curr_host;
-    #[cfg(feature = "soroban-env-host-prev")]
-    use soroban_prev::soroban_env_host as prev_host;
-    VersionNumPair {
-        curr: get_ledger_protocol_version(curr_host::VERSION.interface),
-        #[cfg(feature = "soroban-env-host-prev")]
-        prev: get_ledger_protocol_version(prev_host::VERSION.interface),
-        #[cfg(not(feature = "soroban-env-host-prev"))]
-        prev: 0,
-    }
-}
-
-fn get_soroban_env_pre_release_versions() -> VersionNumPair {
-    use curr_host::meta::get_pre_release_version;
-    use soroban_curr::soroban_env_host as curr_host;
-    #[cfg(feature = "soroban-env-host-prev")]
-    use soroban_prev::soroban_env_host as prev_host;
-    VersionNumPair {
-        curr: get_pre_release_version(curr_host::VERSION.interface),
-        #[cfg(feature = "soroban-env-host-prev")]
-        prev: get_pre_release_version(prev_host::VERSION.interface),
-        #[cfg(not(feature = "soroban-env-host-prev"))]
-        prev: 0,
-    }
-}
-
-fn get_soroban_xdr_bindings_pkg_versions() -> VersionStringPair {
-    VersionStringPair {
-        curr: soroban_curr::soroban_env_host::VERSION.xdr.pkg.to_string(),
-        #[cfg(feature = "soroban-env-host-prev")]
-        prev: soroban_prev::soroban_env_host::VERSION.xdr.pkg.to_string(),
-        #[cfg(not(feature = "soroban-env-host-prev"))]
-        prev: "".to_string(),
-    }
-}
-
-fn get_soroban_xdr_bindings_git_versions() -> VersionStringPair {
-    VersionStringPair {
-        curr: soroban_curr::soroban_env_host::VERSION.xdr.rev.to_string(),
-        #[cfg(feature = "soroban-env-host-prev")]
-        prev: soroban_prev::soroban_env_host::VERSION.xdr.rev.to_string(),
-        #[cfg(not(feature = "soroban-env-host-prev"))]
-        prev: "".to_string(),
-    }
-}
-
-fn get_soroban_xdr_bindings_base_xdr_git_versions() -> VersionStringPair {
-    let curr = match soroban_curr::soroban_env_host::VERSION.xdr.xdr {
-        "next" => soroban_curr::soroban_env_host::VERSION
-            .xdr
-            .xdr_next
-            .to_string(),
-        "curr" => soroban_curr::soroban_env_host::VERSION
-            .xdr
-            .xdr_curr
-            .to_string(),
-        _ => "unknown configuration".to_string(),
-    };
-    #[cfg(feature = "soroban-env-host-prev")]
-    let prev = match soroban_prev::soroban_env_host::VERSION.xdr.xdr {
-        "next" => soroban_prev::soroban_env_host::VERSION
-            .xdr
-            .xdr_next
-            .to_string(),
-        "curr" => soroban_prev::soroban_env_host::VERSION
-            .xdr
-            .xdr_curr
-            .to_string(),
-        _ => "unknown configuration".to_string(),
-    };
-    #[cfg(not(feature = "soroban-env-host-prev"))]
-    let prev = "".to_string();
-    VersionStringPair { curr, prev }
+    infos
 }
 
 impl std::fmt::Display for rust_bridge::BridgeError {
@@ -679,15 +605,114 @@ impl std::fmt::Display for rust_bridge::BridgeError {
         write!(f, "{:?}", self)
     }
 }
+
 impl std::error::Error for rust_bridge::BridgeError {}
 
-pub(crate) fn get_xdr_hashes() -> XDRHashesPair {
-    let curr = soroban_curr::contract::get_xdr_hashes();
-    #[cfg(feature = "soroban-env-host-prev")]
-    let prev = soroban_prev::contract::get_xdr_hashes();
-    #[cfg(not(feature = "soroban-env-host-prev"))]
-    let prev = vec![];
-    XDRHashesPair { curr, prev }
+// Rust does not support first-class modules. This means we cannot put multiple
+// modules into an array and iterate over it switching between them by protocol
+// number. Which is what we want to do! But as a workaround, we can copy
+// everything we want _from_ each module into a struct, and work with the struct
+// as a first-class value. This is what we do here.
+struct HostModule {
+    // Technically the `get_version_info` function returns the max_proto as
+    // well, but we want to compute it separately so it can be baked into a
+    // compile-time constant to minimize the cost of the protocol-based
+    // dispatch. The struct returned from `get_version_info` contains a bunch of
+    // dynamic strings, which is necessary due to cxx limitations.
+    max_proto: u32,
+    get_soroban_version_info: fn(u32) -> SorobanVersionInfo,
+    invoke_host_function: fn(
+        enable_diagnostics: bool,
+        instruction_limit: u32,
+        hf_buf: &CxxBuf,
+        resources_buf: &CxxBuf,
+        source_account_buf: &CxxBuf,
+        auth_entries: &Vec<CxxBuf>,
+        ledger_info: &CxxLedgerInfo,
+        ledger_entries: &Vec<CxxBuf>,
+        ttl_entries: &Vec<CxxBuf>,
+        base_prng_seed: &CxxBuf,
+        rent_fee_configuration: &CxxRentFeeConfiguration,
+    ) -> Result<InvokeHostFunctionOutput, Box<dyn std::error::Error>>,
+    compute_transaction_resource_fee:
+        fn(tx_resources: CxxTransactionResources, fee_config: CxxFeeConfiguration) -> FeePair,
+    compute_rent_fee: fn(
+        changed_entries: &Vec<CxxLedgerEntryRentChange>,
+        fee_config: CxxRentFeeConfiguration,
+        current_ledger_seq: u32,
+    ) -> i64,
+    compute_write_fee_per_1kb:
+        fn(bucket_list_size: i64, fee_config: CxxWriteFeeConfiguration) -> i64,
+    can_parse_transaction: fn(&CxxBuf, depth_limit: u32) -> bool,
+    #[cfg(feature = "testutils")]
+    rustbuf_containing_scval_to_string: fn(&RustBuf) -> String,
+    #[cfg(feature = "testutils")]
+    rustbuf_containing_diagnostic_event_to_string: fn(&RustBuf) -> String,
+}
+
+macro_rules! proto_versioned_functions_for_module {
+    ($module:ident) => {
+        HostModule {
+            max_proto: $module::contract::get_max_proto(),
+            get_soroban_version_info: $module::contract::get_soroban_version_info,
+            invoke_host_function: $module::contract::invoke_host_function,
+            compute_transaction_resource_fee: $module::contract::compute_transaction_resource_fee,
+            compute_rent_fee: $module::contract::compute_rent_fee,
+            compute_write_fee_per_1kb: $module::contract::compute_write_fee_per_1kb,
+            can_parse_transaction: $module::contract::can_parse_transaction,
+            #[cfg(feature = "testutils")]
+            rustbuf_containing_scval_to_string:
+                $module::contract::rustbuf_containing_scval_to_string,
+            #[cfg(feature = "testutils")]
+            rustbuf_containing_diagnostic_event_to_string:
+                $module::contract::rustbuf_containing_diagnostic_event_to_string,
+        }
+    };
+}
+
+// NB: this list should be in ascending order. Out of order will cause
+// an assert to fail in the by-protocol-number lookup function below.
+const HOST_MODULES: &'static [HostModule] = &[
+    proto_versioned_functions_for_module!(p21),
+    proto_versioned_functions_for_module!(p22),
+];
+
+fn get_host_module_for_protocol(
+    config_max_protocol: u32,
+    ledger_protocol_version: u32,
+) -> Result<&'static HostModule, Box<dyn std::error::Error>> {
+    if ledger_protocol_version > config_max_protocol {
+        return Err(Box::new(soroban_curr::contract::CoreHostError::General(
+            "protocol exceeds configured max",
+        )));
+    }
+    // Each host's max protocol implies a min protocol for the _next_
+    // host in the list. The first entry's min protocol is 0.
+    let mut curr_min_proto = 0;
+    for curr in HOST_MODULES.iter() {
+        assert!(curr_min_proto <= curr.max_proto);
+        if curr_min_proto <= ledger_protocol_version && ledger_protocol_version <= curr.max_proto {
+            return Ok(curr);
+        }
+        curr_min_proto = curr.max_proto + 1;
+    }
+    Err(Box::new(soroban_curr::contract::CoreHostError::General(
+        "unsupported protocol",
+    )))
+}
+
+#[test]
+fn protocol_dispatches_as_expected() {
+    assert_eq!(get_host_module_for_protocol(20, 20).unwrap().max_proto, 21);
+    assert_eq!(get_host_module_for_protocol(21, 21).unwrap().max_proto, 21);
+    assert_eq!(get_host_module_for_protocol(22, 22).unwrap().max_proto, 22);
+
+    // No protocols past the max known.
+    let last_proto = HOST_MODULES.last().unwrap().max_proto;
+    assert!(get_host_module_for_protocol(last_proto + 1, last_proto + 1).is_err());
+
+    // No ledger protocol has to be less than config max.
+    assert!(get_host_module_for_protocol(20, 21).is_err());
 }
 
 pub(crate) fn invoke_host_function(
@@ -695,7 +720,7 @@ pub(crate) fn invoke_host_function(
     enable_diagnostics: bool,
     instruction_limit: u32,
     hf_buf: &CxxBuf,
-    resources_buf: &CxxBuf,
+    resources_buf: CxxBuf,
     source_account_buf: &CxxBuf,
     auth_entries: &Vec<CxxBuf>,
     ledger_info: CxxLedgerInfo,
@@ -704,30 +729,26 @@ pub(crate) fn invoke_host_function(
     base_prng_seed: &CxxBuf,
     rent_fee_configuration: CxxRentFeeConfiguration,
 ) -> Result<InvokeHostFunctionOutput, Box<dyn std::error::Error>> {
-    if ledger_info.protocol_version > config_max_protocol {
-        return Err(Box::new(soroban_curr::contract::CoreHostError::General(
-            "unsupported protocol",
-        )));
-    }
-    #[cfg(feature = "soroban-env-host-prev")]
-    {
-        if ledger_info.protocol_version == config_max_protocol - 1 {
-            return soroban_prev::contract::invoke_host_function(
-                enable_diagnostics,
-                instruction_limit,
-                hf_buf,
-                resources_buf,
-                source_account_buf,
-                auth_entries,
-                ledger_info,
-                ledger_entries,
-                ttl_entries,
-                base_prng_seed,
-                rent_fee_configuration,
-            );
-        }
-    }
-    soroban_curr::contract::invoke_host_function(
+    let hm = get_host_module_for_protocol(config_max_protocol, ledger_info.protocol_version)?;
+    let res = (hm.invoke_host_function)(
+        enable_diagnostics,
+        instruction_limit,
+        hf_buf,
+        &resources_buf,
+        source_account_buf,
+        auth_entries,
+        &ledger_info,
+        ledger_entries,
+        ttl_entries,
+        base_prng_seed,
+        &rent_fee_configuration,
+    );
+
+    #[cfg(feature = "testutils")]
+    test_extra_protocol::maybe_invoke_host_function_again_and_compare_outputs(
+        &res,
+        &hm,
+        config_max_protocol,
         enable_diagnostics,
         instruction_limit,
         hf_buf,
@@ -739,7 +760,252 @@ pub(crate) fn invoke_host_function(
         ttl_entries,
         base_prng_seed,
         rent_fee_configuration,
-    )
+    );
+
+    res
+}
+
+// This module contains helper code to assist in comparing two versions of
+// soroban against one another by running the same transaction twice on
+// different hosts, and comparing its output for divergence or changes to costs.
+// All this functionality is gated by the "testutils" feature.
+#[cfg(feature = "testutils")]
+mod test_extra_protocol {
+
+    use super::*;
+    use std::hash::Hasher;
+    use std::str::FromStr;
+
+    pub(super) fn maybe_invoke_host_function_again_and_compare_outputs(
+        res1: &Result<InvokeHostFunctionOutput, Box<dyn std::error::Error>>,
+        hm1: &HostModule,
+        _config_max_protocol: u32,
+        _enable_diagnostics: bool,
+        mut instruction_limit: u32,
+        hf_buf: &CxxBuf,
+        mut resources_buf: CxxBuf,
+        source_account_buf: &CxxBuf,
+        auth_entries: &Vec<CxxBuf>,
+        mut ledger_info: CxxLedgerInfo,
+        ledger_entries: &Vec<CxxBuf>,
+        ttl_entries: &Vec<CxxBuf>,
+        base_prng_seed: &CxxBuf,
+        rent_fee_configuration: CxxRentFeeConfiguration,
+    ) {
+        if let Ok(extra) = std::env::var("SOROBAN_TEST_EXTRA_PROTOCOL") {
+            if let Ok(proto) = u32::from_str(&extra) {
+                info!(target: TX, "comparing soroban host for protocol {} with {}", ledger_info.protocol_version, proto);
+                if let Ok(hm2) = get_host_module_for_protocol(proto, proto) {
+                    if let Err(e) =
+                        modify_ledger_info_for_extra_test_execution(&mut ledger_info, proto)
+                    {
+                        warn!(target: TX, "modifying ledger info for protocol {} re-execution failed: {:?}", proto, e);
+                        return;
+                    }
+                    if let Err(e) = modify_resources_for_extra_test_execution(
+                        &mut instruction_limit,
+                        &mut resources_buf,
+                        proto,
+                    ) {
+                        warn!(target: TX, "modifying resources for protocol {} re-execution failed: {:?}", proto, e);
+                        return;
+                    }
+                    let res2 = (hm2.invoke_host_function)(
+                        /*enable_diagnostics=*/ true,
+                        instruction_limit,
+                        hf_buf,
+                        &resources_buf,
+                        source_account_buf,
+                        auth_entries,
+                        &ledger_info,
+                        ledger_entries,
+                        ttl_entries,
+                        base_prng_seed,
+                        &rent_fee_configuration,
+                    );
+                    if mostly_the_same_host_function_output(&res1, &res2) {
+                        info!(target: TX, "{}", summarize_host_function_output(hm1, &res1));
+                        info!(target: TX, "{}", summarize_host_function_output(hm2, &res2));
+                    } else {
+                        warn!(target: TX, "{}", summarize_host_function_output(hm1, &res1));
+                        warn!(target: TX, "{}", summarize_host_function_output(hm2, &res2));
+                    }
+                } else {
+                    warn!(target: TX, "SOROBAN_TEST_EXTRA_PROTOCOL={} not supported", proto);
+                }
+            } else {
+                warn!(target: TX, "invalid protocol number in SOROBAN_TEST_EXTRA_PROTOCOL");
+            }
+        }
+    }
+
+    fn modify_resources_for_extra_test_execution(
+        instruction_limit: &mut u32,
+        resources_buf: &mut CxxBuf,
+        new_protocol: u32,
+    ) -> Result<(), Box<dyn std::error::Error>> {
+        match new_protocol {
+            22 => {
+                use p22::contract::{inplace_modify_cxxbuf_encoded_type, xdr::SorobanResources};
+                if let Ok(extra) = std::env::var("SOROBAN_TEST_CPU_BUDGET_FACTOR") {
+                    if let Ok(factor) = u32::from_str(&extra) {
+                        inplace_modify_cxxbuf_encoded_type::<SorobanResources>(
+                            resources_buf,
+                            |resources: &mut SorobanResources| {
+                                info!(target: TX, "multiplying CPU budget for re-execution by {}: {} -> {} (and {} -> {} in limit)",
+                                        factor, resources.instructions, resources.instructions * factor, *instruction_limit, *instruction_limit * factor);
+                                resources.instructions *= factor;
+                                *instruction_limit *= factor;
+                                Ok(())
+                            },
+                        )?;
+                    } else {
+                        warn!(target: TX, "SOROBAN_TEST_CPU_BUDGET_FACTOR={} not valid", extra);
+                    }
+                }
+            }
+            _ => (),
+        }
+        Ok(())
+    }
+
+    fn modify_ledger_info_for_extra_test_execution(
+        ledger_info: &mut CxxLedgerInfo,
+        new_protocol: u32,
+    ) -> Result<(), Box<dyn std::error::Error>> {
+        // Here we need to simulate any upgrade that would be done in the ledger
+        // info to migrate from the old protocol to the new one. This is somewhat
+        // protocol-specific so we just write it by hand.
+
+        // At very least, we always need to upgrade the protocol version in the
+        // ledger info.
+        ledger_info.protocol_version = new_protocol;
+
+        match new_protocol {
+            22 => {
+                use p22::contract::{
+                    inplace_modify_cxxbuf_encoded_type, xdr::ContractCostParams,
+                    xdr::ContractCostType as CT,
+                };
+                // We have to modify some cost parameters in the ledger info and
+                // add some new ones to simulate p22. Note that a p21
+                // ContractCostParams structure will decode properly as a p22
+                // one, so we can just use the inplace-modify helper function.
+                inplace_modify_cxxbuf_encoded_type::<ContractCostParams>(
+                    &mut ledger_info.cpu_cost_params,
+                    |params: &mut ContractCostParams| {
+                        let mut cpu = params.0.to_vec();
+
+                        // We only adjust the cost types that changed dramatically
+                        // between 21 and 22. The rest are left as-is, they're close
+                        // enough to not matter for side-by-side testing.
+
+                        cpu[CT::VmInstantiation as usize].const_term = 31271;
+                        cpu[CT::VmInstantiation as usize].linear_term = 57504;
+
+                        cpu[CT::ParseWasmInstructions as usize].const_term = 37421;
+                        cpu[CT::ParseWasmInstructions as usize].linear_term = 32;
+
+                        cpu[CT::ParseWasmFunctions as usize].const_term = 0;
+                        cpu[CT::ParseWasmFunctions as usize].linear_term = 84156;
+
+                        cpu[CT::ParseWasmDataSegmentBytes as usize].const_term = 0;
+                        cpu[CT::ParseWasmDataSegmentBytes as usize].linear_term = 14;
+
+                        params.0 = cpu
+                            .try_into()
+                            .map_err(|_| "failed to convert VecM back to array")?;
+                        Ok(())
+                    },
+                )?;
+
+                inplace_modify_cxxbuf_encoded_type::<ContractCostParams>(
+                    &mut ledger_info.mem_cost_params,
+                    |params: &mut ContractCostParams| {
+                        let mut mem = params.0.to_vec();
+
+                        mem[CT::ParseWasmInstructions as usize].const_term = 13980;
+                        mem[CT::ParseWasmInstructions as usize].linear_term = 215;
+
+                        mem[CT::ParseWasmFunctions as usize].const_term = 0;
+                        mem[CT::ParseWasmFunctions as usize].linear_term = 23056;
+
+                        mem[CT::ParseWasmDataSegmentBytes as usize].const_term = 0;
+                        mem[CT::ParseWasmDataSegmentBytes as usize].linear_term = 129;
+
+                        params.0 = mem
+                            .try_into()
+                            .map_err(|_| "failed to convert VecM back to array")?;
+                        Ok(())
+                    },
+                )?;
+            }
+            _ => (),
+        }
+
+        Ok(())
+    }
+
+    fn hash_rustbuf(buf: &RustBuf) -> u16 {
+        use std::hash::Hash;
+        let mut hasher = std::hash::DefaultHasher::new();
+        buf.data.hash(&mut hasher);
+        hasher.finish() as u16
+    }
+    fn hash_rustbufs(bufs: &Vec<RustBuf>) -> u16 {
+        use std::hash::Hash;
+        let mut hasher = std::hash::DefaultHasher::new();
+        for buf in bufs.iter() {
+            buf.data.hash(&mut hasher);
+        }
+        hasher.finish() as u16
+    }
+    fn mostly_the_same_host_function_output(
+        res: &Result<InvokeHostFunctionOutput, Box<dyn std::error::Error>>,
+        res2: &Result<InvokeHostFunctionOutput, Box<dyn std::error::Error>>,
+    ) -> bool {
+        match (res, res2) {
+            (Ok(res), Ok(res2)) => {
+                res.success == res2.success
+                    && hash_rustbuf(&res.result_value) == hash_rustbuf(&res2.result_value)
+                    && hash_rustbufs(&res.contract_events) == hash_rustbufs(&res2.contract_events)
+                    && hash_rustbufs(&res.modified_ledger_entries)
+                        == hash_rustbufs(&res2.modified_ledger_entries)
+                    && res.rent_fee == res2.rent_fee
+            }
+            (Err(e), Err(e2)) => format!("{:?}", e) == format!("{:?}", e2),
+            _ => false,
+        }
+    }
+    fn summarize_host_function_output(
+        hm: &HostModule,
+        res: &Result<InvokeHostFunctionOutput, Box<dyn std::error::Error>>,
+    ) -> String {
+        match res {
+            Ok(res) if res.success => format!(
+                "proto={}, ok/succ, res={:x}/{}, events={:x}, entries={:x}, rent={}, cpu={}, mem={}, nsec={}",
+                hm.max_proto,
+                hash_rustbuf(&res.result_value),
+                (hm.rustbuf_containing_scval_to_string)(&res.result_value),
+                hash_rustbufs(&res.contract_events),
+                hash_rustbufs(&res.modified_ledger_entries),
+                res.rent_fee,
+                res.cpu_insns,
+                res.mem_bytes,
+                res.time_nsecs
+            ),
+            Ok(res) => format!(
+                "proto={}, ok/fail, cpu={}, mem={}, nsec={}, diag={:?}",
+                hm.max_proto,
+                res.cpu_insns,
+                res.mem_bytes,
+                res.time_nsecs,
+                res.diagnostic_events.iter().map(|d|
+                    (hm.rustbuf_containing_diagnostic_event_to_string)(d)).collect::<Vec<String>>()
+            ),
+            Err(e) => format!("proto={}, error={:?}", hm.max_proto, e),
+        }
+    }
 }
 
 pub(crate) fn compute_transaction_resource_fee(
@@ -748,24 +1014,21 @@ pub(crate) fn compute_transaction_resource_fee(
     tx_resources: CxxTransactionResources,
     fee_config: CxxFeeConfiguration,
 ) -> Result<FeePair, Box<dyn std::error::Error>> {
-    if protocol_version > config_max_protocol {
-        return Err(Box::new(soroban_curr::contract::CoreHostError::General(
-            "unsupported protocol",
-        )));
-    }
-    #[cfg(feature = "soroban-env-host-prev")]
-    {
-        if protocol_version == config_max_protocol - 1 {
-            return Ok(soroban_prev::contract::compute_transaction_resource_fee(
-                tx_resources,
-                fee_config,
-            ));
-        }
-    }
-    Ok(soroban_curr::contract::compute_transaction_resource_fee(
+    let hm = get_host_module_for_protocol(config_max_protocol, protocol_version)?;
+    Ok((hm.compute_transaction_resource_fee)(
         tx_resources,
         fee_config,
     ))
+}
+
+pub(crate) fn can_parse_transaction(
+    config_max_protocol: u32,
+    protocol_version: u32,
+    xdr: &CxxBuf,
+    depth_limit: u32,
+) -> Result<bool, Box<dyn std::error::Error>> {
+    let hm = get_host_module_for_protocol(config_max_protocol, protocol_version)?;
+    Ok((hm.can_parse_transaction)(xdr, depth_limit))
 }
 
 pub(crate) fn compute_rent_fee(
@@ -775,22 +1038,8 @@ pub(crate) fn compute_rent_fee(
     fee_config: CxxRentFeeConfiguration,
     current_ledger_seq: u32,
 ) -> Result<i64, Box<dyn std::error::Error>> {
-    if protocol_version > config_max_protocol {
-        return Err(Box::new(soroban_curr::contract::CoreHostError::General(
-            "unsupported protocol",
-        )));
-    }
-    #[cfg(feature = "soroban-env-host-prev")]
-    {
-        if protocol_version == config_max_protocol - 1 {
-            return Ok(soroban_prev::contract::compute_rent_fee(
-                changed_entries,
-                fee_config,
-                current_ledger_seq,
-            ));
-        }
-    }
-    Ok(soroban_curr::contract::compute_rent_fee(
+    let hm = get_host_module_for_protocol(config_max_protocol, protocol_version)?;
+    Ok((hm.compute_rent_fee)(
         changed_entries,
         fee_config,
         current_ledger_seq,
@@ -803,24 +1052,8 @@ pub(crate) fn compute_write_fee_per_1kb(
     bucket_list_size: i64,
     fee_config: CxxWriteFeeConfiguration,
 ) -> Result<i64, Box<dyn std::error::Error>> {
-    if protocol_version > config_max_protocol {
-        return Err(Box::new(soroban_curr::contract::CoreHostError::General(
-            "unsupported protocol",
-        )));
-    }
-    #[cfg(feature = "soroban-env-host-prev")]
-    {
-        if protocol_version == config_max_protocol - 1 {
-            return Ok(soroban_prev::contract::compute_write_fee_per_1kb(
-                bucket_list_size,
-                fee_config,
-            ));
-        }
-    }
-    Ok(soroban_curr::contract::compute_write_fee_per_1kb(
-        bucket_list_size,
-        fee_config,
-    ))
+    let hm = get_host_module_for_protocol(config_max_protocol, protocol_version)?;
+    Ok((hm.compute_write_fee_per_1kb)(bucket_list_size, fee_config))
 }
 
 fn start_tracy() {

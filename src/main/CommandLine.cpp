@@ -2,11 +2,17 @@
 // under the Apache License, Version 2.0. See the COPYING file at the root
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
+// clang-format off
+// This needs to be included first
+#include "rust/RustVecXdrMarshal.h"
+// clang-format on
+
 #include "main/CommandLine.h"
 #include "bucket/BucketManager.h"
 #include "catchup/CatchupConfiguration.h"
 #include "catchup/CatchupRange.h"
 #include "catchup/ReplayDebugMetaWork.h"
+#include "crypto/SHA.h"
 #include "herder/Herder.h"
 #include "history/HistoryArchiveManager.h"
 #include "historywork/BatchDownloadWork.h"
@@ -18,16 +24,24 @@
 #include "main/Diagnostics.h"
 #include "main/ErrorMessages.h"
 #include "main/PersistentState.h"
+#include "main/SettingsUpgradeUtils.h"
 #include "main/StellarCoreVersion.h"
 #include "main/dumpxdr.h"
+#include "medida/metrics_registry.h"
 #include "overlay/OverlayManager.h"
 #include "rust/RustBridge.h"
 #include "scp/QuorumSetUtils.h"
+#include "transactions/TransactionUtils.h"
 #include "util/Logging.h"
 #include "util/types.h"
 #include "work/WorkScheduler.h"
 
+#include <catch.hpp>
+#include <cereal/archives/json.hpp>
+#include <cereal/cereal.hpp>
+
 #ifdef BUILD_TESTS
+#include "simulation/ApplyLoad.h"
 #include "test/Fuzzer.h"
 #include "test/fuzz.h"
 #include "test/test.h"
@@ -386,21 +400,23 @@ clara::Opt
 inMemoryParser(bool& inMemory)
 {
     return clara::Opt{inMemory}["--in-memory"](
-        "store working ledger in memory rather than database");
+        "(DEPRECATED) store working ledger in memory rather than database");
 }
 
 clara::Opt
 startAtLedgerParser(uint32_t& startAtLedger)
 {
     return clara::Opt{startAtLedger, "LEDGER"}["--start-at-ledger"](
-        "start in-memory run with replay from historical ledger number");
+        "(DEPRECATED) start in-memory run with replay from historical ledger "
+        "number");
 }
 
 clara::Opt
 startAtHashParser(std::string& startAtHash)
 {
     return clara::Opt{startAtHash, "HASH"}["--start-at-hash"](
-        "start in-memory run with replay from historical ledger hash");
+        "(DEPRECATED) start in-memory run with replay from historical ledger "
+        "hash");
 }
 
 clara::Opt
@@ -445,6 +461,13 @@ limitParser(std::optional<std::uint64_t>& limit)
     return clara::Opt{[&](std::string const& arg) { limit = std::stoull(arg); },
                       "LIMIT"}["--limit"](
         "process only this many recent ledger entries (not *most* recent)");
+}
+
+clara::Opt
+includeAllStatesParser(bool& include)
+{
+    return clara::Opt{include}["--include-all-states"](
+        "include all non-dead states of the entry into query results");
 }
 
 int
@@ -675,6 +698,12 @@ CommandLine::selectCommand(std::string const& commandName)
 void
 CommandLine::writeToStream(std::string const& exeName, std::ostream& os) const
 {
+#ifdef BUILD_TESTS
+    // Printing this line enables automatic test discovery in VSCode, and
+    // it is generally harmless otherwise (only shown in a BUILD_TESTS build).
+    std::cout << "Catch2 v" << CATCH_VERSION_MAJOR << "." << CATCH_VERSION_MINOR
+              << "." << CATCH_VERSION_PATCH << std::endl;
+#endif
     os << "usage:\n"
        << "  " << exeName << " "
        << "COMMAND";
@@ -1159,6 +1188,15 @@ runMergeBucketList(CommandLineArgs const& args)
 }
 
 int
+runDumpStateArchivalStatistics(CommandLineArgs const& args)
+{
+    CommandLine::ConfigOption configOption;
+    return runWithHelp(args, {configurationParser(configOption)}, [&] {
+        return dumpStateArchivalStatistics(configOption.getConfig());
+    });
+}
+
+int
 runDumpLedger(CommandLineArgs const& args)
 {
     CommandLine::ConfigOption configOption;
@@ -1168,19 +1206,20 @@ runDumpLedger(CommandLineArgs const& args)
     std::optional<uint64_t> limit;
     std::optional<std::string> groupBy;
     std::optional<std::string> aggregate;
-    return runWithHelp(args,
-                       {configurationParser(configOption),
-                        outputFileParser(outputFile).required(),
-                        filterQueryParser(filterQuery),
-                        lastModifiedLedgerCountParser(lastModifiedLedgerCount),
-                        limitParser(limit), groupByParser(groupBy),
-                        aggregateParser(aggregate)},
-                       [&] {
-                           return dumpLedger(configOption.getConfig(),
-                                             outputFile, filterQuery,
-                                             lastModifiedLedgerCount, limit,
-                                             groupBy, aggregate);
-                       });
+    bool includeAllStates = false;
+    return runWithHelp(
+        args,
+        {configurationParser(configOption),
+         outputFileParser(outputFile).required(),
+         filterQueryParser(filterQuery),
+         lastModifiedLedgerCountParser(lastModifiedLedgerCount),
+         limitParser(limit), groupByParser(groupBy), aggregateParser(aggregate),
+         includeAllStatesParser(includeAllStates)},
+        [&] {
+            return dumpLedger(configOption.getConfig(), outputFile, filterQuery,
+                              lastModifiedLedgerCount, limit, groupBy,
+                              aggregate, includeAllStates);
+        });
 }
 
 int
@@ -1226,6 +1265,192 @@ runUpgradeDB(CommandLineArgs const& args)
 }
 
 int
+getSettingsUpgradeTransactions(CommandLineArgs const& args)
+{
+    std::string netId;
+
+    int64_t seqNum;
+    std::string upgradeFile;
+
+    bool signTxs = false;
+
+    auto signTxnOption =
+        clara::Opt{signTxs}["--signtxs"]("sign all transactions");
+
+    auto netIdOption = clara::Opt(netId, "NETWORK-PASSPHRASE")["--netid"](
+                           "network ID used for signing")
+                           .required();
+
+    auto netIdParser = ParserWithValidation{
+        netIdOption, required(netId, "NETWORK-PASSPHRASE")};
+
+    std::string id;
+
+    std::string base64Xdr;
+    auto base64Option = clara::Opt{base64Xdr, "XDR-BASE64"}["--xdr"](
+                            "ConfigUpgradeSet in base64")
+                            .required();
+
+    auto base64Parser =
+        ParserWithValidation{base64Option, required(base64Xdr, "XDR-BASE64")};
+
+    ParserWithValidation seqNumParser{
+        clara::Arg(seqNum, "SequenceNumber").required(),
+        [&] { return seqNum >= 0 ? "" : "SequenceNumber must be >= 0"; }};
+
+    return runWithHelp(
+        args,
+        {requiredArgParser(id, "PublicKey"), seqNumParser,
+         requiredArgParser(netId, "NetworkPassphrase"), base64Parser,
+         signTxnOption},
+        [&] {
+            ConfigUpgradeSet upgradeSet;
+            std::vector<uint8_t> binBlob;
+            decoder::decode_b64(base64Xdr, binBlob);
+            xdr::xdr_from_opaque(binBlob, upgradeSet);
+
+            PublicKey pk = KeyUtils::fromStrKey<PublicKey>(id);
+
+            std::vector<TransactionEnvelope> txsToSign;
+            auto restoreRes = getWasmRestoreTx(pk, seqNum + 1);
+            txsToSign.emplace_back(restoreRes.first);
+
+            auto uploadRes = getUploadTx(pk, seqNum + 2);
+            txsToSign.emplace_back(uploadRes.first);
+            auto const& contractCodeLedgerKey = uploadRes.second;
+
+            auto createRes =
+                getCreateTx(pk, contractCodeLedgerKey, netId, seqNum + 3);
+            txsToSign.emplace_back(std::get<0>(createRes));
+            auto const& contractSourceRefLedgerKey = std::get<1>(createRes);
+            auto const& contractID = std::get<2>(createRes);
+
+            auto invokeRes = getInvokeTx(pk, contractCodeLedgerKey,
+                                         contractSourceRefLedgerKey, contractID,
+                                         upgradeSet, seqNum + 4);
+            txsToSign.emplace_back(invokeRes.first);
+            auto const& upgradeSetKey = invokeRes.second;
+
+            if (signTxs)
+            {
+                signtxns(txsToSign, netId, true, false, true);
+            }
+            else
+            {
+                TransactionSignaturePayload payload;
+                payload.networkId = sha256(netId);
+                payload.taggedTransaction.type(ENVELOPE_TYPE_TX);
+
+                auto tx1 =
+                    decoder::encode_b64(xdr::xdr_to_opaque(txsToSign.at(0)));
+                auto payload1 = payload;
+                payload1.taggedTransaction.tx() = txsToSign.at(0).v1().tx;
+
+                auto tx2 =
+                    decoder::encode_b64(xdr::xdr_to_opaque(txsToSign.at(1)));
+                auto payload2 = payload;
+                payload2.taggedTransaction.tx() = txsToSign.at(1).v1().tx;
+
+                auto tx3 =
+                    decoder::encode_b64(xdr::xdr_to_opaque(txsToSign.at(2)));
+                auto payload3 = payload;
+                payload3.taggedTransaction.tx() = txsToSign.at(2).v1().tx;
+
+                std::cerr
+                    << "Unsigned TransactionEnvelope to upload upgrade WASM "
+                    << std::endl;
+                std::cout << tx1 << std::endl;
+                std::cout << binToHex(xdr::xdr_to_opaque(
+                                 sha256(xdr::xdr_to_opaque(payload1))))
+                          << std::endl;
+
+                std::cerr << "Unsigned TransactionEnvelope to create upgrade "
+                             "contract "
+                          << std::endl;
+
+                std::cout << tx2 << std::endl;
+                std::cout << binToHex(xdr::xdr_to_opaque(
+                                 sha256(xdr::xdr_to_opaque(payload2))))
+                          << std::endl;
+
+                std::cerr
+                    << "Unsigned TransactionEnvelope to invoke contract with "
+                       "upgrade bytes "
+                    << std::endl;
+                std::cout << tx3 << std::endl;
+                std::cout << binToHex(xdr::xdr_to_opaque(
+                                 sha256(xdr::xdr_to_opaque(payload3))))
+                          << std::endl;
+            }
+
+            std::cout << decoder::encode_b64(xdr::xdr_to_opaque(upgradeSetKey))
+                      << std::endl;
+
+            return 0;
+        });
+}
+
+int
+runCheckQuorumIntersection(CommandLineArgs const& args)
+{
+    CommandLine::ConfigOption configOption;
+    std::string jsonPath;
+    return runWithHelp(
+        args,
+        {logLevelParser(configOption.mLogLevel), fileNameParser(jsonPath),
+         consoleParser(configOption.mConsoleLog),
+         clara::Opt{configOption.mConfigFile,
+                    "FILE-NAME"}["--conf"](fmt::format(
+             FMT_STRING("specify a config file to enable human readable "
+                        "node names (optional, '{}' for STDIN)"),
+             Config::STDIN_SPECIAL_NAME))},
+        [&] {
+            try
+            {
+                std::optional<Config> cfg = std::nullopt;
+                if (configOption.mConfigFile.empty())
+                {
+                    // Need to set up logging in this case because there is no
+                    // `getConfig` call (which would otherwise set up logging)
+                    Logging::setLoggingToConsole(true);
+                    Logging::setLogLevel(configOption.mLogLevel, nullptr);
+                }
+                else
+                {
+                    cfg.emplace(configOption.getConfig(true));
+                }
+                if (checkQuorumIntersectionFromJson(jsonPath, cfg))
+                {
+                    CLOG_INFO(SCP, "Network enjoys quorum intersection");
+                    return 0;
+                }
+                else
+                {
+                    CLOG_WARNING(SCP,
+                                 "Network does not enjoy quorum intersection");
+                    return 1;
+                }
+            }
+            catch (KeyUtils::InvalidStrKey const& e)
+            {
+                CLOG_FATAL(
+                    SCP,
+                    "check-quorum-intersection encountered an "
+                    "error: Invalid public key in JSON file. JSON file must be "
+                    "generated with the 'fullkeys' parameter set to 'true'.");
+                return 2;
+            }
+            catch (std::exception const& e)
+            {
+                CLOG_FATAL(SCP,
+                           "check-quorum-intersection encountered an error: {}",
+                           e.what());
+                return 2;
+            }
+        });
+}
+
+int
 runNewHist(CommandLineArgs const& args)
 {
     CommandLine::ConfigOption configOption;
@@ -1249,23 +1474,6 @@ runOfflineInfo(CommandLineArgs const& args)
         showOfflineInfo(configOption.getConfig(), true);
         return 0;
     });
-}
-
-int
-runOfflineClose(CommandLineArgs const& args)
-{
-    CommandLine::ConfigOption configOption;
-    size_t nLedgers{0};
-
-    ParserWithValidation numLedgersParser{
-        clara::Arg(nLedgers, "NUM_LEDGERS").required(),
-        [&] { return nLedgers > 0 ? "" : "Ledger count must be non-zero"; }};
-
-    return runWithHelp(
-        args, {configurationParser(configOption), numLedgersParser}, [&] {
-            closeLedgersOffline(configOption.getConfig(), true, nLedgers);
-            return 0;
-        });
 }
 
 int
@@ -1446,79 +1654,43 @@ runSignTransaction(CommandLineArgs const& args)
 int
 runVersion(CommandLineArgs const&)
 {
+    rust::Vec<SorobanVersionInfo> rustVersions =
+        rust_bridge::get_soroban_version_info(
+            Config::CURRENT_LEDGER_PROTOCOL_VERSION);
+
     std::cout << STELLAR_CORE_VERSION << std::endl;
+    std::cout << "ledger protocol version: "
+              << Config::CURRENT_LEDGER_PROTOCOL_VERSION << std::endl;
     std::cout << "rust version: " << rust_bridge::get_rustc_version().c_str()
               << std::endl;
 
-    std::cout << "soroban-env-host: " << std::endl;
+    std::cout << "soroban-env-host versions: " << std::endl;
 
-    std::cout << "    curr:" << std::endl;
-    std::cout << "        package version: "
-              << rust_bridge::get_soroban_env_pkg_versions().curr.c_str()
-              << std::endl;
-
-    std::cout << "        git version: "
-              << rust_bridge::get_soroban_env_git_versions().curr.c_str()
-              << std::endl;
-
-    std::cout << "        ledger protocol version: "
-              << rust_bridge::get_soroban_env_ledger_protocol_versions().curr
-              << std::endl;
-
-    std::cout << "        pre-release version: "
-              << rust_bridge::get_soroban_env_pre_release_versions().curr
-              << std::endl;
-
-    std::cout << "        rs-stellar-xdr:" << std::endl;
-
-    std::cout
-        << "            package version: "
-        << rust_bridge::get_soroban_xdr_bindings_pkg_versions().curr.c_str()
-        << std::endl;
-    std::cout
-        << "            git version: "
-        << rust_bridge::get_soroban_xdr_bindings_git_versions().curr.c_str()
-        << std::endl;
-    std::cout << "            base XDR git version: "
-              << rust_bridge::get_soroban_xdr_bindings_base_xdr_git_versions()
-                     .curr.c_str()
-              << std::endl;
-
-    if (rust_bridge::compiled_with_soroban_prev())
+    size_t i = 0;
+    for (auto& host : rustVersions)
     {
-        std::cout << "    prev:" << std::endl;
-        std::cout << "        package version: "
-                  << rust_bridge::get_soroban_env_pkg_versions().prev.c_str()
+        std::cout << "    host[" << i << "]:" << std::endl;
+        std::cout << "        package version: " << host.env_pkg_ver.c_str()
                   << std::endl;
 
-        std::cout << "        git version: "
-                  << rust_bridge::get_soroban_env_git_versions().prev.c_str()
+        std::cout << "        git version: " << host.env_git_rev.c_str()
                   << std::endl;
 
-        std::cout
-            << "        ledger protocol version: "
-            << rust_bridge::get_soroban_env_ledger_protocol_versions().prev
-            << std::endl;
+        std::cout << "        ledger protocol version: " << host.env_max_proto
+                  << std::endl;
 
-        std::cout << "        pre-release version: "
-                  << rust_bridge::get_soroban_env_pre_release_versions().prev
+        std::cout << "        pre-release version: " << host.env_pre_release_ver
                   << std::endl;
 
         std::cout << "        rs-stellar-xdr:" << std::endl;
 
-        std::cout
-            << "            package version: "
-            << rust_bridge::get_soroban_xdr_bindings_pkg_versions().prev.c_str()
-            << std::endl;
-        std::cout
-            << "            git version: "
-            << rust_bridge::get_soroban_xdr_bindings_git_versions().prev.c_str()
-            << std::endl;
-        std::cout
-            << "            base XDR git version: "
-            << rust_bridge::get_soroban_xdr_bindings_base_xdr_git_versions()
-                   .prev.c_str()
-            << std::endl;
+        std::cout << "            package version: " << host.xdr_pkg_ver.c_str()
+                  << std::endl;
+        std::cout << "            git version: " << host.xdr_git_rev.c_str()
+                  << std::endl;
+        std::cout << "            base XDR git version: "
+                  << host.xdr_base_git_rev.c_str() << std::endl;
+        ++i;
     }
     return 0;
 }
@@ -1629,6 +1801,167 @@ runGenFuzz(CommandLineArgs const& args)
             return 0;
         });
 }
+
+int
+runApplyLoad(CommandLineArgs const& args)
+{
+    CommandLine::ConfigOption configOption;
+
+    uint64_t ledgerMaxInstructions = 0;
+    uint64_t ledgerMaxReadLedgerEntries = 0;
+    uint64_t ledgerMaxReadBytes = 0;
+    uint64_t ledgerMaxWriteLedgerEntries = 0;
+    uint64_t ledgerMaxWriteBytes = 0;
+    uint64_t ledgerMaxTxCount = 0;
+    uint64_t ledgerMaxTransactionsSizeBytes = 0;
+
+    ParserWithValidation ledgerMaxInstructionsParser{
+        clara::Opt(ledgerMaxInstructions,
+                   "LedgerMaxInstructions")["--ledger-max-instructions"]
+            .required(),
+        [&] {
+            return ledgerMaxInstructions > 0
+                       ? ""
+                       : "ledgerMaxInstructions must be > 0";
+        }};
+
+    ParserWithValidation ledgerMaxReadLedgerEntriesParser{
+        clara::Opt(ledgerMaxReadLedgerEntries,
+                   "LedgerMaxReadLedgerEntries")["--ledger-max-read-entries"]
+            .required(),
+        [&] {
+            return ledgerMaxReadLedgerEntries > 0
+                       ? ""
+                       : "ledgerMaxReadLedgerEntries must be > 0";
+        }};
+
+    ParserWithValidation ledgerMaxReadBytesParser{
+        clara::Opt(ledgerMaxReadBytes,
+                   "LedgerMaxReadBytes")["--ledger-max-read-bytes"]
+            .required(),
+        [&] {
+            return ledgerMaxReadBytes > 0 ? ""
+                                          : "ledgerMaxReadBytes must be > 0";
+        }};
+
+    ParserWithValidation ledgerMaxWriteLedgerEntriesParser{
+        clara::Opt(ledgerMaxWriteLedgerEntries,
+                   "LedgerMaxWriteLedgerEntries")["--ledger-max-write-entries"]
+            .required(),
+        [&] {
+            return ledgerMaxWriteLedgerEntries > 0
+                       ? ""
+                       : "ledgerMaxWriteLedgerEntries must be > 0";
+        }};
+
+    ParserWithValidation ledgerMaxWriteBytesParser{
+        clara::Opt(ledgerMaxWriteBytes,
+                   "LedgerMaxWriteBytes")["--ledger-max-write-bytes"]
+            .required(),
+        [&] {
+            return ledgerMaxWriteBytes > 0 ? ""
+                                           : "ledgerMaxWriteBytes must be > 0";
+        }};
+
+    ParserWithValidation ledgerMaxTxCountParser{
+        clara::Opt(ledgerMaxTxCount,
+                   "LedgerMaxTxCount")["--ledger-max-tx-count"]
+            .required(),
+        [&] {
+            return ledgerMaxTxCount > 0 ? "" : "ledgerMaxTxCount must be > 0";
+        }};
+
+    ParserWithValidation ledgerMaxTransactionsSizeBytesParser{
+        clara::Opt(ledgerMaxTransactionsSizeBytes,
+                   "LedgerMaxTransactionsSizeBytes")["--ledger-max-tx-size"]
+            .required(),
+        [&] {
+            return ledgerMaxTransactionsSizeBytes > 0
+                       ? ""
+                       : "ledgerMaxTransactionsSizeBytes must be > 0";
+        }};
+
+    return runWithHelp(
+        args,
+        {configurationParser(configOption), ledgerMaxInstructionsParser,
+         ledgerMaxReadLedgerEntriesParser, ledgerMaxReadBytesParser,
+         ledgerMaxWriteLedgerEntriesParser, ledgerMaxWriteBytesParser,
+         ledgerMaxTxCountParser, ledgerMaxTransactionsSizeBytesParser},
+        [&] {
+            auto config = configOption.getConfig();
+            config.RUN_STANDALONE = true;
+
+            VirtualClock clock(VirtualClock::REAL_TIME);
+            auto appPtr = Application::create(clock, config);
+
+            auto& app = *appPtr;
+            {
+                auto& lm = app.getLedgerManager();
+                app.start();
+
+                ApplyLoad al(app, ledgerMaxInstructions,
+                             ledgerMaxReadLedgerEntries, ledgerMaxReadBytes,
+                             ledgerMaxWriteLedgerEntries, ledgerMaxWriteBytes,
+                             ledgerMaxTxCount, ledgerMaxTransactionsSizeBytes);
+
+                auto& ledgerClose =
+                    app.getMetrics().NewTimer({"ledger", "ledger", "close"});
+                ledgerClose.Clear();
+
+                auto& cpuInsRatio = app.getMetrics().NewHistogram(
+                    {"soroban", "host-fn-op",
+                     "invoke-time-fsecs-cpu-insn-ratio"});
+                cpuInsRatio.Clear();
+
+                auto& cpuInsRatioExclVm = app.getMetrics().NewHistogram(
+                    {"soroban", "host-fn-op",
+                     "invoke-time-fsecs-cpu-insn-ratio-excl-vm"});
+                cpuInsRatioExclVm.Clear();
+
+                for (size_t i = 0; i < 20; ++i)
+                {
+                    al.benchmark();
+                }
+
+                CLOG_INFO(Perf, "Max ledger close: {} milliseconds",
+                          ledgerClose.max());
+                CLOG_INFO(Perf, "Min ledger close: {} milliseconds",
+                          ledgerClose.min());
+                CLOG_INFO(Perf, "Mean ledger close:  {} milliseconds",
+                          ledgerClose.mean());
+
+                CLOG_INFO(Perf, "Max CPU ins ratio: {}",
+                          cpuInsRatio.max() / 1000000);
+                CLOG_INFO(Perf, "Mean CPU ins ratio:  {}",
+                          cpuInsRatio.mean() / 1000000);
+
+                CLOG_INFO(Perf, "Max CPU ins ratio excl VM: {}",
+                          cpuInsRatioExclVm.max() / 1000000);
+                CLOG_INFO(Perf, "Mean CPU ins ratio excl VM:  {}",
+                          cpuInsRatioExclVm.mean() / 1000000);
+
+                CLOG_INFO(Perf, "Tx count utilization {}%",
+                          al.getTxCountUtilization().mean() / 1000.0);
+                CLOG_INFO(Perf, "Instruction utilization {}%",
+                          al.getInstructionUtilization().mean() / 1000.0);
+                CLOG_INFO(Perf, "Tx size utilization {}%",
+                          al.getTxSizeUtilization().mean() / 1000.0);
+                CLOG_INFO(Perf, "Read bytes utilization {}%",
+                          al.getReadByteUtilization().mean() / 1000.0);
+                CLOG_INFO(Perf, "Write bytes utilization {}%",
+                          al.getWriteByteUtilization().mean() / 1000.0);
+                CLOG_INFO(Perf, "Read entry utilization {}%",
+                          al.getReadEntryUtilization().mean() / 1000.0);
+                CLOG_INFO(Perf, "Write entry utilization {}%",
+                          al.getWriteEntryUtilization().mean() / 1000.0);
+
+                CLOG_INFO(Perf, "Tx Success Rate: {:f}%",
+                          al.successRate() * 100);
+            }
+
+            return 0;
+        });
+}
 #endif
 
 int
@@ -1659,14 +1992,14 @@ handleCommandLine(int argc, char* const* argv)
          {"self-check", "performs diagnostic checks", runSelfCheck},
          {"merge-bucketlist", "writes diagnostic merged bucket list",
           runMergeBucketList},
+         {"dump-archival-stats",
+          "prints statistics about expired/evicted entries in the BucketList",
+          runDumpStateArchivalStatistics},
          {"new-db", "creates or restores the DB to the genesis ledger",
           runNewDB},
          {"new-hist", "initialize history archives", runNewHist},
          {"offline-info", "return information for an offline instance",
           runOfflineInfo},
-         {"offline-close",
-          "close a number of ledgers offline, generating checkpoints",
-          runOfflineClose},
          {"print-xdr", "pretty-print one XDR envelope, then quit", runPrintXdr},
          {"publish",
           "execute publish of all items remaining in publish queue without "
@@ -1685,6 +2018,14 @@ handleCommandLine(int argc, char* const* argv)
           runSignTransaction},
          {"upgrade-db", "upgrade database schema to current version",
           runUpgradeDB},
+         {"get-settings-upgrade-txs",
+          "returns all transactions that need to be submitted to do a settings "
+          "upgrade",
+          getSettingsUpgradeTransactions},
+         {"check-quorum-intersection",
+          "check that a given network specified as a JSON file enjoys a quorum "
+          "intersection",
+          runCheckQuorumIntersection},
 #ifdef BUILD_TESTS
          {"load-xdr", "load an XDR bucket file, for testing", runLoadXDR},
          {"rebuild-ledger-from-buckets",
@@ -1693,6 +2034,7 @@ handleCommandLine(int argc, char* const* argv)
          {"fuzz", "run a single fuzz input and exit", runFuzz},
          {"gen-fuzz", "generate a random fuzzer input file", runGenFuzz},
          {"test", "execute test suite", runTest},
+         {"apply-load", "run apply time load test", runApplyLoad},
 #endif
          {"version", "print version information", runVersion}}};
 

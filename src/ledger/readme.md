@@ -23,7 +23,7 @@ behaves just like pointers in typical data structures but with added
 security guarantees.
 
 See the protocol file for the object definitions.
-[`src/xdr/Stellar-ledger.x`](../xdr/Stellar-ledger.x)
+[`src/protocol-curr/xdr/Stellar-ledger.x`](../protocol-curr/xdr/Stellar-ledger.x)
 
 One can think of the historical chain as a linked list of LedgerHeaders:
 

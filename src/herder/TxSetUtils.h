@@ -13,22 +13,19 @@
 namespace stellar
 {
 
-class AccountTransactionQueue : public TxStack
+class AccountTransactionQueue
 {
   public:
     AccountTransactionQueue(
         std::vector<TransactionFrameBasePtr> const& accountTxs);
 
-    TransactionFrameBasePtr getTopTx() const override;
-    bool empty() const override;
-    void popTopTx() override;
-    Resource getResources() const override;
-
-    std::deque<TransactionFrameBasePtr> mTxs;
+    TransactionFrameBasePtr getTopTx() const;
+    bool empty() const;
+    void popTopTx();
 
   private:
+    std::deque<TransactionFrameBasePtr> mTxs;
     uint32_t mNumOperations = 0;
-    bool mIsSoroban;
 };
 
 class TxSetUtils
@@ -37,26 +34,25 @@ class TxSetUtils
     static bool hashTxSorter(TransactionFrameBasePtr const& tx1,
                              TransactionFrameBasePtr const& tx2);
 
-    static TxSetFrame::Transactions
-    sortTxsInHashOrder(TxSetFrame::Transactions const& transactions);
+    static TxSetTransactions
+    sortTxsInHashOrder(TxSetTransactions const& transactions);
 
     static std::vector<std::shared_ptr<AccountTransactionQueue>>
-    buildAccountTxQueues(TxSetFrame::Transactions const& txs);
+    buildAccountTxQueues(TxSetTransactions const& txs);
 
     // Returns transactions from a TxSet that are invalid. If
     // returnEarlyOnFirstInvalidTx is true, return immediately if an invalid
     // transaction is found (instead of finding all of them), this is useful for
     // checking if a TxSet is valid.
-    static TxSetFrame::Transactions
-    getInvalidTxList(TxSetFrame::Transactions const& txs, Application& app,
+    static TxSetTransactions
+    getInvalidTxList(TxSetTransactions const& txs, Application& app,
                      uint64_t lowerBoundCloseTimeOffset,
-                     uint64_t upperBoundCloseTimeOffset,
-                     bool returnEarlyOnFirstInvalidTx);
+                     uint64_t upperBoundCloseTimeOffset);
 
-    static TxSetFrame::Transactions
-    trimInvalid(TxSetFrame::Transactions const& txs, Application& app,
-                uint64_t lowerBoundCloseTimeOffset,
-                uint64_t upperBoundCloseTimeOffset,
-                TxSetFrame::Transactions& invalidTxs);
+    static TxSetTransactions trimInvalid(TxSetTransactions const& txs,
+                                         Application& app,
+                                         uint64_t lowerBoundCloseTimeOffset,
+                                         uint64_t upperBoundCloseTimeOffset,
+                                         TxSetTransactions& invalidTxs);
 }; // class TxSetUtils
 } // namespace stellar

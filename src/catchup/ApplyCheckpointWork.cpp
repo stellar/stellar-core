@@ -98,7 +98,7 @@ ApplyCheckpointWork::openInputFiles()
     mFilesOpen = true;
 }
 
-TxSetFrameConstPtr
+TxSetXDRFrameConstPtr
 ApplyCheckpointWork::getCurrentTxSet()
 {
     ZoneScoped;
@@ -126,18 +126,18 @@ ApplyCheckpointWork::getCurrentTxSet()
             CLOG_DEBUG(History, "Loaded txset for ledger {}", seq);
             if (mTxHistoryEntry.ext.v() == 0)
             {
-                return TxSetFrame::makeFromWire(mApp, mTxHistoryEntry.txSet);
+                return TxSetXDRFrame::makeFromWire(mTxHistoryEntry.txSet);
             }
             else
             {
-                return TxSetFrame::makeFromWire(
-                    mApp, mTxHistoryEntry.ext.generalizedTxSet());
+                return TxSetXDRFrame::makeFromWire(
+                    mTxHistoryEntry.ext.generalizedTxSet());
             }
         }
     } while (mTxIn && mTxIn.readOne(mTxHistoryEntry));
 
     CLOG_DEBUG(History, "Using empty txset for ledger {}", seq);
-    return TxSetFrame::makeEmpty(lm.getLastClosedLedgerHeader());
+    return TxSetXDRFrame::makeEmpty(lm.getLastClosedLedgerHeader());
 }
 
 std::shared_ptr<LedgerCloseData>
@@ -264,11 +264,11 @@ ApplyCheckpointWork::onRun()
             auto& lm = mApp.getLedgerManager();
 
             CLOG_DEBUG(History, "{}",
-                       xdr_to_string(lm.getLastClosedLedgerHeader(),
-                                     "LedgerManager LCL"));
+                       xdrToCerealString(lm.getLastClosedLedgerHeader(),
+                                         "LedgerManager LCL"));
 
             CLOG_DEBUG(History, "{}",
-                       xdr_to_string(mHeaderHistoryEntry, "Replay header"));
+                       xdrToCerealString(mHeaderHistoryEntry, "Replay header"));
             if (lm.getLastClosedLedgerHeader().hash != mHeaderHistoryEntry.hash)
             {
                 throw std::runtime_error(fmt::format(

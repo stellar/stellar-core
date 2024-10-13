@@ -33,6 +33,29 @@ class Resource
         WRITE_LEDGER_ENTRIES = 6
     };
 
+    static std::string
+    getStringFromType(Type type)
+    {
+        switch (type)
+        {
+        case Type::OPERATIONS:
+            return "Operations";
+        case Type::INSTRUCTIONS:
+            return "Instructions";
+        case Type::TX_BYTE_SIZE:
+            return "TxByteSize";
+        case Type::READ_BYTES:
+            return "ReadBytes";
+        case Type::WRITE_BYTES:
+            return "WriteBytes";
+        case Type::READ_LEDGER_ENTRIES:
+            return "ReadLedgerEntries";
+        case Type::WRITE_LEDGER_ENTRIES:
+            return "WriteLedgerEntries";
+        }
+        return "Unknown";
+    }
+
     Resource(std::vector<int64_t> args)
     {
         if (args.size() != NUM_CLASSIC_TX_RESOURCES &&

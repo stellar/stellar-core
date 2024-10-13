@@ -20,7 +20,7 @@ using namespace stellar::txtest;
 
 TEST_CASE("PendingEnvelopes recvSCPEnvelope", "[herder]")
 {
-    Config cfg(getTestConfig(0, Config::TESTDB_DEFAULT));
+    Config cfg(getTestConfig());
     cfg.MANUAL_CLOSE = false;
 
     VirtualClock clock;
@@ -42,8 +42,8 @@ TEST_CASE("PendingEnvelopes recvSCPEnvelope", "[herder]")
         accs.push_back(TestAccount{*app, getAccount("A" + std::to_string(i))});
     }
 
-    using TxPair = std::pair<Value, TxSetFrameConstPtr>;
-    auto makeTxPair = [&](TxSetFrameConstPtr txSet, uint64_t closeTime,
+    using TxPair = std::pair<Value, TxSetXDRFrameConstPtr>;
+    auto makeTxPair = [&](TxSetXDRFrameConstPtr txSet, uint64_t closeTime,
                           StellarValueType svt) {
         StellarValue sv = herder.makeStellarValue(
             txSet->getContentsHash(), closeTime, emptyUpgradeSteps, s);
@@ -73,7 +73,7 @@ TEST_CASE("PendingEnvelopes recvSCPEnvelope", "[herder]")
         std::vector<TransactionFrameBasePtr> txs(n);
         std::generate(std::begin(txs), std::end(txs),
                       [&]() { return accs[index++].tx({payment(root, 1)}); });
-        return TxSetFrame::makeFromTransactions(txs, *app, 0, 0);
+        return makeTxSetFromTransactions(txs, *app, 0, 0).first;
     };
 
     auto makePublicKey = [](int i) {
@@ -344,7 +344,7 @@ TEST_CASE("PendingEnvelopes recvSCPEnvelope", "[herder]")
     SECTION("can receive malformed tx set")
     {
         GeneralizedTransactionSet malformedXdrSet(1);
-        auto malformedTxSet = TxSetFrame::makeFromWire(*app, malformedXdrSet);
+        auto malformedTxSet = TxSetXDRFrame::makeFromWire(malformedXdrSet);
         auto p2 = makeTxPair(malformedTxSet, 10, STELLAR_VALUE_SIGNED);
         auto malformedEnvelope =
             makeEnvelope(p2, saneQSetHash, lcl.header.ledgerSeq + 1);

@@ -29,9 +29,16 @@ extern stellar_default_random_engine gRandomEngine;
 
 template <typename T>
 T
+rand_uniform(T lo, T hi, stellar_default_random_engine& engine)
+{
+    return stellar::uniform_int_distribution<T>(lo, hi)(engine);
+}
+
+template <typename T>
+T
 rand_uniform(T lo, T hi)
 {
-    return stellar::uniform_int_distribution<T>(lo, hi)(gRandomEngine);
+    return rand_uniform<T>(lo, hi, gRandomEngine);
 }
 
 template <typename T>

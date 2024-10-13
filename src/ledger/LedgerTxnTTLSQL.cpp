@@ -4,6 +4,7 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "ledger/LedgerTxnImpl.h"
+#include "ledger/LedgerTypeUtils.h"
 #include "ledger/NonSociRelatedException.h"
 #include "main/Application.h"
 #include "util/GlobalChecks.h"
@@ -359,17 +360,21 @@ LedgerTxnRoot::Impl::dropTTL(bool rebuild)
     std::string coll = mApp.getDatabase().getSimpleCollationClause();
 
     mApp.getDatabase().getSession() << "DROP TABLE IF EXISTS ttl;";
-    mApp.getDatabase().getSession()
-        << "CREATE TABLE ttl ("
-        << "keyhash   TEXT " << coll << " NOT NULL, "
-        << "ledgerentry  TEXT " << coll << " NOT NULL, "
-        << "lastmodified INT NOT NULL, "
-        << "PRIMARY KEY (keyhash));";
-    if (!mApp.getDatabase().isSqlite())
+
+    if (rebuild)
     {
-        mApp.getDatabase().getSession() << "ALTER TABLE ttl "
-                                        << "ALTER COLUMN keyhash "
-                                        << "TYPE TEXT COLLATE \"C\";";
+        mApp.getDatabase().getSession()
+            << "CREATE TABLE ttl ("
+            << "keyhash   TEXT " << coll << " NOT NULL, "
+            << "ledgerentry  TEXT " << coll << " NOT NULL, "
+            << "lastmodified INT NOT NULL, "
+            << "PRIMARY KEY (keyhash));";
+        if (!mApp.getDatabase().isSqlite())
+        {
+            mApp.getDatabase().getSession() << "ALTER TABLE ttl "
+                                            << "ALTER COLUMN keyhash "
+                                            << "TYPE TEXT COLLATE \"C\";";
+        }
     }
 }
 

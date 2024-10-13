@@ -331,6 +331,33 @@ struct LedgerTxnDelta
     UnorderedMap<InternalLedgerKey, EntryDelta> entry;
     HeaderDelta header;
 };
+// An abstraction for storing and applying per-txn read bytes metering limits
+// when loading keys.
+class LedgerKeyMeter : public NonMovableOrCopyable
+{
+  public:
+    // Adds a transaction with a read quota and the keys it will read.
+    void addTxn(SorobanResources const& resources);
+    // Conumes entrySizeBytes from the read quotas of all transactions with this
+    // key.
+    void updateReadQuotasForKey(LedgerKey const& key, size_t entrySizeBytes);
+    // Returns true if a transaction with sufficient read quota exists for this
+    // key.
+    bool canLoad(LedgerKey const& key, size_t entrySizeBytes) const;
+    // Returns true if a key was not loaded due to insufficient read quota.
+    bool loadFailed(LedgerKey const& key) const;
+
+  private:
+    // Returns the maximum read quota across all transactions with this key.
+    uint32_t maxReadQuotaForKey(LedgerKey const& key) const;
+    using TxReadBytesPtr = std::shared_ptr<uint32_t>;
+    // Stores a mapping from keys to a vector of pointers to the read bytes
+    // of the transactions that will read the keys.
+    UnorderedMap<LedgerKey, std::vector<TxReadBytesPtr>>
+        mLedgerKeyToTxReadBytes{};
+    // Stores the keys that were not loaded due to insufficient read quota.
+    LedgerKeySet mNotLoadedKeys{};
+};
 
 // An abstraction for an object that is iterator-like and permits enumerating
 // the LedgerTxnEntry objects managed by an AbstractLedgerTxn. This enables
@@ -500,7 +527,11 @@ class AbstractLedgerTxnParent
     // This is purely advisory and can be a no-op, or do any level of actual
     // work, while still being correct. Will throw when called on anything other
     // than a (real or stub) root LedgerTxn.
-    virtual uint32_t prefetch(UnorderedSet<LedgerKey> const& keys) = 0;
+    virtual uint32_t prefetchClassic(UnorderedSet<LedgerKey> const& keys) = 0;
+    // Prefetch a set of ledger entries into memory, while accounting for
+    // the read byte footprint of the transactions using the keys.
+    virtual uint32_t prefetchSoroban(UnorderedSet<LedgerKey> const& keys,
+                                     LedgerKeyMeter* lkMeter) = 0;
 
     // prepares to increase the capacity of pending changes by up to "s" changes
     virtual void prepareNewObjects(size_t s) = 0;
@@ -618,6 +649,11 @@ class AbstractLedgerTxn : public AbstractLedgerTxnParent
     virtual void getAllEntries(std::vector<LedgerEntry>& initEntries,
                                std::vector<LedgerEntry>& liveEntries,
                                std::vector<LedgerKey>& deadEntries) = 0;
+
+    // Returns all TTL keys that have been modified (create, update, and
+    // delete), but does not cause the AbstractLedgerTxn or update last
+    // modified.
+    virtual LedgerKeySet getAllTTLKeysWithoutSealing() const = 0;
 
     // forAllWorstBestOffers allows a parent AbstractLedgerTxn to process the
     // worst best offers (an offer is a worst best offer if every better offer
@@ -744,6 +780,7 @@ class LedgerTxn : public AbstractLedgerTxn
     void getAllEntries(std::vector<LedgerEntry>& initEntries,
                        std::vector<LedgerEntry>& liveEntries,
                        std::vector<LedgerKey>& deadEntries) override;
+    LedgerKeySet getAllTTLKeysWithoutSealing() const override;
 
     std::shared_ptr<InternalLedgerEntry const>
     getNewestVersion(InternalLedgerKey const& key) const override;
@@ -794,7 +831,10 @@ class LedgerTxn : public AbstractLedgerTxn
     void dropTTL(bool rebuild) override;
 
     double getPrefetchHitRate() const override;
-    uint32_t prefetch(UnorderedSet<LedgerKey> const& keys) override;
+    uint32_t prefetchClassic(UnorderedSet<LedgerKey> const& keys) override;
+
+    uint32_t prefetchSoroban(UnorderedSet<LedgerKey> const& keys,
+                             LedgerKeyMeter* lkMeter) override;
     void prepareNewObjects(size_t s) override;
 
     bool hasSponsorshipEntry() const override;
@@ -886,9 +926,11 @@ class LedgerTxnRoot : public AbstractLedgerTxnParent
 
     void rollbackChild() noexcept override;
 
-    uint32_t prefetch(UnorderedSet<LedgerKey> const& keys) override;
-    double getPrefetchHitRate() const override;
+    uint32_t prefetchClassic(UnorderedSet<LedgerKey> const& keys) override;
+    uint32_t prefetchSoroban(UnorderedSet<LedgerKey> const& keys,
+                             LedgerKeyMeter* lkMeter) override;
 
+    double getPrefetchHitRate() const override;
     void prepareNewObjects(size_t s) override;
 
 #ifdef BEST_OFFER_DEBUGGING

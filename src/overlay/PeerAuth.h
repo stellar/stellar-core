@@ -1,6 +1,5 @@
 #pragma once
 
-#include "crypto/Curve25519.h"
 #include "overlay/Peer.h"
 #include "overlay/PeerSharedKeyId.h"
 #include "util/RandomEvictionCache.h"

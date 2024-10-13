@@ -16,7 +16,6 @@
 
 #include <algorithm>
 #include <lib/catch.hpp>
-#include <xdrpp/printer.h>
 
 using namespace stellar;
 using namespace stellar::txbridge;
@@ -117,8 +116,7 @@ TEST_CASE_VERSIONS("txresults", "[tx][txresults]")
             {
                 for_all_versions(*app, [&] {
                     auto tx = a.tx({payment(root, 1)});
-                    setFee(tx,
-                           static_cast<uint32_t>(tx->getInclusionFee()) - 1);
+                    setFullFee(tx, static_cast<uint32_t>(tx->getFullFee()) - 1);
                     validateTxResults(tx, *app, {baseFee, txINSUFFICIENT_FEE});
                 });
             }
@@ -186,8 +184,7 @@ TEST_CASE_VERSIONS("txresults", "[tx][txresults]")
                 for_all_versions(*app, [&] {
                     auto tx = a.tx({payment(root, 1)});
                     getSignatures(tx).clear();
-                    setFee(tx,
-                           static_cast<uint32_t>(tx->getInclusionFee()) - 1);
+                    setFullFee(tx, static_cast<uint32_t>(tx->getFullFee()) - 1);
                     validateTxResults(tx, *app, {baseFee, txINSUFFICIENT_FEE});
                 });
             }
@@ -268,8 +265,7 @@ TEST_CASE_VERSIONS("txresults", "[tx][txresults]")
                 for_all_versions(*app, [&] {
                     auto tx = a.tx({payment(root, 1)});
                     tx->addSignature(a);
-                    setFee(tx,
-                           static_cast<uint32_t>(tx->getInclusionFee()) - 1);
+                    setFullFee(tx, static_cast<uint32_t>(tx->getFullFee()) - 1);
                     validateTxResults(tx, *app, {baseFee, txINSUFFICIENT_FEE});
                 });
             }
@@ -333,12 +329,11 @@ TEST_CASE_VERSIONS("txresults", "[tx][txresults]")
                     {payment(b, 1000), accountMerge(root), payment(c, 1000)});
                 validateTxResults(
                     tx, *app, {baseFee * 3, txSUCCESS},
-                    expectedResult(
-                        baseFee * 3, 3, txFAILED,
-                        {PAYMENT_SUCCESS,
-                         {ACCOUNT_MERGE_SUCCESS,
-                          startAmount - tx->getInclusionFee() - 1000},
-                         opNO_ACCOUNT}));
+                    expectedResult(baseFee * 3, 3, txFAILED,
+                                   {PAYMENT_SUCCESS,
+                                    {ACCOUNT_MERGE_SUCCESS,
+                                     startAmount - tx->getFullFee() - 1000},
+                                    opNO_ACCOUNT}));
             });
         }
     }

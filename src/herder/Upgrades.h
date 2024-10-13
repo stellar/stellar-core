@@ -20,6 +20,7 @@ class Config;
 class Database;
 struct LedgerHeader;
 struct LedgerUpgrade;
+class LedgerSnapshot;
 
 class ConfigUpgradeSetFrame;
 using ConfigUpgradeSetFrameConstPtr =
@@ -61,7 +62,7 @@ class Upgrades
 
         std::string toJson() const;
         void fromJson(std::string const& s);
-        std::string toDebugJson(stellar::AbstractLedgerTxn& ltx) const;
+        std::string toDebugJson(LedgerSnapshot const& ls) const;
     };
 
     Upgrades()
@@ -74,8 +75,9 @@ class Upgrades
     UpgradeParameters const& getParameters() const;
 
     // create upgrades for given ledger
-    std::vector<LedgerUpgrade> createUpgradesFor(LedgerHeader const& lclHeader,
-                                                 AbstractLedgerTxn& ltx) const;
+    std::vector<LedgerUpgrade>
+    createUpgradesFor(LedgerHeader const& lclHeader,
+                      LedgerSnapshot const& ls) const;
 
     // apply upgrade to ledger header
     static void applyTo(LedgerUpgrade const& upgrade, Application& app,
@@ -99,14 +101,12 @@ class Upgrades
     static UpgradeValidity isValidForApply(UpgradeType const& upgrade,
                                            LedgerUpgrade& lupgrade,
                                            Application& app,
-                                           AbstractLedgerTxn& ltx,
-                                           LedgerHeader const& header);
+                                           LedgerSnapshot const& ls);
 
     // returns true if upgrade is a valid upgrade step
     // in which case it also sets upgradeType
     bool isValid(UpgradeType const& upgrade, LedgerUpgradeType& upgradeType,
-                 bool nomination, Application& app,
-                 LedgerHeader const& header) const;
+                 bool nomination, Application& app) const;
 
     // constructs a human readable string that represents
     // the pending upgrades
@@ -136,8 +136,7 @@ class Upgrades
     // returns true if upgrade is a valid upgrade step
     // in which case it also sets lupgrade
     bool isValidForNomination(LedgerUpgrade const& upgrade,
-                              AbstractLedgerTxn& ltx,
-                              LedgerHeader const& header) const;
+                              LedgerSnapshot const& ls) const;
 
     static void applyVersionUpgrade(Application& app, AbstractLedgerTxn& ltx,
                                     uint32_t newVersion);
@@ -157,14 +156,15 @@ class ConfigUpgradeSetFrame
 {
   public:
     static ConfigUpgradeSetFrameConstPtr
-    makeFromKey(AbstractLedgerTxn& ltx, ConfigUpgradeSetKey const& key);
+    makeFromKey(LedgerSnapshot const& ls, ConfigUpgradeSetKey const& key);
+
+    static LedgerKey getLedgerKey(ConfigUpgradeSetKey const& upgradeKey);
 
     ConfigUpgradeSet const& toXDR() const;
 
     ConfigUpgradeSetKey const& getKey() const;
 
-    bool upgradeNeeded(AbstractLedgerTxn& ltx,
-                       LedgerHeader const& lclHeader) const;
+    bool upgradeNeeded(LedgerSnapshot const& ls) const;
 
     void applyTo(AbstractLedgerTxn& ltx) const;
 
@@ -179,9 +179,8 @@ class ConfigUpgradeSetFrame
 
   private:
     ConfigUpgradeSetFrame(ConfigUpgradeSet const& upgradeSetXDR,
-                          ConfigUpgradeSetKey const& key);
-
-    static LedgerKey getLedgerKey(ConfigUpgradeSetKey const& upgradeKey);
+                          ConfigUpgradeSetKey const& key,
+                          uint32_t ledgerVersion);
 
     bool isValidXDR(ConfigUpgradeSet const& upgradeSetXDR,
                     ConfigUpgradeSetKey const& key) const;
@@ -189,5 +188,6 @@ class ConfigUpgradeSetFrame
     ConfigUpgradeSet mConfigUpgradeSet;
     ConfigUpgradeSetKey mKey;
     bool mValidXDR;
+    uint32_t const mLedgerVersion;
 };
 }

@@ -180,9 +180,9 @@ PendingEnvelopes::updateMetrics()
     mReadyCount.set_count(ready);
 }
 
-TxSetFrameConstPtr
+TxSetXDRFrameConstPtr
 PendingEnvelopes::putTxSet(Hash const& hash, uint64 slot,
-                           TxSetFrameConstPtr txset)
+                           TxSetXDRFrameConstPtr txset)
 {
     auto res = getKnownTxSet(hash, slot, true);
     if (!res)
@@ -197,12 +197,12 @@ PendingEnvelopes::putTxSet(Hash const& hash, uint64 slot,
 // tries to find a txset in memory, setting touch also touches the LRU,
 // extending the lifetime of the result *and* updating the slot number
 // to a greater value if needed
-TxSetFrameConstPtr
+TxSetXDRFrameConstPtr
 PendingEnvelopes::getKnownTxSet(Hash const& hash, uint64 slot, bool touch)
 {
     // slot is only used when `touch` is set
     releaseAssert(touch || (slot == 0));
-    TxSetFrameConstPtr res;
+    TxSetXDRFrameConstPtr res;
     auto it = mKnownTxSets.find(hash);
     if (it != mKnownTxSets.end())
     {
@@ -228,7 +228,7 @@ PendingEnvelopes::getKnownTxSet(Hash const& hash, uint64 slot, bool touch)
 
 void
 PendingEnvelopes::addTxSet(Hash const& hash, uint64 lastSeenSlotIndex,
-                           TxSetFrameConstPtr txset)
+                           TxSetXDRFrameConstPtr txset)
 {
     ZoneScoped;
     CLOG_TRACE(Herder, "Add TxSet {}", hexAbbrev(hash));
@@ -238,7 +238,7 @@ PendingEnvelopes::addTxSet(Hash const& hash, uint64 lastSeenSlotIndex,
 }
 
 bool
-PendingEnvelopes::recvTxSet(Hash const& hash, TxSetFrameConstPtr txset)
+PendingEnvelopes::recvTxSet(Hash const& hash, TxSetXDRFrameConstPtr txset)
 {
     ZoneScoped;
     CLOG_TRACE(Herder, "Got TxSet {}", hexAbbrev(hash));
@@ -539,9 +539,9 @@ PendingEnvelopes::envelopeReady(SCPEnvelope const& envelope)
     // envelope.
     recordReceivedCost(envelope);
 
-    StellarMessage msg;
-    msg.type(SCP_MESSAGE);
-    msg.envelope() = envelope;
+    auto msg = std::make_shared<StellarMessage>();
+    msg->type(SCP_MESSAGE);
+    msg->envelope() = envelope;
     mApp.getOverlayManager().broadcastMessage(msg);
 
     auto envW = mHerder.getHerderSCPDriver().wrapEnvelope(envelope);
@@ -722,7 +722,7 @@ PendingEnvelopes::forceRebuildQuorum()
     mRebuildQuorum = true;
 }
 
-TxSetFrameConstPtr
+TxSetXDRFrameConstPtr
 PendingEnvelopes::getTxSet(Hash const& hash)
 {
     return getKnownTxSet(hash, 0, false);

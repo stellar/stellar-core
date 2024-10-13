@@ -1,0 +1,2 @@
+## Description
+This folder contains JSON files that can be encoded into `ConfigUpgradeSet` XDR using the `stellar-xdr` cli. The encoded xdr can be used along with the `get-settings-upgrade-txs` stellar-core command line tool to craft the transactions required to propose a settings upgrade. 

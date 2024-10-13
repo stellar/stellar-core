@@ -33,8 +33,8 @@ TestAccount::updateSequenceNumber()
 {
     if (mSn == 0)
     {
-        LedgerTxn ltx(mApp.getLedgerTxnRoot());
-        auto entry = stellar::loadAccount(ltx, getPublicKey());
+        LedgerSnapshot lsg(mApp);
+        auto const entry = lsg.load(accountKey(getPublicKey()));
         if (entry)
         {
             mSn = entry.current().data.account().seqNum;
@@ -45,8 +45,8 @@ TestAccount::updateSequenceNumber()
 uint32_t
 TestAccount::getTrustlineFlags(Asset const& asset) const
 {
-    LedgerTxn ltx(mApp.getLedgerTxnRoot());
-    auto trust = ltx.load(trustlineKey(getPublicKey(), asset));
+    LedgerSnapshot lsg(mApp);
+    auto const trust = lsg.load(trustlineKey(getPublicKey(), asset));
     REQUIRE(trust);
     return trust.current().data.trustLine().flags;
 }
@@ -63,10 +63,10 @@ TestAccount::getTrustlineBalance(Asset const& asset) const
 int64_t
 TestAccount::getTrustlineBalance(PoolID const& poolID) const
 {
-    LedgerTxn ltx(mApp.getLedgerTxnRoot());
+    LedgerSnapshot lsg(mApp);
     TrustLineAsset asset(ASSET_TYPE_POOL_SHARE);
     asset.liquidityPoolID() = poolID;
-    auto trustLine = ltx.load(trustlineKey(getPublicKey(), asset));
+    auto const trustLine = lsg.load(trustlineKey(getPublicKey(), asset));
     REQUIRE(trustLine);
     return trustLine.current().data.trustLine().balance;
 }
@@ -74,26 +74,25 @@ TestAccount::getTrustlineBalance(PoolID const& poolID) const
 int64_t
 TestAccount::getBalance() const
 {
-    LedgerTxn ltx(mApp.getLedgerTxnRoot());
-    auto entry = stellar::loadAccount(ltx, getPublicKey());
+    LedgerSnapshot lsg(mApp);
+    auto const entry = lsg.getAccount(getPublicKey());
     return entry.current().data.account().balance;
 }
 
 int64_t
 TestAccount::getAvailableBalance() const
 {
-    LedgerTxn ltx(mApp.getLedgerTxnRoot());
-    auto entry = stellar::loadAccount(ltx, getPublicKey());
-    auto header = ltx.loadHeader();
-
-    return stellar::getAvailableBalance(header, entry);
+    LedgerSnapshot lsg(mApp);
+    auto const entry = lsg.getAccount(getPublicKey());
+    return stellar::getAvailableBalance(lsg.getLedgerHeader().current(),
+                                        entry.current());
 }
 
 uint32_t
 TestAccount::getNumSubEntries() const
 {
-    LedgerTxn ltx(mApp.getLedgerTxnRoot());
-    auto entry = stellar::loadAccount(ltx, getPublicKey());
+    LedgerSnapshot lsg(mApp);
+    auto const entry = lsg.getAccount(getPublicKey());
     return entry.current().data.account().numSubEntries;
 }
 
@@ -103,7 +102,7 @@ TestAccount::exists() const
     return doesAccountExist(mApp, getPublicKey());
 }
 
-TransactionFramePtr
+TransactionTestFramePtr
 TestAccount::tx(std::vector<Operation> const& ops, SequenceNumber sn)
 {
     if (sn == 0)
@@ -135,8 +134,8 @@ TestAccount::create(SecretKey const& secretKey, uint64_t initialBalance)
 
     std::unique_ptr<LedgerEntry> destBefore;
     {
-        LedgerTxn ltx(mApp.getLedgerTxnRoot());
-        auto entry = stellar::loadAccount(ltx, publicKey);
+        LedgerSnapshot lsg(mApp);
+        auto const entry = lsg.getAccount(publicKey);
         if (entry)
         {
             destBefore = std::make_unique<LedgerEntry>(entry.current());
@@ -149,8 +148,8 @@ TestAccount::create(SecretKey const& secretKey, uint64_t initialBalance)
     }
     catch (...)
     {
-        LedgerTxn ltx(mApp.getLedgerTxnRoot());
-        auto destAfter = stellar::loadAccount(ltx, publicKey);
+        LedgerSnapshot lsg(mApp);
+        auto const destAfter = lsg.getAccount(publicKey);
         // check that the target account didn't change
         REQUIRE(!!destBefore == !!destAfter);
         if (destBefore && destAfter)
@@ -161,8 +160,8 @@ TestAccount::create(SecretKey const& secretKey, uint64_t initialBalance)
     }
 
     {
-        LedgerTxn ltx(mApp.getLedgerTxnRoot());
-        REQUIRE(stellar::loadAccount(ltx, publicKey));
+        LedgerSnapshot lsg(mApp);
+        REQUIRE(lsg.getAccount(publicKey));
     }
     return TestAccount{mApp, secretKey};
 }
@@ -178,9 +177,9 @@ TestAccount::merge(PublicKey const& into)
 {
     applyTx(tx({accountMerge(into)}), mApp);
 
-    LedgerTxn ltx(mApp.getLedgerTxnRoot());
-    REQUIRE(stellar::loadAccount(ltx, into));
-    REQUIRE(!stellar::loadAccount(ltx, getPublicKey()));
+    LedgerSnapshot lsg(mApp);
+    REQUIRE(lsg.getAccount(into));
+    REQUIRE(!lsg.getAccount(getPublicKey()));
 }
 
 void
@@ -295,11 +294,11 @@ TestAccount::loadTrustLine(Asset const& asset) const
 TrustLineEntry
 TestAccount::loadTrustLine(TrustLineAsset const& asset) const
 {
-    LedgerTxn ltx(mApp.getLedgerTxnRoot());
+    LedgerSnapshot lsg(mApp);
     LedgerKey key(TRUSTLINE);
     key.trustLine().accountID = getPublicKey();
     key.trustLine().asset = asset;
-    return ltx.load(key).current().data.trustLine();
+    return lsg.load(key).current().data.trustLine();
 }
 
 bool
@@ -311,11 +310,11 @@ TestAccount::hasTrustLine(Asset const& asset) const
 bool
 TestAccount::hasTrustLine(TrustLineAsset const& asset) const
 {
-    LedgerTxn ltx(mApp.getLedgerTxnRoot());
+    LedgerSnapshot lsg(mApp);
     LedgerKey key(TRUSTLINE);
     key.trustLine().accountID = getPublicKey();
     key.trustLine().asset = asset;
-    return (bool)ltx.load(key);
+    return static_cast<bool>(lsg.load(key));
 }
 
 void
@@ -347,17 +346,18 @@ TestAccount::bumpSequence(SequenceNumber to)
 {
     applyTx(tx({txtest::bumpSequence(to)}), mApp, false);
 
-    LedgerTxn ltx(mApp.getLedgerTxnRoot());
-    if (protocolVersionStartsFrom(ltx.loadHeader().current().ledgerVersion,
+    LedgerSnapshot lsg(mApp);
+    if (protocolVersionStartsFrom(lsg.getLedgerHeader().current().ledgerVersion,
                                   ProtocolVersion::V_19))
     {
-        auto account = stellar::loadAccount(ltx, getPublicKey());
+        auto const account = lsg.getAccount(getPublicKey());
         REQUIRE(account);
 
         auto const& v3 =
             getAccountEntryExtensionV3(account.current().data.account());
-        REQUIRE(v3.seqLedger == ltx.loadHeader().current().ledgerSeq);
-        REQUIRE(v3.seqTime == ltx.loadHeader().current().scpValue.closeTime);
+        REQUIRE(v3.seqLedger == lsg.getLedgerHeader().current().ledgerSeq);
+        REQUIRE(v3.seqTime ==
+                lsg.getLedgerHeader().current().scpValue.closeTime);
     }
 }
 
@@ -457,8 +457,8 @@ TestAccount::pay(PublicKey const& destination, int64_t amount)
 {
     std::unique_ptr<LedgerEntry> toAccount;
     {
-        LedgerTxn ltx(mApp.getLedgerTxnRoot());
-        auto toAccountEntry = stellar::loadAccount(ltx, destination);
+        LedgerSnapshot lsg(mApp);
+        auto const toAccountEntry = lsg.getAccount(destination);
         toAccount =
             toAccountEntry
                 ? std::make_unique<LedgerEntry>(toAccountEntry.current())
@@ -469,7 +469,7 @@ TestAccount::pay(PublicKey const& destination, int64_t amount)
         }
         else
         {
-            REQUIRE(stellar::loadAccount(ltx, getPublicKey()));
+            REQUIRE(lsg.getAccount(getPublicKey()));
         }
     }
 
@@ -481,8 +481,8 @@ TestAccount::pay(PublicKey const& destination, int64_t amount)
     }
     catch (...)
     {
-        LedgerTxn ltx(mApp.getLedgerTxnRoot());
-        auto toAccountAfter = stellar::loadAccount(ltx, destination);
+        LedgerSnapshot lsg(mApp);
+        auto const toAccountAfter = lsg.getAccount(destination);
         // check that the target account didn't change
         REQUIRE(!!toAccount == !!toAccountAfter);
         if (toAccount && toAccountAfter &&
@@ -494,8 +494,8 @@ TestAccount::pay(PublicKey const& destination, int64_t amount)
         throw;
     }
 
-    LedgerTxn ltx(mApp.getLedgerTxnRoot());
-    auto toAccountAfter = stellar::loadAccount(ltx, destination);
+    LedgerSnapshot lsg(mApp);
+    auto const toAccountAfter = lsg.getAccount(destination);
     REQUIRE(toAccount);
     REQUIRE(toAccountAfter);
 }
@@ -531,7 +531,7 @@ TestAccount::pay(PublicKey const& destination, Asset const& sendCur,
 
     REQUIRE(!noIssuer);
 
-    return getFirstResult(*transaction).tr().pathPaymentStrictReceiveResult();
+    return getFirstResult(transaction).tr().pathPaymentStrictReceiveResult();
 }
 
 PathPaymentStrictSendResult
@@ -561,7 +561,7 @@ TestAccount::pathPaymentStrictSend(PublicKey const& destination,
 
     REQUIRE(!noIssuer);
 
-    return getFirstResult(*transaction).tr().pathPaymentStrictSendResult();
+    return getFirstResult(transaction).tr().pathPaymentStrictSendResult();
 }
 
 void

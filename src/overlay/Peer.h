@@ -4,16 +4,14 @@
 // under the Apache License, Version 2.0. See the COPYING file at the root
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
-#include "util/asio.h"
+#include "util/asio.h" // IWYU pragma: keep
 #include "database/Database.h"
 #include "lib/json/json.h"
 #include "medida/timer.h"
+#include "overlay/Hmac.h"
+#include "overlay/OverlayAppConnector.h"
 #include "overlay/PeerBareAddress.h"
-#include "overlay/StellarXDR.h"
-#include "overlay/TxAdvertQueue.h"
-#include "util/HashOfHash.h"
 #include "util/NonCopyable.h"
-#include "util/RandomEvictionCache.h"
 #include "util/Timer.h"
 #include "xdrpp/message.h"
 
@@ -39,6 +37,7 @@ class Application;
 class LoopbackPeer;
 struct OverlayMetrics;
 class FlowControl;
+class TxAdverts;
 
 // Peer class represents a connected peer (either inbound or outbound)
 //
@@ -72,17 +71,13 @@ class Peer : public std::enable_shared_from_this<Peer>,
         std::chrono::milliseconds(1);
     static constexpr std::chrono::nanoseconds PEER_METRICS_RATE_UNIT =
         std::chrono::seconds(1);
-    static constexpr uint32_t FIRST_VERSION_SUPPORTING_FLOW_CONTROL_IN_BYTES =
-        28;
-    static constexpr uint32_t FIRST_VERSION_UPDATED_FLOW_CONTROL_ACCOUNTING =
-        30;
+    static constexpr uint32_t FIRST_VERSION_REQUIRED_FOR_PROTOCOL_20 = 32;
 
     // The reporting will be based on the previous
     // PEER_METRICS_WINDOW_SIZE-second time window.
     static constexpr std::chrono::seconds PEER_METRICS_WINDOW_SIZE =
         std::chrono::seconds(300);
 
-    bool peerKnowsHash(Hash const& hash);
     typedef std::shared_ptr<Peer> pointer;
 
     enum PeerState
@@ -113,12 +108,6 @@ class Peer : public std::enable_shared_from_this<Peer>,
                                        : "WE_CALLED_REMOTE";
     }
 
-    enum class DropMode
-    {
-        FLUSH_WRITE_QUEUE,
-        IGNORE_WRITE_QUEUE
-    };
-
     enum class DropDirection
     {
         REMOTE_DROPPED_US,
@@ -128,38 +117,38 @@ class Peer : public std::enable_shared_from_this<Peer>,
     struct PeerMetrics
     {
         PeerMetrics(VirtualClock::time_point connectedTime);
-        uint64_t mMessageRead;
-        uint64_t mMessageWrite;
-        uint64_t mByteRead;
-        uint64_t mByteWrite;
-        uint64_t mAsyncRead;
-        uint64_t mAsyncWrite;
-        uint64_t mMessageDrop;
+        std::atomic<uint64_t> mMessageRead;
+        std::atomic<uint64_t> mMessageWrite;
+        std::atomic<uint64_t> mByteRead;
+        std::atomic<uint64_t> mByteWrite;
+        std::atomic<uint64_t> mAsyncRead;
+        std::atomic<uint64_t> mAsyncWrite;
+        std::atomic<uint64_t> mMessageDrop;
 
         medida::Timer mMessageDelayInWriteQueueTimer;
         medida::Timer mMessageDelayInAsyncWriteTimer;
         medida::Timer mAdvertQueueDelay;
         medida::Timer mPullLatency;
 
-        uint64_t mDemandTimeouts;
-        uint64_t mUniqueFloodBytesRecv;
-        uint64_t mDuplicateFloodBytesRecv;
-        uint64_t mUniqueFetchBytesRecv;
-        uint64_t mDuplicateFetchBytesRecv;
+        std::atomic<uint64_t> mDemandTimeouts;
+        std::atomic<uint64_t> mUniqueFloodBytesRecv;
+        std::atomic<uint64_t> mDuplicateFloodBytesRecv;
+        std::atomic<uint64_t> mUniqueFetchBytesRecv;
+        std::atomic<uint64_t> mDuplicateFetchBytesRecv;
 
-        uint64_t mUniqueFloodMessageRecv;
-        uint64_t mDuplicateFloodMessageRecv;
-        uint64_t mUniqueFetchMessageRecv;
-        uint64_t mDuplicateFetchMessageRecv;
+        std::atomic<uint64_t> mUniqueFloodMessageRecv;
+        std::atomic<uint64_t> mDuplicateFloodMessageRecv;
+        std::atomic<uint64_t> mUniqueFetchMessageRecv;
+        std::atomic<uint64_t> mDuplicateFetchMessageRecv;
 
-        uint64_t mTxHashReceived;
-        uint64_t mTxDemandSent;
+        std::atomic<uint64_t> mTxHashReceived;
+        std::atomic<uint64_t> mTxDemandSent;
 
-        VirtualClock::time_point mConnectedTime;
+        std::atomic<VirtualClock::time_point> mConnectedTime;
 
-        uint64_t mMessagesFulfilled;
-        uint64_t mBannedMessageUnfulfilled;
-        uint64_t mUnknownMessageUnfulfilled;
+        std::atomic<uint64_t> mMessagesFulfilled;
+        std::atomic<uint64_t> mBannedMessageUnfulfilled;
+        std::atomic<uint64_t> mUnknownMessageUnfulfilled;
     };
 
     struct TimestampedMessage
@@ -172,45 +161,99 @@ class Peer : public std::enable_shared_from_this<Peer>,
         xdr::msg_ptr mMessage;
     };
 
-    void startExecutionDelayedTimer(
-        VirtualClock::duration d, std::function<void()> const& onSuccess,
-        std::function<void(asio::error_code)> const& onFailure);
-
-    Json::Value getJsonInfo(bool compact) const;
-
+    // NB: all Peer's protected state should have some synchronization
+    // mechanisms on it: either be const, or atomic, or associated with a lock,
+    // or hidden in a helper class that does one of the same. Some methods in
+    // subclasses of Peer will run on a background thread, so may try to access
+    // the protected state. Peer state lacking synchronization should be moved
+    // to the private section below.
   protected:
-    Application& mApp;
+    class MsgCapacityTracker : private NonMovableOrCopyable
+    {
+        std::weak_ptr<Peer> const mWeakPeer;
+        StellarMessage const mMsg;
 
-    PeerRole mRole;
+      public:
+        MsgCapacityTracker(std::weak_ptr<Peer> peer, StellarMessage const& msg);
+        StellarMessage const& getMessage();
+        ~MsgCapacityTracker();
+    };
+
+    OverlayAppConnector mAppConnector;
+
+    Hash const mNetworkID;
+    std::shared_ptr<FlowControl> mFlowControl;
+    std::atomic<VirtualClock::time_point> mLastRead;
+    std::atomic<VirtualClock::time_point> mLastWrite;
+    std::atomic<VirtualClock::time_point> mEnqueueTimeOfLastWrite;
+
+    PeerRole const mRole;
+    OverlayMetrics& mOverlayMetrics;
+    PeerMetrics mPeerMetrics;
+
+    // Mutex to protect PeerState, which can be accessed and modified from
+    // multiple threads
+#ifndef USE_TRACY
+    std::recursive_mutex mutable mStateMutex;
+#else
+    mutable TracyLockable(std::recursive_mutex, mStateMutex);
+#endif
+
+    Hmac mHmac;
+    // Does local node have capacity to read from this peer
+    bool canRead() const;
+    // helper method to acknowledge that some bytes were received
+    void receivedBytes(size_t byteCount, bool gotFullMessage);
+    virtual bool
+    useBackgroundThread() const
+    {
+        return mAppConnector.getConfig()
+            .EXPERIMENTAL_BACKGROUND_OVERLAY_PROCESSING;
+    }
+
+    void initialize(PeerBareAddress const& address);
+    void shutdownAndRemovePeer(std::string const& reason,
+                               DropDirection dropDirection);
+
+    // Subclasses should only use these methods to access peer state;
+    // they all take a LockGuard that should be holding mStateMutex,
+    // but do not lock that mutex themselves (to allow atomic
+    // read-modify-write cycles or similar patterns in callers).
+    bool shouldAbort(RecursiveLockGuard const& stateGuard) const;
+    void setState(RecursiveLockGuard const& stateGuard, PeerState newState);
+    PeerState
+    getState(RecursiveLockGuard const& stateGuard) const
+    {
+        return mState;
+    }
+
+    bool recvAuthenticatedMessage(AuthenticatedMessage&& msg);
+    // These exist mostly to be overridden in TCPPeer and callable via
+    // shared_ptr<Peer> as a captured shared_from_this().
+    virtual void connectHandler(asio::error_code const& ec);
+
+    // If parallel processing is enabled, execute this function in the
+    // background. Otherwise, synchronously execute on the main thread.
+    void maybeExecuteInBackground(std::string const& jobName,
+                                  std::function<void(std::shared_ptr<Peer>)> f);
+    VirtualTimer&
+    getRecurrentTimer()
+    {
+        releaseAssert(threadIsMain());
+        return mRecurringTimer;
+    }
+
+    // NB: Everything below is private to minimize the chance that subclasses
+    // with methods running on background threads might access this
+    // unsynchronized state. All methods that access this private state should
+    // assert that they are running on the main
+    // IOW, all methods using these private variables and functions below must
+    // synchronize access manually
+  private:
     PeerState mState;
     NodeID mPeerID;
     uint256 mSendNonce;
     uint256 mRecvNonce;
-
-    std::shared_ptr<FlowControl> mFlowControl;
-
-    class MsgCapacityTracker : private NonMovableOrCopyable
-    {
-        std::weak_ptr<Peer> mWeakPeer;
-        StellarMessage mMsg;
-
-      public:
-        MsgCapacityTracker(std::weak_ptr<Peer> peer, StellarMessage const& msg);
-        ~MsgCapacityTracker();
-        StellarMessage const& getMessage();
-        std::weak_ptr<Peer> getPeer();
-    };
-
-    // Is this peer currently throttled due to lack of capacity
-    bool mIsPeerThrottled{false};
-
-    // Does local node have capacity to read from this peer
-    bool canRead() const;
-
-    HmacSha256Key mSendMacKey;
-    HmacSha256Key mRecvMacKey;
-    uint64_t mSendMacSeq{0};
-    uint64_t mRecvMacSeq{0};
 
     std::string mRemoteVersion;
     uint32_t mRemoteOverlayMinVersion;
@@ -218,13 +261,10 @@ class Peer : public std::enable_shared_from_this<Peer>,
     PeerBareAddress mAddress;
 
     VirtualClock::time_point mCreationTime;
-
     VirtualTimer mRecurringTimer;
     VirtualTimer mDelayedExecutionTimer;
 
-    VirtualClock::time_point mLastRead;
-    VirtualClock::time_point mLastWrite;
-    VirtualClock::time_point mEnqueueTimeOfLastWrite;
+    std::shared_ptr<TxAdverts> mTxAdverts;
 
     static Hash pingIDfromTimePoint(VirtualClock::time_point const& tp);
     void pingPeer();
@@ -232,14 +272,7 @@ class Peer : public std::enable_shared_from_this<Peer>,
     VirtualClock::time_point mPingSentTime;
     std::chrono::milliseconds mLastPing;
 
-    PeerMetrics mPeerMetrics;
-
-    OverlayMetrics& getOverlayMetrics();
-
-    bool shouldAbort() const;
     void recvRawMessage(StellarMessage const& msg);
-    void recvMessage(StellarMessage const& msg);
-    void recvMessage(AuthenticatedMessage const& msg);
 
     virtual void recvError(StellarMessage const& msg);
     void updatePeerRecordAfterEcho();
@@ -251,6 +284,8 @@ class Peer : public std::enable_shared_from_this<Peer>,
     void recvPeers(StellarMessage const& msg);
     void recvSurveyRequestMessage(StellarMessage const& msg);
     void recvSurveyResponseMessage(StellarMessage const& msg);
+    void recvSurveyStartCollectingMessage(StellarMessage const& msg);
+    void recvSurveyStopCollectingMessage(StellarMessage const& msg);
     void recvSendMore(StellarMessage const& msg);
 
     void recvGetTxSet(StellarMessage const& msg);
@@ -271,6 +306,8 @@ class Peer : public std::enable_shared_from_this<Peer>,
     void sendPeers();
     void sendError(ErrorCode error, std::string const& message);
 
+    void recvMessage(std::shared_ptr<MsgCapacityTracker> msgTracker);
+
     // NB: This is a move-argument because the write-buffer has to travel
     // with the write-request through the async IO system, and we might have
     // several queued at once. We have carefully arranged this to not copy
@@ -284,149 +321,125 @@ class Peer : public std::enable_shared_from_this<Peer>,
     connected()
     {
     }
-    virtual bool
-    sendQueueIsOverloaded() const
-    {
-        return false;
-    }
 
     virtual AuthCert getAuthCert();
 
     void startRecurrentTimer();
+
     void recurrentTimerExpired(asio::error_code const& error);
     std::chrono::seconds getIOTimeout() const;
-    void rememberHash(Hash const& hash, uint32_t ledgerSeq);
 
-    // helper method to acknownledge that some bytes were received
-    void receivedBytes(size_t byteCount, bool gotFullMessage);
-
-    void sendAuthenticatedMessage(StellarMessage const& msg);
+    void sendAuthenticatedMessage(
+        std::shared_ptr<StellarMessage const> msg,
+        std::optional<VirtualClock::time_point> timePlaced = std::nullopt);
     void beginMessageProcessing(StellarMessage const& msg);
     void endMessageProcessing(StellarMessage const& msg);
-    TxAdvertQueue mTxAdvertQueue;
-
-    // As of MIN_OVERLAY_VERSION_FOR_FLOOD_ADVERT, peers accumulate an _advert_
-    // of flood messages, then periodically flush the advert and await a
-    // _demand_ message with a list of flood messages to send. Adverts are
-    // typically smaller than full messages and batching them means we also
-    // amortize the authentication framing.
-    TxAdvertVector mTxHashesToAdvertise;
-    void flushAdvert();
-    VirtualTimer mAdvertTimer;
-    void startAdvertTimer();
-    // transaction hash -> ledger number
-    RandomEvictionCache<Hash, uint32_t> mAdvertHistory;
-
-    bool mShuttingDown{false};
 
   public:
+    /* The following functions must all be called from the main thread (they all
+     * contain releaseAssert(threadIsMain())) */
     Peer(Application& app, PeerRole role);
 
-    Application&
-    getApp()
-    {
-        return mApp;
-    }
-
-    void shutdown();
-    void clearBelow(uint32_t ledgerSeq);
+    void cancelTimers();
 
     std::string msgSummary(StellarMessage const& stellarMsg);
     void sendGetTxSet(uint256 const& setID);
     void sendGetQuorumSet(uint256 const& setID);
     void sendGetPeers();
     void sendGetScpState(uint32 ledgerSeq);
-    void sendErrorAndDrop(ErrorCode error, std::string const& message,
-                          DropMode dropMode);
+    void sendErrorAndDrop(ErrorCode error, std::string const& message);
+    void sendTxDemand(TxDemandVector&& demands);
+    // Queue up an advert to send, return true if the advert was queued, and
+    // false otherwise (if advert is a duplicate, for example)
+    bool sendAdvert(Hash const& txHash);
+    void sendSendMore(uint32_t numMessages, uint32_t numBytes);
 
-    void sendMessage(std::shared_ptr<StellarMessage const> msg,
-                     bool log = true);
+    virtual void sendMessage(std::shared_ptr<StellarMessage const> msg,
+                             bool log = true);
 
     PeerRole
     getRole() const
     {
+        releaseAssert(threadIsMain());
         return mRole;
     }
 
-    bool isConnected() const;
-    bool isAuthenticated() const;
-
-    VirtualClock::time_point
-    getCreationTime() const
-    {
-        return mCreationTime;
-    }
     std::chrono::seconds getLifeTime() const;
     std::chrono::milliseconds getPing() const;
-
-    PeerState
-    getState() const
-    {
-        return mState;
-    }
 
     std::string const&
     getRemoteVersion() const
     {
+        releaseAssert(threadIsMain());
         return mRemoteVersion;
-    }
-
-    uint32_t
-    getRemoteOverlayMinVersion() const
-    {
-        return mRemoteOverlayMinVersion;
     }
 
     uint32_t
     getRemoteOverlayVersion() const
     {
+        releaseAssert(threadIsMain());
         return mRemoteOverlayVersion;
     }
 
     PeerBareAddress const&
     getAddress()
     {
+        releaseAssert(threadIsMain());
         return mAddress;
     }
 
     NodeID
-    getPeerID()
+    getPeerID() const
     {
+        releaseAssert(threadIsMain());
         return mPeerID;
     }
+
+    std::string const& toString();
+
+    void startExecutionDelayedTimer(
+        VirtualClock::duration d, std::function<void()> const& onSuccess,
+        std::function<void(asio::error_code)> const& onFailure);
+    Json::Value getJsonInfo(bool compact) const;
+    void handleMaxTxSizeIncrease(uint32_t increase);
+    virtual ~Peer()
+    {
+        releaseAssert(threadIsMain());
+    }
+
+    // Pull Mode facade methods , must be called from the main thread.
+    // Queue up transaction hashes for processing again. This method is normally
+    // called if a previous demand failed or timed out.
+    void retryAdvert(std::list<Hash>& hashes);
+    // Does this peer have any transaction hashes to process?
+    bool hasAdvert();
+    // Pop the next transaction hash to process
+    std::pair<Hash, std::optional<VirtualClock::time_point>> popAdvert();
+    // Clear pull mode state below `ledgerSeq`
+    void clearBelow(uint32_t ledgerSeq);
+
+    /* The following functions can be called from background thread, so they
+     * must be thread-safe */
+    bool isConnected(RecursiveLockGuard const& stateGuard) const;
+    bool isAuthenticated(RecursiveLockGuard const& stateGuard) const;
 
     PeerMetrics&
     getPeerMetrics()
     {
+        // PeerMetrics is thread-safe
         return mPeerMetrics;
     }
 
-    std::string const& toString();
-    virtual std::string getIP() const = 0;
-
-    // These exist mostly to be overridden in TCPPeer and callable via
-    // shared_ptr<Peer> as a captured shared_from_this().
-    virtual void connectHandler(asio::error_code const& ec);
-
-    virtual void drop(std::string const& reason, DropDirection dropDirection,
-                      DropMode dropMode) = 0;
-    virtual ~Peer()
+    PeerMetrics const&
+    getPeerMetrics() const
     {
+        return mPeerMetrics;
     }
-
-    void sendTxDemand(TxDemandVector&& demands);
-    void fulfillDemand(FloodDemand const& dmd);
-    void queueTxHashToAdvertise(Hash const& hash);
-    void queueTxHashAndMaybeTrim(Hash const& hash);
-    TxAdvertQueue&
-    getTxAdvertQueue()
-    {
-        return mTxAdvertQueue;
-    };
-
-    void handleMaxTxSizeIncrease(uint32_t increase);
+    virtual void drop(std::string const& reason,
+                      DropDirection dropDirection) = 0;
 
     friend class LoopbackPeer;
+    friend class PeerStub;
 
 #ifdef BUILD_TESTS
     std::shared_ptr<FlowControl>
@@ -434,6 +447,57 @@ class Peer : public std::enable_shared_from_this<Peer>,
     {
         return mFlowControl;
     }
+    bool isAuthenticatedForTesting() const;
+    bool shouldAbortForTesting() const;
+    bool isConnectedForTesting() const;
+    void
+    sendAuthenticatedMessageForTesting(
+        std::shared_ptr<StellarMessage const> msg)
+    {
+        sendAuthenticatedMessage(std::move(msg));
+    }
+    void
+    sendXdrMessageForTesting(xdr::msg_ptr xdrBytes)
+    {
+        sendMessage(std::move(xdrBytes));
+    }
+    std::string mDropReason;
 #endif
+
+    // Public thread-safe methods that access Peer's state
+    void
+    assertAuthenticated() const
+    {
+        RecursiveLockGuard guard(mStateMutex);
+        releaseAssert(isAuthenticated(guard));
+    }
+
+    void
+    assertShuttingDown() const
+    {
+        RecursiveLockGuard guard(mStateMutex);
+        releaseAssert(mState == CLOSING);
+    }
+
+    // equivalent to isAuthenticated being an atomic flag; i.e. it can be safely
+    // loaded, but once it's loaded, there are no guarantees on its value. If
+    // the code block depends on isAuthenticated value being constant, use
+    // `doIfAuthenticated`
+    bool
+    isAuthenticatedAtomic() const
+    {
+        RecursiveLockGuard guard(mStateMutex);
+        return isAuthenticated(guard);
+    }
+
+    void
+    doIfAuthenticated(std::function<void()> f)
+    {
+        RecursiveLockGuard guard(mStateMutex);
+        if (isAuthenticated(guard))
+        {
+            f();
+        }
+    }
 };
 }

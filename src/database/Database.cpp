@@ -62,8 +62,8 @@ using namespace std;
 bool Database::gDriversRegistered = false;
 
 // smallest schema version supported
-static unsigned long const MIN_SCHEMA_VERSION = 13;
-static unsigned long const SCHEMA_VERSION = 21;
+static unsigned long const MIN_SCHEMA_VERSION = 21;
+static unsigned long const SCHEMA_VERSION = 22;
 
 // These should always match our compiled version precisely, since we are
 // using a bundled version to get access to carray(). But in case someone
@@ -71,7 +71,7 @@ static unsigned long const SCHEMA_VERSION = 21;
 // more-precise version-mismatch error message than a runtime crash due
 // to using SQLite features that aren't supported on an old version.
 static int const MIN_SQLITE_MAJOR_VERSION = 3;
-static int const MIN_SQLITE_MINOR_VERSION = 26;
+static int const MIN_SQLITE_MINOR_VERSION = 45;
 static int const MIN_SQLITE_VERSION =
     (1000000 * MIN_SQLITE_MAJOR_VERSION) + (1000 * MIN_SQLITE_MINOR_VERSION);
 
@@ -212,33 +212,8 @@ Database::applySchemaUpgrade(unsigned long vers)
     soci::transaction tx(mSession);
     switch (vers)
     {
-    case 14:
-        mApp.getPersistentState().setRebuildForType(OFFER);
-        break;
-    case 15:
-        mApp.getPersistentState().setRebuildForType(TRUSTLINE);
-        mApp.getPersistentState().setRebuildForType(LIQUIDITY_POOL);
-        break;
-    case 16:
-        mApp.getPersistentState().setRebuildForType(LIQUIDITY_POOL);
-        break;
-    case 17:
-        mApp.getPersistentState().setRebuildForType(OFFER);
-        break;
-    case 18:
-        createTxSetHistoryTable(*this);
-        mApp.getPersistentState().upgradeSCPDataFormat();
-        break;
-    case 19:
-        mApp.getPersistentState().upgradeSCPDataV1Format();
-        break;
-    case 20:
-        mApp.getPersistentState().setRebuildForType(CONFIG_SETTING);
-        mApp.getPersistentState().setRebuildForType(CONTRACT_DATA);
-        mApp.getPersistentState().setRebuildForType(CONTRACT_CODE);
-        break;
-    case 21:
-        mApp.getPersistentState().setRebuildForType(TTL);
+    case 22:
+        deprecateTransactionFeeHistory(*this);
         break;
     default:
         throw std::runtime_error("Unknown DB schema version");
@@ -272,8 +247,51 @@ Database::upgradeToCurrentSchema()
         applySchemaUpgrade(vers);
         putSchemaVersion(vers);
     }
+
+    // While not really a schema upgrade, we need to upgrade the DB when
+    // BucketListDB is enabled.
+    if (mApp.getConfig().isUsingBucketListDB())
+    {
+        // Tx meta column no longer supported in BucketListDB
+        dropTxMetaIfExists();
+    }
+
     CLOG_INFO(Database, "DB schema is in current version");
     releaseAssert(vers == SCHEMA_VERSION);
+}
+
+void
+Database::dropTxMetaIfExists()
+{
+    int txMetaExists{};
+    std::string selectStr;
+    if (isSqlite())
+    {
+        selectStr = "SELECT EXISTS ("
+                    "SELECT 1 "
+                    "FROM pragma_table_info('txhistory') "
+                    "WHERE name = 'txmeta');";
+    }
+    else
+    {
+        selectStr = "SELECT EXISTS ("
+                    "SELECT 1 "
+                    "FROM information_schema.columns "
+                    "WHERE "
+                    "table_name = 'txhistory' AND "
+                    "column_name = 'txmeta');";
+    }
+
+    auto& st = getPreparedStatement(selectStr).statement();
+    st.exchange(soci::into(txMetaExists));
+    st.define_and_bind();
+    st.execute(true);
+
+    if (txMetaExists)
+    {
+        CLOG_INFO(Database, "Dropping txmeta column from txhistory table");
+        getSession() << "ALTER TABLE txhistory DROP COLUMN txmeta;";
+    }
 }
 
 void
@@ -453,7 +471,7 @@ Database::initialize()
     PersistentState::dropAll(*this);
     ExternalQueue::dropAll(*this);
     LedgerHeaderUtils::dropAll(*this);
-    dropTransactionHistory(*this);
+    dropTransactionHistory(*this, mApp.getConfig());
     HistoryManager::dropAll(*this);
     HerderPersistence::dropAll(*this);
     BanManager::dropAll(*this);
@@ -469,7 +487,7 @@ soci::session&
 Database::getSession()
 {
     // global session can only be used from the main thread
-    assertThreadIsMain();
+    releaseAssert(threadIsMain());
     return mSession;
 }
 

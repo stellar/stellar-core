@@ -7,7 +7,7 @@ of the [SCPDriver class](../scp/SCPDriver.h), and so is most easily understood a
 reading that class and understanding where and how a subclass would make the abstract
 SCP protocol concrete.
 
-# key implementation details
+# Key Implementation Details
 
 The Herder considers a ledger number to be a "slot" in the SCP
 protocol, and transaction set hashes (along with close-time and base-fee) to be
@@ -15,15 +15,15 @@ the sort of "value" that it is attempting to agree on for each "slot".
 
 Herder acts as the glue between SCP and LedgerManager.
 
-## LedgerManager interaction
+## `LedgerManager` Interaction
 Herder serializes "slot externalize" events as much as possible so that
 LedgerManager only sees strictly monotonic ledger closing events (and deal with
  any potential gaps using catchup).
 
-## SCP interaction
-Herder has two main modes of operation.
+## SCP Interaction
+Herder has two main modes of operation:
 
-### "Tracking" state
+### "Tracking" State
 Herder knows which slot got externalized last and only processes SCP messages
  for the next slot.
 
@@ -36,11 +36,11 @@ Messages for the current slot may have been delayed by the network while
 Herder places a timeout to make progress on the expected next slot, if it
  reaches this timeout, it changes its state to "Not tracking".
 
-#### Picking the initial position
+#### Picking Initial Position
 When a ledger is closed and LedgerManager is in sync, herder is responsible
  for picking a starting position to send a PREPARING message.
 
-### "Not Tracking" state
+### "Not Tracking" State
 Herder does not know which slot got externalized last, its goal is to go back
  to the tracking state.
 In order to do this, it starts processing all SCP messages starting with the

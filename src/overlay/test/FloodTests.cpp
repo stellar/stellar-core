@@ -2,6 +2,8 @@
 // under the Apache License, Version 2.0. See the COPYING file at the root
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
+#include "bucket/BucketManager.h"
+#include "bucket/test/BucketTestUtils.h"
 #include "herder/Herder.h"
 #include "herder/HerderImpl.h"
 #include "ledger/LedgerManager.h"
@@ -68,9 +70,12 @@ TEST_CASE("Flooding", "[flood][overlay][acceptance]")
                 // need to create on all nodes
                 for (auto n : nodes)
                 {
-                    LedgerTxn ltx(n->getLedgerTxnRoot(), false);
-                    ltx.create(gen);
-                    ltx.commit();
+                    auto const& header = n->getLedgerManager()
+                                             .getLastClosedLedgerHeader()
+                                             .header;
+                    BucketTestUtils::addBatchAndUpdateSnapshot(
+                        n->getBucketManager().getBucketList(), *n, header, {},
+                        {gen}, {});
                 }
             }
         }
@@ -140,7 +145,7 @@ TEST_CASE("Flooding", "[flood][overlay][acceptance]")
 
     SECTION("transaction flooding")
     {
-        TransactionFramePtr testTransaction = nullptr;
+        TransactionTestFramePtr testTransaction = nullptr;
         auto injectTransaction = [&](int i) {
             const int64 txAmount = 10000000;
 
@@ -158,21 +163,28 @@ TEST_CASE("Flooding", "[flood][overlay][acceptance]")
             }
             // this is basically a modified version of Peer::recvTransaction
             auto msg = tx1->toStellarMessage();
-            auto res = inApp->getHerder().recvTransaction(tx1, false);
-            REQUIRE(res == TransactionQueue::AddResult::ADD_STATUS_PENDING);
-            inApp->getOverlayManager().broadcastMessage(msg, false,
+            auto addResult = inApp->getHerder().recvTransaction(tx1, false);
+            REQUIRE(addResult.code ==
+                    TransactionQueue::AddResultCode::ADD_STATUS_PENDING);
+            inApp->getOverlayManager().broadcastMessage(msg,
                                                         tx1->getFullHash());
         };
 
         auto ackedTransactions = [&](std::shared_ptr<Application> app) {
             // checks if an app received all transactions or not
             size_t okCount = 0;
+            auto& herder = static_cast<HerderImpl&>(app->getHerder());
+
             for (auto const& s : sources)
             {
-                okCount +=
-                    (app->getHerder().getMaxSeqInPendingTxs(s) == expectedSeq)
-                        ? 1
-                        : 0;
+                auto accState =
+                    herder.getTransactionQueue().getAccountTransactionQueueInfo(
+                        s);
+                auto seqNum = accState.mTransaction
+                                  ? accState.mTransaction->mTx->getSeqNum()
+                                  : 0;
+
+                okCount += !!(seqNum == expectedSeq);
             }
             bool res = okCount == sources.size();
             LOG_DEBUG(DEFAULT_LOG, "{}{}{} / {} authenticated peers: {}",
@@ -274,7 +286,7 @@ TEST_CASE("Flooding", "[flood][overlay][acceptance]")
                         auto before =
                             overlaytestutils::getAdvertisedHashCount(node);
                         node->getOverlayManager().broadcastMessage(
-                            testTransaction->toStellarMessage(), false,
+                            testTransaction->toStellarMessage(),
                             testTransaction->getFullHash());
                         REQUIRE(before ==
                                 overlaytestutils::getAdvertisedHashCount(node));
@@ -298,7 +310,7 @@ TEST_CASE("Flooding", "[flood][overlay][acceptance]")
                         auto before =
                             overlaytestutils::getAdvertisedHashCount(node);
                         node->getOverlayManager().broadcastMessage(
-                            testTransaction->toStellarMessage(), false,
+                            testTransaction->toStellarMessage(),
                             testTransaction->getFullHash());
 
                         REQUIRE(before + 1 ==
@@ -433,7 +445,7 @@ TEST_CASE("Flooding", "[flood][overlay][acceptance]")
 
             // create the transaction set containing this transaction
 
-            auto txSet = TxSetFrame::makeFromTransactions({tx1}, *inApp, 0, 0);
+            auto txSet = makeTxSetFromTransactions({tx1}, *inApp, 0, 0).first;
             auto& herder = static_cast<HerderImpl&>(inApp->getHerder());
 
             // build the quorum set used by this message

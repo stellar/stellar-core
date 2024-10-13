@@ -77,7 +77,7 @@ the result set to "Failed".
 
 ## Result
 When transactions are applied (success or not), the result is saved in the 
-"txhistory" and "txfeehistory" tables in the database.
+"txhistory" table in the database.
 
 # Operations
 
@@ -137,8 +137,6 @@ of the operation or in the case of failure records why in structured form.
 Results are queued in the txhistory table for other components to derive data:
 historical module for uploading it for long term storage, but also for API 
 servers to consume externally.
-The txfeehistory table is additional meta data that tracks changes to the ledger
-done before transactions are applied.
 
 ## List of operations
 See `src/xdr/Stellar-transaction.x` for a detailed list of all operations and results.

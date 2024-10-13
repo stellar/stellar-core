@@ -4,6 +4,7 @@ This folder is for storing any scripts that may be helpful for using stellar-cor
 ## List of scripts
 - [Overlay survey](#overlay-survey)
 - [Diff Tracy CSV](#diff-tracy-csv)
+- [Parse Backtrace Dump](#parse-backtrace-dump)
 
 ### Overlay survey 
 - Name - `OverlaySurvey.py`
@@ -11,15 +12,19 @@ This folder is for storing any scripts that may be helpful for using stellar-cor
 - Usage - Ex. `python3 OverlaySurvey.py -gs gs.json survey -n http://127.0.0.1:11626 -d 50 -sr sr.json -gmlw gmlw.graphml` to run the survey, `python3 OverlaySurvey.py -gs gs.json analyze -gmla gmla.graphml` to analyze an existing graph, or `python3 OverlaySurvey.py -gs gs.json augment -gmli gmlw.graphml -gmlo augmented.graphml` to augment the existing graph with data from StellarBeat.
 
     - `-gs GRAPHSTATS`, `--graphStats GRAPHSTATS` - output file for graph stats (Optional)
+    - `-v`, `--verbose` - increase log verbosity (Optional)
     - sub command `survey` - run survey and analyze
         - `-n NODE`, `--node NODE` - address of initial survey node
-        - `-d DURATION`, `--duration DURATION` - duration of survey in seconds
+        - `-c DURATION`, `--collect-duration DURATION` - duration of survey collecting phase in minutes
         - `-nl NODELIST`, `--nodeList NODELIST` - list of seed nodes. One node per line. (Optional)
         - `-gmlw GRAPHMLWRITE`, `--graphmlWrite GRAPHMLWRITE` - output file for graphml file
         - `-sr SURVEYRESULT`, `--surveyResult SURVEYRESULT` - output file for survey results
+    - sub command `simulate` - simulate a run of the `survey` subcommand without any network calls. Takes the same arguments as `survey`, plus the following:
+        - `-s SIMGRAPH`, `--simGraph SIMGRAPH` - Network topology to simulate in graphml format.
+        - `-r SIMROOT`, `--simRoot SIMROOT` - Node in graph to start simulation from.
     - sub command `analyze` - analyze an existing graph
         - `-gmla GRAPHMLANALYZE`, `--graphmlAnalyze GRAPHMLANALYZE` - input graphml file
-    - sub command `augment` - analyze an existing graph
+    - sub command `augment` - augment an existing graph with information from  stellarbeat.io. Currently, only Public Network graphs are supported.
         - `-gmli GRAPHMLINPUT` - input graphml file
         - `-gmlo GRAPHMLOUTPUT` - output graphml file
     - sub command `flatten` - Take a graphml file containing a bidrectional graph (possibly augmented with StellarBeat data) and flatten it into an undirected graph in JSON.
@@ -31,29 +36,34 @@ This folder is for storing any scripts that may be helpful for using stellar-cor
 - Description - A Python script that compares two CSV files produced by `tracy-csvexport` (which in turn reads output from `tracy-capture`). The purpose of this script is to detect significant performance impacts of changes to stellar-core by capturing before-and-after traces.
 - Usage - Ex. `tracy-capture -o old.tracy -s 10 -a 127.0.0.1` to capture a 10 second trace of stellar-core running on the local machine. Then run `tracy-csvexport -u old.tracy >old.csv`. Then make a change to stellar-core and repeat the process to capture `new.tracy` and `new.csv`. Finally, run `DiffTracyCSV.py --old old.csv --new new.csv` and inspect the differences.
 
-### Soroban Settings Upgrade
-- Directory - `soroban-settings`
-- Name - `SorobanSettingsUpgrade.py`
-- Description - A python script that can setup a setting upgrade or retrieve
-  current settings for Futurenet through Soroban RPC. The next step is to submit all transactions directly to stellar-core's `tx` endpoint. Note that the actual upgrade command will have to be
-  submitted manually on the core nodes. 
-- Prerequisites
-  - cd `soroban-settings/write_upgrade_bytes` and then run both `rustup target add wasm32-unknown-unknown` and `make build` to build the WASM contract used to write the proposed upgrade.
-  - If the soroban branch of py-stellar-base
-    (https://github.com/StellarCN/py-stellar-base/tree/soroban) has not been
-    merged into main and released, then you'll have to install it Either
-    checkout that branch locally and run `make install` in the `py-stellar-base`
-    directory or run `pip install
-    git+https://github.com/StellarCN/py-stellar-base.git@soroban`.
-- Usage - Ex. `python3 SorobanSettingsUpgrade.py getSettings -id 10` to print out the
-  current state archival settings. `SorobanSettingsUpgrade.py setupUpgrade`
-  to setup the upgrade for the settings hardcoded in the script.
-  -  `getSettings -id n` - Returns the `ConfigSettingEntry` for the `ConfigSettingID` enum that maps to `n`.
-  - `setupUpgrade` - `python3 SorobanSettingsUpgrade.py setupUpgrade` to setup the upgrade for the settings hardcoded in the script.
-    - 1. Include the settings you want to upgrade in the `ConfigUpgradeSet` that is returned in `get_upgrade_set`.
-    - 2. Run `python3 SorobanSettingsUpgrade.py setupUpgrade`
-    - 3. Take the URL encoded upgrade at the bottom of the output Ex. `url encoded upgrade: A2UbJ1lMHignaTyRtB9lTQT2DoN7zBUiepl68lfNdz5vy3TMBHuWLuVigdUG2XA/k1KxRH6RQ8WUKprvSRfm4A%3D%3D` and
-    submit that to the core codes being upgraded. Make sure the UTC `upgradetime` is in the future so every validator has time to arm all nodes. Ex. `curl "http://localhost:11626/upgrades?mode=set&configupgradesetkey=A2UbJ1lMHignaTyRtB9lTQT2DoN7zBUiepl68lfNdz5vy3TMBHuWLuVigdUG2XA/k1KxRH6RQ8WUKprvSRfm4A%3D%3D&upgradetime=2023-07-19T21:59:00Z"`.
+### Parse Backtrace Dump
+
+- Name - `ParseDump.py`
+- Description - A Python script that translates raw backtrace dumps to a human-readable format. If core crashes, on most compiler/OSes, a human readable stack trace is logged. This is not possible on linux clang. Instead, linux clang logs a raw stack trace that must be processed by the script.
+- Usage - Ex. `ParseDump.py ./src/stellar-core "./src/stellar-core(+0xd9f6d5) [0x55c7cdb506d5]"`. The first argument is the path to a `stellar-core` executable with debug symbols. This exe must be the same version of `stellar-core` that produced the stack trace. However, only the exe argument for `ParseDump.py` needs debug symbols. The `stellar-core` exe that produced the backtrace does not need debug symbols. The second argument is a single string containing the backtrace to process. This string should contain a series of new-line delimited raw traces as follows:
+
+```
+"./src/stellar-core(+0x1987a5) [0x55c7ccf497a5]
+./src/stellar-core(+0x4f538b) [0x55c7cd2a638b]
+./src/stellar-core(+0x8ace59) [0x55c7cd65de59]
+./src/stellar-core(+0x8a36d2) [0x55c7cd6546d2]
+./src/stellar-core(+0x9b1916) [0x55c7cd762916]
+./src/stellar-core(+0x9d0c10) [0x55c7cd781c10]
+./src/stellar-core(+0xa413ec) [0x55c7cd7f23ec]
+./src/stellar-core(+0xa3081a) [0x55c7cd7e181a]
+./src/stellar-core(+0xa3a0e4) [0x55c7cd7eb0e4]
+./src/stellar-core(+0xa44fe7) [0x55c7cd7f5fe7]
+./src/stellar-core(+0x34f0c1) [0x55c7cd1000c1]"
+```
+
+### Soroban Settings Helper
+- Name - `settings-helper.sh`
+- Prequisites - `stellar-xdr` and `stellar-core`
+- Description - This is a script to help with the [Soroban Settings Upgrade](../docs/software/soroban-settings.md). It's important to be aware of how the underlying process works
+in case the script has some issues, so please read through that doc before attempting to use this script. This script should be run from the directory that contains your stellar-core binary. This script also queries the SDF Horizon for the sequence number of the account, so if the SDF Horizon instance is unavailable, then you'll need to provide the account's sequence number manually.
+- Usage - Ex. `sh ../scripts/settings-helper.sh SCSQHJIUGUGTH2P4K6AOFTEW4HUMI2BRTUBBDDXMQ4FLHXCX25W3PGBJ testnet ../soroban-settings/testnet_settings_phase2.json`. The first argument is the secret key of the source account that will be used for the transactions to set up the upgrade, the second argument is the network passphrase, and the third is 
+the path to the JSON file with the proposed settings.
+
 
 ## Style guide
 We follow [PEP-0008](https://www.python.org/dev/peps/pep-0008/).

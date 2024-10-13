@@ -79,6 +79,13 @@ void cereal_override(cereal::JSONOutputArchive& ar, const stellar::PublicKey& s,
                      const char* field);
 
 void cereal_override(cereal::JSONOutputArchive& ar,
+                     const stellar::SCAddress& addr, const char* field);
+
+void cereal_override(cereal::JSONOutputArchive& ar,
+                     const stellar::ConfigUpgradeSetKey& key,
+                     const char* field);
+
+void cereal_override(cereal::JSONOutputArchive& ar,
                      const stellar::MuxedAccount& muxedAccount,
                      const char* field);
 
@@ -177,10 +184,12 @@ cereal_override(cereal::JSONOutputArchive& ar, const xdr::pointer<T>& t,
 // during the enable_if call in the cereal adaptor fails to find them.
 #include <xdrpp/cereal.h>
 
+namespace stellar
+{
 // If compact = true, the output string will not contain any indentation.
 template <typename T>
 std::string
-xdr_to_string(const T& t, std::string const& name, bool compact = false)
+xdrToCerealString(const T& t, std::string const& name, bool compact = false)
 {
     std::stringstream os;
 
@@ -193,4 +202,5 @@ xdr_to_string(const T& t, std::string const& name, bool compact = false)
         xdr::archive(ar, t, name.c_str());
     }
     return os.str();
+}
 }

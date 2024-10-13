@@ -39,6 +39,10 @@ isRepresentableAsInt64(double d)
            (d < static_cast<double>(std::numeric_limits<int64_t>::max()));
 }
 
+// Convert a double to a uint32_t, clamping to the range of uint32_t. Converts
+// NaN to the maximum uint32_t.
+uint32_t doubleToClampedUint32(double d);
+
 // calculates A*B/C when A*B overflows 64bits
 int64_t bigDivideOrThrow(int64_t A, int64_t B, int64_t C, Rounding rounding);
 // no throw version, returns true if result is valid

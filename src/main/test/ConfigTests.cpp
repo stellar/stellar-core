@@ -216,6 +216,67 @@ TEST_CASE("load validators config", "[config]")
     REQUIRE(c.KNOWN_PEERS.size() == 13);
     REQUIRE(c.PREFERRED_PEERS.size() == 2); // 2 other "domainA" validators
     REQUIRE(c.HISTORY.size() == 20);
+
+    // Check that VALIDATOR_WEIGHT_CONFIG is correctly loaded
+    SECTION("VALIDATOR_WEIGHT_CONFIG")
+    {
+        REQUIRE(c.VALIDATOR_WEIGHT_CONFIG.has_value());
+        ValidatorWeightConfig const& vwc = c.VALIDATOR_WEIGHT_CONFIG.value();
+
+        // Should be 30 validators, counting 'self'
+        REQUIRE(vwc.mValidatorEntries.size() == 30);
+
+        // Check a validator with a home domain defined in [[HOME_DOMAINS]]
+        NodeID const e2 = KeyUtils::fromStrKey<NodeID>(
+            "GCBEPQHP3D42OHQMA54NRF3E4BAJ6T7NZP7Q7URI2VWNQDJPXTDA3SBJ");
+        ValidatorEntry const& e2Entry = vwc.mValidatorEntries.at(e2);
+        REQUIRE(e2Entry.mName == "e2");
+        REQUIRE(e2Entry.mHomeDomain == "domainE");
+        REQUIRE(e2Entry.mQuality == ValidatorQuality::VALIDATOR_LOW_QUALITY);
+        REQUIRE(e2Entry.mKey == e2);
+        REQUIRE(!e2Entry.mHasHistory);
+
+        // Check a validator with a home domain not defined in [[HOME_DOMAINS]]
+        NodeID const d1 = KeyUtils::fromStrKey<NodeID>(
+            "GDD3QN464732BXOZ7UZ43I5KR76X5YPNCUZMUCI4HJXRYQL4EJR6QAZL");
+        ValidatorEntry const& d1Entry = vwc.mValidatorEntries.at(d1);
+        REQUIRE(d1Entry.mName == "d1");
+        REQUIRE(d1Entry.mHomeDomain == "domainD");
+        REQUIRE(d1Entry.mQuality == ValidatorQuality::VALIDATOR_MED_QUALITY);
+        REQUIRE(d1Entry.mKey == d1);
+        REQUIRE(!d1Entry.mHasHistory);
+
+        // Check self
+        NodeID const self = c.NODE_SEED.getPublicKey();
+        ValidatorEntry const& selfEntry = vwc.mValidatorEntries.at(self);
+        REQUIRE(selfEntry.mName == "self");
+        REQUIRE(selfEntry.mHomeDomain == "domainA");
+        REQUIRE(selfEntry.mQuality == ValidatorQuality::VALIDATOR_HIGH_QUALITY);
+        REQUIRE(selfEntry.mKey == self);
+        REQUIRE(!selfEntry.mHasHistory);
+
+        // Check home-domain count for each domain
+        UnorderedMap<std::string, uint64> const expectedHomeDomainSizes = {
+            {"domainA", 3}, {"domainB", 3}, {"domainC", 2}, {"domainD", 2},
+            {"domainE", 3}, {"domainF", 1}, {"domainG", 1}, {"domainH", 1},
+            {"domainI", 1}, {"domainJ", 1}, {"domainK", 3}, {"domainL", 3},
+            {"domainM", 3}, {"domainN", 3}};
+        REQUIRE(vwc.mHomeDomainSizes == expectedHomeDomainSizes);
+
+        // Check quality weights
+        UnorderedMap<ValidatorQuality, uint64> const expectedQualityWeights = {
+            {ValidatorQuality::VALIDATOR_LOW_QUALITY, 0},
+            // Denominator is 1600 because there are 3 HIGH orgs + 1 virtual org
+            // containing the MED orgs. This means the quality level should be
+            // HIGH_QUALITY_WEIGHT / (4 * 10), or
+            // UINT64_MAX / 40 / (4 * 10), which is UINT64_MAX / 1600
+            {ValidatorQuality::VALIDATOR_MED_QUALITY, UINT64_MAX / 1600},
+            // Denominator is 40 because there are 3 CRITICAL orgs + 1 virtual
+            // org containing the HIGH quality orgs
+            {ValidatorQuality::VALIDATOR_HIGH_QUALITY, UINT64_MAX / 40},
+            {ValidatorQuality::VALIDATOR_CRITICAL_QUALITY, UINT64_MAX}};
+        REQUIRE(vwc.mQualityWeights == expectedQualityWeights);
+    }
 }
 
 TEST_CASE("bad validators configs", "[config]")
@@ -225,6 +286,7 @@ TEST_CASE("bad validators configs", "[config]")
 NODE_SEED="SA7FGJMMUIHNE3ZPI2UO5I632A7O5FBAZTXFAIEVFA4DSSGLHXACLAIT a3"
 {NODE_HOME_DOMAIN}
 NODE_IS_VALIDATOR=true
+DEPRECATED_SQL_LEDGER_STATE=true
 
 ############################
 # list of HOME_DOMAINS
@@ -411,7 +473,9 @@ TEST_CASE("nesting level", "[config]")
         auto secretKey = SecretKey::fromSeed(hash);
         return secretKey.getStrKeyPublic();
     };
-    std::string configNesting = "UNSAFE_QUORUM=true";
+    std::string configNesting =
+        "DEPRECATED_SQL_LEDGER_STATE=true\n" // Required for all configs
+        "UNSAFE_QUORUM=true";
     std::string quorumSetNumber = "";
     std::string quorumSetTemplate = R"(
 
@@ -472,6 +536,7 @@ TEST_CASE("operation filter configuration", "[config]")
         };
 
         std::stringstream ss;
+        ss << "DEPRECATED_SQL_LEDGER_STATE=true\n"; // required for all configs
         ss << "UNSAFE_QUORUM=true\n";
         toConfigStr(vals, ss);
         ss << "\n[QUORUM_SET]\n";

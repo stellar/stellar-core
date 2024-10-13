@@ -19,8 +19,8 @@ namespace stellar
 {
 
 void
-ChangeTrustOpFrame::managePoolOnDeletedTrustLine(AbstractLedgerTxn& ltx,
-                                                 TrustLineAsset const& tlAsset)
+ChangeTrustOpFrame::managePoolOnDeletedTrustLine(
+    AbstractLedgerTxn& ltx, TrustLineAsset const& tlAsset) const
 {
     LedgerTxn ltxInner(ltx);
 
@@ -47,20 +47,21 @@ ChangeTrustOpFrame::managePoolOnDeletedTrustLine(AbstractLedgerTxn& ltx,
 
 bool
 ChangeTrustOpFrame::tryIncrementPoolUseCount(AbstractLedgerTxn& ltx,
-                                             Asset const& asset)
+                                             Asset const& asset,
+                                             OperationResult& res) const
 {
     if (!isIssuer(getSourceID(), asset) && asset.type() != ASSET_TYPE_NATIVE)
     {
         auto assetTrustLine = ltx.load(trustlineKey(getSourceID(), asset));
         if (!assetTrustLine)
         {
-            innerResult().code(CHANGE_TRUST_TRUST_LINE_MISSING);
+            innerResult(res).code(CHANGE_TRUST_TRUST_LINE_MISSING);
             return false;
         }
 
         if (!isAuthorizedToMaintainLiabilities(assetTrustLine))
         {
-            innerResult().code(CHANGE_TRUST_NOT_AUTH_MAINTAIN_LIABILITIES);
+            innerResult(res).code(CHANGE_TRUST_NOT_AUTH_MAINTAIN_LIABILITIES);
             return false;
         }
 
@@ -81,7 +82,8 @@ ChangeTrustOpFrame::tryIncrementPoolUseCount(AbstractLedgerTxn& ltx,
 
 bool
 ChangeTrustOpFrame::tryManagePoolOnNewTrustLine(AbstractLedgerTxn& ltx,
-                                                TrustLineAsset const& tlAsset)
+                                                TrustLineAsset const& tlAsset,
+                                                OperationResult& res) const
 {
     LedgerTxn ltxInner(ltx);
 
@@ -91,8 +93,8 @@ ChangeTrustOpFrame::tryManagePoolOnNewTrustLine(AbstractLedgerTxn& ltx,
     }
 
     auto const& cpParams = mChangeTrust.line.liquidityPool().constantProduct();
-    if (!tryIncrementPoolUseCount(ltxInner, cpParams.assetA) ||
-        !tryIncrementPoolUseCount(ltxInner, cpParams.assetB))
+    if (!tryIncrementPoolUseCount(ltxInner, cpParams.assetA, res) ||
+        !tryIncrementPoolUseCount(ltxInner, cpParams.assetB, res))
     {
         return false;
     }
@@ -132,15 +134,17 @@ ChangeTrustOpFrame::tryManagePoolOnNewTrustLine(AbstractLedgerTxn& ltx,
 }
 
 ChangeTrustOpFrame::ChangeTrustOpFrame(Operation const& op,
-                                       OperationResult& res,
-                                       TransactionFrame& parentTx)
-    : OperationFrame(op, res, parentTx)
+                                       TransactionFrame const& parentTx)
+    : OperationFrame(op, parentTx)
     , mChangeTrust(mOperation.body.changeTrustOp())
 {
 }
 
 bool
-ChangeTrustOpFrame::doApply(AbstractLedgerTxn& ltx)
+ChangeTrustOpFrame::doApply(Application& app, AbstractLedgerTxn& ltx,
+                            Hash const& sorobanBasePrngSeed,
+                            OperationResult& res,
+                            std::shared_ptr<SorobanTxData> sorobanData) const
 {
     ZoneNamedN(applyZone, "ChangeTrustOp apply", true);
 
@@ -160,7 +164,7 @@ ChangeTrustOpFrame::doApply(AbstractLedgerTxn& ltx)
         if (isIssuer(getSourceID(), mChangeTrust.line))
         {
             // since version 3 it is not allowed to use CHANGE_TRUST on self
-            innerResult().code(CHANGE_TRUST_SELF_NOT_ALLOWED);
+            innerResult(res).code(CHANGE_TRUST_SELF_NOT_ALLOWED);
             return false;
         }
     }
@@ -168,12 +172,12 @@ ChangeTrustOpFrame::doApply(AbstractLedgerTxn& ltx)
     {
         if (mChangeTrust.limit < INT64_MAX)
         {
-            innerResult().code(CHANGE_TRUST_INVALID_LIMIT);
+            innerResult(res).code(CHANGE_TRUST_INVALID_LIMIT);
             return false;
         }
         else if (!loadAccountWithoutRecord(ltx, getSourceID()))
         {
-            innerResult().code(CHANGE_TRUST_NO_ISSUER);
+            innerResult(res).code(CHANGE_TRUST_NO_ISSUER);
             return false;
         }
         return true;
@@ -188,7 +192,7 @@ ChangeTrustOpFrame::doApply(AbstractLedgerTxn& ltx)
         if (mChangeTrust.limit < getMinimumLimit(ltx.loadHeader(), trustLine))
         {
             // Can't drop the limit below the balance you are holding with them
-            innerResult().code(CHANGE_TRUST_INVALID_LIMIT);
+            innerResult(res).code(CHANGE_TRUST_INVALID_LIMIT);
             return false;
         }
 
@@ -204,7 +208,7 @@ ChangeTrustOpFrame::doApply(AbstractLedgerTxn& ltx)
             if (!isPoolShare && hasTrustLineEntryExtV2(tlEntry()) &&
                 tlEntry().ext.v1().ext.v2().liquidityPoolUseCount != 0)
             {
-                innerResult().code(CHANGE_TRUST_CANNOT_DELETE);
+                innerResult(res).code(CHANGE_TRUST_CANNOT_DELETE);
                 return false;
             }
 
@@ -224,19 +228,19 @@ ChangeTrustOpFrame::doApply(AbstractLedgerTxn& ltx)
             if (mChangeTrust.line.type() != ASSET_TYPE_POOL_SHARE &&
                 !loadAccountWithoutRecord(ltx, getIssuer(mChangeTrust.line)))
             {
-                innerResult().code(CHANGE_TRUST_NO_ISSUER);
+                innerResult(res).code(CHANGE_TRUST_NO_ISSUER);
                 return false;
             }
             trustLine.current().data.trustLine().limit = mChangeTrust.limit;
         }
-        innerResult().code(CHANGE_TRUST_SUCCESS);
+        innerResult(res).code(CHANGE_TRUST_SUCCESS);
         return true;
     }
     else
     { // new trust line
         if (mChangeTrust.limit == 0)
         {
-            innerResult().code(CHANGE_TRUST_INVALID_LIMIT);
+            innerResult(res).code(CHANGE_TRUST_INVALID_LIMIT);
             return false;
         }
 
@@ -254,7 +258,7 @@ ChangeTrustOpFrame::doApply(AbstractLedgerTxn& ltx)
                 loadAccountWithoutRecord(ltx, getIssuer(mChangeTrust.line));
             if (!issuer)
             {
-                innerResult().code(CHANGE_TRUST_NO_ISSUER);
+                innerResult(res).code(CHANGE_TRUST_NO_ISSUER);
                 return false;
             }
             if (!isAuthRequired(issuer))
@@ -269,7 +273,7 @@ ChangeTrustOpFrame::doApply(AbstractLedgerTxn& ltx)
 
         // this will create a child LedgerTxn and deactivate all loaded
         // entries!
-        if (!tryManagePoolOnNewTrustLine(ltx, tlAsset))
+        if (!tryManagePoolOnNewTrustLine(ltx, tlAsset, res))
         {
             return false;
         }
@@ -282,13 +286,13 @@ ChangeTrustOpFrame::doApply(AbstractLedgerTxn& ltx)
         case SponsorshipResult::SUCCESS:
             break;
         case SponsorshipResult::LOW_RESERVE:
-            innerResult().code(CHANGE_TRUST_LOW_RESERVE);
+            innerResult(res).code(CHANGE_TRUST_LOW_RESERVE);
             return false;
         case SponsorshipResult::TOO_MANY_SUBENTRIES:
-            mResult.code(opTOO_MANY_SUBENTRIES);
+            res.code(opTOO_MANY_SUBENTRIES);
             return false;
         case SponsorshipResult::TOO_MANY_SPONSORING:
-            mResult.code(opTOO_MANY_SPONSORING);
+            res.code(opTOO_MANY_SPONSORING);
             return false;
         case SponsorshipResult::TOO_MANY_SPONSORED:
             // This is impossible right now because there is a limit on sub
@@ -299,30 +303,31 @@ ChangeTrustOpFrame::doApply(AbstractLedgerTxn& ltx)
         }
         ltx.create(trustLineEntry);
 
-        innerResult().code(CHANGE_TRUST_SUCCESS);
+        innerResult(res).code(CHANGE_TRUST_SUCCESS);
         return true;
     }
 }
 
 bool
-ChangeTrustOpFrame::doCheckValid(uint32_t ledgerVersion)
+ChangeTrustOpFrame::doCheckValid(uint32_t ledgerVersion,
+                                 OperationResult& res) const
 {
     if (mChangeTrust.limit < 0)
     {
-        innerResult().code(CHANGE_TRUST_MALFORMED);
+        innerResult(res).code(CHANGE_TRUST_MALFORMED);
         return false;
     }
 
     if (!isAssetValid(mChangeTrust.line, ledgerVersion))
     {
-        innerResult().code(CHANGE_TRUST_MALFORMED);
+        innerResult(res).code(CHANGE_TRUST_MALFORMED);
         return false;
     }
     if (protocolVersionStartsFrom(ledgerVersion, ProtocolVersion::V_10))
     {
         if (mChangeTrust.line.type() == ASSET_TYPE_NATIVE)
         {
-            innerResult().code(CHANGE_TRUST_MALFORMED);
+            innerResult(res).code(CHANGE_TRUST_MALFORMED);
             return false;
         }
     }
@@ -330,7 +335,7 @@ ChangeTrustOpFrame::doCheckValid(uint32_t ledgerVersion)
     if (protocolVersionStartsFrom(ledgerVersion, ProtocolVersion::V_16) &&
         isIssuer(getSourceID(), mChangeTrust.line))
     {
-        innerResult().code(CHANGE_TRUST_MALFORMED);
+        innerResult(res).code(CHANGE_TRUST_MALFORMED);
         return false;
     }
     return true;

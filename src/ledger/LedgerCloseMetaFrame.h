@@ -28,10 +28,12 @@ class LedgerCloseMetaFrame
 
     xdr::xvector<UpgradeEntryMeta>& upgradesProcessing();
 
-    void populateTxSet(TxSetFrame const& txSet);
+    void populateTxSet(TxSetXDRFrame const& txSet);
 
-    void setTotalByteSizeOfBucketList(uint64_t size);
     void populateEvictedEntries(LedgerEntryChanges const& evictionChanges);
+
+    void setNetworkConfiguration(SorobanNetworkConfig const& networkConfig,
+                                 bool emitExtV1);
 
     LedgerCloseMeta const& getXDR() const;
 

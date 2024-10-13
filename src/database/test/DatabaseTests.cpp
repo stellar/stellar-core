@@ -72,7 +72,7 @@ transactionTest(Application::pointer app)
 
 TEST_CASE("database smoketest", "[db]")
 {
-    Config const& cfg = getTestConfig(0, Config::TESTDB_IN_MEMORY_SQLITE);
+    Config const& cfg = getTestConfig(0, Config::TESTDB_IN_MEMORY_OFFERS);
 
     VirtualClock clock;
     Application::pointer app = createTestApplication(clock, cfg, true, false);
@@ -349,7 +349,7 @@ TEST_CASE("postgres performance", "[db][pgperf][!hide]")
 
 TEST_CASE("schema test", "[db]")
 {
-    Config const& cfg = getTestConfig(0, Config::TESTDB_IN_MEMORY_SQLITE);
+    Config const& cfg = getTestConfig(0, Config::TESTDB_IN_MEMORY_OFFERS);
 
     VirtualClock clock;
     Application::pointer app = createTestApplication(clock, cfg);

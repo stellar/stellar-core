@@ -31,7 +31,7 @@ LedgerEntryIsValid::LedgerEntryIsValid(
 std::shared_ptr<Invariant>
 LedgerEntryIsValid::registerInvariant(Application& app)
 {
-    auto lumenInfo = getLumenContractInfo(app.getConfig().NETWORK_PASSPHRASE);
+    auto lumenInfo = getLumenContractInfo(app.getNetworkID());
     return app.getInvariantManager().registerInvariant<LedgerEntryIsValid>(
         lumenInfo);
 }

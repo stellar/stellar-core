@@ -7,6 +7,7 @@
 #include "bucket/BucketManager.h"
 #include "bucket/BucketManagerImpl.h"
 #include "bucket/LedgerCmp.h"
+#include "bucket/test/BucketTestUtils.h"
 #include "crypto/SHA.h"
 #include "herder/HerderImpl.h"
 #include "herder/LedgerCloseData.h"
@@ -253,7 +254,7 @@ TEST_CASE("resilience tests", "[resilience][simulation][!hide]")
 
     auto confGen = [](int configNum) -> Config {
         // we have to have persistent nodes as we want to simulate a restart
-        auto c = getTestConfig(configNum, Config::TESTDB_ON_DISK_SQLITE);
+        auto c = getTestConfig(configNum, Config::TESTDB_BUCKET_DB_PERSISTENT);
         return c;
     };
 
@@ -435,7 +436,7 @@ newLoadTestApp(VirtualClock& clock)
 #ifdef USE_POSTGRES
         !force_sqlite ? getTestConfig(0, Config::TESTDB_POSTGRESQL) :
 #endif
-                      getTestConfig(0, Config::TESTDB_ON_DISK_SQLITE);
+                      getTestConfig(0, Config::TESTDB_BUCKET_DB_PERSISTENT);
     cfg.RUN_STANDALONE = false;
     // force maxTxSetSize to avoid throwing txSets on the floor during the first
     // ledger close
@@ -682,8 +683,11 @@ TEST_CASE("Bucket list entries vs write throughput", "[scalability][!hide]")
          !app->getClock().getIOContext().stopped() && i < 0x200000; ++i)
     {
         app->getClock().crank(false);
-        app->getBucketManager().addBatch(
-            *app, i, Config::CURRENT_LEDGER_PROTOCOL_VERSION,
+        LedgerHeader lh;
+        lh.ledgerVersion = Config::CURRENT_LEDGER_PROTOCOL_VERSION;
+        lh.ledgerSeq = i;
+        BucketTestUtils::addBatchAndUpdateSnapshot(
+            app->getBucketManager().getBucketList(), *app, lh,
             LedgerTestUtils::generateValidLedgerEntries(100),
             LedgerTestUtils::generateValidLedgerEntries(20),
             LedgerTestUtils::generateValidLedgerEntryKeysWithExclusions(

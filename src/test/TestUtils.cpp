@@ -4,10 +4,11 @@
 
 #include "TestUtils.h"
 #include "overlay/test/LoopbackPeer.h"
+#include "simulation/LoadGenerator.h"
+#include "simulation/Simulation.h"
 #include "test/TxTests.h"
 #include "test/test.h"
 #include "work/WorkScheduler.h"
-#include "xdr/Stellar-ledger-entries.h"
 
 namespace stellar
 {
@@ -55,7 +56,7 @@ injectSendPeersAndReschedule(VirtualClock::time_point& end, VirtualClock& clock,
                              LoopbackPeerConnection& connection)
 {
     connection.getInitiator()->sendGetPeers();
-    if (clock.now() < end && connection.getInitiator()->isConnected())
+    if (clock.now() < end && connection.getInitiator()->isConnectedForTesting())
     {
         timer.expires_from_now(std::chrono::milliseconds(10));
         timer.async_wait(
@@ -195,45 +196,136 @@ genesis(int minute, int second)
 }
 
 void
+upgradeSorobanNetworkConfig(std::function<void(SorobanNetworkConfig&)> modifyFn,
+                            std::shared_ptr<Simulation> simulation)
+{
+    auto nodes = simulation->getNodes();
+    auto& lg = nodes[0]->getLoadGenerator();
+    auto& app = *nodes[0];
+
+    auto& complete =
+        app.getMetrics().NewMeter({"loadgen", "run", "complete"}, "run");
+    auto completeCount = complete.count();
+    // Only create an account if there are none aleady created.
+    uint32_t offset = 0;
+    if (app.getMetrics()
+            .NewMeter({"loadgen", "account", "created"}, "account")
+            .count() == 0)
+    {
+        auto createAccountsLoadConfig =
+            GeneratedLoadConfig::createAccountsLoad(1, 1);
+        offset = std::numeric_limits<uint32_t>::max() - 1;
+        createAccountsLoadConfig.offset = offset;
+
+        lg.generateLoad(createAccountsLoadConfig);
+        simulation->crankUntil(
+            [&]() { return complete.count() == completeCount + 1; },
+            300 * Herder::EXP_LEDGER_TIMESPAN_SECONDS, false);
+    }
+
+    // Create upload wasm transaction.
+    auto createUploadCfg = GeneratedLoadConfig::createSorobanUpgradeSetupLoad();
+    createUploadCfg.offset = offset;
+    lg.generateLoad(createUploadCfg);
+    completeCount = complete.count();
+    simulation->crankUntil(
+        [&]() { return complete.count() == completeCount + 1; },
+        300 * Herder::EXP_LEDGER_TIMESPAN_SECONDS, false);
+
+    // Create upgrade transaction.
+    auto createUpgradeLoadGenConfig = GeneratedLoadConfig::txLoad(
+        LoadGenMode::SOROBAN_CREATE_UPGRADE, 1, 1, 1);
+    createUpgradeLoadGenConfig.offset = offset;
+    // Get current network config.
+    auto cfg = nodes[0]->getLedgerManager().getSorobanNetworkConfig();
+    modifyFn(cfg);
+    createUpgradeLoadGenConfig.copySorobanNetworkConfigToUpgradeConfig(cfg);
+    auto upgradeSetKey = lg.getConfigUpgradeSetKey(
+        createUpgradeLoadGenConfig.getSorobanUpgradeConfig());
+    lg.generateLoad(createUpgradeLoadGenConfig);
+    completeCount = complete.count();
+    simulation->crankUntil(
+        [&]() { return complete.count() == completeCount + 1; },
+        2 * Herder::EXP_LEDGER_TIMESPAN_SECONDS, false);
+
+    // Arm for upgrade.
+    for (auto app : nodes)
+    {
+        Upgrades::UpgradeParameters scheduledUpgrades;
+        auto lclHeader =
+            app->getLedgerManager().getLastClosedLedgerHeader().header;
+        scheduledUpgrades.mUpgradeTime =
+            VirtualClock::from_time_t(lclHeader.scpValue.closeTime);
+        scheduledUpgrades.mConfigUpgradeSetKey = upgradeSetKey;
+        app->getHerder().setUpgrades(scheduledUpgrades);
+    }
+    // Wait for upgrade to be applied
+    simulation->crankUntil(
+        [&]() {
+            auto netCfg = app.getLedgerManager().getSorobanNetworkConfig();
+            return netCfg == cfg;
+        },
+        2 * Herder::EXP_LEDGER_TIMESPAN_SECONDS, false);
+}
+
+void
 modifySorobanNetworkConfig(Application& app,
                            std::function<void(SorobanNetworkConfig&)> modifyFn)
 {
+    if (!modifyFn)
+    {
+        return;
+    }
     LedgerTxn ltx(app.getLedgerTxnRoot());
-    auto& cfg = app.getLedgerManager().getMutableSorobanNetworkConfig(ltx);
+    app.getLedgerManager().updateNetworkConfig(ltx);
+    auto& cfg = app.getLedgerManager().getMutableSorobanNetworkConfig();
     modifyFn(cfg);
-    cfg.writeAllSettings(ltx);
+    cfg.writeAllSettings(ltx, app);
     ltx.commit();
+
+    // Need to close a ledger following call to `addBatch` from config upgrade
+    // to refresh cached state
+    if (app.getConfig().isUsingBucketListDB())
+    {
+        txtest::closeLedger(app);
+    }
+}
+
+void
+setSorobanNetworkConfigForTest(SorobanNetworkConfig& cfg)
+{
+    cfg.mMaxContractSizeBytes = 64 * 1024;
+    cfg.mMaxContractDataEntrySizeBytes = 64 * 1024;
+
+    cfg.mTxMaxSizeBytes = 100 * 1024;
+    cfg.mLedgerMaxTransactionsSizeBytes = cfg.mTxMaxSizeBytes * 10;
+
+    cfg.mTxMaxInstructions = 100'000'000;
+    cfg.mLedgerMaxInstructions = cfg.mTxMaxInstructions * 10;
+    cfg.mTxMemoryLimit = 100 * 1024 * 1024;
+
+    cfg.mTxMaxReadLedgerEntries = 40;
+    cfg.mTxMaxReadBytes = 200 * 1024;
+
+    cfg.mTxMaxWriteLedgerEntries = 20;
+    cfg.mTxMaxWriteBytes = 100 * 1024;
+
+    cfg.mLedgerMaxReadLedgerEntries = cfg.mTxMaxReadLedgerEntries * 10;
+    cfg.mLedgerMaxReadBytes = cfg.mTxMaxReadBytes * 10;
+    cfg.mLedgerMaxWriteLedgerEntries = cfg.mTxMaxWriteLedgerEntries * 10;
+    cfg.mLedgerMaxWriteBytes = cfg.mTxMaxWriteBytes * 10;
+
+    cfg.mStateArchivalSettings.minPersistentTTL = 20;
+    cfg.mStateArchivalSettings.maxEntryTTL = 6'312'000;
+    cfg.mLedgerMaxTxCount = 100;
+
+    cfg.mTxMaxContractEventsSizeBytes = 10'000;
 }
 
 void
 overrideSorobanNetworkConfigForTest(Application& app)
 {
-    modifySorobanNetworkConfig(app, [](SorobanNetworkConfig& cfg) {
-        cfg.mMaxContractSizeBytes = 64 * 1024;
-        cfg.mMaxContractDataEntrySizeBytes = 64 * 1024;
-
-        cfg.mTxMaxSizeBytes = 100 * 1024;
-        cfg.mLedgerMaxTransactionsSizeBytes = cfg.mTxMaxSizeBytes * 10;
-
-        cfg.mTxMaxInstructions = 100'000'000;
-        cfg.mLedgerMaxInstructions = cfg.mTxMaxInstructions * 10;
-        cfg.mTxMemoryLimit = 100 * 1024 * 1024;
-
-        cfg.mTxMaxReadLedgerEntries = 40;
-        cfg.mTxMaxReadBytes = 200 * 1024;
-
-        cfg.mTxMaxWriteLedgerEntries = 20;
-        cfg.mTxMaxWriteBytes = 100 * 1024;
-
-        cfg.mLedgerMaxReadLedgerEntries = cfg.mTxMaxReadLedgerEntries * 10;
-        cfg.mLedgerMaxReadBytes = cfg.mTxMaxReadBytes * 10;
-        cfg.mLedgerMaxWriteLedgerEntries = cfg.mTxMaxWriteLedgerEntries * 10;
-        cfg.mLedgerMaxWriteBytes = cfg.mTxMaxWriteBytes * 10;
-
-        cfg.mStateArchivalSettings.minPersistentTTL = 20;
-        cfg.mStateArchivalSettings.maxEntryTTL = 6'312'000;
-        cfg.mLedgerMaxTxCount = 100;
-    });
+    modifySorobanNetworkConfig(app, setSorobanNetworkConfigForTest);
 }
 
 bool

@@ -301,6 +301,7 @@ TEST_CASE("XDR matcher", "[xdrquery]")
         makeAccountEntry(100), makeAccountEntry(200), makeOfferEntry("foo"),
         makeOfferEntry("foobar")};
     entries[1].data.account().inflationDest.reset();
+    // Entry sizes: 192, 156, 128, 136
 
     auto testMatches = [&](std::string const& query,
                            std::vector<bool> const& expectedMatches) {
@@ -344,6 +345,16 @@ TEST_CASE("XDR matcher", "[xdrquery]")
             testMatches("NULL != data.account.inflationDest",
                         {true, false, false, false});
         }
+
+        SECTION("entry size")
+        {
+            testMatches("entry_size() == 192", {true, false, false, false});
+            testMatches("156 != entry_size()", {true, false, true, true});
+            testMatches("entry_size() > 136", {true, true, false, false});
+            testMatches("entry_size() < 192", {false, true, true, true});
+            testMatches("entry_size() <= 192", {true, true, true, true});
+            testMatches("156 >= entry_size()", {false, true, true, true});
+        }
     }
 
     SECTION("queries with operators")
@@ -368,6 +379,8 @@ TEST_CASE("XDR matcher", "[xdrquery]")
             testMatches("data.offer.selling.assetCode == 'foo' && data.type != "
                         "'TRUSTLINE'",
                         {false, false, true, false});
+            testMatches("data.account.balance >= 100 && entry_size() > 150",
+                        {true, true, false, false});
         }
 
         SECTION("mixed operators")
@@ -432,6 +445,7 @@ TEST_CASE("XDR matcher", "[xdrquery]")
             REQUIRE_THROWS_AS(runQuery("data.account == 123"), XDRQueryError);
             REQUIRE_THROWS_AS(runQuery("data.account.balance == '123'"),
                               XDRQueryError);
+            REQUIRE_THROWS_AS(runQuery("entry_size() == '123'"), XDRQueryError);
         }
 
         SECTION("int out of range")
@@ -516,7 +530,7 @@ TEST_CASE("XDR field extractor", "[xdrquery]")
             "data.account.thresholds, "
             "data.offer.selling.assetCode,data.account.balance");
         matcher.extractFields(entries[0]);
-        REQUIRE(matcher.getFieldNames() ==
+        REQUIRE(matcher.getColumnNames() ==
                 std::vector<std::string>{"data.account.thresholds",
                                          "data.offer.selling.assetCode",
                                          "data.account.balance"});
@@ -587,17 +601,18 @@ TEST_CASE("XDR accumulator", "[xdrquery]")
 
     SECTION("multiple aggregations")
     {
-        testAggregation(
-            "avg(data.account.balance), sum(data.account.balance),count()",
-            {AccumulatorResultType(1305. / 4.),
-             AccumulatorResultType(uint64_t(1305)),
-             AccumulatorResultType(uint64_t(4))});
+        testAggregation("avg(data.account.balance), sum(data.account.balance), "
+                        "sum(entry_size()), count()",
+                        {AccumulatorResultType(1305. / 4.),
+                         AccumulatorResultType(uint64_t(1305)),
+                         AccumulatorResultType(uint64_t(192 * 4)),
+                         AccumulatorResultType(uint64_t(4))});
     }
 
     SECTION("field names")
     {
-        XDRAccumulator accumulator(
-            "count(),avg(data.account.balance),sum(data.account.balance)");
+        XDRAccumulator accumulator("count(),sum(entry_size()),avg(data.account."
+                                   "balance),sum(data.account.balance)");
         accumulator.addEntry(entries[0]);
         std::vector<std::string> accNames;
         for (auto const& acc : accumulator.getAccumulators())
@@ -605,7 +620,8 @@ TEST_CASE("XDR accumulator", "[xdrquery]")
             accNames.push_back(acc->getName());
         }
         REQUIRE(accNames ==
-                std::vector<std::string>{"count", "avg(data.account.balance)",
+                std::vector<std::string>{"count", "sum(entry_size)",
+                                         "avg(data.account.balance)",
                                          "sum(data.account.balance)"});
     }
 

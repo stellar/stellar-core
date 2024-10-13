@@ -5,7 +5,6 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "overlay/Peer.h"
-#include "overlay/StellarXDR.h"
 #include <map>
 
 /**
@@ -28,6 +27,8 @@ class Counter;
 
 namespace stellar
 {
+
+struct StellarMessage;
 
 class Floodgate
 {
@@ -60,8 +61,11 @@ class Floodgate
 
     // returns true if msg was sent to at least one peer
     // The hash required for transactions
-    bool broadcast(StellarMessage const& msg, bool force,
-                   std::optional<Hash> const& hash = std::nullopt);
+    // `minOverlayVersion` is the minimum overlay version a peer must have in
+    // order to be sent the message.
+    bool broadcast(std::shared_ptr<StellarMessage const> msg,
+                   std::optional<Hash> const& hash = std::nullopt,
+                   uint32_t minOverlayVersion = 0);
 
     // returns the list of peers that sent us the item with hash `msgID`
     // NB: `msgID` is the hash of a `StellarMessage`

@@ -46,6 +46,8 @@ class InvariantManagerImpl : public InvariantManager
         bool isCurr,
         std::function<bool(LedgerEntryType)> entryTypeFilter) override;
 
+    virtual void checkAfterAssumeState(uint32_t newestLedger) override;
+
     virtual void
     registerInvariant(std::shared_ptr<Invariant> invariant) override;
 

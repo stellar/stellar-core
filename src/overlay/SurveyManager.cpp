@@ -3,10 +3,13 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "SurveyManager.h"
+#include "crypto/Curve25519.h"
 #include "herder/Herder.h"
 #include "main/Application.h"
 #include "main/ErrorMessages.h"
+#include "medida/metrics_registry.h"
 #include "overlay/OverlayManager.h"
+#include "overlay/SurveyDataManager.h"
 #include "util/GlobalChecks.h"
 #include "util/Logging.h"
 #include "xdrpp/marshal.h"
@@ -16,24 +19,98 @@ namespace stellar
 
 uint32_t const SurveyManager::SURVEY_THROTTLE_TIMEOUT_MULT(3);
 
+uint32_t constexpr TIME_SLICED_SURVEY_MIN_OVERLAY_PROTOCOL_VERSION = 34;
+
+namespace
+{
+// Generate JSON for a single peer
+Json::Value
+peerStatsToJson(PeerStats const& peer)
+{
+    Json::Value peerInfo;
+    peerInfo["nodeId"] = KeyUtils::toStrKey(peer.id);
+    peerInfo["version"] = peer.versionStr;
+    peerInfo["messagesRead"] = static_cast<Json::UInt64>(peer.messagesRead);
+    peerInfo["messagesWritten"] =
+        static_cast<Json::UInt64>(peer.messagesWritten);
+    peerInfo["bytesRead"] = static_cast<Json::UInt64>(peer.bytesRead);
+    peerInfo["bytesWritten"] = static_cast<Json::UInt64>(peer.bytesWritten);
+    peerInfo["secondsConnected"] =
+        static_cast<Json::UInt64>(peer.secondsConnected);
+
+    peerInfo["uniqueFloodBytesRecv"] =
+        static_cast<Json::UInt64>(peer.uniqueFloodBytesRecv);
+    peerInfo["duplicateFloodBytesRecv"] =
+        static_cast<Json::UInt64>(peer.duplicateFloodBytesRecv);
+    peerInfo["uniqueFetchBytesRecv"] =
+        static_cast<Json::UInt64>(peer.uniqueFetchBytesRecv);
+    peerInfo["duplicateFetchBytesRecv"] =
+        static_cast<Json::UInt64>(peer.duplicateFetchBytesRecv);
+
+    peerInfo["uniqueFloodMessageRecv"] =
+        static_cast<Json::UInt64>(peer.uniqueFloodMessageRecv);
+    peerInfo["duplicateFloodMessageRecv"] =
+        static_cast<Json::UInt64>(peer.duplicateFloodMessageRecv);
+    peerInfo["uniqueFetchMessageRecv"] =
+        static_cast<Json::UInt64>(peer.uniqueFetchMessageRecv);
+    peerInfo["duplicateFetchMessageRecv"] =
+        static_cast<Json::UInt64>(peer.duplicateFetchMessageRecv);
+    return peerInfo;
+}
+
+// Generate JSON for each peer in `peerList` and append to `jsonResultList`
+void
+recordTimeSlicedLinkResults(Json::Value& jsonResultList,
+                            TimeSlicedPeerDataList const& peerList)
+{
+    for (auto const& peer : peerList)
+    {
+        Json::Value peerInfo = peerStatsToJson(peer.peerStats);
+        peerInfo["averageLatencyMs"] = peer.averageLatencyMs;
+        jsonResultList.append(peerInfo);
+    }
+}
+
+// Extract a reference to the SurveyRequestMessage within a StellarMessage
+SurveyRequestMessage const&
+extractSurveyRequestMessage(StellarMessage const& msg)
+{
+    switch (msg.type())
+    {
+    case SURVEY_REQUEST:
+        return msg.signedSurveyRequestMessage().request;
+    case TIME_SLICED_SURVEY_REQUEST:
+        return msg.signedTimeSlicedSurveyRequestMessage().request.request;
+    default:
+        releaseAssert(false);
+    }
+}
+} // namespace
+
 SurveyManager::SurveyManager(Application& app)
     : mApp(app)
     , mSurveyThrottleTimer(std::make_unique<VirtualTimer>(mApp))
-    , NUM_LEDGERS_BEFORE_IGNORE(12) // ~60 seconds
+    , NUM_LEDGERS_BEFORE_IGNORE(
+          6) // ~30 seconds ahead of or behind the current ledger
     , MAX_REQUEST_LIMIT_PER_LEDGER(10)
     , mMessageLimiter(app, NUM_LEDGERS_BEFORE_IGNORE,
                       MAX_REQUEST_LIMIT_PER_LEDGER)
     , SURVEY_THROTTLE_TIMEOUT_SEC(
           mApp.getConfig().getExpectedLedgerCloseTime() *
           SURVEY_THROTTLE_TIMEOUT_MULT)
+    , mSurveyDataManager(
+          [this]() { return mApp.getClock().now(); },
+          mApp.getMetrics().NewMeter({"scp", "sync", "lost"}, "sync"),
+          mApp.getConfig())
 {
 }
 
 bool
-SurveyManager::startSurvey(SurveyMessageCommandType type,
-                           std::chrono::seconds surveyDuration)
+SurveyManager::startSurveyReporting(
+    SurveyMessageCommandType type,
+    std::optional<std::chrono::seconds> surveyDuration)
 {
-    if (mRunningSurveyType)
+    if (mRunningSurveyReportingPhaseType)
     {
         return false;
     }
@@ -48,12 +125,35 @@ SurveyManager::startSurvey(SurveyMessageCommandType type,
     mPeersToSurvey.clear();
     mPeersToSurveyQueue = std::queue<NodeID>();
 
-    mRunningSurveyType = std::make_optional<SurveyMessageCommandType>(type);
+    mRunningSurveyReportingPhaseType =
+        std::make_optional<SurveyMessageCommandType>(type);
 
     mCurve25519SecretKey = curve25519RandomSecret();
     mCurve25519PublicKey = curve25519DerivePublic(mCurve25519SecretKey);
 
-    updateSurveyExpiration(surveyDuration);
+    // Check surveyDuration (should only be set for old style surveys; time
+    // sliced surveys use a builtin timeout)
+    switch (type)
+    {
+    case SURVEY_TOPOLOGY:
+        if (!surveyDuration.has_value())
+        {
+            throw std::runtime_error(
+                "startSurveyReporting failed: missing survey duration");
+        }
+        updateOldStyleSurveyExpiration(surveyDuration.value());
+        break;
+    case TIME_SLICED_SURVEY_TOPOLOGY:
+        // Time sliced surveys have a built-in timeout, so one should not be
+        // passed in.
+        if (surveyDuration.has_value())
+        {
+            throw std::runtime_error(
+                "startSurveyReporting failed: unexpected survey duration");
+        }
+        break;
+    }
+
     // starts timer
     topOffRequests(type);
 
@@ -61,15 +161,15 @@ SurveyManager::startSurvey(SurveyMessageCommandType type,
 }
 
 void
-SurveyManager::stopSurvey()
+SurveyManager::stopSurveyReporting()
 {
-    // do nothing if survey isn't running
-    if (!mRunningSurveyType)
+    // do nothing if survey isn't running in reporting phase
+    if (!mRunningSurveyReportingPhaseType)
     {
         return;
     }
 
-    mRunningSurveyType.reset();
+    mRunningSurveyReportingPhaseType.reset();
     mSurveyThrottleTimer->cancel();
 
     clearCurve25519Keys(mCurve25519PublicKey, mCurve25519SecretKey);
@@ -77,22 +177,210 @@ SurveyManager::stopSurvey()
     CLOG_INFO(Overlay, "SurveyResults {}", getJsonResults().toStyledString());
 }
 
+bool
+SurveyManager::broadcastStartSurveyCollecting(uint32_t nonce)
+{
+    if (mSurveyDataManager.surveyIsActive())
+    {
+        CLOG_ERROR(
+            Overlay,
+            "Cannot start survey with nonce {} because another survey is "
+            "already active",
+            nonce);
+        return false;
+    }
+    StellarMessage newMsg;
+    newMsg.type(TIME_SLICED_SURVEY_START_COLLECTING);
+    auto& signedStartCollecting =
+        newMsg.signedTimeSlicedSurveyStartCollectingMessage();
+    auto& startCollecting = signedStartCollecting.startCollecting;
+
+    startCollecting.surveyorID = mApp.getConfig().NODE_SEED.getPublicKey();
+    startCollecting.nonce = nonce;
+    startCollecting.ledgerNum = mApp.getHerder().trackingConsensusLedgerIndex();
+
+    auto sigBody = xdr::xdr_to_opaque(startCollecting);
+    signedStartCollecting.signature = mApp.getConfig().NODE_SEED.sign(sigBody);
+
+    relayStartSurveyCollecting(newMsg, nullptr);
+    return true;
+}
+
+void
+SurveyManager::relayStartSurveyCollecting(StellarMessage const& msg,
+                                          Peer::pointer peer)
+{
+    releaseAssert(msg.type() == TIME_SLICED_SURVEY_START_COLLECTING);
+    auto const& signedStartCollecting =
+        msg.signedTimeSlicedSurveyStartCollectingMessage();
+    auto const& startCollecting = signedStartCollecting.startCollecting;
+
+    auto surveyorIsSelf =
+        startCollecting.surveyorID == mApp.getConfig().NODE_SEED.getPublicKey();
+    if (!surveyorIsSelf)
+    {
+        releaseAssert(peer);
+
+        if (!surveyorPermitted(startCollecting.surveyorID))
+        {
+            return;
+        }
+    }
+
+    auto onSuccessValidation = [&]() -> bool {
+        // Check signature
+        return dropPeerIfSigInvalid(startCollecting.surveyorID,
+                                    signedStartCollecting.signature,
+                                    xdr::xdr_to_opaque(startCollecting), peer);
+    };
+
+    if (!mMessageLimiter.validateStartSurveyCollecting(
+            startCollecting, mSurveyDataManager, onSuccessValidation))
+    {
+        return;
+    }
+
+    OverlayManager& om = mApp.getOverlayManager();
+    if (!mSurveyDataManager.startSurveyCollecting(
+            startCollecting, om.getInboundAuthenticatedPeers(),
+            om.getOutboundAuthenticatedPeers(), mApp.getState()))
+    {
+        return;
+    }
+
+    if (peer)
+    {
+        om.recvFloodedMsg(msg, peer);
+    }
+
+    broadcast(msg);
+}
+
+bool
+SurveyManager::broadcastStopSurveyCollecting()
+{
+    std::optional<uint32_t> maybeNonce = mSurveyDataManager.getNonce();
+    if (!maybeNonce.has_value())
+    {
+        return false;
+    }
+
+    StellarMessage newMsg;
+    newMsg.type(TIME_SLICED_SURVEY_STOP_COLLECTING);
+    auto& signedStopCollecting =
+        newMsg.signedTimeSlicedSurveyStopCollectingMessage();
+    auto& stopCollecting = signedStopCollecting.stopCollecting;
+
+    stopCollecting.surveyorID = mApp.getConfig().NODE_SEED.getPublicKey();
+    stopCollecting.nonce = maybeNonce.value();
+    stopCollecting.ledgerNum = mApp.getHerder().trackingConsensusLedgerIndex();
+
+    auto sigBody = xdr::xdr_to_opaque(stopCollecting);
+    signedStopCollecting.signature = mApp.getConfig().NODE_SEED.sign(sigBody);
+
+    relayStopSurveyCollecting(newMsg, nullptr);
+
+    return true;
+}
+
+void
+SurveyManager::relayStopSurveyCollecting(StellarMessage const& msg,
+                                         Peer::pointer peer)
+{
+    releaseAssert(msg.type() == TIME_SLICED_SURVEY_STOP_COLLECTING);
+    auto const& signedStopCollecting =
+        msg.signedTimeSlicedSurveyStopCollectingMessage();
+    auto const& stopCollecting = signedStopCollecting.stopCollecting;
+
+    auto surveyorIsSelf =
+        stopCollecting.surveyorID == mApp.getConfig().NODE_SEED.getPublicKey();
+    if (!surveyorIsSelf)
+    {
+        releaseAssert(peer);
+
+        if (!surveyorPermitted(stopCollecting.surveyorID))
+        {
+            return;
+        }
+    }
+
+    auto onSuccessValidation = [&]() -> bool {
+        // Check signature
+        return dropPeerIfSigInvalid(stopCollecting.surveyorID,
+                                    signedStopCollecting.signature,
+                                    xdr::xdr_to_opaque(stopCollecting), peer);
+    };
+
+    if (!mMessageLimiter.validateStopSurveyCollecting(stopCollecting,
+                                                      onSuccessValidation))
+    {
+        return;
+    }
+
+    OverlayManager& om = mApp.getOverlayManager();
+    if (!mSurveyDataManager.stopSurveyCollecting(
+            stopCollecting, om.getInboundAuthenticatedPeers(),
+            om.getOutboundAuthenticatedPeers(), mApp.getConfig()))
+    {
+        return;
+    }
+
+    if (peer)
+    {
+        mApp.getOverlayManager().recvFloodedMsg(msg, peer);
+    }
+
+    broadcast(msg);
+}
+
 void
 SurveyManager::addNodeToRunningSurveyBacklog(
-    SurveyMessageCommandType type, std::chrono::seconds surveyDuration,
-    NodeID const& nodeToSurvey)
+    SurveyMessageCommandType type,
+    std::optional<std::chrono::seconds> surveyDuration,
+    NodeID const& nodeToSurvey, std::optional<uint32_t> inboundPeersIndex,
+    std::optional<uint32_t> outboundPeersIndex)
 {
-    if (!mRunningSurveyType || *mRunningSurveyType != type)
+    if (!mRunningSurveyReportingPhaseType ||
+        *mRunningSurveyReportingPhaseType != type)
     {
         throw std::runtime_error("addNodeToRunningSurveyBacklog failed");
     }
 
     addPeerToBacklog(nodeToSurvey);
-    updateSurveyExpiration(surveyDuration);
+
+    switch (type)
+    {
+    case SURVEY_TOPOLOGY:
+        if (!surveyDuration.has_value())
+        {
+            throw std::runtime_error("addNodeToRunningSurveyBacklog failed: "
+                                     "missing survey duration");
+        }
+        updateOldStyleSurveyExpiration(surveyDuration.value());
+        break;
+    case TIME_SLICED_SURVEY_TOPOLOGY:
+        // Time sliced surveys have a built-in timeout, so one should not be
+        // passed in.
+        if (surveyDuration.has_value())
+        {
+            throw std::runtime_error("addNodeToRunningSurveyBacklog failed: "
+                                     "unexpected survey duration");
+        }
+
+        if (!inboundPeersIndex.has_value() || !outboundPeersIndex.has_value())
+        {
+            throw std::runtime_error(
+                "addNodeToRunningSurveyBacklog failed: missing peer indices");
+        }
+
+        mInboundPeerIndices[nodeToSurvey] = inboundPeersIndex.value();
+        mOutboundPeerIndices[nodeToSurvey] = outboundPeersIndex.value();
+        break;
+    }
 }
 
-void
-SurveyManager::relayOrProcessResponse(StellarMessage const& msg,
+std::optional<SurveyResponseMessage>
+SurveyManager::validateSurveyResponse(StellarMessage const& msg,
                                       Peer::pointer peer)
 {
     releaseAssert(msg.type() == SURVEY_RESPONSE);
@@ -105,11 +393,73 @@ SurveyManager::relayOrProcessResponse(StellarMessage const& msg,
                                     xdr::xdr_to_opaque(response), peer);
     };
 
-    if (!mMessageLimiter.recordAndValidateResponse(response,
-                                                   onSuccessValidation))
+    if (mMessageLimiter.recordAndValidateResponse(response,
+                                                  onSuccessValidation))
     {
+        return response;
+    }
+    else
+    {
+        return std::nullopt;
+    }
+}
+
+std::optional<SurveyResponseMessage>
+SurveyManager::validateTimeSlicedSurveyResponse(StellarMessage const& msg,
+                                                Peer::pointer peer)
+{
+    releaseAssert(msg.type() == TIME_SLICED_SURVEY_RESPONSE);
+    auto const& signedResponse = msg.signedTimeSlicedSurveyResponseMessage();
+    auto const& response = signedResponse.response.response;
+
+    auto onSuccessValidation = [&]() -> bool {
+        // Check nonce
+        if (!mSurveyDataManager.nonceIsReporting(signedResponse.response.nonce))
+        {
+            return false;
+        }
+
+        // Check signature
+        return dropPeerIfSigInvalid(
+            response.surveyedPeerID, signedResponse.responseSignature,
+            xdr::xdr_to_opaque(signedResponse.response), peer);
+    };
+
+    if (mMessageLimiter.recordAndValidateResponse(response,
+                                                  onSuccessValidation))
+    {
+        return response;
+    }
+    else
+    {
+        return std::nullopt;
+    }
+}
+
+void
+SurveyManager::relayOrProcessResponse(StellarMessage const& msg,
+                                      Peer::pointer peer)
+{
+    std::optional<SurveyResponseMessage> maybeResponse;
+    switch (msg.type())
+    {
+    case SURVEY_RESPONSE:
+        maybeResponse = validateSurveyResponse(msg, peer);
+        break;
+    case TIME_SLICED_SURVEY_RESPONSE:
+        maybeResponse = validateTimeSlicedSurveyResponse(msg, peer);
+        break;
+    default:
+        releaseAssert(false);
+    }
+
+    if (!maybeResponse.has_value())
+    {
+        // Validation failed
         return;
     }
+
+    auto const& response = maybeResponse.value();
 
     // mMessageLimiter filters out duplicates, so here we are guaranteed
     // to record the message for the first time
@@ -119,7 +469,8 @@ SurveyManager::relayOrProcessResponse(StellarMessage const& msg,
     {
         // only process if survey is still running and we haven't seen the
         // response
-        if (mRunningSurveyType && *mRunningSurveyType == response.commandType)
+        if (mRunningSurveyReportingPhaseType &&
+            *mRunningSurveyReportingPhaseType == response.commandType)
         {
             try
             {
@@ -129,8 +480,23 @@ SurveyManager::relayOrProcessResponse(StellarMessage const& msg,
 
                 SurveyResponseBody body;
                 xdr::xdr_from_opaque(opaqueDecrypted, body);
-
-                processTopologyResponse(response.surveyedPeerID, body);
+                switch (msg.type())
+                {
+                case SURVEY_RESPONSE:
+                {
+                    processOldStyleTopologyResponse(response.surveyedPeerID,
+                                                    body);
+                }
+                break;
+                case TIME_SLICED_SURVEY_RESPONSE:
+                {
+                    processTimeSlicedTopologyResponse(response.surveyedPeerID,
+                                                      body);
+                }
+                break;
+                default:
+                    releaseAssert(false);
+                }
             }
             catch (std::exception const& e)
             {
@@ -144,8 +510,8 @@ SurveyManager::relayOrProcessResponse(StellarMessage const& msg,
     }
     else
     {
-        // messageLimiter guarantees we only flood the response if we've seen
-        // the request
+        // messageLimiter guarantees we only flood the response if we've
+        // seen the request
         broadcast(msg);
     }
 }
@@ -154,11 +520,7 @@ void
 SurveyManager::relayOrProcessRequest(StellarMessage const& msg,
                                      Peer::pointer peer)
 {
-    releaseAssert(msg.type() == SURVEY_REQUEST);
-    SignedSurveyRequestMessage const& signedRequest =
-        msg.signedSurveyRequestMessage();
-
-    SurveyRequestMessage const& request = signedRequest.request;
+    SurveyRequestMessage const& request = extractSurveyRequestMessage(msg);
 
     auto surveyorIsSelf =
         request.surveyorPeerID == mApp.getConfig().NODE_SEED.getPublicKey();
@@ -166,32 +528,41 @@ SurveyManager::relayOrProcessRequest(StellarMessage const& msg,
     {
         releaseAssert(peer);
 
-        // perform all validation checks before signature validation so we don't
-        // waste time verifying signatures
-        auto const& surveyorKeys = mApp.getConfig().SURVEYOR_KEYS;
-
-        if (surveyorKeys.empty())
+        if (!surveyorPermitted(request.surveyorPeerID))
         {
-            auto const& quorumMap =
-                mApp.getHerder().getCurrentlyTrackedQuorum();
-            if (quorumMap.count(request.surveyorPeerID) == 0)
-            {
-                return;
-            }
-        }
-        else
-        {
-            if (surveyorKeys.count(request.surveyorPeerID) == 0)
-            {
-                return;
-            }
+            return;
         }
     }
 
     auto onSuccessValidation = [&]() -> bool {
-        auto res = dropPeerIfSigInvalid(request.surveyorPeerID,
-                                        signedRequest.requestSignature,
-                                        xdr::xdr_to_opaque(request), peer);
+        bool res;
+        switch (msg.type())
+        {
+        case SURVEY_REQUEST:
+            res = dropPeerIfSigInvalid(
+                request.surveyorPeerID,
+                msg.signedSurveyRequestMessage().requestSignature,
+                xdr::xdr_to_opaque(request), peer);
+            break;
+        case TIME_SLICED_SURVEY_REQUEST:
+        {
+            SignedTimeSlicedSurveyRequestMessage const& signedRequest =
+                msg.signedTimeSlicedSurveyRequestMessage();
+            // check nonce
+            res = mSurveyDataManager.nonceIsReporting(
+                signedRequest.request.nonce);
+            if (res)
+            {
+                // Check signature
+                res = dropPeerIfSigInvalid(
+                    request.surveyorPeerID, signedRequest.requestSignature,
+                    xdr::xdr_to_opaque(signedRequest.request), peer);
+            }
+        }
+        break;
+        default:
+            releaseAssert(false);
+        }
         if (!res && surveyorIsSelf)
         {
             CLOG_ERROR(Overlay, "Unexpected invalid survey request: {} ",
@@ -212,7 +583,18 @@ SurveyManager::relayOrProcessRequest(StellarMessage const& msg,
 
     if (request.surveyedPeerID == mApp.getConfig().NODE_SEED.getPublicKey())
     {
-        processTopologyRequest(request);
+        switch (msg.type())
+        {
+        case SURVEY_REQUEST:
+            processOldStyleTopologyRequest(request);
+            break;
+        case TIME_SLICED_SURVEY_REQUEST:
+            processTimeSlicedTopologyRequest(
+                msg.signedTimeSlicedSurveyRequestMessage().request);
+            break;
+        default:
+            releaseAssert(false);
+        }
     }
     else
     {
@@ -220,8 +602,21 @@ SurveyManager::relayOrProcessRequest(StellarMessage const& msg,
     }
 }
 
+void
+SurveyManager::populateSurveyRequestMessage(NodeID const& nodeToSurvey,
+                                            SurveyMessageCommandType type,
+                                            SurveyRequestMessage& request) const
+{
+    request.ledgerNum = mApp.getHerder().trackingConsensusLedgerIndex();
+    request.surveyorPeerID = mApp.getConfig().NODE_SEED.getPublicKey();
+
+    request.surveyedPeerID = nodeToSurvey;
+    request.encryptionKey = mCurve25519PublicKey;
+    request.commandType = type;
+}
+
 StellarMessage
-SurveyManager::makeSurveyRequest(NodeID const& nodeToSurvey) const
+SurveyManager::makeOldStyleSurveyRequest(NodeID const& nodeToSurvey) const
 {
     StellarMessage newMsg;
     newMsg.type(SURVEY_REQUEST);
@@ -229,13 +624,7 @@ SurveyManager::makeSurveyRequest(NodeID const& nodeToSurvey) const
     auto& signedRequest = newMsg.signedSurveyRequestMessage();
 
     auto& request = signedRequest.request;
-    request.ledgerNum = mApp.getHerder().trackingConsensusLedgerIndex();
-    request.surveyorPeerID = mApp.getConfig().NODE_SEED.getPublicKey();
-
-    request.surveyedPeerID = nodeToSurvey;
-    request.encryptionKey = mCurve25519PublicKey;
-    request.commandType = SURVEY_TOPOLOGY;
-
+    populateSurveyRequestMessage(nodeToSurvey, SURVEY_TOPOLOGY, request);
     auto sigBody = xdr::xdr_to_opaque(request);
     signedRequest.requestSignature = mApp.getConfig().NODE_SEED.sign(sigBody);
 
@@ -245,14 +634,58 @@ SurveyManager::makeSurveyRequest(NodeID const& nodeToSurvey) const
 void
 SurveyManager::sendTopologyRequest(NodeID const& nodeToSurvey)
 {
+    if (!mRunningSurveyReportingPhaseType.has_value())
+    {
+        CLOG_ERROR(Overlay, "Tried to send survey request when no survey is "
+                            "running in reporting phase");
+        return;
+    }
+
+    StellarMessage newMsg;
+    switch (mRunningSurveyReportingPhaseType.value())
+    {
+    case SURVEY_TOPOLOGY:
+        newMsg = makeOldStyleSurveyRequest(nodeToSurvey);
+        break;
+    case TIME_SLICED_SURVEY_TOPOLOGY:
+    {
+        newMsg.type(TIME_SLICED_SURVEY_REQUEST);
+
+        auto& signedRequest = newMsg.signedTimeSlicedSurveyRequestMessage();
+        auto& outerRequest = signedRequest.request;
+        auto& innerRequest = outerRequest.request;
+        populateSurveyRequestMessage(nodeToSurvey, TIME_SLICED_SURVEY_TOPOLOGY,
+                                     innerRequest);
+
+        auto maybeNonce = mSurveyDataManager.getNonce();
+        if (!maybeNonce.has_value())
+        {
+            // Reporting phase has ended. Drop the request.
+            return;
+        }
+
+        outerRequest.nonce = maybeNonce.value();
+        outerRequest.inboundPeersIndex = mInboundPeerIndices.at(nodeToSurvey);
+        outerRequest.outboundPeersIndex = mOutboundPeerIndices.at(nodeToSurvey);
+
+        auto sigBody = xdr::xdr_to_opaque(outerRequest);
+        signedRequest.requestSignature =
+            mApp.getConfig().NODE_SEED.sign(sigBody);
+    }
+    break;
+    default:
+        releaseAssert(false);
+    }
     // Record the request in message limiter and broadcast
-    relayOrProcessRequest(makeSurveyRequest(nodeToSurvey), nullptr);
+    relayOrProcessRequest(newMsg, nullptr);
 }
 
 void
-SurveyManager::processTopologyResponse(NodeID const& surveyedPeerID,
-                                       SurveyResponseBody const& body)
+SurveyManager::processOldStyleTopologyResponse(NodeID const& surveyedPeerID,
+                                               SurveyResponseBody const& body)
 {
+    releaseAssert(body.type() == SURVEY_TOPOLOGY_RESPONSE_V0 ||
+                  body.type() == SURVEY_TOPOLOGY_RESPONSE_V1);
     auto& peerResults =
         mResults["topology"][KeyUtils::toStrKey(surveyedPeerID)];
     auto populatePeerResults = [&](auto const& topologyBody) {
@@ -284,7 +717,60 @@ SurveyManager::processTopologyResponse(NodeID const& surveyedPeerID,
 }
 
 void
-SurveyManager::processTopologyRequest(SurveyRequestMessage const& request) const
+SurveyManager::processTimeSlicedTopologyResponse(NodeID const& surveyedPeerID,
+                                                 SurveyResponseBody const& body)
+{
+    releaseAssert(body.type() == SURVEY_TOPOLOGY_RESPONSE_V2);
+    auto& peerResults =
+        mResults["topology"][KeyUtils::toStrKey(surveyedPeerID)];
+
+    // Fill in node data
+    auto const& topologyBody = body.topologyResponseBodyV2();
+    TimeSlicedNodeData const& node = topologyBody.nodeData;
+    peerResults["addedAuthenticatedPeers"] = node.addedAuthenticatedPeers;
+    peerResults["droppedAuthenticatedPeers"] = node.droppedAuthenticatedPeers;
+    peerResults["numTotalInboundPeers"] = node.totalInboundPeerCount;
+    peerResults["numTotalOutboundPeers"] = node.totalOutboundPeerCount;
+    peerResults["p75SCPFirstToSelfLatencyMs"] = node.p75SCPFirstToSelfLatencyMs;
+    peerResults["p75SCPSelfToOtherLatencyMs"] = node.p75SCPSelfToOtherLatencyMs;
+    peerResults["lostSyncCount"] = node.lostSyncCount;
+    peerResults["isValidator"] = node.isValidator;
+    peerResults["maxInboundPeerCount"] = node.maxInboundPeerCount;
+    peerResults["maxOutboundPeerCount"] = node.maxOutboundPeerCount;
+
+    // Fill in link data
+    auto& inboundResults = peerResults["inboundPeers"];
+    auto& outboundResults = peerResults["outboundPeers"];
+    recordTimeSlicedLinkResults(inboundResults, topologyBody.inboundPeers);
+    recordTimeSlicedLinkResults(outboundResults, topologyBody.outboundPeers);
+}
+
+bool
+SurveyManager::populateSurveyResponseMessage(
+    SurveyRequestMessage const& request, SurveyMessageCommandType type,
+    SurveyResponseBody const& body, SurveyResponseMessage& response) const
+{
+    response.ledgerNum = request.ledgerNum;
+    response.surveyorPeerID = request.surveyorPeerID;
+    response.surveyedPeerID = mApp.getConfig().NODE_SEED.getPublicKey();
+    response.commandType = type;
+
+    try
+    {
+        response.encryptedBody = curve25519Encrypt<EncryptedBody::max_size()>(
+            request.encryptionKey, xdr::xdr_to_opaque(body));
+    }
+    catch (std::exception const& e)
+    {
+        CLOG_ERROR(Overlay, "curve25519Encrypt failed: {}", e.what());
+        return false;
+    }
+    return true;
+}
+
+void
+SurveyManager::processOldStyleTopologyRequest(
+    SurveyRequestMessage const& request) const
 {
     CLOG_TRACE(Overlay, "Responding to Topology request from {}",
                mApp.getConfig().toShortString(request.surveyorPeerID));
@@ -293,12 +779,6 @@ SurveyManager::processTopologyRequest(SurveyRequestMessage const& request) const
     newMsg.type(SURVEY_RESPONSE);
 
     auto& signedResponse = newMsg.signedSurveyResponseMessage();
-    auto& response = signedResponse.response;
-
-    response.ledgerNum = request.ledgerNum;
-    response.surveyorPeerID = request.surveyorPeerID;
-    response.surveyedPeerID = mApp.getConfig().NODE_SEED.getPublicKey();
-    response.commandType = SURVEY_TOPOLOGY;
 
     SurveyResponseBody body;
     body.type(SURVEY_TOPOLOGY_RESPONSE_V1);
@@ -325,14 +805,10 @@ SurveyManager::processTopologyRequest(SurveyRequestMessage const& request) const
     topologyBody.maxOutboundPeerCount =
         mApp.getConfig().TARGET_PEER_CONNECTIONS;
 
-    try
+    auto& response = signedResponse.response;
+    if (!populateSurveyResponseMessage(request, SURVEY_TOPOLOGY, body,
+                                       response))
     {
-        response.encryptedBody = curve25519Encrypt<EncryptedBody::max_size()>(
-            request.encryptionKey, xdr::xdr_to_opaque(body));
-    }
-    catch (std::exception const& e)
-    {
-        CLOG_ERROR(Overlay, "curve25519Encrypt failed: {}", e.what());
         return;
     }
 
@@ -343,9 +819,70 @@ SurveyManager::processTopologyRequest(SurveyRequestMessage const& request) const
 }
 
 void
+SurveyManager::processTimeSlicedTopologyRequest(
+    TimeSlicedSurveyRequestMessage const& request)
+{
+    std::string const peerIdStr =
+        mApp.getConfig().toShortString(request.request.surveyorPeerID);
+    CLOG_TRACE(Overlay, "Responding to Topology request from {}", peerIdStr);
+
+    SurveyResponseBody body;
+    body.type(SURVEY_TOPOLOGY_RESPONSE_V2);
+    if (!mSurveyDataManager.fillSurveyData(request,
+                                           body.topologyResponseBodyV2()))
+    {
+        // This shouldn't happen because nonce and phase should have already
+        // been checked prior to calling this function
+        CLOG_ERROR(Overlay,
+                   "Failed to respond to TimeSlicedTopology request from {} "
+                   "due to unexpected nonce mismatch or survey phase mismatch",
+                   peerIdStr);
+        return;
+    }
+
+    StellarMessage newMsg;
+    newMsg.type(TIME_SLICED_SURVEY_RESPONSE);
+    auto& signedResponse = newMsg.signedTimeSlicedSurveyResponseMessage();
+
+    auto& outerResponse = signedResponse.response;
+    outerResponse.nonce = request.nonce;
+
+    auto& innerResponse = outerResponse.response;
+    if (!populateSurveyResponseMessage(
+            request.request, TIME_SLICED_SURVEY_TOPOLOGY, body, innerResponse))
+    {
+        return;
+    }
+
+    auto sigBody = xdr::xdr_to_opaque(outerResponse);
+    signedResponse.responseSignature = mApp.getConfig().NODE_SEED.sign(sigBody);
+
+    broadcast(newMsg);
+}
+
+void
 SurveyManager::broadcast(StellarMessage const& msg) const
 {
-    mApp.getOverlayManager().broadcastMessage(msg, false);
+    uint32_t minOverlayVersion = 0;
+    switch (msg.type())
+    {
+    case SURVEY_REQUEST:
+    case SURVEY_RESPONSE:
+        // Do nothing. All nodes on the network can understand these messages.
+        break;
+    case TIME_SLICED_SURVEY_START_COLLECTING:
+    case TIME_SLICED_SURVEY_STOP_COLLECTING:
+    case TIME_SLICED_SURVEY_REQUEST:
+    case TIME_SLICED_SURVEY_RESPONSE:
+        // Only send messages to nodes that can understand them.
+        minOverlayVersion = TIME_SLICED_SURVEY_MIN_OVERLAY_PROTOCOL_VERSION;
+        break;
+    default:
+        releaseAssert(false);
+    }
+    mApp.getOverlayManager().broadcastMessage(
+        std::make_shared<StellarMessage const>(msg), /*hash*/ std::nullopt,
+        minOverlayVersion);
 }
 
 void
@@ -383,7 +920,7 @@ SurveyManager::populatePeerStats(std::vector<Peer::pointer> const& peers,
 
         stats.secondsConnected =
             std::chrono::duration_cast<std::chrono::seconds>(
-                now - peerMetrics.mConnectedTime)
+                now - peerMetrics.mConnectedTime.load())
                 .count();
 
         results.emplace_back(stats);
@@ -396,36 +933,7 @@ SurveyManager::recordResults(Json::Value& jsonResultList,
 {
     for (auto const& peer : peerList)
     {
-        Json::Value peerInfo;
-        peerInfo["nodeId"] = KeyUtils::toStrKey(peer.id);
-        peerInfo["version"] = peer.versionStr;
-        peerInfo["messagesRead"] = static_cast<Json::UInt64>(peer.messagesRead);
-        peerInfo["messagesWritten"] =
-            static_cast<Json::UInt64>(peer.messagesWritten);
-        peerInfo["bytesRead"] = static_cast<Json::UInt64>(peer.bytesRead);
-        peerInfo["bytesWritten"] = static_cast<Json::UInt64>(peer.bytesWritten);
-        peerInfo["secondsConnected"] =
-            static_cast<Json::UInt64>(peer.secondsConnected);
-
-        peerInfo["uniqueFloodBytesRecv"] =
-            static_cast<Json::UInt64>(peer.uniqueFloodBytesRecv);
-        peerInfo["duplicateFloodBytesRecv"] =
-            static_cast<Json::UInt64>(peer.duplicateFloodBytesRecv);
-        peerInfo["uniqueFetchBytesRecv"] =
-            static_cast<Json::UInt64>(peer.uniqueFetchBytesRecv);
-        peerInfo["duplicateFetchBytesRecv"] =
-            static_cast<Json::UInt64>(peer.duplicateFetchBytesRecv);
-
-        peerInfo["uniqueFloodMessageRecv"] =
-            static_cast<Json::UInt64>(peer.uniqueFloodMessageRecv);
-        peerInfo["duplicateFloodMessageRecv"] =
-            static_cast<Json::UInt64>(peer.duplicateFloodMessageRecv);
-        peerInfo["uniqueFetchMessageRecv"] =
-            static_cast<Json::UInt64>(peer.uniqueFetchMessageRecv);
-        peerInfo["duplicateFetchMessageRecv"] =
-            static_cast<Json::UInt64>(peer.duplicateFetchMessageRecv);
-
-        jsonResultList.append(peerInfo);
+        jsonResultList.append(peerStatsToJson(peer));
     }
 }
 
@@ -438,7 +946,7 @@ SurveyManager::clearOldLedgers(uint32_t lastClosedledgerSeq)
 Json::Value const&
 SurveyManager::getJsonResults()
 {
-    mResults["surveyInProgress"] = mRunningSurveyType.has_value();
+    mResults["surveyInProgress"] = mRunningSurveyReportingPhaseType.has_value();
 
     auto& jsonBacklog = mResults["backlog"];
     jsonBacklog.clear();
@@ -474,6 +982,20 @@ SurveyManager::getMsgSummary(StellarMessage const& msg)
         summary = "SURVEY_RESPONSE:";
         commandType = msg.signedSurveyResponseMessage().response.commandType;
         break;
+    case TIME_SLICED_SURVEY_REQUEST:
+        summary = "TIME_SLICED_SURVEY_REQUEST:";
+        commandType = msg.signedTimeSlicedSurveyRequestMessage()
+                          .request.request.commandType;
+        break;
+    case TIME_SLICED_SURVEY_RESPONSE:
+        summary = "TIME_SLICED_SURVEY_RESPONSE:";
+        commandType = msg.signedTimeSlicedSurveyResponseMessage()
+                          .response.response.commandType;
+        break;
+    case TIME_SLICED_SURVEY_START_COLLECTING:
+        return "TIME_SLICED_SURVEY_START_COLLECTING";
+    case TIME_SLICED_SURVEY_STOP_COLLECTING:
+        return "TIME_SLICED_SURVEY_STOP_COLLECTING";
     default:
         throw std::runtime_error(
             "invalid call of SurveyManager::getMsgSummary");
@@ -484,10 +1006,9 @@ SurveyManager::getMsgSummary(StellarMessage const& msg)
 void
 SurveyManager::topOffRequests(SurveyMessageCommandType type)
 {
-    // Only stop the survey if all pending requests have been processed
-    if (mApp.getClock().now() > mSurveyExpirationTime && mPeersToSurvey.empty())
+    if (surveyIsFinishedReporting())
     {
-        stopSurvey();
+        stopSurveyReporting();
         return;
     }
 
@@ -498,7 +1019,7 @@ SurveyManager::topOffRequests(SurveyMessageCommandType type)
     // happen if some connections get congested)
 
     uint32_t requestsSentInSchedule = 0;
-    while (mRunningSurveyType &&
+    while (mRunningSurveyReportingPhaseType &&
            requestsSentInSchedule < MAX_REQUEST_LIMIT_PER_LEDGER &&
            !mPeersToSurvey.empty())
     {
@@ -532,8 +1053,11 @@ SurveyManager::topOffRequests(SurveyMessageCommandType type)
 }
 
 void
-SurveyManager::updateSurveyExpiration(std::chrono::seconds surveyDuration)
+SurveyManager::updateOldStyleSurveyExpiration(
+    std::chrono::seconds surveyDuration)
 {
+    // This function should only be called for old style surveys
+    releaseAssert(mRunningSurveyReportingPhaseType.value() == SURVEY_TOPOLOGY);
     mSurveyExpirationTime = mApp.getClock().now() + surveyDuration;
 }
 
@@ -547,7 +1071,8 @@ SurveyManager::addPeerToBacklog(NodeID const& nodeToSurvey)
     if (mPeersToSurvey.count(nodeToSurvey) != 0 ||
         nodeToSurvey == mApp.getConfig().NODE_SEED.getPublicKey())
     {
-        return;
+        throw std::runtime_error("addPeerToBacklog failed: Peer is already in "
+                                 "the backlog, or peer is self.");
     }
 
     mBadResponseNodes.erase(nodeToSurvey);
@@ -573,8 +1098,7 @@ SurveyManager::dropPeerIfSigInvalid(PublicKey const& key,
     {
         // we drop the connection to keep a bad peer from pegging the CPU with
         // signature verification
-        peer->sendErrorAndDrop(ERR_MISC, "Survey has invalid signature",
-                               Peer::DropMode::IGNORE_WRITE_QUEUE);
+        peer->sendErrorAndDrop(ERR_MISC, "Survey has invalid signature");
     }
     return success;
 }
@@ -584,4 +1108,82 @@ SurveyManager::commandTypeName(SurveyMessageCommandType type)
 {
     return xdr::xdr_traits<SurveyMessageCommandType>::enum_name(type);
 }
+
+bool
+SurveyManager::surveyorPermitted(NodeID const& surveyorID) const
+{
+    auto const& surveyorKeys = mApp.getConfig().SURVEYOR_KEYS;
+
+    if (surveyorKeys.empty())
+    {
+        auto const& quorumMap = mApp.getHerder().getCurrentlyTrackedQuorum();
+        return quorumMap.count(surveyorID) != 0;
+    }
+
+    return surveyorKeys.count(surveyorID) != 0;
+}
+
+void
+SurveyManager::modifyNodeData(std::function<void(CollectingNodeData&)> f)
+{
+    mSurveyDataManager.modifyNodeData(f);
+}
+
+void
+SurveyManager::modifyPeerData(Peer const& peer,
+                              std::function<void(CollectingPeerData&)> f)
+{
+    mSurveyDataManager.modifyPeerData(peer, f);
+}
+
+void
+SurveyManager::recordDroppedPeer(Peer const& peer)
+{
+    mSurveyDataManager.recordDroppedPeer(peer);
+}
+
+void
+SurveyManager::updateSurveyPhase(
+    std::map<NodeID, Peer::pointer> const& inboundPeers,
+    std::map<NodeID, Peer::pointer> const& outboundPeers, Config const& config)
+{
+    mSurveyDataManager.updateSurveyPhase(inboundPeers, outboundPeers, config);
+}
+
+bool
+SurveyManager::surveyIsFinishedReporting()
+{
+    if (!mRunningSurveyReportingPhaseType.has_value())
+    {
+        return true;
+    }
+
+    switch (mRunningSurveyReportingPhaseType.value())
+    {
+    case SURVEY_TOPOLOGY:
+        // Survey is finished if the survey duration has passed and there are no
+        // remaining peers to survey
+        return mApp.getClock().now() > mSurveyExpirationTime &&
+               mPeersToSurvey.empty();
+    case TIME_SLICED_SURVEY_TOPOLOGY:
+    {
+        // Survey is finished when reporting phase ends
+        std::optional<uint32_t> maybeNonce = mSurveyDataManager.getNonce();
+        if (!maybeNonce.has_value())
+        {
+            return true;
+        }
+        return !mSurveyDataManager.nonceIsReporting(maybeNonce.value());
+    }
+    }
+}
+
+#ifdef BUILD_TESTS
+SurveyDataManager&
+SurveyManager::getSurveyDataManagerForTesting()
+{
+    return mSurveyDataManager;
+}
+#endif
+
 }

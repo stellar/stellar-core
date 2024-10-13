@@ -50,10 +50,6 @@ class LocalNode
     static bool forAllNodes(SCPQuorumSet const& qset,
                             std::function<bool(NodeID const&)> proc);
 
-    // returns the weight of the node within the qset
-    // normalized between 0-UINT64_MAX
-    static uint64 getNodeWeight(NodeID const& nodeID, SCPQuorumSet const& qset);
-
     // Tests this node against nodeSet for the specified qSethash.
     static bool isQuorumSlice(SCPQuorumSet const& qSet,
                               std::vector<NodeID> const& nodeSet);
@@ -100,9 +96,13 @@ class LocalNode
                               std::function<std::string(NodeID const&)> r);
 
     Json::Value toJson(SCPQuorumSet const& qSet, bool fullKeys) const;
-    std::string to_string(SCPQuorumSet const& qSet) const;
 
-    static uint64 computeWeight(uint64 m, uint64 total, uint64 threshold);
+    // `fromJson` deserializes the output from `toJson` into an `SCPQuorumSet`.
+    // Throws `std::runtime_error` or `KeyUtils::InvalidStrKey` on malformed
+    // JSON input.
+    static SCPQuorumSet fromJson(Json::Value const& qSetJson);
+
+    std::string to_string(SCPQuorumSet const& qSet) const;
 
   protected:
     // returns a quorum set {{ nodeID }}

@@ -21,8 +21,10 @@
 #include "test/TestUtils.h"
 #include "test/TxTests.h"
 #include "test/test.h"
+#include "transactions/test/SorobanTxTestUtils.h"
 #include "util/DebugMetaUtils.h"
 #include "util/Logging.h"
+#include "util/MetaUtils.h"
 #include "util/ProtocolVersion.h"
 #include "util/XDRCereal.h"
 #include "util/XDRStream.h"
@@ -87,7 +89,11 @@ TEST_CASE("LedgerCloseMetaStream file descriptor - LIVE_NODE",
         Config const& cfg2 = getTestConfig(2);
         Config const& cfg3 = getTestConfig(3);
         Config cfg4 = getTestConfig(4);
-        Config cfg5 = getTestConfig(5);
+        Config cfg5 = getTestConfig(
+            5,
+            Config::
+                TESTDB_IN_MEMORY_NO_OFFERS); // needed by
+                                             // EXPERIMENTAL_PRECAUTION_DELAY_META
 
         // Step 2: open writable files and pass them to configs 4 and 5
         // (watchers).
@@ -109,7 +115,6 @@ TEST_CASE("LedgerCloseMetaStream file descriptor - LIVE_NODE",
 
         cfg4.EXPERIMENTAL_PRECAUTION_DELAY_META = false;
         cfg5.EXPERIMENTAL_PRECAUTION_DELAY_META = true;
-        cfg5.setInMemoryMode(); // needed by EXPERIMENTAL_PRECAUTION_DELAY_META
 
         // Step 3: Run simulation a few steps to stream metadata.
         auto app1 = simulation->addNode(vNode1SecretKey, qSet, &cfg1);
@@ -479,119 +484,275 @@ TEST_CASE("METADATA_DEBUG_LEDGERS works", "[metadebug]")
 
 TEST_CASE_VERSIONS("meta stream contains reasonable meta", "[ledgerclosemeta]")
 {
-    Config cfg = getTestConfig();
-
-    // We need to fix a deterministic NODE_SEED for this test to be stable.
-    cfg.NODE_SEED = SecretKey::pseudoRandomForTestingFromSeed(12345);
-
-    TmpDirManager tdm(std::string("metatest-") + binToHex(randomBytes(8)));
-    TmpDir td = tdm.tmpDir("meta-ok");
-    std::string metaPath = td.getName() + "/stream.xdr";
-
-    VirtualClock clock;
-    cfg.METADATA_OUTPUT_STREAM = metaPath;
-    cfg.USE_CONFIG_FOR_GENESIS = true;
-    {
-        // Do some stuff
+    auto test = [&](Config cfg, bool isSoroban) {
         using namespace stellar::txtest;
-        auto app = createTestApplication(clock, cfg);
-        auto& lm = app->getLedgerManager();
-        auto txFee = lm.getLastTxFee();
-        auto bal = app->getLedgerManager().getLastMinBalance(2);
 
-        if (appProtocolVersionStartsFrom(*app, SOROBAN_PROTOCOL_VERSION))
+        // We need to fix a deterministic NODE_SEED for this test to be stable.
+        cfg.NODE_SEED = SecretKey::pseudoRandomForTestingFromSeed(12345);
+        auto prefix = isSoroban ? std::string("metatest-soroban-")
+                                : std::string("metatest-");
+        TmpDirManager tdm(prefix + binToHex(randomBytes(8)));
+        TmpDir td = tdm.tmpDir("meta-ok");
+        std::string metaPath = td.getName() + "/stream.xdr";
+
+        cfg.METADATA_OUTPUT_STREAM = metaPath;
+        cfg.USE_CONFIG_FOR_GENESIS = true;
+
+        // LedgerNum that we will examine the meta at
+        uint32_t targetSeq;
+
+        if (isSoroban)
         {
-            LedgerTxn ltx(app->getLedgerTxnRoot());
-            app->getLedgerManager()
-                .getMutableSorobanNetworkConfig(ltx)
-                .setBucketListSnapshotPeriodForTesting(1);
-        }
+            // This test will submit several interesting soroban TXs. First, we
+            // will deploy a contract and let it become ARCHIVED. We'll then
+            // submit the following TXs
+            // 1. Restore archived entry
+            // 2. Extend contract
+            // 3. Invoke contract that creates new storage
+            // 4. Failed invoke contract (bad footprint)
+            // 5. Create contract instance
 
-        auto root = TestAccount::createRoot(*app);
+            // Deploy and extend contract so it won't be archived during test
+            SorobanTest test(cfg);
+            ContractStorageTestClient client(test);
+            auto& contract = client.getContract();
 
-        // Ledgers #2, #3 and #4 create accounts, which happen directly and
-        // don't emit meta.
-        auto acc1 = root.create("acc1", bal);
-        auto acc2 = root.create("acc2", bal);
-        auto issuer =
-            root.create("issuer", lm.getLastMinBalance(0) + 100 * txFee);
-        auto cur1 = issuer.asset("CUR1");
+            test.invokeExtendOp(contract.getKeys(), 10'000);
 
-        // Ledger #5 sets up a trustline which has to happen before we can
-        // use it.
-        acc1.changeTrust(cur1, 100);
+            // Write key that we will restore later
+            REQUIRE(client.put("archived", ContractDataDurability::PERSISTENT,
+                               42) == INVOKE_HOST_FUNCTION_SUCCESS);
+            auto archivedKeySymbol = makeSymbolSCVal("archived");
+            auto archivedLk =
+                contractDataKey(contract.getAddress(), archivedKeySymbol,
+                                ContractDataDurability::PERSISTENT);
 
-        // Ledger #6 uses closeLedger so emits interesting meta.
-        std::vector<TransactionFrameBasePtr> txs = {
-            // First tx pays 1000 XLM from root to acc1
-            root.tx({payment(acc1.getPublicKey(), 1000)}),
-            // Second tx pays acc1 50 cur1 units twice from issuer.
-            issuer.tx({payment(acc1, cur1, 50), payment(acc1, cur1, 50)})};
-        if (protocolVersionStartsFrom(
-                cfg.TESTING_UPGRADE_LEDGER_PROTOCOL_VERSION,
-                ProtocolVersion::V_13))
-        {
-            // If we're in the world where fee-bumps exist (protocol 13 or
-            // later), we re-wrap the final tx in a fee-bump from acc2.
-            auto tx = txs.back();
-            txs.back() = feeBump(*app, acc2, tx, 5000);
-        }
-        closeLedger(*app, txs);
-    }
+            uint32_t liveUntilLedger =
+                test.getLCLSeq() +
+                test.getNetworkCfg().stateArchivalSettings().minPersistentTTL -
+                1;
 
-    // We're going to examine the meta generated by ledger #6.
-    uint32_t const targetSeq = 6;
+            // Generate a few accounts so we can send multiple TXs in a single
+            // ledger.
+            auto bal = test.getApp().getLedgerManager().getLastMinBalance(2);
+            auto acc1 = test.getRoot().create("acc1", bal);
+            auto acc2 = test.getRoot().create("acc2", bal);
+            auto acc3 = test.getRoot().create("acc3", bal);
+            auto acc4 = test.getRoot().create("acc4", bal);
+            auto acc5 = test.getRoot().create("acc5", bal);
 
-    XDRInputFileStream in;
-    in.open(metaPath);
-    LedgerCloseMeta lcm;
-    uint32_t maxSeq = 0;
-    while (in.readOne(lcm))
-    {
-        uint32_t ledgerSeq{0};
+            // Close ledgers until out contract expires. These ledgers won't
+            // emit meta
+            for (uint32_t i =
+                     test.getApp().getLedgerManager().getLastClosedLedgerNum();
+                 i <= liveUntilLedger + 1; ++i)
+            {
+                closeLedgerOn(test.getApp(), i, 2, 1, 2016);
+            }
+            REQUIRE(!test.isEntryLive(archivedLk, test.getLCLSeq()));
 
-        if (protocolVersionIsBefore(cfg.TESTING_UPGRADE_LEDGER_PROTOCOL_VERSION,
-                                    SOROBAN_PROTOCOL_VERSION))
-        {
-            // LCM v0
-            REQUIRE(lcm.v() == 0);
-            REQUIRE(lcm.v0().ledgerHeader.header.ledgerVersion ==
-                    cfg.TESTING_UPGRADE_LEDGER_PROTOCOL_VERSION);
-            ledgerSeq = lcm.v0().ledgerHeader.header.ledgerSeq;
+            // Restore archived entry
+            SorobanResources restoreResources;
+            restoreResources.footprint.readWrite = {archivedLk};
+            restoreResources.instructions = 0;
+            restoreResources.readBytes = 5'000;
+            restoreResources.writeBytes = 1'000;
+            auto tx1 = test.createRestoreTx(restoreResources, 1'000,
+                                            DEFAULT_TEST_RESOURCE_FEE, &acc1);
+
+            // Extend TTL of Wasm and instance
+            SorobanResources extendResources;
+            extendResources.footprint.readOnly = contract.getKeys();
+            extendResources.instructions = 0;
+            extendResources.readBytes = 10'000;
+            extendResources.writeBytes = 0;
+            auto tx2 =
+                test.createExtendOpTx(extendResources, /*extendTo*/ 10'000,
+                                      1'000, DEFAULT_TEST_RESOURCE_FEE, &acc2);
+
+            // Write new entry with key PERSISTENT("key")
+            auto liveKeySymbol = makeSymbolSCVal("key");
+            auto fnName = "put_persistent";
+            auto args = {liveKeySymbol, makeU64SCVal(42)};
+            auto liveLk = contractDataKey(client.getContract().getAddress(),
+                                          liveKeySymbol,
+                                          ContractDataDurability::PERSISTENT);
+            auto putSpec = SorobanInvocationSpec()
+                               .setInstructions(4'000'000)
+                               .setReadBytes(10'000)
+                               .setWriteBytes(1'000)
+                               .setInclusionFee(1'000)
+                               .setRefundableResourceFee(40'000)
+                               .setReadWriteFootprint({liveLk});
+
+            auto tx3 = contract.prepareInvocation(fnName, args, putSpec)
+                           .withExactNonRefundableResourceFee()
+                           .createTx(&acc3);
+
+            // Same put TX from before, but this one should fail due to invalid
+            // footprint
+            auto tx4 = contract
+                           .prepareInvocation(fnName, args,
+                                              putSpec.setReadWriteFootprint({}))
+                           .withExactNonRefundableResourceFee()
+                           .createTx(&acc4);
+            SorobanResources createResources;
+            createResources.instructions = 200'000;
+            createResources.readBytes = 5000;
+            createResources.writeBytes = 5000;
+
+            auto tx5 = makeSorobanCreateContractTx(
+                test.getApp(), acc5,
+                makeContractIDPreimage(acc5, sha256("salt")),
+                makeWasmExecutable(contract.getKeys()[0].contractCode().hash),
+                createResources, 1000);
+
+            closeLedger(test.getApp(), {tx1, tx2, tx3, tx4, tx5});
+            targetSeq = 28;
         }
         else
         {
-            // LCM v1
-            REQUIRE(lcm.v() == 1);
-            REQUIRE(lcm.v1().ledgerHeader.header.ledgerVersion ==
-                    cfg.TESTING_UPGRADE_LEDGER_PROTOCOL_VERSION);
-            ledgerSeq = lcm.v1().ledgerHeader.header.ledgerSeq;
+            // Do some stuff
+            VirtualClock clock;
+            auto app = createTestApplication(clock, cfg);
+            auto& lm = app->getLedgerManager();
+            auto txFee = lm.getLastTxFee();
+            auto bal = app->getLedgerManager().getLastMinBalance(2);
+
+            // We're going to examine the meta generated by ledger #6.
+            targetSeq = 6;
+
+            if (appProtocolVersionStartsFrom(*app, SOROBAN_PROTOCOL_VERSION))
+            {
+                modifySorobanNetworkConfig(
+                    *app, [&](SorobanNetworkConfig& cfg) {
+                        cfg.mStateArchivalSettings
+                            .bucketListWindowSamplePeriod = 1;
+                    });
+
+                // Modify Soroban network config closes a ledger
+                ++targetSeq;
+            }
+
+            auto root = TestAccount::createRoot(*app);
+
+            // Ledgers #2, #3 and #4 create accounts, which happen directly
+            // and don't emit meta.
+            auto acc1 = root.create("acc1", bal);
+            auto acc2 = root.create("acc2", bal);
+            auto issuer =
+                root.create("issuer", lm.getLastMinBalance(0) + 100 * txFee);
+            auto cur1 = issuer.asset("CUR1");
+
+            // Ledger #5 sets up a trustline which has to happen before we
+            // can use it.
+            acc1.changeTrust(cur1, 100);
+
+            // Ledger #6 uses closeLedger so emits interesting meta.
+            std::vector<TransactionFrameBasePtr> txs = {
+                // First tx pays 1000 XLM from root to acc1
+                root.tx({payment(acc1.getPublicKey(), 1000)}),
+                // Second tx pays acc1 50 cur1 units twice from issuer.
+                issuer.tx({payment(acc1, cur1, 50), payment(acc1, cur1, 50)})};
+            if (protocolVersionStartsFrom(
+                    cfg.TESTING_UPGRADE_LEDGER_PROTOCOL_VERSION,
+                    ProtocolVersion::V_13))
+            {
+                // If we're in the world where fee-bumps exist (protocol 13
+                // or later), we re-wrap the final tx in a fee-bump from
+                // acc2.
+                auto tx = txs.back();
+                txs.back() = feeBump(
+                    *app, acc2,
+                    std::static_pointer_cast<TransactionTestFrame const>(tx),
+                    5000);
+            }
+            closeLedger(*app, txs);
         }
 
-        if (ledgerSeq == targetSeq)
+        XDRInputFileStream in;
+        in.open(metaPath);
+        LedgerCloseMeta lcm;
+        uint32_t maxSeq = 0;
+        while (in.readOne(lcm))
         {
-            std::string refJsonPath = fmt::format(
-                FMT_STRING("testdata/ledger-close-meta-v{}-protocol-{}.json"),
-                lcm.v(), cfg.TESTING_UPGRADE_LEDGER_PROTOCOL_VERSION);
-            std::string have = xdr_to_string(lcm, "LedgerCloseMeta");
-            if (getenv("GENERATE_TEST_LEDGER_CLOSE_META"))
+            uint32_t ledgerSeq{0};
+
+            if (protocolVersionIsBefore(
+                    cfg.TESTING_UPGRADE_LEDGER_PROTOCOL_VERSION,
+                    SOROBAN_PROTOCOL_VERSION))
             {
-                std::ofstream outJson(refJsonPath);
-                outJson.write(have.data(), have.size());
+                // LCM v0
+                REQUIRE(lcm.v() == 0);
+                REQUIRE(lcm.v0().ledgerHeader.header.ledgerVersion ==
+                        cfg.TESTING_UPGRADE_LEDGER_PROTOCOL_VERSION);
+                ledgerSeq = lcm.v0().ledgerHeader.header.ledgerSeq;
             }
             else
             {
-                // If the format of close meta has changed, you will see a
-                // failure here. If the change is expected run this test with
-                // GENERATE_TEST_LEDGER_CLOSE_META=1 to generate new close
-                // meta files.
-                std::ifstream inJson(refJsonPath);
-                REQUIRE(inJson);
-                std::string expect(std::istreambuf_iterator<char>{inJson}, {});
-                REQUIRE(expect == have);
+                // LCM v1
+                REQUIRE(lcm.v() == 1);
+                REQUIRE(lcm.v1().ledgerHeader.header.ledgerVersion ==
+                        cfg.TESTING_UPGRADE_LEDGER_PROTOCOL_VERSION);
+                ledgerSeq = lcm.v1().ledgerHeader.header.ledgerSeq;
             }
+
+            if (ledgerSeq == targetSeq)
+            {
+                std::string refJsonPath;
+                if (isSoroban)
+                {
+                    refJsonPath = fmt::format(
+                        FMT_STRING("testdata/"
+                                   "ledger-close-meta-v{}-protocol-{}-"
+                                   "soroban.json"),
+                        lcm.v(), cfg.TESTING_UPGRADE_LEDGER_PROTOCOL_VERSION);
+                }
+                else
+                {
+                    refJsonPath = fmt::format(
+                        FMT_STRING("testdata/"
+                                   "ledger-close-meta-v{}-protocol-{}.json"),
+                        lcm.v(), cfg.TESTING_UPGRADE_LEDGER_PROTOCOL_VERSION);
+                }
+                normalizeMeta(lcm);
+                std::string have = xdrToCerealString(lcm, "LedgerCloseMeta");
+                if (getenv("GENERATE_TEST_LEDGER_CLOSE_META"))
+                {
+                    std::ofstream outJson(refJsonPath);
+                    outJson.write(have.data(), have.size());
+                }
+                else
+                {
+                    // If the format of close meta has changed, you will see
+                    // a failure here. If the change is expected run this
+                    // test with GENERATE_TEST_LEDGER_CLOSE_META=1 to
+                    // generate new close meta files.
+                    std::ifstream inJson(refJsonPath);
+                    REQUIRE(inJson);
+                    std::string expect(std::istreambuf_iterator<char>{inJson},
+                                       {});
+                    REQUIRE(expect == have);
+                }
+            }
+            maxSeq = ledgerSeq;
         }
-        maxSeq = ledgerSeq;
+        REQUIRE(maxSeq == targetSeq);
+    };
+
+    SECTION("stellar classic")
+    {
+        test(getTestConfig(), false);
     }
-    REQUIRE(maxSeq == targetSeq);
+
+    SECTION("soroban")
+    {
+        Config cfg = getTestConfig();
+        if (protocolVersionStartsFrom(
+                cfg.TESTING_UPGRADE_LEDGER_PROTOCOL_VERSION,
+                SOROBAN_PROTOCOL_VERSION))
+        {
+            test(cfg, true);
+        }
+    }
 }

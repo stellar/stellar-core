@@ -40,6 +40,8 @@ class InvariantManager
         std::shared_ptr<Bucket const> bucket, uint32_t ledger, uint32_t level,
         bool isCurr, std::function<bool(LedgerEntryType)> entryTypeFilter) = 0;
 
+    virtual void checkAfterAssumeState(uint32_t newestLedger) = 0;
+
     virtual void checkOnOperationApply(Operation const& operation,
                                        OperationResult const& opres,
                                        LedgerTxnDelta const& ltxDelta) = 0;

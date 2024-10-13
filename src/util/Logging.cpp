@@ -291,6 +291,7 @@ Logging::setLogLevel(LogLevel level, const char* partition)
         mPartitionLogLevels.clear();
     }
 #if defined(USE_SPDLOG)
+    deinit();
     init();
     auto slev = convert_loglevel(level);
     if (partition)

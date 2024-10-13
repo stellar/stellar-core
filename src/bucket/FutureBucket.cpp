@@ -5,7 +5,7 @@
 // ASIO is somewhat particular about when it gets included -- it wants to be the
 // first to include <windows.h> -- so we try to include it before everything
 // else.
-#include "util/asio.h"
+#include "util/asio.h" // IWYU pragma: keep
 
 #include "bucket/Bucket.h"
 #include "bucket/BucketList.h"
@@ -345,10 +345,14 @@ FutureBucket::startMerge(Application& app, uint32_t maxProtocolVersion,
         checkState();
         return;
     }
+    asio::io_context& ctx = app.getWorkerIOContext();
+    bool doFsync = !app.getConfig().DISABLE_XDR_FSYNC;
+    std::chrono::seconds availableTime = getAvailableTimeForMerge(app, level);
+
     using task_t = std::packaged_task<std::shared_ptr<Bucket>()>;
     std::shared_ptr<task_t> task = std::make_shared<task_t>(
         [curr, snap, &bm, shadows, maxProtocolVersion, countMergeEvents, level,
-         &timer, &app]() mutable {
+         &timer, &ctx, doFsync, availableTime]() mutable {
             auto timeScope = timer.TimeScope();
             CLOG_TRACE(Bucket, "Worker merging curr={} with snap={}",
                        hexAbbrev(curr->getHash()), hexAbbrev(snap->getHash()));
@@ -358,11 +362,10 @@ FutureBucket::startMerge(Application& app, uint32_t maxProtocolVersion,
                 ZoneNamedN(mergeZone, "Merge task", true);
                 ZoneValueV(mergeZone, static_cast<int64_t>(level));
 
-                auto res = Bucket::merge(
-                    bm, maxProtocolVersion, curr, snap, shadows,
-                    BucketList::keepDeadEntries(level), countMergeEvents,
-                    app.getClock().getIOContext(),
-                    !app.getConfig().DISABLE_XDR_FSYNC);
+                auto res =
+                    Bucket::merge(bm, maxProtocolVersion, curr, snap, shadows,
+                                  BucketList::keepDeadEntries(level),
+                                  countMergeEvents, ctx, doFsync);
 
                 if (res)
                 {
@@ -371,9 +374,7 @@ FutureBucket::startMerge(Application& app, uint32_t maxProtocolVersion,
                         hexAbbrev(curr->getHash()), hexAbbrev(snap->getHash()));
 
                     std::chrono::duration<double> time(timeScope.Stop());
-                    double timePct =
-                        time.count() /
-                        getAvailableTimeForMerge(app, level).count() * 100;
+                    double timePct = time.count() / availableTime.count() * 100;
                     CLOG_DEBUG(
                         Perf,
                         "Bucket merge on level {} finished in {} seconds "

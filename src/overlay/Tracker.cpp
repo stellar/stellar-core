@@ -9,13 +9,11 @@
 #include "crypto/Hex.h"
 #include "herder/Herder.h"
 #include "main/Application.h"
-#include "medida/medida.h"
+#include "medida/meter.h"
 #include "overlay/OverlayManager.h"
 #include "util/GlobalChecks.h"
 #include "util/Logging.h"
 #include "util/Math.h"
-#include "util/XDROperators.h"
-#include "xdrpp/marshal.h"
 #include <Tracy.hpp>
 
 namespace stellar
@@ -104,9 +102,12 @@ Tracker::tryNextPeer()
         mLastAskedPeer.reset();
     }
 
+    // canAskPeer is best effort and send happens asynchronously; in the worst
+    // case, we'll place something in the queue that will subsequently be
+    // discarded due to a peer drop.
     auto canAskPeer = [&](Peer::pointer const& p, bool peerHas) {
         auto it = mPeersAsked.find(p);
-        return (p->isAuthenticated() &&
+        return (p->isAuthenticatedAtomic() &&
                 (it == mPeersAsked.end() || (peerHas && !it->second)));
     };
 

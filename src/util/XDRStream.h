@@ -14,6 +14,7 @@
 #include "xdrpp/marshal.h"
 #include <Tracy.hpp>
 
+#include <filesystem>
 #include <fstream>
 #include <string>
 #include <vector>
@@ -66,6 +67,12 @@ class XDRInputFileStream
         mSize = fs::size(mIn);
     }
 
+    void
+    open(std::filesystem::path const& filename)
+    {
+        open(filename.string());
+    }
+
     operator bool() const
     {
         return mIn.good();
@@ -115,7 +122,8 @@ class XDRInputFileStream
         char szBuf[4];
         if (!mIn.read(szBuf, 4))
         {
-            if (mIn.eof())
+            // checks that there was no trailing data
+            if (mIn.eof() && mIn.gcount() == 0)
             {
                 mIn.clear(std::ios_base::eofbit);
                 return false;

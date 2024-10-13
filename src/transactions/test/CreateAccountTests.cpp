@@ -21,7 +21,7 @@ using namespace stellar;
 using namespace stellar::txtest;
 
 static CreateAccountResultCode
-getCreateAccountResultCode(TransactionFrameBasePtr& tx, size_t i)
+getCreateAccountResultCode(TransactionTestFramePtr tx, size_t i)
 {
     auto const& opRes = tx->getResult().result.results()[i];
     return opRes.tr().createAccountResult().code();
@@ -30,7 +30,8 @@ getCreateAccountResultCode(TransactionFrameBasePtr& tx, size_t i)
 TEST_CASE_VERSIONS("create account", "[tx][createaccount]")
 {
     VirtualClock clock;
-    auto app = createTestApplication(clock, getTestConfig());
+    auto app = createTestApplication(
+        clock, getTestConfig(0, Config::TESTDB_IN_MEMORY_NO_OFFERS));
 
     // set up world
     auto root = TestAccount::createRoot(*app);
@@ -52,11 +53,11 @@ TEST_CASE_VERSIONS("create account", "[tx][createaccount]")
                 {root.op(createAccount(key.getPublicKey(), 1))}, {});
 
             LedgerTxn ltx(app->getLedgerTxnRoot());
-            REQUIRE(!tx1->checkValid(*app, ltx, 0, 0, 0));
+            REQUIRE(!tx1->checkValidForTesting(*app, ltx, 0, 0, 0));
             REQUIRE(getCreateAccountResultCode(tx1, 0) ==
                     CREATE_ACCOUNT_MALFORMED);
 
-            REQUIRE(tx2->checkValid(*app, ltx, 0, 0, 0));
+            REQUIRE(tx2->checkValidForTesting(*app, ltx, 0, 0, 0));
         });
 
         for_versions_from(14, *app, [&] {
@@ -70,11 +71,11 @@ TEST_CASE_VERSIONS("create account", "[tx][createaccount]")
                 {root.op(createAccount(key.getPublicKey(), 0))}, {});
 
             LedgerTxn ltx(app->getLedgerTxnRoot());
-            REQUIRE(!tx1->checkValid(*app, ltx, 0, 0, 0));
+            REQUIRE(!tx1->checkValidForTesting(*app, ltx, 0, 0, 0));
             REQUIRE(getCreateAccountResultCode(tx1, 0) ==
                     CREATE_ACCOUNT_MALFORMED);
 
-            REQUIRE(tx2->checkValid(*app, ltx, 0, 0, 0));
+            REQUIRE(tx2->checkValidForTesting(*app, ltx, 0, 0, 0));
         });
     }
 
@@ -86,7 +87,7 @@ TEST_CASE_VERSIONS("create account", "[tx][createaccount]")
                                         {root.op(createAccount(root, -1))}, {});
 
             LedgerTxn ltx(app->getLedgerTxnRoot());
-            REQUIRE(!tx->checkValid(*app, ltx, 0, 0, 0));
+            REQUIRE(!tx->checkValidForTesting(*app, ltx, 0, 0, 0));
             REQUIRE(getCreateAccountResultCode(tx, 0) ==
                     CREATE_ACCOUNT_MALFORMED);
         });
@@ -184,7 +185,7 @@ TEST_CASE_VERSIONS("create account", "[tx][createaccount]")
                 LedgerTxn ltx(app->getLedgerTxnRoot());
                 TransactionMetaFrame txm(
                     ltx.loadHeader().current().ledgerVersion);
-                REQUIRE(tx->checkValid(*app, ltx, 0, 0, 0));
+                REQUIRE(tx->checkValidForTesting(*app, ltx, 0, 0, 0));
                 REQUIRE(tx->apply(*app, ltx, txm));
                 ltx.commit();
             }

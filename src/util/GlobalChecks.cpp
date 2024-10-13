@@ -25,12 +25,6 @@ threadIsMain()
 }
 
 void
-assertThreadIsMain()
-{
-    dbgAssert(threadIsMain());
-}
-
-void
 dbgAbort()
 {
 #ifdef _WIN32

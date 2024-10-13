@@ -51,6 +51,12 @@ class Invariant
     }
 
     virtual std::string
+    checkAfterAssumeState(uint32_t newestLedger)
+    {
+        return std::string{};
+    }
+
+    virtual std::string
     checkOnOperationApply(Operation const& operation,
                           OperationResult const& result,
                           LedgerTxnDelta const& ltxDelta)

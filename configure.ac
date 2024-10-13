@@ -115,6 +115,18 @@ AS_IF([test "x$enable_codecoverage" = "xyes"], [
   CFLAGS="$CFLAGS -fprofile-instr-generate -fcoverage-mapping"
 ])
 
+AC_ARG_ENABLE([threadsanitizer],
+  AS_HELP_STRING([--enable-threadsanitizer],
+        [build with thread-sanitizer (TSan) instrumentation]))
+AS_IF([test "x$enable_threadsanitizer" = "xyes"], [
+  AC_MSG_NOTICE([ enabling thread-sanitizer, see https://clang.llvm.org/docs/ThreadSanitizer.html ])
+
+  AS_IF([test x != "x$sanitizeopts"], [
+    AC_MSG_ERROR(Cannot enable multiple checkers at once)
+  ])
+  sanitizeopts="thread"
+])
+
 AC_ARG_ENABLE([memcheck],
   AS_HELP_STRING([--enable-memcheck],
         [build with memcheck (memory-sanitizer) instrumentation]))
@@ -384,12 +396,6 @@ AC_ARG_ENABLE(next-protocol-version-unsafe-for-production,
         [Enable next protocol version UNSAFE FOR PRODUCTION]))
 AM_CONDITIONAL(ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION,
     [test x$enable_next_protocol_version_unsafe_for_production = xyes])
-
-AC_ARG_ENABLE(protocol-upgrade-via-soroban-env-host-prev,
-    AS_HELP_STRING([--enable-protocol-upgrade-via-soroban-env-host-prev],
-        [Pass "--feature=soroban-env-host-prev" to "cargo build" to enable protocol upgrades]))
-AM_CONDITIONAL(ENABLE_PROTOCOL_UPGRADE_VIA_SOROBAN_ENV_HOST_PREV,
-    [test x$enable_protocol_upgrade_via_soroban_env_host_prev = xyes])
 
 AC_ARG_ENABLE(libunwind,
     AS_HELP_STRING([--disable-libunwind],

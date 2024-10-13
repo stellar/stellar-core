@@ -38,7 +38,7 @@ using namespace stellar::txtest;
 // path payment with a transfer rate
 TEST_CASE_VERSIONS("payment", "[tx][payment]")
 {
-    Config cfg = getTestConfig();
+    Config cfg = getTestConfig(0, Config::TESTDB_IN_MEMORY_OFFERS);
     VirtualClock clock;
     auto app = createTestApplication(clock, cfg);
 
@@ -264,7 +264,7 @@ TEST_CASE_VERSIONS("payment", "[tx][payment]")
             auto tx1 = b1.tx({payment(root, paymentAmount)});
             auto tx2 = b1.tx({payment(root, 6)});
 
-            auto r = closeLedger(*app, {tx1, tx2});
+            auto r = closeLedger(*app, {tx1, tx2}, true);
             checkTx(0, r, txSUCCESS);
             checkTx(1, r, txINSUFFICIENT_BALANCE);
 
@@ -288,7 +288,8 @@ TEST_CASE_VERSIONS("payment", "[tx][payment]")
             auto r = closeLedger(*app, {tx1, tx2}, /* strictOrder */ true);
             checkTx(0, r, txSUCCESS);
             checkTx(1, r, txFAILED);
-            REQUIRE(r[1].first.result.result.results()[0]
+            REQUIRE(r.results[1]
+                        .result.result.results()[0]
                         .tr()
                         .paymentResult()
                         .code() == PAYMENT_UNDERFUNDED);
@@ -1466,12 +1467,8 @@ TEST_CASE_VERSIONS("payment", "[tx][payment]")
                 for_all_versions(*app, [&] {
                     gateway.merge(root);
 
-                    uint32_t ledgerVersion;
-                    {
-                        LedgerTxn ltx(app->getLedgerTxnRoot());
-                        ledgerVersion =
-                            ltx.loadHeader().current().ledgerVersion;
-                    }
+                    auto ledgerVersion = getLclProtocolVersion(*app);
+
                     if (protocolVersionIsBefore(ledgerVersion,
                                                 ProtocolVersion::V_13))
                     {
@@ -1933,7 +1930,7 @@ TEST_CASE_VERSIONS("payment fees", "[tx][payment]")
 
     SECTION("fee equal to base reserve")
     {
-        auto cfg = getTestConfig(1);
+        auto cfg = getTestConfig(1, Config::TESTDB_IN_MEMORY_NO_OFFERS);
         cfg.TESTING_UPGRADE_DESIRED_FEE = 100000000;
 
         VirtualClock clock;
@@ -2043,7 +2040,7 @@ TEST_CASE_VERSIONS("payment fees", "[tx][payment]")
 
     SECTION("fee bigger than base reserve")
     {
-        auto cfg = getTestConfig(1);
+        auto cfg = getTestConfig(1, Config::TESTDB_IN_MEMORY_NO_OFFERS);
         cfg.TESTING_UPGRADE_DESIRED_FEE = 200000000;
 
         VirtualClock clock;

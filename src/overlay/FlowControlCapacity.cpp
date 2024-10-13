@@ -3,7 +3,6 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "overlay/FlowControlCapacity.h"
-#include "main/Application.h"
 #include "overlay/FlowControl.h"
 #include "overlay/OverlayManager.h"
 #include "util/Logging.h"
@@ -12,9 +11,9 @@
 namespace stellar
 {
 
-FlowControlMessageCapacity::FlowControlMessageCapacity(Application& app,
+FlowControlMessageCapacity::FlowControlMessageCapacity(Config const& cfg,
                                                        NodeID const& nodeID)
-    : FlowControlCapacity(app, nodeID)
+    : FlowControlCapacity(cfg, nodeID)
 {
     mCapacity = getCapacityLimits();
 }
@@ -29,21 +28,20 @@ FlowControlMessageCapacity::getMsgResourceCount(StellarMessage const& msg) const
 FlowControlCapacity::ReadingCapacity
 FlowControlMessageCapacity::getCapacityLimits() const
 {
-    return {
-        mApp.getConfig().PEER_FLOOD_READING_CAPACITY,
-        std::make_optional<uint64_t>(mApp.getConfig().PEER_READING_CAPACITY)};
+    return {mConfig.PEER_FLOOD_READING_CAPACITY,
+            std::make_optional<uint64_t>(mConfig.PEER_READING_CAPACITY)};
 }
 
 void
 FlowControlMessageCapacity::releaseOutboundCapacity(StellarMessage const& msg)
 {
     ZoneScoped;
-    releaseAssert(msg.type() == SEND_MORE || msg.type() == SEND_MORE_EXTENDED);
+    releaseAssert(msg.type() == SEND_MORE_EXTENDED);
     auto numMessages = FlowControl::getNumMessages(msg);
     if (!hasOutboundCapacity(msg) && numMessages != 0)
     {
         CLOG_DEBUG(Overlay, "Got outbound message capacity for peer {}",
-                   mApp.getConfig().toShortString(mNodeID));
+                   mConfig.toShortString(mNodeID));
     }
     mOutboundCapacity += numMessages;
 }
@@ -56,14 +54,10 @@ FlowControlMessageCapacity::canRead() const
     return *mCapacity.mTotalCapacity > 0;
 }
 
-FlowControlByteCapacity::FlowControlByteCapacity(Application& app,
+FlowControlByteCapacity::FlowControlByteCapacity(Config const& cfg,
                                                  NodeID const& nodeID,
-                                                 uint32_t remoteVersion)
-    : FlowControlCapacity(app, nodeID)
-    , mCapacityLimits(
-          {app.getOverlayManager().getFlowControlBytesConfig().mTotal,
-           std::nullopt})
-    , mRemoteOverlayVersion(remoteVersion)
+                                                 uint32_t capacity)
+    : FlowControlCapacity(cfg, nodeID), mCapacityLimits{capacity, std::nullopt}
 {
     mCapacity = mCapacityLimits;
 }
@@ -77,9 +71,7 @@ FlowControlByteCapacity::getCapacityLimits() const
 uint64_t
 FlowControlByteCapacity::getMsgResourceCount(StellarMessage const& msg) const
 {
-    releaseAssert(mRemoteOverlayVersion);
-    return msgBodySize(msg, mRemoteOverlayVersion,
-                       mApp.getConfig().OVERLAY_PROTOCOL_VERSION);
+    return msgBodySize(msg);
 }
 
 void
@@ -91,7 +83,7 @@ FlowControlByteCapacity::releaseOutboundCapacity(StellarMessage const& msg)
         (msg.sendMoreExtendedMessage().numBytes != 0))
     {
         CLOG_DEBUG(Overlay, "Got outbound byte capacity for peer {}",
-                   mApp.getConfig().toShortString(mNodeID));
+                   mConfig.toShortString(mNodeID));
     }
     mOutboundCapacity += msg.sendMoreExtendedMessage().numBytes;
 };
@@ -110,9 +102,11 @@ FlowControlByteCapacity::handleTxSizeIncrease(uint32_t increase)
     mCapacityLimits.mFloodCapacity += increase;
 }
 
-FlowControlCapacity::FlowControlCapacity(Application& app, NodeID const& nodeID)
-    : mApp(app), mNodeID(nodeID)
+FlowControlCapacity::FlowControlCapacity(Config const& cfg,
+                                         NodeID const& nodeID)
+    : mConfig(cfg), mNodeID(nodeID)
 {
+    releaseAssert(threadIsMain());
 }
 
 void
@@ -137,7 +131,7 @@ void
 FlowControlCapacity::lockOutboundCapacity(StellarMessage const& msg)
 {
     ZoneScoped;
-    if (mApp.getOverlayManager().isFloodMessage(msg))
+    if (OverlayManager::isFloodMessage(msg))
     {
         releaseAssert(hasOutboundCapacity(msg));
         mOutboundCapacity -= getMsgResourceCount(msg);
@@ -156,7 +150,7 @@ FlowControlCapacity::lockLocalCapacity(StellarMessage const& msg)
         *mCapacity.mTotalCapacity -= msgResources;
     }
 
-    if (mApp.getOverlayManager().isFloodMessage(msg))
+    if (OverlayManager::isFloodMessage(msg))
     {
         // No capacity to process flood message
         if (mCapacity.mFloodCapacity < msgResources)
@@ -168,7 +162,7 @@ FlowControlCapacity::lockLocalCapacity(StellarMessage const& msg)
         if (mCapacity.mFloodCapacity == 0)
         {
             CLOG_DEBUG(Overlay, "No flood capacity for peer {}",
-                       mApp.getConfig().toShortString(mNodeID));
+                       mConfig.toShortString(mNodeID));
         }
     }
 
@@ -179,6 +173,7 @@ uint64_t
 FlowControlCapacity::releaseLocalCapacity(StellarMessage const& msg)
 {
     ZoneScoped;
+
     uint64_t releasedFloodCapacity = 0;
     size_t resourcesFreed = getMsgResourceCount(msg);
     if (mCapacity.mTotalCapacity)
@@ -186,12 +181,12 @@ FlowControlCapacity::releaseLocalCapacity(StellarMessage const& msg)
         *mCapacity.mTotalCapacity += resourcesFreed;
     }
 
-    if (mApp.getOverlayManager().isFloodMessage(msg))
+    if (OverlayManager::isFloodMessage(msg))
     {
         if (mCapacity.mFloodCapacity == 0)
         {
             CLOG_DEBUG(Overlay, "Got flood capacity for peer {} ({})",
-                       mApp.getConfig().toShortString(mNodeID),
+                       mConfig.toShortString(mNodeID),
                        mCapacity.mFloodCapacity + resourcesFreed);
         }
         releasedFloodCapacity = resourcesFreed;
@@ -209,24 +204,10 @@ FlowControlCapacity::hasOutboundCapacity(StellarMessage const& msg) const
 }
 
 uint64_t
-FlowControlCapacity::msgBodySize(StellarMessage const& msg,
-                                 uint32_t remoteVersion, uint32_t localVersion)
+FlowControlCapacity::msgBodySize(StellarMessage const& msg)
 {
-    // Starting with FIRST_VERSION_UPDATED_FLOW_CONTROL_ACCOUNTING, message size
-    // calculation changed to accommodate Soroban transactions. We still need to
-    // be able to support clients running older versions (this support can be
-    // dropped once minimum overlay version is
-    // FIRST_VERSION_UPDATED_FLOW_CONTROL_ACCOUNTING or later)
-    if (remoteVersion >= Peer::FIRST_VERSION_UPDATED_FLOW_CONTROL_ACCOUNTING &&
-        localVersion >= Peer::FIRST_VERSION_UPDATED_FLOW_CONTROL_ACCOUNTING)
-    {
-        return static_cast<uint64_t>(xdr::xdr_size(msg) -
-                                     xdr::xdr_size(msg.type()));
-    }
-    else
-    {
-        return static_cast<uint64_t>(xdr::xdr_size(msg));
-    }
+    ZoneScoped;
+    return static_cast<uint64_t>(xdr::xdr_size(msg));
 }
 
 }

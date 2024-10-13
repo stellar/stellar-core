@@ -17,6 +17,7 @@
 #include "ledger/LedgerTxn.h"
 #include "ledger/LedgerTxnEntry.h"
 #include "ledger/LedgerTxnHeader.h"
+#include "ledger/LedgerTypeUtils.h"
 #include "ledger/NetworkConfig.h"
 #include "ledger/TrustLineWrapper.h"
 #include "lib/catch.hpp"
@@ -252,7 +253,7 @@ makeBucketListSizeWindowSampleSizeTestUpgrade(Application& app,
 {
     // Modify window size
     auto sas = app.getLedgerManager()
-                   .getSorobanNetworkConfig(ltx)
+                   .getSorobanNetworkConfig()
                    .stateArchivalSettings();
     sas.bucketListSizeWindowSampleSize = newWindowSize;
 
@@ -310,11 +311,12 @@ testListUpgrades(VirtualClock::system_time_point preferredUpgradeDatetime,
         makeTxCountUpgrade(cfg.TESTING_UPGRADE_MAX_TX_SET_SIZE);
     auto baseReserveUpgrade =
         makeBaseReserveUpgrade(cfg.TESTING_UPGRADE_RESERVE);
-    LedgerTxn ltx(app->getLedgerTxnRoot());
+    auto ls = LedgerSnapshot(*app);
+
     SECTION("protocol version upgrade needed")
     {
         header.ledgerVersion--;
-        auto upgrades = Upgrades{cfg}.createUpgradesFor(header, ltx);
+        auto upgrades = Upgrades{cfg}.createUpgradesFor(header, ls);
         auto expected = shouldListAny
                             ? std::vector<LedgerUpgrade>{protocolVersionUpgrade}
                             : std::vector<LedgerUpgrade>{};
@@ -324,7 +326,7 @@ testListUpgrades(VirtualClock::system_time_point preferredUpgradeDatetime,
     SECTION("base fee upgrade needed")
     {
         header.baseFee /= 2;
-        auto upgrades = Upgrades{cfg}.createUpgradesFor(header, ltx);
+        auto upgrades = Upgrades{cfg}.createUpgradesFor(header, ls);
         auto expected = shouldListAny
                             ? std::vector<LedgerUpgrade>{baseFeeUpgrade}
                             : std::vector<LedgerUpgrade>{};
@@ -334,7 +336,7 @@ testListUpgrades(VirtualClock::system_time_point preferredUpgradeDatetime,
     SECTION("tx count upgrade needed")
     {
         header.maxTxSetSize /= 2;
-        auto upgrades = Upgrades{cfg}.createUpgradesFor(header, ltx);
+        auto upgrades = Upgrades{cfg}.createUpgradesFor(header, ls);
         auto expected = shouldListAny
                             ? std::vector<LedgerUpgrade>{txCountUpgrade}
                             : std::vector<LedgerUpgrade>{};
@@ -344,7 +346,7 @@ testListUpgrades(VirtualClock::system_time_point preferredUpgradeDatetime,
     SECTION("base reserve upgrade needed")
     {
         header.baseReserve /= 2;
-        auto upgrades = Upgrades{cfg}.createUpgradesFor(header, ltx);
+        auto upgrades = Upgrades{cfg}.createUpgradesFor(header, ls);
         auto expected = shouldListAny
                             ? std::vector<LedgerUpgrade>{baseReserveUpgrade}
                             : std::vector<LedgerUpgrade>{};
@@ -357,7 +359,7 @@ testListUpgrades(VirtualClock::system_time_point preferredUpgradeDatetime,
         header.baseFee /= 2;
         header.maxTxSetSize /= 2;
         header.baseReserve /= 2;
-        auto upgrades = Upgrades{cfg}.createUpgradesFor(header, ltx);
+        auto upgrades = Upgrades{cfg}.createUpgradesFor(header, ls);
         auto expected =
             shouldListAny
                 ? std::vector<LedgerUpgrade>{protocolVersionUpgrade,
@@ -372,7 +374,7 @@ void
 testValidateUpgrades(VirtualClock::system_time_point preferredUpgradeDatetime,
                      bool canBeValid)
 {
-    auto cfg = getTestConfig();
+    auto cfg = getTestConfig(0, Config::TESTDB_IN_MEMORY_NO_OFFERS);
     cfg.TESTING_UPGRADE_LEDGER_PROTOCOL_VERSION = 10;
     cfg.TESTING_UPGRADE_DESIRED_FEE = 100;
     cfg.TESTING_UPGRADE_MAX_TX_SET_SIZE = 50;
@@ -389,12 +391,17 @@ testValidateUpgrades(VirtualClock::system_time_point preferredUpgradeDatetime,
     LedgerHeader baseLH;
     baseLH.ledgerVersion = 8;
     baseLH.scpValue.closeTime = checkTime;
+    {
+        LedgerTxn ltx(app->getLedgerTxnRoot());
+        ltx.loadHeader().current() = baseLH;
+        ltx.commit();
+    }
 
     auto checkWith = [&](bool nomination) {
         SECTION("invalid upgrade data")
         {
             REQUIRE(!Upgrades{cfg}.isValid(UpgradeType{}, ledgerUpgradeType,
-                                           nomination, *app, baseLH));
+                                           nomination, *app));
         }
 
         SECTION("version")
@@ -404,18 +411,18 @@ testValidateUpgrades(VirtualClock::system_time_point preferredUpgradeDatetime,
                 REQUIRE(canBeValid ==
                         Upgrades{cfg}.isValid(
                             toUpgradeType(makeProtocolVersionUpgrade(10)),
-                            ledgerUpgradeType, nomination, *app, baseLH));
+                            ledgerUpgradeType, nomination, *app));
             }
             else
             {
                 REQUIRE(Upgrades{cfg}.isValid(
                     toUpgradeType(makeProtocolVersionUpgrade(10)),
-                    ledgerUpgradeType, nomination, *app, baseLH));
+                    ledgerUpgradeType, nomination, *app));
             }
             // 10 is queued, so this upgrade is only valid when not nominating
             bool v9Upgrade = Upgrades{cfg}.isValid(
                 toUpgradeType(makeProtocolVersionUpgrade(9)), ledgerUpgradeType,
-                nomination, *app, baseLH);
+                nomination, *app);
             if (nomination)
             {
                 REQUIRE(!v9Upgrade);
@@ -427,11 +434,11 @@ testValidateUpgrades(VirtualClock::system_time_point preferredUpgradeDatetime,
             // rollback not allowed
             REQUIRE(!Upgrades{cfg}.isValid(
                 toUpgradeType(makeProtocolVersionUpgrade(7)), ledgerUpgradeType,
-                nomination, *app, baseLH));
+                nomination, *app));
             // version is not supported
             REQUIRE(!Upgrades{cfg}.isValid(
                 toUpgradeType(makeProtocolVersionUpgrade(11)),
-                ledgerUpgradeType, nomination, *app, baseLH));
+                ledgerUpgradeType, nomination, *app));
         }
 
         SECTION("base fee")
@@ -441,29 +448,29 @@ testValidateUpgrades(VirtualClock::system_time_point preferredUpgradeDatetime,
                 REQUIRE(canBeValid ==
                         Upgrades{cfg}.isValid(
                             toUpgradeType(makeBaseFeeUpgrade(100)),
-                            ledgerUpgradeType, nomination, *app, baseLH));
+                            ledgerUpgradeType, nomination, *app));
                 REQUIRE(!Upgrades{cfg}.isValid(
                     toUpgradeType(makeBaseFeeUpgrade(99)), ledgerUpgradeType,
-                    nomination, *app, baseLH));
+                    nomination, *app));
                 REQUIRE(!Upgrades{cfg}.isValid(
                     toUpgradeType(makeBaseFeeUpgrade(101)), ledgerUpgradeType,
-                    nomination, *app, baseLH));
+                    nomination, *app));
             }
             else
             {
                 REQUIRE(Upgrades{cfg}.isValid(
                     toUpgradeType(makeBaseFeeUpgrade(100)), ledgerUpgradeType,
-                    nomination, *app, baseLH));
-                REQUIRE(Upgrades{cfg}.isValid(
-                    toUpgradeType(makeBaseFeeUpgrade(99)), ledgerUpgradeType,
-                    nomination, *app, baseLH));
+                    nomination, *app));
+                REQUIRE(
+                    Upgrades{cfg}.isValid(toUpgradeType(makeBaseFeeUpgrade(99)),
+                                          ledgerUpgradeType, nomination, *app));
                 REQUIRE(Upgrades{cfg}.isValid(
                     toUpgradeType(makeBaseFeeUpgrade(101)), ledgerUpgradeType,
-                    nomination, *app, baseLH));
+                    nomination, *app));
             }
             REQUIRE(!Upgrades{cfg}.isValid(toUpgradeType(makeBaseFeeUpgrade(0)),
-                                           ledgerUpgradeType, nomination, *app,
-                                           baseLH));
+                                           ledgerUpgradeType, nomination,
+                                           *app));
         }
 
         SECTION("tx count")
@@ -472,33 +479,31 @@ testValidateUpgrades(VirtualClock::system_time_point preferredUpgradeDatetime,
             {
                 REQUIRE(canBeValid == Upgrades{cfg}.isValid(
                                           toUpgradeType(makeTxCountUpgrade(50)),
-                                          ledgerUpgradeType, nomination, *app,
-                                          baseLH));
+                                          ledgerUpgradeType, nomination, *app));
                 REQUIRE(!Upgrades{cfg}.isValid(
                     toUpgradeType(makeTxCountUpgrade(49)), ledgerUpgradeType,
-                    nomination, *app, baseLH));
+                    nomination, *app));
                 REQUIRE(!Upgrades{cfg}.isValid(
                     toUpgradeType(makeTxCountUpgrade(51)), ledgerUpgradeType,
-                    nomination, *app, baseLH));
+                    nomination, *app));
             }
             else
             {
-                REQUIRE(Upgrades{cfg}.isValid(
-                    toUpgradeType(makeTxCountUpgrade(50)), ledgerUpgradeType,
-                    nomination, *app, baseLH));
-                REQUIRE(Upgrades{cfg}.isValid(
-                    toUpgradeType(makeTxCountUpgrade(49)), ledgerUpgradeType,
-                    nomination, *app, baseLH));
-                REQUIRE(Upgrades{cfg}.isValid(
-                    toUpgradeType(makeTxCountUpgrade(51)), ledgerUpgradeType,
-                    nomination, *app, baseLH));
+                REQUIRE(
+                    Upgrades{cfg}.isValid(toUpgradeType(makeTxCountUpgrade(50)),
+                                          ledgerUpgradeType, nomination, *app));
+                REQUIRE(
+                    Upgrades{cfg}.isValid(toUpgradeType(makeTxCountUpgrade(49)),
+                                          ledgerUpgradeType, nomination, *app));
+                REQUIRE(
+                    Upgrades{cfg}.isValid(toUpgradeType(makeTxCountUpgrade(51)),
+                                          ledgerUpgradeType, nomination, *app));
             }
             auto cfg0TxSize = cfg;
             cfg0TxSize.TESTING_UPGRADE_MAX_TX_SET_SIZE = 0;
             REQUIRE(canBeValid == Upgrades{cfg0TxSize}.isValid(
                                       toUpgradeType(makeTxCountUpgrade(0)),
-                                      ledgerUpgradeType, nomination, *app,
-                                      baseLH));
+                                      ledgerUpgradeType, nomination, *app));
         }
 
         SECTION("reserve")
@@ -508,29 +513,29 @@ testValidateUpgrades(VirtualClock::system_time_point preferredUpgradeDatetime,
                 REQUIRE(canBeValid ==
                         Upgrades{cfg}.isValid(
                             toUpgradeType(makeBaseReserveUpgrade(100000000)),
-                            ledgerUpgradeType, nomination, *app, baseLH));
+                            ledgerUpgradeType, nomination, *app));
                 REQUIRE(!Upgrades{cfg}.isValid(
                     toUpgradeType(makeBaseReserveUpgrade(99999999)),
-                    ledgerUpgradeType, nomination, *app, baseLH));
+                    ledgerUpgradeType, nomination, *app));
                 REQUIRE(!Upgrades{cfg}.isValid(
                     toUpgradeType(makeBaseReserveUpgrade(100000001)),
-                    ledgerUpgradeType, nomination, *app, baseLH));
+                    ledgerUpgradeType, nomination, *app));
             }
             else
             {
                 REQUIRE(Upgrades{cfg}.isValid(
                     toUpgradeType(makeBaseReserveUpgrade(100000000)),
-                    ledgerUpgradeType, nomination, *app, baseLH));
+                    ledgerUpgradeType, nomination, *app));
                 REQUIRE(Upgrades{cfg}.isValid(
                     toUpgradeType(makeBaseReserveUpgrade(99999999)),
-                    ledgerUpgradeType, nomination, *app, baseLH));
+                    ledgerUpgradeType, nomination, *app));
                 REQUIRE(Upgrades{cfg}.isValid(
                     toUpgradeType(makeBaseReserveUpgrade(100000001)),
-                    ledgerUpgradeType, nomination, *app, baseLH));
+                    ledgerUpgradeType, nomination, *app));
             }
-            REQUIRE(!Upgrades{cfg}.isValid(
-                toUpgradeType(makeBaseReserveUpgrade(0)), ledgerUpgradeType,
-                nomination, *app, baseLH));
+            REQUIRE(
+                !Upgrades{cfg}.isValid(toUpgradeType(makeBaseReserveUpgrade(0)),
+                                       ledgerUpgradeType, nomination, *app));
         }
     };
     checkWith(true);
@@ -627,7 +632,7 @@ TEST_CASE("Ledger Manager applies upgrades properly", "[upgrades]")
 TEST_CASE("config upgrade validation", "[upgrades]")
 {
     VirtualClock clock;
-    auto cfg = getTestConfig(0);
+    auto cfg = getTestConfig(0, Config::TESTDB_IN_MEMORY_NO_OFFERS);
     auto app = createTestApplication(clock, cfg);
 
     auto headerTime = VirtualClock::to_time_t(genesis(0, 2));
@@ -671,13 +676,16 @@ TEST_CASE("config upgrade validation", "[upgrades]")
     SECTION("validate for apply")
     {
         LedgerTxn ltx(app->getLedgerTxnRoot());
+        ltx.loadHeader().current() = header;
+
+        auto ls = LedgerSnapshot(ltx);
         LedgerUpgrade outUpgrade;
         SECTION("valid")
         {
             REQUIRE(Upgrades::isValidForApply(
                         toUpgradeType(makeConfigUpgrade(*configUpgradeSet)),
-                        outUpgrade, *app, ltx,
-                        header) == Upgrades::UpgradeValidity::VALID);
+                        outUpgrade, *app,
+                        ls) == Upgrades::UpgradeValidity::VALID);
             REQUIRE(outUpgrade.newConfig() == configUpgradeSet->getKey());
         }
         SECTION("unknown upgrade")
@@ -689,7 +697,7 @@ TEST_CASE("config upgrade validation", "[upgrades]")
                 ConfigUpgradeSetKey{contractID, upgradeHash};
 
             REQUIRE(Upgrades::isValidForApply(toUpgradeType(ledgerUpgrade),
-                                              outUpgrade, *app, ltx, header) ==
+                                              outUpgrade, *app, ls) ==
                     Upgrades::UpgradeValidity::INVALID);
         }
         SECTION("not valid")
@@ -705,8 +713,8 @@ TEST_CASE("config upgrade validation", "[upgrades]")
                     REQUIRE(Upgrades::isValidForApply(
                                 toUpgradeType(
                                     makeConfigUpgrade(*configUpgradeSetFrame)),
-                                outUpgrade, *app, ltx, header) ==
-                            Upgrades::UpgradeValidity::XDR_INVALID);
+                                outUpgrade, *app,
+                                ls) == Upgrades::UpgradeValidity::XDR_INVALID);
                 };
                 SECTION("no updated entries")
                 {
@@ -759,9 +767,9 @@ TEST_CASE("config upgrade validation", "[upgrades]")
                     auto upgrade = LedgerUpgrade{LEDGER_UPGRADE_CONFIG};
                     upgrade.newConfig() = upgradeKey;
 
-                    REQUIRE(Upgrades::isValidForApply(
-                                toUpgradeType(upgrade), outUpgrade, *app, ltx,
-                                header) == Upgrades::UpgradeValidity::INVALID);
+                    REQUIRE(Upgrades::isValidForApply(toUpgradeType(upgrade),
+                                                      outUpgrade, *app, ls) ==
+                            Upgrades::UpgradeValidity::INVALID);
                 }
             }
         }
@@ -770,20 +778,25 @@ TEST_CASE("config upgrade validation", "[upgrades]")
             REQUIRE(Upgrades::isValidForApply(
                         toUpgradeType(makeConfigUpgrade(
                             *makeMaxContractSizeBytesTestUpgrade(ltx, 0))),
-                        outUpgrade, *app, ltx,
-                        header) == Upgrades::UpgradeValidity::INVALID);
+                        outUpgrade, *app,
+                        ls) == Upgrades::UpgradeValidity::INVALID);
         }
     }
 
     SECTION("validate for nomination")
     {
         LedgerUpgradeType outUpgradeType;
+        {
+            LedgerTxn ltx(app->getLedgerTxnRoot());
+            ltx.loadHeader().current() = header;
+            ltx.commit();
+        }
         SECTION("valid")
         {
             REQUIRE(Upgrades(scheduledUpgrades)
                         .isValid(
                             toUpgradeType(makeConfigUpgrade(*configUpgradeSet)),
-                            outUpgradeType, true, *app, header));
+                            outUpgradeType, true, *app));
         }
         SECTION("not valid")
         {
@@ -791,7 +804,7 @@ TEST_CASE("config upgrade validation", "[upgrades]")
             {
                 REQUIRE(!Upgrades().isValid(
                     toUpgradeType(makeConfigUpgrade(*configUpgradeSet)),
-                    outUpgradeType, true, *app, header));
+                    outUpgradeType, true, *app));
             }
             SECTION("inconsistent value")
             {
@@ -806,7 +819,7 @@ TEST_CASE("config upgrade validation", "[upgrades]")
                 REQUIRE(
                     !Upgrades(scheduledUpgrades)
                          .isValid(toUpgradeType(makeConfigUpgrade(*upgradeSet)),
-                                  outUpgradeType, true, *app, header));
+                                  outUpgradeType, true, *app));
             }
         }
     }
@@ -815,7 +828,7 @@ TEST_CASE("config upgrade validation", "[upgrades]")
 TEST_CASE("config upgrades applied to ledger", "[soroban][upgrades]")
 {
     VirtualClock clock;
-    auto cfg = getTestConfig(0);
+    auto cfg = getTestConfig(0, Config::TESTDB_IN_MEMORY_NO_OFFERS);
     cfg.TESTING_UPGRADE_LEDGER_PROTOCOL_VERSION =
         static_cast<uint32_t>(SOROBAN_PROTOCOL_VERSION) - 1;
     cfg.USE_CONFIG_FOR_GENESIS = false;
@@ -825,10 +838,8 @@ TEST_CASE("config upgrades applied to ledger", "[soroban][upgrades]")
     // entries initialized.
     executeUpgrade(*app, makeProtocolVersionUpgrade(
                              static_cast<uint32_t>(SOROBAN_PROTOCOL_VERSION)));
-    LedgerTxn ltx(app->getLedgerTxnRoot());
     auto const& sorobanConfig =
-        app->getLedgerManager().getSorobanNetworkConfig(ltx);
-    ltx.commit();
+        app->getLedgerManager().getSorobanNetworkConfig();
     SECTION("unknown config upgrade set is ignored")
     {
         auto contractID = autocheck::generator<Hash>()(5);
@@ -870,8 +881,7 @@ TEST_CASE("config upgrades applied to ledger", "[soroban][upgrades]")
             {
                 LedgerTxn ltx2(app->getLedgerTxnRoot());
                 auto& cfg =
-                    app->getLedgerManager().getMutableSorobanNetworkConfig(
-                        ltx2);
+                    app->getLedgerManager().getMutableSorobanNetworkConfig();
 
                 // Populate sliding window with interesting values
                 auto i = 0;
@@ -896,15 +906,14 @@ TEST_CASE("config upgrades applied to ledger", "[soroban][upgrades]")
         {
             auto const newSize = 20;
             populateValuesAndUpgradeSize(newSize);
-            LedgerTxn ltx2(app->getLedgerTxnRoot());
-            auto const& cfg =
-                app->getLedgerManager().getSorobanNetworkConfig(ltx2);
+            auto const& cfg2 =
+                app->getLedgerManager().getSorobanNetworkConfig();
 
             // Verify that we popped the 10 oldest values
             auto sum = 0;
             auto expectedValue = 10;
-            REQUIRE(cfg.mBucketListSizeSnapshots.size() == newSize);
-            for (auto const val : cfg.mBucketListSizeSnapshots)
+            REQUIRE(cfg2.mBucketListSizeSnapshots.size() == newSize);
+            for (auto const val : cfg2.mBucketListSizeSnapshots)
             {
                 REQUIRE(val == expectedValue);
                 sum += expectedValue;
@@ -912,22 +921,21 @@ TEST_CASE("config upgrades applied to ledger", "[soroban][upgrades]")
             }
 
             // Verify average has been properly updated as well
-            REQUIRE(cfg.getAverageBucketListSize() == (sum / newSize));
+            REQUIRE(cfg2.getAverageBucketListSize() == (sum / newSize));
         }
 
         SECTION("increase size")
         {
             auto const newSize = 40;
             populateValuesAndUpgradeSize(newSize);
-            LedgerTxn ltx2(app->getLedgerTxnRoot());
-            auto const& cfg =
-                app->getLedgerManager().getSorobanNetworkConfig(ltx2);
+            auto const& cfg2 =
+                app->getLedgerManager().getSorobanNetworkConfig();
 
             // Verify that we backfill 10 copies of the oldest value
             auto sum = 0;
             auto expectedValue = 0;
-            REQUIRE(cfg.mBucketListSizeSnapshots.size() == newSize);
-            for (auto i = 0; i < cfg.mBucketListSizeSnapshots.size(); ++i)
+            REQUIRE(cfg2.mBucketListSizeSnapshots.size() == newSize);
+            for (auto i = 0; i < cfg2.mBucketListSizeSnapshots.size(); ++i)
             {
                 // First 11 values should be oldest value (0)
                 if (i > 10)
@@ -935,12 +943,12 @@ TEST_CASE("config upgrades applied to ledger", "[soroban][upgrades]")
                     ++expectedValue;
                 }
 
-                REQUIRE(cfg.mBucketListSizeSnapshots[i] == expectedValue);
+                REQUIRE(cfg2.mBucketListSizeSnapshots[i] == expectedValue);
                 sum += expectedValue;
             }
 
             // Verify average has been properly updated as well
-            REQUIRE(cfg.getAverageBucketListSize() == (sum / newSize));
+            REQUIRE(cfg2.getAverageBucketListSize() == (sum / newSize));
         }
 
         auto testUpgradeHasNoEffect = [&](uint32_t size) {
@@ -951,7 +959,7 @@ TEST_CASE("config upgrades applied to ledger", "[soroban][upgrades]")
                 LedgerTxn ltx2(app->getLedgerTxnRoot());
 
                 auto const& cfg =
-                    app->getLedgerManager().getSorobanNetworkConfig(ltx2);
+                    app->getLedgerManager().getSorobanNetworkConfig();
                 initialSize =
                     cfg.mStateArchivalSettings.bucketListSizeWindowSampleSize;
                 initialWindow = cfg.mBucketListSizeSnapshots;
@@ -966,10 +974,7 @@ TEST_CASE("config upgrades applied to ledger", "[soroban][upgrades]")
             REQUIRE(configUpgradeSet);
             executeUpgrade(*app, makeConfigUpgrade(*configUpgradeSet));
 
-            LedgerTxn ltx2(app->getLedgerTxnRoot());
-
-            auto const& cfg =
-                app->getLedgerManager().getSorobanNetworkConfig(ltx2);
+            auto const& cfg = app->getLedgerManager().getSorobanNetworkConfig();
             REQUIRE(cfg.mStateArchivalSettings.bucketListSizeWindowSampleSize ==
                     initialSize);
             REQUIRE(cfg.mBucketListSizeSnapshots == initialWindow);
@@ -1082,10 +1087,8 @@ TEST_CASE("Soroban max tx set size upgrade applied to ledger",
     executeUpgrade(*app, makeProtocolVersionUpgrade(
                              static_cast<uint32_t>(SOROBAN_PROTOCOL_VERSION)));
 
-    LedgerTxn ltx(app->getLedgerTxnRoot());
     auto const& sorobanConfig =
-        app->getLedgerManager().getSorobanNetworkConfig(ltx);
-    ltx.commit();
+        app->getLedgerManager().getSorobanNetworkConfig();
 
     executeUpgrade(*app, makeMaxSorobanTxSizeUpgrade(123));
     REQUIRE(sorobanConfig.ledgerMaxTxCount() == 123);
@@ -1956,10 +1959,11 @@ TEST_CASE("upgrade to version 11", "[upgrades]")
         uint64_t minBalance = lm.getLastMinBalance(5);
         uint64_t big = minBalance + ledgerSeq;
         uint64_t closeTime = 60 * 5 * ledgerSeq;
-        TxSetFrameConstPtr txSet = TxSetFrame::makeFromTransactions(
-            TxSetFrame::Transactions{
-                root.tx({txtest::createAccount(stranger, big)})},
-            *app, 0, 0);
+        auto txSet = makeTxSetFromTransactions(
+                         TxSetTransactions{
+                             root.tx({txtest::createAccount(stranger, big)})},
+                         *app, 0, 0)
+                         .first;
 
         // On 4th iteration of advance (a.k.a. ledgerSeq 5), perform a
         // ledger-protocol version upgrade to the new protocol, to activate
@@ -2079,10 +2083,12 @@ TEST_CASE("upgrade to version 12", "[upgrades]")
         uint64_t minBalance = lm.getLastMinBalance(5);
         uint64_t big = minBalance + ledgerSeq;
         uint64_t closeTime = 60 * 5 * ledgerSeq;
-        TxSetFrameConstPtr txSet = TxSetFrame::makeFromTransactions(
-            TxSetFrame::Transactions{
-                root.tx({txtest::createAccount(stranger, big)})},
-            *app, 0, 0);
+        TxSetXDRFrameConstPtr txSet =
+            makeTxSetFromTransactions(
+                TxSetTransactions{
+                    root.tx({txtest::createAccount(stranger, big)})},
+                *app, 0, 0)
+                .first;
 
         // On 4th iteration of advance (a.k.a. ledgerSeq 5), perform a
         // ledger-protocol version upgrade to the new protocol, to
@@ -2160,65 +2166,13 @@ TEST_CASE("upgrade to version 12", "[upgrades]")
         }
     }
 }
-
-TEST_CASE("upgrade to version 13", "[upgrades]")
-{
-    VirtualClock clock;
-    auto cfg = getTestConfig(0);
-    cfg.USE_CONFIG_FOR_GENESIS = false;
-
-    auto app = createTestApplication(clock, cfg);
-
-    executeUpgrade(*app, makeProtocolVersionUpgrade(12));
-
-    auto& lm = app->getLedgerManager();
-    auto& herder = static_cast<HerderImpl&>(app->getHerder());
-
-    auto root = TestAccount::createRoot(*app);
-    auto acc = root.create("A", lm.getLastMinBalance(2));
-
-    herder.recvTransaction(root.tx({payment(root, 1)}), false);
-    herder.recvTransaction(root.tx({payment(root, 2)}), false);
-    herder.recvTransaction(acc.tx({payment(acc, 1)}), false);
-    herder.recvTransaction(acc.tx({payment(acc, 2)}), false);
-
-    auto queueTxs = herder.getTransactionQueue().getTransactions({});
-    for (auto const& tx : queueTxs)
-    {
-        REQUIRE(tx->getEnvelope().type() == ENVELOPE_TYPE_TX_V0);
-    }
-
-    {
-        auto const& lcl = lm.getLastClosedLedgerHeader();
-        auto ledgerSeq = lcl.header.ledgerSeq + 1;
-
-        auto emptyTxSet = TxSetFrame::makeEmpty(lcl);
-        herder.getPendingEnvelopes().putTxSet(emptyTxSet->getContentsHash(),
-                                              ledgerSeq, emptyTxSet);
-
-        auto upgrade = toUpgradeType(makeProtocolVersionUpgrade(13));
-        StellarValue sv =
-            herder.makeStellarValue(emptyTxSet->getContentsHash(), 2,
-                                    xdr::xvector<UpgradeType, 6>({upgrade}),
-                                    app->getConfig().NODE_SEED);
-        herder.getHerderSCPDriver().valueExternalized(ledgerSeq,
-                                                      xdr::xdr_to_opaque(sv));
-    }
-
-    queueTxs = herder.getTransactionQueue().getTransactions({});
-    for (auto const& tx : queueTxs)
-    {
-        REQUIRE(tx->getEnvelope().type() == ENVELOPE_TYPE_TX);
-    }
-}
-
 // There is a subtle inconsistency where for a ledger that upgrades from
 // protocol vN to vN+1 that also changed LedgerCloseMeta version, the ledger
 // header will be protocol vN+1, but the meta emitted for that ledger will be
 // the LedgerCloseMeta version for vN. This test checks that the meta versions
 // are correct the protocol 20 upgrade that updates LedgerCloseMeta to V1 and
 // that no asserts are thrown.
-TEST_CASE("upgrade to version 20 - LedgerCloseMetaV1")
+TEST_CASE("upgrade to version 20 - LedgerCloseMetaV1", "[upgrades]")
 {
     TmpDirManager tdm(std::string("version-20-upgrade-meta-") +
                       binToHex(randomBytes(8)));
@@ -2292,7 +2246,7 @@ TEST_CASE("configuration initialized in version upgrade", "[upgrades]")
             InitialSorobanNetworkConfig::MAX_CONTRACT_SIZE);
 
     // Check that BucketList size window initialized with current BL size
-    auto& networkConfig = app->getLedgerManager().getSorobanNetworkConfig(ltx);
+    auto& networkConfig = app->getLedgerManager().getSorobanNetworkConfig();
     REQUIRE(networkConfig.getAverageBucketListSize() == blSize);
 
     // Check in memory window
@@ -2320,8 +2274,8 @@ TEST_CASE("configuration initialized in version upgrade", "[upgrades]")
 TEST_CASE_VERSIONS("upgrade base reserve", "[upgrades]")
 {
     VirtualClock clock;
-    auto cfg = getTestConfig(0);
 
+    auto cfg = getTestConfig(0, Config::TESTDB_IN_MEMORY_NO_OFFERS);
     auto app = createTestApplication(clock, cfg);
 
     auto& lm = app->getLedgerManager();
@@ -2476,10 +2430,10 @@ TEST_CASE_VERSIONS("upgrade base reserve", "[upgrades]")
                                   std::bind(executeUpgrade, 2 * baseReserve));
         });
 
-        auto submitTx = [&](TransactionFrameBasePtr tx) {
+        auto submitTx = [&](TransactionTestFramePtr tx) {
             LedgerTxn ltx(app->getLedgerTxnRoot());
             TransactionMetaFrame txm(ltx.loadHeader().current().ledgerVersion);
-            REQUIRE(tx->checkValid(*app, ltx, 0, 0, 0));
+            REQUIRE(tx->checkValidForTesting(*app, ltx, 0, 0, 0));
             REQUIRE(tx->apply(*app, ltx, txm));
             ltx.commit();
 
@@ -3020,7 +2974,7 @@ TEST_CASE("upgrade from cpp14 serialized data", "[upgrades]")
 
 TEST_CASE("upgrades serialization roundtrip", "[upgrades]")
 {
-    auto cfg = getTestConfig();
+    auto cfg = getTestConfig(0, Config::TESTDB_IN_MEMORY_NO_OFFERS);
     VirtualClock clock;
     auto app = createTestApplication(clock, cfg);
 
@@ -3065,7 +3019,7 @@ TEST_CASE("upgrades serialization roundtrip", "[upgrades]")
       "configupgradeset" : {
          "updatedEntry" : [
             {
-               "configSettingID" : 0,
+               "configSettingID" : "CONFIG_SETTING_CONTRACT_MAX_SIZE_BYTES",
                "contractMaxSizeBytes" : 32768
             }
          ]
@@ -3104,7 +3058,7 @@ TEST_CASE("upgrades serialization roundtrip", "[upgrades]")
 TEST_CASE_VERSIONS("upgrade flags", "[upgrades][liquiditypool]")
 {
     VirtualClock clock;
-    auto cfg = getTestConfig();
+    auto cfg = getTestConfig(0, Config::TESTDB_IN_MEMORY_NO_OFFERS);
 
     auto app = createTestApplication(clock, cfg);
 
@@ -3199,149 +3153,4 @@ TEST_CASE_VERSIONS("upgrade flags", "[upgrades][liquiditypool]")
         REQUIRE_THROWS_AS(root.pay(a1, cur1, 2, native, 1, {}),
                           ex_PATH_PAYMENT_STRICT_RECEIVE_TOO_FEW_OFFERS);
     });
-}
-
-TEST_CASE("upgrade to generalized tx set changes TxSetFrame format",
-          "[upgrades]")
-{
-    if (protocolVersionIsBefore(Config::CURRENT_LEDGER_PROTOCOL_VERSION,
-                                SOROBAN_PROTOCOL_VERSION))
-    {
-        return;
-    }
-    VirtualClock clock;
-    auto cfg = getTestConfig(0);
-    cfg.USE_CONFIG_FOR_GENESIS = false;
-
-    auto app = createTestApplication(clock, cfg);
-
-    executeUpgrade(*app, makeProtocolVersionUpgrade(
-                             static_cast<int>(SOROBAN_PROTOCOL_VERSION) - 1));
-
-    auto root = TestAccount::createRoot(*app);
-    TxSetFrame::Transactions txs = {root.tx({payment(root, 1)})};
-    auto txSet = TxSetFrame::makeFromTransactions(txs, *app, 0, 0);
-    REQUIRE(!txSet->isGeneralizedTxSet());
-
-    executeUpgrade(*app, makeProtocolVersionUpgrade(
-                             static_cast<int>(SOROBAN_PROTOCOL_VERSION)));
-
-    txSet = TxSetFrame::makeFromTransactions(txs, *app, 0, 0);
-    REQUIRE(txSet->isGeneralizedTxSet());
-}
-
-TEST_CASE("upgrade to generalized tx set in network", "[upgrades][overlay]")
-{
-    if (protocolVersionIsBefore(Config::CURRENT_LEDGER_PROTOCOL_VERSION,
-                                SOROBAN_PROTOCOL_VERSION))
-    {
-        return;
-    }
-    auto networkID = sha256(getTestConfig().NETWORK_PASSPHRASE);
-    auto simulation = Topologies::core(
-        4, 0.75, Simulation::OVER_LOOPBACK, networkID, [](int i) {
-            auto cfg = getTestConfig(i, Config::TESTDB_ON_DISK_SQLITE);
-            cfg.MAX_SLOTS_TO_REMEMBER = 12;
-            cfg.TESTING_UPGRADE_LEDGER_PROTOCOL_VERSION =
-                static_cast<uint32_t>(SOROBAN_PROTOCOL_VERSION) - 1;
-            // Set max tx size to accommodate loadgen
-            cfg.TESTING_UPGRADE_MAX_TX_SET_SIZE = 1000;
-            return cfg;
-        });
-
-    simulation->startAllNodes();
-
-    // Wait for 3 ledgers in order to get to stable closing schedule (every 5s).
-    simulation->crankUntil(
-        [&]() { return simulation->haveAllExternalized(3, 1); },
-        Herder::EXP_LEDGER_TIMESPAN_SECONDS * 2, false);
-    auto nodes = simulation->getNodes();
-    auto lclCloseTime =
-        VirtualClock::from_time_t(nodes[0]
-                                      ->getLedgerManager()
-                                      .getLastClosedLedgerHeader()
-                                      .header.scpValue.closeTime);
-
-    for (auto node : nodes)
-    {
-        Upgrades::UpgradeParameters upgrades;
-        upgrades.mProtocolVersion = std::make_optional<uint32>(
-            static_cast<uint32>(SOROBAN_PROTOCOL_VERSION));
-        // Upgrade to generalized tx set in 3 ledgers (4 ledgers before update
-        // is applied).
-        upgrades.mUpgradeTime =
-            lclCloseTime + Herder::EXP_LEDGER_TIMESPAN_SECONDS * 3;
-        node->getHerder().setUpgrades(upgrades);
-    }
-
-    auto& loadGen = nodes[0]->getLoadGenerator();
-    // Generate 8 ledgers worth of txs (500 * 8 = 4000 accounts).
-    loadGen.generateLoad(GeneratedLoadConfig::createAccountsLoad(
-        /* nAccounts */ 4000, /* txRate */ 1));
-    auto& loadGenDone =
-        nodes[0]->getMetrics().NewMeter({"loadgen", "run", "complete"}, "run");
-    auto currLoadGenCount = loadGenDone.count();
-    std::optional<uint32_t> upgradeLedger;
-    simulation->crankUntil(
-        [&]() {
-            if (!upgradeLedger &&
-                nodes[0]->getLedgerManager()
-                        .getLastClosedLedgerHeader()
-                        .header.ledgerVersion ==
-                    static_cast<uint32_t>(SOROBAN_PROTOCOL_VERSION))
-            {
-                upgradeLedger =
-                    nodes[0]->getLedgerManager().getLastClosedLedgerNum();
-            }
-            return loadGenDone.count() > currLoadGenCount;
-        },
-        11 * Herder::EXP_LEDGER_TIMESPAN_SECONDS, false);
-
-    // Make sure upgrade has happened.
-    REQUIRE(upgradeLedger);
-    REQUIRE(*upgradeLedger < 11);
-
-    // Add a node and let it catchup.
-    auto addedKey = SecretKey::fromSeed(sha256("ADD_NODE"));
-    auto addedNode =
-        simulation->addNode(addedKey, nodes.back()->getConfig().QUORUM_SET);
-    addedNode->start();
-    for (auto const& nodeID : simulation->getNodeIDs())
-    {
-        simulation->addConnection(addedKey.getPublicKey(), nodeID);
-    }
-    // Let the network to externalize 1 more ledger.
-    simulation->crankUntil(
-        [&]() { return simulation->haveAllExternalized(12, 12); },
-        Herder::EXP_LEDGER_TIMESPAN_SECONDS * 2, false);
-
-    auto getLedgerTxSet = [](Application& node, uint32_t ledger) {
-        auto& herder = *static_cast<HerderImpl*>(&node.getHerder());
-        TxSetFrameConstPtr txSet;
-        for (auto const& env : herder.getSCP().getLatestMessagesSend(ledger))
-        {
-            if (env.statement.pledges.type() == SCP_ST_EXTERNALIZE)
-            {
-                StellarValue sv;
-                auto& pe = herder.getPendingEnvelopes();
-                herder.getHerderSCPDriver().toStellarValue(
-                    env.statement.pledges.externalize().commit.value, sv);
-                return pe.getTxSet(sv.txSetHash);
-            }
-        }
-        return txSet;
-    };
-
-    // Make sure tx set format switches to generalized after upgrade.
-    for (uint32_t ledger = 4; ledger <= 11; ++ledger)
-    {
-        for (auto const& node : simulation->getNodes())
-        {
-            auto txSet = getLedgerTxSet(*node, ledger);
-            REQUIRE(txSet);
-            REQUIRE(txSet->sizeTxTotal() > 0);
-            bool isGeneralized = ledger > *upgradeLedger;
-            REQUIRE(txSet->isGeneralizedTxSet() == isGeneralized);
-        }
-    }
 }

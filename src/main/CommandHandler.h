@@ -5,6 +5,10 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "lib/http/server.hpp"
+#include "main/QueryServer.h"
+#include "util/ProtocolVersion.h"
+#include <map>
+#include <memory>
 #include <string>
 
 /*
@@ -23,10 +27,18 @@ class CommandHandler
 
     Application& mApp;
     std::unique_ptr<http::server::server> mServer;
+    std::unique_ptr<QueryServer> mQueryServer;
 
     void addRoute(std::string const& name, HandlerRoute route);
+
     void safeRouter(HandlerRoute route, std::string const& params,
                     std::string& retStr);
+
+    void ensureProtocolVersion(std::map<std::string, std::string> const& args,
+                               std::string const& argName,
+                               ProtocolVersion minVer);
+    void ensureProtocolVersion(std::string const& errString,
+                               ProtocolVersion minVer);
 
   public:
     CommandHandler(Application& app);
@@ -36,7 +48,6 @@ class CommandHandler
     void fileNotFound(std::string const& params, std::string& retStr);
 
     void bans(std::string const& params, std::string& retStr);
-    void checkdb(std::string const& params, std::string& retStr);
     void connect(std::string const& params, std::string& retStr);
     void dropcursor(std::string const& params, std::string& retStr);
     void dropPeer(std::string const& params, std::string& retStr);
@@ -54,12 +65,20 @@ class CommandHandler
     void getcursor(std::string const& params, std::string& retStr);
     void scpInfo(std::string const& params, std::string& retStr);
     void tx(std::string const& params, std::string& retStr);
-    void getLedgerEntry(std::string const& params, std::string& retStr);
     void unban(std::string const& params, std::string& retStr);
     void upgrades(std::string const& params, std::string& retStr);
+    void dumpProposedSettings(std::string const& params, std::string& retStr);
     void surveyTopology(std::string const&, std::string& retStr);
     void stopSurvey(std::string const&, std::string& retStr);
     void getSurveyResult(std::string const&, std::string& retStr);
+    void sorobanInfo(std::string const&, std::string& retStr);
+    void startSurveyCollecting(std::string const& params, std::string& retStr);
+    void stopSurveyCollecting(std::string const& params, std::string& retStr);
+    void surveyTopologyTimeSliced(std::string const& params,
+                                  std::string& retStr);
+
+    // Checks if stellar-core is booted and throws an exception if not.
+    void checkBooted() const;
 
 #ifdef BUILD_TESTS
     void generateLoad(std::string const& params, std::string& retStr);

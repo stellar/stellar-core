@@ -175,6 +175,7 @@ reinitializeAllGlobalStateWithSeedInternal(unsigned int seed)
 {
     lastGlobalSeed = seed;
     PubKeyUtils::clearVerifySigCache();
+    PubKeyUtils::maybeSeedVerifySigCache(seed);
     srand(seed);
     gRandomEngine.seed(seed);
     randHash::initialize();

@@ -4,7 +4,8 @@
 // under the Apache License, Version 2.0. See the COPYING file at the root
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
-#include "overlay/StellarXDR.h"
+#include "overlay/StellarXDR.h" // IWYU pragma: keep
+#include "overlay/SurveyDataManager.h"
 #include "util/UnorderedMap.h"
 #include <functional>
 #include <map>
@@ -14,12 +15,15 @@ namespace stellar
 class Application;
 
 /*
-SurveyMessageLimiter filters out -
-1. Messages if the Surveyor-Surveyed key pair was already seen
-2. Messages with an expired ledger number
-3. Requests from any given Surveyor if more than mMaxRequestLimit requests were
-sent
+The SurveyMessageLimiter module manages survey message traffic through specific
+filtering policies:
+ * It validates ledger numbers of survey messages, restricting messages to a
+predefined ledger range to maintain relevance.
+  * It enforces a cap on the number of survey requests a node can handle (via
+`mMaxRequestLimit`)
+  * It implements duplication checks for `Surveyor-Surveyed` pairs
 */
+
 class SurveyMessageLimiter
 {
   public:
@@ -35,6 +39,15 @@ class SurveyMessageLimiter
     bool recordAndValidateResponse(SurveyResponseMessage const& response,
                                    std::function<bool()> onSuccessValidation);
     void clearOldLedgers(uint32_t lastClosedledgerSeq);
+
+    bool validateStartSurveyCollecting(
+        TimeSlicedSurveyStartCollectingMessage const& startSurvey,
+        SurveyDataManager& surveyDataManager,
+        std::function<bool()> onSuccessValidation);
+
+    bool validateStopSurveyCollecting(
+        TimeSlicedSurveyStopCollectingMessage const& stopSurvey,
+        std::function<bool()> onSuccessValidation);
 
   private:
     bool surveyLedgerNumValid(uint32_t ledgerNum);

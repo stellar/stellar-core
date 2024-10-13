@@ -64,6 +64,7 @@ TmpDirHistoryConfigurator::configure(Config& cfg, bool writable) const
     }
 
     cfg.HISTORY[d] = HistoryArchiveConfiguration{d, getCmd, putCmd, mkdirCmd};
+    cfg.TESTING_SOROBAN_HIGH_LIMIT_OVERRIDE = true;
     return cfg;
 }
 
@@ -166,7 +167,7 @@ TestBucketGenerator::TestBucketGenerator(
 std::string
 TestBucketGenerator::generateBucket(TestBucketState state)
 {
-    uint256 hash = HashUtils::random();
+    uint256 hash = HashUtils::pseudoRandomForTesting();
     if (state == TestBucketState::FILE_NOT_UPLOADED)
     {
         // Skip uploading the file, return any hash
@@ -181,7 +182,7 @@ TestBucketGenerator::generateBucket(TestBucketState state)
 
     if (state == TestBucketState::HASH_MISMATCH)
     {
-        hash = HashUtils::random();
+        hash = HashUtils::pseudoRandomForTesting();
     }
 
     // Upload generated bucket to the archive
@@ -275,7 +276,7 @@ TestLedgerChainGenerator::CheckpointEnds
 TestLedgerChainGenerator::makeLedgerChainFiles(
     HistoryManager::LedgerVerificationStatus state)
 {
-    Hash hash = HashUtils::random();
+    Hash hash = HashUtils::pseudoRandomForTesting();
     LedgerHeaderHistoryEntry beginRange;
 
     LedgerHeaderHistoryEntry first, last;
@@ -421,16 +422,24 @@ CatchupSimulation::generateRandomLedger(uint32_t version)
     auto alice = TestAccount{mApp, getAccount("alice")};
     auto bob = TestAccount{mApp, getAccount("bob")};
     auto carol = TestAccount{mApp, getAccount("carol")};
+    auto eve = TestAccount{mApp, getAccount("eve")};
+    auto stroopy = TestAccount{mApp, getAccount("stroopy")};
 
     std::vector<TransactionFrameBasePtr> txs;
+    std::vector<TransactionFrameBasePtr> sorobanTxs;
+    bool check = false;
+
     if (ledgerSeq < 5)
     {
-        txs.push_back(
-            root.tx({createAccount(alice, big), createAccount(bob, big),
-                     createAccount(carol, big)}));
+        txs.push_back(root.tx(
+            {createAccount(alice, big), createAccount(bob, big),
+             createAccount(carol, big), createAccount(stroopy, big * 10),
+             createAccount(eve, big * 10)}));
     }
-    // Allow an occasional empty ledger
-    else if (rand_flip() || rand_flip())
+    // Allow an occasional empty ledger (but always have some transactions in
+    // the upgrade ledger)
+    else if ((rand_flip() || rand_flip()) ||
+             lm.getLastClosedLedgerNum() + 1 == mUpgradeLedgerSeq)
     {
         // They all randomly send a little to one another every ledger after #4
         if (rand_flip())
@@ -468,16 +477,41 @@ CatchupSimulation::generateRandomLedger(uint32_t version)
         {
             txs.push_back(carol.tx({payment(bob, small)}));
         }
-    }
-    TxSetFrameConstPtr txSet =
-        TxSetFrame::makeFromTransactions(txs, mApp, 0, 0);
 
-    CLOG_DEBUG(History, "Closing synthetic ledger {} with {} txs (txhash:{})",
-               ledgerSeq, txSet->sizeTxTotal(),
-               hexAbbrev(txSet->getContentsHash()));
+        // Add soroban transactions
+        if (protocolVersionStartsFrom(
+                lm.getLastClosedLedgerHeader().header.ledgerVersion,
+                SOROBAN_PROTOCOL_VERSION))
+        {
+            SorobanResources res;
+            res.instructions =
+                mApp.getLedgerManager().maxSorobanTransactionResources().getVal(
+                    Resource::Type::INSTRUCTIONS) /
+                10;
+            res.writeBytes = 100'000;
+            uint32_t inclusion = 100;
+            sorobanTxs.push_back(createUploadWasmTx(
+                mApp, stroopy, inclusion, DEFAULT_TEST_RESOURCE_FEE, res));
+            sorobanTxs.push_back(createUploadWasmTx(
+                mApp, eve, inclusion * 5, DEFAULT_TEST_RESOURCE_FEE, res));
+            check = true;
+        }
+    }
+
+    auto phases = protocolVersionStartsFrom(
+                      lm.getLastClosedLedgerHeader().header.ledgerVersion,
+                      SOROBAN_PROTOCOL_VERSION)
+                      ? TxSetPhaseTransactions{txs, sorobanTxs}
+                      : TxSetPhaseTransactions{txs};
+    TxSetXDRFrameConstPtr txSet =
+        makeTxSetFromTransactions(phases, mApp, 0, 0).first;
+
+    CLOG_INFO(History, "Closing synthetic ledger {} with {} txs (txhash:{})",
+              ledgerSeq, txSet->sizeTxTotal(),
+              hexAbbrev(txSet->getContentsHash()));
 
     auto upgrades = xdr::xvector<UpgradeType, 6>{};
-    if (version > 0)
+    if (lm.getLastClosedLedgerHeader().header.ledgerVersion < version)
     {
         auto ledgerUpgrade = LedgerUpgrade{LEDGER_UPGRADE_VERSION};
         ledgerUpgrade.newLedgerVersion() = version;
@@ -490,7 +524,19 @@ CatchupSimulation::generateRandomLedger(uint32_t version)
                                           upgrades, mApp.getConfig().NODE_SEED);
 
     mLedgerCloseDatas.emplace_back(ledgerSeq, txSet, sv);
+
+    auto& txsSucceeded =
+        mApp.getMetrics().NewCounter({"ledger", "apply", "success"});
+    auto lastSucceeded = txsSucceeded.count();
+
     lm.closeLedger(mLedgerCloseDatas.back());
+
+    if (check)
+    {
+        // Make sure all classic transactions and at least some Soroban
+        // transactions succeeded
+        REQUIRE(txsSucceeded.count() > lastSucceeded + phases[0].size());
+    }
 
     auto const& lclh = lm.getLastClosedLedgerHeader();
     mLedgerSeqs.push_back(lclh.header.ledgerSeq);
@@ -511,11 +557,15 @@ CatchupSimulation::generateRandomLedger(uint32_t version)
     aliceBalances.push_back(alice.getBalance());
     bobBalances.push_back(bob.getBalance());
     carolBalances.push_back(carol.getBalance());
+    eveBalances.push_back(eve.getBalance());
+    stroopyBalances.push_back(stroopy.getBalance());
 
     rootSeqs.push_back(root.loadSequenceNumber());
     aliceSeqs.push_back(alice.loadSequenceNumber());
     bobSeqs.push_back(bob.loadSequenceNumber());
     carolSeqs.push_back(carol.loadSequenceNumber());
+    eveSeqs.push_back(eve.loadSequenceNumber());
+    stroopySeqs.push_back(stroopy.loadSequenceNumber());
 }
 
 void
@@ -543,7 +593,8 @@ CatchupSimulation::ensureLedgerAvailable(uint32_t targetLedger)
         }
         else
         {
-            generateRandomLedger();
+            generateRandomLedger(
+                lm.getLastClosedLedgerHeader().header.ledgerVersion);
         }
 
         if (hm.publishCheckpointOnLedgerClose(lcl))
@@ -659,7 +710,7 @@ CatchupSimulation::crankUntil(Application::pointer app,
 Application::pointer
 CatchupSimulation::createCatchupApplication(
     uint32_t count, Config::TestDbMode dbMode, std::string const& appName,
-    bool publish, bool useBucketListDB, std::optional<uint32_t> ledgerVersion)
+    bool publish, std::optional<uint32_t> ledgerVersion)
 {
     CLOG_INFO(History, "****");
     CLOG_INFO(History, "**** Create app for catchup: '{}'", appName);
@@ -670,7 +721,6 @@ CatchupSimulation::createCatchupApplication(
     mCfgs.back().CATCHUP_COMPLETE =
         count == std::numeric_limits<uint32_t>::max();
     mCfgs.back().CATCHUP_RECENT = count;
-    mCfgs.back().EXPERIMENTAL_BUCKETLIST_DB = useBucketListDB;
     if (ledgerVersion)
     {
         mCfgs.back().TESTING_UPGRADE_LEDGER_PROTOCOL_VERSION = *ledgerVersion;
@@ -886,6 +936,8 @@ CatchupSimulation::validateCatchup(Application::pointer app)
     auto alice = TestAccount{*app, getAccount("alice")};
     auto bob = TestAccount{*app, getAccount("bob")};
     auto carol = TestAccount{*app, getAccount("carol")};
+    auto eve = TestAccount{*app, getAccount("eve")};
+    auto stroopy = TestAccount{*app, getAccount("stroopy")};
 
     auto wantSeq = mLedgerSeqs.at(i);
     auto wantHash = mLedgerHashes.at(i);
@@ -943,31 +995,43 @@ CatchupSimulation::validateCatchup(Application::pointer app)
     auto haveAliceBalance = aliceBalances.at(i);
     auto haveBobBalance = bobBalances.at(i);
     auto haveCarolBalance = carolBalances.at(i);
+    auto haveEveBalance = eveBalances.at(i);
+    auto haveStrpBalance = stroopyBalances.at(i);
 
     auto haveRootSeq = rootSeqs.at(i);
     auto haveAliceSeq = aliceSeqs.at(i);
     auto haveBobSeq = bobSeqs.at(i);
     auto haveCarolSeq = carolSeqs.at(i);
+    auto haveEveSeq = eveSeqs.at(i);
+    auto haveStrpSeq = stroopySeqs.at(i);
 
     auto wantRootBalance = root.getBalance();
     auto wantAliceBalance = alice.getBalance();
     auto wantBobBalance = bob.getBalance();
     auto wantCarolBalance = carol.getBalance();
+    auto wantEveBalance = eve.getBalance();
+    auto wantStrpBalance = stroopy.getBalance();
 
     auto wantRootSeq = root.loadSequenceNumber();
     auto wantAliceSeq = alice.loadSequenceNumber();
     auto wantBobSeq = bob.loadSequenceNumber();
     auto wantCarolSeq = carol.loadSequenceNumber();
+    auto wantEveSeq = eve.loadSequenceNumber();
+    auto wantStrpSeq = stroopy.loadSequenceNumber();
 
     CHECK(haveRootBalance == wantRootBalance);
     CHECK(haveAliceBalance == wantAliceBalance);
     CHECK(haveBobBalance == wantBobBalance);
     CHECK(haveCarolBalance == wantCarolBalance);
+    CHECK(haveEveBalance == wantEveBalance);
+    CHECK(haveStrpBalance == wantStrpBalance);
 
     CHECK(haveRootSeq == wantRootSeq);
     CHECK(haveAliceSeq == wantAliceSeq);
     CHECK(haveBobSeq == wantBobSeq);
     CHECK(haveCarolSeq == wantCarolSeq);
+    CHECK(haveEveSeq == wantEveSeq);
+    CHECK(haveStrpSeq == wantStrpSeq);
 }
 
 CatchupPerformedWork

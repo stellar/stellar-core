@@ -4,13 +4,15 @@
 // under the Apache License, Version 2.0. See the COPYING file at the root
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
-#include "util/asio.h"
+#include "util/asio.h" // IWYU pragma: keep
 #include "TCPPeer.h"
 #include <memory>
 
 /*
 listens for peer connections.
 When found passes them to the OverlayManagerImpl
+Accepts connections on the main thread, but then lets the overlay thread deal
+with socket operations like read and write
 */
 
 namespace stellar

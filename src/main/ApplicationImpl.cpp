@@ -15,8 +15,10 @@
 // else.
 #include "util/asio.h"
 #include "bucket/Bucket.h"
+#include "bucket/BucketListSnapshot.h"
 #include "bucket/BucketManager.h"
 #include "catchup/ApplyBucketsWork.h"
+#include "crypto/Hex.h"
 #include "crypto/SHA.h"
 #include "crypto/SecretKey.h"
 #include "database/Database.h"
@@ -81,9 +83,26 @@ namespace stellar
 ApplicationImpl::ApplicationImpl(VirtualClock& clock, Config const& cfg)
     : mVirtualClock(clock)
     , mConfig(cfg)
-    , mWorkerIOContext(mConfig.WORKER_THREADS)
+    // Allocate one worker to eviction when background eviction enabled
+    , mWorkerIOContext(mConfig.isUsingBackgroundEviction()
+                           ? mConfig.WORKER_THREADS - 1
+                           : mConfig.WORKER_THREADS)
+    , mEvictionIOContext(mConfig.isUsingBackgroundEviction()
+                             ? std::make_unique<asio::io_context>(1)
+                             : nullptr)
     , mWork(std::make_unique<asio::io_context::work>(mWorkerIOContext))
+    , mEvictionWork(
+          mEvictionIOContext
+              ? std::make_unique<asio::io_context::work>(*mEvictionIOContext)
+              : nullptr)
+    , mOverlayIOContext(mConfig.EXPERIMENTAL_BACKGROUND_OVERLAY_PROCESSING
+                            ? std::make_unique<asio::io_context>(1)
+                            : nullptr)
+    , mOverlayWork(mOverlayIOContext ? std::make_unique<asio::io_context::work>(
+                                           *mOverlayIOContext)
+                                     : nullptr)
     , mWorkerThreads()
+    , mEvictionThread()
     , mStopSignals(clock.getIOContext(), SIGINT)
     , mStarted(false)
     , mStopping(false)
@@ -95,6 +114,8 @@ ApplicationImpl::ApplicationImpl(VirtualClock& clock, Config const& cfg)
           mMetrics->NewTimer({"app", "post-on-main-thread", "delay"}))
     , mPostOnBackgroundThreadDelay(
           mMetrics->NewTimer({"app", "post-on-background-thread", "delay"}))
+    , mPostOnOverlayThreadDelay(
+          mMetrics->NewTimer({"app", "post-on-overlay-thread", "delay"}))
     , mStartedOn(clock.system_now())
 {
 #ifdef SIGQUIT
@@ -135,6 +156,21 @@ ApplicationImpl::ApplicationImpl(VirtualClock& clock, Config const& cfg)
 
     auto t = mConfig.WORKER_THREADS;
     LOG_DEBUG(DEFAULT_LOG, "Application constructing (worker threads: {})", t);
+
+    if (mConfig.isUsingBackgroundEviction())
+    {
+        releaseAssert(mConfig.WORKER_THREADS > 0);
+        releaseAssert(mEvictionIOContext);
+
+        // Allocate one thread for Eviction scan
+        mEvictionThread = std::thread{[this]() {
+            runCurrentThreadWithMediumPriority();
+            mEvictionIOContext->run();
+        }};
+
+        --t;
+    }
+
     while (t--)
     {
         auto thread = std::thread{[this]() {
@@ -142,6 +178,12 @@ ApplicationImpl::ApplicationImpl(VirtualClock& clock, Config const& cfg)
             mWorkerIOContext.run();
         }};
         mWorkerThreads.emplace_back(std::move(thread));
+    }
+
+    if (mConfig.EXPERIMENTAL_BACKGROUND_OVERLAY_PROCESSING)
+    {
+        // Keep priority unchanged as overlay processes time-sensitive tasks
+        mOverlayThread = std::thread{[this]() { mOverlayIOContext->run(); }};
     }
 }
 
@@ -154,17 +196,17 @@ maybeRebuildLedger(Application& app, bool applyBuckets)
     auto bucketListDBEnabled = app.getConfig().isUsingBucketListDB();
     for (auto let : xdr::xdr_traits<LedgerEntryType>::enum_values())
     {
+        // If BucketListDB is enabled, drop all tables except for offers
         LedgerEntryType t = static_cast<LedgerEntryType>(let);
-        if (ps.shouldRebuildForType(t))
-        {
-            toRebuild.emplace(t);
-            continue;
-        }
-
-        // If bucketlist is enabled, drop all tables except for offers
         if (let != OFFER && bucketListDBEnabled)
         {
             toDrop.emplace(t);
+            continue;
+        }
+
+        if (ps.shouldRebuildForType(t))
+        {
+            toRebuild.emplace(t);
         }
     }
 
@@ -471,6 +513,12 @@ ApplicationImpl::getJsonInfo(bool verbose)
     info["ledger"]["baseFee"] = lcl.header.baseFee;
     info["ledger"]["baseReserve"] = lcl.header.baseReserve;
     info["ledger"]["maxTxSetSize"] = lcl.header.maxTxSetSize;
+    if (lm.hasSorobanNetworkConfig())
+    {
+        info["ledger"]["maxSorobanTxSetSize"] =
+            static_cast<Json::Int64>(lm.maxLedgerResources(/* isSoroban */ true)
+                                         .getVal(Resource::Type::OPERATIONS));
+    }
 
     auto currentHeaderFlags = LedgerHeaderUtils::getFlags(lcl.header);
     if (currentHeaderFlags != 0)
@@ -544,7 +592,8 @@ ApplicationImpl::getJsonInfo(bool verbose)
 void
 ApplicationImpl::reportInfo(bool verbose)
 {
-    mLedgerManager->loadLastKnownLedger(nullptr);
+    mLedgerManager->loadLastKnownLedger(/* restoreBucketlist */ false,
+                                        /* isLedgerStateReady */ true);
     LOG_INFO(DEFAULT_LOG, "Reporting application info");
     std::cout << getJsonInfo(verbose).toStyledString() << std::endl;
 }
@@ -629,6 +678,12 @@ ApplicationImpl::~ApplicationImpl()
         {
             mBucketManager->shutdown();
         }
+        // Peers continue reading and writing in the background, so we need to
+        // issue a signal to start wrapping up
+        if (mOverlayManager)
+        {
+            mOverlayManager->shutdown();
+        }
     }
     catch (std::exception const& e)
     {
@@ -698,14 +753,43 @@ ApplicationImpl::validateAndLogConfig()
             "requires --in-memory");
     }
 
-    if (mConfig.EXPERIMENTAL_BUCKETLIST_DB)
+    if (mConfig.isInMemoryMode())
+    {
+        CLOG_WARNING(
+            Bucket,
+            "in-memory mode is enabled. This feature is deprecated! Node "
+            "may see performance degredation and lose sync with the network.");
+    }
+    if (!mDatabase->isSqlite())
+    {
+        CLOG_WARNING(Database,
+                     "Non-sqlite3 database detected. Support for other sql "
+                     "backends is deprecated and will be removed in a future "
+                     "release. Please use sqlite3 for non-ledger state data.");
+    }
+
+    if (mConfig.DEPRECATED_SQL_LEDGER_STATE)
+    {
+        if (mPersistentState->getState(PersistentState::kDBBackend) ==
+            BucketIndex::DB_BACKEND_STATE)
+        {
+            throw std::invalid_argument(
+                "To downgrade to DEPRECATED_SQL_LEDGER_STATE, run "
+                "stellar-core new-db.");
+        }
+
+        CLOG_WARNING(
+            Bucket,
+            "SQL for ledger state is enabled. This feature is deprecated! Node "
+            "may see performance degredation and lose sync with the network.");
+    }
+    else
     {
         if (mConfig.isUsingBucketListDB())
         {
             mPersistentState->setState(PersistentState::kDBBackend,
                                        BucketIndex::DB_BACKEND_STATE);
-            auto pageSizeExp =
-                mConfig.EXPERIMENTAL_BUCKETLIST_DB_INDEX_PAGE_SIZE_EXPONENT;
+            auto pageSizeExp = mConfig.BUCKETLIST_DB_INDEX_PAGE_SIZE_EXPONENT;
             if (pageSizeExp != 0)
             {
                 // If the page size is less than 256 bytes, it is essentially
@@ -714,7 +798,7 @@ ApplicationImpl::validateAndLogConfig()
                 if (pageSizeExp < 8)
                 {
                     throw std::invalid_argument(
-                        "EXPERIMENTAL_BUCKETLIST_DB_INDEX_PAGE_SIZE_EXPONENT "
+                        "BUCKETLIST_DB_INDEX_PAGE_SIZE_EXPONENT "
                         "must be at least 8 or set to 0 for individual entry "
                         "indexing");
                 }
@@ -723,7 +807,7 @@ ApplicationImpl::validateAndLogConfig()
                 if (pageSizeExp > 31)
                 {
                     throw std::invalid_argument(
-                        "EXPERIMENTAL_BUCKETLIST_DB_INDEX_PAGE_SIZE_EXPONENT "
+                        "BUCKETLIST_DB_INDEX_PAGE_SIZE_EXPONENT "
                         "must be less than 32");
                 }
             }
@@ -731,26 +815,66 @@ ApplicationImpl::validateAndLogConfig()
             CLOG_INFO(Bucket,
                       "BucketListDB enabled: pageSizeExponent: {} indexCutOff: "
                       "{}MB, persist indexes: {}",
-                      pageSizeExp,
-                      mConfig.EXPERIMENTAL_BUCKETLIST_DB_INDEX_CUTOFF,
+                      pageSizeExp, mConfig.BUCKETLIST_DB_INDEX_CUTOFF,
                       mConfig.isPersistingBucketListDBIndexes());
         }
         else
         {
             CLOG_WARNING(
                 Bucket,
-                "EXPERIMENTAL_BUCKETLIST_DB flag set but "
-                "BucketListDB not enabled. To enable BucketListDB, "
+                "DEPRECATED_SQL_LEDGER_STATE set to false but "
+                "deprecated SQL ledger state is active. To disable deprecated "
+                "SQL ledger state, "
                 "MODE_ENABLES_BUCKETLIST must be set and --in-memory flag "
                 "must not be used.");
         }
     }
-    else if (mPersistentState->getState(PersistentState::kDBBackend) ==
-             BucketIndex::DB_BACKEND_STATE)
+
+    if (mConfig.BACKGROUND_EVICTION_SCAN)
     {
-        throw std::invalid_argument(
-            "To downgrade from EXPERIMENTAL_BUCKETLIST_DB, run "
-            "stellar-core new-db.");
+        if (!mConfig.isUsingBucketListDB())
+        {
+            throw std::invalid_argument(
+                "BACKGROUND_EVICTION_SCAN set to true but "
+                "DEPRECATED_SQL_LEDGER_STATE is set to true. "
+                "DEPRECATED_SQL_LEDGER_STATE must be set to false to enable "
+                "background eviction.");
+        }
+
+        if (mConfig.WORKER_THREADS < 2)
+        {
+            throw std::invalid_argument("BACKGROUND_EVICTION_SCAN requires "
+                                        "WORKER_THREADS > 1");
+        }
+    }
+
+    if (mConfig.HTTP_QUERY_PORT != 0)
+    {
+        if (isNetworkedValidator)
+        {
+            throw std::invalid_argument("HTTP_QUERY_PORT is non-zero, "
+                                        "NODE_IS_VALIDATOR is set, and "
+                                        "RUN_STANDALONE is not set");
+        }
+
+        if (mConfig.HTTP_QUERY_PORT == mConfig.HTTP_PORT)
+        {
+            throw std::invalid_argument(
+                "HTTP_QUERY_PORT must be different from HTTP_PORT");
+        }
+
+        if (!mConfig.isUsingBucketListDB())
+        {
+            throw std::invalid_argument(
+                "HTTP_QUERY_PORT requires DEPRECATED_SQL_LEDGER_STATE to be "
+                "false");
+        }
+
+        if (mConfig.QUERY_THREAD_POOL_SIZE == 0)
+        {
+            throw std::invalid_argument(
+                "HTTP_QUERY_PORT requires QUERY_THREAD_POOL_SIZE > 0");
+        }
     }
 
     if (isNetworkedValidator && mConfig.isInMemoryMode())
@@ -779,6 +903,44 @@ ApplicationImpl::validateAndLogConfig()
 }
 
 void
+ApplicationImpl::startServices()
+{
+    // restores Herder's state before starting overlay
+    mHerder->start();
+    // set known cursors before starting maintenance job
+    ExternalQueue ps(*this);
+    ps.setInitialCursors(mConfig.KNOWN_CURSORS);
+    mMaintainer->start();
+    if (mConfig.MODE_AUTO_STARTS_OVERLAY)
+    {
+        mOverlayManager->start();
+    }
+    auto npub = mHistoryManager->publishQueuedHistory();
+    if (npub != 0)
+    {
+        CLOG_INFO(Ledger, "Restarted publishing {} queued snapshots", npub);
+    }
+    if (mConfig.FORCE_SCP)
+    {
+        LOG_INFO(DEFAULT_LOG, "* ");
+        LOG_INFO(DEFAULT_LOG,
+                 "* Force-starting scp from the current db state.");
+        LOG_INFO(DEFAULT_LOG, "* ");
+
+        mHerder->bootstrap();
+    }
+    if (mConfig.AUTOMATIC_SELF_CHECK_PERIOD.count() != 0)
+    {
+        scheduleSelfCheck(true);
+    }
+
+    if (mConfig.TESTING_UPGRADE_DATETIME.time_since_epoch().count() != 0)
+    {
+        mHerder->setUpgrades(mConfig);
+    }
+}
+
+void
 ApplicationImpl::start()
 {
     if (mStarted)
@@ -786,49 +948,13 @@ ApplicationImpl::start()
         CLOG_INFO(Ledger, "Skipping application start up");
         return;
     }
+
     CLOG_INFO(Ledger, "Starting up application");
     mStarted = true;
 
-    if (mConfig.TESTING_UPGRADE_DATETIME.time_since_epoch().count() != 0)
-    {
-        mHerder->setUpgrades(mConfig);
-    }
-
-    bool done = false;
-    mLedgerManager->loadLastKnownLedger([this, &done]() {
-        // restores Herder's state before starting overlay
-        mHerder->start();
-        // set known cursors before starting maintenance job
-        ExternalQueue ps(*this);
-        ps.setInitialCursors(mConfig.KNOWN_CURSORS);
-        mMaintainer->start();
-        if (mConfig.MODE_AUTO_STARTS_OVERLAY)
-        {
-            mOverlayManager->start();
-        }
-        auto npub = mHistoryManager->publishQueuedHistory();
-        if (npub != 0)
-        {
-            CLOG_INFO(Ledger, "Restarted publishing {} queued snapshots", npub);
-        }
-        if (mConfig.FORCE_SCP)
-        {
-            LOG_INFO(DEFAULT_LOG, "* ");
-            LOG_INFO(DEFAULT_LOG,
-                     "* Force-starting scp from the current db state.");
-            LOG_INFO(DEFAULT_LOG, "* ");
-
-            mHerder->bootstrap();
-        }
-        if (mConfig.AUTOMATIC_SELF_CHECK_PERIOD.count() != 0)
-        {
-            scheduleSelfCheck(true);
-        }
-        done = true;
-    });
-
-    while (!done && mVirtualClock.crank(true))
-        ;
+    mLedgerManager->loadLastKnownLedger(/* restoreBucketlist */ true,
+                                        /* isLedgerStateReady */ true);
+    startServices();
 }
 
 void
@@ -895,19 +1021,42 @@ ApplicationImpl::joinAllThreads()
     {
         mWork.reset();
     }
-    LOG_DEBUG(DEFAULT_LOG, "Joining {} worker threads", mWorkerThreads.size());
+    if (mOverlayWork)
+    {
+        mOverlayWork.reset();
+    }
+
+    LOG_INFO(DEFAULT_LOG, "Joining {} worker threads", mWorkerThreads.size());
     for (auto& w : mWorkerThreads)
     {
         w.join();
     }
-    LOG_DEBUG(DEFAULT_LOG, "Joined all {} threads", mWorkerThreads.size());
+
+    if (mEvictionWork)
+    {
+        mEvictionWork.reset();
+    }
+
+    if (mEvictionThread)
+    {
+        LOG_INFO(DEFAULT_LOG, "Joining eviction thread");
+        mEvictionThread->join();
+    }
+
+    if (mOverlayThread)
+    {
+        LOG_INFO(DEFAULT_LOG, "Joining the overlay thread");
+        mOverlayThread->join();
+    }
+
+    LOG_INFO(DEFAULT_LOG, "Joined all {} threads", (mWorkerThreads.size() + 1));
 }
 
 std::string
 ApplicationImpl::manualClose(std::optional<uint32_t> const& manualLedgerSeq,
                              std::optional<TimePoint> const& manualCloseTime)
 {
-    assertThreadIsMain();
+    releaseAssert(threadIsMain());
 
     // Manual close only makes sense for validating nodes
     if (!mConfig.NODE_IS_VALIDATOR)
@@ -1369,6 +1518,20 @@ ApplicationImpl::getWorkerIOContext()
     return mWorkerIOContext;
 }
 
+asio::io_context&
+ApplicationImpl::getEvictionIOContext()
+{
+    releaseAssert(mEvictionIOContext);
+    return *mEvictionIOContext;
+}
+
+asio::io_context&
+ApplicationImpl::getOverlayIOContext()
+{
+    releaseAssert(mOverlayIOContext);
+    return *mOverlayIOContext;
+}
+
 void
 ApplicationImpl::postOnMainThread(std::function<void()>&& f, std::string&& name,
                                   Scheduler::ActionType type)
@@ -1397,6 +1560,31 @@ ApplicationImpl::postOnBackgroundThread(std::function<void()>&& f,
                             "executed after"};
     asio::post(getWorkerIOContext(), [this, f = std::move(f), isSlow]() {
         mPostOnBackgroundThreadDelay.Update(isSlow.checkElapsedTime());
+        f();
+    });
+}
+
+void
+ApplicationImpl::postOnEvictionBackgroundThread(std::function<void()>&& f,
+                                                std::string jobName)
+{
+    LogSlowExecution isSlow{std::move(jobName), LogSlowExecution::Mode::MANUAL,
+                            "executed after"};
+    asio::post(getEvictionIOContext(), [this, f = std::move(f), isSlow]() {
+        mPostOnBackgroundThreadDelay.Update(isSlow.checkElapsedTime());
+        f();
+    });
+}
+
+void
+ApplicationImpl::postOnOverlayThread(std::function<void()>&& f,
+                                     std::string jobName)
+{
+    releaseAssert(mOverlayIOContext);
+    LogSlowExecution isSlow{std::move(jobName), LogSlowExecution::Mode::MANUAL,
+                            "executed after"};
+    asio::post(*mOverlayIOContext, [this, f = std::move(f), isSlow]() {
+        mPostOnOverlayThreadDelay.Update(isSlow.checkElapsedTime());
         f();
     });
 }
@@ -1443,7 +1631,7 @@ ApplicationImpl::createDatabase()
 AbstractLedgerTxnParent&
 ApplicationImpl::getLedgerTxnRoot()
 {
-    assertThreadIsMain();
+    releaseAssert(threadIsMain());
     return mConfig.MODE_USES_IN_MEMORY_LEDGER ? *mNeverCommittingLedgerTxn
                                               : *mLedgerTxnRoot;
 }

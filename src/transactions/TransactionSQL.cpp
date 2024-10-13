@@ -257,7 +257,7 @@ writeNonGeneralizedTxSetToStream(
         throw std::runtime_error("Could not find ledger");
     }
     auto txSet =
-        TxSetFrame::makeFromHistoryTransactions(lh->previousLedgerHash, txs);
+        TxSetXDRFrame::makeFromHistoryTransactions(lh->previousLedgerHash, txs);
     TransactionHistoryEntry hist;
     hist.ledgerSeq = ledgerSeq;
     txSet->toXDR(hist.txSet);
@@ -312,6 +312,8 @@ writeTxSetToStream(
     TransactionHistoryResultEntry& results, XDROutputFileStream& txOut,
     XDROutputFileStream& txResultOut)
 {
+    ZoneScoped;
+
     // encodedTxSets may *only* contain generalized tx sets, so if the requested
     // ledger is before the first generalized tx set ledger, then we still need
     // to emit the legacy tx set.
@@ -348,7 +350,7 @@ writeTxSetToStream(
 void
 storeTransaction(Database& db, uint32_t ledgerSeq,
                  TransactionFrameBasePtr const& tx, TransactionMeta const& tm,
-                 TransactionResultSet const& resultSet)
+                 TransactionResultSet const& resultSet, Config const& cfg)
 {
     ZoneScoped;
     std::string txBody =
@@ -360,18 +362,34 @@ storeTransaction(Database& db, uint32_t ledgerSeq,
     std::string txIDString = binToHex(tx->getContentsHash());
     uint32_t txIndex = static_cast<uint32_t>(resultSet.results.size());
 
-    auto prep = db.getPreparedStatement(
-        "INSERT INTO txhistory "
-        "( txid, ledgerseq, txindex,  txbody, txresult, txmeta) VALUES "
-        "(:id,  :seq,      :txindex, :txb,   :txres,   :meta)");
+    std::string sqlStr;
+    if (cfg.isUsingBucketListDB())
+    {
+        sqlStr = "INSERT INTO txhistory "
+                 "( txid, ledgerseq, txindex,  txbody, txresult) VALUES "
+                 "(:id,  :seq,      :txindex, :txb,   :txres)";
+    }
+    else
+    {
+        sqlStr =
+            "INSERT INTO txhistory "
+            "( txid, ledgerseq, txindex,  txbody, txresult, txmeta) VALUES "
+            "(:id,  :seq,      :txindex, :txb,   :txres,   :meta)";
+    }
 
+    auto prep = db.getPreparedStatement(sqlStr);
     auto& st = prep.statement();
     st.exchange(soci::use(txIDString));
     st.exchange(soci::use(ledgerSeq));
     st.exchange(soci::use(txIndex));
     st.exchange(soci::use(txBody));
     st.exchange(soci::use(txResult));
-    st.exchange(soci::use(meta));
+
+    if (!cfg.isUsingBucketListDB())
+    {
+        st.exchange(soci::use(meta));
+    }
+
     st.define_and_bind();
     {
         auto timer = db.getInsertTimer("txhistory");
@@ -385,7 +403,7 @@ storeTransaction(Database& db, uint32_t ledgerSeq,
 }
 
 void
-storeTxSet(Database& db, uint32_t ledgerSeq, TxSetFrame const& txSet)
+storeTxSet(Database& db, uint32_t ledgerSeq, TxSetXDRFrame const& txSet)
 {
     ZoneScoped;
     if (!txSet.isGeneralizedTxSet())
@@ -408,38 +426,6 @@ storeTxSet(Database& db, uint32_t ledgerSeq, TxSetFrame const& txSet)
     st.define_and_bind();
     {
         auto timer = db.getInsertTimer("txsethistory");
-        st.execute(true);
-    }
-
-    if (st.get_affected_rows() != 1)
-    {
-        throw std::runtime_error("Could not update data in SQL");
-    }
-}
-
-void
-storeTransactionFee(Database& db, uint32_t ledgerSeq,
-                    TransactionFrameBasePtr const& tx,
-                    LedgerEntryChanges const& changes, uint32_t txIndex)
-{
-    ZoneScoped;
-    std::string txChanges = decoder::encode_b64(xdr::xdr_to_opaque(changes));
-
-    std::string txIDString = binToHex(tx->getContentsHash());
-
-    auto prep = db.getPreparedStatement(
-        "INSERT INTO txfeehistory "
-        "( txid, ledgerseq, txindex,  txchanges) VALUES "
-        "(:id,  :seq,      :txindex, :txchanges)");
-
-    auto& st = prep.statement();
-    st.exchange(soci::use(txIDString));
-    st.exchange(soci::use(ledgerSeq));
-    st.exchange(soci::use(txIndex));
-    st.exchange(soci::use(txChanges));
-    st.define_and_bind();
-    {
-        auto timer = db.getInsertTimer("txfeehistory");
         st.execute(true);
     }
 
@@ -474,35 +460,6 @@ getTransactionHistoryResults(Database& db, uint32 ledgerSeq)
 
         xdr::xdr_get g(&result.front(), &result.back() + 1);
         xdr_argpack_archive(g, p);
-
-        st.fetch();
-    }
-    return res;
-}
-
-std::vector<LedgerEntryChanges>
-getTransactionFeeMeta(Database& db, uint32 ledgerSeq)
-{
-    ZoneScoped;
-    std::vector<LedgerEntryChanges> res;
-    std::string changes64;
-    auto prep =
-        db.getPreparedStatement("SELECT txchanges FROM txfeehistory "
-                                "WHERE ledgerseq = :lseq ORDER BY txindex ASC");
-    auto& st = prep.statement();
-
-    st.exchange(soci::into(changes64));
-    st.exchange(soci::use(ledgerSeq));
-    st.define_and_bind();
-    st.execute(true);
-    while (st.got_data())
-    {
-        std::vector<uint8_t> changesRaw;
-        decoder::decode_b64(changes64, changesRaw);
-
-        xdr::xdr_get g1(&changesRaw.front(), &changesRaw.back() + 1);
-        res.emplace_back();
-        xdr_argpack_archive(g1, res.back());
 
         st.fetch();
     }
@@ -613,33 +570,33 @@ createTxSetHistoryTable(Database& db)
 }
 
 void
-dropTransactionHistory(Database& db)
+deprecateTransactionFeeHistory(Database& db)
+{
+    ZoneScoped;
+    db.getSession() << "DROP TABLE IF EXISTS txfeehistory";
+}
+
+void
+dropTransactionHistory(Database& db, Config const& cfg)
 {
     ZoneScoped;
     db.getSession() << "DROP TABLE IF EXISTS txhistory";
 
-    db.getSession() << "DROP TABLE IF EXISTS txfeehistory";
+    // txmeta only supported when BucketListDB is not enabled
+    std::string txMetaColumn =
+        cfg.isUsingBucketListDB() ? "" : "txmeta      TEXT NOT NULL,";
 
     db.getSession() << "CREATE TABLE txhistory ("
                        "txid        CHARACTER(64) NOT NULL,"
                        "ledgerseq   INT NOT NULL CHECK (ledgerseq >= 0),"
                        "txindex     INT NOT NULL,"
                        "txbody      TEXT NOT NULL,"
-                       "txresult    TEXT NOT NULL,"
-                       "txmeta      TEXT NOT NULL,"
-                       "PRIMARY KEY (ledgerseq, txindex)"
-                       ")";
+                       "txresult    TEXT NOT NULL," +
+                           txMetaColumn +
+                           "PRIMARY KEY (ledgerseq, txindex)"
+                           ")";
 
     db.getSession() << "CREATE INDEX histbyseq ON txhistory (ledgerseq);";
-
-    db.getSession() << "CREATE TABLE txfeehistory ("
-                       "txid        CHARACTER(64) NOT NULL,"
-                       "ledgerseq   INT NOT NULL CHECK (ledgerseq >= 0),"
-                       "txindex     INT NOT NULL,"
-                       "txchanges   TEXT NOT NULL,"
-                       "PRIMARY KEY (ledgerseq, txindex)"
-                       ")";
-    db.getSession() << "CREATE INDEX histfeebyseq ON txfeehistory (ledgerseq);";
 
     createTxSetHistoryTable(db);
 }
@@ -653,8 +610,6 @@ deleteOldTransactionHistoryEntries(Database& db, uint32_t ledgerSeq,
                                           "txhistory", "ledgerseq");
     DatabaseUtils::deleteOldEntriesHelper(db.getSession(), ledgerSeq, count,
                                           "txsethistory", "ledgerseq");
-    DatabaseUtils::deleteOldEntriesHelper(db.getSession(), ledgerSeq, count,
-                                          "txfeehistory", "ledgerseq");
 }
 
 void
@@ -665,8 +620,6 @@ deleteNewerTransactionHistoryEntries(Database& db, uint32_t ledgerSeq)
                                             "txhistory", "ledgerseq");
     DatabaseUtils::deleteNewerEntriesHelper(db.getSession(), ledgerSeq,
                                             "txsethistory", "ledgerseq");
-    DatabaseUtils::deleteNewerEntriesHelper(db.getSession(), ledgerSeq,
-                                            "txfeehistory", "ledgerseq");
 }
 
 }

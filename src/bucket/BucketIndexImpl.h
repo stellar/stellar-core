@@ -4,14 +4,18 @@
 // under the Apache License, Version 2.0. See the COPYING file at the root
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
+#include "bucket/Bucket.h"
 #include "bucket/BucketIndex.h"
 #include "medida/meter.h"
+#include "util/BinaryFuseFilter.h"
+#include "xdr/Stellar-types.h"
 
-class bloom_filter;
+#include <cereal/types/map.hpp>
+#include <map>
+#include <memory>
 
 namespace stellar
 {
-
 // Index maps either individual keys or a key range of BucketEntry's to the
 // associated offset within the bucket file. Index stored as vector of pairs:
 // First: LedgerKey/Key ranges sorted in the same scheme as LedgerEntryCmp
@@ -27,14 +31,17 @@ template <class IndexT> class BucketIndexImpl : public BucketIndex
     {
         IndexT keysToOffset{};
         std::streamoff pageSize{};
-        std::unique_ptr<bloom_filter> filter{};
+        std::unique_ptr<BinaryFuseFilter16> filter{};
+        std::map<Asset, std::vector<PoolID>> assetToPoolID{};
+        BucketEntryCounters counters{};
 
         template <class Archive>
         void
         save(Archive& ar) const
         {
             auto version = BUCKET_INDEX_VERSION;
-            ar(version, pageSize, keysToOffset, filter);
+            ar(version, pageSize, assetToPoolID, keysToOffset, filter,
+               counters);
         }
 
         // Note: version and pageSize must be loaded before this function is
@@ -45,7 +52,7 @@ template <class IndexT> class BucketIndexImpl : public BucketIndex
         void
         load(Archive& ar)
         {
-            ar(keysToOffset, filter);
+            ar(assetToPoolID, keysToOffset, filter, counters);
         }
     } mData;
 
@@ -62,6 +69,12 @@ template <class IndexT> class BucketIndexImpl : public BucketIndex
     // Saves index to disk, overwriting any preexisting file for this index
     void saveToDisk(BucketManager& bm, Hash const& hash) const;
 
+    // Returns [lowFileOffset, highFileOffset) that contain the key ranges
+    // [lowerBound, upperBound]. If no file offsets exist, returns [0, 0]
+    std::optional<std::pair<std::streamoff, std::streamoff>>
+    getOffsetBounds(LedgerKey const& lowerBound,
+                    LedgerKey const& upperBound) const;
+
     friend BucketIndex;
 
   public:
@@ -71,8 +84,14 @@ template <class IndexT> class BucketIndexImpl : public BucketIndex
     virtual std::pair<std::optional<std::streamoff>, Iterator>
     scan(Iterator start, LedgerKey const& k) const override;
 
-    virtual std::pair<std::streamoff, std::streamoff>
+    virtual std::optional<std::pair<std::streamoff, std::streamoff>>
     getPoolshareTrustlineRange(AccountID const& accountID) const override;
+
+    virtual std::vector<PoolID> const&
+    getPoolIDsByAsset(Asset const& asset) const override;
+
+    virtual std::optional<std::pair<std::streamoff, std::streamoff>>
+    getOfferRange() const override;
 
     virtual std::streamoff
     getPageSize() const override
@@ -94,6 +113,7 @@ template <class IndexT> class BucketIndexImpl : public BucketIndex
 
     virtual void markBloomMiss() const override;
     virtual void markBloomLookup() const override;
+    virtual BucketEntryCounters const& getBucketEntryCounters() const override;
 
 #ifdef BUILD_TESTS
     virtual bool operator==(BucketIndex const& inRaw) const override;

@@ -25,7 +25,7 @@ class LedgerCloseData
 {
   public:
     LedgerCloseData(
-        uint32_t ledgerSeq, TxSetFrameConstPtr txSet, StellarValue const& v,
+        uint32_t ledgerSeq, TxSetXDRFrameConstPtr txSet, StellarValue const& v,
         std::optional<Hash> const& expectedLedgerHash = std::nullopt);
 
     uint32_t
@@ -33,7 +33,7 @@ class LedgerCloseData
     {
         return mLedgerSeq;
     }
-    TxSetFrameConstPtr
+    TxSetXDRFrameConstPtr
     getTxSet() const
     {
         return mTxSet;
@@ -53,46 +53,33 @@ class LedgerCloseData
     toXDR() const
     {
         StoredDebugTransactionSet sts;
-
-        StoredTransactionSet tempTxSet;
-        if (mTxSet->isGeneralizedTxSet())
-        {
-            tempTxSet.v(1);
-            mTxSet->toXDR(tempTxSet.generalizedTxSet());
-        }
-        else
-        {
-            mTxSet->toXDR(tempTxSet.txSet());
-        }
-
-        sts.txSet = tempTxSet;
+        mTxSet->storeXDR(sts.txSet);
         sts.scpValue = mValue;
         sts.ledgerSeq = mLedgerSeq;
-
         return sts;
     }
 
     static LedgerCloseData
-    toLedgerCloseData(StoredDebugTransactionSet const& sts, Application& app)
+    toLedgerCloseData(StoredDebugTransactionSet const& sts)
     {
         if (sts.txSet.v() == 0)
         {
             return LedgerCloseData(
-                sts.ledgerSeq, TxSetFrame::makeFromWire(app, sts.txSet.txSet()),
+                sts.ledgerSeq, TxSetXDRFrame::makeFromWire(sts.txSet.txSet()),
                 sts.scpValue);
         }
         else
         {
             return LedgerCloseData(
                 sts.ledgerSeq,
-                TxSetFrame::makeFromWire(app, sts.txSet.generalizedTxSet()),
+                TxSetXDRFrame::makeFromWire(sts.txSet.generalizedTxSet()),
                 sts.scpValue);
         }
     }
 
   private:
     uint32_t mLedgerSeq;
-    TxSetFrameConstPtr mTxSet;
+    TxSetXDRFrameConstPtr mTxSet;
     StellarValue mValue;
     std::optional<Hash> mExpectedLedgerHash;
 };

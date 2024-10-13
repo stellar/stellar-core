@@ -2,77 +2,117 @@
 name = "stellar-core"
 version = "0.1.0"
 edition = "2021"
-rust-version = "1.71"
+rust-version = "1.81.0"
+publish = false
 
 [lib]
 name = "rust_stellar_core"
 crate-type = ["staticlib"]
 
 [dependencies]
-log = "0.4.17"
-tracy-client = { version = "=0.15.2", features = ["enable"], default-features = false, optional = true}
-cxx = "1.0"
-base64 = "0.13.0"
-rustc-simple-version = "0.1.0"
+log = "=0.4.19"
+cxx = "=1.0.97"
+base64 = "=0.13.1"
+rustc-simple-version = "=0.1.0"
 # NB: this must match the same rand version used by soroban (but the tooling
 # will complain if it does not match)
-rand = "0.8.5"
+rand = "=0.8.5"
 
-# This copy of the soroban host is always enabled, and should always point to a
-# version that supports stellar-core's Config::CURRENT_LEDGER_PROTOCOL_VERSION.
-# When upgrading from protocol N to N+1, this copy will therefore have its
-# version advance first (to enable support for N+1) even before the network has
-# voted to upgrade to it. In order to avoid divergence during such an upgrade,
-# we will simultaneously enable the `prev` copy of soroban (below), continuing
-# to point to the previous already-released soroban that only supported protocol
-# N.
+itertools = "=0.10.5"
 
-[dependencies.soroban-env-host-curr]
-version = "20.0.0-rc1"
-git = "https://github.com/stellar/rs-soroban-env"
-package = "soroban-env-host"
-rev = "2674d867d7c6aa4212abab05ff30e5804ff1db90"
-
-# This copy of the soroban host is _optional_ and only enabled during protocol
-# transitions. When transitioning from protocol N to N+1, the `curr` copy
-# (above) will bump its version to one that supports protocol N+1, and we will
-# simultaneously enable this `prev` copy by building with
-# `--feature=soroban-env-host-prev` and pointing its version and git rev to the
-# last soroban released to the network that speaks protocol N. When we deploy
-# this to a network running protocol N it will run on `prev` until the upgrade,
-# then switch from `prev` to `curr` at the upgrade, and then in the next release
-# we can turn `prev` off again.
+# NB: tracy is quite particular about version compatibility. There must only be
+# one _implementation_ of the C++ tracy symbols in the final binary (brought in
+# by the tracy-client-sys crate) and the version and all feature flags must
+# match between the tracy-client rust crate and any C++ code built to talk to it
+# (both on the C++ side of stellar-core and in the GUI network client built to
+# talk to it).
 #
-# A note on `rev` hashes: When `prev` is disabled, the rust-analyzer IDE will
-# still want it to point to some version of soroban just for auto-completion
-# (because it builds with `--all-features`). To make this work, the `rev` spec
-# below has to be different from the `rev` spec in the `curr` copy of soroban
-# above. The easiest way to make this work is to just point to one git rev 
-# before the rev specified for `curr`.
+# There is a table on the README for https://crates.io/crates/tracy-client that
+# maps versions of tracy-client to C++ tracy releases. The lib/tracy submodule
+# of this repo should be pinned out to a matched C++ tracy release version.
+tracy-client = { version = "=0.17.0", features = [
+    "enable",
+    "ondemand",
+    "delayed-init",
+    "manual-lifetime",
+    "system-tracing",
+    "sampling",
+    "code-transfer",
+    "timer-fallback",
+    "only-localhost",
+    "only-ipv4",
+], default-features = false, optional = true }
 
-[dependencies.soroban-env-host-prev]
-optional = true
-version = "20.0.0-rc1"
-git = "https://github.com/stellar/rs-soroban-env"
-package = "soroban-env-host"
-rev = "03fc6f93839533e358e5593a39161b25e2473263"
+# Stellar-core supports multiple versions of the Soroban host linked in
+# simultaneously. Each host is labeled with the _maximum_ protocol that it
+# supports. The minimum protocol supported by each host is implicitly one more
+# than the less-higher-numbered host's maximum protocol, though in some cases a
+# host may also be configured with an explicit minimum supported protocol, in
+# which case we have to keep extra hosts around to fill in any gaps in support.
+#
+# As an example: if we have hosts labeled -p21 and -p23, then the -p21 host will
+# be used to apply ledgers with protocol 20 and 21, and the -p23 host will be
+# used to apply ledgers with protocol 22 and 23.
+#
+# We add new hosts when performing a protocol upgrade. This allows us to hold
+# back any changes to the host's dependencies to the next protocol transition
+# and then simultaneously transition the entire network from one set of
+# dependencies to another at the (consensus) protocol upgrade boundary.
+#
+# We remove hosts -- when possible -- _after_ a protocol upgrade, once no more
+# ledgers with the previous protocol N-1 are being closed, and only when we have
+# convinced ourselves that the host everyone is now running, that supports the
+# new protocol N, can also faithfully replay all ledgers recorded under the
+# previous protocol N-1. If there is any divergence during replay, then either
+# the protocol N host has to be patched with some backward-compatibility code,
+# or else we have to keep the protocol N-1 host around indefinitely. If we can
+# get a clean replay with the new protocol N host, then we can remove the
+# protocol N-1 host from the codebase.
+#
+# Each additional copy of the soroban host adds a small amount of complexity to
+# the build and about 1.5MB of object code to the resulting binary. So we want
+# to keep the number of hosts down when and if it's easy to, but having the
+# number grow gradually is also not the end of the world.
+
+# [dependencies.soroban-env-host-p22]
+# version = "=22.0.0"
+# git = "https://github.com/stellar/rs-soroban-env"
+# package = "soroban-env-host"
+# rev = "0497816694bef2b103494c8c61b7c8a06a72c7d3"
+
+# [dependencies.soroban-env-host-p21]
+# version = "=21.2.0"
+# git = "https://github.com/stellar/rs-soroban-env"
+# package = "soroban-env-host"
+# rev = "8809852dcf8489f99407a5ceac12625ee3d14693"
+
+# The test wasms and synth-wasm crate should usually be taken from the highest
+# supported host, since test material usually just grows over time.
 
 [dependencies.soroban-test-wasms]
+version = "=22.0.0"
 git = "https://github.com/stellar/rs-soroban-env"
-rev = "2674d867d7c6aa4212abab05ff30e5804ff1db90"
+rev = "0497816694bef2b103494c8c61b7c8a06a72c7d3"
+#path = "../../../rs-soroban-env/soroban-test-wasms"
 
 [dependencies.soroban-synth-wasm]
+version = "=22.0.0"
 git = "https://github.com/stellar/rs-soroban-env"
-rev = "2674d867d7c6aa4212abab05ff30e5804ff1db90"
+rev = "0497816694bef2b103494c8c61b7c8a06a72c7d3"
+#path = "../../../rs-soroban-env/soroban-synth-wasm"
 
-[dependencies.cargo-lock]
-git = "https://github.com/rustsec/rustsec"
-rev = "a5c69fc6e4b6068b43d7143f3a2f68c3f3de37d8"
-features = ["dependency-tree"]
-
-# This feature definition is implied by the optional=true line in the dep, but
-# writing it out in full here cross-checks that nobody _removed_ that line.
 [features]
-soroban-env-host-prev = ["dep:soroban-env-host-prev"]
-tracy = ["dep:tracy-client", "soroban-env-host-curr/tracy"]
-core-vnext = ["soroban-env-host-curr/next", "soroban-test-wasms/next"]
+
+tracy = ["dep:tracy-client"]
+
+# The "next" feature enables not-yet-released features that (a) break protocol
+# but (b) are still under development, in between protocol releases. This
+# feature is not enabled by default, and is only intended for temporary use when
+# staging work across intra-protocol releases.
+next = []
+
+# the testutils feature turns on stuff that should only be available in a core
+# BUILD_TESTS build, such as the code to support transaction re-execution on
+# a secondary host. If necessary it can also turn on "testutils" features in
+# any of the hosts.
+testutils = []

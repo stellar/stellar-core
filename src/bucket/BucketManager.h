@@ -5,8 +5,8 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "bucket/Bucket.h"
-#include "overlay/StellarXDR.h"
 #include "util/NonCopyable.h"
+#include "util/types.h"
 #include <future>
 #include <map>
 #include <memory>
@@ -27,7 +27,9 @@ class AbstractLedgerTxn;
 class Application;
 class BasicWork;
 class BucketList;
+class BucketSnapshotManager;
 class Config;
+class SearchableBucketListSnapshot;
 class TmpDirManager;
 struct HistoryArchiveState;
 struct InflationWinner;
@@ -78,6 +80,82 @@ struct MergeCounters
     bool operator==(MergeCounters const& other) const;
 };
 
+// Stores key that is eligible for eviction and the position of the eviction
+// iterator as if that key was the last entry evicted
+struct EvictionResultEntry
+{
+    LedgerKey key;
+    EvictionIterator iter;
+    uint32_t liveUntilLedger;
+
+    EvictionResultEntry(LedgerKey const& key, EvictionIterator const& iter,
+                        uint32_t liveUntilLedger)
+        : key(key), iter(iter), liveUntilLedger(liveUntilLedger)
+    {
+    }
+};
+
+struct EvictionResult
+{
+    // List of keys eligible for eviction in the order in which they occur in
+    // the bucket
+    std::list<EvictionResultEntry> eligibleKeys{};
+
+    // Eviction iterator at the end of the scan region
+    EvictionIterator endOfRegionIterator;
+
+    // LedgerSeq which this scan is based on
+    uint32_t initialLedger{};
+
+    // State archival settings that this scan is based on
+    StateArchivalSettings initialSas;
+
+    EvictionResult(StateArchivalSettings const& sas) : initialSas(sas)
+    {
+    }
+
+    // Returns true if this is a valid archival scan for the current ledger
+    // and archival settings. This is necessary because we start the scan
+    // for ledger N immediately after N - 1 closes. However, ledger N may
+    // contain a network upgrade changing eviction scan settings. Legacy SQL
+    // scans will run based on the changes that occurred during ledger N,
+    // meaning the scan we started at ledger N - 1 is invalid since it was based
+    // off of older settings.
+    bool isValid(uint32_t currLedger,
+                 StateArchivalSettings const& currSas) const;
+};
+
+struct EvictionCounters
+{
+    medida::Counter& entriesEvicted;
+    medida::Counter& bytesScannedForEviction;
+    medida::Counter& incompleteBucketScan;
+    medida::Counter& evictionCyclePeriod;
+    medida::Counter& averageEvictedEntryAge;
+
+    EvictionCounters(Application& app);
+};
+
+class EvictionStatistics
+{
+  private:
+    std::mutex mLock{};
+
+    // Only record metrics if we've seen a complete cycle to avoid noise
+    bool mCompleteCycle{false};
+    uint64_t mEvictedEntriesAgeSum{};
+    uint64_t mNumEntriesEvicted{};
+    uint32_t mEvictionCycleStartLedger{};
+
+  public:
+    // Evicted entry "age" is the delta between its liveUntilLedger and the
+    // ledger when the entry is actually evicted
+    void recordEvictedEntry(uint64_t age);
+
+    void submitMetricsAndRestartCycle(uint32_t currLedgerSeq,
+                                      EvictionCounters& counters);
+};
+
 /**
  * BucketManager is responsible for maintaining a collection of Buckets of
  * ledger entries (each sorted, de-duplicated and identified by hash) and,
@@ -115,6 +193,7 @@ class BucketManager : NonMovableOrCopyable
     virtual TmpDirManager& getTmpDirManager() = 0;
     virtual std::string const& getBucketDir() const = 0;
     virtual BucketList& getBucketList() = 0;
+    virtual BucketSnapshotManager& getBucketSnapshotManager() const = 0;
     virtual bool renameBucketDirFile(std::filesystem::path const& src,
                                      std::filesystem::path const& dst) = 0;
 
@@ -186,10 +265,9 @@ class BucketManager : NonMovableOrCopyable
 
     // Feed a new batch of entries to the bucket list. This interface expects to
     // be given separate init (created) and live (updated) entry vectors. The
-    // `currLedger` and `currProtocolVersion` values should be taken from the
-    // ledger at which this batch is being added.
-    virtual void addBatch(Application& app, uint32_t currLedger,
-                          uint32_t currLedgerProtocol,
+    // `header` value should be taken from the ledger at which this batch is
+    // being added.
+    virtual void addBatch(Application& app, LedgerHeader header,
                           std::vector<LedgerEntry> const& initEntries,
                           std::vector<LedgerEntry> const& liveEntries,
                           std::vector<LedgerKey> const& deadEntries) = 0;
@@ -209,24 +287,13 @@ class BucketManager : NonMovableOrCopyable
     // Scans BucketList for non-live entries to evict starting at the entry
     // pointed to by EvictionIterator. Scans until `maxEntriesToEvict` entries
     // have been evicted or maxEvictionScanSize bytes have been scanned.
-    virtual void scanForEviction(AbstractLedgerTxn& ltx,
-                                 uint32_t ledgerSeq) = 0;
+    virtual void scanForEvictionLegacy(AbstractLedgerTxn& ltx,
+                                       uint32_t ledgerSeq) = 0;
 
-    // Look up a ledger entry from the BucketList. Returns nullopt if the LE is
-    // dead / nonexistent.
-    virtual std::shared_ptr<LedgerEntry>
-    getLedgerEntry(LedgerKey const& k) const = 0;
-
-    // Loads LedgerEntry for all keys.
-    virtual std::vector<LedgerEntry>
-    loadKeys(std::set<LedgerKey, LedgerEntryIdCmp> const& keys) const = 0;
-
-    virtual std::vector<LedgerEntry>
-    loadPoolShareTrustLinesByAccountAndAsset(AccountID const& accountID,
-                                             Asset const& asset) const = 0;
-
-    virtual std::vector<InflationWinner>
-    loadInflationWinners(size_t maxWinners, int64_t minBalance) const = 0;
+    virtual void startBackgroundEvictionScan(uint32_t ledgerSeq) = 0;
+    virtual void
+    resolveBackgroundEvictionScan(AbstractLedgerTxn& ltx, uint32_t ledgerSeq,
+                                  LedgerKeySet const& modifiedKeys) = 0;
 
     virtual medida::Meter& getBloomMissMeter() const = 0;
     virtual medida::Meter& getBloomLookupMeter() const = 0;
@@ -243,7 +310,7 @@ class BucketManager : NonMovableOrCopyable
     // leaking buckets, in tests.
     virtual std::set<Hash> getBucketHashesInBucketDirForTesting() const = 0;
 
-    virtual medida::Meter& getEntriesEvictedMeter() const = 0;
+    virtual medida::Counter& getEntriesEvictedCounter() const = 0;
 #endif
 
     // Return the set of buckets referenced by the BucketList
@@ -259,9 +326,10 @@ class BucketManager : NonMovableOrCopyable
     checkForMissingBucketsFiles(HistoryArchiveState const& has) = 0;
 
     // Assume state from `has` in BucketList: find and attach all buckets in
-    // `has`, set current BL. Note: Does not restart merging
+    // `has`, set current BL.
     virtual void assumeState(HistoryArchiveState const& has,
-                             uint32_t maxProtocolVersion) = 0;
+                             uint32_t maxProtocolVersion,
+                             bool restartMerges) = 0;
 
     virtual void shutdown() = 0;
 
@@ -304,7 +372,8 @@ class BucketManager : NonMovableOrCopyable
     virtual void visitLedgerEntries(
         HistoryArchiveState const& has, std::optional<int64_t> minLedger,
         std::function<bool(LedgerEntry const&)> const& filterEntry,
-        std::function<bool(LedgerEntry const&)> const& acceptEntry) = 0;
+        std::function<bool(LedgerEntry const&)> const& acceptEntry,
+        bool includeAllStates) = 0;
 
     // Schedule a Work class that verifies the hashes of all referenced buckets
     // on background threads.
@@ -312,5 +381,10 @@ class BucketManager : NonMovableOrCopyable
     scheduleVerifyReferencedBucketsWork() = 0;
 
     virtual Config const& getConfig() const = 0;
+
+    // Get bucketlist snapshot
+    virtual std::shared_ptr<SearchableBucketListSnapshot>
+    getSearchableBucketListSnapshot() = 0;
+    virtual void reportBucketEntryCountMetrics() = 0;
 };
 }

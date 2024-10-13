@@ -3,6 +3,7 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "transactions/TransactionUtils.h"
+#include "bucket/BucketListSnapshot.h"
 #include "crypto/SHA.h"
 #include "crypto/SecretKey.h"
 #include "ledger/InternalLedgerEntry.h"
@@ -10,6 +11,7 @@
 #include "ledger/LedgerTxnEntry.h"
 #include "ledger/LedgerTxnHeader.h"
 #include "ledger/TrustLineWrapper.h"
+#include "transactions/MutableTransactionResult.h"
 #include "transactions/OfferExchange.h"
 #include "transactions/SponsorshipUtils.h"
 #include "util/ProtocolVersion.h"
@@ -351,6 +353,7 @@ LedgerTxnEntry
 loadClaimableBalance(AbstractLedgerTxn& ltx,
                      ClaimableBalanceID const& balanceID)
 {
+    ZoneScoped;
     return ltx.load(claimableBalanceKey(balanceID));
 }
 
@@ -398,18 +401,21 @@ loadTrustLineWithoutRecordIfNotNative(AbstractLedgerTxn& ltx,
 LedgerTxnEntry
 loadSponsorship(AbstractLedgerTxn& ltx, AccountID const& sponsoredID)
 {
+    ZoneScoped;
     return ltx.load(sponsorshipKey(sponsoredID));
 }
 
 LedgerTxnEntry
 loadSponsorshipCounter(AbstractLedgerTxn& ltx, AccountID const& sponsoringID)
 {
+    ZoneScoped;
     return ltx.load(sponsorshipCounterKey(sponsoringID));
 }
 
 LedgerTxnEntry
 loadMaxSeqNumToApply(AbstractLedgerTxn& ltx, AccountID const& sourceAccount)
 {
+    ZoneScoped;
     return ltx.load(maxSeqNumToApplyKey(sourceAccount));
 }
 
@@ -990,6 +996,12 @@ getStartingSequenceNumber(LedgerTxnHeader const& header)
     return getStartingSequenceNumber(header.current().ledgerSeq);
 }
 
+SequenceNumber
+getStartingSequenceNumber(LedgerHeader const& header)
+{
+    return getStartingSequenceNumber(header.ledgerSeq);
+}
+
 bool
 isAuthorized(LedgerEntry const& le)
 {
@@ -1389,7 +1401,7 @@ prefetchForRevokeFromPoolShareTrustLines(
             keys.emplace(accountKey(sponsor));
         }
     }
-    ltx.prefetch(keys);
+    ltx.prefetchClassic(keys);
 
     // now prefetch the asset trustlines
     keys.clear();
@@ -1415,7 +1427,7 @@ prefetchForRevokeFromPoolShareTrustLines(
             keys.emplace(trustlineKey(accountID, params.assetB));
         }
     }
-    ltx.prefetch(keys);
+    ltx.prefetchClassic(keys);
 }
 
 static ClaimableBalanceID
@@ -1827,13 +1839,44 @@ getMinInclusionFee(TransactionFrameBase const& tx, LedgerHeader const& header,
     return effectiveBaseFee * std::max<int64_t>(1, tx.getNumOperations());
 }
 
+bool
+validateContractLedgerEntry(LedgerKey const& lk, size_t entrySize,
+                            SorobanNetworkConfig const& config,
+                            Config const& appConfig,
+                            TransactionFrame const& parentTx,
+                            SorobanTxData& sorobanData)
+{
+    // check contract code size limit
+    if (lk.type() == CONTRACT_CODE && config.maxContractSizeBytes() < entrySize)
+    {
+        sorobanData.pushApplyTimeDiagnosticError(
+            appConfig, SCE_BUDGET, SCEC_EXCEEDED_LIMIT,
+            "Wasm size exceeds network config maximum contract size",
+            {makeU64SCVal(entrySize),
+             makeU64SCVal(config.maxContractSizeBytes())});
+        return false;
+    }
+    // check contract data entry size limit
+    if (lk.type() == CONTRACT_DATA &&
+        config.maxContractDataEntrySizeBytes() < entrySize)
+    {
+        sorobanData.pushApplyTimeDiagnosticError(
+            appConfig, SCE_BUDGET, SCEC_EXCEEDED_LIMIT,
+            "ContractData size exceeds network config maximum size",
+            {makeU64SCVal(entrySize),
+             makeU64SCVal(config.maxContractDataEntrySizeBytes())});
+        return false;
+    }
+    return true;
+}
+
 LumenContractInfo
-getLumenContractInfo(std::string networkPassphrase)
+getLumenContractInfo(Hash const& networkID)
 {
     // Calculate contractID
     HashIDPreimage preImage;
     preImage.type(ENVELOPE_TYPE_CONTRACT_ID);
-    preImage.contractID().networkID = sha256(networkPassphrase);
+    preImage.contractID().networkID = networkID;
 
     Asset native;
     native.type(ASSET_TYPE_NATIVE);
@@ -1886,6 +1929,14 @@ makeU64SCVal(uint64_t u)
     return val;
 }
 
+SCVal
+makeAddressSCVal(SCAddress const& address)
+{
+    SCVal val(SCV_ADDRESS);
+    val.address() = address;
+    return val;
+}
+
 namespace detail
 {
 struct MuxChecker
@@ -1929,6 +1980,28 @@ hasMuxedAccount(TransactionEnvelope const& e)
     detail::MuxChecker c;
     c(e);
     return c.mHasMuxedAccount;
+}
+
+bool
+isTransactionXDRValidForCurrentProtocol(Application& app,
+                                        TransactionEnvelope const& envelope)
+{
+    uint32_t maxProtocol = app.getConfig().CURRENT_LEDGER_PROTOCOL_VERSION;
+    uint32_t currProtocol =
+        app.getLedgerManager().getLastClosedLedgerHeader().header.ledgerVersion;
+    // If we could parse the XDR when ledger is using the maximum supported
+    // protocol version, then XDR has to be valid.
+    // This check also is pointless before protocol 21 as Soroban environment
+    // doesn't support XDR versions before 21.
+    if (maxProtocol == currProtocol ||
+        protocolVersionIsBefore(currProtocol, ProtocolVersion::V_21))
+    {
+        return true;
+    }
+    auto cxxBuf = CxxBuf{
+        std::make_unique<std::vector<uint8_t>>(xdr::xdr_to_opaque(envelope))};
+    return rust_bridge::can_parse_transaction(maxProtocol, currProtocol, cxxBuf,
+                                              xdr::marshaling_stack_limit);
 }
 
 ClaimAtom

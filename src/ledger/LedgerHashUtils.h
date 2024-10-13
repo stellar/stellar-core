@@ -6,7 +6,6 @@
 
 #include "crypto/ShortHash.h"
 #include "ledger/InternalLedgerEntry.h"
-#include "ledger/LedgerTypeUtils.h"
 #include "util/HashOfHash.h"
 #include "xdr/Stellar-ledger-entries.h"
 #include "xdr/Stellar-ledger.h"

@@ -5,19 +5,16 @@
 // This file contains tests for the BucketIndex and higher-level operations
 // concerning key-value lookup based on the BucketList.
 
-#include "bucket/BucketIndexImpl.h"
 #include "bucket/BucketList.h"
+#include "bucket/BucketListSnapshot.h"
 #include "bucket/BucketManager.h"
+#include "bucket/BucketSnapshotManager.h"
 #include "bucket/test/BucketTestUtils.h"
 #include "ledger/test/LedgerTestUtils.h"
 #include "lib/catch.hpp"
 #include "main/Application.h"
 #include "main/Config.h"
 #include "test/test.h"
-
-#include "lib/bloom_filter.hpp"
-
-#include "util/XDRCereal.h"
 
 using namespace stellar;
 using namespace BucketTestUtils;
@@ -110,8 +107,62 @@ class BucketIndexTest
         buildBucketList(f);
     }
 
+    void
+    runHistoricalSnapshotTest()
+    {
+        uint32_t ledger = 0;
+        auto canonicalEntry =
+            LedgerTestUtils::generateValidLedgerEntryWithExclusions(
+                {LedgerEntryType::CONFIG_SETTING});
+        canonicalEntry.lastModifiedLedgerSeq = 0;
+
+        do
+        {
+            ++ledger;
+            auto entryCopy = canonicalEntry;
+            entryCopy.lastModifiedLedgerSeq = ledger;
+            mApp->getLedgerManager().setNextLedgerEntryBatchForBucketTesting(
+                {}, {entryCopy}, {});
+            closeLedger(*mApp);
+        } while (ledger < mApp->getConfig().QUERY_SNAPSHOT_LEDGERS + 2);
+        ++ledger;
+
+        auto searchableBL = getBM()
+                                .getBucketSnapshotManager()
+                                .copySearchableBucketListSnapshot();
+        auto lk = LedgerEntryKey(canonicalEntry);
+
+        auto currentLoadedEntry = searchableBL->load(lk);
+        REQUIRE(currentLoadedEntry);
+
+        // Note: The definition of "historical snapshot" ledger is that the
+        // BucketList snapshot for ledger N is the BucketList as it exists at
+        // the beginning of ledger N. This means that the lastModifiedLedgerSeq
+        // is at most N - 1.
+        REQUIRE(currentLoadedEntry->lastModifiedLedgerSeq == ledger - 1);
+
+        for (uint32_t currLedger = ledger; currLedger > 0; --currLedger)
+        {
+            auto [loadRes, snapshotExists] =
+                searchableBL->loadKeysFromLedger({lk}, currLedger);
+
+            // If we query an older snapshot, should return <null, notFound>
+            if (currLedger < ledger - mApp->getConfig().QUERY_SNAPSHOT_LEDGERS)
+            {
+                REQUIRE(!snapshotExists);
+                REQUIRE(loadRes.empty());
+            }
+            else
+            {
+                REQUIRE(snapshotExists);
+                REQUIRE(loadRes.size() == 1);
+                REQUIRE(loadRes[0].lastModifiedLedgerSeq == currLedger - 1);
+            }
+        }
+    }
+
     virtual void
-    buildShadowTest()
+    buildMultiVersionTest()
     {
         std::vector<LedgerKey> toDestroy;
         std::vector<LedgerEntry> toUpdate;
@@ -197,15 +248,20 @@ class BucketIndexTest
     virtual void
     run()
     {
+        auto searchableBL = getBM()
+                                .getBucketSnapshotManager()
+                                .copySearchableBucketListSnapshot();
+
         // Test bulk load lookup
-        auto loadResult = getBM().loadKeys(mKeysToSearch);
+        auto loadResult =
+            searchableBL->loadKeysWithLimits(mKeysToSearch, nullptr);
         validateResults(mTestEntries, loadResult);
 
         // Test individual entry lookup
         loadResult.clear();
         for (auto const& key : mKeysToSearch)
         {
-            auto entryPtr = getBM().getLedgerEntry(key);
+            auto entryPtr = searchableBL->load(key);
             if (entryPtr)
             {
                 loadResult.emplace_back(*entryPtr);
@@ -219,6 +275,9 @@ class BucketIndexTest
     virtual void
     runPerf(size_t n)
     {
+        auto searchableBL = getBM()
+                                .getBucketSnapshotManager()
+                                .copySearchableBucketListSnapshot();
         for (size_t i = 0; i < n; ++i)
         {
             LedgerKeySet searchSubset;
@@ -247,7 +306,8 @@ class BucketIndexTest
                 searchSubset.insert(addKeys.begin(), addKeys.end());
             }
 
-            auto blLoad = getBM().loadKeys(searchSubset);
+            auto blLoad =
+                searchableBL->loadKeysWithLimits(searchSubset, nullptr);
             validateResults(testEntriesSubset, blLoad);
         }
     }
@@ -255,6 +315,10 @@ class BucketIndexTest
     void
     testInvalidKeys()
     {
+        auto searchableBL = getBM()
+                                .getBucketSnapshotManager()
+                                .copySearchableBucketListSnapshot();
+
         // Load should return empty vector for keys not in bucket list
         auto keysNotInBL =
             LedgerTestUtils::generateValidLedgerEntryKeysWithExclusions(
@@ -262,12 +326,13 @@ class BucketIndexTest
         LedgerKeySet invalidKeys(keysNotInBL.begin(), keysNotInBL.end());
 
         // Test bulk load
-        REQUIRE(getBM().loadKeys(invalidKeys).size() == 0);
+        REQUIRE(searchableBL->loadKeysWithLimits(invalidKeys, nullptr).size() ==
+                0);
 
         // Test individual load
         for (auto const& key : invalidKeys)
         {
-            auto entryPtr = getBM().getLedgerEntry(key);
+            auto entryPtr = searchableBL->load(key);
             REQUIRE(!entryPtr);
         }
     }
@@ -308,13 +373,30 @@ class BucketIndexPoolShareTest : public BucketIndexTest
     }
 
     void
-    buildTest(bool shouldShadow)
+    buildTest(bool shouldMultiVersion)
     {
         auto f = [&](std::vector<LedgerEntry>& entries) {
-            std::vector<LedgerKey> toShadow;
+            std::vector<LedgerEntry> poolEntries;
+            std::vector<LedgerKey> toWriteNewVersion;
             if (mDist(gRandomEngine) < 30)
             {
-                auto pool = LedgerTestUtils::generateValidLiquidityPoolEntry();
+                // Make sure we generate a unique poolID for each entry
+                LiquidityPoolEntry pool;
+                for (;;)
+                {
+                    pool = LedgerTestUtils::generateValidLiquidityPoolEntry();
+                    for (auto e : poolEntries)
+                    {
+                        if (e.data.liquidityPool().liquidityPoolID ==
+                            pool.liquidityPoolID)
+                        {
+                            continue;
+                        }
+                    }
+
+                    break;
+                }
+
                 auto& params = pool.body.constantProduct().params;
 
                 auto trustlineToSearch =
@@ -348,21 +430,33 @@ class BucketIndexPoolShareTest : public BucketIndexTest
                 LedgerEntry poolEntry;
                 poolEntry.data.type(LIQUIDITY_POOL);
                 poolEntry.data.liquidityPool() = pool;
-                entries.emplace_back(poolEntry);
+                poolEntries.emplace_back(poolEntry);
                 entries.emplace_back(trustlineToSearch);
                 entries.emplace_back(trustline2);
             }
-            else if (shouldShadow && mDist(gRandomEngine) < 10 &&
+            // Write new version via delete
+            else if (shouldMultiVersion && mDist(gRandomEngine) < 10 &&
                      !mTestEntries.empty())
             {
-                // Arbitrarily shadow first entry of map
+                // Arbitrarily pcik first entry of map
                 auto iter = mTestEntries.begin();
-                toShadow.emplace_back(iter->first);
+                toWriteNewVersion.emplace_back(iter->first);
                 mTestEntries.erase(iter);
             }
+            // Write new version via modify
+            else if (shouldMultiVersion && mDist(gRandomEngine) < 10 &&
+                     !mTestEntries.empty())
+            {
+                // Arbitrarily pick first entry of map
+                auto iter = mTestEntries.begin();
+                iter->second.data.trustLine().balance += 10;
+                entries.emplace_back(iter->second);
+            }
 
+            // We only index liquidity pool INITENTRY, so they must be inserted
+            // as INITENTRY
             mApp->getLedgerManager().setNextLedgerEntryBatchForBucketTesting(
-                {}, entries, toShadow);
+                poolEntries, entries, toWriteNewVersion);
         };
 
         BucketIndexTest::buildBucketList(f);
@@ -390,7 +484,7 @@ class BucketIndexPoolShareTest : public BucketIndexTest
     }
 
     virtual void
-    buildShadowTest() override
+    buildMultiVersionTest() override
     {
         buildTest(true);
     }
@@ -398,8 +492,12 @@ class BucketIndexPoolShareTest : public BucketIndexTest
     virtual void
     run() override
     {
-        auto loadResult = getBM().loadPoolShareTrustLinesByAccountAndAsset(
-            mAccountToSearch.accountID, mAssetToSearch);
+        auto searchableBL = getBM()
+                                .getBucketSnapshotManager()
+                                .copySearchableBucketListSnapshot();
+        auto loadResult =
+            searchableBL->loadPoolShareTrustLinesByAccountAndAsset(
+                mAccountToSearch.accountID, mAssetToSearch);
         validateResults(mTestEntries, loadResult);
     }
 };
@@ -410,26 +508,26 @@ testAllIndexTypes(std::function<void(Config&)> f)
     SECTION("individual index only")
     {
         Config cfg(getTestConfig());
-        cfg.EXPERIMENTAL_BUCKETLIST_DB = true;
-        cfg.EXPERIMENTAL_BUCKETLIST_DB_INDEX_PAGE_SIZE_EXPONENT = 0;
+        cfg.DEPRECATED_SQL_LEDGER_STATE = false;
+        cfg.BUCKETLIST_DB_INDEX_PAGE_SIZE_EXPONENT = 0;
         f(cfg);
     }
 
     SECTION("individual and range index")
     {
         Config cfg(getTestConfig());
-        cfg.EXPERIMENTAL_BUCKETLIST_DB = true;
+        cfg.DEPRECATED_SQL_LEDGER_STATE = false;
 
         // First 3 levels individual, last 3 range index
-        cfg.EXPERIMENTAL_BUCKETLIST_DB_INDEX_CUTOFF = 1;
+        cfg.BUCKETLIST_DB_INDEX_CUTOFF = 1;
         f(cfg);
     }
 
     SECTION("range index only")
     {
         Config cfg(getTestConfig());
-        cfg.EXPERIMENTAL_BUCKETLIST_DB = true;
-        cfg.EXPERIMENTAL_BUCKETLIST_DB_INDEX_CUTOFF = 0;
+        cfg.DEPRECATED_SQL_LEDGER_STATE = false;
+        cfg.BUCKETLIST_DB_INDEX_CUTOFF = 0;
         f(cfg);
     }
 }
@@ -446,12 +544,23 @@ TEST_CASE("key-value lookup", "[bucket][bucketindex]")
     testAllIndexTypes(f);
 }
 
-TEST_CASE("do not load shadowed values", "[bucket][bucketindex]")
+TEST_CASE("do not load outdated values", "[bucket][bucketindex]")
 {
     auto f = [&](Config& cfg) {
         auto test = BucketIndexTest(cfg);
-        test.buildShadowTest();
+        test.buildMultiVersionTest();
         test.run();
+    };
+
+    testAllIndexTypes(f);
+}
+
+TEST_CASE("load from historical snapshots", "[bucket][bucketindex]")
+{
+    auto f = [&](Config& cfg) {
+        cfg.QUERY_SNAPSHOT_LEDGERS = 5;
+        auto test = BucketIndexTest(cfg);
+        test.runHistoricalSnapshotTest();
     };
 
     testAllIndexTypes(f);
@@ -468,12 +577,13 @@ TEST_CASE("loadPoolShareTrustLinesByAccountAndAsset", "[bucket][bucketindex]")
     testAllIndexTypes(f);
 }
 
-TEST_CASE("loadPoolShareTrustLinesByAccountAndAsset does not load shadows",
-          "[bucket][bucketindex]")
+TEST_CASE(
+    "loadPoolShareTrustLinesByAccountAndAsset does not load outdated versions",
+    "[bucket][bucketindex]")
 {
     auto f = [&](Config& cfg) {
         auto test = BucketIndexPoolShareTest(cfg);
-        test.buildShadowTest();
+        test.buildMultiVersionTest();
         test.run();
     };
 
@@ -492,20 +602,21 @@ TEST_CASE("ContractData key with same ScVal", "[bucket][bucketindex]")
     testAllIndexTypes(f);
 }
 
-TEST_CASE("serialize bucket indexes", "[bucket][bucketindex][!hide]")
+TEST_CASE("serialize bucket indexes", "[bucket][bucketindex]")
 {
-    Config cfg(getTestConfig(0, Config::TESTDB_ON_DISK_SQLITE));
+    Config cfg(getTestConfig(0, Config::TESTDB_BUCKET_DB_PERSISTENT));
 
-    // First 3 levels individual, last 3 range index
-    cfg.EXPERIMENTAL_BUCKETLIST_DB_INDEX_CUTOFF = 1;
-    cfg.EXPERIMENTAL_BUCKETLIST_DB = true;
-    cfg.EXPERIMENTAL_BUCKETLIST_DB_PERSIST_INDEX = true;
+    // All levels use range config
+    cfg.BUCKETLIST_DB_INDEX_CUTOFF = 0;
+    cfg.DEPRECATED_SQL_LEDGER_STATE = false;
+    cfg.BUCKETLIST_DB_PERSIST_INDEX = true;
+    cfg.INVARIANT_CHECKS = {};
 
     // Node is not a validator, so indexes will persist
     cfg.NODE_IS_VALIDATOR = false;
     cfg.FORCE_SCP = false;
 
-    auto test = BucketIndexTest(cfg);
+    auto test = BucketIndexTest(cfg, /*levels=*/3);
     test.buildGeneralTest();
 
     auto buckets = test.getBM().getBucketListReferencedBuckets();
@@ -534,8 +645,8 @@ TEST_CASE("serialize bucket indexes", "[bucket][bucketindex][!hide]")
     // Restart app with different config to test that indexes created with
     // different config settings are not loaded from disk. These params will
     // invalidate every index in BL
-    cfg.EXPERIMENTAL_BUCKETLIST_DB_INDEX_CUTOFF = 0;
-    cfg.EXPERIMENTAL_BUCKETLIST_DB_INDEX_PAGE_SIZE_EXPONENT = 10;
+    cfg.BUCKETLIST_DB_INDEX_CUTOFF = 0;
+    cfg.BUCKETLIST_DB_INDEX_PAGE_SIZE_EXPONENT = 10;
     test.restartWithConfig(cfg);
 
     for (auto const& bucketHash : buckets)
@@ -552,6 +663,17 @@ TEST_CASE("serialize bucket indexes", "[bucket][bucketindex][!hide]")
 
         auto& inMemoryIndex = b->getIndexForTesting();
         REQUIRE(inMemoryIndex.getPageSize() == (1UL << 10));
+        auto inMemoryCoutners = inMemoryIndex.getBucketEntryCounters();
+        // Ensure the inMemoryIndex has some non-zero counters.
+        REQUIRE(!inMemoryCoutners.entryTypeCounts.empty());
+        REQUIRE(!inMemoryCoutners.entryTypeSizes.empty());
+        bool allZero = true;
+        for (auto const& [k, v] : inMemoryCoutners.entryTypeCounts)
+        {
+            allZero = allZero && (v == 0);
+            allZero = allZero && (inMemoryCoutners.entryTypeSizes.at(k) == 0);
+        }
+        REQUIRE(!allZero);
 
         // Check if on-disk index rewritten with correct config params
         auto indexFilename = test.getBM().bucketIndexFilename(bucketHash);

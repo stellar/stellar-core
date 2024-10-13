@@ -11,13 +11,14 @@
 #include "transactions/SponsorshipUtils.h"
 #include "transactions/TransactionUtils.h"
 #include "util/ProtocolVersion.h"
+#include <Tracy.hpp>
 
 namespace stellar
 {
 
 ClaimClaimableBalanceOpFrame::ClaimClaimableBalanceOpFrame(
-    Operation const& op, OperationResult& res, TransactionFrame& parentTx)
-    : OperationFrame(op, res, parentTx)
+    Operation const& op, TransactionFrame const& parentTx)
+    : OperationFrame(op, parentTx)
     , mClaimClaimableBalance(mOperation.body.claimClaimableBalanceOp())
 {
 }
@@ -69,13 +70,17 @@ validatePredicate(ClaimPredicate const& pred, TimePoint closeTime)
 }
 
 bool
-ClaimClaimableBalanceOpFrame::doApply(AbstractLedgerTxn& ltx)
+ClaimClaimableBalanceOpFrame::doApply(
+    Application& app, AbstractLedgerTxn& ltx, Hash const& sorobanBasePrngSeed,
+    OperationResult& res, std::shared_ptr<SorobanTxData> sorobanData) const
 {
+    ZoneNamedN(applyZone, "ClaimClaimableBalanceOpFrame apply", true);
+
     auto claimableBalanceLtxEntry =
         stellar::loadClaimableBalance(ltx, mClaimClaimableBalance.balanceID);
     if (!claimableBalanceLtxEntry)
     {
-        innerResult().code(CLAIM_CLAIMABLE_BALANCE_DOES_NOT_EXIST);
+        innerResult(res).code(CLAIM_CLAIMABLE_BALANCE_DOES_NOT_EXIST);
         return false;
     }
 
@@ -93,7 +98,7 @@ ClaimClaimableBalanceOpFrame::doApply(AbstractLedgerTxn& ltx)
         !validatePredicate(it->v0().predicate,
                            header.current().scpValue.closeTime))
     {
-        innerResult().code(CLAIM_CLAIMABLE_BALANCE_CANNOT_CLAIM);
+        innerResult(res).code(CLAIM_CLAIMABLE_BALANCE_CANNOT_CLAIM);
         return false;
     }
 
@@ -104,7 +109,7 @@ ClaimClaimableBalanceOpFrame::doApply(AbstractLedgerTxn& ltx)
         auto sourceAccount = loadSourceAccount(ltx, header);
         if (!addBalance(header, sourceAccount, amount))
         {
-            innerResult().code(CLAIM_CLAIMABLE_BALANCE_LINE_FULL);
+            innerResult(res).code(CLAIM_CLAIMABLE_BALANCE_LINE_FULL);
             return false;
         }
     }
@@ -113,17 +118,17 @@ ClaimClaimableBalanceOpFrame::doApply(AbstractLedgerTxn& ltx)
         auto trustline = loadTrustLine(ltx, getSourceID(), asset);
         if (!trustline)
         {
-            innerResult().code(CLAIM_CLAIMABLE_BALANCE_NO_TRUST);
+            innerResult(res).code(CLAIM_CLAIMABLE_BALANCE_NO_TRUST);
             return false;
         }
         if (!trustline.isAuthorized())
         {
-            innerResult().code(CLAIM_CLAIMABLE_BALANCE_NOT_AUTHORIZED);
+            innerResult(res).code(CLAIM_CLAIMABLE_BALANCE_NOT_AUTHORIZED);
             return false;
         }
         if (!trustline.addBalance(header, amount))
         {
-            innerResult().code(CLAIM_CLAIMABLE_BALANCE_LINE_FULL);
+            innerResult(res).code(CLAIM_CLAIMABLE_BALANCE_LINE_FULL);
             return false;
         }
     }
@@ -134,12 +139,13 @@ ClaimClaimableBalanceOpFrame::doApply(AbstractLedgerTxn& ltx)
 
     claimableBalanceLtxEntry.erase();
 
-    innerResult().code(CLAIM_CLAIMABLE_BALANCE_SUCCESS);
+    innerResult(res).code(CLAIM_CLAIMABLE_BALANCE_SUCCESS);
     return true;
 }
 
 bool
-ClaimClaimableBalanceOpFrame::doCheckValid(uint32_t ledgerVersion)
+ClaimClaimableBalanceOpFrame::doCheckValid(uint32_t ledgerVersion,
+                                           OperationResult& res) const
 {
     return true;
 }

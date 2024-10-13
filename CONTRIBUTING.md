@@ -9,13 +9,11 @@ contributor license agreement.
 
 ## Submitting Changes
 
-Submit a pull request rebased on top of master
-
- * Include a descriptive commit message.
- * Changes contributed via pull request should focus on a single issue at a time.
-
-At this point you're waiting on us. We like to at least comment on pull requests within one week
-(and, typically, three business days). We may suggest some changes or improvements or alternatives.
+Fork the `stellar/stellar-core` repo on github and submit a pull request from a branch in your fork. 
+Key things to keep in mind:
+* Keep your branch up-to-date by rebasing on `stellar/stellar-core` `master`
+* Ensure your branch focuses on a single issue at a time
+* Before merging, squash your commits and ensure you have a descriptive commit message
 
 ## Stellar Core Contribution Specifics
 
@@ -138,6 +136,11 @@ positives as well (disabling postgres is a good workaround).
 
 What the configure script does under the cover is use the custom version of your library at link
 time, but still uses the system headers - so make sure that the two don't conflict!
+
+### enable-threadsanitizer
+Build with thread sanitizer (TSan) instrumentation, which detects data races.
+
+See https://clang.llvm.org/docs/ThreadSanitizer.html for more information.
 
 #### Building a custom `libc++`
 

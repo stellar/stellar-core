@@ -3,7 +3,7 @@
 #include "bucket/BucketList.h"
 #include "bucket/BucketManager.h"
 #include "bucket/BucketMergeMap.h"
-#include "overlay/StellarXDR.h"
+#include "xdr/Stellar-ledger.h"
 
 #include <map>
 #include <memory>
@@ -30,6 +30,10 @@ class AbstractLedgerTxn;
 class Application;
 class Bucket;
 class BucketList;
+class BucketSnapshotManager;
+struct BucketEntryCounters;
+enum class LedgerEntryTypeAndDurability : uint32_t;
+
 struct HistoryArchiveState;
 
 class BucketManagerImpl : public BucketManager
@@ -38,25 +42,34 @@ class BucketManagerImpl : public BucketManager
 
     Application& mApp;
     std::unique_ptr<BucketList> mBucketList;
+    std::unique_ptr<BucketSnapshotManager> mSnapshotManager;
     std::unique_ptr<TmpDirManager> mTmpDirManager;
     std::unique_ptr<TmpDir> mWorkDir;
     std::map<Hash, std::shared_ptr<Bucket>> mSharedBuckets;
+    std::shared_ptr<SearchableBucketListSnapshot>
+        mSearchableBucketListSnapshot{};
+
+    // Lock for managing raw Bucket files or the bucket directory. This lock is
+    // only required for file access, but is not required for logical changes to
+    // the BucketList (i.e. addBatch).
     mutable std::recursive_mutex mBucketMutex;
     std::unique_ptr<std::string> mLockedBucketDir;
     medida::Meter& mBucketObjectInsertBatch;
     medida::Timer& mBucketAddBatch;
     medida::Timer& mBucketSnapMerge;
     medida::Counter& mSharedBucketsSize;
-    medida::Meter& mBucketListDBQueryMeter;
     medida::Meter& mBucketListDBBloomMisses;
     medida::Meter& mBucketListDBBloomLookups;
-    medida::Meter& mEntriesEvicted;
-    medida::Counter& mBytesScannedForEviction;
-    medida::Counter& mIncompleteBucketScans;
-    mutable UnorderedMap<LedgerEntryType, medida::Timer&>
-        mBucketListDBPointTimers{};
-    mutable UnorderedMap<std::string, medida::Timer&> mBucketListDBBulkTimers{};
+    medida::Counter& mBucketListSizeCounter;
+    EvictionCounters mBucketListEvictionCounters;
     MergeCounters mMergeCounters;
+    std::shared_ptr<EvictionStatistics> mEvictionStatistics{};
+    std::map<LedgerEntryTypeAndDurability, medida::Counter&>
+        mBucketListEntryCountCounters;
+    std::map<LedgerEntryTypeAndDurability, medida::Counter&>
+        mBucketListEntrySizeCounters;
+
+    std::future<EvictionResult> mEvictionFuture{};
 
     bool const mDeleteEntireBucketDirInDtor;
 
@@ -81,7 +94,8 @@ class BucketManagerImpl : public BucketManager
     void deleteTmpDirAndUnlockBucketDir();
     void deleteEntireBucketDir();
 
-    medida::Timer& getBulkLoadTimer(std::string const& label) const;
+    medida::Timer& recordBulkLoadMetrics(std::string const& label,
+                                         size_t numEntries) const;
     medida::Timer& getPointLoadTimer(LedgerEntryType t) const;
 
 #ifdef BUILD_TESTS
@@ -104,6 +118,7 @@ class BucketManagerImpl : public BucketManager
     std::string const& getTmpDir() override;
     std::string const& getBucketDir() const override;
     BucketList& getBucketList() override;
+    BucketSnapshotManager& getBucketSnapshotManager() const override;
     medida::Timer& getMergeTimer() override;
     MergeCounters readMergeCounters() override;
     void incrMergeCounters(MergeCounters const&) override;
@@ -127,25 +142,20 @@ class BucketManagerImpl : public BucketManager
 #endif
 
     void forgetUnreferencedBuckets() override;
-    void addBatch(Application& app, uint32_t currLedger,
-                  uint32_t currLedgerProtocol,
+    void addBatch(Application& app, LedgerHeader header,
                   std::vector<LedgerEntry> const& initEntries,
                   std::vector<LedgerEntry> const& liveEntries,
                   std::vector<LedgerKey> const& deadEntries) override;
     void snapshotLedger(LedgerHeader& currentHeader) override;
     void maybeSetIndex(std::shared_ptr<Bucket> b,
                        std::unique_ptr<BucketIndex const>&& index) override;
-    void scanForEviction(AbstractLedgerTxn& ltx, uint32_t ledgerSeq) override;
+    void scanForEvictionLegacy(AbstractLedgerTxn& ltx,
+                               uint32_t ledgerSeq) override;
+    void startBackgroundEvictionScan(uint32_t ledgerSeq) override;
+    void
+    resolveBackgroundEvictionScan(AbstractLedgerTxn& ltx, uint32_t ledgerSeq,
+                                  LedgerKeySet const& modifiedKeys) override;
 
-    std::shared_ptr<LedgerEntry>
-    getLedgerEntry(LedgerKey const& k) const override;
-    std::vector<LedgerEntry>
-    loadKeys(std::set<LedgerKey, LedgerEntryIdCmp> const& keys) const override;
-    std::vector<LedgerEntry>
-    loadPoolShareTrustLinesByAccountAndAsset(AccountID const& accountID,
-                                             Asset const& asset) const override;
-    std::vector<InflationWinner>
-    loadInflationWinners(size_t maxWinners, int64_t minBalance) const override;
     medida::Meter& getBloomMissMeter() const override;
     medida::Meter& getBloomLookupMeter() const override;
 
@@ -158,7 +168,7 @@ class BucketManagerImpl : public BucketManager
 
     std::set<Hash> getBucketHashesInBucketDirForTesting() const override;
 
-    medida::Meter& getEntriesEvictedMeter() const override;
+    medida::Counter& getEntriesEvictedCounter() const override;
 #endif
 
     std::set<Hash> getBucketListReferencedBuckets() const override;
@@ -166,7 +176,7 @@ class BucketManagerImpl : public BucketManager
     std::vector<std::string>
     checkForMissingBucketsFiles(HistoryArchiveState const& has) override;
     void assumeState(HistoryArchiveState const& has,
-                     uint32_t maxProtocolVersion) override;
+                     uint32_t maxProtocolVersion, bool restartMerges) override;
     void shutdown() override;
 
     bool isShutdown() const override;
@@ -180,11 +190,16 @@ class BucketManagerImpl : public BucketManager
     void visitLedgerEntries(
         HistoryArchiveState const& has, std::optional<int64_t> minLedger,
         std::function<bool(LedgerEntry const&)> const& filterEntry,
-        std::function<bool(LedgerEntry const&)> const& acceptEntry) override;
+        std::function<bool(LedgerEntry const&)> const& acceptEntry,
+        bool includeAllStates) override;
 
     std::shared_ptr<BasicWork> scheduleVerifyReferencedBucketsWork() override;
 
     Config const& getConfig() const override;
+
+    std::shared_ptr<SearchableBucketListSnapshot>
+    getSearchableBucketListSnapshot() override;
+    void reportBucketEntryCountMetrics() override;
 };
 
 #define SKIP_1 50

@@ -62,7 +62,7 @@ class TransactionQueue
   public:
     static uint64_t const FEE_MULTIPLIER;
 
-    enum class AddResult
+    enum class AddResultCode
     {
         ADD_STATUS_PENDING = 0,
         ADD_STATUS_DUPLICATE,
@@ -72,21 +72,22 @@ class TransactionQueue
         ADD_STATUS_COUNT
     };
 
-    /*
-     * Information about queue of transaction for given account. mAge and
-     * mTotalFees are stored in queue, but mMaxSeq must be computed each
-     * time (its O(1) anyway).
-     */
-    struct AccountTxQueueInfo
+    struct AddResult
     {
-        SequenceNumber mMaxSeq{0};
-        int64_t mTotalFees{0};
-        size_t mQueueSizeOps{0};
-        size_t mBroadcastQueueOps{0};
-        uint32_t mAge{0};
+        TransactionQueue::AddResultCode code;
+        MutableTxResultPtr txResult;
 
-        friend bool operator==(AccountTxQueueInfo const& x,
-                               AccountTxQueueInfo const& y);
+        // AddResult with no txResult
+        explicit AddResult(TransactionQueue::AddResultCode addCode);
+
+        // AddResult from existing transaction result
+        explicit AddResult(TransactionQueue::AddResultCode addCode,
+                           MutableTxResultPtr payload);
+
+        // AddResult with error txResult with the specified txErrorCode
+        explicit AddResult(TransactionQueue::AddResultCode addCode,
+                           TransactionFrameBasePtr tx,
+                           TransactionResultCode txErrorCode);
     };
 
     /**
@@ -108,15 +109,12 @@ class TransactionQueue
         VirtualClock::time_point mInsertionTime;
         bool mSubmittedFromSelf;
     };
-    using TimestampedTransactions = std::vector<TimestampedTx>;
     using Transactions = std::vector<TransactionFrameBasePtr>;
     struct AccountState
     {
         int64_t mTotalFees{0};
-        size_t mQueueSizeOps{0};
-        size_t mBroadcastQueueOps{0};
         uint32_t mAge{0};
-        TimestampedTransactions mTransactions;
+        std::optional<TimestampedTx> mTransaction;
     };
 
     explicit TransactionQueue(Application& app, uint32 pendingDepth,
@@ -129,6 +127,9 @@ class TransactionQueue
 
     AddResult tryAdd(TransactionFrameBasePtr tx, bool submittedFromSelf);
     void removeApplied(Transactions const& txs);
+    // Ban transactions that are no longer valid or have insufficient fee;
+    // transaction per account limit applies here, so `txs` should have no
+    // duplicate source accounts
     void ban(Transactions const& txs);
 
     /**
@@ -137,29 +138,21 @@ class TransactionQueue
      * unbans transactions for which age equals banDepth.
      */
     void shift();
+    void rebroadcast();
+    void shutdown();
 
-    AccountTxQueueInfo
-    getAccountTransactionQueueInfo(AccountID const& accountID) const;
-
-    size_t countBanned(int index) const;
     bool isBanned(Hash const& hash) const;
     TransactionFrameBaseConstPtr getTx(Hash const& hash) const;
-
-    TxSetFrame::Transactions getTransactions(LedgerHeader const& lcl) const;
-
-    struct ReplacedTransaction
-    {
-        TransactionFrameBasePtr mOld;
-        TransactionFrameBasePtr mNew;
-    };
-
-    void maybeVersionUpgraded();
-
-    void rebroadcast();
-
-    void shutdown();
+    TxSetTransactions getTransactions(LedgerHeader const& lcl) const;
     bool sourceAccountPending(AccountID const& accountID) const;
+
     virtual size_t getMaxQueueSizeOps() const = 0;
+
+#ifdef BUILD_TESTS
+    AccountState
+    getAccountTransactionQueueInfo(AccountID const& accountID) const;
+    size_t countBanned(int index) const;
+#endif
 
   protected:
     /**
@@ -182,15 +175,27 @@ class TransactionQueue
 
     AccountStates mAccountStates;
     BannedTransactions mBannedTransactions;
-    uint32_t mLedgerVersion;
 
     // counters
-    std::vector<medida::Counter*> mSizeByAge;
-    medida::Counter& mBannedTransactionsCounter;
-    medida::Counter& mArbTxSeenCounter;
-    medida::Counter& mArbTxDroppedCounter;
-    medida::Timer& mTransactionsDelay;
-    medida::Timer& mTransactionsSelfDelay;
+    struct QueueMetrics
+    {
+        QueueMetrics(std::vector<medida::Counter*> sizeByAge,
+                     medida::Counter& bannedTransactionsCounter,
+                     medida::Timer& transactionsDelay,
+                     medida::Timer& transactionsSelfDelay)
+            : mSizeByAge(std::move(sizeByAge))
+            , mBannedTransactionsCounter(bannedTransactionsCounter)
+            , mTransactionsDelay(transactionsDelay)
+            , mTransactionsSelfDelay(transactionsSelfDelay)
+        {
+        }
+        std::vector<medida::Counter*> mSizeByAge;
+        medida::Counter& mBannedTransactionsCounter;
+        medida::Timer& mTransactionsDelay;
+        medida::Timer& mTransactionsSelfDelay;
+    };
+
+    std::unique_ptr<QueueMetrics> mQueueMetrics;
 
     UnorderedSet<OperationType> mFilteredTypes;
 
@@ -202,6 +207,7 @@ class TransactionQueue
     getMaxResourcesToFloodThisPeriod() const = 0;
     virtual bool broadcastSome() = 0;
     virtual int getFloodPeriod() const = 0;
+    virtual bool allowTxBroadcast(TimestampedTx const& tx) = 0;
 
     void broadcast(bool fromCallback);
     // broadcasts a single transaction
@@ -211,20 +217,16 @@ class TransactionQueue
         BROADCAST_STATUS_SUCCESS,
         BROADCAST_STATUS_SKIPPED
     };
-    BroadcastStatus broadcastTx(AccountState& state, TimestampedTx& tx);
-    AddResult canAdd(TransactionFrameBasePtr tx,
-                     AccountStates::iterator& stateIter,
-                     TimestampedTransactions::iterator& oldTxIter,
-                     std::vector<std::pair<TxStackPtr, bool>>& txsToEvict);
+    BroadcastStatus broadcastTx(TimestampedTx& tx);
+
+    TransactionQueue::AddResult
+    canAdd(TransactionFrameBasePtr tx, AccountStates::iterator& stateIter,
+           std::vector<std::pair<TransactionFrameBasePtr, bool>>& txsToEvict);
 
     void releaseFeeMaybeEraseAccountState(TransactionFrameBasePtr tx);
 
-    void prepareDropTransaction(AccountState& as, TimestampedTx& tstx);
-    void dropTransactions(AccountStates::iterator stateIter,
-                          TimestampedTransactions::iterator begin,
-                          TimestampedTransactions::iterator end);
-
-    void clearAll();
+    void prepareDropTransaction(AccountState& as);
+    void dropTransaction(AccountStates::iterator stateIter);
 
     bool isFiltered(TransactionFrameBasePtr tx) const;
 
@@ -234,8 +236,6 @@ class TransactionQueue
     UnorderedMap<Hash, TransactionFrameBasePtr> mKnownTxHashes;
 
     size_t mBroadcastSeed;
-
-    friend class TxQueueTracker;
 
 #ifdef BUILD_TESTS
   public:
@@ -257,12 +257,26 @@ class SorobanTransactionQueue : public TransactionQueue
     }
 
     size_t getMaxQueueSizeOps() const override;
+#ifdef BUILD_TESTS
+    void
+    clearBroadcastCarryover()
+    {
+        mBroadcastOpCarryover.clear();
+        mBroadcastOpCarryover.resize(1, Resource::makeEmptySoroban());
+    }
+#endif
 
   private:
     virtual std::pair<Resource, std::optional<Resource>>
     getMaxResourcesToFloodThisPeriod() const override;
     virtual bool broadcastSome() override;
     std::vector<Resource> mBroadcastOpCarryover;
+    // No special flooding rules for Soroban
+    virtual bool
+    allowTxBroadcast(TimestampedTx const& tx) override
+    {
+        return true;
+    }
 };
 
 class ClassicTransactionQueue : public TransactionQueue
@@ -280,15 +294,18 @@ class ClassicTransactionQueue : public TransactionQueue
     size_t getMaxQueueSizeOps() const override;
 
   private:
+    medida::Counter& mArbTxSeenCounter;
+    medida::Counter& mArbTxDroppedCounter;
+
     virtual std::pair<Resource, std::optional<Resource>>
     getMaxResourcesToFloodThisPeriod() const override;
     virtual bool broadcastSome() override;
     std::vector<Resource> mBroadcastOpCarryover;
+    virtual bool allowTxBroadcast(TimestampedTx const& tx) override;
 };
 
 extern std::array<const char*,
                   static_cast<int>(
-                      TransactionQueue::AddResult::ADD_STATUS_COUNT)>
+                      TransactionQueue::AddResultCode::ADD_STATUS_COUNT)>
     TX_STATUS_STRING;
-
 }
