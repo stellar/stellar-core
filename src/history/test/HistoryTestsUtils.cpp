@@ -689,24 +689,6 @@ CatchupSimulation::getLastPublishedCheckpoint() const
     return pair;
 }
 
-void
-CatchupSimulation::crankUntil(Application::pointer app,
-                              std::function<bool()> const& predicate,
-                              VirtualClock::duration timeout)
-{
-    auto start = std::chrono::system_clock::now();
-    while (!predicate())
-    {
-        app->getClock().crank(false);
-        auto current = std::chrono::system_clock::now();
-        auto diff = current - start;
-        if (diff > timeout)
-        {
-            break;
-        }
-    }
-}
-
 Application::pointer
 CatchupSimulation::createCatchupApplication(
     uint32_t count, Config::TestDbMode dbMode, std::string const& appName,
@@ -754,9 +736,9 @@ CatchupSimulation::catchupOffline(Application::pointer app, uint32_t toLedger,
 
     auto expectedCatchupWork =
         computeCatchupPerformedWork(lastLedger, catchupConfiguration, *app);
-    crankUntil(app, finished,
-               std::chrono::seconds{std::max<int64>(
-                   expectedCatchupWork.mTxSetsApplied + 15, 60)});
+    testutil::crankUntil(app, finished,
+                         std::chrono::seconds{std::max<int64>(
+                             expectedCatchupWork.mTxSetsApplied + 15, 60)});
 
     // Finished successfully
     auto success = cm.isCatchupInitialized() &&
@@ -869,15 +851,23 @@ CatchupSimulation::catchupOnline(Application::pointer app, uint32_t initLedger,
     auto expectedCatchupWork =
         computeCatchupPerformedWork(lastLedger, catchupConfiguration, *app);
 
-    crankUntil(app, catchupIsDone,
-               std::chrono::seconds{std::max<int64>(
-                   expectedCatchupWork.mTxSetsApplied + 15, 60)});
+    testutil::crankUntil(app, catchupIsDone,
+                         std::chrono::seconds{std::max<int64>(
+                             expectedCatchupWork.mTxSetsApplied + 15, 60)});
 
     if (lm.getLastClosedLedgerNum() == triggerLedger + bufferLedgers)
     {
         // Externalize closing ledger
         externalize(triggerLedger + bufferLedgers + 1);
     }
+
+    testutil::crankUntil(
+        app,
+        [&]() {
+            return lm.getLastClosedLedgerNum() ==
+                   triggerLedger + bufferLedgers + 1;
+        },
+        std::chrono::seconds{60});
 
     auto result = caughtUp();
     if (result)
@@ -917,6 +907,8 @@ CatchupSimulation::externalizeLedger(HerderImpl& herder, uint32_t ledger)
                                           lcd.getLedgerSeq(), lcd.getTxSet());
     herder.getHerderSCPDriver().valueExternalized(
         lcd.getLedgerSeq(), xdr::xdr_to_opaque(lcd.getValue()));
+
+    // TODO: crank the clock
 }
 
 void

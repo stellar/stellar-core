@@ -27,7 +27,7 @@ DownloadApplyTxsWork::DownloadApplyTxsWork(
     : BatchWork(app, "download-apply-ledgers")
     , mRange(range)
     , mDownloadDir(downloadDir)
-    , mLastApplied(lastApplied)
+    , mLastQueuedToApply(lastApplied)
     , mCheckpointToQueue(
           app.getHistoryManager().checkpointContainingLedger(range.mFirst))
     , mWaitForPublish(waitForPublish)
@@ -171,7 +171,7 @@ DownloadApplyTxsWork::resetIter()
     mCheckpointToQueue =
         mApp.getHistoryManager().checkpointContainingLedger(mRange.mFirst);
     mLastYieldedWork.reset();
-    mLastApplied = mApp.getLedgerManager().getLastClosedLedgerHeader();
+    mLastQueuedToApply = mApp.getLedgerManager().getLastClosedLedgerHeader();
 }
 
 bool
@@ -189,7 +189,7 @@ DownloadApplyTxsWork::hasNext() const
 void
 DownloadApplyTxsWork::onSuccess()
 {
-    mLastApplied = mApp.getLedgerManager().getLastClosedLedgerHeader();
+    mLastQueuedToApply = mApp.getLedgerManager().getLastClosedLedgerHeader();
 }
 
 std::string

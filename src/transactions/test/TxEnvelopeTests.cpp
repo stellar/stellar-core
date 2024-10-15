@@ -1883,6 +1883,7 @@ TEST_CASE_VERSIONS("txenvelope", "[tx][envelope]")
                                      .header.scpValue.closeTime;
             app->getHerder().externalizeValue(txSet, 3, lastCloseTime,
                                               emptyUpgradeSteps);
+            testutil::crankFor(app->getClock(), std::chrono::seconds(1));
 
             REQUIRE(app->getLedgerManager().getLastClosedLedgerNum() == 3);
         };

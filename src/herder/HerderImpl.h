@@ -75,7 +75,8 @@ class HerderImpl : public Herder
 
     void start() override;
 
-    void lastClosedLedgerIncreased(bool latest) override;
+    void lastClosedLedgerIncreased(bool latest,
+                                   TxSetXDRFrameConstPtr txSet) override;
 
     SCP& getSCP();
     HerderSCPDriver&

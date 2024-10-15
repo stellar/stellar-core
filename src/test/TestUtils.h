@@ -22,6 +22,11 @@ namespace testutil
 {
 void crankSome(VirtualClock& clock);
 void crankFor(VirtualClock& clock, VirtualClock::duration duration);
+void crankUntil(Application& app, std::function<bool()> const& predicate,
+                VirtualClock::duration duration);
+void crankUntil(Application::pointer app,
+                std::function<bool()> const& predicate,
+                VirtualClock::duration duration);
 void injectSendPeersAndReschedule(VirtualClock::time_point& end,
                                   VirtualClock& clock, VirtualTimer& timer,
                                   LoopbackPeerConnection& connection);

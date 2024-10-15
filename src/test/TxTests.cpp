@@ -561,6 +561,10 @@ closeLedgerOn(Application& app, uint32 ledgerSeq, TimePoint closeTime,
     }
     app.getHerder().externalizeValue(txSet.first, ledgerSeq, closeTime,
                                      emptyUpgradeSteps);
+    while (app.getLedgerManager().getLastClosedLedgerNum() != ledgerSeq)
+    {
+        app.getClock().crank(true);
+    }
     REQUIRE(app.getLedgerManager().getLastClosedLedgerNum() == ledgerSeq);
     return getTransactionHistoryResults(app.getDatabase(), ledgerSeq);
 }
@@ -581,7 +585,10 @@ closeLedgerOn(Application& app, uint32 ledgerSeq, time_t closeTime,
 {
     app.getHerder().externalizeValue(txSet, ledgerSeq, closeTime,
                                      emptyUpgradeSteps);
-
+    while (app.getLedgerManager().getLastClosedLedgerNum() != ledgerSeq)
+    {
+        app.getClock().crank(true);
+    }
     auto z1 = getTransactionHistoryResults(app.getDatabase(), ledgerSeq);
 
     REQUIRE(app.getLedgerManager().getLastClosedLedgerNum() == ledgerSeq);
@@ -1771,11 +1778,16 @@ executeUpgrades(Application& app, xdr::xvector<UpgradeType, 6> const& upgrades,
     auto& lm = app.getLedgerManager();
     auto currLh = app.getLedgerManager().getLastClosedLedgerHeader().header;
 
-    auto const& lcl = lm.getLastClosedLedgerHeader();
+    auto lcl = lm.getLastClosedLedgerHeader();
     auto txSet = TxSetXDRFrame::makeEmpty(lcl);
     auto lastCloseTime = lcl.header.scpValue.closeTime;
     app.getHerder().externalizeValue(txSet, lcl.header.ledgerSeq + 1,
                                      lastCloseTime, upgrades);
+    while (app.getLedgerManager().getLastClosedLedgerNum() !=
+           lcl.header.ledgerSeq + 1)
+    {
+        app.getClock().crank(true);
+    }
     if (upgradesIgnored)
     {
         auto const& newHeader = lm.getLastClosedLedgerHeader().header;

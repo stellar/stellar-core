@@ -43,6 +43,7 @@
 #include "util/XDROperators.h"
 #include "util/XDRStream.h"
 #include "work/WorkScheduler.h"
+#include "xdrpp/printer.h"
 
 #include <fmt/format.h>
 
@@ -548,17 +549,10 @@ LedgerManagerImpl::getLastClosedLedgerNum() const
     return mLastClosedLedger.header.ledgerSeq;
 }
 
-SorobanNetworkConfig&
-LedgerManagerImpl::getSorobanNetworkConfigInternal()
-{
-    releaseAssert(mSorobanNetworkConfig);
-    return *mSorobanNetworkConfig;
-}
-
 SorobanNetworkConfig const&
 LedgerManagerImpl::getSorobanNetworkConfig()
 {
-    return getSorobanNetworkConfigInternal();
+    return *mSorobanNetworkConfig;
 }
 
 bool
@@ -571,7 +565,7 @@ LedgerManagerImpl::hasSorobanNetworkConfig() const
 SorobanNetworkConfig&
 LedgerManagerImpl::getMutableSorobanNetworkConfig()
 {
-    return getSorobanNetworkConfigInternal();
+    return *mSorobanNetworkConfig;
 }
 std::vector<TransactionMetaFrame> const&
 LedgerManagerImpl::getLastClosedLedgerTxMeta()
@@ -638,7 +632,8 @@ LedgerManagerImpl::publishSorobanMetrics()
 
 // called by txherder
 void
-LedgerManagerImpl::valueExternalized(LedgerCloseData const& ledgerData)
+LedgerManagerImpl::valueExternalized(LedgerCloseData const& ledgerData,
+                                     bool isLatestSlot)
 {
     ZoneScoped;
 
@@ -661,60 +656,21 @@ LedgerManagerImpl::valueExternalized(LedgerCloseData const& ledgerData)
         releaseAssert(false);
     }
 
-    closeLedgerIf(ledgerData);
-
+    // if catchup work is running, we don't want ledger manager to close
+    // this ledger and potentially cause issues.
     auto& cm = mApp.getCatchupManager();
-
-    cm.processLedger(ledgerData);
-
-    // We set the state to synced
-    // if we have closed the latest ledger we have heard of.
-    bool appliedLatest = false;
-    if (cm.getLargestLedgerSeqHeard() == getLastClosedLedgerNum())
+    bool catchupIsRunning =
+        cm.isCatchupInitialized() && !cm.catchupWorkIsDone();
+    if (lcl + 1 == ledgerData.getLedgerSeq() && catchupIsRunning)
     {
-        setState(LM_SYNCED_STATE);
-        appliedLatest = true;
+        CLOG_INFO(Ledger,
+                  "Can't close ledger: {}  in LM because catchup is running",
+                  ledgerAbbrev(mLastClosedLedger));
+        return;
     }
 
-    // New ledger(s) got closed, notify Herder
-    if (getLastClosedLedgerNum() > lcl)
-    {
-        CLOG_DEBUG(Ledger,
-                   "LedgerManager::valueExternalized LCL advanced {} -> {}",
-                   lcl, getLastClosedLedgerNum());
-        mApp.getHerder().lastClosedLedgerIncreased(appliedLatest);
-    }
-}
-
-void
-LedgerManagerImpl::closeLedgerIf(LedgerCloseData const& ledgerData)
-{
-    ZoneScoped;
-    if (mLastClosedLedger.header.ledgerSeq + 1 == ledgerData.getLedgerSeq())
-    {
-        auto& cm = mApp.getCatchupManager();
-        // if catchup work is running, we don't want ledger manager to close
-        // this ledger and potentially cause issues.
-        if (cm.isCatchupInitialized() && !cm.catchupWorkIsDone())
-        {
-            CLOG_INFO(
-                Ledger,
-                "Can't close ledger: {}  in LM because catchup is running",
-                ledgerAbbrev(mLastClosedLedger));
-            return;
-        }
-
-        closeLedger(ledgerData);
-        CLOG_INFO(Ledger, "Closed ledger: {}", ledgerAbbrev(mLastClosedLedger));
-    }
-    else if (ledgerData.getLedgerSeq() <= mLastClosedLedger.header.ledgerSeq)
-    {
-        CLOG_INFO(
-            Ledger,
-            "Skipping close ledger: local state is {}, more recent than {}",
-            mLastClosedLedger.header.ledgerSeq, ledgerData.getLedgerSeq());
-    }
-    else
+    bool synced = cm.processLedger(ledgerData, isLatestSlot);
+    if (!synced)
     {
         if (mState != LM_CATCHING_UP_STATE)
         {
@@ -787,6 +743,59 @@ LedgerManagerImpl::emitNextMeta()
     mNextMetaToEmit.reset();
 }
 
+void
+maybeSimulateSleep(Config const& cfg, size_t opSize,
+                   LogSlowExecution& closeTime)
+{
+    if (!cfg.OP_APPLY_SLEEP_TIME_WEIGHT_FOR_TESTING.empty())
+    {
+        // Sleep for a parameterized amount of time in simulation mode
+        std::discrete_distribution<uint32> distribution(
+            cfg.OP_APPLY_SLEEP_TIME_WEIGHT_FOR_TESTING.begin(),
+            cfg.OP_APPLY_SLEEP_TIME_WEIGHT_FOR_TESTING.end());
+        std::chrono::microseconds sleepFor{0};
+        for (size_t i = 0; i < opSize; i++)
+        {
+            sleepFor +=
+                cfg.OP_APPLY_SLEEP_TIME_DURATION_FOR_TESTING[distribution(
+                    gRandomEngine)];
+        }
+        std::chrono::microseconds applicationTime =
+            closeTime.checkElapsedTime();
+        if (applicationTime < sleepFor)
+        {
+            sleepFor -= applicationTime;
+            CLOG_DEBUG(Perf, "Simulate application: sleep for {} microseconds",
+                       sleepFor.count());
+            std::this_thread::sleep_for(sleepFor);
+        }
+    }
+}
+
+void
+ledgerCloseComplete(Application& app, uint32_t lcl, bool externalize,
+                    LedgerCloseData const& ledgerData)
+{
+    releaseAssert(threadIsMain());
+
+    // Continue execution on main
+    // We set the state to synced
+    // if we have closed the latest ledger we have heard of.
+    bool appliedLatest = false;
+
+    if (app.getCatchupManager().getLargestLedgerSeqHeard() <= lcl)
+    {
+        app.getLedgerManager().moveToSynced();
+        appliedLatest = true;
+    }
+    if (externalize)
+    {
+        // New ledger(s) got closed, notify Herder
+        app.getHerder().lastClosedLedgerIncreased(appliedLatest,
+                                                  ledgerData.getTxSet());
+    }
+}
+
 /*
     This is the main method that closes the current ledger based on
 the close context that was computed by SCP or by the historical module
@@ -794,7 +803,8 @@ during replays.
 
 */
 void
-LedgerManagerImpl::closeLedger(LedgerCloseData const& ledgerData)
+LedgerManagerImpl::closeLedger(LedgerCloseData const& ledgerData,
+                               bool externalize)
 {
 #ifdef BUILD_TESTS
     mLastLedgerTxMeta.clear();
@@ -907,7 +917,7 @@ LedgerManagerImpl::closeLedger(LedgerCloseData const& ledgerData)
         applicableTxSet->getTxsInApplyOrder();
 
     // first, prefetch source accounts for txset, then charge fees
-    prefetchTxSourceIds(txs);
+    prefetchTxSourceIds(mApp.getLedgerTxnRoot(), txs, mApp.getConfig());
     auto const mutableTxResults =
         processFeesSeqNums(txs, ltx, *applicableTxSet, ledgerCloseMeta);
 
@@ -1061,34 +1071,13 @@ LedgerManagerImpl::closeLedger(LedgerCloseData const& ledgerData)
     // step 5
     mApp.getBucketManager().forgetUnreferencedBuckets();
 
-    if (!mApp.getConfig().OP_APPLY_SLEEP_TIME_WEIGHT_FOR_TESTING.empty())
-    {
-        // Sleep for a parameterized amount of time in simulation mode
-        std::discrete_distribution<uint32> distribution(
-            mApp.getConfig().OP_APPLY_SLEEP_TIME_WEIGHT_FOR_TESTING.begin(),
-            mApp.getConfig().OP_APPLY_SLEEP_TIME_WEIGHT_FOR_TESTING.end());
-        std::chrono::microseconds sleepFor{0};
-        auto txSetSizeOp = applicableTxSet->sizeOpTotal();
-        for (size_t i = 0; i < txSetSizeOp; i++)
-        {
-            sleepFor +=
-                mApp.getConfig()
-                    .OP_APPLY_SLEEP_TIME_DURATION_FOR_TESTING[distribution(
-                        gRandomEngine)];
-        }
-        std::chrono::microseconds applicationTime =
-            closeLedgerTime.checkElapsedTime();
-        if (applicationTime < sleepFor)
-        {
-            sleepFor -= applicationTime;
-            CLOG_DEBUG(Perf, "Simulate application: sleep for {} microseconds",
-                       sleepFor.count());
-            std::this_thread::sleep_for(sleepFor);
-        }
-    }
+    maybeSimulateSleep(mApp.getConfig(), txs.size(), closeLedgerTime);
 
     std::chrono::duration<double> ledgerTimeSeconds = ledgerTime.Stop();
     CLOG_DEBUG(Perf, "Applied ledger in {} seconds", ledgerTimeSeconds.count());
+
+    ledgerCloseComplete(mApp, ledgerSeq, externalize, ledgerData);
+
     FrameMark;
 }
 
@@ -1322,12 +1311,7 @@ LedgerManagerImpl::updateNetworkConfig(AbstractLedgerTxn& rootLtx)
 {
     ZoneScoped;
 
-    uint32_t ledgerVersion{};
-    {
-        LedgerTxn ltx(rootLtx, false,
-                      TransactionMode::READ_ONLY_WITHOUT_SQL_TXN);
-        ledgerVersion = ltx.loadHeader().current().ledgerVersion;
-    }
+    uint32_t ledgerVersion = rootLtx.loadHeader().current().ledgerVersion;
 
     if (protocolVersionStartsFrom(ledgerVersion, SOROBAN_PROTOCOL_VERSION))
     {
@@ -1457,26 +1441,28 @@ LedgerManagerImpl::processFeesSeqNums(
 
 void
 LedgerManagerImpl::prefetchTxSourceIds(
-    std::vector<TransactionFrameBasePtr> const& txs)
+    AbstractLedgerTxnParent& rootLtx,
+    std::vector<TransactionFrameBasePtr> const& txs, Config const& config)
 {
     ZoneScoped;
-    if (mApp.getConfig().PREFETCH_BATCH_SIZE > 0)
+    if (config.PREFETCH_BATCH_SIZE > 0)
     {
         UnorderedSet<LedgerKey> keys;
         for (auto const& tx : txs)
         {
             tx->insertKeysForFeeProcessing(keys);
         }
-        mApp.getLedgerTxnRoot().prefetchClassic(keys);
+        rootLtx.prefetchClassic(keys);
     }
 }
 
 void
 LedgerManagerImpl::prefetchTransactionData(
-    std::vector<TransactionFrameBasePtr> const& txs)
+    AbstractLedgerTxnParent& rootLtx,
+    std::vector<TransactionFrameBasePtr> const& txs, Config const& config)
 {
     ZoneScoped;
-    if (mApp.getConfig().PREFETCH_BATCH_SIZE > 0)
+    if (config.PREFETCH_BATCH_SIZE > 0)
     {
         UnorderedSet<LedgerKey> sorobanKeys;
         auto lkMeter = make_unique<LedgerKeyMeter>();
@@ -1485,7 +1471,7 @@ LedgerManagerImpl::prefetchTransactionData(
         {
             if (tx->isSoroban())
             {
-                if (mApp.getConfig().isUsingBucketListDB())
+                if (config.isUsingBucketListDB())
                 {
                     tx->insertKeysForTxApply(sorobanKeys, lkMeter.get());
                 }
@@ -1497,15 +1483,14 @@ LedgerManagerImpl::prefetchTransactionData(
         }
         // Prefetch classic and soroban keys separately for greater visibility
         // into the performance of each mode.
-        if (mApp.getConfig().isUsingBucketListDB())
+        if (config.isUsingBucketListDB())
         {
             if (!sorobanKeys.empty())
             {
-                mApp.getLedgerTxnRoot().prefetchSoroban(sorobanKeys,
-                                                        lkMeter.get());
+                rootLtx.prefetchSoroban(sorobanKeys, lkMeter.get());
             }
         }
-        mApp.getLedgerTxnRoot().prefetchClassic(classicKeys);
+        rootLtx.prefetchClassic(classicKeys);
     }
 }
 
@@ -1535,7 +1520,7 @@ LedgerManagerImpl::applyTransactions(
                   ltx.loadHeader().current().ledgerSeq, txSet.summary());
     }
 
-    prefetchTransactionData(txs);
+    prefetchTransactionData(mApp.getLedgerTxnRoot(), txs, mApp.getConfig());
 
     Hash sorobanBasePrngSeed = txSet.getContentsHash();
     uint64_t txNum{0};
@@ -1718,8 +1703,8 @@ LedgerManagerImpl::transferLedgerEntriesToBucketList(
             ltxEvictions.commit();
         }
 
-        getSorobanNetworkConfigInternal().maybeSnapshotBucketListSize(
-            lh.ledgerSeq, ltx, mApp);
+        mSorobanNetworkConfig->maybeSnapshotBucketListSize(lh.ledgerSeq, ltx,
+                                                           mApp);
     }
 
     ltx.getAllEntries(initEntries, liveEntries, deadEntries);

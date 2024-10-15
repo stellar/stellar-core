@@ -36,6 +36,30 @@ crankFor(VirtualClock& clock, VirtualClock::duration duration)
 }
 
 void
+crankUntil(Application::pointer app, std::function<bool()> const& predicate,
+           VirtualClock::duration timeout)
+{
+    crankUntil(*app, predicate, timeout);
+}
+
+void
+crankUntil(Application& app, std::function<bool()> const& predicate,
+           VirtualClock::duration timeout)
+{
+    auto start = std::chrono::system_clock::now();
+    while (!predicate())
+    {
+        app.getClock().crank(false);
+        auto current = std::chrono::system_clock::now();
+        auto diff = current - start;
+        if (diff > timeout)
+        {
+            break;
+        }
+    }
+}
+
+void
 shutdownWorkScheduler(Application& app)
 {
     if (app.getClock().getIOContext().stopped())
