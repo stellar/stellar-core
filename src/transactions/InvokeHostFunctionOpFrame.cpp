@@ -56,7 +56,7 @@ toCxxBuf(T const& t)
 }
 
 CxxLedgerInfo
-getLedgerInfo(AbstractLedgerTxn& ltx, Application& app,
+getLedgerInfo(AbstractLedgerTxn& ltx, AppConnector& app,
               SorobanNetworkConfig const& sorobanConfig)
 {
     CxxLedgerInfo info{};
@@ -317,7 +317,7 @@ InvokeHostFunctionOpFrame::maybePopulateDiagnosticEvents(
 
 bool
 InvokeHostFunctionOpFrame::doApply(
-    Application& app, AbstractLedgerTxn& ltx, Hash const& sorobanBasePrngSeed,
+    AppConnector& app, AbstractLedgerTxn& ltx, Hash const& sorobanBasePrngSeed,
     OperationResult& res, std::shared_ptr<SorobanTxData> sorobanData) const
 {
     releaseAssertOrThrow(sorobanData);

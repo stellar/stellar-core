@@ -418,7 +418,8 @@ TEST_CASE("basic contract invocation", "[tx][soroban]")
                                                      addContractKeys);
         auto tx = invocation.createTx(&rootAccount);
 
-        auto result = tx->checkValid(test.getApp(), rootLtx, 0, 0, 0);
+        auto result =
+            tx->checkValid(test.getApp().getAppConnector(), rootLtx, 0, 0, 0);
 
         REQUIRE(tx->getFullFee() ==
                 spec.getInclusionFee() + spec.getResourceFee());
@@ -445,12 +446,14 @@ TEST_CASE("basic contract invocation", "[tx][soroban]")
 
         TransactionMetaFrame txm(test.getLedgerVersion());
         auto timerBefore = hostFnExecTimer.count();
-        bool success = tx->apply(test.getApp(), rootLtx, txm, result);
+        bool success =
+            tx->apply(test.getApp().getAppConnector(), rootLtx, txm, result);
         REQUIRE(hostFnExecTimer.count() - timerBefore > 0);
 
         {
             LedgerTxn ltx(rootLtx);
-            tx->processPostApply(test.getApp(), ltx, txm, result);
+            tx->processPostApply(test.getApp().getAppConnector(), ltx, txm,
+                                 result);
             ltx.commit();
         }
 
@@ -754,7 +757,8 @@ TEST_CASE("Soroban footprint validation", "[tx][soroban]")
         MutableTxResultPtr result;
         {
             LedgerTxn ltx(test.getApp().getLedgerTxnRoot());
-            result = tx->checkValid(test.getApp(), ltx, 0, 0, 0);
+            result =
+                tx->checkValid(test.getApp().getAppConnector(), ltx, 0, 0, 0);
         }
         REQUIRE(result->isSuccess() == shouldBeValid);
 
@@ -770,7 +774,8 @@ TEST_CASE("Soroban footprint validation", "[tx][soroban]")
         MutableTxResultPtr result;
         {
             LedgerTxn ltx(test.getApp().getLedgerTxnRoot());
-            result = tx->checkValid(test.getApp(), ltx, 0, 0, 0);
+            result =
+                tx->checkValid(test.getApp().getAppConnector(), ltx, 0, 0, 0);
         }
         REQUIRE(result->isSuccess() == shouldBeValid);
         if (!shouldBeValid)
@@ -798,7 +803,8 @@ TEST_CASE("Soroban footprint validation", "[tx][soroban]")
         MutableTxResultPtr result;
         {
             LedgerTxn ltx(test.getApp().getLedgerTxnRoot());
-            result = tx->checkValid(test.getApp(), ltx, 0, 0, 0);
+            result =
+                tx->checkValid(test.getApp().getAppConnector(), ltx, 0, 0, 0);
         }
         REQUIRE(result->isSuccess() == shouldBeValid);
         if (!shouldBeValid)
@@ -1448,7 +1454,7 @@ TEST_CASE("transaction validation diagnostics", "[tx][soroban]")
     MutableTxResultPtr result;
     {
         LedgerTxn ltx(test.getApp().getLedgerTxnRoot());
-        result = tx->checkValid(test.getApp(), ltx, 0, 0, 0);
+        result = tx->checkValid(test.getApp().getAppConnector(), ltx, 0, 0, 0);
     }
     REQUIRE(!test.isTxValid(tx));
 
@@ -3148,8 +3154,8 @@ TEST_CASE("settings upgrade command line utils", "[tx][soroban][upgrades]")
         auto tx = TransactionTestFrame::fromTxFrame(rawTx);
         LedgerTxn ltx(app->getLedgerTxnRoot());
         TransactionMetaFrame txm(ltx.loadHeader().current().ledgerVersion);
-        REQUIRE(tx->checkValidForTesting(*app, ltx, 0, 0, 0));
-        REQUIRE(tx->apply(*app, ltx, txm));
+        REQUIRE(tx->checkValidForTesting(app->getAppConnector(), ltx, 0, 0, 0));
+        REQUIRE(tx->apply(app->getAppConnector(), ltx, txm));
         ltx.commit();
     }
 
@@ -3215,8 +3221,9 @@ TEST_CASE("settings upgrade command line utils", "[tx][soroban][upgrades]")
         auto txRevertSettings = TransactionTestFrame::fromTxFrame(txRaw);
         LedgerTxn ltx(app->getLedgerTxnRoot());
         TransactionMetaFrame txm(ltx.loadHeader().current().ledgerVersion);
-        REQUIRE(txRevertSettings->checkValidForTesting(*app, ltx, 0, 0, 0));
-        REQUIRE(txRevertSettings->apply(*app, ltx, txm));
+        REQUIRE(txRevertSettings->checkValidForTesting(app->getAppConnector(),
+                                                       ltx, 0, 0, 0));
+        REQUIRE(txRevertSettings->apply(app->getAppConnector(), ltx, txm));
         ltx.commit();
 
         std::string command2 = "mode=set&configupgradesetkey=";

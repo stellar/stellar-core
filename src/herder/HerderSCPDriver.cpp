@@ -360,8 +360,6 @@ HerderSCPDriver::validateValue(uint64_t slotIndex, Value const& value,
         validateValueHelper(slotIndex, b, nomination);
     if (res != SCPDriver::kInvalidValue)
     {
-        auto const& lcl = mLedgerManager.getLastClosedLedgerHeader();
-
         LedgerUpgradeType lastUpgradeType = LEDGER_UPGRADE_VERSION;
 
         // check upgrades
@@ -419,8 +417,6 @@ HerderSCPDriver::extractValidValue(uint64_t slotIndex, Value const& value)
     if (validateValueHelper(slotIndex, b, true) ==
         SCPDriver::kFullyValidatedValue)
     {
-        auto const& lcl = mLedgerManager.getLastClosedLedgerHeader();
-
         // remove the upgrade steps we don't like
         LedgerUpgradeType thisUpgradeType;
         for (auto it = b.upgrades.begin(); it != b.upgrades.end();)

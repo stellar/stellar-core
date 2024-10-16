@@ -1139,8 +1139,7 @@ LedgerManagerImpl::setLastClosedLedger(
 
     mRebuildInMemoryState = false;
     advanceLedgerPointers(lastClosed.header);
-    LedgerTxn ltx2(mApp.getLedgerTxnRoot(), false,
-                   TransactionMode::READ_ONLY_WITHOUT_SQL_TXN);
+    LedgerTxn ltx2(mApp.getLedgerTxnRoot());
     if (protocolVersionStartsFrom(ltx2.loadHeader().current().ledgerVersion,
                                   SOROBAN_PROTOCOL_VERSION))
     {
@@ -1322,12 +1321,7 @@ LedgerManagerImpl::updateNetworkConfig(AbstractLedgerTxn& rootLtx)
 {
     ZoneScoped;
 
-    uint32_t ledgerVersion{};
-    {
-        LedgerTxn ltx(rootLtx, false,
-                      TransactionMode::READ_ONLY_WITHOUT_SQL_TXN);
-        ledgerVersion = ltx.loadHeader().current().ledgerVersion;
-    }
+    uint32_t ledgerVersion = rootLtx.loadHeader().current().ledgerVersion;
 
     if (protocolVersionStartsFrom(ledgerVersion, SOROBAN_PROTOCOL_VERSION))
     {
@@ -1567,8 +1561,8 @@ LedgerManagerImpl::applyTransactions(
         }
         ++txNum;
 
-        tx->apply(mApp, ltx, tm, mutableTxResult, subSeed);
-        tx->processPostApply(mApp, ltx, tm, mutableTxResult);
+        tx->apply(mApp.getAppConnector(), ltx, tm, mutableTxResult, subSeed);
+        tx->processPostApply(mApp.getAppConnector(), ltx, tm, mutableTxResult);
         TransactionResultPair results;
         results.transactionHash = tx->getContentsHash();
         results.result = mutableTxResult->getResult();

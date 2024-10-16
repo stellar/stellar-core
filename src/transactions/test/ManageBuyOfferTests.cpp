@@ -374,7 +374,7 @@ TEST_CASE_VERSIONS("manage buy offer liabilities", "[tx][offers]")
 
             {
                 LedgerTxn ltx(app->getLedgerTxnRoot());
-                tx->checkValidForTesting(*app, ltx, 0, 0, 0);
+                tx->checkValidForTesting(app->getAppConnector(), ltx, 0, 0, 0);
             }
 
             auto buyOp = std::static_pointer_cast<ManageBuyOfferOpFrame const>(

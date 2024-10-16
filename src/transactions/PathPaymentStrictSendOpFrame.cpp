@@ -31,7 +31,7 @@ PathPaymentStrictSendOpFrame::isOpSupported(LedgerHeader const& header) const
 
 bool
 PathPaymentStrictSendOpFrame::doApply(
-    Application& app, AbstractLedgerTxn& ltx, Hash const& sorobanBasePrngSeed,
+    AppConnector& app, AbstractLedgerTxn& ltx, Hash const& sorobanBasePrngSeed,
     OperationResult& res, std::shared_ptr<SorobanTxData> sorobanData) const
 {
     ZoneNamedN(applyZone, "PathPaymentStrictSendOp apply", true);

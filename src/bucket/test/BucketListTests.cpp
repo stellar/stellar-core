@@ -726,8 +726,7 @@ TEST_CASE_VERSIONS("network config snapshots BucketList size", "[bucketlist]")
 
             uint64_t correctAverage = sum / correctWindow.size();
 
-            LedgerTxn ltx(app->getLedgerTxnRoot(), false,
-                          TransactionMode::READ_ONLY_WITHOUT_SQL_TXN);
+            LedgerTxn ltx(app->getLedgerTxnRoot());
             REQUIRE(networkConfig.getAverageBucketListSize() == correctAverage);
 
             // Check on-disk sliding window

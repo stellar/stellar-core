@@ -46,6 +46,7 @@ class AbstractLedgerTxnParent;
 class BasicWork;
 enum class LoadGenMode;
 struct GeneratedLoadConfig;
+class AppConnector;
 
 #ifdef BUILD_TESTS
 class LoadGenerator;
@@ -325,6 +326,8 @@ class Application
     // is not possible, this method resets the database state back to genesis
     // (while preserving the overlay data).
     virtual void resetDBForInMemoryMode() = 0;
+
+    virtual AppConnector& getAppConnector() = 0;
 
   protected:
     Application()

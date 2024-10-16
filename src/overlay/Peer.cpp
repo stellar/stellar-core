@@ -52,7 +52,7 @@ static constexpr VirtualClock::time_point PING_NOT_SENT =
     VirtualClock::time_point::min();
 
 Peer::Peer(Application& app, PeerRole role)
-    : mAppConnector(app)
+    : mAppConnector(app.getAppConnector())
     , mNetworkID(app.getNetworkID())
     , mFlowControl(
           std::make_shared<FlowControl>(mAppConnector, useBackgroundThread()))

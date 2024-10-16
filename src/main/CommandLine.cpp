@@ -1896,7 +1896,6 @@ runApplyLoad(CommandLineArgs const& args)
 
             auto& app = *appPtr;
             {
-                auto& lm = app.getLedgerManager();
                 app.start();
 
                 ApplyLoad al(app, ledgerMaxInstructions,

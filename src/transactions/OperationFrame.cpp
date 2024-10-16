@@ -135,7 +135,7 @@ OperationFrame::OperationFrame(Operation const& op,
 }
 
 bool
-OperationFrame::apply(Application& app, SignatureChecker& signatureChecker,
+OperationFrame::apply(AppConnector& app, SignatureChecker& signatureChecker,
                       AbstractLedgerTxn& ltx, Hash const& sorobanBasePrngSeed,
                       OperationResult& res,
                       std::shared_ptr<SorobanTxData> sorobanData) const
@@ -217,7 +217,8 @@ OperationFrame::getSourceID() const
 // make sure sig is correct
 // verifies that the operation is well formed (operation specific)
 bool
-OperationFrame::checkValid(Application& app, SignatureChecker& signatureChecker,
+OperationFrame::checkValid(AppConnector& app,
+                           SignatureChecker& signatureChecker,
                            LedgerSnapshot const& ls, bool forApply,
                            OperationResult& res,
                            std::shared_ptr<SorobanTxData> sorobanData) const

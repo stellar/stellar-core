@@ -31,8 +31,7 @@ FlowControl::getOutboundQueueByteLimit(
     return mAppConnector.getConfig().OUTBOUND_TX_QUEUE_BYTE_LIMIT;
 }
 
-FlowControl::FlowControl(OverlayAppConnector& connector,
-                         bool useBackgroundThread)
+FlowControl::FlowControl(AppConnector& connector, bool useBackgroundThread)
     : mFlowControlCapacity(connector.getConfig(), mNodeID)
     , mFlowControlBytesCapacity(
           connector.getConfig(), mNodeID,

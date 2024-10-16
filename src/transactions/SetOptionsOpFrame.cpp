@@ -121,7 +121,7 @@ SetOptionsOpFrame::deleteSigner(AbstractLedgerTxn& ltx,
 }
 
 bool
-SetOptionsOpFrame::doApply(Application& app, AbstractLedgerTxn& ltx,
+SetOptionsOpFrame::doApply(AppConnector& app, AbstractLedgerTxn& ltx,
                            Hash const& sorobanBasePrngSeed,
                            OperationResult& res,
                            std::shared_ptr<SorobanTxData> sorobanData) const
