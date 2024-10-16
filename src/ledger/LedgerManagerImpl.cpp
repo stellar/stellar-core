@@ -900,22 +900,13 @@ LedgerManagerImpl::closeLedger(LedgerCloseData const& ledgerData)
         ledgerCloseMeta->populateTxSet(*txSet);
     }
 
-    // the transaction set that was agreed upon by consensus
-    // was sorted by hash; we reorder it so that transactions are
-    // sorted such that sequence numbers are respected
-    std::vector<TransactionFrameBasePtr> const txs =
-        applicableTxSet->getTxsInApplyOrder();
-
     // first, prefetch source accounts for txset, then charge fees
-    prefetchTxSourceIds(txs);
+    prefetchTxSourceIds(*applicableTxSet);
     auto const mutableTxResults =
-        processFeesSeqNums(txs, ltx, *applicableTxSet, ledgerCloseMeta);
+        processFeesSeqNums(*applicableTxSet, ltx, ledgerCloseMeta);
 
-    TransactionResultSet txResultSet;
-    txResultSet.results.reserve(txs.size());
-    // Subtle: after this call, `header` is invalidated, and is not safe to use
-    applyTransactions(*applicableTxSet, txs, mutableTxResults, ltx, txResultSet,
-                      ledgerCloseMeta);
+    auto txResultSet = applyTransactions(*applicableTxSet, mutableTxResults,
+                                         ltx, ledgerCloseMeta);
     if (mApp.getConfig().MODE_STORES_HISTORY_MISC)
     {
         storeTxSet(mApp.getDatabase(), ltx.loadHeader().current().ledgerSeq,
@@ -966,7 +957,7 @@ LedgerManagerImpl::closeLedger(LedgerCloseData const& ledgerData)
                 uem.changes = changes;
             }
             // Note: Index from 1 rather than 0 to match the behavior of
-            // storeTransaction and storeTransactionFee.
+            // storeTransaction.
             if (mApp.getConfig().MODE_STORES_HISTORY_MISC)
             {
                 Upgrades::storeUpgradeHistory(getDatabase(), ledgerSeq,
@@ -1362,13 +1353,12 @@ mergeOpInTx(std::vector<Operation> const& ops)
 
 std::vector<MutableTxResultPtr>
 LedgerManagerImpl::processFeesSeqNums(
-    std::vector<TransactionFrameBasePtr> const& txs,
-    AbstractLedgerTxn& ltxOuter, ApplicableTxSetFrame const& txSet,
+    ApplicableTxSetFrame const& txSet, AbstractLedgerTxn& ltxOuter,
     std::unique_ptr<LedgerCloseMetaFrame> const& ledgerCloseMeta)
 {
     ZoneScoped;
     std::vector<MutableTxResultPtr> txResults;
-    txResults.reserve(txs.size());
+    txResults.reserve(txSet.sizeTxTotal());
     CLOG_DEBUG(Ledger, "processing fees and sequence numbers");
     int index = 0;
     try
@@ -1378,42 +1368,43 @@ LedgerManagerImpl::processFeesSeqNums(
         std::map<AccountID, SequenceNumber> accToMaxSeq;
 
         bool mergeSeen = false;
-        for (auto tx : txs)
+        for (auto const& phase : txSet.getPhasesInApplyOrder())
         {
-            LedgerTxn ltxTx(ltx);
-
-            txResults.push_back(
-                tx->processFeeSeqNum(ltxTx, txSet.getTxBaseFee(tx, header)));
-
-            if (protocolVersionStartsFrom(
-                    ltxTx.loadHeader().current().ledgerVersion,
-                    ProtocolVersion::V_19))
+            for (auto const& tx : phase)
             {
-                auto res =
-                    accToMaxSeq.emplace(tx->getSourceID(), tx->getSeqNum());
-                if (!res.second)
+                LedgerTxn ltxTx(ltx);
+                txResults.push_back(
+                    tx->processFeeSeqNum(ltxTx, txSet.getTxBaseFee(tx)));
+
+                if (protocolVersionStartsFrom(
+                        ltxTx.loadHeader().current().ledgerVersion,
+                        ProtocolVersion::V_19))
                 {
-                    res.first->second =
-                        std::max(res.first->second, tx->getSeqNum());
+                    auto res =
+                        accToMaxSeq.emplace(tx->getSourceID(), tx->getSeqNum());
+                    if (!res.second)
+                    {
+                        res.first->second =
+                            std::max(res.first->second, tx->getSeqNum());
+                    }
+
+                    if (mergeOpInTx(tx->getRawOperations()))
+                    {
+                        mergeSeen = true;
+                    }
                 }
 
-                if (mergeOpInTx(tx->getRawOperations()))
+                LedgerEntryChanges changes = ltxTx.getChanges();
+                if (ledgerCloseMeta)
                 {
-                    mergeSeen = true;
+                    ledgerCloseMeta->pushTxProcessingEntry();
+                    ledgerCloseMeta->setLastTxProcessingFeeProcessingChanges(
+                        changes);
                 }
+                ++index;
+                ltxTx.commit();
             }
-
-            LedgerEntryChanges changes = ltxTx.getChanges();
-            if (ledgerCloseMeta)
-            {
-                ledgerCloseMeta->pushTxProcessingEntry();
-                ledgerCloseMeta->setLastTxProcessingFeeProcessingChanges(
-                    changes);
-            }
-            ++index;
-            ltxTx.commit();
         }
-
         if (protocolVersionStartsFrom(ltx.loadHeader().current().ledgerVersion,
                                       ProtocolVersion::V_19) &&
             mergeSeen)
@@ -1456,24 +1447,25 @@ LedgerManagerImpl::processFeesSeqNums(
 }
 
 void
-LedgerManagerImpl::prefetchTxSourceIds(
-    std::vector<TransactionFrameBasePtr> const& txs)
+LedgerManagerImpl::prefetchTxSourceIds(ApplicableTxSetFrame const& txSet)
 {
     ZoneScoped;
     if (mApp.getConfig().PREFETCH_BATCH_SIZE > 0)
     {
         UnorderedSet<LedgerKey> keys;
-        for (auto const& tx : txs)
+        for (auto const& phase : txSet.getPhases())
         {
-            tx->insertKeysForFeeProcessing(keys);
+            for (auto const& tx : phase)
+            {
+                tx->insertKeysForFeeProcessing(keys);
+            }
         }
         mApp.getLedgerTxnRoot().prefetchClassic(keys);
     }
 }
 
 void
-LedgerManagerImpl::prefetchTransactionData(
-    std::vector<TransactionFrameBasePtr> const& txs)
+LedgerManagerImpl::prefetchTransactionData(ApplicableTxSetFrame const& txSet)
 {
     ZoneScoped;
     if (mApp.getConfig().PREFETCH_BATCH_SIZE > 0)
@@ -1481,22 +1473,25 @@ LedgerManagerImpl::prefetchTransactionData(
         UnorderedSet<LedgerKey> sorobanKeys;
         auto lkMeter = make_unique<LedgerKeyMeter>();
         UnorderedSet<LedgerKey> classicKeys;
-        for (auto const& tx : txs)
+        for (auto const& phase : txSet.getPhases())
         {
-            if (tx->isSoroban())
+            for (auto const& tx : phase)
             {
-                if (mApp.getConfig().isUsingBucketListDB())
+                if (tx->isSoroban())
                 {
-                    tx->insertKeysForTxApply(sorobanKeys, lkMeter.get());
+                    if (mApp.getConfig().isUsingBucketListDB())
+                    {
+                        tx->insertKeysForTxApply(sorobanKeys, lkMeter.get());
+                    }
+                }
+                else
+                {
+                    tx->insertKeysForTxApply(classicKeys, nullptr);
                 }
             }
-            else
-            {
-                tx->insertKeysForTxApply(classicKeys, nullptr);
-            }
         }
-        // Prefetch classic and soroban keys separately for greater visibility
-        // into the performance of each mode.
+        // Prefetch classic and soroban keys separately for greater
+        // visibility into the performance of each mode.
         if (mApp.getConfig().isUsingBucketListDB())
         {
             if (!sorobanKeys.empty())
@@ -1509,21 +1504,20 @@ LedgerManagerImpl::prefetchTransactionData(
     }
 }
 
-void
+TransactionResultSet
 LedgerManagerImpl::applyTransactions(
     ApplicableTxSetFrame const& txSet,
-    std::vector<TransactionFrameBasePtr> const& txs,
     std::vector<MutableTxResultPtr> const& mutableTxResults,
-    AbstractLedgerTxn& ltx, TransactionResultSet& txResultSet,
+    AbstractLedgerTxn& ltx,
     std::unique_ptr<LedgerCloseMetaFrame> const& ledgerCloseMeta)
 {
     ZoneNamedN(txsZone, "applyTransactions", true);
-    releaseAssert(txs.size() == mutableTxResults.size());
+    size_t numTxs = txSet.sizeTxTotal();
+    size_t numOps = txSet.sizeOpTotal();
+    releaseAssert(numTxs == mutableTxResults.size());
     int index = 0;
 
     // Record counts
-    auto numTxs = txs.size();
-    auto numOps = txSet.sizeOpTotal();
     if (numTxs > 0)
     {
         mTransactionCount.Update(static_cast<int64_t>(numTxs));
@@ -1534,92 +1528,96 @@ LedgerManagerImpl::applyTransactions(
         CLOG_INFO(Tx, "applying ledger {} ({})",
                   ltx.loadHeader().current().ledgerSeq, txSet.summary());
     }
+    TransactionResultSet txResultSet;
+    txResultSet.results.reserve(numTxs);
 
-    prefetchTransactionData(txs);
-
+    prefetchTransactionData(txSet);
+    auto phases = txSet.getPhasesInApplyOrder();
     Hash sorobanBasePrngSeed = txSet.getContentsHash();
     uint64_t txNum{0};
     uint64_t txSucceeded{0};
     uint64_t txFailed{0};
     uint64_t sorobanTxSucceeded{0};
     uint64_t sorobanTxFailed{0};
-    for (size_t i = 0; i < txs.size(); ++i)
+    size_t resultIndex = 0;
+    for (auto const& phase : phases)
     {
-        ZoneNamedN(txZone, "applyTransaction", true);
-        auto tx = txs.at(i);
-        auto mutableTxResult = mutableTxResults.at(i);
-
-        auto txTime = mTransactionApply.TimeScope();
-        TransactionMetaFrame tm(ltx.loadHeader().current().ledgerVersion);
-        CLOG_DEBUG(Tx, " tx#{} = {} ops={} txseq={} (@ {})", index,
-                   hexAbbrev(tx->getContentsHash()), tx->getNumOperations(),
-                   tx->getSeqNum(),
-                   mApp.getConfig().toShortString(tx->getSourceID()));
-
-        Hash subSeed = sorobanBasePrngSeed;
-        // If tx can use the seed, we need to compute a sub-seed for it.
-        if (tx->isSoroban())
+        for (auto const& tx : phase)
         {
-            SHA256 subSeedSha;
-            subSeedSha.add(sorobanBasePrngSeed);
-            subSeedSha.add(xdr::xdr_to_opaque(txNum));
-            subSeed = subSeedSha.finish();
-        }
-        ++txNum;
+            ZoneNamedN(txZone, "applyTransaction", true);
+            auto mutableTxResult = mutableTxResults.at(resultIndex++);
 
-        tx->apply(mApp, ltx, tm, mutableTxResult, subSeed);
-        tx->processPostApply(mApp, ltx, tm, mutableTxResult);
-        TransactionResultPair results;
-        results.transactionHash = tx->getContentsHash();
-        results.result = mutableTxResult->getResult();
-        if (results.result.result.code() == TransactionResultCode::txSUCCESS)
-        {
+            auto txTime = mTransactionApply.TimeScope();
+            TransactionMetaFrame tm(ltx.loadHeader().current().ledgerVersion);
+            CLOG_DEBUG(Tx, " tx#{} = {} ops={} txseq={} (@ {})", index,
+                       hexAbbrev(tx->getContentsHash()), tx->getNumOperations(),
+                       tx->getSeqNum(),
+                       mApp.getConfig().toShortString(tx->getSourceID()));
+
+            Hash subSeed = sorobanBasePrngSeed;
+            // If tx can use the seed, we need to compute a sub-seed for it.
             if (tx->isSoroban())
             {
-                ++sorobanTxSucceeded;
+                SHA256 subSeedSha;
+                subSeedSha.add(sorobanBasePrngSeed);
+                subSeedSha.add(xdr::xdr_to_opaque(txNum));
+                subSeed = subSeedSha.finish();
             }
-            ++txSucceeded;
-        }
-        else
-        {
-            if (tx->isSoroban())
+            ++txNum;
+
+            tx->apply(mApp, ltx, tm, mutableTxResult, subSeed);
+            tx->processPostApply(mApp, ltx, tm, mutableTxResult);
+            TransactionResultPair results;
+            results.transactionHash = tx->getContentsHash();
+            results.result = mutableTxResult->getResult();
+            if (results.result.result.code() ==
+                TransactionResultCode::txSUCCESS)
             {
-                ++sorobanTxFailed;
+                if (tx->isSoroban())
+                {
+                    ++sorobanTxSucceeded;
+                }
+                ++txSucceeded;
             }
-            ++txFailed;
-        }
+            else
+            {
+                if (tx->isSoroban())
+                {
+                    ++sorobanTxFailed;
+                }
+                ++txFailed;
+            }
 
-        // First gather the TransactionResultPair into the TxResultSet for
-        // hashing into the ledger header.
-        txResultSet.results.emplace_back(results);
-
+            // First gather the TransactionResultPair into the TxResultSet for
+            // hashing into the ledger header.
+            txResultSet.results.emplace_back(results);
 #ifdef BUILD_TESTS
-        mLastLedgerTxMeta.push_back(tm);
+            mLastLedgerTxMeta.push_back(tm);
 #endif
+            // Then potentially add that TRP and its associated TransactionMeta
+            // into the associated slot of any LedgerCloseMeta we're collecting.
+            if (ledgerCloseMeta)
+            {
+                ledgerCloseMeta->setTxProcessingMetaAndResultPair(
+                    tm.getXDR(), std::move(results), index);
+            }
 
-        // Then potentially add that TRP and its associated TransactionMeta
-        // into the associated slot of any LedgerCloseMeta we're collecting.
-        if (ledgerCloseMeta)
-        {
-            ledgerCloseMeta->setTxProcessingMetaAndResultPair(
-                tm.getXDR(), std::move(results), index);
-        }
-
-        // Then finally store the results and meta into the txhistory table.
-        // if we're running in a mode that has one.
-        //
-        // Note to future: when we eliminate the txhistory for archiving, the
-        // next step can be removed.
-        //
-        // Also note: for historical reasons the history tables number
-        // txs counting from 1, not 0. We preserve this for the time being
-        // in case anyone depends on it.
-        ++index;
-        if (mApp.getConfig().MODE_STORES_HISTORY_MISC)
-        {
-            auto ledgerSeq = ltx.loadHeader().current().ledgerSeq;
-            storeTransaction(mApp.getDatabase(), ledgerSeq, tx, tm.getXDR(),
-                             txResultSet, mApp.getConfig());
+            // Then finally store the results and meta into the txhistory table.
+            // if we're running in a mode that has one.
+            //
+            // Note to future: when we eliminate the txhistory for archiving,
+            // the next step can be removed.
+            //
+            // Also note: for historical reasons the history tables number
+            // txs counting from 1, not 0. We preserve this for the time being
+            // in case anyone depends on it.
+            ++index;
+            if (mApp.getConfig().MODE_STORES_HISTORY_MISC)
+            {
+                auto ledgerSeq = ltx.loadHeader().current().ledgerSeq;
+                storeTransaction(mApp.getDatabase(), ledgerSeq, tx, tm.getXDR(),
+                                 txResultSet, mApp.getConfig());
+            }
         }
     }
 
@@ -1628,6 +1626,7 @@ LedgerManagerImpl::applyTransactions(
     mSorobanTransactionApplySucceeded.inc(sorobanTxSucceeded);
     mSorobanTransactionApplyFailed.inc(sorobanTxFailed);
     logTxApplyMetrics(ltx, numTxs, numOps);
+    return txResultSet;
 }
 
 void
@@ -1661,8 +1660,9 @@ LedgerManagerImpl::storeCurrentLedger(LedgerHeader const& header,
     {
         bl = mApp.getBucketManager().getBucketList();
     }
-    // Store the current HAS in the database; this is really just to checkpoint
-    // the bucketlist so we can survive a restart and re-attach to the buckets.
+    // Store the current HAS in the database; this is really just to
+    // checkpoint the bucketlist so we can survive a restart and re-attach
+    // to the buckets.
     HistoryArchiveState has(header.ledgerSeq, bl,
                             mApp.getConfig().NETWORK_PASSPHRASE);
 
@@ -1744,24 +1744,26 @@ LedgerManagerImpl::ledgerClosed(
                ledgerSeq, currLedgerVers);
 
     // There is a subtle bug in the upgrade path that wasn't noticed until
-    // protocol 20. For a ledger that upgrades from protocol vN to vN+1, there
-    // are two different assumptions in different parts of the ledger-close
-    // path:
-    //   - In closeLedger we mostly treat the ledger as being on vN, eg. during
+    // protocol 20. For a ledger that upgrades from protocol vN to vN+1,
+    // there are two different assumptions in different parts of the
+    // ledger-close path:
+    //   - In closeLedger we mostly treat the ledger as being on vN, eg.
+    //   during
     //     tx apply and LCM construction.
-    //   - In the final stage, when we call ledgerClosed, we pass vN+1 because
-    //     the upgrade completed and modified the ltx header, and we fish the
-    //     protocol out of the ltx header
-    // Before LedgerCloseMetaV1, this inconsistency was mostly harmless since
-    // LedgerCloseMeta was not modified after the LTX header was modified.
-    // However, starting with protocol 20, LedgerCloseMeta is modified after
-    // updating the ltx header when populating BucketList related meta. This
-    // means that this function will attempt to call LedgerCloseMetaV1
-    // functions, but ledgerCloseMeta is actually a LedgerCloseMetaV0 because it
-    // was constructed with the previous protocol version prior to the upgrade.
-    // Due to this, we must check the initial protocol version of ledger instead
-    // of the ledger version of the current ltx header, which may have been
-    // modified via an upgrade.
+    //   - In the final stage, when we call ledgerClosed, we pass vN+1
+    //   because
+    //     the upgrade completed and modified the ltx header, and we fish
+    //     the protocol out of the ltx header
+    // Before LedgerCloseMetaV1, this inconsistency was mostly harmless
+    // since LedgerCloseMeta was not modified after the LTX header was
+    // modified. However, starting with protocol 20, LedgerCloseMeta is
+    // modified after updating the ltx header when populating BucketList
+    // related meta. This means that this function will attempt to call
+    // LedgerCloseMetaV1 functions, but ledgerCloseMeta is actually a
+    // LedgerCloseMetaV0 because it was constructed with the previous
+    // protocol version prior to the upgrade. Due to this, we must check the
+    // initial protocol version of ledger instead of the ledger version of
+    // the current ltx header, which may have been modified via an upgrade.
     transferLedgerEntriesToBucketList(
         ltx, ledgerCloseMeta, ltx.loadHeader().current(), initialLedgerVers);
     if (ledgerCloseMeta &&
