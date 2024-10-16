@@ -306,6 +306,7 @@ Config::Config() : NODE_SEED(SecretKey::random())
 
 #ifdef BUILD_TESTS
     TEST_CASES_ENABLED = false;
+    CATCHUP_SKIP_KNOWN_RESULTS_FOR_TESTING = false;
 #endif
 
 #ifdef BEST_OFFER_DEBUGGING
@@ -1151,6 +1152,12 @@ Config::processConfig(std::shared_ptr<cpptoml::table> t)
                      CATCHUP_RECENT =
                          readInt<uint32_t>(item, 0, UINT32_MAX - 1);
                  }},
+#ifdef BUILD_TESTS
+                {"CATCHUP_SKIP_KNOWN_RESULTS_FOR_TESTING",
+                 [&]() {
+                     CATCHUP_SKIP_KNOWN_RESULTS_FOR_TESTING = readBool(item);
+                 }},
+#endif // BUILD_TESTS
                 {"ARTIFICIALLY_GENERATE_LOAD_FOR_TESTING",
                  [&]() {
                      ARTIFICIALLY_GENERATE_LOAD_FOR_TESTING = readBool(item);

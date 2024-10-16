@@ -71,6 +71,7 @@ class MutableTransactionResultBase : public NonMovableOrCopyable
 {
   protected:
     std::unique_ptr<TransactionResult> mTxResult;
+    std::optional<TransactionResult> mReplayTransactionResult{std::nullopt};
 
     MutableTransactionResultBase();
     MutableTransactionResultBase(MutableTransactionResultBase&& rhs);
@@ -97,8 +98,13 @@ class MutableTransactionResultBase : public NonMovableOrCopyable
 
     virtual void refundSorobanFee(int64_t feeRefund,
                                   uint32_t ledgerVersion) = 0;
-
     virtual bool isSuccess() const = 0;
+#ifdef BUILD_TESTS
+    virtual std::optional<TransactionResult> const&
+    getReplayTransactionResult() const = 0;
+    virtual void
+    setReplayTransactionResult(TransactionResult const& replayResult) = 0;
+#endif
 };
 
 class MutableTransactionResult : public MutableTransactionResultBase
@@ -124,6 +130,12 @@ class MutableTransactionResult : public MutableTransactionResultBase
     TransactionResult const& getResult() const override;
     TransactionResultCode getResultCode() const override;
     void setResultCode(TransactionResultCode code) override;
+#ifdef BUILD_TESTS
+    void
+    setReplayTransactionResult(TransactionResult const& replayResult) override;
+    std::optional<TransactionResult> const&
+    getReplayTransactionResult() const override;
+#endif // BUILD_TESTS
 
     OperationResult& getOpResultAt(size_t index) override;
     std::shared_ptr<SorobanTxData> getSorobanData() override;
@@ -177,5 +189,12 @@ class FeeBumpMutableTransactionResult : public MutableTransactionResultBase
 
     void refundSorobanFee(int64_t feeRefund, uint32_t ledgerVersion) override;
     bool isSuccess() const override;
+
+#ifdef BUILD_TESTS
+    void
+    setReplayTransactionResult(TransactionResult const& replayResult) override;
+    std::optional<TransactionResult> const&
+    getReplayTransactionResult() const override;
+#endif // BUILD_TESTS
 };
 }

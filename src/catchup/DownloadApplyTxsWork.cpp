@@ -43,7 +43,6 @@ DownloadApplyTxsWork::yieldMoreWork()
     {
         throw std::runtime_error("Work has no more children to iterate over!");
     }
-
     CLOG_INFO(History,
               "Downloading, unzipping and applying {} for checkpoint {}",
               typeString(FileType::HISTORY_FILE_TYPE_TRANSACTIONS),
@@ -80,6 +79,53 @@ DownloadApplyTxsWork::yieldMoreWork()
         mApp, mDownloadDir, LedgerRange::inclusive(low, high), cb);
 
     std::vector<std::shared_ptr<BasicWork>> seq{getAndUnzip};
+    std::vector<FileTransferInfo> filesToTransfer{ft};
+    std::vector<std::shared_ptr<BasicWork>> optionalDownloads;
+#ifdef BUILD_TESTS
+    if (mApp.getConfig().CATCHUP_SKIP_KNOWN_RESULTS_FOR_TESTING)
+    {
+        CLOG_INFO(History,
+                  "Downloading, unzipping and applying {} for checkpoint {}",
+                  typeString(FileType::HISTORY_FILE_TYPE_RESULTS),
+                  mCheckpointToQueue);
+
+        FileTransferInfo resultsFile(mDownloadDir,
+                                     FileType::HISTORY_FILE_TYPE_RESULTS,
+                                     mCheckpointToQueue);
+        auto getResultsWork = std::make_shared<GetAndUnzipRemoteFileWork>(
+            mApp, resultsFile, mArchive, /*logErrorOnFailure=*/false);
+        std::weak_ptr<GetAndUnzipRemoteFileWork> getResultsWorkWeak =
+            getResultsWork;
+        seq.emplace_back(getResultsWork);
+        seq.emplace_back(std::make_shared<WorkWithCallback>(
+            mApp, "get-results-" + std::to_string(mCheckpointToQueue),
+            [apply, getResultsWorkWeak, checkpoint, &dir](Application& app) {
+                auto getResults = getResultsWorkWeak.lock();
+                if (getResults && getResults->getState() != State::WORK_SUCCESS)
+                {
+                    auto archive = getResults->getArchive();
+                    if (archive)
+                    {
+                        FileTransferInfo ti(dir,
+                                            FileType::HISTORY_FILE_TYPE_RESULTS,
+                                            checkpoint);
+                        CLOG_WARNING(
+                            History,
+                            "Archive {} maybe contains corrupt results file "
+                            "{}. "
+                            "This is not fatal as long as the archive contains "
+                            "valid transaction history. Catchup will proceed "
+                            "but"
+                            "the node will not be able to skip known results.",
+                            archive->getName(), ti.remoteName());
+                    }
+                }
+                return true;
+            }));
+
+        filesToTransfer.push_back(resultsFile);
+    }
+#endif // BUILD_TESTS
 
     auto maybeWaitForMerges = [](Application& app) {
         if (app.getConfig().CATCHUP_WAIT_MERGES_TX_APPLY_FOR_TESTING)
@@ -139,28 +185,34 @@ DownloadApplyTxsWork::yieldMoreWork()
             mApp, "wait-merges" + apply->getName(), maybeWaitForMerges, apply));
     }
 
-    seq.push_back(std::make_shared<WorkWithCallback>(
-        mApp, "delete-transactions-" + std::to_string(mCheckpointToQueue),
-        [ft](Application& app) {
-            try
-            {
-                std::filesystem::remove(
-                    std::filesystem::path(ft.localPath_nogz()));
-                CLOG_DEBUG(History, "Deleted transactions {}",
+    for (auto const& ft : filesToTransfer)
+    {
+        auto deleteWorkName = "delete-" + ft.getTypeString() + "-" +
+                              std::to_string(mCheckpointToQueue);
+        seq.push_back(std::make_shared<WorkWithCallback>(
+            mApp, deleteWorkName, [ft](Application& app) {
+                CLOG_DEBUG(History, "Deleting {} {}", ft.getTypeString(),
                            ft.localPath_nogz());
+                try
+                {
+                    std::filesystem::remove(
+                        std::filesystem::path(ft.localPath_nogz()));
+                    CLOG_DEBUG(History, "Deleted {} {}", ft.getTypeString(),
+                               ft.localPath_nogz());
+                }
+                catch (std::filesystem::filesystem_error const& e)
+                {
+                    CLOG_ERROR(History, "Could not delete {} {}: {}",
+                               ft.getTypeString(), ft.localPath_nogz(),
+                               e.what());
+                    return false;
+                }
                 return true;
-            }
-            catch (std::filesystem::filesystem_error const& e)
-            {
-                CLOG_ERROR(History, "Could not delete transactions {}: {}",
-                           ft.localPath_nogz(), e.what());
-                return false;
-            }
-        }));
-
+            }));
+    }
     auto nextWork = std::make_shared<WorkSequence>(
         mApp, "download-apply-" + std::to_string(mCheckpointToQueue), seq,
-        BasicWork::RETRY_NEVER);
+        BasicWork::RETRY_NEVER, true /*stop at first failure*/);
     mCheckpointToQueue += mApp.getHistoryManager().getCheckpointFrequency();
     mLastYieldedWork = nextWork;
     return nextWork;

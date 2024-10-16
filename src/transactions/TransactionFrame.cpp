@@ -1434,10 +1434,10 @@ TransactionFrame::checkValidWithOptionallyChargedFee(
     auto txResult = createSuccessResultWithFeeCharged(
         ls.getLedgerHeader().current(), minBaseFee, false);
     releaseAssert(txResult);
-
     SignatureChecker signatureChecker{
         ls.getLedgerHeader().current().ledgerVersion, getContentsHash(),
         getSignatures(mEnvelope)};
+
     std::optional<FeePair> sorobanResourceFee;
     if (protocolVersionStartsFrom(ls.getLedgerHeader().current().ledgerVersion,
                                   SOROBAN_PROTOCOL_VERSION) &&
@@ -1574,6 +1574,24 @@ TransactionFrame::applyOperations(SignatureChecker& signatureChecker,
                                   Hash const& sorobanBasePrngSeed) const
 {
     ZoneScoped;
+#ifdef BUILD_TESTS
+    auto const& result = txResult.getReplayTransactionResult();
+    if (result && result->result.code() != txSUCCESS)
+    {
+        // Sub-zone for skips
+        ZoneScopedN("skipped failed");
+        CLOG_DEBUG(Tx, "Skipping replay of failed transaction: tx {}",
+                   binToHex(getContentsHash()));
+        txResult.setResultCode(result->result.code());
+        // results field is only active if code is txFAILED or txSUCCESS
+        if (result->result.code() == txFAILED)
+        {
+            txResult.getResult().result.results() = result->result.results();
+        }
+        return false;
+    }
+#endif
+
     auto& internalErrorCounter = app.getMetrics().NewCounter(
         {"ledger", "transaction", "internal-error"});
     bool reportInternalErrOnException = true;
@@ -1785,8 +1803,24 @@ TransactionFrame::apply(AppConnector& app, AbstractLedgerTxn& ltx,
     {
         mCachedAccountPreProtocol8.reset();
         uint32_t ledgerVersion = ltx.loadHeader().current().ledgerVersion;
-        SignatureChecker signatureChecker{ledgerVersion, getContentsHash(),
-                                          getSignatures(mEnvelope)};
+        std::unique_ptr<SignatureChecker> signatureChecker;
+#ifdef BUILD_TESTS
+        // If the txResult has a replay result (catchup in skip mode is
+        // enabled),
+        //  we do not perform signature verification.
+        if (txResult->getReplayTransactionResult())
+        {
+            signatureChecker = std::make_unique<AlwaysValidSignatureChecker>(
+                ledgerVersion, getContentsHash(), getSignatures(mEnvelope));
+        }
+        else
+        {
+#endif // BUILD_TESTS
+            signatureChecker = std::make_unique<SignatureChecker>(
+                ledgerVersion, getContentsHash(), getSignatures(mEnvelope));
+#ifdef BUILD_TESTS
+        }
+#endif // BUILD_TESTS
 
         //  when applying, a failure during tx validation means that
         //  we'll skip trying to apply operations but we'll still
@@ -1809,7 +1843,7 @@ TransactionFrame::apply(AppConnector& app, AbstractLedgerTxn& ltx,
         }
         LedgerTxn ltxTx(ltx);
         LedgerSnapshot ltxStmt(ltxTx);
-        auto cv = commonValid(app, signatureChecker, ltxStmt, 0, true,
+        auto cv = commonValid(app, *signatureChecker, ltxStmt, 0, true,
                               chargeFee, 0, 0, sorobanResourceFee, txResult);
         if (cv >= ValidationType::kInvalidUpdateSeqNum)
         {
@@ -1817,7 +1851,7 @@ TransactionFrame::apply(AppConnector& app, AbstractLedgerTxn& ltx,
         }
 
         bool signaturesValid =
-            processSignatures(cv, signatureChecker, ltxTx, *txResult);
+            processSignatures(cv, *signatureChecker, ltxTx, *txResult);
 
         meta.pushTxChangesBefore(ltxTx.getChanges());
         ltxTx.commit();
@@ -1835,7 +1869,7 @@ TransactionFrame::apply(AppConnector& app, AbstractLedgerTxn& ltx,
                     updateSorobanMetrics(app);
                 }
 
-                ok = applyOperations(signatureChecker, app, ltx, meta,
+                ok = applyOperations(*signatureChecker, app, ltx, meta,
                                      *txResult, sorobanBasePrngSeed);
             }
             return ok;

@@ -55,6 +55,7 @@
 #include <Tracy.hpp>
 
 #include <chrono>
+#include <optional>
 #include <regex>
 #include <sstream>
 #include <stdexcept>
@@ -909,8 +910,9 @@ LedgerManagerImpl::closeLedger(LedgerCloseData const& ledgerData)
 
     // first, prefetch source accounts for txset, then charge fees
     prefetchTxSourceIds(txs);
-    auto const mutableTxResults =
-        processFeesSeqNums(txs, ltx, *applicableTxSet, ledgerCloseMeta);
+
+    auto const mutableTxResults = processFeesSeqNums(
+        txs, ltx, *applicableTxSet, ledgerCloseMeta, ledgerData);
 
     TransactionResultSet txResultSet;
     txResultSet.results.reserve(txs.size());
@@ -1347,7 +1349,8 @@ std::vector<MutableTxResultPtr>
 LedgerManagerImpl::processFeesSeqNums(
     std::vector<TransactionFrameBasePtr> const& txs,
     AbstractLedgerTxn& ltxOuter, ApplicableTxSetFrame const& txSet,
-    std::unique_ptr<LedgerCloseMetaFrame> const& ledgerCloseMeta)
+    std::unique_ptr<LedgerCloseMetaFrame> const& ledgerCloseMeta,
+    LedgerCloseData const& ledgerData)
 {
     ZoneScoped;
     std::vector<MutableTxResultPtr> txResults;
@@ -1360,6 +1363,20 @@ LedgerManagerImpl::processFeesSeqNums(
         auto header = ltx.loadHeader().current();
         std::map<AccountID, SequenceNumber> accToMaxSeq;
 
+#ifdef BUILD_TESTS
+        // If we have expected results, we assign them to the mutable tx results
+        // here.
+        std::optional<std::vector<TransactionResultPair>::const_iterator>
+            expectedResultsIter = std::nullopt;
+        auto expectedResults = ledgerData.getExpectedResults();
+        if (expectedResults)
+        {
+            releaseAssert(mApp.getCatchupManager().isCatchupInitialized());
+            expectedResultsIter =
+                std::make_optional(expectedResults->results.begin());
+        }
+#endif
+
         bool mergeSeen = false;
         for (auto tx : txs)
         {
@@ -1367,6 +1384,18 @@ LedgerManagerImpl::processFeesSeqNums(
 
             txResults.push_back(
                 tx->processFeeSeqNum(ltxTx, txSet.getTxBaseFee(tx, header)));
+#ifdef BUILD_TESTS
+            if (expectedResultsIter)
+            {
+                releaseAssert(*expectedResultsIter !=
+                              expectedResults->results.end());
+                releaseAssert((*expectedResultsIter)->transactionHash ==
+                              tx->getContentsHash());
+                txResults.back()->setReplayTransactionResult(
+                    (*expectedResultsIter)->result);
+                ++(*expectedResultsIter);
+            }
+#endif // BUILD_TESTS
 
             if (protocolVersionStartsFrom(
                     ltxTx.loadHeader().current().ledgerVersion,
@@ -1550,10 +1579,12 @@ LedgerManagerImpl::applyTransactions(
         }
         ++txNum;
 
-        tx->apply(mApp.getAppConnector(), ltx, tm, mutableTxResult, subSeed);
-        tx->processPostApply(mApp.getAppConnector(), ltx, tm, mutableTxResult);
         TransactionResultPair results;
         results.transactionHash = tx->getContentsHash();
+
+        tx->apply(mApp.getAppConnector(), ltx, tm, mutableTxResult, subSeed);
+        tx->processPostApply(mApp.getAppConnector(), ltx, tm, mutableTxResult);
+
         results.result = mutableTxResult->getResult();
         if (results.result.result.code() == TransactionResultCode::txSUCCESS)
         {

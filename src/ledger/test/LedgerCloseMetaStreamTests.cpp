@@ -294,6 +294,11 @@ TEST_CASE("LedgerCloseMetaStream file descriptor - REPLAY_IN_MEMORY",
         cfg.RUN_STANDALONE = true;
         cfg.setInMemoryMode();
         cfg.EXPERIMENTAL_PRECAUTION_DELAY_META = delayMeta;
+        SECTION("skip mode")
+        {
+            cfg.MODE_STORES_HISTORY_MISC = true;
+            cfg.CATCHUP_SKIP_KNOWN_RESULTS_FOR_TESTING = true;
+        }
         VirtualClock clock;
         auto app = createTestApplication(clock, cfg, /*newdb=*/false);
 

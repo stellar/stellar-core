@@ -15,18 +15,21 @@
 
 namespace stellar
 {
-
 class SignatureChecker
 {
   public:
     explicit SignatureChecker(
         uint32_t protocolVersion, Hash const& contentsHash,
         xdr::xvector<DecoratedSignature, 20> const& signatures);
-
+#ifdef BUILD_TESTS
+    virtual bool checkSignature(std::vector<Signer> const& signersV,
+                                int32_t neededWeight);
+    virtual bool checkAllSignaturesUsed() const;
+#else
     bool checkSignature(std::vector<Signer> const& signersV,
                         int32_t neededWeight);
     bool checkAllSignaturesUsed() const;
-
+#endif // BUILD_TESTS
   private:
     uint32_t mProtocolVersion;
     Hash const& mContentsHash;
@@ -34,4 +37,28 @@ class SignatureChecker
 
     std::vector<bool> mUsedSignatures;
 };
+
+#ifdef BUILD_TESTS
+class AlwaysValidSignatureChecker : public SignatureChecker
+{
+  public:
+    AlwaysValidSignatureChecker(
+        uint32_t protocolVersion, Hash const& contentsHash,
+        xdr::xvector<DecoratedSignature, 20> const& signatures)
+        : SignatureChecker(protocolVersion, contentsHash, signatures)
+    {
+    }
+
+    bool
+    checkSignature(std::vector<Signer> const&, int32_t) override
+    {
+        return true;
+    }
+    bool
+    checkAllSignaturesUsed() const override
+    {
+        return true;
+    }
 };
+#endif // BUILD_TESTS
+}
