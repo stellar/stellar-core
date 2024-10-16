@@ -1268,6 +1268,11 @@ ApplicationImpl::getLoadGenerator()
     }
     return *mLoadGenerator;
 }
+Config&
+ApplicationImpl::getMutableConfig()
+{
+    return mConfig;
+}
 #endif
 
 void
