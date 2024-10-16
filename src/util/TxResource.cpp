@@ -169,7 +169,8 @@ Resource::canAdd(Resource const& other) const
     releaseAssert(size() == other.size());
     for (size_t i = 0; i < size(); i++)
     {
-        if (INT64_MAX - mResources[i] < other.mResources[i])
+        if (std::numeric_limits<int64_t>::max() - mResources[i] <
+            other.mResources[i])
         {
             return false;
         }

@@ -32,7 +32,7 @@ if test -z "${WFLAGS+set}"; then
    WFLAGS="$WFLAGS -Werror=unused-result"
 fi
 
-test "${CFLAGS+set}" || CFLAGS="-g -O2 -fno-omit-frame-pointer"
+test "${CFLAGS+set}" || CFLAGS="-g -fno-omit-frame-pointer"
 test "${CXXFLAGS+set}" || CXXFLAGS="$CFLAGS"
 
 AC_PROG_CC([clang gcc cc])
@@ -113,6 +113,16 @@ AS_IF([test "x$enable_codecoverage" = "xyes"], [
   LDFLAGS="$LDFLAGS -fprofile-instr-generate -fcoverage-mapping"
   CXXFLAGS="$CXXFLAGS -fprofile-instr-generate -fcoverage-mapping"
   CFLAGS="$CFLAGS -fprofile-instr-generate -fcoverage-mapping"
+])
+
+AC_ARG_ENABLE([debugmode],
+    AS_HELP_STRING([--enable-debugmode],
+        [build in debug mode]))
+
+AS_IF([test "x$enable_debugmode" != "xyes"], [
+    AC_MSG_NOTICE([ adding -O2 optimization flags ])
+    CXXFLAGS="$CXXFLAGS -O2"
+    CFLAGS="$CFLAGS -O2"
 ])
 
 AC_ARG_ENABLE([threadsanitizer],
