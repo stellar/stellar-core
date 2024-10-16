@@ -275,6 +275,11 @@ class Application
 
     // Access the load generator for manual operation.
     virtual LoadGenerator& getLoadGenerator() = 0;
+
+    // Returns the mutable config of the app. This is only useful for testing
+    // the config flags that are used in dynamic fashion (i.e. not for the app
+    // initialization), use with caution.
+    virtual Config& getMutableConfig() = 0;
 #endif
 
     // Execute any administrative commands written in the Config.COMMANDS
