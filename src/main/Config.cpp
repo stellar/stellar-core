@@ -1568,8 +1568,8 @@ Config::processConfig(std::shared_ptr<cpptoml::table> t)
                  }},
                 {"TESTING_STARTING_EVICTION_SCAN_LEVEL",
                  [&]() {
-                     TESTING_STARTING_EVICTION_SCAN_LEVEL =
-                         readInt<uint32_t>(item, 1, BucketList::kNumLevels - 1);
+                     TESTING_STARTING_EVICTION_SCAN_LEVEL = readInt<uint32_t>(
+                         item, 1, LiveBucketList::kNumLevels - 1);
                  }},
                 {"TESTING_MAX_ENTRIES_TO_ARCHIVE",
                  [&]() {

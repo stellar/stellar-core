@@ -731,7 +731,7 @@ LedgerManagerImpl::closeLedgerIf(LedgerCloseData const& ledgerData)
 void
 LedgerManagerImpl::startCatchup(
     CatchupConfiguration configuration, std::shared_ptr<HistoryArchive> archive,
-    std::set<std::shared_ptr<Bucket>> bucketsToRetain)
+    std::set<std::shared_ptr<LiveBucket>> bucketsToRetain)
 {
     ZoneScoped;
     setState(LM_CATCHING_UP_STATE);
@@ -1309,10 +1309,14 @@ LedgerManagerImpl::advanceLedgerPointers(LedgerHeader const& header,
     if (mApp.getConfig().isUsingBucketListDB() &&
         header.ledgerSeq != prevLedgerSeq)
     {
-        mApp.getBucketManager()
-            .getBucketSnapshotManager()
-            .updateCurrentSnapshot(std::make_unique<BucketListSnapshot>(
-                mApp.getBucketManager().getBucketList(), header));
+        auto& bm = mApp.getBucketManager();
+        auto liveSnapshot = std::make_unique<BucketListSnapshot<LiveBucket>>(
+            bm.getLiveBucketList(), header);
+        auto hotArchiveSnapshot =
+            std::make_unique<BucketListSnapshot<HotArchiveBucket>>(
+                bm.getHotArchiveBucketList(), header);
+        bm.getBucketSnapshotManager().updateCurrentSnapshot(
+            std::move(liveSnapshot), std::move(hotArchiveSnapshot));
     }
 }
 
@@ -1650,10 +1654,10 @@ LedgerManagerImpl::storeCurrentLedger(LedgerHeader const& header,
     mApp.getPersistentState().setState(PersistentState::kLastClosedLedger,
                                        binToHex(hash));
 
-    BucketList bl;
+    LiveBucketList bl;
     if (mApp.getConfig().MODE_ENABLES_BUCKETLIST)
     {
-        bl = mApp.getBucketManager().getBucketList();
+        bl = mApp.getBucketManager().getLiveBucketList();
     }
     // Store the current HAS in the database; this is really just to checkpoint
     // the bucketlist so we can survive a restart and re-attach to the buckets.
@@ -1719,8 +1723,8 @@ LedgerManagerImpl::transferLedgerEntriesToBucketList(
     ltx.getAllEntries(initEntries, liveEntries, deadEntries);
     if (blEnabled)
     {
-        mApp.getBucketManager().addBatch(mApp, lh, initEntries, liveEntries,
-                                         deadEntries);
+        mApp.getBucketManager().addLiveBatch(mApp, lh, initEntries, liveEntries,
+                                             deadEntries);
     }
 }
 

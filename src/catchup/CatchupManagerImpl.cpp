@@ -238,7 +238,7 @@ CatchupManagerImpl::processLedger(LedgerCloseData const& ledgerData)
 void
 CatchupManagerImpl::startCatchup(
     CatchupConfiguration configuration, std::shared_ptr<HistoryArchive> archive,
-    std::set<std::shared_ptr<Bucket>> bucketsToRetain)
+    std::set<std::shared_ptr<LiveBucket>> bucketsToRetain)
 {
     ZoneScoped;
     auto lastClosedLedger = mApp.getLedgerManager().getLastClosedLedgerNum();

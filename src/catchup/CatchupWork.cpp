@@ -77,7 +77,7 @@ setHerderStateTo(FileTransferInfo const& ft, uint32_t ledger, Application& app)
 
 CatchupWork::CatchupWork(Application& app,
                          CatchupConfiguration catchupConfiguration,
-                         std::set<std::shared_ptr<Bucket>> bucketsToRetain,
+                         std::set<std::shared_ptr<LiveBucket>> bucketsToRetain,
                          std::shared_ptr<HistoryArchive> archive)
     : Work(app, "catchup", BasicWork::RETRY_NEVER)
     , mLocalState{app.getLedgerManager().getLastClosedLedgerHAS()}

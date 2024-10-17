@@ -517,6 +517,13 @@ for_versions_from(std::vector<uint32> const& versions, Application& app,
 }
 
 void
+for_versions_from(uint32 from, Config const& cfg,
+                  std::function<void(Config const&)> const& f)
+{
+    for_versions(from, Config::CURRENT_LEDGER_PROTOCOL_VERSION, cfg, f);
+}
+
+void
 for_all_versions(Application& app, std::function<void(void)> const& f)
 {
     for_versions(1, Config::CURRENT_LEDGER_PROTOCOL_VERSION, app, f);

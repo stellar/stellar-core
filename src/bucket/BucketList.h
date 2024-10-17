@@ -352,36 +352,39 @@ struct InflationWinner;
 
 namespace testutil
 {
-class BucketListDepthModifier;
+template <class BucketT> class BucketListDepthModifier;
 }
 
-class BucketLevel
+template <class BucketT> class BucketLevel
 {
+    static_assert(std::is_same_v<BucketT, LiveBucket> ||
+                  std::is_same_v<BucketT, HotArchiveBucket>);
+
     uint32_t mLevel;
-    FutureBucket mNextCurr;
-    std::shared_ptr<Bucket> mCurr;
-    std::shared_ptr<Bucket> mSnap;
+    FutureBucket<BucketT> mNextCurr;
+    std::shared_ptr<BucketT> mCurr;
+    std::shared_ptr<BucketT> mSnap;
 
   public:
     BucketLevel(uint32_t i);
     uint256 getHash() const;
-    FutureBucket const& getNext() const;
-    FutureBucket& getNext();
-    std::shared_ptr<Bucket> getCurr() const;
-    std::shared_ptr<Bucket> getSnap() const;
-    void setNext(FutureBucket const& fb);
-    void setCurr(std::shared_ptr<Bucket>);
-    void setSnap(std::shared_ptr<Bucket>);
+    FutureBucket<BucketT> const& getNext() const;
+    FutureBucket<BucketT>& getNext();
+    std::shared_ptr<BucketT> getCurr() const;
+    std::shared_ptr<BucketT> getSnap() const;
+    void setNext(FutureBucket<BucketT> const& fb);
+    void setCurr(std::shared_ptr<BucketT>);
+    void setSnap(std::shared_ptr<BucketT>);
     void commit();
     void prepare(Application& app, uint32_t currLedger,
-                 uint32_t currLedgerProtocol, std::shared_ptr<Bucket> snap,
-                 std::vector<std::shared_ptr<Bucket>> const& shadows,
+                 uint32_t currLedgerProtocol, std::shared_ptr<BucketT> snap,
+                 std::vector<std::shared_ptr<BucketT>> const& shadows,
                  bool countMergeEvents);
-    std::shared_ptr<Bucket> snap();
+    std::shared_ptr<BucketT> snap();
 };
 
 // NOTE: The access specifications for this class have been carefully chosen to
-//       make it so BucketList::kNumLevels can only be modified from
+//       make it so LiveBucketList::kNumLevels can only be modified from
 //       BucketListDepthModifier -- not even BucketList can modify it. Please
 //       use care when modifying this class.
 class BucketListDepth
@@ -395,14 +398,27 @@ class BucketListDepth
 
     operator uint32_t() const;
 
-    friend class testutil::BucketListDepthModifier;
+    template <class BucketT> friend class testutil::BucketListDepthModifier;
 };
 
-class BucketList
+// While every BucketList shares the same high level structure wrt to spill
+// schedules, merges at the bucket level, etc, each BucketList type hold
+// different types of entries and has different merge logic at the individual
+// entry level. This pure virtual base class defines the shared structure of all
+// BucketLists. It must be extended for each specific BucketList type, where the
+// template parameter BucketT refers to the underlying Bucket type.
+template <class BucketT> class BucketListBase
 {
-    std::vector<BucketLevel> mLevels;
+    static_assert(std::is_same_v<BucketT, LiveBucket> ||
+                  std::is_same_v<BucketT, HotArchiveBucket>);
+
+  protected:
+    std::vector<BucketLevel<BucketT>> mLevels;
 
   public:
+    // Trivial pure virtual destructor to make this an abstract class
+    virtual ~BucketListBase() = 0;
+
     // Number of bucket levels in the bucketlist. Every bucketlist in the system
     // will have this many levels and it effectively gets wired-in to the
     // protocol. Careful about changing it.
@@ -436,49 +452,29 @@ class BucketList
     // should spill curr->snap and start merging snap into its next level.
     static bool levelShouldSpill(uint32_t ledger, uint32_t level);
 
-    // Returns true if at given `level` dead entries should be kept.
-    static bool keepDeadEntries(uint32_t level);
+    // Returns true if at given `level` tombstone entries should be kept. A
+    // "tombstone" entry is the entry type that represents null in the given
+    // BucketList. For LiveBucketList, this is DEADENTRY. For
+    // HotArchiveBucketList, HOT_ARCHIVE_LIVE.
+    static bool keepTombstoneEntries(uint32_t level);
 
     // Number of ledgers it takes a bucket to spill/receive an incoming spill
     static uint32_t bucketUpdatePeriod(uint32_t level, bool isCurr);
 
     // Create a new BucketList with every `kNumLevels` levels, each with
     // an empty bucket in `curr` and `snap`.
-    BucketList();
+    BucketListBase();
 
     // Return level `i` of the BucketList.
-    BucketLevel const& getLevel(uint32_t i) const;
+    BucketLevel<BucketT> const& getLevel(uint32_t i) const;
 
     // Return level `i` of the BucketList.
-    BucketLevel& getLevel(uint32_t i);
+    BucketLevel<BucketT>& getLevel(uint32_t i);
 
     // Return a cumulative hash of the entire bucketlist; this is the hash of
     // the concatenation of each level's hash, each of which in turn is the hash
     // of the concatenation of the hashes of the `curr` and `snap` buckets.
     Hash getHash() const;
-
-    // Reset Eviction Iterator position if an incoming spill or upgrade has
-    // invalidated the previous position
-    static void updateStartingEvictionIterator(EvictionIterator& iter,
-                                               uint32_t firstScanLevel,
-                                               uint32_t ledgerSeq);
-
-    // Update eviction iter and record stats after scanning a region in one
-    // bucket. Returns true if scan has looped back to startIter, false
-    // otherwise.
-    static bool updateEvictionIterAndRecordStats(
-        EvictionIterator& iter, EvictionIterator startIter,
-        uint32_t configFirstScanLevel, uint32_t ledgerSeq,
-        std::shared_ptr<EvictionStatistics> stats, EvictionCounters& counters);
-
-    static void checkIfEvictionScanIsStuck(EvictionIterator const& evictionIter,
-                                           uint32_t scanSize,
-                                           std::shared_ptr<Bucket const> b,
-                                           EvictionCounters& counters);
-
-    void scanForEvictionLegacy(Application& app, AbstractLedgerTxn& ltx,
-                               uint32_t ledgerSeq, EvictionCounters& counters,
-                               std::shared_ptr<EvictionStatistics> stats);
 
     // Restart any merges that might be running on background worker threads,
     // merging buckets between levels. This needs to be called after forcing a
@@ -511,6 +507,38 @@ class BucketList
     // Returns the total size of the BucketList, in bytes, excluding all
     // FutureBuckets
     uint64_t getSize() const;
+};
+
+// The LiveBucketList stores the current canonical state of the ledger. It is
+// made up of LiveBucket buckets, which in turn store individual entries of type
+// BucketEntry. When an entry is "evicted" from the ledger, it is removed from
+// the LiveBucketList. Depending on the evicted entry type, it may then be added
+// to the HotArchiveBucketList.
+class LiveBucketList : public BucketListBase<LiveBucket>
+{
+  public:
+    // Reset Eviction Iterator position if an incoming spill or upgrade has
+    // invalidated the previous position
+    static void updateStartingEvictionIterator(EvictionIterator& iter,
+                                               uint32_t firstScanLevel,
+                                               uint32_t ledgerSeq);
+
+    // Update eviction iter and record stats after scanning a region in one
+    // bucket. Returns true if scan has looped back to startIter, false
+    // otherwise.
+    static bool updateEvictionIterAndRecordStats(
+        EvictionIterator& iter, EvictionIterator startIter,
+        uint32_t configFirstScanLevel, uint32_t ledgerSeq,
+        std::shared_ptr<EvictionStatistics> stats, EvictionCounters& counters);
+
+    static void checkIfEvictionScanIsStuck(EvictionIterator const& evictionIter,
+                                           uint32_t scanSize,
+                                           std::shared_ptr<LiveBucket const> b,
+                                           EvictionCounters& counters);
+
+    void scanForEvictionLegacy(Application& app, AbstractLedgerTxn& ltx,
+                               uint32_t ledgerSeq, EvictionCounters& counters,
+                               std::shared_ptr<EvictionStatistics> stats);
 
     // Add a batch of initial (created), live (updated) and dead entries to the
     // bucketlist, representing the entries effected by closing
@@ -524,6 +552,27 @@ class BucketList
                   std::vector<LedgerEntry> const& initEntries,
                   std::vector<LedgerEntry> const& liveEntries,
                   std::vector<LedgerKey> const& deadEntries);
+
     BucketEntryCounters sumBucketEntryCounters() const;
+};
+
+// The HotArchiveBucketList stores recently evicted entries. It contains Buckets
+// of type HotArchiveBucket, which store individual entries of type
+// HotArchiveBucketEntry.
+class HotArchiveBucketList : public BucketListBase<HotArchiveBucket>
+{
+  private:
+    // For now, this class is identical to LiveBucketList. Later PRs will add
+    // additional functionality.
+
+    // Merge result future
+    // This should be the result of merging this entire list into a single file.
+    // The MerkleBucketList is then initalized with this result
+  public:
+    void addBatch(Application& app, uint32_t currLedger,
+                  uint32_t currLedgerProtocol,
+                  std::vector<LedgerEntry> const& archiveEntries,
+                  std::vector<LedgerKey> const& restoredEntries,
+                  std::vector<LedgerKey> const& deletedEntries);
 };
 }
