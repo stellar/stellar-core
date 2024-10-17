@@ -25,7 +25,7 @@ class DownloadApplyTxsWork : public BatchWork
 {
     LedgerRange const mRange;
     TmpDir const& mDownloadDir;
-    LedgerHeaderHistoryEntry& mLastApplied;
+    LedgerHeaderHistoryEntry& mLastQueuedToApply;
     uint32_t mCheckpointToQueue;
     std::shared_ptr<BasicWork> mLastYieldedWork;
     bool const mWaitForPublish;

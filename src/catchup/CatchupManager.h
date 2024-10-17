@@ -52,7 +52,12 @@ class CatchupManager
 
     // Process ledgers that could not be applied, and determine if catchup
     // should run
-    virtual void processLedger(LedgerCloseData const& ledgerData) = 0;
+
+    // Return true is latest ledger was applied, and there are no syncing
+    // ledgers, Return false if ledgers are buffered with gaps, and we need to
+    // start catchup
+    virtual bool processLedger(LedgerCloseData const& ledgerData,
+                               bool isLatestSlot) = 0;
 
     // Forcibly switch the application into catchup mode, treating `toLedger`
     // as the destination ledger number and count as the number of past ledgers

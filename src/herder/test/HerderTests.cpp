@@ -97,22 +97,9 @@ TEST_CASE_VERSIONS("standalone", "[herder][acceptance]")
             };
 
             auto waitForExternalize = [&]() {
-                bool stop = false;
                 auto prev = app->getLedgerManager().getLastClosedLedgerNum();
-                VirtualTimer checkTimer(*app);
-
-                auto check = [&](asio::error_code const& error) {
-                    REQUIRE(!error);
-                    REQUIRE(app->getLedgerManager().getLastClosedLedgerNum() >
-                            prev);
-                    stop = true;
-                };
-
-                checkTimer.expires_from_now(
-                    Herder::EXP_LEDGER_TIMESPAN_SECONDS +
-                    std::chrono::seconds(1));
-                checkTimer.async_wait(check);
-                while (!stop)
+                while (app->getLedgerManager().getLastClosedLedgerNum() <=
+                       prev + 1)
                 {
                     app->getClock().crank(true);
                 }
@@ -4443,6 +4430,7 @@ TEST_CASE("do not flood invalid transactions", "[herder]")
     VirtualClock clock;
     auto cfg = getTestConfig();
     cfg.FLOOD_TX_PERIOD_MS = 1; // flood as fast as possible
+    cfg.ARTIFICIALLY_DELAY_LEDGER_CLOSE_FOR_TESTING = std::chrono::seconds(0);
     auto app = createTestApplication(clock, cfg);
 
     auto& lm = app->getLedgerManager();
@@ -4496,6 +4484,8 @@ TEST_CASE("do not flood too many soroban transactions",
             cfg.FLOOD_OP_RATE_PER_LEDGER = 2.0;
             cfg.FLOOD_SOROBAN_TX_PERIOD_MS = 50;
             cfg.FLOOD_SOROBAN_RATE_PER_LEDGER = 2.0;
+            cfg.ARTIFICIALLY_DELAY_LEDGER_CLOSE_FOR_TESTING =
+                std::chrono::seconds(0);
             return cfg;
         });
 
@@ -4673,6 +4663,8 @@ TEST_CASE("do not flood too many transactions", "[herder][transactionqueue]")
                 cfg.FORCE_SCP = false;
                 cfg.FLOOD_TX_PERIOD_MS = 100;
                 cfg.FLOOD_OP_RATE_PER_LEDGER = 2.0;
+                cfg.ARTIFICIALLY_DELAY_LEDGER_CLOSE_FOR_TESTING =
+                    std::chrono::seconds(0);
                 return cfg;
             });
 

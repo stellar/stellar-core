@@ -74,7 +74,7 @@ class LedgerManagerImpl : public LedgerManager
 
     std::unique_ptr<LedgerCloseMetaFrame> mNextMetaToEmit;
 
-    std::vector<MutableTxResultPtr> processFeesSeqNums(
+    static std::vector<MutableTxResultPtr> processFeesSeqNums(
         std::vector<TransactionFrameBasePtr> const& txs,
         AbstractLedgerTxn& ltxOuter, ApplicableTxSetFrame const& txSet,
         std::unique_ptr<LedgerCloseMetaFrame> const& ledgerCloseMeta);
@@ -95,10 +95,14 @@ class LedgerManagerImpl : public LedgerManager
                  uint32_t initialLedgerVers);
 
     void storeCurrentLedger(LedgerHeader const& header, bool storeHeader);
-    void
-    prefetchTransactionData(std::vector<TransactionFrameBasePtr> const& txs);
-    void prefetchTxSourceIds(std::vector<TransactionFrameBasePtr> const& txs);
-    void closeLedgerIf(LedgerCloseData const& ledgerData);
+    static void
+    prefetchTransactionData(AbstractLedgerTxnParent& rootLtx,
+                            std::vector<TransactionFrameBasePtr> const& txs,
+                            Config const& config);
+    static void
+    prefetchTxSourceIds(AbstractLedgerTxnParent& rootLtx,
+                        std::vector<TransactionFrameBasePtr> const& txs,
+                        Config const& config);
 
     State mState;
 
@@ -109,8 +113,6 @@ class LedgerManagerImpl : public LedgerManager
     void setState(State s);
 
     void emitNextMeta();
-
-    SorobanNetworkConfig& getSorobanNetworkConfigInternal();
 
     // Publishes soroban metrics, including select network config limits as well
     // as the actual ledger usage.
@@ -146,7 +148,8 @@ class LedgerManagerImpl : public LedgerManager
     State getState() const override;
     std::string getStateHuman() const override;
 
-    void valueExternalized(LedgerCloseData const& ledgerData) override;
+    void valueExternalized(LedgerCloseData const& ledgerData,
+                           bool isLatestSlot) override;
 
     uint32_t getLastMaxTxSetSize() const override;
     uint32_t getLastMaxTxSetSizeOps() const override;
@@ -186,7 +189,8 @@ class LedgerManagerImpl : public LedgerManager
                  std::shared_ptr<HistoryArchive> archive,
                  std::set<std::shared_ptr<Bucket>> bucketsToRetain) override;
 
-    void closeLedger(LedgerCloseData const& ledgerData) override;
+    void closeLedger(LedgerCloseData const& ledgerData,
+                     bool externalize) override;
     void deleteOldEntries(Database& db, uint32_t ledgerSeq,
                           uint32_t count) override;
 

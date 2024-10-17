@@ -43,8 +43,12 @@ class CatchupManagerImpl : public CatchupManager
     // maintain the invariants above.
     std::map<uint32_t, LedgerCloseData> mSyncingLedgers;
     medida::Counter& mSyncingLedgersSize;
+    // Most recent ledger that was queued to be applied by CatchupManager.
+    // Once applued, and before a new ledger is scheduled, this is equivalent to
+    // LCL.
+    std::optional<uint32_t> mLastQueuedToApply;
 
-    void addAndTrimSyncingLedgers(LedgerCloseData const& ledgerData);
+    void maybeUpdateLastQueuedToApply();
     void startOnlineCatchup();
     void trimSyncingLedgers();
     void tryApplySyncingLedgers();
@@ -61,7 +65,8 @@ class CatchupManagerImpl : public CatchupManager
     CatchupManagerImpl(Application& app);
     ~CatchupManagerImpl() override;
 
-    void processLedger(LedgerCloseData const& ledgerData) override;
+    bool processLedger(LedgerCloseData const& ledgerData,
+                       bool isLatestSlot) override;
     void
     startCatchup(CatchupConfiguration configuration,
                  std::shared_ptr<HistoryArchive> archive,

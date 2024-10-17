@@ -3,6 +3,9 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "herder/HerderImpl.h"
+#include "bucket/BucketListSnapshot.h"
+#include "bucket/BucketManager.h"
+#include "bucket/BucketSnapshotManager.h"
 #include "crypto/Hex.h"
 #include "crypto/KeyUtils.h"
 #include "crypto/SHA.h"
@@ -14,9 +17,6 @@
 #include "herder/TxSetFrame.h"
 #include "herder/TxSetUtils.h"
 #include "ledger/LedgerManager.h"
-#include "ledger/LedgerTxn.h"
-#include "ledger/LedgerTxnEntry.h"
-#include "ledger/LedgerTxnHeader.h"
 #include "lib/json/json.h"
 #include "main/Application.h"
 #include "main/Config.h"
@@ -249,10 +249,6 @@ HerderImpl::newSlotExternalized(bool synchronous, StellarValue const& value)
     // start timing next externalize from this point
     mLastExternalize = mApp.getClock().now();
 
-    // In order to update the transaction queue we need to get the
-    // applied transactions.
-    updateTransactionQueue(mPendingEnvelopes.getTxSet(value.txSetHash));
-
     // perform cleanups
     // Evict slots that are outside of our ledger validity bracket
     auto minSlotToRemember = getMinLedgerSeqToRemember();
@@ -359,7 +355,7 @@ HerderImpl::processExternalized(uint64 slotIndex, StellarValue const& value,
         writeDebugTxSet(ledgerData);
     }
 
-    mLedgerManager.valueExternalized(ledgerData);
+    mLedgerManager.valueExternalized(ledgerData, isLatestSlot);
 }
 
 void
@@ -1136,13 +1132,18 @@ HerderImpl::safelyProcessSCPQueue(bool synchronous)
 }
 
 void
-HerderImpl::lastClosedLedgerIncreased(bool latest)
+HerderImpl::lastClosedLedgerIncreased(bool latest, TxSetXDRFrameConstPtr txSet)
 {
+    releaseAssert(threadIsMain());
     maybeSetupSorobanQueue(
         mLedgerManager.getLastClosedLedgerHeader().header.ledgerVersion);
 
     // Ensure potential upgrades are handled in overlay
     maybeHandleUpgrade();
+
+    // In order to update the transaction queue we need to get the
+    // applied transactions.
+    updateTransactionQueue(txSet);
 
     if (latest)
     {
@@ -1531,7 +1532,7 @@ HerderImpl::getUpgradesJson()
 void
 HerderImpl::forceSCPStateIntoSyncWithLastClosedLedger()
 {
-    auto const& header = mLedgerManager.getLastClosedLedgerHeader().header;
+    auto header = mLedgerManager.getLastClosedLedgerHeader().header;
     setTrackingSCPState(header.ledgerSeq, header.scpValue,
                         /* isTrackingNetwork */ true);
 }

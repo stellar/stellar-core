@@ -74,6 +74,7 @@ TestAccount::getTrustlineBalance(PoolID const& poolID) const
 int64_t
 TestAccount::getBalance() const
 {
+    REQUIRE(doesAccountExist(mApp, getPublicKey()));
     LedgerSnapshot lsg(mApp);
     auto const entry = lsg.getAccount(getPublicKey());
     return entry.current().data.account().balance;
