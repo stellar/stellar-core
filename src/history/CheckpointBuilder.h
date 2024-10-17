@@ -11,6 +11,40 @@ namespace stellar
 {
 class Application;
 
+/*
+ * CheckpointBuilder manages the ACID transactional appending of confirmed
+ledgers to sequential streams (transaction results, transactions, and ledger
+headers) and the ACID queueing of completed checkpoints for historical purposes.
+Completed checkpoints are published to history archives by PublihsWork class.
+
+* Atomicity is ensured through a write-tmp-file-then-rename cycle, where files
+are first written as temporary "dirty" files and then renamed to their final
+names to mark a successfully constructed checkpoint. Note that tmp files are
+highly durable, and are fsynced on every write. This way on crash all publish
+data is preserved and can be recovered to a valid checkpoint on restart.
+
+* All publish files are renamed to their final names _after_ ledger commits.
+This ensures that final checkpoint files are always valid (and do not contain
+uncommitted data). If a crash occurs before these files are finalized, but after
+commit, core will finalize files on restart based on LCL.
+
+* Because of the requirement above, we can derive the following guarantees:
+  - Dirty publish files must always end at a ledger that is greater than or
+equal to LCL in the database.
+  - Final publish files must always end at a ledger that is less than or equal
+to LCL in the database.
+
+* Both publish queue and checkpoint files rely on the last committed ledger
+sequence stored in SQL (LCL). If a crash or shutdown occurs, publish file state
+may be left inconsistent with the DB. On restart, core automatically recovers
+valid publish state based on the LCL. For publish queue files, this means
+deleting any checkpoints with ledger sequence greater than LCL. For the rest of
+the files, this means extracting a history prefix of a checkpoint up until and
+including the LCL, and truncating the rest (including malformed data). If a
+crash before commit occurrs on a first ledger in a checkpoint, the dirty file is
+simply deleted on startup. This ensures core always starts with a valid publish
+state.
+ */
 class CheckpointBuilder
 {
     Application& mApp;
