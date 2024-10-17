@@ -332,6 +332,20 @@ TransactionTestFrame::sorobanResources() const
     return mTransactionFrame->sorobanResources();
 }
 
+#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
+bool
+TransactionTestFrame::hasSorobanProofs() const
+{
+    return mTransactionFrame->hasSorobanProofs();
+}
+
+xdr::xvector<ArchivalProof> const&
+TransactionTestFrame::sorobanProofs() const
+{
+    return mTransactionFrame->sorobanProofs();
+}
+#endif
+
 xdr::xvector<DiagnosticEvent> const&
 TransactionTestFrame::getDiagnosticEvents() const
 {

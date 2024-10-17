@@ -26,11 +26,13 @@ namespace stellar
 class AbstractLedgerTxn;
 class Application;
 class BasicWork;
-class BucketList;
+class LiveBucketList;
+class HotArchiveBucketList;
 class BucketSnapshotManager;
 class Config;
-class SearchableBucketListSnapshot;
 class TmpDirManager;
+class SearchableHotArchiveBucketListSnapshot;
+class SearchableLiveBucketListSnapshot;
 struct HistoryArchiveState;
 struct InflationWinner;
 struct LedgerHeader;
@@ -84,22 +86,22 @@ struct MergeCounters
 // iterator as if that key was the last entry evicted
 struct EvictionResultEntry
 {
-    LedgerKey key;
+    LedgerEntry entry;
     EvictionIterator iter;
     uint32_t liveUntilLedger;
 
-    EvictionResultEntry(LedgerKey const& key, EvictionIterator const& iter,
+    EvictionResultEntry(LedgerEntry const& entry, EvictionIterator const& iter,
                         uint32_t liveUntilLedger)
-        : key(key), iter(iter), liveUntilLedger(liveUntilLedger)
+        : entry(entry), iter(iter), liveUntilLedger(liveUntilLedger)
     {
     }
 };
 
 struct EvictionResult
 {
-    // List of keys eligible for eviction in the order in which they occur in
+    // List of entries eligible for eviction in the order in which they occur in
     // the bucket
-    std::list<EvictionResultEntry> eligibleKeys{};
+    std::list<EvictionResultEntry> eligibleEntries{};
 
     // Eviction iterator at the end of the scan region
     EvictionIterator endOfRegionIterator;
@@ -192,7 +194,8 @@ class BucketManager : NonMovableOrCopyable
     virtual std::string const& getTmpDir() = 0;
     virtual TmpDirManager& getTmpDirManager() = 0;
     virtual std::string const& getBucketDir() const = 0;
-    virtual BucketList& getBucketList() = 0;
+    virtual LiveBucketList& getLiveBucketList() = 0;
+    virtual HotArchiveBucketList& getHotArchiveBucketList() = 0;
     virtual BucketSnapshotManager& getBucketSnapshotManager() const = 0;
     virtual bool renameBucketDirFile(std::filesystem::path const& src,
                                      std::filesystem::path const& dst) = 0;
@@ -215,12 +218,16 @@ class BucketManager : NonMovableOrCopyable
     // This method is mostly-threadsafe -- assuming you don't destruct the
     // BucketManager mid-call -- and is intended to be called from both main and
     // worker threads. Very carefully.
-    virtual std::shared_ptr<Bucket>
-    adoptFileAsBucket(std::string const& filename, uint256 const& hash,
-                      MergeKey* mergeKey,
-                      std::unique_ptr<BucketIndex const> index) = 0;
+    virtual std::shared_ptr<LiveBucket>
+    adoptFileAsLiveBucket(std::string const& filename, uint256 const& hash,
+                          MergeKey* mergeKey,
+                          std::unique_ptr<BucketIndex const> index) = 0;
+    virtual std::shared_ptr<HotArchiveBucket>
+    adoptFileAsHotArchiveBucket(std::string const& filename,
+                                uint256 const& hash, MergeKey* mergeKey,
+                                std::unique_ptr<BucketIndex const> index) = 0;
 
-    // Companion method to `adoptFileAsBucket` also called from the
+    // Companion method to `adoptFileAsLiveBucket` also called from the
     // `BucketOutputIterator::getBucket` merge-completion path. This method
     // however should be called when the output bucket is _empty_ and thereby
     // doesn't correspond to a file on disk; the method forgets about the
@@ -233,15 +240,20 @@ class BucketManager : NonMovableOrCopyable
     virtual std::shared_ptr<Bucket> getBucketIfExists(uint256 const& hash) = 0;
 
     // Return a bucket by hash if we have it, else return nullptr.
-    virtual std::shared_ptr<Bucket> getBucketByHash(uint256 const& hash) = 0;
+    virtual std::shared_ptr<LiveBucket>
+    getLiveBucketByHash(uint256 const& hash) = 0;
+    virtual std::shared_ptr<HotArchiveBucket>
+    getHotArchiveBucketByHash(uint256 const& hash) = 0;
 
     // Get a reference to a merge-future that's either running (or finished
     // somewhat recently) from either a map of the std::shared_futures doing the
     // merges and/or a set of records mapping merge inputs to outputs and the
     // set of outputs held in the BucketManager. Returns an invalid future if no
     // such future can be found or synthesized.
-    virtual std::shared_future<std::shared_ptr<Bucket>>
-    getMergeFuture(MergeKey const& key) = 0;
+    virtual std::shared_future<std::shared_ptr<LiveBucket>>
+    getLiveMergeFuture(MergeKey const& key) = 0;
+    virtual std::shared_future<std::shared_ptr<HotArchiveBucket>>
+    getHotArchiveMergeFuture(MergeKey const& key) = 0;
 
     // Add a reference to a merge _in progress_ (not yet adopted as a file) to
     // the BucketManager's internal map of std::shared_futures doing merges.
@@ -249,8 +261,11 @@ class BucketManager : NonMovableOrCopyable
     // be removed from the map when the merge completes and the output file is
     // adopted.
     virtual void
-    putMergeFuture(MergeKey const& key,
-                   std::shared_future<std::shared_ptr<Bucket>>) = 0;
+    putLiveMergeFuture(MergeKey const& key,
+                       std::shared_future<std::shared_ptr<LiveBucket>>) = 0;
+    virtual void putHotArchiveMergeFuture(
+        MergeKey const& key,
+        std::shared_future<std::shared_ptr<HotArchiveBucket>>) = 0;
 
 #ifdef BUILD_TESTS
     // Drop all references to merge futures in progress.
@@ -267,10 +282,15 @@ class BucketManager : NonMovableOrCopyable
     // be given separate init (created) and live (updated) entry vectors. The
     // `header` value should be taken from the ledger at which this batch is
     // being added.
-    virtual void addBatch(Application& app, LedgerHeader header,
-                          std::vector<LedgerEntry> const& initEntries,
-                          std::vector<LedgerEntry> const& liveEntries,
-                          std::vector<LedgerKey> const& deadEntries) = 0;
+    virtual void addLiveBatch(Application& app, LedgerHeader header,
+                              std::vector<LedgerEntry> const& initEntries,
+                              std::vector<LedgerEntry> const& liveEntries,
+                              std::vector<LedgerKey> const& deadEntries) = 0;
+    virtual void
+    addHotArchiveBatch(Application& app, LedgerHeader header,
+                       std::vector<LedgerEntry> const& archivedEntries,
+                       std::vector<LedgerKey> const& restoredEntries,
+                       std::vector<LedgerKey> const& deletedEntries) = 0;
 
     // Update the given LedgerHeader's bucketListHash to reflect the current
     // state of the bucket list.
@@ -287,20 +307,25 @@ class BucketManager : NonMovableOrCopyable
     // Scans BucketList for non-live entries to evict starting at the entry
     // pointed to by EvictionIterator. Scans until `maxEntriesToEvict` entries
     // have been evicted or maxEvictionScanSize bytes have been scanned.
-    virtual void scanForEvictionLegacy(AbstractLedgerTxn& ltx,
-                                       uint32_t ledgerSeq) = 0;
+    virtual void startBackgroundEvictionScan(uint32_t ledgerSeq,
+                                             uint32_t ledgerVers) = 0;
 
-    virtual void startBackgroundEvictionScan(uint32_t ledgerSeq) = 0;
-    virtual void
+    // Returns a pair of vectors representing entries evicted this ledger, where
+    // the first vector constains all deleted keys (TTL and temporary), and
+    // the second vector contains all archived keys (persistent and
+    // ContractCode). Note that when an entry is archived, its TTL key will be
+    // included in the deleted keys vector.
+    virtual std::pair<std::vector<LedgerKey>, std::vector<LedgerEntry>>
     resolveBackgroundEvictionScan(AbstractLedgerTxn& ltx, uint32_t ledgerSeq,
-                                  LedgerKeySet const& modifiedKeys) = 0;
+                                  LedgerKeySet const& modifiedKeys,
+                                  uint32_t ledgerVers) = 0;
 
     virtual medida::Meter& getBloomMissMeter() const = 0;
     virtual medida::Meter& getBloomLookupMeter() const = 0;
 
 #ifdef BUILD_TESTS
     // Install a fake/assumed ledger version and bucket list hash to use in next
-    // call to addBatch and snapshotLedger. This interface exists only for
+    // call to addLiveBatch and snapshotLedger. This interface exists only for
     // testing in a specific type of history replay.
     virtual void setNextCloseVersionAndHashForTesting(uint32_t protocolVers,
                                                       uint256 const& hash) = 0;
@@ -349,7 +374,7 @@ class BucketManager : NonMovableOrCopyable
 
     // Merge the bucket list of the provided HAS into a single "super bucket"
     // consisting of only live entries, and return it.
-    virtual std::shared_ptr<Bucket>
+    virtual std::shared_ptr<LiveBucket>
     mergeBuckets(HistoryArchiveState const& has) = 0;
 
     // Visits all the active ledger entries or subset thereof.
@@ -382,9 +407,12 @@ class BucketManager : NonMovableOrCopyable
 
     virtual Config const& getConfig() const = 0;
 
-    // Get bucketlist snapshot
-    virtual std::shared_ptr<SearchableBucketListSnapshot>
-    getSearchableBucketListSnapshot() = 0;
+    // Get main thread's bucketlist snapshot
+    virtual std::shared_ptr<SearchableLiveBucketListSnapshot>
+    getSearchableLiveBucketListSnapshot() = 0;
+    virtual std::shared_ptr<SearchableHotArchiveBucketListSnapshot>
+    getSearchableHotArchiveBucketListSnapshot() = 0;
+
     virtual void reportBucketEntryCountMetrics() = 0;
 };
 }

@@ -6,12 +6,14 @@
 // This needs to be included first
 #include "TransactionUtils.h"
 #include "util/GlobalChecks.h"
+#include "util/ProtocolVersion.h"
 #include "xdr/Stellar-ledger-entries.h"
 #include <cstdint>
 #include <json/json.h>
 #include <medida/metrics_registry.h>
 #include <xdrpp/types.h>
 #include "xdr/Stellar-contract.h"
+#include "util/ArchivalProofs.h"
 #include "rust/RustVecXdrMarshal.h"
 // clang-format on
 
@@ -337,13 +339,14 @@ InvokeHostFunctionOpFrame::doApply(
     auto const& footprint = resources.footprint;
     auto footprintLength =
         footprint.readOnly.size() + footprint.readWrite.size();
+    auto& bm = app.getBucketManager();
 
     ledgerEntryCxxBufs.reserve(footprintLength);
     ttlEntryCxxBufs.reserve(footprintLength);
 
-    auto addReads = [&ledgerEntryCxxBufs, &ttlEntryCxxBufs, &ltx, &metrics,
-                     &resources, &sorobanConfig, &appConfig, sorobanData, &res,
-                     this](auto const& keys) -> bool {
+    auto addReads = [&app, &ledgerEntryCxxBufs, &ttlEntryCxxBufs, &ltx,
+                     &metrics, &resources, &sorobanConfig, &appConfig,
+                     sorobanData, &res, &bm, this](auto const& keys) -> bool {
         for (auto const& lk : keys)
         {
             uint32_t keySize = static_cast<uint32_t>(xdr::xdr_size(lk));
@@ -397,6 +400,64 @@ InvokeHostFunctionOpFrame::doApply(
                     }
                 }
                 // If ttlLtxe doesn't exist, this is a new Soroban entry
+#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
+
+                // First check Hot Archive
+                if (isPersistentEntry(lk) &&
+                    protocolVersionStartsFrom(
+                        ltx.getHeader().ledgerVersion,
+                        Bucket::FIRST_PROTOCOL_SUPPORTING_PERSISTENT_EVICTION))
+                {
+                    auto hotArchive =
+                        bm.getSearchableHotArchiveBucketListSnapshot();
+                    auto hotArchiveEntry = hotArchive->load(lk);
+
+                    // Entries require proofs only if an ARCHIVED entry
+                    // exists in the hot archive
+                    if (hotArchiveEntry &&
+                        hotArchiveEntry->type() != HOT_ARCHIVE_DELETED)
+                    {
+                        if (lk.type() == CONTRACT_CODE)
+                        {
+                            sorobanData->pushApplyTimeDiagnosticError(
+                                appConfig, SCE_VALUE, SCEC_INVALID_INPUT,
+                                "trying to access an archived contract "
+                                "code "
+                                "entry",
+                                {makeBytesSCVal(lk.contractCode().hash)});
+                        }
+                        else if (lk.type() == CONTRACT_DATA)
+                        {
+                            sorobanData->pushApplyTimeDiagnosticError(
+                                appConfig, SCE_VALUE, SCEC_INVALID_INPUT,
+                                "trying to access an archived contract "
+                                "data "
+                                "entry",
+                                {makeAddressSCVal(lk.contractData().contract),
+                                 lk.contractData().key});
+                        }
+                        // Cannot access an archived entry
+                        this->innerResult(res).code(
+                            INVOKE_HOST_FUNCTION_ENTRY_ARCHIVED);
+                        return false;
+                    }
+
+                    if (!isCreatedKeyProven(app, lk, mParentTx.sorobanProofs()))
+                    {
+                        sorobanData->pushApplyTimeDiagnosticError(
+                            appConfig, SCE_VALUE, SCEC_INVALID_INPUT,
+                            "invalid creation proof for new contract data "
+                            "entry",
+                            {makeAddressSCVal(lk.contractData().contract),
+                             lk.contractData().key});
+
+                        // TODO: Switch to new code once Rust XDR is updated
+                        this->innerResult(res).code(
+                            INVOKE_HOST_FUNCTION_ENTRY_ARCHIVED);
+                        return false;
+                    }
+                }
+#endif
             }
 
             if (!isSorobanEntry(lk) || sorobanEntryLive)
@@ -718,6 +779,23 @@ InvokeHostFunctionOpFrame::doCheckValidForSoroban(
             return false;
         }
     }
+
+#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
+    if (protocolVersionStartsFrom(
+            ledgerVersion,
+            Bucket::FIRST_PROTOCOL_SUPPORTING_PERSISTENT_EVICTION))
+    {
+        if (!mParentTx.hasSorobanProofs() ||
+            !checkCreationProofValidity(mParentTx.sorobanProofs()))
+        {
+            sorobanData.pushValidationTimeDiagnosticError(
+                appConfig, SCE_VALUE, SCEC_INVALID_INPUT,
+                "invalid creation proof");
+            return false;
+        }
+    }
+#endif
+
     return true;
 }
 

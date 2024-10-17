@@ -59,8 +59,13 @@ template <class IndexT> class BucketIndexImpl : public BucketIndex
     medida::Meter& mBloomMissMeter;
     medida::Meter& mBloomLookupMeter;
 
+    // Templated constructors are valid C++, but since this is a templated class
+    // already, there's no way for the compiler to deduce the type without a
+    // templated parameter, hence the tag
+    template <class BucketEntryT>
     BucketIndexImpl(BucketManager& bm, std::filesystem::path const& filename,
-                    std::streamoff pageSize, Hash const& hash);
+                    std::streamoff pageSize, Hash const& hash,
+                    BucketEntryT const& typeTag);
 
     template <class Archive>
     BucketIndexImpl(BucketManager const& bm, Archive& ar,

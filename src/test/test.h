@@ -55,6 +55,9 @@ void for_versions_from(uint32 from, Application& app,
 void for_versions_from(std::vector<uint32> const& versions, Application& app,
                        std::function<void(void)> const& f);
 
+void for_versions_from(uint32 from, Config const& cfg,
+                       std::function<void(Config const&)> const& f);
+
 void for_all_versions(Application& app, std::function<void(void)> const& f);
 
 void for_all_versions(Config const& cfg,
@@ -69,8 +72,14 @@ void for_versions(std::vector<uint32> const& versions, Application& app,
 void for_versions(uint32 from, uint32 to, Config const& cfg,
                   std::function<void(Config const&)> const& f);
 
+void for_versions(uint32 from, uint32 to, Config const& cfg,
+                  std::function<void(Config&)> const& f);
+
 void for_versions(std::vector<uint32> const& versions, Config const& cfg,
                   std::function<void(Config const&)> const& f);
+
+void for_versions(std::vector<uint32> const& versions, Config const& cfg,
+                  std::function<void(Config&)> const& f);
 
 void for_all_versions_except(std::vector<uint32> const& versions,
                              Application& app,

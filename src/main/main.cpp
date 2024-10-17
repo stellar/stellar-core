@@ -385,7 +385,8 @@ main(int argc, char* const* argv)
     checkStellarCoreMajorVersionProtocolIdentity();
     rust_bridge::check_sensible_soroban_config_for_protocol(
         Config::CURRENT_LEDGER_PROTOCOL_VERSION);
-    checkXDRFileIdentity();
+    // TODO: Add back when rs-stellar-xdr lands
+    // checkXDRFileIdentity();
 
     int res = handleCommandLine(argc, argv);
 #ifdef USE_TRACY

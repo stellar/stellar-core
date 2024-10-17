@@ -57,6 +57,32 @@ namespace
 // Limit to the maximum resource fee allowed for transaction,
 // roughly 112 million lumens.
 int64_t const MAX_RESOURCE_FEE = 1LL << 50;
+
+// Starting in protocol 23, some operation meta needs to be modified
+// to be consumed by downstream systems. In particular, restoration is
+// logically a new entry creation from the perspective of ltx and stellar-core
+// as a whole, but this change type is reclassified to LEDGER_ENTRY_RESTORED
+// for easier consumption downstream.
+void
+processOpLedgerEntryChanges(std::shared_ptr<OperationFrame const> op,
+                            LedgerEntryChanges& changes)
+{
+    if (op->getOperation().body.type() != RESTORE_FOOTPRINT)
+    {
+        return;
+    }
+
+    for (auto& change : changes)
+    {
+        if (change.type() == LEDGER_ENTRY_CREATED)
+        {
+            auto le = change.created();
+            change.type(LEDGER_ENTRY_RESTORED);
+            change.restored() = le;
+        }
+    }
+}
+
 } // namespace
 
 using namespace std;
@@ -401,6 +427,21 @@ TransactionFrame::sorobanResources() const
     releaseAssertOrThrow(isSoroban());
     return mEnvelope.v1().tx.ext.sorobanData().resources;
 }
+
+#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
+bool
+TransactionFrame::hasSorobanProofs() const
+{
+    return isSoroban() && mEnvelope.v1().tx.ext.sorobanData().ext.v() == 1;
+}
+
+xdr::xvector<ArchivalProof> const&
+TransactionFrame::sorobanProofs() const
+{
+    releaseAssertOrThrow(hasSorobanProofs());
+    return mEnvelope.v1().tx.ext.sorobanData().ext.proofs();
+}
+#endif
 
 MutableTxResultPtr
 TransactionFrame::createSuccessResultWithFeeCharged(
@@ -1631,7 +1672,15 @@ TransactionFrame::applyOperations(SignatureChecker& signatureChecker,
                 // The operation meta will be empty if the transaction
                 // doesn't succeed so we may as well not do any work in that
                 // case
-                operationMetas.emplace_back(ltxOp.getChanges());
+                auto changes = ltxOp.getChanges();
+
+                if (protocolVersionStartsFrom(
+                        ledgerVersion,
+                        Bucket::FIRST_PROTOCOL_SUPPORTING_PERSISTENT_EVICTION))
+                {
+                    processOpLedgerEntryChanges(op, changes);
+                }
+                operationMetas.emplace_back(changes);
             }
 
             if (txRes ||

@@ -12,6 +12,7 @@
 #include "bucket/BucketSnapshotManager.h"
 #include "crypto/BLAKE2.h"
 #include "crypto/Hex.h"
+#include "crypto/SHA.h"
 #include "history/HistoryManager.h"
 #include "historywork/VerifyBucketWork.h"
 #include "ledger/LedgerManager.h"
@@ -23,6 +24,7 @@
 #include "util/GlobalChecks.h"
 #include "util/LogSlowExecution.h"
 #include "util/Logging.h"
+#include "util/ProtocolVersion.h"
 #include "util/TmpDir.h"
 #include "util/types.h"
 #include "xdr/Stellar-ledger.h"
@@ -30,6 +32,7 @@
 #include <fmt/chrono.h>
 #include <fmt/format.h>
 #include <map>
+#include <memory>
 #include <regex>
 #include <set>
 #include <thread>
@@ -123,16 +126,15 @@ BucketManagerImpl::initialize()
 
     if (mApp.getConfig().MODE_ENABLES_BUCKETLIST)
     {
-        mBucketList = std::make_unique<BucketList>();
-
-        if (mApp.getConfig().isUsingBucketListDB())
-        {
-            mSnapshotManager = std::make_unique<BucketSnapshotManager>(
-                mApp,
-                std::make_unique<BucketListSnapshot>(*mBucketList,
-                                                     LedgerHeader()),
-                mApp.getConfig().QUERY_SNAPSHOT_LEDGERS);
-        }
+        mLiveBucketList = std::make_unique<LiveBucketList>();
+        mHotArchiveBucketList = std::make_unique<HotArchiveBucketList>();
+        mSnapshotManager = std::make_unique<BucketSnapshotManager>(
+            mApp,
+            std::make_unique<BucketListSnapshot<LiveBucket>>(*mLiveBucketList,
+                                                             LedgerHeader()),
+            std::make_unique<BucketListSnapshot<HotArchiveBucket>>(
+                *mHotArchiveBucketList, LedgerHeader()),
+            mApp.getConfig().QUERY_SNAPSHOT_LEDGERS);
     }
 }
 
@@ -166,14 +168,20 @@ EvictionCounters::EvictionCounters(Application& app)
 
 BucketManagerImpl::BucketManagerImpl(Application& app)
     : mApp(app)
-    , mBucketList(nullptr)
+    , mLiveBucketList(nullptr)
+    , mHotArchiveBucketList(nullptr)
     , mSnapshotManager(nullptr)
     , mTmpDirManager(nullptr)
     , mWorkDir(nullptr)
     , mLockedBucketDir(nullptr)
-    , mBucketObjectInsertBatch(app.getMetrics().NewMeter(
+    , mBucketLiveObjectInsertBatch(app.getMetrics().NewMeter(
           {"bucket", "batch", "objectsadded"}, "object"))
-    , mBucketAddBatch(app.getMetrics().NewTimer({"bucket", "batch", "addtime"}))
+    , mBucketArchiveObjectInsertBatch(app.getMetrics().NewMeter(
+          {"bucket", "batch-archive", "objectsadded"}, "object"))
+    , mBucketAddLiveBatch(
+          app.getMetrics().NewTimer({"bucket", "batch", "addtime"}))
+    , mBucketAddArchiveBatch(
+          app.getMetrics().NewTimer({"bucket", "batch-archive", "addtime"}))
     , mBucketSnapMerge(app.getMetrics().NewTimer({"bucket", "snap", "merge"}))
     , mSharedBucketsSize(
           app.getMetrics().NewCounter({"bucket", "memory", "shared"}))
@@ -181,14 +189,12 @@ BucketManagerImpl::BucketManagerImpl(Application& app)
           {"bucketlistDB", "bloom", "misses"}, "bloom"))
     , mBucketListDBBloomLookups(app.getMetrics().NewMeter(
           {"bucketlistDB", "bloom", "lookups"}, "bloom"))
-    , mBucketListSizeCounter(
+    , mLiveBucketListSizeCounter(
           app.getMetrics().NewCounter({"bucketlist", "size", "bytes"}))
+    , mArchiveBucketListSizeCounter(
+          app.getMetrics().NewCounter({"bucketlist-archive", "size", "bytes"}))
     , mBucketListEvictionCounters(app)
     , mEvictionStatistics(std::make_shared<EvictionStatistics>())
-    // Minimal DB is stored in the buckets dir, so delete it only when
-    // mode does not use minimal DB
-    , mDeleteEntireBucketDirInDtor(
-          app.getConfig().isInMemoryModeWithoutMinimalDB())
 {
     for (uint32_t t =
              static_cast<uint32_t>(LedgerEntryTypeAndDurability::ACCOUNT);
@@ -273,14 +279,7 @@ BucketManagerImpl::getBucketDir() const
 BucketManagerImpl::~BucketManagerImpl()
 {
     ZoneScoped;
-    if (mDeleteEntireBucketDirInDtor)
-    {
-        deleteEntireBucketDir();
-    }
-    else
-    {
-        deleteTmpDirAndUnlockBucketDir();
-    }
+    deleteTmpDirAndUnlockBucketDir();
 }
 
 void
@@ -328,17 +327,23 @@ BucketManagerImpl::deleteTmpDirAndUnlockBucketDir()
     }
 }
 
-BucketList&
-BucketManagerImpl::getBucketList()
+LiveBucketList&
+BucketManagerImpl::getLiveBucketList()
 {
     releaseAssertOrThrow(mApp.getConfig().MODE_ENABLES_BUCKETLIST);
-    return *mBucketList;
+    return *mLiveBucketList;
+}
+
+HotArchiveBucketList&
+BucketManagerImpl::getHotArchiveBucketList()
+{
+    releaseAssertOrThrow(mApp.getConfig().MODE_ENABLES_BUCKETLIST);
+    return *mHotArchiveBucketList;
 }
 
 BucketSnapshotManager&
 BucketManagerImpl::getBucketSnapshotManager() const
 {
-    releaseAssertOrThrow(mApp.getConfig().isUsingBucketListDB());
     releaseAssert(mSnapshotManager);
     return *mSnapshotManager;
 }
@@ -474,7 +479,26 @@ BucketManagerImpl::renameBucketDirFile(std::filesystem::path const& src,
     }
 }
 
-std::shared_ptr<Bucket>
+std::shared_ptr<LiveBucket>
+BucketManagerImpl::adoptFileAsLiveBucket(
+    std::string const& filename, uint256 const& hash, MergeKey* mergeKey,
+    std::unique_ptr<BucketIndex const> index)
+{
+    return adoptFileAsBucket<LiveBucket>(filename, hash, mergeKey,
+                                         std::move(index));
+}
+
+std::shared_ptr<HotArchiveBucket>
+BucketManagerImpl::adoptFileAsHotArchiveBucket(
+    std::string const& filename, uint256 const& hash, MergeKey* mergeKey,
+    std::unique_ptr<BucketIndex const> index)
+{
+    return adoptFileAsBucket<HotArchiveBucket>(filename, hash, mergeKey,
+                                               std::move(index));
+}
+
+template <typename BucketT>
+std::shared_ptr<BucketT>
 BucketManagerImpl::adoptFileAsBucket(std::string const& filename,
                                      uint256 const& hash, MergeKey* mergeKey,
                                      std::unique_ptr<BucketIndex const> index)
@@ -492,15 +516,16 @@ BucketManagerImpl::adoptFileAsBucket(std::string const& filename,
         // weak record of the input/output mapping, so we can reconstruct the
         // future if anyone wants to restart the same merge before the bucket
         // expires.
-        CLOG_TRACE(Bucket,
-                   "BucketManager::adoptFileAsBucket switching merge {} from "
-                   "live to finished for output={}",
-                   *mergeKey, hexAbbrev(hash));
+        CLOG_TRACE(
+            Bucket,
+            "BucketManager::adoptFileAsLiveBucket switching merge {} from "
+            "live to finished for output={}",
+            *mergeKey, hexAbbrev(hash));
         mLiveFutures.erase(*mergeKey);
     }
 
     // Check to see if we have an existing bucket (either in-memory or on-disk)
-    std::shared_ptr<Bucket> b = getBucketByHash(hash);
+    std::shared_ptr<BucketT> b = getBucketByHash<BucketT>(hash);
     if (b)
     {
         CLOG_DEBUG(
@@ -535,7 +560,7 @@ BucketManagerImpl::adoptFileAsBucket(std::string const& filename,
             }
         }
 
-        b = std::make_shared<Bucket>(canonicalName, hash, std::move(index));
+        b = std::make_shared<BucketT>(canonicalName, hash, std::move(index));
         {
             mSharedBuckets.emplace(hash, b);
             mSharedBucketsSize.set_count(mSharedBuckets.size());
@@ -587,21 +612,41 @@ BucketManagerImpl::getBucketIfExists(uint256 const& hash)
     return nullptr;
 }
 
-std::shared_ptr<Bucket>
+std::shared_ptr<LiveBucket>
+BucketManagerImpl::getLiveBucketByHash(uint256 const& hash)
+{
+    return getBucketByHash<LiveBucket>(hash);
+}
+
+std::shared_ptr<HotArchiveBucket>
+BucketManagerImpl::getHotArchiveBucketByHash(uint256 const& hash)
+{
+    return getBucketByHash<HotArchiveBucket>(hash);
+}
+
+template <class BucketT>
+std::shared_ptr<BucketT>
 BucketManagerImpl::getBucketByHash(uint256 const& hash)
 {
     ZoneScoped;
     std::lock_guard<std::recursive_mutex> lock(mBucketMutex);
     if (isZero(hash))
     {
-        return std::make_shared<Bucket>();
+        return std::make_shared<BucketT>();
     }
     auto i = mSharedBuckets.find(hash);
     if (i != mSharedBuckets.end())
     {
         CLOG_TRACE(Bucket, "BucketManager::getBucketByHash({}) found bucket {}",
                    binToHex(hash), i->second->getFilename());
-        return i->second;
+
+        // Because BucketManger has an impl class, no public templated functions
+        // can be declared. This means we have to manually enforce types via
+        // `getLiveBucketByHash` and `getHotBucketByHash`, leading to this ugly
+        // cast.
+        auto ret = std::dynamic_pointer_cast<BucketT>(i->second);
+        releaseAssertOrThrow(ret);
+        return ret;
     }
     std::string canonicalName = bucketFilename(hash);
     if (fs::exists(canonicalName))
@@ -612,15 +657,28 @@ BucketManagerImpl::getBucketByHash(uint256 const& hash)
                    binToHex(hash));
 
         auto p =
-            std::make_shared<Bucket>(canonicalName, hash, /*index=*/nullptr);
+            std::make_shared<BucketT>(canonicalName, hash, /*index=*/nullptr);
         mSharedBuckets.emplace(hash, p);
         mSharedBucketsSize.set_count(mSharedBuckets.size());
         return p;
     }
-    return std::shared_ptr<Bucket>();
+    return std::shared_ptr<BucketT>();
 }
 
-std::shared_future<std::shared_ptr<Bucket>>
+std::shared_future<std::shared_ptr<LiveBucket>>
+BucketManagerImpl::getLiveMergeFuture(MergeKey const& key)
+{
+    return getMergeFuture<LiveBucket>(key);
+}
+
+std::shared_future<std::shared_ptr<HotArchiveBucket>>
+BucketManagerImpl::getHotArchiveMergeFuture(MergeKey const& key)
+{
+    return getMergeFuture<HotArchiveBucket>(key);
+}
+
+template <class BucketT>
+std::shared_future<std::shared_ptr<BucketT>>
 BucketManagerImpl::getMergeFuture(MergeKey const& key)
 {
     ZoneScoped;
@@ -634,14 +692,14 @@ BucketManagerImpl::getMergeFuture(MergeKey const& key)
         Hash bucketHash;
         if (mFinishedMerges.findMergeFor(key, bucketHash))
         {
-            auto bucket = getBucketByHash(bucketHash);
+            auto bucket = getBucketByHash<BucketT>(bucketHash);
             if (bucket)
             {
                 CLOG_TRACE(Bucket,
                            "BucketManager::getMergeFuture returning new future "
                            "for finished merge {} with output={}",
                            key, hexAbbrev(bucketHash));
-                std::promise<std::shared_ptr<Bucket>> promise;
+                std::promise<std::shared_ptr<BucketT>> promise;
                 auto future = promise.get_future().share();
                 promise.set_value(bucket);
                 mc.mFinishedMergeReattachments++;
@@ -653,7 +711,7 @@ BucketManagerImpl::getMergeFuture(MergeKey const& key)
             Bucket,
             "BucketManager::getMergeFuture returning empty future for merge {}",
             key);
-        return std::shared_future<std::shared_ptr<Bucket>>();
+        return std::shared_future<std::shared_ptr<BucketT>>();
     }
     CLOG_TRACE(
         Bucket,
@@ -661,12 +719,32 @@ BucketManagerImpl::getMergeFuture(MergeKey const& key)
         key);
     mc.mRunningMergeReattachments++;
     incrMergeCounters(mc);
-    return i->second;
+
+    // Because BucketManger has an impl class, no public templated functions
+    // can be declared. This means we have to manually enforce types via
+    // leading to this ugly variadic get that throws if the type is not correct.
+    return std::get<std::shared_future<std::shared_ptr<BucketT>>>(i->second);
 }
 
 void
+BucketManagerImpl::putLiveMergeFuture(
+    MergeKey const& key, std::shared_future<std::shared_ptr<LiveBucket>> wp)
+{
+    putMergeFuture<LiveBucket>(key, wp);
+}
+
+void
+BucketManagerImpl::putHotArchiveMergeFuture(
+    MergeKey const& key,
+    std::shared_future<std::shared_ptr<HotArchiveBucket>> wp)
+{
+    putMergeFuture<HotArchiveBucket>(key, wp);
+}
+
+template <class BucketT>
+void
 BucketManagerImpl::putMergeFuture(
-    MergeKey const& key, std::shared_future<std::shared_ptr<Bucket>> wp)
+    MergeKey const& key, std::shared_future<std::shared_ptr<BucketT>> wp)
 {
     ZoneScoped;
     releaseAssertOrThrow(mApp.getConfig().MODE_ENABLES_BUCKETLIST);
@@ -697,31 +775,37 @@ BucketManagerImpl::getBucketListReferencedBuckets() const
         return referenced;
     }
 
-    // retain current bucket list
-    for (uint32_t i = 0; i < BucketList::kNumLevels; ++i)
-    {
-        auto const& level = mBucketList->getLevel(i);
-        auto rit = referenced.emplace(level.getCurr()->getHash());
-        if (rit.second)
+    auto processBucketList = [&](auto const& bl, uint32_t levels) {
+        // retain current bucket list
+        for (uint32_t i = 0; i < levels; ++i)
         {
-            CLOG_TRACE(Bucket, "{} referenced by bucket list",
-                       binToHex(*rit.first));
-        }
-        rit = referenced.emplace(level.getSnap()->getHash());
-        if (rit.second)
-        {
-            CLOG_TRACE(Bucket, "{} referenced by bucket list",
-                       binToHex(*rit.first));
-        }
-        for (auto const& h : level.getNext().getHashes())
-        {
-            rit = referenced.emplace(hexToBin256(h));
+            auto const& level = bl->getLevel(i);
+            auto rit = referenced.emplace(level.getCurr()->getHash());
             if (rit.second)
             {
-                CLOG_TRACE(Bucket, "{} referenced by bucket list", h);
+                CLOG_TRACE(Bucket, "{} referenced by bucket list",
+                           binToHex(*rit.first));
+            }
+            rit = referenced.emplace(level.getSnap()->getHash());
+            if (rit.second)
+            {
+                CLOG_TRACE(Bucket, "{} referenced by bucket list",
+                           binToHex(*rit.first));
+            }
+            for (auto const& h : level.getNext().getHashes())
+            {
+                rit = referenced.emplace(hexToBin256(h));
+                if (rit.second)
+                {
+                    CLOG_TRACE(Bucket, "{} referenced by bucket list", h);
+                }
             }
         }
-    }
+    };
+
+    processBucketList(mLiveBucketList, LiveBucketList::kNumLevels);
+    processBucketList(mHotArchiveBucketList,
+                      BucketListBase<HotArchiveBucket>::kNumLevels);
 
     return referenced;
 }
@@ -876,7 +960,7 @@ BucketManagerImpl::forgetUnreferencedBuckets()
                 // There should be no futures alive with this output: we
                 // switched to storing only weak input/output mappings
                 // when any merge producing the bucket completed (in
-                // adoptFileAsBucket), and we believe there's only one
+                // adoptFileAsLiveBucket), and we believe there's only one
                 // reference to the bucket anyways -- our own in
                 // mSharedBuckets. But there might be a race we missed,
                 // so double check & mop up here. Worst case we prevent
@@ -901,10 +985,10 @@ BucketManagerImpl::forgetUnreferencedBuckets()
 }
 
 void
-BucketManagerImpl::addBatch(Application& app, LedgerHeader header,
-                            std::vector<LedgerEntry> const& initEntries,
-                            std::vector<LedgerEntry> const& liveEntries,
-                            std::vector<LedgerKey> const& deadEntries)
+BucketManagerImpl::addLiveBatch(Application& app, LedgerHeader header,
+                                std::vector<LedgerEntry> const& initEntries,
+                                std::vector<LedgerEntry> const& liveEntries,
+                                std::vector<LedgerKey> const& deadEntries)
 {
     ZoneScoped;
     releaseAssertOrThrow(app.getConfig().MODE_ENABLES_BUCKETLIST);
@@ -914,17 +998,44 @@ BucketManagerImpl::addBatch(Application& app, LedgerHeader header,
         header.ledgerVersion = mFakeTestProtocolVersion;
     }
 #endif
-    auto timer = mBucketAddBatch.TimeScope();
-    mBucketObjectInsertBatch.Mark(initEntries.size() + liveEntries.size() +
-                                  deadEntries.size());
-    mBucketList->addBatch(app, header.ledgerSeq, header.ledgerVersion,
-                          initEntries, liveEntries, deadEntries);
-    mBucketListSizeCounter.set_count(mBucketList->getSize());
+    auto timer = mBucketAddLiveBatch.TimeScope();
+    mBucketLiveObjectInsertBatch.Mark(initEntries.size() + liveEntries.size() +
+                                      deadEntries.size());
+    mLiveBucketList->addBatch(app, header.ledgerSeq, header.ledgerVersion,
+                              initEntries, liveEntries, deadEntries);
+    mLiveBucketListSizeCounter.set_count(mLiveBucketList->getSize());
+    reportBucketEntryCountMetrics();
+}
 
-    if (app.getConfig().isUsingBucketListDB())
+void
+BucketManagerImpl::addHotArchiveBatch(
+    Application& app, LedgerHeader header,
+    std::vector<LedgerEntry> const& archivedEntries,
+    std::vector<LedgerKey> const& restoredEntries,
+    std::vector<LedgerKey> const& deletedEntries)
+{
+    ZoneScoped;
+    releaseAssertOrThrow(app.getConfig().MODE_ENABLES_BUCKETLIST);
+    releaseAssertOrThrow(protocolVersionStartsFrom(
+        header.ledgerVersion,
+        Bucket::FIRST_PROTOCOL_SUPPORTING_PERSISTENT_EVICTION));
+#ifdef BUILD_TESTS
+    if (mUseFakeTestValuesForNextClose)
     {
-        reportBucketEntryCountMetrics();
+        header.ledgerVersion = mFakeTestProtocolVersion;
     }
+#endif
+    auto timer = mBucketAddArchiveBatch.TimeScope();
+    mBucketArchiveObjectInsertBatch.Mark(archivedEntries.size() +
+                                         restoredEntries.size() +
+                                         deletedEntries.size());
+
+    // Hot archive should never modify an existing entry, so there are never
+    // live entries
+    mHotArchiveBucketList->addBatch(app, header.ledgerSeq, header.ledgerVersion,
+                                    archivedEntries, restoredEntries,
+                                    deletedEntries);
+    mArchiveBucketListSizeCounter.set_count(mHotArchiveBucketList->getSize());
 }
 
 #ifdef BUILD_TESTS
@@ -964,7 +1075,19 @@ BucketManagerImpl::snapshotLedger(LedgerHeader& currentHeader)
     Hash hash;
     if (mApp.getConfig().MODE_ENABLES_BUCKETLIST)
     {
-        hash = mBucketList->getHash();
+        if (protocolVersionStartsFrom(
+                currentHeader.ledgerVersion,
+                Bucket::FIRST_PROTOCOL_SUPPORTING_PERSISTENT_EVICTION))
+        {
+            // TODO: Hash Archive Bucket
+            // Dependency: HAS supports Hot Archive BucketList
+
+            hash = mLiveBucketList->getHash();
+        }
+        else
+        {
+            hash = mLiveBucketList->getHash();
+        }
     }
 
     currentHeader.bucketListHash = hash;
@@ -992,25 +1115,15 @@ BucketManagerImpl::maybeSetIndex(std::shared_ptr<Bucket> b,
 }
 
 void
-BucketManagerImpl::scanForEvictionLegacy(AbstractLedgerTxn& ltx,
-                                         uint32_t ledgerSeq)
+BucketManagerImpl::startBackgroundEvictionScan(uint32_t ledgerSeq,
+                                               uint32_t ledgerVers)
 {
-    ZoneScoped;
-    releaseAssert(protocolVersionStartsFrom(ltx.getHeader().ledgerVersion,
-                                            SOROBAN_PROTOCOL_VERSION));
-    mBucketList->scanForEvictionLegacy(
-        mApp, ltx, ledgerSeq, mBucketListEvictionCounters, mEvictionStatistics);
-}
-
-void
-BucketManagerImpl::startBackgroundEvictionScan(uint32_t ledgerSeq)
-{
-    releaseAssert(mApp.getConfig().isUsingBucketListDB());
     releaseAssert(mSnapshotManager);
     releaseAssert(!mEvictionFuture.valid());
     releaseAssert(mEvictionStatistics);
 
-    auto searchableBL = mSnapshotManager->copySearchableBucketListSnapshot();
+    auto searchableBL =
+        mSnapshotManager->copySearchableLiveBucketListSnapshot();
     auto const& cfg = mApp.getLedgerManager().getSorobanNetworkConfig();
     auto const& sas = cfg.stateArchivalSettings();
 
@@ -1019,21 +1132,22 @@ BucketManagerImpl::startBackgroundEvictionScan(uint32_t ledgerSeq)
     // copy this lambda, otherwise we could use unique_ptr.
     auto task = std::make_shared<task_t>(
         [bl = std::move(searchableBL), iter = cfg.evictionIterator(), ledgerSeq,
-         sas, &counters = mBucketListEvictionCounters,
+         ledgerVers, sas, &counters = mBucketListEvictionCounters,
          stats = mEvictionStatistics] {
-            return bl->scanForEviction(ledgerSeq, counters, iter, stats, sas);
+            return bl->scanForEviction(ledgerSeq, counters, iter, stats, sas,
+                                       ledgerVers);
         });
 
     mEvictionFuture = task->get_future();
     mApp.postOnEvictionBackgroundThread(
         bind(&task_t::operator(), task),
-        "SearchableBucketListSnapshot: eviction scan");
+        "SearchableLiveBucketListSnapshot: eviction scan");
 }
 
-void
+std::pair<std::vector<LedgerKey>, std::vector<LedgerEntry>>
 BucketManagerImpl::resolveBackgroundEvictionScan(
     AbstractLedgerTxn& ltx, uint32_t ledgerSeq,
-    LedgerKeySet const& modifiedKeys)
+    LedgerKeySet const& modifiedKeys, uint32_t ledgerVers)
 {
     ZoneScoped;
     releaseAssert(threadIsMain());
@@ -1041,7 +1155,7 @@ BucketManagerImpl::resolveBackgroundEvictionScan(
 
     if (!mEvictionFuture.valid())
     {
-        startBackgroundEvictionScan(ledgerSeq);
+        startBackgroundEvictionScan(ledgerSeq, ledgerVers);
     }
 
     auto evictionCandidates = mEvictionFuture.get();
@@ -1054,44 +1168,60 @@ BucketManagerImpl::resolveBackgroundEvictionScan(
     if (!evictionCandidates.isValid(ledgerSeq,
                                     networkConfig.stateArchivalSettings()))
     {
-        startBackgroundEvictionScan(ledgerSeq);
+        startBackgroundEvictionScan(ledgerSeq, ledgerVers);
         evictionCandidates = mEvictionFuture.get();
     }
 
-    auto& eligibleKeys = evictionCandidates.eligibleKeys;
+    auto& eligibleEntries = evictionCandidates.eligibleEntries;
 
-    for (auto iter = eligibleKeys.begin(); iter != eligibleKeys.end();)
+    for (auto iter = eligibleEntries.begin(); iter != eligibleEntries.end();)
     {
         // If the TTL has not been modified this ledger, we can evict the entry
-        if (modifiedKeys.find(getTTLKey(iter->key)) == modifiedKeys.end())
+        if (modifiedKeys.find(getTTLKey(iter->entry)) == modifiedKeys.end())
         {
             ++iter;
         }
         else
         {
-            iter = eligibleKeys.erase(iter);
+            iter = eligibleEntries.erase(iter);
         }
     }
 
     auto remainingEntriesToEvict =
         networkConfig.stateArchivalSettings().maxEntriesToArchive;
-    auto entryToEvictIter = eligibleKeys.begin();
+    auto entryToEvictIter = eligibleEntries.begin();
     auto newEvictionIterator = evictionCandidates.endOfRegionIterator;
+
+    // Return vectors include both evicted entry and associated TTL
+    std::vector<LedgerKey> deletedKeys;
+    std::vector<LedgerEntry> archivedEntries;
 
     // Only actually evict up to maxEntriesToArchive of the eligible entries
     while (remainingEntriesToEvict > 0 &&
-           entryToEvictIter != eligibleKeys.end())
+           entryToEvictIter != eligibleEntries.end())
     {
-        ltx.erase(entryToEvictIter->key);
-        ltx.erase(getTTLKey(entryToEvictIter->key));
+        ltx.erase(LedgerEntryKey(entryToEvictIter->entry));
+        ltx.erase(getTTLKey(entryToEvictIter->entry));
         --remainingEntriesToEvict;
+
+        if (isTemporaryEntry(entryToEvictIter->entry.data))
+        {
+            deletedKeys.emplace_back(LedgerEntryKey(entryToEvictIter->entry));
+        }
+        else
+        {
+            archivedEntries.emplace_back(entryToEvictIter->entry);
+        }
+
+        // Delete TTL for both types
+        deletedKeys.emplace_back(getTTLKey(entryToEvictIter->entry));
 
         auto age = ledgerSeq - entryToEvictIter->liveUntilLedger;
         mEvictionStatistics->recordEvictedEntry(age);
         mBucketListEvictionCounters.entriesEvicted.inc();
 
         newEvictionIterator = entryToEvictIter->iter;
-        entryToEvictIter = eligibleKeys.erase(entryToEvictIter);
+        entryToEvictIter = eligibleEntries.erase(entryToEvictIter);
     }
 
     // If remainingEntriesToEvict == 0, that means we could not evict the entire
@@ -1104,6 +1234,7 @@ BucketManagerImpl::resolveBackgroundEvictionScan(
     }
 
     networkConfig.updateEvictionIterator(ltx, newEvictionIterator);
+    return {deletedKeys, archivedEntries};
 }
 
 medida::Meter&
@@ -1166,49 +1297,51 @@ BucketManagerImpl::assumeState(HistoryArchiveState const& has,
     ZoneScoped;
     releaseAssertOrThrow(mApp.getConfig().MODE_ENABLES_BUCKETLIST);
 
-    for (uint32_t i = 0; i < BucketList::kNumLevels; ++i)
+    // TODO: Assume archival bucket state
+    // Dependency: HAS supports Hot Archive BucketList
+    for (uint32_t i = 0; i < LiveBucketList::kNumLevels; ++i)
     {
-        auto curr = getBucketByHash(hexToBin256(has.currentBuckets.at(i).curr));
-        auto snap = getBucketByHash(hexToBin256(has.currentBuckets.at(i).snap));
+        auto curr =
+            getLiveBucketByHash(hexToBin256(has.currentBuckets.at(i).curr));
+        auto snap =
+            getLiveBucketByHash(hexToBin256(has.currentBuckets.at(i).snap));
         if (!(curr && snap))
         {
             throw std::runtime_error("Missing bucket files while assuming "
-                                     "saved BucketList state");
+                                     "saved live BucketList state");
         }
 
         auto const& nextFuture = has.currentBuckets.at(i).next;
-        std::shared_ptr<Bucket> nextBucket = nullptr;
+        std::shared_ptr<LiveBucket> nextBucket = nullptr;
         if (nextFuture.hasOutputHash())
         {
             nextBucket =
-                getBucketByHash(hexToBin256(nextFuture.getOutputHash()));
+                getLiveBucketByHash(hexToBin256(nextFuture.getOutputHash()));
             if (!nextBucket)
             {
-                throw std::runtime_error("Missing future bucket files while "
-                                         "assuming saved BucketList state");
+                throw std::runtime_error(
+                    "Missing future bucket files while "
+                    "assuming saved live BucketList state");
             }
         }
 
-        // Buckets on the BucketList should always be indexed when
-        // BucketListDB enabled
-        if (mApp.getConfig().isUsingBucketListDB())
+        // Buckets on the BucketList should always be indexed
+        releaseAssert(curr->isEmpty() || curr->isIndexed());
+        releaseAssert(snap->isEmpty() || snap->isIndexed());
+        if (nextBucket)
         {
-            releaseAssert(curr->isEmpty() || curr->isIndexed());
-            releaseAssert(snap->isEmpty() || snap->isIndexed());
-            if (nextBucket)
-            {
-                releaseAssert(nextBucket->isEmpty() || nextBucket->isIndexed());
-            }
+            releaseAssert(nextBucket->isEmpty() || nextBucket->isIndexed());
         }
 
-        mBucketList->getLevel(i).setCurr(curr);
-        mBucketList->getLevel(i).setSnap(snap);
-        mBucketList->getLevel(i).setNext(nextFuture);
+        mLiveBucketList->getLevel(i).setCurr(curr);
+        mLiveBucketList->getLevel(i).setSnap(snap);
+        mLiveBucketList->getLevel(i).setNext(nextFuture);
     }
 
     if (restartMerges)
     {
-        mBucketList->restartMerges(mApp, maxProtocolVersion, has.currentLedger);
+        mLiveBucketList->restartMerges(mApp, maxProtocolVersion,
+                                       has.currentLedger);
     }
     cleanupStaleFiles();
 }
@@ -1229,14 +1362,14 @@ BucketManagerImpl::isShutdown() const
 // inserting live or init entries. Should be called in a loop over a BL, from
 // old to new.
 static void
-loadEntriesFromBucket(std::shared_ptr<Bucket> b, std::string const& name,
+loadEntriesFromBucket(std::shared_ptr<LiveBucket> b, std::string const& name,
                       std::map<LedgerKey, LedgerEntry>& map)
 {
     ZoneScoped;
 
     using namespace std::chrono;
     medida::Timer timer;
-    BucketInputIterator in(b);
+    LiveBucketInputIterator in(b);
     timer.Time([&]() {
         while (in)
         {
@@ -1282,7 +1415,7 @@ BucketManagerImpl::loadCompleteLedgerState(HistoryArchiveState const& has)
 
     std::map<LedgerKey, LedgerEntry> ledgerMap;
     std::vector<std::pair<Hash, std::string>> hashes;
-    for (uint32_t i = BucketList::kNumLevels; i > 0; --i)
+    for (uint32_t i = LiveBucketList::kNumLevels; i > 0; --i)
     {
         HistoryStateBucket const& hsb = has.currentBuckets.at(i - 1);
         hashes.emplace_back(hexToBin256(hsb.snap),
@@ -1296,7 +1429,7 @@ BucketManagerImpl::loadCompleteLedgerState(HistoryArchiveState const& has)
         {
             continue;
         }
-        auto b = getBucketByHash(pair.first);
+        auto b = getLiveBucketByHash(pair.first);
         if (!b)
         {
             throw std::runtime_error(std::string("missing bucket: ") +
@@ -1307,7 +1440,7 @@ BucketManagerImpl::loadCompleteLedgerState(HistoryArchiveState const& has)
     return ledgerMap;
 }
 
-std::shared_ptr<Bucket>
+std::shared_ptr<LiveBucket>
 BucketManagerImpl::mergeBuckets(HistoryArchiveState const& has)
 {
     ZoneScoped;
@@ -1317,8 +1450,8 @@ BucketManagerImpl::mergeBuckets(HistoryArchiveState const& has)
     MergeCounters mc;
     auto& ctx = mApp.getClock().getIOContext();
     meta.ledgerVersion = mApp.getConfig().LEDGER_PROTOCOL_VERSION;
-    BucketOutputIterator out(getTmpDir(), /*keepDeadEntries=*/false, meta, mc,
-                             ctx, /*doFsync=*/true);
+    LiveBucketOutputIterator out(getTmpDir(), /*keepTombstoneEntries=*/false,
+                                 meta, mc, ctx, /*doFsync=*/true);
     for (auto const& pair : ledgerMap)
     {
         BucketEntry be;
@@ -1326,12 +1459,12 @@ BucketManagerImpl::mergeBuckets(HistoryArchiveState const& has)
         be.liveEntry() = pair.second;
         out.put(be);
     }
-    return out.getBucket(*this, /*shouldSynchronouslyIndex=*/false);
+    return out.getBucket(*this);
 }
 
 static bool
 visitLiveEntriesInBucket(
-    std::shared_ptr<Bucket const> b, std::string const& name,
+    std::shared_ptr<LiveBucket const> b, std::string const& name,
     std::optional<int64_t> minLedger,
     std::function<bool(LedgerEntry const&)> const& filterEntry,
     std::function<bool(LedgerEntry const&)> const& acceptEntry,
@@ -1344,7 +1477,7 @@ visitLiveEntriesInBucket(
 
     bool stopIteration = false;
     timer.Time([&]() {
-        for (BucketInputIterator in(b); in; ++in)
+        for (LiveBucketInputIterator in(b); in; ++in)
         {
             BucketEntry const& e = *in;
             if (e.type() == LIVEENTRY || e.type() == INITENTRY)
@@ -1395,7 +1528,7 @@ visitLiveEntriesInBucket(
 
 static bool
 visitAllEntriesInBucket(
-    std::shared_ptr<Bucket const> b, std::string const& name,
+    std::shared_ptr<LiveBucket const> b, std::string const& name,
     std::optional<int64_t> minLedger,
     std::function<bool(LedgerEntry const&)> const& filterEntry,
     std::function<bool(LedgerEntry const&)> const& acceptEntry)
@@ -1407,7 +1540,7 @@ visitAllEntriesInBucket(
 
     bool stopIteration = false;
     timer.Time([&]() {
-        for (BucketInputIterator in(b); in; ++in)
+        for (LiveBucketInputIterator in(b); in; ++in)
         {
             BucketEntry const& e = *in;
             if (e.type() == LIVEENTRY || e.type() == INITENTRY)
@@ -1459,7 +1592,7 @@ BucketManagerImpl::visitLedgerEntries(
 
     UnorderedSet<Hash> deletedEntries;
     std::vector<std::pair<Hash, std::string>> hashes;
-    for (uint32_t i = 0; i < BucketList::kNumLevels; ++i)
+    for (uint32_t i = 0; i < LiveBucketList::kNumLevels; ++i)
     {
         HistoryStateBucket const& hsb = has.currentBuckets.at(i);
         hashes.emplace_back(hexToBin256(hsb.curr),
@@ -1475,7 +1608,7 @@ BucketManagerImpl::visitLedgerEntries(
             {
                 continue;
             }
-            auto b = getBucketByHash(pair.first);
+            auto b = getLiveBucketByHash(pair.first);
             if (!b)
             {
                 throw std::runtime_error(std::string("missing bucket: ") +
@@ -1511,7 +1644,10 @@ BucketManagerImpl::scheduleVerifyReferencedBucketsWork()
         {
             continue;
         }
-        auto b = getBucketByHash(h);
+
+        // TODO: Update verify to for ArchiveBucket
+        // Dependency: HAS supports Hot Archive BucketList
+        auto b = getBucketByHash<LiveBucket>(h);
         if (!b)
         {
             throw std::runtime_error(fmt::format(
@@ -1530,29 +1666,38 @@ BucketManagerImpl::getConfig() const
     return mApp.getConfig();
 }
 
-std::shared_ptr<SearchableBucketListSnapshot>
-BucketManagerImpl::getSearchableBucketListSnapshot()
+std::shared_ptr<SearchableLiveBucketListSnapshot>
+BucketManagerImpl::getSearchableLiveBucketListSnapshot()
 {
-    releaseAssert(mApp.getConfig().isUsingBucketListDB());
     // Any other threads must maintain their own snapshot
     releaseAssert(threadIsMain());
     if (!mSearchableBucketListSnapshot)
     {
         mSearchableBucketListSnapshot =
-            mSnapshotManager->copySearchableBucketListSnapshot();
+            mSnapshotManager->copySearchableLiveBucketListSnapshot();
     }
 
     return mSearchableBucketListSnapshot;
 }
 
+std::shared_ptr<SearchableHotArchiveBucketListSnapshot>
+BucketManagerImpl::getSearchableHotArchiveBucketListSnapshot()
+{
+    // Any other threads must maintain their own snapshot
+    releaseAssert(threadIsMain());
+    if (!mSearchableHotArchiveBucketListSnapshot)
+    {
+        mSearchableHotArchiveBucketListSnapshot =
+            mSnapshotManager->copySearchableHotArchiveBucketListSnapshot();
+    }
+
+    return mSearchableHotArchiveBucketListSnapshot;
+}
+
 void
 BucketManagerImpl::reportBucketEntryCountMetrics()
 {
-    if (!mApp.getConfig().isUsingBucketListDB())
-    {
-        return;
-    }
-    auto bucketEntryCounters = mBucketList->sumBucketEntryCounters();
+    auto bucketEntryCounters = mLiveBucketList->sumBucketEntryCounters();
     for (auto [type, count] : bucketEntryCounters.entryTypeCounts)
     {
         auto countCounter = mBucketListEntryCountCounters.find(type);

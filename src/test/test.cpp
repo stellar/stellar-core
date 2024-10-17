@@ -194,10 +194,10 @@ getTestConfig(int instanceNumber, Config::TestDbMode mode)
     instanceNumber += gBaseInstance;
     if (mode == Config::TESTDB_DEFAULT)
     {
-        // by default, tests should be run with in memory SQLITE as it's faster
-        // you can change this by enabling the appropriate line below
-        // mode = Config::TESTDB_IN_MEMORY_OFFERS;
-        // mode = Config::TESTDB_ON_DISK_SQLITE;
+        // by default, tests should be run with volatile BucketList as it's
+        // faster. You can change this by enabling the appropriate line below
+        // mode = Config::TESTDB_IN_MEMORY;
+        // mode = Config::TESTDB_BUCKET_DB_PERSISTENT;
         // mode = Config::TESTDB_POSTGRESQL;
         mode = Config::TESTDB_BUCKET_DB_VOLATILE;
     }
@@ -283,11 +283,10 @@ getTestConfig(int instanceNumber, Config::TestDbMode mode)
         switch (mode)
         {
         case Config::TESTDB_BUCKET_DB_VOLATILE:
-        case Config::TESTDB_IN_MEMORY_OFFERS:
+        case Config::TESTDB_IN_MEMORY:
             dbname << "sqlite3://:memory:";
             break;
         case Config::TESTDB_BUCKET_DB_PERSISTENT:
-        case Config::TESTDB_ON_DISK_SQLITE:
             dbname << "sqlite3://" << rootDir << "test.db";
             thisConfig.DISABLE_XDR_FSYNC = false;
             break;
@@ -296,30 +295,17 @@ getTestConfig(int instanceNumber, Config::TestDbMode mode)
             dbname << "postgresql://dbname=test" << instanceNumber;
             thisConfig.DISABLE_XDR_FSYNC = false;
             break;
-        case Config::TESTDB_IN_MEMORY_NO_OFFERS:
-            thisConfig.MODE_USES_IN_MEMORY_LEDGER = true;
-            break;
 #endif
         default:
             abort();
         }
 
-        if (mode == Config::TESTDB_BUCKET_DB_VOLATILE ||
-            mode == Config::TESTDB_BUCKET_DB_PERSISTENT)
+        if (mode == Config::TESTDB_IN_MEMORY)
         {
-            thisConfig.DEPRECATED_SQL_LEDGER_STATE = false;
-            thisConfig.BACKGROUND_EVICTION_SCAN = true;
-        }
-        else
-        {
-            thisConfig.DEPRECATED_SQL_LEDGER_STATE = true;
-            thisConfig.BACKGROUND_EVICTION_SCAN = false;
+            thisConfig.MODE_USES_IN_MEMORY_LEDGER = true;
         }
 
-        if (mode != Config::TESTDB_IN_MEMORY_NO_OFFERS)
-        {
-            thisConfig.DATABASE = SecretValue{dbname.str()};
-        }
+        thisConfig.DATABASE = SecretValue{dbname.str()};
 
         thisConfig.REPORT_METRICS = gTestMetrics;
         // disable maintenance
@@ -517,6 +503,13 @@ for_versions_from(std::vector<uint32> const& versions, Application& app,
 }
 
 void
+for_versions_from(uint32 from, Config const& cfg,
+                  std::function<void(Config const&)> const& f)
+{
+    for_versions(from, Config::CURRENT_LEDGER_PROTOCOL_VERSION, cfg, f);
+}
+
+void
 for_all_versions(Application& app, std::function<void(void)> const& f)
 {
     for_versions(1, Config::CURRENT_LEDGER_PROTOCOL_VERSION, app, f);
@@ -559,6 +552,21 @@ for_versions(uint32 from, uint32 to, Config const& cfg,
 }
 
 void
+for_versions(uint32 from, uint32 to, Config const& cfg,
+             std::function<void(Config&)> const& f)
+{
+    if (from > to)
+    {
+        return;
+    }
+    auto versions = std::vector<uint32>{};
+    versions.resize(to - from + 1);
+    std::iota(std::begin(versions), std::end(versions), from);
+
+    for_versions(versions, cfg, f);
+}
+
+void
 for_versions(std::vector<uint32> const& versions, Application& app,
              std::function<void(void)> const& f)
 {
@@ -579,6 +587,22 @@ for_versions(std::vector<uint32> const& versions, Application& app,
 void
 for_versions(std::vector<uint32> const& versions, Config const& cfg,
              std::function<void(Config const&)> const& f)
+{
+    REQUIRE(gMustUseTestVersionsWrapper);
+
+    if (std::find(versions.begin(), versions.end(), gTestingVersion) !=
+        versions.end())
+    {
+        REQUIRE(cfg.TESTING_UPGRADE_LEDGER_PROTOCOL_VERSION == gTestingVersion);
+        Config vcfg = cfg;
+        vcfg.LEDGER_PROTOCOL_VERSION = gTestingVersion;
+        f(vcfg);
+    }
+}
+
+void
+for_versions(std::vector<uint32> const& versions, Config const& cfg,
+             std::function<void(Config&)> const& f)
 {
     REQUIRE(gMustUseTestVersionsWrapper);
 

@@ -465,60 +465,18 @@ class AbstractLedgerTxnParent
     virtual std::shared_ptr<InternalLedgerEntry const>
     getNewestVersion(InternalLedgerKey const& key) const = 0;
 
-    // Return the count of the number of ledger objects of type `let`. Will
-    // throw when called on anything other than a (real or stub) root LedgerTxn.
-    virtual uint64_t countObjects(LedgerEntryType let) const = 0;
-
-    // Return the count of the number of ledger objects of type `let` within
+    // Return the count of the number of offer objects of type `let` within
     // range of ledgers `ledgers`. Will throw when called on anything other than
     // a (real or stub) root LedgerTxn.
-    virtual uint64_t countObjects(LedgerEntryType let,
-                                  LedgerRange const& ledgers) const = 0;
+    virtual uint64_t countOffers(LedgerRange const& ledgers) const = 0;
 
     // Delete all ledger entries modified on-or-after `ledger`. Will throw
     // when called on anything other than a (real or stub) root LedgerTxn.
-    virtual void
-    deleteObjectsModifiedOnOrAfterLedger(uint32_t ledger) const = 0;
-
-    // Delete all account ledger entries in the database. Will throw when called
-    // on anything other than a (real or stub) root LedgerTxn.
-    virtual void dropAccounts(bool rebuild) = 0;
-
-    // Delete all account-data ledger entries. Will throw when called on
-    // anything other than a (real or stub) root LedgerTxn.
-    virtual void dropData(bool rebuild) = 0;
+    virtual void deleteOffersModifiedOnOrAfterLedger(uint32_t ledger) const = 0;
 
     // Delete all offer ledger entries. Will throw when called on anything other
     // than a (real or stub) root LedgerTxn.
     virtual void dropOffers(bool rebuild) = 0;
-
-    // Delete all trustline ledger entries. Will throw when called on anything
-    // other than a (real or stub) root LedgerTxn.
-    virtual void dropTrustLines(bool rebuild) = 0;
-
-    // Delete all claimable balance ledger entries. Will throw when called on
-    // anything other than a (real or stub) root LedgerTxn.
-    virtual void dropClaimableBalances(bool rebuild) = 0;
-
-    // Delete all liquidity pool ledger entries. Will throw when called on
-    // anything other than a (real or stub) root LedgerTxn.
-    virtual void dropLiquidityPools(bool rebuild) = 0;
-
-    // Delete all contract data ledger entries. Will throw when called on
-    // anything other than a (real or stub) root LedgerTxn.
-    virtual void dropContractData(bool rebuild) = 0;
-
-    // Delete all contract code ledger entries. Will throw when called on
-    // anything other than a (real or stub) root LedgerTxn.
-    virtual void dropContractCode(bool rebuild) = 0;
-
-    // Delete all config setting ledger entries. Will throw when called on
-    // anything other than a (real or stub) root LedgerTxn.
-    virtual void dropConfigSettings(bool rebuild) = 0;
-
-    // Delete all ttl ledger entries. Will throw when called on
-    // anything other than a (real or stub) root LedgerTxn.
-    virtual void dropTTL(bool rebuild) = 0;
 
     // Return the current cache hit rate for prefetched ledger entries, as a
     // fraction from 0.0 to 1.0. Will throw when called on anything other than a
@@ -657,6 +615,12 @@ class AbstractLedgerTxn : public AbstractLedgerTxnParent
     // modified.
     virtual LedgerKeySet getAllTTLKeysWithoutSealing() const = 0;
 
+    virtual LedgerKeySet
+    getAllDeletedPersistentContractDataKeysWithoutSealing() const = 0;
+
+    virtual LedgerKeySet
+    getAllCreatedPersistentContractDataKeysWithoutSealing() const = 0;
+
     // forAllWorstBestOffers allows a parent AbstractLedgerTxn to process the
     // worst best offers (an offer is a worst best offer if every better offer
     // in any parent AbstractLedgerTxn has already been loaded). This function
@@ -783,6 +747,10 @@ class LedgerTxn : public AbstractLedgerTxn
                        std::vector<LedgerEntry>& liveEntries,
                        std::vector<LedgerKey>& deadEntries) override;
     LedgerKeySet getAllTTLKeysWithoutSealing() const override;
+    LedgerKeySet
+    getAllDeletedPersistentContractDataKeysWithoutSealing() const override;
+    LedgerKeySet
+    getAllCreatedPersistentContractDataKeysWithoutSealing() const override;
 
     std::shared_ptr<InternalLedgerEntry const>
     getNewestVersion(InternalLedgerKey const& key) const override;
@@ -817,20 +785,9 @@ class LedgerTxn : public AbstractLedgerTxn
 
     void unsealHeader(std::function<void(LedgerHeader&)> f) override;
 
-    uint64_t countObjects(LedgerEntryType let) const override;
-    uint64_t countObjects(LedgerEntryType let,
-                          LedgerRange const& ledgers) const override;
-    void deleteObjectsModifiedOnOrAfterLedger(uint32_t ledger) const override;
-    void dropAccounts(bool rebuild) override;
-    void dropData(bool rebuild) override;
+    uint64_t countOffers(LedgerRange const& ledgers) const override;
+    void deleteOffersModifiedOnOrAfterLedger(uint32_t ledger) const override;
     void dropOffers(bool rebuild) override;
-    void dropTrustLines(bool rebuild) override;
-    void dropClaimableBalances(bool rebuild) override;
-    void dropLiquidityPools(bool rebuild) override;
-    void dropContractData(bool rebuild) override;
-    void dropContractCode(bool rebuild) override;
-    void dropConfigSettings(bool rebuild) override;
-    void dropTTL(bool rebuild) override;
 
     double getPrefetchHitRate() const override;
     uint32_t prefetchClassic(UnorderedSet<LedgerKey> const& keys) override;
@@ -881,22 +838,11 @@ class LedgerTxnRoot : public AbstractLedgerTxnParent
     void commitChild(EntryIterator iter,
                      LedgerTxnConsistency cons) noexcept override;
 
-    uint64_t countObjects(LedgerEntryType let) const override;
-    uint64_t countObjects(LedgerEntryType let,
-                          LedgerRange const& ledgers) const override;
+    uint64_t countOffers(LedgerRange const& ledgers) const override;
 
-    void deleteObjectsModifiedOnOrAfterLedger(uint32_t ledger) const override;
+    void deleteOffersModifiedOnOrAfterLedger(uint32_t ledger) const override;
 
-    void dropAccounts(bool rebuild) override;
-    void dropData(bool rebuild) override;
     void dropOffers(bool rebuild) override;
-    void dropTrustLines(bool rebuild) override;
-    void dropClaimableBalances(bool rebuild) override;
-    void dropLiquidityPools(bool rebuild) override;
-    void dropContractData(bool rebuild) override;
-    void dropContractCode(bool rebuild) override;
-    void dropConfigSettings(bool rebuild) override;
-    void dropTTL(bool rebuild) override;
 
 #ifdef BUILD_TESTS
     void resetForFuzzer() override;

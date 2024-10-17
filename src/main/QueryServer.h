@@ -5,6 +5,7 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "lib/httpthreaded/server.hpp"
+#include "main/Config.h"
 
 #include <functional>
 #include <memory>
@@ -14,7 +15,8 @@
 
 namespace stellar
 {
-class SearchableBucketListSnapshot;
+class SearchableLiveBucketListSnapshot;
+class SearchableHotArchiveBucketListSnapshot;
 class BucketSnapshotManager;
 
 class QueryServer
@@ -26,8 +28,16 @@ class QueryServer
     httpThreaded::server::server mServer;
 
     std::unordered_map<std::thread::id,
-                       std::shared_ptr<SearchableBucketListSnapshot>>
+                       std::shared_ptr<SearchableLiveBucketListSnapshot>>
         mBucketListSnapshots;
+    std::unordered_map<std::thread::id,
+                       std::shared_ptr<SearchableHotArchiveBucketListSnapshot>>
+        mHotArchiveBucketListSnapshots;
+
+#ifdef BUILD_TESTS
+    bool const mRequireProofsForAllEvictedEntries;
+    bool const mSimulateFilterMiss;
+#endif
 
     bool safeRouter(HandlerRoute route, std::string const& params,
                     std::string const& body, std::string& retStr);
@@ -37,14 +47,35 @@ class QueryServer
 
     void addRoute(std::string const& name, HandlerRoute route);
 
-    // Returns raw LedgerKeys for the given keys from the Live BucketList. Does
-    // not query other BucketLists or reason about archival.
+    // Returns raw LedgerEntries for the given keys from the Live BucketList.
+    // Does not query other BucketLists or reason about archival.
     bool getLedgerEntryRaw(std::string const& params, std::string const& body,
                            std::string& retStr);
+
+    // Returns LedgerEntries for the given keys in addition to archival state.
+    // This function may query BucketLists in addition to the Live BucketList,
+    // query archival filters, etc. to provide complete information about the
+    // given LedgerKey.
+    bool getLedgerEntry(std::string const& params, std::string const& body,
+                        std::string& retStr);
+
+    // Returns restoration/creation proofs for the given set of keys.
+    bool getRestoreProof(std::string const& params, std::string const& body,
+                         std::string& retStr);
+
+    // Test string for artificial miss:
+    // AAAABgAAAAEBuCkP1Jtb0TMPDqcYvepnKTIGIPZc4adjZXxXY4xYCwAAAA8AAAAEbWlzcwAAAAE=
+    bool getCreationProof(std::string const& params, std::string const& body,
+                          std::string& retStr);
 
   public:
     QueryServer(const std::string& address, unsigned short port, int maxClient,
                 size_t threadPoolSize,
-                BucketSnapshotManager& bucketSnapshotManager);
+                BucketSnapshotManager& bucketSnapshotManager
+#ifdef BUILD_TESTS
+                ,
+                Config const& cfg
+#endif
+    );
 };
 }

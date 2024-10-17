@@ -121,7 +121,6 @@ Config::Config() : NODE_SEED(SecretKey::random())
 
     // non configurable
     MODE_ENABLES_BUCKETLIST = true;
-    MODE_USES_IN_MEMORY_LEDGER = false;
     MODE_STORES_HISTORY_MISC = true;
     MODE_STORES_HISTORY_LEDGERHEADERS = true;
     MODE_DOES_CATCHUP = true;
@@ -163,11 +162,9 @@ Config::Config() : NODE_SEED(SecretKey::random())
     CATCHUP_RECENT = 0;
     EXPERIMENTAL_PRECAUTION_DELAY_META = false;
     EXPERIMENTAL_BACKGROUND_OVERLAY_PROCESSING = false;
-    DEPRECATED_SQL_LEDGER_STATE = false;
     BUCKETLIST_DB_INDEX_PAGE_SIZE_EXPONENT = 14; // 2^14 == 16 kb
     BUCKETLIST_DB_INDEX_CUTOFF = 20;             // 20 mb
     BUCKETLIST_DB_PERSIST_INDEX = true;
-    BACKGROUND_EVICTION_SCAN = true;
     PUBLISH_TO_ARCHIVE_DELAY = std::chrono::seconds{0};
     // automatic maintenance settings:
     // short and prime with 1 hour which will cause automatic maintenance to
@@ -310,6 +307,7 @@ Config::Config() : NODE_SEED(SecretKey::random())
 
 #ifdef BUILD_TESTS
     TEST_CASES_ENABLED = false;
+    MODE_USES_IN_MEMORY_LEDGER = false;
 #endif
 
 #ifdef BEST_OFFER_DEBUGGING
@@ -1069,28 +1067,37 @@ Config::processConfig(std::shared_ptr<cpptoml::table> t)
                      EXPERIMENTAL_BACKGROUND_OVERLAY_PROCESSING =
                          readBool(item);
                  }},
+                // TODO: Flags are no longer supported, remove in next release.
                 {"BACKGROUND_EVICTION_SCAN",
-                 [&]() { BACKGROUND_EVICTION_SCAN = readBool(item); }},
-                // TODO: Flag is no longer supported, remove in next release.
+                 [&]() {
+                     CLOG_WARNING(
+                         Bucket,
+                         "BACKGROUND_EVICTION_SCAN is deprecated and ignored. "
+                         "Please remove this from config");
+                 }},
                 {"EXPERIMENTAL_BACKGROUND_EVICTION_SCAN",
                  [&]() {
                      CLOG_WARNING(
                          Bucket,
                          "EXPERIMENTAL_BACKGROUND_EVICTION_SCAN is deprecated "
                          "and "
-                         "is ignored. Use BACKGROUND_EVICTION_SCAN instead");
+                         "is ignored. Please remove from config");
                  }},
                 {"DEPRECATED_SQL_LEDGER_STATE",
-                 [&]() { DEPRECATED_SQL_LEDGER_STATE = readBool(item); }},
+                 [&]() {
+                     CLOG_WARNING(
+                         Bucket,
+                         "DEPRECATED_SQL_LEDGER_STATE is deprecated and "
+                         "ignored. Please remove from config");
+                 }},
                 // Still support EXPERIMENTAL_BUCKETLIST_DB* flags for
                 // captive-core for 21.0 release, remove in 21.1 release
                 {"EXPERIMENTAL_BUCKETLIST_DB",
                  [&]() {
-                     DEPRECATED_SQL_LEDGER_STATE = !readBool(item);
                      CLOG_WARNING(
                          Bucket,
-                         "EXPERIMENTAL_BUCKETLIST_DB flag is deprecated, "
-                         "use DEPRECATED_SQL_LEDGER_STATE=false instead.");
+                         "EXPERIMENTAL_BUCKETLIST_DB flag is deprecated. "
+                         "please remove from config");
                  }},
                 {"EXPERIMENTAL_BUCKETLIST_DB_INDEX_PAGE_SIZE_EXPONENT",
                  [&]() {
@@ -1568,8 +1575,8 @@ Config::processConfig(std::shared_ptr<cpptoml::table> t)
                  }},
                 {"TESTING_STARTING_EVICTION_SCAN_LEVEL",
                  [&]() {
-                     TESTING_STARTING_EVICTION_SCAN_LEVEL =
-                         readInt<uint32_t>(item, 1, BucketList::kNumLevels - 1);
+                     TESTING_STARTING_EVICTION_SCAN_LEVEL = readInt<uint32_t>(
+                         item, 1, LiveBucketList::kNumLevels - 1);
                  }},
                 {"TESTING_MAX_ENTRIES_TO_ARCHIVE",
                  [&]() {
@@ -1610,6 +1617,16 @@ Config::processConfig(std::shared_ptr<cpptoml::table> t)
                  [&]() {
                      EMIT_SOROBAN_TRANSACTION_META_EXT_V1 = readBool(item);
                  }},
+#ifdef BUILD_TESTS
+                {"ARTIFICIALLY_SIMULATE_ARCHIVE_FILTER_MISS",
+                 [&]() {
+                     ARTIFICIALLY_SIMULATE_ARCHIVE_FILTER_MISS = readBool(item);
+                 }},
+                {"REQUIRE_PROOFS_FOR_ALL_EVICTED_ENTRIES",
+                 [&]() {
+                     REQUIRE_PROOFS_FOR_ALL_EVICTED_ENTRIES = readBool(item);
+                 }},
+#endif
                 {"EMIT_LEDGER_CLOSE_META_EXT_V1",
                  [&]() { EMIT_LEDGER_CLOSE_META_EXT_V1 = readBool(item); }}};
 
@@ -1689,33 +1706,11 @@ Config::processConfig(std::shared_ptr<cpptoml::table> t)
         // Validators default to starting the network from local state
         FORCE_SCP = NODE_IS_VALIDATOR;
 
-        // Require either DEPRECATED_SQL_LEDGER_STATE or
-        // EXPERIMENTAL_BUCKETLIST_DB to be backwards compatible with horizon
-        // and RPC, but do not allow both.
-        if (!t->contains("DEPRECATED_SQL_LEDGER_STATE") &&
-            !t->contains("EXPERIMENTAL_BUCKETLIST_DB"))
-        {
-            std::string msg =
-                "Invalid configuration: "
-                "DEPRECATED_SQL_LEDGER_STATE not set. Default setting is FALSE "
-                "and is appropriate for most nodes.";
-            throw std::runtime_error(msg);
-        }
         // Only allow one version of all BucketListDB flags, either the
         // deprecated flag or new flag, but not both.
-        else if (t->contains("DEPRECATED_SQL_LEDGER_STATE") &&
-                 t->contains("EXPERIMENTAL_BUCKETLIST_DB"))
-        {
-            std::string msg =
-                "Invalid configuration: EXPERIMENTAL_BUCKETLIST_DB and "
-                "DEPRECATED_SQL_LEDGER_STATE must not both be set. "
-                "EXPERIMENTAL_BUCKETLIST_DB is deprecated, use "
-                "DEPRECATED_SQL_LEDGER_STATE only.";
-            throw std::runtime_error(msg);
-        }
-        else if (t->contains(
-                     "EXPERIMENTAL_BUCKETLIST_DB_INDEX_PAGE_SIZE_EXPONENT") &&
-                 t->contains("BUCKETLIST_DB_INDEX_PAGE_SIZE_EXPONENT"))
+        if (t->contains(
+                "EXPERIMENTAL_BUCKETLIST_DB_INDEX_PAGE_SIZE_EXPONENT") &&
+            t->contains("BUCKETLIST_DB_INDEX_PAGE_SIZE_EXPONENT"))
         {
             std::string msg =
                 "Invalid configuration: "
@@ -1746,14 +1741,6 @@ Config::processConfig(std::shared_ptr<cpptoml::table> t)
                 "EXPERIMENTAL_BUCKETLIST_DB_INDEX_CUTOFF is deprecated, use "
                 "BUCKETLIST_DB_INDEX_CUTOFF only.";
             throw std::runtime_error(msg);
-        }
-
-        // If DEPRECATED_SQL_LEDGER_STATE is set to false and
-        // BACKGROUND_EVICTION_SCAN is not set, override default value to false
-        // so that nodes still running SQL ledger don't crash on startup
-        if (!isUsingBucketListDB() && !t->contains("BACKGROUND_EVICTION_SCAN"))
-        {
-            BACKGROUND_EVICTION_SCAN = false;
         }
 
         // process elements that potentially depend on others
@@ -2263,52 +2250,10 @@ Config::getExpectedLedgerCloseTime() const
     return Herder::EXP_LEDGER_TIMESPAN_SECONDS;
 }
 
-void
-Config::setInMemoryMode()
-{
-    MODE_USES_IN_MEMORY_LEDGER = true;
-    DATABASE = SecretValue{"sqlite3://:memory:"};
-    MODE_STORES_HISTORY_MISC = false;
-    MODE_STORES_HISTORY_LEDGERHEADERS = false;
-    MODE_ENABLES_BUCKETLIST = true;
-    BACKGROUND_EVICTION_SCAN = false;
-}
-
 bool
 Config::modeDoesCatchupWithBucketList() const
 {
     return MODE_DOES_CATCHUP && MODE_ENABLES_BUCKETLIST;
-}
-
-bool
-Config::isInMemoryMode() const
-{
-    return MODE_USES_IN_MEMORY_LEDGER;
-}
-
-bool
-Config::isUsingBucketListDB() const
-{
-    return !DEPRECATED_SQL_LEDGER_STATE && !MODE_USES_IN_MEMORY_LEDGER &&
-           MODE_ENABLES_BUCKETLIST;
-}
-
-bool
-Config::isUsingBackgroundEviction() const
-{
-    return isUsingBucketListDB() && BACKGROUND_EVICTION_SCAN;
-}
-
-bool
-Config::isPersistingBucketListDBIndexes() const
-{
-    return isUsingBucketListDB() && BUCKETLIST_DB_PERSIST_INDEX;
-}
-
-bool
-Config::isInMemoryModeWithoutMinimalDB() const
-{
-    return MODE_USES_IN_MEMORY_LEDGER && !MODE_STORES_HISTORY_LEDGERHEADERS;
 }
 
 bool

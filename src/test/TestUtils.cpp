@@ -3,6 +3,7 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "TestUtils.h"
+#include "bucket/BucketList.h"
 #include "overlay/test/LoopbackPeer.h"
 #include "simulation/LoadGenerator.h"
 #include "simulation/Simulation.h"
@@ -128,16 +129,21 @@ computeMultiplier(LedgerEntry const& le)
     }
 }
 
-BucketListDepthModifier::BucketListDepthModifier(uint32_t newDepth)
-    : mPrevDepth(BucketList::kNumLevels)
+template <class BucketT>
+BucketListDepthModifier<BucketT>::BucketListDepthModifier(uint32_t newDepth)
+    : mPrevDepth(BucketListBase<BucketT>::kNumLevels)
 {
-    BucketList::kNumLevels = newDepth;
+    BucketListBase<BucketT>::kNumLevels = newDepth;
 }
 
-BucketListDepthModifier::~BucketListDepthModifier()
+template <class BucketT>
+BucketListDepthModifier<BucketT>::~BucketListDepthModifier()
 {
-    BucketList::kNumLevels = mPrevDepth;
+    BucketListBase<BucketT>::kNumLevels = mPrevDepth;
 }
+
+template class BucketListDepthModifier<LiveBucket>;
+template class BucketListDepthModifier<HotArchiveBucket>;
 }
 
 TestInvariantManager::TestInvariantManager(medida::MetricsRegistry& registry)
@@ -285,7 +291,7 @@ modifySorobanNetworkConfig(Application& app,
 
     // Need to close a ledger following call to `addBatch` from config upgrade
     // to refresh cached state
-    if (app.getConfig().isUsingBucketListDB())
+    if (!app.getConfig().MODE_USES_IN_MEMORY_LEDGER)
     {
         txtest::closeLedger(app);
     }

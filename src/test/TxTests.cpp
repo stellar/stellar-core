@@ -389,9 +389,13 @@ checkTransaction(TransactionTestFrame& txFrame, Application& app)
 void
 applyTx(TransactionTestFramePtr const& tx, Application& app, bool checkSeqNum)
 {
+    if (app.getConfig().MODE_USES_IN_MEMORY_LEDGER)
+    {
+        applyCheck(tx, app, checkSeqNum);
+    }
     // We cannot commit directly to the DB if running BucketListDB, so close a
     // ledger with the TX instead
-    if (app.getConfig().isUsingBucketListDB())
+    else
     {
         auto resultSet = closeLedger(app, {tx});
 
@@ -405,10 +409,6 @@ applyTx(TransactionTestFramePtr const& tx, Application& app, bool checkSeqNum)
         auto meta = app.getLedgerManager().getLastClosedLedgerTxMeta();
         REQUIRE(meta.size() == 1);
         recordOrCheckGlobalTestTxMetadata(meta.back().getXDR());
-    }
-    else
-    {
-        applyCheck(tx, app, checkSeqNum);
     }
 
     throwIf(tx->getResult());
@@ -1677,7 +1677,8 @@ sorobanEnvelopeFromOps(Hash const& networkID, TestAccount& source,
                        SorobanResources const& resources, uint32_t totalFee,
                        int64_t resourceFee, std::optional<std::string> memo,
                        std::optional<SequenceNumber> seq,
-                       std::optional<uint64_t> muxedData)
+                       std::optional<uint64_t> muxedData,
+                       std::optional<xdr::xvector<ArchivalProof>> proofs)
 {
     TransactionEnvelope tx(ENVELOPE_TYPE_TX);
     if (muxedData)
@@ -1696,6 +1697,15 @@ sorobanEnvelopeFromOps(Hash const& networkID, TestAccount& source,
     tx.v1().tx.ext.v(1);
     tx.v1().tx.ext.sorobanData().resources = resources;
     tx.v1().tx.ext.sorobanData().resourceFee = resourceFee;
+
+#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
+    tx.v1().tx.ext.sorobanData().ext.v(1);
+    if (proofs)
+    {
+        tx.v1().tx.ext.sorobanData().ext.proofs() = *proofs;
+    }
+#endif
+
     if (memo)
     {
         Memo textMemo(MEMO_TEXT);
@@ -1725,13 +1735,13 @@ transactionFrameFromOps(Hash const& networkID, TestAccount& source,
 }
 
 TransactionTestFramePtr
-sorobanTransactionFrameFromOps(Hash const& networkID, TestAccount& source,
-                               std::vector<Operation> const& ops,
-                               std::vector<SecretKey> const& opKeys,
-                               SorobanResources const& resources,
-                               uint32_t inclusionFee, int64_t resourceFee,
-                               std::optional<std::string> memo,
-                               std::optional<SequenceNumber> seq)
+sorobanTransactionFrameFromOps(
+    Hash const& networkID, TestAccount& source,
+    std::vector<Operation> const& ops, std::vector<SecretKey> const& opKeys,
+    SorobanResources const& resources, uint32_t inclusionFee,
+    int64_t resourceFee, std::optional<std::string> memo,
+    std::optional<SequenceNumber> seq,
+    std::optional<xdr::xvector<ArchivalProof>> proofs)
 {
     uint64 totalFee = inclusionFee;
     totalFee += resourceFee;
@@ -1740,7 +1750,7 @@ sorobanTransactionFrameFromOps(Hash const& networkID, TestAccount& source,
         networkID,
         sorobanEnvelopeFromOps(networkID, source, ops, opKeys, resources,
                                static_cast<uint32>(totalFee), resourceFee, memo,
-                               seq, std::nullopt));
+                               seq, std::nullopt, proofs));
     return TransactionTestFrame::fromTxFrame(tx);
 }
 
@@ -1752,9 +1762,10 @@ sorobanTransactionFrameFromOpsWithTotalFee(
     std::optional<std::string> memo, std::optional<uint64> muxedData)
 {
     auto tx = TransactionFrameBase::makeTransactionFromWire(
-        networkID, sorobanEnvelopeFromOps(networkID, source, ops, opKeys,
-                                          resources, totalFee, resourceFee,
-                                          memo, std::nullopt, muxedData));
+        networkID,
+        sorobanEnvelopeFromOps(networkID, source, ops, opKeys, resources,
+                               totalFee, resourceFee, memo, std::nullopt,
+                               muxedData, std::nullopt));
     return TransactionTestFrame::fromTxFrame(tx);
 }
 

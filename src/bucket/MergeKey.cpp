@@ -10,25 +10,19 @@
 namespace stellar
 {
 
-MergeKey::MergeKey(bool keepDeadEntries,
-                   std::shared_ptr<Bucket> const& inputCurr,
-                   std::shared_ptr<Bucket> const& inputSnap,
-                   std::vector<std::shared_ptr<Bucket>> const& inputShadows)
-    : mKeepDeadEntries(keepDeadEntries)
-    , mInputCurrBucket(inputCurr->getHash())
-    , mInputSnapBucket(inputSnap->getHash())
+MergeKey::MergeKey(bool keepTombstoneEntries, Hash const& currHash,
+                   Hash const& snapHash, std::vector<Hash> const& shadowHashes)
+    : mKeepTombstoneEntries(keepTombstoneEntries)
+    , mInputCurrBucket(currHash)
+    , mInputSnapBucket(snapHash)
+    , mInputShadowBuckets(shadowHashes)
 {
-    mInputShadowBuckets.reserve(inputShadows.size());
-    for (auto const& s : inputShadows)
-    {
-        mInputShadowBuckets.emplace_back(s->getHash());
-    }
 }
 
 bool
 MergeKey::operator==(MergeKey const& other) const
 {
-    return mKeepDeadEntries == other.mKeepDeadEntries &&
+    return mKeepTombstoneEntries == other.mKeepTombstoneEntries &&
            mInputCurrBucket == other.mInputCurrBucket &&
            mInputSnapBucket == other.mInputSnapBucket &&
            mInputShadowBuckets == other.mInputShadowBuckets;
@@ -49,7 +43,7 @@ operator<<(std::ostream& out, MergeKey const& b)
         first = false;
         out << hexAbbrev(s);
     }
-    out << fmt::format(FMT_STRING("], keep={}]"), b.mKeepDeadEntries);
+    out << fmt::format(FMT_STRING("], keep={}]"), b.mKeepTombstoneEntries);
     return out;
 }
 
@@ -68,7 +62,7 @@ size_t
 hash<stellar::MergeKey>::operator()(stellar::MergeKey const& key) const noexcept
 {
     std::ostringstream oss;
-    oss << key.mKeepDeadEntries << ','
+    oss << key.mKeepTombstoneEntries << ','
         << stellar::binToHex(key.mInputCurrBucket) << ','
         << stellar::binToHex(key.mInputSnapBucket);
     for (auto const& e : key.mInputShadowBuckets)

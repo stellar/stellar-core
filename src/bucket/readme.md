@@ -83,8 +83,6 @@ for smaller memory overhead.
 Because the `BucketIndex`'s must be in memory, there is a tradeoff between BucketList
 lookup speed and memory overhead. The following configuration flags control these options:
 
-- `DEPRECATED_SQL_LEDGER_STATE`
-  - When set to false, the `BucketList` is indexed and used for ledger entry lookup
 - `BUCKETLIST_DB_INDEX_PAGE_SIZE_EXPONENT`
   - Page size used for `RangeIndex`, where `pageSize ==
     2^BUCKETLIST_DB_INDEX_PAGE_SIZE_EXPONENT`.

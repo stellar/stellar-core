@@ -18,7 +18,7 @@ TEST_CASE_VERSIONS("liquidity pool deposit", "[tx][liquiditypool]")
 {
     VirtualClock clock;
     auto app = createTestApplication(
-        clock, getTestConfig(0, Config::TESTDB_IN_MEMORY_NO_OFFERS));
+        clock, getTestConfig(0, Config::TESTDB_IN_MEMORY));
 
     // set up world
     auto const& lm = app->getLedgerManager();

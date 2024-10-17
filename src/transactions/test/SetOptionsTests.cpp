@@ -36,7 +36,7 @@ using namespace stellar::txtest;
 // minbalance
 TEST_CASE_VERSIONS("set options", "[tx][setoptions]")
 {
-    Config const& cfg = getTestConfig(0, Config::TESTDB_IN_MEMORY_NO_OFFERS);
+    Config const& cfg = getTestConfig(0, Config::TESTDB_IN_MEMORY);
 
     VirtualClock clock;
     auto app = createTestApplication(clock, cfg);

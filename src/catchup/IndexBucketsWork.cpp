@@ -15,7 +15,7 @@
 namespace stellar
 {
 IndexBucketsWork::IndexWork::IndexWork(Application& app,
-                                       std::shared_ptr<Bucket> b)
+                                       std::shared_ptr<LiveBucket> b)
     : BasicWork(app, "index-work", BasicWork::RETRY_NEVER), mBucket(b)
 {
 }
@@ -57,7 +57,7 @@ IndexBucketsWork::IndexWork::postWork()
             auto indexFilename =
                 bm.bucketIndexFilename(self->mBucket->getHash());
 
-            if (bm.getConfig().isPersistingBucketListDBIndexes() &&
+            if (bm.getConfig().BUCKETLIST_DB_PERSIST_INDEX &&
                 fs::exists(indexFilename))
             {
                 self->mIndex = BucketIndex::load(bm, indexFilename,
@@ -80,7 +80,8 @@ IndexBucketsWork::IndexWork::postWork()
 
             if (!self->mIndex)
             {
-                self->mIndex = BucketIndex::createIndex(
+                // TODO: Fix this when archive BucketLists assume state
+                self->mIndex = BucketIndex::createIndex<BucketEntry>(
                     bm, self->mBucket->getFilename(), self->mBucket->getHash());
             }
 
@@ -104,7 +105,7 @@ IndexBucketsWork::IndexWork::postWork()
 }
 
 IndexBucketsWork::IndexBucketsWork(
-    Application& app, std::vector<std::shared_ptr<Bucket>> const& buckets)
+    Application& app, std::vector<std::shared_ptr<LiveBucket>> const& buckets)
     : Work(app, "index-bucketList", BasicWork::RETRY_NEVER), mBuckets(buckets)
 {
 }
@@ -130,7 +131,7 @@ void
 IndexBucketsWork::spawnWork()
 {
     UnorderedSet<Hash> indexedBuckets;
-    auto spawnIndexWork = [&](std::shared_ptr<Bucket> const& b) {
+    auto spawnIndexWork = [&](std::shared_ptr<LiveBucket> const& b) {
         // Don't index empty bucket or buckets that are already being
         // indexed. Sometimes one level's snap bucket may be another
         // level's future bucket. The indexing job may have started but

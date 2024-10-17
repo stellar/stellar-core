@@ -9,7 +9,11 @@
 #include "medida/meter.h"
 #include "medida/timer.h"
 #include "transactions/MutableTransactionResult.h"
+#include "util/ArchivalProofs.h"
+#include "util/ProtocolVersion.h"
+#include "xdr/Stellar-ledger-entries.h"
 #include <Tracy.hpp>
+#include <memory>
 
 namespace stellar
 {
@@ -76,25 +80,90 @@ RestoreFootprintOpFrame::doApply(
     rustEntryRentChanges.reserve(footprint.readWrite.size());
     for (auto const& lk : footprint.readWrite)
     {
+        std::shared_ptr<LedgerEntry> evictedEntryToRestore{nullptr};
         auto ttlKey = getTTLKey(lk);
         {
             auto constTTLLtxe = ltx.loadWithoutRecord(ttlKey);
-            // Skip entry if the TTLEntry is missing or if it's already live.
-            if (!constTTLLtxe || isLive(constTTLLtxe.current(), ledgerSeq))
+
+            // Before p23, entries that did not exist were skipped, but the
+            // transaction still succeeded.
+            if (protocolVersionIsBefore(
+                    ltx.getHeader().ledgerVersion,
+                    Bucket::FIRST_PROTOCOL_SUPPORTING_PERSISTENT_EVICTION))
             {
-                continue;
+                if (!constTTLLtxe)
+                {
+                    // Skip entry if it doesn't exist in protocol 22
+                    continue;
+                }
+                // Skip entry if it's already live.
+                else if (isLive(constTTLLtxe.current(), ledgerSeq))
+                {
+                    continue;
+                }
+            }
+            else
+            {
+                // In protocol 23 and later, entries that do not exist and do
+                // not have a proof fail.
+                if (!constTTLLtxe)
+                {
+                    evictedEntryToRestore = getRestoredEntryFromProof(
+                        app, lk, mParentTx.sorobanProofs());
+                    if (!evictedEntryToRestore)
+                    {
+                        // TODO: Switch to RESTORE_FOOTPRINT_INVALID_PROOF
+                        // when XDR changes in rust are merged
+                        innerResult(res).code(RESTORE_FOOTPRINT_MALFORMED);
+                        if (lk.type() == CONTRACT_CODE)
+                        {
+                            sorobanData->pushApplyTimeDiagnosticError(
+                                appConfig, SCE_VALUE, SCEC_INVALID_INPUT,
+                                "invalid proof for contract code entry",
+                                {makeBytesSCVal(lk.contractCode().hash)});
+                        }
+                        else
+                        {
+                            sorobanData->pushApplyTimeDiagnosticError(
+                                appConfig, SCE_VALUE, SCEC_INVALID_INPUT,
+                                "invalid proof for contract data entry",
+                                {makeAddressSCVal(lk.contractData().contract),
+                                 lk.contractData().key});
+                        }
+
+                        return false;
+                    }
+                }
+                // Skip entry if it's already live.
+                else if (isLive(constTTLLtxe.current(), ledgerSeq))
+                {
+                    continue;
+                }
             }
         }
 
         // We must load the ContractCode/ContractData entry for fee purposes, as
         // restore is considered a write
-        auto constEntryLtxe = ltx.loadWithoutRecord(lk);
+        uint32_t entrySize = 0;
 
-        // We checked for TTLEntry existence above
-        releaseAssertOrThrow(constEntryLtxe);
+        // If entry exists in the Live BucketList and does not need to be
+        // created
+        if (!evictedEntryToRestore)
+        {
+            auto constEntryLtxe = ltx.loadWithoutRecord(lk);
 
-        uint32_t entrySize =
-            static_cast<uint32>(xdr::xdr_size(constEntryLtxe.current()));
+            // We checked for TTLEntry existence above
+            releaseAssertOrThrow(constEntryLtxe);
+
+            entrySize =
+                static_cast<uint32>(xdr::xdr_size(constEntryLtxe.current()));
+        }
+        else
+        {
+            entrySize =
+                static_cast<uint32>(xdr::xdr_size(*evictedEntryToRestore));
+        }
+
         metrics.mLedgerReadByte += entrySize;
         if (resources.readBytes < metrics.mLedgerReadByte)
         {
@@ -138,11 +207,25 @@ RestoreFootprintOpFrame::doApply(
         rustChange.new_size_bytes = entrySize;
         rustChange.new_live_until_ledger = restoredLiveUntilLedger;
 
-        // Entry exists if we get this this point due to the constTTLLtxe
-        // loadWithoutRecord logic above.
-        auto ttlLtxe = ltx.load(ttlKey);
-        ttlLtxe.current().data.ttl().liveUntilLedgerSeq =
-            restoredLiveUntilLedger;
+        if (evictedEntryToRestore)
+        {
+            // TODO: Pipe new "restored" change throughout ltx
+            // TODO: Delete entries from Hot Archive
+            ltx.create(*evictedEntryToRestore);
+            LedgerEntry ttl;
+            ttl.data.type(TTL);
+            ttl.data.ttl().liveUntilLedgerSeq = restoredLiveUntilLedger;
+            ttl.data.ttl().keyHash = getTTLKey(lk).ttl().keyHash;
+            ltx.create(ttl);
+        }
+        else
+        {
+            // Entry exists if we get this this point due to the constTTLLtxe
+            // loadWithoutRecord logic above.
+            auto ttlLtxe = ltx.load(ttlKey);
+            ttlLtxe.current().data.ttl().liveUntilLedgerSeq =
+                restoredLiveUntilLedger;
+        }
     }
     uint32_t ledgerVersion = ltx.loadHeader().current().ledgerVersion;
     int64_t rentFee = rust_bridge::compute_rent_fee(
@@ -192,6 +275,22 @@ RestoreFootprintOpFrame::doCheckValidForSoroban(
             return false;
         }
     }
+
+#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
+    if (protocolVersionStartsFrom(
+            ledgerVersion,
+            Bucket::FIRST_PROTOCOL_SUPPORTING_PERSISTENT_EVICTION))
+    {
+        if (!mParentTx.hasSorobanProofs() ||
+            !checkRestorationProofValidity(mParentTx.sorobanProofs()))
+        {
+            sorobanData.pushValidationTimeDiagnosticError(
+                appConfig, SCE_VALUE, SCEC_INVALID_INPUT,
+                "invalid restoration proof");
+            return false;
+        }
+    }
+#endif
 
     return true;
 }
