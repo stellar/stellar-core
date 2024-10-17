@@ -24,7 +24,6 @@ TEST_CASE("generate load in protocol 1")
             auto cfg = getTestConfig(i);
             cfg.TESTING_UPGRADE_MAX_TX_SET_SIZE = 5000;
             cfg.TESTING_UPGRADE_LEDGER_PROTOCOL_VERSION = 1;
-            cfg.DEPRECATED_SQL_LEDGER_STATE = false;
             return cfg;
         });
 

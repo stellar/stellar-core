@@ -13,6 +13,9 @@
 namespace stellar
 {
 
+class LiveBucket;
+class HotArchiveBucket;
+
 template <typename T>
 bool
 lexCompare(T&& lhs1, T&& rhs1)
@@ -126,10 +129,70 @@ struct LedgerEntryIdCmp
  * LedgerEntries (ignoring their hashes, as the LedgerEntryIdCmp ignores their
  * bodies).
  */
-struct BucketEntryIdCmp
+template <typename BucketT> struct BucketEntryIdCmp
 {
+    static_assert(std::is_same_v<BucketT, LiveBucket> ||
+                  std::is_same_v<BucketT, HotArchiveBucket>);
+
+    using BucketEntryT = std::conditional_t<std::is_same_v<BucketT, LiveBucket>,
+                                            BucketEntry, HotArchiveBucketEntry>;
+
     bool
-    operator()(BucketEntry const& a, BucketEntry const& b) const
+    compareHotArchive(HotArchiveBucketEntry const& a,
+                      HotArchiveBucketEntry const& b) const
+    {
+        HotArchiveBucketEntryType aty = a.type();
+        HotArchiveBucketEntryType bty = b.type();
+
+        // METAENTRY sorts below all other entries, comes first in buckets.
+        if (aty == HOT_ARCHIVE_METAENTRY || bty == HOT_ARCHIVE_METAENTRY)
+        {
+            return aty < bty;
+        }
+
+        if (aty == HOT_ARCHIVE_ARCHIVED)
+        {
+            if (bty == HOT_ARCHIVE_ARCHIVED)
+            {
+                return LedgerEntryIdCmp{}(a.archivedEntry().data,
+                                          b.archivedEntry().data);
+            }
+            else
+            {
+                if (bty != HOT_ARCHIVE_DELETED && bty != HOT_ARCHIVE_LIVE)
+                {
+                    throw std::runtime_error("Malformed bucket: expected "
+                                             "DELETED/LIVE key.");
+                }
+                return LedgerEntryIdCmp{}(a.archivedEntry().data, b.key());
+            }
+        }
+        else
+        {
+            if (aty != HOT_ARCHIVE_DELETED && aty != HOT_ARCHIVE_LIVE)
+            {
+                throw std::runtime_error(
+                    "Malformed bucket: expected DELETED/LIVE key.");
+            }
+
+            if (bty == HOT_ARCHIVE_ARCHIVED)
+            {
+                return LedgerEntryIdCmp{}(a.key(), b.archivedEntry().data);
+            }
+            else
+            {
+                if (bty != HOT_ARCHIVE_DELETED && bty != HOT_ARCHIVE_LIVE)
+                {
+                    throw std::runtime_error("Malformed bucket: expected "
+                                             "DELETED/RESTORED key.");
+                }
+                return LedgerEntryIdCmp{}(a.key(), b.key());
+            }
+        }
+    }
+
+    bool
+    compareLive(BucketEntry const& a, BucketEntry const& b) const
     {
         BucketEntryType aty = a.type();
         BucketEntryType bty = b.type();
@@ -177,6 +240,19 @@ struct BucketEntryIdCmp
                 }
                 return LedgerEntryIdCmp{}(a.deadEntry(), b.deadEntry());
             }
+        }
+    }
+
+    bool
+    operator()(BucketEntryT const& a, BucketEntryT const& b) const
+    {
+        if constexpr (std::is_same_v<BucketT, LiveBucket>)
+        {
+            return compareLive(a, b);
+        }
+        else
+        {
+            return compareHotArchive(a, b);
         }
     }
 };

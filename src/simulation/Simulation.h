@@ -50,9 +50,8 @@ class Simulation
     // Add new node to the simulation. This function does not start the node.
     // Callers are expected to call `start` or `startAllNodes` manually.
     Application::pointer addNode(SecretKey nodeKey, SCPQuorumSet qSet,
-                                 Config const* cfg = nullptr, bool newDB = true,
-                                 uint32_t startAtLedger = 0,
-                                 std::string const& startAtHash = "");
+                                 Config const* cfg = nullptr,
+                                 bool newDB = true);
     Application::pointer getNode(NodeID nodeID);
     std::vector<Application::pointer> getNodes();
     std::vector<NodeID> getNodeIDs();

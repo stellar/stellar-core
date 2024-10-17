@@ -286,7 +286,6 @@ TEST_CASE("bad validators configs", "[config]")
 NODE_SEED="SA7FGJMMUIHNE3ZPI2UO5I632A7O5FBAZTXFAIEVFA4DSSGLHXACLAIT a3"
 {NODE_HOME_DOMAIN}
 NODE_IS_VALIDATOR=true
-DEPRECATED_SQL_LEDGER_STATE=true
 
 ############################
 # list of HOME_DOMAINS
@@ -473,9 +472,7 @@ TEST_CASE("nesting level", "[config]")
         auto secretKey = SecretKey::fromSeed(hash);
         return secretKey.getStrKeyPublic();
     };
-    std::string configNesting =
-        "DEPRECATED_SQL_LEDGER_STATE=true\n" // Required for all configs
-        "UNSAFE_QUORUM=true";
+    std::string configNesting = "UNSAFE_QUORUM=true";
     std::string quorumSetNumber = "";
     std::string quorumSetTemplate = R"(
 
@@ -536,7 +533,6 @@ TEST_CASE("operation filter configuration", "[config]")
         };
 
         std::stringstream ss;
-        ss << "DEPRECATED_SQL_LEDGER_STATE=true\n"; // required for all configs
         ss << "UNSAFE_QUORUM=true\n";
         toConfigStr(vals, ss);
         ss << "\n[QUORUM_SET]\n";

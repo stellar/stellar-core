@@ -147,9 +147,8 @@ transactions or ledger states) must be downloaded and verified sequentially. It 
 worthwhile to save and reuse such a trusted reference file multiple times before regenerating it.
 
 ##### Experimental fast "meta data generation"
-`catchup` has a command line flag `--in-memory` that when combined with the
-`METADATA_OUTPUT_STREAM` allows a stellar-core instance to stream meta data instead
-of using a database as intermediate store.
+`catchup` when combined with the
+`METADATA_OUTPUT_STREAM` allows a stellar-core instance to stream meta data.
 
 This has been tested as being orders of magnitude faster for replaying large sections
 of history.
@@ -157,17 +156,7 @@ of history.
 If you don't specify any value for stream the command will just replay transactions
 in memory and throw away all meta. This can be useful for performance testing the transaction processing subsystem.
 
-The `--in-memory` flag is also supported by the `run` command, which can be used to
-run a lightweight, stateless validator or watcher node, and this can be combined with
-`METADATA_OUTPUT_STREAM` to stream network activity to another process.
-
-By default, such a stateless node in `run` mode will catch up to the network starting from the
-network's most recent checkpoint, but this behaviour can be further modified using two flags
-(that must be used together) called `--start-at-ledger <N>` and `--start-at-hash <HEXHASH>`. These
-cause the node to start with a fast in-memory catchup to ledger `N` with hash `HEXHASH`, and then
-replay ledgers forward to the current state of the network.
-
-A stateless and meta-streaming node can additionally be configured with
+A meta-streaming node can additionally be configured with
 `EXPERIMENTAL_PRECAUTION_DELAY_META=true` (if unspecified, the default is
 `false`).  If `EXPERIMENTAL_PRECAUTION_DELAY_META` is `true`, then the node will
 delay emitting meta for a ledger `<N>` until the _next_ ledger, `<N+1>`, closes.

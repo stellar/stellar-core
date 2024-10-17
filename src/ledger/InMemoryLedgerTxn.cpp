@@ -4,9 +4,12 @@
 
 #include "ledger/InMemoryLedgerTxn.h"
 #include "crypto/SecretKey.h"
+#include "ledger/InMemoryLedgerTxnRoot.h"
+#include "ledger/LedgerTxn.h"
 #include "ledger/LedgerTxnImpl.h"
 #include "transactions/TransactionUtils.h"
 #include "util/GlobalChecks.h"
+#include "util/UnorderedMap.h"
 #include "util/XDROperators.h"
 
 namespace stellar
@@ -73,8 +76,9 @@ InMemoryLedgerTxn::FilteredEntryIteratorImpl::clone() const
 }
 
 InMemoryLedgerTxn::InMemoryLedgerTxn(InMemoryLedgerTxnRoot& parent,
-                                     Database& db)
-    : LedgerTxn(parent), mDb(db)
+                                     Database& db,
+                                     AbstractLedgerTxnParent* realRoot)
+    : LedgerTxn(parent), mDb(db), mRealRootForOffers(realRoot)
 {
 }
 
@@ -141,6 +145,36 @@ InMemoryLedgerTxn::updateLedgerKeyMap(EntryIterator iter)
     {
         auto const& genKey = iter.key();
         updateLedgerKeyMap(genKey, iter.entryExists());
+
+        // In addition to maintaining in-memory map, commit offers to "real" ltx
+        // root to test SQL backed offers
+        if (mRealRootForOffers &&
+            genKey.type() == InternalLedgerEntryType::LEDGER_ENTRY)
+        {
+            auto const& ledgerKey = genKey.ledgerKey();
+            if (ledgerKey.type() == OFFER)
+            {
+                LedgerTxn ltx(*mRealRootForOffers);
+                if (!iter.entryExists())
+                {
+                    ltx.erase(ledgerKey);
+                }
+                else
+                {
+                    auto ltxe = ltx.load(genKey);
+                    if (!ltxe)
+                    {
+                        ltx.create(iter.entry());
+                    }
+                    else
+                    {
+                        ltxe.current() = iter.entry().ledgerEntry();
+                    }
+                }
+
+                ltx.commit();
+            }
+        }
     }
 }
 
@@ -332,4 +366,74 @@ InMemoryLedgerTxn::getPoolShareTrustLinesByAccountAndAsset(
     return res;
 }
 
+void
+InMemoryLedgerTxn::dropOffers(bool rebuild)
+{
+    if (mRealRootForOffers)
+    {
+        mRealRootForOffers->dropOffers(rebuild);
+    }
+    else
+    {
+        LedgerTxn::dropOffers(rebuild);
+    }
+}
+
+uint64_t
+InMemoryLedgerTxn::countOffers(LedgerRange const& ledgers) const
+{
+    if (mRealRootForOffers)
+    {
+        return mRealRootForOffers->countOffers(ledgers);
+    }
+
+    return LedgerTxn::countOffers(ledgers);
+}
+
+void
+InMemoryLedgerTxn::deleteOffersModifiedOnOrAfterLedger(uint32_t ledger) const
+{
+    if (mRealRootForOffers)
+    {
+        mRealRootForOffers->deleteOffersModifiedOnOrAfterLedger(ledger);
+    }
+    else
+    {
+        LedgerTxn::deleteOffersModifiedOnOrAfterLedger(ledger);
+    }
+}
+
+UnorderedMap<LedgerKey, LedgerEntry>
+InMemoryLedgerTxn::getAllOffers()
+{
+    if (mRealRootForOffers)
+    {
+        return mRealRootForOffers->getAllOffers();
+    }
+
+    return LedgerTxn::getAllOffers();
+}
+
+std::shared_ptr<LedgerEntry const>
+InMemoryLedgerTxn::getBestOffer(Asset const& buying, Asset const& selling)
+{
+    if (mRealRootForOffers)
+    {
+        return mRealRootForOffers->getBestOffer(buying, selling);
+    }
+
+    return LedgerTxn::getBestOffer(buying, selling);
+}
+
+std::shared_ptr<LedgerEntry const>
+InMemoryLedgerTxn::getBestOffer(Asset const& buying, Asset const& selling,
+                                OfferDescriptor const& worseThan)
+{
+    if (mRealRootForOffers)
+    {
+        return mRealRootForOffers->getBestOffer(buying, selling, worseThan);
+    }
+
+    return LedgerTxn::getBestOffer(buying, selling, worseThan);
+}
 }

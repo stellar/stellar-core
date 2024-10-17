@@ -292,7 +292,7 @@ deleteRandomSubEntryFromAccount(Application& app, LedgerEntry& le,
 TEST_CASE("Create account with no subentries",
           "[invariant][accountsubentriescount]")
 {
-    Config cfg = getTestConfig(0, Config::TESTDB_IN_MEMORY_NO_OFFERS);
+    Config cfg = getTestConfig(0, Config::TESTDB_IN_MEMORY);
     cfg.INVARIANT_CHECKS = {"AccountSubEntriesCountIsValid"};
     VirtualClock clock;
     Application::pointer app = createTestApplication(clock, cfg);
@@ -309,7 +309,7 @@ TEST_CASE("Create account then add signers and subentries",
           "[invariant][accountsubentriescount]")
 {
     stellar::uniform_int_distribution<int32_t> changesDist(-1, 2);
-    Config cfg = getTestConfig(0, Config::TESTDB_IN_MEMORY_NO_OFFERS);
+    Config cfg = getTestConfig(0, Config::TESTDB_IN_MEMORY);
     cfg.INVARIANT_CHECKS = {"AccountSubEntriesCountIsValid"};
 
     for (uint32_t i = 0; i < 50; ++i)

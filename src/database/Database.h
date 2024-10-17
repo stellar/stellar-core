@@ -174,6 +174,7 @@ class Database : NonMovableOrCopyable
     void upgradeToCurrentSchema();
 
     void dropTxMetaIfExists();
+    void maybeUpgradeToBucketListDB();
 
     // Access the underlying SOCI session object
     soci::session& getSession();

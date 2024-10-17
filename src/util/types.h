@@ -129,6 +129,22 @@ assetToString(const Asset& asset)
 };
 
 inline LedgerKey
+getBucketLedgerKey(HotArchiveBucketEntry const& be)
+{
+    switch (be.type())
+    {
+    case HOT_ARCHIVE_LIVE:
+    case HOT_ARCHIVE_DELETED:
+        return be.key();
+    case HOT_ARCHIVE_ARCHIVED:
+        return LedgerEntryKey(be.archivedEntry());
+    case HOT_ARCHIVE_METAENTRY:
+    default:
+        throw std::invalid_argument("Tried to get key for METAENTRY");
+    }
+}
+
+inline LedgerKey
 getBucketLedgerKey(BucketEntry const& be)
 {
     switch (be.type())

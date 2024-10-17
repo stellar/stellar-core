@@ -140,8 +140,8 @@ TEST_CASE("flow control byte capacity", "[overlay][flowcontrol]")
 {
     VirtualClock clock;
 
-    auto cfg1 = getTestConfig(0, Config::TESTDB_IN_MEMORY_NO_OFFERS);
-    auto cfg2 = getTestConfig(1, Config::TESTDB_IN_MEMORY_NO_OFFERS);
+    auto cfg1 = getTestConfig(0, Config::TESTDB_IN_MEMORY);
+    auto cfg2 = getTestConfig(1, Config::TESTDB_IN_MEMORY);
     REQUIRE(cfg1.PEER_FLOOD_READING_CAPACITY !=
             cfg1.PEER_FLOOD_READING_CAPACITY_BYTES);
 
