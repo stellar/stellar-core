@@ -30,11 +30,15 @@ itertools = "=0.10.5"
 # There is a table on the README for https://crates.io/crates/tracy-client that
 # maps versions of tracy-client to C++ tracy releases. The lib/tracy submodule
 # of this repo should be pinned out to a matched C++ tracy release version.
+#
+# Also note: this feature list also has to be passed _on the command line_ (i.e.
+# in the Makefile.am) when we separately build the soroban sub-crates because
+# they are separate cargo invocations and do not see this list, or even this
+# file, at all.
 tracy-client = { version = "=0.17.0", features = [
     "enable",
     "ondemand",
     "delayed-init",
-    "manual-lifetime",
     "system-tracing",
     "sampling",
     "code-transfer",
