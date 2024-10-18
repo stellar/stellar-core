@@ -87,7 +87,8 @@ void checkLiquidityPool(Application& app, PoolID const& poolID,
 TransactionResultSet
 closeLedger(Application& app,
             std::vector<TransactionFrameBasePtr> const& txs = {},
-            bool strictOrder = false);
+            bool strictOrder = false,
+            xdr::xvector<UpgradeType, 6> const& upgrades = emptyUpgradeSteps);
 
 TransactionResultSet
 closeLedgerOn(Application& app, int day, int month, int year,
@@ -97,7 +98,8 @@ closeLedgerOn(Application& app, int day, int month, int year,
 TransactionResultSet
 closeLedgerOn(Application& app, uint32 ledgerSeq, TimePoint closeTime,
               std::vector<TransactionFrameBasePtr> const& txs = {},
-              bool strictOrder = false);
+              bool strictOrder = false,
+              xdr::xvector<UpgradeType, 6> const& upgrades = emptyUpgradeSteps);
 
 TransactionResultSet closeLedger(Application& app, TxSetXDRFrameConstPtr txSet);
 
