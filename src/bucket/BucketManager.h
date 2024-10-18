@@ -74,6 +74,7 @@ struct MergeCounters
     uint64_t mDeadEntryShadowElisions{0};
 
     uint64_t mOutputIteratorTombstoneElisions{0};
+    uint64_t mOutputIteratorLiveToInitConversions{0};
     uint64_t mOutputIteratorBufferUpdates{0};
     uint64_t mOutputIteratorActualWrites{0};
     MergeCounters& operator+=(MergeCounters const& delta);
