@@ -66,9 +66,9 @@ GetRemoteFileWork::onFailureRaise()
 {
     releaseAssert(mCurrentArchive);
     mFailuresPerSecond.Mark(1);
-    CLOG_ERROR(History,
-               "Could not download file: archive {} maybe missing file {}",
-               mCurrentArchive->getName(), mRemote);
+    CLOG_WARNING(History,
+                 "Could not download file: archive {} maybe missing file {}",
+                 mCurrentArchive->getName(), mRemote);
     RunCommandWork::onFailureRaise();
 }
 
