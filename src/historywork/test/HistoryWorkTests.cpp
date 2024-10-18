@@ -14,6 +14,8 @@
 #include <lib/catch.hpp>
 #include <lib/json/json.h>
 
+#include <iostream>
+
 using namespace stellar;
 using namespace historytestutils;
 
@@ -31,22 +33,85 @@ TEST_CASE("write verified checkpoint hashes", "[historywork]")
     LedgerNumHashPair pair = pairs.back();
     auto tmpDir = catchupSimulation.getApp().getTmpDirManager().tmpDir(
         "write-checkpoint-hashes-test");
-    auto file = tmpDir.getName() + "/verified-ledgers.json";
+    std::string file = tmpDir.getName() + "/verified-ledgers.json";
     auto& wm = catchupSimulation.getApp().getWorkScheduler();
+    std::optional<std::uint32_t> noFromLedger = std::nullopt;
+    std::optional<std::string> noVerifiedLedgerFile = std::nullopt;
+    std::optional<LedgerNumHashPair> noLatestTrustedHashPair = std::nullopt;
+
+    size_t startingPairIdx = 0;
+    {
+        SECTION("from genesis")
+        {
+            auto w = wm.executeWork<WriteVerifiedCheckpointHashesWork>(
+                pair, file, noVerifiedLedgerFile, noLatestTrustedHashPair,
+                noFromLedger, nestedBatchSize);
+            REQUIRE(w->getState() == BasicWork::State::WORK_SUCCESS);
+        }
+        SECTION("from specified ledger")
+        {
+            startingPairIdx = 1;
+            std::optional<std::uint32_t> fromLedger =
+                pairs[startingPairIdx].first;
+            auto w = wm.executeWork<WriteVerifiedCheckpointHashesWork>(
+                pair, file, noVerifiedLedgerFile, noLatestTrustedHashPair,
+                fromLedger, nestedBatchSize);
+            REQUIRE(w->getState() == BasicWork::State::WORK_SUCCESS);
+        }
+    }
+
+    auto checkFileContents = [](const auto& pairs, auto startingPairIdx,
+                                std::string file) {
+        for (size_t i = 0; i < pairs.size(); ++i)
+        {
+            auto p = pairs[i];
+            LOG_DEBUG(DEFAULT_LOG, "Verified {} with hash {}", p.first,
+                      hexAbbrev(*p.second));
+            Hash h = WriteVerifiedCheckpointHashesWork::loadHashFromJsonOutput(
+                p.first, file);
+            // If we did not start from the beginning, the hashes before the
+            // starting pair should not be in the file.
+            if (i < startingPairIdx)
+            {
+                REQUIRE(h == Hash{});
+            }
+            else
+            {
+                REQUIRE(h == *p.second);
+            }
+        }
+        // Check that the "latest" ledger in the file is the same as the last
+        // pair in the pairs vector.
+        auto latest =
+            WriteVerifiedCheckpointHashesWork::loadLatestHashPairFromJsonOutput(
+                file);
+        REQUIRE(latest.first == pairs.back().first);
+    };
+
+    checkFileContents(pairs, startingPairIdx, file);
+
+    // Advance the simulation.
+    auto secondCheckpointLedger =
+        catchupSimulation.getLastCheckpointLedger(10 * nestedBatchSize);
+    catchupSimulation.ensureOnlineCatchupPossible(secondCheckpointLedger,
+                                                  5 * nestedBatchSize);
+    pairs = catchupSimulation.getAllPublishedCheckpoints();
+
+    std::optional<std::string> trustedHashFile = file;
+    std::optional<LedgerNumHashPair> latestTrustedHashPair =
+        WriteVerifiedCheckpointHashesWork::loadLatestHashPairFromJsonOutput(
+            file);
+    file += ".new";
+    // Run work again with existing file.
     {
         auto w = wm.executeWork<WriteVerifiedCheckpointHashesWork>(
-            pair, file, nestedBatchSize);
+            pairs.back(), file, trustedHashFile, latestTrustedHashPair,
+            noFromLedger, nestedBatchSize);
         REQUIRE(w->getState() == BasicWork::State::WORK_SUCCESS);
     }
 
-    for (auto const& p : pairs)
-    {
-        LOG_DEBUG(DEFAULT_LOG, "Verified {} with hash {}", p.first,
-                  hexAbbrev(*p.second));
-        Hash h = WriteVerifiedCheckpointHashesWork::loadHashFromJsonOutput(
-            p.first, file);
-        REQUIRE(h == *p.second);
-    }
+    // Ensure the file contains all pairs, from the first run and the second.
+    checkFileContents(pairs, startingPairIdx, file);
 }
 
 TEST_CASE("check single ledger header work", "[historywork]")

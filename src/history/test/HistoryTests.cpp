@@ -243,7 +243,7 @@ TEST_CASE("Ledger chain verification", "[ledgerheaderverification]")
         std::shared_future<bool> fatalFailureFuture =
             fataFailurePromise.get_future().share();
         auto w = wm.executeWork<VerifyLedgerChainWork>(
-            tmpDir, ledgerRange, lclPair, ledgerRangeEndFuture,
+            tmpDir, ledgerRange, lclPair, std::nullopt, ledgerRangeEndFuture,
             std::move(fataFailurePromise));
         REQUIRE(expectedState == w->getState());
         REQUIRE(fatalFailureFuture.valid());
