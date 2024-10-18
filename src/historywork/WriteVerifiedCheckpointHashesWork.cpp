@@ -122,7 +122,8 @@ WriteVerifiedCheckpointHashesWork::yieldMoreWork()
     auto tmpDir = std::make_shared<TmpDir>(
         mApp.getTmpDirManager().tmpDir("verify-" + checkpointStr));
     auto getWork = std::make_shared<BatchDownloadWork>(
-        mApp, checkpointRange, HISTORY_FILE_TYPE_LEDGER, *tmpDir, mArchive);
+        mApp, checkpointRange, FileType::HISTORY_FILE_TYPE_LEDGER, *tmpDir,
+        mArchive);
 
     // When we have a previous-work, we grab a future attached to the promise it
     // will fulfill when it runs. This promise might not have a value _yet_ but

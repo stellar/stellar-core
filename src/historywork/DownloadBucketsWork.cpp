@@ -71,7 +71,7 @@ DownloadBucketsWork::yieldMoreWork()
     }
 
     auto hash = *mNextBucketIter;
-    FileTransferInfo ft(mDownloadDir, HISTORY_FILE_TYPE_BUCKET, hash);
+    FileTransferInfo ft(mDownloadDir, FileType::HISTORY_FILE_TYPE_BUCKET, hash);
     auto w1 = std::make_shared<GetAndUnzipRemoteFileWork>(mApp, ft, mArchive);
 
     auto getFileWeak = std::weak_ptr<GetAndUnzipRemoteFileWork>(w1);

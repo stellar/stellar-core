@@ -28,7 +28,7 @@ struct StateSnapshot : public std::enable_shared_from_this<StateSnapshot>
     std::shared_ptr<FileTransferInfo> mSCPHistorySnapFile;
 
     StateSnapshot(Application& app, HistoryArchiveState const& state);
-    bool writeHistoryBlocks() const;
+    bool writeSCPMessages() const;
     std::vector<std::shared_ptr<FileTransferInfo>>
     differingHASFiles(HistoryArchiveState const& other);
 };

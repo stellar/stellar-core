@@ -85,8 +85,9 @@ ApplyCheckpointWork::openInputFiles()
     ZoneScoped;
     mHdrIn.close();
     mTxIn.close();
-    FileTransferInfo hi(mDownloadDir, HISTORY_FILE_TYPE_LEDGER, mCheckpoint);
-    FileTransferInfo ti(mDownloadDir, HISTORY_FILE_TYPE_TRANSACTIONS,
+    FileTransferInfo hi(mDownloadDir, FileType::HISTORY_FILE_TYPE_LEDGER,
+                        mCheckpoint);
+    FileTransferInfo ti(mDownloadDir, FileType::HISTORY_FILE_TYPE_TRANSACTIONS,
                         mCheckpoint);
     CLOG_DEBUG(History, "Replaying ledger headers from {}",
                hi.localPath_nogz());

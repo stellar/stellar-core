@@ -9,7 +9,7 @@
 
 namespace stellar
 {
-class XDROutputFileStream;
+class CheckpointBuilder;
 
 namespace LedgerHeaderUtils
 {
@@ -27,11 +27,12 @@ std::shared_ptr<LedgerHeader> loadByHash(Database& db, Hash const& hash);
 std::shared_ptr<LedgerHeader> loadBySequence(Database& db, soci::session& sess,
                                              uint32_t seq);
 
+uint32_t loadMaxLedgerSeq(Database& db);
+
 void deleteOldEntries(Database& db, uint32_t ledgerSeq, uint32_t count);
-void deleteNewerEntries(Database& db, uint32_t ledgerSeq);
 
 size_t copyToStream(Database& db, soci::session& sess, uint32_t ledgerSeq,
-                    uint32_t ledgerCount, XDROutputFileStream& headersOut);
+                    uint32_t ledgerCount, CheckpointBuilder& checkpointBuilder);
 
 void dropAll(Database& db);
 }

@@ -239,7 +239,7 @@ HistoryArchiveManager::initializeHistoryArchive(std::string const& arch) const
 }
 
 bool
-HistoryArchiveManager::hasAnyWritableHistoryArchive() const
+HistoryArchiveManager::publishEnabled() const
 {
     return std::any_of(std::begin(mArchives), std::end(mArchives),
                        [](std::shared_ptr<HistoryArchive> const& x) {

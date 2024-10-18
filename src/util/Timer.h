@@ -129,6 +129,12 @@ class VirtualClock
     void shutdown();
     bool isStopped();
 
+    Mode
+    getMode() const
+    {
+        return mMode;
+    }
+
   private:
     asio::io_context mIOContext;
     Mode const mMode;

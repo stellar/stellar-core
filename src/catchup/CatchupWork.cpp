@@ -166,8 +166,8 @@ CatchupWork::downloadVerifyLedgerChain(CatchupRange const& catchupRange,
     // Batch download has default retries ("a few") to ensure we rotate through
     // archives
     auto getLedgers = std::make_shared<BatchDownloadWork>(
-        mApp, checkpointRange, HISTORY_FILE_TYPE_LEDGER, *mDownloadDir,
-        mArchive);
+        mApp, checkpointRange, FileType::HISTORY_FILE_TYPE_LEDGER,
+        *mDownloadDir, mArchive);
     mRangeEndPromise = std::promise<LedgerNumHashPair>();
     mRangeEndFuture = mRangeEndPromise.get_future().share();
     mRangeEndPromise.set_value(rangeEnd);
@@ -598,8 +598,8 @@ CatchupWork::runCatchupStep()
                 auto checkpoint =
                     app.getHistoryManager().checkpointContainingLedger(
                         ledgerSeq);
-                auto ft =
-                    FileTransferInfo(dir, HISTORY_FILE_TYPE_LEDGER, checkpoint);
+                auto ft = FileTransferInfo(
+                    dir, FileType::HISTORY_FILE_TYPE_LEDGER, checkpoint);
 
                 return setHerderStateTo(ft, ledgerSeq, app);
             };

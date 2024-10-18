@@ -21,7 +21,7 @@ class Maintainer
     // start automatic maintenance according to app.getConfig()
     void start();
 
-    // removes maximum count entries from tables like txhistory or scphistory
+    // removes maximum count entries from tables like scphistory
     void performMaintenance(uint32_t count);
 
   private:

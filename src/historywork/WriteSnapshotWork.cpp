@@ -44,7 +44,7 @@ WriteSnapshotWork::onRun()
 
         auto snap = self->mSnapshot;
         bool success = true;
-        if (!snap->writeHistoryBlocks())
+        if (!snap->writeSCPMessages())
         {
             success = false;
         }

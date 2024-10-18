@@ -416,14 +416,4 @@ HerderPersistence::deleteOldEntries(Database& db, uint32_t ledgerSeq,
     DatabaseUtils::deleteOldEntriesHelper(db.getSession(), ledgerSeq, count,
                                           "scpquorums", "lastledgerseq");
 }
-
-void
-HerderPersistence::deleteNewerEntries(Database& db, uint32_t ledgerSeq)
-{
-    ZoneScoped;
-    DatabaseUtils::deleteNewerEntriesHelper(db.getSession(), ledgerSeq,
-                                            "scphistory", "ledgerseq");
-    DatabaseUtils::deleteNewerEntriesHelper(db.getSession(), ledgerSeq,
-                                            "scpquorums", "lastledgerseq");
-}
 }
