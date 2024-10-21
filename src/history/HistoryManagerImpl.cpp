@@ -122,6 +122,12 @@ writeCheckpointFile(Application& app, HistoryArchiveState const& has,
 void
 HistoryManagerImpl::dropSQLBasedPublish()
 {
+    if (!mApp.getHistoryArchiveManager().publishEnabled())
+    {
+        // Publish is disabled, nothing to do
+        return;
+    }
+
     // soci::transaction is created externally during schema upgrade, so this
     // function is atomic
     releaseAssert(threadIsMain());
@@ -660,8 +666,6 @@ HistoryManagerImpl::appendLedgerHeader(LedgerHeader const& header)
     {
         mCheckpointBuilder.appendLedgerHeader(header);
 #ifdef BUILD_TESTS
-        CLOG_INFO(History, "Appending ledger header for ledger {} {}",
-                  header.ledgerSeq, mThrowOnAppend);
         if (header.ledgerSeq == mThrowOnAppend)
         {
             throw std::runtime_error("Throwing for testing");
