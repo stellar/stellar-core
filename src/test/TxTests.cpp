@@ -141,7 +141,8 @@ applyCheck(TransactionTestFramePtr tx, Application& app, bool checkSeqNum)
     {
         LedgerTxn ltxFeeProc(ltx);
         // use checkedTx here for validity check as to keep tx untouched
-        check = checkedTx->checkValidForTesting(app, ltxFeeProc, 0, 0, 0);
+        check = checkedTx->checkValidForTesting(app.getAppConnector(),
+                                                ltxFeeProc, 0, 0, 0);
         checkResult = checkedTx->getResult();
         REQUIRE((!check || checkResult.result.code() == txSUCCESS));
 
@@ -166,7 +167,8 @@ applyCheck(TransactionTestFramePtr tx, Application& app, bool checkSeqNum)
             {
                 TransactionMetaFrame cleanTm(
                     ltxCleanTx.loadHeader().current().ledgerVersion);
-                checkedTxApplyRes = checkedTx->apply(app, ltxCleanTx, cleanTm);
+                checkedTxApplyRes = checkedTx->apply(app.getAppConnector(),
+                                                     ltxCleanTx, cleanTm);
             }
             catch (...)
             {
@@ -233,7 +235,7 @@ applyCheck(TransactionTestFramePtr tx, Application& app, bool checkSeqNum)
         TransactionMetaFrame tm(ltxTx.loadHeader().current().ledgerVersion);
         try
         {
-            res = tx->apply(app, ltxTx, tm);
+            res = tx->apply(app.getAppConnector(), ltxTx, tm);
         }
         catch (...)
         {
@@ -437,8 +439,8 @@ validateTxResults(TransactionTestFramePtr const& tx, Application& app,
                                                       tx->getEnvelope()));
     {
         LedgerTxn ltx(app.getLedgerTxnRoot());
-        REQUIRE(checkedTx->checkValidForTesting(app, ltx, 0, 0, 0) ==
-                shouldValidateOk);
+        REQUIRE(checkedTx->checkValidForTesting(app.getAppConnector(), ltx, 0,
+                                                0, 0) == shouldValidateOk);
     }
     REQUIRE(checkedTx->getResult().result.code() == validationResult.code);
     REQUIRE(checkedTx->getResult().feeCharged == validationResult.fee);
@@ -562,7 +564,8 @@ closeLedgerOn(Application& app, uint32 ledgerSeq, TimePoint closeTime,
     app.getHerder().externalizeValue(txSet.first, ledgerSeq, closeTime,
                                      emptyUpgradeSteps);
     REQUIRE(app.getLedgerManager().getLastClosedLedgerNum() == ledgerSeq);
-    return getTransactionHistoryResults(app.getDatabase(), ledgerSeq);
+    auto& lm = static_cast<LedgerManagerImpl&>(app.getLedgerManager());
+    return lm.mLatestTxResultSet;
 }
 
 TransactionResultSet
@@ -582,7 +585,8 @@ closeLedgerOn(Application& app, uint32 ledgerSeq, time_t closeTime,
     app.getHerder().externalizeValue(txSet, ledgerSeq, closeTime,
                                      emptyUpgradeSteps);
 
-    auto z1 = getTransactionHistoryResults(app.getDatabase(), ledgerSeq);
+    auto& lm = static_cast<LedgerManagerImpl&>(app.getLedgerManager());
+    auto z1 = lm.mLatestTxResultSet;
 
     REQUIRE(app.getLedgerManager().getLastClosedLedgerNum() == ledgerSeq);
 

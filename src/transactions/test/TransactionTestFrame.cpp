@@ -42,7 +42,7 @@ TransactionTestFrame::createSuccessResult() const
 }
 
 bool
-TransactionTestFrame::apply(Application& app, AbstractLedgerTxn& ltx,
+TransactionTestFrame::apply(AppConnector& app, AbstractLedgerTxn& ltx,
                             TransactionMetaFrame& meta,
                             Hash const& sorobanBasePrngSeed)
 {
@@ -77,7 +77,7 @@ TransactionTestFrame::addSignature(DecoratedSignature const& signature)
 }
 
 bool
-TransactionTestFrame::apply(Application& app, AbstractLedgerTxn& ltx,
+TransactionTestFrame::apply(AppConnector& app, AbstractLedgerTxn& ltx,
                             TransactionMetaFrame& meta,
                             MutableTxResultPtr txResult,
                             Hash const& sorobanBasePrngSeed) const
@@ -89,7 +89,7 @@ TransactionTestFrame::apply(Application& app, AbstractLedgerTxn& ltx,
 }
 
 MutableTxResultPtr
-TransactionTestFrame::checkValid(Application& app, AbstractLedgerTxn& ltxOuter,
+TransactionTestFrame::checkValid(AppConnector& app, AbstractLedgerTxn& ltxOuter,
                                  SequenceNumber current,
                                  uint64_t lowerBoundCloseTimeOffset,
                                  uint64_t upperBoundCloseTimeOffset) const
@@ -102,7 +102,7 @@ TransactionTestFrame::checkValid(Application& app, AbstractLedgerTxn& ltxOuter,
 }
 
 MutableTxResultPtr
-TransactionTestFrame::checkValid(Application& app, LedgerSnapshot const& ls,
+TransactionTestFrame::checkValid(AppConnector& app, LedgerSnapshot const& ls,
                                  SequenceNumber current,
                                  uint64_t lowerBoundCloseTimeOffset,
                                  uint64_t upperBoundCloseTimeOffset) const
@@ -120,14 +120,15 @@ TransactionTestFrame::processFeeSeqNum(AbstractLedgerTxn& ltx,
 }
 
 void
-TransactionTestFrame::processPostApply(Application& app, AbstractLedgerTxn& ltx,
+TransactionTestFrame::processPostApply(AppConnector& app,
+                                       AbstractLedgerTxn& ltx,
                                        TransactionMetaFrame& meta)
 {
     mTransactionFrame->processPostApply(app, ltx, meta, mTransactionTxResult);
 }
 
 bool
-TransactionTestFrame::checkValidForTesting(Application& app,
+TransactionTestFrame::checkValidForTesting(AppConnector& app,
                                            AbstractLedgerTxn& ltxOuter,
                                            SequenceNumber current,
                                            uint64_t lowerBoundCloseTimeOffset,
@@ -141,7 +142,8 @@ TransactionTestFrame::checkValidForTesting(Application& app,
 
 bool
 TransactionTestFrame::checkSorobanResourceAndSetError(
-    Application& app, uint32_t ledgerVersion, MutableTxResultPtr txResult) const
+    AppConnector& app, uint32_t ledgerVersion,
+    MutableTxResultPtr txResult) const
 {
     auto ret = mTransactionFrame->checkSorobanResourceAndSetError(
         app, ledgerVersion, txResult);
@@ -297,7 +299,8 @@ TransactionTestFrame::processFeeSeqNum(AbstractLedgerTxn& ltx,
 }
 
 void
-TransactionTestFrame::processPostApply(Application& app, AbstractLedgerTxn& ltx,
+TransactionTestFrame::processPostApply(AppConnector& app,
+                                       AbstractLedgerTxn& ltx,
                                        TransactionMetaFrame& meta,
                                        MutableTxResultPtr txResult) const
 {

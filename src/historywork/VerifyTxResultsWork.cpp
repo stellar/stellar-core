@@ -89,9 +89,9 @@ VerifyTxResultsWork::verifyTxResultsOfCheckpoint()
     ZoneScoped;
     try
     {
-        FileTransferInfo hi(mDownloadDir, HISTORY_FILE_TYPE_LEDGER,
+        FileTransferInfo hi(mDownloadDir, FileType::HISTORY_FILE_TYPE_LEDGER,
                             mCheckpoint);
-        FileTransferInfo ri(mDownloadDir, HISTORY_FILE_TYPE_RESULTS,
+        FileTransferInfo ri(mDownloadDir, FileType::HISTORY_FILE_TYPE_RESULTS,
                             mCheckpoint);
         mHdrIn.open(hi.localPath_nogz());
         mResIn.open(ri.localPath_nogz());

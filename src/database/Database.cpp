@@ -63,7 +63,7 @@ bool Database::gDriversRegistered = false;
 
 // smallest schema version supported
 static unsigned long const MIN_SCHEMA_VERSION = 21;
-static unsigned long const SCHEMA_VERSION = 22;
+static unsigned long const SCHEMA_VERSION = 23;
 
 // These should always match our compiled version precisely, since we are
 // using a bundled version to get access to carray(). But in case someone
@@ -213,7 +213,11 @@ Database::applySchemaUpgrade(unsigned long vers)
     switch (vers)
     {
     case 22:
-        deprecateTransactionFeeHistory(*this);
+        dropSupportTransactionFeeHistory(*this);
+        break;
+    case 23:
+        mApp.getHistoryManager().dropSQLBasedPublish();
+        Upgrades::dropSupportUpgradeHistory(*this);
         break;
     default:
         throw std::runtime_error("Unknown DB schema version");
@@ -471,7 +475,9 @@ Database::initialize()
     PersistentState::dropAll(*this);
     ExternalQueue::dropAll(*this);
     LedgerHeaderUtils::dropAll(*this);
-    dropTransactionHistory(*this, mApp.getConfig());
+    // No need to re-create txhistory, will be dropped during
+    // upgradeToCurrentSchema anyway
+    dropSupportTxHistory(*this);
     HistoryManager::dropAll(*this);
     HerderPersistence::dropAll(*this);
     BanManager::dropAll(*this);

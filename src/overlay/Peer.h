@@ -7,9 +7,9 @@
 #include "util/asio.h" // IWYU pragma: keep
 #include "database/Database.h"
 #include "lib/json/json.h"
+#include "main/AppConnector.h"
 #include "medida/timer.h"
 #include "overlay/Hmac.h"
-#include "overlay/OverlayAppConnector.h"
 #include "overlay/PeerBareAddress.h"
 #include "util/NonCopyable.h"
 #include "util/Timer.h"
@@ -179,7 +179,7 @@ class Peer : public std::enable_shared_from_this<Peer>,
         ~MsgCapacityTracker();
     };
 
-    OverlayAppConnector mAppConnector;
+    AppConnector& mAppConnector;
 
     Hash const mNetworkID;
     std::shared_ptr<FlowControl> mFlowControl;

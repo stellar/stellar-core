@@ -88,10 +88,6 @@ LoadGenerator::LoadGenerator(Application& app)
     , mApp(app)
     , mLastSecond(0)
     , mTotalSubmitted(0)
-    , mLoadgenComplete(
-          mApp.getMetrics().NewMeter({"loadgen", "run", "complete"}, "run"))
-    , mLoadgenFail(
-          mApp.getMetrics().NewMeter({"loadgen", "run", "failed"}, "run"))
     , mStepTimer(mApp.getMetrics().NewTimer({"loadgen", "step", "submit"}))
     , mStepMeter(
           mApp.getMetrics().NewMeter({"loadgen", "step", "count"}, "step"))
@@ -100,6 +96,10 @@ LoadGenerator::LoadGenerator(Application& app)
           mApp.getMetrics().NewTimer({"ledger", "transaction", "apply"}))
     , mApplyOpTimer(
           mApp.getMetrics().NewTimer({"ledger", "operation", "apply"}))
+    , mLoadgenComplete(
+          mApp.getMetrics().NewMeter({"loadgen", "run", "complete"}, "run"))
+    , mLoadgenFail(
+          mApp.getMetrics().NewMeter({"loadgen", "run", "failed"}, "run"))
 {
 }
 

@@ -495,26 +495,27 @@ CatchupManagerImpl::txSetsApplied(uint32_t num)
 }
 
 void
-CatchupManagerImpl::fileDownloaded(std::string type, uint32_t num)
+CatchupManagerImpl::fileDownloaded(FileType type, uint32_t num)
 {
-    if (type == HISTORY_FILE_TYPE_BUCKET)
+    if (type == FileType::HISTORY_FILE_TYPE_BUCKET)
     {
         mMetrics.mBucketsDownloaded += num;
     }
-    else if (type == HISTORY_FILE_TYPE_LEDGER)
+    else if (type == FileType::HISTORY_FILE_TYPE_LEDGER)
     {
         mMetrics.mCheckpointsDownloaded += num;
     }
-    else if (type == HISTORY_FILE_TYPE_TRANSACTIONS)
+    else if (type == FileType::HISTORY_FILE_TYPE_TRANSACTIONS)
     {
         mMetrics.mTxSetsDownloaded += num;
     }
-    else if (type != HISTORY_FILE_TYPE_RESULTS && type != HISTORY_FILE_TYPE_SCP)
+    else if (type != FileType::HISTORY_FILE_TYPE_RESULTS &&
+             type != FileType::HISTORY_FILE_TYPE_SCP)
     {
         throw std::runtime_error(fmt::format(
             FMT_STRING(
                 "CatchupManagerImpl::fileDownloaded unknown file type {}"),
-            type));
+            typeString(type)));
     }
 }
 

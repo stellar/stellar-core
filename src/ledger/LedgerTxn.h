@@ -262,6 +262,8 @@ enum class LedgerTxnConsistency
     EXTRA_DELETES
 };
 
+// NOTE: Remove READ_ONLY_WITHOUT_SQL_TXN mode when BucketListDB is required
+// and we stop supporting SQL backend for ledger state.
 enum class TransactionMode
 {
     READ_ONLY_WITHOUT_SQL_TXN,

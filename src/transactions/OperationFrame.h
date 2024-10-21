@@ -7,6 +7,7 @@
 #include "ledger/LedgerHashUtils.h"
 #include "ledger/LedgerManager.h"
 #include "ledger/NetworkConfig.h"
+#include "main/AppConnector.h"
 #include "overlay/StellarXDR.h"
 #include "transactions/MutableTransactionResult.h"
 #include "util/types.h"
@@ -43,7 +44,7 @@ class OperationFrame
                            SorobanTxData& sorobanData) const;
     virtual bool doCheckValid(uint32_t ledgerVersion,
                               OperationResult& res) const = 0;
-    virtual bool doApply(Application& app, AbstractLedgerTxn& ltx,
+    virtual bool doApply(AppConnector& app, AbstractLedgerTxn& ltx,
                          Hash const& sorobanBasePrngSeed, OperationResult& res,
                          std::shared_ptr<SorobanTxData> sorobanData) const = 0;
 
@@ -72,12 +73,12 @@ class OperationFrame
 
     AccountID getSourceID() const;
 
-    bool checkValid(Application& app, SignatureChecker& signatureChecker,
+    bool checkValid(AppConnector& app, SignatureChecker& signatureChecker,
                     LedgerSnapshot const& ls, bool forApply,
                     OperationResult& res,
                     std::shared_ptr<SorobanTxData> sorobanData) const;
 
-    bool apply(Application& app, SignatureChecker& signatureChecker,
+    bool apply(AppConnector& app, SignatureChecker& signatureChecker,
                AbstractLedgerTxn& ltx, Hash const& sorobanBasePrngSeed,
                OperationResult& res,
                std::shared_ptr<SorobanTxData> sorobanData) const;

@@ -280,24 +280,6 @@ checkStellarCoreMajorVersionProtocolIdentity()
 
 #ifdef USE_TRACY
 
-std::mutex TRACY_MUTEX;
-static int TRACY_NOT_STARTED = 0;
-static int TRACY_RUNNING = 1;
-static int TRACY_STOPPED = 2;
-static int TRACY_STATE = TRACY_NOT_STARTED;
-
-// Call this only with mutex held
-bool
-tracyEnabled(std::lock_guard<std::mutex> const& _guard)
-{
-    if (TRACY_STATE == TRACY_NOT_STARTED)
-    {
-        stellar::rust_bridge::start_tracy();
-        TRACY_STATE = TRACY_RUNNING;
-    }
-    return TRACY_STATE != TRACY_STOPPED;
-}
-
 #ifdef __has_feature
 #if __has_feature(address_sanitizer)
 #define ASAN_ENABLED
@@ -313,22 +295,16 @@ void*
 operator new(std::size_t count)
 {
     auto ptr = malloc(count);
-    std::lock_guard<std::mutex> guard(TRACY_MUTEX);
-    if (tracyEnabled(guard))
-    {
-        TracyAlloc(ptr, count);
-    }
+    // "Secure" here means "tolerant of calls outside the
+    // lifeitme of the tracy client".
+    TracySecureAlloc(ptr, count);
     return ptr;
 }
 
 void
 operator delete(void* ptr) noexcept
 {
-    std::lock_guard<std::mutex> guard(TRACY_MUTEX);
-    if (tracyEnabled(guard))
-    {
-        TracyFree(ptr);
-    }
+    TracySecureFree(ptr);
     free(ptr);
 }
 
@@ -336,22 +312,14 @@ void*
 operator new[](std::size_t count)
 {
     auto ptr = malloc(count);
-    std::lock_guard<std::mutex> guard(TRACY_MUTEX);
-    if (tracyEnabled(guard))
-    {
-        TracyAlloc(ptr, count);
-    }
+    TracySecureAlloc(ptr, count);
     return ptr;
 }
 
 void
 operator delete[](void* ptr) noexcept
 {
-    std::lock_guard<std::mutex> guard(TRACY_MUTEX);
-    if (tracyEnabled(guard))
-    {
-        TracyFree(ptr);
-    }
+    TracySecureFree(ptr);
     free(ptr);
 }
 #endif // ASAN_ENABLED
@@ -368,11 +336,6 @@ main(int argc, char* const* argv)
     // At least print a backtrace in any circumstance
     // that would call std::terminate
     std::set_terminate(printBacktraceAndAbort);
-#ifdef USE_TRACY
-    // The rust tracy client library is fussy about trying
-    // to own the tracy startup path.
-    rust_bridge::start_tracy();
-#endif
     Logging::init();
     if (sodium_init() != 0)
     {
@@ -388,12 +351,5 @@ main(int argc, char* const* argv)
     checkXDRFileIdentity();
 
     int res = handleCommandLine(argc, argv);
-#ifdef USE_TRACY
-    {
-        std::lock_guard<std::mutex> guard(TRACY_MUTEX);
-        ___tracy_shutdown_profiler();
-        TRACY_STATE = TRACY_STOPPED;
-    }
-#endif
     return res;
 }

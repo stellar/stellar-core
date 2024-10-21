@@ -797,7 +797,6 @@ runCatchup(CommandLineArgs const& args)
     std::string trustedCheckpointHashesFile;
     bool completeValidation = false;
     bool inMemory = false;
-    bool forceBack = false;
     bool forceUntrusted = false;
     std::string hash;
     std::string stream;
@@ -845,12 +844,6 @@ runCatchup(CommandLineArgs const& args)
             "verify all files from the archive for the catchup range");
     };
 
-    auto forceBackParser = [](bool& forceBackClean) {
-        return clara::Opt{forceBackClean}["--force-back"](
-            "force ledger state to a previous state, preserving older "
-            "historical data");
-    };
-
     return runWithHelp(
         args,
         {configurationParser(configOption), catchupStringParser,
@@ -859,7 +852,7 @@ runCatchup(CommandLineArgs const& args)
          outputFileParser(outputFile), disableBucketGCParser(disableBucketGC),
          validationParser(completeValidation), inMemoryParser(inMemory),
          ledgerHashParser(hash), forceUntrustedCatchup(forceUntrusted),
-         metadataOutputStreamParser(stream), forceBackParser(forceBack)},
+         metadataOutputStreamParser(stream)},
         [&] {
             auto config = configOption.getConfig();
             // Don't call config.setNoListen() here as we might want to
@@ -931,49 +924,7 @@ runCatchup(CommandLineArgs const& args)
                     cc = CatchupConfiguration(pair, cc.count(), cc.mode());
                 }
 
-                if (forceBack)
-                {
-                    CatchupRange range(LedgerManager::GENESIS_LEDGER_SEQ, cc,
-                                       app->getHistoryManager());
-                    LOG_INFO(DEFAULT_LOG, "Force applying range {}-{}",
-                             range.first(), range.last());
-                    if (!range.applyBuckets())
-                    {
-                        throw std::runtime_error(
-                            "force can only be used when buckets get applied");
-                    }
-                    // by dropping persistent state, we ensure that we don't
-                    // leave the database in some half-reset state until
-                    // startNewLedger completes later on
-                    {
-                        auto& ps = app->getPersistentState();
-                        ps.setState(PersistentState::kLastClosedLedger, "");
-                        ps.setState(PersistentState::kHistoryArchiveState, "");
-                        ps.setState(PersistentState::kLastSCPData, "");
-                        ps.setState(PersistentState::kLastSCPDataXDR, "");
-                        ps.setState(PersistentState::kLedgerUpgrades, "");
-                    }
-
-                    LOG_INFO(
-                        DEFAULT_LOG,
-                        "Cleaning historical data (this may take a while)");
-                    auto& lm = app->getLedgerManager();
-                    lm.deleteNewerEntries(app->getDatabase(), range.first());
-                    // checkpoints
-                    app->getHistoryManager().deleteCheckpointsNewerThan(
-                        range.first());
-
-                    // need to delete genesis ledger data (so that we can reset
-                    // to it)
-                    lm.deleteOldEntries(app->getDatabase(),
-                                        LedgerManager::GENESIS_LEDGER_SEQ, 1);
-                    LOG_INFO(
-                        DEFAULT_LOG,
-                        "Resetting ledger state to genesis before catching up");
-                    app->resetLedgerState();
-                    lm.startNewLedger();
-                }
-                else if (hash.empty() && !forceUntrusted)
+                if (hash.empty() && !forceUntrusted)
                 {
                     CLOG_WARNING(
                         History,
@@ -1896,7 +1847,6 @@ runApplyLoad(CommandLineArgs const& args)
 
             auto& app = *appPtr;
             {
-                auto& lm = app.getLedgerManager();
                 app.start();
 
                 ApplyLoad al(app, ledgerMaxInstructions,

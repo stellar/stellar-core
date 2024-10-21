@@ -35,6 +35,7 @@ class LedgerTxnRoot;
 class InMemoryLedgerTxn;
 class InMemoryLedgerTxnRoot;
 class LoadGenerator;
+class AppConnector;
 
 class ApplicationImpl : public Application
 {
@@ -76,6 +77,7 @@ class ApplicationImpl : public Application
     virtual WorkScheduler& getWorkScheduler() override;
     virtual BanManager& getBanManager() override;
     virtual StatusManager& getStatusManager() override;
+    virtual AppConnector& getAppConnector() override;
 
     virtual asio::io_context& getWorkerIOContext() override;
     virtual asio::io_context& getEvictionIOContext() override;
@@ -177,6 +179,7 @@ class ApplicationImpl : public Application
     std::unique_ptr<BanManager> mBanManager;
     std::unique_ptr<StatusManager> mStatusManager;
     std::unique_ptr<AbstractLedgerTxnParent> mLedgerTxnRoot;
+    std::unique_ptr<AppConnector> mAppConnector;
 
     // These two exist for use in MODE_USES_IN_MEMORY_LEDGER only: the
     // mInMemoryLedgerTxnRoot is a _stub_ AbstractLedgerTxnParent that refuses

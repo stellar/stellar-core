@@ -59,7 +59,7 @@ CheckSingleLedgerHeaderWork::doReset()
     uint32_t checkpoint = mApp.getHistoryManager().checkpointContainingLedger(
         mExpected.header.ledgerSeq);
     mFt = std::make_unique<FileTransferInfo>(
-        *mDownloadDir, HISTORY_FILE_TYPE_LEDGER, checkpoint);
+        *mDownloadDir, FileType::HISTORY_FILE_TYPE_LEDGER, checkpoint);
 }
 
 BasicWork::State
@@ -84,9 +84,9 @@ CheckSingleLedgerHeaderWork::doWork()
     }
     else if (mGetLedgerFileWork->getState() != State::WORK_SUCCESS)
     {
-        CLOG_ERROR(History,
-                   "Failed to download ledger checkpoint {} from archive {}",
-                   mFt->baseName_gz(), mArchive->getName());
+        CLOG_WARNING(History,
+                     "Failed to download ledger checkpoint {} from archive {}",
+                     mFt->baseName_gz(), mArchive->getName());
         return mGetLedgerFileWork->getState();
     }
 

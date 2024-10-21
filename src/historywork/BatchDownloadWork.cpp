@@ -15,12 +15,12 @@
 namespace stellar
 {
 BatchDownloadWork::BatchDownloadWork(Application& app, CheckpointRange range,
-                                     std::string const& type,
+                                     FileType const& type,
                                      TmpDir const& downloadDir,
                                      std::shared_ptr<HistoryArchive> archive)
     : BatchWork(app,
                 fmt::format(FMT_STRING("batch-download-{:s}-{:08x}-{:08x}"),
-                            type, range.mFirst, range.limit()))
+                            typeString(type), range.mFirst, range.limit()))
     , mRange(range)
     , mNext(range.mFirst)
     , mFileType(type)
@@ -34,8 +34,8 @@ BatchDownloadWork::getStatus() const
 {
     if (!isDone() && !isAborting())
     {
-        auto task =
-            fmt::format(FMT_STRING("downloading {:s} files"), mFileType);
+        auto task = fmt::format(FMT_STRING("downloading {:s} files"),
+                                typeString(mFileType));
         return fmtProgress(mApp, task, mRange.getLedgerRange(), mNext);
     }
     return BatchWork::getStatus();
@@ -54,7 +54,7 @@ BatchDownloadWork::yieldMoreWork()
 
     FileTransferInfo ft(mDownloadDir, mFileType, mNext);
     CLOG_DEBUG(History, "Downloading and unzipping {} for checkpoint {}",
-               mFileType, mNext);
+               typeString(mFileType), mNext);
     auto getAndUnzip =
         std::make_shared<GetAndUnzipRemoteFileWork>(mApp, ft, mArchive);
     mNext += mApp.getHistoryManager().getCheckpointFrequency();

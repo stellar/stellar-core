@@ -331,6 +331,10 @@ Most commands return their results in JSON format.
     * "ERROR" - transaction rejected by transaction engine
         error: set when status is "ERROR".
             Base64 encoded, XDR serialized 'TransactionResult'
+    * "TRY_AGAIN_LATER" - transaction rejected but can be retried later. This can happen due to several reasons:
+        There is another transaction from same source account in PENDING state
+        The network is under high load and the fee is too low.
+    * "FILTERED" - transaction rejected because it contains an operation type that Stellar Core filters out. See Stellar Core configuration `EXCLUDE_TRANSACTIONS_CONTAINING_OPERATION_TYPE` for more details.
 
 * **upgrades**
   * `upgrades?mode=get`<br>

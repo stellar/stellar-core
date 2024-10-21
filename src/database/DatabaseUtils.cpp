@@ -30,15 +30,5 @@ deleteOldEntriesHelper(soci::session& sess, uint32_t ledgerSeq, uint32_t count,
              << " <= " << m;
     }
 }
-
-void
-deleteNewerEntriesHelper(soci::session& sess, uint32_t ledgerSeq,
-                         std::string const& tableName,
-                         std::string const& ledgerSeqColumn)
-{
-    sess << "DELETE FROM " << tableName << " WHERE " << ledgerSeqColumn
-         << " >= " << ledgerSeq;
-}
-
 }
 }

@@ -166,7 +166,7 @@ VerifyLedgerChainWork::verifyHistoryOfSingleCheckpoint()
     // trusted hash passed in. If LCL is reached, verify that it agrees with
     // the chain.
 
-    FileTransferInfo ft(mDownloadDir, HISTORY_FILE_TYPE_LEDGER,
+    FileTransferInfo ft(mDownloadDir, FileType::HISTORY_FILE_TYPE_LEDGER,
                         mCurrCheckpoint);
     XDRInputFileStream hdrIn;
     hdrIn.open(ft.localPath_nogz());
@@ -184,6 +184,8 @@ VerifyLedgerChainWork::verifyHistoryOfSingleCheckpoint()
 
     CLOG_DEBUG(History, "Verifying ledger headers from {} for checkpoint {}",
                ft.localPath_nogz(), mCurrCheckpoint);
+
+    auto const& hm = mApp.getHistoryManager();
 
     while (hdrIn)
     {
@@ -243,6 +245,15 @@ VerifyLedgerChainWork::verifyHistoryOfSingleCheckpoint()
 
         if (beginCheckpoint)
         {
+            if (!hm.isFirstLedgerInCheckpoint(curr.header.ledgerSeq))
+            {
+                CLOG_ERROR(
+                    History, "Checkpoint did not start with {} - got {}",
+                    hm.firstLedgerInCheckpointContaining(curr.header.ledgerSeq),
+                    curr.header.ledgerSeq);
+                return HistoryManager::VERIFY_STATUS_ERR_MISSING_ENTRIES;
+            }
+
             // At the beginning of checkpoint, we can't verify the link with
             // previous ledger, so at least verify that header content hashes to
             // correct value
@@ -301,8 +312,8 @@ VerifyLedgerChainWork::verifyHistoryOfSingleCheckpoint()
         // or at mRange.last() if history chain file was valid and we
         // reached last ledger in the range. Any other ledger here means
         // that file is corrupted.
-        CLOG_ERROR(History, "History chain did not end with {} or {}",
-                   mCurrCheckpoint, mRange.last());
+        CLOG_ERROR(History, "History chain did not end with {} or {} - got {}",
+                   mCurrCheckpoint, mRange.last(), curr.header.ledgerSeq);
         return HistoryManager::VERIFY_STATUS_ERR_MISSING_ENTRIES;
     }
 

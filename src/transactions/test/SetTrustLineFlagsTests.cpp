@@ -1151,9 +1151,10 @@ TEST_CASE_VERSIONS("revoke from pool",
                                 LedgerTxn ltx(app->getLedgerTxnRoot());
                                 TransactionMetaFrame txm(
                                     ltx.loadHeader().current().ledgerVersion);
-                                REQUIRE(tx->checkValidForTesting(*app, ltx, 0,
-                                                                 0, 0));
-                                REQUIRE(tx->apply(*app, ltx, txm));
+                                REQUIRE(tx->checkValidForTesting(
+                                    app->getAppConnector(), ltx, 0, 0, 0));
+                                REQUIRE(tx->apply(app->getAppConnector(), ltx,
+                                                  txm));
                                 REQUIRE(tx->getResultCode() == txSUCCESS);
                                 ltx.commit();
                             }
@@ -1215,91 +1216,94 @@ TEST_CASE_VERSIONS("revoke from pool",
                         }
                     };
 
-                auto submitRevokeInSandwich = [&](TestAccount& sponsoringAcc,
-                                                  TestAccount& sponsoredAcc,
-                                                  bool success,
-                                                  int32_t
-                                                      numPoolShareTrustlines) {
-                    auto op =
-                        flagOp == TrustFlagOp::ALLOW_TRUST
-                            ? allowTrust(acc1, cur1, 0)
-                            : setTrustLineFlags(
-                                  acc1, cur1,
-                                  clearTrustLineFlags(TRUSTLINE_AUTH_FLAGS));
+                auto submitRevokeInSandwich =
+                    [&](TestAccount& sponsoringAcc, TestAccount& sponsoredAcc,
+                        bool success, int32_t numPoolShareTrustlines) {
+                        auto op =
+                            flagOp == TrustFlagOp::ALLOW_TRUST
+                                ? allowTrust(acc1, cur1, 0)
+                                : setTrustLineFlags(acc1, cur1,
+                                                    clearTrustLineFlags(
+                                                        TRUSTLINE_AUTH_FLAGS));
 
-                    std::vector<SecretKey> opKeys = {sponsoredAcc};
-                    if (sponsoringAcc.getAccountId() != root.getAccountId())
-                    {
-                        opKeys.emplace_back(root);
-                    }
-
-                    auto tx = transactionFrameFromOps(
-                        app->getNetworkID(), sponsoringAcc,
-                        {sponsoringAcc.op(
-                             beginSponsoringFutureReserves(sponsoredAcc)),
-                         root.op(op),
-                         sponsoredAcc.op(endSponsoringFutureReserves())},
-                        opKeys);
-
-                    auto preRevokeNumSubEntries = acc1.getNumSubEntries();
-                    auto preRevokeNumSponsoring =
-                        getNumSponsoring(*app, sponsoringAcc);
-                    bool trustlineIsSponsored = getNumSponsored(*app, acc1) > 0;
-
-                    {
-                        LedgerTxn ltx(app->getLedgerTxnRoot());
-                        TransactionMetaFrame txm(
-                            ltx.loadHeader().current().ledgerVersion);
-                        REQUIRE(tx->checkValidForTesting(*app, ltx, 0, 0, 0));
-                        REQUIRE(tx->apply(*app, ltx, txm) == success);
-
-                        if (success)
+                        std::vector<SecretKey> opKeys = {sponsoredAcc};
+                        if (sponsoringAcc.getAccountId() != root.getAccountId())
                         {
-                            ltx.commit();
-                            REQUIRE(tx->getResultCode() == txSUCCESS);
+                            opKeys.emplace_back(root);
                         }
-                        else
+
+                        auto tx = transactionFrameFromOps(
+                            app->getNetworkID(), sponsoringAcc,
+                            {sponsoringAcc.op(
+                                 beginSponsoringFutureReserves(sponsoredAcc)),
+                             root.op(op),
+                             sponsoredAcc.op(endSponsoringFutureReserves())},
+                            opKeys);
+
+                        auto preRevokeNumSubEntries = acc1.getNumSubEntries();
+                        auto preRevokeNumSponsoring =
+                            getNumSponsoring(*app, sponsoringAcc);
+                        bool trustlineIsSponsored =
+                            getNumSponsored(*app, acc1) > 0;
+
                         {
-                            REQUIRE(tx->getResultCode() == txFAILED);
-                            if (flagOp == TrustFlagOp::ALLOW_TRUST)
+                            LedgerTxn ltx(app->getLedgerTxnRoot());
+                            TransactionMetaFrame txm(
+                                ltx.loadHeader().current().ledgerVersion);
+                            REQUIRE(tx->checkValidForTesting(
+                                app->getAppConnector(), ltx, 0, 0, 0));
+                            REQUIRE(tx->apply(app->getAppConnector(), ltx,
+                                              txm) == success);
+
+                            if (success)
                             {
-                                REQUIRE(tx->getResult()
-                                            .result.results()[1]
-                                            .tr()
-                                            .allowTrustResult()
-                                            .code() == ALLOW_TRUST_LOW_RESERVE);
+                                ltx.commit();
+                                REQUIRE(tx->getResultCode() == txSUCCESS);
                             }
                             else
                             {
-                                REQUIRE(tx->getResult()
-                                            .result.results()[1]
-                                            .tr()
-                                            .setTrustLineFlagsResult()
-                                            .code() ==
-                                        SET_TRUST_LINE_FLAGS_LOW_RESERVE);
+                                REQUIRE(tx->getResultCode() == txFAILED);
+                                if (flagOp == TrustFlagOp::ALLOW_TRUST)
+                                {
+                                    REQUIRE(tx->getResult()
+                                                .result.results()[1]
+                                                .tr()
+                                                .allowTrustResult()
+                                                .code() ==
+                                            ALLOW_TRUST_LOW_RESERVE);
+                                }
+                                else
+                                {
+                                    REQUIRE(tx->getResult()
+                                                .result.results()[1]
+                                                .tr()
+                                                .setTrustLineFlagsResult()
+                                                .code() ==
+                                            SET_TRUST_LINE_FLAGS_LOW_RESERVE);
+                                }
                             }
                         }
-                    }
 
-                    if (success)
-                    {
-                        REQUIRE(preRevokeNumSubEntries ==
-                                acc1.getNumSubEntries() +
-                                    numPoolShareTrustlines * 2);
+                        if (success)
+                        {
+                            REQUIRE(preRevokeNumSubEntries ==
+                                    acc1.getNumSubEntries() +
+                                        numPoolShareTrustlines * 2);
 
-                        // sponsoringAcc will be sponsoring the two
-                        // claimable balances, but if the same account was
-                        // sponsoring the pool share trustline, then the
-                        // delta is 0
-                        auto delta = trustlineIsSponsored &&
-                                             sponsoringAcc.getPublicKey() ==
-                                                 acc3.getPublicKey()
-                                         ? 0
-                                         : 2;
-                        REQUIRE(preRevokeNumSponsoring ==
-                                getNumSponsoring(*app, sponsoringAcc) - delta);
-                    }
-                };
+                            // sponsoringAcc will be sponsoring the two
+                            // claimable balances, but if the same account was
+                            // sponsoring the pool share trustline, then the
+                            // delta is 0
+                            auto delta = trustlineIsSponsored &&
+                                                 sponsoringAcc.getPublicKey() ==
+                                                     acc3.getPublicKey()
+                                             ? 0
+                                             : 2;
+                            REQUIRE(preRevokeNumSponsoring ==
+                                    getNumSponsoring(*app, sponsoringAcc) -
+                                        delta);
+                        }
+                    };
 
                 auto increaseReserve = [&]() {
                     // double the reserve
@@ -1515,8 +1519,9 @@ TEST_CASE_VERSIONS("revoke from pool",
                         LedgerTxn ltx(app->getLedgerTxnRoot());
                         TransactionMetaFrame txm(
                             ltx.loadHeader().current().ledgerVersion);
-                        REQUIRE(tx->checkValidForTesting(*app, ltx, 0, 0, 0));
-                        REQUIRE(tx->apply(*app, ltx, txm));
+                        REQUIRE(tx->checkValidForTesting(app->getAppConnector(),
+                                                         ltx, 0, 0, 0));
+                        REQUIRE(tx->apply(app->getAppConnector(), ltx, txm));
                         REQUIRE(tx->getResultCode() == txSUCCESS);
 
                         auto tlAsset =

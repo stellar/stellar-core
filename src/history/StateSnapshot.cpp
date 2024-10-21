@@ -29,16 +29,19 @@ StateSnapshot::StateSnapshot(Application& app, HistoryArchiveState const& state)
     , mLocalState(state)
     , mSnapDir(app.getTmpDirManager().tmpDir("snapshot"))
     , mLedgerSnapFile(std::make_shared<FileTransferInfo>(
-          mSnapDir, HISTORY_FILE_TYPE_LEDGER, mLocalState.currentLedger))
+          FileType::HISTORY_FILE_TYPE_LEDGER, mLocalState.currentLedger,
+          mApp.getConfig()))
 
     , mTransactionSnapFile(std::make_shared<FileTransferInfo>(
-          mSnapDir, HISTORY_FILE_TYPE_TRANSACTIONS, mLocalState.currentLedger))
+          FileType::HISTORY_FILE_TYPE_TRANSACTIONS, mLocalState.currentLedger,
+          mApp.getConfig()))
 
     , mTransactionResultSnapFile(std::make_shared<FileTransferInfo>(
-          mSnapDir, HISTORY_FILE_TYPE_RESULTS, mLocalState.currentLedger))
+          FileType::HISTORY_FILE_TYPE_RESULTS, mLocalState.currentLedger,
+          mApp.getConfig()))
 
     , mSCPHistorySnapFile(std::make_shared<FileTransferInfo>(
-          mSnapDir, HISTORY_FILE_TYPE_SCP, mLocalState.currentLedger))
+          mSnapDir, FileType::HISTORY_FILE_TYPE_SCP, mLocalState.currentLedger))
 
 {
     if (mLocalState.currentBuckets.size() != BucketList::kNumLevels)
@@ -48,7 +51,7 @@ StateSnapshot::StateSnapshot(Application& app, HistoryArchiveState const& state)
 }
 
 bool
-StateSnapshot::writeHistoryBlocks() const
+StateSnapshot::writeSCPMessages() const
 {
     ZoneScoped;
     std::unique_ptr<soci::session> snapSess(
@@ -62,18 +65,16 @@ StateSnapshot::writeHistoryBlocks() const
     // headers, one TransactionHistoryEntry (which contain txSets),
     // one TransactionHistoryResultEntry containing transaction set results and
     // one (optional) SCPHistoryEntry containing the SCP messages used to close.
-    // All files are streamed out of the database, entry-by-entry.
+    // Only SCP messages are stream out of database, entry by entry.
+    // The rest are built incrementally during ledger close.
     size_t nbSCPMessages;
     uint32_t begin, count;
-    size_t nHeaders;
     {
         bool doFsync = !mApp.getConfig().DISABLE_XDR_FSYNC;
         asio::io_context& ctx = mApp.getClock().getIOContext();
-        XDROutputFileStream ledgerOut(ctx, doFsync), txOut(ctx, doFsync),
-            txResultOut(ctx, doFsync), scpHistory(ctx, doFsync);
-        ledgerOut.open(mLedgerSnapFile->localPath_nogz());
-        txOut.open(mTransactionSnapFile->localPath_nogz());
-        txResultOut.open(mTransactionResultSnapFile->localPath_nogz());
+
+        // Extract SCP messages from the database
+        XDROutputFileStream scpHistory(ctx, doFsync);
         scpHistory.open(mSCPHistorySnapFile->localPath_nogz());
 
         auto& hm = mApp.getHistoryManager();
@@ -81,17 +82,6 @@ StateSnapshot::writeHistoryBlocks() const
         count = hm.sizeOfCheckpointContaining(mLocalState.currentLedger);
         CLOG_DEBUG(History, "Streaming {} ledgers worth of history, from {}",
                    count, begin);
-
-        nHeaders = LedgerHeaderUtils::copyToStream(mApp.getDatabase(), sess,
-                                                   begin, count, ledgerOut);
-
-        size_t nTxs = copyTransactionsToStream(mApp, sess, begin, count, txOut,
-                                               txResultOut);
-        CLOG_DEBUG(History, "Wrote {} ledger headers to {}", nHeaders,
-                   mLedgerSnapFile->localPath_nogz());
-        CLOG_DEBUG(History, "Wrote {} transactions to {} and {}", nTxs,
-                   mTransactionSnapFile->localPath_nogz(),
-                   mTransactionResultSnapFile->localPath_nogz());
 
         nbSCPMessages = HerderPersistence::copySCPHistoryToStream(
             mApp.getDatabase(), sess, begin, count, scpHistory);
@@ -109,22 +99,6 @@ StateSnapshot::writeHistoryBlocks() const
     // When writing checkpoint 0x3f (63) we will have written 63 headers because
     // header 0 doesn't exist, ledger 1 is the first. For all later checkpoints
     // we will write 64 headers; any less and something went wrong[1].
-    //
-    // [1]: Probably our read transaction was serialized ahead of the write
-    // transaction composing the history itself, despite occurring in the
-    // opposite wall-clock order, this is legal behavior in SERIALIZABLE
-    // transaction-isolation level -- the highest offered! -- as txns only have
-    // to be applied in isolation and in _some_ order, not the wall-clock order
-    // we issued them. Anyway this is transient and should go away upon retry.
-    if (nHeaders != count)
-    {
-        CLOG_WARNING(
-            History,
-            "Only wrote {} ledger headers for {}, expecting {}, will retry",
-            nHeaders, mLedgerSnapFile->localPath_nogz(), count);
-        return false;
-    }
-
     return true;
 }
 

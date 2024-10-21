@@ -13,9 +13,5 @@ namespace DatabaseUtils
 void deleteOldEntriesHelper(soci::session& sess, uint32_t ledgerSeq,
                             uint32_t count, std::string const& tableName,
                             std::string const& ledgerSeqColumn);
-
-void deleteNewerEntriesHelper(soci::session& sess, uint32_t ledgerSeq,
-                              std::string const& tableName,
-                              std::string const& ledgerSeqColumn);
 }
 }

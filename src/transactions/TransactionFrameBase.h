@@ -25,6 +25,7 @@ class Database;
 class OperationFrame;
 class TransactionFrame;
 class FeeBumpTransactionFrame;
+class AppConnector;
 
 class MutableTransactionResultBase;
 using MutableTxResultPtr = std::shared_ptr<MutableTransactionResultBase>;
@@ -41,15 +42,15 @@ class TransactionFrameBase
     makeTransactionFromWire(Hash const& networkID,
                             TransactionEnvelope const& env);
 
-    virtual bool apply(Application& app, AbstractLedgerTxn& ltx,
+    virtual bool apply(AppConnector& app, AbstractLedgerTxn& ltx,
                        TransactionMetaFrame& meta, MutableTxResultPtr txResult,
                        Hash const& sorobanBasePrngSeed = Hash{}) const = 0;
     virtual MutableTxResultPtr
-    checkValid(Application& app, LedgerSnapshot const& ls,
+    checkValid(AppConnector& app, LedgerSnapshot const& ls,
                SequenceNumber current, uint64_t lowerBoundCloseTimeOffset,
                uint64_t upperBoundCloseTimeOffset) const = 0;
     virtual bool
-    checkSorobanResourceAndSetError(Application& app, uint32_t ledgerVersion,
+    checkSorobanResourceAndSetError(AppConnector& app, uint32_t ledgerVersion,
                                     MutableTxResultPtr txResult) const = 0;
 
     virtual MutableTxResultPtr createSuccessResult() const = 0;
@@ -101,7 +102,7 @@ class TransactionFrameBase
     processFeeSeqNum(AbstractLedgerTxn& ltx,
                      std::optional<int64_t> baseFee) const = 0;
 
-    virtual void processPostApply(Application& app, AbstractLedgerTxn& ltx,
+    virtual void processPostApply(AppConnector& app, AbstractLedgerTxn& ltx,
                                   TransactionMetaFrame& meta,
                                   MutableTxResultPtr txResult) const = 0;
 

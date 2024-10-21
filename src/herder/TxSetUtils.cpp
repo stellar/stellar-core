@@ -153,7 +153,8 @@ TxSetUtils::getInvalidTxList(TxSetTransactions const& txs, Application& app,
 
     for (auto const& tx : txs)
     {
-        auto txResult = tx->checkValid(app, ls, 0, lowerBoundCloseTimeOffset,
+        auto txResult = tx->checkValid(app.getAppConnector(), ls, 0,
+                                       lowerBoundCloseTimeOffset,
                                        upperBoundCloseTimeOffset);
         if (!txResult->isSuccess())
         {

@@ -2147,11 +2147,9 @@ HerderImpl::start()
 {
     mMaxTxSize = mApp.getHerder().getMaxClassicTxSize();
     {
-        LedgerTxn ltx(mApp.getLedgerTxnRoot(),
-                      /* shouldUpdateLastModified */ true,
-                      TransactionMode::READ_ONLY_WITHOUT_SQL_TXN);
-
-        uint32_t version = ltx.loadHeader().current().ledgerVersion;
+        uint32_t version = mApp.getLedgerManager()
+                               .getLastClosedLedgerHeader()
+                               .header.ledgerVersion;
         if (protocolVersionStartsFrom(version, SOROBAN_PROTOCOL_VERSION))
         {
             auto const& conf =

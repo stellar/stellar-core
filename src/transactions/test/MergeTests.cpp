@@ -759,8 +759,9 @@ TEST_CASE_VERSIONS("merge", "[tx][merge]")
                     LedgerTxn ltx(app->getLedgerTxnRoot());
                     TransactionMetaFrame txm(
                         ltx.loadHeader().current().ledgerVersion);
-                    REQUIRE(tx->checkValidForTesting(*app, ltx, 0, 0, 0));
-                    REQUIRE(tx->apply(*app, ltx, txm));
+                    REQUIRE(tx->checkValidForTesting(app->getAppConnector(),
+                                                     ltx, 0, 0, 0));
+                    REQUIRE(tx->apply(app->getAppConnector(), ltx, txm));
 
                     checkSponsorship(ltx, dest, signer.key, 2,
                                      &sponsoringAcc.getPublicKey());
@@ -822,8 +823,9 @@ TEST_CASE_VERSIONS("merge", "[tx][merge]")
                     LedgerTxn ltx(app->getLedgerTxnRoot());
                     TransactionMetaFrame txm(
                         ltx.loadHeader().current().ledgerVersion);
-                    REQUIRE(tx->checkValidForTesting(*app, ltx, 0, 0, 0));
-                    REQUIRE(tx->apply(*app, ltx, txm));
+                    REQUIRE(tx->checkValidForTesting(app->getAppConnector(),
+                                                     ltx, 0, 0, 0));
+                    REQUIRE(tx->apply(app->getAppConnector(), ltx, txm));
 
                     checkSponsorship(ltx, key.getPublicKey(), 1,
                                      &sponsoringAcc.getPublicKey(), 0, 2, 0, 2);
@@ -894,8 +896,9 @@ TEST_CASE_VERSIONS("merge", "[tx][merge]")
                     LedgerTxn ltx(app->getLedgerTxnRoot());
                     TransactionMetaFrame txm(
                         ltx.loadHeader().current().ledgerVersion);
-                    REQUIRE(tx->checkValidForTesting(*app, ltx, 0, 0, 0));
-                    REQUIRE(!tx->apply(*app, ltx, txm));
+                    REQUIRE(tx->checkValidForTesting(app->getAppConnector(),
+                                                     ltx, 0, 0, 0));
+                    REQUIRE(!tx->apply(app->getAppConnector(), ltx, txm));
                     REQUIRE(tx->getResult()
                                 .result.results()[1]
                                 .tr()
@@ -917,8 +920,9 @@ TEST_CASE_VERSIONS("merge", "[tx][merge]")
                         LedgerTxn ltx(app->getLedgerTxnRoot());
                         TransactionMetaFrame txm(
                             ltx.loadHeader().current().ledgerVersion);
-                        REQUIRE(tx->checkValidForTesting(*app, ltx, 0, 0, 0));
-                        REQUIRE(tx->apply(*app, ltx, txm));
+                        REQUIRE(tx->checkValidForTesting(app->getAppConnector(),
+                                                         ltx, 0, 0, 0));
+                        REQUIRE(tx->apply(app->getAppConnector(), ltx, txm));
 
                         checkSponsorship(ltx, sponsoringAcc, 0, nullptr, 0, 2,
                                          1, 0);

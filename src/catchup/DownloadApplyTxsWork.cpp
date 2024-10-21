@@ -46,8 +46,9 @@ DownloadApplyTxsWork::yieldMoreWork()
 
     CLOG_INFO(History,
               "Downloading, unzipping and applying {} for checkpoint {}",
-              HISTORY_FILE_TYPE_TRANSACTIONS, mCheckpointToQueue);
-    FileTransferInfo ft(mDownloadDir, HISTORY_FILE_TYPE_TRANSACTIONS,
+              typeString(FileType::HISTORY_FILE_TYPE_TRANSACTIONS),
+              mCheckpointToQueue);
+    FileTransferInfo ft(mDownloadDir, FileType::HISTORY_FILE_TYPE_TRANSACTIONS,
                         mCheckpointToQueue);
     auto getAndUnzip =
         std::make_shared<GetAndUnzipRemoteFileWork>(mApp, ft, mArchive);
@@ -67,8 +68,8 @@ DownloadApplyTxsWork::yieldMoreWork()
             auto archive = getFile->getArchive();
             if (archive)
             {
-                FileTransferInfo ti(dir, HISTORY_FILE_TYPE_TRANSACTIONS,
-                                    checkpoint);
+                FileTransferInfo ti(
+                    dir, FileType::HISTORY_FILE_TYPE_TRANSACTIONS, checkpoint);
                 CLOG_ERROR(History, "Archive {} maybe contains corrupt file {}",
                            archive->getName(), ti.remoteName());
             }

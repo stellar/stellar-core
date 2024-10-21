@@ -31,11 +31,11 @@ class TransactionTestFrame : public TransactionFrameBase
     }
 
     // Test only functions
-    bool apply(Application& app, AbstractLedgerTxn& ltx,
+    bool apply(AppConnector& app, AbstractLedgerTxn& ltx,
                TransactionMetaFrame& meta,
                Hash const& sorobanBasePrngSeed = Hash{});
 
-    bool checkValidForTesting(Application& app, AbstractLedgerTxn& ltxOuter,
+    bool checkValidForTesting(AppConnector& app, AbstractLedgerTxn& ltxOuter,
                               SequenceNumber current,
                               uint64_t lowerBoundCloseTimeOffset,
                               uint64_t upperBoundCloseTimeOffset);
@@ -43,7 +43,7 @@ class TransactionTestFrame : public TransactionFrameBase
     void processFeeSeqNum(AbstractLedgerTxn& ltx,
                           std::optional<int64_t> baseFee);
 
-    void processPostApply(Application& app, AbstractLedgerTxn& ltx,
+    void processPostApply(AppConnector& app, AbstractLedgerTxn& ltx,
                           TransactionMetaFrame& meta);
 
     void addSignature(SecretKey const& secretKey);
@@ -57,20 +57,21 @@ class TransactionTestFrame : public TransactionFrameBase
     TransactionFrameBasePtr getTxFramePtr() const;
 
     // Redefinitions of TransactionFrameBase functions
-    bool apply(Application& app, AbstractLedgerTxn& ltx,
+    bool apply(AppConnector& app, AbstractLedgerTxn& ltx,
                TransactionMetaFrame& meta, MutableTxResultPtr txResult,
                Hash const& sorobanBasePrngSeed = Hash{}) const override;
 
-    MutableTxResultPtr checkValid(Application& app, AbstractLedgerTxn& ltxOuter,
+    MutableTxResultPtr checkValid(AppConnector& app,
+                                  AbstractLedgerTxn& ltxOuter,
                                   SequenceNumber current,
                                   uint64_t lowerBoundCloseTimeOffset,
                                   uint64_t upperBoundCloseTimeOffset) const;
     MutableTxResultPtr
-    checkValid(Application& app, LedgerSnapshot const& ls,
+    checkValid(AppConnector& app, LedgerSnapshot const& ls,
                SequenceNumber current, uint64_t lowerBoundCloseTimeOffset,
                uint64_t upperBoundCloseTimeOffset) const override;
     bool
-    checkSorobanResourceAndSetError(Application& app, uint32_t ledgerVersion,
+    checkSorobanResourceAndSetError(AppConnector& app, uint32_t ledgerVersion,
                                     MutableTxResultPtr txResult) const override;
 
     MutableTxResultPtr createSuccessResult() const override;
@@ -122,7 +123,7 @@ class TransactionTestFrame : public TransactionFrameBase
     processFeeSeqNum(AbstractLedgerTxn& ltx,
                      std::optional<int64_t> baseFee) const override;
 
-    void processPostApply(Application& app, AbstractLedgerTxn& ltx,
+    void processPostApply(AppConnector& app, AbstractLedgerTxn& ltx,
                           TransactionMetaFrame& meta,
                           MutableTxResultPtr txResult) const override;
 

@@ -34,7 +34,7 @@ DownloadVerifyTxResultsWork::getStatus() const
     {
         auto task =
             fmt::format(FMT_STRING("Downloading and verifying {:s} files"),
-                        HISTORY_FILE_TYPE_RESULTS);
+                        typeString(FileType::HISTORY_FILE_TYPE_RESULTS));
         return fmtProgress(mApp, task, mRange.getLedgerRange(),
                            mCurrCheckpoint);
     }
@@ -62,7 +62,7 @@ DownloadVerifyTxResultsWork::yieldMoreWork()
         throw std::runtime_error("Nothing to iterate over!");
     }
 
-    FileTransferInfo ft(mDownloadDir, HISTORY_FILE_TYPE_RESULTS,
+    FileTransferInfo ft(mDownloadDir, FileType::HISTORY_FILE_TYPE_RESULTS,
                         mCurrCheckpoint);
     auto w1 = std::make_shared<GetAndUnzipRemoteFileWork>(mApp, ft, mArchive);
     auto w2 = std::make_shared<VerifyTxResultsWork>(mApp, mDownloadDir,

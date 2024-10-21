@@ -4435,8 +4435,9 @@ TEST_CASE_VERSIONS("pathpayment", "[tx][pathpayment]")
 
             LedgerTxn ltx(app->getLedgerTxnRoot());
             TransactionMetaFrame txm(ltx.loadHeader().current().ledgerVersion);
-            REQUIRE(tx->checkValidForTesting(*app, ltx, 0, 0, 0));
-            REQUIRE(tx->apply(*app, ltx, txm));
+            REQUIRE(
+                tx->checkValidForTesting(app->getAppConnector(), ltx, 0, 0, 0));
+            REQUIRE(tx->apply(app->getAppConnector(), ltx, txm));
             ltx.commit();
         };
 
@@ -4828,8 +4829,9 @@ TEST_CASE_VERSIONS("pathpayment", "[tx][pathpayment]")
                 LedgerTxn ltx(app->getLedgerTxnRoot());
                 TransactionMetaFrame txm(
                     ltx.loadHeader().current().ledgerVersion);
-                REQUIRE(tx->checkValidForTesting(*app, ltx, 0, 0, 0));
-                REQUIRE(tx->apply(*app, ltx, txm));
+                REQUIRE(tx->checkValidForTesting(app->getAppConnector(), ltx, 0,
+                                                 0, 0));
+                REQUIRE(tx->apply(app->getAppConnector(), ltx, txm));
                 ltx.commit();
             }
 
