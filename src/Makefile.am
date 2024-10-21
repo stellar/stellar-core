@@ -176,6 +176,7 @@ $(RUST_DEP_TREE_STAMP): $(wildcard rust/soroban/*/Cargo.*) Makefile
 # dep-tree-stamp files and before the stellar-core build, because rustup
 # gets invoked and it is not concurrency-safe.
 $(SOROBAN_LIBS_STAMP): $(wildcard rust/soroban/p*/Cargo.lock) Makefile $(RUST_DEP_TREE_STAMP) $(SRC_RUST_FILES)
+	rm -f $@
 	for proto in $(ALL_SOROBAN_PROTOCOLS) ; \
 	do \
 		FEATURE_FLAGS="" ; \
@@ -215,6 +216,7 @@ $(SOROBAN_LIBS_STAMP): $(wildcard rust/soroban/p*/Cargo.lock) Makefile $(RUST_DE
 # rustc` invocation, along with `-L dependency=...` flags to tell cargo where to
 # find indirect deps of those .rlibs.
 $(LIBRUST_STELLAR_CORE): $(RUST_HOST_DEPFILES) $(SRC_RUST_FILES) Makefile $(SOROBAN_LIBS_STAMP)
+	rm -rf $(abspath $(RUST_TARGET_DIR))
 	CARGO_NET_GIT_FETCH_WITH_CLI=true cargo rustc \
 		--package stellar-core \
 		--$(RUST_PROFILE) \
