@@ -84,9 +84,9 @@ CheckSingleLedgerHeaderWork::doWork()
     }
     else if (mGetLedgerFileWork->getState() != State::WORK_SUCCESS)
     {
-        CLOG_ERROR(History,
-                   "Failed to download ledger checkpoint {} from archive {}",
-                   mFt->baseName_gz(), mArchive->getName());
+        CLOG_WARNING(History,
+                     "Failed to download ledger checkpoint {} from archive {}",
+                     mFt->baseName_gz(), mArchive->getName());
         return mGetLedgerFileWork->getState();
     }
 
