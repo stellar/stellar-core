@@ -22,98 +22,199 @@ than normal stellar-core changes:
 
   - We don't know _where_ an unintentional but observable change happens in the
     set of transitive dependencies of soroban, so we have to gate the _entire_
-    tree of dependencies on a protocol version, at least during an upgrade,
-    keeping two copies of soroban-and-its-dependencies compiled-in at once.
+    tree of dependencies on a protocol version. We do this by compiling multiple
+    _full copies_ of the soroban host into stellar-core.
 
-There is one saving grace, however: once a given protocol version `N` is _past_
-and the network is no longer recording ledgers marked with `N`, we have a fixed
-set of ledgers labeled with `N` that we need to maintain accurate replay of; any
-differences in soroban versions not-observed by transactions in that range of
-ledgers can be ignored. So while we need to maintain two separate copies of
-soroban compiled-in to stellar-core _during_ an upgrade, we can expire one of
-them _after_ the upgrade by ensuring that the new code can replay the old (now
-complete) range of ledgers faithfully.
+In the worst case, we will wind up compiling-in as many copies of soroban as
+there are protocols. This is actually not _so_ bad since each copy of soroban
+is only a few hundred KiB of object code.
+
+But: we can do better. The key observation is that once a given protocol `N` is
+_past_ and the network is no longer recording ledgers marked with `N`, we have a
+fixed set of ledgers labeled with `N` that we need to maintain accurate replay
+of; any _observable_ differences in soroban versions that was, in practice, not
+_actually observed_ by any transactions in that range of ledgers can be ignored.
+
+And "ignored" here means that we can retire some extra copies of soroban,
+post-upgrade. Remove them from stellar-core. Specifically if the historical
+recording of "all protocol `N` ledgers" replays correctly on soroban `N+1` then
+there is no need to keep soroban `N` compiled-in to stellar-core anymore,
+soroban `N+1` will suffice.
 
 ## Protocol upgrade process
 
-We follow this process for protocol upgrades:
+**Note:** We used to follow a more rigid and operationally subtle plan with only
+1 or at most 2 versions of soroban -- symbolically called `curr` and `prev` --
+compiled-in at any moment, with a complex sequence of upgrade steps to enable,
+upgrade, rename, and disable the symbolic names. As of protocol 22 we shifted to
+the simpler and more general plan of just keeping around as many sorobans as
+needed, identified by protocol number rather than symbolic name. If you see the
+terms `curr` and `prev` kicking around, those are mostly no longer relevant
+terms (with the exception of a module alias inside `lib.rs`, see below.)
 
-  1. Before the upgrade, the network is on protocol `N`. To keep things simple,
-     we require that both stellar-core and soroban give their releases version
-     numbers like `N.x.y` when `N` is their maximum supported protocol. The
-     release major version number is the max supported protocol version.
+We follow this process for protocol upgrades, taking as an illustrative example
+the upgrade from protocol 22 to 23:
 
-  2. To upgrade to `N+1` we'll be producing a new soroban version `(N+1).0.0`
-     and a new stellar-core `(N+1).0.0`, and the stellar-core will set its
-     `Config::CURRENT_LEDGER_PROTOCOL_VERSION` to `N+1`.
+  1. Recall that when the network is on protocol `22`, it means the versions of
+    stellar-core and soroban have versions like `22.x.y` and tags like
+    `v22.x.y`, i.e. with `22` as their major version number.
 
-  3. We configure the build of stellar-core v(N+1).0.0 as a "transitionary
-     build" that has _both_ versions of soroban in it. In the `Cargo.toml` of
-     stellar-core, we copy the `N.x.y` version number and git hash from the
-     existing dependency named `soroban-env-host-curr` to the optional
-     dependency named `soroban-env-host-prev`, then set `soroban-env-host-curr`
-     to `(N+1).0.0` and the appropriate git hash, and configure stellar-core
-     with `--enable-protocol-upgrade-via-soroban-env-host-prev`, which will
-     cause the rust build phase to use `--feature=soroban-env-host-prev`.
-     We will also have to update both pinned dependency tree files as
-     described below in "Pinned soroban dependency trees".
+  2. We therefore start by tagging `soroban-env-host` at `v23.0.0` and releasing
+     the crate at `23.0.0`.
 
-  4. We deploy this dual-version "transitionary build" to the network. This must
-     be the first version with support for `N+1`, and since it was built with
-     support for `soroban-env-host-prev` it will continue to run ledgers marked
-     as protocol `N` on the previous soroban version `N.x.y`, but run all _other_
-     ledgers -- both older and newer than protocol `N` -- on the new soroban
-     version `(N+1).0.0`. This allows early testing of `(N+1).0.0` by replaying
-     it against all of history _before_ protocol `N`.
+  3. We then update stellar-core's `Config::CURRENT_LEDGER_PROTOCOL_VERSION` to
+     `23` and tag the version as `v23.0.0`. This will cause
+     `src/main/StellarCoreVersion.cpp` to be regenerated and stellar-core should
+     think of itself as speaking protocol 23.
 
-  5. We do the consensus protocol upgrade on this "transitionary build"
-     version. We define the validity condition for a protocol upgrade such that
-     stellar-core is only _willing_ to vote for a soroban-era protocol upgrade
-     when configured with two versions of soroban built-in, and such a
-     configuration will cut over instantaneously from old soroban `N.x.y` to new
-     soroban `(N+1).0.0` on upgrade.
+  4. We then add a new submodule to stellar-core under `src/rust/soroban/p23`.
+     This submodule has _another copy_ of the `soroban-env-host` repository,
+     but checked out at the `v23.0.0` tag. We do this with something like
 
-  6. Once the upgrade is complete, we prepare the _next_ version of stellar-core
-     _without_ the transitionary version. That is, we build without
-     `--feature=soroban-env-host-prev`. In order to be sure that it is safe to
-     expire that version, we first replay all ledgers from `N` and before on
-     the current soroban `(N+1).0.0` and see if they replay correctly. If they
-     do not, we add backward compatibility code to soroban and do a point
-     release like `(N+1).0.1` that can replay correctly, and bump the version
-     in stellar-core's `Cargo.toml` to `(N+1).0.1`.
+       - `mkdir src/rust/soroban/p23`
+       - `git submodule add https://github.com/stellar/rs-soroban-env src/rust/soroban/p23`
+       - `cd src/rust/soroban/p23`
+       - `git checkout v23.0.0`
 
-## Pinned soroban dependency trees
+  4. We wire that new protocol into `src/rust/src/lib.rs` by copying the
+     existing highest-numbered protocol-pecific module, say `mod p22 { ... }`
+     that exists inline in that file, to a new copy say `mod p23 { ... }`.
 
-At any point we may have one _or two_ versions of soroban built into
-stellar-core (see below). This is confusing and error-prone. It is easy to
-update one version and accidentally cause cargo to "re-resolve" version specs in
-dependencies or transitive dependencies to new versions, and accidentally cause
-changes.
+   5. We also update the module alias `soroban_curr`, by changing a line like
+      `use p22 as soroban_curr` to say `use p23 as soroban_curr`.
 
-To help cross-check versions and reduce accidental changes, we embed (in all
-builds) a copy of both `Cargo.lock` and one or more files showing the full,
-expected dependency tree of either or both of the embedded copies of
-soroban. These files are stored in git adjacent to `Cargo.toml` and are called
-`host-dep-tree-curr.txt` and `host-dep-tree-prev.txt`. Any time we change the
-version(s) specified in `Cargo.toml` we will likely need to update one or
-another of these files.
+   6. We also copy and paste a line like
+      `proto_versioned_functions_for_module!(p22),` into a new line like
+      `proto_versioned_functions_for_module!(p23),` which will register the new
+      module. The module self-identifies the protocol it's responsible for
+      handling.
 
-The easiest way to update the files is just to run `stellar-core version`
-without updating the files: it will exit with an error that shows the file
-content that was expected and the content that was found. Copy the "found"
-content into the expected file and rebuild, and it should work. The point of
-this step is to catch accidental errors, so we carefully review the changed
-dependency tree before we commit it, and ensure it contains exactly the changes
-we expect!
+   7. We then copy the "expected dependency tree" file from protocol 22 to 23:
 
-If we want to manually regenerate the files, we can also use the cli tool
-`cargo-lock` by hand (this is the crate stellar-core uses), for example:
+      - `cp src/rust/src/dep-trees/p22-expect.txt src/rust/src/dep-trees/p23-expect.txt`
 
-    $ cargo install --git https://github.com/rustsec/rustsec \
-        --rev dcc72b697e10a2d1e3d1ce70d7d7b0d5cbc41dc4 \
-	--locked --features cli cargo-lock
-    $ cargo lock tree --exact soroban-env-host@0.0.15
+   8. We then attempt to rebuild. The rebuild will probably fail because the
+      _actual_ dependencies of the p23 soroban are _different_ from those listed
+      in the `p23-expect.txt` file. These files are just here to ensure we
+      notice unintentional changes to dependencies, and the build system should
+      display the differences, requiring manual acceptance. If we are satisfied
+      with the displayed diffs, we just copy the actual file to the expected
+      file:
 
+      - `cp src/rust/src/dep-trees/p23-actual.txt src/rust/src/dep-trees/p23-expect.txt`
+
+      And then rebuild.
+
+   9. Technically that's it! We should have a copy of stellar-core that will run
+      soroban 22.x.y when given a protocol 22 ledger, and soroban 23.0.0 when
+      given a protocol 23 ledger. There is one final step to consider later.
+
+   10. _After the protocol 23 upgrade_, we can try _commenting out_ the
+      `proto_versioned_functions_for_module!(p22),` line to see if we can still
+      replay the recorded history of protocol 22 (which is set in stone now) on
+      soroban 23.x.y. If so, we can just delete that line and the corresponding
+      git submodule and dep-tree files: p22 is subsumed into p23. But it might
+      not work, again for two reasons:
+
+        - The p23 module might explicitly reject replay of protocol 22 (if there
+          was a major protocol change and we literally broke or removed support
+          for protocol 22 semantics, intentionally, from the p23 module). In
+          this case we have to keep the p22 module around forever.
+
+        - The p23 module might accidentally _diverge_ during replay. In this
+          case we have to look at the specifics. If there's a _minor_ change we
+          can make to p23 in the future to make it capable of faithfully
+          replaying p22, we can make that change at our leisure and try again.
+          But if the change is really intrusive, it might be easier to just keep
+          p22 around forever anyways.
+
+## Rust, Cargo, versions, submodules, rlibs, and dep-tree files
+
+This seciton is optional details about implementation technique for anyone
+surprised by the build infrastructure, or the fact that the lib.rs file doesn't
+seem to work in their IDE quite right, or surprised by the dep-tree files in the
+steps above.
+
+We are leveraging Rust's support for linking together multiple copies of "the
+same" library (soroban) with different versions, but we are doing so somewhat
+against the grain of how cargo normally wants to do it.
+
+Do do this "the normal way", we would just list the different versions of the
+soroban crate in `Cargo.toml`, and then when we built it cargo would attempt to
+resolve all the dependencies and transitive-dependencies of all those soroban
+versions into a hopefully-minimal set of crates and download, compile and link
+them all together.
+
+This has one minor and one major problem:
+
+  1. The minor problem is that when you change anything in any dependency, cargo
+     tends to re-resolve stuff. Resolving is when it converts version
+     _requirements_ (in `Cargo.toml`) to _specific versions_ (in `Cargo.lock`),
+     and all the resolutions of all the transitive dependency requirements of
+     all the versions of soroban linked into stellar-core wind up mixed together
+     in a single `Cargo.lock` file, which makes it hard to tell when
+     dependencies of any subtree change. We dealt with this initially by using a
+     tool that could separate-out and print independent subtrees within a
+     `Cargo.lock` file, and we stored and compared those in version control,
+     which mostly meant we could catch changes. But it did not fix the major
+     problem.
+
+  2. The major problem is that when we want to take a possibly-breaking update
+     -- say above when we add a new protocol p23 -- if that update depends on
+     some 3rd party crate say foo 0.2 and we already have a dependency in our
+     p22 module on foo 0.1, cargo will bump _both_ to foo 0.2, which _changes_
+     the semantics of the p22 module.
+
+       - We initially though a way out of this is to add redundant exact-version
+         dependencies (like `foo = "=0.2"`) to `Cargo.toml` for
+         `soroban-env-host` but there turn out to be both a minor and a major
+         problem with that too.
+
+       - The minor problem is that it is unpopular with downstream users (it
+         limits the set of libraries they can use soroban with).
+
+       - The major problem is that cargo, as a matter of semver-enforcement
+         policy (it's not a rust language limitation), only allows you to link
+         together multiple versions of a crate if they are in different semver
+         "compatibility ranges" (see
+         https://doc.rust-lang.org/cargo/reference/resolver.html). This means
+         the differing versions need to differ significantly. The must differ by
+         at least:
+         - A full major version, when their major number is >0
+         - A full minor version, when their major number is 0
+
+      - We found ourselves repeatedly dealing with crates that we _wanted_ to
+        multiply version, to isolate from unintentional changes, but that were
+        inside the same semver compatibility range. So cargo literally wouldn't
+        let us.
+
+As a consequence of these issues, we decided to take a more radical approach,
+and _not involve cargo_ in the management of the multiple versions.
+
+Instead we:
+
+  - Build each soroban library into an `rlib`, essentially a static library,
+    using a separate invocation of `cargo build --locked` against the separate
+    `Cargo.lock` file held in each soroban submodule. They each get locked
+    separately and build in ignorance of one another.
+
+  - Actually pass an additional `-Cmetadata=p23` or `-Cmetadata=p22` or whatever
+    flag to each build, to further ensure non-collision of any transitive deps
+    that would otherwise risk colliding due to non-reproducible build issues
+    (this is amazing but necessary, see `src/Makefile.am` for details).
+
+  - _Manually_ pass those `rlib` files as separate `--extern` dependency
+    definitions to `cargo rustc` when building the `librust_stellar_core.a`
+    stellar-core crate that combines the multiple sorobans together.
+
+  - Just to be on the safe side, still render the content of the lockfiles of
+    each submodule as a `p22-expect.txt` or `p23-expect.txt` file that we store
+    in the outer stellar-core tree, and compare them during the build to make
+    sure we only take updates we've manually looked at and signed off on.
+
+That last part is _somewhat_ vestigial from our earlier work with the tool that
+printed the subtrees of the combined `Cargo.lock` file, but it doesn't hurt to
+manually review all such changes, so we left it in.
 
 ## Protocol version, release version and contract cross-checks
 
