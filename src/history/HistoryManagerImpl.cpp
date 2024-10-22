@@ -518,7 +518,8 @@ HistoryManagerImpl::maybeCheckpointComplete()
 
     auto temp = HistoryManager::publishQueuePath(mApp.getConfig()) /
                 publishQueueTmpFileName(lcl);
-    if (!fs::durableRename(temp, finalizedHAS,
+    if (fs::exists(temp) &&
+        !fs::durableRename(temp, finalizedHAS,
                            HistoryManager::publishQueuePath(mApp.getConfig())))
     {
         throw std::runtime_error(fmt::format(

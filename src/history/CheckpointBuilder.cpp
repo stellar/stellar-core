@@ -63,7 +63,8 @@ CheckpointBuilder::checkpointComplete(uint32_t checkpoint)
             CLOG_INFO(History, "File {} already exists, skipping rename",
                       ft.localPath_nogz());
         }
-        else if (!fs::durableRename(
+        else if (fs::exists(ft.localPath_nogz_dirty()) &&
+                 !fs::durableRename(
                      ft.localPath_nogz_dirty(), ft.localPath_nogz(),
                      getPublishHistoryDir(ft.getType(), mApp.getConfig())
                          .string()))
@@ -219,6 +220,22 @@ CheckpointBuilder::cleanup(uint32_t lcl)
                     fmt::format("Failed to delete next checkpoint file {}",
                                 next.localPath_nogz_dirty()));
             }
+            return;
+        }
+
+        if (!fs::exists(ft.localPath_nogz_dirty()))
+        {
+            // No dirty file exists, nothing to do (this can only happen on a
+            // checkpoint boundary)
+            if (!mApp.getHistoryManager().isLastLedgerInCheckpoint(lcl))
+            {
+                throw std::runtime_error(
+                    fmt::format("Missing dirty checkpoint file {}",
+                                ft.localPath_nogz_dirty()));
+            }
+            CLOG_INFO(History,
+                      "Skipping recovery of file {}, does not exist yet",
+                      ft.localPath_nogz_dirty());
             return;
         }
 
