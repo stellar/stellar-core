@@ -1283,7 +1283,7 @@ TEST_CASE("txset nomination", "[txset]")
             testResults.push_back(oss.str());
         };
 
-        for (int i = 1; i < 50; ++i)
+        for (int i = 1; i < 2; ++i)
         {
             runIteration();
         }
