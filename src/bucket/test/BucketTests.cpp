@@ -399,6 +399,37 @@ TEST_CASE("merges proceed old-style despite newer shadows",
     }
 }
 
+TEST_CASE("lowest level merge converts live to init", "[bucket][bucketinit]")
+{
+    VirtualClock clock;
+    Config const& cfg = getTestConfig();
+    Application::pointer app = createTestApplication(clock, cfg);
+    auto& bm = app->getBucketManager();
+    auto vers = getAppLedgerVersion(app);
+
+    LedgerEntry entry = generateAccount();
+    auto b1 = Bucket::fresh(bm, vers, {}, {entry}, {},
+                            /*countMergeEvents=*/true, clock.getIOContext(),
+                            /*doFsync=*/true);
+    EntryCounts e1(b1);
+    CHECK(e1.nInit == 0);
+    CHECK(e1.nLive == 1);
+    auto b2 = Bucket::fresh(bm, vers, {}, {}, {},
+                            /*countMergeEvents=*/true, clock.getIOContext(),
+                            /*doFsync=*/true);
+
+    // Merge b1 and b2 into a new, lowest-level bucket.
+    // keepDeadEntries = false signfies the lowest level of the bucket list
+    auto bMerged =
+        Bucket::merge(bm, vers, b1, b2, /*shadows=*/{},
+                      /*keepDeadEntries=*/false,
+                      /*countMergeEvents=*/true, clock.getIOContext(),
+                      /*doFsync=*/true);
+    EntryCounts e2(bMerged);
+    CHECK(e2.nInit == 1);
+    CHECK(e2.nLive == 0);
+}
+
 TEST_CASE("merges refuse to exceed max protocol version",
           "[bucket][bucketmaxprotocol]")
 {

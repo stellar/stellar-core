@@ -66,17 +66,36 @@ BucketOutputIterator::put(BucketEntry const& e)
         ++mMergeCounters.mOutputIteratorTombstoneElisions;
         return;
     }
+    std::optional<BucketEntry> maybeInitEntry;
+    if (!mKeepDeadEntries && e.type() == LIVEENTRY &&
+        protocolVersionStartsFrom(
+            mMeta.ledgerVersion,
+            Bucket::FIRST_PROTOCOL_SUPPORTING_INITENTRY_AND_METAENTRY))
+    {
+        // If mKeepDeadEntries is false (lowest level),
+        // we also want to convert the LIVEENTRY to an INITENTRY.
+        // This is because each level of the bucket list contains
+        // only one entry per key, and per CAP-0020, INIT ENTRY
+        // implies that either no entry with the same ledger key
+        // exists in an older bucket. Therefore, all entries of type
+        // LIVEENTRY in the lowest level are also of type INITENTRY.
+        ++mMergeCounters.mOutputIteratorLiveToInitConversions;
+        // Make a copy of e and set the type of the new entry to INITENTRY.
+        maybeInitEntry.emplace(e);
+        maybeInitEntry->type(INITENTRY);
+    }
 
     // Check to see if there's an existing buffered entry.
     if (mBuf)
     {
         // mCmp(e, *mBuf) means e < *mBuf; this should never be true since
         // it would mean that we're getting entries out of order.
-        releaseAssert(!mCmp(e, *mBuf));
+        releaseAssert(
+            !mCmp(maybeInitEntry.has_value() ? *maybeInitEntry : e, *mBuf));
 
         // Check to see if the new entry should flush (greater identity), or
         // merely replace (same identity), the buffered entry.
-        if (mCmp(*mBuf, e))
+        if (mCmp(*mBuf, maybeInitEntry.has_value() ? *maybeInitEntry : e))
         {
             ++mMergeCounters.mOutputIteratorActualWrites;
             mOut.writeOne(*mBuf, &mHasher, &mBytesPut);
@@ -90,7 +109,7 @@ BucketOutputIterator::put(BucketEntry const& e)
 
     // In any case, replace *mBuf with e.
     ++mMergeCounters.mOutputIteratorBufferUpdates;
-    *mBuf = e;
+    *mBuf = maybeInitEntry.has_value() ? *maybeInitEntry : e;
 }
 
 std::shared_ptr<Bucket>
