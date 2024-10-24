@@ -1,4 +1,4 @@
-soroban-env-host v21.2.1 (src/rust/soroban/p21/soroban-env-host)
+soroban-env-host v21.2.2 (src/rust/soroban/p21/soroban-env-host)
 ├── curve25519-dalek v4.1.1
 │   ├── cfg-if v1.0.0
 │   ├── cpufeatures v0.2.8
@@ -141,17 +141,17 @@ soroban-env-host v21.2.1 (src/rust/soroban/p21/soroban-env-host)
 │   ├── digest v0.10.7 (*)
 │   └── keccak v0.1.4
 │       └── cpufeatures v0.2.8 (*)
-├── soroban-builtin-sdk-macros v21.2.1 (proc-macro) (src/rust/soroban/p21/soroban-builtin-sdk-macros)
+├── soroban-builtin-sdk-macros v21.2.2 (proc-macro) (src/rust/soroban/p21/soroban-builtin-sdk-macros)
 │   ├── itertools v0.11.0
 │   │   └── either v1.8.1
 │   ├── proc-macro2 v1.0.69 (*)
 │   ├── quote v1.0.33 (*)
 │   └── syn v2.0.39 (*)
-├── soroban-env-common v21.2.1 (src/rust/soroban/p21/soroban-env-common)
+├── soroban-env-common v21.2.2 (src/rust/soroban/p21/soroban-env-common)
 │   ├── ethnum v1.5.0
 │   ├── num-derive v0.4.1 (proc-macro) (*)
 │   ├── num-traits v0.2.17 (*)
-│   ├── soroban-env-macros v21.2.1 (proc-macro) (src/rust/soroban/p21/soroban-env-macros)
+│   ├── soroban-env-macros v21.2.2 (proc-macro) (src/rust/soroban/p21/soroban-env-macros)
 │   │   ├── itertools v0.11.0 (*)
 │   │   ├── proc-macro2 v1.0.69 (*)
 │   │   ├── quote v1.0.33 (*)
