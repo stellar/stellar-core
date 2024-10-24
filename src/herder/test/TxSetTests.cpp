@@ -989,9 +989,11 @@ TEST_CASE("txset nomination", "[txset]")
     // during supposedly no-op changes.
     // This doesn't cover the small edge cases, which should be covered by
     // dedicated test scenarios instead.
+    std::cout << "txset nomination test 1" << std::endl;
     reinitializeAllGlobalStateWithSeed(12345);
-
+    std::cout << "txset nomination test 2" << std::endl;
     auto runTest = [](uint32_t protocolVersion, std::string testName) {
+        std::cout << "txset nomination test 3" << std::endl;
         std::vector<std::string> testResults;
         testResults.push_back(
             "xdr_hash,total_fees,total_inclusion_fees,classic_"
@@ -1003,16 +1005,19 @@ TEST_CASE("txset nomination", "[txset]")
         cfg.TESTING_UPGRADE_LEDGER_PROTOCOL_VERSION = protocolVersion;
 
         cfg.NODE_SEED = SecretKey::pseudoRandomForTesting();
-
+        std::cout << "txset nomination test 4" << std::endl;
         VirtualClock clock;
         Application::pointer app = createTestApplication(clock, cfg);
+        std::cout << "txset nomination test 5" << std::endl;
         auto root = TestAccount::createRoot(*app);
+        std::cout << "txset nomination test 6" << std::endl;
         std::vector<std::pair<TestAccount, int64_t>> accounts;
         for (int i = 0; i < 1000; ++i)
         {
             auto account = root.create(std::to_string(i), 1'000'000'000);
             accounts.emplace_back(account, account.getLastSequenceNumber() + 1);
         }
+        std::cout << "txset nomination test 7" << std::endl;
 
         stellar::uniform_int_distribution<> txCountDistr(100, 500);
 
@@ -1030,13 +1035,15 @@ TEST_CASE("txset nomination", "[txset]")
         stellar::uniform_int_distribution<> maxOpsPerTxDistr(1, 100);
         stellar::uniform_int_distribution<> feeBumpFractionDistr(0, 3);
         stellar::uniform_int_distribution<> isFeeBumpDistr(0, 2);
-
+        std::cout << "txset nomination test 8" << std::endl;
         Asset asset1(ASSET_TYPE_CREDIT_ALPHANUM4);
         strToAssetCode(asset1.alphaNum4().assetCode, "USD");
         Asset asset2(ASSET_TYPE_NATIVE);
         auto& rng = Catch::rng();
+        std::cout << "txset nomination test 9" << std::endl;
 
         auto runIteration = [&]() {
+            std::cout << "txset nomination test 10" << std::endl;
             int classicOpsCount = txCountDistr(rng);
             int feeBumpFraction = feeBumpFractionDistr(rng);
 
@@ -1051,7 +1058,9 @@ TEST_CASE("txset nomination", "[txset]")
 
             auto v = xdr::xdr_to_opaque(ledgerUpgrade);
             upgrades.push_back(UpgradeType(v.begin(), v.end()));
+            std::cout << "txset nomination test 11" << std::endl;
             closeLedger(*app, {}, false, upgrades);
+            std::cout << "txset nomination test 12" << std::endl;
 
             modifySorobanNetworkConfig(*app, [&](SorobanNetworkConfig& cfg) {
                 cfg.mLedgerMaxTxCount = txCountDistr(rng);
@@ -1089,6 +1098,7 @@ TEST_CASE("txset nomination", "[txset]")
                     static_cast<int64_t>(cfg.mLedgerMaxInstructions) * 100 /
                     txToLedgerRatioPercentDistr(rng);
             });
+            std::cout << "txset nomination test 13" << std::endl;
 
             auto const& sorobanConfig =
                 app->getLedgerManager().getSorobanNetworkConfig();
@@ -1113,7 +1123,7 @@ TEST_CASE("txset nomination", "[txset]")
             uint32_t dexTxCount =
                 stellar::uniform_int_distribution<>(0, classicOpsCount)(rng);
             std::vector<TransactionFrameBaseConstPtr> classicTxs;
-
+            std::cout << "txset nomination test 14" << std::endl;
             size_t accountId = 0;
             for (uint32_t i = 0; i < classicOpsCount; ++i)
             {
@@ -1149,6 +1159,7 @@ TEST_CASE("txset nomination", "[txset]")
                     classicTxs.push_back(tx);
                 }
             }
+            std::cout << "txset nomination test 15" << std::endl;
 
             // LedgerKey key(LedgerEntryType::CONTRACT_DATA);
             // key.contractData().key.type(SCValType::SCV_U32);
