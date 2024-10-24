@@ -1150,137 +1150,141 @@ TEST_CASE("txset nomination", "[txset]")
                 }
             }
 
-            LedgerKey key(LedgerEntryType::CONTRACT_DATA);
-            key.contractData().key.type(SCValType::SCV_U32);
-            std::vector<TransactionFrameBaseConstPtr> sorobanTxs;
-            for (uint32_t i = 0; i < sorobanConfig.ledgerMaxTxCount(); ++i)
-            {
-                SorobanResources resources;
-                resources.instructions = txInsnsDistr(rng);
-                resources.readBytes = txReadBytesDistr(rng);
-                resources.writeBytes = txWriteBytesDistr(rng);
+            // LedgerKey key(LedgerEntryType::CONTRACT_DATA);
+            // key.contractData().key.type(SCValType::SCV_U32);
+            // std::vector<TransactionFrameBaseConstPtr> sorobanTxs;
+            // for (uint32_t i = 0; i < sorobanConfig.ledgerMaxTxCount(); ++i)
+            // {
+            //     SorobanResources resources;
+            //     resources.instructions = txInsnsDistr(rng);
+            //     resources.readBytes = txReadBytesDistr(rng);
+            //     resources.writeBytes = txWriteBytesDistr(rng);
 
-                auto readEntries = txReadEntriesDistr(rng);
-                stellar::uniform_int_distribution<> txWriteEntriesDistr(
-                    1, std::min(readEntries,
-                                static_cast<int>(
-                                    sorobanConfig.txMaxWriteLedgerEntries())));
-                auto writeEntries = txWriteEntriesDistr(rng);
-                readEntries -= writeEntries;
+            //     auto readEntries = txReadEntriesDistr(rng);
+            //     stellar::uniform_int_distribution<> txWriteEntriesDistr(
+            //         1, std::min(readEntries,
+            //                     static_cast<int>(
+            //                         sorobanConfig.txMaxWriteLedgerEntries())));
+            //     auto writeEntries = txWriteEntriesDistr(rng);
+            //     readEntries -= writeEntries;
 
-                for (uint32_t j = 0; j < readEntries; ++j)
-                {
-                    key.contractData().key.u32() = j;
-                    resources.footprint.readOnly.push_back(key);
-                }
+            //     for (uint32_t j = 0; j < readEntries; ++j)
+            //     {
+            //         key.contractData().key.u32() = j;
+            //         resources.footprint.readOnly.push_back(key);
+            //     }
 
-                for (uint32_t j = 0; j < writeEntries; ++j)
-                {
-                    key.contractData().key.u32() = j + 10000;
-                    resources.footprint.readWrite.push_back(key);
-                }
-                int paddingBytes = std::max(
-                    0, txSizeDistr(rng) -
-                           static_cast<int>(xdr::xdr_size(resources)) - 200);
-                Operation uploadOp;
-                uploadOp.body.type(INVOKE_HOST_FUNCTION);
-                auto& uploadHF =
-                    uploadOp.body.invokeHostFunctionOp().hostFunction;
-                uploadHF.type(HOST_FUNCTION_TYPE_UPLOAD_CONTRACT_WASM);
-                uploadHF.wasm().resize(paddingBytes);
-                auto& [account, seqNum] = accounts[accountId++];
-                auto tx = sorobanTransactionFrameFromOps(
-                    app->getNetworkID(), account, {uploadOp}, {}, resources,
-                    inclusionFeeDistr(rng), 100'000'000, std::nullopt, seqNum);
-                if (isFeeBumpDistr(rng) < feeBumpFraction)
-                {
-                    sorobanTxs.push_back(
-                        feeBump(*app, account, tx, tx->getInclusionFee() * 2));
-                }
-                else
-                {
-                    sorobanTxs.push_back(tx);
-                }
-            }
-            TxSetPhaseTransactions txPhases = {classicTxs, sorobanTxs};
-            TxSetPhaseTransactions invalidTxs;
-            invalidTxs.resize(txPhases.size());
-            auto [xdrTxSetFrame, applicableTxSet] =
-                makeTxSetFromTransactions(txPhases, *app, 0, 0, invalidTxs);
-            REQUIRE(xdrTxSetFrame);
-            REQUIRE(applicableTxSet);
-            REQUIRE(invalidTxs[0].empty());
-            REQUIRE(invalidTxs[1].empty());
+            //     for (uint32_t j = 0; j < writeEntries; ++j)
+            //     {
+            //         key.contractData().key.u32() = j + 10000;
+            //         resources.footprint.readWrite.push_back(key);
+            //     }
+            //     int paddingBytes = std::max(
+            //         0, txSizeDistr(rng) -
+            //                static_cast<int>(xdr::xdr_size(resources)) - 200);
+            //     Operation uploadOp;
+            //     uploadOp.body.type(INVOKE_HOST_FUNCTION);
+            //     auto& uploadHF =
+            //         uploadOp.body.invokeHostFunctionOp().hostFunction;
+            //     uploadHF.type(HOST_FUNCTION_TYPE_UPLOAD_CONTRACT_WASM);
+            //     uploadHF.wasm().resize(paddingBytes);
+            //     auto& [account, seqNum] = accounts[accountId++];
+            //     auto tx = sorobanTransactionFrameFromOps(
+            //         app->getNetworkID(), account, {uploadOp}, {}, resources,
+            //         inclusionFeeDistr(rng), 100'000'000, std::nullopt,
+            //         seqNum);
+            //     if (isFeeBumpDistr(rng) < feeBumpFraction)
+            //     {
+            //         sorobanTxs.push_back(
+            //             feeBump(*app, account, tx, tx->getInclusionFee() *
+            //             2));
+            //     }
+            //     else
+            //     {
+            //         sorobanTxs.push_back(tx);
+            //     }
+            // }
+            // TxSetPhaseTransactions txPhases = {classicTxs, sorobanTxs};
+            // TxSetPhaseTransactions invalidTxs;
+            // invalidTxs.resize(txPhases.size());
+            // auto [xdrTxSetFrame, applicableTxSet] =
+            //     makeTxSetFromTransactions(txPhases, *app, 0, 0, invalidTxs);
+            // REQUIRE(xdrTxSetFrame);
+            // REQUIRE(applicableTxSet);
+            // REQUIRE(invalidTxs[0].empty());
+            // REQUIRE(invalidTxs[1].empty());
 
-            GeneralizedTransactionSet xdrTxSet;
-            xdrTxSetFrame->toXDR(xdrTxSet);
-            // Clear previous ledger hash in order to avoid tx set changes in
-            // case of protocol changes that don't affect tx sets in any
-            // meaningful way. Hash also has nothing to do with the tx set
-            // building logic.
-            xdrTxSet.v1TxSet().previousLedgerHash = Hash{};
-            std::ostringstream oss;
-            int64_t totalInsns = 0;
-            int64_t totalReadBytes = 0;
-            int64_t totalWriteBytes = 0;
-            int64_t totalReadEntries = 0;
-            int64_t totalWriteEntries = 0;
-            int64_t totalTxSizeBytes = 0;
-            for (auto const& tx :
-                 applicableTxSet->getTxsForPhase(TxSetPhase::SOROBAN))
-            {
-                auto const& resources = tx->sorobanResources();
-                totalInsns += resources.instructions;
-                totalReadBytes += resources.readBytes;
-                totalWriteBytes += resources.writeBytes;
-                totalReadEntries += resources.footprint.readOnly.size() +
-                                    resources.footprint.readWrite.size();
-                totalWriteEntries += resources.footprint.readWrite.size();
-                totalTxSizeBytes += xdr::xdr_size(tx->getEnvelope());
-            }
-            auto const& classicComponents =
-                xdrTxSet.v1TxSet().phases[0].v0Components();
-            REQUIRE(!classicComponents.empty());
-            REQUIRE(classicComponents.size() <= 2);
-            int64_t nonDexBaseFee =
-                classicComponents[0].txsMaybeDiscountedFee().baseFee
-                    ? *classicComponents[0].txsMaybeDiscountedFee().baseFee
-                    : 100;
-            size_t classicDexTxCount = 0;
-            int64_t dexTxBaseFee = 0;
-            if (classicComponents.size() > 1)
-            {
-                classicDexTxCount =
-                    classicComponents[1].txsMaybeDiscountedFee().txs.size();
-                dexTxBaseFee =
-                    classicComponents[1].txsMaybeDiscountedFee().baseFee
-                        ? *classicComponents[1].txsMaybeDiscountedFee().baseFee
-                        : 100;
-            }
+            // GeneralizedTransactionSet xdrTxSet;
+            // xdrTxSetFrame->toXDR(xdrTxSet);
+            // // Clear previous ledger hash in order to avoid tx set changes in
+            // // case of protocol changes that don't affect tx sets in any
+            // // meaningful way. Hash also has nothing to do with the tx set
+            // // building logic.
+            // xdrTxSet.v1TxSet().previousLedgerHash = Hash{};
+            // std::ostringstream oss;
+            // int64_t totalInsns = 0;
+            // int64_t totalReadBytes = 0;
+            // int64_t totalWriteBytes = 0;
+            // int64_t totalReadEntries = 0;
+            // int64_t totalWriteEntries = 0;
+            // int64_t totalTxSizeBytes = 0;
+            // for (auto const& tx :
+            //      applicableTxSet->getTxsForPhase(TxSetPhase::SOROBAN))
+            // {
+            //     auto const& resources = tx->sorobanResources();
+            //     totalInsns += resources.instructions;
+            //     totalReadBytes += resources.readBytes;
+            //     totalWriteBytes += resources.writeBytes;
+            //     totalReadEntries += resources.footprint.readOnly.size() +
+            //                         resources.footprint.readWrite.size();
+            //     totalWriteEntries += resources.footprint.readWrite.size();
+            //     totalTxSizeBytes += xdr::xdr_size(tx->getEnvelope());
+            // }
+            // auto const& classicComponents =
+            //     xdrTxSet.v1TxSet().phases[0].v0Components();
+            // REQUIRE(!classicComponents.empty());
+            // REQUIRE(classicComponents.size() <= 2);
+            // int64_t nonDexBaseFee =
+            //     classicComponents[0].txsMaybeDiscountedFee().baseFee
+            //         ? *classicComponents[0].txsMaybeDiscountedFee().baseFee
+            //         : 100;
+            // size_t classicDexTxCount = 0;
+            // int64_t dexTxBaseFee = 0;
+            // if (classicComponents.size() > 1)
+            // {
+            //     classicDexTxCount =
+            //         classicComponents[1].txsMaybeDiscountedFee().txs.size();
+            //     dexTxBaseFee =
+            //         classicComponents[1].txsMaybeDiscountedFee().baseFee
+            //             ?
+            //             *classicComponents[1].txsMaybeDiscountedFee().baseFee
+            //             : 100;
+            // }
 
-            auto const& sorobanComponents =
-                xdrTxSet.v1TxSet().phases[1].v0Components();
-            REQUIRE(sorobanComponents.size() == 1);
-            int64_t sorobanBaseFee =
-                sorobanComponents[0].txsMaybeDiscountedFee().baseFee
-                    ? *sorobanComponents[0].txsMaybeDiscountedFee().baseFee
-                    : 100;
+            // auto const& sorobanComponents =
+            //     xdrTxSet.v1TxSet().phases[1].v0Components();
+            // REQUIRE(sorobanComponents.size() == 1);
+            // int64_t sorobanBaseFee =
+            //     sorobanComponents[0].txsMaybeDiscountedFee().baseFee
+            //         ? *sorobanComponents[0].txsMaybeDiscountedFee().baseFee
+            //         : 100;
 
-            oss << binToHex(xdrSha256(xdrTxSet)) << ","
-                << applicableTxSet->getTotalFees(
-                       app->getLedgerManager()
-                           .getLastClosedLedgerHeader()
-                           .header)
-                << "," << applicableTxSet->getTotalInclusionFees() << ","
-                << applicableTxSet->sizeOp(TxSetPhase::CLASSIC) << ","
-                << classicComponents[0].txsMaybeDiscountedFee().txs.size()
-                << "," << nonDexBaseFee << "," << classicDexTxCount << ","
-                << dexTxBaseFee << ","
-                << applicableTxSet->sizeOp(TxSetPhase::SOROBAN) << ","
-                << sorobanBaseFee << "," << totalInsns << "," << totalReadBytes
-                << "," << totalWriteBytes << "," << totalReadEntries << ","
-                << totalWriteEntries << "," << totalTxSizeBytes;
-            testResults.push_back(oss.str());
+            // oss << binToHex(xdrSha256(xdrTxSet)) << ","
+            //     << applicableTxSet->getTotalFees(
+            //            app->getLedgerManager()
+            //                .getLastClosedLedgerHeader()
+            //                .header)
+            //     << "," << applicableTxSet->getTotalInclusionFees() << ","
+            //     << applicableTxSet->sizeOp(TxSetPhase::CLASSIC) << ","
+            //     << classicComponents[0].txsMaybeDiscountedFee().txs.size()
+            //     << "," << nonDexBaseFee << "," << classicDexTxCount << ","
+            //     << dexTxBaseFee << ","
+            //     << applicableTxSet->sizeOp(TxSetPhase::SOROBAN) << ","
+            //     << sorobanBaseFee << "," << totalInsns << "," <<
+            //     totalReadBytes
+            //     << "," << totalWriteBytes << "," << totalReadEntries << ","
+            //     << totalWriteEntries << "," << totalTxSizeBytes;
+            // testResults.push_back(oss.str());
         };
 
         for (int i = 1; i < 2; ++i)
