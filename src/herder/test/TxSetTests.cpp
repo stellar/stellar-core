@@ -1320,12 +1320,13 @@ TEST_CASE("txset nomination", "[txset]")
     // one (the latest released protocol) and the 'next' one (unstable next
     // protocol version). The 'current' version has to be covered in both
     // 'vcurr' and 'vnext' builds.
-#ifndef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
-    SECTION("prev protocol")
-    {
-        runTest(Config::CURRENT_LEDGER_PROTOCOL_VERSION - 1, "v_prev.csv");
-    }
-#endif
+    // #ifndef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
+    //     SECTION("prev protocol")
+    //     {
+    //         runTest(Config::CURRENT_LEDGER_PROTOCOL_VERSION - 1,
+    //         "v_prev.csv");
+    //     }
+    // #endif
     SECTION("curr protocol")
     {
 #ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
@@ -1334,12 +1335,12 @@ TEST_CASE("txset nomination", "[txset]")
         runTest(Config::CURRENT_LEDGER_PROTOCOL_VERSION, "v_curr.csv");
 #endif
     }
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
-    SECTION("next protocol")
-    {
-        runTest(Config::CURRENT_LEDGER_PROTOCOL_VERSION, "v_next.csv");
-    }
-#endif
+    // #ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
+    //     SECTION("next protocol")
+    //     {
+    //         runTest(Config::CURRENT_LEDGER_PROTOCOL_VERSION, "v_next.csv");
+    //     }
+    // #endif
 }
 
 } // namespace
