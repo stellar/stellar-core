@@ -11,7 +11,7 @@ constexpr auto const REPORT_INTERNAL_BUG =
     "Please report this bug along with this log file if this was not expected";
 constexpr auto const POSSIBLY_CORRUPTED_HISTORY =
     "One or more of history archives may be corrupted. Update HISTORY "
-    "configuration entry to only contain valid ones";
+    "configuration entry to only contain valid ones.";
 constexpr auto const POSSIBLY_CORRUPTED_LOCAL_FS =
     "There may be a problem with the local filesystem. Ensure that there is "
     "enough space to perform that operation and that disc is behaving "

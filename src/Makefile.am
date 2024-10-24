@@ -234,6 +234,7 @@ $(RUST_DEP_TREE_STAMP): $(wildcard rust/soroban/*/Cargo.*) Makefile $(RUST_TOOLC
 # sensitive to CXXFLAGS but also don't inspect them to see if they're setting
 # -stdlib=libc++ or -stdlib=libstdc++
 $(SOROBAN_LIBS_STAMP): $(wildcard rust/soroban/p*/Cargo.lock) Makefile $(RUST_DEP_TREE_STAMP) $(SRC_RUST_FILES) $(RUST_TOOLCHAIN_FILE)
+	rm -f $@
 	for proto in $(ALL_SOROBAN_PROTOCOLS) ; \
 	do \
 		FEATURE_FLAGS="" ; \
@@ -275,6 +276,7 @@ $(SOROBAN_LIBS_STAMP): $(wildcard rust/soroban/p*/Cargo.lock) Makefile $(RUST_DE
 # rustc` invocation, along with `-L dependency=...` flags to tell cargo where to
 # find indirect deps of those .rlibs.
 $(LIBRUST_STELLAR_CORE): $(RUST_HOST_DEPFILES) $(SRC_RUST_FILES) Makefile $(SOROBAN_LIBS_STAMP) $(RUST_TOOLCHAIN_FILE)
+	rm -rf $(abspath $(RUST_TARGET_DIR))
 	CC="$(CC)" CXX="$(CXX)" LD="$(LD)" CFLAGS="$(CFLAGS)" CXXFLAGS="$(CXXFLAGS)" CXXSTDLIB="$(CXXSTDLIB)" LDFLAGS="$(LDFLAGS)" \
 	RUSTFLAGS="$(RUSTFLAGS_ASAN)" \
 	CARGO_NET_GIT_FETCH_WITH_CLI=true \

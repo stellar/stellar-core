@@ -278,7 +278,7 @@ checkStellarCoreMajorVersionProtocolIdentity()
     }
 }
 
-#ifdef USE_TRACY
+#ifdef USE_TRACY_MEMORY_TRACKING
 
 #ifdef __has_feature
 #if __has_feature(address_sanitizer)
@@ -290,7 +290,9 @@ checkStellarCoreMajorVersionProtocolIdentity()
 #endif
 #endif
 
-#ifndef ASAN_ENABLED
+#ifdef ASAN_ENABLED
+#error "ASAN_ENABLED and USE_TRACY_MEMORY_TRACKING are mutually exclusive"
+#else
 void*
 operator new(std::size_t count)
 {
@@ -322,8 +324,8 @@ operator delete[](void* ptr) noexcept
     TracySecureFree(ptr);
     free(ptr);
 }
-#endif // ASAN_ENABLED
-#endif // USE_TRACY
+#endif // !ASAN_ENABLED
+#endif // USE_TRACY_MEMORY_TRACKING
 
 int
 main(int argc, char* const* argv)
