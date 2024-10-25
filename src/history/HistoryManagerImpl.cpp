@@ -74,7 +74,7 @@ HistoryManager::publishQueuePath(Config const& cfg)
 void
 HistoryManager::createPublishQueueDir(Config const& cfg)
 {
-    fs::mkpath(HistoryManager::publishQueuePath(cfg));
+    fs::mkpath(HistoryManager::publishQueuePath(cfg).string());
 }
 
 std::filesystem::path
@@ -97,7 +97,7 @@ writeCheckpointFile(Application& app, HistoryArchiveState const& has,
         app.getHistoryManager().isLastLedgerInCheckpoint(has.currentLedger));
     auto filename = publishQueueFileName(has.currentLedger);
     auto tmpOut = app.getHistoryManager().getTmpDir() / filename;
-    has.save(tmpOut);
+    has.save(tmpOut.string());
 
     // Immediately produce a final checkpoint JSON (suitable for confirmed
     // ledgers)
@@ -105,8 +105,9 @@ writeCheckpointFile(Application& app, HistoryArchiveState const& has,
     {
         auto out = HistoryManager::publishQueuePath(app.getConfig()) / filename;
         // Durable rename also fsyncs the file which ensures durability
-        fs::durableRename(tmpOut, out,
-                          HistoryManager::publishQueuePath(app.getConfig()));
+        fs::durableRename(
+            tmpOut.string(), out.string(),
+            HistoryManager::publishQueuePath(app.getConfig()).string());
     }
     else
     {
@@ -114,8 +115,9 @@ writeCheckpointFile(Application& app, HistoryArchiveState const& has,
                    publishQueueTmpFileName(has.currentLedger);
         // Otherwise, white a temporary durable file, to be finalized once
         // has.currentLedger is actually committed
-        fs::durableRename(tmpOut, out,
-                          HistoryManager::publishQueuePath(app.getConfig()));
+        fs::durableRename(
+            tmpOut.string(), out.string(),
+            HistoryManager::publishQueuePath(app.getConfig()).string());
     }
 }
 
@@ -137,9 +139,10 @@ HistoryManagerImpl::dropSQLBasedPublish()
     auto& sess = db.getSession();
 
     // In case previous schema migration rolled back, cleanup files
-    fs::deltree(publishQueuePath(cfg));
+    fs::deltree(publishQueuePath(cfg).string());
     fs::deltree(getPublishHistoryDir(FileType::HISTORY_FILE_TYPE_LEDGER, cfg)
-                    .parent_path());
+                    .parent_path()
+                    .string());
     createPublishDir(FileType::HISTORY_FILE_TYPE_LEDGER, cfg);
     createPublishDir(FileType::HISTORY_FILE_TYPE_TRANSACTIONS, cfg);
     createPublishDir(FileType::HISTORY_FILE_TYPE_RESULTS, cfg);
@@ -316,7 +319,7 @@ size_t
 HistoryManagerImpl::publishQueueLength() const
 {
     ZoneScoped;
-    return findPublishFiles(publishQueuePath(mApp.getConfig())).size();
+    return findPublishFiles(publishQueuePath(mApp.getConfig()).string()).size();
 }
 
 string const&
@@ -343,7 +346,7 @@ HistoryManagerImpl::getMinLedgerQueuedToPublish()
     ZoneScoped;
     auto min = std::numeric_limits<uint32_t>::max();
     forEveryQueuedCheckpoint(
-        publishQueuePath(mApp.getConfig()),
+        publishQueuePath(mApp.getConfig()).string(),
         [&](uint32_t seq, std::string const& f) { min = std::min(min, seq); });
     return min;
 }
@@ -354,7 +357,7 @@ HistoryManagerImpl::getMaxLedgerQueuedToPublish()
     ZoneScoped;
     auto max = std::numeric_limits<uint32_t>::min();
     forEveryQueuedCheckpoint(
-        publishQueuePath(mApp.getConfig()),
+        publishQueuePath(mApp.getConfig()).string(),
         [&](uint32_t seq, std::string const& f) { max = std::max(max, seq); });
     return max;
 }
@@ -491,7 +494,7 @@ HistoryManagerImpl::publishQueuedHistory()
     }
 
     auto file = publishQueuePath(mApp.getConfig()) / publishQueueFileName(seq);
-    has.load(file);
+    has.load(file.string());
     takeSnapshotAndPublish(has);
     return 1;
 }
@@ -510,7 +513,7 @@ HistoryManagerImpl::maybeCheckpointComplete()
 
     auto finalizedHAS =
         publishQueuePath(mApp.getConfig()) / publishQueueFileName(lcl);
-    if (fs::exists(finalizedHAS.c_str()))
+    if (fs::exists(finalizedHAS.string()))
     {
         CLOG_INFO(History, "{} exists, nothing to do", finalizedHAS);
         return;
@@ -518,9 +521,10 @@ HistoryManagerImpl::maybeCheckpointComplete()
 
     auto temp = HistoryManager::publishQueuePath(mApp.getConfig()) /
                 publishQueueTmpFileName(lcl);
-    if (fs::exists(temp) &&
-        !fs::durableRename(temp, finalizedHAS,
-                           HistoryManager::publishQueuePath(mApp.getConfig())))
+    if (fs::exists(temp.string()) &&
+        !fs::durableRename(
+            temp.string(), finalizedHAS.string(),
+            HistoryManager::publishQueuePath(mApp.getConfig()).string()))
     {
         throw std::runtime_error(fmt::format(
             "Failed to rename {} to {}", temp.string(), finalizedHAS.string()));
@@ -532,12 +536,12 @@ HistoryManagerImpl::getPublishQueueStates()
 {
     ZoneScoped;
     std::vector<HistoryArchiveState> states;
-    forEveryQueuedCheckpoint(publishQueuePath(mApp.getConfig()),
+    forEveryQueuedCheckpoint(publishQueuePath(mApp.getConfig()).string(),
                              [&](uint32_t seq, std::string const& f) {
                                  HistoryArchiveState has;
                                  auto fullPath =
                                      publishQueuePath(mApp.getConfig()) / f;
-                                 has.load(fullPath);
+                                 has.load(fullPath.string());
                                  states.push_back(has);
                              });
     return states;
@@ -636,7 +640,7 @@ HistoryManagerImpl::historyPublished(
         this->mPublishSuccess.Mark();
         auto file = publishQueuePath(mApp.getConfig()) /
                     publishQueueFileName(ledgerSeq);
-        std::remove(file.c_str());
+        std::filesystem::remove(file);
         mPublishQueueBuckets.removeBuckets(originalBuckets);
         deletePublishedFiles(ledgerSeq, mApp.getConfig());
     }
@@ -684,7 +688,7 @@ HistoryManagerImpl::restoreCheckpoint(uint32_t lcl)
         // Remove any tmp checkpoints that were potentially queued _before_ a
         // crash, causing ledger rollback. These files will be finalized during
         // successful ledger close.
-        forEveryTmpCheckpoint(publishQueuePath(mApp.getConfig()),
+        forEveryTmpCheckpoint(publishQueuePath(mApp.getConfig()).string(),
                               [&](uint32_t seq, std::string const& f) {
                                   if (seq > lcl)
                                   {

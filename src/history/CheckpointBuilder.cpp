@@ -247,7 +247,7 @@ CheckpointBuilder::cleanup(uint32_t lcl)
         {
             auto out = XDROutputFileStream(mApp.getClock().getIOContext(),
                                            /* fsync*/ true);
-            out.open(tmpFile);
+            out.open(tmpFile.string());
             XDRInputFileStream in;
             in.open(ft.localPath_nogz_dirty());
             uint32_t lastReadLedgerSeq = 0;
@@ -290,7 +290,7 @@ CheckpointBuilder::cleanup(uint32_t lcl)
         }
 
         if (!fs::durableRename(
-                tmpFile.c_str(), ft.localPath_nogz_dirty().c_str(),
+                tmpFile.string(), ft.localPath_nogz_dirty(),
                 getPublishHistoryDir(ft.getType(), mApp.getConfig()).string()))
         {
             throw std::runtime_error("Failed to rename checkpoint file");
