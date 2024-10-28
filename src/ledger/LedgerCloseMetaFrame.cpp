@@ -145,36 +145,6 @@ LedgerCloseMetaFrame::populateTxSet(TxSetXDRFrame const& txSet)
 }
 
 void
-LedgerCloseMetaFrame::populateEvictedEntriesLegacy(
-    LedgerEntryChanges const& evictionChanges)
-{
-    releaseAssert(mVersion == 1);
-    for (auto const& change : evictionChanges)
-    {
-        switch (change.type())
-        {
-        case LEDGER_ENTRY_CREATED:
-#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
-        case LEDGER_ENTRY_RESTORED:
-#endif
-            throw std::runtime_error("unexpected create in eviction meta");
-        case LEDGER_ENTRY_STATE:
-            continue;
-        case LEDGER_ENTRY_UPDATED:
-            // The scan also updates the eviction iterator, but should only
-            // update the eviction iterator
-            releaseAssert(change.updated().data.type() == CONFIG_SETTING);
-            continue;
-        case LEDGER_ENTRY_REMOVED:
-            auto const& key = change.removed();
-            releaseAssert(isTemporaryEntry(key) || key.type() == TTL);
-            mLedgerCloseMeta.v1().evictedTemporaryLedgerKeys.push_back(key);
-            break;
-        }
-    }
-}
-
-void
 LedgerCloseMetaFrame::populateEvictedEntries(
     std::pair<std::vector<LedgerKey>, std::vector<LedgerEntry>> const&
         evictedEntries)
@@ -188,8 +158,10 @@ LedgerCloseMetaFrame::populateEvictedEntries(
     for (auto const& entry : evictedEntries.second)
     {
         releaseAssertOrThrow(isPersistentEntry(entry.data));
-        mLedgerCloseMeta.v1().evictedPersistentLedgerEntries.emplace_back(
-            entry);
+        // Unfortunately, for legacy purposes, evictedTemporaryLedgerKeys is
+        // misnamed and stores all evicted keys, both temp and persistent.
+        mLedgerCloseMeta.v1().evictedTemporaryLedgerKeys.emplace_back(
+            LedgerEntryKey(entry));
     }
 }
 

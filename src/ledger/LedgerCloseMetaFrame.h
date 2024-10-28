@@ -30,10 +30,6 @@ class LedgerCloseMetaFrame
 
     void populateTxSet(TxSetXDRFrame const& txSet);
 
-    // Used for populating meta from legacy serial eviction scan
-    void
-    populateEvictedEntriesLegacy(LedgerEntryChanges const& evictionChanges);
-
     // Used for populating meta from background eviction scan
     void populateEvictedEntries(
         std::pair<std::vector<LedgerKey>, std::vector<LedgerEntry>> const&

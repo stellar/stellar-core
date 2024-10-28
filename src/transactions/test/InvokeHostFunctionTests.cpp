@@ -2735,6 +2735,8 @@ TEST_CASE_VERSIONS("entry eviction", "[tx][soroban][archival]")
                 in.open(metaPath);
                 LedgerCloseMeta lcm;
                 bool evicted = false;
+                LedgerKeySet keysToEvict = {persistentKey,
+                                            getTTLKey(persistentKey)};
                 while (in.readOne(lcm))
                 {
                     REQUIRE(lcm.v() == 1);
@@ -2747,23 +2749,27 @@ TEST_CASE_VERSIONS("entry eviction", "[tx][soroban][archival]")
                                 Bucket::
                                     FIRST_PROTOCOL_SUPPORTING_PERSISTENT_EVICTION))
                         {
-                            // TLL should be in "deleted" key section (called
-                            // evictedTemporaryLedgerKeys for legacy reasons).
+                            // TLL and data key should both be in "deleted"
+                            // evictedTemporaryLedgerKeys. For legacy reasons,
+                            // this field is misnamed.
                             REQUIRE(
                                 lcm.v1().evictedTemporaryLedgerKeys.size() ==
-                                1);
-                            REQUIRE(
-                                lcm.v1().evictedTemporaryLedgerKeys.front() ==
-                                getTTLKey(persistentKey));
+                                2);
 
+                            for (auto const& key :
+                                 lcm.v1().evictedTemporaryLedgerKeys)
+                            {
+                                REQUIRE(keysToEvict.find(key) !=
+                                        keysToEvict.end());
+                                keysToEvict.erase(key);
+                            }
+
+                            // This field should always be empty and never used.
+                            // The field only exists for legacy reasons.
                             REQUIRE(
                                 lcm.v1()
                                     .evictedPersistentLedgerEntries.size() ==
-                                1);
-                            REQUIRE(
-                                lcm.v1()
-                                    .evictedPersistentLedgerEntries.front() ==
-                                persistentLE);
+                                0);
                             evicted = true;
                         }
                         else
@@ -2785,6 +2791,7 @@ TEST_CASE_VERSIONS("entry eviction", "[tx][soroban][archival]")
                         Bucket::FIRST_PROTOCOL_SUPPORTING_PERSISTENT_EVICTION))
                 {
                     REQUIRE(evicted);
+                    REQUIRE(keysToEvict.empty());
                 }
                 else
                 {

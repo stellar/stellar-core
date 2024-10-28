@@ -1708,20 +1708,11 @@ LedgerManagerImpl::transferLedgerEntriesToBucketList(
                                        deletedPersistentDataKeys.end());
             mApp.getBucketManager().addHotArchiveBatch(
                 mApp, lh, evictedEntries.second, createdVec, deletedVec);
-
-            if (ledgerCloseMeta)
-            {
-                ledgerCloseMeta->populateEvictedEntries(evictedEntries);
-            }
         }
-        else
-        {
 
-            if (ledgerCloseMeta)
-            {
-                ledgerCloseMeta->populateEvictedEntriesLegacy(
-                    ltxEvictions.getChanges());
-            }
+        if (ledgerCloseMeta)
+        {
+            ledgerCloseMeta->populateEvictedEntries(evictedEntries);
         }
 
         ltxEvictions.commit();
