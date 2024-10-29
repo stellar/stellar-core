@@ -94,5 +94,7 @@ class OperationFrame
     virtual bool isDexOperation() const;
 
     virtual bool isSoroban() const;
+
+    SorobanResources const& getSorobanResources() const;
 };
 }

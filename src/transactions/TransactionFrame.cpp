@@ -47,6 +47,8 @@
 
 #include <algorithm>
 #include <numeric>
+#include <unordered_map>
+#include <unordered_set>
 #include <xdrpp/types.h>
 
 namespace stellar
@@ -62,15 +64,32 @@ int64_t const MAX_RESOURCE_FEE = 1LL << 50;
 // logically a new entry creation from the perspective of ltx and stellar-core
 // as a whole, but this change type is reclassified to LEDGER_ENTRY_RESTORED
 // for easier consumption downstream.
-void
-processOpLedgerEntryChanges(std::shared_ptr<OperationFrame const> op,
-                            LedgerEntryChanges& changes)
+LedgerEntryChanges
+processOpLedgerEntryChanges(Application& app,
+                            std::shared_ptr<OperationFrame const> op,
+                            AbstractLedgerTxn& ltx)
 {
     if (op->getOperation().body.type() != RESTORE_FOOTPRINT)
     {
-        return;
+        return ltx.getChanges();
     }
 
+    auto const& restoreKeys = op->getSorobanResources().footprint.readWrite;
+    std::unordered_map<LedgerKey, LedgerKey> ttlToDataKey(restoreKeys.size());
+    for (auto const& key : restoreKeys)
+    {
+        ttlToDataKey[getTTLKey(key)] = key;
+    }
+
+    LedgerEntryChanges changes = ltx.getChanges();
+
+    // If an entry being restored does not exist in the live BucketList (i.e.
+    // the entry was previously evicted), the restoreOp will have already
+    // created the entry in the ltx. In this case, we need to update the
+    // creation change type to LEDGER_ENTRY_RESTORED. If the entry being
+    // restored still exists in the BucketList, RestoreOp will only update the
+    // TTL, so we need to insert the data LEDGER_ENTRY_RESTORED change directly.
+    std::unordered_set<LedgerKey> restoreChangesToInsert;
     for (auto& change : changes)
     {
         if (change.type() == LEDGER_ENTRY_CREATED)
@@ -79,7 +98,41 @@ processOpLedgerEntryChanges(std::shared_ptr<OperationFrame const> op,
             change.type(LEDGER_ENTRY_RESTORED);
             change.restored() = le;
         }
+        else if (change.type() == LEDGER_ENTRY_UPDATED)
+        {
+            auto ttlLe = change.updated();
+            releaseAssertOrThrow(ttlLe.data.type() == TTL);
+
+            // Update the TTL change from LEDGER_ENTRY_UPDATED to
+            // LEDGER_ENTRY_RESTORED.
+            change.type(LEDGER_ENTRY_RESTORED);
+            change.restored() = ttlLe;
+            auto dataKey = ttlToDataKey.at(LedgerEntryKey(ttlLe));
+            restoreChangesToInsert.insert(dataKey);
+        }
     }
+
+    // Now insert all the data entries that were not created but already existed
+    // on the live BucketList
+    for (auto const& key : restoreChangesToInsert)
+    {
+        LedgerEntryChange change;
+        change.type(LEDGER_ENTRY_RESTORED);
+
+        // TODO: Use proper loadWithoutRecord interface
+        // Note: this is already in the cache since the RestoreOp apply loaded
+        // all data keys for size calculation
+        auto entry = ltx.getNewestVersion(key);
+
+        // If TTL already exists and is just being updated, the
+        // data entry must also already exist
+        releaseAssertOrThrow(entry);
+
+        change.restored() = entry->ledgerEntry();
+        changes.push_back(change);
+    }
+
+    return changes;
 }
 
 } // namespace
@@ -1662,21 +1715,25 @@ TransactionFrame::applyOperations(SignatureChecker& signatureChecker,
             {
                 success = false;
             }
+
+            // The operation meta will be empty if the transaction
+            // doesn't succeed so we may as well not do any work in that
+            // case
             if (success)
             {
                 app.getInvariantManager().checkOnOperationApply(
                     op->getOperation(), opResult, ltxOp.getDelta());
 
-                // The operation meta will be empty if the transaction
-                // doesn't succeed so we may as well not do any work in that
-                // case
-                auto changes = ltxOp.getChanges();
-
+                LedgerEntryChanges changes;
                 if (protocolVersionStartsFrom(
                         ledgerVersion,
                         Bucket::FIRST_PROTOCOL_SUPPORTING_PERSISTENT_EVICTION))
                 {
-                    processOpLedgerEntryChanges(op, changes);
+                    changes = processOpLedgerEntryChanges(app, op, ltxOp);
+                }
+                else
+                {
+                    changes = ltxOp.getChanges();
                 }
                 operationMetas.emplace_back(changes);
             }

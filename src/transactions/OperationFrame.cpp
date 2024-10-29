@@ -33,6 +33,7 @@
 #include "transactions/SetTrustLineFlagsOpFrame.h"
 #include "transactions/TransactionFrame.h"
 #include "transactions/TransactionUtils.h"
+#include "util/GlobalChecks.h"
 #include "util/Logging.h"
 #include "util/ProtocolVersion.h"
 #include "util/XDRCereal.h"
@@ -326,5 +327,12 @@ OperationFrame::insertLedgerKeysToPrefetch(UnorderedSet<LedgerKey>& keys) const
 {
     // Do nothing by default
     return;
+}
+
+SorobanResources const&
+OperationFrame::getSorobanResources() const
+{
+    releaseAssertOrThrow(isSoroban());
+    return mParentTx.sorobanResources();
 }
 }
