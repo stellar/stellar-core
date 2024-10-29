@@ -315,6 +315,7 @@ QueryServer::getLedgerEntry(std::string const& params, std::string const& body,
             if (isLive(ttl, ledgerSeq))
             {
                 entry["state"] = "live";
+                entry["ttl"] = ttl.data.ttl().liveUntilLedgerSeq;
             }
             // Dead entry, temp never require a proof
             else if (isTemporaryEntry(le.data))

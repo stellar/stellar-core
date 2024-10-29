@@ -602,6 +602,8 @@ enabled by specifying a port via the HTTP_QUERY_PORT config setting.
 ### Query Commands
 
 * **`getledgerentryraw`**<br>
+  Used to query arbitrary key-value pairs in the live BucketList.<br>
+
   A POST request with the following body:<br>
 
   ```
@@ -634,3 +636,126 @@ enabled by specifying a port via the HTTP_QUERY_PORT config setting.
   value of the `TTL` entry to the current ledger sequence number.
 
   `ledgerSeq` gives the ledger number on which the query was performed.
+
+* **`getledgerentry`**<br>
+  Used to query both live and archived LedgerEntries. While `getledgerentryraw` does simple key-value lookup
+  on the live ledger, `getledgerentry` will query a given key in both the live BucketList, as well as archives.
+  It will also check to see what proofs are required for the given key, if any, report back whether an entry is
+  archived or live, and return the entry's current TTL value.
+
+  A POST request with the following body:<br>
+
+  ```
+  ledgerSeq=NUM&key=Base64&key=Base64...
+  ```
+
+  * `ledgerSeq`: An optional parameter, specifying the ledger snapshot to base the query on.
+  If the specified ledger in not available, a 404 error will be returned. If this parameter
+  is not set, the current ledger is used.
+  * `key`: A series of Base64 encoded XDR strings specifying the `LedgerKey` to query. TTL keys
+  must not be queried and will return 404 if done so.
+
+  A JSON payload is returned as follows:
+
+  ```
+  {
+    "entries": [
+      {"e": "Base64-LedgerEntry", "state": "live", /*optional*/ "ttl": uint32 },
+      {"e": "Base64-LedgerKey", "state": "new_entry_no_proof"},
+      {"e": "Base64-LedgerKey", "state": "new_entry_proof"},
+      {"e": "Base64-LedgerEntry", "state": "archived_no_proof"},
+      {"e": "Base64-LedgerEntry", "state": "archived_proof"},
+  ],
+  "ledger": ledgerSeq
+  }
+  ```
+
+  * `entries`: A list of entries for each queried LedgerKey. Every `key` queried is guarenteed to
+  have a corresponding entry returned.
+  * `e`: Either the `LedgerEntry` or `LedgerKey` for a given key encoded as a Base64 string. If a key
+  is live or archived, `e` contains the corresponding `LedgerEntry`. If a key does not exist
+  (including expired temporary entries) `e` contains the corresponding `LedgerKey`.
+  * `state`: One of the following values:
+    * `live`: Entry is live.
+    * `new_entry_no_proof`: Entry does not exist and does not require creation proof.
+    * `new_entry_proof`: Entry does not exist and requires creation proof.
+    * `archived_no_proof`: Entry is archived and can be restored without a proof.
+    * `archived_proof`: Entry is archived and requires restoration proof.
+  * `ttl`: An optional value, only returned for live Soroban entries. Contains
+  a uint32 value for the entry's `liveUntilLedgerSeq`.
+  * `ledgerSeq`: The ledger number on which the query was performed.
+
+  Classic entries will always return a state of `live` or `new_entry_no_proof`.
+  If a classic entry does not exist, it will have a state of `new_entry_no_proof`.
+
+  Similarly, temporary Soroban entries will always return a state of `live` or
+  `new_entry_no_proof`. If a temporary entry does not exist or has expired, it
+  will have a state of `new_entry_no_proof`.
+
+  This endpoint will always give correct information for archived entries. Even
+  if an entry has been archived and evicted from validators, this endpoint will
+  still the archived entry's full `LedgerEntry` as well as the proper state.
+
+* **`getinvokeproof`**<br>
+
+  Used to generate creation proofs, required when writing new keys that have an archival filter false positive. For testing, use `ARTIFICIALLY_SIMULATE_ARCHIVE_FILTER_MISS` to simulate this.
+
+  A POST request with the following body:<br>
+
+  ```
+  ledgerSeq=NUM&key=Base64&key=Base64...
+  ```
+
+  * `ledgerSeq`: An optional parameter, specifying the ledger snapshot to base the query on.
+  If the specified ledger in not available, a 404 error will be returned. If this parameter
+  is not set, the current ledger is used.
+  * `key`: A series of Base64 encoded XDR strings specifying the `LedgerKey` prove. TTL keys
+  must not be queried and will return 404 if done so.
+
+  A JSON payload is returned as follows:
+
+  ```
+  {
+  "ledger": uint32,  // Required
+  "proof": Base64XDR // optional
+  }
+  ```
+
+  * `proof`: A Base64 encoded XDR string of the proof payload required for the associated
+  `InvokeHostFunctionOp`. If no proof is required, this field is ommited.
+  * `ledgerSeq`: The ledger number on which the query was performed.
+
+  Note that only a single proof object is required for all keys in a given TX.
+
+* **`getrestoreproof`**<br>
+
+  Used to generate restoration proofs, required when writing new keys that have an archival filter false positive. For testing, use `REQUIRE_PROOFS_FOR_ALL_EVICTED_ENTRIES` for easier simulation.
+
+  A POST request with the following body:<br>
+
+  ```
+  ledgerSeq=NUM&key=Base64&key=Base64...
+  ```
+
+  * `ledgerSeq`: An optional parameter, specifying the ledger snapshot to base the query on.
+  If the specified ledger in not available, a 404 error will be returned. If this parameter
+  is not set, the current ledger is used.
+  * `key`: A series of Base64 encoded XDR strings specifying the `LedgerKey` prove. TTL keys
+  must not be queried and will return 404 if done so.
+
+  A JSON payload is returned as follows:
+
+  ```
+  {
+  "ledger": uint32,  // Required
+  "proof": Base64XDR // optional
+  }
+  ```
+
+  * `proof`: A Base64 encoded XDR string of the proof payload required for the associated
+  `RestoreFootprintOp`. If no proof is required, this field is ommited.
+  * `ledgerSeq`: The ledger number on which the query was performed.
+
+  Note that only a single proof object is required for all keys in a given TX.
+  This endpoint will always give correct information for all archived entries, even if
+  an entry has been evicted.
