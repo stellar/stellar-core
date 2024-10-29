@@ -17,13 +17,6 @@ noinst_HEADERS = $(SRC_H_FILES)
 # realize that it needs this setting.
 CXXSTDLIB := $(if $(findstring -stdlib=libc++,$(CXXFLAGS)),c++,$(if $(findstring -stdlib=libstdc++,$(CXXFLAGS)),stdc++,))
 
-# If we are building with -fsanitize=address, any build.rs-built C++ code will
-# depend on asan, so we need to tell rustc to link with in the asan runtime as
-# well. Interestingly, passing -Clink-arg=-fsanitize=address to rustc does not
-# work, despite being the recommended approach, it seems rustc passes some other
-# flags to the linker that conflict with -fsanitize=address.
-RUSTFLAGS_ASAN := $(if $(findstring -fsanitize=address,$(CXXFLAGS)),-Clink-arg=-lasan,)
-
 if USE_TRACY
 # NB: this unfortunately long list has to be provided here and kept in sync with
 # the list of features for tracy-client in src/rust/Cargo.toml.  This is because
