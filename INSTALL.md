@@ -153,6 +153,7 @@ rm -rf llvm-project/
 ### MacOS 
 When building on MacOS, here's some dependencies you'll need:
 - Install xcode
+- Install [Rust](#installing-rust)
 - Install [homebrew](https://brew.sh)
 - `brew install libsodium libtool autoconf automake pkg-config libpq openssl parallel ccache bison gnu-sed perl coreutils`
 
