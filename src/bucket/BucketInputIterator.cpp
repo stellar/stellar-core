@@ -27,9 +27,13 @@ BucketInputIterator<T>::loadEntry()
         {
             isMeta = mEntry.type() == METAENTRY;
         }
-        else
+        else if constexpr (std::is_same_v<BucketEntryT, HotArchiveBucketEntry>)
         {
             isMeta = mEntry.type() == HOT_ARCHIVE_METAENTRY;
+        }
+        else
+        {
+            isMeta = mEntry.type() == COLD_ARCHIVE_METAENTRY;
         }
 
         if (isMeta)
@@ -48,10 +52,20 @@ BucketInputIterator<T>::loadEntry()
             }
             mMetadata = mEntry.metaEntry();
 
-            if constexpr (std::is_same<T, HotArchiveBucketEntry>::value)
+            if constexpr (std::is_same_v<T, HotArchiveBucketEntry>)
             {
                 if (mMetadata.ext.v() != 1 ||
                     mMetadata.ext.bucketListType() != HOT_ARCHIVE)
+                {
+                    throw std::runtime_error(
+                        "Malformed bucket: META entry with incorrect bucket "
+                        "list type.");
+                }
+            }
+            else if constexpr (std::is_same_v<T, ColdArchiveBucketEntry>)
+            {
+                if (mMetadata.ext.v() != 1 ||
+                    mMetadata.ext.bucketListType() != COLD_ARCHIVE)
                 {
                     throw std::runtime_error(
                         "Malformed bucket: META entry with incorrect bucket "
@@ -171,4 +185,5 @@ BucketInputIterator<T>::seek(std::streamoff offset)
 
 template class BucketInputIterator<LiveBucket>;
 template class BucketInputIterator<HotArchiveBucket>;
+template class BucketInputIterator<ColdArchiveBucket>;
 }

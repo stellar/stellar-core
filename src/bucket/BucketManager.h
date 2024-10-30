@@ -224,6 +224,10 @@ class BucketManager : NonMovableOrCopyable
     adoptFileAsHotArchiveBucket(std::string const& filename,
                                 uint256 const& hash, MergeKey* mergeKey,
                                 std::unique_ptr<BucketIndex const> index) = 0;
+    virtual std::shared_ptr<ColdArchiveBucket>
+    adoptFileAsPendingColdArchiveBucket(
+        std::string const& filename, uint256 const& hash,
+        std::unique_ptr<BucketIndex const> index, uint32_t epoch) = 0;
 
     // Companion method to `adoptFileAsLiveBucket` also called from the
     // `BucketOutputIterator::getBucket` merge-completion path. This method

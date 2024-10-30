@@ -33,21 +33,22 @@ void for_versions_with_differing_bucket_logic(
 template <class BucketT> struct EntryCounts
 {
     static_assert(std::is_same_v<BucketT, LiveBucket> ||
-                  std::is_same_v<BucketT, HotArchiveBucket>);
+                  std::is_same_v<BucketT, HotArchiveBucket> ||
+                  std::is_same_v<BucketT, ColdArchiveBucket>);
 
     size_t nMeta{0};
     size_t nInitOrArchived{0};
-    size_t nLive{0};
+    size_t nLiveOrHash{0};
     size_t nDead{0};
     size_t
     sum() const
     {
-        return nLive + nInitOrArchived + nDead;
+        return nLiveOrHash + nInitOrArchived + nDead;
     }
     size_t
     sumIncludingMeta() const
     {
-        return nLive + nInitOrArchived + nDead + nMeta;
+        return nLiveOrHash + nInitOrArchived + nDead + nMeta;
     }
 
     EntryCounts(std::shared_ptr<BucketT> bucket);

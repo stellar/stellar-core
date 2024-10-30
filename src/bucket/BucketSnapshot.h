@@ -23,11 +23,14 @@ class SearchableLiveBucketListSnapshot;
 template <class BucketT> class BucketSnapshotBase : public NonMovable
 {
     static_assert(std::is_same_v<BucketT, LiveBucket> ||
-                  std::is_same_v<BucketT, HotArchiveBucket>);
+                  std::is_same_v<BucketT, HotArchiveBucket> ||
+                  std::is_same_v<BucketT, ColdArchiveBucket>);
 
   protected:
-    using BucketEntryT = std::conditional_t<std::is_same_v<BucketT, LiveBucket>,
-                                            BucketEntry, HotArchiveBucketEntry>;
+    using BucketEntryT = std::conditional_t<
+        std::is_same_v<BucketT, LiveBucket>, BucketEntry,
+        std::conditional_t<std::is_same_v<BucketT, HotArchiveBucket>,
+                           HotArchiveBucketEntry, ColdArchiveBucketEntry>>;
 
     // LiveBucket returns LedgerEntry vector on call to loadKeys,
     // HotArchiveBucket returns HotArchiveBucketEntry

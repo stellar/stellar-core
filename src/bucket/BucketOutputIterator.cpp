@@ -12,6 +12,7 @@
 #include "xdr/Stellar-ledger.h"
 #include <Tracy.hpp>
 #include <filesystem>
+#include <optional>
 
 namespace stellar
 {
@@ -21,15 +22,14 @@ namespace stellar
  * hashes them while writing to either destination. Produces a Bucket when done.
  */
 template <typename BucketT>
-BucketOutputIterator<BucketT>::BucketOutputIterator(std::string const& tmpDir,
-                                                    bool keepTombstoneEntries,
-                                                    BucketMetadata const& meta,
-                                                    MergeCounters& mc,
-                                                    asio::io_context& ctx,
-                                                    bool doFsync)
+BucketOutputIterator<BucketT>::BucketOutputIterator(
+    std::string const& tmpDir, bool keepTombstoneEntries,
+    BucketMetadata const& meta, MergeCounters& mc, asio::io_context& ctx,
+    bool doFsync, std::optional<uint32_t> epoch)
     : mFilename(Bucket::randomBucketName(tmpDir))
     , mOut(ctx, doFsync)
     , mBuf(nullptr)
+    , mEpoch(epoch)
     , mKeepTombstoneEntries(keepTombstoneEntries)
     , mMeta(meta)
     , mMergeCounters(mc)
@@ -52,7 +52,7 @@ BucketOutputIterator<BucketT>::BucketOutputIterator(std::string const& tmpDir,
             bme.metaEntry() = mMeta;
             put(bme);
         }
-        else
+        else if constexpr (std::is_same_v<BucketT, HotArchiveBucket>)
         {
             releaseAssertOrThrow(protocolVersionStartsFrom(
                 meta.ledgerVersion,
@@ -60,6 +60,17 @@ BucketOutputIterator<BucketT>::BucketOutputIterator(std::string const& tmpDir,
 
             HotArchiveBucketEntry bme;
             bme.type(HOT_ARCHIVE_METAENTRY);
+            bme.metaEntry() = mMeta;
+            put(bme);
+        }
+        else
+        {
+            releaseAssertOrThrow(protocolVersionStartsFrom(
+                meta.ledgerVersion,
+                Bucket::FIRST_PROTOCOL_SUPPORTING_PERSISTENT_EVICTION));
+
+            ColdArchiveBucketEntry bme;
+            bme.type(COLD_ARCHIVE_METAENTRY);
             bme.metaEntry() = mMeta;
             put(bme);
         }
@@ -92,7 +103,7 @@ BucketOutputIterator<BucketT>::put(BucketEntryT const& e)
             return;
         }
     }
-    else
+    else if constexpr (std::is_same_v<BucketT, HotArchiveBucket>)
     {
         if (e.type() == HOT_ARCHIVE_METAENTRY)
         {
@@ -128,6 +139,33 @@ BucketOutputIterator<BucketT>::put(BucketEntryT const& e)
         {
             ++mMergeCounters.mOutputIteratorTombstoneElisions;
             return;
+        }
+    }
+    else
+    {
+        if (e.type() == COLD_ARCHIVE_METAENTRY)
+        {
+            if (mPutMeta)
+            {
+                throw std::runtime_error(
+                    "putting META entry in bucket after initial entry");
+            }
+        }
+        else if (e.type() == COLD_ARCHIVE_ARCHIVED_LEAF)
+        {
+            if (!isSorobanEntry(e.archivedLeaf().archivedEntry.data))
+            {
+                throw std::runtime_error(
+                    "putting non-soroban entry in cold archive bucket");
+            }
+        }
+        else if (e.type() == COLD_ARCHIVE_DELETED_LEAF)
+        {
+            if (!isSorobanEntry(e.deletedLeaf().deletedKey))
+            {
+                throw std::runtime_error(
+                    "putting non-soroban entry in cold archive bucket");
+            }
         }
     }
 
@@ -200,14 +238,27 @@ BucketOutputIterator<BucketT>::getBucket(BucketManager& bucketManager,
         return bucketManager.adoptFileAsLiveBucket(mFilename.string(), hash,
                                                    mergeKey, std::move(index));
     }
-    else
+    else if constexpr (std::is_same_v<BucketT, HotArchiveBucket>)
     {
 
         return bucketManager.adoptFileAsHotArchiveBucket(
             mFilename.string(), hash, mergeKey, std::move(index));
     }
+    else
+    {
+        if (mEpoch)
+        {
+            return bucketManager.adoptFileAsPendingColdArchiveBucket(
+                mFilename.string(), hash, std::move(index), *mEpoch);
+        }
+        else
+        {
+            releaseAssert(false);
+        }
+    }
 }
 
 template class BucketOutputIterator<LiveBucket>;
 template class BucketOutputIterator<HotArchiveBucket>;
+template class BucketOutputIterator<ColdArchiveBucket>;
 }

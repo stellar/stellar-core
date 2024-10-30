@@ -21,10 +21,13 @@ class HotArchiveBucket;
 template <typename BucketT> class BucketInputIterator
 {
     static_assert(std::is_same_v<BucketT, LiveBucket> ||
-                  std::is_same_v<BucketT, HotArchiveBucket>);
+                  std::is_same_v<BucketT, HotArchiveBucket> ||
+                  std::is_same_v<BucketT, ColdArchiveBucket>);
 
-    using BucketEntryT = std::conditional_t<std::is_same_v<BucketT, LiveBucket>,
-                                            BucketEntry, HotArchiveBucketEntry>;
+    using BucketEntryT = std::conditional_t<
+        std::is_same_v<BucketT, LiveBucket>, BucketEntry,
+        std::conditional_t<std::is_same_v<BucketT, HotArchiveBucket>,
+                           HotArchiveBucketEntry, ColdArchiveBucketEntry>>;
 
     std::shared_ptr<BucketT const> mBucket;
 
@@ -67,4 +70,5 @@ template <typename BucketT> class BucketInputIterator
 
 typedef BucketInputIterator<LiveBucket> LiveBucketInputIterator;
 typedef BucketInputIterator<HotArchiveBucket> HotArchiveBucketInputIterator;
+typedef BucketInputIterator<ColdArchiveBucket> ColdArchiveBucketInputIterator;
 }

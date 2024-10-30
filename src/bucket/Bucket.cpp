@@ -938,6 +938,13 @@ HotArchiveBucket::getBucketVersion() const
     return it.getMetadata().ledgerVersion;
 }
 
+uint32_t
+ColdArchiveBucket::getBucketVersion() const
+{
+    ColdArchiveBucketInputIterator it(shared_from_this());
+    return it.getMetadata().ledgerVersion;
+}
+
 BucketEntryCounters const&
 LiveBucket::getBucketEntryCounters() const
 {
@@ -952,7 +959,18 @@ HotArchiveBucket::HotArchiveBucket(std::string const& filename,
 {
 }
 
+ColdArchiveBucket::ColdArchiveBucket(std::string const& filename,
+                                     Hash const& hash,
+                                     std::unique_ptr<BucketIndex const>&& index)
+    : Bucket(filename, hash, std::move(index))
+{
+}
+
 HotArchiveBucket::HotArchiveBucket() : Bucket()
+{
+}
+
+ColdArchiveBucket::ColdArchiveBucket() : Bucket()
 {
 }
 

@@ -110,7 +110,8 @@ class BucketManagerImpl : public BucketManager
     std::shared_ptr<BucketT>
     adoptFileAsBucket(std::string const& filename, uint256 const& hash,
                       MergeKey* mergeKey,
-                      std::unique_ptr<BucketIndex const> index);
+                      std::unique_ptr<BucketIndex const> index,
+                      std::optional<uint32_t> epoch = std::nullopt);
 
     template <class BucketT>
     std::shared_ptr<BucketT> getBucketByHash(uint256 const& hash);
@@ -131,8 +132,10 @@ class BucketManagerImpl : public BucketManager
 
   protected:
     void calculateSkipValues(LedgerHeader& currentHeader);
-    std::string bucketFilename(std::string const& bucketHexHash);
-    std::string bucketFilename(Hash const& hash);
+    std::string bucketFilename(std::string const& bucketHexHash,
+                               std::optional<uint32_t> epoch = std::nullopt);
+    std::string bucketFilename(Hash const& hash,
+                               std::optional<uint32_t> epoch = std::nullopt);
 
   public:
     BucketManagerImpl(Application& app);
@@ -158,6 +161,9 @@ class BucketManagerImpl : public BucketManager
     std::shared_ptr<HotArchiveBucket> adoptFileAsHotArchiveBucket(
         std::string const& filename, uint256 const& hash, MergeKey* mergeKey,
         std::unique_ptr<BucketIndex const> index) override;
+    std::shared_ptr<ColdArchiveBucket> adoptFileAsPendingColdArchiveBucket(
+        std::string const& filename, uint256 const& hash,
+        std::unique_ptr<BucketIndex const> index, uint32_t epoch) override;
     void noteEmptyMergeOutput(MergeKey const& mergeKey) override;
     std::shared_ptr<Bucket> getBucketIfExists(uint256 const& hash) override;
     std::shared_ptr<LiveBucket>

@@ -252,6 +252,20 @@ class HotArchiveBucket : public Bucket,
     friend class HotArchiveBucketSnapshot;
 };
 
+class ColdArchiveBucket : public Bucket,
+                          public std::enable_shared_from_this<ColdArchiveBucket>
+{
+  public:
+    ColdArchiveBucket();
+    virtual ~ColdArchiveBucket()
+    {
+    }
+    ColdArchiveBucket(std::string const& filename, Hash const& hash,
+                      std::unique_ptr<BucketIndex const>&& index);
+
+    uint32_t getBucketVersion() const override;
+};
+
 struct BucketEntryCounters
 {
     std::map<LedgerEntryTypeAndDurability, size_t> entryTypeCounts;

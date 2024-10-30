@@ -44,6 +44,7 @@
 #include "work/WorkScheduler.h"
 #include "xdrpp/printer.h"
 #include <Tracy.hpp>
+#include <type_traits>
 
 namespace stellar
 {
@@ -217,9 +218,19 @@ const std::string BucketManagerImpl::kLockFilename = "stellar-core.lock";
 namespace
 {
 std::string
-bucketBasename(std::string const& bucketHexHash)
+bucketBasename(std::string const& bucketHexHash, std::optional<uint32_t> epoch)
 {
-    return "bucket-" + bucketHexHash + ".xdr";
+    std::string prefix;
+    if (epoch)
+    {
+        prefix = fmt::format("pending-bucket-{}-", *epoch);
+    }
+    else
+    {
+        prefix = "bucket-";
+    }
+
+    return prefix + bucketHexHash + ".xdr";
 }
 
 bool
@@ -237,16 +248,18 @@ extractFromFilename(std::string const& name)
 }
 
 std::string
-BucketManagerImpl::bucketFilename(std::string const& bucketHexHash)
+BucketManagerImpl::bucketFilename(std::string const& bucketHexHash,
+                                  std::optional<uint32_t> epoch)
 {
-    std::string basename = bucketBasename(bucketHexHash);
+    std::string basename = bucketBasename(bucketHexHash, epoch);
     return getBucketDir() + "/" + basename;
 }
 
 std::string
-BucketManagerImpl::bucketFilename(Hash const& hash)
+BucketManagerImpl::bucketFilename(Hash const& hash,
+                                  std::optional<uint32_t> epoch)
 {
-    return bucketFilename(binToHex(hash));
+    return bucketFilename(binToHex(hash), epoch);
 }
 
 std::string
@@ -497,11 +510,21 @@ BucketManagerImpl::adoptFileAsHotArchiveBucket(
                                                std::move(index));
 }
 
+std::shared_ptr<ColdArchiveBucket>
+BucketManagerImpl::adoptFileAsPendingColdArchiveBucket(
+    std::string const& filename, uint256 const& hash,
+    std::unique_ptr<BucketIndex const> index, uint32_t epoch)
+{
+    return adoptFileAsBucket<ColdArchiveBucket>(filename, hash, nullptr,
+                                                std::move(index), epoch);
+}
+
 template <typename BucketT>
 std::shared_ptr<BucketT>
 BucketManagerImpl::adoptFileAsBucket(std::string const& filename,
                                      uint256 const& hash, MergeKey* mergeKey,
-                                     std::unique_ptr<BucketIndex const> index)
+                                     std::unique_ptr<BucketIndex const> index,
+                                     std::optional<uint32_t> epoch)
 {
     ZoneScoped;
     releaseAssertOrThrow(mApp.getConfig().MODE_ENABLES_BUCKETLIST);
@@ -543,7 +566,17 @@ BucketManagerImpl::adoptFileAsBucket(std::string const& filename,
     }
     else
     {
-        std::string canonicalName = bucketFilename(hash);
+        std::string canonicalName;
+        if (epoch)
+        {
+            releaseAssert((std::is_same_v<BucketT, ColdArchiveBucket>));
+            canonicalName = bucketFilename(hash, epoch);
+        }
+        else
+        {
+            canonicalName = bucketFilename(hash);
+        }
+
         CLOG_DEBUG(Bucket, "Adopting bucket file {} as {}", filename,
                    canonicalName);
         if (!renameBucketDirFile(filename, canonicalName))

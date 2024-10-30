@@ -77,10 +77,17 @@ BucketIndexImpl<IndexT>::BucketIndexImpl(BucketManager& bm,
     , mBloomLookupMeter(bm.getBloomLookupMeter())
 {
     static_assert(std::is_same_v<BucketEntryT, BucketEntry> ||
-                  std::is_same_v<BucketEntryT, HotArchiveBucketEntry>);
+                  std::is_same_v<BucketEntryT, HotArchiveBucketEntry> ||
+                  std::is_same_v<BucketEntryT, ColdArchiveBucketEntry>);
 
     ZoneScoped;
     releaseAssert(!filename.empty());
+
+    // TODO: Add support for cold archive
+    if constexpr (std::is_same_v<BucketEntryT, ColdArchiveBucketEntry>)
+    {
+        return;
+    }
 
     {
         auto timer = LogSlowExecution("Indexing bucket");
@@ -133,13 +140,18 @@ BucketIndexImpl<IndexT>::BucketIndexImpl(BucketManager& bm,
             }
 
             auto isMeta = [](auto const& be) {
-                if constexpr (std::is_same<BucketEntryT, BucketEntry>::value)
+                if constexpr (std::is_same_v<BucketEntryT, BucketEntry>)
                 {
                     return be.type() == METAENTRY;
                 }
-                else
+                else if constexpr (std::is_same_v<BucketEntryT,
+                                                  HotArchiveBucketEntry>)
                 {
                     return be.type() == HOT_ARCHIVE_METAENTRY;
+                }
+                else
+                {
+                    return be.type() == COLD_ARCHIVE_METAENTRY;
                 }
             };
 
@@ -361,7 +373,8 @@ BucketIndex::createIndex(BucketManager& bm,
                          Hash const& hash)
 {
     static_assert(std::is_same_v<BucketEntryT, BucketEntry> ||
-                  std::is_same_v<BucketEntryT, HotArchiveBucketEntry>);
+                  std::is_same_v<BucketEntryT, HotArchiveBucketEntry> ||
+                  std::is_same_v<BucketEntryT, ColdArchiveBucketEntry>);
 
     ZoneScoped;
     auto const& cfg = bm.getConfig();
@@ -643,5 +656,8 @@ BucketIndex::createIndex<BucketEntry>(BucketManager& bm,
                                       Hash const& hash);
 template std::unique_ptr<BucketIndex const>
 BucketIndex::createIndex<HotArchiveBucketEntry>(
+    BucketManager& bm, std::filesystem::path const& filename, Hash const& hash);
+template std::unique_ptr<BucketIndex const>
+BucketIndex::createIndex<ColdArchiveBucketEntry>(
     BucketManager& bm, std::filesystem::path const& filename, Hash const& hash);
 }

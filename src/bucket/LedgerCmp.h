@@ -6,6 +6,7 @@
 
 #include <type_traits>
 
+#include "util/GlobalChecks.h"
 #include "util/XDROperators.h" // IWYU pragma: keep
 #include "xdr/Stellar-ledger-entries.h"
 #include "xdr/Stellar-ledger.h"
@@ -15,6 +16,7 @@ namespace stellar
 
 class LiveBucket;
 class HotArchiveBucket;
+class ColdArchiveBucket;
 
 template <typename T>
 bool
@@ -132,10 +134,13 @@ struct LedgerEntryIdCmp
 template <typename BucketT> struct BucketEntryIdCmp
 {
     static_assert(std::is_same_v<BucketT, LiveBucket> ||
-                  std::is_same_v<BucketT, HotArchiveBucket>);
+                  std::is_same_v<BucketT, HotArchiveBucket> ||
+                  std::is_same_v<BucketT, ColdArchiveBucket>);
 
-    using BucketEntryT = std::conditional_t<std::is_same_v<BucketT, LiveBucket>,
-                                            BucketEntry, HotArchiveBucketEntry>;
+    using BucketEntryT = std::conditional_t<
+        std::is_same_v<BucketT, LiveBucket>, BucketEntry,
+        std::conditional_t<std::is_same_v<BucketT, HotArchiveBucket>,
+                           HotArchiveBucketEntry, ColdArchiveBucketEntry>>;
 
     bool
     compareHotArchive(HotArchiveBucketEntry const& a,
@@ -192,6 +197,81 @@ template <typename BucketT> struct BucketEntryIdCmp
     }
 
     bool
+    compareColdArchive(ColdArchiveBucketEntry const& a,
+                       ColdArchiveBucketEntry const& b) const
+    {
+        ColdArchiveBucketEntryType aty = a.type();
+        ColdArchiveBucketEntryType bty = b.type();
+
+        // METAENTRY sorts below all other entries, comes first in buckets.
+        if (aty == COLD_ARCHIVE_METAENTRY || bty == COLD_ARCHIVE_METAENTRY)
+        {
+            return aty < bty;
+        }
+
+        if (aty == COLD_ARCHIVE_BOUNDARY_LEAF)
+        {
+            if (bty == COLD_ARCHIVE_BOUNDARY_LEAF)
+            {
+                if (a.boundaryLeaf().isLowerBound ==
+                    b.boundaryLeaf().isLowerBound)
+                {
+                    throw std::runtime_error(
+                        "Malformed bucket: multiple identical boundaries");
+                }
+            }
+
+            return a.boundaryLeaf().isLowerBound;
+        }
+
+        if (bty == COLD_ARCHIVE_BOUNDARY_LEAF)
+        {
+            return !b.boundaryLeaf().isLowerBound;
+        }
+
+        if (aty == COLD_ARCHIVE_ARCHIVED_LEAF)
+        {
+            if (bty == COLD_ARCHIVE_ARCHIVED_LEAF)
+            {
+                return LedgerEntryIdCmp{}(a.archivedLeaf().archivedEntry.data,
+                                          b.archivedLeaf().archivedEntry.data);
+            }
+            else if (bty == COLD_ARCHIVE_DELETED_LEAF)
+            {
+                return LedgerEntryIdCmp{}(a.archivedLeaf().archivedEntry.data,
+                                          b.deletedLeaf().deletedKey);
+            }
+            else
+            {
+                // leaf nodes always before merkle nodes
+                return true;
+            }
+        }
+
+        if (bty == COLD_ARCHIVE_ARCHIVED_LEAF)
+        {
+            if (aty == COLD_ARCHIVE_DELETED_LEAF)
+            {
+                return LedgerEntryIdCmp{}(a.deletedLeaf().deletedKey,
+                                          b.archivedLeaf().archivedEntry.data);
+            }
+            else
+            {
+                // leaf nodes always before merkle nodes
+                return false;
+            }
+        }
+
+        releaseAssert(aty == COLD_ARCHIVE_HASH && bty == COLD_ARCHIVE_HASH);
+        if (a.hashEntry().level != b.hashEntry().level)
+        {
+            return a.hashEntry().level < b.hashEntry().level;
+        }
+
+        return a.hashEntry().index < b.hashEntry().index;
+    }
+
+    bool
     compareLive(BucketEntry const& a, BucketEntry const& b) const
     {
         BucketEntryType aty = a.type();
@@ -224,8 +304,8 @@ template <typename BucketT> struct BucketEntryIdCmp
         {
             if (aty != DEADENTRY)
             {
-                throw std::runtime_error(
-                    "Malformed bucket: unexpected non-INIT/LIVE/DEAD entry.");
+                throw std::runtime_error("Malformed bucket: unexpected "
+                                         "non-INIT/LIVE/DEAD entry.");
             }
             if (bty == LIVEENTRY || bty == INITENTRY)
             {
@@ -250,9 +330,14 @@ template <typename BucketT> struct BucketEntryIdCmp
         {
             return compareLive(a, b);
         }
-        else
+        else if constexpr (std::is_same_v<BucketT, HotArchiveBucket>)
         {
             return compareHotArchive(a, b);
+        }
+        else
+        {
+            static_assert(std::is_same_v<BucketT, ColdArchiveBucket>);
+            return compareColdArchive(a, b);
         }
     }
 };

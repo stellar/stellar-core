@@ -24,10 +24,13 @@ class BucketManager;
 template <typename BucketT> class BucketOutputIterator
 {
     static_assert(std::is_same_v<BucketT, LiveBucket> ||
-                  std::is_same_v<BucketT, HotArchiveBucket>);
+                  std::is_same_v<BucketT, HotArchiveBucket> ||
+                  std::is_same_v<BucketT, ColdArchiveBucket>);
 
-    using BucketEntryT = std::conditional_t<std::is_same_v<BucketT, LiveBucket>,
-                                            BucketEntry, HotArchiveBucketEntry>;
+    using BucketEntryT = std::conditional_t<
+        std::is_same_v<BucketT, LiveBucket>, BucketEntry,
+        std::conditional_t<std::is_same_v<BucketT, HotArchiveBucket>,
+                           HotArchiveBucketEntry, ColdArchiveBucketEntry>>;
 
   protected:
     std::filesystem::path mFilename;
@@ -35,6 +38,7 @@ template <typename BucketT> class BucketOutputIterator
     BucketEntryIdCmp<BucketT> mCmp;
     std::unique_ptr<BucketEntryT> mBuf;
     SHA256 mHasher;
+    std::optional<uint32_t> mEpoch;
     size_t mBytesPut{0};
     size_t mObjectsPut{0};
     bool mKeepTombstoneEntries{true};
@@ -50,9 +54,13 @@ template <typename BucketT> class BucketOutputIterator
     // version new enough that it should _write_ the metadata to the stream in
     // the form of a METAENTRY; but that's not a thing the caller gets to decide
     // (or forget to do), it's handled automatically.
+    // If the bucket being constructed is a pending ColdArchive bucket, the
+    // current archival epoch must be passed in for proper naming. Otherwise,
+    // epoch should be nullopt.
     BucketOutputIterator(std::string const& tmpDir, bool keepTombstoneEntries,
                          BucketMetadata const& meta, MergeCounters& mc,
-                         asio::io_context& ctx, bool doFsync);
+                         asio::io_context& ctx, bool doFsync,
+                         std::optional<uint32_t> epoch = std::nullopt);
 
     void put(BucketEntryT const& e);
 
@@ -62,4 +70,5 @@ template <typename BucketT> class BucketOutputIterator
 
 typedef BucketOutputIterator<LiveBucket> LiveBucketOutputIterator;
 typedef BucketOutputIterator<HotArchiveBucket> HotArchiveBucketOutputIterator;
+typedef BucketOutputIterator<ColdArchiveBucket> ColdArchiveBucketOutputIterator;
 }

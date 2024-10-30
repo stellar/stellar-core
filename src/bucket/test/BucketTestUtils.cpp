@@ -124,7 +124,7 @@ EntryCounts<LiveBucket>::EntryCounts(std::shared_ptr<LiveBucket> bucket)
             ++nInitOrArchived;
             break;
         case LIVEENTRY:
-            ++nLive;
+            ++nLiveOrHash;
             break;
         case DEADENTRY:
             ++nDead;
@@ -155,12 +155,46 @@ EntryCounts<HotArchiveBucket>::EntryCounts(
             ++nInitOrArchived;
             break;
         case HOT_ARCHIVE_LIVE:
-            ++nLive;
+            ++nLiveOrHash;
             break;
         case HOT_ARCHIVE_DELETED:
             ++nDead;
             break;
         case HOT_ARCHIVE_METAENTRY:
+            // This should never happen: only the first record can be METAENTRY
+            // and it is counted above.
+            abort();
+        }
+        ++iter;
+    }
+}
+
+template <>
+EntryCounts<ColdArchiveBucket>::EntryCounts(
+    std::shared_ptr<ColdArchiveBucket> bucket)
+{
+    ColdArchiveBucketInputIterator iter(bucket);
+    if (iter.seenMetadata())
+    {
+        ++nMeta;
+    }
+    while (iter)
+    {
+        switch ((*iter).type())
+        {
+        case COLD_ARCHIVE_ARCHIVED_LEAF:
+            ++nInitOrArchived;
+            break;
+        case COLD_ARCHIVE_DELETED_LEAF:
+            ++nDead;
+            break;
+        case COLD_ARCHIVE_HASH:
+            ++nLiveOrHash;
+            break;
+        case COLD_ARCHIVE_BOUNDARY_LEAF:
+            ++nMeta;
+            break;
+        case COLD_ARCHIVE_METAENTRY:
             // This should never happen: only the first record can be METAENTRY
             // and it is counted above.
             abort();
@@ -179,6 +213,7 @@ countEntries(std::shared_ptr<BucketT> bucket)
 
 template size_t countEntries(std::shared_ptr<LiveBucket> bucket);
 template size_t countEntries(std::shared_ptr<HotArchiveBucket> bucket);
+template size_t countEntries(std::shared_ptr<ColdArchiveBucket> bucket);
 
 void
 LedgerManagerForBucketTests::transferLedgerEntriesToBucketList(
