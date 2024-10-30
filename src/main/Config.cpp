@@ -2467,6 +2467,14 @@ Config::setValidatorWeightConfig(std::vector<ValidatorEntry> const& validators)
         homeDomainsByQuality[v.mQuality].insert(v.mHomeDomain);
     }
 
+    if (NODE_IS_VALIDATOR &&
+        highestQuality == ValidatorQuality::VALIDATOR_LOW_QUALITY)
+    {
+        throw std::invalid_argument(
+            "At least one validator must have a quality "
+            "level higher than LOW");
+    }
+
     // Highest quality level has weight UINT64_MAX
     vwc.mQualityWeights[highestQuality] = UINT64_MAX;
 
