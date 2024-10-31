@@ -29,6 +29,7 @@
 #include "util/Math.h"
 #include "util/ProtocolVersion.h"
 #include "util/Timer.h"
+#include "util/UnorderedMap.h"
 #include "util/UnorderedSet.h"
 #include "xdr/Stellar-ledger.h"
 #include "xdrpp/autocheck.h"
@@ -384,6 +385,143 @@ TEST_CASE_VERSIONS("bucket list shadowing pre/post proto 12",
             }
         }
     });
+}
+
+TEST_CASE("hot archive bucketlist merges in ColdArchive bucket",
+          "[bucket][bucketlist][archival]")
+{
+    VirtualClock clock;
+    Config const& cfg = getTestConfig();
+    testutil::BucketListDepthModifier<HotArchiveBucket> bldm(6);
+    auto app = createTestApplication(clock, cfg);
+    HotArchiveBucketList bl;
+
+    auto lastBucketSize = [&] {
+        auto& level = bl.getLevel(HotArchiveBucketList::kNumLevels - 1);
+        return countEntries(level.getCurr());
+    };
+
+    // Populate a full BucketList
+    UnorderedSet<LedgerKey> keys;
+    UnorderedSet<LedgerKey> expectedDeadKeys;
+    UnorderedMap<LedgerKey, LedgerEntry> expectedArchivedEntries;
+
+    auto ledger = 1;
+    while (lastBucketSize() == 0)
+    {
+        auto deletedKeys =
+            LedgerTestUtils::generateValidUniqueLedgerKeysWithTypes(
+                {CONTRACT_CODE, CONTRACT_DATA}, 5, keys);
+        auto archivedEntries =
+            LedgerTestUtils::generateValidUniqueLedgerEntriesWithTypes(
+                {CONTRACT_CODE, CONTRACT_DATA}, 5, keys);
+        auto restoredKeys =
+            LedgerTestUtils::generateValidUniqueLedgerKeysWithTypes(
+                {CONTRACT_CODE, CONTRACT_DATA}, 5, keys);
+
+        // Randomly shadow some entries
+        // Shadow some with a recreation event so they are dropped.
+        if (ledger > 1)
+        {
+            auto deadIter = expectedDeadKeys.begin();
+            std::advance(deadIter,
+                         rand_uniform<size_t>(0, expectedDeadKeys.size() - 1));
+
+            auto shadowWithRecreation = *deadIter;
+            expectedDeadKeys.erase(deadIter);
+
+            auto archivedIter = expectedArchivedEntries.begin();
+            std::advance(
+                archivedIter,
+                rand_uniform<size_t>(0, expectedArchivedEntries.size() - 1));
+            auto shadowWithDelete = archivedIter->first;
+            expectedArchivedEntries.erase(archivedIter);
+
+            deletedKeys.emplace_back(shadowWithDelete);
+            restoredKeys.emplace_back(shadowWithRecreation);
+        }
+
+        bl.addBatch(*app, ledger, getAppLedgerVersion(app), archivedEntries,
+                    restoredKeys, deletedKeys);
+
+        for (auto const& key : deletedKeys)
+        {
+            expectedDeadKeys.insert(key);
+        }
+
+        for (auto const& entry : archivedEntries)
+        {
+            expectedArchivedEntries.emplace(LedgerEntryKey(entry), entry);
+        }
+
+        ++ledger;
+    }
+
+    PendingColdArchive pending(bl, 0);
+    auto coldBucket =
+        pending.merge(app->getBucketManager(), cfg.LEDGER_PROTOCOL_VERSION,
+                      clock.getIOContext(), true);
+
+    EntryCounts counts(coldBucket);
+    REQUIRE(counts.nDead == expectedDeadKeys.size());
+    REQUIRE(counts.nInitOrArchived == expectedArchivedEntries.size());
+
+    // Meta entry plus lower/upper bound entries
+    REQUIRE(counts.nMeta == 3);
+
+    bool seenLowerBound = false;
+    bool seenUpperBound = false;
+    uint32_t currIndex = 0;
+    for (ColdArchiveBucketInputIterator iter(coldBucket); iter; ++iter)
+    {
+        auto be = *iter;
+        if (!seenLowerBound)
+        {
+            REQUIRE(be.type() == stellar::COLD_ARCHIVE_BOUNDARY_LEAF);
+            REQUIRE(be.boundaryLeaf().isLowerBound);
+            REQUIRE(be.boundaryLeaf().index == currIndex);
+            seenLowerBound = true;
+        }
+        // If we've seen the lower bound and there are no more expected
+        // keys, we should see the upper bound
+        else if (expectedArchivedEntries.empty() && expectedDeadKeys.empty())
+        {
+            REQUIRE(!seenUpperBound);
+            REQUIRE(be.type() == stellar::COLD_ARCHIVE_BOUNDARY_LEAF);
+            REQUIRE(!be.boundaryLeaf().isLowerBound);
+            REQUIRE(be.boundaryLeaf().index == currIndex);
+            seenUpperBound = true;
+        }
+        else
+        {
+            if (be.type() == COLD_ARCHIVE_DELETED_LEAF)
+            {
+                REQUIRE(expectedDeadKeys.find(be.deletedLeaf().deletedKey) !=
+                        expectedDeadKeys.end());
+                REQUIRE(be.deletedLeaf().index == currIndex);
+                expectedDeadKeys.erase(be.deletedLeaf().deletedKey);
+            }
+            else
+            {
+                REQUIRE(be.type() == COLD_ARCHIVE_ARCHIVED_LEAF);
+                auto expectedIter = expectedArchivedEntries.find(
+                    LedgerEntryKey(be.archivedLeaf().archivedEntry));
+                REQUIRE(expectedIter != expectedArchivedEntries.end());
+                REQUIRE(expectedIter->second ==
+                        be.archivedLeaf().archivedEntry);
+                REQUIRE(be.archivedLeaf().index == currIndex);
+                expectedArchivedEntries.erase(
+                    LedgerEntryKey(be.archivedLeaf().archivedEntry));
+            }
+        }
+
+        ++currIndex;
+    }
+
+    REQUIRE(expectedDeadKeys.empty());
+    REQUIRE(expectedArchivedEntries.empty());
+    REQUIRE(seenLowerBound);
+    REQUIRE(seenUpperBound);
 }
 
 TEST_CASE_VERSIONS("hot archive bucket tombstones expire at bottom level",

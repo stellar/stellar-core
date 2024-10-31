@@ -2,16 +2,21 @@
 // under the Apache License, Version 2.0. See the COPYING file at the root
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
+#include "util/XDRCereal.h"
+
 #include "BucketList.h"
 #include "bucket/Bucket.h"
 #include "bucket/BucketIndexImpl.h"
 #include "bucket/BucketInputIterator.h"
 #include "bucket/BucketManager.h"
+#include "bucket/BucketOutputIterator.h"
 #include "bucket/BucketSnapshot.h"
+#include "bucket/LedgerCmp.h"
 #include "crypto/SHA.h"
 #include "ledger/LedgerManager.h"
 #include "ledger/LedgerTxn.h"
 #include "main/Application.h"
+
 #include "util/GlobalChecks.h"
 #include "util/Logging.h"
 #include "util/ProtocolVersion.h"
@@ -959,6 +964,137 @@ BucketListBase<BucketT>::restartMerges(Application& app,
                 !app.getConfig().ARTIFICIALLY_REDUCE_MERGE_COUNTS_FOR_TESTING);
         }
     }
+}
+
+PendingColdArchive::PendingColdArchive(HotArchiveBucketList const& bl,
+                                       uint32_t epoch)
+    : mEpoch(epoch)
+{
+    for (auto i = 0; i < BucketListBase<HotArchiveBucket>::kNumLevels; ++i)
+    {
+        auto const& level = bl.getLevel(i);
+        mInputBuckets.emplace_back(
+            std::make_unique<HotArchiveBucketInputIterator>(level.getCurr()));
+        if (i != BucketListBase<HotArchiveBucket>::kNumLevels - 1)
+        {
+            mInputBuckets.emplace_back(
+                std::make_unique<HotArchiveBucketInputIterator>(
+                    level.getSnap()));
+        }
+    }
+}
+
+std::shared_ptr<ColdArchiveBucket>
+PendingColdArchive::merge(BucketManager& bucketManager,
+                          uint32_t protocolVersion, asio::io_context& ctx,
+                          bool doFsync)
+{
+    // Advance the input iterators to the next entry greater than bound, or
+    // until we reach the end of the iterator.
+    auto advanceIters = [&](LedgerKey const& bound) {
+        for (auto& iterPtr : mInputBuckets)
+        {
+            auto& iter = *iterPtr;
+
+            // *iter <= bound
+            while (iter &&
+                   (LedgerEntryIdCmp{}(getBucketLedgerKey(*iter), bound) ||
+                    getBucketLedgerKey(*iter) == bound))
+            {
+                ++iter;
+            }
+        }
+    };
+
+    auto workRemaining = [&]() {
+        for (auto const& iterPtr : mInputBuckets)
+        {
+            if (*iterPtr)
+            {
+                return true;
+            }
+        }
+
+        return false;
+    };
+
+    BucketMetadata meta;
+    meta.ledgerVersion = protocolVersion;
+
+    MergeCounters mc;
+    ColdArchiveBucketOutputIterator out(bucketManager.getTmpDir(), false, meta,
+                                        mc, ctx, doFsync, mEpoch);
+
+    uint32_t bucketIndex = 0;
+
+    // First write dummy lower bound entry
+    ColdArchiveBucketEntry lowBoundEntry;
+    lowBoundEntry.type(COLD_ARCHIVE_BOUNDARY_LEAF);
+    lowBoundEntry.boundaryLeaf().isLowerBound = true;
+    lowBoundEntry.boundaryLeaf().index = bucketIndex;
+    out.put(lowBoundEntry);
+    ++bucketIndex;
+
+    while (workRemaining())
+    {
+        // Find the smallest entry among all the input iterators to write. Tie
+        // break goes to the most recent level, so we iterate top down and
+        // compare with < operator.
+        std::optional<LedgerKey> currSmallest{};
+        uint32_t currSmallestIndex = 0;
+        for (auto i = 0; i < mInputBuckets.size(); ++i)
+        {
+            auto& iter = *mInputBuckets.at(i);
+            if (iter)
+            {
+                auto key = getBucketLedgerKey(*iter);
+                if (!currSmallest || LedgerEntryIdCmp{}(key, *currSmallest))
+                {
+                    currSmallest = key;
+                    currSmallestIndex = i;
+                }
+            }
+        }
+
+        releaseAssert(currSmallest);
+
+        ColdArchiveBucketEntry coldEntry;
+        auto entryToWrite = **mInputBuckets.at(currSmallestIndex);
+        switch (entryToWrite.type())
+        {
+        // Live entries do not need to be written to the cold archive, so
+        // advance iterators but continue without writing
+        case HOT_ARCHIVE_LIVE:
+            advanceIters(*currSmallest);
+            continue;
+        case HOT_ARCHIVE_ARCHIVED:
+            coldEntry.type(COLD_ARCHIVE_ARCHIVED_LEAF);
+            coldEntry.archivedLeaf().archivedEntry =
+                entryToWrite.archivedEntry();
+            coldEntry.archivedLeaf().index = bucketIndex;
+            break;
+        case HOT_ARCHIVE_DELETED:
+            coldEntry.type(COLD_ARCHIVE_DELETED_LEAF);
+            coldEntry.deletedLeaf().deletedKey = entryToWrite.key();
+            coldEntry.deletedLeaf().index = bucketIndex;
+            break;
+        case HOT_ARCHIVE_METAENTRY:
+            throw std::runtime_error("Unexpected meta entry in HotArchive");
+        }
+
+        out.put(coldEntry);
+        ++bucketIndex;
+        advanceIters(*currSmallest);
+    }
+
+    // Now write upper bound
+    ColdArchiveBucketEntry upperBoundEntry;
+    upperBoundEntry.type(COLD_ARCHIVE_BOUNDARY_LEAF);
+    upperBoundEntry.boundaryLeaf().isLowerBound = false;
+    upperBoundEntry.boundaryLeaf().index = bucketIndex;
+    out.put(upperBoundEntry);
+
+    return out.getBucket(bucketManager);
 }
 
 template <typename BucketT> BucketListBase<BucketT>::BucketListBase()

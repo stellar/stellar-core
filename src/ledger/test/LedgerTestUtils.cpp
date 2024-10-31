@@ -769,6 +769,15 @@ std::vector<LedgerEntry>
 generateValidUniqueLedgerEntriesWithTypes(
     std::unordered_set<LedgerEntryType> const& types, size_t n)
 {
+    UnorderedSet<LedgerKey> seenKeys;
+    return generateValidUniqueLedgerEntriesWithTypes(types, n, seenKeys);
+}
+
+std::vector<LedgerEntry>
+generateValidUniqueLedgerEntriesWithTypes(
+    std::unordered_set<LedgerEntryType> const& types, size_t n,
+    UnorderedSet<LedgerKey>& seenKeys)
+{
     UnorderedSet<LedgerKey> keys;
     std::vector<LedgerEntry> entries;
     entries.reserve(n);
@@ -777,6 +786,12 @@ generateValidUniqueLedgerEntriesWithTypes(
     {
         auto entry = generateValidLedgerEntryWithTypes(types);
         auto key = LedgerEntryKey(entry);
+        auto [_, inserted] = seenKeys.insert(key);
+        if (!inserted)
+        {
+            continue;
+        }
+
         if (keys.find(key) != keys.end())
         {
             continue;

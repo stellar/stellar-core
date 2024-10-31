@@ -262,6 +262,26 @@ template <typename BucketT> struct BucketEntryIdCmp
             }
         }
 
+        if (aty == COLD_ARCHIVE_DELETED_LEAF)
+        {
+            if (bty == COLD_ARCHIVE_DELETED_LEAF)
+            {
+                return LedgerEntryIdCmp{}(a.deletedLeaf().deletedKey,
+                                          b.deletedLeaf().deletedKey);
+            }
+            else
+            {
+                // leaf nodes always before merkle nodes
+                return true;
+            }
+        }
+
+        if (bty == COLD_ARCHIVE_DELETED_LEAF)
+        {
+            // leaf nodes always before merkle nodes
+            return false;
+        }
+
         releaseAssert(aty == COLD_ARCHIVE_HASH && bty == COLD_ARCHIVE_HASH);
         if (a.hashEntry().level != b.hashEntry().level)
         {

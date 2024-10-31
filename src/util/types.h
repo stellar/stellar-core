@@ -160,6 +160,14 @@ getBucketLedgerKey(BucketEntry const& be)
     }
 }
 
+// TODO: Implement
+inline LedgerKey
+getBucketLedgerKey(ColdArchiveBucketEntry const& be)
+{
+    LedgerKey k;
+    return k;
+}
+
 // Round value v down to largest multiple of m, m must be power of 2
 template <typename T>
 inline T

@@ -5,7 +5,9 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "bucket/Bucket.h"
+#include "bucket/BucketInputIterator.h"
 #include "bucket/FutureBucket.h"
+#include <memory>
 
 namespace medida
 {
@@ -570,5 +572,29 @@ class HotArchiveBucketList : public BucketListBase<HotArchiveBucket>
                   std::vector<LedgerEntry> const& archiveEntries,
                   std::vector<LedgerKey> const& restoredEntries,
                   std::vector<LedgerKey> const& deletedEntries);
+};
+
+// Once the current epoch's HotArchiveBucketList is full, it is merged into
+// a single ColdArchiveBucket. We then initialize a ColdArchiveBucketList using
+// this bucket and slowly build up a Merkle root for the cold archive. This is a
+// lightweight class that is used to manage merging a HotArchiveBucketList into
+// a single ColdArchiveBucket. While this is done in the background, unlike
+// FutureBucket merges, PendingColdArchive merges cannot be performed across
+// restarts, but must be restarted from scratch if a node restarts before the
+// merge is completed.
+class PendingColdArchive
+{
+    // Input Iterators for Hot Archive being merged, in order (level 0 curr,
+    // level 0 snap, level 1 curr, ...)
+    std::vector<std::unique_ptr<HotArchiveBucketInputIterator>> mInputBuckets;
+    uint32_t const mEpoch;
+
+  public:
+    PendingColdArchive(HotArchiveBucketList const& bl, uint32_t epoch);
+
+    std::shared_ptr<ColdArchiveBucket> merge(BucketManager& bucketManager,
+                                             uint32_t protocolVersion,
+                                             asio::io_context& ctx,
+                                             bool doFsync);
 };
 }
