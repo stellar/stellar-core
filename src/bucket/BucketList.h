@@ -554,25 +554,7 @@ class LiveBucketList : public BucketListBase<LiveBucket>
     BucketEntryCounters sumBucketEntryCounters() const;
 };
 
-// The HotArchiveBucketList stores recently evicted entries. It contains Buckets
-// of type HotArchiveBucket, which store individual entries of type
-// HotArchiveBucketEntry.
-class HotArchiveBucketList : public BucketListBase<HotArchiveBucket>
-{
-  private:
-    // For now, this class is identical to LiveBucketList. Later PRs will add
-    // additional functionality.
-
-    // Merge result future
-    // This should be the result of merging this entire list into a single file.
-    // The MerkleBucketList is then initalized with this result
-  public:
-    void addBatch(Application& app, uint32_t currLedger,
-                  uint32_t currLedgerProtocol,
-                  std::vector<LedgerEntry> const& archiveEntries,
-                  std::vector<LedgerKey> const& restoredEntries,
-                  std::vector<LedgerKey> const& deletedEntries);
-};
+class HotArchiveBucketList;
 
 // Once the current epoch's HotArchiveBucketList is full, it is merged into
 // a single ColdArchiveBucket. We then initialize a ColdArchiveBucketList using
@@ -584,17 +566,46 @@ class HotArchiveBucketList : public BucketListBase<HotArchiveBucket>
 // merge is completed.
 class PendingColdArchive
 {
-    // Input Iterators for Hot Archive being merged, in order (level 0 curr,
-    // level 0 snap, level 1 curr, ...)
-    std::vector<std::unique_ptr<HotArchiveBucketInputIterator>> mInputBuckets;
     uint32_t const mEpoch;
+    std::future<std::shared_ptr<ColdArchiveBucket>> mMergeFuture;
+
+    std::shared_ptr<ColdArchiveBucket>
+    merge(BucketManager& bucketManager, uint32_t protocolVersion,
+          asio::io_context& ctx, bool doFsync,
+          std::vector<std::unique_ptr<HotArchiveBucketInputIterator>>&&
+              inputBuckets);
 
   public:
-    PendingColdArchive(HotArchiveBucketList const& bl, uint32_t epoch);
+    PendingColdArchive(Application& app, HotArchiveBucketList const& bl,
+                       uint32_t epoch, uint32_t protocolVersion);
 
-    std::shared_ptr<ColdArchiveBucket> merge(BucketManager& bucketManager,
-                                             uint32_t protocolVersion,
-                                             asio::io_context& ctx,
-                                             bool doFsync);
+    std::shared_ptr<ColdArchiveBucket> resolve();
+};
+
+// The HotArchiveBucketList stores recently evicted entries. It contains Buckets
+// of type HotArchiveBucket, which store individual entries of type
+// HotArchiveBucketEntry.
+class HotArchiveBucketList : public BucketListBase<HotArchiveBucket>
+{
+  private:
+    enum State
+    {
+        HOT_ARCHIVE,
+        PENDING_COLD_ARCHIVE,
+    };
+
+    State mState{HOT_ARCHIVE};
+    std::unique_ptr<PendingColdArchive> mPendingColdArchive{};
+
+  public:
+    void addBatch(Application& app, uint32_t currLedger,
+                  uint32_t currLedgerProtocol,
+                  std::vector<LedgerEntry> const& archiveEntries,
+                  std::vector<LedgerKey> const& restoredEntries,
+                  std::vector<LedgerKey> const& deletedEntries);
+
+    void startColdArchiveMerge(Application& app, HotArchiveBucketList const& bl,
+                               uint32_t epoch, uint32_t protocolVersion);
+    std::shared_ptr<ColdArchiveBucket> resolveColdArchiveMerge();
 };
 }

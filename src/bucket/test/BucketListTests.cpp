@@ -457,10 +457,8 @@ TEST_CASE("hot archive bucketlist merges in ColdArchive bucket",
         ++ledger;
     }
 
-    PendingColdArchive pending(bl, 0);
-    auto coldBucket =
-        pending.merge(app->getBucketManager(), cfg.LEDGER_PROTOCOL_VERSION,
-                      clock.getIOContext(), true);
+    PendingColdArchive pending(*app, bl, 0, cfg.LEDGER_PROTOCOL_VERSION);
+    auto coldBucket = pending.resolve();
 
     EntryCounts counts(coldBucket);
     REQUIRE(counts.nDead == expectedDeadKeys.size());

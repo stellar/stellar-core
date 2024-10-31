@@ -2,8 +2,6 @@
 // under the Apache License, Version 2.0. See the COPYING file at the root
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
-#include "util/XDRCereal.h"
-
 #include "BucketList.h"
 #include "bucket/Bucket.h"
 #include "bucket/BucketIndexImpl.h"
@@ -16,7 +14,6 @@
 #include "ledger/LedgerManager.h"
 #include "ledger/LedgerTxn.h"
 #include "main/Application.h"
-
 #include "util/GlobalChecks.h"
 #include "util/Logging.h"
 #include "util/ProtocolVersion.h"
@@ -26,6 +23,8 @@
 
 #include <Tracy.hpp>
 #include <fmt/format.h>
+#include <memory>
+#include <optional>
 
 namespace stellar
 {
@@ -579,6 +578,7 @@ HotArchiveBucketList::addBatch(Application& app, uint32_t currLedger,
 {
     ZoneScoped;
     releaseAssert(currLedger > 0);
+    releaseAssert(mState == HOT_ARCHIVE);
 
     for (uint32_t i = static_cast<uint32>(mLevels.size()) - 1; i != 0; --i)
     {
@@ -966,33 +966,80 @@ BucketListBase<BucketT>::restartMerges(Application& app,
     }
 }
 
-PendingColdArchive::PendingColdArchive(HotArchiveBucketList const& bl,
-                                       uint32_t epoch)
+void
+HotArchiveBucketList::startColdArchiveMerge(Application& app,
+                                            HotArchiveBucketList const& bl,
+                                            uint32_t epoch,
+                                            uint32_t protocolVersion)
+{
+    releaseAssert(mState == HOT_ARCHIVE);
+    mState = PENDING_COLD_ARCHIVE;
+    mPendingColdArchive = std::make_unique<PendingColdArchive>(
+        app, *this, epoch, protocolVersion);
+}
+
+std::shared_ptr<ColdArchiveBucket>
+HotArchiveBucketList::resolveColdArchiveMerge()
+{
+    releaseAssert(mState == PENDING_COLD_ARCHIVE);
+    releaseAssert(mPendingColdArchive);
+    mPendingColdArchive->resolve();
+}
+
+PendingColdArchive::PendingColdArchive(Application& app,
+                                       HotArchiveBucketList const& bl,
+                                       uint32_t epoch, uint32_t protocolVersion)
     : mEpoch(epoch)
 {
+    // Input Iterators for Hot Archive being merged, in order (level 0 curr,
+    // level 0 snap, level 1 curr, ...)
+    std::vector<std::unique_ptr<HotArchiveBucketInputIterator>> inputBuckets;
     for (auto i = 0; i < BucketListBase<HotArchiveBucket>::kNumLevels; ++i)
     {
         auto const& level = bl.getLevel(i);
-        mInputBuckets.emplace_back(
+        inputBuckets.emplace_back(
             std::make_unique<HotArchiveBucketInputIterator>(level.getCurr()));
         if (i != BucketListBase<HotArchiveBucket>::kNumLevels - 1)
         {
-            mInputBuckets.emplace_back(
+            inputBuckets.emplace_back(
                 std::make_unique<HotArchiveBucketInputIterator>(
                     level.getSnap()));
         }
     }
+
+    asio::io_context& ctx = app.getWorkerIOContext();
+    bool doFsync = !app.getConfig().DISABLE_XDR_FSYNC;
+    auto& bm = app.getBucketManager();
+
+    using task_t = std::packaged_task<std::shared_ptr<ColdArchiveBucket>()>;
+    std::shared_ptr<task_t> task =
+        std::make_shared<task_t>([this, &bm, protocolVersion, &ctx, doFsync,
+                                  inputs = std::move(inputBuckets)]() mutable {
+            return merge(bm, protocolVersion, ctx, doFsync, std::move(inputs));
+        });
+
+    mMergeFuture = task->get_future();
+    app.postOnBackgroundThread(bind(&task_t::operator(), task),
+                               "PendingColdArchive: merge");
 }
 
 std::shared_ptr<ColdArchiveBucket>
-PendingColdArchive::merge(BucketManager& bucketManager,
-                          uint32_t protocolVersion, asio::io_context& ctx,
-                          bool doFsync)
+PendingColdArchive::resolve()
 {
+    return mMergeFuture.get();
+}
+
+std::shared_ptr<ColdArchiveBucket>
+PendingColdArchive::merge(
+    BucketManager& bucketManager, uint32_t protocolVersion,
+    asio::io_context& ctx, bool doFsync,
+    std::vector<std::unique_ptr<HotArchiveBucketInputIterator>>&& inputBuckets)
+{
+    ZoneScoped;
     // Advance the input iterators to the next entry greater than bound, or
     // until we reach the end of the iterator.
     auto advanceIters = [&](LedgerKey const& bound) {
-        for (auto& iterPtr : mInputBuckets)
+        for (auto& iterPtr : inputBuckets)
         {
             auto& iter = *iterPtr;
 
@@ -1007,7 +1054,7 @@ PendingColdArchive::merge(BucketManager& bucketManager,
     };
 
     auto workRemaining = [&]() {
-        for (auto const& iterPtr : mInputBuckets)
+        for (auto const& iterPtr : inputBuckets)
         {
             if (*iterPtr)
             {
@@ -1042,9 +1089,9 @@ PendingColdArchive::merge(BucketManager& bucketManager,
         // compare with < operator.
         std::optional<LedgerKey> currSmallest{};
         uint32_t currSmallestIndex = 0;
-        for (auto i = 0; i < mInputBuckets.size(); ++i)
+        for (auto i = 0; i < inputBuckets.size(); ++i)
         {
-            auto& iter = *mInputBuckets.at(i);
+            auto& iter = *inputBuckets.at(i);
             if (iter)
             {
                 auto key = getBucketLedgerKey(*iter);
@@ -1059,7 +1106,7 @@ PendingColdArchive::merge(BucketManager& bucketManager,
         releaseAssert(currSmallest);
 
         ColdArchiveBucketEntry coldEntry;
-        auto entryToWrite = **mInputBuckets.at(currSmallestIndex);
+        auto entryToWrite = **inputBuckets.at(currSmallestIndex);
         switch (entryToWrite.type())
         {
         // Live entries do not need to be written to the cold archive, so
