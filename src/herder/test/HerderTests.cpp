@@ -4147,14 +4147,15 @@ herderExternalizesValuesWithProtocol(uint32_t version)
 
 TEST_CASE("herder externalizes values", "[herder]")
 {
-    SECTION("v19")
-    {
-        herderExternalizesValuesWithProtocol(19);
-    }
-    SECTION("soroban")
+    SECTION("prev protocol")
     {
         herderExternalizesValuesWithProtocol(
-            static_cast<uint32_t>(SOROBAN_PROTOCOL_VERSION));
+            Config::CURRENT_LEDGER_PROTOCOL_VERSION - 1);
+    }
+    SECTION("curr protocol")
+    {
+        herderExternalizesValuesWithProtocol(
+            Config::CURRENT_LEDGER_PROTOCOL_VERSION);
     }
 }
 

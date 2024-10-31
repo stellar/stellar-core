@@ -246,7 +246,7 @@ upgradeSorobanNetworkConfig(std::function<void(SorobanNetworkConfig&)> modifyFn,
     completeCount = complete.count();
     simulation->crankUntil(
         [&]() { return complete.count() == completeCount + 1; },
-        2 * Herder::EXP_LEDGER_TIMESPAN_SECONDS, false);
+        4 * Herder::EXP_LEDGER_TIMESPAN_SECONDS, false);
 
     // Arm for upgrade.
     for (auto app : nodes)
