@@ -247,6 +247,12 @@ class BucketManager : NonMovableOrCopyable
     virtual std::shared_ptr<HotArchiveBucket>
     getHotArchiveBucketByHash(uint256 const& hash) = 0;
 
+    // If a pending cold archive bucket exists for the given epoch on disk,
+    // this method will build a Bucket object based on the file and return it.
+    // Otherwise, returns and empty Bucket.
+    virtual std::shared_ptr<ColdArchiveBucket>
+    getPendingColdArchiveBucketByEpoch(uint32_t epoch) = 0;
+
     // Get a reference to a merge-future that's either running (or finished
     // somewhat recently) from either a map of the std::shared_futures doing the
     // merges and/or a set of records mapping merge inputs to outputs and the

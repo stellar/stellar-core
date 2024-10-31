@@ -23,6 +23,7 @@
 
 #include <Tracy.hpp>
 #include <fmt/format.h>
+#include <future>
 #include <memory>
 #include <optional>
 
@@ -983,7 +984,7 @@ HotArchiveBucketList::resolveColdArchiveMerge()
 {
     releaseAssert(mState == PENDING_COLD_ARCHIVE);
     releaseAssert(mPendingColdArchive);
-    mPendingColdArchive->resolve();
+    return mPendingColdArchive->resolve();
 }
 
 PendingColdArchive::PendingColdArchive(Application& app,
@@ -1012,9 +1013,39 @@ PendingColdArchive::PendingColdArchive(Application& app,
     auto& bm = app.getBucketManager();
 
     using task_t = std::packaged_task<std::shared_ptr<ColdArchiveBucket>()>;
-    std::shared_ptr<task_t> task =
-        std::make_shared<task_t>([this, &bm, protocolVersion, &ctx, doFsync,
-                                  inputs = std::move(inputBuckets)]() mutable {
+    std::shared_ptr<task_t> task = std::make_shared<task_t>(
+        [this, &bm, protocolVersion, &ctx, doFsync,
+         inputs = std::move(inputBuckets), epoch]() mutable {
+            // First check if the merge result already exists
+            auto b = bm.getPendingColdArchiveBucketByEpoch(epoch);
+
+            // Merge result file already exists
+            if (!b->isEmpty())
+            {
+
+                CLOG_FATAL(Bucket, "NONEMPTY B");
+                if (!b->isIndexed())
+                {
+                    auto indexFilename = bm.bucketIndexFilename(b->getHash());
+                    std::unique_ptr<BucketIndex const> index;
+                    if (bm.getConfig().BUCKETLIST_DB_PERSIST_INDEX &&
+                        fs::exists(indexFilename))
+                    {
+                        index =
+                            BucketIndex::load(bm, indexFilename, b->getSize());
+                    }
+                    else
+                    {
+                        index =
+                            BucketIndex::createIndex<ColdArchiveBucketEntry>(
+                                bm, b->getFilename(), b->getHash());
+                    }
+
+                    b->setIndex(std::move(index));
+                }
+                return b;
+            }
+            CLOG_FATAL(Bucket, "EMPTY B");
             return merge(bm, protocolVersion, ctx, doFsync, std::move(inputs));
         });
 

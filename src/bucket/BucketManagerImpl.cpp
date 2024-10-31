@@ -240,9 +240,33 @@ isBucketFile(std::string const& name)
     return std::regex_match(name, re);
 };
 
+bool
+isPendingBucketFile(std::string const& name)
+{
+    static std::regex re("^pending-bucket-[0-9]+-[a-z0-9]{64}\\.xdr(\\.gz)?$");
+    return std::regex_match(name, re);
+};
+
+uint32_t
+extractEpochFromPendingBucketFilename(std::string const& name)
+{
+    // pending-bucket-<epoch>-<hash>.xdr
+    // prefix before epoch: pending-bucket-
+    size_t const epochStart = 15;
+    size_t const lengthOfEpoch = name.find('-', epochStart) - epochStart;
+    return std::stoul(name.substr(epochStart, lengthOfEpoch));
+};
+
 uint256
 extractFromFilename(std::string const& name)
 {
+    // pending-bucket-<epoch>-<hash>.xdr
+    if (name.substr(0, 15) == "pending-bucket-")
+    {
+        return hexToBin256(name.substr(name.find_last_of('-') + 1, 64));
+    }
+
+    // bucket-<hash>.xdr
     return hexToBin256(name.substr(7, 64));
 };
 }
@@ -657,6 +681,51 @@ BucketManagerImpl::getHotArchiveBucketByHash(uint256 const& hash)
     return getBucketByHash<HotArchiveBucket>(hash);
 }
 
+std::shared_ptr<ColdArchiveBucket>
+BucketManagerImpl::getPendingColdArchiveBucketByEpoch(uint32_t epoch)
+{
+    ZoneScoped;
+    std::lock_guard<std::recursive_mutex> lock(mBucketMutex);
+    for (auto f : fs::findfiles(getBucketDir(), isPendingBucketFile))
+    {
+        auto e = extractEpochFromPendingBucketFilename(f);
+        if (e != epoch)
+        {
+            continue;
+        }
+
+        auto hash = extractFromFilename(f);
+        auto i = mSharedBuckets.find(hash);
+        if (i != mSharedBuckets.end())
+        {
+            CLOG_TRACE(Bucket,
+                       "BucketManager::getPendingColdArchiveBucketByEpoch({}) "
+                       "found bucket {}",
+                       epoch, i->second->getFilename());
+
+            // Because BucketManger has an impl class, no public templated
+            // functions can be declared. This means we have to manually enforce
+            // types via `getLiveBucketByHash` and `getHotBucketByHash`, leading
+            // to this ugly cast.
+            auto ret = std::dynamic_pointer_cast<ColdArchiveBucket>(i->second);
+            releaseAssertOrThrow(ret);
+            return ret;
+        }
+        // Bucket not yet in memory, create one from file
+        else
+        {
+            std::string canonicalName = bucketFilename(hash, epoch);
+            auto p = std::make_shared<ColdArchiveBucket>(canonicalName, hash,
+                                                         /*index=*/nullptr);
+            mSharedBuckets.emplace(hash, p);
+            mSharedBucketsSize.set_count(mSharedBuckets.size());
+            return p;
+        }
+    }
+
+    return std::make_shared<ColdArchiveBucket>();
+}
+
 template <class BucketT>
 std::shared_ptr<BucketT>
 BucketManagerImpl::getBucketByHash(uint256 const& hash)
@@ -922,6 +991,23 @@ BucketManagerImpl::cleanupStaleFiles()
             std::remove(indexFilename.c_str());
         }
     }
+
+    for (auto f : fs::findfiles(getBucketDir(), isPendingBucketFile))
+    {
+        auto hash = extractFromFilename(f);
+        if (referenced.find(hash) == std::end(referenced))
+        {
+            // we don't care about failure here
+            // if removing file failed one time, it may not fail when this is
+            // called again
+            auto fullName = getBucketDir() + "/" + f;
+            std::remove(fullName.c_str());
+
+            // GC index as well
+            auto indexFilename = bucketIndexFilename(hash);
+            std::remove(indexFilename.c_str());
+        }
+    }
 }
 
 void
@@ -1086,6 +1172,11 @@ BucketManagerImpl::getBucketHashesInBucketDirForTesting() const
 {
     std::set<Hash> hashes;
     for (auto f : fs::findfiles(getBucketDir(), isBucketFile))
+    {
+        hashes.emplace(extractFromFilename(f));
+    }
+
+    for (auto f : fs::findfiles(getBucketDir(), isPendingBucketFile))
     {
         hashes.emplace(extractFromFilename(f));
     }

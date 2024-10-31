@@ -170,6 +170,8 @@ class BucketManagerImpl : public BucketManager
     getLiveBucketByHash(uint256 const& hash) override;
     std::shared_ptr<HotArchiveBucket>
     getHotArchiveBucketByHash(uint256 const& hash) override;
+    std::shared_ptr<ColdArchiveBucket>
+    getPendingColdArchiveBucketByEpoch(uint32_t epoch) override;
 
     std::shared_future<std::shared_ptr<LiveBucket>>
     getLiveMergeFuture(MergeKey const& key) override;

@@ -26,6 +26,7 @@
 #include "main/Config.h"
 #include "test/TestUtils.h"
 #include "test/test.h"
+#include "util/Fs.h"
 #include "util/Math.h"
 #include "util/ProtocolVersion.h"
 #include "util/Timer.h"
@@ -457,69 +458,100 @@ TEST_CASE("hot archive bucketlist merges in ColdArchive bucket",
         ++ledger;
     }
 
-    PendingColdArchive pending(*app, bl, 0, cfg.LEDGER_PROTOCOL_VERSION);
-    auto coldBucket = pending.resolve();
+    auto testBucket = [&](auto coldBucket) {
+        EntryCounts counts(coldBucket);
+        REQUIRE(counts.nDead == expectedDeadKeys.size());
+        REQUIRE(counts.nInitOrArchived == expectedArchivedEntries.size());
 
-    EntryCounts counts(coldBucket);
-    REQUIRE(counts.nDead == expectedDeadKeys.size());
-    REQUIRE(counts.nInitOrArchived == expectedArchivedEntries.size());
+        // Meta entry plus lower/upper bound entries
+        REQUIRE(counts.nMeta == 3);
 
-    // Meta entry plus lower/upper bound entries
-    REQUIRE(counts.nMeta == 3);
-
-    bool seenLowerBound = false;
-    bool seenUpperBound = false;
-    uint32_t currIndex = 0;
-    for (ColdArchiveBucketInputIterator iter(coldBucket); iter; ++iter)
-    {
-        auto be = *iter;
-        if (!seenLowerBound)
+        bool seenLowerBound = false;
+        bool seenUpperBound = false;
+        uint32_t currIndex = 0;
+        for (ColdArchiveBucketInputIterator iter(coldBucket); iter; ++iter)
         {
-            REQUIRE(be.type() == stellar::COLD_ARCHIVE_BOUNDARY_LEAF);
-            REQUIRE(be.boundaryLeaf().isLowerBound);
-            REQUIRE(be.boundaryLeaf().index == currIndex);
-            seenLowerBound = true;
-        }
-        // If we've seen the lower bound and there are no more expected
-        // keys, we should see the upper bound
-        else if (expectedArchivedEntries.empty() && expectedDeadKeys.empty())
-        {
-            REQUIRE(!seenUpperBound);
-            REQUIRE(be.type() == stellar::COLD_ARCHIVE_BOUNDARY_LEAF);
-            REQUIRE(!be.boundaryLeaf().isLowerBound);
-            REQUIRE(be.boundaryLeaf().index == currIndex);
-            seenUpperBound = true;
-        }
-        else
-        {
-            if (be.type() == COLD_ARCHIVE_DELETED_LEAF)
+            auto be = *iter;
+            if (!seenLowerBound)
             {
-                REQUIRE(expectedDeadKeys.find(be.deletedLeaf().deletedKey) !=
-                        expectedDeadKeys.end());
-                REQUIRE(be.deletedLeaf().index == currIndex);
-                expectedDeadKeys.erase(be.deletedLeaf().deletedKey);
+                REQUIRE(be.type() == stellar::COLD_ARCHIVE_BOUNDARY_LEAF);
+                REQUIRE(be.boundaryLeaf().isLowerBound);
+                REQUIRE(be.boundaryLeaf().index == currIndex);
+                seenLowerBound = true;
+            }
+            // If we've seen the lower bound and there are no more expected
+            // keys, we should see the upper bound
+            else if (expectedArchivedEntries.empty() &&
+                     expectedDeadKeys.empty())
+            {
+                REQUIRE(!seenUpperBound);
+                REQUIRE(be.type() == stellar::COLD_ARCHIVE_BOUNDARY_LEAF);
+                REQUIRE(!be.boundaryLeaf().isLowerBound);
+                REQUIRE(be.boundaryLeaf().index == currIndex);
+                seenUpperBound = true;
             }
             else
             {
-                REQUIRE(be.type() == COLD_ARCHIVE_ARCHIVED_LEAF);
-                auto expectedIter = expectedArchivedEntries.find(
-                    LedgerEntryKey(be.archivedLeaf().archivedEntry));
-                REQUIRE(expectedIter != expectedArchivedEntries.end());
-                REQUIRE(expectedIter->second ==
-                        be.archivedLeaf().archivedEntry);
-                REQUIRE(be.archivedLeaf().index == currIndex);
-                expectedArchivedEntries.erase(
-                    LedgerEntryKey(be.archivedLeaf().archivedEntry));
+                if (be.type() == COLD_ARCHIVE_DELETED_LEAF)
+                {
+                    REQUIRE(
+                        expectedDeadKeys.find(be.deletedLeaf().deletedKey) !=
+                        expectedDeadKeys.end());
+                    REQUIRE(be.deletedLeaf().index == currIndex);
+                    expectedDeadKeys.erase(be.deletedLeaf().deletedKey);
+                }
+                else
+                {
+                    REQUIRE(be.type() == COLD_ARCHIVE_ARCHIVED_LEAF);
+                    auto expectedIter = expectedArchivedEntries.find(
+                        LedgerEntryKey(be.archivedLeaf().archivedEntry));
+                    REQUIRE(expectedIter != expectedArchivedEntries.end());
+                    REQUIRE(expectedIter->second ==
+                            be.archivedLeaf().archivedEntry);
+                    REQUIRE(be.archivedLeaf().index == currIndex);
+                    expectedArchivedEntries.erase(
+                        LedgerEntryKey(be.archivedLeaf().archivedEntry));
+                }
             }
+
+            ++currIndex;
         }
 
-        ++currIndex;
+        REQUIRE(expectedDeadKeys.empty());
+        REQUIRE(expectedArchivedEntries.empty());
+        REQUIRE(seenLowerBound);
+        REQUIRE(seenUpperBound);
+    };
+
+    SECTION("merge")
+    {
+        PendingColdArchive pending(*app, bl, 0, cfg.LEDGER_PROTOCOL_VERSION);
+        auto coldBucket = pending.resolve();
+        testBucket(coldBucket);
     }
 
-    REQUIRE(expectedDeadKeys.empty());
-    REQUIRE(expectedArchivedEntries.empty());
-    REQUIRE(seenLowerBound);
-    REQUIRE(seenUpperBound);
+    SECTION("reattach to existing bucket")
+    {
+        // First create the bucket
+        {
+            PendingColdArchive pending(*app, bl, 10,
+                                       cfg.LEDGER_PROTOCOL_VERSION);
+            auto coldBucket = pending.resolve();
+            REQUIRE(fs::exists(coldBucket->getFilename()));
+        }
+
+        SECTION("bucket in memory")
+        {
+            PendingColdArchive pending(*app, bl, 10,
+                                       cfg.LEDGER_PROTOCOL_VERSION);
+            auto coldBucket = pending.resolve();
+            testBucket(coldBucket);
+            REQUIRE(fs::exists(coldBucket->getFilename()));
+        }
+
+        // TODO: test reattaching to a bucket that is not in memory after
+        // history has been implemented, also test garbage collection
+    }
 }
 
 TEST_CASE_VERSIONS("hot archive bucket tombstones expire at bottom level",
