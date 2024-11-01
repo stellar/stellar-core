@@ -378,14 +378,7 @@ FutureBucket<BucketT>::startMerge(Application& app, uint32_t maxProtocolVersion,
                 curr->getHash(), snap->getHash(), shadowHashes};
 
     std::shared_future<std::shared_ptr<BucketT>> f;
-    if constexpr (std::is_same_v<BucketT, LiveBucket>)
-    {
-        f = bm.getLiveMergeFuture(mk);
-    }
-    else
-    {
-        f = bm.getHotArchiveMergeFuture(mk);
-    }
+    f = BucketManager::getMergeFuture<BucketT>(bm, mk);
 
     if (f.valid())
     {
@@ -447,15 +440,7 @@ FutureBucket<BucketT>::startMerge(Application& app, uint32_t maxProtocolVersion,
         });
 
     mOutputBucketFuture = task->get_future().share();
-    if constexpr (std::is_same_v<BucketT, LiveBucket>)
-    {
-        bm.putLiveMergeFuture(mk, mOutputBucketFuture);
-    }
-    else
-    {
-        bm.putHotArchiveMergeFuture(mk, mOutputBucketFuture);
-    }
-
+    BucketManager::putMergeFuture(bm, mk, mOutputBucketFuture);
     app.postOnBackgroundThread(bind(&task_t::operator(), task),
                                "FutureBucket: merge");
     checkState();
@@ -473,47 +458,24 @@ FutureBucket<BucketT>::makeLive(Application& app, uint32_t maxProtocolVersion,
     auto& bm = app.getBucketManager();
     if (hasOutputHash())
     {
-        std::shared_ptr<BucketT> b;
-        if constexpr (std::is_same_v<BucketT, LiveBucket>)
-        {
-            b = bm.getLiveBucketByHash(hexToBin256(getOutputHash()));
-        }
-        else
-        {
-            b = bm.getHotArchiveBucketByHash(hexToBin256(getOutputHash()));
-        }
+        auto b = BucketManager::getBucketByHash<BucketT>(
+            bm, hexToBin256(getOutputHash()));
 
         setLiveOutput(b);
     }
     else
     {
         releaseAssert(mState == FB_HASH_INPUTS);
-        if constexpr (std::is_same_v<BucketT, LiveBucket>)
-        {
-            mInputCurrBucket =
-                bm.getLiveBucketByHash(hexToBin256(mInputCurrBucketHash));
-            mInputSnapBucket =
-                bm.getLiveBucketByHash(hexToBin256(mInputSnapBucketHash));
-        }
-        else
-        {
-            mInputCurrBucket =
-                bm.getHotArchiveBucketByHash(hexToBin256(mInputCurrBucketHash));
-            mInputSnapBucket =
-                bm.getHotArchiveBucketByHash(hexToBin256(mInputSnapBucketHash));
-        }
+        mInputCurrBucket = BucketManager::getBucketByHash<BucketT>(
+            bm, hexToBin256(mInputCurrBucketHash));
+        mInputSnapBucket = BucketManager::getBucketByHash<BucketT>(
+            bm, hexToBin256(mInputSnapBucketHash));
+
         releaseAssert(mInputShadowBuckets.empty());
         for (auto const& h : mInputShadowBucketHashes)
         {
-            std::shared_ptr<BucketT> b;
-            if constexpr (std::is_same_v<BucketT, LiveBucket>)
-            {
-                b = bm.getLiveBucketByHash(hexToBin256(h));
-            }
-            else
-            {
-                b = bm.getHotArchiveBucketByHash(hexToBin256(h));
-            }
+            auto b =
+                BucketManager::getBucketByHash<BucketT>(bm, hexToBin256(h));
 
             releaseAssert(b);
             CLOG_DEBUG(Bucket, "Reconstituting shadow {}", h);

@@ -28,10 +28,10 @@ AssumeStateWork::AssumeStateWork(Application& app,
     auto& bm = mApp.getBucketManager();
     for (uint32_t i = 0; i < LiveBucketList::kNumLevels; ++i)
     {
-        auto curr =
-            bm.getLiveBucketByHash(hexToBin256(mHas.currentBuckets.at(i).curr));
-        auto snap =
-            bm.getLiveBucketByHash(hexToBin256(mHas.currentBuckets.at(i).snap));
+        auto curr = BucketManager::getBucketByHash<LiveBucket>(
+            bm, hexToBin256(mHas.currentBuckets.at(i).curr));
+        auto snap = BucketManager::getBucketByHash<LiveBucket>(
+            bm, hexToBin256(mHas.currentBuckets.at(i).snap));
         if (!(curr && snap))
         {
             throw std::runtime_error("Missing bucket files while "
@@ -43,8 +43,8 @@ AssumeStateWork::AssumeStateWork(Application& app,
         auto& nextFuture = mHas.currentBuckets.at(i).next;
         if (nextFuture.hasOutputHash())
         {
-            auto nextBucket =
-                bm.getLiveBucketByHash(hexToBin256(nextFuture.getOutputHash()));
+            auto nextBucket = BucketManager::getBucketByHash<LiveBucket>(
+                bm, hexToBin256(nextFuture.getOutputHash()));
             if (!nextBucket)
             {
                 throw std::runtime_error("Missing future bucket files while "

@@ -5,6 +5,7 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "bucket/Bucket.h"
+#include "bucket/BucketUtils.h"
 #include "bucket/FutureBucket.h"
 
 namespace medida
@@ -357,8 +358,7 @@ template <class BucketT> class BucketListDepthModifier;
 
 template <class BucketT> class BucketLevel
 {
-    static_assert(std::is_same_v<BucketT, LiveBucket> ||
-                  std::is_same_v<BucketT, HotArchiveBucket>);
+    BUCKET_TYPE_ASSERT(BucketT);
 
     uint32_t mLevel;
     FutureBucket<BucketT> mNextCurr;
@@ -402,18 +402,35 @@ class BucketListDepth
 };
 
 // While every BucketList shares the same high level structure wrt to spill
-// schedules, merges at the bucket level, etc, each BucketList type hold
+// schedules, merges at the bucket level, etc, each BucketList type holds
 // different types of entries and has different merge logic at the individual
-// entry level. This pure virtual base class defines the shared structure of all
+// entry level. This abstract base class defines the shared structure of all
 // BucketLists. It must be extended for each specific BucketList type, where the
 // template parameter BucketT refers to the underlying Bucket type.
 template <class BucketT> class BucketListBase
 {
-    static_assert(std::is_same_v<BucketT, LiveBucket> ||
-                  std::is_same_v<BucketT, HotArchiveBucket>);
+    BUCKET_TYPE_ASSERT(BucketT);
 
   protected:
     std::vector<BucketLevel<BucketT>> mLevels;
+
+    // Add a batch of entries to the
+    // bucketlist, representing the entries effected by closing
+    // `currLedger`. The bucketlist will incorporate these into the smallest
+    // (0th) level, as well as commit or prepare merges for any levels that
+    // should have spilled due to passing through `currLedger`. The `currLedger`
+    // and `currProtocolVersion` values should be taken from the ledger at which
+    // this batch is being added. `inputVectors` should contain a vector of
+    // entries to insert for each corresponding BucketEntry type, i.e.
+    // initEntry, liveEntry, and deadEntry for the LiveBucketList. These must be
+    // the same input vector types for the corresponding BucketT::fresh
+    // function.
+    // This is an internal function, derived classes should define a
+    // public addBatch function with explicit input vector types.
+    template <typename... VectorT>
+    void addBatchInternal(Application& app, uint32_t currLedger,
+                          uint32_t currLedgerProtocol,
+                          VectorT const&... inputVectors);
 
   public:
     // Trivial pure virtual destructor to make this an abstract class

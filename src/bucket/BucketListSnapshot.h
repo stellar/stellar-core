@@ -9,6 +9,7 @@
 #include "bucket/BucketManagerImpl.h"
 #include "bucket/BucketSnapshot.h"
 #include "bucket/BucketSnapshotManager.h"
+#include "bucket/BucketUtils.h"
 
 namespace medida
 {
@@ -20,8 +21,7 @@ namespace stellar
 
 template <class BucketT> struct BucketLevelSnapshot
 {
-    static_assert(std::is_same_v<BucketT, LiveBucket> ||
-                  std::is_same_v<BucketT, HotArchiveBucket>);
+    BUCKET_TYPE_ASSERT(BucketT);
 
     using BucketSnapshotT =
         std::conditional_t<std::is_same_v<BucketT, LiveBucket>,
@@ -35,8 +35,7 @@ template <class BucketT> struct BucketLevelSnapshot
 
 template <class BucketT> class BucketListSnapshot : public NonMovable
 {
-    static_assert(std::is_same_v<BucketT, LiveBucket> ||
-                  std::is_same_v<BucketT, HotArchiveBucket>);
+    BUCKET_TYPE_ASSERT(BucketT);
     using BucketSnapshotT =
         std::conditional_t<std::is_same_v<BucketT, LiveBucket>,
                            LiveBucketSnapshot, HotArchiveBucketSnapshot>;
@@ -75,8 +74,7 @@ template <class BucketT> class BucketListSnapshot : public NonMovable
 template <class BucketT>
 class SearchableBucketListSnapshotBase : public NonMovableOrCopyable
 {
-    static_assert(std::is_same_v<BucketT, LiveBucket> ||
-                  std::is_same_v<BucketT, HotArchiveBucket>);
+    BUCKET_TYPE_ASSERT(BucketT);
 
     using BucketSnapshotT =
         std::conditional_t<std::is_same_v<BucketT, LiveBucket>,
@@ -88,9 +86,8 @@ class SearchableBucketListSnapshotBase : public NonMovableOrCopyable
     BucketSnapshotManager const& mSnapshotManager;
 
     // Snapshot managed by SnapshotManager
-    std::unique_ptr<BucketListSnapshot<BucketT> const> mSnapshot{};
-    std::map<uint32_t, std::unique_ptr<BucketListSnapshot<BucketT> const>>
-        mHistoricalSnapshots;
+    SnapshotPtrT<BucketT> mSnapshot{};
+    std::map<uint32_t, SnapshotPtrT<BucketT>> mHistoricalSnapshots;
 
     // Loops through all buckets, starting with curr at level 0, then snap at
     // level 0, etc. Calls f on each bucket. Exits early if function

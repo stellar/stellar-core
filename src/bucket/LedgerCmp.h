@@ -6,15 +6,14 @@
 
 #include <type_traits>
 
+#include "bucket/Bucket.h"
+#include "bucket/BucketUtils.h"
 #include "util/XDROperators.h" // IWYU pragma: keep
 #include "xdr/Stellar-ledger-entries.h"
 #include "xdr/Stellar-ledger.h"
 
 namespace stellar
 {
-
-class LiveBucket;
-class HotArchiveBucket;
 
 template <typename T>
 bool
@@ -131,11 +130,7 @@ struct LedgerEntryIdCmp
  */
 template <typename BucketT> struct BucketEntryIdCmp
 {
-    static_assert(std::is_same_v<BucketT, LiveBucket> ||
-                  std::is_same_v<BucketT, HotArchiveBucket>);
-
-    using BucketEntryT = std::conditional_t<std::is_same_v<BucketT, LiveBucket>,
-                                            BucketEntry, HotArchiveBucketEntry>;
+    BUCKET_TYPE_ASSERT(BucketT);
 
     bool
     compareHotArchive(HotArchiveBucketEntry const& a,
@@ -244,7 +239,8 @@ template <typename BucketT> struct BucketEntryIdCmp
     }
 
     bool
-    operator()(BucketEntryT const& a, BucketEntryT const& b) const
+    operator()(typename BucketT::EntryT const& a,
+               typename BucketT::EntryT const& b) const
     {
         if constexpr (std::is_same_v<BucketT, LiveBucket>)
         {

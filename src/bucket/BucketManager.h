@@ -30,6 +30,7 @@ class LiveBucketList;
 class HotArchiveBucketList;
 class BucketSnapshotManager;
 class Config;
+class SearchableLiveBucketListSnapshot;
 class TmpDirManager;
 struct HistoryArchiveState;
 struct InflationWinner;
@@ -216,14 +217,13 @@ class BucketManager : NonMovableOrCopyable
     // This method is mostly-threadsafe -- assuming you don't destruct the
     // BucketManager mid-call -- and is intended to be called from both main and
     // worker threads. Very carefully.
-    virtual std::shared_ptr<LiveBucket>
-    adoptFileAsLiveBucket(std::string const& filename, uint256 const& hash,
-                          MergeKey* mergeKey,
-                          std::unique_ptr<BucketIndex const> index) = 0;
-    virtual std::shared_ptr<HotArchiveBucket>
-    adoptFileAsHotArchiveBucket(std::string const& filename,
-                                uint256 const& hash, MergeKey* mergeKey,
-                                std::unique_ptr<BucketIndex const> index) = 0;
+    // Unfortunately, virtual methods cannot be templated, so we use this weird
+    // static interface to allow for a templated return type.
+    template <class BucketT>
+    static std::shared_ptr<BucketT>
+    adoptFileAsBucket(BucketManager& bm, std::string const& filename,
+                      uint256 const& hash, MergeKey* mergeKey,
+                      std::unique_ptr<BucketIndex const> index);
 
     // Companion method to `adoptFileAsLiveBucket` also called from the
     // `BucketOutputIterator::getBucket` merge-completion path. This method
@@ -231,39 +231,49 @@ class BucketManager : NonMovableOrCopyable
     // doesn't correspond to a file on disk; the method forgets about the
     // `FutureBucket` associated with the in-progress merge, allowing the merge
     // inputs to be GC'ed.
-    virtual void noteEmptyMergeOutput(MergeKey const& mergeKey) = 0;
+    // Unfortunately, virtual methods cannot be templated, so we use this weird
+    // static interface to allow for a templated return type.
+    template <class BucketT>
+    static void noteEmptyMergeOutput(BucketManager& bm,
+                                     MergeKey const& mergeKey);
 
     // Returns a bucket by hash if it exists and is currently managed by the
     // bucket list.
-    virtual std::shared_ptr<Bucket> getBucketIfExists(uint256 const& hash) = 0;
+    // Unfortunately, virtual methods cannot be templated, so we use this weird
+    // static interface to allow for a templated return type.
+    template <class BucketT>
+    static std::shared_ptr<BucketT> getBucketIfExists(BucketManager const& bm,
+                                                      uint256 const& hash);
 
     // Return a bucket by hash if we have it, else return nullptr.
-    virtual std::shared_ptr<LiveBucket>
-    getLiveBucketByHash(uint256 const& hash) = 0;
-    virtual std::shared_ptr<HotArchiveBucket>
-    getHotArchiveBucketByHash(uint256 const& hash) = 0;
+    // Unfortunately, virtual methods cannot be templated, so we use this weird
+    // static getter interface to allow for a templated return type.
+    template <class BucketT>
+    static std::shared_ptr<BucketT> getBucketByHash(BucketManager& bm,
+                                                    uint256 const& hash);
 
     // Get a reference to a merge-future that's either running (or finished
     // somewhat recently) from either a map of the std::shared_futures doing the
     // merges and/or a set of records mapping merge inputs to outputs and the
     // set of outputs held in the BucketManager. Returns an invalid future if no
     // such future can be found or synthesized.
-    virtual std::shared_future<std::shared_ptr<LiveBucket>>
-    getLiveMergeFuture(MergeKey const& key) = 0;
-    virtual std::shared_future<std::shared_ptr<HotArchiveBucket>>
-    getHotArchiveMergeFuture(MergeKey const& key) = 0;
+    // Unfortunately, virtual methods cannot be templated, so we use this weird
+    // static getter interface to allow for a templated return type.
+    template <class BucketT>
+    static std::shared_future<std::shared_ptr<BucketT>>
+    getMergeFuture(BucketManager& bucketManager, MergeKey const& key);
 
     // Add a reference to a merge _in progress_ (not yet adopted as a file) to
     // the BucketManager's internal map of std::shared_futures doing merges.
     // There is no corresponding entry-removal API: the std::shared_future will
     // be removed from the map when the merge completes and the output file is
     // adopted.
-    virtual void
-    putLiveMergeFuture(MergeKey const& key,
-                       std::shared_future<std::shared_ptr<LiveBucket>>) = 0;
-    virtual void putHotArchiveMergeFuture(
-        MergeKey const& key,
-        std::shared_future<std::shared_ptr<HotArchiveBucket>>) = 0;
+    // Unfortunately, virtual methods cannot be templated, so we use this weird
+    // static interface to allow for a templated return type.
+    template <class BucketT>
+    static void
+    putMergeFuture(BucketManager& bm, MergeKey const& key,
+                   std::shared_future<std::shared_ptr<BucketT>> future);
 
 #ifdef BUILD_TESTS
     // Drop all references to merge futures in progress.

@@ -5,6 +5,7 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "bucket/Bucket.h"
+#include "bucket/BucketUtils.h"
 #include "util/GlobalChecks.h"
 #include <cereal/cereal.hpp>
 #include <future>
@@ -36,8 +37,7 @@ class HotArchiveBucket;
  */
 template <class BucketT> class FutureBucket
 {
-    static_assert(std::is_same_v<BucketT, LiveBucket> ||
-                  std::is_same_v<BucketT, HotArchiveBucket>);
+    BUCKET_TYPE_ASSERT(BucketT);
 
     // There are two lifecycles of a FutureBucket:
     //
