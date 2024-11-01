@@ -50,6 +50,14 @@ testBucketMetadata(uint32_t protocolVersion)
 {
     BucketMetadata meta;
     meta.ledgerVersion = protocolVersion;
+    if (protocolVersionStartsFrom(
+            protocolVersion,
+            Bucket::FIRST_PROTOCOL_SUPPORTING_PERSISTENT_EVICTION))
+    {
+        meta.ext.v(1);
+        meta.ext.bucketListType() = BucketListType::LIVE;
+    }
+
     return meta;
 }
 }
