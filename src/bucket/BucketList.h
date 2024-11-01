@@ -5,6 +5,7 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "bucket/Bucket.h"
+#include "bucket/BucketUtils.h"
 #include "bucket/FutureBucket.h"
 
 namespace medida
@@ -357,8 +358,7 @@ template <class BucketT> class BucketListDepthModifier;
 
 template <class BucketT> class BucketLevel
 {
-    static_assert(std::is_same_v<BucketT, LiveBucket> ||
-                  std::is_same_v<BucketT, HotArchiveBucket>);
+    BUCKET_TYPE_ASSERT(BucketT);
 
     uint32_t mLevel;
     FutureBucket<BucketT> mNextCurr;
@@ -402,15 +402,14 @@ class BucketListDepth
 };
 
 // While every BucketList shares the same high level structure wrt to spill
-// schedules, merges at the bucket level, etc, each BucketList type hold
+// schedules, merges at the bucket level, etc, each BucketList type holds
 // different types of entries and has different merge logic at the individual
-// entry level. This pure virtual base class defines the shared structure of all
+// entry level. This abstract base class defines the shared structure of all
 // BucketLists. It must be extended for each specific BucketList type, where the
 // template parameter BucketT refers to the underlying Bucket type.
 template <class BucketT> class BucketListBase
 {
-    static_assert(std::is_same_v<BucketT, LiveBucket> ||
-                  std::is_same_v<BucketT, HotArchiveBucket>);
+    BUCKET_TYPE_ASSERT(BucketT);
 
   protected:
     std::vector<BucketLevel<BucketT>> mLevels;

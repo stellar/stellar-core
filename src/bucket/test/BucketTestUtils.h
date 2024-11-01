@@ -32,8 +32,7 @@ void for_versions_with_differing_bucket_logic(
 
 template <class BucketT> struct EntryCounts
 {
-    static_assert(std::is_same_v<BucketT, LiveBucket> ||
-                  std::is_same_v<BucketT, HotArchiveBucket>);
+    BUCKET_TYPE_ASSERT(BucketT);
 
     size_t nMeta{0};
     size_t nInitOrArchived{0};

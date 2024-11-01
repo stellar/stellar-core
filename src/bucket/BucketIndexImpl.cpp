@@ -5,6 +5,7 @@
 #include "bucket/BucketIndexImpl.h"
 #include "bucket/Bucket.h"
 #include "bucket/BucketManager.h"
+#include "bucket/BucketUtils.h"
 #include "crypto/Hex.h"
 #include "crypto/ShortHash.h"
 #include "ledger/LedgerTypeUtils.h"
@@ -133,7 +134,7 @@ BucketIndexImpl<IndexT>::BucketIndexImpl(BucketManager& bm,
             }
 
             auto isMeta = [](auto const& be) {
-                if constexpr (std::is_same<BucketEntryT, BucketEntry>::value)
+                if constexpr (std::is_same_v<BucketEntryT, LiveBucket::EntryT>)
                 {
                     return be.type() == METAENTRY;
                 }
@@ -205,7 +206,7 @@ BucketIndexImpl<IndexT>::BucketIndexImpl(BucketManager& bm,
                     mData.keysToOffset.emplace_back(key, pos);
                 }
 
-                if constexpr (std::is_same<BucketEntryT, BucketEntry>::value)
+                if constexpr (std::is_same_v<BucketEntryT, LiveBucket::EntryT>)
                 {
                     countEntry(be);
                 }
@@ -354,14 +355,13 @@ upper_bound_pred(LedgerKey const& key, IndexEntryT const& indexEntry)
     }
 }
 
-template <class BucketEntryT>
+template <class BucketT>
 std::unique_ptr<BucketIndex const>
 BucketIndex::createIndex(BucketManager& bm,
                          std::filesystem::path const& filename,
                          Hash const& hash)
 {
-    static_assert(std::is_same_v<BucketEntryT, BucketEntry> ||
-                  std::is_same_v<BucketEntryT, HotArchiveBucketEntry>);
+    BUCKET_TYPE_ASSERT(BucketT);
 
     ZoneScoped;
     auto const& cfg = bm.getConfig();
@@ -378,8 +378,8 @@ BucketIndex::createIndex(BucketManager& bm,
                        "bucket {}",
                        filename);
             return std::unique_ptr<BucketIndexImpl<IndividualIndex> const>(
-                new BucketIndexImpl<IndividualIndex>(bm, filename, 0, hash,
-                                                     BucketEntryT{}));
+                new BucketIndexImpl<IndividualIndex>(
+                    bm, filename, 0, hash, typename BucketT::EntryT{}));
         }
         else
         {
@@ -390,7 +390,7 @@ BucketIndex::createIndex(BucketManager& bm,
                        pageSize, filename);
             return std::unique_ptr<BucketIndexImpl<RangeIndex> const>(
                 new BucketIndexImpl<RangeIndex>(bm, filename, pageSize, hash,
-                                                BucketEntryT{}));
+                                                typename BucketT::EntryT{}));
         }
     }
     // BucketIndexImpl throws if BucketManager shuts down before index finishes,
@@ -639,10 +639,10 @@ BucketIndexImpl<IndexT>::getBucketEntryCounters() const
 }
 
 template std::unique_ptr<BucketIndex const>
-BucketIndex::createIndex<BucketEntry>(BucketManager& bm,
-                                      std::filesystem::path const& filename,
-                                      Hash const& hash);
+BucketIndex::createIndex<LiveBucket>(BucketManager& bm,
+                                     std::filesystem::path const& filename,
+                                     Hash const& hash);
 template std::unique_ptr<BucketIndex const>
-BucketIndex::createIndex<HotArchiveBucketEntry>(
+BucketIndex::createIndex<HotArchiveBucket>(
     BucketManager& bm, std::filesystem::path const& filename, Hash const& hash);
 }

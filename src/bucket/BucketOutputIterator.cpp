@@ -70,7 +70,7 @@ BucketOutputIterator<BucketT>::BucketOutputIterator(std::string const& tmpDir,
 
 template <typename BucketT>
 void
-BucketOutputIterator<BucketT>::put(BucketEntryT const& e)
+BucketOutputIterator<BucketT>::put(typename BucketT::EntryT const& e)
 {
     ZoneScoped;
 
@@ -149,7 +149,7 @@ BucketOutputIterator<BucketT>::put(BucketEntryT const& e)
     }
     else
     {
-        mBuf = std::make_unique<BucketEntryT>();
+        mBuf = std::make_unique<typename BucketT::EntryT>();
     }
 
     // In any case, replace *mBuf with e.
@@ -196,8 +196,8 @@ BucketOutputIterator<BucketT>::getBucket(BucketManager& bucketManager,
         if (auto b = bucketManager.getBucketIfExists(hash);
             !b || !b->isIndexed())
         {
-            index = BucketIndex::createIndex<BucketEntryT>(bucketManager,
-                                                           mFilename, hash);
+            index = BucketIndex::createIndex<BucketT>(bucketManager, mFilename,
+                                                      hash);
         }
     }
 

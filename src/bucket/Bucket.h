@@ -5,10 +5,8 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "bucket/BucketIndex.h"
-#include "bucket/BucketSnapshot.h"
 #include "util/NonCopyable.h"
 #include "util/ProtocolVersion.h"
-#include "xdr/Stellar-ledger.h"
 #include <list>
 #include <map>
 #include <optional>
@@ -150,6 +148,12 @@ class LiveBucket : public Bucket,
                    public std::enable_shared_from_this<LiveBucket>
 {
   public:
+    // Entry type that this bucket stores
+    using EntryT = BucketEntry;
+
+    // Entry type returned by loadKeys
+    using LoadT = LedgerEntry;
+
     LiveBucket();
     virtual ~LiveBucket()
     {
@@ -238,6 +242,12 @@ class HotArchiveBucket : public Bucket,
                          std::vector<LedgerKey> const& deletedEntries);
 
   public:
+    // Entry type that this bucket stores
+    using EntryT = HotArchiveBucketEntry;
+
+    // Entry type returned by loadKeys
+    using LoadT = HotArchiveBucketEntry;
+
     HotArchiveBucket();
     virtual ~HotArchiveBucket()
     {

@@ -3,6 +3,7 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "IndexBucketsWork.h"
+#include "bucket/Bucket.h"
 #include "bucket/BucketIndex.h"
 #include "bucket/BucketManager.h"
 #include "util/HashOfHash.h"
@@ -81,7 +82,7 @@ IndexBucketsWork::IndexWork::postWork()
             if (!self->mIndex)
             {
                 // TODO: Fix this when archive BucketLists assume state
-                self->mIndex = BucketIndex::createIndex<BucketEntry>(
+                self->mIndex = BucketIndex::createIndex<LiveBucket>(
                     bm, self->mBucket->getFilename(), self->mBucket->getHash());
             }
 

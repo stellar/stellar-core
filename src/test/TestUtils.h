@@ -34,8 +34,7 @@ int32_t computeMultiplier(LedgerEntry const& le);
 
 template <class BucketT> class BucketListDepthModifier
 {
-    static_assert(std::is_same_v<BucketT, LiveBucket> ||
-                  std::is_same_v<BucketT, HotArchiveBucket>);
+    BUCKET_TYPE_ASSERT(BucketT);
 
     uint32_t const mPrevDepth;
 

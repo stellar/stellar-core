@@ -5,6 +5,7 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "bucket/Bucket.h"
+#include "bucket/BucketUtils.h"
 #include "bucket/LedgerCmp.h"
 #include "util/NonCopyable.h"
 #include "xdr/Stellar-ledger-entries.h"
@@ -22,19 +23,9 @@ class SearchableLiveBucketListSnapshot;
 // A lightweight wrapper around Bucket for thread safe BucketListDB lookups
 template <class BucketT> class BucketSnapshotBase : public NonMovable
 {
-    static_assert(std::is_same_v<BucketT, LiveBucket> ||
-                  std::is_same_v<BucketT, HotArchiveBucket>);
+    BUCKET_TYPE_ASSERT(BucketT);
 
   protected:
-    using BucketEntryT = std::conditional_t<std::is_same_v<BucketT, LiveBucket>,
-                                            BucketEntry, HotArchiveBucketEntry>;
-
-    // LiveBucket returns LedgerEntry vector on call to loadKeys,
-    // HotArchiveBucket returns HotArchiveBucketEntry
-    using BulkLoadReturnT =
-        std::conditional_t<std::is_same_v<BucketT, LiveBucket>, LedgerEntry,
-                           HotArchiveBucketEntry>;
-
     std::shared_ptr<BucketT const> const mBucket;
 
     // Lazily-constructed and retained for read path.
@@ -49,7 +40,7 @@ template <class BucketT> class BucketSnapshotBase : public NonMovable
     // reads until key is found or the end of the page. Returns <BucketEntry,
     // bloomMiss>, where bloomMiss is true if a bloomMiss occurred during the
     // load.
-    std::pair<std::shared_ptr<BucketEntryT>, bool>
+    std::pair<std::shared_ptr<typename BucketT::EntryT>, bool>
     getEntryAtOffset(LedgerKey const& k, std::streamoff pos,
                      size_t pageSize) const;
 
@@ -65,7 +56,7 @@ template <class BucketT> class BucketSnapshotBase : public NonMovable
 
     // Loads bucket entry for LedgerKey k. Returns <BucketEntry, bloomMiss>,
     // where bloomMiss is true if a bloomMiss occurred during the load.
-    std::pair<std::shared_ptr<BucketEntryT>, bool>
+    std::pair<std::shared_ptr<typename BucketT::EntryT>, bool>
     getBucketEntry(LedgerKey const& k) const;
 
     // Loads LedgerEntry's for given keys. When a key is found, the
@@ -74,7 +65,7 @@ template <class BucketT> class BucketSnapshotBase : public NonMovable
     // if the meter has a transaction with sufficient read quota for the key.
     // If Bucket is not of type LiveBucket, lkMeter is ignored.
     void loadKeys(std::set<LedgerKey, LedgerEntryIdCmp>& keys,
-                  std::vector<BulkLoadReturnT>& result,
+                  std::vector<typename BucketT::LoadT>& result,
                   LedgerKeyMeter* lkMeter) const;
 };
 

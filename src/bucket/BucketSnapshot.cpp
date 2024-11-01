@@ -37,8 +37,7 @@ BucketSnapshotBase<BucketT>::isEmpty() const
 }
 
 template <class BucketT>
-std::pair<std::shared_ptr<typename BucketSnapshotBase<BucketT>::BucketEntryT>,
-          bool>
+std::pair<std::shared_ptr<typename BucketT::EntryT>, bool>
 BucketSnapshotBase<BucketT>::getEntryAtOffset(LedgerKey const& k,
                                               std::streamoff pos,
                                               size_t pageSize) const
@@ -52,17 +51,17 @@ BucketSnapshotBase<BucketT>::getEntryAtOffset(LedgerKey const& k,
     auto& stream = getStream();
     stream.seek(pos);
 
-    BucketEntryT be;
+    typename BucketT::EntryT be;
     if (pageSize == 0)
     {
         if (stream.readOne(be))
         {
-            return {std::make_shared<BucketEntryT>(be), false};
+            return {std::make_shared<typename BucketT::EntryT>(be), false};
         }
     }
     else if (stream.readPage(be, k, pageSize))
     {
-        return {std::make_shared<BucketEntryT>(be), false};
+        return {std::make_shared<typename BucketT::EntryT>(be), false};
     }
 
     // Mark entry miss for metrics
@@ -71,8 +70,7 @@ BucketSnapshotBase<BucketT>::getEntryAtOffset(LedgerKey const& k,
 }
 
 template <class BucketT>
-std::pair<std::shared_ptr<typename BucketSnapshotBase<BucketT>::BucketEntryT>,
-          bool>
+std::pair<std::shared_ptr<typename BucketT::EntryT>, bool>
 BucketSnapshotBase<BucketT>::getBucketEntry(LedgerKey const& k) const
 {
     ZoneScoped;
@@ -100,7 +98,7 @@ template <class BucketT>
 void
 BucketSnapshotBase<BucketT>::loadKeys(
     std::set<LedgerKey, LedgerEntryIdCmp>& keys,
-    std::vector<BulkLoadReturnT>& result, LedgerKeyMeter* lkMeter) const
+    std::vector<typename BucketT::LoadT>& result, LedgerKeyMeter* lkMeter) const
 {
     ZoneScoped;
     if (isEmpty())

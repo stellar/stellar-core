@@ -4,6 +4,7 @@
 // under the Apache License, Version 2.0. See the COPYING file at the root
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
+#include "bucket/BucketUtils.h"
 #include "util/XDRStream.h"
 #include "xdr/Stellar-ledger.h"
 
@@ -20,20 +21,16 @@ class HotArchiveBucket;
 // Helper class that reads through the entries in a bucket.
 template <typename BucketT> class BucketInputIterator
 {
-    static_assert(std::is_same_v<BucketT, LiveBucket> ||
-                  std::is_same_v<BucketT, HotArchiveBucket>);
-
-    using BucketEntryT = std::conditional_t<std::is_same_v<BucketT, LiveBucket>,
-                                            BucketEntry, HotArchiveBucketEntry>;
+    BUCKET_TYPE_ASSERT(BucketT);
 
     std::shared_ptr<BucketT const> mBucket;
 
     // Validity and current-value of the iterator is funneled into a
     // pointer. If
     // non-null, it points to mEntry.
-    BucketEntryT const* mEntryPtr{nullptr};
+    typename BucketT::EntryT const* mEntryPtr{nullptr};
     XDRInputFileStream mIn;
-    BucketEntryT mEntry;
+    typename BucketT::EntryT mEntry;
     bool mSeenMetadata{false};
     bool mSeenOtherEntries{false};
     BucketMetadata mMetadata;
@@ -52,7 +49,7 @@ template <typename BucketT> class BucketInputIterator
     bool seenMetadata() const;
     BucketMetadata const& getMetadata() const;
 
-    BucketEntryT const& operator*();
+    typename BucketT::EntryT const& operator*();
 
     BucketInputIterator(std::shared_ptr<BucketT const> bucket);
 

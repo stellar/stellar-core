@@ -6,6 +6,7 @@
 
 #include "bucket/Bucket.h"
 #include "bucket/BucketManager.h"
+#include "bucket/BucketUtils.h"
 #include "bucket/LedgerCmp.h"
 #include "util/XDRStream.h"
 #include "xdr/Stellar-ledger.h"
@@ -23,17 +24,13 @@ class BucketManager;
 // when finished.
 template <typename BucketT> class BucketOutputIterator
 {
-    static_assert(std::is_same_v<BucketT, LiveBucket> ||
-                  std::is_same_v<BucketT, HotArchiveBucket>);
-
-    using BucketEntryT = std::conditional_t<std::is_same_v<BucketT, LiveBucket>,
-                                            BucketEntry, HotArchiveBucketEntry>;
+    BUCKET_TYPE_ASSERT(BucketT);
 
   protected:
     std::filesystem::path mFilename;
     XDROutputFileStream mOut;
     BucketEntryIdCmp<BucketT> mCmp;
-    std::unique_ptr<BucketEntryT> mBuf;
+    std::unique_ptr<typename BucketT::EntryT> mBuf;
     SHA256 mHasher;
     size_t mBytesPut{0};
     size_t mObjectsPut{0};
@@ -54,7 +51,7 @@ template <typename BucketT> class BucketOutputIterator
                          BucketMetadata const& meta, MergeCounters& mc,
                          asio::io_context& ctx, bool doFsync);
 
-    void put(BucketEntryT const& e);
+    void put(typename BucketT::EntryT const& e);
 
     std::shared_ptr<BucketT> getBucket(BucketManager& bucketManager,
                                        bool shouldSynchronouslyIndex,

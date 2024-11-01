@@ -30,6 +30,7 @@ class LiveBucketList;
 class HotArchiveBucketList;
 class BucketSnapshotManager;
 class Config;
+class SearchableLiveBucketListSnapshot;
 class TmpDirManager;
 struct HistoryArchiveState;
 struct InflationWinner;
