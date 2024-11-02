@@ -5,6 +5,7 @@
 #include "bucket/BucketSnapshotManager.h"
 #include "bucket/Bucket.h"
 #include "bucket/BucketListSnapshot.h"
+#include "bucket/BucketUtils.h"
 #include "main/Application.h"
 #include "util/GlobalChecks.h"
 #include "util/XDRStream.h" // IWYU pragma: keep
@@ -17,10 +18,8 @@ namespace stellar
 {
 
 BucketSnapshotManager::BucketSnapshotManager(
-    Application& app,
-    std::unique_ptr<BucketListSnapshot<LiveBucket> const>&& snapshot,
-    std::unique_ptr<BucketListSnapshot<HotArchiveBucket> const>&&
-        hotArchiveSnapshot,
+    Application& app, SnapshotPtrT<LiveBucket>&& snapshot,
+    SnapshotPtrT<HotArchiveBucket>&& hotArchiveSnapshot,
     uint32_t numLiveHistoricalSnapshots)
     : mApp(app)
     , mCurrLiveSnapshot(std::move(snapshot))
@@ -81,42 +80,38 @@ BucketSnapshotManager::recordBulkLoadMetrics(std::string const& label,
     return iter->second;
 }
 
-template <class SnapshotT>
+template <>
 void
-BucketSnapshotManager::maybeUpdateSnapshot(
-    std::unique_ptr<SnapshotT const>& snapshot,
-    std::map<uint32_t, std::unique_ptr<SnapshotT const>>& historicalSnapshots)
+BucketSnapshotManager::maybeUpdateSnapshot<LiveBucket>(
+    SnapshotPtrT<LiveBucket>& snapshot,
+    std::map<uint32_t, SnapshotPtrT<LiveBucket>>& historicalSnapshots) const
+{
+    maybeUpdateSnapshotInternal(snapshot, historicalSnapshots,
+                                mCurrLiveSnapshot, mLiveHistoricalSnapshots);
+}
+
+template <>
+void
+BucketSnapshotManager::maybeUpdateSnapshot<HotArchiveBucket>(
+    SnapshotPtrT<HotArchiveBucket>& snapshot,
+    std::map<uint32_t, SnapshotPtrT<HotArchiveBucket>>& historicalSnapshots)
     const
 {
-    static_assert(
-        std::is_same_v<SnapshotT, BucketListSnapshot<LiveBucket>> ||
-        std::is_same_v<SnapshotT, BucketListSnapshot<HotArchiveBucket>>);
+    maybeUpdateSnapshotInternal(snapshot, historicalSnapshots,
+                                mCurrHotArchiveSnapshot,
+                                mHotArchiveHistoricalSnapshots);
+}
 
-    auto const& managerSnapshot = [&]() -> auto const&
-    {
-        if constexpr (std::is_same_v<SnapshotT, BucketListSnapshot<LiveBucket>>)
-        {
-            return mCurrLiveSnapshot;
-        }
-        else
-        {
-            return mCurrHotArchiveSnapshot;
-        }
-    }
-    ();
-
-    auto const& managerHistoricalSnapshots = [&]() -> auto const&
-    {
-        if constexpr (std::is_same_v<SnapshotT, BucketListSnapshot<LiveBucket>>)
-        {
-            return mLiveHistoricalSnapshots;
-        }
-        else
-        {
-            return mHotArchiveHistoricalSnapshots;
-        }
-    }
-    ();
+template <class BucketT>
+void
+BucketSnapshotManager::maybeUpdateSnapshotInternal(
+    SnapshotPtrT<BucketT>& snapshot,
+    std::map<uint32_t, SnapshotPtrT<BucketT>>& historicalSnapshots,
+    SnapshotPtrT<BucketT> const& managerSnapshot,
+    std::map<uint32_t, SnapshotPtrT<BucketT>> const& managerHistoricalSnapshots)
+    const
+{
+    BUCKET_TYPE_ASSERT(BucketT);
 
     // The canonical snapshot held by the BucketSnapshotManager is not being
     // modified. Rather, a thread is checking it's copy against the canonical
@@ -130,7 +125,8 @@ BucketSnapshotManager::maybeUpdateSnapshot(
         // Should only update with a newer snapshot
         releaseAssert(!snapshot || snapshot->getLedgerSeq() <
                                        managerSnapshot->getLedgerSeq());
-        snapshot = std::make_unique<SnapshotT>(*managerSnapshot);
+        snapshot = std::make_unique<BucketListSnapshot<BucketT> const>(
+            *managerSnapshot);
     }
 
     // Then update historical snapshots (if any exist)
@@ -149,17 +145,17 @@ BucketSnapshotManager::maybeUpdateSnapshot(
         historicalSnapshots.clear();
         for (auto const& [ledgerSeq, snap] : managerHistoricalSnapshots)
         {
-            historicalSnapshots.emplace(ledgerSeq,
-                                        std::make_unique<SnapshotT>(*snap));
+            historicalSnapshots.emplace(
+                ledgerSeq,
+                std::make_unique<BucketListSnapshot<BucketT> const>(*snap));
         }
     }
 }
 
 void
 BucketSnapshotManager::updateCurrentSnapshot(
-    std::unique_ptr<BucketListSnapshot<LiveBucket> const>&& liveSnapshot,
-    std::unique_ptr<BucketListSnapshot<HotArchiveBucket> const>&&
-        hotArchiveSnapshot)
+    SnapshotPtrT<LiveBucket>&& liveSnapshot,
+    SnapshotPtrT<HotArchiveBucket>&& hotArchiveSnapshot)
 {
     releaseAssert(threadIsMain());
 
@@ -229,16 +225,4 @@ BucketSnapshotManager::endPointLoadTimer(LedgerEntryType t,
         iter->second.Update(duration);
     }
 }
-
-template void
-BucketSnapshotManager::maybeUpdateSnapshot<BucketListSnapshot<LiveBucket>>(
-    std::unique_ptr<BucketListSnapshot<LiveBucket> const>& snapshot,
-    std::map<uint32_t, std::unique_ptr<BucketListSnapshot<LiveBucket> const>>&
-        historicalSnapshots) const;
-template void BucketSnapshotManager::maybeUpdateSnapshot<
-    BucketListSnapshot<HotArchiveBucket>>(
-    std::unique_ptr<BucketListSnapshot<HotArchiveBucket> const>& snapshot,
-    std::map<uint32_t,
-             std::unique_ptr<BucketListSnapshot<HotArchiveBucket> const>>&
-        historicalSnapshots) const;
 }

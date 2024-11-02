@@ -30,6 +30,9 @@ template <class BucketT> class BucketListSnapshot;
 class SearchableLiveBucketListSnapshot;
 class SearchableHotArchiveBucketListSnapshot;
 
+template <class BucketT>
+using SnapshotPtrT = std::unique_ptr<BucketListSnapshot<BucketT> const>;
+
 // This class serves as the boundary between non-threadsafe singleton classes
 // (BucketManager, BucketList, Metrics, etc) and threadsafe, parallel BucketList
 // snapshots.
@@ -41,20 +44,17 @@ class BucketSnapshotManager : NonMovableOrCopyable
     // Snapshot that is maintained and periodically updated by BucketManager on
     // the main thread. When background threads need to generate or refresh a
     // snapshot, they will copy this snapshot.
-    std::unique_ptr<BucketListSnapshot<LiveBucket> const> mCurrLiveSnapshot{};
-    std::unique_ptr<BucketListSnapshot<HotArchiveBucket> const>
-        mCurrHotArchiveSnapshot{};
+    SnapshotPtrT<LiveBucket> mCurrLiveSnapshot{};
+    SnapshotPtrT<HotArchiveBucket> mCurrHotArchiveSnapshot{};
 
     // ledgerSeq that the snapshot is based on -> snapshot
-    std::map<uint32_t, std::unique_ptr<BucketListSnapshot<LiveBucket> const>>
-        mLiveHistoricalSnapshots;
-    std::map<uint32_t,
-             std::unique_ptr<BucketListSnapshot<HotArchiveBucket> const>>
+    std::map<uint32_t, SnapshotPtrT<LiveBucket>> mLiveHistoricalSnapshots;
+    std::map<uint32_t, SnapshotPtrT<HotArchiveBucket>>
         mHotArchiveHistoricalSnapshots;
 
     uint32_t const mNumHistoricalSnapshots;
 
-    // Lock must be held when accessing any snapshot
+    // Lock must be held when accessing any member variables holding snapshots
     mutable std::shared_mutex mSnapshotMutex;
 
     mutable UnorderedMap<LedgerEntryType, medida::Timer&> mPointTimers{};
@@ -66,23 +66,27 @@ class BucketSnapshotManager : NonMovableOrCopyable
 
     mutable std::optional<VirtualClock::time_point> mTimerStart;
 
+    template <class BucketT>
+    void maybeUpdateSnapshotInternal(
+        SnapshotPtrT<BucketT>& snapshot,
+        std::map<uint32_t, SnapshotPtrT<BucketT>>& historicalSnapshots,
+        SnapshotPtrT<BucketT> const& managerSnapshot,
+        std::map<uint32_t, SnapshotPtrT<BucketT>> const&
+            managerHistoricalSnapshots) const;
+
   public:
     // Called by main thread to update snapshots whenever the BucketList
     // is updated
-    void updateCurrentSnapshot(
-        std::unique_ptr<BucketListSnapshot<LiveBucket> const>&& liveSnapshot,
-        std::unique_ptr<BucketListSnapshot<HotArchiveBucket> const>&&
-            hotArchiveSnapshot);
+    void
+    updateCurrentSnapshot(SnapshotPtrT<LiveBucket>&& liveSnapshot,
+                          SnapshotPtrT<HotArchiveBucket>&& hotArchiveSnapshot);
 
     // numHistoricalLedgers is the number of historical snapshots that the
     // snapshot manager will maintain. If numHistoricalLedgers is 5, snapshots
     // will be capable of querying state from ledger [lcl, lcl - 5].
-    BucketSnapshotManager(
-        Application& app,
-        std::unique_ptr<BucketListSnapshot<LiveBucket> const>&& snapshot,
-        std::unique_ptr<BucketListSnapshot<HotArchiveBucket> const>&&
-            hotArchiveSnapshot,
-        uint32_t numHistoricalLedgers);
+    BucketSnapshotManager(Application& app, SnapshotPtrT<LiveBucket>&& snapshot,
+                          SnapshotPtrT<HotArchiveBucket>&& hotArchiveSnapshot,
+                          uint32_t numHistoricalLedgers);
 
     std::shared_ptr<SearchableLiveBucketListSnapshot>
     copySearchableLiveBucketListSnapshot() const;
@@ -91,11 +95,10 @@ class BucketSnapshotManager : NonMovableOrCopyable
     copySearchableHotArchiveBucketListSnapshot() const;
 
     // Checks if snapshot is out of date and updates it accordingly
-    template <class SnapshotT>
-    void
-    maybeUpdateSnapshot(std::unique_ptr<SnapshotT const>& snapshot,
-                        std::map<uint32_t, std::unique_ptr<SnapshotT const>>&
-                            historicalSnapshots) const;
+    template <class BucketT>
+    void maybeUpdateSnapshot(
+        SnapshotPtrT<BucketT>& snapshot,
+        std::map<uint32_t, SnapshotPtrT<BucketT>>& historicalSnapshots) const;
 
     // All metric recording functions must only be called by the main thread
     void startPointLoadTimer() const;

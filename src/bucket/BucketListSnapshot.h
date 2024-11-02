@@ -86,9 +86,8 @@ class SearchableBucketListSnapshotBase : public NonMovableOrCopyable
     BucketSnapshotManager const& mSnapshotManager;
 
     // Snapshot managed by SnapshotManager
-    std::unique_ptr<BucketListSnapshot<BucketT> const> mSnapshot{};
-    std::map<uint32_t, std::unique_ptr<BucketListSnapshot<BucketT> const>>
-        mHistoricalSnapshots;
+    SnapshotPtrT<BucketT> mSnapshot{};
+    std::map<uint32_t, SnapshotPtrT<BucketT>> mHistoricalSnapshots;
 
     // Loops through all buckets, starting with curr at level 0, then snap at
     // level 0, etc. Calls f on each bucket. Exits early if function
