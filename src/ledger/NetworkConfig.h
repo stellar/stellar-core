@@ -335,7 +335,14 @@ class SorobanNetworkConfig
 #ifdef BUILD_TESTS
     StateArchivalSettings& stateArchivalSettings();
     EvictionIterator& evictionIterator();
-
+    // Update the protocol 20 cost types to match the real network
+    // configuration.
+    // Protocol 20 cost types were imprecise and were re-calibrated shortly
+    // after the release. This should be called when initializing the test with
+    // protocol 20+.
+    // Future recalibrations should be accounted for in a similar way in order
+    // to have more accurage modelled CPU and memory costs in tests and
+    // especially the benchmarks.
     static void updateRecalibratedCostTypesForV20(AbstractLedgerTxn& ltx);
 #endif
     bool operator==(SorobanNetworkConfig const& other) const;

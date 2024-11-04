@@ -1156,6 +1156,9 @@ SorobanNetworkConfig::initializeGenesisLedgerForTesting(
         ltx.loadHeader().current().ledgerVersion =
             static_cast<uint32_t>(SOROBAN_PROTOCOL_VERSION);
         SorobanNetworkConfig::createLedgerEntriesForV20(ltx, app);
+        // Protocol 20 released with somewhat incorrect costs and has been
+        // re-calibrated short after the release. We catch up here to the more
+        // correct costs that exist on the network.
         updateRecalibratedCostTypesForV20(ltx);
         ltx.loadHeader().current().ledgerVersion = genesisLedgerProtocol;
     }
