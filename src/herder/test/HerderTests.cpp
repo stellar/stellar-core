@@ -3361,7 +3361,7 @@ TEST_CASE("overlay parallel processing")
         Topologies::core(4, 1, Simulation::OVER_TCP, networkID, [](int i) {
             auto cfg = getTestConfig(i);
             cfg.TESTING_UPGRADE_MAX_TX_SET_SIZE = 100;
-            cfg.EXPERIMENTAL_BACKGROUND_OVERLAY_PROCESSING = true;
+            cfg.BACKGROUND_OVERLAY_PROCESSING = true;
             return cfg;
         });
     simulation->startAllNodes();

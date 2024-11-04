@@ -65,10 +65,9 @@ PeerDoor::acceptNextPeer()
     // io_context on main (as long as the socket is not accessed by multiple
     // threads simultaneously, or the caller manually synchronizes access to the
     // socket).
-    auto& ioContext =
-        mApp.getConfig().EXPERIMENTAL_BACKGROUND_OVERLAY_PROCESSING
-            ? mApp.getOverlayIOContext()
-            : mApp.getClock().getIOContext();
+    auto& ioContext = mApp.getConfig().BACKGROUND_OVERLAY_PROCESSING
+                          ? mApp.getOverlayIOContext()
+                          : mApp.getClock().getIOContext();
     auto sock = make_shared<TCPPeer::SocketType>(ioContext, TCPPeer::BUFSZ);
     mAcceptor.async_accept(sock->next_layer(),
                            [this, sock](asio::error_code const& ec) {

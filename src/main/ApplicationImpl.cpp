@@ -96,7 +96,7 @@ ApplicationImpl::ApplicationImpl(VirtualClock& clock, Config const& cfg)
           mEvictionIOContext
               ? std::make_unique<asio::io_context::work>(*mEvictionIOContext)
               : nullptr)
-    , mOverlayIOContext(mConfig.EXPERIMENTAL_BACKGROUND_OVERLAY_PROCESSING
+    , mOverlayIOContext(mConfig.BACKGROUND_OVERLAY_PROCESSING
                             ? std::make_unique<asio::io_context>(1)
                             : nullptr)
     , mOverlayWork(mOverlayIOContext ? std::make_unique<asio::io_context::work>(
@@ -181,7 +181,7 @@ ApplicationImpl::ApplicationImpl(VirtualClock& clock, Config const& cfg)
         mWorkerThreads.emplace_back(std::move(thread));
     }
 
-    if (mConfig.EXPERIMENTAL_BACKGROUND_OVERLAY_PROCESSING)
+    if (mConfig.BACKGROUND_OVERLAY_PROCESSING)
     {
         // Keep priority unchanged as overlay processes time-sensitive tasks
         mOverlayThread = std::thread{[this]() { mOverlayIOContext->run(); }};

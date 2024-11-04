@@ -207,8 +207,7 @@ class Peer : public std::enable_shared_from_this<Peer>,
     virtual bool
     useBackgroundThread() const
     {
-        return mAppConnector.getConfig()
-            .EXPERIMENTAL_BACKGROUND_OVERLAY_PROCESSING;
+        return mAppConnector.getConfig().BACKGROUND_OVERLAY_PROCESSING;
     }
 
     void initialize(PeerBareAddress const& address);
