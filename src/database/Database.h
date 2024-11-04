@@ -27,6 +27,18 @@ namespace stellar
 class Application;
 class SQLLogContext;
 
+using PreparedStatementCache =
+    std::map<std::string, std::shared_ptr<soci::statement>>;
+
+// smallest schema version supported
+static constexpr unsigned long MIN_MAIN_SCHEMA_VERSION = 21;
+static constexpr unsigned long MAIN_SCHEMA_VERSION = 23;
+static constexpr unsigned long FIRST_MAIN_VERSION_WITH_MISC = 23;
+
+// Misc schema version 0 means no misc table exists yet
+static constexpr unsigned long MIN_MISC_SCHEMA_VERSION = 0;
+static constexpr unsigned long MISC_SCHEMA_VERSION = 1;
+
 /**
  * Helper class for borrowing a SOCI prepared statement handle into a local
  * scope and cleaning it up once done with it. Returned by
@@ -60,6 +72,28 @@ class StatementContext : NonCopyable
     }
 };
 
+class SessionWrapper : NonCopyable
+{
+    soci::session mSession;
+    std::string const mSessionName;
+
+  public:
+    SessionWrapper(std::string sessionName)
+        : mSessionName(std::move(sessionName))
+    {
+    }
+    soci::session&
+    session()
+    {
+        return mSession;
+    }
+    std::string const&
+    getSessionName() const
+    {
+        return mSessionName;
+    }
+};
+
 /**
  * Object that owns the database connection(s) that an application
  * uses to store the current ledger and other persistent state in.
@@ -84,22 +118,45 @@ class StatementContext : NonCopyable
  * (SQL isolation level 'SERIALIZABLE' in Postgresql and Sqlite, neither of
  * which provide true serializability).
  */
+
+struct PairHash
+{
+    std::size_t
+    operator()(const std::pair<std::string, std::string>& key) const
+    {
+        return std::hash<std::string>{}(key.first) ^
+               (std::hash<std::string>{}(key.second) << 1);
+    }
+};
+
 class Database : NonMovableOrCopyable
 {
     Application& mApp;
     medida::Meter& mQueryMeter;
-    soci::session mSession;
+    SessionWrapper mSession;
+    SessionWrapper mMiscSession;
+
     std::unique_ptr<soci::connection_pool> mPool;
+    std::unique_ptr<soci::connection_pool> mMiscPool;
 
-    std::map<std::string, std::shared_ptr<soci::statement>> mStatements;
+    // Cache key -> session name <> query
+    using PrepStatementCacheKey = std::pair<std::string, std::string>;
+    std::unordered_map<PrepStatementCacheKey, std::shared_ptr<soci::statement>,
+                       PairHash>
+        mStatements;
     medida::Counter& mStatementsSize;
-
-    std::set<std::string> mEntityTypes;
 
     static bool gDriversRegistered;
     static void registerDrivers();
     void applySchemaUpgrade(unsigned long vers);
+    void applyMiscSchemaUpgrade(unsigned long vers);
     void open();
+    // Save `vers` as schema version of main DB.
+    void putMainSchemaVersion(unsigned long vers);
+    // Save `vers` as schema version of misc DB.
+    void putMiscSchemaVersion(unsigned long vers);
+    void populateMiscDatabase();
+    std::string getSQLiteDBLocation(soci::session& session);
 
   public:
     // Instantiate object and connect to app.getConfig().DATABASE;
@@ -118,8 +175,10 @@ class Database : NonMovableOrCopyable
     // Return a helper object that borrows, from the Database, a prepared
     // statement handle for the provided query. The prepared statement handle
     // is created if necessary before borrowing, and reset (unbound from data)
-    // when the statement context is destroyed.
-    StatementContext getPreparedStatement(std::string const& query);
+    // when the statement context is destroyed. Prepared statements caches are
+    // per DB session.
+    StatementContext getPreparedStatement(std::string const& query,
+                                          SessionWrapper& session);
 
     // Purge all cached prepared statements, closing their handles with the
     // database.
@@ -142,6 +201,10 @@ class Database : NonMovableOrCopyable
     // Return true if the Database target is SQLite, otherwise false.
     bool isSqlite() const;
 
+    // Return true is the Database can use a miscellaneous database
+    // Currently, misc db is only supported by on-disk SQLite
+    bool canUseMiscDB() const;
+
     // Return an optional SQL COLLATION clause to use for text-typed columns in
     // this database, in order to ensure they're compared "simply" using
     // byte-value comparisons, i.e. in a non-language-sensitive fashion.  For
@@ -151,7 +214,8 @@ class Database : NonMovableOrCopyable
 
     // Call `op` back with the specific database backend subtype in use.
     template <typename T>
-    T doDatabaseTypeSpecificOperation(DatabaseTypeSpecificOperation<T>& op);
+    T doDatabaseTypeSpecificOperation(DatabaseTypeSpecificOperation<T>& op,
+                                      SessionWrapper& session);
 
     // Return true if a connection pool is available for worker threads
     // to read from the database through, otherwise false.
@@ -161,24 +225,26 @@ class Database : NonMovableOrCopyable
     // by the new-db command on stellar-core.
     void initialize();
 
-    // Save `vers` as schema version.
-    void putSchemaVersion(unsigned long vers);
-
-    // Get current schema version in DB.
-    unsigned long getDBSchemaVersion();
-
-    // Get current schema version of running application.
-    unsigned long getAppSchemaVersion();
+    // Get current schema version of main DB.
+    unsigned long getMainDBSchemaVersion();
+    // Get current schema version of misc DB.
+    unsigned long getMiscDBSchemaVersion();
 
     // Check schema version and apply any upgrades if necessary.
     void upgradeToCurrentSchema();
 
+    // Soci named session wrapper
+    SessionWrapper& getSession();
+    SessionWrapper& getMiscSession();
     // Access the underlying SOCI session object
-    soci::session& getSession();
+    // Use these to directly access the soci session object
+    soci::session& getRawSession();
+    soci::session& getRawMiscSession();
 
     // Access the optional SOCI connection pool available for worker
     // threads. Throws an error if !canUsePool().
     soci::connection_pool& getPool();
+    soci::connection_pool& getMiscPool();
 };
 
 template <typename T>
@@ -207,9 +273,9 @@ doDatabaseTypeSpecificOperation(soci::session& session,
 template <typename T>
 T
 Database::doDatabaseTypeSpecificOperation(DatabaseTypeSpecificOperation<T>& op,
-                                          soci::session& session)
+                                          SessionWrapper& session)
 {
-    return stellar::doDatabaseTypeSpecificOperation(session, op);
+    return stellar::doDatabaseTypeSpecificOperation(session.session(), op);
 }
 
 template <typename T>

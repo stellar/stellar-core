@@ -61,10 +61,6 @@ using namespace std;
 
 bool Database::gDriversRegistered = false;
 
-// smallest schema version supported
-static unsigned long const MIN_SCHEMA_VERSION = 21;
-static unsigned long const SCHEMA_VERSION = 23;
-
 // These should always match our compiled version precisely, since we are
 // using a bundled version to get access to carray(). But in case someone
 // overrides that or our build configuration changes, it's nicer to get a
@@ -110,6 +106,13 @@ badSqliteVersion(int vers)
         << " is too old, must use at least " << MIN_SQLITE_MAJOR_VERSION << '.'
         << MIN_SQLITE_MINOR_VERSION;
     return msg.str();
+}
+
+static std::string
+getMiscDBName(std::string const& mainDB)
+{
+    std::string miscDB = mainDB.substr(0, mainDB.length() - 3) + "-misc.db";
+    return miscDB;
 }
 
 void
@@ -185,6 +188,8 @@ Database::Database(Application& app)
     : mApp(app)
     , mQueryMeter(
           app.getMetrics().NewMeter({"database", "query", "exec"}, "query"))
+    , mSession("main")
+    , mMiscSession("misc")
     , mStatementsSize(
           app.getMetrics().NewCounter({"database", "memory", "statements"}))
 {
@@ -199,9 +204,142 @@ Database::Database(Application& app)
 void
 Database::open()
 {
-    mSession.open(mApp.getConfig().DATABASE.value);
-    DatabaseConfigureSessionOp op(mSession);
-    doDatabaseTypeSpecificOperation(op);
+    mSession.session().open(mApp.getConfig().DATABASE.value);
+    DatabaseConfigureSessionOp op(mSession.session());
+    doDatabaseTypeSpecificOperation(op, mSession);
+
+    if (canUseMiscDB())
+    {
+        std::string miscDB = getMiscDBName(mApp.getConfig().DATABASE.value);
+        mMiscSession.session().open(miscDB);
+        DatabaseConfigureSessionOp miscOp(mMiscSession.session());
+        doDatabaseTypeSpecificOperation(miscOp, mMiscSession);
+    }
+}
+
+static std::string
+getDeleteStateQuery(Application& app, bool isMain)
+{
+    auto const& ps = app.getPersistentState();
+    std::vector<std::string> states;
+    for (auto let : xdr::xdr_traits<LedgerEntryType>::enum_values())
+    {
+        states.push_back(
+            ps.getStoreStateName(PersistentState::kRebuildLedger, let));
+    }
+    states.push_back(ps.getStoreStateName(PersistentState::kLastClosedLedger));
+    states.push_back(
+        ps.getStoreStateName(PersistentState::kHistoryArchiveState));
+    states.push_back(ps.getStoreStateName(PersistentState::kDatabaseSchema));
+    states.push_back(ps.getStoreStateName(PersistentState::kNetworkPassphrase));
+    states.push_back(ps.getStoreStateName(PersistentState::kDBBackend));
+
+    std::string query = fmt::format(
+        "DELETE FROM storestate WHERE statename {} IN (", isMain ? "NOT" : "");
+    bool first = true;
+    for (auto const& stateName : states)
+    {
+        query = fmt::format("{}{}'{}'", query, first ? "" : ", ", stateName);
+        first = false;
+    }
+    query += ")";
+    return query;
+}
+
+std::string
+Database::getSQLiteDBLocation(soci::session& session)
+{
+    releaseAssert(isSqlite());
+    std::string loc;
+    int i;
+    std::string databaseName, databaseLocation;
+    soci::statement st =
+        (session.prepare << "PRAGMA database_list;", soci::into(i),
+         soci::into(databaseName), soci::into(databaseLocation));
+    st.execute(true);
+    while (st.got_data())
+    {
+        if (databaseName == "main")
+        {
+            loc = databaseLocation;
+            break;
+        }
+    }
+    return loc;
+}
+
+void
+Database::populateMiscDatabase()
+{
+    auto loc = getSQLiteDBLocation(getRawMiscSession());
+    releaseAssert(!loc.empty());
+
+    // Step 1: Attach the source database
+    getRawMiscSession() << "ATTACH DATABASE '" + loc + "' AS source_db";
+
+    // Step 2: Retrieve table names from the source database
+    std::vector<std::string> tableNames = {
+        "peers",      "ban",    "quoruminfo", "scpquorums",
+        "scphistory", "pubsub", "storestate"};
+
+    // Step 3: Copy data from each table
+    for (const auto& tableName : tableNames)
+    {
+        std::string insertQuery = "INSERT INTO " + tableName +
+                                  " SELECT * FROM source_db." + tableName;
+
+        getRawMiscSession() << insertQuery;
+        CLOG_INFO(Database, "Data from {} copied successfully!", tableName);
+    }
+
+    // Step 4: Remove data from storestate that doesn't belong there
+    getRawMiscSession() << getDeleteStateQuery(mApp, /* isMain */ false);
+    CLOG_INFO(Database, "Data from storestate removed successfully!");
+
+    // Step 5: Persist misc DB schema version
+    putMiscSchemaVersion(MISC_SCHEMA_VERSION);
+    CLOG_INFO(Database, "Misc: Schema version set to {}", MISC_SCHEMA_VERSION);
+}
+
+void
+Database::applyMiscSchemaUpgrade(unsigned long vers)
+{
+    clearPreparedStatementCache();
+    soci::transaction tx(mMiscSession.session());
+    switch (vers)
+    {
+    case 1:
+        // Create tables for the first time.
+        OverlayManager::dropAll(*this);
+        PersistentState::dropMisc(*this);
+        ExternalQueue::dropAll(*this);
+        HerderPersistence::dropAll(*this);
+        BanManager::dropAll(*this);
+        // Copy contents from the main DB.
+        populateMiscDatabase();
+        break;
+    default:
+        throw std::runtime_error("Unknown DB schema version");
+    }
+    tx.commit();
+
+    // Detach the source database _after_ commit to avoid "database is locked
+    // errors". If schema version is already the most recent, DETACH is a no-op.
+    getRawMiscSession() << "DETACH DATABASE source_db";
+}
+
+void
+dropMiscTablesFromMain(Application& app)
+{
+    releaseAssert(app.getDatabase().canUseMiscDB());
+    auto& db = app.getDatabase();
+    db.getRawSession() << "DROP TABLE IF EXISTS peers;";
+    db.getRawSession() << "DROP TABLE IF EXISTS ban;";
+    db.getRawSession() << "DROP TABLE IF EXISTS quoruminfo;";
+    db.getRawSession() << "DROP TABLE IF EXISTS scpquorums;";
+    db.getRawSession() << "DROP TABLE IF EXISTS scphistory;";
+    db.getRawSession() << "DROP TABLE IF EXISTS pubsub;";
+    db.getRawSession() << getDeleteStateQuery(app, /* isMain */ true);
 }
 
 void
@@ -209,7 +347,7 @@ Database::applySchemaUpgrade(unsigned long vers)
 {
     clearPreparedStatementCache();
 
-    soci::transaction tx(mSession);
+    soci::transaction tx(mSession.session());
     switch (vers)
     {
     case 22:
@@ -218,6 +356,10 @@ Database::applySchemaUpgrade(unsigned long vers)
     case 23:
         mApp.getHistoryManager().dropSQLBasedPublish();
         Upgrades::dropSupportUpgradeHistory(*this);
+        if (canUseMiscDB())
+        {
+            dropMiscTablesFromMain(mApp);
+        }
         break;
     default:
         throw std::runtime_error("Unknown DB schema version");
@@ -226,74 +368,117 @@ Database::applySchemaUpgrade(unsigned long vers)
 }
 
 void
-Database::upgradeToCurrentSchema()
+validateVersion(unsigned long vers, unsigned long minVers,
+                unsigned long maxVers)
 {
-    auto vers = getDBSchemaVersion();
-    if (vers < MIN_SCHEMA_VERSION)
+    if (vers < minVers)
     {
         std::string s = ("DB schema version " + std::to_string(vers) +
                          " is older than minimum supported schema " +
-                         std::to_string(MIN_SCHEMA_VERSION));
+                         std::to_string(minVers));
         throw std::runtime_error(s);
     }
 
-    if (vers > SCHEMA_VERSION)
+    if (vers > maxVers)
     {
-        std::string s = ("DB schema version " + std::to_string(vers) +
-                         " is newer than application schema " +
-                         std::to_string(SCHEMA_VERSION));
+        std::string s =
+            ("DB schema version " + std::to_string(vers) +
+             " is newer than application schema " + std::to_string(maxVers));
         throw std::runtime_error(s);
     }
-    while (vers < SCHEMA_VERSION)
-    {
-        ++vers;
-        CLOG_INFO(Database, "Applying DB schema upgrade to version {}", vers);
-        applySchemaUpgrade(vers);
-        putSchemaVersion(vers);
-    }
-
-    CLOG_INFO(Database, "DB schema is in current version");
-    releaseAssert(vers == MAIN_SCHEMA_VERSION);
 }
 
 void
-Database::putSchemaVersion(unsigned long vers)
+Database::upgradeToCurrentSchema()
 {
-    mApp.getPersistentState().setState(PersistentState::kDatabaseSchema,
-                                       std::to_string(vers));
+    auto doMigration = [&](unsigned long vers, unsigned long minVers,
+                           unsigned long maxVers, bool isMain) {
+        validateVersion(vers, minVers, maxVers);
+        while (vers < maxVers)
+        {
+            ++vers;
+            CLOG_INFO(Database, "{}: Applying DB schema upgrade to version {}",
+                      isMain ? "Main" : "Misc", vers);
+            if (isMain)
+            {
+                applySchemaUpgrade(vers);
+                putMainSchemaVersion(vers);
+            }
+            else if (canUseMiscDB())
+            {
+                applyMiscSchemaUpgrade(vers);
+                putMiscSchemaVersion(vers);
+            }
+        }
+        releaseAssert(vers == maxVers);
+    };
+
+    // First perform migration of the MISC DB
+    auto mainVers = getMainDBSchemaVersion();
+    auto miscVers = 0;
+    if (mainVers >= FIRST_MAIN_VERSION_WITH_MISC && canUseMiscDB())
+    {
+        miscVers = getMiscDBSchemaVersion();
+        doMigration(miscVers, MIN_MISC_SCHEMA_VERSION, MISC_SCHEMA_VERSION,
+                    false);
+    }
+    doMigration(mainVers, MIN_MAIN_SCHEMA_VERSION, MAIN_SCHEMA_VERSION, true);
+    CLOG_INFO(Database, "DB schema is in current version");
 }
 
-unsigned long
-Database::getDBSchemaVersion()
+void
+Database::putMainSchemaVersion(unsigned long vers)
 {
-    unsigned long vers = 0;
+    mApp.getPersistentState().setState(PersistentState::kDatabaseSchema,
+                                       std::to_string(vers),
+                                       mApp.getDatabase().getSession());
+}
+
+void
+Database::putMiscSchemaVersion(unsigned long vers)
+{
+    mApp.getPersistentState().setState(PersistentState::kMiscDatabaseSchema,
+                                       std::to_string(vers),
+                                       mApp.getDatabase().getMiscSession());
+}
+
+static unsigned long
+getVersion(Application& app, PersistentState::Entry const& key,
+           SessionWrapper& session)
+{
+    std::optional<unsigned long> vers;
     try
     {
-        auto vstr = mApp.getPersistentState().getState(
-            PersistentState::kDatabaseSchema);
+        auto vstr = app.getPersistentState().getState(key, session);
         vers = std::stoul(vstr);
     }
     catch (...)
     {
     }
-    if (vers == 0)
+    if (!vers)
     {
         throw std::runtime_error(
             "No DB schema version found, try stellar-core new-db");
     }
-    return vers;
+    return *vers;
 }
 
 unsigned long
-Database::getAppSchemaVersion()
+Database::getMainDBSchemaVersion()
 {
-    return SCHEMA_VERSION;
+    return getVersion(mApp, PersistentState::kDatabaseSchema, getSession());
+}
+
+unsigned long
+Database::getMiscDBSchemaVersion()
+{
+    return getVersion(mApp, PersistentState::kMiscDatabaseSchema,
+                      getMiscSession());
 }
 
 medida::TimerContext
 Database::getInsertTimer(std::string const& entityName)
 {
-    mEntityTypes.insert(entityName);
     mQueryMeter.Mark();
     return mApp.getMetrics()
         .NewTimer({"database", "insert", entityName})
@@ -303,7 +488,6 @@ Database::getInsertTimer(std::string const& entityName)
 medida::TimerContext
 Database::getSelectTimer(std::string const& entityName)
 {
-    mEntityTypes.insert(entityName);
     mQueryMeter.Mark();
     return mApp.getMetrics()
         .NewTimer({"database", "select", entityName})
@@ -313,7 +497,6 @@ Database::getSelectTimer(std::string const& entityName)
 medida::TimerContext
 Database::getDeleteTimer(std::string const& entityName)
 {
-    mEntityTypes.insert(entityName);
     mQueryMeter.Mark();
     return mApp.getMetrics()
         .NewTimer({"database", "delete", entityName})
@@ -323,7 +506,6 @@ Database::getDeleteTimer(std::string const& entityName)
 medida::TimerContext
 Database::getUpdateTimer(std::string const& entityName)
 {
-    mEntityTypes.insert(entityName);
     mQueryMeter.Mark();
     return mApp.getMetrics()
         .NewTimer({"database", "update", entityName})
@@ -333,7 +515,6 @@ Database::getUpdateTimer(std::string const& entityName)
 medida::TimerContext
 Database::getUpsertTimer(std::string const& entityName)
 {
-    mEntityTypes.insert(entityName);
     mQueryMeter.Mark();
     return mApp.getMetrics()
         .NewTimer({"database", "upsert", entityName})
@@ -345,7 +526,8 @@ Database::setCurrentTransactionReadOnly()
 {
     if (!isSqlite())
     {
-        auto prep = getPreparedStatement("SET TRANSACTION READ ONLY");
+        auto prep =
+            getPreparedStatement("SET TRANSACTION READ ONLY", getSession());
         auto& st = prep.statement();
         st.define_and_bind();
         st.execute(false);
@@ -378,6 +560,12 @@ Database::canUsePool() const
     return !(mApp.getConfig().DATABASE.value == ("sqlite3://:memory:"));
 }
 
+bool
+Database::canUseMiscDB() const
+{
+    return canUsePool() && isSqlite();
+}
+
 void
 Database::clearPreparedStatementCache()
 {
@@ -397,29 +585,23 @@ Database::initialize()
     clearPreparedStatementCache();
     if (isSqlite())
     {
-        // delete the sqlite file directly if possible
-        std::string fn;
-
-        {
-            int i;
-            std::string databaseName, databaseLocation;
-            soci::statement st =
-                (mSession.prepare << "PRAGMA database_list;", soci::into(i),
-                 soci::into(databaseName), soci::into(databaseLocation));
-            st.execute(true);
-            while (st.got_data())
+        auto cleanup = [&](soci::session& sess) {
+            std::string fn = getSQLiteDBLocation(sess);
+            if (!fn.empty() && fs::exists(fn))
             {
-                if (databaseName == "main")
-                {
-                    fn = databaseLocation;
-                    break;
-                }
+                sess.close();
+                std::remove(fn.c_str());
+                return true;
             }
-        }
-        if (!fn.empty() && fs::exists(fn))
+            return false;
+        };
+        bool shouldOpen = cleanup(mSession.session());
+        if (canUseMiscDB())
         {
-            mSession.close();
-            std::remove(fn.c_str());
+            releaseAssert(cleanup(mMiscSession.session()) == shouldOpen);
+        }
+        if (shouldOpen)
+        {
             open();
         }
     }
@@ -428,7 +610,7 @@ Database::initialize()
 
     // only time this section should be modified is when
     // consolidating changes found in applySchemaUpgrade here
-    Upgrades::dropAll(*this);
+    Upgrades::dropSupportUpgradeHistory(*this);
     OverlayManager::dropAll(*this);
     PersistentState::dropAll(*this);
     ExternalQueue::dropAll(*this);
@@ -439,15 +621,18 @@ Database::initialize()
     HistoryManager::dropAll(*this);
     HerderPersistence::dropAll(*this);
     BanManager::dropAll(*this);
-    putSchemaVersion(MIN_SCHEMA_VERSION);
-    mApp.getHerderPersistence().createQuorumTrackingTable(mSession);
+    putMainSchemaVersion(MIN_MAIN_SCHEMA_VERSION);
+    if (canUseMiscDB())
+    {
+        putMiscSchemaVersion(MIN_MISC_SCHEMA_VERSION);
+    }
 
     LOG_INFO(DEFAULT_LOG, "* ");
     LOG_INFO(DEFAULT_LOG, "* The database has been initialized");
     LOG_INFO(DEFAULT_LOG, "* ");
 }
 
-soci::session&
+SessionWrapper&
 Database::getSession()
 {
     // global session can only be used from the main thread
@@ -455,33 +640,81 @@ Database::getSession()
     return mSession;
 }
 
-soci::connection_pool&
-Database::getPool()
+SessionWrapper&
+Database::getMiscSession()
 {
-    if (!mPool)
+    // global session can only be used from the main thread
+    releaseAssert(threadIsMain());
+    // Use the main session if misc DB is not supported (e.g. Postgres)
+    if (!canUseMiscDB())
     {
-        auto const& c = mApp.getConfig().DATABASE;
-        if (!canUsePool())
+        return mSession;
+    }
+    return mMiscSession;
+}
+
+soci::session&
+Database::getRawSession()
+{
+    return getSession().session();
+}
+
+soci::session&
+Database::getRawMiscSession()
+{
+    return getMiscSession().session();
+}
+
+soci::connection_pool&
+createPool(Database const& db, Config const& cfg,
+           std::unique_ptr<soci::connection_pool>& pool, std::string dbName)
+{
+    if (!pool)
+    {
+        auto const& c = cfg.DATABASE;
+        if (!db.canUsePool())
         {
             std::string s("Can't create connection pool to ");
             s += removePasswordFromConnectionString(c.value);
             throw std::runtime_error(s);
         }
         size_t n = std::thread::hardware_concurrency();
+        if (db.canUseMiscDB())
+        {
+            n = std::max<size_t>(n / 2, 1);
+        }
         LOG_INFO(DEFAULT_LOG, "Establishing {}-entry connection pool to: {}", n,
                  removePasswordFromConnectionString(c.value));
-        mPool = std::make_unique<soci::connection_pool>(n);
+        pool = std::make_unique<soci::connection_pool>(n);
         for (size_t i = 0; i < n; ++i)
         {
             LOG_DEBUG(DEFAULT_LOG, "Opening pool entry {}", i);
-            soci::session& sess = mPool->at(i);
-            sess.open(c.value);
+            soci::session& sess = pool->at(i);
+            sess.open(dbName);
             DatabaseConfigureSessionOp op(sess);
             stellar::doDatabaseTypeSpecificOperation(sess, op);
         }
     }
-    releaseAssert(mPool);
-    return *mPool;
+    releaseAssert(pool);
+    return *pool;
+}
+
+soci::connection_pool&
+Database::getPool()
+{
+    return createPool(*this, mApp.getConfig(), mPool,
+                      mApp.getConfig().DATABASE.value);
+}
+
+soci::connection_pool&
+Database::getMiscPool()
+{
+    if (!canUseMiscDB())
+    {
+        throw std::runtime_error("Can't use misc pool");
+    }
+    return createPool(*this, mApp.getConfig(), mMiscPool,
+                      getMiscDBName(mApp.getConfig().DATABASE.value));
 }
 
 class SQLLogContext : NonCopyable
@@ -521,16 +754,18 @@ class SQLLogContext : NonCopyable
 };
 
 StatementContext
-Database::getPreparedStatement(std::string const& query)
+Database::getPreparedStatement(std::string const& query,
+                               SessionWrapper& session)
 {
-    auto i = mStatements.find(query);
+    auto cacheKey = PrepStatementCacheKey(session.getSessionName(), query);
+    auto i = mStatements.find(cacheKey);
     std::shared_ptr<soci::statement> p;
     if (i == mStatements.end())
     {
-        p = std::make_shared<soci::statement>(mSession);
+        p = std::make_shared<soci::statement>(session.session());
         p->alloc();
         p->prepare(query);
-        mStatements.insert(std::make_pair(query, p));
+        mStatements.insert(std::make_pair(cacheKey, p));
         mStatementsSize.set_count(mStatements.size());
     }
     else
@@ -544,6 +779,6 @@ Database::getPreparedStatement(std::string const& query)
 std::shared_ptr<SQLLogContext>
 Database::captureAndLogSQL(std::string contextName)
 {
-    return make_shared<SQLLogContext>(contextName, mSession);
+    return make_shared<SQLLogContext>(contextName, mSession.session());
 }
 }
