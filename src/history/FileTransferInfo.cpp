@@ -12,7 +12,7 @@ namespace stellar
 void
 createPath(std::filesystem::path path)
 {
-    if (fs::exists(path))
+    if (fs::exists(path.string()))
     {
         return;
     }

@@ -1338,9 +1338,6 @@
     <ClCompile Include="..\..\src\overlay\TxAdverts.cpp">
       <Filter>overlay</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\src\overlay\OverlayAppConnector.cpp">
-      <Filter>overlay</Filter>
-    </ClCompile>
     <ClCompile Include="..\..\src\overlay\TxDemandsManager.cpp">
       <Filter>overlay</Filter>
     </ClCompile>
@@ -1376,6 +1373,15 @@
     </ClCompile>
     <ClCompile Include="..\..\src\ledger\LedgerStateSnapshot.cpp">
       <Filter>ledger</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\lib\tracy\public\TracyClient.cpp" />
+    <ClCompile Include="..\..\src\simulation\ApplyLoad.cpp" />
+    <ClCompile Include="..\..\src\simulation\TxGenerator.cpp" />
+    <ClCompile Include="..\..\src\main\AppConnector.cpp">
+      <Filter>main</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\history\CheckpointBuilder.cpp">
+      <Filter>history</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
@@ -2363,9 +2369,6 @@
     <ClInclude Include="..\..\src\overlay\TxAdverts.h">
       <Filter>overlay</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\src\overlay\OverlayAppConnector.h">
-      <Filter>overlay</Filter>
-    </ClInclude>
     <ClInclude Include="..\..\src\overlay\TxDemandsManager.h">
       <Filter>overlay</Filter>
     </ClInclude>
@@ -2404,6 +2407,14 @@
     </ClInclude>
     <ClInclude Include="..\..\src\ledger\LedgerStateSnapshot.h">
       <Filter>ledger</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\simulation\ApplyLoad.h" />
+    <ClInclude Include="..\..\src\simulation\TxGenerator.h" />
+    <ClInclude Include="..\..\src\main\AppConnector.h">
+      <Filter>main</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\history\CheckpointBuilder.h">
+      <Filter>history</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>

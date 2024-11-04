@@ -119,9 +119,16 @@ SurgePricingPriorityQueue::TxComparator::txLessThan(
     {
         return cmp3 < 0;
     }
+#ifndef BUILD_TESTS
     // break tie with pointer arithmetic
     auto lx = reinterpret_cast<size_t>(tx1.get()) ^ mSeed;
     auto rx = reinterpret_cast<size_t>(tx2.get()) ^ mSeed;
+#else
+    // Sort transactions deterministically in tests in order to ensure
+    // reproducibility.
+    auto lx = tx1->getFullHash();
+    auto rx = tx2->getFullHash();
+#endif
     return lx < rx;
 }
 
