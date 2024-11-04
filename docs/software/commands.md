@@ -219,12 +219,12 @@ apply.
   to write the trusted checkpoint hashes to. The file will contain a JSON array 
   of arrays, where each inner array contains the ledger number and the corresponding
   checkpoint hash of the form `[[999, "hash-abc"], [935, "hash-def"], ... [0, "hash-xyz]]`.
-  * Option **--trusted-checkpoint-file <FILE-NAME>** is optional. If provided,
+  * Option **--trusted-hash-file <FILE-NAME>** is optional. If provided,
   stellar-core will parse the latest checkpoint ledger number and hash from the file and verify from this ledger to the latest checkpoint ledger obtained from the network.
   * Option **--from-ledger <LEDGER-NUMBER>** is optional and specifies the ledger
   number to start the verification from.
 
-> Note: It is an error to provide both the `--trusted-checkpoint-hashes` and `--from-ledger` options.
+> Note: It is an error to provide both the `--trusted-hash-file` and `--from-ledger` options.
 
 * **version**: Print version info and then exit.
 
