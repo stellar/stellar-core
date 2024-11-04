@@ -732,6 +732,8 @@ class LedgerTxnRoot::Impl
     size_t const mMaxBestOffersBatchSize;
 
     Application& mApp;
+    std::shared_ptr<soci::session> mSession;
+
     std::unique_ptr<LedgerHeader> mHeader;
     mutable EntryCache mEntryCache;
     mutable BestOffers mBestOffers;
@@ -912,6 +914,7 @@ class LedgerTxnRoot::Impl
     void dropContractCode(bool rebuild);
     void dropConfigSettings(bool rebuild);
     void dropTTL(bool rebuild);
+    SessionWrapper& getSession() const;
 
 #ifdef BUILD_TESTS
     void resetForFuzzer();

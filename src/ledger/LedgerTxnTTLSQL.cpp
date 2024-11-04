@@ -31,7 +31,7 @@ LedgerTxnRoot::Impl::loadTTL(LedgerKey const& key) const
     std::string sql = "SELECT ledgerentry "
                       "FROM ttl "
                       "WHERE keyhash = :keyHash";
-    auto prep = mApp.getDatabase().getPreparedStatement(sql);
+    auto prep = mApp.getDatabase().getPreparedStatement(sql, getSession());
     auto& st = prep.statement();
     st.exchange(soci::into(ttlEntryStr));
     st.exchange(soci::use(keyHash));
@@ -56,6 +56,7 @@ class BulkLoadTTLOperation
 {
     Database& mDb;
     std::vector<std::string> mKeyHashes;
+    SessionWrapper& mSession;
 
     std::vector<LedgerEntry>
     executeAndFetch(soci::statement& st)
@@ -84,8 +85,9 @@ class BulkLoadTTLOperation
     }
 
   public:
-    BulkLoadTTLOperation(Database& db, UnorderedSet<LedgerKey> const& keys)
-        : mDb(db)
+    BulkLoadTTLOperation(Database& db, UnorderedSet<LedgerKey> const& keys,
+                         SessionWrapper& session)
+        : mDb(db), mSession(session)
     {
         mKeyHashes.reserve(keys.size());
         for (auto const& k : keys)
@@ -108,7 +110,7 @@ class BulkLoadTTLOperation
                           "FROM ttl "
                           "WHERE keyhash IN carray(?, ?, 'char*')";
 
-        auto prep = mDb.getPreparedStatement(sql);
+        auto prep = mDb.getPreparedStatement(sql, mSession);
         auto be = prep.statement().get_backend();
         if (be == nullptr)
         {
@@ -136,7 +138,7 @@ class BulkLoadTTLOperation
                           "FROM ttl "
                           "WHERE (keyHash) IN (SELECT * from r)";
 
-        auto prep = mDb.getPreparedStatement(sql);
+        auto prep = mDb.getPreparedStatement(sql, mSession);
         auto& st = prep.statement();
         st.exchange(soci::use(strKeyHashes));
         return executeAndFetch(st);
@@ -149,9 +151,10 @@ LedgerTxnRoot::Impl::bulkLoadTTL(UnorderedSet<LedgerKey> const& keys) const
 {
     if (!keys.empty())
     {
-        BulkLoadTTLOperation op(mApp.getDatabase(), keys);
+        BulkLoadTTLOperation op(mApp.getDatabase(), keys, getSession());
         return populateLoadedEntries(
-            keys, mApp.getDatabase().doDatabaseTypeSpecificOperation(op));
+            keys, mApp.getDatabase().doDatabaseTypeSpecificOperation(
+                      op, getSession()));
     }
     else
     {
@@ -164,11 +167,13 @@ class BulkDeleteTTLOperation : public DatabaseTypeSpecificOperation<void>
     Database& mDb;
     LedgerTxnConsistency mCons;
     std::vector<std::string> mKeyHashes;
+    SessionWrapper& mSession;
 
   public:
     BulkDeleteTTLOperation(Database& db, LedgerTxnConsistency cons,
-                           std::vector<EntryIterator> const& entries)
-        : mDb(db), mCons(cons)
+                           std::vector<EntryIterator> const& entries,
+                           SessionWrapper& session)
+        : mDb(db), mCons(cons), mSession(session)
     {
         mKeyHashes.reserve(entries.size());
         for (auto const& e : entries)
@@ -184,7 +189,7 @@ class BulkDeleteTTLOperation : public DatabaseTypeSpecificOperation<void>
     doSociGenericOperation()
     {
         std::string sql = "DELETE FROM ttl WHERE keyhash = :id";
-        auto prep = mDb.getPreparedStatement(sql);
+        auto prep = mDb.getPreparedStatement(sql, mSession);
         auto& st = prep.statement();
         st.exchange(soci::use(mKeyHashes));
         st.define_and_bind();
@@ -216,7 +221,7 @@ class BulkDeleteTTLOperation : public DatabaseTypeSpecificOperation<void>
                           "DELETE FROM ttl "
                           "WHERE keyHash IN (SELECT * FROM r)";
 
-        auto prep = mDb.getPreparedStatement(sql);
+        auto prep = mDb.getPreparedStatement(sql, mSession);
         auto& st = prep.statement();
         st.exchange(soci::use(strKeyHashes));
         st.define_and_bind();
@@ -237,13 +242,14 @@ void
 LedgerTxnRoot::Impl::bulkDeleteTTL(std::vector<EntryIterator> const& entries,
                                    LedgerTxnConsistency cons)
 {
-    BulkDeleteTTLOperation op(mApp.getDatabase(), cons, entries);
-    mApp.getDatabase().doDatabaseTypeSpecificOperation(op);
+    BulkDeleteTTLOperation op(mApp.getDatabase(), cons, entries, getSession());
+    mApp.getDatabase().doDatabaseTypeSpecificOperation(op, getSession());
 }
 
 class BulkUpsertTTLOperation : public DatabaseTypeSpecificOperation<void>
 {
     Database& mDb;
+    SessionWrapper& mSession;
     std::vector<std::string> mKeyHashes;
     std::vector<std::string> mTTLEntries;
     std::vector<int32_t> mLastModifieds;
@@ -261,8 +267,9 @@ class BulkUpsertTTLOperation : public DatabaseTypeSpecificOperation<void>
 
   public:
     BulkUpsertTTLOperation(Database& Db,
-                           std::vector<EntryIterator> const& entryIter)
-        : mDb(Db)
+                           std::vector<EntryIterator> const& entryIter,
+                           SessionWrapper& session)
+        : mDb(Db), mSession(session)
     {
         for (auto const& e : entryIter)
         {
@@ -282,7 +289,7 @@ class BulkUpsertTTLOperation : public DatabaseTypeSpecificOperation<void>
                           "ledgerentry = excluded.ledgerentry, "
                           "lastmodified = excluded.lastmodified";
 
-        auto prep = mDb.getPreparedStatement(sql);
+        auto prep = mDb.getPreparedStatement(sql, mSession);
         soci::statement& st = prep.statement();
         st.exchange(soci::use(mKeyHashes));
         st.exchange(soci::use(mTTLEntries));
@@ -325,7 +332,7 @@ class BulkUpsertTTLOperation : public DatabaseTypeSpecificOperation<void>
                           "ledgerentry = excluded.ledgerentry, "
                           "lastmodified = excluded.lastmodified";
 
-        auto prep = mDb.getPreparedStatement(sql);
+        auto prep = mDb.getPreparedStatement(sql, mSession);
         soci::statement& st = prep.statement();
         st.exchange(soci::use(strKeyHashes));
         st.exchange(soci::use(strTTLEntries));
@@ -346,8 +353,8 @@ class BulkUpsertTTLOperation : public DatabaseTypeSpecificOperation<void>
 void
 LedgerTxnRoot::Impl::bulkUpsertTTL(std::vector<EntryIterator> const& entries)
 {
-    BulkUpsertTTLOperation op(mApp.getDatabase(), entries);
-    mApp.getDatabase().doDatabaseTypeSpecificOperation(op);
+    BulkUpsertTTLOperation op(mApp.getDatabase(), entries, getSession());
+    mApp.getDatabase().doDatabaseTypeSpecificOperation(op, getSession());
 }
 
 void
@@ -359,11 +366,11 @@ LedgerTxnRoot::Impl::dropTTL(bool rebuild)
 
     std::string coll = mApp.getDatabase().getSimpleCollationClause();
 
-    mApp.getDatabase().getSession() << "DROP TABLE IF EXISTS ttl;";
+    mApp.getDatabase().getRawSession() << "DROP TABLE IF EXISTS ttl;";
 
     if (rebuild)
     {
-        mApp.getDatabase().getSession()
+        mApp.getDatabase().getRawSession()
             << "CREATE TABLE ttl ("
             << "keyhash   TEXT " << coll << " NOT NULL, "
             << "ledgerentry  TEXT " << coll << " NOT NULL, "
@@ -371,9 +378,9 @@ LedgerTxnRoot::Impl::dropTTL(bool rebuild)
             << "PRIMARY KEY (keyhash));";
         if (!mApp.getDatabase().isSqlite())
         {
-            mApp.getDatabase().getSession() << "ALTER TABLE ttl "
-                                            << "ALTER COLUMN keyhash "
-                                            << "TYPE TEXT COLLATE \"C\";";
+            mApp.getDatabase().getRawSession() << "ALTER TABLE ttl "
+                                               << "ALTER COLUMN keyhash "
+                                               << "TYPE TEXT COLLATE \"C\";";
         }
     }
 }

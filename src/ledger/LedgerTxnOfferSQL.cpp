@@ -39,7 +39,7 @@ LedgerTxnRoot::Impl::loadOffer(LedgerKey const& key) const
                       "ledgerext "
                       "FROM offers "
                       "WHERE sellerid= :id AND offerid= :offerid";
-    auto prep = mApp.getDatabase().getPreparedStatement(sql);
+    auto prep = mApp.getDatabase().getPreparedStatement(sql, getSession());
     auto& st = prep.statement();
     st.exchange(soci::use(actIDStrKey));
     st.exchange(soci::use(offerID));
@@ -61,7 +61,7 @@ LedgerTxnRoot::Impl::loadAllOffers() const
     std::string sql = "SELECT sellerid, offerid, sellingasset, buyingasset, "
                       "amount, pricen, priced, flags, lastmodified, extension, "
                       "ledgerext FROM offers";
-    auto prep = mApp.getDatabase().getPreparedStatement(sql);
+    auto prep = mApp.getDatabase().getPreparedStatement(sql, getSession());
 
     std::vector<LedgerEntry> offers;
     {
@@ -89,7 +89,7 @@ LedgerTxnRoot::Impl::loadBestOffers(std::deque<LedgerEntry>& offers,
     buyingAsset = decoder::encode_b64(xdr::xdr_to_opaque(buying));
     sellingAsset = decoder::encode_b64(xdr::xdr_to_opaque(selling));
 
-    auto prep = mApp.getDatabase().getPreparedStatement(sql);
+    auto prep = mApp.getDatabase().getPreparedStatement(sql, getSession());
     auto& st = prep.statement();
     st.exchange(soci::use(sellingAsset));
     st.exchange(soci::use(buyingAsset));
@@ -145,7 +145,7 @@ LedgerTxnRoot::Impl::loadBestOffers(std::deque<LedgerEntry>& offers,
         (double)worseThan.price.n / (double)worseThan.price.d;
     int64_t worseThanOfferID = worseThan.offerID + 1;
 
-    auto prep = mApp.getDatabase().getPreparedStatement(sql);
+    auto prep = mApp.getDatabase().getPreparedStatement(sql, getSession());
     auto& st = prep.statement();
     st.exchange(soci::use(sellingAsset));
     st.exchange(soci::use(buyingAsset));
@@ -227,7 +227,7 @@ LedgerTxnRoot::Impl::loadOffersByAccountAndAsset(AccountID const& accountID,
     }
     std::string assetStr = decoder::encode_b64(xdr::xdr_to_opaque(asset));
 
-    auto prep = mApp.getDatabase().getPreparedStatement(sql);
+    auto prep = mApp.getDatabase().getPreparedStatement(sql, getSession());
     auto& st = prep.statement();
     st.exchange(soci::use(accountStr));
     st.exchange(soci::use(assetStr));
@@ -327,6 +327,7 @@ LedgerTxnRoot::Impl::loadOffers(StatementContext& prep) const
 class BulkUpsertOffersOperation : public DatabaseTypeSpecificOperation<void>
 {
     Database& mDB;
+    SessionWrapper& mSession;
     std::vector<std::string> mSellerIDs;
     std::vector<int64_t> mOfferIDs;
     std::vector<std::string> mSellingAssets;
@@ -371,8 +372,9 @@ class BulkUpsertOffersOperation : public DatabaseTypeSpecificOperation<void>
 
   public:
     BulkUpsertOffersOperation(Database& DB,
-                              std::vector<LedgerEntry> const& entries)
-        : mDB(DB)
+                              std::vector<LedgerEntry> const& entries,
+                              SessionWrapper& session)
+        : mDB(DB), mSession(session)
     {
         mSellerIDs.reserve(entries.size());
         mOfferIDs.reserve(entries.size());
@@ -394,8 +396,9 @@ class BulkUpsertOffersOperation : public DatabaseTypeSpecificOperation<void>
     }
 
     BulkUpsertOffersOperation(Database& DB,
-                              std::vector<EntryIterator> const& entries)
-        : mDB(DB)
+                              std::vector<EntryIterator> const& entries,
+                              SessionWrapper& session)
+        : mDB(DB), mSession(session)
     {
         mSellerIDs.reserve(entries.size());
         mOfferIDs.reserve(entries.size());
@@ -441,7 +444,7 @@ class BulkUpsertOffersOperation : public DatabaseTypeSpecificOperation<void>
             "lastmodified = excluded.lastmodified, "
             "extension = excluded.extension, "
             "ledgerext = excluded.ledgerext";
-        auto prep = mDB.getPreparedStatement(sql);
+        auto prep = mDB.getPreparedStatement(sql, mSession);
         soci::statement& st = prep.statement();
         st.exchange(soci::use(mSellerIDs));
         st.exchange(soci::use(mOfferIDs));
@@ -529,7 +532,7 @@ class BulkUpsertOffersOperation : public DatabaseTypeSpecificOperation<void>
             "lastmodified = excluded.lastmodified, "
             "extension = excluded.extension, "
             "ledgerext = excluded.ledgerext";
-        auto prep = mDB.getPreparedStatement(sql);
+        auto prep = mDB.getPreparedStatement(sql, mSession);
         soci::statement& st = prep.statement();
         st.exchange(soci::use(strSellerIDs));
         st.exchange(soci::use(strOfferIDs));
@@ -560,12 +563,14 @@ class BulkDeleteOffersOperation : public DatabaseTypeSpecificOperation<void>
 {
     Database& mDB;
     LedgerTxnConsistency mCons;
+    SessionWrapper& mSession;
     std::vector<int64_t> mOfferIDs;
 
   public:
     BulkDeleteOffersOperation(Database& DB, LedgerTxnConsistency cons,
-                              std::vector<EntryIterator> const& entries)
-        : mDB(DB), mCons(cons)
+                              std::vector<EntryIterator> const& entries,
+                              SessionWrapper& session)
+        : mDB(DB), mCons(cons), mSession(session)
     {
         for (auto const& e : entries)
         {
@@ -582,7 +587,7 @@ class BulkDeleteOffersOperation : public DatabaseTypeSpecificOperation<void>
     doSociGenericOperation()
     {
         std::string sql = "DELETE FROM offers WHERE offerid = :id";
-        auto prep = mDB.getPreparedStatement(sql);
+        auto prep = mDB.getPreparedStatement(sql, mSession);
         soci::statement& st = prep.statement();
         st.exchange(soci::use(mOfferIDs));
         st.define_and_bind();
@@ -615,7 +620,7 @@ class BulkDeleteOffersOperation : public DatabaseTypeSpecificOperation<void>
                           ") "
                           "DELETE FROM offers WHERE "
                           "offerid IN (SELECT * FROM r)";
-        auto prep = mDB.getPreparedStatement(sql);
+        auto prep = mDB.getPreparedStatement(sql, mSession);
         soci::statement& st = prep.statement();
         st.exchange(soci::use(strOfferIDs));
         st.define_and_bind();
@@ -637,8 +642,8 @@ LedgerTxnRoot::Impl::bulkUpsertOffers(std::vector<EntryIterator> const& entries)
 {
     ZoneScoped;
     ZoneValue(static_cast<int64_t>(entries.size()));
-    BulkUpsertOffersOperation op(mApp.getDatabase(), entries);
-    mApp.getDatabase().doDatabaseTypeSpecificOperation(op);
+    BulkUpsertOffersOperation op(mApp.getDatabase(), entries, getSession());
+    mApp.getDatabase().doDatabaseTypeSpecificOperation(op, getSession());
 }
 
 void
@@ -647,8 +652,9 @@ LedgerTxnRoot::Impl::bulkDeleteOffers(std::vector<EntryIterator> const& entries,
 {
     ZoneScoped;
     ZoneValue(static_cast<int64_t>(entries.size()));
-    BulkDeleteOffersOperation op(mApp.getDatabase(), cons, entries);
-    mApp.getDatabase().doDatabaseTypeSpecificOperation(op);
+    BulkDeleteOffersOperation op(mApp.getDatabase(), cons, entries,
+                                 getSession());
+    mApp.getDatabase().doDatabaseTypeSpecificOperation(op, getSession());
 }
 
 void
@@ -658,12 +664,12 @@ LedgerTxnRoot::Impl::dropOffers(bool rebuild)
     mEntryCache.clear();
     mBestOffers.clear();
 
-    mApp.getDatabase().getSession() << "DROP TABLE IF EXISTS offers;";
+    getSession().session() << "DROP TABLE IF EXISTS offers;";
 
     if (rebuild)
     {
         std::string coll = mApp.getDatabase().getSimpleCollationClause();
-        mApp.getDatabase().getSession()
+        getSession().session()
             << "CREATE TABLE offers"
             << "("
             << "sellerid         VARCHAR(56) " << coll << "NOT NULL,"
@@ -681,22 +687,19 @@ LedgerTxnRoot::Impl::dropOffers(bool rebuild)
                "ledgerext        TEXT             NOT NULL,"
                "PRIMARY KEY      (offerid)"
                ");";
-        mApp.getDatabase().getSession()
-            << "CREATE INDEX bestofferindex ON offers "
-               "(sellingasset,buyingasset,price,offerid);";
-        mApp.getDatabase().getSession()
-            << "CREATE INDEX offerbyseller ON offers "
-               "(sellerid);";
+        getSession().session() << "CREATE INDEX bestofferindex ON offers "
+                                  "(sellingasset,buyingasset,price,offerid);";
+        getSession().session() << "CREATE INDEX offerbyseller ON offers "
+                                  "(sellerid);";
         if (!mApp.getDatabase().isSqlite())
         {
-            mApp.getDatabase().getSession()
-                << "ALTER TABLE offers "
-                << "ALTER COLUMN sellerid "
-                << "TYPE VARCHAR(56) COLLATE \"C\", "
-                << "ALTER COLUMN buyingasset "
-                << "TYPE TEXT COLLATE \"C\", "
-                << "ALTER COLUMN sellingasset "
-                << "TYPE TEXT COLLATE \"C\"";
+            getSession().session() << "ALTER TABLE offers "
+                                   << "ALTER COLUMN sellerid "
+                                   << "TYPE VARCHAR(56) COLLATE \"C\", "
+                                   << "ALTER COLUMN buyingasset "
+                                   << "TYPE TEXT COLLATE \"C\", "
+                                   << "ALTER COLUMN sellingasset "
+                                   << "TYPE TEXT COLLATE \"C\"";
         }
     }
 }
@@ -705,6 +708,7 @@ class BulkLoadOffersOperation
     : public DatabaseTypeSpecificOperation<std::vector<LedgerEntry>>
 {
     Database& mDb;
+    SessionWrapper& mSession;
     std::vector<int64_t> mOfferIDs;
     UnorderedSet<LedgerKey> mKeys;
 
@@ -767,8 +771,9 @@ class BulkLoadOffersOperation
     }
 
   public:
-    BulkLoadOffersOperation(Database& db, UnorderedSet<LedgerKey> const& keys)
-        : mDb(db)
+    BulkLoadOffersOperation(Database& db, UnorderedSet<LedgerKey> const& keys,
+                            SessionWrapper& session)
+        : mDb(db), mSession(session)
     {
         mOfferIDs.reserve(keys.size());
         for (auto const& k : keys)
@@ -790,7 +795,7 @@ class BulkLoadOffersOperation
             "ledgerext "
             "FROM offers WHERE offerid IN carray(?, ?, 'int64')";
 
-        auto prep = mDb.getPreparedStatement(sql);
+        auto prep = mDb.getPreparedStatement(sql, mSession);
         auto be = prep.statement().get_backend();
         if (be == nullptr)
         {
@@ -819,7 +824,7 @@ class BulkLoadOffersOperation
             "amount, pricen, priced, flags, lastmodified, extension, "
             "ledgerext "
             "FROM offers WHERE offerid IN (SELECT * FROM r)";
-        auto prep = mDb.getPreparedStatement(sql);
+        auto prep = mDb.getPreparedStatement(sql, mSession);
         auto& st = prep.statement();
         st.exchange(soci::use(strOfferIDs));
         return executeAndFetch(st);
@@ -834,9 +839,10 @@ LedgerTxnRoot::Impl::bulkLoadOffers(UnorderedSet<LedgerKey> const& keys) const
     ZoneValue(static_cast<int64_t>(keys.size()));
     if (!keys.empty())
     {
-        BulkLoadOffersOperation op(mApp.getDatabase(), keys);
+        BulkLoadOffersOperation op(mApp.getDatabase(), keys, getSession());
         return populateLoadedEntries(
-            keys, mApp.getDatabase().doDatabaseTypeSpecificOperation(op));
+            keys, mApp.getDatabase().doDatabaseTypeSpecificOperation(
+                      op, getSession()));
     }
     else
     {

@@ -53,7 +53,8 @@ LedgerTxnRoot::Impl::loadTrustLine(LedgerKey const& key) const
     auto prep = mApp.getDatabase().getPreparedStatement(
         "SELECT ledgerentry "
         " FROM trustlines "
-        "WHERE accountid= :id AND asset= :asset");
+        "WHERE accountid= :id AND asset= :asset",
+        getSession());
     auto& st = prep.statement();
     st.exchange(soci::into(trustLineEntryStr));
     st.exchange(soci::use(accountIDStr));
@@ -95,7 +96,8 @@ LedgerTxnRoot::Impl::loadPoolShareTrustLinesByAccountAndAsset(
         "INNER JOIN liquiditypool "
         "ON trustlines.asset = liquiditypool.poolasset "
         "AND trustlines.accountid = :v1 "
-        "AND (liquiditypool.asseta = :v2 OR liquiditypool.assetb = :v3)");
+        "AND (liquiditypool.asseta = :v2 OR liquiditypool.assetb = :v3)",
+        getSession());
     auto& st = prep.statement();
     st.exchange(soci::into(trustLineEntryStr));
     st.exchange(soci::use(accountIDStr));
@@ -128,12 +130,14 @@ class BulkUpsertTrustLinesOperation : public DatabaseTypeSpecificOperation<void>
     std::vector<std::string> mAssets;
     std::vector<std::string> mTrustLineEntries;
     std::vector<int32_t> mLastModifieds;
+    SessionWrapper& mSession;
 
   public:
     BulkUpsertTrustLinesOperation(Database& DB,
                                   std::vector<EntryIterator> const& entries,
-                                  uint32_t ledgerVersion)
-        : mDB(DB)
+                                  uint32_t ledgerVersion,
+                                  SessionWrapper& session)
+        : mDB(DB), mSession(session)
     {
         mAccountIDs.reserve(entries.size());
         mAssets.reserve(entries.size());
@@ -170,7 +174,7 @@ class BulkUpsertTrustLinesOperation : public DatabaseTypeSpecificOperation<void>
                           ") ON CONFLICT (accountid, asset) DO UPDATE SET "
                           "ledgerentry = excluded.ledgerentry, "
                           "lastmodified = excluded.lastmodified";
-        auto prep = mDB.getPreparedStatement(sql);
+        auto prep = mDB.getPreparedStatement(sql, mSession);
         soci::statement& st = prep.statement();
         st.exchange(soci::use(mAccountIDs));
         st.exchange(soci::use(mAssets));
@@ -218,7 +222,7 @@ class BulkUpsertTrustLinesOperation : public DatabaseTypeSpecificOperation<void>
                           "ON CONFLICT (accountid, asset) DO UPDATE SET "
                           "ledgerentry = excluded.ledgerentry, "
                           "lastmodified = excluded.lastmodified";
-        auto prep = mDB.getPreparedStatement(sql);
+        auto prep = mDB.getPreparedStatement(sql, mSession);
         soci::statement& st = prep.statement();
         st.exchange(soci::use(strAccountIDs));
         st.exchange(soci::use(strAssets));
@@ -243,12 +247,14 @@ class BulkDeleteTrustLinesOperation : public DatabaseTypeSpecificOperation<void>
     LedgerTxnConsistency mCons;
     std::vector<std::string> mAccountIDs;
     std::vector<std::string> mAssets;
+    SessionWrapper& mSession;
 
   public:
     BulkDeleteTrustLinesOperation(Database& DB, LedgerTxnConsistency cons,
                                   std::vector<EntryIterator> const& entries,
-                                  uint32_t ledgerVersion)
-        : mDB(DB), mCons(cons)
+                                  uint32_t ledgerVersion,
+                                  SessionWrapper& session)
+        : mDB(DB), mCons(cons), mSession(session)
     {
         mAccountIDs.reserve(entries.size());
         mAssets.reserve(entries.size());
@@ -272,7 +278,7 @@ class BulkDeleteTrustLinesOperation : public DatabaseTypeSpecificOperation<void>
     {
         std::string sql = "DELETE FROM trustlines WHERE accountid = :id "
                           "AND asset = :v1";
-        auto prep = mDB.getPreparedStatement(sql);
+        auto prep = mDB.getPreparedStatement(sql, mSession);
         soci::statement& st = prep.statement();
         st.exchange(soci::use(mAccountIDs));
         st.exchange(soci::use(mAssets));
@@ -308,7 +314,7 @@ class BulkDeleteTrustLinesOperation : public DatabaseTypeSpecificOperation<void>
                           ") "
                           "DELETE FROM trustlines WHERE "
                           "(accountid, asset) IN (SELECT * FROM r)";
-        auto prep = mDB.getPreparedStatement(sql);
+        auto prep = mDB.getPreparedStatement(sql, mSession);
         soci::statement& st = prep.statement();
         st.exchange(soci::use(strAccountIDs));
         st.exchange(soci::use(strAssets));
@@ -333,8 +339,8 @@ LedgerTxnRoot::Impl::bulkUpsertTrustLines(
     ZoneScoped;
     ZoneValue(static_cast<int64_t>(entries.size()));
     BulkUpsertTrustLinesOperation op(mApp.getDatabase(), entries,
-                                     mHeader->ledgerVersion);
-    mApp.getDatabase().doDatabaseTypeSpecificOperation(op);
+                                     mHeader->ledgerVersion, getSession());
+    mApp.getDatabase().doDatabaseTypeSpecificOperation(op, getSession());
 }
 
 void
@@ -344,8 +350,8 @@ LedgerTxnRoot::Impl::bulkDeleteTrustLines(
     ZoneScoped;
     ZoneValue(static_cast<int64_t>(entries.size()));
     BulkDeleteTrustLinesOperation op(mApp.getDatabase(), cons, entries,
-                                     mHeader->ledgerVersion);
-    mApp.getDatabase().doDatabaseTypeSpecificOperation(op);
+                                     mHeader->ledgerVersion, getSession());
+    mApp.getDatabase().doDatabaseTypeSpecificOperation(op, getSession());
 }
 
 void
@@ -355,12 +361,12 @@ LedgerTxnRoot::Impl::dropTrustLines(bool rebuild)
     mEntryCache.clear();
     mBestOffers.clear();
 
-    mApp.getDatabase().getSession() << "DROP TABLE IF EXISTS trustlines;";
+    mApp.getDatabase().getRawSession() << "DROP TABLE IF EXISTS trustlines;";
 
     if (rebuild)
     {
         std::string coll = mApp.getDatabase().getSimpleCollationClause();
-        mApp.getDatabase().getSession()
+        mApp.getDatabase().getRawSession()
             << "CREATE TABLE trustlines"
             << "("
             << "accountid    VARCHAR(56) " << coll << " NOT NULL,"
@@ -377,6 +383,7 @@ class BulkLoadTrustLinesOperation
     Database& mDb;
     std::vector<std::string> mAccountIDs;
     std::vector<std::string> mAssets;
+    SessionWrapper& mSession;
 
     std::vector<LedgerEntry>
     executeAndFetch(soci::statement& st)
@@ -410,8 +417,9 @@ class BulkLoadTrustLinesOperation
 
   public:
     BulkLoadTrustLinesOperation(Database& db,
-                                UnorderedSet<LedgerKey> const& keys)
-        : mDb(db)
+                                UnorderedSet<LedgerKey> const& keys,
+                                SessionWrapper& session)
+        : mDb(db), mSession(session)
     {
         mAccountIDs.reserve(keys.size());
         mAssets.reserve(keys.size());
@@ -457,7 +465,7 @@ class BulkLoadTrustLinesOperation
                           ") SELECT accountid, asset, ledgerentry "
                           "FROM trustlines WHERE (accountid, asset) IN r";
 
-        auto prep = mDb.getPreparedStatement(sql);
+        auto prep = mDb.getPreparedStatement(sql, mSession);
         auto be = prep.statement().get_backend();
         if (be == nullptr)
         {
@@ -492,7 +500,8 @@ class BulkLoadTrustLinesOperation
             "ledgerentry "
             " FROM trustlines "
             "WHERE (accountid, asset) IN (SELECT * "
-            "FROM r)");
+            "FROM r)",
+            mSession);
         auto& st = prep.statement();
         st.exchange(soci::use(strAccountIDs));
         st.exchange(soci::use(strAssets));
@@ -509,9 +518,10 @@ LedgerTxnRoot::Impl::bulkLoadTrustLines(
     ZoneValue(static_cast<int64_t>(keys.size()));
     if (!keys.empty())
     {
-        BulkLoadTrustLinesOperation op(mApp.getDatabase(), keys);
+        BulkLoadTrustLinesOperation op(mApp.getDatabase(), keys, getSession());
         return populateLoadedEntries(
-            keys, mApp.getDatabase().doDatabaseTypeSpecificOperation(op));
+            keys, mApp.getDatabase().doDatabaseTypeSpecificOperation(
+                      op, getSession()));
     }
     else
     {

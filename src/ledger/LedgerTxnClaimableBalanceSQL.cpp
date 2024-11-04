@@ -22,7 +22,7 @@ LedgerTxnRoot::Impl::loadClaimableBalance(LedgerKey const& key) const
     std::string sql = "SELECT ledgerentry "
                       "FROM claimablebalance "
                       "WHERE balanceid= :balanceid";
-    auto prep = mApp.getDatabase().getPreparedStatement(sql);
+    auto prep = mApp.getDatabase().getPreparedStatement(sql, getSession());
     auto& st = prep.statement();
     st.exchange(soci::into(claimableBalanceEntryStr));
     st.exchange(soci::use(balanceID));
@@ -44,6 +44,7 @@ class BulkLoadClaimableBalanceOperation
 {
     Database& mDb;
     std::vector<std::string> mBalanceIDs;
+    SessionWrapper& mSession;
 
     std::vector<LedgerEntry>
     executeAndFetch(soci::statement& st)
@@ -74,8 +75,9 @@ class BulkLoadClaimableBalanceOperation
 
   public:
     BulkLoadClaimableBalanceOperation(Database& db,
-                                      UnorderedSet<LedgerKey> const& keys)
-        : mDb(db)
+                                      UnorderedSet<LedgerKey> const& keys,
+                                      SessionWrapper& session)
+        : mDb(db), mSession(session)
     {
         mBalanceIDs.reserve(keys.size());
         for (auto const& k : keys)
@@ -101,7 +103,7 @@ class BulkLoadClaimableBalanceOperation
                           "FROM claimablebalance "
                           "WHERE balanceid IN r";
 
-        auto prep = mDb.getPreparedStatement(sql);
+        auto prep = mDb.getPreparedStatement(sql, mSession);
         auto be = prep.statement().get_backend();
         if (be == nullptr)
         {
@@ -129,7 +131,7 @@ class BulkLoadClaimableBalanceOperation
                           "FROM claimablebalance "
                           "WHERE balanceid IN (SELECT * from r)";
 
-        auto prep = mDb.getPreparedStatement(sql);
+        auto prep = mDb.getPreparedStatement(sql, mSession);
         auto& st = prep.statement();
         st.exchange(soci::use(strBalanceIDs));
         return executeAndFetch(st);
@@ -143,9 +145,11 @@ LedgerTxnRoot::Impl::bulkLoadClaimableBalance(
 {
     if (!keys.empty())
     {
-        BulkLoadClaimableBalanceOperation op(mApp.getDatabase(), keys);
+        BulkLoadClaimableBalanceOperation op(mApp.getDatabase(), keys,
+                                             getSession());
         return populateLoadedEntries(
-            keys, mApp.getDatabase().doDatabaseTypeSpecificOperation(op));
+            keys, mApp.getDatabase().doDatabaseTypeSpecificOperation(
+                      op, getSession()));
     }
     else
     {
@@ -159,12 +163,13 @@ class BulkDeleteClaimableBalanceOperation
     Database& mDb;
     LedgerTxnConsistency mCons;
     std::vector<std::string> mBalanceIDs;
+    SessionWrapper& mSession;
 
   public:
     BulkDeleteClaimableBalanceOperation(
         Database& db, LedgerTxnConsistency cons,
-        std::vector<EntryIterator> const& entries)
-        : mDb(db), mCons(cons)
+        std::vector<EntryIterator> const& entries, SessionWrapper& session)
+        : mDb(db), mCons(cons), mSession(session)
     {
         mBalanceIDs.reserve(entries.size());
         for (auto const& e : entries)
@@ -180,7 +185,7 @@ class BulkDeleteClaimableBalanceOperation
     doSociGenericOperation()
     {
         std::string sql = "DELETE FROM claimablebalance WHERE balanceid = :id";
-        auto prep = mDb.getPreparedStatement(sql);
+        auto prep = mDb.getPreparedStatement(sql, mSession);
         auto& st = prep.statement();
         st.exchange(soci::use(mBalanceIDs));
         st.define_and_bind();
@@ -212,7 +217,7 @@ class BulkDeleteClaimableBalanceOperation
                           "DELETE FROM claimablebalance "
                           "WHERE balanceid IN (SELECT * FROM r)";
 
-        auto prep = mDb.getPreparedStatement(sql);
+        auto prep = mDb.getPreparedStatement(sql, mSession);
         auto& st = prep.statement();
         st.exchange(soci::use(strBalanceIDs));
         st.define_and_bind();
@@ -233,8 +238,9 @@ void
 LedgerTxnRoot::Impl::bulkDeleteClaimableBalance(
     std::vector<EntryIterator> const& entries, LedgerTxnConsistency cons)
 {
-    BulkDeleteClaimableBalanceOperation op(mApp.getDatabase(), cons, entries);
-    mApp.getDatabase().doDatabaseTypeSpecificOperation(op);
+    BulkDeleteClaimableBalanceOperation op(mApp.getDatabase(), cons, entries,
+                                           getSession());
+    mApp.getDatabase().doDatabaseTypeSpecificOperation(op, getSession());
 }
 
 class BulkUpsertClaimableBalanceOperation
@@ -244,6 +250,7 @@ class BulkUpsertClaimableBalanceOperation
     std::vector<std::string> mBalanceIDs;
     std::vector<std::string> mClaimableBalanceEntrys;
     std::vector<int32_t> mLastModifieds;
+    SessionWrapper& mSession;
 
     void
     accumulateEntry(LedgerEntry const& entry)
@@ -258,8 +265,9 @@ class BulkUpsertClaimableBalanceOperation
 
   public:
     BulkUpsertClaimableBalanceOperation(
-        Database& Db, std::vector<EntryIterator> const& entryIter)
-        : mDb(Db)
+        Database& Db, std::vector<EntryIterator> const& entryIter,
+        SessionWrapper& session)
+        : mDb(Db), mSession(session)
     {
         for (auto const& e : entryIter)
         {
@@ -280,7 +288,7 @@ class BulkUpsertClaimableBalanceOperation
                           "excluded.ledgerentry, lastmodified = "
                           "excluded.lastmodified";
 
-        auto prep = mDb.getPreparedStatement(sql);
+        auto prep = mDb.getPreparedStatement(sql, mSession);
         soci::statement& st = prep.statement();
         st.exchange(soci::use(mBalanceIDs));
         st.exchange(soci::use(mClaimableBalanceEntrys));
@@ -325,7 +333,7 @@ class BulkUpsertClaimableBalanceOperation
                           "excluded.ledgerentry, "
                           "lastmodified = excluded.lastmodified";
 
-        auto prep = mDb.getPreparedStatement(sql);
+        auto prep = mDb.getPreparedStatement(sql, mSession);
         soci::statement& st = prep.statement();
         st.exchange(soci::use(strBalanceIDs));
         st.exchange(soci::use(strClaimableBalanceEntry));
@@ -347,8 +355,9 @@ void
 LedgerTxnRoot::Impl::bulkUpsertClaimableBalance(
     std::vector<EntryIterator> const& entries)
 {
-    BulkUpsertClaimableBalanceOperation op(mApp.getDatabase(), entries);
-    mApp.getDatabase().doDatabaseTypeSpecificOperation(op);
+    BulkUpsertClaimableBalanceOperation op(mApp.getDatabase(), entries,
+                                           getSession());
+    mApp.getDatabase().doDatabaseTypeSpecificOperation(op, getSession());
 }
 
 void
@@ -358,12 +367,13 @@ LedgerTxnRoot::Impl::dropClaimableBalances(bool rebuild)
     mEntryCache.clear();
     mBestOffers.clear();
 
-    mApp.getDatabase().getSession() << "DROP TABLE IF EXISTS claimablebalance;";
+    mApp.getDatabase().getRawSession()
+        << "DROP TABLE IF EXISTS claimablebalance;";
 
     if (rebuild)
     {
         std::string coll = mApp.getDatabase().getSimpleCollationClause();
-        mApp.getDatabase().getSession()
+        mApp.getDatabase().getRawSession()
             << "CREATE TABLE claimablebalance ("
             << "balanceid             VARCHAR(48) " << coll << " PRIMARY KEY, "
             << "ledgerentry TEXT NOT NULL, "

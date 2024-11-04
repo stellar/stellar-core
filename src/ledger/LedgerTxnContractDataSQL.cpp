@@ -33,7 +33,7 @@ LedgerTxnRoot::Impl::loadContractData(LedgerKey const& k) const
         "SELECT ledgerentry "
         "FROM contractdata "
         "WHERE contractID = :contractID AND key = :key AND type = :type";
-    auto prep = mApp.getDatabase().getPreparedStatement(sql);
+    auto prep = mApp.getDatabase().getPreparedStatement(sql, getSession());
     auto& st = prep.statement();
     st.exchange(soci::into(contractDataEntryStr));
     st.exchange(soci::use(contractID));
@@ -60,6 +60,7 @@ class BulkLoadContractDataOperation
     : public DatabaseTypeSpecificOperation<std::vector<LedgerEntry>>
 {
     Database& mDb;
+    SessionWrapper& mSession;
     std::vector<std::string> mContractIDs;
     std::vector<std::string> mKeys;
     std::vector<int32_t> mTypes;
@@ -92,8 +93,9 @@ class BulkLoadContractDataOperation
 
   public:
     BulkLoadContractDataOperation(Database& db,
-                                  UnorderedSet<LedgerKey> const& keys)
-        : mDb(db)
+                                  UnorderedSet<LedgerKey> const& keys,
+                                  SessionWrapper& session)
+        : mDb(db), mSession(session)
     {
         mContractIDs.reserve(keys.size());
         mKeys.reserve(keys.size());
@@ -142,7 +144,7 @@ class BulkLoadContractDataOperation
                           "FROM contractdata "
                           "WHERE (contractid, key, type) IN (SELECT * FROM r)";
 
-        auto prep = mDb.getPreparedStatement(sql);
+        auto prep = mDb.getPreparedStatement(sql, mSession);
         auto be = prep.statement().get_backend();
         if (be == nullptr)
         {
@@ -177,7 +179,7 @@ class BulkLoadContractDataOperation
                           "FROM contractdata "
                           "WHERE (contractid, key, type) IN (SELECT * from r)";
 
-        auto prep = mDb.getPreparedStatement(sql);
+        auto prep = mDb.getPreparedStatement(sql, mSession);
         auto& st = prep.statement();
         st.exchange(soci::use(strContractIDs));
         st.exchange(soci::use(strKeys));
@@ -193,9 +195,11 @@ LedgerTxnRoot::Impl::bulkLoadContractData(
 {
     if (!keys.empty())
     {
-        BulkLoadContractDataOperation op(mApp.getDatabase(), keys);
+        BulkLoadContractDataOperation op(mApp.getDatabase(), keys,
+                                         getSession());
         return populateLoadedEntries(
-            keys, mApp.getDatabase().doDatabaseTypeSpecificOperation(op));
+            keys, mApp.getDatabase().doDatabaseTypeSpecificOperation(
+                      op, getSession()));
     }
     else
     {
@@ -208,14 +212,16 @@ class BulkDeleteContractDataOperation
 {
     Database& mDb;
     LedgerTxnConsistency mCons;
+    SessionWrapper& mSession;
     std::vector<std::string> mContractIDs;
     std::vector<std::string> mKeys;
     std::vector<int32_t> mTypes;
 
   public:
     BulkDeleteContractDataOperation(Database& db, LedgerTxnConsistency cons,
-                                    std::vector<EntryIterator> const& entries)
-        : mDb(db), mCons(cons)
+                                    std::vector<EntryIterator> const& entries,
+                                    SessionWrapper& session)
+        : mDb(db), mCons(cons), mSession(session)
     {
         mContractIDs.reserve(entries.size());
         for (auto const& e : entries)
@@ -235,7 +241,7 @@ class BulkDeleteContractDataOperation
     {
         std::string sql = "DELETE FROM contractdata WHERE contractid = :id "
                           "AND key = :key AND type = :type";
-        auto prep = mDb.getPreparedStatement(sql);
+        auto prep = mDb.getPreparedStatement(sql, mSession);
         auto& st = prep.statement();
         st.exchange(soci::use(mContractIDs));
         st.exchange(soci::use(mKeys));
@@ -273,7 +279,7 @@ class BulkDeleteContractDataOperation
                           "DELETE FROM contractdata "
                           "WHERE (contractid, key, type) IN (SELECT * FROM r)";
 
-        auto prep = mDb.getPreparedStatement(sql);
+        auto prep = mDb.getPreparedStatement(sql, mSession);
         auto& st = prep.statement();
         st.exchange(soci::use(strContractIDs));
         st.exchange(soci::use(strKeys));
@@ -297,14 +303,16 @@ void
 LedgerTxnRoot::Impl::bulkDeleteContractData(
     std::vector<EntryIterator> const& entries, LedgerTxnConsistency cons)
 {
-    BulkDeleteContractDataOperation op(mApp.getDatabase(), cons, entries);
-    mApp.getDatabase().doDatabaseTypeSpecificOperation(op);
+    BulkDeleteContractDataOperation op(mApp.getDatabase(), cons, entries,
+                                       getSession());
+    mApp.getDatabase().doDatabaseTypeSpecificOperation(op, getSession());
 }
 
 class BulkUpsertContractDataOperation
     : public DatabaseTypeSpecificOperation<void>
 {
     Database& mDb;
+    SessionWrapper& mSession;
     std::vector<std::string> mContractIDs;
     std::vector<std::string> mKeys;
     std::vector<int32_t> mTypes;
@@ -327,8 +335,9 @@ class BulkUpsertContractDataOperation
 
   public:
     BulkUpsertContractDataOperation(Database& Db,
-                                    std::vector<EntryIterator> const& entryIter)
-        : mDb(Db)
+                                    std::vector<EntryIterator> const& entryIter,
+                                    SessionWrapper& session)
+        : mDb(Db), mSession(session)
     {
         for (auto const& e : entryIter)
         {
@@ -348,7 +357,7 @@ class BulkUpsertContractDataOperation
                           "ledgerentry = excluded.ledgerentry, "
                           "lastmodified = excluded.lastmodified";
 
-        auto prep = mDb.getPreparedStatement(sql);
+        auto prep = mDb.getPreparedStatement(sql, mSession);
         soci::statement& st = prep.statement();
         st.exchange(soci::use(mContractIDs));
         st.exchange(soci::use(mKeys));
@@ -397,7 +406,7 @@ class BulkUpsertContractDataOperation
             "ledgerentry = excluded.ledgerentry, "
             "lastmodified = excluded.lastmodified";
 
-        auto prep = mDb.getPreparedStatement(sql);
+        auto prep = mDb.getPreparedStatement(sql, mSession);
         soci::statement& st = prep.statement();
         st.exchange(soci::use(strContractIDs));
         st.exchange(soci::use(strKeys));
@@ -421,8 +430,9 @@ void
 LedgerTxnRoot::Impl::bulkUpsertContractData(
     std::vector<EntryIterator> const& entries)
 {
-    BulkUpsertContractDataOperation op(mApp.getDatabase(), entries);
-    mApp.getDatabase().doDatabaseTypeSpecificOperation(op);
+    BulkUpsertContractDataOperation op(mApp.getDatabase(), entries,
+                                       getSession());
+    mApp.getDatabase().doDatabaseTypeSpecificOperation(op, getSession());
 }
 
 void
@@ -432,28 +442,27 @@ LedgerTxnRoot::Impl::dropContractData(bool rebuild)
     mEntryCache.clear();
     mBestOffers.clear();
 
-    mApp.getDatabase().getSession() << "DROP TABLE IF EXISTS contractdata;";
+    getSession().session() << "DROP TABLE IF EXISTS contractdata;";
 
     if (rebuild)
     {
         std::string coll = mApp.getDatabase().getSimpleCollationClause();
-        mApp.getDatabase().getSession()
-            << "CREATE TABLE contractdata ("
-            << "contractid   TEXT " << coll << " NOT NULL, "
-            << "key TEXT " << coll << " NOT NULL, "
-            << "type INT NOT NULL, "
-            << "ledgerentry  TEXT " << coll << " NOT NULL, "
-            << "lastmodified INT NOT NULL, "
-            << "PRIMARY KEY  (contractid, key, type));";
+        getSession().session() << "CREATE TABLE contractdata ("
+                               << "contractid   TEXT " << coll << " NOT NULL, "
+                               << "key TEXT " << coll << " NOT NULL, "
+                               << "type INT NOT NULL, "
+                               << "ledgerentry  TEXT " << coll << " NOT NULL, "
+                               << "lastmodified INT NOT NULL, "
+                               << "PRIMARY KEY  (contractid, key, type));";
         if (!mApp.getDatabase().isSqlite())
         {
-            mApp.getDatabase().getSession() << "ALTER TABLE contractdata "
-                                            << "ALTER COLUMN contractid "
-                                            << "TYPE TEXT COLLATE \"C\","
-                                            << "ALTER COLUMN key "
-                                            << "TYPE TEXT COLLATE \"C\","
-                                            << "ALTER COLUMN type "
-                                            << "TYPE INT;";
+            getSession().session() << "ALTER TABLE contractdata "
+                                   << "ALTER COLUMN contractid "
+                                   << "TYPE TEXT COLLATE \"C\","
+                                   << "ALTER COLUMN key "
+                                   << "TYPE TEXT COLLATE \"C\","
+                                   << "ALTER COLUMN type "
+                                   << "TYPE INT;";
         }
     }
 }

@@ -100,6 +100,7 @@ class InMemoryLedgerTxn : public LedgerTxn
     UnorderedMap<LedgerKey, LedgerEntry>
     getPoolShareTrustLinesByAccountAndAsset(AccountID const& account,
                                             Asset const& asset) override;
+    SessionWrapper& getSession() const override;
 };
 
 }

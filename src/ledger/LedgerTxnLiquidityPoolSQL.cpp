@@ -39,7 +39,7 @@ LedgerTxnRoot::Impl::loadLiquidityPool(LedgerKey const& key) const
     std::string sql = "SELECT ledgerentry "
                       "FROM liquiditypool "
                       "WHERE poolasset= :poolasset";
-    auto prep = mApp.getDatabase().getPreparedStatement(sql);
+    auto prep = mApp.getDatabase().getPreparedStatement(sql, getSession());
     auto& st = prep.statement();
     st.exchange(soci::into(liquidityPoolEntryStr));
     st.exchange(soci::use(poolAsset));
@@ -64,6 +64,7 @@ class BulkLoadLiquidityPoolOperation
     : public DatabaseTypeSpecificOperation<std::vector<LedgerEntry>>
 {
     Database& mDb;
+    SessionWrapper& mSession;
     std::vector<std::string> mPoolAssets;
 
     std::vector<LedgerEntry>
@@ -94,8 +95,9 @@ class BulkLoadLiquidityPoolOperation
 
   public:
     BulkLoadLiquidityPoolOperation(Database& db,
-                                   UnorderedSet<LedgerKey> const& keys)
-        : mDb(db)
+                                   UnorderedSet<LedgerKey> const& keys,
+                                   SessionWrapper& session)
+        : mDb(db), mSession(session)
     {
         mPoolAssets.reserve(keys.size());
         for (auto const& k : keys)
@@ -121,7 +123,7 @@ class BulkLoadLiquidityPoolOperation
                           "FROM liquiditypool "
                           "WHERE poolasset IN r";
 
-        auto prep = mDb.getPreparedStatement(sql);
+        auto prep = mDb.getPreparedStatement(sql, mSession);
         auto be = prep.statement().get_backend();
         if (be == nullptr)
         {
@@ -149,7 +151,7 @@ class BulkLoadLiquidityPoolOperation
                           "FROM liquiditypool "
                           "WHERE poolasset IN (SELECT * from r)";
 
-        auto prep = mDb.getPreparedStatement(sql);
+        auto prep = mDb.getPreparedStatement(sql, mSession);
         auto& st = prep.statement();
         st.exchange(soci::use(strPoolAssets));
         return executeAndFetch(st);
@@ -163,9 +165,11 @@ LedgerTxnRoot::Impl::bulkLoadLiquidityPool(
 {
     if (!keys.empty())
     {
-        BulkLoadLiquidityPoolOperation op(mApp.getDatabase(), keys);
+        BulkLoadLiquidityPoolOperation op(mApp.getDatabase(), keys,
+                                          getSession());
         return populateLoadedEntries(
-            keys, mApp.getDatabase().doDatabaseTypeSpecificOperation(op));
+            keys, mApp.getDatabase().doDatabaseTypeSpecificOperation(
+                      op, getSession()));
     }
     else
     {
@@ -178,12 +182,14 @@ class BulkDeleteLiquidityPoolOperation
 {
     Database& mDb;
     LedgerTxnConsistency mCons;
+    SessionWrapper& mSession;
     std::vector<std::string> mPoolAssets;
 
   public:
     BulkDeleteLiquidityPoolOperation(Database& db, LedgerTxnConsistency cons,
-                                     std::vector<EntryIterator> const& entries)
-        : mDb(db), mCons(cons)
+                                     std::vector<EntryIterator> const& entries,
+                                     SessionWrapper& session)
+        : mDb(db), mCons(cons), mSession(session)
     {
         mPoolAssets.reserve(entries.size());
         for (auto const& e : entries)
@@ -199,7 +205,7 @@ class BulkDeleteLiquidityPoolOperation
     doSociGenericOperation()
     {
         std::string sql = "DELETE FROM liquiditypool WHERE poolasset = :id";
-        auto prep = mDb.getPreparedStatement(sql);
+        auto prep = mDb.getPreparedStatement(sql, mSession);
         auto& st = prep.statement();
         st.exchange(soci::use(mPoolAssets));
         st.define_and_bind();
@@ -231,7 +237,7 @@ class BulkDeleteLiquidityPoolOperation
                           "DELETE FROM liquiditypool "
                           "WHERE poolasset IN (SELECT * FROM r)";
 
-        auto prep = mDb.getPreparedStatement(sql);
+        auto prep = mDb.getPreparedStatement(sql, mSession);
         auto& st = prep.statement();
         st.exchange(soci::use(strPoolAssets));
         st.define_and_bind();
@@ -252,14 +258,16 @@ void
 LedgerTxnRoot::Impl::bulkDeleteLiquidityPool(
     std::vector<EntryIterator> const& entries, LedgerTxnConsistency cons)
 {
-    BulkDeleteLiquidityPoolOperation op(mApp.getDatabase(), cons, entries);
-    mApp.getDatabase().doDatabaseTypeSpecificOperation(op);
+    BulkDeleteLiquidityPoolOperation op(mApp.getDatabase(), cons, entries,
+                                        getSession());
+    mApp.getDatabase().doDatabaseTypeSpecificOperation(op, getSession());
 }
 
 class BulkUpsertLiquidityPoolOperation
     : public DatabaseTypeSpecificOperation<void>
 {
     Database& mDb;
+    SessionWrapper& mSession;
     std::vector<std::string> mPoolAssets;
     std::vector<std::string> mAssetAs;
     std::vector<std::string> mAssetBs;
@@ -283,8 +291,9 @@ class BulkUpsertLiquidityPoolOperation
 
   public:
     BulkUpsertLiquidityPoolOperation(
-        Database& Db, std::vector<EntryIterator> const& entryIter)
-        : mDb(Db)
+        Database& Db, std::vector<EntryIterator> const& entryIter,
+        SessionWrapper& session)
+        : mDb(Db), mSession(session)
     {
         for (auto const& e : entryIter)
         {
@@ -307,7 +316,7 @@ class BulkUpsertLiquidityPoolOperation
             "ledgerentry = excluded.ledgerentry, "
             "lastmodified = excluded.lastmodified";
 
-        auto prep = mDb.getPreparedStatement(sql);
+        auto prep = mDb.getPreparedStatement(sql, mSession);
         soci::statement& st = prep.statement();
         st.exchange(soci::use(mPoolAssets));
         st.exchange(soci::use(mAssetAs));
@@ -359,7 +368,7 @@ class BulkUpsertLiquidityPoolOperation
             "ledgerentry = excluded.ledgerentry, "
             "lastmodified = excluded.lastmodified";
 
-        auto prep = mDb.getPreparedStatement(sql);
+        auto prep = mDb.getPreparedStatement(sql, mSession);
         soci::statement& st = prep.statement();
         st.exchange(soci::use(strPoolAssets));
         st.exchange(soci::use(strAssetAs));
@@ -383,8 +392,9 @@ void
 LedgerTxnRoot::Impl::bulkUpsertLiquidityPool(
     std::vector<EntryIterator> const& entries)
 {
-    BulkUpsertLiquidityPoolOperation op(mApp.getDatabase(), entries);
-    mApp.getDatabase().doDatabaseTypeSpecificOperation(op);
+    BulkUpsertLiquidityPoolOperation op(mApp.getDatabase(), entries,
+                                        getSession());
+    mApp.getDatabase().doDatabaseTypeSpecificOperation(op, getSession());
 }
 
 void
@@ -394,7 +404,7 @@ LedgerTxnRoot::Impl::dropLiquidityPools(bool rebuild)
     mEntryCache.clear();
     mBestOffers.clear();
 
-    mApp.getDatabase().getSession() << "DROP TABLE IF EXISTS liquiditypool;";
+    getSession().session() << "DROP TABLE IF EXISTS liquiditypool;";
 
     if (rebuild)
     {
@@ -403,17 +413,17 @@ LedgerTxnRoot::Impl::dropLiquidityPools(bool rebuild)
         // containing the PoolID) instead of poolid (the base-64 opaque PoolID)
         // so that we can perform the join in load pool share trust lines by
         // account and asset.
-        mApp.getDatabase().getSession()
+        getSession().session()
             << "CREATE TABLE liquiditypool ("
             << "poolasset    TEXT " << coll << " PRIMARY KEY, "
             << "asseta       TEXT " << coll << " NOT NULL, "
             << "assetb       TEXT " << coll << " NOT NULL, "
             << "ledgerentry  TEXT NOT NULL, "
             << "lastmodified INT NOT NULL);";
-        mApp.getDatabase().getSession() << "CREATE INDEX liquiditypoolasseta "
-                                        << "ON liquiditypool(asseta);";
-        mApp.getDatabase().getSession() << "CREATE INDEX liquiditypoolassetb "
-                                        << "ON liquiditypool(assetb);";
+        getSession().session() << "CREATE INDEX liquiditypoolasseta "
+                               << "ON liquiditypool(asseta);";
+        getSession().session() << "CREATE INDEX liquiditypoolassetb "
+                               << "ON liquiditypool(assetb);";
     }
 }
 }
