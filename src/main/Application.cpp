@@ -4,6 +4,7 @@
 
 #include "Application.h"
 #include "ApplicationImpl.h"
+#include "database/Database.h"
 #include "util/GlobalChecks.h"
 #include <fmt/format.h>
 
@@ -21,12 +22,13 @@ validateNetworkPassphrase(Application::pointer app)
     }
 
     auto& persistentState = app->getPersistentState();
-    std::string prevNetworkPassphrase =
-        persistentState.getState(PersistentState::kNetworkPassphrase);
+    std::string prevNetworkPassphrase = persistentState.getState(
+        PersistentState::kNetworkPassphrase, app->getDatabase().getSession());
     if (prevNetworkPassphrase.empty())
     {
         persistentState.setState(PersistentState::kNetworkPassphrase,
-                                 networkPassphrase);
+                                 networkPassphrase,
+                                 app->getDatabase().getSession());
     }
     else if (networkPassphrase != prevNetworkPassphrase)
     {

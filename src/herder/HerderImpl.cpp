@@ -2057,16 +2057,18 @@ void
 HerderImpl::persistUpgrades()
 {
     ZoneScoped;
+    releaseAssert(threadIsMain());
     auto s = mUpgrades.getParameters().toJson();
-    mApp.getPersistentState().setState(PersistentState::kLedgerUpgrades, s);
+    mApp.getPersistentState().setState(PersistentState::kLedgerUpgrades, s,
+                                       mApp.getDatabase().getMiscSession());
 }
 
 void
 HerderImpl::restoreUpgrades()
 {
     ZoneScoped;
-    std::string s =
-        mApp.getPersistentState().getState(PersistentState::kLedgerUpgrades);
+    std::string s = mApp.getPersistentState().getState(
+        PersistentState::kLedgerUpgrades, mApp.getDatabase().getMiscSession());
     if (!s.empty())
     {
         Upgrades::UpgradeParameters p;

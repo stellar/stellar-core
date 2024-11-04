@@ -59,8 +59,8 @@ static std::string kSQLCreateStatement =
 void
 HistoryManager::dropAll(Database& db)
 {
-    db.getSession() << "DROP TABLE IF EXISTS publishqueue;";
-    soci::statement st = db.getSession().prepare << kSQLCreateStatement;
+    db.getRawSession() << "DROP TABLE IF EXISTS publishqueue;";
+    soci::statement st = db.getRawSession().prepare << kSQLCreateStatement;
     st.execute(true);
 }
 
@@ -149,7 +149,8 @@ HistoryManagerImpl::dropSQLBasedPublish()
     // Migrate all the existing queued checkpoints to the new format
     {
         std::string state;
-        auto prep = db.getPreparedStatement("SELECT state FROM publishqueue;");
+        auto prep =
+            db.getPreparedStatement("SELECT state FROM publishqueue;", sess);
         auto& st = prep.statement();
         st.exchange(soci::into(state));
         st.define_and_bind();
@@ -170,9 +171,9 @@ HistoryManagerImpl::dropSQLBasedPublish()
     for (auto const& checkpoint : checkpointLedgers)
     {
         auto begin = firstLedgerInCheckpointContaining(checkpoint);
-        populateCheckpointFilesFromDB(mApp, sess, begin, freq,
+        populateCheckpointFilesFromDB(mApp, sess.session(), begin, freq,
                                       mCheckpointBuilder);
-        LedgerHeaderUtils::copyToStream(db, sess, begin, freq,
+        LedgerHeaderUtils::copyToStream(db, sess.session(), begin, freq,
                                         mCheckpointBuilder);
         // Checkpoints in publish queue are complete, so we can finalize them
         mCheckpointBuilder.checkpointComplete(checkpoint);
@@ -184,17 +185,17 @@ HistoryManagerImpl::dropSQLBasedPublish()
     {
         // Then, reconstruct any partial checkpoints that haven't yet been
         // queued
-        populateCheckpointFilesFromDB(mApp, sess,
+        populateCheckpointFilesFromDB(mApp, sess.session(),
                                       firstLedgerInCheckpointContaining(lcl),
                                       freq, mCheckpointBuilder);
-        LedgerHeaderUtils::copyToStream(db, sess,
+        LedgerHeaderUtils::copyToStream(db, sess.session(),
                                         firstLedgerInCheckpointContaining(lcl),
                                         freq, mCheckpointBuilder);
     }
     db.clearPreparedStatementCache();
 
     // Now it's safe to drop obsolete SQL tables
-    sess << "DROP TABLE IF EXISTS publishqueue;";
+    sess.session() << "DROP TABLE IF EXISTS publishqueue;";
     dropSupportTxHistory(db);
     dropSupportTxSetHistory(db);
 }

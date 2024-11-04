@@ -19,23 +19,30 @@ class PersistentState
 
     enum Entry
     {
-        kLastClosedLedger = 0,
+        // Main database entries
+        kLastClosedLedger,
         kHistoryArchiveState,
-        kLastSCPData,
         kDatabaseSchema,
         kNetworkPassphrase,
-        kLedgerUpgrades,
         kRebuildLedger,
+        kDBBackend,
+        kLastEntryMain, // Marker for the end of main database entries
+
+        // Misc database entries
+        kLastSCPData = kLastEntryMain + 1,
+        kLedgerUpgrades,
         kLastSCPDataXDR,
         kTxSet,
-        kDBBackend,
-        kLastEntry,
+        kMiscDatabaseSchema,
+        kLastEntry // Marker for the end of misc database entries
     };
 
     static void dropAll(Database& db);
+    static void dropMisc(Database& db);
 
-    std::string getState(Entry stateName);
-    void setState(Entry stateName, std::string const& value);
+    std::string getState(Entry stateName, SessionWrapper& session);
+    void setState(Entry stateName, std::string const& value,
+                  SessionWrapper& session);
 
     // Special methods for SCP state (multiple slots)
     std::vector<std::string> getSCPStateAllSlots();
@@ -52,19 +59,23 @@ class PersistentState
 
     bool hasTxSet(Hash const& txSetHash);
     void deleteTxSets(std::unordered_set<Hash> hashesToDelete);
+    std::string getStoreStateName(Entry n, uint32 subscript = 0) const;
 
   private:
     static std::string kSQLCreateStatement;
-    static std::string mapping[kLastEntry];
+    static std::string mainMapping[kLastEntryMain];
+    static std::string miscMapping[kLastEntry];
 
     Application& mApp;
 
-    std::string getStoreStateName(Entry n, uint32 subscript = 0);
     std::string getStoreStateNameForTxSet(Hash const& txSetHash);
 
     void setSCPStateForSlot(uint64 slot, std::string const& value);
-    void updateDb(std::string const& entry, std::string const& value);
-    std::string getFromDb(std::string const& entry);
-    bool entryExists(std::string const& entry);
+    void updateDb(std::string const& entry, std::string const& value,
+                  SessionWrapper& session);
+
+    std::string getFromDb(std::string const& entry, SessionWrapper& session);
+
+    bool entryExists(std::string const& entry, SessionWrapper& session);
 };
 }

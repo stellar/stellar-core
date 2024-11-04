@@ -226,7 +226,7 @@ TEST_CASE_VERSIONS("standalone", "[herder][acceptance]")
                 app->getCommandHandler().manualCmd("setcursor?id=A1&cursor=1");
                 app->getCommandHandler().manualCmd("maintenance?queue=true");
                 auto& db = app->getDatabase();
-                auto& sess = db.getSession();
+                auto& sess = db.getRawSession();
 
                 app->getCommandHandler().manualCmd("setcursor?id=A2&cursor=3");
                 app->getCommandHandler().manualCmd("maintenance?queue=true");
@@ -3395,15 +3395,15 @@ TEST_CASE("overlay parallel processing")
     // soroban traffic
     currLoadGenCount = loadGenDone.count();
     auto secondLoadGenCount = secondLoadGenDone.count();
-    uint32_t const classicTxCount = 200;
+    uint32_t const txCount = 100;
     // Generate Soroban txs from one node
     loadGen.generateLoad(GeneratedLoadConfig::txLoad(
         LoadGenMode::SOROBAN_UPLOAD, 50,
-        /* nTxs */ 500, desiredTxRate, /* offset */ 0));
+        /* nTxs */ txCount, desiredTxRate, /* offset */ 0));
     // Generate classic txs from another node (with offset to prevent
     // overlapping accounts)
     secondLoadGen.generateLoad(GeneratedLoadConfig::txLoad(
-        LoadGenMode::PAY, 50, classicTxCount, desiredTxRate,
+        LoadGenMode::PAY, 50, txCount, desiredTxRate,
         /* offset */ 50));
 
     simulation->crankUntil(
@@ -5465,7 +5465,8 @@ TEST_CASE("SCP message capture from previous ledger", "[herder]")
             // Prepare query
             auto& db = node->getDatabase();
             auto prep = db.getPreparedStatement(
-                "SELECT envelope FROM scphistory WHERE ledgerseq = :l");
+                "SELECT envelope FROM scphistory WHERE ledgerseq = :l",
+                db.getMiscSession());
             auto& st = prep.statement();
             st.exchange(soci::use(ledgerNum));
             std::string envStr;

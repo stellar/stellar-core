@@ -690,22 +690,22 @@ Upgrades::timeForUpgrade(uint64_t time) const
 void
 Upgrades::dropAll(Database& db)
 {
-    db.getSession() << "DROP TABLE IF EXISTS upgradehistory";
-    db.getSession() << "CREATE TABLE upgradehistory ("
-                       "ledgerseq    INT NOT NULL CHECK (ledgerseq >= 0), "
-                       "upgradeindex INT NOT NULL, "
-                       "upgrade      TEXT NOT NULL, "
-                       "changes      TEXT NOT NULL, "
-                       "PRIMARY KEY (ledgerseq, upgradeindex)"
-                       ")";
-    db.getSession()
+    db.getRawSession() << "DROP TABLE IF EXISTS upgradehistory";
+    db.getRawSession() << "CREATE TABLE upgradehistory ("
+                          "ledgerseq    INT NOT NULL CHECK (ledgerseq >= 0), "
+                          "upgradeindex INT NOT NULL, "
+                          "upgrade      TEXT NOT NULL, "
+                          "changes      TEXT NOT NULL, "
+                          "PRIMARY KEY (ledgerseq, upgradeindex)"
+                          ")";
+    db.getRawSession()
         << "CREATE INDEX upgradehistbyseq ON upgradehistory (ledgerseq);";
 }
 
 void
 Upgrades::dropSupportUpgradeHistory(Database& db)
 {
-    db.getSession() << "DROP TABLE IF EXISTS upgradehistory";
+    db.getRawSession() << "DROP TABLE IF EXISTS upgradehistory";
 }
 
 static void
