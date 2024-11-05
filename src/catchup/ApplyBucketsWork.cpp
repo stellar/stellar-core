@@ -88,10 +88,10 @@ std::shared_ptr<LiveBucket>
 ApplyBucketsWork::getBucket(std::string const& hash)
 {
     auto i = mBuckets.find(hash);
-    auto b =
-        (i != mBuckets.end())
-            ? i->second
-            : mApp.getBucketManager().getLiveBucketByHash(hexToBin256(hash));
+    auto b = (i != mBuckets.end())
+                 ? i->second
+                 : BucketManager::getBucketByHash<LiveBucket>(
+                       mApp.getBucketManager(), hexToBin256(hash));
     releaseAssert(b);
     return b;
 }

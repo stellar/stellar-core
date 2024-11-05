@@ -8,8 +8,10 @@
 #include "bucket/BucketInputIterator.h"
 #include "bucket/BucketList.h"
 #include "bucket/BucketListSnapshot.h"
+#include "bucket/BucketManager.h"
 #include "bucket/BucketOutputIterator.h"
 #include "bucket/BucketSnapshotManager.h"
+#include "bucket/BucketUtils.h"
 #include "crypto/BLAKE2.h"
 #include "crypto/Hex.h"
 #include "crypto/SHA.h"
@@ -254,6 +256,13 @@ extractFromFilename(std::string const& name)
 {
     return hexToBin256(name.substr(7, 64));
 };
+}
+
+void
+BucketManagerImpl::updateSharedBucketSize()
+{
+    mSharedBucketsSize.set_count(mSharedHotArchiveBuckets.size() +
+                                 mSharedLiveBuckets.size());
 }
 
 std::string
@@ -507,30 +516,39 @@ BucketManagerImpl::renameBucketDirFile(std::filesystem::path const& src,
     }
 }
 
+template <>
 std::shared_ptr<LiveBucket>
-BucketManagerImpl::adoptFileAsLiveBucket(
-    std::string const& filename, uint256 const& hash, MergeKey* mergeKey,
-    std::unique_ptr<BucketIndex const> index)
+BucketManager::adoptFileAsBucket(BucketManager& bm, std::string const& filename,
+                                 uint256 const& hash, MergeKey* mergeKey,
+                                 std::unique_ptr<BucketIndex const> index)
 {
-    return adoptFileAsBucket<LiveBucket>(filename, hash, mergeKey,
-                                         std::move(index));
+    auto& bmImpl = static_cast<BucketManagerImpl&>(bm);
+    return bmImpl.adoptFileAsBucket(filename, hash, mergeKey, std::move(index),
+                                    bmImpl.mSharedLiveBuckets,
+                                    bmImpl.mLiveBucketFutures);
 }
 
+template <>
 std::shared_ptr<HotArchiveBucket>
-BucketManagerImpl::adoptFileAsHotArchiveBucket(
-    std::string const& filename, uint256 const& hash, MergeKey* mergeKey,
-    std::unique_ptr<BucketIndex const> index)
+BucketManager::adoptFileAsBucket(BucketManager& bm, std::string const& filename,
+                                 uint256 const& hash, MergeKey* mergeKey,
+                                 std::unique_ptr<BucketIndex const> index)
 {
-    return adoptFileAsBucket<HotArchiveBucket>(filename, hash, mergeKey,
-                                               std::move(index));
+    auto& bmImpl = static_cast<BucketManagerImpl&>(bm);
+    return bmImpl.adoptFileAsBucket(filename, hash, mergeKey, std::move(index),
+                                    bmImpl.mSharedHotArchiveBuckets,
+                                    bmImpl.mHotArchiveBucketFutures);
 }
 
 template <typename BucketT>
 std::shared_ptr<BucketT>
 BucketManagerImpl::adoptFileAsBucket(std::string const& filename,
                                      uint256 const& hash, MergeKey* mergeKey,
-                                     std::unique_ptr<BucketIndex const> index)
+                                     std::unique_ptr<BucketIndex const> index,
+                                     BucketMapT<BucketT>& bucketMap,
+                                     FutureMapT<BucketT>& futureMap)
 {
+    BUCKET_TYPE_ASSERT(BucketT);
     ZoneScoped;
     releaseAssertOrThrow(mApp.getConfig().MODE_ENABLES_BUCKETLIST);
     std::lock_guard<std::recursive_mutex> lock(mBucketMutex);
@@ -549,11 +567,11 @@ BucketManagerImpl::adoptFileAsBucket(std::string const& filename,
             "BucketManager::adoptFileAsLiveBucket switching merge {} from "
             "live to finished for output={}",
             *mergeKey, hexAbbrev(hash));
-        mLiveFutures.erase(*mergeKey);
+        futureMap.erase(*mergeKey);
     }
 
     // Check to see if we have an existing bucket (either in-memory or on-disk)
-    std::shared_ptr<BucketT> b = getBucketByHash<BucketT>(hash);
+    std::shared_ptr<BucketT> b = getBucketByHash(hash, bucketMap);
     if (b)
     {
         CLOG_DEBUG(
@@ -590,8 +608,8 @@ BucketManagerImpl::adoptFileAsBucket(std::string const& filename,
 
         b = std::make_shared<BucketT>(canonicalName, hash, std::move(index));
         {
-            mSharedBuckets.emplace(hash, b);
-            mSharedBucketsSize.set_count(mSharedBuckets.size());
+            bucketMap.emplace(hash, b);
+            updateSharedBucketSize();
         }
     }
     releaseAssert(b);
@@ -604,9 +622,30 @@ BucketManagerImpl::adoptFileAsBucket(std::string const& filename,
     return b;
 }
 
+template <>
 void
-BucketManagerImpl::noteEmptyMergeOutput(MergeKey const& mergeKey)
+BucketManager::noteEmptyMergeOutput<LiveBucket>(BucketManager& bm,
+                                                MergeKey const& mergeKey)
 {
+    auto& bmImpl = static_cast<BucketManagerImpl&>(bm);
+    bmImpl.noteEmptyMergeOutput(mergeKey, bmImpl.mLiveBucketFutures);
+}
+
+template <>
+void
+BucketManager::noteEmptyMergeOutput<HotArchiveBucket>(BucketManager& bm,
+                                                      MergeKey const& mergeKey)
+{
+    auto& bmImpl = static_cast<BucketManagerImpl&>(bm);
+    bmImpl.noteEmptyMergeOutput(mergeKey, bmImpl.mHotArchiveBucketFutures);
+}
+
+template <class BucketT>
+void
+BucketManagerImpl::noteEmptyMergeOutput(MergeKey const& mergeKey,
+                                        FutureMapT<BucketT>& futureMap)
+{
+    BUCKET_TYPE_ASSERT(BucketT);
     releaseAssertOrThrow(mApp.getConfig().MODE_ENABLES_BUCKETLIST);
 
     // We _do_ want to remove the mergeKey from mLiveFutures, both so that that
@@ -620,16 +659,35 @@ BucketManagerImpl::noteEmptyMergeOutput(MergeKey const& mergeKey)
     // mergeKeys result in an empty output.
     std::lock_guard<std::recursive_mutex> lock(mBucketMutex);
     CLOG_TRACE(Bucket, "BucketManager::noteEmptyMergeOutput({})", mergeKey);
-    mLiveFutures.erase(mergeKey);
+    futureMap.erase(mergeKey);
 }
 
-std::shared_ptr<Bucket>
-BucketManagerImpl::getBucketIfExists(uint256 const& hash)
+template <>
+std::shared_ptr<LiveBucket>
+BucketManager::getBucketIfExists(BucketManager const& bm, uint256 const& hash)
 {
+    auto const& bmImpl = static_cast<BucketManagerImpl const&>(bm);
+    return bmImpl.getBucketIfExists(hash, bmImpl.mSharedLiveBuckets);
+}
+
+template <>
+std::shared_ptr<HotArchiveBucket>
+BucketManager::getBucketIfExists(BucketManager const& bm, uint256 const& hash)
+{
+    auto const& bmImpl = static_cast<BucketManagerImpl const&>(bm);
+    return bmImpl.getBucketIfExists(hash, bmImpl.mSharedHotArchiveBuckets);
+}
+
+template <class BucketT>
+std::shared_ptr<BucketT>
+BucketManagerImpl::getBucketIfExists(uint256 const& hash,
+                                     BucketMapT<BucketT> const& bucketMap) const
+{
+    BUCKET_TYPE_ASSERT(BucketT);
     ZoneScoped;
     std::lock_guard<std::recursive_mutex> lock(mBucketMutex);
-    auto i = mSharedBuckets.find(hash);
-    if (i != mSharedBuckets.end())
+    auto i = bucketMap.find(hash);
+    if (i != bucketMap.end())
     {
         CLOG_TRACE(Bucket,
                    "BucketManager::getBucketIfExists({}) found bucket {}",
@@ -640,41 +698,40 @@ BucketManagerImpl::getBucketIfExists(uint256 const& hash)
     return nullptr;
 }
 
+template <>
 std::shared_ptr<LiveBucket>
-BucketManagerImpl::getLiveBucketByHash(uint256 const& hash)
+BucketManager::getBucketByHash(BucketManager& bm, uint256 const& hash)
 {
-    return getBucketByHash<LiveBucket>(hash);
+    auto& bmImpl = static_cast<BucketManagerImpl&>(bm);
+    return bmImpl.getBucketByHash(hash, bmImpl.mSharedLiveBuckets);
 }
 
+template <>
 std::shared_ptr<HotArchiveBucket>
-BucketManagerImpl::getHotArchiveBucketByHash(uint256 const& hash)
+BucketManager::getBucketByHash(BucketManager& bm, uint256 const& hash)
 {
-    return getBucketByHash<HotArchiveBucket>(hash);
+    auto& bmImpl = static_cast<BucketManagerImpl&>(bm);
+    return bmImpl.getBucketByHash(hash, bmImpl.mSharedHotArchiveBuckets);
 }
 
 template <class BucketT>
 std::shared_ptr<BucketT>
-BucketManagerImpl::getBucketByHash(uint256 const& hash)
+BucketManagerImpl::getBucketByHash(uint256 const& hash,
+                                   BucketMapT<BucketT>& bucketMap)
 {
+    BUCKET_TYPE_ASSERT(BucketT);
     ZoneScoped;
     std::lock_guard<std::recursive_mutex> lock(mBucketMutex);
     if (isZero(hash))
     {
         return std::make_shared<BucketT>();
     }
-    auto i = mSharedBuckets.find(hash);
-    if (i != mSharedBuckets.end())
+    auto i = bucketMap.find(hash);
+    if (i != bucketMap.end())
     {
         CLOG_TRACE(Bucket, "BucketManager::getBucketByHash({}) found bucket {}",
                    binToHex(hash), i->second->getFilename());
-
-        // Because BucketManger has an impl class, no public templated functions
-        // can be declared. This means we have to manually enforce types via
-        // `getLiveBucketByHash` and `getHotBucketByHash`, leading to this ugly
-        // cast.
-        auto ret = std::dynamic_pointer_cast<BucketT>(i->second);
-        releaseAssertOrThrow(ret);
-        return ret;
+        return i->second;
     }
     std::string canonicalName = bucketFilename(hash);
     if (fs::exists(canonicalName))
@@ -686,41 +743,48 @@ BucketManagerImpl::getBucketByHash(uint256 const& hash)
 
         auto p =
             std::make_shared<BucketT>(canonicalName, hash, /*index=*/nullptr);
-        mSharedBuckets.emplace(hash, p);
-        mSharedBucketsSize.set_count(mSharedBuckets.size());
+        bucketMap.emplace(hash, p);
+        updateSharedBucketSize();
         return p;
     }
     return std::shared_ptr<BucketT>();
 }
 
+template <>
 std::shared_future<std::shared_ptr<LiveBucket>>
-BucketManagerImpl::getLiveMergeFuture(MergeKey const& key)
+BucketManager::getMergeFuture(BucketManager& bucketManager, MergeKey const& key)
 {
-    return getMergeFuture<LiveBucket>(key);
+    auto& bmImpl = static_cast<BucketManagerImpl&>(bucketManager);
+    return bmImpl.getMergeFuture(key, bmImpl.mLiveBucketFutures);
 }
 
+template <>
 std::shared_future<std::shared_ptr<HotArchiveBucket>>
-BucketManagerImpl::getHotArchiveMergeFuture(MergeKey const& key)
+BucketManager::getMergeFuture(BucketManager& bucketManager, MergeKey const& key)
 {
-    return getMergeFuture<HotArchiveBucket>(key);
+    auto& bmImpl = static_cast<BucketManagerImpl&>(bucketManager);
+    return bmImpl.getMergeFuture(key, bmImpl.mHotArchiveBucketFutures);
 }
 
 template <class BucketT>
 std::shared_future<std::shared_ptr<BucketT>>
-BucketManagerImpl::getMergeFuture(MergeKey const& key)
+BucketManagerImpl::getMergeFuture(MergeKey const& key,
+                                  FutureMapT<BucketT>& futureMap)
 {
+    BUCKET_TYPE_ASSERT(BucketT);
     ZoneScoped;
     std::lock_guard<std::recursive_mutex> lock(mBucketMutex);
     MergeCounters mc;
-    auto i = mLiveFutures.find(key);
-    if (i == mLiveFutures.end())
+    auto i = futureMap.find(key);
+    if (i == futureMap.end())
     {
         // If there's no live (running) future, we might be able to _make_ one
         // for a retained bucket, if we still know its inputs.
         Hash bucketHash;
         if (mFinishedMerges.findMergeFor(key, bucketHash))
         {
-            auto bucket = getBucketByHash<BucketT>(bucketHash);
+            auto bucket =
+                BucketManager::getBucketByHash<BucketT>(*this, bucketHash);
             if (bucket)
             {
                 CLOG_TRACE(Bucket,
@@ -747,33 +811,36 @@ BucketManagerImpl::getMergeFuture(MergeKey const& key)
         key);
     mc.mRunningMergeReattachments++;
     incrMergeCounters(mc);
-
-    // Because BucketManger has an impl class, no public templated functions
-    // can be declared. This means we have to manually enforce types via
-    // leading to this ugly variadic get that throws if the type is not correct.
-    return std::get<std::shared_future<std::shared_ptr<BucketT>>>(i->second);
+    return i->second;
 }
 
+template <>
 void
-BucketManagerImpl::putLiveMergeFuture(
-    MergeKey const& key, std::shared_future<std::shared_ptr<LiveBucket>> wp)
+BucketManager::putMergeFuture(
+    BucketManager& bm, MergeKey const& key,
+    std::shared_future<std::shared_ptr<LiveBucket>> future)
 {
-    putMergeFuture<LiveBucket>(key, wp);
+    auto& bmImpl = static_cast<BucketManagerImpl&>(bm);
+    bmImpl.putMergeFuture(key, future, bmImpl.mLiveBucketFutures);
 }
 
+template <>
 void
-BucketManagerImpl::putHotArchiveMergeFuture(
-    MergeKey const& key,
-    std::shared_future<std::shared_ptr<HotArchiveBucket>> wp)
+BucketManager::putMergeFuture(
+    BucketManager& bm, MergeKey const& key,
+    std::shared_future<std::shared_ptr<HotArchiveBucket>> future)
 {
-    putMergeFuture<HotArchiveBucket>(key, wp);
+    auto& bmImpl = static_cast<BucketManagerImpl&>(bm);
+    bmImpl.putMergeFuture(key, future, bmImpl.mHotArchiveBucketFutures);
 }
 
 template <class BucketT>
 void
 BucketManagerImpl::putMergeFuture(
-    MergeKey const& key, std::shared_future<std::shared_ptr<BucketT>> wp)
+    MergeKey const& key, std::shared_future<std::shared_ptr<BucketT>> future,
+    FutureMapT<BucketT>& futureMap)
 {
+    BUCKET_TYPE_ASSERT(BucketT);
     ZoneScoped;
     releaseAssertOrThrow(mApp.getConfig().MODE_ENABLES_BUCKETLIST);
     std::lock_guard<std::recursive_mutex> lock(mBucketMutex);
@@ -781,7 +848,7 @@ BucketManagerImpl::putMergeFuture(
         Bucket,
         "BucketManager::putMergeFuture storing future for running merge {}",
         key);
-    mLiveFutures.emplace(key, wp);
+    futureMap.emplace(key, future);
 }
 
 #ifdef BUILD_TESTS
@@ -789,7 +856,8 @@ void
 BucketManagerImpl::clearMergeFuturesForTesting()
 {
     std::lock_guard<std::recursive_mutex> lock(mBucketMutex);
-    mLiveFutures.clear();
+    mLiveBucketFutures.clear();
+    mHotArchiveBucketFutures.clear();
 }
 #endif
 
@@ -895,7 +963,14 @@ BucketManagerImpl::cleanupStaleFiles()
 
     std::lock_guard<std::recursive_mutex> lock(mBucketMutex);
     auto referenced = getAllReferencedBuckets();
-    std::transform(std::begin(mSharedBuckets), std::end(mSharedBuckets),
+    std::transform(std::begin(mSharedLiveBuckets), std::end(mSharedLiveBuckets),
+                   std::inserter(referenced, std::end(referenced)),
+                   [](std::pair<Hash, std::shared_ptr<Bucket>> const& p) {
+                       return p.first;
+                   });
+
+    std::transform(std::begin(mSharedHotArchiveBuckets),
+                   std::end(mSharedHotArchiveBuckets),
                    std::inserter(referenced, std::end(referenced)),
                    [](std::pair<Hash, std::shared_ptr<Bucket>> const& p) {
                        return p.first;
@@ -927,89 +1002,96 @@ BucketManagerImpl::forgetUnreferencedBuckets()
     auto referenced = getAllReferencedBuckets();
     auto blReferenced = getBucketListReferencedBuckets();
 
-    for (auto i = mSharedBuckets.begin(); i != mSharedBuckets.end();)
-    {
-        // Standard says map iterators other than the one you're erasing
-        // remain valid.
-        auto j = i;
-        ++i;
-
-        // Delete indexes for buckets no longer in bucketlist. There is a race
-        // condition on startup where future buckets for a level will be
-        // finished and have an index but will not yet be referred to by the
-        // bucket level's next pointer. Checking use_count == 1 makes sure no
-        // other in-progress structures will add bucket to bucket list after
-        // deleting index
-        if (j->second->isIndexed() && j->second.use_count() == 1 &&
-            blReferenced.find(j->first) == blReferenced.end())
+    auto bucketMapLoop = [&](auto& bucketMap, auto& futureMap) {
+        for (auto i = bucketMap.begin(); i != bucketMap.end();)
         {
-            CLOG_TRACE(Bucket,
-                       "BucketManager::forgetUnreferencedBuckets deleting "
-                       "index for {}",
-                       j->second->getFilename());
-            j->second->freeIndex();
-        }
+            // Standard says map iterators other than the one you're erasing
+            // remain valid.
+            auto j = i;
+            ++i;
 
-        // Only drop buckets if the bucketlist has forgotten them _and_
-        // no other in-progress structures (worker threads, shadow lists)
-        // have references to them, just us. It's ok to retain a few too
-        // many buckets, a little longer than necessary.
-        //
-        // This conservatism is important because we want to enforce that
-        // only one bucket ever exists in memory with a given filename, and
-        // that we're the first and last to know about it. Otherwise buckets
-        // might race on deleting the underlying file from one another.
-
-        if (referenced.find(j->first) == referenced.end() &&
-            j->second.use_count() == 1)
-        {
-            auto filename = j->second->getFilename();
-            CLOG_TRACE(Bucket,
-                       "BucketManager::forgetUnreferencedBuckets dropping {}",
-                       filename);
-            if (!filename.empty() && !mApp.getConfig().DISABLE_BUCKET_GC)
+            // Delete indexes for buckets no longer in bucketlist. There is a
+            // race condition on startup where future buckets for a level will
+            // be finished and have an index but will not yet be referred to by
+            // the bucket level's next pointer. Checking use_count == 1 makes
+            // sure no other in-progress structures will add bucket to bucket
+            // list after deleting index
+            if (j->second->isIndexed() && j->second.use_count() == 1 &&
+                blReferenced.find(j->first) == blReferenced.end())
             {
-                CLOG_TRACE(Bucket, "removing bucket file: {}", filename);
-                std::filesystem::remove(filename);
-                auto gzfilename = filename.string() + ".gz";
-                std::remove(gzfilename.c_str());
-                auto indexFilename = bucketIndexFilename(j->second->getHash());
-                std::remove(indexFilename.c_str());
+                CLOG_TRACE(Bucket,
+                           "BucketManager::forgetUnreferencedBuckets deleting "
+                           "index for {}",
+                           j->second->getFilename());
+                j->second->freeIndex();
             }
 
-            // Dropping this bucket means we'll no longer be able to
-            // resynthesize a std::shared_future pointing directly to it
-            // as a short-cut to performing a merge we've already seen.
-            // Therefore we should forget it from the weak map we use
-            // for that resynthesis.
-            for (auto const& forgottenMergeKey :
-                 mFinishedMerges.forgetAllMergesProducing(j->first))
+            // Only drop buckets if the bucketlist has forgotten them _and_
+            // no other in-progress structures (worker threads, shadow lists)
+            // have references to them, just us. It's ok to retain a few too
+            // many buckets, a little longer than necessary.
+            //
+            // This conservatism is important because we want to enforce that
+            // only one bucket ever exists in memory with a given filename, and
+            // that we're the first and last to know about it. Otherwise buckets
+            // might race on deleting the underlying file from one another.
+
+            if (referenced.find(j->first) == referenced.end() &&
+                j->second.use_count() == 1)
             {
-                // There should be no futures alive with this output: we
-                // switched to storing only weak input/output mappings
-                // when any merge producing the bucket completed (in
-                // adoptFileAsLiveBucket), and we believe there's only one
-                // reference to the bucket anyways -- our own in
-                // mSharedBuckets. But there might be a race we missed,
-                // so double check & mop up here. Worst case we prevent
-                // a slow memory leak at the cost of redoing merges we
-                // might have been able to reattach to.
-                auto f = mLiveFutures.find(forgottenMergeKey);
-                if (f != mLiveFutures.end())
+                auto filename = j->second->getFilename();
+                CLOG_TRACE(
+                    Bucket,
+                    "BucketManager::forgetUnreferencedBuckets dropping {}",
+                    filename);
+                if (!filename.empty() && !mApp.getConfig().DISABLE_BUCKET_GC)
                 {
-                    CLOG_WARNING(Bucket,
-                                 "Unexpected live future for unreferenced "
-                                 "bucket: {}",
-                                 binToHex(i->first));
-                    mLiveFutures.erase(f);
+                    CLOG_TRACE(Bucket, "removing bucket file: {}", filename);
+                    std::filesystem::remove(filename);
+                    auto gzfilename = filename.string() + ".gz";
+                    std::remove(gzfilename.c_str());
+                    auto indexFilename =
+                        bucketIndexFilename(j->second->getHash());
+                    std::remove(indexFilename.c_str());
                 }
-            }
 
-            // All done, delete the bucket from the shared map.
-            mSharedBuckets.erase(j);
+                // Dropping this bucket means we'll no longer be able to
+                // resynthesize a std::shared_future pointing directly to it
+                // as a short-cut to performing a merge we've already seen.
+                // Therefore we should forget it from the weak map we use
+                // for that resynthesis.
+                for (auto const& forgottenMergeKey :
+                     mFinishedMerges.forgetAllMergesProducing(j->first))
+                {
+                    // There should be no futures alive with this output: we
+                    // switched to storing only weak input/output mappings
+                    // when any merge producing the bucket completed (in
+                    // adoptFileAsLiveBucket), and we believe there's only one
+                    // reference to the bucket anyways -- our own in
+                    // mSharedBuckets. But there might be a race we missed,
+                    // so double check & mop up here. Worst case we prevent
+                    // a slow memory leak at the cost of redoing merges we
+                    // might have been able to reattach to.
+                    auto f = futureMap.find(forgottenMergeKey);
+                    if (f != futureMap.end())
+                    {
+                        CLOG_WARNING(Bucket,
+                                     "Unexpected live future for unreferenced "
+                                     "bucket: {}",
+                                     binToHex(i->first));
+                        futureMap.erase(f);
+                    }
+                }
+
+                // All done, delete the bucket from the shared map.
+                bucketMap.erase(j);
+            }
         }
-    }
-    mSharedBucketsSize.set_count(mSharedBuckets.size());
+    };
+
+    bucketMapLoop(mSharedLiveBuckets, mLiveBucketFutures);
+    bucketMapLoop(mSharedHotArchiveBuckets, mHotArchiveBucketFutures);
+    updateSharedBucketSize();
 }
 
 void
@@ -1326,10 +1408,10 @@ BucketManagerImpl::assumeState(HistoryArchiveState const& has,
     // Dependency: HAS supports Hot Archive BucketList
     for (uint32_t i = 0; i < LiveBucketList::kNumLevels; ++i)
     {
-        auto curr =
-            getLiveBucketByHash(hexToBin256(has.currentBuckets.at(i).curr));
-        auto snap =
-            getLiveBucketByHash(hexToBin256(has.currentBuckets.at(i).snap));
+        auto curr = getBucketByHash(hexToBin256(has.currentBuckets.at(i).curr),
+                                    mSharedLiveBuckets);
+        auto snap = getBucketByHash(hexToBin256(has.currentBuckets.at(i).snap),
+                                    mSharedLiveBuckets);
         if (!(curr && snap))
         {
             throw std::runtime_error("Missing bucket files while assuming "
@@ -1340,8 +1422,8 @@ BucketManagerImpl::assumeState(HistoryArchiveState const& has,
         std::shared_ptr<LiveBucket> nextBucket = nullptr;
         if (nextFuture.hasOutputHash())
         {
-            nextBucket =
-                getLiveBucketByHash(hexToBin256(nextFuture.getOutputHash()));
+            nextBucket = getBucketByHash(
+                hexToBin256(nextFuture.getOutputHash()), mSharedLiveBuckets);
             if (!nextBucket)
             {
                 throw std::runtime_error(
@@ -1458,7 +1540,7 @@ BucketManagerImpl::loadCompleteLedgerState(HistoryArchiveState const& has)
         {
             continue;
         }
-        auto b = getLiveBucketByHash(pair.first);
+        auto b = getBucketByHash(pair.first, mSharedLiveBuckets);
         if (!b)
         {
             throw std::runtime_error(std::string("missing bucket: ") +
@@ -1637,7 +1719,7 @@ BucketManagerImpl::visitLedgerEntries(
             {
                 continue;
             }
-            auto b = getLiveBucketByHash(pair.first);
+            auto b = getBucketByHash(pair.first, mSharedLiveBuckets);
             if (!b)
             {
                 throw std::runtime_error(std::string("missing bucket: ") +
@@ -1676,7 +1758,7 @@ BucketManagerImpl::scheduleVerifyReferencedBucketsWork()
 
         // TODO: Update verify to for ArchiveBucket
         // Dependency: HAS supports Hot Archive BucketList
-        auto b = getBucketByHash<LiveBucket>(h);
+        auto b = getBucketByHash(h, mSharedLiveBuckets);
         if (!b)
         {
             throw std::runtime_error(fmt::format(

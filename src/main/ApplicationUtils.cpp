@@ -240,8 +240,8 @@ setupApp(Config& cfg, VirtualClock& clock, uint32_t startAtLedger,
             std::set<std::shared_ptr<LiveBucket>> retained;
             for (auto const& b : has.allBuckets())
             {
-                auto bPtr =
-                    app->getBucketManager().getLiveBucketByHash(hexToBin256(b));
+                auto bPtr = BucketManager::getBucketByHash<LiveBucket>(
+                    app->getBucketManager(), hexToBin256(b));
                 releaseAssert(bPtr);
                 retained.insert(bPtr);
             }
@@ -665,7 +665,7 @@ dumpStateArchivalStatistics(Config cfg)
         {
             continue;
         }
-        auto b = bm.getLiveBucketByHash(hash);
+        auto b = BucketManager::getBucketByHash<LiveBucket>(bm, hash);
         if (!b)
         {
             throw std::runtime_error(std::string("missing bucket: ") +

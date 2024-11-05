@@ -95,8 +95,8 @@ DownloadBucketsWork::yieldMoreWork()
         if (self)
         {
             auto bucketPath = ft.localPath_nogz();
-            auto b = app.getBucketManager().adoptFileAsLiveBucket(
-                bucketPath, hexToBin256(hash),
+            auto b = BucketManager::adoptFileAsBucket<LiveBucket>(
+                app.getBucketManager(), bucketPath, hexToBin256(hash),
                 /*mergeKey=*/nullptr,
                 /*index=*/nullptr);
             self->mBuckets[hash] = b;

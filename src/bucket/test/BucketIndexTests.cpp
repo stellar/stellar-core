@@ -635,7 +635,8 @@ TEST_CASE("serialize bucket indexes", "[bucket][bucketindex]")
         auto indexFilename = test.getBM().bucketIndexFilename(bucketHash);
         REQUIRE(fs::exists(indexFilename));
 
-        auto b = test.getBM().getLiveBucketByHash(bucketHash);
+        auto b = BucketManager::getBucketByHash<LiveBucket>(test.getBM(),
+                                                            bucketHash);
         REQUIRE(b->isIndexed());
 
         auto onDiskIndex =
@@ -661,7 +662,8 @@ TEST_CASE("serialize bucket indexes", "[bucket][bucketindex]")
         }
 
         // Check if in-memory index has correct params
-        auto b = test.getBM().getLiveBucketByHash(bucketHash);
+        auto b = BucketManager::getBucketByHash<LiveBucket>(test.getBM(),
+                                                            bucketHash);
         REQUIRE(!b->isEmpty());
         REQUIRE(b->isIndexed());
 

@@ -180,7 +180,8 @@ BucketOutputIterator<BucketT>::getBucket(BucketManager& bucketManager,
         std::filesystem::remove(mFilename);
         if (mergeKey)
         {
-            bucketManager.noteEmptyMergeOutput(*mergeKey);
+            BucketManager::noteEmptyMergeOutput<BucketT>(bucketManager,
+                                                         *mergeKey);
         }
         return std::make_shared<BucketT>();
     }
@@ -193,7 +194,8 @@ BucketOutputIterator<BucketT>::getBucket(BucketManager& bucketManager,
     {
         // either it's a new bucket or we just reconstructed a bucket
         // we already have, in any case ensure we have an index
-        if (auto b = bucketManager.getBucketIfExists(hash);
+        if (auto b =
+                BucketManager::getBucketIfExists<BucketT>(bucketManager, hash);
             !b || !b->isIndexed())
         {
             index = BucketIndex::createIndex<BucketT>(bucketManager, mFilename,
@@ -201,17 +203,8 @@ BucketOutputIterator<BucketT>::getBucket(BucketManager& bucketManager,
         }
     }
 
-    if constexpr (std::is_same_v<BucketT, LiveBucket>)
-    {
-        return bucketManager.adoptFileAsLiveBucket(mFilename.string(), hash,
-                                                   mergeKey, std::move(index));
-    }
-    else
-    {
-
-        return bucketManager.adoptFileAsHotArchiveBucket(
-            mFilename.string(), hash, mergeKey, std::move(index));
-    }
+    return BucketManager::adoptFileAsBucket<BucketT>(
+        bucketManager, mFilename.string(), hash, mergeKey, std::move(index));
 }
 
 template class BucketOutputIterator<LiveBucket>;

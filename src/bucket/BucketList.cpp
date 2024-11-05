@@ -204,7 +204,7 @@ BucketLevel<BucketT>::prepare(
     mNextCurr =
         FutureBucket<BucketT>(app, curr, snap, shadowsBasedOnProtocol,
                               currLedgerProtocol, countMergeEvents, mLevel);
-        releaseAssert(mNextCurr.isMerging());
+    releaseAssert(mNextCurr.isMerging());
 }
 
 template <typename BucketT>
