@@ -1884,6 +1884,10 @@ runApplyLoad(CommandLineArgs const& args)
         [&] {
             auto config = configOption.getConfig();
             config.RUN_STANDALONE = true;
+            config.USE_CONFIG_FOR_GENESIS = true;
+            config.TESTING_UPGRADE_MAX_TX_SET_SIZE = 1000;
+            config.LEDGER_PROTOCOL_VERSION =
+                Config::CURRENT_LEDGER_PROTOCOL_VERSION;
 
             VirtualClock clock(VirtualClock::REAL_TIME);
             auto appPtr = Application::create(clock, config);
@@ -1911,7 +1915,16 @@ runApplyLoad(CommandLineArgs const& args)
                      "invoke-time-fsecs-cpu-insn-ratio-excl-vm"});
                 cpuInsRatioExclVm.Clear();
 
-                for (size_t i = 0; i < 20; ++i)
+                auto& ledgerCpuInsRatio = app.getMetrics().NewHistogram(
+                    {"soroban", "host-fn-op", "ledger-cpu-insns-ratio"});
+                ledgerCpuInsRatio.Clear();
+
+                auto& ledgerCpuInsRatioExclVm = app.getMetrics().NewHistogram(
+                    {"soroban", "host-fn-op",
+                     "ledger-cpu-insns-ratio-excl-vm"});
+                ledgerCpuInsRatioExclVm.Clear();
+
+                for (size_t i = 0; i < 100; ++i)
                 {
                     al.benchmark();
                 }
@@ -1922,6 +1935,8 @@ runApplyLoad(CommandLineArgs const& args)
                           ledgerClose.min());
                 CLOG_INFO(Perf, "Mean ledger close:  {} milliseconds",
                           ledgerClose.mean());
+                CLOG_INFO(Perf, "stddev ledger close:  {} milliseconds",
+                          ledgerClose.std_dev());
 
                 CLOG_INFO(Perf, "Max CPU ins ratio: {}",
                           cpuInsRatio.max() / 1000000);
@@ -1932,6 +1947,24 @@ runApplyLoad(CommandLineArgs const& args)
                           cpuInsRatioExclVm.max() / 1000000);
                 CLOG_INFO(Perf, "Mean CPU ins ratio excl VM:  {}",
                           cpuInsRatioExclVm.mean() / 1000000);
+                CLOG_INFO(Perf, "stddev CPU ins ratio excl VM:  {}",
+                          cpuInsRatioExclVm.std_dev() / 1000000);
+
+                CLOG_INFO(Perf, "Ledger Max CPU ins ratio: {}",
+                          ledgerCpuInsRatio.max() / 1000000);
+                CLOG_INFO(Perf, "Ledger Mean CPU ins ratio:  {}",
+                          ledgerCpuInsRatio.mean() / 1000000);
+                CLOG_INFO(Perf, "Ledger stddev CPU ins ratio:  {}",
+                          ledgerCpuInsRatio.std_dev() / 1000000);
+
+                CLOG_INFO(Perf, "Ledger Max CPU ins ratio excl VM: {}",
+                          ledgerCpuInsRatioExclVm.max() / 1000000);
+                CLOG_INFO(Perf, "Ledger Mean CPU ins ratio excl VM:  {}",
+                          ledgerCpuInsRatioExclVm.mean() / 1000000);
+                CLOG_INFO(
+                    Perf,
+                    "Ledger stddev CPU ins ratio excl VM:  {} milliseconds",
+                    ledgerCpuInsRatioExclVm.std_dev() / 1000000);
 
                 CLOG_INFO(Perf, "Tx count utilization {}%",
                           al.getTxCountUtilization().mean() / 1000.0);

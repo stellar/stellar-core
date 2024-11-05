@@ -219,6 +219,9 @@ struct HostFunctionMetrics
         mMetrics.mHostFnOpMaxRwCodeByte.Mark(mMaxReadWriteCodeByte);
         mMetrics.mHostFnOpMaxEmitEventByte.Mark(mMaxEmitEventByte);
 
+        mMetrics.accumulateModelledCpuInsns(mCpuInsn, mCpuInsnExclVm,
+                                            mInvokeTimeNsecs);
+
         if (mSuccess)
         {
             mMetrics.mHostFnOpSuccess.Mark();
