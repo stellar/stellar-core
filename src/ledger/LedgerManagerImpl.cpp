@@ -3,8 +3,8 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "ledger/LedgerManagerImpl.h"
-#include "bucket/BucketList.h"
 #include "bucket/BucketManager.h"
+#include "bucket/LiveBucketList.h"
 #include "catchup/AssumeStateWork.h"
 #include "crypto/Hex.h"
 #include "crypto/KeyUtils.h"
@@ -19,14 +19,12 @@
 #include "history/HistoryManager.h"
 #include "ledger/FlushAndRotateMetaDebugWork.h"
 #include "ledger/LedgerHeaderUtils.h"
-#include "ledger/LedgerRange.h"
 #include "ledger/LedgerTxn.h"
 #include "ledger/LedgerTxnEntry.h"
 #include "ledger/LedgerTxnHeader.h"
 #include "main/Application.h"
 #include "main/Config.h"
 #include "main/ErrorMessages.h"
-#include "overlay/OverlayManager.h"
 #include "transactions/MutableTransactionResult.h"
 #include "transactions/OperationFrame.h"
 #include "transactions/TransactionFrameBase.h"
@@ -40,7 +38,6 @@
 #include "util/Logging.h"
 #include "util/ProtocolVersion.h"
 #include "util/XDRCereal.h"
-#include "util/XDROperators.h"
 #include "util/XDRStream.h"
 #include "work/WorkScheduler.h"
 
@@ -58,7 +55,6 @@
 #include <Tracy.hpp>
 
 #include <chrono>
-#include <numeric>
 #include <regex>
 #include <sstream>
 #include <stdexcept>

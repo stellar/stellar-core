@@ -4,8 +4,8 @@
 
 #include "util/asio.h" // IWYU pragma: keep
 #include "bucket/BucketApplicator.h"
-#include "bucket/Bucket.h"
-#include "bucket/BucketList.h"
+#include "bucket/LiveBucket.h"
+#include "bucket/LiveBucketList.h"
 #include "ledger/LedgerTxn.h"
 #include "ledger/LedgerTxnEntry.h"
 #include "main/Application.h"

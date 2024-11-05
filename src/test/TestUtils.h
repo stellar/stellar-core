@@ -4,7 +4,8 @@
 // under the Apache License, Version 2.0. See the COPYING file at the root
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
-#include "bucket/BucketList.h"
+#include "bucket/HotArchiveBucketList.h"
+#include "bucket/LiveBucketList.h"
 #include "invariant/InvariantDoesNotHold.h"
 #include "invariant/InvariantManagerImpl.h"
 #include "ledger/LedgerManagerImpl.h"
@@ -48,7 +49,7 @@ testBucketMetadata(uint32_t protocolVersion)
     meta.ledgerVersion = protocolVersion;
     if (protocolVersionStartsFrom(
             protocolVersion,
-            Bucket::FIRST_PROTOCOL_SUPPORTING_PERSISTENT_EVICTION))
+            BucketBase::FIRST_PROTOCOL_SUPPORTING_PERSISTENT_EVICTION))
     {
         meta.ext.v(1);
         meta.ext.bucketListType() = BucketListType::LIVE;

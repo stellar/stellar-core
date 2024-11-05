@@ -10,10 +10,10 @@
 // first to include <windows.h> -- so we try to include it before everything
 // else.
 #include "util/asio.h"
-#include "bucket/Bucket.h"
 #include "bucket/BucketInputIterator.h"
 #include "bucket/BucketManager.h"
-#include "bucket/BucketManagerImpl.h"
+#include "bucket/HotArchiveBucket.h"
+#include "bucket/LiveBucket.h"
 #include "bucket/test/BucketTestUtils.h"
 #include "history/HistoryArchiveManager.h"
 #include "history/test/HistoryTestsUtils.h"
@@ -50,7 +50,7 @@ clearFutures(Application::pointer app, LiveBucketList& bl)
     }
 
     // Then go through all the _worker threads_ and mop up any work they
-    // might still be doing (that might be "dropping a shared_ptr<Bucket>").
+    // might still be doing (that might be "dropping a shared_ptr<BucketBase>").
 
     size_t n = static_cast<size_t>(app->getConfig().WORKER_THREADS);
 
@@ -101,10 +101,10 @@ TEST_CASE("skip list", "[bucket][bucketmanager]")
     Config const& cfg = getTestConfig();
     Application::pointer app = createTestApplication(clock, cfg);
 
-    class BucketManagerTest : public BucketManagerImpl
+    class BucketManagerTest : public BucketManager
     {
       public:
-        BucketManagerTest(Application& app) : BucketManagerImpl(app)
+        BucketManagerTest(Application& app) : BucketManager(app)
         {
         }
         void

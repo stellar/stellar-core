@@ -3,11 +3,10 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "invariant/BucketListIsConsistentWithDatabase.h"
-#include "bucket/Bucket.h"
 #include "bucket/BucketInputIterator.h"
-#include "bucket/BucketList.h"
 #include "bucket/BucketManager.h"
-#include "crypto/Hex.h"
+#include "bucket/LiveBucket.h"
+#include "bucket/LiveBucketList.h"
 #include "history/HistoryArchive.h"
 #include "invariant/InvariantManager.h"
 #include "ledger/LedgerManager.h"

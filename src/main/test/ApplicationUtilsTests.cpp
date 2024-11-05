@@ -131,8 +131,7 @@ checkState(Application& app)
             if (nextFuture.hasOutputHash())
             {
                 auto hash = hexToBin256(nextFuture.getOutputHash());
-                checkBucket(
-                    BucketManager::getBucketByHash<LiveBucket>(bm, hash));
+                checkBucket(bm.getBucketByHash<LiveBucket>(hash));
             }
         }
     }

@@ -4,12 +4,10 @@
 // under the Apache License, Version 2.0. See the COPYING file at the root
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
-#include "bucket/Bucket.h"
 #include "bucket/BucketManager.h"
 #include "bucket/BucketUtils.h"
 #include "bucket/LedgerCmp.h"
 #include "util/XDRStream.h"
-#include "xdr/Stellar-ledger.h"
 
 #include <memory>
 #include <string>
@@ -58,7 +56,4 @@ template <typename BucketT> class BucketOutputIterator
                                        bool shouldSynchronouslyIndex,
                                        MergeKey* mergeKey = nullptr);
 };
-
-typedef BucketOutputIterator<LiveBucket> LiveBucketOutputIterator;
-typedef BucketOutputIterator<HotArchiveBucket> HotArchiveBucketOutputIterator;
 }

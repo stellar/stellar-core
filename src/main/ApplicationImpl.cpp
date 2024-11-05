@@ -14,8 +14,6 @@
 // first to include <windows.h> -- so we try to include it before everything
 // else.
 #include "util/asio.h"
-#include "bucket/Bucket.h"
-#include "bucket/BucketListSnapshot.h"
 #include "bucket/BucketManager.h"
 #include "catchup/ApplyBucketsWork.h"
 #include "crypto/Hex.h"
@@ -25,7 +23,6 @@
 #include "herder/Herder.h"
 #include "herder/HerderPersistence.h"
 #include "history/HistoryArchiveManager.h"
-#include "history/HistoryArchiveReportWork.h"
 #include "history/HistoryManager.h"
 #include "invariant/AccountSubEntriesCountIsValid.h"
 #include "invariant/BucketListIsConsistentWithDatabase.h"
@@ -55,8 +52,6 @@
 #include "overlay/OverlayManager.h"
 #include "overlay/OverlayManagerImpl.h"
 #include "process/ProcessManager.h"
-#include "scp/LocalNode.h"
-#include "scp/QuorumSetUtils.h"
 #include "util/GlobalChecks.h"
 #include "util/LogSlowExecution.h"
 #include "util/Logging.h"

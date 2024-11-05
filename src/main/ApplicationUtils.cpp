@@ -3,8 +3,6 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "main/ApplicationUtils.h"
-#include "bucket/Bucket.h"
-#include "bucket/BucketList.h"
 #include "bucket/BucketManager.h"
 #include "catchup/ApplyBucketsWork.h"
 #include "catchup/CatchupConfiguration.h"
@@ -21,7 +19,6 @@
 #include "ledger/LedgerManager.h"
 #include "ledger/LedgerTypeUtils.h"
 #include "main/ErrorMessages.h"
-#include "main/ExternalQueue.h"
 #include "main/Maintainer.h"
 #include "main/PersistentState.h"
 #include "main/StellarCoreVersion.h"
@@ -33,7 +30,6 @@
 #include "util/xdrquery/XDRQuery.h"
 #include "work/WorkScheduler.h"
 
-#include <charconv>
 #include <filesystem>
 #include <lib/http/HttpClient.h>
 #include <locale>
@@ -240,8 +236,8 @@ setupApp(Config& cfg, VirtualClock& clock, uint32_t startAtLedger,
             std::set<std::shared_ptr<LiveBucket>> retained;
             for (auto const& b : has.allBuckets())
             {
-                auto bPtr = BucketManager::getBucketByHash<LiveBucket>(
-                    app->getBucketManager(), hexToBin256(b));
+                auto bPtr = app->getBucketManager().getBucketByHash<LiveBucket>(
+                    hexToBin256(b));
                 releaseAssert(bPtr);
                 retained.insert(bPtr);
             }
@@ -665,7 +661,7 @@ dumpStateArchivalStatistics(Config cfg)
         {
             continue;
         }
-        auto b = BucketManager::getBucketByHash<LiveBucket>(bm, hash);
+        auto b = bm.getBucketByHash<LiveBucket>(hash);
         if (!b)
         {
             throw std::runtime_error(std::string("missing bucket: ") +

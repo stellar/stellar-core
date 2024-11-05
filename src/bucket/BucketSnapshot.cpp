@@ -3,8 +3,10 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "bucket/BucketSnapshot.h"
-#include "bucket/Bucket.h"
-#include "bucket/BucketListSnapshot.h"
+#include "bucket/BucketIndex.h"
+#include "bucket/HotArchiveBucket.h"
+#include "bucket/LiveBucket.h"
+#include "bucket/SearchableBucketList.h"
 #include "ledger/LedgerTxn.h"
 #include "ledger/LedgerTypeUtils.h"
 #include "util/XDRStream.h"
@@ -147,6 +149,8 @@ BucketSnapshotBase<BucketT>::loadKeys(
                     }
                     else
                     {
+                        static_assert(std::is_same_v<BucketT, HotArchiveBucket>,
+                                      "unexpected bucket type");
                         result.push_back(*entryOp);
                     }
                 }
@@ -172,7 +176,7 @@ LiveBucketSnapshot::getPoolIDsByAsset(Asset const& asset) const
     return mBucket->getIndex().getPoolIDsByAsset(asset);
 }
 
-bool
+Loop
 LiveBucketSnapshot::scanForEviction(
     EvictionIterator& iter, uint32_t& bytesToScan, uint32_t ledgerSeq,
     std::list<EvictionResultEntry>& evictableKeys,
@@ -183,13 +187,13 @@ LiveBucketSnapshot::scanForEviction(
                                              SOROBAN_PROTOCOL_VERSION))
     {
         // EOF, skip to next bucket
-        return false;
+        return Loop::INCOMPLETE;
     }
 
     if (bytesToScan == 0)
     {
         // Reached end of scan region
-        return true;
+        return Loop::COMPLETE;
     }
 
     std::list<EvictionResultEntry> maybeEvictQueue;
@@ -197,7 +201,7 @@ LiveBucketSnapshot::scanForEviction(
 
     auto processQueue = [&]() {
         auto loadResult = populateLoadedEntries(
-            keysToSearch, bl.loadKeysWithLimits(keysToSearch));
+            keysToSearch, bl.loadKeysWithLimits(keysToSearch, nullptr));
         for (auto& e : maybeEvictQueue)
         {
             // If TTL entry has not yet been deleted
@@ -253,7 +257,7 @@ LiveBucketSnapshot::scanForEviction(
             // Reached end of scan region
             bytesToScan = 0;
             processQueue();
-            return true;
+            return Loop::COMPLETE;
         }
 
         bytesToScan -= bytesRead;
@@ -261,7 +265,7 @@ LiveBucketSnapshot::scanForEviction(
 
     // Hit eof
     processQueue();
-    return false;
+    return Loop::INCOMPLETE;
 }
 
 template <class BucketT>

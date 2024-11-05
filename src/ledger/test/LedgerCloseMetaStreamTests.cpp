@@ -3,7 +3,6 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "bucket/BucketManager.h"
-#include "bucket/BucketManagerImpl.h"
 #include "bucket/test/BucketTestUtils.h"
 #include "catchup/ReplayDebugMetaWork.h"
 #include "crypto/Hex.h"

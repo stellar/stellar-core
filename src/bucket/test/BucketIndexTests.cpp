@@ -5,10 +5,9 @@
 // This file contains tests for the BucketIndex and higher-level operations
 // concerning key-value lookup based on the BucketList.
 
-#include "bucket/BucketList.h"
-#include "bucket/BucketListSnapshot.h"
 #include "bucket/BucketManager.h"
 #include "bucket/BucketSnapshotManager.h"
+#include "bucket/LiveBucketList.h"
 #include "bucket/test/BucketTestUtils.h"
 #include "ledger/test/LedgerTestUtils.h"
 #include "lib/catch.hpp"
@@ -16,7 +15,6 @@
 #include "main/Config.h"
 #include "test/test.h"
 
-#include "util/ProtocolVersion.h"
 #include "util/UnorderedMap.h"
 #include "util/UnorderedSet.h"
 #include "util/XDRCereal.h"
@@ -635,8 +633,7 @@ TEST_CASE("serialize bucket indexes", "[bucket][bucketindex]")
         auto indexFilename = test.getBM().bucketIndexFilename(bucketHash);
         REQUIRE(fs::exists(indexFilename));
 
-        auto b = BucketManager::getBucketByHash<LiveBucket>(test.getBM(),
-                                                            bucketHash);
+        auto b = test.getBM().getBucketByHash<LiveBucket>(bucketHash);
         REQUIRE(b->isIndexed());
 
         auto onDiskIndex =
@@ -662,8 +659,7 @@ TEST_CASE("serialize bucket indexes", "[bucket][bucketindex]")
         }
 
         // Check if in-memory index has correct params
-        auto b = BucketManager::getBucketByHash<LiveBucket>(test.getBM(),
-                                                            bucketHash);
+        auto b = test.getBM().getBucketByHash<LiveBucket>(bucketHash);
         REQUIRE(!b->isEmpty());
         REQUIRE(b->isIndexed());
 
@@ -808,7 +804,7 @@ TEST_CASE("hot archive bucket lookups", "[bucket][bucketindex][archive]")
             app->getLedgerManager().getLastClosedLedgerHeader().header;
         header.ledgerSeq += 1;
         header.ledgerVersion = static_cast<uint32_t>(
-            Bucket::FIRST_PROTOCOL_SUPPORTING_PERSISTENT_EVICTION);
+            BucketBase::FIRST_PROTOCOL_SUPPORTING_PERSISTENT_EVICTION);
         addHotArchiveBatchAndUpdateSnapshot(*app, header, archivedEntries,
                                             restoredEntries, deletedEntries);
         checkResult();

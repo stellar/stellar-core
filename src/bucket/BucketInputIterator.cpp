@@ -3,7 +3,8 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "bucket/BucketInputIterator.h"
-#include "bucket/Bucket.h"
+#include "bucket/HotArchiveBucket.h"
+#include "bucket/LiveBucket.h"
 #include "xdr/Stellar-ledger.h"
 #include <Tracy.hpp>
 #include <type_traits>
@@ -29,6 +30,8 @@ BucketInputIterator<BucketT>::loadEntry()
         }
         else
         {
+            static_assert(std::is_same_v<BucketT, HotArchiveBucket>,
+                          "unexpected bucket type");
             isMeta = mEntry.type() == HOT_ARCHIVE_METAENTRY;
         }
 

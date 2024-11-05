@@ -4,8 +4,6 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "main/Config.h"
-#include "bucket/BucketList.h"
-#include "crypto/Hex.h"
 #include "crypto/KeyUtils.h"
 #include "herder/Herder.h"
 #include "history/HistoryArchive.h"
@@ -17,8 +15,6 @@
 #include "util/Fs.h"
 #include "util/GlobalChecks.h"
 #include "util/Logging.h"
-#include "util/XDROperators.h"
-#include "util/types.h"
 
 #include "overlay/OverlayManager.h"
 #include "util/UnorderedSet.h"

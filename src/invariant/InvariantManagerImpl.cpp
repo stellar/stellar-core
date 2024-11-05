@@ -3,8 +3,8 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "invariant/InvariantManagerImpl.h"
-#include "bucket/Bucket.h"
-#include "bucket/BucketList.h"
+#include "bucket/LiveBucket.h"
+#include "bucket/LiveBucketList.h"
 #include "crypto/Hex.h"
 #include "invariant/Invariant.h"
 #include "invariant/InvariantDoesNotHold.h"

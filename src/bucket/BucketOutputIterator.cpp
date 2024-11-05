@@ -3,13 +3,13 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "bucket/BucketOutputIterator.h"
-#include "bucket/Bucket.h"
 #include "bucket/BucketIndex.h"
 #include "bucket/BucketManager.h"
+#include "bucket/HotArchiveBucket.h"
+#include "bucket/LiveBucket.h"
 #include "ledger/LedgerTypeUtils.h"
 #include "util/GlobalChecks.h"
 #include "util/ProtocolVersion.h"
-#include "xdr/Stellar-ledger.h"
 #include <Tracy.hpp>
 #include <filesystem>
 
@@ -27,7 +27,7 @@ BucketOutputIterator<BucketT>::BucketOutputIterator(std::string const& tmpDir,
                                                     MergeCounters& mc,
                                                     asio::io_context& ctx,
                                                     bool doFsync)
-    : mFilename(Bucket::randomBucketName(tmpDir))
+    : mFilename(BucketBase::randomBucketName(tmpDir))
     , mOut(ctx, doFsync)
     , mCtx(ctx)
     , mBuf(nullptr)
@@ -55,9 +55,11 @@ BucketOutputIterator<BucketT>::BucketOutputIterator(std::string const& tmpDir,
         }
         else
         {
+            static_assert(std::is_same_v<BucketT, HotArchiveBucket>,
+                          "unexpected bucket type");
             releaseAssertOrThrow(protocolVersionStartsFrom(
                 meta.ledgerVersion,
-                Bucket::FIRST_PROTOCOL_SUPPORTING_PERSISTENT_EVICTION));
+                BucketBase::FIRST_PROTOCOL_SUPPORTING_PERSISTENT_EVICTION));
 
             HotArchiveBucketEntry bme;
             bme.type(HOT_ARCHIVE_METAENTRY);
@@ -95,6 +97,8 @@ BucketOutputIterator<BucketT>::put(typename BucketT::EntryT const& e)
     }
     else
     {
+        static_assert(std::is_same_v<BucketT, HotArchiveBucket>,
+                      "unexpected bucket type");
         if (e.type() == HOT_ARCHIVE_METAENTRY)
         {
             if (mPutMeta)
@@ -181,8 +185,7 @@ BucketOutputIterator<BucketT>::getBucket(BucketManager& bucketManager,
         std::filesystem::remove(mFilename);
         if (mergeKey)
         {
-            BucketManager::noteEmptyMergeOutput<BucketT>(bucketManager,
-                                                         *mergeKey);
+            bucketManager.noteEmptyMergeOutput<BucketT>(*mergeKey);
         }
         return std::make_shared<BucketT>();
     }
@@ -195,8 +198,7 @@ BucketOutputIterator<BucketT>::getBucket(BucketManager& bucketManager,
     {
         // either it's a new bucket or we just reconstructed a bucket
         // we already have, in any case ensure we have an index
-        if (auto b =
-                BucketManager::getBucketIfExists<BucketT>(bucketManager, hash);
+        if (auto b = bucketManager.getBucketIfExists<BucketT>(hash);
             !b || !b->isIndexed())
         {
             index = BucketIndex::createIndex<BucketT>(bucketManager, mFilename,
@@ -204,8 +206,8 @@ BucketOutputIterator<BucketT>::getBucket(BucketManager& bucketManager,
         }
     }
 
-    return BucketManager::adoptFileAsBucket<BucketT>(
-        bucketManager, mFilename.string(), hash, mergeKey, std::move(index));
+    return bucketManager.adoptFileAsBucket<BucketT>(mFilename.string(), hash,
+                                                    mergeKey, std::move(index));
 }
 
 template class BucketOutputIterator<LiveBucket>;

@@ -7,10 +7,8 @@
 // else.
 #include "util/asio.h"
 
-#include "bucket/BucketList.h"
 #include "bucket/BucketManager.h"
-#include "crypto/Hex.h"
-#include "crypto/SHA.h"
+#include "bucket/LiveBucketList.h"
 #include "herder/HerderImpl.h"
 #include "history/HistoryArchive.h"
 #include "history/HistoryArchiveManager.h"
@@ -27,23 +25,17 @@
 #include "main/Config.h"
 #include "medida/meter.h"
 #include "medida/metrics_registry.h"
-#include "overlay/StellarXDR.h"
-#include "process/ProcessManager.h"
 #include "transactions/TransactionSQL.h"
 #include "util/GlobalChecks.h"
 #include "util/Logging.h"
-#include "util/Math.h"
 #include "util/StatusManager.h"
 #include "util/TmpDir.h"
 #include "work/ConditionalWork.h"
 #include "work/WorkScheduler.h"
-#include "xdrpp/marshal.h"
 #include <Tracy.hpp>
 #include <fmt/format.h>
 
-#include <fstream>
 #include <regex>
-#include <system_error>
 
 namespace stellar
 {

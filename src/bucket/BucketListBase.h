@@ -4,7 +4,6 @@
 // under the Apache License, Version 2.0. See the COPYING file at the root
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
-#include "bucket/Bucket.h"
 #include "bucket/BucketUtils.h"
 #include "bucket/FutureBucket.h"
 
@@ -439,7 +438,11 @@ template <class BucketT> class BucketListBase
     // Number of bucket levels in the bucketlist. Every bucketlist in the system
     // will have this many levels and it effectively gets wired-in to the
     // protocol. Careful about changing it.
-    static BucketListDepth kNumLevels;
+    // LiveBucketList = 11 levels
+    // HotArchiveBucketList = 11 levels
+    // Note: this is temporary, HotArchiveBucketList will need to have a runtime
+    // defined number of levels in the future.
+    static inline BucketListDepth kNumLevels = 11;
 
     static bool shouldMergeWithEmptyCurr(uint32_t ledger, uint32_t level);
 
@@ -530,72 +533,5 @@ template <class BucketT> class BucketListBase
     // Returns the total size of the BucketList, in bytes, excluding all
     // FutureBuckets
     uint64_t getSize() const;
-};
-
-// The LiveBucketList stores the current canonical state of the ledger. It is
-// made up of LiveBucket buckets, which in turn store individual entries of type
-// BucketEntry. When an entry is "evicted" from the ledger, it is removed from
-// the LiveBucketList. Depending on the evicted entry type, it may then be added
-// to the HotArchiveBucketList.
-class LiveBucketList : public BucketListBase<LiveBucket>
-{
-  public:
-    // Reset Eviction Iterator position if an incoming spill or upgrade has
-    // invalidated the previous position
-    static void updateStartingEvictionIterator(EvictionIterator& iter,
-                                               uint32_t firstScanLevel,
-                                               uint32_t ledgerSeq);
-
-    // Update eviction iter and record stats after scanning a region in one
-    // bucket. Returns true if scan has looped back to startIter, false
-    // otherwise.
-    static bool updateEvictionIterAndRecordStats(
-        EvictionIterator& iter, EvictionIterator startIter,
-        uint32_t configFirstScanLevel, uint32_t ledgerSeq,
-        std::shared_ptr<EvictionStatistics> stats, EvictionCounters& counters);
-
-    static void checkIfEvictionScanIsStuck(EvictionIterator const& evictionIter,
-                                           uint32_t scanSize,
-                                           std::shared_ptr<LiveBucket const> b,
-                                           EvictionCounters& counters);
-
-    void scanForEvictionLegacy(Application& app, AbstractLedgerTxn& ltx,
-                               uint32_t ledgerSeq, EvictionCounters& counters,
-                               std::shared_ptr<EvictionStatistics> stats);
-
-    // Add a batch of initial (created), live (updated) and dead entries to the
-    // bucketlist, representing the entries effected by closing
-    // `currLedger`. The bucketlist will incorporate these into the smallest
-    // (0th) level, as well as commit or prepare merges for any levels that
-    // should have spilled due to passing through `currLedger`. The `currLedger`
-    // and `currProtocolVersion` values should be taken from the ledger at which
-    // this batch is being added.
-    void addBatch(Application& app, uint32_t currLedger,
-                  uint32_t currLedgerProtocol,
-                  std::vector<LedgerEntry> const& initEntries,
-                  std::vector<LedgerEntry> const& liveEntries,
-                  std::vector<LedgerKey> const& deadEntries);
-
-    BucketEntryCounters sumBucketEntryCounters() const;
-};
-
-// The HotArchiveBucketList stores recently evicted entries. It contains Buckets
-// of type HotArchiveBucket, which store individual entries of type
-// HotArchiveBucketEntry.
-class HotArchiveBucketList : public BucketListBase<HotArchiveBucket>
-{
-  private:
-    // For now, this class is identical to LiveBucketList. Later PRs will add
-    // additional functionality.
-
-    // Merge result future
-    // This should be the result of merging this entire list into a single file.
-    // The MerkleBucketList is then initalized with this result
-  public:
-    void addBatch(Application& app, uint32_t currLedger,
-                  uint32_t currLedgerProtocol,
-                  std::vector<LedgerEntry> const& archiveEntries,
-                  std::vector<LedgerKey> const& restoredEntries,
-                  std::vector<LedgerKey> const& deletedEntries);
 };
 }

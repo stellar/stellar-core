@@ -3,10 +3,10 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "catchup/ApplyBucketsWork.h"
-#include "bucket/Bucket.h"
 #include "bucket/BucketApplicator.h"
-#include "bucket/BucketList.h"
 #include "bucket/BucketManager.h"
+#include "bucket/LiveBucket.h"
+#include "bucket/LiveBucketList.h"
 #include "catchup/AssumeStateWork.h"
 #include "catchup/CatchupManager.h"
 #include "catchup/IndexBucketsWork.h"
@@ -90,8 +90,8 @@ ApplyBucketsWork::getBucket(std::string const& hash)
     auto i = mBuckets.find(hash);
     auto b = (i != mBuckets.end())
                  ? i->second
-                 : BucketManager::getBucketByHash<LiveBucket>(
-                       mApp.getBucketManager(), hexToBin256(hash));
+                 : mApp.getBucketManager().getBucketByHash<LiveBucket>(
+                       hexToBin256(hash));
     releaseAssert(b);
     return b;
 }

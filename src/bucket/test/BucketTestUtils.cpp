@@ -3,9 +3,10 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "BucketTestUtils.h"
-#include "bucket/Bucket.h"
 #include "bucket/BucketInputIterator.h"
 #include "bucket/BucketManager.h"
+#include "bucket/HotArchiveBucket.h"
+#include "bucket/LiveBucket.h"
 #include "crypto/Hex.h"
 #include "herder/Herder.h"
 #include "ledger/LedgerTxn.h"

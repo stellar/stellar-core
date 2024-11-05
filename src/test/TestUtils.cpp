@@ -3,7 +3,6 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "TestUtils.h"
-#include "bucket/BucketList.h"
 #include "overlay/test/LoopbackPeer.h"
 #include "simulation/LoadGenerator.h"
 #include "simulation/Simulation.h"

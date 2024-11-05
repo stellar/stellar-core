@@ -7,10 +7,10 @@
 // else.
 #include "util/asio.h" // IWYU pragma: keep
 
-#include "bucket/Bucket.h"
-#include "bucket/BucketList.h"
 #include "bucket/BucketManager.h"
 #include "bucket/FutureBucket.h"
+#include "bucket/HotArchiveBucket.h"
+#include "bucket/LiveBucket.h"
 #include "bucket/MergeKey.h"
 #include "crypto/Hex.h"
 #include "main/Application.h"
@@ -65,7 +65,7 @@ FutureBucket<BucketT>::FutureBucket(
         if (!snap->isEmpty() &&
             protocolVersionIsBefore(
                 snap->getBucketVersion(),
-                Bucket::FIRST_PROTOCOL_SUPPORTING_PERSISTENT_EVICTION))
+                BucketBase::FIRST_PROTOCOL_SUPPORTING_PERSISTENT_EVICTION))
         {
             throw std::runtime_error(
                 "Invalid ArchivalFutureBucket: ledger version doesn't support "
@@ -378,7 +378,7 @@ FutureBucket<BucketT>::startMerge(Application& app, uint32_t maxProtocolVersion,
                 curr->getHash(), snap->getHash(), shadowHashes};
 
     std::shared_future<std::shared_ptr<BucketT>> f;
-    f = BucketManager::getMergeFuture<BucketT>(bm, mk);
+    f = bm.getMergeFuture<BucketT>(mk);
 
     if (f.valid())
     {
@@ -407,7 +407,7 @@ FutureBucket<BucketT>::startMerge(Application& app, uint32_t maxProtocolVersion,
                 ZoneNamedN(mergeZone, "Merge task", true);
                 ZoneValueV(mergeZone, static_cast<int64_t>(level));
 
-                auto res = Bucket::merge(
+                auto res = BucketBase::merge(
                     bm, maxProtocolVersion, curr, snap, shadows,
                     BucketListBase<BucketT>::keepTombstoneEntries(level),
                     countMergeEvents, ctx, doFsync);
@@ -440,7 +440,7 @@ FutureBucket<BucketT>::startMerge(Application& app, uint32_t maxProtocolVersion,
         });
 
     mOutputBucketFuture = task->get_future().share();
-    BucketManager::putMergeFuture(bm, mk, mOutputBucketFuture);
+    bm.putMergeFuture(mk, mOutputBucketFuture);
     app.postOnBackgroundThread(bind(&task_t::operator(), task),
                                "FutureBucket: merge");
     checkState();
@@ -458,24 +458,22 @@ FutureBucket<BucketT>::makeLive(Application& app, uint32_t maxProtocolVersion,
     auto& bm = app.getBucketManager();
     if (hasOutputHash())
     {
-        auto b = BucketManager::getBucketByHash<BucketT>(
-            bm, hexToBin256(getOutputHash()));
+        auto b = bm.getBucketByHash<BucketT>(hexToBin256(getOutputHash()));
 
         setLiveOutput(b);
     }
     else
     {
         releaseAssert(mState == FB_HASH_INPUTS);
-        mInputCurrBucket = BucketManager::getBucketByHash<BucketT>(
-            bm, hexToBin256(mInputCurrBucketHash));
-        mInputSnapBucket = BucketManager::getBucketByHash<BucketT>(
-            bm, hexToBin256(mInputSnapBucketHash));
+        mInputCurrBucket =
+            bm.getBucketByHash<BucketT>(hexToBin256(mInputCurrBucketHash));
+        mInputSnapBucket =
+            bm.getBucketByHash<BucketT>(hexToBin256(mInputSnapBucketHash));
 
         releaseAssert(mInputShadowBuckets.empty());
         for (auto const& h : mInputShadowBucketHashes)
         {
-            auto b =
-                BucketManager::getBucketByHash<BucketT>(bm, hexToBin256(h));
+            auto b = bm.getBucketByHash<BucketT>(hexToBin256(h));
 
             releaseAssert(b);
             CLOG_DEBUG(Bucket, "Reconstituting shadow {}", h);

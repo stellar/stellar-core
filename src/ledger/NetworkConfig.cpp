@@ -3,8 +3,8 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "ledger/NetworkConfig.h"
-#include "bucket/BucketList.h"
 #include "bucket/BucketManager.h"
+#include "bucket/LiveBucketList.h"
 #include "bucket/test/BucketTestUtils.h"
 #include "main/Application.h"
 #include "util/ProtocolVersion.h"

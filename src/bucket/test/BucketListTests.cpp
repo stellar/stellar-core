@@ -10,12 +10,13 @@
 // first to include <windows.h> -- so we try to include it before everything
 // else.
 #include "util/asio.h"
-#include "bucket/Bucket.h"
 #include "bucket/BucketInputIterator.h"
-#include "bucket/BucketList.h"
-#include "bucket/BucketListSnapshot.h"
 #include "bucket/BucketManager.h"
 #include "bucket/BucketOutputIterator.h"
+#include "bucket/HotArchiveBucket.h"
+#include "bucket/HotArchiveBucketList.h"
+#include "bucket/LiveBucket.h"
+#include "bucket/LiveBucketList.h"
 #include "bucket/test/BucketTestUtils.h"
 #include "crypto/Hex.h"
 #include "ledger/LedgerTypeUtils.h"
@@ -31,8 +32,8 @@
 #include "util/Timer.h"
 #include "util/UnorderedSet.h"
 #include "xdr/Stellar-ledger.h"
-#include "xdrpp/autocheck.h"
 
+#include <autocheck/generator.hpp>
 #include <deque>
 #include <sstream>
 

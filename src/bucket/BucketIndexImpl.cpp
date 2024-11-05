@@ -3,9 +3,11 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "bucket/BucketIndexImpl.h"
-#include "bucket/Bucket.h"
+#include "bucket/BucketIndex.h"
 #include "bucket/BucketManager.h"
 #include "bucket/BucketUtils.h"
+#include "bucket/HotArchiveBucket.h"
+#include "bucket/LiveBucket.h"
 #include "crypto/Hex.h"
 #include "crypto/ShortHash.h"
 #include "ledger/LedgerTypeUtils.h"
@@ -142,6 +144,9 @@ BucketIndexImpl<IndexT>::BucketIndexImpl(BucketManager& bm,
                 }
                 else
                 {
+                    static_assert(
+                        std::is_same_v<BucketEntryT, HotArchiveBucket::EntryT>,
+                        "unexpected bucket type");
                     return be.type() == HOT_ARCHIVE_METAENTRY;
                 }
             };
@@ -151,7 +156,7 @@ BucketIndexImpl<IndexT>::BucketIndexImpl(BucketManager& bm,
                 ++count;
                 LedgerKey key = getBucketLedgerKey(be);
 
-                if constexpr (std::is_same_v<BucketEntryT, BucketEntry>)
+                if constexpr (std::is_same_v<BucketEntryT, LiveBucket::EntryT>)
                 {
                     // We need an asset to poolID mapping for
                     // loadPoolshareTrustlineByAccountAndAsset queries. For this
@@ -182,7 +187,7 @@ BucketIndexImpl<IndexT>::BucketIndexImpl(BucketManager& bm,
                     }
                 }
 
-                if constexpr (std::is_same<IndexT, RangeIndex>::value)
+                if constexpr (std::is_same_v<IndexT, RangeIndex>)
                 {
                     auto keyBuf = xdr::xdr_to_opaque(key);
                     SipHash24 hasher(seed.data());
@@ -205,6 +210,8 @@ BucketIndexImpl<IndexT>::BucketIndexImpl(BucketManager& bm,
                 }
                 else
                 {
+                    static_assert(std::is_same_v<IndexT, IndividualIndex>,
+                                  "unexpected index type");
                     mData.keysToOffset.emplace_back(key, pos);
                 }
 
@@ -217,7 +224,7 @@ BucketIndexImpl<IndexT>::BucketIndexImpl(BucketManager& bm,
             pos = in.pos();
         }
 
-        if constexpr (std::is_same<IndexT, RangeIndex>::value)
+        if constexpr (std::is_same_v<IndexT, RangeIndex>)
         {
             // Binary Fuse filter requires at least 2 elements
             if (keyHashes.size() > 1)
@@ -259,7 +266,7 @@ BucketIndexImpl<BucketIndex::RangeIndex>::saveToDisk(
                          "took", std::chrono::milliseconds(100));
 
     std::filesystem::path tmpFilename =
-        Bucket::randomBucketIndexName(bm.getTmpDir());
+        BucketBase::randomBucketIndexName(bm.getTmpDir());
     CLOG_DEBUG(Bucket, "Saving bucket index for {}: {}", hexAbbrev(hash),
                tmpFilename);
 
@@ -306,12 +313,14 @@ template <class IndexEntryT>
 static bool
 keyNotInIndexEntry(LedgerKey const& key, IndexEntryT const& indexEntry)
 {
-    if constexpr (std::is_same<IndexEntryT, BucketIndex::RangeEntry>::value)
+    if constexpr (std::is_same_v<IndexEntryT, BucketIndex::RangeEntry>)
     {
         return key < indexEntry.lowerBound || indexEntry.upperBound < key;
     }
     else
     {
+        static_assert(std::is_same_v<IndexEntryT, BucketIndex::IndividualEntry>,
+                      "unexpected index entry type");
         return !(key == indexEntry);
     }
 }
@@ -325,13 +334,16 @@ template <class IndexEntryT>
 static bool
 lower_bound_pred(IndexEntryT const& indexEntry, LedgerKey const& key)
 {
-    if constexpr (std::is_same<IndexEntryT,
-                               BucketIndex::RangeIndex::value_type>::value)
+    if constexpr (std::is_same_v<IndexEntryT,
+                                 BucketIndex::RangeIndex::value_type>)
     {
         return indexEntry.first.upperBound < key;
     }
     else
     {
+        static_assert(std::is_same_v<IndexEntryT,
+                                     BucketIndex::IndividualIndex::value_type>,
+                      "unexpected index entry type");
         return indexEntry.first < key;
     }
 }
@@ -345,13 +357,16 @@ template <class IndexEntryT>
 static bool
 upper_bound_pred(LedgerKey const& key, IndexEntryT const& indexEntry)
 {
-    if constexpr (std::is_same<IndexEntryT,
-                               BucketIndex::RangeIndex::value_type>::value)
+    if constexpr (std::is_same_v<IndexEntryT,
+                                 BucketIndex::RangeIndex::value_type>)
     {
         return key < indexEntry.first.lowerBound;
     }
     else
     {
+        static_assert(std::is_same_v<IndexEntryT,
+                                     BucketIndex::IndividualIndex::value_type>,
+                      "unexpected index entry type");
         return key < indexEntry.first;
     }
 }
@@ -573,7 +588,7 @@ BucketIndexImpl<IndexT>::operator==(BucketIndex const& inRaw) const
         return false;
     }
 
-    if constexpr (std::is_same<IndexT, RangeIndex>::value)
+    if constexpr (std::is_same_v<IndexT, RangeIndex>)
     {
         releaseAssert(mData.filter);
         releaseAssert(in.mData.filter);
@@ -584,6 +599,8 @@ BucketIndexImpl<IndexT>::operator==(BucketIndex const& inRaw) const
     }
     else
     {
+        static_assert(std::is_same_v<IndexT, IndividualIndex>,
+                      "unexpected index type");
         releaseAssert(!mData.filter);
         releaseAssert(!in.mData.filter);
     }
@@ -643,8 +660,9 @@ BucketIndexImpl<IndexT>::getBucketEntryCounters() const
 template std::unique_ptr<BucketIndex const>
 BucketIndex::createIndex<LiveBucket>(BucketManager& bm,
                                      std::filesystem::path const& filename,
-                                     Hash const& hash);
+                                     Hash const& hash, asio::io_context& ctx);
 template std::unique_ptr<BucketIndex const>
 BucketIndex::createIndex<HotArchiveBucket>(
-    BucketManager& bm, std::filesystem::path const& filename, Hash const& hash);
+    BucketManager& bm, std::filesystem::path const& filename, Hash const& hash,
+    asio::io_context& ctx);
 }
