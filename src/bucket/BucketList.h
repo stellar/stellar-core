@@ -414,6 +414,24 @@ template <class BucketT> class BucketListBase
   protected:
     std::vector<BucketLevel<BucketT>> mLevels;
 
+    // Add a batch of entries to the
+    // bucketlist, representing the entries effected by closing
+    // `currLedger`. The bucketlist will incorporate these into the smallest
+    // (0th) level, as well as commit or prepare merges for any levels that
+    // should have spilled due to passing through `currLedger`. The `currLedger`
+    // and `currProtocolVersion` values should be taken from the ledger at which
+    // this batch is being added. `inputVectors` should contain a vector of
+    // entries to insert for each corresponding BucketEntry type, i.e.
+    // initEntry, liveEntry, and deadEntry for the LiveBucketList. These must be
+    // the same input vector types for the corresponding BucketT::fresh
+    // function.
+    // This is an internal function, derived classes should define a
+    // public addBatch function with explicit input vector types.
+    template <typename... VectorT>
+    void addBatchInternal(Application& app, uint32_t currLedger,
+                          uint32_t currLedgerProtocol,
+                          VectorT const&... inputVectors);
+
   public:
     // Trivial pure virtual destructor to make this an abstract class
     virtual ~BucketListBase() = 0;
