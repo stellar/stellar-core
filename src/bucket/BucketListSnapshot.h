@@ -98,6 +98,11 @@ class SearchableBucketListSnapshotBase : public NonMovableOrCopyable
     SearchableBucketListSnapshotBase(
         BucketSnapshotManager const& snapshotManager);
 
+    std::optional<std::vector<typename BucketT::LoadT>>
+    loadKeysInternal(std::set<LedgerKey, LedgerEntryIdCmp> const& inKeys,
+                     LedgerKeyMeter* lkMeter,
+                     std::optional<uint32_t> ledgerSeq);
+
   public:
     uint32_t
     getLedgerSeq() const
@@ -106,6 +111,18 @@ class SearchableBucketListSnapshotBase : public NonMovableOrCopyable
     }
 
     LedgerHeader const& getLedgerHeader();
+
+    // Loads inKeys from the specified historical snapshot. Returns
+    // load_result_vec if the snapshot for the given ledger is
+    // available, std::nullopt otherwise. Note that ledgerSeq is defined
+    // as the state of the BucketList at the beginning of the ledger. This means
+    // that for ledger N, the maximum lastModifiedLedgerSeq of any LedgerEntry
+    // in the BucketList is N - 1.
+    std::optional<std::vector<typename BucketT::LoadT>>
+    loadKeysFromLedger(std::set<LedgerKey, LedgerEntryIdCmp> const& inKeys,
+                       uint32_t ledgerSeq);
+
+    std::shared_ptr<typename BucketT::LoadT> load(LedgerKey const& k);
 };
 
 class SearchableLiveBucketListSnapshot
@@ -115,12 +132,6 @@ class SearchableLiveBucketListSnapshot
         BucketSnapshotManager const& snapshotManager);
 
   public:
-    std::shared_ptr<LedgerEntry> load(LedgerKey const& k);
-
-    std::vector<LedgerEntry>
-    loadKeysWithLimits(std::set<LedgerKey, LedgerEntryIdCmp> const& inKeys,
-                       LedgerKeyMeter* lkMeter = nullptr);
-
     std::vector<LedgerEntry>
     loadPoolShareTrustLinesByAccountAndAsset(AccountID const& accountID,
                                              Asset const& asset);
@@ -128,15 +139,9 @@ class SearchableLiveBucketListSnapshot
     std::vector<InflationWinner> loadInflationWinners(size_t maxWinners,
                                                       int64_t minBalance);
 
-    // Loads inKeys from the specified historical snapshot. Returns
-    // load_result_vec if the snapshot for the given ledger is
-    // available, std::nullopt otherwise. Note that ledgerSeq is defined
-    // as the state of the BucketList at the beginning of the ledger. This means
-    // that for ledger N, the maximum lastModifiedLedgerSeq of any LedgerEntry
-    // in the BucketList is N - 1.
-    std::optional<std::vector<LedgerEntry>>
-    loadKeysFromLedger(std::set<LedgerKey, LedgerEntryIdCmp> const& inKeys,
-                       uint32_t ledgerSeq);
+    std::vector<LedgerEntry>
+    loadKeysWithLimits(std::set<LedgerKey, LedgerEntryIdCmp> const& inKeys,
+                       LedgerKeyMeter* lkMeter);
 
     EvictionResult scanForEviction(uint32_t ledgerSeq,
                                    EvictionCounters& counters,
@@ -155,20 +160,8 @@ class SearchableHotArchiveBucketListSnapshot
         BucketSnapshotManager const& snapshotManager);
 
   public:
-    std::shared_ptr<HotArchiveBucketEntry> load(LedgerKey const& k);
-
     std::vector<HotArchiveBucketEntry>
     loadKeys(std::set<LedgerKey, LedgerEntryIdCmp> const& inKeys);
-
-    // Loads inKeys from the specified historical snapshot. Returns
-    // load_result_vec if the snapshot for the given ledger is
-    // available, std::nullopt otherwise. Note that ledgerSeq is defined
-    // as the state of the BucketList at the beginning of the ledger. This means
-    // that for ledger N, the maximum lastModifiedLedgerSeq of any LedgerEntry
-    // in the BucketList is N - 1.
-    std::optional<std::vector<HotArchiveBucketEntry>>
-    loadKeysFromLedger(std::set<LedgerKey, LedgerEntryIdCmp> const& inKeys,
-                       uint32_t ledgerSeq);
 
     friend std::shared_ptr<SearchableHotArchiveBucketListSnapshot>
     BucketSnapshotManager::copySearchableHotArchiveBucketListSnapshot() const;

@@ -197,7 +197,7 @@ LiveBucketSnapshot::scanForEviction(
 
     auto processQueue = [&]() {
         auto loadResult = populateLoadedEntries(
-            keysToSearch, bl.loadKeysWithLimits(keysToSearch));
+            keysToSearch, bl.loadKeysWithLimits(keysToSearch, nullptr));
         for (auto& e : maybeEvictQueue)
         {
             // If TTL entry has not yet been deleted

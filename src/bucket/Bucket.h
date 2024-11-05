@@ -222,6 +222,9 @@ class LiveBucket : public Bucket,
     // level bucket (i.e. DEADENTRY)
     static bool isTombstoneEntry(BucketEntry const& e);
 
+    static std::shared_ptr<LoadT>
+    bucketEntryToLoadResult(std::shared_ptr<EntryT> const& be);
+
     uint32_t getBucketVersion() const override;
 
     BucketEntryCounters const& getBucketEntryCounters() const;
@@ -266,6 +269,9 @@ class HotArchiveBucket : public Bucket,
     // Returns true if the given BucketEntry should be dropped in the bottom
     // level bucket (i.e. HOT_ARCHIVE_LIVE)
     static bool isTombstoneEntry(HotArchiveBucketEntry const& e);
+
+    static std::shared_ptr<LoadT>
+    bucketEntryToLoadResult(std::shared_ptr<EntryT> const& be);
 
     friend class HotArchiveBucketSnapshot;
 };

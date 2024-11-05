@@ -136,61 +136,31 @@ SearchableLiveBucketListSnapshot::scanForEviction(
     return result;
 }
 
-std::vector<LedgerEntry>
-SearchableLiveBucketListSnapshot::loadKeysWithLimits(
+template <class BucketT>
+std::optional<std::vector<typename BucketT::LoadT>>
+SearchableBucketListSnapshotBase<BucketT>::loadKeysInternal(
     std::set<LedgerKey, LedgerEntryIdCmp> const& inKeys,
-    LedgerKeyMeter* lkMeter)
+    LedgerKeyMeter* lkMeter, std::optional<uint32_t> ledgerSeq)
 {
     ZoneScoped;
 
     // Make a copy of the key set, this loop is destructive
     auto keys = inKeys;
-    std::vector<LedgerEntry> entries;
+    std::vector<typename BucketT::LoadT> entries;
     auto loadKeysLoop = [&](auto const& b) {
         b.loadKeys(keys, entries, lkMeter);
         return keys.empty();
     };
 
     mSnapshotManager.maybeUpdateSnapshot(mSnapshot, mHistoricalSnapshots);
-    if (threadIsMain())
-    {
-        auto timer =
-            mSnapshotManager.recordBulkLoadMetrics("prefetch", inKeys.size())
-                .TimeScope();
-        loopAllBuckets(loadKeysLoop, *mSnapshot);
-    }
-    else
-    {
-        // TODO: Background metrics
-        loopAllBuckets(loadKeysLoop, *mSnapshot);
-    }
 
-    return entries;
-}
-
-std::optional<std::vector<LedgerEntry>>
-SearchableLiveBucketListSnapshot::loadKeysFromLedger(
-    std::set<LedgerKey, LedgerEntryIdCmp> const& inKeys, uint32_t ledgerSeq)
-{
-    ZoneScoped;
-
-    // Make a copy of the key set, this loop is destructive
-    auto keys = inKeys;
-    std::vector<LedgerEntry> entries;
-    auto loadKeysLoop = [&](auto const& b) {
-        b.loadKeys(keys, entries, /*lkMeter=*/nullptr);
-        return keys.empty();
-    };
-
-    mSnapshotManager.maybeUpdateSnapshot(mSnapshot, mHistoricalSnapshots);
-
-    if (ledgerSeq == mSnapshot->getLedgerSeq())
+    if (!ledgerSeq || *ledgerSeq == mSnapshot->getLedgerSeq())
     {
         loopAllBuckets(loadKeysLoop, *mSnapshot);
     }
     else
     {
-        auto iter = mHistoricalSnapshots.find(ledgerSeq);
+        auto iter = mHistoricalSnapshots.find(*ledgerSeq);
         if (iter == mHistoricalSnapshots.end())
         {
             return std::nullopt;
@@ -203,12 +173,13 @@ SearchableLiveBucketListSnapshot::loadKeysFromLedger(
     return entries;
 }
 
-std::shared_ptr<LedgerEntry>
-SearchableLiveBucketListSnapshot::load(LedgerKey const& k)
+template <class BucketT>
+std::shared_ptr<typename BucketT::LoadT>
+SearchableBucketListSnapshotBase<BucketT>::load(LedgerKey const& k)
 {
     ZoneScoped;
 
-    std::shared_ptr<LedgerEntry> result{};
+    std::shared_ptr<typename BucketT::LoadT> result{};
     auto sawBloomMiss = false;
 
     // Search function called on each Bucket in BucketList until we find the key
@@ -218,9 +189,7 @@ SearchableLiveBucketListSnapshot::load(LedgerKey const& k)
 
         if (be)
         {
-            result = LiveBucket::isTombstoneEntry(*be)
-                         ? nullptr
-                         : std::make_shared<LedgerEntry>(be->liveEntry());
+            result = BucketT::bucketEntryToLoadResult(be);
 
             return true;
         }
@@ -244,6 +213,14 @@ SearchableLiveBucketListSnapshot::load(LedgerKey const& k)
         loopAllBuckets(loadKeyBucketLoop, *mSnapshot);
         return result;
     }
+}
+
+template <class BucketT>
+std::optional<std::vector<typename BucketT::LoadT>>
+SearchableBucketListSnapshotBase<BucketT>::loadKeysFromLedger(
+    std::set<LedgerKey, LedgerEntryIdCmp> const& inKeys, uint32_t ledgerSeq)
+{
+    return loadKeysInternal(inKeys, /*lkMeter=*/nullptr, ledgerSeq);
 }
 
 // This query has two steps:
@@ -421,75 +398,23 @@ SearchableHotArchiveBucketListSnapshot::SearchableHotArchiveBucketListSnapshot(
 {
 }
 
-std::shared_ptr<HotArchiveBucketEntry>
-SearchableHotArchiveBucketListSnapshot::load(LedgerKey const& k)
-{
-    ZoneScoped;
-
-    // Search function called on each Bucket in BucketList until we find the key
-    std::shared_ptr<HotArchiveBucketEntry> result{};
-    auto loadKeyBucketLoop = [&](auto const& b) {
-        auto [be, _] = b.getBucketEntry(k);
-
-        if (be)
-        {
-            result = HotArchiveBucket::isTombstoneEntry(*be) ? nullptr : be;
-            return true;
-        }
-        else
-        {
-            return false;
-        }
-    };
-
-    // TODO: Metrics
-    mSnapshotManager.maybeUpdateSnapshot(mSnapshot, mHistoricalSnapshots);
-    loopAllBuckets(loadKeyBucketLoop, *mSnapshot);
-    return result;
-}
-
 std::vector<HotArchiveBucketEntry>
 SearchableHotArchiveBucketListSnapshot::loadKeys(
     std::set<LedgerKey, LedgerEntryIdCmp> const& inKeys)
 {
-    auto op = loadKeysFromLedger(inKeys, getLedgerSeq());
+    auto op = loadKeysInternal(inKeys, /*lkMeter=*/nullptr, std::nullopt);
     releaseAssertOrThrow(op);
     return std::move(*op);
 }
 
-std::optional<std::vector<HotArchiveBucketEntry>>
-SearchableHotArchiveBucketListSnapshot::loadKeysFromLedger(
-    std::set<LedgerKey, LedgerEntryIdCmp> const& inKeys, uint32_t ledgerSeq)
+std::vector<LedgerEntry>
+SearchableLiveBucketListSnapshot::loadKeysWithLimits(
+    std::set<LedgerKey, LedgerEntryIdCmp> const& inKeys,
+    LedgerKeyMeter* lkMeter)
 {
-    ZoneScoped;
-    std::vector<HotArchiveBucketEntry> entries;
-
-    // Make a copy of the key set, this loop is destructive
-    auto keys = inKeys;
-    auto loadKeysLoop = [&](auto const& b) {
-        b.loadKeys(keys, entries, /*lkMeter=*/nullptr);
-        return keys.empty();
-    };
-
-    mSnapshotManager.maybeUpdateSnapshot(mSnapshot, mHistoricalSnapshots);
-
-    if (ledgerSeq == mSnapshot->getLedgerSeq())
-    {
-        loopAllBuckets(loadKeysLoop, *mSnapshot);
-    }
-    else
-    {
-        auto iter = mHistoricalSnapshots.find(ledgerSeq);
-        if (iter == mHistoricalSnapshots.end())
-        {
-            return std::nullopt;
-        }
-
-        releaseAssert(iter->second);
-        loopAllBuckets(loadKeysLoop, *iter->second);
-    }
-
-    return entries;
+    auto op = loadKeysInternal(inKeys, lkMeter, std::nullopt);
+    releaseAssertOrThrow(op);
+    return std::move(*op);
 }
 
 template struct BucketLevelSnapshot<LiveBucket>;

@@ -1071,6 +1071,20 @@ HotArchiveBucket::isTombstoneEntry(HotArchiveBucketEntry const& e)
     return e.type() == HOT_ARCHIVE_LIVE;
 }
 
+std::shared_ptr<LiveBucket::LoadT>
+LiveBucket::bucketEntryToLoadResult(std::shared_ptr<EntryT> const& be)
+{
+    return isTombstoneEntry(*be)
+               ? nullptr
+               : std::make_shared<LedgerEntry>(be->liveEntry());
+}
+
+std::shared_ptr<HotArchiveBucket::LoadT>
+HotArchiveBucket::bucketEntryToLoadResult(std::shared_ptr<EntryT> const& be)
+{
+    return isTombstoneEntry(*be) ? nullptr : be;
+}
+
 BucketEntryCounters&
 BucketEntryCounters::operator+=(BucketEntryCounters const& other)
 {
