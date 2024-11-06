@@ -1159,7 +1159,9 @@ SorobanNetworkConfig::initializeGenesisLedgerForTesting(
         // Protocol 20 released with somewhat incorrect costs and has been
         // re-calibrated short after the release. We catch up here to the more
         // correct costs that exist on the network.
+#ifdef BUILD_TESTS
         updateRecalibratedCostTypesForV20(ltx);
+#endif
         ltx.loadHeader().current().ledgerVersion = genesisLedgerProtocol;
     }
 
