@@ -843,7 +843,6 @@ TEST_CASE("apply load", "[loadgen][applyload]")
 
     VirtualClock clock(VirtualClock::REAL_TIME);
     auto app = createTestApplication(clock, cfg);
-    auto const& lm = app->getLedgerManager();
 
     uint64_t ledgerMaxInstructions = 500'000'000;
     uint64_t ledgerMaxReadLedgerEntries = 2000;
@@ -871,6 +870,10 @@ TEST_CASE("apply load", "[loadgen][applyload]")
     cpuInsRatioExclVm.Clear();
     for (size_t i = 0; i < 100; ++i)
     {
+        app->getBucketManager().getBucketList().resolveAllFutures();
+        releaseAssert(
+            app->getBucketManager().getBucketList().futuresAllResolved());
+
         al.benchmark();
     }
     REQUIRE(al.successRate() - 1.0 < std::numeric_limits<double>::epsilon());
