@@ -278,7 +278,7 @@ LoopbackPeer::recvMessage(xdr::msg_ptr const& msg)
 }
 
 void
-LoopbackPeer::recvMessage(std::shared_ptr<MsgCapacityTracker> msgTracker)
+LoopbackPeer::recvMessage(std::shared_ptr<CapacityTrackedMessage> msgTracker)
 {
     mAppConnector.postOnMainThread(
         [self = shared_from_this(), msgTracker]() {
@@ -565,8 +565,7 @@ LoopbackPeer::checkCapacity(std::shared_ptr<LoopbackPeer> otherPeer) const
     return otherPeer->getConfig().PEER_FLOOD_READING_CAPACITY ==
                getFlowControl()->getCapacity().getOutboundCapacity() &&
            otherPeer->mAppConnector.getOverlayManager()
-                   .getFlowControlBytesConfig()
-                   .mTotal ==
+                   .getFlowControlBytesTotal() ==
                getFlowControl()->getCapacityBytes().getOutboundCapacity();
 }
 }

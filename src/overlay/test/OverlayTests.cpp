@@ -188,7 +188,8 @@ TEST_CASE("flow control byte capacity", "[overlay][flowcontrol]")
         REQUIRE(conn.getAcceptor()->checkCapacity(conn.getInitiator()));
 
         uint64_t expectedCapacity{0};
-        expectedCapacity = cfg2.PEER_FLOOD_READING_CAPACITY_BYTES - txSize;
+        expectedCapacity =
+            app2->getOverlayManager().getFlowControlBytesTotal() - txSize;
 
         SECTION("basic capacity accounting")
         {
@@ -202,9 +203,8 @@ TEST_CASE("flow control byte capacity", "[overlay][flowcontrol]")
                         ->getCapacityBytes()
                         .getOutboundCapacity() == expectedCapacity);
             REQUIRE(conn.getInitiator()->getTxQueueByteCount() == 0);
-            auto msgTracker =
-                std::make_shared<LoopbackPeer::MsgCapacityTracker>(
-                    conn.getAcceptor(), tx1);
+            auto msgTracker = std::make_shared<CapacityTrackedMessage>(
+                conn.getAcceptor(), tx1);
             conn.getAcceptor()->recvMessage(msgTracker);
             REQUIRE(conn.getAcceptor()
                         ->getFlowControl()
@@ -238,7 +238,7 @@ TEST_CASE("flow control byte capacity", "[overlay][flowcontrol]")
                         ->getCapacityBytes()
                         .getCapacity()
                         .mFloodCapacity ==
-                    cfg2.PEER_FLOOD_READING_CAPACITY_BYTES);
+                    app2->getOverlayManager().getFlowControlBytesTotal());
             if (shouldRequestMore)
             {
                 REQUIRE(conn.getInitiator()->checkCapacity(conn.getAcceptor()));
@@ -249,7 +249,8 @@ TEST_CASE("flow control byte capacity", "[overlay][flowcontrol]")
                             ->getFlowControl()
                             ->getCapacityBytes()
                             .getOutboundCapacity() ==
-                        (cfg2.PEER_FLOOD_READING_CAPACITY_BYTES - txSize));
+                        (app2->getOverlayManager().getFlowControlBytesTotal() -
+                         txSize));
             }
             REQUIRE(conn.getAcceptor()->checkCapacity(conn.getInitiator()));
         }
@@ -278,6 +279,12 @@ TEST_CASE("flow control byte capacity", "[overlay][flowcontrol]")
         cfg2.PEER_FLOOD_READING_CAPACITY = 1;
         cfg2.FLOW_CONTROL_SEND_MORE_BATCH_SIZE = 1;
         test(true);
+    }
+    SECTION("automatic calculation of byte configs")
+    {
+        cfg2.PEER_FLOOD_READING_CAPACITY_BYTES = 0;
+        cfg2.FLOW_CONTROL_SEND_MORE_BATCH_SIZE_BYTES = 0;
+        test(false);
     }
     SECTION("mixed versions")
     {

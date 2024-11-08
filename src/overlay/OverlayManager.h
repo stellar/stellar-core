@@ -4,6 +4,7 @@
 // under the Apache License, Version 2.0. See the COPYING file at the root
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
+#include "crypto/BLAKE2.h"
 #include "overlay/Peer.h"
 
 /**
@@ -54,12 +55,6 @@ struct StellarMessage;
 class OverlayManager
 {
   public:
-    struct AdjustedFlowControlConfig
-    {
-        uint32_t mTotal;
-        uint32_t mBatchSize;
-    };
-
     static int constexpr MIN_INBOUND_FACTOR = 3;
 
     static std::unique_ptr<OverlayManager> create(Application& app);
@@ -67,6 +62,7 @@ class OverlayManager
     // Drop all PeerRecords from the Database
     static void dropAll(Database& db);
     static bool isFloodMessage(StellarMessage const& msg);
+    static uint32_t getFlowControlBytesBatch(Config const& cfg);
 
     // Flush all FloodGate and ItemFetcher state for ledgers older than
     // `ledgerSeq`.
@@ -90,18 +86,17 @@ class OverlayManager
     // Returns true if this is a new message
     // fills msgID with msg's hash
     virtual bool recvFloodedMsgID(StellarMessage const& msg, Peer::pointer peer,
-                                  Hash& msgID) = 0;
+                                  Hash const& msgID) = 0;
 
     bool
     recvFloodedMsg(StellarMessage const& msg, Peer::pointer peer)
     {
-        Hash msgID;
-        return recvFloodedMsgID(msg, peer, msgID);
+        return recvFloodedMsgID(msg, peer, xdrBlake2(msg));
     }
 
     // Process incoming transaction, pass it down to the transaction queue
-    virtual void recvTransaction(StellarMessage const& msg,
-                                 Peer::pointer peer) = 0;
+    virtual void recvTransaction(StellarMessage const& msg, Peer::pointer peer,
+                                 Hash const& index) = 0;
 
     // removes msgID from the floodgate's internal state
     // as it's not tracked anymore, calling "broadcast" with a (now forgotten)
@@ -207,9 +202,16 @@ class OverlayManager
 
     virtual void recordMessageMetric(StellarMessage const& stellarMsg,
                                      Peer::pointer peer) = 0;
-    virtual AdjustedFlowControlConfig getFlowControlBytesConfig() const = 0;
+    virtual uint32_t getFlowControlBytesTotal() const = 0;
+
     virtual ~OverlayManager()
     {
     }
+
+    // Is message already referenced by the scheduler
+    // This method is always called from one thread, therefore no cache
+    // synchorization is needed
+    virtual bool
+    checkScheduledAndCache(std::shared_ptr<CapacityTrackedMessage> tracker) = 0;
 };
 }

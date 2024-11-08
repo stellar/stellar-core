@@ -321,6 +321,7 @@ OverlayManagerImpl::OverlayManagerImpl(Application& app)
                      mApp.getConfig().TARGET_PEER_CONNECTIONS, mSurveyManager)
     , mResolvingPeersWithBackoff(true)
     , mResolvingPeersRetryCount(0)
+    , mScheduledMessages(100000, true)
 {
     mPeerSources[PeerType::INBOUND] = std::make_unique<RandomPeerSource>(
         mPeerManager, RandomPeerSource::nextAttemptCutoff(PeerType::INBOUND));
@@ -356,9 +357,10 @@ OverlayManagerImpl::start()
     mTxDemandsManager.start();
 }
 
-OverlayManager::AdjustedFlowControlConfig
-OverlayManagerImpl::getFlowControlBytesConfig() const
+uint32_t
+OverlayManagerImpl::getFlowControlBytesTotal() const
 {
+    releaseAssert(threadIsMain());
     auto const maxTxSize = mApp.getHerder().getMaxTxSize();
     releaseAssert(maxTxSize > 0);
     auto const& cfg = mApp.getConfig();
@@ -373,17 +375,26 @@ OverlayManagerImpl::getFlowControlBytesConfig() const
                   INITIAL_FLOW_CONTROL_SEND_MORE_BATCH_SIZE_BYTES >=
               maxTxSize))
         {
-            return {static_cast<uint32_t>(maxTxSize) +
-                        INITIAL_FLOW_CONTROL_SEND_MORE_BATCH_SIZE_BYTES,
-                    INITIAL_FLOW_CONTROL_SEND_MORE_BATCH_SIZE_BYTES};
+            return maxTxSize + INITIAL_FLOW_CONTROL_SEND_MORE_BATCH_SIZE_BYTES;
         }
-        return {INITIAL_PEER_FLOOD_READING_CAPACITY_BYTES,
-                INITIAL_FLOW_CONTROL_SEND_MORE_BATCH_SIZE_BYTES};
+        return INITIAL_PEER_FLOOD_READING_CAPACITY_BYTES;
     }
 
     // If flow control parameters were provided, return them
-    return {cfg.PEER_FLOOD_READING_CAPACITY_BYTES,
-            cfg.FLOW_CONTROL_SEND_MORE_BATCH_SIZE_BYTES};
+    return cfg.PEER_FLOOD_READING_CAPACITY_BYTES;
+}
+
+uint32_t
+OverlayManager::getFlowControlBytesBatch(Config const& cfg)
+{
+    if (cfg.PEER_FLOOD_READING_CAPACITY_BYTES == 0 &&
+        cfg.FLOW_CONTROL_SEND_MORE_BATCH_SIZE_BYTES == 0)
+    {
+        return INITIAL_FLOW_CONTROL_SEND_MORE_BATCH_SIZE_BYTES;
+    }
+
+    // If flow control parameters were provided, return them
+    return cfg.FLOW_CONTROL_SEND_MORE_BATCH_SIZE_BYTES;
 }
 
 void
@@ -1140,15 +1151,38 @@ OverlayManagerImpl::shufflePeerList(std::vector<Peer::pointer>& peerList)
 
 bool
 OverlayManagerImpl::recvFloodedMsgID(StellarMessage const& msg,
-                                     Peer::pointer peer, Hash& msgID)
+                                     Peer::pointer peer, Hash const& msgID)
 {
     ZoneScoped;
     return mFloodGate.addRecord(msg, peer, msgID);
 }
 
+bool
+OverlayManagerImpl::checkScheduledAndCache(
+    std::shared_ptr<CapacityTrackedMessage> tracker)
+{
+    releaseAssert(!threadIsMain() ||
+                  !mApp.getConfig().BACKGROUND_OVERLAY_PROCESSING);
+    if (!tracker->maybeGetHash())
+    {
+        return false;
+    }
+    auto index = tracker->maybeGetHash().value();
+    if (mScheduledMessages.exists(index))
+    {
+        if (mScheduledMessages.get(index).lock())
+        {
+            return true;
+        }
+    }
+    mScheduledMessages.put(index,
+                           std::weak_ptr<CapacityTrackedMessage>(tracker));
+    return false;
+}
+
 void
 OverlayManagerImpl::recvTransaction(StellarMessage const& msg,
-                                    Peer::pointer peer)
+                                    Peer::pointer peer, Hash const& index)
 {
     ZoneScoped;
     auto transaction = TransactionFrameBase::makeTransactionFromWire(
@@ -1157,8 +1191,7 @@ OverlayManagerImpl::recvTransaction(StellarMessage const& msg,
     {
         // record that this peer sent us this transaction
         // add it to the floodmap so that this peer gets credit for it
-        Hash msgID;
-        recvFloodedMsgID(msg, peer, msgID);
+        recvFloodedMsgID(msg, peer, index);
 
         mTxDemandsManager.recordTxPullLatency(transaction->getFullHash(), peer);
 
@@ -1171,7 +1204,7 @@ OverlayManagerImpl::recvTransaction(StellarMessage const& msg,
               addResult.code ==
                   TransactionQueue::AddResultCode::ADD_STATUS_DUPLICATE))
         {
-            forgetFloodedMsg(msgID);
+            forgetFloodedMsg(index);
             CLOG_DEBUG(Overlay,
                        "Peer::recvTransaction Discarded transaction {} from {}",
                        hexAbbrev(transaction->getFullHash()), peer->toString());

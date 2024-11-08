@@ -56,10 +56,10 @@ Floodgate::clearBelow(uint32_t maxLedger)
 }
 
 bool
-Floodgate::addRecord(StellarMessage const& msg, Peer::pointer peer, Hash& index)
+Floodgate::addRecord(StellarMessage const& msg, Peer::pointer peer,
+                     Hash const& index)
 {
     ZoneScoped;
-    index = xdrBlake2(msg);
     if (mShuttingDown)
     {
         return false;
@@ -145,21 +145,29 @@ Floodgate::broadcast(std::shared_ptr<StellarMessage const> msg,
             else
             {
                 mSendFromBroadcast.Mark();
-                std::weak_ptr<Peer> weak(
-                    std::static_pointer_cast<Peer>(peer.second));
-                // This is an async operation, and peer might get dropped by the
-                // time we actually try to send the message. This is fine, as
-                // sendMessage will just be a no-op in that case
-                mApp.postOnMainThread(
-                    [msg, weak, log = !broadcasted]() {
-                        auto strong = weak.lock();
-                        if (strong)
-                        {
-                            strong->sendMessage(msg, log);
-                        }
-                    },
-                    fmt::format(FMT_STRING("broadcast to {}"),
-                                peer.second->toString()));
+
+                if (msg->type() == SCP_MESSAGE)
+                {
+                    peer.second->sendMessage(msg, !broadcasted);
+                }
+                else
+                {
+                    // This is an async operation, and peer might get dropped by
+                    // the time we actually try to send the message. This is
+                    // fine, as sendMessage will just be a no-op in that case
+                    std::weak_ptr<Peer> weak(
+                        std::static_pointer_cast<Peer>(peer.second));
+                    mApp.postOnMainThread(
+                        [msg, weak, log = !broadcasted]() {
+                            auto strong = weak.lock();
+                            if (strong)
+                            {
+                                strong->sendMessage(msg, log);
+                            }
+                        },
+                        fmt::format(FMT_STRING("broadcast to {}"),
+                                    peer.second->toString()));
+                }
             }
             broadcasted = true;
         }

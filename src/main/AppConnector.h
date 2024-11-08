@@ -14,6 +14,7 @@ struct OverlayMetrics;
 class SorobanNetworkConfig;
 class SorobanMetrics;
 struct LedgerTxnDelta;
+class CapacityTrackedMessage;
 
 // Helper class to isolate access to Application; all function helpers must
 // either be called from main or be thread-sade
@@ -51,5 +52,8 @@ class AppConnector
     Config const& getConfig() const;
     bool overlayShuttingDown() const;
     OverlayMetrics& getOverlayMetrics();
+    // This method is always exclusively called from one thread
+    bool
+    checkScheduledAndCache(std::shared_ptr<CapacityTrackedMessage> msgTracker);
 };
 }

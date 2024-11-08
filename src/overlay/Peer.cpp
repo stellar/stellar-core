@@ -5,6 +5,7 @@
 #include "overlay/Peer.h"
 
 #include "BanManager.h"
+#include "crypto/BLAKE2.h"
 #include "crypto/CryptoError.h"
 #include "crypto/Hex.h"
 #include "crypto/KeyUtils.h"
@@ -50,6 +51,7 @@ using namespace soci;
 
 static constexpr VirtualClock::time_point PING_NOT_SENT =
     VirtualClock::time_point::min();
+static constexpr uint32_t QUERY_RESPONSE_MULTIPLIER = 5;
 
 Peer::Peer(Application& app, PeerRole role)
     : mAppConnector(app.getAppConnector())
@@ -77,8 +79,8 @@ Peer::Peer(Application& app, PeerRole role)
     std::copy(bytes.begin(), bytes.end(), mSendNonce.begin());
 }
 
-Peer::MsgCapacityTracker::MsgCapacityTracker(std::weak_ptr<Peer> peer,
-                                             StellarMessage const& msg)
+CapacityTrackedMessage::CapacityTrackedMessage(std::weak_ptr<Peer> peer,
+                                               StellarMessage const& msg)
     : mWeakPeer(peer), mMsg(msg)
 {
     auto self = mWeakPeer.lock();
@@ -87,9 +89,19 @@ Peer::MsgCapacityTracker::MsgCapacityTracker(std::weak_ptr<Peer> peer,
         throw std::runtime_error("Invalid peer");
     }
     self->beginMessageProcessing(mMsg);
+    if (mMsg.type() == SCP_MESSAGE || mMsg.type() == TRANSACTION)
+    {
+        mMaybeHash = xdrBlake2(msg);
+    }
 }
 
-Peer::MsgCapacityTracker::~MsgCapacityTracker()
+std::optional<Hash>
+CapacityTrackedMessage::maybeGetHash() const
+{
+    return mMaybeHash;
+}
+
+CapacityTrackedMessage::~CapacityTrackedMessage()
 {
     auto self = mWeakPeer.lock();
     if (self)
@@ -99,7 +111,7 @@ Peer::MsgCapacityTracker::~MsgCapacityTracker()
 }
 
 StellarMessage const&
-Peer::MsgCapacityTracker::getMessage()
+CapacityTrackedMessage::getMessage() const
 {
     return mMsg;
 }
@@ -143,7 +155,6 @@ Peer::beginMessageProcessing(StellarMessage const& msg)
 void
 Peer::endMessageProcessing(StellarMessage const& msg)
 {
-    releaseAssert(threadIsMain());
     RECURSIVE_LOCK_GUARD(mStateMutex, guard);
 
     if (shouldAbort(guard))
@@ -589,7 +600,6 @@ void
 Peer::sendSendMore(uint32_t numMessages, uint32_t numBytes)
 {
     ZoneScoped;
-    releaseAssert(threadIsMain());
 
     auto m = std::make_shared<StellarMessage>();
     m->type(SEND_MORE_EXTENDED);
@@ -685,7 +695,6 @@ void
 Peer::sendMessage(std::shared_ptr<StellarMessage const> msg, bool log)
 {
     ZoneScoped;
-    releaseAssert(threadIsMain());
 
     CLOG_TRACE(Overlay, "send: {} to : {}", msgSummary(*msg),
                mAppConnector.getConfig().toShortString(mPeerID));
@@ -761,6 +770,7 @@ Peer::sendMessage(std::shared_ptr<StellarMessage const> msg, bool log)
     releaseAssert(mFlowControl);
     if (OverlayManager::isFloodMessage(*msg))
     {
+        releaseAssert(threadIsMain());
         mFlowControl->addMsgAndMaybeTrimQueue(msg);
         maybeExecuteInBackground(
             "Peer::sendMessage maybeSendNextBatch",
@@ -899,22 +909,13 @@ Peer::recvAuthenticatedMessage(AuthenticatedMessage&& msg)
         }
     }
 
-    // Verify SCP signatures when in the background
-    if (useBackgroundThread() && msg.v0().message.type() == SCP_MESSAGE)
-    {
-        auto& envelope = msg.v0().message.envelope();
-        PubKeyUtils::verifySig(envelope.statement.nodeID, envelope.signature,
-                               xdr::xdr_to_opaque(mNetworkID, ENVELOPE_TYPE_SCP,
-                                                  envelope.statement));
-    }
-
     // NOTE: Additionally, we may use state snapshots to verify TRANSACTION type
     // messages in the background.
 
     // Start tracking capacity here, so read throttling is applied
     // appropriately. Flow control might not be started at that time
-    auto msgTracker = std::make_shared<MsgCapacityTracker>(shared_from_this(),
-                                                           msg.v0().message);
+    auto msgTracker = std::make_shared<CapacityTrackedMessage>(
+        shared_from_this(), msg.v0().message);
 
     std::string cat;
     Scheduler::ActionType type = Scheduler::ActionType::NORMAL_ACTION;
@@ -969,6 +970,22 @@ Peer::recvAuthenticatedMessage(AuthenticatedMessage&& msg)
     // scheduler queue
     auto queueName = isAuthenticated(guard) ? cat : AUTH_ACTION_QUEUE;
     type = isAuthenticated(guard) ? type : Scheduler::ActionType::NORMAL_ACTION;
+
+    // If a message is already scheduled, drop
+    if (mAppConnector.checkScheduledAndCache(msgTracker))
+    {
+        return true;
+    }
+
+    // Verify SCP signatures when in the background
+    if (useBackgroundThread() && msg.v0().message.type() == SCP_MESSAGE)
+    {
+        auto& envelope = msg.v0().message.envelope();
+        PubKeyUtils::verifySig(envelope.statement.nodeID, envelope.signature,
+                               xdr::xdr_to_opaque(mNetworkID, ENVELOPE_TYPE_SCP,
+                                                  envelope.statement));
+    }
+
     // Subtle: move `msgTracker` shared_ptr into the lambda, to ensure
     // its destructor is invoked from main thread only. Note that we can't use
     // unique_ptr here, because std::function requires its callable
@@ -986,7 +1003,7 @@ Peer::recvAuthenticatedMessage(AuthenticatedMessage&& msg)
 }
 
 void
-Peer::recvMessage(std::shared_ptr<MsgCapacityTracker> msgTracker)
+Peer::recvMessage(std::shared_ptr<CapacityTrackedMessage> msgTracker)
 {
     ZoneScoped;
     releaseAssert(threadIsMain());
@@ -1017,7 +1034,7 @@ Peer::recvMessage(std::shared_ptr<MsgCapacityTracker> msgTracker)
 
     try
     {
-        recvRawMessage(stellarMsg);
+        recvRawMessage(msgTracker);
     }
     catch (CryptoError const& e)
     {
@@ -1047,11 +1064,12 @@ Peer::recvSendMore(StellarMessage const& msg)
 }
 
 void
-Peer::recvRawMessage(StellarMessage const& stellarMsg)
+Peer::recvRawMessage(std::shared_ptr<CapacityTrackedMessage> msgTracker)
 {
     ZoneScoped;
     releaseAssert(threadIsMain());
 
+    auto const& stellarMsg = msgTracker->getMessage();
     auto peerStr = toString();
     ZoneText(peerStr.c_str(), peerStr.size());
 
@@ -1180,7 +1198,7 @@ Peer::recvRawMessage(StellarMessage const& stellarMsg)
     case TRANSACTION:
     {
         auto t = mOverlayMetrics.mRecvTransactionTimer.TimeScope();
-        recvTransaction(stellarMsg);
+        recvTransaction(*msgTracker);
     }
     break;
 
@@ -1201,7 +1219,7 @@ Peer::recvRawMessage(StellarMessage const& stellarMsg)
     case SCP_MESSAGE:
     {
         auto t = mOverlayMetrics.mRecvSCPMessageTimer.TimeScope();
-        recvSCPMessage(stellarMsg);
+        recvSCPMessage(*msgTracker);
     }
     break;
 
@@ -1252,11 +1270,32 @@ Peer::recvDontHave(StellarMessage const& msg)
         msg.dontHave().type, msg.dontHave().reqHash, shared_from_this());
 }
 
+bool
+Peer::process(QueryInfo& queryInfo)
+{
+    auto const& cfg = mAppConnector.getConfig();
+    std::chrono::seconds const QUERY_WINDOW =
+        cfg.getExpectedLedgerCloseTime() * cfg.MAX_SLOTS_TO_REMEMBER;
+    uint32_t const QUERIES_PER_WINDOW =
+        QUERY_WINDOW.count() * QUERY_RESPONSE_MULTIPLIER;
+    if (mAppConnector.now() - queryInfo.mLastTimeStamp >= QUERY_WINDOW)
+    {
+        queryInfo.mLastTimeStamp = mAppConnector.now();
+        queryInfo.mNumQueries = 0;
+    }
+    return queryInfo.mNumQueries < QUERIES_PER_WINDOW;
+}
+
 void
 Peer::recvGetTxSet(StellarMessage const& msg)
 {
     ZoneScoped;
     releaseAssert(threadIsMain());
+    if (!process(mTxSetQueryInfo))
+    {
+        return;
+    }
+
     auto self = shared_from_this();
     if (auto txSet = mAppConnector.getHerder().getTxSet(msg.txSetHash()))
     {
@@ -1289,6 +1328,8 @@ Peer::recvGetTxSet(StellarMessage const& msg)
                 : GENERALIZED_TX_SET;
         sendDontHave(messageType, msg.txSetHash());
     }
+
+    mTxSetQueryInfo.mNumQueries++;
 }
 
 void
@@ -1310,11 +1351,13 @@ Peer::recvGeneralizedTxSet(StellarMessage const& msg)
 }
 
 void
-Peer::recvTransaction(StellarMessage const& msg)
+Peer::recvTransaction(CapacityTrackedMessage const& msg)
 {
     ZoneScoped;
     releaseAssert(threadIsMain());
-    mAppConnector.getOverlayManager().recvTransaction(msg, shared_from_this());
+    releaseAssert(msg.maybeGetHash());
+    mAppConnector.getOverlayManager().recvTransaction(
+        msg.getMessage(), shared_from_this(), msg.maybeGetHash().value());
 }
 
 Hash
@@ -1384,6 +1427,10 @@ Peer::recvGetSCPQuorumSet(StellarMessage const& msg)
 {
     ZoneScoped;
     releaseAssert(threadIsMain());
+    if (!process(mQSetQueryInfo))
+    {
+        return;
+    }
 
     SCPQuorumSetPtr qset = mAppConnector.getHerder().getQSet(msg.qSetHash());
 
@@ -1397,6 +1444,7 @@ Peer::recvGetSCPQuorumSet(StellarMessage const& msg)
         sendDontHave(SCP_QUORUMSET, msg.qSetHash());
         // do we want to ask other people for it?
     }
+    mQSetQueryInfo.mNumQueries++;
 }
 void
 Peer::recvSCPQuorumSet(StellarMessage const& msg)
@@ -1409,13 +1457,13 @@ Peer::recvSCPQuorumSet(StellarMessage const& msg)
 }
 
 void
-Peer::recvSCPMessage(StellarMessage const& msg)
+Peer::recvSCPMessage(CapacityTrackedMessage const& msg)
 {
     ZoneScoped;
     releaseAssert(threadIsMain());
-    SCPEnvelope const& envelope = msg.envelope();
+    SCPEnvelope const& envelope = msg.getMessage().envelope();
 
-    auto type = msg.envelope().statement.pledges.type();
+    auto type = msg.getMessage().envelope().statement.pledges.type();
     auto t = (type == SCP_ST_PREPARE
                   ? mOverlayMetrics.mRecvSCPPrepareTimer.TimeScope()
                   : (type == SCP_ST_CONFIRM
@@ -1445,15 +1493,16 @@ Peer::recvSCPMessage(StellarMessage const& msg)
     ZoneText(codeStr.c_str(), codeStr.size());
 
     // add it to the floodmap so that this peer gets credit for it
-    Hash msgID;
-    mAppConnector.getOverlayManager().recvFloodedMsgID(msg, shared_from_this(),
-                                                       msgID);
+    releaseAssert(msg.maybeGetHash());
+    mAppConnector.getOverlayManager().recvFloodedMsgID(
+        msg.getMessage(), shared_from_this(), msg.maybeGetHash().value());
 
     auto res = mAppConnector.getHerder().recvSCPEnvelope(envelope);
     if (res == Herder::ENVELOPE_STATUS_DISCARDED)
     {
         // the message was discarded, remove it from the floodmap as well
-        mAppConnector.getOverlayManager().forgetFloodedMsg(msgID);
+        mAppConnector.getOverlayManager().forgetFloodedMsg(
+            msg.maybeGetHash().value());
     }
 }
 
@@ -1734,7 +1783,7 @@ Peer::recvAuth(StellarMessage const& msg)
     }
 
     uint32_t fcBytes =
-        mAppConnector.getOverlayManager().getFlowControlBytesConfig().mTotal;
+        mAppConnector.getOverlayManager().getFlowControlBytesTotal();
 
     // Subtle: after successful auth, must send sendMore message first to
     // tell the other peer about the local node's reading capacity.

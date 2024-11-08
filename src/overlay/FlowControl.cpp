@@ -35,7 +35,7 @@ FlowControl::FlowControl(AppConnector& connector, bool useBackgroundThread)
     : mFlowControlCapacity(connector.getConfig(), mNodeID)
     , mFlowControlBytesCapacity(
           connector.getConfig(), mNodeID,
-          connector.getOverlayManager().getFlowControlBytesConfig().mTotal)
+          connector.getOverlayManager().getFlowControlBytesTotal())
     , mOverlayMetrics(connector.getOverlayManager().getOverlayMetrics())
     , mAppConnector(connector)
     , mUseBackgroundThread(useBackgroundThread)
@@ -240,7 +240,6 @@ SendMoreCapacity
 FlowControl::endMessageProcessing(StellarMessage const& msg)
 {
     ZoneScoped;
-    releaseAssert(threadIsMain());
     std::lock_guard<std::mutex> guard(mFlowControlMutex);
 
     mFloodDataProcessed += mFlowControlCapacity.releaseLocalCapacity(msg);
@@ -252,9 +251,8 @@ FlowControl::endMessageProcessing(StellarMessage const& msg)
     bool shouldSendMore =
         mFloodDataProcessed ==
         mAppConnector.getConfig().FLOW_CONTROL_SEND_MORE_BATCH_SIZE;
-    auto const byteBatchSize = mAppConnector.getOverlayManager()
-                                   .getFlowControlBytesConfig()
-                                   .mBatchSize;
+    auto const byteBatchSize =
+        OverlayManager::getFlowControlBytesBatch(mAppConnector.getConfig());
     shouldSendMore =
         shouldSendMore || mFloodDataProcessedBytes >= byteBatchSize;
 
@@ -560,7 +558,6 @@ bool
 FlowControl::stopThrottling()
 {
     std::lock_guard<std::mutex> guard(mFlowControlMutex);
-    releaseAssert(threadIsMain());
     if (mLastThrottle)
     {
         CLOG_DEBUG(Overlay, "Stop throttling reading from peer {}",
