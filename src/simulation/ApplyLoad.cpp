@@ -2,6 +2,7 @@
 
 #include <numeric>
 
+#include "bucket/test/BucketTestUtils.h"
 #include "herder/Herder.h"
 #include "ledger/LedgerManager.h"
 #include "test/TxTests.h"
@@ -15,21 +16,80 @@
 #include "medida/metrics_registry.h"
 
 #include "util/XDRCereal.h"
+#include "xdrpp/printer.h"
 #include <crypto/SHA.h>
 
 namespace stellar
 {
+namespace
+{
+SorobanUpgradeConfig
+getUpgradeConfig(Config const& cfg)
+{
+    SorobanUpgradeConfig upgradeConfig;
+    upgradeConfig.maxContractSizeBytes = 65536;
+    upgradeConfig.maxContractDataKeySizeBytes = 250;
+    upgradeConfig.maxContractDataEntrySizeBytes = 65536;
+    upgradeConfig.ledgerMaxInstructions =
+        cfg.APPLY_LOAD_LEDGER_MAX_INSTRUCTIONS;
+    upgradeConfig.txMaxInstructions = cfg.APPLY_LOAD_TX_MAX_INSTRUCTIONS;
+    upgradeConfig.txMemoryLimit = 41943040;
+    upgradeConfig.ledgerMaxReadLedgerEntries =
+        cfg.APPLY_LOAD_LEDGER_MAX_READ_LEDGER_ENTRIES;
+    upgradeConfig.ledgerMaxReadBytes = cfg.APPLY_LOAD_LEDGER_MAX_READ_BYTES;
+    upgradeConfig.ledgerMaxWriteLedgerEntries =
+        cfg.APPLY_LOAD_LEDGER_MAX_WRITE_LEDGER_ENTRIES;
+    upgradeConfig.ledgerMaxWriteBytes = cfg.APPLY_LOAD_LEDGER_MAX_WRITE_BYTES;
+    upgradeConfig.ledgerMaxTxCount = cfg.APPLY_LOAD_MAX_TX_COUNT;
+    upgradeConfig.txMaxReadLedgerEntries =
+        cfg.APPLY_LOAD_TX_MAX_READ_LEDGER_ENTRIES;
+    upgradeConfig.txMaxReadBytes = cfg.APPLY_LOAD_TX_MAX_READ_BYTES;
+    upgradeConfig.txMaxWriteLedgerEntries =
+        cfg.APPLY_LOAD_TX_MAX_WRITE_LEDGER_ENTRIES;
+    upgradeConfig.txMaxWriteBytes = cfg.APPLY_LOAD_TX_MAX_WRITE_BYTES;
+    upgradeConfig.txMaxContractEventsSizeBytes =
+        cfg.APPLY_LOAD_MAX_CONTRACT_EVENT_SIZE_BYTES;
+    upgradeConfig.ledgerMaxTransactionsSizeBytes =
+        cfg.APPLY_LOAD_MAX_LEDGER_TX_SIZE_BYTES;
+    upgradeConfig.txMaxSizeBytes = cfg.APPLY_LOAD_MAX_TX_SIZE_BYTES;
+    upgradeConfig.bucketListSizeWindowSampleSize = 30;
+    upgradeConfig.evictionScanSize = 100000;
+    upgradeConfig.startingEvictionScanLevel = 7;
+    // Increase the default TTL and reduce the rent rate in order to avoid the
+    // state archival and too high rent fees. The apply load test is generally
+    // not concerned about the resource fees.
+    upgradeConfig.minPersistentTTL = 1'000'000'000;
+    upgradeConfig.minTemporaryTTL = 1'000'000'000;
+    upgradeConfig.maxEntryTTL = 1'000'000'001;
+    upgradeConfig.persistentRentRateDenominator = 1'000'000'000'000LL;
+    upgradeConfig.tempRentRateDenominator = 1'000'000'000'000LL;
 
-ApplyLoad::ApplyLoad(Application& app, uint64_t ledgerMaxInstructions,
-                     uint64_t ledgerMaxReadLedgerEntries,
-                     uint64_t ledgerMaxReadBytes,
-                     uint64_t ledgerMaxWriteLedgerEntries,
-                     uint64_t ledgerMaxWriteBytes, uint64_t ledgerMaxTxCount,
-                     uint64_t ledgerMaxTransactionsSizeBytes)
+    // These values are set above using values from Config, so the assertions
+    // will fail if the config file is missing any of these values.
+    releaseAssert(upgradeConfig.ledgerMaxInstructions > 0);
+    releaseAssert(upgradeConfig.txMaxInstructions > 0);
+    releaseAssert(upgradeConfig.ledgerMaxReadLedgerEntries > 0);
+    releaseAssert(upgradeConfig.ledgerMaxReadBytes > 0);
+    releaseAssert(upgradeConfig.ledgerMaxWriteLedgerEntries > 0);
+    releaseAssert(upgradeConfig.ledgerMaxWriteBytes > 0);
+    releaseAssert(upgradeConfig.ledgerMaxTxCount > 0);
+    releaseAssert(upgradeConfig.txMaxReadLedgerEntries > 0);
+    releaseAssert(upgradeConfig.txMaxReadBytes > 0);
+    releaseAssert(upgradeConfig.txMaxWriteLedgerEntries > 0);
+    releaseAssert(upgradeConfig.txMaxWriteBytes > 0);
+    releaseAssert(upgradeConfig.txMaxContractEventsSizeBytes > 0);
+    releaseAssert(upgradeConfig.ledgerMaxTransactionsSizeBytes > 0);
+    releaseAssert(upgradeConfig.txMaxSizeBytes > 0);
+    return upgradeConfig;
+}
+}
+
+ApplyLoad::ApplyLoad(Application& app)
     : mTxGenerator(app)
     , mApp(app)
-    , mNumAccounts(
-          ledgerMaxTxCount * SOROBAN_TRANSACTION_QUEUE_SIZE_MULTIPLIER + 1)
+    , mNumAccounts(mApp.getConfig().APPLY_LOAD_MAX_TX_COUNT *
+                       SOROBAN_TRANSACTION_QUEUE_SIZE_MULTIPLIER +
+                   1)
     , mTxCountUtilization(
           mApp.getMetrics().NewHistogram({"soroban", "benchmark", "tx-count"}))
     , mInstructionUtilization(
@@ -45,46 +105,25 @@ ApplyLoad::ApplyLoad(Application& app, uint64_t ledgerMaxInstructions,
     , mWriteEntryUtilization(mApp.getMetrics().NewHistogram(
           {"soroban", "benchmark", "write-entry"}))
 {
+    setup();
+}
+
+void
+ApplyLoad::setup()
+{
 
     auto rootTestAccount = TestAccount::createRoot(mApp);
     mRoot = std::make_shared<TestAccount>(rootTestAccount);
     releaseAssert(mTxGenerator.loadAccount(mRoot));
 
-    mUpgradeConfig.maxContractSizeBytes = 65536;
-    mUpgradeConfig.maxContractDataKeySizeBytes = 250;
-    mUpgradeConfig.maxContractDataEntrySizeBytes = 65536;
-    mUpgradeConfig.ledgerMaxInstructions = ledgerMaxInstructions;
-    mUpgradeConfig.txMaxInstructions = 100000000;
-    mUpgradeConfig.txMemoryLimit = 41943040;
-    mUpgradeConfig.ledgerMaxReadLedgerEntries = ledgerMaxReadLedgerEntries;
-    mUpgradeConfig.ledgerMaxReadBytes = ledgerMaxReadBytes;
-    mUpgradeConfig.ledgerMaxWriteLedgerEntries = ledgerMaxWriteLedgerEntries;
-    mUpgradeConfig.ledgerMaxWriteBytes = ledgerMaxWriteBytes;
-    mUpgradeConfig.ledgerMaxTxCount = ledgerMaxTxCount;
-    mUpgradeConfig.txMaxReadLedgerEntries = 100;
-    mUpgradeConfig.txMaxReadBytes = 200000;
-    mUpgradeConfig.txMaxWriteLedgerEntries = 50;
-    mUpgradeConfig.txMaxWriteBytes = 66560;
-    mUpgradeConfig.txMaxContractEventsSizeBytes = 8198;
-    mUpgradeConfig.ledgerMaxTransactionsSizeBytes =
-        ledgerMaxTransactionsSizeBytes;
-    mUpgradeConfig.txMaxSizeBytes = 71680;
-    mUpgradeConfig.bucketListSizeWindowSampleSize = 30;
-    mUpgradeConfig.evictionScanSize = 100000;
-    mUpgradeConfig.startingEvictionScanLevel = 7;
-
-    setupAccountsAndUpgradeProtocol();
+    setupAccounts();
 
     setupUpgradeContract();
 
     upgradeSettings();
 
-    setupLoadContracts();
-
-    // One contract per account
-    releaseAssert(mTxGenerator.getApplySorobanSuccess().count() ==
-                  mNumAccounts + 4);
-    releaseAssert(mTxGenerator.getApplySorobanFailure().count() == 0);
+    setupLoadContract();
+    setupBucketList();
 }
 
 void
@@ -101,7 +140,7 @@ ApplyLoad::closeLedger(std::vector<TransactionFrameBasePtr> const& txs,
 }
 
 void
-ApplyLoad::setupAccountsAndUpgradeProtocol()
+ApplyLoad::setupAccounts()
 {
     auto const& lm = mApp.getLedgerManager();
     // pass in false for initialAccounts so we fund new account with a lower
@@ -167,8 +206,9 @@ void
 ApplyLoad::upgradeSettings()
 {
     auto const& lm = mApp.getLedgerManager();
+    auto upgradeConfig = getUpgradeConfig(mApp.getConfig());
     auto upgradeBytes =
-        mTxGenerator.getConfigUpgradeSetFromLoadConfig(mUpgradeConfig);
+        mTxGenerator.getConfigUpgradeSetFromLoadConfig(upgradeConfig);
 
     SorobanResources resources;
     resources.instructions = 1'250'000;
@@ -180,7 +220,7 @@ ApplyLoad::upgradeSettings()
         mUpgradeInstanceKey, std::nullopt, resources);
 
     auto upgradeSetKey = mTxGenerator.getConfigUpgradeSetKey(
-        mUpgradeConfig,
+        upgradeConfig,
         mUpgradeInstanceKey.contractData().contract.contractId());
 
     auto upgrade = xdr::xvector<UpgradeType, 6>{};
@@ -193,7 +233,7 @@ ApplyLoad::upgradeSettings()
 }
 
 void
-ApplyLoad::setupLoadContracts()
+ApplyLoad::setupLoadContract()
 {
     auto wasm = rust_bridge::get_test_wasm_loadgen();
     xdr::opaque_vec<> wasmBytes;
@@ -205,6 +245,9 @@ ApplyLoad::setupLoadContracts()
 
     mLoadCodeKey = contractCodeLedgerKey;
 
+    int64_t currApplySorobanSuccess =
+        mTxGenerator.getApplySorobanSuccess().count();
+
     auto const& lm = mApp.getLedgerManager();
     auto uploadTx = mTxGenerator.createUploadWasmTransaction(
         lm.getLastClosedLedgerNum() + 1, 0, wasmBytes, contractCodeLedgerKey,
@@ -212,24 +255,126 @@ ApplyLoad::setupLoadContracts()
 
     closeLedger({uploadTx.second});
 
-    for (auto const& kvp : mTxGenerator.getAccounts())
+    auto salt = sha256("Load contract");
+
+    auto createTx = mTxGenerator.createContractTransaction(
+        lm.getLastClosedLedgerNum() + 1, 0, contractCodeLedgerKey,
+        wasmBytes.size() + 160, salt, std::nullopt);
+    closeLedger({createTx.second});
+
+    releaseAssert(mTxGenerator.getApplySorobanSuccess().count() -
+                      currApplySorobanSuccess ==
+                  2);
+    releaseAssert(mTxGenerator.getApplySorobanFailure().count() == 0);
+
+    auto instanceKey =
+        createTx.second->sorobanResources().footprint.readWrite.back();
+
+    mLoadInstance.readOnlyKeys.emplace_back(mLoadCodeKey);
+    mLoadInstance.readOnlyKeys.emplace_back(instanceKey);
+    mLoadInstance.contractID = instanceKey.contractData().contract;
+    mLoadInstance.contractEntriesSize =
+        footprintSize(mApp, mLoadInstance.readOnlyKeys);
+}
+
+void
+ApplyLoad::setupBucketList()
+{
+    auto lh = mApp.getLedgerManager().getLastClosedLedgerHeader().header;
+    auto& bl = mApp.getBucketManager().getLiveBucketList();
+    auto const& cfg = mApp.getConfig();
+
+    uint64_t currentKey = 0;
+
+    LedgerEntry baseLe;
+    baseLe.data.type(CONTRACT_DATA);
+    baseLe.data.contractData().contract = mLoadInstance.contractID;
+    baseLe.data.contractData().key.type(SCV_U64);
+    baseLe.data.contractData().key.u64() = 0;
+    baseLe.data.contractData().durability = ContractDataDurability::PERSISTENT;
+    baseLe.data.contractData().val.type(SCV_BYTES);
+    mDataEntrySize = xdr::xdr_size(baseLe);
+    // Add some padding to reach the configured LE size.
+    if (mDataEntrySize <
+        mApp.getConfig().APPLY_LOAD_DATA_ENTRY_SIZE_FOR_TESTING)
     {
-        auto salt = sha256("Load contract " + std::to_string(kvp.first));
-
-        auto createTx = mTxGenerator.createContractTransaction(
-            lm.getLastClosedLedgerNum() + 1, 0, contractCodeLedgerKey,
-            wasmBytes.size() + 160, salt, std::nullopt);
-        closeLedger({createTx.second});
-
-        auto instanceKey =
-            createTx.second->sorobanResources().footprint.readWrite.back();
-
-        TxGenerator::ContractInstance instance;
-        instance.readOnlyKeys.emplace_back(mLoadCodeKey);
-        instance.readOnlyKeys.emplace_back(instanceKey);
-        instance.contractID = instanceKey.contractData().contract;
-        mLoadInstances.emplace(kvp.first, instance);
+        baseLe.data.contractData().val.bytes().resize(
+            mApp.getConfig().APPLY_LOAD_DATA_ENTRY_SIZE_FOR_TESTING -
+            mDataEntrySize);
+        mDataEntrySize =
+            mApp.getConfig().APPLY_LOAD_DATA_ENTRY_SIZE_FOR_TESTING;
     }
+    else
+    {
+        CLOG_WARNING(Perf,
+                     "Apply load generated entry size is larger than "
+                     "APPLY_LOAD_DATA_ENTRY_SIZE_FOR_TESTING: {} > {}",
+                     mApp.getConfig().APPLY_LOAD_DATA_ENTRY_SIZE_FOR_TESTING,
+                     mDataEntrySize);
+    }
+
+    for (uint32_t i = 0; i < cfg.APPLY_LOAD_BL_SIMULATED_LEDGERS; ++i)
+    {
+        if (i % 1000 == 0)
+        {
+            CLOG_INFO(Bucket, "Generating BL ledger {}, levels thus far", i);
+            for (uint32_t j = 0; j < LiveBucketList::kNumLevels; ++j)
+            {
+                auto const& lev = bl.getLevel(j);
+                auto currSz = BucketTestUtils::countEntries(lev.getCurr());
+                auto snapSz = BucketTestUtils::countEntries(lev.getSnap());
+                CLOG_INFO(Bucket, "Level {}: {} = {} + {}", j, currSz + snapSz,
+                          currSz, snapSz);
+            }
+        }
+        lh.ledgerSeq++;
+        std::vector<LedgerEntry> initEntries;
+        bool isLastBatch = i >= cfg.APPLY_LOAD_BL_SIMULATED_LEDGERS -
+                                    cfg.APPLY_LOAD_BL_LAST_BATCH_LEDGERS;
+        if (i % cfg.APPLY_LOAD_BL_WRITE_FREQUENCY == 0 || isLastBatch)
+        {
+            uint32_t entryCount = isLastBatch
+                                      ? cfg.APPLY_LOAD_BL_LAST_BATCH_SIZE
+                                      : cfg.APPLY_LOAD_BL_BATCH_SIZE;
+            for (uint32_t j = 0; j < entryCount; j++)
+            {
+                LedgerEntry le = baseLe;
+                le.lastModifiedLedgerSeq = lh.ledgerSeq;
+                le.data.contractData().key.u64() = currentKey++;
+                initEntries.push_back(le);
+
+                LedgerEntry ttlEntry;
+                ttlEntry.data.type(TTL);
+                ttlEntry.lastModifiedLedgerSeq = lh.ledgerSeq;
+                ttlEntry.data.ttl().keyHash = xdrSha256(LedgerEntryKey(le));
+                ttlEntry.data.ttl().liveUntilLedgerSeq = 1'000'000'000;
+                initEntries.push_back(ttlEntry);
+            }
+        }
+        bl.addBatch(mApp, lh.ledgerSeq, lh.ledgerVersion, initEntries, {}, {});
+    }
+    lh.ledgerSeq++;
+    mDataEntryCount = currentKey;
+    CLOG_INFO(Bucket, "Final generated bucket list levels");
+    for (uint32_t i = 0; i < LiveBucketList::kNumLevels; ++i)
+    {
+        auto const& lev = bl.getLevel(i);
+        auto currSz = BucketTestUtils::countEntries(lev.getCurr());
+        auto snapSz = BucketTestUtils::countEntries(lev.getSnap());
+        CLOG_INFO(Bucket, "Level {}: {} = {} + {}", i, currSz + snapSz, currSz,
+                  snapSz);
+    }
+    mApp.getBucketManager().snapshotLedger(lh);
+    {
+        LedgerTxn ltx(mApp.getLedgerTxnRoot());
+        ltx.loadHeader().current() = lh;
+        mApp.getLedgerManager().manuallyAdvanceLedgerHeader(
+            ltx.loadHeader().current());
+        ltx.commit();
+    }
+    mApp.getLedgerManager().storeCurrentLedgerForTest(lh);
+    mApp.getHerder().forceSCPStateIntoSyncWithLastClosedLedger();
+    closeLedger({}, {});
 }
 
 void
@@ -256,12 +401,9 @@ ApplyLoad::benchmark()
         auto it = accounts.find(accountIndex);
         releaseAssert(it != accounts.end());
 
-        auto instanceIter = mLoadInstances.find(it->first);
-        releaseAssert(instanceIter != mLoadInstances.end());
-        auto const& instance = instanceIter->second;
-        auto tx = mTxGenerator.invokeSorobanLoadTransaction(
-            lm.getLastClosedLedgerNum() + 1, it->first, instance,
-            rust_bridge::get_write_bytes().data.size() + 160, std::nullopt);
+        auto tx = mTxGenerator.invokeSorobanLoadTransactionV2(
+            lm.getLastClosedLedgerNum() + 1, it->first, mLoadInstance,
+            mDataEntryCount, mDataEntrySize, 1'000'000);
 
         {
             LedgerTxn ltx(mApp.getLedgerTxnRoot());

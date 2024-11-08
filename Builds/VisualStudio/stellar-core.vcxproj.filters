@@ -576,9 +576,6 @@
     <ClCompile Include="..\..\src\bucket\test\BucketTestUtils.cpp">
       <Filter>bucket\tests</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\src\bucket\Bucket.cpp">
-      <Filter>bucket</Filter>
-    </ClCompile>
     <ClCompile Include="..\..\src\bucket\BucketApplicator.cpp">
       <Filter>bucket</Filter>
     </ClCompile>
@@ -586,12 +583,6 @@
       <Filter>bucket</Filter>
     </ClCompile>
     <ClCompile Include="..\..\src\bucket\BucketInputIterator.cpp">
-      <Filter>bucket</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\src\bucket\BucketList.cpp">
-      <Filter>bucket</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\src\bucket\BucketManagerImpl.cpp">
       <Filter>bucket</Filter>
     </ClCompile>
     <ClCompile Include="..\..\src\bucket\BucketMergeMap.cpp">
@@ -1323,9 +1314,6 @@
     <ClCompile Include="..\..\src\main\SettingsUpgradeUtils.cpp">
       <Filter>main</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\src\bucket\BucketListSnapshot.cpp">
-      <Filter>bucket</Filter>
-    </ClCompile>
     <ClCompile Include="..\..\src\bucket\BucketSnapshot.cpp">
       <Filter>bucket</Filter>
     </ClCompile>
@@ -1382,6 +1370,36 @@
     </ClCompile>
     <ClCompile Include="..\..\src\history\CheckpointBuilder.cpp">
       <Filter>history</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\bucket\BucketBase.cpp">
+      <Filter>bucket</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\bucket\BucketListBase.cpp">
+      <Filter>bucket</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\bucket\BucketListSnapshotBase.cpp">
+      <Filter>bucket</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\bucket\HotArchiveBucket.cpp">
+      <Filter>bucket</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\bucket\HotArchiveBucketList.cpp">
+      <Filter>bucket</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\bucket\LiveBucket.cpp">
+      <Filter>bucket</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\bucket\LiveBucketList.cpp">
+      <Filter>bucket</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\bucket\SearchableBucketList.cpp">
+      <Filter>bucket</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\bucket\BucketManager.cpp">
+      <Filter>bucket</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\bucket\BucketUtils.cpp">
+      <Filter>bucket</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
@@ -1796,9 +1814,6 @@
     <ClInclude Include="..\..\src\bucket\test\BucketTestUtils.h">
       <Filter>bucket\tests</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\src\bucket\Bucket.h">
-      <Filter>bucket</Filter>
-    </ClInclude>
     <ClInclude Include="..\..\src\bucket\BucketApplicator.h">
       <Filter>bucket</Filter>
     </ClInclude>
@@ -1811,13 +1826,7 @@
     <ClInclude Include="..\..\src\bucket\BucketInputIterator.h">
       <Filter>bucket</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\src\bucket\BucketList.h">
-      <Filter>bucket</Filter>
-    </ClInclude>
     <ClInclude Include="..\..\src\bucket\BucketManager.h">
-      <Filter>bucket</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\src\bucket\BucketManagerImpl.h">
       <Filter>bucket</Filter>
     </ClInclude>
     <ClInclude Include="..\..\src\bucket\BucketMergeMap.h">
@@ -2357,9 +2366,6 @@
     <ClInclude Include="..\..\src\main\SettingsUpgradeUtils.h">
       <Filter>main</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\src\bucket\BucketListSnapshot.h">
-      <Filter>bucket</Filter>
-    </ClInclude>
     <ClInclude Include="..\..\src\bucket\BucketSnapshot.h">
       <Filter>bucket</Filter>
     </ClInclude>
@@ -2415,6 +2421,33 @@
     </ClInclude>
     <ClInclude Include="..\..\src\history\CheckpointBuilder.h">
       <Filter>history</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\bucket\BucketBase.h">
+      <Filter>bucket</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\bucket\BucketListBase.h">
+      <Filter>bucket</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\bucket\BucketListSnapshotBase.h">
+      <Filter>bucket</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\bucket\HotArchiveBucket.h">
+      <Filter>bucket</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\bucket\HotArchiveBucketList.h">
+      <Filter>bucket</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\bucket\LiveBucket.h">
+      <Filter>bucket</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\bucket\LiveBucketList.h">
+      <Filter>bucket</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\bucket\SearchableBucketList.h">
+      <Filter>bucket</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\bucket\BucketUtils.h">
+      <Filter>bucket</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>

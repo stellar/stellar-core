@@ -166,6 +166,7 @@ class LedgerManagerImpl : public LedgerManager
     std::vector<TransactionMetaFrame> const&
     getLastClosedLedgerTxMeta() override;
     TransactionResultSet mLatestTxResultSet{};
+    void storeCurrentLedgerForTest(LedgerHeader const& header) override;
 #endif
 
     uint64_t secondsSinceLastLedgerClose() const override;

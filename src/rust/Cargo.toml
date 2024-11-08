@@ -96,14 +96,12 @@ tracy-client = { version = "=0.17.0", features = [
 [dependencies.soroban-test-wasms]
 version = "=22.0.0"
 git = "https://github.com/stellar/rs-soroban-env"
-rev = "0497816694bef2b103494c8c61b7c8a06a72c7d3"
-#path = "../../../rs-soroban-env/soroban-test-wasms"
+rev = "a3f7fca9c2ad89796c7525a648da086543502dd5"
 
 [dependencies.soroban-synth-wasm]
 version = "=22.0.0"
 git = "https://github.com/stellar/rs-soroban-env"
-rev = "0497816694bef2b103494c8c61b7c8a06a72c7d3"
-#path = "../../../rs-soroban-env/soroban-synth-wasm"
+rev = "a3f7fca9c2ad89796c7525a648da086543502dd5"
 
 [features]
 

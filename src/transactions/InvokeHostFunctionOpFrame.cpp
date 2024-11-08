@@ -132,6 +132,7 @@ struct HostFunctionMetrics
     uint64_t mInvokeTimeNsecs{0};
     uint64_t mCpuInsnExclVm{0};
     uint64_t mInvokeTimeNsecsExclVm{0};
+    uint64_t mDeclaredCpuInsn{0};
 
     // max single entity size metrics
     uint32_t mMaxReadWriteKeyByte{0};
@@ -213,6 +214,8 @@ struct HostFunctionMetrics
         mMetrics.mHostFnOpInvokeTimeFsecsCpuInsnRatioExclVm.Update(
             mInvokeTimeNsecsExclVm * 1000000 /
             std::max(mCpuInsnExclVm, uint64_t(1)));
+        mMetrics.mHostFnOpDeclaredInsnsUsageRatio.Update(
+            mCpuInsn * 1000000 / std::max(mDeclaredCpuInsn, uint64_t(1)));
 
         mMetrics.mHostFnOpMaxRwKeyByte.Mark(mMaxReadWriteKeyByte);
         mMetrics.mHostFnOpMaxRwDataByte.Mark(mMaxReadWriteDataByte);
@@ -337,6 +340,8 @@ InvokeHostFunctionOpFrame::doApply(
     rust::Vec<CxxBuf> ttlEntryCxxBufs;
 
     auto const& resources = mParentTx.sorobanResources();
+    metrics.mDeclaredCpuInsn = resources.instructions;
+
     auto const& footprint = resources.footprint;
     auto footprintLength =
         footprint.readOnly.size() + footprint.readWrite.size();

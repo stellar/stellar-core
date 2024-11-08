@@ -846,33 +846,58 @@ TEST_CASE("apply load", "[loadgen][applyload]")
     cfg.TESTING_UPGRADE_MAX_TX_SET_SIZE = 1000;
     cfg.USE_CONFIG_FOR_GENESIS = true;
     cfg.LEDGER_PROTOCOL_VERSION = Config::CURRENT_LEDGER_PROTOCOL_VERSION;
+    cfg.MANUAL_CLOSE = true;
 
-    cfg.LOADGEN_NUM_DATA_ENTRIES_FOR_TESTING = {5, 10, 30};
-    cfg.LOADGEN_NUM_DATA_ENTRIES_DISTRIBUTION_FOR_TESTING = {1, 1, 1};
-    cfg.LOADGEN_IO_KILOBYTES_FOR_TESTING = {1, 5, 10};
-    cfg.LOADGEN_IO_KILOBYTES_DISTRIBUTION_FOR_TESTING = {10, 2, 1};
+    cfg.APPLY_LOAD_DATA_ENTRY_SIZE_FOR_TESTING = 1000;
+
+    cfg.APPLY_LOAD_BL_SIMULATED_LEDGERS = 10000;
+    cfg.APPLY_LOAD_BL_WRITE_FREQUENCY = 1000;
+    cfg.APPLY_LOAD_BL_BATCH_SIZE = 1000;
+    cfg.APPLY_LOAD_BL_LAST_BATCH_LEDGERS = 300;
+    cfg.APPLY_LOAD_BL_LAST_BATCH_SIZE = 100;
+
+    cfg.APPLY_LOAD_NUM_RO_ENTRIES_FOR_TESTING = {5, 10, 30};
+    cfg.APPLY_LOAD_NUM_RO_ENTRIES_DISTRIBUTION_FOR_TESTING = {1, 1, 1};
+
+    cfg.APPLY_LOAD_NUM_RW_ENTRIES_FOR_TESTING = {1, 5, 10};
+    cfg.APPLY_LOAD_NUM_RW_ENTRIES_DISTRIBUTION_FOR_TESTING = {1, 1, 1};
+
+    cfg.APPLY_LOAD_EVENT_COUNT_FOR_TESTING = {100};
+    cfg.APPLY_LOAD_EVENT_COUNT_DISTRIBUTION_FOR_TESTING = {1};
+
     cfg.LOADGEN_TX_SIZE_BYTES_FOR_TESTING = {1'000, 2'000, 5'000};
     cfg.LOADGEN_TX_SIZE_BYTES_DISTRIBUTION_FOR_TESTING = {3, 2, 1};
+
     cfg.LOADGEN_INSTRUCTIONS_FOR_TESTING = {10'000'000, 50'000'000};
     cfg.LOADGEN_INSTRUCTIONS_DISTRIBUTION_FOR_TESTING = {5, 1};
+
+    cfg.APPLY_LOAD_LEDGER_MAX_INSTRUCTIONS = 500'000'000;
+    cfg.APPLY_LOAD_TX_MAX_INSTRUCTIONS = 100'000'000;
+
+    cfg.APPLY_LOAD_LEDGER_MAX_READ_LEDGER_ENTRIES = 2000;
+    cfg.APPLY_LOAD_TX_MAX_READ_LEDGER_ENTRIES = 100;
+
+    cfg.APPLY_LOAD_LEDGER_MAX_READ_BYTES = 50'000'000;
+    cfg.APPLY_LOAD_TX_MAX_READ_BYTES = 200'000;
+
+    cfg.APPLY_LOAD_LEDGER_MAX_WRITE_LEDGER_ENTRIES = 1250;
+    cfg.APPLY_LOAD_TX_MAX_WRITE_LEDGER_ENTRIES = 50;
+
+    cfg.APPLY_LOAD_LEDGER_MAX_WRITE_BYTES = 700'000;
+    cfg.APPLY_LOAD_TX_MAX_WRITE_BYTES = 66560;
+
+    cfg.APPLY_LOAD_MAX_TX_SIZE_BYTES = 71680;
+    cfg.APPLY_LOAD_MAX_LEDGER_TX_SIZE_BYTES = 800'000;
+
+    cfg.APPLY_LOAD_MAX_CONTRACT_EVENT_SIZE_BYTES = 8198;
+    cfg.APPLY_LOAD_MAX_TX_COUNT = 50;
 
     REQUIRE(cfg.isUsingBucketListDB());
 
     VirtualClock clock(VirtualClock::REAL_TIME);
     auto app = createTestApplication(clock, cfg);
 
-    uint64_t ledgerMaxInstructions = 500'000'000;
-    uint64_t ledgerMaxReadLedgerEntries = 2000;
-    uint64_t ledgerMaxReadBytes = 50'000'000;
-    uint64_t ledgerMaxWriteLedgerEntries = 1250;
-    uint64_t ledgerMaxWriteBytes = 700'000;
-    uint64_t ledgerMaxTxCount = 50;
-    uint64_t ledgerMaxTransactionsSizeBytes = 800'000;
-
-    ApplyLoad al(*app, ledgerMaxInstructions, ledgerMaxReadLedgerEntries,
-                 ledgerMaxReadBytes, ledgerMaxWriteLedgerEntries,
-                 ledgerMaxWriteBytes, ledgerMaxTxCount,
-                 ledgerMaxTransactionsSizeBytes);
+    ApplyLoad al(*app);
 
     auto& ledgerClose =
         app->getMetrics().NewTimer({"ledger", "ledger", "close"});
@@ -885,6 +910,11 @@ TEST_CASE("apply load", "[loadgen][applyload]")
     auto& cpuInsRatioExclVm = app->getMetrics().NewHistogram(
         {"soroban", "host-fn-op", "invoke-time-fsecs-cpu-insn-ratio-excl-vm"});
     cpuInsRatioExclVm.Clear();
+
+    auto& declaredInsnsUsageRatio = app->getMetrics().NewHistogram(
+        {"soroban", "host-fn-op", "declared-cpu-insns-usage-ratio"});
+    declaredInsnsUsageRatio.Clear();
+
     for (size_t i = 0; i < 100; ++i)
     {
         app->getBucketManager().getLiveBucketList().resolveAllFutures();
@@ -893,7 +923,7 @@ TEST_CASE("apply load", "[loadgen][applyload]")
 
         al.benchmark();
     }
-    REQUIRE(al.successRate() - 1.0 < std::numeric_limits<double>::epsilon());
+    REQUIRE(1.0 - al.successRate() < std::numeric_limits<double>::epsilon());
     CLOG_INFO(Perf, "Max ledger close: {} milliseconds", ledgerClose.max());
     CLOG_INFO(Perf, "Min ledger close: {} milliseconds", ledgerClose.min());
     CLOG_INFO(Perf, "Mean ledger close:  {} milliseconds", ledgerClose.mean());
@@ -907,8 +937,15 @@ TEST_CASE("apply load", "[loadgen][applyload]")
               cpuInsRatioExclVm.max() / 1000000);
     CLOG_INFO(Perf, "Mean CPU ins ratio excl VM:  {}",
               cpuInsRatioExclVm.mean() / 1000000);
-    CLOG_INFO(Perf, "STDDEV CPU ins ratio excl VM:  {}",
+    CLOG_INFO(Perf, "stddev CPU ins ratio excl VM:  {}",
               cpuInsRatioExclVm.std_dev() / 1000000);
+
+    CLOG_INFO(Perf, "Min CPU declared insns ratio: {}",
+              declaredInsnsUsageRatio.min() / 1000000.0);
+    CLOG_INFO(Perf, "Mean CPU declared insns ratio:  {}",
+              declaredInsnsUsageRatio.mean() / 1000000.0);
+    CLOG_INFO(Perf, "stddev CPU declared insns ratio:  {}",
+              declaredInsnsUsageRatio.std_dev() / 1000000.0);
 
     CLOG_INFO(Perf, "Tx count utilization {}%",
               al.getTxCountUtilization().mean() / 1000.0);

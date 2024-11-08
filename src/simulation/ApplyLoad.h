@@ -14,11 +14,7 @@ namespace stellar
 class ApplyLoad
 {
   public:
-    ApplyLoad(Application& app, uint64_t ledgerMaxInstructions,
-              uint64_t ledgerMaxReadLedgerEntries, uint64_t ledgerMaxReadBytes,
-              uint64_t ledgerMaxWriteLedgerEntries,
-              uint64_t ledgerMaxWriteBytes, uint64_t ledgerMaxTxCount,
-              uint64_t ledgerMaxTransactionsSizeBytes);
+    ApplyLoad(Application& app);
 
     // Fills up a list of transactions with
     // SOROBAN_TRANSACTION_QUEUE_SIZE_MULTIPLIER * the max ledger resources
@@ -48,9 +44,12 @@ class ApplyLoad
     void closeLedger(std::vector<TransactionFrameBasePtr> const& txs,
                      xdr::xvector<UpgradeType, 6> const& upgrades = {});
 
-    void setupAccountsAndUpgradeProtocol();
+    void setup();
+
+    void setupAccounts();
     void setupUpgradeContract();
-    void setupLoadContracts();
+    void setupLoadContract();
+    void setupBucketList();
 
     // Upgrades using mUpgradeConfig
     void upgradeSettings();
@@ -59,9 +58,9 @@ class ApplyLoad
     LedgerKey mUpgradeInstanceKey;
 
     LedgerKey mLoadCodeKey;
-    UnorderedMap<uint64_t, TxGenerator::ContractInstance> mLoadInstances;
-
-    SorobanUpgradeConfig mUpgradeConfig;
+    TxGenerator::ContractInstance mLoadInstance;
+    size_t mDataEntryCount = 0;
+    size_t mDataEntrySize = 0;
 
     TxGenerator mTxGenerator;
     Application& mApp;
