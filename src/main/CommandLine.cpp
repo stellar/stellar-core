@@ -1884,6 +1884,7 @@ runApplyLoad(CommandLineArgs const& args)
         [&] {
             auto config = configOption.getConfig();
             config.RUN_STANDALONE = true;
+            config.MANUAL_CLOSE = true;
             config.USE_CONFIG_FOR_GENESIS = true;
             config.TESTING_UPGRADE_MAX_TX_SET_SIZE = 1000;
             config.LEDGER_PROTOCOL_VERSION =
@@ -1926,6 +1927,10 @@ runApplyLoad(CommandLineArgs const& args)
 
                 for (size_t i = 0; i < 100; ++i)
                 {
+                    app.getBucketManager().getBucketList().resolveAllFutures();
+                    releaseAssert(app.getBucketManager()
+                                      .getBucketList()
+                                      .futuresAllResolved());
                     al.benchmark();
                 }
 

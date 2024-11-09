@@ -447,6 +447,21 @@ BucketList::getLevel(uint32_t i)
     return mLevels.at(i);
 }
 
+#ifdef BUILD_TESTS
+void
+BucketList::resolveAllFutures()
+{
+    ZoneScoped;
+    for (auto& level : mLevels)
+    {
+        if (level.getNext().isMerging())
+        {
+            level.getNext().resolve();
+        }
+    }
+}
+#endif
+
 void
 BucketList::resolveAnyReadyFutures()
 {
