@@ -318,6 +318,43 @@ LiveBucketSnapshot::scanForEviction(
     return Loop::INCOMPLETE;
 }
 
+// Scans contract code entries in the bucket.
+Loop
+LiveBucketSnapshot::scanForContractCode(
+    std::function<Loop(BucketEntry const&)> callback) const
+{
+    ZoneScoped;
+    if (isEmpty())
+    {
+        return Loop::INCOMPLETE;
+    }
+
+    auto range = mBucket->getContractCodeRange();
+    if (!range)
+    {
+        return Loop::INCOMPLETE;
+    }
+
+    auto& stream = getStream();
+    stream.seek(range->first);
+
+    BucketEntry be;
+    while (stream.pos() < range->second && stream.readOne(be))
+    {
+
+        if (((be.type() == LIVEENTRY || be.type() == INITENTRY) &&
+             be.liveEntry().data.type() == CONTRACT_CODE) ||
+            (be.type() == DEADENTRY && be.deadEntry().type() == CONTRACT_CODE))
+        {
+            if (callback(be) == Loop::COMPLETE)
+            {
+                return Loop::COMPLETE;
+            }
+        }
+    }
+    return Loop::INCOMPLETE;
+}
+
 template <class BucketT>
 XDRInputFileStream&
 BucketSnapshotBase<BucketT>::getStream() const
