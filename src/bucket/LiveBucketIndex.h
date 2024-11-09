@@ -138,6 +138,9 @@ class LiveBucketIndex : public NonMovableOrCopyable
 
     void maybeAddToCache(std::shared_ptr<BucketEntry const> const& entry) const;
 
+    std::optional<std::pair<std::streamoff, std::streamoff>>
+    getContractCodeRange() const;
+
     BucketEntryCounters const& getBucketEntryCounters() const;
     uint32_t getPageSize() const;
 
