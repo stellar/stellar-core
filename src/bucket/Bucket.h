@@ -54,6 +54,12 @@ struct BucketEntryCounters;
 template <class BucketT> class SearchableBucketListSnapshot;
 enum class LedgerEntryTypeAndDurability : uint32_t;
 
+enum class Loop
+{
+    COMPLETE,
+    INCOMPLETE
+};
+
 class Bucket : public NonMovableOrCopyable
 {
   protected:
@@ -190,23 +196,18 @@ class LiveBucket : public Bucket,
     void apply(Application& app) const;
 #endif
 
-    // Returns false if eof reached, true otherwise. Modifies iter as the bucket
-    // is scanned. Also modifies bytesToScan and maxEntriesToEvict such that
-    // after this function returns:
-    // bytesToScan -= amount_bytes_scanned
-    // maxEntriesToEvict -= entries_evicted
-    bool scanForEvictionLegacy(AbstractLedgerTxn& ltx, EvictionIterator& iter,
+    // Returns Loop::INCOMPLETE if eof reached, Loop::COMPLETE otherwise.
+    // Modifies iter as the bucket is scanned. Also modifies bytesToScan and
+    // maxEntriesToEvict such that after this function returns:
+    //      bytesToScan -= amount_bytes_scanned
+    //      maxEntriesToEvict -= entries_evicted
+    Loop scanForEvictionLegacy(AbstractLedgerTxn& ltx, EvictionIterator& iter,
                                uint32_t& bytesToScan,
                                uint32_t& remainingEntriesToEvict,
                                uint32_t ledgerSeq,
                                medida::Counter& entriesEvictedCounter,
                                medida::Counter& bytesScannedForEvictionCounter,
                                std::shared_ptr<EvictionStatistics> stats) const;
-
-    bool scanForEviction(EvictionIterator& iter, uint32_t& bytesToScan,
-                         uint32_t ledgerSeq,
-                         std::list<EvictionResultEntry>& evictableKeys,
-                         SearchableBucketListSnapshot<LiveBucket>& bl) const;
 
     // Create a fresh bucket from given vectors of init (created) and live
     // (updated) LedgerEntries, and dead LedgerEntryKeys. The bucket will

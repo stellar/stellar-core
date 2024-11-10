@@ -172,7 +172,7 @@ LiveBucketSnapshot::getPoolIDsByAsset(Asset const& asset) const
     return mBucket->getIndex().getPoolIDsByAsset(asset);
 }
 
-bool
+Loop
 LiveBucketSnapshot::scanForEviction(
     EvictionIterator& iter, uint32_t& bytesToScan, uint32_t ledgerSeq,
     std::list<EvictionResultEntry>& evictableKeys,
@@ -183,13 +183,13 @@ LiveBucketSnapshot::scanForEviction(
                                              SOROBAN_PROTOCOL_VERSION))
     {
         // EOF, skip to next bucket
-        return false;
+        return Loop::INCOMPLETE;
     }
 
     if (bytesToScan == 0)
     {
         // Reached end of scan region
-        return true;
+        return Loop::COMPLETE;
     }
 
     std::list<EvictionResultEntry> maybeEvictQueue;
@@ -253,7 +253,7 @@ LiveBucketSnapshot::scanForEviction(
             // Reached end of scan region
             bytesToScan = 0;
             processQueue();
-            return true;
+            return Loop::COMPLETE;
         }
 
         bytesToScan -= bytesRead;
@@ -261,7 +261,7 @@ LiveBucketSnapshot::scanForEviction(
 
     // Hit eof
     processQueue();
-    return false;
+    return Loop::INCOMPLETE;
 }
 
 template <class BucketT>

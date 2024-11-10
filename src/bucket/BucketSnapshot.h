@@ -81,7 +81,7 @@ class LiveBucketSnapshot : public BucketSnapshotBase<LiveBucket>
     // pool
     std::vector<PoolID> const& getPoolIDsByAsset(Asset const& asset) const;
 
-    bool scanForEviction(EvictionIterator& iter, uint32_t& bytesToScan,
+    Loop scanForEviction(EvictionIterator& iter, uint32_t& bytesToScan,
                          uint32_t ledgerSeq,
                          std::list<EvictionResultEntry>& evictableKeys,
                          SearchableLiveBucketListSnapshot& bl) const;

@@ -12,6 +12,7 @@
 
 #include "medida/timer.h"
 #include "util/GlobalChecks.h"
+#include "util/types.h"
 #include <optional>
 #include <vector>
 
@@ -64,22 +65,22 @@ SearchableBucketListSnapshotBase<BucketT>::getLedgerHeader()
 template <class BucketT>
 void
 SearchableBucketListSnapshotBase<BucketT>::loopAllBuckets(
-    std::function<bool(BucketSnapshotT const&)> f,
+    std::function<Loop(BucketSnapshotT const&)> f,
     BucketListSnapshot<BucketT> const& snapshot) const
 {
     for (auto const& lev : snapshot.getLevels())
     {
-        // Return true if we should exit loop early
         auto processBucket = [f](BucketSnapshotT const& b) {
             if (b.isEmpty())
             {
-                return false;
+                return Loop::INCOMPLETE;
             }
 
             return f(b);
         };
 
-        if (processBucket(lev.curr) || processBucket(lev.snap))
+        if (processBucket(lev.curr) == Loop::COMPLETE ||
+            processBucket(lev.snap) == Loop::COMPLETE)
         {
             return;
         }
@@ -117,7 +118,7 @@ SearchableLiveBucketListSnapshot::scanForEviction(
 
         // If we scan scanSize before hitting bucket EOF, exit early
         if (b.scanForEviction(evictionIter, scanSize, ledgerSeq,
-                              result.eligibleKeys, *this))
+                              result.eligibleKeys, *this) == Loop::COMPLETE)
         {
             break;
         }
@@ -149,7 +150,7 @@ SearchableBucketListSnapshotBase<BucketT>::loadKeysInternal(
     std::vector<typename BucketT::LoadT> entries;
     auto loadKeysLoop = [&](auto const& b) {
         b.loadKeys(keys, entries, lkMeter);
-        return keys.empty();
+        return keys.empty() ? Loop::COMPLETE : Loop::INCOMPLETE;
     };
 
     mSnapshotManager.maybeUpdateSnapshot(mSnapshot, mHistoricalSnapshots);
@@ -190,12 +191,11 @@ SearchableBucketListSnapshotBase<BucketT>::load(LedgerKey const& k)
         if (be)
         {
             result = BucketT::bucketEntryToLoadResult(be);
-
-            return true;
+            return Loop::COMPLETE;
         }
         else
         {
-            return false;
+            return Loop::INCOMPLETE;
         }
     };
 
@@ -252,7 +252,7 @@ SearchableLiveBucketListSnapshot::loadPoolShareTrustLinesByAccountAndAsset(
             trustlinesToLoad.emplace(trustlineKey);
         }
 
-        return false; // continue
+        return Loop::INCOMPLETE; // continue
     };
 
     loopAllBuckets(trustLineLoop, *mSnapshot);
@@ -265,7 +265,7 @@ SearchableLiveBucketListSnapshot::loadPoolShareTrustLinesByAccountAndAsset(
     std::vector<LedgerEntry> result;
     auto loadKeysLoop = [&](auto const& b) {
         b.loadKeys(trustlinesToLoad, result, /*lkMeter=*/nullptr);
-        return trustlinesToLoad.empty();
+        return trustlinesToLoad.empty() ? Loop::COMPLETE : Loop::INCOMPLETE;
     };
 
     loopAllBuckets(loadKeysLoop, *mSnapshot);
@@ -324,7 +324,7 @@ SearchableLiveBucketListSnapshot::loadInflationWinners(size_t maxWinners,
             }
         }
 
-        return false;
+        return Loop::INCOMPLETE;
     };
 
     loopAllBuckets(countVotesInBucket, *mSnapshot);

@@ -823,7 +823,7 @@ mergeCasesWithEqualKeys(MergeCounters& mc, LiveBucketInputIterator& oi,
     ++ni;
 }
 
-bool
+Loop
 LiveBucket::scanForEvictionLegacy(
     AbstractLedgerTxn& ltx, EvictionIterator& iter, uint32_t& bytesToScan,
     uint32_t& remainingEntriesToEvict, uint32_t ledgerSeq,
@@ -837,14 +837,14 @@ LiveBucket::scanForEvictionLegacy(
     if (isEmpty() ||
         protocolVersionIsBefore(getBucketVersion(), SOROBAN_PROTOCOL_VERSION))
     {
-        // EOF, skip to next bucket
-        return false;
+        // EOF, need to continue reading next bucket
+        return Loop::INCOMPLETE;
     }
 
     if (remainingEntriesToEvict == 0 || bytesToScan == 0)
     {
         // Reached end of scan region
-        return true;
+        return Loop::COMPLETE;
     }
 
     XDRInputFileStream stream{};
@@ -900,18 +900,18 @@ LiveBucket::scanForEvictionLegacy(
         {
             // Reached end of scan region
             bytesToScan = 0;
-            return true;
+            return Loop::COMPLETE;
         }
         else if (remainingEntriesToEvict == 0)
         {
-            return true;
+            return Loop::COMPLETE;
         }
 
         bytesToScan -= bytesRead;
     }
 
     // Hit eof
-    return false;
+    return Loop::INCOMPLETE;
 }
 
 template <class BucketT>

@@ -91,8 +91,8 @@ class SearchableBucketListSnapshotBase : public NonMovableOrCopyable
 
     // Loops through all buckets, starting with curr at level 0, then snap at
     // level 0, etc. Calls f on each bucket. Exits early if function
-    // returns true
-    void loopAllBuckets(std::function<bool(BucketSnapshotT const&)> f,
+    // returns Loop::COMPLETE.
+    void loopAllBuckets(std::function<Loop(BucketSnapshotT const&)> f,
                         BucketListSnapshot<BucketT> const& snapshot) const;
 
     SearchableBucketListSnapshotBase(

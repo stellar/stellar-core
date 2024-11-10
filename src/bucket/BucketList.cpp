@@ -871,9 +871,10 @@ LiveBucketList::scanForEvictionLegacy(Application& app, AbstractLedgerTxn& ltx,
     auto startIter = evictionIter;
     auto b = getBucketFromIter(evictionIter);
 
-    while (!b->scanForEvictionLegacy(
-        ltx, evictionIter, scanSize, maxEntriesToEvict, ledgerSeq,
-        counters.entriesEvicted, counters.bytesScannedForEviction, stats))
+    while (b->scanForEvictionLegacy(
+               ltx, evictionIter, scanSize, maxEntriesToEvict, ledgerSeq,
+               counters.entriesEvicted, counters.bytesScannedForEviction,
+               stats) == Loop::INCOMPLETE)
     {
 
         if (updateEvictionIterAndRecordStats(evictionIter, startIter,
