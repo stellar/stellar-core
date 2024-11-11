@@ -52,7 +52,7 @@ BucketOutputIterator<BucketT>::BucketOutputIterator(std::string const& tmpDir,
             bme.metaEntry() = mMeta;
             put(bme);
         }
-        else
+        else if constexpr (std::is_same_v<BucketT, HotArchiveBucket>)
         {
             releaseAssertOrThrow(protocolVersionStartsFrom(
                 meta.ledgerVersion,
