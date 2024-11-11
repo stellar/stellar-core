@@ -378,7 +378,7 @@ FutureBucket<BucketT>::startMerge(Application& app, uint32_t maxProtocolVersion,
                 curr->getHash(), snap->getHash(), shadowHashes};
 
     std::shared_future<std::shared_ptr<BucketT>> f;
-    f = BucketManager::getMergeFuture<BucketT>(bm, mk);
+    f = bm.getMergeFuture<BucketT>(mk);
 
     if (f.valid())
     {
@@ -440,7 +440,7 @@ FutureBucket<BucketT>::startMerge(Application& app, uint32_t maxProtocolVersion,
         });
 
     mOutputBucketFuture = task->get_future().share();
-    BucketManager::putMergeFuture(bm, mk, mOutputBucketFuture);
+    bm.putMergeFuture(mk, mOutputBucketFuture);
     app.postOnBackgroundThread(bind(&task_t::operator(), task),
                                "FutureBucket: merge");
     checkState();
@@ -458,24 +458,22 @@ FutureBucket<BucketT>::makeLive(Application& app, uint32_t maxProtocolVersion,
     auto& bm = app.getBucketManager();
     if (hasOutputHash())
     {
-        auto b = BucketManager::getBucketByHash<BucketT>(
-            bm, hexToBin256(getOutputHash()));
+        auto b = bm.getBucketByHash<BucketT>(hexToBin256(getOutputHash()));
 
         setLiveOutput(b);
     }
     else
     {
         releaseAssert(mState == FB_HASH_INPUTS);
-        mInputCurrBucket = BucketManager::getBucketByHash<BucketT>(
-            bm, hexToBin256(mInputCurrBucketHash));
-        mInputSnapBucket = BucketManager::getBucketByHash<BucketT>(
-            bm, hexToBin256(mInputSnapBucketHash));
+        mInputCurrBucket =
+            bm.getBucketByHash<BucketT>(hexToBin256(mInputCurrBucketHash));
+        mInputSnapBucket =
+            bm.getBucketByHash<BucketT>(hexToBin256(mInputSnapBucketHash));
 
         releaseAssert(mInputShadowBuckets.empty());
         for (auto const& h : mInputShadowBucketHashes)
         {
-            auto b =
-                BucketManager::getBucketByHash<BucketT>(bm, hexToBin256(h));
+            auto b = bm.getBucketByHash<BucketT>(hexToBin256(h));
 
             releaseAssert(b);
             CLOG_DEBUG(Bucket, "Reconstituting shadow {}", h);

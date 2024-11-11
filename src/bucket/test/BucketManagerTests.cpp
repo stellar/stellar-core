@@ -13,7 +13,6 @@
 #include "bucket/Bucket.h"
 #include "bucket/BucketInputIterator.h"
 #include "bucket/BucketManager.h"
-#include "bucket/BucketManagerImpl.h"
 #include "bucket/test/BucketTestUtils.h"
 #include "history/HistoryArchiveManager.h"
 #include "history/test/HistoryTestsUtils.h"
@@ -101,10 +100,10 @@ TEST_CASE("skip list", "[bucket][bucketmanager]")
     Config const& cfg = getTestConfig();
     Application::pointer app = createTestApplication(clock, cfg);
 
-    class BucketManagerTest : public BucketManagerImpl
+    class BucketManagerTest : public BucketManager
     {
       public:
-        BucketManagerTest(Application& app) : BucketManagerImpl(app)
+        BucketManagerTest(Application& app) : BucketManager(app)
         {
         }
         void

@@ -121,8 +121,8 @@ StateSnapshot::differingHASFiles(HistoryArchiveState const& other)
 
     for (auto const& hash : mLocalState.differingBuckets(other))
     {
-        auto b = BucketManager::getBucketByHash<LiveBucket>(
-            mApp.getBucketManager(), hexToBin256(hash));
+        auto b = mApp.getBucketManager().getBucketByHash<LiveBucket>(
+            hexToBin256(hash));
         releaseAssert(b);
         addIfExists(std::make_shared<FileTransferInfo>(*b));
     }

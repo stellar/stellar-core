@@ -306,8 +306,8 @@ HistoryArchiveState::containsValidBuckets(Application& app) const
 
     // Process bucket, return version
     auto processBucket = [&](std::string const& bucketHash) {
-        auto bucket = BucketManager::getBucketByHash<LiveBucket>(
-            app.getBucketManager(), hexToBin256(bucketHash));
+        auto bucket = app.getBucketManager().getBucketByHash<LiveBucket>(
+            hexToBin256(bucketHash));
         releaseAssert(bucket);
         int32_t version = 0;
         if (!bucket->isEmpty())
@@ -390,8 +390,8 @@ HistoryArchiveState::prepareForPublish(Application& app)
         auto& level = currentBuckets[i];
         auto& prev = currentBuckets[i - 1];
 
-        auto snap = BucketManager::getBucketByHash<LiveBucket>(
-            app.getBucketManager(), hexToBin256(prev.snap));
+        auto snap = app.getBucketManager().getBucketByHash<LiveBucket>(
+            hexToBin256(prev.snap));
         if (!level.next.isClear() &&
             protocolVersionStartsFrom(
                 snap->getBucketVersion(),

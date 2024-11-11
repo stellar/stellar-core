@@ -90,8 +90,8 @@ ApplyBucketsWork::getBucket(std::string const& hash)
     auto i = mBuckets.find(hash);
     auto b = (i != mBuckets.end())
                  ? i->second
-                 : BucketManager::getBucketByHash<LiveBucket>(
-                       mApp.getBucketManager(), hexToBin256(hash));
+                 : mApp.getBucketManager().getBucketByHash<LiveBucket>(
+                       hexToBin256(hash));
     releaseAssert(b);
     return b;
 }

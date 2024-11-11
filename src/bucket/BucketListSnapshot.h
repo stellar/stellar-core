@@ -6,7 +6,7 @@
 
 #include "bucket/Bucket.h"
 #include "bucket/BucketList.h"
-#include "bucket/BucketManagerImpl.h"
+#include "bucket/BucketManager.h"
 #include "bucket/BucketSnapshot.h"
 #include "bucket/BucketSnapshotManager.h"
 #include "bucket/BucketUtils.h"

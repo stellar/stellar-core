@@ -1021,10 +1021,8 @@ CatchupSimulation::validateCatchup(Application::pointer app)
     CHECK(wantBucketListHash == haveBucketListHash);
     CHECK(wantHash == haveHash);
 
-    CHECK(BucketManager::getBucketByHash<LiveBucket>(app->getBucketManager(),
-                                                     wantBucket0Hash));
-    CHECK(BucketManager::getBucketByHash<LiveBucket>(app->getBucketManager(),
-                                                     wantBucket1Hash));
+    CHECK(app->getBucketManager().getBucketByHash<LiveBucket>(wantBucket0Hash));
+    CHECK(app->getBucketManager().getBucketByHash<LiveBucket>(wantBucket1Hash));
     CHECK(wantBucket0Hash == haveBucket0Hash);
     CHECK(wantBucket1Hash == haveBucket1Hash);
 

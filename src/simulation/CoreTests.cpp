@@ -5,7 +5,6 @@
 #include "bucket/Bucket.h"
 #include "bucket/BucketList.h"
 #include "bucket/BucketManager.h"
-#include "bucket/BucketManagerImpl.h"
 #include "bucket/LedgerCmp.h"
 #include "bucket/test/BucketTestUtils.h"
 #include "crypto/SHA.h"
