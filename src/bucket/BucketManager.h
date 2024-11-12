@@ -1,6 +1,5 @@
 #pragma once
 
-#include "bucket/Bucket.h"
 #include "bucket/BucketList.h"
 #include "bucket/BucketMergeMap.h"
 #include "util/types.h"
@@ -283,8 +282,8 @@ class BucketManager : NonMovableOrCopyable
     // is not shutting down. In most cases, there should only be a single index
     // for each bucket. However, during startup there are race conditions where
     // a bucket may be indexed twice. If there is an index race, set index with
-    // this function, otherwise use Bucket::setIndex().
-    void maybeSetIndex(std::shared_ptr<Bucket> b,
+    // this function, otherwise use BucketBase::setIndex().
+    void maybeSetIndex(std::shared_ptr<BucketBase> b,
                        std::unique_ptr<BucketIndex const>&& index);
 
     // Scans BucketList for non-live entries to evict starting at the entry

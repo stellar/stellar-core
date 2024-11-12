@@ -3,8 +3,6 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "bucket/BucketManager.h"
-#include "bucket/Bucket.h"
-#include "bucket/BucketIndexImpl.h"
 #include "bucket/BucketInputIterator.h"
 #include "bucket/BucketList.h"
 #include "bucket/BucketListSnapshot.h"
@@ -12,9 +10,10 @@
 #include "bucket/BucketOutputIterator.h"
 #include "bucket/BucketSnapshotManager.h"
 #include "bucket/BucketUtils.h"
+#include "bucket/HotArchiveBucket.h"
+#include "bucket/LiveBucket.h"
 #include "crypto/BLAKE2.h"
 #include "crypto/Hex.h"
-#include "crypto/SHA.h"
 #include "history/HistoryManager.h"
 #include "historywork/VerifyBucketWork.h"
 #include "ledger/LedgerManager.h"
@@ -805,16 +804,17 @@ BucketManager::cleanupStaleFiles()
     auto referenced = getAllReferencedBuckets();
     std::transform(std::begin(mSharedLiveBuckets), std::end(mSharedLiveBuckets),
                    std::inserter(referenced, std::end(referenced)),
-                   [](std::pair<Hash, std::shared_ptr<Bucket>> const& p) {
+                   [](std::pair<Hash, std::shared_ptr<LiveBucket>> const& p) {
                        return p.first;
                    });
 
-    std::transform(std::begin(mSharedHotArchiveBuckets),
-                   std::end(mSharedHotArchiveBuckets),
-                   std::inserter(referenced, std::end(referenced)),
-                   [](std::pair<Hash, std::shared_ptr<Bucket>> const& p) {
-                       return p.first;
-                   });
+    std::transform(
+        std::begin(mSharedHotArchiveBuckets),
+        std::end(mSharedHotArchiveBuckets),
+        std::inserter(referenced, std::end(referenced)),
+        [](std::pair<Hash, std::shared_ptr<HotArchiveBucket>> const& p) {
+            return p.first;
+        });
 
     for (auto f : fs::findfiles(getBucketDir(), isBucketFile))
     {
@@ -972,7 +972,7 @@ BucketManager::addHotArchiveBatch(
     releaseAssertOrThrow(app.getConfig().MODE_ENABLES_BUCKETLIST);
     releaseAssertOrThrow(protocolVersionStartsFrom(
         header.ledgerVersion,
-        Bucket::FIRST_PROTOCOL_SUPPORTING_PERSISTENT_EVICTION));
+        BucketBase::FIRST_PROTOCOL_SUPPORTING_PERSISTENT_EVICTION));
 #ifdef BUILD_TESTS
     if (mUseFakeTestValuesForNextClose)
     {
@@ -1031,7 +1031,7 @@ BucketManager::snapshotLedger(LedgerHeader& currentHeader)
     {
         if (protocolVersionStartsFrom(
                 currentHeader.ledgerVersion,
-                Bucket::FIRST_PROTOCOL_SUPPORTING_PERSISTENT_EVICTION))
+                BucketBase::FIRST_PROTOCOL_SUPPORTING_PERSISTENT_EVICTION))
         {
             // TODO: Hash Archive Bucket
             // Dependency: HAS supports Hot Archive BucketList
@@ -1057,7 +1057,7 @@ BucketManager::snapshotLedger(LedgerHeader& currentHeader)
 }
 
 void
-BucketManager::maybeSetIndex(std::shared_ptr<Bucket> b,
+BucketManager::maybeSetIndex(std::shared_ptr<BucketBase> b,
                              std::unique_ptr<BucketIndex const>&& index)
 {
     ZoneScoped;

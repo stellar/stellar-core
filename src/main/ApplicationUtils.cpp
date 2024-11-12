@@ -3,7 +3,6 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "main/ApplicationUtils.h"
-#include "bucket/Bucket.h"
 #include "bucket/BucketList.h"
 #include "bucket/BucketManager.h"
 #include "catchup/ApplyBucketsWork.h"

@@ -3,7 +3,7 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 #pragma once
 
-#include "bucket/Bucket.h"
+#include "bucket/LiveBucket.h"
 #include "historywork/Progress.h"
 #include "medida/meter.h"
 #include "medida/metrics_registry.h"

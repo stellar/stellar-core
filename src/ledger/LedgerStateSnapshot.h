@@ -8,6 +8,7 @@
 #include "bucket/BucketSnapshotManager.h"
 #include "ledger/LedgerTxn.h"
 #include "util/NonCopyable.h"
+#include <variant>
 
 namespace stellar
 {

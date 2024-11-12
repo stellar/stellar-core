@@ -7,10 +7,11 @@
 // else.
 #include "util/asio.h" // IWYU pragma: keep
 
-#include "bucket/Bucket.h"
 #include "bucket/BucketList.h"
 #include "bucket/BucketManager.h"
 #include "bucket/FutureBucket.h"
+#include "bucket/HotArchiveBucket.h"
+#include "bucket/LiveBucket.h"
 #include "bucket/MergeKey.h"
 #include "crypto/Hex.h"
 #include "main/Application.h"
@@ -65,7 +66,7 @@ FutureBucket<BucketT>::FutureBucket(
         if (!snap->isEmpty() &&
             protocolVersionIsBefore(
                 snap->getBucketVersion(),
-                Bucket::FIRST_PROTOCOL_SUPPORTING_PERSISTENT_EVICTION))
+                BucketBase::FIRST_PROTOCOL_SUPPORTING_PERSISTENT_EVICTION))
         {
             throw std::runtime_error(
                 "Invalid ArchivalFutureBucket: ledger version doesn't support "
@@ -407,7 +408,7 @@ FutureBucket<BucketT>::startMerge(Application& app, uint32_t maxProtocolVersion,
                 ZoneNamedN(mergeZone, "Merge task", true);
                 ZoneValueV(mergeZone, static_cast<int64_t>(level));
 
-                auto res = Bucket::merge(
+                auto res = BucketBase::merge(
                     bm, maxProtocolVersion, curr, snap, shadows,
                     BucketListBase<BucketT>::keepTombstoneEntries(level),
                     countMergeEvents, ctx, doFsync);

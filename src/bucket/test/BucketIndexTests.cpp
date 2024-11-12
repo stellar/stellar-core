@@ -806,7 +806,7 @@ TEST_CASE("hot archive bucket lookups", "[bucket][bucketindex][archive]")
             app->getLedgerManager().getLastClosedLedgerHeader().header;
         header.ledgerSeq += 1;
         header.ledgerVersion = static_cast<uint32_t>(
-            Bucket::FIRST_PROTOCOL_SUPPORTING_PERSISTENT_EVICTION);
+            BucketBase::FIRST_PROTOCOL_SUPPORTING_PERSISTENT_EVICTION);
         addHotArchiveBatchAndUpdateSnapshot(*app, header, archivedEntries,
                                             restoredEntries, deletedEntries);
         checkResult();

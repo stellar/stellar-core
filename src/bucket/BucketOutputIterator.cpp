@@ -3,13 +3,13 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "bucket/BucketOutputIterator.h"
-#include "bucket/Bucket.h"
 #include "bucket/BucketIndex.h"
 #include "bucket/BucketManager.h"
+#include "bucket/HotArchiveBucket.h"
+#include "bucket/LiveBucket.h"
 #include "ledger/LedgerTypeUtils.h"
 #include "util/GlobalChecks.h"
 #include "util/ProtocolVersion.h"
-#include "xdr/Stellar-ledger.h"
 #include <Tracy.hpp>
 #include <filesystem>
 
@@ -27,7 +27,7 @@ BucketOutputIterator<BucketT>::BucketOutputIterator(std::string const& tmpDir,
                                                     MergeCounters& mc,
                                                     asio::io_context& ctx,
                                                     bool doFsync)
-    : mFilename(Bucket::randomBucketName(tmpDir))
+    : mFilename(BucketBase::randomBucketName(tmpDir))
     , mOut(ctx, doFsync)
     , mBuf(nullptr)
     , mKeepTombstoneEntries(keepTombstoneEntries)
@@ -56,7 +56,7 @@ BucketOutputIterator<BucketT>::BucketOutputIterator(std::string const& tmpDir,
         {
             releaseAssertOrThrow(protocolVersionStartsFrom(
                 meta.ledgerVersion,
-                Bucket::FIRST_PROTOCOL_SUPPORTING_PERSISTENT_EVICTION));
+                BucketBase::FIRST_PROTOCOL_SUPPORTING_PERSISTENT_EVICTION));
 
             HotArchiveBucketEntry bme;
             bme.type(HOT_ARCHIVE_METAENTRY);

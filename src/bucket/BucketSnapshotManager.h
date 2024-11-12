@@ -4,9 +4,10 @@
 // under the Apache License, Version 2.0. See the COPYING file at the root
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
-#include "bucket/Bucket.h"
 #include "bucket/BucketList.h"
 #include "bucket/BucketManager.h"
+#include "bucket/HotArchiveBucket.h"
+#include "bucket/LiveBucket.h"
 #include "util/NonCopyable.h"
 #include "util/UnorderedMap.h"
 

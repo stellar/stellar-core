@@ -3,8 +3,10 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "bucket/BucketSnapshot.h"
-#include "bucket/Bucket.h"
+#include "bucket/BucketIndex.h"
 #include "bucket/BucketListSnapshot.h"
+#include "bucket/HotArchiveBucket.h"
+#include "bucket/LiveBucket.h"
 #include "ledger/LedgerTxn.h"
 #include "ledger/LedgerTypeUtils.h"
 #include "util/XDRStream.h"

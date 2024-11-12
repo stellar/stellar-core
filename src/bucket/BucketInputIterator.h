@@ -6,10 +6,8 @@
 
 #include "bucket/BucketUtils.h"
 #include "util/XDRStream.h"
-#include "xdr/Stellar-ledger.h"
 
 #include <memory>
-#include <type_traits>
 
 namespace stellar
 {
@@ -61,7 +59,4 @@ template <typename BucketT> class BucketInputIterator
     size_t size() const;
     void seek(std::streamoff offset);
 };
-
-typedef BucketInputIterator<LiveBucket> LiveBucketInputIterator;
-typedef BucketInputIterator<HotArchiveBucket> HotArchiveBucketInputIterator;
 }

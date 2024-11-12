@@ -3,10 +3,11 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "bucket/BucketListSnapshot.h"
-#include "bucket/Bucket.h"
 #include "bucket/BucketInputIterator.h"
 #include "bucket/BucketList.h"
 #include "bucket/BucketSnapshot.h"
+#include "bucket/HotArchiveBucket.h"
+#include "bucket/LiveBucket.h"
 #include "crypto/SecretKey.h" // IWYU pragma: keep
 #include "ledger/LedgerTxn.h"
 

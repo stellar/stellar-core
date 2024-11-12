@@ -3,9 +3,9 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "history/StateSnapshot.h"
-#include "bucket/Bucket.h"
 #include "bucket/BucketList.h"
 #include "bucket/BucketManager.h"
+#include "bucket/LiveBucket.h"
 #include "crypto/Hex.h"
 #include "database/Database.h"
 #include "herder/HerderPersistence.h"

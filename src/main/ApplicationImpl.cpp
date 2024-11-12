@@ -14,7 +14,6 @@
 // first to include <windows.h> -- so we try to include it before everything
 // else.
 #include "util/asio.h"
-#include "bucket/Bucket.h"
 #include "bucket/BucketListSnapshot.h"
 #include "bucket/BucketManager.h"
 #include "catchup/ApplyBucketsWork.h"

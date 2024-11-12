@@ -6,14 +6,14 @@
 
 #include <type_traits>
 
-#include "bucket/Bucket.h"
 #include "bucket/BucketUtils.h"
 #include "util/XDROperators.h" // IWYU pragma: keep
 #include "xdr/Stellar-ledger-entries.h"
-#include "xdr/Stellar-ledger.h"
 
 namespace stellar
 {
+class HotArchiveBucket;
+class LiveBucket;
 
 template <typename T>
 bool

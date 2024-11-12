@@ -7,9 +7,9 @@
 // else.
 #include "util/asio.h"
 #include "history/HistoryArchive.h"
-#include "bucket/Bucket.h"
 #include "bucket/BucketList.h"
 #include "bucket/BucketManager.h"
+#include "bucket/LiveBucket.h"
 #include "crypto/Hex.h"
 #include "crypto/SHA.h"
 #include "history/HistoryManager.h"

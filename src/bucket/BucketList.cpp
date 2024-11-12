@@ -3,11 +3,12 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "BucketList.h"
-#include "bucket/Bucket.h"
 #include "bucket/BucketIndexImpl.h"
 #include "bucket/BucketInputIterator.h"
 #include "bucket/BucketManager.h"
 #include "bucket/BucketSnapshot.h"
+#include "bucket/HotArchiveBucket.h"
+#include "bucket/LiveBucket.h"
 #include "crypto/SHA.h"
 #include "ledger/LedgerManager.h"
 #include "ledger/LedgerTxn.h"
@@ -701,7 +702,7 @@ HotArchiveBucketList::addBatch(Application& app, uint32_t currLedger,
     ZoneScoped;
     releaseAssertOrThrow(protocolVersionStartsFrom(
         currLedgerProtocol,
-        Bucket::FIRST_PROTOCOL_SUPPORTING_PERSISTENT_EVICTION));
+        BucketBase::FIRST_PROTOCOL_SUPPORTING_PERSISTENT_EVICTION));
     addBatchInternal(app, currLedger, currLedgerProtocol, archiveEntries,
                      restoredEntries, deletedEntries);
 }

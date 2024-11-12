@@ -4,7 +4,6 @@
 
 #include "util/asio.h"
 
-#include "bucket/Bucket.h"
 #include "database/Database.h"
 #include "herder/TxSetFrame.h"
 #include "invariant/Invariant.h"

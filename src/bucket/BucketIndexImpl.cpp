@@ -3,9 +3,10 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "bucket/BucketIndexImpl.h"
-#include "bucket/Bucket.h"
 #include "bucket/BucketManager.h"
 #include "bucket/BucketUtils.h"
+#include "bucket/HotArchiveBucket.h"
+#include "bucket/LiveBucket.h"
 #include "crypto/Hex.h"
 #include "crypto/ShortHash.h"
 #include "ledger/LedgerTypeUtils.h"
@@ -257,7 +258,7 @@ BucketIndexImpl<BucketIndex::RangeIndex>::saveToDisk(BucketManager& bm,
                          "took", std::chrono::milliseconds(100));
 
     std::filesystem::path tmpFilename =
-        Bucket::randomBucketIndexName(bm.getTmpDir());
+        BucketBase::randomBucketIndexName(bm.getTmpDir());
     CLOG_DEBUG(Bucket, "Saving bucket index for {}: {}", hexAbbrev(hash),
                tmpFilename);
 

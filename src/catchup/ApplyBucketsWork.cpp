@@ -3,10 +3,10 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "catchup/ApplyBucketsWork.h"
-#include "bucket/Bucket.h"
 #include "bucket/BucketApplicator.h"
 #include "bucket/BucketList.h"
 #include "bucket/BucketManager.h"
+#include "bucket/LiveBucket.h"
 #include "catchup/AssumeStateWork.h"
 #include "catchup/CatchupManager.h"
 #include "catchup/IndexBucketsWork.h"

@@ -3,14 +3,11 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "IndexBucketsWork.h"
-#include "bucket/Bucket.h"
 #include "bucket/BucketIndex.h"
 #include "bucket/BucketManager.h"
-#include "util/HashOfHash.h"
+#include "util/Fs.h"
+#include "util/Logging.h"
 #include "util/UnorderedSet.h"
-#include "util/XDRStream.h"
-#include "util/types.h"
-#include "work/WorkWithCallback.h"
 #include <Tracy.hpp>
 
 namespace stellar
