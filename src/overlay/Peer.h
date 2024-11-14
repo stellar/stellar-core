@@ -503,12 +503,12 @@ class CapacityTrackedMessage : private NonMovableOrCopyable
 {
     std::weak_ptr<Peer> const mWeakPeer;
     StellarMessage const mMsg;
-    std::optional<Hash> mMaybeHash;
+    std::shared_ptr<Hash const> mMaybeHash;
 
   public:
     CapacityTrackedMessage(std::weak_ptr<Peer> peer, StellarMessage const& msg);
     StellarMessage const& getMessage() const;
     ~CapacityTrackedMessage();
-    std::optional<Hash> maybeGetHash() const;
+    std::shared_ptr<Hash const> maybeGetHash() const;
 };
 }

@@ -156,10 +156,11 @@ LedgerTxnReadOnly::load(LedgerKey const& key) const
 
 void
 LedgerTxnReadOnly::executeWithMaybeInnerSnapshot(
-    std::function<void(LedgerSnapshot const& ls)> f) const
+    std::function<void(ExtendedLedgerSnapshot const& ls)> f,
+    ExtendedLedgerSnapshot const& outer) const
 {
     LedgerTxn inner(mLedgerTxn);
-    LedgerSnapshot lsg(inner);
+    ExtendedLedgerSnapshot lsg(inner, outer);
     return f(lsg);
 }
 
@@ -209,7 +210,8 @@ BucketSnapshotState::load(LedgerKey const& key) const
 
 void
 BucketSnapshotState::executeWithMaybeInnerSnapshot(
-    std::function<void(LedgerSnapshot const& ls)> f) const
+    std::function<void(ExtendedLedgerSnapshot const& ls)> f,
+    ExtendedLedgerSnapshot const& outer) const
 {
     throw std::runtime_error(
         "BucketSnapshotState::executeWithMaybeInnerSnapshot is illegal: "
@@ -221,7 +223,7 @@ LedgerSnapshot::LedgerSnapshot(AbstractLedgerTxn& ltx)
 {
 }
 
-LedgerSnapshot::LedgerSnapshot(Application& app)
+LedgerSnapshot::LedgerSnapshot(Application const& app)
 {
     releaseAssert(threadIsMain());
 #ifdef BUILD_TESTS
@@ -257,10 +259,66 @@ LedgerSnapshot::load(LedgerKey const& key) const
     return mGetter->load(key);
 }
 
-void
-LedgerSnapshot::executeWithMaybeInnerSnapshot(
-    std::function<void(LedgerSnapshot const& ls)> f) const
+ExtendedLedgerSnapshot::ExtendedLedgerSnapshot(Application const& app)
+    : LedgerSnapshot(app)
+    , mConfig(app.getAppConnector().getConfigPtr())
+    , mSorobanNetworkConfig(
+          app.getAppConnector().maybeGetLastClosedSorobanNetworkConfig())
+    , mCurrentProtocolVersion(app.getLedgerManager()
+                                  .getLastClosedLedgerHeader()
+                                  .header.ledgerVersion)
 {
-    return mGetter->executeWithMaybeInnerSnapshot(f);
+    releaseAssert(threadIsMain());
+}
+
+ExtendedLedgerSnapshot::ExtendedLedgerSnapshot(AbstractLedgerTxn& ltx,
+                                               AppConnector const& app,
+                                               bool forApply)
+    : LedgerSnapshot(ltx)
+    , mConfig(app.getConfigPtr())
+    , mSorobanNetworkConfig(forApply
+                                ? app.maybeGetSorobanNetworkConfigForApply()
+                                : app.maybeGetLastClosedSorobanNetworkConfig())
+    , mCurrentProtocolVersion(ltx.loadHeader().current().ledgerVersion)
+{
+    releaseAssert(
+        threadIsMain() ||
+        (forApply && app.threadIsType(Application::ThreadType::APPLY)));
+}
+
+ExtendedLedgerSnapshot::ExtendedLedgerSnapshot(
+    AbstractLedgerTxn& ltx, ExtendedLedgerSnapshot const& outer)
+    : LedgerSnapshot(ltx)
+    , mConfig(outer.mConfig)
+    , mSorobanNetworkConfig(outer.mSorobanNetworkConfig)
+    , mCurrentProtocolVersion(outer.mCurrentProtocolVersion)
+{
+}
+
+void
+ExtendedLedgerSnapshot::executeWithMaybeInnerSnapshot(
+    std::function<void(ExtendedLedgerSnapshot const& ls)> f) const
+{
+    return mGetter->executeWithMaybeInnerSnapshot(f, *this);
+}
+
+Config const&
+ExtendedLedgerSnapshot::getConfig() const
+{
+    releaseAssert(mConfig);
+    return *mConfig;
+}
+
+SorobanNetworkConfig const&
+ExtendedLedgerSnapshot::getSorobanNetworkConfig() const
+{
+    releaseAssertOrThrow(mSorobanNetworkConfig.has_value());
+    return mSorobanNetworkConfig.value();
+}
+
+uint32_t
+ExtendedLedgerSnapshot::getCurrentProtocolVersion() const
+{
+    return mCurrentProtocolVersion;
 }
 }

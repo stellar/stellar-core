@@ -21,6 +21,7 @@
 #include "overlay/SurveyDataManager.h"
 #include "overlay/TCPPeer.h"
 #include "overlay/TxDemandsManager.h"
+#include "transactions/MutableTransactionResult.h"
 #include "util/GlobalChecks.h"
 #include "util/Logging.h"
 #include "util/Math.h"
@@ -355,6 +356,22 @@ OverlayManagerImpl::start()
 
     // Start demand logic
     mTxDemandsManager.start();
+
+    // Create snapshots
+    updateSnapshots();
+}
+
+void
+OverlayManagerImpl::updateSnapshots()
+{
+    ZoneScoped;
+    if (mApp.getConfig().BACKGROUND_TX_VALIDATION)
+    {
+        // Only need to update these snapshots if background transaction
+        // validation is enabled.
+        LOCK_GUARD(mSnapshotMutex, guard);
+        mLedgerSnapshot = std::make_unique<ExtendedLedgerSnapshot const>(mApp);
+    }
 }
 
 uint32_t
@@ -1169,7 +1186,7 @@ OverlayManagerImpl::checkScheduledAndCache(
     {
         return false;
     }
-    auto index = tracker->maybeGetHash().value();
+    auto const& index = *tracker->maybeGetHash();
     if (mScheduledMessages.exists(index))
     {
         if (mScheduledMessages.get(index).lock())
@@ -1183,53 +1200,108 @@ OverlayManagerImpl::checkScheduledAndCache(
 }
 
 void
-OverlayManagerImpl::recvTransaction(StellarMessage const& msg,
-                                    Peer::pointer peer, Hash const& index)
+OverlayManagerImpl::handleTxAddResult(TransactionFrameBasePtr transaction,
+                                      TransactionQueue::AddResultCode addCode,
+                                      Peer::pointer peer, Hash const& index)
 {
     ZoneScoped;
+    bool pulledRelevantTx = false;
+    if (!(addCode == TransactionQueue::AddResultCode::ADD_STATUS_PENDING ||
+          addCode == TransactionQueue::AddResultCode::ADD_STATUS_DUPLICATE))
+    {
+        forgetFloodedMsg(index);
+        CLOG_DEBUG(Overlay,
+                   "Peer::recvTransaction Discarded transaction {} from {}",
+                   hexAbbrev(transaction->getFullHash()), peer->toString());
+    }
+    else
+    {
+        bool dup =
+            addCode == TransactionQueue::AddResultCode::ADD_STATUS_DUPLICATE;
+        if (!dup)
+        {
+            pulledRelevantTx = true;
+        }
+        CLOG_DEBUG(Overlay,
+                   "Peer::recvTransaction Received {} transaction {} from {}",
+                   (dup ? "duplicate" : "unique"),
+                   hexAbbrev(transaction->getFullHash()), peer->toString());
+    }
+
+    auto const& om = getOverlayMetrics();
+    auto& meter =
+        pulledRelevantTx ? om.mPulledRelevantTxs : om.mPulledIrrelevantTxs;
+    meter.Mark();
+}
+
+void
+OverlayManagerImpl::recvTransaction(StellarMessage const& msg,
+                                    Peer::pointer peer,
+                                    std::shared_ptr<Hash const> index)
+{
+    ZoneScoped;
+    releaseAssert(index != nullptr);
     auto transaction = TransactionFrameBase::makeTransactionFromWire(
         mApp.getNetworkID(), msg.transaction());
     if (transaction)
     {
         // record that this peer sent us this transaction
         // add it to the floodmap so that this peer gets credit for it
-        recvFloodedMsgID(msg, peer, index);
+        recvFloodedMsgID(msg, peer, *index);
 
         mTxDemandsManager.recordTxPullLatency(transaction->getFullHash(), peer);
 
-        // add it to our current set
-        // and make sure it is valid
-        auto addResult = mApp.getHerder().recvTransaction(transaction, false);
-        bool pulledRelevantTx = false;
-        if (!(addResult.code ==
-                  TransactionQueue::AddResultCode::ADD_STATUS_PENDING ||
-              addResult.code ==
-                  TransactionQueue::AddResultCode::ADD_STATUS_DUPLICATE))
+        if (mApp.getConfig().BACKGROUND_TX_VALIDATION)
         {
-            forgetFloodedMsg(index);
-            CLOG_DEBUG(Overlay,
-                       "Peer::recvTransaction Discarded transaction {} from {}",
-                       hexAbbrev(transaction->getFullHash()), peer->toString());
+            auto closeTime = mApp.getLedgerManager()
+                                 .getLastClosedLedgerHeader()
+                                 .header.scpValue.closeTime;
+            auto offset =
+                getUpperBoundCloseTimeOffset(mApp.getAppConnector(), closeTime);
+            mApp.postOnTxValidationThread(
+                [this, transaction, offset, peer, index]() {
+                    ZoneScopedN("background checkValid");
+                    LOCK_GUARD(mSnapshotMutex, guard);
+                    releaseAssert(mLedgerSnapshot);
+
+                    auto txResult =
+                        transaction->checkValid(*mLedgerSnapshot, 0, 0, offset);
+                    mApp.postOnMainThread(
+                        [this, transaction, txResult, peer, index]() {
+                            if (txResult->isSuccess())
+                            {
+                                // add it to our current set
+                                // and make sure it is valid
+                                auto addCode = mApp.getHerder()
+                                                   .recvTransaction(transaction,
+                                                                    false, true)
+                                                   .code;
+                                handleTxAddResult(transaction, addCode, peer,
+                                                  *index);
+                            }
+                            else
+                            {
+                                // Record as an invalid transaction
+                                handleTxAddResult(
+                                    transaction,
+                                    TransactionQueue::AddResultCode::
+                                        ADD_STATUS_ERROR,
+                                    peer, *index);
+                            }
+                        },
+                        "handle pre-validated transaction");
+                },
+                "checkValid");
         }
         else
         {
-            bool dup = addResult.code ==
-                       TransactionQueue::AddResultCode::ADD_STATUS_DUPLICATE;
-            if (!dup)
-            {
-                pulledRelevantTx = true;
-            }
-            CLOG_DEBUG(
-                Overlay,
-                "Peer::recvTransaction Received {} transaction {} from {}",
-                (dup ? "duplicate" : "unique"),
-                hexAbbrev(transaction->getFullHash()), peer->toString());
+            // add it to our current set
+            // and make sure it is valid
+            auto addCode = mApp.getHerder()
+                               .recvTransaction(transaction, false, false)
+                               .code;
+            handleTxAddResult(transaction, addCode, peer, *index);
         }
-
-        auto const& om = getOverlayMetrics();
-        auto& meter =
-            pulledRelevantTx ? om.mPulledRelevantTxs : om.mPulledIrrelevantTxs;
-        meter.Mark();
     }
 }
 

@@ -91,11 +91,11 @@ CapacityTrackedMessage::CapacityTrackedMessage(std::weak_ptr<Peer> peer,
     self->beginMessageProcessing(mMsg);
     if (mMsg.type() == SCP_MESSAGE || mMsg.type() == TRANSACTION)
     {
-        mMaybeHash = xdrBlake2(msg);
+        mMaybeHash = std::make_shared<Hash>(xdrBlake2(msg));
     }
 }
 
-std::optional<Hash>
+std::shared_ptr<Hash const>
 CapacityTrackedMessage::maybeGetHash() const
 {
     return mMaybeHash;
@@ -1348,9 +1348,9 @@ Peer::recvTransaction(CapacityTrackedMessage const& msg)
 {
     ZoneScoped;
     releaseAssert(threadIsMain());
-    releaseAssert(msg.maybeGetHash());
+    releaseAssert(msg.maybeGetHash() != nullptr);
     mAppConnector.getOverlayManager().recvTransaction(
-        msg.getMessage(), shared_from_this(), msg.maybeGetHash().value());
+        msg.getMessage(), shared_from_this(), msg.maybeGetHash());
 }
 
 Hash
@@ -1488,14 +1488,13 @@ Peer::recvSCPMessage(CapacityTrackedMessage const& msg)
     // add it to the floodmap so that this peer gets credit for it
     releaseAssert(msg.maybeGetHash());
     mAppConnector.getOverlayManager().recvFloodedMsgID(
-        msg.getMessage(), shared_from_this(), msg.maybeGetHash().value());
+        msg.getMessage(), shared_from_this(), *msg.maybeGetHash());
 
     auto res = mAppConnector.getHerder().recvSCPEnvelope(envelope);
     if (res == Herder::ENVELOPE_STATUS_DISCARDED)
     {
         // the message was discarded, remove it from the floodmap as well
-        mAppConnector.getOverlayManager().forgetFloodedMsg(
-            msg.maybeGetHash().value());
+        mAppConnector.getOverlayManager().forgetFloodedMsg(*msg.maybeGetHash());
     }
 }
 

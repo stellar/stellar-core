@@ -94,9 +94,7 @@ class TransactionFrame : public TransactionFrameBase
                               LedgerEntryWrapper const& sourceAccount,
                               uint64_t lowerBoundCloseTimeOffset) const;
 
-    bool commonValidPreSeqNum(AppConnector& app,
-                              std::optional<SorobanNetworkConfig> const& cfg,
-                              LedgerSnapshot const& ls, bool chargeFee,
+    bool commonValidPreSeqNum(ExtendedLedgerSnapshot const& ls, bool chargeFee,
                               uint64_t lowerBoundCloseTimeOffset,
                               uint64_t upperBoundCloseTimeOffset,
                               std::optional<FeePair> sorobanResourceFee,
@@ -105,11 +103,10 @@ class TransactionFrame : public TransactionFrameBase
     virtual bool isBadSeq(LedgerHeaderWrapper const& header,
                           int64_t seqNum) const;
 
-    ValidationType commonValid(AppConnector& app,
-                               std::optional<SorobanNetworkConfig> const& cfg,
-                               SignatureChecker& signatureChecker,
-                               LedgerSnapshot const& ls, SequenceNumber current,
-                               bool applying, bool chargeFee,
+    ValidationType commonValid(SignatureChecker& signatureChecker,
+                               ExtendedLedgerSnapshot const& ls,
+                               SequenceNumber current, bool applying,
+                               bool chargeFee,
                                uint64_t lowerBoundCloseTimeOffset,
                                uint64_t upperBoundCloseTimeOffset,
                                std::optional<FeePair> sorobanResourceFee,
@@ -138,9 +135,7 @@ class TransactionFrame : public TransactionFrameBase
     bool extraSignersExist() const;
 
     bool validateSorobanOpsConsistency() const;
-    bool validateSorobanResources(SorobanNetworkConfig const& config,
-                                  Config const& appConfig,
-                                  uint32_t protocolVersion,
+    bool validateSorobanResources(ExtendedLedgerSnapshot const& ls,
                                   SorobanTxData& sorobanData) const;
     int64_t refundSorobanFee(AbstractLedgerTxn& ltx, AccountID const& feeSource,
                              MutableTransactionResultBase& txResult) const;
@@ -210,16 +205,16 @@ class TransactionFrame : public TransactionFrameBase
     bool checkExtraSigners(SignatureChecker& signatureChecker) const;
 
     MutableTxResultPtr checkValidWithOptionallyChargedFee(
-        AppConnector& app, LedgerSnapshot const& ls, SequenceNumber current,
+        ExtendedLedgerSnapshot const& ls, SequenceNumber current,
         bool chargeFee, uint64_t lowerBoundCloseTimeOffset,
         uint64_t upperBoundCloseTimeOffset) const;
     MutableTxResultPtr
-    checkValid(AppConnector& app, LedgerSnapshot const& ls,
-               SequenceNumber current, uint64_t lowerBoundCloseTimeOffset,
+    checkValid(ExtendedLedgerSnapshot const& ls, SequenceNumber current,
+               uint64_t lowerBoundCloseTimeOffset,
                uint64_t upperBoundCloseTimeOffset) const override;
-    bool checkSorobanResourceAndSetError(
-        AppConnector& app, SorobanNetworkConfig const& cfg,
-        uint32_t ledgerVersion, MutableTxResultPtr txResult) const override;
+    bool
+    checkSorobanResourceAndSetError(ExtendedLedgerSnapshot const& ls,
+                                    MutableTxResultPtr txResult) const override;
 
     MutableTxResultPtr createSuccessResult() const override;
 

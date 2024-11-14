@@ -144,12 +144,9 @@ OperationFrame::apply(AppConnector& app, SignatureChecker& signatureChecker,
     ZoneScoped;
     CLOG_TRACE(Tx, "{}", xdrToCerealString(mOperation, "Operation"));
 
-    LedgerSnapshot ltxState(ltx);
-    std::optional<SorobanNetworkConfig> cfg =
-        isSoroban() ? std::make_optional(app.getSorobanNetworkConfigForApply())
-                    : std::nullopt;
-    bool applyRes = checkValid(app, signatureChecker, cfg, ltxState, true, res,
-                               sorobanData);
+    ExtendedLedgerSnapshot ltxState(ltx, app, true);
+    bool applyRes =
+        checkValid(signatureChecker, ltxState, true, res, sorobanData);
     if (applyRes)
     {
         applyRes = doApply(app, ltx, sorobanBasePrngSeed, res, sorobanData);
@@ -221,18 +218,15 @@ OperationFrame::getSourceID() const
 // make sure sig is correct
 // verifies that the operation is well formed (operation specific)
 bool
-OperationFrame::checkValid(AppConnector& app,
-                           SignatureChecker& signatureChecker,
-                           std::optional<SorobanNetworkConfig> const& cfg,
-                           LedgerSnapshot const& ls, bool forApply,
+OperationFrame::checkValid(SignatureChecker& signatureChecker,
+                           ExtendedLedgerSnapshot const& ls, bool forApply,
                            OperationResult& res,
                            std::shared_ptr<SorobanTxData> sorobanData) const
 {
     ZoneScoped;
     bool validationResult = false;
-    auto validate = [this, &res, forApply, &signatureChecker, &app,
-                     &sorobanData, &validationResult,
-                     &cfg](LedgerSnapshot const& ls) {
+    auto validate = [this, &res, forApply, &signatureChecker, &sorobanData,
+                     &validationResult](ExtendedLedgerSnapshot const& ls) {
         if (!isOpSupported(ls.getLedgerHeader().current()))
         {
             res.code(opNOT_SUPPORTED);
@@ -267,9 +261,11 @@ OperationFrame::checkValid(AppConnector& app,
             isSoroban())
         {
             releaseAssertOrThrow(sorobanData);
-            releaseAssertOrThrow(cfg);
-            validationResult = doCheckValidForSoroban(
-                cfg.value(), app.getConfig(), ledgerVersion, res, *sorobanData);
+            auto const& sorobanConfig = ls.getSorobanNetworkConfig();
+
+            validationResult =
+                doCheckValidForSoroban(sorobanConfig, ls.getConfig(),
+                                       ledgerVersion, res, *sorobanData);
         }
         else
         {

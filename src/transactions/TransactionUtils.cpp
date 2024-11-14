@@ -1257,9 +1257,9 @@ trustLineFlagIsValid(uint32_t flag, LedgerTxnHeader const& header)
 }
 
 uint64_t
-getUpperBoundCloseTimeOffset(Application& app, uint64_t lastCloseTime)
+getUpperBoundCloseTimeOffset(AppConnector const& app, uint64_t lastCloseTime)
 {
-    uint64_t currentTime = VirtualClock::to_time_t(app.getClock().system_now());
+    uint64_t currentTime = VirtualClock::to_time_t(app.system_now());
 
     // account for the time between closeTime and now
     uint64_t closeTimeDrift =
@@ -1980,10 +1980,11 @@ hasMuxedAccount(TransactionEnvelope const& e)
 }
 
 bool
-isTransactionXDRValidForProtocol(uint32_t currProtocol, Config const& cfg,
-                                 TransactionEnvelope const& envelope)
+isTransactionXDRValidForCurrentProtocol(ExtendedLedgerSnapshot const& ls,
+                                        TransactionEnvelope const& envelope)
 {
-    uint32_t maxProtocol = cfg.CURRENT_LEDGER_PROTOCOL_VERSION;
+    uint32_t maxProtocol = ls.getConfig().CURRENT_LEDGER_PROTOCOL_VERSION;
+    uint32_t currProtocol = ls.getCurrentProtocolVersion();
     // If we could parse the XDR when ledger is using the maximum supported
     // protocol version, then XDR has to be valid.
     // This check also is pointless before protocol 21 as Soroban environment

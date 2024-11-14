@@ -8,6 +8,7 @@
 #include "PeerAuth.h"
 #include "PeerDoor.h"
 #include "PeerManager.h"
+#include "herder/TransactionQueue.h"
 #include "herder/TxSetFrame.h"
 #include "ledger/LedgerTxn.h"
 #include "overlay/Floodgate.h"
@@ -115,7 +116,7 @@ class OverlayManagerImpl : public OverlayManager
     bool recvFloodedMsgID(StellarMessage const& msg, Peer::pointer peer,
                           Hash const& msgID) override;
     void recvTransaction(StellarMessage const& msg, Peer::pointer peer,
-                         Hash const& index) override;
+                         std::shared_ptr<Hash const> index) override;
     void forgetFloodedMsg(Hash const& msgID) override;
     void recvTxDemand(FloodDemand const& dmd, Peer::pointer peer) override;
     bool
@@ -164,6 +165,8 @@ class OverlayManagerImpl : public OverlayManager
     void start() override;
     void shutdown() override;
 
+    void updateSnapshots() override;
+
     bool isShuttingDown() const override;
 
     void recordMessageMetric(StellarMessage const& stellarMsg,
@@ -183,6 +186,18 @@ class OverlayManagerImpl : public OverlayManager
     int mResolvingPeersRetryCount;
     RandomEvictionCache<Hash, std::weak_ptr<CapacityTrackedMessage>>
         mScheduledMessages;
+
+    // Ledger snapshot used for background transaction validation. Must be
+    // updated (replaced) after each new ledger via the `updateSnapshots`
+    // function.
+    std::unique_ptr<ExtendedLedgerSnapshot const> mLedgerSnapshot;
+
+// Mutex to protect transaction validation snapshots
+#ifdef USE_TRACY
+    mutable TracyLockable(std::mutex, mSnapshotMutex);
+#else
+    std::mutex mutable mSnapshotMutex;
+#endif
 
     void triggerPeerResolution();
     std::pair<std::vector<PeerBareAddress>, bool>
@@ -219,5 +234,10 @@ class OverlayManagerImpl : public OverlayManager
 
     bool checkScheduledAndCache(
         std::shared_ptr<CapacityTrackedMessage> tracker) override;
+
+    // Credit `peer` and record metrics about `transaction`.
+    void handleTxAddResult(TransactionFrameBasePtr transaction,
+                           TransactionQueue::AddResultCode addCode,
+                           Peer::pointer peer, Hash const& index);
 };
 }

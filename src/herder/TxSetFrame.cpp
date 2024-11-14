@@ -1814,13 +1814,12 @@ TxSetPhaseFrame::txsAreValid(Application& app,
 
     // Grab read-only latest ledger state; This is only used to validate tx sets
     // for LCL+1
-    LedgerSnapshot ls(app);
+    ExtendedLedgerSnapshot ls(app);
     ls.getLedgerHeader().currentToModify().ledgerSeq =
         app.getLedgerManager().getLastClosedLedgerNum() + 1;
     for (auto const& tx : *this)
     {
-        auto txResult = tx->checkValid(app.getAppConnector(), ls, 0,
-                                       lowerBoundCloseTimeOffset,
+        auto txResult = tx->checkValid(ls, 0, lowerBoundCloseTimeOffset,
                                        upperBoundCloseTimeOffset);
         if (!txResult->isSuccess())
         {
