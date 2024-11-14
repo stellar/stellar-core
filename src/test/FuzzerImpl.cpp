@@ -921,16 +921,15 @@ class FuzzTransactionFrame : public TransactionFrame
 
         // attempt application of transaction without processing the fee or
         // committing the LedgerTxn
+        AppValidationWrapper avw(app.getAppConnector(), false);
         SignatureChecker signatureChecker{
             ltx.loadHeader().current().ledgerVersion, getContentsHash(),
             mEnvelope.v1().signatures};
         LedgerSnapshot ltxStmt(ltx);
         // if any ill-formed Operations, do not attempt transaction application
         auto isInvalidOperation = [&](auto const& op, auto& opResult) {
-            return !op->checkValid(
-                app.getAppConnector(), signatureChecker,
-                app.getAppConnector().getLastClosedSorobanNetworkConfig(),
-                ltxStmt, false, opResult, mTxResult->getSorobanData());
+            return !op->checkValid(avw, signatureChecker, ltxStmt, false,
+                                   opResult, mTxResult->getSorobanData());
         };
 
         auto const& ops = getOperations();

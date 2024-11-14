@@ -820,8 +820,9 @@ SorobanTest::invokeArchivalOp(TransactionFrameBaseConstPtr tx,
 {
     MutableTxResultPtr result;
     {
+        AppValidationWrapper const avw(getApp().getAppConnector(), false);
         LedgerTxn ltx(getApp().getLedgerTxnRoot());
-        result = tx->checkValid(getApp().getAppConnector(), ltx, 0, 0, 0);
+        result = tx->checkValid(avw, ltx, 0, 0, 0);
     }
     REQUIRE(result->isSuccess());
     int64_t initBalance = getRoot().getBalance();
@@ -1100,8 +1101,9 @@ SorobanTest::createRestoreTx(SorobanResources const& resources, uint32_t fee,
 bool
 SorobanTest::isTxValid(TransactionFrameBaseConstPtr tx)
 {
+    AppValidationWrapper const avw(getApp().getAppConnector(), false);
     LedgerTxn ltx(getApp().getLedgerTxnRoot());
-    auto ret = tx->checkValid(getApp().getAppConnector(), ltx, 0, 0, 0);
+    auto ret = tx->checkValid(avw, ltx, 0, 0, 0);
     return ret->isSuccess();
 }
 
@@ -1110,9 +1112,9 @@ SorobanTest::invokeTx(TransactionFrameBaseConstPtr tx,
                       TransactionMetaFrame* txMeta)
 {
     {
+        AppValidationWrapper const avw(getApp().getAppConnector(), false);
         LedgerTxn ltx(getApp().getLedgerTxnRoot());
-        REQUIRE(tx->checkValid(getApp().getAppConnector(), ltx, 0, 0, 0)
-                    ->isSuccess());
+        REQUIRE(tx->checkValid(avw, ltx, 0, 0, 0)->isSuccess());
     }
 
     auto resultSet = closeLedger(*mApp, {tx});

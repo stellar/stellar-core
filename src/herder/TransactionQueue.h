@@ -69,7 +69,8 @@ class TransactionQueue
         ADD_STATUS_ERROR,
         ADD_STATUS_TRY_AGAIN_LATER,
         ADD_STATUS_FILTERED,
-        ADD_STATUS_COUNT
+        ADD_STATUS_COUNT,
+        ADD_STATUS_UNKNOWN // TODO: rename?
     };
 
     struct AddResult
@@ -117,29 +118,30 @@ class TransactionQueue
         std::optional<TimestampedTx> mTransaction;
     };
 
-    explicit TransactionQueue(Application& app, uint32 pendingDepth,
-                              uint32 banDepth, uint32 poolLedgerMultiplier,
-                              bool isSoroban);
+    explicit TransactionQueue(Application& app,
+                              SearchableSnapshotConstPtr bucketSnapshot,
+                              uint32 pendingDepth, uint32 banDepth,
+                              uint32 poolLedgerMultiplier, bool isSoroban);
     virtual ~TransactionQueue();
 
     static std::vector<AssetPair>
     findAllAssetPairsInvolvedInPaymentLoops(TransactionFrameBasePtr tx);
 
     AddResult tryAdd(TransactionFrameBasePtr tx, bool submittedFromSelf);
-    void removeApplied(Transactions const& txs);
     // Ban transactions that are no longer valid or have insufficient fee;
     // transaction per account limit applies here, so `txs` should have no
     // duplicate source accounts
     void ban(Transactions const& txs);
 
-    /**
-     * Increase age of each AccountState that has at least one transaction in
-     * mTransactions. Also increments the age for each banned transaction, and
-     * unbans transactions for which age equals banDepth.
-     */
-    void shift();
-    void rebroadcast();
     void shutdown();
+
+    // TODO: Better docs
+    // TODO: More descriptive name
+    // Update internal queue structures after a ledger closes
+    void update(
+        Transactions const& applied, LedgerHeader const& lcl,
+        SearchableSnapshotConstPtr newBucketSnapshot,
+        std::function<TxFrameList(TxFrameList const&)> const& filterInvalidTxs);
 
     bool isBanned(Hash const& hash) const;
     TransactionFrameBaseConstPtr getTx(Hash const& hash) const;
@@ -170,7 +172,6 @@ class TransactionQueue
      */
     using BannedTransactions = std::deque<UnorderedSet<Hash>>;
 
-    Application& mApp;
     uint32 const mPendingDepth;
 
     AccountStates mAccountStates;
@@ -201,6 +202,9 @@ class TransactionQueue
 
     bool mShutdown{false};
     bool mWaiting{false};
+    // TODO: VirtualTimer is not thread-safe. Right now it's only used in
+    // functions that are called from the main thread. However, if I move
+    // broadcasting to the background I will need to be careful with this.
     VirtualTimer mBroadcastTimer;
 
     virtual std::pair<Resource, std::optional<Resource>>
@@ -230,15 +234,37 @@ class TransactionQueue
 
     bool isFiltered(TransactionFrameBasePtr tx) const;
 
-    std::unique_ptr<TxQueueLimiter> mTxQueueLimiter;
+    // Snapshots to use for transaction validation
+    ImmutableValidationSnapshotPtr mValidationSnapshot;
+    SearchableSnapshotConstPtr mBucketSnapshot;
+
+    TxQueueLimiter mTxQueueLimiter;
     UnorderedMap<AssetPair, uint32_t, AssetPairHash> mArbitrageFloodDamping;
 
     UnorderedMap<Hash, TransactionFrameBasePtr> mKnownTxHashes;
 
     size_t mBroadcastSeed;
 
+    mutable std::recursive_mutex mTxQueueMutex;
+
+  private:
+    AppConnector& mAppConn;
+
+    void removeApplied(Transactions const& txs);
+
+    /**
+     * Increase age of each AccountState that has at least one transaction in
+     * mTransactions. Also increments the age for each banned transaction, and
+     * unbans transactions for which age equals banDepth.
+     */
+    void shift();
+
+    void rebroadcast();
+
 #ifdef BUILD_TESTS
   public:
+    friend class TransactionQueueTest;
+
     size_t getQueueSizeOps() const;
     std::optional<int64_t> getInQueueSeqNum(AccountID const& account) const;
     std::function<void(TransactionFrameBasePtr&)> mTxBroadcastedEvent;
@@ -248,12 +274,15 @@ class TransactionQueue
 class SorobanTransactionQueue : public TransactionQueue
 {
   public:
-    SorobanTransactionQueue(Application& app, uint32 pendingDepth,
-                            uint32 banDepth, uint32 poolLedgerMultiplier);
+    SorobanTransactionQueue(Application& app,
+                            SearchableSnapshotConstPtr bucketSnapshot,
+                            uint32 pendingDepth, uint32 banDepth,
+                            uint32 poolLedgerMultiplier);
     int
     getFloodPeriod() const override
     {
-        return mApp.getConfig().FLOOD_SOROBAN_TX_PERIOD_MS;
+        std::lock_guard<std::recursive_mutex> guard(mTxQueueMutex);
+        return mValidationSnapshot->getConfig().FLOOD_SOROBAN_TX_PERIOD_MS;
     }
 
     size_t getMaxQueueSizeOps() const override;
@@ -261,6 +290,7 @@ class SorobanTransactionQueue : public TransactionQueue
     void
     clearBroadcastCarryover()
     {
+        std::lock_guard<std::recursive_mutex> guard(mTxQueueMutex);
         mBroadcastOpCarryover.clear();
         mBroadcastOpCarryover.resize(1, Resource::makeEmptySoroban());
     }
@@ -282,13 +312,16 @@ class SorobanTransactionQueue : public TransactionQueue
 class ClassicTransactionQueue : public TransactionQueue
 {
   public:
-    ClassicTransactionQueue(Application& app, uint32 pendingDepth,
-                            uint32 banDepth, uint32 poolLedgerMultiplier);
+    ClassicTransactionQueue(Application& app,
+                            SearchableSnapshotConstPtr bucketSnapshot,
+                            uint32 pendingDepth, uint32 banDepth,
+                            uint32 poolLedgerMultiplier);
 
     int
     getFloodPeriod() const override
     {
-        return mApp.getConfig().FLOOD_TX_PERIOD_MS;
+        std::lock_guard<std::recursive_mutex> guard(mTxQueueMutex);
+        return mValidationSnapshot->getConfig().FLOOD_TX_PERIOD_MS;
     }
 
     size_t getMaxQueueSizeOps() const override;

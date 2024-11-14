@@ -421,8 +421,8 @@ TEST_CASE("basic contract invocation", "[tx][soroban]")
                                                      addContractKeys);
         auto tx = invocation.createTx(&rootAccount);
 
-        auto result =
-            tx->checkValid(test.getApp().getAppConnector(), rootLtx, 0, 0, 0);
+        AppValidationWrapper avw(test.getApp().getAppConnector(), false);
+        auto result = tx->checkValid(avw, rootLtx, 0, 0, 0);
 
         REQUIRE(tx->getFullFee() ==
                 spec.getInclusionFee() + spec.getResourceFee());
@@ -742,6 +742,7 @@ TEST_CASE("Soroban footprint validation", "[tx][soroban]")
 {
     SorobanTest test;
     auto const& cfg = test.getNetworkCfg();
+    AppValidationWrapper const avw(test.getApp().getAppConnector(), false);
 
     auto& addContract =
         test.deployWasmContract(rust_bridge::get_test_wasm_add_i32());
@@ -760,8 +761,7 @@ TEST_CASE("Soroban footprint validation", "[tx][soroban]")
         MutableTxResultPtr result;
         {
             LedgerTxn ltx(test.getApp().getLedgerTxnRoot());
-            result =
-                tx->checkValid(test.getApp().getAppConnector(), ltx, 0, 0, 0);
+            result = tx->checkValid(avw, ltx, 0, 0, 0);
         }
         REQUIRE(result->isSuccess() == shouldBeValid);
 
@@ -777,8 +777,7 @@ TEST_CASE("Soroban footprint validation", "[tx][soroban]")
         MutableTxResultPtr result;
         {
             LedgerTxn ltx(test.getApp().getLedgerTxnRoot());
-            result =
-                tx->checkValid(test.getApp().getAppConnector(), ltx, 0, 0, 0);
+            result = tx->checkValid(avw, ltx, 0, 0, 0);
         }
         REQUIRE(result->isSuccess() == shouldBeValid);
         if (!shouldBeValid)
@@ -806,8 +805,7 @@ TEST_CASE("Soroban footprint validation", "[tx][soroban]")
         MutableTxResultPtr result;
         {
             LedgerTxn ltx(test.getApp().getLedgerTxnRoot());
-            result =
-                tx->checkValid(test.getApp().getAppConnector(), ltx, 0, 0, 0);
+            result = tx->checkValid(avw, ltx, 0, 0, 0);
         }
         REQUIRE(result->isSuccess() == shouldBeValid);
         if (!shouldBeValid)
@@ -1456,8 +1454,9 @@ TEST_CASE("transaction validation diagnostics", "[tx][soroban]")
             .createTx();
     MutableTxResultPtr result;
     {
+        AppValidationWrapper const avw(test.getApp().getAppConnector(), false);
         LedgerTxn ltx(test.getApp().getLedgerTxnRoot());
-        result = tx->checkValid(test.getApp().getAppConnector(), ltx, 0, 0, 0);
+        result = tx->checkValid(avw, ltx, 0, 0, 0);
     }
     REQUIRE(!test.isTxValid(tx));
 

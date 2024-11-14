@@ -94,8 +94,7 @@ class TransactionFrame : public TransactionFrameBase
                               LedgerEntryWrapper const& sourceAccount,
                               uint64_t lowerBoundCloseTimeOffset) const;
 
-    bool commonValidPreSeqNum(AppConnector& app,
-                              std::optional<SorobanNetworkConfig> const& cfg,
+    bool commonValidPreSeqNum(ValidationConnector const& vc,
                               LedgerSnapshot const& ls, bool chargeFee,
                               uint64_t lowerBoundCloseTimeOffset,
                               uint64_t upperBoundCloseTimeOffset,
@@ -105,8 +104,7 @@ class TransactionFrame : public TransactionFrameBase
     virtual bool isBadSeq(LedgerHeaderWrapper const& header,
                           int64_t seqNum) const;
 
-    ValidationType commonValid(AppConnector& app,
-                               std::optional<SorobanNetworkConfig> const& cfg,
+    ValidationType commonValid(ValidationConnector const& vc,
                                SignatureChecker& signatureChecker,
                                LedgerSnapshot const& ls, SequenceNumber current,
                                bool applying, bool chargeFee,
@@ -210,16 +208,18 @@ class TransactionFrame : public TransactionFrameBase
     bool checkExtraSigners(SignatureChecker& signatureChecker) const;
 
     MutableTxResultPtr checkValidWithOptionallyChargedFee(
-        AppConnector& app, LedgerSnapshot const& ls, SequenceNumber current,
-        bool chargeFee, uint64_t lowerBoundCloseTimeOffset,
+        ValidationConnector const& vc, LedgerSnapshot const& ls,
+        SequenceNumber current, bool chargeFee,
+        uint64_t lowerBoundCloseTimeOffset,
         uint64_t upperBoundCloseTimeOffset) const;
     MutableTxResultPtr
-    checkValid(AppConnector& app, LedgerSnapshot const& ls,
+    checkValid(ValidationConnector const& vc, LedgerSnapshot const& ls,
                SequenceNumber current, uint64_t lowerBoundCloseTimeOffset,
                uint64_t upperBoundCloseTimeOffset) const override;
-    bool checkSorobanResourceAndSetError(
-        AppConnector& app, SorobanNetworkConfig const& cfg,
-        uint32_t ledgerVersion, MutableTxResultPtr txResult) const override;
+    bool
+    checkSorobanResourceAndSetError(ValidationConnector const& vc,
+                                    uint32_t ledgerVersion,
+                                    MutableTxResultPtr txResult) const override;
 
     MutableTxResultPtr createSuccessResult() const override;
 

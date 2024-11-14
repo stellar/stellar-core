@@ -396,6 +396,7 @@ ApplyLoad::benchmark()
                      gRandomEngine);
 
     bool limitHit = false;
+    AppValidationWrapper avw(mApp.getAppConnector(), false);
     for (auto accountIndex : shuffledAccounts)
     {
         auto it = accounts.find(accountIndex);
@@ -407,8 +408,7 @@ ApplyLoad::benchmark()
 
         {
             LedgerTxn ltx(mApp.getLedgerTxnRoot());
-            auto res = tx.second->checkValid(mApp.getAppConnector(), ltx, 0, 0,
-                                             UINT64_MAX);
+            auto res = tx.second->checkValid(avw, ltx, 0, 0, UINT64_MAX);
             releaseAssert((res && res->isSuccess()));
         }
 

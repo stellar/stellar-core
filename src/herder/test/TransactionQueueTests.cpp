@@ -70,7 +70,10 @@ invalidTransaction(Application& app, TestAccount& account, int sequenceDelta)
         app, account, account.getLastSequenceNumber() + sequenceDelta,
         {payment(account.getPublicKey(), -1)});
 }
+}
 
+namespace stellar
+{
 class TransactionQueueTest
 {
   public:
@@ -258,7 +261,10 @@ TEST_CASE("TransactionQueue complex scenarios", "[herder][transactionqueue]")
     cfg.TESTING_UPGRADE_MAX_TX_SET_SIZE = 4;
     cfg.FLOOD_TX_PERIOD_MS = 100;
     auto app = createTestApplication(clock, cfg);
-    auto queue = ClassicTransactionQueue{*app, 4, 2, 2};
+    auto bls = app->getBucketManager()
+                   .getBucketSnapshotManager()
+                   .copySearchableLiveBucketListSnapshot();
+    auto queue = ClassicTransactionQueue{*app, bls, 4, 2, 2};
     auto const minBalance2 = app->getLedgerManager().getLastMinBalance(2);
 
     auto root = TestAccount::createRoot(*app);
@@ -527,7 +533,10 @@ testTransactionQueueBasicScenarios()
     cfg.TESTING_UPGRADE_MAX_TX_SET_SIZE = 4;
     cfg.FLOOD_TX_PERIOD_MS = 100;
     auto app = createTestApplication(clock, cfg);
-    auto queue = ClassicTransactionQueue{*app, 4, 2, 2};
+    auto bls = app->getBucketManager()
+                   .getBucketSnapshotManager()
+                   .copySearchableLiveBucketListSnapshot();
+    auto queue = ClassicTransactionQueue{*app, bls, 4, 2, 2};
     auto const minBalance2 = app->getLedgerManager().getLastMinBalance(2);
 
     auto root = TestAccount::createRoot(*app);
@@ -770,7 +779,10 @@ TEST_CASE("TransactionQueue hitting the rate limit",
     cfg.TESTING_UPGRADE_MAX_TX_SET_SIZE = 4;
     cfg.FLOOD_TX_PERIOD_MS = 100;
     auto app = createTestApplication(clock, cfg);
-    auto queue = ClassicTransactionQueue{*app, 4, 2, 2};
+    auto bls = app->getBucketManager()
+                   .getBucketSnapshotManager()
+                   .copySearchableLiveBucketListSnapshot();
+    auto queue = ClassicTransactionQueue{*app, bls, 4, 2, 2};
     auto const minBalance2 = app->getLedgerManager().getLastMinBalance(2);
 
     auto root = TestAccount::createRoot(*app);
@@ -851,7 +863,10 @@ TEST_CASE("TransactionQueue with PreconditionsV2", "[herder][transactionqueue]")
     cfg.TESTING_UPGRADE_MAX_TX_SET_SIZE = 4;
     cfg.FLOOD_TX_PERIOD_MS = 100;
     auto app = createTestApplication(clock, cfg);
-    auto queue = ClassicTransactionQueue{*app, 4, 2, 2};
+    auto bls = app->getBucketManager()
+                   .getBucketSnapshotManager()
+                   .copySearchableLiveBucketListSnapshot();
+    auto queue = ClassicTransactionQueue{*app, bls, 4, 2, 2};
     auto const minBalance2 = app->getLedgerManager().getLastMinBalance(2);
 
     auto root = TestAccount::createRoot(*app);
@@ -1701,7 +1716,12 @@ TEST_CASE("TransactionQueue limits", "[herder][transactionqueue]")
     auto account6 = root.create("a6", minBalance2);
     auto account7 = root.create("a7", minBalance2);
 
-    TxQueueLimiter limiter(1, *app, false);
+    auto vs = std::make_shared<ImmutableValidationSnapshot const>(
+        app->getAppConnector());
+    auto bls = app->getBucketManager()
+                   .getBucketSnapshotManager()
+                   .copySearchableLiveBucketListSnapshot();
+    TxQueueLimiter limiter(1, false, vs, bls);
 
     struct SetupElement
     {
@@ -1882,7 +1902,12 @@ TEST_CASE("TransactionQueue limiter with DEX separation",
     auto account6 = root.create("a6", minBalance2);
 
     // 3 * 3 = 9 operations limit, 3 * 1 = 3 DEX operations limit.
-    TxQueueLimiter limiter(3, *app, false);
+    auto vs = std::make_shared<ImmutableValidationSnapshot const>(
+        app->getAppConnector());
+    auto bls = app->getBucketManager()
+                   .getBucketSnapshotManager()
+                   .copySearchableLiveBucketListSnapshot();
+    TxQueueLimiter limiter(3, false, vs, bls);
 
     std::vector<TransactionFrameBasePtr> txs;
 
@@ -2130,7 +2155,10 @@ TEST_CASE("transaction queue starting sequence boundary",
         acc1.bumpSequence(startingSeq - 1);
         REQUIRE(acc1.loadSequenceNumber() == startingSeq - 1);
 
-        ClassicTransactionQueue tq(*app, 4, 10, 4);
+        auto bls = app->getBucketManager()
+                       .getBucketSnapshotManager()
+                       .copySearchableLiveBucketListSnapshot();
+        ClassicTransactionQueue tq(*app, bls, 4, 10, 4);
         REQUIRE(tq.tryAdd(transaction(*app, acc1, 1, 1, 100), false).code ==
                 TransactionQueue::AddResultCode::ADD_STATUS_PENDING);
 
@@ -2511,12 +2539,18 @@ TEST_CASE("transaction queue with fee-bump", "[herder][transactionqueue]")
 
     SECTION("classic")
     {
-        auto queue = ClassicTransactionQueue{*app, 4, 2, 2};
+        auto bls = app->getBucketManager()
+                       .getBucketSnapshotManager()
+                       .copySearchableLiveBucketListSnapshot();
+        auto queue = ClassicTransactionQueue{*app, bls, 4, 2, 2};
         testFeeBump(queue, /* isSoroban */ false);
     }
     SECTION("soroban")
     {
-        auto queue = SorobanTransactionQueue{*app, 4, 2, 2};
+        auto bls = app->getBucketManager()
+                       .getBucketSnapshotManager()
+                       .copySearchableLiveBucketListSnapshot();
+        auto queue = SorobanTransactionQueue{*app, bls, 4, 2, 2};
         testFeeBump(queue, /* isSoroban */ true);
     }
 }
@@ -2688,12 +2722,18 @@ TEST_CASE("replace by fee", "[herder][transactionqueue]")
 
     SECTION("classic")
     {
-        auto queue = ClassicTransactionQueue{*app, 4, 2, 2};
+        auto bls = app->getBucketManager()
+                       .getBucketSnapshotManager()
+                       .copySearchableLiveBucketListSnapshot();
+        auto queue = ClassicTransactionQueue{*app, bls, 4, 2, 2};
         testReplaceByFee(queue, /* isSoroban */ false);
     }
     SECTION("soroban")
     {
-        auto queue = SorobanTransactionQueue{*app, 4, 2, 2};
+        auto bls = app->getBucketManager()
+                       .getBucketSnapshotManager()
+                       .copySearchableLiveBucketListSnapshot();
+        auto queue = SorobanTransactionQueue{*app, bls, 4, 2, 2};
         testReplaceByFee(queue, /* isSoroban */ true);
     }
 }

@@ -95,20 +95,22 @@ TransactionTestFrame::checkValid(AppConnector& app, AbstractLedgerTxn& ltxOuter,
                                  uint64_t upperBoundCloseTimeOffset) const
 {
     LedgerTxn ltx(ltxOuter);
+    AppValidationWrapper const avw(app, false);
     auto ls = LedgerSnapshot(ltx);
     mTransactionTxResult = mTransactionFrame->checkValid(
-        app, ls, current, lowerBoundCloseTimeOffset, upperBoundCloseTimeOffset);
+        avw, ls, current, lowerBoundCloseTimeOffset, upperBoundCloseTimeOffset);
     return mTransactionTxResult;
 }
 
 MutableTxResultPtr
-TransactionTestFrame::checkValid(AppConnector& app, LedgerSnapshot const& ls,
+TransactionTestFrame::checkValid(ValidationConnector const& vc,
+                                 LedgerSnapshot const& ls,
                                  SequenceNumber current,
                                  uint64_t lowerBoundCloseTimeOffset,
                                  uint64_t upperBoundCloseTimeOffset) const
 {
     mTransactionTxResult = mTransactionFrame->checkValid(
-        app, ls, current, lowerBoundCloseTimeOffset, upperBoundCloseTimeOffset);
+        vc, ls, current, lowerBoundCloseTimeOffset, upperBoundCloseTimeOffset);
     return mTransactionTxResult;
 }
 
@@ -142,11 +144,11 @@ TransactionTestFrame::checkValidForTesting(AppConnector& app,
 
 bool
 TransactionTestFrame::checkSorobanResourceAndSetError(
-    AppConnector& app, SorobanNetworkConfig const& cfg, uint32_t ledgerVersion,
+    ValidationConnector const& vc, uint32_t ledgerVersion,
     MutableTxResultPtr txResult) const
 {
     auto ret = mTransactionFrame->checkSorobanResourceAndSetError(
-        app, cfg, ledgerVersion, txResult);
+        vc, ledgerVersion, txResult);
     mTransactionTxResult = txResult;
     return ret;
 }
