@@ -4,8 +4,8 @@
 
 #pragma once
 
-#include "bucket/BucketListSnapshot.h"
 #include "bucket/BucketSnapshotManager.h"
+#include "bucket/SearchableBucketList.h"
 #include "ledger/LedgerTxn.h"
 #include "util/NonCopyable.h"
 #include <variant>

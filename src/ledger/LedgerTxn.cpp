@@ -3,8 +3,8 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "ledger/LedgerTxn.h"
-#include "bucket/BucketListSnapshot.h"
 #include "bucket/BucketManager.h"
+#include "bucket/SearchableBucketList.h"
 #include "crypto/KeyUtils.h"
 #include "database/Database.h"
 #include "ledger/LedgerRange.h"

@@ -3,18 +3,13 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "main/CommandHandler.h"
-#include "bucket/BucketListSnapshot.h"
 #include "bucket/BucketManager.h"
 #include "bucket/BucketSnapshotManager.h"
-#include "crypto/Hex.h"
 #include "crypto/KeyUtils.h"
 #include "herder/Herder.h"
 #include "history/HistoryArchiveManager.h"
-#include "ledger/InternalLedgerEntry.h"
 #include "ledger/LedgerManager.h"
 #include "ledger/LedgerTxn.h"
-#include "ledger/LedgerTxnEntry.h"
-#include "ledger/LedgerTxnImpl.h"
 #include "ledger/NetworkConfig.h"
 #include "lib/http/server.hpp"
 #include "lib/json/json.h"
@@ -25,20 +20,17 @@
 #include "overlay/BanManager.h"
 #include "overlay/OverlayManager.h"
 #include "overlay/SurveyManager.h"
-#include "transactions/InvokeHostFunctionOpFrame.h"
 #include "transactions/MutableTransactionResult.h"
 #include "transactions/TransactionBridge.h"
 #include "transactions/TransactionUtils.h"
 #include "util/GlobalChecks.h"
 #include "util/Logging.h"
-#include "util/StatusManager.h"
 #include <Tracy.hpp>
 #include <fmt/format.h>
 
 #include "medida/reporting/json_reporter.h"
 #include "util/Decoder.h"
 #include "util/XDRCereal.h"
-#include "util/XDROperators.h"
 #include "util/XDRStream.h" // IWYU pragma: keep
 #include "xdr/Stellar-ledger-entries.h"
 #include "xdr/Stellar-transaction.h"
@@ -51,9 +43,7 @@
 #include "test/TestAccount.h"
 #include "test/TxTests.h"
 #endif
-#include <iterator>
 #include <optional>
-#include <regex>
 
 using std::placeholders::_1;
 using std::placeholders::_2;

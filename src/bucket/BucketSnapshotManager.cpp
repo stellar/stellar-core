@@ -3,10 +3,10 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "bucket/BucketSnapshotManager.h"
-#include "bucket/BucketListSnapshot.h"
 #include "bucket/BucketUtils.h"
 #include "bucket/HotArchiveBucket.h"
 #include "bucket/LiveBucket.h"
+#include "bucket/SearchableBucketList.h"
 #include "main/Application.h"
 #include "util/GlobalChecks.h"
 #include "util/XDRStream.h" // IWYU pragma: keep

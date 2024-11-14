@@ -4,9 +4,9 @@
 
 #include "bucket/BucketSnapshot.h"
 #include "bucket/BucketIndex.h"
-#include "bucket/BucketListSnapshot.h"
 #include "bucket/HotArchiveBucket.h"
 #include "bucket/LiveBucket.h"
+#include "bucket/SearchableBucketList.h"
 #include "ledger/LedgerTxn.h"
 #include "ledger/LedgerTypeUtils.h"
 #include "util/XDRStream.h"

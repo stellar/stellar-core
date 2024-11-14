@@ -11,7 +11,6 @@
 // else.
 #include "util/asio.h"
 #include "bucket/BucketInputIterator.h"
-#include "bucket/BucketListSnapshot.h"
 #include "bucket/BucketManager.h"
 #include "bucket/BucketOutputIterator.h"
 #include "bucket/HotArchiveBucket.h"

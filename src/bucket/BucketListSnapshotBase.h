@@ -125,46 +125,4 @@ class SearchableBucketListSnapshotBase : public NonMovableOrCopyable
 
     std::shared_ptr<typename BucketT::LoadT> load(LedgerKey const& k);
 };
-
-class SearchableLiveBucketListSnapshot
-    : public SearchableBucketListSnapshotBase<LiveBucket>
-{
-    SearchableLiveBucketListSnapshot(
-        BucketSnapshotManager const& snapshotManager);
-
-  public:
-    std::vector<LedgerEntry>
-    loadPoolShareTrustLinesByAccountAndAsset(AccountID const& accountID,
-                                             Asset const& asset);
-
-    std::vector<InflationWinner> loadInflationWinners(size_t maxWinners,
-                                                      int64_t minBalance);
-
-    std::vector<LedgerEntry>
-    loadKeysWithLimits(std::set<LedgerKey, LedgerEntryIdCmp> const& inKeys,
-                       LedgerKeyMeter* lkMeter);
-
-    EvictionResult scanForEviction(uint32_t ledgerSeq,
-                                   EvictionCounters& counters,
-                                   EvictionIterator evictionIter,
-                                   std::shared_ptr<EvictionStatistics> stats,
-                                   StateArchivalSettings const& sas);
-
-    friend std::shared_ptr<SearchableLiveBucketListSnapshot>
-    BucketSnapshotManager::copySearchableLiveBucketListSnapshot() const;
-};
-
-class SearchableHotArchiveBucketListSnapshot
-    : public SearchableBucketListSnapshotBase<HotArchiveBucket>
-{
-    SearchableHotArchiveBucketListSnapshot(
-        BucketSnapshotManager const& snapshotManager);
-
-  public:
-    std::vector<HotArchiveBucketEntry>
-    loadKeys(std::set<LedgerKey, LedgerEntryIdCmp> const& inKeys);
-
-    friend std::shared_ptr<SearchableHotArchiveBucketListSnapshot>
-    BucketSnapshotManager::copySearchableHotArchiveBucketListSnapshot() const;
-};
 }

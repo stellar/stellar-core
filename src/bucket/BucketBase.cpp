@@ -9,7 +9,6 @@
 #include "bucket/BucketBase.h"
 #include "bucket/BucketIndex.h"
 #include "bucket/BucketInputIterator.h"
-#include "bucket/BucketListSnapshot.h"
 #include "bucket/BucketManager.h"
 #include "bucket/BucketOutputIterator.h"
 #include "bucket/BucketUtils.h"

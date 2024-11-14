@@ -9,6 +9,7 @@
 #include "bucket/LedgerCmp.h"
 #include "bucket/LiveBucket.h"
 #include "util/NonCopyable.h"
+#include "util/XDRStream.h"
 #include "xdr/Stellar-ledger-entries.h"
 #include <list>
 #include <set>
@@ -16,7 +17,6 @@
 namespace stellar
 {
 
-class XDRInputFileStream;
 struct EvictionResultEntry;
 class LedgerKeyMeter;
 class SearchableLiveBucketListSnapshot;
