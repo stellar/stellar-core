@@ -4,7 +4,6 @@
 
 #include "bucket/BucketManager.h"
 #include "bucket/BucketInputIterator.h"
-#include "bucket/BucketList.h"
 #include "bucket/BucketListSnapshot.h"
 #include "bucket/BucketManager.h"
 #include "bucket/BucketOutputIterator.h"

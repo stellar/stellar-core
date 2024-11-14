@@ -7,7 +7,6 @@
 // else.
 #include "util/asio.h" // IWYU pragma: keep
 
-#include "bucket/BucketList.h"
 #include "bucket/BucketManager.h"
 #include "bucket/FutureBucket.h"
 #include "bucket/HotArchiveBucket.h"

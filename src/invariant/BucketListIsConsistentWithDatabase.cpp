@@ -4,10 +4,9 @@
 
 #include "invariant/BucketListIsConsistentWithDatabase.h"
 #include "bucket/BucketInputIterator.h"
-#include "bucket/BucketList.h"
 #include "bucket/BucketManager.h"
 #include "bucket/LiveBucket.h"
-#include "crypto/Hex.h"
+#include "bucket/LiveBucketList.h"
 #include "history/HistoryArchive.h"
 #include "invariant/InvariantManager.h"
 #include "ledger/LedgerManager.h"

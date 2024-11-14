@@ -4,7 +4,7 @@
 
 #include "bucket/BucketListSnapshot.h"
 #include "bucket/BucketInputIterator.h"
-#include "bucket/BucketList.h"
+#include "bucket/BucketListBase.h"
 #include "bucket/BucketSnapshot.h"
 #include "bucket/HotArchiveBucket.h"
 #include "bucket/LiveBucket.h"

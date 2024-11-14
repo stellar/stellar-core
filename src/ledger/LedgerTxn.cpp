@@ -3,12 +3,9 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "ledger/LedgerTxn.h"
-#include "bucket/BucketList.h"
 #include "bucket/BucketListSnapshot.h"
 #include "bucket/BucketManager.h"
-#include "crypto/Hex.h"
 #include "crypto/KeyUtils.h"
-#include "crypto/SecretKey.h"
 #include "database/Database.h"
 #include "ledger/LedgerRange.h"
 #include "ledger/LedgerTxnEntry.h"
@@ -19,16 +16,12 @@
 #include "main/Application.h"
 #include "transactions/TransactionUtils.h"
 #include "util/GlobalChecks.h"
-#include "util/XDROperators.h"
-#include "util/XDRStream.h"
 #include "util/types.h"
 #include "xdr/Stellar-ledger-entries.h"
-#include "xdrpp/marshal.h"
 #include <Tracy.hpp>
 #include <soci.h>
 
 #include <algorithm>
-#include <numeric>
 
 namespace stellar
 {

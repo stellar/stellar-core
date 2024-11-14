@@ -1,7 +1,8 @@
 #pragma once
 
-#include "bucket/BucketList.h"
 #include "bucket/BucketMergeMap.h"
+#include "bucket/HotArchiveBucketList.h"
+#include "bucket/LiveBucketList.h"
 #include "util/types.h"
 #include "xdr/Stellar-ledger.h"
 

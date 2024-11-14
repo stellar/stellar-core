@@ -2,27 +2,21 @@
 // under the Apache License, Version 2.0. See the COPYING file at the root
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
-#include "bucket/BucketList.h"
 #include "bucket/BucketManager.h"
-#include "bucket/LedgerCmp.h"
 #include "bucket/test/BucketTestUtils.h"
 #include "crypto/SHA.h"
 #include "herder/HerderImpl.h"
-#include "herder/LedgerCloseData.h"
 #include "ledger/LedgerManager.h"
 #include "ledger/test/LedgerTestUtils.h"
 #include "lib/catch.hpp"
 #include "lib/util/stdrandom.h"
 #include "main/Application.h"
 #include "medida/stats/snapshot.h"
-#include "overlay/StellarXDR.h"
 #include "simulation/Topologies.h"
 #include "test/test.h"
 #include "transactions/TransactionFrame.h"
 #include "util/Logging.h"
 #include "util/Math.h"
-#include "util/types.h"
-#include "xdrpp/autocheck.h"
 #include <fmt/format.h>
 #include <sstream>
 

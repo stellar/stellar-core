@@ -4,9 +4,9 @@
 
 #include "catchup/ApplyBucketsWork.h"
 #include "bucket/BucketApplicator.h"
-#include "bucket/BucketList.h"
 #include "bucket/BucketManager.h"
 #include "bucket/LiveBucket.h"
+#include "bucket/LiveBucketList.h"
 #include "catchup/AssumeStateWork.h"
 #include "catchup/CatchupManager.h"
 #include "catchup/IndexBucketsWork.h"

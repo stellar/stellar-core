@@ -3,7 +3,6 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "main/ApplicationUtils.h"
-#include "bucket/BucketList.h"
 #include "bucket/BucketManager.h"
 #include "catchup/ApplyBucketsWork.h"
 #include "catchup/CatchupConfiguration.h"
@@ -20,7 +19,6 @@
 #include "ledger/LedgerManager.h"
 #include "ledger/LedgerTypeUtils.h"
 #include "main/ErrorMessages.h"
-#include "main/ExternalQueue.h"
 #include "main/Maintainer.h"
 #include "main/PersistentState.h"
 #include "main/StellarCoreVersion.h"
@@ -32,7 +30,6 @@
 #include "util/xdrquery/XDRQuery.h"
 #include "work/WorkScheduler.h"
 
-#include <charconv>
 #include <filesystem>
 #include <lib/http/HttpClient.h>
 #include <locale>

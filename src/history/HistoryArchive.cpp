@@ -7,15 +7,14 @@
 // else.
 #include "util/asio.h"
 #include "history/HistoryArchive.h"
-#include "bucket/BucketList.h"
 #include "bucket/BucketManager.h"
 #include "bucket/LiveBucket.h"
+#include "bucket/LiveBucketList.h"
 #include "crypto/Hex.h"
 #include "crypto/SHA.h"
 #include "history/HistoryManager.h"
 #include "main/Application.h"
 #include "main/StellarCoreVersion.h"
-#include "process/ProcessManager.h"
 #include "util/Fs.h"
 #include "util/GlobalChecks.h"
 #include "util/Logging.h"
@@ -26,9 +25,7 @@
 #include <cereal/archives/json.hpp>
 #include <cereal/cereal.hpp>
 #include <cereal/types/vector.hpp>
-#include <chrono>
 #include <fstream>
-#include <future>
 #include <iostream>
 #include <medida/meter.h>
 #include <medida/metrics_registry.h>

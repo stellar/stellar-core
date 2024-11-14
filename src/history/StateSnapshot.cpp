@@ -3,16 +3,15 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "history/StateSnapshot.h"
-#include "bucket/BucketList.h"
 #include "bucket/BucketManager.h"
 #include "bucket/LiveBucket.h"
+#include "bucket/LiveBucketList.h"
 #include "crypto/Hex.h"
 #include "database/Database.h"
 #include "herder/HerderPersistence.h"
 #include "history/FileTransferInfo.h"
 #include "history/HistoryArchive.h"
 #include "history/HistoryManager.h"
-#include "ledger/LedgerHeaderUtils.h"
 #include "main/Application.h"
 #include "main/Config.h"
 #include "transactions/TransactionSQL.h"
