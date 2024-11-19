@@ -52,8 +52,10 @@ BucketOutputIterator<BucketT>::BucketOutputIterator(std::string const& tmpDir,
             bme.metaEntry() = mMeta;
             put(bme);
         }
-        else if constexpr (std::is_same_v<BucketT, HotArchiveBucket>)
+        else
         {
+            static_assert(std::is_same_v<BucketT, HotArchiveBucket>,
+                          "unexpected bucket type");
             releaseAssertOrThrow(protocolVersionStartsFrom(
                 meta.ledgerVersion,
                 BucketBase::FIRST_PROTOCOL_SUPPORTING_PERSISTENT_EVICTION));
