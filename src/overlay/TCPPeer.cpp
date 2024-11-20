@@ -54,7 +54,7 @@ TCPPeer::initiate(Application& app, PeerBareAddress const& address)
     releaseAssert(address.getType() == PeerBareAddress::Type::IPv4);
 
     CLOG_DEBUG(Overlay, "TCPPeer:initiate to {}", address.toString());
-    auto& ioContext = app.getConfig().EXPERIMENTAL_BACKGROUND_OVERLAY_PROCESSING
+    auto& ioContext = app.getConfig().BACKGROUND_OVERLAY_PROCESSING
                           ? app.getOverlayIOContext()
                           : app.getClock().getIOContext();
     auto socket = make_shared<SocketType>(ioContext, BUFSZ);

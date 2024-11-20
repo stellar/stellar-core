@@ -405,7 +405,7 @@ class Config : public std::enable_shared_from_this<Config>
     size_t BUCKETLIST_DB_INDEX_CUTOFF;
 
     // Enable parallel processing of overlay operations (experimental)
-    bool EXPERIMENTAL_BACKGROUND_OVERLAY_PROCESSING;
+    bool BACKGROUND_OVERLAY_PROCESSING;
 
     // When set to true, BucketListDB indexes are persisted on-disk so that the
     // BucketList does not need to be reindexed on startup. Defaults to true.
@@ -739,7 +739,7 @@ class Config : public std::enable_shared_from_this<Config>
     bool isPersistingBucketListDBIndexes() const;
     bool modeStoresAllHistory() const;
     bool modeStoresAnyHistory() const;
-    void logBasicInfo();
+    void logBasicInfo() const;
     void setNoListen();
     void setNoPublish();
 

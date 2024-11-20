@@ -3,6 +3,7 @@
 #include "bucket/BucketList.h"
 #include "bucket/BucketManager.h"
 #include "bucket/BucketMergeMap.h"
+#include "main/Config.h"
 #include "xdr/Stellar-ledger.h"
 
 #include <map>
@@ -72,6 +73,8 @@ class BucketManagerImpl : public BucketManager
     std::future<EvictionResult> mEvictionFuture{};
 
     bool const mDeleteEntireBucketDirInDtor;
+    // Copy app's config for thread-safe access
+    Config const mConfig;
 
     // Records bucket-merges that are currently _live_ in some FutureBucket, in
     // the sense of either running, or finished (with or without the
