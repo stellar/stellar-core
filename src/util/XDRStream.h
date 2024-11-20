@@ -224,10 +224,11 @@ class XDRInputFileStream
     }
 };
 
-// XDROutputFileStream needs access to a file descriptor to do fsync, so we use
+// OutputFileStream needs access to a file descriptor to do fsync, so we use
 // asio's synchronous stream types here rather than fstreams.
-class XDROutputFileStream
+class OutputFileStream
 {
+  protected:
     std::vector<char> mBuf;
     const bool mFsyncOnClose;
 
@@ -241,7 +242,7 @@ class XDROutputFileStream
 #endif
 
   public:
-    XDROutputFileStream(asio::io_context& ctx, bool fsyncOnClose)
+    OutputFileStream(asio::io_context& ctx, bool fsyncOnClose)
         : mFsyncOnClose(fsyncOnClose)
 #ifndef WIN32
         , mBufferedWriteStream(ctx, stellar::fs::bufsz())
@@ -249,7 +250,7 @@ class XDROutputFileStream
     {
     }
 
-    ~XDROutputFileStream()
+    ~OutputFileStream()
     {
         if (isOpen())
         {
@@ -377,6 +378,58 @@ class XDROutputFileStream
         return isOpen();
     }
 
+    void
+    writeBytes(char const* buf, size_t const sizeBytes)
+    {
+        ZoneScoped;
+        if (!isOpen())
+        {
+            FileSystemException::failWith(
+                "OutputFileStream::writeBytes() on non-open stream");
+        }
+
+        size_t written = 0;
+        while (written < sizeBytes)
+        {
+#ifdef WIN32
+            auto w = fwrite(buf + written, 1, sizeBytes - written, mOut);
+            if (w == 0)
+            {
+                FileSystemException::failWith(
+                    std::string("XDROutputFileStream::writeOne() failed"));
+            }
+            written += w;
+#else
+            asio::error_code ec;
+            auto asioBuf = asio::buffer(buf + written, sizeBytes - written);
+            written += asio::write(mBufferedWriteStream, asioBuf, ec);
+            if (ec)
+            {
+                if (ec == asio::error::interrupted)
+                {
+                    continue;
+                }
+                else
+                {
+                    FileSystemException::failWith(
+                        std::string(
+                            "XDROutputFileStream::writeOne() failed: ") +
+                        ec.message());
+                }
+            }
+#endif
+        }
+    }
+};
+
+class XDROutputFileStream : public OutputFileStream
+{
+  public:
+    XDROutputFileStream(asio::io_context& ctx, bool fsyncOnClose)
+        : OutputFileStream(ctx, fsyncOnClose)
+    {
+    }
+
     template <typename T>
     void
     durableWriteOne(T const& t, SHA256* hasher = nullptr,
@@ -392,12 +445,6 @@ class XDROutputFileStream
     writeOne(T const& t, SHA256* hasher = nullptr, size_t* bytesPut = nullptr)
     {
         ZoneScoped;
-        if (!isOpen())
-        {
-            FileSystemException::failWith(
-                "XDROutputFileStream::writeOne() on non-open stream");
-        }
-
         uint32_t sz = (uint32_t)xdr::xdr_size(t);
         releaseAssertOrThrow(sz < 0x80000000);
 
@@ -415,41 +462,13 @@ class XDROutputFileStream
         xdr::xdr_put p(mBuf.data() + 4, mBuf.data() + 4 + sz);
         xdr_argpack_archive(p, t);
 
-        size_t const to_write = sz + 4;
-        size_t written = 0;
-        while (written < to_write)
-        {
-#ifdef WIN32
-            auto w = fwrite(mBuf.data() + written, 1, to_write - written, mOut);
-            if (w == 0)
-            {
-                FileSystemException::failWith(
-                    std::string("XDROutputFileStream::writeOne() failed"));
-            }
-            written += w;
-#else
-            asio::error_code ec;
-            auto buf = asio::buffer(mBuf.data() + written, to_write - written);
-            written += asio::write(mBufferedWriteStream, buf, ec);
-            if (ec)
-            {
-                if (ec == asio::error::interrupted)
-                {
-                    continue;
-                }
-                else
-                {
-                    FileSystemException::failWith(
-                        std::string(
-                            "XDROutputFileStream::writeOne() failed: ") +
-                        ec.message());
-                }
-            }
-#endif
-        }
+        // Buffer is 4 bytes of encoded size, followed by encoded object
+        size_t const toWrite = sz + 4;
+        writeBytes(mBuf.data(), toWrite);
+
         if (hasher)
         {
-            hasher->add(ByteSlice(mBuf.data(), sz + 4));
+            hasher->add(ByteSlice(mBuf.data(), toWrite));
         }
         if (bytesPut)
         {

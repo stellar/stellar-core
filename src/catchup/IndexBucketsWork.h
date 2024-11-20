@@ -4,6 +4,7 @@
 
 #pragma once
 
+#include "work/BasicWork.h"
 #include "work/Work.h"
 #include <memory>
 
@@ -20,7 +21,7 @@ class IndexBucketsWork : public Work
     {
         std::shared_ptr<Bucket> mBucket;
         std::unique_ptr<BucketIndex const> mIndex;
-        bool mDone{false};
+        BasicWork::State mState{BasicWork::State::WORK_WAITING};
 
         void postWork();
 
@@ -30,6 +31,7 @@ class IndexBucketsWork : public Work
       protected:
         State onRun() override;
         bool onAbort() override;
+        void onReset() override;
     };
 
     std::vector<std::shared_ptr<Bucket>> const& mBuckets;

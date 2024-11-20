@@ -10,6 +10,7 @@
 #include "ledger/LedgerTypeUtils.h"
 #include "main/Config.h"
 #include "util/BinaryFuseFilter.h"
+#include "util/BufferedAsioCerealOutputArchive.h"
 #include "util/Fs.h"
 #include "util/LogSlowExecution.h"
 #include "util/Logging.h"
@@ -69,7 +70,8 @@ template <class IndexT>
 BucketIndexImpl<IndexT>::BucketIndexImpl(BucketManager& bm,
                                          std::filesystem::path const& filename,
                                          std::streamoff pageSize,
-                                         Hash const& hash)
+                                         Hash const& hash,
+                                         asio::io_context& ctx)
     : mBloomMissMeter(bm.getBloomMissMeter())
     , mBloomLookupMeter(bm.getBloomLookupMeter())
 {
@@ -96,7 +98,7 @@ BucketIndexImpl<IndexT>::BucketIndexImpl(BucketManager& bm,
         std::streamoff pageUpperBound = 0;
         BucketEntry be;
         size_t iter = 0;
-        size_t count = 0;
+        [[maybe_unused]] size_t count = 0;
 
         std::vector<uint64_t> keyHashes;
         auto seed = shortHash::getShortHashInitKey();
@@ -205,7 +207,7 @@ BucketIndexImpl<IndexT>::BucketIndexImpl(BucketManager& bm,
 
     if (bm.getConfig().isPersistingBucketListDBIndexes())
     {
-        saveToDisk(bm, hash);
+        saveToDisk(bm, hash, ctx);
     }
 }
 
@@ -214,14 +216,14 @@ BucketIndexImpl<IndexT>::BucketIndexImpl(BucketManager& bm,
 template <>
 void
 BucketIndexImpl<BucketIndex::IndividualIndex>::saveToDisk(
-    BucketManager& bm, Hash const& hash) const
+    BucketManager& bm, Hash const& hash, asio::io_context& ctx) const
 {
 }
 
 template <>
 void
-BucketIndexImpl<BucketIndex::RangeIndex>::saveToDisk(BucketManager& bm,
-                                                     Hash const& hash) const
+BucketIndexImpl<BucketIndex::RangeIndex>::saveToDisk(
+    BucketManager& bm, Hash const& hash, asio::io_context& ctx) const
 {
     ZoneScoped;
     releaseAssert(bm.getConfig().isPersistingBucketListDBIndexes());
@@ -235,10 +237,9 @@ BucketIndexImpl<BucketIndex::RangeIndex>::saveToDisk(BucketManager& bm,
                tmpFilename);
 
     {
-        std::ofstream out;
-        out.exceptions(std::ios::failbit | std::ios::badbit);
-        out.open(tmpFilename, std::ios_base::binary | std::ios_base::trunc);
-        cereal::BinaryOutputArchive ar(out);
+        OutputFileStream out(ctx, !bm.getConfig().DISABLE_XDR_FSYNC);
+        out.open(tmpFilename);
+        cereal::BufferedAsioOutputArchive ar(out);
         ar(mData);
     }
 
@@ -331,7 +332,7 @@ upper_bound_pred(LedgerKey const& key, IndexEntryT const& indexEntry)
 std::unique_ptr<BucketIndex const>
 BucketIndex::createIndex(BucketManager& bm,
                          std::filesystem::path const& filename,
-                         Hash const& hash)
+                         Hash const& hash, asio::io_context& ctx)
 {
     ZoneScoped;
     auto const& cfg = bm.getConfig();
@@ -348,7 +349,8 @@ BucketIndex::createIndex(BucketManager& bm,
                        "bucket {}",
                        filename);
             return std::unique_ptr<BucketIndexImpl<IndividualIndex> const>(
-                new BucketIndexImpl<IndividualIndex>(bm, filename, 0, hash));
+                new BucketIndexImpl<IndividualIndex>(bm, filename, 0, hash,
+                                                     ctx));
         }
         else
         {
@@ -358,7 +360,8 @@ BucketIndex::createIndex(BucketManager& bm,
                        "{} in bucket {}",
                        pageSize, filename);
             return std::unique_ptr<BucketIndexImpl<RangeIndex> const>(
-                new BucketIndexImpl<RangeIndex>(bm, filename, pageSize, hash));
+                new BucketIndexImpl<RangeIndex>(bm, filename, pageSize, hash,
+                                                ctx));
         }
     }
     // BucketIndexImpl throws if BucketManager shuts down before index finishes,

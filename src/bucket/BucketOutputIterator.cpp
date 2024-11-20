@@ -24,6 +24,7 @@ BucketOutputIterator::BucketOutputIterator(std::string const& tmpDir,
                                            asio::io_context& ctx, bool doFsync)
     : mFilename(Bucket::randomBucketName(tmpDir))
     , mOut(ctx, doFsync)
+    , mCtx(ctx)
     , mBuf(nullptr)
     , mKeepDeadEntries(keepDeadEntries)
     , mMeta(meta)
@@ -131,7 +132,9 @@ BucketOutputIterator::getBucket(BucketManager& bucketManager,
         if (auto b = bucketManager.getBucketIfExists(hash);
             !b || !b->isIndexed())
         {
-            index = BucketIndex::createIndex(bucketManager, mFilename, hash);
+            index =
+                BucketIndex::createIndex(bucketManager, mFilename, hash, mCtx);
+            releaseAssertOrThrow(index);
         }
     }
 
