@@ -497,17 +497,17 @@ OverlayManagerImpl::triggerPeerResolution()
 
     // Trigger DNS resolution on the background thread
     using task_t = std::packaged_task<ResolvedPeers()>;
-    std::shared_ptr<task_t> task = std::make_shared<task_t>([this]() {
-        if (!this->mShuttingDown)
-        {
-            auto known = resolvePeers(this->mApp.getConfig().KNOWN_PEERS);
-            auto preferred =
-                resolvePeers(this->mApp.getConfig().PREFERRED_PEERS);
-            return ResolvedPeers{known.first, preferred.first,
-                                 known.second || preferred.second};
-        }
-        return ResolvedPeers{{}, {}, false};
-    });
+    std::shared_ptr<task_t> task =
+        std::make_shared<task_t>([this, cfg = mApp.getConfig()]() {
+            if (!this->mShuttingDown)
+            {
+                auto known = resolvePeers(cfg.KNOWN_PEERS);
+                auto preferred = resolvePeers(cfg.PREFERRED_PEERS);
+                return ResolvedPeers{known.first, preferred.first,
+                                     known.second || preferred.second};
+            }
+            return ResolvedPeers{{}, {}, false};
+        });
 
     mResolvedPeers = task->get_future();
     mApp.postOnBackgroundThread(bind(&task_t::operator(), task),

@@ -91,7 +91,7 @@ void
 BucketManagerImpl::initialize()
 {
     ZoneScoped;
-    std::string d = mApp.getConfig().BUCKET_DIR_PATH;
+    std::string d = mConfig.BUCKET_DIR_PATH;
 
     if (!fs::exists(d))
     {
@@ -122,17 +122,17 @@ BucketManagerImpl::initialize()
     mLockedBucketDir = std::make_unique<std::string>(d);
     mTmpDirManager = std::make_unique<TmpDirManager>(d + "/tmp");
 
-    if (mApp.getConfig().MODE_ENABLES_BUCKETLIST)
+    if (mConfig.MODE_ENABLES_BUCKETLIST)
     {
         mBucketList = std::make_unique<BucketList>();
 
-        if (mApp.getConfig().isUsingBucketListDB())
+        if (mConfig.isUsingBucketListDB())
         {
             mSnapshotManager = std::make_unique<BucketSnapshotManager>(
                 mApp,
                 std::make_unique<BucketListSnapshot>(*mBucketList,
                                                      LedgerHeader()),
-                mApp.getConfig().QUERY_SNAPSHOT_LEDGERS);
+                mConfig.QUERY_SNAPSHOT_LEDGERS);
         }
     }
 
@@ -141,11 +141,10 @@ BucketManagerImpl::initialize()
     // BUCKET_DIR_PATH, HISTORY_FILE_TYPE_SCP is persisted to the database
     // so create the remaining ledger header, transactions and results
     // directories
-    createPublishDir(FileType::HISTORY_FILE_TYPE_LEDGER, mApp.getConfig());
-    createPublishDir(FileType::HISTORY_FILE_TYPE_TRANSACTIONS,
-                     mApp.getConfig());
-    createPublishDir(FileType::HISTORY_FILE_TYPE_RESULTS, mApp.getConfig());
-    HistoryManager::createPublishQueueDir(mApp.getConfig());
+    createPublishDir(FileType::HISTORY_FILE_TYPE_LEDGER, mConfig);
+    createPublishDir(FileType::HISTORY_FILE_TYPE_TRANSACTIONS, mConfig);
+    createPublishDir(FileType::HISTORY_FILE_TYPE_RESULTS, mConfig);
+    HistoryManager::createPublishQueueDir(mConfig);
 }
 
 void
@@ -201,6 +200,7 @@ BucketManagerImpl::BucketManagerImpl(Application& app)
     // mode does not use minimal DB
     , mDeleteEntireBucketDirInDtor(
           app.getConfig().isInMemoryModeWithoutMinimalDB())
+    , mConfig(app.getConfig())
 {
     for (uint32_t t =
              static_cast<uint32_t>(LedgerEntryTypeAndDurability::ACCOUNT);
@@ -299,7 +299,7 @@ void
 BucketManagerImpl::deleteEntireBucketDir()
 {
     ZoneScoped;
-    std::string d = mApp.getConfig().BUCKET_DIR_PATH;
+    std::string d = mConfig.BUCKET_DIR_PATH;
     if (fs::exists(d))
     {
         // First clean out the contents of the tmpdir, as usual.
@@ -332,7 +332,7 @@ BucketManagerImpl::deleteTmpDirAndUnlockBucketDir()
     // Then delete the lockfile $BUCKET_DIR_PATH/stellar-core.lock
     if (mLockedBucketDir)
     {
-        std::string d = mApp.getConfig().BUCKET_DIR_PATH;
+        std::string d = mConfig.BUCKET_DIR_PATH;
         std::string lock = d + "/" + kLockFilename;
         releaseAssert(fs::exists(lock));
         fs::unlockFile(lock);
@@ -343,14 +343,14 @@ BucketManagerImpl::deleteTmpDirAndUnlockBucketDir()
 BucketList&
 BucketManagerImpl::getBucketList()
 {
-    releaseAssertOrThrow(mApp.getConfig().MODE_ENABLES_BUCKETLIST);
+    releaseAssertOrThrow(mConfig.MODE_ENABLES_BUCKETLIST);
     return *mBucketList;
 }
 
 BucketSnapshotManager&
 BucketManagerImpl::getBucketSnapshotManager() const
 {
-    releaseAssertOrThrow(mApp.getConfig().isUsingBucketListDB());
+    releaseAssertOrThrow(mConfig.isUsingBucketListDB());
     releaseAssert(mSnapshotManager);
     return *mSnapshotManager;
 }
@@ -476,7 +476,7 @@ BucketManagerImpl::renameBucketDirFile(std::filesystem::path const& src,
                                        std::filesystem::path const& dst)
 {
     ZoneScoped;
-    if (mApp.getConfig().DISABLE_XDR_FSYNC)
+    if (mConfig.DISABLE_XDR_FSYNC)
     {
         return rename(src.string().c_str(), dst.string().c_str()) == 0;
     }
@@ -492,7 +492,7 @@ BucketManagerImpl::adoptFileAsBucket(std::string const& filename,
                                      std::unique_ptr<BucketIndex const> index)
 {
     ZoneScoped;
-    releaseAssertOrThrow(mApp.getConfig().MODE_ENABLES_BUCKETLIST);
+    releaseAssertOrThrow(mConfig.MODE_ENABLES_BUCKETLIST);
     std::lock_guard<std::recursive_mutex> lock(mBucketMutex);
 
     if (mergeKey)
@@ -566,7 +566,7 @@ BucketManagerImpl::adoptFileAsBucket(std::string const& filename,
 void
 BucketManagerImpl::noteEmptyMergeOutput(MergeKey const& mergeKey)
 {
-    releaseAssertOrThrow(mApp.getConfig().MODE_ENABLES_BUCKETLIST);
+    releaseAssertOrThrow(mConfig.MODE_ENABLES_BUCKETLIST);
 
     // We _do_ want to remove the mergeKey from mLiveFutures, both so that that
     // map does not grow without bound and more importantly so that we drop the
@@ -681,7 +681,7 @@ BucketManagerImpl::putMergeFuture(
     MergeKey const& key, std::shared_future<std::shared_ptr<Bucket>> wp)
 {
     ZoneScoped;
-    releaseAssertOrThrow(mApp.getConfig().MODE_ENABLES_BUCKETLIST);
+    releaseAssertOrThrow(mConfig.MODE_ENABLES_BUCKETLIST);
     std::lock_guard<std::recursive_mutex> lock(mBucketMutex);
     CLOG_TRACE(
         Bucket,
@@ -704,7 +704,7 @@ BucketManagerImpl::getBucketListReferencedBuckets() const
 {
     ZoneScoped;
     std::set<Hash> referenced;
-    if (!mApp.getConfig().MODE_ENABLES_BUCKETLIST)
+    if (!mConfig.MODE_ENABLES_BUCKETLIST)
     {
         return referenced;
     }
@@ -743,7 +743,7 @@ BucketManagerImpl::getAllReferencedBuckets() const
 {
     ZoneScoped;
     auto referenced = getBucketListReferencedBuckets();
-    if (!mApp.getConfig().MODE_ENABLES_BUCKETLIST)
+    if (!mConfig.MODE_ENABLES_BUCKETLIST)
     {
         return referenced;
     }
@@ -788,7 +788,7 @@ void
 BucketManagerImpl::cleanupStaleFiles()
 {
     ZoneScoped;
-    if (mApp.getConfig().DISABLE_BUCKET_GC)
+    if (mConfig.DISABLE_BUCKET_GC)
     {
         return;
     }
@@ -867,7 +867,7 @@ BucketManagerImpl::forgetUnreferencedBuckets()
             CLOG_TRACE(Bucket,
                        "BucketManager::forgetUnreferencedBuckets dropping {}",
                        filename);
-            if (!filename.empty() && !mApp.getConfig().DISABLE_BUCKET_GC)
+            if (!filename.empty() && !mConfig.DISABLE_BUCKET_GC)
             {
                 CLOG_TRACE(Bucket, "removing bucket file: {}", filename);
                 std::filesystem::remove(filename);
@@ -974,7 +974,7 @@ BucketManagerImpl::snapshotLedger(LedgerHeader& currentHeader)
 {
     ZoneScoped;
     Hash hash;
-    if (mApp.getConfig().MODE_ENABLES_BUCKETLIST)
+    if (mConfig.MODE_ENABLES_BUCKETLIST)
     {
         hash = mBucketList->getHash();
     }
@@ -1017,7 +1017,7 @@ BucketManagerImpl::scanForEvictionLegacy(AbstractLedgerTxn& ltx,
 void
 BucketManagerImpl::startBackgroundEvictionScan(uint32_t ledgerSeq)
 {
-    releaseAssert(mApp.getConfig().isUsingBucketListDB());
+    releaseAssert(mConfig.isUsingBucketListDB());
     releaseAssert(mSnapshotManager);
     releaseAssert(!mEvictionFuture.valid());
     releaseAssert(mEvictionStatistics);
@@ -1176,7 +1176,7 @@ BucketManagerImpl::assumeState(HistoryArchiveState const& has,
                                uint32_t maxProtocolVersion, bool restartMerges)
 {
     ZoneScoped;
-    releaseAssertOrThrow(mApp.getConfig().MODE_ENABLES_BUCKETLIST);
+    releaseAssertOrThrow(mConfig.MODE_ENABLES_BUCKETLIST);
 
     for (uint32_t i = 0; i < BucketList::kNumLevels; ++i)
     {
@@ -1203,7 +1203,7 @@ BucketManagerImpl::assumeState(HistoryArchiveState const& has,
 
         // Buckets on the BucketList should always be indexed when
         // BucketListDB enabled
-        if (mApp.getConfig().isUsingBucketListDB())
+        if (mConfig.isUsingBucketListDB())
         {
             releaseAssert(curr->isEmpty() || curr->isIndexed());
             releaseAssert(snap->isEmpty() || snap->isIndexed());
@@ -1328,7 +1328,7 @@ BucketManagerImpl::mergeBuckets(HistoryArchiveState const& has)
     BucketMetadata meta;
     MergeCounters mc;
     auto& ctx = mApp.getClock().getIOContext();
-    meta.ledgerVersion = mApp.getConfig().LEDGER_PROTOCOL_VERSION;
+    meta.ledgerVersion = mConfig.LEDGER_PROTOCOL_VERSION;
     BucketOutputIterator out(getTmpDir(), /*keepDeadEntries=*/false, meta, mc,
                              ctx, /*doFsync=*/true);
     for (auto const& pair : ledgerMap)
@@ -1539,13 +1539,13 @@ BucketManagerImpl::scheduleVerifyReferencedBucketsWork()
 Config const&
 BucketManagerImpl::getConfig() const
 {
-    return mApp.getConfig();
+    return mConfig;
 }
 
 std::shared_ptr<SearchableBucketListSnapshot>
 BucketManagerImpl::getSearchableBucketListSnapshot()
 {
-    releaseAssert(mApp.getConfig().isUsingBucketListDB());
+    releaseAssert(mConfig.isUsingBucketListDB());
     // Any other threads must maintain their own snapshot
     releaseAssert(threadIsMain());
     if (!mSearchableBucketListSnapshot)
@@ -1560,7 +1560,7 @@ BucketManagerImpl::getSearchableBucketListSnapshot()
 void
 BucketManagerImpl::reportBucketEntryCountMetrics()
 {
-    if (!mApp.getConfig().isUsingBucketListDB())
+    if (!mConfig.isUsingBucketListDB())
     {
         return;
     }

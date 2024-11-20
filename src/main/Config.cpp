@@ -1975,7 +1975,7 @@ Config::adjust()
 }
 
 void
-Config::logBasicInfo()
+Config::logBasicInfo() const
 {
     LOG_INFO(DEFAULT_LOG, "Connection effective settings:");
     LOG_INFO(DEFAULT_LOG, "TARGET_PEER_CONNECTIONS: {}",

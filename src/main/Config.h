@@ -739,7 +739,7 @@ class Config : public std::enable_shared_from_this<Config>
     bool isPersistingBucketListDBIndexes() const;
     bool modeStoresAllHistory() const;
     bool modeStoresAnyHistory() const;
-    void logBasicInfo();
+    void logBasicInfo() const;
     void setNoListen();
     void setNoPublish();
 
