@@ -15,6 +15,11 @@
 
 #include <cereal/archives/binary.hpp>
 
+namespace asio
+{
+class io_context;
+}
+
 namespace stellar
 {
 
@@ -87,7 +92,7 @@ class BucketIndex : public NonMovableOrCopyable
     template <class BucketT>
     static std::unique_ptr<BucketIndex const>
     createIndex(BucketManager& bm, std::filesystem::path const& filename,
-                Hash const& hash);
+                Hash const& hash, asio::io_context& ctx);
 
     // Loads index from given file. If file does not exist or if saved
     // index does not have same parameters as current config, return null

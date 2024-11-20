@@ -22,6 +22,7 @@ class IndexBucketsWork : public Work
         std::shared_ptr<LiveBucket> mBucket;
         std::unique_ptr<BucketIndex const> mIndex;
         bool mDone{false};
+        bool mFailed{false};
 
         void postWork();
 

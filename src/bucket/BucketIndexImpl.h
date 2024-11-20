@@ -10,6 +10,7 @@
 #include "util/BinaryFuseFilter.h"
 #include "xdr/Stellar-types.h"
 
+#include "util/BufferedAsioCerealOutputArchive.h"
 #include <cereal/types/map.hpp>
 #include <map>
 #include <memory>
@@ -65,14 +66,15 @@ template <class IndexT> class BucketIndexImpl : public BucketIndex
     template <class BucketEntryT>
     BucketIndexImpl(BucketManager& bm, std::filesystem::path const& filename,
                     std::streamoff pageSize, Hash const& hash,
-                    BucketEntryT const& typeTag);
+                    asio::io_context& ctx, BucketEntryT const& typeTag);
 
     template <class Archive>
     BucketIndexImpl(BucketManager const& bm, Archive& ar,
                     std::streamoff pageSize);
 
     // Saves index to disk, overwriting any preexisting file for this index
-    void saveToDisk(BucketManager& bm, Hash const& hash) const;
+    void saveToDisk(BucketManager& bm, Hash const& hash,
+                    asio::io_context& ctx) const;
 
     // Returns [lowFileOffset, highFileOffset) that contain the key ranges
     // [lowerBound, upperBound]. If no file offsets exist, returns [0, 0]

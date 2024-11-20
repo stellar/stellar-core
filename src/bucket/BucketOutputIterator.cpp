@@ -29,6 +29,7 @@ BucketOutputIterator<BucketT>::BucketOutputIterator(std::string const& tmpDir,
                                                     bool doFsync)
     : mFilename(BucketBase::randomBucketName(tmpDir))
     , mOut(ctx, doFsync)
+    , mCtx(ctx)
     , mBuf(nullptr)
     , mKeepTombstoneEntries(keepTombstoneEntries)
     , mMeta(meta)
@@ -199,7 +200,8 @@ BucketOutputIterator<BucketT>::getBucket(BucketManager& bucketManager,
             !b || !b->isIndexed())
         {
             index = BucketIndex::createIndex<BucketT>(bucketManager, mFilename,
-                                                      hash);
+                                                      hash, mCtx);
+            releaseAssertOrThrow(index);
         }
     }
 

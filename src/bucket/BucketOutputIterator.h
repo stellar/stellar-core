@@ -27,6 +27,7 @@ template <typename BucketT> class BucketOutputIterator
   protected:
     std::filesystem::path mFilename;
     XDROutputFileStream mOut;
+    asio::io_context& mCtx;
     BucketEntryIdCmp<BucketT> mCmp;
     std::unique_ptr<typename BucketT::EntryT> mBuf;
     SHA256 mHasher;
