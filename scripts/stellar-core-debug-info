@@ -26,39 +26,44 @@ def parse_args():
                         'If not set we will try to find it in the config. '
                         'Set to string "disabled" to exclude buckets directory.')
     parser.add_argument('-p', '--core-path', required=False, type=str, help='Path to the stellar-core binary. '
-                        'If not set "stellar-core" will be used.', default='stellar-core')
+                        'If not set "stellar-core" will be used.')
     parser.add_argument('-s', '--sqlite-path', required=False, type=str, help='Path to the sqlite database. '
                         'If not set we will try to find it in the config. '
                         'Set to string "disabled" to exclude sqlite.')
     return parser.parse_args()
 
+def is_docker():
+    def text_in_file(text, filename):
+        try:
+            with open(filename, encoding='utf-8') as lines:
+                return any(text in line for line in lines)
+        except OSError:
+            return False
+    cgroup = '/proc/self/cgroup'
+    return os.path.exists('/.dockerenv') or text_in_file('docker', cgroup)
+
 def get_service_exec_start():
+    # Use systemctl to retrieve the service file content
     service_name = "stellar-core.service"
-    try:
-        # Use systemctl to retrieve the service file content
-        result = subprocess.run(
-            ["systemctl", "cat", service_name],
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            text=True
-        )
+    result = subprocess.check_output(
+        ["systemctl", "cat", service_name],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True
+    )
 
-        if result.returncode != 0:
-            raise Exception(result.stderr.strip())
+    # Parse the service file content
+    exec_start = None
+    for line in result:
+        print(f'line: {line}')
+        if line.strip().startswith("ExecStart="):
+            exec_start = line.split("=", 1)[1].strip()
+            break
 
-        # Parse the service file content
-        exec_start = None
-        for line in result.stdout.splitlines():
-            if line.strip().startswith("ExecStart="):
-                exec_start = line.split("=", 1)[1].strip()
-                break
-
-        if exec_start:
-            return exec_start
-        else:
-            raise ValueError(f"No 'ExecStart' found in {service_name} service file.")
-    except Exception as e:
-        return f"Error: {e}"
+    if exec_start:
+        return exec_start
+    else:
+        raise ValueError(f"No 'ExecStart' found in {service_name} service file.")
 
 def extract_paths(exec_start):
     try:
@@ -113,19 +118,35 @@ class Gatherer(object):
 
     def pre_flight(self):
         if not self.core_config:
+            # First try to get the stellar-core config from the service file
             try:
                 exec_start = get_service_exec_start()
                 self.core_path, self.core_config = extract_paths(exec_start)
             except Exception as e:
-                print(f"Could not parse stellar-core config file from service file, please provide it with --core-config flag.")
-                return False
+                pass
+
+            # Couldn't find service file, check if we're running in docker
+            if not self.core_config or not self.core_path:
+                # If script is run in docker, try default docker paths
+                if is_docker():
+                    self.core_config = '/etc/stellar/stellar-core.cfg'
+                    self.core_path = '/usr/bin/stellar-core'
+                else:
+                    print("Error: could not find stellar-core config file in service file or docker container, please specify with --core-config flag")
+                    return False
+
         else:
+            # Default to stellar-core if path not specified
+            if not self.core_path or self.core_path == 'stellar-core':
+                self.core_path = get_full_path_for_command('stellar-core')
+                if not self.core_path:
+                    print("Error: stellar-core command not found, please specify executable with --core-path flag")
+                    return False
+            else:
+                self.core_path = get_full_path_for_command(self.core_path)
+
             # If the paths are not absolute, make them absolute
             self.core_config = get_full_path_for_file(self.core_config)
-            self.core_path = get_full_path_for_command(self.core_path)
-            if not self.core_path:
-                print("Error: stellar-core command not found, please specify executable with --core-path flag")
-                return False
 
         if os.path.exists(self.base_dir) and not os.path.isdir(self.base_dir):
             print(f"Error: destination path {self.base_dir} exists but is not a directory")
@@ -158,7 +179,7 @@ class Gatherer(object):
 
         # Check if stellar-core executable exists and is executable
         if not os.path.isfile(self.core_path):
-            print(f"Error: stellar-core binary not found, have you specified a full path?: {self.core_path}")
+            print(f"Error: stellar-core binary not found at {self.core_path}, have you specified a full path?")
             return False
 
         if not os.access(self.core_path, os.X_OK):
