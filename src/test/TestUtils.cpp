@@ -50,23 +50,6 @@ shutdownWorkScheduler(Application& app)
     }
 }
 
-void
-injectSendPeersAndReschedule(VirtualClock::time_point& end, VirtualClock& clock,
-                             VirtualTimer& timer,
-                             LoopbackPeerConnection& connection)
-{
-    connection.getInitiator()->sendGetPeers();
-    if (clock.now() < end && connection.getInitiator()->isConnectedForTesting())
-    {
-        timer.expires_from_now(std::chrono::milliseconds(10));
-        timer.async_wait(
-            [&]() {
-                injectSendPeersAndReschedule(end, clock, timer, connection);
-            },
-            &VirtualTimer::onFailureNoop);
-    }
-}
-
 std::vector<Asset>
 getInvalidAssets(SecretKey const& issuer)
 {

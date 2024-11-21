@@ -43,8 +43,6 @@ OverlayMetrics::OverlayMetrics(Application& app)
     , mRecvAuthTimer(app.getMetrics().NewTimer({"overlay", "recv", "auth"}))
     , mRecvDontHaveTimer(
           app.getMetrics().NewTimer({"overlay", "recv", "dont-have"}))
-    , mRecvGetPeersTimer(
-          app.getMetrics().NewTimer({"overlay", "recv", "get-peers"}))
     , mRecvPeersTimer(app.getMetrics().NewTimer({"overlay", "recv", "peers"}))
     , mRecvGetTxSetTimer(
           app.getMetrics().NewTimer({"overlay", "recv", "get-txset"}))
@@ -114,8 +112,6 @@ OverlayMetrics::OverlayMetrics(Application& app)
           app.getMetrics().NewMeter({"overlay", "send", "auth"}, "message"))
     , mSendDontHaveMeter(app.getMetrics().NewMeter(
           {"overlay", "send", "dont-have"}, "message"))
-    , mSendGetPeersMeter(app.getMetrics().NewMeter(
-          {"overlay", "send", "get-peers"}, "message"))
     , mSendPeersMeter(
           app.getMetrics().NewMeter({"overlay", "send", "peers"}, "message"))
     , mSendGetTxSetMeter(app.getMetrics().NewMeter(

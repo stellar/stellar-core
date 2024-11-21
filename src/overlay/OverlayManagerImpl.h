@@ -113,9 +113,9 @@ class OverlayManagerImpl : public OverlayManager
 
     void clearLedgersBelow(uint32_t ledgerSeq, uint32_t lclSeq) override;
     bool recvFloodedMsgID(StellarMessage const& msg, Peer::pointer peer,
-                          Hash& msgID) override;
-    void recvTransaction(StellarMessage const& msg,
-                         Peer::pointer peer) override;
+                          Hash const& msgID) override;
+    void recvTransaction(StellarMessage const& msg, Peer::pointer peer,
+                         Hash const& index) override;
     void forgetFloodedMsg(Hash const& msgID) override;
     void recvTxDemand(FloodDemand const& dmd, Peer::pointer peer) override;
     bool broadcastMessage(std::shared_ptr<StellarMessage const> msg,
@@ -181,6 +181,8 @@ class OverlayManagerImpl : public OverlayManager
     std::future<ResolvedPeers> mResolvedPeers;
     bool mResolvingPeersWithBackoff;
     int mResolvingPeersRetryCount;
+    RandomEvictionCache<Hash, std::weak_ptr<CapacityTrackedMessage>>
+        mScheduledMessages;
 
     void triggerPeerResolution();
     std::pair<std::vector<PeerBareAddress>, bool>
@@ -209,10 +211,13 @@ class OverlayManagerImpl : public OverlayManager
     void extractPeersFromMap(std::map<NodeID, Peer::pointer> const& peerMap,
                              std::vector<Peer::pointer>& result);
     void shufflePeerList(std::vector<Peer::pointer>& peerList);
-    AdjustedFlowControlConfig getFlowControlBytesConfig() const override;
+    uint32_t getFlowControlBytesTotal() const override;
 
     // Returns `true` iff the overlay can accept the outbound peer at `address`.
     // Logs whenever a peer cannot be accepted.
     bool canAcceptOutboundPeer(PeerBareAddress const& address) const;
+
+    bool checkScheduledAndCache(
+        std::shared_ptr<CapacityTrackedMessage> tracker) override;
 };
 }

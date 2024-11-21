@@ -38,6 +38,7 @@ class LoopbackPeer;
 struct OverlayMetrics;
 class FlowControl;
 class TxAdverts;
+class CapacityTrackedMessage;
 
 // Peer class represents a connected peer (either inbound or outbound)
 //
@@ -71,7 +72,6 @@ class Peer : public std::enable_shared_from_this<Peer>,
         std::chrono::milliseconds(1);
     static constexpr std::chrono::nanoseconds PEER_METRICS_RATE_UNIT =
         std::chrono::seconds(1);
-    static constexpr uint32_t FIRST_VERSION_REQUIRED_FOR_PROTOCOL_20 = 32;
 
     // The reporting will be based on the previous
     // PEER_METRICS_WINDOW_SIZE-second time window.
@@ -87,6 +87,12 @@ class Peer : public std::enable_shared_from_this<Peer>,
         GOT_HELLO = 2,
         GOT_AUTH = 3,
         CLOSING = 4
+    };
+
+    struct QueryInfo
+    {
+        VirtualClock::time_point mLastTimeStamp;
+        uint32_t mNumQueries{0};
     };
 
     static inline int
@@ -168,17 +174,6 @@ class Peer : public std::enable_shared_from_this<Peer>,
     // the protected state. Peer state lacking synchronization should be moved
     // to the private section below.
   protected:
-    class MsgCapacityTracker : private NonMovableOrCopyable
-    {
-        std::weak_ptr<Peer> const mWeakPeer;
-        StellarMessage const mMsg;
-
-      public:
-        MsgCapacityTracker(std::weak_ptr<Peer> peer, StellarMessage const& msg);
-        StellarMessage const& getMessage();
-        ~MsgCapacityTracker();
-    };
-
     AppConnector& mAppConnector;
 
     Hash const mNetworkID;
@@ -264,6 +259,9 @@ class Peer : public std::enable_shared_from_this<Peer>,
     VirtualTimer mDelayedExecutionTimer;
 
     std::shared_ptr<TxAdverts> mTxAdverts;
+    QueryInfo mQSetQueryInfo;
+    QueryInfo mTxSetQueryInfo;
+    bool mPeersReceived{false};
 
     static Hash pingIDfromTimePoint(VirtualClock::time_point const& tp);
     void pingPeer();
@@ -271,14 +269,13 @@ class Peer : public std::enable_shared_from_this<Peer>,
     VirtualClock::time_point mPingSentTime;
     std::chrono::milliseconds mLastPing;
 
-    void recvRawMessage(StellarMessage const& msg);
+    void recvRawMessage(std::shared_ptr<CapacityTrackedMessage> msgTracker);
 
     virtual void recvError(StellarMessage const& msg);
     void updatePeerRecordAfterEcho();
     void updatePeerRecordAfterAuthentication();
     void recvAuth(StellarMessage const& msg);
     void recvDontHave(StellarMessage const& msg);
-    void recvGetPeers(StellarMessage const& msg);
     void recvHello(Hello const& elo);
     void recvPeers(StellarMessage const& msg);
     void recvSurveyRequestMessage(StellarMessage const& msg);
@@ -290,10 +287,10 @@ class Peer : public std::enable_shared_from_this<Peer>,
     void recvGetTxSet(StellarMessage const& msg);
     void recvTxSet(StellarMessage const& msg);
     void recvGeneralizedTxSet(StellarMessage const& msg);
-    void recvTransaction(StellarMessage const& msg);
+    void recvTransaction(CapacityTrackedMessage const& msgTracker);
     void recvGetSCPQuorumSet(StellarMessage const& msg);
     void recvSCPQuorumSet(StellarMessage const& msg);
-    void recvSCPMessage(StellarMessage const& msg);
+    void recvSCPMessage(CapacityTrackedMessage const& msgTracker);
     void recvGetSCPState(StellarMessage const& msg);
     void recvFloodAdvert(StellarMessage const& msg);
     void recvFloodDemand(StellarMessage const& msg);
@@ -304,8 +301,9 @@ class Peer : public std::enable_shared_from_this<Peer>,
     void sendDontHave(MessageType type, uint256 const& itemID);
     void sendPeers();
     void sendError(ErrorCode error, std::string const& message);
+    bool process(QueryInfo& queryInfo);
 
-    void recvMessage(std::shared_ptr<MsgCapacityTracker> msgTracker);
+    void recvMessage(std::shared_ptr<CapacityTrackedMessage> msgTracker);
 
     // NB: This is a move-argument because the write-buffer has to travel
     // with the write-request through the async IO system, and we might have
@@ -344,7 +342,6 @@ class Peer : public std::enable_shared_from_this<Peer>,
     std::string msgSummary(StellarMessage const& stellarMsg);
     void sendGetTxSet(uint256 const& setID);
     void sendGetQuorumSet(uint256 const& setID);
-    void sendGetPeers();
     void sendGetScpState(uint32 ledgerSeq);
     void sendErrorAndDrop(ErrorCode error, std::string const& message);
     void sendTxDemand(TxDemandVector&& demands);
@@ -439,6 +436,7 @@ class Peer : public std::enable_shared_from_this<Peer>,
 
     friend class LoopbackPeer;
     friend class PeerStub;
+    friend class CapacityTrackedMessage;
 
 #ifdef BUILD_TESTS
     std::shared_ptr<FlowControl>
@@ -498,5 +496,25 @@ class Peer : public std::enable_shared_from_this<Peer>,
             f();
         }
     }
+};
+
+// CapacityTrackedMessage is a helper class to track when the message is done
+// being processed by core using RAII. On destruction, it will automatically
+// signal completion to Peer. This allows Peer to track available capacity, and
+// request more traffic. CapacityTrackedMessage also optionally stores a BLAKE2
+// hash of the message, so overlay can decide if a duplicate message can be
+// dropped as early as possible. Note: this class has side effects;
+// specifically, it may trigger a send of SEND_MORE message on destruction
+class CapacityTrackedMessage : private NonMovableOrCopyable
+{
+    std::weak_ptr<Peer> const mWeakPeer;
+    StellarMessage const mMsg;
+    std::optional<Hash> mMaybeHash;
+
+  public:
+    CapacityTrackedMessage(std::weak_ptr<Peer> peer, StellarMessage const& msg);
+    StellarMessage const& getMessage() const;
+    ~CapacityTrackedMessage();
+    std::optional<Hash> maybeGetHash() const;
 };
 }

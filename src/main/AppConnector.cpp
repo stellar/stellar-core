@@ -7,6 +7,7 @@
 #include "overlay/BanManager.h"
 #include "overlay/OverlayManager.h"
 #include "overlay/OverlayMetrics.h"
+#include "overlay/Peer.h"
 #include "util/Timer.h"
 
 namespace stellar
@@ -127,6 +128,13 @@ AppConnector::getOverlayMetrics()
 {
     // OverlayMetrics class is thread-safe
     return mApp.getOverlayManager().getOverlayMetrics();
+}
+
+bool
+AppConnector::checkScheduledAndCache(
+    std::shared_ptr<CapacityTrackedMessage> msgTracker)
+{
+    return mApp.getOverlayManager().checkScheduledAndCache(msgTracker);
 }
 
 }
