@@ -39,6 +39,7 @@
 #include <catch.hpp>
 #include <cereal/archives/json.hpp>
 #include <cereal/cereal.hpp>
+#include <cereal/types/vector.hpp>
 
 #ifdef BUILD_TESTS
 #include "simulation/ApplyLoad.h"

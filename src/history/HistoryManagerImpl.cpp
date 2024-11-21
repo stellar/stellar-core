@@ -80,13 +80,13 @@ HistoryManager::createPublishQueueDir(Config const& cfg)
 std::filesystem::path
 publishQueueFileName(uint32_t seq)
 {
-    return fs::hexStr(seq) + ".json";
+    return fs::hexStr(seq) + ".checkpoint";
 }
 
 std::filesystem::path
 publishQueueTmpFileName(uint32_t seq)
 {
-    return fs::hexStr(seq) + ".json.dirty";
+    return fs::hexStr(seq) + ".checkpoint.dirty";
 }
 
 void
@@ -271,7 +271,7 @@ HistoryManagerImpl::logAndUpdatePublishStatus()
 bool
 isPublishFile(std::string const& name)
 {
-    std::regex re("^[a-z0-9]{8}\\.json$");
+    std::regex re("^[a-z0-9]{8}\\.checkpoint$");
     auto a = regex_match(name, re);
     return a;
 }
@@ -279,7 +279,7 @@ isPublishFile(std::string const& name)
 bool
 isPublishTmpFile(std::string const& name)
 {
-    std::regex re("^[a-z0-9]{8}\\.json.dirty$");
+    std::regex re("^[a-z0-9]{8}\\.checkpoint.dirty$");
     auto a = regex_match(name, re);
     return a;
 }
