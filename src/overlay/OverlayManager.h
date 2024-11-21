@@ -23,7 +23,7 @@
  * The `StellarMessage` union contains 3 logically distinct kinds of message:
  *
  *  - Messages directed to or from a specific peer, with or without a response:
- *    HELLO, GET_PEERS, PEERS, DONT_HAVE, ERROR_MSG
+ *    HELLO, PEERS, DONT_HAVE, ERROR_MSG
  *
  *  - One-way broadcast messages informing other peers of an event:
  *    TRANSACTION and SCP_MESSAGE

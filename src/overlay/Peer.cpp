@@ -525,17 +525,6 @@ Peer::sendGetQuorumSet(uint256 const& setID)
 }
 
 void
-Peer::sendGetPeers()
-{
-    ZoneScoped;
-    releaseAssert(threadIsMain());
-    StellarMessage newMsg;
-    newMsg.type(GET_PEERS);
-    auto msgPtr = std::make_shared<StellarMessage const>(newMsg);
-    sendMessage(msgPtr);
-}
-
-void
 Peer::sendGetScpState(uint32 ledgerSeq)
 {
     ZoneScoped;
@@ -624,8 +613,6 @@ Peer::msgSummary(StellarMessage const& msg)
     case DONT_HAVE:
         return fmt::format(FMT_STRING("DONTHAVE {}:{}"), msg.dontHave().type,
                            hexAbbrev(msg.dontHave().reqHash));
-    case GET_PEERS:
-        return "GETPEERS";
     case PEERS:
         return fmt::format(FMT_STRING("PEERS {:d}"), msg.peers().size());
 
@@ -712,9 +699,6 @@ Peer::sendMessage(std::shared_ptr<StellarMessage const> msg, bool log)
         break;
     case DONT_HAVE:
         mOverlayMetrics.mSendDontHaveMeter.Mark();
-        break;
-    case GET_PEERS:
-        mOverlayMetrics.mSendGetPeersMeter.Mark();
         break;
     case PEERS:
         mOverlayMetrics.mSendPeersMeter.Mark();
@@ -927,7 +911,6 @@ Peer::recvAuthenticatedMessage(AuthenticatedMessage&& msg)
         cat = AUTH_ACTION_QUEUE;
         break;
     // control messages
-    case GET_PEERS:
     case PEERS:
     case ERROR_MSG:
     case SEND_MORE:
@@ -1093,6 +1076,13 @@ Peer::recvRawMessage(std::shared_ptr<CapacityTrackedMessage> msgTracker)
             return;
         }
 
+        if (stellarMsg.type() == PEERS && getRole() == REMOTE_CALLED_US)
+        {
+            drop(fmt::format("received {}", stellarMsg.type()),
+                 Peer::DropDirection::WE_DROPPED_REMOTE);
+            return;
+        }
+
         releaseAssert(isAuthenticated(guard) || stellarMsg.type() == HELLO ||
                       stellarMsg.type() == AUTH ||
                       stellarMsg.type() == ERROR_MSG);
@@ -1127,13 +1117,6 @@ Peer::recvRawMessage(std::shared_ptr<CapacityTrackedMessage> msgTracker)
     {
         auto t = mOverlayMetrics.mRecvDontHaveTimer.TimeScope();
         recvDontHave(stellarMsg);
-    }
-    break;
-
-    case GET_PEERS:
-    {
-        auto t = mOverlayMetrics.mRecvGetPeersTimer.TimeScope();
-        recvGetPeers(stellarMsg);
     }
     break;
 
@@ -1805,19 +1788,18 @@ Peer::recvAuth(StellarMessage const& msg)
 }
 
 void
-Peer::recvGetPeers(StellarMessage const& msg)
-{
-    ZoneScoped;
-    releaseAssert(threadIsMain());
-
-    sendPeers();
-}
-
-void
 Peer::recvPeers(StellarMessage const& msg)
 {
     ZoneScoped;
     releaseAssert(threadIsMain());
+
+    if (mPeersReceived)
+    {
+        drop(fmt::format("too many msgs {}", msg.type()),
+             Peer::DropDirection::WE_DROPPED_REMOTE);
+        return;
+    }
+    mPeersReceived = true;
 
     for (auto const& peer : msg.peers())
     {

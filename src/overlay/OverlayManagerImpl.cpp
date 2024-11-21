@@ -1161,8 +1161,10 @@ bool
 OverlayManagerImpl::checkScheduledAndCache(
     std::shared_ptr<CapacityTrackedMessage> tracker)
 {
+#ifndef BUILD_TESTS
     releaseAssert(!threadIsMain() ||
                   !mApp.getConfig().BACKGROUND_OVERLAY_PROCESSING);
+#endif
     if (!tracker->maybeGetHash())
     {
         return false;

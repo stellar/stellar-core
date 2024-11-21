@@ -72,7 +72,6 @@ class Peer : public std::enable_shared_from_this<Peer>,
         std::chrono::milliseconds(1);
     static constexpr std::chrono::nanoseconds PEER_METRICS_RATE_UNIT =
         std::chrono::seconds(1);
-    static constexpr uint32_t FIRST_VERSION_REQUIRED_FOR_PROTOCOL_20 = 32;
 
     // The reporting will be based on the previous
     // PEER_METRICS_WINDOW_SIZE-second time window.
@@ -262,6 +261,7 @@ class Peer : public std::enable_shared_from_this<Peer>,
     std::shared_ptr<TxAdverts> mTxAdverts;
     QueryInfo mQSetQueryInfo;
     QueryInfo mTxSetQueryInfo;
+    bool mPeersReceived{false};
 
     static Hash pingIDfromTimePoint(VirtualClock::time_point const& tp);
     void pingPeer();
@@ -276,7 +276,6 @@ class Peer : public std::enable_shared_from_this<Peer>,
     void updatePeerRecordAfterAuthentication();
     void recvAuth(StellarMessage const& msg);
     void recvDontHave(StellarMessage const& msg);
-    void recvGetPeers(StellarMessage const& msg);
     void recvHello(Hello const& elo);
     void recvPeers(StellarMessage const& msg);
     void recvSurveyRequestMessage(StellarMessage const& msg);
@@ -343,7 +342,6 @@ class Peer : public std::enable_shared_from_this<Peer>,
     std::string msgSummary(StellarMessage const& stellarMsg);
     void sendGetTxSet(uint256 const& setID);
     void sendGetQuorumSet(uint256 const& setID);
-    void sendGetPeers();
     void sendGetScpState(uint32 ledgerSeq);
     void sendErrorAndDrop(ErrorCode error, std::string const& message);
     void sendTxDemand(TxDemandVector&& demands);

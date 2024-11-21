@@ -44,7 +44,6 @@ struct OverlayMetrics
     medida::Timer& mRecvHelloTimer;
     medida::Timer& mRecvAuthTimer;
     medida::Timer& mRecvDontHaveTimer;
-    medida::Timer& mRecvGetPeersTimer;
     medida::Timer& mRecvPeersTimer;
     medida::Timer& mRecvGetTxSetTimer;
     medida::Timer& mRecvTxSetTimer;
@@ -84,7 +83,6 @@ struct OverlayMetrics
     medida::Meter& mSendHelloMeter;
     medida::Meter& mSendAuthMeter;
     medida::Meter& mSendDontHaveMeter;
-    medida::Meter& mSendGetPeersMeter;
     medida::Meter& mSendPeersMeter;
     medida::Meter& mSendGetTxSetMeter;
     medida::Meter& mSendTransactionMeter;

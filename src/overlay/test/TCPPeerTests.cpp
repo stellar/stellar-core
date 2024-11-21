@@ -139,20 +139,20 @@ TEST_CASE("TCPPeer can communicate", "[overlay]")
     s->stopOverlayTick();
 
     // Now drop peer, ensure ERROR containing "drop reason" is properly flushed
-    auto& recvGetPeers =
-        n1->getOverlayManager().getOverlayMetrics().mRecvGetPeersTimer;
+    auto& recvGetTxSet =
+        n1->getOverlayManager().getOverlayMetrics().mRecvGetTxSetTimer;
     auto& recvError =
         n1->getOverlayManager().getOverlayMetrics().mRecvErrorTimer;
-    auto prevPeers = recvGetPeers.count();
+    auto prevTxSet = recvGetTxSet.count();
     auto prevError = recvError.count();
-    p0->sendGetPeers();
+    p0->sendGetTxSet(Hash());
     p0->sendErrorAndDrop(ERR_MISC, "test drop");
     s->crankForAtLeast(std::chrono::seconds(1), false);
     REQUIRE(!p0->isConnectedForTesting());
     REQUIRE(!p1->isConnectedForTesting());
 
     // p1 must have received getPeers, Error
-    REQUIRE(recvGetPeers.count() == prevPeers + 1);
+    REQUIRE(recvGetTxSet.count() == prevTxSet + 1);
     REQUIRE(recvError.count() == prevError + 1);
     s->stopAllNodes();
 }

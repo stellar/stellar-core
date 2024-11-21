@@ -770,6 +770,49 @@ TEST_CASE("failed auth", "[overlay][connections]")
     testutil::shutdownWorkScheduler(*app1);
 }
 
+TEST_CASE("peers during auth", "[overlay][connections]")
+{
+    VirtualClock clock;
+    Config const& cfg1 = getTestConfig(0);
+    Config const& cfg2 = getTestConfig(1);
+    auto app1 = createTestApplication(clock, cfg1);
+    auto app2 = createTestApplication(clock, cfg2);
+    // Put a peer into Acceptor's DB to trigger sending of peers during auth
+    app2->getOverlayManager().getPeerManager().ensureExists(
+        PeerBareAddress{"1.1.1.1", 11625});
+
+    LoopbackPeerConnection conn(*app1, *app2);
+    testutil::crankSome(clock);
+
+    REQUIRE(conn.getInitiator()->isAuthenticatedForTesting());
+    REQUIRE(conn.getAcceptor()->isAuthenticatedForTesting());
+
+    StellarMessage newMsg;
+    newMsg.type(PEERS);
+    std::string dropReason;
+    SECTION("inbound")
+    {
+        dropReason = "received PEERS";
+        conn.getInitiator()->sendMessage(
+            std::make_shared<StellarMessage>(newMsg));
+    }
+    SECTION("outbound")
+    {
+        dropReason = "too many msgs PEERS";
+        conn.getAcceptor()->sendMessage(
+            std::make_shared<StellarMessage>(newMsg));
+    }
+
+    testutil::crankFor(clock, std::chrono::seconds(1));
+
+    REQUIRE(!conn.getInitiator()->isConnectedForTesting());
+    REQUIRE(!conn.getAcceptor()->isConnectedForTesting());
+    REQUIRE(conn.getAcceptor()->getDropReason() == dropReason);
+
+    testutil::shutdownWorkScheduler(*app2);
+    testutil::shutdownWorkScheduler(*app1);
+}
+
 TEST_CASE("outbound queue filtering", "[overlay][connections]")
 {
     auto networkID = sha256(getTestConfig().NETWORK_PASSPHRASE);
@@ -1773,7 +1816,7 @@ TEST_CASE("drop peers who straggle", "[overlay][connections][straggler]")
             sendTimer.async_wait([straggler](asio::error_code const& error) {
                 if (!error)
                 {
-                    straggler->sendGetPeers();
+                    straggler->sendGetTxSet(Hash());
                 }
             });
             testutil::crankFor(clock, dur);

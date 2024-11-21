@@ -156,6 +156,7 @@ class LoopbackPeer : public Peer
     using Peer::sendAuth;
     using Peer::sendAuthenticatedMessage;
     using Peer::sendMessage;
+    using Peer::sendPeers;
 
     friend class LoopbackPeerConnection;
 };
