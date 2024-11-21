@@ -109,6 +109,7 @@ class BulkLoadClaimableBalanceOperation
         }
         auto sqliteStatement =
             dynamic_cast<soci::sqlite3_statement_backend*>(be);
+        releaseAssertOrThrow(sqliteStatement);
         auto st = sqliteStatement->stmt_;
 
         sqlite3_reset(st);
