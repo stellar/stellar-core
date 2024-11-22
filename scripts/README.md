@@ -5,6 +5,7 @@ This folder is for storing any scripts that may be helpful for using stellar-cor
 - [Overlay survey](#overlay-survey)
 - [Diff Tracy CSV](#diff-tracy-csv)
 - [Parse Backtrace Dump](#parse-backtrace-dump)
+- [Histogram Generator](#histogram-generator)
 
 ### Overlay survey 
 - Name - `OverlaySurvey.py`
@@ -64,6 +65,19 @@ in case the script has some issues, so please read through that doc before attem
 - Usage - Ex. `sh ../scripts/settings-helper.sh SCSQHJIUGUGTH2P4K6AOFTEW4HUMI2BRTUBBDDXMQ4FLHXCX25W3PGBJ testnet ../soroban-settings/testnet_settings_phase2.json`. The first argument is the secret key of the source account that will be used for the transactions to set up the upgrade, the second argument is the network passphrase, and the third is 
 the path to the JSON file with the proposed settings.
 
+### Histogram Generator
+- Name - `histogram-generator.py`
+- Description - A Python script that takes Hubble transaction data as input and outputs histograms containing information about the resource usage of those transactions. This script enables easy updating of transaction resource distributions in [Supercluster](https://github.com/stellar/supercluster), but some may find it more broadly helpful for understanding real-world usage of the Stellar network.
+- Usage - `./HistogramGenerator <history_transactions_data> <history_contract_events_data>`, where `<history_transactions_data>` and `<history_contract_events_data>` are CSV files containing query results from Hubble's tables by the same names. You can use the following sample queries as a jumping off point for writing your own queries to generate these CSV files:
+  - Sample query to gather `history_transactions_data` from a specific date range:
+    ```lang=SQL
+    SELECT soroban_resources_instructions, soroban_resources_write_bytes, tx_envelope FROM `crypto-stellar.crypto_stellar.history_transactions` WHERE batch_run_date BETWEEN DATETIME("2024-06-24") AND DATETIME("2024-09-24") AND soroban_resources_instructions > 0
+    ```
+  - Sample query to gather `history_contract_events_data` from a specific date range:
+    ```lang=SQL
+    SELECT topics_decoded, data_decoded FROM `crypto-stellar.crypto_stellar.history_contract_events` WHERE type = 2 AND TIMESTAMP_TRUNC(closed_at, MONTH) between TIMESTAMP("2024-06-27") AND TIMESTAMP("2024-09-27") AND contains_substr(topics_decoded, "write_entry")
+    ```
+     - NOTE: this query filters out anything that isn't a `write_entry`. This is required for the script to work correctly!
 
 ## Style guide
 We follow [PEP-0008](https://www.python.org/dev/peps/pep-0008/).
