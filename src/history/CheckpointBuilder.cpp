@@ -7,7 +7,7 @@
 
 namespace stellar
 {
-void
+bool
 CheckpointBuilder::ensureOpen(uint32_t ledgerSeq)
 {
     ZoneScoped;
@@ -17,6 +17,15 @@ CheckpointBuilder::ensureOpen(uint32_t ledgerSeq)
         releaseAssert(!mTxResults);
         releaseAssert(!mTxs);
         releaseAssert(!mLedgerHeaders);
+        // Don't start writing checkpoint until proper checkpoint boundary
+        // This can occur if a node enabled publish mid-checkpoint
+        if (mPublishWasDisabled &&
+            !mApp.getHistoryManager().isFirstLedgerInCheckpoint(ledgerSeq))
+        {
+            return false;
+        }
+
+        mPublishWasDisabled = false;
 
         auto checkpoint =
             mApp.getHistoryManager().checkpointContainingLedger(ledgerSeq);
@@ -41,6 +50,7 @@ CheckpointBuilder::ensureOpen(uint32_t ledgerSeq)
         mLedgerHeaders->open(ledger.localPath_nogz_dirty());
         mOpen = true;
     }
+    return true;
 }
 
 void
@@ -124,7 +134,11 @@ CheckpointBuilder::appendTransactionSet(uint32_t ledgerSeq,
     {
         throw std::runtime_error("Startup validation not performed");
     }
-    ensureOpen(ledgerSeq);
+
+    if (!ensureOpen(ledgerSeq))
+    {
+        return;
+    }
 
     if (!resultSet.results.empty())
     {
@@ -147,7 +161,11 @@ CheckpointBuilder::appendLedgerHeader(LedgerHeader const& header,
     {
         throw std::runtime_error("Startup validation not performed");
     }
-    ensureOpen(header.ledgerSeq);
+
+    if (!ensureOpen(header.ledgerSeq))
+    {
+        return;
+    }
 
     LedgerHeaderHistoryEntry lhe;
     lhe.header = header;
@@ -225,17 +243,11 @@ CheckpointBuilder::cleanup(uint32_t lcl)
 
         if (!fs::exists(ft.localPath_nogz_dirty()))
         {
-            // No dirty file exists, nothing to do (this can only happen on a
-            // checkpoint boundary)
-            if (!mApp.getHistoryManager().isLastLedgerInCheckpoint(lcl))
-            {
-                throw std::runtime_error(
-                    fmt::format("Missing dirty checkpoint file {}",
-                                ft.localPath_nogz_dirty()));
-            }
             CLOG_INFO(History,
-                      "Skipping recovery of file {}, does not exist yet",
+                      "Skipping recovery of file {}, does not exist. This can "
+                      "occur if publish was previously disabled.",
                       ft.localPath_nogz_dirty());
+            mPublishWasDisabled = true;
             return;
         }
 

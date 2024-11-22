@@ -57,8 +57,9 @@ class CheckpointBuilder
     std::unique_ptr<XDROutputFileStream> mLedgerHeaders;
     bool mOpen{false};
     bool mStartupValidationComplete{false};
+    bool mPublishWasDisabled{false};
 
-    void ensureOpen(uint32_t ledgerSeq);
+    bool ensureOpen(uint32_t ledgerSeq);
 
   public:
     CheckpointBuilder(Application& app);

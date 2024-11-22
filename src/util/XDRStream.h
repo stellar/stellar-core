@@ -224,8 +224,16 @@ class XDRInputFileStream
     }
 };
 
-// OutputFileStream needs access to a file descriptor to do fsync, so we use
-// asio's synchronous stream types here rather than fstreams.
+/*
+IMPORTANT: some areas of core require durable writes that
+are resistant to application and system crashes. If you need durable writes:
+1. Use a stream implementation that supports fsync, e.g. OutputFileStream
+2. Write to a temp file first. If you don't intent to persist temp files across
+runs, fsyncing on close is sufficient. Otherwise, use durableWriteOne to flush
+and fsync after every write.
+3. Close the temp stream to make sure flush and fsync are called.
+4. Rename the temp file to the final location using durableRename.
+*/
 class OutputFileStream
 {
   protected:
@@ -237,7 +245,8 @@ class OutputFileStream
     fs::native_handle_t mHandle;
     FILE* mOut{nullptr};
 #else
-    // buffered stream
+    // use buffered stream which supports accessing a file descriptor needed to
+    // fsync
     asio::buffered_write_stream<stellar::fs::stream_t> mBufferedWriteStream;
 #endif
 

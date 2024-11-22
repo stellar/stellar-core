@@ -12,6 +12,10 @@
 #include "crypto/Hex.h"
 #include "crypto/SHA.h"
 #include "herder/HerderImpl.h"
+#include <cereal/archives/binary.hpp>
+#include <cereal/cereal.hpp>
+#include <cereal/types/vector.hpp>
+
 #include "history/HistoryArchive.h"
 #include "history/HistoryArchiveManager.h"
 #include "history/HistoryManagerImpl.h"
@@ -30,6 +34,7 @@
 #include "overlay/StellarXDR.h"
 #include "process/ProcessManager.h"
 #include "transactions/TransactionSQL.h"
+#include "util/BufferedAsioCerealOutputArchive.h"
 #include "util/GlobalChecks.h"
 #include "util/Logging.h"
 #include "util/Math.h"
@@ -80,13 +85,13 @@ HistoryManager::createPublishQueueDir(Config const& cfg)
 std::filesystem::path
 publishQueueFileName(uint32_t seq)
 {
-    return fs::hexStr(seq) + ".json";
+    return fs::hexStr(seq) + ".checkpoint";
 }
 
 std::filesystem::path
 publishQueueTmpFileName(uint32_t seq)
 {
-    return fs::hexStr(seq) + ".json.dirty";
+    return fs::hexStr(seq) + ".checkpoint.dirty";
 }
 
 void
@@ -97,7 +102,21 @@ writeCheckpointFile(Application& app, HistoryArchiveState const& has,
         app.getHistoryManager().isLastLedgerInCheckpoint(has.currentLedger));
     auto filename = publishQueueFileName(has.currentLedger);
     auto tmpOut = app.getHistoryManager().getTmpDir() / filename;
-    has.save(tmpOut.string());
+    {
+        // Always fsync in prod paths, but allow disabling for tests for
+        // performance
+        OutputFileStream out(
+            app.getClock().getIOContext(),
+#ifdef BUILD_TESTS
+            /* fsyncOnClose */ !app.getConfig().DISABLE_XDR_FSYNC
+#else
+            /* fsyncOnClose */ true
+#endif
+        );
+        out.open(tmpOut.string());
+        cereal::BufferedAsioOutputArchive ar(out);
+        has.serialize(ar);
+    }
 
     // Immediately produce a final checkpoint JSON (suitable for confirmed
     // ledgers)
@@ -271,7 +290,7 @@ HistoryManagerImpl::logAndUpdatePublishStatus()
 bool
 isPublishFile(std::string const& name)
 {
-    std::regex re("^[a-z0-9]{8}\\.json$");
+    std::regex re("^[a-z0-9]{8}\\.checkpoint$");
     auto a = regex_match(name, re);
     return a;
 }
@@ -279,7 +298,7 @@ isPublishFile(std::string const& name)
 bool
 isPublishTmpFile(std::string const& name)
 {
-    std::regex re("^[a-z0-9]{8}\\.json.dirty$");
+    std::regex re("^[a-z0-9]{8}\\.checkpoint.dirty$");
     auto a = regex_match(name, re);
     return a;
 }
@@ -467,6 +486,22 @@ HistoryManagerImpl::takeSnapshotAndPublish(HistoryArchiveState const& has)
         "delay-publishing-to-archive", delayTimeout, publishWork);
 }
 
+HistoryArchiveState
+loadCheckpointHAS(std::string const& filename)
+{
+    HistoryArchiveState has;
+    std::ifstream in(filename, std::ios::binary);
+    if (!in)
+    {
+        throw std::runtime_error(
+            fmt::format(FMT_STRING("Error opening file {}"), filename));
+    }
+    in.exceptions(std::ios::badbit);
+    cereal::BinaryInputArchive ar(in);
+    has.serialize(ar);
+    return has;
+}
+
 size_t
 HistoryManagerImpl::publishQueuedHistory()
 {
@@ -485,17 +520,14 @@ HistoryManagerImpl::publishQueuedHistory()
 #endif
 
     ZoneScoped;
-    HistoryArchiveState has;
     auto seq = getMinLedgerQueuedToPublish();
-
     if (seq == std::numeric_limits<uint32_t>::max())
     {
         return 0;
     }
 
     auto file = publishQueuePath(mApp.getConfig()) / publishQueueFileName(seq);
-    has.load(file.string());
-    takeSnapshotAndPublish(has);
+    takeSnapshotAndPublish(loadCheckpointHAS(file.string()));
     return 1;
 }
 
@@ -541,8 +573,7 @@ HistoryManagerImpl::getPublishQueueStates()
                                  HistoryArchiveState has;
                                  auto fullPath =
                                      publishQueuePath(mApp.getConfig()) / f;
-                                 has.load(fullPath.string());
-                                 states.push_back(has);
+                                 states.push_back(loadCheckpointHAS(fullPath));
                              });
     return states;
 }
