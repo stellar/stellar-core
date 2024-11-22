@@ -66,7 +66,7 @@ void
 dumpXdrStream(std::string const& filename, bool compact)
 {
     std::regex rx(
-        R"(.*\b(debug-tx-set|(?:(ledger|bucket|transactions|results|meta-debug|scp)-.+))\.xdr$)");
+        R"(.*\b(debug-tx-set|(?:(ledger|bucket|transactions|results|meta-debug|scp)-.+))\.xdr(?:\.dirty)?$)");
     std::smatch sm;
     if (std::regex_match(filename, sm, rx))
     {

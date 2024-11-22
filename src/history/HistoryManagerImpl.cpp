@@ -12,6 +12,10 @@
 #include "crypto/Hex.h"
 #include "crypto/SHA.h"
 #include "herder/HerderImpl.h"
+#include <cereal/archives/binary.hpp>
+#include <cereal/cereal.hpp>
+#include <cereal/types/vector.hpp>
+
 #include "history/HistoryArchive.h"
 #include "history/HistoryArchiveManager.h"
 #include "history/HistoryManagerImpl.h"
@@ -30,6 +34,7 @@
 #include "overlay/StellarXDR.h"
 #include "process/ProcessManager.h"
 #include "transactions/TransactionSQL.h"
+#include "util/BufferedAsioCerealOutputArchive.h"
 #include "util/GlobalChecks.h"
 #include "util/Logging.h"
 #include "util/Math.h"
@@ -97,7 +102,13 @@ writeCheckpointFile(Application& app, HistoryArchiveState const& has,
         app.getHistoryManager().isLastLedgerInCheckpoint(has.currentLedger));
     auto filename = publishQueueFileName(has.currentLedger);
     auto tmpOut = app.getHistoryManager().getTmpDir() / filename;
-    has.save(tmpOut.string());
+    {
+        OutputFileStream out(app.getClock().getIOContext(),
+                             /* fsyncOnClose */ true);
+        out.open(tmpOut.string());
+        cereal::BufferedAsioOutputArchive ar(out);
+        has.serialize(ar);
+    }
 
     // Immediately produce a final checkpoint JSON (suitable for confirmed
     // ledgers)
@@ -467,6 +478,22 @@ HistoryManagerImpl::takeSnapshotAndPublish(HistoryArchiveState const& has)
         "delay-publishing-to-archive", delayTimeout, publishWork);
 }
 
+HistoryArchiveState
+loadCheckpointHAS(std::string const& filename)
+{
+    HistoryArchiveState has;
+    std::ifstream in(filename, std::ios::binary);
+    if (!in)
+    {
+        throw std::runtime_error(
+            fmt::format(FMT_STRING("Error opening file {}"), filename));
+    }
+    in.exceptions(std::ios::badbit);
+    cereal::BinaryInputArchive ar(in);
+    has.serialize(ar);
+    return has;
+}
+
 size_t
 HistoryManagerImpl::publishQueuedHistory()
 {
@@ -485,17 +512,14 @@ HistoryManagerImpl::publishQueuedHistory()
 #endif
 
     ZoneScoped;
-    HistoryArchiveState has;
     auto seq = getMinLedgerQueuedToPublish();
-
     if (seq == std::numeric_limits<uint32_t>::max())
     {
         return 0;
     }
 
     auto file = publishQueuePath(mApp.getConfig()) / publishQueueFileName(seq);
-    has.load(file.string());
-    takeSnapshotAndPublish(has);
+    takeSnapshotAndPublish(loadCheckpointHAS(file.string()));
     return 1;
 }
 
@@ -541,8 +565,7 @@ HistoryManagerImpl::getPublishQueueStates()
                                  HistoryArchiveState has;
                                  auto fullPath =
                                      publishQueuePath(mApp.getConfig()) / f;
-                                 has.load(fullPath.string());
-                                 states.push_back(has);
+                                 states.push_back(loadCheckpointHAS(fullPath));
                              });
     return states;
 }

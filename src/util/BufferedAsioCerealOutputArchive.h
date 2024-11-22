@@ -3,6 +3,7 @@
 #include "util/XDRStream.h"
 #include <cereal/archives/binary.hpp>
 #include <cereal/cereal.hpp>
+#include <cereal/types/string.hpp>
 
 namespace cereal
 {

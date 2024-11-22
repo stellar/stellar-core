@@ -1386,6 +1386,26 @@ getSettingsUpgradeTransactions(CommandLineArgs const& args)
 }
 
 int
+runPrintPublishQueue(CommandLineArgs const& args)
+{
+    CommandLine::ConfigOption configOption;
+
+    return runWithHelp(args, {configurationParser(configOption)}, [&] {
+        auto cfg = configOption.getConfig();
+        VirtualClock clock(VirtualClock::REAL_TIME);
+        cfg.setNoListen();
+        Application::pointer app = Application::create(clock, cfg, false);
+        cereal::JSONOutputArchive archive(std::cout);
+        archive.makeArray();
+        for (auto const& has : app->getHistoryManager().getPublishQueueStates())
+        {
+            has.serialize(archive);
+        }
+        return 0;
+    });
+}
+
+int
 runCheckQuorumIntersection(CommandLineArgs const& args)
 {
     CommandLine::ConfigOption configOption;
@@ -2058,6 +2078,8 @@ handleCommandLine(int argc, char* const* argv)
           "check that a given network specified as a JSON file enjoys a quorum "
           "intersection",
           runCheckQuorumIntersection},
+         {"print-publish-queue", "print all checkpoints scheduled for publish",
+          runPrintPublishQueue},
 #ifdef BUILD_TESTS
          {"load-xdr", "load an XDR bucket file, for testing", runLoadXDR},
          {"rebuild-ledger-from-buckets",
