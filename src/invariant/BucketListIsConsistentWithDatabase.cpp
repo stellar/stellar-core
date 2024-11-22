@@ -8,6 +8,7 @@
 #include "bucket/BucketList.h"
 #include "bucket/BucketManager.h"
 #include "crypto/Hex.h"
+#include "database/Database.h"
 #include "history/HistoryArchive.h"
 #include "invariant/InvariantManager.h"
 #include "ledger/LedgerManager.h"
@@ -251,7 +252,8 @@ BucketListIsConsistentWithDatabase::checkEntireBucketlist()
     }
 
     if (mApp.getConfig().isUsingBucketListDB() &&
-        mApp.getPersistentState().getState(PersistentState::kDBBackend) !=
+        mApp.getPersistentState().getState(PersistentState::kDBBackend,
+                                           mApp.getDatabase().getSession()) !=
             BucketIndex::DB_BACKEND_STATE)
     {
         throw std::runtime_error("BucketListDB enabled but BucketListDB flag "

@@ -214,7 +214,7 @@ maybeRebuildLedger(Application& app, bool applyBuckets)
     if (!app.getConfig().MODE_USES_IN_MEMORY_LEDGER)
     {
         app.getDatabase().clearPreparedStatementCache();
-        soci::transaction tx(app.getDatabase().getSession());
+        soci::transaction tx(app.getDatabase().getRawSession());
 
         auto loopEntries = [&](auto const& entryTypeSet, bool shouldRebuild) {
             for (auto let : entryTypeSet)
@@ -772,7 +772,8 @@ ApplicationImpl::validateAndLogConfig()
 
     if (mConfig.DEPRECATED_SQL_LEDGER_STATE)
     {
-        if (mPersistentState->getState(PersistentState::kDBBackend) ==
+        if (mPersistentState->getState(PersistentState::kDBBackend,
+                                       getDatabase().getSession()) ==
             BucketIndex::DB_BACKEND_STATE)
         {
             throw std::invalid_argument(
@@ -790,7 +791,8 @@ ApplicationImpl::validateAndLogConfig()
         if (mConfig.isUsingBucketListDB())
         {
             mPersistentState->setState(PersistentState::kDBBackend,
-                                       BucketIndex::DB_BACKEND_STATE);
+                                       BucketIndex::DB_BACKEND_STATE,
+                                       getDatabase().getSession());
             auto pageSizeExp = mConfig.BUCKETLIST_DB_INDEX_PAGE_SIZE_EXPONENT;
             if (pageSizeExp != 0)
             {

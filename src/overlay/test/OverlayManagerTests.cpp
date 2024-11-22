@@ -165,7 +165,7 @@ class OverlayManagerTests
             pm.storeConfigPeers();
         }
 
-        rowset<row> rs = app->getDatabase().getSession().prepare
+        rowset<row> rs = app->getDatabase().getRawSession().prepare
                          << "SELECT ip,port,type FROM peers ORDER BY ip, port";
 
         auto& ppeers = pm.mConfigurationPreferredPeers;
@@ -213,7 +213,7 @@ class OverlayManagerTests
         pm.mResolvedPeers.wait();
         pm.tick();
 
-        rowset<row> rs = app->getDatabase().getSession().prepare
+        rowset<row> rs = app->getDatabase().getRawSession().prepare
                          << "SELECT ip,port,type FROM peers ORDER BY ip, port";
 
         int found = 0;

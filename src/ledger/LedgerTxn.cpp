@@ -2392,6 +2392,12 @@ LedgerTxn::Impl::hasSponsorshipEntry() const
     return false;
 }
 
+SessionWrapper&
+LedgerTxn::getSession() const
+{
+    throw std::runtime_error("Errror");
+}
+
 void
 LedgerTxn::prepareNewObjects(size_t s)
 {
@@ -2545,6 +2551,21 @@ LedgerTxnRoot::Impl::~Impl()
     }
 }
 
+SessionWrapper&
+LedgerTxnRoot::Impl::getSession() const
+{
+    // For now, return main app-wide session;
+    // When application is done in parallel, mSession will be set to a session
+    // established from the connection pool.
+    return mApp.getDatabase().getSession();
+}
+
+SessionWrapper&
+LedgerTxnRoot::getSession() const
+{
+    return mImpl->getSession();
+}
+
 #ifdef BUILD_TESTS
 void
 LedgerTxnRoot::Impl::resetForFuzzer()
@@ -2576,8 +2597,8 @@ LedgerTxnRoot::Impl::addChild(AbstractLedgerTxn& child, TransactionMode mode)
 
     if (mode == TransactionMode::READ_WRITE_WITH_SQL_TXN)
     {
-        mTransaction = std::make_unique<soci::transaction>(
-            mApp.getDatabase().getSession());
+        mTransaction =
+            std::make_unique<soci::transaction>(getSession().session());
     }
     else
     {
@@ -2867,6 +2888,7 @@ LedgerTxnRoot::Impl::commitChild(EntryIterator iter,
 
     // std::unique_ptr<...>::reset does not throw
     mTransaction.reset();
+    mSession.reset();
 
     // std::unique_ptr<...>::swap does not throw
     mHeader.swap(childHeader);
@@ -2921,7 +2943,7 @@ LedgerTxnRoot::Impl::countObjects(LedgerEntryType let) const
     std::string query =
         "SELECT COUNT(*) FROM " + tableFromLedgerEntryType(let) + ";";
     uint64_t count = 0;
-    mApp.getDatabase().getSession() << query, into(count);
+    getSession().session() << query, into(count);
     return count;
 }
 
@@ -2945,8 +2967,7 @@ LedgerTxnRoot::Impl::countObjects(LedgerEntryType let,
     uint64_t count = 0;
     int first = static_cast<int>(ledgers.mFirst);
     int limit = static_cast<int>(ledgers.limit());
-    mApp.getDatabase().getSession() << query, into(count), use(first),
-        use(limit);
+    getSession().session() << query, into(count), use(first), use(limit);
     return count;
 }
 
@@ -2969,7 +2990,7 @@ LedgerTxnRoot::Impl::deleteObjectsModifiedOnOrAfterLedger(uint32_t ledger) const
         LedgerEntryType t = static_cast<LedgerEntryType>(let);
         std::string query = "DELETE FROM " + tableFromLedgerEntryType(t) +
                             " WHERE lastmodified >= :v1";
-        mApp.getDatabase().getSession() << query, use(ledger);
+        getSession().session() << query, use(ledger);
     }
 }
 
@@ -3837,6 +3858,7 @@ LedgerTxnRoot::Impl::rollbackChild() noexcept
         {
             mTransaction->rollback();
             mTransaction.reset();
+            mSession.reset();
         }
         catch (std::exception& e)
         {

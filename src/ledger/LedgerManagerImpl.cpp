@@ -290,8 +290,8 @@ LedgerManagerImpl::loadLastKnownLedger(bool restoreBucketlist,
     ZoneScoped;
 
     // Step 1. Load LCL state from the DB and extract latest ledger hash
-    string lastLedger =
-        mApp.getPersistentState().getState(PersistentState::kLastClosedLedger);
+    string lastLedger = mApp.getPersistentState().getState(
+        PersistentState::kLastClosedLedger, mApp.getDatabase().getSession());
 
     if (lastLedger.empty())
     {
@@ -434,12 +434,16 @@ LedgerManagerImpl::setupInMemoryStateRebuild()
         LedgerHeader lh;
         HistoryArchiveState has;
         auto& ps = mApp.getPersistentState();
-        ps.setState(PersistentState::kLastClosedLedger,
-                    binToHex(xdrSha256(lh)));
-        ps.setState(PersistentState::kHistoryArchiveState, has.toString());
-        ps.setState(PersistentState::kLastSCPData, "");
-        ps.setState(PersistentState::kLastSCPDataXDR, "");
-        ps.setState(PersistentState::kLedgerUpgrades, "");
+        ps.setState(PersistentState::kLastClosedLedger, binToHex(xdrSha256(lh)),
+                    getDatabase().getSession());
+        ps.setState(PersistentState::kHistoryArchiveState, has.toString(),
+                    getDatabase().getSession());
+        ps.setState(PersistentState::kLastSCPData, "",
+                    getDatabase().getMiscSession());
+        ps.setState(PersistentState::kLastSCPDataXDR, "",
+                    getDatabase().getMiscSession());
+        ps.setState(PersistentState::kLedgerUpgrades, "",
+                    getDatabase().getMiscSession());
         mRebuildInMemoryState = true;
     }
 }
@@ -541,7 +545,7 @@ LedgerManagerImpl::getLastClosedLedgerHAS()
     ZoneScoped;
 
     string hasString = mApp.getPersistentState().getState(
-        PersistentState::kHistoryArchiveState);
+        PersistentState::kHistoryArchiveState, mApp.getDatabase().getSession());
     HistoryArchiveState has;
     has.fromString(hasString);
     return has;
@@ -1106,7 +1110,7 @@ LedgerManagerImpl::deleteOldEntries(Database& db, uint32_t ledgerSeq,
                                     uint32_t count)
 {
     ZoneScoped;
-    soci::transaction txscope(db.getSession());
+    soci::transaction txscope(db.getRawSession());
     db.clearPreparedStatementCache();
     LedgerHeaderUtils::deleteOldEntries(db, ledgerSeq, count);
     HerderPersistence::deleteOldEntries(db, ledgerSeq, count);
@@ -1621,8 +1625,9 @@ LedgerManagerImpl::storeCurrentLedger(LedgerHeader const& header,
 
     Hash hash = xdrSha256(header);
     releaseAssert(!isZero(hash));
+    auto& sess = mApp.getLedgerTxnRoot().getSession();
     mApp.getPersistentState().setState(PersistentState::kLastClosedLedger,
-                                       binToHex(hash));
+                                       binToHex(hash), sess);
 
     BucketList bl;
     if (mApp.getConfig().MODE_ENABLES_BUCKETLIST)
@@ -1635,11 +1640,11 @@ LedgerManagerImpl::storeCurrentLedger(LedgerHeader const& header,
                             mApp.getConfig().NETWORK_PASSPHRASE);
 
     mApp.getPersistentState().setState(PersistentState::kHistoryArchiveState,
-                                       has.toString());
+                                       has.toString(), sess);
 
     if (mApp.getConfig().MODE_STORES_HISTORY_LEDGERHEADERS && storeHeader)
     {
-        LedgerHeaderUtils::storeInDatabase(mApp.getDatabase(), header);
+        LedgerHeaderUtils::storeInDatabase(mApp.getDatabase(), header, sess);
         if (appendToCheckpoint)
         {
             mApp.getHistoryManager().appendLedgerHeader(header);

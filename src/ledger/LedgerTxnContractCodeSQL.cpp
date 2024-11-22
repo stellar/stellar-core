@@ -30,7 +30,7 @@ LedgerTxnRoot::Impl::loadContractCode(LedgerKey const& k) const
     std::string sql = "SELECT ledgerentry "
                       "FROM contractcode "
                       "WHERE hash = :hash";
-    auto prep = mApp.getDatabase().getPreparedStatement(sql);
+    auto prep = mApp.getDatabase().getPreparedStatement(sql, getSession());
     auto& st = prep.statement();
     st.exchange(soci::into(contractCodeEntryStr));
     st.exchange(soci::use(hash));
@@ -55,6 +55,7 @@ class BulkLoadContractCodeOperation
     : public DatabaseTypeSpecificOperation<std::vector<LedgerEntry>>
 {
     Database& mDb;
+    SessionWrapper& mSession;
     std::vector<std::string> mHashes;
 
     std::vector<LedgerEntry>
@@ -85,8 +86,9 @@ class BulkLoadContractCodeOperation
 
   public:
     BulkLoadContractCodeOperation(Database& db,
-                                  UnorderedSet<LedgerKey> const& keys)
-        : mDb(db)
+                                  UnorderedSet<LedgerKey> const& keys,
+                                  SessionWrapper& session)
+        : mDb(db), mSession(session)
     {
         mHashes.reserve(keys.size());
         for (auto const& k : keys)
@@ -109,7 +111,7 @@ class BulkLoadContractCodeOperation
                           "FROM contractcode "
                           "WHERE hash IN carray(?, ?, 'char*')";
 
-        auto prep = mDb.getPreparedStatement(sql);
+        auto prep = mDb.getPreparedStatement(sql, mSession);
         auto be = prep.statement().get_backend();
         if (be == nullptr)
         {
@@ -138,7 +140,7 @@ class BulkLoadContractCodeOperation
                           "FROM contractcode "
                           "WHERE (hash) IN (SELECT * from r)";
 
-        auto prep = mDb.getPreparedStatement(sql);
+        auto prep = mDb.getPreparedStatement(sql, mSession);
         auto& st = prep.statement();
         st.exchange(soci::use(strHashes));
         return executeAndFetch(st);
@@ -152,9 +154,11 @@ LedgerTxnRoot::Impl::bulkLoadContractCode(
 {
     if (!keys.empty())
     {
-        BulkLoadContractCodeOperation op(mApp.getDatabase(), keys);
+        BulkLoadContractCodeOperation op(mApp.getDatabase(), keys,
+                                         getSession());
         return populateLoadedEntries(
-            keys, mApp.getDatabase().doDatabaseTypeSpecificOperation(op));
+            keys, mApp.getDatabase().doDatabaseTypeSpecificOperation(
+                      op, getSession()));
     }
     else
     {
@@ -167,12 +171,14 @@ class BulkDeleteContractCodeOperation
 {
     Database& mDb;
     LedgerTxnConsistency mCons;
+    SessionWrapper& mSession;
     std::vector<std::string> mHashes;
 
   public:
     BulkDeleteContractCodeOperation(Database& db, LedgerTxnConsistency cons,
-                                    std::vector<EntryIterator> const& entries)
-        : mDb(db), mCons(cons)
+                                    std::vector<EntryIterator> const& entries,
+                                    SessionWrapper& session)
+        : mDb(db), mCons(cons), mSession(session)
     {
         mHashes.reserve(entries.size());
         for (auto const& e : entries)
@@ -188,7 +194,7 @@ class BulkDeleteContractCodeOperation
     doSociGenericOperation()
     {
         std::string sql = "DELETE FROM contractcode WHERE hash = :id";
-        auto prep = mDb.getPreparedStatement(sql);
+        auto prep = mDb.getPreparedStatement(sql, mSession);
         auto& st = prep.statement();
         st.exchange(soci::use(mHashes));
         st.define_and_bind();
@@ -220,7 +226,7 @@ class BulkDeleteContractCodeOperation
                           "DELETE FROM contractcode "
                           "WHERE hash IN (SELECT * FROM r)";
 
-        auto prep = mDb.getPreparedStatement(sql);
+        auto prep = mDb.getPreparedStatement(sql, mSession);
         auto& st = prep.statement();
         st.exchange(soci::use(strHashes));
         st.define_and_bind();
@@ -241,8 +247,9 @@ void
 LedgerTxnRoot::Impl::bulkDeleteContractCode(
     std::vector<EntryIterator> const& entries, LedgerTxnConsistency cons)
 {
-    BulkDeleteContractCodeOperation op(mApp.getDatabase(), cons, entries);
-    mApp.getDatabase().doDatabaseTypeSpecificOperation(op);
+    BulkDeleteContractCodeOperation op(mApp.getDatabase(), cons, entries,
+                                       getSession());
+    mApp.getDatabase().doDatabaseTypeSpecificOperation(op, getSession());
 }
 
 class BulkUpsertContractCodeOperation
@@ -252,6 +259,7 @@ class BulkUpsertContractCodeOperation
     std::vector<std::string> mHashes;
     std::vector<std::string> mContractCodeEntries;
     std::vector<int32_t> mLastModifieds;
+    SessionWrapper& mSession;
 
     void
     accumulateEntry(LedgerEntry const& entry)
@@ -266,8 +274,9 @@ class BulkUpsertContractCodeOperation
 
   public:
     BulkUpsertContractCodeOperation(Database& Db,
-                                    std::vector<EntryIterator> const& entryIter)
-        : mDb(Db)
+                                    std::vector<EntryIterator> const& entryIter,
+                                    SessionWrapper& session)
+        : mDb(Db), mSession(session)
     {
         for (auto const& e : entryIter)
         {
@@ -287,7 +296,7 @@ class BulkUpsertContractCodeOperation
                           "ledgerentry = excluded.ledgerentry, "
                           "lastmodified = excluded.lastmodified";
 
-        auto prep = mDb.getPreparedStatement(sql);
+        auto prep = mDb.getPreparedStatement(sql, mSession);
         soci::statement& st = prep.statement();
         st.exchange(soci::use(mHashes));
         st.exchange(soci::use(mContractCodeEntries));
@@ -330,7 +339,7 @@ class BulkUpsertContractCodeOperation
                           "ledgerentry = excluded.ledgerentry, "
                           "lastmodified = excluded.lastmodified";
 
-        auto prep = mDb.getPreparedStatement(sql);
+        auto prep = mDb.getPreparedStatement(sql, mSession);
         soci::statement& st = prep.statement();
         st.exchange(soci::use(strHashes));
         st.exchange(soci::use(strContractCodeEntries));
@@ -352,8 +361,9 @@ void
 LedgerTxnRoot::Impl::bulkUpsertContractCode(
     std::vector<EntryIterator> const& entries)
 {
-    BulkUpsertContractCodeOperation op(mApp.getDatabase(), entries);
-    mApp.getDatabase().doDatabaseTypeSpecificOperation(op);
+    BulkUpsertContractCodeOperation op(mApp.getDatabase(), entries,
+                                       getSession());
+    mApp.getDatabase().doDatabaseTypeSpecificOperation(op, getSession());
 }
 
 void
@@ -365,21 +375,20 @@ LedgerTxnRoot::Impl::dropContractCode(bool rebuild)
 
     std::string coll = mApp.getDatabase().getSimpleCollationClause();
 
-    mApp.getDatabase().getSession() << "DROP TABLE IF EXISTS contractcode;";
+    getSession().session() << "DROP TABLE IF EXISTS contractcode;";
 
     if (rebuild)
     {
-        mApp.getDatabase().getSession()
-            << "CREATE TABLE contractcode ("
-            << "hash   TEXT " << coll << " NOT NULL, "
-            << "ledgerentry  TEXT " << coll << " NOT NULL, "
-            << "lastmodified INT NOT NULL, "
-            << "PRIMARY KEY (hash));";
+        getSession().session() << "CREATE TABLE contractcode ("
+                               << "hash   TEXT " << coll << " NOT NULL, "
+                               << "ledgerentry  TEXT " << coll << " NOT NULL, "
+                               << "lastmodified INT NOT NULL, "
+                               << "PRIMARY KEY (hash));";
         if (!mApp.getDatabase().isSqlite())
         {
-            mApp.getDatabase().getSession() << "ALTER TABLE contractcode "
-                                            << "ALTER COLUMN hash "
-                                            << "TYPE TEXT COLLATE \"C\";";
+            getSession().session() << "ALTER TABLE contractcode "
+                                   << "ALTER COLUMN hash "
+                                   << "TYPE TEXT COLLATE \"C\";";
         }
     }
 }

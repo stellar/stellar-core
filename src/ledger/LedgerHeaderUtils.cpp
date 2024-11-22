@@ -43,7 +43,7 @@ isValid(LedgerHeader const& lh)
 }
 
 void
-storeInDatabase(Database& db, LedgerHeader const& header)
+storeInDatabase(Database& db, LedgerHeader const& header, SessionWrapper& sess)
 {
     ZoneScoped;
     if (!isValid(header))
@@ -64,7 +64,8 @@ storeInDatabase(Database& db, LedgerHeader const& header)
         "INSERT INTO ledgerheaders "
         "(ledgerhash, prevhash, bucketlisthash, ledgerseq, closetime, data) "
         "VALUES "
-        "(:h,        :ph,      :blh,            :seq,     :ct,       :data)");
+        "(:h,        :ph,      :blh,            :seq,     :ct,       :data)",
+        sess);
     auto& st = prep.statement();
     st.exchange(soci::use(hash));
     st.exchange(soci::use(prevHash));
@@ -112,7 +113,8 @@ loadByHash(Database& db, Hash const& hash)
     std::string headerEncoded;
 
     auto prep = db.getPreparedStatement("SELECT data FROM ledgerheaders "
-                                        "WHERE ledgerhash = :h");
+                                        "WHERE ledgerhash = :h",
+                                        db.getSession());
     auto& st = prep.statement();
     st.exchange(soci::into(headerEncoded));
     st.exchange(soci::use(hash_s));
@@ -144,8 +146,8 @@ loadMaxLedgerSeq(Database& db)
     ZoneScoped;
     uint32_t seq = 0;
     soci::indicator maxIndicator;
-    auto prep =
-        db.getPreparedStatement("SELECT MAX(ledgerseq) FROM ledgerheaders");
+    auto prep = db.getPreparedStatement(
+        "SELECT MAX(ledgerseq) FROM ledgerheaders", db.getSession());
     auto& st = prep.statement();
     st.exchange(soci::into(seq, maxIndicator));
     st.define_and_bind();
@@ -191,7 +193,7 @@ void
 deleteOldEntries(Database& db, uint32_t ledgerSeq, uint32_t count)
 {
     ZoneScoped;
-    DatabaseUtils::deleteOldEntriesHelper(db.getSession(), ledgerSeq, count,
+    DatabaseUtils::deleteOldEntriesHelper(db.getRawSession(), ledgerSeq, count,
                                           "ledgerheaders", "ledgerseq");
 }
 
@@ -232,17 +234,17 @@ dropAll(Database& db)
 {
     std::string coll = db.getSimpleCollationClause();
 
-    db.getSession() << "DROP TABLE IF EXISTS ledgerheaders;";
-    db.getSession() << "CREATE TABLE ledgerheaders ("
-                    << "ledgerhash      CHARACTER(64) " << coll
-                    << " PRIMARY KEY,"
-                    << "prevhash        CHARACTER(64) NOT NULL,"
-                       "bucketlisthash  CHARACTER(64) NOT NULL,"
-                       "ledgerseq       INT UNIQUE CHECK (ledgerseq >= 0),"
-                       "closetime       BIGINT NOT NULL CHECK (closetime >= 0),"
-                       "data            TEXT NOT NULL"
-                       ");";
-    db.getSession()
+    db.getRawSession() << "DROP TABLE IF EXISTS ledgerheaders;";
+    db.getRawSession()
+        << "CREATE TABLE ledgerheaders ("
+        << "ledgerhash      CHARACTER(64) " << coll << " PRIMARY KEY,"
+        << "prevhash        CHARACTER(64) NOT NULL,"
+           "bucketlisthash  CHARACTER(64) NOT NULL,"
+           "ledgerseq       INT UNIQUE CHECK (ledgerseq >= 0),"
+           "closetime       BIGINT NOT NULL CHECK (closetime >= 0),"
+           "data            TEXT NOT NULL"
+           ");";
+    db.getRawSession()
         << "CREATE INDEX ledgersbyseq ON ledgerheaders ( ledgerseq );";
 }
 }

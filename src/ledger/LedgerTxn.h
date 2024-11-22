@@ -16,6 +16,7 @@
 #include <map>
 #include <memory>
 #include <set>
+#include <soci.h>
 
 /////////////////////////////////////////////////////////////////////////////
 //  Overview
@@ -276,6 +277,7 @@ struct InflationVotes;
 struct LedgerEntry;
 struct LedgerKey;
 struct LedgerRange;
+class SessionWrapper;
 
 struct OfferDescriptor
 {
@@ -537,6 +539,8 @@ class AbstractLedgerTxnParent
 
     // prepares to increase the capacity of pending changes by up to "s" changes
     virtual void prepareNewObjects(size_t s) = 0;
+
+    virtual SessionWrapper& getSession() const = 0;
 
 #ifdef BUILD_TESTS
     virtual void resetForFuzzer() = 0;
@@ -838,6 +842,7 @@ class LedgerTxn : public AbstractLedgerTxn
     uint32_t prefetchSoroban(UnorderedSet<LedgerKey> const& keys,
                              LedgerKeyMeter* lkMeter) override;
     void prepareNewObjects(size_t s) override;
+    SessionWrapper& getSession() const override;
 
     bool hasSponsorshipEntry() const override;
 
@@ -943,5 +948,6 @@ class LedgerTxnRoot : public AbstractLedgerTxnParent
                      OfferDescriptor const* worseThan,
                      std::unordered_set<int64_t>& exclude) override;
 #endif
+    SessionWrapper& getSession() const override;
 };
 }

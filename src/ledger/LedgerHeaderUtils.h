@@ -18,7 +18,8 @@ uint32_t getFlags(LedgerHeader const& lh);
 
 bool isValid(LedgerHeader const& lh);
 
-void storeInDatabase(Database& db, LedgerHeader const& header);
+void storeInDatabase(Database& db, LedgerHeader const& header,
+                     SessionWrapper& sess);
 
 LedgerHeader decodeFromData(std::string const& data);
 

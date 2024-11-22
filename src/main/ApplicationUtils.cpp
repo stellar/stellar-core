@@ -318,8 +318,8 @@ applyBucketsForLCL(Application& app,
                    std::function<bool(LedgerEntryType)> onlyApply)
 {
     auto has = app.getLedgerManager().getLastClosedLedgerHAS();
-    auto lclHash =
-        app.getPersistentState().getState(PersistentState::kLastClosedLedger);
+    auto lclHash = app.getPersistentState().getState(
+        PersistentState::kLastClosedLedger, app.getDatabase().getSession());
 
     auto maxProtocolVersion = app.getConfig().LEDGER_PROTOCOL_VERSION;
     auto currentLedger =
