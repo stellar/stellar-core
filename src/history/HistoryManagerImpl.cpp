@@ -103,8 +103,16 @@ writeCheckpointFile(Application& app, HistoryArchiveState const& has,
     auto filename = publishQueueFileName(has.currentLedger);
     auto tmpOut = app.getHistoryManager().getTmpDir() / filename;
     {
-        OutputFileStream out(app.getClock().getIOContext(),
-                             /* fsyncOnClose */ true);
+        // Always fsync in prod paths, but allow disabling for tests for
+        // performance
+        OutputFileStream out(
+            app.getClock().getIOContext(),
+#ifdef BUILD_TESTS
+            /* fsyncOnClose */ !app.getConfig().DISABLE_XDR_FSYNC
+#else
+            /* fsyncOnClose */ true
+#endif
+        );
         out.open(tmpOut.string());
         cereal::BufferedAsioOutputArchive ar(out);
         has.serialize(ar);
