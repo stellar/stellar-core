@@ -176,7 +176,6 @@ mod rust_bridge {
     // The extern "Rust" block declares rust stuff we're going to export to C++.
     #[namespace = "stellar::rust_bridge"]
     extern "Rust" {
-        fn start_tracy();
         fn to_base64(b: &CxxVector<u8>, mut s: Pin<&mut CxxString>);
         fn from_base64(s: &CxxString, mut b: Pin<&mut CxxVector<u8>>);
         fn check_sensible_soroban_config_for_protocol(core_max_proto: u32);
@@ -882,64 +881,15 @@ mod test_extra_protocol {
         ledger_info.protocol_version = new_protocol;
 
         match new_protocol {
-            22 => {
-                use p22::contract::{
-                    inplace_modify_cxxbuf_encoded_type, xdr::ContractCostParams,
-                    xdr::ContractCostType as CT,
-                };
-                // We have to modify some cost parameters in the ledger info and
-                // add some new ones to simulate p22. Note that a p21
-                // ContractCostParams structure will decode properly as a p22
-                // one, so we can just use the inplace-modify helper function.
-                inplace_modify_cxxbuf_encoded_type::<ContractCostParams>(
-                    &mut ledger_info.cpu_cost_params,
-                    |params: &mut ContractCostParams| {
-                        let mut cpu = params.0.to_vec();
-
-                        // We only adjust the cost types that changed dramatically
-                        // between 21 and 22. The rest are left as-is, they're close
-                        // enough to not matter for side-by-side testing.
-
-                        cpu[CT::VmInstantiation as usize].const_term = 31271;
-                        cpu[CT::VmInstantiation as usize].linear_term = 57504;
-
-                        cpu[CT::ParseWasmInstructions as usize].const_term = 37421;
-                        cpu[CT::ParseWasmInstructions as usize].linear_term = 32;
-
-                        cpu[CT::ParseWasmFunctions as usize].const_term = 0;
-                        cpu[CT::ParseWasmFunctions as usize].linear_term = 84156;
-
-                        cpu[CT::ParseWasmDataSegmentBytes as usize].const_term = 0;
-                        cpu[CT::ParseWasmDataSegmentBytes as usize].linear_term = 14;
-
-                        params.0 = cpu
-                            .try_into()
-                            .map_err(|_| "failed to convert VecM back to array")?;
-                        Ok(())
-                    },
-                )?;
-
-                inplace_modify_cxxbuf_encoded_type::<ContractCostParams>(
-                    &mut ledger_info.mem_cost_params,
-                    |params: &mut ContractCostParams| {
-                        let mut mem = params.0.to_vec();
-
-                        mem[CT::ParseWasmInstructions as usize].const_term = 13980;
-                        mem[CT::ParseWasmInstructions as usize].linear_term = 215;
-
-                        mem[CT::ParseWasmFunctions as usize].const_term = 0;
-                        mem[CT::ParseWasmFunctions as usize].linear_term = 23056;
-
-                        mem[CT::ParseWasmDataSegmentBytes as usize].const_term = 0;
-                        mem[CT::ParseWasmDataSegmentBytes as usize].linear_term = 129;
-
-                        params.0 = mem
-                            .try_into()
-                            .map_err(|_| "failed to convert VecM back to array")?;
-                        Ok(())
-                    },
-                )?;
-            }
+            // At present no adjustments need to be made, only new costs exist
+            // in p22, not changes to existing ones.
+            //
+            // FIXME: any changes to cost types should be centralized and pulled
+            // from the same location, having multiple copies like this is bad,
+            // we already have a bug open on the problem occurring between
+            // budget defaults in soroban and upgrades.
+            //
+            // See: https://github.com/stellar/stellar-core/issues/4496
             _ => (),
         }
 
@@ -1054,11 +1004,4 @@ pub(crate) fn compute_write_fee_per_1kb(
 ) -> Result<i64, Box<dyn std::error::Error>> {
     let hm = get_host_module_for_protocol(config_max_protocol, protocol_version)?;
     Ok((hm.compute_write_fee_per_1kb)(bucket_list_size, fee_config))
-}
-
-fn start_tracy() {
-    #[cfg(feature = "tracy")]
-    tracy_client::Client::start();
-    #[cfg(not(feature = "tracy"))]
-    panic!("called start_tracy from non-cfg(feature=\"tracy\") build")
 }

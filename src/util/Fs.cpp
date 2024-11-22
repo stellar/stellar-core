@@ -153,7 +153,8 @@ durableRename(std::string const& src, std::string const& dst,
               std::string const& dir)
 {
     ZoneScoped;
-    if (MoveFileExA(src.c_str(), dst.c_str(), MOVEFILE_WRITE_THROUGH) == 0)
+    if (MoveFileExA(src.c_str(), dst.c_str(),
+                    MOVEFILE_WRITE_THROUGH | MOVEFILE_REPLACE_EXISTING) == 0)
     {
         FileSystemException::failWithGetLastError(
             "fs::durableRename() failed on MoveFileExA(): ");
@@ -257,7 +258,9 @@ durableRename(std::string const& src, std::string const& dst,
               std::string const& dir)
 {
     ZoneScoped;
-    if (rename(src.c_str(), dst.c_str()) != 0)
+    std::error_code ec;
+    std::filesystem::rename(src.c_str(), dst.c_str(), ec);
+    if (ec)
     {
         return false;
     }

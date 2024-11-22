@@ -65,7 +65,7 @@ class LoopbackPeer : public Peer
     }
     LoopbackPeer(Application& app, PeerRole role);
 
-    void recvMessage(std::shared_ptr<MsgCapacityTracker> msgTracker);
+    void recvMessage(std::shared_ptr<CapacityTrackedMessage> msgTracker);
 
     static std::pair<std::shared_ptr<LoopbackPeer>,
                      std::shared_ptr<LoopbackPeer>>
@@ -152,11 +152,11 @@ class LoopbackPeer : public Peer
 
     std::string getIP() const;
 
-    using Peer::MsgCapacityTracker;
     using Peer::recvMessage;
     using Peer::sendAuth;
     using Peer::sendAuthenticatedMessage;
     using Peer::sendMessage;
+    using Peer::sendPeers;
 
     friend class LoopbackPeerConnection;
 };

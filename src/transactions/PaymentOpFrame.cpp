@@ -25,7 +25,7 @@ PaymentOpFrame::PaymentOpFrame(Operation const& op,
 }
 
 bool
-PaymentOpFrame::doApply(Application& app, AbstractLedgerTxn& ltx,
+PaymentOpFrame::doApply(AppConnector& app, AbstractLedgerTxn& ltx,
                         Hash const& sorobanBasePrngSeed, OperationResult& res,
                         std::shared_ptr<SorobanTxData> sorobanData) const
 {

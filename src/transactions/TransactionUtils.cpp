@@ -1983,7 +1983,7 @@ hasMuxedAccount(TransactionEnvelope const& e)
 }
 
 bool
-isTransactionXDRValidForCurrentProtocol(Application& app,
+isTransactionXDRValidForCurrentProtocol(AppConnector& app,
                                         TransactionEnvelope const& envelope)
 {
     uint32_t maxProtocol = app.getConfig().CURRENT_LEDGER_PROTOCOL_VERSION;

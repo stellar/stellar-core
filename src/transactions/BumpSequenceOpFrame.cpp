@@ -36,7 +36,7 @@ BumpSequenceOpFrame::isOpSupported(LedgerHeader const& header) const
 }
 
 bool
-BumpSequenceOpFrame::doApply(Application& app, AbstractLedgerTxn& ltx,
+BumpSequenceOpFrame::doApply(AppConnector& app, AbstractLedgerTxn& ltx,
                              Hash const& sorobanBasePrngSeed,
                              OperationResult& res,
                              std::shared_ptr<SorobanTxData> sorobanData) const

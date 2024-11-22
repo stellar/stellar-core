@@ -26,6 +26,7 @@ class BucketOutputIterator
     std::filesystem::path mFilename;
     XDROutputFileStream mOut;
     BucketEntryIdCmp mCmp;
+    asio::io_context& mCtx;
     std::unique_ptr<BucketEntry> mBuf;
     SHA256 mHasher;
     size_t mBytesPut{0};

@@ -177,8 +177,8 @@ validateBalancesOnCreateAndClaim(TestAccount& createAcc, TestAccount& claimAcc,
 
         LedgerTxn ltx(app.getLedgerTxnRoot());
         TransactionMetaFrame txm(ltx.loadHeader().current().ledgerVersion);
-        REQUIRE(tx->checkValidForTesting(app, ltx, 0, 0, 0));
-        REQUIRE(tx->apply(app, ltx, txm));
+        REQUIRE(tx->checkValidForTesting(app.getAppConnector(), ltx, 0, 0, 0));
+        REQUIRE(tx->apply(app.getAppConnector(), ltx, txm));
         REQUIRE(tx->getResultCode() == txSUCCESS);
 
         // the create is the second op in the tx
@@ -236,8 +236,8 @@ validateBalancesOnCreateAndClaim(TestAccount& createAcc, TestAccount& claimAcc,
 
         LedgerTxn ltx(app.getLedgerTxnRoot());
         TransactionMetaFrame txm(ltx.loadHeader().current().ledgerVersion);
-        REQUIRE(tx->checkValidForTesting(app, ltx, 0, 0, 0));
-        REQUIRE(tx->apply(app, ltx, txm));
+        REQUIRE(tx->checkValidForTesting(app.getAppConnector(), ltx, 0, 0, 0));
+        REQUIRE(tx->apply(app.getAppConnector(), ltx, txm));
         ltx.commit();
 
         REQUIRE(tx->getResultCode() == txSUCCESS);
@@ -257,8 +257,8 @@ validateBalancesOnCreateAndClaim(TestAccount& createAcc, TestAccount& claimAcc,
 
         LedgerTxn ltx(app.getLedgerTxnRoot());
         TransactionMetaFrame txm(ltx.loadHeader().current().ledgerVersion);
-        REQUIRE(tx->checkValidForTesting(app, ltx, 0, 0, 0));
-        REQUIRE(tx->apply(app, ltx, txm));
+        REQUIRE(tx->checkValidForTesting(app.getAppConnector(), ltx, 0, 0, 0));
+        REQUIRE(tx->apply(app.getAppConnector(), ltx, txm));
         ltx.commit();
 
         REQUIRE(tx->getResultCode() == txSUCCESS);
@@ -1164,8 +1164,9 @@ TEST_CASE_VERSIONS("claimableBalance", "[tx][claimablebalance]")
 
             LedgerTxn ltx(app->getLedgerTxnRoot());
             TransactionMetaFrame txm(ltx.loadHeader().current().ledgerVersion);
-            REQUIRE(tx->checkValidForTesting(*app, ltx, 0, 0, 0));
-            REQUIRE(tx->apply(*app, ltx, txm));
+            REQUIRE(
+                tx->checkValidForTesting(app->getAppConnector(), ltx, 0, 0, 0));
+            REQUIRE(tx->apply(app->getAppConnector(), ltx, txm));
             REQUIRE(tx->getResultCode() == txSUCCESS);
 
             auto balanceID = root.getBalanceID(1);
@@ -1177,8 +1178,9 @@ TEST_CASE_VERSIONS("claimableBalance", "[tx][claimablebalance]")
                 {});
 
             TransactionMetaFrame txm2(ltx.loadHeader().current().ledgerVersion);
-            REQUIRE(tx2->checkValidForTesting(*app, ltx, 0, 0, 0));
-            REQUIRE(!tx2->apply(*app, ltx, txm2));
+            REQUIRE(tx2->checkValidForTesting(app->getAppConnector(), ltx, 0, 0,
+                                              0));
+            REQUIRE(!tx2->apply(app->getAppConnector(), ltx, txm2));
             REQUIRE(tx2->getResultCode() == txFAILED);
 
             REQUIRE(tx2->getResult()
@@ -1242,8 +1244,9 @@ TEST_CASE_VERSIONS("claimableBalance", "[tx][claimablebalance]")
                     LedgerTxn ltx(app->getLedgerTxnRoot());
                     TransactionMetaFrame txm(
                         ltx.loadHeader().current().ledgerVersion);
-                    REQUIRE(tx->checkValidForTesting(*app, ltx, 0, 0, 0));
-                    REQUIRE(tx->apply(*app, ltx, txm));
+                    REQUIRE(tx->checkValidForTesting(app->getAppConnector(),
+                                                     ltx, 0, 0, 0));
+                    REQUIRE(tx->apply(app->getAppConnector(), ltx, txm));
                     REQUIRE(tx->getResultCode() == txSUCCESS);
                     ltx.commit();
                 }
@@ -1272,8 +1275,9 @@ TEST_CASE_VERSIONS("claimableBalance", "[tx][claimablebalance]")
                     LedgerTxn ltx(app->getLedgerTxnRoot());
                     TransactionMetaFrame txm2(
                         ltx.loadHeader().current().ledgerVersion);
-                    REQUIRE(tx2->checkValidForTesting(*app, ltx, 0, 0, 0));
-                    REQUIRE(tx2->apply(*app, ltx, txm2));
+                    REQUIRE(tx2->checkValidForTesting(app->getAppConnector(),
+                                                      ltx, 0, 0, 0));
+                    REQUIRE(tx2->apply(app->getAppConnector(), ltx, txm2));
                     REQUIRE(tx2->getResultCode() == txSUCCESS);
 
                     // increment ledgerSeq

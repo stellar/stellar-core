@@ -1,6 +1,7 @@
 #pragma once
 
 #include "main/Config.h"
+#include "medida/metrics_registry.h"
 
 namespace stellar
 {
@@ -10,10 +11,14 @@ class LedgerManager;
 class Herder;
 class BanManager;
 struct OverlayMetrics;
+class SorobanNetworkConfig;
+class SorobanMetrics;
+struct LedgerTxnDelta;
+class CapacityTrackedMessage;
 
 // Helper class to isolate access to Application; all function helpers must
 // either be called from main or be thread-sade
-class OverlayAppConnector
+class AppConnector
 {
     Application& mApp;
     // Copy config for threads to use, and avoid warnings from thread sanitizer
@@ -21,7 +26,7 @@ class OverlayAppConnector
     Config const mConfig;
 
   public:
-    OverlayAppConnector(Application& app);
+    AppConnector(Application& app);
 
     // Methods that can only be called from main thread
     Herder& getHerder();
@@ -29,6 +34,13 @@ class OverlayAppConnector
     OverlayManager& getOverlayManager();
     BanManager& getBanManager();
     bool shouldYield() const;
+    SorobanNetworkConfig const& getSorobanNetworkConfig() const;
+    medida::MetricsRegistry& getMetrics() const;
+    SorobanMetrics& getSorobanMetrics() const;
+    void checkOnOperationApply(Operation const& operation,
+                               OperationResult const& opres,
+                               LedgerTxnDelta const& ltxDelta);
+    Hash const& getNetworkID() const;
 
     // Thread-safe methods
     void postOnMainThread(
@@ -40,5 +52,8 @@ class OverlayAppConnector
     Config const& getConfig() const;
     bool overlayShuttingDown() const;
     OverlayMetrics& getOverlayMetrics();
+    // This method is always exclusively called from one thread
+    bool
+    checkScheduledAndCache(std::shared_ptr<CapacityTrackedMessage> msgTracker);
 };
 }

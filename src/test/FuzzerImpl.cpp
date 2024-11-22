@@ -927,8 +927,9 @@ class FuzzTransactionFrame : public TransactionFrame
         LedgerSnapshot ltxStmt(ltx);
         // if any ill-formed Operations, do not attempt transaction application
         auto isInvalidOperation = [&](auto const& op, auto& opResult) {
-            return !op->checkValid(app, signatureChecker, ltxStmt, false,
-                                   opResult, mTxResult->getSorobanData());
+            return !op->checkValid(app.getAppConnector(), signatureChecker,
+                                   ltxStmt, false, opResult,
+                                   mTxResult->getSorobanData());
         };
 
         auto const& ops = getOperations();
@@ -949,7 +950,8 @@ class FuzzTransactionFrame : public TransactionFrame
         loadSourceAccount(ltx, ltx.loadHeader());
         processSeqNum(ltx);
         TransactionMetaFrame tm(2);
-        applyOperations(signatureChecker, app, ltx, tm, *mTxResult, Hash{});
+        applyOperations(signatureChecker, app.getAppConnector(), ltx, tm,
+                        *mTxResult, Hash{});
         if (mTxResult->getResultCode() == txINTERNAL_ERROR)
         {
             throw std::runtime_error("Internal error while fuzzing");

@@ -4,9 +4,11 @@
 
 #include "crypto/SHA.h"
 #include "crypto/SecretKey.h"
+#include "ledger/LedgerManager.h"
 #include "lib/catch.hpp"
 #include "main/Config.h"
 #include "scp/QuorumSetUtils.h"
+#include "simulation/ApplyLoad.h"
 #include "simulation/LoadGenerator.h"
 #include "simulation/Topologies.h"
 #include "test/test.h"
@@ -819,4 +821,90 @@ TEST_CASE("Upgrade setup with metrics reset", "[loadgen]")
     sim->crankUntil([&]() { return runsComplete.count() == 1; },
                     5 * Herder::EXP_LEDGER_TIMESPAN_SECONDS, false);
     REQUIRE(runsFailed.count() == 0);
+}
+
+TEST_CASE("apply load", "[loadgen][applyload]")
+{
+    auto cfg = getTestConfig();
+    cfg.TESTING_UPGRADE_MAX_TX_SET_SIZE = 1000;
+    cfg.USE_CONFIG_FOR_GENESIS = true;
+    cfg.LEDGER_PROTOCOL_VERSION = Config::CURRENT_LEDGER_PROTOCOL_VERSION;
+
+    cfg.LOADGEN_NUM_DATA_ENTRIES_FOR_TESTING = {5, 10, 30};
+    cfg.LOADGEN_NUM_DATA_ENTRIES_DISTRIBUTION_FOR_TESTING = {1, 1, 1};
+    cfg.LOADGEN_IO_KILOBYTES_FOR_TESTING = {1, 5, 10};
+    cfg.LOADGEN_IO_KILOBYTES_DISTRIBUTION_FOR_TESTING = {10, 2, 1};
+    cfg.LOADGEN_TX_SIZE_BYTES_FOR_TESTING = {1'000, 2'000, 5'000};
+    cfg.LOADGEN_TX_SIZE_BYTES_DISTRIBUTION_FOR_TESTING = {3, 2, 1};
+    cfg.LOADGEN_INSTRUCTIONS_FOR_TESTING = {10'000'000, 50'000'000};
+    cfg.LOADGEN_INSTRUCTIONS_DISTRIBUTION_FOR_TESTING = {5, 1};
+
+    REQUIRE(cfg.isUsingBucketListDB());
+
+    VirtualClock clock(VirtualClock::REAL_TIME);
+    auto app = createTestApplication(clock, cfg);
+
+    uint64_t ledgerMaxInstructions = 500'000'000;
+    uint64_t ledgerMaxReadLedgerEntries = 2000;
+    uint64_t ledgerMaxReadBytes = 50'000'000;
+    uint64_t ledgerMaxWriteLedgerEntries = 1250;
+    uint64_t ledgerMaxWriteBytes = 700'000;
+    uint64_t ledgerMaxTxCount = 50;
+    uint64_t ledgerMaxTransactionsSizeBytes = 800'000;
+
+    ApplyLoad al(*app, ledgerMaxInstructions, ledgerMaxReadLedgerEntries,
+                 ledgerMaxReadBytes, ledgerMaxWriteLedgerEntries,
+                 ledgerMaxWriteBytes, ledgerMaxTxCount,
+                 ledgerMaxTransactionsSizeBytes);
+
+    auto& ledgerClose =
+        app->getMetrics().NewTimer({"ledger", "ledger", "close"});
+    ledgerClose.Clear();
+
+    auto& cpuInsRatio = app->getMetrics().NewHistogram(
+        {"soroban", "host-fn-op", "invoke-time-fsecs-cpu-insn-ratio"});
+    cpuInsRatio.Clear();
+
+    auto& cpuInsRatioExclVm = app->getMetrics().NewHistogram(
+        {"soroban", "host-fn-op", "invoke-time-fsecs-cpu-insn-ratio-excl-vm"});
+    cpuInsRatioExclVm.Clear();
+    for (size_t i = 0; i < 100; ++i)
+    {
+        app->getBucketManager().getBucketList().resolveAllFutures();
+        releaseAssert(
+            app->getBucketManager().getBucketList().futuresAllResolved());
+
+        al.benchmark();
+    }
+    REQUIRE(al.successRate() - 1.0 < std::numeric_limits<double>::epsilon());
+    CLOG_INFO(Perf, "Max ledger close: {} milliseconds", ledgerClose.max());
+    CLOG_INFO(Perf, "Min ledger close: {} milliseconds", ledgerClose.min());
+    CLOG_INFO(Perf, "Mean ledger close:  {} milliseconds", ledgerClose.mean());
+    CLOG_INFO(Perf, "stddev ledger close:  {} milliseconds",
+              ledgerClose.std_dev());
+
+    CLOG_INFO(Perf, "Max CPU ins ratio: {}", cpuInsRatio.max() / 1000000);
+    CLOG_INFO(Perf, "Mean CPU ins ratio:  {}", cpuInsRatio.mean() / 1000000);
+
+    CLOG_INFO(Perf, "Max CPU ins ratio excl VM: {}",
+              cpuInsRatioExclVm.max() / 1000000);
+    CLOG_INFO(Perf, "Mean CPU ins ratio excl VM:  {}",
+              cpuInsRatioExclVm.mean() / 1000000);
+    CLOG_INFO(Perf, "STDDEV CPU ins ratio excl VM:  {}",
+              cpuInsRatioExclVm.std_dev() / 1000000);
+
+    CLOG_INFO(Perf, "Tx count utilization {}%",
+              al.getTxCountUtilization().mean() / 1000.0);
+    CLOG_INFO(Perf, "Instruction utilization {}%",
+              al.getInstructionUtilization().mean() / 1000.0);
+    CLOG_INFO(Perf, "Tx size utilization {}%",
+              al.getTxSizeUtilization().mean() / 1000.0);
+    CLOG_INFO(Perf, "Read bytes utilization {}%",
+              al.getReadByteUtilization().mean() / 1000.0);
+    CLOG_INFO(Perf, "Write bytes utilization {}%",
+              al.getWriteByteUtilization().mean() / 1000.0);
+    CLOG_INFO(Perf, "Read entry utilization {}%",
+              al.getReadEntryUtilization().mean() / 1000.0);
+    CLOG_INFO(Perf, "Write entry utilization {}%",
+              al.getWriteEntryUtilization().mean() / 1000.0);
 }

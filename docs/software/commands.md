@@ -209,8 +209,23 @@ apply.
   hash for a checkpoint ledger, and then verifies the entire earlier history
   of an archive that ends in that ledger hash, writing the output to a reference
   list of trusted checkpoint hashes.
-  Option **--output-filename <FILE-NAME>** is mandatory and specifies the file
-  to write the trusted checkpoint hashes to.
+  * Option **--history-hash <HASH>** is optional and specifies the hash of the ledger
+  at the end of the verification range. When provided, `stellar-core` will use the history
+  hash to verify the range, rather than the latest checkpoint hash obtained from consensus.
+  Used in conjunction with `--history-ledger`.
+  * Option **--history-ledger <LEDGER-NUMBER>** is optional and specifies the ledger
+  number to end the verification at.  Used in conjunction with `--history-hash`.
+  * Option **--output-filename <FILE-NAME>** is mandatory and specifies the file
+  to write the trusted checkpoint hashes to. The file will contain a JSON array 
+  of arrays, where each inner array contains the ledger number and the corresponding
+  checkpoint hash of the form `[[999, "hash-abc"], [935, "hash-def"], ... [0, "hash-xyz]]`.
+  * Option **--trusted-hash-file <FILE-NAME>** is optional. If provided,
+  stellar-core will parse the latest checkpoint ledger number and hash from the file and verify from this ledger to the latest checkpoint ledger obtained from the network.
+  * Option **--from-ledger <LEDGER-NUMBER>** is optional and specifies the ledger
+  number to start the verification from.
+
+> Note: It is an error to provide both the `--trusted-hash-file` and `--from-ledger` options.
+
 * **version**: Print version info and then exit.
 
 ## HTTP Commands
@@ -331,6 +346,10 @@ Most commands return their results in JSON format.
     * "ERROR" - transaction rejected by transaction engine
         error: set when status is "ERROR".
             Base64 encoded, XDR serialized 'TransactionResult'
+    * "TRY_AGAIN_LATER" - transaction rejected but can be retried later. This can happen due to several reasons:
+        There is another transaction from same source account in PENDING state
+        The network is under high load and the fee is too low.
+    * "FILTERED" - transaction rejected because it contains an operation type that Stellar Core filters out. See Stellar Core configuration `EXCLUDE_TRANSACTIONS_CONTAINING_OPERATION_TYPE` for more details.
 
 * **upgrades**
   * `upgrades?mode=get`<br>

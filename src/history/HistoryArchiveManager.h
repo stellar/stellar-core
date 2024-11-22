@@ -43,7 +43,7 @@ class HistoryArchiveManager
 
     // Returns whether or not the HistoryManager has any writable history
     // archives (those configured with both a `get` and `put` command).
-    bool hasAnyWritableHistoryArchive() const;
+    bool publishEnabled() const;
 
     // Returns history archive with given name or nullptr.
     std::shared_ptr<HistoryArchive>

@@ -65,7 +65,7 @@ TEST_CASE("filesystem findfiles", "[fs]")
 
 TEST_CASE("filesystem remoteName", "[fs]")
 {
-    REQUIRE(fs::remoteName(HISTORY_FILE_TYPE_LEDGER, fs::hexStr(0x0abbccdd),
-                           "xdr.gz") ==
+    REQUIRE(fs::remoteName(typeString(FileType::HISTORY_FILE_TYPE_LEDGER),
+                           fs::hexStr(0x0abbccdd), "xdr.gz") ==
             "ledger/0a/bb/cc/ledger-0abbccdd.xdr.gz");
 }

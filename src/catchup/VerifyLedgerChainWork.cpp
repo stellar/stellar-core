@@ -107,6 +107,7 @@ trySetFuture(std::promise<T>& promise, T value)
 VerifyLedgerChainWork::VerifyLedgerChainWork(
     Application& app, TmpDir const& downloadDir, LedgerRange const& range,
     LedgerNumHashPair const& lastClosedLedger,
+    std::optional<LedgerNumHashPair> const& maxPrevVerified,
     std::shared_future<LedgerNumHashPair> trustedMaxLedger,
     std::promise<bool>&& fatalFailure,
     std::shared_ptr<std::ofstream> outputStream)
@@ -118,6 +119,7 @@ VerifyLedgerChainWork::VerifyLedgerChainWork(
                           : mApp.getHistoryManager().checkpointContainingLedger(
                                 mRange.last()))
     , mLastClosed(lastClosedLedger)
+    , mMaxPrevVerified(maxPrevVerified)
     , mFatalFailurePromise(std::move(fatalFailure))
     , mTrustedMaxLedger(trustedMaxLedger)
     , mVerifiedMinLedgerPrevFuture(mVerifiedMinLedgerPrev.get_future().share())
@@ -166,7 +168,7 @@ VerifyLedgerChainWork::verifyHistoryOfSingleCheckpoint()
     // trusted hash passed in. If LCL is reached, verify that it agrees with
     // the chain.
 
-    FileTransferInfo ft(mDownloadDir, HISTORY_FILE_TYPE_LEDGER,
+    FileTransferInfo ft(mDownloadDir, FileType::HISTORY_FILE_TYPE_LEDGER,
                         mCurrCheckpoint);
     XDRInputFileStream hdrIn;
     hdrIn.open(ft.localPath_nogz());
@@ -184,6 +186,8 @@ VerifyLedgerChainWork::verifyHistoryOfSingleCheckpoint()
 
     CLOG_DEBUG(History, "Verifying ledger headers from {} for checkpoint {}",
                ft.localPath_nogz(), mCurrCheckpoint);
+
+    auto const& hm = mApp.getHistoryManager();
 
     while (hdrIn)
     {
@@ -209,7 +213,7 @@ VerifyLedgerChainWork::verifyHistoryOfSingleCheckpoint()
         }
 
         // Verify ledger with local state by comparing to LCL
-        // When checking against LCL, see it the local node is in the bad state,
+        // When checking against LCL, see if the local node is in a bad state
         // or if the archive is in a bad state (in which case, retry)
         if (curr.header.ledgerSeq == mLastClosed.first)
         {
@@ -240,9 +244,32 @@ VerifyLedgerChainWork::verifyHistoryOfSingleCheckpoint()
                 mChainDisagreesWithLocalState = lclResult;
             }
         }
+        // If the curr history entry is the same ledger as our mMaxPrevVerified,
+        // verify that the hashes match.
+        if (mMaxPrevVerified &&
+            curr.header.ledgerSeq == mMaxPrevVerified->first &&
+            curr.hash != mMaxPrevVerified->second)
+        {
+            CLOG_ERROR(History,
+                       "Checkpoint {} does not agree with trusted "
+                       "checkpoint hash {}",
+                       LedgerManager::ledgerAbbrev(curr),
+                       LedgerManager::ledgerAbbrev(mMaxPrevVerified->first,
+                                                   *mMaxPrevVerified->second));
+            return HistoryManager::VERIFY_STATUS_ERR_BAD_HASH;
+        }
 
         if (beginCheckpoint)
         {
+            if (!hm.isFirstLedgerInCheckpoint(curr.header.ledgerSeq))
+            {
+                CLOG_ERROR(
+                    History, "Checkpoint did not start with {} - got {}",
+                    hm.firstLedgerInCheckpointContaining(curr.header.ledgerSeq),
+                    curr.header.ledgerSeq);
+                return HistoryManager::VERIFY_STATUS_ERR_MISSING_ENTRIES;
+            }
+
             // At the beginning of checkpoint, we can't verify the link with
             // previous ledger, so at least verify that header content hashes to
             // correct value
@@ -301,8 +328,8 @@ VerifyLedgerChainWork::verifyHistoryOfSingleCheckpoint()
         // or at mRange.last() if history chain file was valid and we
         // reached last ledger in the range. Any other ledger here means
         // that file is corrupted.
-        CLOG_ERROR(History, "History chain did not end with {} or {}",
-                   mCurrCheckpoint, mRange.last());
+        CLOG_ERROR(History, "History chain did not end with {} or {} - got {}",
+                   mCurrCheckpoint, mRange.last(), curr.header.ledgerSeq);
         return HistoryManager::VERIFY_STATUS_ERR_MISSING_ENTRIES;
     }
 
@@ -354,7 +381,7 @@ VerifyLedgerChainWork::verifyHistoryOfSingleCheckpoint()
     }
     else
     {
-        // Otherwise we just finished a checkpoint _after_ than the first call
+        // Otherwise we just finished a checkpoint _after_ the first call
         // to this method and the `incoming` value we read out of
         // `mVerifiedAhead` should have content, because the previous call
         // should have saved something in `mVerifiedAhead`.
@@ -409,6 +436,11 @@ VerifyLedgerChainWork::onSuccess()
     {
         for (auto const& pair : mVerifiedLedgers)
         {
+            if (mMaxPrevVerified && mMaxPrevVerified->first == pair.first)
+            {
+                // Skip writing the trusted hash to the output file.
+                continue;
+            }
             (*mOutputStream) << "\n[" << pair.first << ", \""
                              << binToHex(*pair.second) << "\"],";
         }

@@ -118,9 +118,42 @@ In order to install the llvm (clang) toolchain, you may have to follow instructi
 
     sudo apt-get install clang-format-12
 
+### Ubuntu 24.04 and Newer Linux Versions
+
+Some newer Ubuntu versions have reported issues with older compiler versions. For Ubuntu 24.04 and
+other newer Linux distros, it is recommended to build with gcc-13 or clang-18. This can be installed as follows:
+
+```zsh
+# if using clang
+sudo apt-get install clang-18
+# if using g++ or building with libstdc++
+# sudo apt-get install gcc-13 g++-13 cpp-13
+# if building with libc++
+sudo apt-get install libc++-18-dev libc++abi-18-dev
+```
+
+Note that installing libc++-18 via apt will uninstall all other libc++ versions.
+
+Additionally, some newer Linux distros no longer package clang-format-12, and newer clang-format versions are
+not backwards compatible. To build from source, you'll need to do the following:
+
+```zsh
+sudo apt-get install ninja-build cmake
+git clone --depth 1 --branch llvmorg-12.0.1 https://github.com/llvm/llvm-project.git
+cd llvm-project
+sed -i "17i #include <stdint.h>" llvm/include/llvm/Support/Signals.h
+CC=clang CXX=clang++ cmake -S llvm -B build -G Ninja -DLLVM_ENABLE_PROJECTS="clang" -DCMAKE_BUILD_TYPE=Release
+cd build
+ninja clang-format
+sudo cp bin/clang-format /usr/bin/clang-format-12
+cd ../..
+rm -rf llvm-project/
+```
+
 ### MacOS 
 When building on MacOS, here's some dependencies you'll need:
 - Install xcode
+- Install [Rust](#installing-rust)
 - Install [homebrew](https://brew.sh)
 - `brew install libsodium libtool autoconf automake pkg-config libpq openssl parallel ccache bison gnu-sed perl coreutils`
 
@@ -149,24 +182,6 @@ clang-format --version
 
 ### Windows
 See [INSTALL-Windows.md](INSTALL-Windows.md)
-
-### Ubuntu 24.04 and Newer Linux Versions
-
-Some newer Linux distros no longer package clang-format-12, and newer clang-format versions are
-not backwards compatible. To build from source, you'll need to do the following:
-
-```zsh
-sudo apt-get install ninja-build cmake
-git clone --depth 1 --branch llvmorg-12.0.1 https://github.com/llvm/llvm-project.git
-cd llvm-project
-sed -i "17i #include <stdint.h>" llvm/include/llvm/Support/Signals.h
-CC=clang CXX=clang++ cmake -S llvm -B build -G Ninja -DLLVM_ENABLE_PROJECTS="clang" -DCMAKE_BUILD_TYPE=Release
-cd build
-ninja clang-format
-sudo cp bin/clang-format /usr/bin/clang-format-12
-cd ../..
-rm -rf llvm-project/
-```
 
 ## Basic Installation
 

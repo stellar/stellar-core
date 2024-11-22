@@ -502,6 +502,12 @@ class BucketList
     // HistoryArchiveStates, that can cause repeated merges when re-activated.
     void resolveAnyReadyFutures();
 
+#ifdef BUILD_TESTS
+    // Same as the function above, except we don't check if the buckets are
+    // done merging.
+    void resolveAllFutures();
+#endif
+
     // returns true if levels [0, maxLevel] are resolved
     bool futuresAllResolved(uint32_t maxLevel = kNumLevels - 1) const;
 

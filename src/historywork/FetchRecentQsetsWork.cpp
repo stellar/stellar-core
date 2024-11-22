@@ -62,7 +62,7 @@ FetchRecentQsetsWork::doWork()
                   firstSeq, lastSeq);
         auto range = CheckpointRange::inclusive(firstSeq, lastSeq, step);
         mDownloadSCPMessagesWork = addWork<BatchDownloadWork>(
-            range, HISTORY_FILE_TYPE_SCP, *mDownloadDir);
+            range, FileType::HISTORY_FILE_TYPE_SCP, *mDownloadDir);
         return State::WORK_RUNNING;
     }
     else if (mDownloadSCPMessagesWork->getState() != State::WORK_SUCCESS)
@@ -75,7 +75,7 @@ FetchRecentQsetsWork::doWork()
     {
         CLOG_INFO(History, "Scanning for QSets in checkpoint: {}", i);
         XDRInputFileStream in;
-        FileTransferInfo fi(*mDownloadDir, HISTORY_FILE_TYPE_SCP, i);
+        FileTransferInfo fi(*mDownloadDir, FileType::HISTORY_FILE_TYPE_SCP, i);
         try
         {
             in.open(fi.localPath_nogz());

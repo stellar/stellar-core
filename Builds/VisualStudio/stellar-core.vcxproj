@@ -325,7 +325,7 @@ exit /b 0
       <FunctionLevelLinking>true</FunctionLevelLinking>
       <IntrinsicFunctions>true</IntrinsicFunctions>
       <SDLCheck>true</SDLCheck>
-      <PreprocessorDefinitions>CEREAL_THREAD_SAFE;USE_POSTGRES;ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION=1;USE_SPDLOG;FMT_HEADER_ONLY=1;BUILD_TESTS;WIN32_LEAN_AND_MEAN;NOMINMAX;ASIO_STANDALONE;_WINSOCK_DEPRECATED_NO_WARNINGS;SODIUM_STATIC;ASIO_SEPARATE_COMPILATION;ASIO_ERROR_CATEGORY_NOEXCEPT=noexcept;TRACY_ENABLE;TRACY_ON_DEMAND;TRACY_NO_BROADCAST;TRACY_ONLY_LOCALHOST;TRACY_DELAYED_INIT;TRACY_MANUAL_LIFETIME;USE_TRACY;_CRT_SECURE_NO_WARNINGS;_WIN32_WINNT=0x0601;WIN32;_MBCS;_CRT_NONSTDC_NO_DEPRECATE;YY_NO_UNISTD_H;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>CEREAL_THREAD_SAFE;USE_POSTGRES;ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION=1;USE_SPDLOG;FMT_HEADER_ONLY=1;BUILD_TESTS;WIN32_LEAN_AND_MEAN;NOMINMAX;ASIO_STANDALONE;_WINSOCK_DEPRECATED_NO_WARNINGS;SODIUM_STATIC;ASIO_SEPARATE_COMPILATION;ASIO_ERROR_CATEGORY_NOEXCEPT=noexcept;TRACY_ENABLE;TRACY_ON_DEMAND;TRACY_NO_BROADCAST;TRACY_ONLY_LOCALHOST;TRACY_DELAYED_INIT;USE_TRACY;_CRT_SECURE_NO_WARNINGS;_WIN32_WINNT=0x0601;WIN32;_MBCS;_CRT_NONSTDC_NO_DEPRECATE;YY_NO_UNISTD_H;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <AdditionalIncludeDirectories>src;../../src;../../lib;../../lib/tracy/public/tracy;../../lib/spdlog/include;../../lib/libmedida/src;../../lib/soci/src/core;../../lib/autocheck/include;../../lib/cereal/include;../../lib/asio/asio/include;../../lib/xdrpp;../../lib/libsodium/src/libsodium/include;../../lib/fmt/include;../../lib/util;../..;src/$(Configuration)/generated;../../lib/sqlite;c:\Program Files\PostgreSQL\15\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <BrowseInformation>false</BrowseInformation>
       <MultiProcessorCompilation>true</MultiProcessorCompilation>
@@ -390,7 +390,7 @@ exit /b 0
       <FunctionLevelLinking>true</FunctionLevelLinking>
       <IntrinsicFunctions>true</IntrinsicFunctions>
       <SDLCheck>true</SDLCheck>
-      <PreprocessorDefinitions>CEREAL_THREAD_SAFE;USE_POSTGRES;USE_SPDLOG;FMT_HEADER_ONLY=1;BUILD_TESTS;WIN32_LEAN_AND_MEAN;NOMINMAX;ASIO_STANDALONE;_WINSOCK_DEPRECATED_NO_WARNINGS;SODIUM_STATIC;ASIO_SEPARATE_COMPILATION;ASIO_ERROR_CATEGORY_NOEXCEPT=noexcept;TRACY_ENABLE;TRACY_ON_DEMAND;TRACY_NO_BROADCAST;TRACY_ONLY_LOCALHOST;TRACY_DELAYED_INIT;TRACY_MANUAL_LIFETIME;USE_TRACY;_CRT_SECURE_NO_WARNINGS;_WIN32_WINNT=0x0601;WIN32;_MBCS;_CRT_NONSTDC_NO_DEPRECATE;YY_NO_UNISTD_H;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>CEREAL_THREAD_SAFE;USE_POSTGRES;USE_SPDLOG;FMT_HEADER_ONLY=1;BUILD_TESTS;WIN32_LEAN_AND_MEAN;NOMINMAX;ASIO_STANDALONE;_WINSOCK_DEPRECATED_NO_WARNINGS;SODIUM_STATIC;ASIO_SEPARATE_COMPILATION;ASIO_ERROR_CATEGORY_NOEXCEPT=noexcept;TRACY_ENABLE;TRACY_ON_DEMAND;TRACY_NO_BROADCAST;TRACY_ONLY_LOCALHOST;TRACY_DELAYED_INIT;USE_TRACY;_CRT_SECURE_NO_WARNINGS;_WIN32_WINNT=0x0601;WIN32;_MBCS;_CRT_NONSTDC_NO_DEPRECATE;YY_NO_UNISTD_H;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <AdditionalIncludeDirectories>src;../../src;../../lib;../../lib/tracy/public/tracy;../../lib/spdlog/include;../../lib/libmedida/src;../../lib/soci/src/core;../../lib/autocheck/include;../../lib/cereal/include;../../lib/asio/asio/include;../../lib/xdrpp;../../lib/libsodium/src/libsodium/include;../../lib/fmt/include;../../lib/util;../..;src/$(Configuration)/generated;../../lib/sqlite;c:\Program Files\PostgreSQL\15\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <BrowseInformation>false</BrowseInformation>
       <MultiProcessorCompilation>true</MultiProcessorCompilation>
@@ -580,6 +580,7 @@ exit /b 0
     <ClCompile Include="..\..\src\historywork\VerifyTxResultsWork.cpp" />
     <ClCompile Include="..\..\src\historywork\WriteSnapshotWork.cpp" />
     <ClCompile Include="..\..\src\historywork\WriteVerifiedCheckpointHashesWork.cpp" />
+    <ClCompile Include="..\..\src\history\CheckpointBuilder.cpp" />
     <ClCompile Include="..\..\src\history\FileTransferInfo.cpp" />
     <ClCompile Include="..\..\src\history\HistoryArchive.cpp" />
     <ClCompile Include="..\..\src\history\HistoryArchiveManager.cpp" />
@@ -640,6 +641,7 @@ exit /b 0
     <ClCompile Include="..\..\src\ledger\test\LiabilitiesTests.cpp" />
     <ClCompile Include="..\..\src\ledger\SorobanMetrics.cpp" />
     <ClCompile Include="..\..\src\ledger\TrustLineWrapper.cpp" />
+    <ClCompile Include="..\..\src\main\AppConnector.cpp" />
     <ClCompile Include="..\..\src\main\Diagnostics.cpp" />
     <ClCompile Include="..\..\src\main\QueryServer.cpp" />
     <ClCompile Include="..\..\src\main\SettingsUpgradeUtils.cpp" />
@@ -654,7 +656,6 @@ exit /b 0
     <ClCompile Include="..\..\src\overlay\FlowControlCapacity.cpp" />
     <ClCompile Include="..\..\src\overlay\Hmac.cpp" />
     <ClCompile Include="..\..\src\overlay\ItemFetcher.cpp" />
-    <ClCompile Include="..\..\src\overlay\OverlayAppConnector.cpp" />
     <ClCompile Include="..\..\src\overlay\OverlayManagerImpl.cpp" />
     <ClCompile Include="..\..\src\overlay\OverlayMetrics.cpp" />
     <ClCompile Include="..\..\src\overlay\Peer.cpp" />
@@ -1032,6 +1033,7 @@ exit /b 0
     <ClInclude Include="..\..\src\historywork\VerifyTxResultsWork.h" />
     <ClInclude Include="..\..\src\historywork\WriteSnapshotWork.h" />
     <ClInclude Include="..\..\src\historywork\WriteVerifiedCheckpointHashesWork.h" />
+    <ClInclude Include="..\..\src\history\CheckpointBuilder.h" />
     <ClInclude Include="..\..\src\history\FileTransferInfo.h" />
     <ClInclude Include="..\..\src\history\HistoryArchive.h" />
     <ClInclude Include="..\..\src\history\HistoryArchiveManager.h" />
@@ -1075,6 +1077,7 @@ exit /b 0
     <ClInclude Include="..\..\src\ledger\test\LedgerTestUtils.h" />
     <ClInclude Include="..\..\src\ledger\SorobanMetrics.h" />
     <ClInclude Include="..\..\src\ledger\TrustLineWrapper.h" />
+    <ClInclude Include="..\..\src\main\AppConnector.h" />
     <ClInclude Include="..\..\src\main\Diagnostics.h" />
     <ClInclude Include="..\..\src\main\QueryServer.h" />
     <ClInclude Include="..\..\src\main\SettingsUpgradeUtils.h" />
@@ -1085,7 +1088,6 @@ exit /b 0
     <ClInclude Include="..\..\src\overlay\FlowControlCapacity.h" />
     <ClInclude Include="..\..\src\overlay\Hmac.h" />
     <ClInclude Include="..\..\src\overlay\ItemFetcher.h" />
-    <ClInclude Include="..\..\src\overlay\OverlayAppConnector.h" />
     <ClInclude Include="..\..\src\overlay\OverlayManager.h" />
     <ClInclude Include="..\..\src\overlay\OverlayManagerImpl.h" />
     <ClInclude Include="..\..\src\overlay\OverlayMetrics.h" />

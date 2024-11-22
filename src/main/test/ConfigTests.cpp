@@ -572,3 +572,35 @@ TEST_CASE("operation filter configuration", "[config]")
         loadConfig(vals);
     }
 }
+
+// Test that the config loader rejects validator configs with all validators
+// marked low quality (including 'self').
+TEST_CASE("reject all low quality validators config", "[config]")
+{
+    Config c;
+    std::string const configStr = R"(
+NODE_SEED="SA7FGJMMUIHNE3ZPI2UO5I632A7O5FBAZTXFAIEVFA4DSSGLHXACLAIT a3"
+NODE_HOME_DOMAIN="domain"
+NODE_IS_VALIDATOR=true
+DEPRECATED_SQL_LEDGER_STATE=false
+UNSAFE_QUORUM=true
+
+[[HOME_DOMAINS]]
+HOME_DOMAIN="domain"
+QUALITY="LOW"
+
+[[VALIDATORS]]
+NAME="a1"
+HOME_DOMAIN="domain"
+PUBLIC_KEY="GDUTST3TG4MNDLY6WLB5CIASIBZAWWWJKZDHA4HFEVKQOVTYQ2F5GKYZ"
+
+[[VALIDATORS]]
+NAME="a2"
+HOME_DOMAIN="domain"
+PUBLIC_KEY="GBVZFVEARURUJTN5ABZPKW36FHKVJK2GHXEVY2SZCCNU5I3CQMTZ3OES"
+)";
+    std::stringstream ss(configStr);
+    REQUIRE_THROWS_WITH(
+        c.load(ss),
+        "At least one validator must have a quality level higher than LOW");
+}

@@ -4,6 +4,7 @@
 // under the Apache License, Version 2.0. See the COPYING file at the root
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
+#include "main/AppConnector.h"
 #include "util/NonCopyable.h"
 #include "util/ProtocolVersion.h"
 #include "xdr/Stellar-ledger-entries.h"
@@ -261,7 +262,7 @@ bool accountFlagMaskCheckIsValid(uint32_t flag, uint32_t ledgerVersion);
 bool hasMuxedAccount(TransactionEnvelope const& e);
 
 bool
-isTransactionXDRValidForCurrentProtocol(Application& app,
+isTransactionXDRValidForCurrentProtocol(AppConnector& app,
                                         TransactionEnvelope const& envelope);
 
 uint64_t getUpperBoundCloseTimeOffset(Application& app, uint64_t lastCloseTime);

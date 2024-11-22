@@ -29,7 +29,7 @@ InflationOpFrame::InflationOpFrame(Operation const& op,
 }
 
 bool
-InflationOpFrame::doApply(Application& app, AbstractLedgerTxn& ltx,
+InflationOpFrame::doApply(AppConnector& app, AbstractLedgerTxn& ltx,
                           Hash const& sorobanBasePrngSeed, OperationResult& res,
                           std::shared_ptr<SorobanTxData> sorobanData) const
 {

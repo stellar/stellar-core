@@ -347,7 +347,7 @@ AC_ARG_ENABLE(tracy,
     AS_HELP_STRING([--enable-tracy],
         [Enable 'tracy' profiler/tracer client stub]))
 AM_CONDITIONAL(USE_TRACY, [test x$enable_tracy = xyes])
-tracy_CFLAGS='-DTRACY_ENABLE -DTRACY_ON_DEMAND -DTRACY_NO_BROADCAST -DTRACY_ONLY_LOCALHOST -DTRACY_ONLY_IPV4 -DTRACY_DELAYED_INIT -DTRACY_MANUAL_LIFETIME'
+tracy_CFLAGS='-DTRACY_ENABLE -DTRACY_ON_DEMAND -DTRACY_NO_BROADCAST -DTRACY_ONLY_LOCALHOST -DTRACY_ONLY_IPV4 -DTRACY_DELAYED_INIT'
 if test x"$enable_tracy" = xyes; then
     case "${host_os}" in
         *darwin*)
@@ -358,6 +358,18 @@ if test x"$enable_tracy" = xyes; then
     esac
 fi
 AC_SUBST(tracy_CFLAGS)
+
+AC_ARG_ENABLE(tracy-memory-tracking,
+    AS_HELP_STRING([--enable-tracy-memory-tracking],
+        [Enable 'tracy' profiler/tracer memory tracking code (slow)]))
+AM_CONDITIONAL(USE_TRACY_MEMORY_TRACKING, [test x$enable_tracy_memory_tracking = xyes])
+
+if test x"$enable_tracy" = xyes -a x"$enable_asan" = xyes; then
+       AC_MSG_ERROR([--enable-asan is not compatible with --enable-tracy])
+fi
+if test x"$enable_tracy_memory_tracking" = xyes -a x"$enable_asan" = xyes; then
+       AC_MSG_ERROR([--enable-asan is not compatible with --enable-tracy-memory-tracking])
+fi
 
 AC_ARG_ENABLE(tracy-gui,
     AS_HELP_STRING([--enable-tracy-gui],

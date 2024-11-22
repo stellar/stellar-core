@@ -23,13 +23,12 @@ IndexBucketsWork::IndexWork::IndexWork(Application& app,
 BasicWork::State
 IndexBucketsWork::IndexWork::onRun()
 {
-    if (mDone)
+    if (mState == State::WORK_WAITING)
     {
-        return State::WORK_SUCCESS;
+        postWork();
     }
 
-    postWork();
-    return State::WORK_WAITING;
+    return mState;
 }
 
 bool
@@ -39,14 +38,21 @@ IndexBucketsWork::IndexWork::onAbort()
 };
 
 void
+IndexBucketsWork::IndexWork::onReset()
+{
+    mState = BasicWork::State::WORK_WAITING;
+}
+
+void
 IndexBucketsWork::IndexWork::postWork()
 {
     Application& app = this->mApp;
+    asio::io_context& ctx = app.getWorkerIOContext();
 
     std::weak_ptr<IndexWork> weak(
         std::static_pointer_cast<IndexWork>(shared_from_this()));
     app.postOnBackgroundThread(
-        [&app, weak]() {
+        [&app, &ctx, weak]() {
             auto self = weak.lock();
             if (!self || self->isAborting())
             {
@@ -80,8 +86,9 @@ IndexBucketsWork::IndexWork::postWork()
 
             if (!self->mIndex)
             {
-                self->mIndex = BucketIndex::createIndex(
-                    bm, self->mBucket->getFilename(), self->mBucket->getHash());
+                self->mIndex =
+                    BucketIndex::createIndex(bm, self->mBucket->getFilename(),
+                                             self->mBucket->getHash(), ctx);
             }
 
             app.postOnMainThread(
@@ -89,11 +96,18 @@ IndexBucketsWork::IndexWork::postWork()
                     auto self = weak.lock();
                     if (self)
                     {
-                        self->mDone = true;
-                        if (!self->isAborting())
+                        if (self->mIndex)
                         {
-                            self->mApp.getBucketManager().maybeSetIndex(
-                                self->mBucket, std::move(self->mIndex));
+                            self->mState = BasicWork::State::WORK_SUCCESS;
+                            if (!self->isAborting())
+                            {
+                                self->mApp.getBucketManager().maybeSetIndex(
+                                    self->mBucket, std::move(self->mIndex));
+                            }
+                        }
+                        else
+                        {
+                            self->mState = BasicWork::State::WORK_FAILURE;
                         }
                         self->wakeUp();
                     }

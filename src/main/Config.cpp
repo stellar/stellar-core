@@ -152,7 +152,7 @@ Config::Config() : NODE_SEED(SecretKey::random())
     LEDGER_PROTOCOL_MIN_VERSION_INTERNAL_ERROR_REPORT = 18;
 
     OVERLAY_PROTOCOL_MIN_VERSION = 33;
-    OVERLAY_PROTOCOL_VERSION = 35;
+    OVERLAY_PROTOCOL_VERSION = 36;
 
     VERSION_STR = STELLAR_CORE_VERSION;
 
@@ -162,7 +162,7 @@ Config::Config() : NODE_SEED(SecretKey::random())
     CATCHUP_COMPLETE = false;
     CATCHUP_RECENT = 0;
     EXPERIMENTAL_PRECAUTION_DELAY_META = false;
-    EXPERIMENTAL_BACKGROUND_OVERLAY_PROCESSING = false;
+    BACKGROUND_OVERLAY_PROCESSING = true;
     DEPRECATED_SQL_LEDGER_STATE = false;
     BUCKETLIST_DB_INDEX_PAGE_SIZE_EXPONENT = 14; // 2^14 == 16 kb
     BUCKETLIST_DB_INDEX_CUTOFF = 20;             // 20 mb
@@ -1066,9 +1066,14 @@ Config::processConfig(std::shared_ptr<cpptoml::table> t)
                  }},
                 {"EXPERIMENTAL_BACKGROUND_OVERLAY_PROCESSING",
                  [&]() {
-                     EXPERIMENTAL_BACKGROUND_OVERLAY_PROCESSING =
-                         readBool(item);
+                     CLOG_WARNING(Overlay,
+                                  "EXPERIMENTAL_BACKGROUND_OVERLAY_PROCESSING "
+                                  "is deprecated. Use "
+                                  "BACKGROUND_OVERLAY_PROCESSING instead");
+                     BACKGROUND_OVERLAY_PROCESSING = readBool(item);
                  }},
+                {"BACKGROUND_OVERLAY_PROCESSING",
+                 [&]() { BACKGROUND_OVERLAY_PROCESSING = readBool(item); }},
                 {"BACKGROUND_EVICTION_SCAN",
                  [&]() { BACKGROUND_EVICTION_SCAN = readBool(item); }},
                 // TODO: Flag is no longer supported, remove in next release.
@@ -1970,7 +1975,7 @@ Config::adjust()
 }
 
 void
-Config::logBasicInfo()
+Config::logBasicInfo() const
 {
     LOG_INFO(DEFAULT_LOG, "Connection effective settings:");
     LOG_INFO(DEFAULT_LOG, "TARGET_PEER_CONNECTIONS: {}",
@@ -1984,9 +1989,9 @@ Config::logBasicInfo()
     LOG_INFO(DEFAULT_LOG, "MAX_INBOUND_PENDING_CONNECTIONS: {}",
              MAX_INBOUND_PENDING_CONNECTIONS);
     LOG_INFO(DEFAULT_LOG,
-             "EXPERIMENTAL_BACKGROUND_OVERLAY_PROCESSING="
+             "BACKGROUND_OVERLAY_PROCESSING="
              "{}",
-             EXPERIMENTAL_BACKGROUND_OVERLAY_PROCESSING ? "true" : "false");
+             BACKGROUND_OVERLAY_PROCESSING ? "true" : "false");
 }
 
 void
@@ -2465,6 +2470,14 @@ Config::setValidatorWeightConfig(std::vector<ValidatorEntry> const& validators)
         highestQuality = std::max(highestQuality, v.mQuality);
         lowestQuality = std::min(lowestQuality, v.mQuality);
         homeDomainsByQuality[v.mQuality].insert(v.mHomeDomain);
+    }
+
+    if (NODE_IS_VALIDATOR &&
+        highestQuality == ValidatorQuality::VALIDATOR_LOW_QUALITY)
+    {
+        throw std::invalid_argument(
+            "At least one validator must have a quality "
+            "level higher than LOW");
     }
 
     // Highest quality level has weight UINT64_MAX

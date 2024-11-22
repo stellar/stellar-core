@@ -213,7 +213,7 @@ ManageOfferOpFrameBase::computeOfferExchangeParameters(
 
 bool
 ManageOfferOpFrameBase::doApply(
-    Application& app, AbstractLedgerTxn& ltxOuter,
+    AppConnector& app, AbstractLedgerTxn& ltxOuter,
     Hash const& sorobanBasePrngSeed, OperationResult& res,
     std::shared_ptr<SorobanTxData> sorobanData) const
 {

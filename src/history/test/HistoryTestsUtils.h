@@ -178,13 +178,12 @@ struct CatchupPerformedWork
 class CatchupSimulation
 {
   protected:
-    VirtualClock mClock;
+    std::unique_ptr<VirtualClock> mClock;
     std::list<VirtualClock> mSpawnedAppsClocks;
     std::shared_ptr<HistoryConfigurator> mHistoryConfigurator;
     Config mCfg;
     std::vector<Config> mCfgs;
     Application::pointer mAppPtr;
-    Application& mApp;
     BucketList mBucketListAtLastPublish;
 
     std::vector<LedgerCloseData> mLedgerCloseDatas;
@@ -217,19 +216,20 @@ class CatchupSimulation
         VirtualClock::Mode mode = VirtualClock::VIRTUAL_TIME,
         std::shared_ptr<HistoryConfigurator> cg =
             std::make_shared<TmpDirHistoryConfigurator>(),
-        bool startApp = true);
+        bool startApp = true,
+        Config::TestDbMode dbMode = Config::TESTDB_IN_MEMORY_OFFERS);
     ~CatchupSimulation();
 
     Application&
     getApp() const
     {
-        return mApp;
+        return *mAppPtr;
     }
 
     VirtualClock&
     getClock()
     {
-        return mClock;
+        return *mClock;
     }
 
     HistoryConfigurator&
@@ -249,8 +249,12 @@ class CatchupSimulation
     void generateRandomLedger(uint32_t version = 0);
 
     void ensurePublishesComplete();
-    void ensureLedgerAvailable(uint32_t targetLedger);
-    void ensureOfflineCatchupPossible(uint32_t targetLedger);
+    void
+    ensureLedgerAvailable(uint32_t targetLedger,
+                          std::optional<uint32_t> restartLedger = std::nullopt);
+    void ensureOfflineCatchupPossible(
+        uint32_t targetLedger,
+        std::optional<uint32_t> restartLedger = std::nullopt);
     void ensureOnlineCatchupPossible(uint32_t targetLedger,
                                      uint32_t bufferLedgers = 0);
 
@@ -276,6 +280,7 @@ class CatchupSimulation
                     VirtualClock::duration duration);
 
     void setUpgradeLedger(uint32_t ledger, ProtocolVersion upgradeVersion);
+    void restartApp();
 };
 }
 }

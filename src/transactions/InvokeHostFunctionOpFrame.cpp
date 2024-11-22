@@ -56,7 +56,7 @@ toCxxBuf(T const& t)
 }
 
 CxxLedgerInfo
-getLedgerInfo(AbstractLedgerTxn& ltx, Application& app,
+getLedgerInfo(AbstractLedgerTxn& ltx, AppConnector& app,
               SorobanNetworkConfig const& sorobanConfig)
 {
     CxxLedgerInfo info{};
@@ -219,6 +219,9 @@ struct HostFunctionMetrics
         mMetrics.mHostFnOpMaxRwCodeByte.Mark(mMaxReadWriteCodeByte);
         mMetrics.mHostFnOpMaxEmitEventByte.Mark(mMaxEmitEventByte);
 
+        mMetrics.accumulateModelledCpuInsns(mCpuInsn, mCpuInsnExclVm,
+                                            mInvokeTimeNsecs);
+
         if (mSuccess)
         {
             mMetrics.mHostFnOpSuccess.Mark();
@@ -317,7 +320,7 @@ InvokeHostFunctionOpFrame::maybePopulateDiagnosticEvents(
 
 bool
 InvokeHostFunctionOpFrame::doApply(
-    Application& app, AbstractLedgerTxn& ltx, Hash const& sorobanBasePrngSeed,
+    AppConnector& app, AbstractLedgerTxn& ltx, Hash const& sorobanBasePrngSeed,
     OperationResult& res, std::shared_ptr<SorobanTxData> sorobanData) const
 {
     releaseAssertOrThrow(sorobanData);

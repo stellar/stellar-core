@@ -184,12 +184,6 @@ class LedgerManager
     virtual void deleteOldEntries(Database& db, uint32_t ledgerSeq,
                                   uint32_t count) = 0;
 
-    // cleans historical data newer than ledgerSeq
-    // as this is used when applying buckets, the data is deleted such that:
-    // ledgerheaders >= ledgerSeq
-    // everything else > ledgerSeq
-    virtual void deleteNewerEntries(Database& db, uint32_t ledgerSeq) = 0;
-
     virtual void setLastClosedLedger(LedgerHeaderHistoryEntry const& lastClosed,
                                      bool storeInDB) = 0;
 

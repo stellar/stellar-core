@@ -6,6 +6,7 @@
 
 #include "catchup/CatchupWork.h"
 #include "herder/LedgerCloseData.h"
+#include "history/FileTransferInfo.h"
 #include <functional>
 #include <memory>
 #include <system_error>
@@ -115,6 +116,6 @@ class CatchupManager
     virtual void ledgerChainsVerificationFailed(uint32_t num = 1) = 0;
     virtual void bucketsApplied(uint32_t num = 1) = 0;
     virtual void txSetsApplied(uint32_t num = 1) = 0;
-    virtual void fileDownloaded(std::string type, uint32_t num = 1) = 0;
+    virtual void fileDownloaded(FileType type, uint32_t num = 1) = 0;
 };
 }

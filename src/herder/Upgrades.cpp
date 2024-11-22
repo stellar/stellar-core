@@ -703,53 +703,9 @@ Upgrades::dropAll(Database& db)
 }
 
 void
-Upgrades::storeUpgradeHistory(Database& db, uint32_t ledgerSeq,
-                              LedgerUpgrade const& upgrade,
-                              LedgerEntryChanges const& changes, int index)
+Upgrades::dropSupportUpgradeHistory(Database& db)
 {
-    ZoneScoped;
-    xdr::opaque_vec<> upgradeContent(xdr::xdr_to_opaque(upgrade));
-    std::string upgradeContent64 = decoder::encode_b64(upgradeContent);
-
-    xdr::opaque_vec<> upgradeChanges(xdr::xdr_to_opaque(changes));
-    std::string upgradeChanges64 = decoder::encode_b64(upgradeChanges);
-
-    auto prep = db.getPreparedStatement(
-        "INSERT INTO upgradehistory "
-        "(ledgerseq, upgradeindex,  upgrade,  changes) VALUES "
-        "(:seq,      :upgradeindex, :upgrade, :changes)");
-
-    auto& st = prep.statement();
-    st.exchange(soci::use(ledgerSeq));
-    st.exchange(soci::use(index));
-    st.exchange(soci::use(upgradeContent64));
-    st.exchange(soci::use(upgradeChanges64));
-    st.define_and_bind();
-    {
-        ZoneNamedN(insertUpgradeZone, "insert upgradehistory", true);
-        st.execute(true);
-    }
-
-    if (st.get_affected_rows() != 1)
-    {
-        throw std::runtime_error("Could not update data in SQL");
-    }
-}
-
-void
-Upgrades::deleteOldEntries(Database& db, uint32_t ledgerSeq, uint32_t count)
-{
-    ZoneScoped;
-    DatabaseUtils::deleteOldEntriesHelper(db.getSession(), ledgerSeq, count,
-                                          "upgradehistory", "ledgerseq");
-}
-
-void
-Upgrades::deleteNewerEntries(Database& db, uint32_t ledgerSeq)
-{
-    ZoneScoped;
-    DatabaseUtils::deleteNewerEntriesHelper(db.getSession(), ledgerSeq,
-                                            "upgradehistory", "ledgerseq");
+    db.getSession() << "DROP TABLE IF EXISTS upgradehistory";
 }
 
 static void

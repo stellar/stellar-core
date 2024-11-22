@@ -8,8 +8,47 @@ include $(srcdir)/src.mk
 
 noinst_HEADERS = $(SRC_H_FILES)
 
+# We sometimes specify a CXXFLAGS setting like -stdlib=libc++ that causes the
+# stdlib to change. When this makes it way down to Rust code building C++ code
+# for one of its libraries (specifically tracy-client-sys) this needs to be
+# accompanied by an _explicit_ instruction to invoke the linker with -lc++. This
+# is done by setting the CXXSTDLIB flag, which Rust's C++-building machinery is
+# sensitive to. Rust passes-on, but does not look inside, CXXFLAGS itself to
+# realize that it needs this setting.
+CXXSTDLIB := $(if $(findstring -stdlib=libc++,$(CXXFLAGS)),c++,$(if $(findstring -stdlib=libstdc++,$(CXXFLAGS)),stdc++,))
+
 if USE_TRACY
+# NB: this unfortunately long list has to be provided here and kept in sync with
+# the list of features for tracy-client in src/rust/Cargo.toml.  This is because
+# the soroban sub-crates are built independently and know nothing about
+# src/rust/Cargo.toml
+#
+# NB also: this list does _not_ and should not include the manual-lifetime
+# feature. Versions of the rust tracy-client crate before 0.17 (eg. version
+# 0.16.4 which we shipped in soroban 21.x) always used the C++ tracy code in
+# manual-lifetime mode, and thus required careful coordination with
+# stellar-core's C++ code to start and stop tracy correctly. However this became
+# intractable when we started building multiple soroban libraries as .rlibs with
+# separate copies of tracy-client simultaneously, as they would each have their
+# own rust-metadata-hash-qualified copy of a rust global variable tracking the
+# initialization state of tracy (and of course tracy's C++ code itself cannot be
+# started multiple times idempotently in manual-lifetime mode, that would be too
+# easy). So we have now disabled tracy-client (0.16.4) in soroban 21.x and only
+# enabled it in soroban 22.x (and later), which has tracy-client 0.17, which
+# finally supports _turning off_ manual-lifetime mode. Once off, tracy's C++
+# code initializes itself on its own, and everything works fine. There is only
+# one copy of tracy in the final linked executable and it has a single atomic
+# pointer controlling its initialization state.
 CARGO_FEATURE_TRACY = --features tracy
+CARGO_FEATURE_TRACY += --features tracy-client/enable
+CARGO_FEATURE_TRACY += --features tracy-client/ondemand
+CARGO_FEATURE_TRACY += --features tracy-client/delayed-init
+CARGO_FEATURE_TRACY += --features tracy-client/system-tracing
+CARGO_FEATURE_TRACY += --features tracy-client/sampling
+CARGO_FEATURE_TRACY += --features tracy-client/code-transfer
+CARGO_FEATURE_TRACY += --features tracy-client/timer-fallback
+CARGO_FEATURE_TRACY += --features tracy-client/only-localhost
+CARGO_FEATURE_TRACY += --features tracy-client/only-ipv4
 else
 CARGO_FEATURE_TRACY =
 endif
@@ -76,6 +115,10 @@ stellar_core_SOURCES += util/xdrquery/XDRQueryScanner.cpp util/xdrquery/XDRQuery
 BUILT_SOURCES += rust/RustBridge.h rust/RustBridge.cpp
 stellar_core_SOURCES += rust/RustBridge.h rust/RustBridge.cpp
 
+RUST_TOOLCHAIN_FILE=$(top_srcdir)/rust-toolchain.toml
+RUST_TOOLCHAIN_CHANNEL=$(shell sed -n 's/channel *= *"\([^"]*\)"/\1/p' $(RUST_TOOLCHAIN_FILE))
+CARGO=cargo +$(RUST_TOOLCHAIN_CHANNEL)
+
 RUST_BUILD_DIR=$(top_builddir)/src/rust
 RUST_BIN_DIR=$(RUST_BUILD_DIR)/bin
 RUST_TARGET_DIR=$(top_builddir)/target
@@ -111,9 +154,9 @@ ALL_SOROBAN_LIBS=$(foreach proto,$(ALL_SOROBAN_PROTOCOLS),$(call soroban_rlib,$(
 ALL_SOROBAN_EXTERN_ARGS=$(foreach proto,$(ALL_SOROBAN_PROTOCOLS),$(call soroban_extern_flag,$(proto)))
 ALL_SOROBAN_DEPEND_ARGS=$(foreach proto,$(ALL_SOROBAN_PROTOCOLS),$(call soroban_depend_flag,$(proto)))
 
-$(RUST_CXXBRIDGE):
+$(RUST_CXXBRIDGE): Makefile $(RUST_TOOLCHAIN_FILE)
 	mkdir -p $(RUST_BIN_DIR)
-	CARGO_HTTP_MULTIPLEXING=false $(CARGO) install --locked --root $(RUST_BUILD_DIR) cxxbridge-cmd --version 1.0.68
+	CARGO_HTTP_MULTIPLEXING=false $(CARGO) install --force --locked --root $(RUST_BUILD_DIR) cxxbridge-cmd --version 1.0.68
 
 rust/RustBridge.h: rust/src/lib.rs $(SRC_RUST_FILES) Makefile $(RUST_CXXBRIDGE)
 	$(RUST_CXXBRIDGE) $< --cfg test=false --header --output $@.tmp
@@ -127,11 +170,11 @@ rust/RustBridge.cpp: rust/src/lib.rs $(SRC_RUST_FILES) Makefile $(RUST_CXXBRIDGE
 # check in to this repo as a secondary check on the lockfiles in the soroban
 # submodules. You should still carefully inspect them if they change!
 
-$(RUST_DEP_TREE_STAMP): $(wildcard rust/soroban/*/Cargo.*) Makefile
+$(RUST_DEP_TREE_STAMP): $(wildcard rust/soroban/*/Cargo.*) Makefile $(RUST_TOOLCHAIN_FILE)
 	rm -f $@
 	for proto in $(ALL_SOROBAN_PROTOCOLS); \
 	do \
-		cargo tree --manifest-path rust/soroban/$${proto}/Cargo.toml --locked --package soroban-env-host --edges no-dev --target all \
+		$(CARGO) tree --manifest-path rust/soroban/$${proto}/Cargo.toml --locked --package soroban-env-host --edges no-dev --target all \
 		| sed -e "s@$(abspath $(top_srcdir))/@@g" > $(RUST_BUILD_DIR)/src/dep-trees/$${proto}-actual.txt ; \
 		if ! diff -u rust/src/dep-trees/$${proto}-expect.txt $(RUST_BUILD_DIR)/src/dep-trees/$${proto}-actual.txt; \
 		then \
@@ -167,15 +210,24 @@ $(RUST_DEP_TREE_STAMP): $(wildcard rust/soroban/*/Cargo.*) Makefile
 # them back together. Or something. Anyways it works and is the only portable
 # and robust solution we've found to preventing the StableCrateId collision.
 #
-# We also have to be somewhat selective about the versions we pass the
-# `next` feature to (only the most recent soroban) and the versions we
-# pass the `tracy` feature to (only those post-p22 versions that support
-# the tracy delayed-init feature).
+# We also have to be somewhat selective about the versions we pass the `next`
+# feature to (only the most recent soroban) and the versions we pass the `tracy`
+# features to (only those post-p22 versions that support the tracy delayed-init
+# feature).
 #
 # We also have to sequentialize the builds of the sorobans after the
-# dep-tree-stamp files and before the stellar-core build, because rustup
-# gets invoked and it is not concurrency-safe.
-$(SOROBAN_LIBS_STAMP): $(wildcard rust/soroban/p*/Cargo.lock) Makefile $(RUST_DEP_TREE_STAMP) $(SRC_RUST_FILES)
+# dep-tree-stamp files and before the stellar-core build, because rustup gets
+# invoked and it is not concurrency-safe.
+#
+# We also have to set pass all the CC, CXX, CFLAGS and CXXFLAGS we were called
+# with explicitly, because make does not implicitly export them to its rules,
+# but cargo needs them to build C++ files in build.rs files.
+#
+# We also have to pass CXXSTDLIB to those build.rs files, because they are
+# sensitive to CXXFLAGS but also don't inspect them to see if they're setting
+# -stdlib=libc++ or -stdlib=libstdc++
+$(SOROBAN_LIBS_STAMP): $(wildcard rust/soroban/p*/Cargo.lock) Makefile $(RUST_DEP_TREE_STAMP) $(SRC_RUST_FILES) $(RUST_TOOLCHAIN_FILE)
+	rm -f $@
 	for proto in $(ALL_SOROBAN_PROTOCOLS) ; \
 	do \
 		FEATURE_FLAGS="" ; \
@@ -191,8 +243,10 @@ $(SOROBAN_LIBS_STAMP): $(wildcard rust/soroban/p*/Cargo.lock) Makefile $(RUST_DE
 			;; \
 		esac ; \
 		cd $(abspath $(RUST_BUILD_DIR))/soroban/$$proto && \
-		RUSTFLAGS=-Cmetadata=$$proto \
-		CARGO_NET_GIT_FETCH_WITH_CLI=true cargo build \
+		CC="$(CC)" CXX="$(CXX)" LD="$(LD)" CFLAGS="$(CFLAGS)" CXXFLAGS="$(CXXFLAGS)" CXXSTDLIB="$(CXXSTDLIB)" LDFLAGS="$(LDFLAGS)" \
+		RUSTFLAGS="-Cmetadata=$$proto $(RUSTFLAGS_ASAN)" \
+		CARGO_NET_GIT_FETCH_WITH_CLI=true \
+		$(CARGO) build \
 			--package soroban-env-host \
 			--$(RUST_PROFILE) \
 			--locked \
@@ -214,8 +268,12 @@ $(SOROBAN_LIBS_STAMP): $(wildcard rust/soroban/p*/Cargo.lock) Makefile $(RUST_DE
 # them in as separate `--extern` arguments to a slightly-more-manual `cargo
 # rustc` invocation, along with `-L dependency=...` flags to tell cargo where to
 # find indirect deps of those .rlibs.
-$(LIBRUST_STELLAR_CORE): $(RUST_HOST_DEPFILES) $(SRC_RUST_FILES) Makefile $(SOROBAN_LIBS_STAMP)
-	CARGO_NET_GIT_FETCH_WITH_CLI=true cargo rustc \
+$(LIBRUST_STELLAR_CORE): $(RUST_HOST_DEPFILES) $(SRC_RUST_FILES) Makefile $(SOROBAN_LIBS_STAMP) $(RUST_TOOLCHAIN_FILE)
+	rm -rf $(abspath $(RUST_TARGET_DIR))
+	CC="$(CC)" CXX="$(CXX)" LD="$(LD)" CFLAGS="$(CFLAGS)" CXXFLAGS="$(CXXFLAGS)" CXXSTDLIB="$(CXXSTDLIB)" LDFLAGS="$(LDFLAGS)" \
+	RUSTFLAGS="$(RUSTFLAGS_ASAN)" \
+	CARGO_NET_GIT_FETCH_WITH_CLI=true \
+	$(CARGO) rustc \
 		--package stellar-core \
 		--$(RUST_PROFILE) \
 		--locked \
@@ -290,7 +348,7 @@ distclean-local: fuzz-clean
 endif # USE_AFL_FUZZ
 
 clean-local:
-	rm -rf $(top_builddir)/target $(top_builddir)/src/rust/soroban/*/target
+	rm -rf $(top_builddir)/target $(top_builddir)/src/rust/soroban/*/target $(RUST_DEP_TREE_STAMP) $(SOROBAN_LIBS_STAMP)
 
 CLEANFILES = $(BUILT_SOURCES) *~ */*~ stellar*.log
 MAINTAINERCLEANFILES = $(srcdir)/Makefile.in $(srcdir)/*~ $(srcdir)/*/*~

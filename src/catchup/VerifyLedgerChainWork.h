@@ -26,6 +26,10 @@ class VerifyLedgerChainWork : public BasicWork
     LedgerRange const mRange;
     uint32_t mCurrCheckpoint;
     LedgerNumHashPair const mLastClosed;
+    // The max ledger number and hash that we have verified up to at some time
+    // in the past (or genesis if we have no previous verification). Invocations
+    // of VerifyLedgerChainWork will verify down to this ledger.
+    std::optional<LedgerNumHashPair> const mMaxPrevVerified;
 
     // Record any instance where the chain we're verifying disagrees with the
     // local node state. This _might_ mean we can't possibly catch up (eg. we're
@@ -78,6 +82,7 @@ class VerifyLedgerChainWork : public BasicWork
     VerifyLedgerChainWork(
         Application& app, TmpDir const& downloadDir, LedgerRange const& range,
         LedgerNumHashPair const& lastClosedLedger,
+        std::optional<LedgerNumHashPair> const& maxPrevVerified,
         std::shared_future<LedgerNumHashPair> trustedMaxLedger,
         std::promise<bool>&& fatalFailure,
         std::shared_ptr<std::ofstream> outputStream = nullptr);

@@ -39,7 +39,7 @@ class TrustFlagsOpFrameBase : public OperationFrame
     TrustFlagsOpFrameBase(Operation const& op,
                           TransactionFrame const& parentTx);
 
-    bool doApply(Application& app, AbstractLedgerTxn& ltx,
+    bool doApply(AppConnector& app, AbstractLedgerTxn& ltx,
                  Hash const& sorobanBasePrngSeed, OperationResult& res,
                  std::shared_ptr<SorobanTxData> sorobanData) const override;
 };

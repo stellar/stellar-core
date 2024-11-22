@@ -61,9 +61,9 @@ ApplyLoad::ApplyLoad(Application& app, uint64_t ledgerMaxInstructions,
     mUpgradeConfig.ledgerMaxWriteLedgerEntries = ledgerMaxWriteLedgerEntries;
     mUpgradeConfig.ledgerMaxWriteBytes = ledgerMaxWriteBytes;
     mUpgradeConfig.ledgerMaxTxCount = ledgerMaxTxCount;
-    mUpgradeConfig.txMaxReadLedgerEntries = 40;
+    mUpgradeConfig.txMaxReadLedgerEntries = 100;
     mUpgradeConfig.txMaxReadBytes = 200000;
-    mUpgradeConfig.txMaxWriteLedgerEntries = 25;
+    mUpgradeConfig.txMaxWriteLedgerEntries = 50;
     mUpgradeConfig.txMaxWriteBytes = 66560;
     mUpgradeConfig.txMaxContractEventsSizeBytes = 8198;
     mUpgradeConfig.ledgerMaxTransactionsSizeBytes =
@@ -97,9 +97,7 @@ ApplyLoad::closeLedger(std::vector<TransactionFrameBasePtr> const& txs,
         mApp.getHerder().makeStellarValue(txSet.first->getContentsHash(), 1,
                                           upgrades, mApp.getConfig().NODE_SEED);
 
-    auto& lm = mApp.getLedgerManager();
-    LedgerCloseData lcd(lm.getLastClosedLedgerNum() + 1, txSet.first, sv);
-    lm.closeLedger(lcd);
+    stellar::txtest::closeLedger(mApp, txs, /* strictOrder */ false, upgrades);
 }
 
 void
@@ -111,17 +109,18 @@ ApplyLoad::setupAccountsAndUpgradeProtocol()
     std::vector<Operation> creationOps = mTxGenerator.createAccounts(
         0, mNumAccounts, lm.getLastClosedLedgerNum() + 1, false);
 
-    auto initTx = mTxGenerator.createTransactionFramePtr(mRoot, creationOps,
-                                                         false, std::nullopt);
+    for (size_t i = 0; i < creationOps.size(); i += MAX_OPS_PER_TX)
+    {
+        std::vector<TransactionFrameBaseConstPtr> txs;
 
-    // Upgrade to latest protocol as well
-    auto upgrade = xdr::xvector<UpgradeType, 6>{};
-    auto ledgerUpgrade = LedgerUpgrade{LEDGER_UPGRADE_VERSION};
-    ledgerUpgrade.newLedgerVersion() = Config::CURRENT_LEDGER_PROTOCOL_VERSION;
-    auto v = xdr::xdr_to_opaque(ledgerUpgrade);
-    upgrade.push_back(UpgradeType{v.begin(), v.end()});
+        size_t end_id = std::min(i + MAX_OPS_PER_TX, creationOps.size());
+        std::vector<Operation> currOps(creationOps.begin() + i,
+                                       creationOps.begin() + end_id);
+        txs.push_back(mTxGenerator.createTransactionFramePtr(
+            mRoot, currOps, false, std::nullopt));
 
-    closeLedger({initTx}, upgrade);
+        closeLedger(txs);
+    }
 }
 
 void
@@ -137,10 +136,15 @@ ApplyLoad::setupUpgradeContract()
 
     mUpgradeCodeKey = contractCodeLedgerKey;
 
+    SorobanResources uploadResources;
+    uploadResources.instructions = 2'000'000;
+    uploadResources.readBytes = wasmBytes.size() + 500;
+    uploadResources.writeBytes = wasmBytes.size() + 500;
+
     auto const& lm = mApp.getLedgerManager();
     auto uploadTx = mTxGenerator.createUploadWasmTransaction(
         lm.getLastClosedLedgerNum() + 1, 0, wasmBytes, contractCodeLedgerKey,
-        std::nullopt);
+        std::nullopt, uploadResources);
 
     closeLedger({uploadTx.second});
 
@@ -153,6 +157,8 @@ ApplyLoad::setupUpgradeContract()
 
     mUpgradeInstanceKey =
         createTx.second->sorobanResources().footprint.readWrite.back();
+
+    releaseAssert(mTxGenerator.getApplySorobanSuccess().count() == 2);
 }
 
 // To upgrade settings, just modify mUpgradeConfig and then call
@@ -164,9 +170,14 @@ ApplyLoad::upgradeSettings()
     auto upgradeBytes =
         mTxGenerator.getConfigUpgradeSetFromLoadConfig(mUpgradeConfig);
 
+    SorobanResources resources;
+    resources.instructions = 1'250'000;
+    resources.readBytes = 3'100;
+    resources.writeBytes = 3'100;
+
     auto invokeTx = mTxGenerator.invokeSorobanCreateUpgradeTransaction(
         lm.getLastClosedLedgerNum() + 1, 0, upgradeBytes, mUpgradeCodeKey,
-        mUpgradeInstanceKey, std::nullopt);
+        mUpgradeInstanceKey, std::nullopt, resources);
 
     auto upgradeSetKey = mTxGenerator.getConfigUpgradeSetKey(
         mUpgradeConfig,
@@ -254,7 +265,8 @@ ApplyLoad::benchmark()
 
         {
             LedgerTxn ltx(mApp.getLedgerTxnRoot());
-            auto res = tx.second->checkValid(mApp, ltx, 0, 0, UINT64_MAX);
+            auto res = tx.second->checkValid(mApp.getAppConnector(), ltx, 0, 0,
+                                             UINT64_MAX);
             releaseAssert((res && res->isSuccess()));
         }
 

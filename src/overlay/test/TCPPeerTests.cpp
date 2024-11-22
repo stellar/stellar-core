@@ -26,7 +26,7 @@ TEST_CASE("TCPPeer lifetime", "[overlay]")
             cfg.MAX_OUTBOUND_PENDING_CONNECTIONS = i % 2;
             cfg.TARGET_PEER_CONNECTIONS = i % 2;
             cfg.MAX_ADDITIONAL_PEER_CONNECTIONS = i % 2;
-            cfg.EXPERIMENTAL_BACKGROUND_OVERLAY_PROCESSING = true;
+            cfg.BACKGROUND_OVERLAY_PROCESSING = true;
             return cfg;
         });
 
@@ -92,7 +92,7 @@ TEST_CASE("TCPPeer can communicate", "[overlay]")
     {
         cfgGen = [](int i) {
             Config cfg = getTestConfig(i);
-            cfg.EXPERIMENTAL_BACKGROUND_OVERLAY_PROCESSING = true;
+            cfg.BACKGROUND_OVERLAY_PROCESSING = true;
             return cfg;
         };
     }
@@ -100,7 +100,7 @@ TEST_CASE("TCPPeer can communicate", "[overlay]")
     {
         cfgGen = [](int i) {
             Config cfg = getTestConfig(i);
-            cfg.EXPERIMENTAL_BACKGROUND_OVERLAY_PROCESSING = false;
+            cfg.BACKGROUND_OVERLAY_PROCESSING = false;
             return cfg;
         };
     }
@@ -139,21 +139,17 @@ TEST_CASE("TCPPeer can communicate", "[overlay]")
     s->stopOverlayTick();
 
     // Now drop peer, ensure ERROR containing "drop reason" is properly flushed
-    auto& recvGetPeers =
-        n1->getOverlayManager().getOverlayMetrics().mRecvGetPeersTimer;
-    auto& recvError =
-        n1->getOverlayManager().getOverlayMetrics().mRecvErrorTimer;
-    auto prevPeers = recvGetPeers.count();
-    auto prevError = recvError.count();
-    p0->sendGetPeers();
+    auto& msgWrite = n0->getOverlayManager().getOverlayMetrics().mMessageWrite;
+    auto prevMsgWrite = msgWrite.count();
+
+    p0->sendGetTxSet(Hash());
     p0->sendErrorAndDrop(ERR_MISC, "test drop");
     s->crankForAtLeast(std::chrono::seconds(1), false);
     REQUIRE(!p0->isConnectedForTesting());
     REQUIRE(!p1->isConnectedForTesting());
 
-    // p1 must have received getPeers, Error
-    REQUIRE(recvGetPeers.count() == prevPeers + 1);
-    REQUIRE(recvError.count() == prevError + 1);
+    // p0 actually sent GET_TX_SET and ERROR
+    REQUIRE(msgWrite.count() == prevMsgWrite + 2);
     s->stopAllNodes();
 }
 
@@ -183,7 +179,7 @@ TEST_CASE("TCPPeer read malformed messages", "[overlay]")
     Simulation::pointer s = std::make_shared<Simulation>(
         Simulation::OVER_TCP, networkID, [](int i) {
             Config cfg = getTestConfig(i);
-            cfg.EXPERIMENTAL_BACKGROUND_OVERLAY_PROCESSING = true;
+            cfg.BACKGROUND_OVERLAY_PROCESSING = true;
             // Slow down the main thread to delay drops
             cfg.ARTIFICIALLY_SLEEP_MAIN_THREAD_FOR_TESTING =
                 std::chrono::milliseconds(300);

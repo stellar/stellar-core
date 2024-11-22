@@ -40,6 +40,7 @@
 #include "ledger/LedgerHeaderUtils.h"
 #include "ledger/LedgerManager.h"
 #include "ledger/LedgerTxn.h"
+#include "main/AppConnector.h"
 #include "main/ApplicationUtils.h"
 #include "main/CommandHandler.h"
 #include "main/ExternalQueue.h"
@@ -95,7 +96,7 @@ ApplicationImpl::ApplicationImpl(VirtualClock& clock, Config const& cfg)
           mEvictionIOContext
               ? std::make_unique<asio::io_context::work>(*mEvictionIOContext)
               : nullptr)
-    , mOverlayIOContext(mConfig.EXPERIMENTAL_BACKGROUND_OVERLAY_PROCESSING
+    , mOverlayIOContext(mConfig.BACKGROUND_OVERLAY_PROCESSING
                             ? std::make_unique<asio::io_context>(1)
                             : nullptr)
     , mOverlayWork(mOverlayIOContext ? std::make_unique<asio::io_context::work>(
@@ -180,7 +181,7 @@ ApplicationImpl::ApplicationImpl(VirtualClock& clock, Config const& cfg)
         mWorkerThreads.emplace_back(std::move(thread));
     }
 
-    if (mConfig.EXPERIMENTAL_BACKGROUND_OVERLAY_PROCESSING)
+    if (mConfig.BACKGROUND_OVERLAY_PROCESSING)
     {
         // Keep priority unchanged as overlay processes time-sensitive tasks
         mOverlayThread = std::thread{[this]() { mOverlayIOContext->run(); }};
@@ -330,6 +331,7 @@ ApplicationImpl::initialize(bool createNewDB, bool forceRebuild)
     mWorkScheduler = WorkScheduler::create(*this);
     mBanManager = BanManager::create(*this);
     mStatusManager = std::make_unique<StatusManager>();
+    mAppConnector = std::make_unique<AppConnector>(*this);
 
     if (getConfig().MODE_USES_IN_MEMORY_LEDGER)
     {
@@ -884,7 +886,7 @@ ApplicationImpl::validateAndLogConfig()
             "and RUN_STANDALONE is not set");
     }
 
-    if (getHistoryArchiveManager().hasAnyWritableHistoryArchive())
+    if (getHistoryArchiveManager().publishEnabled())
     {
         if (!mConfig.modeStoresAllHistory())
         {
@@ -1266,6 +1268,11 @@ ApplicationImpl::getLoadGenerator()
     }
     return *mLoadGenerator;
 }
+Config&
+ApplicationImpl::getMutableConfig()
+{
+    return mConfig;
+}
 #endif
 
 void
@@ -1634,5 +1641,11 @@ ApplicationImpl::getLedgerTxnRoot()
     releaseAssert(threadIsMain());
     return mConfig.MODE_USES_IN_MEMORY_LEDGER ? *mNeverCommittingLedgerTxn
                                               : *mLedgerTxnRoot;
+}
+
+AppConnector&
+ApplicationImpl::getAppConnector()
+{
+    return *mAppConnector;
 }
 }
