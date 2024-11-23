@@ -3,8 +3,8 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "catchup/DownloadApplyTxsWork.h"
-#include "bucket/BucketList.h"
 #include "bucket/BucketManager.h"
+#include "bucket/LiveBucketList.h"
 #include "catchup/ApplyCheckpointWork.h"
 #include "history/FileTransferInfo.h"
 #include "history/HistoryManager.h"
@@ -84,7 +84,7 @@ DownloadApplyTxsWork::yieldMoreWork()
     auto maybeWaitForMerges = [](Application& app) {
         if (app.getConfig().CATCHUP_WAIT_MERGES_TX_APPLY_FOR_TESTING)
         {
-            auto& bl = app.getBucketManager().getBucketList();
+            auto& bl = app.getBucketManager().getLiveBucketList();
             bl.resolveAnyReadyFutures();
             return bl.futuresAllResolved();
         }

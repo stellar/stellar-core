@@ -47,7 +47,7 @@ class CatchupWork : public Work
   protected:
     HistoryArchiveState mLocalState;
     std::unique_ptr<TmpDir> mDownloadDir;
-    std::map<std::string, std::shared_ptr<Bucket>> mBuckets;
+    std::map<std::string, std::shared_ptr<LiveBucket>> mBuckets;
 
     void doReset() override;
     BasicWork::State doWork() override;
@@ -65,7 +65,7 @@ class CatchupWork : public Work
     static uint32_t const PUBLISH_QUEUE_MAX_SIZE;
 
     CatchupWork(Application& app, CatchupConfiguration catchupConfiguration,
-                std::set<std::shared_ptr<Bucket>> bucketsToRetain,
+                std::set<std::shared_ptr<LiveBucket>> bucketsToRetain,
                 std::shared_ptr<HistoryArchive> archive = nullptr);
     virtual ~CatchupWork();
     std::string getStatus() const override;
@@ -128,6 +128,6 @@ class CatchupWork : public Work
 
     std::optional<HistoryArchiveState> mHAS;
     std::optional<HistoryArchiveState> mBucketHAS;
-    std::set<std::shared_ptr<Bucket>> mRetainedBuckets;
+    std::set<std::shared_ptr<LiveBucket>> mRetainedBuckets;
 };
 }

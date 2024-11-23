@@ -1948,9 +1948,11 @@ runApplyLoad(CommandLineArgs const& args)
 
                 for (size_t i = 0; i < 100; ++i)
                 {
-                    app.getBucketManager().getBucketList().resolveAllFutures();
+                    app.getBucketManager()
+                        .getLiveBucketList()
+                        .resolveAllFutures();
                     releaseAssert(app.getBucketManager()
-                                      .getBucketList()
+                                      .getLiveBucketList()
                                       .futuresAllResolved());
                     al.benchmark();
                 }

@@ -4,8 +4,8 @@
 // under the Apache License, Version 2.0. See the COPYING file at the root
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
-#include "bucket/Bucket.h"
 #include "bucket/BucketInputIterator.h"
+#include "bucket/LiveBucket.h"
 #include "util/Timer.h"
 #include <memory>
 
@@ -24,7 +24,7 @@ class BucketApplicator
     uint32_t mMaxProtocolVersion;
     uint32_t mMinProtocolVersionSeen;
     uint32_t mLevel;
-    BucketInputIterator mBucketIter;
+    LiveBucketInputIterator mBucketIter;
     size_t mCount{0};
     std::function<bool(LedgerEntryType)> mEntryTypeFilter;
     std::unordered_set<LedgerKey>& mSeenKeys;
@@ -72,7 +72,7 @@ class BucketApplicator
     // When this flag is set, each offer key read is added to seenKeys
     BucketApplicator(Application& app, uint32_t maxProtocolVersion,
                      uint32_t minProtocolVersionSeen, uint32_t level,
-                     std::shared_ptr<Bucket const> bucket,
+                     std::shared_ptr<LiveBucket const> bucket,
                      std::function<bool(LedgerEntryType)> filter,
                      std::unordered_set<LedgerKey>& seenKeys);
     operator bool() const;

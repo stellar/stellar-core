@@ -3,11 +3,10 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "invariant/BucketListIsConsistentWithDatabase.h"
-#include "bucket/Bucket.h"
 #include "bucket/BucketInputIterator.h"
-#include "bucket/BucketList.h"
 #include "bucket/BucketManager.h"
-#include "crypto/Hex.h"
+#include "bucket/LiveBucket.h"
+#include "bucket/LiveBucketList.h"
 #include "history/HistoryArchive.h"
 #include "invariant/InvariantManager.h"
 #include "ledger/LedgerManager.h"
@@ -273,7 +272,7 @@ BucketListIsConsistentWithDatabase::checkAfterAssumeState(uint32_t newestLedger)
     LedgerKeySet seenKeys;
 
     auto perBucketCheck = [&](auto bucket, auto& ltx) {
-        for (BucketInputIterator iter(bucket); iter; ++iter)
+        for (LiveBucketInputIterator iter(bucket); iter; ++iter)
         {
             auto const& e = *iter;
 
@@ -325,9 +324,9 @@ BucketListIsConsistentWithDatabase::checkAfterAssumeState(uint32_t newestLedger)
 
     {
         LedgerTxn ltx(mApp.getLedgerTxnRoot());
-        auto& bl = mApp.getBucketManager().getBucketList();
+        auto& bl = mApp.getBucketManager().getLiveBucketList();
 
-        for (uint32_t i = 0; i < BucketList::kNumLevels; ++i)
+        for (uint32_t i = 0; i < LiveBucketList::kNumLevels; ++i)
         {
             auto const& level = bl.getLevel(i);
             for (auto const& bucket : {level.getCurr(), level.getSnap()})
@@ -351,7 +350,7 @@ BucketListIsConsistentWithDatabase::checkAfterAssumeState(uint32_t newestLedger)
 
 std::string
 BucketListIsConsistentWithDatabase::checkOnBucketApply(
-    std::shared_ptr<Bucket const> bucket, uint32_t oldestLedger,
+    std::shared_ptr<LiveBucket const> bucket, uint32_t oldestLedger,
     uint32_t newestLedger, std::function<bool(LedgerEntryType)> entryTypeFilter)
 {
     EntryCounts counts;
@@ -360,10 +359,11 @@ BucketListIsConsistentWithDatabase::checkOnBucketApply(
 
         bool hasPreviousEntry = false;
         BucketEntry previousEntry;
-        for (BucketInputIterator iter(bucket); iter; ++iter)
+        for (LiveBucketInputIterator iter(bucket); iter; ++iter)
         {
             auto const& e = *iter;
-            if (hasPreviousEntry && !BucketEntryIdCmp{}(previousEntry, e))
+            if (hasPreviousEntry &&
+                !BucketEntryIdCmp<LiveBucket>{}(previousEntry, e))
             {
                 std::string s = "Bucket has out of order entries: ";
                 s += xdrToCerealString(previousEntry, "previous");

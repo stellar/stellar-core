@@ -111,16 +111,21 @@ computeMultiplier(LedgerEntry const& le)
     }
 }
 
-BucketListDepthModifier::BucketListDepthModifier(uint32_t newDepth)
-    : mPrevDepth(BucketList::kNumLevels)
+template <class BucketT>
+BucketListDepthModifier<BucketT>::BucketListDepthModifier(uint32_t newDepth)
+    : mPrevDepth(BucketListBase<BucketT>::kNumLevels)
 {
-    BucketList::kNumLevels = newDepth;
+    BucketListBase<BucketT>::kNumLevels = newDepth;
 }
 
-BucketListDepthModifier::~BucketListDepthModifier()
+template <class BucketT>
+BucketListDepthModifier<BucketT>::~BucketListDepthModifier()
 {
-    BucketList::kNumLevels = mPrevDepth;
+    BucketListBase<BucketT>::kNumLevels = mPrevDepth;
 }
+
+template class BucketListDepthModifier<LiveBucket>;
+template class BucketListDepthModifier<HotArchiveBucket>;
 }
 
 TestInvariantManager::TestInvariantManager(medida::MetricsRegistry& registry)

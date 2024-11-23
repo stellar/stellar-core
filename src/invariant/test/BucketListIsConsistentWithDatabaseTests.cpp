@@ -5,6 +5,7 @@
 #include "bucket/BucketInputIterator.h"
 #include "bucket/BucketManager.h"
 #include "bucket/BucketOutputIterator.h"
+#include "bucket/LiveBucket.h"
 #include "bucket/test/BucketTestUtils.h"
 #include "catchup/ApplyBucketsWork.h"
 #include "ledger/LedgerHashUtils.h"
@@ -88,7 +89,7 @@ struct BucketListGenerator
     void
     applyBuckets(Application::pointer app, Args&&... args)
     {
-        std::map<std::string, std::shared_ptr<Bucket>> buckets;
+        std::map<std::string, std::shared_ptr<LiveBucket>> buckets;
         auto has = getHistoryArchiveState(app);
         auto& wm = app->getWorkScheduler();
         wm.executeWork<T>(buckets, has,
@@ -144,9 +145,8 @@ struct BucketListGenerator
         std::vector<LedgerKey> deadEntries;
         auto header = ltx.loadHeader().current();
         ltx.getAllEntries(initEntries, liveEntries, deadEntries);
-        BucketTestUtils::addBatchAndUpdateSnapshot(
-            app->getBucketManager().getBucketList(), *app, header, initEntries,
-            liveEntries, deadEntries);
+        BucketTestUtils::addLiveBatchAndUpdateSnapshot(
+            *app, header, initEntries, liveEntries, deadEntries);
         ltx.commit();
     }
 
@@ -205,22 +205,23 @@ struct BucketListGenerator
     HistoryArchiveState
     getHistoryArchiveState(Application::pointer app)
     {
-        auto& blGenerate = mAppGenerate->getBucketManager().getBucketList();
+        auto& blGenerate = mAppGenerate->getBucketManager().getLiveBucketList();
         auto& bmApply = app->getBucketManager();
         MergeCounters mergeCounters;
         LedgerTxn ltx(mAppGenerate->getLedgerTxnRoot(), false);
         auto vers = ltx.loadHeader().current().ledgerVersion;
-        for (uint32_t i = 0; i <= BucketList::kNumLevels - 1; i++)
+        for (uint32_t i = 0; i <= LiveBucketList::kNumLevels - 1; i++)
         {
             auto& level = blGenerate.getLevel(i);
             auto meta = testutil::testBucketMetadata(vers);
-            auto keepDead = BucketList::keepDeadEntries(i);
+            auto keepDead = LiveBucketList::keepTombstoneEntries(i);
 
             auto writeBucketFile = [&](auto b) {
-                BucketOutputIterator out(bmApply.getTmpDir(), keepDead, meta,
-                                         mergeCounters, mClock.getIOContext(),
-                                         /*doFsync=*/true);
-                for (BucketInputIterator in(b); in; ++in)
+                LiveBucketOutputIterator out(bmApply.getTmpDir(), keepDead,
+                                             meta, mergeCounters,
+                                             mClock.getIOContext(),
+                                             /*doFsync=*/true);
+                for (LiveBucketInputIterator in(b); in; ++in)
                 {
                     out.put(*in);
                 }
@@ -246,9 +247,10 @@ struct BucketListGenerator
 };
 
 bool
-doesBucketContain(std::shared_ptr<Bucket const> bucket, const BucketEntry& be)
+doesBucketContain(std::shared_ptr<LiveBucket const> bucket,
+                  const BucketEntry& be)
 {
-    for (BucketInputIterator iter(bucket); iter; ++iter)
+    for (LiveBucketInputIterator iter(bucket); iter; ++iter)
     {
         if (*iter == be)
         {
@@ -259,9 +261,9 @@ doesBucketContain(std::shared_ptr<Bucket const> bucket, const BucketEntry& be)
 }
 
 bool
-doesBucketListContain(BucketList& bl, const BucketEntry& be)
+doesBucketListContain(LiveBucketList& bl, const BucketEntry& be)
 {
-    for (uint32_t i = 0; i < BucketList::kNumLevels; ++i)
+    for (uint32_t i = 0; i < LiveBucketList::kNumLevels; ++i)
     {
         auto const& level = bl.getLevel(i);
         for (auto const& bucket : {level.getCurr(), level.getSnap()})
@@ -337,7 +339,7 @@ class ApplyBucketsWorkAddEntry : public ApplyBucketsWork
   public:
     ApplyBucketsWorkAddEntry(
         Application& app,
-        std::map<std::string, std::shared_ptr<Bucket>> const& buckets,
+        std::map<std::string, std::shared_ptr<LiveBucket>> const& buckets,
         HistoryArchiveState const& applyState, uint32_t maxProtocolVersion,
         std::function<bool(LedgerEntryType)> filter, LedgerEntry const& entry)
         : ApplyBucketsWork(app, buckets, applyState, maxProtocolVersion, filter)
@@ -391,7 +393,7 @@ class ApplyBucketsWorkDeleteEntry : public ApplyBucketsWork
   public:
     ApplyBucketsWorkDeleteEntry(
         Application& app,
-        std::map<std::string, std::shared_ptr<Bucket>> const& buckets,
+        std::map<std::string, std::shared_ptr<LiveBucket>> const& buckets,
         HistoryArchiveState const& applyState, uint32_t maxProtocolVersion,
         LedgerEntry const& target)
         : ApplyBucketsWork(app, buckets, applyState, maxProtocolVersion)
@@ -548,7 +550,7 @@ class ApplyBucketsWorkModifyEntry : public ApplyBucketsWork
   public:
     ApplyBucketsWorkModifyEntry(
         Application& app,
-        std::map<std::string, std::shared_ptr<Bucket>> const& buckets,
+        std::map<std::string, std::shared_ptr<LiveBucket>> const& buckets,
         HistoryArchiveState const& applyState, uint32_t maxProtocolVersion,
         LedgerEntry const& target)
         : ApplyBucketsWork(app, buckets, applyState, maxProtocolVersion)
@@ -857,15 +859,15 @@ TEST_CASE("BucketListIsConsistentWithDatabase bucket bounds",
         }
     };
 
-    for (uint32_t level = 0; level < BucketList::kNumLevels; ++level)
+    for (uint32_t level = 0; level < LiveBucketList::kNumLevels; ++level)
     {
-        uint32_t oldestLedger = BucketList::oldestLedgerInSnap(101, level);
+        uint32_t oldestLedger = LiveBucketList::oldestLedgerInSnap(101, level);
         if (oldestLedger == std::numeric_limits<uint32_t>::max())
         {
             break;
         }
-        uint32_t newestLedger = BucketList::oldestLedgerInCurr(101, level) +
-                                BucketList::sizeOfCurr(101, level) - 1;
+        uint32_t newestLedger = LiveBucketList::oldestLedgerInCurr(101, level) +
+                                LiveBucketList::sizeOfCurr(101, level) - 1;
         stellar::uniform_int_distribution<uint32_t> ledgerToModifyDist(
             std::max(2u, oldestLedger), newestLedger);
 
@@ -874,20 +876,21 @@ TEST_CASE("BucketListIsConsistentWithDatabase bucket bounds",
             uint32_t ledgerToModify = ledgerToModifyDist(gRandomEngine);
             uint32_t maxLowTargetLedger = 0;
             uint32_t minHighTargetLedger = 0;
-            if (ledgerToModify >= BucketList::oldestLedgerInCurr(101, level))
+            if (ledgerToModify >=
+                LiveBucketList::oldestLedgerInCurr(101, level))
             {
                 maxLowTargetLedger =
-                    BucketList::oldestLedgerInCurr(101, level) - 1;
+                    LiveBucketList::oldestLedgerInCurr(101, level) - 1;
                 minHighTargetLedger =
-                    BucketList::oldestLedgerInCurr(101, level) +
-                    BucketList::sizeOfCurr(101, level);
+                    LiveBucketList::oldestLedgerInCurr(101, level) +
+                    LiveBucketList::sizeOfCurr(101, level);
             }
             else
             {
                 maxLowTargetLedger =
-                    BucketList::oldestLedgerInSnap(101, level) - 1;
+                    LiveBucketList::oldestLedgerInSnap(101, level) - 1;
                 minHighTargetLedger =
-                    BucketList::oldestLedgerInCurr(101, level);
+                    LiveBucketList::oldestLedgerInCurr(101, level);
             }
             stellar::uniform_int_distribution<uint32_t> lowTargetLedgerDist(
                 1, maxLowTargetLedger);
@@ -941,7 +944,7 @@ TEST_CASE("BucketListIsConsistentWithDatabase merged LIVEENTRY and DEADENTRY",
     cfg.OVERRIDE_EVICTION_PARAMS_FOR_TESTING = true;
     cfg.TESTING_STARTING_EVICTION_SCAN_LEVEL = 1;
 
-    testutil::BucketListDepthModifier bldm(3);
+    testutil::BucketListDepthModifier<LiveBucket> bldm(3);
     for (auto t : xdr::xdr_traits<LedgerEntryType>::enum_values())
     {
         if (t == CONFIG_SETTING)
@@ -955,7 +958,7 @@ TEST_CASE("BucketListIsConsistentWithDatabase merged LIVEENTRY and DEADENTRY",
         {
             MergeBucketListGenerator blg(static_cast<LedgerEntryType>(t));
             auto& blGenerate =
-                blg.mAppGenerate->getBucketManager().getBucketList();
+                blg.mAppGenerate->getBucketManager().getLiveBucketList();
 
             blg.generateLedgers(100);
             if (!blg.mSelected)
@@ -995,7 +998,8 @@ TEST_CASE("BucketListIsConsistentWithDatabase merged LIVEENTRY and DEADENTRY",
                 Application::pointer appApply =
                     createTestApplication(clock, cfg);
                 REQUIRE_NOTHROW(blg.applyBuckets(appApply));
-                auto& blApply = appApply->getBucketManager().getBucketList();
+                auto& blApply =
+                    appApply->getBucketManager().getLiveBucketList();
                 REQUIRE(!doesBucketListContain(blApply, dead));
                 REQUIRE(!(doesBucketListContain(blApply, live) ||
                           doesBucketListContain(blApply, init)));

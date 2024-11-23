@@ -4,7 +4,8 @@
 // under the Apache License, Version 2.0. See the COPYING file at the root
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
-#include "bucket/BucketList.h"
+#include "bucket/HotArchiveBucketList.h"
+#include "bucket/LiveBucketList.h"
 #include "invariant/InvariantDoesNotHold.h"
 #include "invariant/InvariantManagerImpl.h"
 #include "ledger/LedgerManagerImpl.h"
@@ -29,8 +30,10 @@ std::vector<Asset> getInvalidAssets(SecretKey const& issuer);
 
 int32_t computeMultiplier(LedgerEntry const& le);
 
-class BucketListDepthModifier
+template <class BucketT> class BucketListDepthModifier
 {
+    BUCKET_TYPE_ASSERT(BucketT);
+
     uint32_t const mPrevDepth;
 
   public:
@@ -44,6 +47,14 @@ testBucketMetadata(uint32_t protocolVersion)
 {
     BucketMetadata meta;
     meta.ledgerVersion = protocolVersion;
+    if (protocolVersionStartsFrom(
+            protocolVersion,
+            BucketBase::FIRST_PROTOCOL_SUPPORTING_PERSISTENT_EVICTION))
+    {
+        meta.ext.v(1);
+        meta.ext.bucketListType() = BucketListType::LIVE;
+    }
+
     return meta;
 }
 }

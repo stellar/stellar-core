@@ -3,12 +3,9 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "ledger/LedgerTxn.h"
-#include "bucket/BucketList.h"
-#include "bucket/BucketListSnapshot.h"
 #include "bucket/BucketManager.h"
-#include "crypto/Hex.h"
+#include "bucket/SearchableBucketList.h"
 #include "crypto/KeyUtils.h"
-#include "crypto/SecretKey.h"
 #include "database/Database.h"
 #include "ledger/LedgerRange.h"
 #include "ledger/LedgerTxnEntry.h"
@@ -19,16 +16,12 @@
 #include "main/Application.h"
 #include "transactions/TransactionUtils.h"
 #include "util/GlobalChecks.h"
-#include "util/XDROperators.h"
-#include "util/XDRStream.h"
 #include "util/types.h"
 #include "xdr/Stellar-ledger-entries.h"
-#include "xdrpp/marshal.h"
 #include <Tracy.hpp>
 #include <soci.h>
 
 #include <algorithm>
-#include <numeric>
 
 namespace stellar
 {
@@ -3103,7 +3096,7 @@ LedgerTxnRoot::Impl::prefetchInternal(UnorderedSet<LedgerKey> const& keys,
         {
             insertIfNotLoaded(keysToSearch, key);
         }
-        auto blLoad = getSearchableBucketListSnapshot().loadKeysWithLimits(
+        auto blLoad = getSearchableLiveBucketListSnapshot().loadKeysWithLimits(
             keysToSearch, lkMeter);
         cacheResult(populateLoadedEntries(keysToSearch, blLoad, lkMeter));
     }
@@ -3486,15 +3479,16 @@ LedgerTxnRoot::Impl::areEntriesMissingInCacheForOffer(OfferEntry const& oe)
     return false;
 }
 
-SearchableBucketListSnapshot&
-LedgerTxnRoot::Impl::getSearchableBucketListSnapshot() const
+SearchableLiveBucketListSnapshot&
+LedgerTxnRoot::Impl::getSearchableLiveBucketListSnapshot() const
 {
     releaseAssert(mApp.getConfig().isUsingBucketListDB());
     if (!mSearchableBucketListSnapshot)
     {
-        mSearchableBucketListSnapshot = mApp.getBucketManager()
-                                            .getBucketSnapshotManager()
-                                            .copySearchableBucketListSnapshot();
+        mSearchableBucketListSnapshot =
+            mApp.getBucketManager()
+                .getBucketSnapshotManager()
+                .copySearchableLiveBucketListSnapshot();
     }
 
     return *mSearchableBucketListSnapshot;
@@ -3635,7 +3629,7 @@ LedgerTxnRoot::Impl::getPoolShareTrustLinesByAccountAndAsset(
         if (mApp.getConfig().isUsingBucketListDB())
         {
             trustLines =
-                getSearchableBucketListSnapshot()
+                getSearchableLiveBucketListSnapshot()
                     .loadPoolShareTrustLinesByAccountAndAsset(account, asset);
         }
         else
@@ -3698,7 +3692,7 @@ LedgerTxnRoot::Impl::getInflationWinners(size_t maxWinners, int64_t minVotes)
     {
         if (mApp.getConfig().isUsingBucketListDB())
         {
-            return getSearchableBucketListSnapshot().loadInflationWinners(
+            return getSearchableLiveBucketListSnapshot().loadInflationWinners(
                 maxWinners, minVotes);
         }
         else
@@ -3754,7 +3748,7 @@ LedgerTxnRoot::Impl::getNewestVersion(InternalLedgerKey const& gkey) const
     {
         if (mApp.getConfig().isUsingBucketListDB() && key.type() != OFFER)
         {
-            entry = getSearchableBucketListSnapshot().load(key);
+            entry = getSearchableLiveBucketListSnapshot().load(key);
         }
         else
         {

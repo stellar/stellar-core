@@ -4,10 +4,11 @@
 
 #pragma once
 
-#include "bucket/BucketListSnapshot.h"
 #include "bucket/BucketSnapshotManager.h"
+#include "bucket/SearchableBucketList.h"
 #include "ledger/LedgerTxn.h"
 #include "util/NonCopyable.h"
+#include <variant>
 
 namespace stellar
 {
@@ -105,7 +106,7 @@ class LedgerTxnReadOnly : public AbstractLedgerStateSnapshot
 // A concrete implementation of read-only BucketList snapshot wrapper
 class BucketSnapshotState : public AbstractLedgerStateSnapshot
 {
-    std::shared_ptr<SearchableBucketListSnapshot> mSnapshot;
+    std::shared_ptr<SearchableLiveBucketListSnapshot> mSnapshot;
     // Store a copy of the header from mSnapshot. This is needed for
     // validation flow where for certain validation scenarios the header needs
     // to be modified

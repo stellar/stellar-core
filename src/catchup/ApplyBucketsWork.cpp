@@ -3,10 +3,10 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "catchup/ApplyBucketsWork.h"
-#include "bucket/Bucket.h"
 #include "bucket/BucketApplicator.h"
-#include "bucket/BucketList.h"
 #include "bucket/BucketManager.h"
+#include "bucket/LiveBucket.h"
+#include "bucket/LiveBucketList.h"
 #include "catchup/AssumeStateWork.h"
 #include "catchup/CatchupManager.h"
 #include "catchup/IndexBucketsWork.h"
@@ -54,13 +54,14 @@ class TempLedgerVersionSetter : NonMovableOrCopyable
 uint32_t
 ApplyBucketsWork::startingLevel()
 {
-    return mApp.getConfig().isUsingBucketListDB() ? 0
-                                                  : BucketList::kNumLevels - 1;
+    return mApp.getConfig().isUsingBucketListDB()
+               ? 0
+               : LiveBucketList::kNumLevels - 1;
 }
 
 ApplyBucketsWork::ApplyBucketsWork(
     Application& app,
-    std::map<std::string, std::shared_ptr<Bucket>> const& buckets,
+    std::map<std::string, std::shared_ptr<LiveBucket>> const& buckets,
     HistoryArchiveState const& applyState, uint32_t maxProtocolVersion,
     std::function<bool(LedgerEntryType)> onlyApply)
     : Work(app, "apply-buckets", BasicWork::RETRY_NEVER)
@@ -76,20 +77,21 @@ ApplyBucketsWork::ApplyBucketsWork(
 
 ApplyBucketsWork::ApplyBucketsWork(
     Application& app,
-    std::map<std::string, std::shared_ptr<Bucket>> const& buckets,
+    std::map<std::string, std::shared_ptr<LiveBucket>> const& buckets,
     HistoryArchiveState const& applyState, uint32_t maxProtocolVersion)
     : ApplyBucketsWork(app, buckets, applyState, maxProtocolVersion,
                        [](LedgerEntryType) { return true; })
 {
 }
 
-std::shared_ptr<Bucket>
+std::shared_ptr<LiveBucket>
 ApplyBucketsWork::getBucket(std::string const& hash)
 {
     auto i = mBuckets.find(hash);
     auto b = (i != mBuckets.end())
                  ? i->second
-                 : mApp.getBucketManager().getBucketByHash(hexToBin256(hash));
+                 : mApp.getBucketManager().getBucketByHash<LiveBucket>(
+                       hexToBin256(hash));
     releaseAssert(b);
     return b;
 }
@@ -142,7 +144,7 @@ ApplyBucketsWork::doReset()
             }
         }
 
-        auto addBucket = [this](std::shared_ptr<Bucket> const& bucket) {
+        auto addBucket = [this](std::shared_ptr<LiveBucket> const& bucket) {
             if (bucket->getSize() > 0)
             {
                 mTotalBuckets++;
@@ -150,12 +152,12 @@ ApplyBucketsWork::doReset()
             }
             mBucketsToApply.emplace_back(bucket);
         };
-        // If using bucketlist DB, we iterate through the BucketList in order
-        // (i.e. L0 curr, L0 snap, L1 curr, etc) as we are just applying offers
-        // (and can keep track of all seen keys). Otherwise, we iterate in
-        // reverse order (i.e. L N snap, L N curr, L N-1 snap, etc.) as we are
-        // applying all entry types and cannot keep track of all seen keys as it
-        // would be too large.
+        // If using bucketlist DB, we iterate through the live BucketList in
+        // order (i.e. L0 curr, L0 snap, L1 curr, etc) as we are just applying
+        // offers (and can keep track of all seen keys). Otherwise, we iterate
+        // in reverse order (i.e. L N snap, L N curr, L N-1 snap, etc.) as we
+        // are applying all entry types and cannot keep track of all seen keys
+        // as it would be too large.
         if (mApp.getConfig().isUsingBucketListDB())
         {
             for (auto const& hsb : mApplyState.currentBuckets)
@@ -198,7 +200,7 @@ ApplyBucketsWork::startBucket()
     ZoneScoped;
     auto bucket = mBucketsToApply.at(mBucketToApplyIndex);
     mMinProtocolVersionSeen =
-        std::min(mMinProtocolVersionSeen, Bucket::getBucketVersion(bucket));
+        std::min(mMinProtocolVersionSeen, bucket->getBucketVersion());
     // Create a new applicator for the bucket.
     mBucketApplicator = std::make_unique<BucketApplicator>(
         mApp, mMaxProtocolVersion, mMinProtocolVersionSeen, mLevel, bucket,
@@ -222,7 +224,7 @@ ApplyBucketsWork::prepareForNextBucket()
     }
 }
 
-// We iterate through the BucketList either in-order (level 0 curr, level 0
+// We iterate through the live BucketList either in-order (level 0 curr, level 0
 // snap, level 1 curr, etc) when only applying offers, or in reverse order
 // (level 9 curr, level 8 snap, level 8 curr, etc) when applying all entry
 // types. When only applying offers, we keep track of the keys we have already

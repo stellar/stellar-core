@@ -4,7 +4,6 @@
 
 #include "util/asio.h"
 
-#include "bucket/Bucket.h"
 #include "database/Database.h"
 #include "herder/TxSetFrame.h"
 #include "invariant/Invariant.h"
@@ -54,7 +53,7 @@ class TestInvariant : public Invariant
     }
 
     virtual std::string
-    checkOnBucketApply(std::shared_ptr<Bucket const> bucket,
+    checkOnBucketApply(std::shared_ptr<LiveBucket const> bucket,
                        uint32_t oldestLedger, uint32_t newestLedger,
                        std::function<bool(LedgerEntryType)> filter) override
     {
@@ -164,7 +163,7 @@ TEST_CASE("onBucketApply fail succeed", "[invariant]")
         app->getInvariantManager().enableInvariant(
             TestInvariant::toString(0, true));
 
-        auto bucket = std::make_shared<Bucket>();
+        auto bucket = std::make_shared<LiveBucket>();
         uint32_t ledger = 1;
         uint32_t level = 0;
         bool isCurr = true;
@@ -184,7 +183,7 @@ TEST_CASE("onBucketApply fail succeed", "[invariant]")
         app->getInvariantManager().enableInvariant(
             TestInvariant::toString(0, false));
 
-        auto bucket = std::make_shared<Bucket>();
+        auto bucket = std::make_shared<LiveBucket>();
         uint32_t ledger = 1;
         uint32_t level = 0;
         bool isCurr = true;

@@ -5,9 +5,9 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "bucket/BucketManager.h"
+#include "bucket/BucketUtils.h"
 #include "bucket/LedgerCmp.h"
 #include "util/XDRStream.h"
-#include "xdr/Stellar-ledger.h"
 
 #include <memory>
 #include <string>
@@ -20,18 +20,20 @@ class BucketManager;
 
 // Helper class that writes new elements to a file and returns a bucket
 // when finished.
-class BucketOutputIterator
+template <typename BucketT> class BucketOutputIterator
 {
+    BUCKET_TYPE_ASSERT(BucketT);
+
   protected:
     std::filesystem::path mFilename;
     XDROutputFileStream mOut;
-    BucketEntryIdCmp mCmp;
+    BucketEntryIdCmp<BucketT> mCmp;
     asio::io_context& mCtx;
-    std::unique_ptr<BucketEntry> mBuf;
+    std::unique_ptr<typename BucketT::EntryT> mBuf;
     SHA256 mHasher;
     size_t mBytesPut{0};
     size_t mObjectsPut{0};
-    bool mKeepDeadEntries{true};
+    bool mKeepTombstoneEntries{true};
     BucketMetadata mMeta;
     bool mPutMeta{false};
     MergeCounters& mMergeCounters;
@@ -44,14 +46,14 @@ class BucketOutputIterator
     // version new enough that it should _write_ the metadata to the stream in
     // the form of a METAENTRY; but that's not a thing the caller gets to decide
     // (or forget to do), it's handled automatically.
-    BucketOutputIterator(std::string const& tmpDir, bool keepDeadEntries,
+    BucketOutputIterator(std::string const& tmpDir, bool keepTombstoneEntries,
                          BucketMetadata const& meta, MergeCounters& mc,
                          asio::io_context& ctx, bool doFsync);
 
-    void put(BucketEntry const& e);
+    void put(typename BucketT::EntryT const& e);
 
-    std::shared_ptr<Bucket> getBucket(BucketManager& bucketManager,
-                                      bool shouldSynchronouslyIndex,
-                                      MergeKey* mergeKey = nullptr);
+    std::shared_ptr<BucketT> getBucket(BucketManager& bucketManager,
+                                       bool shouldSynchronouslyIndex,
+                                       MergeKey* mergeKey = nullptr);
 };
 }

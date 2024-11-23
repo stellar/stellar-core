@@ -34,7 +34,8 @@ enum class ProtocolVersion : uint32_t
     V_19,
     V_20,
     V_21,
-    V_22
+    V_22,
+    V_23
 };
 
 // Checks whether provided protocolVersion is before (i.e. strictly lower than)

@@ -11,10 +11,11 @@
 // first to include <windows.h> -- so we try to include it before everything
 // else.
 #include "util/asio.h"
-#include "bucket/Bucket.h"
 #include "bucket/BucketInputIterator.h"
 #include "bucket/BucketManager.h"
 #include "bucket/BucketOutputIterator.h"
+#include "bucket/HotArchiveBucket.h"
+#include "bucket/LiveBucket.h"
 #include "bucket/test/BucketTestUtils.h"
 #include "ledger/LedgerTxn.h"
 #include "ledger/test/LedgerTestUtils.h"
@@ -48,10 +49,10 @@ for_versions_with_differing_initentry_logic(
 {
     for_versions(
         {static_cast<uint32_t>(
-             Bucket::FIRST_PROTOCOL_SUPPORTING_INITENTRY_AND_METAENTRY) -
+             LiveBucket::FIRST_PROTOCOL_SUPPORTING_INITENTRY_AND_METAENTRY) -
              1,
          static_cast<uint32_t>(
-             Bucket::FIRST_PROTOCOL_SUPPORTING_INITENTRY_AND_METAENTRY)},
+             LiveBucket::FIRST_PROTOCOL_SUPPORTING_INITENTRY_AND_METAENTRY)},
         cfg, f);
 }
 
@@ -67,7 +68,7 @@ TEST_CASE_VERSIONS("file backed buckets", "[bucket][bucketbench]")
         auto dead = LedgerTestUtils::generateValidLedgerEntryKeysWithExclusions(
             {CONFIG_SETTING}, 1000);
         CLOG_DEBUG(Bucket, "Hashing entries");
-        std::shared_ptr<Bucket> b1 = Bucket::fresh(
+        std::shared_ptr<LiveBucket> b1 = LiveBucket::fresh(
             app->getBucketManager(), getAppLedgerVersion(app), {}, live, dead,
             /*countMergeEvents=*/true, clock.getIOContext(),
             /*doFsync=*/true);
@@ -80,16 +81,16 @@ TEST_CASE_VERSIONS("file backed buckets", "[bucket][bucketbench]")
             dead = LedgerTestUtils::generateValidLedgerEntryKeysWithExclusions(
                 {CONFIG_SETTING}, 1000);
             {
-                b1 = Bucket::merge(
+                b1 = BucketBase::merge(
                     app->getBucketManager(),
                     app->getConfig().LEDGER_PROTOCOL_VERSION, b1,
-                    Bucket::fresh(app->getBucketManager(),
-                                  getAppLedgerVersion(app), {}, live, dead,
-                                  /*countMergeEvents=*/true,
-                                  clock.getIOContext(),
-                                  /*doFsync=*/true),
+                    LiveBucket::fresh(app->getBucketManager(),
+                                      getAppLedgerVersion(app), {}, live, dead,
+                                      /*countMergeEvents=*/true,
+                                      clock.getIOContext(),
+                                      /*doFsync=*/true),
                     /*shadows=*/{},
-                    /*keepDeadEntries=*/true,
+                    /*keepTombstoneEntries=*/true,
                     /*countMergeEvents=*/true, clock.getIOContext(),
                     /*doFsync=*/true);
             }
@@ -161,19 +162,19 @@ TEST_CASE_VERSIONS("merging bucket entries", "[bucket]")
                     abort();
                 }
                 auto deadEntry = LedgerEntryKey(liveEntry);
-                auto bLive = Bucket::fresh(bm, vers, {}, {liveEntry}, {},
-                                           /*countMergeEvents=*/true,
-                                           clock.getIOContext(),
-                                           /*doFsync=*/true);
-                auto bDead = Bucket::fresh(bm, vers, {}, {}, {deadEntry},
-                                           /*countMergeEvents=*/true,
-                                           clock.getIOContext(),
-                                           /*doFsync=*/true);
-                auto b1 = Bucket::merge(bm, vers, bLive, bDead, /*shadows=*/{},
-                                        /*keepDeadEntries=*/true,
-                                        /*countMergeEvents=*/true,
-                                        clock.getIOContext(),
-                                        /*doFsync=*/true);
+                auto bLive = LiveBucket::fresh(bm, vers, {}, {liveEntry}, {},
+                                               /*countMergeEvents=*/true,
+                                               clock.getIOContext(),
+                                               /*doFsync=*/true);
+                auto bDead = LiveBucket::fresh(bm, vers, {}, {}, {deadEntry},
+                                               /*countMergeEvents=*/true,
+                                               clock.getIOContext(),
+                                               /*doFsync=*/true);
+                auto b1 = BucketBase::merge(
+                    bm, vers, bLive, bDead, /*shadows=*/{},
+                    /*keepTombstoneEntries=*/true,
+                    /*countMergeEvents=*/true, clock.getIOContext(),
+                    /*doFsync=*/true);
                 CHECK(countEntries(b1) == 1);
             }
         };
@@ -200,19 +201,19 @@ TEST_CASE_VERSIONS("merging bucket entries", "[bucket]")
                     dead.push_back(LedgerEntryKey(e));
                 }
             }
-            auto bLive =
-                Bucket::fresh(bm, vers, {}, live, {},
-                              /*countMergeEvents=*/true, clock.getIOContext(),
-                              /*doFsync=*/true);
-            auto bDead =
-                Bucket::fresh(bm, vers, {}, {}, dead,
-                              /*countMergeEvents=*/true, clock.getIOContext(),
-                              /*doFsync=*/true);
-            auto b1 =
-                Bucket::merge(bm, vers, bLive, bDead, /*shadows=*/{},
-                              /*keepDeadEntries=*/true,
-                              /*countMergeEvents=*/true, clock.getIOContext(),
-                              /*doFsync=*/true);
+            auto bLive = LiveBucket::fresh(bm, vers, {}, live, {},
+                                           /*countMergeEvents=*/true,
+                                           clock.getIOContext(),
+                                           /*doFsync=*/true);
+            auto bDead = LiveBucket::fresh(bm, vers, {}, {}, dead,
+                                           /*countMergeEvents=*/true,
+                                           clock.getIOContext(),
+                                           /*doFsync=*/true);
+            auto b1 = BucketBase::merge(bm, vers, bLive, bDead, /*shadows=*/{},
+                                        /*keepTombstoneEntries=*/true,
+                                        /*countMergeEvents=*/true,
+                                        clock.getIOContext(),
+                                        /*doFsync=*/true);
             EntryCounts e(b1);
             CHECK(e.sum() == live.size());
             CLOG_DEBUG(Bucket, "post-merge live count: {} of {}", e.nLive,
@@ -226,7 +227,7 @@ TEST_CASE_VERSIONS("merging bucket entries", "[bucket]")
                 LedgerTestUtils::generateValidUniqueLedgerEntriesWithExclusions(
                     {CONFIG_SETTING}, 100);
             std::vector<LedgerKey> dead;
-            std::shared_ptr<Bucket> b1 = Bucket::fresh(
+            std::shared_ptr<LiveBucket> b1 = LiveBucket::fresh(
                 app->getBucketManager(), getAppLedgerVersion(app), {}, live,
                 dead, /*countMergeEvents=*/true, clock.getIOContext(),
                 /*doFsync=*/true);
@@ -258,17 +259,110 @@ TEST_CASE_VERSIONS("merging bucket entries", "[bucket]")
                     ++liveCount;
                 }
             }
-            std::shared_ptr<Bucket> b2 = Bucket::fresh(
+            std::shared_ptr<LiveBucket> b2 = LiveBucket::fresh(
                 app->getBucketManager(), getAppLedgerVersion(app), {}, live,
                 dead, /*countMergeEvents=*/true, clock.getIOContext(),
                 /*doFsync=*/true);
-            std::shared_ptr<Bucket> b3 =
-                Bucket::merge(app->getBucketManager(),
-                              app->getConfig().LEDGER_PROTOCOL_VERSION, b1, b2,
-                              /*shadows=*/{}, /*keepDeadEntries=*/true,
-                              /*countMergeEvents=*/true, clock.getIOContext(),
-                              /*doFsync=*/true);
+            std::shared_ptr<LiveBucket> b3 = BucketBase::merge(
+                app->getBucketManager(),
+                app->getConfig().LEDGER_PROTOCOL_VERSION, b1, b2,
+                /*shadows=*/{}, /*keepTombstoneEntries=*/true,
+                /*countMergeEvents=*/true, clock.getIOContext(),
+                /*doFsync=*/true);
             CHECK(countEntries(b3) == liveCount);
+        }
+    });
+}
+
+TEST_CASE_VERSIONS("merging hot archive bucket entries", "[bucket][archival]")
+{
+    VirtualClock clock;
+    Config const& cfg = getTestConfig();
+
+    auto app = createTestApplication(clock, cfg);
+    for_versions_from(23, *app, [&] {
+        auto& bm = app->getBucketManager();
+        auto vers = getAppLedgerVersion(app);
+
+        SECTION("new annihilates old")
+        {
+            auto e1 =
+                LedgerTestUtils::generateValidLedgerEntryOfType(CONTRACT_CODE);
+            auto e2 =
+                LedgerTestUtils::generateValidLedgerEntryOfType(CONTRACT_CODE);
+            auto e3 =
+                LedgerTestUtils::generateValidLedgerEntryOfType(CONTRACT_DATA);
+            auto e4 =
+                LedgerTestUtils::generateValidLedgerEntryOfType(CONTRACT_DATA);
+
+            // Old bucket:
+            // e1 -> ARCHIVED
+            // e2 -> LIVE
+            // e3 -> DELETED
+            // e4 -> DELETED
+            auto b1 = HotArchiveBucket::fresh(
+                bm, vers, {e1}, {LedgerEntryKey(e2)},
+                {LedgerEntryKey(e3), LedgerEntryKey(e4)},
+                /*countMergeEvents=*/true, clock.getIOContext(),
+                /*doFsync=*/true);
+
+            // New bucket:
+            // e1 -> DELETED
+            // e2 -> ARCHIVED
+            // e3 -> LIVE
+            auto b2 = HotArchiveBucket::fresh(
+                bm, vers, {e2}, {LedgerEntryKey(e3)}, {LedgerEntryKey(e1)},
+                /*countMergeEvents=*/true, clock.getIOContext(),
+                /*doFsync=*/true);
+
+            // Expected result:
+            // e1 -> DELETED
+            // e2 -> ARCHIVED
+            // e3 -> LIVE
+            // e4 -> DELETED
+            auto merged = BucketBase::merge(bm, vers, b1, b2, /*shadows=*/{},
+                                            /*keepTombstoneEntries=*/true,
+                                            /*countMergeEvents=*/true,
+                                            clock.getIOContext(),
+                                            /*doFsync=*/true);
+
+            bool seen1 = false;
+            bool seen4 = false;
+            auto count = 0;
+            for (HotArchiveBucketInputIterator iter(merged); iter; ++iter)
+            {
+                ++count;
+                auto const& e = *iter;
+                if (e.type() == HOT_ARCHIVE_ARCHIVED)
+                {
+                    REQUIRE(e.archivedEntry() == e2);
+                }
+                else if (e.type() == HOT_ARCHIVE_LIVE)
+                {
+                    REQUIRE(e.key() == LedgerEntryKey(e3));
+                }
+                else if (e.type() == HOT_ARCHIVE_DELETED)
+                {
+                    if (e.key() == LedgerEntryKey(e1))
+                    {
+                        REQUIRE(!seen1);
+                        seen1 = true;
+                    }
+                    else if (e.key() == LedgerEntryKey(e4))
+                    {
+                        REQUIRE(!seen4);
+                        seen4 = true;
+                    }
+                }
+                else
+                {
+                    FAIL();
+                }
+            }
+
+            REQUIRE(seen1);
+            REQUIRE(seen4);
+            REQUIRE(count == 4);
         }
     });
 }
@@ -330,7 +424,8 @@ TEST_CASE("merges proceed old-style despite newer shadows",
     Config const& cfg = getTestConfig();
     Application::pointer app = createTestApplication(clock, cfg);
     auto& bm = app->getBucketManager();
-    auto v12 = static_cast<uint32_t>(Bucket::FIRST_PROTOCOL_SHADOWS_REMOVED);
+    auto v12 =
+        static_cast<uint32_t>(LiveBucket::FIRST_PROTOCOL_SHADOWS_REMOVED);
     auto v11 = v12 - 1;
     auto v10 = v11 - 1;
 
@@ -338,63 +433,63 @@ TEST_CASE("merges proceed old-style despite newer shadows",
     LedgerEntry otherLiveA = generateDifferentAccount({liveEntry});
 
     auto b10first =
-        Bucket::fresh(bm, v10, {}, {liveEntry}, {},
-                      /*countMergeEvents=*/true, clock.getIOContext(),
-                      /*doFsync=*/true);
+        LiveBucket::fresh(bm, v10, {}, {liveEntry}, {},
+                          /*countMergeEvents=*/true, clock.getIOContext(),
+                          /*doFsync=*/true);
     auto b10second =
-        Bucket::fresh(bm, v10, {}, {otherLiveA}, {},
-                      /*countMergeEvents=*/true, clock.getIOContext(),
-                      /*doFsync=*/true);
+        LiveBucket::fresh(bm, v10, {}, {otherLiveA}, {},
+                          /*countMergeEvents=*/true, clock.getIOContext(),
+                          /*doFsync=*/true);
 
     auto b11first =
-        Bucket::fresh(bm, v11, {}, {liveEntry}, {},
-                      /*countMergeEvents=*/true, clock.getIOContext(),
-                      /*doFsync=*/true);
+        LiveBucket::fresh(bm, v11, {}, {liveEntry}, {},
+                          /*countMergeEvents=*/true, clock.getIOContext(),
+                          /*doFsync=*/true);
     auto b11second =
-        Bucket::fresh(bm, v11, {}, {otherLiveA}, {},
-                      /*countMergeEvents=*/true, clock.getIOContext(),
-                      /*doFsync=*/true);
+        LiveBucket::fresh(bm, v11, {}, {otherLiveA}, {},
+                          /*countMergeEvents=*/true, clock.getIOContext(),
+                          /*doFsync=*/true);
 
     auto b12first =
-        Bucket::fresh(bm, v12, {}, {liveEntry}, {}, /*countMergeEvents=*/true,
-                      clock.getIOContext(),
-                      /*doFsync=*/true);
+        LiveBucket::fresh(bm, v12, {}, {liveEntry}, {},
+                          /*countMergeEvents=*/true, clock.getIOContext(),
+                          /*doFsync=*/true);
     auto b12second =
-        Bucket::fresh(bm, v12, {}, {otherLiveA}, {},
-                      /*countMergeEvents=*/true, clock.getIOContext(),
-                      /*doFsync=*/true);
+        LiveBucket::fresh(bm, v12, {}, {otherLiveA}, {},
+                          /*countMergeEvents=*/true, clock.getIOContext(),
+                          /*doFsync=*/true);
 
     SECTION("shadow version 12")
     {
         // With proto 12, new bucket version solely depends on the snap version
         auto bucket =
-            Bucket::merge(bm, v12, b11first, b11second,
-                          /*shadows=*/{b12first},
-                          /*keepDeadEntries=*/true,
-                          /*countMergeEvents=*/true, clock.getIOContext(),
-                          /*doFsync=*/true);
-        REQUIRE(Bucket::getBucketVersion(bucket) == v11);
+            BucketBase::merge(bm, v12, b11first, b11second,
+                              /*shadows=*/{b12first},
+                              /*keepTombstoneEntries=*/true,
+                              /*countMergeEvents=*/true, clock.getIOContext(),
+                              /*doFsync=*/true);
+        REQUIRE(bucket->getBucketVersion() == v11);
     }
     SECTION("shadow versions mixed, pick lower")
     {
         // Merging older version (10) buckets, with mixed versions of shadows
         // (11, 12) Pick initentry (11) style merge
         auto bucket =
-            Bucket::merge(bm, v12, b10first, b10second,
-                          /*shadows=*/{b12first, b11second},
-                          /*keepDeadEntries=*/true,
-                          /*countMergeEvents=*/true, clock.getIOContext(),
-                          /*doFsync=*/true);
-        REQUIRE(Bucket::getBucketVersion(bucket) == v11);
+            BucketBase::merge(bm, v12, b10first, b10second,
+                              /*shadows=*/{b12first, b11second},
+                              /*keepTombstoneEntries=*/true,
+                              /*countMergeEvents=*/true, clock.getIOContext(),
+                              /*doFsync=*/true);
+        REQUIRE(bucket->getBucketVersion() == v11);
     }
     SECTION("refuse to merge new version with shadow")
     {
-        REQUIRE_THROWS_AS(Bucket::merge(bm, v12, b12first, b12second,
-                                        /*shadows=*/{b12first},
-                                        /*keepDeadEntries=*/true,
-                                        /*countMergeEvents=*/true,
-                                        clock.getIOContext(),
-                                        /*doFsync=*/true),
+        REQUIRE_THROWS_AS(BucketBase::merge(bm, v12, b12first, b12second,
+                                            /*shadows=*/{b12first},
+                                            /*keepTombstoneEntries=*/true,
+                                            /*countMergeEvents=*/true,
+                                            clock.getIOContext(),
+                                            /*doFsync=*/true),
                           std::runtime_error);
     }
 }
@@ -409,24 +504,28 @@ TEST_CASE("merges refuse to exceed max protocol version",
     auto vers = getAppLedgerVersion(app);
     LedgerEntry liveEntry = generateAccount();
     LedgerEntry otherLiveA = generateDifferentAccount({liveEntry});
-    auto bold1 = Bucket::fresh(bm, vers - 1, {}, {liveEntry}, {},
-                               /*countMergeEvents=*/true, clock.getIOContext(),
-                               /*doFsync=*/true);
-    auto bold2 = Bucket::fresh(bm, vers - 1, {}, {otherLiveA}, {},
-                               /*countMergeEvents=*/true, clock.getIOContext(),
-                               /*doFsync=*/true);
-    auto bnew1 = Bucket::fresh(bm, vers, {}, {liveEntry}, {},
-                               /*countMergeEvents=*/true, clock.getIOContext(),
-                               /*doFsync=*/true);
-    auto bnew2 = Bucket::fresh(bm, vers, {}, {otherLiveA}, {},
-                               /*countMergeEvents=*/true, clock.getIOContext(),
-                               /*doFsync=*/true);
-    REQUIRE_THROWS_AS(Bucket::merge(bm, vers - 1, bnew1, bnew2,
-                                    /*shadows=*/{},
-                                    /*keepDeadEntries=*/true,
-                                    /*countMergeEvents=*/true,
-                                    clock.getIOContext(),
-                                    /*doFsync=*/true),
+    auto bold1 =
+        LiveBucket::fresh(bm, vers - 1, {}, {liveEntry}, {},
+                          /*countMergeEvents=*/true, clock.getIOContext(),
+                          /*doFsync=*/true);
+    auto bold2 =
+        LiveBucket::fresh(bm, vers - 1, {}, {otherLiveA}, {},
+                          /*countMergeEvents=*/true, clock.getIOContext(),
+                          /*doFsync=*/true);
+    auto bnew1 =
+        LiveBucket::fresh(bm, vers, {}, {liveEntry}, {},
+                          /*countMergeEvents=*/true, clock.getIOContext(),
+                          /*doFsync=*/true);
+    auto bnew2 =
+        LiveBucket::fresh(bm, vers, {}, {otherLiveA}, {},
+                          /*countMergeEvents=*/true, clock.getIOContext(),
+                          /*doFsync=*/true);
+    REQUIRE_THROWS_AS(BucketBase::merge(bm, vers - 1, bnew1, bnew2,
+                                        /*shadows=*/{},
+                                        /*keepTombstoneEntries=*/true,
+                                        /*countMergeEvents=*/true,
+                                        clock.getIOContext(),
+                                        /*doFsync=*/true),
                       std::runtime_error);
 }
 
@@ -436,7 +535,7 @@ TEST_CASE("bucket output iterator rejects wrong-version entries",
     VirtualClock clock;
     Config const& cfg = getTestConfig();
     auto vers_new = static_cast<uint32_t>(
-        Bucket::FIRST_PROTOCOL_SUPPORTING_INITENTRY_AND_METAENTRY);
+        LiveBucket::FIRST_PROTOCOL_SUPPORTING_INITENTRY_AND_METAENTRY);
     BucketMetadata meta;
     meta.ledgerVersion = vers_new - 1;
     Application::pointer app = createTestApplication(clock, cfg);
@@ -447,8 +546,8 @@ TEST_CASE("bucket output iterator rejects wrong-version entries",
     metaEntry.type(METAENTRY);
     metaEntry.metaEntry() = meta;
     MergeCounters mc;
-    BucketOutputIterator out(bm.getTmpDir(), true, meta, mc,
-                             clock.getIOContext(), /*doFsync=*/true);
+    LiveBucketOutputIterator out(bm.getTmpDir(), true, meta, mc,
+                                 clock.getIOContext(), /*doFsync=*/true);
     REQUIRE_THROWS_AS(out.put(initEntry), std::runtime_error);
     REQUIRE_THROWS_AS(out.put(metaEntry), std::runtime_error);
 }
@@ -466,7 +565,8 @@ TEST_CASE_VERSIONS("merging bucket entries with initentry",
 
         // Whether we're in the era of supporting or not-supporting INITENTRY.
         bool initEra = protocolVersionStartsFrom(
-            vers, Bucket::FIRST_PROTOCOL_SUPPORTING_INITENTRY_AND_METAENTRY);
+            vers,
+            LiveBucket::FIRST_PROTOCOL_SUPPORTING_INITENTRY_AND_METAENTRY);
 
         CLOG_INFO(Bucket, "=== finished buckets for initial account == ");
 
@@ -488,17 +588,17 @@ TEST_CASE_VERSIONS("merging bucket entries with initentry",
 
         SECTION("dead and init account entries merge correctly")
         {
-            auto bInit =
-                Bucket::fresh(bm, vers, {initEntry}, {}, {},
-                              /*countMergeEvents=*/true, clock.getIOContext(),
-                              /*doFsync=*/true);
-            auto bDead =
-                Bucket::fresh(bm, vers, {}, {}, {deadEntry},
-                              /*countMergeEvents=*/true, clock.getIOContext(),
-                              /*doFsync=*/true);
-            auto b1 = Bucket::merge(
+            auto bInit = LiveBucket::fresh(bm, vers, {initEntry}, {}, {},
+                                           /*countMergeEvents=*/true,
+                                           clock.getIOContext(),
+                                           /*doFsync=*/true);
+            auto bDead = LiveBucket::fresh(bm, vers, {}, {}, {deadEntry},
+                                           /*countMergeEvents=*/true,
+                                           clock.getIOContext(),
+                                           /*doFsync=*/true);
+            auto b1 = BucketBase::merge(
                 bm, cfg.LEDGER_PROTOCOL_VERSION, bInit, bDead, /*shadows=*/{},
-                /*keepDeadEntries=*/true,
+                /*keepTombstoneEntries=*/true,
                 /*countMergeEvents=*/true, clock.getIOContext(),
                 /*doFsync=*/true);
             // In initEra, the INIT will make it through fresh() to the bucket,
@@ -507,7 +607,7 @@ TEST_CASE_VERSIONS("merging bucket entries with initentry",
             // fresh(), and that will be killed by the DEAD, leaving 1
             // (tombstone) entry.
             EntryCounts e(b1);
-            CHECK(e.nInit == 0);
+            CHECK(e.nInitOrArchived == 0);
             CHECK(e.nLive == 0);
             if (initEra)
             {
@@ -524,32 +624,32 @@ TEST_CASE_VERSIONS("merging bucket entries with initentry",
         SECTION("dead and init entries merge with intervening live entries "
                 "correctly")
         {
-            auto bInit =
-                Bucket::fresh(bm, vers, {initEntry}, {}, {},
-                              /*countMergeEvents=*/true, clock.getIOContext(),
-                              /*doFsync=*/true);
-            auto bLive =
-                Bucket::fresh(bm, vers, {}, {liveEntry}, {},
-                              /*countMergeEvents=*/true, clock.getIOContext(),
-                              /*doFsync=*/true);
-            auto bDead =
-                Bucket::fresh(bm, vers, {}, {}, {deadEntry},
-                              /*countMergeEvents=*/true, clock.getIOContext(),
-                              /*doFsync=*/true);
-            auto bmerge1 = Bucket::merge(
+            auto bInit = LiveBucket::fresh(bm, vers, {initEntry}, {}, {},
+                                           /*countMergeEvents=*/true,
+                                           clock.getIOContext(),
+                                           /*doFsync=*/true);
+            auto bLive = LiveBucket::fresh(bm, vers, {}, {liveEntry}, {},
+                                           /*countMergeEvents=*/true,
+                                           clock.getIOContext(),
+                                           /*doFsync=*/true);
+            auto bDead = LiveBucket::fresh(bm, vers, {}, {}, {deadEntry},
+                                           /*countMergeEvents=*/true,
+                                           clock.getIOContext(),
+                                           /*doFsync=*/true);
+            auto bmerge1 = BucketBase::merge(
                 bm, cfg.LEDGER_PROTOCOL_VERSION, bInit, bLive, /*shadows=*/{},
-                /*keepDeadEntries=*/true,
+                /*keepTombstoneEntries=*/true,
                 /*countMergeEvents=*/true, clock.getIOContext(),
                 /*doFsync=*/true);
-            auto b1 = Bucket::merge(
+            auto b1 = BucketBase::merge(
                 bm, cfg.LEDGER_PROTOCOL_VERSION, bmerge1, bDead, /*shadows=*/{},
-                /*keepDeadEntries=*/true,
+                /*keepTombstoneEntries=*/true,
                 /*countMergeEvents=*/true, clock.getIOContext(),
                 /*doFsync=*/true);
             // The same thing should happen here as above, except that the INIT
             // will merge-over the LIVE during fresh().
             EntryCounts e(b1);
-            CHECK(e.nInit == 0);
+            CHECK(e.nInitOrArchived == 0);
             CHECK(e.nLive == 0);
             if (initEra)
             {
@@ -566,25 +666,25 @@ TEST_CASE_VERSIONS("merging bucket entries with initentry",
         SECTION("dead and init entries annihilate multiple live entries via "
                 "separate buckets")
         {
-            auto bold =
-                Bucket::fresh(bm, vers, {initEntry}, {}, {},
-                              /*countMergeEvents=*/true, clock.getIOContext(),
-                              /*doFsync=*/true);
-            auto bmed = Bucket::fresh(
+            auto bold = LiveBucket::fresh(bm, vers, {initEntry}, {}, {},
+                                          /*countMergeEvents=*/true,
+                                          clock.getIOContext(),
+                                          /*doFsync=*/true);
+            auto bmed = LiveBucket::fresh(
                 bm, vers, {}, {otherLiveA, otherLiveB, liveEntry, otherLiveC},
                 {}, /*countMergeEvents=*/true, clock.getIOContext(),
                 /*doFsync=*/true);
-            auto bnew =
-                Bucket::fresh(bm, vers, {}, {}, {deadEntry},
-                              /*countMergeEvents=*/true, clock.getIOContext(),
-                              /*doFsync=*/true);
+            auto bnew = LiveBucket::fresh(bm, vers, {}, {}, {deadEntry},
+                                          /*countMergeEvents=*/true,
+                                          clock.getIOContext(),
+                                          /*doFsync=*/true);
             EntryCounts eold(bold), emed(bmed), enew(bnew);
             if (initEra)
             {
                 CHECK(eold.nMeta == 1);
                 CHECK(emed.nMeta == 1);
                 CHECK(enew.nMeta == 1);
-                CHECK(eold.nInit == 1);
+                CHECK(eold.nInitOrArchived == 1);
                 CHECK(eold.nLive == 0);
             }
             else
@@ -592,35 +692,35 @@ TEST_CASE_VERSIONS("merging bucket entries with initentry",
                 CHECK(eold.nMeta == 0);
                 CHECK(emed.nMeta == 0);
                 CHECK(enew.nMeta == 0);
-                CHECK(eold.nInit == 0);
+                CHECK(eold.nInitOrArchived == 0);
                 CHECK(eold.nLive == 1);
             }
 
             CHECK(eold.nDead == 0);
 
-            CHECK(emed.nInit == 0);
+            CHECK(emed.nInitOrArchived == 0);
             CHECK(emed.nLive == 4);
             CHECK(emed.nDead == 0);
 
-            CHECK(enew.nInit == 0);
+            CHECK(enew.nInitOrArchived == 0);
             CHECK(enew.nLive == 0);
             CHECK(enew.nDead == 1);
 
-            auto bmerge1 = Bucket::merge(
+            auto bmerge1 = BucketBase::merge(
                 bm, cfg.LEDGER_PROTOCOL_VERSION, bold, bmed, /*shadows=*/{},
-                /*keepDeadEntries=*/true,
+                /*keepTombstoneEntries=*/true,
                 /*countMergeEvents=*/true, clock.getIOContext(),
                 /*doFsync=*/true);
-            auto bmerge2 = Bucket::merge(
+            auto bmerge2 = BucketBase::merge(
                 bm, cfg.LEDGER_PROTOCOL_VERSION, bmerge1, bnew, /*shadows=*/{},
-                /*keepDeadEntries=*/true,
+                /*keepTombstoneEntries=*/true,
                 /*countMergeEvents=*/true, clock.getIOContext(),
                 /*doFsync=*/true);
             EntryCounts emerge1(bmerge1), emerge2(bmerge2);
             if (initEra)
             {
                 CHECK(emerge1.nMeta == 1);
-                CHECK(emerge1.nInit == 1);
+                CHECK(emerge1.nInitOrArchived == 1);
                 CHECK(emerge1.nLive == 3);
 
                 CHECK(emerge2.nMeta == 1);
@@ -629,14 +729,14 @@ TEST_CASE_VERSIONS("merging bucket entries with initentry",
             else
             {
                 CHECK(emerge1.nMeta == 0);
-                CHECK(emerge1.nInit == 0);
+                CHECK(emerge1.nInitOrArchived == 0);
                 CHECK(emerge1.nLive == 4);
 
                 CHECK(emerge2.nMeta == 0);
                 CHECK(emerge2.nDead == 1);
             }
             CHECK(emerge1.nDead == 0);
-            CHECK(emerge2.nInit == 0);
+            CHECK(emerge2.nInitOrArchived == 0);
             CHECK(emerge2.nLive == 3);
         }
     });
@@ -655,7 +755,8 @@ TEST_CASE_VERSIONS("merging bucket entries with initentry with shadows",
 
         // Whether we're in the era of supporting or not-supporting INITENTRY.
         bool initEra = protocolVersionStartsFrom(
-            vers, Bucket::FIRST_PROTOCOL_SUPPORTING_INITENTRY_AND_METAENTRY);
+            vers,
+            LiveBucket::FIRST_PROTOCOL_SUPPORTING_INITENTRY_AND_METAENTRY);
 
         CLOG_INFO(Bucket, "=== finished buckets for initial account == ");
 
@@ -680,36 +781,36 @@ TEST_CASE_VERSIONS("merging bucket entries with initentry with shadows",
             // In pre-11 versions, shadows _do_ eliminate lifecycle entries
             // (INIT/DEAD). In 11-and-after versions, shadows _don't_ eliminate
             // lifecycle entries.
-            auto shadow =
-                Bucket::fresh(bm, vers, {}, {liveEntry}, {},
-                              /*countMergeEvents=*/true, clock.getIOContext(),
-                              /*doFsync=*/true);
-            auto b1 =
-                Bucket::fresh(bm, vers, {initEntry}, {}, {},
-                              /*countMergeEvents=*/true, clock.getIOContext(),
-                              /*doFsync=*/true);
-            auto b2 =
-                Bucket::fresh(bm, vers, {otherInitA}, {}, {},
-                              /*countMergeEvents=*/true, clock.getIOContext(),
-                              /*doFsync=*/true);
-            auto merged =
-                Bucket::merge(bm, cfg.LEDGER_PROTOCOL_VERSION, b1, b2,
-                              /*shadows=*/{shadow},
-                              /*keepDeadEntries=*/true,
-                              /*countMergeEvents=*/true, clock.getIOContext(),
-                              /*doFsync=*/true);
+            auto shadow = LiveBucket::fresh(bm, vers, {}, {liveEntry}, {},
+                                            /*countMergeEvents=*/true,
+                                            clock.getIOContext(),
+                                            /*doFsync=*/true);
+            auto b1 = LiveBucket::fresh(bm, vers, {initEntry}, {}, {},
+                                        /*countMergeEvents=*/true,
+                                        clock.getIOContext(),
+                                        /*doFsync=*/true);
+            auto b2 = LiveBucket::fresh(bm, vers, {otherInitA}, {}, {},
+                                        /*countMergeEvents=*/true,
+                                        clock.getIOContext(),
+                                        /*doFsync=*/true);
+            auto merged = BucketBase::merge(
+                bm, cfg.LEDGER_PROTOCOL_VERSION, b1, b2,
+                /*shadows=*/{shadow},
+                /*keepTombstoneEntries=*/true,
+                /*countMergeEvents=*/true, clock.getIOContext(),
+                /*doFsync=*/true);
             EntryCounts e(merged);
             if (initEra)
             {
                 CHECK(e.nMeta == 1);
-                CHECK(e.nInit == 2);
+                CHECK(e.nInitOrArchived == 2);
                 CHECK(e.nLive == 0);
                 CHECK(e.nDead == 0);
             }
             else
             {
                 CHECK(e.nMeta == 0);
-                CHECK(e.nInit == 0);
+                CHECK(e.nInitOrArchived == 0);
                 CHECK(e.nLive == 1);
                 CHECK(e.nDead == 0);
             }
@@ -722,43 +823,43 @@ TEST_CASE_VERSIONS("merging bucket entries with initentry with shadows",
             // INIT. See comment in `maybePut` in Bucket.cpp.
             //
             // (level1 is newest here, level5 is oldest)
-            auto level1 =
-                Bucket::fresh(bm, vers, {}, {}, {deadEntry},
-                              /*countMergeEvents=*/true, clock.getIOContext(),
-                              /*doFsync=*/true);
-            auto level2 =
-                Bucket::fresh(bm, vers, {initEntry2}, {}, {},
-                              /*countMergeEvents=*/true, clock.getIOContext(),
-                              /*doFsync=*/true);
-            auto level3 =
-                Bucket::fresh(bm, vers, {}, {}, {deadEntry},
-                              /*countMergeEvents=*/true, clock.getIOContext(),
-                              /*doFsync=*/true);
-            auto level4 =
-                Bucket::fresh(bm, vers, {}, {}, {}, /*countMergeEvents=*/true,
-                              clock.getIOContext(),
-                              /*doFsync=*/true);
-            auto level5 =
-                Bucket::fresh(bm, vers, {initEntry}, {}, {},
-                              /*countMergeEvents=*/true, clock.getIOContext(),
-                              /*doFsync=*/true);
+            auto level1 = LiveBucket::fresh(bm, vers, {}, {}, {deadEntry},
+                                            /*countMergeEvents=*/true,
+                                            clock.getIOContext(),
+                                            /*doFsync=*/true);
+            auto level2 = LiveBucket::fresh(bm, vers, {initEntry2}, {}, {},
+                                            /*countMergeEvents=*/true,
+                                            clock.getIOContext(),
+                                            /*doFsync=*/true);
+            auto level3 = LiveBucket::fresh(bm, vers, {}, {}, {deadEntry},
+                                            /*countMergeEvents=*/true,
+                                            clock.getIOContext(),
+                                            /*doFsync=*/true);
+            auto level4 = LiveBucket::fresh(bm, vers, {}, {}, {},
+                                            /*countMergeEvents=*/true,
+                                            clock.getIOContext(),
+                                            /*doFsync=*/true);
+            auto level5 = LiveBucket::fresh(bm, vers, {initEntry}, {}, {},
+                                            /*countMergeEvents=*/true,
+                                            clock.getIOContext(),
+                                            /*doFsync=*/true);
 
             // Do a merge between levels 4 and 3, with shadows from 2 and 1,
             // risking shadowing-out level 3. Level 4 is a placeholder here,
             // just to be a thing-to-merge-level-3-with in the presence of
             // shadowing from 1 and 2.
-            auto merge43 =
-                Bucket::merge(bm, cfg.LEDGER_PROTOCOL_VERSION, level4, level3,
-                              /*shadows=*/{level2, level1},
-                              /*keepDeadEntries=*/true,
-                              /*countMergeEvents=*/true, clock.getIOContext(),
-                              /*doFsync=*/true);
+            auto merge43 = BucketBase::merge(
+                bm, cfg.LEDGER_PROTOCOL_VERSION, level4, level3,
+                /*shadows=*/{level2, level1},
+                /*keepTombstoneEntries=*/true,
+                /*countMergeEvents=*/true, clock.getIOContext(),
+                /*doFsync=*/true);
             EntryCounts e43(merge43);
             if (initEra)
             {
                 // New-style, we preserve the dead entry.
                 CHECK(e43.nMeta == 1);
-                CHECK(e43.nInit == 0);
+                CHECK(e43.nInitOrArchived == 0);
                 CHECK(e43.nLive == 0);
                 CHECK(e43.nDead == 1);
             }
@@ -766,25 +867,25 @@ TEST_CASE_VERSIONS("merging bucket entries with initentry with shadows",
             {
                 // Old-style, we shadowed-out the dead entry.
                 CHECK(e43.nMeta == 0);
-                CHECK(e43.nInit == 0);
+                CHECK(e43.nInitOrArchived == 0);
                 CHECK(e43.nLive == 0);
                 CHECK(e43.nDead == 0);
             }
 
             // Do a merge between level 2 and 1, producing potentially
             // an annihilation of their INIT and DEAD pair.
-            auto merge21 =
-                Bucket::merge(bm, cfg.LEDGER_PROTOCOL_VERSION, level2, level1,
-                              /*shadows=*/{},
-                              /*keepDeadEntries=*/true,
-                              /*countMergeEvents=*/true, clock.getIOContext(),
-                              /*doFsync=*/true);
+            auto merge21 = BucketBase::merge(
+                bm, cfg.LEDGER_PROTOCOL_VERSION, level2, level1,
+                /*shadows=*/{},
+                /*keepTombstoneEntries=*/true,
+                /*countMergeEvents=*/true, clock.getIOContext(),
+                /*doFsync=*/true);
             EntryCounts e21(merge21);
             if (initEra)
             {
                 // New-style, they mutually annihilate.
                 CHECK(e21.nMeta == 1);
-                CHECK(e21.nInit == 0);
+                CHECK(e21.nInitOrArchived == 0);
                 CHECK(e21.nLive == 0);
                 CHECK(e21.nDead == 0);
             }
@@ -792,23 +893,23 @@ TEST_CASE_VERSIONS("merging bucket entries with initentry with shadows",
             {
                 // Old-style, we keep the tombstone around.
                 CHECK(e21.nMeta == 0);
-                CHECK(e21.nInit == 0);
+                CHECK(e21.nInitOrArchived == 0);
                 CHECK(e21.nLive == 0);
                 CHECK(e21.nDead == 1);
             }
 
             // Do two more merges: one between the two merges we've
             // done so far, and then finally one with level 5.
-            auto merge4321 =
-                Bucket::merge(bm, cfg.LEDGER_PROTOCOL_VERSION, merge43, merge21,
-                              /*shadows=*/{},
-                              /*keepDeadEntries=*/true,
-                              /*countMergeEvents=*/true, clock.getIOContext(),
-                              /*doFsync=*/true);
-            auto merge54321 = Bucket::merge(
+            auto merge4321 = BucketBase::merge(
+                bm, cfg.LEDGER_PROTOCOL_VERSION, merge43, merge21,
+                /*shadows=*/{},
+                /*keepTombstoneEntries=*/true,
+                /*countMergeEvents=*/true, clock.getIOContext(),
+                /*doFsync=*/true);
+            auto merge54321 = BucketBase::merge(
                 bm, cfg.LEDGER_PROTOCOL_VERSION, level5, merge4321,
                 /*shadows=*/{},
-                /*keepDeadEntries=*/true,
+                /*keepTombstoneEntries=*/true,
                 /*countMergeEvents=*/true, clock.getIOContext(),
                 /*doFsync=*/true);
             EntryCounts e54321(merge21);
@@ -816,7 +917,7 @@ TEST_CASE_VERSIONS("merging bucket entries with initentry with shadows",
             {
                 // New-style, we should get a second mutual annihilation.
                 CHECK(e54321.nMeta == 1);
-                CHECK(e54321.nInit == 0);
+                CHECK(e54321.nInitOrArchived == 0);
                 CHECK(e54321.nLive == 0);
                 CHECK(e54321.nDead == 0);
             }
@@ -824,7 +925,7 @@ TEST_CASE_VERSIONS("merging bucket entries with initentry with shadows",
             {
                 // Old-style, the tombstone should clobber the live entry.
                 CHECK(e54321.nMeta == 0);
-                CHECK(e54321.nInit == 0);
+                CHECK(e54321.nInitOrArchived == 0);
                 CHECK(e54321.nLive == 0);
                 CHECK(e54321.nDead == 1);
             }
@@ -839,35 +940,35 @@ TEST_CASE_VERSIONS("merging bucket entries with initentry with shadows",
             // `maybePut` in Bucket.cpp.
             //
             // (level1 is newest here, level3 is oldest)
-            auto level1 =
-                Bucket::fresh(bm, vers, {}, {}, {deadEntry},
-                              /*countMergeEvents=*/true, clock.getIOContext(),
-                              /*doFsync=*/true);
-            auto level2 =
-                Bucket::fresh(bm, vers, {}, {liveEntry}, {},
-                              /*countMergeEvents=*/true, clock.getIOContext(),
-                              /*doFsync=*/true);
-            auto level3 =
-                Bucket::fresh(bm, vers, {initEntry}, {}, {},
-                              /*countMergeEvents=*/true, clock.getIOContext(),
-                              /*doFsync=*/true);
+            auto level1 = LiveBucket::fresh(bm, vers, {}, {}, {deadEntry},
+                                            /*countMergeEvents=*/true,
+                                            clock.getIOContext(),
+                                            /*doFsync=*/true);
+            auto level2 = LiveBucket::fresh(bm, vers, {}, {liveEntry}, {},
+                                            /*countMergeEvents=*/true,
+                                            clock.getIOContext(),
+                                            /*doFsync=*/true);
+            auto level3 = LiveBucket::fresh(bm, vers, {initEntry}, {}, {},
+                                            /*countMergeEvents=*/true,
+                                            clock.getIOContext(),
+                                            /*doFsync=*/true);
 
             // Do a merge between levels 3 and 2, with shadow from 1, risking
             // shadowing-out the init on level 3. Level 2 is a placeholder here,
             // just to be a thing-to-merge-level-3-with in the presence of
             // shadowing from 1.
-            auto merge32 =
-                Bucket::merge(bm, cfg.LEDGER_PROTOCOL_VERSION, level3, level2,
-                              /*shadows=*/{level1},
-                              /*keepDeadEntries=*/true,
-                              /*countMergeEvents=*/true, clock.getIOContext(),
-                              /*doFsync=*/true);
+            auto merge32 = BucketBase::merge(
+                bm, cfg.LEDGER_PROTOCOL_VERSION, level3, level2,
+                /*shadows=*/{level1},
+                /*keepTombstoneEntries=*/true,
+                /*countMergeEvents=*/true, clock.getIOContext(),
+                /*doFsync=*/true);
             EntryCounts e32(merge32);
             if (initEra)
             {
                 // New-style, we preserve the init entry.
                 CHECK(e32.nMeta == 1);
-                CHECK(e32.nInit == 1);
+                CHECK(e32.nInitOrArchived == 1);
                 CHECK(e32.nLive == 0);
                 CHECK(e32.nDead == 0);
             }
@@ -875,7 +976,7 @@ TEST_CASE_VERSIONS("merging bucket entries with initentry with shadows",
             {
                 // Old-style, we shadowed-out the live and init entries.
                 CHECK(e32.nMeta == 0);
-                CHECK(e32.nInit == 0);
+                CHECK(e32.nInitOrArchived == 0);
                 CHECK(e32.nLive == 0);
                 CHECK(e32.nDead == 0);
             }
@@ -883,18 +984,18 @@ TEST_CASE_VERSIONS("merging bucket entries with initentry with shadows",
             // Now do a merge between that 3+2 merge and level 1, and we risk
             // collecting tombstones in the lower levels, which we're expressly
             // trying to _stop_ doing by adding INIT.
-            auto merge321 =
-                Bucket::merge(bm, cfg.LEDGER_PROTOCOL_VERSION, merge32, level1,
-                              /*shadows=*/{},
-                              /*keepDeadEntries=*/true,
-                              /*countMergeEvents=*/true, clock.getIOContext(),
-                              /*doFsync=*/true);
+            auto merge321 = BucketBase::merge(
+                bm, cfg.LEDGER_PROTOCOL_VERSION, merge32, level1,
+                /*shadows=*/{},
+                /*keepTombstoneEntries=*/true,
+                /*countMergeEvents=*/true, clock.getIOContext(),
+                /*doFsync=*/true);
             EntryCounts e321(merge321);
             if (initEra)
             {
                 // New-style, init meets dead and they annihilate.
                 CHECK(e321.nMeta == 1);
-                CHECK(e321.nInit == 0);
+                CHECK(e321.nInitOrArchived == 0);
                 CHECK(e321.nLive == 0);
                 CHECK(e321.nDead == 0);
             }
@@ -903,7 +1004,7 @@ TEST_CASE_VERSIONS("merging bucket entries with initentry with shadows",
                 // Old-style, init was already shadowed-out, so dead
                 // accumulates.
                 CHECK(e321.nMeta == 0);
-                CHECK(e321.nInit == 0);
+                CHECK(e321.nInitOrArchived == 0);
                 CHECK(e321.nLive == 0);
                 CHECK(e321.nDead == 1);
             }
@@ -930,12 +1031,12 @@ TEST_CASE_VERSIONS("legacy bucket apply", "[bucket]")
             dead.emplace_back(LedgerEntryKey(e));
         }
 
-        std::shared_ptr<Bucket> birth = Bucket::fresh(
+        std::shared_ptr<LiveBucket> birth = LiveBucket::fresh(
             app->getBucketManager(), getAppLedgerVersion(app), {}, live, noDead,
             /*countMergeEvents=*/true, clock.getIOContext(),
             /*doFsync=*/true);
 
-        std::shared_ptr<Bucket> death = Bucket::fresh(
+        std::shared_ptr<LiveBucket> death = LiveBucket::fresh(
             app->getBucketManager(), getAppLedgerVersion(app), {}, noLive, dead,
             /*countMergeEvents=*/true, clock.getIOContext(),
             /*doFsync=*/true);
@@ -973,7 +1074,7 @@ TEST_CASE("bucket apply bench", "[bucketbench][!hide]")
             a = LedgerTestUtils::generateValidAccountEntry(5);
         }
 
-        std::shared_ptr<Bucket> birth = Bucket::fresh(
+        std::shared_ptr<LiveBucket> birth = LiveBucket::fresh(
             app->getBucketManager(), getAppLedgerVersion(app), {}, live, noDead,
             /*countMergeEvents=*/true, clock.getIOContext(),
             /*doFsync=*/true);

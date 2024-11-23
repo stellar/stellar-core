@@ -3,8 +3,6 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "main/ApplicationUtils.h"
-#include "bucket/Bucket.h"
-#include "bucket/BucketList.h"
 #include "bucket/BucketManager.h"
 #include "catchup/ApplyBucketsWork.h"
 #include "catchup/CatchupConfiguration.h"
@@ -21,7 +19,6 @@
 #include "ledger/LedgerManager.h"
 #include "ledger/LedgerTypeUtils.h"
 #include "main/ErrorMessages.h"
-#include "main/ExternalQueue.h"
 #include "main/Maintainer.h"
 #include "main/PersistentState.h"
 #include "main/StellarCoreVersion.h"
@@ -33,7 +30,6 @@
 #include "util/xdrquery/XDRQuery.h"
 #include "work/WorkScheduler.h"
 
-#include <charconv>
 #include <filesystem>
 #include <lib/http/HttpClient.h>
 #include <locale>
@@ -237,11 +233,11 @@ setupApp(Config& cfg, VirtualClock& clock, uint32_t startAtLedger,
 
             // Collect bucket references to pass to catchup _before_ starting
             // the app, which may trigger garbage collection
-            std::set<std::shared_ptr<Bucket>> retained;
+            std::set<std::shared_ptr<LiveBucket>> retained;
             for (auto const& b : has.allBuckets())
             {
-                auto bPtr =
-                    app->getBucketManager().getBucketByHash(hexToBin256(b));
+                auto bPtr = app->getBucketManager().getBucketByHash<LiveBucket>(
+                    hexToBin256(b));
                 releaseAssert(bPtr);
                 retained.insert(bPtr);
             }
@@ -329,7 +325,7 @@ applyBucketsForLCL(Application& app,
         maxProtocolVersion = currentLedger->ledgerVersion;
     }
 
-    std::map<std::string, std::shared_ptr<Bucket>> buckets;
+    std::map<std::string, std::shared_ptr<LiveBucket>> buckets;
     auto work = app.getWorkScheduler().scheduleWork<ApplyBucketsWork>(
         buckets, has, maxProtocolVersion, onlyApply);
 
@@ -574,11 +570,11 @@ struct StateArchivalMetric
 
 static void
 processArchivalMetrics(
-    std::shared_ptr<Bucket const> const b,
+    std::shared_ptr<LiveBucket const> const b,
     UnorderedMap<LedgerKey, StateArchivalMetric>& ledgerEntries,
     UnorderedMap<LedgerKey, std::pair<StateArchivalMetric, uint32_t>>& ttls)
 {
-    for (BucketInputIterator in(b); in; ++in)
+    for (LiveBucketInputIterator in(b); in; ++in)
     {
         auto const& be = *in;
         bool isDead = be.type() == DEADENTRY;
@@ -647,7 +643,7 @@ dumpStateArchivalStatistics(Config cfg)
     HistoryArchiveState has = lm.getLastClosedLedgerHAS();
 
     std::vector<Hash> hashes;
-    for (uint32_t i = 0; i < BucketList::kNumLevels; ++i)
+    for (uint32_t i = 0; i < LiveBucketList::kNumLevels; ++i)
     {
         HistoryStateBucket const& hsb = has.currentBuckets.at(i);
         hashes.emplace_back(hexToBin256(hsb.curr));
@@ -665,7 +661,7 @@ dumpStateArchivalStatistics(Config cfg)
         {
             continue;
         }
-        auto b = bm.getBucketByHash(hash);
+        auto b = bm.getBucketByHash<LiveBucket>(hash);
         if (!b)
         {
             throw std::runtime_error(std::string("missing bucket: ") +
@@ -720,7 +716,7 @@ dumpStateArchivalStatistics(Config cfg)
         }
     }
 
-    CLOG_INFO(Bucket, "BucketList total bytes: {}", blSize);
+    CLOG_INFO(Bucket, "Live BucketList total bytes: {}", blSize);
     CLOG_INFO(Bucket,
               "Live Temporary Entries: Newest bytes {} ({}%), Outdated bytes "
               "{} ({}%)",
@@ -929,7 +925,7 @@ loadXdr(Config cfg, std::string const& bucketFile)
     Application::pointer app = Application::create(clock, cfg, false);
 
     uint256 zero;
-    Bucket bucket(bucketFile, zero, nullptr);
+    LiveBucket bucket(bucketFile, zero, nullptr);
     bucket.apply(*app);
 }
 

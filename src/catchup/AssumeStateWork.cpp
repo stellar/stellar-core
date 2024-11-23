@@ -3,8 +3,8 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "AssumeStateWork.h"
-#include "bucket/BucketList.h"
 #include "bucket/BucketManager.h"
+#include "bucket/LiveBucketList.h"
 #include "catchup/IndexBucketsWork.h"
 #include "crypto/Hex.h"
 #include "history/HistoryArchive.h"
@@ -26,12 +26,12 @@ AssumeStateWork::AssumeStateWork(Application& app,
     // Maintain reference to all Buckets in HAS to avoid garbage collection,
     // including future buckets that have already finished merging
     auto& bm = mApp.getBucketManager();
-    for (uint32_t i = 0; i < BucketList::kNumLevels; ++i)
+    for (uint32_t i = 0; i < LiveBucketList::kNumLevels; ++i)
     {
-        auto curr =
-            bm.getBucketByHash(hexToBin256(mHas.currentBuckets.at(i).curr));
-        auto snap =
-            bm.getBucketByHash(hexToBin256(mHas.currentBuckets.at(i).snap));
+        auto curr = bm.getBucketByHash<LiveBucket>(
+            hexToBin256(mHas.currentBuckets.at(i).curr));
+        auto snap = bm.getBucketByHash<LiveBucket>(
+            hexToBin256(mHas.currentBuckets.at(i).snap));
         if (!(curr && snap))
         {
             throw std::runtime_error("Missing bucket files while "
@@ -43,8 +43,8 @@ AssumeStateWork::AssumeStateWork(Application& app,
         auto& nextFuture = mHas.currentBuckets.at(i).next;
         if (nextFuture.hasOutputHash())
         {
-            auto nextBucket =
-                bm.getBucketByHash(hexToBin256(nextFuture.getOutputHash()));
+            auto nextBucket = bm.getBucketByHash<LiveBucket>(
+                hexToBin256(nextFuture.getOutputHash()));
             if (!nextBucket)
             {
                 throw std::runtime_error("Missing future bucket files while "

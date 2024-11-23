@@ -3,18 +3,15 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "catchup/ApplyCheckpointWork.h"
-#include "bucket/BucketList.h"
 #include "bucket/BucketManager.h"
+#include "bucket/LiveBucketList.h"
 #include "catchup/ApplyLedgerWork.h"
 #include "history/FileTransferInfo.h"
 #include "history/HistoryManager.h"
 #include "historywork/Progress.h"
-#include "invariant/InvariantDoesNotHold.h"
 #include "ledger/CheckpointRange.h"
 #include "ledger/LedgerManager.h"
 #include "main/Application.h"
-#include "main/ErrorMessages.h"
-#include "util/FileSystemException.h"
 #include "util/GlobalChecks.h"
 #include "util/XDRCereal.h"
 #include <Tracy.hpp>
@@ -312,7 +309,7 @@ ApplyCheckpointWork::onRun()
     auto applyLedger = std::make_shared<ApplyLedgerWork>(mApp, *lcd);
 
     auto predicate = [](Application& app) {
-        auto& bl = app.getBucketManager().getBucketList();
+        auto& bl = app.getBucketManager().getLiveBucketList();
         auto& lm = app.getLedgerManager();
         bl.resolveAnyReadyFutures();
         return bl.futuresAllResolved(

@@ -4,8 +4,6 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "main/Config.h"
-#include "bucket/BucketList.h"
-#include "crypto/Hex.h"
 #include "crypto/KeyUtils.h"
 #include "herder/Herder.h"
 #include "history/HistoryArchive.h"
@@ -17,8 +15,6 @@
 #include "util/Fs.h"
 #include "util/GlobalChecks.h"
 #include "util/Logging.h"
-#include "util/XDROperators.h"
-#include "util/types.h"
 
 #include "overlay/OverlayManager.h"
 #include "util/UnorderedSet.h"
@@ -1573,8 +1569,8 @@ Config::processConfig(std::shared_ptr<cpptoml::table> t)
                  }},
                 {"TESTING_STARTING_EVICTION_SCAN_LEVEL",
                  [&]() {
-                     TESTING_STARTING_EVICTION_SCAN_LEVEL =
-                         readInt<uint32_t>(item, 1, BucketList::kNumLevels - 1);
+                     TESTING_STARTING_EVICTION_SCAN_LEVEL = readInt<uint32_t>(
+                         item, 1, LiveBucketList::kNumLevels - 1);
                  }},
                 {"TESTING_MAX_ENTRIES_TO_ARCHIVE",
                  [&]() {

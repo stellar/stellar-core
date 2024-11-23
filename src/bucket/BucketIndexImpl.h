@@ -4,8 +4,8 @@
 // under the Apache License, Version 2.0. See the COPYING file at the root
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
-#include "bucket/Bucket.h"
 #include "bucket/BucketIndex.h"
+#include "bucket/LiveBucket.h"
 #include "medida/meter.h"
 #include "util/BinaryFuseFilter.h"
 #include "xdr/Stellar-types.h"
@@ -60,9 +60,13 @@ template <class IndexT> class BucketIndexImpl : public BucketIndex
     medida::Meter& mBloomMissMeter;
     medida::Meter& mBloomLookupMeter;
 
+    // Templated constructors are valid C++, but since this is a templated class
+    // already, there's no way for the compiler to deduce the type without a
+    // templated parameter, hence the tag
+    template <class BucketEntryT>
     BucketIndexImpl(BucketManager& bm, std::filesystem::path const& filename,
                     std::streamoff pageSize, Hash const& hash,
-                    asio::io_context& ctx);
+                    asio::io_context& ctx, BucketEntryT const& typeTag);
 
     template <class Archive>
     BucketIndexImpl(BucketManager const& bm, Archive& ar,

@@ -7,10 +7,8 @@
 // else.
 #include "util/asio.h"
 
-#include "bucket/BucketList.h"
 #include "bucket/BucketManager.h"
-#include "crypto/Hex.h"
-#include "crypto/SHA.h"
+#include "bucket/LiveBucketList.h"
 #include "herder/HerderImpl.h"
 #include <cereal/archives/binary.hpp>
 #include <cereal/cereal.hpp>
@@ -31,24 +29,18 @@
 #include "main/Config.h"
 #include "medida/meter.h"
 #include "medida/metrics_registry.h"
-#include "overlay/StellarXDR.h"
-#include "process/ProcessManager.h"
 #include "transactions/TransactionSQL.h"
 #include "util/BufferedAsioCerealOutputArchive.h"
 #include "util/GlobalChecks.h"
 #include "util/Logging.h"
-#include "util/Math.h"
 #include "util/StatusManager.h"
 #include "util/TmpDir.h"
 #include "work/ConditionalWork.h"
 #include "work/WorkScheduler.h"
-#include "xdrpp/marshal.h"
 #include <Tracy.hpp>
 #include <fmt/format.h>
 
-#include <fstream>
 #include <regex>
-#include <system_error>
 
 namespace stellar
 {
@@ -407,10 +399,10 @@ HistoryManagerImpl::queueCurrentHistory()
     ZoneScoped;
     auto ledger = mApp.getLedgerManager().getLastClosedLedgerNum();
 
-    BucketList bl;
+    LiveBucketList bl;
     if (mApp.getConfig().MODE_ENABLES_BUCKETLIST)
     {
-        bl = mApp.getBucketManager().getBucketList();
+        bl = mApp.getBucketManager().getLiveBucketList();
     }
 
     HistoryArchiveState has(ledger, bl, mApp.getConfig().NETWORK_PASSPHRASE);

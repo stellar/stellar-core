@@ -147,7 +147,7 @@ TEST_CASE("History bucket verification", "[history][catchup]")
                   cg->getArchiveDirName())};
     std::vector<std::string> hashes;
     auto& wm = app->getWorkScheduler();
-    std::map<std::string, std::shared_ptr<Bucket>> mBuckets;
+    std::map<std::string, std::shared_ptr<LiveBucket>> mBuckets;
     auto tmpDir =
         std::make_unique<TmpDir>(app->getTmpDirManager().tmpDir("bucket-test"));
 
@@ -642,7 +642,7 @@ TEST_CASE("Publish works correctly post shadow removal", "[history]")
         // Perform publish: 2 checkpoints (or 127 ledgers) correspond to 3
         // levels being initialized and partially filled in the bucketlist
         sim.setUpgradeLedger(upgradeLedger,
-                             Bucket::FIRST_PROTOCOL_SHADOWS_REMOVED);
+                             LiveBucket::FIRST_PROTOCOL_SHADOWS_REMOVED);
         auto checkpointLedger = sim.getLastCheckpointLedger(2);
         auto maxLevelTouched = 3;
         sim.ensureOfflineCatchupPossible(checkpointLedger);
@@ -661,7 +661,7 @@ TEST_CASE("Publish works correctly post shadow removal", "[history]")
                                         configurator};
 
     uint32_t oldProto =
-        static_cast<uint32_t>(Bucket::FIRST_PROTOCOL_SHADOWS_REMOVED) - 1;
+        static_cast<uint32_t>(LiveBucket::FIRST_PROTOCOL_SHADOWS_REMOVED) - 1;
     catchupSimulation.generateRandomLedger(oldProto);
 
     // The next sections reflect how future buckets in HAS change, depending on
@@ -1138,7 +1138,7 @@ TEST_CASE("Catchup non-initentry buckets to initentry-supporting works",
           "[history][bucket][acceptance]")
 {
     uint32_t newProto = static_cast<uint32_t>(
-        Bucket::FIRST_PROTOCOL_SUPPORTING_INITENTRY_AND_METAENTRY);
+        LiveBucket::FIRST_PROTOCOL_SUPPORTING_INITENTRY_AND_METAENTRY);
     uint32_t oldProto = newProto - 1;
     auto configurator =
         std::make_shared<RealGenesisTmpDirHistoryConfigurator>();
@@ -1312,14 +1312,14 @@ TEST_CASE_VERSIONS(
             Application::pointer app = createTestApplication(clock, cfg);
             auto& hm = app->getHistoryManager();
             auto& lm = app->getLedgerManager();
-            auto& bl = app->getBucketManager().getBucketList();
+            auto& bl = app->getBucketManager().getLiveBucketList();
 
             while (hm.getPublishQueueCount() != 1)
             {
                 auto lcl = lm.getLastClosedLedgerHeader();
                 lcl.header.ledgerSeq += 1;
-                BucketTestUtils::addBatchAndUpdateSnapshot(
-                    bl, *app, lcl.header, {},
+                BucketTestUtils::addLiveBatchAndUpdateSnapshot(
+                    *app, lcl.header, {},
                     LedgerTestUtils::generateValidUniqueLedgerEntries(8), {});
                 clock.crank(true);
             }
@@ -1337,7 +1337,7 @@ TEST_CASE_VERSIONS(
 
             // Second, ensure `next` is in the exact same state as when it was
             // queued
-            for (uint32_t i = 0; i < BucketList::kNumLevels; i++)
+            for (uint32_t i = 0; i < LiveBucketList::kNumLevels; i++)
             {
                 auto const& currentNext = bl.getLevel(i).getNext();
                 auto const& queuedNext = queuedHAS.currentBuckets[i].next;

@@ -870,9 +870,9 @@ TEST_CASE("apply load", "[loadgen][applyload]")
     cpuInsRatioExclVm.Clear();
     for (size_t i = 0; i < 100; ++i)
     {
-        app->getBucketManager().getBucketList().resolveAllFutures();
+        app->getBucketManager().getLiveBucketList().resolveAllFutures();
         releaseAssert(
-            app->getBucketManager().getBucketList().futuresAllResolved());
+            app->getBucketManager().getLiveBucketList().futuresAllResolved());
 
         al.benchmark();
     }

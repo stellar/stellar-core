@@ -3,8 +3,11 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "bucket/BucketIndexImpl.h"
-#include "bucket/Bucket.h"
+#include "bucket/BucketIndex.h"
 #include "bucket/BucketManager.h"
+#include "bucket/BucketUtils.h"
+#include "bucket/HotArchiveBucket.h"
+#include "bucket/LiveBucket.h"
 #include "crypto/Hex.h"
 #include "crypto/ShortHash.h"
 #include "ledger/LedgerTypeUtils.h"
@@ -26,6 +29,7 @@
 
 #include <memory>
 #include <thread>
+#include <type_traits>
 #include <xdrpp/marshal.h>
 
 namespace stellar
@@ -67,14 +71,19 @@ BucketIndex::typeNotSupported(LedgerEntryType t)
 }
 
 template <class IndexT>
+template <class BucketEntryT>
 BucketIndexImpl<IndexT>::BucketIndexImpl(BucketManager& bm,
                                          std::filesystem::path const& filename,
                                          std::streamoff pageSize,
                                          Hash const& hash,
-                                         asio::io_context& ctx)
+                                         asio::io_context& ctx,
+                                         BucketEntryT const& typeTag)
     : mBloomMissMeter(bm.getBloomMissMeter())
     , mBloomLookupMeter(bm.getBloomLookupMeter())
 {
+    static_assert(std::is_same_v<BucketEntryT, BucketEntry> ||
+                  std::is_same_v<BucketEntryT, HotArchiveBucketEntry>);
+
     ZoneScoped;
     releaseAssert(!filename.empty());
 
@@ -96,7 +105,7 @@ BucketIndexImpl<IndexT>::BucketIndexImpl(BucketManager& bm,
         in.open(filename.string());
         std::streamoff pos = 0;
         std::streamoff pageUpperBound = 0;
-        BucketEntry be;
+        BucketEntryT be;
         size_t iter = 0;
         [[maybe_unused]] size_t count = 0;
 
@@ -128,38 +137,57 @@ BucketIndexImpl<IndexT>::BucketIndexImpl(BucketManager& bm,
                 }
             }
 
-            if (be.type() != METAENTRY)
+            auto isMeta = [](auto const& be) {
+                if constexpr (std::is_same_v<BucketEntryT, LiveBucket::EntryT>)
+                {
+                    return be.type() == METAENTRY;
+                }
+                else
+                {
+                    static_assert(
+                        std::is_same_v<BucketEntryT, HotArchiveBucket::EntryT>,
+                        "unexpected bucket type");
+                    return be.type() == HOT_ARCHIVE_METAENTRY;
+                }
+            };
+
+            if (!isMeta(be))
             {
                 ++count;
                 LedgerKey key = getBucketLedgerKey(be);
 
-                // We need an asset to poolID mapping for
-                // loadPoolshareTrustlineByAccountAndAsset queries. For this
-                // query, we only need to index INIT entries because:
-                // 1. PoolID is the hash of the Assets it refers to, so this
-                //    index cannot be invalidated by newer LIVEENTRY updates
-                // 2. We do a join over all bucket indexes so we avoid storing
-                //    multiple redundant index entries (i.e. LIVEENTRY updates)
-                // 3. We only use this index to collect the possible set of
-                //    Trustline keys, then we load those keys. This means that
-                //    we don't need to keep track of DEADENTRY. Even if a given
-                //    INITENTRY has been deleted by a newer DEADENTRY, the
-                //    trustline load will not return deleted trustlines, so the
-                //    load result is still correct even if the index has a few
-                //    deleted mappings.
-                if (be.type() == INITENTRY && key.type() == LIQUIDITY_POOL)
+                if constexpr (std::is_same_v<BucketEntryT, LiveBucket::EntryT>)
                 {
-                    auto const& poolParams = be.liveEntry()
-                                                 .data.liquidityPool()
-                                                 .body.constantProduct()
-                                                 .params;
-                    mData.assetToPoolID[poolParams.assetA].emplace_back(
-                        key.liquidityPool().liquidityPoolID);
-                    mData.assetToPoolID[poolParams.assetB].emplace_back(
-                        key.liquidityPool().liquidityPoolID);
+                    // We need an asset to poolID mapping for
+                    // loadPoolshareTrustlineByAccountAndAsset queries. For this
+                    // query, we only need to index INIT entries because:
+                    // 1. PoolID is the hash of the Assets it refers to, so this
+                    //    index cannot be invalidated by newer LIVEENTRY updates
+                    // 2. We do a join over all bucket indexes so we avoid
+                    // storing
+                    //    multiple redundant index entries (i.e. LIVEENTRY
+                    //    updates)
+                    // 3. We only use this index to collect the possible set of
+                    //    Trustline keys, then we load those keys. This means
+                    //    that we don't need to keep track of DEADENTRY. Even if
+                    //    a given INITENTRY has been deleted by a newer
+                    //    DEADENTRY, the trustline load will not return deleted
+                    //    trustlines, so the load result is still correct even
+                    //    if the index has a few deleted mappings.
+                    if (be.type() == INITENTRY && key.type() == LIQUIDITY_POOL)
+                    {
+                        auto const& poolParams = be.liveEntry()
+                                                     .data.liquidityPool()
+                                                     .body.constantProduct()
+                                                     .params;
+                        mData.assetToPoolID[poolParams.assetA].emplace_back(
+                            key.liquidityPool().liquidityPoolID);
+                        mData.assetToPoolID[poolParams.assetB].emplace_back(
+                            key.liquidityPool().liquidityPoolID);
+                    }
                 }
 
-                if constexpr (std::is_same<IndexT, RangeIndex>::value)
+                if constexpr (std::is_same_v<IndexT, RangeIndex>)
                 {
                     auto keyBuf = xdr::xdr_to_opaque(key);
                     SipHash24 hasher(seed.data());
@@ -182,15 +210,21 @@ BucketIndexImpl<IndexT>::BucketIndexImpl(BucketManager& bm,
                 }
                 else
                 {
+                    static_assert(std::is_same_v<IndexT, IndividualIndex>,
+                                  "unexpected index type");
                     mData.keysToOffset.emplace_back(key, pos);
                 }
-                countEntry(be);
+
+                if constexpr (std::is_same_v<BucketEntryT, LiveBucket::EntryT>)
+                {
+                    countEntry(be);
+                }
             }
 
             pos = in.pos();
         }
 
-        if constexpr (std::is_same<IndexT, RangeIndex>::value)
+        if constexpr (std::is_same_v<IndexT, RangeIndex>)
         {
             // Binary Fuse filter requires at least 2 elements
             if (keyHashes.size() > 1)
@@ -232,7 +266,7 @@ BucketIndexImpl<BucketIndex::RangeIndex>::saveToDisk(
                          "took", std::chrono::milliseconds(100));
 
     std::filesystem::path tmpFilename =
-        Bucket::randomBucketIndexName(bm.getTmpDir());
+        BucketBase::randomBucketIndexName(bm.getTmpDir());
     CLOG_DEBUG(Bucket, "Saving bucket index for {}: {}", hexAbbrev(hash),
                tmpFilename);
 
@@ -279,12 +313,14 @@ template <class IndexEntryT>
 static bool
 keyNotInIndexEntry(LedgerKey const& key, IndexEntryT const& indexEntry)
 {
-    if constexpr (std::is_same<IndexEntryT, BucketIndex::RangeEntry>::value)
+    if constexpr (std::is_same_v<IndexEntryT, BucketIndex::RangeEntry>)
     {
         return key < indexEntry.lowerBound || indexEntry.upperBound < key;
     }
     else
     {
+        static_assert(std::is_same_v<IndexEntryT, BucketIndex::IndividualEntry>,
+                      "unexpected index entry type");
         return !(key == indexEntry);
     }
 }
@@ -298,13 +334,16 @@ template <class IndexEntryT>
 static bool
 lower_bound_pred(IndexEntryT const& indexEntry, LedgerKey const& key)
 {
-    if constexpr (std::is_same<IndexEntryT,
-                               BucketIndex::RangeIndex::value_type>::value)
+    if constexpr (std::is_same_v<IndexEntryT,
+                                 BucketIndex::RangeIndex::value_type>)
     {
         return indexEntry.first.upperBound < key;
     }
     else
     {
+        static_assert(std::is_same_v<IndexEntryT,
+                                     BucketIndex::IndividualIndex::value_type>,
+                      "unexpected index entry type");
         return indexEntry.first < key;
     }
 }
@@ -318,22 +357,28 @@ template <class IndexEntryT>
 static bool
 upper_bound_pred(LedgerKey const& key, IndexEntryT const& indexEntry)
 {
-    if constexpr (std::is_same<IndexEntryT,
-                               BucketIndex::RangeIndex::value_type>::value)
+    if constexpr (std::is_same_v<IndexEntryT,
+                                 BucketIndex::RangeIndex::value_type>)
     {
         return key < indexEntry.first.lowerBound;
     }
     else
     {
+        static_assert(std::is_same_v<IndexEntryT,
+                                     BucketIndex::IndividualIndex::value_type>,
+                      "unexpected index entry type");
         return key < indexEntry.first;
     }
 }
 
+template <class BucketT>
 std::unique_ptr<BucketIndex const>
 BucketIndex::createIndex(BucketManager& bm,
                          std::filesystem::path const& filename,
                          Hash const& hash, asio::io_context& ctx)
 {
+    BUCKET_TYPE_ASSERT(BucketT);
+
     ZoneScoped;
     auto const& cfg = bm.getConfig();
     releaseAssertOrThrow(cfg.isUsingBucketListDB());
@@ -349,8 +394,8 @@ BucketIndex::createIndex(BucketManager& bm,
                        "bucket {}",
                        filename);
             return std::unique_ptr<BucketIndexImpl<IndividualIndex> const>(
-                new BucketIndexImpl<IndividualIndex>(bm, filename, 0, hash,
-                                                     ctx));
+                new BucketIndexImpl<IndividualIndex>(
+                    bm, filename, 0, hash, ctx, typename BucketT::EntryT{}));
         }
         else
         {
@@ -361,7 +406,8 @@ BucketIndex::createIndex(BucketManager& bm,
                        pageSize, filename);
             return std::unique_ptr<BucketIndexImpl<RangeIndex> const>(
                 new BucketIndexImpl<RangeIndex>(bm, filename, pageSize, hash,
-                                                ctx));
+                                                ctx,
+                                                typename BucketT::EntryT{}));
         }
     }
     // BucketIndexImpl throws if BucketManager shuts down before index finishes,
@@ -542,7 +588,7 @@ BucketIndexImpl<IndexT>::operator==(BucketIndex const& inRaw) const
         return false;
     }
 
-    if constexpr (std::is_same<IndexT, RangeIndex>::value)
+    if constexpr (std::is_same_v<IndexT, RangeIndex>)
     {
         releaseAssert(mData.filter);
         releaseAssert(in.mData.filter);
@@ -553,6 +599,8 @@ BucketIndexImpl<IndexT>::operator==(BucketIndex const& inRaw) const
     }
     else
     {
+        static_assert(std::is_same_v<IndexT, IndividualIndex>,
+                      "unexpected index type");
         releaseAssert(!mData.filter);
         releaseAssert(!in.mData.filter);
     }
@@ -608,4 +656,13 @@ BucketIndexImpl<IndexT>::getBucketEntryCounters() const
 {
     return mData.counters;
 }
+
+template std::unique_ptr<BucketIndex const>
+BucketIndex::createIndex<LiveBucket>(BucketManager& bm,
+                                     std::filesystem::path const& filename,
+                                     Hash const& hash, asio::io_context& ctx);
+template std::unique_ptr<BucketIndex const>
+BucketIndex::createIndex<HotArchiveBucket>(
+    BucketManager& bm, std::filesystem::path const& filename, Hash const& hash,
+    asio::io_context& ctx);
 }

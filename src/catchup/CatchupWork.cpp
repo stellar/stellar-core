@@ -3,7 +3,6 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "catchup/CatchupWork.h"
-#include "bucket/BucketList.h"
 #include "bucket/BucketManager.h"
 #include "catchup/ApplyBucketsWork.h"
 #include "catchup/ApplyBufferedLedgersWork.h"
@@ -20,7 +19,6 @@
 #include "historywork/DownloadVerifyTxResultsWork.h"
 #include "historywork/GetAndUnzipRemoteFileWork.h"
 #include "historywork/GetHistoryArchiveStateWork.h"
-#include "historywork/VerifyBucketWork.h"
 #include "ledger/LedgerManager.h"
 #include "main/Application.h"
 #include "main/PersistentState.h"
@@ -77,7 +75,7 @@ setHerderStateTo(FileTransferInfo const& ft, uint32_t ledger, Application& app)
 
 CatchupWork::CatchupWork(Application& app,
                          CatchupConfiguration catchupConfiguration,
-                         std::set<std::shared_ptr<Bucket>> bucketsToRetain,
+                         std::set<std::shared_ptr<LiveBucket>> bucketsToRetain,
                          std::shared_ptr<HistoryArchive> archive)
     : Work(app, "catchup", BasicWork::RETRY_NEVER)
     , mLocalState{app.getLedgerManager().getLastClosedLedgerHAS()}

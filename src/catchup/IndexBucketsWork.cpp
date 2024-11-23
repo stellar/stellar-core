@@ -5,17 +5,15 @@
 #include "IndexBucketsWork.h"
 #include "bucket/BucketIndex.h"
 #include "bucket/BucketManager.h"
-#include "util/HashOfHash.h"
+#include "util/Fs.h"
+#include "util/Logging.h"
 #include "util/UnorderedSet.h"
-#include "util/XDRStream.h"
-#include "util/types.h"
-#include "work/WorkWithCallback.h"
 #include <Tracy.hpp>
 
 namespace stellar
 {
 IndexBucketsWork::IndexWork::IndexWork(Application& app,
-                                       std::shared_ptr<Bucket> b)
+                                       std::shared_ptr<LiveBucket> b)
     : BasicWork(app, "index-work", BasicWork::RETRY_NEVER), mBucket(b)
 {
 }
@@ -86,9 +84,10 @@ IndexBucketsWork::IndexWork::postWork()
 
             if (!self->mIndex)
             {
-                self->mIndex =
-                    BucketIndex::createIndex(bm, self->mBucket->getFilename(),
-                                             self->mBucket->getHash(), ctx);
+                // TODO: Fix this when archive BucketLists assume state
+                self->mIndex = BucketIndex::createIndex<LiveBucket>(
+                    bm, self->mBucket->getFilename(), self->mBucket->getHash(),
+                    ctx);
             }
 
             app.postOnMainThread(
@@ -118,7 +117,7 @@ IndexBucketsWork::IndexWork::postWork()
 }
 
 IndexBucketsWork::IndexBucketsWork(
-    Application& app, std::vector<std::shared_ptr<Bucket>> const& buckets)
+    Application& app, std::vector<std::shared_ptr<LiveBucket>> const& buckets)
     : Work(app, "index-bucketList", BasicWork::RETRY_NEVER), mBuckets(buckets)
 {
 }
@@ -144,7 +143,7 @@ void
 IndexBucketsWork::spawnWork()
 {
     UnorderedSet<Hash> indexedBuckets;
-    auto spawnIndexWork = [&](std::shared_ptr<Bucket> const& b) {
+    auto spawnIndexWork = [&](std::shared_ptr<LiveBucket> const& b) {
         // Don't index empty bucket or buckets that are already being
         // indexed. Sometimes one level's snap bucket may be another
         // level's future bucket. The indexing job may have started but

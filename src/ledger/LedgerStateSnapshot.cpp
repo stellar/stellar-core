@@ -3,7 +3,6 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "ledger/LedgerStateSnapshot.h"
-#include "bucket/BucketListSnapshot.h"
 #include "bucket/BucketManager.h"
 #include "bucket/BucketSnapshotManager.h"
 #include "ledger/LedgerTxn.h"
@@ -164,7 +163,7 @@ LedgerTxnReadOnly::executeWithMaybeInnerSnapshot(
 }
 
 BucketSnapshotState::BucketSnapshotState(BucketManager& bm)
-    : mSnapshot(bm.getSearchableBucketListSnapshot())
+    : mSnapshot(bm.getSearchableLiveBucketListSnapshot())
     , mLedgerHeader(LedgerHeaderWrapper(
           std::make_shared<LedgerHeader>(mSnapshot->getLedgerHeader())))
 {

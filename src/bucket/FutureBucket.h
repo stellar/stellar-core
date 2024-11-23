@@ -4,6 +4,7 @@
 // under the Apache License, Version 2.0. See the COPYING file at the root
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
+#include "bucket/BucketUtils.h"
 #include "util/GlobalChecks.h"
 #include <cereal/cereal.hpp>
 #include <future>
@@ -16,13 +17,16 @@ namespace stellar
 
 class Bucket;
 class Application;
+class LiveBucket;
+class HotArchiveBucket;
 
 /**
  * FutureBucket is a minor wrapper around
- * std::shared_future<std::shared_ptr<Bucket>>, used in merging multiple buckets
- * together in the BucketList. The reason this is a separate class is that we
- * need to support a level of persistence: serializing merges-in-progress in a
- * symbolic fashion, including restarting the merges after we deserialize.
+ * std::shared_future<std::shared_ptr<LiveBucket>>, used in merging multiple
+ * buckets together in the BucketList. The reason this is a separate class is
+ * that we need to support a level of persistence: serializing
+ * merges-in-progress in a symbolic fashion, including restarting the merges
+ * after we deserialize.
  *
  * This class is therefore used not _only_ in the BucketList but also in places
  * that serialize and deserialize snapshots of it in the form of
@@ -30,8 +34,10 @@ class Application;
  * the bottom of closeLedger; and the HistoryManager, when storing and
  * retrieving HistoryArchiveStates.
  */
-class FutureBucket
+template <class BucketT> class FutureBucket
 {
+    BUCKET_TYPE_ASSERT(BucketT);
+
     // There are two lifecycles of a FutureBucket:
     //
     // In one, it's created live, snapshotted at some point in the process
@@ -56,11 +62,11 @@ class FutureBucket
     // FutureBucket is constructed, when it is reset, or when it is freshly
     // deserialized and not yet activated. When they are nonempty, they should
     // have values equal to the subsequent mFooHash values below.
-    std::shared_ptr<Bucket> mInputCurrBucket;
-    std::shared_ptr<Bucket> mInputSnapBucket;
-    std::vector<std::shared_ptr<Bucket>> mInputShadowBuckets;
-    std::shared_ptr<Bucket> mOutputBucket;
-    std::shared_future<std::shared_ptr<Bucket>> mOutputBucketFuture;
+    std::shared_ptr<BucketT> mInputCurrBucket;
+    std::shared_ptr<BucketT> mInputSnapBucket;
+    std::vector<std::shared_ptr<BucketT>> mInputShadowBuckets;
+    std::shared_ptr<BucketT> mOutputBucket;
+    std::shared_future<std::shared_ptr<BucketT>> mOutputBucketFuture;
 
     // These strings hold the serializable (or deserialized) bucket hashes of
     // the inputs and outputs of a merge; depending on the state of the
@@ -79,12 +85,12 @@ class FutureBucket
 
     void clearInputs();
     void clearOutput();
-    void setLiveOutput(std::shared_ptr<Bucket> b);
+    void setLiveOutput(std::shared_ptr<BucketT> b);
 
   public:
-    FutureBucket(Application& app, std::shared_ptr<Bucket> const& curr,
-                 std::shared_ptr<Bucket> const& snap,
-                 std::vector<std::shared_ptr<Bucket>> const& shadows,
+    FutureBucket(Application& app, std::shared_ptr<BucketT> const& curr,
+                 std::shared_ptr<BucketT> const& snap,
+                 std::vector<std::shared_ptr<BucketT>> const& shadows,
                  uint32_t maxProtocolVersion, bool countMergeEvents,
                  uint32_t level);
 
@@ -118,7 +124,7 @@ class FutureBucket
     bool mergeComplete() const;
 
     // Precondition: isLive(); waits-for and resolves to merged bucket.
-    std::shared_ptr<Bucket> resolve();
+    std::shared_ptr<BucketT> resolve();
 
     // Precondition: !isLive(); transitions from FB_HASH_FOO to FB_LIVE_FOO
     void makeLive(Application& app, uint32_t maxProtocolVersion,

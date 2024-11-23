@@ -3,71 +3,82 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "bucket/BucketSnapshot.h"
-#include "bucket/Bucket.h"
-#include "bucket/BucketListSnapshot.h"
+#include "bucket/BucketIndex.h"
+#include "bucket/HotArchiveBucket.h"
+#include "bucket/LiveBucket.h"
+#include "bucket/SearchableBucketList.h"
 #include "ledger/LedgerTxn.h"
 #include "ledger/LedgerTypeUtils.h"
 #include "util/XDRStream.h"
+#include <type_traits>
 
 namespace stellar
 {
-BucketSnapshot::BucketSnapshot(std::shared_ptr<Bucket const> const b)
+template <class BucketT>
+BucketSnapshotBase<BucketT>::BucketSnapshotBase(
+    std::shared_ptr<BucketT const> const b)
     : mBucket(b)
 {
     releaseAssert(mBucket);
 }
 
-BucketSnapshot::BucketSnapshot(BucketSnapshot const& b)
+template <class BucketT>
+BucketSnapshotBase<BucketT>::BucketSnapshotBase(
+    BucketSnapshotBase<BucketT> const& b)
     : mBucket(b.mBucket), mStream(nullptr)
 {
     releaseAssert(mBucket);
 }
 
+template <class BucketT>
 bool
-BucketSnapshot::isEmpty() const
+BucketSnapshotBase<BucketT>::isEmpty() const
 {
     releaseAssert(mBucket);
     return mBucket->isEmpty();
 }
 
-std::pair<std::optional<BucketEntry>, bool>
-BucketSnapshot::getEntryAtOffset(LedgerKey const& k, std::streamoff pos,
-                                 size_t pageSize) const
+template <class BucketT>
+std::pair<std::shared_ptr<typename BucketT::EntryT>, bool>
+BucketSnapshotBase<BucketT>::getEntryAtOffset(LedgerKey const& k,
+                                              std::streamoff pos,
+                                              size_t pageSize) const
 {
     ZoneScoped;
     if (isEmpty())
     {
-        return {std::nullopt, false};
+        return {nullptr, false};
     }
 
     auto& stream = getStream();
     stream.seek(pos);
 
-    BucketEntry be;
+    typename BucketT::EntryT be;
     if (pageSize == 0)
     {
         if (stream.readOne(be))
         {
-            return {std::make_optional(be), false};
+            return {std::make_shared<typename BucketT::EntryT>(be), false};
         }
     }
     else if (stream.readPage(be, k, pageSize))
     {
-        return {std::make_optional(be), false};
+        return {std::make_shared<typename BucketT::EntryT>(be), false};
     }
 
     // Mark entry miss for metrics
     mBucket->getIndex().markBloomMiss();
-    return {std::nullopt, true};
+    return {nullptr, true};
 }
 
-std::pair<std::optional<BucketEntry>, bool>
-BucketSnapshot::getBucketEntry(LedgerKey const& k) const
+template <class BucketT>
+std::pair<std::shared_ptr<typename BucketT::EntryT>, bool>
+BucketSnapshotBase<BucketT>::getBucketEntry(LedgerKey const& k) const
 {
     ZoneScoped;
     if (isEmpty())
     {
-        return {std::nullopt, false};
+        return {nullptr, false};
     }
 
     auto pos = mBucket->getIndex().lookup(k);
@@ -77,7 +88,7 @@ BucketSnapshot::getBucketEntry(LedgerKey const& k) const
                                 mBucket->getIndex().getPageSize());
     }
 
-    return {std::nullopt, false};
+    return {nullptr, false};
 }
 
 // When searching for an entry, BucketList calls this function on every bucket.
@@ -85,10 +96,11 @@ BucketSnapshot::getBucketEntry(LedgerKey const& k) const
 // If we find the entry, we remove the found key from keys so that later buckets
 // do not load shadowed entries. If we don't find the entry, we do not remove it
 // from keys so that it will be searched for again at a lower level.
+template <class BucketT>
 void
-BucketSnapshot::loadKeysWithLimits(std::set<LedgerKey, LedgerEntryIdCmp>& keys,
-                                   std::vector<LedgerEntry>& result,
-                                   LedgerKeyMeter* lkMeter) const
+BucketSnapshotBase<BucketT>::loadKeys(
+    std::set<LedgerKey, LedgerEntryIdCmp>& keys,
+    std::vector<typename BucketT::LoadT>& result, LedgerKeyMeter* lkMeter) const
 {
     ZoneScoped;
     if (isEmpty())
@@ -107,26 +119,42 @@ BucketSnapshot::loadKeysWithLimits(std::set<LedgerKey, LedgerEntryIdCmp>& keys,
         {
             auto [entryOp, bloomMiss] = getEntryAtOffset(
                 *currKeyIt, *offOp, mBucket->getIndex().getPageSize());
+
             if (entryOp)
             {
-                if (entryOp->type() != DEADENTRY)
+                // Don't return tombstone entries, as these do not exist wrt
+                // ledger state
+                if (!BucketT::isTombstoneEntry(*entryOp))
                 {
-                    bool addEntry = true;
-                    if (lkMeter)
+                    // Only live bucket loads can be metered
+                    if constexpr (std::is_same_v<BucketT, LiveBucket>)
                     {
-                        // Here, we are metering after the entry has been
-                        // loaded. This is because we need to know the size of
-                        // the entry to meter it. Future work will add metering
-                        // at the xdr level.
-                        auto entrySize = xdr::xdr_size(entryOp->liveEntry());
-                        addEntry = lkMeter->canLoad(*currKeyIt, entrySize);
-                        lkMeter->updateReadQuotasForKey(*currKeyIt, entrySize);
+                        bool addEntry = true;
+                        if (lkMeter)
+                        {
+                            // Here, we are metering after the entry has been
+                            // loaded. This is because we need to know the size
+                            // of the entry to meter it. Future work will add
+                            // metering at the xdr level.
+                            auto entrySize =
+                                xdr::xdr_size(entryOp->liveEntry());
+                            addEntry = lkMeter->canLoad(*currKeyIt, entrySize);
+                            lkMeter->updateReadQuotasForKey(*currKeyIt,
+                                                            entrySize);
+                        }
+                        if (addEntry)
+                        {
+                            result.push_back(entryOp->liveEntry());
+                        }
                     }
-                    if (addEntry)
+                    else
                     {
-                        result.push_back(entryOp->liveEntry());
+                        static_assert(std::is_same_v<BucketT, HotArchiveBucket>,
+                                      "unexpected bucket type");
+                        result.push_back(*entryOp);
                     }
                 }
+
                 currKeyIt = keys.erase(currKeyIt);
                 continue;
             }
@@ -137,7 +165,7 @@ BucketSnapshot::loadKeysWithLimits(std::set<LedgerKey, LedgerEntryIdCmp>& keys,
 }
 
 std::vector<PoolID> const&
-BucketSnapshot::getPoolIDsByAsset(Asset const& asset) const
+LiveBucketSnapshot::getPoolIDsByAsset(Asset const& asset) const
 {
     static std::vector<PoolID> const emptyVec = {};
     if (isEmpty())
@@ -148,24 +176,24 @@ BucketSnapshot::getPoolIDsByAsset(Asset const& asset) const
     return mBucket->getIndex().getPoolIDsByAsset(asset);
 }
 
-bool
-BucketSnapshot::scanForEviction(EvictionIterator& iter, uint32_t& bytesToScan,
-                                uint32_t ledgerSeq,
-                                std::list<EvictionResultEntry>& evictableKeys,
-                                SearchableBucketListSnapshot& bl) const
+Loop
+LiveBucketSnapshot::scanForEviction(
+    EvictionIterator& iter, uint32_t& bytesToScan, uint32_t ledgerSeq,
+    std::list<EvictionResultEntry>& evictableKeys,
+    SearchableLiveBucketListSnapshot& bl) const
 {
     ZoneScoped;
-    if (isEmpty() || protocolVersionIsBefore(Bucket::getBucketVersion(mBucket),
+    if (isEmpty() || protocolVersionIsBefore(mBucket->getBucketVersion(),
                                              SOROBAN_PROTOCOL_VERSION))
     {
         // EOF, skip to next bucket
-        return false;
+        return Loop::INCOMPLETE;
     }
 
     if (bytesToScan == 0)
     {
         // Reached end of scan region
-        return true;
+        return Loop::COMPLETE;
     }
 
     std::list<EvictionResultEntry> maybeEvictQueue;
@@ -173,7 +201,7 @@ BucketSnapshot::scanForEviction(EvictionIterator& iter, uint32_t& bytesToScan,
 
     auto processQueue = [&]() {
         auto loadResult = populateLoadedEntries(
-            keysToSearch, bl.loadKeysWithLimits(keysToSearch));
+            keysToSearch, bl.loadKeysWithLimits(keysToSearch, nullptr));
         for (auto& e : maybeEvictQueue)
         {
             // If TTL entry has not yet been deleted
@@ -229,7 +257,7 @@ BucketSnapshot::scanForEviction(EvictionIterator& iter, uint32_t& bytesToScan,
             // Reached end of scan region
             bytesToScan = 0;
             processQueue();
-            return true;
+            return Loop::COMPLETE;
         }
 
         bytesToScan -= bytesRead;
@@ -237,11 +265,12 @@ BucketSnapshot::scanForEviction(EvictionIterator& iter, uint32_t& bytesToScan,
 
     // Hit eof
     processQueue();
-    return false;
+    return Loop::INCOMPLETE;
 }
 
+template <class BucketT>
 XDRInputFileStream&
-BucketSnapshot::getStream() const
+BucketSnapshotBase<BucketT>::getStream() const
 {
     releaseAssertOrThrow(!isEmpty());
     if (!mStream)
@@ -252,9 +281,36 @@ BucketSnapshot::getStream() const
     return *mStream;
 }
 
-std::shared_ptr<Bucket const>
-BucketSnapshot::getRawBucket() const
+template <class BucketT>
+std::shared_ptr<BucketT const>
+BucketSnapshotBase<BucketT>::getRawBucket() const
 {
     return mBucket;
 }
+
+HotArchiveBucketSnapshot::HotArchiveBucketSnapshot(
+    std::shared_ptr<HotArchiveBucket const> const b)
+    : BucketSnapshotBase<HotArchiveBucket>(b)
+{
+}
+
+LiveBucketSnapshot::LiveBucketSnapshot(
+    std::shared_ptr<LiveBucket const> const b)
+    : BucketSnapshotBase<LiveBucket>(b)
+{
+}
+
+HotArchiveBucketSnapshot::HotArchiveBucketSnapshot(
+    HotArchiveBucketSnapshot const& b)
+    : BucketSnapshotBase<HotArchiveBucket>(b)
+{
+}
+
+LiveBucketSnapshot::LiveBucketSnapshot(LiveBucketSnapshot const& b)
+    : BucketSnapshotBase<LiveBucket>(b)
+{
+}
+
+template class BucketSnapshotBase<LiveBucket>;
+template class BucketSnapshotBase<HotArchiveBucket>;
 }

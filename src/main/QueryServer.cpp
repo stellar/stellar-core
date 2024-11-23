@@ -3,8 +3,8 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "main/QueryServer.h"
-#include "bucket/BucketListSnapshot.h"
 #include "bucket/BucketSnapshotManager.h"
+#include "bucket/SearchableBucketList.h"
 #include "ledger/LedgerTxnImpl.h"
 #include "util/Logging.h"
 #include "util/XDRStream.h" // IWYU pragma: keep
@@ -66,8 +66,8 @@ QueryServer::QueryServer(const std::string& address, unsigned short port,
     auto workerPids = mServer.start();
     for (auto pid : workerPids)
     {
-        mBucketListSnapshots[pid] =
-            std::move(bucketSnapshotManager.copySearchableBucketListSnapshot());
+        mBucketListSnapshots[pid] = std::move(
+            bucketSnapshotManager.copySearchableLiveBucketListSnapshot());
     }
 }
 
@@ -149,16 +149,17 @@ QueryServer::getLedgerEntryRaw(std::string const& params,
         {
             root["ledgerSeq"] = *snapshotLedger;
 
-            bool snapshotExists;
-            std::tie(loadedKeys, snapshotExists) =
+            auto loadedKeysOp =
                 bl.loadKeysFromLedger(orderedKeys, *snapshotLedger);
 
             // Return 404 if ledgerSeq not found
-            if (!snapshotExists)
+            if (!loadedKeysOp)
             {
                 retStr = "LedgerSeq not found";
                 return false;
             }
+
+            loadedKeys = std::move(*loadedKeysOp);
         }
         // Otherwise default to current ledger
         else

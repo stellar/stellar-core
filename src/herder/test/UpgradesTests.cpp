@@ -3,9 +3,8 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "bucket/BucketInputIterator.h"
-#include "bucket/BucketList.h"
 #include "bucket/BucketManager.h"
-#include "bucket/BucketManagerImpl.h"
+#include "bucket/LiveBucketList.h"
 #include "bucket/test/BucketTestUtils.h"
 #include "crypto/Random.h"
 #include "herder/Herder.h"
@@ -22,7 +21,6 @@
 #include "ledger/TrustLineWrapper.h"
 #include "lib/catch.hpp"
 #include "simulation/Simulation.h"
-#include "simulation/Topologies.h"
 #include "test/TestExceptions.h"
 #include "test/TestMarket.h"
 #include "test/TestUtils.h"
@@ -1984,7 +1982,7 @@ TEST_CASE("upgrade to version 11", "[upgrades]")
             app->getConfig().NODE_SEED);
         lm.closeLedger(LedgerCloseData(ledgerSeq, txSet, sv));
         auto& bm = app->getBucketManager();
-        auto& bl = bm.getBucketList();
+        auto& bl = bm.getLiveBucketList();
         while (!bl.futuresAllResolved())
         {
             std::this_thread::sleep_for(std::chrono::milliseconds(10));
@@ -1998,16 +1996,17 @@ TEST_CASE("upgrade to version 11", "[upgrades]")
                   ledgerSeq, mc.mPreInitEntryProtocolMerges,
                   mc.mPostInitEntryProtocolMerges, mc.mNewInitEntries,
                   mc.mOldInitEntries);
-        for (uint32_t level = 0; level < BucketList::kNumLevels; ++level)
+        for (uint32_t level = 0; level < LiveBucketList::kNumLevels; ++level)
         {
-            auto& lev = bm.getBucketList().getLevel(level);
+            auto& lev = bm.getLiveBucketList().getLevel(level);
             BucketTestUtils::EntryCounts currCounts(lev.getCurr());
             BucketTestUtils::EntryCounts snapCounts(lev.getSnap());
             CLOG_INFO(
                 Bucket,
                 "post-ledger {} close, init counts: level {}, {} in curr, "
                 "{} in snap",
-                ledgerSeq, level, currCounts.nInit, snapCounts.nInit);
+                ledgerSeq, level, currCounts.nInitOrArchived,
+                snapCounts.nInitOrArchived);
         }
         if (ledgerSeq < 5)
         {
@@ -2030,8 +2029,8 @@ TEST_CASE("upgrade to version 11", "[upgrades]")
             //   - From 8 on, the INITENTRYs propagate to lev[1].curr
             REQUIRE(mc.mPreInitEntryProtocolMerges == 5);
             REQUIRE(mc.mPostInitEntryProtocolMerges != 0);
-            auto& lev0 = bm.getBucketList().getLevel(0);
-            auto& lev1 = bm.getBucketList().getLevel(1);
+            auto& lev0 = bm.getLiveBucketList().getLevel(0);
+            auto& lev1 = bm.getLiveBucketList().getLevel(1);
             auto lev0Curr = lev0.getCurr();
             auto lev0Snap = lev0.getSnap();
             auto lev1Curr = lev1.getCurr();
@@ -2039,22 +2038,22 @@ TEST_CASE("upgrade to version 11", "[upgrades]")
             BucketTestUtils::EntryCounts lev0CurrCounts(lev0Curr);
             BucketTestUtils::EntryCounts lev0SnapCounts(lev0Snap);
             BucketTestUtils::EntryCounts lev1CurrCounts(lev1Curr);
-            auto getVers = [](std::shared_ptr<Bucket> b) -> uint32_t {
-                return BucketInputIterator(b).getMetadata().ledgerVersion;
+            auto getVers = [](std::shared_ptr<LiveBucket> b) -> uint32_t {
+                return LiveBucketInputIterator(b).getMetadata().ledgerVersion;
             };
             switch (ledgerSeq)
             {
             default:
             case 8:
                 REQUIRE(getVers(lev1Curr) == newProto);
-                REQUIRE(lev1CurrCounts.nInit != 0);
+                REQUIRE(lev1CurrCounts.nInitOrArchived != 0);
             case 7:
             case 6:
                 REQUIRE(getVers(lev0Snap) == newProto);
-                REQUIRE(lev0SnapCounts.nInit != 0);
+                REQUIRE(lev0SnapCounts.nInitOrArchived != 0);
             case 5:
                 REQUIRE(getVers(lev0Curr) == newProto);
-                REQUIRE(lev0CurrCounts.nInit != 0);
+                REQUIRE(lev0CurrCounts.nInitOrArchived != 0);
             }
         }
     }
@@ -2108,7 +2107,7 @@ TEST_CASE("upgrade to version 12", "[upgrades]")
             app->getConfig().NODE_SEED);
         lm.closeLedger(LedgerCloseData(ledgerSeq, txSet, sv));
         auto& bm = app->getBucketManager();
-        auto& bl = bm.getBucketList();
+        auto& bl = bm.getLiveBucketList();
         while (!bl.futuresAllResolved())
         {
             std::this_thread::sleep_for(std::chrono::milliseconds(10));
@@ -2122,14 +2121,14 @@ TEST_CASE("upgrade to version 12", "[upgrades]")
         }
         else
         {
-            auto& lev0 = bm.getBucketList().getLevel(0);
-            auto& lev1 = bm.getBucketList().getLevel(1);
+            auto& lev0 = bm.getLiveBucketList().getLevel(0);
+            auto& lev1 = bm.getLiveBucketList().getLevel(1);
             auto lev0Curr = lev0.getCurr();
             auto lev0Snap = lev0.getSnap();
             auto lev1Curr = lev1.getCurr();
             auto lev1Snap = lev1.getSnap();
-            auto getVers = [](std::shared_ptr<Bucket> b) -> uint32_t {
-                return BucketInputIterator(b).getMetadata().ledgerVersion;
+            auto getVers = [](std::shared_ptr<LiveBucket> b) -> uint32_t {
+                return LiveBucketInputIterator(b).getMetadata().ledgerVersion;
             };
             switch (ledgerSeq)
             {
@@ -2233,7 +2232,7 @@ TEST_CASE("configuration initialized in version upgrade", "[upgrades]")
         REQUIRE(!ltx.load(getMaxContractSizeKey()));
     }
 
-    auto blSize = app->getBucketManager().getBucketList().getSize();
+    auto blSize = app->getBucketManager().getLiveBucketList().getSize();
     executeUpgrade(*app, makeProtocolVersionUpgrade(
                              static_cast<uint32_t>(SOROBAN_PROTOCOL_VERSION)));
 

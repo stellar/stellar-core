@@ -3,8 +3,11 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "bucket/BucketInputIterator.h"
-#include "bucket/Bucket.h"
+#include "bucket/HotArchiveBucket.h"
+#include "bucket/LiveBucket.h"
+#include "xdr/Stellar-ledger.h"
 #include <Tracy.hpp>
+#include <type_traits>
 
 namespace stellar
 {
@@ -12,14 +15,27 @@ namespace stellar
  * Helper class that reads from the file underlying a bucket, keeping the bucket
  * alive for the duration of its existence.
  */
+template <typename BucketT>
 void
-BucketInputIterator::loadEntry()
+BucketInputIterator<BucketT>::loadEntry()
 {
     ZoneScoped;
     if (mIn.readOne(mEntry))
     {
         mEntryPtr = &mEntry;
-        if (mEntry.type() == METAENTRY)
+        bool isMeta;
+        if constexpr (std::is_same_v<BucketT, LiveBucket>)
+        {
+            isMeta = mEntry.type() == METAENTRY;
+        }
+        else
+        {
+            static_assert(std::is_same_v<BucketT, HotArchiveBucket>,
+                          "unexpected bucket type");
+            isMeta = mEntry.type() == HOT_ARCHIVE_METAENTRY;
+        }
+
+        if (isMeta)
         {
             // There should only be one METAENTRY in the input stream
             // and it should be the first record.
@@ -34,6 +50,18 @@ BucketInputIterator::loadEntry()
                     "Malformed bucket: META after other entries.");
             }
             mMetadata = mEntry.metaEntry();
+
+            if constexpr (std::is_same_v<BucketT, HotArchiveBucketEntry>)
+            {
+                if (mMetadata.ext.v() != 1 ||
+                    mMetadata.ext.bucketListType() != HOT_ARCHIVE)
+                {
+                    throw std::runtime_error(
+                        "Malformed bucket: META entry with incorrect bucket "
+                        "list type.");
+                }
+            }
+
             mSeenMetadata = true;
             loadEntry();
         }
@@ -42,7 +70,11 @@ BucketInputIterator::loadEntry()
             mSeenOtherEntries = true;
             if (mSeenMetadata)
             {
-                Bucket::checkProtocolLegality(mEntry, mMetadata.ledgerVersion);
+                if constexpr (std::is_same_v<BucketT, LiveBucket>)
+                {
+                    LiveBucket::checkProtocolLegality(mEntry,
+                                                      mMetadata.ledgerVersion);
+                }
             }
         }
     }
@@ -52,42 +84,49 @@ BucketInputIterator::loadEntry()
     }
 }
 
+template <typename BucketT>
 std::streamoff
-BucketInputIterator::pos()
+BucketInputIterator<BucketT>::pos()
 {
     return mIn.pos();
 }
 
+template <typename BucketT>
 size_t
-BucketInputIterator::size() const
+BucketInputIterator<BucketT>::size() const
 {
     return mIn.size();
 }
 
-BucketInputIterator::operator bool() const
+template <typename BucketT> BucketInputIterator<BucketT>::operator bool() const
 {
     return mEntryPtr != nullptr;
 }
 
-BucketEntry const&
-BucketInputIterator::operator*()
+template <typename BucketT>
+typename BucketT::EntryT const&
+BucketInputIterator<BucketT>::operator*()
 {
     return *mEntryPtr;
 }
 
+template <typename BucketT>
 bool
-BucketInputIterator::seenMetadata() const
+BucketInputIterator<BucketT>::seenMetadata() const
 {
     return mSeenMetadata;
 }
 
+template <typename BucketT>
 BucketMetadata const&
-BucketInputIterator::getMetadata() const
+BucketInputIterator<BucketT>::getMetadata() const
 {
     return mMetadata;
 }
 
-BucketInputIterator::BucketInputIterator(std::shared_ptr<Bucket const> bucket)
+template <typename BucketT>
+BucketInputIterator<BucketT>::BucketInputIterator(
+    std::shared_ptr<BucketT const> bucket)
     : mBucket(bucket), mEntryPtr(nullptr), mSeenMetadata(false)
 {
     // In absence of metadata, we treat every bucket as though it is from ledger
@@ -106,13 +145,14 @@ BucketInputIterator::BucketInputIterator(std::shared_ptr<Bucket const> bucket)
     }
 }
 
-BucketInputIterator::~BucketInputIterator()
+template <typename BucketT> BucketInputIterator<BucketT>::~BucketInputIterator()
 {
     mIn.close();
 }
 
-BucketInputIterator&
-BucketInputIterator::operator++()
+template <typename BucketT>
+BucketInputIterator<BucketT>&
+BucketInputIterator<BucketT>::operator++()
 {
     if (mIn)
     {
@@ -125,10 +165,14 @@ BucketInputIterator::operator++()
     return *this;
 }
 
+template <typename BucketT>
 void
-BucketInputIterator::seek(std::streamoff offset)
+BucketInputIterator<BucketT>::seek(std::streamoff offset)
 {
     mIn.seek(offset);
     loadEntry();
 }
+
+template class BucketInputIterator<LiveBucket>;
+template class BucketInputIterator<HotArchiveBucket>;
 }

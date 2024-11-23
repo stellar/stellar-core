@@ -12,7 +12,7 @@
 namespace stellar
 {
 
-class Bucket;
+class LiveBucket;
 enum LedgerEntryType : std::int32_t;
 struct LedgerTxnDelta;
 struct Operation;
@@ -43,7 +43,7 @@ class Invariant
     }
 
     virtual std::string
-    checkOnBucketApply(std::shared_ptr<Bucket const> bucket,
+    checkOnBucketApply(std::shared_ptr<LiveBucket const> bucket,
                        uint32_t oldestLedger, uint32_t newestLedger,
                        std::function<bool(LedgerEntryType)> entryTypeFilter)
     {

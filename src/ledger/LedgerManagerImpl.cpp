@@ -3,8 +3,8 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "ledger/LedgerManagerImpl.h"
-#include "bucket/BucketList.h"
 #include "bucket/BucketManager.h"
+#include "bucket/LiveBucketList.h"
 #include "catchup/AssumeStateWork.h"
 #include "crypto/Hex.h"
 #include "crypto/KeyUtils.h"
@@ -19,14 +19,12 @@
 #include "history/HistoryManager.h"
 #include "ledger/FlushAndRotateMetaDebugWork.h"
 #include "ledger/LedgerHeaderUtils.h"
-#include "ledger/LedgerRange.h"
 #include "ledger/LedgerTxn.h"
 #include "ledger/LedgerTxnEntry.h"
 #include "ledger/LedgerTxnHeader.h"
 #include "main/Application.h"
 #include "main/Config.h"
 #include "main/ErrorMessages.h"
-#include "overlay/OverlayManager.h"
 #include "transactions/MutableTransactionResult.h"
 #include "transactions/OperationFrame.h"
 #include "transactions/TransactionFrameBase.h"
@@ -40,7 +38,6 @@
 #include "util/Logging.h"
 #include "util/ProtocolVersion.h"
 #include "util/XDRCereal.h"
-#include "util/XDROperators.h"
 #include "util/XDRStream.h"
 #include "work/WorkScheduler.h"
 
@@ -58,7 +55,6 @@
 #include <Tracy.hpp>
 
 #include <chrono>
-#include <numeric>
 #include <regex>
 #include <sstream>
 #include <stdexcept>
@@ -736,7 +732,7 @@ LedgerManagerImpl::closeLedgerIf(LedgerCloseData const& ledgerData)
 void
 LedgerManagerImpl::startCatchup(
     CatchupConfiguration configuration, std::shared_ptr<HistoryArchive> archive,
-    std::set<std::shared_ptr<Bucket>> bucketsToRetain)
+    std::set<std::shared_ptr<LiveBucket>> bucketsToRetain)
 {
     ZoneScoped;
     setState(LM_CATCHING_UP_STATE);
@@ -1298,10 +1294,14 @@ LedgerManagerImpl::advanceLedgerPointers(LedgerHeader const& header,
     if (mApp.getConfig().isUsingBucketListDB() &&
         header.ledgerSeq != prevLedgerSeq)
     {
-        mApp.getBucketManager()
-            .getBucketSnapshotManager()
-            .updateCurrentSnapshot(std::make_unique<BucketListSnapshot>(
-                mApp.getBucketManager().getBucketList(), header));
+        auto& bm = mApp.getBucketManager();
+        auto liveSnapshot = std::make_unique<BucketListSnapshot<LiveBucket>>(
+            bm.getLiveBucketList(), header);
+        auto hotArchiveSnapshot =
+            std::make_unique<BucketListSnapshot<HotArchiveBucket>>(
+                bm.getHotArchiveBucketList(), header);
+        bm.getBucketSnapshotManager().updateCurrentSnapshot(
+            std::move(liveSnapshot), std::move(hotArchiveSnapshot));
     }
 }
 
@@ -1624,10 +1624,10 @@ LedgerManagerImpl::storeCurrentLedger(LedgerHeader const& header,
     mApp.getPersistentState().setState(PersistentState::kLastClosedLedger,
                                        binToHex(hash));
 
-    BucketList bl;
+    LiveBucketList bl;
     if (mApp.getConfig().MODE_ENABLES_BUCKETLIST)
     {
-        bl = mApp.getBucketManager().getBucketList();
+        bl = mApp.getBucketManager().getLiveBucketList();
     }
     // Store the current HAS in the database; this is really just to checkpoint
     // the bucketlist so we can survive a restart and re-attach to the buckets.
@@ -1697,8 +1697,8 @@ LedgerManagerImpl::transferLedgerEntriesToBucketList(
     ltx.getAllEntries(initEntries, liveEntries, deadEntries);
     if (blEnabled)
     {
-        mApp.getBucketManager().addBatch(mApp, lh, initEntries, liveEntries,
-                                         deadEntries);
+        mApp.getBucketManager().addLiveBatch(mApp, lh, initEntries, liveEntries,
+                                             deadEntries);
     }
 }
 
