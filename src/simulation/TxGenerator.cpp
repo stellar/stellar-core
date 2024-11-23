@@ -271,8 +271,18 @@ TxGenerator::createUploadWasmTransaction(
     std::optional<uint32_t> maxGeneratedFeeRate,
     std::optional<SorobanResources> uploadResources)
 {
-    auto account = findAccount(accountId, ledgerNum);
+    return createUploadWasmTransaction(findAccount(accountId, ledgerNum), wasm,
+                                       contractCodeLedgerKey,
+                                       maxGeneratedFeeRate, uploadResources);
+}
 
+std::pair<TxGenerator::TestAccountPtr, TransactionFrameBaseConstPtr>
+TxGenerator::createUploadWasmTransaction(
+    TxGenerator::TestAccountPtr account, xdr::opaque_vec<> const& wasm,
+    LedgerKey const& contractCodeLedgerKey,
+    std::optional<uint32_t> maxGeneratedFeeRate,
+    std::optional<SorobanResources> uploadResources)
+{
     if (!uploadResources)
     {
         uploadResources = SorobanResources{};
@@ -307,7 +317,16 @@ TxGenerator::createContractTransaction(
     uint64_t contractOverheadBytes, uint256 const& salt,
     std::optional<uint32_t> maxGeneratedFeeRate)
 {
-    auto account = findAccount(accountId, ledgerNum);
+    return createContractTransaction(findAccount(accountId, ledgerNum), codeKey,
+                                     contractOverheadBytes, salt,
+                                     maxGeneratedFeeRate);
+}
+std::pair<TxGenerator::TestAccountPtr, TransactionFrameBaseConstPtr>
+TxGenerator::createContractTransaction(
+    TxGenerator::TestAccountPtr account, LedgerKey const& codeKey,
+    uint64_t contractOverheadBytes, uint256 const& salt,
+    std::optional<uint32_t> maxGeneratedFeeRate)
+{
     SorobanResources createResources{};
     createResources.instructions = 1'000'000;
     createResources.readBytes = contractOverheadBytes;
@@ -774,7 +793,18 @@ TxGenerator::invokeSorobanCreateUpgradeTransaction(
     std::optional<uint32_t> maxGeneratedFeeRate,
     std::optional<SorobanResources> resources)
 {
-    auto account = findAccount(accountId, ledgerNum);
+    return invokeSorobanCreateUpgradeTransaction(
+        findAccount(accountId, ledgerNum), upgradeBytes, codeKey, instanceKey,
+        maxGeneratedFeeRate, resources);
+}
+
+std::pair<TxGenerator::TestAccountPtr, TransactionFrameBaseConstPtr>
+TxGenerator::invokeSorobanCreateUpgradeTransaction(
+    TxGenerator::TestAccountPtr account, SCBytes const& upgradeBytes,
+    LedgerKey const& codeKey, LedgerKey const& instanceKey,
+    std::optional<uint32_t> maxGeneratedFeeRate,
+    std::optional<SorobanResources> resources)
+{
     auto const& contractID = instanceKey.contractData().contract;
 
     LedgerKey upgradeLK(CONTRACT_DATA);

@@ -99,12 +99,24 @@ class TxGenerator
         std::optional<uint32_t> maxGeneratedFeeRate,
         std::optional<SorobanResources> resources = std::nullopt);
     std::pair<TestAccountPtr, TransactionFrameBaseConstPtr>
+    createUploadWasmTransaction(
+        TestAccountPtr account, xdr::opaque_vec<> const& wasm,
+        LedgerKey const& contractCodeLedgerKey,
+        std::optional<uint32_t> maxGeneratedFeeRate,
+        std::optional<SorobanResources> resources = std::nullopt);
+
+    std::pair<TestAccountPtr, TransactionFrameBaseConstPtr>
     createContractTransaction(uint32_t ledgerNum, uint64_t accountId,
                               LedgerKey const& codeKey,
                               uint64_t contractOverheadBytes,
                               uint256 const& salt,
                               std::optional<uint32_t> maxGeneratedFeeRate);
 
+    std::pair<TestAccountPtr, TransactionFrameBaseConstPtr>
+    createContractTransaction(TestAccountPtr account, LedgerKey const& codeKey,
+                              uint64_t contractOverheadBytes,
+                              uint256 const& salt,
+                              std::optional<uint32_t> maxGeneratedFeeRate);
     std::pair<TestAccountPtr, TransactionFrameBaseConstPtr>
     invokeSorobanLoadTransaction(uint32_t ledgerNum, uint64_t accountId,
                                  TxGenerator::ContractInstance const& instance,
@@ -113,6 +125,12 @@ class TxGenerator
     std::pair<TestAccountPtr, TransactionFrameBaseConstPtr>
     invokeSorobanCreateUpgradeTransaction(
         uint32_t ledgerNum, uint64_t accountId, SCBytes const& upgradeBytes,
+        LedgerKey const& codeKey, LedgerKey const& instanceKey,
+        std::optional<uint32_t> maxGeneratedFeeRate,
+        std::optional<SorobanResources> resources = std::nullopt);
+    std::pair<TestAccountPtr, TransactionFrameBaseConstPtr>
+    invokeSorobanCreateUpgradeTransaction(
+        TestAccountPtr account, SCBytes const& upgradeBytes,
         LedgerKey const& codeKey, LedgerKey const& instanceKey,
         std::optional<uint32_t> maxGeneratedFeeRate,
         std::optional<SorobanResources> resources = std::nullopt);

@@ -657,7 +657,11 @@ LoadGenerator::generateLoad(GeneratedLoadConfig cfg)
                 return;
             }
 
-            uint64_t sourceAccountId = getNextAvailableAccount(ledgerNum);
+            uint64_t sourceAccountId = 0;
+            if (!cfg.useRootAccountForSorobanUpgradeFlow)
+            {
+                sourceAccountId = getNextAvailableAccount(ledgerNum);
+            }
 
             std::function<std::pair<TxGenerator::TestAccountPtr,
                                     TransactionFrameBaseConstPtr>()>
@@ -753,6 +757,14 @@ LoadGenerator::generateLoad(GeneratedLoadConfig cfg)
                     auto upgradeBytes =
                         mTxGenerator.getConfigUpgradeSetFromLoadConfig(
                             cfg.getSorobanUpgradeConfig());
+                    if (cfg.useRootAccountForSorobanUpgradeFlow)
+                    {
+                        return mTxGenerator
+                            .invokeSorobanCreateUpgradeTransaction(
+                                mRoot, upgradeBytes, *mCodeKey,
+                                *mContractInstanceKeys.begin(),
+                                cfg.maxGeneratedFeeRate);
+                    }
                     return mTxGenerator.invokeSorobanCreateUpgradeTransaction(
                         ledgerNum, sourceAccountId, upgradeBytes, *mCodeKey,
                         *mContractInstanceKeys.begin(),
@@ -1083,9 +1095,17 @@ LoadGenerator::createUploadWasmTransaction(GeneratedLoadConfig const& cfg,
     // instance and ContractCode LE overhead
     mContactOverheadBytes = wasmBytes.size() + 160;
 
-    return mTxGenerator.createUploadWasmTransaction(ledgerNum, sourceAccountId,
-                                                    wasmBytes, *mCodeKey,
-                                                    cfg.maxGeneratedFeeRate);
+    if (cfg.useRootAccountForSorobanUpgradeFlow)
+    {
+        return mTxGenerator.createUploadWasmTransaction(
+            mRoot, wasmBytes, *mCodeKey, cfg.maxGeneratedFeeRate);
+    }
+    else
+    {
+        return mTxGenerator.createUploadWasmTransaction(
+            ledgerNum, sourceAccountId, wasmBytes, *mCodeKey,
+            cfg.maxGeneratedFeeRate);
+    }
 }
 
 std::pair<TxGenerator::TestAccountPtr, TransactionFrameBaseConstPtr>
@@ -1096,9 +1116,19 @@ LoadGenerator::createInstanceTransaction(GeneratedLoadConfig const& cfg,
     auto salt = sha256("upgrade" +
                        std::to_string(++mNumCreateContractTransactionCalls));
 
-    auto txPair = mTxGenerator.createContractTransaction(
-        ledgerNum, sourceAccountId, *mCodeKey, mContactOverheadBytes, salt,
-        cfg.maxGeneratedFeeRate);
+    std::pair<TxGenerator::TestAccountPtr, TransactionFrameBaseConstPtr> txPair;
+    if (cfg.useRootAccountForSorobanUpgradeFlow)
+    {
+        txPair = mTxGenerator.createContractTransaction(
+            mRoot, *mCodeKey, mContactOverheadBytes, salt,
+            cfg.maxGeneratedFeeRate);
+    }
+    else
+    {
+        txPair = mTxGenerator.createContractTransaction(
+            ledgerNum, sourceAccountId, *mCodeKey, mContactOverheadBytes, salt,
+            cfg.maxGeneratedFeeRate);
+    }
 
     auto const& instanceLk =
         txPair.second->sorobanResources().footprint.readWrite.back();
@@ -1564,6 +1594,7 @@ GeneratedLoadConfig::createSorobanUpgradeSetupLoad()
     cfg.nAccounts = 1;
     cfg.getMutSorobanConfig().nInstances = 1;
     cfg.txRate = 1;
+    cfg.useRootAccountForSorobanUpgradeFlow = true;
     return cfg;
 }
 
@@ -1573,6 +1604,10 @@ GeneratedLoadConfig::txLoad(LoadGenMode mode, uint32_t nAccounts, uint32_t nTxs,
                             std::optional<uint32_t> maxFee)
 {
     GeneratedLoadConfig cfg;
+    if (mode == LoadGenMode::SOROBAN_CREATE_UPGRADE)
+    {
+        cfg.useRootAccountForSorobanUpgradeFlow = true;
+    }
     cfg.mode = mode;
     cfg.nAccounts = nAccounts;
     cfg.nTxs = nTxs;
