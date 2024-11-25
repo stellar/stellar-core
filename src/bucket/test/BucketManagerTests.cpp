@@ -760,6 +760,8 @@ class StopAndRestartBucketMergesTest
                       mMergeCounters.mDeadEntryShadowElisions);
             CLOG_INFO(Bucket, "OutputIteratorTombstoneElisions: {}",
                       mMergeCounters.mOutputIteratorTombstoneElisions);
+            CLOG_INFO(Bucket, "OutputIteratorLiveToInitConversions: {}",
+                      mMergeCounters.mOutputIteratorLiveToInitRewrites);
             CLOG_INFO(Bucket, "OutputIteratorBufferUpdates: {}",
                       mMergeCounters.mOutputIteratorBufferUpdates);
             CLOG_INFO(Bucket, "OutputIteratorActualWrites: {}",
@@ -915,6 +917,8 @@ class StopAndRestartBucketMergesTest
 
             CHECK(mMergeCounters.mOutputIteratorTombstoneElisions ==
                   other.mMergeCounters.mOutputIteratorTombstoneElisions);
+            CHECK(mMergeCounters.mOutputIteratorLiveToInitRewrites ==
+                  other.mMergeCounters.mOutputIteratorLiveToInitRewrites);
             CHECK(mMergeCounters.mOutputIteratorBufferUpdates ==
                   other.mMergeCounters.mOutputIteratorBufferUpdates);
             CHECK(mMergeCounters.mOutputIteratorActualWrites ==

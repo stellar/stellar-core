@@ -157,6 +157,30 @@ BucketOutputIterator<BucketT>::put(typename BucketT::EntryT const& e)
         mBuf = std::make_unique<typename BucketT::EntryT>();
     }
 
+    // If BucketT is a live bucket, and this is the lowest level of the
+    // bucketlist, we also want to convert each LIVEENTRY to an INITENTRY.
+    // This is because each level of the bucket list contains only one entry
+    // per key, and per CAP-0020, INITENTRY implies that no entry with
+    // the same ledger key exists in an older bucket. Therefore, all entries
+    // of type LIVEENTRY in the lowest level should be of type INITENTRY.
+    if constexpr (std::is_same_v<BucketT, LiveBucket>)
+    {
+        if (!mKeepTombstoneEntries /* lowest level */ &&
+            e.type() == LIVEENTRY &&
+            protocolVersionStartsFrom(
+                mMeta.ledgerVersion,
+                LiveBucket::
+                    FIRST_PROTOCOL_CONVERTING_BOTTOM_LEVEL_LIVE_TO_INIT))
+        {
+            ++mMergeCounters.mOutputIteratorLiveToInitRewrites;
+            ++mMergeCounters.mOutputIteratorBufferUpdates;
+            auto eCopy = e;
+            eCopy.type(INITENTRY);
+            *mBuf = eCopy;
+            return;
+        }
+    }
+
     // In any case, replace *mBuf with e.
     ++mMergeCounters.mOutputIteratorBufferUpdates;
     *mBuf = e;

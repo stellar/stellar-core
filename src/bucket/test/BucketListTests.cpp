@@ -454,6 +454,79 @@ TEST_CASE_VERSIONS("hot archive bucket tombstones expire at bottom level",
     });
 }
 
+TEST_CASE_VERSIONS(
+    "live bucket entries converted to init enties at bottom level",
+    "[bucket][bucketlist]")
+{
+    VirtualClock clock;
+    Config const& cfg = getTestConfig();
+
+    for_versions_with_differing_bucket_logic(cfg, [&](Config const& cfg) {
+        Application::pointer app = createTestApplication(clock, cfg);
+        LiveBucketList bl;
+        BucketManager& bm = app->getBucketManager();
+        auto& mergeTimer = bm.getMergeTimer();
+        CLOG_INFO(Bucket, "Establishing random bucketlist");
+        for (uint32_t i = 0; i < LiveBucketList::kNumLevels; ++i)
+        {
+            auto& level = bl.getLevel(i);
+            level.setCurr(LiveBucket::fresh(
+                bm, getAppLedgerVersion(app), {}, // No init entries.
+                LedgerTestUtils::generateValidUniqueLedgerEntries(8),
+                LedgerTestUtils::generateValidLedgerEntryKeysWithExclusions(
+                    {CONFIG_SETTING}, 5),
+                /*countMergeEvents=*/true, clock.getIOContext(),
+                /*doFsync=*/true));
+            level.setSnap(LiveBucket::fresh(
+                bm, getAppLedgerVersion(app), {},
+                LedgerTestUtils::generateValidUniqueLedgerEntries(8),
+                LedgerTestUtils::generateValidLedgerEntryKeysWithExclusions(
+                    {CONFIG_SETTING}, 5),
+                /*countMergeEvents=*/true, clock.getIOContext(),
+                /*doFsync=*/true));
+        }
+
+        auto countNonBottomLevelEntries = [&] {
+            auto size = 0;
+            for (uint32_t i = 0; i < LiveBucketList::kNumLevels - 1; ++i)
+            {
+                auto& level = bl.getLevel(i);
+                size += countEntries(level.getCurr());
+                size += countEntries(level.getSnap());
+            }
+            return size;
+        };
+
+        auto ledger = 1;
+        // Close ledgers until all entries have merged into the bottom level
+        // bucket
+        while (countNonBottomLevelEntries() != 0)
+        {
+            bl.addBatch(*app, ledger, getAppLedgerVersion(app), {}, {}, {});
+            ++ledger;
+        }
+
+        auto bottomCurr = bl.getLevel(LiveBucketList::kNumLevels - 1).getCurr();
+        EntryCounts<LiveBucket> e(bottomCurr);
+
+        if (protocolVersionStartsFrom(
+                cfg.LEDGER_PROTOCOL_VERSION,
+                LiveBucket::
+                    FIRST_PROTOCOL_CONVERTING_BOTTOM_LEVEL_LIVE_TO_INIT))
+        {
+            // Assert that init entries are converted to live entries
+            // at the lowest level.
+            REQUIRE(e.nLive == 0);
+            REQUIRE(e.nInitOrArchived != 0);
+        }
+        else
+        {
+            REQUIRE(e.nLive != 0);
+            REQUIRE(e.nInitOrArchived == 0);
+        }
+    });
+}
+
 TEST_CASE_VERSIONS("live bucket tombstones expire at bottom level",
                    "[bucket][bucketlist][tombstones]")
 {
