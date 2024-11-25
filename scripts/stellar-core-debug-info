@@ -15,25 +15,83 @@ import time
 
 def parse_args():
     parser = argparse.ArgumentParser(description='Gathers information about host and stellar-core')
-    parser.add_argument('-d', '--dest', required=False, type=str, help='Pre-existing path to use for scratch space and.'
-                        'storing results. The script will create new subdirectory under this path.',
-                        default='/var/lib/stellar/')
-    parser.add_argument('-c', '--core-config', required=False, type=str, help='Path to the stellar-core config file',
-                        default='/etc/stellar/stellar-core.cfg')
-    parser.add_argument('-l', '--log-dir', required=False, type=str, help='Path where logs are written to.'
-                        'If not set we will try to find it in the config or use /var/log/stellar/ location.'
+    parser.add_argument('outputDir', type=str, help='Path to directory to use for scratch space and '
+                        'storing results. The script will create the directory if it does not exist and a new subdirectory under this path.')
+    parser.add_argument('-c', '--core-config', required=False, type=str, help='Path to the stellar-core config file. '
+                        'If not set we will try to find it in the service file.')
+    parser.add_argument('-l', '--log-dir', required=False, type=str, help='Path where logs are written to. '
+                        'If not set we will try to find it in the config. '
                         'Set to string "disabled" to exclude logs.')
-    parser.add_argument('-b', '--bucket-dir', required=False, type=str, help='Path where buckets are written to.'
-                        'If not set we will try to find it in the config or use /var/lib/stellar/buckets location.'
+    parser.add_argument('-b', '--bucket-dir', required=False, type=str, help='Path where buckets are written to. '
+                        'If not set we will try to find it in the config. '
                         'Set to string "disabled" to exclude buckets directory.')
-    parser.add_argument('-p', '--core-path', required=False, type=str, help='Path to the stellar-core binary'
-                        'If not set "stellar-core" will be used.',
-                        default='stellar-core')
-    parser.add_argument('-s', '--sqlite-path', required=False, type=str, help='Path to the sqlite database.'
-                        'If not set we will try to find it in the config or use /var/lib/stellar/stellar.db location.'
+    parser.add_argument('-p', '--core-path', required=False, type=str, help='Path to the stellar-core binary. '
+                        'If not set "stellar-core" will be used.')
+    parser.add_argument('-s', '--sqlite-path', required=False, type=str, help='Path to the sqlite database. '
+                        'If not set we will try to find it in the config. '
                         'Set to string "disabled" to exclude sqlite.')
     return parser.parse_args()
 
+def is_docker():
+    def text_in_file(text, filename):
+        try:
+            with open(filename, encoding='utf-8') as lines:
+                return any(text in line for line in lines)
+        except OSError:
+            return False
+    cgroup = '/proc/self/cgroup'
+    return os.path.exists('/.dockerenv') or text_in_file('docker', cgroup)
+
+def get_service_exec_start():
+    # Use systemctl to retrieve the service file content
+    service_name = "stellar-core.service"
+    result = subprocess.check_output(
+        ["systemctl", "cat", service_name],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True
+    )
+
+    # Parse the service file content
+    exec_start = None
+    for line in result:
+        print(f'line: {line}')
+        if line.strip().startswith("ExecStart="):
+            exec_start = line.split("=", 1)[1].strip()
+            break
+
+    if exec_start:
+        return exec_start
+    else:
+        raise ValueError(f"No 'ExecStart' found in {service_name} service file.")
+
+def extract_paths(exec_start):
+    try:
+        # Extract the first path (the command)
+        first_path = re.search(r"^([^\s]+)", exec_start).group(1)
+
+        # Extract the config file path after the --conf flag
+        conf_path = re.search(r"--conf\s+([^\s]+\.cfg)", exec_start)
+        conf_path = conf_path.group(1) if conf_path else None
+
+        return first_path, conf_path
+    except Exception as e:
+        return f"Error: {e}", None
+
+def get_full_path_for_file(file):
+    # If the file is a relative or absolute path
+    if file.startswith("./") or file.startswith("../") or os.path.sep in file or file.startswith("~"):
+        return os.path.abspath(os.path.expanduser(file))
+
+    return file
+
+def get_full_path_for_command(command):
+    # If the file is a relative or absolute path
+    if command.startswith("./") or command.startswith("../") or os.path.sep in command or command.startswith("~"):
+        return os.path.abspath(os.path.expanduser(command))
+    else:
+        # If it's just a command, search for it in PATH
+        return shutil.which(command)
 
 class Gatherer(object):
     def catch_errors(func):
@@ -48,8 +106,8 @@ class Gatherer(object):
 
     def __init__(self, args):
         timestamp = datetime.now().strftime("%Y-%m-%d-%H-%M-%S")
-        self.base_dir = args.dest
-        self.scratch_dir = os.path.join(args.dest, f'stellar-core-debug-info-{timestamp}')
+        self.base_dir = get_full_path_for_file(args.outputDir)
+        self.scratch_dir = os.path.join(self.base_dir, f'stellar-core-debug-info-{timestamp}')
         self.tgz_file = f'{self.scratch_dir}.tar.gz'
         self.core_config = args.core_config
         self.core_path = args.core_path
@@ -59,8 +117,50 @@ class Gatherer(object):
         self.header_template = '#####################\n# {}\n#####################\n'
 
     def pre_flight(self):
-        if not os.path.isdir(self.base_dir) or not os.access(self.base_dir, os.W_OK):
-            print(f"Error: destination directory must exist and be writable: {self.scratch_dir}")
+        if not self.core_config:
+            # First try to get the stellar-core config from the service file
+            try:
+                exec_start = get_service_exec_start()
+                self.core_path, self.core_config = extract_paths(exec_start)
+            except Exception as e:
+                pass
+
+            # Couldn't find service file, check if we're running in docker
+            if not self.core_config or not self.core_path:
+                # If script is run in docker, try default docker paths
+                if is_docker():
+                    self.core_config = '/etc/stellar/stellar-core.cfg'
+                    self.core_path = '/usr/bin/stellar-core'
+                else:
+                    print("Error: could not find stellar-core config file in service file or docker container, please specify with --core-config flag")
+                    return False
+
+        else:
+            # Default to stellar-core if path not specified
+            if not self.core_path or self.core_path == 'stellar-core':
+                self.core_path = get_full_path_for_command('stellar-core')
+                if not self.core_path:
+                    print("Error: stellar-core command not found, please specify executable with --core-path flag")
+                    return False
+            else:
+                self.core_path = get_full_path_for_command(self.core_path)
+
+            # If the paths are not absolute, make them absolute
+            self.core_config = get_full_path_for_file(self.core_config)
+
+        if os.path.exists(self.base_dir) and not os.path.isdir(self.base_dir):
+            print(f"Error: destination path {self.base_dir} exists but is not a directory")
+            return False
+
+        if not os.path.exists(self.base_dir):
+            try:
+                os.mkdir(self.base_dir, mode=0o755)
+            except:  # noqa: E722
+                print(f'Error: failed to create destination directory {self.base_dir}')
+                return False
+
+        if not os.access(self.base_dir, os.W_OK):
+            print(f"Error: destination directory must be writable: {self.scratch_dir}")
             return False
 
         try:
@@ -77,9 +177,13 @@ class Gatherer(object):
             print(f"Error: can't read core config file: {self.core_config}. Maybe you need --core-config flag?")
             return False
 
-        user = pwd.getpwuid(os.getuid()).pw_name
-        if user not in ['root', 'stellar']:
-            print(f'Warning: the script should normaly be run as stellar or root user. Running as {user}')
+        # Check if stellar-core executable exists and is executable
+        if not os.path.isfile(self.core_path):
+            print(f"Error: stellar-core binary not found at {self.core_path}, have you specified a full path?")
+            return False
+
+        if not os.access(self.core_path, os.X_OK):
+            print("Warning: user does not have permission to run stellar-core, debug info will be limited!")
 
         return True
 

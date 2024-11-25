@@ -57,6 +57,18 @@ This folder is for storing any scripts that may be helpful for using stellar-cor
 ./src/stellar-core(+0x34f0c1) [0x55c7cd1000c1]"
 ```
 
+### Stellar Core Debug Info
+
+- Name - `stellar-core-debug-info`
+- Description - Gathers useful information about core state in order to help debug crashes. This includes collecting log files, bucket directories,
+SQL DB state, status reported by `offline-info`, and OS information for the given node.
+- Usage - Ex. `stellar-core-debug-info /tmp/stellarCoreDumpOutputDirectory`. This script requires a destination directory to write temporary files to and the resulting
+zip file of the collected debug information. Note that secret seeds from config files are automatically redacted.
+If the given output directory does not exist, the script will attempt to create it. By default, the script checks
+the `stellar-core.service` file to determine correct paths of the stellar-core executable and config file. From the config file, the script will
+then parse the path of log files, bucket directory, and SQL DB. All these fields can be manually overridden as well, see
+`stellar-core-debug-info --help` for specific flags.
+
 ### Soroban Settings Helper
 - Name - `settings-helper.sh`
 - Prequisites - `stellar-xdr` and `stellar-core`
