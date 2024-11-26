@@ -783,6 +783,19 @@ LoadGenerator::generateLoad(GeneratedLoadConfig cfg)
             {
                 --cfg.nTxs;
             }
+            else if (cfg.mode == LoadGenMode::SOROBAN_UPGRADE_SETUP &&
+                     cfg.useRootAccountForSorobanUpgradeFlow)
+            {
+                // If submission failed during SOROBAN_UPGRADE_SETUP, the
+                // contract instance key must be regenerated
+                // so we reset the nInstances to 1 to prevent
+                // subtracting past zero.
+                auto& sorobanCfg = cfg.getMutSorobanConfig();
+                if (sorobanCfg.nInstances == 0)
+                {
+                    sorobanCfg.nInstances = 1;
+                }
+            }
             else if (mFailed)
             {
                 break;
@@ -864,11 +877,9 @@ LoadGenerator::submitTx(GeneratedLoadConfig const& cfg,
     TransactionResultCode code;
     TransactionQueue::AddResultCode status;
     uint32_t numTries = 0;
-
     while ((status = execute(tx, cfg.mode, code)) !=
            TransactionQueue::AddResultCode::ADD_STATUS_PENDING)
     {
-
         if (cfg.skipLowFeeTxs &&
             (status ==
                  TransactionQueue::AddResultCode::ADD_STATUS_TRY_AGAIN_LATER ||
@@ -880,6 +891,24 @@ LoadGenerator::submitTx(GeneratedLoadConfig const& cfg,
             from->setSequenceNumber(from->getLastSequenceNumber() - 1);
             CLOG_INFO(LoadGen, "skipped low fee tx with fee {}",
                       tx->getInclusionFee());
+            return false;
+        }
+        // If we are using the root account to perform a soroban upgrade flow,
+        // retry the transaction.
+        if (cfg.mode == LoadGenMode::SOROBAN_UPGRADE_SETUP &&
+            cfg.useRootAccountForSorobanUpgradeFlow)
+        {
+            if (status == TransactionQueue::AddResultCode::
+                              ADD_STATUS_TRY_AGAIN_LATER ||
+                (status == TransactionQueue::AddResultCode::ADD_STATUS_ERROR &&
+                 code == txBAD_SEQ))
+            {
+                // The next attempt will regenerate a contract instance key.
+                mContractInstanceKeys.clear();
+                maybeHandleFailedTx(tx, from, status, code); // Update seq num
+                return false;
+            }
+            mFailed = true;
             return false;
         }
         if (++numTries >= TX_SUBMIT_MAX_TRIES ||
@@ -1594,7 +1623,6 @@ GeneratedLoadConfig::createSorobanUpgradeSetupLoad()
     cfg.nAccounts = 1;
     cfg.getMutSorobanConfig().nInstances = 1;
     cfg.txRate = 1;
-    cfg.useRootAccountForSorobanUpgradeFlow = true;
     return cfg;
 }
 
@@ -1604,10 +1632,6 @@ GeneratedLoadConfig::txLoad(LoadGenMode mode, uint32_t nAccounts, uint32_t nTxs,
                             std::optional<uint32_t> maxFee)
 {
     GeneratedLoadConfig cfg;
-    if (mode == LoadGenMode::SOROBAN_CREATE_UPGRADE)
-    {
-        cfg.useRootAccountForSorobanUpgradeFlow = true;
-    }
     cfg.mode = mode;
     cfg.nAccounts = nAccounts;
     cfg.nTxs = nTxs;

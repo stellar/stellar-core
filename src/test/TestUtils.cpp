@@ -185,21 +185,22 @@ upgradeSorobanNetworkConfig(std::function<void(SorobanNetworkConfig&)> modifyFn,
     auto nodes = simulation->getNodes();
     auto& lg = nodes[0]->getLoadGenerator();
     auto& app = *nodes[0];
-
     auto& complete =
         app.getMetrics().NewMeter({"loadgen", "run", "complete"}, "run");
 
     // Create upload wasm transaction.
     auto createUploadCfg = GeneratedLoadConfig::createSorobanUpgradeSetupLoad();
+    createUploadCfg.useRootAccountForSorobanUpgradeFlow = true;
     lg.generateLoad(createUploadCfg);
     auto completeCount = complete.count();
     simulation->crankUntil(
-        [&]() { return complete.count() == completeCount + 1; },
+        [&]() { return complete.count() >= completeCount + 1; },
         300 * Herder::EXP_LEDGER_TIMESPAN_SECONDS, false);
 
     // Create upgrade transaction.
     auto createUpgradeLoadGenConfig = GeneratedLoadConfig::txLoad(
         LoadGenMode::SOROBAN_CREATE_UPGRADE, 1, 1, 1);
+    createUpgradeLoadGenConfig.useRootAccountForSorobanUpgradeFlow = true;
     // Get current network config.
     auto cfg = nodes[0]->getLedgerManager().getSorobanNetworkConfig();
     modifyFn(cfg);
