@@ -144,9 +144,9 @@
     </Link>
     <PreBuildEvent>
       <Command>
-	      (set CFLAGS=-MDd) &amp; (set CXXFLAGS=-MDd) &amp; cd $(MSBuildProjectDirectory)\..\..\src\rust\soroban\p21 &amp; (set RUSTFLAGS=-Cmetadata=p21) &amp; cargo build --release --package soroban-env-host --locked --target-dir $(OutDir)\rust\soroban-p21-target
-	      (set CFLAGS=-MDd) &amp; (set CXXFLAGS=-MDd) &amp; cd $(MSBuildProjectDirectory)\..\..\src\rust\soroban\p22 &amp; (set RUSTFLAGS=-Cmetadata=p22) &amp; cargo build --release --package soroban-env-host --locked --features next --target-dir $(OutDir)\rust\soroban-p22-target
-        (set CFLAGS=-MDd) &amp; (set CXXFLAGS=-MDd) &amp; cd $(MSBuildProjectDirectory)\..\..\ &amp; cargo rustc --release --package stellar-core --locked --features next --target-dir $(OutDir)\rust\target -- --extern soroban_env_host_p21=$(OutDir)\rust\soroban-p21-target\release\libsoroban_env_host.rlib --extern soroban_env_host_p22=$(OutDir)\rust\soroban-p22-target\release\libsoroban_env_host.rlib -L dependency=$(OutDir)\rust\soroban-p21-target\release\deps -L dependency=$(OutDir)\rust\soroban-p22-target\release\deps
+	      (set CFLAGS=-MDd) &amp; (set CXXFLAGS=-MDd) &amp; cd $(MSBuildProjectDirectory)\..\..\src\rust\soroban\p21 &amp; (set RUSTFLAGS=-Cmetadata=p21) &amp; cargo build --package soroban-env-host --locked --target-dir $(OutDir)\rust\soroban-p21-target
+	      (set CFLAGS=-MDd) &amp; (set CXXFLAGS=-MDd) &amp; cd $(MSBuildProjectDirectory)\..\..\src\rust\soroban\p22 &amp; (set RUSTFLAGS=-Cmetadata=p22) &amp; cargo build --package soroban-env-host --locked --features next --target-dir $(OutDir)\rust\soroban-p22-target
+        (set CFLAGS=-MDd) &amp; (set CXXFLAGS=-MDd) &amp; cd $(MSBuildProjectDirectory)\..\..\ &amp; cargo rustc --package stellar-core --locked --features next --target-dir $(OutDir)\rust\target -- --extern soroban_env_host_p21=$(OutDir)\rust\soroban-p21-target\release\libsoroban_env_host.rlib --extern soroban_env_host_p22=$(OutDir)\rust\soroban-p22-target\release\libsoroban_env_host.rlib -L dependency=$(OutDir)\rust\soroban-p21-target\release\deps -L dependency=$(OutDir)\rust\soroban-p22-target\release\deps
       </Command>
     </PreBuildEvent>
     <PreBuildEvent>
@@ -209,9 +209,9 @@ exit /b 0
     </Link>
     <PreBuildEvent>
       <Command>
-	      (set CFLAGS=-MDd) &amp; (set CXXFLAGS=-MDd) &amp; cd $(MSBuildProjectDirectory)\..\..\src\rust\soroban\p21 &amp; (set RUSTFLAGS=-Cmetadata=p21) &amp; cargo build --release --package soroban-env-host --locked --target-dir $(OutDir)\rust\soroban-p21-target
-	      (set CFLAGS=-MDd) &amp; (set CXXFLAGS=-MDd) &amp; cd $(MSBuildProjectDirectory)\..\..\src\rust\soroban\p22 &amp; (set RUSTFLAGS=-Cmetadata=p22) &amp; cargo build --release --package soroban-env-host --locked --target-dir $(OutDir)\rust\soroban-p22-target
-        (set CFLAGS=-MDd) &amp; (set CXXFLAGS=-MDd) &amp; cd $(MSBuildProjectDirectory)\..\..\ &amp; cargo rustc --release --package stellar-core --locked --target-dir $(OutDir)\rust\target -- --extern soroban_env_host_p21=$(OutDir)\rust\soroban-p21-target\release\libsoroban_env_host.rlib --extern soroban_env_host_p22=$(OutDir)\rust\soroban-p22-target\release\libsoroban_env_host.rlib -L dependency=$(OutDir)\rust\soroban-p21-target\release\deps -L dependency=$(OutDir)\rust\soroban-p22-target\release\deps
+	      (set CFLAGS=-MDd) &amp; (set CXXFLAGS=-MDd) &amp; cd $(MSBuildProjectDirectory)\..\..\src\rust\soroban\p21 &amp; (set RUSTFLAGS=-Cmetadata=p21) &amp; cargo build --package soroban-env-host --locked --target-dir $(OutDir)\rust\soroban-p21-target
+	      (set CFLAGS=-MDd) &amp; (set CXXFLAGS=-MDd) &amp; cd $(MSBuildProjectDirectory)\..\..\src\rust\soroban\p22 &amp; (set RUSTFLAGS=-Cmetadata=p22) &amp; cargo build --package soroban-env-host --locked --target-dir $(OutDir)\rust\soroban-p22-target
+        (set CFLAGS=-MDd) &amp; (set CXXFLAGS=-MDd) &amp; cd $(MSBuildProjectDirectory)\..\..\ &amp; cargo rustc --package stellar-core --locked --target-dir $(OutDir)\rust\target -- --extern soroban_env_host_p21=$(OutDir)\rust\soroban-p21-target\release\libsoroban_env_host.rlib --extern soroban_env_host_p22=$(OutDir)\rust\soroban-p22-target\release\libsoroban_env_host.rlib -L dependency=$(OutDir)\rust\soroban-p21-target\release\deps -L dependency=$(OutDir)\rust\soroban-p22-target\release\deps
       </Command>
     </PreBuildEvent>
     <PreBuildEvent>
@@ -277,9 +277,9 @@ exit /b 0
     </Link>
     <PreBuildEvent>
       <Command>
-	      (set CFLAGS=-MDd) &amp; (set CXXFLAGS=-MDd) &amp; cd $(MSBuildProjectDirectory)\..\..\src\rust\soroban\p21 &amp; (set RUSTFLAGS=-Cmetadata=p21) &amp; cargo build --release --package soroban-env-host --locked --target-dir $(OutDir)\rust\soroban-p21-target
-	      (set CFLAGS=-MDd) &amp; (set CXXFLAGS=-MDd) &amp; cd $(MSBuildProjectDirectory)\..\..\src\rust\soroban\p22 &amp; (set RUSTFLAGS=-Cmetadata=p22) &amp; cargo build --release --package soroban-env-host --locked --features next --target-dir $(OutDir)\rust\soroban-p22-target
-        (set CFLAGS=-MDd) &amp; (set CXXFLAGS=-MDd) &amp; cd $(MSBuildProjectDirectory)\..\..\ &amp; cargo rustc --release --package stellar-core --locked --features next --target-dir $(OutDir)\rust\target -- --extern soroban_env_host_p21=$(OutDir)\rust\soroban-p21-target\release\libsoroban_env_host.rlib --extern soroban_env_host_p22=$(OutDir)\rust\soroban-p22-target\release\libsoroban_env_host.rlib -L dependency=$(OutDir)\rust\soroban-p21-target\release\deps -L dependency=$(OutDir)\rust\soroban-p22-target\release\deps
+	      (set CFLAGS=-MDd) &amp; (set CXXFLAGS=-MDd) &amp; cd $(MSBuildProjectDirectory)\..\..\src\rust\soroban\p21 &amp; (set RUSTFLAGS=-Cmetadata=p21) &amp; cargo build --package soroban-env-host --locked --target-dir $(OutDir)\rust\soroban-p21-target
+	      (set CFLAGS=-MDd) &amp; (set CXXFLAGS=-MDd) &amp; cd $(MSBuildProjectDirectory)\..\..\src\rust\soroban\p22 &amp; (set RUSTFLAGS=-Cmetadata=p22) &amp; cargo build --package soroban-env-host --locked --features next --target-dir $(OutDir)\rust\soroban-p22-target
+        (set CFLAGS=-MDd) &amp; (set CXXFLAGS=-MDd) &amp; cd $(MSBuildProjectDirectory)\..\..\ &amp; cargo rustc --package stellar-core --locked --features next --target-dir $(OutDir)\rust\target -- --extern soroban_env_host_p21=$(OutDir)\rust\soroban-p21-target\release\libsoroban_env_host.rlib --extern soroban_env_host_p22=$(OutDir)\rust\soroban-p22-target\release\libsoroban_env_host.rlib -L dependency=$(OutDir)\rust\soroban-p21-target\release\deps -L dependency=$(OutDir)\rust\soroban-p22-target\release\deps
       </Command>
     </PreBuildEvent>
     <PreBuildEvent>
