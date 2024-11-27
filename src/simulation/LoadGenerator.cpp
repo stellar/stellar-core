@@ -348,8 +348,17 @@ LoadGenerator::start(GeneratedLoadConfig& cfg)
         if (cfg.modeInvokes())
         {
             auto const& sorobanLoadCfg = cfg.getSorobanConfig();
+            if (!mCodeKey)
+            {
+                // start is incomplete, so reset to avoid leaving the
+                // LoadGenerator in an invalid state.
+                reset();
+                throw std::runtime_error(
+                    "Before running MODE::SOROBAN_INVOKE, please run "
+                    "MODE::SOROBAN_INVOKE_SETUP to set up your contract "
+                    "first.");
+            }
             releaseAssert(mContractInstances.empty());
-            releaseAssert(mCodeKey);
             releaseAssert(mAccountsAvailable.size() >= cfg.nAccounts);
             releaseAssert(mContractInstanceKeys.size() >=
                           sorobanLoadCfg.nInstances);
