@@ -327,11 +327,6 @@ class Application
         return ret;
     }
 
-    // This method is used in in-memory mode: when rebuilding state from buckets
-    // is not possible, this method resets the database state back to genesis
-    // (while preserving the overlay data).
-    virtual void resetDBForInMemoryMode() = 0;
-
     virtual AppConnector& getAppConnector() = 0;
 
   protected:

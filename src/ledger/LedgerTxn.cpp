@@ -3058,6 +3058,13 @@ uint32_t
 LedgerTxnRoot::Impl::prefetchInternal(UnorderedSet<LedgerKey> const& keys,
                                       LedgerKeyMeter* lkMeter)
 {
+#ifdef BUILD_TESTS
+    if (mApp.getConfig().MODE_USES_IN_MEMORY_LEDGER)
+    {
+        return 0;
+    }
+#endif
+
     ZoneScoped;
     uint32_t total = 0;
 

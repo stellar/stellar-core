@@ -143,31 +143,24 @@ class Config : public std::enable_shared_from_this<Config>
     //    via applying valid TXs or manually adding entries to the BucketList.
     //    BucketList state is not preserved over restarts. If this mode can be
     //    used, it should be.
-    // 2. TESTDB_IN_MEMORY_NO_OFFERS: allows arbitrary ledger state writes via
-    //    ltx root commits, but does not test the offers table. Suitable for
+    // 2. TESTDB_IN_MEMORY: allows arbitrary ledger state writes via
+    //    ltx root commits. Suitable for
     //    tests that required writes to the ledger state that cannot be achieved
     //    via valid TX application, such as testing invalid TX error codes or
     //    low level op testing.
-    // 3. TESTDB_IN_MEMORY_OFFERS: The same as TESTDB_IN_MEMORY_NO_OFFERS, but
-    //    tests the offers table. Suitable for testing ops that interact with
-    //    offers.
-    // 4. TESTDB_ON_DISK_SQLITE: Should only be used to test SQLITE specific
+    // 3. TESTDB_POSTGRESQL: Should only be used to test POSTGRESQL specific
     //    database operations.
-    // 5. TESTDB_POSTGRESQL: Should only be used to test POSTGRESQL specific
-    //    database operations.
-    // 6. TESTDB_BUCKET_DB_PERSISTENT: Same as TESTDB_BUCKET_DB_VOLATILE, but
-    //    persists the BucketList over restart. This mode is very slow and
-    //    should only be used for testing restart behavior or some low level
-    //    BucketList features.
+    // 4. TESTDB_BUCKET_DB_PERSISTENT: Same as TESTDB_BUCKET_DB_VOLATILE, but
+    //    persists the BucketList and SQL DB over restart. This mode is very
+    //    slow and should only be used for testing restart behavior or some low
+    //    level BucketList features or for testing SQLite DB specific behavior.
     enum TestDbMode
     {
         TESTDB_DEFAULT,
-        TESTDB_IN_MEMORY_OFFERS,
-        TESTDB_ON_DISK_SQLITE,
+        TESTDB_IN_MEMORY,
 #ifdef USE_POSTGRES
         TESTDB_POSTGRESQL,
 #endif
-        TESTDB_IN_MEMORY_NO_OFFERS,
         TESTDB_BUCKET_DB_VOLATILE,
         TESTDB_BUCKET_DB_PERSISTENT,
         TESTDB_MODES
@@ -383,12 +376,6 @@ class Config : public std::enable_shared_from_this<Config>
     // A config parameter that allows a node to generate buckets. This should
     // be set to `false` only for testing purposes.
     bool MODE_ENABLES_BUCKETLIST;
-
-    // A config parameter that uses a never-committing ledger. This means that
-    // all ledger entries will be kept in memory, and not persisted to DB
-    // (relevant tables won't even be created). This should not be set for
-    // production validators.
-    bool MODE_USES_IN_MEMORY_LEDGER;
 
     // A config parameter that can be set to true (in a captive-core
     // configuration) to delay emitting metadata by one ledger.
@@ -705,6 +692,11 @@ class Config : public std::enable_shared_from_this<Config>
     // doing a graceful shutdown
     bool TEST_CASES_ENABLED;
 
+    // A config parameter that uses a never-committing ledger. This means that
+    // all ledger entries will be kept in memory, and not persisted to DB.
+    // Should only be used for testing.
+    bool MODE_USES_IN_MEMORY_LEDGER;
+
     // Set QUORUM_SET using automatic quorum set configuration based on
     // `validators`.
     void
@@ -737,10 +729,7 @@ class Config : public std::enable_shared_from_this<Config>
 
     std::chrono::seconds getExpectedLedgerCloseTime() const;
 
-    void setInMemoryMode();
     bool modeDoesCatchupWithBucketList() const;
-    bool isInMemoryMode() const;
-    bool isInMemoryModeWithoutMinimalDB() const;
     bool isUsingBucketListDB() const;
     bool isUsingBackgroundEviction() const;
     bool isPersistingBucketListDBIndexes() const;

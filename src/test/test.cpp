@@ -194,10 +194,10 @@ getTestConfig(int instanceNumber, Config::TestDbMode mode)
     instanceNumber += gBaseInstance;
     if (mode == Config::TESTDB_DEFAULT)
     {
-        // by default, tests should be run with in memory SQLITE as it's faster
-        // you can change this by enabling the appropriate line below
-        // mode = Config::TESTDB_IN_MEMORY_OFFERS;
-        // mode = Config::TESTDB_ON_DISK_SQLITE;
+        // by default, tests should be run with volatile BucketList as it's
+        // faster. You can change this by enabling the appropriate line below
+        // mode = Config::TESTDB_IN_MEMORY;
+        // mode = Config::TESTDB_BUCKET_DB_PERSISTENT;
         // mode = Config::TESTDB_POSTGRESQL;
         mode = Config::TESTDB_BUCKET_DB_VOLATILE;
     }
@@ -283,11 +283,11 @@ getTestConfig(int instanceNumber, Config::TestDbMode mode)
         switch (mode)
         {
         case Config::TESTDB_BUCKET_DB_VOLATILE:
-        case Config::TESTDB_IN_MEMORY_OFFERS:
+        case Config::TESTDB_IN_MEMORY:
             dbname << "sqlite3://:memory:";
+            thisConfig.BACKGROUND_EVICTION_SCAN = false;
             break;
         case Config::TESTDB_BUCKET_DB_PERSISTENT:
-        case Config::TESTDB_ON_DISK_SQLITE:
             dbname << "sqlite3://" << rootDir << "test.db";
             thisConfig.DISABLE_XDR_FSYNC = false;
             break;
@@ -295,31 +295,19 @@ getTestConfig(int instanceNumber, Config::TestDbMode mode)
         case Config::TESTDB_POSTGRESQL:
             dbname << "postgresql://dbname=test" << instanceNumber;
             thisConfig.DISABLE_XDR_FSYNC = false;
-            break;
-        case Config::TESTDB_IN_MEMORY_NO_OFFERS:
-            thisConfig.MODE_USES_IN_MEMORY_LEDGER = true;
+            thisConfig.BACKGROUND_EVICTION_SCAN = false;
             break;
 #endif
         default:
             abort();
         }
 
-        if (mode == Config::TESTDB_BUCKET_DB_VOLATILE ||
-            mode == Config::TESTDB_BUCKET_DB_PERSISTENT)
+        if (mode == Config::TESTDB_IN_MEMORY)
         {
-            thisConfig.DEPRECATED_SQL_LEDGER_STATE = false;
-            thisConfig.BACKGROUND_EVICTION_SCAN = true;
-        }
-        else
-        {
-            thisConfig.DEPRECATED_SQL_LEDGER_STATE = true;
-            thisConfig.BACKGROUND_EVICTION_SCAN = false;
+            thisConfig.MODE_USES_IN_MEMORY_LEDGER = true;
         }
 
-        if (mode != Config::TESTDB_IN_MEMORY_NO_OFFERS)
-        {
-            thisConfig.DATABASE = SecretValue{dbname.str()};
-        }
+        thisConfig.DATABASE = SecretValue{dbname.str()};
 
         thisConfig.REPORT_METRICS = gTestMetrics;
         // disable maintenance

@@ -185,7 +185,8 @@ genesis(int minute, int second)
 
 void
 upgradeSorobanNetworkConfig(std::function<void(SorobanNetworkConfig&)> modifyFn,
-                            std::shared_ptr<Simulation> simulation)
+                            std::shared_ptr<Simulation> simulation,
+                            bool applyUpgrade)
 {
     auto nodes = simulation->getNodes();
     auto& lg = nodes[0]->getLoadGenerator();
@@ -247,13 +248,17 @@ upgradeSorobanNetworkConfig(std::function<void(SorobanNetworkConfig&)> modifyFn,
         scheduledUpgrades.mConfigUpgradeSetKey = upgradeSetKey;
         app->getHerder().setUpgrades(scheduledUpgrades);
     }
-    // Wait for upgrade to be applied
-    simulation->crankUntil(
-        [&]() {
-            auto netCfg = app.getLedgerManager().getSorobanNetworkConfig();
-            return netCfg == cfg;
-        },
-        2 * Herder::EXP_LEDGER_TIMESPAN_SECONDS, false);
+
+    if (applyUpgrade)
+    {
+        // Wait for upgrade to be applied
+        simulation->crankUntil(
+            [&]() {
+                auto netCfg = app.getLedgerManager().getSorobanNetworkConfig();
+                return netCfg == cfg;
+            },
+            2 * Herder::EXP_LEDGER_TIMESPAN_SECONDS, false);
+    }
 }
 
 void

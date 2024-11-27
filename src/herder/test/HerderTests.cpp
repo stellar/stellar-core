@@ -1135,7 +1135,7 @@ TEST_CASE("surge pricing", "[herder][txset][soroban]")
 {
     SECTION("max 0 ops per ledger")
     {
-        Config cfg(getTestConfig(0, Config::TESTDB_IN_MEMORY_NO_OFFERS));
+        Config cfg(getTestConfig(0, Config::TESTDB_IN_MEMORY));
         cfg.TESTING_UPGRADE_MAX_TX_SET_SIZE = 0;
 
         VirtualClock clock;
@@ -2564,11 +2564,6 @@ TEST_CASE("SCP State", "[herder]")
         };
 
     auto doTest = [&](bool forceSCP) {
-        SECTION("sqlite")
-        {
-            configure(Config::TestDbMode::TESTDB_ON_DISK_SQLITE);
-        }
-
         SECTION("bucketlistDB")
         {
             configure(Config::TestDbMode::TESTDB_BUCKET_DB_PERSISTENT);
@@ -3258,7 +3253,7 @@ TEST_CASE("accept soroban txs after network upgrade", "[soroban][herder]")
 
     auto simulation =
         Topologies::core(4, 1, Simulation::OVER_LOOPBACK, networkID, [](int i) {
-            auto cfg = getTestConfig(i, Config::TESTDB_ON_DISK_SQLITE);
+            auto cfg = getTestConfig(i, Config::TESTDB_IN_MEMORY);
             cfg.TESTING_UPGRADE_MAX_TX_SET_SIZE = 100;
             cfg.TESTING_UPGRADE_LEDGER_PROTOCOL_VERSION =
                 static_cast<uint32_t>(SOROBAN_PROTOCOL_VERSION) - 1;
@@ -3637,42 +3632,6 @@ checkHerder(Application& app, HerderImpl& herder, Herder::State expectedState,
     REQUIRE(herder.trackingConsensusLedgerIndex() == ledger);
 }
 
-// Either setup a v19 -> v20 upgrade, or a fee upgrade in v20
-static void
-setupUpgradeAtNextLedger(Application& app)
-{
-    Upgrades::UpgradeParameters scheduledUpgrades;
-    scheduledUpgrades.mUpgradeTime =
-        VirtualClock::from_time_t(app.getLedgerManager()
-                                      .getLastClosedLedgerHeader()
-                                      .header.scpValue.closeTime +
-                                  5);
-    if (protocolVersionIsBefore(app.getLedgerManager()
-                                    .getLastClosedLedgerHeader()
-                                    .header.ledgerVersion,
-                                SOROBAN_PROTOCOL_VERSION))
-    {
-        scheduledUpgrades.mProtocolVersion =
-            static_cast<uint32_t>(SOROBAN_PROTOCOL_VERSION);
-    }
-    else
-    {
-        LedgerTxn ltx(app.getLedgerTxnRoot());
-        ConfigUpgradeSetFrameConstPtr configUpgradeSet;
-        ConfigUpgradeSet configUpgradeSetXdr;
-        auto& configEntry = configUpgradeSetXdr.updatedEntry.emplace_back();
-        configEntry.configSettingID(CONFIG_SETTING_CONTRACT_BANDWIDTH_V0);
-        configEntry.contractBandwidth().ledgerMaxTxsSizeBytes = 1'000'000;
-        configEntry.contractBandwidth().txMaxSizeBytes = 500'000;
-
-        configUpgradeSet = makeConfigUpgradeSet(ltx, configUpgradeSetXdr);
-
-        scheduledUpgrades.mConfigUpgradeSetKey = configUpgradeSet->getKey();
-        ltx.commit();
-    }
-    app.getHerder().setUpgrades(scheduledUpgrades);
-}
-
 // The main purpose of this test is to ensure the externalize path works
 // correctly. This entails properly updating tracking in Herder, forwarding
 // externalize information to LM, and Herder appropriately reacting to ledger
@@ -3687,7 +3646,7 @@ herderExternalizesValuesWithProtocol(uint32_t version)
     auto networkID = sha256(getTestConfig().NETWORK_PASSPHRASE);
     auto simulation = std::make_shared<Simulation>(
         Simulation::OVER_LOOPBACK, networkID, [version](int i) {
-            auto cfg = getTestConfig(i, Config::TESTDB_ON_DISK_SQLITE);
+            auto cfg = getTestConfig(i, Config::TESTDB_BUCKET_DB_PERSISTENT);
             cfg.TESTING_UPGRADE_LEDGER_PROTOCOL_VERSION = version;
             return cfg;
         });
@@ -3720,14 +3679,6 @@ herderExternalizesValuesWithProtocol(uint32_t version)
             Herder::State::HERDER_BOOTING_STATE);
 
     simulation->startAllNodes();
-    if (protocolVersionStartsFrom(version, SOROBAN_PROTOCOL_VERSION))
-    {
-        upgradeSorobanNetworkConfig(
-            [&](SorobanNetworkConfig& cfg) {
-                cfg.mStateArchivalSettings.bucketListWindowSamplePeriod = 1;
-            },
-            simulation);
-    }
 
     // After SCP is restored, Herder is tracking
     REQUIRE(getC()->getHerder().getState() ==
@@ -3801,21 +3752,27 @@ herderExternalizesValuesWithProtocol(uint32_t version)
     REQUIRE(currentALedger() >= currentLedger);
     REQUIRE(currentCLedger() == currentLedger);
 
+    // Arm the upgrade, but don't close the upgrade ledger yet
+    // C won't upgrade until it's on the right LCL
+    upgradeSorobanNetworkConfig(
+        [&](SorobanNetworkConfig& cfg) {
+            cfg.mLedgerMaxTransactionsSizeBytes = 1'000'000;
+            cfg.mTxMaxSizeBytes = 500'000;
+            cfg.mStateArchivalSettings.bucketListWindowSamplePeriod = 1;
+        },
+        simulation, /*applyUpgrade=*/false);
+
     // disconnect C
     simulation->dropConnection(validatorAKey.getPublicKey(),
                                validatorCKey.getPublicKey());
+
+    currentLedger = currentALedger();
 
     // Advance A and B a bit further, and collect externalize messages
     std::map<uint32_t, std::pair<SCPEnvelope, StellarMessage>>
         validatorSCPMessagesA;
     std::map<uint32_t, std::pair<SCPEnvelope, StellarMessage>>
         validatorSCPMessagesB;
-
-    for (auto& node : {A, B, getC()})
-    {
-        // C won't upgrade until it's on the right LCL
-        setupUpgradeAtNextLedger(*node);
-    }
 
     auto destinationLedger = waitForAB(4, true);
     for (auto start = currentLedger + 1; start <= destinationLedger; start++)

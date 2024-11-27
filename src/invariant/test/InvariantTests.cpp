@@ -53,9 +53,10 @@ class TestInvariant : public Invariant
     }
 
     virtual std::string
-    checkOnBucketApply(std::shared_ptr<LiveBucket const> bucket,
-                       uint32_t oldestLedger, uint32_t newestLedger,
-                       std::function<bool(LedgerEntryType)> filter) override
+    checkOnBucketApply(
+        std::shared_ptr<LiveBucket const> bucket, uint32_t oldestLedger,
+        uint32_t newestLedger,
+        std::unordered_set<LedgerKey> const& shadowedKeys) override
     {
         return mShouldFail ? "fail" : "";
     }
@@ -167,10 +168,9 @@ TEST_CASE("onBucketApply fail succeed", "[invariant]")
         uint32_t ledger = 1;
         uint32_t level = 0;
         bool isCurr = true;
-        REQUIRE_THROWS_AS(
-            app->getInvariantManager().checkOnBucketApply(
-                bucket, ledger, level, isCurr, [](auto) { return true; }),
-            InvariantDoesNotHold);
+        REQUIRE_THROWS_AS(app->getInvariantManager().checkOnBucketApply(
+                              bucket, ledger, level, isCurr, {}),
+                          InvariantDoesNotHold);
     }
 
     {
@@ -188,7 +188,7 @@ TEST_CASE("onBucketApply fail succeed", "[invariant]")
         uint32_t level = 0;
         bool isCurr = true;
         REQUIRE_NOTHROW(app->getInvariantManager().checkOnBucketApply(
-            bucket, ledger, level, isCurr, [](auto) { return true; }));
+            bucket, ledger, level, isCurr, {}));
     }
 }
 

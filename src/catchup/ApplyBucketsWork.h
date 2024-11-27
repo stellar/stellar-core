@@ -38,12 +38,14 @@ class ApplyBucketsWork : public Work
     uint32_t mLevel{0};
     uint32_t mMaxProtocolVersion{0};
     uint32_t mMinProtocolVersionSeen{UINT32_MAX};
+    std::unordered_set<LedgerKey> mSeenKeysBeforeApply;
     std::unordered_set<LedgerKey> mSeenKeys;
     std::vector<std::shared_ptr<LiveBucket>> mBucketsToApply;
     std::unique_ptr<BucketApplicator> mBucketApplicator;
     bool mDelayChecked{false};
 
     BucketApplicator::Counters mCounters;
+    bool const mIsApplyInvariantEnabled;
 
     void advance(std::string const& name, BucketApplicator& applicator);
     std::shared_ptr<LiveBucket> getBucket(std::string const& bucketHash);

@@ -117,7 +117,6 @@ Config::Config() : NODE_SEED(SecretKey::random())
 
     // non configurable
     MODE_ENABLES_BUCKETLIST = true;
-    MODE_USES_IN_MEMORY_LEDGER = false;
     MODE_STORES_HISTORY_MISC = true;
     MODE_STORES_HISTORY_LEDGERHEADERS = true;
     MODE_DOES_CATCHUP = true;
@@ -157,7 +156,6 @@ Config::Config() : NODE_SEED(SecretKey::random())
     MANUAL_CLOSE = false;
     CATCHUP_COMPLETE = false;
     CATCHUP_RECENT = 0;
-    EXPERIMENTAL_PRECAUTION_DELAY_META = false;
     BACKGROUND_OVERLAY_PROCESSING = true;
     DEPRECATED_SQL_LEDGER_STATE = false;
     BUCKETLIST_DB_INDEX_PAGE_SIZE_EXPONENT = 14; // 2^14 == 16 kb
@@ -307,6 +305,7 @@ Config::Config() : NODE_SEED(SecretKey::random())
 #ifdef BUILD_TESTS
     TEST_CASES_ENABLED = false;
     CATCHUP_SKIP_KNOWN_RESULTS_FOR_TESTING = false;
+    MODE_USES_IN_MEMORY_LEDGER = false;
 #endif
 
 #ifdef BEST_OFFER_DEBUGGING
@@ -1057,10 +1056,6 @@ Config::processConfig(std::shared_ptr<cpptoml::table> t)
                  [&]() { DISABLE_XDR_FSYNC = readBool(item); }},
                 {"METADATA_OUTPUT_STREAM",
                  [&]() { METADATA_OUTPUT_STREAM = readString(item); }},
-                {"EXPERIMENTAL_PRECAUTION_DELAY_META",
-                 [&]() {
-                     EXPERIMENTAL_PRECAUTION_DELAY_META = readBool(item);
-                 }},
                 {"EXPERIMENTAL_BACKGROUND_OVERLAY_PROCESSING",
                  [&]() {
                      CLOG_WARNING(Overlay,
@@ -2271,27 +2266,10 @@ Config::getExpectedLedgerCloseTime() const
     return Herder::EXP_LEDGER_TIMESPAN_SECONDS;
 }
 
-void
-Config::setInMemoryMode()
-{
-    MODE_USES_IN_MEMORY_LEDGER = true;
-    DATABASE = SecretValue{"sqlite3://:memory:"};
-    MODE_STORES_HISTORY_MISC = false;
-    MODE_STORES_HISTORY_LEDGERHEADERS = false;
-    MODE_ENABLES_BUCKETLIST = true;
-    BACKGROUND_EVICTION_SCAN = false;
-}
-
 bool
 Config::modeDoesCatchupWithBucketList() const
 {
     return MODE_DOES_CATCHUP && MODE_ENABLES_BUCKETLIST;
-}
-
-bool
-Config::isInMemoryMode() const
-{
-    return MODE_USES_IN_MEMORY_LEDGER;
 }
 
 bool
@@ -2311,12 +2289,6 @@ bool
 Config::isPersistingBucketListDBIndexes() const
 {
     return isUsingBucketListDB() && BUCKETLIST_DB_PERSIST_INDEX;
-}
-
-bool
-Config::isInMemoryModeWithoutMinimalDB() const
-{
-    return MODE_USES_IN_MEMORY_LEDGER && !MODE_STORES_HISTORY_LEDGERHEADERS;
 }
 
 bool

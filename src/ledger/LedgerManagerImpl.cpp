@@ -348,41 +348,35 @@ LedgerManagerImpl::loadLastKnownLedger(bool restoreBucketlist,
 
     releaseAssert(latestLedgerHeader.has_value());
 
-    // Step 3. Restore BucketList if we're doing a full core startup
-    // (startServices=true), OR when using BucketListDB
-    if (restoreBucketlist || mApp.getConfig().isUsingBucketListDB())
+    HistoryArchiveState has = getLastClosedLedgerHAS();
+    auto missing = mApp.getBucketManager().checkForMissingBucketsFiles(has);
+    auto pubmissing =
+        mApp.getHistoryManager().getMissingBucketsReferencedByPublishQueue();
+    missing.insert(missing.end(), pubmissing.begin(), pubmissing.end());
+    if (!missing.empty())
     {
-        HistoryArchiveState has = getLastClosedLedgerHAS();
-        auto missing = mApp.getBucketManager().checkForMissingBucketsFiles(has);
-        auto pubmissing = mApp.getHistoryManager()
-                              .getMissingBucketsReferencedByPublishQueue();
-        missing.insert(missing.end(), pubmissing.begin(), pubmissing.end());
-        if (!missing.empty())
-        {
-            CLOG_ERROR(Ledger,
-                       "{} buckets are missing from bucket directory '{}'",
-                       missing.size(), mApp.getBucketManager().getBucketDir());
-            throw std::runtime_error("Bucket directory is corrupt");
-        }
+        CLOG_ERROR(Ledger, "{} buckets are missing from bucket directory '{}'",
+                   missing.size(), mApp.getBucketManager().getBucketDir());
+        throw std::runtime_error("Bucket directory is corrupt");
+    }
 
-        if (mApp.getConfig().MODE_ENABLES_BUCKETLIST)
+    if (mApp.getConfig().MODE_ENABLES_BUCKETLIST)
+    {
+        // Only restart merges in full startup mode. Many modes in core
+        // (standalone offline commands, in-memory setup) do not need to
+        // spin up expensive merge processes.
+        auto assumeStateWork =
+            mApp.getWorkScheduler().executeWork<AssumeStateWork>(
+                has, latestLedgerHeader->ledgerVersion, restoreBucketlist);
+        if (assumeStateWork->getState() == BasicWork::State::WORK_SUCCESS)
         {
-            // Only restart merges in full startup mode. Many modes in core
-            // (standalone offline commands, in-memory setup) do not need to
-            // spin up expensive merge processes.
-            auto assumeStateWork =
-                mApp.getWorkScheduler().executeWork<AssumeStateWork>(
-                    has, latestLedgerHeader->ledgerVersion, restoreBucketlist);
-            if (assumeStateWork->getState() == BasicWork::State::WORK_SUCCESS)
-            {
-                CLOG_INFO(Ledger, "Assumed bucket-state for LCL: {}",
-                          ledgerAbbrev(*latestLedgerHeader));
-            }
-            else
-            {
-                // Work should only fail during graceful shutdown
-                releaseAssertOrThrow(mApp.isStopping());
-            }
+            CLOG_INFO(Ledger, "Assumed bucket-state for LCL: {}",
+                      ledgerAbbrev(*latestLedgerHeader));
+        }
+        else
+        {
+            // Work should only fail during graceful shutdown
+            releaseAssertOrThrow(mApp.isStopping());
         }
     }
 
@@ -1003,14 +997,7 @@ LedgerManagerImpl::closeLedger(LedgerCloseData const& ledgerData)
         // member variable: if we throw while committing below, we will at worst
         // emit duplicate meta, when retrying.
         mNextMetaToEmit = std::move(ledgerCloseMeta);
-
-        // If the LedgerCloseData provided an expected hash, then we validated
-        // it above.
-        if (!mApp.getConfig().EXPERIMENTAL_PRECAUTION_DELAY_META ||
-            ledgerData.getExpectedHash())
-        {
-            emitNextMeta();
-        }
+        emitNextMeta();
     }
 
     // The next 5 steps happen in a relatively non-obvious, subtle order.

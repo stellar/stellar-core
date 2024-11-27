@@ -113,7 +113,8 @@ void setSorobanNetworkConfigForTest(SorobanNetworkConfig& cfg);
 void overrideSorobanNetworkConfigForTest(Application& app);
 void
 upgradeSorobanNetworkConfig(std::function<void(SorobanNetworkConfig&)> modifyFn,
-                            std::shared_ptr<Simulation> simulation);
+                            std::shared_ptr<Simulation> simulation,
+                            bool applyUpgrade = true);
 void
 modifySorobanNetworkConfig(Application& app,
                            std::function<void(SorobanNetworkConfig&)> modifyFn);

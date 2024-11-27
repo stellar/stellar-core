@@ -190,105 +190,112 @@ maybeRebuildLedger(Application& app, bool applyBuckets)
     std::set<LedgerEntryType> toRebuild;
     auto& ps = app.getPersistentState();
     auto bucketListDBEnabled = app.getConfig().isUsingBucketListDB();
-    for (auto let : xdr::xdr_traits<LedgerEntryType>::enum_values())
-    {
-        // If BucketListDB is enabled, drop all tables except for offers
-        LedgerEntryType t = static_cast<LedgerEntryType>(let);
-        if (let != OFFER && bucketListDBEnabled)
-        {
-            toDrop.emplace(t);
-            continue;
-        }
 
-        if (ps.shouldRebuildForType(t))
+#ifdef BUILD_TESTS
+    if (app.getConfig().MODE_USES_IN_MEMORY_LEDGER)
+    {
+        // in-memory mode must always rebuild SQL table
+        toRebuild.emplace(OFFER);
+    }
+    else
+#endif
+    {
+        for (auto let : xdr::xdr_traits<LedgerEntryType>::enum_values())
         {
-            toRebuild.emplace(t);
+            // If BucketListDB is enabled, drop all tables except for offers
+            LedgerEntryType t = static_cast<LedgerEntryType>(let);
+            if (let != OFFER && bucketListDBEnabled)
+            {
+                toDrop.emplace(t);
+                continue;
+            }
+
+            if (ps.shouldRebuildForType(t))
+            {
+                toRebuild.emplace(t);
+            }
         }
     }
 
-    if (!app.getConfig().MODE_USES_IN_MEMORY_LEDGER)
+    app.getDatabase().clearPreparedStatementCache();
+    soci::transaction tx(app.getDatabase().getSession());
+
+    auto loopEntries = [&](auto const& entryTypeSet, bool shouldRebuild) {
+        for (auto let : entryTypeSet)
+        {
+            switch (let)
+            {
+            case ACCOUNT:
+                LOG_INFO(DEFAULT_LOG, "Dropping accounts");
+                app.getLedgerTxnRoot().dropAccounts(shouldRebuild);
+                break;
+            case TRUSTLINE:
+                LOG_INFO(DEFAULT_LOG, "Dropping trustlines");
+                app.getLedgerTxnRoot().dropTrustLines(shouldRebuild);
+                break;
+            case OFFER:
+                LOG_INFO(DEFAULT_LOG, "Dropping offers");
+                app.getLedgerTxnRoot().dropOffers(shouldRebuild);
+                break;
+            case DATA:
+                LOG_INFO(DEFAULT_LOG, "Dropping accountdata");
+                app.getLedgerTxnRoot().dropData(shouldRebuild);
+                break;
+            case CLAIMABLE_BALANCE:
+                LOG_INFO(DEFAULT_LOG, "Dropping claimablebalances");
+                app.getLedgerTxnRoot().dropClaimableBalances(shouldRebuild);
+                break;
+            case LIQUIDITY_POOL:
+                LOG_INFO(DEFAULT_LOG, "Dropping liquiditypools");
+                app.getLedgerTxnRoot().dropLiquidityPools(shouldRebuild);
+                break;
+            case CONTRACT_DATA:
+                LOG_INFO(DEFAULT_LOG, "Dropping contractdata");
+                app.getLedgerTxnRoot().dropContractData(shouldRebuild);
+                break;
+            case CONTRACT_CODE:
+                LOG_INFO(DEFAULT_LOG, "Dropping contractcode");
+                app.getLedgerTxnRoot().dropContractCode(shouldRebuild);
+                break;
+            case CONFIG_SETTING:
+                LOG_INFO(DEFAULT_LOG, "Dropping configsettings");
+                app.getLedgerTxnRoot().dropConfigSettings(shouldRebuild);
+                break;
+            case TTL:
+                LOG_INFO(DEFAULT_LOG, "Dropping ttl");
+                app.getLedgerTxnRoot().dropTTL(shouldRebuild);
+                break;
+            default:
+                abort();
+            }
+        }
+    };
+
+    loopEntries(toRebuild, true);
+    loopEntries(toDrop, false);
+    tx.commit();
+
+    // Nothing to apply, exit early
+    if (toRebuild.empty())
     {
-        app.getDatabase().clearPreparedStatementCache();
-        soci::transaction tx(app.getDatabase().getSession());
+        return;
+    }
 
-        auto loopEntries = [&](auto const& entryTypeSet, bool shouldRebuild) {
-            for (auto let : entryTypeSet)
-            {
-                switch (let)
-                {
-                case ACCOUNT:
-                    LOG_INFO(DEFAULT_LOG, "Dropping accounts");
-                    app.getLedgerTxnRoot().dropAccounts(shouldRebuild);
-                    break;
-                case TRUSTLINE:
-                    LOG_INFO(DEFAULT_LOG, "Dropping trustlines");
-                    app.getLedgerTxnRoot().dropTrustLines(shouldRebuild);
-                    break;
-                case OFFER:
-                    LOG_INFO(DEFAULT_LOG, "Dropping offers");
-                    app.getLedgerTxnRoot().dropOffers(shouldRebuild);
-                    break;
-                case DATA:
-                    LOG_INFO(DEFAULT_LOG, "Dropping accountdata");
-                    app.getLedgerTxnRoot().dropData(shouldRebuild);
-                    break;
-                case CLAIMABLE_BALANCE:
-                    LOG_INFO(DEFAULT_LOG, "Dropping claimablebalances");
-                    app.getLedgerTxnRoot().dropClaimableBalances(shouldRebuild);
-                    break;
-                case LIQUIDITY_POOL:
-                    LOG_INFO(DEFAULT_LOG, "Dropping liquiditypools");
-                    app.getLedgerTxnRoot().dropLiquidityPools(shouldRebuild);
-                    break;
-                case CONTRACT_DATA:
-                    LOG_INFO(DEFAULT_LOG, "Dropping contractdata");
-                    app.getLedgerTxnRoot().dropContractData(shouldRebuild);
-                    break;
-                case CONTRACT_CODE:
-                    LOG_INFO(DEFAULT_LOG, "Dropping contractcode");
-                    app.getLedgerTxnRoot().dropContractCode(shouldRebuild);
-                    break;
-                case CONFIG_SETTING:
-                    LOG_INFO(DEFAULT_LOG, "Dropping configsettings");
-                    app.getLedgerTxnRoot().dropConfigSettings(shouldRebuild);
-                    break;
-                case TTL:
-                    LOG_INFO(DEFAULT_LOG, "Dropping ttl");
-                    app.getLedgerTxnRoot().dropTTL(shouldRebuild);
-                    break;
-                default:
-                    abort();
-                }
-            }
+    // No transaction is needed. ApplyBucketsWork breaks the apply into many
+    // small chunks, each of which has its own transaction. If it fails at
+    // some point in the middle, then rebuildledger will not be cleared so
+    // this will run again on next start up.
+    if (applyBuckets)
+    {
+        LOG_INFO(DEFAULT_LOG, "Rebuilding ledger tables by applying buckets");
+        auto filter = [&toRebuild](LedgerEntryType t) {
+            return toRebuild.find(t) != toRebuild.end();
         };
-
-        loopEntries(toRebuild, true);
-        loopEntries(toDrop, false);
-        tx.commit();
-
-        // Nothing to apply, exit early
-        if (toRebuild.empty())
+        if (!applyBucketsForLCL(app, filter))
         {
-            return;
+            throw std::runtime_error("Could not rebuild ledger tables");
         }
-
-        // No transaction is needed. ApplyBucketsWork breaks the apply into many
-        // small chunks, each of which has its own transaction. If it fails at
-        // some point in the middle, then rebuildledger will not be cleared so
-        // this will run again on next start up.
-        if (applyBuckets)
-        {
-            LOG_INFO(DEFAULT_LOG,
-                     "Rebuilding ledger tables by applying buckets");
-            auto filter = [&toRebuild](LedgerEntryType t) {
-                return toRebuild.find(t) != toRebuild.end();
-            };
-            if (!applyBucketsForLCL(app, filter))
-            {
-                throw std::runtime_error("Could not rebuild ledger tables");
-            }
-            LOG_INFO(DEFAULT_LOG, "Successfully rebuilt ledger tables");
-        }
+        LOG_INFO(DEFAULT_LOG, "Successfully rebuilt ledger tables");
     }
 
     for (auto let : toRebuild)
@@ -328,29 +335,29 @@ ApplicationImpl::initialize(bool createNewDB, bool forceRebuild)
     mStatusManager = std::make_unique<StatusManager>();
     mAppConnector = std::make_unique<AppConnector>(*this);
 
+    if (mConfig.ENTRY_CACHE_SIZE < 20000)
+    {
+        LOG_WARNING(DEFAULT_LOG,
+                    "ENTRY_CACHE_SIZE({}) is below the recommended minimum "
+                    "of 20000",
+                    mConfig.ENTRY_CACHE_SIZE);
+    }
+    mLedgerTxnRoot = std::make_unique<LedgerTxnRoot>(
+        *this, mConfig.ENTRY_CACHE_SIZE, mConfig.PREFETCH_BATCH_SIZE
+#ifdef BEST_OFFER_DEBUGGING
+        ,
+        mConfig.BEST_OFFER_DEBUGGING_ENABLED
+#endif
+    );
+
+#ifdef BUILD_TESTS
     if (getConfig().MODE_USES_IN_MEMORY_LEDGER)
     {
         resetLedgerState();
     }
-    else
-    {
-        if (mConfig.ENTRY_CACHE_SIZE < 20000)
-        {
-            LOG_WARNING(DEFAULT_LOG,
-                        "ENTRY_CACHE_SIZE({}) is below the recommended minimum "
-                        "of 20000",
-                        mConfig.ENTRY_CACHE_SIZE);
-        }
-        mLedgerTxnRoot = std::make_unique<LedgerTxnRoot>(
-            *this, mConfig.ENTRY_CACHE_SIZE, mConfig.PREFETCH_BATCH_SIZE
-#ifdef BEST_OFFER_DEBUGGING
-            ,
-            mConfig.BEST_OFFER_DEBUGGING_ENABLED
 #endif
-        );
 
-        BucketListIsConsistentWithDatabase::registerInvariant(*this);
-    }
+    BucketListIsConsistentWithDatabase::registerInvariant(*this);
 
     AccountSubEntriesCountIsValid::registerInvariant(*this);
     ConservationOfLumens::registerInvariant(*this);
@@ -383,6 +390,7 @@ ApplicationImpl::initialize(bool createNewDB, bool forceRebuild)
 void
 ApplicationImpl::resetLedgerState()
 {
+#ifdef BUILD_TESTS
     if (getConfig().MODE_USES_IN_MEMORY_LEDGER)
     {
         mNeverCommittingLedgerTxn.reset();
@@ -392,9 +400,10 @@ ApplicationImpl::resetLedgerState()
 #endif
         );
         mNeverCommittingLedgerTxn = std::make_unique<InMemoryLedgerTxn>(
-            *mInMemoryLedgerTxnRoot, getDatabase());
+            *mInMemoryLedgerTxnRoot, getDatabase(), mLedgerTxnRoot.get());
     }
     else
+#endif
     {
         auto& lsRoot = getLedgerTxnRoot();
         lsRoot.deleteObjectsModifiedOnOrAfterLedger(0);
@@ -693,18 +702,6 @@ ApplicationImpl::~ApplicationImpl()
     LOG_INFO(DEFAULT_LOG, "Application destroyed");
 }
 
-void
-ApplicationImpl::resetDBForInMemoryMode()
-{
-    // Load the peer information and reinitialize the DB
-    auto& pm = getOverlayManager().getPeerManager();
-    auto peerData = pm.loadAllPeers();
-    newDB();
-    pm.storePeers(peerData);
-
-    LOG_INFO(DEFAULT_LOG, "In-memory state is reset back to genesis");
-}
-
 uint64_t
 ApplicationImpl::timeNow()
 {
@@ -737,26 +734,6 @@ ApplicationImpl::validateAndLogConfig()
             "RUN_STANDALONE is not set");
     }
 
-    // EXPERIMENTAL_PRECAUTION_DELAY_META is only meaningful when there's a
-    // METADATA_OUTPUT_STREAM.  We only allow EXPERIMENTAL_PRECAUTION_DELAY_META
-    // on a captive core, without a persistent database; old-style ingestion
-    // which reads from the core database could do the delaying itself.
-    if (mConfig.METADATA_OUTPUT_STREAM != "" &&
-        mConfig.EXPERIMENTAL_PRECAUTION_DELAY_META && !mConfig.isInMemoryMode())
-    {
-        throw std::invalid_argument(
-            "Using a METADATA_OUTPUT_STREAM with "
-            "EXPERIMENTAL_PRECAUTION_DELAY_META set to true "
-            "requires --in-memory");
-    }
-
-    if (mConfig.isInMemoryMode())
-    {
-        CLOG_WARNING(
-            Bucket,
-            "in-memory mode is enabled. This feature is deprecated! Node "
-            "may see performance degredation and lose sync with the network.");
-    }
     if (!mDatabase->isSqlite())
     {
         CLOG_WARNING(Database,
@@ -822,8 +799,7 @@ ApplicationImpl::validateAndLogConfig()
                 "DEPRECATED_SQL_LEDGER_STATE set to false but "
                 "deprecated SQL ledger state is active. To disable deprecated "
                 "SQL ledger state, "
-                "MODE_ENABLES_BUCKETLIST must be set and --in-memory flag "
-                "must not be used.");
+                "MODE_ENABLES_BUCKETLIST must be set.");
         }
     }
 
@@ -872,13 +848,6 @@ ApplicationImpl::validateAndLogConfig()
             throw std::invalid_argument(
                 "HTTP_QUERY_PORT requires QUERY_THREAD_POOL_SIZE > 0");
         }
-    }
-
-    if (isNetworkedValidator && mConfig.isInMemoryMode())
-    {
-        throw std::invalid_argument(
-            "In-memory mode is set, NODE_IS_VALIDATOR is set, "
-            "and RUN_STANDALONE is not set");
     }
 
     if (getHistoryArchiveManager().publishEnabled())
@@ -1634,8 +1603,15 @@ AbstractLedgerTxnParent&
 ApplicationImpl::getLedgerTxnRoot()
 {
     releaseAssert(threadIsMain());
-    return mConfig.MODE_USES_IN_MEMORY_LEDGER ? *mNeverCommittingLedgerTxn
-                                              : *mLedgerTxnRoot;
+
+#ifdef BUILD_TESTS
+    if (mConfig.MODE_USES_IN_MEMORY_LEDGER)
+    {
+        return *mNeverCommittingLedgerTxn;
+    }
+#endif
+
+    return *mLedgerTxnRoot;
 }
 
 AppConnector&

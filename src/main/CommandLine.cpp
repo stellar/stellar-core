@@ -353,54 +353,6 @@ maybeSetMetadataOutputStream(Config& cfg, std::string const& stream)
     }
 }
 
-void
-maybeEnableInMemoryMode(Config& config, bool inMemory, uint32_t startAtLedger,
-                        std::string const& startAtHash, bool persistMinimalData)
-{
-    // First, ensure user parameters are valid
-    if (!inMemory)
-    {
-        if (startAtLedger != 0)
-        {
-            throw std::runtime_error("--start-at-ledger requires --in-memory");
-        }
-        if (!startAtHash.empty())
-        {
-            throw std::runtime_error("--start-at-hash requires --in-memory");
-        }
-        return;
-    }
-    if (startAtLedger != 0 && startAtHash.empty())
-    {
-        throw std::runtime_error("--start-at-ledger requires --start-at-hash");
-    }
-    else if (startAtLedger == 0 && !startAtHash.empty())
-    {
-        throw std::runtime_error("--start-at-hash requires --start-at-ledger");
-    }
-
-    // Adjust configs for live in-memory-replay mode
-    config.setInMemoryMode();
-
-    if (startAtLedger != 0 && !startAtHash.empty())
-    {
-        config.MODE_AUTO_STARTS_OVERLAY = false;
-    }
-
-    // Set database to a small sqlite database used to store minimal data needed
-    // to restore the ledger state
-    if (persistMinimalData)
-    {
-        config.DATABASE = SecretValue{minimalDBForInMemoryMode(config)};
-        config.MODE_STORES_HISTORY_LEDGERHEADERS = true;
-        // Since this mode stores historical data (needed to restore
-        // ledger state in certain scenarios), set maintenance to run
-        // aggressively so that we only store a few ledgers worth of data
-        config.AUTOMATIC_MAINTENANCE_PERIOD = std::chrono::seconds(30);
-        config.AUTOMATIC_MAINTENANCE_COUNT = MAINTENANCE_LEDGER_COUNT;
-    }
-}
-
 clara::Opt
 ledgerHashParser(std::string& ledgerHash)
 {
@@ -419,23 +371,21 @@ clara::Opt
 inMemoryParser(bool& inMemory)
 {
     return clara::Opt{inMemory}["--in-memory"](
-        "(DEPRECATED) store working ledger in memory rather than database");
+        "(DEPRECATED) flag is ignored and will be removed soon.");
 }
 
 clara::Opt
 startAtLedgerParser(uint32_t& startAtLedger)
 {
     return clara::Opt{startAtLedger, "LEDGER"}["--start-at-ledger"](
-        "(DEPRECATED) start in-memory run with replay from historical ledger "
-        "number");
+        "(DEPRECATED) flag is ignored and will be removed soon.");
 }
 
 clara::Opt
 startAtHashParser(std::string& startAtHash)
 {
     return clara::Opt{startAtHash, "HASH"}["--start-at-hash"](
-        "(DEPRECATED) start in-memory run with replay from historical ledger "
-        "hash");
+        "(DEPRECATED) flag is ignored and will be removed soon.");
 }
 
 clara::Opt
@@ -870,7 +820,8 @@ runCatchup(CommandLineArgs const& args)
          trustedCheckpointHashesParser(trustedCheckpointHashesFile),
          outputFileParser(outputFile), disableBucketGCParser(disableBucketGC),
          validationParser(completeValidation), inMemoryParser(inMemory),
-         ledgerHashParser(hash), forceUntrustedCatchup(forceUntrusted),
+         ledgerHashParser(hash), ledgerHashParser(hash),
+         forceUntrustedCatchup(forceUntrusted),
          metadataOutputStreamParser(stream)},
         [&] {
             auto config = configOption.getConfig();
@@ -891,10 +842,6 @@ runCatchup(CommandLineArgs const& args)
                 config.AUTOMATIC_MAINTENANCE_COUNT = MAINTENANCE_LEDGER_COUNT;
             }
 
-            // --start-at-ledger and --start-at-hash aren't allowed in catchup,
-            // so pass defaults values
-            maybeEnableInMemoryMode(config, inMemory, 0, "",
-                                    /* persistMinimalData */ false);
             maybeSetMetadataOutputStream(config, stream);
 
             VirtualClock clock(VirtualClock::REAL_TIME);
@@ -1221,13 +1168,12 @@ int
 runNewDB(CommandLineArgs const& args)
 {
     CommandLine::ConfigOption configOption;
-    bool minimalForInMemoryMode = false;
+    [[maybe_unused]] bool minimalForInMemoryMode = false;
 
     auto minimalDBParser = [](bool& minimalForInMemoryMode) {
         return clara::Opt{
             minimalForInMemoryMode}["--minimal-for-in-memory-mode"](
-            "Reset the special database used only for in-memory mode (see "
-            "--in-memory flag");
+            "(DEPRECATED) flag is ignored and will be removed soon.");
     };
 
     return runWithHelp(args,
@@ -1235,11 +1181,6 @@ runNewDB(CommandLineArgs const& args)
                         minimalDBParser(minimalForInMemoryMode)},
                        [&] {
                            auto cfg = configOption.getConfig();
-                           if (minimalForInMemoryMode)
-                           {
-                               cfg.DATABASE =
-                                   SecretValue{minimalDBForInMemoryMode(cfg)};
-                           }
                            initializeDatabase(cfg);
                            return 0;
                        });
@@ -1535,10 +1476,10 @@ run(CommandLineArgs const& args)
     CommandLine::ConfigOption configOption;
     auto disableBucketGC = false;
     std::string stream;
-    bool inMemory = false;
     bool waitForConsensus = false;
-    uint32_t startAtLedger = 0;
-    std::string startAtHash;
+    [[maybe_unused]] bool inMemory = false;
+    [[maybe_unused]] uint32_t startAtLedger = 0;
+    [[maybe_unused]] std::string startAtHash;
 
     return runWithHelp(
         args,
@@ -1564,14 +1505,10 @@ run(CommandLineArgs const& args)
                 {
                     cfg.DATABASE = SecretValue{"sqlite3://:memory:"};
                     cfg.MODE_STORES_HISTORY_MISC = false;
-                    cfg.MODE_USES_IN_MEMORY_LEDGER = false;
                     cfg.MODE_ENABLES_BUCKETLIST = false;
                     cfg.PREFETCH_BATCH_SIZE = 0;
                 }
 
-                maybeEnableInMemoryMode(cfg, inMemory, startAtLedger,
-                                        startAtHash,
-                                        /* persistMinimalData */ true);
                 maybeSetMetadataOutputStream(cfg, stream);
                 cfg.FORCE_SCP =
                     cfg.NODE_IS_VALIDATOR ? !waitForConsensus : false;
@@ -1612,10 +1549,8 @@ run(CommandLineArgs const& args)
                 }
 
                 // Second, setup the app with the final configuration.
-                // Note that when in in-memory mode, additional setup may be
-                // required (such as database reset, catchup, etc)
                 clock = std::make_shared<VirtualClock>(clockMode);
-                app = setupApp(cfg, *clock, startAtLedger, startAtHash);
+                app = setupApp(cfg, *clock);
                 if (!app)
                 {
                     LOG_ERROR(DEFAULT_LOG,
